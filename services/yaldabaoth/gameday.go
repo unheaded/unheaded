@@ -5,19 +5,23 @@
 // the Unheaded Kingdom. Named after the Gnostic Demiurge, Yaldabaoth
 // creates controlled disorder to test system resilience.
 //
-// This package provides the GameDay scheduler, audit trail, and shared
-// types used by the chaos-controller binary (cmd/chaos-controller).
+// This file is the GameDay scheduler: a scenario is a list of stages, and
+// each stage's experiments run one after another through the Service, so
+// every fault of a game day passes the same safety envelope as any other
+// (D-16). A stage fails when one of its experiments is refused or does not
+// succeed; the scenario then stops. Nothing needs undoing here: each
+// experiment reverts its own fault through the journal.
 package yaldabaoth
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
 	"unheaded/pkg/logger"
-	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ── State machine ────────────────────────────────────────────────────────
@@ -34,7 +38,10 @@ const (
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-// FaultRule defines a chaos fault rule used within GameDay stages.
+// FaultRule is the older src/dst service fault rule (DROP, DELAY, CORRUPT,
+// DUPLICATE). It runs as the experiment RuleExperiment makes of it, which
+// names no allowlisted target and is therefore refused: there is no packet
+// injector for service pairs (packet chaos is Phase 13, on lab interfaces).
 type FaultRule struct {
 	SrcServiceID uint8         `json:"src_service_id"`
 	DstServiceID uint8         `json:"dst_service_id"`
@@ -44,12 +51,32 @@ type FaultRule struct {
 	Duration     time.Duration `json:"duration_ns"`
 }
 
+// RuleExperiment translates a FaultRule into an experiment.
+func RuleExperiment(r FaultRule) *Experiment {
+	e := &Experiment{
+		Name:     fmt.Sprintf("rule %s %d->%d", r.FaultType, r.SrcServiceID, r.DstServiceID),
+		Target:   Target{Kind: KindPacket, ID: fmt.Sprintf("svc%d-svc%d", r.SrcServiceID, r.DstServiceID)},
+		Schedule: &Schedule{Duration: r.Duration},
+	}
+	switch r.FaultType {
+	case "DROP":
+		e.Type = ExpTypeNetworkLoss
+		e.Parameters = Params{"loss_percent": float64(r.DropRatePPM) / 10000}
+	case "DELAY":
+		e.Type = ExpTypeNetworkDelay
+		e.Parameters = Params{"delay_ms": float64(r.DelayUS) / 1000}
+	default:
+		e.Type = ExpTypeCustom
+	}
+	return e
+}
+
 // Stage represents a single stage in a GameDay scenario.
 type Stage struct {
-	Name              string        `json:"name"`
-	Delay             time.Duration `json:"delay_ns"`
-	Rules             []FaultRule   `json:"rules"`
-	RollbackOnFailure bool          `json:"rollback_on_failure"`
+	Name        string        `json:"name"`
+	Delay       time.Duration `json:"delay_ns"`
+	Experiments []Experiment  `json:"experiments,omitempty"`
+	Rules       []FaultRule   `json:"rules,omitempty"`
 }
 
 // GameDayScenario defines a complete GameDay scenario with multiple stages.
@@ -68,17 +95,22 @@ type GameDayStatus struct {
 	TotalStages  int          `json:"total_stages"`
 	StartedAt    *time.Time   `json:"started_at,omitempty"`
 	CompletedAt  *time.Time   `json:"completed_at,omitempty"`
+	Experiments  []string     `json:"experiments,omitempty"`
 	Error        string       `json:"error,omitempty"`
+}
+
+// Runner runs one experiment to its end (the Service).
+type Runner interface {
+	RunAndWait(ctx context.Context, exp *Experiment) (*Experiment, error)
 }
 
 // ── GameDayScheduler ─────────────────────────────────────────────────────
 
-// GameDayScheduler manages the lifecycle of GameDay chaos scenarios.
-// It implements a state machine: IDLE -> RUNNING -> stage transitions ->
-// COMPLETED/ABORTED.
+// GameDayScheduler runs one GameDay scenario at a time.
 type GameDayScheduler struct {
-	log   *logger.Logger
-	wotan *wotanClient.Client
+	log    *logger.Logger
+	runner Runner
+	pub    Publisher
 
 	mu           sync.RWMutex
 	state        GameDayState
@@ -87,294 +119,173 @@ type GameDayScheduler struct {
 	startedAt    *time.Time
 	completedAt  *time.Time
 	lastError    string
+	experiments  []string
 
 	cancelFn context.CancelFunc
+	done     chan struct{}
 }
 
-// NewGameDayScheduler creates a new GameDayScheduler.
-func NewGameDayScheduler(log *logger.Logger, wotan *wotanClient.Client) *GameDayScheduler {
-	return &GameDayScheduler{
-		log:   log,
-		wotan: wotan,
-		state: StateIdle,
+// NewGameDayScheduler creates a scheduler that runs experiments through r.
+func NewGameDayScheduler(log *logger.Logger, r Runner, pub Publisher) *GameDayScheduler {
+	if log == nil {
+		log = logger.New(io.Discard)
 	}
+	return &GameDayScheduler{log: log, runner: r, pub: pub, state: StateIdle}
 }
 
-// Schedule validates and starts a GameDay scenario. Returns an error if
-// a scenario is already running or the scenario is invalid.
-func (gds *GameDayScheduler) Schedule(scenario GameDayScenario) error {
-	gds.mu.Lock()
-	defer gds.mu.Unlock()
-
-	if gds.state == StateRunning {
-		return fmt.Errorf("GameDay already running: %s", gds.scenario.Name)
-	}
-
-	// Validate scenario.
-	if scenario.Name == "" {
+func validateScenario(sc GameDayScenario) error {
+	if sc.Name == "" {
 		return fmt.Errorf("scenario name is required")
 	}
-	if len(scenario.Stages) == 0 {
+	if len(sc.Stages) == 0 {
 		return fmt.Errorf("scenario must have at least one stage")
 	}
-	if scenario.Duration <= 0 {
+	if sc.Duration <= 0 {
 		return fmt.Errorf("scenario duration must be positive")
 	}
-	for i, stage := range scenario.Stages {
-		if stage.Name == "" {
+	for i, st := range sc.Stages {
+		if st.Name == "" {
 			return fmt.Errorf("stage %d: name is required", i)
 		}
-		if len(stage.Rules) == 0 {
-			return fmt.Errorf("stage %d (%s): must have at least one rule", i, stage.Name)
+		if len(st.Experiments) == 0 && len(st.Rules) == 0 {
+			return fmt.Errorf("stage %d (%s): must have at least one experiment", i, st.Name)
 		}
 	}
-
-	now := time.Now()
-	gds.scenario = &scenario
-	gds.state = StateRunning
-	gds.currentStage = 0
-	gds.startedAt = &now
-	gds.completedAt = nil
-	gds.lastError = ""
-
-	ctx, cancel := context.WithTimeout(context.Background(), scenario.Duration)
-	gds.cancelFn = cancel
-
-	// Publish schedule event.
-	gds.publishEvent(ctx, "chaos.schedules", map[string]interface{}{
-		"event_type": "gameday.started",
-		"scenario":   scenario.Name,
-		"stages":     len(scenario.Stages),
-		"duration":   scenario.Duration.Milliseconds(),
-		"timestamp":  now.UnixMilli(),
-	})
-
-	gds.log.Info().
-		Str("scenario", scenario.Name).
-		Int("stages", len(scenario.Stages)).
-		Dur("duration", scenario.Duration).
-		Msg("GameDay scenario scheduled")
-
-	// Run stages in background.
-	go gds.runScenario(ctx, scenario)
-
 	return nil
 }
 
-// runScenario executes all stages sequentially.
-func (gds *GameDayScheduler) runScenario(ctx context.Context, scenario GameDayScenario) {
-	defer func() {
-		gds.mu.Lock()
-		if gds.state == StateRunning {
-			gds.state = StateCompleted
-			now := time.Now()
-			gds.completedAt = &now
-		}
-		gds.mu.Unlock()
+// Schedule validates and starts a scenario.
+func (g *GameDayScheduler) Schedule(sc GameDayScenario) error {
+	if err := validateScenario(sc); err != nil {
+		return err
+	}
+	if g.runner == nil {
+		return fmt.Errorf("no chaos engine to run the game day")
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.state == StateRunning {
+		return fmt.Errorf("GameDay already running: %s", g.scenario.Name)
+	}
+	now := time.Now().UTC()
+	g.scenario, g.state, g.currentStage = &sc, StateRunning, 0
+	g.startedAt, g.completedAt, g.lastError, g.experiments = &now, nil, "", nil
+	ctx, cancel := context.WithTimeout(context.Background(), sc.Duration)
+	g.cancelFn = cancel
+	g.done = make(chan struct{})
+	g.publish("gameday.started", map[string]any{"scenario": sc.Name, "stages": len(sc.Stages)})
+	go g.runScenario(ctx, sc, g.done)
+	return nil
+}
 
-		gds.publishEvent(context.Background(), "chaos.schedules", map[string]interface{}{
-			"event_type": "gameday.finished",
-			"scenario":   scenario.Name,
-			"state":      gds.state,
-			"timestamp":  time.Now().UnixMilli(),
-		})
-
-		gds.log.Info().
-			Str("scenario", scenario.Name).
-			Str("state", string(gds.state)).
-			Msg("GameDay scenario finished")
-	}()
-
-	for i, stage := range scenario.Stages {
-		// Check if scenario was aborted.
-		select {
-		case <-ctx.Done():
-			gds.mu.Lock()
-			gds.state = StateAborted
-			gds.lastError = "context cancelled"
-			gds.mu.Unlock()
-			return
-		default:
-		}
-
-		gds.mu.Lock()
-		gds.currentStage = i
-		gds.mu.Unlock()
-
-		gds.log.Info().
-			Str("scenario", scenario.Name).
-			Str("stage", stage.Name).
-			Int("stage_index", i).
-			Msg("executing GameDay stage")
-
-		if err := gds.executeStage(ctx, stage); err != nil {
-			gds.log.Error().
-				Err(err).
-				Str("stage", stage.Name).
-				Msg("GameDay stage failed")
-
-			if stage.RollbackOnFailure {
-				gds.log.Warn().Str("stage", stage.Name).Msg("rolling back stage rules")
-				// In a real implementation, we would undo the injected rules here.
+func (g *GameDayScheduler) runScenario(ctx context.Context, sc GameDayScenario, done chan struct{}) {
+	defer close(done)
+	fail := func(msg string) {
+		g.mu.Lock()
+		g.state, g.lastError = StateAborted, msg
+		now := time.Now().UTC()
+		g.completedAt = &now
+		g.mu.Unlock()
+		g.publish("gameday.stage.failed", map[string]any{"scenario": sc.Name, "error": msg})
+	}
+	for i, st := range sc.Stages {
+		g.mu.Lock()
+		g.currentStage = i
+		g.mu.Unlock()
+		if st.Delay > 0 {
+			t := time.NewTimer(st.Delay)
+			select {
+			case <-ctx.Done():
+				t.Stop()
+				fail("stopped before stage " + st.Name)
+				return
+			case <-t.C:
 			}
-
-			gds.mu.Lock()
-			gds.state = StateAborted
-			gds.lastError = fmt.Sprintf("stage %s failed: %v", stage.Name, err)
-			gds.mu.Unlock()
-
-			gds.publishEvent(context.Background(), "chaos.schedules", map[string]interface{}{
-				"event_type": "gameday.stage.failed",
-				"scenario":   scenario.Name,
-				"stage":      stage.Name,
-				"error":      err.Error(),
-				"timestamp":  time.Now().UnixMilli(),
-			})
-			return
 		}
-
-		gds.publishEvent(ctx, "chaos.schedules", map[string]interface{}{
-			"event_type": "gameday.stage.completed",
-			"scenario":   scenario.Name,
-			"stage":      stage.Name,
-			"index":      i,
-			"timestamp":  time.Now().UnixMilli(),
-		})
+		exps := make([]*Experiment, 0, len(st.Experiments)+len(st.Rules))
+		for j := range st.Experiments {
+			exps = append(exps, &st.Experiments[j])
+		}
+		for _, r := range st.Rules {
+			exps = append(exps, RuleExperiment(r))
+		}
+		for _, e := range exps {
+			if ctx.Err() != nil {
+				fail("stopped in stage " + st.Name)
+				return
+			}
+			got, err := g.runner.RunAndWait(ctx, e)
+			if got != nil {
+				g.mu.Lock()
+				g.experiments = append(g.experiments, got.ID)
+				g.mu.Unlock()
+			}
+			switch {
+			case err != nil:
+				fail(fmt.Sprintf("stage %s: %v", st.Name, err))
+				return
+			case ctx.Err() != nil:
+				fail("stopped in stage " + st.Name)
+				return
+			case got.Results == nil || !got.Results.Success:
+				reason := string(got.Status)
+				if got.Results != nil && got.Results.AbortReason != "" {
+					reason += ": " + got.Results.AbortReason
+				}
+				fail(fmt.Sprintf("stage %s: experiment %s did not succeed (%s)", st.Name, got.ID, reason))
+				return
+			}
+		}
+		g.publish("gameday.stage.completed", map[string]any{"scenario": sc.Name, "stage": st.Name, "index": i})
 	}
+	g.mu.Lock()
+	g.state = StateCompleted
+	now := time.Now().UTC()
+	g.completedAt = &now
+	g.mu.Unlock()
+	g.publish("gameday.finished", map[string]any{"scenario": sc.Name})
 }
 
-// executeStage applies the fault rules for a single stage with the
-// configured delay before activation.
-func (gds *GameDayScheduler) executeStage(ctx context.Context, stage Stage) error {
-	// Wait for the stage's delay before applying rules.
-	if stage.Delay > 0 {
-		gds.log.Info().
-			Str("stage", stage.Name).
-			Dur("delay", stage.Delay).
-			Msg("waiting before stage activation")
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(stage.Delay):
-		}
+// Stop cancels the running scenario; its running experiment is aborted
+// and reverted by the Service.
+func (g *GameDayScheduler) Stop() {
+	g.mu.Lock()
+	cancel, done := g.cancelFn, g.done
+	g.cancelFn = nil
+	g.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
-
-	// Apply each rule in the stage.
-	for i, rule := range stage.Rules {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		gds.log.Info().
-			Str("stage", stage.Name).
-			Int("rule_index", i).
-			Str("fault_type", rule.FaultType).
-			Uint8("src_svc", rule.SrcServiceID).
-			Uint8("dst_svc", rule.DstServiceID).
-			Msg("applying fault rule")
-
-		// Publish the rule as a chaos injection event.
-		gds.publishEvent(ctx, "chaos.injections", map[string]interface{}{
-			"event_type":     "chaos.rule.injected",
-			"stage":          stage.Name,
-			"src_service_id": rule.SrcServiceID,
-			"dst_service_id": rule.DstServiceID,
-			"fault_type":     rule.FaultType,
-			"drop_rate_ppm":  rule.DropRatePPM,
-			"delay_us":       rule.DelayUS,
-			"duration_ns":    rule.Duration.Nanoseconds(),
-			"timestamp":      time.Now().UnixMilli(),
-		})
-	}
-
-	// Wait for the maximum rule duration in this stage.
-	maxDuration := gds.maxRuleDuration(stage.Rules)
-	if maxDuration > 0 {
-		gds.log.Info().
-			Str("stage", stage.Name).
-			Dur("rule_duration", maxDuration).
-			Msg("waiting for stage rules to complete")
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(maxDuration):
-		}
-	}
-
-	return nil
-}
-
-// maxRuleDuration returns the longest duration among a set of rules.
-func (gds *GameDayScheduler) maxRuleDuration(rules []FaultRule) time.Duration {
-	var max time.Duration
-	for _, r := range rules {
-		if r.Duration > max {
-			max = r.Duration
-		}
-	}
-	return max
-}
-
-// Stop cancels the running scenario and cleans up.
-func (gds *GameDayScheduler) Stop() {
-	gds.mu.Lock()
-	defer gds.mu.Unlock()
-
-	if gds.cancelFn != nil {
-		gds.cancelFn()
-		gds.cancelFn = nil
-	}
-
-	if gds.state == StateRunning {
-		gds.state = StateAborted
-		now := time.Now()
-		gds.completedAt = &now
-		gds.lastError = "stopped by operator"
-		gds.log.Warn().Str("scenario", gds.scenario.Name).Msg("GameDay stopped by operator")
+	if done != nil {
+		<-done
 	}
 }
 
 // Status returns the current GameDay status.
-func (gds *GameDayScheduler) Status() GameDayStatus {
-	gds.mu.RLock()
-	defer gds.mu.RUnlock()
-
-	status := GameDayStatus{
-		State:       gds.state,
-		StartedAt:   gds.startedAt,
-		CompletedAt: gds.completedAt,
-		Error:       gds.lastError,
+func (g *GameDayScheduler) Status() GameDayStatus {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	st := GameDayStatus{State: g.state, StartedAt: g.startedAt, CompletedAt: g.completedAt, Error: g.lastError,
+		Experiments: append([]string(nil), g.experiments...)}
+	if g.scenario != nil {
+		st.ScenarioName, st.TotalStages, st.CurrentStage = g.scenario.Name, len(g.scenario.Stages), g.currentStage
 	}
-
-	if gds.scenario != nil {
-		status.ScenarioName = gds.scenario.Name
-		status.TotalStages = len(gds.scenario.Stages)
-		status.CurrentStage = gds.currentStage
-	}
-
-	return status
+	return st
 }
 
-// publishEvent publishes an event to a Wotan topic (best-effort).
-func (gds *GameDayScheduler) publishEvent(ctx context.Context, topic string, event interface{}) {
-	if gds.wotan == nil {
+func (g *GameDayScheduler) publish(event string, data map[string]any) {
+	if g.pub == nil {
 		return
 	}
-
-	payload, err := json.Marshal(event)
+	data["event_type"] = event
+	data["timestamp"] = time.Now().UnixMilli()
+	b, err := json.Marshal(data)
 	if err != nil {
-		gds.log.Warn().Err(err).Msg("failed to marshal GameDay event")
 		return
 	}
-
-	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	if err := gds.wotan.Publish(pubCtx, topic, payload); err != nil {
-		gds.log.Warn().Err(err).Str("topic", topic).Msg("failed to publish GameDay event")
+	if err := g.pub.Publish(ctx, "chaos.schedules", b); err != nil {
+		g.log.Warn().Err(err).Msg("GameDay event not published")
 	}
 }
