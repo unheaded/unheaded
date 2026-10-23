@@ -28,7 +28,8 @@ Branch base: develop @ `424edf47`. Executed 2026-10-23 by a parallel agent (Erda
 | 168 [ESCALATE] | logged | **E1**: live Well PG 16 -> PG 18 with `ssl_groups`. Stevie's call (data-bearing major upgrade, downtime, timing). Not attempted. Everything it needs is prepared: include, proof suite, runbook, the restore-into-volume tool. |
 | 169 [AUDIT-UPDATE] | logged here | For Phase 13's register (not this track's file): "Well TLS key exchange is classical P-256 (PG 16 `ssl_ecdh_curve`, one curve); fix = E1 (`runbooks/data/well-pg18-upgrade.yaml`); verify = `scripts/well/test-pq-groups.sh` + `openssl s_client -starttls postgres -groups X25519MLKEM768` on 127.0.0.1:5432 (or `probe-tls-groups.sh` once Phase 6 merges)". Planned id FND-015. |
 | 170 [B] | DEFERRED | `[DEFERRED: lead regenerates after Phase 4 merges]`: `docs/policy/pq-kex-baseline.txt` does not exist on this base. When it does, the `docker-compose.yml postgres-pre18` line gets `# accepted until E1 (ADR-105, runbooks/data/well-pg18-upgrade.yaml)` above it. |
-| 171 [C] | done | runbook + suite rehearsal + drill option + this log (baseline part deferred with 170) |
+| 171 [C] | done | `41335fcd`: runbook + suite rehearsal + drill option + this log (baseline part deferred with 170) |
+| 172 [V] | PASS | PHASE 8 EXIT GATE: suite proves PG 16 classical and PG 18 hybrid (24/24); meta-gate lists `well/test-pq-groups`; runbook dry-runs rc=0; E1 logged; `git diff --stat 424edf47 -- db/postgresql.conf db/pg_hba.conf docker-compose.yml` = 0 lines; no `qa-` container, no `qa-pg18` volume or network; container, volume and network lists equal the pre-run snapshot. |
 
 ## Images (ADR-102 exact tags, pinned by digest)
 
@@ -79,3 +80,24 @@ Also changed: `scripts/well/restore-drill.sh` takes `WELL_DRILL_NAME` (default u
 all checks passed
 ```
 (the other 19 lines as above)
+
+## DoD (Phase 8)
+
+1. Every step executed or logged: 159-169, 171-172 done; 168 ESCALATE (E1); 170 DEFERRED (Phase 4 baseline absent). No STUCK.
+2. Every [V] passed; exit gate output above.
+3. Zero new failures: `test-backup-restore.sh` 28/28 against the changed drill script; `check-well-lint.sh`, `check-image-tags.sh`, `check-manifest-yaml.sh` pass. (`check-well-lint.sh` notes findings went down against its baseline; not caused by this track's files, left for the lint's owner.)
+4. Shell: shellcheck -S warning clean on the suite, the drill and the meta-gate. No Go or Rust changed.
+5. Commits after the gate: `4f524a01`, `41335fcd`, plus this log.
+6. No new dependency. One new image tag for the throwaway suite (`postgres:18.6-alpine`, exact tag + digest, the already-admitted postgres image); compose, k8s and CI still pin 16.15 until E1.
+7. Attack surface: no new listener (throwaway servers on 127.0.0.1 ephemeral ports, gone); no key, password or PSK on disk or in a log (per-run `openssl rand` values in a 0700 temp dir that the trap deletes).
+8. Zero user data access: the suite's data is its own fixture rows.
+
+Erda sign-off: the Well's shape, ledger and backups are unchanged; the upgrade path is dump/restore into a new volume with the old one kept as the rollback, and every live step is manual.
+
+## Marshal shift report
+
+- Mission: Phase 8 only. Result: gate PASS, E1 prepared and escalated.
+- Steps: 12 done, 1 ESCALATE (168), 1 DEFERRED (170), 0 STUCK.
+- Commits: 3 (unsigned, `--no-gpg-sign`; never pushed).
+- Plan amendments (logged above): no `probe-tls-groups.sh` (Phase 6's file), so the suite observes groups itself; `pg_upgrade --check` replaced by a dump/restore [DECIDE]; the suite also rehearses the runbook's data step, because the PG 18 image's new data path and initdb on an empty volume would otherwise have made a written-only runbook wrong.
+- Scope held: no other track's paths; `scripts/check-gates-can-fail.sh` touched only by appending one REGISTRY row and one provoke function (plan's conflict rule: keep all rows on merge).
