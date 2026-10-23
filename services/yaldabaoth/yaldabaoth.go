@@ -280,6 +280,10 @@ type Service struct {
 	ttl      map[string]*time.Timer
 
 	abortPresent atomic.Bool
+	startedAt    time.Time
+	seenMu       sync.Mutex
+	seenAborts   map[string]bool
+	seenOrder    []string
 	probeMu      sync.RWMutex
 	probeURLFn   func(info *InstanceInfo, p Probe) (string, error)
 	client       *http.Client
@@ -333,6 +337,8 @@ func NewService(cfg *Config, deps Deps) (*Service, error) {
 		ttl:          map[string]*time.Timer{},
 		aborts:       map[string]int{},
 		refusalLimit: newRateLimit(refusalPublishBurst, time.Minute),
+		seenAborts:   map[string]bool{},
+		startedAt:    time.Now(),
 	}
 	s.probeURLFn = defaultProbeURL
 	s.client = deps.HTTPClient
@@ -381,6 +387,7 @@ func (s *Service) RegisterInjector(t ExperimentType, inj Injector) {
 // Start reverts whatever a previous controller left in the journal, then
 // watches the abort file and, if configured, Wotan's chaos.abort.
 func (s *Service) Start(ctx context.Context) error {
+	s.startedAt = time.Now()
 	if left, err := s.RevertAll(ctx); left > 0 {
 		s.log.Error().Int("left", left).Msg("chaos: faults from a previous run could not be reverted; see chaos.revert_failed")
 	} else if err != nil {
@@ -489,7 +496,13 @@ func (s *Service) RunAndWait(ctx context.Context, exp *Experiment) (*Experiment,
 	return e, nil
 }
 
-const maxNameLen = 128
+const (
+	maxNameLen = 128
+	// maxProbes bounds the probe traffic one request can cause.
+	maxProbes = 10
+	// maxHistory bounds the finished experiments kept in memory.
+	maxHistory = 500
+)
 
 // StartExperiment checks exp against the whole envelope and, if every
 // check passes, starts it. A refusal is a *Refusal, audited and counted.
@@ -506,6 +519,8 @@ func (s *Service) StartExperiment(ctx context.Context, exp *Experiment) (*Experi
 		return nil, s.refused(e, refuse(RefuseInvalid, "unknown experiment type %q", e.Type))
 	case e.Target.Kind == "" || e.Target.ID == "":
 		return nil, s.refused(e, refuse(RefuseInvalid, "target kind and id are required"))
+	case e.SteadyState != nil && len(e.SteadyState.Probes) > maxProbes:
+		return nil, s.refused(e, refuse(RefuseInvalid, "at most %d probes", maxProbes))
 	}
 	if s.abortPresent.Load() || s.abortFileExists() {
 		return nil, s.refused(e, refuse(RefuseAbortFile, "%s exists: remove it to allow experiments", s.config.AbortFile))
@@ -572,12 +587,34 @@ func (s *Service) StartExperiment(ctx context.Context, exp *Experiment) (*Experi
 	s.experiments[e.ID] = e
 	s.order = append(s.order, e.ID)
 	s.runs[e.ID] = r
+	s.pruneLocked()
+	out := copyExperiment(e) // e belongs to the run from here on
 	s.mu.Unlock()
 
-	s.audit.Record(AuditEntry{Timestamp: now, Action: "start", RuleID: e.ID, RuleSpec: describe(e), Result: "running"})
-	s.publish(TopicStarted, map[string]any{"experiment_id": e.ID, "type": e.Type, "target": e.Target, "dry_run": s.config.DryRunMode})
-	go s.run(rctx, e.ID, rt, inj, r)
-	return copyExperiment(e), nil
+	s.audit.Record(AuditEntry{Timestamp: now, Action: "start", RuleID: out.ID, RuleSpec: describe(out), Result: "running"})
+	s.publish(TopicStarted, map[string]any{"experiment_id": out.ID, "type": out.Type, "target": out.Target, "dry_run": s.config.DryRunMode})
+	go s.run(rctx, out.ID, rt, inj, r)
+	return out, nil
+}
+
+// pruneLocked drops the oldest finished experiments beyond maxHistory;
+// the caller holds mu.
+func (s *Service) pruneLocked() {
+	for len(s.order) > maxHistory {
+		dropped := false
+		for i, id := range s.order {
+			if _, running := s.runs[id]; running {
+				continue
+			}
+			delete(s.experiments, id)
+			s.order = append(s.order[:i:i], s.order[i+1:]...)
+			dropped = true
+			break
+		}
+		if !dropped {
+			return
+		}
+	}
 }
 
 func describe(e *Experiment) string {

@@ -163,10 +163,17 @@ func build(c config, log *logger.Logger) (*yaldabaoth.Service, error) {
 	return s, nil
 }
 
-// revertAll is `chaos-controller revert-all`.
+// revertAll is `chaos-controller revert-all`. It needs only the journal
+// and the injectors: a controller whose allowlist, Cuirass or Victoria is
+// gone must still take its faults back (it runs as ExecStopPost).
 func revertAll(c config, out io.Writer) int {
-	log := logger.New(io.Discard)
-	s, err := build(c, log)
+	cfg := yaldabaoth.DefaultConfig()
+	cfg.StateDir = c.stateDir
+	cfg.AbortFile = ""
+	s, err := yaldabaoth.NewService(cfg, yaldabaoth.Deps{Log: logger.New(io.Discard)})
+	if err == nil {
+		registerInjectors(s)
+	}
 	if err != nil {
 		fmt.Fprintf(out, "revert-all: %v\n", err)
 		return 2

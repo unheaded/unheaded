@@ -128,9 +128,42 @@ func (s *Service) subscribeAbort(ctx context.Context) {
 	}
 }
 
+// abortReplayWindow: a chaos.abort created this long before the
+// controller started is history, not a request.
+const (
+	abortReplayWindow = 10 * time.Minute
+	maxSeenAborts     = 10000
+)
+
+// replayed reports whether msg is a chaos.abort this controller already
+// handled, or one from well before it started. Wotan's HTTP polling starts
+// at seq 0, so each resubscribe replays the topic's history; without this
+// an old abort would stop experiments running now. A message with neither
+// an ID nor a time is never treated as a replay: when in doubt, abort.
+func (s *Service) replayed(msg *wotanClient.Message) bool {
+	if !msg.CreatedAt.IsZero() && msg.CreatedAt.Before(s.startedAt.Add(-abortReplayWindow)) {
+		return true
+	}
+	if msg.MessageID == "" {
+		return false
+	}
+	s.seenMu.Lock()
+	defer s.seenMu.Unlock()
+	if s.seenAborts[msg.MessageID] {
+		return true
+	}
+	s.seenAborts[msg.MessageID] = true
+	s.seenOrder = append(s.seenOrder, msg.MessageID)
+	if len(s.seenOrder) > maxSeenAborts {
+		delete(s.seenAborts, s.seenOrder[0])
+		s.seenOrder = s.seenOrder[1:]
+	}
+	return false
+}
+
 // HandleAbortMessage is the Wotan chaos.abort path.
 func (s *Service) HandleAbortMessage(msg *wotanClient.Message) {
-	if msg == nil {
+	if msg == nil || s.replayed(msg) {
 		return
 	}
 	reason := "chaos.abort"
