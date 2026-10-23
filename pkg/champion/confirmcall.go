@@ -140,3 +140,7 @@ func (c *Champion) confirmedGate(ctx context.Context, tc ToolCall) error {
 	}
 	return nil
 }
+
+// CheckPath reports whether path passes the sandbox's path rules (Rule 1,
+// symlinks resolved). For callers that show a file before a decision.
+func (c *Champion) CheckPath(path string) error { return c.validatePath(path) }

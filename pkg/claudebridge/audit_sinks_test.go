@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -445,3 +447,36 @@ func TestWotanClientPublisher_WithMockClient(t *testing.T) {
 		t.Error("nil client joined")
 	}
 }
+
+func TestConfirmationEvents(t *testing.T) {
+	es := storage.NewMemoryStorage()
+	w := newTestWellAuditor(t, &fakeRequestSink{}, es)
+	pub := &fakePublisher{}
+	wa := newTestWotanAuditor(t, pub)
+	m := MultiAuditor{SlogAuditor{Log: discardLog()}, w, wa, &recordingAuditor{}}
+	ctx := context.Background()
+	m.Confirmation(ctx, ConfirmRecord{Conversation: "c", Model: "m", Tool: "write_file", Action: "confirm_issue", QueueID: "0123456789abcdef", CallSHA256: strings.Repeat("b", 64)})
+	m.Confirmation(ctx, ConfirmRecord{Conversation: "c", Tool: "write_file", Action: "confirm_approve", DecidedBy: "stevie@west"})
+	m.Confirmation(ctx, ConfirmRecord{Conversation: "c", Tool: "write_file", Action: "made_up"})
+	_ = w.Close(ctx)
+	_ = wa.Close(ctx)
+	evs, _ := es.Query(ctx, &audit.AuditQuery{})
+	if len(evs) != 3 {
+		t.Fatalf("events = %d", len(evs))
+	}
+	got := map[string]*audit.AuditEvent{}
+	for _, e := range evs {
+		got[e.Action+"/"+e.Actor.Type] = e
+	}
+	if e := got["confirm_approve/human"]; e == nil || e.Actor.ID != "stevie@west" || e.Outcome != audit.OutcomeSuccess {
+		t.Errorf("approve event = %+v", e)
+	}
+	if e := got["confirm_issue/model"]; e == nil || e.Outcome != audit.OutcomePending {
+		t.Errorf("issue events = %+v", got)
+	}
+	if len(pub.all()) != 3 {
+		t.Errorf("published %d", len(pub.all()))
+	}
+}
+
+func discardLog() *slog.Logger { return slog.New(slog.NewJSONHandler(io.Discard, nil)) }

@@ -120,3 +120,15 @@ func (a SlogAuditor) ToolCall(ctx context.Context, r ToolRecord) {
 		slog.Duration("duration", r.Duration),
 	)
 }
+
+// Confirmation implements ConfirmAuditor.
+func (a SlogAuditor) Confirmation(ctx context.Context, r ConfirmRecord) {
+	a.Log.LogAttrs(ctx, slog.LevelInfo, "claude_confirmation",
+		slog.String("conversation", r.Conversation),
+		slog.String("tool", r.Tool),
+		slog.String("action", r.Action),
+		slog.String("queue_id", r.QueueID),
+		slog.String("call_sha256", r.CallSHA256),
+		slog.String("decided_by", r.DecidedBy),
+	)
+}

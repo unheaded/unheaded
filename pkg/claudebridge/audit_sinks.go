@@ -599,3 +599,68 @@ func (p WotanClientPublisher) Publish(ctx context.Context, topic string, payload
 	}
 	return p.C.Publish(ctx, topic, payload)
 }
+
+// confirmActions are the audit_events actions of the approval path.
+var confirmActions = map[string]bool{"confirm_issue": true, "confirm_approve": true, "confirm_deny": true, "confirm_expire": true}
+
+// confirmEvent maps a ConfirmRecord to an audit event: the model issues,
+// a human approves or denies, the system expires.
+func confirmEvent(source, backend string, r ConfirmRecord) *audit.AuditEvent {
+	if r.Source != "" {
+		source = r.Source
+	}
+	action := r.Action
+	if !confirmActions[action] {
+		action = "confirm_issue"
+	}
+	actor := &audit.Actor{ID: actorID(backend, r.Model), Type: "model"}
+	outcome, severity := audit.OutcomePending, audit.SeverityInfo
+	switch action {
+	case "confirm_approve":
+		actor = &audit.Actor{ID: truncateUTF8Plain(r.DecidedBy, 160), Type: "human"}
+		outcome = audit.OutcomeSuccess
+	case "confirm_deny":
+		actor = &audit.Actor{ID: truncateUTF8Plain(r.DecidedBy, 160), Type: "human"}
+		outcome, severity = audit.OutcomeFailure, audit.SeverityWarning
+	case "confirm_expire":
+		actor = &audit.Actor{ID: "system", Type: "system"}
+		outcome, severity = audit.OutcomeFailure, audit.SeverityWarning
+	}
+	if actor.ID == "" {
+		actor.ID = "unknown"
+	}
+	return &audit.AuditEvent{
+		Type: audit.EventTypeAuthorization, Severity: severity, Action: action, Outcome: outcome,
+		Actor:    actor,
+		Resource: &audit.Resource{ID: toolResourceID(r.Tool), Type: "tool"},
+		Source:   &audit.Source{Service: source, RequestID: truncateUTF8Plain(r.Conversation, 128)},
+		Details: map[string]any{
+			"queue_id":    truncateUTF8Plain(r.QueueID, 16),
+			"call_sha256": truncateUTF8Plain(r.CallSHA256, 64),
+		},
+	}
+}
+
+// Confirmation implements ConfirmAuditor.
+func (w *WellAuditor) Confirmation(_ context.Context, r ConfirmRecord) {
+	w.Event(confirmEvent(w.cfg.Source, w.cfg.Backend, r))
+}
+
+// Confirmation implements ConfirmAuditor.
+func (w *WotanAuditor) Confirmation(_ context.Context, r ConfirmRecord) {
+	ev := confirmEvent(w.cfg.Name, w.cfg.Backend, r)
+	w.publish(TopicToolCalls, map[string]any{
+		"ts": time.Now().UTC().Format(time.RFC3339Nano), "source": ev.Source.Service, "conversation": ev.Source.RequestID,
+		"actor": ev.Actor.ID, "tool": ev.Resource.ID, "action": ev.Action, "outcome": string(ev.Outcome),
+		"queue_id": ev.Details["queue_id"], "call_sha256": ev.Details["call_sha256"],
+	})
+}
+
+// Confirmation implements ConfirmAuditor.
+func (m MultiAuditor) Confirmation(ctx context.Context, r ConfirmRecord) {
+	m.each(func(a Auditor) {
+		if ca, ok := a.(ConfirmAuditor); ok {
+			ca.Confirmation(ctx, r)
+		}
+	})
+}
