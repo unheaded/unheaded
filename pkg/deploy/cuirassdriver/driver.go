@@ -324,6 +324,13 @@ func isHealthy(s *containerState) bool {
 	return s != nil && s.Managed && s.Status == "running" && s.Health == "healthy"
 }
 
+// Ping reads Cuirass's /api/v1/info: an error means Cuirass cannot be
+// reached (or answers non-2xx), so nothing can be deployed now.
+func (d *Driver) Ping(ctx context.Context) error {
+	var info map[string]any
+	return d.do(ctx, http.MethodGet, "/api/v1/info", nil, &info)
+}
+
 // --- the service view ---
 
 // Instances lists the service's instances: Cuirass's desired specs with
