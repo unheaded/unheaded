@@ -818,6 +818,13 @@ func TestServiceClientCronProbes(t *testing.T) {
 		{"pkg-telnet-client-absent", "installed=\npresent=\n", false},                       // dpkg's database not read
 		{"pkg-telnet-client-absent", "installed=\npresent=\ndpkg=\n", false},
 		{"svc-rsync-not-in-use", "installed=\npresent=\ndpkg=\n", false},
+		// systemd did not answer: nothing says the unit is stopped.
+		{"svc-web-server-not-in-use", "installed=nginx\npresent=nginx\ndpkg=installed\nnginx.service=/\napache2.service=/\n", false},
+		{"svc-rsync-not-in-use", "installed=rsync\npresent=rsync\ndpkg=installed\n", false},
+		{"svc-rsync-not-in-use", "installed=rsync\npresent=rsync\ndpkg=installed\nrsync.service=generated/inactive\n", false},
+		{"svc-rsync-not-in-use", "installed=rsync\npresent=rsync\ndpkg=installed\nrsync.service=disabled/deactivating\n", false},
+		{"svc-rsync-not-in-use", "installed=rsync\npresent=rsync\ndpkg=installed\nrsync.service=not-found/inactive\n", true},
+		{"svc-rsync-not-in-use", "installed=rsync\npresent=rsync\ndpkg=installed\nrsync.service=masked/failed\n", true},
 		{"at-restricted", "installed=\npresent=\ndpkg=\n", false},
 		{"pkg-telnet-client-absent", "", false},
 		{"cron-active", "installed=cron\nenabled=enabled\nactive=active\n", true},
@@ -1288,6 +1295,8 @@ func TestPAMVersionAndFirewallUtilityProbes(t *testing.T) {
 		{"firewall-single-utility", "ufw=inactive\nnftables=inactive\nunheaded-nft=inactive\niptables=inactive\n", false}, // east: ufw.service up, rules not
 		{"firewall-single-utility", "ufw=active\nnftables=inactive\nunheaded-nft=inactive\niptables=active\n", false},
 		{"firewall-single-utility", "ufw=inactive\nnftables=active\nunheaded-nft=active\niptables=inactive\n", true}, // both nftables units: one utility
+		// systemd did not answer: ufw alone looked like the only utility.
+		{"firewall-single-utility", "ufw=active\nnftables=\nunheaded-nft=\niptables=\n", false},
 	} {
 		p, ok := Probes[tc.probe]
 		if !ok || !p.Baseline {

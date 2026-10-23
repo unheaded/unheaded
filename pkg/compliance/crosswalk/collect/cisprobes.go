@@ -370,7 +370,10 @@ func serviceProbe(pkgs, units []string) Probe {
 			var bad []string
 			for _, u := range units {
 				en, act, _ := strings.Cut(f[u], "/")
-				if act == "active" || act == "activating" || en == "enabled" || en == "enabled-runtime" || en == "static" || en == "indirect" || en == "alias" {
+				switch {
+				case act == "":
+					bad = append(bad, u+" state not read (systemctl did not answer)")
+				case !unitStopped(en, act):
 					bad = append(bad, fmt.Sprintf("%s %s/%s", u, en, act))
 				}
 			}
@@ -383,6 +386,19 @@ func serviceProbe(pkgs, units []string) Probe {
 			return true, "installed (" + inst + ") but every unit disabled or masked and stopped"
 		},
 	}
+}
+
+// unitStopped: not in use is a known stopped state that is neither enabled
+// nor started by anything, nothing else. systemctl prints nothing when it
+// cannot reach systemd, and that once read as "disabled and stopped".
+// is-enabled prints nothing for a missing unit on older systemd.
+func unitStopped(enabled, active string) bool {
+	switch enabled {
+	case "disabled", "masked", "masked-runtime", "not-found", "":
+	default:
+		return false
+	}
+	return active == "inactive" || active == "failed"
 }
 
 func packageAbsentProbe(pkgs []string) Probe {
@@ -1480,6 +1496,12 @@ func init() {
 			`echo "iptables=$(systemctl is-active netfilter-persistent.service 2>/dev/null || true)"`,
 		Judge: func(out string) (bool, string) {
 			f := parseKV(out)
+			// is-active always names a state when systemd answers.
+			for _, k := range []string{"nftables", "unheaded-nft", "iptables"} {
+				if f[k] == "" {
+					return false, k + " state not read (systemctl did not answer)"
+				}
+			}
 			var inUse []string
 			if f["ufw"] == "active" {
 				inUse = append(inUse, "ufw")
