@@ -323,3 +323,12 @@ func TestSandboxRunner_RealFixtureSolution(t *testing.T) {
 		t.Logf("%s %s", id, b)
 	}
 }
+
+func TestKeyPromptCarriesLanguage(t *testing.T) {
+	if got := keyPrompt(gatePrompt{Language: "go", Prompt: "How do I check for an error?"}); got != "Language: go\n\nHow do I check for an error?" {
+		t.Errorf("%q", got)
+	}
+	if got := keyPrompt(gatePrompt{Prompt: "x"}); got != "x" {
+		t.Errorf("%q", got)
+	}
+}

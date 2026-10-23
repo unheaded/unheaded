@@ -249,8 +249,19 @@ func loadJSONL[T any](path string) ([]T, error) {
 }
 
 type gatePrompt struct {
-	ID     string `json:"id"`
-	Prompt string `json:"prompt"`
+	ID       string `json:"id"`
+	Language string `json:"language"`
+	Prompt   string `json:"prompt"`
+}
+
+// keyPrompt is what both brains are asked for a coding-gate prompt: the
+// fixture's language, then the question (several textbook prompts name
+// no language in their text; Step 142a).
+func keyPrompt(p gatePrompt) string {
+	if p.Language == "" {
+		return p.Prompt
+	}
+	return "Language: " + p.Language + "\n\n" + p.Prompt
 }
 
 func loadAll(o *options) ([]Task, map[string]*Key, map[string]string, error) {
@@ -282,7 +293,7 @@ func loadAll(o *options) ([]Task, map[string]*Key, map[string]string, error) {
 	}
 	prompts := map[string]string{}
 	for _, p := range ps {
-		prompts[p.ID] = p.Prompt
+		prompts[p.ID] = keyPrompt(p)
 	}
 	want := map[string]bool{}
 	for _, f := range strings.Split(o.families, ",") {
