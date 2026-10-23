@@ -51,6 +51,15 @@ func (s *Service) Start(ctx context.Context) error {
 		return nil
 	}
 
+	// Join the topics PublishTask* publish to. The Wotan client refuses to
+	// publish to a topic it has not joined, and nothing joined these, so
+	// every task event failed "not subscribed to topic tasks.created".
+	for _, topic := range []string{"tasks.created", "tasks.updated", "tasks.completed"} {
+		if _, err := s.wotan.Subscribe(ctx, topic, "micromanager-service"); err != nil {
+			log.Warn().Err(err).Str("topic", topic).Msg("failed to join wotan publish topic")
+		}
+	}
+
 	// Subscribe to alerts
 	sub, err := s.wotan.Subscribe(ctx, "alerts.critical", "micromanager-service")
 	if err != nil {

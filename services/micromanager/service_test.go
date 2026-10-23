@@ -5,6 +5,10 @@ package micromanager
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -58,6 +62,56 @@ func TestGenerateTaskID_Sequential(t *testing.T) {
 
 	if id1 == id2 || id2 == id3 || id1 == id3 {
 		t.Error("IDs are not unique")
+	}
+}
+
+// After Start, task events publish. Nothing joined tasks.created, .updated
+// or .completed, and the Wotan client refuses to publish to a topic it has
+// not joined, so every one failed "not subscribed to topic".
+func TestPublishTask_AfterStart(t *testing.T) {
+	var mu sync.Mutex
+	published := map[string]int{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/subscribe"):
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"subscriber":{"subscriber_id":"00000000-0000-0000-0000-000000000001","status":"approved"}}`))
+		case strings.HasSuffix(r.URL.Path, "/publish"):
+			mu.Lock()
+			published[r.URL.Path]++
+			mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			_, _ = w.Write([]byte(`{"messages":[],"last_seq":0}`))
+		}
+	}))
+	defer srv.Close()
+	client, err := wotanClient.NewClient(strings.TrimPrefix(srv.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	service := NewService(NewStore(), client)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := service.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	task := NewTask("task-1", "Test", "owner")
+	for name, publish := range map[string]func(string, *Task) error{
+		"created":   service.PublishTaskCreated,
+		"updated":   service.PublishTaskUpdated,
+		"completed": service.PublishTaskCompleted,
+	} {
+		if err := publish("task-1", task); err != nil {
+			t.Errorf("PublishTask %s: %v", name, err)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(published) != 3 {
+		t.Errorf("published to %v, want the three task topics", published)
 	}
 }
 
