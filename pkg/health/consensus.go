@@ -61,12 +61,23 @@ type Verdict struct {
 // repeated checks are one vote.
 type Ballot struct {
 	mu     sync.Mutex
-	latest map[string]map[string]HealthReport // service -> reporter -> report
+	latest map[string]map[string]vote // service -> reporter -> vote
+	now    func() time.Time           // arrival clock; time.Now outside tests
+}
+
+// vote is a report and the time it counts from: its own timestamp, or its
+// arrival if that is earlier. A reporter's clock can run ahead of ours, and a
+// report can carry any timestamp at all. Judged by its timestamp alone, a
+// report dated an hour ahead stayed a fresh vote for an hour after its
+// reporter went quiet, and shut out that reporter's real reports meanwhile.
+type vote struct {
+	HealthReport
+	at time.Time
 }
 
 // NewBallot returns an empty ballot.
 func NewBallot() *Ballot {
-	return &Ballot{latest: map[string]map[string]HealthReport{}}
+	return &Ballot{latest: map[string]map[string]vote{}, now: time.Now}
 }
 
 // Record casts a report as its reporter's vote on the service, unless the
@@ -75,17 +86,21 @@ func (b *Ballot) Record(r HealthReport) {
 	if r.Service == "" || r.Reporter == "" {
 		return
 	}
+	at := r.Timestamp
+	if arrived := b.now(); arrived.Before(at) {
+		at = arrived
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	votes := b.latest[r.Service]
 	if votes == nil {
-		votes = map[string]HealthReport{}
+		votes = map[string]vote{}
 		b.latest[r.Service] = votes
 	}
-	if prev, ok := votes[r.Reporter]; ok && prev.Timestamp.After(r.Timestamp) {
+	if prev, ok := votes[r.Reporter]; ok && prev.at.After(at) {
 		return
 	}
-	votes[r.Reporter] = r
+	votes[r.Reporter] = vote{HealthReport: r, at: at}
 }
 
 // Tally returns a verdict per service with at least one fresh vote, sorted
@@ -97,7 +112,7 @@ func (b *Ballot) Tally(now time.Time) []Verdict {
 	for svc, votes := range b.latest {
 		v := Verdict{Service: svc}
 		for reporter, r := range votes {
-			if now.Sub(r.Timestamp) > ReportFreshness {
+			if now.Sub(r.at) > ReportFreshness {
 				delete(votes, reporter)
 				continue
 			}

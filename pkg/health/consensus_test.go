@@ -88,3 +88,29 @@ func TestBallot_LatestFreshReportCounts(t *testing.T) {
 		t.Errorf("anonymous reports counted: %+v", vs)
 	}
 }
+
+// A vote counts from when it arrived if its timestamp is later than that: a
+// reporter whose clock runs an hour ahead (or a report dated anywhere) gets
+// three sweeps like everyone else, not an hour more, and does not shut out
+// its own later reports.
+func TestBallot_FutureDatedReportGetsThreeSweeps(t *testing.T) {
+	now := time.Now()
+	b := NewBallot()
+	b.now = func() time.Time { return now }
+	b.Record(report("captain", "skewed", false, now.Add(time.Hour)))
+	b.Record(report("captain", "west", true, now))
+
+	vs := b.Tally(now.Add(ReportFreshness + time.Second))
+	if len(vs) != 0 {
+		t.Fatalf("after three sweeps of silence: %+v, want no verdict (the skewed reporter stopped reporting)", vs)
+	}
+
+	// While it is fresh, the reporter's next report (on our clock) replaces it.
+	b.Record(report("captain", "skewed", false, now.Add(time.Hour)))
+	b.now = func() time.Time { return now.Add(time.Minute) }
+	b.Record(report("captain", "skewed", true, now.Add(time.Minute)))
+	vs = b.Tally(now.Add(time.Minute))
+	if len(vs) != 1 || vs[0].Failing != 0 {
+		t.Errorf("verdict = %+v, want the newer healthy report as skewed's vote", vs)
+	}
+}
