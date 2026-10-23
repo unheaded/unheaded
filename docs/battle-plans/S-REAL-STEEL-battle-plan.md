@@ -930,10 +930,14 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 193** [TEST][V] ~3m: `gotest ./cmd/unheaded-daemon/...` green.
   - Done 2026-10-23: gotest ./cmd/unheaded-daemon/... green, race-clean; lint 0; gosec clean.
 - [ ] **Step 194** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): reconcile-now endpoint for deploy cutovers`.
-- [ ] **Step 195** [CODE][TEST] ~25m: Rollback wiring tests: `rollback.Manager` with a `DeploymentLookup` backed by a history store (interface only here; Sword provides the file-backed one in Phase 8), `InstanceUpdater` and `TrafficShifter` adapters over the driver. `TestRollback_RestoresPreviousVersionThroughDriver` (fake Cuirass ends with only the previous version's instances desired and the proxy on them), `TestRollback_NoPreviousVersionIsAnError`, `TestAutoRollbackMonitor_TriggersOnFailedHealth`.
-- [ ] **Step 196** [TEST] ~2m: Red.
-- [ ] **Step 197** [CODE] ~40m: Implement the adapters (`pkg/deploy/cuirassdriver/rollback.go`).
-- [ ] **Step 198** [TEST][V] ~3m: Green.
+- [x] **Step 195** [CODE][TEST] ~25m: Rollback wiring tests: `rollback.Manager` with a `DeploymentLookup` backed by a history store (interface only here; Sword provides the file-backed one in Phase 8), `InstanceUpdater` and `TrafficShifter` adapters over the driver. `TestRollback_RestoresPreviousVersionThroughDriver` (fake Cuirass ends with only the previous version's instances desired and the proxy on them), `TestRollback_NoPreviousVersionIsAnError`, `TestAutoRollbackMonitor_TriggersOnFailedHealth`.
+  - Done 2026-10-23: cuirassdriver/rollback_test.go: the three named tests (in-memory DeploymentLookup; Manager over the driver's Updater and Shifter) plus TestRollback_ManagerWithoutUpdaterFails.
+- [x] **Step 196** [TEST] ~2m: Red.
+  - Done 2026-10-23: red (compile: Updater, Shifter, Manager.Wait undefined).
+- [x] **Step 197** [CODE] ~40m: Implement the adapters (`pkg/deploy/cuirassdriver/rollback.go`).
+  - Done 2026-10-23: cuirassdriver/rollback.go: Updater = rolling update (surge 1, none unavailable) to the version through the driver; Shifter moves the endpoint when a healthy target exists, else leaves it to the Updater (deleting the old holder moves it). pkg/deploy/rollback: Manager.Wait; a Manager with no updater now fails the rollback (it used to dereference nil); AutoRollbackMonitor read startedAt outside its lock and printed with fmt.Printf (now OnError hook).
+- [x] **Step 198** [TEST][V] ~3m: Green.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
 - [ ] **Step 199** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): rollback manager drives the Cuirass driver`.
 - [ ] **Step 200** [TEST][CODE] ~30m: End-to-end strategy tests against the fake Cuirass (`pkg/deploy/cuirassdriver/e2e_test.go`):
   - rolling 3 replicas v1→v2 with `max_unavailable=0`: at every fake tick, healthy count ≥ 3;
