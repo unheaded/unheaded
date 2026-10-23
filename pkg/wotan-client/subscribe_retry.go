@@ -31,66 +31,73 @@ func (c *Client) SubscribeWithRetry(ctx context.Context, topic, name string, onM
 	failing := false
 	attempt := 0
 	for {
-		err := c.subscribeOnce(ctx, topic, name, onMsg)
+		ch, err := c.joinAndStream(ctx, topic, name, onMsg != nil)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err == nil {
-			if failing {
-				log.Printf("[INFO] wotan_client: %s joined %s after %d retries", name, topic, attempt)
+		if err != nil {
+			if !failing {
+				log.Printf("[WARN] wotan_client: %s cannot join %s, retrying in the background (degraded mode): %v", name, topic, err)
+				failing = true
 			}
-			if onMsg == nil {
-				return nil
-			}
-			if c.isClosed() {
-				return nil // Close ended the stream
-			}
-			// The stream ended on its own: join and stream again, after a
-			// pause so a stream that keeps ending cannot spin.
-			failing, attempt = false, 0
-			select {
-			case <-ctx.Done():
+			attempt++
+			if !sleepCtx(ctx, retryDelay(attempt)) {
 				return ctx.Err()
-			case <-time.After(retryDelay(1)):
 			}
 			continue
 		}
-		if !failing {
-			log.Printf("[WARN] wotan_client: %s cannot join %s, retrying in the background (degraded mode): %v", name, topic, err)
-			failing = true
+		if failing {
+			log.Printf("[INFO] wotan_client: %s joined %s after %d retries", name, topic, attempt)
+			failing, attempt = false, 0
 		}
-		attempt++
-		select {
-		case <-ctx.Done():
+		if onMsg == nil {
+			return nil
+		}
+		for msg := range ch {
+			if msg != nil {
+				onMsg(msg)
+			}
+		}
+		if ctx.Err() != nil {
 			return ctx.Err()
-		case <-time.After(retryDelay(attempt)):
+		}
+		if c.isClosed() {
+			return nil // Close ended the stream
+		}
+		// The stream ended on its own: join and stream again, after a pause
+		// so a stream that keeps ending cannot spin.
+		if !sleepCtx(ctx, retryDelay(1)) {
+			return ctx.Err()
 		}
 	}
 }
 
-// subscribeOnce joins once and, with onMsg, streams until the stream ends.
-// A stream that ends without error returns nil.
-func (c *Client) subscribeOnce(ctx context.Context, topic, name string, onMsg func(*Message)) error {
+// joinAndStream joins topic as name and, when stream is set, opens its
+// message stream.
+func (c *Client) joinAndStream(ctx context.Context, topic, name string, stream bool) (<-chan *Message, error) {
 	sub, err := c.Subscribe(ctx, topic, name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if sub.Status != "approved" {
-		return ErrSubscriptionPending
+		return nil, ErrSubscriptionPending
 	}
-	if onMsg == nil {
-		return nil
+	if !stream {
+		return nil, nil
 	}
-	ch, err := c.StreamMessages(ctx, topic)
-	if err != nil {
-		return err
+	return c.StreamMessages(ctx, topic)
+}
+
+// sleepCtx waits d or until ctx ends; false means ctx ended.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
 	}
-	for msg := range ch {
-		if msg != nil {
-			onMsg(msg)
-		}
-	}
-	return nil
 }
 
 // retryDelay is min(30 s, 1 s * 2^(attempt-1)) with +/-20 % jitter, so many

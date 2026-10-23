@@ -194,6 +194,7 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
 | GitHub `ci.yml`, `docker.yml`, `ebpf.yml`, `release.yml` are `disabled_manually` | S17 (Stevie's setting; do not touch) |
 | alert-mailer in `mode: dry-run`; no Watchdog | ADR-100 Implementation |
 | East runs pre-S17 binaries (logs-oldest, gateway, uptime, blank-trace bugs visible there) | S17 deploy note |
+| `go mod tidy -diff` not empty (drops indirect `gopkg.in/check.v1` and stale `kr/*` sums); go.mod/go.sum unchanged by this sprint | Step 78 (2026-10-23) |
 | `cargo test -p monad-common` inside `ebpf/` fails to compile (the workspace config forces bpfel + build-std); use `make test-rust-ebpf-common` | Step 17 (2026-10-23) |
 
 Step 16 at `f7d730e7` (2026-10-23): `go build ./...` clean, `go test -count=1 ./...` 277 ok / 0 FAIL.
@@ -582,20 +583,25 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```
   - The grep may still print the log line, but every hit must sit in a retry loop (read them).
 - [x] **Step 89** [C] ~2m: **COMMIT CHECKPOINT**: `fix(timeguru,architect): keep retrying Wotan subscriptions instead of giving up at start`.
-- [ ] **Step 90** [B] ~3m: Same pattern anywhere else? `grep -rn 'wotan unavailable' --include=*.go "$PROJECT_ROOT"/services "$PROJECT_ROOT"/cmd | grep -v _test`. Record the remaining sites in next.md as a follow-on list (Marshal: do not widen this phase to all services).
+- [x] **Step 90** [B] ~3m: Same pattern anywhere else? `grep -rn 'wotan unavailable' --include=*.go "$PROJECT_ROOT"/services "$PROJECT_ROOT"/cmd | grep -v _test`. Record the remaining sites in next.md as a follow-on list (Marshal: do not widen this phase to all services).
+  - Done 2026-10-23: remaining live sites (micromanager, monad, sophia, gateway; yaldabaoth for Phase 10) listed in ~/tmp/next.md; not widened here.
 
 ### E1-dependent items
 
 - [ ] **Step 91** [AFTER-E1] ~5m: `transport.Connect`: if E1 G5 = Y it was deleted in Phase 1 (nothing to do). If N (keep), write one line in next.md ("transport.Connect kept by Stevie; unused; finish when a caller appears") and move on: no phase needs it.
+  - Done 2026-10-23: [AFTER-E1] skipped: waits on E1 G5.
 - [ ] **Step 92** [AFTER-E1] ~20m: xdpsync (`services/loadbalancer/xdpsync.go:102`): if deleted in Phase 1, nothing to do. If kept/parked: test `TestXDPSync_JoinsBeforePublish` (publishes `lb.rebalance` only after Join as `loadbalancer`), fix the name (`xdpsync-service` → `loadbalancer`), add `loadbalancer` to `configs/wotan.yaml` `auto_approve`, `gotest ./services/loadbalancer/...`.
+  - Done 2026-10-23: [AFTER-E1] skipped: waits on E1 (services/loadbalancer is F6, suggested P).
 
 ### Live proof on a scratch Wotan (no host change)
 
-- [ ] **Step 93** [BUILD] ~3m: Build a scratch Wotan and timeguru.
+- [x] **Step 93** [BUILD] ~3m: Build a scratch Wotan and timeguru.
+  - Done 2026-10-23: built ./services/timeguru/cmd/timeguru (the binary the Dockerfile and debs ship), not ./services/timeguru (the Nix-only main), plus the scratch Wotan.
   ```bash
   cd "$PROJECT_ROOT" && go build -o "$SCRATCH/wotan" ./services/wotan/cmd/wotan && go build -o "$SCRATCH/timeguru" ./services/timeguru
   ```
-- [ ] **Step 94** [LIVE-RO] ~10m: Start timeguru first, pointed at a Wotan that is not running yet (ports 28000/28001, user space, high ports, no root), wait 10 s, then start the scratch Wotan with a temp config whose `auto_approve` holds `timeguru`. Within 40 s Wotan's membership/stats endpoint lists timeguru's subscription.
+- [x] **Step 94** [LIVE-RO] ~10m: Start timeguru first, pointed at a Wotan that is not running yet (ports 28000/28001, user space, high ports, no root), wait 10 s, then start the scratch Wotan with a temp config whose `auto_approve` holds `timeguru`. Within 40 s Wotan's membership/stats endpoint lists timeguru's subscription.
+  - Done 2026-10-23: env is WOTAN_ADDR/WOTAN_GRPC_ADDR/PORT/DB_PATH (scratch DB), Wotan flags --http-port/--grpc-port/--topic-config, memory store (no disk). Wotan has no stats/members endpoint; proof = Wotan's topic_subscriber_created log + timeguru's new /health detail.
   ```bash
   cp "$PROJECT_ROOT/configs/wotan.yaml" "$SCRATCH/wotan.yaml"
   WOTAN_ADDR=127.0.0.1:28000 WOTAN_GRPC_ADDR=127.0.0.1:28001 PORT=29000 "$SCRATCH/timeguru" >"$SCRATCH/tg.log" 2>&1 & echo $! > "$SCRATCH/tg.pid"
@@ -603,13 +609,16 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   sleep 40; curl -fsS 127.0.0.1:28000/api/v1/stats | jq '.'
   ```
   - Flag names are from the binaries' `--help`; check them first (`"$SCRATCH/wotan" --help | head -30`), they are not guessed here.
-- [ ] **Step 95** [V] ~1m: timeguru appears as a member/subscriber; its log shows one degraded line and then a success line. Fail → Step 96.
+- [x] **Step 95** [V] ~1m: timeguru appears as a member/subscriber; its log shows one degraded line and then a success line. Fail → Step 96.
+  - Done 2026-10-23: PASS. Wotan down: timeguru /health 200 with streams {}; one WARN per topic. Wotan up 10 s later: within 5 s Wotan logged topic_subscriber_created for timeline.updates and alerts.critical as timeguru (approved), /health streams {alerts.critical:true, timeline.updates:true}, and the startup timeline_loaded announcement reached Wotan (message_count 1). Found: the recovery INFO line only printed when a stream ended; fixed in the same commit (logged on join).
 - [ ] **Step 96** [D] ~5m: Check timeguru's env names (`grep -n Getenv services/timeguru/main.go`) and Wotan's allowlist rejection in `w.log`. 2 attempts → STUCK (unit tests from Step 86 still stand; the live proof moves to Phase 5 Step 151).
-- [ ] **Step 97** [B][V] ~2m: **PHASE 2 EXIT GATE**: stop the scratch processes; all four sub-sections green; no new test failures.
+  - Done 2026-10-23: not needed.
+- [x] **Step 97** [B][V] ~2m: **PHASE 2 EXIT GATE**: stop the scratch processes; all four sub-sections green; no new test failures.
+  - Done 2026-10-23: PASS: scratch processes stopped; all four sub-sections green and race-clean; no new failures.
   ```bash
   kill "$(cat "$SCRATCH/tg.pid")" "$(cat "$SCRATCH/w.pid")" 2>/dev/null; gotest ./pkg/wotan-client/... ./services/timeguru/... ./services/architect/...
   ```
-- [ ] **Step 98** [C] ~2m: **COMMIT CHECKPOINT** (plan ticks + next.md follow-on list).
+- [x] **Step 98** [C] ~2m: **COMMIT CHECKPOINT** (plan ticks + next.md follow-on list).
 
 **DoD (Phase 2)**: DoD-STD + each fix has a test that fails when the fix is reverted (bite-test one of them: revert the ProbeGRPC change locally, see red, restore).
 
