@@ -9,6 +9,7 @@ Reads a runbook YAML file and executes steps sequentially with:
 - Verification gates after each step
 - Rollback on failure
 - Dry-run mode for validation
+- Steps with `host:` run only on that host (exit 2 elsewhere)
 
 Usage:
   python3 scripts/run-runbook.py runbooks/observe/service-health-sweep.yaml
@@ -19,10 +20,14 @@ Usage:
 import argparse
 import os
 import re
+import socket
 import subprocess
 import sys
 
 import yaml
+
+# Short hostname, compared against a step's `host:` (west, east).
+LOCAL_HOST = socket.gethostname().split(".")[0].lower()
 
 
 def load_runbook(path):
@@ -171,6 +176,20 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
         print(f"  [{i+1}/{len(steps)}] {name}")
         if desc:
             print(f"           {desc}")
+
+        # `host:` names the machine a step belongs to (wireguard-overlay
+        # alternates west and east). Nothing here can run a step elsewhere, and
+        # running it on this machine instead would configure the wrong host,
+        # so stop and say where it goes.
+        host = expand_env(step.get("host", ""), env)
+        if host and action != "manual" and host.lower() != LOCAL_HOST:
+            print(f"    [WRONG HOST] this step runs on {host}; this is {LOCAL_HOST}.")
+            print(f"           Continue there: run-runbook.py --step {i} <runbook>")
+            if dry_run:
+                continue
+            # Not a failure: nothing ran, so there is nothing to roll back.
+            print(f"\n[STOPPED] before step {i+1} ({name}); no rollback, nothing failed.")
+            sys.exit(2)
 
         if action == "manual":
             # A step the operator performs by hand — it needs a value the runbook
