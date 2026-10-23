@@ -1,0 +1,7 @@
+services:
+  edge:
+    image: traefik:v3.3.7
+  postgres:
+    image: postgres:16.15-alpine  # exact tag
+    volumes:
+      - ./db/postgresql.conf:/etc/postgresql/postgresql.conf:ro

@@ -1,0 +1,7 @@
+[package]
+name = "ringy"
+version = "0.1.0"
+
+[dependencies]
+tokio-rustls = "0.26"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }

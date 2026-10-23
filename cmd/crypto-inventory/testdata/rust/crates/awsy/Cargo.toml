@@ -1,0 +1,6 @@
+[package]
+name = "awsy"
+version = "0.1.0"
+
+[dependencies]
+rustls = "0.23"

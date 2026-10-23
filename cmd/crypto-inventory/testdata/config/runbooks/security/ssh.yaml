@@ -1,0 +1,4 @@
+steps:
+  - name: harden sshd
+    content: |
+      KexAlgorithms curve25519-sha256

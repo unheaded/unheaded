@@ -1,0 +1,6 @@
+[package]
+name = "tonicy"
+version = "0.1.0"
+
+[dependencies]
+tonic = { version = "0.12", features = ["gzip", "tls"] }

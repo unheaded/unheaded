@@ -1,0 +1,13 @@
+{
+  "host": "east",
+  "sshd": {
+    "version": "OpenSSH_10.0p2",
+    "kex": ["mlkem768x25519-sha256", "sntrup761x25519-sha512", "curve25519-sha256"]
+  },
+  "openssl": "OpenSSL 3.5.3",
+  "wireguard": {
+    "interfaces": ["wg0"],
+    "peers": [{"interface": "wg0", "psk": "set"}],
+    "psk_file_dates": ["2026-03-25"]
+  }
+}
