@@ -182,6 +182,32 @@ func TestTaskManager_CreateTask_HappyPath(t *testing.T) {
 	}
 }
 
+// Initialize alone is enough to publish task events: production never makes
+// the extra Subscribe the tests above make, and every publish failed "not
+// subscribed to topic tasks.created".
+func TestTaskManager_PublishesAfterInitializeAlone(t *testing.T) {
+	tm, mockClient := createTestTaskManager(t)
+	ctx := context.Background()
+	if err := tm.Initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+	task := createTestTask("task-pub")
+	if err := tm.CreateTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	task.Title = "renamed"
+	if err := tm.UpdateTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	if err := tm.DeleteTask(ctx, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	tm.inflight.Wait()
+	if n := mockClient.GetPublishCount(); n != 3 {
+		t.Errorf("%d task events published, want 3", n)
+	}
+}
+
 func TestTaskManager_CreateTask_NilTask_ReturnsError(t *testing.T) {
 	tm, _ := createTestTaskManager(t)
 	ctx := context.Background()

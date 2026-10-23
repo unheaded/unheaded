@@ -195,6 +195,17 @@ func (tm *TaskManager) subscribeToTasks(ctx context.Context) error {
 		Str("subscriber_id", sub.SubscriberID).
 		Msg("subscribed to wotan topic")
 
+	// Join the topics this manager publishes to. Every Wotan client refuses
+	// to publish to a topic it has not joined, and the "tasks.*" pattern
+	// above is not a join of tasks.created: every task create, update and
+	// delete failed "not subscribed to topic" and never reached Wotan. (The
+	// tests joined these topics themselves, so they never saw it.)
+	for _, topic := range []string{TopicTasksCreated, TopicTasksUpdated, TopicTasksDeleted} {
+		if _, err := tm.client.Subscribe(ctx, topic, "kanban-app"); err != nil {
+			log.Warn().Err(err).Str("topic", topic).Msg("failed to join wotan publish topic")
+		}
+	}
+
 	tm.subMu.Lock()
 	tm.subscribed = true
 	tm.subMu.Unlock()
