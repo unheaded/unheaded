@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"unheaded/pkg/wotan-client/mock"
 )
@@ -89,6 +90,33 @@ func TestTaskManagerWrites_StoreSuccess(t *testing.T) {
 	}
 	if err := s.taskManager.DeleteTask(context.Background(), "existing"); err != nil {
 		t.Errorf("delete: %v", err)
+	}
+}
+
+// An update keeps the task's created_at, whatever the PUT body says.
+func TestTaskManagerUpdate_KeepsCreatedAt(t *testing.T) {
+	s := storeBackedServer(t, &stubStore{})
+	created := s.taskManager.getTask("existing").CreatedAt
+	for _, body := range []string{
+		`{"id":"existing","title":"t","status":"todo"}`,
+		`{"id":"existing","title":"t","status":"todo","created_at":"2001-01-01T00:00:00Z"}`,
+	} {
+		w := httptest.NewRecorder()
+		s.handleTasks(w, httptest.NewRequest(http.MethodPut, "/api/v1/tasks", bytes.NewReader([]byte(body))))
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: status %d", body, w.Code)
+		}
+		var resp struct{ Task Task }
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+		for where, got := range map[string]time.Time{
+			"response": resp.Task.CreatedAt, "board": s.taskManager.getTask("existing").CreatedAt,
+		} {
+			if !got.Equal(created) {
+				t.Errorf("%s: %s created_at = %v, want %v", body, where, got, created)
+			}
+		}
 	}
 }
 

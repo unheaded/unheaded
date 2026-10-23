@@ -491,11 +491,16 @@ func (tm *TaskManager) UpdateTask(ctx context.Context, task *Task) error {
 	}
 
 	// Check if task exists
-	if !tm.taskExists(task.ID) {
+	existing := tm.getTask(task.ID)
+	if existing == nil {
 		return ErrTaskNotFound
 	}
 
-	// Update timestamp
+	// An update does not change when the task was created. A PUT body
+	// without created_at used to zero it on the board (the store kept its
+	// own, so the two disagreed until restart); one with created_at
+	// rewrote history.
+	task.CreatedAt = existing.CreatedAt
 	task.UpdatedAt = time.Now()
 
 	// Persist first, as in CreateTask.
