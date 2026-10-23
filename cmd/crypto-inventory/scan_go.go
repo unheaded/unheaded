@@ -21,7 +21,7 @@ const (
 	kindTLSGroups = "tls-groups"  // CurvePreferences set outside a literal
 	kindTLSFloor  = "tls-floor"   // MinVersion set outside a tls.Config literal
 	kindTLSCap    = "tls-cap"     // MaxVersion below 1.3 set outside a literal
-	kindGRPCCreds = "grpc-tls"    // grpc credentials built from files/certs
+	kindGRPCCreds = "grpc-tls"    // #nosec G101 -- an asset-kind label (the name says creds), not a credential: grpc credentials built from files/certs
 	kindGodebug   = "godebug"     // a tlsmlkem/tlssecpmlkem kill switch
 	kindSigImport = "sig-import"  // a signature algorithm package
 	kindKEMImport = "kem-import"  // a KEM implementation package

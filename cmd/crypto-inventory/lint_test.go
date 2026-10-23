@@ -144,21 +144,21 @@ func TestReadBaseline_CommentsBlanksDupes(t *testing.T) {
 	if err := os.WriteFile(p, []byte("# header\n\nb y\na x\n  \na x\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, header, err := readBaseline(p)
+	got, header, err := readBaseline(filepath.Dir(p), p)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Join(got, "|") != "a x|b y" || strings.Join(header, "|") != "# header" {
 		t.Errorf("baseline = %v header = %v", got, header)
 	}
-	if _, _, err := readBaseline(filepath.Join(t.TempDir(), "missing")); err == nil {
+	if _, _, err := readBaseline(t.TempDir(), "missing"); err == nil {
 		t.Error("a missing baseline must be an error, not an empty set")
 	}
 	bad := filepath.Join(t.TempDir(), "bad.txt")
 	if err := os.WriteFile(bad, []byte("only-one-field\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := readBaseline(bad); err == nil {
+	if _, _, err := readBaseline(filepath.Dir(bad), bad); err == nil {
 		t.Error("a malformed line must be an error")
 	}
 }

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"path"
 	"regexp"
@@ -243,7 +242,7 @@ func encodeHostFacts(f *HostFacts) ([]byte, error) {
 }
 
 // writeHostFacts collects and writes one host's facts file.
-func writeHostFacts(host string, r Runner, outPath string) error {
+func writeHostFacts(host string, r Runner, top, outPath string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	f, err := collectHost(ctx, host, r)
@@ -254,7 +253,7 @@ func writeHostFacts(host string, r Runner, outPath string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(outPath, b, 0o644) // #nosec G306 -- checked-in inventory, no secrets (encodeHostFacts refuses key-shaped data)
+	return writeRepoFile(top, outPath, b)
 }
 
 // scanHosts turns compliance/crypto/hosts/*.json into assets. scan never

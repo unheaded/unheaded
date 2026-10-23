@@ -46,6 +46,9 @@ commands:
   collect-host  write one host's read-only crypto facts (--host, --local | --ssh, --out)
   lint          exit 1 on classical-only key exchange not in the shrink-only baseline
                 (--baseline FILE, --update refuses additions, --print, --explain PATH)
+
+Paths given to --out, --cbom and --baseline are relative to the repository
+root (or absolute inside it); the tool reads and writes nothing outside it.
 `
 
 // run dispatches a subcommand; exit codes: 0 ok, 1 finding, 2 usage/error.
@@ -80,11 +83,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		host := fs.String("host", "", "short host name recorded in the file (e.g. east)")
 		local := fs.Bool("local", false, "collect from this machine")
 		sshTarget := fs.String("ssh", "", "collect over ssh from user@host (BatchMode)")
-		out := fs.String("out", "", "output file")
+		out := fs.String("out", "", "output file inside the repository")
 		if fs.Parse(rest) != nil || fs.NArg() != 0 {
 			return 2
 		}
-		return cmdCollectHost(*host, *local, *sshTarget, *out, stdout, stderr)
+		return cmdCollectHost(*root, *host, *local, *sshTarget, *out, stdout, stderr)
 	case "lint":
 		baseline := fs.String("baseline", defaultBaseline, "shrink-only baseline, relative to the repository root")
 		update := fs.Bool("update", false, "rewrite the baseline from the tree; refuses additions")
@@ -117,7 +120,7 @@ func cmdScan(root, out string, stdout, stderr io.Writer) int {
 	if out == "-" {
 		_, err = stdout.Write(b)
 	} else {
-		err = os.WriteFile(out, b, 0o644) // #nosec G306 -- checked-in inventory, no secrets
+		err = writeRepoFile(tr.Root, out, b)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "scan:", err)
@@ -137,11 +140,11 @@ func cmdCheck(root, cbom string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "check:", err)
 		return 2
 	}
-	p := cbom
-	if !filepath.IsAbs(p) {
-		p = filepath.Join(tr.Root, filepath.FromSlash(cbom))
+	have, err := readRepoFile(tr.Root, filepath.FromSlash(cbom))
+	if errors.Is(err, errOutsideRepo) {
+		fmt.Fprintln(stderr, "check:", err)
+		return 2
 	}
-	have, err := os.ReadFile(p) // #nosec G304 -- operator-chosen inventory path
 	if err != nil {
 		fmt.Fprintf(stderr, "[FAIL] %s: %v\n  Generate it: go run ./cmd/crypto-inventory scan --out %s\n", cbom, err, cbom)
 		return 1
@@ -173,7 +176,7 @@ func cmdSummary(root string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func cmdCollectHost(host string, local bool, sshTarget, out string, stdout, stderr io.Writer) int {
+func cmdCollectHost(root, host string, local bool, sshTarget, out string, stdout, stderr io.Writer) int {
 	if host == "" || out == "" || local == (sshTarget != "") {
 		fmt.Fprintln(stderr, "collect-host: need --host, --out and exactly one of --local / --ssh")
 		return 2
@@ -186,7 +189,16 @@ func cmdCollectHost(host string, local bool, sshTarget, out string, stdout, stde
 		}
 		r = sshRunner{target: sshTarget}
 	}
-	if err := writeHostFacts(host, r, out); err != nil {
+	top, err := gitTop(root)
+	if err != nil {
+		fmt.Fprintln(stderr, "collect-host:", err)
+		return 2
+	}
+	if _, err := repoRel(top, out); err != nil {
+		fmt.Fprintln(stderr, "collect-host:", err)
+		return 2
+	}
+	if err := writeHostFacts(host, r, top, out); err != nil {
 		fmt.Fprintln(stderr, "collect-host:", err)
 		return 2
 	}

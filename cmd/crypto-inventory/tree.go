@@ -42,15 +42,23 @@ func excluded(rel string) bool {
 // the working tree and anything that is not a regular file (symlinks,
 // submodules) are left out.
 func gitTree(root string) (*Tree, error) {
-	top, err := exec.Command("git", "-C", root, "rev-parse", "--show-toplevel").Output()
+	topDir, err := gitTop(root)
 	if err != nil {
-		return nil, fmt.Errorf("git rev-parse in %s: %w", root, err)
+		return nil, err
 	}
-	topDir := strings.TrimSpace(string(top))
-	out, err := exec.Command("git", "-C", topDir, "ls-files", "-z", "--cached", "--others", "--exclude-standard").Output()
+	ls := exec.Command("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+	ls.Dir = topDir
+	out, err := ls.Output()
 	if err != nil {
 		return nil, fmt.Errorf("git ls-files in %s: %w", topDir, err)
 	}
+	// Lstat through an os.Root: a name from git's output cannot reach
+	// outside the repository, whatever it contains.
+	repo, err := os.OpenRoot(topDir)
+	if err != nil {
+		return nil, err
+	}
+	defer repo.Close()
 	seen := map[string]bool{}
 	var files []string
 	for _, f := range bytes.Split(out, []byte{0}) {
@@ -59,7 +67,7 @@ func gitTree(root string) (*Tree, error) {
 			continue
 		}
 		seen[rel] = true
-		info, err := os.Lstat(filepath.Join(topDir, filepath.FromSlash(rel)))
+		info, err := repo.Lstat(filepath.FromSlash(rel))
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
@@ -67,6 +75,20 @@ func gitTree(root string) (*Tree, error) {
 	}
 	sort.Strings(files)
 	return &Tree{Root: topDir, Files: files}, nil
+}
+
+// gitTop returns the top of the git repository containing dir. Both git
+// commands here have constant arguments and take the directory as their
+// working directory, so no caller-supplied value reaches git's command line
+// (a --root starting with "-" cannot become an option).
+func gitTop(dir string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Dir = dir
+	top, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse in %s: %w", dir, err)
+	}
+	return strings.TrimSpace(string(top)), nil
 }
 
 // dirTree lists every regular file under root. Test fixtures use it; the
@@ -98,14 +120,20 @@ func dirTree(root string) (*Tree, error) {
 var errTooLarge = errors.New("file larger than the scan limit")
 
 // Read returns a tracked file's contents. rel must be one of t.Files'
-// shape (relative, no ..), so a crafted name cannot read outside Root.
+// shape (relative, no ..), and the read goes through an os.Root at Root,
+// so neither a crafted name nor a symlink can read outside Root.
 func (t *Tree) Read(rel string) ([]byte, error) {
 	clean := path.Clean(rel)
 	if clean != rel || path.IsAbs(rel) || strings.HasPrefix(clean, "../") || clean == ".." {
 		return nil, fmt.Errorf("refusing path %q", rel)
 	}
-	full := filepath.Join(t.Root, filepath.FromSlash(rel))
-	info, err := os.Lstat(full)
+	r, err := os.OpenRoot(t.Root)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	name := filepath.FromSlash(rel)
+	info, err := r.Lstat(name)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +143,7 @@ func (t *Tree) Read(rel string) ([]byte, error) {
 	if info.Size() > maxFileBytes {
 		return nil, fmt.Errorf("%s: %w", rel, errTooLarge)
 	}
-	return os.ReadFile(full) // #nosec G304 -- rel is a cleaned tracked path under Root
+	return r.ReadFile(name)
 }
 
 // Has reports whether rel is in the tree.

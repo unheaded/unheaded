@@ -5,10 +5,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -172,14 +174,13 @@ const baselineHeader = "# shrink-only (ADR-098 ratchet, ADR-105). Remove lines a
 
 // readBaseline returns the sorted unique entries and the header comments.
 // A missing or malformed baseline is an error, never an empty set.
-func readBaseline(path string) (entries, header []string, err error) {
-	f, err := os.Open(path) // #nosec G304 -- operator-chosen baseline path
+func readBaseline(top, path string) (entries, header []string, err error) {
+	b, err := readRepoFile(top, path)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer f.Close()
 	seen := map[string]bool{}
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(bytes.NewReader(b))
 	n := 0
 	for sc.Scan() {
 		n++
@@ -207,7 +208,7 @@ func readBaseline(path string) (entries, header []string, err error) {
 	return entries, header, nil
 }
 
-func writeBaseline(path string, header, entries []string) error {
+func writeBaseline(top, path string, header, entries []string) error {
 	var b strings.Builder
 	if len(header) == 0 {
 		header = strings.Split(baselineHeader, "\n")
@@ -218,7 +219,7 @@ func writeBaseline(path string, header, entries []string) error {
 	for _, e := range entries {
 		b.WriteString(e + "\n")
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o644) // #nosec G306 -- policy file, no secrets
+	return writeRepoFile(top, path, []byte(b.String()))
 }
 
 // cmdLint: --print lists violations; --explain P shows what the scanners saw
@@ -246,12 +247,9 @@ func cmdLint(root, baselinePath string, print, update bool, explain string, stdo
 		}
 		return 0
 	}
-	p := baselinePath
-	if !strings.HasPrefix(p, "/") {
-		p = tr.Root + "/" + baselinePath
-	}
-	base, header, err := readBaseline(p)
-	if err != nil && !(update && errors.Is(err, os.ErrNotExist)) {
+	p := filepath.FromSlash(baselinePath)
+	base, header, err := readBaseline(tr.Root, p)
+	if err != nil && (!update || !errors.Is(err, os.ErrNotExist)) {
 		fmt.Fprintf(stderr, "[FAIL] baseline %s: %v\n", baselinePath, err)
 		return 1
 	}
@@ -264,7 +262,7 @@ func cmdLint(root, baselinePath string, print, update bool, explain string, stdo
 			}
 			return 1
 		}
-		if err := writeBaseline(p, header, keys); err != nil {
+		if err := writeBaseline(tr.Root, p, header, keys); err != nil {
 			fmt.Fprintln(stderr, "lint:", err)
 			return 2
 		}
