@@ -58,8 +58,11 @@ done
 SU="$(sed -n 's/^superuser=//p' "$SET/cluster.env")"
 [[ "$SU" =~ ^[a-z_][a-z0-9_]*$ ]] || { echo "[drill] bad superuser in cluster.env: '$SU'" >&2; exit 1; }
 
-# 2. Throwaway server.
-N="well-drill-$$"
+# 2. Throwaway server. WELL_DRILL_NAME lets a suite give it its own prefix
+# (scripts/well/test-pq-groups.sh: qa-pg18-*), so its cleanup check can
+# account for every container it caused.
+N="${WELL_DRILL_NAME:-well-drill-$$}"
+[[ "$N" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$ ]] || { echo "[drill] bad WELL_DRILL_NAME: '$N'" >&2; exit 2; }
 cleanup() { "${DOCKER[@]}" stop "$N" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 start=$(date +%s)

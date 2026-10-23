@@ -507,6 +507,16 @@ provoke_well_config() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_pq_groups() {
+    # Contract (ADR-105): the Well on PG 18 negotiates X25519MLKEM768.
+    # Drop the hybrid from the include, leaving only classical groups.
+    local f="db/postgresql.pg18.conf.d/10-pq-groups.conf"
+    backup "${f}"
+    sed -i "s|^ssl_groups = 'X25519MLKEM768:|ssl_groups = '|" "${REPO_ROOT}/${f}"
+    grep -q "^ssl_groups = 'X25519:prime256v1'$" "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
@@ -717,6 +727,7 @@ well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, 
 well/test-backup-restore|provoke_well_backup_restore|slow|db-backup.sh leaving unheaded_ops out of the set (needs docker)
 well/test-offsite-check|provoke_well_offsite_check|fast|offsite-check.sh counting a set without SHA256SUMS as good
 well/test-config|provoke_well_config|slow|pg_hba letting service roles in without TLS (needs docker)
+well/test-pq-groups|provoke_well_pq_groups|slow|the hybrid group removed from the PG18 ssl_groups include (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
