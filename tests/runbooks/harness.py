@@ -82,7 +82,7 @@ def runner_env(rb, environ):
         if isinstance(p, dict) and "default" in p:
             n = p.get("name")
             if n and n not in env and n not in environ:
-                env[n] = str(p["default"])
+                env[n] = os.path.expandvars(os.path.expanduser(str(p["default"])))
     return env
 
 

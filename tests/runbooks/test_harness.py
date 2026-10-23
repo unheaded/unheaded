@@ -35,6 +35,11 @@ def test_run_step_expands_like_the_runner():
     assert harness.run_step(rb, "s").stdout.strip() == "from-env dflt"
     # the operator's environment overrides a parameter default, never env:
     assert harness.run_step(rb, "s", env={"P": "op", "A": "op"}).stdout.strip() == "from-env op"
+    # a parameter default may name $HOME or ~, like run-runbook.py expands it
+    rb = {"parameters": [{"name": "D", "default": "$HOME/x"}, {"name": "T", "default": "~/y"}],
+          "steps": [{"name": "s", "action": "shell", "command": "echo $D ${T}"}]}
+    home = harness.Path.home()
+    assert harness.run_step(rb, "s").stdout.strip() == f"{home}/x {home}/y"
 
 
 def test_commands_splits_pipelines_and_strips_sudo():

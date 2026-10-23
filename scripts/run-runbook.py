@@ -322,7 +322,9 @@ def main():
             continue
         name = param.get("name")
         if name and name not in env and name not in os.environ:
-            env[name] = str(param["default"])
+            # ~ and $HOME-style references expand like env: values do; left
+            # literal, "$HOME/x" reached bash as a value and stayed unexpanded.
+            env[name] = os.path.expandvars(os.path.expanduser(str(param["default"])))
 
     print("=" * 60)
     print(f"RUNBOOK: {meta.get('name', args.runbook)}")
