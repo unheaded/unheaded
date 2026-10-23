@@ -1001,55 +1001,75 @@ Decisions recorded with overrides · spec gate run · threat model written · no
 **Time**: ~4 h
 **Agent**: Developer (TDD), Computermancer review
 
-- [ ] **Step 251** [R] ~5m: How `monad-common` is consumed host-side today
+- [x] **Step 251** [R] ~5m: How `monad-common` is consumed host-side today
   ```bash
   grep -n 'monad-common' "$PROJECT_ROOT"/cmd/upc-bootctl/Cargo.toml "$PROJECT_ROOT"/crates/*/Cargo.toml; grep -n '^pub mod\|^#!\[no_std\]\|cfg_attr' "$EBPF/monad-common/src/lib.rs" | head
   ```
-- [ ] **Step 252** [V] ~30s: `monad-common` builds for the host (upc-bootctl depends on it) → `cart.rs` can be shared
-- [ ] **Step 253** [W][CODE][TEST] ~30m: Red tests for `monad_common::cart`: `CartState {regs:[u32;16], pc:u16, flags:u8, insns:u32, mem:[u32;64]}`; `step(&mut CartState, rom:&impl Rom, data:&impl Data, io:&mut impl CartIo) -> Step {Continue, Verdict(u8), Yield, Fault(FaultKind)}`; per opcode in the allowlist (Appendix C.3), golden vectors
+- [x] **Step 252** [V] ~30s: `monad-common` builds for the host (upc-bootctl depends on it) → `cart.rs` can be shared
+  - S5 2026-10-23: upc-bootctl, xv6-mbc and monad-mbc already consume monad-common on the host. Host tests must run from the repo root (`cargo test --manifest-path ebpf/monad-common/Cargo.toml`): inside `ebpf/` the BPF `build-std` config collides with the host target.
+- [x] **Step 253** [W][CODE][TEST] ~30m: Red tests for `monad_common::cart`: `CartState {regs:[u32;16], pc:u16, flags:u8, insns:u32, mem:[u32;64]}`; `step(&mut CartState, rom:&impl Rom, data:&impl Data, io:&mut impl CartIo) -> Step {Continue, Verdict(u8), Yield, Fault(FaultKind)}`; per opcode in the allowlist (Appendix C.3), golden vectors
+  - S5 2026-10-23: 14 golden-vector tests in `ebpf/monad-common/src/cart.rs`: 10 red against a stub, then green.
   ```bash
   cargo test --manifest-path "$EBPF/monad-common/Cargo.toml" --target x86_64-unknown-linux-gnu cart 2>&1 | tail -10
   ```
-- [ ] **Step 254** [CODE] ~60m: Implement `cart.rs`: decode via existing `MbcInsn`; allowlist ADD SUB MUL MULH AND OR XOR NOT SHL SHR SAR SHLR SHRR SARR MOV MOVI LOAD_IMM32 ADDI CMP JMP JZ JNZ JN JP JC JNC LD ST LDB HALT SYSCALL; memory windows: `[0x0000,0x0100)` → `mem` (flow state), `[0x1000, 0x1000+4*data_words)` → data (read-only); anything else → `Fault(Mem)`; no recursion, no allocation, every array index masked or bounds-checked (verifier-friendly shape)
-- [ ] **Step 255** [V] ~1m: Tests green on host
-- [ ] **Step 256** [B][BUILD] ~3m: `cart.rs` compiles for `bpfel-unknown-none` inside the ebpf workspace (build `monad-common` there)
+- [x] **Step 254** [CODE] ~60m: Implement `cart.rs`: decode via existing `MbcInsn`; allowlist ADD SUB MUL MULH AND OR XOR NOT SHL SHR SAR SHLR SHRR SARR MOV MOVI LOAD_IMM32 ADDI CMP JMP JZ JNZ JN JP JC JNC LD ST LDB HALT SYSCALL; memory windows: `[0x0000,0x0100)` → `mem` (flow state), `[0x1000, 0x1000+4*data_words)` → data (read-only); anything else → `Fault(Mem)`; no recursion, no allocation, every array index masked or bounds-checked (verifier-friendly shape)
+  - S5 2026-10-23: Implemented (ABI v0 per ADR-106). Every regs/mem index masked; windows range-checked; faults are values.
+- [x] **Step 255** [V] ~1m: Tests green on host
+- [x] **Step 256** [B][BUILD] ~3m: `cart.rs` compiles for `bpfel-unknown-none` inside the ebpf workspace (build `monad-common` there)
+  - S5 2026-10-23: `cargo build --release -p monad-common` (bpfel) OK; clippy clean.
   ```bash
   (cd "$EBPF" && cargo build --release -p monad-common 2>&1 | tail -2)
   ```
-- [ ] **Step 257** [V] ~30s: Builds for BPF (no std, no float, no 128-bit ops)
-- [ ] **Step 258** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 257** [V] ~30s: Builds for BPF (no std, no float, no 128-bit ops)
+  - S5 2026-10-23: Builds for BPF. monad-cpu-ebpf instruction stream byte-identical with and without the module (llvm-objdump -d, Doom and ascend); only DWARF differs.
+- [x] **Step 258** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: `9cc40068`.
   ```bash
   git -C "$PROJECT_ROOT" add ebpf/monad-common && commitp -m "feat(mbc): [S5 251-258] shared no_std cartridge step function"
   ```
-- [ ] **Step 259** [W][CODE][TEST] ~45m: `crates/upc-cartridge` (std, GPL-3.0-or-later): `.cart` encode/decode (Appendix C.3), `validate()` (opcode allowlist, branch targets in ROM, XDP stage: no back-edges and `max_insn ≤ 64`; tick stage: declared loop bound; syscalls allowed per stage; data ≤ 4096 B), `Reference` runner over `monad_common::cart::step`, `state_hash()` = FNV-1a over regs+pc+mem (same FNV as `upc-bootctl`'s tested `fnv1a`)
-- [ ] **Step 260** [W][CODE] ~20m: Assembler path: reuse `mbc-asm` syntax for hand-written cartridges (`crates/monad-mbc/src/assembler.rs`) → `cart build --stage xdp --asm X.s --data W.bin -o X.cart`
-- [ ] **Step 261** [B][TEST] ~2m: `cargo test --manifest-path "$PROJECT_ROOT/crates/upc-cartridge/Cargo.toml" 2>&1 | tail -10`
-- [ ] **Step 262** [V][PREFLIGHT] ~10m: **H-C3** — differential test: for 10,000 random allowlisted instruction sequences with no syscalls/windowed memory, `monad_common::cart::step` and `monad-mbc` `execute.rs` produce identical registers and flags
+- [x] **Step 259** [W][CODE][TEST] ~45m: `crates/upc-cartridge` (std, GPL-3.0-or-later): `.cart` encode/decode (Appendix C.3), `validate()` (opcode allowlist, branch targets in ROM, XDP stage: no back-edges and `max_insn ≤ 64`; tick stage: declared loop bound; syscalls allowed per stage; data ≤ 4096 B), `Reference` runner over `monad_common::cart::step`, `state_hash()` = FNV-1a over regs+pc+mem (same FNV as `upc-bootctl`'s tested `fnv1a`)
+  - S5 2026-10-23: `crates/upc-cartridge`: Image encode/decode (hostile-input decode, sha256, every single-bit flip rejected), validate(), reference runner, `cart` CLI. Tests written first (red: unresolved imports).
+- [x] **Step 260** [W][CODE] ~20m: Assembler path: reuse `mbc-asm` syntax for hand-written cartridges (`crates/monad-mbc/src/assembler.rs`) → `cart build --stage xdp --asm X.s --data W.bin -o X.cart`
+  - S5 2026-10-23: `cart build --stage xdp|tick --asm X.s [--data W.bin] -o X.cart`, `cart validate -` (stdin), `cart info`. The monad-mbc assembler lacked SHLR/SHRR/SARR/MULH/MULHU mnemonics; added with a test.
+- [x] **Step 261** [B][TEST] ~2m: `cargo test --manifest-path "$PROJECT_ROOT/crates/upc-cartridge/Cargo.toml" 2>&1 | tail -10`
+  - S5 2026-10-23: upc-cartridge tests green (image/validate 5, reference 5, differential 1, surface 1).
+- [x] **Step 262** [V][PREFLIGHT] ~10m: **H-C3** — differential test: for 10,000 random allowlisted instruction sequences with no syscalls/windowed memory, `monad_common::cart::step` and `monad-mbc` `execute.rs` produce identical registers and flags
+  - S5 2026-10-23: H-C3 FALSE: nine drifts of monad-mbc execute.rs from monad-cpu-ebpf (MUL and all six shifts set C; JP also tested Z; MULH unsigned). Host side fixed to match the shipping engine; 3 host unit tests that encoded the old semantics updated; differential (10,000 programs, lockstep) green. Host MULHU arm still missing (outside the cartridge allowlist), logged.
   - Divergence → record each as a finding in the sprint log ("ISA semantics drift: <opcode>"), decide which side matches `monad-cpu-ebpf` (the shipping engine) and fix the other; this is the first Lich-hook output (Phase 17)
-- [ ] **Step 263** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 263** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: `b7398de5`.
   ```bash
   git -C "$PROJECT_ROOT" add crates/upc-cartridge && commitp -m "feat(upc-cartridge): [S5 259-263] .cart format, validator, reference runner"
   ```
-- [ ] **Step 264** [W][CODE][TEST] ~20m: `upc-api`: `FeatureGate::Cartridge` + a `cartridge` `SyscallSurface` descriptor registered in `SurfaceRegistry` (ADR-080 §4 host-side registry)
-- [ ] **Step 265** [B][TEST] ~2m: `cargo test --manifest-path "$PROJECT_ROOT/crates/upc-api/Cargo.toml" 2>&1 | tail -5`
-- [ ] **Step 266** [V] ~30s: Existing upc-api characterization tests unchanged and green
-- [ ] **Step 267** [W][TEST] ~20m: Determinism property test: same image + same input log → same state hash after every step, across 1,000 random input logs; and a mutation test proving the hash notices a single-bit change in mem
-- [ ] **Step 268** [V] ~30s: Property tests green
-- [ ] **Step 269** [B][TEST] ~6m: MBC verification pattern on the shared code — decode tests + 5-minute fuzz of `cart::step` (new target `fuzz_cart_step` in `crates/monad-mbc/fuzz`)
+- [x] **Step 264** [W][CODE][TEST] ~20m: `upc-api`: `FeatureGate::Cartridge` + a `cartridge` `SyscallSurface` descriptor registered in `SurfaceRegistry` (ADR-080 §4 host-side registry)
+  - S5 2026-10-23: `FeatureGate::Cartridge` in upc-api; the `cartridge` surface constant + `register_surface()` live in upc-cartridge (upc-api never declares a guest surface).
+- [x] **Step 265** [B][TEST] ~2m: `cargo test --manifest-path "$PROJECT_ROOT/crates/upc-api/Cargo.toml" 2>&1 | tail -5`
+- [x] **Step 266** [V] ~30s: Existing upc-api characterization tests unchanged and green
+  - S5 2026-10-23: upc-api 25 tests unchanged and green; upc-bootctl and doom-runner `cargo check` clean.
+- [x] **Step 267** [W][TEST] ~20m: Determinism property test: same image + same input log → same state hash after every step, across 1,000 random input logs; and a mutation test proving the hash notices a single-bit change in mem
+  - S5 2026-10-23: In `reference.rs`: 1,000 random input logs reproduce every state hash; 256 random single-bit mem mutations all change the hash.
+- [x] **Step 268** [V] ~30s: Property tests green
+- [x] **Step 269** [B][TEST] ~6m: MBC verification pattern on the shared code — decode tests + 5-minute fuzz of `cart::step` (new target `fuzz_cart_step` in `crates/monad-mbc/fuzz`)
+  - S5 2026-10-23: cargo-fuzz not installed: built with its RUSTFLAGS (+debug-assertions, overflow checks) and ran the libFuzzer binary directly: 191,764,880 runs / 300 s.
   ```bash
   cd "$PROJECT_ROOT/crates/monad-mbc" && cargo +nightly fuzz run fuzz_cart_step -- -max_total_time=300 2>&1 | tail -3
   ```
-- [ ] **Step 270** [V] ~30s: Zero crashes, zero panics (a fault must be a `Fault` value, never a panic)
-- [ ] **Step 271** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 270** [V] ~30s: Zero crashes, zero panics (a fault must be a `Fault` value, never a panic)
+  - S5 2026-10-23: 0 crashes, 0 panics.
+- [x] **Step 271** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: `89468b0c`.
   ```bash
   git -C "$PROJECT_ROOT" add crates/upc-api crates/upc-cartridge crates/monad-mbc/fuzz && commitp -m "test(upc-cartridge): [S5 264-271] surface descriptor, determinism properties, cart_step fuzz"
   ```
-- [ ] **Step 272** [COMPLIANCE] ~5m: SPDX headers on every new file; `Cargo.lock` diff shows no new third-party crates
+- [x] **Step 272** [COMPLIANCE] ~5m: SPDX headers on every new file; `Cargo.lock` diff shows no new third-party crates
+  - S5 2026-10-23: SPDX on every new file (assembler.rs also gained its missing SPDX line).
   ```bash
   git -C "$PROJECT_ROOT" diff --stat 443de3f82 -- '*Cargo.lock' | tail -3
   ```
-- [ ] **Step 273** [V] ~30s: No new third-party crates (path deps only)
-- [ ] **Step 274** [V][GATE] ~1m: **PHASE 10 EXIT GATE** — shared step fn builds for host and BPF; validator + reference runner tested; H-C3 resolved or findings logged; fuzz clean
+- [x] **Step 273** [V] ~30s: No new third-party crates (path deps only)
+  - S5 2026-10-23: Only `upc-cartridge` itself is new in its Cargo.lock: every third-party crate@version (incl. sha2 0.10.9) is already in cmd/upc-bootctl or crates/monad-mbc locks.
+- [x] **Step 274** [V][GATE] ~1m: **PHASE 10 EXIT GATE** — shared step fn builds for host and BPF; validator + reference runner tested; H-C3 resolved or findings logged; fuzz clean
+  - S5 2026-10-23: PASSED.
 
 ### Phase 10 Definition of Done
 TDD evidence (red then green) · determinism property holds · fuzz clean · no new third-party deps · SPDX present.

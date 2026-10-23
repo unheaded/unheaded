@@ -218,3 +218,28 @@ depends on them. East was not contacted.
   self-approved.
 - ADR-106 number: free on every local sprint branch at forge time; a parallel branch could
   still claim it before merge.
+
+## Phase 10 — shared step function + host reference (2026-10-23)
+
+- `monad_common::cart` (`9cc40068`): 14 golden-vector tests, red then green. The
+  monad-cpu-ebpf instruction stream is byte-identical with and without the module
+  (llvm-objdump -d, both variants); only DWARF changes.
+- `crates/upc-cartridge` (`b7398de5`, `89468b0c`): image format, validator, reference
+  runner, `cart` CLI, the `cartridge` ADR-080 surface (`FeatureGate::Cartridge`).
+- **H-C3 FALSE — first Lich-hook output.** 10,000 random allowlisted programs in lockstep:
+  `monad-mbc` execute.rs (host emulator) drifted from `monad-cpu-ebpf` on nine opcodes:
+
+  | Opcode | Host emulator (before) | Shipping engine (kept) |
+  |---|---|---|
+  | MUL 0x03 | C = unsigned overflow | C = 0 |
+  | SHL/SHR/SAR 0x0B–0x0D, SHLR/SHRR/SARR 0x36–0x38 | C = last bit shifted out | C = 0 |
+  | JP 0x24 | taken if N=0 **and Z=0** | taken if N=0 |
+  | MULH 0x39 | unsigned high word | signed high word (RV32M MULH) |
+
+  Host side fixed; three host unit tests that encoded the old semantics updated. The host
+  emulator also has no MULHU arm (the translator emits MULHU): outside the cartridge
+  allowlist, logged for the Lich sprint.
+- fuzz `fuzz_cart_step`: 191,764,880 runs / 300 s, 0 crashes (cargo-fuzz RUSTFLAGS + debug
+  assertions + overflow checks; libFuzzer binary run directly).
+- No new third-party crate: upc-cartridge's lock adds only itself; sha2 0.10.9 is
+  upc-bootctl's.
