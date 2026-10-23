@@ -27,9 +27,15 @@ type Tree struct {
 	Files []string
 }
 
-// excluded reports files no scanner looks at: test fixtures, vendored code.
+// excluded reports files no scanner looks at: test fixtures, vendored code,
+// and eval/ (the preregistered model-eval tasks: frozen fixture modules a
+// model is asked to fix, and their results; nothing there is configuration
+// we run).
 func excluded(rel string) bool {
 	if strings.HasPrefix(rel, "vendor/") || strings.Contains(rel, "/vendor/") {
+		return true
+	}
+	if strings.HasPrefix(rel, "eval/") {
 		return true
 	}
 	return strings.HasPrefix(rel, "testdata/") || strings.Contains(rel, "/testdata/")

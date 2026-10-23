@@ -35,8 +35,12 @@ files = subprocess.run(
     capture_output=True, text=True).stdout.split()
 
 # Helm templates are Go templates, not YAML, until rendered. helm lint covers
-# those; parsing them here would only produce noise.
+# those; parsing them here would only produce noise. The two-brains eval
+# fixtures (eval/*/fixtures/rb-bad-indent, rb-unquoted-colon) are broken on
+# purpose: a model is asked to repair them. They are never applied.
 def skip(p):
+    if p.startswith('eval/') and '/fixtures/' in p:
+        return True
     return p.startswith('helm/') and '/templates/' in p
 
 bad = []

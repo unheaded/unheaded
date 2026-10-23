@@ -44,7 +44,8 @@
 #
 # Exemption: cmd/lich-security/** is not linted. It is the red-team tool and
 # probes weak TLS on purpose; pinning classical groups there is the test, not
-# a configuration we run. Test files (_test.go) and testdata/ are not scanned.
+# a configuration we run. Test files (_test.go), testdata/ and eval/ (frozen
+# model-eval fixtures) are not scanned.
 #
 # Explain one file: go run ./cmd/crypto-inventory lint --explain <path>
 #

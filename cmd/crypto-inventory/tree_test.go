@@ -61,12 +61,12 @@ func TestTreeRead_RefusesSymlinkAndHuge(t *testing.T) {
 }
 
 func TestExcluded(t *testing.T) {
-	for _, p := range []string{"vendor/x.go", "a/vendor/x.go", "testdata/x.go", "cmd/y/testdata/go/a.go"} {
+	for _, p := range []string{"vendor/x.go", "a/vendor/x.go", "testdata/x.go", "cmd/y/testdata/go/a.go", "eval/two-brains/fixtures/go-nil-map/go.mod"} {
 		if !excluded(p) {
 			t.Errorf("%s should be excluded", p)
 		}
 	}
-	for _, p := range []string{"pkg/tls/server.go", "cmd/vendorish/x.go", "docs/testdata.md"} {
+	for _, p := range []string{"pkg/tls/server.go", "cmd/vendorish/x.go", "docs/testdata.md", "cmd/eval/x.go"} {
 		if excluded(p) {
 			t.Errorf("%s should not be excluded", p)
 		}
