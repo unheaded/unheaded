@@ -50,6 +50,7 @@ unheaded_config  028_config_change_reason_required.sql
 postgres         029_template1_no_public_connect.sql
 unheaded_ops     030_ops_llm_requests.sql
 unheaded_app     031_app_zhen_pending_confirmations.sql
+unheaded_app     033_app_zhen_captures.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and

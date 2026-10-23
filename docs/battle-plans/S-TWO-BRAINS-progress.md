@@ -172,3 +172,18 @@ All live Claude calls of this run go through `-ledger $SCRATCH/spend.json`
 | 183 | the same 3 fixtures, `--route local` (comparison) | 0.000000 | 1.349625 |
 
 **Total live Claude spend for this run: $1.349625** (run ledger $1.324123 + Phase 5 ledger $0.025502), under the $5 budget.
+
+---
+
+# Phases 10, 11, 13 (branch `sprint/two-brains-flywheel`)
+
+Second run, by a worktree agent, from `14de0842` (Phases 0-5 done).
+Phase 12 (the LoRA run) is not started: Step 400 is [ESCALATE].
+Unsigned commits; nothing pushed; the live Well untouched (migrations ran
+only on throwaway `qa-` containers, removed afterwards).
+
+## P10-13 Decisions
+
+- **Step 339** [DECIDE] recommendation taken: one switch, `zhen-flywheel export -include-claude-text` (or `ZHEN_FLYWHEEL_INCLUDE_CLAUDE_TEXT=1`), default OFF. With it off, no `author_kind='claude'` text becomes an SFT target, a preference "chosen" (or "rejected") side or a tool-trace target. Training data is: local answers that passed a check or a judge with no failing outcome (rejection sampling), local answers in runs Stevie accepted, and human-authored or human-edited text; test outcomes and verdicts are labels, not text. Claude text is still captured and stored, tagged, so the flip is one commit.
+- **Step 340** [ESCALATE] stays open (below). The flag stays OFF.
+- **Step 341** [DECIDE] recommendation taken, with Erda changes: `bytes` is a generated column (the 256 KiB cap is enforced on what is stored, not on what the writer says); `purge_after` is set by the insert trigger (captured_at + 180 days; a writer cannot extend it); `quarantined` (one way) added so `zhen-flywheel quarantine` has a path that ends in the purge; `truncated` and `record_id` (the capture line's id) kept for the filters and for labels taken from the record itself; `backend` gains `none` for human text (CHECK: `author_kind` and `backend` agree); `task_family` NOT NULL (`unknown` when the producer gave none). `run_id` has no foreign key: `zhen_agent_runs` is 032, written on `sprint/two-brains`, not on this branch; a later migration adds the FK `NOT VALID` once both are merged. Deletes only through `zhen_captures_purge()` (SECURITY DEFINER; a trigger refuses any other DELETE, owner included; TRUNCATE refused); labels are insert-only and go with their capture. Lint: the label kinds' CHECK carries a `well:ignore open-vocabulary-check` with its reason; P3 `no-default-privileges` as for every migration.
