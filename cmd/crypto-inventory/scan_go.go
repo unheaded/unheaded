@@ -8,6 +8,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -32,7 +34,18 @@ const (
 	pkgCreds = "google.golang.org/grpc/credentials"
 	pkgSSH   = "golang.org/x/crypto/ssh"
 	pkgPQC   = "unheaded/pkg/crypto/pqc"
+	pkgPQTLS = "unheaded/pkg/tls" // ApplyStrict / ApplyPreferred (ADR-105)
+	dirPQTLS = "pkg/tls"          // where those are called without a qualifier
 )
+
+// ADR-105 profile functions in pkg/tls and what they do to a Config.
+const (
+	profileStrict    = "ApplyStrict"    // TLS 1.3, hybrid groups only
+	profilePreferred = "ApplyPreferred" // TLS 1.3, Go default groups
+)
+
+// strictGroups mirrors pkg/tls StrictKEX().
+var strictGroups = []string{"X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024"}
 
 // Go's TLS key-exchange identifiers (crypto/tls CurveID constants).
 var hybridGroups = map[string]bool{
@@ -186,6 +199,7 @@ type goFile struct {
 	tlsName string // local name of crypto/tls, "" if not imported
 	creds   string // local name of grpc/credentials
 	ssh     string // local name of x/crypto/ssh
+	pqtls   string // local name of unheaded/pkg/tls
 	out     []Asset
 }
 
@@ -246,6 +260,8 @@ func (g *goFile) imports(f *ast.File) {
 			g.tlsName = name
 		case pkgCreds:
 			g.creds = name
+		case pkgPQTLS:
+			g.pqtls = name
 		case pkgSSH:
 			g.ssh = name
 			g.sshImport(f, imp, name)
@@ -418,10 +434,123 @@ func (g *goFile) mentionsTLS(e ast.Expr) bool {
 	return found
 }
 
+// configLit returns the tls.Config literal e is (or takes the address of).
+func (g *goFile) configLit(e ast.Expr) *ast.CompositeLit {
+	if u, ok := e.(*ast.UnaryExpr); ok && u.Op == token.AND {
+		e = u.X
+	}
+	cl, ok := e.(*ast.CompositeLit)
+	if !ok {
+		return nil
+	}
+	if name, ok := g.tlsSel(cl.Type); !ok || name != "Config" {
+		return nil
+	}
+	return cl
+}
+
+// profileCall reports whether n is a one-argument call to a pkg/tls profile
+// function: qualified by the import's local name, or bare inside pkg/tls.
+func (g *goFile) profileCall(n ast.Node) (*ast.CallExpr, string) {
+	call, ok := n.(*ast.CallExpr)
+	if !ok || len(call.Args) != 1 {
+		return nil, ""
+	}
+	var name string
+	switch fn := call.Fun.(type) {
+	case *ast.SelectorExpr:
+		x, ok := fn.X.(*ast.Ident)
+		if !ok || g.pqtls == "" || x.Name != g.pqtls {
+			return nil, ""
+		}
+		name = fn.Sel.Name
+	case *ast.Ident:
+		if path.Dir(g.rel) != dirPQTLS {
+			return nil, ""
+		}
+		name = fn.Name
+	default:
+		return nil, ""
+	}
+	if name != profileStrict && name != profilePreferred {
+		return nil, ""
+	}
+	return call, name
+}
+
+// profiles maps each tls.Config literal a pkg/tls profile is applied to
+// onto that profile. Within one function, the literal is the call's
+// argument, or the last literal assigned (before the call) to the variable
+// or field the call names.
+func (g *goFile) profiles(f *ast.File) map[*ast.CompositeLit]string {
+	out := map[*ast.CompositeLit]string{}
+	if g.pqtls == "" && path.Dir(g.rel) != dirPQTLS {
+		return out
+	}
+	for _, d := range f.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Body == nil {
+			continue
+		}
+		stored := map[string][]*ast.CompositeLit{} // in source order
+		ast.Inspect(fd.Body, func(n ast.Node) bool {
+			as, ok := n.(*ast.AssignStmt)
+			if !ok || len(as.Lhs) != len(as.Rhs) {
+				return true
+			}
+			for i, rhs := range as.Rhs {
+				if cl := g.configLit(rhs); cl != nil {
+					k := types.ExprString(as.Lhs[i])
+					stored[k] = append(stored[k], cl)
+				}
+			}
+			return true
+		})
+		ast.Inspect(fd.Body, func(n ast.Node) bool {
+			call, p := g.profileCall(n)
+			if call == nil {
+				return true
+			}
+			if cl := g.configLit(call.Args[0]); cl != nil {
+				out[cl] = p
+				return true
+			}
+			var last *ast.CompositeLit
+			for _, cl := range stored[types.ExprString(call.Args[0])] {
+				if cl.Pos() < call.Pos() {
+					last = cl
+				}
+			}
+			if last != nil {
+				out[last] = p
+			}
+			return true
+		})
+	}
+	return out
+}
+
+// applyProfile returns the floor, cap and groups a profile leaves behind:
+// both raise the floor to 1.3 and lift a cap below it; Strict sets the
+// hybrid-only list, Preferred clears the list (Go's default).
+func applyProfile(p, minV, maxV string) (string, string, []string) {
+	if minV == "" || minV == dynamic || below13(minV) {
+		minV = "1.3"
+	}
+	if below13(maxV) {
+		maxV = "1.3"
+	}
+	if p == profileStrict {
+		return minV, maxV, append([]string(nil), strictGroups...)
+	}
+	return minV, maxV, nil
+}
+
 // tlsLiterals emits one asset per tls.Config literal and returns the
 // key/value nodes it consumed so tlsSettings does not count them twice.
 func (g *goFile) tlsLiterals(f *ast.File) map[ast.Node]bool {
 	consumed := map[ast.Node]bool{}
+	prof := g.profiles(f)
 	ast.Inspect(f, func(n ast.Node) bool {
 		cl, ok := n.(*ast.CompositeLit)
 		if !ok {
@@ -463,15 +592,24 @@ func (g *goFile) tlsLiterals(f *ast.File) map[ast.Node]bool {
 		case fields["ClientCAs"] || fields["ClientAuth"] || fields["GetCertificate"] || fields["GetConfigForClient"] || fields["Certificates"]:
 			role = "TLS server config"
 		}
+		detail := ""
+		if p := prof[cl]; p != "" {
+			minV, maxV, grp = applyProfile(p, minV, maxV)
+			dynGroups = false
+			detail = "pkg/tls " + p + " (ADR-105)"
+		}
 		floor := minV
 		if floor == "" {
 			floor = "1.2" // Go's default for clients and servers
 		}
 		status := classifyTLS(minV, maxV, grp, dynGroups)
+		if d := tlsDetail(minV, maxV, grp, dynGroups); d != "" {
+			detail = strings.TrimPrefix(detail+"; "+d, "; ")
+		}
 		g.add(Asset{
 			Line: g.line(cl.Pos()), Kind: kindTLSConfig, Name: role, Floor: floor, Cap: maxV,
 			AssetType: assetProtocol, Protocol: protoTLS, Version: versionRange(floor, maxV),
-			Groups: grp, PQStatus: status, Detail: tlsDetail(minV, maxV, grp, dynGroups),
+			Groups: grp, PQStatus: status, Detail: detail,
 		})
 		return true
 	})

@@ -6,6 +6,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	pqtls "unheaded/pkg/tls"
 )
 
 // fixtureTree loads a testdata subtree as if it were the repository root.
@@ -92,6 +94,49 @@ func TestScanGo_Classification(t *testing.T) {
 				t.Errorf("%s: scanner = %q, want go", a.Ref(), a.Scanner)
 			}
 		})
+	}
+}
+
+// TestScanGo_ProfileCalls: a literal handed to pkg/tls ApplyStrict or
+// ApplyPreferred (directly, or through the variable or field it was stored
+// in) is classified by the profile, which overrides its own floor and groups.
+func TestScanGo_ProfileCalls(t *testing.T) {
+	assets := scanGoFixtures(t)
+	tests := []struct {
+		name, path   string
+		line         int
+		status       string
+		floor, group string
+	}{
+		{"(m) ApplyStrict on a literal argument", "pkg/fx/m_apply.go", 13, pqHybridStrict, "1.3", "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"},
+		{"(m) ApplyPreferred through a variable", "pkg/fx/m_apply.go", 20, pqHybrid, "1.3", ""},
+		{"(m) unrelated literal in the same function", "pkg/fx/m_apply.go", 23, pqHybridOpp, "1.2", ""},
+		{"(m) ApplyStrict on a field, run-time floor", "pkg/fx/m_apply.go", 36, pqHybridStrict, "1.3", "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"},
+		{"(n) bare call inside pkg/tls", "pkg/tls/n_bare.go", 11, pqHybridStrict, "1.3", "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := one(t, assets, tt.path, tt.line, kindTLSConfig)
+			if a.PQStatus != tt.status || a.Floor != tt.floor || strings.Join(a.Groups, ",") != tt.group {
+				t.Errorf("%s: status=%q floor=%q groups=%v, want %q %q %q (detail %q)",
+					a.Ref(), a.PQStatus, a.Floor, a.Groups, tt.status, tt.floor, tt.group, a.Detail)
+			}
+			if len(rulesFor(a)) != 0 && tt.status != pqHybridOpp {
+				t.Errorf("%s: lint rules %v on a profiled config", a.Ref(), rulesFor(a))
+			}
+		})
+	}
+}
+
+// TestStrictGroupsMatchPkgTLS keeps the scanner's copy of the Strict list
+// in step with pkg/tls StrictKEX().
+func TestStrictGroupsMatchPkgTLS(t *testing.T) {
+	var got []string
+	for _, id := range pqtls.StrictKEX() {
+		got = append(got, id.String())
+	}
+	if strings.Join(got, ",") != strings.Join(strictGroups, ",") {
+		t.Fatalf("pkg/tls StrictKEX() = %v, scanner strictGroups = %v", got, strictGroups)
 	}
 }
 
