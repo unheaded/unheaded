@@ -162,25 +162,25 @@ gotest() { (cd "$PROJECT_ROOT" && go test -race -count=1 "$@" 2>&1 | tail -25); 
 
 Verified in Phase 0 Steps 4-20. A FALSE hypothesis is not a failure: it amends the plan (note it here, then follow the "If false" column).
 
-| # | Hypothesis | Verify via (step) | If false |
-|---|---|---|---|
-| H1 | HEAD contains `443de3f82` and the S17 Cuirass commits | Step 4 | Rebase/branch from develop; STOP if those commits are gone |
-| H2 | 148 of 300 packages are still unreached | Step 5 | Use the new count everywhere; the table is generated, not typed |
-| H3 | Every deploy path simulates when its driver is nil (sites in SITUATION) | Step 6 | Drop the sites that are already real from Phase 7 |
-| H4 | Yaldabaoth injectors only log; `runProbe` is always true; `shouldAbort` always false | Step 7 | Keep whatever is real; Phase 10/11 shrink |
-| H5 | `chaos-controller` never constructs `yaldabaoth.Service` | Step 7 | Phase 10 wires the existing one instead of adding it |
-| H6 | No userspace writes `CHAOS_TARGETS` | Step 8 | Reuse that loader in Phase 13 |
-| H7 | West LXD has an HTTPS listener and no `unheaded` project yet (trust script not applied) | Step 9 [LIVE-RO] | If the project exists, E2 shrinks to "confirm it is ours" |
-| H8 | West main stack (wotan, victoria, cuirass) is down | Step 10 [LIVE-RO] | If up, E2 drops the compose-up ask |
-| H9 | East answers read-only; unheaded-* units active list known | Step 11 [LIVE-RO] | Phase 12 waits for east; nothing else does |
-| H10 | `sch_netem` and `tc` exist on west and east kernels | Step 12 | Phase 11 netem STUCK on that host; container kill still runs |
-| H11 | Wotan registers `grpc.health.v1` (services/wotan/cmd/wotan/main.go:343) | Step 13 | ProbeGRPC uses a cheap Wotan RPC instead (D-11) |
-| H12 | `TransferSnapshot` has no client caller | Step 13 | Phase 3 must fix the caller too |
-| H13 | Spec EVENT_CHAOS 0x04 vs code 0x05 mismatch is real | Step 14 | Drop E4's first question |
-| H14 | `services/loadbalancer` (xdpsync) is unreached, so its Wotan bug is in dead code | Step 5 | Phase 2 fixes xdpsync's join instead of routing it to E1 |
-| H15 | `go test ./...` is green at HEAD (S17: 267 ok / 0 fail) | Step 16 | Record failures in KNOWN FAILURES BASELINE; they are not this sprint's |
-| H16 | A restricted LXD client in a project with `features.images=false` cannot import images | Step 145 (after E2) | If it can, the image build runs as Cuirass's identity, not govan |
-| H17 | A compose container can reach lxdbr0 instance IPs (Cuirass's and Sword's probes) | Step 174 | D-09 fallback: Sword runs as a host systemd unit; Cuirass probe moves to the host side (STUCK until decided) |
+| # | Hypothesis | Verify via (step) | If false | Result (Phase 0, 2026-10-23) |
+|---|---|---|---|---|
+| H1 | HEAD contains `443de3f82` and the S17 Cuirass commits | Step 4 | Rebase/branch from develop; STOP if those commits are gone | **TRUE (amendment: the cited hashes were rewritten when unpushed commits were re-signed; the same commits are present by subject: `37f1c6c0` LXD REST client, `b04336e3` safe mode, `1883f910` desired store, `2a2f4e62` trust script, `c8d42b7f`/`e3769107` cli via Cuirass, `a7eeacf8` UNREACHED list; executed on `f7d730e7`)** |
+| H2 | 148 of 300 packages are still unreached | Step 5 | Use the new count everywhere; the table is generated, not typed | **TRUE: 148 unreached of 307 packages (7 new packages since the doc, all reached); the list is identical to the doc's** |
+| H3 | Every deploy path simulates when its driver is nil (sites in SITUATION) | Step 6 | Drop the sites that are already real from Phase 7 | **TRUE (rolling.go:209, bluegreen.go:139, canary.go invents instances when `OnInstanceCreate` is nil at :157/:297 without a 'simulate' comment; stage.go x5; deploy.go:955; sword.go:267; canary service :591)** |
+| H4 | Yaldabaoth injectors only log; `runProbe` is always true; `shouldAbort` always false | Step 7 | Keep whatever is real; Phase 10/11 shrink | **TRUE** |
+| H5 | `chaos-controller` never constructs `yaldabaoth.Service` | Step 7 | Phase 10 wires the existing one instead of adding it | **TRUE (only `NewAuditTrail`, `NewGameDayScheduler`)** |
+| H6 | No userspace writes `CHAOS_TARGETS` | Step 8 | Reuse that loader in Phase 13 | **TRUE (zero hits outside the eBPF program, not even bpfschema)** |
+| H7 | West LXD has an HTTPS listener and no `unheaded` project yet (trust script not applied) | Step 9 [LIVE-RO] | If the project exists, E2 shrinks to "confirm it is ours" | **TRUE (`[::]:8443`, projects: default only, `pihole,RUNNING`)** |
+| H8 | West main stack (wotan, victoria, cuirass) is down | Step 10 [LIVE-RO] | If up, E2 drops the compose-up ask | **TRUE (VM, Cuirass, Wotan all refuse connections)** |
+| H9 | East answers read-only; unheaded-* units active list known | Step 11 [LIVE-RO] | Phase 12 waits for east; nothing else does | **TRUE (12 units + 2 timers + 1 path active, incl. wotan, timeguru, architect, unheaded-daemon; list in `$SCRATCH/east-units.txt`)** |
+| H10 | `sch_netem` and `tc` exist on west and east kernels | Step 12 | Phase 11 netem STUCK on that host; container kill still runs | **TRUE (both hosts: `sch_netem.ko.zst` on 6.17.0-41, iproute2-6.16.0)** |
+| H11 | Wotan registers `grpc.health.v1` (services/wotan/cmd/wotan/main.go:343) | Step 13 | ProbeGRPC uses a cheap Wotan RPC instead (D-11) | **TRUE (line 352 now, not 343)** |
+| H12 | `TransferSnapshot` has no client caller | Step 13 | Phase 3 must fix the caller too | **TRUE (zero callers)** |
+| H13 | Spec EVENT_CHAOS 0x04 vs code 0x05 mismatch is real | Step 14 | Drop E4's first question | **TRUE (spec 0x04/0x08; code Anomaly 0x04, Chaos 0x05 in monad-common and bpfschema)** |
+| H14 | `services/loadbalancer` (xdpsync) is unreached, so its Wotan bug is in dead code | Step 5 | Phase 2 fixes xdpsync's join instead of routing it to E1 | **TRUE** |
+| H15 | `go test ./...` is green at HEAD (S17: 267 ok / 0 fail) | Step 16 | Record failures in KNOWN FAILURES BASELINE; they are not this sprint's | **TRUE: 277 ok / 0 FAIL (`go test -count=1 ./...` at f7d730e7)** |
+| H16 | A restricted LXD client in a project with `features.images=false` cannot import images | Step 145 (after E2) | If it can, the image build runs as Cuirass's identity, not govan | open (after E2) |
+| H17 | A compose container can reach lxdbr0 instance IPs (Cuirass's and Sword's probes) | Step 174 | D-09 fallback: Sword runs as a host systemd unit; Cuirass probe moves to the host side (STUCK until decided) | open (Step 174) |
 
 ## KNOWN FAILURES BASELINE
 
@@ -194,6 +194,9 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
 | GitHub `ci.yml`, `docker.yml`, `ebpf.yml`, `release.yml` are `disabled_manually` | S17 (Stevie's setting; do not touch) |
 | alert-mailer in `mode: dry-run`; no Watchdog | ADR-100 Implementation |
 | East runs pre-S17 binaries (logs-oldest, gateway, uptime, blank-trace bugs visible there) | S17 deploy note |
+| `cargo test -p monad-common` inside `ebpf/` fails to compile (the workspace config forces bpfel + build-std); use `make test-rust-ebpf-common` | Step 17 (2026-10-23) |
+
+Step 16 at `f7d730e7` (2026-10-23): `go build ./...` clean, `go test -count=1 ./...` 277 ok / 0 FAIL.
 
 ---
 
@@ -206,16 +209,16 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
 
 ### Environment and branch
 
-- [ ] **Step 1** [ENV] ~2m: Set VARIABLES (block above) in the shell; confirm.
+- [x] **Step 1** [ENV] ~2m: Set VARIABLES (block above) in the shell; confirm.
   ```bash
   echo "$PROJECT_ROOT $SIGN"; test -f "$PLAN" && echo plan-ok
   ```
-- [ ] **Step 2** [B] ~1m: Confirm the branch is not develop/staging/main.
+- [x] **Step 2** [B] ~1m: Confirm the branch is not develop/staging/main.
   ```bash
   git -C "$PROJECT_ROOT" branch --show-current
   ```
-- [ ] **Step 3** [V] ~30s: Branch name is a sprint/worktree branch. If it is `develop`, `staging` or `main` → `git -C "$PROJECT_ROOT" switch -c real-steel` and repeat Step 2.
-- [ ] **Step 4** [PREFLIGHT] ~1m: **H1**.
+- [x] **Step 3** [V] ~30s: Branch name is a sprint/worktree branch. If it is `develop`, `staging` or `main` → `git -C "$PROJECT_ROOT" switch -c real-steel` and repeat Step 2.
+- [x] **Step 4** [PREFLIGHT] ~1m: **H1**.
   ```bash
   for c in 443de3f82 b49e3f16 04c34ed0 5b490383 22e9aa54 f95b0764 416eeef7; do
     git -C "$PROJECT_ROOT" merge-base --is-ancestor "$c" HEAD && echo "ok $c" || echo "MISSING $c"; done
@@ -224,7 +227,8 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
 
 ### Hypotheses
 
-- [ ] **Step 5** [PREFLIGHT] ~3m: **H2, H14**: regenerate the unreached list exactly as the doc says.
+- [x] **Step 5** [PREFLIGHT] ~3m: **H2, H14**: regenerate the unreached list exactly as the doc says.
+  - Done 2026-10-23: 148 / 307; services/loadbalancer unreached (1).
   ```bash
   cd "$PROJECT_ROOT"
   mains=$(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./...)
@@ -234,73 +238,75 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
   ```
   - Note: uutils `comm` fails on two pipes (memory: reference_west_tool_gotchas). Process substitution of one side each is fine; if comm errors → `go list ./... | sort -u > $SCRATCH/all.txt` and `... > $SCRATCH/reached.txt`, then `comm -23 $SCRATCH/all.txt $SCRATCH/reached.txt`.
   - Record the count in PREFLIGHT H2's row (edit this file).
-- [ ] **Step 6** [PREFLIGHT] ~2m: **H3**.
+- [x] **Step 6** [PREFLIGHT] ~2m: **H3**.
   ```bash
   grep -n -i 'simulat' "$PROJECT_ROOT"/pkg/deploy/{deploy.go,pipeline/stage.go,strategy/*.go} "$PROJECT_ROOT"/services/{sword/sword.go,canary/canary.go} | grep -v _test
   ```
-- [ ] **Step 7** [PREFLIGHT] ~2m: **H4, H5**.
+- [x] **Step 7** [PREFLIGHT] ~2m: **H4, H5**.
   ```bash
   sed -n '/func (s \*Service) runProbe/,/^}/p;/func (s \*Service) shouldAbort/,/^}/p' "$PROJECT_ROOT/services/yaldabaoth/yaldabaoth.go"
   grep -n 'yaldabaoth\.New' "$PROJECT_ROOT/cmd/chaos-controller/main.go"
   ```
   - Expect `NewAuditTrail` and `NewGameDayScheduler` only, no `NewService`.
-- [ ] **Step 8** [PREFLIGHT] ~2m: **H6**.
+- [x] **Step 8** [PREFLIGHT] ~2m: **H6**.
   ```bash
   grep -rn 'CHAOS_TARGETS' "$PROJECT_ROOT" --include=*.go --include=*.rs | grep -v 'ebpf/yaldabaoth-ebpf/src/main.rs' | grep -v /target/
   ```
   - Only `pkg/protocol/bpfschema` doc/struct hits expected (no `ebpf.LoadPinnedMap` of it).
-- [ ] **Step 9** [PREFLIGHT][LIVE-RO][BARE-METAL] ~2m: **H7** on west.
+- [x] **Step 9** [PREFLIGHT][LIVE-RO][BARE-METAL] ~2m: **H7** on west.
   ```bash
   lxc version; lxc config get core.https_address; lxc project list --format csv | cut -d, -f1
   lxc list --project default --format csv -c ns
   ```
   - Expect a listener (non-empty), no `unheaded` project, `pihole,RUNNING`.
-- [ ] **Step 10** [PREFLIGHT][LIVE-RO] ~1m: **H8**.
+- [x] **Step 10** [PREFLIGHT][LIVE-RO] ~1m: **H8**.
   ```bash
   curl -fsS --max-time 3 "$VM/health" && echo VM-UP || echo VM-DOWN
   curl -fsS --max-time 3 "$CUIRASS/health" && echo CUIRASS-UP || echo CUIRASS-DOWN
   curl -fsS --max-time 3 http://127.0.0.1:18000/health && echo WOTAN-UP || echo WOTAN-DOWN
   ```
-- [ ] **Step 11** [PREFLIGHT][LIVE-RO] ~2m: **H9**.
+- [x] **Step 11** [PREFLIGHT][LIVE-RO] ~2m: **H9**.
   ```bash
   ssh -o BatchMode=yes -o ConnectTimeout=5 "$EAST" 'systemctl list-units "unheaded-*" --no-legend --plain | awk "{print \$1, \$3, \$4}"'
   ```
   - Record the active list in `$SCRATCH/east-units.txt` (Phase 12 picks its allowlist from it).
-- [ ] **Step 12** [PREFLIGHT][LIVE-RO] ~1m: **H10**.
+- [x] **Step 12** [PREFLIGHT][LIVE-RO] ~1m: **H10**.
   ```bash
   modinfo -F filename sch_netem; tc -V
   ssh -o BatchMode=yes "$EAST" 'modinfo -F filename sch_netem; tc -V'
   ```
-- [ ] **Step 13** [PREFLIGHT] ~2m: **H11, H12**.
+- [x] **Step 13** [PREFLIGHT] ~2m: **H11, H12**.
   ```bash
   grep -n 'RegisterHealthServer' "$PROJECT_ROOT/services/wotan/cmd/wotan/main.go"
   grep -rn 'TransferSnapshot(' "$PROJECT_ROOT" --include=*.go | grep -v -E '_test|\.pb\.go|replication_server.go'
   ```
   - Expect one hit for health, zero for snapshot callers.
-- [ ] **Step 14** [PREFLIGHT] ~2m: **H13**.
+- [x] **Step 14** [PREFLIGHT] ~2m: **H13**.
   ```bash
   grep -n 'EVENT_CHAOS\|EVENT_ANOMALY' "$PROJECT_ROOT/docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md"
   grep -n 'Chaos = \|Anomaly = ' "$PROJECT_ROOT/ebpf/monad-common/src/lib.rs"
   grep -n 'EventChaos\|EventAnomaly' "$PROJECT_ROOT/pkg/protocol/bpfschema/core_maps.go"
   ```
-- [ ] **Step 15** [V] ~2m: **PREFLIGHT TABLE UPDATED**: every H1-H15 row in this file carries `TRUE`/`FALSE (amendment: ...)`. H16/H17 stay open until Steps 145/151.
+- [x] **Step 15** [V] ~2m: **PREFLIGHT TABLE UPDATED**: every H1-H15 row in this file carries `TRUE`/`FALSE (amendment: ...)`. H16/H17 stay open until Steps 145/151.
 
 ### Test baseline
 
-- [ ] **Step 16** [TEST] ~15m: **H15**, full baseline (not -race: the race tier runs per touched package).
+- [x] **Step 16** [TEST] ~15m: **H15**, full baseline (not -race: the race tier runs per touched package).
   ```bash
   cd "$PROJECT_ROOT" && go build ./... && go test -count=1 ./... 2>&1 | grep -E '^(ok|FAIL|---)' > "$SCRATCH/baseline-tests.txt"; \
   grep -c '^ok' "$SCRATCH/baseline-tests.txt"; grep '^FAIL' "$SCRATCH/baseline-tests.txt" || echo "no FAIL"
   ```
-- [ ] **Step 17** [B] ~3m: Rust/eBPF baseline for the two crates this sprint touches.
+- [x] **Step 17** [B] ~3m: Rust/eBPF baseline for the two crates this sprint touches.
+  - Done 2026-10-23: the Step 17 cargo line fails as written (ebpf/.cargo/config.toml forces bpfel + build-std: E0463/E0152). Used the Makefile recipe `test-rust-ebpf-common` (CARGO_TARGET_DIR outside ebpf/, --manifest-path ebpf/monad-common/Cargo.toml): 91 + 1 passed. `make ebpf-yaldabaoth` built; yaldabaoth-ebpf = 18080 bytes.
   ```bash
   cd "$PROJECT_ROOT/ebpf" && cargo test -p monad-common 2>&1 | tail -3
   cd "$PROJECT_ROOT" && make ebpf-yaldabaoth 2>&1 | tail -3 && ls -l ebpf/target/bpfel-unknown-none/release/yaldabaoth-ebpf
   ```
   - Record the object's byte size in `$SCRATCH/yald-size.txt` (Phase 13 compares).
-- [ ] **Step 18** [D] ~5m: Only if Step 17 build fails: `rustup show` in `ebpf/` (rust-toolchain.toml pins nightly + `-Z build-std`); `cargo +nightly --version`. 2 attempts, then STUCK Step 17 (blocks Phase 13 only).
-- [ ] **Step 19** [V] ~1m: **BASELINE RECORDED**: `$SCRATCH/baseline-tests.txt` exists, FAIL lines (if any) copied into KNOWN FAILURES BASELINE in this file.
-- [ ] **Step 20** [C] ~2m: **COMMIT CHECKPOINT** (preflight results in the plan).
+- [x] **Step 18** [D] ~5m: Only if Step 17 build fails: `rustup show` in `ebpf/` (rust-toolchain.toml pins nightly + `-Z build-std`); `cargo +nightly --version`. 2 attempts, then STUCK Step 17 (blocks Phase 13 only).
+  - Done 2026-10-23: attempt 1 (host target) still hit build-std; attempt 2 = the Makefile recipe, green. Environment: go.mod's replace needs `../projects/doomgeneric/unheaded`; in a worktree that is `.claude/worktrees/projects`, so a symlink to ~/tmp/projects was added there (outside the repo).
+- [x] **Step 19** [V] ~1m: **BASELINE RECORDED**: `$SCRATCH/baseline-tests.txt` exists, FAIL lines (if any) copied into KNOWN FAILURES BASELINE in this file.
+- [x] **Step 20** [C] ~2m: **COMMIT CHECKPOINT** (preflight results in the plan).
   ```bash
   commit "docs(battle-plan): S-REAL-STEEL preflight results" "1-20" "$PLAN"
   ```
