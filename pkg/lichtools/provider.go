@@ -51,6 +51,18 @@ type Provider struct {
 	goEnvDone bool
 	goModDir  string
 	goPathDir string
+
+	// local is the already-running llama-server client for the lich_local_llm
+	// tool and the local-model driver (Phase 5). It asks; it never starts or
+	// swaps a model. nil disables the tool.
+	local *localClient
+
+	// localGen counts local-model generations against the daily compute budget
+	// (a control parallel to the dollar cap; free of dollar cost).
+	genMu   sync.Mutex
+	genDay  string
+	genUsed int
+	genMax  int
 }
 
 // NewProvider builds a Provider from a loaded Config.
@@ -99,7 +111,7 @@ func (p *Provider) TargetFor(name string, input json.RawMessage) (Target, bool, 
 
 // Tools implements zhentools.Provider.
 func (p *Provider) Tools(_ context.Context) ([]zhentools.Tool, error) {
-	return []zhentools.Tool{
+	tools := []zhentools.Tool{
 		{
 			Name:        ToolListCampaigns,
 			Description: "List the Lich red-team campaigns from tomb/lich/ with id, target, status, verdict, and reference. Read-only.",
@@ -130,7 +142,17 @@ func (p *Provider) Tools(_ context.Context) ([]zhentools.Tool, error) {
 			Description: "File a finding to the ADR-098 register (compliance/findings/register.yaml). Mutating: requires out-of-band confirmation; never auto-publishes.",
 			InputSchema: schemaFileFinding,
 		},
-	}, nil
+	}
+	// The local-model tool is offered only when an endpoint is wired. It is
+	// free (local) and read-only to the gate; used for MINOR-weight drafting.
+	if p.local != nil {
+		tools = append(tools, zhentools.Tool{
+			Name:        ToolLocalLLM,
+			Description: "Ask the already-running local llama-server one question (seed/mutation drafting, MINOR-weight work). Free, on-host; never starts or swaps a model. Read-only.",
+			InputSchema: schemaLocalLLM,
+		})
+	}
+	return tools, nil
 }
 
 // Call implements zhentools.Provider. Phase 1: bodies are stubs that prove the
@@ -185,6 +207,13 @@ func (p *Provider) Call(ctx context.Context, name string, input json.RawMessage)
 			return badInput(err)
 		}
 		return p.fileFinding(in)
+
+	case ToolLocalLLM:
+		var in localLLMInput
+		if err := decodeInput(input, &in); err != nil {
+			return badInput(err)
+		}
+		return p.localLLM(ctx, in)
 
 	default:
 		return zhentools.Result{IsError: true, Text: fmt.Sprintf("lichtools: unknown tool %q", name)}, nil

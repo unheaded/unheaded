@@ -103,6 +103,10 @@ var ReadOnlyTools = map[string]bool{
 	"lich_read_crash":     true,
 	"lich_triage":         true,
 	"lich_run_harness":    true,
+	// lich_local_llm (S-LICH-AWAKENS Phase 4): one completion from the local
+	// llama-server for MINOR-weight seed/mutation drafting. It loads nothing,
+	// writes nothing, costs no dollars, and stays on the host — read-only.
+	"lich_local_llm": true,
 	// run_check (S-TWO-BRAINS Step 161): runs an allowlisted check in a
 	// sandbox inside an agent worktree; it changes nothing outside it.
 	"run_check": true,

@@ -155,6 +155,9 @@ func newServer(cfgPath, projectRoot, emittedBy string, logger *slog.Logger) (*se
 		logger.Warn("lich-mcp HALTED", "reason", reason)
 	})
 	provider.WithConfinement(sandbox, sem, ks)
+	// The local-model tool (Phase 4): MINOR-weight drafting against the already-
+	// running llama-server. Free, on-host; never starts or swaps a model.
+	provider.WithLocalLLM(cfg.LocalLLMURL, cfg.LocalLLMModel, cfg.MaxDailyLocalGens)
 
 	// Spend-cap hook (ADR-104): the daily dollar cap the Claude driver (a later
 	// phase) reserves against before each model call. It is in-memory here (no

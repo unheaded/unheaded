@@ -89,6 +89,8 @@ type Config struct {
 	// local-model driver (Phase 5) ask. It is never started or swapped here.
 	LocalLLMURL   string `yaml:"local_llm_url"`
 	LocalLLMModel string `yaml:"local_llm_model"`
+	// MaxDailyLocalGens caps local-model generations per UTC day (compute budget).
+	MaxDailyLocalGens int `yaml:"max_daily_local_gens"`
 
 	Limits Limits `yaml:"limits"`
 
@@ -157,6 +159,9 @@ func (c *Config) applyDefaultsAndValidate() error {
 	}
 	if c.LocalLLMURL == "" {
 		c.LocalLLMURL = DefaultLocalLLMURL
+	}
+	if c.MaxDailyLocalGens <= 0 {
+		c.MaxDailyLocalGens = DefaultMaxDailyLocalGens
 	}
 	if c.NetNS == "" {
 		c.NetNS = DefaultNetNS

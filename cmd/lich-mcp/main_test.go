@@ -156,7 +156,8 @@ func TestServer_SpendHookPresent(t *testing.T) {
 	}
 }
 
-// The stdio loop answers initialize and lists six tools.
+// The stdio loop answers initialize and lists the Lich tools (six plus the
+// local-model tool, which the test server wires with the default endpoint).
 func TestServer_Serve_InitializeAndToolsList(t *testing.T) {
 	srv := testServer(t)
 	in := strings.NewReader(
@@ -180,8 +181,17 @@ func TestServer_Serve_InitializeAndToolsList(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[1]), &listResp); err != nil {
 		t.Fatalf("parse tools/list: %v", err)
 	}
-	if len(listResp.Result.Tools) != 6 {
-		t.Fatalf("want 6 tools over the wire, got %d", len(listResp.Result.Tools))
+	if len(listResp.Result.Tools) != 7 {
+		t.Fatalf("want 7 tools over the wire (6 core + lich_local_llm), got %d", len(listResp.Result.Tools))
+	}
+	var hasLocal bool
+	for _, tl := range listResp.Result.Tools {
+		if tl.Name == "lich_local_llm" {
+			hasLocal = true
+		}
+	}
+	if !hasLocal {
+		t.Fatal("lich_local_llm not listed over the wire")
 	}
 }
 
