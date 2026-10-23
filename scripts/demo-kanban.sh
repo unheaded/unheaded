@@ -7,7 +7,9 @@ echo "========================================"
 echo ""
 
 KANBAN_BIN="${KANBAN_BIN:-./bin/kanban-app}"
-KANBAN_PORT="${KANBAN_PORT:-8081}"
+# kanban-app listens on $PORT (default 20001, ports.KanbanApp). 8081 here
+# never reached it, and on west it is llama-server, whose /health answered.
+KANBAN_PORT="${KANBAN_PORT:-20001}"
 KANBAN_URL="http://localhost:${KANBAN_PORT}"
 HEALTH_ENDPOINT="${KANBAN_URL}/health"
 MAX_RETRIES=30
@@ -21,7 +23,7 @@ if [ ! -f "$KANBAN_BIN" ]; then
     exit 1
 fi
 
-"$KANBAN_BIN" &
+PORT="$KANBAN_PORT" "$KANBAN_BIN" &
 KANBAN_PID=$!
 echo "kanban-app started with PID ${KANBAN_PID}"
 
