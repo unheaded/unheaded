@@ -204,6 +204,8 @@ Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec`
 | `-confirm-queue` | off | queue agent-loop writes refused pending confirmation in the Well (`WELL_APP_ZHEN_DSN`) instead of denying them |
 | `-ask-tokens` | off | legacy: put `pending_token` in `/ask` traces (only for a listener no model can reach) |
 | `-worker` | off | work eligible Kanban cards from the Well into local `zhen/<card>` branches ([wiki/Zhen-Agents.md](../../wiki/Zhen-Agents.md)); `-once`, `-poll`, `-base`, `-agent-root`, `-review-dir`, `-routing`, `-checks`, `-claude fake\|live`, `-ledger`, `-daily-cap-usd`, `-privacy` |
+| `-overnight` | off | with `-worker`: one unattended night inside `-window` (01:00-07:00), then a morning report (`-report-dir`) and exit; `-max-cards`, its own ledger and cap, a memory floor without swap, `-stop-file`, strict privacy (wiki/Zhen-Agents.md, "Overnight mode") |
+| `-gpu-lock <path>` | `$XDG_RUNTIME_DIR/unheaded/gpu.lock` | the GPU lease shared with `switch-model.sh` and `forge-train.sh`; each llama-server call holds it shared; `""` disables |
 
 Env: `VOR_URL` (default `http://127.0.0.1:9876`), `LLAMA_URL` (default `http://127.0.0.1:8081`), `RAG_MODEL` (default `qwen2.5-coder-7b-instruct`).
 
