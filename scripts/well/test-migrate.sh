@@ -11,7 +11,9 @@
 #   3. editing an applied file is drift: status and apply refuse;
 #   4. a migration that cannot get its lock fails within -lock-timeout,
 #      records nothing and leaves no change (W-10);
-#   5. a failing transactional migration records nothing;
+#   5. a failing transactional migration records nothing; a migration
+#      that creates a database leaves that database's entries pending,
+#      and apply creates it, then migrates it;
 #   6. the ledger refuses edits;
 #   7. a Well bootstrapped by the pre-ledger db/ (the live one today) is
 #      baselined through 016 without running anything, then apply runs
@@ -178,6 +180,17 @@ expect 1 "failing migration" wm apply -yes
 [[ "$(sq unheaded_app "SELECT to_regclass('half_done') IS NULL AND NOT EXISTS (SELECT 1 FROM well_schema_migrations WHERE filename = '904_half.sql')")" == t ]] &&
 	pass "failed migration rolled back and unrecorded" || fail "failed migration left state"
 sed -i '/904_half.sql/d' "$M/MANIFEST"; rm "$M/904_half.sql"
+
+# 5b. A migration that adds a database: until it runs, the new database
+# has no ledger to read (it does not exist), so its entries are pending.
+echo "CREATE DATABASE test_newdb;" >"$M/905_test_newdb.sql"
+echo "CREATE TABLE test_new (id int PRIMARY KEY);" >"$M/906_test_newdb_table.sql"
+printf '%s\n' "postgres 905_test_newdb.sql notx" "test_newdb 906_test_newdb_table.sql" >>"$M/MANIFEST"
+expect 3 "status: a database the manifest adds is pending" wm status
+expect 0 "apply creates the database, then migrates it" wm apply -yes
+[[ "$(sq test_newdb "SELECT count(*) FROM well_schema_migrations WHERE filename = '906_test_newdb_table.sql'") $(sq test_newdb "SELECT to_regclass('test_new') IS NOT NULL")" == "1 t" ]] &&
+	pass "the new database has its table and ledger row" || fail "new database not migrated"
+expect 0 "status clean with the new database" wm status
 
 # 6. The ledger is append-only.
 if sq unheaded_app "UPDATE well_schema_migrations SET sha256 = repeat('0', 64)" >/dev/null 2>&1; then fail "ledger row edited"; else pass "ledger refuses UPDATE"; fi

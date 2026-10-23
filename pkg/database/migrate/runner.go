@@ -29,7 +29,9 @@ type Runner struct {
 }
 
 // ReadLedger reads every database's ledger. A database without the ledger
-// table has no records yet; reading never creates it.
+// table has no records yet; reading never creates it. Nor does a database
+// that does not exist yet: an earlier manifest entry creates it (CREATE
+// DATABASE in `postgres`), so everything routed to it is pending.
 func (r *Runner) ReadLedger(ctx context.Context, dbs []string) (Ledger, error) {
 	led := Ledger{}
 	for _, name := range dbs {
@@ -41,12 +43,22 @@ func (r *Runner) ReadLedger(ctx context.Context, dbs []string) (Ledger, error) {
 		if cerr := db.Close(); err == nil {
 			err = cerr
 		}
+		if isMissingDatabase(err) {
+			rows, err = map[string]Record{}, nil
+		}
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
 		led[name] = rows
 	}
 	return led, nil
+}
+
+// isMissingDatabase reports SQLSTATE 3D000 (invalid_catalog_name): the
+// server refused the connection because the database does not exist.
+func isMissingDatabase(err error) bool {
+	var st interface{ SQLState() string }
+	return errors.As(err, &st) && st.SQLState() == "3D000"
 }
 
 func readLedger(ctx context.Context, db *sql.DB, name string) (map[string]Record, error) {
