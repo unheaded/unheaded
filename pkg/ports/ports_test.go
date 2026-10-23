@@ -46,7 +46,7 @@ func allPorts(t *testing.T) map[string]int {
 		"Shield":       Shield,
 		// Monad CPU Application Services
 		"Firewall":     Firewall,
-		"Canary":       Canary,
+		"Sword":        Sword,
 		"Chaos":        Chaos,
 		"QoS":          QoS,
 		"BackupMgr":    BackupMgr,

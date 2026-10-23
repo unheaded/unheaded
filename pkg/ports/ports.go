@@ -44,7 +44,7 @@ const (
 
 	// Monad CPU Application Services (19010-19019)
 	Firewall     = 19010
-	Canary       = 19011
+	Sword        = 19011 // deploy service (cmd/sword); was Canary, folded into Sword (S-REAL-STEEL D-08)
 	Chaos        = 19012
 	QoS          = 19013
 	BackupMgr    = 19014

@@ -179,7 +179,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.registerRoutes(mux)
 
 	s.httpServer = &http.Server{
-		Addr:           ports.DefaultAddr(ports.Canary),
+		Addr:           ports.DefaultAddr(ports.Sword), // folded into Sword (D-08); package deletion pending E1
 		Handler:        mux,
 		ReadTimeout:    30 * time.Second,
 		WriteTimeout:   30 * time.Second,
@@ -196,7 +196,7 @@ func (s *Service) Start(ctx context.Context) error {
 	// Start canary evaluation loop
 	go s.evaluationLoop(ctx)
 
-	s.log.Info().Int("port", ports.Canary).Msg("canary deployment service started")
+	s.log.Info().Int("port", ports.Sword).Msg("canary deployment service started")
 	return nil
 }
 

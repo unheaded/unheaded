@@ -840,7 +840,7 @@ func (s *Service) publish(topic string, d *Deployment, msg string) {
 
 // Handler serves Sword's routes. The caller adds auth and the house HTTP
 // metrics around it.
-func (s *Service) Handler() http.Handler {
+func (s *Service) Handler() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/ready", s.handleReady)
