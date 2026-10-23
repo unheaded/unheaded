@@ -14,10 +14,10 @@
 #   3. the harness, not a model, decides: the repo's own checker on the draft
 #   4. Claude review (read-only, no tools, -privacy strict, effort low):
 #      findings as JSON [{severity, step, finding, fix}]; the local model
-#      applies them. Claude patches the file in the worktree (branch-sandbox
-#      mode, family runbook-patch) when the harness still fails, or when the
-#      local revision left the reviewed file unchanged although a high or
-#      medium finding was open
+#      applies them. Claude then patches the file in the worktree
+#      (branch-sandbox mode, family runbook-patch) when the harness still
+#      fails or any high or medium finding was raised: it checks which are
+#      still open and applies those
 #   5. authorship written by this script, not by a model: authored_by
 #      zhen-local (claude if Claude patched), reviewed_by claude-opus-5-5,
 #      approved_by "", status draft, dry_run_test
@@ -95,7 +95,7 @@ ledger_args=()
 gitq() { git -C "$WT" -c user.name=zhen -c user.email=zhen@localhost -c commit.gpgsign=false "$@"; }
 snap() { # commit the draft in the agent worktree (its history is the review record)
 	gitq add "$REL" 2>/dev/null || return 0
-	gitq commit -q --no-gpg-sign -m "$1" 2>/dev/null || true
+	gitq commit -q --no-gpg-sign -m "$1" >/dev/null 2>&1 || true
 }
 
 if [[ -z "$RESUME" ]]; then
@@ -270,20 +270,23 @@ $TASK"
 	fi
 fi
 
-# 4b. Claude patches when the harness fails, or when serious findings were
-# left unapplied by the local model.
+# 4b. Claude patches when the harness fails, or when any high or medium
+# finding was raised: the harness only proves the schema, and on R1 and R2
+# the local revision left most serious findings open (unchanged on R1,
+# partly applied on R2), so a changed file is no evidence they were fixed.
+# Claude applies what is still open.
 serious="$(python3 -c 'import json,sys; print(sum(1 for f in json.loads(sys.argv[1]) if str(f.get("severity","")).lower() in ("high","medium")))' "$findings")"
 need_patch=0
 if [[ -f "$WT/$REL" ]]; then
 	harness || need_patch=1
-	[[ "$applied" == no ]] && ((serious > 0)) && need_patch=1
+	((serious > 0)) && need_patch=1
 fi
 if ((need_patch)) && [[ "$CLAUDE" == live ]]; then
-	log "Claude patches in the worktree (harness or $serious unapplied high/medium finding(s))"
+	log "Claude patches in the worktree (harness, or $serious high/medium finding(s) to check and apply)"
 	snap "local revision after review of $REL"
 	patch_prompt="Fix the runbook $REL in this worktree. Keep to the brief docs/runbook-briefs/$NAME.md and docs/runbook-briefs/SCHEMA.md (read both first); keep the metadata block as it is.
 A privacy filter may have replaced words in what you read with placeholders such as [REDACTED:host#1]; never write a placeholder into the file (the check refuses it): keep the file's existing wording there or say 'this host' / 'the other host'.
-Apply these review findings that the local revision left open, where they agree with the brief:
+These review findings were raised on the draft; the local model then revised it. Apply every one that is still open and agrees with the brief:
 $findings
 
 Then run run_check; it must pass. Current check output:
