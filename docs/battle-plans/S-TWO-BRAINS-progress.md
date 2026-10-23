@@ -468,3 +468,80 @@ Run-private ledger `$SCRATCH/s2rb/spend.json`, `-effort low`; cost per runbook f
 | R1-R11 review legs (10) | 0.556 |
 | R1-R11 patch legs (11, R9's wrote the file) | 1.811 |
 | **Total Phases 8-9** | **2.367316** (cap $5) |
+
+# Phase 14 (develop, after the three branches merged)
+
+Run 2026-10-23 on develop after the session restart (the sprint audit,
+`docs/battle-plans/SPRINT-AUDIT-2026-10-23.md`, found it had never run).
+Signed commits; nothing pushed.
+
+## Steps 435-442: documents
+
+- ADR-106 `docs/adr/ADR-106-two-brains-one-gate.md` (Proposed). ADR-104:
+  §8 router implemented (`ThresholdRouter`, and Lich's `AutoRouter`),
+  status and consequences no longer say "not run live" / "read only";
+  open questions 2 and 5 were already answered. ADR-019: amendment already
+  written (Step 175). ADR-024: new §6 (status lifecycle, checker,
+  shrink-only baseline, 79 runbooks). ADR-017: cross-link. ADR-053:
+  already updated (Step 156). Index and wiki mirror: ADR-106 added, plus
+  the wiki's missing ADR-108 row; 104 entries.
+- Wiki: the six Zhen pages were already in Home and `_Sidebar` (merged
+  with the branches); Home lists ADR-106; `wiki/Runbooks.md` gained the 13
+  runbooks it was missing. CLAUDE.md: S-TWO-BRAINS line; runbooks 66 -> 79.
+- Step 441: mirror dry run 0 mirror-only pages; gitleaks on `wiki/` clean.
+- Commits: `[PLAN S-TWO-BRAINS] Steps 435-438`, `Steps 439-442`.
+
+## Steps 443-446: regression and supply chain
+
+- `go build ./...` ok; `go test ./...` **290 ok / 0 FAIL** (282 at the P13
+  gate; the rest came in with the Lich and Quantum Armor merges).
+- pytest `raft/tests tests/runbooks scripts/two-brains -m "not live"`:
+  194 passed, 2 skipped.
+- forge `cargo test --lib`: 111 passed, 0 failed, 28 ignored.
+- `check-well-migrations`, `check-k8s-well-initdb`, `check-kanban-genesis`
+  clean; `check-runbooks`: 79 runbooks, 0 new findings, 24 baselined.
+- No go.mod / go.sum / Cargo.lock change against origin/develop.
+  `govulncheck`: no vulnerability reachable from our code.
+  `check-secrets-baseline`: holding at 20.
+- SPDX: every new source file has a header, except data files and the
+  runbook YAMLs (78 of 79 runbooks carry none; the corpus convention).
+- Clean-clone meta-gate (after the gate fixes, `8b82f03e`): every gate
+  bites except `check-ruff` and `check-python-audit` (tools not on west).
+
+Zero new failures against the KNOWN FAILURES BASELINE.
+
+## Step 448: for Stevie
+
+| # | Decision | Unblocks |
+|---|---|---|
+| 1 | Apply 030-034 to the live Well as one batch (Steps 59, 94, 205, 349; 034 is a recorded no-op on a non-empty board). `well-migrate apply -yes` | `-confirm queue`, `zhen-agentd -worker`, flywheel ingest against the live Well |
+| 2 | First real unattended night (Step 254): enable `zhen-agentd-overnight.timer`? cap (default $3), env file | Steps 255, 257 |
+| 3 | Approve the 11 draft runbooks (Step 337) | `status: approved` |
+| 4 | Anthropic's written answer on Claude text as training targets (Step 340; support chat 215476524992155) | flipping `-include-claude-text` |
+| 5 | LoRA window (Step 400), once >= 300 SFT examples exist (0 today) | Phase 12 |
+| 6 | Accept ADR-106; accept or reject the ADR-019 Level 2 amendment | — |
+| 7 | ADR-104 SDK sign-off (inherited) | — |
+| 8 | Fold `ThresholdRouter` and `AutoRouter`, or keep both | — |
+
+Not ESCALATE but open (Phases 6-9): routing caps vs worst-case reservation
+(Step 219b); `--cache-ram` in `switch-model.sh`'s fit check;
+world-readable `/etc/unheaded/anthropic.env` on west (chmod 0600, rotate
+if it ever left); routed local turns are not captured.
+
+Step 449 — STUCK report: none. Steps not run as written are listed per
+phase above; Phase 12 is not started (no data, Step 400).
+
+## Step 450: Marshal shift report
+
+- Phases 0-11 and 13 at their gates; Phase 12 waiting on data and Step 400;
+  Phase 14 done here. 85 commits tagged `[PLAN S-TWO-BRAINS]`.
+- Citations: the three branches merged into develop without Phase 14;
+  the meta-gate was not run after the Lich merge (7 red gates on
+  origin/develop, fixed). Both recorded in the sprint audit.
+- Parked scope: workflow template library (ADR-053 §1), DPO training
+  (forge has no preference loss), the runner's `verification:` field,
+  Kanban UI for agent branches, Wotan admin key, live runbook tests.
+- Claude spend, whole sprint: $3.78 ($1.38 + $0.03 + $2.37).
+
+Steps 453-455: the branches were already merged into develop
+(`3dc9dfb7`); nothing pushed.
