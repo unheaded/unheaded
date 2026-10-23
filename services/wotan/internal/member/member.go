@@ -62,10 +62,18 @@ func (m *Manager) Remove(memberID uuid.UUID) bool {
 	if !ok {
 		return false
 	}
-	delete(m.members, memberID)
+	m.unlink(member)
+	return true
+}
+
+// unlink drops member from every index, and its room's byRoom key once the
+// room has no members left: Deny and CleanupExpiredPending used to leave an
+// empty slice behind for every room name ever used. Callers hold mu.
+func (m *Manager) unlink(member *Member) {
+	delete(m.members, member.ID)
 	ids := m.byRoom[member.RoomID]
 	for i, id := range ids {
-		if id == memberID {
+		if id == member.ID {
 			ids = append(ids[:i], ids[i+1:]...)
 			break
 		}
@@ -75,10 +83,9 @@ func (m *Manager) Remove(memberID uuid.UUID) bool {
 	} else {
 		m.byRoom[member.RoomID] = ids
 	}
-	if key := (autoKey{member.RoomID, member.Name}); m.auto[key] == memberID {
+	if key := (autoKey{member.RoomID, member.Name}); m.auto[key] == member.ID {
 		delete(m.auto, key)
 	}
-	return true
 }
 
 // SetMaxMembers caps how many members exist at once (0 = none). Several
@@ -194,17 +201,7 @@ func (m *Manager) Deny(memberID uuid.UUID) error {
 		return ErrInvalidStatus
 	}
 
-	// Remove from room list
-	roomMembers := m.byRoom[member.RoomID]
-	for i, id := range roomMembers {
-		if id == memberID {
-			m.byRoom[member.RoomID] = append(roomMembers[:i], roomMembers[i+1:]...)
-			break
-		}
-	}
-
-	// Remove member
-	delete(m.members, memberID)
+	m.unlink(member)
 
 	return nil
 }
@@ -345,19 +342,7 @@ func (m *Manager) CleanupExpiredPending() int {
 
 	// Remove expired members
 	for _, id := range expiredIDs {
-		member := m.members[id]
-
-		// Remove from room list
-		roomMembers := m.byRoom[member.RoomID]
-		for i, memberID := range roomMembers {
-			if memberID == id {
-				m.byRoom[member.RoomID] = append(roomMembers[:i], roomMembers[i+1:]...)
-				break
-			}
-		}
-
-		// Remove member
-		delete(m.members, id)
+		m.unlink(m.members[id])
 	}
 
 	return len(expiredIDs)
