@@ -92,7 +92,7 @@ pub struct TlsConfig {
     /// Path to private key file (PEM format)
     pub key_path: String,
 
-    /// Minimum TLS version (1.2 or 1.3)
+    /// Minimum TLS version (1.2 or 1.3; default 1.3)
     #[serde(default = "default_min_tls_version")]
     pub min_version: String,
 }
@@ -290,8 +290,11 @@ fn default_max_body_size() -> usize {
     10 * 1024 * 1024 // 10 MB
 }
 
+/// TLS 1.3 by default (CLAUDE.md "TLS 1.3 minimum for external traffic";
+/// ML-KEM key exchange exists only in 1.3, ADR-105). "1.2" stays available
+/// as an explicit opt-in for legacy clients.
 fn default_min_tls_version() -> String {
-    "1.2".to_string()
+    "1.3".to_string()
 }
 
 fn default_weight() -> u32 {
@@ -660,5 +663,16 @@ log = true
         assert_eq!(config.server.listen, "127.0.0.1");
         assert_eq!(config.backends.len(), 1);
         assert_eq!(config.rules.len(), 1);
+    }
+
+    #[test]
+    fn test_tls_min_version_defaults_to_1_3() {
+        let tls: TlsConfig =
+            toml::from_str("cert_path = \"c.pem\"\nkey_path = \"k.pem\"\n").unwrap();
+        assert_eq!(tls.min_version, "1.3");
+        let legacy: TlsConfig =
+            toml::from_str("cert_path = \"c.pem\"\nkey_path = \"k.pem\"\nmin_version = \"1.2\"\n")
+                .unwrap();
+        assert_eq!(legacy.min_version, "1.2");
     }
 }

@@ -118,6 +118,15 @@ fn load_private_key(path: &str) -> Result<PrivateKeyDer<'static>, TlsError> {
     Ok(key)
 }
 
+/// The crypto provider for every TLS config the WAF builds: aws-lc-rs, whose
+/// default key-exchange groups put the hybrid post-quantum X25519MLKEM768
+/// first (rustls `prefer-post-quantum`), then X25519, P-256 and P-384 for
+/// clients that offer no hybrid. The WAF is an edge, so a classical-only
+/// client is still served (ADR-105 "Preferred" profile).
+fn crypto_provider() -> Arc<rustls::crypto::CryptoProvider> {
+    Arc::new(rustls::crypto::aws_lc_rs::default_provider())
+}
+
 /// Build the rustls server configuration
 fn build_server_config(
     certs: Vec<CertificateDer<'static>>,
@@ -136,8 +145,12 @@ fn build_server_config(
         }
     };
 
-    // Build configuration with safe defaults
-    let config = ServerConfig::builder_with_protocol_versions(&versions)
+    // Build configuration with safe defaults on an explicit provider. Never
+    // rely on the process-level default: it is ambiguous (and panics) when
+    // more than one provider is compiled in.
+    let config = ServerConfig::builder_with_provider(crypto_provider())
+        .with_protocol_versions(&versions)
+        .map_err(|e| TlsError::ConfigError(e.to_string()))?
         .with_no_client_auth()
         .with_single_cert(certs, key)
         .map_err(|e| TlsError::ConfigError(e.to_string()))?;
@@ -234,5 +247,179 @@ mod tests {
         } else {
             panic!("Expected InvalidVersion error");
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Post-quantum key exchange (S-QUANTUM-ARMOR Phase 7, ADR-105).
+    //
+    // The test certificate is generated at test time, never checked in: a
+    // committed private key would trip gitleaks and the shrink-only
+    // .gitleaksignore. The DER builder is the minimal Ed25519 one from
+    // crates/zhend/src/api/quic.rs, on aws-lc-rs instead of ring.
+    // ------------------------------------------------------------------
+
+    use aws_lc_rs::signature::{Ed25519KeyPair, KeyPair};
+    use rustls::pki_types::{PrivatePkcs8KeyDer, ServerName};
+    use rustls::{ClientConfig, ClientConnection, NamedGroup, RootCertStore, ServerConnection};
+
+    fn der(tag: u8, content: &[u8]) -> Vec<u8> {
+        let mut out = vec![tag];
+        let len = content.len();
+        if len < 0x80 {
+            out.push(len as u8);
+        } else if len < 0x100 {
+            out.extend_from_slice(&[0x81, len as u8]);
+        } else {
+            out.extend_from_slice(&[0x82, (len >> 8) as u8, len as u8]);
+        }
+        out.extend_from_slice(content);
+        out
+    }
+
+    fn der_seq(parts: &[&[u8]]) -> Vec<u8> {
+        der(0x30, &parts.concat())
+    }
+
+    fn der_bits(content: &[u8]) -> Vec<u8> {
+        der(0x03, &[&[0u8][..], content].concat())
+    }
+
+    /// Self-signed Ed25519 X.509v3 certificate, CN=shield-test,
+    /// SAN DNS:localhost, valid 2026-01-01 .. 2036-01-01.
+    fn test_cert() -> (Vec<CertificateDer<'static>>, PrivateKeyDer<'static>) {
+        let rng = aws_lc_rs::rand::SystemRandom::new();
+        let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("Ed25519 key generation");
+        let key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("parse generated key");
+
+        let ed25519 = der_seq(&[&der(0x06, &[0x2B, 0x65, 0x70])]); // 1.3.101.112
+        let cn = der(0x0C, b"shield-test");
+        let name = der_seq(&[&der(
+            0x31,
+            &der_seq(&[&der(0x06, &[0x55, 0x04, 0x03]), &cn]),
+        )]);
+        let validity = der_seq(&[&der(0x17, b"260101000000Z"), &der(0x17, b"360101000000Z")]);
+        let spki = der_seq(&[&ed25519, &der_bits(key.public_key().as_ref())]);
+        let san = der_seq(&[&der(0x82, b"localhost")]);
+        let san_ext = der_seq(&[&der(0x06, &[0x55, 0x1D, 0x11]), &der(0x04, &san)]);
+        let extensions = der(0xA3, &der_seq(&[&san_ext]));
+        let tbs = der_seq(&[
+            &der(0xA0, &der(0x02, &[2])), // v3
+            &der(0x02, &[1]),             // serial
+            &ed25519,
+            &name,
+            &validity,
+            &name,
+            &spki,
+            &extensions,
+        ]);
+        let sig = key.sign(&tbs);
+        let cert = der_seq(&[&tbs, &ed25519, &der_bits(sig.as_ref())]);
+
+        (
+            vec![CertificateDer::from(cert)],
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(pkcs8.as_ref().to_vec())),
+        )
+    }
+
+    fn client_config(
+        provider: rustls::crypto::CryptoProvider,
+        trusted: &CertificateDer<'static>,
+    ) -> ClientConfig {
+        let mut roots = RootCertStore::empty();
+        roots.add(trusted.clone()).expect("trust the test cert");
+        ClientConfig::builder_with_provider(Arc::new(provider))
+            .with_protocol_versions(&[&rustls::version::TLS13])
+            .expect("client protocol versions")
+            .with_root_certificates(roots)
+            .with_no_client_auth()
+    }
+
+    /// In-memory TLS handshake: pump records between the two ends until
+    /// neither is handshaking. Returns the server's negotiated group.
+    fn handshake(server: ServerConfig, client: ClientConfig) -> Result<NamedGroup, rustls::Error> {
+        let name = ServerName::try_from("localhost").expect("server name");
+        let mut c = ClientConnection::new(Arc::new(client), name)?;
+        let mut s = ServerConnection::new(Arc::new(server))?;
+        for _ in 0..16 {
+            if !c.is_handshaking() && !s.is_handshaking() {
+                break;
+            }
+            let mut buf = Vec::new();
+            c.write_tls(&mut buf).expect("client write_tls");
+            s.read_tls(&mut buf.as_slice()).expect("server read_tls");
+            s.process_new_packets()?;
+            let mut buf = Vec::new();
+            s.write_tls(&mut buf).expect("server write_tls");
+            c.read_tls(&mut buf.as_slice()).expect("client read_tls");
+            c.process_new_packets()?;
+        }
+        assert!(
+            !c.is_handshaking() && !s.is_handshaking(),
+            "handshake did not complete"
+        );
+        let group = s
+            .negotiated_key_exchange_group()
+            .map(|g| g.name())
+            .expect("server reports a key exchange group");
+        assert_eq!(
+            c.negotiated_key_exchange_group().map(|g| g.name()),
+            Some(group),
+            "client and server disagree on the group"
+        );
+        Ok(group)
+    }
+
+    /// H6 regression: rustls was built with both `ring` and `aws_lc_rs`
+    /// and no process-level CryptoProvider was installed, so building the
+    /// server config panicked. The provider is now passed explicitly.
+    #[test]
+    fn build_server_config_does_not_panic() {
+        for v in ["1.2", "1.3"] {
+            let (certs, key) = test_cert();
+            assert!(
+                build_server_config(certs, key, v).is_ok(),
+                "min_version {v} must build"
+            );
+        }
+    }
+
+    #[test]
+    fn handshake_negotiates_x25519mlkem768() {
+        let (certs, key) = test_cert();
+        let trusted = certs[0].clone();
+        let server = build_server_config(certs, key, "1.3").expect("server config");
+        let client = client_config(rustls::crypto::aws_lc_rs::default_provider(), &trusted);
+        let group = handshake(server, client).expect("handshake");
+        assert_eq!(
+            group,
+            NamedGroup::X25519MLKEM768,
+            "WAF negotiated a classical key exchange group"
+        );
+    }
+
+    #[test]
+    fn handshake_with_tls12_floor_still_negotiates_x25519mlkem768() {
+        let (certs, key) = test_cert();
+        let trusted = certs[0].clone();
+        let server = build_server_config(certs, key, "1.2").expect("server config");
+        let client = client_config(rustls::crypto::aws_lc_rs::default_provider(), &trusted);
+        let group = handshake(server, client).expect("handshake");
+        assert_eq!(group, NamedGroup::X25519MLKEM768);
+    }
+
+    /// The WAF is an edge (Preferred profile, ADR-105): a client that only
+    /// offers classical X25519 is still served, with X25519. This documents
+    /// the accepted fallback; it is not the hybrid guarantee.
+    #[test]
+    fn classical_only_client_falls_back_to_x25519() {
+        let (certs, key) = test_cert();
+        let trusted = certs[0].clone();
+        let server = build_server_config(certs, key, "1.3").expect("server config");
+        let classical = rustls::crypto::CryptoProvider {
+            kx_groups: vec![rustls::crypto::aws_lc_rs::kx_group::X25519],
+            ..rustls::crypto::aws_lc_rs::default_provider()
+        };
+        let group = handshake(server, client_config(classical, &trusted)).expect("handshake");
+        assert_eq!(group, NamedGroup::X25519);
     }
 }

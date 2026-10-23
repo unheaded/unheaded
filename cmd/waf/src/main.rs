@@ -73,7 +73,7 @@ Configuration File Format (TOML):
     [tls]  # Optional
     cert_path = "/path/to/cert.pem"
     key_path = "/path/to/key.pem"
-    min_version = "1.2"
+    min_version = "1.3"
 
     [[backends]]
     name = "api"

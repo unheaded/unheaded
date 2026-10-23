@@ -13,9 +13,11 @@ tokio = { version = "1", features = ["full"] }
 hyper = { version = "1", features = ["full"] }
 http-body-util = "0.1"
 
-# TLS - rustls is the pure-Rust choice
-tokio-rustls = "0.26"
-rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+# TLS - rustls on the aws-lc-rs provider (ADR-105): it negotiates the hybrid
+# X25519MLKEM768 group, which ring cannot. Exactly one provider is compiled;
+# with both, rustls cannot pick a process default and building a config panics.
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "logging", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "prefer-post-quantum", "std", "tls12", "logging"] }
 rustls-pemfile = "2"
 
 # TOML parsing - minimal, pure Rust
@@ -24,6 +26,11 @@ serde = { version = "1", features = ["derive"] }
 
 # Regex for pattern matching - pure Rust, no PCRE
 regex = "1"
+
+[dev-dependencies]
+# Test-time Ed25519 certificate for the TLS handshake tests (src/tls.rs).
+# Already in the build graph as rustls' crypto provider; no new package.
+aws-lc-rs = { version = "1", default-features = false, features = ["aws-lc-sys", "prebuilt-nasm"] }
 
 [profile.release]
 opt-level = 3
