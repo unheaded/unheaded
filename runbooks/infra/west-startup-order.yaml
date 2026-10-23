@@ -205,7 +205,7 @@ steps:
 
       # Start doom-runner in background
       sudo nohup ./crates/doom-runner/target/release/doom-runner \
-        --wad ~/tmp/DOOM_wads/doom1.wad \
+        --wad ~/tmp/projects/doom-related/doom1.wad \
         &> "$(~/tmp/unheaded/scripts/lib/logpath.sh doom doom-runner.log)" &
       sleep 3
     description: "Setup doom ring and start doom-runner (loads BPF programs + maps)"

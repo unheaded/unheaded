@@ -120,11 +120,11 @@ load_data() {
 }
 
 # ============================================================================
-# WAD LOADER — Load doom1.wad into RAM_MAP at 0x800000 (matches linker.ld WAD_BASE)
+# WAD LOADER — Load doom1.wad into RAM_MAP at WAD_BASE 0x01C00000
 # ============================================================================
 
 load_wad() {
-    log_step "Loading WAD (doom1.wad → RAM_MAP @ 0x800000)..."
+    log_step "Loading WAD (doom1.wad → RAM_MAP @ 0x01C00000)..."
 
     local ram_pin="${MAP_PIN_DIR}/RAM_MAP"
     if [[ ! -f "$ram_pin" ]]; then
@@ -141,10 +141,10 @@ load_wad() {
     wad_size=$(stat -c%s "$DOOM_WAD")
     log_info "WAD: ${wad_size} bytes"
 
-    # WAD address must match WAD_BASE in libc_stubs.c and linker.ld.
-    # libc_stubs.c: #define WAD_BASE 0x00800000
-    # linker.ld:    WAD (r) : ORIGIN = 0x00800000, LENGTH = 4M
-    local wad_start_addr=${DOOM_WAD_BASE:-0x800000}
+    # WAD address must match WAD_BASE: crates/doom-runner/src/memory.rs (the
+    # layout's source of truth) and demos/doom/libc_stubs.c both say
+    # 0x01C00000. 0x800000 is inside the Z_Init heap (0x1C0000-0xBC0000).
+    local wad_start_addr=${DOOM_WAD_BASE:-0x1C00000}
 
     "$DOOM_LOADER" ram "$ram_pin" "$DOOM_WAD" "$wad_start_addr"
 

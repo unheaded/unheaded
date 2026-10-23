@@ -16,7 +16,7 @@ preconditions:
     description: "RV2MBC address map exists"
   - check: "test -f ~/tmp/unheaded/doom/doom.elf"
     description: "doom.elf source ELF exists"
-  - check: "test -f ~/tmp/DOOM_wads/doom1.wad"
+  - check: "test -f ~/tmp/projects/doom-related/doom1.wad"
     description: "doom1.wad (4,196,020 bytes) exists"
   - check: "which riscv64-unknown-elf-objdump"
     description: "RISC-V toolchain installed"
@@ -24,8 +24,11 @@ preconditions:
 env:
   PROJECT_ROOT: "~/tmp/unheaded"
   MAP: "/sys/fs/bpf/unheaded/doom-ring/maps"
-  WAD: "~/tmp/DOOM_wads/doom1.wad"
-  WAD_ADDR: "0x110000"
+  # docs/doom/RUNBOOK.md's WAD; ~/tmp/DOOM_wads does not exist on west.
+  WAD: "~/tmp/projects/doom-related/doom1.wad"
+  # WAD_BASE in crates/doom-runner/src/memory.rs (the layout's source of truth)
+  # and demos/doom/libc_stubs.c. 0x110000 is inside .data/.bss.
+  WAD_ADDR: "0x1C00000"
   CPU_INSTANCE: "DE"
   BRIDGE_PORT: "16666"
 
@@ -71,12 +74,12 @@ steps:
     description: "Load .rodata+.data into RAM_MAP at correct VMA"
     on_fail: |
       CRITICAL: doom_data.bin MUST be from the SAME doom.elf as doom.mbc.
-      Regenerate: riscv64-unknown-elf-objcopy -O binary -j .rodata -j '.srodata*' -j .data doom.elf doom_data.bin
+      Regenerate: riscv64-unknown-elf-objcopy -O binary -j .rodata -j '.srodata*' -j .data -j .sdata doom.elf doom_data.bin
 
   - name: load-wad
     action: shell
     command: "sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader ram ${MAP}/RAM_MAP ${WAD} ${WAD_ADDR}"
-    description: "Load doom1.wad at 0x110000"
+    description: "Load doom1.wad at WAD_BASE 0x01C00000"
 
   - name: load-rv2mbc
     action: shell

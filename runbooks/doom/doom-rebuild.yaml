@@ -66,8 +66,12 @@ steps:
   - name: extract-data-section
     action: shell
     command: |
+      # .sdata too: small initialised globals (heap_ptr, stdout, rand_seed).
+      # Without it heap_ptr is 0 and malloc returns ROM addresses
+      # (the doom-loader shell script's load_data says so; doom-runner's
+      # loader.rs loads .sdata).
       riscv64-unknown-elf-objcopy -O binary \
-        -j .rodata -j '.srodata*' -j .data \
+        -j .rodata -j '.srodata*' -j .data -j .sdata \
         ${BUILD_DIR}/doom.elf \
         ${PROJECT_ROOT}/doom/doom_data.bin
     verify: "test -f ${PROJECT_ROOT}/doom/doom_data.bin"
