@@ -367,10 +367,12 @@ type ErrorInfo struct {
 }
 
 // MetaInfo represents response metadata
+// Both id and duration are omitted for a response written outside
+// loggingMiddleware, which records them.
 type MetaInfo struct {
-	RequestID string        `json:"request_id"`
-	Duration  time.Duration `json:"duration_ms"`
-	Timestamp time.Time     `json:"timestamp"`
+	RequestID  string    `json:"request_id,omitempty"`
+	DurationMS float64   `json:"duration_ms,omitempty"` // milliseconds (was a time.Duration: nanoseconds, and always 0)
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 // SetLogPublisher attaches a logagg publisher whose counters are appended to
@@ -476,14 +478,10 @@ func (hs *HTTPServer) loggingMiddleware(next http.Handler) http.Handler {
 		reqID := hs.getNextRequestID()
 
 		// Create a response writer wrapper to capture status code
-		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK, requestID: reqID, start: start}
 
-		// Note: request ID is propagated via the JSON RequestID field in
-		// MetaInfo (set at handler-time from atomic.LoadInt64(&hs.requestID))
-		// and via the structured-log "request_id" field below — no
-		// context-value plumbing needed here. The earlier
-		// `context.WithValue(r.Context(), "request_id", ...)` was never
-		// retrieved (SA1029 bare-string key + dead value).
+		// The request ID reaches the JSON MetaInfo through wrapped (see
+		// requestMeta) and the log through the "request_id" field below.
 		next.ServeHTTP(wrapped, r)
 
 		duration := time.Since(start)
@@ -501,6 +499,8 @@ func (hs *HTTPServer) loggingMiddleware(next http.Handler) http.Handler {
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
+	requestID  int64     // this request's, from getNextRequestID
+	start      time.Time // when loggingMiddleware received it
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
@@ -847,14 +847,23 @@ func (hs *HTTPServer) writeSuccess(w http.ResponseWriter, code int, data interfa
 	resp := ResponseEnvelope{
 		Success: true,
 		Data:    data,
-		Meta: &MetaInfo{
-			RequestID: fmt.Sprintf("req_%d", atomic.LoadInt64(&hs.requestID)),
-			Duration:  0,
-			Timestamp: time.Now(),
-		},
+		Meta:    requestMeta(w),
 	}
 
 	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+}
+
+// requestMeta is this request's id and how long it has taken so far, from
+// what loggingMiddleware recorded. Meta used to carry duration_ms 0 on every
+// response, and as request_id whatever the shared counter held at encode
+// time: under concurrent requests, another request's id.
+func requestMeta(w http.ResponseWriter) *MetaInfo {
+	meta := &MetaInfo{Timestamp: time.Now()}
+	if rw, ok := w.(*responseWriter); ok && rw.requestID > 0 {
+		meta.RequestID = fmt.Sprintf("req_%d", rw.requestID)
+		meta.DurationMS = float64(meta.Timestamp.Sub(rw.start).Microseconds()) / 1000
+	}
+	return meta
 }
 
 // writeError writes an error response
@@ -878,11 +887,7 @@ func (hs *HTTPServer) writeError(w http.ResponseWriter, code int, errCode, msg s
 	resp := ResponseEnvelope{
 		Success: false,
 		Error:   errInfo,
-		Meta: &MetaInfo{
-			RequestID: fmt.Sprintf("req_%d", atomic.LoadInt64(&hs.requestID)),
-			Duration:  0,
-			Timestamp: time.Now(),
-		},
+		Meta:    requestMeta(w),
 	}
 
 	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
