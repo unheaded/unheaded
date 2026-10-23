@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 	"unheaded/pkg/crypto/pqc"
 	"unheaded/services/wotan/internal/member"
+	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/ringbuffer"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/signing"
@@ -134,6 +135,36 @@ func TestPublishTopic_RoomCap(t *testing.T) {
 	if err := pub("t1"); err != nil {
 		t.Fatalf("existing topic at the cap: %v", err)
 	}
+}
+
+// A forwarder drops an event when the stream's fan-in buffer is full (the
+// client reads slower than the topic is written). Those drops were not
+// counted anywhere.
+func TestForwardTopicEvents_CountsDropsWhenTheStreamIsFull(t *testing.T) {
+	svc := NewTopicService(room.NewManager(100), member.NewManager(), wotan.NewWotan())
+	dropped := metrics.Get().StreamErrors.WithLabelValues("fwd.drop", "stream_buffer_full")
+	before := dropped.Value()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sub := svc.wotan.Subscribe("fwd.drop", uuid.New(), 10)
+	defer svc.wotan.Unsubscribe(sub)
+	full := make(chan *topicEvent) // nobody reads: every send finds it full
+	done := make(chan struct{})
+	go func() { defer close(done); svc.forwardTopicEvents(ctx, "fwd.drop", sub, full) }()
+
+	for i := 0; i < 3; i++ {
+		svc.wotan.PublishMessageCreated(&ringbuffer.Message{ID: uuid.New(), RoomID: "fwd.drop", Timestamp: time.Now()})
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for dropped.Value()-before < 3 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := dropped.Value() - before; got != 3 {
+		t.Fatalf(`stream_errors_total{error_type="stream_buffer_full"} rose by %v, want 3`, got)
+	}
+	cancel()
+	<-done
 }
 
 // StreamTopics closed its fan-in channel (the last defer, so the first to

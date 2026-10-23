@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/ringbuffer"
 )
 
@@ -283,8 +284,11 @@ func (b *Wotan) Publish(roomID string, event *MessageEvent) {
 			// Subscription was cancelled, skip this subscriber
 		default:
 			// Channel buffer is full, drop event for this subscriber
-			// This prevents slow clients from blocking the publisher
-			// In production, this could be logged/metered for monitoring
+			// This prevents slow clients from blocking the publisher.
+			// Counted: a drop was invisible before.
+			if m := metrics.Get(); m != nil {
+				m.StreamErrors.WithLabelValues(roomID, "subscriber_buffer_full").Inc()
+			}
 		}
 	}
 }

@@ -345,8 +345,12 @@ func (s *TopicService) forwardTopicEvents(
 			case <-ctx.Done():
 				return
 			default:
-				// Event channel buffer full, drop event
-				// This is acceptable for streaming pub/sub
+				// Event channel buffer full (the client is slower than the
+				// topic), drop event. Acceptable for streaming pub/sub, but
+				// counted: a drop was invisible before.
+				if m := metrics.Get(); m != nil {
+					m.StreamErrors.WithLabelValues(topic, "stream_buffer_full").Inc()
+				}
 			}
 		}
 	}
