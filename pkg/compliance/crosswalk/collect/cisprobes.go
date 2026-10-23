@@ -125,7 +125,7 @@ func kernelModuleProbe(mod string) Probe {
 				return false, mod + ": not checked (" + load + ")"
 			case strings.Contains(load, "builtin"):
 				return false, mod + " is built into the kernel"
-			case !strings.Contains(load, "install /bin/false") && !strings.Contains(load, "install /bin/true"):
+			case !installsNothing(load):
 				return false, mod + " can be loaded (modprobe: " + load + ")"
 			case f["blacklist"] == "":
 				return false, mod + " cannot be loaded but is not blacklisted"
@@ -133,6 +133,22 @@ func kernelModuleProbe(mod string) Probe {
 			return true, mod + " not loadable and blacklisted"
 		},
 	}
+}
+
+// installsNothing reports whether modprobe's dry run ends in the module's
+// own install command and that command is /bin/false or /bin/true alone.
+// Containing "install /bin/false" is not enough: "install m /bin/false ||
+// modprobe --ignore-install m" prints that and loads the module.
+func installsNothing(load string) bool {
+	i := strings.LastIndex(load, "install ")
+	if i < 0 {
+		return false
+	}
+	switch strings.TrimSpace(load[i+len("install "):]) {
+	case "/bin/false", "/bin/true", "/usr/bin/false", "/usr/bin/true":
+		return true
+	}
+	return false
 }
 
 // filePermProbe prints "path mode uid group" per matching file, or

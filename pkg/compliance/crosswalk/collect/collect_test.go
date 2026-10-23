@@ -612,6 +612,13 @@ func TestKernelModuleProbes(t *testing.T) {
 		// own "not found" for modprobe passed every module as absent.
 		{"modprobe not on PATH", "loaded=0\nloadable=sh: 1: modprobe: not found \nblacklist=\n", false},
 		{"other module not found", "loaded=0\nloadable=modprobe: FATAL: Module mtd not found in directory /lib/modules/6.17 \nblacklist=\n", false},
+		// modprobe -n -v prints dependencies first (west, 2026-10-23).
+		{"dependency, then install false", "loaded=0\nloadable=insmod /lib/modules/6.17/kernel/drivers/mtd/mtd.ko.zst  install /bin/false  \nblacklist=blacklist cramfs\n", true},
+		// An install command that falls through to a real load once passed
+		// because it contained "install /bin/false" (modprobe -C output).
+		{"install false or load", "loaded=0\nloadable=insmod /lib/modules/6.17/kernel/drivers/mtd/mtd.ko.zst  install /bin/false || /sbin/modprobe --ignore-install cramfs  \nblacklist=blacklist cramfs\n", false},
+		{"install false then load", "loaded=0\nloadable=install /bin/false; /sbin/modprobe --ignore-install cramfs \nblacklist=blacklist cramfs\n", false},
+		{"install true", "loaded=0\nloadable=install /bin/true \nblacklist=blacklist cramfs\n", true},
 	} {
 		pass, detail := Probes["kmod-cramfs-disabled"].Judge(tc.out)
 		if pass != tc.pass {
