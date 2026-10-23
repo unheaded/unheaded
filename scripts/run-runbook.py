@@ -65,8 +65,13 @@ def run_command(cmd, timeout=120, env=None, dry_run=False):
         # (e.g. a --set KEY=VALUE flag, or values fetched from a service). At
         # that point the interpolation into a shell string becomes a real
         # injection path and this must move to an argv list.
+        #
+        # bash, not /bin/sh: shell=True alone runs dash on Debian/Ubuntu, and
+        # the runbooks are bash (`source`, `[[ ]]`, brace expansion, process
+        # substitution). Under dash those are syntax errors, and `cmd &> f`
+        # parses as `cmd &` then `> f`: backgrounded, output file truncated.
         result = subprocess.run(  # nosec B602 - see comment above
-            cmd, shell=True, capture_output=True, text=True,
+            cmd, shell=True, executable="/bin/bash", capture_output=True, text=True,
             timeout=timeout, env={**os.environ, **(env or {})}, check=False
         )
         return result.returncode, result.stdout.strip(), result.stderr.strip()
