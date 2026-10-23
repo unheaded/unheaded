@@ -1,0 +1,149 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: chaos-game-day
+  description: Planned, attended game day on west to inject one known fault at a time, watch the Kingdom detect and survive it, restore it, and write it up.
+  owner: blackmage
+  estimated_duration: 2h
+  risk: high
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_chaos_game_day.py
+notes: |
+  This runbook covers the planned chaos game day on west. It includes steps to announce the game day, check the steady state, inject faults, observe the system's response, and write up the findings. The abort criteria and rollback steps are also included.
+parameters:
+  - name: GAMEDAY_DIR
+    default: "$HOME/gameday/$(date -u +%F)"
+    description: Directory to save the game day logs and data.
+preconditions:
+  - check: "curl -sf 127.0.0.1:18000/health | jq -e '.status == \"healthy\"' >/dev/null"
+    description: Wotan answers healthy before the game day starts.
+steps:
+  - name: announce-chaos-game-day
+    action: manual
+    command: |
+      echo "Date: $(date -u)"
+      echo "Scope: west only"
+      echo "Watchers: [list of watchers]"
+      scripts/monitoring/maintenance.sh 2h "chaos game day"
+    description: "MANUAL. Announce the chaos game day, date, scope, and watchers; start the silence window."
+
+  - name: check-steady-state
+    action: shell
+    command: |
+      set -euo pipefail
+      mkdir -p "${GAMEDAY_DIR}"
+      python3 scripts/run-runbook.py runbooks/observe/service-health-sweep.yaml > "${GAMEDAY_DIR}/steady-health-sweep.txt" 2>&1 || true
+      curl -s 127.0.0.1:19100/api/v1/status > "${GAMEDAY_DIR}/steady-akira.json" || true
+      curl -s 127.0.0.1:19130/v1/outbox > "${GAMEDAY_DIR}/steady-outbox.json" || true
+      curl -s 127.0.0.1:18000/health > "${GAMEDAY_DIR}/steady-wotan.json" || true
+      ls -l "${GAMEDAY_DIR}"/steady-*
+    verify: "test -s \"${GAMEDAY_DIR}/steady-health-sweep.txt\""
+    description: "Read-only steady state: health sweep, Akira status, alert outbox, Wotan health, saved to GAMEDAY_DIR"
+
+  - name: abort-criteria
+    action: manual
+    command: |
+      echo "Abort criteria:"
+      echo "1. Any service other than the one injected goes CRITICAL."
+      echo "2. The Well reports data errors."
+      echo "3. A restore does not bring health back within 5 minutes."
+      echo "On abort: kill switch (delete all chaos rules), run every restore step, end the silence."
+    description: "MANUAL. Define the abort criteria and what to do on abort."
+
+  - name: inject-stop-wotan
+    action: manual
+    command: |
+      echo "Hypothesis: Clients retry and rejoin, logagg keeps forwarding after Wotan returns, nothing is lost except buffered messages."
+      docker stop unheaded-wotan
+    description: "MANUAL. Stop Wotan to test client retry and rejoin behavior."
+
+  - name: restore-wotan
+    action: manual
+    command: |
+      docker start unheaded-wotan
+    description: "MANUAL. Restore Wotan after the test."
+
+  - name: observe-after-stop-wotan
+    action: shell
+    command: |
+      set -euo pipefail
+      mkdir -p "${GAMEDAY_DIR}"
+      python3 scripts/run-runbook.py runbooks/observe/service-health-sweep.yaml > "${GAMEDAY_DIR}/after-wotan-health-sweep.txt" 2>&1 || true
+      curl -s 127.0.0.1:19100/api/v1/status > "${GAMEDAY_DIR}/after-wotan-akira.json" || true
+      curl -s 127.0.0.1:19130/v1/outbox > "${GAMEDAY_DIR}/after-wotan-outbox.json" || true
+      curl -s 127.0.0.1:18000/health > "${GAMEDAY_DIR}/after-wotan-wotan.json" || true
+      ls -l "${GAMEDAY_DIR}"/after-wotan-*
+    verify: "test -s \"${GAMEDAY_DIR}/after-wotan-health-sweep.txt\""
+    description: "Observe the system's response after stopping Wotan."
+
+  - name: inject-stop-well
+    action: manual
+    command: |
+      echo "Hypothesis: Kanban, architect, and micromanager go read-only (503 on writes), reads of cached data keep working."
+      docker stop unheaded-postgres
+    description: "MANUAL. Stop the Well to test read-only behavior."
+
+  - name: restore-well
+    action: manual
+    command: |
+      docker start unheaded-postgres
+    description: "MANUAL. Restore the Well after the test."
+
+  - name: observe-after-stop-well
+    action: shell
+    command: |
+      set -euo pipefail
+      mkdir -p "${GAMEDAY_DIR}"
+      python3 scripts/run-runbook.py runbooks/observe/service-health-sweep.yaml > "${GAMEDAY_DIR}/after-well-health-sweep.txt" 2>&1 || true
+      curl -s 127.0.0.1:19100/api/v1/status > "${GAMEDAY_DIR}/after-well-akira.json" || true
+      curl -s 127.0.0.1:19130/v1/outbox > "${GAMEDAY_DIR}/after-well-outbox.json" || true
+      curl -s 127.0.0.1:18000/health > "${GAMEDAY_DIR}/after-well-wotan.json" || true
+      ls -l "${GAMEDAY_DIR}"/after-well-*
+    verify: "test -s \"${GAMEDAY_DIR}/after-well-health-sweep.txt\""
+    description: "Observe the system's response after stopping the Well."
+
+  - name: inject-kill-trace-collector
+    action: manual
+    command: |
+      echo "Hypothesis: The dashboard shows '--', not zeros."
+      sudo systemctl kill unheaded-trace-collector
+    description: "MANUAL. Kill trace-collector to test dashboard behavior."
+
+  - name: restore-trace-collector
+    action: manual
+    command: |
+      sudo systemctl start unheaded-trace-collector
+    description: "MANUAL. Restore trace-collector after the test."
+
+  - name: observe-after-kill-trace-collector
+    action: shell
+    command: |
+      set -euo pipefail
+      mkdir -p "${GAMEDAY_DIR}"
+      python3 scripts/run-runbook.py runbooks/observe/service-health-sweep.yaml > "${GAMEDAY_DIR}/after-trace-collector-health-sweep.txt" 2>&1 || true
+      curl -s 127.0.0.1:19100/api/v1/status > "${GAMEDAY_DIR}/after-trace-collector-akira.json" || true
+      curl -s 127.0.0.1:19130/v1/outbox > "${GAMEDAY_DIR}/after-trace-collector-outbox.json" || true
+      curl -s 127.0.0.1:18000/health > "${GAMEDAY_DIR}/after-trace-collector-wotan.json" || true
+      ls -l "${GAMEDAY_DIR}"/after-trace-collector-*
+    verify: "test -s \"${GAMEDAY_DIR}/after-trace-collector-health-sweep.txt\""
+    description: "Observe the system's response after killing trace-collector."
+
+  - name: write-up-chaos-game-day
+    action: manual
+    command: |
+      echo "Write-up the chaos game day findings."
+      echo "Each hypothesis, held or not, evidence, follow-up findings."
+      scripts/monitoring/maintenance.sh --end
+    description: "MANUAL. Write up the findings from the chaos game day and end the silence window."
+rollback:
+  - name: restore-all-services
+    action: manual
+    command: |
+      docker start unheaded-wotan
+      docker start unheaded-postgres
+      sudo systemctl start unheaded-trace-collector
+    description: "MANUAL. Restore all services to their original state."
