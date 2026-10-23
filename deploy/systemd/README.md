@@ -27,10 +27,10 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 | `unheaded-architect.service`    | 19001         |                                    |
 | `unheaded-captain.service`      | 19002         |                                    |
 | `unheaded-micromanager.service` | 19003         |                                    |
-| `unheaded-monad.service`        | 19004 (gRPC)  |                                    |
-| `unheaded-sophia.service`       | 19005 (gRPC)  |                                    |
-| `unheaded-dashboard.service`    | 16667         |                                    |
-| `unheaded-kanban.service`       | 16668         |                                    |
+| `unheaded-monad.service`        | 19004         |                                    |
+| `unheaded-sophia.service`       | 19005         |                                    |
+| `unheaded-dashboard.service`    | 20000         |                                    |
+| `unheaded-kanban.service`       | 20001         |                                    |
 | `unheaded-daemon.service`       | 17000, 17001  | Control plane / drift detection    |
 | `unheaded-akira.service`        | 19100         | Health monitor                     |
 | `unheaded-trace-collector.service` | 16670, 16671 | eBPF (XDP/TC/kprobes) → Wotan; CAP_BPF, CAP_PERFMON, CAP_NET_ADMIN only. Runs on west too, beside the compose stack |
@@ -134,10 +134,31 @@ reinstalled at `0.1.0~alpha+<commit>` on 2026-10-21; the interim
 `10-isolation.conf` drop-ins (2026-10-18) were removed then, since the
 packaged units carry the same sandbox.
 
-## Binary paths
+## Binary paths and unit names
 
-Binaries are expected at `/usr/local/bin/<name>`, installed from WEST's local
-APT repo (`apt install unheaded-<service>`). See `runbooks/infra/apt-repo-server.yaml`.
+The units here exec `/usr/local/bin/<name>`, for a hand install (copy the
+unit, put the binary there).
+
+The `.deb` packages do not use that path or these file names.
+`scripts/build-all-debs.sh` installs the binary at `/opt/unheaded/bin/<name>`
+and ships its own copy of the unit, with `/usr/local/bin/` rewritten to
+`/opt/unheaded/bin/`, as `/etc/systemd/system/<package>.service`. The unit
+name is the package name, `unheaded-<binary>`:
+
+| Repo unit | Unit installed by the deb |
+|---|---|
+| `unheaded-dashboard.service` | `unheaded-dashboard-backend.service` |
+| `unheaded-kanban.service` | `unheaded-kanban-app.service` |
+| `unheaded-daemon.service` | `unheaded-unheaded-daemon.service` |
+| `unheaded-<svc>.service` (wotan, timeguru, captain, architect, micromanager, akira) | same name |
+
+So on east (debs) start them as `unheaded-dashboard-backend`,
+`unheaded-kanban-app` and `unheaded-unheaded-daemon`
+(`runbooks/deploy/start-east-services.yaml`). Packages come from WEST's local
+APT repo (`apt install unheaded-<binary>`); see
+`runbooks/infra/apt-repo-server.yaml`. Units not packaged (monad, sophia,
+kev-poller, trace-collector, huginn, ...) are hand-installed and keep
+`/usr/local/bin`.
 
 ## Logs
 
