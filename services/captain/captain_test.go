@@ -6,6 +6,9 @@ package captain
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -373,6 +376,53 @@ func TestService_LogDecision(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A decision reaches Wotan through the real client. Nothing joined
+// decisions.created, and the client refuses to publish to a topic it has
+// not joined, so every decision's publish failed "not subscribed to topic"
+// (counted as decisions.publish_error and otherwise ignored). The mock
+// Wotan above accepts any publish, so the tests never saw it.
+func TestService_LogDecision_PublishesWithRealClient(t *testing.T) {
+	var mu sync.Mutex
+	var published []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/subscribe"):
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"subscriber":{"subscriber_id":"00000000-0000-0000-0000-000000000001","status":"approved"}}`))
+		case strings.HasSuffix(r.URL.Path, "/publish"):
+			mu.Lock()
+			published = append(published, r.URL.Path)
+			mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+	client, err := wotanClient.NewClient(strings.TrimPrefix(srv.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var publishErrors int
+	svc, _ := NewService(Config{Storage: newMockStorage(), Wotan: client,
+		MetricsCallback: func(m string, _ interface{}) {
+			if m == "decisions.publish_error" {
+				publishErrors++
+			}
+		}})
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		d := &Decision{Title: "Ship", Content: "proceed", Owner: "captain", Priority: PriorityHigh}
+		if err := svc.LogDecision(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(published) != 2 || publishErrors != 0 {
+		t.Errorf("published %v with %d publish errors, want 2 publishes", published, publishErrors)
 	}
 }
 

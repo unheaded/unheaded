@@ -130,6 +130,10 @@ type Service struct {
 	strategy        *Strategy
 	metricsCallback func(metric string, value interface{})
 	idCounter       int64 // atomic counter for unique decision IDs
+
+	// joined: topics publish has joined on Wotan (guarded by joinMu).
+	joined map[string]bool
+	joinMu sync.Mutex
 }
 
 // Config holds service configuration
@@ -181,6 +185,30 @@ func NewService(cfg Config) (*Service, error) {
 	}
 
 	return s, nil
+}
+
+// wotanDisplayName is the name captain joins Wotan topics under (on
+// Wotan's topics.auto_approve list).
+const wotanDisplayName = "captain"
+
+// publish joins topic on first use, then publishes to it. The Wotan client
+// refuses to publish to a topic it has not joined, and nothing joined
+// decisions.created: every decision's publish failed "not subscribed to
+// topic decisions.created" and only bumped decisions.publish_error.
+func (s *Service) publish(ctx context.Context, topic string, payload []byte) error {
+	s.joinMu.Lock()
+	if !s.joined[topic] {
+		if _, err := s.wotan.Subscribe(ctx, topic, wotanDisplayName); err != nil {
+			s.joinMu.Unlock()
+			return fmt.Errorf("join %s: %w", topic, err)
+		}
+		if s.joined == nil {
+			s.joined = make(map[string]bool)
+		}
+		s.joined[topic] = true
+	}
+	s.joinMu.Unlock()
+	return s.wotan.Publish(ctx, topic, payload)
 }
 
 // GetVision returns the project vision.
@@ -289,7 +317,7 @@ func (s *Service) LogDecision(ctx context.Context, decision *Decision) error {
 		return fmt.Errorf("marshal decision: %w", err)
 	}
 
-	if err := s.wotan.Publish(ctx, "decisions.created", payload); err != nil {
+	if err := s.publish(ctx, "decisions.created", payload); err != nil {
 		// Log error but don't fail the operation
 		if s.metricsCallback != nil {
 			s.metricsCallback("decisions.publish_error", 1)
