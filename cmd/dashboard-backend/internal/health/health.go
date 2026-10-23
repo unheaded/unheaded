@@ -143,7 +143,9 @@ type ServiceHealth struct {
 	FailedChecks         int64         `json:"failed_checks"`
 	AverageLatency       time.Duration `json:"average_latency"`
 	RecentResults        []CheckResult `json:"recent_results,omitempty"`
-	Tags                 []string      `json:"tags,omitempty"`
+
+	firstCheck time.Time // when monitoring of this service began; floors Uptime
+	Tags       []string  `json:"tags,omitempty"`
 }
 
 // HealthHistory holds historical check results for a service
@@ -639,11 +641,20 @@ func (m *Monitor) processResult(target *ServiceTarget, result CheckResult) {
 		}
 	}
 
-	// Calculate uptime duration
-	if health.LastHealthy.After(health.LastUnhealthy) {
+	// Uptime: since the last unhealthy check, or since monitoring began.
+	// A service never seen unhealthy used to get time.Since(zero time),
+	// which saturates at 292 years (max int64 ns); an unhealthy one got the
+	// time since it was last healthy, i.e. its downtime.
+	if health.firstCheck.IsZero() {
+		health.firstCheck = result.Timestamp
+	}
+	switch {
+	case health.Status == StatusUnhealthy:
+		health.Uptime = 0
+	case health.LastUnhealthy.After(health.firstCheck):
 		health.Uptime = time.Since(health.LastUnhealthy)
-	} else if !health.LastHealthy.IsZero() {
-		health.Uptime = time.Since(health.LastHealthy)
+	default:
+		health.Uptime = time.Since(health.firstCheck)
 	}
 
 	m.healthMu.Unlock()

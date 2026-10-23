@@ -1773,3 +1773,27 @@ func TestSentinelErrors(t *testing.T) {
 		})
 	}
 }
+
+// A service never seen unhealthy reported uptime 9223372036854775807
+// (time.Since(zero time) saturates); live on east 2026-10-23.
+func TestUptime_NeverUnhealthyIsSinceFirstCheck(t *testing.T) {
+	m := newTestMonitor(t)
+	target := &ServiceTarget{Name: "svc"}
+	start := time.Now().Add(-time.Minute)
+	for i := 0; i < 3; i++ {
+		m.processResult(target, CheckResult{Status: StatusHealthy, Timestamp: start.Add(time.Duration(i) * time.Second)})
+	}
+	h, err := m.GetServiceHealth("svc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Uptime < 59*time.Second || h.Uptime > 2*time.Minute {
+		t.Errorf("uptime = %v, want about a minute (since the first check)", h.Uptime)
+	}
+	for i := 0; i < 10; i++ {
+		m.processResult(target, CheckResult{Status: StatusUnhealthy, Timestamp: time.Now()})
+	}
+	if h, _ := m.GetServiceHealth("svc"); h.Status == StatusUnhealthy && h.Uptime != 0 {
+		t.Errorf("unhealthy service uptime = %v, want 0", h.Uptime)
+	}
+}
