@@ -939,18 +939,25 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 198** [TEST][V] ~3m: Green.
   - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
 - [ ] **Step 199** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): rollback manager drives the Cuirass driver`.
-- [ ] **Step 200** [TEST][CODE] ~30m: End-to-end strategy tests against the fake Cuirass (`pkg/deploy/cuirassdriver/e2e_test.go`):
+- [x] **Step 200** [TEST][CODE] ~30m: End-to-end strategy tests against the fake Cuirass (`pkg/deploy/cuirassdriver/e2e_test.go`):
+  - Done 2026-10-23: cuirassdriver/e2e_test.go: rolling v1 to v2 (surge 1, unavailable 0): the fake's per-tick healthy count never drops below 3 (bite: unavailable 1 drops it to 2, red); blue-green v2 to v3: exactly one proxy move, every blue delete after it; canary v3 to v4 with a failing analysis: ErrRollbackRequired, RolledBack, only v3 left with the endpoint, the analysis saw 1 canary and 3 stable.
   - rolling 3 replicas v1→v2 with `max_unavailable=0`: at every fake tick, healthy count ≥ 3;
   - blue-green v2→v3: exactly one proxy move, old instances deleted only after the move;
   - canary v3→v4 with analysis returning fail: ends with only v3 desired, canary deleted, result `rolled_back`.
-- [ ] **Step 201** [TEST] ~3m: Run: `gotest ./pkg/deploy/...`.
-- [ ] **Step 202** [V] ~1m: All green; no `time.Sleep` in the product code paths of strategy/driver except bounded poll intervals (`grep -n 'time.Sleep' pkg/deploy/strategy/*.go pkg/deploy/cuirassdriver/*.go | grep -v _test`).
+- [x] **Step 201** [TEST] ~3m: Run: `gotest ./pkg/deploy/...`.
+  - Done 2026-10-23: gotest ./pkg/deploy/... green (strategy, rollback, cuirassdriver, and the untouched Engine/pipeline/artifact).
+- [x] **Step 202** [V] ~1m: All green; no `time.Sleep` in the product code paths of strategy/driver except bounded poll intervals (`grep -n 'time.Sleep' pkg/deploy/strategy/*.go pkg/deploy/cuirassdriver/*.go | grep -v _test`).
+  - Done 2026-10-23: no time.Sleep in strategy or cuirassdriver product code at all (every wait is a ctx-aware timer).
 - [ ] **Step 203** [C] ~2m: **COMMIT CHECKPOINT**: `test(deploy): end-to-end strategy runs against a fake Cuirass`.
-- [ ] **Step 204** [B] ~2m: Untouched leftovers are what E1 says they are: if G3 was answered, `pkg/deploy` Engine/pipeline/artifact are gone (Phase 1); if not answered yet, they stay unreached and unmodified (no half-edits).
-- [ ] **Step 205** [B] ~3m: gosec on the new/changed packages: `gosec -quiet ./pkg/deploy/strategy/... ./pkg/deploy/rollback/... ./pkg/deploy/cuirassdriver/... | tail`.
-- [ ] **Step 206** [V] ~2m: **PHASE 7 EXIT GATE**: Steps 184, 190, 198, 202 green; zero gosec findings in new code.
+- [x] **Step 204** [B] ~2m: Untouched leftovers are what E1 says they are: if G3 was answered, `pkg/deploy` Engine/pipeline/artifact are gone (Phase 1); if not answered yet, they stay unreached and unmodified (no half-edits).
+  - Done 2026-10-23: E1 not answered: pkg/deploy Engine, pipeline, artifact, pkg/container and services/canary are untouched (no diff against b199a8fc).
+- [x] **Step 205** [B] ~3m: gosec on the new/changed packages: `gosec -quiet ./pkg/deploy/strategy/... ./pkg/deploy/rollback/... ./pkg/deploy/cuirassdriver/... | tail`.
+  - Done 2026-10-23: gosec on strategy, rollback, cuirassdriver: no issues.
+- [x] **Step 206** [V] ~2m: **PHASE 7 EXIT GATE**: Steps 184, 190, 198, 202 green; zero gosec findings in new code.
+  - Done 2026-10-23: PASS: Steps 184, 190, 198, 202 green; zero gosec findings; the DoD grep is TestNoSimulationInDeployCore.
 - [ ] **Step 207** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks).
-- [ ] **Step 208** [AUDIT-UPDATE] ~2m: `docs/UNREACHED-GO-PACKAGES.md`: `pkg/deploy/strategy`, `pkg/deploy/rollback` marked "wired in Phase 8 (Sword)" (they become reached when cmd/sword lands).
+- [x] **Step 208** [AUDIT-UPDATE] ~2m: `docs/UNREACHED-GO-PACKAGES.md`: `pkg/deploy/strategy`, `pkg/deploy/rollback` marked "wired in Phase 8 (Sword)" (they become reached when cmd/sword lands).
+  - Done 2026-10-23: docs/UNREACHED-GO-PACKAGES.md marks pkg/deploy/strategy and pkg/deploy/rollback as wired in Phase 8 (cmd/sword).
 
 **DoD (Phase 7)**: DoD-STD + the "no simulate" grep is a test (`TestNoSimulationInDeployCore` reading the package sources) so it cannot regress.
 

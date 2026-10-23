@@ -77,8 +77,8 @@ Known to fake success, so a future caller would be misled (found 2026-10-23):
 - `pkg/deploy`
 - `pkg/deploy/artifact`
 - `pkg/deploy/pipeline`
-- `pkg/deploy/rollback`
-- `pkg/deploy/strategy`
+- `pkg/deploy/rollback` (wired in Phase 8: cmd/sword, S-REAL-STEEL)
+- `pkg/deploy/strategy` (wired in Phase 8: cmd/sword, S-REAL-STEEL)
 - `pkg/dns`
 - `pkg/ebpf/maploader`
 - `pkg/eventbus`
