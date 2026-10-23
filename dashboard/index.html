@@ -1108,20 +1108,22 @@
             card.className = 'service-card';
             const name = svc.name || 'unknown';
             const status = svc.status || 'unknown';
-            const port = (svc.config && svc.config.network && svc.config.network.port) || '--';
-            const protocol = (svc.config && svc.config.network && svc.config.network.protocol) || '--';
-            const tier = (svc.config && svc.config.deployment && svc.config.deployment.tier) || '--';
-            const latMs = svc.average_latency_ms || '--';
+            // What /api/v1/services sends. (Port, protocol and tier were read
+            // from svc.config, which it never sends: always "--".)
+            const uptime = svc.uptime_percent != null ? Number(svc.uptime_percent).toFixed(1) + '%' : '--';
+            const metrics = svc.metrics_status || '--';
+            const failures = svc.consecutive_failures != null ? svc.consecutive_failures : '--';
+            const latMs = svc.average_latency_ms != null ? svc.average_latency_ms + ' ms' : '--';
             card.innerHTML = `
               <div class="service-header">
                 <div class="service-name">${name}</div>
                 <div class="service-health">${status}</div>
               </div>
               <div class="service-details">
-                <div class="service-detail"><span>port</span><span class="service-detail-value">${port}</span></div>
-                <div class="service-detail"><span>protocol</span><span class="service-detail-value">${protocol}</span></div>
-                <div class="service-detail"><span>tier</span><span class="service-detail-value">${tier}</span></div>
-                <div class="service-detail"><span>latency</span><span class="service-detail-value">${latMs}ms</span></div>
+                <div class="service-detail"><span>uptime</span><span class="service-detail-value">${uptime}</span></div>
+                <div class="service-detail"><span>metrics</span><span class="service-detail-value">${metrics}</span></div>
+                <div class="service-detail"><span>failures in a row</span><span class="service-detail-value">${failures}</span></div>
+                <div class="service-detail"><span>latency</span><span class="service-detail-value">${latMs}</span></div>
               </div>
             `;
             container.appendChild(card);
