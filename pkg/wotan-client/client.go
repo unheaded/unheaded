@@ -822,9 +822,12 @@ func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel
 	defer func() {
 		sc.closeCh()
 
-		// Remove from the channels map so Close() won't try again.
+		// Remove from the channels map so Close() won't try again, unless a
+		// later StreamMessages on the topic has replaced it there.
 		c.chanMu.Lock()
-		delete(c.channels, topic)
+		if c.channels[topic] == sc {
+			delete(c.channels, topic)
+		}
 		c.chanMu.Unlock()
 	}()
 
@@ -837,6 +840,11 @@ func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-sc.done:
+			// Close closed the channel. Without this a poller on a quiet
+			// topic noticed only when a message came, and otherwise kept
+			// polling Wotan every 500 ms for as long as its ctx lived.
 			return
 		case <-timer.C:
 			msgs, serverLast, err := c.getMessagesPage(ctx, topic, lastSeq, 100)

@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -231,6 +232,49 @@ func TestSubscribe_NoSubscriberInResponse(t *testing.T) {
 	}
 	if err := c.Publish(context.Background(), "t", []byte("x")); err == nil || !strings.Contains(err.Error(), "not subscribed") {
 		t.Errorf("publish: %v, want not subscribed", err)
+	}
+}
+
+// Close stops HTTP pollers. A poller on a quiet topic used to notice Close
+// only when a message arrived, and kept polling every 500 ms until its ctx
+// ended (never, for a Background ctx). A second stream on the same topic
+// also lost its map entry when the first ended, so Close missed it.
+func TestClose_StopsPollers(t *testing.T) {
+	var polls atomic.Int64
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		polls.Add(1)
+		_, _ = w.Write([]byte(`{"messages":[],"last_seq":0}`))
+	}))
+	t.Cleanup(ts.Close)
+	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"))
+	c.subscribers["quiet"] = &Subscriber{SubscriberID: "s", Status: "approved"}
+
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	if _, err := c.StreamMessages(ctx1, "quiet"); err != nil {
+		t.Fatal(err)
+	}
+	ch2, err := c.StreamMessages(context.Background(), "quiet")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel1() // the first stream ends; the second must stay closable
+	time.Sleep(700 * time.Millisecond)
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case _, ok := <-ch2:
+		if ok {
+			t.Fatal("got a message")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close left the second stream's channel open")
+	}
+	time.Sleep(100 * time.Millisecond) // a poll already in flight lands
+	before := polls.Load()
+	time.Sleep(1200 * time.Millisecond)
+	if after := polls.Load(); after != before {
+		t.Errorf("%d polls after Close", after-before)
 	}
 }
 
