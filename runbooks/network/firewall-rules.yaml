@@ -83,7 +83,7 @@ steps:
     action: shell
     command: |
       sudo mkdir -p /etc/iptables
-      sudo iptables-save > /etc/iptables/rules.v4
+      sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null
     verify: "sudo iptables -L INPUT -n | grep -q DROP"
 
   - name: verify-rules

@@ -46,7 +46,7 @@ steps:
     action: shell
     command: |
       sudo bpftool prog list | grep flow_tracker
-      sudo bpftool map dump name FLOW_MAP 2>/dev/null | head -20
+      sudo bpftool map dump name FLOWS 2>/dev/null | head -20
     description: "Check flow tracker program and map state"
 
   - name: trace-bpf-output

@@ -44,7 +44,7 @@ steps:
   - name: west-save-rules
     action: shell
     host: west
-    command: "sudo iptables-save > /etc/iptables/rules.v4"
+    command: "sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null"
 
   # --- Run on EAST ---
   - name: east-set-default-gateway
