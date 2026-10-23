@@ -869,30 +869,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 								continue
 							}
 
-							// Convert BPF map entry to dashboard LatencyEvent format.
-							// The map aggregates RTT per flow; we emit the latest RTT
-							// as an individual event the dashboard can ingest.
-							// Use current wall-clock time (not ktime) so the dashboard
-							// latency histogram windows don't immediately expire the samples.
-							evt := map[string]interface{}{
-								"timestamp_ns": uint64(time.Now().UnixNano()),
-								"latency_ns":   le.RTTNS,
-								"operation":    "tcp_send",
-								"pid":          uint32(0),
-								"tid":          uint32(0),
-								"trace_id":     map[string]uint64{"high": 0, "low": 0},
-								"flow_key": map[string]interface{}{
-									"src_addr": lk.SrcIPAddr().String(),
-									"dst_addr": lk.DstIPAddr().String(),
-									"src_port": lk.SrcPort,
-									"dst_port": lk.DstPort,
-									"protocol": lk.Protocol,
-								},
-								"min_rtt_ns": le.MinRTTNS,
-								"max_rtt_ns": le.MaxRTTNS,
-								"samples":    le.Samples,
-							}
-							payload, err := json.Marshal(evt)
+							payload, err := json.Marshal(latencyMapEvent(lk, le, time.Now()))
 							if err != nil {
 								continue
 							}

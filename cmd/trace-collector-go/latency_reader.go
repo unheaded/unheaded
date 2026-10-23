@@ -103,6 +103,40 @@ func (lk *LatencyKey) String() string {
 		lk.ProtocolName())
 }
 
+// latencyMapEvent renders one LATENCY_MAP entry as the dashboard's
+// LatencyEvent: the entry's latest sample as latency_ns, stamped with
+// wall-clock now (the dashboard's latency windows are wall-clock).
+//
+// latency-probe does not key the map by 5-tuple: the key is the socket's
+// trace ID (zero) as src_ip, a zero dst_ip, and the low 16 bits of pid and
+// tid as src_port/dst_port (send_latency_event). Publishing that as a
+// flow_key showed "[::]:18570 -> [::]:18654" flows that do not exist, so a
+// flow_key is sent only when the key holds addresses. The truncated pid/tid
+// are not published either: pid_max on east is 4194304.
+func latencyMapEvent(lk *LatencyKey, le *LatencyEntry, now time.Time) map[string]interface{} {
+	evt := map[string]interface{}{
+		"timestamp_ns": uint64(now.UnixNano()), // #nosec G115 -- wall clock after 1970
+		"latency_ns":   le.RTTNS,
+		"operation":    "tcp_send",
+		"pid":          uint32(0),
+		"tid":          uint32(0),
+		"trace_id":     map[string]uint64{"high": 0, "low": 0},
+		"min_rtt_ns":   le.MinRTTNS,
+		"max_rtt_ns":   le.MaxRTTNS,
+		"samples":      le.Samples,
+	}
+	if !lk.SrcIPAddr().IsUnspecified() || !lk.DstIPAddr().IsUnspecified() {
+		evt["flow_key"] = map[string]interface{}{
+			"src_addr": lk.SrcIPAddr().String(),
+			"dst_addr": lk.DstIPAddr().String(),
+			"src_port": lk.SrcPort,
+			"dst_port": lk.DstPort,
+			"protocol": lk.Protocol,
+		}
+	}
+	return evt
+}
+
 // ── LatencyEntry ───────────────────────────────────────────────────────────
 // LatencyEntry mirrors the Rust LatencyEntry struct from latency-probe/src/common.rs.
 // It holds aggregated RTT statistics for a single flow.
