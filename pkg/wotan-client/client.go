@@ -398,6 +398,11 @@ func (c *Client) Subscribe(ctx context.Context, topic, displayName string) (*Sub
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
+	// A 201 without a subscriber would be stored as nil and crash the next
+	// Publish on the topic.
+	if result.Subscriber == nil {
+		return nil, errors.New("decode response: no subscriber")
+	}
 
 	c.mu.Lock()
 	c.subscribers[topic] = result.Subscriber

@@ -217,6 +217,23 @@ func TestPublish_PendingIsRechecked(t *testing.T) {
 	})
 }
 
+// A 201 with no subscriber in it is an error, not a nil membership that
+// crashes the next publish.
+func TestSubscribe_NoSubscriberInResponse(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(ts.Close)
+	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"))
+	if _, err := c.Subscribe(context.Background(), "t", "svc"); err == nil {
+		t.Fatal("subscribe succeeded without a subscriber")
+	}
+	if err := c.Publish(context.Background(), "t", []byte("x")); err == nil || !strings.Contains(err.Error(), "not subscribed") {
+		t.Errorf("publish: %v, want not subscribed", err)
+	}
+}
+
 // "#" starts a URL fragment: a topic pattern like "logs.#" put into the path
 // unescaped reached Wotan as "/api/v1/topics/logs." with the rest (and the
 // query) cut off. Topics are path-escaped.
