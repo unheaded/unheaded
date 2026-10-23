@@ -127,7 +127,10 @@ echo "$(color bold "[5] Vulnerabilities — Rust crates")"
 if command -v cargo-audit >/dev/null 2>&1 || command -v cargo >/dev/null 2>&1 && cargo audit --version >/dev/null 2>&1; then
     for D in cmd/upc-bootctl crates/monad-mbc crates/upc-bootstub crates/zhenai-forge ebpf; do
         if [ -f "$D/Cargo.lock" ]; then
-            gate "cargo audit ($D)" bash -c "cd '$D' && cargo audit 2>&1 | tail -3 | grep -q 'Scanning' || cargo audit 2>&1 | tail -5"
+            # cargo audit's own exit status is the verdict. The old
+            # `... | grep -q Scanning || cargo audit | tail -5` ended in tail,
+            # which exits 0, so this gate passed with vulnerabilities found.
+            gate "cargo audit ($D)" bash -c "cd '$D' && cargo audit"
         fi
     done
 else
@@ -138,13 +141,14 @@ echo ""
 # ── 6. Branch hygiene ────────────────────────────────────────────────────
 
 echo "$(color bold "[6] Branch hygiene")"
-LOCAL_BRANCHES=$(git branch | grep -v "^\*" | grep -v "main" | tr -d ' ' | grep -v "^$" || true)
+# main, staging and develop are the promotion ladder (ADR-089), not stale.
+LOCAL_BRANCHES=$(git branch | grep -v "^\*" | tr -d ' ' | grep -vxE "main|staging|develop" | grep -v "^$" || true)
 if [ -z "$LOCAL_BRANCHES" ]; then
-    echo "  $(color green "PASS")  Only main local (zero stale branches)"
+    echo "  $(color green "PASS")  Only main/staging/develop local (zero stale branches)"
     PASSES=$((PASSES + 1))
 else
     NUM=$(echo "$LOCAL_BRANCHES" | wc -l)
-    printf "  %s  %d local branches besides main:\n" "$(color yellow "WARN")" "$NUM"
+    printf "  %s  %d local branches besides main/staging/develop:\n" "$(color yellow "WARN")" "$NUM"
     echo "$LOCAL_BRANCHES" | sed 's/^/      /'
     WARNS=$((WARNS + 1))
 fi
