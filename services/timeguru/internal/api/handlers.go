@@ -19,6 +19,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/httputil"
+	"unheaded/services/timeguru/internal/storage"
 	tsync "unheaded/services/timeguru/internal/sync"
 	"unheaded/services/timeguru/internal/timeline"
 )
@@ -28,7 +29,9 @@ import (
 // ============================================================================
 
 var (
-	ErrNotFound          = errors.New("not found")
+	// The store's own value: a separate errors.New here never matched what
+	// the store returns, so a missing timeline answered 500, not 404.
+	ErrNotFound          = storage.ErrNotFound
 	ErrMilestoneNotFound = errors.New("milestone not found")
 	ErrInvalidRequest    = errors.New("invalid request")
 )

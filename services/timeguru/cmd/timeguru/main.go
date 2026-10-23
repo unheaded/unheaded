@@ -157,14 +157,16 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Health & metrics — transport readiness endpoint
-	mux.HandleFunc("/ready", httputil.ProbeMethods(func(w http.ResponseWriter, _ *http.Request) {
+	// Ready = transport up and a timeline to serve. This handler used to
+	// check transport only, so a timeguru with no timeline.md answered
+	// ready while every /timeline request failed (east, 2026-10-23).
+	mux.HandleFunc("/ready", httputil.ProbeMethods(func(w http.ResponseWriter, r *http.Request) {
 		if healthSrv.Status() == transport.StatusDown {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte(`{"ready":false}`))
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"ready":true}`))
+		handler.HandleReady(w, r)
 	}))
 	mux.HandleFunc("/health", httputil.ProbeMethods(handler.HandleHealth))
 
