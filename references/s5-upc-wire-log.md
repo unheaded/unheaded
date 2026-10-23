@@ -63,3 +63,38 @@ CSR address. Red tests in `crates/monad-mbc/tests/csr_alias.rs` (5, all `#[ignor
 | H-S5 | TRUE. doom.elf has 0 CSR instructions. |
 
 Kernel `.mbc` byte-identical to Phase 0 after the probe revert.
+
+## Phase 2 — translator CSR fix (2026-10-23)
+
+Commit `acf62722`. Decisions: Step 51 r0 as the write-path CSR pointer (restored to 0),
+rd as the read-path pointer — stands (Step 53/54: the only async delivery in
+`monad-cpu-ebpf` is the timer, `cfg!(not(feature = "ascend-linux"))`-gated; Doom has no
+CSR ops). Step 52: every absent form rejected fail-closed (H-S3 true).
+
+- Tests: 5 Phase 1 tests green + exhaustive table (6 forms × rd{x0,a4,a5,ra,a0} ×
+  rs1{x0,a4,a5,a1} × CSR{0x140, 0xF14}); one existing unit test changed contract on
+  purpose (`csrrs` with rs1≠x0 now asserts rejection; `csrr` asserts MOVI+LD only).
+  Full monad-mbc suite green; `decode` filter 40 passed.
+- Fuzz (Step 63): cargo-fuzz is not installed on west, so the cargo-fuzz project was built
+  with the same sancov RUSTFLAGS and the libFuzzer binaries run directly, 300 s each:
+  `fuzz_mbc_roundtrip` 1,129,958,905 runs, `fuzz_mbc_execute` 2,236,104 runs, 0 crashes.
+  These targets exercise the MBC decoder/executor, not the translator; the translator is
+  covered by the exhaustive table.
+- Translation: kernel 7552 RV32I → **11664** MBC (was 11769, −105), `xv6-mbc.mbc`
+  `109da1b3…`. Userland `.mbc` byte-identical (no CSR ops). **H-S5:** Doom translation
+  byte-identical before/after (`dcded746…`, rv2mbc `e7ab7b67…`, data `e1191add…`).
+- TTY gate: sweep 8/8 SAME, special 4/4 SAME (12/12, TTY + stats). Harness ALL GREEN;
+  verifier unchanged (ascend 926,542 / Doom 761,580; eBPF untouched). Goldens stay valid
+  for HEAD after Phase 2.
+- `echo hello` instruction count 5,357,897 → 5,086,757 (−5.1%): `csrr` no longer
+  re-stores the CSR, and push_off/pop_off read sstatus on every spinlock.
+- ADR-067 Decision 2 implementation note + two open RFC Editor items (CSR range;
+  KF10) — review requested, not self-approved.
+
+**Security (Step 80):** (1) A user program cannot reach a rejected form at runtime:
+translation is offline and a rejected form fails the build. (2) r0-as-pointer cannot leak a
+non-zero r0 into user code: the sequence ends with `MOVI r0,0`, CSR instructions occur only
+in kernel code, and no asynchronous trap is taken between the MBC words of one RV
+instruction in the ascend build. A side effect of the old bug is also closed:
+`prepare_return` wrote kernel_satp/kernel_sp/kernel_trap/hartid to address 0x7ff instead
+of the trapframe. No new attack surface.

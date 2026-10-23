@@ -48,6 +48,39 @@ The translator maps RV32 CSR addresses 1:1 into our memory region.
 
 **Rationale:** zero new opcodes for CSR access; minimum verifier-budget impact. Atomicity is delegated to LR.W/SC.W.
 
+#### Implementation note (2026-10-23, S5 Phase 2 — `crates/monad-mbc/src/translator.rs`)
+
+What the translator actually does, which differs from the text above in three places:
+
+1. **Address range.** CSR *i* lives at byte `0xF000 + i*4` for the full 12-bit index,
+   not inside `0xF000–0xF0FF`. The kernel reads `mhartid` (0xF14 → byte `0x12C50`),
+   so the range is `0xF000–0x12FFC`; addresses above `0xFFFF` load with
+   `MOVI`+`LOAD_IMM32`. The reserved 256-byte window above is too small for the
+   indices xv6 uses (sstatus 0x100, sscratch 0x140, satp 0x180, mscratch 0x340, …).
+2. **No scratch register.** Every MBC register is a live RISC-V register under the
+   translator's register map, so a CSR sequence may write only `rd` and `r0`:
+   - read (`csrr`: CSRRS/CSRRC with rs1=x0, CSRRSI/CSRRCI with uimm=0):
+     `LI rd, addr ; LD rd, [rd]`. **rs1=x0 never writes the CSR** (RISC-V Zicsr).
+   - write (`csrw`/CSRRW with a register): `LI r0, addr ; [LD rd, [r0]] ; ST [r0], rs1 ;
+     MOVI r0, 0`. r0 is safe as a transient because the ascend build never delivers an
+     asynchronous interrupt between the MBC words of one RISC-V instruction (the BPF
+     timer is `cfg`-gated off) and Doom has no CSR instructions.
+   The earlier translation used r12/r13/r14 (= a4/a5/ra) as scratch; every `csrr`
+   overwrote a5 with the CSR value, which was the EVOLUTION-1 S1.2 `sscratch = 0x7ff`
+   blocker (`references/evolution1-stage1-2026-07-19.md` §"S1.2 ROOT CAUSE (S5)").
+3. **Rejected forms (fail closed, `TranslateError::UnsupportedInstruction`):** CSRRS/CSRRC
+   with rs1≠x0, CSRRSI/CSRRCI with uimm≠0, CSRRWI, CSRRW with rs1=x0, and CSRRW whose
+   `rd` and `rs1` map to the same MBC register. None occur in any built image; a future
+   image that uses one breaks the build rather than miscomputing at boot. Supporting
+   them needs a spill (PUSH/POP) or XCHG sequence — a separate change.
+
+**Open RFC Editor items (review requested, not self-approved):**
+- `draft-bellis-unheaded-mbc-isa-00`: state the CSR byte-address range and the
+  read/write sequences above; the draft and this ADR still show `0xF000–0xF0FF`.
+- `draft-bellis-unheaded-mbc-isa-00` §IANA (KF10): opcodes 0x11–0x1B are listed as
+  RESERVED while 0x17/0x18/0x1A/0x1B are also assigned; MOVI is documented as
+  sign-extending `imm16` while both interpreters zero-extend it.
+
 ### Decision 3 — Single-CPU per UPC instance, SMP-aware ABI
 
 `BootParams.NumCPUs` becomes meaningful. CPU_MAP becomes a **`PerCPU<MbcCpuState>` BPF map** instead of `HashMap<u8, MbcCpuState>` keyed by 0xDE/0xEA/etc.
