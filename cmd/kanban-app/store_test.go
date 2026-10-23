@@ -81,12 +81,12 @@ func TestNewStore_CreatesParentDir(t *testing.T) {
 // SEED TESTS
 // ============================================================================
 
-func TestSeedIfEmpty_SeedsOnEmptyDB(t *testing.T) {
+func TestSeedFromFile_SeedsOnEmptyDB(t *testing.T) {
 	store := createTestStore(t)
 
-	count, err := store.SeedIfEmpty()
+	count, err := store.SeedFromFile(genesisFixture)
 	if err != nil {
-		t.Fatalf("SeedIfEmpty failed: %v", err)
+		t.Fatalf("SeedFromFile failed: %v", err)
 	}
 
 	if count == 0 {
@@ -99,23 +99,23 @@ func TestSeedIfEmpty_SeedsOnEmptyDB(t *testing.T) {
 		t.Fatalf("TaskCount failed: %v", err)
 	}
 	if dbCount != count {
-		t.Errorf("TaskCount = %d, SeedIfEmpty returned %d", dbCount, count)
+		t.Errorf("TaskCount = %d, SeedFromFile returned %d", dbCount, count)
 	}
 }
 
-func TestSeedIfEmpty_SkipsOnNonEmptyDB(t *testing.T) {
+func TestSeedFromFile_SkipsOnNonEmptyDB(t *testing.T) {
 	store := createTestStore(t)
 
 	// Seed once
-	firstCount, err := store.SeedIfEmpty()
+	firstCount, err := store.SeedFromFile(genesisFixture)
 	if err != nil {
-		t.Fatalf("first SeedIfEmpty failed: %v", err)
+		t.Fatalf("first SeedFromFile failed: %v", err)
 	}
 
 	// Seed again — should be a no-op
-	secondCount, err := store.SeedIfEmpty()
+	secondCount, err := store.SeedFromFile(genesisFixture)
 	if err != nil {
-		t.Fatalf("second SeedIfEmpty failed: %v", err)
+		t.Fatalf("second SeedFromFile failed: %v", err)
 	}
 
 	if secondCount != firstCount {
@@ -319,7 +319,7 @@ func TestStore_PersistsAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first NewStore failed: %v", err)
 	}
-	store1.SeedIfEmpty()
+	_, _ = store1.SeedFromFile(genesisFixture)
 	custom := createSampleTask("custom-persist")
 	custom.Title = "I Survived a Restart"
 	store1.SaveTask(custom)
@@ -342,13 +342,13 @@ func TestStore_PersistsAcrossReopen(t *testing.T) {
 
 	// Seed should NOT re-run (DB is non-empty)
 	count, _ := store2.TaskCount()
-	seedCount, _ := store2.SeedIfEmpty()
+	seedCount, _ := store2.SeedFromFile(genesisFixture)
 	afterSeedCount, _ := store2.TaskCount()
 
 	if afterSeedCount != count {
 		t.Errorf("seed re-ran on non-empty DB: before=%d, after=%d", count, afterSeedCount)
 	}
 	if seedCount != count {
-		t.Errorf("SeedIfEmpty returned %d, expected existing count %d", seedCount, count)
+		t.Errorf("SeedFromFile returned %d, expected existing count %d", seedCount, count)
 	}
 }

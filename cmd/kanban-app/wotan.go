@@ -114,23 +114,15 @@ func (tm *TaskManager) Initialize(ctx context.Context) error {
 		ctx = context.Background()
 	}
 
-	// Load tasks: prefer Store (SQLite L1) → fall back to hardcoded seed
-	if tm.store != nil {
-		// Seed Store on first run (Genesis Event), no-op if already populated
-		if _, err := tm.store.SeedIfEmpty(); err != nil {
-			log.Error().Err(err).Msg("store seed failed, falling back to hardcoded tasks")
-			tm.store = nil // disable broken store
-		}
-	}
-
+	// Load tasks from the store (The Well, or SQLite). The Genesis cards are
+	// the Well's (migration 034); this process carries none.
 	if tm.store != nil {
 		// Load from SQLite — persisted state survives restarts
 		storeTasks, err := tm.store.GetAllTasks()
 		if err != nil {
-			// Read-only, as when the seed fails. The board below is the
-			// hardcoded seed, not what the store holds; left writable, an
-			// edit to a seed card upserted it over the stored row.
-			log.Error().Err(err).Msg("store load failed, falling back to hardcoded tasks (read-only)")
+			// Read-only: the board is not what the store holds, so an
+			// edit must not be written over a stored row.
+			log.Error().Err(err).Msg("store load failed: empty read-only board")
 			tm.store = nil
 		} else {
 			for i := range storeTasks {
@@ -143,23 +135,8 @@ func (tm *TaskManager) Initialize(ctx context.Context) error {
 		}
 	}
 
-	// Fallback: hardcoded initial tasks (no persistence)
-	if len(tm.tasks) == 0 {
-		initialTasks := getInitialTasks()
-		for i := range initialTasks {
-			task := &initialTasks[i]
-			if err := tm.validateTask(task); err != nil {
-				log.Warn().
-					Err(err).
-					Str("task_id", task.ID).
-					Msg("skipping invalid initial task")
-				continue
-			}
-			tm.tasks[task.ID] = task
-		}
-		log.Info().
-			Int("count", len(tm.tasks)).
-			Msg("loaded initial tasks (in-memory fallback)")
+	if tm.store == nil {
+		log.Warn().Msg("no store: empty read-only board")
 	}
 
 	// Subscribe to task updates

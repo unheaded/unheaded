@@ -1031,7 +1031,7 @@ func TestHandleTimelineCards_NoTimelineIsEmpty(t *testing.T) {
 	server := &Server{
 		config:     Config{},
 		sseClients: make(map[chan []byte]bool),
-		tasks:      getInitialTasks(),
+		tasks:      loadGenesisFixture(t),
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -1095,7 +1095,7 @@ func TestHandleMetrics_StandaloneMode(t *testing.T) {
 	server := &Server{
 		config:     Config{},
 		sseClients: make(map[chan []byte]bool),
-		tasks:      getInitialTasks(),
+		tasks:      loadGenesisFixture(t),
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -1464,6 +1464,7 @@ func TestHandleDeleteTask_InMemory_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestHandleGetTasks_StoreOnly(t *testing.T) {
+	t.Setenv(GenesisFileEnv, genesisFixture)
 	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
 	t.Cleanup(func() {
 		if server.store != nil {
@@ -1759,8 +1760,8 @@ func TestStore_OperationsOnClosedStore(t *testing.T) {
 	if _, err := store.TaskCount(); err != ErrStoreClosed {
 		t.Errorf("TaskCount: expected ErrStoreClosed, got %v", err)
 	}
-	if _, err := store.SeedIfEmpty(); err != ErrStoreClosed {
-		t.Errorf("SeedIfEmpty: expected ErrStoreClosed, got %v", err)
+	if _, err := store.SeedFromFile(genesisFixture); err != ErrStoreClosed {
+		t.Errorf("SeedFromFile: expected ErrStoreClosed, got %v", err)
 	}
 }
 
@@ -2384,6 +2385,9 @@ func TestTaskManager_Initialize_WithStore(t *testing.T) {
 	dir := t.TempDir()
 	store, _ := NewStore(filepath.Join(dir, "init-store.db"))
 	defer store.Close()
+	if _, err := store.SeedFromFile(genesisFixture); err != nil {
+		t.Fatal(err)
+	}
 
 	mockClient := mock.NewMockClient(mock.WithAutoApprove())
 	broadcast := func(eventType string, data interface{}) {}
@@ -2461,29 +2465,6 @@ func TestRateLimiter_ConcurrentNewClients(t *testing.T) {
 
 	for i := 0; i < 50; i++ {
 		<-done
-	}
-}
-
-// ============================================================================
-// getInitialTasks
-// ============================================================================
-
-func TestGetInitialTasks_ReturnsNonEmpty(t *testing.T) {
-	tasks := getInitialTasks()
-	if len(tasks) == 0 {
-		t.Error("expected non-empty initial tasks")
-	}
-
-	// Check a few expected tasks exist
-	ids := make(map[string]bool)
-	for _, task := range tasks {
-		ids[task.ID] = true
-	}
-	if !ids["ms-phase0"] {
-		t.Error("expected ms-phase0 in initial tasks")
-	}
-	if !ids["svc-wotan"] {
-		t.Error("expected svc-wotan in initial tasks")
 	}
 }
 

@@ -98,13 +98,11 @@ type unreadableStore struct{ stubStore }
 
 func (*unreadableStore) GetAllTasks() ([]Task, error) { return nil, errDiskFull }
 
-// When the store cannot be read at startup the board falls back to the
-// hardcoded seed. That board is not the store's, so it must not write to the
-// store: an edit to a seed card upserted it over the stored row.
-//
-// The same holds when the seed fails: TaskManager drops the store, but main
-// hands the server the same store and writable() trusted the server's copy,
-// so writes reached memory only and answered 200.
+// When the store cannot be read at startup the board is empty and
+// read-only. TaskManager drops the store, but main hands the server the same
+// store, and writable() once trusted the server's copy, so writes reached
+// memory only and answered 200. (kanban-app no longer seeds anything: the
+// Genesis cards are migration 034's.)
 func TestTaskManagerInitialize_BrokenStoreIsReadOnly(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -112,7 +110,6 @@ func TestTaskManagerInitialize_BrokenStoreIsReadOnly(t *testing.T) {
 		want  int
 	}{
 		{"unreadable", &unreadableStore{}, http.StatusServiceUnavailable},
-		{"seed fails", &unseedableStore{}, http.StatusServiceUnavailable},
 		{"working", &stubStore{tasks: []Task{{ID: "ms-phase0", Title: "x", Status: "todo"}}}, http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -135,11 +132,6 @@ func TestTaskManagerInitialize_BrokenStoreIsReadOnly(t *testing.T) {
 		})
 	}
 }
-
-// unseedableStore cannot run its first-start seed.
-type unseedableStore struct{ stubStore }
-
-func (*unseedableStore) SeedIfEmpty() (int, error) { return 0, errDiskFull }
 
 // An update keeps the task's created_at, whatever the PUT body says.
 func TestTaskManagerUpdate_KeepsCreatedAt(t *testing.T) {

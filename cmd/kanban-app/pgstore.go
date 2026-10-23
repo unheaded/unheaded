@@ -81,15 +81,6 @@ func (p *PgStore) TaskCount() (int, error) {
 	return p.inner.TaskCount(context.Background())
 }
 
-func (p *PgStore) SeedIfEmpty() (int, error) {
-	initial := getInitialTasks()
-	pgTasks := make([]database.KanbanTask, len(initial))
-	for i, t := range initial {
-		pgTasks[i] = toPgTask(t)
-	}
-	return p.inner.SeedIfEmpty(context.Background(), pgTasks)
-}
-
 func (p *PgStore) Close() error {
 	// Close the underlying Postgres connection.
 	return p.db.Close()

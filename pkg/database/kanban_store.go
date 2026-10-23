@@ -234,38 +234,6 @@ func (s *KanbanStore) TaskCount(ctx context.Context) (int, error) {
 	return count, err
 }
 
-// SeedIfEmpty inserts the provided tasks only when the table is empty.
-// Returns the number of existing or newly-inserted rows.
-func (s *KanbanStore) SeedIfEmpty(ctx context.Context, tasks []KanbanTask) (int, error) {
-	var count int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM kanban_tasks`).Scan(&count); err != nil {
-		return 0, err
-	}
-	if count > 0 {
-		return count, nil
-	}
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	for _, t := range tasks {
-		_, err := tx.ExecContext(ctx, `
-			INSERT INTO kanban_tasks (id, title, description, status, type, owner, progress, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT(id) DO NOTHING
-		`, t.ID, t.Title, t.Description, t.Status, t.Type, t.Owner, t.Progress, t.CreatedAt, t.UpdatedAt)
-		if err != nil {
-			_ = tx.Rollback()
-			return 0, fmt.Errorf("seed task %s: %w", t.ID, err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, err
-	}
-	return len(tasks), nil
-}
-
 // Close is a no-op — the underlying *sql.DB is owned by the caller.
 func (s *KanbanStore) Close() error {
 	return nil
