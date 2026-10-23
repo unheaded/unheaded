@@ -297,6 +297,28 @@ func DecodeEvent(b []byte) (Event, error) {
 	}, nil
 }
 
+// ScoreJob is one SCORE_QUEUE entry: a flow's 8-word feature snapshot,
+// queued by an XDP-stage cartridge for the tick stage.
+type ScoreJob struct {
+	Flow    FlowKey
+	Feat    [FeatWords]uint32
+	SrcSlot uint8
+	EnqNSLo uint32
+}
+
+// DecodeScoreJob decodes an 80-byte SCORE_QUEUE value.
+func DecodeScoreJob(b []byte) (ScoreJob, error) {
+	if len(b) != ScoreJobSize {
+		return ScoreJob{}, fmt.Errorf("cartridge: score job %d bytes, want %d", len(b), ScoreJobSize)
+	}
+	le := binary.LittleEndian
+	j := ScoreJob{Flow: decodeFlowKey(b[0:40]), SrcSlot: b[72], EnqNSLo: le.Uint32(b[76:])}
+	for i := range j.Feat {
+		j.Feat[i] = le.Uint32(b[40+4*i:])
+	}
+	return j, nil
+}
+
 // slotWriter is the map surface writeSlot needs (fakes in tests).
 type slotWriter interface {
 	putROM(slot, i int, w uint32) error

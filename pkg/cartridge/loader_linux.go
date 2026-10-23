@@ -274,6 +274,20 @@ func (c *Cart) QueueNonEmpty() bool {
 	return c.m("SCORE_QUEUE").Lookup(nil, &b) == nil
 }
 
+// PopJob removes the oldest SCORE_QUEUE entry (ok = false when empty).
+func (c *Cart) PopJob() (ScoreJob, bool, error) {
+	var b []byte
+	err := c.m("SCORE_QUEUE").LookupAndDelete(nil, &b)
+	if errors.Is(err, ebpf.ErrKeyNotExist) {
+		return ScoreJob{}, false, nil
+	}
+	if err != nil {
+		return ScoreJob{}, false, err
+	}
+	j, err := DecodeScoreJob(b)
+	return j, err == nil, err
+}
+
 // AttachXDP attaches cart_xdp to iface ("generic" or "native" mode). The
 // link detaches when closed or when this process exits.
 func (c *Cart) AttachXDP(iface, mode string) (link.Link, error) {
