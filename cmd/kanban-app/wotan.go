@@ -41,6 +41,7 @@ var (
 	ErrTaskNotFound      = errors.New("task not found")
 	ErrEmptyTaskID       = errors.New("task ID cannot be empty")
 	ErrTaskAlreadyExists = errors.New("task with ID already exists")
+	ErrPersistFailed     = errors.New("task store write failed")
 )
 
 // WotanClient interface for testing
@@ -442,15 +443,18 @@ func (tm *TaskManager) CreateTask(ctx context.Context, task *Task) error {
 	task.CreatedAt = now
 	task.UpdatedAt = now
 
-	// Add to local map
-	tm.addTask(task)
-
-	// Persist to SQLite L1 store (if available)
+	// Persist first. A store failure used to be logged and the create
+	// answered 201 anyway: the card showed until the next restart, then was
+	// gone.
 	if tm.store != nil {
 		if err := tm.store.SaveTask(task); err != nil {
 			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to persist task to SQLite L1")
+			return fmt.Errorf("%w: %v", ErrPersistFailed, err)
 		}
 	}
+
+	// Add to local map
+	tm.addTask(task)
 
 	// Publish to Wotan L2 (best-effort async — don't fail the create if bus is down)
 	// Snapshot task to avoid data race with caller mutating the pointer after return
@@ -494,15 +498,16 @@ func (tm *TaskManager) UpdateTask(ctx context.Context, task *Task) error {
 	// Update timestamp
 	task.UpdatedAt = time.Now()
 
-	// Update local map
-	tm.updateTask(task)
-
-	// Persist to SQLite L1 store (if available)
+	// Persist first, as in CreateTask.
 	if tm.store != nil {
 		if err := tm.store.SaveTask(task); err != nil {
 			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to persist task update to SQLite L1")
+			return fmt.Errorf("%w: %v", ErrPersistFailed, err)
 		}
 	}
+
+	// Update local map
+	tm.updateTask(task)
 
 	// Publish to Wotan L2 (best-effort async — don't fail the update if bus is down)
 	// Snapshot task to avoid data race with caller mutating the pointer after return
@@ -537,15 +542,18 @@ func (tm *TaskManager) DeleteTask(ctx context.Context, taskID string) error {
 		return ErrTaskNotFound
 	}
 
-	// Delete from local map
-	tm.deleteTask(taskID)
-
-	// Delete from SQLite L1 store (if available)
+	// Delete from the store first, as in CreateTask: a failed delete used to
+	// answer 200 and the card came back on restart. Absent from the store
+	// already is deleted.
 	if tm.store != nil {
-		if err := tm.store.DeleteTask(taskID); err != nil {
+		if err := tm.store.DeleteTask(taskID); err != nil && !errors.Is(err, ErrStoreNotFound) {
 			log.Error().Err(err).Str("task_id", taskID).Msg("failed to delete task from SQLite L1")
+			return fmt.Errorf("%w: %v", ErrPersistFailed, err)
 		}
 	}
+
+	// Delete from local map
+	tm.deleteTask(taskID)
 
 	// Publish to Wotan L2 (best-effort async — don't fail the delete if bus is down)
 	// Snapshot task to avoid data race with caller mutating the pointer after return
@@ -576,7 +584,11 @@ func (tm *TaskManager) GetTask(taskID string) (*Task, error) {
 		return nil, ErrTaskNotFound
 	}
 
-	return task, nil
+	// A copy: handleUpdateTaskByID merges a patch into what this returns,
+	// and that used to edit the board's own card, unlocked, before the store
+	// had accepted anything.
+	taskCopy := *task
+	return &taskCopy, nil
 }
 
 // GetAllTasks retrieves all tasks
