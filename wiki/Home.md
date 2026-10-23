@@ -152,6 +152,7 @@ Full record: [[Timeline]] (`references/timeline.md`).
 ## AI
 
 - [[Zhen AI|Zhen-AI]]
+- [[Zhen Audit|Zhen-Audit]]
 
 ## Lore & Naming
 

@@ -454,6 +454,10 @@ func newEventID() string {
 	return hex.EncodeToString(b[:])
 }
 
+// SHA256Hex is the hex SHA-256 of b, how records name content they do
+// not carry.
+func SHA256Hex(b []byte) string { return sha256Hex(b) }
+
 func sha256Hex(b []byte) string {
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])

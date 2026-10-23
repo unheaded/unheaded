@@ -45,6 +45,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/champion"
 	"unheaded/pkg/champion/pgstore"
+	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/metrics/prom"
 )
 
@@ -71,6 +72,8 @@ func main() {
 		kanbanStore  = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; requires WELL_DSN env). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
 		rateRPS      = flag.Float64("rate-limit", 0, "per-IP requests/sec (0 disables; recommended ~5 for unauthenticated, higher behind auth)")
 		rateBurst    = flag.Int("rate-burst", 10, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
+		auditWell    = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
+		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
 	)
 	flag.Parse()
 
@@ -117,10 +120,16 @@ func main() {
 		}
 	}
 
+	aud, err := buildAgentdAudit(context.Background(), *auditWell, *auditWotan)
+	if err != nil {
+		fatal("audit init: %v", err)
+	}
+	defer aud.close()
 	rawStore, err := buildActionStore(*actionStore)
 	if err != nil {
 		fatal("action-store init: %v", err)
 	}
+	rawStore = newAuditActionStore(rawStore, aud.auditor)
 	// Wrap with the metrics decorator so every gate decision shows up
 	// in /metrics under zhen_agentd_champion_actions_total.
 	store := newMetricsActionStore(rawStore)
@@ -136,7 +145,7 @@ func main() {
 		defaultRoot: rootAbs,
 		allowed:     allowed,
 		retriever:   &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars},
-		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName},
+		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor},
 		vorURL:      vorURL,
 		llamaURL:    llamaURL,
 		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
@@ -464,7 +473,7 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
-	res, err := a.Run(r.Context(), req.Goal)
+	res, err := a.Run(withRunID(r.Context()), req.Goal)
 	if err != nil {
 		agentRunsTotal.WithLabelValues("error").Inc()
 		writeJSONError(w, http.StatusInternalServerError, "agent.Run: %v", err)
@@ -638,7 +647,7 @@ func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
 	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
-	res, err := a.Stream(r.Context(), req.Goal, func(t agent.Turn) bool {
+	res, err := a.Stream(withRunID(r.Context()), req.Goal, func(t agent.Turn) bool {
 		entry := traceEntryFromAgent(t)
 		return emit("turn", entry)
 	})
@@ -1009,9 +1018,38 @@ type llamaLLM struct {
 	client  *http.Client
 	baseURL string
 	model   string
+	audit   claudebridge.Auditor // nil: not audited
 }
 
+// Complete asks llama-server once and, when auditing is on, records the
+// request (tokens, duration, outcome; never the text).
 func (l *llamaLLM) Complete(ctx context.Context, msgs []agent.Message, maxTokens int, temp float64, seed int) (string, error) {
+	t0 := time.Now()
+	text, u, err := l.complete(ctx, msgs, maxTokens, temp, seed)
+	if l.audit != nil {
+		rec := claudebridge.RequestRecord{
+			Conversation: runIDFrom(ctx), Model: l.model, ServedBy: u.Model, StopReason: u.FinishReason,
+			InputTokens: u.PromptTokens, OutputTokens: u.CompletionTokens,
+			Duration: time.Since(t0), Sent: true, Backend: claudebridge.BackendLocal,
+		}
+		if err != nil {
+			rec.Err = err.Error()
+		}
+		l.audit.Request(ctx, rec)
+	}
+	return text, err
+}
+
+// llamaUsage is what an OpenAI-compatible completion reports besides text.
+type llamaUsage struct {
+	Model            string
+	FinishReason     string
+	PromptTokens     int64
+	CompletionTokens int64
+}
+
+func (l *llamaLLM) complete(ctx context.Context, msgs []agent.Message, maxTokens int, temp float64, seed int) (string, llamaUsage, error) {
+	var u llamaUsage
 	cm := make([]map[string]string, len(msgs))
 	for i, m := range msgs {
 		cm[i] = map[string]string{"role": m.Role, "content": m.Content}
@@ -1025,37 +1063,45 @@ func (l *llamaLLM) Complete(ctx context.Context, msgs []agent.Message, maxTokens
 		"stream":      false,
 	})
 	if err != nil {
-		return "", err
+		return "", u, err
 	}
 	endpoint := strings.TrimRight(l.baseURL, "/") + "/v1/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return "", u, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := l.client.Do(req)
 	if err != nil {
-		return "", err
+		return "", u, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("status %d: %s", resp.StatusCode, b)
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return "", u, fmt.Errorf("status %d: %s", resp.StatusCode, b)
 	}
 	var cr struct {
+		Model   string `json:"model"`
 		Choices []struct {
-			Message struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int64 `json:"prompt_tokens"`
+			CompletionTokens int64 `json:"completion_tokens"`
+		} `json:"usage"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
-		return "", fmt.Errorf("decode: %w", err)
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&cr); err != nil {
+		return "", u, fmt.Errorf("decode: %w", err)
 	}
+	u = llamaUsage{Model: cr.Model, PromptTokens: max(cr.Usage.PromptTokens, 0), CompletionTokens: max(cr.Usage.CompletionTokens, 0)}
 	if len(cr.Choices) == 0 {
-		return "", fmt.Errorf("empty response")
+		return "", u, fmt.Errorf("empty response")
 	}
-	return cr.Choices[0].Message.Content, nil
+	u.FinishReason = cr.Choices[0].FinishReason
+	return cr.Choices[0].Message.Content, u, nil
 }
 
 type stderrActionStore struct {
