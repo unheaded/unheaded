@@ -65,6 +65,16 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// BEGIN and END inside a DO block or a function body are PL/pgSQL, not
+	// transaction control; ROLLBACK TO a savepoint stays in the transaction.
+	plpgsql := map[string]string{}
+	for k, v := range base {
+		plpgsql[k] = v
+	}
+	plpgsql["003_b.sql"] = "DO $$\nBEGIN\n  PERFORM 1;\nEND $$;\nSAVEPOINT s;\nROLLBACK TO SAVEPOINT s;\nPREPARE q AS SELECT 1;\n"
+	if _, err := Load(writeDir(t, plpgsql)); err != nil {
+		t.Errorf("a DO block and ROLLBACK TO refused: %v", err)
+	}
 	sum := sha256.Sum256([]byte(base["003_b.sql"]))
 	if len(set.Files) != 2 || set.Files[1].SHA256 != hex.EncodeToString(sum[:]) || !set.Files[0].NoTx {
 		t.Fatalf("files %+v", set.Files)
@@ -78,7 +88,16 @@ func TestLoad(t *testing.T) {
 		"meta-command":   {"003_b.sql": "SELECT 1;\n  \\c unheaded_app\n"},
 		"echo":           {"003_b.sql": "\\echo done\n"},
 		"no ledger file": {LedgerName: ""},
-		"no manifest":    {ManifestName: ""},
+		// Transaction control would commit part of a migration ahead of
+		// its ledger row (or leave a notx session open).
+		"commit":              {"003_b.sql": "CREATE TABLE b ();\nCOMMIT;\nSELECT 1;\n"},
+		"begin after comment": {"003_b.sql": "-- start\n/* x */ BEGIN;\nCREATE TABLE b ();\n"},
+		"end":                 {"003_b.sql": "CREATE TABLE b ();\nend;\n"},
+		"rollback":            {"003_b.sql": "ROLLBACK;\n"},
+		"start transaction":   {"003_b.sql": "START TRANSACTION;\n"},
+		"prepare transaction": {"003_b.sql": "PREPARE TRANSACTION 'x';\n"},
+		"notx begin":          {"002_a.sql": "BEGIN;\nCREATE DATABASE a;\n"},
+		"no manifest":         {ManifestName: ""},
 	} {
 		files := map[string]string{}
 		for k, v := range base {

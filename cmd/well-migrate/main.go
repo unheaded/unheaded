@@ -90,7 +90,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return fail(err)
 	}
 	if cmd == "check" {
-		fmt.Fprintf(stdout, "%d entries over %d databases; every numbered file routed or skipped; no psql meta-commands\n",
+		fmt.Fprintf(stdout, "%d entries over %d databases; every numbered file routed or skipped; no psql meta-commands or transaction control\n",
 			len(set.Files), len(set.Databases()))
 		return 0
 	}

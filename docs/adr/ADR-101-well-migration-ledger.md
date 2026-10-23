@@ -98,7 +98,7 @@ schema changes it has had:
 ## Verification
 
 - `go test ./pkg/database/migrate/`: manifest parsing (9 malformed cases),
-  loader refusals (unrouted, missing, meta-commands), the SQL splitter
+  loader refusals (unrouted, missing, meta-commands, top-level transaction control), the SQL splitter
   (strings, E-strings, quoted identifiers, dollar quotes, nested comments),
   plan states (pending, mismatch, orphan, gap), and the real directory.
   Mutations of the gap rule, the dollar-quote lexer and the meta-command

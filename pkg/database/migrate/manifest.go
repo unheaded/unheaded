@@ -117,6 +117,71 @@ func ParseManifest(r io.Reader) (Manifest, error) {
 	return m, nil
 }
 
+// noTxControl refuses a top-level statement that begins or ends a
+// transaction. The runner wraps each transactional file and its ledger row
+// in one transaction: a COMMIT in the file would make what precedes it
+// permanent while a later failure leaves the file unrecorded, and a BEGIN
+// in a notx file would leave the session's ledger row uncommitted. BEGIN
+// and END inside a DO block or function body are PL/pgSQL, inside one
+// statement, and ROLLBACK TO a savepoint stays in the transaction.
+func noTxControl(sql string) error {
+	stmts, err := Split(sql)
+	if err != nil {
+		return err
+	}
+	for i, s := range stmts {
+		w := strings.Fields(strings.ToUpper(stripLeadingComments(s)))
+		if len(w) == 0 {
+			continue
+		}
+		switch w[0] {
+		case "BEGIN", "START", "COMMIT", "END", "ABORT":
+		case "PREPARE": // PREPARE TRANSACTION; PREPARE name AS ... is a statement
+			if len(w) < 2 || w[1] != "TRANSACTION" {
+				continue
+			}
+		case "ROLLBACK":
+			if len(w) > 1 && strings.HasPrefix(w[1], "TO") {
+				continue
+			}
+		default:
+			continue
+		}
+		return fmt.Errorf("statement %d is transaction control (%s); the runner owns the transaction", i+1, strings.TrimSuffix(w[0], ";"))
+	}
+	return nil
+}
+
+// stripLeadingComments drops the -- and /* */ comments before a statement's
+// first word (Split keeps them with the statement that follows).
+func stripLeadingComments(s string) string {
+	for {
+		s = strings.TrimSpace(s)
+		switch {
+		case strings.HasPrefix(s, "--"):
+			i := strings.IndexByte(s, '\n')
+			if i < 0 {
+				return ""
+			}
+			s = s[i+1:]
+		case strings.HasPrefix(s, "/*"):
+			depth, i := 1, 2
+			for ; i < len(s) && depth > 0; i++ {
+				if strings.HasPrefix(s[i:], "/*") {
+					depth++
+					i++
+				} else if strings.HasPrefix(s[i:], "*/") {
+					depth--
+					i++
+				}
+			}
+			s = s[i:]
+		default:
+			return s
+		}
+	}
+}
+
 // File is a manifest entry with its contents and checksum.
 type File struct {
 	Entry
@@ -182,6 +247,9 @@ func Load(dir string) (Set, error) {
 		if loc := metaRe.FindIndex(b); loc != nil {
 			line := 1 + strings.Count(string(b[:loc[0]]), "\n")
 			return set, fmt.Errorf("%s:%d: psql meta-command; the manifest routes files, the runner sends plain SQL", e.File, line)
+		}
+		if err := noTxControl(string(b)); err != nil {
+			return set, fmt.Errorf("%s: %w", e.File, err)
 		}
 		sum := sha256.Sum256(b)
 		set.Files = append(set.Files, File{Entry: e, SQL: string(b), SHA256: hex.EncodeToString(sum[:])})
