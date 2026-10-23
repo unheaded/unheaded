@@ -130,6 +130,9 @@ if [ "$PUSH" = 1 ]; then
       fi
     )
   fi
+elif [ "$DRY_RUN" = 1 ]; then
+  echo
+  echo "Dry run: nothing written. Sync with:  scripts/sync-wiki.sh"
 else
   echo
   echo "Mirror updated locally. Review with:  (cd $DEST && git status && git diff)"

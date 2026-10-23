@@ -1,6 +1,6 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-23
 **Total:** 100 entries (ADR-001 to ADR-103 plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
@@ -21,7 +21,7 @@ Counted from the Full Index by the first word of each status (2026-10-15).
 | Status | Count |
 |--------|-------|
 | Accepted | 48 |
-| Proposed | 14 |
+| Proposed | 15 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -29,7 +29,7 @@ Counted from the Full Index by the first word of each status (2026-10-15).
 | PoC / Research | 3 |
 | Superseded / Deprecated | 4 |
 | Acknowledged | 1 |
-| **Total** | **99** |
+| **Total** | **100** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict

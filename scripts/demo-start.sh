@@ -70,13 +70,9 @@ fi
 
 # 6. Start trace-collector in demo mode (optional)
 if [[ "$TRACE_DEMO" == "true" ]]; then
-    echo "6. Starting trace-collector-go (demo mode)..."
-    if pgrep -f "trace-collector-go" > /dev/null 2>&1; then
-        echo "   trace-collector-go already running"
-    else
-        cd "$REPO_ROOT" && go run ./cmd/trace-collector-go/ -demo &
-        sleep 3
-    fi
+    # trace-collector-go has no demo mode (there is no -demo flag); it loads
+    # BPF programs as root, so it runs as its systemd unit, not from here.
+    echo "6. trace-collector-go: no demo mode; start the unit (sudo systemctl start unheaded-trace-collector)"
 fi
 
 # 7. Start EAST services (optional)
