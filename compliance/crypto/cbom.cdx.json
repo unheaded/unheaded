@@ -97,90 +97,6 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/heimdall-daemon/drift.go:23:sig-import",
-      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "signature",
-          "parameterSetIdentifier": "ML-DSA-65",
-          "nistQuantumSecurityLevel": 3
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "FIPS 204"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "pq-signature"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/heimdall-daemon/drift.go:23"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/heimdall-daemon/drift.go:25:sig-import",
-      "name": "PQC helpers (unheaded/pkg/crypto/pqc)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "signature"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "post-quantum signatures via the in-tree wrapper; parameter set chosen at run time"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "pq-signature"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/heimdall-daemon/drift.go:25"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
       "bom-ref": "cmd/heimdall-daemon/main.go:30:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
@@ -392,7 +308,90 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/unheaded-daemon/lxd_rest.go:116:tls-config",
+      "bom-ref": "cmd/trace-collector/Cargo.lock:0:rust-lock",
+      "name": "rustls 0.23.46",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.2-1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "providers compiled: ring; aws-lc-rs default_provider offers X25519MLKEM768 first at this version; the provider call sites decide"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "n/a"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "rust"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/trace-collector/Cargo.lock"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/trace-collector/Cargo.toml:15:rust-tls-dep",
+      "name": "tonic TLS feature",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "tonic 0.12 tls builds on rustls with ring (features: gzip, tls); no ClientTlsConfig/ServerTlsConfig in the crate"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "unused-feature"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "rust"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/trace-collector/Cargo.toml:15"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/unheaded-daemon/lxd_rest.go:118:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -408,7 +407,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "Go default groups (X25519MLKEM768 first); the LXD API server chooses the group"
+          "value": "pkg/tls ApplyPreferred (ADR-105); Go default groups (X25519MLKEM768 first); the LXD API server chooses the group"
         },
         {
           "name": "unheaded:link-state",
@@ -428,7 +427,90 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/unheaded-daemon/lxd_rest.go:116"
+          "value": "cmd/unheaded-daemon/lxd_rest.go:118"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/upc-bootctl/Cargo.lock:0:rust-lock",
+      "name": "rustls 0.23.46",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.2-1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "providers compiled: ring; aws-lc-rs default_provider offers X25519MLKEM768 first at this version; the provider call sites decide"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "n/a"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "rust"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/upc-bootctl/Cargo.lock"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/upc-bootctl/Cargo.toml:31:rust-tls-dep",
+      "name": "reqwest rustls TLS feature",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "reqwest 0.12 rustls-tls builds on rustls with ring (features: json, rustls-tls, blocking; default-features = false); the crate only uses http:// URLs"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "unused-feature"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "rust"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/upc-bootctl/Cargo.toml:31"
         }
       ]
     },
@@ -476,7 +558,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/Cargo.toml:20:rust-tls-dep",
+      "bom-ref": "cmd/waf/Cargo.toml:18:rust-tls-dep",
       "name": "rustls dependency",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -491,7 +573,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default (features: aws_lc_rs, prefer-post-quantum, std, tls12, logging; default-features = false)"
+          "value": "rustls built with the ring provider only; ring has no ML-KEM (features: ring, std; default-features = false)"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: rust-ring-provider"
         },
         {
           "name": "unheaded:link-state",
@@ -503,7 +589,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid"
+          "value": "classical"
         },
         {
           "name": "unheaded:scanner",
@@ -511,14 +597,14 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/waf/Cargo.toml:20"
+          "value": "cmd/waf/Cargo.toml:18"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:127:rust-provider",
-      "name": "rustls aws-lc-rs provider",
+      "bom-ref": "cmd/waf/src/tls.rs:140:rust-builder",
+      "name": "rustls config on the process-default provider",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
@@ -532,7 +618,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
+          "value": "rustls built with the ring provider only; ring has no ML-KEM"
         },
         {
           "name": "unheaded:link-state",
@@ -544,7 +630,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid"
+          "value": "classical"
         },
         {
           "name": "unheaded:scanner",
@@ -552,130 +638,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:127"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:391:rust-provider",
-      "name": "rustls aws-lc-rs provider",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:391"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:405:rust-provider",
-      "name": "rustls aws-lc-rs provider",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:405"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:420:rust-provider",
-      "name": "rustls aws-lc-rs provider",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:420"
+          "value": "cmd/waf/src/tls.rs:140"
         }
       ]
     },
@@ -1107,7 +1070,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/Cargo.toml:39:rust-tls-dep",
+      "bom-ref": "crates/zhend/Cargo.toml:35:rust-tls-dep",
       "name": "rustls dependency",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1122,7 +1085,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default (features: aws_lc_rs, prefer-post-quantum, std, logging; default-features = false)"
+          "value": "aws-lc-rs and ring both compiled; the provider call sites decide, and a process-default builder panics until one is installed (features: ring)"
         },
         {
           "name": "unheaded:link-state",
@@ -1134,7 +1097,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid"
+          "value": "n/a"
         },
         {
           "name": "unheaded:scanner",
@@ -1142,14 +1105,14 @@
         },
         {
           "name": "unheaded:source",
-          "value": "crates/zhend/Cargo.toml:39"
+          "value": "crates/zhend/Cargo.toml:35"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/src/api/quic.rs:417:rust-provider",
-      "name": "rustls aws-lc-rs provider",
+      "bom-ref": "crates/zhend/src/api/quic.rs:412:rust-provider",
+      "name": "rustls ring provider",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
@@ -1163,7 +1126,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
+          "value": "ring has no ML-KEM: X25519/P-256/P-384 only"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: rust-ring-provider"
         },
         {
           "name": "unheaded:link-state",
@@ -1175,7 +1142,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid"
+          "value": "classical"
         },
         {
           "name": "unheaded:scanner",
@@ -1183,14 +1150,14 @@
         },
         {
           "name": "unheaded:source",
-          "value": "crates/zhend/src/api/quic.rs:417"
+          "value": "crates/zhend/src/api/quic.rs:412"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/src/api/quic.rs:736:rust-provider",
-      "name": "rustls aws-lc-rs provider",
+      "bom-ref": "crates/zhend/src/api/quic.rs:430:rust-provider",
+      "name": "rustls ring provider",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
@@ -1204,7 +1171,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
+          "value": "ring has no ML-KEM: X25519/P-256/P-384 only"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: rust-ring-provider"
         },
         {
           "name": "unheaded:link-state",
@@ -1216,7 +1187,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid"
+          "value": "classical"
         },
         {
           "name": "unheaded:scanner",
@@ -1224,7 +1195,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "crates/zhend/src/api/quic.rs:736"
+          "value": "crates/zhend/src/api/quic.rs:430"
         }
       ]
     },
@@ -1267,52 +1238,6 @@
         {
           "name": "unheaded:source",
           "value": "db/postgresql.conf:20"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "db/postgresql.pg18.conf.d/10-pq-groups.conf:19:postgres-tls",
-      "name": "PostgreSQL TLS settings",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls",
-          "version": "1.3"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "group list for PG 18 ssl_groups (or PG <= 17 ssl_ecdh_curve, one curve)"
-        },
-        {
-          "name": "unheaded:kex-groups",
-          "value": "X25519MLKEM768,X25519,prime256v1"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "config"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "db/postgresql.pg18.conf.d/10-pq-groups.conf:19"
         }
       ]
     },
@@ -1986,49 +1911,6 @@
     {
       "type": "cryptographic-asset",
       "bom-ref": "pkg/crypto/pqc/ml_dsa.go:10:sig-import",
-      "name": "ML-DSA-44 (github.com/cloudflare/circl/sign/mldsa/mldsa44)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "signature",
-          "parameterSetIdentifier": "ML-DSA-44",
-          "nistQuantumSecurityLevel": 2
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "FIPS 204"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "pq-signature"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/crypto/pqc/ml_dsa.go:10"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/crypto/pqc/ml_dsa.go:11:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -2065,13 +1947,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/crypto/pqc/ml_dsa.go:11"
+          "value": "pkg/crypto/pqc/ml_dsa.go:10"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/crypto/pqc/ml_dsa.go:12:sig-import",
+      "bom-ref": "pkg/crypto/pqc/ml_dsa.go:11:sig-import",
       "name": "ML-DSA-87 (github.com/cloudflare/circl/sign/mldsa/mldsa87)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -2108,7 +1990,50 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/crypto/pqc/ml_dsa.go:12"
+          "value": "pkg/crypto/pqc/ml_dsa.go:11"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/crypto/pqc/ml_dsa.go:9:sig-import",
+      "name": "ML-DSA-44 (github.com/cloudflare/circl/sign/mldsa/mldsa44)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-44",
+          "nistQuantumSecurityLevel": 2
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/crypto/pqc/ml_dsa.go:9"
         }
       ]
     },
@@ -2672,146 +2597,8 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/http/server.go:180:tls-config",
+      "bom-ref": "pkg/http/server.go:182:tls-config",
       "name": "TLS config",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls",
-          "version": "1.2-1.3"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "MinVersion unset (Go default TLS 1.2); Go default groups (X25519MLKEM768 first)"
-        },
-        {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/http/server.go:180"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/http/server.go:370:tls-config",
-      "name": "TLS config",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls",
-          "version": "1.2-1.3"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "MinVersion unset (Go default TLS 1.2); Go default groups (X25519MLKEM768 first)"
-        },
-        {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/http/server.go:370"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/loadbalancer/config.go:731:tls-config",
-      "name": "TLS server config",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls",
-          "version": "1.2-1.3"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "Go default groups (X25519MLKEM768 first)"
-        },
-        {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/loadbalancer/config.go:731"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/loadbalancer/config.go:738:tls-floor",
-      "name": "TLS floor setting",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
@@ -2826,7 +2613,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "MinVersion set outside a tls.Config literal"
+          "value": "pkg/tls ApplyPreferred (ADR-105); Go default groups (X25519MLKEM768 first)"
         },
         {
           "name": "unheaded:link-state",
@@ -2846,13 +2633,97 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/loadbalancer/config.go:738"
+          "value": "pkg/http/server.go:182"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/loadbalancer/config.go:740:tls-floor",
+      "bom-ref": "pkg/http/server.go:373:tls-config",
+      "name": "TLS config",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "pkg/tls ApplyPreferred (ADR-105); Go default groups (X25519MLKEM768 first)"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/http/server.go:373"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/loadbalancer/config.go:736:tls-config",
+      "name": "TLS server config",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "pkg/tls ApplyPreferred (ADR-105); Go default groups (X25519MLKEM768 first)"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/loadbalancer/config.go:736"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/loadbalancer/config.go:746:tls-floor",
       "name": "TLS floor setting",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -2892,13 +2763,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/loadbalancer/config.go:740"
+          "value": "pkg/loadbalancer/config.go:746"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/loadbalancer/config.go:745:tls-cap",
+      "bom-ref": "pkg/loadbalancer/config.go:749:tls-cap",
       "name": "TLS version cap",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -2938,13 +2809,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/loadbalancer/config.go:745"
+          "value": "pkg/loadbalancer/config.go:749"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/loadbalancer/config.go:784:tls-config",
+      "bom-ref": "pkg/loadbalancer/config.go:786:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -2984,7 +2855,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/loadbalancer/config.go:784"
+          "value": "pkg/loadbalancer/config.go:786"
         }
       ]
     },
@@ -3032,13 +2903,13 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/mesh/mesh.go:206:tls-config",
+      "bom-ref": "pkg/mesh/mesh.go:210:tls-config",
       "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "1.2-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3048,11 +2919,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -3064,7 +2935,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -3072,19 +2943,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/mesh/mesh.go:206"
+          "value": "pkg/mesh/mesh.go:210"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/mesh/mesh.go:220:tls-config",
+      "bom-ref": "pkg/mesh/mesh.go:224:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "1.2-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3094,11 +2965,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -3110,7 +2981,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -3118,7 +2989,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/mesh/mesh.go:220"
+          "value": "pkg/mesh/mesh.go:224"
         }
       ]
     },
@@ -3163,13 +3034,13 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/mesh/mtls/mtls.go:296:tls-config",
+      "bom-ref": "pkg/mesh/mtls/mtls.go:299:tls-config",
       "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "dynamic-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3179,7 +3050,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "MinVersion set at run time; Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
+        },
+        {
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -3191,7 +3066,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "unknown"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -3199,19 +3074,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/mesh/mtls/mtls.go:296"
+          "value": "pkg/mesh/mtls/mtls.go:299"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/mesh/mtls/mtls.go:310:tls-config",
+      "bom-ref": "pkg/mesh/mtls/mtls.go:313:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "dynamic-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3221,7 +3096,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "MinVersion set at run time; Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
+        },
+        {
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -3233,7 +3112,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "unknown"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -3241,19 +3120,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/mesh/mtls/mtls.go:310"
+          "value": "pkg/mesh/mtls/mtls.go:313"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/mesh/mtls/mtls.go:54:tls-floor",
+      "bom-ref": "pkg/mesh/mtls/mtls.go:56:tls-floor",
       "name": "TLS floor setting",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "1.2-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3266,10 +3145,6 @@
           "value": "MinVersion set outside a tls.Config literal"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
-        },
-        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -3279,7 +3154,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
+          "value": "hybrid"
         },
         {
           "name": "unheaded:scanner",
@@ -3287,19 +3162,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/mesh/mtls/mtls.go:54"
+          "value": "pkg/mesh/mtls/mtls.go:56"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/mesh/mtls/provider.go:387:tls-config",
+      "bom-ref": "pkg/mesh/mtls/provider.go:390:tls-config",
       "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "dynamic-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3309,7 +3184,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "MinVersion set at run time; Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
+        },
+        {
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -3321,7 +3200,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "unknown"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -3329,19 +3208,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/mesh/mtls/provider.go:387"
+          "value": "pkg/mesh/mtls/provider.go:390"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/mesh/mtls/provider.go:410:tls-config",
+      "bom-ref": "pkg/mesh/mtls/provider.go:413:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "dynamic-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3351,7 +3230,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "MinVersion set at run time; Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
+        },
+        {
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -3363,7 +3246,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "unknown"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -3371,19 +3254,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/mesh/mtls/provider.go:410"
+          "value": "pkg/mesh/mtls/provider.go:413"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/mesh/mtls/provider.go:75:tls-floor",
+      "bom-ref": "pkg/mesh/mtls/provider.go:76:tls-floor",
       "name": "TLS floor setting",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "1.2-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3396,10 +3279,6 @@
           "value": "MinVersion set outside a tls.Config literal"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
-        },
-        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -3409,7 +3288,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
+          "value": "hybrid"
         },
         {
           "name": "unheaded:scanner",
@@ -3417,7 +3296,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/mesh/mtls/provider.go:75"
+          "value": "pkg/mesh/mtls/provider.go:76"
         }
       ]
     },
@@ -3798,8 +3677,8 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/tls/server.go:39:tls-config",
-      "name": "TLS server config",
+      "bom-ref": "pkg/tls/pq.go:60:tls-config",
+      "name": "TLS config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
@@ -3834,19 +3713,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/tls/server.go:39"
+          "value": "pkg/tls/pq.go:60"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/transport/mtls/mtls.go:113:tls-config",
-      "name": "TLS client config",
+      "bom-ref": "pkg/tls/pq.go:63:tls-floor",
+      "name": "TLS floor setting",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "1.2-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3856,11 +3735,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "Go default groups (X25519MLKEM768 first)"
-        },
-        {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
+          "value": "MinVersion set outside a tls.Config literal"
         },
         {
           "name": "unheaded:link-state",
@@ -3872,7 +3747,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
+          "value": "hybrid"
         },
         {
           "name": "unheaded:scanner",
@@ -3880,7 +3755,134 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/transport/mtls/mtls.go:113"
+          "value": "pkg/tls/pq.go:63"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/tls/pqtest/pqtest.go:11:sig-import",
+      "name": "ECDSA (crypto/ecdsa)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ECDSA",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/tls/pqtest/pqtest.go:11"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/tls/server.go:39:tls-config",
+      "name": "TLS server config",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "pkg/tls ApplyPreferred (ADR-105); Go default groups (X25519MLKEM768 first)"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/tls/server.go:39"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/transport/mtls/mtls.go:116:tls-config",
+      "name": "TLS client config",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "pkg/tls ApplyStrict (ADR-105)"
+        },
+        {
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid-strict"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/transport/mtls/mtls.go:116"
         }
       ]
     },
@@ -3925,13 +3927,13 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/transport/mtls/mtls.go:358:tls-config",
+      "bom-ref": "pkg/transport/mtls/mtls.go:361:tls-config",
       "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "1.2-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3941,11 +3943,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -3957,7 +3959,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -3965,19 +3967,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/transport/mtls/mtls.go:358"
+          "value": "pkg/transport/mtls/mtls.go:361"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/transport/mtls/mtls.go:368:tls-config",
+      "bom-ref": "pkg/transport/mtls/mtls.go:371:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "1.2-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -3987,11 +3989,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -4003,7 +4005,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -4011,19 +4013,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/transport/mtls/mtls.go:368"
+          "value": "pkg/transport/mtls/mtls.go:371"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/transport/mtls/mtls.go:92:tls-config",
+      "bom-ref": "pkg/transport/mtls/mtls.go:95:tls-config",
       "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "1.2-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -4033,11 +4035,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -4049,7 +4051,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -4057,13 +4059,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/transport/mtls/mtls.go:92"
+          "value": "pkg/transport/mtls/mtls.go:95"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/wotan-client/grpc_client.go:59:tls-config",
+      "bom-ref": "pkg/wotan-client/grpc_client.go:55:tls-config",
       "name": "TLS config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -4079,7 +4081,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "Go default groups (X25519MLKEM768 first)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
+        },
+        {
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -4091,7 +4097,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -4099,93 +4105,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/wotan-client/grpc_client.go:59"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/wotansig/wotansig.go:35:sig-import",
-      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "signature",
-          "parameterSetIdentifier": "ML-DSA-65",
-          "nistQuantumSecurityLevel": 3
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "FIPS 204"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "pq-signature"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/wotansig/wotansig.go:35"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/wotansig/wotansig.go:37:sig-import",
-      "name": "ML-DSA-65 (unheaded/pkg/crypto/pqc)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "signature",
-          "parameterSetIdentifier": "ML-DSA-65",
-          "nistQuantumSecurityLevel": 3
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "FIPS 204 via the in-tree wrapper"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "pq-signature"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/wotansig/wotansig.go:37"
+          "value": "pkg/wotan-client/grpc_client.go:55"
         }
       ]
     },
@@ -4482,7 +4402,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "services/wotan/cmd/wotan/main.go:263:tls-config",
+      "bom-ref": "services/wotan/cmd/wotan/tls.go:17:tls-config",
       "name": "TLS config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -4497,12 +4417,8 @@
           "value": "no"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: curve-pin-classical"
-        },
-        {
-          "name": "unheaded:kex-groups",
-          "value": "X25519,CurveP256"
+          "name": "unheaded:detail",
+          "value": "pkg/tls ApplyPreferred (ADR-105); Go default groups (X25519MLKEM768 first)"
         },
         {
           "name": "unheaded:link-state",
@@ -4514,7 +4430,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "classical"
+          "value": "hybrid"
         },
         {
           "name": "unheaded:scanner",
@@ -4522,19 +4438,19 @@
         },
         {
           "name": "unheaded:source",
-          "value": "services/wotan/cmd/wotan/main.go:263"
+          "value": "services/wotan/cmd/wotan/tls.go:17"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "services/wotan/cmd/wotan/main.go:338:grpc-tls",
-      "name": "gRPC server TLS credentials",
+      "bom-ref": "services/wotan/cmd/wotan/tls.go:24:tls-config",
+      "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
           "type": "tls",
-          "version": "1.2-1.3"
+          "version": "1.3"
         }
       },
       "properties": [
@@ -4544,11 +4460,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "credentials.NewServerTLSFromFile: Go defaults (TLS 1.2 floor, default groups)"
+          "value": "pkg/tls ApplyStrict (ADR-105)"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: tls-floor-below-1.3"
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
         },
         {
           "name": "unheaded:link-state",
@@ -4560,7 +4476,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "hybrid-opportunistic"
+          "value": "hybrid-strict"
         },
         {
           "name": "unheaded:scanner",
@@ -4568,18 +4484,20 @@
         },
         {
           "name": "unheaded:source",
-          "value": "services/wotan/cmd/wotan/main.go:338"
+          "value": "services/wotan/cmd/wotan/tls.go:24"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "services/wotan/internal/signing/signing.go:14:sig-import",
-      "name": "PQC helpers (unheaded/pkg/crypto/pqc)",
+      "bom-ref": "services/wotan/internal/signing/signing.go:17:sig-import",
+      "name": "ML-DSA-65 (unheaded/pkg/crypto/pqc)",
       "cryptoProperties": {
         "assetType": "algorithm",
         "algorithmProperties": {
-          "primitive": "signature"
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
         }
       },
       "properties": [
@@ -4589,7 +4507,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "post-quantum signatures via the in-tree wrapper; parameter set chosen at run time"
+          "value": "FIPS 204 via the in-tree wrapper"
         },
         {
           "name": "unheaded:link-state",
@@ -4609,7 +4527,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "services/wotan/internal/signing/signing.go:14"
+          "value": "services/wotan/internal/signing/signing.go:17"
         }
       ]
     },
