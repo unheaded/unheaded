@@ -1,0 +1,89 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: mcp-write-exec-enablement
+  description: Enable and disable MCP write and exec tools for a single session.
+  owner: blackmage
+  estimated_duration: "10m plus the work"
+  risk: high
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_mcp_enablement.py
+notes: |
+  This runbook enables the Zhen MCP server's mutating tools (file writes, or running a runbook) for a single session. It verifies the tools are enabled, allows the operator to perform the work, and then disables the tools. The committed `.mcp.json` must keep both flags off. Write-enable is for attended sessions only: a refused path returns `ACCESS DENIED` text rather than `isError`, and `file_write` has a symlink TOCTOU race. The Champion's own write tools (snapshots, revert, out-of-band confirmation) are the preferred path for writes, and `zhen-claude -mcp-mutating` calls still pass the Champion gate.
+  The tool-list checks read the flags from their own environment, so run them in the same shell that launches the session.
+parameters:
+  - name: REPO
+    default: "$HOME/tmp/unheaded"
+    description: The path to the repository.
+preconditions:
+  - check: "git -C \"${REPO}\" diff --quiet -- .mcp.json && jq -e '[.mcpServers[] | .env // {} | (.ZHEN_MCP_ALLOW_WRITE // \"0\", .ZHEN_MCP_ALLOW_EXEC // \"0\")] | all(. != \"1\")' \"${REPO}/.mcp.json\""
+    description: Ensure the committed .mcp.json has both flags off.
+steps:
+  - name: enable-write-exec
+    action: manual
+    command: |
+      # Enable only what the work needs, BEFORE starting the session, in the launching shell:
+      export ZHEN_MCP_ALLOW_WRITE=1   # file writes (file_write, file_patch)
+      export ZHEN_MCP_ALLOW_EXEC=1    # running a runbook (runbook_execute)
+      # Or set the flag in the "env" of the zhen entry in <REPO>/.mcp.json; do NOT commit that edit.
+      # Then start the Claude session.
+    description: "MANUAL. Enable only the needed flag for this one session, before launching it."
+  - name: verify-tools-enabled
+    action: shell
+    command: |
+      set -euo pipefail
+      # Run in the same shell that launched the session.
+      cd "${REPO}"
+      out=$(go run ./cmd/zhen-claude -dry-run -tools mcp -mcp-mutating -mcp-cmd scripts/zhen-mcp.sh -p x 2>&1 | grep -o '"tools":\[[^]]*')
+      grep -q '"file_write"' <<<"${out}"
+      grep -q '"file_patch"' <<<"${out}"
+    description: "Verify the write tools are listed (for exec, check runbook_execute the same way). Run in the launching shell."
+  - name: do-the-work
+    action: manual
+    command: |
+      # Perform the work that requires write and exec tools.
+    description: "MANUAL. Perform the work that requires write and exec tools."
+  - name: disable-write-exec
+    action: manual
+    command: |
+      unset ZHEN_MCP_ALLOW_WRITE
+      unset ZHEN_MCP_ALLOW_EXEC
+      # Discards uncommitted .mcp.json edits by design:
+      git -C "${REPO}" checkout -- .mcp.json
+      # Restart the Claude session (and so the MCP server); it keeps the env it was launched with.
+    description: "MANUAL. Unset the flags, revert .mcp.json (discarding uncommitted edits by design), restart the session."
+  - name: verify-tools-disabled
+    action: shell
+    command: |
+      set -euo pipefail
+      # Run in the same shell that launches the session.
+      cd "${REPO}"
+      out=$(go run ./cmd/zhen-claude -dry-run -tools mcp -mcp-mutating -mcp-cmd scripts/zhen-mcp.sh -p x 2>&1 | grep -o '"tools":\[[^]]*')
+      # (`! grep` would not stop the step: set -e ignores a negated command)
+      if grep -qE '"(file_write|file_patch|runbook_execute)"' <<<"${out}"; then
+        echo "mutating MCP tools still listed: ${out}" >&2
+        exit 1
+      fi
+      git -C "${REPO}" diff --quiet -- .mcp.json
+      jq -e '[.mcpServers[] | .env // {} | (.ZHEN_MCP_ALLOW_WRITE // "0", .ZHEN_MCP_ALLOW_EXEC // "0")] | all(. != "1")' "${REPO}/.mcp.json"
+    description: Verify the tools are not listed and .mcp.json is clean. Run in the launching shell.
+  - name: review-changes
+    action: manual
+    command: |
+      git -C "${REPO}" status --short
+      git -C "${REPO}" diff --stat
+      # Review the Champion's zhen_actions / audit_events rows when the Well is up.
+    description: "MANUAL. Review the changes made during the session."
+rollback:
+  - name: disable-write-exec-rollback
+    action: manual
+    command: |
+      unset ZHEN_MCP_ALLOW_WRITE
+      unset ZHEN_MCP_ALLOW_EXEC
+      git -C "${REPO}" checkout -- .mcp.json
+      # Restart the Claude session; revert unwanted file changes with git.
+    description: "MANUAL. Disable write and exec tools, revert .mcp.json, restart the session."
