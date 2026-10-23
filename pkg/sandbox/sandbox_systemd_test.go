@@ -135,3 +135,16 @@ func TestSystemd_Available(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSystemd_KingdomConfigHidden(t *testing.T) {
+	if _, err := os.Stat("/etc/unheaded"); err != nil {
+		t.Skip("no /etc/unheaded on this host")
+	}
+	r := run(t, Config{}, `ls /etc/unheaded 2>&1 | head -3; cat /etc/unheaded/*.env 2>&1 | head -c 200; echo END`)
+	if !strings.Contains(r.Output, "Permission denied") && !strings.Contains(r.Output, "cannot open") && !strings.Contains(r.Output, "No such file") {
+		t.Errorf("/etc/unheaded readable in the sandbox: %q", r.Output)
+	}
+	if strings.Contains(r.Output, "ANTHROPIC") || strings.Contains(r.Output, "KEY=") {
+		t.Fatal("a credential file was readable in the sandbox")
+	}
+}

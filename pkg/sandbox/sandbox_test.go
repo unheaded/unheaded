@@ -22,6 +22,7 @@ func TestArgs_Confinement(t *testing.T) {
 		"NoNewPrivileges=yes", "MemoryMax=2G", "MemorySwapMax=0", "RuntimeMaxSec=600", "TasksMax=256",
 		"BindPaths=" + dir, "WorkingDirectory=" + dir, "BindPaths=/var/cache/x", "BindReadOnlyPaths=/opt/go",
 		"--setenv=GOFLAGS=-mod=mod", "--setenv=GOPROXY=off",
+		"InaccessiblePaths=-/etc/unheaded",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("missing %q in %v", want, args)

@@ -24,6 +24,12 @@ import (
 	"time"
 )
 
+// DefaultHidden are host paths a check never sees, on top of the hidden
+// home: the Kingdom's service config holds credentials, and on west some
+// of it is world-readable (S-TWO-BRAINS Step 169 finding). Missing paths
+// are ignored.
+var DefaultHidden = []string{"/etc/unheaded", "/var/lib/unheaded", "/srv/backups"}
+
 // Defaults.
 const (
 	DefaultMemoryMax   = "2G"
@@ -42,6 +48,8 @@ type Config struct {
 	// ReadOnly are paths made visible read-only (a toolchain or module
 	// cache under the hidden home). Absolute.
 	ReadOnly []string
+	// Hidden are paths made inaccessible. nil: DefaultHidden.
+	Hidden []string
 	// Env is the environment, KEY=VALUE, passed with --setenv. Nothing
 	// else of the caller's environment reaches the unit.
 	Env []string
@@ -114,6 +122,16 @@ func Args(cfg Config, argv []string) ([]string, error) {
 			return nil, fmt.Errorf("sandbox: writable path %q", w)
 		}
 		args = append(args, "-p", "BindPaths="+w)
+	}
+	hidden := cfg.Hidden
+	if hidden == nil {
+		hidden = DefaultHidden
+	}
+	for _, h := range hidden {
+		if !filepath.IsAbs(h) || strings.ContainsAny(h, " \t\n:") {
+			return nil, fmt.Errorf("sandbox: hidden path %q", h)
+		}
+		args = append(args, "-p", "InaccessiblePaths=-"+h)
 	}
 	for _, r := range cfg.ReadOnly {
 		if !filepath.IsAbs(r) || strings.ContainsAny(r, " \t\n:") {

@@ -93,6 +93,14 @@ What still leaves west for the Claude API, after Phase 3:
 - **Stevie's own prompt**, after T1 redaction, with a warning naming the counts. His choice; warned and redacted, not blocked.
 
 Residual risks: (1) the patterns are a deny list — an identifier with no pattern (a project codename, a customer name in a log line) passes in standard mode; `-privacy strict` withholds all T1 for unattended runs. (2) Host names are a configured list (west, east); a new host needs adding (`privacy.RedactorConfig.Hosts`, not yet a flag). (3) Whole-word host redaction also hits the English words "west"/"east" in T1 text; harmless over-redaction. (4) T0 is decided by `git ls-files` at the realpath, so a tracked file is T0 even if its content is sensitive and committed by mistake (that is a repo-hygiene finding, caught by gitleaks in CI). (5) Claude Code sessions use the MCP server directly and are outside this tier (Step 118; listed in `wiki/Zhen-Audit.md`).
+### Step 169 — BlackMage on run_check
+
+- **Finding (host, recorded, not changed):** `/etc/unheaded/anthropic.env` (0644), `kev-stack.yaml` (0644) and `wotan.yaml` (0664, owned by govan) are world-readable on west. A model-written test run by `run_check` could read the Anthropic credential file and print it into the check output, which goes back to the model (the privacy tier's secret scan would likely catch a key, but that is the last line, not the first). Not remediated on the host (no host config changes in this run; for Stevie: `chmod 0600` or a root-owned 0640 group file, then rotate if it ever left). **Sandbox narrowed instead** (this is narrowing, not widening): every unit now gets `InaccessiblePaths=-/etc/unheaded -/var/lib/unheaded -/srv/backups` (`sandbox.DefaultHidden`); `TestSystemd_KingdomConfigHidden` proves `/etc/unheaded` is unreadable inside.
+- Fork bomb: `TasksMax=256` (300 background sleeps did not all start; `TestRunCheckSystemd_TasksCapped`).
+- Writes via `/tmp`: `PrivateTmp=yes` on every unit (probed in H14; Step 170 needed no conditional: the property works here, and `sandbox.Available()` is the startup probe).
+- The real home is hidden (`ProtectHome=tmpfs`); the Go toolchain and module cache under it are bound read-only; the build cache is a dedicated directory, never `~/.cache/go-build` (no cache poisoning of the operator's builds).
+- Environment: only what the check config passes (`--setenv`); the caller's environment (keys, DSNs) does not reach the unit (`TestSystemd_EnvIsOnlyWhatIsPassed`).
+- Step 168 [ESCALATE] not triggered: H14 held (user-scope sandbox works).
 
 ## Gates
 
