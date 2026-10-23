@@ -40,11 +40,15 @@ steps:
     command: |
       echo "=== System users (uid < 1000) ==="
       awk -F: '$3 < 1000 && $3 > 0 {print $1, "uid=" $3}' /etc/passwd | head -20
-      echo "=== Unheaded service user ==="
-      id unheaded 2>/dev/null || echo "unheaded user not found"
+      # The shared `unheaded` account is gone (2026-10-18); every service has
+      # its own nologin account from deploy/sysusers.d/unheaded.conf.
+      echo "=== Unheaded service accounts ==="
+      getent passwd | awk -F: '$1 ~ /^unheaded-/ {print $1, "uid=" $3, "shell=" $7}'
+      id unheaded >/dev/null 2>&1 && echo "WARNING: legacy shared 'unheaded' account still exists"
 
   - name: check-failed-logins
     action: shell
     command: |
       echo "=== Recent failed logins ==="
-      journalctl -u sshd --since "24 hours ago" 2>/dev/null | grep -i "failed\|invalid" | tail -10
+      # ssh.service on Ubuntu; journalctl -u does not resolve the sshd alias.
+      journalctl -u ssh -u sshd --since "24 hours ago" 2>/dev/null | grep -i "failed\|invalid" | tail -10

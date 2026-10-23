@@ -66,10 +66,12 @@ steps:
   - name: check-auth-logs
     action: shell
     command: |
+      # Ubuntu's unit is ssh.service; journalctl -u does not resolve the sshd
+      # alias, so `-u sshd` alone returned "No entries" on west and east.
       echo "=== Failed SSH attempts (last 24h) ==="
-      journalctl -u sshd --since '24 hours ago' | grep -i 'failed\|invalid\|refused' | tail -20
+      journalctl -u ssh -u sshd --since '24 hours ago' | grep -i 'failed\|invalid\|refused' | tail -20
       echo "=== Successful logins ==="
-      journalctl -u sshd --since '24 hours ago' | grep 'Accepted' | tail -10
+      journalctl -u ssh -u sshd --since '24 hours ago' | grep 'Accepted' | tail -10
 
   - name: check-recently-modified-files
     action: shell
