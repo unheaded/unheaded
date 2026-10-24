@@ -14,11 +14,11 @@ containers running, which is the mistake ADR-093 rule 4 names.
 
 | classification | meaning | count |
 |---|---|---|
-| CONTAINER | built into the container image | 12 |
-| SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 15 |
-| TOOL | invoked by a script, runbook or Makefile, not supervised | 24 |
+| CONTAINER | built into the container image | 13 |
+| SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 16 |
+| TOOL | invoked by a script, runbook or Makefile, not supervised | 25 |
 | ORPHAN | referenced by nothing outside its own directory | 25 |
-| **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **76** |
+| **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **79** |
 
 ORPHAN is not an accusation — kept experiments are the point of a solo
 learning project, and ADR-090 owns the deletion question. The count exists so
@@ -36,8 +36,9 @@ that keeping them stays a decision.
 | `cmd/akira` | CONTAINER |
 | `cmd/alert-mailer` | TOOL |
 | `cmd/alert-policy` | TOOL |
+| `cmd/anomaly` | ORPHAN |
 | `cmd/cert-gen` | SUPERVISED |
-| `cmd/chaos-controller` | ORPHAN |
+| `cmd/chaos-controller` | SUPERVISED |
 | `cmd/compliance-evidence` | SUPERVISED |
 | `cmd/crypto-inventory` | TOOL |
 | `cmd/dashboard-backend` | CONTAINER |
@@ -67,6 +68,8 @@ that keeping them stays a decision.
 | `cmd/routing-health` | ORPHAN |
 | `cmd/shield` | ORPHAN |
 | `cmd/sophia` | CONTAINER |
+| `cmd/steel-echo` | TOOL |
+| `cmd/sword` | CONTAINER |
 | `cmd/test_batch` | ORPHAN |
 | `cmd/trace-collector` | SUPERVISED |
 | `cmd/trace-collector-go` | SUPERVISED |

@@ -392,7 +392,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/unheaded-daemon/lxd_rest.go:118:tls-config",
+      "bom-ref": "cmd/unheaded-daemon/lxd_rest.go:125:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -428,13 +428,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/unheaded-daemon/lxd_rest.go:118"
+          "value": "cmd/unheaded-daemon/lxd_rest.go:125"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/upc-cartridgectl/main_linux.go:22:sig-import",
+      "bom-ref": "cmd/upc-cartridgectl/main_linux.go:23:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -471,7 +471,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/upc-cartridgectl/main_linux.go:22"
+          "value": "cmd/upc-cartridgectl/main_linux.go:23"
         }
       ]
     },
@@ -1404,7 +1404,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:132:proxy-image",
+      "bom-ref": "docker-compose.yml:133:proxy-image",
       "name": "Traefik edge (traefik:v3.3.7)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1439,13 +1439,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:132"
+          "value": "docker-compose.yml:133"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:317:postgres-image",
+      "bom-ref": "docker-compose.yml:318:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1485,7 +1485,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:317"
+          "value": "docker-compose.yml:318"
         }
       ]
     },
@@ -4226,7 +4226,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/wotan-client/grpc_client.go:55:tls-config",
+      "bom-ref": "pkg/wotan-client/grpc_client.go:67:tls-config",
       "name": "TLS config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -4266,7 +4266,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/wotan-client/grpc_client.go:55"
+          "value": "pkg/wotan-client/grpc_client.go:67"
         }
       ]
     },
