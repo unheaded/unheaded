@@ -108,6 +108,12 @@ type chatResponse struct {
 	Choices []chatChoice `json:"choices"`
 }
 
+// codeCommentReminder follows the question in every user prompt. The same
+// rule is in the system prompt, but a small model weighs the end of the
+// prompt most, and the references in between are often uncommented code it
+// copies. Ported in lockstep with raft/scripts/zhen_rag.py:CODE_COMMENT_REMINDER.
+const codeCommentReminder = "(If your answer includes code: comment every line or small group of lines, explaining what it does and how its syntax works, inside the code block itself, e.g. `while IFS= read -r line; do  # IFS= keeps leading spaces; -r keeps backslashes literal`. Do not add a separate Explanation list after the code.)"
+
 func main() {
 	var (
 		question      = flag.String("q", "", "question (otherwise reads from stdin)")
@@ -221,6 +227,17 @@ func main() {
 		"know that `==` should be `===` in JavaScript, or that `.unwrap()` " +
 		"panics in Rust, or that an `<img>` needs an `alt=` attribute. The " +
 		"refs may add Unheaded house-style hints when relevant.\n\n" +
+		"CODE COMMENTS: every code block you write carries detailed comments, " +
+		"because the user reads your answers to learn and remember syntax. " +
+		"Comment each line or small group of lines with what it does AND how " +
+		"its syntax works (e.g. what `${var%%pattern}` means in bash, why Go " +
+		"uses `:=` here and not `=`). Use the language's own comment syntax " +
+		"(`#`, `//`, `--`, `/* */`, `<!-- -->`). JSON has no comments: explain " +
+		"JSON in prose after the block. Code the user pasted for review is " +
+		"quoted as-is; comment only the code you write. Put the explanation " +
+		"IN those comments, next to the line it explains — not in a separate " +
+		"'Explanation' list after the block, which repeats it and wastes " +
+		"the answer's length.\n\n" +
 		"For code-review prompts: identify bugs and bad practices in the " +
 		"snippet even when no reference mentions them. Saying 'no issue' on " +
 		"code that has a well-known bug is the worst failure mode.\n\n" +
@@ -297,8 +314,8 @@ func main() {
 	}
 
 	userPrompt := fmt.Sprintf(
-		"References:%s\n\nQuestion: %s",
-		refs.String(), q,
+		"References:%s\n\nQuestion: %s\n\n%s",
+		refs.String(), q, codeCommentReminder,
 	)
 
 	// 4. call llama-server

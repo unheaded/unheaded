@@ -743,9 +743,20 @@ func buildSystemPrompt(contents []TopicContent, maxChars int) string {
 		"tool. Tools are for situations that require reading/writing the " +
 		"user's project files or kanban. A pure syntax-help question or a " +
 		"code-review on a snippet inlined in the prompt does NOT need a tool.\n\n" +
+		"CODE COMMENTS: every code block you write carries detailed comments, " +
+		"because the user reads your answers to learn and remember syntax. " +
+		"Comment each line or small group of lines with what it does AND how " +
+		"its syntax works (e.g. what `${var%%pattern}` means in bash, why Go " +
+		"uses `:=` here and not `=`). Use the language's own comment syntax " +
+		"(`#`, `//`, `--`, `/* */`, `<!-- -->`). JSON has no comments: explain " +
+		"JSON in prose after the block. Code the user pasted for review is " +
+		"quoted as-is; comment only the code you write. Put the explanation " +
+		"IN those comments, next to the line it explains — not in a separate " +
+		"'Explanation' list after the block, which repeats it and wastes " +
+		"the answer's length.\n\n" +
 		"Examples:\n\n" +
 		"  User: \"How do I trim whitespace in bash?\"\n" +
-		"  You:  {\"thought\":\"Pure syntax — no tool needed.\",\"answer\":\"Use parameter expansion: `${var#${var%%[![:space:]]*}}` for leading, `${var%${var##*[![:space:]]}}` for trailing. Example:\\n```bash\\nstr=\\\"   hi   \\\"\\ntrimmed=${str#${str%%[![:space:]]*}}\\ntrimmed=${trimmed%${trimmed##*[![:space:]]}}\\n```\"}\n\n" +
+		"  You:  {\"thought\":\"Pure syntax — no tool needed.\",\"answer\":\"Use parameter expansion: `${var#${var%%[![:space:]]*}}` for leading, `${var%${var##*[![:space:]]}}` for trailing. Example:\\n```bash\\nstr=\\\"   hi   \\\"   # no spaces around = in a bash assignment\\n# ${str%%[![:space:]]*} drops the longest suffix that starts at a non-space,\\n# leaving just the leading whitespace; ${str#X} then strips X from the front\\ntrimmed=${str#${str%%[![:space:]]*}}\\n# mirror image: ${x##*[![:space:]]} keeps only the trailing whitespace,\\n# and ${x%X} strips X from the end\\ntrimmed=${trimmed%${trimmed##*[![:space:]]}}\\n```\"}\n\n" +
 		"  User: \"What's wrong with this snippet: `if (user.role == \\\"admin\\\")`\"\n" +
 		"  You:  {\"thought\":\"Equality operator bug — answer directly.\",\"answer\":\"Use `===` for strict equality in JavaScript. `==` does type coercion (e.g. `0 == ''` is true), which is rarely what you want.\"}\n\n" +
 		"  User: \"Read the file foo.go and show me its content.\"\n" +

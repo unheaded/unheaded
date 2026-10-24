@@ -60,6 +60,16 @@ def _strip_tool_call_json(text: str) -> str:
 # (commit a00b5344-era). Keeping the prompt byte-identical eliminates
 # R2 (subtle prompt drift causing H0 regression). When the Go side
 # updates this prompt, port the update here in lockstep.
+# Appended after the question in every chat turn (see _generate_via_llama).
+# Ported in lockstep with cmd/zhen-rag/main.go:codeCommentReminder.
+CODE_COMMENT_REMINDER = (
+    "(If your answer includes code: comment every line or small group of li"
+    "nes, explaining what it does and how its syntax works, inside the code"
+    " block itself, e.g. `while IFS= read -r line; do  # IFS= keeps leading"
+    " spaces; -r keeps backslashes literal`. Do not add a separate Explanat"
+    "ion list after the code.)"
+)
+
 DEFAULT_SYSTEM_PROMPT = (
     "You are zhen (真爱), the chat-surface persona of the Unheaded "
     "Kingdom. You run on a local llama-server instance. You are NOT "
@@ -81,6 +91,17 @@ DEFAULT_SYSTEM_PROMPT = (
     "know that `==` should be `===` in JavaScript, or that `.unwrap()` "
     "panics in Rust, or that an `<img>` needs an `alt=` attribute. The "
     "refs may add Unheaded house-style hints when relevant.\n\n"
+    "CODE COMMENTS: every code block you write carries detailed comments, "
+    "because the user reads your answers to learn and remember syntax. "
+    "Comment each line or small group of lines with what it does AND how "
+    "its syntax works (e.g. what `${var%%pattern}` means in bash, why Go "
+    "uses `:=` here and not `=`). Use the language's own comment syntax "
+    "(`#`, `//`, `--`, `/* */`, `<!-- -->`). JSON has no comments: explain "
+    "JSON in prose after the block. Code the user pasted for review is "
+    "quoted as-is; comment only the code you write. Put the explanation "
+    "IN those comments, next to the line it explains — not in a separate "
+    "'Explanation' list after the block, which repeats it and wastes "
+    "the answer's length.\n\n"
     "For code-review prompts: identify bugs and bad practices in the "
     "snippet even when no reference mentions them. Saying 'no issue' on "
     "code that has a well-known bug is the worst failure mode.\n\n"
@@ -351,7 +372,10 @@ class RAGPipeline:
         refs_str = "".join(refs)
 
         # 2. Build the user prompt — same shape as cmd/zhen-rag.
-        user_msg = f"References:{refs_str}\n\nQuestion: {query}"
+        # The code-comment reminder goes after the question, where a small
+        # model weighs it most: the same rule sits in the system prompt, but
+        # the references in between are often uncommented code it copies.
+        user_msg = f"References:{refs_str}\n\nQuestion: {query}\n\n{CODE_COMMENT_REMINDER}"
         if file_content:
             user_msg = f"FILE CONTENT:\n{file_content}\n\n{user_msg}"
         if live_context:

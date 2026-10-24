@@ -2435,8 +2435,9 @@ def highlight_code():
     {"html": [...]}, one entry per block, null where it stays plain. Read-only:
     nothing is stored or executed, so it needs no Champion gate.
     """
-    data = request.get_json(silent=True) or {}
-    blocks = data.get('blocks')
+    data = request.get_json(silent=True)
+    # A JSON list or string body has no .get(); treat it like a missing list.
+    blocks = data.get('blocks') if isinstance(data, dict) else None
     if not isinstance(blocks, list):
         return jsonify({'error': 'blocks must be a list'}), 400
     return jsonify({'html': zhen_highlight.highlight_blocks(blocks)})
