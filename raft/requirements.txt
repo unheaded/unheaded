@@ -22,6 +22,7 @@
 Flask==3.1.3
 flask-cors==6.0.2
 requests==2.34.2
+Pygments==2.21.0
 
 # --- The Well (PostgreSQL) ---------------------------------------------------
 psycopg2-binary==2.9.11

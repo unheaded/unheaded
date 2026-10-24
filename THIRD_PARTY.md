@@ -256,6 +256,7 @@ this entire surface. See `docs/security/python-deps-unscanned-2026-08-04.md`.
 |---------|---------|---------|
 | Flask | BSD-3-Clause | Zhen web UI (`raft/zhen_app.py`, port 20103) |
 | flask-cors | MIT | CORS headers for the same |
+| Pygments | BSD-2-Clause | Syntax highlighting of code in Zhen answers, server-side (`raft/zhen_highlight.py`) |
 | psycopg2-binary | LGPL-3.0-or-later *(with OpenSSL exception)* | The Well (PostgreSQL) client |
 | requests | Apache-2.0 | HTTP client |
 | faiss-cpu | MIT AND BSD-3-Clause | Vector index |

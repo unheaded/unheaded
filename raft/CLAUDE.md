@@ -44,6 +44,7 @@ poisoned — see [`eval/coding-gate/probe-2026-05-02/A1-source-poison.md`](../ev
 | `/health` | GET | liveness + RAG readiness + Well connectivity |
 | `/api/v1/query` | POST | RAG question answering (chat) |
 | `/api/v1/search` | POST | semantic search via vor (no LLM) |
+| `/api/v1/highlight` | POST | syntax-highlight fenced code blocks (Pygments, `zhen_highlight.py`); `/api/v1/highlight.css` is its stylesheet |
 | `/api/v1/context` | POST | context retrieval for Claude agents |
 | `/api/v1/conversations` | GET | list recent conversations |
 | `/api/v1/conversations/search` | GET | full-text search via tsvector |

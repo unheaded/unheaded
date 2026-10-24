@@ -48,6 +48,8 @@ from flask_cors import CORS
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
 from zhen_rag import RAGPipeline
 
+import zhen_highlight
+
 
 def _http_url_from_env(var: str, default: str) -> str:
     """Read a service URL from the environment, rejecting non-HTTP schemes.
@@ -835,7 +837,8 @@ backend {svc_name}_back
         else:
             return {'answer': f'Unknown config type: `{config_type}`. Use nginx, systemd, or haproxy.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
-        return {'answer': f'**Generated {config_type} config for {svc_name} (port {port}):**\n\n```\n{config}\n```', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        fence = {'nginx': 'nginx', 'systemd': 'systemd'}.get(config_type, '')
+        return {'answer': f'**Generated {config_type} config for {svc_name} (port {port}):**\n\n```{fence}\n{config}\n```', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Schedule commands
     if q.startswith('schedule ') and 'every' in q:
@@ -2422,6 +2425,29 @@ def source_viewer_page():
     </script>
 </body>
 </html>'''
+
+
+@app.route('/api/v1/highlight', methods=['POST'])
+def highlight_code():
+    """Syntax-highlight an answer's fenced blocks (raft/zhen_highlight.py).
+
+    Body: {"blocks": [{"lang": "go", "code": "..."}, ...]}. Returns
+    {"html": [...]}, one entry per block, null where it stays plain. Read-only:
+    nothing is stored or executed, so it needs no Champion gate.
+    """
+    data = request.get_json(silent=True) or {}
+    blocks = data.get('blocks')
+    if not isinstance(blocks, list):
+        return jsonify({'error': 'blocks must be a list'}), 400
+    return jsonify({'html': zhen_highlight.highlight_blocks(blocks)})
+
+
+_HIGHLIGHT_CSS = zhen_highlight.stylesheet()
+
+
+@app.route('/api/v1/highlight.css', methods=['GET'])
+def highlight_css():
+    return app.response_class(_HIGHLIGHT_CSS, mimetype='text/css')
 
 
 @app.route('/')

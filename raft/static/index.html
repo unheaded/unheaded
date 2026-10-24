@@ -186,6 +186,11 @@
             background: none;
             padding: 0;
         }
+        .msg.zhen .code-label {
+            color: var(--text-dim);
+            font-size: 0.8em;
+            margin: 8px 0 -6px;
+        }
         .msg.zhen strong { color: var(--accent); }
         .msg.zhen em { color: var(--blue); }
         .msg.system {
@@ -1023,6 +1028,7 @@
             .msg { max-width: 95%; }
         }
     </style>
+    <link rel="stylesheet" href="/api/v1/highlight.css">
 </head>
 <body>
     <div class="drop-overlay" id="drop-overlay"><span>DROP FILE</span></div>
@@ -1379,23 +1385,50 @@ function escapeHtml(text) {
 }
 
 // --- Markdown rendering (lightweight) ---
+// Code (fenced and inline) is cut out before the prose rules run, so
+// **kwargs, *ptr and *.go inside code are never turned into bold/italic/<br>.
+// Fenced blocks keep their info string ("go", "c++", "file:x.go") in
+// data-lang for highlightCode().
 function renderMarkdown(text) {
-    // Escape HTML first
-    let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    // Fenced code blocks: ```lang\n...\n```
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-        const cls = lang ? ` class="language-${lang}"` : '';
-        return `<pre><code${cls}>${code.trim()}</code></pre>`;
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const kept = [];
+    const keep = html => '\u0000' + (kept.push(html) - 1) + '\u0000';
+    let html = text.replace(/\u0000/g, '');
+    html = html.replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_, info, code) => {
+        info = info.trim();
+        const label = /^(file|download):/.test(info) ? `<div class="code-label">${esc(info.replace(/^\w+:/, ''))}</div>` : '';
+        const lang = info ? ` data-lang="${esc(info).replace(/"/g, '&quot;')}"` : '';
+        return keep(`${label}<pre><code${lang}>${esc(code.replace(/\s+$/, ''))}</code></pre>`);
     });
-    // Inline code: `...`
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    html = html.replace(/`([^`\n]+)`/g, (_, code) => keep(`<code>${esc(code)}</code>`));
+    html = esc(html);
     // Bold: **...**
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     // Italic: *...*
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
     // Line breaks
     html = html.replace(/\n/g, '<br>');
-    return html;
+    return html.replace(/\u0000(\d+)\u0000/g, (_, i) => kept[+i]);
+}
+
+// Swap in server-side highlighting (POST /api/v1/highlight, Pygments) for
+// the fenced blocks under el that name a language. Any failure leaves the
+// plain rendering, which already shows all the text.
+async function highlightCode(el) {
+    const codes = [...el.querySelectorAll('pre > code[data-lang]')];
+    if (!codes.length) return;
+    try {
+        const r = await fetch(API + '/api/v1/highlight', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({blocks: codes.map(c => ({lang: c.dataset.lang, code: c.textContent}))}),
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        codes.forEach((c, i) => {
+            if (typeof data.html?.[i] === 'string') c.innerHTML = data.html[i];
+        });
+    } catch (e) { /* plain rendering stays */ }
 }
 
 // --- Detect downloadable file blocks ---
@@ -1600,6 +1633,7 @@ function addMsg(text, cls, meta, extra) {
         d.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
     } else if (cls.includes('zhen')) {
         d.innerHTML = renderMarkdown(text);
+        highlightCode(d);
     } else {
         d.textContent = text;
     }
