@@ -50,7 +50,7 @@ Step 337; Step 340 (Anthropic's written answer, flag stays off); Step 400;
 ADR-019 amendment. Merge note still open: `ThresholdRouter` (Sprint 2) and
 `AutoRouter` (Lich) both live in pkg/claudebridge, not reconciled.
 
-## Sprint 3: Real Steel (`sprint/real-steel`, not merged)
+## Sprint 3: Real Steel (develop, merged 896a6ed4)
 
 | Phase | Status | Evidence |
 |---|---|---|
@@ -78,7 +78,7 @@ Phase 5's live local-model end-to-end was DEFERRED (shared llama-server),
 not STUCK. CTF mode is hard-gated off by design (ADR-063's rule unmet). The
 index still says "Not started": stale.
 
-## Sprint 5: UPC wire compute (`sprint/upc-wire-compute`, not merged)
+## Sprint 5: UPC wire compute (develop, merged after 896a6ed4)
 
 | Phase | Status | Evidence |
 |---|---|---|
@@ -114,8 +114,12 @@ Nothing claimed done lacked evidence, apart from item 2.
 ## Next, in plan order
 
 1. ~~Sprint 2 Phase 14: ADR-106, the ADR ripples, regression, handoff.~~ Done (Steps 435-451).
-2. Merge `sprint/real-steel` (3 conflicts: lxd_rest.go, ADR-INDEX,
-   wotan-client grpc_client.go), clean-clone meta-gate.
-3. Merge `sprint/upc-wire-compute` (5 doc conflicts), clean-clone
-   meta-gate.
+2. ~~Merge `sprint/real-steel`~~ Done (896a6ed4). The clean-clone
+   meta-gate found `check-crypto-inventory` and `live-path-inventory`
+   stale; regenerated in 2a48c8dd.
+3. ~~Merge `sprint/upc-wire-compute`~~ Done (6 doc conflicts). On
+   2a48c8dd: `go test ./...` 295 ok / 0 FAIL, `upc-cartridge` and
+   `monad-mbc` cargo tests pass, and every quick gate bites except
+   `check-ruff` and `check-python-audit` (known). `cmd/anomaly` is an
+   ORPHAN in LIVE-PATHS: nothing supervises it yet.
 4. Everything else in Sprints 3 and 5 waits on E1/E2/east.
