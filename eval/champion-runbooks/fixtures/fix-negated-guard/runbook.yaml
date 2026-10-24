@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: wotan-config-guard
+  description: Refuse to continue with debug enabled
+  owner: zhenai
+  estimated_duration: 1m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: guard
+    action: shell
+    command: |
+      set -euo pipefail
+      ! grep -q 'debug: true' /etc/unheaded/wotan.yaml
+      echo "config ok"

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: well-ping
+  description: Check the Well answers
+  owner: zhenai
+  estimated_duration: 1m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: ping
+    action: shell
+    command: "PGPASSWORD=hunter2 psql -h 127.0.0.1 -U unheaded_app -d unheaded_app -Atc 'SELECT 1'"

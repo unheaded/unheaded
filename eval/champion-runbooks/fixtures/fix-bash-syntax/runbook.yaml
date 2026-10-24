@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: swap-warn
+  description: Warn when swap is nearly full
+  owner: zhenai
+  estimated_duration: 1m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: swap
+    action: shell
+    command: |
+      set -euo pipefail
+      FREE=$(awk '/SwapFree/ {print $2}' /proc/meminfo)
+      if [ "$FREE" -lt 1048576 ]; then
+        echo "WARNING: less than 1 GiB swap free"

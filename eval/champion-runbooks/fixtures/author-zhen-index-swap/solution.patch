@@ -1,0 +1,34 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -0,0 +1,31 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++apiVersion: runbook/v1
++kind: Runbook
++metadata:
++  name: zhen-index-swap
++  description: Switch the active Zhen index
++  owner: zhenai
++  estimated_duration: 1m
++  risk: medium
++  requires_sudo: false
++  status: draft
++  authored_by: zhen-local
++  reviewed_by: ""
++  approved_by: ""
++parameters:
++  - name: NEW_INDEX
++    required: true
++  - name: OLD_INDEX
++    required: true
++preconditions:
++  - check: "test -f \"${NEW_INDEX}\""
++    description: "The new index exists"
++steps:
++  - name: switch
++    action: shell
++    command: "ln -sfn \"${NEW_INDEX}\" /var/zhen/index/active.index"
++    verify: "test \"$(readlink /var/zhen/index/active.index)\" = \"${NEW_INDEX}\""
++rollback:
++  - name: switch-back
++    action: shell
++    command: "ln -sfn \"${OLD_INDEX}\" /var/zhen/index/active.index"

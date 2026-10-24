@@ -1,0 +1,14 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -13,9 +13,9 @@
+   reviewed_by: ""
+   approved_by: ""
+ steps:
+-  - name: check
++  - name: check-health
+     action: shell
+     command: "curl -sf http://localhost:20001/health"
+-  - name: check
++  - name: check-tasks
+     action: shell
+     command: "curl -sf http://localhost:20001/api/v1/tasks | head -c 200"

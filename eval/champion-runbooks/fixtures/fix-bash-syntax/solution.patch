@@ -1,0 +1,7 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -20,3 +20,4 @@
+       FREE=$(awk '/SwapFree/ {print $2}' /proc/meminfo)
+       if [ "$FREE" -lt 1048576 ]; then
+         echo "WARNING: less than 1 GiB swap free"
++      fi

@@ -1,0 +1,13 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -5,7 +5,9 @@
+   name: ntp-check
+   description: Show chrony tracking
+   owner: zhenai
+-  risk: extreme
++  estimated_duration: 1m
++  risk: low
++  requires_sudo: false
+   status: draft
+   authored_by: zhen-local
+   reviewed_by: ""

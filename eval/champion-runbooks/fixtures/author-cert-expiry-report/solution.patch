@@ -1,0 +1,24 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -0,0 +1,21 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++apiVersion: runbook/v1
++kind: Runbook
++metadata:
++  name: cert-expiry-report
++  description: Report Kingdom certificate expiry
++  owner: zhenai
++  estimated_duration: 1m
++  risk: low
++  requires_sudo: false
++  status: draft
++  authored_by: zhen-local
++  reviewed_by: ""
++  approved_by: ""
++steps:
++  - name: end-dates
++    action: shell
++    command: "for c in /etc/unheaded/certs/*.pem; do echo \"$c $(openssl x509 -enddate -noout -in \"$c\")\"; done"
++  - name: expiring-soon
++    action: shell
++    command: "for c in /etc/unheaded/certs/*.pem; do openssl x509 -checkend 2592000 -noout -in \"$c\" > /dev/null || echo \"WARNING: $c expires within 30 days\"; done"

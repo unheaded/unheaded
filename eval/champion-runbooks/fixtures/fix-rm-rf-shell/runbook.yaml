@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: index-tmp-clean
+  description: Report and clean temporary index files
+  owner: zhenai
+  estimated_duration: 2m
+  risk: medium
+  requires_sudo: false
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: size
+    action: shell
+    command: "du -sh /var/zhen/index/tmp-* 2>/dev/null || true"
+  - name: clean
+    action: shell
+    command: "rm -rf /var/zhen/index/tmp-*"

@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: ntp-check
+  description: Show chrony tracking
+  owner: zhenai
+  risk: extreme
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: tracking
+    action: shell
+    command: "chronyc tracking"

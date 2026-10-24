@@ -1,0 +1,26 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -0,0 +1,23 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++apiVersion: runbook/v1
++kind: Runbook
++metadata:
++  name: east-service-restart
++  description: Restart one Kingdom service on east
++  owner: zhenai
++  estimated_duration: 2m
++  risk: medium
++  requires_sudo: true
++  status: draft
++  authored_by: zhen-local
++  reviewed_by: ""
++  approved_by: ""
++parameters:
++  - name: SERVICE
++    description: "Service name without the unheaded- prefix"
++    required: true
++steps:
++  - name: restart
++    action: shell
++    command: "ssh govan@east \"sudo systemctl restart unheaded-${SERVICE}\""
++    verify: "ssh govan@east \"systemctl is-active --quiet unheaded-${SERVICE}\""

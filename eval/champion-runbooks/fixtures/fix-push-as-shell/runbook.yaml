@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: publish-docs
+  description: Commit regenerated docs for review
+  owner: zhenai
+  estimated_duration: 2m
+  risk: medium
+  requires_sudo: false
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: commit
+    action: shell
+    command: "cd ~/tmp/unheaded && git commit -am 'docs: regenerate'"
+  - name: push
+    action: shell
+    command: "cd ~/tmp/unheaded && git push origin develop"

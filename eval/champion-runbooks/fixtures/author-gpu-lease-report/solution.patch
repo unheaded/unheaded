@@ -1,0 +1,24 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -0,0 +1,21 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++apiVersion: runbook/v1
++kind: Runbook
++metadata:
++  name: gpu-lease-report
++  description: Who holds the GPU lease, and VRAM use
++  owner: zhenai
++  estimated_duration: 1m
++  risk: low
++  requires_sudo: false
++  status: draft
++  authored_by: zhen-local
++  reviewed_by: ""
++  approved_by: ""
++steps:
++  - name: lease-holder
++    action: shell
++    command: "fuser -v \"$XDG_RUNTIME_DIR/unheaded/gpu.lock\" || echo 'no holder'"
++  - name: vram
++    action: shell
++    command: "rocm-smi --showmemuse"

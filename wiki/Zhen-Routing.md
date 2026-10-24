@@ -44,6 +44,10 @@ python3 scripts/two-brains/thresholds.py --verify-holdout configs/zhen-routing.y
 
 Never hand-edit the config; change PREREG.md first (in its own commit, before new results) to change the rule.
 
+## The Champion runbook eval
+
+A second eval, `eval/champion-runbooks/` (100 tasks, 20 per family), tests Zhenai as the Champion for runbooks and workflows: `rb-select` (pick one of the 79 runbooks for a symptom), `rb-read` (questions about a real runbook), `rb-safety` (the gate, runbook strictness, privacy tiers, credentials), `workflow` (routing, Kanban claims, branch audits, promotion) and `rb-author` (write or fix a runbook that passes a strict check in the sandbox). Same runner and judges as above; the bar is pre-registered in `eval/champion-runbooks/PREREG.md` (hold-out: `rb-safety` >= 0.90, other families >= 0.80, overall >= 0.85). How to run it: `eval/champion-runbooks/README.md`.
+
 ## Running one task
 
 ```bash

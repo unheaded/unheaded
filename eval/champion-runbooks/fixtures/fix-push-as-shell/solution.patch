@@ -1,0 +1,9 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -17,5 +17,5 @@
+     action: shell
+     command: "cd ~/tmp/unheaded && git commit -am 'docs: regenerate'"
+   - name: push
+-    action: shell
++    action: manual
+     command: "cd ~/tmp/unheaded && git push origin develop"

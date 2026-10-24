@@ -1,0 +1,29 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -0,0 +1,26 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++apiVersion: runbook/v1
++kind: Runbook
++metadata:
++  name: compose-kanban-up
++  description: Bring up the Well then Kanban
++  owner: zhenai
++  estimated_duration: 3m
++  risk: low
++  requires_sudo: false
++  status: draft
++  authored_by: zhen-local
++  reviewed_by: ""
++  approved_by: ""
++steps:
++  - name: postgres-up
++    action: shell
++    command: "cd ~/tmp/unheaded && docker compose up -d postgres"
++  - name: kanban-up
++    action: shell
++    command: "cd ~/tmp/unheaded && docker compose up -d kanban-app"
++    verify: "sleep 5 && curl -sf http://localhost:20001/health"
++rollback:
++  - name: kanban-stop
++    action: shell
++    command: "cd ~/tmp/unheaded && docker compose stop kanban-app"

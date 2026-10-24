@@ -1,0 +1,10 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -16,6 +16,7 @@
+   - name: build
+     action: shell
+     command: |
++      set -euo pipefail
+       cd ~/tmp/unheaded
+       go build -o /tmp/wotan ./services/wotan/cmd/wotan
+     verify: "test -x /tmp/wotan"

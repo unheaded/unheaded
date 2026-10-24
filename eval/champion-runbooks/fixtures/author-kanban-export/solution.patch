@@ -1,0 +1,27 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -0,0 +1,24 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++apiVersion: runbook/v1
++kind: Runbook
++metadata:
++  name: kanban-export
++  description: Export Kanban tasks to a dated JSON file
++  owner: zhenai
++  estimated_duration: 1m
++  risk: low
++  requires_sudo: false
++  status: draft
++  authored_by: zhen-local
++  reviewed_by: ""
++  approved_by: ""
++env:
++  OUT: "$HOME/kanban-exports"
++steps:
++  - name: make-dir
++    action: shell
++    command: "mkdir -p \"${OUT}\""
++  - name: export
++    action: shell
++    command: "curl -sf http://localhost:20001/api/v1/tasks > \"${OUT}/tasks-$(date -u +%F).json\""
++    verify: "python3 -m json.tool \"${OUT}/tasks-$(date -u +%F).json\" > /dev/null"

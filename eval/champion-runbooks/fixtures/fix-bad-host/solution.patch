@@ -1,0 +1,9 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -15,5 +15,5 @@
+ steps:
+   - name: uptime
+     action: shell
+-    host: north
++    host: east
+     command: "uptime"

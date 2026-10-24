@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: build-wotan
+  description: Build the Wotan binary
+  owner: zhenai
+  estimated_duration: 2m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: build
+    action: shell
+    command: |
+      cd ~/tmp/unheaded
+      go build -o /tmp/wotan ./services/wotan/cmd/wotan
+    verify: "test -x /tmp/wotan"

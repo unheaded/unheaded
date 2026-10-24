@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: east-uptime
+  description: Show east's uptime
+  owner: zhenai
+  estimated_duration: 1m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: uptime
+    action: shell
+    host: north
+    command: "uptime"

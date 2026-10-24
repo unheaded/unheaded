@@ -1,0 +1,29 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -0,0 +1,26 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++apiVersion: runbook/v1
++kind: Runbook
++metadata:
++  name: release-tag
++  description: Tag a release and hand the push to the operator
++  owner: zhenai
++  estimated_duration: 2m
++  risk: medium
++  requires_sudo: false
++  status: draft
++  authored_by: zhen-local
++  reviewed_by: ""
++  approved_by: ""
++parameters:
++  - name: VERSION
++    description: "Version without the v"
++    required: true
++steps:
++  - name: tag
++    action: shell
++    command: "cd ~/tmp/unheaded && git tag -a \"v${VERSION}\" -m \"v${VERSION}\""
++    verify: "cd ~/tmp/unheaded && git rev-parse \"v${VERSION}\""
++  - name: push-tag
++    action: manual
++    command: "cd ~/tmp/unheaded && git push origin v${VERSION}"

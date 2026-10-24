@@ -1,0 +1,27 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -0,0 +1,24 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++apiVersion: runbook/v1
++kind: Runbook
++metadata:
++  name: well-restore-drill
++  description: Drill the newest Well backup, then a manual restore
++  owner: zhenai
++  estimated_duration: 15m
++  risk: high
++  requires_sudo: true
++  status: draft
++  authored_by: zhen-local
++  reviewed_by: ""
++  approved_by: ""
++steps:
++  - name: drill
++    action: shell
++    command: |
++      set -euo pipefail
++      SET=$(cat /srv/backups/unheaded-well/LATEST)
++      sudo /usr/local/lib/unheaded/well/restore-drill.sh "/srv/backups/unheaded-well/$SET"
++  - name: restore
++    action: manual
++    command: "pg_restore --clean -d <database> /srv/backups/unheaded-well/<set>/<database>.dump"

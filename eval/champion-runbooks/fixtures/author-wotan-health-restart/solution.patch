@@ -1,0 +1,25 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -0,0 +1,22 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++apiVersion: runbook/v1
++kind: Runbook
++metadata:
++  name: wotan-health-restart
++  description: Check Wotan health and restart it if needed
++  owner: zhenai
++  estimated_duration: 2m
++  risk: medium
++  requires_sudo: true
++  status: draft
++  authored_by: zhen-local
++  reviewed_by: ""
++  approved_by: ""
++steps:
++  - name: check-health
++    action: shell
++    command: "curl -sf http://localhost:18000/health || echo unhealthy"
++  - name: restart
++    action: shell
++    command: "sudo systemctl restart unheaded-wotan"
++    verify: "sleep 3 && curl -sf http://localhost:18000/health"

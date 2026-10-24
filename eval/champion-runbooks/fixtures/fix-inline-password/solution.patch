@@ -1,0 +1,8 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -15,4 +15,4 @@
+ steps:
+   - name: ping
+     action: shell
+-    command: "PGPASSWORD=hunter2 psql -h 127.0.0.1 -U unheaded_app -d unheaded_app -Atc 'SELECT 1'"
++    command: "PGPASSWORD=\"$(cat ~/.config/unheaded/well.pass)\" psql -h 127.0.0.1 -U unheaded_app -d unheaded_app -Atc 'SELECT 1'"

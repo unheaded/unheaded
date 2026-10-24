@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: kanban-check
+  description: Check Kanban health and its task list
+  owner: zhenai
+  estimated_duration: 1m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: check
+    action: shell
+    command: "curl -sf http://localhost:20001/health"
+  - name: check
+    action: shell
+    command: "curl -sf http://localhost:20001/api/v1/tasks | head -c 200"

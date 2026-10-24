@@ -1,0 +1,9 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -17,5 +17,5 @@
+     action: shell
+     command: |
+       set -euo pipefail
+-      ! grep -q 'debug: true' /etc/unheaded/wotan.yaml
++      if grep -q 'debug: true' /etc/unheaded/wotan.yaml; then echo "debug is on"; exit 1; fi
+       echo "config ok"

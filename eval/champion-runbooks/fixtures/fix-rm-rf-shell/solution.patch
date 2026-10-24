@@ -1,0 +1,9 @@
+--- a/runbook.yaml
++++ b/runbook.yaml
+@@ -17,5 +17,5 @@
+     action: shell
+     command: "du -sh /var/zhen/index/tmp-* 2>/dev/null || true"
+   - name: clean
+-    action: shell
++    action: manual
+     command: "rm -rf /var/zhen/index/tmp-*"
