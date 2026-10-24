@@ -132,6 +132,13 @@ type Service struct {
 
 	// HTTP server reference for graceful shutdown
 	httpServer *http.Server
+
+	// ListenAddr is the HTTP listen address Start binds; "" = ports.Anomaly
+	// on every interface (the service default).
+	ListenAddr string
+
+	// anomaly.scores intake counters (scores.go)
+	scores scoreCounters
 }
 
 // NewService creates a new Anomaly Detection service.
@@ -177,6 +184,8 @@ func (s *Service) Start(ctx context.Context) error {
 
 		// Start alert listener
 		go s.listenForAlerts(ctx)
+		// Score intake (ADR-108 cartridge scores via cmd/anomaly)
+		go s.listenForScores(ctx)
 	} else {
 		s.log.Info().Msg("Wotan not configured, skipping subscriptions")
 	}
@@ -191,8 +200,12 @@ func (s *Service) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	s.RegisterRoutes(mux)
 
+	addr := s.ListenAddr
+	if addr == "" {
+		addr = ports.DefaultAddr(ports.Anomaly)
+	}
 	s.httpServer = &http.Server{
-		Addr:           ports.DefaultAddr(ports.Anomaly),
+		Addr:           addr,
 		Handler:        mux,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
@@ -200,7 +213,7 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		s.log.Info().Int("port", ports.Anomaly).Msg("Anomaly HTTP server listening")
+		s.log.Info().Str("addr", addr).Msg("Anomaly HTTP server listening")
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.log.Error().Err(err).Msg("HTTP server error")
 		}
@@ -542,6 +555,12 @@ func (s *Service) handleMetrics(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, "# HELP anomaly_wotan_drops_total Messages dropped due to Wotan unavailability\n")
 	fmt.Fprintf(w, "# TYPE anomaly_wotan_drops_total counter\n")
 	fmt.Fprintf(w, "anomaly_wotan_drops_total %d\n", s.WotanDrops())
+	fmt.Fprintf(w, "# HELP anomaly_scores_ingested_total anomaly.scores messages recorded\n")
+	fmt.Fprintf(w, "# TYPE anomaly_scores_ingested_total counter\n")
+	fmt.Fprintf(w, "anomaly_scores_ingested_total %d\n", s.scores.ingested.Load())
+	fmt.Fprintf(w, "# HELP anomaly_scores_rejected_total anomaly.scores messages refused as malformed\n")
+	fmt.Fprintf(w, "# TYPE anomaly_scores_rejected_total counter\n")
+	fmt.Fprintf(w, "anomaly_scores_rejected_total %d\n", s.scores.rejected.Load())
 }
 
 // RecordFlowScore records or updates a flow score.

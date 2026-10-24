@@ -16,6 +16,18 @@ Monad v0x01 is unchanged by every item here, and no MBC opcode is added or renum
 | 4 | `draft-bellis-unheaded-mbc-isa-00` + ADR-067 Decision 2 | CSR address map | n/a (text) | state the CSR byte-address range `0xF000 + csr*4` for the full 12-bit index (`0xF000–0x12FFC`) and the read/write sequences in the ADR-067 S5 implementation note | translator behaviour as shipped in S5 Phase 2 (`acf62722`) | open |
 | 5 | `draft-bellis-unheaded-mbc-isa-00` §IANA (KF10) | MBC Instruction Set Architecture Opcode Values | Standards Action | 0x11–0x1B are listed RESERVED and also assigned (0x17/0x18/0x1A/0x1B); MOVI is documented sign-extended while both interpreters zero-extend `imm16` | implementations unchanged (zero-extend) | open |
 
+## Status at sprint close (2026-10-23, S5 Step 447)
+
+All five items are still **open**: no RFC Editor review has been received, and none is
+self-approved. ADR-108 therefore stays **Proposed** and the code keeps the provisional
+names (`x-cartridge`, sub-kind `0x43`, `anomaly.scores`, `upc.cart.*`). The final spec
+gate found no Monad wire byte changed and no MBC opcode added or renumbered across the
+sprint (against the sprint base `f7d730e7`, `ebpf/monad-common/src/lib.rs` adds only
+`pub mod cart`; `ebpf/monad-cpu-ebpf` is unchanged). If item 2 is ruled to need its own
+Event Type, that registration (Specification Required) is [ESCALATE]; DOT4 (ADR-108
+non-goals) would be a new item under the MBC Opcode Registry (Standards Action) and is
+not filed.
+
 ## Draft text for the reviewer
 
 ### Item 1 — Sophia root key (draft, not filed)

@@ -344,19 +344,162 @@ pub mod stat {
     pub const BREAKER_TRIPS: u32 = 37;
     /// Global: tick jobs abandoned because the slot was reloaded.
     pub const TICK_STALE: u32 = 38;
+    /// Global: trace records dropped (CART_TRACE full).
+    pub const TRACE_DROPPED: u32 = 39;
     /// Number of counters.
     pub const COUNT: u32 = 40;
 }
 
 /// `CART_CFG` keys.
 pub mod cfgkey {
-    /// Reserved for the Phase 16 trace switch.
+    /// Trace 1 run in N into CART_TRACE (0 = off, the default).
     pub const TRACE: u32 = 0;
     /// Fixed clock in ns (0 = the real monotonic clock); makes test runs reproducible.
     pub const CLOCK_NS: u32 = 2;
     /// Number of keys.
     pub const COUNT: u32 = 8;
 }
+
+/// Stable u32 encoding of a [`Step`] (BPF state and trace records):
+/// 0 Continue, 0x100|v Verdict, 0x200 Yield, 0x300 Halt, 0x400|k Fault.
+#[inline(always)]
+pub fn step_code(s: Step) -> u32 {
+    match s {
+        Step::Continue => 0,
+        Step::Verdict(v) => 0x100 | v as u32,
+        Step::Yield => 0x200,
+        Step::Halt => 0x300,
+        Step::Fault(k) => 0x400 | k as u32,
+    }
+}
+
+/// Inverse of [`step_code`] (unknown codes decode as `Continue`; an unknown
+/// fault kind as `LoopBound`, the last one).
+#[inline(always)]
+pub fn code_step(c: u32) -> Step {
+    match c >> 8 {
+        1 => Step::Verdict(c as u8),
+        2 => Step::Yield,
+        3 => Step::Halt,
+        4 => Step::Fault(match c & 0xFF {
+            1 => FaultKind::BadOpcode,
+            2 => FaultKind::Mem,
+            3 => FaultKind::Pc,
+            4 => FaultKind::Syscall,
+            5 => FaultKind::Field,
+            6 => FaultKind::Verdict,
+            7 => FaultKind::Budget,
+            _ => FaultKind::LoopBound,
+        }),
+        _ => Step::Continue,
+    }
+}
+
+/// Anamnesis trace records for a cartridge run (ADR-108 D-C5, S5 Phase 16):
+/// `EVENT_COMPUTED (0x01)` with the cartridge sub-kind `0x43` ('C',
+/// provisional, RFC Editor item 2). A traced run is one [`TraceHead`] (the
+/// state and every input the run can read), one [`TraceStep`] per executed
+/// instruction (pc, word, how it stopped, state hash after), and one
+/// [`TraceEnd`]. The inputs are header fields and a clock: no payload.
+pub mod trace {
+    /// Anamnesis Event Type EVENT_COMPUTED.
+    pub const EVENT_COMPUTED: u8 = 0x01;
+    /// Cartridge sub-kind (provisional).
+    pub const SUBKIND: u8 = 0x43;
+    /// [`super::TraceHead`].
+    pub const REC_HEAD: u8 = 0;
+    /// [`super::TraceStep`].
+    pub const REC_STEP: u8 = 1;
+    /// [`super::TraceEnd`].
+    pub const REC_END: u8 = 2;
+}
+
+/// Start of a traced run (464 bytes, no implicit padding).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TraceHead {
+    /// [`trace::EVENT_COMPUTED`].
+    pub event: u8,
+    /// [`trace::SUBKIND`].
+    pub subkind: u8,
+    /// [`trace::REC_HEAD`].
+    pub rec: u8,
+    /// Stage of the slot.
+    pub stage: u8,
+    /// Slot.
+    pub slot: u8,
+    /// Zero.
+    pub rsv: [u8; 3],
+    /// Slot generation.
+    pub gen: u32,
+    /// Zero.
+    pub rsv2: u32,
+    /// Run id (unique per traced run; groups the records).
+    pub run_id: u64,
+    /// Clock of the run (NOW_NS_LO reads its low 32 bits).
+    pub now: u64,
+    /// Flow (the job's flow in the tick stage).
+    pub flow: FlowKey,
+    /// FIELD table (zero in the tick stage, where FIELD faults).
+    pub fields: [u32; FIELD_COUNT as usize],
+    /// Zero.
+    pub pad: u32,
+    /// State when the run starts (after begin_run / begin_job, or resumed).
+    pub state: CartState,
+}
+const _: () = assert!(core::mem::size_of::<TraceHead>() == 464);
+
+/// One executed instruction (32 bytes).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct TraceStep {
+    /// [`trace::EVENT_COMPUTED`].
+    pub event: u8,
+    /// [`trace::SUBKIND`].
+    pub subkind: u8,
+    /// [`trace::REC_STEP`].
+    pub rec: u8,
+    /// Zero.
+    pub rsv: u8,
+    /// Instruction index in the run (0-based).
+    pub idx: u32,
+    /// Run id.
+    pub run_id: u64,
+    /// PC the instruction was fetched from.
+    pub pc: u32,
+    /// The instruction word.
+    pub insn: u32,
+    /// [`step_code`] of the step (0 = continue).
+    pub code: u32,
+    /// [`state_hash`] after the step.
+    pub hash: u32,
+}
+const _: () = assert!(core::mem::size_of::<TraceStep>() == 32);
+
+/// End of a traced run (32 bytes).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct TraceEnd {
+    /// [`trace::EVENT_COMPUTED`].
+    pub event: u8,
+    /// [`trace::SUBKIND`].
+    pub subkind: u8,
+    /// [`trace::REC_END`].
+    pub rec: u8,
+    /// Zero.
+    pub rsv: u8,
+    /// Instructions executed in the run.
+    pub insns: u32,
+    /// Run id.
+    pub run_id: u64,
+    /// [`step_code`] of how the run ended.
+    pub code: u32,
+    /// [`state_hash`] at the end.
+    pub hash: u32,
+    /// Zero.
+    pub rsv2: u64,
+}
+const _: () = assert!(core::mem::size_of::<TraceEnd>() == 32);
 
 /// Faults per one-second window that disable a slot (ADR-108 D-C3).
 pub const BREAKER_LIMIT: u32 = 64;
@@ -804,25 +947,33 @@ pub fn begin_job(st: &mut CartState, entry: u16, feat: &[u32; FEAT_WORDS]) {
 
 /// 32-bit FNV-1a over `regs` ‖ `pc` ‖ `flags` ‖ `mem` (little-endian), the
 /// ADR-108 `state_hash`.
+///
+/// Written with shifts, no byte arrays: the BPF trace path (S5 Phase 16)
+/// hashes inside the bpf_loop callback, where every stack byte counts
+/// against the 512-byte call-chain limit.
+#[inline(always)]
 pub fn state_hash(st: &CartState) -> u32 {
+    #[inline(always)]
+    fn eat(h: u32, b: u32) -> u32 {
+        (h ^ (b & 0xFF)).wrapping_mul(0x0100_0193)
+    }
+    #[inline(always)]
+    fn eat32(h: u32, w: u32) -> u32 {
+        eat(eat(eat(eat(h, w), w >> 8), w >> 16), w >> 24)
+    }
     let mut h: u32 = 0x811c_9dc5;
-    let mut eat = |b: u8| {
-        h ^= b as u32;
-        h = h.wrapping_mul(0x0100_0193);
-    };
-    for r in st.regs.iter() {
-        for b in r.to_le_bytes() {
-            eat(b);
-        }
+    let mut i = 0;
+    while i < 16 {
+        h = eat32(h, st.regs[i]);
+        i += 1;
     }
-    for b in st.pc.to_le_bytes() {
-        eat(b);
-    }
-    eat(st.flags);
-    for m in st.mem.iter() {
-        for b in m.to_le_bytes() {
-            eat(b);
-        }
+    h = eat(h, st.pc as u32);
+    h = eat(h, (st.pc >> 8) as u32);
+    h = eat(h, st.flags as u32);
+    i = 0;
+    while i < MEM_WORDS {
+        h = eat32(h, st.mem[i]);
+        i += 1;
     }
     h
 }
@@ -943,6 +1094,31 @@ mod tests {
         assert_eq!(core::mem::size_of::<ScoreJob>(), 80);
         assert_eq!(core::mem::size_of::<SlotCfg>(), 20);
         assert_eq!(core::mem::size_of::<CartEvent>(), 64);
+    }
+
+    #[test]
+    fn cart_step_code_round_trip() {
+        let all = [
+            Step::Continue,
+            Step::Verdict(verdict::PASS),
+            Step::Verdict(verdict::DROP),
+            Step::Yield,
+            Step::Halt,
+            Step::Fault(FaultKind::BadOpcode),
+            Step::Fault(FaultKind::Mem),
+            Step::Fault(FaultKind::Pc),
+            Step::Fault(FaultKind::Syscall),
+            Step::Fault(FaultKind::Field),
+            Step::Fault(FaultKind::Verdict),
+            Step::Fault(FaultKind::Budget),
+            Step::Fault(FaultKind::LoopBound),
+        ];
+        for s in all {
+            assert_eq!(code_step(step_code(s)), s);
+        }
+        assert_eq!(core::mem::size_of::<TraceHead>(), 464);
+        assert_eq!(core::mem::size_of::<TraceStep>(), 32);
+        assert_eq!(core::mem::size_of::<TraceEnd>(), 32);
     }
 
     #[test]

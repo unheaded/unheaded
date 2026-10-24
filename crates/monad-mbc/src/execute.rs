@@ -446,6 +446,15 @@ impl Cpu {
                 set_flags(self, result, false);
                 self.state.regs[dst] = result;
             }
+            // MULHU: unsigned high word (RV32M MULHU; monad-cpu-ebpf, C = 0).
+            // Was a NOP here until LICH-015's differential run found it.
+            op::MULHU => {
+                let a = self.state.regs[dst] as u64;
+                let b = self.state.regs[src] as u64;
+                let result = ((a * b) >> 32) as u32;
+                set_flags(self, result, false);
+                self.state.regs[dst] = result;
+            }
 
             // === Stack operations ===
             op::PUSH => {
@@ -1924,6 +1933,42 @@ mod tests {
         cpu.state.regs[1] = 2;
         cpu.execute_insn(alu(op::MULH, 0, 1)).unwrap();
         assert_eq!(cpu.state.regs[0], 0xFFFF_FFFF);
+    }
+
+    /// MULHU is the UNSIGNED high word with flags from the result and C = 0,
+    /// as monad-cpu-ebpf computes it (ADR-067; LICH-015 found the host
+    /// emulator treating it as a NOP).
+    #[test]
+    fn test_mulhu_matches_engine() {
+        let mut cpu = Cpu::new();
+        for (a, b) in [
+            (0x8000_0000u32, 2u32),
+            (0xFFFF_FFFF, 0xFFFF_FFFF),
+            (0x4000_0000, 4),
+            (0x1234_5678, 0x9ABC_DEF0),
+            (7, 6),
+            (0, 0xFFFF_FFFF),
+        ] {
+            cpu.state.regs[0] = a;
+            cpu.state.regs[1] = b;
+            cpu.state.flags = 0xFF;
+            cpu.execute_insn(alu(op::MULHU, 0, 1)).unwrap();
+            let want = ((a as u64 * b as u64) >> 32) as u32;
+            assert_eq!(cpu.state.regs[0], want, "{a:#x} * {b:#x}");
+            let mut f = 0u8;
+            if want == 0 {
+                f |= mf::Z;
+            }
+            if want & 0x8000_0000 != 0 {
+                f |= mf::N;
+            }
+            assert_eq!(cpu.state.flags, f, "{a:#x} * {b:#x} flags");
+        }
+        // Differs from the signed MULH exactly where an operand is negative.
+        cpu.state.regs[0] = 0x8000_0000;
+        cpu.state.regs[1] = 2;
+        cpu.execute_insn(alu(op::MULHU, 0, 1)).unwrap();
+        assert_eq!(cpu.state.regs[0], 1);
     }
 
     #[test]

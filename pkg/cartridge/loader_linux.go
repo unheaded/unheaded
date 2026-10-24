@@ -21,9 +21,6 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 )
 
-// DefaultPinDir is where Load pins the maps when asked to.
-const DefaultPinDir = "/sys/fs/bpf/unheaded/cart"
-
 // Options configure Load.
 type Options struct {
 	// PinDir pins every map by name under this directory (0700), so another
@@ -97,7 +94,7 @@ func Load(objPath string, opts Options) (*Cart, error) {
 
 // Map and program names in the object (and under a pin directory).
 var (
-	MapNames     = []string{"CART_ROM", "CART_DATA", "CART_SLOT", "FLOW_STATE", "FLOW_META", "SCORE_QUEUE", "TICK_JOB", "CART_EVENTS", "CART_STATS", "CART_CFG", "BREAKER", "ZERO_STATE"}
+	MapNames     = []string{"CART_ROM", "CART_DATA", "CART_SLOT", "FLOW_STATE", "FLOW_META", "SCORE_QUEUE", "TICK_JOB", "CART_EVENTS", "CART_STATS", "CART_CFG", "BREAKER", "ZERO_STATE", "CART_TRACE", "TRACE_SEQ"}
 	ProgramNames = []string{"cart_xdp", "cart_tick"}
 )
 
@@ -274,6 +271,76 @@ func (c *Cart) QueueNonEmpty() bool {
 	return c.m("SCORE_QUEUE").Lookup(nil, &b) == nil
 }
 
+// Trace opens a reader on CART_TRACE (records of traced runs).
+func (c *Cart) Trace() (*ringbuf.Reader, error) { return ringbuf.NewReader(c.m("CART_TRACE")) }
+
+// DrainTrace reads every record currently in CART_TRACE (non-blocking).
+func (c *Cart) DrainTrace(rd *ringbuf.Reader) ([][]byte, error) {
+	var out [][]byte
+	rd.SetDeadline(time.Now().Add(20 * time.Millisecond))
+	for {
+		rec, err := rd.Read()
+		if err != nil {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				return out, nil
+			}
+			return out, err
+		}
+		out = append(out, append([]byte(nil), rec.RawSample...))
+	}
+}
+
+// PopJob removes the oldest SCORE_QUEUE entry (ok = false when empty).
+func (c *Cart) PopJob() (ScoreJob, bool, error) {
+	var b []byte
+	err := c.m("SCORE_QUEUE").LookupAndDelete(nil, &b)
+	if errors.Is(err, ebpf.ErrKeyNotExist) {
+		return ScoreJob{}, false, nil
+	}
+	if err != nil {
+		return ScoreJob{}, false, err
+	}
+	j, err := DecodeScoreJob(b)
+	return j, err == nil, err
+}
+
+// PushJob appends a job to SCORE_QUEUE from user space (tests, benchmarks).
+func (c *Cart) PushJob(j ScoreJob) error {
+	return c.m("SCORE_QUEUE").Update(nil, j.MarshalBinary(), ebpf.UpdateAny)
+}
+
+// TickJob reads the tick stage's job in progress (or the last one finished).
+func (c *Cart) TickJob() (TickJob, error) {
+	var b []byte
+	if err := c.m("TICK_JOB").Lookup(uint32(0), &b); err != nil {
+		return TickJob{}, err
+	}
+	return DecodeTickJob(b)
+}
+
+// Pump drives the tick stage: cart_tick until a call finds no job (the
+// TICK_IDLE counter moves) or maxCalls. It returns the calls made.
+func (c *Cart) Pump(maxCalls int) (int, error) {
+	s, err := c.Stats()
+	if err != nil {
+		return 0, err
+	}
+	idle := s[StatTickIdle]
+	for calls := 0; calls < maxCalls; calls++ {
+		if err := c.Tick(); err != nil {
+			return calls, err
+		}
+		s, err := c.Stats()
+		if err != nil {
+			return calls, err
+		}
+		if s[StatTickIdle] > idle {
+			return calls + 1, nil
+		}
+	}
+	return maxCalls, nil
+}
+
 // AttachXDP attaches cart_xdp to iface ("generic" or "native" mode). The
 // link detaches when closed or when this process exits.
 func (c *Cart) AttachXDP(iface, mode string) (link.Link, error) {
@@ -309,6 +376,52 @@ func (c *Cart) DrainEvents(rd *ringbuf.Reader) ([]Event, error) {
 		}
 		out = append(out, ev)
 	}
+}
+
+// IPv6MonadPacket builds Ethernet/IPv6/Hop-by-Hop(Monad)/UDP of total length
+// n (>= 86): the HbH header carries one Monad option (0x3E, 20 bytes, version
+// 1, valid CRC-16/CCITT) with qos_class qos and flags fl. This is the frame
+// shape qos-ebpf's token-bucket path needs, so benchmarks compare the native
+// and cartridge rate limiters on the same bytes.
+func IPv6MonadPacket(flowLabel uint32, sport, dport uint16, qos, fl uint8, n int) []byte {
+	const hdr = 14 + 40 + 24 + 8
+	if n < hdr {
+		n = hdr
+	}
+	p := make([]byte, n)
+	binary.BigEndian.PutUint16(p[12:], 0x86DD)
+	ip := p[14:]
+	binary.BigEndian.PutUint32(ip[0:], 6<<28|flowLabel&0xFFFFF)
+	binary.BigEndian.PutUint16(ip[4:], uint16(n-54)) // #nosec G115 -- small test frames
+	ip[6], ip[7] = 0, 64                             // next header HbH, hop limit
+	ip[8], ip[23] = 0xfd, 1                          // fd00::1
+	ip[24], ip[39] = 0xfd, 2                         // fd00::2
+	hbh := ip[40:]
+	hbh[0], hbh[1], hbh[2], hbh[3] = 17, 2, 0x3E, 20 // UDP next, (2+1)*8 = 24 bytes
+	m := hbh[4:24]
+	m[0], m[8], m[11] = 1, qos, fl
+	binary.BigEndian.PutUint16(m[18:], crc16CCITT(m[:18]))
+	udp := hbh[24:]
+	binary.BigEndian.PutUint16(udp[0:], sport)
+	binary.BigEndian.PutUint16(udp[2:], dport)
+	binary.BigEndian.PutUint16(udp[4:], uint16(n-78)) // #nosec G115 -- small test frames
+	return p
+}
+
+// crc16CCITT is CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF), the Monad checksum.
+func crc16CCITT(b []byte) uint16 {
+	crc := uint16(0xFFFF)
+	for _, x := range b {
+		crc ^= uint16(x) << 8
+		for i := 0; i < 8; i++ {
+			if crc&0x8000 != 0 {
+				crc = crc<<1 ^ 0x1021
+			} else {
+				crc <<= 1
+			}
+		}
+	}
+	return crc
 }
 
 // Packet builders for tests and benchmarks (Ethernet + IPv4 + UDP/TCP).

@@ -181,3 +181,42 @@ func TestDecodeState(t *testing.T) {
 		t.Fatal("short state accepted")
 	}
 }
+
+func TestDecodeScoreJob(t *testing.T) {
+	t.Parallel()
+	b := make([]byte, ScoreJobSize)
+	b[0], b[32], b[36], b[37], b[38] = 10, 0x35, 17, 4, 1 // src[0], sport lo, proto, l3, slot
+	for i := 0; i < FeatWords; i++ {
+		binary.LittleEndian.PutUint32(b[40+4*i:], uint32(100+i)) // #nosec G115 -- i < 8
+	}
+	b[72] = 1
+	binary.LittleEndian.PutUint32(b[76:], 0xCAFE)
+	j, err := DecodeScoreJob(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.Flow.Src[0] != 10 || j.Flow.Sport != 0x35 || j.Flow.Proto != 17 || j.Flow.L3 != 4 || j.Flow.Slot != 1 {
+		t.Fatalf("flow %+v", j.Flow)
+	}
+	if j.Feat[0] != 100 || j.Feat[7] != 107 || j.SrcSlot != 1 || j.EnqNSLo != 0xCAFE {
+		t.Fatalf("job %+v", j)
+	}
+	if _, err := DecodeScoreJob(b[:79]); err == nil {
+		t.Fatal("short job accepted")
+	}
+	if got := j.MarshalBinary(); string(got) != string(b) {
+		t.Fatalf("round trip differs:\n%x\n%x", got, b)
+	}
+	tj := make([]byte, TickJobSize)
+	binary.LittleEndian.PutUint32(tj[0:], 1)
+	binary.LittleEndian.PutUint32(tj[4:], 2)
+	copy(tj[16:], b)
+	binary.LittleEndian.PutUint32(tj[16+ScoreJobSize+64:], 99) // state.mem[0]
+	k, err := DecodeTickJob(tj)
+	if err != nil || k.Active != 1 || k.Slot != 2 || k.Job != j || k.State.Mem[0] != 99 {
+		t.Fatalf("%+v %v", k, err)
+	}
+	if _, err := DecodeTickJob(tj[1:]); err == nil {
+		t.Fatal("short tick job accepted")
+	}
+}

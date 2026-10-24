@@ -51,6 +51,40 @@ impl CartIo for LogIo<'_> {
     }
 }
 
+/// Host model of `cart_xdp`'s per-flow FLOW_META (FIELD 7–9) for one flow:
+/// feed it the packets of one flow in order and it fills in what the BPF
+/// program would compute (`iat_bucket` from the full 64-bit clock, counts
+/// including the packet itself, saturating byte count).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FlowMetaSim {
+    last_ns: u64,
+    pkts: u32,
+    bytes: u32,
+}
+
+impl FlowMetaSim {
+    /// The run input for the next packet of this flow: `base` supplies
+    /// FIELD 0–6 and 10–12 (FIELD 4 is the packet length); 7–9 are computed.
+    pub fn packet(&mut self, now_ns: u64, base: [u32; FIELD_COUNT as usize]) -> PacketInput {
+        use monad_common::cart::{field, iat_bucket};
+        let len = base[field::PKT_LEN as usize];
+        let mut fields = base;
+        if self.pkts == 0 {
+            fields[field::IAT_BUCKET as usize] = 0;
+            self.pkts = 1;
+            self.bytes = len;
+        } else {
+            fields[field::IAT_BUCKET as usize] = iat_bucket(now_ns.wrapping_sub(self.last_ns));
+            self.pkts = self.pkts.saturating_add(1);
+            self.bytes = self.bytes.saturating_add(len);
+        }
+        self.last_ns = now_ns;
+        fields[field::FLOW_PKT_COUNT as usize] = self.pkts;
+        fields[field::FLOW_BYTE_COUNT as usize] = self.bytes;
+        PacketInput { fields, now_ns }
+    }
+}
+
 /// One XDP-stage run for one packet. `st` carries the flow's state between
 /// packets (its `mem` persists; registers reset).
 pub fn run_packet(img: &Image, st: &mut CartState, input: &PacketInput) -> Outcome {

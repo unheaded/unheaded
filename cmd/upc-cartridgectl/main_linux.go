@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -23,6 +24,7 @@ import (
 
 	"unheaded/pkg/cartridge"
 	"unheaded/pkg/gungnir"
+	"unheaded/pkg/ports"
 )
 
 type globals struct {
@@ -117,8 +119,16 @@ func main() {
 		err = cmdPump(g, args[1:])
 	case "serve":
 		err = cmdServe(g, args[1:])
+	case "record":
+		err = cmdRecord(g, args[1:])
+	case "replay":
+		err = cmdReplay(g, args[1:])
 	default:
 		err = fmt.Errorf("unknown command %q", args[0])
+	}
+	var ee *exitError
+	if errors.As(err, &ee) {
+		os.Exit(ee.code) // cart replay already reported
 	}
 	if err != nil {
 		fatal("%s: %v", args[0], err)
@@ -488,7 +498,7 @@ func cmdPump(g *globals, args []string) error {
 
 func cmdServe(g *globals, args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	addr := fs.String("metrics-addr", "127.0.0.1:26610", "metrics/health listen address (loopback by default)")
+	addr := fs.String("metrics-addr", "127.0.0.1:"+strconv.Itoa(ports.UPCCartridgeMetrics), "metrics/health listen address (loopback by default)")
 	iface := fs.String("xdp-iface", "", "attach cart_xdp here while serving (the link is gone when this exits)")
 	mode := fs.String("xdp-mode", "generic", "generic | native")
 	_ = fs.Parse(args)

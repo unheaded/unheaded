@@ -1233,31 +1233,48 @@ Seal + validator on the same in-memory bytes · `-race` green · permissions che
 **Time**: ~2.5 h
 **Agent**: Developer [P]
 
-- [ ] **Step 329** [R] ~10m: Read the native token bucket in `ebpf/qos-ebpf/src/main.rs` (refill-by-elapsed, fits-check) — the correctness oracle
-- [ ] **Step 330** [DESIGN][W] ~10m: `cartridges/ratelimit.s` spec: flow state in `mem` = {tokens:u32 (fixed-point ×256), last_ns:u32}; syscalls: `now_ns_lo`, `field(LEN)`; refill = min(burst, tokens + (now−last)×rate>>K); if tokens ≥ cost → tokens−=cost, VERDICT PASS; else VERDICT DROP; params (rate, burst, cost) in DATA
-- [ ] **Step 331** [W][CODE] ~30m: Write `cartridges/ratelimit.s` (hand MBC asm) + `cartridges/ratelimit.data.bin` (rate/burst/cost); keep ≤ 64 instructions, forward-only branches
-- [ ] **Step 332** [B] ~2m: `cart build --stage xdp --asm cartridges/ratelimit.s --data cartridges/ratelimit.data.bin -o "$S5/ratelimit.cart" && cart validate "$S5/ratelimit.cart"`
-- [ ] **Step 333** [V] ~30s: Validates; `max_insn` reported ≤ 64; no back-edges
-- [ ] **Step 334** [W][TEST] ~25m: Reference-runner tests: 0 tokens → DROP; full bucket → N passes then DROP; refill after a time gap → passes resume; identical verdicts to a tiny Go re-implementation of the `qos-ebpf` math on the same input trace
-- [ ] **Step 335** [V] ~1m: Verdict sequence matches the qos-ebpf math exactly over a 1,000-packet trace
+- [x] **Step 329** [R] ~10m: Read the native token bucket in `ebpf/qos-ebpf/src/main.rs` (refill-by-elapsed, fits-check) — the correctness oracle
+  - S5 2026-10-23 (session 3): Oracle read: first packet of a flow passes with tokens = sat(cap − len); later, add = (elapsed_ns / 8000) × rate_mbps, refill only when add > 0 (then `last = now`), DROP if tokens < len. Unit: bytes, u64.
+- [x] **Step 330** [DESIGN][W] ~10m: `cartridges/ratelimit.s` spec: flow state in `mem` = {tokens:u32 (fixed-point ×256), last_ns:u32}; syscalls: `now_ns_lo`, `field(LEN)`; refill = min(burst, tokens + (now−last)×rate>>K); if tokens ≥ cost → tokens−=cost, VERDICT PASS; else VERDICT DROP; params (rate, burst, cost) in DATA
+  - S5 2026-10-23: Deviation (oracle wins): tokens in bytes, cost = FIELD pkt_len, refill = qos-ebpf's /8000 exactly, so verdicts can match bit for bit. No DIV: elapsed/8000 = MULH(elapsed>>6, ceil(2^35/125))>>3 (exhaustive over 2^26). The 32-bit clock wraps at 4.29 s: FIELD iat_bucket ≥ 22 (idle ≥ 4.19 s) = full bucket, exact when cap ≤ 524,287 × rate_mbps (rate ≤ 8,000). DATA = {rate_mbps, cap, M}; mem = {tokens, last_lo, init}.
+- [x] **Step 331** [W][CODE] ~30m: Write `cartridges/ratelimit.s` (hand MBC asm) + `cartridges/ratelimit.data.bin` (rate/burst/cost); keep ≤ 64 instructions, forward-only branches
+  - S5 2026-10-23: Written; 57 words, longest path 41 instructions. DATA default 100 Mbps, cap 12,500 B (qos-ebpf's 1 ms default burst).
+- [x] **Step 332** [B] ~2m: `cart build --stage xdp --asm cartridges/ratelimit.s --data cartridges/ratelimit.data.bin -o "$S5/ratelimit.cart" && cart validate "$S5/ratelimit.cart"`
+- [x] **Step 333** [V] ~30s: Validates; `max_insn` reported ≤ 64; no back-edges
+  - S5 2026-10-23: `OK stage=xdp max_insn=64 back_edges=false syscalls=[0, 1, 2]`, 292 bytes.
+- [x] **Step 334** [W][TEST] ~25m: Reference-runner tests: 0 tokens → DROP; full bucket → N passes then DROP; refill after a time gap → passes resume; identical verdicts to a tiny Go re-implementation of the `qos-ebpf` math on the same input trace
+  - S5 2026-10-23: `crates/upc-cartridge/tests/ratelimit.rs` (Rust u64 re-implementation of the qos-ebpf bucket) + `pkg/cartridge/ratelimit_linux_test.go` (Go re-implementation, BPF side). `FlowMetaSim` models FIELD 7–9 host-side.
+- [x] **Step 335** [V] ~1m: Verdict sequence matches the qos-ebpf math exactly over a 1,000-packet trace
   - Mismatch → fix the cartridge (the native engine is the oracle); record the delta
-- [ ] **Step 336** [B][S][TEST] ~5m: Load in slot 0; test_run a crafted flow (same 5-tuple) at a controlled rate; read verdict counts
-- [ ] **Step 337** [V] ~1m: BPF verdicts == reference verdicts for the same trace (state hashes agree)
-- [ ] **Step 338** [B][S] ~5m: **Benchmark** — ns/pkt with ratelimit active, test_run repeat 1,000,000 × 5, median → `$S5/bench.csv`
-- [ ] **Step 339** [V][GATE] ~1m: **BENCHMARK GATE #1** — (a) overhead over b0_pass ≤ 150 ns/pkt; (b) within 3× of native `qos-ebpf` ns/pkt (a cartridge is interpreted — a fixed multiple, not parity, is the honest bar). Record pass/fail with numbers
+  - S5 2026-10-23: 30,000 packets (six rate/cap settings × five 1,000-packet traces with bursts, idles past the clock wrap, caps below one packet), 10,625 drops, 0 mismatches. Mutation check: changing the wrap threshold 22→31 or skipping the add==0 rule fails the test.
+- [x] **Step 336** [B][S][TEST] ~5m: Load in slot 0; test_run a crafted flow (same 5-tuple) at a controlled rate; read verdict counts
+- [x] **Step 337** [V] ~1m: BPF verdicts == reference verdicts for the same trace (state hashes agree)
+  - S5 2026-10-23: 1,000/1,000 BPF verdicts == Go qos-ebpf math (flood + quiet flow, fixed clock, gaps past the wrap); both flow hashes == `cart run`.
+- [x] **Step 338** [B][S] ~5m: **Benchmark** — ns/pkt with ratelimit active, test_run repeat 1,000,000 × 5, median → `$S5/bench.csv`
+  - S5 2026-10-23: Same IPv6 + Monad HbH frame for cartridge and native (`IPv6MonadPacket`, valid CRC), taskset -c 5, host loaded by other sessions (llama-server). Final: b0_pass_v6 154 ns; ratelimit 343 ns (pass regime) / 334 ns (drop regime), 35.3 / 33.3 insns per packet; native qos-ebpf bucket path 299 / 325 ns. `$S5/p13-bench-final.txt`.
+- [x] **Step 339** [V][GATE] ~1m: **BENCHMARK GATE #1** — (a) overhead over b0_pass ≤ 150 ns/pkt; (b) within 3× of native `qos-ebpf` ns/pkt (a cartridge is interpreted — a fixed multiple, not parity, is the honest bar). Record pass/fail with numbers
   - Fail → Step 340
-- [ ] **Step 340** [D] ~20m: Profile: instruction count per packet (`cart_insns_total`/packets); if dominated by refill divide, switch to a shift-rate (power-of-two) param; re-bench. Two rounds, then record as a known limitation, not a blocker
-- [ ] **Step 341** [B][S] ~3m: Flood test_run beyond the rate; confirm DROP ratio matches the configured rate within 5%
-- [ ] **Step 342** [V] ~1m: Enforced rate within 5% of configured
-- [ ] **Step 343** [SECURITY] ~5m: A flow cannot starve others (per-flow state keyed by 5-tuple; LRU eviction bounded; no shared counter)
-- [ ] **Step 344** [V] ~30s: Two flows rate-limited independently in one run
-- [ ] **Step 345** [B][S][TEST] ~2m: Regression harness (object/loader may have changed)
-- [ ] **Step 346** [V] ~30s: `== ALL GREEN ==`
-- [ ] **Step 347** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: (a) **FAIL**: 189 ns (pass) / 180 ns (drop) over b0_pass (first measurement 357 ns, before Step 340). (b) **PASS**: 1.15× / 1.03× native qos-ebpf's token-bucket path.
+- [x] **Step 340** [D] ~20m: Profile: instruction count per packet (`cart_insns_total`/packets); if dominated by refill divide, switch to a shift-rate (power-of-two) param; re-bench. Two rounds, then record as a known limitation, not a blocker
+  - S5 2026-10-23: Not divide-bound (the /8000 is 4 cheap insns of 35). The cost is the interpreter: a 60×NOP cartridge measured 8.1 ns per instruction, mostly the per-step bpf_loop callback. Round 1: `cart_loop_cb` runs 4 steps per iteration → 4.3 ns/NOP (verifier 24,986 / 63,906). Round 2: 8 per iteration → 3.7 ns/NOP for 2× the verified callback; kept 4. **Known limitation**: ~4–7 ns per interpreted instruction; a 35-instruction cartridge cannot meet a 150 ns overhead bar on this host. Not a blocker (plan rule).
+- [x] **Step 341** [B][S] ~3m: Flood test_run beyond the rate; confirm DROP ratio matches the configured rate within 5%
+- [x] **Step 342** [V] ~1m: Enforced rate within 5% of configured
+  - S5 2026-10-23: Fixed clock, 1,000 B every 24 µs (333 Mbps offered): 99.99 Mbps enforced, 6,012 passes == qos-ebpf math. Finding: at 20 µs spacing qos-ebpf's refill (and so the cartridge, matching it 4,012 == 4,012) enforces 80 Mbps, because each refill drops the remainder of elapsed/8000; logged, oracle not changed. Real-clock flood (2M test_runs): 96.0 Mbps (same remainder loss + wall-clock overhead; bound −10 %).
+  - S5 2026-10-23 (session 4): qos-ebpf fixed on `develop` (`8ab534b3`, remainder carries); the cartridge and both oracles follow it: 20 µs and 24 µs both enforce 99.99 Mbps, 1,000/1,000 BPF verdicts == oracle, longest path 46 of 64, real-clock flood 97.62 Mbps.
+- [x] **Step 343** [SECURITY] ~5m: A flow cannot starve others (per-flow state keyed by 5-tuple; LRU eviction bounded; no shared counter)
+  - S5 2026-10-23: State is FLOW_STATE[5-tuple + slot] (LRU, 65,536); the cartridge has no cross-flow memory and no shared counter; FLOW_META is per flow too.
+- [x] **Step 344** [V] ~30s: Two flows rate-limited independently in one run
+  - S5 2026-10-23: BPF: flood dropped 790 of its packets, the interleaved quiet flow 0. Reference: a quiet flow's verdicts are identical with and without an interleaved flood.
+- [x] **Step 345** [B][S][TEST] ~2m: Regression harness (object/loader may have changed)
+- [x] **Step 346** [V] ~30s: `== ALL GREEN ==`
+  - S5 2026-10-23: ALL GREEN: ascend 926,542 and Doom 761,580 (unchanged), cart_xdp 24,986, cart_tick 63,906, 18 root tests. (A first harness run in the fresh worktree, before any object existed, failed every xv6/Doom boot; the rerun on the same tree passed. Not reproduced since.)
+- [x] **Step 347** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add cartridges crates/upc-cartridge "$PROJECT_ROOT/references/s5-upc-wire-log.md" && commitp -m "feat(cartridge): [S5 329-347] token-bucket rate limiter + benchmark gate"
   ```
-- [ ] **Step 348** [V][GATE] ~1m: **PHASE 13 EXIT GATE** — correct vs qos-ebpf, BPF==reference, benchmark gate scored, independent per-flow, harness green
+  - S5 2026-10-23: `0594cd7b` (code) + the Phase 13 gate commit.
+- [x] **Step 348** [V][GATE] ~1m: **PHASE 13 EXIT GATE** — correct vs qos-ebpf, BPF==reference, benchmark gate scored, independent per-flow, harness green
+  - S5 2026-10-23: PASSED with Gate #1(a) recorded as a known limitation (Step 340).
 
 ### Phase 13 Definition of Done
 Correctness oracle = qos-ebpf · benchmark gate scored with numbers · per-flow isolation proven · harness green.
@@ -1271,27 +1288,37 @@ Correctness oracle = qos-ebpf · benchmark gate scored with numbers · per-flow 
 **Time**: ~2 h
 **Agent**: Developer [P]
 
-- [ ] **Step 349** [DESIGN][W] ~10m: `cartridges/sampler.s` spec: per-flow counter in `mem`; every Nth packet (N in DATA) → EMIT a sample event (flow key + packet count + byte count + first-seen) to `CART_EVENTS` and push a `ScoreJob` (features: pkt_len, iat_bucket, flags, counts) to `SCORE_QUEUE`; VERDICT always PASS; **never writes the Monad header** (contrast KF11)
-- [ ] **Step 350** [W][CODE] ~25m: Write `cartridges/sampler.s` + DATA (N, feature field ids); ≤ 64 insns
-- [ ] **Step 351** [B] ~2m: `cart build … -o "$S5/sampler.cart" && cart validate "$S5/sampler.cart"`
-- [ ] **Step 352** [V] ~30s: Validates (XDP stage, ≤ 64 insns, only EMIT/QUEUE syscalls)
-- [ ] **Step 353** [W][TEST] ~20m: Reference tests: exactly every Nth packet emits; counts correct; queue job carries the right feature snapshot; determinism (same trace → same emit set)
-- [ ] **Step 354** [V] ~1m: 1:N exact; feature snapshot matches
-- [ ] **Step 355** [B][S][TEST] ~5m: Load slot 1 (alongside ratelimit slot 0); test_run a mixed trace; read events + queue depth
-- [ ] **Step 356** [V] ~1m: Sample events at 1:N; `SCORE_QUEUE` depth grows; ratelimit in slot 0 still correct (slots independent)
-- [ ] **Step 357** [V] ~30s: BPF emit set == reference emit set (deterministic)
-- [ ] **Step 358** [B][S] ~5m: **Benchmark** — ns/pkt with sampler active (and with both slots active), 5 × 1,000,000, median
-- [ ] **Step 359** [V][GATE] ~1m: **BENCHMARK GATE #2** — sampler overhead over b0_pass ≤ 120 ns/pkt; two slots active ≤ sum of each + 10%. Record numbers
-- [ ] **Step 360** [SECURITY] ~5m: The event carries flow metadata only (5-tuple, counts, timestamps) — no payload bytes; confirm against the ABI field list (Sacred Principle)
-- [ ] **Step 361** [V] ~30s: Event layout has no payload field
-- [ ] **Step 362** [B][S][TEST] ~2m: Queue overflow — flood so `SCORE_QUEUE` fills
-- [ ] **Step 363** [V] ~30s: Overflow drops counted (`cart_queue_drops_total`), no fault, XDP still PASS
-- [ ] **Step 364** [B][S][TEST] ~2m: Regression harness
-- [ ] **Step 365** [V] ~30s: `== ALL GREEN ==`
-- [ ] **Step 366** [C][GATE] ~1m: **PHASE 14 EXIT GATE / COMMIT** — 1:N exact, metadata-only events, benchmark gate scored, queue feeds the scorer
+- [x] **Step 349** [DESIGN][W] ~10m: `cartridges/sampler.s` spec: per-flow counter in `mem`; every Nth packet (N in DATA) → EMIT a sample event (flow key + packet count + byte count + first-seen) to `CART_EVENTS` and push a `ScoreJob` (features: pkt_len, iat_bucket, flags, counts) to `SCORE_QUEUE`; VERDICT always PASS; **never writes the Monad header** (contrast KF11)
+  - S5 2026-10-23 (session 3): A CartEvent has two value words, so first-seen is its own event ('F', once per flow, its 64-bit `ts_ns` is the first-seen time); the sample event is 'S' {a = flow_pkt_count, b = flow_byte_count}. Snapshot = window features: f0 bytes, f1 iat_bucket sum, f2 SYN count, f3 max length, f4 flow_pkts, f5 l4_proto, f6 dst_port, f7 OR of TCP flags.
+- [x] **Step 350** [W][CODE] ~25m: Write `cartridges/sampler.s` + DATA (N, feature field ids); ≤ 64 insns
+  - S5 2026-10-23: DATA = N only (shipped 8; the feature set is fixed in code). Longest path 67 at first draft (Budget fault in the test), cut to 62 of 64 (`SHL 30; SHR 31` for the SYN bit, the first-seen flag reuses the kind register, window counter reset by `ST r15`).
+- [x] **Step 351** [B] ~2m: `cart build … -o "$S5/sampler.cart" && cart validate "$S5/sampler.cart"`
+- [x] **Step 352** [V] ~30s: Validates (XDP stage, ≤ 64 insns, only EMIT/QUEUE syscalls)
+  - S5 2026-10-23: `syscalls=[0, 2, 3, 4]` (FIELD, VERDICT, EMIT, QUEUE), no back-edges, 324 bytes.
+- [x] **Step 353** [W][TEST] ~20m: Reference tests: exactly every Nth packet emits; counts correct; queue job carries the right feature snapshot; determinism (same trace → same emit set)
+- [x] **Step 354** [V] ~1m: 1:N exact; feature snapshot matches
+  - S5 2026-10-23: `tests/sampler.rs`: N = 1, 2, 5, 8, 100 over 1,000 packets, every emit and snapshot equal to an independent model of the contract; same trace twice → same events and hashes; longest path measured at 62.
+- [x] **Step 355** [B][S][TEST] ~5m: Load slot 1 (alongside ratelimit slot 0); test_run a mixed trace; read events + queue depth
+- [x] **Step 356** [V] ~1m: Sample events at 1:N; `SCORE_QUEUE` depth grows; ratelimit in slot 0 still correct (slots independent)
+- [x] **Step 357** [V] ~30s: BPF emit set == reference emit set (deterministic)
+  - S5 2026-10-23: 600 packets over three flows: 77 events, 74 queued snapshots (`queue_ok` 74) and 3/3 flow hashes equal `cart run`; the rate limiter beside it 600/600 verdicts == qos-ebpf math.
+- [x] **Step 358** [B][S] ~5m: **Benchmark** — ns/pkt with sampler active (and with both slots active), 5 × 1,000,000, median
+- [x] **Step 359** [V][GATE] ~1m: **BENCHMARK GATE #2** — sampler overhead over b0_pass ≤ 120 ns/pkt; two slots active ≤ sum of each + 10%. Record numbers
+  - S5 2026-10-23: Clean run (noise ≤ 2.7 %, IPv4 TCP frame): b0_pass 147, sampler 360 (37.9 insns/pkt), ratelimit 342, both 617 ns. Sampler overhead **213 ns: FAIL** (gate 120). Two slots: 470 ns vs 408 ns sum (+10 % = 448): **FAIL by 5 %**. Same cause as Gate #1 (≈ 5 ns per interpreted instruction, Step 340); earlier runs under heavy host load (load average up to 41) gave 288–348 ns. Queue and event ring are full in steady state (nothing drains them during the run), so this is the counted-drop path.
+- [x] **Step 360** [SECURITY] ~5m: The event carries flow metadata only (5-tuple, counts, timestamps) — no payload bytes; confirm against the ABI field list (Sacred Principle)
+- [x] **Step 361** [V] ~30s: Event layout has no payload field
+  - S5 2026-10-23: CartEvent = {ts_ns, FlowKey, kind, a, b, slot, stage}; ScoreJob = {FlowKey, 8 feature words from FIELD 1/3/4/6/7/8/9 only, src_slot, enq_ns_lo}. No FIELD id or syscall reads payload.
+- [x] **Step 362** [B][S][TEST] ~2m: Queue overflow — flood so `SCORE_QUEUE` fills
+- [x] **Step 363** [V] ~30s: Overflow drops counted (`cart_queue_drops_total`), no fault, XDP still PASS
+  - S5 2026-10-23: N = 1, 20,000 packets: queue_ok 16,384, queue_drops 3,616, events_dropped 16,361 (ring full, counted), faults 0, 20,000 PASS; 16,384 jobs popped after.
+- [x] **Step 364** [B][S][TEST] ~2m: Regression harness
+- [x] **Step 365** [V] ~30s: `== ALL GREEN ==`
+  - S5 2026-10-23: ALL GREEN (ascend 926,542, Doom 761,580, cart_xdp 24,986, cart_tick 63,906, 19 root tests).
+- [x] **Step 366** [C][GATE] ~1m: **PHASE 14 EXIT GATE / COMMIT** — 1:N exact, metadata-only events, benchmark gate scored, queue feeds the scorer
   ```bash
   git -C "$PROJECT_ROOT" add cartridges crates/upc-cartridge references/s5-upc-wire-log.md && commitp -m "feat(cartridge): [S5 349-366] flow sampler + score queue + benchmark gate"
   ```
+  - S5 2026-10-23: PASSED with Gate #2 scored FAIL (interpreter limitation, as Gate #1). Code `d592f230`.
 
 ### Phase 14 Definition of Done
 1:N deterministic · events metadata-only · benchmark gate scored · queue bounded · harness green.
@@ -1305,43 +1332,65 @@ Correctness oracle = qos-ebpf · benchmark gate scored with numbers · per-flow 
 **Time**: ~5 h
 **Agent**: Coordinator + Developer + Scientist (model), Micromanager (the services/anomaly wiring)
 
-- [ ] **Step 367** [R] ~15m: Read `services/anomaly` scoring model (`TreeNode`, `RecordFlowScore`, `handleTopAnomalies`, `anomaly.scores` subscription) and the native `anomaly-ebpf` decision tree — both are oracles; note KF11 (SAMPLED overload + payload entropy) — the cartridge copies neither
-- [ ] **Step 368** [DECIDE][DESIGN] ~15m: **D-C6 — model shape under the tick budget (N_TICK=256)**
+- [x] **Step 367** [R] ~15m: Read `services/anomaly` scoring model (`TreeNode`, `RecordFlowScore`, `handleTopAnomalies`, `anomaly.scores` subscription) and the native `anomaly-ebpf` decision tree — both are oracles; note KF11 (SAMPLED overload + payload entropy) — the cartridge copies neither
+  - S5 2026-10-23 (session 3): services/anomaly subscribes to `anomaly.scores` but never reads it; `RecordFlowScore` keys by 5-tuple and alerts above 80. anomaly-ebpf: i16 depth-12 tree per packet, payload-byte entropy feature, SAMPLED overload (KF11). The cartridge uses neither: header-only features, scores leave by ringbuf.
+- [x] **Step 368** [DECIDE][DESIGN] ~15m: **D-C6 — model shape under the tick budget (N_TICK=256)**
+  - S5 2026-10-23: Decided per recommendation (8→16→1 int8 MLP). Correction to the estimate: a MAC is 3 instructions (`LDB` biased weight, `MUL`, `ADD`), not 1, so a job is ~720 instructions = 3 tick calls (budget-out is an implicit YIELD), not one. Override not needed: the throughput gate is met (Step 378).
   - **RECOMMENDATION**: a 2-layer int8 MLP, input 8 features → hidden 16 (ReLU) → 1 logit, weights as int8 in DATA (8×16 + 16 = 144 B) + int32 biases; MAC via `MUL`+`SAR` accumulate. ~8×16 + 16 MACs ≈ 144 ≤ N_TICK. ~2 KB target met with quantization metadata + a second slot's worth of headroom.
   - Rationale: fits the per-flow tick budget; int8 avoids float (BPF + determinism); 8 features match the sampler snapshot.
   - **Override ONLY if**: 256 insns is too tight → quantized depth-8 decision tree (matches `anomaly-ebpf`, fewer ops), or raise N_TICK (re-run the Phase 11 verifier gate), or (last resort, full ISA spec gate) add a `DOT4` opcode in a follow-on sprint — NOT this one
-- [ ] **Step 369** [W][CODE] ~40m: `crates/upc-cartridge/src/bin/trainquant.rs` (host, std): train/quantize a tiny MLP on a labelled feature CSV (benign vs synthetic-anomalous flows derived from the sampler's feature definition), export int8 weights + scales to `.cart` DATA + a JSON sidecar. No GPU, no new deps (pure-Rust fixed-point)
-- [ ] **Step 370** [W][CODE] ~30m: `cartridges/scorer.s` (tick stage): load features from the ScoreJob into `mem`, run the int8 MLP from DATA, EMIT `{flow_key, score 0..100, model_id}`; declared loop bound = hidden size
-- [ ] **Step 371** [B] ~2m: `cart build --stage tick … -o "$S5/scorer.cart" && cart validate "$S5/scorer.cart"`
-- [ ] **Step 372** [V] ~30s: Validates (tick stage, declared bound, data ≤ 4096 B, total image ~2 KB)
-- [ ] **Step 373** [W][TEST] ~30m: Reference tests: score monotonic in the obvious feature (e.g. extreme packet size → higher score); quantized output within 2 of the float model over 1,000 vectors (the quantization-accuracy gate, mirroring app12's "within 2%")
-- [ ] **Step 374** [V] ~1m: Quantization error ≤ 2 points on ≥ 99% of vectors
-- [ ] **Step 375** [B][S][TEST] ~5m: Load scorer in the tick slot; `upc-cartridgectl pump` drains `SCORE_QUEUE` filled by the sampler; read score events
-- [ ] **Step 376** [V] ~1m: Every sampled flow gets exactly one score event; BPF tick score == reference score (hash agreement)
-- [ ] **Step 377** [B][S] ~5m: **Benchmark** — scorer tick throughput (flows/s) via test_run repeat on `cart_tick`
-- [ ] **Step 378** [V][GATE] ~1m: **BENCHMARK GATE #3** — ≥ 100,000 flows/s scored on one core AND the XDP path (sampler) overhead unchanged from Gate #2 (scoring is off the packet path). Record numbers
+- [x] **Step 369** [W][CODE] ~40m: `crates/upc-cartridge/src/bin/trainquant.rs` (host, std): train/quantize a tiny MLP on a labelled feature CSV (benign vs synthetic-anomalous flows derived from the sampler's feature definition), export int8 weights + scales to `.cart` DATA + a JSON sidecar. No GPU, no new deps (pure-Rust fixed-point)
+  - S5 2026-10-23: `trainquant gen` (ten synthetic families — web client, download, DNS, SSH, QUIC; SYN flood, UDP flood, stealth scan, RST storm, beacon — run through the real sampler cartridge on the reference runner; no capture, no payload), `fit` (f64 MLP + Adam, then int8 quantization; activation shifts calibrated on train only), `control` (shuffled labels). Library: `upc_cartridge::scorer`. Training is f64 on the host; the deployed path is integer only.
+- [x] **Step 370** [W][CODE] ~30m: `cartridges/scorer.s` (tick stage): load features from the ScoreJob into `mem`, run the int8 MLP from DATA, EMIT `{flow_key, score 0..100, model_id}`; declared loop bound = hidden size
+  - S5 2026-10-23: First-layer weights stored +128 (u8) so one LDB reads each, minus a 128·Σx correction per job; per-row requantization shift; rounding offsets folded into the biases (exact); 256-entry sigmoid table. EMIT 'A' {a = score, b = model id}; the flow key rides in the event record.
+- [x] **Step 371** [B] ~2m: `cart build --stage tick … -o "$S5/scorer.cart" && cart validate "$S5/scorer.cart"`
+- [x] **Step 372** [V] ~30s: Validates (tick stage, declared bound, data ≤ 4096 B, total image ~2 KB)
+  - S5 2026-10-23: `stage=tick rom=117 data=133 max_insn=256 back_edges=true syscalls=[3]`, loop bound 16, image 1,052 bytes (DATA 532): about 1 KB, under the ~2 KB target.
+- [x] **Step 373** [W][TEST] ~30m: Reference tests: score monotonic in the obvious feature (e.g. extreme packet size → higher score); quantized output within 2 of the float model over 1,000 vectors (the quantization-accuracy gate, mirroring app12's "within 2%")
+  - S5 2026-10-23: `tests/scorer.rs`. Monotone from three benign windows: the score never falls as the window's largest packet shrinks or its packets arrive faster (web: 1 → 74, SSH iat: 1 → 99). Found: the score ignores the SYN count (flood families are already separated by size, timing and flags) and is not monotone in window bytes far outside the training range; logged.
+- [x] **Step 374** [V] ~1m: Quantization error ≤ 2 points on ≥ 99% of vectors
+  - S5 2026-10-23: **PASS**: within 2 points on 99.83 % of 4,585 held-out vectors (max 5, mean 0.86).
+- [x] **Step 375** [B][S][TEST] ~5m: Load scorer in the tick slot; `upc-cartridgectl pump` drains `SCORE_QUEUE` filled by the sampler; read score events
+- [x] **Step 376** [V] ~1m: Every sampled flow gets exactly one score event; BPF tick score == reference score (hash agreement)
+  - S5 2026-10-23: Sampler-fed BPF run: 18 jobs queued, 18 score events in 55 cart_tick calls, scores and order == `cart tick`, last-job state hash == reference. Reference: cartridge == `QModel::score` on 6,585 vectors (held-out + random/extreme).
+- [x] **Step 377** [B][S] ~5m: **Benchmark** — scorer tick throughput (flows/s) via test_run repeat on `cart_tick`
+- [x] **Step 378** [V][GATE] ~1m: **BENCHMARK GATE #3** — ≥ 100,000 flows/s scored on one core AND the XDP path (sampler) overhead unchanged from Gate #2 (scoring is off the packet path). Record numbers
   - Fail → Step 379
-- [ ] **Step 379** [D] ~20m: If flows/s low: reduce hidden to 8, or batch dequeue in the pump; if XDP overhead moved, the scorer leaked onto the packet path — fix the stage. Two rounds, then record
-- [ ] **Step 380** [V][PREFLIGHT] ~2m: **H-C1 re-check** — confirm `services/anomaly` still has no binary before adding one
-- [ ] **Step 381** [W][CODE] ~30m: `cmd/anomaly` (Go): the first binary for `services/anomaly` (CLAUDE.md service scaffold — health/ready/metrics/Wotan); it reads score events from the cartridge (via `pkg/cartridge` ringbuf reader) and calls `RecordFlowScore`, and/or publishes `anomaly.scores` to Wotan which the service already subscribes to
-- [ ] **Step 382** [W][CODE] ~15m: Bridge path: cartridge score event → `anomaly.scores` Wotan message (scratch Wotan from Phase 6, or in-process for the test) → `services/anomaly` `listenForAlerts`/score intake → `/api/v1/anomalies/top`
-- [ ] **Step 383** [B][TEST] ~3m: `cd "$PROJECT_ROOT" && go test -race ./cmd/anomaly/... ./services/anomaly/... 2>&1 | tail -6`
-- [ ] **Step 384** [V] ~30s: Green; `services/anomaly` now has an importer (KF3 half-closed)
-- [ ] **Step 385** [B][S][TEST] ~8m: End-to-end on west (scratch Wotan): craft a flow with anomalous features → sampler queues → scorer scores → `cmd/anomaly` → `services/anomaly` → `curl -s localhost:19018/api/v1/anomalies/top`
-- [ ] **Step 386** [V] ~1m: The anomalous flow appears in the top list with a score matching the cartridge's emission
-- [ ] **Step 387** [SECURITY] ~5m: The whole path carries flow metadata + a score, never payload (ABI enforces); `services/anomaly` isolation unchanged (ADR CLAUDE.md zero user data)
-- [ ] **Step 388** [V] ~30s: No payload field anywhere on the path
-- [ ] **Step 389** [W][DOC-UPDATE] ~5m: If D-C6 ever points at a DOT4 opcode, write the deferral note (full ISA spec gate, next sprint) — do not add it here
-- [ ] **Step 390** [B][S][TEST] ~2m: Regression harness
-- [ ] **Step 391** [V] ~30s: `== ALL GREEN ==`
-- [ ] **Step 392** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: **PASS**: 251,572 flows/s median (5 runs, 248,942–252,908; 1,325 ns per call, 3 calls per job). Sampler XDP 355 ns with the scorer slot active vs 352 ns without (+0.9 %).
+- [x] **Step 379** [D] ~20m: If flows/s low: reduce hidden to 8, or batch dequeue in the pump; if XDP overhead moved, the scorer leaked onto the packet path — fix the stage. Two rounds, then record
+  - S5 2026-10-23: Not needed.
+- [x] **Step 380** [V][PREFLIGHT] ~2m: **H-C1 re-check** — confirm `services/anomaly` still has no binary before adding one
+  - S5 2026-10-23: `NO IMPORTER`.
+- [x] **Step 381** [W][CODE] ~30m: `cmd/anomaly` (Go): the first binary for `services/anomaly` (CLAUDE.md service scaffold — health/ready/metrics/Wotan); it reads score events from the cartridge (via `pkg/cartridge` ringbuf reader) and calls `RecordFlowScore`, and/or publishes `anomaly.scores` to Wotan which the service already subscribes to
+  - S5 2026-10-23: `cmd/anomaly`: the service (health/ready/metrics, `--listen` default 127.0.0.1:19018) + a bridge from the pinned CART_EVENTS ring. `--wotan` publishes `anomaly.scores`; without it the same JSON goes to the service's intake in-process.
+- [x] **Step 382** [W][CODE] ~15m: Bridge path: cartridge score event → `anomaly.scores` Wotan message (scratch Wotan from Phase 6, or in-process for the test) → `services/anomaly` `listenForAlerts`/score intake → `/api/v1/anomalies/top`
+  - S5 2026-10-23: services/anomaly gains `IngestScore` (4 KiB cap, strict JSON, score 0..100, addresses parsed, ingested/rejected counters) and a `listenForScores` Wotan consumer. Wotan leg not run live (Phase 6 scratch Wotan deferred with the east escalation; stack down, KF5): in-process path used.
+- [x] **Step 383** [B][TEST] ~3m: `cd "$PROJECT_ROOT" && go test -race ./cmd/anomaly/... ./services/anomaly/... 2>&1 | tail -6`
+- [x] **Step 384** [V] ~30s: Green; `services/anomaly` now has an importer (KF3 half-closed)
+  - S5 2026-10-23: Green (red first: intake tests did not compile). KF3 half-closed.
+- [x] **Step 385** [B][S][TEST] ~8m: End-to-end on west (scratch Wotan): craft a flow with anomalous features → sampler queues → scorer scores → `cmd/anomaly` → `services/anomaly` → `curl -s localhost:19018/api/v1/anomalies/top`
+- [x] **Step 386** [V] ~1m: The anomalous flow appears in the top list with a score matching the cartridge's emission
+  - S5 2026-10-23: Real XDP (generic) on a veth whose peer is in netns `s5e`, three signed cartridges loaded through `upc-cartridgectl`: 400 × 1,400 B UDP flood + 16 slow DNS-like packets. Rate limiter dropped 381 flood packets; sampler queued 52 jobs; pump: 156 calls, 52 jobs; `cmd/anomaly` forwarded 52 scores; `/api/v1/anomalies/top`: flood 10.55.0.1:41002→:40000 score **99**, DNS-like flow score **1**; 0 rejected. Teardown verified (no cart programs, links, netns, pins). Script: `$S5/p15-e2e.sh`.
+- [x] **Step 387** [SECURITY] ~5m: The whole path carries flow metadata + a score, never payload (ABI enforces); `services/anomaly` isolation unchanged (ADR CLAUDE.md zero user data)
+- [x] **Step 388** [V] ~30s: No payload field anywhere on the path
+  - S5 2026-10-23: FIELD table → snapshot (8 header-derived words) → CartEvent {flow key, kind, score, model id} → ScoreMessage {flow_key, score, model_id, source, packet_count, timestamp_ms}; IngestScore refuses unknown fields (a `payload` key is a tested rejection).
+- [x] **Step 389** [W][DOC-UPDATE] ~5m: If D-C6 ever points at a DOT4 opcode, write the deferral note (full ISA spec gate, next sprint) — do not add it here
+  - S5 2026-10-23: Note in ADR-108 Non-goals: DOT4 would cut a job from ~720 to ~420 instructions (~1.7×); not needed for the gate; [ESCALATE] to the ISA's own spec gate if ever wanted.
+- [x] **Step 390** [B][S][TEST] ~2m: Regression harness
+- [x] **Step 391** [V] ~30s: `== ALL GREEN ==`
+  - S5 2026-10-23: ALL GREEN: ascend 926,542, Doom 761,580, cart_xdp 24,986, cart_tick 63,906, pkg/cartridge root tests green.
+- [x] **Step 392** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add cartridges crates/upc-cartridge cmd/anomaly services/anomaly references/s5-upc-wire-log.md && commitp -m "feat(cartridge): [S5 367-392] int8 anomaly scorer feeds services/anomaly"
   ```
-- [ ] **Step 393** [SPEC][V] ~5m: Spec gate recheck — `anomaly.scores` / `upc.cart.*` topics still provisional pending RFC Editor (Step 242); no wire change made
-- [ ] **Step 394** [W][DOC-UPDATE] ~5m: `wiki/UPC-Cartridges.md` + `docs/UNREACHED-GO-PACKAGES.md` (services/anomaly now reached)
-- [ ] **Step 395** [V] ~30s: Docs updated
-- [ ] **Step 396** [V][GATE] ~1m: **PHASE 15 EXIT GATE** — every sampled flow scored, BPF==reference, quantization gate met, scores reach services/anomaly's API, benchmark gate scored, Sacred Principle held
+  - S5 2026-10-23: `9404db47` (code) + the Phase 15 gate commit.
+- [x] **Step 393** [SPEC][V] ~5m: Spec gate recheck — `anomaly.scores` / `upc.cart.*` topics still provisional pending RFC Editor (Step 242); no wire change made
+  - S5 2026-10-23: `anomaly.scores` is used under its provisional name (`anomaly.ScoreTopic`), RFC Editor item 3 still open; no Monad byte changed, no opcode added (DOT4 deferred).
+- [x] **Step 394** [W][DOC-UPDATE] ~5m: `wiki/UPC-Cartridges.md` + `docs/UNREACHED-GO-PACKAGES.md` (services/anomaly now reached)
+- [x] **Step 395** [V] ~30s: Docs updated
+  - S5 2026-10-23: wiki page (cartridge table, scores path, costs, budgets), `cartridges/README.md`, UNREACHED list (services/anomaly reached by cmd/anomaly), ADR-108 DOT4 note.
+- [x] **Step 396** [V][GATE] ~1m: **PHASE 15 EXIT GATE** — every sampled flow scored, BPF==reference, quantization gate met, scores reach services/anomaly's API, benchmark gate scored, Sacred Principle held
+  - S5 2026-10-23: PASSED. Gate #3 PASS; quantization gate PASS; end to end on real XDP in a netns lab.
 
 ### Phase 15 Definition of Done
 Quantization gate ≤ 2 points · scoring off the packet path · services/anomaly reached by a real binary · no payload on the path · benchmark scored · no new deps.
@@ -1355,31 +1404,47 @@ Quantization gate ≤ 2 points · scoring off the packet path · services/anomal
 **Time**: ~3.5 h
 **Agent**: Developer (Scientist lens on determinism)
 
-- [ ] **Step 397** [R] ~10m: Read `services/anamnesis` event model + the Anamnesis Event Type registry (EVENT_COMPUTED 0x01); confirm the Phase 9 decision to reuse 0x01 with a cartridge sub-kind
-- [ ] **Step 398** [DESIGN][W] ~15m: Trace record (Appendix C.4): per recorded step, `{slot, gen, flow_key, pc, insn, input_fields, event_out?}`; plus one BORN record per run header with image sha, DATA sha, N, stage. Determinism contract: `state_{n+1} = step(state_n, input_n)` with inputs captured → replay needs only the image + the input log
-- [ ] **Step 399** [W][CODE] ~20m: `CART_CFG[trace]=1` makes `cart_xdp`/`cart_tick` emit a compact trace record per step to `CART_TRACE` (fields only, no payload); `upc-cartridgectl record --slot N --out run.anam` drains `CART_TRACE` to a file
-- [ ] **Step 400** [V][PREFLIGHT] ~2m: Trace volume bounded — tracing is sampled (`CART_CFG[trace_1_in]`) so a flood cannot overrun the ringbuf; default off
-- [ ] **Step 401** [W][CODE][TEST] ~40m: `crates/upc-cartridge` replay engine: load `run.anam` + the image; re-execute via `monad_common::cart::step`; after each step assert the replayed `state_hash` equals the recorded one; API `step()/back()/goto(n)/regs()/mem()/inspect()`
-- [ ] **Step 402** [V] ~1m: Replay of a recorded ratelimit run reproduces every state hash
-- [ ] **Step 403** [W][CODE] ~20m: `upc-cartridgectl replay run.anam [--step|--to N|--watch mem[addr]]` — a CLI time-travel debugger (prints the divergence step if an image/trace mismatch, the actual debugging value)
-- [ ] **Step 404** [B][TEST] ~3m: `cargo test --manifest-path "$PROJECT_ROOT/crates/upc-cartridge/Cargo.toml" replay 2>&1 | tail -6`
-- [ ] **Step 405** [V] ~30s: Green
-- [ ] **Step 406** [B][S][TEST] ~8m: Record a live ratelimit run (test_run with trace on), replay off-line
-- [ ] **Step 407** [V] ~1m: Final state + every verdict identical between live run and replay
-- [ ] **Step 408** [B][S][TEST] ~5m: Record a scorer tick run; replay; inspect the MLP accumulator at the step before EMIT
-- [ ] **Step 409** [V] ~1m: Replay reproduces the score; `--watch` shows the accumulator evolving (the "time-travel" payoff)
-- [ ] **Step 410** [B][TEST] ~5m: Negative — corrupt one byte of the recorded input log; replay must flag the exact divergent step
-- [ ] **Step 411** [V] ~1m: Divergence reported at the right step with recorded-vs-replayed hashes
-- [ ] **Step 412** [SECURITY] ~5m: Trace records carry fields + state, never payload; a trace file is as sensitive as flow metadata, documented
-- [ ] **Step 413** [V] ~30s: No payload in the trace schema
-- [ ] **Step 414** [B][S][TEST] ~2m: Regression harness
-- [ ] **Step 415** [V] ~30s: `== ALL GREEN ==`
-- [ ] **Step 416** [W][DOC-UPDATE] ~10m: `wiki/UPC-Cartridges.md` replay section + a short `docs/` note on the determinism contract
-- [ ] **Step 417** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 397** [R] ~10m: Read `services/anamnesis` event model + the Anamnesis Event Type registry (EVENT_COMPUTED 0x01); confirm the Phase 9 decision to reuse 0x01 with a cartridge sub-kind
+  - S5 2026-10-23 (session 3): `services/anamnesis` is a Go event store with string types (created/updated/…), no importer (KF3); the numeric registry is the foundation draft's. Decision stands: every trace record starts `0x01 0x43` (EVENT_COMPUTED + provisional cartridge sub-kind, RFC Editor item 2).
+- [x] **Step 398** [DESIGN][W] ~15m: Trace record (Appendix C.4): per recorded step, `{slot, gen, flow_key, pc, insn, input_fields, event_out?}`; plus one BORN record per run header with image sha, DATA sha, N, stage. Determinism contract: `state_{n+1} = step(state_n, input_n)` with inputs captured → replay needs only the image + the input log
+  - S5 2026-10-23: Inputs are constant per run, so they live once in the head: TraceHead 464 B {stage, slot, gen, run_id, clock, flow, FIELD table, starting CartState}; TraceStep 32 B {idx, pc, insn, step code, state_hash after}; TraceEnd 32 B {insns, code, final hash}. The image sha (whole .cart file, covering ROM + DATA) is per slot in the file header. Layout in ADR-108 §Records; contract `docs/architecture/cartridge-replay.md`.
+- [x] **Step 399** [W][CODE] ~20m: `CART_CFG[trace]=1` makes `cart_xdp`/`cart_tick` emit a compact trace record per step to `CART_TRACE` (fields only, no payload); `upc-cartridgectl record --slot N --out run.anam` drains `CART_TRACE` to a file
+  - S5 2026-10-23: CART_TRACE (1 MiB ringbuf), TRACE_SEQ (per-CPU), `cart_trace_step` and `cart_state_hash` as global BPF functions, records dropped on a full ring are counted (stat 39). Verifier traps on the way: a 3-byte zero store and an all-zero FIELD loop lowered to rejected `memset` calls (`--btf`); a 6-argument helper (BPF passes 5); the cart_xdp → slot → callback chain hit the 512-byte combined stack (cart_xdp's SlotArgs moved to a per-CPU map); hashing inlined at every site took cart_tick to 328,144 insns (global functions: 146,897). `record` traces all slots and writes each slot's .cart sha from slots.json; `--slot` belongs to `replay`.
+- [x] **Step 400** [V][PREFLIGHT] ~2m: Trace volume bounded — tracing is sampled (`CART_CFG[trace_1_in]`) so a flood cannot overrun the ringbuf; default off
+  - S5 2026-10-23: Off by default (20 packets, 0 records); `CART_CFG[TRACE] = 10` traced 20 of 200 runs; a 3M-packet test_run flood at 1-in-2000 recorded 1,499 runs with 0 drops.
+- [x] **Step 401** [W][CODE][TEST] ~40m: `crates/upc-cartridge` replay engine: load `run.anam` + the image; re-execute via `monad_common::cart::step`; after each step assert the replayed `state_hash` equals the recorded one; API `step()/back()/goto(n)/regs()/mem()/inspect()`
+  - S5 2026-10-23: `upc_cartridge::replay`: hostile-input UCTR parser, `replay()` mirrors `drive` (`run_one` × N then `run_out`) and checks pc, word, code and hash per step plus the end record; `Replayer` step/back/goto/regs/mem/inspect; host `record()` for tests.
+- [x] **Step 402** [V] ~1m: Replay of a recorded ratelimit run reproduces every state hash
+  - S5 2026-10-23: Host: 200 runs, 7,806 steps, every hash (98 drops among them).
+- [x] **Step 403** [W][CODE] ~20m: `upc-cartridgectl replay run.anam [--step|--to N|--watch mem[addr]]` — a CLI time-travel debugger (prints the divergence step if an image/trace mismatch, the actual debugging value)
+  - S5 2026-10-23: `cart replay X.cart TRACE [--slot] [--run] [--to N] [--watch rN|mem[A]] [--steps]` (exit 3 on divergence); `upc-cartridgectl replay TRACE --slot N` fetches the recorded image from the registry blobs (sha-checked) and runs it.
+- [x] **Step 404** [B][TEST] ~3m: `cargo test --manifest-path "$PROJECT_ROOT/crates/upc-cartridge/Cargo.toml" replay 2>&1 | tail -6`
+- [x] **Step 405** [V] ~30s: Green
+  - S5 2026-10-23: `tests/replay.rs` 5/5 (bit-exact, corrupted input, other image, corrupted hash, scorer time travel, hostile bytes ×5,000).
+- [x] **Step 406** [B][S][TEST] ~8m: Record a live ratelimit run (test_run with trace on), replay off-line
+- [x] **Step 407** [V] ~1m: Final state + every verdict identical between live run and replay
+  - S5 2026-10-23: `TestReplay_LiveRunsAreBitExact`: rate limiter + sampler + scorer, every run traced: 160 + 160 rate-limiter/sampler runs bit-exact, replayed verdicts == the 160 live XDP returns. Through the ctl on the real clock: `record --every 2000` during a 3M test_run flood → 1,499 runs, `replay --slot 0` → 1,499 bit-exact.
+- [x] **Step 408** [B][S][TEST] ~5m: Record a scorer tick run; replay; inspect the MLP accumulator at the step before EMIT
+- [x] **Step 409** [V] ~1m: Replay reproduces the score; `--watch` shows the accumulator evolving (the "time-travel" payoff)
+  - S5 2026-10-23: 66 scorer tick calls bit-exact; `--run 1 --watch r1` shows the row accumulator through the second call of a job (40+ changes), `--run 2 --to 188` stops before `SYSCALL 3 (EMIT)` with r2 = 0x63 (score 99) and r3 = the model id.
+- [x] **Step 410** [B][TEST] ~5m: Negative — corrupt one byte of the recorded input log; replay must flag the exact divergent step
+- [x] **Step 411** [V] ~1m: Divergence reported at the right step with recorded-vs-replayed hashes
+  - S5 2026-10-23: One bit of run 9's recorded pkt_len flipped in the file: `DIVERGED at step 2 (hash): recorded 0x72d236c4, replayed 0xb33fc8f4` (step 2 is the `SYSCALL 0` that reads it), the other 159 runs bit-exact, exit 3. A different image diverges at step 0 (`insn`).
+- [x] **Step 412** [SECURITY] ~5m: Trace records carry fields + state, never payload; a trace file is as sensitive as flow metadata, documented
+- [x] **Step 413** [V] ~30s: No payload in the trace schema
+  - S5 2026-10-23: Head = FIELD table + flow key + CartState (whose window holds only what the cartridge stored from FIELD values and the clock); steps/ends = pc, word, codes, hashes. Files 0600; documented in the contract note and the wiki.
+- [x] **Step 414** [B][S][TEST] ~2m: Regression harness
+- [x] **Step 415** [V] ~30s: `== ALL GREEN ==`
+  - S5 2026-10-23: ALL GREEN: ascend 926,542 and Doom 761,580 (unchanged since Phase 0), cart_xdp 42,743, cart_tick 146,897, 21 cartridge root tests. Goldens 12/12 SAME (TTY + stats). Doom translation byte-identical (`dcded746…`, rv2mbc `e7ab7b67…`, data `e1191add…`).
+- [x] **Step 416** [W][DOC-UPDATE] ~10m: `wiki/UPC-Cartridges.md` replay section + a short `docs/` note on the determinism contract
+  - S5 2026-10-23: wiki Replay section; `docs/architecture/cartridge-replay.md`; ADR-108 §Records gains the trace layout.
+- [x] **Step 417** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add crates/upc-cartridge cmd/upc-cartridgectl ebpf/cartridge-ebpf wiki/UPC-Cartridges.md && commitp -m "feat(cartridge): [S5 397-417] Anamnesis replay — bit-exact time-travel debug"
   ```
-- [ ] **Step 418** [V][GATE] ~1m: **PHASE 16 EXIT GATE** — record→replay bit-exact for both stages; divergence detection works; step/rewind/inspect usable; no payload in traces
+  - S5 2026-10-23: `4634796c` (code) + the Phase 16 gate commit.
+- [x] **Step 418** [V][GATE] ~1m: **PHASE 16 EXIT GATE** — record→replay bit-exact for both stages; divergence detection works; step/rewind/inspect usable; no payload in traces
+  - S5 2026-10-23: PASSED. Cost of the trace-capable object with tracing off (re-benched): rate limiter 347 ns (was 343), sampler 377 (was 360), scorer 230,521 flows/s (was 251,572); gate verdicts unchanged.
 
 ### Phase 16 Definition of Done
 Replay bit-exact · divergence detection proven · determinism contract documented · no payload in traces.
@@ -1393,27 +1458,41 @@ Replay bit-exact · divergence detection proven · determinism contract document
 **Time**: ~2 h
 **Agent**: Developer (BlackMage lens)
 
-- [ ] **Step 419** [R] ~5m: Read the existing fuzz surface and the ADR-062 process; re-read the KF4 banner so the hook is documented as real coverage (host engine), not a simulation
-- [ ] **Step 420** [W][CODE] ~30m: `crates/monad-mbc/fuzz/fuzz_targets/fuzz_cart_differential.rs`: random validated cartridge + random inputs → run on `monad_common::cart::step` and `monad-mbc` `execute.rs`; assert identical register/flag/mem traces; any divergence is a finding
-- [ ] **Step 421** [W][CODE] ~20m: `fuzz_cart_image.rs`: arbitrary bytes → `upc_cartridge::decode`+`validate`; must never panic (Err or Ok, never crash)
-- [ ] **Step 422** [B][TEST] ~6m: Run each 5 minutes
+- [x] **Step 419** [R] ~5m: Read the existing fuzz surface and the ADR-062 process; re-read the KF4 banner so the hook is documented as real coverage (host engine), not a simulation
+  - S5 2026-10-23 (session 4): Read the fuzz surface, ADR-062, KF4 and the Lich sprint's LICH-015 (`sprint/lich-awakens`, read with `git show`, not merged): its `diff_harness` already compares ExecCpu and the shared step on registers/flags/PC for ALU+branch programs (50,000 programs, 0 divergences). The hooks here extend it (memory windows, syscalls, EMIT/VERDICT, the BPF engine) rather than duplicate it.
+- [x] **Step 420** [W][CODE] ~30m: `crates/monad-mbc/fuzz/fuzz_targets/fuzz_cart_differential.rs`: random validated cartridge + random inputs → run on `monad_common::cart::step` and `monad-mbc` `execute.rs`; assert identical register/flag/mem traces; any divergence is a finding
+  - S5 2026-10-23: `upc_cartridge::diff` (generator + lockstep oracle, tests first: red on the missing module, then 6/6 green incl. an injected-bit-flip self-test) and `fuzz_cart_differential` (fuzz bytes = generator entropy). Syscalls are serviced on the host-emulator side from the same input; a cartridge fault ends the comparison (the sandbox refusing). `cart diff` CLI added (exit 3 on divergence).
+- [x] **Step 421** [W][CODE] ~20m: `fuzz_cart_image.rs`: arbitrary bytes → `upc_cartridge::decode`+`validate`; must never panic (Err or Ok, never crash)
+  - S5 2026-10-23: `fuzz_cart_image`: decode, validate, and run an accepted image; decode must be canonical. Second pass re-hashes the input, since the embedded sha256 otherwise rejects almost every mutation at decode.
+- [x] **Step 422** [B][TEST] ~6m: Run each 5 minutes
+  - S5 2026-10-23: cargo-fuzz not installed: built with its RUSTFLAGS (+debug assertions, overflow checks), libFuzzer binaries run directly. `fuzz_cart_differential` 3,046,713 runs / 301 s; `fuzz_cart_image` 95,882,146 runs / 301 s from the 9 seeds, corpus 413 (a first run without the re-hash pass: 526,043,178 runs but corpus stuck at 31).
   ```bash
   cd "$PROJECT_ROOT/crates/monad-mbc" && cargo +nightly fuzz run fuzz_cart_differential -- -max_total_time=300 2>&1 | tail -3
   cargo +nightly fuzz run fuzz_cart_image -- -max_total_time=300 2>&1 | tail -3
   ```
-- [ ] **Step 423** [V] ~1m: Zero crashes, zero differential divergences (or each divergence logged as a finding with the minimized input)
-- [ ] **Step 424** [W][CODE] ~20m: A root-gated BPF leg (optional, documented): `cart_xdp` via test_run on the same random cartridge; compare the read-back `FLOW_STATE` hash to the host engines — the three-way differential the Lich sprint will drive
-- [ ] **Step 425** [B][S][TEST] ~5m: Run the three-way check on 1,000 random cartridges
-- [ ] **Step 426** [V] ~1m: Three engines agree on 1,000/1,000 (or divergences logged)
-- [ ] **Step 427** [W] ~15m: `tomb/lich/` hook doc: how to point the Lich at this surface (targets, corpus seeds from `cartridges/`, the three-engine oracle), referencing the Lich sprint plan if present (Step 26)
-- [ ] **Step 428** [W] ~5m: Seed corpus — copy the three shipped `.cart` images + a few mutated ones into `tomb/lich/seeds/cartridge/`
-- [ ] **Step 429** [SECURITY] ~5m: Confirm the fuzz targets cannot write outside their sandbox (host targets are pure; the BPF leg is test_run only, no attach)
-- [ ] **Step 430** [V] ~30s: Sandboxed
-- [ ] **Step 431** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 423** [V] ~1m: Zero crashes, zero differential divergences (or each divergence logged as a finding with the minimized input)
+  - S5 2026-10-23: 0 crashes, 0 divergences in both runs. Seeded campaign `cart diff --seed 0x17 --count 20000`: 296,740 instructions compared, 0 divergences.
+- [x] **Step 424** [W][CODE] ~20m: A root-gated BPF leg (optional, documented): `cart_xdp` via test_run on the same random cartridge; compare the read-back `FLOW_STATE` hash to the host engines — the three-way differential the Lich sprint will drive
+  - S5 2026-10-23: `pkg/cartridge` `TestDifferential_ThreeEngines` (root-gated): `cart diff --out` writes cases the two host engines agree on; each runs through `cart_xdp` via BPF_PROG_TEST_RUN (no attach), checking verdict, FLOW_STATE hash, generation and EMITs. Deviation from the goal line: the third engine is `cartridge-ebpf` (the shared step compiled to BPF), not `monad-cpu-ebpf`, which cannot run cartridges; its full-engine arm stays LICH-015's east arm.
+- [x] **Step 425** [B][S][TEST] ~5m: Run the three-way check on 1,000 random cartridges
+  - S5 2026-10-23: 1,000 random cartridges, seed 0x17d1ff, 19.5 s.
+- [x] **Step 426** [V] ~1m: Three engines agree on 1,000/1,000 (or divergences logged)
+  - S5 2026-10-23: **1,000/1,000** agree across the three engines (577 halt, 190 verdict, 233 fault endings; 0 breaker trips). Part of the regression harness's cartridge root tests from now on.
+- [x] **Step 427** [W] ~15m: `tomb/lich/` hook doc: how to point the Lich at this surface (targets, corpus seeds from `cartridges/`, the three-engine oracle), referencing the Lich sprint plan if present (Step 26)
+  - S5 2026-10-23: `tomb/lich/UPC-CARTRIDGE-HOOKS.md`: engines, oracle rules, targets, commands, confinement, results, and the LICH-015 integration points for the merge (arm C, MULHU seed closure, run_harness exit codes, ADR-062 rows). LICH-015's own `diff_harness`, built against this branch from a scratch copy: `mulhu-probe` CONVERGED (MULHU arm `4cbef086`), self-test PASS, 50,000 programs 0 divergences.
+- [x] **Step 428** [W] ~5m: Seed corpus — copy the three shipped `.cart` images + a few mutated ones into `tomb/lich/seeds/cartridge/`
+  - S5 2026-10-23: `tomb/lich/seeds/cartridge/`: ratelimit, sampler, scorer + six mutations (stale sha, truncated, bad opcode, XDP back-edge, max_insn 65, re-hashed DATA), each hitting its intended refusal (README).
+- [x] **Step 429** [SECURITY] ~5m: Confirm the fuzz targets cannot write outside their sandbox (host targets are pure; the BPF leg is test_run only, no attach)
+  - S5 2026-10-23: Host targets are pure (no files, network or privileges); the BPF leg is `BPF_PROG_TEST_RUN` only (no attach, maps freed on exit), the path Phases 11-16 already ran on west.
+- [x] **Step 430** [V] ~30s: Sandboxed
+  - S5 2026-10-23: Sandboxed.
+- [x] **Step 431** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: see the Phase 17 commit.
   ```bash
   git -C "$PROJECT_ROOT" add crates/monad-mbc/fuzz tomb/lich && commitp -m "test(lich): [S5 419-431] cartridge differential + image fuzz hooks (three-engine oracle)"
   ```
-- [ ] **Step 432** [V][GATE] ~1m: **PHASE 17 EXIT GATE** — differential + image fuzz targets build and run clean; three-engine oracle wired; seeds + hook doc left for the Lich sprint
+- [x] **Step 432** [V][GATE] ~1m: **PHASE 17 EXIT GATE** — differential + image fuzz targets build and run clean; three-engine oracle wired; seeds + hook doc left for the Lich sprint
+  - S5 2026-10-23: PASSED: both new fuzz targets build and run clean, three-engine oracle real (host + BPF, not a simulation; KF4 addressed for cartridges), seeds + hook doc in place.
 
 ### Phase 17 Definition of Done
 Fuzz targets clean (or findings logged) · three-engine oracle real (host + BPF, not a simulation — KF4 addressed) · seeds + doc for the Lich sprint.
@@ -1422,28 +1501,30 @@ Fuzz targets clean (or findings logged) · three-engine oracle real (host + BPF,
 
 ## PHASE 18: STRETCH — ONE UPC SPLIT WEST+EAST OVER WOTAN DISTRIBUTED MEMORY (Steps 433-446)
 
+> **[DEFERRED: east escalation] (2026-10-23).** Step 435 [ESCALATE] (east as the second node, scratch Wotan on the P2P link) is unanswered, like Step 177. By the lead's direction the west-netns fallback is not run either: the phase is dropped for this sprint and logged as follow-on card Epic 1.5.6 in `UPC-LINUX-MASTER-BATTLE-PLAN.md` (Step 446's "OR" branch). Nothing was started on east.
+
 **Goal**: Demonstrate a cartridge whose DATA (model weights) lives in Wotan DISTRIBUTED memory and is served to a second node, so one logical UPC spans west+east. Stretch — [ESCALATE] gated and droppable.
 **Prerequisite**: Phases 12, 15 gates. This whole phase is optional; dropping it does not block Phase 19.
 **Time**: ~3 h (stretch)
 **Agent**: Coordinator + Architect
 
-- [ ] **Step 433** [R] ~10m: Read `services/wotan/internal/compute` (`BPFMapCache`, L2 store) and `services/wotan/internal/cluster` (replication client/server) — the DISTRIBUTED seam
-- [ ] **Step 434** [DESIGN][W] ~20m: Split model (ADR appendix): the cartridge ROM + the control plane run on west; the scorer's DATA blob (weights) is published to a Wotan `compute`-namespace topic and fetched by east's `upc-cartridgectl` before it loads the scorer — "distributed memory" = the weights are authored once and served to both nodes. A ScoreJob produced on west can be scored on either node and the score reconciled. Keep it honest: this is distributed *data*, not a mid-execution memory fault across the wire
-- [ ] **Step 435** [ESCALATE][BARE-METAL] ~—: **Stevie approval** for: running a scratch Wotan reachable from east over the P2P link, and running `upc-cartridgectl` + `cartridge-ebpf` as root on east from `/tmp`. Context: east runs the debs; this is a throwaway, removed at phase end. Why no recommendation: live host + a second node. **If not approved: run both "nodes" as two netns on west sharing one scratch Wotan; mark the result "cross-node demonstrated in netns, not across hosts."**
-- [ ] **Step 436** [B][S] ~10m: Scratch Wotan on west bound to `192.168.13.2`; publish the scorer DATA blob to a `compute.cart.weights.<model>` topic
-- [ ] **Step 437** [V] ~1m: Blob published; `curl` the topic from west shows the sha matching the local `.cart` DATA
-- [ ] **Step 438** [B][S][BARE-METAL] ~15m: On east (or netns B): `upc-cartridgectl` subscribes, fetches the DATA, verifies the DATA sha against the signed manifest, loads the scorer locally
-- [ ] **Step 439** [V] ~1m: East's scorer DATA sha == west's; seal verified on the fetched bytes
-- [ ] **Step 440** [B][S][BARE-METAL] ~15m: Feed the same ScoreJob trace to east's scorer; compare scores to west's reference
-- [ ] **Step 441** [V] ~1m: Scores identical across nodes (determinism holds across the wire because the image + inputs are identical)
-- [ ] **Step 442** [SECURITY] ~10m: The weights crossed the wire — they are model parameters, not user data; the DATA blob is signed; east verifies before loading; no payload anywhere. Document the trust boundary
-- [ ] **Step 443** [B][S] ~5m: Teardown (scratch Wotan, east `/tmp` binaries)
-- [ ] **Step 444** [V] ~30s: Clean both sides
-- [ ] **Step 445** [C] ~1m: **COMMIT CHECKPOINT**
+- [ ] **Step 433** [DEFERRED: east escalation] [R] ~10m: Read `services/wotan/internal/compute` (`BPFMapCache`, L2 store) and `services/wotan/internal/cluster` (replication client/server) — the DISTRIBUTED seam
+- [ ] **Step 434** [DEFERRED: east escalation] [DESIGN][W] ~20m: Split model (ADR appendix): the cartridge ROM + the control plane run on west; the scorer's DATA blob (weights) is published to a Wotan `compute`-namespace topic and fetched by east's `upc-cartridgectl` before it loads the scorer — "distributed memory" = the weights are authored once and served to both nodes. A ScoreJob produced on west can be scored on either node and the score reconciled. Keep it honest: this is distributed *data*, not a mid-execution memory fault across the wire
+- [ ] **Step 435** [DEFERRED: east escalation] [ESCALATE][BARE-METAL] ~—: **Stevie approval** for: running a scratch Wotan reachable from east over the P2P link, and running `upc-cartridgectl` + `cartridge-ebpf` as root on east from `/tmp`. Context: east runs the debs; this is a throwaway, removed at phase end. Why no recommendation: live host + a second node. **If not approved: run both "nodes" as two netns on west sharing one scratch Wotan; mark the result "cross-node demonstrated in netns, not across hosts."**
+- [ ] **Step 436** [DEFERRED: east escalation] [B][S] ~10m: Scratch Wotan on west bound to `192.168.13.2`; publish the scorer DATA blob to a `compute.cart.weights.<model>` topic
+- [ ] **Step 437** [DEFERRED: east escalation] [V] ~1m: Blob published; `curl` the topic from west shows the sha matching the local `.cart` DATA
+- [ ] **Step 438** [DEFERRED: east escalation] [B][S][BARE-METAL] ~15m: On east (or netns B): `upc-cartridgectl` subscribes, fetches the DATA, verifies the DATA sha against the signed manifest, loads the scorer locally
+- [ ] **Step 439** [DEFERRED: east escalation] [V] ~1m: East's scorer DATA sha == west's; seal verified on the fetched bytes
+- [ ] **Step 440** [DEFERRED: east escalation] [B][S][BARE-METAL] ~15m: Feed the same ScoreJob trace to east's scorer; compare scores to west's reference
+- [ ] **Step 441** [DEFERRED: east escalation] [V] ~1m: Scores identical across nodes (determinism holds across the wire because the image + inputs are identical)
+- [ ] **Step 442** [DEFERRED: east escalation] [SECURITY] ~10m: The weights crossed the wire — they are model parameters, not user data; the DATA blob is signed; east verifies before loading; no payload anywhere. Document the trust boundary
+- [ ] **Step 443** [DEFERRED: east escalation] [B][S] ~5m: Teardown (scratch Wotan, east `/tmp` binaries)
+- [ ] **Step 444** [DEFERRED: east escalation] [V] ~30s: Clean both sides
+- [ ] **Step 445** [DEFERRED: east escalation] [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add docs/adr references/s5-upc-wire-log.md && commitp -m "feat(cartridge): [S5 433-445] stretch: DISTRIBUTED weights, cross-node deterministic scoring"
   ```
-- [ ] **Step 446** [V][GATE] ~1m: **PHASE 18 EXIT GATE (STRETCH)** — cross-node deterministic scoring demonstrated (hosts or netns), weights signed + served over Wotan; OR phase explicitly dropped and logged as a follow-on card
+- [ ] **Step 446** [DEFERRED: east escalation] [V][GATE] ~1m: **PHASE 18 EXIT GATE (STRETCH)** — cross-node deterministic scoring demonstrated (hosts or netns), weights signed + served over Wotan; OR phase explicitly dropped and logged as a follow-on card
 
 ### Phase 18 Definition of Done
 Either: cross-node deterministic score with signed served weights · trust boundary documented. Or: dropped, logged, nothing left running on east.
@@ -1457,17 +1538,23 @@ Either: cross-node deterministic score with signed served weights · trust bound
 **Time**: ~1.5 h
 **Agent**: Scientist + Librarian + Marshal
 
-- [ ] **Step 447** [SPEC][V] ~15m: **FINAL SPEC COMPLIANCE GATE** — every RFC Editor item from Step 243 has a status (reviewed / still open); the cartridge ADR flips to Accepted only if the namespace + topic registrations are resolved, else stays Proposed with provisional names documented; confirm no Monad wire-format byte changed (`git diff 443de3f82 -- ebpf/monad-common/src/lib.rs | grep -i 'MONAD_SIZE\|HBH_TOTAL_LEN'` empty) and no MBC opcode added
-- [ ] **Step 448** [B][S][TEST] ~5m: Full regression — three UPC variants + all new Go/Rust tests + the whole workspace
+- [x] **Step 447** [SPEC][V] ~15m: **FINAL SPEC COMPLIANCE GATE** — every RFC Editor item from Step 243 has a status (reviewed / still open); the cartridge ADR flips to Accepted only if the namespace + topic registrations are resolved, else stays Proposed with provisional names documented; confirm no Monad wire-format byte changed (`git diff 443de3f82 -- ebpf/monad-common/src/lib.rs | grep -i 'MONAD_SIZE\|HBH_TOTAL_LEN'` empty) and no MBC opcode added
+  - S5 2026-10-23 (session 4): RFC Editor items 1-5 all open (status section in `docs/protocol/RFC-EDITOR-REQUESTS-S5.md`); ADR-108 stays Proposed with provisional names. `443de3f82` is not an ancestor after the re-sign (Phase 0 H0), so the diff ran against the sprint base `f7d730e7`: `ebpf/monad-common/src/lib.rs` adds only `pub mod cart`, the MONAD_SIZE/HBH_TOTAL_LEN grep and an opcode-constant grep are empty, `ebpf/monad-cpu-ebpf` has no diff.
+- [x] **Step 448** [B][S][TEST] ~5m: Full regression — three UPC variants + all new Go/Rust tests + the whole workspace
+  - S5 2026-10-23: harness ALL GREEN (22 cartridge root tests incl. the three-engine differential); 12/12 goldens TTY + stats; Doom translation byte-identical; `go build ./...` + `go test -race` on the listed packages plus cmd/upc-cartridgectl and pkg/ports; Rust upc-cartridge 40, monad-mbc 391, monad-common 110, upc-api 25, 0 failed.
   ```bash
   bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tail -8
   (cd "$PROJECT_ROOT" && go build ./... && go test -race ./cmd/anomaly/... ./cmd/heimdall-daemon/... ./cmd/upc-tty-bridge/... ./pkg/cartridge/... ./services/anomaly/... 2>&1 | tail -6)
   (cd "$PROJECT_ROOT" && cargo test --manifest-path crates/upc-cartridge/Cargo.toml 2>&1 | tail -3)
   ```
-- [ ] **Step 449** [V] ~1m: All green; budgets recorded: ascend (unchanged), Doom (unchanged), cartridge-ebpf (≤ 500K each)
-- [ ] **Step 450** [W][DOC-UPDATE] ~20m: Librarian doc-web ripple — CLAUDE.md (new cartridge layer under the UPC programmatic API; services/anomaly reached), `wiki/_Sidebar`, ADR index, `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.5 checkboxes, THIRD_PARTY/SBOM only if a dep changed (it should not)
-- [ ] **Step 451** [W][DOC-UPDATE] ~10m: `~/tmp/next.md` — full S5 handoff (overwrite stale): Part 1 + Part 2 shipped, [ESCALATE] approvals still pending (Steps 177, 435), RFC Editor items open, benchmark numbers, Phase 18 status, what the Lich sprint inherits
-- [ ] **Step 452** [C][GATE] ~1m: **SPRINT EXIT GATE / FINAL COMMIT** — all phase gates passed or STUCK-logged; docs rippled; harness green; nothing left running on west/east; NO push
+- [x] **Step 449** [V] ~1m: All green; budgets recorded: ascend (unchanged), Doom (unchanged), cartridge-ebpf (≤ 500K each)
+  - S5 2026-10-23: ascend 926,542 and Doom 761,580 (unchanged from Phase 0), cart_xdp 42,743, cart_tick 146,897 (<= 500,000). Close re-bench: Gate #1(a) +193 ns FAIL, #1(b) 1.25x PASS, #2 +216 ns FAIL, #3 232,450 flows/s PASS.
+- [x] **Step 450** [W][DOC-UPDATE] ~20m: Librarian doc-web ripple — CLAUDE.md (new cartridge layer under the UPC programmatic API; services/anomaly reached), `wiki/_Sidebar`, ADR index, `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.5 checkboxes, THIRD_PARTY/SBOM only if a dep changed (it should not)
+  - S5 2026-10-23: CLAUDE.md (S5 bullet, Mimir K1 note, ASCEND-LINUX S5 update, port 26610), `pkg/ports` `UPCCartridgeMetrics` (the ctl default now comes from it), wiki `UPC-Cartridges` (differential section, close costs), `Port-Registry`, `ADR-Index` mirror synced (104, 105, 108; 103 entries), `Home` (ADR-108 in Recent), canonical ADR-INDEX row and counts (Phase 9 had not bumped them), ADR-108 status-at-close section, master plan Epic 1.5 (1.5.5 done, 1.5.6/1.5.7 open), NEXT-5-SPRINTS status row (mirrors develop's Status column). No dependency change outside the fuzz crate's lock (crates already in the tree), so no THIRD_PARTY/SBOM change. `scripts/sync-wiki.sh --dry-run`: no orphans; the wiki is not pushed.
+- [x] **Step 451** [W][DOC-UPDATE] ~10m: `~/tmp/next.md` — full S5 handoff (overwrite stale): Part 1 + Part 2 shipped, [ESCALATE] approvals still pending (Steps 177, 435), RFC Editor items open, benchmark numbers, Phase 18 status, what the Lich sprint inherits
+  - S5 2026-10-23: Not written by this session: `~/tmp/next.md` is outside the agent's worktree and the isolation refused the edit. The handoff (status, regression, gates, limitations, escalations, decision list, what the Lich inherits) is the closing summary in `references/s5-upc-wire-log.md`; the lead session copies it into the S5 bullet of next.md.
+- [x] **Step 452** [C][GATE] ~1m: **SPRINT EXIT GATE / FINAL COMMIT** — all phase gates passed or STUCK-logged; docs rippled; harness green; nothing left running on west/east; NO push
+  - S5 2026-10-23: PASSED. All phase gates passed or DEFERRED (6-8, 18: east); harness green; west clean (no BPF programs, netns, pins or processes from S5); east never contacted; not pushed. Explicit paths were staged instead of the block's add-all, per the header commit rule.
   ```bash
   git -C "$PROJECT_ROOT" add -A && git -C "$PROJECT_ROOT" status --porcelain | sed 's/^/  /' && commitp -m "docs(upc): [S5 447-452] cartridges close — spec reconciled, docs rippled, handoff"
   ```

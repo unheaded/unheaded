@@ -67,11 +67,85 @@ validator on the exact bytes it then writes.
 | `unheaded_cart_queue_depth`, `unheaded_cart_scores_total`, `unheaded_cart_xdp_packets_total`, `unheaded_cart_breaker_trips_total`, `unheaded_cart_events_dropped_total` | — |
 | `unheaded_cart_slot_info` | slot, name, sha256, gen, lab |
 
-## Budgets (2026-10-23)
+## Cartridges
+
+| Source | Stage | What | Oracle / check |
+|---|---|---|---|
+| `cartridges/ratelimit.s` | xdp | per-flow token bucket; DATA rate_mbps, cap bytes | `ebpf/qos-ebpf` bucket math (`monad_common::token_bucket::refill`, remainder carries), verdict for verdict |
+| `cartridges/sampler.s` | xdp | 1:N sampler; EMIT `S`/`F`, QUEUEs an 8-word feature snapshot; always PASS | independent model, exact 1:N |
+| `cartridges/scorer.s` | tick | int8 MLP 8-16-1 over the snapshot; EMIT `A` {score 0..100, model id} | `QModel::score` bit for bit |
+| `cartridges/pass.s`, `drop-udp-9.s` | xdp | plumbing | — |
+
+Rate limiter rule: `cap <= 524287 * rate_mbps`, `rate_mbps <= 8000` (32-bit
+refill math). Scorer model: `cartridges/scorer.model.json` (float weights,
+scales, train/eval metrics); retrain with `trainquant gen` + `trainquant fit`
+(synthetic flows only).
+
+```
+cart build --stage tick --loop-bound 16 --asm cartridges/scorer.s \
+           --data cartridges/scorer.data.bin -o scorer.cart
+cart tick scorer.cart --jobs jobs.log     # reference run, one "label f0..f7" per line
+upc-cartridgectl pump                     # drive cart_tick until SCORE_QUEUE is empty
+```
+
+## Scores to services/anomaly
+
+`cmd/anomaly` runs the anomaly service (`127.0.0.1:19018`,
+`/api/v1/anomalies/top`) and reads score events from the pinned interpreter's
+ring buffer. With `--wotan host:18000` it publishes `anomaly.scores`
+(provisional topic) and the service consumes it; without, it hands the same
+JSON to the service directly. The message is flow key + score + model id;
+unknown fields are refused.
+
+## Replay (time travel)
+
+```
+upc-cartridgectl record --out run.anam --every 1000 --duration 10s   # trace 1 run in 1000
+upc-cartridgectl replay run.anam --slot 0                            # every run, every state hash
+upc-cartridgectl replay run.anam --slot 2 --run 4 --watch r1 --to 120
+cart replay scorer.cart run.anam --steps                             # same, image given directly
+```
+
+Tracing is off by default. A traced run is a head (state + FIELD table +
+clock), one record per instruction (pc, word, step code, state hash) and an
+end record; replay re-executes with the same step function and reports
+BIT-EXACT or the first divergent instruction. Traces carry header fields and
+state, never payload (files 0600). Contract:
+[`docs/architecture/cartridge-replay.md`](../docs/architecture/cartridge-replay.md).
+
+## Differential testing (Lich hooks)
+
+Three engines run cartridges: the shared step (`monad_common::cart`), the host
+MBC emulator (`monad-mbc`) and `cart_xdp` in BPF. They are checked against
+each other on random validated cartridges:
+
+```
+cart diff --seed 0x17 --count 20000          # shared step vs host emulator, lockstep
+sudo CART_DIFF_COUNT=1000 cart.test -test.run ThreeEngines   # + BPF (pkg/cartridge)
+```
+
+Fuzz targets `fuzz_cart_differential` and `fuzz_cart_image` live in
+`crates/monad-mbc/fuzz`, seeds in `tomb/lich/seeds/cartridge/`. Rules,
+commands and the LICH-015 hand-off:
+[`tomb/lich/UPC-CARTRIDGE-HOOKS.md`](../tomb/lich/UPC-CARTRIDGE-HOOKS.md).
+
+## Budgets and costs (2026-10-23)
 
 | Program | Verifier processed insns | Gate |
 |---|---|---|
-| `cart_xdp` | 14,395 | 500,000 |
-| `cart_tick` | 22,575 | 500,000 |
+| `cart_xdp` | 42,743 | 500,000 |
+| `cart_tick` | 146,897 | 500,000 |
 
 `scripts/upc-regression.sh` load-tests the object as its third variant.
+One interpreted instruction costs about 3-7 ns on west (4 steps per
+`bpf_loop` callback). Measured at the S5 close (test_run, one pinned core):
+
+| | ns/pkt | Gate |
+|---|---|---|
+| empty-pass baseline (IPv6 / TCP frame) | 156 / 149 | — |
+| rate limiter, pass / drop | 349 / 342 (native qos-ebpf 280 / 318) | +193 ns over baseline: fail (150); 1.25x native: pass (3x) |
+| sampler | 365 | +216 ns: fail (120) |
+| scorer | 232,450 flows/s | pass (100,000); XDP path unchanged |
+
+The two failures are interpreter cost, not cartridge logic. The scorer's
+model is trained on synthetic flows only.

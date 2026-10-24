@@ -7,10 +7,10 @@ gates and [ESCALATE] steps; the decisions below are the ones that need Stevie.
 | # | Sprint | Plan | Size | ADR | Status (audited 2026-10-23, [SPRINT-AUDIT](SPRINT-AUDIT-2026-10-23.md)) |
 |---|---|---|---|---|---|
 | 1 | Quantum Armor: hybrid ML-KEM everywhere, crypto inventory, signed evidence | [S-QUANTUM-ARMOR](S-QUANTUM-ARMOR-battle-plan.md) | 15 phases, 277 steps | ADR-105 | **Done** pending Stevie's decisions (E1-E5, ADR-105 acceptance, aws-lc-rs sign-off): all 15 phases executed, nothing STUCK; final regression green. Closing summary: [progress](progress/S-QUANTUM-ARMOR-progress.md#sprint-1-closing-summary). Merged to develop 2026-10-24 |
-| 2 | Two Brains, One Gate: Champion live, local model + Claude, runbooks, training-data flywheel | [S-TWO-BRAINS](S-TWO-BRAINS-battle-plan.md) | 15 phases, 456 steps | ADR-106 (Proposed) | Phases 0-11, 13, 14 done; Phase 12 waits on data and Step 400; merged to develop 2026-10-23 (3dc9dfb7). Phase 12 blocked (no training data, Step 400); Phase 14 (ADR-106, handoff) not started |
-| 3 | Real Steel: dead code swept, deploy made real, then real chaos | [S-REAL-STEEL](S-REAL-STEEL-battle-plan.md) | 17 phases, 404 steps | ADR-107 (branch) | Phases 0, 2-4, 7, 8, 10 done; 6 code half only; 1, 5, 9, 11-14 wait on E1/E2; on `sprint/real-steel`, not merged |
+| 2 | Two Brains, One Gate: Champion live, local model + Claude, runbooks, training-data flywheel | [S-TWO-BRAINS](S-TWO-BRAINS-battle-plan.md) | 15 phases, 456 steps | ADR-106 (Proposed) | Phases 0-11, 13, 14 done; Phase 12 waits on data and Step 400; merged to develop 2026-10-23 (3dc9dfb7) |
+| 3 | Real Steel: dead code swept, deploy made real, then real chaos | [S-REAL-STEEL](S-REAL-STEEL-battle-plan.md) | 17 phases, 404 steps | ADR-107 | Phases 0, 2-4, 7, 8, 10 done; 6 code half only; 1, 5, 9, 11-14 wait on E1/E2; merged to develop 2026-10-23 (896a6ed4) |
 | 4 | Lich Awakens: red team via MCP (local model + Claude) | [S-LICH-AWAKENS](S-LICH-AWAKENS-battle-plan.md) | 12 phases, 268 steps | none new | **Done**: all 12 phases; merged to develop (21874778, pushed) |
-| 5 | UPC: finish pending work, then compute on the wire (MBC cartridges) | [S-UPC-WIRE-COMPUTE](S-UPC-WIRE-COMPUTE-battle-plan.md) | 20 phases, 452 steps | ADR-108 | Phases 0-5, 9-17, 19 done; 6-8 and 18 wait on east; on `sprint/upc-wire-compute`, not merged |
+| 5 | UPC: finish pending work, then compute on the wire (MBC cartridges) | [S-UPC-WIRE-COMPUTE](S-UPC-WIRE-COMPUTE-battle-plan.md) | 20 phases, 452 steps | ADR-108 | **Done** pending Stevie's decisions: Phases 0–5, 9–17 and 19 executed; Phases 6–8 and 18 DEFERRED (east as a node, Steps 177/435, never contacted); getpid flip held (pid numbering); ADR-108 Proposed (RFC Editor items 1–5 open); benchmark gates #1(a) and #2 fail on interpreter cost, scorer trained on synthetic flows only. Closing summary: [log](../../references/s5-upc-wire-log.md#sprint-5-closing-summary). Merged to develop 2026-10-24 |
 
 Done before forging (2026-10-23, on develop): `.mcp.json` registers the Zhen
 MCP server for Claude Code; the `local_llm` MCP tool; `zhen-claude -route
@@ -56,8 +56,18 @@ auto`, `-capture`, and `-local-only` / `local_only` in
    scope; spec vs code for `EVENT_CHAOS`.
 4. Lich Awakens: hard stops only (gate or cap missing, sandbox not confined,
    a safety invariant bypassed); CTF mode stays gated by ADR-062's rule.
-5. UPC: KBD BPF change if needed; east as bootstrap/stress node and as the
-   DISTRIBUTED second node; any new MBC opcode or registry entry.
+5. UPC (sprint done; the combined list is in the closing summary of
+   `references/s5-upc-wire-log.md`):
+   - East as a node: Mímir's Law Phases 9/11/13 re-run (Step 177) and the
+     DISTRIBUTED second node (Step 435).
+   - getpid: which pid numbering wins (xv6 `p->pid` vs the BPF slot) before
+     `GETPID_INJECT` can default on.
+   - Accept ADR-108 once the RFC Editor answers items 1–5 (Sophia root key,
+     Anamnesis sub-kind, Wotan topics, CSR range, KF10).
+   - DOT4 or any other new MBC opcode (ISA spec gate, its own sprint).
+   - Whether the interpreter-cost gate failures (#1(a), #2) are accepted as
+     the cost of interpreted cartridges or need follow-on work.
+   - Whether the scorer gets real labelled traffic before anyone relies on it.
 
 ## Parked
 

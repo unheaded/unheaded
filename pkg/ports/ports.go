@@ -90,6 +90,10 @@ const (
 	// ASCEND-LINUX (per references/battle-plan-ascend-linux-2026-05-08.md):
 	// UPC TTY bridge for Mode A demo surface (browser xterm).
 	UPCTtyBridge = 26100
+
+	// MBC cartridges (ADR-108): upc-cartridgectl serve, metrics/health
+	// (loopback by default).
+	UPCCartridgeMetrics = 26610
 )
 
 // DefaultAddr returns ":<port>" string for net.Listen.

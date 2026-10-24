@@ -73,9 +73,11 @@ func allPorts(t *testing.T) map[string]int {
 		"CertGen": CertGen,
 		// ASCEND-LINUX
 		"UPCTtyBridge": UPCTtyBridge,
-		"Akira":        Akira,
-		"KEVPoller":    KEVPoller,
-		"AlertMailer":  AlertMailer,
+		// MBC cartridges (ADR-108)
+		"UPCCartridgeMetrics": UPCCartridgeMetrics,
+		"Akira":               Akira,
+		"KEVPoller":           KEVPoller,
+		"AlertMailer":         AlertMailer,
 	}
 }
 
@@ -107,6 +109,15 @@ func TestUPCTtyBridgeInUserAppBand(t *testing.T) {
 	if UPCTtyBridge < CustomerStart || UPCTtyBridge > CustomerEnd {
 		t.Errorf("UPCTtyBridge=%d not in user-app band [%d, %d]",
 			UPCTtyBridge, CustomerStart, CustomerEnd)
+	}
+}
+
+// TestUPCCartridgeMetricsInUserAppBand: the cartridge metrics listener
+// (ADR-108) sits in the 26000-26666 user-app band like the tty bridge.
+func TestUPCCartridgeMetricsInUserAppBand(t *testing.T) {
+	if UPCCartridgeMetrics < CustomerStart || UPCCartridgeMetrics > CustomerEnd {
+		t.Errorf("UPCCartridgeMetrics=%d not in user-app band [%d, %d]",
+			UPCCartridgeMetrics, CustomerStart, CustomerEnd)
 	}
 }
 

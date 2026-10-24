@@ -147,7 +147,7 @@ Known to fake success, so a future caller would be misled (found 2026-10-23):
 - `scripts/host`
 - `scripts/lib`
 - `services/anamnesis`
-- `services/anomaly`
+- ~~`services/anomaly`~~: reached by `cmd/anomaly` since S5 Phase 15 (2026-10-23)
 - `services/canary` (folded into Sword in S-REAL-STEEL Phase 8; deletion pending E1 G3)
 - `services/cape`
 - `services/cloak`

@@ -240,6 +240,21 @@ SlotCfg (CART_SLOT, 20 B):
 
 Four slots; `CART_ROM` and `CART_DATA` hold 1024 words per slot.
 
+Trace records (S5 Phase 16, `CART_TRACE` ringbuf 1 MiB; `CART_CFG[0]` = trace
+one run in N, 0 = off, the default), all `EVENT_COMPUTED (0x01)` + sub-kind
+`0x43`, octets 0–2 = event, sub-kind, record type (0 head, 1 step, 2 end):
+
+```
+TraceHead (464 B): stage u8 @3 | slot u8 @4 | gen u32 @8 | run_id u64 @16 | now u64 @24
+  | flow FlowKey @32 | fields [u32;13] @72 | state CartState @128 (at run start)
+TraceStep (32 B):  idx u32 @4 | run_id u64 @8 | pc u32 @16 | insn u32 @20 | code u32 @24
+  | state_hash u32 @28 (after the instruction)
+TraceEnd  (32 B):  insns u32 @4 | run_id u64 @8 | code u32 @16 | state_hash u32 @20
+```
+
+`code`: 0 continue, 0x100|v verdict, 0x200 yield, 0x300 halt, 0x400|k fault k.
+Replay contract: `docs/architecture/cartridge-replay.md`.
+
 ## Gates
 
 | Gate | Bar |
@@ -301,6 +316,15 @@ No Monad wire change. No new MBC opcode (a `DOT4` for the scorer would be a
 full ISA spec gate, a separate sprint, [ESCALATE]). No packet rewrite or
 redirect verdict. No dashboard page. No deb/sysusers packaging.
 
+**DOT4, measured case (S5 Phase 15, deferred, not added).** The scorer built
+from existing opcodes spends 24 of ~41 instructions per hidden row on the
+inner product (`LDB; MUL; ADD` per weight), about 720 instructions per job in
+3 `cart_tick` calls, 251,572 flows/s on west (gate 100,000: met). A `DOT4 rd,
+rs, rt` (rd += the dot product of four u8 lanes) would make each row two word
+loads and two DOT4s: about 420 instructions per job, 2 calls, roughly 1.7x
+the throughput. The gate is met without it, so it stays a proposal for the
+ISA's own spec gate (MBC Opcode Registry, Standards Action).
+
 ## Consequences
 
 - A network function becomes signed data with a replayable execution
@@ -310,6 +334,26 @@ redirect verdict. No dashboard page. No deb/sysusers packaging.
 - The cartridge surface is a third cfg-partition-style client of ADR-080,
   in its own object rather than a `cfg` feature, so the Doom/xv6 budgets
   never see it.
+
+## Status at S5 close (2026-10-23)
+
+Still **Proposed**: RFC Editor items 1–5 have no answer, so the provisional names stay.
+Measured against the gates above (`references/s5-upc-wire-log.md`, closing summary):
+
+| Gate | Result |
+|---|---|
+| Verifier budget | cart_xdp 42,743, cart_tick 146,897 (with the trace path); monad-cpu-ebpf unchanged |
+| Load-test | regression harness third variant green |
+| Determinism | BPF == host reference on every check; three engines (shared step, host MBC emulator, BPF) agree on 1,000/1,000 random cartridges; replay bit-exact |
+| Rate limiter | +193 ns over empty-pass: **fail** (bar 150); 1.25× `qos-ebpf`: pass |
+| Sampler | +216 ns: **fail** (bar 120) |
+| Scorer | 232,450 flows/s, XDP path unchanged: pass |
+
+The two failures are the interpreter's cost, about 3–7 ns per MBC instruction on west,
+not the cartridges' logic. The rate limiter follows the `qos-ebpf` refill fix
+(`8ab534b3`, the remainder of `elapsed / 8000` carries), which it found. The scorer's
+model is trained on synthetic flows only. Differential and fuzz hooks for the Lich:
+`tomb/lich/UPC-CARTRIDGE-HOOKS.md`.
 
 ## RFC Editor items (open — not self-approved)
 

@@ -326,3 +326,375 @@ L4 packet read (one bounds check on the exact pointer). The shared driver is now
   a real or veth interface (`serve --xdp-iface` exists; this session used test_run only).
 - Next: Phase 13 (rate limiter vs qos-ebpf), 14 (sampler), 15 (scorer → services/anomaly),
   16 (replay), 17 (Lich hooks). Benchmarks start from b0_pass 153 ns.
+
+## Phase 13 — token-bucket rate limiter (2026-10-23, session 3)
+
+Session 3 scope: Phases 13–16 (Phase 17 belongs with the Lich sprint, Phase 18 needs east).
+Fresh worktree: every object rebuilt; harness baseline ALL GREEN (ascend 926,542, Doom
+761,580). Host shared with other sessions (llama-server ~340 % CPU): benchmarks pinned
+with `taskset -c 5`, noise reported per line.
+
+- `cartridges/ratelimit.s` reproduces qos-ebpf's bucket exactly (bytes; first packet
+  passes; add = elapsed/8000 × rate, refill only when add > 0; DROP if tokens < len).
+  No DIV: `elapsed/8000 = MULH(elapsed>>6, 274877907) >> 3`, checked over all 2^26
+  inputs. 32-bit clock: `iat_bucket >= 22` = full bucket (rule: cap ≤ 524,287 × rate).
+  41 of 64 insns on the longest path.
+- **Correctness**: reference runner 30,000 packets / 10,625 drops, 0 mismatches against
+  a u64 re-implementation of the qos-ebpf math; two cartridge mutations caught. BPF
+  test_run 1,000/1,000 verdicts == Go qos-ebpf math, flow hashes == `cart run`.
+- **Enforced rate**: 99.99 Mbps of 100 at a quantum-aligned spacing; real-clock flood
+  96.0 Mbps.
+- **Finding (oracle, not fixed)**: qos-ebpf discards the remainder of `elapsed / 8000`
+  at every refill. At 20 µs packet spacing a 100 Mbps bucket admits 80 Mbps. The
+  cartridge matches it (4,012 == 4,012 passes) because the oracle wins; a fix belongs
+  to qos-ebpf (carry the remainder: `last += q * 8000` instead of `last = now`).
+- **Isolation**: flood 790 drops, interleaved quiet flow 0; per-flow state only.
+
+**Benchmark gate #1** (same IPv6 + Monad HbH frame for both engines, 5 × 1,000,000,
+median):
+
+| Case | ns/pkt | insns/pkt |
+|---|---|---|
+| b0_pass (IPv6 frame) | 154 | 2 |
+| ratelimit, pass regime | 343 | 35.3 |
+| ratelimit, drop regime | 334 | 33.3 |
+| native qos-ebpf bucket path, pass | 299 | — |
+| native qos-ebpf bucket path, drop | 325 | — |
+
+(a) overhead ≤ 150 ns: **FAIL** (189 / 180 ns). (b) ≤ 3× native: **PASS** (1.15× /
+1.03×). Step 340 profile: the interpreter, not the refill math. A 60-instruction
+straight-line cartridge measured 8.1 ns per NOP, mostly the per-step `bpf_loop`
+callback; `cart_loop_cb` now runs 4 steps per callback (NOP 3.5–4.3, MOV 4.7, LD 6.2,
+SYSCALL 6.6 ns; 8 per callback gave 3.7 ns/NOP for twice the verified body, not kept).
+Verifier after the change: cart_xdp 24,986, cart_tick 63,906. Recorded as a known
+limitation (plan rule): roughly 4–7 ns per interpreted instruction on this host.
+
+- Harness ALL GREEN after the change (18 cartridge root tests). Commit `0594cd7b`.
+
+## Phase 14 — flow sampler (2026-10-23, session 3)
+
+- `cartridges/sampler.s`: window of N packets (DATA, shipped 8) → features f0 bytes, f1
+  iat_bucket sum, f2 SYN count, f3 max length, f4 flow_pkts, f5 l4_proto, f6 dst_port,
+  f7 OR of TCP flags; every Nth packet EMIT 'S' {pkts, bytes} + QUEUE the snapshot; a
+  flow's first packet EMIT 'F' (its ts_ns is first-seen). Always PASS, Monad header
+  never written. First draft's longest path was 67 (the reference test caught a Budget
+  fault); now 62 of 64.
+- Reference: exact 1:N for N = 1, 2, 5, 8, 100 against an independent model; deterministic.
+- BPF beside the rate limiter: 77 events, 74 snapshots, 3/3 hashes == `cart run`; rate
+  limiter unaffected (600/600).
+- Overflow: 16,384 queued, 3,616 counted drops, 16,361 counted event drops, 0 faults,
+  every packet PASS.
+- **Gate #2** (clean run): sampler 360 ns vs b0_pass 147 → **213 ns overhead, FAIL**
+  (gate 120); ratelimit + sampler 470 ns over b0 vs 408 ns sum → **+15 %, FAIL** (gate
+  +10 %). Same interpreter cost as Gate #1.
+- Harness ALL GREEN (19 root tests). Commit `d592f230`.
+- Lead request (LICH-015): host emulator MULHU was a NOP; arm added with a test against
+  the engine semantics (`4cbef086`). Cartridge allowlist unchanged.
+
+## Phase 15 — int8 anomaly scorer → services/anomaly (2026-10-23, session 3)
+
+**Model and data (Scientist lens).** int8 MLP 8→16→1 (D-C6), inputs
+`x = min(f >> sh, 255)` over the sampler snapshot. Data: ten synthetic flow families
+(web client, bulk download, DNS, SSH, QUIC; SYN flood, UDP flood, NULL/FIN/XMAS scan,
+RST storm, clockwork beacon), packets drawn as (gap, length, TCP flags) from fixed
+distributions and run through the real sampler cartridge on the reference runner. No
+capture, no payload, nothing personal. Train seed 0x7A11 (400 flows/family, 18,468
+vectors); eval seed 0xE7A1 (100 flows/family, 4,585 vectors, 4,158 of them not present
+verbatim in train). Model id 0xd0ee2b6b, `cartridges/scorer.model.json`.
+
+| | accuracy | TPR | FPR | AUC |
+|---|---|---|---|---|
+| train, float | 0.9997 | 1.0000 | 0.0005 | 1.0000 |
+| eval, float | 0.9996 | 1.0000 | 0.0009 | 1.0000 |
+| eval, int8 | 0.9996 | 1.0000 | 0.0009 | 1.0000 |
+| eval unseen-only, int8 | 0.9995 | 1.0000 | 0.0009 | — |
+| shuffled-label control, eval | 0.4927 | — | — | 0.5000 |
+
+What this does and does not show: the ten families are almost perfectly separable by
+these eight header features, and the model separates held-out flows from the same
+generators; the shuffled-label control falls to chance, so nothing leaks labels. It says
+nothing about real traffic. The model leans on shortcuts the generators allow: it
+ignores the SYN count entirely (floods are already separated by size, timing and flags),
+scores fast arrivals and small maximum lengths high, and is not monotone in window bytes
+far outside the training range. Seven of sixteen hidden units carry no signal (ReLU +
+weight decay drove w1 or w2 to ~0).
+
+**Quantization**: |int8 − float| ≤ 2 points on **99.83 %** of eval (max 5, mean 0.86):
+gate (≥ 99 %) met. Per-row int8 weights, per-row u8 requantization, rounding folded into
+the biases, 256-entry sigmoid table (bin 0.04 logit).
+
+**Cartridge**: `cartridges/scorer.s`, existing opcodes only, ~720 insns per job (3
+`cart_tick` calls of 256), image 1,052 bytes. Cartridge == `QModel::score` on 6,585
+vectors (held-out + random/extreme); BPF tick == `cart tick` reference on a sampler-fed
+run (18 jobs: scores, order, last-job hash).
+
+**Gate #3: PASS**: 251,572 flows/s on one core (5 runs, 248,942–252,908); sampler XDP
+cost 355 ns with the scorer loaded vs 352 ns without. DOT4 estimate: ~420 insns per job,
+~1.7× (ADR-108 note; not added, [ESCALATE] to an ISA spec gate if ever wanted).
+
+**services/anomaly reached** (KF3 half-closed): `IngestScore` (strict JSON, 4 KiB cap,
+score and address checks, counters) + `anomaly.scores` Wotan consumer + `ListenAddr`;
+`cmd/anomaly` = service + bridge from the pinned CART_EVENTS ring (in-process, or
+`--wotan` publish). Wotan leg not run live (stack down, Phase 6 scratch Wotan deferred).
+
+**End to end on west** (`$S5/p15-e2e.sh`): three signed cartridges loaded through
+`upc-cartridgectl`, cart_xdp attached (generic) to a veth whose peer is in netns `s5e`,
+400 × 1,400 B UDP flood + 16 slow DNS-like packets. Rate limiter dropped 381 flood
+packets; 52 jobs queued and scored; `/api/v1/anomalies/top`: flood score 99, DNS-like
+flow 1; 0 rejected. Teardown verified: no cart programs, s5 links, netns or pins.
+
+- Harness ALL GREEN (ascend 926,542, Doom 761,580). Commit `9404db47`.
+
+## Phase 16 — Anamnesis replay (2026-10-23, session 3)
+
+**What replay proves.** A cartridge run is a pure function of its image, its starting
+state and its inputs (the FIELD table and the clock). cartridge-ebpf records exactly
+those (TraceHead) plus the pc, instruction word, step code and state hash after every
+instruction (TraceStep) and the outcome (TraceEnd); `cart replay` re-executes with the
+same `run_one` and checks every hash. A match means the live run is reproduced
+instruction by instruction off-line, so a verdict, an emitted score or a fault can be
+explained after the fact from the trace alone, and nothing else (no payload, no helper
+state) influenced it. A mismatch names the first divergent instruction.
+
+- Records: `EVENT_COMPUTED 0x01` + sub-kind `0x43`; head 464 B, step and end 32 B;
+  CART_TRACE 1 MiB ring; off by default, `CART_CFG[0]` = one run in N per CPU; drops
+  counted. Layout in ADR-108, contract `docs/architecture/cartridge-replay.md`.
+- Verifier traps on the way (all fixed, recorded in code): 3-byte zero store and the
+  tick stage's all-zero FIELD loop → rejected `memset` under `--btf`; a 6-argument
+  function (BPF passes 5); cart_xdp → slot → callback chain over the 512-byte combined
+  stack (cart_xdp's SlotArgs moved to a per-CPU map); the state hash inlined at every
+  site took cart_tick to 328,144 processed insns. `cart_state_hash` and
+  `cart_trace_step` are now global BPF functions: **cart_xdp 42,743, cart_tick 146,897**
+  (gate 500,000; were 24,986 / 63,906 before tracing).
+- Host (`tests/replay.rs`): 200 rate-limiter runs / 7,806 steps bit-exact through the
+  file format; a flipped pkt_len bit diverges at step 2 (the FIELD read); another image
+  at step 0 (`insn`); a corrupted step hash at that step; scorer job time travel
+  (goto/back/regs; score in r2 at the EMIT); 5,000 hostile byte strings never panic.
+- Live (`TestReplay_LiveRunsAreBitExact`, test_run, every run traced): 160 rate-limiter,
+  160 sampler and 66 scorer tick runs **bit-exact**; replayed verdicts == the 160 live
+  XDP returns; `--watch r1` shows the MLP row accumulator through a tick call;
+  `--to 188` stops before `SYSCALL 3 (EMIT)` with r2 = 99. One flipped input bit in the
+  file: `run 9 … DIVERGED at step 2 (hash): recorded 0x72d236c4, replayed 0xb33fc8f4`,
+  159 others bit-exact, exit 3. Off by default (0 records); 1-in-10 traced 20/200 runs.
+- Through the CLI on the real clock: `upc-cartridgectl record --every 2000 --duration 3s`
+  during a 3M-run test_run flood → 52,537 records, 1,499 runs, 0 dropped, 2.5 MB;
+  `upc-cartridgectl replay run.anam --slot 0` (image fetched from the registry blob the
+  trace names, sha-checked) → **1,499 bit-exact**.
+- Harness ALL GREEN (21 cartridge root tests); goldens **12/12 SAME**; Doom translation
+  byte-identical (`dcded746…` / `e7ab7b67…` / `e1191add…`). (`xv6-mbc.mbc` is
+  `f5bf2003…` in this worktree, not the Phase 2 `109da1b3…`: Phase 3's `2308c3d7`
+  changed the kernel after that value was taken; no kernel or translator source changed
+  in Phases 13–16, and the goldens match.)
+- Commit `4634796c`.
+
+## Session 3 close — final benchmarks with the trace-capable object (tracing off)
+
+5 × 1,000,000 test_run, median, `taskset -c 5`, noise ≤ 3.2 % except b0_empty 11 %:
+
+| Case | ns/pkt | vs. | Gate |
+|---|---|---|---|
+| b0_pass (IPv4 / IPv6 / TCP frame) | 150 / 155 / 149 | — | — |
+| ratelimit, pass / drop regime (IPv6 Monad frame) | 347 / 341 | native qos-ebpf bucket 283 / 317 | #1(a) +192 / +186 ns: **FAIL** (150); #1(b) 1.23× / 1.08×: **PASS** (3×) |
+| sampler (TCP frame) | 377 | b0 149 | #2 +228 ns: **FAIL** (120) |
+| ratelimit + sampler | 642 | sum of overheads 429 | +493 ns, +15 %: **FAIL** (+10 %) |
+| scorer | 230,521 flows/s | — | #3 **PASS** (100,000); XDP sampler 368 ns with or without the scorer slot |
+| interpreter, per instruction | NOP 3.3, MOV 5.1, SYSCALL 5.5, LD 6.6 | — | — |
+
+The trace checks cost ~1–5 % with tracing off (rate limiter 343 → 347, sampler
+360 → 377, scorer 251,572 → 230,521 flows/s).
+
+### Open after session 3
+
+- **Gates #1(a) and #2 FAIL** on this host: ~3–7 ns per interpreted instruction. Not
+  blockers (plan rule). Options for a later sprint: fewer instructions per cartridge,
+  more steps per callback (8: −15 % per instruction for twice the verified callback),
+  or a superinstruction/DOT4 ISA change ([ESCALATE], ISA spec gate).
+- **qos-ebpf refill remainder** (finding, oracle not changed): admits 80 Mbps of 100 at
+  20 µs spacing.
+- **Wotan leg of anomaly.scores** not run live (stack down; Phase 6 scratch Wotan
+  deferred with the east escalation). In-process path proven end to end.
+- **RFC Editor items 1–3** still open (`x-cartridge`, sub-kind `0x43`,
+  `anomaly.scores`); ADR-108 stays Proposed.
+- **Scorer** is trained on synthetic families only; its accuracy says nothing about
+  real traffic, and it ignores the SYN count.
+- Phase 17 (Lich hooks) left to the Lich sprint; Phase 18 (DISTRIBUTED) needs east.
+
+## Rate limiter follows the qos-ebpf remainder fix (2026-10-23, session 4)
+
+The Phase 13 finding (qos-ebpf dropped `elapsed mod 8000` at every refill) was fixed on
+`develop` in `8ab534b3`: the refill step moved to `monad_common::token_bucket::refill`,
+`last_refill_ns` advances by `q * 8000`, and a refill that reaches the capacity sets
+`last = now`. At the lead's request the cartridge and both oracles follow it on this
+branch (develop's qos-ebpf is not merged here; the oracles re-implement its new math).
+
+- `cartridges/ratelimit.s`: `last = now` moved off the shared refill path; the
+  capped/full branch and the idle >= 4.19 s branch keep `last = now`; `add_some` keeps q
+  in r9 and stores `last_lo + q * 8000`. The existing `add >= cap - tokens` compare is
+  already develop's `q > cap / rate || add >= cap - tokens` (add fits 32 bits under the
+  parameter rules). 63 words; longest path **46 of 64** (was 41), checked by a new static
+  longest-path test.
+- Oracles: `QosOracle` (`tests/ratelimit.rs`) and `qosBucket`
+  (`pkg/cartridge/ratelimit_linux_test.go`) now mirror `token_bucket::refill` line for
+  line. Reference: 30,000 packets / 10,623 drops, 0 mismatches. The old cartridge fails
+  the new oracle (mutation check: `ratelimit_matches_qos_ebpf_oracle` and the new
+  remainder test both red).
+- **20 µs spacing now enforces the configured rate**: reference 5,012 / 20,000 passed,
+  99.99 Mbps (was 80); BPF fixed clock 24 µs and 20 µs both **99.99 Mbps**, every verdict
+  == oracle (6,012 and 5,012 passes); the 20 µs case is now gated at ±5 % like 24 µs.
+  Real-clock flood 97.62 Mbps (was 96.0; bound −10 %).
+- BPF == oracle 1,000/1,000, flow hashes == `cart run`; live replay bit-exact
+  (`TestReplay_LiveRunsAreBitExact`, 160 rate-limiter runs). Verifier unchanged (the
+  object did not change): cart_xdp 42,743, cart_tick 146,897.
+- Lich seed `tomb/lich/seeds/cartridge/ratelimit.cart` rebuilt from the new source.
+- Benchmark Gate #1 numbers above were measured on the pre-fix cartridge; the refill
+  path is up to 5 instructions longer (re-bench in the sprint close).
+
+## Phase 17 — Lich hooks (2026-10-23, session 4)
+
+Session 4 scope: Phase 17, then Phase 19 close. Phases 6–8 and 18 stay
+`[DEFERRED: east escalation]`. The Lich sprint (`sprint/lich-awakens`) was read with
+`git show`, not merged: its LICH-015 `diff_harness` compares the host emulator and the
+shared step on registers/flags/PC for ALU+branch programs (50,000 programs, 0
+divergences); its one finding, MULHU, was fixed here in `4cbef086`.
+
+- **Oracle** (`crates/upc-cartridge/src/diff.rs`, tests first): random validated
+  XDP-stage cartridges (≤ 48 words, forward branches, register prologue, edge operands,
+  LD/ST/LDB into both windows, FIELD/NOW/EMIT/VERDICT, ~1/16 deliberately out of range)
+  run in lockstep on `monad_common::cart` and `monad-mbc` `ExecCpu`: registers, Z/N/C,
+  PC and the flow window compared after every instruction; EMITs compared at the end.
+  Syscalls are serviced on the host side from the same input; a cartridge fault ends the
+  comparison. Self-test: a one-bit flip in the host arm after instruction 0 is reported
+  at instruction 0 (100+ cases).
+- **Seeded campaign** `cart diff --seed 0x17 --count 20000`: 296,740 instructions,
+  **0 divergences** (11,212 halt, 4,320 verdict, 4,468 fault endings). Test campaign
+  10,000 cartridges: 16,495 in-window memory ops, 15,962 syscalls, 0 divergences.
+- **Three engines** (`TestDifferential_ThreeEngines`, root, test_run only): 1,000
+  cartridges (seed 0x17d1ff) through `cart_xdp`: **1,000/1,000** verdict + FLOW_STATE
+  hash + generation + EMITs equal to the two host engines; 0 breaker trips; 19.5 s. The
+  third engine is `cartridge-ebpf` (the shared step compiled to BPF); `monad-cpu-ebpf`
+  cannot run cartridges and its full-engine arm stays LICH-015's east arm.
+- **Fuzz** (cargo-fuzz RUSTFLAGS, libFuzzer run directly, 300 s each):
+  `fuzz_cart_differential` 3,046,713 runs, 0 crashes; `fuzz_cart_image` 95,882,146
+  runs from 9 seeds, corpus 413, 0 crashes. The first image run (526,043,178 runs)
+  stalled at corpus 31: the embedded sha256 rejects nearly every mutation at decode, so
+  the target now also checks each input with its sha recomputed.
+- **LICH-015 harness against this branch** (scratch copy, path deps pointed at this
+  worktree, no repo change): `mulhu-probe` **CONVERGED** (`r0 = 0x0b00ea4e` both
+  engines), self-test PASS, `run --iters 50000 --seed 0xc3c35eed` 0 divergences. Its
+  `mulhu_highword` seed can close after the merge.
+- Seeds `tomb/lich/seeds/cartridge/` (3 shipped + 6 mutations, each hitting its intended
+  refusal); hook doc `tomb/lich/UPC-CARTRIDGE-HOOKS.md` with the merge integration
+  points. No new third-party crate: the fuzz crate's lock gains upc-cartridge, upc-api
+  and sha2's tree, every crate@version already in `crates/upc-cartridge/Cargo.lock`.
+- gosec (repo-pinned `tools/gosec`): `./pkg/cartridge/...` clean as CI runs it; with
+  `-tests` the new test file adds nothing (its env knobs are parsed as numbers).
+
+## Sprint 5 closing summary
+
+S-UPC-WIRE-COMPUTE closed 2026-10-23 on `sprint/upc-wire-compute` (not merged, not pushed;
+commits unsigned, `--no-gpg-sign`, for `scripts/resign-unpushed.py`). Base `f7d730e7`.
+
+### Phases
+
+| Phase | Result |
+|---|---|
+| 0 Preflight | PASSED. Baseline ascend 926,542 / Doom 761,580 (toolchain drift from July's 900,031 / 737,087) |
+| 1 S1.2 root cause | PASSED. `csrr` ran the CSR read-modify-write through a4/a5; proven on host and live |
+| 2 Translator CSR fix | PASSED. Kernel −105 MBC words; userland and Doom byte-identical; ADR-067 note |
+| 3 getpid flip (L5) | Round trip PASSED; flip held: Step 96 FAILED on pid identity (kernel 1, BPF 0); `GETPID_INJECT=false` |
+| 4 Live keyboard | PASSED. `upc-bootctl console`, bridge drain loopback-only |
+| 5 Heimdall XDP + ringbufs | PASSED. K1: vfs_write 20, execve 21, Gjallarhorn XDP 292 insns |
+| 6–8 Mímir's Law 9/11/13 | **DEFERRED** (east as a node, Step 177 [ESCALATE]); Part 1 exit (Step 228) not passed; Part 2 ran on the lead's direction |
+| 9 Cartridge ADR + spec gate | PASSED. ADR-108 Proposed, RFC Editor requests filed |
+| 10 Shared step + host reference | PASSED. H-C3 false: nine host-emulator opcode drifts fixed |
+| 11 cartridge-ebpf | PASSED. Verifier gate, BPF == host hashes, fault breaker |
+| 12 Signed loader + registry | PASSED. Seal + validator on the same bytes; atomic swap |
+| 13 Rate limiter | PASSED; Gate #1(a) FAIL (known limitation). Follows the qos-ebpf remainder fix (session 4) |
+| 14 Flow sampler | PASSED; Gate #2 FAIL (known limitation) |
+| 15 int8 scorer → services/anomaly | PASSED. Gate #3 PASS, quantization gate PASS, end to end on real XDP in a netns |
+| 16 Anamnesis replay | PASSED. Bit-exact live record → replay; divergence named at the right step |
+| 17 Lich hooks | PASSED. Three engines agree 1,000/1,000; fuzz clean |
+| 18 DISTRIBUTED (stretch) | **DEFERRED** (east, Step 435 [ESCALATE]); follow-on card Epic 1.5.6 |
+| 19 Close | PASSED (this section) |
+
+### Final regression (session 4, west)
+
+- `scripts/upc-regression.sh` **ALL GREEN**: ascend **926,542**, Doom **761,580**
+  (both unchanged from Phase 0), cart_xdp **42,743**, cart_tick **146,897** (gate
+  500,000), 22 cartridge root tests incl. the three-engine differential.
+- Goldens **12/12 SAME**, TTY and stats (8 corpus + uinit_echo, multi, nosuch, blank).
+- Doom translation byte-identical: `.mbc` `dcded746…`, `.rv2mbc` `e7ab7b67…`, `.data`
+  `e1191add…`. `ebpf/monad-cpu-ebpf` has no diff against the sprint base.
+- Go: `go build ./...` OK; `go test -race` green on cmd/anomaly, cmd/heimdall-daemon,
+  cmd/upc-tty-bridge, cmd/upc-cartridgectl, pkg/cartridge, pkg/ports, services/anomaly.
+- Rust: upc-cartridge 40, monad-mbc 391, monad-common 110, upc-api 25 tests, 0 failed.
+- Spec gate (Step 447): no Monad wire byte changed, no MBC opcode added; RFC Editor items
+  1–5 all open; ADR-108 stays Proposed.
+- gosec (repo-pinned `tools/gosec`): clean on the sprint's Go packages as CI runs it.
+- West left clean: no BPF programs, netns, pins or processes from S5. East never contacted.
+
+### Benchmark gates (close, 5 × 1,000,000 test_run, median, `taskset -c 5`)
+
+| Gate | Bar | Measured | Result |
+|---|---|---|---|
+| #1(a) rate limiter overhead over b0_pass | ≤ 150 ns | +193 ns pass / +186 ns drop (349 / 342 vs 156) | **FAIL** |
+| #1(b) rate limiter vs native qos-ebpf | ≤ 3× | 1.25× / 1.08× (native 280 / 318 ns, this branch's pre-fix qos-ebpf) | PASS |
+| #2 sampler overhead over b0_pass | ≤ 120 ns | +216 ns (365 vs 149) | **FAIL** |
+| #2 both slots | ≤ sum + 10 % (454 ns) | 473 ns | **FAIL** |
+| #3 scorer throughput | ≥ 100,000 flows/s | 232,450 flows/s; sampler 371 ns with or without the scorer slot | PASS |
+
+Session 3 measured +192 / +228 ns on the same gates; the rate limiter's refill path is up
+to five instructions longer since the remainder fix (36.3 insns/pkt, was 35.3).
+
+### Known limitations
+
+- **Interpreter cost**: ~3–7 ns per interpreted instruction on west (NOP 3.3, MOV 5.1,
+  SYSCALL 5.5, LD 6.6; 4 steps per `bpf_loop` callback), so a 35-instruction cartridge
+  cannot meet a 150 ns (or 120 ns) overhead bar. Gates #1(a) and #2 fail; #1(b) and #3
+  pass. Options for later: fewer instructions per cartridge, more steps per callback
+  (8: about −15 % per instruction for twice the verified callback), or a
+  superinstruction/DOT4 ISA change ([ESCALATE], ISA spec gate).
+- **Scorer** is trained on ten synthetic flow families only. Its held-out accuracy says
+  nothing about real traffic; it ignores the SYN count and is not monotone in window bytes
+  far outside the training range.
+- **Not run live**: the Wotan leg of `anomaly.scores` and the Sophia registry backend
+  (stack down, KF5); both proven against fakes / in-process.
+- `GETPID_INJECT` stays off (pid numbering, below).
+- The three-engine differential covers `cartridge-ebpf`, not the full `monad-cpu-ebpf`
+  engine (privileged opcodes, ascend), which remains LICH-015's east arm.
+
+### Open escalations
+
+- **East as a node** — Step 177 (Mímir's Law Phases 9/11/13: heimdall-daemon as root from
+  `/tmp` on east, XDP generic on `enp2s0`, scratch Wotan on the P2P link) and Step 435
+  (DISTRIBUTED second node). Phases 6–8 and 18 deferred; nothing ran on east.
+- **DOT4** — measured case in ADR-108 (≈1.7× scorer throughput); not needed for Gate #3;
+  any new opcode is a full ISA spec gate in its own sprint.
+- **RFC Editor items 1–5** (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`): Sophia root key
+  (`x-cartridge`), Anamnesis sub-kind `0x43`, Wotan topics `anomaly.scores` /
+  `upc.cart.*`, ADR-067 CSR range, KF10. If item 2 needs its own Event Type, that
+  registration is [ESCALATE].
+- **getpid pid numbering** — the injected getpid returns through the owned kernel, which
+  answers xv6's `p->pid` (init = 1) while BPF answers its slot (0). Flipping the default
+  needs one numbering (and probably the proc[] reconciliation EVOLUTION-1 parked).
+
+### Stevie's decision list (S5, combined)
+
+1. East as a node for Mímir's Law Phases 9/11/13 (Step 177): approve or keep deferred.
+2. East as the DISTRIBUTED second node (Step 435), or drop Phase 18 for good (card
+   Epic 1.5.6).
+3. getpid: xv6 `p->pid` or the BPF slot numbering; then whether `GETPID_INJECT` defaults on.
+4. ADR-108: accept once the RFC Editor answers items 1–5 (or keep Proposed).
+5. DOT4 / any new MBC opcode: schedule an ISA spec-gate sprint or not.
+6. Interpreter-cost gates #1(a) and #2: accept as the documented cost of interpreted
+   cartridges, or fund follow-on work (callback batching, smaller cartridges, ISA).
+7. Scorer: real labelled traffic before relying on its scores, or keep it a demonstrator.
+8. Merge `sprint/upc-wire-compute` into `develop` (lead merges; Stevie pushes) and re-sign
+   the unsigned commits (`scripts/resign-unpushed.py`).
+
+### What the Lich sprint inherits
+
+`tomb/lich/UPC-CARTRIDGE-HOOKS.md`: `cart diff`, `fuzz_cart_differential`,
+`fuzz_cart_image`, `TestDifferential_ThreeEngines`, seeds in `tomb/lich/seeds/cartridge/`,
+and the LICH-015 merge points (arm C, the MULHU seed closes: `mulhu-probe` converges on
+this branch, re-run after the merge).
