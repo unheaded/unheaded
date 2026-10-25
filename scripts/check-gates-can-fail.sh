@@ -79,6 +79,12 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${REPO_ROOT}" || exit 1
 
+# lich-cargo-fuzz defaults to 60 s per target, ten targets, and this script
+# runs it twice (clean, then provoked): over 20 minutes, which ran the CI job
+# past its 25-minute limit on 2026-10-25. Proving the gate bites needs a few
+# seconds per target; lich.yml does the real fuzzing.
+export LICH_FUZZ_SECONDS="${LICH_FUZZ_SECONDS:-5}"
+
 MODE="${1:-}"
 ONLY=""
 if [ "${MODE}" = "--only" ]; then
