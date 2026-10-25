@@ -21,7 +21,11 @@ BASELINE="$REPO_ROOT/docs/policy/well-lint-baseline.tsv"
 cd "$REPO_ROOT"
 
 # The linter itself is excluded: its self-test fixtures are deliberate findings.
-mapfile -d '' FILES < <(git ls-files -z -- '*.sql' '*.go' '*.py' '*.conf' ':!scripts/well/well_lint.py')
+# eval/champion-runbooks/build.py is excluded too: it quotes the Champion rule
+# "never run DROP TABLE/DATABASE/..." as prompt text for the eval, which the
+# linter reads as DDL in application code. It runs no SQL, and the prompt text
+# is frozen (prompts.jsonl, PREREG), so it can't carry a -- well:ignore marker.
+mapfile -d '' FILES < <(git ls-files -z -- '*.sql' '*.go' '*.py' '*.conf' ':!scripts/well/well_lint.py' ':!eval/champion-runbooks/build.py')
 current="$(python3 scripts/well/well_lint.py --format json --fail-on NONE "${FILES[@]}" |
 	python3 -c '
 import collections, json, sys
