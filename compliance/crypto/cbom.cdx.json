@@ -603,7 +603,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:127:rust-provider",
+      "bom-ref": "cmd/waf/src/tls.rs:123:rust-provider",
       "name": "rustls aws-lc-rs provider",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -638,13 +638,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:127"
+          "value": "cmd/waf/src/tls.rs:123"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:391:rust-provider",
+      "bom-ref": "cmd/waf/src/tls.rs:387:rust-provider",
       "name": "rustls aws-lc-rs provider",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -679,13 +679,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:391"
+          "value": "cmd/waf/src/tls.rs:387"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:405:rust-provider",
+      "bom-ref": "cmd/waf/src/tls.rs:401:rust-provider",
       "name": "rustls aws-lc-rs provider",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -720,13 +720,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:405"
+          "value": "cmd/waf/src/tls.rs:401"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:420:rust-provider",
+      "bom-ref": "cmd/waf/src/tls.rs:416:rust-provider",
       "name": "rustls aws-lc-rs provider",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -761,7 +761,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:420"
+          "value": "cmd/waf/src/tls.rs:416"
         }
       ]
     },
