@@ -8,9 +8,8 @@ backup/restore round trip on throwaway servers (WELL_LIVE_TESTS=1)."""
 import re
 import subprocess
 
-import pytest
-
 import harness
+import pytest
 
 RB = "runbooks/data/well-restore-from-east-offsite.yaml"
 LIVE_FLAG = "WELL_LIVE_TESTS"
@@ -27,7 +26,7 @@ def test_dry_run_lists_every_step():
 
 
 def test_every_script_path_exists_in_the_repo():
-    text = open(harness.REPO / RB).read()
+    text = (harness.REPO / RB).read_text()
     for rel in set(re.findall(r"\bscripts/[\w./-]+\.(?:sh|py)\b", text)):
         assert (harness.REPO / rel).is_file(), rel
     for installed in set(re.findall(r"/usr/local/lib/unheaded/well/([\w.-]+)", text)):
@@ -66,7 +65,7 @@ def test_destructive_steps_are_manual():
 
 
 def test_never_restores_over_a_running_well():
-    text = open(harness.REPO / RB).read().lower()
+    text = (harness.REPO / RB).read_text().lower()
     assert re.search(r"never [^.\n]{0,60}(running|live) well", text), "the runbook must say never to restore over a running Well"
 
 

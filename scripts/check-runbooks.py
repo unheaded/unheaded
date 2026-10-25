@@ -72,7 +72,7 @@ IRREVERSIBLE = [
     (re.compile(r"\bgit\s+push\b"), "git push"),
     (re.compile(r"\bpg_restore\b"), "pg_restore"),
     (re.compile(r"\bdropdb\b"), "dropdb"),
-    (re.compile(r"\bDROP\s+(TABLE|DATABASE|ROLE|SCHEMA)\b", re.I), "DROP"),
+    (re.compile(r"\bDROP\s+(TABLE|DATABASE|ROLE|SCHEMA)\b", re.IGNORECASE), "DROP"),
     (re.compile(r"\bshred\b"), "shred"),
     (re.compile(r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f|\brm\s+-[a-zA-Z]*f[a-zA-Z]*r"), "rm -rf"),
     (re.compile(r"\bmkfs(\.\w+)?\b"), "mkfs"),
@@ -87,7 +87,7 @@ ROOT_DEFAULT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class Finding:
-    __slots__ = ("path", "rule", "where", "msg")
+    __slots__ = ("msg", "path", "rule", "where")
 
     def __init__(self, path, rule, where, msg):
         self.path, self.rule, self.where, self.msg = path, rule, where, msg

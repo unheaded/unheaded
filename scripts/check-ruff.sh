@@ -9,6 +9,9 @@
 #        one unterminated string literal
 #   137  after Phases 3-13
 #     0  with the two exclusions below
+#   ~650 2026-10-25: red unseen since the eval sprints (ruff not installed on
+#        west, so the meta-gate called it INCONCLUSIVE); 579 in frozen eval
+#        fixtures (third exclusion below), the rest fixed
 #
 # RATCHET POLICY (ADR-073, docs/security/findings-remediation-2026-07-29.md):
 # exclude by RULE ID with a stated reason, never by severity, and never by
@@ -16,7 +19,7 @@
 # it. If a rule is excluded and later fixed, delete the exclusion — the baseline
 # may only ever shrink.
 #
-# Two exclusions:
+# Three exclusions:
 #
 #   --exclude crates/xv6-mbc/upstream
 #       Vendored xv6-riscv (28d5ac98). Not ours to lint. It carries 3 findings
@@ -24,6 +27,14 @@
 #       upstream's bug to fix. ADR-090 excludes vendored trees from the source
 #       sweep for the same reason. Removed if the vendored tree ever goes away —
 #       Phase 2.2-2.4 has been progressively replacing it with our own code.
+#
+#   --exclude eval/*/fixtures
+#       Frozen inputs of the preregistered evals (eval/two-brains,
+#       eval/champion-runbooks): code a model is asked to fix, with its bugs
+#       on purpose, and the validate_runbook.py checker copied into every
+#       fixture. Editing them changes the eval after the bar was set; the other
+#       scanners already skip them (647f484f). Removed if an eval stops
+#       shipping fixture code, or a new eval is built from lint-clean fixtures.
 #
 #   --ignore BLE001
 #       134 blind `except Exception` handlers. NOT a suppression-and-forget:
@@ -55,7 +66,7 @@ if ! command -v "${RUFF}" >/dev/null 2>&1; then
     exit 127
 fi
 
-EXCLUDE_PATHS="crates/xv6-mbc/upstream"
+EXCLUDE_PATHS="crates/xv6-mbc/upstream,eval/*/fixtures"
 IGNORE_RULES="BLE001"
 
 echo "============================================================"

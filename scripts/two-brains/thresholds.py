@@ -63,7 +63,7 @@ def load_results(paths):
                     try:
                         r = json.loads(line)
                     except json.JSONDecodeError as e:
-                        sys.exit("%s:%d: %s" % (p, n, e))  # strict: never drop a line
+                        sys.exit(f"{p}:{int(n)}: {e}")  # strict: never drop a line
                     r["_file"] = os.path.relpath(p, ROOT)
                     rows.append(r)
     return rows
@@ -115,12 +115,12 @@ def best_local(g):
         all_rows = {t: r for fam in g[k].values() for t, r in fam.items()}
         lat = statistics.mean([r.get("latency_ms", 0) for r in all_rows.values()]) if all_rows else 0
         return (-rate(all_rows), lat)
-    return sorted(locals_, key=score)[0]
+    return min(locals_, key=score)
 
 
 def claude_config(g):
     cs = [k for k in g if k[0] == "claude"]
-    return sorted(cs)[0] if cs else None
+    return min(cs) if cs else None
 
 
 def pct(xs, q):
@@ -247,8 +247,8 @@ def write_config(path, families, loc, cla, sources, report=None):
         "  results: [" + ", ".join(json.dumps(s) for s in sources) + "]",
         "  split_sha256: " + json.dumps(sha256_file(SPLIT)),
         "  prereg_sha256: " + json.dumps(sha256_file(PREREG)),
-        "  local: " + json.dumps("%s/%s" % loc),
-        "  claude: " + (json.dumps("%s/%s" % cla) if cla else "null"),
+        "  local: " + json.dumps("{}/{}".format(*loc)),
+        "  claude: " + (json.dumps("{}/{}".format(*cla)) if cla else "null"),
         "families:",
     ]
     out_fams = {}
@@ -274,14 +274,14 @@ def write_config(path, families, loc, cla, sources, report=None):
             expanded[fam] = e
     for fam in sorted(expanded):
         e = expanded[fam]
-        lines.append("  %s:" % fam)
+        lines.append(f"  {fam}:")
         for k in ("route", "local_model", "local_attempts", "escalate_on", "max_claude_usd", "pooled_as", "route_tuned"):
             if k in e:
                 v = e[k]
-                lines.append("    %s: %s" % (k, "[" + ", ".join(v) + "]" if isinstance(v, list) else yaml_scalar(v)))
+                lines.append("    {}: {}".format(k, "[" + ", ".join(v) + "]" if isinstance(v, list) else yaml_scalar(v)))
         for sub in ("tune", "holdout"):
             if sub in e:
-                lines.append("    %s: {%s}" % (sub, ", ".join("%s: %s" % (k, yaml_scalar(v)) for k, v in e[sub].items())))
+                lines.append("    {}: {{{}}}".format(sub, ", ".join(f"{k}: {yaml_scalar(v)}" for k, v in e[sub].items())))
     lines.append("default: {route: claude_direct, max_claude_usd: 0.25}")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
@@ -297,25 +297,25 @@ def write_table(path, table, loc, cla, report=None, rows=None, split=None):
         for k in sorted(whole):
             for fam in sorted(whole[k]):
                 s = family_stats(whole[k][fam])
-                out.append("| %s/%s | %s | %d | %d | %.2f | %.4f | %d | %d |" % (k[0], k[1], fam, s["n"], s["pass"], s["rate"], s["usd_per_task"], s["p50_ms"], s["p95_ms"]))
+                out.append(f"| {k[0]}/{k[1]} | {fam} | {int(s['n'])} | {int(s['pass'])} | {s['rate']:.2f} | {s['usd_per_task']:.4f} | {int(s['p50_ms'])} | {int(s['p95_ms'])} |")
         out.append("")
     out += ["## Tune half (the routing decision)", "",
-           "Local: `%s/%s` (best local configuration on the tune half). Claude: `%s`." % (loc[0], loc[1], "%s/%s" % cla if cla else "none"), "",
+           "Local: `{}/{}` (best local configuration on the tune half). Claude: `{}`.".format(loc[0], loc[1], "{}/{}".format(*cla) if cla else "none"), "",
            "| family | backend | n | pass | rate | $/task | p50 ms | p95 ms |", "|---|---|---|---|---|---|---|---|"]
     for fam in sorted(table):
         for b in ("local", "claude"):
             s = table[fam][b]
             if s is None:
                 continue
-            out.append("| %s | %s | %d | %d | %.2f | %.4f | %d | %d |" % (fam, b, s["n"], s["pass"], s["rate"], s["usd_per_task"], s["p50_ms"], s["p95_ms"]))
+            out.append(f"| {fam} | {b} | {int(s['n'])} | {int(s['pass'])} | {s['rate']:.2f} | {s['usd_per_task']:.4f} | {int(s['p50_ms'])} | {int(s['p95_ms'])} |")
     if report:
         out += ["", "## Hold-out", "", "| family | n | routed pass | Claude pass | local pass | routed $ | Claude $ | adopted |", "|---|---|---|---|---|---|---|---|"]
         for fam in sorted(report):
             r = report[fam]
             if r.get("n", 0) == 0:
-                out.append("| %s | 0 | | | | | | no (no tasks) |" % fam)
+                out.append(f"| {fam} | 0 | | | | | | no (no tasks) |")
                 continue
-            out.append("| %s | %d | %d | %d | %d | %.4f | %.4f | %s |" % (fam, r["n"], r["routed_pass"], r["claude_pass"], r["local_pass"], r["routed_usd"], r["claude_usd"], "yes" if r["adopted"] else "no"))
+            out.append(f"| {fam} | {int(r['n'])} | {int(r['routed_pass'])} | {int(r['claude_pass'])} | {int(r['local_pass'])} | {r['routed_usd']:.4f} | {r['claude_usd']:.4f} | {'yes' if r['adopted'] else 'no'} |")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(out) + "\n")
 
@@ -343,7 +343,7 @@ def main(argv=None):
         write_table(a.table, table, loc, cla, rows=rows, split=split)
     for fam in sorted(families):
         e = families[fam]
-        print("%-10s %-14s L=%.2f C=%s" % (fam, e["route"], e["tune"]["local_rate"], e["tune"]["claude_rate"]))
+        print(f"{fam!s:<10} {e['route']!s:<14} L={e['tune']['local_rate']:.2f} C={e['tune']['claude_rate']}")
     return 0
 
 

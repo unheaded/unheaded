@@ -14,9 +14,8 @@ import string
 import subprocess
 from pathlib import Path
 
-import pytest
-
 import harness
+import pytest
 
 RB = "runbooks/security/git-history-secret-purge.yaml"
 GITLEAKS = Path.home() / ".local/bin/gitleaks"

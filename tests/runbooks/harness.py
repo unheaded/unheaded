@@ -117,7 +117,7 @@ def commands(text):
         # program is not taken for a pipeline.
         quoted = []
 
-        def mask(m):
+        def mask(m, quoted=quoted):
             quoted.append(m.group(0))
             return f"\x00{len(quoted) - 1}\x00"
 
@@ -126,7 +126,7 @@ def commands(text):
         if not line or line.startswith("#"):
             continue
         for seg in _SPLIT.split(line):
-            seg = re.sub(r"\x00(\d+)\x00", lambda m: quoted[int(m.group(1))], seg)
+            seg = re.sub(r"\x00(\d+)\x00", lambda m, quoted=quoted: quoted[int(m.group(1))], seg)
             seg = seg.strip().lstrip("({!").strip()
             seg = re.sub(r"^(?:[A-Za-z_]\w*=\S*\s+)+", "", seg)
             seg = re.sub(r"^sudo(?:\s+-n)?\s+", "", seg)

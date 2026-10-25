@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -51,10 +52,10 @@ def answer(text):
 
 
 class FakeLlama(http.server.BaseHTTPRequestHandler):
-    answers = []
-    prompts = []
+    answers: ClassVar[list] = []
+    prompts: ClassVar[list] = []
 
-    def do_POST(self):  # noqa: N802 - http.server API
+    def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         FakeLlama.prompts.append(body["messages"][-1]["content"])
         text = FakeLlama.answers.pop(0) if FakeLlama.answers else answer(GOOD)

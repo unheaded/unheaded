@@ -23,7 +23,7 @@ cannot date is an error.
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -45,7 +45,7 @@ def history_rev() -> str:
 
 
 def utc(iso: str) -> str:
-    return datetime.fromisoformat(iso).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.fromisoformat(iso).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def dates(rev: str, card_id: str) -> tuple:

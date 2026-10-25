@@ -8,9 +8,8 @@ sandbox, must give the right verdicts; one runs against a throwaway
 import subprocess
 import time
 
-import pytest
-
 import harness
+import pytest
 
 RB = "runbooks/pki/ca-compromise-root-rotation.yaml"
 pytestmark = harness.requires("openssl")

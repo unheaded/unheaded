@@ -16,9 +16,8 @@ import os
 import subprocess
 from types import SimpleNamespace
 
-import pytest
-
 import harness
+import pytest
 
 
 def pytest_configure(config):

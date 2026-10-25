@@ -13,12 +13,23 @@ own <span class="hl-*"> tags. No language guessing: an unlabelled block stays
 plain, which is predictable and cheap.
 """
 
+from typing import ClassVar
+
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name, get_lexer_for_filename
 from pygments.style import Style
-from pygments.token import (Comment, Error, Generic, Keyword, Name, Number,
-                            Operator, String, Token)
+from pygments.token import (
+    Comment,
+    Error,
+    Generic,
+    Keyword,
+    Name,
+    Number,
+    Operator,
+    String,
+    Token,
+)
 from pygments.util import ClassNotFound
 
 MAX_BLOCKS = 32
@@ -34,7 +45,7 @@ class ZhenStyle(Style):
     """The page's dark palette (raft/static/index.html :root), lifted for
     contrast on the code background."""
     background_color = 'transparent'
-    styles = {
+    styles: ClassVar[dict] = {
         Token: '#c9c9c9',
         Comment: 'italic #777777',
         Comment.Preproc: 'noitalic #8a6aaa',

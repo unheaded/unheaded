@@ -46,9 +46,8 @@ from flask_cors import CORS
 
 # Add scripts dir to path for RAG import
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
-from zhen_rag import RAGPipeline
-
 import zhen_highlight
+from zhen_rag import RAGPipeline
 
 
 def _http_url_from_env(var: str, default: str) -> str:

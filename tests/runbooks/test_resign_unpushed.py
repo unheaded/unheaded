@@ -9,9 +9,8 @@ BRANCH, BASE pointed at the sandbox); the push stays manual and is not run."""
 import os
 import subprocess
 
-import pytest
-
 import harness
+import pytest
 
 RB = "runbooks/deploy/resign-unpushed-commits.yaml"
 
@@ -33,7 +32,7 @@ def signing_sandbox(sandbox_git_repo, tmp_path):
         pytest.skip(f"cannot make an ephemeral gpg key: {r.stderr[-200:]}")
     fpr = subprocess.run(["gpg", "--batch", "--with-colons", "--list-secret-keys"], capture_output=True, text=True,
                          env={**os.environ, **env}, check=True).stdout
-    fpr = [ln.split(":")[9] for ln in fpr.splitlines() if ln.startswith("fpr:")][0]
+    fpr = next(ln.split(":")[9] for ln in fpr.splitlines() if ln.startswith("fpr:"))
     work = sandbox_git_repo.work
     harness.git(work, "config", "user.signingkey", fpr, env=env)
     # origin/develop has 2 commits ("base", "develop work"); add 3 unpushed, unsigned
@@ -54,7 +53,7 @@ def test_push_is_manual_and_signing_probe_is_commit_tree():
     for s in harness.steps(rb) + list(rb.get("rollback") or []):
         if "git" in (s.get("command") or "") and " push" in (s.get("command") or ""):
             assert s["action"] == "manual" and s.get("irreversible") is True, s["name"]
-    text = open(harness.REPO / RB).read()
+    text = (harness.REPO / RB).read_text()
     assert "commit-tree -S" in text
     for s in harness.steps(rb):
         assert not any("--clearsign" in c for c in harness.commands(s.get("command"))), s["name"]

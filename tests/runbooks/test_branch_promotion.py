@@ -9,9 +9,8 @@ sandbox. Every push stays manual."""
 import os
 import subprocess
 
-import pytest
-
 import harness
+import pytest
 
 RB = "runbooks/deploy/branch-promotion-develop-staging-main.yaml"
 LOG = "docs/battle-plans/STAGING-PROMOTION-LOG.md"

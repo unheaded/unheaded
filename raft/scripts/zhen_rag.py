@@ -66,14 +66,14 @@ def _strip_tool_call_json(text: str) -> str:
 # above every Wotan doc. They are dropped before the query goes to vor.
 # Words that carry meaning in a code question (if, for, while, not, with,
 # else) are deliberately not on the list.
-_QUERY_STOPWORDS = frozenset("""
-    a an the and or of to in on at by from as into about
-    is are was were be been being am
-    do does did done can could should would will shall may might must
-    what whats what's who whom whose which where when why how
-    i me my you your we us our it its it's this that these those there
-    please tell explain describe define mean means meaning
-""".split())
+_QUERY_STOPWORDS = frozenset([
+    "a", "an", "the", "and", "or", "of", "to", "in", "on", "at", "by", "from", "as", "into", "about",
+    "is", "are", "was", "were", "be", "been", "being", "am",
+    "do", "does", "did", "done", "can", "could", "should", "would", "will", "shall", "may", "might", "must",
+    "what", "whats", "what's", "who", "whom", "whose", "which", "where", "when", "why", "how",
+    "i", "me", "my", "you", "your", "we", "us", "our", "it", "its", "it's", "this", "that", "these", "those", "there",
+    "please", "tell", "explain", "describe", "define", "mean", "means", "meaning",
+])
 
 _TERM_PUNCT = "?!.,;:\"'`()[]{}"
 

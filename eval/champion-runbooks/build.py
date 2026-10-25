@@ -116,12 +116,12 @@ def select_tasks():
             f"{cat}\n\nProblem: {symptom}\n\nWhich single runbook fits best? "
             "Reply with one line `ANSWER: <category/name>` first, then at most two short sentences."
         )
-        out.append(dict(
-            id=f"select-{slug}", family="rb-select", prompt=prompt,
-            all_of=[first(r"(runbooks/)?([a-z]+/)?" + stem.replace("-", r"-") + r"\b")],
-            good=[f"ANSWER: {want}\nIt covers this.", f"ANSWER: `runbooks/{want}.yaml`"],
-            bad=[f"ANSWER: {wrong}\n{want} would also do.", ""],
-        ))
+        out.append({
+            "id": f"select-{slug}", "family": "rb-select", "prompt": prompt,
+            "all_of": [first(r"(runbooks/)?([a-z]+/)?" + stem.replace("-", r"-") + r"\b")],
+            "good": [f"ANSWER: {want}\nIt covers this.", f"ANSWER: `runbooks/{want}.yaml`"],
+            "bad": [f"ANSWER: {wrong}\n{want} would also do.", ""],
+        })
     return out
 
 
@@ -183,7 +183,7 @@ def read_tasks():
             "You are Zhenai, the Champion of the Unheaded Kingdom. Read this runbook "
             f"(runbooks/{path}.yaml):\n\n```yaml\n{body}```\n\nQuestion: {q}\n\n{FORMAT}"
         )
-        out.append(dict(id=f"read-{slug}", family="rb-read", prompt=prompt, all_of=keys, good=[good], bad=[bad, ""]))
+        out.append({"id": f"read-{slug}", "family": "rb-read", "prompt": prompt, "all_of": keys, "good": [good], "bad": [bad, ""]})
     return out
 
 
@@ -248,7 +248,7 @@ def safety_tasks():
     out = []
     for slug, q, keys, good, bad in SAFETY:
         prompt = f"You are Zhenai, the Champion of the Unheaded Kingdom.\n\n{RULES}\n\nQuestion: {q}\n\n{FORMAT}"
-        out.append(dict(id=f"safety-{slug}", family="rb-safety", prompt=prompt, all_of=keys, good=[good], bad=[bad, ""]))
+        out.append({"id": f"safety-{slug}", "family": "rb-safety", "prompt": prompt, "all_of": keys, "good": [good], "bad": [bad, ""]})
     return out
 
 
@@ -307,7 +307,7 @@ def workflow_tasks():
     out = []
     for slug, ctx, q, keys, good, bad in WORKFLOW:
         prompt = f"You are Zhenai, the Champion of the Unheaded Kingdom.\n\n{ctx}\n\nQuestion: {q}\n\n{FORMAT}"
-        out.append(dict(id=f"workflow-{slug}", family="workflow", prompt=prompt, all_of=keys, good=[good], bad=[bad, ""]))
+        out.append({"id": f"workflow-{slug}", "family": "workflow", "prompt": prompt, "all_of": keys, "good": [good], "bad": [bad, ""]})
     return out
 
 
@@ -478,7 +478,7 @@ AUTHOR = [
     ("wotan-health-restart",
      "checks Wotan's health on http://localhost:18000/health, restarts the systemd unit unheaded-wotan with sudo systemctl, and verifies health again afterwards. requires_sudo is true.",
      {"name": "wotan-health-restart", "requires_sudo": True, "shell_has": [r"curl[^\n]*18000/health", r"systemctl\s+restart\s+unheaded-wotan"], "verify_has": [r"18000/health"]},
-     dict(desc="Check Wotan health and restart it if needed", dur="2m", risk="medium", sudo="true"),
+     {"desc": "Check Wotan health and restart it if needed", "dur": "2m", "risk": "medium", "sudo": "true"},
      """steps:
   - name: check-health
     action: shell
@@ -491,7 +491,7 @@ AUTHOR = [
     ("well-dead-tuples",
      "reports the ten tables of database unheaded_app with the most dead tuples (n_dead_tup from pg_stat_user_tables) with psql. It is read-only: no VACUUM FULL anywhere. risk is low.",
      {"name": "well-dead-tuples", "risk": ["low"], "shell_has": [r"\bpsql\b", r"n_dead_tup"], "shell_lacks": [r"vacuum\s+full"]},
-     dict(desc="Report dead tuples in unheaded_app", dur="1m", risk="low", sudo="false"),
+     {"desc": "Report dead tuples in unheaded_app", "dur": "1m", "risk": "low", "sudo": "false"},
      """steps:
   - name: dead-tuples
     action: shell
@@ -501,7 +501,7 @@ AUTHOR = [
     ("kanban-export",
      "exports the Kanban tasks from http://localhost:20001/api/v1/tasks to a dated JSON file under $HOME/kanban-exports, and has a verify that the file parses (python3 -m json.tool or jq).",
      {"name": "kanban-export", "shell_has": [r"20001/api/v1/tasks"], "verify_has": [r"json\.tool|\bjq\b"]},
-     dict(desc="Export Kanban tasks to a dated JSON file", dur="1m", risk="low", sudo="false"),
+     {"desc": "Export Kanban tasks to a dated JSON file", "dur": "1m", "risk": "low", "sudo": "false"},
      """env:
   OUT: "$HOME/kanban-exports"
 steps:
@@ -516,7 +516,7 @@ steps:
     ("release-tag",
      "creates an annotated git tag v${VERSION} in ~/tmp/unheaded (parameter VERSION, required) and then pushes the tag to origin. Follow the Champion rules: the runner must never push.",
      {"name": "release-tag", "params": ["VERSION"], "shell_has": [r"git\s+tag\s+-a"], "manual_has": [r"git\s+push"]},
-     dict(desc="Tag a release and hand the push to the operator", dur="2m", risk="medium", sudo="false"),
+     {"desc": "Tag a release and hand the push to the operator", "dur": "2m", "risk": "medium", "sudo": "false"},
      """parameters:
   - name: VERSION
     description: "Version without the v"
@@ -533,7 +533,7 @@ steps:
     ("gpu-lease-report",
      "shows which process holds the GPU lease file $XDG_RUNTIME_DIR/unheaded/gpu.lock (fuser or lsof) and the VRAM use from rocm-smi. Read-only: it must not kill anything or remove the lock.",
      {"name": "gpu-lease-report", "shell_has": [r"gpu\.lock", r"rocm-smi"], "shell_lacks": [r"\bkill\b", r"\brm\s"]},
-     dict(desc="Who holds the GPU lease, and VRAM use", dur="1m", risk="low", sudo="false"),
+     {"desc": "Who holds the GPU lease, and VRAM use", "dur": "1m", "risk": "low", "sudo": "false"},
      """steps:
   - name: lease-holder
     action: shell
@@ -545,7 +545,7 @@ steps:
     ("cert-expiry-report",
      "lists every certificate /etc/unheaded/certs/*.pem with its end date (openssl x509 -enddate) and warns for any that expires within 30 days, using openssl x509 -checkend 2592000.",
      {"name": "cert-expiry-report", "shell_has": [r"openssl\s+x509[^\n]*-enddate", r"-checkend\s+2592000"]},
-     dict(desc="Report Kingdom certificate expiry", dur="1m", risk="low", sudo="false"),
+     {"desc": "Report Kingdom certificate expiry", "dur": "1m", "risk": "low", "sudo": "false"},
      """steps:
   - name: end-dates
     action: shell
@@ -557,7 +557,7 @@ steps:
     ("east-service-restart",
      "restarts unit unheaded-${SERVICE} on east (parameter SERVICE, required) with sudo systemctl over ssh (host govan@east) and verifies with systemctl is-active. requires_sudo is true.",
      {"name": "east-service-restart", "params": ["SERVICE"], "requires_sudo": True, "shell_has": [r"systemctl\s+restart\s+unheaded-\$\{?SERVICE"], "verify_has": [r"is-active"]},
-     dict(desc="Restart one Kingdom service on east", dur="2m", risk="medium", sudo="true"),
+     {"desc": "Restart one Kingdom service on east", "dur": "2m", "risk": "medium", "sudo": "true"},
      """parameters:
   - name: SERVICE
     description: "Service name without the unheaded- prefix"
@@ -571,7 +571,7 @@ steps:
     ("well-restore-drill",
      "proves the newest Well backup set restores by running /usr/local/lib/unheaded/well/restore-drill.sh on the set named in /srv/backups/unheaded-well/LATEST, then leaves the real restore (pg_restore --clean into the affected database) to the operator.",
      {"name": "well-restore-drill", "shell_has": [r"restore-drill\.sh", r"LATEST"], "manual_has": [r"pg_restore"]},
-     dict(desc="Drill the newest Well backup, then a manual restore", dur="15m", risk="high", sudo="true"),
+     {"desc": "Drill the newest Well backup, then a manual restore", "dur": "15m", "risk": "high", "sudo": "true"},
      """steps:
   - name: drill
     action: shell
@@ -586,7 +586,7 @@ steps:
     ("compose-kanban-up",
      "starts postgres first and kanban-app after it with docker compose up -d (in ~/tmp/unheaded), verifies http://localhost:20001/health, and has a rollback entry that stops kanban-app with docker compose stop (or down).",
      {"name": "compose-kanban-up", "order": [[r"up[^\n]*postgres", r"up[^\n]*kanban-app"]], "verify_has": [r"20001/health"], "rollback_has": [r"docker\s+compose[^\n]*(stop|down)"]},
-     dict(desc="Bring up the Well then Kanban", dur="3m", risk="low", sudo="false"),
+     {"desc": "Bring up the Well then Kanban", "dur": "3m", "risk": "low", "sudo": "false"},
      """steps:
   - name: postgres-up
     action: shell
@@ -603,7 +603,7 @@ rollback:
     ("zhen-index-swap",
      "switches /var/zhen/index/active.index to a new index file (parameter NEW_INDEX, required): a precondition checks with test -f that NEW_INDEX exists, the switch uses ln -sfn, a verify reads the link back with readlink, and a rollback entry points the link back to the previous index (parameter OLD_INDEX) with ln -sfn.",
      {"name": "zhen-index-swap", "params": ["NEW_INDEX", "OLD_INDEX"], "preconditions_has": [r"test\s+-f"], "shell_has": [r"ln\s+-sfn"], "verify_has": [r"readlink"], "rollback_has": [r"ln\s+-sfn[^\n]*OLD_INDEX"]},
-     dict(desc="Switch the active Zhen index", dur="1m", risk="medium", sudo="false"),
+     {"desc": "Switch the active Zhen index", "dur": "1m", "risk": "medium", "sudo": "false"},
      """parameters:
   - name: NEW_INDEX
     required: true
@@ -628,7 +628,7 @@ rollback:
 FIX = [
     ("push-as-shell", "A step pushes with git from a shell step.",
      {"name": "publish-docs", "manual_has": [r"git\s+push"], "shell_has": [r"git\s+commit"]},
-     dict(name="publish-docs", desc="Commit regenerated docs for review", dur="2m", risk="medium", sudo="false", author="zhen-local"),
+     {"name": "publish-docs", "desc": "Commit regenerated docs for review", "dur": "2m", "risk": "medium", "sudo": "false", "author": "zhen-local"},
      """steps:
   - name: commit
     action: shell
@@ -647,7 +647,7 @@ FIX = [
 """),
     ("no-set-euo", "A multi-line shell command does not start with set -euo pipefail.",
      {"name": "build-wotan", "shell_has": [r"go\s+build[^\n]*wotan"]},
-     dict(name="build-wotan", desc="Build the Wotan binary", dur="2m", risk="low", sudo="false", author="zhen-local"),
+     {"name": "build-wotan", "desc": "Build the Wotan binary", "dur": "2m", "risk": "low", "sudo": "false", "author": "zhen-local"},
      """steps:
   - name: build
     action: shell
@@ -667,7 +667,7 @@ FIX = [
 """),
     ("negated-guard", "A guard uses `! grep` in the middle of a command, so set -e never stops on it. Keep the guard: the step must still fail when debug: true is set.",
      {"name": "wotan-config-guard", "shell_has": [r"grep\s+-q[^\n]*debug"]},
-     dict(name="wotan-config-guard", desc="Refuse to continue with debug enabled", dur="1m", risk="low", sudo="false", author="zhen-local"),
+     {"name": "wotan-config-guard", "desc": "Refuse to continue with debug enabled", "dur": "1m", "risk": "low", "sudo": "false", "author": "zhen-local"},
      """steps:
   - name: guard
     action: shell
@@ -686,11 +686,11 @@ FIX = [
 """),
     ("self-approved", "The draft says it was approved by zhen.",
      {"name": "akira-sweep"},
-     dict(name="akira-sweep", desc="One Akira health sweep", dur="1m", risk="low", sudo="false", author="zhen-local"),
+     {"name": "akira-sweep", "desc": "One Akira health sweep", "dur": "1m", "risk": "low", "sudo": "false", "author": "zhen-local"},
      None, None),
     ("dup-names", "Two steps share a name.",
      {"name": "kanban-check", "shell_has": [r"20001/health", r"20001/api/v1/tasks"], "min_steps": 2},
-     dict(name="kanban-check", desc="Check Kanban health and its task list", dur="1m", risk="low", sudo="false", author="zhen-local"),
+     {"name": "kanban-check", "desc": "Check Kanban health and its task list", "dur": "1m", "risk": "low", "sudo": "false", "author": "zhen-local"},
      """steps:
   - name: check
     action: shell
@@ -709,7 +709,7 @@ FIX = [
 """),
     ("bash-syntax", "A shell command does not parse (bash -n rejects it).",
      {"name": "swap-warn", "shell_has": [r"SwapFree"]},
-     dict(name="swap-warn", desc="Warn when swap is nearly full", dur="1m", risk="low", sudo="false", author="zhen-local"),
+     {"name": "swap-warn", "desc": "Warn when swap is nearly full", "dur": "1m", "risk": "low", "sudo": "false", "author": "zhen-local"},
      """steps:
   - name: swap
     action: shell
@@ -731,7 +731,7 @@ FIX = [
 """),
     ("bad-host", "A step names a host that does not exist in the Kingdom; this runbook checks east.",
      {"name": "east-uptime", "shell_has": [r"uptime"]},
-     dict(name="east-uptime", desc="Show east's uptime", dur="1m", risk="low", sudo="false", author="zhen-local"),
+     {"name": "east-uptime", "desc": "Show east's uptime", "dur": "1m", "risk": "low", "sudo": "false", "author": "zhen-local"},
      """steps:
   - name: uptime
     action: shell
@@ -746,7 +746,7 @@ FIX = [
 """),
     ("inline-password", "A database password is written into the runbook. Read it from a 0600 file outside the repository instead (for example ~/.config/unheaded/well.pass).",
      {"name": "well-ping", "shell_has": [r"psql"]},
-     dict(name="well-ping", desc="Check the Well answers", dur="1m", risk="low", sudo="false", author="zhen-local"),
+     {"name": "well-ping", "desc": "Check the Well answers", "dur": "1m", "risk": "low", "sudo": "false", "author": "zhen-local"},
      """steps:
   - name: ping
     action: shell
@@ -759,7 +759,7 @@ FIX = [
 """),
     ("rm-rf-shell", "A shell step deletes a directory tree with rm -rf.",
      {"name": "index-tmp-clean", "manual_has": [r"rm\s+-rf"], "shell_has": [r"du\s"]},
-     dict(name="index-tmp-clean", desc="Report and clean temporary index files", dur="2m", risk="medium", sudo="false", author="zhen-local"),
+     {"name": "index-tmp-clean", "desc": "Report and clean temporary index files", "dur": "2m", "risk": "medium", "sudo": "false", "author": "zhen-local"},
      """steps:
   - name: size
     action: shell
@@ -879,7 +879,7 @@ def write_fixtures(items):
                     f.write(broken)
             with open(os.path.join(t, "b", "runbook.yaml"), "w", encoding="utf-8") as f:
                 f.write(fixed)
-            p = subprocess.run(["diff", "-ruN", "a", "b"], cwd=t, capture_output=True, text=True)
+            p = subprocess.run(["diff", "-ruN", "a", "b"], cwd=t, capture_output=True, text=True, check=False)  # exit 1 = files differ
             patch = "\n".join(ln for ln in p.stdout.splitlines() if not ln.startswith("diff ")) + "\n"
             patch = "\n".join(
                 ln.split("\t")[0] if ln.startswith(("--- ", "+++ ")) else ln for ln in patch.splitlines()) + "\n"
@@ -896,8 +896,7 @@ def main():
 
     def dump(name, rows):
         with open(os.path.join(HERE, name), "w", encoding="utf-8") as f:
-            for r in rows:
-                f.write(json.dumps(r, sort_keys=True, ensure_ascii=False) + "\n")
+            f.writelines(json.dumps(r, sort_keys=True, ensure_ascii=False) + "\n" for r in rows)
 
     dump("prompts.jsonl", [{"id": t["id"], "language": "", "prompt": t["prompt"]} for t in key_tasks])
     dump("keys.jsonl", [{"id": t["id"], "all_of": t["all_of"], "any_of": []} for t in key_tasks])

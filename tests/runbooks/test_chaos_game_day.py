@@ -32,7 +32,7 @@ def test_injections_exist_and_are_manual_with_hypothesis():
     for i in inj:
         s = st[i]
         assert s["action"] == "manual", f"{s['name']} injects a fault but is {s['action']}"
-        assert re.search(r"hypothes", f"{s.get('command', '')} {s.get('description', '')}", re.I), f"{s['name']} names no hypothesis"
+        assert re.search(r"hypothes", f"{s.get('command', '')} {s.get('description', '')}", re.IGNORECASE), f"{s['name']} names no hypothesis"
 
 
 def test_each_injection_is_immediately_followed_by_its_restore():

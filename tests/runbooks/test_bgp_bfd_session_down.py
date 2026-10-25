@@ -8,9 +8,8 @@ the read steps on a lab host with FRR (FRR_LAB=1, e.g. inside the
 nixos/tests/frr.nix VM)."""
 import re
 
-import pytest
-
 import harness
+import pytest
 
 RB = "runbooks/network/bgp-bfd-session-down.yaml"
 LIVE_FLAG = "FRR_LAB"
@@ -50,7 +49,7 @@ def test_every_shell_step_is_read_only(field):
 
 
 def test_every_change_is_manual():
-    changes = re.compile(r"clear bgp|systemctl (restart|reload|stop)|frr\.nix.*(edit|rebuild)|configure terminal|nixos-rebuild", re.I)
+    changes = re.compile(r"clear bgp|systemctl (restart|reload|stop)|frr\.nix.*(edit|rebuild)|configure terminal|nixos-rebuild", re.IGNORECASE)
     for s in harness.steps(harness.load(RB)) + list(harness.load(RB).get("rollback") or []):
         text = f"{s.get('command', '')}\n{s.get('description', '')}"
         if changes.search(text):

@@ -12,11 +12,11 @@ import os
 import re
 import shutil
 import subprocess
+from datetime import UTC
 from pathlib import Path
 
-import pytest
-
 import harness
+import pytest
 
 RB = "runbooks/security/claude-api-key-rotation-spend-breach.yaml"
 
@@ -45,7 +45,7 @@ def test_dry_run_lists_every_step():
 
 
 def test_no_step_prints_the_key():
-    text = open(harness.REPO / RB).read()
+    text = (harness.REPO / RB).read_text()
     assert not re.search(r"echo[^\n]*ANTHROPIC", text)
     for s in harness.steps(harness.load(RB)):
         c = s.get("command") or ""
@@ -56,7 +56,7 @@ def test_no_step_prints_the_key():
 def test_rotation_is_manual_and_stop_comes_first():
     st = harness.steps(harness.load(RB))
     names = [s["name"] for s in st]
-    rot = [i for i, s in enumerate(st) if re.search(r"console|revoke|rotate", f"{s['name']} {s.get('description', '')}", re.I)]
+    rot = [i for i, s in enumerate(st) if re.search(r"console|revoke|rotate", f"{s['name']} {s.get('description', '')}", re.IGNORECASE)]
     assert rot and all(st[i]["action"] == "manual" for i in rot)
     stop = min(i for i, s in enumerate(st) if "zhen-agentd.stop" in (s.get("command") or "") or "systemctl stop zhen-agentd" in (s.get("command") or "") or "--user stop" in (s.get("command") or ""))
     assert stop < min(rot), names
@@ -79,8 +79,8 @@ def test_stop_step_creates_the_stop_file(tmp_path):
 @pytest.mark.skipif(shutil.which("gitleaks") is None and not Path.home().joinpath(".local/bin/gitleaks").exists(),
                     reason="zhen-claude's privacy tier needs gitleaks before it sends anything")
 def test_cap_refuses_before_sending(zhen_claude, tmp_path):
-    from datetime import datetime, timezone
-    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    from datetime import datetime
+    day = datetime.now(UTC).strftime("%Y-%m-%d")
     ledger = tmp_path / "spend.json"
     ledger.write_text(json.dumps({"day": day, "spent_nano_usd": 600_000_000, "requests": 9}))  # $0.60 > $0.50 cap
     r = run_zc(zhen_claude, ledger, tmp_path)

@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import zhen_highlight as zh  # noqa: E402
+import zhen_highlight as zh
 
 
 def _text(html):

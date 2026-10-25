@@ -8,9 +8,8 @@ and on; the answers must flip. The repo's .mcp.json must keep both gates off."""
 import json
 import subprocess
 
-import pytest
-
 import harness
+import pytest
 
 RB = "runbooks/security/mcp-write-exec-enablement.yaml"
 
@@ -51,7 +50,7 @@ def test_enable_and_disable_are_manual_and_the_work_is_attended():
         c = s.get("command") or ""
         if "export ZHEN_MCP_ALLOW" in c or "unset ZHEN_MCP_ALLOW" in c:
             assert s["action"] == "manual", s["name"]
-    assert "attended" in open(harness.REPO / RB).read().lower()
+    assert "attended" in (harness.REPO / RB).read_text().lower()
 
 
 def test_preflight_guard_passes_on_this_repo():

@@ -10,9 +10,8 @@ pending member the way the runbook does (the subscribe answer, the log line,
 the unheaded_chat_members_pending gauge), then allowlists and restarts."""
 import time
 
-import yaml
-
 import harness
+import yaml
 
 RB = "runbooks/wotan/pending-subscription-approval.yaml"
 UNKNOWN = "s2b-unknown"
@@ -46,7 +45,7 @@ def test_restarts_and_host_edits_are_manual():
 
 
 def test_admin_api_is_not_the_path():
-    text = open(harness.REPO / RB).read()
+    text = (harness.REPO / RB).read_text()
     for s in harness.steps(harness.load(RB)):
         assert "/api/v1/admin/approve" not in (s.get("command") or ""), s["name"]
     assert "401" in text  # the runbook says why
@@ -72,7 +71,7 @@ def test_pending_then_allowlisted_after_restart(throwaway_wotan, tmp_path):
     deadline = time.time() + 10
     while "topic_subscriber_pending_approval" not in w.log.read_text() and time.time() < deadline:
         time.sleep(0.2)
-    assert UNKNOWN in [ln for ln in w.log.read_text().splitlines() if "topic_subscriber_pending_approval" in ln][0]
+    assert UNKNOWN in next(ln for ln in w.log.read_text().splitlines() if "topic_subscriber_pending_approval" in ln)
     assert wait_pending_gauge(w), "unheaded_chat_members_pending never rose"
     pre = rb["preconditions"][0]["check"]
     assert harness.run_step({"steps": [{"name": "pre", "command": pre}]}, "pre", env=env, check=False).returncode == 0

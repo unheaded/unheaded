@@ -11,8 +11,9 @@ import hashlib
 import json
 import sys
 
-for line in open(sys.argv[1], encoding="utf-8"):
-    t = json.loads(line)
-    h = int(hashlib.sha256(t["id"].encode()).hexdigest(), 16)
-    t["split"] = "holdout" if h % 2 == 0 else "tune"
-    print(json.dumps(t, sort_keys=True))
+with open(sys.argv[1], encoding="utf-8") as tasks:
+    for line in tasks:
+        t = json.loads(line)
+        h = int(hashlib.sha256(t["id"].encode()).hexdigest(), 16)
+        t["split"] = "holdout" if h % 2 == 0 else "tune"
+        print(json.dumps(t, sort_keys=True))

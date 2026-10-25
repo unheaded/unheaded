@@ -1367,10 +1367,10 @@ SELECT 1;
     "outside_live.sql": ("CREATE TABLE y (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY);",
                          {"schema-outside-ledger"}, set()),
     # Code files: DDL in a string literal is found however the statement is built ...
-    "ddl_code.py": ('db.execute("CREATE TABLE IF NOT EXISTS probe (id int)")\n'
-                    'db.execute("DROP TABLE " + name)\n'
-                    'db.execute("ALTER TABLE %s ADD COLUMN x int" % t)\n'
-                    'db.execute(f"CREATE INDEX {name}_idx ON t (x)")\n',
+    "ddl_code.py": (('db.execute("CREATE TABLE IF NOT EXISTS probe (id int)")\n'
+                     'db.execute("DROP TABLE " + name)\n'
+                     'db.execute("ALTER TABLE %s ADD COLUMN x int" % t)\n'
+                     'db.execute(f"CREATE INDEX {name}_idx ON t (x)")\n'),
                     {"ddl-outside-ledger"}, set()),
     # ... but a prompt that names the statements in prose is not DDL.
     "prose.py": ('RULES = """R1 a step never runs dropdb, DROP TABLE/DATABASE/ROLE/SCHEMA, or rm -rf."""\n',
