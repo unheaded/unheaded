@@ -36,65 +36,61 @@ ARG VERSION=dev
 ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
 
-# Build all services
+# Build all services: one RUN, one layer (every build depends on the COPY above).
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/wotan ./services/wotan/cmd/wotan
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/wotan ./services/wotan/cmd/wotan && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/timeguru ./services/timeguru/cmd/timeguru
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/timeguru ./services/timeguru/cmd/timeguru && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/captain ./services/captain/cmd/captain
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/captain ./services/captain/cmd/captain && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/architect ./services/architect/cmd/architect
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/architect ./services/architect/cmd/architect && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/micromanager ./services/micromanager/cmd/micromanager
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/micromanager ./services/micromanager/cmd/micromanager && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/unheaded-daemon ./cmd/unheaded-daemon
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/unheaded-daemon ./cmd/unheaded-daemon && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/monad ./cmd/monad
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/monad ./cmd/monad && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/sophia ./cmd/sophia
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/sophia ./cmd/sophia && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME}" \
-    -o /build/bin/dashboard-backend ./cmd/dashboard-backend
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/dashboard-backend ./cmd/dashboard-backend && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/kanban-app ./cmd/kanban-app
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/kanban-app ./cmd/kanban-app && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/akira ./cmd/akira
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/akira ./cmd/akira && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/kev-poller ./cmd/kev-poller
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/kev-poller ./cmd/kev-poller && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
     -o /build/bin/sword ./cmd/sword
 
 # ============================================================================
-# STAGE 2: WOTAN - THE FAE CHAMBER
+# RUNTIME BASE - what every service image starts from
 # ============================================================================
-FROM alpine:3.24 AS wotan
+# Every service stage installed the same two packages; this stage does it
+# once. Versions float within the pinned alpine:3.24 branch, so security
+# fixes land on rebuild.
+FROM alpine:3.24 AS runtime
 
 RUN apk add --no-cache ca-certificates tzdata
+
+# ============================================================================
+# STAGE 2: WOTAN - THE FAE CHAMBER
+# ============================================================================
+FROM runtime AS wotan
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16720 wotan && \
@@ -112,16 +108,14 @@ USER 16720:16720
 EXPOSE 18000 18001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:18000/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:18000/health || exit 1"]
 
 ENTRYPOINT ["/app/wotan"]
 
 # ============================================================================
 # STAGE 3: TIMEGURU - THE ORACLE'S ANTRE
 # ============================================================================
-FROM alpine:3.24 AS timeguru
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS timeguru
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16722 timeguru && \
@@ -138,16 +132,14 @@ USER 16722:16722
 EXPOSE 19000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:19000/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19000/health || exit 1"]
 
 ENTRYPOINT ["/app/timeguru"]
 
 # ============================================================================
 # STAGE 4: CAPTAIN - THE COMMANDER'S QUARTERS
 # ============================================================================
-FROM alpine:3.24 AS captain
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS captain
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16724 captain && \
@@ -164,16 +156,14 @@ USER 16724:16724
 EXPOSE 19002
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:19002/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19002/health || exit 1"]
 
 ENTRYPOINT ["/app/captain"]
 
 # ============================================================================
 # STAGE 5: ARCHITECT - THE SAGE'S LAIR
 # ============================================================================
-FROM alpine:3.24 AS architect
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS architect
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16723 architect && \
@@ -190,7 +180,7 @@ USER 16723:16723
 EXPOSE 19001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:19001/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19001/health || exit 1"]
 
 ENTRYPOINT ["/app/architect"]
 
@@ -199,9 +189,7 @@ ENTRYPOINT ["/app/architect"]
 # ============================================================================
 # Akira: consensus health (ADR-029). Checks the services and tallies every
 # reporter's votes; remediation is off unless started with --remediate.
-FROM alpine:3.24 AS akira
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS akira
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16731 akira && \
@@ -216,16 +204,14 @@ USER 16731:16731
 EXPOSE 19100
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:19100/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19100/health || exit 1"]
 
 ENTRYPOINT ["/app/akira"]
 
 # ============================================================================
 # KEV-POLLER: CISA Known Exploited Vulnerabilities feed (ADR-055). Writes to
 # /data (mount a volume there); outbound https to www.cisa.gov only.
-FROM alpine:3.24 AS kev-poller
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS kev-poller
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16732 kevpoller && \
@@ -243,14 +229,12 @@ USER 16732:16732
 EXPOSE 19120
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:19120/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19120/health || exit 1"]
 
 ENTRYPOINT ["/app/kev-poller", "--state-dir", "/data", "--stack", "/etc/unheaded/kev-stack.yaml"]
 
 # ============================================================================
-FROM alpine:3.24 AS micromanager
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS micromanager
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16725 micromanager && \
@@ -267,16 +251,14 @@ USER 16725:16725
 EXPOSE 19003
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:19003/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19003/health || exit 1"]
 
 ENTRYPOINT ["/app/micromanager"]
 
 # ============================================================================
 # STAGE 7: MONAD - THE ONE (Unified State Management)
 # ============================================================================
-FROM alpine:3.24 AS monad
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS monad
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16726 monad && \
@@ -293,16 +275,14 @@ USER 16726:16726
 EXPOSE 19004
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:19004/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19004/health || exit 1"]
 
 ENTRYPOINT ["/app/monad"]
 
 # ============================================================================
 # STAGE 8: SOPHIA - DIVINE WISDOM (Knowledge Graph)
 # ============================================================================
-FROM alpine:3.24 AS sophia
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS sophia
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16727 sophia && \
@@ -319,16 +299,14 @@ USER 16727:16727
 EXPOSE 19005
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:19005/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19005/health || exit 1"]
 
 ENTRYPOINT ["/app/sophia"]
 
 # ============================================================================
 # STAGE 9: CUIRASS - THE CORE HEART (Control Plane)
 # ============================================================================
-FROM alpine:3.24 AS cuirass
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS cuirass
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16740 cuirass && \
@@ -346,16 +324,14 @@ USER 16740:16740
 EXPOSE 17000 17001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:17000/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:17000/health || exit 1"]
 
 ENTRYPOINT ["/app/unheaded-daemon"]
 
 # ============================================================================
 # SWORD - the deploy service (S-REAL-STEEL Phase 8, D-09)
 # ============================================================================
-FROM alpine:3.24 AS sword
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS sword
 
 # Own account (pkg/uids.Sword): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16746 sword && \
@@ -373,16 +349,14 @@ USER 16746:16746
 EXPOSE 19011
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:19011/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19011/health || exit 1"]
 
 ENTRYPOINT ["/app/sword"]
 
 # ============================================================================
 # STAGE 10: DASHBOARD-BACKEND - THE VISOR (Observability Dashboard)
 # ============================================================================
-FROM alpine:3.24 AS dashboard-backend
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS dashboard-backend
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16728 dashboard-backend && \
@@ -401,16 +375,14 @@ USER 16728:16728
 EXPOSE 20000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:20000/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:20000/health || exit 1"]
 
 ENTRYPOINT ["/app/dashboard-backend", "--viz-dir", "/app/viz"]
 
 # ============================================================================
 # STAGE 11: KANBAN-APP - THE META MOMENT (Self-Hosting Proof)
 # ============================================================================
-FROM alpine:3.24 AS kanban-app
-
-RUN apk add --no-cache ca-certificates tzdata
+FROM runtime AS kanban-app
 
 # Own account (pkg/uids): no shell, no home, uid shared with nothing else.
 RUN addgroup -S -g 16729 kanban-app && \
@@ -427,16 +399,16 @@ USER 16729:16729
 EXPOSE 20001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:20001/health || exit 1
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:20001/health || exit 1"]
 
 ENTRYPOINT ["/app/kanban-app"]
 
 # ============================================================================
 # DEFAULT: ALL-IN-ONE (for development)
 # ============================================================================
-FROM alpine:3.24
+FROM runtime
 
-RUN apk add --no-cache ca-certificates tzdata supervisor
+RUN apk add --no-cache supervisor
 
 # One container running every service under supervisord (dev only), so one
 # account for all of them; still not root and not a login account (pkg/uids).

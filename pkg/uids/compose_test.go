@@ -98,7 +98,9 @@ func TestComposeMatchesRegistry(t *testing.T) {
 
 // TestDockerfileStagesMatchRegistry: each runtime stage of the root
 // Dockerfile ends on a numeric USER equal to the registry (the unnamed
-// default stage is all-in-one-dev); only the builder may run as root.
+// default stage is all-in-one-dev); only the builder may run as root. A base
+// stage that later stages build FROM (runtime) is not an image of its own:
+// it is exempt, and every stage built from it is checked instead.
 func TestDockerfileStagesMatchRegistry(t *testing.T) {
 	f, err := os.Open(filepath.Join("..", "..", "Dockerfile"))
 	if err != nil {
@@ -108,6 +110,7 @@ func TestDockerfileStagesMatchRegistry(t *testing.T) {
 
 	type stage struct{ name, user string }
 	var stages []stage
+	bases := map[string]bool{}
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		fields := strings.Fields(sc.Text())
@@ -118,6 +121,7 @@ func TestDockerfileStagesMatchRegistry(t *testing.T) {
 				name = fields[3]
 			}
 			stages = append(stages, stage{name: name})
+			bases[fields[1]] = true
 		case len(fields) == 2 && strings.EqualFold(fields[0], "USER") && len(stages) > 0:
 			stages[len(stages)-1].user = fields[1]
 		}
@@ -130,6 +134,12 @@ func TestDockerfileStagesMatchRegistry(t *testing.T) {
 	}
 	for _, s := range stages {
 		if s.name == "builder" {
+			continue
+		}
+		if bases[s.name] {
+			if s.user != "" {
+				t.Errorf("base stage %q sets USER %q: the stages built from it install as root first", s.name, s.user)
+			}
 			continue
 		}
 		want, ok := Registry[s.name]
