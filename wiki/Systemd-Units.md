@@ -44,6 +44,7 @@ The offsite SFTP account is nologin, chrooted and key-only (`deploy/east/sshd-we
 | `unheaded-daemon.service` | Control plane |
 | `unheaded-nft.service` | Loads the last confirmed `inet unheaded` ruleset |
 | `unheaded-trace-collector.service` | eBPF trace collector (XDP, TC, kprobes) publishing to Wotan |
+| `unheaded-anomaly.service` | Anomaly detection service (`cmd/anomaly`, ADR-108), loopback `:19018`, as `unheaded-anomaly` (uid 16734, `pkg/uids`) with no capabilities. Service only (`--no-cartridge`): it consumes `anomaly.scores` from Wotan; the cartridge bridge needs the root-owned pins under `/sys/fs/bpf/unheaded/cart` and stays a hand-run lab step. Not installed anywhere |
 | `unheaded-baseline.service` + `.timer` + `.path` | Host baseline agent (ADR-098): every 5 min and on `sshd_config` change. Runs as `unheaded-baseline` with CAP_DAC_READ_SEARCH + CAP_NET_ADMIN and deliberately **no** mount sandboxing: an auditor in a namespace audits the namespace. Installed on east and west 2026-10-22; report at `/var/lib/unheaded/baseline/report.json` |
 | `unheaded-well-backup` / `-drill` / `-offsite` / `-offsite-check` | The Well's backup jobs (above) |
 | `huginn.service` | Metrics agent |

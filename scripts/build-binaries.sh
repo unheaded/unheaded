@@ -44,6 +44,7 @@ chaos-controller    ./cmd/chaos-controller
 sword               ./cmd/sword
 unheaded-baseline   ./cmd/unheaded-baseline
 zhen-agentd         ./cmd/zhen-agentd
+anomaly             ./cmd/anomaly
 "
 # Run by a unit but not built here: an upstream release binary.
 THIRD_PARTY="node_exporter"

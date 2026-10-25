@@ -88,6 +88,9 @@ const (
 	KEVPoller        = 16732
 	// SophiaGateway is deploy/sophia-eye's gateway (its own compose stack).
 	SophiaGateway = 16733
+	// Anomaly is cmd/anomaly (services/anomaly), a host systemd unit only
+	// (deploy/systemd/unheaded-anomaly.service, account unheaded-anomaly).
+	Anomaly = 16734
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -190,6 +193,7 @@ var Registry = map[string]int{
 	"akira":             Akira,
 	"kev-poller":        KEVPoller,
 	"sophia-gateway":    SophiaGateway,
+	"anomaly":           Anomaly,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

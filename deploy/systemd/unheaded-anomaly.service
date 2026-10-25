@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# anomaly: the Anomaly Detection service (services/anomaly via cmd/anomaly,
+# ADR-108 S5 Phase 15). REST API on loopback :19018 (/api/v1/anomalies/*,
+# /health, /ready, /metrics); consumes anomaly.scores, anomaly.alerts,
+# anomaly.baseline and alerts.critical from Wotan as "anomaly-service"
+# (configs/wotan.yaml topics.auto_approve).
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
+#   scripts/build-binaries.sh --out bin/release anomaly
+#   sudo install -m 0755 -o root -g root bin/release/anomaly /usr/local/bin/
+#   sudo cp deploy/systemd/unheaded-anomaly.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start unheaded-anomaly    # manual only — NOT enabled on boot
+# Wotan elsewhere: ANOMALY_WOTAN=host:18000 in /etc/unheaded/anomaly.env.
+#
+# Service only (--no-cartridge): no capabilities. The cartridge bridge reads
+# the pinned CART_EVENTS ring under /sys/fs/bpf/unheaded/cart, whose
+# directory is root 0700 and whose pins are root 0600 and include the slot
+# maps that hold signed cartridge ROM. Reaching it as this account would need
+# CAP_BPF plus CAP_DAC_OVERRIDE (or a pin-group change in pkg/cartridge), so
+# the bridge stays a root lab run (`anomaly --wotan 127.0.0.1:18000` by hand,
+# publishing the same anomaly.scores this unit consumes) until that is decided.
+
+[Unit]
+Description=Unheaded anomaly — anomaly detection service (cartridge scores via Wotan)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/wiki/UPC-Cartridges.md
+After=network-online.target unheaded-wotan.service
+Wants=network-online.target
+Requires=unheaded-wotan.service
+
+[Service]
+Type=simple
+Environment=ANOMALY_WOTAN=127.0.0.1:18000
+EnvironmentFile=-/etc/unheaded/anomaly.env
+ExecStart=/usr/local/bin/anomaly --listen 127.0.0.1:19018 --wotan ${ANOMALY_WOTAN} --no-cartridge
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+
+LimitNOFILE=1024
+
+User=unheaded-anomaly
+Group=unheaded-anomaly
+UMask=0077
+
+# Sandbox (deploy/systemd/README.md#isolation). The user comes from
+# deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin,
+# uid pinned to pkg/uids.Anomaly. It writes no files, so no StateDirectory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
