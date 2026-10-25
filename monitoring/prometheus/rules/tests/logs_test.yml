@@ -58,3 +58,119 @@ tests:
             exp_annotations:
               summary: "Vector on west is not answering /metrics"
               description: "The journal is not shipping while it is down; docker compose ps vector"
+
+  # Log-volume deviation (ADR-100 Phase 3). 10080m is 7 days: the baseline
+  # is the median of the unit's own 10m rate at this time on days 1-7 back.
+
+  # huginn logs 1 line/s for a week, then 20/s. The 10m rate passes 10x
+  # its baseline at +5m; with for: 10m LogSpam fires at +15m.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_log_lines_total{job="vector",instance="host.docker.internal:9598",host="west",unit="huginn.service",level="info"}'
+        values: '0+60x10080 604800+1200x60'
+    alert_rule_test:
+      - eval_time: 10070m
+        alertname: LogSpam
+        exp_alerts: []
+      - eval_time: 10093m
+        alertname: LogSpam
+        exp_alerts: []
+      - eval_time: 10097m
+        alertname: LogSpam
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, unit: huginn.service}
+            exp_annotations:
+              summary: "huginn.service on west logs 20.00 lines/s, over 10x its usual for this time of day"
+              description: "journalctl -u huginn.service --since -15min on west; a loop or a retry storm usually repeats one line"
+      - eval_time: 10097m
+        alertname: LogErrorSpam
+        exp_alerts: []
+      - eval_time: 10097m
+        alertname: LogSilence
+        exp_alerts: []
+
+  # A week of history is not needed to stay quiet: on day 3 there is no
+  # baseline (fewer than 4 of 7 days), so a burst then alerts nothing.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_log_lines_total{job="vector",instance="v",host="west",unit="new.service",level="info"}'
+        values: '0+60x4320 259200+1200x60'
+    alert_rule_test:
+      - eval_time: 4360m
+        alertname: LogSpam
+        exp_alerts: []
+
+  # sshd's err lines go from 0.1/s to 0.6/s: over 5x, and 36/min, so
+  # LogErrorSpam (rate passes 0.5 at +9m, fires at +19m). Overall that is
+  # 6x, under LogSpam's 10x. cron's err lines go 10x, from 0.01/s to
+  # 0.1/s, but 6/min is under the 10/min floor: nothing.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_log_lines_total{job="vector",instance="v",host="east",unit="ssh.service",level="err"}'
+        values: '0+6x10080 60480+36x60'
+      - series: 'unheaded_log_lines_total{job="vector",instance="v",host="east",unit="cron.service",level="err"}'
+        values: '0+0.6x10080 6048+6x60'
+    alert_rule_test:
+      - eval_time: 10095m
+        alertname: LogErrorSpam
+        exp_alerts: []
+      - eval_time: 10101m
+        alertname: LogErrorSpam
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: east, unit: ssh.service, level: err}
+            exp_annotations:
+              summary: "ssh.service on east logs 0.60 err lines/s, over 5x its usual"
+              description: "journalctl -u ssh.service -p err --since -15min on east"
+      - eval_time: 10101m
+        alertname: LogSpam
+        exp_alerts: []
+
+  # huginn logs 1 line/s for a week, then nothing, while kev-poller on the
+  # same host keeps logging. Its rate is 0 from +10m: LogSilence at +40m.
+  # kev-poller does not alert.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_log_lines_total{job="vector",instance="v",host="west",unit="huginn.service",level="info"}'
+        values: '0+60x10080 604800x60'
+      - series: 'unheaded_log_lines_total{job="vector",instance="v",host="west",unit="unheaded-kev-poller.service",level="info"}'
+        values: '0+60x10140'
+    alert_rule_test:
+      - eval_time: 10115m
+        alertname: LogSilence
+        exp_alerts: []
+      - eval_time: 10125m
+        alertname: LogSilence
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, unit: huginn.service}
+            exp_annotations:
+              summary: "huginn.service on west has logged nothing for 40m; it usually logs 60 lines/min"
+              description: "systemctl status huginn.service on west; a stopped or hung process logs nothing"
+
+  # The whole host stops shipping: that is VectorDown/JournalNotShipping,
+  # not a silence per unit.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_log_lines_total{job="vector",instance="v",host="west",unit="huginn.service",level="info"}'
+        values: '0+60x10080 604800x60'
+    alert_rule_test:
+      - eval_time: 10125m
+        alertname: LogSilence
+        exp_alerts: []
+
+  # 3 sshd authentication failures a minute from 10m: 20 in 10m by about
+  # 17m, so AuthFailureBurst fires at about 22m.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_auth_failures_total{job="vector",instance="v",host="west",unit="ssh.service",kind="ssh"}'
+        values: '0x10 3+3x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: AuthFailureBurst
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: AuthFailureBurst
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, kind: ssh}
+            exp_annotations:
+              summary: "30 ssh authentication failures in 10m on west"
+              description: "journalctl --since -15min -g 'Failed|Invalid user|incorrect password|authentication failure' on west"

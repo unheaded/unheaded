@@ -74,6 +74,72 @@ transforms:
         "fields": encode_json(rest)
       }
 
+  # Log-volume and auth-failure SLIs (ADR-100 Phase 3). Lines are counted,
+  # never stored for this: the metric carries host, unit, level and a fixed
+  # failure kind, not message text. Alerts: monitoring/prometheus/rules/logs.yml.
+  journal_volume:
+    type: remap
+    inputs:
+      - journal_rows
+    source: |
+      unit = string(.unit) ?? "unknown"
+      # Transient units (run-u123.service, docker-<64 hex>.scope) would add
+      # a series per instance; count them as one.
+      if starts_with(unit, "run-") || match(unit, r'[0-9a-f]{12,}') {
+        unit = "transient"
+      }
+      msg = string(.message) ?? ""
+      # Fixed patterns only; the message itself never leaves this transform.
+      auth = ""
+      if match(msg, r'^(Failed (password|publickey|keyboard-interactive/pam) for|Invalid user |Connection closed by invalid user )') {
+        auth = "ssh"
+      } else if match(msg, r'incorrect password attempts?') {
+        auth = "sudo"
+      } else if match(msg, r'^pam_unix\([^)]*:auth\): authentication failure') {
+        auth = "pam"
+      }
+      . = {
+        "host": string(.host) ?? "unknown",
+        "unit": unit,
+        "level": string(.level) ?? "info",
+        "bytes": strlen(msg),
+        "auth": auth
+      }
+
+  journal_volume_metrics:
+    type: log_to_metric
+    inputs:
+      - journal_volume
+    metrics:
+      - type: counter
+        field: unit
+        namespace: unheaded
+        name: log_lines_total
+        tags: {host: "{{host}}", unit: "{{unit}}", level: "{{level}}"}
+      - type: counter
+        field: bytes
+        increment_by_value: true
+        namespace: unheaded
+        name: log_bytes_total
+        tags: {host: "{{host}}", unit: "{{unit}}", level: "{{level}}"}
+
+  journal_auth_failures:
+    type: filter
+    inputs:
+      - journal_volume
+    condition: '.auth != ""'
+
+  journal_auth_metrics:
+    type: log_to_metric
+    inputs:
+      - journal_auth_failures
+    metrics:
+      - type: counter
+        field: auth
+        namespace: unheaded
+        name: auth_failures_total
+        tags: {host: "{{host}}", unit: "{{unit}}", kind: "{{auth}}"}
+
 sinks:
   clickhouse:
     type: clickhouse
@@ -94,4 +160,10 @@ sinks:
     type: prometheus_exporter
     inputs:
       - vector_metrics
+      - journal_volume_metrics
+      - journal_auth_metrics
     address: "0.0.0.0:9598"
+    # A series not updated within this many seconds is dropped. The default
+    # (60) drops a unit that logs less than once a minute, which would read
+    # as a counter reset and hide exactly the silence the alerts look for.
+    flush_period_secs: 86400
