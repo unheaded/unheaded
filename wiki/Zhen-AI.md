@@ -8,20 +8,22 @@ Zhen is Unheaded's AI-assisted development system. It combines retrieval-augment
 ┌─────────────────────────────────────────┐
 │              Zhen Pipeline              │
 ├─────────────┬───────────┬───────────────┤
-│  Embedding  │   FAISS   │  llama.cpp    │
-│  Pipeline   │   Index   │  (selector)   │
+│  Question   │   vor     │  llama.cpp    │
+│  shaping    │  :9876    │  :8081        │
 ├─────────────┼───────────┼───────────────┤
-│  Codebase   │  ~1.5M    │  Gemma-4 LoRA │
-│  Ingestion  │  Vectors  │  (forge)      │
+│ pkg/vorquery│ ~2.3k md  │  model from   │
+│ zhen_rag.py │  topics   │  the selector │
 └─────────────┴───────────┴───────────────┘
 ```
 
 ## RAG Pipeline
 
-- **Embedding model:** Sentence transformers for code and documentation
-- **Vector store:** FAISS index, ~1.5M vectors over the Unheaded codebase (2026-03 count)
-- **Chunk strategy:** AST-aware splitting for Go and Rust, section-aware for Markdown
-- **Retrieval:** Top-k similarity search with reranking
+Since WAVE15 (2026-05) retrieval is `vor` (`vor serve`, :9876), not the old FAISS index: Unheaded's markdown (docs, ADRs, wiki) plus vor's own cheatsheets, each labelled with a source trust.
+
+- **Question shaping** (`raft/scripts/zhen_rag.py` for the web UI; `pkg/vorquery` for zhen-rag, zhen-agent, zhen-agentd, zhen-cli; a test keeps them identical): question words are dropped before the search, and topics whose *name* carries every query term (`Service-Wotan` for "what is wotan") are interleaved with vor's hits. Agent-worktree copies (`.claude/worktrees/`) are skipped.
+- **Fetch:** the top 5 unique topics, by exact name (`/api/topics/<name>`; vor 2044c0f fixed mixed-case names resolving to a different topic).
+- **Run vor with swap off.** A search scans every topic; when west swaps, a paged-out index turns 0.1 s into 20 s. Start it as `systemd-run --user --scope --collect -p MemorySwapMax=0 --unit=unheaded-vor vor serve &`. The web UI waits up to 60 s for vor.
+- **Memory recall:** `all-MiniLM-L6-v2` embeddings of past questions, display only.
 
 ## Models and training
 

@@ -83,6 +83,14 @@ _WORKTREE_CATEGORY_PREFIX = ".claude/"
 
 _NAME_TOKEN_RE = re.compile(r"[-_.\s]+")
 
+# vor answers a search in ~0.1 s, but a search scans every sheet, and when
+# west swaps (14 GiB RAM, llama-server + a build) the paged-out index took
+# 20 s. With a 10 s timeout retrieve() returned nothing and the model
+# answered without references ("Wotan is a fictional character", 2026-10-25).
+# A slow answer beats a made-up one; start-zhen.sh also says to run vor
+# with swap off.
+VOR_TIMEOUT = 60
+
 
 def _search_terms(query):
     """Lower-cased query words with question/filler words removed.
@@ -337,7 +345,7 @@ class RAGPipeline:
         #    source_path, source_label).
         try:
             search_url = f"{self.vor_url}/api/search?{urlencode({'q': ' '.join(terms)})}"
-            resp = requests.get(search_url, timeout=10)
+            resp = requests.get(search_url, timeout=VOR_TIMEOUT)
             resp.raise_for_status()
             hits = resp.json()
         except (requests.RequestException, ValueError) as exc:
@@ -376,7 +384,7 @@ class RAGPipeline:
 
             try:
                 topic_url = f"{self.vor_url}/api/topics/{quote(topic, safe='')}"
-                t_resp = requests.get(topic_url, timeout=10)
+                t_resp = requests.get(topic_url, timeout=VOR_TIMEOUT)
                 t_resp.raise_for_status()
                 t = t_resp.json()
             except (requests.RequestException, ValueError):
@@ -425,7 +433,7 @@ class RAGPipeline:
         now = time.monotonic()
         if self._topic_list is None or now - self._topic_list_at > self.topic_list_ttl:
             try:
-                resp = requests.get(f"{self.vor_url}/api/topics", timeout=10)
+                resp = requests.get(f"{self.vor_url}/api/topics", timeout=VOR_TIMEOUT)
                 resp.raise_for_status()
                 listing = resp.json()
             except (requests.RequestException, ValueError) as exc:

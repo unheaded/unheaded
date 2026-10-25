@@ -51,7 +51,9 @@ echo "  ✓ llama-server :8081 (qwen-coder-7b)"
 
 if ! curl -sf --max-time 3 http://127.0.0.1:9876/api/health > /dev/null; then
     echo "  ✗ vor :9876 not reachable"
-    echo "    Bring it up first: 'cs serve' (or wherever your cs binary lives)."
+    echo "    Bring it up first, with swap off so a busy box cannot page its index"
+    echo "    out (a search then takes 20 s instead of 0.1 s):"
+    echo "      systemd-run --user --scope --collect -p MemorySwapMax=0 --unit=unheaded-vor vor serve &"
     echo "    Verify the unheaded source symlink:"
     echo "    ls -la ~/.config/cs/sources/unheaded → /home/govan/tmp/unheaded"
     exit 1
