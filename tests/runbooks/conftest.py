@@ -13,6 +13,7 @@ Marker `live`: a test that needs a lab component (an FRR VM, a Well); it is
 deselected in CI (-m "not live") and skips itself unless its env flag is set.
 """
 import os
+import shutil
 import subprocess
 from types import SimpleNamespace
 
@@ -62,6 +63,8 @@ def sandbox_git_repo(tmp_path, git_env):
 
 @pytest.fixture(scope="session")
 def wotan_binary(tmp_path_factory):
+    if shutil.which("go") is None:
+        pytest.skip("services/wotan does not build here: no go on PATH")
     out = tmp_path_factory.mktemp("wotan-bin") / "wotan"
     r = subprocess.run(["go", "build", "-o", str(out), "./services/wotan/cmd/wotan"],
                        cwd=harness.REPO, capture_output=True, text=True, timeout=600, check=False)

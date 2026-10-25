@@ -26,9 +26,14 @@ def gated_checks():
 
 
 def mcp_importable():
+    # Runs at collection time (skipif): an interpreter that is not there, like
+    # ~/.venv/zhen on a CI runner, must mean "no", not a collection error.
     for py in (str(harness.Path.home() / ".venv/zhen/bin/python"), "python3"):
-        if subprocess.run([py, "-c", "import mcp"], capture_output=True, check=False).returncode == 0:
-            return True
+        try:
+            if subprocess.run([py, "-c", "import mcp"], capture_output=True, check=False).returncode == 0:
+                return True
+        except OSError:
+            continue
     return False
 
 
