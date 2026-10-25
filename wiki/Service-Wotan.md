@@ -1,6 +1,11 @@
 # Wotan — Message Bus / Ring Buffer / Protocol RAM
 
-Core inter-service communication layer. Wotan serves a triple role:
+Wotan is the memory layer of the [Unheaded Protocol](Unheaded-Protocol): the Monad is the 20-byte register file, Wotan is everything bigger. Two tiers:
+
+- **LOCAL**: BPF maps on each Shim (per-flow state, page tables, framebuffers, TTY rings), sub-microsecond from the XDP path.
+- **DISTRIBUTED**: gRPC topic streaming between hosts; `config.*` topics are ML-DSA-65 signed.
+
+The same service is the Kingdom's inter-service message bus. It serves a triple role:
 
 1. **High-Speed Ring Buffer** — Lock-free eBPF perf_event pattern
 2. **Event Bus** — Pub/sub gRPC/HTTP with topic routing

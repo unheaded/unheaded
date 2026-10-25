@@ -21,6 +21,7 @@ Memory recall semantics (T1 closure):
 """
 import os
 import re
+import time
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
@@ -54,6 +55,51 @@ def _strip_tool_call_json(text: str) -> str:
     the current turn's context.
     """
     return _TOOL_CALL_JSON_RE.sub("[tool_call payload stripped]", text)
+
+
+# Retrieval query shaping (2026-10-25, "what is wotan" regression).
+#
+# vor's /api/search is an AND of case-insensitive SUBSTRING matches, ranked
+# first by how many query terms equal a token of the topic's name. Question
+# words therefore cost ranking and filter nothing: "is" is a substring of
+# almost every doc, and "what" + "is" ranked the `what-is-unheaded` ELI5 page
+# above every Wotan doc. They are dropped before the query goes to vor.
+# Words that carry meaning in a code question (if, for, while, not, with,
+# else) are deliberately not on the list.
+_QUERY_STOPWORDS = frozenset("""
+    a an the and or of to in on at by from as into about
+    is are was were be been being am
+    do does did done can could should would will shall may might must
+    what whats what's who whom whose which where when why how
+    i me my you your we us our it its it's this that these those there
+    please tell explain describe define mean means meaning
+""".split())
+
+_TERM_PUNCT = "?!.,;:\"'`()[]{}"
+
+# Topics vor indexes under an agent worktree (`.claude/worktrees/<id>/...`)
+# are stale copies of the main tree; never promote them by name.
+_WORKTREE_CATEGORY_PREFIX = ".claude/"
+
+_NAME_TOKEN_RE = re.compile(r"[-_.\s]+")
+
+
+def _search_terms(query):
+    """Lower-cased query words with question/filler words removed.
+
+    Falls back to every word when nothing else is left ("what is this"),
+    so a query is never emptied.
+    """
+    words = [w.strip(_TERM_PUNCT) for w in query.lower().split()]
+    words = [w for w in words if w]
+    kept = [w for w in words if w not in _QUERY_STOPWORDS]
+    return kept or words
+
+
+def _name_tokens(name):
+    """Split a vor topic name the way its words read: `Service-Wotan`,
+    `WOTAN_TOPICS` and `draft-...-wotan-memory-03` all yield `wotan`."""
+    return [t for t in _NAME_TOKEN_RE.split(name.lower()) if t]
 
 
 # System prompt — verbatim port of cmd/zhen-rag/main.go:defaultSystemPrompt
@@ -210,6 +256,12 @@ class RAGPipeline:
         self.model_name = model_name
         self.max_topic_chars = max_topic_chars
 
+        # vor's topic listing (/api/topics, ~2.5 MB for ~3.5k topics), cached
+        # for name matching in retrieve(). New docs show up within the TTL.
+        self.topic_list_ttl = 300.0
+        self._topic_list = None
+        self._topic_list_at = 0.0
+
         # Phase 2 proxy toggle. Reading env late lets zhen_app.py override
         # at construction time without setting environment globally.
         if proxy_via_agentd is None:
@@ -261,15 +313,30 @@ class RAGPipeline:
 
         Replaces the legacy FAISS query path. Returns the SAME dict shape
         as the legacy retrieve() so zhen_app.py needs no changes.
+
+        Two departures from cmd/zhen-rag/main.go (2026-10-25, Zhen called
+        Wotan a scheduler because no Wotan definition reached the model):
+
+        1. Question words are dropped before the query goes to vor
+           (_search_terms): "what is wotan" searches "wotan".
+        2. Topics whose NAME carries every query term (Service-Wotan,
+           Wotan-Memory-Model, ...) are interleaved with vor's hits, most
+           specific name first. vor caps a search at 50 lines and ranks
+           section-title hits above name specificity, so one long doc with
+           dozens of "Wotan ..." sections (wotan-cloud-battle-plan) filled
+           all 50 lines and was the only topic returned for "wotan".
+           Without a name match, vor's order is used unchanged.
         """
         if not query or not query.strip():
             return []
+
+        terms = _search_terms(query)
 
         # 1. /api/search — list of (topic, category, section, line) hits
         #    plus B1 source-trust labels (source_kind, source_trust,
         #    source_path, source_label).
         try:
-            search_url = f"{self.vor_url}/api/search?{urlencode({'q': query.rstrip('?!.')})}"
+            search_url = f"{self.vor_url}/api/search?{urlencode({'q': ' '.join(terms)})}"
             resp = requests.get(search_url, timeout=10)
             resp.raise_for_status()
             hits = resp.json()
@@ -280,12 +347,22 @@ class RAGPipeline:
         if not isinstance(hits, list):
             return []
 
+        searched = [h.get("topic", "") for h in hits if isinstance(h, dict)]
+        named = self._topics_named_by(terms)
+
+        # Interleave: named[0], searched[0], named[1], searched[1], ...
+        order = []
+        for i in range(max(len(named), len(searched))):
+            if i < len(named):
+                order.append(named[i])
+            if i < len(searched):
+                order.append(searched[i])
+
         # 2. For top-K UNIQUE topics, fetch full content via /api/topics/<name>.
         #    Same dedup pattern as cmd/zhen-rag/main.go:201-208.
         seen = set()
         out = []
-        for hit in hits:
-            topic = hit.get("topic", "")
+        for topic in order:
             if not topic or topic in seen:
                 continue
             seen.add(topic)
@@ -323,6 +400,46 @@ class RAGPipeline:
                 break
 
         return out
+
+    def _topics_named_by(self, terms):
+        """Topic names whose tokens include every query term.
+
+        Ordered by fewest name tokens first (the name is mostly the query:
+        `Service-Wotan` before `ADR-023-wotan-virtual-memory`), then by name.
+        Agent-worktree copies are skipped. Returns [] when vor's listing is
+        unavailable, which leaves retrieve() on vor's search order.
+        """
+        wanted = set()
+        for term in terms:
+            wanted.update(_name_tokens(term))
+        if not wanted:
+            return []
+
+        now = time.monotonic()
+        if self._topic_list is None or now - self._topic_list_at > self.topic_list_ttl:
+            try:
+                resp = requests.get(f"{self.vor_url}/api/topics", timeout=10)
+                resp.raise_for_status()
+                listing = resp.json()
+            except (requests.RequestException, ValueError) as exc:
+                print(f"[zhen-rag] vor topic listing failed: {exc}")
+                return []
+            if not isinstance(listing, list):
+                return []
+            self._topic_list = [
+                (t.get("name", ""), t.get("category", ""))
+                for t in listing if isinstance(t, dict)
+            ]
+            self._topic_list_at = now
+
+        best = {}
+        for name, category in self._topic_list:
+            if not name or category.startswith(_WORKTREE_CATEGORY_PREFIX):
+                continue
+            tokens = _name_tokens(name)
+            if wanted.issubset(tokens):
+                best[name] = len(tokens)
+        return sorted(best, key=lambda n: (best[n], n.lower()))
 
     # ------------------------------------------------------------------
     # GENERATION — qwen-coder via OpenAI /v1/chat/completions.
