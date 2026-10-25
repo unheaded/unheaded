@@ -896,6 +896,7 @@ fn boot_prepare(
     Ok((runner, cpu_initial))
 }
 
+#[allow(clippy::too_many_arguments)] // one per `boot` CLI flag, passed straight from clap
 fn cmd_boot(
     kernel: PathBuf,
     bootstub: Option<PathBuf>,

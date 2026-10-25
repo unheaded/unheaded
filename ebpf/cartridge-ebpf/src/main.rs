@@ -447,7 +447,9 @@ fn trace_end(run_id: u64, st: &CartState, r: Step) {
 /// to STEPS_PER_CB steps. N_PKT and N_TICK are multiples of it, and `run_one`
 /// enforces `max_insn` itself, so the instruction budget is unchanged.
 const STEPS_PER_CB: u32 = 4;
-const _: () = assert!(N_PKT as u32 % STEPS_PER_CB == 0 && N_TICK as u32 % STEPS_PER_CB == 0);
+const _: () = assert!(
+    (N_PKT as u32).is_multiple_of(STEPS_PER_CB) && (N_TICK as u32).is_multiple_of(STEPS_PER_CB)
+);
 
 #[inline(never)]
 extern "C" fn cart_loop_cb(_index: u64, ctx: *mut core::ffi::c_void) -> i64 {
@@ -483,6 +485,7 @@ extern "C" fn cart_loop_cb(_index: u64, ctx: *mut core::ffi::c_void) -> i64 {
 /// Run a slot for at most `n` instructions (`N_PKT` or `N_TICK`); `run_id`
 /// non-zero traces the run.
 #[inline(always)]
+#[allow(clippy::too_many_arguments)] // inlined into both programs; a struct would add a stack copy the verifier must track
 fn drive(
     st: &mut CartState,
     cfg: &CartCfg,
