@@ -1,5 +1,7 @@
 # Wotan Memory Model
 
+Wotan is the memory layer of the [Unheaded Protocol](Unheaded-Protocol): **LOCAL** BPF maps on each Shim plus **DISTRIBUTED** gRPC topic streaming between hosts. Spec: five-level hierarchy L0 Monad, L1 BPF hash maps, L2 per-flow ring buffers, L3 persistent WAL, L4 Sophia dictionaries ([draft-bellis-unheaded-wotan-memory-03](../docs/protocol/draft-bellis-unheaded-wotan-memory-03.md)).
+
 Wotan serves a **triple role** in the Unheaded architecture:
 
 1. **High-Speed Ring Buffer** — Lock-free eBPF perf_event pattern for zero-copy packet event delivery
