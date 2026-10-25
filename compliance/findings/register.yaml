@@ -374,32 +374,6 @@ findings:
     step: 7
     plan: additive replication.proto fields (signature, public_key, algorithm, signed_at_unix_ms) copied onto the ring-buffer message, as TopicEvent field 12 was
 
-  - id: FND-021
-    title: >-
-      Wotan's ring-buffer byte budget counts message Content only: a signed message also holds about 5.3 KB of
-      ML-DSA-65 signature and public key that the budget does not see
-    verify: a services/wotan ring-buffer test fills a room with signed messages and the accounted bytes include the signature and key
-    severity: low
-    class: app
-    opened: 2026-10-23
-    exposure: signed rooms are few and protected from eviction (SetKeep); an approved publisher of a signed prefix could push memory past the budget
-    lockout: none
-    step: 7
-    plan: count len(signature)+len(public_key) in the ring buffer's size accounting
-
-  - id: FND-022
-    title: >-
-      cmd/waf depends on rustls-pemfile, which is unmaintained (RUSTSEC-2025-0134; cargo audit warning, no
-      vulnerability)
-    verify: cargo audit in cmd/waf reports no RUSTSEC-2025-0134 and cmd/waf/Cargo.lock has no rustls-pemfile
-    severity: low
-    class: package
-    opened: 2026-10-23
-    exposure: PEM parsing of the WAF's own certificate and key files at startup; no known vulnerability
-    lockout: none
-    step: 3
-    plan: parse PEM with rustls-pki-types' pem module (already in the lock graph) and drop the dependency
-
   - source: "gate-script:scripts/compliance/check-service-auth.sh"
     severity: high
     class: app

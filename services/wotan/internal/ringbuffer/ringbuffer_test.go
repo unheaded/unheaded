@@ -1260,3 +1260,67 @@ func TestSlotsGrowOnDemand(t *testing.T) {
 		}
 	}
 }
+
+// signedTestMessage is a message carrying an ML-DSA-65-sized signature
+// (3,309 bytes) and public key (1,952 bytes).
+func signedTestMessage(roomID, content string) *Message {
+	m := createTestMessage(roomID, content)
+	m.Signed = &Signature{
+		Sender:         "heimdall",
+		Signature:      make([]byte, 3309),
+		PublicKey:      make([]byte, 1952),
+		Algorithm:      "ML-DSA-65",
+		SignedAtUnixMs: 1,
+	}
+	return m
+}
+
+// TestSignedMessageBytesIncludeSignature (FND-021): a signed message holds
+// its signature, public key, sender and algorithm as well as its content,
+// and the byte budget, Footprint and EvictOldest must all count them.
+// Counting Content alone let a signed room hold ~5.3 KB per message that
+// no budget saw.
+func TestSignedMessageBytesIncludeSignature(t *testing.T) {
+	const content = "drift"
+	one := len(content) + 3309 + 1952 + len("heimdall") + len("ML-DSA-65")
+
+	rb := New(100)
+	for i := 0; i < 4; i++ {
+		rb.Push(signedTestMessage("drift.west", content))
+	}
+	if got, want := rb.Bytes(), 4*one; got != want {
+		t.Fatalf("Bytes = %d, want %d (content + signature + key + sender + algorithm)", got, want)
+	}
+	if got, want := rb.Footprint(), 4*(one+MessageOverhead); got != want {
+		t.Fatalf("Footprint = %d, want %d", got, want)
+	}
+	if freed := rb.EvictOldest(); freed != one+MessageOverhead {
+		t.Fatalf("EvictOldest freed %d, want %d", freed, one+MessageOverhead)
+	}
+	if got, want := rb.Bytes(), 3*one; got != want {
+		t.Fatalf("Bytes after evict = %d, want %d", got, want)
+	}
+
+	// The per-room budget sees the signature: two signed messages do not
+	// fit in a budget of 1.5 messages.
+	small := New(100)
+	small.SetMaxBytes(one + one/2)
+	small.Push(signedTestMessage("drift.west", content))
+	small.Push(signedTestMessage("drift.west", content))
+	if small.Count() != 1 || small.Bytes() != one {
+		t.Fatalf("budget %d: Count/Bytes = %d/%d, want 1/%d", one+one/2, small.Count(), small.Bytes(), one)
+	}
+
+	// Overwrite on wrap and Delete subtract the same amount they added.
+	w := New(2)
+	for i := 0; i < 3; i++ {
+		w.Push(signedTestMessage("drift.west", content))
+	}
+	if w.Bytes() != 2*one {
+		t.Fatalf("after wrap Bytes = %d, want %d", w.Bytes(), 2*one)
+	}
+	last := w.Get()[1]
+	if !w.Delete(last.ID, last.CreatorID, last.Content) || w.Bytes() != one {
+		t.Fatalf("after delete Bytes = %d, want %d", w.Bytes(), one)
+	}
+}

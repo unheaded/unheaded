@@ -4,6 +4,10 @@
 package lichtools
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -158,5 +162,24 @@ func TestPending_SummaryIsControlCharSafe(t *testing.T) {
 		if r < 0x20 || r == 0x7f {
 			t.Fatalf("summary retained a control char %q", r)
 		}
+	}
+}
+
+// TestCallHashEncodingPinned pins CallHash to its wire encoding: each field
+// is an 8-byte little-endian length followed by its bytes, then sha256. An
+// approval stored on disk is bound to this hash, so any change to how a
+// length is written would void every pending approval.
+func TestCallHashEncodingPinned(t *testing.T) {
+	tool, root, args := "lich_file_finding", "/srv/lich", json.RawMessage(`{"b":1,"a":[2,{"d":3,"c":4}]}`)
+	var want bytes.Buffer
+	for _, f := range []string{tool, root, `{"a":[2,{"c":4,"d":3}],"b":1}`} {
+		var n [8]byte
+		binary.LittleEndian.PutUint64(n[:], uint64(len(f)))
+		want.Write(n[:])
+		want.WriteString(f)
+	}
+	sum := sha256.Sum256(want.Bytes())
+	if got := CallHash(tool, root, args); got != hex.EncodeToString(sum[:]) {
+		t.Fatalf("CallHash = %s, want %x", got, sum)
 	}
 }

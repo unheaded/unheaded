@@ -7,11 +7,9 @@
 //! Supports TLS 1.2 and 1.3 with modern cipher suites.
 
 use crate::config::TlsConfig;
+use rustls::pki_types::pem::{self, PemObject};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::server::ServerConfig;
-use rustls_pemfile::{certs, private_key};
-use std::fs::File;
-use std::io::BufReader;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -86,13 +84,13 @@ impl TlsManager {
     }
 }
 
-/// Load certificates from a PEM file
+/// Load certificates from a PEM file.
+///
+/// PEM is parsed by rustls-pki-types (`PemObject`), already part of rustls;
+/// rustls-pemfile was unmaintained (RUSTSEC-2025-0134, FND-022).
 fn load_certs(path: &str) -> Result<Vec<CertificateDer<'static>>, TlsError> {
-    let file = File::open(path)
-        .map_err(|e| TlsError::CertificateError(format!("Failed to open {}: {}", path, e)))?;
-    let mut reader = BufReader::new(file);
-
-    let certs: Vec<_> = certs(&mut reader)
+    let certs: Vec<_> = CertificateDer::pem_file_iter(path)
+        .map_err(|e| TlsError::CertificateError(format!("Failed to open {}: {}", path, e)))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| TlsError::CertificateError(format!("Failed to parse certificates: {}", e)))?;
 
@@ -107,15 +105,13 @@ fn load_certs(path: &str) -> Result<Vec<CertificateDer<'static>>, TlsError> {
 
 /// Load private key from a PEM file
 fn load_private_key(path: &str) -> Result<PrivateKeyDer<'static>, TlsError> {
-    let file = File::open(path)
-        .map_err(|e| TlsError::KeyError(format!("Failed to open {}: {}", path, e)))?;
-    let mut reader = BufReader::new(file);
-
-    let key = private_key(&mut reader)
-        .map_err(|e| TlsError::KeyError(format!("Failed to parse private key: {}", e)))?
-        .ok_or_else(|| TlsError::KeyError("No private key found in file".to_string()))?;
-
-    Ok(key)
+    // The first PKCS#8, PKCS#1 or SEC1 key section; other sections (such as
+    // a certificate in the same file) are skipped.
+    PrivateKeyDer::from_pem_file(path).map_err(|e| match e {
+        pem::Error::NoItemsFound => TlsError::KeyError("No private key found in file".to_string()),
+        pem::Error::Io(e) => TlsError::KeyError(format!("Failed to open {}: {}", path, e)),
+        e => TlsError::KeyError(format!("Failed to parse private key: {}", e)),
+    })
 }
 
 /// The crypto provider for every TLS config the WAF builds: aws-lc-rs, whose
@@ -421,5 +417,125 @@ mod tests {
         };
         let group = handshake(server, client_config(classical, &trusted)).expect("handshake");
         assert_eq!(group, NamedGroup::X25519);
+    }
+
+    // ------------------------------------------------------------------
+    // PEM loading (load_certs / load_private_key). The PEM is built at
+    // test time from the generated certificate, never checked in.
+    // ------------------------------------------------------------------
+
+    fn base64(data: &[u8]) -> String {
+        const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = String::new();
+        for c in data.chunks(3) {
+            let n = (u32::from(c[0]) << 16)
+                | (u32::from(*c.get(1).unwrap_or(&0)) << 8)
+                | u32::from(*c.get(2).unwrap_or(&0));
+            for i in 0..4 {
+                if i <= c.len() {
+                    out.push(T[((n >> (18 - 6 * i)) & 63) as usize] as char);
+                } else {
+                    out.push('=');
+                }
+            }
+        }
+        out
+    }
+
+    fn pem(label: &str, der: &[u8]) -> String {
+        let b = base64(der);
+        let mut out = format!("-----BEGIN {label}-----\n");
+        for line in b.as_bytes().chunks(64) {
+            out.push_str(std::str::from_utf8(line).unwrap());
+            out.push('\n');
+        }
+        out.push_str(&format!("-----END {label}-----\n"));
+        out
+    }
+
+    /// A file under a fresh per-test directory, removed on drop.
+    struct TempPem(std::path::PathBuf);
+    impl TempPem {
+        fn new(name: &str, contents: &str) -> Self {
+            let dir =
+                std::env::temp_dir().join(format!("waf-tls-test-{}-{}", std::process::id(), name));
+            std::fs::create_dir_all(&dir).expect("temp dir");
+            let path = dir.join("f.pem");
+            std::fs::write(&path, contents).expect("write pem");
+            TempPem(path)
+        }
+        fn path(&self) -> &str {
+            self.0.to_str().unwrap()
+        }
+    }
+    impl Drop for TempPem {
+        fn drop(&mut self) {
+            if let Some(dir) = self.0.parent() {
+                let _ = std::fs::remove_dir_all(dir);
+            }
+        }
+    }
+
+    #[test]
+    fn load_certs_and_key_round_trip_pem() {
+        let (certs, key) = test_cert();
+        let chain = format!(
+            "junk before the first section\n{}{}",
+            pem("CERTIFICATE", certs[0].as_ref()),
+            pem("CERTIFICATE", certs[0].as_ref())
+        );
+        let cert_file = TempPem::new("chain", &chain);
+        let loaded = load_certs(cert_file.path()).expect("load certs");
+        assert_eq!(loaded.len(), 2, "every CERTIFICATE section is loaded");
+        assert_eq!(loaded[0].as_ref(), certs[0].as_ref());
+
+        // The key file may hold the certificate too; the key is still found.
+        let both = format!(
+            "{}{}",
+            pem("CERTIFICATE", certs[0].as_ref()),
+            pem("PRIVATE KEY", key.secret_der())
+        );
+        let key_file = TempPem::new("key", &both);
+        let loaded_key = load_private_key(key_file.path()).expect("load key");
+        assert!(matches!(loaded_key, PrivateKeyDer::Pkcs8(_)));
+        assert_eq!(loaded_key.secret_der(), key.secret_der());
+
+        // What was loaded is usable: it builds a server config.
+        build_server_config(loaded, loaded_key, "1.3").expect("server config from PEM files");
+    }
+
+    #[test]
+    fn load_certs_rejects_missing_empty_and_corrupt() {
+        assert!(matches!(
+            load_certs("/nonexistent/waf-tls-test.pem"),
+            Err(TlsError::CertificateError(_))
+        ));
+        let empty = TempPem::new("empty", "no pem here\n");
+        assert!(matches!(
+            load_certs(empty.path()),
+            Err(TlsError::CertificateError(_))
+        ));
+        let corrupt = TempPem::new(
+            "corrupt",
+            "-----BEGIN CERTIFICATE-----\n!!!not base64!!!\n-----END CERTIFICATE-----\n",
+        );
+        assert!(matches!(
+            load_certs(corrupt.path()),
+            Err(TlsError::CertificateError(_))
+        ));
+    }
+
+    #[test]
+    fn load_private_key_rejects_missing_and_keyless() {
+        assert!(matches!(
+            load_private_key("/nonexistent/waf-tls-test.pem"),
+            Err(TlsError::KeyError(_))
+        ));
+        let (certs, _) = test_cert();
+        let cert_only = TempPem::new("certonly", &pem("CERTIFICATE", certs[0].as_ref()));
+        assert!(matches!(
+            load_private_key(cert_only.path()),
+            Err(TlsError::KeyError(_))
+        ));
     }
 }
