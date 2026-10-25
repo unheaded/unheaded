@@ -41,6 +41,10 @@ done
 "${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app <<'SQL'
 INSERT INTO kanban_tasks (id, title) SELECT 't' || g, 'task ' || g FROM generate_series(1, 25) g;
 SQL
+# The migrations seed kanban_tasks too (034, the Genesis cards), so the count
+# the backup must record is whatever the table holds now, not just our 25.
+KANBAN_ROWS="$("${DOCKER[@]}" exec "$N" psql -X -qAt -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c 'SELECT count(*) FROM kanban_tasks')"
+[[ "$KANBAN_ROWS" =~ ^[0-9]+$ ]] && ((KANBAN_ROWS >= 25)) || { echo "kanban_tasks count unreadable: $KANBAN_ROWS"; exit 1; }
 "${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U unheaded -d postgres <<'SQL'
 CREATE TABLE "odd name" (id int); INSERT INTO "odd name" SELECT generate_series(1, 7);
 SQL
@@ -92,7 +96,8 @@ else pass "well_backup cannot write"; fi
 for db in unheaded_app unheaded_ops unheaded_config postgres; do
 	[[ -f "$SET/$db.dump" ]] && pass "dumped $db" || fail "no dump of $db"
 done
-grep -q $'^unheaded_app\tpublic.kanban_tasks\t25$' "$SET/rowcounts.tsv" && pass "kanban_tasks counted 25" || fail "kanban_tasks count"
+grep -q $'^unheaded_app\tpublic.kanban_tasks\t'"$KANBAN_ROWS"'$' "$SET/rowcounts.tsv" && pass "kanban_tasks counted $KANBAN_ROWS" ||
+	fail "kanban_tasks count: want $KANBAN_ROWS, rowcounts.tsv has $(grep kanban_tasks "$SET/rowcounts.tsv")"
 grep -q $'^postgres\tpublic."odd name"\t7$' "$SET/rowcounts.tsv" && pass "quoted table counted" || fail "quoted table count"
 ! find "$TMP/backups" -name '.partial-*' | grep -q . && pass "no partial set left" || fail "partial set left behind"
 
@@ -108,7 +113,7 @@ broken() { # label, expected reason, then a command run inside a copy of the set
 	else fail "drill refused $label, but not with '$want': $(tail -1 <<<"$out")"; fi
 }
 broken "a flipped byte in a dump" "checksum mismatch" sh -c 'printf "\377" | dd of=unheaded_app.dump bs=1 seek=200 conv=notrunc status=none'
-broken "a wrong row count" "row counts differ" sh -c "sed -i 's/\tpublic.kanban_tasks\t25\$/\tpublic.kanban_tasks\t24/' rowcounts.tsv && sha256sum cluster.env globals.sql ./*.dump rowcounts.tsv | sed 's# \./# #' >SHA256SUMS"
+broken "a wrong row count" "row counts differ" sh -c "sed -i 's/\tpublic.kanban_tasks\t$KANBAN_ROWS\$/\tpublic.kanban_tasks\t$((KANBAN_ROWS - 1))/' rowcounts.tsv && sha256sum cluster.env globals.sql ./*.dump rowcounts.tsv | sed 's# \./# #' >SHA256SUMS"
 broken "an unlisted dump" "not in SHA256SUMS" cp postgres.dump extra.dump
 
 # Retention: two more sets with --keep 2 leave exactly two.
