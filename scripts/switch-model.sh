@@ -11,6 +11,7 @@
 #
 # Usage:
 #   ./scripts/switch-model.sh <model-key>
+#   ./scripts/switch-model.sh --check <model-key>  # fit check only; swaps nothing
 #   ./scripts/switch-model.sh --stop      # stop llama-server on LLAMA_PORT, load nothing
 #
 # GPU lease (S-TWO-BRAINS Step 233): the whole swap runs under the
@@ -93,28 +94,55 @@ MODEL_NAME[deepseek]="deepseek-coder-v2-lite-instruct"
 MODEL_NAME[deepseek-cpu]="deepseek-coder-v2-lite-cpu-moe"
 MODEL_NAME[qwen-coder-14b]="qwen2.5-coder-14b-instruct"
 
-# Stop any current llama-server bound on the target port.
+# PID of the llama-server listening on LLAMA_PORT, or nothing.
+llama_pid() {
+    ss -lntp 2>/dev/null | awk -v p=":${LLAMA_PORT}" '$4 ~ p {print $0}' \
+        | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2
+}
+
+# Stop the llama-server on LLAMA_PORT and wait until the PROCESS has exited,
+# not just until the port closes. llama-server closes its listening socket
+# early in shutdown and keeps its VRAM and RAM for seconds afterwards (a 14B
+# model took longer than the old 20 s port wait). Launching or fit-checking
+# before the exit races that release: the fit check refuses a model that fits,
+# or the new server OOMs. TERM, up to 30 s, then KILL, up to 10 s more; fails
+# (returns 1) if the process is still alive.
 stop_llama() {
-    if ss -lnt 2>/dev/null | grep -q ":${LLAMA_PORT} "; then
-        PID=$(ss -lntp 2>/dev/null | awk -v p=":${LLAMA_PORT}" '$4 ~ p {print $0}' | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)
-        if [[ -n "${PID:-}" ]]; then
-            echo "[switch-model] stopping current llama-server (pid $PID)..."
-            kill "$PID" 2>/dev/null || true
-            for _ in $(seq 1 20); do
-                ss -lnt 2>/dev/null | grep -q ":${LLAMA_PORT} " || break
-                sleep 1
-            done
-        fi
-    fi
+    local pid
+    pid=$(llama_pid)
+    [[ -n "$pid" ]] || return 0
+    echo "[switch-model] stopping current llama-server (pid $pid)..."
+    kill "$pid" 2>/dev/null || true
+    for _ in $(seq 1 30); do
+        kill -0 "$pid" 2>/dev/null || return 0
+        sleep 1
+    done
+    echo "[switch-model] pid $pid still running after 30 s; sending KILL" >&2
+    kill -KILL "$pid" 2>/dev/null || true
+    for _ in $(seq 1 10); do
+        kill -0 "$pid" 2>/dev/null || return 0
+        sleep 1
+    done
+    echo "[switch-model] ✗ pid $pid did not exit; not launching over it" >&2
+    return 1
 }
 
 if [[ "${1:-}" == "--stop" ]]; then
     stop_llama
-    exit 0
+    exit $?
+fi
+
+# --check <key>: run the preflight fit check and exit (0 = fits, 3 = would be
+# refused), without stopping or launching anything. Lets the UI or an operator
+# ask "would this swap be allowed?" without the 30-90 s outage of trying.
+CHECK_ONLY=0
+if [[ "${1:-}" == "--check" ]]; then
+    CHECK_ONLY=1
+    shift
 fi
 
 if [[ $# -lt 1 ]]; then
-    echo "usage: $0 <model-key> | --stop" >&2
+    echo "usage: $0 <model-key> | --check <model-key> | --stop" >&2
     echo "available keys:" >&2
     for k in "${!MODEL_FILE[@]}"; do
         echo "  $k → $MODELS_DIR/${MODEL_FILE[$k]}" >&2
@@ -176,6 +204,27 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
     # MemAvailable, not MemFree: it accounts for reclaimable page cache.
     RAM_AVAIL=$(( $(awk '/^MemAvailable:/ {print $2}' /proc/meminfo) * 1024 ))
 
+    # The check runs BEFORE the current server is stopped (so a refusal leaves
+    # it running), which means free VRAM/RAM above are measured with the old
+    # model still loaded. Credit back what stopping it will release, or a swap
+    # between two models that each fit alone is refused: 14B -> 7B was, with
+    # 5.1 GiB "free" while the 14B held ~6 GiB. VRAM is the KFD figure
+    # rocm-smi reports for that pid; RAM is RssAnon only, since file-backed
+    # pages stay in the page cache (already counted in MemAvailable).
+    RECLAIM_VRAM=0
+    RECLAIM_RAM=0
+    OLD_PID=$(llama_pid)
+    if [[ -n "$OLD_PID" ]]; then
+        if command -v rocm-smi >/dev/null 2>&1; then
+            RECLAIM_VRAM=$(rocm-smi --showpids --csv 2>/dev/null \
+                | awk -F', ' -v p="\"PID${OLD_PID}\"" '$1==p {gsub(/"/,""); print $4}')
+            [[ "$RECLAIM_VRAM" =~ ^[0-9]+$ ]] || RECLAIM_VRAM=0
+        fi
+        RECLAIM_RAM=$(( $(awk '/^RssAnon:/ {print $2}' "/proc/$OLD_PID/status" 2>/dev/null || echo 0) * 1024 ))
+        VRAM_FREE=$(( VRAM_FREE + RECLAIM_VRAM ))
+        RAM_AVAIL=$(( RAM_AVAIL + RECLAIM_RAM ))
+    fi
+
     # Does this config keep every layer on the GPU? The launch line passes
     # --n-gpu-layers 999, but a per-model --n-gpu-layers or --n-cpu-moe in
     # FLAGS appears later on the command line and wins.
@@ -197,6 +246,9 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
         echo "               free VRAM: $(hb "$VRAM_FREE")" >&2
         echo "               avail RAM: $(hb "$RAM_AVAIL")  (swap deliberately not counted)" >&2
         echo "               budget:    $(hb "$BUDGET")  (after $(hb "$FIT_RESERVE_BYTES") reserve)" >&2
+        if [[ -n "$OLD_PID" ]]; then
+            echo "               (free VRAM/RAM include $(hb "$RECLAIM_VRAM") / $(hb "$RECLAIM_RAM") the running pid $OLD_PID releases)" >&2
+        fi
         echo "" >&2
         echo "  Loading it anyway would swap-thrash and can lock up the desktop." >&2
         echo "  Use a smaller quant, or free VRAM/RAM and retry." >&2
@@ -205,6 +257,13 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
     fi
 
     echo "[switch-model] fit ok: need $(hb "$NEED_BYTES") of $(hb "$BUDGET") ($OFFLOAD)"
+    if [[ -n "$OLD_PID" ]]; then
+        echo "[switch-model]   incl. $(hb "$RECLAIM_VRAM") VRAM + $(hb "$RECLAIM_RAM") RAM released by stopping pid $OLD_PID"
+    fi
+fi
+
+if (( CHECK_ONLY )); then
+    exit 0
 fi
 
 echo "[switch-model] swapping to '$KEY' ($NAME)"
@@ -212,7 +271,7 @@ echo "[switch-model]   gguf:  $GGUF"
 echo "[switch-model]   flags: $FLAGS"
 echo "[switch-model]   port:  $LLAMA_PORT"
 
-stop_llama
+stop_llama || exit 1
 
 # Launch the new model in the background.
 LOG="/tmp/llama-${KEY}.log"
