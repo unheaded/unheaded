@@ -47,7 +47,12 @@ SKIP_DIRS = {".git", "node_modules", "vendor", "dist", "build", "target", "__pyc
              ".venv", "venv", "sbom-results", "tomb"}
 CODE_EXT = {".go", ".py"}
 
-DDL_RE = re.compile(r"\b(CREATE\s+(?:UNIQUE\s+)?INDEX|CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|DROP\s+INDEX)\b",
+# The keyword must be followed by what can start a name (identifier, quote,
+# IF [NOT] EXISTS, CONCURRENTLY, or a %s / ${} / {} placeholder) or by the end
+# of the literal ("CREATE TABLE " + name). Prose such as "DROP
+# TABLE/DATABASE/ROLE" in a prompt is not DDL (eval/champion-runbooks, 2026-10-25).
+DDL_RE = re.compile(r"\b(CREATE\s+(?:UNIQUE\s+)?INDEX|CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|DROP\s+INDEX)\b"
+                    r"(?=\s+[\w\"`%${(]|\s*$)",
                     re.IGNORECASE)
 
 REF = {
@@ -1361,6 +1366,15 @@ SELECT 1;
 """, set(), {"schema-outside-ledger"}),
     "outside_live.sql": ("CREATE TABLE y (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY);",
                          {"schema-outside-ledger"}, set()),
+    # Code files: DDL in a string literal is found however the statement is built ...
+    "ddl_code.py": ('db.execute("CREATE TABLE IF NOT EXISTS probe (id int)")\n'
+                    'db.execute("DROP TABLE " + name)\n'
+                    'db.execute("ALTER TABLE %s ADD COLUMN x int" % t)\n'
+                    'db.execute(f"CREATE INDEX {name}_idx ON t (x)")\n',
+                    {"ddl-outside-ledger"}, set()),
+    # ... but a prompt that names the statements in prose is not DDL.
+    "prose.py": ('RULES = """R1 a step never runs dropdb, DROP TABLE/DATABASE/ROLE/SCHEMA, or rm -rf."""\n',
+                 set(), {"ddl-outside-ledger"}),
 }
 
 
@@ -1379,6 +1393,10 @@ def selftest():
             rules = {f.rule for f in got}
             sevs = {f.severity for f in got}
             missing = must - rules
+            if name == "ddl_code.py":   # every one of the four literals is found
+                n = sum(f.rule == "ddl-outside-ledger" for f in got)
+                if n != 4:
+                    missing.add(f"ddl-outside-ledger x4 (got {n})")
             unexpected = {r for r in must_not if r in rules or r in sevs}
             ok = not missing and not unexpected
             failures += not ok
