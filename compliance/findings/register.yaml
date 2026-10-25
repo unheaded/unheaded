@@ -1583,3 +1583,17 @@ findings:
     plan: >-
       Same as east: install the current compliance/baseline/baseline.yaml with the next huginn deploy, which also
       renames the unit's binary (ADR-084, host-agent -> huginn)
+
+  - source: "github-job:Static Analysis/Gates can actually fail"
+    severity: low
+    class: ci
+    opened: 2026-10-25
+    exposure: none on a host; while it times out, no gate is proven to bite on push
+    lockout: none
+    step: 1
+    plan: >-
+      The push run hit the job's 25-minute limit: lich-cargo-fuzz (ADR-062, added 2026-10-25) ran 60 s per
+      target, ten targets, twice. 43bf9199 runs it at 5 s per target in the meta-gate (150 s for the gate,
+      measured on west, was over 20 min); the rest of the full meta-gate passes locally with every gate biting,
+      ruff and pip-audit included. Closes when the next push's run finishes inside the limit; if it does not,
+      raise timeout-minutes with the measured time
