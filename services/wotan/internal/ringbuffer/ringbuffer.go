@@ -54,8 +54,8 @@ type RingBuffer struct {
 	count    int // current number of messages
 	wrapping bool
 	lastSeq  int64 // Seq of the most recent Push
-	maxBytes int   // budget for the sum of len(Content); 0 means none
-	bytes    int   // sum of len(Content) held
+	maxBytes int   // budget for the sum of msgBytes; 0 means none
+	bytes    int   // sum of msgBytes over the messages held
 	// counter, when set, is shared with other buffers (NewShared): seqs are
 	// then unique and ordered across all of them, not just within this one.
 	counter *atomic.Int64
@@ -97,7 +97,8 @@ func (rb *RingBuffer) SetMaxBytes(n int) {
 	rb.maxBytes = n
 }
 
-// Bytes returns the sum of len(Content) over the messages held.
+// Bytes returns the sum of msgBytes over the messages held: content, plus
+// signature, public key, sender and algorithm for a signed message.
 func (rb *RingBuffer) Bytes() int {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
@@ -120,7 +121,7 @@ func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
 	if rb.count == rb.size {
 		overwritten = true
 		rb.wrapping = true
-		rb.bytes -= len(rb.buffer[rb.head].Content)
+		rb.bytes -= msgBytes(rb.buffer[rb.head])
 	}
 
 	// Assigned and stored under rb.mu: a reader that sees a shared counter
@@ -135,7 +136,7 @@ func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
 		rb.grow()
 	}
 	rb.buffer[rb.head] = msg
-	rb.bytes += len(msg.Content)
+	rb.bytes += msgBytes(msg)
 	rb.head = (rb.head + 1) % rb.size
 
 	if rb.count < rb.size {
@@ -144,7 +145,7 @@ func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
 
 	for rb.maxBytes > 0 && rb.bytes > rb.maxBytes && rb.count > 1 {
 		i := rb.oldest()
-		rb.bytes -= len(rb.buffer[i].Content)
+		rb.bytes -= msgBytes(rb.buffer[i])
 		rb.buffer[i] = nil
 		rb.count--
 		overwritten = true
@@ -239,7 +240,7 @@ func (rb *RingBuffer) Delete(id uuid.UUID, creatorID uuid.UUID, content string) 
 			}
 			lastIdx := (oldestIdx + rb.count - 1) % rb.size
 			rb.buffer[lastIdx] = nil
-			rb.bytes -= len(msg.Content)
+			rb.bytes -= msgBytes(msg)
 			rb.count--
 			rb.head = (rb.head - 1 + rb.size) % rb.size
 			if rb.count < rb.size {
@@ -298,13 +299,25 @@ func (rb *RingBuffer) grow() {
 	rb.buffer = rb.buffer[:len(rb.buffer)+1]
 }
 
-// MessageOverhead is what a held message costs beyond its Content
+// msgBytes is what a message's variable-length fields hold: its content and,
+// when signed, the signature, public key, sender and algorithm. An ML-DSA-65
+// signature and key are ~5.3 KB, far more than most contents, so a budget that
+// counted Content alone did not bound a signed room's memory (FND-021).
+func msgBytes(m *Message) int {
+	n := len(m.Content)
+	if s := m.Signed; s != nil {
+		n += len(s.Signature) + len(s.PublicKey) + len(s.Sender) + len(s.Algorithm)
+	}
+	return n
+}
+
+// MessageOverhead is what a held message costs beyond msgBytes
 // (Message struct, IDs, its slot). Measured 2026-10-19: 500,000 messages of
 // ~440 bytes held 210 MiB of content in 290 MiB of heap, ~160 bytes each;
 // rounded up. The total budget (room.Manager) counts it.
 const MessageOverhead = 192
 
-// Footprint is the memory the held messages take: their content plus
+// Footprint is the memory the held messages take: their msgBytes plus
 // MessageOverhead each.
 func (rb *RingBuffer) Footprint() int {
 	rb.mu.RLock()
@@ -321,7 +334,7 @@ func (rb *RingBuffer) EvictOldest() int {
 		return 0
 	}
 	i := rb.oldest()
-	n := len(rb.buffer[i].Content)
+	n := msgBytes(rb.buffer[i])
 	rb.bytes -= n
 	rb.buffer[i] = nil
 	rb.count--
