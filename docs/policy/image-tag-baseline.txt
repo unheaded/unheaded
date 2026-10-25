@@ -1,21 +1,15 @@
 # Images not yet pinned to an exact version (ADR-102). This set may only SHRINK.
 # <file> <image>. Pin, then remove the line: scripts/check-image-tags.sh --update
-Dockerfile golang:1.27-alpine
 deploy/docker/zhen-agentd.Dockerfile gcr.io/distroless/static-debian12:nonroot
-deploy/docker/zhen-agentd.Dockerfile golang:1.27-alpine
 deploy/sophia-eye/docker-compose.yml ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
 deploy/sophia-eye/docker-compose.yml ghcr.io/open-webui/open-webui:main
-deploy/sophia-eye/docker-compose.yml prom/prometheus:latest
 deploy/sophia-eye/docker-compose.yml qdrant/qdrant:latest
 deploy/sophia-eye/docker-compose.yml vllm/vllm-openai:latest-rocm
 docker/base/Dockerfile.base debian:bookworm-slim
 docker/base/Dockerfile.base gcr.io/distroless/static-debian12:nonroot
-docker/docker-compose.loadbalancers.yml haproxy:2.9-alpine
-docker/docker-compose.loadbalancers.yml nginx:1.25-alpine
 docker/firewall/frr/Dockerfile ubuntu:24.04
 docker/firewall/ipfire/Dockerfile ubuntu:24.04
 docker/firewall/opnsense/Dockerfile ubuntu:24.04
-docker/hosts/host-b/docker-compose.yml linuxserver/wireguard:latest
 docker/routing/ospf/Dockerfile ubuntu:24.04
 docker/services/anamnesis/Dockerfile debian:bookworm-slim
 docker/services/anamnesis/Dockerfile gcr.io/distroless/static-debian12:nonroot
@@ -61,19 +55,5 @@ docker/services/trace-collector/Dockerfile gcr.io/distroless/static-debian12:non
 docker/services/unheaded-daemon/Dockerfile debian:bookworm-slim
 docker/services/wotan/Dockerfile debian:bookworm-slim
 docker/services/wotan/Dockerfile gcr.io/distroless/static-debian12:nonroot
-docker/wireguard/docker-compose.wireguard.yml lscr.io/linuxserver/wireguard:latest
-kubernetes/manifests/base/architect/deployment.yaml busybox:1.36
-kubernetes/manifests/base/captain/deployment.yaml busybox:1.36
-kubernetes/manifests/base/cuirass/deployment.yaml busybox:1.36
-kubernetes/manifests/base/dashboard-backend/deployment.yaml busybox:1.36
-kubernetes/manifests/base/gateway/deployment.yaml busybox:1.36
 kubernetes/manifests/base/haproxy-ingress/controller.yaml haproxytech/kubernetes-ingress:3.1
-kubernetes/manifests/base/kanban-app/deployment.yaml busybox:1.36
-kubernetes/manifests/base/loadbalancers/haproxy-edge.yaml haproxy:2.9-alpine
-kubernetes/manifests/base/loadbalancers/haproxy-internal.yaml haproxy:2.9-alpine
-kubernetes/manifests/base/logging/clickhouse.yaml clickhouse/clickhouse-server:24.12
-kubernetes/manifests/base/micromanager/deployment.yaml busybox:1.36
-kubernetes/manifests/base/monad/deployment.yaml busybox:1.36
-kubernetes/manifests/base/sophia/deployment.yaml busybox:1.36
-kubernetes/manifests/base/timeguru/deployment.yaml busybox:1.36
 routing/frr/Dockerfile ubuntu:24.04

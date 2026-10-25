@@ -549,7 +549,7 @@ services:
     tmpfs:
     - /tmp:size=64m,mode=1777
   wireguard:
-    image: linuxserver/wireguard:latest
+    image: lscr.io/linuxserver/wireguard:1.0.20250521
     container_name: unheaded-wireguard
     restart: unless-stopped
     networks:

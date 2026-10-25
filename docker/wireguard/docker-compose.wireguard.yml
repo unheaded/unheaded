@@ -6,7 +6,7 @@ version: '3.8'
 
 services:
   wireguard:
-    image: lscr.io/linuxserver/wireguard:latest
+    image: lscr.io/linuxserver/wireguard:1.0.20250521
     container_name: unheaded-wireguard
     # Root by necessity (pkg/uids pendingHardening: a non-root uid gets CapEff 0
     # and EPERM creating the link). Bounded instead: measured 2026-10-20 on west

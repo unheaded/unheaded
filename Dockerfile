@@ -6,7 +6,7 @@
 # ============================================================================
 # STAGE 1: BUILD - THE FORGE
 # ============================================================================
-FROM golang:1.27-alpine AS builder
+FROM golang:1.27.3-alpine3.24 AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \

@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: haproxy
-          image: haproxy:2.9-alpine
+          image: haproxy:2.9.15-alpine
           ports:
             - { name: http, containerPort: 21081 }
             - { name: metrics, containerPort: 21405 }

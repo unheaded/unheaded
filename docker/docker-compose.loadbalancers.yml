@@ -28,7 +28,7 @@ services:
   # EDGE LOAD BALANCER (HAProxy)
   # =========================================================================
   haproxy-edge:
-    image: haproxy:2.9-alpine
+    image: haproxy:2.9.15-alpine
     container_name: unheaded-haproxy-edge
     restart: unless-stopped
     user: "16747:16747"
@@ -74,7 +74,7 @@ services:
   # INTERNAL LOAD BALANCER (HAProxy)
   # =========================================================================
   haproxy-internal:
-    image: haproxy:2.9-alpine
+    image: haproxy:2.9.15-alpine
     container_name: unheaded-haproxy-internal
     restart: unless-stopped
     user: "16748:16748"
@@ -121,7 +121,7 @@ services:
 
   # --- Nginx for Wotan (Message Bus) ---
   nginx-wotan:
-    image: nginx:1.25-alpine
+    image: nginx:1.25.5-alpine
     container_name: unheaded-nginx-wotan
     restart: unless-stopped
     user: "16749:16749"
@@ -164,7 +164,7 @@ services:
 
   # --- Nginx for Monad (State Management) ---
   nginx-monad:
-    image: nginx:1.25-alpine
+    image: nginx:1.25.5-alpine
     container_name: unheaded-nginx-monad
     restart: unless-stopped
     user: "16750:16750"
@@ -207,7 +207,7 @@ services:
 
   # --- Nginx for Sophia (Knowledge Graph) ---
   nginx-sophia:
-    image: nginx:1.25-alpine
+    image: nginx:1.25.5-alpine
     container_name: unheaded-nginx-sophia
     restart: unless-stopped
     user: "16751:16751"
@@ -250,7 +250,7 @@ services:
 
   # --- Nginx for Dashboard Backend ---
   nginx-dashboard:
-    image: nginx:1.25-alpine
+    image: nginx:1.25.5-alpine
     container_name: unheaded-nginx-dashboard
     restart: unless-stopped
     user: "16752:16752"
@@ -293,7 +293,7 @@ services:
 
   # --- Nginx for Kanban ---
   nginx-kanban:
-    image: nginx:1.25-alpine
+    image: nginx:1.25.5-alpine
     container_name: unheaded-nginx-kanban
     restart: unless-stopped
     user: "16753:16753"
@@ -336,7 +336,7 @@ services:
 
   # --- Nginx for Gateway ---
   nginx-gateway:
-    image: nginx:1.25-alpine
+    image: nginx:1.25.5-alpine
     container_name: unheaded-nginx-gateway
     restart: unless-stopped
     user: "16754:16754"
