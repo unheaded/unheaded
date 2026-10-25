@@ -97,6 +97,12 @@ ring buffer. With `--wotan host:18000` it publishes `anomaly.scores`
 JSON to the service directly. The message is flow key + score + model id;
 unknown fields are refused.
 
+Supervised: `deploy/systemd/unheaded-anomaly.service` runs the service only
+(`--no-cartridge --wotan 127.0.0.1:18000`) as `unheaded-anomaly` with no
+capabilities. The bridge needs the pins (root 0700/0600), so it stays a root
+lab run beside it: `sudo anomaly --wotan 127.0.0.1:18000 --listen 127.0.0.1:0`
+(its own listener moved off 19018, which the unit holds).
+
 ## Replay (time travel)
 
 ```

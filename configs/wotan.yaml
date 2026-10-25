@@ -34,6 +34,8 @@ topics:
     - "trace-collector"
     - "chaos-controller"      # service discovery display name (system.discovery)
     - "kev-poller"            # threats.cisa-kev.{updates,delta} (ADR-055)
+    - "anomaly-service"       # consumes anomaly.scores / anomaly.* / alerts.critical (cmd/anomaly, ADR-108)
+    - "anomaly-bridge"        # publishes anomaly.scores from the cartridge ring (cmd/anomaly --wotan, lab run)
     - "sword"                 # deploy.{started,progress,succeeded,failed,rolled_back} (S-REAL-STEEL)
     - "sophia-service"        # sophia's own gRPC display name (not "sophia")
     - "monad-service"         # monad's own gRPC display name (not "monad")

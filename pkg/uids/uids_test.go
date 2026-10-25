@@ -115,6 +115,8 @@ var hostOnly = map[string]string{
 	// Faults need CAP_NET_ADMIN (and CAP_BPF on west) on the host itself:
 	// S-REAL-STEEL Phase 10, deploy/systemd/unheaded-chaos-controller.service.
 	"chaos-controller": "unheaded-chaos",
+	// The anomaly service and its Wotan intake: deploy/systemd/unheaded-anomaly.service.
+	"anomaly": "unheaded-anomaly",
 }
 
 // composeOnly lists services that exist only in compose files (or as the
