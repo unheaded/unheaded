@@ -48,6 +48,7 @@ import (
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
+	"unheaded/pkg/vorquery"
 )
 
 const (
@@ -203,7 +204,7 @@ func main() {
 		pool:        pool,
 		defaultRoot: rootAbs,
 		allowed:     allowed,
-		retriever:   &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars},
+		retriever:   &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars, index: vorquery.NewIndex(httpClient, vorURL)},
 		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor, gpuLock: wf.gpuLock},
 		vorURL:      vorURL,
 		llamaURL:    llamaURL,
@@ -1005,17 +1006,19 @@ func pingHTTP(ctx context.Context, c *http.Client, endpoint string) bool {
 }
 
 // --- vorRetriever / llamaLLM / stderrActionStore — same as zhen-agent.
-// Duplicated here rather than refactored into a shared package; if a
-// third caller appears, factor out then.
+// Duplicated here rather than refactored into a shared package; the query
+// shaping and topic ordering they share live in pkg/vorquery.
 
 type vorRetriever struct {
 	client   *http.Client
 	baseURL  string
 	maxChars int
+	index    *vorquery.Index // topic names, for vorquery's name matching
 }
 
 func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]champion.Reference, []agent.TopicContent, error) {
-	q := strings.TrimRight(query, "?!.")
+	terms := vorquery.SearchTerms(query)
+	q := strings.Join(terms, " ")
 	endpoint := fmt.Sprintf("%s/api/search?q=%s",
 		strings.TrimRight(r.baseURL, "/"), url.QueryEscape(q))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -1036,15 +1039,24 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 		return nil, nil, fmt.Errorf("decode: %w", err)
 	}
 
+	searched := make([]vorquery.Topic, len(hits))
+	for i, h := range hits {
+		searched[i] = vorquery.Topic{Name: h.Topic, Category: h.Category}
+	}
+	order, err := r.index.Order(ctx, terms, searched)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "zhen-agentd: vor topic listing: %v\n", err)
+	}
+
 	seen := make(map[string]struct{})
 	var refs []champion.Reference
 	var contents []agent.TopicContent
-	for _, h := range hits {
-		if _, dup := seen[h.Topic]; dup {
+	for _, name := range order {
+		if _, dup := seen[name]; dup {
 			continue
 		}
-		seen[h.Topic] = struct{}{}
-		t, err := r.topic(ctx, h.Topic)
+		seen[name] = struct{}{}
+		t, err := r.topic(ctx, name)
 		if err != nil {
 			continue
 		}

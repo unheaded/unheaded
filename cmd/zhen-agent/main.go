@@ -34,6 +34,7 @@ import (
 	"unheaded/pkg/agent"
 	"unheaded/pkg/champion"
 	"unheaded/pkg/localllm"
+	"unheaded/pkg/vorquery"
 )
 
 const (
@@ -109,7 +110,7 @@ func main() {
 			Seed:          *seed,
 		},
 		champ,
-		&vorRetriever{client: client, baseURL: vorURL, maxChars: *maxChars},
+		&vorRetriever{client: client, baseURL: vorURL, maxChars: *maxChars, index: vorquery.NewIndex(client, vorURL)},
 		&llamaLLM{client: client, baseURL: llamaURL, model: modelName},
 	)
 
@@ -157,25 +158,35 @@ type vorRetriever struct {
 	client   *http.Client
 	baseURL  string
 	maxChars int
+	index    *vorquery.Index // topic names, for vorquery's name matching
 }
 
 func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]champion.Reference, []agent.TopicContent, error) {
-	hits, err := r.search(ctx, searchQuery(query))
+	terms := vorquery.SearchTerms(query)
+	hits, err := r.search(ctx, strings.Join(terms, " "))
 	if err != nil {
 		return nil, nil, fmt.Errorf("vor search: %w", err)
+	}
+	searched := make([]vorquery.Topic, len(hits))
+	for i, h := range hits {
+		searched[i] = vorquery.Topic{Name: h.Topic, Category: h.Category}
+	}
+	order, err := r.index.Order(ctx, terms, searched)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "zhen-agent: topic listing: %v\n", err)
 	}
 
 	seen := make(map[string]struct{})
 	var refs []champion.Reference
 	var contents []agent.TopicContent
-	for _, h := range hits {
-		if _, dup := seen[h.Topic]; dup {
+	for _, name := range order {
+		if _, dup := seen[name]; dup {
 			continue
 		}
-		seen[h.Topic] = struct{}{}
-		t, err := r.topic(ctx, h.Topic)
+		seen[name] = struct{}{}
+		t, err := r.topic(ctx, name)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "zhen-agent: skip topic %q: %v\n", h.Topic, err)
+			fmt.Fprintf(os.Stderr, "zhen-agent: skip topic %q: %v\n", name, err)
 			continue
 		}
 		ref := champion.Reference{
@@ -322,10 +333,6 @@ func (s *stderrActionStore) GetActions(_ context.Context, _ string, _ int) ([]ch
 }
 
 // --- helpers shared with zhen-rag ---
-
-func searchQuery(q string) string {
-	return strings.TrimRight(q, "?!.")
-}
 
 func clipContent(s string, maxChars int) string {
 	if maxChars <= 0 || len(s) <= maxChars {

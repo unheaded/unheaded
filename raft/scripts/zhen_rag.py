@@ -347,7 +347,14 @@ class RAGPipeline:
         if not isinstance(hits, list):
             return []
 
-        searched = [h.get("topic", "") for h in hits if isinstance(h, dict)]
+        # Worktree copies are stale, and /api/topics/<name> can return one
+        # in place of the main tree's doc of the same name: skip them here
+        # as well as in the name matches.
+        searched = [
+            h.get("topic", "") for h in hits
+            if isinstance(h, dict)
+            and not str(h.get("category", "")).startswith(_WORKTREE_CATEGORY_PREFIX)
+        ]
         named = self._topics_named_by(terms)
 
         # Interleave: named[0], searched[0], named[1], searched[1], ...

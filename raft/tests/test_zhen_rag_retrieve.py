@@ -53,6 +53,10 @@ SEARCH = {
     # The 50-hit cap: every hit is one long battle plan.
     'wotan': [_hit('wotan-cloud-battle-plan', 'docs/battle-plans/tools',
                    section=f'Wotan section {i}') for i in range(50)],
+    'stale copy': [
+        _hit('Wotan-Stale-Copy', WT + '/wiki'),
+        _hit('pki-overview', 'docs/security'),
+    ],
     'rotate ca': [
         _hit('ca-compromise-root-rotation', 'docs/runbook-briefs'),
         _hit('pki-overview', 'docs/security'),
@@ -148,6 +152,10 @@ def test_worktree_copies_are_not_name_matches(vor, rag):
     ids = _ids(rag.retrieve('wotan', k=20))
     assert 'Wotan-Stale-Copy' not in ids
     assert ids.count('Service-Wotan') == 1
+
+
+def test_worktree_copies_are_dropped_from_search_hits(vor, rag):
+    assert _ids(rag.retrieve('stale copy', k=5)) == ['pki-overview']
 
 
 def test_name_matches_ordered_most_specific_first(vor, rag):

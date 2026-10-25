@@ -8,24 +8,6 @@ import (
 	"testing"
 )
 
-func TestSearchQuery_StripsTrailingPunctuation(t *testing.T) {
-	t.Parallel()
-	cases := map[string]string{
-		"what is unheaded":   "what is unheaded",
-		"what is unheaded?":  "what is unheaded",
-		"what is unheaded.":  "what is unheaded",
-		"what is unheaded!":  "what is unheaded",
-		"why??!.":            "why",
-		"":                   "",
-		"trailing.spaces.  ": "trailing.spaces.  ", // spaces aren't stripped
-	}
-	for in, want := range cases {
-		if got := searchQuery(in); got != want {
-			t.Errorf("searchQuery(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestClipContent_ReturnsAsIsWhenUnderLimit(t *testing.T) {
 	t.Parallel()
 	if got := clipContent("hello", 100); got != "hello" {

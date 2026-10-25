@@ -46,6 +46,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"unheaded/pkg/vorquery"
 )
 
 const (
@@ -148,6 +150,7 @@ type session struct {
 	model     string
 
 	client *http.Client
+	index  *vorquery.Index // vor topic names, built on first ask
 }
 
 func main() {
@@ -534,19 +537,29 @@ func (s *session) askLLM(q string) (answer string, refs []string, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	hits, err := s.vorSearch(ctx, searchQuery(q))
+	terms := vorquery.SearchTerms(q)
+	hits, err := s.vorSearch(ctx, strings.Join(terms, " "))
 	if err != nil {
 		return "", nil, fmt.Errorf("vor search: %w", err)
 	}
+	searched := make([]vorquery.Topic, len(hits))
+	for i, h := range hits {
+		searched[i] = vorquery.Topic{Name: h.Topic, Category: h.Category}
+	}
+	if s.index == nil {
+		s.index = vorquery.NewIndex(s.client, s.vorURL)
+	}
+	// A listing error only loses the name matches; vor's order stands.
+	order, _ := s.index.Order(ctx, terms, searched)
 
 	seen := make(map[string]struct{})
 	var topics []vorTopic
-	for _, h := range hits {
-		if _, ok := seen[h.Topic]; ok {
+	for _, name := range order {
+		if _, ok := seen[name]; ok {
 			continue
 		}
-		seen[h.Topic] = struct{}{}
-		t, err := s.vorTopicFetch(ctx, h.Topic)
+		seen[name] = struct{}{}
+		t, err := s.vorTopicFetch(ctx, name)
 		if err != nil {
 			continue
 		}
@@ -693,8 +706,6 @@ func clipContent(s string, maxChars int) string {
 	}
 	return s[:maxChars] + "\n\n…[truncated]"
 }
-
-func searchQuery(q string) string { return strings.TrimRight(q, "?!.") }
 
 func envOr(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {

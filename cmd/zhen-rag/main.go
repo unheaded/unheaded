@@ -40,6 +40,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"unheaded/pkg/vorquery"
 )
 
 const (
@@ -183,25 +185,31 @@ func main() {
 
 	client := &http.Client{Timeout: httpTimeout}
 
-	// 1. retrieve search hits — vor's search returns null when the
-	// query ends in punctuation (`?`, `!`, `.`), so we feed it a
-	// stripped variant. The full question still goes to the LLM.
-	hits, err := vorSearch(ctx, client, vorURL, searchQuery(q))
+	// 1. retrieve search hits. vorquery drops question words and
+	// punctuation (vor returns null for a query ending in `?`, `!`, `.`);
+	// the full question still goes to the LLM.
+	terms := vorquery.SearchTerms(q)
+	hits, err := vorSearch(ctx, client, vorURL, strings.Join(terms, " "))
 	if err != nil {
 		fatal("vor search: %v", err)
 	}
 
-	// 2. fetch full content for top-K unique topics (preserve search order)
+	// 2. fetch full content for top-K unique topics: topics named by the
+	// question interleaved with vor's hits (see pkg/vorquery).
+	order, err := vorquery.NewIndex(client, vorURL).Order(ctx, terms, hitTopics(hits))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "zhen-rag: topic listing: %v\n", err)
+	}
 	seen := make(map[string]struct{})
 	var topics []vorTopic
-	for _, h := range hits {
-		if _, ok := seen[h.Topic]; ok {
+	for _, name := range order {
+		if _, ok := seen[name]; ok {
 			continue
 		}
-		seen[h.Topic] = struct{}{}
-		t, err := vorTopicFetch(ctx, client, vorURL, h.Topic)
+		seen[name] = struct{}{}
+		t, err := vorTopicFetch(ctx, client, vorURL, name)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "zhen-rag: skip topic %q: %v\n", h.Topic, err)
+			fmt.Fprintf(os.Stderr, "zhen-rag: skip topic %q: %v\n", name, err)
 			continue
 		}
 		topics = append(topics, *t)
@@ -464,12 +472,13 @@ func clipContent(s string, maxChars int) string {
 	return s[:maxChars] + "\n\n…[truncated]"
 }
 
-// searchQuery returns the question stripped of trailing sentence
-// punctuation. vor's full-text search returns null for any query that
-// ends in `?`, `!`, or `.`, so we strip them before search. The full
-// question still goes to the LLM as-is.
-func searchQuery(q string) string {
-	return strings.TrimRight(q, "?!.")
+// hitTopics returns each search hit's topic and category, in vor's order.
+func hitTopics(hits []vorSearchHit) []vorquery.Topic {
+	out := make([]vorquery.Topic, len(hits))
+	for i, h := range hits {
+		out[i] = vorquery.Topic{Name: h.Topic, Category: h.Category}
+	}
+	return out
 }
 
 func envOr(key, fallback string) string {

@@ -102,7 +102,7 @@ For production, swap in the PostgreSQL `ActionStore` from The Well (`pkg/wotan` 
 ## Troubleshooting
 
 **`zhen-agent: vor search: ... missing q parameter`**
-Vor rejected an empty query. Usually means `searchQuery()` stripped a query down to nothing (queries ending in only punctuation). Re-phrase the goal.
+Vor rejected an empty query. Usually means the query was only punctuation, which `pkg/vorquery` strips. Re-phrase the goal.
 
 **`zhen-agent: llama chat: status 400: ... exceeds the available context size`**
 The retrieved references blew the prompt budget. Drop `-k` (fewer topics) or `-max-topic-chars` (smaller per-topic cap). llama-server's `--ctx-size 16384` is the upstream limit.

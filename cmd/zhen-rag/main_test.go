@@ -10,25 +10,6 @@ import (
 	"testing"
 )
 
-func TestSearchQuery_StripsTrailingPunctuation(t *testing.T) {
-	t.Parallel()
-	cases := map[string]string{
-		"hello":  "hello",
-		"hello?": "hello",
-		"hello.": "hello",
-		"hello!": "hello",
-		"hi?!.":  "hi",
-		"":       "",
-		"...":    "",
-		"a.b.c.": "a.b.c",
-	}
-	for in, want := range cases {
-		if got := searchQuery(in); got != want {
-			t.Errorf("searchQuery(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestClipContent_NoOpsUnderLimit(t *testing.T) {
 	t.Parallel()
 	if got := clipContent("hello", 10); got != "hello" {
