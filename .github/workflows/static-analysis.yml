@@ -79,9 +79,15 @@ jobs:
       #   - 08-reproducibility-clean.sh piped find|xargs without -print0, so any
       #     filename containing a space kept a non-deterministic mtime — in the
       #     provisioner whose whole job is deterministic mtimes.
+      #
+      # Left out by PATH, never by rule: scanner fixtures under testdata/ and
+      # the scripts an eval asks a model to fix (eval/*/fixtures/<task>/*.sh
+      # other than check.sh). Those carry their defects on purpose (SC2045
+      # in sh-for-ls, SC2164 in sh-cd-unchecked); a disable comment would
+      # hand the model the answer. Each fixture's check.sh grader is linted.
       - name: shellcheck (warnings + errors — GATING)
         run: |
-          git ls-files '*.sh' | xargs -r shellcheck -S warning -f gcc
+          git ls-files '*.sh' | awk '!/(^|\/)testdata\// && !(/^eval\/[^\/]+\/fixtures\// && !/\/check\.sh$/)' | xargs -r shellcheck -S warning -f gcc
 
       # 226 notes remain (SC2317 unreachable, SC2015 A&&B||C, SC2059 printf,
       # SC1091 unfollowable source, SC2012 ls parsing). Reporting only — these
@@ -89,7 +95,7 @@ jobs:
       - name: shellcheck (notes — reporting)
         continue-on-error: true
         run: |
-          git ls-files '*.sh' | xargs -r shellcheck -f gcc
+          git ls-files '*.sh' | awk '!/(^|\/)testdata\// && !(/^eval\/[^\/]+\/fixtures\// && !/\/check\.sh$/)' | xargs -r shellcheck -f gcc
 
   clippy:
     name: Rust (clippy)
