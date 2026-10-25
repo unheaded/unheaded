@@ -15,8 +15,8 @@ containers running, which is the mistake ADR-093 rule 4 names.
 | classification | meaning | count |
 |---|---|---|
 | CONTAINER | built into the container image | 13 |
-| SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 16 |
-| TOOL | invoked by a script, runbook or Makefile, not supervised | 25 |
+| SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 17 |
+| TOOL | invoked by a script, runbook or Makefile, not supervised | 24 |
 | ORPHAN | referenced by nothing outside its own directory | 25 |
 | **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **79** |
 
@@ -56,7 +56,7 @@ that keeping them stays a decision.
 | `cmd/gjallarhorn-listener` | ORPHAN |
 | `cmd/gjallarhorn-sender` | ORPHAN |
 | `cmd/heimdall-daemon` | ORPHAN |
-| `cmd/host-agent` | TOOL |
+| `cmd/huginn` | SUPERVISED |
 | `cmd/kanban-app` | CONTAINER |
 | `cmd/kev-poller` | CONTAINER |
 | `cmd/lich-mcp` | TOOL |

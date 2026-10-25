@@ -6,9 +6,9 @@ Huginn runs natively on each Kingdom host (west, east), not in a container. It r
 
 | | |
 |---|---|
-| Binary | `/usr/local/bin/huginn` (built from `cmd/host-agent`; ADR-084) |
+| Binary | `/usr/local/bin/huginn` (built from `cmd/huginn`; ADR-084) |
 | Unit | `huginn.service`, runs as its own nologin account `unheaded-huginn` (`deploy/sysusers.d/unheaded.conf`) |
-| Config | `/etc/huginn.yaml` (template `cmd/host-agent/huginn.yaml.example`); secrets in `/etc/huginn.env` (root 0600) |
+| Config | `/etc/huginn.yaml` (template `cmd/huginn/huginn.yaml.example`); secrets in `/etc/huginn.env` (root 0600) |
 | Listen | `:9110` by default |
 | Push | VictoriaMetrics every 10 s (`HUGINN_VM`: west `http://localhost:8428`, the main compose `victoria`; east pushes to west over the P2P link). While `victoria` is down each push fails (`vm push failed ... connection refused` in the journal); `/metrics` still serves everything |
 
@@ -29,4 +29,4 @@ Huginn runs natively on each Kingdom host (west, east), not in a container. It r
 
 ---
 
-> **Source:** [cmd/host-agent/](../cmd/host-agent/) · [ADR-084](../docs/adr/ADR-084-huginn-host-metrics-agent.md) · [deploy/systemd/](../deploy/systemd/)
+> **Source:** [cmd/huginn/](../cmd/huginn/) · [ADR-084](../docs/adr/ADR-084-huginn-host-metrics-agent.md) · [deploy/systemd/](../deploy/systemd/)

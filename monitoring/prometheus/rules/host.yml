@@ -2,7 +2,7 @@
 # Unheaded Kingdom infrastructure
 # License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
 #
-# Series come from huginn (cmd/host-agent): host_disk_* per mounted device,
+# Series come from huginn (cmd/huginn): host_disk_* per mounted device,
 # huginn_log_* for the filesystem holding /var/log and each directory under
 # /var/log/unheaded/ (logdirs.go). The point of ADR-092 is an alert BEFORE a
 # log fills a disk, so each "full" rule has a rate-based sibling that fires

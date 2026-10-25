@@ -98,7 +98,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md) | Unheaded Linux — build our own minimal OS from scratch on the UPC instead of vendoring uClinux+busybox; 100% in-house, as light/small as possible (fits verifier budget + code-store); scales UPC PoC → Unheaded Linux → Yggdrasil golden image via soft-fork discipline on an owned base. Supersedes ascend Phase 2 vendor step; moots the LTS/arch pair calls | **Accepted** (Stevie's call) | 2026-07-03 |
 | [082](../docs/adr/ADR-082-unheadnix-niche-brainstorm.md) | unheadnix — feasible-usage brainstorm for ultralight UPC pool nodes | **Brainstorm / Exploratory** (explicitly not a decision; feeds a future ADR) | 2026-07-19 |
 | [083](../docs/adr/ADR-083-terminology-conventions.md) | Terminology conventions (rolling) — internal "zero user data access" vs user-facing "NIST 800-207 Zero Trust Architecture" | **Accepted** (rolling) | 2026-07-19 |
-| [084](../docs/adr/ADR-084-huginn-host-metrics-agent.md) | Huginn — host metrics agent | **Accepted** | 2026-07-24 |
+| [084](../docs/adr/ADR-084-huginn-host-metrics-agent.md) | Huginn — host metrics agent | **Accepted** (implemented 2026-10-25: `cmd/huginn`) | 2026-07-24 |
 | [085](../docs/adr/ADR-085-cicd-artifact-layout.md) | CI/CD pipeline polish — canonical artifact layout | **Planned** | 2026-07-24 |
 | [086](../docs/adr/ADR-086-muninn-observability-pipeline.md) | Muninn — observability fan-out pipeline | **Planned** | 2026-07-24 |
 | [087](../docs/adr/ADR-087-noc-network-device-monitoring.md) | NOC — network device monitoring and configuration management | **Planned** | 2026-07-24 |

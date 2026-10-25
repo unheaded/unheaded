@@ -37,7 +37,7 @@ architect           ./services/architect/cmd/architect
 micromanager        ./services/micromanager/cmd/micromanager
 monad               ./cmd/monad
 sophia              ./cmd/sophia
-huginn              ./cmd/host-agent
+huginn              ./cmd/huginn
 trace-collector-go  ./cmd/trace-collector-go
 kev-poller          ./cmd/kev-poller
 chaos-controller    ./cmd/chaos-controller
@@ -52,7 +52,20 @@ pkg_of() { awk -v n="$1" 'NF == 2 && $1 == n { print $2 }' <<<"$MAP"; }
 names() { awk 'NF == 2 { print $1 }' <<<"$MAP"; }
 
 check_units() {
-	local unit bin rc=0 n=0
+	local unit bin rc=0 n=0 name pkg dir
+	# A binary is named after the directory it is built from (ADR-084): the
+	# live-path inventory (scripts/live-path-inventory.sh) and every reader
+	# find a unit's source by that name. huginn built from cmd/host-agent (until 2026-10-25) made
+	# a supervised service on both hosts read as an unsupervised TOOL.
+	while read -r name pkg; do
+		[[ -n "$name" ]] || continue
+		dir="$(basename "$pkg")"
+		[[ "$dir" == cmd ]] && dir="$(basename "$(dirname "$pkg")")"
+		if [[ "$dir" != "$name" ]]; then
+			echo "[FAIL] binary $name is built from $pkg; name the directory after the binary" >&2
+			rc=1
+		fi
+	done <<<"$MAP"
 	shopt -s nullglob
 	for unit in "$UNITS_DIR"/*.service "$UNITS_DIR"/user/*.service; do
 		while read -r bin; do

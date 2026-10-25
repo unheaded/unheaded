@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// A trimmed copy of a live host-agent /host-summary from west.
+// A trimmed copy of a live huginn /host-summary from west.
 const westSummary = `{"cpu_percent":13.5,"cpu_count":12,"memory_total":15367344128,` +
 	`"memory_used":6607654912,"memory_percent":43.0,"swap_total":36507213824,` +
 	`"swap_used":1237618688,"swap_percent":3.4,"load_1m":7.4,"load_5m":4.17,` +
