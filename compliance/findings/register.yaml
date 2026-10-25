@@ -1521,3 +1521,65 @@ findings:
       Closes with the firewall decision (UH-FW-01, ADR-098 step 6): load deploy/nftables/east.nft through
       scripts/host/nft-apply-confirm.sh and enable unheaded-nft.service, then disable ufw.service so one utility owns it
     decision: the firewall rollout (same as host-iptables:east default deny)
+
+  # --- CI and agents after the 2026-10-25 push (b3102c18) ---------------------
+  - source: "git-signatures:develop"
+    severity: low
+    class: ci
+    opened: 2026-10-25
+    exposure: provenance of 6 commits only; every commit since 2026-10-23 is signed
+    lockout: none
+    step: 1
+    plan: >-
+      The six unsigned commits are sprint/two-brains-runbooks Steps 321-338 (3a9665d7..b81695fe, 2026-10-23,
+      gpg-agent had timed out), merged and pushed in b3102c18. Re-signing them would rewrite pushed history
+      (scripts/resign-unpushed.py is for unpushed commits), so they are left; they leave the 50-commit window as
+      signed commits land (local develop 2026-10-25: 1 of 50)
+
+  - source: "github-job:Static Analysis/Python (ruff + bandit)"
+    severity: low
+    class: ci
+    opened: 2026-10-25
+    exposure: none on a host; a lint gate that went red unseen
+    lockout: none
+    step: 1
+    plan: >-
+      ruff was red since the eval sprints and nobody saw it: ruff is not installed on west, so the meta-gate
+      called check-ruff INCONCLUSIVE. Fixed on develop in ae99bc61 (579 findings in frozen eval fixtures
+      excluded by path with the reason, the rest fixed, outputs proven unchanged); closes on the next push
+
+  - source: "github-job:SBOM + Vulnerability Scan/sbom"
+    severity: low
+    class: ci
+    opened: 2026-10-25
+    exposure: filelock (GHSA-v4x8-3wr5-3wq8, high) in the ~/.venv/zhen freeze; a local-only lock-file race
+    lockout: none
+    step: 1
+    plan: >-
+      Fixed on develop in 354d866f (filelock 4.2.1, setuptools 84.1.0 in ~/.venv/zhen and the CI lock); grype at
+      medium passes on a git archive of develop (syft + grype from scripts/ci-install-tools.sh); closes on the
+      next push
+
+  - source: "host-agent:east:baseline-report"
+    severity: low
+    class: service
+    opened: 2026-10-25
+    exposure: east is checked against an older baseline (c9f21f8df380, repo 12c6a543c995), so newer controls are
+      not evaluated there
+    lockout: none
+    step: 7
+    plan: >-
+      Ship the current compliance/baseline/baseline.yaml to east with the next huginn deploy; that deploy also
+      carries the ADR-084 binary rename (host-agent -> huginn). Waits on Stevie (east deb installs)
+
+  - source: "host-agent:west:baseline-report"
+    severity: low
+    class: service
+    opened: 2026-10-25
+    exposure: west is checked against an older baseline (c9f21f8df380, repo 12c6a543c995), so newer controls are
+      not evaluated there
+    lockout: none
+    step: 7
+    plan: >-
+      Same as east: install the current compliance/baseline/baseline.yaml with the next huginn deploy, which also
+      renames the unit's binary (ADR-084, host-agent -> huginn)
