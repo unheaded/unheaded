@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -92,10 +93,7 @@ func CallHash(tool, projectRoot string, args json.RawMessage) string {
 
 func writeField(h interface{ Write([]byte) (int, error) }, s string) {
 	var n [8]byte
-	l := uint64(len(s))
-	for i := 0; i < 8; i++ {
-		n[i] = byte(l >> (8 * uint(i)))
-	}
+	binary.LittleEndian.PutUint64(n[:], uint64(len(s)))
 	_, _ = h.Write(n[:])
 	_, _ = h.Write([]byte(s))
 }
