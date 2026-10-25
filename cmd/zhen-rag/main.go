@@ -114,6 +114,40 @@ type chatResponse struct {
 // copies. Ported in lockstep with raft/scripts/zhen_rag.py:CODE_COMMENT_REMINDER.
 const codeCommentReminder = "(If your answer includes code: comment every line or small group of lines, explaining what it does and how its syntax works, inside the code block itself, e.g. `while IFS= read -r line; do  # IFS= keeps leading spaces; -r keeps backslashes literal`. Do not add a separate Explanation list after the code.)"
 
+// codeCommentExample is one worked exchange placed between the system prompt
+// and the real question. A small model copies the shape of an example far more
+// reliably than it follows a written rule: with the rule and reminder alone,
+// qwen2.5-coder-7b commented each step but still put the syntax detail in a
+// separate "Explanation" list after the code. The example shows the wanted
+// shape once: syntax explained in the comment on the same line, no list.
+//
+// The user turn has the same shape as a real one (References / Question /
+// reminder); with a bare question the example had almost no effect.
+//
+// Byte-identical to raft/scripts/zhen_rag.py:CODE_COMMENT_EXAMPLE, enforced
+// by TestCodeCommentExample_MatchesPython.
+var codeCommentExample = []chatMessage{
+	{
+		Role:    "user",
+		Content: "References:\n\nQuestion: How do I check whether a file exists in bash?\n\n" + codeCommentReminder,
+	},
+	{
+		Role: "assistant",
+		Content: "Use the `-f` test inside `[[ ]]`:\n" +
+			"\n" +
+			"```bash\n" +
+			"file=\"config.yaml\"            # assignment: no spaces around =; quotes keep any spaces in the value\n" +
+			"if [[ -f \"$file\" ]]; then     # [[ ]] is bash's test command; -f is true for an existing regular file\n" +
+			"    echo \"found $file\"        # double quotes expand $file but stop it splitting on spaces\n" +
+			"else                          # runs when the test is false\n" +
+			"    echo \"missing $file\" >&2  # >&2 sends the line to stderr instead of stdout\n" +
+			"fi                            # fi (\"if\" backwards) closes the if block\n" +
+			"```\n" +
+			"\n" +
+			"`-d` tests for a directory and `-e` for anything at that path.",
+	},
+}
+
 func main() {
 	var (
 		question      = flag.String("q", "", "question (otherwise reads from stdin)")
@@ -319,10 +353,12 @@ func main() {
 	)
 
 	// 4. call llama-server
-	messages := make([]chatMessage, 0, 2)
+	messages := make([]chatMessage, 0, 2+len(codeCommentExample))
 	if systemPrompt != "" {
 		messages = append(messages, chatMessage{Role: "system", Content: systemPrompt})
 	}
+	// The worked example reads as the conversation's first exchange.
+	messages = append(messages, codeCommentExample...)
 	messages = append(messages, chatMessage{Role: "user", Content: userPrompt})
 	answer, err := llamaChat(ctx, client, llamaURL, chatRequest{
 		Model:       model,

@@ -70,6 +70,34 @@ CODE_COMMENT_REMINDER = (
     "ion list after the code.)"
 )
 
+# One worked exchange placed before the real conversation (see
+# _generate_via_llama). A small model copies the shape of an example far more
+# reliably than it follows a written rule: the rule alone got comments on each
+# step, but the syntax detail still went into a separate list after the code.
+# This shows the wanted shape once: the syntax explained in the comment on the
+# same line, and no "Explanation" list. Ported byte-identical to
+# cmd/zhen-rag/main.go:codeCommentExample (TestCodeCommentExample_MatchesPython).
+CODE_COMMENT_EXAMPLE = [
+    # Same shape as a real user turn (References / Question / reminder), so
+    # the model treats it as the same kind of turn as the real ones.
+    {"role": "user", "content": (
+        "References:\n\nQuestion: How do I check whether a file exists in bash?"
+        "\n\n" + CODE_COMMENT_REMINDER
+    )},
+    {"role": "assistant", "content": (
+        "Use the `-f` test inside `[[ ]]`:\n\n"
+        "```bash\n"
+        "file=\"config.yaml\"            # assignment: no spaces around =; quotes keep any spaces in the value\n"
+        "if [[ -f \"$file\" ]]; then     # [[ ]] is bash's test command; -f is true for an existing regular file\n"
+        "    echo \"found $file\"        # double quotes expand $file but stop it splitting on spaces\n"
+        "else                          # runs when the test is false\n"
+        "    echo \"missing $file\" >&2  # >&2 sends the line to stderr instead of stdout\n"
+        "fi                            # fi (\"if\" backwards) closes the if block\n"
+        "```\n\n"
+        "`-d` tests for a directory and `-e` for anything at that path."
+    )},
+]
+
 DEFAULT_SYSTEM_PROMPT = (
     "You are zhen (真爱), the chat-surface persona of the Unheaded "
     "Kingdom. You run on a local llama-server instance. You are NOT "
@@ -391,6 +419,9 @@ class RAGPipeline:
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
+        # The worked example goes after the system prompt and before any real
+        # history, so it reads as the conversation's first exchange.
+        messages.extend(CODE_COMMENT_EXAMPLE)
 
         if history:
             # Last 6 turns max (3 user/assistant pairs), strip tool-call
