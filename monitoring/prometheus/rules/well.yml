@@ -2,7 +2,7 @@
 # Unheaded Kingdom infrastructure
 # License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
 #
-# Series come from huginn's textfile collector (cmd/host-agent/textfile.go):
+# Series come from huginn's textfile collector (cmd/huginn/textfile.go):
 # unheaded-well-backup, -drill and -offsite write their .prom file only on
 # success, so a failing job shows here as an old timestamp, never as a
 # value. Schedules: backup nightly, offsite after each backup, drill

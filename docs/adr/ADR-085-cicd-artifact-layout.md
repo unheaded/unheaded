@@ -106,7 +106,7 @@ kernel work reaches a stable point. Phases are ordered by dependency.
 
 - Wire `make install` target: `go build` → `DESTDIR=/usr/local/bin`
 - Add `make install-east` that `scp`s binaries to EAST and restarts units via SSH
-- Rename `cmd/host-agent` → `cmd/huginn` (per ADR-084)
+- ~~Rename `cmd/host-agent` → `cmd/huginn` (per ADR-084)~~ done 2026-10-25
 - Ensure all binaries in `deploy/systemd/*.service` `ExecStart` lines exist after
   `make install`
 

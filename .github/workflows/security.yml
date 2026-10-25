@@ -587,6 +587,12 @@ jobs:
       - name: Rules parse and rule tests pass
         run: ./scripts/check-prometheus-rules.sh
 
+      # ADR-100 Phase 3: the log-volume and auth-failure SLIs that logs.yml
+      # alerts on are built in Vector; its config validates and its unit
+      # tests (config/vector/tests) pass in the deployed image.
+      - name: Vector config and its tests
+        run: ./scripts/test-vector-config.sh
+
       # ADR-100 / FND-001: Prometheus -> Alertmanager -> alert-mailer -> SMTP
       # sink on throwaway containers; urgency none mails no one; the cap holds.
       - name: Alert path end to end

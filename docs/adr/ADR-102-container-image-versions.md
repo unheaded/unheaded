@@ -60,6 +60,19 @@ is removed (`--update`, which refuses additions). The items below shrink it.
 - `FROM` lines: `golang:1.27-alpine`, `debian:bookworm-slim`,
   `ubuntu:24.04`, `gcr.io/distroless/static-debian12:nonroot`,
   `node:22-alpine`, `nginx:alpine`; BIRD's two Dockerfiles on `alpine:3.19`.
+- *2026-10-25, baseline 77 → 57:* every floating tag with a version
+  already pinned elsewhere in the tree, or one that runs here, is exact:
+  `golang:1.27-alpine` → `1.27.3-alpine3.24` (go.mod's toolchain, as
+  alert-mailer and sophia-gateway already had; Jenkinsfile too),
+  `clickhouse-server:24.12` → `24.12.6.70` (compose), linuxserver
+  wireguard `latest` → `1.0.20250521` (the wireguard overlay), sophia-eye
+  `prom/prometheus:latest` → `v3.15.0` (monitoring), `haproxy:2.9-alpine` →
+  `2.9.15-alpine` and `nginx:1.25-alpine` → `1.25.5-alpine` (the images
+  cached on west), `busybox:1.36` → `1.36.1` (the only 1.36 release). Each
+  tag checked with `docker manifest inspect`. Left: `debian:bookworm-slim`,
+  distroless `:nonroot` (no version tags; digest only, deferred above),
+  `ubuntu:24.04`, and the sophia-eye images with no pinned version anywhere
+  (qdrant, vLLM, Open WebUI, TEI).
 - ~~Postgres 16.13 is behind the current 16.x minor (W-13)~~ *Done
   2026-10-15:* `postgres:16.15-alpine` everywhere (compose, k8s, every
   throwaway server, CI). Every Well suite passed on 16.15 first, a drill

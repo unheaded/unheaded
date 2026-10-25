@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# The Lich: Rust libFuzzer campaigns (ADR-062 "CI integration").
+#
+# Go fuzz targets run in security.yml (lich-fuzz job, every target on every
+# push, plus its nightly schedule). This workflow runs the Rust ones, which
+# ran nowhere before: crates/monad-mbc/fuzz (the real MBC decoder, executor
+# and cartridge step) and crates/lich-fuzz. scripts/lich-cargo-fuzz.sh
+# discovers the targets from the manifests, so a new [[bin]] is fuzzed here
+# without editing this file.
+#
+# Tiers (ADR-062):
+#   push / PR touching a fuzzed crate   60 s per target, one job
+#   nightly                             1 h per target, one job per target;
+#                                       the corpus is cached between nights,
+#                                       and libFuzzer runs every corpus input
+#                                       before mutating, so each night also
+#                                       replays everything found so far (the
+#                                       weekly replay tier, daily)
+#   workflow_dispatch                   seconds per target as given
+# A crash fails the job and uploads the input as an artifact.
+name: Lich (Rust fuzz)
+
+on:
+  push:
+    branches: [main, develop, staging]
+    paths:
+      - 'crates/monad-mbc/**'
+      - 'crates/lich-fuzz/**'
+      - 'crates/upc-cartridge/**'
+      - 'ebpf/monad-common/**'
+      - 'scripts/lich-cargo-fuzz.sh'
+      - '.github/workflows/lich.yml'
+  pull_request:
+    branches: [main, develop, staging]
+    paths:
+      - 'crates/monad-mbc/**'
+      - 'crates/lich-fuzz/**'
+      - 'crates/upc-cartridge/**'
+      - 'ebpf/monad-common/**'
+      - 'scripts/lich-cargo-fuzz.sh'
+      - '.github/workflows/lich.yml'
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Seconds per target'
+        required: true
+        default: '300'
+
+permissions:
+  contents: read
+
+jobs:
+  short:
+    name: Rust fuzz (short)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
+        with:
+          toolchain: nightly
+
+      - name: Fuzz every target
+        env:
+          SECONDS_PER_TARGET: ${{ github.event.inputs.seconds || '60' }}
+        run: scripts/lich-cargo-fuzz.sh --time "$SECONDS_PER_TARGET" --out "$RUNNER_TEMP/lich"
+
+      - name: Upload crash inputs
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: lich-crashes-short
+          path: |
+            ${{ runner.temp }}/lich/artifacts
+            ${{ runner.temp }}/lich/logs
+          if-no-files-found: ignore
+
+  targets:
+    name: List fuzz targets
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    outputs:
+      names: ${{ steps.list.outputs.names }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - id: list
+        run: |
+          names=$(scripts/lich-cargo-fuzz.sh --list | awk '{print $2}' | jq -R . | jq -sc .)
+          echo "names=$names" >>"$GITHUB_OUTPUT"
+
+  nightly:
+    name: Rust fuzz nightly (${{ matrix.target }})
+    needs: targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.targets.outputs.names) }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
+        with:
+          toolchain: nightly
+
+      # Each night saves under a new key and restores the newest, so the
+      # corpus grows instead of restarting from empty.
+      - name: Restore corpus
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/lich/corpus/${{ matrix.target }}
+          key: lich-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: lich-corpus-${{ matrix.target }}-
+
+      - name: Fuzz for one hour
+        env:
+          TARGET: ${{ matrix.target }}
+        run: scripts/lich-cargo-fuzz.sh --time 3600 --out "$RUNNER_TEMP/lich" "$TARGET"
+
+      - name: Upload crash input
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: lich-crash-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/lich/artifacts/${{ matrix.target }}
+            ${{ runner.temp }}/lich/logs/${{ matrix.target }}.log
+          if-no-files-found: ignore

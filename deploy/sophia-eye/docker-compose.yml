@@ -454,7 +454,7 @@ services:
         max-file: "3"
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.15.0
     container_name: sophia-prometheus
     hostname: prometheus
     restart: unless-stopped

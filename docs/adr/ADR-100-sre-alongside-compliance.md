@@ -144,7 +144,32 @@ Changes from the text above:
 - **Every hand-written rule is `urgency: none`.** The rules still evaluate and show in Alertmanager and Grafana; they never notify. A cause alert can be promoted in the policy, with a reason.
 - **Alertmanager sends no mail itself.** alert-mailer does, so the cap and the digest hold no matter how Alertmanager groups.
 - **No Watchdog yet.** A dead-man's switch needs a receiver outside this host (a heartbeat service). Mailing one daily would be exactly the noise this ADR removes.
-- **Log-volume deviation (Phase 3) is not built.** `log-shipping` covers silence (nothing delivered); spam detection is still to come.
+- **Log-volume deviation (Phase 3):** built 2026-10-25 for the journal, see below. `log-shipping` covers a host delivering nothing.
+
+## Phase 3, 2026-10-25: log-volume deviation and auth-failure SLIs (journal)
+
+| Piece | Where |
+|---|---|
+| SLIs: `unheaded_log_lines_total` and `unheaded_log_bytes_total` {host, unit, level}; `unheaded_auth_failures_total` {host, unit, kind=ssh/sudo/pam} | `config/vector/vector.yaml` (`journal_volume*`, `journal_auth*`), exported on Vector's :9598 |
+| SLI tests: no text in the metric, transient units collapse, each failure pattern matches, an accepted login does not | `config/vector/tests/volume.yaml`, `scripts/test-vector-config.sh` (security.yml) |
+| Baseline: median of the unit's own 10m rate at this time of day on each of the last 7 days, needing 4 of them | `monitoring/prometheus/rules/logs.yml` group `log-volume` |
+| `LogSpam` (over 10x and at least 30 lines/min), `LogErrorSpam` (warning or worse, over 5x and at least 10/min), `LogSilence` (usually at least 1 line/min, nothing for 10m while the host still ships), `AuthFailureBurst` (20 in 10m) | same file; promtool tests in `tests/logs_test.yml`, each provoked red by a mutation (ratio, 4-day minimum, floor, host guard) |
+
+Lines are counted, never stored for this; the metric holds no message text.
+All four alerts are `urgency: none`, like every hand-written rule: they show
+in Prometheus, Alertmanager and Grafana and mail no one. Not done:
+
+- **The SLO** ("inside the envelope 99% of minutes over 28 days") in
+  `policy.yaml`. That makes it mail, so it waits for a week of data to tune
+  the ratios and floors against, as this ADR says.
+- **postgres, dashboard-backend, kanban and wotan**, the first services this
+  ADR named: they log to container stdout, which does not reach the journal
+  (ADR-092 step 8, a host decision). Their volume appears here once it does.
+- The Well's own auth failures (the 2026-09-30 incident) are in postgres's
+  container log, so the same.
+
+Deploying is a Vector restart (`docker compose up -d vector`); nothing
+here restarts it.
 
 Live on west in `mode: dry-run` from 2026-10-20. All 7 SLIs good, nothing firing. Next: a week of outbox review, then the Gmail app password and `mode: send` (wiki/Alerting.md).
 

@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: wait-for-wotan
-          image: busybox:1.36
+          image: busybox:1.36.1
           command: ["sh", "-c", "until wget -q -T2 -O- http://wotan:18000/health >/dev/null 2>&1; do echo waiting-for-wotan; sleep 2; done"]
           securityContext:
             runAsNonRoot: true
@@ -42,7 +42,7 @@ spec:
             readOnlyRootFilesystem: true
             capabilities: { drop: ["ALL"] }
         - name: wait-for-the-well
-          image: busybox:1.36
+          image: busybox:1.36.1
           command: ["sh", "-c", "until nc -z the-well 5432; do echo waiting-for-the-well; sleep 2; done"]
           securityContext:
             runAsNonRoot: true

@@ -2763,7 +2763,7 @@ func (s *Server) collectHostMetrics(ctx context.Context) {
 	}
 }
 
-// hostSummary is host-agent's /host-summary JSON, the one shape both the
+// hostSummary is huginn's /host-summary JSON, the one shape both the
 // collector and /api/v1/hosts read for a remote host.
 type hostSummary struct {
 	CPUPercent    float64        `json:"cpu_percent"`
@@ -2786,7 +2786,7 @@ type hostSummary struct {
 	Kernel        string         `json:"kernel"`
 }
 
-// fetchHostSummary GETs and decodes a host-agent /host-summary.
+// fetchHostSummary GETs and decodes a huginn /host-summary.
 func fetchHostSummary(ctx context.Context, url string) (hostSummary, error) {
 	var sum hostSummary
 	body, err := fetchURL(ctx, url)
@@ -2914,7 +2914,7 @@ func (s *Server) doCollectHostMetrics(ctx context.Context) {
 				hostSample{"host_memory_cached_bytes", float64(memInfo.memCached), nil},
 			)
 		} else {
-			// Remote host — host-agent's /host-summary JSON, the same numbers
+			// Remote host — huginn's /host-summary JSON, the same numbers
 			// /api/v1/hosts serves. (This used to parse that JSON as
 			// Prometheus text for go_* keys that were never there, and
 			// exported 0 for every host metric.)
@@ -3096,7 +3096,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 			// Process counts
 			info.ProcessTotal, info.ProcessZombie = readLocalProcessCounts()
 		} else {
-			// host-agent — fetch its /host-summary JSON: real bare-metal metrics
+			// huginn — fetch its /host-summary JSON: real bare-metal metrics
 			// (every disk/partition, real process & connection counts, hostname).
 			info.Online = false
 			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)

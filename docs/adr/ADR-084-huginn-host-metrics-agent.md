@@ -1,6 +1,6 @@
 # ADR-084 — Huginn: Host Metrics Agent
 
-**Status:** Accepted
+**Status:** Accepted — implemented 2026-10-25 (see Implementation)
 **Date:** 2026-07-24
 **Author:** Stevie Bellis
 **Deciders:** Stevie Bellis
@@ -84,3 +84,29 @@ or long-term metrics archiver.
 - EAST and WEST both run `huginn.service` (disabled/manual start by convention)
 - VictoriaMetrics push target is host-specific: EAST pushes to WEST's Victoria
   over the P2P link (192.168.13.1:8428); configured via `/etc/huginn.env`
+
+---
+
+## Implementation (2026-10-25)
+
+Deliverables 2 and 5 landed with the unit; 1, 3 and 4 had not: the binary was
+installed as `huginn` but built from `cmd/host-agent`, the dashboard's service
+list called it `host-agent`, and `west-startup-order.yaml` built a `host-agent`
+binary and ran it with `nohup` as the operator, beside the systemd unit.
+
+- `cmd/host-agent/` → `cmd/huginn/`; `scripts/build-binaries.sh` maps
+  `huginn ./cmd/huginn`.
+- `scripts/check-unit-binaries.sh` (via `build-binaries.sh --check-units`)
+  now fails when a binary is not named after the directory it is built from.
+  Red before the rename (`binary huginn is built from ./cmd/host-agent`),
+  green after. The mismatch had a visible cost: `scripts/live-path-inventory.sh`
+  finds a unit's source by binary name, so `docs/LIVE-PATHS.md` listed a
+  service supervised on both hosts as an unsupervised TOOL (now SUPERVISED,
+  16 → 17).
+- `config/dashboard/services.txt`: `host-agent=` → `huginn=`.
+- `runbooks/infra/west-startup-order.yaml`: step `start-huginn` starts
+  `huginn.service`; the stop list stops the unit instead of `pkill -f host-agent`.
+
+Left as is: the compliance evidence kind `host-agent` (`compliance/catalog`,
+`pkg/compliance/crosswalk`) names the baseline agent's report source in
+ADR-098, not this binary.

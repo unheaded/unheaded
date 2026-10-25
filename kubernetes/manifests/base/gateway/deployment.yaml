@@ -32,7 +32,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: wait-for-wotan
-          image: busybox:1.36
+          image: busybox:1.36.1
           command: ["sh", "-c", "until wget -q -T2 -O- http://wotan:18000/health >/dev/null 2>&1; do echo waiting-for-wotan; sleep 2; done"]
           securityContext:
             runAsNonRoot: true

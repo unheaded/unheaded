@@ -613,6 +613,26 @@ provoke_hadolint() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_vector_config() {
+    # Contract (ADR-100 Phase 3): the log-volume/auth SLIs Vector builds are
+    # pinned by config/vector/tests. Break the sudo failure pattern.
+    local f="config/vector/vector.yaml"
+    backup "${f}"
+    sed -i 's|incorrect password attempts?|incorrect passwd attempts?|' "${REPO_ROOT}/${f}"
+    grep -q 'incorrect passwd attempts?' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_lich_cargo_fuzz() {
+    # Contract (ADR-062): a Rust libFuzzer target that crashes fails the run.
+    # Make fuzz_mbc_decode panic on every input.
+    local f="crates/monad-mbc/fuzz/fuzz_targets/fuzz_mbc_decode.rs"
+    backup "${f}"
+    sed -i 's#^fuzz_target!(|data: &\[u8\]| {$#&\n    panic!("lich meta-gate provocation {}", data.len());#' "${REPO_ROOT}/${f}"
+    grep -q 'lich meta-gate provocation' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_deb_maintscripts() {
     # Contract (ADR-085 Phase 2): an apt upgrade leaves the service enabled.
     # Make prerm stop and disable on every call, as it used to.
@@ -788,6 +808,8 @@ check-helm-security|provoke_helm_security|fast|the chart-wide readOnlyRootFilesy
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
+test-vector-config|provoke_vector_config|slow|the sudo auth-failure pattern in config/vector/vector.yaml edited so its test no longer matches (needs docker)
+lich-cargo-fuzz|provoke_lich_cargo_fuzz|slow|fuzz_mbc_decode panicking on every input (nightly Rust; LICH_FUZZ_SECONDS=5 shortens it)
 backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --mirror, which prunes refs east must keep
 wireguard/test-rotate-psk|provoke_rotate_psk|fast|the rollback branch of rotate-psk.sh made a no-op
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)

@@ -1,0 +1,157 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Unit tests for the log-volume and auth-failure SLIs in ../vector.yaml
+# (ADR-100 Phase 3). Run: scripts/test-vector-config.sh
+tests:
+  - name: a journal line becomes one counted line with its byte length, no text
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "Started Daily apt download activities."
+          host: west
+          _SYSTEMD_UNIT: apt-daily.service
+          PRIORITY: "6"
+          _BOOT_ID: b1
+          __MONOTONIC_TIMESTAMP: "1"
+    outputs:
+      - extract_from: journal_volume
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "west")
+              assert_eq!(.unit, "apt-daily.service")
+              assert_eq!(.level, "info")
+              assert_eq!(.bytes, 38)
+              assert_eq!(.auth, "")
+              assert!(!exists(.message))
+              assert!(!exists(.fields))
+
+  - name: the lines counter carries host, unit and level only
+    inputs:
+      - insert_at: journal_volume
+        type: log
+        log_fields:
+          host: west
+          unit: huginn.service
+          level: err
+          bytes: 12
+          auth: ""
+    outputs:
+      - extract_from: journal_volume_metrics
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.namespace, "unheaded")
+              assert!(.name == "log_lines_total" || .name == "log_bytes_total")
+              assert_eq!(.tags.host, "west")
+              assert_eq!(.tags.unit, "huginn.service")
+              assert_eq!(.tags.level, "err")
+              assert!(!exists(.tags.auth))
+
+  - name: transient units collapse to one series
+    inputs:
+      - insert_at: journal_volume
+        type: log
+        log_fields:
+          unit: run-u4711.service
+          message: x
+          host: west
+          level: info
+    outputs:
+      - extract_from: journal_volume
+        conditions:
+          - type: vrl
+            source: assert_eq!(.unit, "transient")
+
+  - name: container scope ids collapse to one series
+    inputs:
+      - insert_at: journal_volume
+        type: log
+        log_fields:
+          unit: docker-0123456789abcdef0123456789abcdef.scope
+          message: x
+          host: west
+          level: info
+    outputs:
+      - extract_from: journal_volume
+        conditions:
+          - type: vrl
+            source: assert_eq!(.unit, "transient")
+
+  - name: an sshd failed password is an ssh auth failure
+    inputs:
+      - insert_at: journal_volume
+        type: log
+        log_fields:
+          unit: ssh.service
+          message: "Failed password for invalid user admin from 203.0.113.9 port 50022 ssh2"
+          host: west
+          level: info
+    outputs:
+      - extract_from: journal_auth_metrics
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.name, "auth_failures_total")
+              assert_eq!(.tags.kind, "ssh")
+              assert_eq!(.tags.unit, "ssh.service")
+              assert_eq!(.tags.host, "west")
+
+  - name: an sshd invalid user is an ssh auth failure
+    inputs:
+      - insert_at: journal_volume
+        type: log
+        log_fields:
+          unit: ssh.service
+          message: "Invalid user oracle from 203.0.113.9 port 40000"
+          host: east
+          level: info
+    outputs:
+      - extract_from: journal_volume
+        conditions:
+          - type: vrl
+            source: assert_eq!(.auth, "ssh")
+
+  - name: sudo wrong passwords are a sudo auth failure
+    inputs:
+      - insert_at: journal_volume
+        type: log
+        log_fields:
+          unit: sudo
+          message: "govan : 3 incorrect password attempts ; TTY=pts/0 ; PWD=/home/govan ; USER=root ; COMMAND=/usr/bin/true"
+          host: west
+          level: alert
+    outputs:
+      - extract_from: journal_volume
+        conditions:
+          - type: vrl
+            source: assert_eq!(.auth, "sudo")
+
+  - name: a pam_unix auth failure is a pam auth failure
+    inputs:
+      - insert_at: journal_volume
+        type: log
+        log_fields:
+          unit: sudo
+          message: "pam_unix(sudo:auth): authentication failure; logname=govan uid=1000 euid=0 tty=/dev/pts/0 ruser=govan rhost=  user=govan"
+          host: west
+          level: notice
+    outputs:
+      - extract_from: journal_volume
+        conditions:
+          - type: vrl
+            source: assert_eq!(.auth, "pam")
+
+  - name: an accepted login is not an auth failure
+    inputs:
+      - insert_at: journal_volume
+        type: log
+        log_fields:
+          unit: ssh.service
+          message: "Accepted publickey for govan from 192.168.13.1 port 51000 ssh2: ED25519 SHA256:x"
+          host: west
+          level: info
+    no_outputs_from:
+      - journal_auth_failures

@@ -376,7 +376,7 @@
             hosts.forEach(function(h) {
                 var opt = document.createElement('option');
                 opt.value = h.id;
-                // No "(local)": every host is read through its host-agent, and
+                // No "(local)": every host is read through its huginn, and
                 // the dashboard runs on east as well as west.
                 opt.textContent = h.id + (h.online ? '' : ' [offline]');
                 el.hostSelector.appendChild(opt);

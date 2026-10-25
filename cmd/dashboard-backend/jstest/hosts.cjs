@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Host selector labels, from /api/v1/hosts (east :20000, 2026-10-23: both
-// hosts are read through their host-agent; the dashboard runs on east too).
+// hosts are read through their huginn; the dashboard runs on east too).
 // Run: node hosts.cjs ../static/dashboard.js
 const h = require('./harness.cjs');
 h.run({

@@ -42,3 +42,125 @@ groups:
         annotations:
           summary: "Vector on {{ $labels.instance }} is not answering /metrics"
           description: "The journal is not shipping while it is down; docker compose ps vector"
+
+  # Log-volume deviation (ADR-100 Phase 3). Vector counts journal lines per
+  # host, unit and level (unheaded_log_lines_total; config/vector/vector.yaml)
+  # and never stores text for it. A unit's baseline is the median of its own
+  # 10-minute rate at this time of day on each of the last 7 days, so a chatty
+  # unit and a quiet one are each judged against themselves; it needs 4 of the
+  # 7 days, so nothing here fires in a unit's first 4 days. Container stdout is
+  # not in the journal yet (ADR-092 step 8), so postgres, wotan, the dashboard
+  # and kanban are not covered until it is.
+  #
+  # Thresholds are ADR-100's starting points (5x for warning and worse, 10x
+  # overall) plus a floor, so 0.01 -> 0.2 lines/s is not "spam". Tune from
+  # data. Every rule here is urgency none: visible, never mailed; promoting
+  # them to an SLO is observability/alerting/policy.yaml's call.
+  - name: log-volume
+    interval: 1m
+    rules:
+      - record: host_unit_level:unheaded_log_lines:rate10m
+        expr: sum by (host, unit, level) (rate(unheaded_log_lines_total{job="vector"}[10m]))
+
+      - record: host_unit:unheaded_log_lines:rate10m
+        expr: sum by (host, unit) (host_unit_level:unheaded_log_lines:rate10m)
+
+      - record: host_unit_level:unheaded_log_lines:baseline7d
+        expr: |
+          quantile by (host, unit, level) (0.5,
+              label_replace(host_unit_level:unheaded_log_lines:rate10m offset 1d, "day", "1", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 2d, "day", "2", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 3d, "day", "3", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 4d, "day", "4", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 5d, "day", "5", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 6d, "day", "6", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 7d, "day", "7", "", "")
+          )
+          and on (host, unit, level) count by (host, unit, level) (
+              label_replace(host_unit_level:unheaded_log_lines:rate10m offset 1d, "day", "1", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 2d, "day", "2", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 3d, "day", "3", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 4d, "day", "4", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 5d, "day", "5", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 6d, "day", "6", "", "")
+            or label_replace(host_unit_level:unheaded_log_lines:rate10m offset 7d, "day", "7", "", "")
+          ) >= 4
+
+      - record: host_unit:unheaded_log_lines:baseline7d
+        expr: |
+          quantile by (host, unit) (0.5,
+              label_replace(host_unit:unheaded_log_lines:rate10m offset 1d, "day", "1", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 2d, "day", "2", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 3d, "day", "3", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 4d, "day", "4", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 5d, "day", "5", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 6d, "day", "6", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 7d, "day", "7", "", "")
+          )
+          and on (host, unit) count by (host, unit) (
+              label_replace(host_unit:unheaded_log_lines:rate10m offset 1d, "day", "1", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 2d, "day", "2", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 3d, "day", "3", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 4d, "day", "4", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 5d, "day", "5", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 6d, "day", "6", "", "")
+            or label_replace(host_unit:unheaded_log_lines:rate10m offset 7d, "day", "7", "", "")
+          ) >= 4
+
+      # Spam: over 10x the unit's usual volume, and at least 30 lines/min.
+      - alert: LogSpam
+        expr: |
+          host_unit:unheaded_log_lines:rate10m > 10 * host_unit:unheaded_log_lines:baseline7d
+          and host_unit:unheaded_log_lines:rate10m * 60 >= 30
+        for: 10m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $labels.unit }} on {{ $labels.host }} logs {{ printf `%.2f` $value }} lines/s, over 10x its usual for this time of day"
+          description: "journalctl -u {{ $labels.unit }} --since -15min on {{ $labels.host }}; a loop or a retry storm usually repeats one line"
+
+      # Error spam: warning-or-worse lines over 5x usual, at least 10/min.
+      - alert: LogErrorSpam
+        expr: |
+          host_unit_level:unheaded_log_lines:rate10m{level=~"emerg|alert|crit|err|warning"}
+            > 5 * host_unit_level:unheaded_log_lines:baseline7d
+          and host_unit_level:unheaded_log_lines:rate10m * 60 >= 10
+        for: 10m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $labels.unit }} on {{ $labels.host }} logs {{ printf `%.2f` $value }} {{ $labels.level }} lines/s, over 5x its usual"
+          description: "journalctl -u {{ $labels.unit }} -p {{ $labels.level }} --since -15min on {{ $labels.host }}"
+
+      # Silence: a unit that usually logs at least a line a minute has logged
+      # nothing for 10 minutes while the rest of its host's journal still
+      # ships (so a stopped Vector is VectorDown, not a silence per unit).
+      # A dead process looks like this.
+      - alert: LogSilence
+        expr: |
+          host_unit:unheaded_log_lines:baseline7d * 60 >= 1
+          unless on (host, unit) host_unit:unheaded_log_lines:rate10m > 0
+          and on (host) (sum by (host) (host_unit:unheaded_log_lines:rate10m) > 0)
+        for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $labels.unit }} on {{ $labels.host }} has logged nothing for 40m; it usually logs {{ printf `%.0f` $value }} lines/min"
+          description: "systemctl status {{ $labels.unit }} on {{ $labels.host }}; a stopped or hung process logs nothing"
+
+      # Authentication failures (ADR-100 security SLIs): sshd failed or
+      # invalid-user logins, sudo wrong passwords, pam_unix auth failures,
+      # counted by fixed pattern in Vector. Neither host is internet-facing,
+      # so 20 in 10 minutes is a burst worth a look.
+      - alert: AuthFailureBurst
+        expr: sum by (host, kind) (increase(unheaded_auth_failures_total{job="vector"}[10m])) >= 20
+        for: 5m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ printf `%.0f` $value }} {{ $labels.kind }} authentication failures in 10m on {{ $labels.host }}"
+          description: "journalctl --since -15min -g 'Failed|Invalid user|incorrect password|authentication failure' on {{ $labels.host }}"

@@ -20,7 +20,7 @@ zhenai=172.28.1.1:20103
 grafana=172.28.1.1:3001
 victoriametrics=172.28.1.1:8428
 kanban=172.28.1.1:20001
-host-agent=172.28.1.1:9110
+huginn=172.28.1.1:9110
 llama-server=172.28.1.1:8081
 vor=172.28.1.1:9876
 # Traefik's dashboard entrypoint: compose publishes 21000 on the host's

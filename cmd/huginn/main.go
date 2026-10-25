@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// host-agent — a small bare-metal host metrics agent.
+// huginn — a small bare-metal host metrics agent.
 //
 // Runs NATIVELY on each Kingdom host (west, east, ...), reads the real host
 // /proc + statfs's every mounted filesystem, and:

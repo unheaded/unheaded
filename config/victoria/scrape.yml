@@ -52,7 +52,7 @@ scrape_configs:
     static_configs:
       - targets: ["host.docker.internal:20000"]
     metrics_path: /metrics
-    # host-agent pushes host_* straight into VictoriaMetrics; the dashboard
+    # huginn pushes host_* straight into VictoriaMetrics; the dashboard
     # re-exports the same numbers for its own UI. Keep one source here so a
     # host panel draws one line per host, not two.
     metric_relabel_configs:

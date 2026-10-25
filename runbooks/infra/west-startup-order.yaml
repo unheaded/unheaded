@@ -161,18 +161,20 @@ steps:
 
   # ── Tier 6: Observability agents ───────────────────────────────────────────
 
-  - name: build-and-start-host-agent
+  - name: start-huginn
     action: shell
     command: |
       if ss -lnt | grep -q ':9110'; then
-        echo "host-agent already on :9110"
+        echo "huginn already on :9110"
       else
-        cd ~/tmp/unheaded
-        go build -o bin/host-agent ./cmd/host-agent/
-        nohup ./bin/host-agent &> "$(~/tmp/unheaded/scripts/lib/logpath.sh host-agent)" &
-        echo "host-agent PID: $!"
+        # ADR-084: huginn runs under systemd as its own nologin account,
+        # never from a shell. Install: make binaries && sudo make install,
+        # then deploy/systemd/huginn.service (wiki/Service-Huginn.md).
+        sudo systemctl start huginn.service
       fi
-    description: "Build and start host-agent metrics publisher on :9110"
+    verify: "curl -sf http://localhost:9110/health > /dev/null"
+    description: "Start Huginn host metrics agent (huginn.service) on :9110"
+    on_fail: "sudo journalctl -u huginn.service -n 20 --no-pager"
 
   - name: build-and-start-demo-trace-injector
     action: shell
@@ -278,7 +280,7 @@ notes: |
   Tier 0 (postgres) → Tier 1 (wotan, victoria, traefik, coredns) → Tier 2 (clickhouse, grafana)
   → Tier 3 (timeguru, captain, architect, micromanager, monad, sophia, cuirass)
   → Tier 4 (dashboard, kanban) → Tier 5 (llama-server → vor → wiki → zhenai)
-  → Tier 6 (host-agent, demo-trace-injector) → Tier 7 (DOOM, optional)
+  → Tier 6 (huginn, demo-trace-injector) → Tier 7 (DOOM, optional)
 
   Tiers 0-4 = docker compose up -d (single command, compose handles internal deps).
   Tier 5 must be ordered: llama-server first, vor second, then zhenai (start-zhen.sh
@@ -305,6 +307,6 @@ notes: |
   STOPPING ALL SERVICES
   ======================
   Native:  pkill -f zhen_app.py; pkill -f llama-server; pkill -f 'cs serve'
-           pkill -f wiki-server; pkill -f host-agent; pkill -f demo-trace-injector
+           pkill -f wiki-server; sudo systemctl stop huginn; pkill -f demo-trace-injector
   Docker:  cd ~/tmp/unheaded && sudo docker compose down
   DOOM:    sudo pkill doom-go-injector; sudo scripts/doom-ring.sh teardown

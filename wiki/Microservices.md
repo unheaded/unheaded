@@ -22,7 +22,7 @@ Every binary under `cmd/`, grouped by role. Ports are in [[Port Registry|Port-Re
 | `heimdall-daemon` | Userspace control for Mímir's Law / Gleipnir Phase 0 | [[Mimirs-Law]] |
 | `routing-health` | Health endpoint for BIRD + established BGP sessions | [[Load-Balancers]] |
 | `zhen-agentd` | Zhen agent daemon (ReAct loop + Champion gate) | [[Zhen-AI]] |
-| `host-agent` | Huginn, the host metrics agent (`scripts/build-binaries.sh` builds it as `huginn`) | [[Service-Huginn]] |
+| `huginn` | Huginn, the host metrics agent (ADR-084) | [[Service-Huginn]] |
 | `alert-mailer` | The only alert mail sender: pages at once, tickets as a daily digest, daily cap, dry-run mode (`:19130`) | [[Alerting]] |
 | `wiki-server` | Renders this wiki locally over HTTP | — |
 
