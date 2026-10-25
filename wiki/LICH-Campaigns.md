@@ -46,6 +46,15 @@ The LICH is the automated adversary: fuzz harnesses, offensive campaign modules,
 
 Pick a grimoire class → write or extend a harness with seeds (`tomb/lich/seeds/`) → run → triage crashes → file a finding in `compliance/findings/register.yaml` → fix with a regression test → harness stays in the suite.
 
+## CI
+
+| Targets | Where | When |
+|---|---|---|
+| Go `Fuzz*` (every package) | `security.yml` job `lich-fuzz` | every push, 10 s each; nightly |
+| Rust libFuzzer (`crates/monad-mbc/fuzz`, `crates/lich-fuzz`) | `lich.yml` via `scripts/lich-cargo-fuzz.sh` | push touching a fuzzed crate, 60 s each; nightly, 1 h each with a cached corpus |
+
+Locally: `scripts/lich-cargo-fuzz.sh --list`, then `scripts/lich-cargo-fuzz.sh --time 60 [target...]` (nightly Rust, no cargo-fuzz needed). A crash fails the run and keeps the input under `<out>/artifacts/<target>/`.
+
 ---
 
 > **Sources:** [docs/security/lich-campaigns.md](../docs/security/lich-campaigns.md) · [docs/security/lich-execution.md](../docs/security/lich-execution.md) · `tomb/lich/`
