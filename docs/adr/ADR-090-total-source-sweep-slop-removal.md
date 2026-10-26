@@ -7,7 +7,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 | | |
 |---|---|
-| **Status** | **Proposed** (activates after the Staging Ladder sprint completes) |
+| **Status** | **Accepted** (Stevie, 2026-10-26, with the S-REAL-STEEL E1 answers; the file ledger `docs/sweeps/TOTAL-SOURCE-SWEEP.tsv` exists from that date, with the E1 tranche marked) |
 | **Date** | 2026-08-03 |
 | **Origin** | Stevie, 2026-08-03: *"systematically iterate through every source code file 1 by 1 (I MEAN EVERY FILE) to look for ways we can optimize and cut down lines of code. i feel we have some true slop I would like to eventually remove."* |
 | **Related** | ADR-089 (promotion workflow — the sweep ships through it), ADR-073 (lint policy), ADR-048 (ForgeBackend trait — an example of the duplication this sweep hunts) |
@@ -57,6 +57,14 @@ The first tranche, scoped to those packages, is classified in
 [REAL-STEEL-DECISIONS.md](../sweeps/REAL-STEEL-DECISIONS.md) (one-pass table for
 Stevie, S-REAL-STEEL E1) with a package-level ledger in
 [REAL-STEEL-UNREACHED.tsv](../sweeps/REAL-STEEL-UNREACHED.tsv).
+
+Applied 2026-10-26 (S-REAL-STEEL Phase 1, every row at its default): 16
+deletion commits, one per group or family, each gated on `go build`, `go vet`
+and the full test baseline. The file ledger below was generated from
+`git ls-files` at `bc0bddd1` (the pre-deletion tree, 2,657 source files) and
+the deleted files are marked `SWEPT / DELETED` with their commit; everything
+else is `PENDING`. Rows that had to stay are `FLAGGED` in the package ledger
+with the reason (a live importer or a kept test that asserts the files).
 
 ## Decision
 

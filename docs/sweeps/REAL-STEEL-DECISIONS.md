@@ -105,6 +105,38 @@ package-level tranche; the 1,836-file campaign is a separate decision).
 
 Answer: **Accept** (Stevie, 2026-10-26: "apply all defaults", offered with ADR-090 Accepted; D-01's override applies).
 
+## Phase 1 outcome (2026-10-26)
+
+Applied as 16 commits, `f7df5d23`..`7e524105` (one per group or family;
+`go build`, `go vet` and the full test suite after each, compared with the
+pre-deletion baseline: 295 ok / 1 pre-existing `scripts/lib` FAIL before,
+216 ok / the same 1 FAIL after, zero new failures). Verdicts and commits
+are in the ledger; the ADR-090 file ledger `TOTAL-SOURCE-SWEEP.tsv` marks the
+465 deleted files.
+
+Where the evidence contradicted a default, the row is FLAGGED and kept (Step 50
+and 62 rules), not guessed:
+
+| Row | What happened |
+|---|---|
+| F1 `pkg/audit/storage` | Reached since this table was written: live `cmd/zhen-claude` and `cmd/zhen-agentd` import it (S-TWO-BRAINS, 2026-10-23). Kept. `export`, `logger`, `query` deleted with their test cases; `TestRegistry` uses an in-file stub exporter. |
+| F1 `pkg/secrets/store`, `pkg/secrets/encryption` | `store.MemoryStore` is the only `Store` implementation; every live Manager test (`TestManager*`, 20 cases) is built on it, so deleting it deletes the Manager suite, not cases that only exercise `store`. `store` imports `encryption`. Kept. `rotation` deleted with its three cases. |
+| F2 `pkg/trace` | The live-pipeline e2e cases use it as their trace-ID fixture; only `TestFullPipeline_TraceIDGeneration` and `TestPerformance_TraceProcessingLatency` exercise it alone. Deleting it means rewriting those cases. Kept. |
+| G10e `pkg/waf/*` | Deleted, then restored: `tests/s77` (G6 KEEP) asserts `pkg/waf/rules/engine.go`, `clientip_test.go` and `detection/bot_test.go` exist (`TestPhase1_BugFixes/Bug17_XFF_Spoofing`, `TestS77_AllDeliverables`). Amending a kept test was not in the answer; Stevie's call. |
+| G10h `pkg/health/aggregator.go` | Deleted as answered, but `response.go` stays: `tests/e2e` uses `health.WriteHealthy`, so the `HealthStatus` constants moved into `response.go`. |
+| G3 `services/canary` | Sword's `analysis.go` states it replaces `evaluateCanary` (D-06), so the Step 233 merge precondition held and canary went. |
+
+Generated inventories: `compliance/crypto/cbom.cdx.json` regenerated
+(`crypto-inventory scan`, gate PASS); `docs/policy/pq-kex-baseline.txt` shrank
+by the two `pkg/loadbalancer/config.go` entries (gate PASS).
+`docs/legal/scancode-full.json` has no regeneration script in the tree and was
+left as the dated inventory it is. History docs (`docs/archive`, `docs/history`,
+`docs/internal`, `docs/sessions`, `docs/security/*`, dated sprint records) were
+left as written; the ADRs and wiki pages that described a deleted package as
+present carry a one-line "(deleted 2026-10-26, E1 Gx)" note. CLAUDE.md is
+Phase 16's (its `pkg/transport/` cascade, `pkg/service/` template and
+`pkg/telemetry` import lines are now false).
+
 ## What Phase 1 does with the answers
 
 - One commit per group or family, leaves first; `go build ./...`, `go vet` and

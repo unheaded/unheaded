@@ -32,7 +32,7 @@ All nineteen hypotheses held:
 - H1: the only non-test `CurvePreferences` in Go is Wotan's HTTP listener, pinned to `X25519, CurveP256`: it turns the hybrid default off.
 - H2: go1.27.3, `go 1.26.0`; all three hybrid constants, `MLKEM1024` and `ConnectionState.CurveID` exist.
 - H3: no `tlsmlkem=0` / `tlssecpmlkem=0` kill switch anywhere; no `godebug` directive.
-- H4: first-party mTLS (`pkg/transport/mtls`, `pkg/mesh`, `pkg/mesh/mtls`, `pkg/loadbalancer`) floors at TLS 1.2; a 1.2 session is always classical. The load balancer also honours `max_version: "1.2"`.
+- H4: first-party mTLS (`pkg/transport/mtls`, `pkg/mesh`, `pkg/mesh/mtls`, `pkg/loadbalancer`; the last three deleted unused 2026-10-26, S-REAL-STEEL E1) floored at TLS 1.2; a 1.2 session is always classical. The load balancer also honours `max_version: "1.2"`.
 - H5: Wotan gRPC uses `credentials.NewServerTLSFromFile` (Go defaults: 1.2 floor, hybrid groups).
 - H6: `cmd/waf` compiles both the `ring` and `aws-lc-rs` rustls providers and installs neither, so building its TLS config panics ("Could not automatically determine the process-level CryptoProvider"); `ring` has no ML-KEM.
 - H7: zhend QUIC uses `rustls::crypto::ring::default_provider()`: classical only.
@@ -54,7 +54,7 @@ All nineteen hypotheses held:
 1. **Two TLS key-exchange profiles in `pkg/tls` (`pkg/tls/pq.go`).**
    **Strict**: TLS 1.3 only, `CurvePreferences = [X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024]`
    (hybrid only; a classical-only peer fails the handshake). Used where both ends
-   are Unheaded Go binaries: `pkg/transport/mtls`, `pkg/mesh`, `pkg/mesh/mtls`,
+   are Unheaded Go binaries: `pkg/transport/mtls` (`pkg/mesh`, `pkg/mesh/mtls` deleted 2026-10-26),
    wotan-client to Wotan gRPC. **Preferred**: TLS 1.3 floor, `CurvePreferences`
    left nil (Go default: hybrids first, classical fallback). Used on servers that
    third-party clients reach: Wotan HTTP including `/metrics`, the dashboard,
@@ -68,8 +68,8 @@ All nineteen hypotheses held:
 
 2. **TLS floors.** TLS 1.3 on every first-party server and first-party mTLS
    client. Third-party outbound clients (`cmd/alert-mailer` SMTP STARTTLS,
-   `pkg/threatfeed/kev` CISA fetch, `pkg/audit/export/splunk`,
-   `pkg/alerting/notify/email`) keep a 1.2 floor and are recorded
+   `pkg/threatfeed/kev` CISA fetch; `pkg/audit/export/splunk` and
+   `pkg/alerting/notify/email` were deleted unused 2026-10-26) keep a 1.2 floor and are recorded
    `hybrid-opportunistic` in the CBOM: their servers decide.
    *Rationale:* CLAUDE.md "TLS 1.3 minimum for external traffic"; ML-KEM exists
    only in 1.3; we cannot force a mail relay's stack.
@@ -155,7 +155,7 @@ All nineteen hypotheses held:
    key separation).
    *Override only if:* another publisher already uses a `drift.` prefix. None
    does (checked 2026-10-23): `kenoma.drift.detected`, `state.drift.detected` and
-   `cuirass.drift` start differently, and `pkg/state`'s `drift.detected` is an
+   `cuirass.drift` start differently, and `pkg/state`'s `drift.detected` (package deleted 2026-10-26) was an
    event *type* inside `cuirass.reconciliation` payloads, not a topic.
 
 9. **WireGuard: scheduled PSK rotation.** `scripts/wireguard/rotate-psk.sh`
