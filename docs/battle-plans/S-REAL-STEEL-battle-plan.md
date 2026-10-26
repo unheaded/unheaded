@@ -1077,33 +1077,42 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 2-3 h
 **Agent**: Coordinator [SEQ] [BARE-METAL]
 
-- [ ] **Step 237** [LIVE-RW] ~5m: Window open: stack + Cuirass override (enforce, prune, chaos off) + Sword: `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d --build sword cuirass`.
-- [ ] **Step 238** [V][LIVE-RO] ~2m: Sword `/health` and `/ready` 200; Cuirass `/api/v1/info` shows `https`, `unheaded`, enforce true.
-- [ ] **Step 239** [LIVE-RW] ~5m: Baseline: deploy `steel-echo` v1 with 3 replicas (`recreate`; removes any leftover from Phase 6 the managed way).
+- [x] **Step 237** [LIVE-RW] ~5m: Window open: stack + Cuirass override (enforce, prune, chaos off) + Sword: `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d --build sword cuirass`.
+  - Done 2026-10-26: Sword built and up in the window (`--build cuirass sword`); Sword's env file /etc/unheaded/sword/sword.env created by hand (CUIRASS_API_KEY + AUTH_API_KEYS, 0640 root:16746).
+- [x] **Step 238** [V][LIVE-RO] ~2m: Sword `/health` and `/ready` 200; Cuirass `/api/v1/info` shows `https`, `unheaded`, enforce true.
+  - PASS 2026-10-26 after 4760cd8b (Cuirass /api/v1/info and /api/v1/state open under AUTH_ENABLED; Sword's Ping sends no key by design): /health ok, /ready {ready:true}; info https/unheaded/enforce true.
+- [x] **Step 239** [LIVE-RW] ~5m: Baseline: deploy `steel-echo` v1 with 3 replicas (`recreate`; removes any leftover from Phase 6 the managed way).
+  - Done 2026-10-26: deployment d1793052430109285201-1 `recreate`.
   ```bash
   deploy() { curl -fsS -X POST -H "Authorization: Bearer $SWORD_API_KEY" -H 'Content-Type: application/json' "$SWORD/api/v1/deployments" -d "$1" | jq '{id,status}'; }
   deploy '{"service":"steel-echo","version":"v1","replicas":3,"strategy":{"type":"recreate"},
            "health":{"port":8080,"path":"/health"},"proxy":{"listen":"tcp:127.0.0.1:26601","connect":"tcp:127.0.0.1:8080"},
            "labels":{"chaos":"allowed"}}'
   ```
-- [ ] **Step 240** [V][LIVE-RO] ~3m: `lxc list --project unheaded -c ns --format csv` shows `steel-echo-v1-{0,1,2}` RUNNING; Cuirass health all `healthy`; `curl 127.0.0.1:26601/version` = v1.
-- [ ] **Step 241** [B] ~1m: Start the meter for the whole phase.
+- [x] **Step 240** [V][LIVE-RO] ~3m: `lxc list --project unheaded -c ns --format csv` shows `steel-echo-v1-{0,1,2}` RUNNING; Cuirass health all `healthy`; `curl 127.0.0.1:26601/version` = v1.
+  - PASS 2026-10-26: steel-echo-v1-{0,1,2} RUNNING, all `healthy`, proxy /version v1; Sword `succeeded` "3 instances running v1".
+- [x] **Step 241** [B] ~1m: Start the meter for the whole phase.
+  - Done 2026-10-26: 20 rps discover meter for 60 min (scratch phase9.csv).
   ```bash
   "$SCRATCH/steel-echo" load --discover "$CUIRASS" --svc steel-echo --rps 20 --duration 60m --out "$SCRATCH/phase9.csv" & echo $! > "$SCRATCH/load.pid"
   ```
-- [ ] **Step 242** [LIVE-RW] ~10m: Rolling v1→v2 (`max_surge 1, max_unavailable 0`); note start/end timestamps from Sword's deployment record.
-- [ ] **Step 243** [V][LIVE-RO] ~3m: Rolling result: Sword `succeeded`; only `steel-echo-v2-*` desired and running; across the rollout window the CSV shows availability ≥ 99.0% (`ok / sent`) and `versions_seen` only v1/v2.
+- [x] **Step 242** [LIVE-RW] ~10m: Rolling v1→v2 (`max_surge 1, max_unavailable 0`); note start/end timestamps from Sword's deployment record.
+  - Done 2026-10-26: d1793052582143580412-2 rolling v1→v2, started 22:09:42Z, completed 22:10:56Z (75 s).
+- [x] **Step 243** [V][LIVE-RO] ~3m: Rolling result: Sword `succeeded`; only `steel-echo-v2-*` desired and running; across the rollout window the CSV shows availability ≥ 99.0% (`ok / sent`) and `versions_seen` only v1/v2.
+  - PASS 2026-10-26: Sword `succeeded`; only steel-echo-v2-* running; availability over the window 0.9915 (1408/1420), errconn 12, versions_seen v1 and v1;v2 only.
   ```bash
   awk -F, -v s="$T0" -v e="$T1" 'NR>1 && $1>=s && $1<=e {sent+=$2; ok+=$3} END {printf "availability %.4f (%d/%d)\n", ok/sent, ok, sent}' "$SCRATCH/phase9.csv"
   ```
   - Below 99% → Step 244.
 - [ ] **Step 244** [D] ~10m: Errors cluster at instance deletions (the 2 s discover refresh): confirm with `errconn` column; if so, add drain-before-delete (driver removes the `svc` label, waits one discover period, then deletes) as a Phase 7 amendment and re-run 242. 2 attempts → STUCK with the CSV attached.
-- [ ] **Step 245** [LIVE-RW] ~8m: Blue-green v2→v3 with a second meter on the stable endpoint (proxy).
+- [x] **Step 245** [LIVE-RW] ~8m: Blue-green v2→v3 with a second meter on the stable endpoint (proxy).
+  - Done 2026-10-26: d1793052748845951209-3 blue_green v2→v3, started 22:12:29Z, completed 22:14:01Z; proxy meter bg.csv.
   ```bash
   "$SCRATCH/steel-echo" load --target http://127.0.0.1:26601/ --rps 20 --duration 5m --out "$SCRATCH/bg.csv" &
   deploy '{"service":"steel-echo","version":"v3","replicas":3,"strategy":{"type":"blue_green"},"health":{"port":8080,"path":"/health"},"proxy":{"listen":"tcp:127.0.0.1:26601","connect":"tcp:127.0.0.1:8080"},"labels":{"chaos":"allowed"}}'
   ```
-- [ ] **Step 246** [V][LIVE-RO] ~3m: In `bg.csv` the version flips v2→v3 exactly once; the cutover gap (seconds with `errconn > 0` around the flip) is ≤ 2 s; blue instances deleted after the flip. Record the gap.
+- [x] **Step 246** [V][LIVE-RO] ~3m: In `bg.csv` the version flips v2→v3 exactly once; the cutover gap (seconds with `errconn > 0` around the flip) is ≤ 2 s; blue instances deleted after the flip. Record the gap.
+  - PASS 2026-10-26: version flips exactly once (v2 → v2;v3 → v3 across one second boundary), 1 second with errconn > 0 (gap 1 s ≤ 2 s); only steel-echo-v3-* remain.
 - [ ] **Step 247** [C] ~2m: **COMMIT CHECKPOINT**: plan ticks with the measured numbers (availability, gap).
 - [ ] **Step 248** [LIVE-RW] ~10m: Canary v3→v4 (the bad build, 30% errors): `{"type":"canary","steps":[{"weight":33,"pause":"60s","analysis":true},{"weight":100}],"analysis":{"error_rate_threshold":0.01,"min_sample_size":200,"interval":"30s"}}`.
 - [ ] **Step 249** [V][LIVE-RO] ~3m: Sword status `rolled_back`, reason `analysis_failed` with the measured error ratio (≈0.30) in the record; canary instance gone; only v3 desired; `sword_rollbacks_total{reason="analysis_failed"}` = 1; time from canary healthy to rollback complete recorded.
@@ -1242,9 +1251,11 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done: Service.RefuseType + unimplemented_test.go; http_error + 8 types refuse.
 - [x] **Step 302** [C] ~2m: **COMMIT CHECKPOINT**: `fix(yaldabaoth): unimplemented experiment types refuse instead of succeeding`.
   - Done: commit 1bf6f02f.
-- [ ] **Step 303** [LIVE-RW][S][BARE-METAL] ~10m: (E2.5) Install chaos-controller on west: binary to `/usr/local/bin/chaos-controller` (root-owned 0755), sysusers, unit + west drop-in, `/etc/unheaded/chaos/{allowlist.yaml,chaos.env}` (env holds `AUTH_API_KEYS`, `CUIRASS_API_KEY`, `VM_URL`; 0640 root:unheaded-chaos), `systemctl daemon-reload && systemctl enable --now unheaded-chaos-controller`.
+- [x] **Step 303** [LIVE-RW][S][BARE-METAL] ~10m: (E2.5) Install chaos-controller on west: binary to `/usr/local/bin/chaos-controller` (root-owned 0755), sysusers, unit + west drop-in, `/etc/unheaded/chaos/{allowlist.yaml,chaos.env}` (env holds `AUTH_API_KEYS`, `CUIRASS_API_KEY`, `VM_URL`; 0640 root:unheaded-chaos), `systemctl daemon-reload && systemctl enable --now unheaded-chaos-controller`.
+  - Done 2026-10-26: `scripts/install-chaos-west.sh --apply` (binary, sysusers uid 16763, unit + west-packet-lab drop-in, allowlist, policy); chaos.env written by hand (AUTH_API_KEYS, CUIRASS_API_KEY, VM_URL, WOTAN_ADDR, CHAOS_DRY_RUN=false), 0640 root:unheaded-chaos.
   - Agent (no hosts): WEST install path ready as scripts/install-chaos-west.sh (binary /usr/local/bin, sysusers, unit + west-packet-lab drop-in CAP_NET_ADMIN+CAP_BPF, allowlist+policy, ExecStopPost revert-all). Lead runs on west.
-- [ ] **Step 304** [V][LIVE-RO] ~2m: Running as its own user with only the granted capabilities; journal empty.
+- [x] **Step 304** [V][LIVE-RO] ~2m: Running as its own user with only the granted capabilities; journal empty.
+  - PASS 2026-10-26: runs as unheaded-chaos, CapEff = cap_net_admin,cap_bpf, /health ok with 8 injector types, /var/lib/unheaded-chaos empty.
   - Live-RO for the lead after Step 303.
   ```bash
   pid=$(systemctl show -p MainPID --value unheaded-chaos-controller); ps -o user= -p "$pid"
@@ -1305,14 +1316,17 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done: east.conf (empty Ambient/BoundingSet) + scripts/install-chaos-east.sh (dry-run default, --apply, shellcheck clean, prints chaos.env); install-chaos-west.sh added too.
 - [x] **Step 321** [C] ~2m: **COMMIT CHECKPOINT**: `build(chaos): east install script and unit drop-in`.
   - Done: commit (east drop-in + install scripts).
-- [ ] **Step 322** [LIVE-RO] ~3m: East polkit supports the details D-23 needs.
+- [x] **Step 322** [LIVE-RO] ~3m: East polkit supports the details D-23 needs.
+  - PASS 2026-10-26: east systemd 257.9 (unit/verb details available to polkit since v226); implicit auth_admin for manage-units.
   - Live-RO for the lead (pkaction check per D-23 override condition).
   ```bash
   ssh "$EAST" 'pkaction --verbose --action-id org.freedesktop.systemd1.manage-units | head -20; systemctl --version | head -1'
   ```
-- [ ] **Step 323** [LIVE-RW][S] ~10m: (E3.1-2) Run the install script on east with `--apply`; create `/etc/unheaded/chaos/chaos.env` by hand (0640 root:unheaded-chaos); `systemctl enable --now unheaded-chaos-controller`.
+- [x] **Step 323** [LIVE-RW][S] ~10m: (E3.1-2) Run the install script on east with `--apply`; create `/etc/unheaded/chaos/chaos.env` by hand (0640 root:unheaded-chaos); `systemctl enable --now unheaded-chaos-controller`.
+  - Done 2026-10-26: east has no Go, so the bundle (binary built on west from a45f69dc, unit, east.conf, allowlist, policy, sysusers, installer) was rsynced to east:~/chaos-install and `install-chaos-east.sh --apply --binary=...` run there; polkit rule written; chaos.env by hand (AUTH_API_KEYS, VM_URL=west Victoria, WOTAN_ADDR, CHAOS_DRY_RUN=false).
   - Live-RW for the lead: run scripts/install-chaos-east.sh --apply on east, create chaos.env, enable --now.
-- [ ] **Step 324** [V][LIVE-RO] ~3m: Least privilege holds: the account can stop the listed unit and nothing else.
+- [x] **Step 324** [V][LIVE-RO] ~3m: Least privilege holds: the account can stop the listed unit and nothing else.
+  - PASS 2026-10-26: as unheaded-chaos, `systemctl stop ssh.service` and `stop unheaded-kev-poller.service` both "Interactive authentication required"; ssh, kev-poller, timeguru all active; unit User=unheaded-chaos, AmbientCapabilities= and CapabilityBoundingSet= empty; /etc/polkit-1/rules.d/60-unheaded-chaos.rules present.
   - Live-RO for the lead (least privilege).
   ```bash
   ssh "$EAST" 'sudo -u unheaded-chaos systemctl --no-ask-password stop ssh.service 2>&1 | tail -1'                 # must be "Access denied"
@@ -1382,7 +1396,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-26: `fdea6919`.
 - [x] **Step 343** [R][DECIDE] ~15m: **D-25 lab traffic source.** Find the Go code that builds an IPv6 packet with a Monad Hop-by-Hop option and a valid CRC (`grep -rn -i 'hop-by-hop\|HopByHop\|IPV6_HOPOPTS' --include=*.go cmd pkg | grep -v _test`; `cmd/doom-go-injector` is known to). RECOMMENDATION: add `steel-echo monad-send --iface steel0-h --dst <ula> --flow-label <n> --count N` reusing that encoder (move it into a small package only if it lives in `package main`), and `steel-echo monad-count` in the netns that counts received packets per flow label and whether the CHAOS bit is set (header bytes only; no payload is read). Override ONLY if no Go encoder exists: then use the Rust test vectors in `monad-common` to build the 20-byte option in Go with a test pinning bytes to those vectors.
   - Taken 2026-10-26 (`6cbb09b7`), with the encoder in a new small package `pkg/monadpkt` rather than moved: `cmd/doom-go-injector` is package main and builds the Doom tick layout; `pkg/cartridge.IPv6MonadPacket` is a linux-only bench fixture with its own byte offsets (left untouched). `steel-echo monad-send --iface steel0-h --dst fd00:5ee1::2 --flow-label 0x5EE1 --count 1000` (AF_PACKET, dst MAC defaults to 33:33:00:00:00:01) and `steel-echo monad-count --iface steel0-n --seconds 30` (JSON per flow label: received, chaos_set, chaos_clear, crc_ok, crc_bad; first 86 header bytes only, MSG_TRUNC). CRC pinned to the CCITT-FALSE check value 0x29B1.
-- [ ] **Step 344** [LIVE-RW][S] ~10m: (E2.6) Lab netns on west.
+- [x] **Step 344** [LIVE-RW][S] ~10m: (E2.6) Lab netns on west.
+  - Done 2026-10-26: steel0 netns + steel0-h/steel0-n veth, MTU 1700, fd00:5ee1::1/2, ping ok.
   ```bash
   sudo ip netns add steel0
   sudo ip link add steel0-h type veth peer name steel0-n && sudo ip link set steel0-n netns steel0
@@ -1390,19 +1405,24 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   sudo ip addr add fd00:5ee1::1/64 dev steel0-h nodad && sudo ip -n steel0 addr add fd00:5ee1::2/64 dev steel0-n nodad
   ```
   (MTU 1700 per foundation-06's guidance for chaos deployments.)
-- [ ] **Step 345** [LIVE-RW] ~10m: Experiment `packet_chaos` on `steel0-h`, flow label `0x5EE1`, mode `marker`, netem `loss 50%`, 5 min. Start the counter in the netns, then send 1000 packets on `0x5EE1` (enrolled) and 1000 on `0x5EE2` (not enrolled).
+- [x] **Step 345** [LIVE-RW] ~10m: Experiment `packet_chaos` on `steel0-h`, flow label `0x5EE1`, mode `marker`, netem `loss 50%`, 5 min. Start the counter in the netns, then send 1000 packets on `0x5EE1` (enrolled) and 1000 on `0x5EE2` (not enrolled).
+  - Done 2026-10-26 (second attempt): the first load failed on `.rodata.str1.1: load pinned map: operation not permitted` (bpffs refuses dotted names; every map was pinned) and reverted clean; a45f69dc pins only CHAOS_TARGETS/CONFIG/STATS. Then: `chaos-controller packet-chaos --iface steel0-h --flow-label 0x5EE1 --mode marker --loss 50 --duration 5m` (sudo YALD_OBJ=... form: west's sudo drops -E), 1000 + 1000 frames via `steel-echo monad-send`, `monad-count` in the netns.
   ```bash
   sudo ip netns exec steel0 "$SCRATCH/steel-echo" monad-count --iface steel0-n --seconds 30 > "$SCRATCH/pkt.json" &
   sudo "$SCRATCH/steel-echo" monad-send --iface steel0-h --dst fd00:5ee1::2 --flow-label 0x5EE1 --count 1000
   sudo "$SCRATCH/steel-echo" monad-send --iface steel0-h --dst fd00:5ee1::2 --flow-label 0x5EE2 --count 1000
   sleep 30; jq '.' "$SCRATCH/pkt.json"
   ```
-- [ ] **Step 346** [V][LIVE-RO] ~3m: **Acts only on flagged flows**: 0x5EE1 received 400-600 with CHAOS bit set on every one; 0x5EE2 received 1000/1000 with the CHAOS bit clear. `bpftool map dump pinned /sys/fs/bpf/unheaded/chaos/<id>/STATS` shows the enrolled count; `bpftool net show dev steel0-h` lists the TCX program. Fail → Step 347.
+- [x] **Step 346** [V][LIVE-RO] ~3m: **Acts only on flagged flows**: 0x5EE1 received 400-600 with CHAOS bit set on every one; 0x5EE2 received 1000/1000 with the CHAOS bit clear. `bpftool map dump pinned /sys/fs/bpf/unheaded/chaos/<id>/STATS` shows the enrolled count; `bpftool net show dev steel0-h` lists the TCX program. Fail → Step 347.
+  - PASS 2026-10-26: 0x5EE1 received 474/1000, chaos_set 474, crc_ok 474; 0x5EE2 received 1000/1000, chaos_set 0; `bpftool net show dev steel0-h` lists tcx/egress yaldabaoth_tc; netem c4a3 dropped 526; STATS packets_total=2000 targets_hit=1000 mode_marker=1000 events_sent=1000; `bpftool net show dev enp16s0` has no yaldabaoth program.
 - [ ] **Step 347** [D] ~10m: Nothing flagged → the sender's packets lack the HbH option type the program expects (`opt_type` check at main.rs:159) or the flow label is not where the program reads it: capture 3 packets with `sudo tcpdump -i steel0-h -c 3 -x ip6` (headers only) and compare with the program's offsets. Flagged but no loss → the fw filter did not match: `tc -s filter show dev steel0-h` hit counters. 2 attempts → STUCK (Phase 14 Scenario E skipped; the rest of the game day proceeds).
-- [ ] **Step 348** [LIVE-RW] ~3m: Abort mid-experiment by the file path: `sudo touch /run/unheaded/chaos/ABORT`.
-- [ ] **Step 349** [V][LIVE-RO] ~2m: Within 5 s: no program on `steel0-h` (`bpftool net show dev steel0-h`), no `c4a0:` qdisc, pinned dir gone, journal empty; re-send 1000 on `0x5EE1` → 1000/1000, CHAOS bit clear. Remove the ABORT file.
+- [x] **Step 348** [LIVE-RW] ~3m: Abort mid-experiment by the file path: `sudo touch /run/unheaded/chaos/ABORT`.
+  - Done 2026-10-26: `touch /run/unheaded/chaos/ABORT`.
+- [x] **Step 349** [V][LIVE-RO] ~2m: Within 5 s: no program on `steel0-h` (`bpftool net show dev steel0-h`), no `c4a0:` qdisc, pinned dir gone, journal empty; re-send 1000 on `0x5EE1` → 1000/1000, CHAOS bit clear. Remove the ABORT file.
+  - PASS 2026-10-26: program gone 0.42 s after the touch; no c4a0: qdisc; /sys/fs/bpf/unheaded/chaos empty; log "reverted and verified gone (abort file)"; re-send 1000 on 0x5EE1 → 1000/1000 received, chaos_set 0.
 - [ ] **Step 350** [B] ~3m: Event cross-check: CHAOS Anamnesis events carry event type **0x04** (`EVENT_CHAOS`, foundation-06; `bpfschema.EventChaos` and `monad_common::EventType::Chaos` since `c6a58af4`), never 0x05; note the count beside E4.
-- [ ] **Step 351** [V][LIVE-RO] ~5m: **SPEC COMPLIANCE GATE (after)**: a non-enrolled packet captured before and during the experiment is byte-identical in its 20-byte Monad (`tcpdump -x` hex of the HbH option); an enrolled packet in `marker` mode differs only in flag bit 7 and the recomputed CRC (bytes 18-19).
+- [x] **Step 351** [V][LIVE-RO] ~5m: **SPEC COMPLIANCE GATE (after)**: a non-enrolled packet captured before and during the experiment is byte-identical in its 20-byte Monad (`tcpdump -x` hex of the HbH option); an enrolled packet in `marker` mode differs only in flag bit 7 and the recomputed CRC (bytes 18-19).
+  - PASS 2026-10-26 (pcap before/during, HbH option bytes): 0x5EE2 byte-identical (11023e14010102000000000000000000000000000000e511); 0x5EE1 differs only at offset 11 (flags octet 0x00→0x80, bit 7 CHAOS) and 22-23 (CRC e511→6cbb).
 - [ ] **Step 352** [LIVE-RW][S] ~2m: Teardown: `sudo ip netns del steel0; sudo ip link del steel0-h 2>/dev/null || true`.
 - [ ] **Step 353** [V] ~1m: `ip netns list | grep steel || echo clean`; `ip link show steel0-h 2>&1 | grep -c 'does not exist'`.
 - [ ] **Step 354** [W] ~10m: `docs/protocol/notes/yaldabaoth-skb-mark.md`: what the program does now, the compliance gate results (Steps 331, 351), E4's status. Link from `docs/protocol/SPEC-VS-CODE-AUDIT.md`.
