@@ -42,8 +42,10 @@ Consulted: Inquisitor (crosswalk shape, honesty rules), Architect
    window, mappings (a list of requirement IDs per framework), and a
    rationale for the mappings. Changes are reviewed, signed commits, which
    is itself change-management evidence. `pkg/compliance/crosswalk` loads
-   and validates it (strict YAML, many-to-many). `pkg/compliance` is left
-   as is; retiring its 1:1 mappings is a later decision.
+   and validates it (strict YAML, many-to-many). `pkg/compliance` was left
+   as is at the time; the legacy engine and its 1:1 mappings
+   (`pkg/compliance/{engine.go,audit,controls,report,standards}`) were
+   deleted 2026-10-26 (S-REAL-STEEL E1 G10c), nothing ever called them.
 
 2. **Denominators come from the publishers.** Every framework file holds
    the complete requirement list at a stated granularity, generated where a
@@ -140,4 +142,4 @@ controls).
 - Scheduling: `cmd/compliance-evidence` is run by hand; a timer or a CI
   job that publishes evidence is a later step.
 - Attestation evidence for non-technical controls (above).
-- Whether `pkg/compliance`'s standards are retired or migrated.
+- ~~Whether `pkg/compliance`'s standards are retired or migrated.~~ Retired: deleted 2026-10-26 (E1 G10c); the crosswalk is the only control catalogue.
