@@ -13,7 +13,7 @@
 
 | Path | Purpose |
 |---|---|
-| `services/anamnesis/anamnesis.go` | event-history service — replayable timeline of what happened |
+| `services/anamnesis/anamnesis.go` | event-history service (deleted 2026-10-26, S-REAL-STEEL E1 G10g: no binary imported it) |
 | `pkg/ebpf/maploader/` | BPF map management library |
 | `pkg/ebpf/loader.go` | BPF program loader (Go) |
 
@@ -38,7 +38,7 @@
 ## Test surface
 
 ```bash
-go test ./services/anamnesis/... ./pkg/ebpf/...
+go test ./pkg/ebpf/...
 go test ./cmd/trace-collector-go/...
 ```
 

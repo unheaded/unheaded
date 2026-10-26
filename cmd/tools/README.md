@@ -18,7 +18,7 @@ The round-table picked three P0 tools to publish first:
 | Tool | What it is | Composing source |
 |---|---|---|
 | [`mimir/`](mimir/README.md) | Config drift sentry — alerts-only, REAL-METAL validated zero false positive on EAST | `cmd/heimdall-daemon/`, `pkg/enkrateia/`, `pkg/gjallarhorn/`, `pkg/gungnir/` |
-| [`anamnesis-lite/`](anamnesis-lite/README.md) | Packet-zero APM — eBPF marker → trace collector → Wotan → dashboard | `services/anamnesis/`, `cmd/trace-collector-go/`, `cmd/ebpf-collector/`, `pkg/anamnesis/` |
+| [`anamnesis-lite/`](anamnesis-lite/README.md) | Packet-zero APM — eBPF marker → trace collector → Wotan → dashboard | `cmd/trace-collector-go/`, `cmd/ebpf-collector/`, `pkg/anamnesis/` |
 | [`zhen-on-prem/`](zhen-on-prem/README.md) | Air-gapped SRE assistant — RAG over local model + 31 runbooks | `cmd/zhen-rag/`, `cmd/zhen-cli/`, `cmd/zhen-agent/`, `cmd/zhen-agentd/`, `runbooks/`, `raft/` |
 
 Every tool is a **subset build** of the monorepo; tools do NOT fork.

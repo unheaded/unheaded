@@ -268,7 +268,7 @@ Control 2 (software inventory), Control 4 (secure config), Control 8 (audit logg
 ```bash
 ls pkg/{auth,champion,discovery,transport,logagg,bpf,bpfmap}     # Controls 5, 6, 8, 12, 13
 ls services/wotan/internal/signing/                                # Control 12.6
-ls cmd/heimdall-daemon services/anamnesis pkg/anamnesis            # Control 13
+ls cmd/heimdall-daemon pkg/ebpf/anamnesis.go            # Control 13
 bash scripts/verify-gpl-boundary.sh                                # Control 2.3
 ```
 

@@ -88,7 +88,7 @@ check at every hop prevents silent corruption.
 
 **Status:** Core observability
 **RFC:** Section 10 — event types and ring buffer specification
-**Implementation:** `services/anamnesis/anamnesis.go`, `pkg/ebpf/anamnesis.go`
+**Implementation:** `pkg/ebpf/anamnesis.go` (the unused `services/anamnesis` was deleted 2026-10-26, E1 G10g)
 
 Non-blocking eBPF ring buffer recording every state change with full packet
 snapshots. 9 event types (BORN, COMPUTED, WOTAN_RD/WR, CHAOS, ROLLBACK,
