@@ -35,6 +35,16 @@ Outside the Doom Range (infrastructure on standard ports):
 | Traefik edge | 80 / 443 / 50051 | all (override `TRAEFIK_HTTP_PORT`, `TRAEFIK_HTTPS_PORT`, `TRAEFIK_GRPC_PORT`) |
 | Prometheus (monitoring stack) | 9090 | all (`monitoring/docker-compose.yml`) |
 
+## Deploy and chaos ports and identities (S-REAL-STEEL, 2026-10-26)
+
+| What | Port | Account / uid (`pkg/uids`) |
+|------|------|-----|
+| Cuirass (compose / deb) | 19006 / 17000 | 16740 |
+| Sword ([[Service-Sword]]) | 19011 (was Canary; Canary folded into Sword) | 16746 (`uids.Sword`); host unit `unheaded-sword` |
+| chaos-controller ([[Chaos-Engineering]]) | 19012 (west and east) | `unheaded-chaos`, 16763 (`uids.Yaldabaoth`) |
+| steel-echo inside an instance ([[Steel-Echo]]) | 8080 | n/a (LXD container, user `steel`) |
+| steel-echo stable endpoint (Cuirass proxy device) | `127.0.0.1:26601` (user-apps band) | n/a |
+
 ## Implementation
 
 Port constants are defined in `pkg/ports/ports.go`. Use `ports.DefaultAddr()` for lookups.

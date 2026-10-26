@@ -66,6 +66,12 @@
 - [[kev-poller|Service-KEV-Poller]]
 - [[Sword|Service-Sword]]
 
+**Deploy and Chaos**
+- [[Sword|Service-Sword]]
+- [[Chaos Engineering|Chaos-Engineering]]
+- [[Game Days|Game-Days]]
+- [[Steel Echo|Steel-Echo]]
+
 **S36 Four Pillars**
 - [[Port Registry|Port-Registry]]
 - [[Transport Cascade|Transport-Cascade]]
