@@ -32,6 +32,13 @@ auto`, `-capture`, and `-local-only` / `local_only` in
 - zhenai-forge still drops unparseable training lines silently and falls back
   to the CLI `answer_start` (the H6 bug class).
 
+## Decisions taken 2026-10-26 (Stevie)
+
+- Sprint 3 E1: apply every default in `docs/sweeps/REAL-STEEL-DECISIONS.md`; ADR-090 Accepted.
+- Sprint 3 E2/E3: west live windows (Cuirass on real LXD, live deploy, netem + container-kill chaos, lab netns) and the east chaos agent + polkit rule, all granted.
+- Sprint 3 E4: spec wins; the code moves to foundation-06's EVENT_CHAOS 0x04 / EVENT_ANOMALY 0x08; no draft edit.
+- Sprint 2 Phase 12: closed as DEFERRED-on-data (0 SFT train examples, 300 needed; no synthetic or Claude padding). Trigger: >= 300 SFT train examples across >= 3 families -> run Phase 12.
+
 ## Decisions for Stevie, by sprint
 
 1. Quantum Armor (sprint done; these are what is left, all prepared):

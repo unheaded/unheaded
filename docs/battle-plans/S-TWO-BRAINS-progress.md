@@ -545,3 +545,13 @@ phase above; Phase 12 is not started (no data, Step 400).
 
 Steps 453-455: the branches were already merged into develop
 (`3dc9dfb7`); nothing pushed.
+
+## Phase 12 closed as DEFERRED-on-data (2026-10-26)
+
+Stevie's call, 2026-10-26: the sprint is done with Phase 12 deferred. The
+LoRA run waits for data, not for code: Step 390's bar (>= 300 SFT train
+examples across >= 3 families with >= 30 each, hold-out >= 60) against 0 train
+examples today, and the plan forbids padding with synthetic or Claude text
+(Step 339, project_no_training_on_claude_outputs). Trigger to reopen:
+`zhen-flywheel export` reports >= 300 SFT train rows; then Phase 12 runs under
+Step 400's GPU window. Carried in `~/tmp/next.md` and a kanban card.

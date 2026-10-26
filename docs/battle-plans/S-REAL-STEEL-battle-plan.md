@@ -431,6 +431,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 
 - [ ] **Step 38** [ESCALATE] ~0m agent / one pass for Stevie: **E1, ADR-090 delete decisions.**
   - Done 2026-10-23: E1 posted, waiting on Stevie (docs/sweeps/REAL-STEEL-DECISIONS.md). Phase 1, Steps 91-92 and 233 wait; everything else continues.
+  - **Answered 2026-10-26** (Stevie: "Apply all defaults"): every row takes its Default; ADR-090 Accepted (D-01 override applies). Phase 1 unblocked.
   - **Context**: `docs/sweeps/REAL-STEEL-DECISIONS.md`, one table, about 12 group rows plus FLAGGED rows. Each group has a recommendation; "Y" on a row takes it.
   - **Questions**: (1) Answer column per group (Y/N/P/W). (2) FLAGGED rows individually. (3) ADR-090 status: accept it now (then D-01's override applies), or keep Proposed?
   - **Why Stevie**: deletions are his call (standing rule, and ADR-090 "re-decide documented retentions with Stevie"). The recommendations are pre-seeded, so this is one pass, not 148 questions.
@@ -745,6 +746,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
     7. Run the Phase 9 deploy proof and the Phase 14 game day on west (LXD project `unheaded` only; pihole lives in `default` and is invisible to Cuirass)?
   - **Why Stevie**: every item changes west; items 1-3 are his standing gate. The recommendation is yes to all with the window model; he can trim.
   - **What stops**: Phases 5, 6 (live import only), 9, 11, 13 (live parts), 14 (west half). Phases 7, 8, 10 and the code halves of 6/11/13 continue.
+  - **Answered 2026-10-26** (Stevie): **yes to all seven**, window model (stack up for a window, stopped at its end). East chaos agent + polkit (Phase 12, E3) also granted the same day.
 - [ ] **Step 138** [LIVE-RO][BARE-METAL] ~3m: Dry run, read the output end to end.
   ```bash
   cd "$PROJECT_ROOT" && scripts/cuirass-lxd-trust.sh 2>&1 | tee "$SCRATCH/trust-dry.txt"
@@ -1283,6 +1285,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - **Questions:** (1) Which side moves on the event codes: amend the draft (draft-07) to the code's values, or change all eBPF producers and Go/JS consumers to the draft's? (2) Should shield stop reusing CHAOS for blocked sources (code-only change: the Monad there is an event-local copy, not a wire packet)? (3) RFC Editor sign-off on Step 331's "no wire change" reading.
   - **Recommendation offered**: (1) amend the draft to match the deployed code (no BPF churn; the registry is "Specification Required", still a draft); (2) yes, stop the reuse in a separate small change; (3) yes. **Why still escalated**: a spec registry change is RFC Editor + Stevie by the frozen-format rule; the Marshal halts (S4) any agent that edits a spec draft unilaterally.
   - **What stops**: only spec/draft edits and the shield change. This phase codes against the code constants (0x05) and changes neither.
+  - **Answered 2026-10-26** (Stevie): **spec wins, fix the code.** EVENT_CHAOS 0x04 and EVENT_ANOMALY 0x08 per foundation-06; every eBPF producer and Go/JS consumer moves; shield stops reusing CHAOS for blocked sources. No draft edit. Step 350 then expects 0x04.
 - [ ] **Step 333** [DECIDE] ~0m: **D-24 mark, then shape.** RECOMMENDATION: after `apply_chaos`, `yaldabaoth_tc` sets `skb->mark = 0xC4A05` (constant local to yaldabaoth-ebpf; `monad-common` untouched, so no other program's artifact changes). Userspace builds on the lab egress interface: `tc qdisc replace dev <if> root handle c4a0: prio bands 3`, `tc filter add dev <if> parent c4a0: protocol ipv6 handle 0xC4A05 fw flowid c4a0:3`, `tc qdisc add dev <if> parent c4a0:3 handle c4a3: netem <loss|delay|duplicate>`; the classifier attaches at clsact egress via TCX (runs before the root qdisc enqueue). CORRUPT stays the program's existing BitFlip mode (stale CRC, detected at the next hop). DROP = netem loss on band 3; DELAY = netem delay; the program's `scratch_r0` delay hint stays as it is. Rationale: netem can only act on packets the program flagged, which is exactly "acts only on flagged flows", and the eBPF change is one helper call. Override ONLY if the verifier rejects `set_mark` in this context (it should not: TC programs may write `skb->mark`): then classify with a `u32` filter on the CHAOS bit offset instead (no eBPF change at all).
 - [ ] **Step 334** [CODE] ~20m: `ebpf/yaldabaoth-ebpf/src/main.rs`: `const CHAOS_SKB_MARK: u32 = 0xC4A05;` and `ctx.set_mark(CHAOS_SKB_MARK)` after `apply_chaos` on every enrolled packet; header comment updated (the "netem qdisc ... feeds into" claim becomes true).
 - [ ] **Step 335** [BUILD] ~5m: Build and size check.
