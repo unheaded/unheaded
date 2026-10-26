@@ -1,5 +1,5 @@
 version: 1.0.0
-last_updated: 2026-10-19T10:33:05.529718316Z
+last_updated: 2026-10-26T16:07:53.412101089Z
 status: alpha
 phases:
   - id: phase-0
@@ -72,6 +72,9 @@ phases:
       - phase-3-item-a97e4757
       - phase-3-item-ee7c6e87
       - phase-3-item-55b1241c
+      - phase-3-item-364cbed1
+      - phase-3-item-be0aff9c
+      - phase-3-item-fe186009
       - phase-3-item-020526f9
       - phase-3-item-9f7e0f1a
       - phase-3-item-5d165ac5
@@ -358,6 +361,21 @@ milestones:
     status: completed
     progress: 100
     description: '**Overnight churn: threats, gates, signatures (2026-10-19, `develop`).** `cmd/kev-poller` keeps the CISA KEV catalog (ADR-055) and refreshed the threat register after 175 days: two exploited kernel CVEs unpatched on both hosts (FND-011). Wotan''s second OOM traced to no budget across topics (reproduced: old image OOM-killed, new one holds at 139 MiB). Signing turned out decorative in two places: Wotan checked `config.*` signatures against the key the publisher sent, and gungnir seals did not sign their expiry; both fixed, with replay protection. The baseline agent runs without root and no longer audits its own mount namespace (it had 8 false passes). New ratchets: third-party packages, floating image tags, unit binaries and accounts, pip-audit; the fuzz job had only ever reached 3 of 12 fuzz packages. Kubernetes Well TLS-only, proved on kind.'
+  - id: phase-3-item-364cbed1
+    name: SLO-only alerting, overlay and toolchain cleanup
+    status: completed
+    progress: 100
+    description: '**SLO-only alerting, overlay and toolchain cleanup (2026-10-20 → 10-22, `develop`).** ADR-100 built: one alert policy file where only SLO/SLA deviation pages, with urgency labels and a mail budget. BFD up between FRR and BIRD (multihop), east''s eBPF set matches west, the overlay re-addressed to the repo (FND-014 closed), east Wotan given its missing allowlist. npm removed from the repo (oxlint at parity), pip CI tools hash-locked, ADR-096 crate admissions.'
+  - id: phase-3-item-be0aff9c
+    name: Five sprints in parallel, then merged
+    status: completed
+    progress: 100
+    description: '**Five sprints in parallel, then merged (2026-10-23 → 10-25, `develop`).** Quantum Armor (post-quantum key exchange and signing), Lich (fuzz and red-team harnesses, ADR-062 CI), Two Brains (local model plus Claude through one approval gate, ADR-106 Proposed; pre-registered routing eval; training-data flywheel with Claude text excluded by default), Real Steel and UPC wire compute, each on its own branch and merged with the gates re-proved. Zhen: retrieval fixed for name questions in both the Python and Go paths, server-side syntax highlighting, the model switcher''s fit check made exact. CI red after the push repaired (ruff, pip-audit, Well drill, runbook tests, meta-gate timeout).'
+  - id: phase-3-item-fe186009
+    name: Champion runbook eval and a capability-free anomaly bridge
+    status: completed
+    progress: 100
+    description: '**Champion runbook eval and a capability-free anomaly bridge (2026-10-26, `develop`).** First results of the pre-registered runbook eval: qwen-7b and qwen-coder-14b 43/54 on hold-out, Claude 49/54; all under the bar, Claude only through API refusals on plain ops runbooks. The anomaly unit reads cartridge scores with no capabilities: only the score ring''s pin is opened to its group and bind-mounted in.'
   - id: phase-3-item-020526f9
     name: Resolved since this list was written:* Captain Track call
     status: completed
@@ -414,4 +432,4 @@ milestones:
     progress: 0
     description: Multi-tenant isolation hardening
 metadata:
-  overall_progress: 84%
+  overall_progress: 85%

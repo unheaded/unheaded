@@ -434,7 +434,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/upc-cartridgectl/main_linux.go:23:sig-import",
+      "bom-ref": "cmd/upc-cartridgectl/main_linux.go:24:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -471,7 +471,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/upc-cartridgectl/main_linux.go:23"
+          "value": "cmd/upc-cartridgectl/main_linux.go:24"
         }
       ]
     },
