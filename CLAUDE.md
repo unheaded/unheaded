@@ -68,6 +68,8 @@ Unheaded is a configuration management automation platform delivering complete i
 - ✅ Service mesh built on Wotan message bus
 - ✅ Declarative everything (version-controlled configs)
 - ✅ Self-hosting proof (The Meta Moment)
+- ✅ Real deploy via Sword + Cuirass on LXD (west, project `unheaded`): rolling, blue-green, canary with analysis and automatic rollback (`wiki/Service-Sword.md`)
+- ✅ Chaos engineering via Yaldabaoth inside an allowlisted envelope: netem, container kill, systemd stop/kill on east, CHAOS-flagged packet faults; three abort paths, revert journal (`wiki/Chaos-Engineering.md`, ADR-107)
 
 ---
 
@@ -127,7 +129,7 @@ All Unheaded services use high ports to avoid conflicts with common dev tools.
 | Infrastructure | 16666-16999 | doom-bridge (16666), doom-injector (16667), trace-collector (16670/16671) |
 | Control Plane | 17000-17999 | unheaded-daemon HTTP (17000), gRPC (17001) |
 | Wotan | 18000-18099 | wotan HTTP (18000), gRPC (18001) |
-| Core Services | 19000-19999 | timeguru (19000), architect (19001), captain (19002), micromanager (19003), monad (19004), sophia (19005) |
+| Core Services | 19000-19999 | timeguru (19000), architect (19001), captain (19002), micromanager (19003), monad (19004), sophia (19005), cuirass (19006), sword (19011), chaos-controller (19012) |
 | Applications | 20000-20999 | dashboard (20000), kanban (20001), wiki (20002) |
 | Gateway | 21000-21443 | HTTP (21000), HTTPS (21443) |
 | User Apps | 26000-26666 | Reserved for user applications |
@@ -138,7 +140,7 @@ All Unheaded services use high ports to avoid conflicts with common dev tools.
 2. **Fallback:** HTTP/3 → HTTP/2 → HTTP/1.1
 3. **Health:** Both gRPC health check AND HTTP /health endpoint required
 
-**Implementation:** `pkg/transport/` implements the gRPC-first cascade with automatic HTTP fallback. All 10 services are wired to the transport package for unified connection management.
+**Implementation:** services connect to Wotan through `pkg/wotan-client` (gRPC stream first, HTTP polling fallback, `grpc.health.v1` probe, runtime stream health in `/health`). `pkg/transport/` holds the shared transport config and the dual-protocol health server; its uncalled `Connect()` cascade was deleted 2026-10-26 (S-REAL-STEEL E1 G5).
 
 ### Service Discovery
 
@@ -318,8 +320,10 @@ unheaded/
 package main
 
 import (
-    "github.com/unheaded/unheaded/pkg/wotan-client"
-    "github.com/unheaded/unheaded/pkg/telemetry"
+    "unheaded/pkg/wotan-client"
+    "unheaded/pkg/httputil" // unheaded_http_* metrics middleware
+    "unheaded/pkg/auth"
+    "unheaded/pkg/discovery"
 )
 
 func main() {
@@ -789,7 +793,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 
 **S36 Four Pillars — COMPLETE:**
 - **Port Authority:** Doom Range migration (all services on 16666-26666)
-- **gRPC-First Transport:** `pkg/transport/` — gRPC cascade with HTTP fallback, all 10 services wired
+- **gRPC-First Transport:** `pkg/wotan-client` — gRPC stream with HTTP polling fallback (the `pkg/transport` `Connect()` cascade had no callers and was deleted 2026-10-26)
 - **Log Aggregation:** `pkg/logagg/` — ring buffer, zerolog hook, dashboard live tail
 - **Service Discovery:** `pkg/discovery/` — four-layer discovery (Wotan/port-scan/convention/static)
 
@@ -831,7 +835,6 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - Zhen Champion (pkg/champion/): Trust Level 1+2, sandboxed file R/W, Kanban CRUD, action logging, snapshots (18 tests)
 - Zhen MCP Server (raft/zhen_mcp_server.py): 9 tools for Claude Code integration. Read-only, always on: corpus_search, file_read, service_health, runbook_list, runbook_show, local_llm (one completion from the running llama-server at `ZHEN_LOCAL_LLM_URL`, default `http://127.0.0.1:8081`; isError when nothing listens; never starts or swaps a model; `ZHEN_CAPTURE_DIR` opts in to redacted training capture, docs/architecture/zhen-capture.md). Off unless the server env opts in: file_write, file_patch (`ZHEN_MCP_ALLOW_WRITE=1`), runbook_execute (`ZHEN_MCP_ALLOW_EXEC=1`). Repo root from the script path (`ZHEN_MCP_PROJECT_ROOT` overrides); tests in raft/tests/test_zhen_mcp_server.py. Registered for Claude Code in the repo's `.mcp.json` as server `zhen` (read-only: no `ZHEN_MCP_ALLOW_*` set; approve it once at the `claude` prompt). It launches `scripts/zhen-mcp.sh`, which picks `$ZHEN_MCP_PYTHON`, then `~/.venv/zhen/bin/python`, then `python3`, and exits non-zero naming what it tried if none can import `mcp`
 - 79 Operational Runbooks (runbooks/): 9 categories (infra 17, security 14, observe 10, data 9, network 9, deploy 7, wotan 5, doom 4, pki 4); `scripts/check-runbooks.sh` with a shrink-only baseline, `metadata.status` draft → approved (Stevie only), ADR-024 §6
-- Service Template (pkg/service/): Standardized scaffold with health/ready/auth/Wotan (7 tests)
 - BPF CI Gate (scripts/bpf-verifier-check.sh): Instruction budget tracking, static analysis
 - Sealed Cask (scripts/build-sealed-cask.sh + verify-binding-rune.sh): Deterministic image builder with SHA256 integrity
 - ROCm GPU acceleration: PyTorch 2.5.1+rocm6.2 for embedding (862 chunks/s), llama.cpp for inference (60 tok/s)
@@ -842,6 +845,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - Wotan Topic Signing (2026-04-11): ML-DSA-65 enforcement on `config.*` topics in services/wotan/internal/signing/ (6 tests). Proto fields added to TopicPublishRequest/TopicEvent. ADR-043 hard condition #2 satisfied. See `wiki/Wotan-Topic-Signing.md`.
 - S-QUANTUM-ARMOR (2026-10-23, ADR-105 Proposed, `docs/battle-plans/S-QUANTUM-ARMOR-battle-plan.md`): first-party TLS negotiates hybrid ML-KEM (`X25519MLKEM768`) via the Strict/Preferred profiles in `pkg/tls/pq.go`, rustls on aws-lc-rs (WAF, zhend QUIC), a CycloneDX 1.6 crypto inventory `compliance/crypto/cbom.cdx.json` (`cmd/crypto-inventory`) with stale and classical-KEX gates (`scripts/check-crypto-inventory.sh`, `scripts/check-pq-kex.sh`), `yggdrasil-evidence` implemented (ML-DSA-65 evidence seals, signed custody), Heimdall publishes signed `drift.*` events (`pkg/wotansig`, per-prefix keys in Wotan). Still classical until Stevie decides E1-E5: the Well (PG 16), strict host sshd, the WireGuard PSK rotation, the evidence and drift keys. See `wiki/Post-Quantum-Key-Exchange.md`.
 - S-TWO-BRAINS (2026-10-23, ADR-106 Proposed, `docs/battle-plans/S-TWO-BRAINS-battle-plan.md`): Zhen and Claude share one gate. Writes need out-of-band confirmation (`zhen-claude -confirm deny|tty|queue`, default deny; `zhen-claude confirm`) or run in a `zhen/*` branch sandbox; privacy tiers T0/T1/T2 redact what reaches Claude (`pkg/claudebridge/privacy`); both brains audit to `llm_requests`/`audit_events` and Wotan; `ThresholdRouter` routes by family from a pre-registered eval (`eval/two-brains/`, `configs/zhen-routing.yaml`); `run_check` sandbox (`pkg/sandbox`); `zhen-agentd -worker|-overnight` turns `zhen` Kanban cards into reviewable branches under a GPU lease, spend cap and memory floor; `zhen-flywheel` ingests and exports training data with Claude text off by default; Kanban Genesis seed moved into migration 034; 11 new runbooks (draft). Migrations 030-034 not yet applied live. See `wiki/Zhen-Agents.md`, `wiki/Zhen-Routing.md`.
+- S-REAL-STEEL (2026-10-23 → 10-26, `docs/battle-plans/S-REAL-STEEL-battle-plan.md`, ADR-107 Proposed): the deploy and chaos stubs replaced and proved live. Cuirass (`cmd/unheaded-daemon`) talks to west's LXD over HTTPS with a restricted client certificate (project `unheaded`; pihole in `default` is invisible to it), probes instance health, manages a proxy device as the stable endpoint, and exposes an allowlisted stop/kill (`docker/compose.cuirass-lxd.yml`; enforce/prune/chaos per window). Sword (`cmd/sword`, 19011, compose profile `deploy`) runs rolling, blue-green, canary and recreate through `pkg/deploy/strategy` + `pkg/deploy/cuirassdriver`, canary analysis from instance metrics plus client-observed probes under the Kingdom SLO guard (`pkg/sloguard`), history in `pkg/statefile`. Yaldabaoth runs inside `cmd/chaos-controller` (19012, host unit as `unheaded-chaos` uid 16763 on west and east): allowlist `/etc/unheaded/chaos/allowlist.yaml`, three abort paths incl. `/run/unheaded/chaos/ABORT`, revert journal + `ExecStopPost revert-all`, injectors netem / container kill / systemd stop-kill (east, polkit) / `packet_chaos` (`yaldabaoth-ebpf` skb mark 0xC4A05 on CHAOS-flagged flows, lab netns only); unimplemented types refuse. Game day 1: canary hurt by 300 ms netem rolled back on its own in 62.4 s, aborts revert in 0.12 s / 0.88 s (`docs/gamedays/2026-10-26-real-steel-1.md`). E1: ADR-090 Accepted, 108 unreached packages deleted. E4: Anamnesis event codes moved to the spec (`EVENT_CHAOS 0x04`, `EVENT_ANOMALY 0x08`). Open: FND-023 (discover meter follows the 30 s sync), FND-024 (monitoring stack not started at boot). See `wiki/Service-Sword.md`, `wiki/Chaos-Engineering.md`, `wiki/Game-Days.md`, `wiki/Steel-Echo.md`.
 - Mímir's Law / Gleipnir Phase 0 Spike (2026-04-11, ADR-043, branch `spike/mimirs-law`): UPC-controlled OS baseline delivery PoC. New components: `pkg/gungnir/` (ML-DSA-65 sealed payloads, 4 tests), `pkg/gjallarhorn/` (20-byte Monad trigger packets, 5 tests), `pkg/enkrateia/` (alerts-only drift aggregator, 3 tests, zero FS mutations enforced), `cmd/heimdall-daemon/` (Mjölnir scan + drift detection), `cmd/gjallarhorn-sender/` (UPC trigger CLI), `crates/heimdall-bpf/` (Aya kprobe scaffold), `tomb/lich/LICH-012-config-convergence/` (red team campaign). REAL-METAL VALIDATED on EAST: zero false positives, 100% drift detection accuracy, alerts-only confirmed. See `wiki/Mimirs-Law.md`. 11 of 13 phases complete; bare-metal Phases 9 (full bootstrap), 11 (stress), 13 (gate eval) pending. S5 (2026-10-23): every Heimdall hook is now written and verifier-clean (vfs_write 20, execve 21, Gjallarhorn XDP observer 292 processed insns), with ringbuf readers and a rate-limited re-verify proven in a netns lab; the Phases 9/11/13 re-run is still pending east as a node (S5 Step 177, Stevie).
 - S-UPC-WIRE-COMPUTE (S5, 2026-10-23, branch `sprint/upc-wire-compute`, plan `docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md`, ADR-108 Proposed): S1.2 root cause fixed in the translator (a `csrr` ran the CSR read-modify-write and clobbered a4/a5; kernel 105 MBC words smaller, userland and Doom byte-identical); getpid round-trips through the owned kernel but stays off (`GETPID_INJECT=false`: kernel pid 1 vs BPF slot 0); `upc-bootctl console` types into the live xv6 shell (stdin or the tty bridge). **MBC cartridges**: small signed MBC network functions run per flow by `ebpf/cartridge-ebpf` (own object, cart_xdp 42,743 / cart_tick 146,897 processed insns of a 500,000 gate; monad-cpu-ebpf untouched), shared `no_std` step `monad_common::cart`, host tools `crates/upc-cartridge` (`cart`), signed loader `cmd/upc-cartridgectl` (Gungnir ML-DSA-65, validator, Sophia or file registry, metrics on 26610). Three cartridges: token-bucket rate limiter (verdicts == qos-ebpf), 1:N flow sampler, int8 anomaly scorer whose scores reach `services/anomaly` through the new `cmd/anomaly` (port 19018). Anamnesis replay is bit-exact (`cart replay`). Lich hooks: `tomb/lich/UPC-CARTRIDGE-HOOKS.md` (three-engine differential). Interpreted cartridges cost ~3-7 ns per instruction, so benchmark gates #1(a) and #2 fail (rate limiter +193 ns, sampler +216 ns over the empty-pass baseline, bars 150 and 120); #1(b) (1.25x native qos-ebpf) and #3 (232,450 scored flows/s) pass; the scorer is trained on synthetic flows only. Deferred: Phases 6-8 and 18 (east as a node). See `wiki/UPC-Cartridges.md`.
 - WAVE10F Forge Real-Attention Gemma 4 (2026-04-17, plan `docs/battle-plans/WAVE10F-FORGE-REAL-ATTENTION-GEMMA4.md`): zhenai-forge gained a complete Gemma 4 E2B training path in `crates/zhenai-forge/src/gemma4.rs` (3000+ LOC). Real attention forward+backward (Q/K/V/softmax/RoPE/GQA), hybrid sliding/global mask per layer, partial-rotary RoPE on full layers, per-head Q/K-norm + weightless V-norm, gelu_pytorch_tanh, final logit softcap=30, Per-Layer Embeddings (PLE chain), unified KV gradient routing for layers 20-34 → producer 18/19, LoRA injection on Q/K/V/O at all 110 active targets, Adam with NaN guard. Verified end-to-end on real `/var/zhen/models/gemma-4-E2B-it.gguf` (9.3GB GGUF converted from HF safetensors at `/home/govan/tmp/gemma-4-E2B-it/` via llama.cpp@30dce2c convert_hf_to_gguf.py): grad-norm probe shows healthy=35/35 zero=0 nan=0 across all layers, healthy=110/110 LoRA targets, training loss descends 21.28→12.02→6.78 over 3 steps. CLI subcommand `zhenai-forge train-gemma4 --model ... --data ...` wired. GPU port landed 2026-04-20 (Phase 7 Steps A-E per `notes/wave10f-step-c-battle-plan.md`) — `zhenai-forge train-gemma4` defaults to GPU, `--cpu` falls back. Warm-path per-step: **2.05s** (vs 58s pure CPU, 43s hybrid-fwd). 10-step descent on fixed tokens: 19.96 → 0.043 (but that was memorization on 1 example — see below). Full timing at `notes/wave10f-step-c-timing.md`.
@@ -1235,6 +1239,8 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | monad | 19004 | gRPC | State Management |
 | sophia | 19005 | gRPC | Knowledge Graph |
 | cuirass | 19006 | HTTP | Control Plane Service |
+| sword | 19011 | HTTP | Deploy service through Cuirass (was Canary's port; Canary folded into Sword), uid 16746 |
+| chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east |
 | kev-poller | 19120 | HTTP | CISA KEV feed poller (ADR-055) |
 | dashboard-backend | 20000 | HTTP/WS | Observability |
 | kanban-app | 20001 | HTTP/WS | User Interface |

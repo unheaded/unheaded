@@ -1,6 +1,6 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-10-23
+**Last updated:** 2026-10-26
 **Total:** 105 entries (ADR-001 to ADR-108, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
@@ -16,12 +16,12 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-23).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count).
 
 | Status | Count |
 |--------|-------|
-| Accepted | 48 |
-| Proposed | 20 |
+| Accepted | 49 |
+| Proposed | 19 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -122,7 +122,7 @@ Counted from the Full Index by the first word of each status (2026-10-23).
 | [061](ADR-061-cloud-rented-training-purpose-built-coding-model.md) | Cloud-Rented Training for Purpose-Built Unheaded Coding Model — pivot from off-the-shelf search to bespoke LoRA on rented A100/H100 | **Research / Pipe Dream** (~$5-50 budget when activated; gated on WAVE13 RETRAIN clearing first) | 2026-05-04 |
 | [062](ADR-062-fuzz-redteam-pentest-framework.md) | Fuzz / Red-Team / Pentest Framework (Lich Codified) — three-tier offensive taxonomy, numbered LICH-NNN campaigns, activation rules | **Accepted** (existing pattern ratified; new campaigns slot in) | 2026-05-04 |
 | [063](ADR-063-akira-summons-lich-randomized-ctf.md) | Akira Randomly Summons the Lich for CTF Mode — bounded, opt-in, randomized adversarial probing of live Kingdom services | **Pipe Dream** (activates after ADR-062's framework has 3 campaigns clean for 7 days) | 2026-05-04 |
-| [064](ADR-064-wotan-active-active-cluster-k8s-native.md) | Wotan Active/Active Cluster — 3-node minimum, K8s-native StatefulSet, Raft membership + topic-leader election, broadcast replication. Supersedes ADR-035 ("active passive works but doesn't scale") | **Proposed** (4-phase rollout; ADR-035 stays running through cutover) | 2026-05-05 |
+| [064](ADR-064-wotan-active-active-cluster-k8s-native.md) | Wotan Active/Active Cluster — 3-node minimum, K8s-native StatefulSet, Raft membership + topic-leader election, broadcast replication. Supersedes ADR-035 ("active passive works but doesn't scale") | **Proposed** (4-phase rollout; ADR-035 stays running through cutover). Snapshot transfer: the RPC answers Unimplemented since S-REAL-STEEL Phase 3 (was an empty Final chunk); implementing it is a Phase 1 prerequisite | 2026-05-05 |
 | [065](ADR-065-aya-major-version-migration.md) | aya 0.1.x → 0.13.x Major-Version Migration Plan | **Superseded** (Phase A finding: aya splits userspace/kernel independently; no migration needed) | 2026-05-07 |
 | [066](ADR-066-tonic-minor-bump-trace-collector.md) | `cmd/trace-collector` tonic 0.10 → 0.12 — closes 4 CVE-class advisories in rustls-webpki + protobuf chain | **Accepted** | 2026-05-08 |
 | [067](ADR-067-mbc-isa-v2-and-upc-abi-v1.md) | MBC ISA v2 + UPC ABI v1 freeze — 5 new opcodes (FENCE/MRET/SRET/LR.W/SC.W), priv_level field, Boot Protocol v2, memory-mapped CSR region | **Accepted** (Phase 0 ASCEND-LINUX gate) | 2026-05-08 |
@@ -142,7 +142,7 @@ Counted from the Full Index by the first word of each status (2026-10-23).
 | [085](ADR-085-cicd-artifact-layout.md) | CI/CD pipeline polish — canonical artifact layout | **Planned** | 2026-07-24 |
 | [086](ADR-086-muninn-observability-pipeline.md) | Muninn — observability fan-out pipeline | **Planned** | 2026-07-24 |
 | [087](ADR-087-noc-network-device-monitoring.md) | NOC — network device monitoring and configuration management | **Planned** | 2026-07-24 |
-| [088](ADR-088-kubernetes-service-orchestration.md) | Kingdom Deployment Substrate Ladder — K8s / Terraform / Ansible / NixOS / packaging as a learning ladder over 56 real service components | **Planned** | 2026-07-24 |
+| [088](ADR-088-kubernetes-service-orchestration.md) | Kingdom Deployment Substrate Ladder — K8s / Terraform / Ansible / NixOS / packaging as a learning ladder over 56 real service components | **Planned**. LXD substrate in use: Sword deploys into LXD through Cuirass, live on west since 2026-10-26 (S-REAL-STEEL) | 2026-07-24 |
 | [089](ADR-089-dev-staging-main-promotion-workflow.md) | `develop` → `staging` → `main` promotion workflow — one reviewable unit per commit, never promote red, ratchet by rule ID, revert not force-push | **Accepted** (Stevie's call) | 2026-08-03 |
 | [090](ADR-090-total-source-sweep-slop-removal.md) | The Total Source Sweep — read all tracked source files once, fixed order, resumable TSV ledger, explicit "NOT slop" list | **Accepted** (2026-10-26, S-REAL-STEEL E1; first tranche applied, file ledger created) | 2026-08-03 |
 | [091](ADR-091-the-well-initdb-ordering.md) | The Well — one orchestrator in `/docker-entrypoint-initdb.d`, migrations mounted read-only elsewhere; never nest a bind mount inside another's mountpoint | **Accepted** | 2026-08-04 |
@@ -161,5 +161,5 @@ Counted from the Full Index by the first word of each status (2026-10-23).
 | [104](ADR-104-zhenai-claude-api-bridge.md) | ZhenAI → Claude API bridge: `pkg/claudebridge` + `cmd/zhen-claude`, official Go SDK, claude-opus-5-5 with adaptive thinking, streaming and refusal fallbacks; tools from zhentools Providers, every Claude tool call through the Champion gate (mutating refused pending confirmation; MCP tools read-only by default); hard per-day spend cap from usage and a price table; audit without prompt text; ADR-053 Router interface. Not the API's MCP connector (west is not internet-facing). Reverses ADR-017's "scrapped" | **Proposed** (built; run live since 2026-10-23) | 2026-10-23 |
 | [105](ADR-105-pq-hybrid-key-exchange-and-crypto-inventory.md) | Hybrid ML-KEM key exchange on every link we own: Strict (hybrid-only, TLS 1.3) and Preferred (Go default, TLS 1.3 floor) profiles in `pkg/tls`; aws-lc-rs for rustls; a deterministic CycloneDX 1.6 crypto inventory (`compliance/crypto/cbom.cdx.json`) with a stale gate and a shrink-only classical-KEX lint; non-expiring ML-DSA-65 evidence seals; signed `drift.*` Wotan topics; WireGuard PSK rotation; CNSA 2.0 not claimed. Host changes (Well PG 18, strict sshd, PSK rotation, keys) are escalations E1-E5 (implementation decisions recorded 2026-10-23) | **Proposed** | 2026-10-23 |
 | [106](ADR-106-two-brains-one-gate.md) | Two brains, one gate: out-of-band confirmation (`deny`/`tty`/`queue`, the code never in model context), `zhen/*` branch-sandbox writes, privacy tiers T0/T1/T2, routing from a pre-registered hold-out eval, `run_check` sandbox, Kanban claims, one GPU lease and overnight guards, the flywheel with Claude text excluded by default | Proposed | 2026-10-23 |
-| [107](ADR-107-chaos-safety-envelope.md) | Chaos safety envelope: one engine (`yaldabaoth.Service` in chaos-controller, no built-in injectors, dry run by default), a blast-radius allowlist file (resolved targets only, hard denies, limits), three abort paths (HTTP, Wotan `chaos.abort`, `/run/unheaded/chaos/ABORT`), a revert journal written before every fault (TTL, start replay, `revert-all` in ExecStopPost, removed only when verified) and an ADR-100 steady state (real probes plus the Kingdom fast-burn guard) | **Proposed** | 2026-10-23 |
+| [107](ADR-107-chaos-safety-envelope.md) | Chaos safety envelope: one engine (`yaldabaoth.Service` in chaos-controller, no built-in injectors, dry run by default), a blast-radius allowlist file (resolved targets only, hard denies, limits), three abort paths (HTTP, Wotan `chaos.abort`, `/run/unheaded/chaos/ABORT`), a revert journal written before every fault (TTL, start replay, `revert-all` in ExecStopPost, removed only when verified) and an ADR-100 steady state (real probes plus the Kingdom fast-burn guard) | **Proposed** (Stevie to accept); game day 1 proved the envelope live 2026-10-26: netem, container kill, systemd stop/kill on east, packet chaos, abort in 0.12 s / 0.88 s, crash revert 0.12 s, zero residue | 2026-10-23 |
 | [108](ADR-108-mbc-cartridges.md) | MBC cartridges: small signed MBC network functions run per flow by `ebpf/cartridge-ebpf` (own object and verifier budget; monad-cpu-ebpf untouched), shared `no_std` step in `monad_common::cart`, XDP stage (forward-only, <=64 insns) + tick stage (<=256 per call, loop_bound), faults fail open with a per-slot breaker, Sophia registry (provisional `x-cartridge`), Cartridge ABI v0; three cartridges (rate limiter == qos-ebpf, sampler, int8 scorer → services/anomaly), bit-exact replay, three-engine differential for the Lich; benchmark gates #1(a)/#2 fail on interpreter cost; RFC Editor items open | Proposed | 2026-10-23 |
