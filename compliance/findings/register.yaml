@@ -320,7 +320,7 @@ findings:
     step: 7
     plan: >-
       The ADR-034 / ADR-103 sprint (certificates, distribution, service auth). The code is ready: Wotan gRPC,
-      wotan-client, pkg/transport/mtls and pkg/mesh are hybrid-only TLS 1.3 the day TLS is on (S-QUANTUM-ARMOR Phase 5)
+      wotan-client and pkg/transport/mtls are hybrid-only TLS 1.3 the day TLS is on (S-QUANTUM-ARMOR Phase 5)
     decision: when to turn TLS on for internal links (accepted as plaintext 2026-09-30 with the edge finding)
 
   - id: FND-018

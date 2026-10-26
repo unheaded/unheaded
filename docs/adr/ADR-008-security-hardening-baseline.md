@@ -35,10 +35,10 @@ We adopt a layered security baseline addressing all five threat categories:
 
 ### Layer 2: Transport Security — mTLS (The Sacred Sigils)
 
-**Implementation:** `pkg/mesh/mtls/`
+**Implementation:** `pkg/mesh/mtls/` (deleted 2026-10-26 with the unused Go service mesh, S-REAL-STEEL E1 G10d; the first-party mTLS that remains is `pkg/transport/mtls`)
 
 - Mutual TLS with SPIFFE identity verification between all services
-- CA + service certificate generation via `pkg/mesh/mtls/certs.go`
+- CA + service certificate generation via `pkg/mesh/mtls/certs.go` (deleted, see above)
 - Server: `tls.Config{ClientAuth: tls.RequireAndVerifyClientCert}`
 - Client: Peer certificate validation with SPIFFE ID extraction
 - TLS 1.2 minimum enforced (TLS 1.3 preferred)
