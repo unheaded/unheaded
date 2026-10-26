@@ -11,6 +11,10 @@
 //	chaos-controller revert-all   revert every journaled fault; exit 0 only
 //	                              when the journal is empty afterwards (the
 //	                              unit's ExecStopPost)
+//	chaos-controller packet-chaos --iface steel0-h --flow-label 0x5EE1 ...
+//	                              one packet_chaos experiment on a lab
+//	                              interface from the command line, with
+//	                              --dry-run to print the plan (packetcmd.go)
 //
 // Environment:
 //
@@ -86,8 +90,9 @@ func loadConfig(getenv func(string) string) config {
 	}
 }
 
-// registerInjectors adds the real injectors. There are none yet: Phase 11
-// brings netem and container kill. Every type is refused until then.
+// registerInjectors adds the real injectors; injectors_linux.go sets it
+// (packet_chaos today; Phase 11/12 netem, container kill and systemd when
+// they land). Every other type is refused for want of an injector.
 var registerInjectors = func(*yaldabaoth.Service) {}
 
 // wotanPublisher joins each topic as chaos-controller before publishing.
@@ -380,6 +385,9 @@ func main() {
 	c := loadConfig(os.Getenv)
 	if len(os.Args) > 1 && os.Args[1] == "revert-all" {
 		os.Exit(revertAll(c, os.Stdout))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "packet-chaos" {
+		os.Exit(packetChaosMain(os.Args[2:]))
 	}
 	log := logger.New(os.Stderr)
 	s, err := build(c, log)

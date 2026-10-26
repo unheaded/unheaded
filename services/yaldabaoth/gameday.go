@@ -39,9 +39,12 @@ const (
 // ── Types ────────────────────────────────────────────────────────────────
 
 // FaultRule is the older src/dst service fault rule (DROP, DELAY, CORRUPT,
-// DUPLICATE). It runs as the experiment RuleExperiment makes of it, which
-// names no allowlisted target and is therefore refused: there is no packet
-// injector for service pairs (packet chaos is Phase 13, on lab interfaces).
+// DUPLICATE). It runs as the packet_chaos experiment RuleExperiment makes
+// of it (D-16): DROP is netem loss on the marked band, DELAY netem delay,
+// CORRUPT the program's bitflip mode (stale CRC), DUPLICATE its duplicate
+// mode. It names a service pair, not a lab interface or flow labels, so
+// the allowlist refuses it: packet chaos runs on steel<N>-h with explicit
+// flow labels (Phase 13).
 type FaultRule struct {
 	SrcServiceID uint8         `json:"src_service_id"`
 	DstServiceID uint8         `json:"dst_service_id"`
@@ -58,13 +61,16 @@ func RuleExperiment(r FaultRule) *Experiment {
 		Target:   Target{Kind: KindPacket, ID: fmt.Sprintf("svc%d-svc%d", r.SrcServiceID, r.DstServiceID)},
 		Schedule: &Schedule{Duration: r.Duration},
 	}
+	e.Type = ExpTypePacketChaos
 	switch r.FaultType {
 	case "DROP":
-		e.Type = ExpTypeNetworkLoss
-		e.Parameters = Params{"loss_percent": float64(r.DropRatePPM) / 10000}
+		e.Parameters = Params{"mode": "marker", "loss_percent": float64(r.DropRatePPM) / 10000}
 	case "DELAY":
-		e.Type = ExpTypeNetworkDelay
-		e.Parameters = Params{"delay_ms": float64(r.DelayUS) / 1000}
+		e.Parameters = Params{"mode": "delay", "delay_ms": float64(r.DelayUS) / 1000}
+	case "CORRUPT":
+		e.Parameters = Params{"mode": "bitflip"}
+	case "DUPLICATE":
+		e.Parameters = Params{"mode": "duplicate", "duplicate_percent": float64(r.DropRatePPM) / 10000}
 	default:
 		e.Type = ExpTypeCustom
 	}

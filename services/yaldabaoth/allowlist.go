@@ -49,6 +49,7 @@ var typeKinds = map[ExperimentType][]TargetKind{
 	ExpTypeLatencySpike:     {KindLXD, KindNetns, KindPacket},
 	ExpTypeContainerKill:    {KindLXD},
 	ExpTypeProcessKill:      {KindSystemd},
+	ExpTypePacketChaos:      {KindPacket},
 }
 
 // hardDenied names that no allowlist file can allow.
@@ -60,7 +61,8 @@ var (
 	projectRe       = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
 	labelKVRe       = regexp.MustCompile(`^([a-z][a-z0-9_-]{0,31})=([A-Za-z0-9._-]{1,63})$`)
 	hostRe          = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
-	paramNames      = map[string]bool{"delay_ms": true, "jitter_ms": true, "loss_percent": true}
+	paramNames      = map[string]bool{"delay_ms": true, "jitter_ms": true, "loss_percent": true,
+		"flow_labels": true, "mode": true, "duplicate_percent": true}
 )
 
 // Duration reads "10m" in YAML.
@@ -363,6 +365,13 @@ func (a *Allowlist) checkLimits(exp *Experiment, def time.Duration) error {
 	}
 	if loss > a.Limits.MaxLossPercent {
 		return refuse(RefuseLimits, "loss %.1f%% over %.1f%%", loss, a.Limits.MaxLossPercent)
+	}
+	dup, _, err := number(exp.Parameters, "duplicate_percent")
+	if err != nil {
+		return refuse(RefuseLimits, "%v", err)
+	}
+	if dup > a.Limits.MaxLossPercent {
+		return refuse(RefuseLimits, "duplicate %.1f%% over %.1f%% (the loss limit bounds it)", dup, a.Limits.MaxLossPercent)
 	}
 	delay, _, err := number(exp.Parameters, "delay_ms")
 	if err != nil {
