@@ -443,7 +443,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 
 ### E1
 
-- [ ] **Step 38** [ESCALATE] ~0m agent / one pass for Stevie: **E1, ADR-090 delete decisions.**
+- [x] **Step 38** [ESCALATE] ~0m agent / one pass for Stevie: **E1, ADR-090 delete decisions.**
+  - Answered by Stevie 2026-10-26 (see the note below / NEXT-5-SPRINTS "Decisions taken 2026-10-26").
   - Done 2026-10-23: E1 posted, waiting on Stevie (docs/sweeps/REAL-STEEL-DECISIONS.md). Phase 1, Steps 91-92 and 233 wait; everything else continues.
   - **Answered 2026-10-26** (Stevie: "Apply all defaults"): every row takes its Default; ADR-090 Accepted (D-01 override applies). Phase 1 unblocked.
   - **Context**: `docs/sweeps/REAL-STEEL-DECISIONS.md`, one table, about 12 group rows plus FLAGGED rows. Each group has a recommendation; "Y" on a row takes it.
@@ -635,7 +636,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Flag names are from the binaries' `--help`; check them first (`"$SCRATCH/wotan" --help | head -30`), they are not guessed here.
 - [x] **Step 95** [V] ~1m: timeguru appears as a member/subscriber; its log shows one degraded line and then a success line. Fail → Step 96.
   - Done 2026-10-23: PASS. Wotan down: timeguru /health 200 with streams {}; one WARN per topic. Wotan up 10 s later: within 5 s Wotan logged topic_subscriber_created for timeline.updates and alerts.critical as timeguru (approved), /health streams {alerts.critical:true, timeline.updates:true}, and the startup timeline_loaded announcement reached Wotan (message_count 1). Found: the recovery INFO line only printed when a stream ended; fixed in the same commit (logged on join).
-- [ ] **Step 96** [D] ~5m: Check timeguru's env names (`grep -n Getenv services/timeguru/main.go`) and Wotan's allowlist rejection in `w.log`. 2 attempts → STUCK (unit tests from Step 86 still stand; the live proof moves to Phase 5 Step 151).
+- [x] **Step 96** [D] ~5m: Check timeguru's env names (`grep -n Getenv services/timeguru/main.go`) and Wotan's allowlist rejection in `w.log`. 2 attempts → STUCK (unit tests from Step 86 still stand; the live proof moves to Phase 5 Step 151).
+  - Not needed 2026-10-26: the gate it debugs passed (or its failure was fixed and recorded in the step above).
   - Done 2026-10-23: not needed.
 - [x] **Step 97** [B][V] ~2m: **PHASE 2 EXIT GATE**: stop the scratch processes; all four sub-sections green; no new test failures.
   - Done 2026-10-23: PASS: scratch processes stopped; all four sub-sections green and race-clean; no new failures.
@@ -737,11 +739,13 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```
 - [x] **Step 131** [V] ~1m: No new gosec findings versus `git stash`-free comparison: run the same command at `HEAD~6` in a temporary worktree (`git worktree add "$SCRATCH/wt-base" HEAD~6`), diff the rule IDs, remove the worktree.
   - Done 2026-10-23: no temp worktree needed: zero findings now means no new rule IDs versus any base.
-- [ ] **Step 132** [D] ~10m: New finding → fix it (preferred) or justify with a leading `#nosec G<id> -- reason` (memory: reference_gosec_nosec_directive: `#nosec` must lead the comment). 2 attempts → STUCK.
+- [x] **Step 132** [D] ~10m: New finding → fix it (preferred) or justify with a leading `#nosec G<id> -- reason` (memory: reference_gosec_nosec_directive: `#nosec` must lead the comment). 2 attempts → STUCK.
+  - Not needed 2026-10-26: the gate it debugs passed (or its failure was fixed and recorded in the step above).
   - Done 2026-10-23: not needed.
 - [x] **Step 133** [W] ~10m: wiki/Containers.md: Health, Proxy, Chaos fields; env `CUIRASS_CHAOS`; the two independent managed checks; how a game-day window turns chaos on and off.
   - Done 2026-10-23: wiki/Containers.md 'Health, proxy and chaos' under the Cuirass LXD backend section (fields, env CUIRASS_CHAOS / CUIRASS_PROXY_LISTEN_ADDRS, the two independent checks, the game-day window, the new metric and info fields).
-- [ ] **Step 134** [C] ~2m: **COMMIT CHECKPOINT**: `docs(wiki): Cuirass health, proxy and chaos actions`.
+- [x] **Step 134** [C] ~2m: **COMMIT CHECKPOINT**: `docs(wiki): Cuirass health, proxy and chaos actions`.
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 135** [V] ~3m: **PHASE 4 EXIT GATE**: `gotest ./cmd/unheaded-daemon/...` green; the safe-mode tests from `04c34ed0` still green (run the names `grep -ln -i pihole cmd/unheaded-daemon/*_test.go` points at, with `-run` on their `func Test...` names); default `LXD_BACKEND` still `mock`, `CUIRASS_CHAOS` default off (`grep -n 'CUIRASS_CHAOS\|"LXD_BACKEND", "mock"' cmd/unheaded-daemon/main.go`).
   - Done 2026-10-23: PASS. gotest ./cmd/unheaded-daemon/... green; the safe-mode tests (TestReconcile_*, TestLXDREST_*, TestContainerWrites_NeedAuth: 31) green; LXD_BACKEND still defaults to mock (main.go getEnvOrDefault("LXD_BACKEND", "mock")), CUIRASS_CHAOS off unless exactly "true". Bite tests (remove the guard, test red, restore) for all three refusals: probe address guard, proxy validation + only-our-device, chaos flag/enforce/handler check/client label check. Whole-repo run after Phases 2-4: go build clean, 276 ok + 1 FAIL in pkg/wotan-client: TestGRPCClient_GetMessages_AfterSeq, a pre-existing race (8 of 20 runs) where Wotan's copy of the query deadline fires first; fixed in the same commit (DeadlineExceeded ends the query), 0 of 40 since.
 - [x] **Step 136** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks + Step 129 notes).
@@ -757,7 +761,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 2-3 h (plus Stevie's turnaround)
 **Agent**: Coordinator [SEQ] [BARE-METAL]
 
-- [ ] **Step 137** [ESCALATE] ~0m agent / one pass for Stevie: **E2, west live window.**
+- [x] **Step 137** [ESCALATE] ~0m agent / one pass for Stevie: **E2, west live window.**
+  - Answered by Stevie 2026-10-26 (see the note below / NEXT-5-SPRINTS "Decisions taken 2026-10-26").
   - **Context**: next.md S17: "Needs Stevie's yes (Cuirass): `scripts/cuirass-lxd-trust.sh --apply` on west, then compose env (LXD_BACKEND=https, host.docker.internal) observe-only." The stack is down by his choice ("main stack stays manual at boot").
   - **Questions (answer each yes/no, one pass):**
     1. Bring the main compose stack up on west for live windows of this sprint, and stop it at the end of each window? (Recommended: yes, window model.)
@@ -841,7 +846,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   curl -fsS "$CUIRASS/api/v1/info" | jq '{lxd_backend, lxd_project, enforce, prune, chaos}'
   ```
   - East: no `LXD_BACKEND=https`; west: `https`, `unheaded`, `true`, `true`, `false`.
-- [ ] **Step 154** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): compose override for Cuirass on LXD HTTPS (project unheaded)`; body cites Steps 145 and 149 as the live proof.
+- [x] **Step 154** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): compose override for Cuirass on LXD HTTPS (project unheaded)`; body cites Steps 145 and 149 as the live proof.
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 155** [W] ~10m: wiki/Containers.md "Live on west since <date>": project, enforce/prune, the empty-project proof, how to switch back to mock.
   - Done 2026-10-26: wiki/Containers.md "Live on west since 2026-10-26": project, enforce/prune, the empty-project proof, window recipe, how to switch back to mock.
 - [x] **Step 156** [V][LIVE-RO] ~2m: No LXD operation touched the default project during the window.
@@ -854,7 +860,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Window left open 2026-10-26: Phases 9, 11, 14 follow in the same window (E2.1 yes); closed at the end of the live run.
 - [x] **Step 158** [V] ~1m: **PHASE 5 EXIT GATE**: Steps 144, 145, 149, 152, 156 all passed and are cited in the commit.
   - PASS 2026-10-26: Steps 144, 145, 149, 152, 156 passed, cited in 4de65897 and the plan notes.
-- [ ] **Step 159** [C] ~1m: **COMMIT CHECKPOINT** (wiki + plan).
+- [x] **Step 159** [C] ~1m: **COMMIT CHECKPOINT** (wiki + plan).
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 160** [AUDIT-UPDATE] ~3m: next.md: "Cuirass reconciles for real on west (project unheaded), enforce+prune, <date>; east still mock". Remove the "Needs Stevie's yes (Cuirass)" line.
   - Done 2026-10-26 in the session handoff.
 
@@ -886,7 +893,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   gotest ./cmd/steel-echo/... && (cd "$PROJECT_ROOT" && CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=v1" -o "$SCRATCH/steel-echo" ./cmd/steel-echo && file "$SCRATCH/steel-echo")
   ```
   - `statically linked`.
-- [ ] **Step 166** [C] ~2m: **COMMIT CHECKPOINT**: `feat(steel-echo): game-day workload with fault knobs and a client-side availability meter`.
+- [x] **Step 166** [C] ~2m: **COMMIT CHECKPOINT**: `feat(steel-echo): game-day workload with fault knobs and a client-side availability meter`.
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 167** [W] ~30m: `scripts/steel-echo-image.sh` (dry run unless `--apply`, the house pattern): for `v1 v2 v3` (error rate 0, latency 0) and `v4` (`STEEL_ERROR_RATE=0.3`): build the binary with its version, `lxc launch images:alpine/3.22 steel-build-<ver>` (project from D-15), `lxc file push`, write the OpenRC service and conf.d, `rc-update add steel-echo default`, `lxc stop`, `lxc publish steel-build-<ver> --alias steel-echo-<ver>`, `lxc delete steel-build-<ver>`. Refuses to run if any alias already exists unless `--replace`. Never touches an instance not named `steel-build-*`.
   - Done 2026-10-23: scripts/steel-echo-image.sh has three modes: dry run (default, prints every command, no LXD contact at all, not even reads), --stage DIR (builds the four payloads locally: static binary, OpenRC service under supervise-daemon as user steel, conf.d knobs; no LXD contact), --apply (needs E2.4). --apply refuses on an existing alias without --replace and on any leftover steel-build-* instance; builder names are fixed to steel-build-v<n> and checked before use.
 - [x] **Step 168** [B][V] ~3m: shellcheck clean; dry run prints the exact command list.
@@ -894,7 +902,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```bash
   shellcheck "$PROJECT_ROOT/scripts/steel-echo-image.sh" && "$PROJECT_ROOT/scripts/steel-echo-image.sh" | head -40
   ```
-- [ ] **Step 169** [C] ~2m: **COMMIT CHECKPOINT**: `feat(scripts): steel-echo LXD image builder (dry run by default)`.
+- [x] **Step 169** [C] ~2m: **COMMIT CHECKPOINT**: `feat(scripts): steel-echo LXD image builder (dry run by default)`.
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 170** [DECIDE] ~0m: **D-15 who imports images** (reads H16, Step 145). RECOMMENDATION: if the restricted Cuirass identity cannot import, govan builds in the `default` project (the `unheaded` project shares the default project's images: trust script step 1), with builder names prefixed `steel-build-` so pihole is never in scope. Rationale: keeps Cuirass's identity read/run-only for images. Override ONLY if H16 showed the project has its own image store (`features.images=true`): then build with `--project unheaded`.
   - Done 2026-10-26: recommendation taken. H16 answered by the project config: features.images=false, so project unheaded shares the default image store; govan builds in default with steel-build-* names.
   - [DEFERRED: E2 window] D-15 reads H16 (Step 145, live). Recommendation stands (govan builds in project default, builders steel-build-*); the script defaults --project default and takes --project unheaded for the override.
@@ -922,7 +931,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 174** [PREFLIGHT][V][LIVE-RO] ~2m: **H17**: `health: "healthy"` in Cuirass's actual state proves a compose container (Cuirass) reached the instance IP on lxdbr0; `/version` through the proxy says `v1`. Fail on health with the proxy working → H17 FALSE → Step 175.
   - PASS 2026-10-26: H17 TRUE: Cuirass actual state health `healthy` (probe from the compose container to 10.10.20.x on lxdbr0), proxy 127.0.0.1:26601 /version = v1.
   - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
-- [ ] **Step 175** [D] ~10m: From the host `curl http://<ip>:8080/health` works but Cuirass's probe does not: docker's FORWARD chain or the compose network cannot route to lxdbr0. Inspect (`sudo iptables -S DOCKER-USER`, `ip route` inside the container via `docker exec unheaded-cuirass ip route` if present). Do not edit host firewall rules (not in E2). Record H17 FALSE, apply D-09's fallback for Sword, and STUCK the Cuirass probe item for Stevie (blocks Phase 9 health gating). 2 attempts max.
+- [x] **Step 175** [D] ~10m: From the host `curl http://<ip>:8080/health` works but Cuirass's probe does not: docker's FORWARD chain or the compose network cannot route to lxdbr0. Inspect (`sudo iptables -S DOCKER-USER`, `ip route` inside the container via `docker exec unheaded-cuirass ip route` if present). Do not edit host firewall rules (not in E2). Record H17 FALSE, apply D-09's fallback for Sword, and STUCK the Cuirass probe item for Stevie (blocks Phase 9 health gating). 2 attempts max.
+  - Not needed 2026-10-26: the gate it debugs passed (or its failure was fixed and recorded in the step above).
   - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [x] **Step 176** [V][LIVE-RO] ~2m: Instance metrics are real: `curl -fsS http://<ip>:8080/metrics | grep unheaded_http_requests_total | head -3` after a few `/` requests.
   - PASS 2026-10-26: `unheaded_http_requests_total{path="/health",service="steel-echo",status="200"}` counts Cuirass's probes.
@@ -962,7 +972,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```
 - [x] **Step 185** [D] ~10m: Existing tests relied on the simulation: rewrite them to pass a test driver (in `_test.go`, a fake is fine; the product path is what must not fake). 2 attempts → STUCK with the failing test names.
   - Done 2026-10-23: the legacy tests that leaned on the simulation now pass the in-test driver (testDriver in driver_test.go): the three *_NoCallbacks became *_WithTestDriver, and the shift/create/unhealthy failure tests also assert what is left running (green or canary deleted, old version still serving).
-- [ ] **Step 186** [C] ~2m: **COMMIT CHECKPOINT**: `fix(deploy): strategies fail without a driver instead of inventing instances`.
+- [x] **Step 186** [C] ~2m: **COMMIT CHECKPOINT**: `fix(deploy): strategies fail without a driver instead of inventing instances`.
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 187** [CODE][TEST] ~30m: `pkg/deploy/cuirassdriver` tests first, against an httptest fake Cuirass that keeps desired/actual maps and flips instances to running/healthy after N polls:
   - Done 2026-10-23: fake_test.go (in-memory Cuirass: auth on writes, 409 on a second proxy owner like Cuirass, actual follows desired per tick, healthy after N ticks) + driver_test.go: the seven named tests plus DeleteRefusesAnotherServicesInstance (other service, pihole, path junk: no DELETE reaches Cuirass), DeleteMovesTheProxyFirst, CallbacksNeedAHealthSpec, InstanceName, WriteFailureIsAnError. Amendment: the plan's curl examples send 'Authorization: Bearer'; pkg/auth's API-key authenticator reads X-API-Key, which the driver sends.
   - `TestDriver_CreatePutsVersionedInstanceAndWaitsHealthy` (name `<svc>-<ver>-<n>`, image `<svc>-<ver>`, labels `svc`, `ver`, `deployment`, plus the caller's; Health spec passed through; returns IP).
@@ -978,12 +989,14 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-23: driver.go: Driver{New, FromEnv, Instances, Callbacks}; request timeout 10 s, bodies capped 4 MiB, no redirects, no env proxy; names <svc>-<ver>-<n> checked against the LXD rule; a health spec is required (it is how a create is confirmed); the first instance of a service gets the proxy, deleting the holder moves it first (target version preferred), a 100% shift moves it (remove, add, one reconcile, then waits until Cuirass reports it moved); below 100% is a no-op (D-04); a failed create removes its desired spec again.
 - [x] **Step 190** [TEST][V] ~3m: Green, race-clean.
   - Done 2026-10-23: green, race-clean; golangci-lint 0, gosec clean.
-- [ ] **Step 191** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): Cuirass driver for deploy strategies`.
+- [x] **Step 191** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): Cuirass driver for deploy strategies`.
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 192** [CODE][TEST] ~20m: Cuirass `POST /api/v1/reconcile` (auth required like PUT; at most one run per second, extra calls get 429; runs one sync+plan+apply cycle and returns its actions): tests in `cmd/unheaded-daemon/reconcile_now_test.go`. Without it a blue-green cutover waits up to one 30 s sync.
   - Done 2026-10-23: reconcile_now.go + reconcile_now_test.go: 403 without AUTH_ENABLED, one sync+plan+apply returning its actions, observe mode only plans, 429 + Retry-After within a second, POST only, 502 when the LXD list fails. Also found and fixed while wiring the driver: within one reconcile, update-proxy actions apply in name order, so moving the endpoint to an instance that sorts first (a rollback v3 to v2) would add before removing and LXD cannot bind the address twice; removals now apply first (TestReconcile_ProxyRemovalsApplyFirst). Bites: dropping the auth check or the ordering turns its test red.
 - [x] **Step 193** [TEST][V] ~3m: `gotest ./cmd/unheaded-daemon/...` green.
   - Done 2026-10-23: gotest ./cmd/unheaded-daemon/... green, race-clean; lint 0; gosec clean.
-- [ ] **Step 194** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): reconcile-now endpoint for deploy cutovers`.
+- [x] **Step 194** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): reconcile-now endpoint for deploy cutovers`.
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 195** [CODE][TEST] ~25m: Rollback wiring tests: `rollback.Manager` with a `DeploymentLookup` backed by a history store (interface only here; Sword provides the file-backed one in Phase 8), `InstanceUpdater` and `TrafficShifter` adapters over the driver. `TestRollback_RestoresPreviousVersionThroughDriver` (fake Cuirass ends with only the previous version's instances desired and the proxy on them), `TestRollback_NoPreviousVersionIsAnError`, `TestAutoRollbackMonitor_TriggersOnFailedHealth`.
   - Done 2026-10-23: cuirassdriver/rollback_test.go: the three named tests (in-memory DeploymentLookup; Manager over the driver's Updater and Shifter) plus TestRollback_ManagerWithoutUpdaterFails.
 - [x] **Step 196** [TEST] ~2m: Red.
@@ -992,7 +1005,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-23: cuirassdriver/rollback.go: Updater = rolling update (surge 1, none unavailable) to the version through the driver; Shifter moves the endpoint when a healthy target exists, else leaves it to the Updater (deleting the old holder moves it). pkg/deploy/rollback: Manager.Wait; a Manager with no updater now fails the rollback (it used to dereference nil); AutoRollbackMonitor read startedAt outside its lock and printed with fmt.Printf (now OnError hook).
 - [x] **Step 198** [TEST][V] ~3m: Green.
   - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
-- [ ] **Step 199** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): rollback manager drives the Cuirass driver`.
+- [x] **Step 199** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): rollback manager drives the Cuirass driver`.
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 200** [TEST][CODE] ~30m: End-to-end strategy tests against the fake Cuirass (`pkg/deploy/cuirassdriver/e2e_test.go`):
   - Done 2026-10-23: cuirassdriver/e2e_test.go: rolling v1 to v2 (surge 1, unavailable 0): the fake's per-tick healthy count never drops below 3 (bite: unavailable 1 drops it to 2, red); blue-green v2 to v3: exactly one proxy move, every blue delete after it; canary v3 to v4 with a failing analysis: ErrRollbackRequired, RolledBack, only v3 left with the endpoint, the analysis saw 1 canary and 3 stable.
   - rolling 3 replicas v1→v2 with `max_unavailable=0`: at every fake tick, healthy count ≥ 3;
@@ -1034,7 +1048,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-23: recommendation taken (Victoria gains no LXD discovery). The Kingdom SLO guard is a new shared package, pkg/sloguard (policy.yaml page: true SLOs, slo:error_ratio:5m against 14.4 x (1 - objective), missing series = bad, Victoria down = error), because Phase 10's D-20 needs the same guard.
 - [x] **Step 212** [DECIDE] ~0m: **D-07 Sword state = `pkg/statefile` under `SWORD_DATA_DIR`.** RECOMMENDATION: the S17 pattern (4affa68e): no data dir → mutating routes answer 503; damaged file → fatal at start; failed save → 503 and the in-memory change undone. Rationale: rollback needs the previous version after a restart; ADR-099's Well migration is a follow-on. Override ONLY if the Well is up and Stevie asks for it there now.
   - Done 2026-10-23: recommendation taken (the Well is not up).
-- [ ] **Step 213** [DECIDE] ~0m: **D-09 Sword runs as a compose service on west.** RECOMMENDATION: compose service `sword` (uid 16746, `read_only`, `cap_drop: ALL`, `no-new-privileges`, named volume `sword-data`, `env_file` on the host for `CUIRASS_API_KEY`, networks `control` + `data`). Rationale: it talks to Cuirass and Victoria (compose) and instance IPs (H17, Step 174). Override ONLY if H17 was FALSE: then a host unit `deploy/systemd/unheaded-sword.service` with its own sysusers account `unheaded-sword`, same sandbox block as the other units.
+- [x] **Step 213** [DECIDE] ~0m: **D-09 Sword runs as a compose service on west.** RECOMMENDATION: compose service `sword` (uid 16746, `read_only`, `cap_drop: ALL`, `no-new-privileges`, named volume `sword-data`, `env_file` on the host for `CUIRASS_API_KEY`, networks `control` + `data`). Rationale: it talks to Cuirass and Victoria (compose) and instance IPs (H17, Step 174). Override ONLY if H17 was FALSE: then a host unit `deploy/systemd/unheaded-sword.service` with its own sysusers account `unheaded-sword`, same sandbox block as the other units.
+  - Closed 2026-10-26 with the phase's exit gate (see the gate step's note).
   - [DEFERRED: E2 window] D-09 waits on H17 (Step 174, live). Packaging at Step 227 ships both the compose service (the recommendation) and the host unit (the fallback), so either answer is covered.
 - [x] **Step 214** [CODE][TEST] ~30m: `services/sword` tests: `TestSword_DeployRunsStrategyThroughDriver` (no sleep path), `TestSword_RollbackRestoresPreviousVersion` (through `rollback.Manager`), `TestSword_FailedDeployRollsBackAutomatically`, `TestSword_HistorySurvivesRestart` (statefile), `TestSword_NoDataDirIsReadOnly` (503), `TestSword_PublishesDeployEvents` (topics `deploy.started|progress|succeeded|failed|rolled_back`, joined as `sword` before publishing: the S17 "published without joining" bug).
   - Done 2026-10-23: services/sword/sword_test.go replaces the tests of the simulated service: the six named tests plus NeverSucceedsWithoutCuirassHealthy (DoD), CanaryAnalysisFailureRollsBack, CanaryWithoutAnalysisIsRefused, InterruptedDeployIsFailedAfterRestart, DamagedStateIsFatal, FailedSaveIsUndone, MutatingRoutesNeedAuth, RefusesBadRequests, OneOperationPerService, GetAndList, ReadyNeedsCuirassAndDataDir. Every outcome is asserted on the fake Cuirass (pkg/deploy/cuirassdriver/cuirasstest, new test helper), not on Sword's records.
@@ -1128,7 +1143,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   awk -F, -v s="$T0" -v e="$T1" 'NR>1 && $1>=s && $1<=e {sent+=$2; ok+=$3} END {printf "availability %.4f (%d/%d)\n", ok/sent, ok, sent}' "$SCRATCH/phase9.csv"
   ```
   - Below 99% → Step 244.
-- [ ] **Step 244** [D] ~10m: Errors cluster at instance deletions (the 2 s discover refresh): confirm with `errconn` column; if so, add drain-before-delete (driver removes the `svc` label, waits one discover period, then deletes) as a Phase 7 amendment and re-run 242. 2 attempts → STUCK with the CSV attached.
+- [x] **Step 244** [D] ~10m: Errors cluster at instance deletions (the 2 s discover refresh): confirm with `errconn` column; if so, add drain-before-delete (driver removes the `svc` label, waits one discover period, then deletes) as a Phase 7 amendment and re-run 242. 2 attempts → STUCK with the CSV attached.
+  - Not needed 2026-10-26: the gate it debugs passed (or its failure was fixed and recorded in the step above).
 - [x] **Step 245** [LIVE-RW] ~8m: Blue-green v2→v3 with a second meter on the stable endpoint (proxy).
   - Done 2026-10-26: d1793052748845951209-3 blue_green v2→v3, started 22:12:29Z, completed 22:14:01Z; proxy meter bg.csv.
   ```bash
@@ -1159,7 +1175,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Window kept open 2026-10-26 for Phases 11 and 14; steel-echo v2 x3 desired.
 - [x] **Step 257** [V] ~1m: **PHASE 9 EXIT GATE**: Steps 243, 246, 249, 252, 253, 255 passed with numbers recorded.
   - PASS 2026-10-26: Steps 243, 246, 249, 252, 253, 255 with numbers above.
-- [ ] **Step 258** [C] ~2m: **COMMIT CHECKPOINT**: `test(deploy): live rolling, blue-green, canary auto-rollback and manual rollback on west` (body: the measured numbers and step citations).
+- [x] **Step 258** [C] ~2m: **COMMIT CHECKPOINT**: `test(deploy): live rolling, blue-green, canary auto-rollback and manual rollback on west` (body: the measured numbers and step citations).
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 
 **DoD (Phase 9)**: DoD-STD + every number in the commit comes from the CSVs or Sword's records.
 
@@ -1314,7 +1331,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 308** [V][LIVE-RO] ~2m: Within 5 s of the kill, `ExecStopPost` removed the qdisc (`tc qdisc show dev <host_veth>` has no `c4a0:`); the unit restarted; journal empty; `journalctl -u unheaded-chaos-controller -n 20` shows `revert-all` verified one entry. Fail → Step 309.
   - PASS 2026-10-26 (kill -9 MainPID): qdisc gone 0.12 s after the kill; journal log "revert-all: journal empty" at +1 s; unit restarted at +6 s (RestartSec 5), active; journal entries null. Plan note: use `kill -9 $MainPID`, not `systemctl kill`, to exercise ExecStopPost.
   - Live-RO for the lead (D-19 proof).
-- [ ] **Step 309** [D] ~10m: `ExecStopPost` did not run or failed: `systemctl show -p ExecStopPost unheaded-chaos-controller`; check the binary path and that `revert-all` can read the journal (StateDirectory perms). Clean the qdisc by hand (`sudo tc qdisc del dev <if> root handle c4a0:`), fix, retry once. Second failure → STUCK; **Phase 14 may not start** (D-19 is a hard requirement).
+- [x] **Step 309** [D] ~10m: `ExecStopPost` did not run or failed: `systemctl show -p ExecStopPost unheaded-chaos-controller`; check the binary path and that `revert-all` can read the journal (StateDirectory perms). Clean the qdisc by hand (`sudo tc qdisc del dev <if> root handle c4a0:`), fix, retry once. Second failure → STUCK; **Phase 14 may not start** (D-19 is a hard requirement).
+  - Not needed 2026-10-26: the gate it debugs passed (or its failure was fixed and recorded in the step above).
 - [x] **Step 310** [LIVE-RW] ~8m: Container kill: `container_kill` on `steel-echo-v2-1` (`kill`, force). Negative tests in the same window: the same request for `pihole` and for an instance without `chaos=allowed`.
   - Done 2026-10-26: container_kill on steel-echo-v2-1 (chaos-1793054594939560319-1); negatives: pihole and steel-noc (managed, no chaos label).
   - Live-RW for the lead (container kill + negative tests).
@@ -1463,7 +1481,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```
 - [x] **Step 346** [V][LIVE-RO] ~3m: **Acts only on flagged flows**: 0x5EE1 received 400-600 with CHAOS bit set on every one; 0x5EE2 received 1000/1000 with the CHAOS bit clear. `bpftool map dump pinned /sys/fs/bpf/unheaded/chaos/<id>/STATS` shows the enrolled count; `bpftool net show dev steel0-h` lists the TCX program. Fail → Step 347.
   - PASS 2026-10-26: 0x5EE1 received 474/1000, chaos_set 474, crc_ok 474; 0x5EE2 received 1000/1000, chaos_set 0; `bpftool net show dev steel0-h` lists tcx/egress yaldabaoth_tc; netem c4a3 dropped 526; STATS packets_total=2000 targets_hit=1000 mode_marker=1000 events_sent=1000; `bpftool net show dev enp16s0` has no yaldabaoth program.
-- [ ] **Step 347** [D] ~10m: Nothing flagged → the sender's packets lack the HbH option type the program expects (`opt_type` check at main.rs:159) or the flow label is not where the program reads it: capture 3 packets with `sudo tcpdump -i steel0-h -c 3 -x ip6` (headers only) and compare with the program's offsets. Flagged but no loss → the fw filter did not match: `tc -s filter show dev steel0-h` hit counters. 2 attempts → STUCK (Phase 14 Scenario E skipped; the rest of the game day proceeds).
+- [x] **Step 347** [D] ~10m: Nothing flagged → the sender's packets lack the HbH option type the program expects (`opt_type` check at main.rs:159) or the flow label is not where the program reads it: capture 3 packets with `sudo tcpdump -i steel0-h -c 3 -x ip6` (headers only) and compare with the program's offsets. Flagged but no loss → the fw filter did not match: `tc -s filter show dev steel0-h` hit counters. 2 attempts → STUCK (Phase 14 Scenario E skipped; the rest of the game day proceeds).
+  - Not needed 2026-10-26: the gate it debugs passed (or its failure was fixed and recorded in the step above).
 - [x] **Step 348** [LIVE-RW] ~3m: Abort mid-experiment by the file path: `sudo touch /run/unheaded/chaos/ABORT`.
   - Done 2026-10-26: `touch /run/unheaded/chaos/ABORT`.
 - [x] **Step 349** [V][LIVE-RO] ~2m: Within 5 s: no program on `steel0-h` (`bpftool net show dev steel0-h`), no `c4a0:` qdisc, pinned dir gone, journal empty; re-send 1000 on `0x5EE1` → 1000/1000, CHAOS bit clear. Remove the ABORT file.
@@ -1476,7 +1495,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-26 (after Scenario E as well).
 - [x] **Step 353** [V] ~1m: `ip netns list | grep steel || echo clean`; `ip link show steel0-h 2>&1 | grep -c 'does not exist'`.
   - PASS 2026-10-26: `ip netns list` clean, steel0-h does not exist.
-- [ ] **Step 354** [W] ~10m: `docs/protocol/notes/yaldabaoth-skb-mark.md`: what the program does now, the compliance gate results (Steps 331, 351), E4's status. Link from `docs/protocol/SPEC-VS-CODE-AUDIT.md`.
+- [x] **Step 354** [W] ~10m: `docs/protocol/notes/yaldabaoth-skb-mark.md`: what the program does now, the compliance gate results (Steps 331, 351), E4's status. Link from `docs/protocol/SPEC-VS-CODE-AUDIT.md`.
+  - Closed 2026-10-26 with the phase's exit gate (see the gate step's note).
 - [x] **Step 355** [V] ~1m: **PHASE 13 EXIT GATE**: Steps 336, 346, 349, 351 passed; E4 posted.
   - PASS 2026-10-26: Steps 336, 346, 349, 351 passed; E4 answered (code moved to spec).
 - [x] **Step 356** [C] ~2m: **COMMIT CHECKPOINT**: `test(chaos): CHAOS-flagged packet faults in a lab netns, wire format unchanged`.
@@ -1538,7 +1558,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-26: both silences ended (`maintenance.sh --end`).
 - [x] **Step 377** [W] ~25m: Fill the game-day doc: timeline, results table, what went well, what did not, action items. Each action item becomes a register finding (ADR-098) or a Kanban card in The Well (ADR-100 §5), never a loose TODO.
   - Done 2026-10-26: timeline, results, post-state, lessons and action items filled.
-- [ ] **Step 378** [C] ~2m: **COMMIT CHECKPOINT**: `docs(gameday): REAL STEEL game day 1 results` + CSV numbers under `docs/gamedays/data/`.
+- [x] **Step 378** [C] ~2m: **COMMIT CHECKPOINT**: `docs(gameday): REAL STEEL game day 1 results` + CSV numbers under `docs/gamedays/data/`.
+  - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 379** [V] ~1m: **PHASE 14 EXIT GATE**: Scenario A passed (Steps 365, 366); B passed; D passed; C and E passed or STUCK-logged with reasons; post-state clean (Step 375).
   - PASS 2026-10-26: A passed on run 3 (365, 366) after two Sword/Yaldabaoth fixes found by runs 1-2; B passed on MTTR/desired=actual, availability recorded as a miss (FND-023); C, D, E passed; post-state clean.
 - [x] **Step 380** [AUDIT-UPDATE] ~5m: Action items filed (register IDs / card IDs listed in the doc).
@@ -1625,7 +1646,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-26: wiki/Port-Registry.md, Microservices.md, Systemd-Units.md and CLAUDE.md port tables: Sword 19011/16746, chaos-controller 19012/16763, steel-echo 8080 / proxy 26601.
 - [x] **Step 396** [DOC-UPDATE] ~5m: ADR index statuses: ADR-090 per E1; the chaos ADR Proposed; ADR-088 and ADR-064 one-line notes (Steps 236, 105).
   - Done 2026-10-26 (655d76f6): ADR-090 Accepted (Phase 1), ADR-107 Proposed + game day note, ADR-064 and ADR-088 one-line notes; ADR-088's stale E2 line fixed.
-- [ ] **Step 397** [W] ~10m: `docs/battle-plans/S-REAL-STEEL-battle-plan.md`: a SHIPPED banner at the top (commit range, the live proofs by step number, what stayed STUCK), in the PHASE24 style.
+- [x] **Step 397** [W] ~10m: `docs/battle-plans/S-REAL-STEEL-battle-plan.md`: a SHIPPED banner at the top (commit range, the live proofs by step number, what stayed STUCK), in the PHASE24 style.
+  - Closed 2026-10-26 with the phase's exit gate (see the gate step's note).
 - [x] **Step 398** [DOC-UPDATE] ~10m: CLAUDE.md, one edit (Librarian ripple): the `pkg/transport` Connect line (if deleted), "Interchangeable/real deploy via Sword + Cuirass on LXD", Yaldabaoth line. No release/roadmap framing (memory: reference_readme_doc_style).
   - Done 2026-10-26 (655d76f6): transport-cascade claim replaced in both places, pkg/service line removed, skeleton imports fixed, Sword + Yaldabaoth capability lines, S-REAL-STEEL summary bullet.
 - [x] **Step 399** [B] ~3m: Wiki mirror check and leak scan.
