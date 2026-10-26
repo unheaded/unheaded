@@ -613,7 +613,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 91** [AFTER-E1] ~5m: `transport.Connect`: if E1 G5 = Y it was deleted in Phase 1 (nothing to do). If N (keep), write one line in next.md ("transport.Connect kept by Stevie; unused; finish when a caller appears") and move on: no phase needs it.
   - Done 2026-10-26: E1 G5 = Y, `transport.Connect` deleted in Phase 1 (2c8fdc31); nothing to do.
   - Done 2026-10-23: [AFTER-E1] skipped: waits on E1 G5.
-- [ ] **Step 92** [AFTER-E1] ~20m: xdpsync (`services/loadbalancer/xdpsync.go:102`): if deleted in Phase 1, nothing to do. If kept/parked: test `TestXDPSync_JoinsBeforePublish` (publishes `lb.rebalance` only after Join as `loadbalancer`), fix the name (`xdpsync-service` → `loadbalancer`), add `loadbalancer` to `configs/wotan.yaml` `auto_approve`, `gotest ./services/loadbalancer/...`.
+- [x] **Step 92** [AFTER-E1] ~20m: xdpsync (`services/loadbalancer/xdpsync.go:102`): if deleted in Phase 1, nothing to do. If kept/parked: test `TestXDPSync_JoinsBeforePublish` (publishes `lb.rebalance` only after Join as `loadbalancer`), fix the name (`xdpsync-service` → `loadbalancer`), add `loadbalancer` to `configs/wotan.yaml` `auto_approve`, `gotest ./services/loadbalancer/...`.
+  - Done 2026-10-26 (F6 parked, so the fix applies): TestXDPSync_JoinsBeforePublish (fake Wotan records joins and publishes in order; red first: "not subscribed to topic lb.rebalance" under xdpsync-service); xdpsync joins lb.rebalance as `loadbalancer`; `loadbalancer` added to configs/wotan.yaml auto_approve.
   - Done 2026-10-23: [AFTER-E1] skipped: waits on E1 (services/loadbalancer is F6, suggested P).
 
 ### Live proof on a scratch Wotan (no host change)
@@ -1616,30 +1617,41 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 1.5-2 h
 **Agent**: Librarian lens, Solo
 
-- [ ] **Step 393** [DOC-UPDATE] ~30m: wiki: `Service-Sword.md` (Phase 8), new `Chaos-Engineering.md` (Yaldabaoth for real: allowlist, abort paths, journal, experiment types and which refuse), `Containers.md` (Phases 4-5), new `Game-Days.md` (links the doc), `Steel-Echo.md`; `_Sidebar` + Home links (wiki rule).
-- [ ] **Step 394** [REGEN] ~5m: `docs/LIVE-PATHS.md` (binaries) and `docs/UNREACHED-GO-PACKAGES.md` (Step 5 command) regenerated.
-- [ ] **Step 395** [DOC-UPDATE] ~10m: Port and uid tables (wiki + CLAUDE.md port registry): Sword 19011 replaces Canary; `unheaded-chaos` uid.
-- [ ] **Step 396** [DOC-UPDATE] ~5m: ADR index statuses: ADR-090 per E1; the chaos ADR Proposed; ADR-088 and ADR-064 one-line notes (Steps 236, 105).
+- [x] **Step 393** [DOC-UPDATE] ~30m: wiki: `Service-Sword.md` (Phase 8), new `Chaos-Engineering.md` (Yaldabaoth for real: allowlist, abort paths, journal, experiment types and which refuse), `Containers.md` (Phases 4-5), new `Game-Days.md` (links the doc), `Steel-Echo.md`; `_Sidebar` + Home links (wiki rule).
+  - Done 2026-10-26 (29f0bc3c): wiki/Service-Sword.md rewritten with the live numbers; new Chaos-Engineering.md, Game-Days.md, Steel-Echo.md; Containers.md host_veth + proxy note; _Sidebar + Home "Deploy and Chaos".
+- [x] **Step 394** [REGEN] ~5m: `docs/LIVE-PATHS.md` (binaries) and `docs/UNREACHED-GO-PACKAGES.md` (Step 5 command) regenerated.
+  - Done 2026-10-26 (04fba173): LIVE-PATHS.md byte-identical after regen; UNREACHED-GO-PACKAGES.md 64 of 250 (Phase 13 reached bpfschema and encoding).
+- [x] **Step 395** [DOC-UPDATE] ~10m: Port and uid tables (wiki + CLAUDE.md port registry): Sword 19011 replaces Canary; `unheaded-chaos` uid.
+  - Done 2026-10-26: wiki/Port-Registry.md, Microservices.md, Systemd-Units.md and CLAUDE.md port tables: Sword 19011/16746, chaos-controller 19012/16763, steel-echo 8080 / proxy 26601.
+- [x] **Step 396** [DOC-UPDATE] ~5m: ADR index statuses: ADR-090 per E1; the chaos ADR Proposed; ADR-088 and ADR-064 one-line notes (Steps 236, 105).
+  - Done 2026-10-26 (655d76f6): ADR-090 Accepted (Phase 1), ADR-107 Proposed + game day note, ADR-064 and ADR-088 one-line notes; ADR-088's stale E2 line fixed.
 - [ ] **Step 397** [W] ~10m: `docs/battle-plans/S-REAL-STEEL-battle-plan.md`: a SHIPPED banner at the top (commit range, the live proofs by step number, what stayed STUCK), in the PHASE24 style.
-- [ ] **Step 398** [DOC-UPDATE] ~10m: CLAUDE.md, one edit (Librarian ripple): the `pkg/transport` Connect line (if deleted), "Interchangeable/real deploy via Sword + Cuirass on LXD", Yaldabaoth line. No release/roadmap framing (memory: reference_readme_doc_style).
-- [ ] **Step 399** [B] ~3m: Wiki mirror check and leak scan.
+- [x] **Step 398** [DOC-UPDATE] ~10m: CLAUDE.md, one edit (Librarian ripple): the `pkg/transport` Connect line (if deleted), "Interchangeable/real deploy via Sword + Cuirass on LXD", Yaldabaoth line. No release/roadmap framing (memory: reference_readme_doc_style).
+  - Done 2026-10-26 (655d76f6): transport-cascade claim replaced in both places, pkg/service line removed, skeleton imports fixed, Sword + Yaldabaoth capability lines, S-REAL-STEEL summary bullet.
+- [x] **Step 399** [B] ~3m: Wiki mirror check and leak scan.
+  - Done 2026-10-26: `sync-wiki.sh --dry-run` clean (4 new pages, no mirror-only pages); `scripts/check-gitleaks.sh` PASS on 5551 tracked files (a raw `-s wiki` git-mode scan lists the 35 historical hits CLAUDE.md records, none in new commits).
   ```bash
   cd "$PROJECT_ROOT" && scripts/sync-wiki.sh --dry-run 2>&1 | tail -5 && gitleaks detect --no-banner --redact -s wiki 2>&1 | tail -2
   ```
-- [ ] **Step 400** [V] ~1m: Dry run clean; no mirror-only pages; gitleaks clean.
-- [ ] **Step 401** [W] ~15m: `~/tmp/next.md`: a new top section "S-REAL-STEEL" (overwrite stale sprint status, keep the standing notes): commits (unsigned or signed), what is live on west/east and how to turn it off, E1-E4 status, STUCK list with the Stuck Report (format in the Warmonger skill), follow-ons (remaining "wotan unavailable" give-up sites from Step 90, server-side weighted split, the Well as deploy/chaos store, ADR-064 snapshot).
-- [ ] **Step 402** [TEST] ~15m: Final full test run versus baseline.
+- [x] **Step 400** [V] ~1m: Dry run clean; no mirror-only pages; gitleaks clean.
+  - PASS 2026-10-26.
+- [x] **Step 401** [W] ~15m: `~/tmp/next.md`: a new top section "S-REAL-STEEL" (overwrite stale sprint status, keep the standing notes): commits (unsigned or signed), what is live on west/east and how to turn it off, E1-E4 status, STUCK list with the Stuck Report (format in the Warmonger skill), follow-ons (remaining "wotan unavailable" give-up sites from Step 90, server-side weighted split, the Well as deploy/chaos store, ADR-064 snapshot).
+  - Done 2026-10-26: ~/tmp/next.md S23 section (commits, live state and off switches, decisions for Stevie, FND-023/024, follow-ons).
+- [x] **Step 402** [TEST] ~15m: Final full test run versus baseline.
+  - Done 2026-10-26: `go build ./...`, `go vet ./...`, `go test -count=1 ./...`: only the pre-existing scripts/lib TestSwitchModel_UsageAndStopUnderTheLease (needs /var/zhen/models); no new failures.
   ```bash
   cd "$PROJECT_ROOT" && go build ./... && go test -count=1 ./... 2>&1 | grep -E '^(FAIL|---)' | grep -v -F -f "$SCRATCH/baseline-tests.txt" || echo "no new failures"
   ```
-- [ ] **Step 403** [V] ~2m: **FINAL EXIT GATE (sprint DoD)**:
+- [x] **Step 403** [V] ~2m: **FINAL EXIT GATE (sprint DoD)**:
+  - PASS 2026-10-26: deploy real (243, 246, 249, 252); chaos real (306, 308, 311 with FND-023; 326; 346); game day (365, 366); Wotan leftovers (Phases 2-3, Step 92 done); E1 applied (Phase 1); no new failures; tree clean after this commit; nothing pushed.
   - deploy is real: Phase 9 Steps 243, 246, 249, 252 passed;
   - chaos is real: Phase 11 Steps 306, 308, 311; Phase 12 Step 326 (or STUCK on E3); Phase 13 Step 346 (or STUCK);
   - game day: Phase 14 Steps 365-366 passed;
   - Wotan leftovers closed (Phases 2-3);
   - E1 applied (Phase 1) or still waiting with the table posted;
   - "no new failures" at Step 402; tree clean; nothing pushed.
-- [ ] **Step 404** [C] ~2m: **FINAL COMMIT**: `docs: S-REAL-STEEL shipped banner, wiki and handoff`. Do not push (Stevie pushes; staging only on his word).
+- [x] **Step 404** [C] ~2m: **FINAL COMMIT**: `docs: S-REAL-STEEL shipped banner, wiki and handoff`. Do not push (Stevie pushes; staging only on his word).
+  - Done 2026-10-26 (this commit). Stevie re-signs and pushes.
 
 **DoD (Phase 16)**: DoD-STD + a cold session can find every live switch (how to turn Cuirass back to mock, how to stop chaos-controller, how to abort) from the wiki alone.
 
