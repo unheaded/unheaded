@@ -24,7 +24,7 @@
 > | Campaign | Status |
 > |---|---|
 > | **LICH-007 (MBC)** | **Superseded.** `crates/monad-mbc/fuzz` links the real crate and fuzzes `monad_mbc::instruction::decode_checked`. Run that for MBC coverage. |
-> | **LICH-008 (Wotan cache)** | Target is `pkg/storage/cache/cache.go` — **Go**. A Rust libFuzzer harness can never link it. Real coverage needs `go test -fuzz`. |
+> | **LICH-008 (Wotan cache)** | Target was `pkg/storage/cache/cache.go` — **Go**, deleted unused 2026-10-26 (S-REAL-STEEL E1 F1). A Rust libFuzzer harness could never link it; real coverage of the live Wotan cache needs `go test -fuzz` against services/wotan. |
 > | **LICH-010 (WAL)** | Target is `pkg/storage/wal/wal.go` — **Go**. Same. |
 > | **LICH-009 (flow labels)** | Design/math validation of the 20-bit flow-label space. Meaningful as-is. |
 >

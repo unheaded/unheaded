@@ -182,14 +182,8 @@ linters:
       # tightening to 0750/0600 would break the container-side reads.
       # State directories that *don't* need cross-UID traversal
       # (cmd/cert-gen, cmd/kanban-app) were tightened to 0750 in commit
-      # 1a8687fa as a real fix. (pkg/runtime, the Go container runtime
-      # that carried the original exclusions, was deleted 2026-10-26.)
-      - path: pkg/storage/object/
-        linters: [gosec]
-        text: "G301:"
-      - path: pkg/storage/object/
-        linters: [gosec]
-        text: "G306:"
+      # 1a8687fa as a real fix. (pkg/runtime and pkg/storage/object, which
+      # carried the original exclusions, were deleted unused 2026-10-26.)
       - path: pkg/baremetal/
         linters: [gosec]
         text: "G301:"
@@ -202,14 +196,6 @@ linters:
       - path: arch/mbc/
         linters: [gosec]
         text: "G306:"
-      # pkg/storage/object/filesystem.go traversal-via-objectPath:
-      # ValidateKey at the top of every Put/Get/Delete (commit 2c4beac7)
-      # rejects "../" and absolute paths. The validation is real;
-      # gosec G703 just can't see it.
-      - path: pkg/storage/object/filesystem\.go
-        linters: [gosec]
-        text: "G703:"
-
       # G302 (file permissions on Open/OpenFile) and G306 (WriteFile)
       # in log / WAL / audit-file paths intentionally use 0644-permissive
       # perms because the files are created by one daemon but read by

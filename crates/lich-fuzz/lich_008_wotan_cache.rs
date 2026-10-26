@@ -162,7 +162,8 @@ fuzz_target!(|data: &[u8]| {
         // What it demonstrates is the S21 finding itself: a 20-bit flow label
         // alone is insufficient entropy to key a cache line. Asserting it here
         // would test this file, not Wotan. The real check belongs in a Go fuzz
-        // test against pkg/storage/cache — see the header note.
+        // test against the live Wotan cache (pkg/storage/cache was deleted unused
+        // 2026-10-26) — see the header note.
         let _observed_cross_flow_read = read_value == 0xDEADBEEF && flow_label_1 != flow_label_2;
     }
 
