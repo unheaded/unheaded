@@ -421,8 +421,15 @@ type AnalysisMetrics struct {
 	// LatencyP50 is the p50 latency
 	LatencyP50 time.Duration `json:"latency_p50"`
 
-	// LatencyP99 is the p99 latency
+	// LatencyP99 is the p99 latency: the worse of the instance's own
+	// request-duration histogram and the analyzer's client-observed probes
+	// (a network fault between the deployer and the canary shows only in
+	// the latter).
 	LatencyP99 time.Duration `json:"latency_p99"`
+
+	// ClientLatencyP99 is the p99 round trip of the analyzer's own probes of
+	// the canary over the interval; 0 when nothing was probed.
+	ClientLatencyP99 time.Duration `json:"client_latency_p99,omitempty"`
 
 	// SuccessRate is the success rate (0.0-1.0)
 	SuccessRate float64 `json:"success_rate"`

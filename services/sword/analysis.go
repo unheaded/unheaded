@@ -68,6 +68,14 @@ type Analyzer struct {
 	client          *http.Client
 	maxInconclusive int
 	metricsURL      func(inst strategy.Instance, port int) (string, error)
+	// probeURL and probeEvery drive the client-side probes: during an
+	// interval each canary instance's /health is fetched every probeEvery
+	// and the round trips feed ClientLatencyP99. A network fault between
+	// Sword and the canary (netem on its host veth; game day 1 Scenario A)
+	// never reaches the instance's own histogram, so p99 is the worse of
+	// the two readings. A failed probe counts as the scrape timeout.
+	probeURL   func(inst strategy.Instance, port int) (string, error)
+	probeEvery time.Duration
 }
 
 // NewAnalyzer returns an Analyzer guarded by g. A nil g fails every
@@ -83,7 +91,19 @@ func NewAnalyzer(g SLOChecker) *Analyzer {
 		},
 	}
 	a.metricsURL = defaultMetricsURL
+	a.probeURL = defaultProbeURL
+	a.probeEvery = defaultProbeEvery
 	return a
+}
+
+const defaultProbeEvery = time.Second
+
+func defaultProbeURL(inst strategy.Instance, port int) (string, error) {
+	u, err := defaultMetricsURL(inst, port)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(u, "/metrics") + "/health", nil
 }
 
 func defaultMetricsURL(inst strategy.Instance, port int) (string, error) {
@@ -139,13 +159,20 @@ func (a *Analyzer) Analyze(ctx context.Context, req *strategy.AnalysisRequest, p
 	for attempt := 1; attempt <= a.maxInconclusive; attempt++ {
 		c0, cerr0 := a.scrapeSet(ctx, req.Canary, port)
 		s0, serr0 := a.scrapeSet(ctx, req.Stable, port)
+		pctx, pcancel := context.WithCancel(ctx)
+		probes := make(chan []time.Duration, 1)
+		go func() { probes <- a.probe(pctx, req.Canary, port) }()
 		t := time.NewTimer(interval)
 		select {
 		case <-ctx.Done():
 			t.Stop()
+			pcancel()
+			<-probes
 			return nil, ctx.Err()
 		case <-t.C:
 		}
+		pcancel()
+		rtts := <-probes
 		c1, cerr1 := a.scrapeSet(ctx, req.Canary, port)
 		s1, serr1 := a.scrapeSet(ctx, req.Stable, port)
 
@@ -159,7 +186,14 @@ func (a *Analyzer) Analyze(ctx context.Context, req *strategy.AnalysisRequest, p
 			continue
 		}
 		m := cd.metrics()
-		msg := fmt.Sprintf("canary error ratio %.4f, p99 %v over %d requests", m.ErrorRate, m.LatencyP99, m.RequestCount)
+		if cp := clientQuantile(rtts, 0.99); cp > 0 {
+			m.ClientLatencyP99 = cp
+			if cp > m.LatencyP99 {
+				m.LatencyP99 = cp
+			}
+		}
+		msg := fmt.Sprintf("canary error ratio %.4f, p99 %v (client-observed p99 %v over %d probes) over %d requests",
+			m.ErrorRate, m.LatencyP99, m.ClientLatencyP99, len(rtts), m.RequestCount)
 		if len(req.Stable) > 0 {
 			if serr := errors.Join(serr0, serr1); serr == nil {
 				sm := s1.minus(s0).metrics()
@@ -174,6 +208,79 @@ func (a *Analyzer) Analyze(ctx context.Context, req *strategy.AnalysisRequest, p
 		return &strategy.AnalysisResult{Pass: true, Message: msg, Metrics: m}, nil
 	}
 	return fail(fmt.Sprintf("inconclusive after %d intervals: %s", a.maxInconclusive, last), nil), nil
+}
+
+// probe fetches each canary instance's probe URL every probeEvery until
+// ctx ends and returns every round trip. An instance whose URL is refused is
+// skipped (the scrape reports it); a probe that fails or times out counts
+// as scrapeTimeout, so an unreachable canary reads as slow, not as fast.
+func (a *Analyzer) probe(ctx context.Context, insts []strategy.Instance, port int) []time.Duration {
+	var urls []string
+	for _, inst := range insts {
+		if u, err := a.probeURL(inst, port); err == nil {
+			urls = append(urls, u)
+		}
+	}
+	var rtts []time.Duration
+	if len(urls) == 0 {
+		return rtts
+	}
+	every := a.probeEvery
+	if every <= 0 {
+		every = defaultProbeEvery
+	}
+	tick := time.NewTicker(every)
+	defer tick.Stop()
+	for {
+		for _, u := range urls {
+			rtts = append(rtts, a.probeOnce(ctx, u))
+		}
+		select {
+		case <-ctx.Done():
+			return rtts
+		case <-tick.C:
+		}
+	}
+}
+
+func (a *Analyzer) probeOnce(ctx context.Context, u string) time.Duration {
+	// The probe's own deadline, not the interval's: a probe cut short by the
+	// interval ending still measures what it saw up to that point.
+	pctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), scrapeTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(pctx, http.MethodGet, u, nil)
+	if err != nil {
+		return scrapeTimeout
+	}
+	start := time.Now()
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return scrapeTimeout
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return scrapeTimeout
+	}
+	return time.Since(start)
+}
+
+// clientQuantile is the q-th round trip (nearest rank); 0 for no probes.
+func clientQuantile(rtts []time.Duration, q float64) time.Duration {
+	if len(rtts) == 0 {
+		return 0
+	}
+	s := make([]time.Duration, len(rtts))
+	copy(s, rtts)
+	sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
+	i := int(math.Ceil(q*float64(len(s)))) - 1
+	if i < 0 {
+		i = 0
+	}
+	if i >= len(s) {
+		i = len(s) - 1
+	}
+	return s[i]
 }
 
 // scrapeSet sums the instances' samples. Any instance failing is an error.

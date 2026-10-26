@@ -40,12 +40,23 @@ type instanceServer struct {
 	bodies []string
 	n      int
 	srv    *httptest.Server
+	// healthDelay stands in for network latency between Sword and the
+	// instance: the server's own histogram never sees it.
+	healthDelay time.Duration
 }
 
 func newInstance(t *testing.T, bodies ...string) *instanceServer {
 	t.Helper()
 	is := &instanceServer{bodies: bodies}
 	is.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			is.mu.Lock()
+			d := is.healthDelay
+			is.mu.Unlock()
+			time.Sleep(d)
+			_, _ = w.Write([]byte("ok"))
+			return
+		}
 		if r.URL.Path != "/metrics" {
 			http.NotFound(w, r)
 			return
@@ -85,7 +96,60 @@ func analyzerFor(g SLOChecker, servers map[string]*instanceServer) *Analyzer {
 		}
 		return s.srv.URL + "/metrics", nil
 	}
+	a.probeURL = func(inst strategy.Instance, _ int) (string, error) {
+		s, ok := servers[inst.ID]
+		if !ok {
+			return "", errors.New("no server")
+		}
+		return s.srv.URL + "/health", nil
+	}
+	a.probeEvery = time.Millisecond
 	return a
+}
+
+// A network fault between Sword and the canary (netem on its host veth,
+// S-REAL-STEEL game day 1 Scenario A) never reaches the instance's own
+// request-duration histogram, so the analyzer also times its own probes of
+// the canary and reports the worse p99 of the two.
+func TestAnalysis_P99IncludesClientObservedLatency(t *testing.T) {
+	fast := map[string]int{"0.005": 10000, "0.01": 10000, "0.025": 10000, "0.05": 10000, "0.1": 10000, "0.25": 10000, "0.5": 10000, "1": 10000, "+Inf": 10000}
+	fast2 := map[string]int{"0.005": 10100, "0.01": 10100, "0.025": 10100, "0.05": 10100, "0.1": 10100, "0.25": 10100, "0.5": 10100, "1": 10100, "+Inf": 10100}
+	canary := newInstance(t, scrape(10000, 0, fast), scrape(10100, 0, fast2))
+	canary.healthDelay = 300 * time.Millisecond
+	a := analyzerFor(okGuard(), map[string]*instanceServer{"c0": canary})
+	req := request(50)
+	req.Stable = nil
+	res, err := a.Analyze(context.Background(), req, 8080)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Metrics.ClientLatencyP99 < 300*time.Millisecond {
+		t.Fatalf("client p99 = %v, want >= 300ms (the probe RTT)", res.Metrics.ClientLatencyP99)
+	}
+	if res.Metrics.LatencyP99 < 300*time.Millisecond {
+		t.Fatalf("p99 = %v, want >= 300ms (histogram says 5ms; the client side is worse)", res.Metrics.LatencyP99)
+	}
+}
+
+// Without a fault the server histogram remains the reading: a local probe
+// RTT is far under the 500 ms bucket.
+func TestAnalysis_ClientProbeDoesNotLowerHistogramP99(t *testing.T) {
+	before := map[string]int{"0.005": 0, "0.01": 0, "0.025": 0, "0.05": 10000, "0.1": 10000, "0.25": 10000, "0.5": 10000, "1": 10000, "+Inf": 10000}
+	after := map[string]int{"0.005": 0, "0.01": 0, "0.025": 0, "0.05": 10098, "0.1": 10098, "0.25": 10098, "0.5": 10100, "1": 10100, "+Inf": 10100}
+	canary := newInstance(t, scrape(10000, 0, before), scrape(10100, 0, after))
+	a := analyzerFor(okGuard(), map[string]*instanceServer{"c0": canary})
+	req := request(50)
+	req.Stable = nil
+	res, err := a.Analyze(context.Background(), req, 8080)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Metrics.LatencyP99 != 500*time.Millisecond {
+		t.Fatalf("p99 = %v, want 500ms", res.Metrics.LatencyP99)
+	}
+	if res.Metrics.ClientLatencyP99 <= 0 || res.Metrics.ClientLatencyP99 >= 100*time.Millisecond {
+		t.Fatalf("client p99 = %v, want a real local RTT under 100ms", res.Metrics.ClientLatencyP99)
+	}
 }
 
 func request(min int) *strategy.AnalysisRequest {
