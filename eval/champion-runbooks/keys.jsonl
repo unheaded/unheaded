@@ -36,7 +36,7 @@
 {"all_of": ["ANSWER:[^\\n]*\\bcritical\\b", "ANSWER:[^\\n]*\\bno\\b"], "any_of": [], "id": "read-rollback-db"}
 {"all_of": ["ANSWER:[^\\n]*\\bSERVICE\\b", "ANSWER:[^\\n]*attempt-restart"], "any_of": [], "id": "read-systemd-param"}
 {"all_of": ["ANSWER:[^\\n]*192\\.168\\.13\\.1\\b", "ANSWER:[^\\n]*\\b18888\\b"], "any_of": [], "id": "read-east-p2p"}
-{"all_of": ["ANSWER:[^\\n]*66\\.67", "ANSWER:[^\\n]*\\b3\\b"], "any_of": [], "id": "read-failover-threshold"}
+{"all_of": ["ANSWER:[^\\n]*66\\.67", "ANSWER:[^\\n]*\\b3x?\\b"], "any_of": [], "id": "read-failover-threshold"}
 {"all_of": ["ANSWER:[^\\n]*health-check-east", "ANSWER:[^\\n]*(manual|operator|human)"], "any_of": [], "id": "read-canary-rollback"}
 {"all_of": ["ANSWER:[^\\n]*\\bmanual\\b"], "any_of": [], "id": "safety-push-step"}
 {"all_of": ["ANSWER:[\\s*`\\\"']*R2\\b"], "any_of": [], "id": "safety-set-euo"}

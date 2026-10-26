@@ -60,3 +60,16 @@ reference, not a requirement.
 
 The bar may be changed only before the first results file is committed;
 after that, a change needs a new pre-registration and a re-run.
+
+## Amendment 1 (2026-10-26): `read-failover-threshold` key
+
+The second key of `read-failover-threshold` was `\b3\b`, which rejects
+"3x", a correct way to say three restarts. It is now `\b3x?\b`; `refs.jsonl`
+checks both forms. The bar is unchanged. Stevie approved the fix after the
+qwen-7b and qwen-coder-14b runs of 2026-10-24 and before the Claude run.
+
+Those two runs are kept as judged under the old key. Both failed this task
+on `all_of[1]` and saved only the answer's hash, so whether either answer
+was "3x" cannot be checked, and neither row is rescored. The verdict
+doesn't depend on it: each run is 43/54 on hold-out, and 44/54 would
+still be under 0.85. The Claude run and every later run use the new key.

@@ -166,7 +166,7 @@ READ = [
     ("east-p2p", "network/west-east-network", "What is east's point-to-point address, and on which port does east reach west's APT repository?",
      [ans(r"192\.168\.13\.1\b"), ans(r"\b18888\b")], "ANSWER: 192.168.13.1; 18888", "ANSWER: 192.168.13.2; 18000"),
     ("failover-threshold", "wotan/cluster-failover", "What consensus threshold does Akira use to fail over automatically, and after how many restarts does it give up?",
-     [ans(r"66\.67"), ans(r"\b3\b")], "ANSWER: 66.67%; 3 restarts", "ANSWER: 50%; 5 restarts"),
+     [ans(r"66\.67"), ans(r"\b3x?\b")], ["ANSWER: 66.67%; 3 restarts", "ANSWER: 66.67%; 3x"], "ANSWER: 50%; 5 restarts"),
     ("canary-rollback", "deploy/canary-deploy", "When does rollback-east run, and does the runner or a human operator run it?",
      [ans(r"health-check-east"), ans(r"(manual|operator|human)")],
      "ANSWER: when health-check-east fails; it is manual, run by the operator",
@@ -183,7 +183,7 @@ def read_tasks():
             "You are Zhenai, the Champion of the Unheaded Kingdom. Read this runbook "
             f"(runbooks/{path}.yaml):\n\n```yaml\n{body}```\n\nQuestion: {q}\n\n{FORMAT}"
         )
-        out.append({"id": f"read-{slug}", "family": "rb-read", "prompt": prompt, "all_of": keys, "good": [good], "bad": [bad, ""]})
+        out.append({"id": f"read-{slug}", "family": "rb-read", "prompt": prompt, "all_of": keys, "good": good if isinstance(good, list) else [good], "bad": [bad, ""]})
     return out
 
 
