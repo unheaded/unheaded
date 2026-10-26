@@ -90,7 +90,9 @@ func (f *testInjector) count() int {
 func withInjector(t *testing.T, inj *testInjector) {
 	t.Helper()
 	old := registerInjectors
-	registerInjectors = func(s *yaldabaoth.Service) { s.RegisterInjector(yaldabaoth.ExpTypeNetworkDelay, inj) }
+	registerInjectors = func(s *yaldabaoth.Service, _ config, _ *logger.Logger) {
+		s.RegisterInjector(yaldabaoth.ExpTypeNetworkDelay, inj)
+	}
 	t.Cleanup(func() { registerInjectors = old })
 }
 

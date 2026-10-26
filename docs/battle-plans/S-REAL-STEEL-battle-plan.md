@@ -1214,22 +1214,38 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 4-5 h
 **Agent**: Agent (code, Steps 289-302), Coordinator (303-312) [BARE-METAL]
 
-- [ ] **Step 289** [DECIDE] ~0m: **D-21 netem targets are resolved, never named.** RECOMMENDATION: Cuirass's actual state gains `host_veth` (LXD `state.network.eth0.host_name`); the netem injector takes an LXD instance id, asks Cuirass for its `host_veth`, checks D-17, and shapes that interface's egress (traffic toward the container) with a root qdisc carrying our handle `c4a0:`. Lab netns targets use the fixed `steel<N>-h` names. Revert deletes the root qdisc only if its handle is `c4a0:`. Rationale: a request that names an interface could name `enp16s0`; a request that names an allowlisted instance cannot. Override ONLY if LXD reports no `host_name` (non-bridged NIC): then the instance is not chaos-eligible (refuse).
-- [ ] **Step 290** [CODE][TEST] ~20m: Cuirass: `ContainerState.HostVeth` from LXD state; test with the fake LXD (`TestLXDREST_ReportsHostVeth`).
-- [ ] **Step 291** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
-- [ ] **Step 292** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): report each instance's host-side veth`.
-- [ ] **Step 293** [CODE][TEST] ~25m: Netem injector tests (`services/yaldabaoth/inject_netem_test.go`, with an injectable command runner): exact argv for delay (`tc qdisc replace dev <if> root handle c4a0: netem delay 200ms 20ms`), loss (`loss 10%`), partition (`loss 100%`), duplicate, corrupt; never a shell; refuses interfaces failing D-17; revert argv `tc qdisc del dev <if> root handle c4a0:`; revert verification parses `tc -j qdisc show dev <if>`; an already-gone interface (instance deleted) counts as reverted.
-- [ ] **Step 294** [TEST] ~2m: Red.
-- [ ] **Step 295** [CODE] ~40m: Implement `inject_netem.go`; register for `network_delay`, `network_loss`, `network_partition`, `latency_spike` (delay alias); delete the four simulated injectors those replace.
-- [ ] **Step 296** [TEST][V] ~3m: Green.
-- [ ] **Step 297** [CODE][TEST] ~30m: Container-kill injector (`inject_container.go`): precondition `GET $CUIRASS/api/v1/info` has `enforce: true` and `chaos: true` (else refuse: no self-heal means no revert); calls `POST /api/v1/containers/{id}/chaos` with `stop` or `kill`; revert = wait until Cuirass reports `running` + `healthy` within the experiment's MTTR budget (default 90 s); if not, the experiment records a High finding and the journal entry stays with `chaos.revert_failed` (there is deliberately no start backdoor around Cuirass). Tests against a fake Cuirass: refused when enforce is off, MTTR measured, timeout path.
-- [ ] **Step 298** [TEST][V] ~3m: Green: `gotest ./services/yaldabaoth/...`; `grep -n 'Simulating\|would be restarted' services/yaldabaoth/*.go | grep -v _test` prints nothing.
-- [ ] **Step 299** [C] ~2m: **COMMIT CHECKPOINT**: `feat(yaldabaoth): real netem and container-kill injectors; simulated ones removed`.
-- [ ] **Step 300** [DECIDE] ~0m: **D-22 HTTP-error injector.** RECOMMENDATION: `http_error` is served by the workload's own knob (steel-echo `STEEL_ERROR_RATE` via a new image version), so Yaldabaoth does not get an L7 proxy this sprint; the experiment type stays registered but refuses with "not supported: deploy a faulty build instead" until a real L7 injector exists. Rationale: an honest refusal beats a fake success; the canary game day already covers bad builds. Override ONLY if Stevie wants L7 fault injection now (a separate design: Envoy/HAProxy fault filters).
-- [ ] **Step 301** [CODE][TEST] ~10m: Implement D-22's refusal + test; `cpu_stress`, `memory_stress`, `disk_stress`, `dns_failure`, `time_skew`, `node_drain`, `resource_exhaustion`, `custom` likewise refuse with "not implemented" (they had no injector at all; now they say so).
-- [ ] **Step 302** [C] ~2m: **COMMIT CHECKPOINT**: `fix(yaldabaoth): unimplemented experiment types refuse instead of succeeding`.
+- [x] **Step 289** [DECIDE] ~0m: **D-21 netem targets are resolved, never named.** RECOMMENDATION: Cuirass's actual state gains `host_veth` (LXD `state.network.eth0.host_name`); the netem injector takes an LXD instance id, asks Cuirass for its `host_veth`, checks D-17, and shapes that interface's egress (traffic toward the container) with a root qdisc carrying our handle `c4a0:`. Lab netns targets use the fixed `steel<N>-h` names. Revert deletes the root qdisc only if its handle is `c4a0:`. Rationale: a request that names an interface could name `enp16s0`; a request that names an allowlisted instance cannot. Override ONLY if LXD reports no `host_name` (non-bridged NIC): then the instance is not chaos-eligible (refuse).
+  - Done: D-21 taken as written (netem on the instance's host veth from Cuirass, handle c4a0:).
+- [x] **Step 290** [CODE][TEST] ~20m: Cuirass: `ContainerState.HostVeth` from LXD state; test with the fake LXD (`TestLXDREST_ReportsHostVeth`).
+  - Done: ContainerState.HostVeth from LXD state network.<nic>.host_name; TestLXDREST_ReportsHostVeth.
+- [x] **Step 291** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
+  - Done: gotest ./cmd/unheaded-daemon/... green, race-clean.
+- [x] **Step 292** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): report each instance's host-side veth`.
+  - Done: aa3cda0c (incl. Yaldabaoth resolver/InstanceInfo plumbing).
+- [x] **Step 293** [CODE][TEST] ~25m: Netem injector tests (`services/yaldabaoth/inject_netem_test.go`, with an injectable command runner): exact argv for delay (`tc qdisc replace dev <if> root handle c4a0: netem delay 200ms 20ms`), loss (`loss 10%`), partition (`loss 100%`), duplicate, corrupt; never a shell; refuses interfaces failing D-17; revert argv `tc qdisc del dev <if> root handle c4a0:`; revert verification parses `tc -j qdisc show dev <if>`; an already-gone interface (instance deleted) counts as reverted.
+  - Done: inject_netem_test.go with fakeRunner; exact argv for delay/loss/partition/duplicate/corrupt; netns/packet ifaces; non-bridged refused; revert argv + tc -j verify; gone-iface=reverted.
+- [x] **Step 294** [TEST] ~2m: Red.
+  - Done: red (undefined Netem symbols).
+- [x] **Step 295** [CODE] ~40m: Implement `inject_netem.go`; register for `network_delay`, `network_loss`, `network_partition`, `latency_spike` (delay alias); delete the four simulated injectors those replace.
+  - Done: inject.go (ExecRunner, no shell) + inject_netem.go; registered for network_delay/latency_spike/network_loss/network_partition. No simulated injectors remained (Phase 10).
+- [x] **Step 296** [TEST][V] ~3m: Green.
+  - Done: gotest green, race-clean.
+- [x] **Step 297** [CODE][TEST] ~30m: Container-kill injector (`inject_container.go`): precondition `GET $CUIRASS/api/v1/info` has `enforce: true` and `chaos: true` (else refuse: no self-heal means no revert); calls `POST /api/v1/containers/{id}/chaos` with `stop` or `kill`; revert = wait until Cuirass reports `running` + `healthy` within the experiment's MTTR budget (default 90 s); if not, the experiment records a High finding and the journal entry stays with `chaos.revert_failed` (there is deliberately no start backdoor around Cuirass). Tests against a fake Cuirass: refused when enforce is off, MTTR measured, timeout path.
+  - Done: inject_container.go: enforce+chaos precondition, POST chaos kill, RevertBudget>MTTR waits running+healthy else High finding + chaos.revert_failed; fake Cuirass + httptest client tests.
+- [x] **Step 298** [TEST][V] ~3m: Green: `gotest ./services/yaldabaoth/...`; `grep -n 'Simulating\|would be restarted' services/yaldabaoth/*.go | grep -v _test` prints nothing.
+  - Done: gotest ./services/yaldabaoth/... green; Step 298 grep prints nothing.
+- [x] **Step 299** [C] ~2m: **COMMIT CHECKPOINT**: `feat(yaldabaoth): real netem and container-kill injectors; simulated ones removed`.
+  - Done: commit (netem+container injectors+D-22 mechanism).
+- [x] **Step 300** [DECIDE] ~0m: **D-22 HTTP-error injector.** RECOMMENDATION: `http_error` is served by the workload's own knob (steel-echo `STEEL_ERROR_RATE` via a new image version), so Yaldabaoth does not get an L7 proxy this sprint; the experiment type stays registered but refuses with "not supported: deploy a faulty build instead" until a real L7 injector exists. Rationale: an honest refusal beats a fake success; the canary game day already covers bad builds. Override ONLY if Stevie wants L7 fault injection now (a separate design: Envoy/HAProxy fault filters).
+  - Done: D-22 taken (http_error refuses: deploy a faulty build instead).
+- [x] **Step 301** [CODE][TEST] ~10m: Implement D-22's refusal + test; `cpu_stress`, `memory_stress`, `disk_stress`, `dns_failure`, `time_skew`, `node_drain`, `resource_exhaustion`, `custom` likewise refuse with "not implemented" (they had no injector at all; now they say so).
+  - Done: Service.RefuseType + unimplemented_test.go; http_error + 8 types refuse.
+- [x] **Step 302** [C] ~2m: **COMMIT CHECKPOINT**: `fix(yaldabaoth): unimplemented experiment types refuse instead of succeeding`.
+  - Done: commit 1bf6f02f.
 - [ ] **Step 303** [LIVE-RW][S][BARE-METAL] ~10m: (E2.5) Install chaos-controller on west: binary to `/usr/local/bin/chaos-controller` (root-owned 0755), sysusers, unit + west drop-in, `/etc/unheaded/chaos/{allowlist.yaml,chaos.env}` (env holds `AUTH_API_KEYS`, `CUIRASS_API_KEY`, `VM_URL`; 0640 root:unheaded-chaos), `systemctl daemon-reload && systemctl enable --now unheaded-chaos-controller`.
+  - Agent (no hosts): WEST install path ready as scripts/install-chaos-west.sh (binary /usr/local/bin, sysusers, unit + west-packet-lab drop-in CAP_NET_ADMIN+CAP_BPF, allowlist+policy, ExecStopPost revert-all). Lead runs on west.
 - [ ] **Step 304** [V][LIVE-RO] ~2m: Running as its own user with only the granted capabilities; journal empty.
+  - Live-RO for the lead after Step 303.
   ```bash
   pid=$(systemctl show -p MainPID --value unheaded-chaos-controller); ps -o user= -p "$pid"
   grep CapEff /proc/"$pid"/status | awk '{print $2}' | xargs capsh --decode
@@ -1237,17 +1253,24 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```
   - `unheaded-chaos`; `cap_net_admin,cap_bpf` (west drop-in) and nothing else.
 - [ ] **Step 305** [LIVE-RW] ~10m: Window open (stack, Cuirass enforce, `CUIRASS_CHAOS=true`, Sword, meter on discover). Netem experiment: `network_delay` 200 ms ± 20 ms on `steel-echo-v2-0` for 120 s, probes on its `/health`.
+  - Live-RW for the lead (netem window).
   ```bash
   curl -fsS -X POST -H "Authorization: Bearer $CHAOS_API_KEY" -H 'Content-Type: application/json' "$CHAOS/api/v1/chaos/experiments" \
     -d '{"name":"rs-netem-1","type":"network_delay","target":{"kind":"lxd","id":"steel-echo-v2-0"},"parameters":{"delay_ms":200,"jitter_ms":20},"schedule":{"duration":"120s"},"rollback":{"automatic":true}}' | jq '{id,status}'
   ```
 - [ ] **Step 306** [V][LIVE-RO] ~3m: During: `tc -j qdisc show dev <host_veth>` lists `c4a0:` netem; requests the meter sent to v2-0 show p50 ≥ 180 ms while the other two stay < 20 ms (per-instance CSV columns). After: qdisc gone, journal empty, experiment `completed`, hypothesis verdict recorded.
+  - Live-RO for the lead.
 - [ ] **Step 307** [LIVE-RW] ~5m: Crash revert: start the same experiment with `duration: 10m`, wait for the qdisc, then `sudo systemctl kill -s SIGKILL unheaded-chaos-controller`.
+  - Live-RW for the lead (crash-revert).
 - [ ] **Step 308** [V][LIVE-RO] ~2m: Within 5 s of the kill, `ExecStopPost` removed the qdisc (`tc qdisc show dev <host_veth>` has no `c4a0:`); the unit restarted; journal empty; `journalctl -u unheaded-chaos-controller -n 20` shows `revert-all` verified one entry. Fail → Step 309.
+  - Live-RO for the lead (D-19 proof).
 - [ ] **Step 309** [D] ~10m: `ExecStopPost` did not run or failed: `systemctl show -p ExecStopPost unheaded-chaos-controller`; check the binary path and that `revert-all` can read the journal (StateDirectory perms). Clean the qdisc by hand (`sudo tc qdisc del dev <if> root handle c4a0:`), fix, retry once. Second failure → STUCK; **Phase 14 may not start** (D-19 is a hard requirement).
 - [ ] **Step 310** [LIVE-RW] ~8m: Container kill: `container_kill` on `steel-echo-v2-1` (`kill`, force). Negative tests in the same window: the same request for `pihole` and for an instance without `chaos=allowed`.
+  - Live-RW for the lead (container kill + negative tests).
 - [ ] **Step 311** [V][LIVE-RO] ~3m: v2-1 back `running` + `healthy` within 90 s (MTTR from the `cuirass.chaos` event to healthy, recorded); meter availability over the window ≥ 99% (two replicas kept serving); both negative requests refused twice (controller allowlist 4xx with `chaos_refusals_total` +1, and Cuirass 409 if it ever got that far: it must not have); pihole `Started` time unchanged.
+  - Live-RO for the lead.
 - [ ] **Step 312** [C] ~2m: **PHASE 11 EXIT GATE + COMMIT**: Steps 306, 308, 311 passed; window closed (`CUIRASS_CHAOS` back off). Commit `test(chaos): live netem, crash revert and container kill on west` with the numbers.
+  - Live for the lead (Phase 11 exit gate + commit).
 
 **DoD (Phase 11)**: DoD-STD + D-19 proven live (Step 308) + negative live tests (Step 311).
 
@@ -1260,35 +1283,52 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 3-4 h
 **Agent**: Agent (code), Coordinator (live) [P:13]
 
-- [ ] **Step 313** [ESCALATE] ~0m agent / one pass for Stevie: **E3, east chaos agent.**
+- [x] **Step 313** [ESCALATE] ~0m agent / one pass for Stevie: **E3, east chaos agent.**
+  - Done: E3 granted by Stevie 2026-10-26 (east chaos agent + polkit; units allowed: unheaded-timeguru.service only).
   - **Context**: Phase 11 proved the envelope on west. East runs the debs; Step 11 recorded its active `unheaded-*` units.
   - **Questions:** (1) Install chaos-controller on east as `unheaded-chaos` (sysusers), root-owned binary in `/opt/unheaded/bin`, unit without `CAP_NET_ADMIN`/`CAP_BPF` (systemd injector only)? (2) Install `/etc/polkit-1/rules.d/60-unheaded-chaos.rules` (generated from the allowlist) letting `unheaded-chaos` start/stop/kill only the listed units? (3) Which units may be broken? Recommended: `unheaded-timeguru.service` (read-only service, regenerates from Git) only; add more later. (4) Run the Phase 12 tests and the Phase 14 east scenario on east during windows?
   - **Why Stevie**: host change on east (staging); stopping a service there is visible on his dashboards.
   - **What stops**: Steps 322-330 and Phase 14 Scenario C. Code Steps 314-321 continue.
-- [ ] **Step 314** [DECIDE] ~0m: **D-23 systemd injector = polkit-scoped systemctl, generated from one allowlist.** RECOMMENDATION: the injector runs fixed argv `systemctl --no-ask-password {stop|kill --signal=SIGKILL|start} <unit>` as `unheaded-chaos`; authorization comes from a polkit rule that allows `org.freedesktop.systemd1.manage-units` only when `subject.user == "unheaded-chaos"` and `action.lookup("unit")` is in the list and `action.lookup("verb")` is one of `start`, `stop`, `kill`; the rule file is rendered by `chaos-controller render-polkit` from the same allowlist YAML (one source; a test fails if they diverge). Revert = `start`, verified with `systemctl is-active`. The injector refuses unless `os.Hostname()=="east"`. Rationale: no sudo, no root helper, no wildcard; the kernel-side check is systemd's own. Override ONLY if east's systemd/polkit does not pass `unit`/`verb` details (check `pkaction --verbose --action-id org.freedesktop.systemd1.manage-units` in Step 322): then a dedicated root-owned oneshot per unit (`unheaded-chaos-stop@<unit>.service`) that the user may start, still allowlisted.
-- [ ] **Step 315** [CODE][TEST] ~25m: Tests: refuses on a host not named east (injectable hostname), refuses unlisted units and any `*.target`/`ssh*`/`systemd-*`/`dbus*` even if listed (hard deny list), exact argv, revert verifies `is-active == active`, `kill` relies on `Restart=` first and only starts if still inactive after 30 s.
-- [ ] **Step 316** [TEST] ~2m: Red.
-- [ ] **Step 317** [CODE] ~35m: Implement `inject_systemd.go` for `process_kill` (kill) and a new `service_stop` type; `render-polkit` subcommand; `deploy/polkit/60-unheaded-chaos.rules.tmpl`.
-- [ ] **Step 318** [TEST][V] ~3m: Green, plus the divergence test (`TestPolkitRuleMatchesAllowlist`).
-- [ ] **Step 319** [C] ~2m: **COMMIT CHECKPOINT**: `feat(yaldabaoth): systemd stop/kill injector for east, polkit-scoped`.
-- [ ] **Step 320** [W] ~15m: East unit variant `deploy/systemd/unheaded-chaos-controller.service.d/east.conf` (no ambient capabilities, `CapabilityBoundingSet=` empty) and `scripts/install-chaos-east.sh` (dry run default; copies binary, sysusers, unit, drop-in, allowlist, rendered polkit rule; prints the env file to create by hand).
-- [ ] **Step 321** [C] ~2m: **COMMIT CHECKPOINT**: `build(chaos): east install script and unit drop-in`.
+- [x] **Step 314** [DECIDE] ~0m: **D-23 systemd injector = polkit-scoped systemctl, generated from one allowlist.** RECOMMENDATION: the injector runs fixed argv `systemctl --no-ask-password {stop|kill --signal=SIGKILL|start} <unit>` as `unheaded-chaos`; authorization comes from a polkit rule that allows `org.freedesktop.systemd1.manage-units` only when `subject.user == "unheaded-chaos"` and `action.lookup("unit")` is in the list and `action.lookup("verb")` is one of `start`, `stop`, `kill`; the rule file is rendered by `chaos-controller render-polkit` from the same allowlist YAML (one source; a test fails if they diverge). Revert = `start`, verified with `systemctl is-active`. The injector refuses unless `os.Hostname()=="east"`. Rationale: no sudo, no root helper, no wildcard; the kernel-side check is systemd's own. Override ONLY if east's systemd/polkit does not pass `unit`/`verb` details (check `pkaction --verbose --action-id org.freedesktop.systemd1.manage-units` in Step 322): then a dedicated root-owned oneshot per unit (`unheaded-chaos-stop@<unit>.service`) that the user may start, still allowlisted.
+  - Done: D-23 taken as written (polkit-scoped systemctl, rule rendered from the allowlist).
+- [x] **Step 315** [CODE][TEST] ~25m: Tests: refuses on a host not named east (injectable hostname), refuses unlisted units and any `*.target`/`ssh*`/`systemd-*`/`dbus*` even if listed (hard deny list), exact argv, revert verifies `is-active == active`, `kill` relies on `Restart=` first and only starts if still inactive after 30 s.
+  - Done: inject_systemd_test.go: off-east refusal, hard-deny target/ssh/systemd-/dbus, exact stop/kill/start argv, is-active verify, kill leans on Restart= then starts after grace.
+- [x] **Step 316** [TEST] ~2m: Red.
+  - Done: red (undefined Systemd symbols).
+- [x] **Step 317** [CODE] ~35m: Implement `inject_systemd.go` for `process_kill` (kill) and a new `service_stop` type; `render-polkit` subcommand; `deploy/polkit/60-unheaded-chaos.rules.tmpl`.
+  - Done: inject_systemd.go (process_kill=kill, service_stop=stop); render-polkit subcommand; deploy/polkit/60-unheaded-chaos.rules.tmpl.
+- [x] **Step 318** [TEST][V] ~3m: Green, plus the divergence test (`TestPolkitRuleMatchesAllowlist`).
+  - Done: green; TestPolkitRuleMatchesAllowlist + TestPolkitTemplateFileMatchesEmbedded.
+- [x] **Step 319** [C] ~2m: **COMMIT CHECKPOINT**: `feat(yaldabaoth): systemd stop/kill injector for east, polkit-scoped`.
+  - Done: commit (systemd injector + polkit).
+- [x] **Step 320** [W] ~15m: East unit variant `deploy/systemd/unheaded-chaos-controller.service.d/east.conf` (no ambient capabilities, `CapabilityBoundingSet=` empty) and `scripts/install-chaos-east.sh` (dry run default; copies binary, sysusers, unit, drop-in, allowlist, rendered polkit rule; prints the env file to create by hand).
+  - Done: east.conf (empty Ambient/BoundingSet) + scripts/install-chaos-east.sh (dry-run default, --apply, shellcheck clean, prints chaos.env); install-chaos-west.sh added too.
+- [x] **Step 321** [C] ~2m: **COMMIT CHECKPOINT**: `build(chaos): east install script and unit drop-in`.
+  - Done: commit (east drop-in + install scripts).
 - [ ] **Step 322** [LIVE-RO] ~3m: East polkit supports the details D-23 needs.
+  - Live-RO for the lead (pkaction check per D-23 override condition).
   ```bash
   ssh "$EAST" 'pkaction --verbose --action-id org.freedesktop.systemd1.manage-units | head -20; systemctl --version | head -1'
   ```
 - [ ] **Step 323** [LIVE-RW][S] ~10m: (E3.1-2) Run the install script on east with `--apply`; create `/etc/unheaded/chaos/chaos.env` by hand (0640 root:unheaded-chaos); `systemctl enable --now unheaded-chaos-controller`.
+  - Live-RW for the lead: run scripts/install-chaos-east.sh --apply on east, create chaos.env, enable --now.
 - [ ] **Step 324** [V][LIVE-RO] ~3m: Least privilege holds: the account can stop the listed unit and nothing else.
+  - Live-RO for the lead (least privilege).
   ```bash
   ssh "$EAST" 'sudo -u unheaded-chaos systemctl --no-ask-password stop ssh.service 2>&1 | tail -1'                 # must be "Access denied"
   ssh "$EAST" 'sudo -u unheaded-chaos systemctl --no-ask-password stop unheaded-kev-poller.service 2>&1 | tail -1' # must be "Access denied" (not listed)
   ssh "$EAST" 'systemctl is-active ssh unheaded-kev-poller'
   ```
 - [ ] **Step 325** [LIVE-RW] ~5m: (E3.4) Experiment `service_stop` on `unheaded-timeguru.service` for 60 s via `$EAST_CHAOS`, with an HTTP probe on east's timeguru `/health`.
+  - Live-RW for the lead (service_stop on unheaded-timeguru.service).
 - [ ] **Step 326** [V][LIVE-RO] ~3m: During: inactive, probe failing (expected impact); east's Akira and dashboard report timeguru unhealthy (read-only GETs on east: monitoring sees chaos). After: active, `/health` 200, journal empty, verdict recorded.
+  - Live-RO for the lead.
 - [ ] **Step 327** [LIVE-RW] ~3m: `process_kill` (SIGKILL) on the same unit.
+  - Live-RW for the lead (process_kill SIGKILL).
 - [ ] **Step 328** [V][LIVE-RO] ~2m: systemd's `Restart=` brought it back (NRestarts +1 in `systemctl show -p NRestarts`), or the injector's start did after 30 s; recorded which.
+  - Live-RO for the lead.
 - [ ] **Step 329** [V][LIVE-RO] ~2m: East's active unit list equals Step 11's (`systemctl list-units "unheaded-*"` diff); **PHASE 12 EXIT GATE**.
+  - Live-RO for the lead (Phase 12 exit gate: unit diff).
 - [ ] **Step 330** [C] ~2m: **COMMIT CHECKPOINT**: `test(chaos): live systemd stop/kill on east under a polkit allowlist`.
 
 **DoD (Phase 12)**: DoD-STD + the negative test (Step 324) is part of the record; nothing on east runs as root that did not before.

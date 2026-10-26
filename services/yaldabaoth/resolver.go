@@ -68,10 +68,12 @@ func (c *CuirassResolver) Instance(ctx context.Context, name string) (*InstanceI
 		return nil, errors.New("cuirass reports no LXD project")
 	}
 	var actual map[string]struct {
-		Status  string            `json:"status"`
-		IP      string            `json:"ip"`
-		Managed bool              `json:"managed"`
-		Labels  map[string]string `json:"labels"`
+		Status   string            `json:"status"`
+		IP       string            `json:"ip"`
+		Managed  bool              `json:"managed"`
+		Labels   map[string]string `json:"labels"`
+		Health   string            `json:"health"`
+		HostVeth string            `json:"host_veth"`
 	}
 	if err := c.get(ctx, "/api/v1/state/actual", &actual); err != nil {
 		return nil, err
@@ -80,5 +82,6 @@ func (c *CuirassResolver) Instance(ctx context.Context, name string) (*InstanceI
 	if !ok {
 		return nil, ErrInstanceNotFound
 	}
-	return &InstanceInfo{Name: name, Status: a.Status, IP: a.IP, Project: info.Project, Managed: a.Managed, Labels: a.Labels}, nil
+	return &InstanceInfo{Name: name, Status: a.Status, IP: a.IP, Project: info.Project, Managed: a.Managed,
+		Labels: a.Labels, Health: a.Health, HostVeth: a.HostVeth}, nil
 }

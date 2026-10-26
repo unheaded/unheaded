@@ -11,6 +11,8 @@
 //	chaos-controller revert-all   revert every journaled fault; exit 0 only
 //	                              when the journal is empty afterwards (the
 //	                              unit's ExecStopPost)
+//	chaos-controller render-polkit  print the polkit rule for the allowlist's
+//	                              systemd units (east install, D-23)
 //
 // Environment:
 //
@@ -58,6 +60,7 @@ type config struct {
 	abortFile  string
 	dryRun     bool
 	cuirassURL string
+	cuirassKey string
 	vmURL      string
 	policy     string
 	wotanHTTP  string
@@ -79,6 +82,7 @@ func loadConfig(getenv func(string) string) config {
 		abortFile:  envOr(getenv, "CHAOS_ABORT_FILE", "/run/unheaded/chaos/ABORT"),
 		dryRun:     getenv("CHAOS_DRY_RUN") != "false",
 		cuirassURL: envOr(getenv, "CUIRASS_URL", fmt.Sprintf("http://127.0.0.1:%d", ports.Cuirass)),
+		cuirassKey: getenv("CUIRASS_API_KEY"),
 		vmURL:      getenv("VM_URL"),
 		policy:     envOr(getenv, "CHAOS_SLO_POLICY", "/etc/unheaded/chaos/policy.yaml"),
 		wotanHTTP:  getenv("WOTAN_ADDR"),
@@ -86,9 +90,50 @@ func loadConfig(getenv func(string) string) config {
 	}
 }
 
-// registerInjectors adds the real injectors. There are none yet: Phase 11
-// brings netem and container kill. Every type is refused until then.
-var registerInjectors = func(*yaldabaoth.Service) {}
+// registerInjectors adds the real injectors (S-REAL-STEEL Phases 11-12):
+// netem on an allowlisted instance's host veth (resolved from Cuirass), the
+// container-kill driver over Cuirass's chaos endpoint, and the east-only
+// systemd stop/kill injector. Types with no injector (http_error and the
+// rest) are refused with an explanation (D-22), never faked.
+var registerInjectors = func(s *yaldabaoth.Service, c config, log *logger.Logger) {
+	runner := yaldabaoth.ExecRunner{}
+
+	// netem needs a resolver to turn an LXD instance into its host veth.
+	res, err := yaldabaoth.NewCuirassResolver(c.cuirassURL)
+	if err != nil {
+		log.Warn().Err(err).Msg("netem: no Cuirass resolver; lxd netem targets will be refused")
+	}
+	for mode, types := range map[yaldabaoth.NetemMode][]yaldabaoth.ExperimentType{
+		yaldabaoth.NetemDelay:     {yaldabaoth.ExpTypeNetworkDelay, yaldabaoth.ExpTypeLatencySpike},
+		yaldabaoth.NetemLoss:      {yaldabaoth.ExpTypeNetworkLoss},
+		yaldabaoth.NetemPartition: {yaldabaoth.ExpTypeNetworkPartition},
+	} {
+		inj, err := yaldabaoth.NewNetemInjector(mode, runner, res, log)
+		if err != nil {
+			log.Error().Err(err).Str("mode", string(mode)).Msg("netem injector not registered")
+			continue
+		}
+		for _, t := range types {
+			s.RegisterInjector(t, inj)
+		}
+	}
+
+	// Container kill drives Cuirass's out-of-band chaos endpoint.
+	if cc, err := yaldabaoth.NewContainerChaosClient(c.cuirassURL, c.cuirassKey); err != nil {
+		log.Warn().Err(err).Msg("container-kill injector not registered")
+	} else {
+		s.RegisterInjector(yaldabaoth.ExpTypeContainerKill, yaldabaoth.NewContainerInjector(cc, "kill", 0, log))
+	}
+
+	// systemd stop/kill, east only (Phase 12, D-23). The injector refuses on
+	// any other host and authorization is a polkit rule, so registering it on
+	// west is inert.
+	s.RegisterInjector(yaldabaoth.ExpTypeServiceStop, yaldabaoth.NewSystemdStop(runner, os.Hostname, log))
+	s.RegisterInjector(yaldabaoth.ExpTypeProcessKill, yaldabaoth.NewSystemdKill(runner, os.Hostname, log))
+
+	// D-22: http_error points at the workload's own error knob.
+	s.RefuseType(yaldabaoth.ExpTypeHTTPError, "not supported: deploy a faulty build instead (steel-echo STEEL_ERROR_RATE)")
+}
 
 // wotanPublisher joins each topic as chaos-controller before publishing.
 type wotanPublisher struct {
@@ -159,7 +204,7 @@ func build(c config, log *logger.Logger) (*yaldabaoth.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	registerInjectors(s)
+	registerInjectors(s, c, log)
 	return s, nil
 }
 
@@ -170,9 +215,10 @@ func revertAll(c config, out io.Writer) int {
 	cfg := yaldabaoth.DefaultConfig()
 	cfg.StateDir = c.stateDir
 	cfg.AbortFile = ""
-	s, err := yaldabaoth.NewService(cfg, yaldabaoth.Deps{Log: logger.New(io.Discard)})
+	log := logger.New(io.Discard)
+	s, err := yaldabaoth.NewService(cfg, yaldabaoth.Deps{Log: log})
 	if err == nil {
-		registerInjectors(s)
+		registerInjectors(s, c, log)
 	}
 	if err != nil {
 		fmt.Fprintf(out, "revert-all: %v\n", err)
@@ -376,10 +422,33 @@ func handler(a *api) http.Handler {
 	return httputil.NewServiceMetrics(serviceName).Instrument(mux, h)
 }
 
+// renderPolkit prints the polkit rule for the configured allowlist's systemd
+// units (D-23). The east install redirects it to
+// /etc/polkit-1/rules.d/60-unheaded-chaos.rules.
+func renderPolkit(c config, out io.Writer) int {
+	allow, err := yaldabaoth.LoadAllowlist(c.allowlist)
+	if err != nil {
+		fmt.Fprintf(out, "render-polkit: %v\n", err)
+		return 2
+	}
+	rule, err := yaldabaoth.RenderPolkitRule(allow)
+	if err != nil {
+		fmt.Fprintf(out, "render-polkit: %v\n", err)
+		return 2
+	}
+	fmt.Fprint(out, rule)
+	return 0
+}
+
 func main() {
 	c := loadConfig(os.Getenv)
-	if len(os.Args) > 1 && os.Args[1] == "revert-all" {
-		os.Exit(revertAll(c, os.Stdout))
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "revert-all":
+			os.Exit(revertAll(c, os.Stdout))
+		case "render-polkit":
+			os.Exit(renderPolkit(c, os.Stdout))
+		}
 	}
 	log := logger.New(os.Stderr)
 	s, err := build(c, log)

@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Rendered by `chaos-controller render-polkit` from the chaos allowlist
+// (S-REAL-STEEL D-23, ADR-107). One source: edit the allowlist, re-render.
+// Do not edit by hand.
+//
+// Lets the unheaded-chaos system user start/stop/kill ONLY the listed units,
+// and nothing else. Everything outside this is left to the rest of policy.
+polkit.addRule(function(action, subject) {
+    if (action.id != "org.freedesktop.systemd1.manage-units") { return polkit.Result.NOT_HANDLED; }
+    if (subject.user != "{{.User}}") { return polkit.Result.NOT_HANDLED; }
+    var verb = action.lookup("verb");
+    if (verb != "start" && verb != "stop" && verb != "kill") { return polkit.Result.NOT_HANDLED; }
+    var unit = action.lookup("unit");
+    var units = {
+{{- range .Units}}
+        {{printf "%q" .}}: true,
+{{- end}}
+    };
+    if (units[unit] === true) { return polkit.Result.YES; }
+    return polkit.Result.NOT_HANDLED;
+});

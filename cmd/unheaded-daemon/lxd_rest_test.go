@@ -58,7 +58,7 @@ func instance(name, status string, config map[string]string) map[string]any {
 		"name": name, "status": status, "type": "container", "config": config,
 		"state": map[string]any{"network": map[string]any{
 			"lo":   map[string]any{"addresses": []map[string]string{{"family": "inet", "address": "127.0.0.1", "scope": "local"}}},
-			"eth0": map[string]any{"addresses": []map[string]string{{"family": "inet6", "address": "fd00::5", "scope": "global"}, {"family": "inet", "address": "10.10.20.5", "scope": "global"}}},
+			"eth0": map[string]any{"host_name": "veth" + name, "addresses": []map[string]string{{"family": "inet6", "address": "fd00::5", "scope": "global"}, {"family": "inet", "address": "10.10.20.5", "scope": "global"}}},
 		}},
 	}
 }
@@ -209,6 +209,44 @@ func TestLXDREST_ListMapsInstances(t *testing.T) {
 	if w == nil || w.Status != "stopped" || !w.Managed || w.Health != "unknown" {
 		t.Errorf("web: %+v", w)
 	}
+}
+
+// Cuirass reports each instance's host-side veth (LXD state
+// network.<nic>.host_name), which Phase 11 netem shapes. lo has none, so
+// the bridged NIC's host_name is reported; a NIC with no host_name (a
+// non-bridged device) leaves HostVeth empty and the instance is not
+// chaos-eligible (D-21 override).
+func TestLXDREST_ReportsHostVeth(t *testing.T) {
+	f := newFakeLXD()
+	f.instances["web"] = instance("web", "Running", map[string]string{ManagedLabel: "true"})
+	// An instance whose only NIC reports no host_name: HostVeth stays empty.
+	nohost := instance("nohost", "Running", map[string]string{ManagedLabel: "true"})
+	nohost["state"] = map[string]any{"network": map[string]any{
+		"eth0": map[string]any{"addresses": []map[string]string{{"family": "inet", "address": "10.10.20.9", "scope": "global"}}},
+	}}
+	f.instances["nohost"] = nohost
+	c := unixLXD(t, f, "")
+	got, err := c.ListContainers(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := got["web"]; w == nil || w.HostVeth != "vethweb" {
+		t.Errorf("web host veth = %q, want vethweb", hostVethOf(w))
+	}
+	if n := got["nohost"]; n == nil || n.HostVeth != "" {
+		t.Errorf("nohost host veth = %q, want empty", hostVethOf(n))
+	}
+	// lo (no host_name) must not be chosen even when sorted first.
+	if p := got["pihole"]; p == nil || p.HostVeth != "vethpihole" {
+		t.Errorf("pihole host veth = %q, want vethpihole", hostVethOf(p))
+	}
+}
+
+func hostVethOf(c *ContainerState) string {
+	if c == nil {
+		return "<nil>"
+	}
+	return c.HostVeth
 }
 
 // The client refuses unmanaged instances itself, whatever the reconciler
