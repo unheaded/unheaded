@@ -41,7 +41,10 @@ func (b *LinuxBackend) Present(iface string) bool {
 	return err == nil
 }
 
-// Load loads the object with its maps pinned by name under pinDir and pins
+// Load loads the object with its three state maps pinned by name under
+// pinDir (the object's .rodata/.bss maps are not: bpffs refuses names with
+// a dot, seen live on west as "load pinned map: operation not permitted")
+// and pins
 // the classifier at pinDir/prog. The collection's own descriptors are
 // closed: the pins keep everything alive until Unpin.
 func (b *LinuxBackend) Load(objPath, pinDir string) error {
@@ -52,8 +55,10 @@ func (b *LinuxBackend) Load(objPath, pinDir string) error {
 	if err != nil {
 		return fmt.Errorf("spec: %w", err)
 	}
-	for _, m := range spec.Maps {
-		m.Pinning = ebpf.PinByName
+	for name, m := range spec.Maps {
+		if Pinned(name) {
+			m.Pinning = ebpf.PinByName
+		}
 	}
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}})
 	if err != nil {

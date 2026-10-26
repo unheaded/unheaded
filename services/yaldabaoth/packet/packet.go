@@ -69,6 +69,18 @@ const (
 	MaxDelayMs = 60_000
 )
 
+// Pinned reports whether a map in the object is pinned under the experiment
+// directory: only the three state maps userspace reads and writes. The
+// compiler's section maps (.rodata, .bss, .data) stay unpinned; their
+// names carry a dot, which bpffs refuses.
+func Pinned(mapName string) bool {
+	switch mapName {
+	case MapTargets, MapConfig, MapStats:
+		return true
+	}
+	return false
+}
+
 // STATS keys, mirroring the program's STAT_* constants.
 const (
 	StatPacketsTotal  uint32 = 0

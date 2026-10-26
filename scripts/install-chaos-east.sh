@@ -12,7 +12,7 @@
 # (credentials are not stored in the repo).
 #
 #   ./scripts/install-chaos-east.sh            # dry run
-#   sudo ./scripts/install-chaos-east.sh --apply
+#   sudo ./scripts/install-chaos-east.sh --apply [--binary=/path/to/chaos-controller]
 #
 # After it finishes: create /etc/unheaded/chaos/chaos.env, then
 #   sudo systemctl daemon-reload
@@ -23,6 +23,7 @@ APPLY=0
 for arg in "$@"; do
 	case "$arg" in
 	--apply) APPLY=1 ;;
+	--binary=*) BINARY="${arg#--binary=}" ;;
 	-h | --help)
 		sed -n '2,24p' "$0"
 		exit 0
@@ -78,9 +79,17 @@ for f in "$ALLOWLIST_SRC" "$POLICY_SRC" "$UNIT_SRC" "$DROPIN_SRC" "$SYSUSERS_SRC
 	fi
 done
 
-echo "== build chaos-controller =="
-BIN_BUILT="$REPO_ROOT/chaos-controller"
-run env -C "$REPO_ROOT" go build -o "$BIN_BUILT" ./cmd/chaos-controller
+if [ -n "${BINARY:-}" ]; then
+	# East has no Go toolchain: the binary is built on west (same x86_64)
+	# from the same commit and copied over with this tree.
+	echo "== prebuilt chaos-controller: $BINARY =="
+	[ -f "$BINARY" ] || { echo "missing binary: $BINARY" >&2; exit 1; }
+	BIN_BUILT="$BINARY"
+else
+	echo "== build chaos-controller =="
+	BIN_BUILT="$REPO_ROOT/chaos-controller"
+	run env -C "$REPO_ROOT" go build -o "$BIN_BUILT" ./cmd/chaos-controller
+fi
 
 echo "== system user (unheaded-chaos, uid 16763) =="
 run install -m 0644 "$SYSUSERS_SRC" "$SYSUSERS_DST"

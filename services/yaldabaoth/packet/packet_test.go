@@ -584,3 +584,16 @@ func TestObjectPath(t *testing.T) {
 		t.Errorf("env = %q", got)
 	}
 }
+
+func TestPinned_OnlyStateMaps(t *testing.T) {
+	for _, n := range []string{MapTargets, MapConfig, MapStats} {
+		if !Pinned(n) {
+			t.Errorf("%s must be pinned", n)
+		}
+	}
+	for _, n := range []string{".rodata.str1.1", ".rodata", ".bss", ".data", "yaldabaoth_tc"} {
+		if Pinned(n) {
+			t.Errorf("%s must not be pinned (bpffs refuses dotted names)", n)
+		}
+	}
+}
