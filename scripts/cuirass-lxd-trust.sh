@@ -5,8 +5,9 @@
 #
 # What it does (each step skips itself when already done):
 #   1. creates the LXD project `unheaded` (restricted=true; shares the default
-#      project's images and profiles), so Cuirass sees only its own instances
-#      and pihole stays invisible to it;
+#      project's images, owns its profiles with a default profile seeded from
+#      the default project's root disk + bridge NIC), so Cuirass sees only its
+#      own instances and pihole stays invisible to it;
 #   2. makes Cuirass a P-384 key and self-signed client certificate;
 #   3. trusts that certificate restricted to the `unheaded` project;
 #   4. saves LXD's server certificate, which Cuirass pins;
@@ -57,15 +58,36 @@ echo "-- 1. project $PROJECT --"
 if lxc project list -f csv | cut -d, -f1 | sed 's/ (current)//' | grep -qx "$PROJECT"; then
   echo "  exists"
 else
-  run lxc project create "$PROJECT" -c restricted=true -c features.images=false -c features.profiles=false \
+  # LXD refuses restricted=true on a project that shares profiles (seen on
+  # west, LXD 5.21: "Projects without their own profiles cannot be
+  # restricted"), so the project owns its profiles. Created unrestricted and
+  # restricted in a second call: on west the one-call form hung for minutes.
+  run lxc project create "$PROJECT" -c features.images=false -c features.profiles=true \
     -c "user.unheaded.purpose=Cuirass-managed instances"
+  run lxc project set "$PROJECT" restricted=true
+fi
+# The project's own default profile starts empty: seed it with the default
+# project's root disk and bridge NIC so instances get storage and network.
+POOL=$(lxc profile device get default root pool 2>/dev/null || echo default)
+BRIDGE=$(lxc profile device get default eth0 network 2>/dev/null || echo lxdbr0)
+if lxc profile device list default --project "$PROJECT" 2>/dev/null | grep -qx root; then
+  echo "  profile default/root exists"
+else
+  run lxc profile device add default root disk path=/ pool="$POOL" --project "$PROJECT"
+fi
+if lxc profile device list default --project "$PROJECT" 2>/dev/null | grep -qx eth0; then
+  echo "  profile default/eth0 exists"
+else
+  run lxc profile device add default eth0 nic network="$BRIDGE" --project "$PROJECT"
 fi
 
 echo "-- 2. client key + certificate in $DIR --"
 if [ -f "$DIR/client.crt" ] && [ -f "$DIR/client.key" ]; then
   echo "  exist"
 else
-  run sudo install -d -m 0750 -o root -g "$CUIRASS_UID" "$DIR"
+  # Two calls: west's uutils install rejects a numeric group with no passwd entry.
+  run sudo install -d -m 0750 "$DIR"
+  run sudo chown "0:$CUIRASS_UID" "$DIR"
   run sudo openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -nodes -days 3650 \
     -subj "/CN=cuirass@$(hostname -s)" -keyout "$DIR/client.key" -out "$DIR/client.crt"
   run sudo chown "$CUIRASS_UID:$CUIRASS_UID" "$DIR/client.key" "$DIR/client.crt"
