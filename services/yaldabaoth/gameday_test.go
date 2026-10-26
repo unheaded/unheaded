@@ -91,15 +91,21 @@ func TestGameDay_LegacyRulesAreRefusedNotFaked(t *testing.T) {
 
 func TestRuleExperiment_Translation(t *testing.T) {
 	e := RuleExperiment(FaultRule{SrcServiceID: 3, DstServiceID: 4, FaultType: "DROP", DropRatePPM: 250000, Duration: 2 * time.Second})
-	if e.Type != ExpTypeNetworkLoss || e.Target.Kind != KindPacket || e.Parameters["loss_percent"] != 25.0 || e.Schedule.Duration != 2*time.Second {
+	if e.Type != ExpTypePacketChaos || e.Target.Kind != KindPacket || e.Parameters["mode"] != "marker" || e.Parameters["loss_percent"] != 25.0 || e.Schedule.Duration != 2*time.Second {
 		t.Fatalf("translated %+v", e)
 	}
 	e = RuleExperiment(FaultRule{FaultType: "DELAY", DelayUS: 150000})
-	if e.Type != ExpTypeNetworkDelay || e.Parameters["delay_ms"] != 150.0 {
+	if e.Type != ExpTypePacketChaos || e.Parameters["mode"] != "delay" || e.Parameters["delay_ms"] != 150.0 {
 		t.Fatalf("translated %+v", e)
 	}
-	if e := RuleExperiment(FaultRule{FaultType: "CORRUPT"}); e.Type != ExpTypeCustom {
-		t.Fatalf("CORRUPT translated to %s", e.Type)
+	if e := RuleExperiment(FaultRule{FaultType: "CORRUPT"}); e.Type != ExpTypePacketChaos || e.Parameters["mode"] != "bitflip" {
+		t.Fatalf("CORRUPT translated to %+v", e)
+	}
+	if e := RuleExperiment(FaultRule{FaultType: "DUPLICATE", DropRatePPM: 100000}); e.Type != ExpTypePacketChaos || e.Parameters["mode"] != "duplicate" || e.Parameters["duplicate_percent"] != 10.0 {
+		t.Fatalf("DUPLICATE translated to %+v", e)
+	}
+	if e := RuleExperiment(FaultRule{FaultType: "MELT"}); e.Type != ExpTypeCustom {
+		t.Fatalf("unknown fault translated to %s", e.Type)
 	}
 }
 

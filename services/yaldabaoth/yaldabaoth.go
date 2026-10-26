@@ -84,13 +84,18 @@ const (
 	ExpTypeResourceExhaust  ExperimentType = "resource_exhaustion"
 	ExpTypeServiceStop      ExperimentType = "service_stop"
 	ExpTypeCustom           ExperimentType = "custom"
+	// ExpTypePacketChaos drives yaldabaoth-ebpf on one lab interface
+	// (S-REAL-STEEL Phase 13, services/yaldabaoth/packet): flow_labels,
+	// mode, and the netem knobs loss_percent / delay_ms / jitter_ms /
+	// duplicate_percent act only on the flagged packets.
+	ExpTypePacketChaos ExperimentType = "packet_chaos"
 )
 
 var knownTypes = map[ExperimentType]bool{
 	ExpTypeNetworkDelay: true, ExpTypeNetworkLoss: true, ExpTypeNetworkPartition: true, ExpTypeCPUStress: true,
 	ExpTypeMemoryStress: true, ExpTypeDiskStress: true, ExpTypeProcessKill: true, ExpTypeContainerKill: true,
 	ExpTypeNodeDrain: true, ExpTypeDNSFailure: true, ExpTypeTimeSkew: true, ExpTypeHTTPError: true,
-	ExpTypeLatencySpike: true, ExpTypeResourceExhaust: true, ExpTypeServiceStop: true, ExpTypeCustom: true,
+	ExpTypeLatencySpike: true, ExpTypeResourceExhaust: true, ExpTypeServiceStop: true, ExpTypeCustom: true, ExpTypePacketChaos: true,
 }
 
 // ExperimentStatus tracks experiment lifecycle.

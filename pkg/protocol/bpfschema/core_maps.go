@@ -119,7 +119,7 @@ const (
 //
 //	Offset  Field           Size    Description
 //	0x00    TimestampNs     8B      Kernel monotonic timestamp (bpf_ktime_get_ns, nanoseconds)
-//	0x08    EventType       1B      Event type: 0x01=Birth, 0x02=Hop, 0x03=Death, 0x04=Anomaly, 0x05=Chaos
+//	0x08    EventType       1B      Event type: 0x01=Birth, 0x02=Hop, 0x03=Death, 0x04=Chaos, 0x08=Anomaly (foundation-06)
 //	0x09    HopID           1B      Sophia-assigned hop identifier (from CONFIG[0] map)
 //	0x0A    FlowLabelLo     2B      Low 16 bits of IPv6 Flow Label (big-endian, trace correlation key)
 //	0x0C    Monad           20B     Complete 20-byte Monad snapshot at time of event
@@ -139,8 +139,9 @@ const (
 	EventBirth   uint8 = 0x01 // Shield XDP: Monad inserted at ingress.
 	EventHop     uint8 = 0x02 // Hop XDP: Per-hop processing completed.
 	EventDeath   uint8 = 0x03 // Shield TC: Monad stripped at egress.
-	EventAnomaly uint8 = 0x04 // Any: CRC failure, decode error, etc.
-	EventChaos   uint8 = 0x05 // Yaldabaoth: Chaos injection applied.
+	EventChaos   uint8 = 0x04 // Yaldabaoth: Chaos injection applied (EVENT_CHAOS, foundation-06).
+	EventAnomaly uint8 = 0x08 // Any: CRC failure, decode error, etc. (EVENT_ANOMALY, foundation-06).
+	// 0x05-0x07 are EVENT_ROLLBACK, EVENT_DIED, EVENT_KEY_OP in the registry: no producer yet.
 )
 
 // === EXISTING MAP SCHEMAS ===

@@ -246,7 +246,7 @@ exactly 32 bytes (one CPU cache line), structured as:
 AnamnesisEvent (32 bytes):
   timestamp_ns:  u64     Kernel timestamp (bpf_ktime_get_ns)
   event_type:    u8      Birth(0x01), Hop(0x02), Death(0x03),
-                         Anomaly(0x04), Chaos(0x05)
+                         Chaos(0x04), Anomaly(0x08)
   hop_id:        u8      Which node emitted this event
   flow_label_lo: [u8; 2] Low 16 bits of IPv6 Flow Label
   monad:         [u8; 20] Full Monad register file snapshot

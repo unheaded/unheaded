@@ -316,7 +316,7 @@ Offset  Field           Size    Type
 ```
 Offset  Field           Size    Type        Description
 0x00    TimestampNs     8B      uint64      bpf_ktime_get_ns()
-0x08    EventType       1B      uint8       0x01=Birth, 0x02=Hop, 0x03=Death, 0x04=Anomaly, 0x05=Chaos
+0x08    EventType       1B      uint8       0x01=Birth, 0x02=Hop, 0x03=Death, 0x04=Chaos, 0x08=Anomaly
 0x09    HopID           1B      uint8       Sophia-assigned hop identifier
 0x0A    FlowLabelLo     2B      uint16      IPv6 Flow Label low 16 bits (big-endian)
 0x0C    Monad           20B     MonadReg    Complete Monad snapshot

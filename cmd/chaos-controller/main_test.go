@@ -92,6 +92,9 @@ func withInjector(t *testing.T, inj *testInjector) {
 	old := registerInjectors
 	registerInjectors = func(s *yaldabaoth.Service, _ config, _ *logger.Logger) {
 		s.RegisterInjector(yaldabaoth.ExpTypeNetworkDelay, inj)
+		// Stands in for the packet_chaos injector so the legacy rule API
+		// reaches the allowlist (and is refused there), as it does live.
+		s.RegisterInjector(yaldabaoth.ExpTypePacketChaos, inj)
 	}
 	t.Cleanup(func() { registerInjectors = old })
 }

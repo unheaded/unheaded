@@ -180,6 +180,36 @@ Either:
 
 ---
 
+#### Finding 1.6 (H13): Anamnesis Event Type Codes — CHAOS and ANOMALY
+
+**Section:** IANA Considerations, "Anamnesis Event Type Registry" (foundation-06)
+
+**Spec Claims:**
+> `EVENT_CHAOS (0x04)  Chaos mode applied` / `EVENT_ANOMALY (0x08)  Integrity or version error`
+
+**Code (before 2026-10-26):**
+`ebpf/monad-common` `EventType`, `pkg/ebpf.EventType` and `pkg/protocol/bpfschema`
+all carried `Anomaly = 0x04`, `Chaos = 0x05`; every eBPF producer (yaldabaoth,
+shield, hop, qos, maglev, firewall, failover) and every Go consumer
+(trace-collector-go, dashboard-backend) used those constants. JS consumers
+only ever see the event name string, never the byte.
+
+**Severity:** HIGH (a registry value on the wire of the ring buffer)
+**Status:** **Resolved 2026-10-26** (E4, S-REAL-STEEL Step 332). Stevie: *spec
+wins, fix the code.* Chaos is 0x04 and Anomaly 0x08 in `monad-common`,
+`pkg/ebpf` and `bpfschema`; every eBPF program that depends on `monad-common`
+was rebuilt; `EventType.Valid()` is an explicit set (0x05-0x07, ROLLBACK/DIED/
+KEY_OP in the registry, have no producer and decode as unknown). No draft was
+edited. Related: `shield-ebpf` no longer sets the CHAOS flag on the event-local
+Monad of a blocked-source Anomaly event (that bit meant "Yaldabaoth touched
+this packet" and nothing else).
+
+**Still open (out of E4's scope):** the registry's 0x00-0x03 and 0x06
+(BORN, COMPUTED, WOTAN_RD, WOTAN_WR, DIED) do not match the code's Birth 0x01,
+Hop 0x02, Death 0x03. Raise as its own escalation before any of those move.
+
+---
+
 ### SPEC 2: draft-bellis-unheaded-sophia-dictionary-03.md
 
 #### Finding 2.1: Dictionary Version Rollback Not Addressed
@@ -503,6 +533,7 @@ Shim-00 specifies "45-opcode" MBC ISA in line 83, but MBC-ISA-00 says 45 and lis
 | 1.3 | Foundation-06 | Throughout | LOW | Open | Move BCP 14 section earlier in document |
 | 1.4 | Foundation-06 | 5.3 | **HIGH** | Open | Fix intermediary.go to reject versions != 0x01 |
 | 1.5 | Foundation-06 | 11 | **HIGH** | Open | Add FN-DSA and HQC to registry or document why missing |
+| 1.6 (H13) | Foundation-06 | IANA, Anamnesis Event Types | **HIGH** | Resolved 2026-10-26 | Code moved to EVENT_CHAOS 0x04 / EVENT_ANOMALY 0x08 (E4); BORN/COMPUTED/DIED codes still differ, separate escalation |
 | 2.1 | Sophia-03 | 4-5 | MEDIUM | Open | Add version rollback/wraparound guidance |
 | 2.2 | Sophia-03 | 3 | MEDIUM | Open | Mark nested sub-dicts OPTIONAL or implement |
 | 3.1 | Wotan-03 | 3.1-3.2 | MEDIUM | Open | Define severity codes 5-7 as reserved |

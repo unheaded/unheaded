@@ -13,6 +13,10 @@
 //	                              unit's ExecStopPost)
 //	chaos-controller render-polkit  print the polkit rule for the allowlist's
 //	                              systemd units (east install, D-23)
+//	chaos-controller packet-chaos --iface steel0-h --flow-label 0x5EE1 ...
+//	                              one packet_chaos experiment on a lab
+//	                              interface from the command line, with
+//	                              --dry-run to print the plan (packetcmd.go)
 //
 // Environment:
 //
@@ -131,9 +135,17 @@ var registerInjectors = func(s *yaldabaoth.Service, c config, log *logger.Logger
 	s.RegisterInjector(yaldabaoth.ExpTypeServiceStop, yaldabaoth.NewSystemdStop(runner, os.Hostname, log))
 	s.RegisterInjector(yaldabaoth.ExpTypeProcessKill, yaldabaoth.NewSystemdKill(runner, os.Hostname, log))
 
+	// packet_chaos (Phase 13) needs the kernel: injectors_linux.go sets the hook.
+	registerPacketInjector(s)
+
 	// D-22: http_error points at the workload's own error knob.
 	s.RefuseType(yaldabaoth.ExpTypeHTTPError, "not supported: deploy a faulty build instead (steel-echo STEEL_ERROR_RATE)")
 }
+
+// registerPacketInjector adds the packet_chaos injector (yaldabaoth-ebpf on a
+// lab veth, Phase 13); injectors_linux.go sets it, elsewhere it is a no-op
+// and the type is refused for want of an injector.
+var registerPacketInjector = func(*yaldabaoth.Service) {}
 
 // wotanPublisher joins each topic as chaos-controller before publishing.
 type wotanPublisher struct {
@@ -449,6 +461,9 @@ func main() {
 		case "render-polkit":
 			os.Exit(renderPolkit(c, os.Stdout))
 		}
+	}
+	if len(os.Args) > 1 && os.Args[1] == "packet-chaos" {
+		os.Exit(packetChaosMain(os.Args[2:]))
 	}
 	log := logger.New(os.Stderr)
 	s, err := build(c, log)

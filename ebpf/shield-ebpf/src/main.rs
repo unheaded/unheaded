@@ -827,13 +827,18 @@ fn emit_anamnesis(
 }
 
 /// Emit a block event (source blocked) to Anamnesis as an Anomaly.
+///
+/// The Monad here is event-local: the dropped packet carried none (step 4
+/// drops any that does), so this one exists only inside the ring-buffer
+/// record and never touches the wire. The event is told apart by its
+/// hop_id (0xFF) and src_prefix_lo, not by a flag: CHAOS (bit 7) means
+/// "Yaldabaoth modified this packet" and nothing else (E4, 2026-10-26).
 #[inline(always)]
 fn emit_block_event(ip: &Ipv6Hdr, _src_key: u64) {
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
     let mut monad = Monad::new();
     // Mark the source address low byte in a scratch register for dashboard display.
     monad.src_prefix_lo = ip.src[7];
-    monad.set_flag(flags::CHAOS); // Reuse CHAOS flag to indicate blocked packet
     let event = AnamnesisEvent::new(now, EventType::Anomaly, 0xFF, 0, monad);
     if let Some(mut entry) = ANAMNESIS.reserve::<AnamnesisEvent>(0) {
         unsafe {

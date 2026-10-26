@@ -1115,8 +1115,8 @@ Legend: `d`=dst register, `s`=src register, `i`=immediate, `o`=offset, `t`=targe
 | 0x01 | Birth | Shield ingress inserted Monad |
 | 0x02 | Hop | Intermediate eBPF hop processing |
 | 0x03 | Death | Shield egress stripped Monad |
-| 0x04 | Anomaly | Checksum failure or decode error |
-| 0x05 | Chaos | Yaldabaoth chaos injection |
+| 0x04 | Chaos | Yaldabaoth chaos injection (EVENT_CHAOS, foundation-06) |
+| 0x08 | Anomaly | Checksum failure or decode error (EVENT_ANOMALY) |
 | 0x10 | EVENT_COMPUTE_HOP | MBC instruction executed |
 | 0x11 | EVENT_CACHE_MISS | L1 cache miss |
 | 0x12 | EVENT_MEM_WRITE | Dirty page writeback |

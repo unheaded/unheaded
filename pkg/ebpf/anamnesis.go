@@ -50,8 +50,10 @@ const (
 	EventBirth   EventType = 0x01 // Shield ingress inserted the Monad
 	EventHop     EventType = 0x02 // Intermediate BPF program processed packet
 	EventDeath   EventType = 0x03 // Shield egress stripped the Monad
-	EventAnomaly EventType = 0x04 // CRC failure, unknown Sophia key, decode error
-	EventChaos   EventType = 0x05 // Yaldabaoth chaos injection
+	EventChaos   EventType = 0x04 // Yaldabaoth chaos injection (EVENT_CHAOS, foundation-06)
+	EventAnomaly EventType = 0x08 // CRC failure, unknown Sophia key, decode error (EVENT_ANOMALY)
+	// 0x05-0x07 are EVENT_ROLLBACK, EVENT_DIED and EVENT_KEY_OP in the
+	// foundation-06 registry; nothing emits them yet, so they are invalid here.
 )
 
 // String returns the human-readable event type name.
@@ -74,7 +76,11 @@ func (e EventType) String() string {
 
 // Valid returns true if the event type is a known value.
 func (e EventType) Valid() bool {
-	return e >= EventBirth && e <= EventChaos
+	switch e {
+	case EventBirth, EventHop, EventDeath, EventAnomaly, EventChaos:
+		return true
+	}
+	return false
 }
 
 // MarshalJSON encodes the event type as a JSON string.

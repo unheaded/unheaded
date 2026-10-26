@@ -16,7 +16,7 @@
 //! | Mode         | Action                                           | CRC after |
 //! |--------------|--------------------------------------------------|-----------|
 //! | BIT_FLIP     | XOR a random byte in Monad[1..17] with rand mask | Not recomputed (intentional corruption) |
-//! | DELAY        | Mark packet for netem qdisc delay               | Recomputed |
+//! | DELAY        | Record delay_us in scratch_r0 (netem does the wait) | Recomputed |
 //! | DUPLICATE    | Clone packet via bpf_clone_redirect              | Recomputed |
 //! | TRUNCATE     | Zero Monad bytes 0x08..0x13                      | Not recomputed (intentional corruption) |
 //! | CHAOS_MARKER | Set CHAOS flag only, no data corruption          | Recomputed |
@@ -25,8 +25,24 @@
 //!
 //! All chaos actions:
 //! 1. Set the CHAOS flag in Monad.flags
-//! 2. Emit a CHAOS Anamnesis event (always, even for BIT_FLIP)
-//! 3. Pass TC_ACT_OK — chaos injection is advisory for the tracing system
+//! 2. Set `skb->mark = CHAOS_SKB_MARK` (0xC4A05) so a `fw` filter on the
+//!    root prio qdisc steers the packet into the netem band (S-REAL-STEEL
+//!    D-24). The mark is host-local: it never leaves the box, so the wire
+//!    format is untouched and a non-enrolled packet is byte-identical.
+//! 3. Emit a CHAOS Anamnesis event (always, even for BIT_FLIP)
+//! 4. Pass TC_ACT_OK — chaos injection is advisory for the tracing system
+//!
+//! The qdisc tree userspace builds on the egress interface
+//! (services/yaldabaoth/packet):
+//!
+//! ```text
+//! tc qdisc replace dev <if> root handle c4a0: prio bands 3
+//! tc filter add dev <if> parent c4a0: protocol ipv6 handle 0xC4A05 fw flowid c4a0:3
+//! tc qdisc add dev <if> parent c4a0:3 handle c4a3: netem <loss|delay|duplicate>
+//! ```
+//!
+//! The classifier attaches at clsact egress (TCX) and runs before the root
+//! qdisc enqueues, so netem only ever sees packets this program flagged.
 //!
 //! The CHAOS_TARGETS map is the control plane: userspace writes entries to
 //! select which flow labels receive chaos and at what intensity.
@@ -105,6 +121,12 @@ const STAT_CLONE_FAILED: u32 = 11;
 // ── Config keys ───────────────────────────────────────────────────────────────
 const CFG_HOP_ID: u32 = 0;
 const CFG_EGRESS_IFINDEX: u32 = 4;
+
+/// `skb->mark` stamped on every enrolled packet after chaos is applied
+/// (S-REAL-STEEL D-24). Userspace's `fw` filter matches this value and
+/// sends the packet to the netem band. Local to this program: the mark is
+/// kernel metadata, not a packet byte, and `monad-common` does not know it.
+pub const CHAOS_SKB_MARK: u32 = 0xC4A05;
 
 // ── Packet layout constants ───────────────────────────────────────────────────
 const ETH_HLEN: usize = 14;
@@ -185,6 +207,11 @@ fn try_yaldabaoth(ctx: &mut TcContext) -> Result<i32, ()> {
 
     // ── Apply chaos mode ──────────────────────────────────────────────────────
     apply_chaos(ctx, &mut monad, mode, param, flow_label)?;
+
+    // Hand the packet to the netem band: the fw filter on the root prio
+    // qdisc matches this mark (D-24). Set after apply_chaos so a packet
+    // that failed mid-mutation (Err above) is never shaped.
+    ctx.set_mark(CHAOS_SKB_MARK);
 
     // Emit CHAOS event (always — even if we corrupted the checksum, we still
     // log the pre-corruption Monad so the dashboard knows what was valid).
