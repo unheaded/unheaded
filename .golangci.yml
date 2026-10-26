@@ -259,9 +259,6 @@ linters:
       - path: cmd/unheaded-cli/cmd/generate
         linters: [gosec]
         text: "G306:"
-      - path: cmd/unheaded-daemon/internal/config/config
-        linters: [gosec]
-        text: "G306:"
       - path: pkg/benchmark/benchmark
         linters: [gosec]
         text: "G306:"
@@ -272,9 +269,6 @@ linters:
         linters: [gosec]
         text: "G306:"
       - path: pkg/network/policy_controller
-        linters: [gosec]
-        text: "G306:"
-      - path: pkg/nix/builder
         linters: [gosec]
         text: "G306:"
       - path: pkg/testing/
@@ -292,9 +286,6 @@ linters:
       # config (image-build commands, network policy iptables wrappers,
       # benchmark test binaries, security-test campaigns):
       - path: pkg/baremetal/image/
-        linters: [gosec]
-        text: "G204:"
-      - path: pkg/nix/builder
         linters: [gosec]
         text: "G204:"
       - path: pkg/network/policy_controller
