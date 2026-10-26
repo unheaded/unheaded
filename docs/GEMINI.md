@@ -178,7 +178,6 @@ package main
 
 import (
     "github.com/unheaded/unheaded/pkg/wotan-client"
-    "github.com/unheaded/unheaded/pkg/telemetry"
 )
 
 func main() {

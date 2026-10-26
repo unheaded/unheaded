@@ -27,7 +27,6 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.82.0
 	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.5
-	github.com/fsnotify/fsnotify v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
@@ -47,7 +46,6 @@ require (
 
 replace (
 	github.com/unheaded/doomgeneric => ../projects/doomgeneric/unheaded
-	unheaded/pkg/telemetry => ./pkg/telemetry
 	unheaded/pkg/wotan-client => ./pkg/wotan-client
 )
 

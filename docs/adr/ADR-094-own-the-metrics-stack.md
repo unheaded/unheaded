@@ -105,7 +105,7 @@ So the ordering is forced:
    an alert that does not fire.
 3. **Provide the missing convenience:** a `promauto`-shaped constructor set so
    call sites change by import path, not by restructuring.
-4. **Migrate leaf packages first** — `pkg/tracing`, `pkg/logagg`,
+4. **Migrate leaf packages first** — `pkg/tracing` (deleted 2026-10-26, E1 G10h), `pkg/logagg`,
    `pkg/wotan-client` (8 files) — each verified by scraping a service that
    uses it before and after.
 5. **Then the services**, heaviest last: zhen-agentd (5 files),
@@ -300,7 +300,7 @@ by the migration itself.
 **Measured 2026-09-24** (`go list -deps` per main package):
 
 - Default-registry **writers**: `pkg/wotan-client` (4 files), `pkg/httputil`,
-  `pkg/health`, `pkg/ebpf`, `pkg/tracing`, `pkg/network`, `pkg/nix`,
+  `pkg/health`, `pkg/ebpf`, `pkg/tracing`, `pkg/network`, `pkg/nix` (the last three deleted 2026-10-26, E1),
   `services/wotan/internal/metrics`, 6 files in `cmd/trace-collector-go`,
   `cmd/zhen-agentd`, and architect/micromanager `main.go`. All register at
   package load (`var x = promauto.New…`).

@@ -10,15 +10,22 @@
 //	  "version": "0.1.0",
 //	  "timestamp": "2026-02-10T01:25:57Z"
 //	}
-//
-// Status constants (StatusHealthy, StatusUnhealthy, StatusDegraded) are defined
-// in aggregator.go as type HealthStatus. Use string() to convert when needed.
 package health
 
 import (
 	"encoding/json"
 	"net/http"
 	"time"
+)
+
+// HealthStatus represents the health state of a service.
+type HealthStatus string
+
+const (
+	StatusHealthy   HealthStatus = "healthy"
+	StatusDegraded  HealthStatus = "degraded"
+	StatusUnhealthy HealthStatus = "unhealthy"
+	StatusUnknown   HealthStatus = "unknown"
 )
 
 // Response is the standard health check response used by all Unheaded services.

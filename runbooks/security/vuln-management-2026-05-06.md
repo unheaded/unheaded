@@ -339,7 +339,7 @@ diff <(tar -xzOf deploy/cask-<old>.tar.gz BINDING_RUNE.sha256) \
 
 #### 5.1.2 Running version endpoint check
 
-Every Unheaded service exposes `/health` and (per `pkg/service/`) embeds a build version. Add a `/version` endpoint exposing:
+Every Unheaded service exposes `/health` and embeds a build version. Add a `/version` endpoint exposing:
 
 - Git commit SHA of build
 - Build timestamp

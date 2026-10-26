@@ -63,7 +63,7 @@ Specifically, we replace external dependencies with internal implementations:
 |--------------------|--------------------|---------|-----|
 | `prometheus/client_golang` | Custom Prometheus-compatible metrics | `pkg/metrics/` | 1,168 |
 | `rs/zerolog` | Custom structured logger (zero-alloc) | `pkg/logger/` | 1,533 |
-| `vishvananda/netlink` | Custom RTNetlink + XDP attachment | `pkg/netlink/` | 2,136 |
+| `vishvananda/netlink` | Custom RTNetlink + XDP attachment | `pkg/netlink/` (deleted 2026-10-26, E1 G10h: no caller; the dependency is not in go.mod either) | 2,136 |
 | `cilium/ebpf` | Custom BPF syscalls + ELF parsing | `pkg/ebpf/` | 3,937 |
 | `grpc-go` | **APPROVED EXCEPTION** — Google-maintained, battle-tested | `google.golang.org/grpc` | N/A |
 | `gorilla/websocket` | Pure Go WebSocket | `cmd/dashboard-backend/internal/websocket/` | -- |
@@ -242,7 +242,7 @@ The bar for replacement: the Kingdom version must be **as fast or faster** than 
 | `pkg/metrics/` (already done) | Go | Prometheus-compatible, zero-alloc, tailored to our use case |
 | `pkg/logger/` (already done) | Go | Zero-alloc structured logger, no interface overhead |
 | `pkg/ebpf/` (already done) | Go | Direct BPF syscalls, no abstraction layers |
-| `pkg/netlink/` (already done) | Go | Minimal RTNetlink, no unused features |
+| `pkg/netlink/` (written, then deleted 2026-10-26 unused, E1 G10h) | Go | Minimal RTNetlink, no unused features |
 
 **Unlikely to outperform (keep as exceptions):**
 | Dependency | Why |
@@ -274,5 +274,5 @@ The dependency policy is legally sound. No GPL conflicts exist with current exce
 - `pkg/metrics/metrics.go` -- Internal Prometheus-compatible metrics (1,168 LOC)
 - `pkg/logger/logger.go` -- Internal structured logger (1,533 LOC)
 - `pkg/ebpf/loader.go` -- Internal eBPF loader with BPF syscalls (3,937 LOC)
-- `pkg/netlink/netlink.go` -- Internal RTNetlink implementation (2,136 LOC)
+- `pkg/netlink/netlink.go` -- Internal RTNetlink implementation (deleted 2026-10-26, E1 G10h)
 - `LICENSES/THIRD_PARTY.md` -- Development-only dependency attribution

@@ -116,7 +116,7 @@ Per Kingdom lore (Lore + Kingdom skills), this service maps to:
 
 ### Phase 1 — `kev-poller` skeleton (Go service)
 - New module: `services/sentinel-feeds/kev-poller/`
-- Standard Kingdom service template: pkg/service/ scaffold, Wotan client, Prometheus metrics, /health + /ready
+- Standard Kingdom service shape (the pkg/service/ scaffold was deleted unused 2026-10-26): Wotan client, Prometheus metrics, /health + /ready
 - Configuration: env vars `KEV_FEED_URL`, `KEV_PULL_INTERVAL`, `KEV_OUTPUT_PATH`
 - Smoke-tested locally on a Linux dev box with `--once` flag (one pull, exit) for validation
 

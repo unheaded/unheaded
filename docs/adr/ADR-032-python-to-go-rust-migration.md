@@ -24,7 +24,7 @@ Replace all Python components with Go (for HTTP services) and Rust (for compute-
 
 | Component | Current (Python) | Target | Rationale |
 |-----------|-----------------|--------|-----------|
-| Web UI + API | Flask (zhen_app.py) | **Go** (pkg/service/ template) | Go excels at HTTP servers, goroutines for concurrency |
+| Web UI + API | Flask (zhen_app.py) | **Go** (stdlib net/http; the pkg/service/ template was deleted unused 2026-10-26) | Go excels at HTTP servers, goroutines for concurrency |
 | RAG pipeline | FAISS + sentence-transformers | **Rust** (zhenai-forge) | FAISS is C++ anyway, Rust FFI is natural |
 | Scheduler | schedule lib (zhen_scheduler.py) | **Go** (systemd timers + watchdog) | Go's time.Ticker, integrates with ADR-029 watchdog |
 | MCP server | mcp Python SDK (zhen_mcp_server.py) | **Go** (custom MCP impl) | MCP is just JSON-RPC over stdio, trivial in Go |
@@ -57,7 +57,7 @@ Replace all Python components with Go (for HTTP services) and Rust (for compute-
 
 #### Phase 1: Go Web Server + API (replace zhen_app.py)
 - `cmd/zhenai/main.go` — main service binary
-- Uses `pkg/service/` template (already built)
+- ~~Uses `pkg/service/` template (already built)~~ (deleted unused 2026-10-26, E1 G10h)
 - HTTP endpoints mirror current Flask routes
 - Embeds static files via `go:embed`
 - FAISS via CGO FFI to libfaiss
