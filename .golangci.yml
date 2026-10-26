@@ -224,9 +224,6 @@ linters:
       - path: pkg/benchmark/benchmark
         linters: [gosec]
         text: "G306:"
-      - path: pkg/testing/
-        linters: [gosec]
-        text: "G306:"
       - path: services/timeguru/internal/sync
         linters: [gosec]
         text: "G306:"
