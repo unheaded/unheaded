@@ -30,6 +30,13 @@ import (
 // defaultMTTR is the budget for an instance to come back running + healthy.
 const defaultMTTR = 90 * time.Second
 
+// ErrTargetGone is Healthy's answer for an instance Cuirass no longer lists
+// at all (deleted, for example by a rolling update that moved on while the
+// kill was still being healed). LXD lists stopped instances, so absence
+// means deletion, not a restart in progress. A revert has nothing left to
+// heal and closes.
+var ErrTargetGone = errors.New("chaos: target gone (no longer in Cuirass's actual state)")
+
 // ContainerController is Cuirass, as the injector needs it.
 type ContainerController interface {
 	// Modes reports whether Cuirass is enforcing and whether chaos is on.
@@ -117,6 +124,10 @@ func (n *ContainerInjector) Revert(ctx context.Context, r Recipe) error {
 			n.recordMTTR(r, id)
 			return nil
 		}
+		if errors.Is(err, ErrTargetGone) {
+			n.log.Info().Str("id", id).Msg("chaos: target gone, nothing left to heal")
+			return nil
+		}
 		if err != nil {
 			n.log.Warn().Err(err).Str("id", id).Msg("chaos: waiting for instance to recover")
 		}
@@ -148,7 +159,11 @@ func (n *ContainerInjector) Reverted(ctx context.Context, r Recipe) (bool, error
 	if id == "" {
 		return false, errors.New("container kill: recipe has no instance id")
 	}
-	return n.cuirass.Healthy(ctx, id)
+	ok, err := n.cuirass.Healthy(ctx, id)
+	if errors.Is(err, ErrTargetGone) {
+		return true, nil
+	}
+	return ok, err
 }
 
 // --- HTTP client over Cuirass ---
@@ -244,7 +259,7 @@ func (c *ContainerChaosClient) Healthy(ctx context.Context, id string) (bool, er
 	}
 	s, ok := actual[id]
 	if !ok {
-		return false, nil
+		return false, ErrTargetGone
 	}
 	return s.Status == "running" && s.Health == "healthy", nil
 }

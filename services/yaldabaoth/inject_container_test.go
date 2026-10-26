@@ -6,6 +6,7 @@ package yaldabaoth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -26,6 +27,7 @@ type fakeCuirass struct {
 	healthyAfter int // become healthy after this many Healthy() calls
 	healthyCalls int
 	healthyErr   error
+	gone         bool // the instance is no longer in Cuirass's actual state
 }
 
 func (c *fakeCuirass) Modes(context.Context) (bool, bool, error) {
@@ -50,6 +52,9 @@ func (c *fakeCuirass) Healthy(context.Context, string) (bool, error) {
 	c.healthyCalls++
 	if c.healthyErr != nil {
 		return false, c.healthyErr
+	}
+	if c.gone {
+		return false, ErrTargetGone
 	}
 	if c.healthyAfter > 0 {
 		return c.healthyCalls >= c.healthyAfter, nil
@@ -122,6 +127,43 @@ func TestContainer_RevertTimesOutKeepsEntry(t *testing.T) {
 	}
 	if gone, _ := inj.Reverted(t.Context(), recipe); gone {
 		t.Error("Reverted true while the instance is still down")
+	}
+}
+
+// Game day 1 Scenario B: a rolling update deleted the killed instance while
+// the revert was still waiting for it to come back; the entry stuck as
+// "revert not verified". An instance Cuirass no longer lists has nothing
+// left to heal: the revert closes as target gone.
+func TestContainer_RevertClosesWhenTargetGone(t *testing.T) {
+	c := &fakeCuirass{enforce: true, chaos: true, healthy: false, gone: true}
+	inj := containerInjector(c, 20*time.Millisecond)
+	recipe := Recipe{"id": "steel-echo-v3-2", "action": "kill", "injected_at": "0"}
+	if err := inj.Revert(t.Context(), recipe); err != nil {
+		t.Fatalf("Revert on a deleted instance: %v, want nil (target gone)", err)
+	}
+	if gone, err := inj.Reverted(t.Context(), recipe); !gone || err != nil {
+		t.Errorf("Reverted = %v, %v; want true, nil for a deleted instance", gone, err)
+	}
+}
+
+func TestContainerClient_MissingInstanceIsTargetGone(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/state/actual" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"steel-echo-v2-0":{"status":"running","health":"healthy"}}`))
+	}))
+	defer srv.Close()
+	cc, err := NewContainerChaosClient(srv.URL, "k")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := cc.Healthy(t.Context(), "steel-echo-v2-0"); !ok || err != nil {
+		t.Fatalf("listed healthy instance: %v, %v", ok, err)
+	}
+	if _, err := cc.Healthy(t.Context(), "steel-echo-v3-2"); !errors.Is(err, ErrTargetGone) {
+		t.Fatalf("unlisted instance: err = %v, want ErrTargetGone", err)
 	}
 }
 
