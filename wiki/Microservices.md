@@ -53,7 +53,8 @@ See [[eBPF Programs|eBPF-Programs]] and [[Observability Backends|Observability-B
 | `well-migrate` | Applies `db/migrations/MANIFEST` and records each file in the ledger | 101 |
 | `alert-policy` | Renders `observability/alerting/policy.yaml` into Prometheus SLO rules and Alertmanager routing; `--check` in CI | 100 |
 | `cert-gen` | TLS certificates for the service mesh | 034 |
-| `chaos-controller` | Chaos engineering controller | — |
+| `chaos-controller` | Runs `yaldabaoth.Service` (`:19012`, host unit as `unheaded-chaos` on west and east): allowlisted experiments, three abort paths, revert journal; `revert-all`, `render-polkit`, `packet-chaos` subcommands | 107, [[Chaos-Engineering]] |
+| `steel-echo` | Game-day workload: `serve` with fault knobs, `load` availability meter, `monad-send`/`monad-count` for the packet lab; LXD images v1-v4 | [[Steel-Echo]] |
 | `lich-security` | Offensive test suite: campaign modules D1–D6 against the stack | 062 |
 | `perf-benchmark` | Performance benchmarking harness | — |
 

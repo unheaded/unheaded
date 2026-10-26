@@ -101,6 +101,14 @@ Recent:
 - [[Huginn|Service-Huginn]] — host metrics agent on each host (ADR-084)
 - [[kev-poller|Service-KEV-Poller]] — CISA KEV feed, tagged against what we run (ADR-055)
 - [[Sword|Service-Sword]] — deploys through Cuirass: rolling, blue-green, canary with analysis, rollback
+- [[Steel Echo|Steel-Echo]] — the game-day workload: `serve` with fault knobs, `load` meter, Monad lab sender/counter, images v1-v4
+
+## Deploy and Chaos (S-REAL-STEEL, live on west 2026-10-26)
+
+- [[Sword|Service-Sword]] — real deploys into LXD through Cuirass; rolling 75 s / 0.9915, blue-green one flip / 1 s gap, canary auto-rollback on 35 % errors and on 310 ms client-observed p99, manual rollback 80 s
+- [[Chaos Engineering|Chaos-Engineering]] — Yaldabaoth for real: one engine, allowlist, three abort paths, revert journal + `ExecStopPost`, ADR-100 steady state; netem, container kill, systemd stop/kill on east behind polkit, CHAOS-flagged packet faults in a lab netns
+- [[Game Days|Game-Days]] — what a game day is here, the window recipe, game day 1 results
+- [[Steel Echo|Steel-Echo]] — the workload and its images
 
 ## S36 Four Pillars
 
@@ -122,6 +130,7 @@ UPC-controlled OS baseline, drift detection, alerts-only self-healing. Two-plane
 
 Full record: [[Timeline]] (`references/timeline.md`).
 
+- **2026-10-23 → 10-26** S-REAL-STEEL: the deploy and chaos stubs replaced. Cuirass on the LXD HTTPS API (project `unheaded`, pihole invisible); Sword deploys `steel-echo` for real; Yaldabaoth injects real faults inside an allowlisted envelope; game day 1 chained deploy → inject → automatic rollback → revert with numbers ([[Game Days|Game-Days]]). ADR-090 Accepted, 108 unreached packages deleted (E1).
 - **2026-10-13 → 10-15** The Well brought onto a migration ledger (ADR-101): TLS 1.3 only, an owner role per database, every password rotated out of the repo, nightly backups on a second disk + offsite to east, restore drill weekly ([[The Well|The-Well]], [[Well Backups|Well-Backups]]).
 - **2026-10-12** East back after an 11-day hang; ADR-092 log discipline; Huginn log-space alerts; `promtool` rule tests in CI.
 - **2026-09-30 → 10-01** Compliance crosswalk (ADR-097) across 800-53, FedRAMP, SOC 2, ISO 27001, CSF 2.0, 800-171, SSDF, CIS; findings register (ADR-098); remediation as code (ADR-099). CI red → green, reproduced locally.

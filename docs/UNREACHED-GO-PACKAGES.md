@@ -9,9 +9,12 @@ Input for [ADR-090](adr/ADR-090-total-source-sweep-slop-removal.md); the library
 counterpart of [LIVE-PATHS.md](LIVE-PATHS.md), which covers binaries. Not a
 deletion list: keeping an experiment is a fine decision, it should just be one.
 
-On develop at 2026-10-26, after S-REAL-STEEL Phase 1: **66 of 248** packages in
-the root module are imported by no `main` package (tests do not count). Before
-Phase 1 (2026-10-23) it was 148 of 300. Regenerate:
+On develop at 2026-10-26, after S-REAL-STEEL Phase 13: **64 of 250** packages in
+the root module are imported by no `main` package (tests do not count). After
+Phase 1 the same day it was 66 of 248; before Phase 1 (2026-10-23) 148 of 300.
+Phase 13 added two reached packages (`services/yaldabaoth/packet`,
+`pkg/monadpkt`) and, through them, reached `pkg/protocol/bpfschema` and
+`pkg/protocol/encoding`, which left the list. Regenerate:
 
 ```bash
 mains=$(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./...)
@@ -54,8 +57,10 @@ F4 `pkg/config`, `pkg/testing`, `services/kenoma`.
 - G9 control planes waiting for their eBPF half (10): see the `unwired:` notes
   in the list. `services/anomaly` left the list on 2026-10-23 (`cmd/anomaly`).
 - F3 `pkg/pqc_policy`: parked for S-QUANTUM-ARMOR (ADR-105).
-- F5 `internal/bpfmap`, `pkg/ebpf/maploader`: parked until Phase 13 decides
-  the `CHAOS_TARGETS` writer.
+- F5 `internal/bpfmap`, `pkg/ebpf/maploader`: still parked. Phase 13 (Step 340)
+  wrote the `CHAOS_TARGETS` loader on cilium/ebpf (already a dependency): these
+  two wrap bpf(2) map ops on an fd and can neither load an object nor attach a
+  TCX link.
 - F6 `services/loadbalancer`: control plane for `ebpf/maglev-ebpf`; Phase 2
   Step 92 fixes its Wotan join name.
 - F7 `services/wotan/internal/compute`, `dashboard/js/doom-viewport.js`:
@@ -86,7 +91,7 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 
 - `cmd/dashboard-backend/jstest` (G6)
 - `deploy/nftables` (G6)
-- `internal/bpfmap` (F5, parked until Phase 13)
+- `internal/bpfmap` (F5, parked; Phase 13 used cilium/ebpf)
 - `nix/tests` (G6)
 - `pkg/baremetal` (G7)
 - `pkg/baremetal/image` (G7)
@@ -94,14 +99,12 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 - `pkg/baremetal/ipmi` (G7)
 - `pkg/baremetal/pxe` (G7)
 - `pkg/deploy/cuirassdriver/cuirasstest` (test helper, by design)
-- `pkg/ebpf/maploader` (F5, parked until Phase 13)
+- `pkg/ebpf/maploader` (F5, parked; Phase 13 used cilium/ebpf)
 - `pkg/metrics/metricstest` (G6)
 - `pkg/monad` (G8)
 - `pkg/pqc_policy` (F3, S-QUANTUM-ARMOR)
 - `pkg/protocol/amplification` (G8)
-- `pkg/protocol/bpfschema` (G8)
 - `pkg/protocol/dos` (G8)
-- `pkg/protocol/encoding` (G8)
 - `pkg/protocol/errors` (G8)
 - `pkg/protocol/flowtype` (G8)
 - `pkg/protocol/fuzz` (G6)

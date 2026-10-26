@@ -70,7 +70,7 @@ No substrate is "the answer." Each has a place:
 - victoria: Compose (single-host) AND K8s StatefulSet (when HA matters)
 - new hosts: apt install unheaded-huginn OR kubeadm join — both valid
 - OS baseline: Yggdrasil (ADR-69420) built from NixOS or Debian, both supported
-- LXD substrate: Sword deploys into LXD through Cuirass (S-REAL-STEEL; code on `sprint/real-steel`, live proof waits on the E2 window)
+- LXD substrate: Sword deploys into LXD through Cuirass (S-REAL-STEEL; live on west since 2026-10-26, project `unheaded`: rolling, blue-green, canary auto-rollback and manual rollback measured in Phase 9 and game day 1)
 
 ---
 
