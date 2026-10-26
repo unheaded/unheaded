@@ -1597,3 +1597,26 @@ findings:
       measured on west, was over 20 min); the rest of the full meta-gate passes locally with every gate biting,
       ruff and pip-audit included. Closes when the next push's run finishes inside the limit; if it does not,
       raise timeout-minutes with the measured time
+
+  - id: FND-021
+    title: >-
+      Client-side routing follows the control plane's 30 s sync: when a steel-echo replica was killed (S-REAL-STEEL
+      Phase 11 Step 310), the discover-mode meter kept sending one third of its requests to the dead instance for
+      26 s until Cuirass's next sync restarted it; availability over the experiment window was 0.9343, the gate asked
+      for 0.99
+    verify: >-
+      a Phase 11 Step 310 re-run (container_kill on one of three steel-echo replicas, 20 rps discover meter) shows
+      availability >= 0.99 over the experiment window with the MTTR unchanged
+    severity: low
+    class: app
+    opened: 2026-10-26
+    exposure: >-
+      lab workload only; Cuirass's self-heal worked (MTTR 24.4 s kill -> start). Any real consumer behind a proxy with
+      its own health checks would see the same gap for its check interval. The LXD proxy device (one instance) is
+      unaffected
+    lockout: none
+    step: 311
+    plan: >-
+      either the meter (and any client that discovers through Cuirass) probes its targets between discover refreshes
+      and drops a target on the first connection error, or Cuirass publishes health transitions on Wotan so discover
+      can react in under a second; measure again

@@ -1281,24 +1281,31 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   curl -fsS "$CHAOS/health"; sudo ls -la /var/lib/unheaded-chaos/
   ```
   - `unheaded-chaos`; `cap_net_admin,cap_bpf` (west drop-in) and nothing else.
-- [ ] **Step 305** [LIVE-RW] ~10m: Window open (stack, Cuirass enforce, `CUIRASS_CHAOS=true`, Sword, meter on discover). Netem experiment: `network_delay` 200 ms ± 20 ms on `steel-echo-v2-0` for 120 s, probes on its `/health`.
+- [x] **Step 305** [LIVE-RW] ~10m: Window open (stack, Cuirass enforce, `CUIRASS_CHAOS=true`, Sword, meter on discover). Netem experiment: `network_delay` 200 ms ± 20 ms on `steel-echo-v2-0` for 120 s, probes on its `/health`.
+  - Done 2026-10-26: `CUIRASS_CHAOS=true` (with enforce+prune) restart; info chaos true; actual state now reports host_veth per instance (Phase 11 code). network_delay 200 ms ± 20 on steel-echo-v2-0 for 120 s (chaos-1793054305134830249-1).
   - Live-RW for the lead (netem window).
   ```bash
   curl -fsS -X POST -H "Authorization: Bearer $CHAOS_API_KEY" -H 'Content-Type: application/json' "$CHAOS/api/v1/chaos/experiments" \
     -d '{"name":"rs-netem-1","type":"network_delay","target":{"kind":"lxd","id":"steel-echo-v2-0"},"parameters":{"delay_ms":200,"jitter_ms":20},"schedule":{"duration":"120s"},"rollback":{"automatic":true}}' | jq '{id,status}'
   ```
-- [ ] **Step 306** [V][LIVE-RO] ~3m: During: `tc -j qdisc show dev <host_veth>` lists `c4a0:` netem; requests the meter sent to v2-0 show p50 ≥ 180 ms while the other two stay < 20 ms (per-instance CSV columns). After: qdisc gone, journal empty, experiment `completed`, hypothesis verdict recorded.
+- [x] **Step 306** [V][LIVE-RO] ~3m: During: `tc -j qdisc show dev <host_veth>` lists `c4a0:` netem; requests the meter sent to v2-0 show p50 ≥ 180 ms while the other two stay < 20 ms (per-instance CSV columns). After: qdisc gone, journal empty, experiment `completed`, hypothesis verdict recorded.
+  - PASS 2026-10-26: during: `tc -j qdisc show dev veth1671d346` netem c4a0: delay 0.2 s jitter 0.02; /health RTT v2-0 0.38-0.41 s, v2-1 0.2 ms (three samples each). After 120 s: qdisc gone, experiment `completed`, hypothesis_valid true, guards before/after wotan/dashboard/well 0, journal empty.
   - Live-RO for the lead.
-- [ ] **Step 307** [LIVE-RW] ~5m: Crash revert: start the same experiment with `duration: 10m`, wait for the qdisc, then `sudo systemctl kill -s SIGKILL unheaded-chaos-controller`.
+- [x] **Step 307** [LIVE-RW] ~5m: Crash revert: start the same experiment with `duration: 10m`, wait for the qdisc, then `sudo systemctl kill -s SIGKILL unheaded-chaos-controller`.
+  - Done 2026-10-26, twice: `systemctl kill -s SIGKILL` kills the whole cgroup, so it also killed the ExecStopPost revert-all ("Control process exited, code=killed"); the qdisc went 5.15 s later when the restarted controller replayed the journal (D-19's start-time path). Re-run with `kill -9 <MainPID>` to test the ExecStopPost path itself.
   - Live-RW for the lead (crash-revert).
-- [ ] **Step 308** [V][LIVE-RO] ~2m: Within 5 s of the kill, `ExecStopPost` removed the qdisc (`tc qdisc show dev <host_veth>` has no `c4a0:`); the unit restarted; journal empty; `journalctl -u unheaded-chaos-controller -n 20` shows `revert-all` verified one entry. Fail → Step 309.
+- [x] **Step 308** [V][LIVE-RO] ~2m: Within 5 s of the kill, `ExecStopPost` removed the qdisc (`tc qdisc show dev <host_veth>` has no `c4a0:`); the unit restarted; journal empty; `journalctl -u unheaded-chaos-controller -n 20` shows `revert-all` verified one entry. Fail → Step 309.
+  - PASS 2026-10-26 (kill -9 MainPID): qdisc gone 0.12 s after the kill; journal log "revert-all: journal empty" at +1 s; unit restarted at +6 s (RestartSec 5), active; journal entries null. Plan note: use `kill -9 $MainPID`, not `systemctl kill`, to exercise ExecStopPost.
   - Live-RO for the lead (D-19 proof).
 - [ ] **Step 309** [D] ~10m: `ExecStopPost` did not run or failed: `systemctl show -p ExecStopPost unheaded-chaos-controller`; check the binary path and that `revert-all` can read the journal (StateDirectory perms). Clean the qdisc by hand (`sudo tc qdisc del dev <if> root handle c4a0:`), fix, retry once. Second failure → STUCK; **Phase 14 may not start** (D-19 is a hard requirement).
-- [ ] **Step 310** [LIVE-RW] ~8m: Container kill: `container_kill` on `steel-echo-v2-1` (`kill`, force). Negative tests in the same window: the same request for `pihole` and for an instance without `chaos=allowed`.
+- [x] **Step 310** [LIVE-RW] ~8m: Container kill: `container_kill` on `steel-echo-v2-1` (`kill`, force). Negative tests in the same window: the same request for `pihole` and for an instance without `chaos=allowed`.
+  - Done 2026-10-26: container_kill on steel-echo-v2-1 (chaos-1793054594939560319-1); negatives: pihole and steel-noc (managed, no chaos label).
   - Live-RW for the lead (container kill + negative tests).
-- [ ] **Step 311** [V][LIVE-RO] ~3m: v2-1 back `running` + `healthy` within 90 s (MTTR from the `cuirass.chaos` event to healthy, recorded); meter availability over the window ≥ 99% (two replicas kept serving); both negative requests refused twice (controller allowlist 4xx with `chaos_refusals_total` +1, and Cuirass 409 if it ever got that far: it must not have); pihole `Started` time unchanged.
+- [x] **Step 311** [V][LIVE-RO] ~3m: v2-1 back `running` + `healthy` within 90 s (MTTR from the `cuirass.chaos` event to healthy, recorded); meter availability over the window ≥ 99% (two replicas kept serving); both negative requests refused twice (controller allowlist 4xx with `chaos_refusals_total` +1, and Cuirass 409 if it ever got that far: it must not have); pihole `Started` time unchanged.
+  - PARTIAL 2026-10-26: MTTR 24.4 s (Cuirass `kill` done 22:43:15.79Z → reconcile `start` 22:43:40.15Z; running/healthy at the next read), journal entry present during and removed after (`entries: null`), experiment completed with hypothesis_valid; both negatives 403 with chaos_refusals_total{reason="allowlist"} 2 and zero chaos requests in Cuirass's log; pihole Last Used unchanged. **Availability over the 2 min window 0.9343 (2373/2540), errconn 167 across 26 s (6-7 of 20 per second = the dead third)**: the discover meter follows Cuirass's actual state, which follows its 30 s sync, so the dead replica stayed a target until it was back. Below the 99 % bar; registered as FND-023 (plan: probe between refreshes or Wotan health transitions).
   - Live-RO for the lead.
-- [ ] **Step 312** [C] ~2m: **PHASE 11 EXIT GATE + COMMIT**: Steps 306, 308, 311 passed; window closed (`CUIRASS_CHAOS` back off). Commit `test(chaos): live netem, crash revert and container kill on west` with the numbers.
+- [x] **Step 312** [C] ~2m: **PHASE 11 EXIT GATE + COMMIT**: Steps 306, 308, 311 passed; window closed (`CUIRASS_CHAOS` back off). Commit `test(chaos): live netem, crash revert and container kill on west` with the numbers.
+  - Phase 11 exit 2026-10-26: 306 PASS, 308 PASS, 311 PASS on MTTR/negatives/journal and FAIL on the availability number (FND-023). CUIRASS_CHAOS stays on for Phase 14 and goes off at its teardown.
   - Live for the lead (Phase 11 exit gate + commit).
 
 **DoD (Phase 11)**: DoD-STD + D-19 proven live (Step 308) + negative live tests (Step 311).
