@@ -270,9 +270,12 @@ type Service struct {
 	experiments map[string]*Experiment
 	order       []string
 	injectors   map[ExperimentType]Injector
-	runs        map[string]*running
-	expCounter  int64
-	stopped     bool
+	// refuseMsg gives a custom refusal message for a known type that has no
+	// injector (D-22: http_error points at the workload's own error knob).
+	refuseMsg  map[ExperimentType]string
+	runs       map[string]*running
+	expCounter int64
+	stopped    bool
 
 	journal  *journal
 	revertMu sync.Mutex
@@ -333,6 +336,7 @@ func NewService(cfg *Config, deps Deps) (*Service, error) {
 		audit:        NewAuditTrail(deps.Log, 10000),
 		experiments:  map[string]*Experiment{},
 		injectors:    map[ExperimentType]Injector{},
+		refuseMsg:    map[ExperimentType]string{},
 		runs:         map[string]*running{},
 		ttl:          map[string]*time.Timer{},
 		aborts:       map[string]int{},
@@ -382,6 +386,16 @@ func (s *Service) RegisterInjector(t ExperimentType, inj Injector) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.injectors[t] = inj
+}
+
+// RefuseType records a custom refusal message for a known experiment type
+// that has no injector (D-22). The type stays registered as known but every
+// request for it is refused with this reason instead of the generic "no
+// injector" one.
+func (s *Service) RefuseType(t ExperimentType, msg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.refuseMsg[t] = msg
 }
 
 // Start reverts whatever a previous controller left in the journal, then
@@ -533,12 +547,16 @@ func (s *Service) StartExperiment(ctx context.Context, exp *Experiment) (*Experi
 	}
 	s.mu.RLock()
 	inj := s.injectors[e.Type]
+	refuseMsg := s.refuseMsg[e.Type]
 	stopped := s.stopped
 	s.mu.RUnlock()
 	if stopped {
 		return nil, s.refused(e, refuse(RefuseStopped, "the controller is stopping"))
 	}
 	if inj == nil {
+		if refuseMsg != "" {
+			return nil, s.refused(e, refuse(RefuseNoInjector, "%s", refuseMsg))
+		}
 		return nil, s.refused(e, refuse(RefuseNoInjector, "%s is not implemented: no injector", e.Type))
 	}
 	limit := s.config.MaxConcurrentExperiments
