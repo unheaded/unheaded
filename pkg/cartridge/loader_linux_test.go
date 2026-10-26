@@ -6,8 +6,10 @@
 package cartridge
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 )
 
@@ -47,5 +49,56 @@ func TestLoad_VerifierBudget(t *testing.T) {
 		if n > VerifierBudget {
 			t.Errorf("%s: %d processed insns > %d", p, n, VerifierBudget)
 		}
+	}
+}
+
+// TestLoad_EventsGroupPin (root-gated): EventsGID opens the CART_EVENTS pin
+// to its group and nothing else; OpenEvents drains it without the other
+// maps.
+func TestLoad_EventsGroupPin(t *testing.T) {
+	obj := objPath(t)
+	pin := filepath.Join("/sys/fs/bpf", fmt.Sprintf("unheaded-test-%d", os.Getpid()))
+	const gid = 16734 // pkg/uids.Anomaly; need not exist on the host
+	c, err := Load(obj, Options{PinDir: pin, EventsGID: gid})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	defer func() { _ = c.Unpin() }()
+	for _, n := range MapNames {
+		st, err := os.Stat(filepath.Join(pin, n))
+		if err != nil {
+			t.Fatal(err)
+		}
+		mode, g := st.Mode().Perm(), st.Sys().(*syscall.Stat_t).Gid
+		want, wantG := os.FileMode(0o600), uint32(0)
+		if n == "CART_EVENTS" {
+			want, wantG = 0o660, gid
+		}
+		if mode != want || g != wantG {
+			t.Errorf("%s: %v gid %d, want %v gid %d", n, mode, g, want, wantG)
+		}
+	}
+	// MapNames and ProgramNames must cover every pin, or Open misses a map
+	// and Unpin through it (upc-cartridgectl down) leaves the pin behind.
+	ents, err := os.ReadDir(pin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := len(MapNames) + len(ProgramNames); len(ents) != want {
+		t.Errorf("%d pins, MapNames+ProgramNames name %d", len(ents), want)
+	}
+	ev, err := OpenEvents(pin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ev.Close()
+	rd, err := ev.Events()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rd.Close()
+	if _, err := ev.DrainEvents(rd); err != nil {
+		t.Fatal(err)
 	}
 }

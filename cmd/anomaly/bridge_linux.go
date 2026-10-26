@@ -16,7 +16,7 @@ import (
 // runBridge drains the pinned interpreter's CART_EVENTS every 200 ms and
 // forwards score events until ctx ends.
 func runBridge(ctx context.Context, pinDir string, out sink, w logf) error {
-	c, err := cartridge.Open(pinDir)
+	c, err := cartridge.OpenEvents(pinDir)
 	if err != nil {
 		return err
 	}

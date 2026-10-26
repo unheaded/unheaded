@@ -26,6 +26,11 @@ type Options struct {
 	// PinDir pins every map by name under this directory (0700), so another
 	// process (upc-cartridgectl) can find a loaded interpreter. "" = no pins.
 	PinDir string
+	// EventsGID, when > 0, makes the CART_EVENTS pin root:EventsGID 0660 so
+	// a reader in that group (cmd/anomaly) can drain scores without CAP_BPF.
+	// The other pins, including the signed ROM slots, stay root 0600. The
+	// reader still can't traverse PinDir; it gets the pin by bind mount.
+	EventsGID int
 }
 
 // Cart is a loaded cartridge-ebpf object.
@@ -88,13 +93,25 @@ func Load(objPath string, opts Options) (*Cart, error) {
 				return nil, fmt.Errorf("cartridge: pin %s: %w", name, err)
 			}
 		}
+		if opts.EventsGID > 0 {
+			ev := filepath.Join(opts.PinDir, "CART_EVENTS")
+			err := os.Chown(ev, -1, opts.EventsGID)
+			if err == nil {
+				err = os.Chmod(ev, 0o660) // #nosec G302 -- group read+write is the grant: the ringbuf consumer page is mapped writable
+			}
+			if err != nil {
+				_ = c.Unpin()
+				coll.Close()
+				return nil, fmt.Errorf("cartridge: CART_EVENTS group: %w", err)
+			}
+		}
 	}
 	return c, nil
 }
 
 // Map and program names in the object (and under a pin directory).
 var (
-	MapNames     = []string{"CART_ROM", "CART_DATA", "CART_SLOT", "FLOW_STATE", "FLOW_META", "SCORE_QUEUE", "TICK_JOB", "CART_EVENTS", "CART_STATS", "CART_CFG", "BREAKER", "ZERO_STATE", "CART_TRACE", "TRACE_SEQ"}
+	MapNames     = []string{"CART_ROM", "CART_DATA", "CART_SLOT", "FLOW_STATE", "FLOW_META", "SCORE_QUEUE", "TICK_JOB", "CART_EVENTS", "CART_STATS", "CART_CFG", "BREAKER", "ZERO_STATE", "CART_TRACE", "TRACE_SEQ", "SLOT_ARGS"}
 	ProgramNames = []string{"cart_xdp", "cart_tick"}
 )
 
@@ -122,6 +139,18 @@ func Open(pinDir string) (*Cart, error) {
 		coll.Programs[n] = p
 	}
 	return &Cart{coll: coll, Verifier: map[string]int{}, pinDir: pinDir}, nil
+}
+
+// OpenEvents opens only the pinned CART_EVENTS ring under pinDir, for a
+// reader that has no right to the other maps (see Options.EventsGID).
+// Events and DrainEvents work on the result; nothing else does.
+func OpenEvents(pinDir string) (*Cart, error) {
+	m, err := ebpf.LoadPinnedMap(filepath.Join(pinDir, "CART_EVENTS"), nil)
+	if err != nil {
+		return nil, fmt.Errorf("cartridge: open map CART_EVENTS: %w (is the interpreter up?)", err)
+	}
+	coll := &ebpf.Collection{Maps: map[string]*ebpf.Map{"CART_EVENTS": m}, Programs: map[string]*ebpf.Program{}}
+	return &Cart{coll: coll, Verifier: map[string]int{}}, nil
 }
 
 // Close unloads the programs and closes the maps. Pins (if any) stay until

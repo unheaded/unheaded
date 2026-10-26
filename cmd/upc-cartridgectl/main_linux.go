@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"os/user"
 	"strconv"
 	"strings"
 	"syscall"
@@ -28,9 +29,9 @@ import (
 )
 
 type globals struct {
-	registryDir, sophiaURL, pubKeyPath, pinDir, obj, cartBin string
-	lab                                                      bool
-	pub                                                      *mldsa65.PublicKey
+	registryDir, sophiaURL, pubKeyPath, pinDir, obj, cartBin, eventsGroup string
+	lab                                                                   bool
+	pub                                                                   *mldsa65.PublicKey
 }
 
 func (g *globals) registry() Registry {
@@ -79,6 +80,7 @@ func main() {
 	fs.BoolVar(&g.lab, "lab", false, "accept UNSIGNED cartridges (lab only; marked lab=\"1\")")
 	fs.StringVar(&g.pinDir, "pin-dir", cartridge.DefaultPinDir, "bpffs directory of the pinned interpreter")
 	fs.StringVar(&g.obj, "obj", "ebpf/target/bpfel-unknown-none/release/cartridge-ebpf", "cartridge-ebpf object (for up)")
+	fs.StringVar(&g.eventsGroup, "events-group", "", "up: make the CART_EVENTS pin readable by this group (cmd/anomaly's bridge); other pins stay root 0600")
 	fs.StringVar(&g.cartBin, "cart", "crates/upc-cartridge/target/release/cart", "the cart CLI (validator)")
 	_ = fs.Parse(os.Args[1:])
 	args := fs.Args()
@@ -136,7 +138,17 @@ func main() {
 }
 
 func cmdUp(g *globals) error {
-	c, err := cartridge.Load(g.obj, cartridge.Options{PinDir: g.pinDir})
+	opts := cartridge.Options{PinDir: g.pinDir}
+	if g.eventsGroup != "" {
+		grp, err := user.LookupGroup(g.eventsGroup)
+		if err != nil {
+			return err
+		}
+		if opts.EventsGID, err = strconv.Atoi(grp.Gid); err != nil {
+			return fmt.Errorf("group %s: gid %q: %w", g.eventsGroup, grp.Gid, err)
+		}
+	}
+	c, err := cartridge.Load(g.obj, opts)
 	if err != nil {
 		return err
 	}

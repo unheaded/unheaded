@@ -13,13 +13,14 @@
 #   sudo systemctl start unheaded-anomaly    # manual only — NOT enabled on boot
 # Wotan elsewhere: ANOMALY_WOTAN=host:18000 in /etc/unheaded/anomaly.env.
 #
-# Service only (--no-cartridge): no capabilities. The cartridge bridge reads
-# the pinned CART_EVENTS ring under /sys/fs/bpf/unheaded/cart, whose
-# directory is root 0700 and whose pins are root 0600 and include the slot
-# maps that hold signed cartridge ROM. Reaching it as this account would need
-# CAP_BPF plus CAP_DAC_OVERRIDE (or a pin-group change in pkg/cartridge), so
-# the bridge stays a root lab run (`anomaly --wotan 127.0.0.1:18000` by hand,
-# publishing the same anomaly.scores this unit consumes) until that is decided.
+# Cartridge bridge, no capabilities: load the interpreter with
+#   sudo upc-cartridgectl -events-group unheaded-anomaly up
+# which makes only the CART_EVENTS pin root:unheaded-anomaly 0660 (the rest,
+# including the signed ROM slots, stay root 0600 under a root 0700 dir).
+# BindPaths= hands the unit that one pin, and SystemCallFilter=bpf allows
+# BPF_OBJ_GET on it. Pins are bound at start: (re)start this unit after
+# `upc-cartridgectl up`. With no interpreter the bind is skipped (leading -),
+# the bridge logs "open map CART_EVENTS" and the service runs without it.
 
 [Unit]
 Description=Unheaded anomaly — anomaly detection service (cartridge scores via Wotan)
@@ -32,7 +33,7 @@ Requires=unheaded-wotan.service
 Type=simple
 Environment=ANOMALY_WOTAN=127.0.0.1:18000
 EnvironmentFile=-/etc/unheaded/anomaly.env
-ExecStart=/usr/local/bin/anomaly --listen 127.0.0.1:19018 --wotan ${ANOMALY_WOTAN} --no-cartridge
+ExecStart=/usr/local/bin/anomaly --listen 127.0.0.1:19018 --wotan ${ANOMALY_WOTAN} --pin-dir /run/unheaded-anomaly/cart
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=15s
@@ -65,11 +66,13 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 RemoveIPC=yes
+BindPaths=-/sys/fs/bpf/unheaded/cart/CART_EVENTS:/run/unheaded-anomaly/cart/CART_EVENTS
 CapabilityBoundingSet=
 AmbientCapabilities=
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallFilter=bpf
 SystemCallErrorNumber=EPERM
 
 [Install]

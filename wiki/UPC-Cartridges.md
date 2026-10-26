@@ -97,11 +97,15 @@ ring buffer. With `--wotan host:18000` it publishes `anomaly.scores`
 JSON to the service directly. The message is flow key + score + model id;
 unknown fields are refused.
 
-Supervised: `deploy/systemd/unheaded-anomaly.service` runs the service only
-(`--no-cartridge --wotan 127.0.0.1:18000`) as `unheaded-anomaly` with no
-capabilities. The bridge needs the pins (root 0700/0600), so it stays a root
-lab run beside it: `sudo anomaly --wotan 127.0.0.1:18000 --listen 127.0.0.1:0`
-(its own listener moved off 19018, which the unit holds).
+Supervised: `deploy/systemd/unheaded-anomaly.service` runs the service and
+the bridge as `unheaded-anomaly` with no capabilities. Load the interpreter
+with `sudo upc-cartridgectl -events-group unheaded-anomaly up`: only the
+`CART_EVENTS` pin becomes `root:unheaded-anomaly 0660`; the other pins
+(signed ROM slots included) stay root 0600 in a root 0700 directory. The unit
+bind-mounts that one pin to `/run/unheaded-anomaly/cart/CART_EVENTS`
+(`BindPaths=`) and allows the `bpf` syscall, which without capabilities
+only opens what the file mode allows. Restart the unit after `up`; the bind
+happens at start.
 
 ## Replay (time travel)
 
