@@ -655,7 +655,7 @@ func (d *Daemon) Start() error {
 	if !d.authEnabled {
 		d.log.Warn().Msg("AUTH_ENABLED is not true: container write API refused (read-only)")
 	}
-	httpHandler := auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
+	httpHandler := d.wrapAuth(mux, authCfg)
 	httpHandler = httputil.NewServiceMetrics("cuirass").Instrument(mux, httpHandler)
 
 	d.httpServer = &http.Server{
@@ -945,6 +945,18 @@ func (d *Daemon) publishDriftEvents(drifts []DriftReport) {
 // ============================================================================
 // HTTP HANDLERS
 // ============================================================================
+
+// wrapAuth puts the auth middleware in front of mux. The read-only state
+// endpoints (/api/v1/info, /api/v1/state and below) stay open like /health:
+// Sword's readiness ping and steel-echo's discover mode read them without a
+// key, and they carry infrastructure state only (never user data). Every
+// container write (PUT/DELETE/chaos under /api/v1/containers) and the
+// reconcile trigger stay behind the key; the handlers refuse them as well
+// when auth is off (authEnabled).
+func (d *Daemon) wrapAuth(mux *http.ServeMux, cfg auth.ServiceAuthConfig) http.Handler {
+	mw := auth.SkipAuthPaths(auth.SetupMiddleware(cfg), "/api/v1/info", "/api/v1/state")
+	return auth.WrapHandler(mux, mw)
+}
 
 func (d *Daemon) registerHandlers(mux *http.ServeMux) {
 	// Health endpoints (transport-based dual-protocol health)
