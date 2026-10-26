@@ -40,6 +40,10 @@ const (
 )
 
 // Backend represents a load-balanced backend server.
+// wotanDisplayName is the name this service joins Wotan topics under; it is
+// on Wotan's auto_approve list (configs/wotan.yaml).
+const wotanDisplayName = "loadbalancer"
+
 type Backend struct {
 	ID          string    `json:"id"`
 	Address     string    `json:"address"`
@@ -93,13 +97,17 @@ func NewXDPSync(log *logger.Logger, wotan *wotanClient.Client) *XDPSync {
 func (x *XDPSync) Start(ctx context.Context) error {
 	// Subscribe to Wotan topics.
 	if x.wotan != nil {
+		// lb.rebalance is joined too: the client publishes only on topics
+		// it has joined (rebuildTable publishes there). The name is the
+		// service's, which configs/wotan.yaml auto-approves.
 		topics := []string{
 			"lb.backends.update",
 			"lb.health.update",
+			"lb.rebalance",
 			"alerts.critical",
 		}
 		for _, topic := range topics {
-			if _, err := x.wotan.Subscribe(ctx, topic, "xdpsync-service"); err != nil {
+			if _, err := x.wotan.Subscribe(ctx, topic, wotanDisplayName); err != nil {
 				x.log.Warn().Str("topic", topic).Err(err).Msg("failed to subscribe to topic")
 			} else {
 				x.log.Info().Str("topic", topic).Msg("subscribed to topic")

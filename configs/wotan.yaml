@@ -17,6 +17,7 @@ topics:
   auto_approve:
     - "service"          # default display_name for internal services
     - "timeguru"
+    - "loadbalancer"   # services/loadbalancer xdpsync: lb.* topics
     - "captain"
     - "architect"
     - "architect-service"    # architect's alerts.critical / architecture.updates subscriptions
