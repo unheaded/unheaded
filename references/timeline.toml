@@ -1,5 +1,5 @@
 version = "1.0.0"
-last_updated = 2026-10-26T16:07:53.412101089Z
+last_updated = 2026-10-26T23:40:49.905733936Z
 status = "alpha"
 
 [[phases]]
@@ -25,7 +25,7 @@ status = "alpha"
   name = "The Public Release"
   status = "in_progress"
   progress = 70
-  milestones = ["phase-3-item-72c34b5c", "phase-3-item-bdfe9e00", "phase-3-item-4931fcc9", "phase-3-item-d7d4c5c5", "phase-3-item-48939660", "phase-3-item-94825f35", "phase-3-item-1fa528dd", "phase-3-item-cbb64e68", "phase-3-item-43e2e0fb", "phase-3-item-f5b861a3", "phase-3-item-8b3e9c19", "phase-3-item-fb93c3bc", "phase-3-item-8f5b95f8", "phase-3-item-a2bde631", "phase-3-item-d8ab4ecf", "phase-3-item-62948258", "phase-3-item-45075803", "phase-3-item-60a8be8b", "phase-3-item-4d568586", "phase-3-item-314d537a", "phase-3-item-6851c3db", "phase-3-item-4aff52af", "phase-3-item-0bfe874a", "phase-3-item-80bb19aa", "phase-3-item-139a9c74", "phase-3-item-61c57526", "phase-3-item-cc743cb8", "phase-3-item-5f617d86", "phase-3-item-2f9ac41f", "phase-3-item-96b15063", "phase-3-item-2c0c324b", "phase-3-item-ef190fca", "phase-3-item-efac221c", "phase-3-item-5503bd0f", "phase-3-item-4582ccf7", "phase-3-item-45d026e1", "phase-3-item-1dd61426", "phase-3-item-190fbe93", "phase-3-item-8e22cdf9", "phase-3-item-25e38793", "phase-3-item-d965599d", "phase-3-item-19de358f", "phase-3-item-4de9e8e6", "phase-3-item-b1d0e5c6", "phase-3-item-0048a83f", "phase-3-item-33cbc45e", "phase-3-item-779dd30b", "phase-3-item-593d30e6", "phase-3-item-4edd7ab2", "phase-3-item-f9e1a413", "phase-3-item-a97e4757", "phase-3-item-ee7c6e87", "phase-3-item-55b1241c", "phase-3-item-364cbed1", "phase-3-item-be0aff9c", "phase-3-item-fe186009", "phase-3-item-020526f9", "phase-3-item-9f7e0f1a", "phase-3-item-5d165ac5", "phase-3-item-d0b986af", "phase-3-item-bb2c9dfc", "phase-3-item-db8f98f1"]
+  milestones = ["phase-3-item-72c34b5c", "phase-3-item-bdfe9e00", "phase-3-item-4931fcc9", "phase-3-item-d7d4c5c5", "phase-3-item-48939660", "phase-3-item-94825f35", "phase-3-item-1fa528dd", "phase-3-item-cbb64e68", "phase-3-item-43e2e0fb", "phase-3-item-f5b861a3", "phase-3-item-8b3e9c19", "phase-3-item-fb93c3bc", "phase-3-item-8f5b95f8", "phase-3-item-a2bde631", "phase-3-item-d8ab4ecf", "phase-3-item-62948258", "phase-3-item-45075803", "phase-3-item-60a8be8b", "phase-3-item-4d568586", "phase-3-item-314d537a", "phase-3-item-6851c3db", "phase-3-item-4aff52af", "phase-3-item-0bfe874a", "phase-3-item-80bb19aa", "phase-3-item-139a9c74", "phase-3-item-61c57526", "phase-3-item-cc743cb8", "phase-3-item-5f617d86", "phase-3-item-2f9ac41f", "phase-3-item-96b15063", "phase-3-item-2c0c324b", "phase-3-item-ef190fca", "phase-3-item-efac221c", "phase-3-item-5503bd0f", "phase-3-item-4582ccf7", "phase-3-item-45d026e1", "phase-3-item-1dd61426", "phase-3-item-190fbe93", "phase-3-item-8e22cdf9", "phase-3-item-25e38793", "phase-3-item-d965599d", "phase-3-item-19de358f", "phase-3-item-4de9e8e6", "phase-3-item-b1d0e5c6", "phase-3-item-0048a83f", "phase-3-item-33cbc45e", "phase-3-item-779dd30b", "phase-3-item-593d30e6", "phase-3-item-4edd7ab2", "phase-3-item-f9e1a413", "phase-3-item-a97e4757", "phase-3-item-ee7c6e87", "phase-3-item-55b1241c", "phase-3-item-364cbed1", "phase-3-item-be0aff9c", "phase-3-item-fe186009", "phase-3-item-93443574", "phase-3-item-020526f9", "phase-3-item-9f7e0f1a", "phase-3-item-5d165ac5", "phase-3-item-d0b986af", "phase-3-item-bb2c9dfc", "phase-3-item-db8f98f1"]
 
 [[phases]]
   id = "phase-4"
@@ -431,6 +431,13 @@ status = "alpha"
   status = "completed"
   progress = 100
   description = "**Champion runbook eval and a capability-free anomaly bridge (2026-10-26, `develop`).** First results of the pre-registered runbook eval: qwen-7b and qwen-coder-14b 43/54 on hold-out, Claude 49/54; all under the bar, Claude only through API refusals on plain ops runbooks. The anomaly unit reads cartridge scores with no capabilities: only the score ring's pin is opened to its group and bind-mounted in."
+
+[[milestones]]
+  id = "phase-3-item-93443574"
+  name = "Sprints 2 and 3 closed; Real Steel proven live on west and east"
+  status = "completed"
+  progress = 100
+  description = "**Sprints 2 and 3 closed; Real Steel proven live on west and east (2026-10-26, `develop`).** Stevie answered E1-E4: the ADR-090 sweep applied (108 unreached packages/files deleted, ADR-090 Accepted), Cuirass reconciles real LXD on west (restricted project `unheaded`, pihole invisible), Sword's four strategies proven live (rolling 0.9915, blue-green one flip, canary rolled back by analysis on error rate and, after a fix, on client-observed p99), Yaldabaoth's injectors real (netem on one veth, container kill healed in 1.7-24 s, east systemd stop/kill behind polkit, packet chaos on one flow label), game day 1 run with a clean post-state. Sprint 2's LoRA phase deferred on data. Findings FND-023 (client routing follows the 30 s sync) and FND-024 (monitoring stack nobody starts)."
 
 [[milestones]]
   id = "phase-3-item-020526f9"
