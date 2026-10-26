@@ -1,10 +1,5 @@
 # shrink-only (ADR-098 ratchet, ADR-105). Remove lines as Phases 5/7/8/9 fix them.
 # <path> <rule>. Regenerate after a fix: go run ./cmd/crypto-inventory lint --update (refuses additions).
-# accepted: pkg/loadbalancer/config.go tls-floor-below-1.3: operator opt-in min_version "1.2" for user frontends
-#   with old clients (default is 1.3), and the backend client to user backends keeps 1.2 (their servers choose).
-# accepted: pkg/loadbalancer/config.go tls-max-below-1.3: operator opt-in max_version "1.2" (unset caps at 1.3).
 # held until E1: docker-compose.yml + the-well statefulset postgres-pre18: the Well stays on PG 16 until Stevie approves runbooks/data/well-pg18-upgrade.yaml.
 docker-compose.yml postgres-pre18
 kubernetes/manifests/base/the-well/statefulset.yaml postgres-pre18
-pkg/loadbalancer/config.go tls-floor-below-1.3
-pkg/loadbalancer/config.go tls-max-below-1.3

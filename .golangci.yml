@@ -176,25 +176,14 @@ linters:
           - gosec
         text: "G402:"
 
-      # G301/G306 (file/dir permissions): excluded in container-
-      # runtime, image-extraction, and storage paths where 0755/0644
-      # are intentional for cross-UID access. Containers run as
-      # different UIDs than the host runtime; tightening to 0750/0600
-      # would break the container-side reads. State directories that
-      # *don't* need cross-UID traversal (cmd/cert-gen, cmd/kanban-app)
-      # were tightened to 0750 in commit 1a8687fa as a real fix.
-      - path: pkg/runtime/
-        linters: [gosec]
-        text: "G301:"
-      - path: pkg/runtime/
-        linters: [gosec]
-        text: "G306:"
-      - path: pkg/storage/object/
-        linters: [gosec]
-        text: "G301:"
-      - path: pkg/storage/object/
-        linters: [gosec]
-        text: "G306:"
+      # G301/G306 (file/dir permissions): excluded in storage and
+      # bare-metal paths where 0755/0644 are intentional for cross-UID
+      # access. Containers run as different UIDs than the host runtime;
+      # tightening to 0750/0600 would break the container-side reads.
+      # State directories that *don't* need cross-UID traversal
+      # (cmd/cert-gen, cmd/kanban-app) were tightened to 0750 in commit
+      # 1a8687fa as a real fix. (pkg/runtime and pkg/storage/object, which
+      # carried the original exclusions, were deleted unused 2026-10-26.)
       - path: pkg/baremetal/
         linters: [gosec]
         text: "G301:"
@@ -207,39 +196,12 @@ linters:
       - path: arch/mbc/
         linters: [gosec]
         text: "G306:"
-      # pkg/runtime/image.go has explicit path-traversal guards at the
-      # top of the extract loop (line 516 destDir-prefix check) and on
-      # the whiteout branch (commit 688dbb60). Plus the 5 GiB
-      # decompression cap (commit bf071529). gosec G703/G305 cannot
-      # see the guards — they re-fire on every targetPath usage in the
-      # loop body. Path-scoped exclusion documents that the guards exist.
-      - path: pkg/runtime/image\.go
-        linters: [gosec]
-        text: "G703:"
-      - path: pkg/runtime/image\.go
-        linters: [gosec]
-        text: "G305:"
-
-      # pkg/storage/object/filesystem.go traversal-via-objectPath:
-      # ValidateKey at the top of every Put/Get/Delete (commit 2c4beac7)
-      # rejects "../" and absolute paths. The validation is real;
-      # gosec G703 just can't see it.
-      - path: pkg/storage/object/filesystem\.go
-        linters: [gosec]
-        text: "G703:"
-
       # G302 (file permissions on Open/OpenFile) and G306 (WriteFile)
-      # in container-runtime / log / namespace / volume paths intentionally
-      # use 0644-permissive perms because the files are created by the
-      # runtime daemon but read by container-side processes running as
-      # different UIDs. (Companion to the G301/G306 dir exclusion above.)
-      - path: pkg/runtime/
-        linters: [gosec]
-        text: "G302:"
+      # in log / WAL / audit-file paths intentionally use 0644-permissive
+      # perms because the files are created by one daemon but read by
+      # processes running as different UIDs. (Companion to the G301/G306
+      # dir exclusion above.)
       - path: pkg/storage/wal/
-        linters: [gosec]
-        text: "G302:"
-      - path: pkg/network/policy_controller
         linters: [gosec]
         text: "G302:"
       - path: pkg/audit/storage/file
@@ -259,28 +221,7 @@ linters:
       - path: cmd/unheaded-cli/cmd/generate
         linters: [gosec]
         text: "G306:"
-      - path: cmd/unheaded-daemon/internal/config/config
-        linters: [gosec]
-        text: "G306:"
       - path: pkg/benchmark/benchmark
-        linters: [gosec]
-        text: "G306:"
-      - path: pkg/config/config
-        linters: [gosec]
-        text: "G306:"
-      - path: pkg/loadbalancer/config
-        linters: [gosec]
-        text: "G306:"
-      - path: pkg/network/policy_controller
-        linters: [gosec]
-        text: "G306:"
-      - path: pkg/nix/builder
-        linters: [gosec]
-        text: "G306:"
-      - path: pkg/testing/
-        linters: [gosec]
-        text: "G306:"
-      - path: pkg/worker/queue
         linters: [gosec]
         text: "G306:"
       - path: services/timeguru/internal/sync
@@ -289,15 +230,9 @@ linters:
 
       # G204 (subprocess-with-variable) in directories that wrap known
       # external tools where the "tainted" input is operator-managed
-      # config (image-build commands, network policy iptables wrappers,
-      # benchmark test binaries, security-test campaigns):
+      # config (image-build commands, benchmark test binaries,
+      # security-test campaigns):
       - path: pkg/baremetal/image/
-        linters: [gosec]
-        text: "G204:"
-      - path: pkg/nix/builder
-        linters: [gosec]
-        text: "G204:"
-      - path: pkg/network/policy_controller
         linters: [gosec]
         text: "G204:"
       - path: pkg/metrics/nixos

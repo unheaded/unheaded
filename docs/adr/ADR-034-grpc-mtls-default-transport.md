@@ -132,7 +132,7 @@ If rotation fails, Akira escalates via standard consensus thresholds:
 Each service reads its cert/key from a well-known path:
 
 ```go
-// In service startup (standardized via pkg/service/)
+// In service startup (pkg/service/ was deleted unused 2026-10-26; each main.go does this itself)
 tlsConfig, err := mtls.SetupServiceTLS("wotan", "/var/lib/unheaded/pki")
 if err != nil {
     log.Fatal().Err(err).Msg("mTLS setup failed — refusing to start without certs")

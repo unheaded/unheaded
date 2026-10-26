@@ -130,7 +130,7 @@ Services generate clients from proto, no Go imports needed.
 ### Phase 1: Prepare Shared Package (Week 1)
 
 1. Create `github.com/unheaded/pkg` repository
-2. Extract shared types from `pkg/events/`, `pkg/types/`
+2. Extract shared types from `pkg/types/` (`pkg/events/` was deleted unused 2026-10-26, E1 G10h)
 3. Update monorepo to import from shared package
 4. Verify build passes
 

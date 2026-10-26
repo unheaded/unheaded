@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-// Package transport provides a unified transport abstraction for Unheaded services.
-// It implements the gRPC-first transport cascade:
-//  1. Primary: Wotan gRPC streaming (port 18001)
-//  2. Fallback: HTTP (port 18000)
-//
-// Every service uses transport.Connect() to establish a connection and
-// transport.NewHealthServer() for dual-protocol health checks.
+// Package transport holds the shared transport configuration for Unheaded
+// services (Config, ConfigFromEnv, flags) and the dual-protocol health
+// server (NewHealthServer). Services connect to Wotan through
+// pkg/wotan-client; the gRPC-then-HTTP cascade Connect() this package once
+// offered had no callers and was deleted 2026-10-26 (S-REAL-STEEL E1 G5).
 package transport
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrNotConnected is returned when the transport is not connected.
+var ErrNotConnected = errors.New("transport: not connected")
 
 // Type represents a transport protocol.
 type Type string

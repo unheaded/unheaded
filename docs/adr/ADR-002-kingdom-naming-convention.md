@@ -32,9 +32,9 @@ We adopt a **medieval armor / kingdom** naming metaphor where every component is
 | **Cuirass** | Control Plane | `cmd/unheaded-daemon/` |
 | **Shield** | WAF / API Gateway | `pkg/waf/`, `services/gateway/` |
 | **Sword** | Deployment Engine | `pkg/deploy/` |
-| **Hauberk** | Service Mesh | `pkg/mesh/` |
-| **Pauldrons** | Load Balancer | `pkg/loadbalancer/` |
-| **Vambraces** | Observability | `pkg/tracing/`, `cmd/dashboard-backend/` |
+| **Hauberk** | Service Mesh | `pkg/mesh/` (deleted unused 2026-10-26, S-REAL-STEEL E1) |
+| **Pauldrons** | Load Balancer | `pkg/loadbalancer/` (deleted unused 2026-10-26, E1; the live LB is `ebpf/maglev-ebpf` + `services/loadbalancer`) |
+| **Vambraces** | Observability | `cmd/dashboard-backend/` (`pkg/tracing/` deleted unused 2026-10-26, E1) |
 | **Gauntlets** | CLI + API | `cmd/unheaded-cli/` |
 | **Tassets** | Storage | `pkg/storage/` |
 | **Sabatons** | Bare Metal Provisioning | `pkg/baremetal/` |
@@ -49,7 +49,7 @@ We adopt a **medieval armor / kingdom** naming metaphor where every component is
 | **Whispering Void** | eBPF Layer | `pkg/ebpf/`, `ebpf/` (Rust) |
 | **Crystal Grotto** | Secrets Management | `pkg/secrets/` |
 | **Seer's Antre** | Timeline Service | `services/timeguru/` |
-| **Fae Chamber** | Message Bus (Wotan) | `pkg/wotan-client/`, `pkg/events/` |
+| **Fae Chamber** | Message Bus (Wotan) | `pkg/wotan-client/` (`pkg/events/` deleted unused 2026-10-26, E1) |
 | **Sage's Lair** | Architecture Decisions | `services/architect/`, `docs/adr/` |
 | **Mythic Abyss** | Telemetry Underworld | `cmd/trace-collector/` |
 | **Daemon's Den** | Control Plane HQ | `cmd/unheaded-daemon/` |

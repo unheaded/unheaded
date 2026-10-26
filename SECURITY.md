@@ -149,7 +149,7 @@ recorded today stays confidential if either half holds. Two profiles in
 
 | Profile | Groups | Used where | A classical-only peer |
 |---|---|---|---|
-| Strict | `X25519MLKEM768`, `SecP256r1MLKEM768`, `SecP384r1MLKEM1024` only | both ends are ours: Wotan gRPC and wotan-client, `pkg/transport/mtls`, `pkg/mesh`, `pkg/mesh/mtls` | handshake fails |
+| Strict | `X25519MLKEM768`, `SecP256r1MLKEM768`, `SecP384r1MLKEM1024` only | both ends are ours: Wotan gRPC and wotan-client, `pkg/transport/mtls` | handshake fails |
 | Preferred | Go's default (hybrids first, classical fallback) | servers third-party clients reach: Wotan HTTP and `/metrics`, the dashboard, load-balancer frontends, the WAF, zhend QUIC | gets X25519 |
 
 Rust TLS (the WAF, zhend QUIC) uses rustls on the `aws-lc-rs` provider, which

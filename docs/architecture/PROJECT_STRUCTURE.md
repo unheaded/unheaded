@@ -407,9 +407,9 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 | 🏰 **Cuirass** | Control Plane | `cmd/unheaded-daemon/` | 75% |
 | 🛡️ **Shield** | WAF/Gateway | `pkg/waf/`, `services/gateway/` | 90% |
 | ⚔️ **Sword** | Deployment | `pkg/deploy/` | 85% |
-| ⛓️ **Hauberk** | Service Mesh | `pkg/mesh/` | 85% |
-| 🏋️ **Pauldrons** | Load Balancer | `pkg/loadbalancer/` | 90% |
-| 👀 **Vambraces** | Observability | `pkg/tracing/`, `cmd/dashboard-backend/` | 70% |
+| ⛓️ **Hauberk** | Service Mesh | `pkg/mesh/` (deleted unused 2026-10-26, S-REAL-STEEL E1) | — |
+| 🏋️ **Pauldrons** | Load Balancer | `ebpf/maglev-ebpf`, `services/loadbalancer/` (`pkg/loadbalancer/` deleted unused 2026-10-26, E1) | — |
+| 👀 **Vambraces** | Observability | `cmd/dashboard-backend/` (`pkg/tracing/` deleted unused 2026-10-26, E1) | 70% |
 | 🧤 **Gauntlets** | CLI + API | `cmd/unheaded-cli/` | 80% |
 | 📦 **Tassets** | Storage | `pkg/storage/` | 80% |
 | 👢 **Sabatons** | Bare Metal | `pkg/baremetal/` | 75% |
@@ -421,7 +421,7 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 | 🌑 **Whispering Void** | eBPF | `pkg/ebpf/`, `ebpf/` (Rust) | 55% |
 | 💎 **Crystal Grotto** | Secrets | `pkg/secrets/` | 90% |
 | 🔮 **Seer's Antre** | Timeline | `services/timeguru/` | 85% |
-| 🧚 **Fae Chamber** | Messages | `pkg/wotan-client/`, `pkg/events/` | 95% |
+| 🧚 **Fae Chamber** | Messages | `pkg/wotan-client/` (`pkg/events/` deleted unused 2026-10-26, E1) | 95% |
 | 📚 **Sage's Lair** | ADRs | `services/architect/`, `docs/adr/` | 80% |
 | 🌀 **Mythic Abyss** | Telemetry | `cmd/trace-collector/` | 60% |
 
@@ -458,7 +458,7 @@ TOTAL           462+      161,333         100%
 ```
 ⚠️ prometheus/client_golang → pkg/metrics
 ⚠️ rs/zerolog → pkg/logger
-⚠️ vishvananda/netlink → pkg/netlink
+⚠️ vishvananda/netlink → (pkg/netlink written, then deleted unused 2026-10-26; neither is in the tree)
 ⚠️ cilium/ebpf → pkg/ebpf
 ⚠️ grpc-go → std lib HTTP/2
 ```
@@ -474,9 +474,9 @@ Files with external deps are marked `.dev` and excluded from builds.
 make build
 
 # Build specific package
-go build ./pkg/mesh/...
-go build ./pkg/loadbalancer/...
-go build ./pkg/scheduler/...
+go build ./pkg/wotan-client/...
+go build ./pkg/health/...
+go build ./pkg/deploy/...
 
 # Build binaries
 go build -o bin/unheaded-daemon ./cmd/unheaded-daemon

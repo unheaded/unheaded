@@ -32,7 +32,7 @@ behaviour.
 | `trace-collector-go` | unified BPF-trace collector (Go); reads ring-buffer events, decodes Monad markers, publishes to Wotan |
 | `ebpf-collector` | Rust collector variant (uses aya for richer kernel-side semantics) |
 | `ebpf-exporter` | Prometheus exporter for BPF map metrics |
-| `services/anamnesis/` | event-history service — replayable timeline of what happened |
+| `services/anamnesis/` | event-history service (deleted 2026-10-26, S-REAL-STEEL E1 G10g: no binary imported it) |
 | `dashboard-backend` | aggregated metrics + WebSocket streaming (optional UI; the trace data is usable headless) |
 
 Plus three eBPF programs (Rust, via Aya):
@@ -81,6 +81,6 @@ cd ebpf && cargo +nightly build --target bpfel-unknown-none -Z build-std=core --
 - `cmd/tools/README.md` — curation pattern these tools share
 - `docs/adr/ADR-005-wotan-message-backbone.md` — the message bus this tool
   publishes traces onto
-- `services/anamnesis/anamnesis.go` — the event-history substrate
+- `services/anamnesis/anamnesis.go` — the event-history substrate (deleted 2026-10-26, E1 G10g)
 - `wiki/Wave-10C-Backprop.md` and adjacent — the development history of the
   trace pipeline

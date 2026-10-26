@@ -20,7 +20,7 @@ Track C (hybrid) chosen 2026-05-11. Since July the work has been hardening and t
 - Zhen Champion (`pkg/champion/`)
 - Zhen MCP Server (Claude Code integration)
 - 31 operational runbooks
-- Service Template (`pkg/service/`)
+- ~~Service Template (`pkg/service/`)~~ (deleted unused 2026-10-26, S-REAL-STEEL E1)
 - BPF CI Gate, Sealed Cask, Binding Rune verification
 - ROCm GPU acceleration (PyTorch 2.5.1 + ROCm 6.2)
 - RAFT QA generation

@@ -46,6 +46,7 @@ For each finding, the triage protocol is:
    - `pkg/runtime/`, `pkg/storage/wal/`, `pkg/audit/storage/file` G302 (companion to G306 dir exclusions)
    - `cmd/lich-security/` G402/G204/G306 (offensive-security campaign runner — testing broken/insecure configs IS the point)
    - `pkg/baremetal/image/`, `pkg/nix/builder`, `pkg/network/policy_controller` G204 (operator-managed external-tool wrappers)
+   - (2026-10-26, S-REAL-STEEL E1: the `pkg/runtime`, `pkg/storage/object`, `pkg/nix`, `pkg/network`, `pkg/config`, `pkg/loadbalancer`, `pkg/testing`, `pkg/worker` and `cmd/unheaded-daemon/internal/config` exclusions above left `.golangci.yml` with those packages; the examples stay as the record of the pattern.)
 
 ### What never goes in `.golangci.yml`
 

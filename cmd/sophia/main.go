@@ -844,7 +844,7 @@ func main() {
 
 	// Health server
 	healthSrv := transport.NewHealthServer("sophia")
-	// transportCfg used below for log aggregation transport.Connect()
+	// transportCfg is used below by the Wotan client, logagg.Connect and discovery.Start.
 
 	// Setup logging using Kingdom's native logger
 	logConfig := logger.DefaultConfig()

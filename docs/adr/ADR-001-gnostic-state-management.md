@@ -63,5 +63,5 @@ State drift events are published to the Wotan topic `state.drift.detected`. Reme
 
 - `docs/MICROSERVICES.md` -- The Gnostic Microservice Layer specification
 - `docs/ARCHITECTURE.md` -- State Management and Drift Detection sections
-- `pkg/state/reconciler.go` -- Reconciler implementation (1,850 LOC)
-- `cmd/unheaded-daemon/internal/state/` -- Desired vs. actual state management
+- `pkg/state/reconciler.go` -- Reconciler implementation (deleted 2026-10-26, S-REAL-STEEL E1 G10h: a second reconciler nothing ran)
+- `cmd/unheaded-daemon/internal/state/` -- Desired vs. actual state management (deleted 2026-10-26, S-REAL-STEEL E1 G1: the daemon's live reconciler is `cmd/unheaded-daemon/desired_store.go`)

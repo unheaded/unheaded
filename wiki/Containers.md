@@ -38,7 +38,7 @@ Cuirass (unheaded-daemon) shares hosts with things it did not create: west's LXD
 - **No pruning by default.** A managed instance nobody desires is reported as orphaned and deleted only with `CUIRASS_PRUNE=true` (`prune: true`).
 - **Writes need auth.** `PUT`/`DELETE /api/v1/containers/{id}` answer 403 unless `AUTH_ENABLED=true`; reads stay open.
 
-The same label and prune rule apply to `pkg/state`'s reconciler.
+The same label and prune rule applied to `pkg/state`'s reconciler (deleted 2026-10-26, S-REAL-STEEL E1 G10h: nothing ran it).
 
 ## Cuirass LXD backend
 

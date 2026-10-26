@@ -122,7 +122,7 @@ Per-topic buffers and caps: [[Wotan|Service-Wotan]].
 
 ```
 alerts.critical          -- critical alert broadcast
-alerts.warning           -- warnings (pkg/events)
+alerts.warning           -- warnings
 timeline.updates         -- timeguru -> kanban-app
 system.health.reports    -- akira reports (ADR-029)
 system.health.consensus  -- akira band changes

@@ -77,7 +77,7 @@ This behavior is baked into:
 - `pkg/health/watchdog.go` — health check loop + Wotan publisher
 - `pkg/health/consensus.go` — aggregation + threshold logic
 - `services/wotan/internal/health/` — Wotan-side consensus engine
-- Every service's `main.go` via `pkg/service/` template
+- Every service's `main.go` (the `pkg/service/` template was deleted unused 2026-10-26, E1 G10h; Akira in `pkg/health` is the implementation)
 
 The 66.67% threshold is a constant, not a config value. Changing it requires a code change + review. This prevents accidental misconfiguration from weakening the Kingdom's immune system.
 
@@ -162,7 +162,7 @@ The Champion is the brain, but the watchdog is the immune system. The immune sys
 - Included in unheaded-configs .deb
 
 ### Phase 3: Integration
-- Wire into pkg/service/ template (every service auto-registers)
+- ~~Wire into pkg/service/ template (every service auto-registers)~~ (template deleted 2026-10-26, E1 G10h)
 - Wire into Wotan (consensus engine)
 - Wire into Zhenai (alert subscription)
 

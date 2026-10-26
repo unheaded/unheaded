@@ -469,41 +469,48 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 2-3 h
 **Agent**: Agent (one worktree; deletions conflict with nothing else this sprint except Phase 7/8, which only touch G4 packages)
 
-- [ ] **Step 45** [R] ~5m: Copy Stevie's answers into `$VERDICTS` (`verdict` column: DELETED-pending / KEEP / PARK / WIRE / FLAGGED-answered). Any answer that is not Y/N/P/W → [ESCALATE] back with the specific row (do not guess).
-- [ ] **Step 46** [B] ~1m: Order the DELETE work: leaves first (no other DELETE row imports them), using `$SCRATCH/unreached-edges.txt`.
+- [x] **Step 45** [R] ~5m: Copy Stevie's answers into `$VERDICTS` (`verdict` column: DELETED-pending / KEEP / PARK / WIRE / FLAGGED-answered). Any answer that is not Y/N/P/W → [ESCALATE] back with the specific row (do not guess).
+  - Done 2026-10-26: every Answer = Default (Stevie 2026-10-26). pkg/audit/storage is now reached (S-TWO-BRAINS, 2026-10-23) and goes FLAGGED instead of DELETED; Sword's analysis.go confirms the canary merge (G3 MERGE → delete).
+- [x] **Step 46** [B] ~1m: Order the DELETE work: leaves first (no other DELETE row imports them), using `$SCRATCH/unreached-edges.txt`.
   ```bash
   awk -F'\t' '$5 ~ /^DELETED/{print $1}' "$VERDICTS" > "$SCRATCH/delete.txt"; wc -l < "$SCRATCH/delete.txt"
   ```
-- [ ] **Step 47** [CODE] ~10m: **G1 unit**: `git rm -r` pkg/lxd (incl. real_client.go.dev), pkg/container/lxd/lxd.go.dev, pkg/nix (if G1 Y), pkg/certs/acme, cmd/unheaded-daemon/internal/{lxd,state,config,ebpf}. Edit every non-Go reference from Step 34 in the same change (wiki/docs lines that describe them as present).
-- [ ] **Step 48** [BUILD][TEST] ~6m: Build and test the neighbours.
+- [x] **Step 47** [CODE] ~10m: **G1 unit**: `git rm -r` pkg/lxd (incl. real_client.go.dev), pkg/container/lxd/lxd.go.dev, pkg/nix (if G1 Y), pkg/certs/acme, cmd/unheaded-daemon/internal/{lxd,state,config,ebpf}. Edit every non-Go reference from Step 34 in the same change (wiki/docs lines that describe them as present).
+- [x] **Step 48** [BUILD][TEST] ~6m: Build and test the neighbours.
   ```bash
   cd "$PROJECT_ROOT" && go build ./... && go vet ./cmd/unheaded-daemon/... ./pkg/... 2>&1 | tail -5 && gotest ./cmd/unheaded-daemon/...
   ```
-- [ ] **Step 49** [V] ~1m: Build green; Cuirass tests pass (its live LXD path is `lxd_rest.go`, untouched). Fail → Step 50.
-- [ ] **Step 50** [D] ~5m: A reference survived: `go build ./... 2>&1 | head` names the importer. If the importer is a KEEP row, the deletion is wrong: restore with `git checkout HEAD -- <path>`, set the row FLAGGED ("imported by X"), continue with the next unit. 2 attempts → STUCK this unit.
-- [ ] **Step 51** [C] ~2m: **COMMIT CHECKPOINT**.
+- [x] **Step 49** [V] ~1m: Build green; Cuirass tests pass (its live LXD path is `lxd_rest.go`, untouched). Fail → Step 50.
+- [x] **Step 50** [D] ~5m: A reference survived: `go build ./... 2>&1 | head` names the importer. If the importer is a KEEP row, the deletion is wrong: restore with `git checkout HEAD -- <path>`, set the row FLAGGED ("imported by X"), continue with the next unit. 2 attempts → STUCK this unit.
+  - Done 2026-10-26: not needed for G1. Applied later to F1 pkg/audit/storage (live importers cmd/zhen-claude, cmd/zhen-agentd: FLAGGED, kept) and to pkg/secrets/store+encryption and pkg/trace (kept tests are built on them: FLAGGED, kept).
+- [x] **Step 51** [C] ~2m: **COMMIT CHECKPOINT**.
   ```bash
   commit "chore(sweep): delete fake-success LXD/ACME clients and daemon internal scaffolding (E1 G1)" "47-51" "$PLAN" $(git -C "$PROJECT_ROOT" diff --name-only)
   ```
   (`git rm` already staged the deletions; the helper only adds the edited reference files and the plan.)
-- [ ] **Step 52** [CODE] ~5m: **G2 unit**: `git rm` the 23 files in `$SCRATCH/js-orphans.txt` (only those Stevie answered Y).
-- [ ] **Step 53** [TEST] ~4m: Dashboard JS tests + page load smoke (no page references them by construction, Step 24).
+- [x] **Step 52** [CODE] ~5m: **G2 unit**: `git rm` the 23 files in `$SCRATCH/js-orphans.txt` (only those Stevie answered Y).
+- [x] **Step 53** [TEST] ~4m: Dashboard JS tests + page load smoke (no page references them by construction, Step 24).
   ```bash
   cd "$PROJECT_ROOT" && gotest ./cmd/dashboard-backend/... && grep -rn -F -f <(sed 's/^/js\//' "$SCRATCH/js-orphans.txt") dashboard --include=*.html || echo "no references"
   ```
-- [ ] **Step 54** [V] ~1m: Tests green; "no references".
-- [ ] **Step 55** [C] ~2m: **COMMIT CHECKPOINT**: `chore(sweep): delete 23 unloaded dashboard scripts incl. monad-decode's invented values (E1 G2)`.
-- [ ] **Step 56** [CODE] ~10m: **G5 unit** (if Y): delete `pkg/transport/cascade.go` `Connect` and anything only it uses; fix the stale comment in `cmd/sophia/main.go:847` and the "Every service uses transport.Connect()" doc line in `pkg/transport/transport.go:9`; delete `services/loadbalancer` if G5 includes it.
-- [ ] **Step 57** [TEST] ~5m: `gotest ./pkg/transport/... ./pkg/wotan-client/... ./cmd/sophia/...`
-- [ ] **Step 58** [V] ~1m: Green. CLAUDE.md's "pkg/transport/ implements the gRPC-first cascade" line is now false → note it for Phase 16 Step 398 (do not edit CLAUDE.md piecemeal).
-- [ ] **Step 59** [C] ~2m: **COMMIT CHECKPOINT**: `chore(sweep): delete uncalled transport.Connect cascade (E1 G5)`.
-- [ ] **Step 60** [CODE] ~20m: **G10 units**: delete per package family (one commit per family, e.g. `pkg/mesh/*`, `pkg/waf/*`, `pkg/storage/*`, `pkg/alerting/*`), leaves first. For each family: `git rm -r`, edit Step 34 references, `go build ./... && go vet ./...`.
-- [ ] **Step 61** [TEST] ~10m: After each family: `go test -count=1 ./... 2>&1 | grep -E '^(FAIL|---)' | grep -v -F -f "$SCRATCH/baseline-tests.txt" || echo "no new failures"`.
-- [ ] **Step 62** [V] ~1m: "no new failures" after every family. A new failure → restore that family (`git checkout HEAD -- <dirs>`), mark its rows FLAGGED with the failing test, continue.
-- [ ] **Step 63** [C] ~2m: **COMMIT CHECKPOINT** per family: `chore(sweep): delete unused <family> (E1 G10)`.
-- [ ] **Step 64** [REGEN] ~5m: Regenerate `docs/UNREACHED-GO-PACKAGES.md` with the Step 5 command (new count, list), keep its header, add a "Decided 2026-MM-DD (E1)" section listing PARK/KEEP groups with their one-line reasons; fill `commit` in `$VERDICTS`.
-- [ ] **Step 65** [V] ~2m: **PHASE 1 EXIT GATE**: every Y row in E1 is either DELETED with a commit or FLAGGED with a reason; `go build ./...` green; no new test failures versus baseline; `$VERDICTS` has no empty `verdict`.
-- [ ] **Step 66** [C] ~2m: **COMMIT CHECKPOINT**: `docs(sweep): record E1 verdicts; regenerate unreached list`.
+- [x] **Step 54** [V] ~1m: Tests green; "no references".
+- [x] **Step 55** [C] ~2m: **COMMIT CHECKPOINT**: `chore(sweep): delete 23 unloaded dashboard scripts incl. monad-decode's invented values (E1 G2)`.
+- [x] **Step 56** [CODE] ~10m: **G5 unit** (if Y): delete `pkg/transport/cascade.go` `Connect` and anything only it uses; fix the stale comment in `cmd/sophia/main.go:847` and the "Every service uses transport.Connect()" doc line in `pkg/transport/transport.go:9`; delete `services/loadbalancer` if G5 includes it.
+  - Done 2026-10-26: Connect + connectGRPC/HTTP/Auto + ErrAllTransportsFailed gone (cascade.go deleted, ErrNotConnected moved to transport.go, the three Connect tests in transport_extended_test.go dropped); services/wotan/internal/circuitbreaker deleted and `go mod tidy` drops sony/gobreaker. services/loadbalancer is F6 PARK, untouched (Step 92).
+- [x] **Step 57** [TEST] ~5m: `gotest ./pkg/transport/... ./pkg/wotan-client/... ./cmd/sophia/...`
+- [x] **Step 58** [V] ~1m: Green. CLAUDE.md's "pkg/transport/ implements the gRPC-first cascade" line is now false → note it for Phase 16 Step 398 (do not edit CLAUDE.md piecemeal).
+  - Done 2026-10-26: noted for Step 398. Also false in CLAUDE.md now: "Service Template (pkg/service/)" and the `pkg/telemetry` import in the Go service skeleton.
+- [x] **Step 59** [C] ~2m: **COMMIT CHECKPOINT**: `chore(sweep): delete uncalled transport.Connect cascade (E1 G5)`.
+- [x] **Step 60** [CODE] ~20m: **G10 units**: delete per package family (one commit per family, e.g. `pkg/mesh/*`, `pkg/waf/*`, `pkg/storage/*`, `pkg/alerting/*`), leaves first. For each family: `git rm -r`, edit Step 34 references, `go build ./... && go vet ./...`.
+- [x] **Step 61** [TEST] ~10m: After each family: `go test -count=1 ./... 2>&1 | grep -E '^(FAIL|---)' | grep -v -F -f "$SCRATCH/baseline-tests.txt" || echo "no new failures"`.
+- [x] **Step 62** [V] ~1m: "no new failures" after every family. A new failure → restore that family (`git checkout HEAD -- <dirs>`), mark its rows FLAGGED with the failing test, continue.
+  - Done 2026-10-26: one new failure in the whole phase: G10e pkg/waf broke tests/s77 (G6 KEEP; file-existence asserts on pkg/waf/rules + detection in TestPhase1_BugFixes and TestS77_AllDeliverables). Restored, seven rows FLAGGED. G10h: pkg/health/response.go kept (tests/e2e uses WriteHealthy), HealthStatus moved into it; only aggregator.go went.
+- [x] **Step 63** [C] ~2m: **COMMIT CHECKPOINT** per family: `chore(sweep): delete unused <family> (E1 G10)`.
+- [x] **Step 64** [REGEN] ~5m: Regenerate `docs/UNREACHED-GO-PACKAGES.md` with the Step 5 command (new count, list), keep its header, add a "Decided 2026-MM-DD (E1)" section listing PARK/KEEP groups with their one-line reasons; fill `commit` in `$VERDICTS`.
+  - Done 2026-10-26: 66 of 248 unreached (was 148 of 300); "Decided 2026-10-26 (E1)" section added. ADR-090 set Accepted (ADR + INDEX) and `docs/sweeps/TOTAL-SOURCE-SWEEP.tsv` created per D-01's override (2,657 source files at bc0bddd1; 465 marked SWEPT/DELETED with their commit). cbom.cdx.json regenerated and pq-kex baseline shrunk (both gates PASS); scancode-full.json has no regen script, left as the dated inventory.
+- [x] **Step 65** [V] ~2m: **PHASE 1 EXIT GATE**: every Y row in E1 is either DELETED with a commit or FLAGGED with a reason; `go build ./...` green; no new test failures versus baseline; `$VERDICTS` has no empty `verdict`.
+  - Done 2026-10-26: PASS. 16 deletion commits (f7df5d23..7e524105) + the docs commit; ledger has no empty verdict (108 DELETED, 11 FLAGGED, 40 PARK, 16 KEEP, 3 WIRE); go build/vet green; full suite: baseline at bc0bddd1 was 295 ok / 1 FAIL (scripts/lib TestSwitchModel_UsageAndStopUnderTheLease, pre-existing), end state 216 ok / the same 1 FAIL (79 fewer test packages exist), zero new failures; `go mod tidy -diff` empty (the F4 deletion left two stale x/term sums, tidied in the docs commit). Stevie decides the four FLAGGED families (pkg/waf vs tests/s77; pkg/secrets/store+encryption; pkg/trace; pkg/audit/storage now live).
+- [x] **Step 66** [C] ~2m: **COMMIT CHECKPOINT**: `docs(sweep): record E1 verdicts; regenerate unreached list`.
 
 **DoD (Phase 1)**: DoD-STD + zero behavioural regressions; every deletion commit names its E1 group; no deleted package is still described as present in wiki/ or docs/ (Step 34 references handled).
 
