@@ -262,9 +262,6 @@ linters:
       - path: pkg/benchmark/benchmark
         linters: [gosec]
         text: "G306:"
-      - path: pkg/config/config
-        linters: [gosec]
-        text: "G306:"
       - path: pkg/network/policy_controller
         linters: [gosec]
         text: "G306:"
