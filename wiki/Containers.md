@@ -60,7 +60,22 @@ The same label and prune rule apply to `pkg/state`'s reconciler.
 
 **Desired state persists** in `desired.json` under `CUIRASS_STATE_DIR` (`state_dir`; default `/var/lib/unheaded/cuirass`, the compose `cuirass-state` volume; the deb's unit uses its StateDirectory `/var/lib/unheaded/daemon`). It was in memory only: a restart forgot every desired container, and with pruning the next reconcile would have deleted every managed one. Writes are atomic (temp file, fsync, rename, mode 0600); a write that cannot be saved returns 503 and changes nothing; an empty `state_dir` refuses all writes; a damaged file stops Cuirass at startup instead of starting empty.
 
-Not deployed yet. `scripts/cuirass-lxd-trust.sh` (dry run unless `--apply`) does the LXD side: project `unheaded` (`restricted=true`, sharing the default project's images and profiles), a P-384 client certificate in `/etc/unheaded/cuirass` owned by Cuirass's uid, a trust restricted to that project, and the server certificate to pin; then it prints the daemon settings. West's LXD already listens on `[::]:8443` with no trusted certificates. Checked 2026-10-23 with an untrusted scratch certificate (opt-in `TestLXDREST_LiveHTTPS`): TLS 1.3 and the pin work, a wrong pin is refused, and LXD answers `untrusted`. After that: the daemon with `LXD_BACKEND=https` in observe mode, and read the planned actions before enforcing.
+**Live on west since 2026-10-26** (S-REAL-STEEL Phase 5). `scripts/cuirass-lxd-trust.sh --apply` made the LXD side: project `unheaded` (`restricted=true`, its own profiles because LXD 5.21 refuses to restrict a project that shares them; its default profile seeded with the default project's root disk and `lxdbr0` NIC; `restricted.devices.proxy=allow` because Cuirass publishes service ports with a proxy device; images shared with `default`), a P-384 client certificate in `/etc/unheaded/cuirass` owned by uid 16740, the trust `cuirass` restricted to that project, and the pinned server certificate. The compose override `docker/compose.cuirass-lxd.yml` points Cuirass at `https://host.docker.internal:8443` with those files mounted read-only and `AUTH_ENABLED=true` (key in `/etc/unheaded/cuirass/cuirass.env`, 0640 root:16740, not in the repo).
+
+Window recipe (E2 window model, stack stopped at the end of a window):
+
+```bash
+# observe (enforce/prune/chaos unset)
+sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d
+# enforce + prune (prune only sees project unheaded, where every instance is ours)
+sudo CUIRASS_ENFORCE=true CUIRASS_PRUNE=true docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d cuirass
+# chaos on, game-day windows only
+sudo CUIRASS_ENFORCE=true CUIRASS_PRUNE=true CUIRASS_CHAOS=true docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d cuirass
+# window close
+sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml stop
+```
+
+Proofs recorded in the plan (Steps 144-156): actual state `{}` with pihole running in `default`; observe mode logged a planned `create` and created nothing; enforce created `steel-smoke` with `user.unheaded.managed=true`, a managed `DELETE` pruned it one sync later; pihole's last start (boot) predates the trust apply; `cuirass_lxd_up 1`. Back to the mock backend: bring the stack up without the override file (the desired state in the `cuirass-state` volume is kept). Undo the LXD side: `lxc config trust remove <fingerprint>`, `lxc project delete unheaded` (when empty), `rm -r /etc/unheaded/cuirass`.
 
 ### Health, proxy and chaos (S-REAL-STEEL Phase 4)
 

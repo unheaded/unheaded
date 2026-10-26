@@ -819,17 +819,21 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```
   - East: no `LXD_BACKEND=https`; west: `https`, `unheaded`, `true`, `true`, `false`.
 - [ ] **Step 154** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): compose override for Cuirass on LXD HTTPS (project unheaded)`; body cites Steps 145 and 149 as the live proof.
-- [ ] **Step 155** [W] ~10m: wiki/Containers.md "Live on west since <date>": project, enforce/prune, the empty-project proof, how to switch back to mock.
+- [x] **Step 155** [W] ~10m: wiki/Containers.md "Live on west since <date>": project, enforce/prune, the empty-project proof, how to switch back to mock.
+  - Done 2026-10-26: wiki/Containers.md "Live on west since 2026-10-26": project, enforce/prune, the empty-project proof, window recipe, how to switch back to mock.
 - [x] **Step 156** [V][LIVE-RO] ~2m: No LXD operation touched the default project during the window.
   - PASS 2026-10-26: pihole Last Used 2026-10-26 17:47 UTC (boot), older than Step 139 (21:33); no operations listed.
   ```bash
   lxc operation list --project default --format csv 2>/dev/null | head; lxc info --project default pihole | grep -E 'Status|Started'
   ```
   - pihole's `Started` time is older than Step 139.
-- [ ] **Step 157** [LIVE-RW] ~3m: Window close (E2.1 window model): `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml stop`. Skip if Stevie said to leave it up.
-- [ ] **Step 158** [V] ~1m: **PHASE 5 EXIT GATE**: Steps 144, 145, 149, 152, 156 all passed and are cited in the commit.
+- [x] **Step 157** [LIVE-RW] ~3m: Window close (E2.1 window model): `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml stop`. Skip if Stevie said to leave it up.
+  - Window left open 2026-10-26: Phases 9, 11, 14 follow in the same window (E2.1 yes); closed at the end of the live run.
+- [x] **Step 158** [V] ~1m: **PHASE 5 EXIT GATE**: Steps 144, 145, 149, 152, 156 all passed and are cited in the commit.
+  - PASS 2026-10-26: Steps 144, 145, 149, 152, 156 passed, cited in 4de65897 and the plan notes.
 - [ ] **Step 159** [C] ~1m: **COMMIT CHECKPOINT** (wiki + plan).
-- [ ] **Step 160** [AUDIT-UPDATE] ~3m: next.md: "Cuirass reconciles for real on west (project unheaded), enforce+prune, <date>; east still mock". Remove the "Needs Stevie's yes (Cuirass)" line.
+- [x] **Step 160** [AUDIT-UPDATE] ~3m: next.md: "Cuirass reconciles for real on west (project unheaded), enforce+prune, <date>; east still mock". Remove the "Needs Stevie's yes (Cuirass)" line.
+  - Done 2026-10-26 in the session handoff.
 
 **DoD (Phase 5)**: DoD-STD + pihole untouched (Steps 149, 156) + rollback path documented (switch the override off → mock).
 
@@ -881,7 +885,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   lxc image list --format csv -c lf | grep steel-echo; lxc list --all-projects --format csv -c n | grep steel-build || echo "no builders"
   lxc list --project default --format csv -c ns | grep pihole
   ```
-- [ ] **Step 173** [LIVE-RW] ~5m: Window open (stack + override, Phase 5 Step 143 command). Desire one instance through Cuirass with health, proxy and the chaos label.
+- [x] **Step 173** [LIVE-RW] ~5m: Window open (stack + override, Phase 5 Step 143 command). Desire one instance through Cuirass with health, proxy and the chaos label.
+  - Done 2026-10-26: PUT accepted. First attempt failed twice: LXD forbids proxy devices in a restricted project (fixed: restricted.devices.proxy=allow, in the trust script) and the image's steel user had no steel group (fixed in steel-echo-image.sh, images rebuilt with --replace: 29f7c78d3caa 7f84af25a25a d0d841c5d517 5c9853f0dc88).
   - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
   ```bash
   curl -fsS -X PUT -H "Authorization: Bearer $CUIRASS_API_KEY" -H 'Content-Type: application/json' "$CUIRASS/api/v1/containers/steel-echo-v1-0" -d '{
@@ -891,15 +896,19 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
     "proxy":{"listen":"tcp:127.0.0.1:26601","connect":"tcp:127.0.0.1:8080"}}'
   sleep 70; curl -fsS "$CUIRASS/api/v1/state/actual" | jq '."steel-echo-v1-0"'; curl -fsS 127.0.0.1:26601/version
   ```
-- [ ] **Step 174** [PREFLIGHT][V][LIVE-RO] ~2m: **H17**: `health: "healthy"` in Cuirass's actual state proves a compose container (Cuirass) reached the instance IP on lxdbr0; `/version` through the proxy says `v1`. Fail on health with the proxy working → H17 FALSE → Step 175.
+- [x] **Step 174** [PREFLIGHT][V][LIVE-RO] ~2m: **H17**: `health: "healthy"` in Cuirass's actual state proves a compose container (Cuirass) reached the instance IP on lxdbr0; `/version` through the proxy says `v1`. Fail on health with the proxy working → H17 FALSE → Step 175.
+  - PASS 2026-10-26: H17 TRUE: Cuirass actual state health `healthy` (probe from the compose container to 10.10.20.x on lxdbr0), proxy 127.0.0.1:26601 /version = v1.
   - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [ ] **Step 175** [D] ~10m: From the host `curl http://<ip>:8080/health` works but Cuirass's probe does not: docker's FORWARD chain or the compose network cannot route to lxdbr0. Inspect (`sudo iptables -S DOCKER-USER`, `ip route` inside the container via `docker exec unheaded-cuirass ip route` if present). Do not edit host firewall rules (not in E2). Record H17 FALSE, apply D-09's fallback for Sword, and STUCK the Cuirass probe item for Stevie (blocks Phase 9 health gating). 2 attempts max.
   - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
-- [ ] **Step 176** [V][LIVE-RO] ~2m: Instance metrics are real: `curl -fsS http://<ip>:8080/metrics | grep unheaded_http_requests_total | head -3` after a few `/` requests.
+- [x] **Step 176** [V][LIVE-RO] ~2m: Instance metrics are real: `curl -fsS http://<ip>:8080/metrics | grep unheaded_http_requests_total | head -3` after a few `/` requests.
+  - PASS 2026-10-26: `unheaded_http_requests_total{path="/health",service="steel-echo",status="200"}` counts Cuirass's probes.
   - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
-- [ ] **Step 177** [V] ~1m: **PHASE 6 EXIT GATE**: four images; one healthy managed instance serving through its proxy; load generator CSV works against it for 30 s (`steel-echo load --target http://127.0.0.1:26601/ --rps 10 --duration 30s --out "$SCRATCH/smoke.csv"`, 300 ok).
+- [x] **Step 177** [V] ~1m: **PHASE 6 EXIT GATE**: four images; one healthy managed instance serving through its proxy; load generator CSV works against it for 30 s (`steel-echo load --target http://127.0.0.1:26601/ --rps 10 --duration 30s --out "$SCRATCH/smoke.csv"`, 300 ok).
+  - PASS 2026-10-26 (live half): four images, steel-echo-v1-0 healthy behind its proxy, 30 s at 10 rps: sent 299 ok 299 err 0 availability 1.0000 (first partial second accounts for the 299).
   - Code half PASS 2026-10-23 (Steps 162-168: tests green, static build, script shellcheck-clean, four payloads staged and v4 smoke-tested locally). Live half [DEFERRED: E2 window]: four images in LXD, a healthy managed instance behind its proxy, the 30 s CSV against it.
-- [ ] **Step 178** [C] ~2m: **COMMIT CHECKPOINT** (plan ticks; H17 row). Leave `steel-echo-v1-0` desired for Phase 9 or close the window per E2.1.
+- [x] **Step 178** [C] ~2m: **COMMIT CHECKPOINT** (plan ticks; H17 row). Leave `steel-echo-v1-0` desired for Phase 9 or close the window per E2.1.
+  - Done 2026-10-26: steel-echo-v1-0 left desired for Phase 9.
 
 **DoD (Phase 6)**: DoD-STD + the workload never echoes request content (test in Step 162).
 
