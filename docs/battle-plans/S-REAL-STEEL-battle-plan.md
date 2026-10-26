@@ -747,24 +747,30 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - **Why Stevie**: every item changes west; items 1-3 are his standing gate. The recommendation is yes to all with the window model; he can trim.
   - **What stops**: Phases 5, 6 (live import only), 9, 11, 13 (live parts), 14 (west half). Phases 7, 8, 10 and the code halves of 6/11/13 continue.
   - **Answered 2026-10-26** (Stevie): **yes to all seven**, window model (stack up for a window, stopped at its end). East chaos agent + polkit (Phase 12, E3) also granted the same day.
-- [ ] **Step 138** [LIVE-RO][BARE-METAL] ~3m: Dry run, read the output end to end.
+- [x] **Step 138** [LIVE-RO][BARE-METAL] ~3m: Dry run, read the output end to end.
+  - Done 2026-10-26: dry run read end to end (scratch trust-dry.txt).
   ```bash
   cd "$PROJECT_ROOT" && scripts/cuirass-lxd-trust.sh 2>&1 | tee "$SCRATCH/trust-dry.txt"
   ```
-- [ ] **Step 139** [LIVE-RW][S] ~5m: Apply (E2.2).
+- [x] **Step 139** [LIVE-RW][S] ~5m: Apply (E2.2).
+  - Done 2026-10-26: applied after two script fixes (edd400ee): LXD 5.21 refuses restricted=true on a project sharing profiles, and uutils install rejects a numeric group.
   ```bash
   cd "$PROJECT_ROOT" && sudo scripts/cuirass-lxd-trust.sh --apply 2>&1 | tee "$SCRATCH/trust-apply.txt"
   ```
-- [ ] **Step 140** [V][LIVE-RO] ~3m: Project and trust are restricted; storage has room for two copies (D-03 override check).
+- [x] **Step 140** [V][LIVE-RO] ~3m: Project and trust are restricted; storage has room for two copies (D-03 override check).
+  - PASS 2026-10-26: project restricted with its own seeded default profile (root disk pool default, eth0 lxdbr0); trust `cuirass` restricted to project unheaded (fingerprint a16cff557aea, 10 years); storage 597 GiB used of 1.79 TiB.
   ```bash
   lxc project show unheaded | grep -E 'restricted|features'
   lxc config trust list --format csv | grep -i unheaded
   lxc storage info default | grep -E 'space used|total space'
   ```
   - Fail → Step 141.
-- [ ] **Step 141** [D] ~5m: Re-run the dry run; each step skips itself when done, so the diff shows what did not apply. Compare with `scripts/cuirass-lxd-trust.sh --help`. 2 attempts → STUCK (blocks this phase and 9/11/14 west halves).
-- [ ] **Step 142** [W] ~10m: `docker/compose.cuirass-lxd.yml` (repo, no secrets): cuirass env `LXD_BACKEND=https`, `LXD_URL=https://host.docker.internal:<port from core.https_address>`, `LXD_PROJECT=unheaded`, `LXD_CLIENT_CERT/KEY/SERVER_CERT` from `/etc/unheaded/cuirass` mounted read-only, `extra_hosts: host.docker.internal:host-gateway`, `env_file: /etc/unheaded/cuirass/cuirass.env` (holds `AUTH_API_KEYS`, created by hand on west, 0600 root:16740). Enforce/prune/chaos stay unset here (observe).
-- [ ] **Step 143** [LIVE-RW] ~5m: Window open (E2.1): bring the stack up with the override.
+- [x] **Step 141** [D] ~5m: Re-run the dry run; each step skips itself when done, so the diff shows what did not apply. Compare with `scripts/cuirass-lxd-trust.sh --help`. 2 attempts → STUCK (blocks this phase and 9/11/14 west halves).
+  - Used 2026-10-26: one-call restricted create hung for minutes; the script now creates then restricts.
+- [x] **Step 142** [W] ~10m: `docker/compose.cuirass-lxd.yml` (repo, no secrets): cuirass env `LXD_BACKEND=https`, `LXD_URL=https://host.docker.internal:<port from core.https_address>`, `LXD_PROJECT=unheaded`, `LXD_CLIENT_CERT/KEY/SERVER_CERT` from `/etc/unheaded/cuirass` mounted read-only, `extra_hosts: host.docker.internal:host-gateway`, `env_file: /etc/unheaded/cuirass/cuirass.env` (holds `AUTH_API_KEYS`, created by hand on west, 0600 root:16740). Enforce/prune/chaos stay unset here (observe).
+  - Done 2026-10-26: docker/compose.cuirass-lxd.yml; enforce/prune/chaos come from the window's environment (`${CUIRASS_ENFORCE:-}`), observe by default; AUTH_API_KEYS from /etc/unheaded/cuirass/cuirass.env (0640 root:16740, created by hand).
+- [x] **Step 143** [LIVE-RW] ~5m: Window open (E2.1): bring the stack up with the override.
+  - Done 2026-10-26: stack up with the override. The cuirass image was from 10-21 (pre lxd_rest.go) and logged "mock mode": rebuilt with --build before Step 144.
   ```bash
   cd "$PROJECT_ROOT" && sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d 2>&1 | tail -5
   ```
@@ -851,11 +857,14 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   shellcheck "$PROJECT_ROOT/scripts/steel-echo-image.sh" && "$PROJECT_ROOT/scripts/steel-echo-image.sh" | head -40
   ```
 - [ ] **Step 169** [C] ~2m: **COMMIT CHECKPOINT**: `feat(scripts): steel-echo LXD image builder (dry run by default)`.
-- [ ] **Step 170** [DECIDE] ~0m: **D-15 who imports images** (reads H16, Step 145). RECOMMENDATION: if the restricted Cuirass identity cannot import, govan builds in the `default` project (the `unheaded` project shares the default project's images: trust script step 1), with builder names prefixed `steel-build-` so pihole is never in scope. Rationale: keeps Cuirass's identity read/run-only for images. Override ONLY if H16 showed the project has its own image store (`features.images=true`): then build with `--project unheaded`.
+- [x] **Step 170** [DECIDE] ~0m: **D-15 who imports images** (reads H16, Step 145). RECOMMENDATION: if the restricted Cuirass identity cannot import, govan builds in the `default` project (the `unheaded` project shares the default project's images: trust script step 1), with builder names prefixed `steel-build-` so pihole is never in scope. Rationale: keeps Cuirass's identity read/run-only for images. Override ONLY if H16 showed the project has its own image store (`features.images=true`): then build with `--project unheaded`.
+  - Done 2026-10-26: recommendation taken. H16 answered by the project config: features.images=false, so project unheaded shares the default image store; govan builds in default with steel-build-* names.
   - [DEFERRED: E2 window] D-15 reads H16 (Step 145, live). Recommendation stands (govan builds in project default, builders steel-build-*); the script defaults --project default and takes --project unheaded for the override.
-- [ ] **Step 171** [LIVE-RW][BARE-METAL] ~15m: (E2.4) `scripts/steel-echo-image.sh --apply 2>&1 | tee "$SCRATCH/images.txt"`.
+- [x] **Step 171** [LIVE-RW][BARE-METAL] ~15m: (E2.4) `scripts/steel-echo-image.sh --apply 2>&1 | tee "$SCRATCH/images.txt"`.
+  - Done 2026-10-26: `scripts/steel-echo-image.sh --apply` published steel-echo-v1..v4 (scratch images.txt).
   - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
-- [ ] **Step 172** [V][LIVE-RO] ~2m: Four aliases, no builders left, pihole untouched.
+- [x] **Step 172** [V][LIVE-RO] ~2m: Four aliases, no builders left, pihole untouched.
+  - PASS 2026-10-26: four aliases (8b6fd5f4be35, d283448ae5c3, 40d002d639b4, cb676313a471), no builders, pihole RUNNING.
   - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
   ```bash
   lxc image list --format csv -c lf | grep steel-echo; lxc list --all-projects --format csv -c n | grep steel-build || echo "no builders"

@@ -1,0 +1,39 @@
+# Cuirass against the real LXD daemon on this host (S-REAL-STEEL Phase 5,
+# Step 142). Layer it over docker-compose.yml:
+#
+#   sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d
+#
+# What it changes: the Cuirass container talks to LXD over HTTPS with the
+# restricted client certificate scripts/cuirass-lxd-trust.sh made (project
+# `unheaded` only; pihole lives in `default` and is invisible to it) and pins
+# LXD's server certificate. The API key comes from a host env file outside the
+# repo (/etc/unheaded/cuirass/cuirass.env, 0640 root:16740, AUTH_API_KEYS=...).
+#
+# Observe first: CUIRASS_ENFORCE / CUIRASS_PRUNE / CUIRASS_CHAOS are not set
+# here. A window that wants them passes them in the environment:
+#
+#   CUIRASS_ENFORCE=true CUIRASS_PRUNE=true sudo -E docker compose ... up -d cuirass
+#
+# Back to the mock backend: bring the stack up without this file.
+services:
+  cuirass:
+    environment:
+      LXD_BACKEND: "https"
+      # 127.0.0.1 inside the container is the container: host-gateway is the host.
+      # The pin is the server certificate itself, so the name does not matter.
+      LXD_URL: "https://host.docker.internal:8443"
+      LXD_PROJECT: "unheaded"
+      LXD_CLIENT_CERT: "/etc/unheaded/cuirass/client.crt"
+      LXD_CLIENT_KEY: "/etc/unheaded/cuirass/client.key"
+      LXD_SERVER_CERT: "/etc/unheaded/cuirass/server.crt"
+      AUTH_ENABLED: "true"
+      CUIRASS_ENFORCE: "${CUIRASS_ENFORCE:-}"
+      CUIRASS_PRUNE: "${CUIRASS_PRUNE:-}"
+      CUIRASS_CHAOS: "${CUIRASS_CHAOS:-}"
+    env_file:
+      - path: /etc/unheaded/cuirass/cuirass.env
+        required: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /etc/unheaded/cuirass:/etc/unheaded/cuirass:ro
