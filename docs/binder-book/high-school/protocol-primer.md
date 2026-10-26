@@ -270,8 +270,8 @@ line for optimal performance).
 | Birth | 0x01 | Shield XDP | Packet entered Kingdom, Monad inserted |
 | Hop | 0x02 | hop-ebpf | Packet processed at interior node |
 | Death | 0x03 | Shield TC | Packet leaving Kingdom, Monad stripped |
-| Anomaly | 0x04 | Any program | CRC failure, unknown key, decode error |
-| Chaos | 0x05 | Yaldabaoth | Deliberate corruption for testing |
+| Chaos | 0x04 | Yaldabaoth | Deliberate corruption for testing (EVENT_CHAOS) |
+| Anomaly | 0x08 | Any program | CRC failure, unknown key, decode error (EVENT_ANOMALY) |
 
 ### Event Format
 

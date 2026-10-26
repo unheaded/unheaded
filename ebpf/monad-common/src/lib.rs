@@ -188,10 +188,16 @@ pub enum EventType {
     Hop = 0x02,
     /// Shield egress stripped the Monad (packet death).
     Death = 0x03,
-    /// Checksum failure, unknown Sophia key, or decode error.
-    Anomaly = 0x04,
     /// Chaos injection subsystem (Yaldabaoth) modified the packet.
-    Chaos = 0x05,
+    ///
+    /// `EVENT_CHAOS (0x04)` in the foundation-06 Anamnesis Event Type
+    /// registry (E4, 2026-10-26: the spec wins; the code moved).
+    Chaos = 0x04,
+    /// Checksum failure, unknown Sophia key, or decode error.
+    ///
+    /// `EVENT_ANOMALY (0x08)` in the foundation-06 registry. 0x05-0x07 are
+    /// ROLLBACK, DIED and KEY_OP there and have no producer here yet.
+    Anomaly = 0x08,
 }
 
 impl EventType {
@@ -202,8 +208,8 @@ impl EventType {
             0x01 => Some(Self::Birth),
             0x02 => Some(Self::Hop),
             0x03 => Some(Self::Death),
-            0x04 => Some(Self::Anomaly),
-            0x05 => Some(Self::Chaos),
+            0x04 => Some(Self::Chaos),
+            0x08 => Some(Self::Anomaly),
             _ => None,
         }
     }
@@ -2131,16 +2137,36 @@ mod tests {
         assert_eq!(EventType::Birth as u8, 0x01);
         assert_eq!(EventType::Hop as u8, 0x02);
         assert_eq!(EventType::Death as u8, 0x03);
-        assert_eq!(EventType::Anomaly as u8, 0x04);
-        assert_eq!(EventType::Chaos as u8, 0x05);
+        // foundation-06 Anamnesis Event Type registry (E4, 2026-10-26).
+        assert_eq!(EventType::Chaos as u8, 0x04);
+        assert_eq!(EventType::Anomaly as u8, 0x08);
+        assert_eq!(EventType::from_u8(0x04), Some(EventType::Chaos));
+        assert_eq!(EventType::from_u8(0x08), Some(EventType::Anomaly));
+        for v in [0x00u8, 0x05, 0x06, 0x07, 0x09, 0xFF] {
+            assert_eq!(EventType::from_u8(v), None, "0x{v:02x} has no producer");
+        }
     }
 
     #[test]
     fn event_type_from_u8_roundtrip() {
-        for v in 1u8..=5 {
-            assert!(EventType::from_u8(v).is_some(), "Valid type {v} must parse");
+        for t in [
+            EventType::Birth,
+            EventType::Hop,
+            EventType::Death,
+            EventType::Chaos,
+            EventType::Anomaly,
+        ] {
+            assert_eq!(
+                EventType::from_u8(t as u8),
+                Some(t),
+                "{t:?} must round-trip"
+            );
         }
         assert!(EventType::from_u8(0).is_none());
+        assert!(
+            EventType::from_u8(5).is_none(),
+            "EVENT_ROLLBACK has no producer"
+        );
         assert!(EventType::from_u8(6).is_none());
         assert!(EventType::from_u8(0xFF).is_none());
     }

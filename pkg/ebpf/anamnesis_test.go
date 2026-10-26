@@ -216,11 +216,15 @@ func TestEventType_Valid(t *testing.T) {
 			t.Errorf("EventType(%d).Valid() = false, want true", et)
 		}
 	}
-	if EventType(0).Valid() {
-		t.Error("EventType(0) should be invalid")
+	// foundation-06 registry values (E4, 2026-10-26).
+	if EventChaos != 0x04 || EventAnomaly != 0x08 {
+		t.Errorf("EventChaos=0x%02x EventAnomaly=0x%02x, want 0x04/0x08", uint8(EventChaos), uint8(EventAnomaly))
 	}
-	if EventType(6).Valid() {
-		t.Error("EventType(6) should be invalid")
+	// 0x05-0x07 (ROLLBACK, DIED, KEY_OP) have no producer: invalid, not a hole to fall through.
+	for _, v := range []uint8{0, 5, 6, 7, 9, 0xFF} {
+		if EventType(v).Valid() {
+			t.Errorf("EventType(%d) should be invalid", v)
+		}
 	}
 }
 

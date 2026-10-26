@@ -106,7 +106,8 @@ func TestMonadFlagConstants(t *testing.T) {
 	}
 }
 
-// TestEventTypeConstants verifies event types are unique and sequential.
+// TestEventTypeConstants verifies event types are unique and carry the
+// foundation-06 Anamnesis Event Type registry values (E4, 2026-10-26).
 func TestEventTypeConstants(t *testing.T) {
 	events := map[uint8]string{
 		EventBirth:   "BIRTH",
@@ -120,10 +121,16 @@ func TestEventTypeConstants(t *testing.T) {
 		t.Errorf("expected 5 unique event types, got %d", len(events))
 	}
 
-	// Verify sequential 1-5.
-	for i := uint8(1); i <= 5; i++ {
-		if _, ok := events[i]; !ok {
-			t.Errorf("missing event type %d", i)
+	want := map[string]uint8{"BIRTH": 0x01, "HOP": 0x02, "DEATH": 0x03, "CHAOS": 0x04, "ANOMALY": 0x08}
+	for name, v := range want {
+		if events[v] != name {
+			t.Errorf("event type 0x%02x = %q, want %q", v, events[v], name)
+		}
+	}
+	// Registry values with no producer must not be claimed by the schema.
+	for _, v := range []uint8{0x00, 0x05, 0x06, 0x07} {
+		if _, ok := events[v]; ok {
+			t.Errorf("event type 0x%02x (%s) has no producer and must stay unassigned", v, events[v])
 		}
 	}
 }
