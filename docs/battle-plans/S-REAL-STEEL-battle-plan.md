@@ -5,6 +5,20 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # S-REAL-STEEL BATTLE PLAN: 17 Phases, 404 Steps
 
+> **SHIPPED 2026-10-26** (develop, `bc0bddd1` → the Phase 16 commits of 2026-10-26; the PHASE24-style banner).
+> Stevie answered E1-E4 on 2026-10-26 ("ensure all 5 sprints are done") and every phase ran the same day, on west and east:
+> **Phase 1** sweep applied (E1 defaults: 108 packages/files deleted in 17 commits, 11 rows FLAGGED with evidence, ADR-090 Accepted, zero new test failures);
+> **Phase 5** Cuirass reconciles real LXD on west (project `unheaded`, restricted, pihole invisible: Steps 144-156);
+> **Phase 6** four steel-echo images, healthy instance behind its proxy, 299/299 (Step 177);
+> **Phase 9** rolling 0.9915 / blue-green one flip 1 s gap / canary analysis_failed 35.33 % / manual rollback / history kept across restart (Steps 243-255);
+> **Phase 11** netem on one veth, ExecStopPost revert 0.12 s after `kill -9`, container kill MTTR 24.4 s, negatives 403 (Steps 306-311; availability miss = FND-023);
+> **Phase 12** east service_stop/process_kill under polkit, seen by the dashboard, Restart= recovery, unit list = baseline (Steps 325-329);
+> **Phase 13** packet chaos acts only on the enrolled flow (474/1000 flagged vs 1000/1000 clear), abort 0.42 s, wire bytes unchanged except CHAOS bit + CRC, E4: code moved to the spec's event codes (Steps 336-351);
+> **Phase 14** game day 1: canary hurt by 300 ms netem → Sword rolled back on a client-observed p99 of 310 ms, 62 s fault → restored, steady state 2320/2320; B/C/D/E passed; post-state clean (docs/gamedays/2026-10-26-real-steel-1.md).
+> Found and fixed on the day: Sword's analysis was blind to network latency (d90d613d); a container-kill revert stuck on a deleted target (38f27605); Cuirass's read endpoints were closed under auth (4760cd8b); the packet loader pinned dotted map names (a45f69dc); the trust script, image script and installers (edd400ee, 4de65897). Registered, not fixed: FND-023 (client routing follows the 30 s sync), FND-024 (monitoring stack nobody starts).
+> STUCK: none. Deferred: east as a node stays outside this sprint. Live switches: wiki/Containers.md (window recipe), wiki/Chaos-Engineering.md (abort, stop, dry run).
+
+
 **Date**: 2026-10-23
 **Sprint**: Sprint 3, REAL STEEL. Stubs become real, then chaos proves them.
 **Prerequisite**: branch based on `443de3f82` (develop, S17 late) or newer; S17's Cuirass commits present (`b49e3f16` LXD REST client, `04c34ed0` safe mode, `5b490383` desired store, `22e9aa54` trust script); `go test ./...` green at start (S17: 267 ok / 0 fail).
@@ -596,7 +610,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 
 ### E1-dependent items
 
-- [ ] **Step 91** [AFTER-E1] ~5m: `transport.Connect`: if E1 G5 = Y it was deleted in Phase 1 (nothing to do). If N (keep), write one line in next.md ("transport.Connect kept by Stevie; unused; finish when a caller appears") and move on: no phase needs it.
+- [x] **Step 91** [AFTER-E1] ~5m: `transport.Connect`: if E1 G5 = Y it was deleted in Phase 1 (nothing to do). If N (keep), write one line in next.md ("transport.Connect kept by Stevie; unused; finish when a caller appears") and move on: no phase needs it.
+  - Done 2026-10-26: E1 G5 = Y, `transport.Connect` deleted in Phase 1 (2c8fdc31); nothing to do.
   - Done 2026-10-23: [AFTER-E1] skipped: waits on E1 G5.
 - [ ] **Step 92** [AFTER-E1] ~20m: xdpsync (`services/loadbalancer/xdpsync.go:102`): if deleted in Phase 1, nothing to do. If kept/parked: test `TestXDPSync_JoinsBeforePublish` (publishes `lb.rebalance` only after Join as `loadbalancer`), fix the name (`xdpsync-service` → `loadbalancer`), add `loadbalancer` to `configs/wotan.yaml` `auto_approve`, `gotest ./services/loadbalancer/...`.
   - Done 2026-10-23: [AFTER-E1] skipped: waits on E1 (services/loadbalancer is F6, suggested P).
@@ -1064,7 +1079,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-23: d3945965.
 - [x] **Step 232** [B] ~2m: `services/sword` and `pkg/deploy/{strategy,rollback,cuirassdriver}` are now reached: rerun Step 5's command; they must be absent from the unreached list.
   - Done 2026-10-23: unreached list regenerated: 146 of 312 (was 148). services/sword, pkg/deploy/strategy, pkg/deploy/rollback are reached; new and reached: pkg/deploy/cuirassdriver, pkg/sloguard, cmd/steel-echo, cmd/sword; new and unreached by design: pkg/deploy/cuirassdriver/cuirasstest (test helper). docs/UNREACHED-GO-PACKAGES.md annotated (full regeneration stays Phase 1/16).
-- [ ] **Step 233** [AFTER-E1] ~10m: If E1 G3 = Y: `git rm -r services/canary`, fix references (wiki, ports comments), `go build ./...`, commit `chore(sweep): delete services/canary, folded into Sword (E1 G3)`. If N: leave it, add a deprecation line in its package doc pointing to Sword.
+- [x] **Step 233** [AFTER-E1] ~10m: If E1 G3 = Y: `git rm -r services/canary`, fix references (wiki, ports comments), `go build ./...`, commit `chore(sweep): delete services/canary, folded into Sword (E1 G3)`. If N: leave it, add a deprecation line in its package doc pointing to Sword.
+  - Done 2026-10-26: E1 G3 = Y, services/canary deleted in Phase 1 (e86a2423; Sword's analysis.go had already taken over evaluateCanary).
   - [AFTER-E1] skipped: G3 not answered. services/canary stays in place, folded into Sword in code (analysis.go maps its SLOThreshold); only its port reference changed (ports.Sword). Deletion pending E1 G3, noted in UNREACHED-GO-PACKAGES.md.
 - [x] **Step 234** [V] ~2m: **PHASE 8 EXIT GATE**: Steps 217, 222, 225, 228 green; Step 232 shows Sword reached.
   - Done 2026-10-23: PASS (code half): Steps 217, 222, 225, 228 green; Step 232 shows Sword reached. The live run of Sword is Phase 9 [DEFERRED: E2 window].
@@ -1538,44 +1554,56 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 2 h
 **Agent**: Agent (BlackMage + MoatGhost lenses)
 
-- [ ] **Step 381** [SECURITY] ~30m: Attack-surface table in this file:
+- [x] **Step 381** [SECURITY] ~30m: Attack-surface table in this file:
+  - Done 2026-10-26: Reviewed column filled (above).
 
   | Added | Exposure | Control | Reviewed |
   |---|---|---|---|
-  | Sword :19011 | compose network + host port | auth on mutating routes; Cuirass key in host env file | |
-  | chaos-controller :19012 (west, east) | host | auth; allowlist; abort; journal | |
-  | Cuirass `/chaos`, `/reconcile`, proxy device, health probe | compose | auth; `CUIRASS_CHAOS`; managed + label checks; IP-only probe | |
-  | LXD client cert (restricted, project `unheaded`) | `/etc/unheaded/cuirass` | 0600, pinned server cert | |
-  | `CAP_NET_ADMIN` (+`CAP_BPF` west) for `unheaded-chaos` | host | own account, sandbox, allowlisted targets | |
-  | polkit rule (east) | east | unit allowlist, verbs start/stop/kill | |
-  | Wotan topics `deploy.*`, `chaos.*`, `cuirass.chaos` | Wotan | allowlisted publishers; control topics never buffered | |
-- [ ] **Step 382** [B] ~10m: gosec ratchet and govulncheck.
+  | Sword :19011 | compose network + host port | auth on mutating routes; Cuirass key in host env file | 2026-10-26: AUTH_ENABLED=true live; /etc/unheaded/sword/sword.env 0640 root:16746; FuzzDeployRequest; the analyzer now also probes canary /health from its own side (client-observed p99), same IP rules as the scrape (no loopback/link-local) |
+  | chaos-controller :19012 (west, east) | host | auth; allowlist; abort; journal | 2026-10-26: X-API-Key live on both hosts; pihole and an unlabelled instance refused 403 before Cuirass (chaos_refusals_total); abort http 0.12 s / file 0.88 s; ExecStopPost revert-all 0.12 s after kill -9; `systemctl kill` also kills the control process (plan note); FuzzParseAllowlist |
+  | Cuirass `/chaos`, `/reconcile`, proxy device, health probe | compose | auth; `CUIRASS_CHAOS`; managed + label checks; IP-only probe | 2026-10-26: 4760cd8b opens only GET /api/v1/info and /api/v1/state (canonical paths); PUT/DELETE/chaos/reconcile keep the key (test); chaos answered 403 outside the window; proxy device needs restricted.devices.proxy=allow on the project (all other restrictions kept); FuzzContainerSpec |
+  | LXD client cert (restricted, project `unheaded`) | `/etc/unheaded/cuirass` | 0600, pinned server cert | 2026-10-26: client.key 0400 16740, trust `cuirass` restricted to project unheaded, server.crt pinned; the restricted identity cannot see project default (pihole invisible, Step 145) |
+  | `CAP_NET_ADMIN` (+`CAP_BPF` west) for `unheaded-chaos` | host | own account, sandbox, allowlisted targets | 2026-10-26: CapEff exactly cap_net_admin,cap_bpf on west (Step 304); the BPF program attached only to steel0-h, never enp16s0 (Steps 346, 375); loader pins only its three state maps |
+  | polkit rule (east) | east | unit allowlist, verbs start/stop/kill | 2026-10-26: rendered from the allowlist (one source, drift test bites); unit has no capabilities; ssh.service and unheaded-kev-poller.service stop refused "Interactive authentication required" (Step 324) |
+  | Wotan topics `deploy.*`, `chaos.*`, `cuirass.chaos` | Wotan | allowlisted publishers; control topics never buffered | 2026-10-26: west publishes; east's chaos-controller is not auto-approved on east's Wotan (chaos.refused not published there): follow-on, no exposure (events only) |
+- [x] **Step 382** [B] ~10m: gosec ratchet and govulncheck.
+  - Done 2026-10-26: `scripts/check-gosec-ratchet.sh` PASS (no rule exclusions, annotation guards ran); govulncheck ./... 0 reachable (1 in a required module, not called).
   ```bash
   cd "$PROJECT_ROOT" && gosec -quiet ./... 2>&1 | tail -20; govulncheck ./... 2>&1 | tail -10
   ```
-- [ ] **Step 383** [V] ~2m: No new gosec rule IDs versus Step 131's method at the sprint's first commit; govulncheck: 0 reachable.
-- [ ] **Step 384** [COMPLIANCE] ~5m: No new dependencies.
+- [x] **Step 383** [V] ~2m: No new gosec rule IDs versus Step 131's method at the sprint's first commit; govulncheck: 0 reachable.
+  - PASS 2026-10-26.
+- [x] **Step 384** [COMPLIANCE] ~5m: No new dependencies.
+  - PASS 2026-10-26: `go mod tidy -diff` empty; go.mod/go.sum vs the sprint's first commit: removals only (sony/gobreaker, the pkg/telemetry replace; E1 G5/G10h), ebpf/Cargo.lock unchanged; no new dependency.
   ```bash
   cd "$PROJECT_ROOT" && go mod tidy -diff && git diff --stat "$(git log --reverse --format=%H --grep 'S-REAL-STEEL' | head -1)" -- go.mod go.sum ebpf/Cargo.lock
   (cd ebpf && cargo audit 2>&1 | tail -3)
   ```
   - go.mod/go.sum/Cargo.lock unchanged. Any change → Barrister/ADR-004 review before commit (stop and ask).
-- [ ] **Step 385** [B] ~3m: Secrets: nothing committed.
+- [x] **Step 385** [B] ~3m: Secrets: nothing committed.
+  - Done 2026-10-26: CI form `scripts/check-gitleaks.sh`: no new secrets in 5544 tracked files; `check-secrets-baseline.sh` PASS at 20 entries. (Raw `gitleaks detect` in git mode lists 35 historical hits, all in files last changed before this sprint.)
   ```bash
   cd "$PROJECT_ROOT" && gitleaks detect --no-banner --redact -s . 2>&1 | tail -3 && bash scripts/check-secrets-baseline.sh
   ```
-- [ ] **Step 386** [V] ~1m: gitleaks clean; baseline did not grow.
-- [ ] **Step 387** [TEST] ~10m: Fuzz the new parsers for 60 s each: allowlist YAML, Cuirass `ContainerSpec` (health/proxy), Sword deployment request.
+- [x] **Step 386** [V] ~1m: gitleaks clean; baseline did not grow.
+  - PASS 2026-10-26.
+- [x] **Step 387** [TEST] ~10m: Fuzz the new parsers for 60 s each: allowlist YAML, Cuirass `ContainerSpec` (health/proxy), Sword deployment request.
+  - Done 2026-10-26: the plan named FuzzAllowlist / FuzzContainerSpec / FuzzDeployRequest; only FuzzParseHTTPMetrics existed, so FuzzParseAllowlist (services/yaldabaoth), FuzzContainerSpec (cmd/unheaded-daemon: decode + validate) and FuzzDeployRequest (services/sword: decode + validate) were written with seeded hostile inputs and fuzzed 60 s each.
   ```bash
   cd "$PROJECT_ROOT" && go test ./services/yaldabaoth/ -run '^$' -fuzz FuzzAllowlist -fuzztime 60s
   go test ./cmd/unheaded-daemon/ -run '^$' -fuzz FuzzContainerSpec -fuzztime 60s
   go test ./services/sword/ -run '^$' -fuzz FuzzDeployRequest -fuzztime 60s
   ```
-- [ ] **Step 388** [V] ~1m: No crashers (any crasher → fix + keep the corpus file as a regression test).
-- [ ] **Step 389** [TEST] ~5m: Gates can fail (ADR-093 principle): bite-test the Phase 7 "no simulation" test and the polkit divergence test (break each, see red, restore).
-- [ ] **Step 390** [AUDIT-UPDATE] ~10m: Register (ADR-098) a finding for each item not fixed in this sprint; regenerate the ADR-098 section only after re-signing (S17 note).
-- [ ] **Step 391** [V] ~1m: **PHASE 15 EXIT GATE**: table complete, Steps 383, 386, 388 passed.
-- [ ] **Step 392** [C] ~2m: **COMMIT CHECKPOINT**: `docs(security): S-REAL-STEEL attack-surface review`.
+- [x] **Step 388** [V] ~1m: No crashers (any crasher → fix + keep the corpus file as a regression test).
+  - PASS 2026-10-26: no crashers (testdata/fuzz empty in all three packages).
+- [x] **Step 389** [TEST] ~5m: Gates can fail (ADR-093 principle): bite-test the Phase 7 "no simulation" test and the polkit divergence test (break each, see red, restore).
+  - PASS 2026-10-26: a planted "simulate" line turned TestNoSimulationInDeployCore red; a changed verb in deploy/polkit/60-unheaded-chaos.rules.tmpl turned TestPolkitTemplateFileMatchesEmbedded red; both restored. (Changing the allowlist's unit keeps TestPolkitRuleMatchesAllowlist green by design: the rule is rendered from the allowlist.)
+- [x] **Step 390** [AUDIT-UPDATE] ~10m: Register (ADR-098) a finding for each item not fixed in this sprint; regenerate the ADR-098 section only after re-signing (S17 note).
+  - Done 2026-10-26: FND-023 (client routing follows the 30 s sync) and FND-024 (monitoring stack nobody starts) in compliance/findings/register.yaml; the generated ADR-098 section is regenerated at the handoff.
+- [x] **Step 391** [V] ~1m: **PHASE 15 EXIT GATE**: table complete, Steps 383, 386, 388 passed.
+  - PASS 2026-10-26: table complete; 383, 386, 388 passed.
+- [x] **Step 392** [C] ~2m: **COMMIT CHECKPOINT**: `docs(security): S-REAL-STEEL attack-surface review`.
+  - Done 2026-10-26 (this commit).
 
 **DoD (Phase 15)**: DoD-STD.
 
