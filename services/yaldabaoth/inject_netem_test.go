@@ -22,6 +22,13 @@ type fakeRunner struct {
 	failReplace error
 	failDel     error
 	failGeneric error
+
+	// active models whether the systemd unit is running; `start` sets it
+	// true so is-active reflects a successful revert.
+	active    bool
+	failStart error
+	failStop  error
+	failKill  error
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -43,6 +50,27 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 		return nil, f.failReplace
 	case name == "tc" && has("del"):
 		return nil, f.failDel
+	case name == "systemctl" && has("is-active"):
+		if f.active {
+			return []byte("active"), nil
+		}
+		// is-active exits non-zero when inactive but still prints the state.
+		return []byte("inactive"), errors.New("exit status 3")
+	case name == "systemctl" && has("start"):
+		if f.failStart == nil {
+			f.active = true
+		}
+		return nil, f.failStart
+	case name == "systemctl" && has("stop"):
+		if f.failStop == nil {
+			f.active = false
+		}
+		return nil, f.failStop
+	case name == "systemctl" && has("kill"):
+		if f.failKill == nil {
+			f.active = false
+		}
+		return nil, f.failKill
 	default:
 		return nil, f.failGeneric
 	}
@@ -65,12 +93,15 @@ func (f *fakeRunner) argv(verb string) string {
 	return strings.Join(f.last(verb), " ")
 }
 
-func (f *fakeRunner) nonTC() []string {
+func (f *fakeRunner) nonTC() []string        { return f.notNamed("tc") }
+func (f *fakeRunner) nonSystemctl() []string { return f.notNamed("systemctl") }
+
+func (f *fakeRunner) notNamed(name string) []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var bad []string
 	for _, c := range f.calls {
-		if len(c) > 0 && c[0] != "tc" {
+		if len(c) > 0 && c[0] != name {
 			bad = append(bad, c[0])
 		}
 	}

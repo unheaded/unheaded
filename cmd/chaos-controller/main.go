@@ -11,6 +11,8 @@
 //	chaos-controller revert-all   revert every journaled fault; exit 0 only
 //	                              when the journal is empty afterwards (the
 //	                              unit's ExecStopPost)
+//	chaos-controller render-polkit  print the polkit rule for the allowlist's
+//	                              systemd units (east install, D-23)
 //
 // Environment:
 //
@@ -122,6 +124,12 @@ var registerInjectors = func(s *yaldabaoth.Service, c config, log *logger.Logger
 	} else {
 		s.RegisterInjector(yaldabaoth.ExpTypeContainerKill, yaldabaoth.NewContainerInjector(cc, "kill", 0, log))
 	}
+
+	// systemd stop/kill, east only (Phase 12, D-23). The injector refuses on
+	// any other host and authorization is a polkit rule, so registering it on
+	// west is inert.
+	s.RegisterInjector(yaldabaoth.ExpTypeServiceStop, yaldabaoth.NewSystemdStop(runner, os.Hostname, log))
+	s.RegisterInjector(yaldabaoth.ExpTypeProcessKill, yaldabaoth.NewSystemdKill(runner, os.Hostname, log))
 
 	// D-22: http_error points at the workload's own error knob.
 	s.RefuseType(yaldabaoth.ExpTypeHTTPError, "not supported: deploy a faulty build instead (steel-echo STEEL_ERROR_RATE)")
@@ -414,10 +422,33 @@ func handler(a *api) http.Handler {
 	return httputil.NewServiceMetrics(serviceName).Instrument(mux, h)
 }
 
+// renderPolkit prints the polkit rule for the configured allowlist's systemd
+// units (D-23). The east install redirects it to
+// /etc/polkit-1/rules.d/60-unheaded-chaos.rules.
+func renderPolkit(c config, out io.Writer) int {
+	allow, err := yaldabaoth.LoadAllowlist(c.allowlist)
+	if err != nil {
+		fmt.Fprintf(out, "render-polkit: %v\n", err)
+		return 2
+	}
+	rule, err := yaldabaoth.RenderPolkitRule(allow)
+	if err != nil {
+		fmt.Fprintf(out, "render-polkit: %v\n", err)
+		return 2
+	}
+	fmt.Fprint(out, rule)
+	return 0
+}
+
 func main() {
 	c := loadConfig(os.Getenv)
-	if len(os.Args) > 1 && os.Args[1] == "revert-all" {
-		os.Exit(revertAll(c, os.Stdout))
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "revert-all":
+			os.Exit(revertAll(c, os.Stdout))
+		case "render-polkit":
+			os.Exit(renderPolkit(c, os.Stdout))
+		}
 	}
 	log := logger.New(os.Stderr)
 	s, err := build(c, log)

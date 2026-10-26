@@ -82,6 +82,7 @@ const (
 	ExpTypeHTTPError        ExperimentType = "http_error"
 	ExpTypeLatencySpike     ExperimentType = "latency_spike"
 	ExpTypeResourceExhaust  ExperimentType = "resource_exhaustion"
+	ExpTypeServiceStop      ExperimentType = "service_stop"
 	ExpTypeCustom           ExperimentType = "custom"
 )
 
@@ -89,7 +90,7 @@ var knownTypes = map[ExperimentType]bool{
 	ExpTypeNetworkDelay: true, ExpTypeNetworkLoss: true, ExpTypeNetworkPartition: true, ExpTypeCPUStress: true,
 	ExpTypeMemoryStress: true, ExpTypeDiskStress: true, ExpTypeProcessKill: true, ExpTypeContainerKill: true,
 	ExpTypeNodeDrain: true, ExpTypeDNSFailure: true, ExpTypeTimeSkew: true, ExpTypeHTTPError: true,
-	ExpTypeLatencySpike: true, ExpTypeResourceExhaust: true, ExpTypeCustom: true,
+	ExpTypeLatencySpike: true, ExpTypeResourceExhaust: true, ExpTypeServiceStop: true, ExpTypeCustom: true,
 }
 
 // ExperimentStatus tracks experiment lifecycle.

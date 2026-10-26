@@ -49,6 +49,7 @@ var typeKinds = map[ExperimentType][]TargetKind{
 	ExpTypeLatencySpike:     {KindLXD, KindNetns, KindPacket},
 	ExpTypeContainerKill:    {KindLXD},
 	ExpTypeProcessKill:      {KindSystemd},
+	ExpTypeServiceStop:      {KindSystemd},
 }
 
 // hardDenied names that no allowlist file can allow.
