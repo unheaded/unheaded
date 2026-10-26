@@ -208,12 +208,14 @@ func refuse(reason RefusalReason, format string, a ...any) *Refusal {
 
 // InstanceInfo is what Cuirass reports for an LXD instance.
 type InstanceInfo struct {
-	Name    string
-	Status  string
-	IP      string
-	Project string
-	Managed bool
-	Labels  map[string]string
+	Name     string
+	Status   string
+	IP       string
+	Project  string
+	Managed  bool
+	Labels   map[string]string
+	Health   string
+	HostVeth string // host-side veth of the bridged NIC (Phase 11 netem)
 }
 
 // ErrInstanceNotFound: Cuirass reports no such instance.

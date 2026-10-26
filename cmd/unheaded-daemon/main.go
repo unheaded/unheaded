@@ -479,6 +479,10 @@ type ContainerState struct {
 	Proxy *ProxySpec `json:"proxy,omitempty"`
 	// Labels are the instance's user.unheaded.label.* config keys.
 	Labels map[string]string `json:"labels,omitempty"`
+	// HostVeth is the host-side veth of the instance's bridged NIC (LXD
+	// state network.<nic>.host_name). Empty for a non-bridged instance,
+	// which is then not a chaos-eligible netem target (S-REAL-STEEL D-21).
+	HostVeth string `json:"host_veth,omitempty"`
 }
 
 // DriftReport represents detected drift

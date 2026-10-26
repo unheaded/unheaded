@@ -277,6 +277,7 @@ type lxdInstance struct {
 	Devices map[string]map[string]string `json:"devices"`
 	State   *struct {
 		Network map[string]struct {
+			HostName  string `json:"host_name"`
 			Addresses []struct {
 				Family  string `json:"family"`
 				Address string `json:"address"`
@@ -310,6 +311,14 @@ func (in *lxdInstance) toState() *ContainerState {
 		ifaces = append(ifaces, name)
 	}
 	sort.Strings(ifaces)
+	// The host-side veth of the bridged NIC (lo and other NICs report no
+	// host_name); netem (Phase 11) shapes this interface.
+	for _, name := range ifaces {
+		if hn := in.State.Network[name].HostName; hn != "" {
+			s.HostVeth = hn
+			break
+		}
+	}
 	for _, family := range []string{"inet", "inet6"} {
 		for _, name := range ifaces {
 			for _, a := range in.State.Network[name].Addresses {
