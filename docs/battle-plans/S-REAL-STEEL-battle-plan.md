@@ -1113,17 +1113,28 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```
 - [x] **Step 246** [V][LIVE-RO] ~3m: In `bg.csv` the version flips v2→v3 exactly once; the cutover gap (seconds with `errconn > 0` around the flip) is ≤ 2 s; blue instances deleted after the flip. Record the gap.
   - PASS 2026-10-26: version flips exactly once (v2 → v2;v3 → v3 across one second boundary), 1 second with errconn > 0 (gap 1 s ≤ 2 s); only steel-echo-v3-* remain.
-- [ ] **Step 247** [C] ~2m: **COMMIT CHECKPOINT**: plan ticks with the measured numbers (availability, gap).
-- [ ] **Step 248** [LIVE-RW] ~10m: Canary v3→v4 (the bad build, 30% errors): `{"type":"canary","steps":[{"weight":33,"pause":"60s","analysis":true},{"weight":100}],"analysis":{"error_rate_threshold":0.01,"min_sample_size":200,"interval":"30s"}}`.
-- [ ] **Step 249** [V][LIVE-RO] ~3m: Sword status `rolled_back`, reason `analysis_failed` with the measured error ratio (≈0.30) in the record; canary instance gone; only v3 desired; `sword_rollbacks_total{reason="analysis_failed"}` = 1; time from canary healthy to rollback complete recorded.
-- [ ] **Step 250** [LIVE-RO] ~2m: Kingdom guard stayed quiet: `vmq 'slo:error_ratio:5m'` for wotan/dashboard/well equals the pre-window values (no new burn from the deploy).
-- [ ] **Step 251** [LIVE-RW] ~5m: Manual rollback of the blue-green deployment (Step 245's id): `POST /api/v1/deployments/<id>/rollback`.
-- [ ] **Step 252** [V][LIVE-RO] ~2m: Back on v2 (instances, proxy `/version`, Sword record `rolled_back`, reason `manual`).
-- [ ] **Step 253** [LIVE-RO] ~3m: Sword restart keeps history: `sudo docker restart unheaded-sword`, then `GET /api/v1/deployments` lists all five records.
-- [ ] **Step 254** [B] ~2m: Stop the meters; copy the CSVs to `docs/gamedays/data/phase9-<date>/` (numbers only: timestamps, counts, latencies; no payloads).
-- [ ] **Step 255** [V][LIVE-RO] ~2m: pihole untouched (`lxc info --project default pihole | grep Started` older than the window).
-- [ ] **Step 256** [LIVE-RW] ~2m: Window close per E2.1 (leave `steel-echo` v2 desired; LXD keeps it running with Cuirass stopped).
-- [ ] **Step 257** [V] ~1m: **PHASE 9 EXIT GATE**: Steps 243, 246, 249, 252, 253, 255 passed with numbers recorded.
+- [x] **Step 247** [C] ~2m: **COMMIT CHECKPOINT**: plan ticks with the measured numbers (availability, gap).
+  - Done 2026-10-26: c29b8649.
+- [x] **Step 248** [LIVE-RW] ~10m: Canary v3→v4 (the bad build, 30% errors): `{"type":"canary","steps":[{"weight":33,"pause":"60s","analysis":true},{"weight":100}],"analysis":{"error_rate_threshold":0.01,"min_sample_size":200,"interval":"30s"}}`.
+  - Done 2026-10-26: three runs. #4 rolled back on the Kingdom SLO guard (no slo:error_ratio:5m series: the monitoring compose stack that evaluates rules/slo.yml had been down 27 h; brought up for the window). #5 rolled back "inconclusive after 3 intervals: 150 canary requests in 30s, need 200" (20 rps meter, 33 % canary ≈ 5 rps): fail-safe, not the measured ratio. #6 with min_sample_size 100 (sized to the meter).
+- [x] **Step 249** [V][LIVE-RO] ~3m: Sword status `rolled_back`, reason `analysis_failed` with the measured error ratio (≈0.30) in the record; canary instance gone; only v3 desired; `sword_rollbacks_total{reason="analysis_failed"}` = 1; time from canary healthy to rollback complete recorded.
+  - PASS 2026-10-26 (d1793053963854478512-6): `rolled_back`, reason `analysis_failed`, "Error rate 35.33% exceeds threshold 1.00%" (53/150, success_rate 0.6467); steel-echo-v4-0 gone, v3 x3 desired; sword_rollbacks_total{reason="analysis_failed"} 3 (one per run); canary healthy 22:33:03.9 → rollback complete 22:33:58.0 (54 s).
+- [x] **Step 250** [LIVE-RO] ~2m: Kingdom guard stayed quiet: `vmq 'slo:error_ratio:5m'` for wotan/dashboard/well equals the pre-window values (no new burn from the deploy).
+  - PASS 2026-10-26: slo:error_ratio:5m wotan 0, dashboard 0, well 0 before and after.
+- [x] **Step 251** [LIVE-RW] ~5m: Manual rollback of the blue-green deployment (Step 245's id): `POST /api/v1/deployments/<id>/rollback`.
+  - Done 2026-10-26: POST .../d1793052748845951209-3/rollback, `rolling_back` 80 s.
+- [x] **Step 252** [V][LIVE-RO] ~2m: Back on v2 (instances, proxy `/version`, Sword record `rolled_back`, reason `manual`).
+  - PASS 2026-10-26: steel-echo-v2-{0,1,2} RUNNING, proxy /version v2, record `rolled_back` reason `manual` rolled_back_to v2.
+- [x] **Step 253** [LIVE-RO] ~3m: Sword restart keeps history: `sudo docker restart unheaded-sword`, then `GET /api/v1/deployments` lists all five records.
+  - PASS 2026-10-26: after `docker restart unheaded-sword` GET /api/v1/deployments lists all 6 records (recreate, rolling, blue_green manual rollback, 3 canary analysis_failed).
+- [x] **Step 254** [B] ~2m: Stop the meters; copy the CSVs to `docs/gamedays/data/phase9-<date>/` (numbers only: timestamps, counts, latencies; no payloads).
+  - Done 2026-10-26: docs/gamedays/data/phase9-2026-10-26/{phase9,bg}.csv (counts and latencies only).
+- [x] **Step 255** [V][LIVE-RO] ~2m: pihole untouched (`lxc info --project default pihole | grep Started` older than the window).
+  - PASS 2026-10-26: pihole RUNNING, Last Used 17:47 UTC (boot).
+- [x] **Step 256** [LIVE-RW] ~2m: Window close per E2.1 (leave `steel-echo` v2 desired; LXD keeps it running with Cuirass stopped).
+  - Window kept open 2026-10-26 for Phases 11 and 14; steel-echo v2 x3 desired.
+- [x] **Step 257** [V] ~1m: **PHASE 9 EXIT GATE**: Steps 243, 246, 249, 252, 253, 255 passed with numbers recorded.
+  - PASS 2026-10-26: Steps 243, 246, 249, 252, 253, 255 with numbers above.
 - [ ] **Step 258** [C] ~2m: **COMMIT CHECKPOINT**: `test(deploy): live rolling, blue-green, canary auto-rollback and manual rollback on west` (body: the measured numbers and step citations).
 
 **DoD (Phase 9)**: DoD-STD + every number in the commit comes from the CSVs or Sword's records.
