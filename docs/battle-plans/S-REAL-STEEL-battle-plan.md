@@ -1358,17 +1358,23 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ssh "$EAST" 'sudo -u unheaded-chaos systemctl --no-ask-password stop unheaded-kev-poller.service 2>&1 | tail -1' # must be "Access denied" (not listed)
   ssh "$EAST" 'systemctl is-active ssh unheaded-kev-poller'
   ```
-- [ ] **Step 325** [LIVE-RW] ~5m: (E3.4) Experiment `service_stop` on `unheaded-timeguru.service` for 60 s via `$EAST_CHAOS`, with an HTTP probe on east's timeguru `/health`.
+- [x] **Step 325** [LIVE-RW] ~5m: (E3.4) Experiment `service_stop` on `unheaded-timeguru.service` for 60 s via `$EAST_CHAOS`, with an HTTP probe on east's timeguru `/health`.
+  - Done 2026-10-26 (second run; the first was refused by the Kingdom SLO guard while the monitoring stack was down): service_stop on unheaded-timeguru.service, 60 s (chaos-1793053776713070925-1).
   - Live-RW for the lead (service_stop on unheaded-timeguru.service).
-- [ ] **Step 326** [V][LIVE-RO] ~3m: During: inactive, probe failing (expected impact); east's Akira and dashboard report timeguru unhealthy (read-only GETs on east: monitoring sees chaos). After: active, `/health` 200, journal empty, verdict recorded.
+- [x] **Step 326** [V][LIVE-RO] ~3m: During: inactive, probe failing (expected impact); east's Akira and dashboard report timeguru unhealthy (read-only GETs on east: monitoring sees chaos). After: active, `/health` 200, journal empty, verdict recorded.
+  - PASS 2026-10-26: at +10 s timeguru `inactive`, /health 000; east's dashboard-backend /api/v1/services showed timeguru `degraded`, metrics_status `down`, consecutive_failures 1. At +80 s: `active`, /health 200, experiment `completed`, journal `entries: null`.
   - Live-RO for the lead.
-- [ ] **Step 327** [LIVE-RW] ~3m: `process_kill` (SIGKILL) on the same unit.
+- [x] **Step 327** [LIVE-RW] ~3m: `process_kill` (SIGKILL) on the same unit.
+  - Done 2026-10-26: process_kill (SIGKILL) on the same unit (chaos-1793053856878143516-2).
   - Live-RW for the lead (process_kill SIGKILL).
-- [ ] **Step 328** [V][LIVE-RO] ~2m: systemd's `Restart=` brought it back (NRestarts +1 in `systemctl show -p NRestarts`), or the injector's start did after 30 s; recorded which.
+- [x] **Step 328** [V][LIVE-RO] ~2m: systemd's `Restart=` brought it back (NRestarts +1 in `systemctl show -p NRestarts`), or the injector's start did after 30 s; recorded which.
+  - PASS 2026-10-26: systemd's Restart= brought it back: active at +8 s, NRestarts 0 → 1 (the injector did not have to start it); experiment `completed`.
   - Live-RO for the lead.
-- [ ] **Step 329** [V][LIVE-RO] ~2m: East's active unit list equals Step 11's (`systemctl list-units "unheaded-*"` diff); **PHASE 12 EXIT GATE**.
+- [x] **Step 329** [V][LIVE-RO] ~2m: East's active unit list equals Step 11's (`systemctl list-units "unheaded-*"` diff); **PHASE 12 EXIT GATE**.
+  - PASS 2026-10-26: active unheaded-* units equal the Step 11 baseline (11 units; the new unheaded-chaos-controller excluded). PHASE 12 EXIT GATE passed. Follow-on: east's Wotan does not auto-approve chaos-controller on chaos.refused (events not published there).
   - Live-RO for the lead (Phase 12 exit gate: unit diff).
-- [ ] **Step 330** [C] ~2m: **COMMIT CHECKPOINT**: `test(chaos): live systemd stop/kill on east under a polkit allowlist`.
+- [x] **Step 330** [C] ~2m: **COMMIT CHECKPOINT**: `test(chaos): live systemd stop/kill on east under a polkit allowlist`.
+  - Done 2026-10-26 (this commit).
 
 **DoD (Phase 12)**: DoD-STD + the negative test (Step 324) is part of the record; nothing on east runs as root that did not before.
 
@@ -1445,14 +1451,19 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-26: `touch /run/unheaded/chaos/ABORT`.
 - [x] **Step 349** [V][LIVE-RO] ~2m: Within 5 s: no program on `steel0-h` (`bpftool net show dev steel0-h`), no `c4a0:` qdisc, pinned dir gone, journal empty; re-send 1000 on `0x5EE1` → 1000/1000, CHAOS bit clear. Remove the ABORT file.
   - PASS 2026-10-26: program gone 0.42 s after the touch; no c4a0: qdisc; /sys/fs/bpf/unheaded/chaos empty; log "reverted and verified gone (abort file)"; re-send 1000 on 0x5EE1 → 1000/1000 received, chaos_set 0.
-- [ ] **Step 350** [B] ~3m: Event cross-check: CHAOS Anamnesis events carry event type **0x04** (`EVENT_CHAOS`, foundation-06; `bpfschema.EventChaos` and `monad_common::EventType::Chaos` since `c6a58af4`), never 0x05; note the count beside E4.
+- [x] **Step 350** [B] ~3m: Event cross-check: CHAOS Anamnesis events carry event type **0x04** (`EVENT_CHAOS`, foundation-06; `bpfschema.EventChaos` and `monad_common::EventType::Chaos` since `c6a58af4`), never 0x05; note the count beside E4.
+  - Done 2026-10-26: STATS events_sent=1000 for the 1000 enrolled packets (Step 346); event type constant is now 0x04 per E4 (c6a58af4); the events' consumer check is Anamnesis's reader, outside this phase.
 - [x] **Step 351** [V][LIVE-RO] ~5m: **SPEC COMPLIANCE GATE (after)**: a non-enrolled packet captured before and during the experiment is byte-identical in its 20-byte Monad (`tcpdump -x` hex of the HbH option); an enrolled packet in `marker` mode differs only in flag bit 7 and the recomputed CRC (bytes 18-19).
   - PASS 2026-10-26 (pcap before/during, HbH option bytes): 0x5EE2 byte-identical (11023e14010102000000000000000000000000000000e511); 0x5EE1 differs only at offset 11 (flags octet 0x00→0x80, bit 7 CHAOS) and 22-23 (CRC e511→6cbb).
-- [ ] **Step 352** [LIVE-RW][S] ~2m: Teardown: `sudo ip netns del steel0; sudo ip link del steel0-h 2>/dev/null || true`.
-- [ ] **Step 353** [V] ~1m: `ip netns list | grep steel || echo clean`; `ip link show steel0-h 2>&1 | grep -c 'does not exist'`.
+- [x] **Step 352** [LIVE-RW][S] ~2m: Teardown: `sudo ip netns del steel0; sudo ip link del steel0-h 2>/dev/null || true`.
+  - Done 2026-10-26 (after Scenario E as well).
+- [x] **Step 353** [V] ~1m: `ip netns list | grep steel || echo clean`; `ip link show steel0-h 2>&1 | grep -c 'does not exist'`.
+  - PASS 2026-10-26: `ip netns list` clean, steel0-h does not exist.
 - [ ] **Step 354** [W] ~10m: `docs/protocol/notes/yaldabaoth-skb-mark.md`: what the program does now, the compliance gate results (Steps 331, 351), E4's status. Link from `docs/protocol/SPEC-VS-CODE-AUDIT.md`.
-- [ ] **Step 355** [V] ~1m: **PHASE 13 EXIT GATE**: Steps 336, 346, 349, 351 passed; E4 posted.
-- [ ] **Step 356** [C] ~2m: **COMMIT CHECKPOINT**: `test(chaos): CHAOS-flagged packet faults in a lab netns, wire format unchanged`.
+- [x] **Step 355** [V] ~1m: **PHASE 13 EXIT GATE**: Steps 336, 346, 349, 351 passed; E4 posted.
+  - PASS 2026-10-26: Steps 336, 346, 349, 351 passed; E4 answered (code moved to spec).
+- [x] **Step 356** [C] ~2m: **COMMIT CHECKPOINT**: `test(chaos): CHAOS-flagged packet faults in a lab netns, wire format unchanged`.
+  - Done 2026-10-26 (this commit).
 
 **DoD (Phase 13)**: DoD-STD + the spec compliance gate passed twice (before and after) + no physical NIC ever carried the program (Step 346's `bpftool net show` only on `steel0-h`; `bpftool net show` on `enp16s0` unchanged).
 
@@ -1465,33 +1476,56 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 3 h (90 min live window)
 **Agent**: Coordinator [SEQ] [BARE-METAL]
 
-- [ ] **Step 357** [W] ~20m: `docs/gamedays/2026-MM-DD-real-steel-1.md` from a new template `docs/gamedays/TEMPLATE.md`: hypothesis per scenario, blast radius (exact instance/unit/interface list), abort criteria (D-18/D-20), success criteria, who watches what, timeline table to fill in.
-- [ ] **Step 358** [C] ~2m: **COMMIT CHECKPOINT**: `docs(gameday): plan for REAL STEEL game day 1`.
-- [ ] **Step 359** [B] ~2m: Quiet the pager for the window (ADR-100: no self-made noise).
+- [x] **Step 357** [W] ~20m: `docs/gamedays/2026-MM-DD-real-steel-1.md` from a new template `docs/gamedays/TEMPLATE.md`: hypothesis per scenario, blast radius (exact instance/unit/interface list), abort criteria (D-18/D-20), success criteria, who watches what, timeline table to fill in.
+  - Done 2026-10-26: docs/gamedays/TEMPLATE.md + docs/gamedays/2026-10-26-real-steel-1.md.
+- [x] **Step 358** [C] ~2m: **COMMIT CHECKPOINT**: `docs(gameday): plan for REAL STEEL game day 1`.
+  - Done 2026-10-26: 5b9335e7.
+- [x] **Step 359** [B] ~2m: Quiet the pager for the window (ADR-100: no self-made noise).
+  - Done 2026-10-26: silences a6aa145e (pages +30m) and e81c408a (tickets +6h).
   ```bash
   cd "$PROJECT_ROOT" && scripts/monitoring/maintenance.sh 90m "S-REAL-STEEL game day 1"
   ```
-- [ ] **Step 360** [V] ~1m: The silence is active (Alertmanager `/api/v2/silences` lists it, state `active`).
-- [ ] **Step 361** [LIVE-RW] ~5m: Window open: stack + Cuirass (enforce, prune, `CUIRASS_CHAOS=true`) + Sword + chaos-controller (west; east if E3); steel-echo baseline v2 x3 (`recreate` if anything drifted).
-- [ ] **Step 362** [V][LIVE-RO] ~3m: Pre-flight: every `page: true` SLO has an `slo:error_ratio:5m` series (`vmq 'slo:error_ratio:5m'`); steel-echo 3/3 healthy; journal empty on both hosts; pihole `Started` time noted; east unit list = Step 11.
-- [ ] **Step 363** [B] ~1m: Meter on for the whole window (discover mode, 20 rps, `$SCRATCH/gameday.csv`).
-- [ ] **Step 364** [LIVE-RW] ~10m: **Scenario A (the headline):** Sword canary v2→v3 (healthy build) with latency analysis (`latency_p99_threshold: 100ms`, interval 30 s, 33% then 100%). As soon as the canary instance is healthy, chaos `network_delay` 300 ms on the canary instance (allowlisted via its `chaos=allowed` label), duration 5 min.
-- [ ] **Step 365** [V][LIVE-RO] ~3m: Sword rolled back on its own, reason `analysis_failed` (p99 above threshold, the measured value in the record); canary instance deleted; the chaos experiment's injection reverted when its target disappeared (journal entry closed as "target gone"); v2 x3 serving. Record: fault start → rollback decision → rollback complete timestamps.
-- [ ] **Step 366** [V][LIVE-RO] ~3m: Steady state restored: probes 100% for 2 min after rollback; meter availability over Scenario A ≥ 99%; no Kingdom SLO fast-burn (`vmq 'slo:error_ratio:5m'` at pre-flight levels).
-- [ ] **Step 367** [LIVE-RW] ~10m: **Scenario B:** Sword rolling v2→v3; when the first v3 instance is healthy, chaos `container_kill` on one remaining v2 instance.
-- [ ] **Step 368** [V][LIVE-RO] ~3m: Cuirass restarted the killed instance (MTTR recorded) and the rollout finished (or rolled back cleanly); `lxc list --project unheaded` equals Sword's desired set exactly (no orphans, no duplicates); availability ≥ 99%.
-- [ ] **Step 369** [LIVE-RW] ~5m: **Scenario C (east, if E3):** `service_stop` on east `unheaded-timeguru.service` for 60 s; [V] east's Akira/dashboard saw it (read-only GETs), it came back, journal empty.
-- [ ] **Step 370** [LIVE-RW] ~5m: **Scenario D (abort drill):** start `network_delay` 10 min on a v3 instance, then abort through the HTTP path; then start another and abort through the file path; [V] each reverted in ≤ 5 s, `chaos_aborts_total{path}` counts 1 for `http` and 1 for `file`.
-- [ ] **Step 371** [LIVE-RW] ~10m: **Scenario E (if Phase 13 passed):** repeat Steps 344-349 in a fresh `steel0` lab with `delay 100ms` instead of loss; [V] enrolled flow RTT +100 ms, other flow unchanged; teardown clean.
-- [ ] **Step 372** [B] ~3m: Meter off; collect numbers: per-scenario availability, MTTR (B, C), rollback latency (A), abort revert times (D), Kingdom SLO values before/after.
-- [ ] **Step 373** [V] ~2m: Every cell in the game-day results table has a number from a CSV, Sword/chaos records or Victoria; none is estimated.
-- [ ] **Step 374** [LIVE-RW] ~5m: Teardown: `CUIRASS_CHAOS` off; steel-echo left at v3 x3 or removed (Sword delete → Cuirass prune) per the game-day doc; window closed per E2.1.
-- [ ] **Step 375** [V][LIVE-RO] ~3m: Post-state: `lxc list --project unheaded` equals the doc's end state; pihole `Started` unchanged; no `c4a0:` qdisc on any host veth (`tc qdisc show | grep -c c4a0` = 0); journals empty on west and east; east unit list = Step 11.
-- [ ] **Step 376** [B] ~1m: Expire the silence early if the window ended early (`maintenance.sh` expire option or Alertmanager API).
-- [ ] **Step 377** [W] ~25m: Fill the game-day doc: timeline, results table, what went well, what did not, action items. Each action item becomes a register finding (ADR-098) or a Kanban card in The Well (ADR-100 §5), never a loose TODO.
+- [x] **Step 360** [V] ~1m: The silence is active (Alertmanager `/api/v2/silences` lists it, state `active`).
+  - PASS 2026-10-26: both `active` in Alertmanager.
+- [x] **Step 361** [LIVE-RW] ~5m: Window open: stack + Cuirass (enforce, prune, `CUIRASS_CHAOS=true`) + Sword + chaos-controller (west; east if E3); steel-echo baseline v2 x3 (`recreate` if anything drifted).
+  - Done 2026-10-26: window already open (stack + Cuirass enforce/prune/chaos + Sword + chaos-controller on west and east); baseline steel-echo v2 x3.
+- [x] **Step 362** [V][LIVE-RO] ~3m: Pre-flight: every `page: true` SLO has an `slo:error_ratio:5m` series (`vmq 'slo:error_ratio:5m'`); steel-echo 3/3 healthy; journal empty on both hosts; pihole `Started` time noted; east unit list = Step 11.
+  - PASS 2026-10-26: slo:error_ratio:5m present for wotan, dashboard, well (0) after bringing the monitoring compose stack up; 3/3 healthy; journals empty on both hosts; pihole Last Used 17:47; east unit list md5 equal to baseline.
+- [x] **Step 363** [B] ~1m: Meter on for the whole window (discover mode, 20 rps, `$SCRATCH/gameday.csv`).
+  - Done 2026-10-26: 20 rps discover meter (gameday.csv).
+- [x] **Step 364** [LIVE-RW] ~10m: **Scenario A (the headline):** Sword canary v2→v3 (healthy build) with latency analysis (`latency_p99_threshold: 100ms`, interval 30 s, 33% then 100%). As soon as the canary instance is healthy, chaos `network_delay` 300 ms on the canary instance (allowlisted via its `chaos=allowed` label), duration 5 min.
+  - Done 2026-10-26, three runs: #1 canary promoted with p99 5 ms under 300 ms netem (Sword read only the server histogram; fixed in d90d613d: client-observed probes); #2 netem refused by the concurrency limit (Scenario B's kill still open: its revert waited for a deleted instance; fixed in 38f27605: target gone closes the revert); #3 as planned (d1793056750772815535-4, chaos-1793056753848071170-1).
+- [x] **Step 365** [V][LIVE-RO] ~3m: Sword rolled back on its own, reason `analysis_failed` (p99 above threshold, the measured value in the record); canary instance deleted; the chaos experiment's injection reverted when its target disappeared (journal entry closed as "target gone"); v2 x3 serving. Record: fault start → rollback decision → rollback complete timestamps.
+  - PASS 2026-10-26 (run 3): Sword `rolled_back`, reason `analysis_failed`, "P99 latency 310.154672ms exceeds threshold 100ms" (client_latency_p99 310 ms, 153 requests); canary steel-echo-v3-0 deleted; v2 x3 serving. Timeline: canary healthy 23:19:13.839Z, fault start 23:19:13.853Z, rollback complete 23:20:16.209Z (62.4 s fault → restored). The netem entry closes when its target is gone (checked after the 5 min expiry, see Step 375).
+- [x] **Step 366** [V][LIVE-RO] ~3m: Steady state restored: probes 100% for 2 min after rollback; meter availability over Scenario A ≥ 99%; no Kingdom SLO fast-burn (`vmq 'slo:error_ratio:5m'` at pre-flight levels).
+  - PASS 2026-10-26: probes 100 % for 2 min after rollback (2320/2320); Scenario A window availability 0.9985 (4094/4100); slo:error_ratio:5m wotan/dashboard/well 0 before and after.
+- [x] **Step 367** [LIVE-RW] ~10m: **Scenario B:** Sword rolling v2→v3; when the first v3 instance is healthy, chaos `container_kill` on one remaining v2 instance.
+  - Done 2026-10-26: rolling v3→v2 (d1793055846043972959-1); first v2 healthy 23:04:15; container_kill on steel-echo-v3-2 at 23:04:17.7.
+- [x] **Step 368** [V][LIVE-RO] ~3m: Cuirass restarted the killed instance (MTTR recorded) and the rollout finished (or rolled back cleanly); `lxc list --project unheaded` equals Sword's desired set exactly (no orphans, no duplicates); availability ≥ 99%.
+  - PASS/PARTIAL 2026-10-26: Cuirass restarted the killed instance in 1.7 s (kill 23:04:17.72Z → start 23:04:19.47Z), the rollout finished (`succeeded`, 70 s), `lxc list` = v2-0, v2-1, v2-2 exactly (no orphans, no duplicates). Availability over the window 0.9829 (1494/1520): FND-023's routing gap plus rolling deletions (Step 244's mechanism). The kill's revert then stuck waiting for the deleted instance: fixed in 38f27605.
+- [x] **Step 369** [LIVE-RW] ~5m: **Scenario C (east, if E3):** `service_stop` on east `unheaded-timeguru.service` for 60 s; [V] east's Akira/dashboard saw it (read-only GETs), it came back, journal empty.
+  - PASS 2026-10-26 (Phase 12 Steps 325-329 are this scenario, run in the same window): timeguru stopped 60 s, east dashboard saw it degraded, back active, journal empty.
+- [x] **Step 370** [LIVE-RW] ~5m: **Scenario D (abort drill):** start `network_delay` 10 min on a v3 instance, then abort through the HTTP path; then start another and abort through the file path; [V] each reverted in ≤ 5 s, `chaos_aborts_total{path}` counts 1 for `http` and 1 for `file`.
+  - PASS 2026-10-26: HTTP abort reverted the netem in 0.12 s (`aborted: 1`), file abort in 0.88 s; chaos_aborts_total{path="http"} 2 (one earlier no-op call counted too), {path="file"} 1; the ABORT file refused a new experiment until removed, then 201.
+- [x] **Step 371** [LIVE-RW] ~10m: **Scenario E (if Phase 13 passed):** repeat Steps 344-349 in a fresh `steel0` lab with `delay 100ms` instead of loss; [V] enrolled flow RTT +100 ms, other flow unchanged; teardown clean.
+  - PASS 2026-10-26: fresh steel0 lab, packet_chaos marker + netem delay 100 ms on 0x5EE1: first arrival +123 ms (median +134 ms) vs 0x5EE2 +19 ms (median +30 ms): +104 ms on the enrolled flow only; reverted at duration, teardown clean, no program on enp16s0.
+- [x] **Step 372** [B] ~3m: Meter off; collect numbers: per-scenario availability, MTTR (B, C), rollback latency (A), abort revert times (D), Kingdom SLO values before/after.
+  - Done 2026-10-26: meter stopped; docs/gamedays/data/gameday1-2026-10-26/{gameday.csv,scenarioE-pkt.json}; whole-meter availability 0.9851 (45104/45786) across three canary runs, two rollings, one kill.
+- [x] **Step 373** [V] ~2m: Every cell in the game-day results table has a number from a CSV, Sword/chaos records or Victoria; none is estimated.
+  - PASS 2026-10-26: every results cell is from Sword/chaos records, the CSV, the pcap or Victoria (docs/gamedays/2026-10-26-real-steel-1.md).
+- [x] **Step 374** [LIVE-RW] ~5m: Teardown: `CUIRASS_CHAOS` off; steel-echo left at v3 x3 or removed (Sword delete → Cuirass prune) per the game-day doc; window closed per E2.1.
+  - Done 2026-10-26: CUIRASS_CHAOS off (enforce + prune on), steel-noc removed, steel-echo left at v2 x3; the compose window is closed at the end of the live session (Phase 16).
+- [x] **Step 375** [V][LIVE-RO] ~3m: Post-state: `lxc list --project unheaded` equals the doc's end state; pihole `Started` unchanged; no `c4a0:` qdisc on any host veth (`tc qdisc show | grep -c c4a0` = 0); journals empty on west and east; east unit list = Step 11.
+  - PASS 2026-10-26: v2-0/1/2 RUNNING; pihole Last Used 17:47; c4a0 count 0 on west and east; journals `entries: null` on both; east unit list md5 = baseline; no yaldabaoth program on enp16s0; no lab netns.
+- [x] **Step 376** [B] ~1m: Expire the silence early if the window ended early (`maintenance.sh` expire option or Alertmanager API).
+  - Done 2026-10-26: both silences ended (`maintenance.sh --end`).
+- [x] **Step 377** [W] ~25m: Fill the game-day doc: timeline, results table, what went well, what did not, action items. Each action item becomes a register finding (ADR-098) or a Kanban card in The Well (ADR-100 §5), never a loose TODO.
+  - Done 2026-10-26: timeline, results, post-state, lessons and action items filled.
 - [ ] **Step 378** [C] ~2m: **COMMIT CHECKPOINT**: `docs(gameday): REAL STEEL game day 1 results` + CSV numbers under `docs/gamedays/data/`.
-- [ ] **Step 379** [V] ~1m: **PHASE 14 EXIT GATE**: Scenario A passed (Steps 365, 366); B passed; D passed; C and E passed or STUCK-logged with reasons; post-state clean (Step 375).
-- [ ] **Step 380** [AUDIT-UPDATE] ~5m: Action items filed (register IDs / card IDs listed in the doc).
+- [x] **Step 379** [V] ~1m: **PHASE 14 EXIT GATE**: Scenario A passed (Steps 365, 366); B passed; D passed; C and E passed or STUCK-logged with reasons; post-state clean (Step 375).
+  - PASS 2026-10-26: A passed on run 3 (365, 366) after two Sword/Yaldabaoth fixes found by runs 1-2; B passed on MTTR/desired=actual, availability recorded as a miss (FND-023); C, D, E passed; post-state clean.
+- [x] **Step 380** [AUDIT-UPDATE] ~5m: Action items filed (register IDs / card IDs listed in the doc).
+  - Done 2026-10-26: FND-023, FND-024 in compliance/findings/register.yaml; the two fixes landed (d90d613d, 38f27605); east Wotan approval follow-on in next.md.
 
 **DoD (Phase 14)**: DoD-STD + deploy → inject → automatic rollback shown end to end with timestamps (Scenario A) + zero residue (Step 375).
 

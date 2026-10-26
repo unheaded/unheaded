@@ -1,0 +1,22 @@
+{
+  "iface": "steel0-n",
+  "seconds": 12,
+  "frames": 402,
+  "non_monad": 2,
+  "flows": {
+    "0x5ee1": {
+      "received": 200,
+      "chaos_set": 0,
+      "chaos_clear": 200,
+      "crc_ok": 200,
+      "crc_bad": 0
+    },
+    "0x5ee2": {
+      "received": 200,
+      "chaos_set": 0,
+      "chaos_clear": 200,
+      "crc_ok": 200,
+      "crc_bad": 0
+    }
+  }
+}
