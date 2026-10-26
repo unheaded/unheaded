@@ -141,7 +141,11 @@ for ver in $VERSIONS; do
   [[ "$b" =~ ^steel-build-v[0-9]{1,3}$ ]] || { echo "ERROR: builder name $b" >&2; exit 1; }
   echo "-- $ver --"
   run lxc launch "$BASE" "$b" --project "$PROJECT"
-  run lxc exec "$b" --project "$PROJECT" -- adduser -S -D -H -s /sbin/nologin steel
+  # busybox adduser -S puts the user in nogroup; the OpenRC service runs as
+  # steel:steel, so the group is made first (seen live 2026-10-26:
+  # "supervise-daemon: group `steel' not found").
+  run lxc exec "$b" --project "$PROJECT" -- addgroup -S steel
+  run lxc exec "$b" --project "$PROJECT" -- adduser -S -D -H -s /sbin/nologin -G steel steel
   run lxc file push "$WORK/$ver/steel-echo" "$b/usr/local/bin/steel-echo" --project "$PROJECT" --uid 0 --gid 0 --mode 0755
   run lxc file push "$WORK/$ver/steel-echo.initd" "$b/etc/init.d/steel-echo" --project "$PROJECT" --uid 0 --gid 0 --mode 0755
   run lxc file push "$WORK/$ver/steel-echo.confd" "$b/etc/conf.d/steel-echo" --project "$PROJECT" --uid 0 --gid 0 --mode 0644

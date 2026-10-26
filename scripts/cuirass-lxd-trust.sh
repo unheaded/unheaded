@@ -66,6 +66,16 @@ else
     -c "user.unheaded.purpose=Cuirass-managed instances"
   run lxc project set "$PROJECT" restricted=true
 fi
+# Cuirass publishes each instance's service port on the host loopback with
+# an LXD proxy device (`proxy.listen` in the desired state); a restricted
+# project blocks proxy devices by default (seen live 2026-10-26: "Invalid
+# device unheaded-proxy ... Proxy devices are forbidden"), so allow exactly
+# that device type. Every other restriction stays.
+if [ "$(lxc project get "$PROJECT" restricted.devices.proxy 2>/dev/null)" = "allow" ]; then
+  echo "  restricted.devices.proxy=allow exists"
+else
+  run lxc project set "$PROJECT" restricted.devices.proxy=allow
+fi
 # The project's own default profile starts empty: seed it with the default
 # project's root disk and bridge NIC so instances get storage and network.
 POOL=$(lxc profile device get default root pool 2>/dev/null || echo default)

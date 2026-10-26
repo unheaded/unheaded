@@ -774,35 +774,45 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```bash
   cd "$PROJECT_ROOT" && sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d 2>&1 | tail -5
   ```
-- [ ] **Step 144** [V][LIVE-RO] ~2m: Cuirass healthy and connected.
+- [x] **Step 144** [V][LIVE-RO] ~2m: Cuirass healthy and connected.
+  - PASS 2026-10-26 (after rebuilding the cuirass image): /health HEALTHY, `cuirass_lxd_up 1`, log "LXD connected" server 5.21.8 project unheaded.
   ```bash
   curl -fsS "$CUIRASS/health"; curl -fsS "$CUIRASS/metrics" | grep -E '^cuirass_lxd_up'
   ```
   - `cuirass_lxd_up 1` → Step 145. `0` → `sudo docker logs unheaded-cuirass 2>&1 | tail -20`: pin mismatch, cert path, or host.docker.internal resolution; 2 attempts → STUCK.
-- [ ] **Step 145** [PREFLIGHT][LIVE-RO] ~3m: **H16** (and the core safety proof): Cuirass sees an empty project; pihole is invisible; can the restricted identity list images?
+- [x] **Step 145** [PREFLIGHT][LIVE-RO] ~3m: **H16** (and the core safety proof): Cuirass sees an empty project; pihole is invisible; can the restricted identity list images?
+  - PASS 2026-10-26: actual state `{}`; pihole RUNNING in default and invisible; H16: the restricted identity lists the 6 shared images (features.images=false), so D-15's recommendation stands.
   ```bash
   curl -fsS "$CUIRASS/api/v1/state/actual" | jq '.'
   lxc list --project default --format csv -c ns | grep pihole
   ```
   - `actual` must be `{}` / empty list (no pihole). Then record H16 by reading `/1.0/images?project=unheaded` with the Cuirass cert (`curl --cert ... --key ... --cacert <pinned> https://127.0.0.1:<port>/1.0/images?project=unheaded`): the answer decides who imports images in Phase 6 (D-15).
-- [ ] **Step 146** [LIVE-RW] ~3m: Observe mode: desire a throwaway instance.
+- [x] **Step 146** [LIVE-RW] ~3m: Observe mode: desire a throwaway instance.
+  - Done 2026-10-26: PUT accepted; log: `Observe mode: would act (CUIRASS_ENFORCE is not true)` action=create.
   ```bash
   curl -fsS -X PUT -H "Authorization: Bearer $CUIRASS_API_KEY" -H 'Content-Type: application/json' \
     "$CUIRASS/api/v1/containers/steel-smoke" -d '{"id":"steel-smoke","name":"steel-smoke","image":"images:alpine/3.22","labels":{"sprint":"real-steel"}}'
   sleep 35; curl -fsS "$CUIRASS/api/v1/state" | jq '.. | objects | select(.container_id? == "steel-smoke")'
   ```
-- [ ] **Step 147** [V][LIVE-RO] ~1m: A `create` action with `planned: true`; `lxc list --project unheaded` is empty.
-- [ ] **Step 148** [LIVE-RW] ~5m: Enforce on (E2.3): add `CUIRASS_ENFORCE: "true"` and `CUIRASS_PRUNE: "true"` to the override, `docker compose ... up -d cuirass`, wait one sync (30 s).
-- [ ] **Step 149** [V][LIVE-RO] ~2m: Real instance, ours, and pihole untouched.
+- [x] **Step 147** [V][LIVE-RO] ~1m: A `create` action with `planned: true`; `lxc list --project unheaded` is empty.
+  - PASS 2026-10-26: planned create logged, `lxc list --project unheaded` empty.
+- [x] **Step 148** [LIVE-RW] ~5m: Enforce on (E2.3): add `CUIRASS_ENFORCE: "true"` and `CUIRASS_PRUNE: "true"` to the override, `docker compose ... up -d cuirass`, wait one sync (30 s).
+  - Done 2026-10-26: `CUIRASS_ENFORCE=true CUIRASS_PRUNE=true sudo -E docker compose ... up -d cuirass`; info shows enforce true, prune true, chaos false.
+- [x] **Step 149** [V][LIVE-RO] ~2m: Real instance, ours, and pihole untouched.
+  - PASS 2026-10-26: `steel-smoke,RUNNING`, user.unheaded.managed=true, `pihole,RUNNING`.
   ```bash
   lxc list --project unheaded --format csv -c ns; lxc config get --project unheaded steel-smoke user.unheaded.managed
   lxc list --project default --format csv -c ns | grep pihole
   ```
   - `steel-smoke,RUNNING`, `true`, `pihole,RUNNING`.
-- [ ] **Step 150** [LIVE-RW] ~3m: Remove it the managed way: `curl -X DELETE ... "$CUIRASS/api/v1/containers/steel-smoke"`, wait one sync; `lxc list --project unheaded` empty.
-- [ ] **Step 151** [LIVE-RO] ~5m: Phase 2 on the real stack: `sudo docker restart unheaded-wotan`; within 60 s timeguru's and architect's subscriptions are back (Wotan members/stats endpoint) and their `/health` detail shows `streams` up again.
-- [ ] **Step 152** [V] ~1m: Both re-subscribed without a restart of their own. Fail → back to Phase 2 Step 87 with the live log (S2 Marshal: this is a regression of a passed gate).
-- [ ] **Step 153** [LIVE-RO] ~2m: East is unchanged by design (truth check: nothing in this phase touched east). East runs the pre-S17 binary, so its `/api/v1/info` has no `lxd_backend` field; read the unit's environment instead.
+- [x] **Step 150** [LIVE-RW] ~3m: Remove it the managed way: `curl -X DELETE ... "$CUIRASS/api/v1/containers/steel-smoke"`, wait one sync; `lxc list --project unheaded` empty.
+  - Done 2026-10-26: DELETE, one sync later the project is empty (prune).
+- [x] **Step 151** [LIVE-RO] ~5m: Phase 2 on the real stack: `sudo docker restart unheaded-wotan`; within 60 s timeguru's and architect's subscriptions are back (Wotan members/stats endpoint) and their `/health` detail shows `streams` up again.
+  - Done 2026-10-26: timeguru and architect images were also from 10-21 (no Phase 2 code): rebuilt, then `docker restart unheaded-wotan`.
+- [x] **Step 152** [V] ~1m: Both re-subscribed without a restart of their own. Fail → back to Phase 2 Step 87 with the live log (S2 Marshal: this is a regression of a passed gate).
+  - PASS 2026-10-26: within 65 s timeguru /health wotan: gRPC, streams alerts.critical + timeline.updates true; architect: HTTP polling, alerts.critical true; neither container restarted. Follow-on: architect's compose env has no WOTAN_GRPC_ADDR, so it stays on the HTTP fallback.
+- [x] **Step 153** [LIVE-RO] ~2m: East is unchanged by design (truth check: nothing in this phase touched east). East runs the pre-S17 binary, so its `/api/v1/info` has no `lxd_backend` field; read the unit's environment instead.
+  - PASS 2026-10-26: east unit env HTTP_ADDR/GRPC_ADDR only (no LXD_BACKEND), /health HEALTHY; west info https/unheaded/true/true/false.
   ```bash
   ssh "$EAST" 'systemctl show -p Environment -p EnvironmentFiles unheaded-unheaded-daemon; curl -fsS 127.0.0.1:17000/health'
   curl -fsS "$CUIRASS/api/v1/info" | jq '{lxd_backend, lxd_project, enforce, prune, chaos}'
@@ -810,7 +820,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - East: no `LXD_BACKEND=https`; west: `https`, `unheaded`, `true`, `true`, `false`.
 - [ ] **Step 154** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): compose override for Cuirass on LXD HTTPS (project unheaded)`; body cites Steps 145 and 149 as the live proof.
 - [ ] **Step 155** [W] ~10m: wiki/Containers.md "Live on west since <date>": project, enforce/prune, the empty-project proof, how to switch back to mock.
-- [ ] **Step 156** [V][LIVE-RO] ~2m: No LXD operation touched the default project during the window.
+- [x] **Step 156** [V][LIVE-RO] ~2m: No LXD operation touched the default project during the window.
+  - PASS 2026-10-26: pihole Last Used 2026-10-26 17:47 UTC (boot), older than Step 139 (21:33); no operations listed.
   ```bash
   lxc operation list --project default --format csv 2>/dev/null | head; lxc info --project default pihole | grep -E 'Status|Started'
   ```
