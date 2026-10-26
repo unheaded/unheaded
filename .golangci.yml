@@ -265,9 +265,6 @@ linters:
       - path: pkg/config/config
         linters: [gosec]
         text: "G306:"
-      - path: pkg/loadbalancer/config
-        linters: [gosec]
-        text: "G306:"
       - path: pkg/network/policy_controller
         linters: [gosec]
         text: "G306:"

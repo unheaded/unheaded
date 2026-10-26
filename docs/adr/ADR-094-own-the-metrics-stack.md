@@ -382,7 +382,7 @@ covered by the identity-field check above, not a scrape. After the flip, only
   collectors under one name when their constant label values differ (one
   family, two series); our registry was keyed by name and refused.
   `pkg/httputil`'s tests hit it, and `pkg/loadbalancer`'s per-balancer label
-  depends on it. The registry now follows client_golang's rule. One deliberate
+  depended on it (that package was deleted 2026-10-26, S-REAL-STEEL E1 F2). The registry now follows client_golang's rule. One deliberate
   difference: a type clash is refused at `Register`, where client_golang
   accepts it and then fails the whole scrape at `Gather`. Both behaviours
   are pinned against client_golang; nine planted bugs, all caught.
