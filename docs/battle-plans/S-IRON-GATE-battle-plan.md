@@ -974,8 +974,8 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
 **Time**: 1.5 h
 **Agent**: Agent [P:10,12]
 
-- [ ] **Step 296** [W][CODE] ~10m: Tests `pkg/httputil/security_headers_test.go`: `SecurityHeaders(next)` sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` on `/api/` and `/auth/` paths, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, `Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; base-uri 'none'` (opt-out per service via `WithCSP(string)` for the dashboard's inline needs), `Strict-Transport-Security: max-age=31536000` only when the request arrived over TLS (`r.TLS != nil`); `/metrics` keeps `Content-Type` from the handler; WebSocket upgrades untouched.
-- [ ] **Step 297** [TEST][B] ~1m: Red
+- [x] **Step 296** [W][CODE] ~10m: Tests `pkg/httputil/security_headers_test.go`: `SecurityHeaders(next)` sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` on `/api/` and `/auth/` paths, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, `Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; base-uri 'none'` (opt-out per service via `WithCSP(string)` for the dashboard's inline needs), `Strict-Transport-Security: max-age=31536000` only when the request arrived over TLS (`r.TLS != nil`); `/metrics` keeps `Content-Type` from the handler; WebSocket upgrades untouched.
+- [x] **Step 297** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/httputil/ -run 'SecurityHeaders' -count=1 2>&1 | tail -3
   ```
