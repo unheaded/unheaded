@@ -95,13 +95,13 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 |---|---|---|---|---|---|---|
 | M-080 | Watchdog dead-man's switch (placement) + always-firing rule + receiver | ADR S-07, O-13 | ADR-100 §4 | NS | Y: west/east cross-watch vs outside service | S |
 | M-081 | Postmortems: template + Well silent outage + Well auth burst + Well exit 255 + clippy red; `docs/incidents/`; one canonical template | ADR O-15; PLANS B-31; INT D-26 | docs/postmortems/ | NS | Y: threshold (ADR-100 Q3) | S |
-| M-082 | Vector/ClickHouse: restart Vector for Phase 3 metrics; container stdout (socket proxy vs journald driver); east journal shipping; amend ADR-076 if Vector is the one log path | ADR O-05, O-17 | config/vector/vector.yaml | P | Y: driver vs proxy | M |
+| M-082 | Vector/ClickHouse: restart Vector for Phase 3 metrics; container stdout (socket proxy vs journald driver); east journal shipping; amend ADR-076 if Vector is the one log path | ADR O-05, O-17 | config/vector/vector.yaml | P → code done 2026-10-27 (e9ed9783, 58bb6e9a: journald driver for first-party containers; east vector-east unit + config prepared); live install = E-D host window | Y: driver vs proxy | M |
 | M-083 | 13 dead alerts (monad.yml unheaded_* no code emits; haproxy_*/nginx_* no scrape job) | next.md S7b | monitoring/prometheus/rules | NS | Y: which metrics or delete | S |
 | M-084 | TraceCollectorDown rule + YAML runbook for the live collector; HighLatency YAML runbook | INT D-14, D-15 | monitoring/prometheus/rules | NS | N | S |
 | M-085 | heimdall-daemon exposes no /metrics; loopback listener + scrape | PLANS F-43 | cmd/heimdall-daemon | NS | N | S |
 | M-086 | Last hand-rolled `WriteMetrics` in 5 binaries → registry collectors; delete 8 unset `unheaded_pqc_*` + 12 unserved pkg/secrets metrics (or wire) | ADR O-11, O-12 | pkg/logagg/metrics.go | P | N | S |
 | M-087 | `runbook_url` gate on notifying alerts; CI-red SLO; error-budget dashboard panel | ADR O-16, O-18, O-19 | ADR-100 | P | N | S |
-| M-088 | Topology map served live (`/viz/topology.html` adapter over real APIs) and Muninn: re-scope against Vector before any build | ADR O-01..O-08 | ADR-076, ADR-086 | NS | Y: still wanted post-Vector? | M |
+| M-088 | Topology map served live (`/viz/topology.html` adapter over real APIs) and Muninn: re-scope against Vector before any build | ADR O-01..O-08 | ADR-076, ADR-086 | CLOSED 2026-10-27 S24 (58bb6e9a: ADR-076 re-scoped to one endpoint, ADR-086 Superseded by Vector) | Y: still wanted post-Vector? | M |
 | M-089 | Unmeasured gates: packet→browser e2e p99 (PERFORMANCE-S77 cites nonexistent `e2ePacketTrace`/`ci-bench`), container start <10 s, 1000 req/s, HTTP/3 leg; perf regression export | PLANS D-02, B-10, D-04, B-11, B-12; INT B-1; PROTO INF-06 | cmd/perf-benchmark | NS | N | M |
 | M-090 | Bare-metal hypotheses H1-H9 never scored (BENCHMARKS.md measured most); BENCHMARKS "AF_XDP 920K pps" label wrong (was Python sendto) | PROTO INF-09; INT D-6 | docs/research/VERDICTS.md | P | N | S |
 
