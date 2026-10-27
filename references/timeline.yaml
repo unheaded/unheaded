@@ -1,5 +1,5 @@
 version: 1.0.0
-last_updated: 2026-10-26T23:40:49.905733936Z
+last_updated: 2026-10-27T13:06:52.124036271Z
 status: alpha
 phases:
   - id: phase-0
@@ -77,9 +77,9 @@ phases:
       - phase-3-item-fe186009
       - phase-3-item-93443574
       - phase-3-item-020526f9
-      - phase-3-item-9f7e0f1a
+      - phase-3-item-ef2bf6a0
       - phase-3-item-5d165ac5
-      - phase-3-item-d0b986af
+      - phase-3-item-3c586e23
       - phase-3-item-bb2c9dfc
       - phase-3-item-db8f98f1
   - id: phase-4
@@ -387,21 +387,21 @@ milestones:
     status: completed
     progress: 100
     description: '*Resolved since this list was written:* Captain Track call (Track C hybrid, 2026-05-11), branch hygiene (2026-05-11), Sophia/Wotan draft-04 deferred (2026-05-11).'
-  - id: phase-3-item-9f7e0f1a
-    name: WAVE14 retrain
+  - id: phase-3-item-ef2bf6a0
+    name: LoRA retrain when the flywheel reaches ≥ 300 SFT examples across ≥ 3 families
     status: pending
     progress: 0
-    description: WAVE14 retrain (extended-epoch, rank=16/alpha=32 unchanged, ≥3 epochs ≈ 10704 example-steps)
+    description: LoRA retrain when the flywheel reaches ≥ 300 SFT examples across ≥ 3 families (Sprint 2 Phase 12 trigger)
   - id: phase-3-item-5d165ac5
     name: SBOM regen + license scan
     status: pending
     progress: 0
     description: SBOM regen + license scan (REMOTE; full ScanCode regen last 2026-04-04); threat refresh is now `kev-poller report` (last 2026-10-19)
-  - id: phase-3-item-d0b986af
-    name: Demo video + README polish for VC/public readiness
+  - id: phase-3-item-3c586e23
+    name: README polish
     status: pending
     progress: 0
-    description: Demo video + README polish for VC/public readiness
+    description: README polish
   - id: phase-3-item-bb2c9dfc
     name: Sub-50ms latency benchmark
     status: pending
