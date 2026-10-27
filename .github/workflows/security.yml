@@ -145,6 +145,11 @@ jobs:
       - name: Compose services declare their own log caps
         run: ./scripts/check-compose-log-caps.sh
 
+      # S-CLEAN-SLATE M-035: both haproxy configs parse under the image the
+      # load-balancer compose file pins (they did not, unnoticed, for months).
+      - name: haproxy configs parse (haproxy -c)
+        run: ./scripts/check-haproxy-cfg.sh
+
       # ADR-101: the Kubernetes Well's initdb ConfigMap is rendered from db/,
       # so a migration added for compose reaches Kubernetes too.
       - name: Kubernetes Well initdb matches db/

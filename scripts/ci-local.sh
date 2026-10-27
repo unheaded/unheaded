@@ -124,6 +124,15 @@ else
     skip_step "GPL Boundary Check" "scripts/verify-gpl-boundary.sh not found or not executable"
 fi
 
+# 10. haproxy configs parse (S-CLEAN-SLATE M-035)
+if command -v docker &>/dev/null && docker info &>/dev/null; then
+    run_step "haproxy configs" scripts/check-haproxy-cfg.sh
+elif command -v haproxy &>/dev/null; then
+    run_step "haproxy configs (host binary only)" env HAPROXY_CHECK_SKIP_IMAGE=1 scripts/check-haproxy-cfg.sh
+else
+    skip_step "haproxy configs" "neither docker nor haproxy installed"
+fi
+
 # Summary
 echo ""
 echo "========================================"

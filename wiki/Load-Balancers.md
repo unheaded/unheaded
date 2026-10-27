@@ -4,6 +4,8 @@ Three-layer load balancing protecting every shoulder of the Kingdom.
 
 > **What runs (2026-10-15):** the main `docker-compose.yml` uses **Traefik** as its edge (80/443/50051, dashboard on `127.0.0.1:21000`). The HAProxy + Nginx stack below is a separate, optional compose file (`docker/docker-compose.loadbalancers.yml`) and the Kubernetes `haproxy-ingress`; neither is running on west.
 
+> **Validated (2026-10-27):** both `docker/haproxy/{edge,internal}/haproxy.cfg` pass `haproxy -c` under `haproxy:2.9.15-alpine` and haproxy 3.0 (`scripts/check-haproxy-cfg.sh`, CI). The trace id is captured per HTTP frontend into `txn.trace_id` and logged JSON-escaped; the edge keeps one well-formed client `X-Trace-Id` and mints a UUID otherwise. Backends resolve through Docker's DNS at runtime (`resolvers docker`). The edge's TLS certs live in `docker/haproxy/edge/certs/` (gitignored; dev cert from `scripts/gen-haproxy-dev-cert.sh`).
+
 ## Architecture
 
 | Layer | Technology | Port | Role |
