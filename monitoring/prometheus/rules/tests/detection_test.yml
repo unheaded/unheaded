@@ -1,0 +1,100 @@
+# promtool test rules detection_test.yml (from this directory)
+rule_files:
+  - ../detection.yml
+evaluation_interval: 1m
+tests:
+  # govan has logged in to west from 192.168.13.1 since t=0. At 60m a new
+  # address logs in to west (fires for 10 minutes), and the known address
+  # logs in to east for the first time (a known source: quiet).
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_ssh_accepted_total{host="west",user="govan",src="192.168.13.1",method="publickey",job="vector"}'
+        values: '1+0x120'
+      - series: 'unheaded_ssh_accepted_total{host="west",user="govan",src="10.9.9.9",method="publickey",job="vector"}'
+        values: '_x60 1+0x60'
+      - series: 'unheaded_ssh_accepted_total{host="east",user="govan",src="192.168.13.1",method="publickey",job="vector-east"}'
+        values: '_x60 1+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: SSHLoginNewSource
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: SSHLoginNewSource
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, user: govan, src: "10.9.9.9"}
+            exp_annotations:
+              summary: "SSH login to west as govan from 10.9.9.9, a source not seen in 30 days"
+              description: "If nobody expected this login, treat it as an incident (runbooks/security/incident-response.yaml)"
+              runbook_url: "runbooks/security/ssh-login-new-source.yaml"
+      - eval_time: 75m
+        alertname: SSHLoginNewSource
+        exp_alerts: []
+
+  # An address last seen 20 days ago is still known; one last seen 40 days
+  # ago (past the 30-day memory) is new again.
+  - interval: 1d
+    input_series:
+      - series: 'unheaded_ssh_accepted_total{host="west",user="govan",src="192.168.13.7",method="publickey"}'
+        values: '1 _x19 1'
+      - series: 'unheaded_ssh_accepted_total{host="west",user="govan",src="192.168.13.8",method="publickey"}'
+        values: '1 _x39 1'
+    alert_rule_test:
+      - eval_time: 20d
+        alertname: SSHLoginNewSource
+        exp_alerts: []
+      - eval_time: 40d
+        alertname: SSHLoginNewSource
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, user: govan, src: "192.168.13.8"}
+            exp_annotations:
+              summary: "SSH login to west as govan from 192.168.13.8, a source not seen in 30 days"
+              description: "If nobody expected this login, treat it as an incident (runbooks/security/incident-response.yaml)"
+              runbook_url: "runbooks/security/ssh-login-new-source.yaml"
+
+  # 20 failures a minute on west (0.33/s): fires after 5m. 6 a minute on
+  # east (0.1/s): quiet.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_auth_failures_total{host="west",unit="ssh.service",kind="ssh",job="vector"}'
+        values: '0+20x30'
+      - series: 'unheaded_auth_failures_total{host="east",unit="ssh.service",kind="ssh",job="vector-east"}'
+        values: '0+6x30'
+      - series: 'unheaded_auth_failures_total{host="east",unit="sudo",kind="sudo",job="vector-east"}'
+        values: '0+60x30'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: SSHAuthFailureBurst
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: SSHAuthFailureBurst
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west}
+            exp_annotations:
+              summary: "More than 12 SSH authentication failures a minute on west for 5 minutes"
+              description: "Password, publickey or invalid-user failures from sshd; the runbook lists the sources"
+              runbook_url: "runbooks/security/ssh-login-new-source.yaml"
+
+  # enp16s0 sends 1000 B/s for 8 days, then 1 MB/s from 8d+10m: fires 15m
+  # after the hourly rate crosses 3x the median. wlp17s0 is idle, then sends
+  # 20 KB/s: far over 3x a zero median, under the 256 KiB/s floor, quiet. A
+  # veth sending 1 MB/s is inside traffic, never matched.
+  - interval: 10m
+    input_series:
+      - series: 'node_network_transmit_bytes_total{instance="west:9100",job="node",device="enp16s0"}'
+        values: '0+600000x1152 1291200000+600000000x12'
+      - series: 'node_network_transmit_bytes_total{instance="west:9100",job="node",device="wlp17s0"}'
+        values: '0+0x1152 12000000+12000000x12'
+      - series: 'node_network_transmit_bytes_total{instance="west:9100",job="node",device="veth1234"}'
+        values: '0+600000x1152 1291200000+600000000x12'
+    alert_rule_test:
+      - eval_time: 11500m
+        alertname: OutboundVolumeDeviation
+        exp_alerts: []
+      - eval_time: 11600m
+        alertname: OutboundVolumeDeviation
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, instance: "west:9100", job: node, device: enp16s0}
+            exp_annotations:
+              summary: "enp16s0 on west:9100 is sending over 3x its 7-day median hourly rate"
+              description: "Sustained for 15m and above 256 KiB/s over the hour; the runbook finds which process or container"
+              runbook_url: "runbooks/security/outbound-volume-deviation.yaml"

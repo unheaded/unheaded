@@ -23,6 +23,13 @@ route:
       group_interval: 5m
       repeat_interval: 24h
       matchers:
+        - alertname="SSHLoginNewSource"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
         - alertname="TraceCollectorDown"
         - urgency="none"
     - receiver: page

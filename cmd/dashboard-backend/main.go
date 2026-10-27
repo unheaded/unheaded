@@ -56,6 +56,7 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
@@ -291,6 +292,7 @@ func main() {
 
 	// Service discovery registration
 	discovery.Start(ctx, transportCfg, "dashboard-backend", ports.PortOf(*listenAddr, ports.DashboardBackend))
+	healthreport.StartService(ctx, transportCfg, "dashboard-backend", healthreport.HealthURL(*listenAddr, ports.PortOf(*listenAddr, ports.DashboardBackend))) // ADR-029: a vote on Akira's ballot
 
 	// Profiling. Off unless PPROF_ADDR is set, and meant for a loopback address
 	// inside the container (`docker exec ... wget -O- http://127.0.0.1:6060/

@@ -20,6 +20,9 @@ RUNBOOKS = {
     "runbooks/observe/high-latency.yaml": ("TraceCollectorHighLatency",),
     "runbooks/observe/log-pipeline.yaml": ("JournalNotShipping", "JournalShipErrors", "VectorDown", "LogSpam", "LogErrorSpam", "LogSilence"),
     "runbooks/security/kev-feed-stale.yaml": ("KEVFeedStale", "KEVFeedExpired", "KEVPollerDown"),
+    # S-WELL-SPRING Phase 11 detections (monitoring/prometheus/rules/detection.yml).
+    "runbooks/security/ssh-login-new-source.yaml": ("SSHLoginNewSource", "SSHAuthFailureBurst"),
+    "runbooks/security/outbound-volume-deviation.yaml": ("OutboundVolumeDeviation",),
     # The ci-develop SLO's own runbook (policy.yaml runbook:), no hand rule.
     "runbooks/observe/ci-red.yaml": (),
 }

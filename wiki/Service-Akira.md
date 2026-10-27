@@ -8,8 +8,9 @@ Akira checks every Kingdom service, publishes its reports to Wotan, tallies ever
 |---|---|
 | Container | `unheaded-akira` (compose service `akira`, live on west) |
 | Port | 19100 (`pkg/ports.Akira`) |
-| Wotan topics | publishes `system.health.reports` (each reporter's checks) and `system.health.consensus` (band changes) |
-| Remediation | off by default; `--remediate` restarts `unheaded-<name>` when two-thirds of reporters see it failing, at most 3 times per outage, then escalates |
+| Wotan topics | publishes `system.health.reports` (each reporter's checks), `system.health.consensus` (band changes) and `system.health.remediate` (suggestions) |
+| Other voters | every service that calls `discovery.Start` reports its own `/health` every 30 s as reporter `<service>@<host>` (`pkg/healthreport`; host from `$KINGDOM_NODE`) |
+| Remediation | entering CRITICAL or PANIC publishes one `{service, host, band, pct, suggested, at}` suggestion to `system.health.remediate` and counts it in `akira_remediate_suggested_total{service}`; restarting stays off by default: `--remediate` restarts `unheaded-<name>` when two-thirds of reporters see it failing, at most 3 times per outage, then escalates |
 
 ## Bands
 

@@ -9,10 +9,22 @@
 > `system.health.reports`, reads other reporters' reports from it and
 > publishes band changes to `system.health.consensus`. It runs in the compose
 > stack for detection only; `--remediate` enables `systemctl restart` (at most
-> `MaxAutoRestarts` per outage, then escalation). Not built: the per-service
-> watchdog in every binary (today Akira is the only reporter per host, so a
-> single host reads 0 % or 100 %), a Wotan-side ballot box, and the
-> `system.health.remediate` command path.
+> `MaxAutoRestarts` per outage, then escalation). Not built: a Wotan-side
+> ballot box.
+>
+> **2026-10-27 (S-WELL-SPRING Phase 11, M-200).** Every service that calls
+> `discovery.Start` (12 binaries) now also calls `healthreport.StartService`
+> (`pkg/healthreport`): every 30 s it probes its own `/health` and publishes a
+> `health.HealthReport` to `system.health.reports` as reporter
+> `<service>@<host>` (host from `$KINGDOM_NODE`), so Akira's ballot has more
+> than one voter per host; a parity test fails a new `discovery.Start` caller
+> that does not report. Akira publishes one suggestion to
+> `system.health.remediate` (`{service, host, band, pct, suggested, at}`)
+> each time a service enters CRITICAL or PANIC, with or without
+> `--remediate`, and counts them in `akira_remediate_suggested_total{service}`.
+> The suggestion is advisory: nothing subscribes to act on it. The cross-host
+> two-reporter ballot is recorded below once west and east run the new
+> builds (S-WELL-SPRING Steps 235-236, under E-D).
 **Date:** 2026-04-03
 **Deciders:** Captain, Architect, BlackMage, Micromanager
 **Priority:** HIGH — core Kingdom resilience

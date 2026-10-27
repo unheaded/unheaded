@@ -37,6 +37,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/deploy/cuirassdriver"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/sloguard"
@@ -163,6 +164,7 @@ func main() {
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
 	discovery.Start(ctx, transportCfg, serviceName, ports.PortOf(c.addr, ports.Sword))
+	healthreport.StartService(ctx, transportCfg, serviceName, healthreport.HealthURL(c.addr, ports.PortOf(c.addr, ports.Sword))) // ADR-029: a vote on Akira's ballot
 
 	srv := &http.Server{
 		Addr:              c.addr,

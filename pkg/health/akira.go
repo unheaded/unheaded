@@ -40,10 +40,15 @@ type ServiceTarget struct {
 	HealthPath string // default: /health
 }
 
-// HealthReport is a single health check result.
+// HealthReport is a single health check result, the payload of every
+// system.health.reports message: Akira's checks of other services and each
+// service's report on itself (pkg/healthreport) share this one type.
 type HealthReport struct {
-	Service   string        `json:"service"`
-	Reporter  string        `json:"reporter"`
+	Service  string `json:"service"`
+	Reporter string `json:"reporter"`
+	// Host is the host the reporter runs on (west, east). Akira's own
+	// reports leave it empty: their Reporter is already the node.
+	Host      string        `json:"host,omitempty"`
 	Healthy   bool          `json:"healthy"`
 	Latency   time.Duration `json:"latency_ns"`
 	Error     string        `json:"error,omitempty"`

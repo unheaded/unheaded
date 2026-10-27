@@ -739,6 +739,7 @@ services:
       - /data:size=64M,uid=16722,gid=16722
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_timeguru   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       PORT: "19000"
       WOTAN_ADDR: "wotan:18000"
@@ -797,6 +798,7 @@ services:
       - /tmp:size=32M
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_captain   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       HTTP_ADDR: "0.0.0.0:19002"
       WOTAN_ADDR: "wotan:18000"
@@ -846,6 +848,7 @@ services:
       - /tmp:size=32M
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_architect   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       ARCHITECT_DATA_DIR: "/data"   # its state file; state was memory-only, lost on every restart
       WOTAN_ADDR: "wotan:18000"
@@ -881,6 +884,7 @@ services:
     logging: *journald-logging
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_micromanager   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       MICROMANAGER_DATA_DIR: "/data"   # its state file; state was memory-only, lost on every restart
       # micromanager was the only service with no WOTAN_* env, so it ran in
@@ -999,6 +1003,7 @@ services:
       - /data:size=64M
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_monad   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       MONAD_PORT: "19004"
       WOTAN_ADDR: "wotan:18000"
@@ -1047,6 +1052,7 @@ services:
       - /data:size=64M
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_sophia   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       SOPHIA_LISTEN_ADDR: ":19005"
       WOTAN_ADDR: "wotan:18000"
@@ -1093,6 +1099,7 @@ services:
       - /data:size=64M
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_dashboard-backend   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"
@@ -1166,6 +1173,7 @@ services:
       - /tmp:size=32M
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_kanban-app   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       PORT: "20001"
       WOTAN_ADDR: "wotan:18000"
@@ -1232,6 +1240,8 @@ services:
       # caller (reads under /api/v1/info and /api/v1/state stay open).
       AUTH_ENABLED: "true"
       AUTH_ALLOW_CALLERS: "sword,unheaded-cli,dashboard-backend"
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
+      HEALTH_REPORT_SERVICE: cuirass        # its name on Akira's ballot in this stack (config/akira/akira.yaml)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       HTTP_ADDR: ":19006"
       WOTAN_ADDR: "wotan:18000"
@@ -1341,6 +1351,7 @@ services:
         required: false
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_sword   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       HTTP_ADDR: ":19011"
       AUTH_ENABLED: "true"

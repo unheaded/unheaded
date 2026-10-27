@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Stevie Bellis.
+#
+# Unit tests for the SSH login counter in ../vector.yaml (M-203; alert
+# SSHLoginNewSource in monitoring/prometheus/rules/detection.yml). Run:
+# scripts/test-vector-config.sh
+tests:
+  - name: an accepted login becomes host, user, source and method, no text
+    inputs:
+      - insert_at: journal_ssh
+        type: log
+        log_fields:
+          message: "Accepted publickey for govan from 192.168.13.1 port 51000 ssh2: ED25519 SHA256:x"
+          host: west
+          _COMM: sshd-session
+          _UID: "0"
+          _SYSTEMD_UNIT: ssh.service
+    outputs:
+      - extract_from: journal_ssh_accepted
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "west")
+              assert_eq!(.user, "govan")
+              assert_eq!(.src, "192.168.13.1")
+              assert_eq!(.method, "publickey")
+              assert!(!exists(.message))
+              assert!(!exists(._COMM))
+              assert_eq!(length(keys(.)), 4)
+
+  - name: an IPv6 source and the older sshd process name count too
+    inputs:
+      - insert_at: journal_ssh
+        type: log
+        log_fields:
+          message: "Accepted password for govan from fd00:dead:beef::1 port 40022 ssh2"
+          host: east
+          _COMM: sshd
+          _UID: "0"
+    outputs:
+      - extract_from: journal_ssh_accepted
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.src, "fd00:dead:beef::1")
+              assert_eq!(.method, "password")
+              assert_eq!(.host, "east")
+
+  - name: the counter carries host, user, src and method
+    inputs:
+      - insert_at: journal_ssh_accepted
+        type: log
+        log_fields:
+          message: "Accepted publickey for govan from 192.168.13.1 port 51000 ssh2"
+          host: west
+          _COMM: sshd-session
+          _UID: "0"
+    outputs:
+      - extract_from: journal_ssh_metrics
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.namespace, "unheaded")
+              assert_eq!(.name, "ssh_accepted_total")
+              assert_eq!(.tags.host, "west")
+              assert_eq!(.tags.user, "govan")
+              assert_eq!(.tags.src, "192.168.13.1")
+              assert_eq!(.tags.method, "publickey")
+
+  - name: a crafted user name and address become "invalid", not new label values
+    inputs:
+      - insert_at: journal_ssh
+        type: log
+        log_fields:
+          message: "Accepted publickey for Robert');DROP from not-an-address port 1 ssh2"
+          host: west
+          _COMM: sshd-session
+          _UID: "0"
+    outputs:
+      - extract_from: journal_ssh_accepted
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.user, "invalid")
+              assert_eq!(.src, "invalid")
+
+  - name: the same line from a process that is not a root sshd is ignored
+    inputs:
+      - insert_at: journal_ssh
+        type: log
+        log_fields:
+          message: "Accepted publickey for govan from 10.9.9.9 port 51000 ssh2"
+          host: west
+          SYSLOG_IDENTIFIER: sshd
+          _COMM: logger
+          _UID: "1000"
+    no_outputs_from:
+      - journal_ssh
+
+  - name: an sshd line that is not an accepted login is ignored
+    inputs:
+      - insert_at: journal_ssh
+        type: log
+        log_fields:
+          message: "Failed password for govan from 192.168.13.1 port 51000 ssh2"
+          host: west
+          _COMM: sshd-session
+          _UID: "0"
+    no_outputs_from:
+      - journal_ssh

@@ -44,6 +44,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
@@ -96,6 +97,7 @@ func main() {
 
 	// Service discovery registration
 	discovery.Start(ctx, transportCfg, "monad", ports.PortOf(*listenAddr, ports.Monad))
+	healthreport.StartService(ctx, transportCfg, "monad", healthreport.HealthURL(*listenAddr, ports.PortOf(*listenAddr, ports.Monad))) // ADR-029: a vote on Akira's ballot
 
 	// Health server
 	healthSrv := transport.NewHealthServer("monad")

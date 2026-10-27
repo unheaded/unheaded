@@ -151,6 +151,54 @@ transforms:
         name: auth_failures_total
         tags: {host: "{{host}}", unit: "{{unit}}", kind: "{{auth}}"}
 
+  # SSH logins by source (M-203, detection.yml SSHLoginNewSource). Read
+  # from the raw journal, not journal_rows: there the unit can come from
+  # SYSLOG_IDENTIFIER, which any local user sets with logger(1). Only an
+  # sshd running as root counts. Metadata only: the login name (operator
+  # accounts), the source address (LAN or P2P today) and the auth method;
+  # the line itself never leaves the transform. A name or address that does
+  # not look like one is counted as "invalid", so a crafted line cannot mint
+  # arbitrary label values.
+  journal_ssh:
+    type: filter
+    inputs:
+      - journal
+    condition: |
+      comm = string(."_COMM") ?? ""
+      (comm == "sshd" || comm == "sshd-session") && (string(."_UID") ?? "") == "0" && match(string(.message) ?? "", r'^Accepted [a-z0-9/-]+ for \S+ from \S+ port [0-9]+')
+
+  journal_ssh_accepted:
+    type: remap
+    inputs:
+      - journal_ssh
+    drop_on_abort: true
+    source: |
+      p = parse_regex(string(.message) ?? "", r'^Accepted (?P<method>[a-z0-9/-]+) for (?P<user>\S+) from (?P<src>\S+) port [0-9]+') ?? {}
+      if !exists(p.user) { abort }
+      user = string(p.user) ?? ""
+      if !match(user, r'^[a-z_][a-z0-9_-]{0,31}$') { user = "invalid" }
+      src = string(p.src) ?? ""
+      if !match(src, r'^([0-9]{1,3}(\.[0-9]{1,3}){3}|[0-9a-fA-F:.]{2,45})$') { src = "invalid" }
+      method = string(p.method) ?? ""
+      if !match(method, r'^(publickey|password|keyboard-interactive(/pam)?|hostbased|gssapi-with-mic)$') { method = "other" }
+      . = {
+        "host": string(.host) ?? "unknown",
+        "user": user,
+        "src": src,
+        "method": method
+      }
+
+  journal_ssh_metrics:
+    type: log_to_metric
+    inputs:
+      - journal_ssh_accepted
+    metrics:
+      - type: counter
+        field: user
+        namespace: unheaded
+        name: ssh_accepted_total
+        tags: {host: "{{host}}", user: "{{user}}", src: "{{src}}", method: "{{method}}"}
+
 sinks:
   clickhouse:
     type: clickhouse
@@ -173,6 +221,7 @@ sinks:
       - vector_metrics
       - journal_volume_metrics
       - journal_auth_metrics
+      - journal_ssh_metrics
     address: "0.0.0.0:9598"
     # A series not updated within this many seconds is dropped. The default
     # (60) drops a unit that logs less than once a minute, which would read

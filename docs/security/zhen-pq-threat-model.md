@@ -282,3 +282,10 @@ whose locks have an expiration date printed on them.
 **PQ IS NOT OPTIONAL FOR ZHEN.**
 
 *Observation. Hypothesis. Experiment. Truth.*
+
+## Review cadence
+
+Quarterly; owner Stevie. Cadence set 2026-10-27 (S-WELL-SPRING Phase 11,
+M-205); the first review under it is due by 2027-01-27. Last reviewed
+2026-10-27, S-WELL-SPRING Phase 11: cadence added only, contents not
+re-assessed in that pass. Changed since this model was written: S-QUANTUM-ARMOR moved first-party TLS to hybrid ML-KEM (ADR-105); zhend QUIC runs rustls on aws-lc-rs.

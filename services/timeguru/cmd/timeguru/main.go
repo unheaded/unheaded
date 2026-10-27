@@ -23,6 +23,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/metrics"
@@ -227,6 +228,7 @@ func main() {
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
 	discovery.Start(ctx, transportCfg, "timeguru", ports.PortOf(":"+config.Port, ports.Timeguru))
+	healthreport.StartService(ctx, transportCfg, "timeguru", healthreport.HealthURL(":"+config.Port, ports.PortOf(":"+config.Port, ports.Timeguru))) // ADR-029: a vote on Akira's ballot
 
 	// Start HTTP server in goroutine. Bind synchronously so that anything
 	// announced below can be fetched the moment the announcement lands.

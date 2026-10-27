@@ -195,6 +195,22 @@ vendor fix. Tracked as **FND-011** (high) in `compliance/findings/register.yaml`
 
 (Items where MoatGhost has explicitly accepted residual risk with rationale. Empty as of 2026-04-27.)
 
+| ID | Risk | Disposition (2026-10-27) | Re-open when |
+|---|---|---|---|
+| RT-32 | `CPU_MAP` concurrent write (S21 BlackMage assessment; S20 race): `ebpf/monad-cpu-ebpf` keeps each UPC instance's `MbcCpuState` in a BPF `HashMap` keyed by the low 8 bits of the Flow Label and mutates it in place through `get_ptr_mut` (`src/main.rs`, the XDP tick handler) with no `bpf_spin_lock`. Two ticks for one instance processed on two CPUs at once would interleave their read-modify-writes. | **Single writer by construction, not by enforcement.** Ticks for an instance come from one sender (`upc-bootctl` or the Doom runner) on one flow, so they arrive on one RX queue and run one at a time on one CPU. A second sender for the same instance, or any packet carrying the CUSTOM flag and a colliding Flow Label byte (S21 D4), can still write the state. Lab-only: UPC boots and game runs are attached on west by hand, not run as an exposed service. Proposed lab-accepted; needs Stevie's acknowledgement to count as accepted. | UPC DISTRIBUTED mode (ticks from more than one host), any multi-sender tick source, or UPC on an interface outside the lab. Fix then: `bpf_spin_lock` in the value, or per-CPU state with a single owner. |
+| DET-01 | DGA domains, beaconing and DNS tunnelling go undetected (M-203). | **UNTESTED: no DNS query log source.** pihole answers the LAN from LXD project `default` and its FTL log is not shipped. `monitoring/prometheus/rules/detection.yml` says so at the top and has no rule for it; SSH new-source, SSH auth bursts and outbound volume are covered there. Needs pihole FTL log shipped by Vector: mount `/var/log/pihole/pihole.log` read-only into a Vector file source, reduce each query to metadata (client, label length and entropy bucket, qtype; never the name in a metric). | When the pihole log is shipped; the rules and their promtool tests land with it. |
+
+---
+
+## Review cadence
+
+Quarterly for this register's structure and the dispositions above; owner
+Stevie. The CVE refresh keeps its own cadence (header: every Round Table
+sprint or weekly, ADR-052's 7-day limit). Last reviewed 2026-10-27,
+S-WELL-SPRING Phase 11: added the RT-32 `CPU_MAP` disposition and the DET-01
+DNS detection gap; the CVE refresh log was not touched (last refresh
+2026-10-19).
+
 ---
 
 ## Cross-references

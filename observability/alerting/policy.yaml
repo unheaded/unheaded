@@ -61,6 +61,14 @@ promote:
       No SLO covers the eBPF trace collector; when it dies the dashboard's
       flow and latency views go empty while everything else stays healthy.
       A ticket, not a page: nothing user-facing breaks.
+  - alert: SSHLoginNewSource
+    urgency: ticket
+    reason: >-
+      A login from an address no host has seen in 30 days is the one
+      intrusion sign no SLO can show: an attacker with a key keeps every
+      service healthy. Rare by construction (operators log in from a few
+      fixed LAN/P2P addresses), so a daily digest line costs nothing.
+      Fires once per known source right after rollout (detection.yml).
 
 # Burn-rate tiers (Google SRE Workbook ch. 5, table 5-8). An alert fires
 # when both windows exceed burn x (1 - objective). page: false SLOs send the

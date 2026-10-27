@@ -406,3 +406,10 @@ Read-only audit; no script execution, no remote calls. Sources:
 - `CLAUDE.md` (Sealed Cask cited as "deterministic image builder with SHA256 integrity"; bare-metal posture WEST + EAST)
 
 Items marked **UNVERIFIED** in this document are: the identity of the Linux build host, the present-day location of `cask.age.key`, whether any cask has ever been distributed to a third-party adopter, and whether the operator's `secrets/cask.age.key` has any backup. No live filesystem outside `/Users/govan/tmp/unheaded/` was inspected. Findings in §3.2, §3.4 reflect what the implementation **says** about itself, not what an asset inventory would confirm.
+
+## Review cadence
+
+Quarterly; owner Stevie. Cadence set 2026-10-27 (S-WELL-SPRING Phase 11,
+M-205); the first review under it is due by 2027-01-27. Last reviewed
+2026-10-27, S-WELL-SPRING Phase 11: cadence added only, contents not
+re-assessed in that pass. Changed since this model was written: S-IRON-GATE Phase 12 added signed releases; whether they close any of the UNVERIFIED items here is for the next review.

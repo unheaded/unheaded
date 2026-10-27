@@ -158,7 +158,7 @@ func main() {
 			log.Warn().Err(err).Str("addr", *wotanAddr).Msg("Wotan connection failed — running without publish")
 		} else {
 			ok := true
-			for _, topic := range []string{topicReports, topicConsensus} {
+			for _, topic := range []string{topicReports, topicConsensus, topicRemediate} {
 				if _, err := c.Subscribe(context.Background(), topic, "akira"); err != nil {
 					log.Warn().Err(err).Str("topic", topic).Msg("Wotan subscribe failed — running without publish")
 					ok = false
@@ -207,7 +207,11 @@ func main() {
 	// service drops below the threshold. (AutoRestarts used to be read but
 	// never incremented, so escalation to a human could never happen.)
 	restarts := map[string]int{}
+	// Entering CRITICAL or PANIC publishes one suggestion to
+	// system.health.remediate, with or without --remediate.
+	suggest := newRemediator(*nodeID, publish, metrics.DefaultRegistry)
 	akira.OnSeverityChange(func(v health.Verdict) {
+		suggest.onChange(v)
 		log.Info().
 			Str("service", v.Service).
 			Str("severity", string(v.Severity)).

@@ -72,6 +72,14 @@ This keeps `threat-register.md` ≤ 7 days fresh by construction once the servic
 
 The first instance is `kev-poller`; the *pattern* it establishes scales to 5–10 feeds.
 
+> **Amended 2026-10-27 (S-WELL-SPRING Step 237, M-203): this Phase 2 (the
+> NVD and GHSA sibling pollers, Phase 4 in the outline below) is closed,
+> KEV-only.** govulncheck, cargo audit, pip-audit, trivy and grype already
+> consume NVD and GHSA data on every push, and Ubuntu's feed covers host
+> packages; a second poller would duplicate them with nothing reading its
+> rows. Revisit when a consumer for raw NVD rows exists (for example Stevie
+> wanting NVD rows in The Well for the dashboard).
+
 ### 5. Service home in the Kingdom hierarchy
 
 Per Kingdom lore (Lore + Kingdom skills), this service maps to:
@@ -153,7 +161,7 @@ Per Kingdom lore (Lore + Kingdom skills), this service maps to:
 | 2. DaemonSet | **manifest written, not applied** (no cluster) | `deploy/k8s/kev-poller/daemonset.yaml` |
 | 2b. systemd | **installed and enabled on west and east, 2026-10-20** (always on, as `unheaded-kev-poller`; first pulls succeeded on both; scraped by monitoring/prometheus as job `kev-poller`, both up) | `deploy/systemd/unheaded-kev-poller.service` |
 | 3. threat-register updater | **report, not a bot**: `--stack config/kev-poller/stack.yaml` tags added entries the Kingdom runs (KEV's own vendor/product names, exact match; categories follow the register), logs them as warnings, counts them (`unheaded_kev_stack_count`, `unheaded_kev_stack_added_total`) and marks them in delta messages; `kev-poller report --since DATE` renders the register's refresh entry. A person commits it: a bot with push rights to the repo is more than this needs. First refresh 2026-10-19 found FND-011 | `config/kev-poller/stack.yaml`, `pkg/threatfeed/kev/{stack,report}.go` |
-| 4. NVD poller | open; **lower value than it looked** (2026-10-19): what NVD would add is already watched elsewhere: our Go, Rust and Python dependencies by govulncheck, cargo audit and pip-audit (CI, gating), container images by trivy and grype (CI), host packages by Ubuntu's own feed (`pro fix`, unattended-upgrades). KEV stays the high-signal feed: exploited, not merely published. Revisit if a component we run is in none of those | |
+| 4. NVD poller | **closed, KEV-only (2026-10-27, S-WELL-SPRING Step 237)**; revisit when a consumer for raw NVD rows exists. Was: **lower value than it looked** (2026-10-19): what NVD would add is already watched elsewhere: our Go, Rust and Python dependencies by govulncheck, cargo audit and pip-audit (CI, gating), container images by trivy and grype (CI), host packages by Ubuntu's own feed (`pro fix`, unattended-upgrades). KEV stays the high-signal feed: exploited, not merely published. Revisit if a component we run is in none of those | |
 | 5. leader election | open | |
 
 Built differently from the text above, and why:

@@ -38,8 +38,12 @@ func NewWotanBridge(db *sql.DB) *WotanBridge {
 // HealthReport is the payload Akira publishes (pkg/health.HealthReport, by
 // JSON tag; TestHealthReportContract pins the two together).
 type HealthReport struct {
-	Service   string        `json:"service"`
-	Reporter  string        `json:"reporter"`
+	Service  string `json:"service"`
+	Reporter string `json:"reporter"`
+	// Host is set on a service's report on itself (pkg/healthreport); its
+	// Reporter is "<service>@<host>", so the stored host column, which is
+	// the reporter, already carries it.
+	Host      string        `json:"host,omitempty"`
 	Healthy   bool          `json:"healthy"`
 	Latency   time.Duration `json:"latency_ns"`
 	Error     string        `json:"error,omitempty"`

@@ -287,3 +287,10 @@ The point is to never let "OPEN" status hide. Public-repo posture means a securi
 - Champion gate implementation: [`pkg/champion/toolcall.go`](../../pkg/champion/toolcall.go) (the three rules)
 - Direct-dispatch endpoint: [`cmd/zhen-agentd/toolexec.go`](../../cmd/zhen-agentd/toolexec.go)
 - Red-team probe suite (covers T6 mutation closure + 10 other attack patterns): [`cmd/zhen-agentd/redteam_test.go`](../../cmd/zhen-agentd/redteam_test.go)
+
+## Review cadence
+
+Quarterly; owner Stevie. Cadence set 2026-10-27 (S-WELL-SPRING Phase 11,
+M-205); the first review under it is due by 2027-01-27. Last reviewed
+2026-10-27, S-WELL-SPRING Phase 11: cadence added only, contents not
+re-assessed in that pass. Changed since this model was written: S-CHAMPION-HARDENING Phases 1-7 and 10 hardened `pkg/champion` (trust allowlist, confirm tokens, openat2 sandbox) and zhen-agentd now refuses to start without auth; check T1-T6 against them.

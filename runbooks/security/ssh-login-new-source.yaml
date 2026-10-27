@@ -1,0 +1,97 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: ssh-login-new-source
+  description: An SSH login came from an address not seen in 30 days, or sshd is taking a burst of failed logins (SSHLoginNewSource, SSHAuthFailureBurst)
+  owner: sentinel
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  M-203 (S-WELL-SPRING Phase 11). Vector counts sshd's "Accepted" lines into
+  unheaded_ssh_accepted_total{host,user,src,method} and its failures into
+  unheaded_auth_failures_total{kind="ssh"} (config/vector/vector.yaml); the
+  rules are monitoring/prometheus/rules/detection.yml. Only metadata reaches
+  Prometheus. SSHLoginNewSource is promoted to a ticket in
+  observability/alerting/policy.yaml; the burst is urgency none.
+
+  Right after the rules roll out, every address already in use fires
+  SSHLoginNewSource once (Prometheus has no earlier samples of it). Check the
+  addresses against the operator list below and close those.
+
+  Known operator sources today: the LAN, the P2P link (192.168.13.1 east,
+  192.168.13.2 west) and the WireGuard overlay (fd00:dead:beef::/64).
+  Anything else is unexpected until Stevie says otherwise.
+
+  Hardening sshd itself (keys only, MaxAuthTries, hybrid PQ KEX) is
+  runbooks/security/ssh-hardening.yaml; an unexplained login is
+  runbooks/security/incident-response.yaml.
+
+parameters:
+  - name: SSH_HOST
+    default: "east"
+    description: The other host, for the east-side log (the alert's host label)
+
+steps:
+  - name: what-is-firing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname=~"SSHLoginNewSource|SSHAuthFailureBurst",alertstate="firing"}' |
+        python3 -c 'import json,sys; [print(r["metric"].get("alertname"), r["metric"].get("host"), r["metric"].get("user", "-"), r["metric"].get("src", "-")) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Which alert, host, user and source address (run on west)"
+
+  - name: logins-by-source
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum by (host, user, src, method) (unheaded_ssh_accepted_total)' |
+        python3 -c 'import json,sys; [print(r["metric"]["host"], r["metric"]["user"], r["metric"]["src"], r["metric"]["method"], r["value"][1]) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Every (host, user, source, method) counted since Vector last started; compare with the known operator sources in the notes"
+
+  - name: failures-by-host
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum by (host) (increase(unheaded_auth_failures_total{kind="ssh"}[1h]))' |
+        python3 -c 'import json,sys; [print(r["metric"]["host"], "%.0f ssh auth failures in the last hour" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Failure volume per host over the last hour"
+
+  - name: sshd-log-west
+    action: shell
+    command: "journalctl -u ssh --since -1h -n 50 --no-pager"
+    description: "sshd's own lines on west: the Accepted line (key fingerprint, port) or the failing source addresses"
+
+  - name: sshd-log-other
+    action: shell
+    command: "ssh govan@${SSH_HOST} journalctl -u ssh --since -1h -n 50 --no-pager"
+    description: "The same on the other host"
+
+  - name: expected-or-not
+    action: manual
+    command: "echo 'Expected (a new laptop, a new LAN lease): close the ticket. Unexpected: runbooks/security/incident-response.yaml now.'"
+    description: "MANUAL. Decide whether the login was yours"
+
+  - name: block-a-guessing-source
+    action: manual
+    command: "sudo nft add rule inet filter input ip saddr <SRC> tcp dport 22 drop"
+    description: "MANUAL. Only for a burst from one source that is not an operator; record it in the incident notes"
+
+verification:
+  - name: nothing-firing
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(ALERTS{alertname=~"SSHLoginNewSource|SSHAuthFailureBurst",alertstate="firing"}) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("firing:", v); sys.exit(v != "0")'
+
+rollback:
+  - name: remove-a-block
+    action: manual
+    command: "sudo nft -a list chain inet filter input; sudo nft delete rule inet filter input handle <HANDLE>"
+    description: "MANUAL. Undo block-a-guessing-source if it caught an operator"

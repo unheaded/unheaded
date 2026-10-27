@@ -1,0 +1,90 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: outbound-volume-deviation
+  description: A host uplink is sending over three times its usual hourly volume (OutboundVolumeDeviation)
+  owner: sentinel
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  M-203 (S-WELL-SPRING Phase 11). The rule (monitoring/prometheus/rules/
+  detection.yml) compares an uplink's (enp*, wlp*) transmit rate over the
+  last hour with the median of its hourly rates over 7 days, and fires above
+  3x that and above 256 KiB/s for 15 minutes. urgency none.
+
+  The P2P link to east is a physical NIC too, so it is watched like the
+  others. Nightly senders (the Well backup to east, the off-site copy)
+  repeat, so their hour sits inside the 7-day median and rarely fires; a
+  first run, a much larger dump, a git or docker push, or a game day can.
+  An image or model download is receive, not transmit. Anything else
+  sending this much is worth a look.
+
+  This finds the sender by interface, container and connection metadata
+  only: byte counters and peer addresses, never payloads.
+
+parameters:
+  - name: NODE_HOST
+    default: "east"
+    description: The other host, when the alert's instance is not west
+
+steps:
+  - name: what-is-firing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=rate(node_network_transmit_bytes_total{device=~"enp.*|wlp.*"}[1h])' |
+        python3 -c 'import json,sys; [print(r["metric"]["instance"], r["metric"]["device"], "%.0f KiB/s over the last hour" % (float(r["value"][1]) / 1024)) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Hourly transmit rate per uplink (run on west)"
+
+  - name: when-it-started
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=max_over_time(rate(node_network_transmit_bytes_total{device=~"enp.*|wlp.*"}[5m])[6h:5m])' |
+        python3 -c 'import json,sys; [print(r["metric"]["instance"], r["metric"]["device"], "%.0f KiB/s peak 5m rate in 6h" % (float(r["value"][1]) / 1024)) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Peak 5-minute rate over the last 6 hours, to tell a burst from a steady climb"
+
+  - name: timers-that-ran
+    action: shell
+    command: "systemctl list-timers --all --no-pager"
+    description: "Backups, off-site copies and other scheduled senders that ran around the start"
+
+  - name: containers
+    action: shell
+    command: "docker ps --format '{{.Names}} {{.Status}}'"
+    description: "Containers up on this host; a recent restart or a new one is a lead"
+
+  - name: other-host-timers
+    action: shell
+    command: "ssh govan@${NODE_HOST} systemctl list-timers --all --no-pager"
+    description: "The same on the other host"
+
+  - name: top-connections
+    action: manual
+    command: "sudo ss -tinp state established | grep -E 'bytes_sent|users' | head -60"
+    description: "MANUAL. Established TCP connections with their process and bytes_sent: the sender and its peer address"
+
+  - name: expected-or-not
+    action: manual
+    command: "echo 'Expected (push, off-site backup, game day): note it and let it resolve. Unexpected peer or process: runbooks/security/incident-response.yaml.'"
+    description: "MANUAL. Decide whether the traffic is ours"
+
+verification:
+  - name: nothing-firing
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(ALERTS{alertname="OutboundVolumeDeviation",alertstate="firing"}) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("firing:", v); sys.exit(v != "0")'
+
+rollback:
+  - name: nothing-to-roll-back
+    action: manual
+    command: "echo 'Every shell step reads; nothing here changes state.'"
+    description: "MANUAL. Nothing to undo"

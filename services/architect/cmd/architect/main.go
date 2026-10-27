@@ -15,6 +15,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/lifecycle"
 	"unheaded/pkg/logagg"
@@ -140,6 +141,7 @@ func main() {
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
 	discovery.Start(svcCtx, transportCfg, "architect", ports.PortOf(*addr, ports.Architect))
+	healthreport.StartService(svcCtx, transportCfg, "architect", healthreport.HealthURL(*addr, ports.PortOf(*addr, ports.Architect))) // ADR-029: a vote on Akira's ballot
 
 	// HTTP handler
 	handler := architect.NewHTTPHandler(svc)

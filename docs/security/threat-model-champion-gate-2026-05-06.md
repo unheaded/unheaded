@@ -373,3 +373,10 @@ No upstream pen-test. No live exploit. The findings above are derived from code-
 ---
 
 *End of document. ~470 lines.*
+
+## Review cadence
+
+Quarterly; owner Stevie. Cadence set 2026-10-27 (S-WELL-SPRING Phase 11,
+M-205); the first review under it is due by 2027-01-27. Last reviewed
+2026-10-27, S-WELL-SPRING Phase 11: cadence added only, contents not
+re-assessed in that pass. Changed since this model was written: S-CHAMPION-HARDENING Phases 1-7 and 10 rebuilt the gate (trust allowlist, confirmation tokens, gc and caps, openat2 sandbox, runbook `MANIFEST.sha256`, the Go MCP server `cmd/zhen-mcp`); the next review re-scores BM2 against them.
