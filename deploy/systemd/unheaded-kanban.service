@@ -27,6 +27,10 @@ LimitNOFILE=4096
 # comes from `unheaded-keygen -owner unheaded-kanban kanban-app` (root, once per host).
 Environment=AUTH_KEY_FILE=/etc/unheaded/keys/kanban-app.key
 Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+# S-IRON-GATE Phase 6: writers once auth is on. AUTH_ENABLED stays off until
+# the board has a login (BFF, plan Steps 211-216): the browser UI writes
+# tasks with no credential.
+Environment=AUTH_ALLOW_CALLERS=dashboard-backend,zhen-agentd,micromanager
 ReadOnlyPaths=-/etc/unheaded/trust.d
 
 User=unheaded-kanban

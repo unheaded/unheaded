@@ -1172,7 +1172,12 @@ services:
     tmpfs:
       - /tmp:size=32M
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_kanban-app   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_kanban-app   # ADR-103; also mints its tokens for Timeguru
+      # S-IRON-GATE Phase 6: with auth on, reads stay open and writes need a
+      # token from these callers. AUTH_ENABLED stays off until the board has
+      # a login (BFF, plan Steps 211-216): the browser UI writes tasks with
+      # no credential, so turning it on now would make the board read-only.
+      AUTH_ALLOW_CALLERS: "dashboard-backend,zhen-agentd,micromanager"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       PORT: "20001"
