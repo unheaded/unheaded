@@ -2,52 +2,92 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: akira-cert-expiry-check
-  description: Akira health check — monitor cert expiry, auto-rotate at 60 days remaining
+  description: Akira exec health check — report service and CA cert expiry by percentage of lifetime left; read-only
   owner: akira
   estimated_duration: 30s
   risk: low
-  requires_sudo: true
+  requires_sudo: false
   schedule: "0 * * * *"
 
 notes: |
-  Designed to run as an Akira exec health check every hour.
-  Checks all service + host certs under /var/lib/unheaded/pki/.
+  Runs as an Akira exec health check (S-IRON-GATE Phase 10, ADR-034 Phase 7):
+  configs/akira-west.yaml, configs/akira-east.yaml and the compose
+  config/akira/akira.yaml run it through scripts/run-runbook.py. Exit 0 is a
+  healthy vote, anything else a failing one; Akira keeps the last 4 KiB of
+  output and puts its tail in the report's error.
+
+  It runs as Akira's own uid (unheaded-akira on hosts, 16731 in compose), no
+  sudo, no shell from Akira (argv only), at most 30 s. It only reads
+  certificates: it never rotates anything. A cert due for rotation is
+  reported; rotation is pki/rotate-service-cert.yaml (operator) or, in dev,
+  scripts/gen-dev-certs.sh.
+
+  Where it looks (first that exists):
+    $UNHEADED_TLS_DIR, default /etc/unheaded/tls   (S-IRON-GATE Phase 8 layout)
+        <identity>/<identity>.pem plus <identity>/ca.pem, or a flat
+        <identity>.pem + ca.pem (one container's own mount). *-key.pem is
+        never opened.
+    $UNHEADED_PKI_DIR, default /var/lib/unheaded/pki   (older layout)
+        services/*.crt, hosts/*.crt, ca/ca.crt (ca/ is not entered).
+  Certificates are public, but Akira must be able to list and read them:
+  a directory it cannot list is reported UNREADABLE and votes failing
+  (a silent gap would read as "all certs fine").
 
   Uses percentage-based thresholds that scale with ANY cert lifetime:
-    33% remaining → trigger auto-rotation (normal lifecycle)
-    50% consumed without rotation → WARN (retry)
-    75% consumed without rotation → ERROR (escalate)
-    90% consumed without rotation → CRITICAL (consensus alert)
+    66% remaining → rotation due (reported, exit 0)
+    50% remaining → WARN (rotation may have failed), exit 1
+    25% remaining → ERROR, exit 1
+    10% remaining or expired → CRITICAL / EXPIRED, exit 2
+  No certificate found at all is exit 1: the check cannot vouch for anything.
 
   With aggressive defaults (1-day service certs):
-    Hour 16: rotation triggered (8 hours remaining = 33%)
-    Hour 18: WARN if not rotated (6 hours remaining)
-    Hour 21: ERROR (3 hours remaining)
+    Hour 8:  rotation due (16 hours remaining = 66%)
+    Hour 12: WARN if not rotated (12 hours remaining)
+    Hour 18: ERROR (6 hours remaining)
     Hour 24: expired — service isolated
 
   This also exercises the entire alerting + monitoring pipeline daily,
-  proving Akira consensus, Wotan system.outage.reports, and escalation
+  proving Akira consensus, Wotan system.health.reports, and escalation
   paths all work continuously — not just when something breaks months later.
-
-  On rotation trigger, Akira invokes rotate-service-cert.yaml
-  for the specific service. CertRotator picks up the new file
-  via fsnotify — zero downtime.
 
 steps:
   - name: check-all-certs
     action: shell
     command: |
-      PKI=/var/lib/unheaded/pki
+      PKI="${UNHEADED_TLS_DIR:-/etc/unheaded/tls}"
+      if [ ! -d "$PKI" ]; then
+        PKI="${UNHEADED_PKI_DIR:-/var/lib/unheaded/pki}"
+      fi
       NOW=$(date +%s)
       EXIT=0
 
-      for cert in ${PKI}/services/*.crt ${PKI}/hosts/*.crt; do
-        [ -f "$cert" ] || continue
-        NAME=$(basename "$cert" .crt)
+      # Leaf certificates: *.pem / *.crt that are neither keys nor the CA.
+      # find exits non-zero when a directory cannot be listed.
+      CERTS=$(find "$PKI" -mindepth 1 -maxdepth 2 -path "$PKI/ca" -prune -o -type f \
+        \( -name '*.pem' -o -name '*.crt' \) ! -name '*-key.pem' ! -name 'ca.pem' ! -name 'ca.crt' \
+        -print 2>/dev/null)
+      FIND_RC=$?
+      if [ $FIND_RC -ne 0 ]; then
+        echo "UNREADABLE: part of ${PKI} cannot be listed by uid $(id -u)"
+        EXIT=1
+      fi
+      if [ -z "$CERTS" ]; then
+        echo "NO CERTS FOUND under ${PKI}"
+        exit 1
+      fi
+
+      for cert in $(printf '%s\n' "$CERTS" | sort); do
+        NAME=$(basename "$cert")
+        NAME="${NAME%.*}"
 
         # Read both start and end dates to compute total lifetime
-        START=$(sudo openssl x509 -in "$cert" -noout -startdate 2>/dev/null | cut -d= -f2)
-        EXPIRY=$(sudo openssl x509 -in "$cert" -noout -enddate 2>/dev/null | cut -d= -f2)
+        START=$(openssl x509 -in "$cert" -noout -startdate 2>/dev/null | cut -d= -f2)
+        EXPIRY=$(openssl x509 -in "$cert" -noout -enddate 2>/dev/null | cut -d= -f2)
+        if [ -z "$START" ] || [ -z "$EXPIRY" ]; then
+          echo "UNREADABLE: ${NAME} (${cert})"
+          [ $EXIT -lt 1 ] && EXIT=1
+          continue
+        fi
         START_EPOCH=$(date -d "$START" +%s 2>/dev/null || echo 0)
         EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || echo 0)
 
@@ -71,17 +111,9 @@ steps:
         elif [ $PCT_LEFT -le 50 ]; then
           echo "WARN: ${NAME} (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left) — rotation may have failed"
           [ $EXIT -lt 1 ] && EXIT=1
-        elif [ $PCT_LEFT -le 33 ]; then
-          # This shouldn't trigger if 50% caught it, but handles edge cases
-          echo "ROTATE: ${NAME} (${PCT_LEFT}% remaining) — triggering auto-rotation"
         elif [ $PCT_LEFT -le 66 ]; then
-          echo "ROTATE: ${NAME} (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left) — triggering auto-rotation"
-          if [ -x /opt/unheaded/bin/run-runbook ]; then
-            /opt/unheaded/bin/run-runbook /opt/unheaded/runbooks/pki/rotate-service-cert.yaml \
-              --param service_name="${NAME}" --param host="$(hostname -s)" 2>&1 || true
-          else
-            echo "  (run-runbook not available — manual rotation needed)"
-          fi
+          # Read-only: report it; pki/rotate-service-cert.yaml rotates.
+          echo "ROTATE: ${NAME} (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left) — rotation due: pki/rotate-service-cert.yaml"
         else
           echo "OK: ${NAME} (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left)"
         fi
@@ -91,17 +123,27 @@ steps:
 
   - name: check-ca-cert
     action: shell
-    description: "CA cert uses same percentage-based thresholds — with 3-day default, rotation triggers at day 2"
+    description: "CA cert uses same percentage-based thresholds — with 3-day default, rotation is due at day 1"
     command: |
-      CA=/var/lib/unheaded/pki/ca/ca.crt
-      if [ ! -f "$CA" ]; then
-        echo "NO CA CERT FOUND"
+      PKI="${UNHEADED_TLS_DIR:-/etc/unheaded/tls}"
+      if [ ! -d "$PKI" ]; then
+        PKI="${UNHEADED_PKI_DIR:-/var/lib/unheaded/pki}"
+      fi
+      CA=""
+      for c in "$PKI/ca.pem" "$PKI/ca/ca.crt" "$PKI"/*/ca.pem; do
+        if [ -f "$c" ] && [ -r "$c" ]; then
+          CA="$c"
+          break
+        fi
+      done
+      if [ -z "$CA" ]; then
+        echo "NO CA CERT FOUND under ${PKI}"
         exit 2
       fi
 
       NOW=$(date +%s)
-      START=$(sudo openssl x509 -in "$CA" -noout -startdate | cut -d= -f2)
-      EXPIRY=$(sudo openssl x509 -in "$CA" -noout -enddate | cut -d= -f2)
+      START=$(openssl x509 -in "$CA" -noout -startdate | cut -d= -f2)
+      EXPIRY=$(openssl x509 -in "$CA" -noout -enddate | cut -d= -f2)
       START_EPOCH=$(date -d "$START" +%s)
       EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
 
@@ -112,7 +154,7 @@ steps:
       HOURS_LEFT=$(( SECS_LEFT / 3600 ))
 
       if [ $SECS_LEFT -le 0 ]; then
-        echo "EXPIRED: CA cert — ALL SERVICE CERTS INVALID"
+        echo "EXPIRED: CA cert ${CA} — ALL SERVICE CERTS INVALID"
         exit 2
       elif [ $PCT_LEFT -le 10 ]; then
         echo "CRITICAL: CA cert (${PCT_LEFT}% remaining, ${HOURS_LEFT}h) — ROTATION OVERDUE"
@@ -121,12 +163,9 @@ steps:
         echo "ERROR: CA cert (${PCT_LEFT}% remaining, ${HOURS_LEFT}h) — rotation failed?"
         exit 1
       elif [ $PCT_LEFT -le 66 ]; then
-        echo "ROTATE: CA cert (${PCT_LEFT}% remaining, ${HOURS_LEFT}h) — triggering CA rotation"
-        if [ -x /opt/unheaded/bin/run-runbook ]; then
-          /opt/unheaded/bin/run-runbook /opt/unheaded/runbooks/pki/generate-kingdom-certs.yaml 2>&1 || true
-        else
-          echo "  (run-runbook not available — manual CA rotation needed)"
-        fi
+        # Read-only: report it; pki/ca-compromise-root-rotation.yaml or
+        # pki/generate-kingdom-certs.yaml rotates the CA.
+        echo "ROTATE: CA cert (${PCT_LEFT}% remaining, ${HOURS_LEFT}h) — CA rotation due"
         exit 0
       else
         echo "OK: CA cert (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left)"
