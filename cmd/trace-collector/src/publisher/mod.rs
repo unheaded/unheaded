@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 //! Wotan Publisher - gRPC client for publishing events to the message bus.
 //!
 //! THE WHISPERING VOID speaks through Wotan, delivering kernel whispers
@@ -14,7 +16,9 @@
 //!
 //! - `batch` - Event batching logic
 //! - `grpc` - Low-level gRPC client
+//! - `auth` - trace-collector's Wotan service token (ADR-103 §6)
 
+pub mod auth;
 pub mod batch;
 pub mod grpc;
 
@@ -33,6 +37,7 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::timeout;
+use tonic::service::Interceptor as _;
 use tonic::transport::{Channel, Endpoint};
 use tracing::{debug, error, info, trace, warn};
 
@@ -229,6 +234,8 @@ pub struct WotanPublisher {
     sequence: AtomicU64,
     /// Statistics
     stats: Arc<PublisherStats>,
+    /// Service token for every request to Wotan
+    auth: auth::WotanAuth,
 }
 
 impl WotanPublisher {
@@ -258,6 +265,7 @@ impl WotanPublisher {
             state: RwLock::new(PublisherState::Disconnected),
             sequence: AtomicU64::new(0),
             stats: Arc::new(PublisherStats::new()),
+            auth: auth::WotanAuth::process(),
         };
 
         // Try initial connection
@@ -497,6 +505,10 @@ impl WotanPublisher {
 
     /// Actually perform the publish (simulated gRPC call)
     async fn do_publish(&self, _channel: Channel, payload: Vec<u8>, _sequence: u64) -> Result<u64> {
+        // The request carries trace-collector's service token (ADR-103 §6);
+        // a token that cannot be minted fails the publish here.
+        let _request = self.auth.clone().call(tonic::Request::new(()))?;
+
         // In a real implementation, this would use the generated gRPC client
         // For demonstration, we decode the batch to get the count
 

@@ -224,7 +224,7 @@ test-go: ## Run Go tests
 	@echo "Running Go tests..."
 	go test -v -race -cover ./...
 
-test-rust: test-rust-ebpf-common test-rust-ebpf-af-xdp test-rust-trace-collector test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc test-rust-zhend test-rust-doom-runner test-rust-shield ## Run Rust tests across all host-runnable crates
+test-rust: test-rust-ebpf-common test-rust-ebpf-af-xdp test-rust-svc-token test-rust-trace-collector test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc test-rust-zhend test-rust-doom-runner test-rust-shield ## Run Rust tests across all host-runnable crates
 	@echo "✓ All Rust test suites passed"
 
 # ebpf/ workspace targets bpfel-unknown-none — `cd ebpf && cargo test` fails
@@ -244,6 +244,9 @@ test-rust-ebpf-common: ## Run host-runnable tests in ebpf/{common,monad-common,p
 		echo "  $$crate:"; \
 		CARGO_TARGET_DIR=$(EBPF_HOST_TARGET_DIR) cargo test --quiet --manifest-path ebpf/$$crate/Cargo.toml || exit 1; \
 	done
+
+test-rust-svc-token: ## Run svc-token tests (EdDSA service tokens for the Rust Wotan clients, ADR-103)
+	cd crates/svc-token && cargo test
 
 test-rust-trace-collector: ## Run trace-collector tests
 	cd cmd/trace-collector && cargo test

@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# crates/svc-token — EdDSA service tokens for Rust binaries, byte for byte the
+# tokens Go's pkg/auth mints (ADR-103 §2): header {"alg":"EdDSA","typ":"JWT",
+# "kid":...}, claims sub/iss/aud/exp/iat/roles, 5-minute lifetime, key file =
+# the "UNHEADED ED25519 SEED" PEM unheaded-keygen writes, kid = first 16 hex
+# of SHA-256 over the raw public key. Used by cmd/trace-collector and
+# cmd/ebpf-collector to authenticate to Wotan (S-IRON-GATE Phase 7).
+#
+# Dependencies are already in the tree: ring 0.17 (Ed25519, SHA-256) and
+# base64 0.22 are cmd/ebpf-collector's (ureq -> rustls -> ring), same versions.
+# The cross-language check (mint here, verify with Go pkg/auth) is
+# tests/svctoken/crosslang_test.go, which runs examples/mint.rs.
+
+[package]
+name = "unheaded-svc-token"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+name = "svc_token"
+path = "src/lib.rs"
+
+[dependencies]
+ring = "0.17"
+base64 = "0.22"

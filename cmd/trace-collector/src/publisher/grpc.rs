@@ -15,9 +15,11 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
 use prost::Message;
+use tonic::service::Interceptor as _;
 use tonic::transport::{Channel, Endpoint};
 use tracing::{debug, error, info, warn};
 
+use super::auth::WotanAuth;
 use crate::metrics;
 use crate::proto::{HealthResponse, PublishResponse, TraceEventBatch};
 
@@ -100,6 +102,8 @@ pub struct WotanClient {
     /// Sequence number for requests
     #[allow(dead_code)]
     sequence: AtomicU64,
+    /// Service token for every request to Wotan (ADR-103 §6)
+    auth: WotanAuth,
 }
 
 impl WotanClient {
@@ -111,6 +115,7 @@ impl WotanClient {
             state: RwLock::new(ClientState::Disconnected),
             stats: Arc::new(ClientStats::new()),
             sequence: AtomicU64::new(0),
+            auth: WotanAuth::process(),
         };
 
         // Try initial connection
@@ -294,6 +299,10 @@ impl WotanClient {
         payload: Vec<u8>,
         sequence: u64,
     ) -> Result<PublishResponse> {
+        // The request carries trace-collector's service token (ADR-103 §6);
+        // a token that cannot be minted fails the publish here.
+        let _request = self.auth.clone().call(tonic::Request::new(()))?;
+
         // In a real implementation, this would use the generated gRPC client stub
         // For demonstration, we simulate the server response
 
