@@ -540,6 +540,14 @@ jobs:
           GOTOOLCHAIN: local
         run: ./scripts/well/test-migrate.sh
 
+      # S-WELL-SPRING Phase 1 (M-070): the live batch, rehearsed. A Well at
+      # 029 gets batch-apply's dry run, a part-way failure rolled back
+      # (Appendix A1), the real batch, its rollback and a re-apply.
+      - name: Migration batch apply and rollback
+        env:
+          GOTOOLCHAIN: local
+        run: ./scripts/well/test-batch-apply.sh
+
       # S-IRON-GATE Phase 3: api_keys (036) and pkg/auth's Well store.
       - name: API keys table and the Well key store
         run: ./scripts/well/test-api-keys.sh --with-go
