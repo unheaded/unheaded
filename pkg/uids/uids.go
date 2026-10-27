@@ -111,6 +111,10 @@ const (
 	// Heimdall is cmd/heimdall-daemon, the drift monitor (ADR-043, ADR-105):
 	// host unit unheaded-heimdall.service only (account unheaded-heimdall).
 	Heimdall = 16736
+	// BuildKey is the account that holds the evidence build key (ML-DSA-65
+	// seed, 0400) on the custody host and signs Sealed Casks and evidence
+	// packs with it (S-IRON-GATE Phase 13, FND-018). No service runs as it.
+	BuildKey = 16737
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -216,6 +220,7 @@ var Registry = map[string]int{
 	"anomaly":           Anomaly,
 	"unheaded-auth":     Auth,
 	"heimdall":          Heimdall,
+	"buildkey":          BuildKey,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

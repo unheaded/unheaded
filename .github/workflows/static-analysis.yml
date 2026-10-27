@@ -299,6 +299,23 @@ jobs:
       - run: ./scripts/ci-install-tools.sh "$RUNNER_TEMP/bin" cosign
       - run: COSIGN="$RUNNER_TEMP/bin/cosign" bash tests/release/verify_release_test.sh
 
+  sealed-cask-verify:
+    name: Sealed Cask signature round trip
+    # scripts/build-sealed-cask.sh signs the Binding Rune with a throwaway
+    # ML-DSA-65 key; cask-verify accepts it and refuses an appended byte, an
+    # unsigned cask and another key (S-IRON-GATE Steps 335-337). The tar
+    # hardening itself is pkg/sealedcask's tests and FuzzVerify.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
+      - run: bash tests/sealed-cask/round_trip_test.sh
+
   meta-gate:
     name: Gates can actually fail
     runs-on: ubuntu-latest

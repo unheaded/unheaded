@@ -26,7 +26,7 @@ func TestUsageHasAllSubcommands(t *testing.T) {
 	for _, sub := range []string{
 		"validate", "sign", "pubkey", "verify",
 		"verify-signature", "verify-iso", "verify-gates", "verify-custody",
-		"diff",
+		"diff", "cask",
 	} {
 		if !strings.Contains(out, sub) {
 			t.Errorf("usage output missing subcommand %q\nfull output:\n%s", sub, out)
@@ -59,7 +59,7 @@ func TestSubcommandRoutingTable(t *testing.T) {
 	for _, sub := range []string{
 		"validate", "sign", "pubkey", "verify",
 		"verify-signature", "verify-iso", "verify-gates", "verify-custody",
-		"diff",
+		"diff", "cask",
 	} {
 		rc, _, errs := runCLI(t, sub)
 		if rc != exitUsage || strings.Contains(errs, "unknown subcommand") {
