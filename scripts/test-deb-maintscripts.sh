@@ -79,7 +79,7 @@ expect "unpatched postinst runs the packaged keygen" \
 # build-all-debs.sh passes each service's identity and account, and every
 # service package depends on the one package that ships unheaded-keygen.
 expect "build-all-debs passes identity and account to deb_postinst" \
-	"$(grep -c 'deb_postinst "\$PKG_NAME" "\$svc" "\$SVC_USER"' "$REPO_ROOT/scripts/build-all-debs.sh")" "1"
+	"$(grep -c 'deb_postinst "\$PKG_NAME" "\$(identity_for "\$svc")" "\$SVC_USER"' "$REPO_ROOT/scripts/build-all-debs.sh")" "1"
 expect "service packages depend on unheaded-keygen" \
 	"$(grep -c '^Depends: libc6, unheaded-keygen (= \${VERSION})$' "$REPO_ROOT/scripts/build-all-debs.sh")" "1"
 
