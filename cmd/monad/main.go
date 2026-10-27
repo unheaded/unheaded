@@ -395,8 +395,18 @@ func (hs *HTTPServer) SetLogPublisher(p *logagg.Publisher) error {
 	return nil
 }
 
-// NewHTTPServer creates a new HTTP server for the Monad service
+// NewHTTPServer creates a new HTTP server for the Monad service, with auth
+// from the environment (AUTH_ENABLED, ADR-103). An auth configuration that
+// cannot be used is an error, so the service refuses to start.
 func NewHTTPServer(service *monad.Service, log *logger.Logger, addr string) (*HTTPServer, error) {
+	return newHTTPServer(service, log, addr, auth.LoadServiceAuthConfig("monad"))
+}
+
+// newHTTPServer is NewHTTPServer with an explicit auth configuration. With
+// auth on (S-IRON-GATE Phase 6) every route but /health, /ready and
+// /metrics needs a token from an AUTH_ALLOW_CALLERS caller (unheaded-cli,
+// dashboard-backend), and a write needs a write role.
+func newHTTPServer(service *monad.Service, log *logger.Logger, addr string, authCfg auth.ServiceAuthConfig) (*HTTPServer, error) {
 	if service == nil {
 		return nil, errors.New("service cannot be nil")
 	}
@@ -430,10 +440,10 @@ func NewHTTPServer(service *monad.Service, log *logger.Logger, addr string) (*HT
 	mux.HandleFunc("/api/v1/transactions", hs.transactionsHandler)
 	mux.HandleFunc("/api/v1/stats", hs.statsHandler)
 
-	// Auth middleware (activated via AUTH_ENABLED=true)
-	authCfg := auth.LoadServiceAuthConfig("monad")
-	var httpHandler http.Handler = mux
-	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+	httpHandler, err := auth.NewServiceHandler(mux, authCfg, auth.ServiceRoutes{})
+	if err != nil {
+		return nil, fmt.Errorf("auth: %w (see ADR-103)", err)
+	}
 	httpHandler = http.MaxBytesHandler(hs.loggingMiddleware(httpHandler), 10*1024*1024)
 	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("monad").Instrument(mux, httpHandler))
 
