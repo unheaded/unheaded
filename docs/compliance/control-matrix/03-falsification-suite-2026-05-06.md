@@ -1,6 +1,6 @@
 # Falsification Suite — Scientist's 6 Experiments + S8 Meta-Experiment
 
-> **Snapshot of 2026-05-06.** Rows citing Suricata, the legacy compliance engine, DataIsolationConfig or the Sentinel daemon refer to code deleted since (E1 sweep 2026-10-26). Re-mapping is M-108 (S-WELL-SPRING).
+> **Snapshot of 2026-05-06, before the 2026-10-26 source sweep. Rows that cite deleted code are historical. The live crosswalk is `compliance/catalog/controls.yaml`, rendered in `docs/compliance/SSP-generated.md`.** Deleted since: Suricata, the legacy compliance engine (`pkg/compliance/{engine.go,audit,controls,report,standards}`), DataIsolationConfig and `pii_mode`, the Sentinel daemon. Reviewed 2026-10-27 (M-108): [crosswalk review](../crosswalk-review-2026-10-27.md).
 
 **Date:** 2026-05-06
 **Author:** Scientist (with MoatGhost as primary executor on most runs)
