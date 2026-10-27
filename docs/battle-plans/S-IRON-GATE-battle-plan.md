@@ -676,37 +676,37 @@ For each `<svc>` in: zhen-agentd, protocol-api, kanban-app, timeguru, captain, a
 
 ### Dashboard-backend as the browser's BFF
 
-- [ ] **Step 186** [R] ~3m
+- [x] **Step 186** [R] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'HandleFunc|Handle\(|mux\.' cmd/dashboard-backend/internal/server/server.go | head -40 && grep -nE 'SameOriginOrAllowed|Upgrade' cmd/dashboard-backend/internal/server/*.go | grep -v _test | head
   ```
-- [ ] **Step 187** [W][CODE] ~15m: Tests `cmd/dashboard-backend/internal/server/session_test.go`: `POST /auth/login` (JSON username/password) proxies to the issuer (`AUTH_ISSUER_URL`), on 200 stores the access token server-side in a session store keyed by a random 32-byte id, sets cookie `unheaded_session` with `HttpOnly; Secure; SameSite=Strict; Path=/` (Secure dropped only with `-dev-plaintext`); `GET /auth/me` returns `{sub, roles}` from the session; `POST /auth/logout` deletes it; a write API without a session → 401; with an `operator` session → passes to the handler; with a `viewer` session on a write → 403; WebSocket upgrade requires the cookie after the existing Origin check; sessions expire with the token (`exp`) and the store evicts them; `/metrics`, `/health`, `/ready` open; static assets open.
-- [ ] **Step 188** [TEST][B] ~1m: Red
+- [x] **Step 187** [W][CODE] ~15m: Tests `cmd/dashboard-backend/internal/server/session_test.go`: `POST /auth/login` (JSON username/password) proxies to the issuer (`AUTH_ISSUER_URL`), on 200 stores the access token server-side in a session store keyed by a random 32-byte id, sets cookie `unheaded_session` with `HttpOnly; Secure; SameSite=Strict; Path=/` (Secure dropped only with `-dev-plaintext`); `GET /auth/me` returns `{sub, roles}` from the session; `POST /auth/logout` deletes it; a write API without a session → 401; with an `operator` session → passes to the handler; with a `viewer` session on a write → 403; WebSocket upgrade requires the cookie after the existing Origin check; sessions expire with the token (`exp`) and the store evicts them; `/metrics`, `/health`, `/ready` open; static assets open.
+- [x] **Step 188** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/dashboard-backend/... -run 'Session|Login|BFF' -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 189** [V] ~1m: Red.
-- [ ] **Step 190** [W][CODE] ~45m: `cmd/dashboard-backend/internal/server/session.go` (in-memory session store with mutex + eviction ticker; interface so a Well-backed store can follow), `auth_bff.go` (login/me/logout handlers, cookie middleware producing an `auth.Identity` from the session's token claims, re-verified against the issuer's JWKS via `auth.JWKSVerifier`), `act` claim: outgoing service calls use the backend's own `ServiceTokenMinter` and add header `X-Unheaded-On-Behalf-Of: <sub>` signed into the service token as claim `act` (extend `Mint(target, opts...)` with `WithActor(sub)`). CSRF: state-changing BFF routes require header `X-Requested-With: unheaded` (SameSite=Strict + custom header; document why in a comment).
-- [ ] **Step 191** [TEST][B] ~2m: Green
+- [x] **Step 189** [V] ~1m: Red.
+- [x] **Step 190** [W][CODE] ~45m: `cmd/dashboard-backend/internal/server/session.go` (in-memory session store with mutex + eviction ticker; interface so a Well-backed store can follow), `auth_bff.go` (login/me/logout handlers, cookie middleware producing an `auth.Identity` from the session's token claims, re-verified against the issuer's JWKS via `auth.JWKSVerifier`), `act` claim: outgoing service calls use the backend's own `ServiceTokenMinter` and add header `X-Unheaded-On-Behalf-Of: <sub>` signed into the service token as claim `act` (extend `Mint(target, opts...)` with `WithActor(sub)`). CSRF: state-changing BFF routes require header `X-Requested-With: unheaded` (SameSite=Strict + custom header; document why in a comment).
+- [x] **Step 191** [TEST][B] ~2m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/dashboard-backend/... ./pkg/auth/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 192** [V] ~1m: `ok`.
-- [ ] **Step 193** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 186-192: dashboard-backend BFF login, session cookie, on-behalf-of claim`.
-- [ ] **Step 194** [W][CODE] ~30m: `dashboard/` (vanilla JS): a login panel (username/password → `POST /auth/login` with `X-Requested-With`), the header shows `sub` and roles from `/auth/me`, logout button; every `fetch` to a write API adds `X-Requested-With: unheaded` and `credentials: 'same-origin'`; on 401 show the login panel. No token ever touches JS. Keep it in one new file `dashboard/js/auth.js` loaded by `dashboard/index.html`; `scripts/check-js-lint.sh` must pass.
-- [ ] **Step 195** [B] ~1m
+- [x] **Step 192** [V] ~1m: `ok`.
+- [x] **Step 193** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 186-192: dashboard-backend BFF login, session cookie, on-behalf-of claim`.
+- [x] **Step 194** [W][CODE] ~30m: `dashboard/` (vanilla JS): a login panel (username/password → `POST /auth/login` with `X-Requested-With`), the header shows `sub` and roles from `/auth/me`, logout button; every `fetch` to a write API adds `X-Requested-With: unheaded` and `credentials: 'same-origin'`; on 401 show the login panel. No token ever touches JS. Keep it in one new file `dashboard/js/auth.js` loaded by `dashboard/index.html`; `scripts/check-js-lint.sh` must pass.
+- [x] **Step 195** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-js-lint.sh 2>&1 | tail -2 && grep -c 'auth.js' dashboard/index.html
   ```
-- [ ] **Step 196** [V] ~1m: lint `[PASS]`, `1`.
-- [ ] **Step 197** [W][CODE] ~15m: RBAC `operator` on the compliance profile-switch POST (`compliance_profiles.go:16` comment says this is the gap): the handler requires role `operator` and records `sub` in the Well row it writes (`ADR-099 §5`); test asserts a `viewer` session gets 403 and the row has the actor.
-- [ ] **Step 198** [TEST][B] ~2m
+- [x] **Step 196** [V] ~1m: lint `[PASS]`, `1`.
+- [x] **Step 197** [W][CODE] ~15m: RBAC `operator` on the compliance profile-switch POST (`compliance_profiles.go:16` comment says this is the gap): the handler requires role `operator` and records `sub` in the Well row it writes (`ADR-099 §5`); test asserts a `viewer` session gets 403 and the row has the actor.
+- [x] **Step 198** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/dashboard-backend/... -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 199** [V] ~1m: `ok`.
-- [ ] **Step 200** [W] ~5m: compose `dashboard-backend`: `AUTH_ENABLED: "true"`, `AUTH_ISSUER_URL: http://auth:19020` (TLS in Phase 8 changes this to https), `AUTH_ALLOW_CALLERS: "unheaded-cli"`, `depends_on: [auth]`; unit `unheaded-dashboard.service`: the same via `Environment=`.
-- [ ] **Step 201** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 194-200: dashboard login UI, operator RBAC on profile switch, compose/unit`.
+- [x] **Step 199** [V] ~1m: `ok`.
+- [x] **Step 200** [W] ~5m: compose `dashboard-backend`: `AUTH_ENABLED: "true"`, `AUTH_ISSUER_URL: http://auth:19020` (TLS in Phase 8 changes this to https), `AUTH_ALLOW_CALLERS: "unheaded-cli"`, `depends_on: [auth]`; unit `unheaded-dashboard.service`: the same via `Environment=`.
+- [x] **Step 201** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 194-200: dashboard login UI, operator RBAC on profile switch, compose/unit`.
 
 ### Live proof of the BFF
 
@@ -720,7 +720,7 @@ For each `<svc>` in: zhen-agentd, protocol-api, kanban-app, timeguru, captain, a
   cd /home/govan/tmp/unheaded && PW=$(grep -oE 'dev password: .*' /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/gen-dev-keys.log | awk '{print $3}'); J=/tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/cj; curl -s -c $J -o /dev/null -w 'login=%{http_code}\n' -X POST http://127.0.0.1:20000/auth/login -H 'Content-Type: application/json' -H 'X-Requested-With: unheaded' -d "{\"username\":\"dev\",\"password\":\"$PW\"}" && curl -s -b $J http://127.0.0.1:20000/auth/me && echo && grep -c 'unheaded_session' $J && curl -s -b $J -o /dev/null -w 'write_with_session=%{http_code}\n' -X POST http://127.0.0.1:20000/api/v1/compliance/profile -H 'Content-Type: application/json' -H 'X-Requested-With: unheaded' -d '{"profile":"baseline"}'; rm -f $J
   ```
 - [ ] **Step 205** [V] ~1m: `login=200`, `/auth/me` shows `"sub":"dev"` and `operator`, cookie present, `write_with_session=` not 401/403 (200 or the handler's own validation code). Note the cookie lacks `Secure` here because compose is plaintext until Phase 8; the test in Step 187 pins that `Secure` is set whenever `-dev-plaintext` is off.
-- [ ] **Step 206** [TEST][B] ~1m: Browser-side token leak check: the token never reaches the page
+- [x] **Step 206** [TEST][B] ~1m: Browser-side token leak check: the token never reaches the page
   ```bash
   cd /home/govan/tmp/unheaded && grep -rnE 'access_token|localStorage|sessionStorage' dashboard/js/auth.js | grep -vE '^\s*//' | wc -l
   ```
@@ -734,26 +734,26 @@ For each `<svc>` in: zhen-agentd, protocol-api, kanban-app, timeguru, captain, a
 
 ### Kanban and wiki through the BFF
 
-- [ ] **Step 211** [W][CODE] ~20m: `cmd/kanban-app`: it is browser-facing on 20001 and today serves its own UI. Two options; [DECIDE]: RECOMMENDATION: kanban-app accepts the dashboard's session cookie by validating it against the same issuer JWKS? No: cookies are per-origin and 20001 ≠ 20000. Recommended: kanban-app gets the same BFF code (`pkg/bff`, extracted from Step 190 into a shared package) with its own login route and `AUTH_ISSUER_URL`; same for `wiki-server` writes (none today). Rationale: one code path; ADR-103 §4 names kanban and wiki as BFFs. Override ONLY if the dashboard is to proxy kanban (bigger change).
-- [ ] **Step 212** [W][CODE] ~25m: Extract `pkg/bff` from Step 190 (session store, cookie middleware, login/me/logout handlers parametrised by issuer URL and cookie name); dashboard-backend and kanban-app use it; `kanban/` JS gets the same `auth.js` (shared file under `dashboard/js/`, served by both; check how kanban serves static: `grep -n 'static' cmd/kanban-app/main.go | head -3`).
-- [ ] **Step 213** [TEST][B] ~3m
+- [x] **Step 211** [W][CODE] ~20m: `cmd/kanban-app`: it is browser-facing on 20001 and today serves its own UI. Two options; [DECIDE]: RECOMMENDATION: kanban-app accepts the dashboard's session cookie by validating it against the same issuer JWKS? No: cookies are per-origin and 20001 ≠ 20000. Recommended: kanban-app gets the same BFF code (`pkg/bff`, extracted from Step 190 into a shared package) with its own login route and `AUTH_ISSUER_URL`; same for `wiki-server` writes (none today). Rationale: one code path; ADR-103 §4 names kanban and wiki as BFFs. Override ONLY if the dashboard is to proxy kanban (bigger change).
+- [x] **Step 212** [W][CODE] ~25m: Extract `pkg/bff` from Step 190 (session store, cookie middleware, login/me/logout handlers parametrised by issuer URL and cookie name); dashboard-backend and kanban-app use it; `kanban/` JS gets the same `auth.js` (shared file under `dashboard/js/`, served by both; check how kanban serves static: `grep -n 'static' cmd/kanban-app/main.go | head -3`).
+- [x] **Step 213** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/bff/... ./cmd/dashboard-backend/... ./cmd/kanban-app/... -race -count=1 2>&1 | tail -4 && bash scripts/check-js-lint.sh 2>&1 | tail -1
   ```
-- [ ] **Step 214** [V] ~1m: `ok` x3, lint `[PASS]`.
+- [x] **Step 214** [V] ~1m: `ok` x3, lint `[PASS]`.
 - [ ] **Step 215** [TEST][B] ~5m: Kanban live: anonymous card write 401, session write ok, SSE stream still works unauthenticated for reads only if the kanban is meant to be publicly readable ([DECIDE] RECOMMENDATION: reads stay open, "Kanban board is public (optional auth)" per CLAUDE.md The Meta Moment; writes need `operator`).
   ```bash
   cd /home/govan/tmp/unheaded && docker compose up -d --build auth kanban-app && sleep 8 && curl -s -o /dev/null -w 'read=%{http_code}\n' http://127.0.0.1:20001/api/v1/tasks && curl -s -o /dev/null -w 'unauth_write=%{http_code}\n' -X POST http://127.0.0.1:20001/api/v1/tasks -H 'Content-Type: application/json' -d '{"title":"x"}'; docker compose stop auth kanban-app
   ```
 - [ ] **Step 216** [V] ~1m: `read=200`, `unauth_write=401`.
-- [ ] **Step 217** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 211-216: pkg/bff shared; kanban writes need a session`.
-- [ ] **Step 218** [TEST][B] ~12m: Whole-tree regression against the baseline
+- [x] **Step 217** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 211-216: pkg/bff shared; kanban writes need a session`.
+- [x] **Step 218** [TEST][B] ~12m: Whole-tree regression against the baseline
   ```bash
   cd /home/govan/tmp/unheaded && go test ./... 2>&1 | grep -E '^(FAIL|---)' | tee /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/p6.txt | tail -10; echo "FAIL lines: $(grep -c '^FAIL' /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/p6.txt) vs baseline $(grep -c '^FAIL' docs/battle-plans/progress/S-IRON-GATE-baseline.txt)"
   ```
-- [ ] **Step 219** [V] ~1m: FAIL count equals the baseline (zero NEW). Any new failure is a service whose tests assumed Noop auth: fix the test fixture to set `AUTH_ENABLED` unset or supply a token; never weaken the gate.
-- [ ] **Step 220** [W][DOC-UPDATE] ~8m: `wiki/Service-Auth.md`: the BFF section (cookie, `X-Requested-With`, `act` claim); `wiki/Service-Dashboard.md` and `wiki/Service-Kanban.md` (or the pages `grep -l 20000 wiki/*.md` finds): login paragraph; `CLAUDE.md` "Authentication Framework" section: replace the HS256/Noop description with the ADR-103 shape and the env names (keep it to the facts).
-- [ ] **Step 221** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 218-220: regression clean after the auth wave; docs`.
+- [x] **Step 219** [V] ~1m: FAIL count equals the baseline (zero NEW). Any new failure is a service whose tests assumed Noop auth: fix the test fixture to set `AUTH_ENABLED` unset or supply a token; never weaken the gate.
+- [x] **Step 220** [W][DOC-UPDATE] ~8m: `wiki/Service-Auth.md`: the BFF section (cookie, `X-Requested-With`, `act` claim); `wiki/Service-Dashboard.md` and `wiki/Service-Kanban.md` (or the pages `grep -l 20000 wiki/*.md` finds): login paragraph; `CLAUDE.md` "Authentication Framework" section: replace the HS256/Noop description with the ADR-103 shape and the env names (keep it to the facts).
+- [x] **Step 221** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 218-220: regression clean after the auth wave; docs`.
 - [ ] **Step 222** [V]: **PHASE 6 EXIT GATE**
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/compliance/check-service-auth.sh 2>&1 | tail -3; grep -rn 'AUTH_JWT_KEY' docker-compose.yml deploy/systemd debian 2>/dev/null | wc -l; git status --short | wc -l

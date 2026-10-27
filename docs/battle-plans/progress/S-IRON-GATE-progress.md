@@ -94,3 +94,18 @@ dashboard-backend, kanban-app, wotan); Step 185's expected list should include a
 **LIVE:** `make binaries && sudo scripts/gen-dev-keys.sh` FIRST (containers must own their key files); rebuild
 kanban-app together with timeguru (else the board loses its timeline); recreate timeguru, captain, architect,
 micromanager, monad, sophia, sword; probe anonymous write 401 and /health 200 each; update + restart zhen-agentd unit.
+
+### Phase 6 BFF merged (7b7ae15c)
+
+`pkg/bff`: login/me/logout, swappable session store, cookie authenticator (re-checks the stored token each request),
+CSRF header, login rate limit (60/min per client; behind traefik all users share the BFF's address), `AuthorizeOutgoing`;
+fake issuer in `pkg/bff/bfftest`. `pkg/auth`: `ServiceRoutes.Authenticators`, `WithPlainHTTPIssuer`, `RoleViewer` in the
+default read policies, `Mint(..., WithActor(sub))` (user in the service token's `act` claim; no caller yet). One
+`auth.js` at `pkg/bff/static/auth.js`, served at `/auth/auth.js` by both backends (wraps fetch for the CSRF header).
+The dashboard requires a login for every `/api` read and WebSocket; the board stays publicly readable (Step 215).
+Profile switch `POST /api/v1/compliance/profile` writes as `config_admin`: 503 until `WELL_CONFIG_ADMIN_PASSWORD` is
+decided. The BFF uses unheaded-auth's password `/login`: another OIDC provider would need a code flow (ADR-103 note).
+ADR-099 §5's signed change record: the Well history row records who and why but is not signed (follow-up).
+check-service-auth: akira, wotan remain (Steps 209/222 should expect those two until Akira's step).
+**LIVE 202-205, 208-210, 215-216:** `make binaries && sudo scripts/gen-dev-keys.sh`, then recreate `auth` (now
+`-audiences unheaded,dashboard-backend,kanban-app`), `dashboard-backend`, `kanban-app` (kanban only after the E-A batch).
