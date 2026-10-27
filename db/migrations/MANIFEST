@@ -57,6 +57,7 @@ postgres         035_app_auth_role.sql
 unheaded_app     036_app_api_keys.sql
 unheaded_app     037_app_zhen_agent_runs_scheduled.sql
 unheaded_app     038_app_ledger_read.sql superuser
+unheaded_app     041_app_kanban_reads_agent_runs.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and

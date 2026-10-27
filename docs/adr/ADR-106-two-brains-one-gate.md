@@ -113,7 +113,10 @@ renewed every 5 minutes. Two attempts per card. A card id that does not
 fit `^[a-z0-9][a-z0-9-]{0,59}$` is skipped, never rewritten; an existing
 branch or worktree is never overwritten. Commits are unsigned, authored by
 Zhenai, with `Zhen-*` trailers; Stevie accepts or rejects with the review
-CLI (one-way, audited).
+CLI (one-way, audited). The Kanban card modal shows a card's newest run
+(branch, review note, review reason, mode, status) read as `app_kanban`
+through migration 038's column grant (S-CHAMPION-HARDENING Phase 12;
+`wiki/Service-Kanban-App.md`); cards of type `runbook` are never eligible.
 
 ### 7. One GPU, and overnight guards
 

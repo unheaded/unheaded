@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/board.css">
     <link rel="stylesheet" href="css/cards.css">
     <link rel="stylesheet" href="css/archive.css">
+    <link rel="stylesheet" href="css/runbooks.css">
 </head>
 <body>
     <div id="app">
@@ -50,6 +51,15 @@
                 <button class="btn btn-secondary archive-tab-btn" id="archTabCompleted">Completed</button>
             </div>
             <div id="archiveList" class="archive-list"></div>
+        </div>
+
+        <!-- Runbooks (hidden by default): runbooks/MANIFEST.sha256, cards from runbooks, step k/n -->
+        <div id="runbooksView" class="runbooks-view">
+            <div class="archive-header">
+                <h3>Runbooks</h3>
+                <span class="runbooks-note" id="runbooksNote"></span>
+            </div>
+            <div id="runbooksList" class="runbooks-list"></div>
         </div>
 
         <!-- Sort & Filter Toolbar -->
@@ -102,6 +112,7 @@
                            placeholder="Search cards..." autocomplete="off">
                 </div>
                 <button class="btn btn-secondary btn-archive" id="archiveViewBtn">Archive</button>
+                <button class="btn btn-secondary btn-archive" id="runbooksViewBtn">Runbooks</button>
                 <button class="btn btn-ghost" id="clearFiltersBtn" title="Clear all filters">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -293,6 +304,14 @@
                         <h3>Linked Commits</h3>
                         <div id="detailCommits" class="commits-list"></div>
                     </div>
+                    <div class="detail-runbook" id="detailRunbookSection" hidden>
+                        <h3>Runbook</h3>
+                        <p><code id="detailRunbookRef"></code> <span id="detailRunbookProgress" class="runbook-progress"></span></p>
+                    </div>
+                    <div class="detail-agent-run" id="detailAgentRunSection" hidden>
+                        <h3>Agent Run</h3>
+                        <dl class="agent-run-fields" id="detailAgentRun"></dl>
+                    </div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-danger" id="detailDelete">Delete</button>
@@ -339,5 +358,6 @@
     <script src="js/board.js"></script>
     <script src="js/app.js"></script>
     <script src="js/archive.js"></script>
+    <script src="js/runbooks.js"></script>
 </body>
 </html>

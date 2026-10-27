@@ -17,10 +17,24 @@ The self-hosting proof of concept. Displays Unheaded development progress using 
 | `GET/PUT/DELETE /api/v1/tasks/{id}` | One card; `POST …/{id}/restore` brings back a deleted card |
 | `GET /api/v1/tasks/{deleted,archived,completed}` | Filtered views |
 | `GET /api/v1/timeline`, `/api/v1/timeline/cards` | Timeline from Timeguru, as cards |
+| `GET /api/v1/runbooks` | The committed runbooks (`runbooks/MANIFEST.sha256`): front matter, `manifest_ok`, latest step progress |
+| `POST /api/v1/tasks/from-runbook` | `{"runbook": "category/name"}`: a card of type `runbook`, written to the store like any other |
 | `GET /api/v1/stream` (SSE), `/ws` | Live updates to every open board |
 | `/health`, `/ready`, `/metrics`, `/api/v1/health` | Probes, Prometheus |
 
 Card changes publish to `tasks.*` on Wotan ([[Fae Chamber Contracts|Fae-Chamber-Contracts]]).
+
+`GET /api/v1/tasks/{id}` also carries `agent_run` (the card's newest `zhen_agent_runs` row) and, for a runbook card, `runbook` and `runbook_progress`.
+
+## Runbooks view and agent runs
+
+The **Runbooks** button lists every runbook in `runbooks/MANIFEST.sha256` (category/name, status, risk, steps; a file changed since the manifest is flagged). **Create task** makes a card of type `runbook` through the same store as every other card; the runbook travels in a fenced `runbook` block in the card description (`kanban_tasks` has no metadata column). The view reads `KANBAN_RUNBOOKS_DIR` (default `runbooks`, `/app/runbooks` in the image) through an `os.Root`, cached 30 s.
+
+**Step progress.** `scripts/run-runbook.py` publishes one event per step on Wotan `runbooks.progress` (`{runbook, step, total, name, state, dry_run, ts}`; state running, ok, failed, manual, skipped, stopped, done) when `RUNBOOK_PROGRESS_WOTAN` names Wotan's HTTP address. It joins as `runbook-runner` (on `configs/wotan.yaml` `topics.auto_approve`); a refused join or a down Wotan turns progress off for that run and never changes its outcome. The Champion's `runbook_execute` sets `RUNBOOK_REF`, so a live run of the private verified copy is still named. The board keeps the newest event per runbook in memory and forwards each as SSE `runbook.progress`: the list and an open card show `step k/n`. Without Wotan the board shows no progress.
+
+**Agent run block.** The card modal shows the newest `zhen_agent_runs` row for the card: run id, mode (interactive, overnight, scheduled), status and check, the `zhen/<card>` branch with a copyable `git log --oneline zhen/<card>` (a scheduled run has none), head commit, the review note's path on the agentd host, and Stevie's review reason. `app_kanban` reads only those columns (migration 041; not the error text, cost or lease). Before 041 is applied the read is refused and cards show no agent run (one warning in the log).
+
+ADR-038's commit-trailer hook is dormant: `zhen_agent_runs` links agent commits to cards; `scripts/kanban-git-link.sh` stays a manual scanner for `Task:` trailers.
 
 ## Where cards come from
 
@@ -32,9 +46,9 @@ kanban-app itself carries no cards (until 2026-10-23 it seeded an empty store fr
 
 ## Hardening
 
-Per-IP token bucket (120 req/min, burst 30), 1 MB request limit, strict field validation, restrictive CORS, CSP and frame headers, `X-Request-ID` on every request. Code: `main.go` (handlers), `middleware.go`, `pgstore.go` (The Well), `store.go` (SQLite cache), `timeline.go`, `wotan.go`; front end in `kanban/`.
+Per-IP token bucket (120 req/min, burst 30), 1 MB request limit, strict field validation, restrictive CORS, CSP and frame headers, `X-Request-ID` on every request. Code: `main.go` (handlers), `runbooks.go` (runbooks, progress, agent runs), `middleware.go`, `pgstore.go` (The Well), `store.go` (SQLite cache), `timeline.go`, `wotan.go`; front end in `static/` (embedded in the binary; `kanban/` at the repo root is an older scaffold).
 
-Decisions: ADR-020 (bug fixes), ADR-025 (mobile), ADR-038 (git audit trail), ADR-041 (timeline sync), ADR-044 (task detail / status query).
+Decisions: ADR-020 (bug fixes), ADR-025 (mobile), ADR-038 (git audit trail, dormant), ADR-041 (timeline sync), ADR-044 (task detail / status query), ADR-106 §6 (agent runs).
 
 ---
 

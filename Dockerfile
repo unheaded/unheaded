@@ -394,6 +394,9 @@ RUN addgroup -S -g 16729 kanban-app && \
 WORKDIR /app
 
 COPY --from=builder /build/bin/kanban-app /app/kanban-app
+# The Runbooks view lists these (KANBAN_RUNBOOKS_DIR defaults to ./runbooks);
+# read-only, root-owned, the manifest says which bytes are the committed ones.
+COPY runbooks /app/runbooks
 
 RUN mkdir -p /data && chown 16729:16729 /data
 
