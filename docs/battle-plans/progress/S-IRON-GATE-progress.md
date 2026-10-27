@@ -236,7 +236,7 @@ build-all-debs. `scripts/apt-repo.sh` (init/include/list/check/serve), `deploy/n
 SHA256SUMS.gpg (dpkg-sig is gone from Debian), draft runbook `runbooks/deploy/apt-repo-publish.yaml`. qdrant,
 text-embeddings-inference, open-webui pinned by digest. CHANGELOG: Unreleased rebuilt as v0.2.0-alpha (untagged), the
 false v0.1.0 lines corrected. **STUCK Step 363:** `vllm/vllm-openai:latest-rocm` does not exist (404) and west has no
-such image. **Live finding (register entry added):** west serves an old unsigned repo on 0.0.0.0:18888 with autoindex;
+such image. **Live finding (register FND-026):** west serves an old unsigned repo on 0.0.0.0:18888 with autoindex;
 `/conf/distributions` and `/db/` answer 200 on 192.168.69.184. After the east upgrade (Step 376: read `unheaded-keygen`
 for the plan's common package), switch demo-start/demo-reset/kingdom-startup/rolling-upgrade and the prometheus.yml
 comment to the new unit names. Daemon rename edge case covered by the runbook's verify step.

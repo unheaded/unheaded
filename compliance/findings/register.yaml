@@ -439,7 +439,9 @@ findings:
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
 
-  - source: "host-probe:west:legacy-apt-repo-18888"
+  - id: FND-026
+    title: West serves an old unsigned apt repo on 0.0.0.0:18888 with autoindex; its conf/ and db/ are readable on the LAN.
+    verify: curl -s -o /dev/null -w '%{http_code}' http://<west LAN address>:18888/conf/distributions is not 200, and only the signed reprepro repo (deploy/nginx/unheaded-apt.conf) answers on 18888
     host: west
     severity: medium
     class: host
