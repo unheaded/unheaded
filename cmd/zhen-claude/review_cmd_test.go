@@ -184,3 +184,24 @@ func TestReview_ListShow(t *testing.T) {
 		t.Errorf("show: %d %s", code, out)
 	}
 }
+
+// A scheduled runbook run (zhen-agentd -scheduler) has no branch and is
+// never accepted or rejected (S-CHAMPION-HARDENING Step 160).
+func TestReview_ScheduledRunRefused(t *testing.T) {
+	repo, _, m, _, evs := reviewFixture(t)
+	ctx := context.Background()
+	s := zhenagent.Run{ID: zhenagent.NewRunID(), CardID: "sched-1", Family: "service-health-sweep", LeaseUntil: time.Now().Add(time.Hour)}
+	if err := m.BeginScheduled(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Finish(ctx, s.ID, zhenagent.Outcome{Status: zhenagent.StatusSucceeded}); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errs := review(t, "-repo", repo, "accept", s.ID)
+	if code != 1 || !strings.Contains(errs, "scheduled") {
+		t.Fatalf("exit %d: %s", code, errs)
+	}
+	if len(*evs) != 0 {
+		t.Error("an audit row for a refused review")
+	}
+}

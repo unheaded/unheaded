@@ -71,7 +71,7 @@ func main() {
 		projectRoot  = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
 		allowedRoots = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
 		actionStore  = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
-		kanbanStore  = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; requires WELL_DSN env). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
+		kanbanStore  = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; DSN from WELL_KANBAN_DSN, else WELL_DSN). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
 		rateRPS      = flag.Float64("rate-limit", defaultRateLimitRPS, "per-IP requests/sec (0 disables)")
 		rateBurst    = flag.Int("rate-burst", defaultRateBurst, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
 		noAuth       = flag.Bool("no-auth", false, "serve without authentication; only with a loopback -host and AUTH_ENABLED unset (dev). Without it, zhen-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or a trust dir (AUTH_TRUST_DIR) is set")
@@ -79,6 +79,10 @@ func main() {
 		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
 		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
 		askTokens    = flag.Bool("ask-tokens", false, "legacy: return pending-confirmation tokens in /api/v1/agent/ask traces. Only for a listener no model can reach; by default /ask queues (-confirm-queue) or denies such writes and returns no token")
+		schedOn      = flag.Bool("scheduler", false, "run approved runbooks on the schedule in -schedules: one Kanban card and one zhen_agent_runs row (mode scheduled; DSN from env WELL_APP_ZHEN_DSN, in memory without it) per run, every call through the Champion gate; heartbeat gauge zhen_scheduler_heartbeat_timestamp_seconds (replaces raft/zhen_scheduler.py, ADR-028)")
+		schedFile    = flag.String("schedules", envOr("ZHEN_SCHEDULES", "configs/zhen-schedules.yaml"), "with -scheduler: the schedule file (env ZHEN_SCHEDULES); read-only to the daemon")
+		schedState   = flag.String("schedules-state", os.Getenv("ZHEN_SCHEDULES_STATE"), "with -scheduler: where run-time schedule changes (POST /api/v1/scheduler/add|remove|pause) persist (env ZHEN_SCHEDULES_STATE); empty keeps them until restart")
+		metricsAddr  = flag.String("metrics-addr", os.Getenv("ZHEN_METRICS_ADDR"), "also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20105'; the API stays on -host")
 	)
 	var wf workerFlags
 	registerWorkerFlags(flag.CommandLine, &wf)
@@ -92,6 +96,10 @@ func main() {
 		if err := applyOvernightDefaults(&wf, set, defaultStateDir()); err != nil {
 			fatal("overnight: %v", err)
 		}
+	}
+
+	if *schedOn && (wf.overnight || wf.once) {
+		fatal("-scheduler runs with the listener, not with -overnight or -once")
 	}
 
 	// The listener needs auth (M-019). Checked before anything starts;
@@ -246,6 +254,48 @@ func main() {
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
 	mux.Handle("/api/v1/tool/exec", instrument("/api/v1/tool/exec", http.HandlerFunc(srv.handleToolExec)))
 	mux.Handle("/api/v1/openapi.json", instrument("/api/v1/openapi.json", http.HandlerFunc(srv.handleOpenAPI)))
+	srv.registerScheduler(mux)
+
+	schedCtx, stopSched := context.WithCancel(context.Background())
+	defer stopSched()
+	schedDone := make(chan struct{})
+	if *schedOn {
+		schedLog := slog.New(slog.NewJSONHandler(os.Stderr, nil)).With("service", "zhen-agentd", "component", "scheduler")
+		champ, err := pool.get(rootAbs)
+		if err != nil {
+			fatal("scheduler: champion init: %v", err)
+		}
+		runs, closeRuns := openScheduledStore(schedCtx, schedLog)
+		defer closeRuns()
+		var pub claudebridge.JSONPublisher
+		if aud.wotan != nil {
+			pub = aud.wotan
+		}
+		sch, err := newScheduler(schedCtx, schedulerConfig{Champion: champ, Path: *schedFile, StatePath: *schedState, Runs: runs,
+			Events: agentdRunEvents{aud: aud, log: schedLog}, Pub: pub, Log: schedLog})
+		if err != nil {
+			fatal("scheduler: %v", err)
+		}
+		srv.attachScheduler(sch)
+		fmt.Fprintf(os.Stderr, "zhen-agentd: scheduler on: %d job(s) from %s\n", len(sch.view().Jobs), sch.cfg.Path)
+		go func() { defer close(schedDone); sch.loop(schedCtx, defaultSchedulerTick) }()
+	} else {
+		close(schedDone)
+	}
+	if *metricsAddr != "" {
+		mm := http.NewServeMux()
+		mm.Handle("/metrics", prom.Handler())
+		msrv := &http.Server{Addr: *metricsAddr, Handler: mm, ReadHeaderTimeout: 5 * time.Second}
+		go func() {
+			fmt.Fprintf(os.Stderr, "zhen-agentd: /metrics also on http://%s\n", *metricsAddr)
+			if err := msrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				// Not fatal: the API still serves; the scrape reads down
+				// and ZhenSchedulerStalled says so.
+				fmt.Fprintf(os.Stderr, "zhen-agentd: -metrics-addr %s: %v\n", *metricsAddr, err)
+			}
+		}()
+		defer func() { _ = msrv.Close() }()
+	}
 
 	// Outer middleware chain (innermost-last):
 	//   rate-limit  →  auth  →  mux
@@ -298,10 +348,13 @@ func main() {
 	// Graceful shutdown: the worker first (a card in flight is cancelled,
 	// nothing partial is committed), then the listener.
 	stopWorker()
-	select {
-	case <-workerDone:
-	case <-time.After(shutdownTimeout):
-		fmt.Fprintln(os.Stderr, "zhen-agentd: worker did not stop in time")
+	stopSched() // a runbook in flight is cancelled; its run is recorded failed
+	for name, done := range map[string]chan struct{}{"worker": workerDone, "scheduler": schedDone} {
+		select {
+		case <-done:
+		case <-time.After(shutdownTimeout):
+			fmt.Fprintf(os.Stderr, "zhen-agentd: %s did not stop in time\n", name)
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
@@ -323,9 +376,9 @@ func buildKanbanStore(kind string) (champion.KanbanStore, error) {
 	case "memory", "":
 		return nil, nil
 	case "pg", "postgres", "postgresql":
-		dsn := strings.TrimSpace(os.Getenv("WELL_DSN"))
+		dsn := kanbanDSN()
 		if dsn == "" {
-			return nil, fmt.Errorf("kanban-store=pg requires WELL_DSN env var")
+			return nil, fmt.Errorf("kanban-store=pg requires WELL_KANBAN_DSN or WELL_DSN env var")
 		}
 		warnIfInsecureDSN(dsn)
 		db, err := sql.Open("postgres", dsn)
@@ -351,6 +404,16 @@ func buildKanbanStore(kind string) (champion.KanbanStore, error) {
 		return store, nil
 	}
 	return nil, fmt.Errorf("unknown kanban-store %q (supported: memory, pg)", kind)
+}
+
+// kanbanDSN is the kanban store's DSN: WELL_KANBAN_DSN (the board's own
+// writer, app_kanban: the only role that may INSERT kanban_tasks, which
+// the scheduler's per-run cards need) when set, else WELL_DSN.
+func kanbanDSN() string {
+	if v := strings.TrimSpace(os.Getenv("WELL_KANBAN_DSN")); v != "" {
+		return v
+	}
+	return strings.TrimSpace(os.Getenv("WELL_DSN"))
 }
 
 // warnIfInsecureDSN logs a stderr warning when WELL_DSN looks like it's
@@ -430,6 +493,7 @@ type server struct {
 	vorURL    string
 	llamaURL  string
 	ready     *readyTracker
+	sched     *scheduler // nil: -scheduler off; /api/v1/scheduler/* answer 503
 }
 
 // championPool caches *champion.Champion instances keyed by absolute
@@ -446,6 +510,18 @@ type championPool struct {
 	// (RT-04); it ends with the daemon.
 	gcCtx   context.Context
 	startGC func(context.Context, *champion.Champion) // tests replace it
+	// sched, when set, is what schedule_update changes (-scheduler).
+	sched champion.ScheduleUpdater
+}
+
+// setScheduler hands schedule_update to u on every Champion, cached or new.
+func (p *championPool) setScheduler(u champion.ScheduleUpdater) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.sched = u
+	for _, c := range p.cache {
+		c.WithScheduleUpdater(u)
+	}
 }
 
 func newChampionPool(store champion.ActionStore, kanban champion.KanbanStore) *championPool {
@@ -474,6 +550,9 @@ func (p *championPool) get(root string) (*champion.Champion, error) {
 	}
 	if p.kanban != nil {
 		c = c.WithKanbanStore(p.kanban)
+	}
+	if p.sched != nil {
+		c = c.WithScheduleUpdater(p.sched)
 	}
 	if p.gcCtx != nil && p.startGC != nil {
 		p.startGC(p.gcCtx, c)

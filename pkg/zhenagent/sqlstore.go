@@ -20,7 +20,10 @@ import (
 // deadline.
 type SQLStore struct{ DB *sql.DB }
 
-var _ Store = SQLStore{}
+var (
+	_ Store          = SQLStore{}
+	_ ScheduledStore = SQLStore{}
+)
 
 // eligibleTypes as a SQL array, in a stable order.
 var eligibleTypeList = []string{"bug", "docs", "task", "tech-debt"}
@@ -181,7 +184,7 @@ func (s SQLStore) ExpireLeases(ctx context.Context, now time.Time) ([]Run, error
 	return scanRuns(rows)
 }
 
-const runCols = `id, card_id, claimed_at, lease_until, status, mode, family, branch, base_commit,
+const runCols = `id, card_id, claimed_at, lease_until, status, mode, family, COALESCE(branch, ''), COALESCE(base_commit, ''),
 	COALESCE(head_commit, ''), route_summary::text, claude_nano_usd, COALESCE(review_reason, ''), reviewed_at, error`
 
 func scanRuns(rows *sql.Rows) ([]Run, error) {
@@ -248,5 +251,28 @@ func (s SQLStore) Review(ctx context.Context, id, status, reason string) error {
 	if reason != "" {
 		r = truncate(reason, 1000)
 	}
-	return s.exec1(ctx, `UPDATE zhen_agent_runs SET status = $2, review_reason = $3, reviewed_at = now() WHERE id = $1 AND status = 'succeeded'`, id, status, r)
+	return s.exec1(ctx, `UPDATE zhen_agent_runs SET status = $2, review_reason = $3, reviewed_at = now() WHERE id = $1 AND status = 'succeeded' AND mode <> 'scheduled'`, id, status, r)
+}
+
+// BeginScheduled implements ScheduledStore: one transaction inserts the
+// run (born claimed, 032's trigger) and moves it to running. The card must
+// exist (foreign key); the scheduler creates it first.
+func (s SQLStore) BeginScheduled(ctx context.Context, r Run) error {
+	if err := checkScheduled(r, time.Now()); err != nil {
+		return err
+	}
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family)
+		VALUES ($1, $2, $3, 'scheduled', $4)`, r.ID, r.CardID, r.LeaseUntil, r.Family); err != nil {
+		return fmt.Errorf("zhenagent: insert scheduled run: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE zhen_agent_runs SET status = 'running' WHERE id = $1 AND status = 'claimed'`, r.ID); err != nil {
+		return fmt.Errorf("zhenagent: start scheduled run: %w", err)
+	}
+	return tx.Commit()
 }

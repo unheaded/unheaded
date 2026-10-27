@@ -92,6 +92,10 @@ var MutatingTools = map[string]bool{
 	"kanban_update":   true,
 	"runbook_execute": true,
 	"model_switch":    true, // ADR-060: kills+respawns llama-server subprocess
+	// zhen-agentd's runbook schedule (add, remove, pause): the jobs it
+	// names run unattended, so a change needs a trusted justification
+	// like any other mutation (S-CHAMPION-HARDENING Step 165).
+	"schedule_update": true,
 	// Lich MCP (S-LICH-AWAKENS, ADR-098): writes the findings register, so it
 	// is mutating and — with no retrieval justification from a model — always
 	// pending-confirmation (Rule 2). Never auto-publishes.

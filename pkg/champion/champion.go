@@ -92,6 +92,7 @@ type Champion struct {
 	confirmStore  *confirmStore   // lazy-init via confirms(); guarded by confirmMu
 	runCheck      *RunCheckConfig // nil: run_check refused (runcheck.go)
 	branchSandbox *branchSandbox  // nil: off (branchsandbox.go)
+	scheduler     ScheduleUpdater // nil: schedule_update refused (schedule.go)
 	beforeOpen    func()          // test hook: runs between validation and the open (Step 68)
 }
 

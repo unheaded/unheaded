@@ -1,0 +1,89 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: zhen-scheduler-stalled
+  description: Zhen's scheduler stopped ticking (ZhenSchedulerStalled); scheduled runbooks are not running
+  owner: zhenai
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  S-CHAMPION-HARDENING Phase 8. zhen-agentd -scheduler runs the approved
+  runbooks in /etc/unheaded/zhen/schedules.yaml (configs/zhen-schedules.yaml)
+  and sets zhen_scheduler_heartbeat_timestamp_seconds on every 60 s tick,
+  paused or not. Prometheus scrapes it as job zhen-agentd on west's
+  WireGuard address (-metrics-addr, env ZHEN_METRICS_ADDR).
+
+  The alert fires in three cases, which the steps below tell apart in order:
+  zhen-agentd is not running; it runs without -scheduler (or without
+  -metrics-addr, so the scrape reads down); or it runs and answers /metrics
+  but its ticker is stuck (the gauge is present and stale).
+
+  A paused scheduler (the web UI's `emergency stop`) still ticks and does not
+  fire this. A scheduled job that fails does not fire it either: that is a
+  failed zhen_agent_runs row (mode scheduled) and its card in review.
+
+steps:
+  - name: what-is-firing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname="ZhenSchedulerStalled"}' |
+        python3 -c 'import json,sys; [print(r["metric"].get("instance", "-"), r["metric"]["alertstate"]) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Is the alert firing, and for which instance (none: the series is absent)"
+
+  - name: scrape-target
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=up{job="zhen-agentd"}' |
+        python3 -c 'import json,sys; [print(r["metric"]["instance"], "up" if r["value"][1] == "1" else "DOWN") for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Prometheus reaches zhen-agentd's /metrics; DOWN means the daemon is not running or runs without -metrics-addr"
+
+  - name: unit
+    action: shell
+    command: "systemctl status zhen-agentd --no-pager"
+    description: "The unit is active and its command line has -scheduler and -schedules"
+
+  - name: recent-log
+    action: shell
+    command: "journalctl -u zhen-agentd --since -30min --no-pager | tail -40"
+    description: "scheduler on: N job(s) at start, scheduler_run_* lines since; a scheduler: error means the schedule file did not load (a job naming a draft runbook refuses the whole file)"
+
+  - name: heartbeat-age
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=time() - zhen_scheduler_heartbeat_timestamp_seconds' |
+        python3 -c 'import json,sys; [print(r["metric"].get("instance", "-"), "%.0fs since the last tick" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Seconds since the last tick; no output means the gauge is absent (no -scheduler), a large value with the target up means the ticker is stuck"
+
+  - name: schedule-list
+    action: manual
+    command: |
+      curl -s -H "X-API-Key: $ZHEN_AGENTD_API_KEY" http://127.0.0.1:20105/api/v1/scheduler/list | python3 -m json.tool
+    description: "MANUAL (needs an agentd API key). last_tick, running (a job in flight), paused, each job's next_due and last error. 503 means the daemon runs without -scheduler"
+
+  - name: restart-agentd
+    action: manual
+    command: "sudo systemctl restart zhen-agentd"
+    description: "MANUAL. Only once the steps above show the unit is up but the ticker is stuck, or after fixing the schedule file. A run in flight is cancelled and recorded failed"
+
+verification:
+  - name: scheduler-ticking
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(ALERTS{alertname="ZhenSchedulerStalled",alertstate="firing"}) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("stalled:", v); sys.exit(v != "0")'
+
+rollback:
+  - name: nothing-to-roll-back
+    action: manual
+    command: "echo 'Every shell step reads; the only change is restarting zhen-agentd, which is safe to repeat.'"
+    description: "MANUAL. Nothing here changes state except the restart"

@@ -85,6 +85,66 @@ Claude Code performs against a fresh build; CI runs it. The Python server
 (`raft/zhen_mcp_server.py`) was retired 2026-10-27 (S-CHAMPION-HARDENING
 Phase 10).
 
+## Scheduler
+
+Zhen runs approved runbooks on a schedule from inside `zhen-agentd`
+(`-scheduler`), so every run meets the Champion gate, the runbook manifest and
+the audit log, under the daemon's own unit and nologin user. The Python
+scheduler (`raft/zhen_scheduler.py`, ADR-028) was retired 2026-10-27
+(S-CHAMPION-HARDENING Phase 8).
+
+**Unit.** `deploy/systemd/zhen-agentd.service` runs
+`-scheduler -schedules /etc/unheaded/zhen/schedules.yaml
+-schedules-state /var/lib/zhen-agentd/schedules-state.json`; `-metrics-addr`
+(env `ZHEN_METRICS_ADDR`, west: `[fd00:dead:beef::1]:20105`) serves `/metrics`
+alone on the WireGuard address for Prometheus (job `zhen-agentd`); the API
+stays on `127.0.0.1:20105`.
+
+**Config.** `configs/zhen-schedules.yaml`, installed as
+`/etc/unheaded/zhen/schedules.yaml` (`root:zhen-agentd`, 0640; the daemon never
+writes it):
+
+```yaml
+version: 1
+jobs:
+  - name: service-health-sweep          # [a-z0-9-]{1,64}
+    runbook: observe/service-health-sweep # category/name under runbooks/
+    every: 6h                           # <N>m|<N>h (5m..744h), daily@HH:MM, weekly@sun@HH:MM
+    enabled: true                       # default
+```
+
+A job may name only a runbook whose `metadata.status` is `approved`, or that
+carries no status (ADR-024 "Authorship and approval"). A draft or stub makes
+the file refuse to load, and the status is checked again before every run.
+Times are the host's local time; an interval counts from the last run, with no
+catch-up burst after downtime.
+
+**Adding a job.** Edit the file and restart the daemon, or type
+`schedule <runbook> every <interval>` in the web UI (`unschedule <runbook>`,
+`list schedules`, `emergency stop` pauses everything, `resume schedules`). The
+UI calls `POST /api/v1/scheduler/{add,remove,pause}` (and `list`) on loopback;
+the changes are the mutating tool `schedule_update`, so they need a direct-user
+justification (a model cannot schedule anything) and persist to
+`-schedules-state`.
+
+**Where runs show up.** Each run is one Kanban card (type `scheduled-run`,
+owner `zhen-scheduler`; done on success, review on failure, the worker never
+takes it) and one `zhen_agent_runs` row with `mode = 'scheduled'` (migration
+037; no branch, never reviewed). A runbook that exits non-zero, including a
+failed `verification:` section, is a failed run with its output's tail in
+`error`. Cards need `-kanban-store=pg` with `WELL_KANBAN_DSN` (the board's
+writer, `app_kanban`); run rows need `WELL_APP_ZHEN_DSN`. Without them a run
+still happens and is kept in memory (`GET /api/v1/scheduler/list` shows the
+last run of each job); `zhen_scheduler_record_failures_total` counts what the
+Well refused. Events also go to `audit_events` and Wotan `zhen.agent.runs`
+(`-audit-well`, `-audit-wotan`).
+
+**Heartbeat.** Every 60 s tick, paused or not, sets
+`zhen_scheduler_heartbeat_timestamp_seconds` and publishes
+`zhen.scheduler.heartbeat`. `ZhenSchedulerStalled`
+(`monitoring/prometheus/rules/zhen.yml`) fires when it is absent or stale for
+15 minutes; runbook `runbooks/observe/zhen-scheduler-stalled.yaml`.
+
 ## Vision
 
 Zhen is designed to progressively build itself and Unheaded:
@@ -102,7 +162,7 @@ Zhen is designed to progressively build itself and Unheaded:
 
 ---
 
-*Last updated: 2026-10-23*
+*Last updated: 2026-10-27*
 
 ---
 

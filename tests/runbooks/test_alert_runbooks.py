@@ -20,6 +20,7 @@ RUNBOOKS = {
     "runbooks/observe/high-latency.yaml": ("TraceCollectorHighLatency",),
     "runbooks/observe/log-pipeline.yaml": ("JournalNotShipping", "JournalShipErrors", "VectorDown", "LogSpam", "LogErrorSpam", "LogSilence"),
     "runbooks/security/kev-feed-stale.yaml": ("KEVFeedStale", "KEVFeedExpired", "KEVPollerDown"),
+    "runbooks/observe/zhen-scheduler-stalled.yaml": ("ZhenSchedulerStalled",),
     # The ci-develop SLO's own runbook (policy.yaml runbook:), no hand rule.
     "runbooks/observe/ci-red.yaml": (),
 }

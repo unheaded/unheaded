@@ -41,6 +41,7 @@ func TestWellAgentRuns_Conformance(t *testing.T) {
 		}
 	}
 	conformance(t, SQLStore{DB: db}, add, "w-")
+	scheduledConformance(t, SQLStore{DB: db}, add, "w-")
 
 	// The card moved and kept its commits as a JSON array.
 	var status, commits string

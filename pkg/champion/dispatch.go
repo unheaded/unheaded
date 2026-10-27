@@ -146,6 +146,14 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 		}
 		return c.RunbookExecute(ctx, name, dryRun)
 
+	case "schedule_update":
+		// zhen-agentd's scheduler: {"op": "add"|"remove"|"pause", ...}.
+		op, err := requireString(tc.Args, "op")
+		if err != nil {
+			return nil, err
+		}
+		return c.ScheduleUpdate(ctx, op, tc.Args)
+
 	case "model_switch":
 		// ADR-060: swap which model llama-server is serving on :8081.
 		// Args: {"key": "<allowlisted-model-key>"}. The allowlist is
@@ -176,7 +184,7 @@ var dispatchable = map[string]bool{
 	"read_file": true, "write_file": true, "patch_file": true,
 	"kanban_create": true, "kanban_update": true, "kanban_list": true,
 	"runbook_list": true, "runbook_show": true, "runbook_execute": true,
-	"run_check": true, "model_switch": true,
+	"run_check": true, "model_switch": true, "schedule_update": true,
 }
 
 // GateError wraps a ToolCallDecision when AcceptToolCall returns a

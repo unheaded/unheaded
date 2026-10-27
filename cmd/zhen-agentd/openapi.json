@@ -130,6 +130,500 @@
     }
   },
   "paths": {
+    "/api/v1/scheduler/add": {
+      "post": {
+        "summary": "Add or replace a scheduled runbook job",
+        "description": "Schedules an approved runbook (status approved, or no status) on a cadence: <N>m or <N>h (5m..744h), daily@HH:MM, weekly@<sun..sat>@HH:MM. A bare runbook name resolves to its one category/name. Persists to -schedules-state. Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct caller sends a direct-user justification; an agent loop cannot.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerJWT": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "every",
+                  "justification"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "justification": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Reference"
+                    }
+                  },
+                  "emitted_by": {
+                    "type": "string"
+                  },
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]{1,64}$"
+                  },
+                  "runbook": {
+                    "type": "string",
+                    "description": "category/name under runbooks/; defaults to name"
+                  },
+                  "every": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No justification, or an unknown field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the gate (an agent loop's call is denied or queued)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The change was refused (unapproved runbook, bad interval, unknown job)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "zhen-agentd runs without -scheduler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/scheduler/remove": {
+      "post": {
+        "summary": "Remove a scheduled job",
+        "description": "Removes a job from the live schedule (a job from the schedule file is recorded as removed in -schedules-state; the file is not written). Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct caller sends a direct-user justification; an agent loop cannot.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerJWT": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "justification"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "justification": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Reference"
+                    }
+                  },
+                  "emitted_by": {
+                    "type": "string"
+                  },
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No justification, or an unknown field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the gate (an agent loop's call is denied or queued)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The change was refused (unapproved runbook, bad interval, unknown job)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "zhen-agentd runs without -scheduler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/scheduler/pause": {
+      "post": {
+        "summary": "Pause or resume every scheduled job",
+        "description": "The web UI's emergency stop. A paused scheduler still beats (zhen_scheduler_heartbeat_timestamp_seconds) and starts no job; a run in flight finishes. Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct caller sends a direct-user justification; an agent loop cannot.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerJWT": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "paused",
+                  "justification"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "justification": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Reference"
+                    }
+                  },
+                  "emitted_by": {
+                    "type": "string"
+                  },
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "paused": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No justification, or an unknown field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the gate (an agent loop's call is denied or queued)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The change was refused (unapproved runbook, bad interval, unknown job)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "zhen-agentd runs without -scheduler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/scheduler/list": {
+      "get": {
+        "summary": "The live schedule",
+        "description": "Jobs with their cadence, source (config or added), next due time and last run (id, status, error); whether the scheduler is paused or running a job; the last tick.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "runbook": {
+                            "type": "string"
+                          },
+                          "every": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "config",
+                              "added"
+                            ]
+                          },
+                          "next_due": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "last_run": {
+                            "type": "string"
+                          },
+                          "last_status": {
+                            "type": "string"
+                          },
+                          "last_error": {
+                            "type": "string"
+                          },
+                          "last_started": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "paused": {
+                      "type": "boolean"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "last_tick": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "config": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "zhen-agentd runs without -scheduler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "The live schedule",
+        "description": "Jobs with their cadence, source (config or added), next due time and last run (id, status, error); whether the scheduler is paused or running a job; the last tick.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "runbook": {
+                            "type": "string"
+                          },
+                          "every": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "config",
+                              "added"
+                            ]
+                          },
+                          "next_due": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "last_run": {
+                            "type": "string"
+                          },
+                          "last_status": {
+                            "type": "string"
+                          },
+                          "last_error": {
+                            "type": "string"
+                          },
+                          "last_started": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "paused": {
+                      "type": "boolean"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "last_tick": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "config": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "zhen-agentd runs without -scheduler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Liveness probe",
