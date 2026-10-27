@@ -319,7 +319,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-007 sqlite (date-gated) and M-006 register
 
-- [ ] **Step 51** [B] ~5m: Bump `modernc.org/sqlite` only on/after 2026-10-28; otherwise print SKIP and leave a dated TODO line in the progress file.
+- [x] **Step 51** [B] ~5m: Bump `modernc.org/sqlite` only on/after 2026-10-28; otherwise print SKIP and leave a dated TODO line in the progress file.
   ```bash
   cd /home/govan/tmp/unheaded && if [ "$(date -u +%F)" \> "2026-10-27" ]; then go get modernc.org/sqlite@v1.61.0 && go mod tidy && go build ./... && bash scripts/check-dependency-baseline.sh | tail -1 && go test $(go list -deps ./... | grep -q modernc.org/sqlite && go list -f '{{if .Deps}}{{.ImportPath}}{{end}}' ./cmd/... ./pkg/... | head -400) -count=1 2>&1 | grep -E '^(FAIL|ok)' | sort | uniq -c | tail -3; else echo "SKIP: cooldown until 2026-10-28; re-run Step 51 next session"; fi
   ```

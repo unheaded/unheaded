@@ -19,7 +19,7 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 | M-004 | "Gates can actually fail" cancelled at 25 min every run; measure and set timeout-minutes, or split the provocation into two jobs | PLANS SPRINT-AUDIT; next.md S21 | static-analysis.yml:276 | P | N | S |
 | M-005 | Nightly drift-detect (terragrunt-action) fails 5/5 on main: delete or self-host | next.md S13 | .github/workflows/drift-detect.yml | CLOSED 2026-10-27 S24 (decision 1: deleted; 6 compliance docs annotated) | N | S |
 | M-006 | Register the gitleaks-job failure as a finding or close with evidence after M-001 (untriaged row in ADR-098) | SEC untriaged | compliance/findings/register.yaml | NS | N | S |
-| M-007 | modernc.org/sqlite 1.60.1→1.61.0 after 2026-10-28 cooldown | next.md S16 | go.mod:44 | NS | N | S |
+| M-007 | modernc.org/sqlite 1.60.1→1.61.0 after 2026-10-28 cooldown | next.md S16 | go.mod:44 | CLOSED 2026-10-27 S24 (1.61.0 one day inside the cooldown, on Stevie's word) | N | S |
 | M-008 | develop→staging promotion backlog (1062 commits since 2026-09-24); then staging→main first promotion + signed tag, GitHub default branch develop + protect main | ADR S-15/S-16; PLANS B-23/B-18 | STAGING-PROMOTION-LOG.md | P | Y: promote on your word; GitHub settings are yours | M |
 
 ### E02 — PUBLIC-REPO SECURITY POSTURE + DATED FINDINGS  (tier b, size M, 12 items)
