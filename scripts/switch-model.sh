@@ -55,6 +55,8 @@ fi
 LLAMA_BIN="${LLAMA_BIN:-/home/govan/tmp/unheaded/llama.cpp/build/bin/llama-server}"
 LLAMA_HOST="${LLAMA_HOST:-127.0.0.1}"
 LLAMA_PORT="${LLAMA_PORT:-8081}"
+# A port, not a pattern: llama_pid matches it inside an awk regex.
+[[ "$LLAMA_PORT" =~ ^[0-9]{1,5}$ ]] || { echo "LLAMA_PORT must be a port number, got '$LLAMA_PORT'" >&2; exit 2; }
 LLAMA_THREADS="${LLAMA_THREADS:-6}"
 MODELS_DIR="${MODELS_DIR:-/var/zhen/models}"
 
@@ -94,10 +96,15 @@ MODEL_NAME[deepseek]="deepseek-coder-v2-lite-instruct"
 MODEL_NAME[deepseek-cpu]="deepseek-coder-v2-lite-cpu-moe"
 MODEL_NAME[qwen-coder-14b]="qwen2.5-coder-14b-instruct"
 
-# PID of the llama-server listening on LLAMA_PORT, or nothing.
+# PID of the llama-server listening on LLAMA_PORT, or nothing (exit 0 either
+# way: under set -e/pipefail a no-match must not end the script).
+# The port is matched exactly at the end of ss's local-address field
+# (127.0.0.1:8081, [::]:8081, *:8081). Unanchored, ":3901" also matched a
+# listener on ":39017", and --stop killed that unrelated process.
 llama_pid() {
-    ss -lntp 2>/dev/null | awk -v p=":${LLAMA_PORT}" '$4 ~ p {print $0}' \
-        | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2
+    { ss -lntp 2>/dev/null || true; } \
+        | awk -v p=":${LLAMA_PORT}\$" '$4 ~ p {print $0}' \
+        | { grep -oE 'pid=[0-9]+' || true; } | head -1 | cut -d= -f2
 }
 
 # Stop the llama-server on LLAMA_PORT and wait until the PROCESS has exited,

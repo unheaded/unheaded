@@ -69,7 +69,7 @@ echo "  ✓ vor :9876"
 #    pkg/champion's three-rule gate (T6b closed).
 GATED_FLAG="${1:-}"
 if [[ "$GATED_FLAG" == "-gated" ]]; then
-    if ! ss -lnt | grep -q ':20105'; then
+    if ! ss -lnt | awk '$4 ~ /:20105$/ {f=1} END {exit !f}'; then
         echo "[2/3] Starting cmd/zhen-agentd on :20105 (mutation gating)..."
         cd "$HOME/tmp/unheaded"
         AGENTD_LOG="$("$LOGPATH" zhen-agentd)"
@@ -96,7 +96,7 @@ else
 fi
 
 # 3. Start the Python web UI.
-if ss -lnt 2>/dev/null | grep -q ':20103'; then
+if ss -lnt 2>/dev/null | awk '$4 ~ /:20103$/ {f=1} END {exit !f}'; then
     echo "[3/3] Web UI already bound on :20103 — leaving alone (use 'pkill -f zhen_app.py' to restart)"
 else
     echo "[3/3] Starting Zhen Web UI on :20103..."
@@ -147,7 +147,7 @@ curl -s http://localhost:9876/api/health 2>/dev/null \
 curl -s http://localhost:20103/health 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Web UI:    {d[\"status\"]} (ready={d[\"rag_ready\"]}, well_connected={d[\"well_connected\"]})')" \
     2>/dev/null || echo "Web UI: NOT READY"
-if ss -lnt 2>/dev/null | grep -q ':20105'; then
+if ss -lnt 2>/dev/null | awk '$4 ~ /:20105$/ {f=1} END {exit !f}'; then
     curl -s http://localhost:20105/health 2>/dev/null \
         | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Daemon:    {d[\"status\"]} (mutation gating ON)')" \
         2>/dev/null || echo "Daemon: present but not responding"
