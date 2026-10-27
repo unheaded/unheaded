@@ -270,8 +270,11 @@ func TestCORS_WildcardOrigin(t *testing.T) {
 
 	handler.ServeHTTP(rec, req)
 
-	if rec.Header().Get("Access-Control-Allow-Origin") != "http://any-origin.com" {
-		t.Error("CORS Allow-Origin header not set for wildcard")
+	// A wildcard allow-list answers "*", never the reflected origin: a
+	// reflected origin plus Allow-Credentials let any site make credentialed
+	// requests (TestCORS_WildcardNeverAllowsCredentials).
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("Allow-Origin for wildcard = %q, want *", got)
 	}
 }
 
