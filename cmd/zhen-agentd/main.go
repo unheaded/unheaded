@@ -287,11 +287,21 @@ func main() {
 		mm.Handle("/metrics", prom.Handler())
 		msrv := &http.Server{Addr: *metricsAddr, Handler: mm, ReadHeaderTimeout: 5 * time.Second}
 		go func() {
-			fmt.Fprintf(os.Stderr, "zhen-agentd: /metrics also on http://%s\n", *metricsAddr)
-			if err := msrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				// Not fatal: the API still serves; the scrape reads down
-				// and ZhenSchedulerStalled says so.
-				fmt.Fprintf(os.Stderr, "zhen-agentd: -metrics-addr %s: %v\n", *metricsAddr, err)
+			// Not fatal, and retried: the WireGuard address may come up
+			// after the daemon. Meanwhile the API serves and the scrape
+			// reads down (ZhenSchedulerStalled says so).
+			for {
+				fmt.Fprintf(os.Stderr, "zhen-agentd: /metrics also on http://%s\n", *metricsAddr)
+				err := msrv.ListenAndServe()
+				if err == nil || errors.Is(err, http.ErrServerClosed) {
+					return
+				}
+				fmt.Fprintf(os.Stderr, "zhen-agentd: -metrics-addr %s: %v (retrying in 30s)\n", *metricsAddr, err)
+				select {
+				case <-schedCtx.Done():
+					return
+				case <-time.After(30 * time.Second):
+				}
 			}
 		}()
 		defer func() { _ = msrv.Close() }()
