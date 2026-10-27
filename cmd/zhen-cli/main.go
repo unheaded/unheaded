@@ -13,13 +13,19 @@
 // reads one question, prints one answer, exits 0.
 //
 // Phase 1 (shipped 2026-05-03): chat + /help + /exit + /clear + /health.
-// Phase 2 (HTTP-only slice, this file as of 2026-05-06): /runbook list,
-// /runbook show, /runbook exec (or bare /runbook <name>), and /source —
-// all routed through cmd/zhen-agentd /api/v1/tool/exec or vor topics.
-// Phase 2b (deferred): /recall + /remember, both requiring PG plumbing
-// (zhen_conversations + zhen_memories tables).
-// Phase 3 (polish): readline, tab completion, daemon-down fallback,
-// /confirm for pending Champion tokens.
+// Phase 2 (HTTP-only slice, 2026-05-06): /runbook list, /runbook show,
+// /runbook exec (or bare /runbook <name>), and /source — routed through
+// cmd/zhen-agentd /api/v1/tool/exec or vor topics.
+// Phase 2b (2026-10-27, S-CHAMPION-HARDENING Step 209): /recall and
+// /remember through zhen-agentd's /api/v1/memory/* (agentd holds The
+// Well's DSN; this binary has no database driver).
+// Phase 3 (2026-10-27, Steps 209/213): /confirm <token>, /model [key]
+// (list from agentd's /api/v1/models, swap through model_switch), and line
+// editing with history (lineedit.go). Tab completion is not done.
+//
+// Auth: ZHEN_API_KEY (or the older ZHEN_AGENTD_API_KEY), else api_key in
+// ~/.config/unheaded/zhen-cli.conf (mode 0600, refused otherwise), sent to
+// zhen-agentd as Authorization: Bearer and X-API-Key.
 //
 // T6b closure (Phase 3 in ADR-059): every mutation slash command in
 // this CLI hits cmd/zhen-agentd /api/v1/tool/exec, which dispatches
@@ -27,12 +33,11 @@
 // the path automatically. The CLI inherits T6b closure by routing,
 // not by reimplementation.
 //
-// Deliberately stdlib-only — same posture as cmd/zhen-rag. No third-
-// party readline yet; that's Phase 3 polish.
+// No third-party readline: lineedit.go is a small editor over bufio with
+// raw mode from golang.org/x/sys/unix (already a module dependency).
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -159,8 +164,11 @@ type session struct {
 	vorURL    string
 	llamaURL  string
 	agentdURL string
-	agentdKey string // X-API-Key for zhen-agentd (ZHEN_AGENTD_API_KEY); "" = none
+	agentdKey string // API key for zhen-agentd (loadAPIKey); "" = none
 	model     string
+
+	out    io.Writer // nil: os.Stdout
+	errOut io.Writer // nil: os.Stderr
 
 	client *http.Client
 	index  *vorquery.Index // vor topic names, built on first ask
@@ -188,10 +196,14 @@ func main() {
 		vorURL:    envOr("VOR_URL", defaultVorURL),
 		llamaURL:  envOr("LLAMA_URL", defaultLlamaURL),
 		agentdURL: envOr("ZHEN_AGENTD_URL", defaultAgentdURL),
-		agentdKey: os.Getenv("ZHEN_AGENTD_API_KEY"),
 		model:     envOr("RAG_MODEL", defaultModel),
 		client:    &http.Client{Timeout: httpTimeout},
 	}
+	key, err := loadAPIKey(os.Getenv, defaultConfPath())
+	if err != nil {
+		fatal("%v", err)
+	}
+	s.agentdKey = key
 
 	// Pipe / one-shot mode: stdin not a tty OR -q given. Single Q&A, exit.
 	if *oneShot != "" {
@@ -214,26 +226,28 @@ func main() {
 	// Interactive mode.
 	s.banner()
 
-	// Honour Ctrl-C cleanly — exit 0 like /exit.
+	// Honour Ctrl-C cleanly — exit 0 like /exit. While a line is being
+	// edited the terminal is raw and Ctrl-C arrives as a byte instead
+	// (readLine returns errInterrupt); the terminal is restored either way.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
+		restoreTerminal()
 		fmt.Fprintln(os.Stderr)
 		s.dim("zhen-cli: signal received, exiting.")
 		os.Exit(0)
 	}()
 
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1 MiB line cap for pasted code
+	read := newLineReader(os.Stdin, os.Stdout)
 	for {
-		s.prompt()
-		if !scanner.Scan() {
+		raw, err := read(s.prompt())
+		if err != nil {
 			fmt.Fprintln(os.Stderr)
 			s.dim("zhen-cli: goodbye.")
 			return
 		}
-		line := strings.TrimSpace(scanner.Text())
+		line := strings.TrimSpace(raw)
 		if line == "" {
 			continue
 		}
@@ -250,22 +264,21 @@ func main() {
 // banner prints the welcome message on session start.
 func (s *session) banner() {
 	if s.color {
-		fmt.Printf("%s%sZhenai CLI%s — interactive terminal (ADR-059 Phase 2)\n", clrBold, clrCyan, clrReset)
+		fmt.Fprintf(s.w(), "%s%sZhenai CLI%s — interactive terminal (ADR-059)\n", clrBold, clrCyan, clrReset)
 	} else {
-		fmt.Println("Zhenai CLI — interactive terminal (ADR-059 Phase 2)")
+		fmt.Fprintln(s.w(), "Zhenai CLI — interactive terminal (ADR-059)")
 	}
-	fmt.Printf("  retrieval: %s   inference: %s   model: %s\n",
+	fmt.Fprintf(s.w(), "  retrieval: %s   inference: %s   model: %s\n",
 		s.vorURL, s.llamaURL, s.model)
-	fmt.Println("  /help for commands, /exit to quit (Ctrl-C also works).")
+	fmt.Fprintln(s.w(), "  /help for commands, /exit to quit (Ctrl-C also works).")
 }
 
-// prompt prints the input prompt without a trailing newline.
-func (s *session) prompt() {
+// prompt returns the input prompt.
+func (s *session) prompt() string {
 	if s.color {
-		fmt.Printf("%s%s>%s ", clrBold, clrGreen, clrReset)
-	} else {
-		fmt.Print("> ")
+		return clrBold + clrGreen + ">" + clrReset + " "
 	}
+	return "> "
 }
 
 // handleSlash dispatches /exit-style commands. Returns true to terminate
@@ -296,11 +309,14 @@ func (s *session) handleSlash(line string) bool {
 		s.handleRunbook(parts[1:])
 	case "/source":
 		s.handleSource(parts[1:])
-	case "/recall", "/remember":
-		// Phase 2b: deferred. These two need PG access (zhen_conversations,
-		// zhen_memories) which would pull lib/pq into the CLI; ADR-059
-		// flags this as Phase 2b. Print a clear deferral.
-		s.warn(cmd + ": Phase 2b — requires DB plumbing per ADR-059. Use the web UI for now.")
+	case "/recall":
+		s.handleRecall(strings.TrimSpace(strings.TrimPrefix(line, parts[0])))
+	case "/remember":
+		s.handleRemember(strings.TrimSpace(strings.TrimPrefix(line, parts[0])))
+	case "/confirm":
+		s.handleConfirm(parts[1:])
+	case "/model":
+		s.handleModel(parts[1:])
 	default:
 		s.warn("unknown command: " + cmd + "  (try /help)")
 	}
@@ -319,7 +335,7 @@ func (s *session) handleSlash(line string) bool {
 // Champion's three-rule gate evaluates each call. runbook_execute is
 // the only mutating one — the daemon may respond with status
 // "pending_confirmation" and a pending_token; the CLI surfaces both
-// and instructs the operator (Phase 3 will add /confirm <token>).
+// and how to redeem it (/confirm <token>).
 func (s *session) handleRunbook(args []string) {
 	if len(args) == 0 || args[0] == "list" {
 		resp, err := s.toolExec("runbook_list", map[string]any{})
@@ -382,7 +398,7 @@ func (s *session) handleSource(args []string) {
 		trust = "canonical"
 	}
 	s.dim(fmt.Sprintf("[%s] %s/%s — %s", trust, t.Category, t.Name, t.Title))
-	fmt.Println(clipContent(t.Content, s.maxChars))
+	fmt.Fprintln(s.w(), clipContent(t.Content, s.maxChars))
 }
 
 // printToolExecResponse renders a toolExecResponse with severity
@@ -394,12 +410,12 @@ func (s *session) printToolExecResponse(tool string, resp *toolExecResponse) {
 		// fall back to JSON otherwise. Keep it compact.
 		switch v := resp.Result.(type) {
 		case string:
-			fmt.Println(v)
+			fmt.Fprintln(s.w(), v)
 		case nil:
 			s.ok(fmt.Sprintf("%s: ok (no result body)", tool))
 		default:
 			b, _ := json.MarshalIndent(v, "", "  ")
-			fmt.Println(string(b))
+			fmt.Fprintln(s.w(), string(b))
 		}
 	case "pending_confirmation":
 		s.warn(fmt.Sprintf("%s: requires confirmation — Champion gate Rule 2.", tool))
@@ -408,8 +424,8 @@ func (s *session) printToolExecResponse(tool string, resp *toolExecResponse) {
 		}
 		if resp.PendingToken != "" {
 			s.dim("  pending_token: " + resp.PendingToken)
+			s.dim("  to run it: /confirm " + resp.PendingToken)
 		}
-		s.dim("  Phase 3 will add /confirm <token>; for now, use the web UI.")
 	case "denied":
 		s.errf("%s: denied — %s", tool, resp.Reason)
 	case "unknown", "used", "expired", "error":
@@ -417,7 +433,7 @@ func (s *session) printToolExecResponse(tool string, resp *toolExecResponse) {
 	default:
 		s.warn(fmt.Sprintf("%s: unhandled status %q", tool, resp.Status))
 		b, _ := json.MarshalIndent(resp, "", "  ")
-		fmt.Println(string(b))
+		fmt.Fprintln(s.w(), string(b))
 	}
 }
 
@@ -427,15 +443,7 @@ func (s *session) printToolExecResponse(tool string, resp *toolExecResponse) {
 func (s *session) toolExec(tool string, args map[string]any) (*toolExecResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
-	body, err := json.Marshal(toolExecRequest{
-		Tool:      tool,
-		Args:      args,
-		EmittedBy: "zhen-cli",
-		Justification: []reference{{
-			Topic: "user-typed-" + tool, Category: "user-action", SourceKind: "user-action",
-			SourceTrust: "direct-user", SourceLabel: "zhen-cli",
-		}},
-	})
+	body, err := json.Marshal(s.toolExecBody(tool, args))
 	if err != nil {
 		return nil, err
 	}
@@ -445,9 +453,7 @@ func (s *session) toolExec(tool string, args map[string]any) (*toolExecResponse,
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if s.agentdKey != "" {
-		req.Header.Set("X-API-Key", s.agentdKey)
-	}
+	s.setAuth(req)
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("zhen-agentd unreachable: %w", err)
@@ -465,25 +471,43 @@ func (s *session) toolExec(tool string, args map[string]any) (*toolExecResponse,
 	return &out, nil
 }
 
+// toolExecBody is a /api/v1/tool/exec request for a command the user typed:
+// direct-user, Champion's Rule 2 escape (Rules 1 and 3 still apply).
+func (s *session) toolExecBody(tool string, args map[string]any) toolExecRequest {
+	return toolExecRequest{
+		Tool:      tool,
+		Args:      args,
+		EmittedBy: "zhen-cli",
+		Justification: []reference{{
+			Topic: "user-typed-" + tool, Category: "user-action", SourceKind: "user-action",
+			SourceTrust: "direct-user", SourceLabel: "zhen-cli",
+		}},
+	}
+}
+
 func (s *session) printHelp() {
-	fmt.Println("  /help                     this help")
-	fmt.Println("  /exit, /quit              exit the REPL")
-	fmt.Println("  /clear                    drop in-session conversation history")
-	fmt.Println("  /history                  show what the LLM is seeing as prior turns")
-	fmt.Println("  /health                   probe llama-server, vor, zhen-agentd")
-	fmt.Println()
-	fmt.Println("  /runbook list             list available runbooks (Champion-gated)")
-	fmt.Println("  /runbook show <name>      print a runbook without running it")
-	fmt.Println("  /runbook exec <name>      run a runbook (Champion gate Rule 2)")
-	fmt.Println("  /runbook <name>           shorthand for /runbook exec <name>")
-	fmt.Println("  /source <topic>           fetch one vor topic body")
-	fmt.Println()
-	fmt.Println("  /recall, /remember        Phase 2b — requires DB plumbing (deferred)")
-	fmt.Println()
-	fmt.Println("  any other line           → question to Zhen (RAG: vor → qwen-coder)")
-	fmt.Println()
-	fmt.Println("  pipe-mode:  echo \"...\" | zhen-cli   (one-shot answer + exit)")
-	fmt.Println("  one-shot:   zhen-cli -q \"...\"        (one-shot answer + exit)")
+	fmt.Fprintln(s.w(), "  /help                     this help")
+	fmt.Fprintln(s.w(), "  /exit, /quit              exit the REPL")
+	fmt.Fprintln(s.w(), "  /clear                    drop in-session conversation history")
+	fmt.Fprintln(s.w(), "  /history                  show what the LLM is seeing as prior turns")
+	fmt.Fprintln(s.w(), "  /health                   probe llama-server, vor, zhen-agentd")
+	fmt.Fprintln(s.w())
+	fmt.Fprintln(s.w(), "  /runbook list             list available runbooks (Champion-gated)")
+	fmt.Fprintln(s.w(), "  /runbook show <name>      print a runbook without running it")
+	fmt.Fprintln(s.w(), "  /runbook exec <name>      run a runbook (Champion gate Rule 2)")
+	fmt.Fprintln(s.w(), "  /runbook <name>           shorthand for /runbook exec <name>")
+	fmt.Fprintln(s.w(), "  /source <topic>           fetch one vor topic body")
+	fmt.Fprintln(s.w())
+	fmt.Fprintln(s.w(), "  /recall <text>            remembered answers matching text, with who stored them")
+	fmt.Fprintln(s.w(), "  /remember [text]          store text as a note, or with no text the last exchange")
+	fmt.Fprintln(s.w(), "  /confirm <token>          run a call the gate held for confirmation")
+	fmt.Fprintln(s.w(), "  /model                    list models (* = serving now)")
+	fmt.Fprintln(s.w(), "  /model <key>              swap llama-server to <key> (45 s to minutes; rolls back on timeout)")
+	fmt.Fprintln(s.w())
+	fmt.Fprintln(s.w(), "  any other line           → question to Zhen (RAG: vor → qwen-coder)")
+	fmt.Fprintln(s.w())
+	fmt.Fprintln(s.w(), "  pipe-mode:  echo \"...\" | zhen-cli   (one-shot answer + exit)")
+	fmt.Fprintln(s.w(), "  one-shot:   zhen-cli -q \"...\"        (one-shot answer + exit)")
 }
 
 // printHealth probes the three backends and reports up/down.
@@ -517,7 +541,7 @@ func (s *session) answerOne(q string) {
 	if err != nil {
 		fatal("%v", err)
 	}
-	fmt.Println(answer)
+	fmt.Fprintln(s.w(), answer)
 }
 
 // chatTurn runs one user → assistant exchange in the REPL: retrieves,
@@ -532,9 +556,9 @@ func (s *session) chatTurn(q string) {
 	}
 
 	if s.color {
-		fmt.Printf("%s%szhen:%s %s\n", clrBold, clrCyan, clrReset, answer)
+		fmt.Fprintf(s.w(), "%s%szhen:%s %s\n", clrBold, clrCyan, clrReset, answer)
 	} else {
-		fmt.Println(answer)
+		fmt.Fprintln(s.w(), answer)
 	}
 
 	if len(refs) > 0 {
@@ -733,34 +757,34 @@ func isTTY(f *os.File) bool {
 
 func (s *session) dim(msg string) {
 	if s.color {
-		fmt.Println(clrDim + msg + clrReset)
+		fmt.Fprintln(s.w(), clrDim+msg+clrReset)
 	} else {
-		fmt.Println(msg)
+		fmt.Fprintln(s.w(), msg)
 	}
 }
 
 func (s *session) ok(msg string) {
 	if s.color {
-		fmt.Println(clrGreen + msg + clrReset)
+		fmt.Fprintln(s.w(), clrGreen+msg+clrReset)
 	} else {
-		fmt.Println(msg)
+		fmt.Fprintln(s.w(), msg)
 	}
 }
 
 func (s *session) warn(msg string) {
 	if s.color {
-		fmt.Println(clrYel + msg + clrReset)
+		fmt.Fprintln(s.w(), clrYel+msg+clrReset)
 	} else {
-		fmt.Println(msg)
+		fmt.Fprintln(s.w(), msg)
 	}
 }
 
 func (s *session) errf(format string, args ...any) {
 	msg := fmt.Sprintf("zhen-cli: "+format, args...)
 	if s.color {
-		fmt.Fprintln(os.Stderr, clrRed+msg+clrReset)
+		fmt.Fprintln(s.ew(), clrRed+msg+clrReset)
 	} else {
-		fmt.Fprintln(os.Stderr, msg)
+		fmt.Fprintln(s.ew(), msg)
 	}
 }
 

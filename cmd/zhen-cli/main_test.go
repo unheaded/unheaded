@@ -169,26 +169,6 @@ func TestRunbookExec_PendingConfirmationIsSurfaced(t *testing.T) {
 	}
 }
 
-// TestRecallRemember_AreDeferred asserts the Phase 2b deferral does
-// not silently dispatch to /api/v1/tool/exec (which would risk
-// Champion classifying an unknown tool as mutating + denying).
-func TestRecallRemember_AreDeferred(t *testing.T) {
-	f := newFakeAgentd(t, func(req toolExecRequest) toolExecResponse {
-		t.Errorf("/recall and /remember must NOT call /api/v1/tool/exec — Phase 2b deferred")
-		return toolExecResponse{Status: "error"}
-	})
-	s := newTestSession(f.srv.URL)
-	if s.handleSlash("/recall foo") {
-		t.Error("/recall should not terminate REPL")
-	}
-	if s.handleSlash("/remember") {
-		t.Error("/remember should not terminate REPL")
-	}
-	if len(f.captured) != 0 {
-		t.Errorf("/recall and /remember leaked through to tool/exec: %d requests", len(f.captured))
-	}
-}
-
 // TestToolExec_DecodesValidResponseShapes covers all the documented
 // status values from cmd/zhen-agentd/toolexec.go.
 func TestToolExec_DecodesValidResponseShapes(t *testing.T) {

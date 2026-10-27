@@ -38,6 +38,21 @@ func runFitCheck(t *testing.T, fe fitEnv, key string) (int, string) {
 // (LLAMA_BIN=/nonexistent: nothing can be launched).
 func runSwitchModel(t *testing.T, fe fitEnv, args ...string) (int, string) {
 	t.Helper()
+	cmd := switchModelCmd(t, fe, args...)
+	out, err := cmd.CombinedOutput()
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return ee.ExitCode(), string(out)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return 0, string(out)
+}
+
+// switchModelCmd is switch-model.sh with args in the fake environment.
+func switchModelCmd(t *testing.T, fe fitEnv, args ...string) *exec.Cmd {
+	t.Helper()
 	for _, tool := range []string{"flock", "ss", "numfmt"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			t.Skip("no " + tool)
@@ -86,15 +101,7 @@ func runSwitchModel(t *testing.T, fe fitEnv, args ...string) (int, string) {
 		"MODELS_DIR=" + models,
 		"FIT_MEMINFO=" + meminfo,
 	}
-	out, err := cmd.CombinedOutput()
-	var ee *exec.ExitError
-	if errors.As(err, &ee) {
-		return ee.ExitCode(), string(out)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	return 0, string(out)
+	return cmd
 }
 
 const qwen7b = "qwen2.5-coder-7b-instruct-q4_k_m.gguf"

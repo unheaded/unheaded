@@ -88,6 +88,7 @@ type Champion struct {
 	store         ActionStore
 	snapshotStore SnapshotStore
 	kanbanStore   KanbanStore
+	memoryStore   MemoryStore // nil: memory_write refused (memory.go)
 	confirmMu     sync.Mutex
 	confirmStore  *confirmStore   // lazy-init via confirms(); guarded by confirmMu
 	runCheck      *RunCheckConfig // nil: run_check refused (runcheck.go)

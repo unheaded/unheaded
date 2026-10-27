@@ -227,7 +227,7 @@ func TestIntegration_OpenAPI_ServesSpec(t *testing.T) {
 	if !ok {
 		t.Fatalf("paths field not an object")
 	}
-	for _, want := range []string{"/health", "/ready", "/api/v1/agent/ask", "/api/v1/agent/ask/stream", "/api/v1/agent/confirm"} {
+	for _, want := range []string{"/health", "/ready", "/api/v1/agent/ask", "/api/v1/agent/ask/stream", "/api/v1/agent/confirm", "/api/v1/memory/recall", "/api/v1/memory/remember", "/api/v1/models"} {
 		if _, ok := paths[want]; !ok {
 			t.Errorf("missing path entry: %s", want)
 		}
