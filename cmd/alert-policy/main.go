@@ -9,12 +9,18 @@
 //	go run ./cmd/alert-policy           # write the generated files
 //	go run ./cmd/alert-policy --check   # fail if they are stale or the policy is invalid
 //	go run ./cmd/alert-policy -runbooks # fail unless every alert's runbook_url names a repo file
+//	go run ./cmd/alert-policy -sync-well  # write the SLOs into the Well's slo_definitions (WELL_DB set)
+//
+// With WELL_DB set, --check also fails when slo_definitions differs from
+// the policy (well.go).
 package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -154,6 +160,10 @@ func (p *Policy) validate() []error {
 		// Below 14.4x(1-objective) >= 1 the fast tier could never fire.
 		if s.Objective < 95 || s.Objective >= 100 {
 			bad("%s: objective %v: want 95 <= objective < 100", where, s.Objective)
+		}
+		// The Well stores the fraction as numeric(6,4) (db/migrations/040).
+		if math.Abs(s.Objective*100-math.Round(s.Objective*100)) > 1e-9 {
+			bad("%s: objective %v: at most two decimals", where, s.Objective)
 		}
 		if s.Runbook != "" && !runbookRE.MatchString(s.Runbook) {
 			bad("%s: runbook %q: want runbooks/<area>/<name>.yaml", where, s.Runbook)
@@ -445,6 +455,7 @@ func main() {
 	root := flag.String("root", ".", "repository root")
 	check := flag.Bool("check", false, "fail if the generated files are stale or the policy is invalid")
 	runbooks := flag.Bool("runbooks", false, "only check that every alert's runbook_url names a file in the repo")
+	syncWellFlag := flag.Bool("sync-well", false, "write the policy's SLOs into the Well's slo_definitions (needs WELL_DB and WELL_PASSWORD)")
 	flag.Parse()
 	if *runbooks {
 		errs := checkRunbookURLs(*root)
@@ -458,7 +469,16 @@ func main() {
 		fmt.Println("[PASS] runbook_url: every alert names a runbook in the repo")
 		return
 	}
+	if *syncWellFlag {
+		os.Exit(runSyncWell(*root))
+	}
 	errs := run(*root, *check)
+	well := *check && os.Getenv("WELL_DB") != ""
+	if *check && len(errs) == 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		errs = runWellCheck(ctx, *root)
+		cancel()
+	}
 	for _, e := range errs {
 		fmt.Fprintln(os.Stderr, "[FAIL]", e)
 	}
@@ -467,5 +487,22 @@ func main() {
 	}
 	if *check {
 		fmt.Println("[PASS] alert policy: generated files current, every hand-written rule is urgency none")
+		if well {
+			fmt.Println("[PASS] alert policy: the Well's slo_definitions match the policy")
+		}
 	}
+}
+
+// runSyncWell is -sync-well; it returns the exit code.
+func runSyncWell(root string) int {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	res, err := syncWellEnv(ctx, root)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "[FAIL] sync-well:", err)
+		return 1
+	}
+	fmt.Printf("[PASS] sync-well: inserted %v, updated %v, deleted %v, %d unchanged\n",
+		res.Inserted, res.Updated, res.Deleted, len(res.Unchanged))
+	return 0
 }
