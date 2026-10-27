@@ -13,6 +13,7 @@ From `pkg/ports/ports.go`:
 | Wotan | 18000-18099 | wotan 18000 (HTTP) / 18001 (gRPC) |
 | Core Services | 19000-19099 | timeguru 19000, architect 19001, captain 19002, micromanager 19003, monad 19004, sophia 19005, cuirass 19006, key-mgmt 19007, pqc-verifier 19008, shield 19009, firewall 19010, sword 19011 (was canary), chaos 19012, QoS 19013, backup-mgr 19014, compliance 19015, NFV 19016, version 19017, anomaly 19018, telemetry-agg 19019 |
 | Health | 19100 | akira |
+| Health | 19101 | heimdall-daemon `/metrics` (`-metrics-addr`, default `127.0.0.1`; empty disables) |
 | Threat feeds | 19120 | kev-poller (ADR-055); 19110 is the loadbalancer's xdpsync |
 | Alerting | 19130 | alert-mailer (ADR-100), `127.0.0.1` in `monitoring/docker-compose.yml` |
 | Applications | 20000-20099 | dashboard-backend 20000, kanban-app 20001, wiki-server 20002 |

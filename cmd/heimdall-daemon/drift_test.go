@@ -134,7 +134,7 @@ func FuzzNormalizeNodeID(f *testing.F) {
 func TestDriftSink_PublishesOneSignedRecord(t *testing.T) {
 	signer, _ := driftSigner(t)
 	pub := &fakePublisher{}
-	sink := newDriftSink(pub, signer, "drift.detected.east", 8)
+	sink := newDriftSink(pub, signer, "drift.detected.east", 8, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go sink.run(ctx)
@@ -170,7 +170,7 @@ func TestDriftSink_PublishesOneSignedRecord(t *testing.T) {
 func TestDriftSink_PublishFailureCounted(t *testing.T) {
 	signer, _ := driftSigner(t)
 	pub := &fakePublisher{err: errors.New("unavailable")}
-	sink := newDriftSink(pub, signer, "drift.detected.east", 8)
+	sink := newDriftSink(pub, signer, "drift.detected.east", 8, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go sink.run(ctx)
@@ -191,7 +191,7 @@ func TestDriftSink_PublishFailureCounted(t *testing.T) {
 func TestDriftSink_BoundedQueueDropsOldest(t *testing.T) {
 	signer, _ := driftSigner(t)
 	pub := &fakePublisher{block: make(chan struct{})}
-	sink := newDriftSink(pub, signer, "drift.detected.east", 4)
+	sink := newDriftSink(pub, signer, "drift.detected.east", 4, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go sink.run(ctx)
@@ -244,7 +244,7 @@ func TestRun_DriftPublisherDownDoesNotBlock(t *testing.T) {
 	pub := &fakePublisher{block: make(chan struct{})}
 	defer close(pub.block)
 	h := &Heimdall{nodeID: "east", manifestPath: path, trust: Trust{AllowUnsigned: true}, manifest: m,
-		aggregator: enkrateia.NewAggregator(16), drift: newDriftSink(pub, signer, "drift.detected.east", 2)}
+		aggregator: enkrateia.NewAggregator(16), drift: newDriftSink(pub, signer, "drift.detected.east", 2, nil)}
 	var printed sync.WaitGroup
 	printed.Add(1)
 	var once sync.Once

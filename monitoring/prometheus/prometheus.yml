@@ -146,6 +146,18 @@ scrape_configs:
           - '[fd00:dead:beef::1]:19120'
           - '[fd00:dead:beef::2]:19120'
 
+  # heimdall-daemon drift publish counters + scan duration (M-085), one per
+  # host. Its -metrics-addr defaults to 127.0.0.1:19101, which this
+  # container cannot reach: a host that runs it for this scrape passes
+  # -metrics-addr '[fd00:dead:beef::N]:19101'. No unit runs it on either
+  # host yet (2026-10-27), so both targets read up == 0 until one does.
+  - job_name: heimdall
+    static_configs:
+      - targets: ['[fd00:dead:beef::1]:19101']
+        labels: {host: west}
+      - targets: ['[fd00:dead:beef::2]:19101']
+        labels: {host: east}
+
   # Vector's own counters (ADR-092 step 8); alerts in rules/logs.yml.
   # docker-compose.yml publishes 9598 on the docker0 gateway only.
   - job_name: vector

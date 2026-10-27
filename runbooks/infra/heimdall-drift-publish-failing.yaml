@@ -1,0 +1,64 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: heimdall-drift-publish-failing
+  description: heimdall-daemon cannot publish signed drift events to Wotan (HeimdallDriftPublishFailing)
+  owner: architect
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+
+notes: |
+  ADR-043, ADR-105, M-085. heimdall-daemon publishes each drift alert to
+  Wotan topic drift.detected.<node_id>, signed with its own ML-DSA-65 drift
+  key. heimdall_drift_publish_failed_total counts publishes Wotan refused or
+  never received; heimdall_drift_publish_dropped_total counts records the
+  bounded queue dropped while Wotan was slow. Drift DETECTION is not
+  affected: alerts still print on the daemon's stdout. What is lost is the
+  signed copy other nodes and the dashboard read.
+
+  Usual causes, most likely first: Wotan is down; Wotan refuses the
+  signature because the node's drift public key is not in configs/wotan.yaml
+  signed_prefixes "drift." (enrolling it is Stevie's call, S-QUANTUM-ARMOR
+  E5); "heimdall" is not on topics.auto_approve; the drift key was rotated
+  on the node but not in Wotan.
+
+  This runbook only reads. Enrolling a key or changing Wotan's config is a
+  separate, reviewed change (wiki/Wotan-Topic-Signing.md).
+
+parameters:
+  - name: METRICS_URL
+    default: "http://127.0.0.1:19101/metrics"
+    description: heimdall-daemon's -metrics-addr on the node that alerted
+  - name: WOTAN_URL
+    default: "http://127.0.0.1:18000"
+    description: Wotan HTTP on the same node
+
+steps:
+  - name: which-node
+    action: shell
+    command: |
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=rate(heimdall_drift_publish_failed_total[15m]) > 0' |
+        python3 -c 'import json,sys; [print(r["metric"].get("host", r["metric"]["instance"]), r["value"][1]) for r in json.load(sys.stdin)["data"]["result"]]'
+
+  - name: heimdall-counters
+    action: shell
+    command: |
+      curl -s "$METRICS_URL" | grep -E '^heimdall_(drift_|scan_duration_seconds_count)'
+
+  - name: wotan-up
+    action: shell
+    command: |
+      curl -s -o /dev/null -w 'wotan /health %{http_code}\n' "$WOTAN_URL/health"
+
+  - name: wotan-drift-keys
+    action: shell
+    command: |
+      grep -n -A3 'prefix: "drift."' "$HOME/tmp/unheaded/configs/wotan.yaml" /etc/unheaded/wotan.yaml 2>/dev/null || echo "no drift. prefix found"
+
+  - name: next-step
+    action: manual
+    command: |
+      Wotan down: follow runbooks/wotan/ for the outage; heimdall resumes on its own.
+      Key not enrolled or rotated: raise it with Stevie (E5); do not enroll a key
+      from this runbook. Allowlist missing "heimdall": runbooks/wotan/pending-subscription-approval.yaml.
