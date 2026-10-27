@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # 03-install-upc.sh — Install Kingdom apt source + required UPC packages.
 # Free to use. Free to share.
 set -euo pipefail

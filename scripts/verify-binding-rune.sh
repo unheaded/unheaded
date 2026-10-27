@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # verify-binding-rune.sh — Verify integrity of a Sealed Cask deployment package
 # ADR-010: Sealed Cask Deployment (Soul Vessel Model)
 #

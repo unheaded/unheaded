@@ -1,19 +1,52 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use monad_common::{MbcInsn, mbc_opcodes as op};
+use monad_common::{mbc_opcodes as op, MbcInsn};
 use monad_mbc::instruction::decode_checked;
 
 /// All valid MBC opcodes (from monad_common::mbc_opcodes).
 const VALID_OPCODES: &[u8] = &[
-    op::ADD, op::SUB, op::MUL, op::DIV, op::MOD, op::NEG,
-    op::AND, op::OR, op::XOR, op::NOT, op::SHL, op::SHR, op::SAR,
-    op::MOV, op::MOVI, op::CMP,
-    op::JMP, op::JZ, op::JNZ, op::JN, op::JP, op::JC, op::JNC,
-    op::CALL, op::RET, op::JMPR, op::CALLR,
-    op::LD, op::ST, op::LDB, op::STB, op::LDH, op::STH,
-    op::SHLR, op::SHRR, op::SARR, op::MULH,
-    op::SYSCALL, op::HALT,
+    op::ADD,
+    op::SUB,
+    op::MUL,
+    op::DIV,
+    op::MOD,
+    op::NEG,
+    op::AND,
+    op::OR,
+    op::XOR,
+    op::NOT,
+    op::SHL,
+    op::SHR,
+    op::SAR,
+    op::MOV,
+    op::MOVI,
+    op::CMP,
+    op::JMP,
+    op::JZ,
+    op::JNZ,
+    op::JN,
+    op::JP,
+    op::JC,
+    op::JNC,
+    op::CALL,
+    op::RET,
+    op::JMPR,
+    op::CALLR,
+    op::LD,
+    op::ST,
+    op::LDB,
+    op::STB,
+    op::LDH,
+    op::STH,
+    op::SHLR,
+    op::SHRR,
+    op::SARR,
+    op::MULH,
+    op::SYSCALL,
+    op::HALT,
 ];
 
 fuzz_target!(|data: &[u8]| {
@@ -32,8 +65,7 @@ fuzz_target!(|data: &[u8]| {
     let insn = MbcInsn::encode(opcode, dst, src, imm);
 
     // Decode -- must succeed for valid opcodes
-    let decoded = decode_checked(insn.0)
-        .expect("decode_checked must succeed for a valid opcode");
+    let decoded = decode_checked(insn.0).expect("decode_checked must succeed for a valid opcode");
 
     // Round-trip assertions
     assert_eq!(decoded.opcode(), opcode, "opcode mismatch");

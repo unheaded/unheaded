@@ -1786,7 +1786,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "nix/yggdrasil/provisioners/05-cis-hardening.sh:107:sshd-kex",
+      "bom-ref": "nix/yggdrasil/provisioners/05-cis-hardening.sh:109:sshd-kex",
       "name": "sshd KexAlgorithms",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1825,7 +1825,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "nix/yggdrasil/provisioners/05-cis-hardening.sh:107"
+          "value": "nix/yggdrasil/provisioners/05-cis-hardening.sh:109"
         }
       ]
     },

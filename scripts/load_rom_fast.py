@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 Fast ROM/RV2MBC loader using BPF syscall directly (no subprocess per entry).
 Works on aarch64 (SYS_BPF=280) and x86_64 (SYS_BPF=321).

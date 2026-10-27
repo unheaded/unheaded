@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 ActionManager — INTENT -> SNAPSHOT -> EXECUTE -> RECORD -> AUDIT
 

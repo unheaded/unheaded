@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! MBC disassembler: converts bytecode back into human-readable assembly.
 
 use monad_common::{mbc_opcodes as op, MbcInsn};

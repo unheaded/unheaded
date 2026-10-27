@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 set -euo pipefail
 echo "=== Telemetry Pipeline E2E Test ==="
 echo ""

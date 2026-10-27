@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # yggdrasil-build-evidence-pack.sh — Build the signed-manifest evidence pack
 # (task #68). Called as a packer post-processor after the ISO is built.
 #

@@ -91,16 +91,7 @@ pipeline {
           steps {
             script {
               echo "=== Checking SPDX license headers ==="
-              sh '''
-                missing=$(find . -name "*.go" -not -path "./.git/*" -not -path "./vendor/*" \
-                  -exec grep -L "SPDX-License-Identifier" {} + 2>/dev/null | head -20)
-                if [ -n "$missing" ]; then
-                  echo "ERROR: Files missing SPDX-License-Identifier header:"
-                  echo "$missing"
-                  exit 1
-                fi
-                echo "SPDX header check passed"
-              '''
+              sh './scripts/check-spdx.sh --langs go,rs --forbid MIT'
             }
           }
         }

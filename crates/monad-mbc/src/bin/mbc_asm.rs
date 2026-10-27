@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! mbc-asm: Assemble MBC assembly source files into bytecode.
 //!
 //! Usage:

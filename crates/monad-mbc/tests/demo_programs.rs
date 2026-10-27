@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 use monad_mbc::{assemble, disasm_listing};
 
 // Gradient demo: fills 320x200 screen with diagonal color gradient.

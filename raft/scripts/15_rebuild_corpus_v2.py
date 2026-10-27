@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 15_rebuild_corpus_v2.py — Rebuild Zhen corpus with SO, SF, Unix.SE, and skills.
 

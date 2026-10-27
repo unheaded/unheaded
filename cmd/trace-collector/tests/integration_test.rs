@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Integration tests for the trace-collector pipeline.
 //!
 //! These tests verify the eBPF -> trace-collector -> Wotan pipeline

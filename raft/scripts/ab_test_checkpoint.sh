@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # ab_test_checkpoint.sh — A/B test kingdom-v5 epoch 1 checkpoint vs base model
 #
 # Usage:

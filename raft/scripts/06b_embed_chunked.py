@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 Chunked embedding for large corpus — processes in batches to avoid OOM.
 Builds combined FAISS index from Ring 1 + Ring 2-4 corpus.

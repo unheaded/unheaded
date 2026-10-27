@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # run-gemma-vet.sh — Strong-Inference vetting of gemma-4-E2B-it as a chat model.
 #
 # Pre-registered 2026-05-04 by Stevie + unheaded-scientist:

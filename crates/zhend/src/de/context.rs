@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Context vector construction for De ranking.
 //!
 //! A context vector represents "what is relevant right now." It can be

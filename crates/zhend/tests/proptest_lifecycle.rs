@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Property-based tests for the full fragment lifecycle.
 //!
 //! Verifies that random fragment sequences survive: ingest -> sediment L1->L2

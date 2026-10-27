@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! # zhend — Zhen Layer 0 Daemon
 //!
 //! The anti-fragile knowledge substrate for the Unheaded Protocol.

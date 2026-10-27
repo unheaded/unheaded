@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # bring-up.sh — local kind cluster + helm install of the Unheaded stack.
 #
 # Idempotent — safe to re-run; will tear down a stale "unheaded" kind

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! gRPC service implementation for zhend.
 //!
 //! Implements Ingest, Surface, and Status RPCs backed by real TieredStore

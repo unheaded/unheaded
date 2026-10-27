@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 #\!/usr/bin/env python3
 """Ultra-fast packet injector with no delay."""
 import socket

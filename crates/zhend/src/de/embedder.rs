@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Local embedding inference — BLAKE3 hash-based fallback.
 //!
 //! When ONNX Runtime is unavailable (no native library), Zhen uses a

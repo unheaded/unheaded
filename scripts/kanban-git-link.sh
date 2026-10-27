@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # kanban-git-link.sh — Scan git log for Task: GUID trailers and link to Kanban tasks in PG.
 # Run as post-commit hook or periodically via cron.
 #

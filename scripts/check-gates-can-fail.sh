@@ -807,6 +807,17 @@ provoke_runbooks() {
     grep -q '^  risk: meta-gate-probe$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_spdx() {
+    # Contract (S-TRUE-WIRE Phase 9): every tracked first-party .go/.rs file
+    # carries an SPDX header. Plant a tracked .rs file without one (in no
+    # module tree, so no build sees it).
+    local f="crates/upc-api/src/meta_gate_probe.rs"
+    backup "${f}"
+    printf 'pub fn meta_gate_probe() {}\n' > "${REPO_ROOT}/${f}"
+    git -C "${REPO_ROOT}" add -N "${f}" >/dev/null 2>&1  # gate reads git ls-files
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -862,6 +873,7 @@ check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's thresh
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
+check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 

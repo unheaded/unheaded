@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # load-ebpf.sh — Load Unheaded eBPF programs into the kernel
 #
 # This script loads all 4 eBPF programs and pins their maps

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 Fast ring buffer drain — zero-copy consumer that advances consumer_pos
 without parsing events. Used for stress testing to prevent RING_DROPS.

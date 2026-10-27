@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Phase 8 integration test — QUIC/HTTP3 edge transport via quinn.
 //!
 //! Tests Ingest, Surface, and Status operations over QUIC streams

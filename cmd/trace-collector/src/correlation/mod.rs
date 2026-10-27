@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Trace Correlation Engine
 //!
 //! THE WHISPERING VOID weaves together the threads of distributed traces.

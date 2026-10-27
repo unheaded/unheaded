@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Event processing and filtering for the collector.
 //!
 //! Provides filtering capabilities to reduce event volume and

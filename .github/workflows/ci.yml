@@ -167,18 +167,10 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - name: Verify all Go files have SPDX headers
-        run: |
-          missing=$(find . -name "*.go" -not -path "./.git/*" -not -path "./vendor/*" \
-            -exec grep -L "SPDX-License-Identifier" {} + 2>/dev/null | head -20)
-          if [ -n "$missing" ]; then
-            echo "::error::Files missing SPDX-License-Identifier header:"
-            echo "$missing"
-            count=$(echo "$missing" | wc -l)
-            echo "::error::Total files missing headers: $count"
-            exit 1
-          fi
-          echo "All Go files have SPDX headers"
+      # Go and Rust are gated; .py/.sh still have Doom scripts without a
+      # header (S-TRUE-WIRE Step 325), so they join once that count is 0.
+      - name: Verify Go and Rust files have SPDX headers (no MIT headers)
+        run: ./scripts/check-spdx.sh --langs go,rs --forbid MIT
 
   license-check:
     name: License Compliance

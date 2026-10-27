@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # cross-compile.sh -- C -> RV32I ELF -> MBC cross-compilation pipeline
 #
 # Compiles C source to a RISC-V 32-bit ELF, then translates the ELF to

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # yggdrasil-verify-overlay.sh — Pre-build sanity check on the overlay tree.
 # Free to use. Free to share.
 set -euo pipefail

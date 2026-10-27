@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Phase 6 integration test — gRPC service via tonic client.
 //!
 //! Tests Ingest, Surface, and Status RPCs end-to-end.

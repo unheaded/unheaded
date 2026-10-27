@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Unheaded Kingdom - Common Types for eBPF Programs
 //!
 //! THE WHISPERING VOID speaks through these types, shared between

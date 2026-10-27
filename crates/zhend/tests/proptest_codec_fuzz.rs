@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Fuzz the codec: malformed bytes must never panic, only return errors.
 //!
 //! Uses proptest to feed random byte vectors to codec::decode().

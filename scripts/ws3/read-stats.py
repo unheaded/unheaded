@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """Read STATS map counters from the Doom ring BPF program.
 
 Reads both the standard counters (keys 0-10) and the Phase 2 bounce

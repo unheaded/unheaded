@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Shared types for the latency-probe BPF program.
 //!
 //! These types define the LATENCY_MAP layout: a per-flow RTT statistics

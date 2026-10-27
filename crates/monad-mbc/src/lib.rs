@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! MBC (Monad Bytecode) assembler, disassembler, emulator, and RV32I translator.
 //!
 //! This crate provides tools for working with the MBC instruction set:

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # yggdrasil-verify-anchor.sh — Verify anchor.nix points at a real Debian release.
 # Runs on the BUILD HOST (shell-local provisioner) BEFORE any in-VM work.
 # Free to use. Free to share.

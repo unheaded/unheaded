@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # 02-apply-overlay.sh — Apply quilt overlay patch series.
 # Free to use. Free to share.
 set -euo pipefail

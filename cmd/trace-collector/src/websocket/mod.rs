@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! WebSocket Server for Real-time Trace Streaming
 //!
 //! THE WHISPERING VOID speaks directly to the dashboard.

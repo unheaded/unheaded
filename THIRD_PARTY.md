@@ -96,23 +96,23 @@ The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the L
 
 **Note:** WAD files contain game data (levels, sprites, textures) and are not covered by the GPL license. They are id Software shareware and are redistributable under the original shareware terms.
 
-### NOT GPL Licensed (outside the boundary)
+### Outside the GPL-2.0 boundary
 
-All code outside the `doom/` directory is **original Unheaded work** licensed under GPL-3.0-or-later. These components do NOT derive from, link to, or include any GPL-licensed code. They communicate with DOOM solely through BPF map syscalls (a data protocol boundary, analogous to user-space programs communicating with the GPL Linux kernel).
+All code outside the `doom/` directory is **original Unheaded work** licensed under GPL-3.0-or-later (the MIT headers these files once carried were relicensed 2026-10-27, decision 12). These components do NOT derive from, link to, or include any of the GPL-2.0 code in `doom/`. They communicate with DOOM solely through BPF map syscalls (a data protocol boundary, analogous to user-space programs communicating with the GPL Linux kernel).
 
 | Path | Description | License |
 |------|-------------|---------|
-| `cmd/doom-bridge/` | Go tool: bridges DOOM BPF map state to WebSocket for live viewport streaming | MIT |
-| `cmd/doom-loader/` | Go tool: loads compiled MBC bytecode into BPF maps for execution | MIT |
-| `cmd/doom-cpu-dump/` | Go tool: dumps MBC CPU register state from BPF maps for debugging | MIT |
-| `cmd/doom-go-injector/` | Go tool: injects keyboard input and tick events into DOOM via BPF maps | MIT |
-| `cmd/doom/` | Go DOOM orchestrator/launcher | MIT |
-| `internal/bpf/` | Go BPF wrappers for loading and interacting with BPF programs and maps | MIT |
-| `internal/bpfmap/` | Go BPF map abstraction layer for reading/writing DOOM VM state | MIT |
-| `dashboard/doom.html` | HTML page for DOOM live viewport in dashboard | MIT |
-| `dashboard/js/doom-viewport.js` | JavaScript WebSocket client rendering DOOM frames in canvas | MIT |
-| `scripts/doom-*.{sh,py}` | Shell and Python helper scripts for DOOM development and testing | MIT |
-| `configs/doom.toml` | DOOM subsystem configuration | MIT |
+| `cmd/doom-bridge/` | Go tool: bridges DOOM BPF map state to WebSocket for live viewport streaming | GPL-3.0-or-later |
+| `cmd/doom-loader/` | Go tool: loads compiled MBC bytecode into BPF maps for execution | GPL-3.0-or-later |
+| `cmd/doom-cpu-dump/` | Go tool: dumps MBC CPU register state from BPF maps for debugging | GPL-3.0-or-later |
+| `cmd/doom-go-injector/` | Go tool: injects keyboard input and tick events into DOOM via BPF maps | GPL-3.0-or-later |
+| `cmd/doom/` | Go DOOM orchestrator/launcher | GPL-3.0-or-later |
+| `internal/bpf/` | Go BPF wrappers for loading and interacting with BPF programs and maps | GPL-3.0-or-later |
+| `internal/bpfmap/` | Go BPF map abstraction layer for reading/writing DOOM VM state | GPL-3.0-or-later |
+| `dashboard/doom.html` | HTML page for DOOM live viewport in dashboard | GPL-3.0-or-later |
+| `dashboard/js/doom-viewport.js` | JavaScript WebSocket client rendering DOOM frames in canvas | GPL-3.0-or-later |
+| `scripts/doom-*.{sh,py}` | Shell and Python helper scripts for DOOM development and testing | GPL-3.0-or-later |
+| `configs/doom.toml` | DOOM subsystem configuration | GPL-3.0-or-later |
 
 ---
 
@@ -308,7 +308,7 @@ MPL-2.0 and likewise a separate process fed by configuration only.
 | GPL v2 | 1 (doom/) | Isolated | GPL code confined to doom/ directory; not linked |
 | Shareware | 1 (doom1.wad) | Isolated | Game data, not open source, freely redistributable |
 
-**Conclusion:** All dependencies are compatible with MIT. The GPL v2 boundary is architecturally enforced.
+**Conclusion:** All dependencies are compatible with GPL-3.0-or-later. The GPL v2 boundary is architecturally enforced.
 
 ---
 

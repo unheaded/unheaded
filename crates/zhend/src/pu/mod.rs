@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! # Pu (朴) — The Uncarved Block
 //!
 //! Fragment format for Zhen. Each Pu is content-addressed via BLAKE3,
