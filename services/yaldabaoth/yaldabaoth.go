@@ -224,8 +224,13 @@ type Config struct {
 	DefaultDuration          time.Duration `json:"default_duration"`
 	SafetyCheckInterval      time.Duration `json:"safety_check_interval"`
 	DryRunMode               bool          `json:"dry_run_mode"`
-	// StateDir holds the revert journal; without it nothing runs.
+	// StateDir holds the revert journal file; without it (or Journal)
+	// nothing runs.
 	StateDir string `json:"state_dir"`
+	// Journal, when set, keeps the revert journal instead of StateDir's
+	// file (NewWellJournal). With StateDir also set, the file's open
+	// entries are moved into it at start.
+	Journal JournalStore `json:"-"`
 	// AbortFile, while it exists, aborts everything and refuses new runs.
 	AbortFile string        `json:"abort_file"`
 	AbortPoll time.Duration `json:"abort_poll"`
@@ -358,8 +363,14 @@ func NewService(cfg *Config, deps Deps) (*Service, error) {
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
 	}
-	if cfg.StateDir != "" {
-		j, err := openJournal(cfg.StateDir)
+	store := cfg.Journal
+	if store == nil {
+		store = NewFileJournal(cfg.StateDir)
+	} else if err := importFileJournal(cfg.StateDir, store, deps.Log); err != nil {
+		return nil, err
+	}
+	if store != nil {
+		j, err := openJournal(store)
 		if err != nil {
 			return nil, err
 		}

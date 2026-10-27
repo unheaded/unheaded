@@ -11,7 +11,7 @@ Before 2026-10-23 none of this touched anything: the injectors logged and return
 | One engine (D-16) | `chaos-controller` builds `yaldabaoth.Service`; the legacy `/api/v1/chaos/inject` rules and GameDay stages run as experiments through it. No experiment type has a built-in injector; a type without one is refused (501 `no_injector`), never reported as a success. **Dry run is the default**: only `CHAOS_DRY_RUN=false` injects anything |
 | Allowlist (D-17) | `/etc/unheaded/chaos/allowlist.yaml` (seed `configs/chaos/allowlist.yaml`, strict YAML: unknown fields are errors) is the only source of what may be broken. Targets are resolved, never named: an LXD instance through Cuirass (managed, project `unheaded`, label `chaos=allowed`), a lab netns/interface by anchored pattern (`^steel[0-9]+$`, `^steel[0-9]+-h$`; may not match a host interface), a systemd unit from the list and only on host `east`. `pihole`, `*.target`, `ssh*`, `systemd-*`, `dbus*` are refused even if listed. Limits: `max_concurrent 1`, `max_duration 10m`, `max_loss_percent 50`, `max_delay 2s`. Checked before injection and again by the injector; every refusal is audited, counted (`chaos_refusals_total{reason}`) and published on `chaos.refused` (≤ 10/min). Widening it is a host edit plus a restart, never a request field |
 | Abort, three paths (D-18) | `POST /api/v1/chaos/abort` (auth); Wotan `chaos.abort` (an unparsable message still aborts); the file `/run/unheaded/chaos/ABORT`, polled every second, which needs neither Wotan nor auth and refuses new experiments while it exists (the unit's `RuntimeDirectoryPreserve=yes` keeps it across restarts). A stat error on the file counts as present |
-| Revert journal (D-19) | Before an injector acts, its revert recipe goes to `CHAOS_STATE_DIR/journal.json` (0600, atomic). Reverted at the end, on abort, by TTL (duration + 30 s), at controller start (replay), and by `chaos-controller revert-all` from the unit's `ExecStopPost` (runs after a crash or SIGKILL). An entry is removed only after the injector verifies the fault is gone; otherwise `chaos.revert_failed`, a High finding, and `revert-all` exits non-zero. A damaged journal stops the controller; no state dir means nothing runs |
+| Revert journal (D-19) | Before an injector acts, its revert recipe goes to the journal: The Well (`unheaded_ops.chaos_journal`, migration 039, as `ops_writer`) when `WELL_DB` is set, else `CHAOS_STATE_DIR/journal.json` (0600, atomic). In the Well a revert is a new `reverted` row in `chaos_journal_transitions`, never an edit; each host reads only its own rows (`KINGDOM_NODE`, else the hostname); `WELL_DB` set and the Well down means the controller does not start and `revert-all` exits 2, so only set it on a host whose Well outlives the unit. Open file entries are moved into the Well at the first start with `WELL_DB`. Reverted at the end, on abort, by TTL (duration + 30 s), at controller start (replay), and by `chaos-controller revert-all` from the unit's `ExecStopPost` (runs after a crash or SIGKILL). An entry is removed only after the injector verifies the fault is gone; otherwise `chaos.revert_failed`, a High finding, and `revert-all` exits non-zero. A damaged journal stops the controller; no state dir means nothing runs |
 | Steady state (D-20) | Probes are real HTTP GETs to allowlisted instances at the address Cuirass reports, only when it lies inside the allowlist's `probe_subnets` (seed: west's lxdbr0 `10.10.20.0/24`; absent: `10.10.10.0/24`; an empty or broader-than-/16 list is refused) (loopback, link-local, unspecified, multicast refused; no redirects, no proxy; at most 10 per experiment); their success ratio must reach `min_success_ratio` before injection and they abort only below `abort_below`. The Kingdom SLO guard (`pkg/sloguard`, shared with Sword): every `page: true` SLO's `slo:error_ratio:5m` under 14.4 × (1 − objective). A burning or missing series, or Victoria down, refuses the start; during the run it aborts; after the revert it is part of the verdict. No `VM_URL`: nothing starts |
 
 ## Experiment types
@@ -54,6 +54,20 @@ Unknown parameters are refused. The record carries `status` (`running|completed|
 | packet chaos, `marker` + loss 50 % on flow 0x5EE1, 1000 + 1000 frames | 0x5EE1: 474 received, all CHAOS-flagged, CRC ok; 0x5EE2: 1000/1000, flag clear; netem dropped 526; `STATS packets_total=2000 targets_hit=1000`. Non-enrolled Monad bytes identical before/during; enrolled differs only at the flags octet and the CRC | Steps 346, 351 |
 | packet chaos, delay 100 ms (game day E) | +104 ms on 0x5EE1 only | Step 371 |
 | Kingdom `slo:error_ratio:5m` wotan / dashboard / well | 0 before and after every scenario | game day |
+
+## Querying the journal
+
+With the journal in The Well (any role with SELECT, e.g. `ops_reader`):
+
+```sql
+SELECT entry_id, host, kind, fault_type, created_at, expires_at FROM chaos_journal_open;   -- faults that may be in place
+
+SELECT j.entry_id, j.fault_type, j.target, t.occurred_at AS reverted_at, t.note
+FROM chaos_journal j LEFT JOIN chaos_journal_transitions t USING (entry_id)
+ORDER BY j.created_at DESC LIMIT 20;
+```
+
+`kind` is `experiment` (Yaldabaoth) or `packet` (`chaos-controller packet-chaos`).
 
 ## Running it
 

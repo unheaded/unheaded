@@ -10,6 +10,11 @@
 #   sudo install -m 0640 -o root -g unheaded-chaos observability/alerting/policy.yaml /etc/unheaded/chaos/policy.yaml
 #   # /etc/unheaded/chaos/chaos.env (0640 root:unheaded-chaos): AUTH_API_KEYS,
 #   # CUIRASS_URL, VM_URL, WOTAN_ADDR; CHAOS_DRY_RUN=false only for a game-day window.
+#   # Revert journal in The Well (migration 039): WELL_DB=unheaded_ops,
+#   # WELL_HOST, WELL_PASSWORD (ops_writer), KINGDOM_NODE. Only on a host whose
+#   # Well is up before this unit and stays up past it: with WELL_DB set and the
+#   # Well down, the controller does not start and ExecStopPost's revert-all
+#   # exits 2 (faults stay in place). Without WELL_DB: /var/lib/unheaded-chaos/journal.json.
 #   sudo cp deploy/systemd/unheaded-chaos-controller.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-chaos-controller
 #

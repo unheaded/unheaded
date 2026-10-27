@@ -12,10 +12,12 @@
 // previous successful one through pkg/deploy/rollback; a canary that fails
 // analysis rolls itself back.
 //
-// History lives in one JSON file under the data dir (pkg/statefile, D-07):
-// without a data dir every mutating route answers 503; a damaged file stops
-// Sword at start; a failed save of a new request answers 503 and forgets
-// the request. Mutating routes answer 403 unless AUTH_ENABLED=true.
+// History (history.go) lives in The Well (unheaded_ops.deploy_history,
+// migration 039) when Config.History is a Well history, otherwise in one
+// JSON file under the data dir (pkg/statefile, D-07): with neither, every
+// mutating route answers 503; damaged history stops Sword at start; a
+// failed save of a new request answers 503 and forgets the request.
+// Mutating routes answer 403 unless AUTH_ENABLED=true.
 //
 // Routes:
 //
@@ -47,6 +49,9 @@ import (
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/statefile"
 )
+
+// historyTimeout bounds one history write or read.
+const historyTimeout = 10 * time.Second
 
 // Status is a deployment's lifecycle state.
 type Status string
@@ -207,7 +212,11 @@ type Publisher interface {
 
 // Config configures Sword.
 type Config struct {
-	DataDir      string                // "" refuses every write (503)
+	// History stores the records (NewWellHistory); nil: the file in
+	// DataDir. A Well history with DataDir set imports DataDir's file once,
+	// into an empty Well.
+	History      History
+	DataDir      string                // "" (and no History) refuses every write (503)
 	AuthEnabled  bool                  // false refuses every write (403)
 	Driver       *cuirassdriver.Driver // nil refuses deployments (503)
 	Analysis     Analysis              // nil refuses canary deployments (400)
@@ -221,9 +230,9 @@ type Config struct {
 
 // Service is Sword.
 type Service struct {
-	cfg  Config
-	file *statefile.File
-	log  zerolog.Logger
+	cfg     Config
+	history History // nil: read-only
+	log     zerolog.Logger
 
 	mu      sync.Mutex
 	deps    []*Deployment
@@ -249,11 +258,14 @@ func New(cfg Config) (*Service, error) {
 		cfg.PollInterval = 2 * time.Second
 	}
 	s := &Service{
-		cfg:  cfg,
-		file: statefile.In(cfg.DataDir, stateFileName),
-		byID: map[string]*Deployment{},
-		busy: map[string]string{},
-		log:  zerolog.Nop(),
+		cfg:     cfg,
+		history: cfg.History,
+		byID:    map[string]*Deployment{},
+		busy:    map[string]string{},
+		log:     zerolog.Nop(),
+	}
+	if s.history == nil {
+		s.history = NewFileHistory(cfg.DataDir)
 	}
 	if cfg.Log != nil {
 		s.log = *cfg.Log
@@ -265,31 +277,13 @@ func New(cfg Config) (*Service, error) {
 	s.registry.MustRegister(s.deploysC)
 	s.registry.MustRegister(s.rollbackC)
 
-	if s.file != nil {
-		var st stateFile
-		if _, err := s.file.Load(&st); err != nil {
-			return nil, fmt.Errorf("sword: state: %w", err)
+	if s.history != nil {
+		if err := s.loadHistory(); err != nil {
+			return nil, err
 		}
-		interrupted := false
-		for _, d := range st.Deployments {
-			if d == nil || d.ID == "" || s.byID[d.ID] != nil {
-				return nil, fmt.Errorf("sword: state: a record without a unique id")
-			}
-			if !d.final() {
-				// Nothing is running it any more: say so instead of
-				// leaving it "in progress" for ever.
-				d.Status = StatusFailed
-				d.Message = "interrupted by a Sword restart; check Cuirass's state before deploying again"
-				interrupted = true
-			}
-			s.deps = append(s.deps, d)
-			s.byID[d.ID] = d
-		}
-		if interrupted {
-			if err := s.file.Save(stateFile{Version: 1, Deployments: s.deps}); err != nil {
-				return nil, fmt.Errorf("sword: state: %w", err)
-			}
-		}
+		s.log.Info().Str("history", s.history.Mode()).Int("records", len(s.deps)).Msg("sword: history loaded")
+	} else {
+		s.log.Info().Str("history", "none").Msg("sword: no history store: read-only")
 	}
 	if cfg.Driver != nil {
 		s.rollbacks = rollback.NewManager(&lookup{s: s},
@@ -297,6 +291,78 @@ func New(cfg Config) (*Service, error) {
 			&cuirassdriver.Shifter{Driver: cfg.Driver, Specs: s.specFor})
 	}
 	return s, nil
+}
+
+// loadHistory reads the stored records. A record that was not final when
+// Sword stopped is marked failed: nothing runs it any more.
+func (s *Service) loadHistory() error {
+	ctx, cancel := context.WithTimeout(context.Background(), historyTimeout)
+	defer cancel()
+	deps, err := s.history.Load(ctx)
+	if err != nil {
+		return fmt.Errorf("sword: history (%s): %w", s.history.Mode(), err)
+	}
+	if len(deps) == 0 && s.history.Mode() == "well" {
+		if deps, err = s.importFile(ctx); err != nil {
+			return err
+		}
+	}
+	var interrupted []*Deployment
+	for _, d := range deps {
+		if d == nil || d.ID == "" || s.byID[d.ID] != nil {
+			return fmt.Errorf("sword: history: a record without a unique id")
+		}
+		s.deps = append(s.deps, d)
+		s.byID[d.ID] = d
+		if !d.final() {
+			interrupted = append(interrupted, d)
+		}
+	}
+	for _, d := range interrupted {
+		// Nothing is running it any more: say so instead of leaving it
+		// "in progress" for ever.
+		from := d.Status
+		d.Status = StatusFailed
+		d.Message = "interrupted by a Sword restart; check Cuirass's state before deploying again"
+		if err := s.history.Update(ctx, d, from, s.deps); err != nil {
+			return fmt.Errorf("sword: history: %w", err)
+		}
+	}
+	return nil
+}
+
+// importFile copies DataDir's sword.json into an empty Well once, when a
+// Sword is switched from the file to the Well, so the previous successes
+// are still there to roll back to. The file is left as it was.
+func (s *Service) importFile(ctx context.Context) ([]*Deployment, error) {
+	f := NewFileHistory(s.cfg.DataDir)
+	if f == nil {
+		return nil, nil
+	}
+	deps, err := f.Load(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("sword: importing %s into the Well: %w", stateFileName, err)
+	}
+	for i, d := range deps {
+		if d == nil {
+			return nil, fmt.Errorf("sword: importing %s: an empty record", stateFileName)
+		}
+		if err := s.history.Record(ctx, d, deps[:i+1]); err != nil {
+			return nil, fmt.Errorf("sword: importing %s into the Well: %w", stateFileName, err)
+		}
+	}
+	if len(deps) > 0 {
+		s.log.Info().Int("records", len(deps)).Str("from", s.cfg.DataDir).Msg("sword: file history imported into the Well")
+	}
+	return deps, nil
+}
+
+// HistoryMode is "well", "file" or "none".
+func (s *Service) HistoryMode() string {
+	if s.history == nil {
+		return "none"
+	}
+	return s.history.Mode()
 }
 
 // Close stops running work and waits for it.
@@ -364,16 +430,9 @@ func (s *Service) Wait(ctx context.Context, id string) (*Deployment, error) {
 	}
 }
 
-// saveLocked persists the history; the caller holds mu.
-func (s *Service) saveLocked() error {
-	if s.file == nil {
-		return statefile.ErrNoDir
-	}
-	return s.file.Save(stateFile{Version: 1, Deployments: s.deps})
-}
-
 // update changes a record and persists it. A failed save is logged: the
 // change already happened in the world (Cuirass), so it cannot be undone.
+// Writes happen under mu so the stored order is the order of the changes.
 func (s *Service) update(id string, f func(d *Deployment)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -381,8 +440,14 @@ func (s *Service) update(id string, f func(d *Deployment)) {
 	if !ok {
 		return
 	}
+	from := d.Status
 	f(d)
-	if err := s.saveLocked(); err != nil {
+	if s.history == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), historyTimeout)
+	defer cancel()
+	if err := s.history.Update(ctx, d, from, s.deps); err != nil {
 		s.log.Error().Err(err).Str("id", id).Msg("sword: could not persist a deployment change")
 	}
 }
@@ -477,7 +542,7 @@ func (s *Service) Deploy(req *DeployRequest) (*Deployment, int, error) {
 	if !s.cfg.AuthEnabled {
 		return nil, http.StatusForbidden, errors.New("deployments need AUTH_ENABLED=true")
 	}
-	if s.file == nil {
+	if s.history == nil {
 		return nil, http.StatusServiceUnavailable, statefile.ErrNoDir
 	}
 	if s.cfg.Driver == nil {
@@ -498,8 +563,10 @@ func (s *Service) Deploy(req *DeployRequest) (*Deployment, int, error) {
 		return nil, http.StatusConflict, fmt.Errorf("%s is busy with %s", req.Service, other)
 	}
 	if len(s.deps) >= maxHistory {
-		s.mu.Unlock()
-		return nil, http.StatusInsufficientStorage, fmt.Errorf("history holds %d records; prune %s", maxHistory, stateFileName)
+		if s.history.Mode() != "well" || !s.forgetOldestLocked() {
+			s.mu.Unlock()
+			return nil, http.StatusInsufficientStorage, fmt.Errorf("history holds %d records; prune %s", maxHistory, stateFileName)
+		}
 	}
 	s.counter++
 	d := &Deployment{
@@ -516,7 +583,10 @@ func (s *Service) Deploy(req *DeployRequest) (*Deployment, int, error) {
 	}
 	s.deps = append(s.deps, d)
 	s.byID[d.ID] = d
-	if err := s.saveLocked(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), historyTimeout)
+	err = s.history.Record(ctx, d, s.deps)
+	cancel()
+	if err != nil {
 		s.deps = s.deps[:len(s.deps)-1]
 		delete(s.byID, d.ID)
 		s.mu.Unlock()
@@ -529,6 +599,20 @@ func (s *Service) Deploy(req *DeployRequest) (*Deployment, int, error) {
 	s.wg.Add(1)
 	go s.run(d.ID, cfg)
 	return out, http.StatusAccepted, nil
+}
+
+// forgetOldestLocked drops the oldest final, idle record from memory (it
+// stays in the Well) so a Well-backed Sword keeps its newest maxHistory
+// records. The caller holds mu.
+func (s *Service) forgetOldestLocked() bool {
+	for i, d := range s.deps {
+		if d.final() && s.busy[d.Service] != d.ID {
+			delete(s.byID, d.ID)
+			s.deps = append(s.deps[:i:i], s.deps[i+1:]...)
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) release(service, id string) {
@@ -697,7 +781,7 @@ func (s *Service) Rollback(id string) (*Deployment, int, error) {
 	if !s.cfg.AuthEnabled {
 		return nil, http.StatusForbidden, errors.New("rollbacks need AUTH_ENABLED=true")
 	}
-	if s.file == nil {
+	if s.history == nil {
 		return nil, http.StatusServiceUnavailable, statefile.ErrNoDir
 	}
 	if s.rollbacks == nil {
@@ -916,14 +1000,19 @@ func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "sword"})
 }
 
-// handleReady: ready means a deployment could start now: the data dir
-// takes a write and Cuirass answers.
+// handleReady: ready means a deployment could start now: the history
+// takes a write (the data dir, or The Well answers) and Cuirass answers.
 func (s *Service) handleReady(w http.ResponseWriter, r *http.Request) {
 	var problems []string
-	if s.file == nil {
-		problems = append(problems, "no SWORD_DATA_DIR (read-only)")
-	} else if err := probeWritable(s.cfg.DataDir); err != nil {
-		problems = append(problems, "data dir not writable: "+err.Error())
+	if s.history == nil {
+		problems = append(problems, "no SWORD_DATA_DIR or WELL_DB (read-only)")
+	} else {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.history.Ready(ctx)
+		cancel()
+		if err != nil {
+			problems = append(problems, "history ("+s.history.Mode()+") not writable: "+err.Error())
+		}
 	}
 	if s.cfg.Driver == nil {
 		problems = append(problems, "no Cuirass driver")

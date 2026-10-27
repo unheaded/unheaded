@@ -158,3 +158,25 @@ Open, waiting on decisions:
 - Which key seals real snapshots, and where it lives (ADR-043 #4).
 - Installing Ansible for the syntax check.
 - Dashboard admin (switching from the UI) waits for logins and RBAC (§5).
+
+## Progress (2026-10-27): deploy history and the chaos journal in The Well
+
+§4's "journal of what was applied" now also covers deploys and faults (S-WELL-SPRING Phase 2, M-072).
+Migration `039_ops_deploy_chaos.sql` (unheaded_ops, append-only by trigger, ops_writer INSERT/SELECT,
+ops_reader SELECT) holds `deploy_history` + `deploy_history_transitions` (Sword: the request, then every change
+with the whole record) and `chaos_journal` + `chaos_journal_transitions` (Yaldabaoth and `chaos-controller
+packet-chaos`: each fault's revert recipe before it lands, then a `reverted` row; never an edit). Views
+`deploy_history_current` and `chaos_journal_open`. Stores: `pkg/database` `DeployStore`, `ChaosStore`.
+
+- The Well is used when `WELL_DB` is set; set and unreachable (or 039 missing) is a refusal to start, never a
+  fall back, so one history is never split across two stores. Without `WELL_DB`, `pkg/statefile` files are the
+  documented fallback (`SWORD_DATA_DIR/sword.json`, `CHAOS_STATE_DIR/journal.json`, `packet-chaos.json`).
+- Rows are per host (`KINGDOM_NODE`, else the hostname): a Sword rolls back through its own host's Cuirass, a
+  controller reverts only its own faults, and west and east share one Well.
+- Switching a host to the Well moves its file state in once: Sword imports `sword.json` into an empty Well; the
+  controller moves open journal entries in, then empties the file.
+- `pkg/statefile` remains for architect, micromanager and `unheaded-daemon`'s desired store (follow-on, not
+  this sprint).
+- Proof: `scripts/well/test-deploy-journal.sh` (throwaway server: grants, triggers, CHECKs, and the Go stores,
+  Sword, Yaldabaoth and `revert-all` against it as ops_writer). Live: 039 is applied in the E-A window; until
+  then a rebuilt Sword (compose sets `WELL_DB`) refuses to start.

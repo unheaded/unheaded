@@ -1406,6 +1406,15 @@ services:
       # service token got 403.
       AUTH_ALLOW_CALLERS: "unheaded-cli,dashboard-backend"
       CUIRASS_URL: "http://cuirass:19006"
+      # Deployment history in The Well (unheaded_ops.deploy_history, migration
+      # 039, S-WELL-SPRING Phase 2) as the scoped writer. Sword refuses to start
+      # while 039 is not applied: apply it before rebuilding this service. The
+      # first start on an empty Well imports /data/sword.json once.
+      WELL_HOST: "postgres"
+      WELL_USER: "ops_writer"
+      WELL_PASSWORD: "${OPS_WRITER_PASSWORD:?set OPS_WRITER_PASSWORD in .env (credentials are not stored in this repo)}"
+      WELL_DB: "unheaded_ops"
+      WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
       SWORD_DATA_DIR: "/data"
       VM_URL: "http://victoria:8428"
       SWORD_SLO_POLICY: "/etc/unheaded/sword/policy.yaml"
@@ -1424,6 +1433,8 @@ services:
     depends_on:
       cuirass:
         condition: service_healthy
+      postgres:
+        condition: service_started
     labels:
       kingdom.armor: "sword"
       kingdom.role: "deploy"

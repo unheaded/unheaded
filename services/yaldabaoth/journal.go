@@ -15,16 +15,70 @@ import (
 )
 
 // The revert journal (S-REAL-STEEL D-19). Before an injector acts, its
-// revert recipe is written to CHAOS_STATE_DIR/journal.json (0600, replaced
-// atomically). The fault is reverted at the experiment's end, on any
+// revert recipe is written to the journal store: The Well
+// (unheaded_ops.chaos_journal, migration 039; journal_well.go) when the
+// controller runs with WELL_DB, otherwise CHAOS_STATE_DIR/journal.json
+// (0600, replaced atomically). The fault is reverted at the experiment's end, on any
 // abort, by its TTL (duration + RevertGrace) even if the experiment's own
 // loop is wedged, at the next start of the controller, and by
 // `chaos-controller revert-all` (the unit's ExecStopPost, which runs after
 // a crash or SIGKILL too). An entry is removed only after its injector
 // verifies the fault is gone; otherwise it stays, chaos.revert_failed is
-// published, and every later revert pass tries again.
+// published, and every later revert pass tries again. In The Well removing
+// an entry appends a 'reverted' row; the entry itself is never changed.
 
 const journalFileName = "journal.json"
+
+// journalTimeout bounds one journal write or read.
+const journalTimeout = 10 * time.Second
+
+// JournalStore keeps the revert journal. Add and Remove get the open
+// entries after the change because the file store rewrites them all; the
+// Well store appends one row.
+type JournalStore interface {
+	// Mode is "well" or "file".
+	Mode() string
+	// Load returns the open entries (faults that may still be in place).
+	Load(ctx context.Context) ([]*JournalEntry, error)
+	// Add journals e before its fault lands.
+	Add(ctx context.Context, e *JournalEntry, open []*JournalEntry) error
+	// Remove closes entry id once its fault is verified gone.
+	Remove(ctx context.Context, id, why string, open []*JournalEntry) error
+}
+
+// fileJournalStore is CHAOS_STATE_DIR/journal.json.
+type fileJournalStore struct{ file *statefile.File }
+
+// NewFileJournal keeps the journal in dir/journal.json; nil for an empty dir.
+func NewFileJournal(dir string) JournalStore {
+	f := statefile.In(dir, journalFileName)
+	if f == nil {
+		return nil
+	}
+	return &fileJournalStore{file: f}
+}
+
+func (f *fileJournalStore) Mode() string { return "file" }
+
+func (f *fileJournalStore) Load(context.Context) ([]*JournalEntry, error) {
+	var jf journalFile
+	if _, err := f.file.Load(&jf); err != nil {
+		return nil, err
+	}
+	return jf.Entries, nil
+}
+
+func (f *fileJournalStore) save(open []*JournalEntry) error {
+	return f.file.Save(journalFile{Version: 1, Entries: open})
+}
+
+func (f *fileJournalStore) Add(_ context.Context, _ *JournalEntry, open []*JournalEntry) error {
+	return f.save(open)
+}
+
+func (f *fileJournalStore) Remove(_ context.Context, _, _ string, open []*JournalEntry) error {
+	return f.save(open)
+}
 
 // JournalEntry is one fault in place.
 type JournalEntry struct {
@@ -42,18 +96,20 @@ type journalFile struct {
 }
 
 type journal struct {
-	file    *statefile.File
+	store   JournalStore
 	mu      sync.Mutex
 	entries map[string]*JournalEntry
 }
 
-func openJournal(dir string) (*journal, error) {
-	j := &journal{file: statefile.In(dir, journalFileName), entries: map[string]*JournalEntry{}}
-	var jf journalFile
-	if _, err := j.file.Load(&jf); err != nil {
-		return nil, fmt.Errorf("chaos journal: %w", err)
+func openJournal(store JournalStore) (*journal, error) {
+	j := &journal{store: store, entries: map[string]*JournalEntry{}}
+	ctx, cancel := context.WithTimeout(context.Background(), journalTimeout)
+	defer cancel()
+	entries, err := store.Load(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("chaos journal (%s): %w", store.Mode(), err)
 	}
-	for _, e := range jf.Entries {
+	for _, e := range entries {
 		if e == nil || e.ID == "" || j.entries[e.ID] != nil {
 			return nil, errors.New("chaos journal: an entry without a unique id")
 		}
@@ -62,12 +118,12 @@ func openJournal(dir string) (*journal, error) {
 	return j, nil
 }
 
-func (j *journal) saveLocked() error {
-	jf := journalFile{Version: 1}
+func (j *journal) openLocked() []*JournalEntry {
+	out := make([]*JournalEntry, 0, len(j.entries))
 	for _, id := range j.idsLocked() {
-		jf.Entries = append(jf.Entries, j.entries[id])
+		out = append(out, j.entries[id])
 	}
-	return j.file.Save(jf)
+	return out
 }
 
 func (j *journal) idsLocked() []string {
@@ -87,14 +143,16 @@ func (j *journal) add(e *JournalEntry) error {
 		return fmt.Errorf("journal already holds %s", e.ID)
 	}
 	j.entries[e.ID] = e
-	if err := j.saveLocked(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), journalTimeout)
+	defer cancel()
+	if err := j.store.Add(ctx, e, j.openLocked()); err != nil {
 		delete(j.entries, e.ID)
 		return err
 	}
 	return nil
 }
 
-func (j *journal) remove(id string) error {
+func (j *journal) remove(id, why string) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	e, ok := j.entries[id]
@@ -102,7 +160,9 @@ func (j *journal) remove(id string) error {
 		return nil
 	}
 	delete(j.entries, id)
-	if err := j.saveLocked(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), journalTimeout)
+	defer cancel()
+	if err := j.store.Remove(ctx, id, why, j.openLocked()); err != nil {
 		j.entries[id] = e
 		return err
 	}
@@ -178,7 +238,7 @@ func (s *Service) revertEntry(id, why string) (bool, *Finding) {
 	if !gone {
 		return fail("the fault is still in place after its revert")
 	}
-	if err := s.journal.remove(id); err != nil {
+	if err := s.journal.remove(id, why); err != nil {
 		return fail("reverted, but the journal could not be updated: " + err.Error())
 	}
 	s.disarmTTL(id)

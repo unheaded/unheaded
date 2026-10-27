@@ -14,7 +14,16 @@
 //	                  token minted from it (aud unheaded-daemon, ADR-103)
 //	CUIRASS_API_KEY   fallback when there is no AUTH_KEY_FILE; Sword refuses
 //	                  to start with neither
-//	SWORD_DATA_DIR    deployment history; unset = read-only (writes 503)
+//	SWORD_DATA_DIR    deployment history file when WELL_DB is unset; with
+//	                  neither, read-only (writes 503)
+//	WELL_DB           The Well: history in unheaded_ops.deploy_history
+//	                  (migration 039) as WELL_USER (default ops_writer) with
+//	                  WELL_PASSWORD, WELL_HOST, WELL_PORT, WELL_SSLMODE
+//	                  (database.OpsWriterConfig). Set and unreachable, or 039
+//	                  missing, Sword refuses to start: it never falls back to
+//	                  the file. The first start on an empty Well imports
+//	                  SWORD_DATA_DIR's file.
+//	KINGDOM_NODE      this host's name in the Well (default: the hostname)
 //	VM_URL            VictoriaMetrics for the SLO guard; unset = canary refused
 //	SWORD_SLO_POLICY  alerting policy file (default /etc/unheaded/sword/policy.yaml)
 //	WOTAN_ADDR, WOTAN_GRPC_ADDR  Wotan, for deploy.* events (best effort)
@@ -36,6 +45,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/database"
 	"unheaded/pkg/deploy/cuirassdriver"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
@@ -55,6 +65,8 @@ type config struct {
 	cuirassKey string
 	keyFile    string
 	dataDir    string
+	wellDB     string
+	node       string
 	vmURL      string
 	policy     string
 	wotanHTTP  string
@@ -80,6 +92,8 @@ func loadConfig(getenv func(string) string) (config, error) {
 		cuirassKey: getenv("CUIRASS_API_KEY"),
 		keyFile:    getenv("AUTH_KEY_FILE"),
 		dataDir:    getenv("SWORD_DATA_DIR"),
+		wellDB:     getenv("WELL_DB"),
+		node:       getenv("KINGDOM_NODE"),
 		vmURL:      getenv("VM_URL"),
 		policy:     envOr(getenv, "SWORD_SLO_POLICY", "/etc/unheaded/sword/policy.yaml"),
 		wotanHTTP:  getenv("WOTAN_ADDR"),
@@ -111,6 +125,13 @@ func build(c config, log *zerolog.Logger) (*sword.Service, error) {
 		Driver:      d,
 		Log:         log,
 	}
+	if c.wellDB != "" {
+		h, err := openWellHistory(c)
+		if err != nil {
+			return nil, fmt.Errorf("history in the Well (WELL_DB=%s): %w", c.wellDB, err)
+		}
+		cfg.History = h
+	}
 	if c.vmURL != "" {
 		g, err := sloguard.New(c.vmURL, c.policy)
 		if err != nil {
@@ -120,8 +141,8 @@ func build(c config, log *zerolog.Logger) (*sword.Service, error) {
 	} else {
 		log.Warn().Msg("VM_URL is not set: no SLO guard, so canary deployments are refused")
 	}
-	if c.dataDir == "" {
-		log.Warn().Msg("SWORD_DATA_DIR is not set: read-only, every deployment request answers 503")
+	if c.dataDir == "" && c.wellDB == "" {
+		log.Warn().Msg("neither WELL_DB nor SWORD_DATA_DIR is set: read-only, every deployment request answers 503")
 	}
 	if !cfg.AuthEnabled {
 		log.Warn().Msg("AUTH_ENABLED is not true: every deployment request answers 403")
@@ -140,6 +161,30 @@ func build(c config, log *zerolog.Logger) (*sword.Service, error) {
 		}
 	}
 	return sword.New(cfg)
+}
+
+// openWellHistory connects as the ops writer and checks migration 039.
+var openWellHistory = func(c config) (sword.History, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	dbCfg := database.OpsWriterConfig()
+	dbCfg.DBName = c.wellDB
+	db, err := database.Connect(ctx, dbCfg)
+	if err != nil {
+		return nil, err
+	}
+	node := c.node
+	if node == "" {
+		if node, err = os.Hostname(); err != nil {
+			return nil, err
+		}
+	}
+	h, err := sword.NewWellHistory(ctx, db, node)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return h, nil
 }
 
 // handler is Sword's mux with auth from authCfg in front (S-IRON-GATE
