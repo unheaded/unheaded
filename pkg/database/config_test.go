@@ -30,6 +30,7 @@ func TestConfig_NoCredentialDefaults(t *testing.T) {
 	}{
 		"ops writer": {OpsWriterConfig(), "ops_writer"},
 		"kanban":     {AppKanbanConfig(), "app_kanban"},
+		"auth":       {AppAuthConfig(), "app_auth"},
 	} {
 		if c.cfg.User != c.user {
 			t.Errorf("%s: default user %q, want scoped role %q", name, c.cfg.User, c.user)
@@ -37,6 +38,38 @@ func TestConfig_NoCredentialDefaults(t *testing.T) {
 		if c.cfg.Password != "" {
 			t.Errorf("%s: a default password is built in", name)
 		}
+	}
+}
+
+// The API-key store (pkg/auth, migration 036) logs in as app_auth to
+// unheaded_app whatever role and database the service itself uses: its
+// WELL_USER/WELL_PASSWORD/WELL_DB belong to that other role (kanban-app's
+// app_kanban, dashboard-backend's unheaded_ops). Host, port and sslmode
+// are the same Well's.
+func TestAppAuthConfig_OwnCredentials(t *testing.T) {
+	unsetWell(t)
+	for _, k := range []string{"AUTH_WELL_USER", "AUTH_WELL_PASSWORD", "AUTH_WELL_DB"} {
+		t.Setenv(k, "x")
+		unsetenv(t, k)
+	}
+	t.Setenv("WELL_USER", "app_kanban")
+	t.Setenv("WELL_PASSWORD", "kanban-pw")
+	t.Setenv("WELL_DB", "unheaded_ops")
+	t.Setenv("WELL_HOST", "10.10.10.5")
+	t.Setenv("WELL_SSLMODE", "verify-full")
+	c := AppAuthConfig()
+	if c.User != "app_auth" || c.Password != "" || c.DBName != "unheaded_app" {
+		t.Errorf("took the service's own Well login: %+v", c)
+	}
+	if c.Host != "10.10.10.5" || c.SSLMode != "verify-full" || c.Port != "5432" {
+		t.Errorf("not the same Well: %+v", c)
+	}
+	t.Setenv("AUTH_WELL_USER", "app_auth_ro")
+	t.Setenv("AUTH_WELL_PASSWORD", "auth-pw")
+	t.Setenv("AUTH_WELL_DB", "unheaded_app_test")
+	c = AppAuthConfig()
+	if c.User != "app_auth_ro" || c.Password != "auth-pw" || c.DBName != "unheaded_app_test" {
+		t.Errorf("AUTH_WELL_* not read: %+v", c)
 	}
 }
 

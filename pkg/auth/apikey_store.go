@@ -432,14 +432,14 @@ func ParseAPIKeyStoreSpec(spec string) (kind, path string, err error) {
 }
 
 // DefaultAPIKeyStoreSpec is the store an operator tool uses:
-// AUTH_APIKEY_STORE if set, else the Well when WELL_DB is set, else
-// DefaultAPIKeyFile. Services do not default; they use a store only when
-// AUTH_APIKEY_STORE names one.
+// AUTH_APIKEY_STORE if set, else the Well when WELL_DB or
+// AUTH_WELL_PASSWORD is set, else DefaultAPIKeyFile. Services do not
+// default; they use a store only when AUTH_APIKEY_STORE names one.
 func DefaultAPIKeyStoreSpec() string {
 	if v := os.Getenv("AUTH_APIKEY_STORE"); v != "" {
 		return v
 	}
-	if os.Getenv("WELL_DB") != "" {
+	if os.Getenv("WELL_DB") != "" || os.Getenv("AUTH_WELL_PASSWORD") != "" {
 		return "well"
 	}
 	return "file:" + DefaultAPIKeyFile

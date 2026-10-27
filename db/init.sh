@@ -85,6 +85,7 @@ SQL
 set_password app_kanban     APP_KANBAN_PASSWORD
 set_password app_timeguru   APP_TIMEGURU_PASSWORD
 set_password app_zhen       APP_ZHEN_PASSWORD
+set_password app_auth       APP_AUTH_PASSWORD
 set_password ops_writer     OPS_WRITER_PASSWORD
 set_password ops_reader     OPS_READER_PASSWORD
 set_password config_admin   CONFIG_ADMIN_PASSWORD

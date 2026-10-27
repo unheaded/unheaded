@@ -103,8 +103,8 @@ func apiKeyStoreSuite(t *testing.T, newStore func(t *testing.T, now func() time.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(list) != 1 || list[0].ID != rec.ID {
-			t.Fatalf("List = %+v", list)
+		if got, ok := findRecord(list, rec.ID); !ok || got.KeyHash != rec.KeyHash {
+			t.Fatalf("List lacks the new key: %+v", list)
 		}
 		blob, _ := json.Marshal(list)
 		if strings.Contains(string(blob), key[len(APIKeyPrefix):]) {
@@ -206,8 +206,10 @@ func apiKeyStoreSuite(t *testing.T, newStore func(t *testing.T, now func() time.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(list) != 2 || list[0].RevokedAt == nil || list[1].RevokedAt == nil {
-			t.Errorf("List after revoke = %+v", list)
+		for _, id := range []string{r1.ID, r2.ID} {
+			if got, ok := findRecord(list, id); !ok || got.RevokedAt == nil {
+				t.Errorf("List after revoke: %s = %+v", id, got)
+			}
 		}
 	})
 
@@ -215,6 +217,10 @@ func apiKeyStoreSuite(t *testing.T, newStore func(t *testing.T, now func() time.
 		clk := newTestClock()
 		s := newStore(t, clk.Now)
 		now := clk.Now()
+		before, err := s.List(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
 		cases := []struct {
 			name, owner, role string
 			exp               time.Time
@@ -237,13 +243,22 @@ func apiKeyStoreSuite(t *testing.T, newStore func(t *testing.T, now func() time.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(list) != 0 {
-			t.Errorf("refused creates left records: %+v", list)
+		if len(list) != len(before) {
+			t.Errorf("refused creates left records: %d before, %d after", len(before), len(list))
 		}
 		if _, _, err := s.Create(ctx, "ci.bot@west", RoleService, now.Add(MaxAPIKeyLifetime)); err != nil {
 			t.Errorf("maximum lifetime refused: %v", err)
 		}
 	})
+}
+
+func findRecord(list []APIKeyRecord, id string) (APIKeyRecord, bool) {
+	for _, r := range list {
+		if r.ID == id {
+			return r, true
+		}
+	}
+	return APIKeyRecord{}, false
 }
 
 func TestAPIKeyStore_Mem(t *testing.T) {
@@ -499,13 +514,20 @@ func TestParseAPIKeyStoreSpec(t *testing.T) {
 func TestDefaultAPIKeyStoreSpec(t *testing.T) {
 	t.Setenv("AUTH_APIKEY_STORE", "")
 	t.Setenv("WELL_DB", "")
+	t.Setenv("AUTH_WELL_PASSWORD", "")
 	os.Unsetenv("WELL_DB")
+	os.Unsetenv("AUTH_WELL_PASSWORD")
 	if got := DefaultAPIKeyStoreSpec(); got != "file:"+DefaultAPIKeyFile {
 		t.Errorf("no env: %q", got)
 	}
 	t.Setenv("WELL_DB", "unheaded_app")
 	if got := DefaultAPIKeyStoreSpec(); got != "well" {
 		t.Errorf("WELL_DB set: %q", got)
+	}
+	os.Unsetenv("WELL_DB")
+	t.Setenv("AUTH_WELL_PASSWORD", "x")
+	if got := DefaultAPIKeyStoreSpec(); got != "well" {
+		t.Errorf("AUTH_WELL_PASSWORD set: %q", got)
 	}
 	t.Setenv("AUTH_APIKEY_STORE", "file:/tmp/k.jsonl")
 	if got := DefaultAPIKeyStoreSpec(); got != "file:/tmp/k.jsonl" {

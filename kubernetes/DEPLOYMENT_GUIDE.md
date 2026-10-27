@@ -57,11 +57,11 @@ Production options:
 - **External Secrets Operator** — sync from Vault / cloud secret managers.
 
 Keys to set: `POSTGRES_PASSWORD`, `APP_KANBAN_PASSWORD`, `APP_TIMEGURU_PASSWORD`,
-`APP_ZHEN_PASSWORD`, `OPS_WRITER_PASSWORD`, `OPS_READER_PASSWORD`,
+`APP_ZHEN_PASSWORD`, `APP_AUTH_PASSWORD`, `OPS_WRITER_PASSWORD`, `OPS_READER_PASSWORD`,
 `CONFIG_ADMIN_PASSWORD`, `CONFIG_READER_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`,
-`GRAFANA_SECRET_KEY`, `CLICKHOUSE_PASSWORD`. The 7 DB passwords feed The Well's init
+`GRAFANA_SECRET_KEY`, `CLICKHOUSE_PASSWORD`. The 8 DB passwords feed The Well's init
 script, which creates the 3 databases (`unheaded_app` / `unheaded_ops` /
-`unheaded_config`) and 7 least-privilege users exactly as `db/migrations/` does.
+`unheaded_config`) and 8 least-privilege users exactly as `db/migrations/` does.
 
 ## 4. Storage
 

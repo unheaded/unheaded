@@ -102,6 +102,25 @@ func AppKanbanConfig() Config {
 	}
 }
 
+// AppAuthConfig returns the database config for API-key stores (pkg/auth
+// WellStore, unheaded-cli apikey): the scoped role app_auth on
+// unheaded_app's api_keys table (migrations 035/036). The login is its
+// own, AUTH_WELL_USER / AUTH_WELL_PASSWORD / AUTH_WELL_DB, never the
+// service's WELL_USER/WELL_PASSWORD/WELL_DB: those belong to the role the
+// service otherwise uses (app_kanban, ops_writer on unheaded_ops). Host,
+// port and sslmode are the same Well's (WELL_HOST, WELL_PORT,
+// WELL_SSLMODE). There is no default password.
+func AppAuthConfig() Config {
+	return Config{
+		Host:     getEnv("WELL_HOST", "localhost"),
+		Port:     getEnv("WELL_PORT", "5432"),
+		User:     getEnv("AUTH_WELL_USER", "app_auth"),
+		Password: os.Getenv("AUTH_WELL_PASSWORD"),
+		DBName:   getEnv("AUTH_WELL_DB", "unheaded_app"),
+		SSLMode:  getEnv("WELL_SSLMODE", "require"),
+	}
+}
+
 func getEnv(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok {
 		return v

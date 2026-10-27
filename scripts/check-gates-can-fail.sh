@@ -595,6 +595,16 @@ provoke_well_zhen_captures() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_api_keys() {
+    # Contract (S-IRON-GATE Step 105, ADR-103 §5): every API key expires
+    # within 366 days of creation. Turn the cap into a no-op.
+    local f="db/migrations/036_app_api_keys.sql"
+    backup "${f}"
+    sed -i "s/CHECK (expires_at <= created_at + interval '366 days')/CHECK (true)/" "${REPO_ROOT}/${f}"
+    if grep -q "interval '366 days'" "${REPO_ROOT}/${f}"; then echo "provocation anchor missing in ${f}" >&2; return 1; fi
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
@@ -845,6 +855,7 @@ well/test-llm-requests|provoke_well_llm_requests|slow|llm_requests' UPDATE/DELET
 well/test-zhen-confirm|provoke_well_zhen_confirm|slow|the one-way transition trigger removed from 031 (needs docker)
 well/test-zhen-agent-runs|provoke_well_zhen_agent_runs|slow|the one-active-run index removed from 032, so a claim race has several winners (needs docker)
 well/test-zhen-captures|provoke_well_zhen_captures|slow|the one-label-per-source UNIQUE on zhen_capture_labels turned into CHECK (true) in 033 (needs docker)
+well/test-api-keys|provoke_well_api_keys|slow|the 366-day expiry cap on api_keys turned into CHECK (true) in 036 (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
