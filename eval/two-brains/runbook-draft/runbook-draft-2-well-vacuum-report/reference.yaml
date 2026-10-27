@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: well-vacuum-report
+  description: Read-only dead-tuple and autovacuum report for the Well
+  owner: erda
+  estimated_duration: 1m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+preconditions:
+  - description: psql is installed
+    check: "command -v psql >/dev/null"
+steps:
+  - name: dead-tuples
+    action: shell
+    command: |
+      set -euo pipefail
+      psql "${WELL_OPS_DSN:?set WELL_OPS_DSN; credentials are not stored in this repo}" -X -A -F ' | ' -c \
+        "SELECT schemaname, relname, n_live_tup, n_dead_tup, last_autovacuum, last_autoanalyze
+           FROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 20"
+  - name: never-autovacuumed
+    action: shell
+    command: |
+      set -euo pipefail
+      psql "${WELL_OPS_DSN:?set WELL_OPS_DSN}" -X -A -c \
+        "SELECT schemaname, relname, n_dead_tup FROM pg_stat_user_tables WHERE last_autovacuum IS NULL ORDER BY relname"

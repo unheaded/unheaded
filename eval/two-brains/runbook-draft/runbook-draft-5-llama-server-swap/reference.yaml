@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: llama-server-swap
+  description: Swap llama-server's model through switch-model.sh, then restart zhen-agentd
+  owner: zhenai
+  estimated_duration: 5m
+  risk: medium
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+parameters:
+  - name: MODEL
+    description: model key known to scripts/switch-model.sh (e.g. qwen-7b)
+steps:
+  - name: pin-and-fit
+    action: shell
+    command: "scripts/switch-model.sh --dry-run ${MODEL}"
+  - name: swap
+    action: shell
+    command: "scripts/switch-model.sh ${MODEL}"
+    verify: "curl -sf --max-time 5 http://127.0.0.1:8081/health"
+  - name: restart-agentd
+    action: shell
+    command: "sudo systemctl restart zhen-agentd"
+    verify: "systemctl is-active --quiet zhen-agentd"

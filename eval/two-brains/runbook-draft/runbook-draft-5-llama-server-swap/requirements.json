@@ -1,0 +1,16 @@
+{
+  "name": "llama-server-swap",
+  "requires": [
+    "(?m)^parameters:",
+    "switch-model\\.sh\\s+--dry-run\\s+\\\"?\\$\\{MODEL\\}",
+    "switch-model\\.sh\\s+\\\"?\\$\\{MODEL\\}",
+    "8081/health",
+    "systemctl\\s+restart\\s+zhen-agentd",
+    "requires_sudo:\\s*true"
+  ],
+  "forbids": [
+    "--no-verify",
+    "pkill",
+    "kill\\s+-9"
+  ]
+}

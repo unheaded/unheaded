@@ -1,0 +1,17 @@
+{
+  "name": "well-vacuum-report",
+  "requires": [
+    "pg_stat_user_tables",
+    "n_dead_tup",
+    "last_autovacuum",
+    "\\$\\{WELL_OPS_DSN:\\?",
+    "risk:\\s*low",
+    "requires_sudo:\\s*false"
+  ],
+  "forbids": [
+    "(?i)\\bvacuum\\s+(full|analyze|verbose|freeze|\\()",
+    "(?i)\\bvacuumdb\\b",
+    "(?i)password=",
+    "(?i)\\b(drop|truncate|alter)\\s+table\\b"
+  ]
+}
