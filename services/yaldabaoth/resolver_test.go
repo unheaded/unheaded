@@ -21,7 +21,7 @@ func TestCuirassResolver(t *testing.T) {
 		case "/api/v1/info":
 			_, _ = w.Write([]byte(`{"lxd_backend":"https","lxd_project":"unheaded"}`))
 		case "/api/v1/state/actual":
-			_, _ = w.Write([]byte(`{"steel-echo-v2-0":{"status":"running","ip":"10.10.10.31","managed":true,"labels":{"chaos":"allowed"}}}`))
+			_, _ = w.Write([]byte(`{"steel-echo-v2-0":{"status":"running","ip":"10.10.20.31","managed":true,"labels":{"chaos":"allowed"}}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -35,7 +35,7 @@ func TestCuirassResolver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if in.Project != "unheaded" || !in.Managed || in.IP != "10.10.10.31" || in.Labels["chaos"] != "allowed" {
+	if in.Project != "unheaded" || !in.Managed || in.IP != "10.10.20.31" || in.Labels["chaos"] != "allowed" {
 		t.Fatalf("instance %+v", in)
 	}
 	if _, err := r.Instance(context.Background(), "pihole"); !errors.Is(err, ErrInstanceNotFound) {
@@ -43,7 +43,7 @@ func TestCuirassResolver(t *testing.T) {
 	}
 	// It feeds the allowlist end to end.
 	rt, err := testAllowlist(t).Check(context.Background(), delayExp("steel-echo-v2-0", 0), checkEnv(r, "west"))
-	if err != nil || rt.IP != "10.10.10.31" {
+	if err != nil || rt.IP != "10.10.20.31" {
 		t.Fatalf("allowlist through Cuirass: %+v %v", rt, err)
 	}
 	for _, bad := range []string{"", "ftp://x", "http://u:p@x"} {

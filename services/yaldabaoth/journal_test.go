@@ -50,7 +50,7 @@ func TestJournal_WrittenBeforeInject(t *testing.T) {
 func TestJournal_RevertOnStart(t *testing.T) {
 	leftover := journalFile{Version: 1, Entries: []*JournalEntry{{
 		ID: "chaos-crashed-1", Type: ExpTypeNetworkDelay,
-		Target:  ResolvedTarget{Kind: KindLXD, ID: "steel-echo-v2-0", IP: "10.10.10.31"},
+		Target:  ResolvedTarget{Kind: KindLXD, ID: "steel-echo-v2-0", IP: "10.10.20.31"},
 		Recipe:  Recipe{"fault": "lxd/steel-echo-v2-0"},
 		Created: time.Now().Add(-time.Minute), Expires: time.Now().Add(time.Hour),
 	}}}

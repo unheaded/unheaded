@@ -138,6 +138,11 @@ func (s *Service) runProbe(ctx context.Context, e *Experiment, p Probe) ProbeRes
 	if err != nil {
 		return fail("probe target %s: %v", inst, err)
 	}
+	// The address is the instance's own claim: only the bridge subnets
+	// (allowlist probe_subnets) are ever contacted.
+	if _, err := s.deps.Allowlist.ProbeAddress(info.IP); err != nil {
+		return fail("probe target %s: %v", inst, err)
+	}
 	u, err := s.probeURL(info, p)
 	if err != nil {
 		return fail("%v", err)

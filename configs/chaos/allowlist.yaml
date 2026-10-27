@@ -23,6 +23,13 @@ netns: '^steel[0-9]+$'
 # Interfaces packet faults may attach to (Phase 13), anchored regexps.
 packet_interfaces: '^steel[0-9]+-h$'
 
+# Steady-state probes contact an instance only at an address inside these
+# CIDRs (S-CLEAN-SLATE M-039): an instance reports its own address, and the
+# P2P peer or a host service elsewhere is never a probe target. West's lxdbr0
+# is 10.10.20.1/24. Absent, the controller uses 10.10.10.0/24 (setup-host.sh).
+probe_subnets:
+  - 10.10.20.0/24
+
 systemd:
   # systemd faults run only on this host, on these units (Phase 12, E3).
   # *.target, ssh*, systemd-* and dbus* are refused even if listed.

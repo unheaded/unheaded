@@ -27,7 +27,7 @@ func TestAllowlist_AllowsTheLabelledInstance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rt.Kind != KindLXD || rt.ID != "steel-echo-v2-0" || rt.IP != "10.10.10.31" {
+	if rt.Kind != KindLXD || rt.ID != "steel-echo-v2-0" || rt.IP != "10.10.20.31" {
 		t.Fatalf("resolved %+v", rt)
 	}
 }

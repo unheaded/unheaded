@@ -9,12 +9,15 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/netip"
 	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"unheaded/pkg/probenet"
 )
 
 // The blast-radius allowlist (S-REAL-STEEL D-17). Every experiment is
@@ -90,7 +93,12 @@ type Allowlist struct {
 	} `yaml:"lxd"`
 	Netns            string `yaml:"netns"`
 	PacketInterfaces string `yaml:"packet_interfaces"`
-	Systemd          struct {
+	// ProbeSubnets: steady-state probes contact an instance only at an
+	// address inside one of these CIDRs (the LXD bridge). Absent means
+	// pkg/probenet.DefaultCIDR; an empty or over-broad list is an error.
+	// S-CLEAN-SLATE M-039.
+	ProbeSubnets *[]string `yaml:"probe_subnets"`
+	Systemd      struct {
 		Host  string   `yaml:"host"`
 		Units []string `yaml:"units"`
 	} `yaml:"systemd"`
@@ -104,6 +112,16 @@ type Allowlist struct {
 	labelKey, labelValue string
 	netnsRe, packetRe    *regexp.Regexp
 	units                map[string]bool
+	probeNets            []netip.Prefix
+}
+
+// ProbeAddress returns the address to probe for an instance-reported ip, or
+// why it is never probed (outside probe_subnets, or not an address).
+func (a *Allowlist) ProbeAddress(ip string) (string, error) {
+	if a == nil {
+		return "", errors.New("no allowlist loaded")
+	}
+	return probenet.Allowed(a.probeNets, ip)
 }
 
 // LoadAllowlist reads and checks the allowlist file.
@@ -156,6 +174,14 @@ func ParseAllowlist(b []byte) (*Allowlist, error) {
 	}
 	if a.packetRe, err = anchored("packet_interfaces", a.PacketInterfaces); err != nil {
 		return nil, err
+	}
+	if a.ProbeSubnets == nil {
+		a.probeNets, err = probenet.ParseCSV("")
+	} else {
+		a.probeNets, err = probenet.Parse(*a.ProbeSubnets)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("allowlist: probe_subnets: %w", err)
 	}
 	if a.Systemd.Host != "" && !hostRe.MatchString(a.Systemd.Host) {
 		return nil, fmt.Errorf("allowlist: systemd.host %q", a.Systemd.Host)

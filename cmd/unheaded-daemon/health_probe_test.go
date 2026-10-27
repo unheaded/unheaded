@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -103,6 +104,7 @@ func (c *countingLXD) RestartContainer(ctx context.Context, name string) error {
 func healthDaemon(t *testing.T, enforce bool) (*Daemon, *MockLXDClient, *fakeProber) {
 	t.Helper()
 	d, m := safeDaemon(t, enforce, false)
+	d.config.ProbeSubnets = []netip.Prefix{netip.MustParsePrefix("10.10.20.0/24")}
 	p := &fakeProber{}
 	d.prober = p
 	m.containers["web"] = &ContainerState{ID: "web", Status: "running", Health: "unknown", Managed: true, IP: "10.10.20.7"}
@@ -211,6 +213,43 @@ func TestReconcile_RefusesToProbeNonInstanceAddresses(t *testing.T) {
 		}
 		if h := d.stateManager.actual["web"].Health; h != "unhealthy" {
 			t.Errorf("ip %s: health %q after 3 refusals, want unhealthy", ip, h)
+		}
+	}
+}
+
+// S-CLEAN-SLATE M-039: an instance-reported address outside the probe
+// subnets (CUIRASS_PROBE_SUBNETS; the fixture is west's lxdbr0,
+// 10.10.20.0/24) is never probed and counts as a failed check.
+func TestReconcile_ProbesOnlyInsideTheProbeSubnets(t *testing.T) {
+	for _, ip := range []string{"192.168.13.1", "10.10.21.7", "10.10.10.7", "fd00::7"} {
+		d, m, p := healthDaemon(t, false)
+		m.containers["web"].IP = ip
+		for range 3 {
+			d.reconcile()
+		}
+		if calls := p.callList(); len(calls) != 0 {
+			t.Errorf("ip %s: probed %v", ip, calls)
+		}
+		if h := d.stateManager.actual["web"].Health; h != "unhealthy" {
+			t.Errorf("ip %s: health %q after 3 refusals, want unhealthy", ip, h)
+		}
+	}
+}
+
+// Unset, the probe subnets default to scripts/setup-host.sh's lxdbr0; a bad
+// list stops Cuirass at startup rather than probing without a limit.
+func TestLoadConfig_ProbeSubnets(t *testing.T) {
+	t.Setenv("CUIRASS_PROBE_SUBNETS", "")
+	if got := loadConfig("").ProbeSubnets; len(got) != 1 || got[0].String() != "10.10.10.0/24" {
+		t.Errorf("default probe subnets %v, want [10.10.10.0/24]", got)
+	}
+	t.Setenv("CUIRASS_PROBE_SUBNETS", "10.10.20.0/24, fd42:474b:622d:259d::/64")
+	if got := loadConfig("").ProbeSubnets; len(got) != 2 || got[0].String() != "10.10.20.0/24" {
+		t.Errorf("probe subnets %v, want [10.10.20.0/24 fd42:474b:622d:259d::/64]", got)
+	}
+	for _, bad := range []string{"0.0.0.0/0", "10.0.0.0/8", "lxdbr0"} {
+		if _, err := probeSubnetsFromEnv(bad); err == nil {
+			t.Errorf("CUIRASS_PROBE_SUBNETS=%q accepted", bad)
 		}
 	}
 }

@@ -30,6 +30,10 @@ services:
       CUIRASS_ENFORCE: "${CUIRASS_ENFORCE:-}"
       CUIRASS_PRUNE: "${CUIRASS_PRUNE:-}"
       CUIRASS_CHAOS: "${CUIRASS_CHAOS:-}"
+      # Health probes contact only instance addresses inside this subnet
+      # (S-CLEAN-SLATE M-039). West's lxdbr0 is 10.10.20.1/24, not the
+      # 10.10.10.0/24 setup-host.sh creates (Cuirass's built-in default).
+      CUIRASS_PROBE_SUBNETS: "${CUIRASS_PROBE_SUBNETS:-10.10.20.0/24}"
     env_file:
       - path: /etc/unheaded/cuirass/cuirass.env
         required: true
