@@ -13,12 +13,8 @@ constraint-without-not-valid	db/migrations/019_config_history_all_changes.sql	1
 ddl-in-code-sqlite	cmd/kanban-app/store.go	1
 ddl-in-code-sqlite	services/timeguru/internal/storage/storage.go	1
 ddl-outside-ledger	cmd/lich-security/campaigns/d2_injection.go	1
-ddl-outside-ledger	cmd/zhen-rag/main.go	1
-ddl-outside-ledger	pkg/agent/agent.go	1
-destructive	cmd/zhen-rag/main.go	1
 destructive	db/migrations/022_ops_audit_events_one_taxonomy.sql	1
 destructive	db/migrations/024_ops_drop_health_hourly.sql	1
-destructive	pkg/agent/agent.go	1
 duplicate-index	db/migrations/003_app_schema.sql	1
 duplicate-index	db/migrations/010_zhen_conversations.sql	2
 duplicate-index	db/migrations/020_app_adopt_startup_ddl.sql	2

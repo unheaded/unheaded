@@ -21,7 +21,12 @@ BASELINE="$REPO_ROOT/docs/policy/well-lint-baseline.tsv"
 cd "$REPO_ROOT"
 
 # The linter itself is excluded: its self-test fixtures are deliberate findings.
-mapfile -d '' FILES < <(git ls-files -z -- '*.sql' '*.go' '*.py' '*.conf' ':!scripts/well/well_lint.py')
+# So is the Champion's destructive-verb table and its generated Python copy:
+# "drop table" there is a word the prompt warns about and a gate test seed,
+# never SQL that runs, and the prompt bytes are pinned by goldens, so an
+# in-string '-- well:ignore' is not an option (S-CHAMPION-HARDENING Phase 4).
+mapfile -d '' FILES < <(git ls-files -z -- '*.sql' '*.go' '*.py' '*.conf' ':!scripts/well/well_lint.py' \
+	':!pkg/zhenrag/verbs.go' ':!raft/scripts/zhen_prompt_generated.py')
 current="$(python3 scripts/well/well_lint.py --format json --fail-on NONE "${FILES[@]}" |
 	python3 -c '
 import collections, json, sys
