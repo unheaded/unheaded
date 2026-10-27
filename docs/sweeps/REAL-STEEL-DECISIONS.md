@@ -107,7 +107,7 @@ Answer: **Accept** (Stevie, 2026-10-26: "apply all defaults", offered with ADR-0
 
 ## Phase 1 outcome (2026-10-26)
 
-Applied as 16 commits, `f7df5d23`..`7e524105` (one per group or family;
+Applied as 16 commits, `e38cddf9`..`36ca8714` (one per group or family;
 `go build`, `go vet` and the full test suite after each, compared with the
 pre-deletion baseline: 295 ok / 1 pre-existing `scripts/lib` FAIL before,
 216 ok / the same 1 FAIL after, zero new failures). Verdicts and commits

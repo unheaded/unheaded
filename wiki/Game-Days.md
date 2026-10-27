@@ -14,7 +14,7 @@ A game day here is one planned, written-down window in which a real fault is inj
 
 | Scenario | Result |
 |---|---|
-| A canary hurt by real latency, rolled back by Sword (the headline) | run 3: netem 300 ms on the canary's host veth at 23:19:13.853; Sword `rolled_back` / `analysis_failed` "P99 latency 310 ms exceeds 100 ms" (client-observed; histogram said 5 ms); rollback complete 23:20:16.209 (62.4 s); availability over the scenario 0.9985; 2320/2320 for 120 s after. Run 1 had promoted the canary (Sword read only the server histogram: fixed `d90d613d`); run 2 was refused by the concurrency limit while B's kill revert was stuck (fixed `38f27605`) |
+| A canary hurt by real latency, rolled back by Sword (the headline) | run 3: netem 300 ms on the canary's host veth at 23:19:13.853; Sword `rolled_back` / `analysis_failed` "P99 latency 310 ms exceeds 100 ms" (client-observed; histogram said 5 ms); rollback complete 23:20:16.209 (62.4 s); availability over the scenario 0.9985; 2320/2320 for 120 s after. Run 1 had promoted the canary (Sword read only the server histogram: fixed `e2eff2b5`); run 2 was refused by the concurrency limit while B's kill revert was stuck (fixed `4fd3f877`) |
 | B rolling deploy with a replica killed mid-rollout | Cuirass restarted the killed instance in 1.7 s; rollout `succeeded`; `lxc list` = desired set exactly; availability 0.9829 (FND-023 + rolling deletions) |
 | C east: `service_stop` under polkit | timeguru stopped 60 s, east dashboard showed `degraded`, active again at +80 s; SIGKILL: `Restart=` back at +8 s; nothing else on east changed |
 | D abort drill | HTTP abort reverted a 10 min netem in 0.12 s, the ABORT file in 0.88 s |

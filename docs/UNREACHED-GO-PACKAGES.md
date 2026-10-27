@@ -31,7 +31,7 @@ file ledger). The decision table Stevie answered is
 ## Decided 2026-10-26 (E1)
 
 Stevie: "Apply all defaults", ADR-090 Accepted. Applied in S-REAL-STEEL Phase 1
-as 16 commits (`f7df5d23`..`7e524105`), one per group or family, each gated on
+as 16 commits (`e38cddf9`..`36ca8714`), one per group or family, each gated on
 `go build ./...`, `go vet ./...` and the full `go test ./...` suite against the
 pre-deletion baseline (295 ok / 1 pre-existing FAIL in `scripts/lib` before,
 216 ok / the same 1 FAIL after; zero new failures).

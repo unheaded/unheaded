@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # S-REAL-STEEL BATTLE PLAN: 17 Phases, 404 Steps
 
-> **SHIPPED 2026-10-26** (develop, `bc0bddd1` → the Phase 16 commits of 2026-10-26; the PHASE24-style banner).
+> **SHIPPED 2026-10-26** (develop, `0cf45919` → the Phase 16 commits of 2026-10-26; the PHASE24-style banner).
 > Stevie answered E1-E4 on 2026-10-26 ("ensure all 5 sprints are done") and every phase ran the same day, on west and east:
 > **Phase 1** sweep applied (E1 defaults: 108 packages/files deleted in 17 commits, 11 rows FLAGGED with evidence, ADR-090 Accepted, zero new test failures);
 > **Phase 5** Cuirass reconciles real LXD on west (project `unheaded`, restricted, pihole invisible: Steps 144-156);
@@ -15,7 +15,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 > **Phase 12** east service_stop/process_kill under polkit, seen by the dashboard, Restart= recovery, unit list = baseline (Steps 325-329);
 > **Phase 13** packet chaos acts only on the enrolled flow (474/1000 flagged vs 1000/1000 clear), abort 0.42 s, wire bytes unchanged except CHAOS bit + CRC, E4: code moved to the spec's event codes (Steps 336-351);
 > **Phase 14** game day 1: canary hurt by 300 ms netem → Sword rolled back on a client-observed p99 of 310 ms, 62 s fault → restored, steady state 2320/2320; B/C/D/E passed; post-state clean (docs/gamedays/2026-10-26-real-steel-1.md).
-> Found and fixed on the day: Sword's analysis was blind to network latency (d90d613d); a container-kill revert stuck on a deleted target (38f27605); Cuirass's read endpoints were closed under auth (4760cd8b); the packet loader pinned dotted map names (a45f69dc); the trust script, image script and installers (edd400ee, 4de65897). Registered, not fixed: FND-023 (client routing follows the 30 s sync), FND-024 (monitoring stack nobody starts).
+> Found and fixed on the day: Sword's analysis was blind to network latency (e2eff2b5); a container-kill revert stuck on a deleted target (4fd3f877); Cuirass's read endpoints were closed under auth (2ff3be29); the packet loader pinned dotted map names (eb6fa0b8); the trust script, image script and installers (3872b66d, f7a207c3). Registered, not fixed: FND-023 (client routing follows the 30 s sync), FND-024 (monitoring stack nobody starts).
 > STUCK: none. Deferred: east as a node stays outside this sprint. Live switches: wiki/Containers.md (window recipe), wiki/Chaos-Engineering.md (abort, stop, dry run).
 
 
@@ -522,9 +522,9 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-26: one new failure in the whole phase: G10e pkg/waf broke tests/s77 (G6 KEEP; file-existence asserts on pkg/waf/rules + detection in TestPhase1_BugFixes and TestS77_AllDeliverables). Restored, seven rows FLAGGED. G10h: pkg/health/response.go kept (tests/e2e uses WriteHealthy), HealthStatus moved into it; only aggregator.go went.
 - [x] **Step 63** [C] ~2m: **COMMIT CHECKPOINT** per family: `chore(sweep): delete unused <family> (E1 G10)`.
 - [x] **Step 64** [REGEN] ~5m: Regenerate `docs/UNREACHED-GO-PACKAGES.md` with the Step 5 command (new count, list), keep its header, add a "Decided 2026-MM-DD (E1)" section listing PARK/KEEP groups with their one-line reasons; fill `commit` in `$VERDICTS`.
-  - Done 2026-10-26: 66 of 248 unreached (was 148 of 300); "Decided 2026-10-26 (E1)" section added. ADR-090 set Accepted (ADR + INDEX) and `docs/sweeps/TOTAL-SOURCE-SWEEP.tsv` created per D-01's override (2,657 source files at bc0bddd1; 465 marked SWEPT/DELETED with their commit). cbom.cdx.json regenerated and pq-kex baseline shrunk (both gates PASS); scancode-full.json has no regen script, left as the dated inventory.
+  - Done 2026-10-26: 66 of 248 unreached (was 148 of 300); "Decided 2026-10-26 (E1)" section added. ADR-090 set Accepted (ADR + INDEX) and `docs/sweeps/TOTAL-SOURCE-SWEEP.tsv` created per D-01's override (2,657 source files at 0cf45919; 465 marked SWEPT/DELETED with their commit). cbom.cdx.json regenerated and pq-kex baseline shrunk (both gates PASS); scancode-full.json has no regen script, left as the dated inventory.
 - [x] **Step 65** [V] ~2m: **PHASE 1 EXIT GATE**: every Y row in E1 is either DELETED with a commit or FLAGGED with a reason; `go build ./...` green; no new test failures versus baseline; `$VERDICTS` has no empty `verdict`.
-  - Done 2026-10-26: PASS. 16 deletion commits (f7df5d23..7e524105) + the docs commit; ledger has no empty verdict (108 DELETED, 11 FLAGGED, 40 PARK, 16 KEEP, 3 WIRE); go build/vet green; full suite: baseline at bc0bddd1 was 295 ok / 1 FAIL (scripts/lib TestSwitchModel_UsageAndStopUnderTheLease, pre-existing), end state 216 ok / the same 1 FAIL (79 fewer test packages exist), zero new failures; `go mod tidy -diff` empty (the F4 deletion left two stale x/term sums, tidied in the docs commit). Stevie decides the four FLAGGED families (pkg/waf vs tests/s77; pkg/secrets/store+encryption; pkg/trace; pkg/audit/storage now live).
+  - Done 2026-10-26: PASS. 16 deletion commits (e38cddf9..36ca8714) + the docs commit; ledger has no empty verdict (108 DELETED, 11 FLAGGED, 40 PARK, 16 KEEP, 3 WIRE); go build/vet green; full suite: baseline at 0cf45919 was 295 ok / 1 FAIL (scripts/lib TestSwitchModel_UsageAndStopUnderTheLease, pre-existing), end state 216 ok / the same 1 FAIL (79 fewer test packages exist), zero new failures; `go mod tidy -diff` empty (the F4 deletion left two stale x/term sums, tidied in the docs commit). Stevie decides the four FLAGGED families (pkg/waf vs tests/s77; pkg/secrets/store+encryption; pkg/trace; pkg/audit/storage now live).
 - [x] **Step 66** [C] ~2m: **COMMIT CHECKPOINT**: `docs(sweep): record E1 verdicts; regenerate unreached list`.
 
 **DoD (Phase 1)**: DoD-STD + zero behavioural regressions; every deletion commit names its E1 group; no deleted package is still described as present in wiki/ or docs/ (Step 34 references handled).
@@ -612,7 +612,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 ### E1-dependent items
 
 - [x] **Step 91** [AFTER-E1] ~5m: `transport.Connect`: if E1 G5 = Y it was deleted in Phase 1 (nothing to do). If N (keep), write one line in next.md ("transport.Connect kept by Stevie; unused; finish when a caller appears") and move on: no phase needs it.
-  - Done 2026-10-26: E1 G5 = Y, `transport.Connect` deleted in Phase 1 (2c8fdc31); nothing to do.
+  - Done 2026-10-26: E1 G5 = Y, `transport.Connect` deleted in Phase 1 (231c69db); nothing to do.
   - Done 2026-10-23: [AFTER-E1] skipped: waits on E1 G5.
 - [x] **Step 92** [AFTER-E1] ~20m: xdpsync (`services/loadbalancer/xdpsync.go:102`): if deleted in Phase 1, nothing to do. If kept/parked: test `TestXDPSync_JoinsBeforePublish` (publishes `lb.rebalance` only after Join as `loadbalancer`), fix the name (`xdpsync-service` → `loadbalancer`), add `loadbalancer` to `configs/wotan.yaml` `auto_approve`, `gotest ./services/loadbalancer/...`.
   - Done 2026-10-26 (F6 parked, so the fix applies): TestXDPSync_JoinsBeforePublish (fake Wotan records joins and publishes in order; red first: "not subscribed to topic lb.rebalance" under xdpsync-service); xdpsync joins lb.rebalance as `loadbalancer`; `loadbalancer` added to configs/wotan.yaml auto_approve.
@@ -781,7 +781,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   cd "$PROJECT_ROOT" && scripts/cuirass-lxd-trust.sh 2>&1 | tee "$SCRATCH/trust-dry.txt"
   ```
 - [x] **Step 139** [LIVE-RW][S] ~5m: Apply (E2.2).
-  - Done 2026-10-26: applied after two script fixes (edd400ee): LXD 5.21 refuses restricted=true on a project sharing profiles, and uutils install rejects a numeric group.
+  - Done 2026-10-26: applied after two script fixes (3872b66d): LXD 5.21 refuses restricted=true on a project sharing profiles, and uutils install rejects a numeric group.
   ```bash
   cd "$PROJECT_ROOT" && sudo scripts/cuirass-lxd-trust.sh --apply 2>&1 | tee "$SCRATCH/trust-apply.txt"
   ```
@@ -859,7 +859,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 157** [LIVE-RW] ~3m: Window close (E2.1 window model): `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml stop`. Skip if Stevie said to leave it up.
   - Window left open 2026-10-26: Phases 9, 11, 14 follow in the same window (E2.1 yes); closed at the end of the live run.
 - [x] **Step 158** [V] ~1m: **PHASE 5 EXIT GATE**: Steps 144, 145, 149, 152, 156 all passed and are cited in the commit.
-  - PASS 2026-10-26: Steps 144, 145, 149, 152, 156 passed, cited in 4de65897 and the plan notes.
+  - PASS 2026-10-26: Steps 144, 145, 149, 152, 156 passed, cited in f7a207c3 and the plan notes.
 - [x] **Step 159** [C] ~1m: **COMMIT CHECKPOINT** (wiki + plan).
   - Commit exists (paperwork lag noted by the 2026-10-23 audit): see `git log --grep` for the subject; all Phase code merged in 896a6ed4 and the 2026-10-26 merges
 - [x] **Step 160** [AUDIT-UPDATE] ~3m: next.md: "Cuirass reconciles for real on west (project unheaded), enforce+prune, <date>; east still mock". Remove the "Needs Stevie's yes (Cuirass)" line.
@@ -1096,7 +1096,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 232** [B] ~2m: `services/sword` and `pkg/deploy/{strategy,rollback,cuirassdriver}` are now reached: rerun Step 5's command; they must be absent from the unreached list.
   - Done 2026-10-23: unreached list regenerated: 146 of 312 (was 148). services/sword, pkg/deploy/strategy, pkg/deploy/rollback are reached; new and reached: pkg/deploy/cuirassdriver, pkg/sloguard, cmd/steel-echo, cmd/sword; new and unreached by design: pkg/deploy/cuirassdriver/cuirasstest (test helper). docs/UNREACHED-GO-PACKAGES.md annotated (full regeneration stays Phase 1/16).
 - [x] **Step 233** [AFTER-E1] ~10m: If E1 G3 = Y: `git rm -r services/canary`, fix references (wiki, ports comments), `go build ./...`, commit `chore(sweep): delete services/canary, folded into Sword (E1 G3)`. If N: leave it, add a deprecation line in its package doc pointing to Sword.
-  - Done 2026-10-26: E1 G3 = Y, services/canary deleted in Phase 1 (e86a2423; Sword's analysis.go had already taken over evaluateCanary).
+  - Done 2026-10-26: E1 G3 = Y, services/canary deleted in Phase 1 (e7c9b544; Sword's analysis.go had already taken over evaluateCanary).
   - [AFTER-E1] skipped: G3 not answered. services/canary stays in place, folded into Sword in code (analysis.go maps its SLOThreshold); only its port reference changed (ports.Sword). Deletion pending E1 G3, noted in UNREACHED-GO-PACKAGES.md.
 - [x] **Step 234** [V] ~2m: **PHASE 8 EXIT GATE**: Steps 217, 222, 225, 228 green; Step 232 shows Sword reached.
   - Done 2026-10-23: PASS (code half): Steps 217, 222, 225, 228 green; Step 232 shows Sword reached. The live run of Sword is Phase 9 [DEFERRED: E2 window].
@@ -1119,7 +1119,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 237** [LIVE-RW] ~5m: Window open: stack + Cuirass override (enforce, prune, chaos off) + Sword: `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d --build sword cuirass`.
   - Done 2026-10-26: Sword built and up in the window (`--build cuirass sword`); Sword's env file /etc/unheaded/sword/sword.env created by hand (CUIRASS_API_KEY + AUTH_API_KEYS, 0640 root:16746).
 - [x] **Step 238** [V][LIVE-RO] ~2m: Sword `/health` and `/ready` 200; Cuirass `/api/v1/info` shows `https`, `unheaded`, enforce true.
-  - PASS 2026-10-26 after 4760cd8b (Cuirass /api/v1/info and /api/v1/state open under AUTH_ENABLED; Sword's Ping sends no key by design): /health ok, /ready {ready:true}; info https/unheaded/enforce true.
+  - PASS 2026-10-26 after 2ff3be29 (Cuirass /api/v1/info and /api/v1/state open under AUTH_ENABLED; Sword's Ping sends no key by design): /health ok, /ready {ready:true}; info https/unheaded/enforce true.
 - [x] **Step 239** [LIVE-RW] ~5m: Baseline: deploy `steel-echo` v1 with 3 replicas (`recreate`; removes any leftover from Phase 6 the managed way).
   - Done 2026-10-26: deployment d1793052430109285201-1 `recreate`.
   ```bash
@@ -1154,7 +1154,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 246** [V][LIVE-RO] ~3m: In `bg.csv` the version flips v2→v3 exactly once; the cutover gap (seconds with `errconn > 0` around the flip) is ≤ 2 s; blue instances deleted after the flip. Record the gap.
   - PASS 2026-10-26: version flips exactly once (v2 → v2;v3 → v3 across one second boundary), 1 second with errconn > 0 (gap 1 s ≤ 2 s); only steel-echo-v3-* remain.
 - [x] **Step 247** [C] ~2m: **COMMIT CHECKPOINT**: plan ticks with the measured numbers (availability, gap).
-  - Done 2026-10-26: c29b8649.
+  - Done 2026-10-26: c85fedfb.
 - [x] **Step 248** [LIVE-RW] ~10m: Canary v3→v4 (the bad build, 30% errors): `{"type":"canary","steps":[{"weight":33,"pause":"60s","analysis":true},{"weight":100}],"analysis":{"error_rate_threshold":0.01,"min_sample_size":200,"interval":"30s"}}`.
   - Done 2026-10-26: three runs. #4 rolled back on the Kingdom SLO guard (no slo:error_ratio:5m series: the monitoring compose stack that evaluates rules/slo.yml had been down 27 h; brought up for the window). #5 rolled back "inconclusive after 3 intervals: 150 canary requests in 30s, need 200" (20 rps meter, 33 % canary ≈ 5 rps): fail-safe, not the measured ratio. #6 with min_sample_size 100 (sized to the meter).
 - [x] **Step 249** [V][LIVE-RO] ~3m: Sword status `rolled_back`, reason `analysis_failed` with the measured error ratio (≈0.30) in the record; canary instance gone; only v3 desired; `sword_rollbacks_total{reason="analysis_failed"}` = 1; time from canary healthy to rollback complete recorded.
@@ -1282,7 +1282,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 291** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
   - Done: gotest ./cmd/unheaded-daemon/... green, race-clean.
 - [x] **Step 292** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): report each instance's host-side veth`.
-  - Done: aa3cda0c (incl. Yaldabaoth resolver/InstanceInfo plumbing).
+  - Done: 3439acd1 (incl. Yaldabaoth resolver/InstanceInfo plumbing).
 - [x] **Step 293** [CODE][TEST] ~25m: Netem injector tests (`services/yaldabaoth/inject_netem_test.go`, with an injectable command runner): exact argv for delay (`tc qdisc replace dev <if> root handle c4a0: netem delay 200ms 20ms`), loss (`loss 10%`), partition (`loss 100%`), duplicate, corrupt; never a shell; refuses interfaces failing D-17; revert argv `tc qdisc del dev <if> root handle c4a0:`; revert verification parses `tc -j qdisc show dev <if>`; an already-gone interface (instance deleted) counts as reverted.
   - Done: inject_netem_test.go with fakeRunner; exact argv for delay/loss/partition/duplicate/corrupt; netns/packet ifaces; non-bridged refused; revert argv + tc -j verify; gone-iface=reverted.
 - [x] **Step 294** [TEST] ~2m: Red.
@@ -1302,7 +1302,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 301** [CODE][TEST] ~10m: Implement D-22's refusal + test; `cpu_stress`, `memory_stress`, `disk_stress`, `dns_failure`, `time_skew`, `node_drain`, `resource_exhaustion`, `custom` likewise refuse with "not implemented" (they had no injector at all; now they say so).
   - Done: Service.RefuseType + unimplemented_test.go; http_error + 8 types refuse.
 - [x] **Step 302** [C] ~2m: **COMMIT CHECKPOINT**: `fix(yaldabaoth): unimplemented experiment types refuse instead of succeeding`.
-  - Done: commit 1bf6f02f.
+  - Done: commit 54bbc1ef.
 - [x] **Step 303** [LIVE-RW][S][BARE-METAL] ~10m: (E2.5) Install chaos-controller on west: binary to `/usr/local/bin/chaos-controller` (root-owned 0755), sysusers, unit + west drop-in, `/etc/unheaded/chaos/{allowlist.yaml,chaos.env}` (env holds `AUTH_API_KEYS`, `CUIRASS_API_KEY`, `VM_URL`; 0640 root:unheaded-chaos), `systemctl daemon-reload && systemctl enable --now unheaded-chaos-controller`.
   - Done 2026-10-26: `scripts/install-chaos-west.sh --apply` (binary, sysusers uid 16763, unit + west-packet-lab drop-in, allowlist, policy); chaos.env written by hand (AUTH_API_KEYS, CUIRASS_API_KEY, VM_URL, WOTAN_ADDR, CHAOS_DRY_RUN=false), 0640 root:unheaded-chaos.
   - Agent (no hosts): WEST install path ready as scripts/install-chaos-west.sh (binary /usr/local/bin, sysusers, unit + west-packet-lab drop-in CAP_NET_ADMIN+CAP_BPF, allowlist+policy, ExecStopPost revert-all). Lead runs on west.
@@ -1383,7 +1383,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ssh "$EAST" 'pkaction --verbose --action-id org.freedesktop.systemd1.manage-units | head -20; systemctl --version | head -1'
   ```
 - [x] **Step 323** [LIVE-RW][S] ~10m: (E3.1-2) Run the install script on east with `--apply`; create `/etc/unheaded/chaos/chaos.env` by hand (0640 root:unheaded-chaos); `systemctl enable --now unheaded-chaos-controller`.
-  - Done 2026-10-26: east has no Go, so the bundle (binary built on west from a45f69dc, unit, east.conf, allowlist, policy, sysusers, installer) was rsynced to east:~/chaos-install and `install-chaos-east.sh --apply --binary=...` run there; polkit rule written; chaos.env by hand (AUTH_API_KEYS, VM_URL=west Victoria, WOTAN_ADDR, CHAOS_DRY_RUN=false).
+  - Done 2026-10-26: east has no Go, so the bundle (binary built on west from eb6fa0b8, unit, east.conf, allowlist, policy, sysusers, installer) was rsynced to east:~/chaos-install and `install-chaos-east.sh --apply --binary=...` run there; polkit rule written; chaos.env by hand (AUTH_API_KEYS, VM_URL=west Victoria, WOTAN_ADDR, CHAOS_DRY_RUN=false).
   - Live-RW for the lead: run scripts/install-chaos-east.sh --apply on east, create chaos.env, enable --now.
 - [x] **Step 324** [V][LIVE-RO] ~3m: Least privilege holds: the account can stop the listed unit and nothing else.
   - PASS 2026-10-26: as unheaded-chaos, `systemctl stop ssh.service` and `stop unheaded-kev-poller.service` both "Interactive authentication required"; ssh, kev-poller, timeguru all active; unit User=unheaded-chaos, AmbientCapabilities= and CapabilityBoundingSet= empty; /etc/polkit-1/rules.d/60-unheaded-chaos.rules present.
@@ -1436,32 +1436,32 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - **Recommendation offered**: (1) amend the draft to match the deployed code (no BPF churn; the registry is "Specification Required", still a draft); (2) yes, stop the reuse in a separate small change; (3) yes. **Why still escalated**: a spec registry change is RFC Editor + Stevie by the frozen-format rule; the Marshal halts (S4) any agent that edits a spec draft unilaterally.
   - **What stops**: only spec/draft edits and the shield change. This phase codes against the code constants (0x05) and changes neither.
   - **Answered 2026-10-26** (Stevie): **spec wins, fix the code.** EVENT_CHAOS 0x04 and EVENT_ANOMALY 0x08 per foundation-06; every eBPF producer and Go/JS consumer moves; shield stops reusing CHAOS for blocked sources. No draft edit. Step 350 then expects 0x04.
-  - Done 2026-10-26 (code half): `c6a58af4` moves monad-common, pkg/ebpf and bpfschema to Chaos 0x04 / Anomaly 0x08, Valid() explicit (0x05-0x07 have no producer); every monad-common dependent rebuilt (hop-ebpf 17,032→17,000, firewall-ebpf 12,488→12,472, the other 12 byte-identical in size). `ab3ced11` drops shield's CHAOS reuse on blocked-source events (Monad there is event-local: `Monad::new()` only ever written into the ring record; object changed, 18,648 B unchanged). SPEC-VS-CODE-AUDIT Finding 1.6 (H13) records it; no draft edited. Left open there: BORN/COMPUTED/DIED codes (0x00-0x03, 0x06) still differ from Birth/Hop/Death, separate escalation.
+  - Done 2026-10-26 (code half): `6ae71c3f` moves monad-common, pkg/ebpf and bpfschema to Chaos 0x04 / Anomaly 0x08, Valid() explicit (0x05-0x07 have no producer); every monad-common dependent rebuilt (hop-ebpf 17,032→17,000, firewall-ebpf 12,488→12,472, the other 12 byte-identical in size). `8397b41e` drops shield's CHAOS reuse on blocked-source events (Monad there is event-local: `Monad::new()` only ever written into the ring record; object changed, 18,648 B unchanged). SPEC-VS-CODE-AUDIT Finding 1.6 (H13) records it; no draft edited. Left open there: BORN/COMPUTED/DIED codes (0x00-0x03, 0x06) still differ from Birth/Hop/Death, separate escalation.
 - [x] **Step 333** [DECIDE] ~0m: **D-24 mark, then shape.** RECOMMENDATION: after `apply_chaos`, `yaldabaoth_tc` sets `skb->mark = 0xC4A05` (constant local to yaldabaoth-ebpf; `monad-common` untouched, so no other program's artifact changes). Userspace builds on the lab egress interface: `tc qdisc replace dev <if> root handle c4a0: prio bands 3`, `tc filter add dev <if> parent c4a0: protocol ipv6 handle 0xC4A05 fw flowid c4a0:3`, `tc qdisc add dev <if> parent c4a0:3 handle c4a3: netem <loss|delay|duplicate>`; the classifier attaches at clsact egress via TCX (runs before the root qdisc enqueue). CORRUPT stays the program's existing BitFlip mode (stale CRC, detected at the next hop). DROP = netem loss on band 3; DELAY = netem delay; the program's `scratch_r0` delay hint stays as it is. Rationale: netem can only act on packets the program flagged, which is exactly "acts only on flagged flows", and the eBPF change is one helper call. Override ONLY if the verifier rejects `set_mark` in this context (it should not: TC programs may write `skb->mark`): then classify with a `u32` filter on the CHAOS bit offset instead (no eBPF change at all).
   - Taken 2026-10-26: `ctx.set_mark(CHAOS_SKB_MARK)` (aya-ebpf 0.1.1 TcContext::set_mark) after apply_chaos; no override needed (verifier acceptance is proven live in Step 345).
 - [x] **Step 334** [CODE] ~20m: `ebpf/yaldabaoth-ebpf/src/main.rs`: `const CHAOS_SKB_MARK: u32 = 0xC4A05;` and `ctx.set_mark(CHAOS_SKB_MARK)` after `apply_chaos` on every enrolled packet; header comment updated (the "netem qdisc ... feeds into" claim becomes true).
-  - Done 2026-10-26 (`9bd19d3e`): `pub const CHAOS_SKB_MARK: u32 = 0xC4A05`, set after apply_chaos so a packet that failed mid-mutation is never shaped; header comment carries the qdisc tree and the TCX-before-root-qdisc ordering.
+  - Done 2026-10-26 (`56ebf038`): `pub const CHAOS_SKB_MARK: u32 = 0xC4A05`, set after apply_chaos so a packet that failed mid-mutation is never shaped; header comment carries the qdisc tree and the TCX-before-root-qdisc ordering.
 - [x] **Step 335** [BUILD] ~5m: Build and size check.
   ```bash
   cd "$PROJECT_ROOT" && make ebpf-yaldabaoth 2>&1 | tail -3 && stat -c %s ebpf/target/bpfel-unknown-none/release/yaldabaoth-ebpf; cat "$SCRATCH/yald-size.txt"
   ```
   - Done 2026-10-26: builds; yaldabaoth-ebpf 18,080 → 18,112 B (+32, the 0xC4A05 immediate appears once in the object).
 - [x] **Step 336** [V] ~2m: Builds; size grows by tens of bytes, not kilobytes; `git diff --stat -- ebpf/` touches only `ebpf/yaldabaoth-ebpf/`. (No `monad-common` change, so ADR-090's `monad-cpu-ebpf --features ascend-linux` 901,888-byte check is not triggered; confirm with `git diff --name-only -- ebpf/monad-common` empty.)
-  - Done 2026-10-26, with one deviation the step did not foresee: E4 made `ebpf/monad-common` change (event codes) in `c6a58af4`, so the ADR-090 check was triggered on purpose. `monad-cpu-ebpf --features ascend-linux` = **919,096 B before and after** (byte-identical; it emits no Chaos/Anomaly events). Note the ADR-090/089 figure 901,888 was already stale on develop before this phase (S5 budgets moved it). The skb-mark commit itself touches only `ebpf/yaldabaoth-ebpf/`.
+  - Done 2026-10-26, with one deviation the step did not foresee: E4 made `ebpf/monad-common` change (event codes) in `6ae71c3f`, so the ADR-090 check was triggered on purpose. `monad-cpu-ebpf --features ascend-linux` = **919,096 B before and after** (byte-identical; it emits no Chaos/Anomaly events). Note the ADR-090/089 figure 901,888 was already stale on develop before this phase (S5 budgets moved it). The skb-mark commit itself touches only `ebpf/yaldabaoth-ebpf/`.
 - [x] **Step 337** [C] ~2m: **COMMIT CHECKPOINT**: `feat(yaldabaoth-ebpf): mark flagged packets for the chaos netem band`.
-  - Done 2026-10-26: `9bd19d3e`.
+  - Done 2026-10-26: `56ebf038`.
 - [x] **Step 338** [CODE][TEST] ~30m: Go loader `services/yaldabaoth/packet/` (cilium/ebpf, already a dependency) tests first: map value encoding equals `bpfschema.ChaosTargetValue` (mode low 32 bits, param high 32; key = flow label `& 0xFFFFF`), refuses any interface not matching `^steel[0-9]+-h$` or not present, refuses flow label 0, builds the exact `tc` argv of D-24, revert order (detach link → delete map entries → delete root qdisc `c4a0:` → unpin maps), all through the D-19 journal.
   - Done 2026-10-26: services/yaldabaoth/packet/packet_test.go: EncodeTarget == bpfschema.ChaosTargetValue bytes; Key refuses 0 and >20 bits (aliasing); iface regex + presence (enp16s0, steel0-n, absent steel3-h refused); ParseSpec bounds; TCArgv equals the three D-24 lines verbatim; inject order load→CONFIG→CHAOS_TARGETS→tc×3→attach; revert order stats→detach→delete entries→tc del root→unpin with every step run past a failure; tampered pin_dir refused; dry run touches nothing.
 - [x] **Step 339** [TEST] ~2m: Red.
   - Red 2026-10-26 (package absent).
 - [x] **Step 340** [CODE] ~60m: Implement: load the object (path from env `YALD_OBJ`, default the installed copy), `link.AttachTCX` egress on the lab interface, pin maps under `/sys/fs/bpf/unheaded/chaos/<exp-id>/`, write `CHAOS_TARGETS`/`CONFIG`, read `STATS` for the experiment record; experiment type `packet_chaos` (params: iface, flow_labels[], mode, netem) and the old `ChaosFaultRule` API mapped onto it (D-16).
-  - Done 2026-10-26 (`fdea6919`): Backend interface + LinuxBackend (cilium/ebpf: LoadCollectionSpec, PinByName under `/sys/fs/bpf/unheaded/chaos/<16-hex nonce>` (Plan has no experiment id; the nonce is in the recipe), `link.AttachTCX` egress pinned at `<dir>/link`, `tc` run as argv via exec, never a shell). `YALD_OBJ` overrides the default `/usr/lib/unheaded/ebpf/yaldabaoth-ebpf` (no package installs it yet). Type `packet_chaos`, kind `packet`, params flow_labels/mode/loss_percent/delay_ms/jitter_ms/duplicate_percent; FaultRule → packet_chaos (D-16), still refused by the allowlist. **F5 parked rows stay parked**: `internal/bpfmap` and `pkg/ebpf/maploader` wrap bpf(2) map ops on an fd and cannot load an object or attach a TCX link; cilium/ebpf (already a dependency) does both. `chaos-controller packet-chaos … [--dry-run]` is the lab path (own journal `packet-chaos.json`, ABORT poll 1 s, 10 m cap, leftovers reverted at start).
+  - Done 2026-10-26 (`cd52c0a8`): Backend interface + LinuxBackend (cilium/ebpf: LoadCollectionSpec, PinByName under `/sys/fs/bpf/unheaded/chaos/<16-hex nonce>` (Plan has no experiment id; the nonce is in the recipe), `link.AttachTCX` egress pinned at `<dir>/link`, `tc` run as argv via exec, never a shell). `YALD_OBJ` overrides the default `/usr/lib/unheaded/ebpf/yaldabaoth-ebpf` (no package installs it yet). Type `packet_chaos`, kind `packet`, params flow_labels/mode/loss_percent/delay_ms/jitter_ms/duplicate_percent; FaultRule → packet_chaos (D-16), still refused by the allowlist. **F5 parked rows stay parked**: `internal/bpfmap` and `pkg/ebpf/maploader` wrap bpf(2) map ops on an fd and cannot load an object or attach a TCX link; cilium/ebpf (already a dependency) does both. `chaos-controller packet-chaos … [--dry-run]` is the lab path (own journal `packet-chaos.json`, ABORT poll 1 s, 10 m cap, leftovers reverted at start).
 - [x] **Step 341** [TEST][V] ~3m: Green (unit tests; the BPF load itself is proven live in Step 345).
   - Green 2026-10-26: `go test -race` ok for services/yaldabaoth, services/yaldabaoth/packet, cmd/chaos-controller, pkg/monadpkt.
 - [x] **Step 342** [C] ~2m: **COMMIT CHECKPOINT**: `feat(yaldabaoth): packet_chaos experiments load and drive yaldabaoth-ebpf in the lab`.
-  - Done 2026-10-26: `fdea6919`.
+  - Done 2026-10-26: `cd52c0a8`.
 - [x] **Step 343** [R][DECIDE] ~15m: **D-25 lab traffic source.** Find the Go code that builds an IPv6 packet with a Monad Hop-by-Hop option and a valid CRC (`grep -rn -i 'hop-by-hop\|HopByHop\|IPV6_HOPOPTS' --include=*.go cmd pkg | grep -v _test`; `cmd/doom-go-injector` is known to). RECOMMENDATION: add `steel-echo monad-send --iface steel0-h --dst <ula> --flow-label <n> --count N` reusing that encoder (move it into a small package only if it lives in `package main`), and `steel-echo monad-count` in the netns that counts received packets per flow label and whether the CHAOS bit is set (header bytes only; no payload is read). Override ONLY if no Go encoder exists: then use the Rust test vectors in `monad-common` to build the 20-byte option in Go with a test pinning bytes to those vectors.
-  - Taken 2026-10-26 (`6cbb09b7`), with the encoder in a new small package `pkg/monadpkt` rather than moved: `cmd/doom-go-injector` is package main and builds the Doom tick layout; `pkg/cartridge.IPv6MonadPacket` is a linux-only bench fixture with its own byte offsets (left untouched). `steel-echo monad-send --iface steel0-h --dst fd00:5ee1::2 --flow-label 0x5EE1 --count 1000` (AF_PACKET, dst MAC defaults to 33:33:00:00:00:01) and `steel-echo monad-count --iface steel0-n --seconds 30` (JSON per flow label: received, chaos_set, chaos_clear, crc_ok, crc_bad; first 86 header bytes only, MSG_TRUNC). CRC pinned to the CCITT-FALSE check value 0x29B1.
+  - Taken 2026-10-26 (`d8c37a71`), with the encoder in a new small package `pkg/monadpkt` rather than moved: `cmd/doom-go-injector` is package main and builds the Doom tick layout; `pkg/cartridge.IPv6MonadPacket` is a linux-only bench fixture with its own byte offsets (left untouched). `steel-echo monad-send --iface steel0-h --dst fd00:5ee1::2 --flow-label 0x5EE1 --count 1000` (AF_PACKET, dst MAC defaults to 33:33:00:00:00:01) and `steel-echo monad-count --iface steel0-n --seconds 30` (JSON per flow label: received, chaos_set, chaos_clear, crc_ok, crc_bad; first 86 header bytes only, MSG_TRUNC). CRC pinned to the CCITT-FALSE check value 0x29B1.
 - [x] **Step 344** [LIVE-RW][S] ~10m: (E2.6) Lab netns on west.
   - Done 2026-10-26: steel0 netns + steel0-h/steel0-n veth, MTU 1700, fd00:5ee1::1/2, ping ok.
   ```bash
@@ -1472,7 +1472,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```
   (MTU 1700 per foundation-06's guidance for chaos deployments.)
 - [x] **Step 345** [LIVE-RW] ~10m: Experiment `packet_chaos` on `steel0-h`, flow label `0x5EE1`, mode `marker`, netem `loss 50%`, 5 min. Start the counter in the netns, then send 1000 packets on `0x5EE1` (enrolled) and 1000 on `0x5EE2` (not enrolled).
-  - Done 2026-10-26 (second attempt): the first load failed on `.rodata.str1.1: load pinned map: operation not permitted` (bpffs refuses dotted names; every map was pinned) and reverted clean; a45f69dc pins only CHAOS_TARGETS/CONFIG/STATS. Then: `chaos-controller packet-chaos --iface steel0-h --flow-label 0x5EE1 --mode marker --loss 50 --duration 5m` (sudo YALD_OBJ=... form: west's sudo drops -E), 1000 + 1000 frames via `steel-echo monad-send`, `monad-count` in the netns.
+  - Done 2026-10-26 (second attempt): the first load failed on `.rodata.str1.1: load pinned map: operation not permitted` (bpffs refuses dotted names; every map was pinned) and reverted clean; eb6fa0b8 pins only CHAOS_TARGETS/CONFIG/STATS. Then: `chaos-controller packet-chaos --iface steel0-h --flow-label 0x5EE1 --mode marker --loss 50 --duration 5m` (sudo YALD_OBJ=... form: west's sudo drops -E), 1000 + 1000 frames via `steel-echo monad-send`, `monad-count` in the netns.
   ```bash
   sudo ip netns exec steel0 "$SCRATCH/steel-echo" monad-count --iface steel0-n --seconds 30 > "$SCRATCH/pkt.json" &
   sudo "$SCRATCH/steel-echo" monad-send --iface steel0-h --dst fd00:5ee1::2 --flow-label 0x5EE1 --count 1000
@@ -1487,8 +1487,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-26: `touch /run/unheaded/chaos/ABORT`.
 - [x] **Step 349** [V][LIVE-RO] ~2m: Within 5 s: no program on `steel0-h` (`bpftool net show dev steel0-h`), no `c4a0:` qdisc, pinned dir gone, journal empty; re-send 1000 on `0x5EE1` → 1000/1000, CHAOS bit clear. Remove the ABORT file.
   - PASS 2026-10-26: program gone 0.42 s after the touch; no c4a0: qdisc; /sys/fs/bpf/unheaded/chaos empty; log "reverted and verified gone (abort file)"; re-send 1000 on 0x5EE1 → 1000/1000 received, chaos_set 0.
-- [x] **Step 350** [B] ~3m: Event cross-check: CHAOS Anamnesis events carry event type **0x04** (`EVENT_CHAOS`, foundation-06; `bpfschema.EventChaos` and `monad_common::EventType::Chaos` since `c6a58af4`), never 0x05; note the count beside E4.
-  - Done 2026-10-26: STATS events_sent=1000 for the 1000 enrolled packets (Step 346); event type constant is now 0x04 per E4 (c6a58af4); the events' consumer check is Anamnesis's reader, outside this phase.
+- [x] **Step 350** [B] ~3m: Event cross-check: CHAOS Anamnesis events carry event type **0x04** (`EVENT_CHAOS`, foundation-06; `bpfschema.EventChaos` and `monad_common::EventType::Chaos` since `6ae71c3f`), never 0x05; note the count beside E4.
+  - Done 2026-10-26: STATS events_sent=1000 for the 1000 enrolled packets (Step 346); event type constant is now 0x04 per E4 (6ae71c3f); the events' consumer check is Anamnesis's reader, outside this phase.
 - [x] **Step 351** [V][LIVE-RO] ~5m: **SPEC COMPLIANCE GATE (after)**: a non-enrolled packet captured before and during the experiment is byte-identical in its 20-byte Monad (`tcpdump -x` hex of the HbH option); an enrolled packet in `marker` mode differs only in flag bit 7 and the recomputed CRC (bytes 18-19).
   - PASS 2026-10-26 (pcap before/during, HbH option bytes): 0x5EE2 byte-identical (11023e14010102000000000000000000000000000000e511); 0x5EE1 differs only at offset 11 (flags octet 0x00→0x80, bit 7 CHAOS) and 22-23 (CRC e511→6cbb).
 - [x] **Step 352** [LIVE-RW][S] ~2m: Teardown: `sudo ip netns del steel0; sudo ip link del steel0-h 2>/dev/null || true`.
@@ -1516,7 +1516,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 357** [W] ~20m: `docs/gamedays/2026-MM-DD-real-steel-1.md` from a new template `docs/gamedays/TEMPLATE.md`: hypothesis per scenario, blast radius (exact instance/unit/interface list), abort criteria (D-18/D-20), success criteria, who watches what, timeline table to fill in.
   - Done 2026-10-26: docs/gamedays/TEMPLATE.md + docs/gamedays/2026-10-26-real-steel-1.md.
 - [x] **Step 358** [C] ~2m: **COMMIT CHECKPOINT**: `docs(gameday): plan for REAL STEEL game day 1`.
-  - Done 2026-10-26: 5b9335e7.
+  - Done 2026-10-26: 463f414c.
 - [x] **Step 359** [B] ~2m: Quiet the pager for the window (ADR-100: no self-made noise).
   - Done 2026-10-26: silences a6aa145e (pages +30m) and e81c408a (tickets +6h).
   ```bash
@@ -1531,7 +1531,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 363** [B] ~1m: Meter on for the whole window (discover mode, 20 rps, `$SCRATCH/gameday.csv`).
   - Done 2026-10-26: 20 rps discover meter (gameday.csv).
 - [x] **Step 364** [LIVE-RW] ~10m: **Scenario A (the headline):** Sword canary v2→v3 (healthy build) with latency analysis (`latency_p99_threshold: 100ms`, interval 30 s, 33% then 100%). As soon as the canary instance is healthy, chaos `network_delay` 300 ms on the canary instance (allowlisted via its `chaos=allowed` label), duration 5 min.
-  - Done 2026-10-26, three runs: #1 canary promoted with p99 5 ms under 300 ms netem (Sword read only the server histogram; fixed in d90d613d: client-observed probes); #2 netem refused by the concurrency limit (Scenario B's kill still open: its revert waited for a deleted instance; fixed in 38f27605: target gone closes the revert); #3 as planned (d1793056750772815535-4, chaos-1793056753848071170-1).
+  - Done 2026-10-26, three runs: #1 canary promoted with p99 5 ms under 300 ms netem (Sword read only the server histogram; fixed in e2eff2b5: client-observed probes); #2 netem refused by the concurrency limit (Scenario B's kill still open: its revert waited for a deleted instance; fixed in 4fd3f877: target gone closes the revert); #3 as planned (d1793056750772815535-4, chaos-1793056753848071170-1).
 - [x] **Step 365** [V][LIVE-RO] ~3m: Sword rolled back on its own, reason `analysis_failed` (p99 above threshold, the measured value in the record); canary instance deleted; the chaos experiment's injection reverted when its target disappeared (journal entry closed as "target gone"); v2 x3 serving. Record: fault start → rollback decision → rollback complete timestamps.
   - PASS 2026-10-26 (run 3): Sword `rolled_back`, reason `analysis_failed`, "P99 latency 310.154672ms exceeds threshold 100ms" (client_latency_p99 310 ms, 153 requests); canary steel-echo-v3-0 deleted; v2 x3 serving. Timeline: canary healthy 23:19:13.839Z, fault start 23:19:13.853Z, rollback complete 23:20:16.209Z (62.4 s fault → restored). The netem entry closes when its target is gone (checked after the 5 min expiry, see Step 375).
 - [x] **Step 366** [V][LIVE-RO] ~3m: Steady state restored: probes 100% for 2 min after rollback; meter availability over Scenario A ≥ 99%; no Kingdom SLO fast-burn (`vmq 'slo:error_ratio:5m'` at pre-flight levels).
@@ -1539,7 +1539,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 367** [LIVE-RW] ~10m: **Scenario B:** Sword rolling v2→v3; when the first v3 instance is healthy, chaos `container_kill` on one remaining v2 instance.
   - Done 2026-10-26: rolling v3→v2 (d1793055846043972959-1); first v2 healthy 23:04:15; container_kill on steel-echo-v3-2 at 23:04:17.7.
 - [x] **Step 368** [V][LIVE-RO] ~3m: Cuirass restarted the killed instance (MTTR recorded) and the rollout finished (or rolled back cleanly); `lxc list --project unheaded` equals Sword's desired set exactly (no orphans, no duplicates); availability ≥ 99%.
-  - PASS/PARTIAL 2026-10-26: Cuirass restarted the killed instance in 1.7 s (kill 23:04:17.72Z → start 23:04:19.47Z), the rollout finished (`succeeded`, 70 s), `lxc list` = v2-0, v2-1, v2-2 exactly (no orphans, no duplicates). Availability over the window 0.9829 (1494/1520): FND-023's routing gap plus rolling deletions (Step 244's mechanism). The kill's revert then stuck waiting for the deleted instance: fixed in 38f27605.
+  - PASS/PARTIAL 2026-10-26: Cuirass restarted the killed instance in 1.7 s (kill 23:04:17.72Z → start 23:04:19.47Z), the rollout finished (`succeeded`, 70 s), `lxc list` = v2-0, v2-1, v2-2 exactly (no orphans, no duplicates). Availability over the window 0.9829 (1494/1520): FND-023's routing gap plus rolling deletions (Step 244's mechanism). The kill's revert then stuck waiting for the deleted instance: fixed in 4fd3f877.
 - [x] **Step 369** [LIVE-RW] ~5m: **Scenario C (east, if E3):** `service_stop` on east `unheaded-timeguru.service` for 60 s; [V] east's Akira/dashboard saw it (read-only GETs), it came back, journal empty.
   - PASS 2026-10-26 (Phase 12 Steps 325-329 are this scenario, run in the same window): timeguru stopped 60 s, east dashboard saw it degraded, back active, journal empty.
 - [x] **Step 370** [LIVE-RW] ~5m: **Scenario D (abort drill):** start `network_delay` 10 min on a v3 instance, then abort through the HTTP path; then start another and abort through the file path; [V] each reverted in ≤ 5 s, `chaos_aborts_total{path}` counts 1 for `http` and 1 for `file`.
@@ -1563,7 +1563,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 379** [V] ~1m: **PHASE 14 EXIT GATE**: Scenario A passed (Steps 365, 366); B passed; D passed; C and E passed or STUCK-logged with reasons; post-state clean (Step 375).
   - PASS 2026-10-26: A passed on run 3 (365, 366) after two Sword/Yaldabaoth fixes found by runs 1-2; B passed on MTTR/desired=actual, availability recorded as a miss (FND-023); C, D, E passed; post-state clean.
 - [x] **Step 380** [AUDIT-UPDATE] ~5m: Action items filed (register IDs / card IDs listed in the doc).
-  - Done 2026-10-26: FND-023, FND-024 in compliance/findings/register.yaml; the two fixes landed (d90d613d, 38f27605); east Wotan approval follow-on in next.md.
+  - Done 2026-10-26: FND-023, FND-024 in compliance/findings/register.yaml; the two fixes landed (e2eff2b5, 4fd3f877); east Wotan approval follow-on in next.md.
 
 **DoD (Phase 14)**: DoD-STD + deploy → inject → automatic rollback shown end to end with timestamps (Scenario A) + zero residue (Step 375).
 
@@ -1583,7 +1583,7 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   |---|---|---|---|
   | Sword :19011 | compose network + host port | auth on mutating routes; Cuirass key in host env file | 2026-10-26: AUTH_ENABLED=true live; /etc/unheaded/sword/sword.env 0640 root:16746; FuzzDeployRequest; the analyzer now also probes canary /health from its own side (client-observed p99), same IP rules as the scrape (no loopback/link-local) |
   | chaos-controller :19012 (west, east) | host | auth; allowlist; abort; journal | 2026-10-26: X-API-Key live on both hosts; pihole and an unlabelled instance refused 403 before Cuirass (chaos_refusals_total); abort http 0.12 s / file 0.88 s; ExecStopPost revert-all 0.12 s after kill -9; `systemctl kill` also kills the control process (plan note); FuzzParseAllowlist |
-  | Cuirass `/chaos`, `/reconcile`, proxy device, health probe | compose | auth; `CUIRASS_CHAOS`; managed + label checks; IP-only probe | 2026-10-26: 4760cd8b opens only GET /api/v1/info and /api/v1/state (canonical paths); PUT/DELETE/chaos/reconcile keep the key (test); chaos answered 403 outside the window; proxy device needs restricted.devices.proxy=allow on the project (all other restrictions kept); FuzzContainerSpec |
+  | Cuirass `/chaos`, `/reconcile`, proxy device, health probe | compose | auth; `CUIRASS_CHAOS`; managed + label checks; IP-only probe | 2026-10-26: 2ff3be29 opens only GET /api/v1/info and /api/v1/state (canonical paths); PUT/DELETE/chaos/reconcile keep the key (test); chaos answered 403 outside the window; proxy device needs restricted.devices.proxy=allow on the project (all other restrictions kept); FuzzContainerSpec |
   | LXD client cert (restricted, project `unheaded`) | `/etc/unheaded/cuirass` | 0600, pinned server cert | 2026-10-26: client.key 0400 16740, trust `cuirass` restricted to project unheaded, server.crt pinned; the restricted identity cannot see project default (pihole invisible, Step 145) |
   | `CAP_NET_ADMIN` (+`CAP_BPF` west) for `unheaded-chaos` | host | own account, sandbox, allowlisted targets | 2026-10-26: CapEff exactly cap_net_admin,cap_bpf on west (Step 304); the BPF program attached only to steel0-h, never enp16s0 (Steps 346, 375); loader pins only its three state maps |
   | polkit rule (east) | east | unit allowlist, verbs start/stop/kill | 2026-10-26: rendered from the allowlist (one source, drift test bites); unit has no capabilities; ssh.service and unheaded-kev-poller.service stop refused "Interactive authentication required" (Step 324) |
@@ -1639,17 +1639,17 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Agent**: Librarian lens, Solo
 
 - [x] **Step 393** [DOC-UPDATE] ~30m: wiki: `Service-Sword.md` (Phase 8), new `Chaos-Engineering.md` (Yaldabaoth for real: allowlist, abort paths, journal, experiment types and which refuse), `Containers.md` (Phases 4-5), new `Game-Days.md` (links the doc), `Steel-Echo.md`; `_Sidebar` + Home links (wiki rule).
-  - Done 2026-10-26 (29f0bc3c): wiki/Service-Sword.md rewritten with the live numbers; new Chaos-Engineering.md, Game-Days.md, Steel-Echo.md; Containers.md host_veth + proxy note; _Sidebar + Home "Deploy and Chaos".
+  - Done 2026-10-26 (70b552dd): wiki/Service-Sword.md rewritten with the live numbers; new Chaos-Engineering.md, Game-Days.md, Steel-Echo.md; Containers.md host_veth + proxy note; _Sidebar + Home "Deploy and Chaos".
 - [x] **Step 394** [REGEN] ~5m: `docs/LIVE-PATHS.md` (binaries) and `docs/UNREACHED-GO-PACKAGES.md` (Step 5 command) regenerated.
-  - Done 2026-10-26 (04fba173): LIVE-PATHS.md byte-identical after regen; UNREACHED-GO-PACKAGES.md 64 of 250 (Phase 13 reached bpfschema and encoding).
+  - Done 2026-10-26 (023c424c): LIVE-PATHS.md byte-identical after regen; UNREACHED-GO-PACKAGES.md 64 of 250 (Phase 13 reached bpfschema and encoding).
 - [x] **Step 395** [DOC-UPDATE] ~10m: Port and uid tables (wiki + CLAUDE.md port registry): Sword 19011 replaces Canary; `unheaded-chaos` uid.
   - Done 2026-10-26: wiki/Port-Registry.md, Microservices.md, Systemd-Units.md and CLAUDE.md port tables: Sword 19011/16746, chaos-controller 19012/16763, steel-echo 8080 / proxy 26601.
 - [x] **Step 396** [DOC-UPDATE] ~5m: ADR index statuses: ADR-090 per E1; the chaos ADR Proposed; ADR-088 and ADR-064 one-line notes (Steps 236, 105).
-  - Done 2026-10-26 (655d76f6): ADR-090 Accepted (Phase 1), ADR-107 Proposed + game day note, ADR-064 and ADR-088 one-line notes; ADR-088's stale E2 line fixed.
+  - Done 2026-10-26 (c2d80b1e): ADR-090 Accepted (Phase 1), ADR-107 Proposed + game day note, ADR-064 and ADR-088 one-line notes; ADR-088's stale E2 line fixed.
 - [x] **Step 397** [W] ~10m: `docs/battle-plans/S-REAL-STEEL-battle-plan.md`: a SHIPPED banner at the top (commit range, the live proofs by step number, what stayed STUCK), in the PHASE24 style.
   - Closed 2026-10-26 with the phase's exit gate (see the gate step's note).
 - [x] **Step 398** [DOC-UPDATE] ~10m: CLAUDE.md, one edit (Librarian ripple): the `pkg/transport` Connect line (if deleted), "Interchangeable/real deploy via Sword + Cuirass on LXD", Yaldabaoth line. No release/roadmap framing (memory: reference_readme_doc_style).
-  - Done 2026-10-26 (655d76f6): transport-cascade claim replaced in both places, pkg/service line removed, skeleton imports fixed, Sword + Yaldabaoth capability lines, S-REAL-STEEL summary bullet.
+  - Done 2026-10-26 (c2d80b1e): transport-cascade claim replaced in both places, pkg/service line removed, skeleton imports fixed, Sword + Yaldabaoth capability lines, S-REAL-STEEL summary bullet.
 - [x] **Step 399** [B] ~3m: Wiki mirror check and leak scan.
   - Done 2026-10-26: `sync-wiki.sh --dry-run` clean (4 new pages, no mirror-only pages); `scripts/check-gitleaks.sh` PASS on 5551 tracked files (a raw `-s wiki` git-mode scan lists the 35 historical hits CLAUDE.md records, none in new commits).
   ```bash

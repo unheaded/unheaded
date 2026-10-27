@@ -357,13 +357,13 @@ cmd/unheaded-daemon/desired_store.go	PENDING
 cmd/unheaded-daemon/desired_store_test.go	PENDING			
 cmd/unheaded-daemon/health_probe.go	PENDING			
 cmd/unheaded-daemon/health_probe_test.go	PENDING			
-cmd/unheaded-daemon/internal/config/config.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-cmd/unheaded-daemon/internal/config/config_test.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-cmd/unheaded-daemon/internal/ebpf/loader.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-cmd/unheaded-daemon/internal/lxd/client.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-cmd/unheaded-daemon/internal/lxd/client_test.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-cmd/unheaded-daemon/internal/state/state.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-cmd/unheaded-daemon/internal/state/state_test.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
+cmd/unheaded-daemon/internal/config/config.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+cmd/unheaded-daemon/internal/config/config_test.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+cmd/unheaded-daemon/internal/ebpf/loader.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+cmd/unheaded-daemon/internal/lxd/client.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+cmd/unheaded-daemon/internal/lxd/client_test.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+cmd/unheaded-daemon/internal/state/state.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+cmd/unheaded-daemon/internal/state/state_test.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
 cmd/unheaded-daemon/lxd_rest.go	PENDING			
 cmd/unheaded-daemon/lxd_rest_pq_test.go	PENDING			
 cmd/unheaded-daemon/lxd_rest_test.go	PENDING			
@@ -645,32 +645,32 @@ dashboard/css/design-system.css	PENDING
 dashboard/css/style.css	PENDING			
 dashboard/doom.html	PENDING			
 dashboard/index.html	PENDING			
-dashboard/js/anomaly-heatmap.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/canary-panel.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/chaos-panel.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/compliance-panel.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/anomaly-heatmap.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/canary-panel.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/chaos-panel.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/compliance-panel.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
 dashboard/js/doom-viewport.js	PENDING			
-dashboard/js/failover-panel.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/firewall-panel.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/int-heatmap.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/latency-chart.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/lb-panel.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/failover-panel.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/firewall-panel.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/int-heatmap.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/latency-chart.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/lb-panel.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
 dashboard/js/log-viewer.js	PENDING			
-dashboard/js/metrics.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/monad-decode.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/nfv-panel.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/packet-flow-diagram.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/metrics.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/monad-decode.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/nfv-panel.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/packet-flow-diagram.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
 dashboard/js/packet-flow.js	PENDING			
 dashboard/js/particles.js	PENDING			
-dashboard/js/pqc-algo-distribution.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/pqc-key-rotation.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/pqc-map-utilization.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/pqc-tier-status.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/pqc-verify-timeline.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/qos-panel.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/trace-search.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/trace-viewer.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
-dashboard/js/version-panel.js	SWEPT	DELETED	af54f5f7	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/pqc-algo-distribution.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/pqc-key-rotation.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/pqc-map-utilization.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/pqc-tier-status.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/pqc-verify-timeline.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/qos-panel.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/trace-search.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/trace-viewer.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
+dashboard/js/version-panel.js	SWEPT	DELETED	216915b1	S-REAL-STEEL Phase 1, E1 G2
 dashboard/logs.html	PENDING			
 dashboard/panels/ai-inference.html	PENDING			
 dashboard/panels/infrastructure.html	PENDING			
@@ -880,8 +880,8 @@ internal/bpf/bpf_test.go	PENDING
 internal/bpfmap/abi_layout_test.go	PENDING			
 internal/bpfmap/bpfmap.go	PENDING			
 internal/bpfmap/bpfmap_test.go	PENDING			
-internal/dashboard/ws_ebpf_handler.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-internal/dashboard/ws_ebpf_handler_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+internal/dashboard/ws_ebpf_handler.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+internal/dashboard/ws_ebpf_handler_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 internal/doom/handlers.go	PENDING			
 internal/doom/handlers_test.go	PENDING			
 internal/doom/input.go	PENDING			
@@ -893,8 +893,8 @@ internal/doom/state.go	PENDING
 internal/doom/state_test.go	PENDING			
 internal/doom/types.go	PENDING			
 internal/doom/types_test.go	PENDING			
-internal/ebpf/collector/grpc_client.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-internal/ebpf/collector/grpc_client_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+internal/ebpf/collector/grpc_client.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+internal/ebpf/collector/grpc_client_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 kanban/css/kanban.css	PENDING			
 kanban/index.html	PENDING			
 kanban/js/board-viz.js	PENDING			
@@ -1014,38 +1014,38 @@ pkg/afxdp/afxdp.go	PENDING
 pkg/afxdp/afxdp_test.go	PENDING			
 pkg/agent/agent.go	PENDING			
 pkg/agent/agent_test.go	PENDING			
-pkg/alerting/alerting.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/alerting_test.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/manager/grouping.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/manager/inhibition.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/manager/manager.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/manager/manager_test.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/manager/silencing.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/notify/email.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/notify/notify.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/notify/notify_test.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/notify/slack.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/notify/webhook.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/notify/wotan.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/rules/evaluate.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/rules/parser.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/rules/rule.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
-pkg/alerting/rules/rules_test.go	SWEPT	DELETED	2b875635	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/alerting.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/alerting_test.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/manager/grouping.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/manager/inhibition.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/manager/manager.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/manager/manager_test.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/manager/silencing.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/notify/email.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/notify/notify.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/notify/notify_test.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/notify/slack.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/notify/webhook.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/notify/wotan.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/rules/evaluate.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/rules/parser.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/rules/rule.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
+pkg/alerting/rules/rules_test.go	SWEPT	DELETED	7354f0f0	S-REAL-STEEL Phase 1, E1 G10a
 pkg/audit/audit.go	PENDING			
 pkg/audit/audit_test.go	PENDING			
-pkg/audit/export/export.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
-pkg/audit/export/export_test.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
-pkg/audit/export/siem.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
-pkg/audit/export/splunk.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
-pkg/audit/logger/async.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
-pkg/audit/logger/buffer.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
-pkg/audit/logger/logger.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
-pkg/audit/logger/logger_test.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/export/export.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/export/export_test.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/export/siem.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/export/splunk.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/logger/async.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/logger/buffer.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/logger/logger.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/logger/logger_test.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
 pkg/audit/pqc_events.go	PENDING			
 pkg/audit/pqc_events_test.go	PENDING			
-pkg/audit/query/query.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
-pkg/audit/query/query_test.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
-pkg/audit/query/search.go	SWEPT	DELETED	3b761179	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/query/query.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/query/query_test.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
+pkg/audit/query/search.go	SWEPT	DELETED	db289c9a	S-REAL-STEEL Phase 1, E1 F1
 pkg/audit/storage/database.go	PENDING			
 pkg/audit/storage/database_integration_test.go	PENDING			
 pkg/audit/storage/database_test.go	PENDING			
@@ -1100,25 +1100,25 @@ pkg/cartridge/ratelimit_linux_test.go	PENDING
 pkg/cartridge/replay_linux_test.go	PENDING			
 pkg/cartridge/sampler_linux_test.go	PENDING			
 pkg/cartridge/scorer_linux_test.go	PENDING			
-pkg/certs/acme/acme.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-pkg/certs/acme/acme_test.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-pkg/certs/ca/ca.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/ca/ca_test.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/ca/intermediate.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/ca/root.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/issue/csr.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/issue/issue.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/issue/issue_test.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/issue/template.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/manager.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/manager_test.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/rotation/renew.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/rotation/rotation.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/rotation/rotation_test.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/store/file.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/store/store.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/store/store_extended_test.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
-pkg/certs/store/store_test.go	SWEPT	DELETED	5756454a	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/acme/acme.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+pkg/certs/acme/acme_test.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+pkg/certs/ca/ca.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/ca/ca_test.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/ca/intermediate.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/ca/root.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/issue/csr.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/issue/issue.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/issue/issue_test.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/issue/template.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/manager.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/manager_test.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/rotation/renew.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/rotation/rotation.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/rotation/rotation_test.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/store/file.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/store/store.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/store/store_extended_test.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
+pkg/certs/store/store_test.go	SWEPT	DELETED	19b83593	S-REAL-STEEL Phase 1, E1 G10b
 pkg/champion/branchsandbox.go	PENDING			
 pkg/champion/branchsandbox_test.go	PENDING			
 pkg/champion/champion.go	PENDING			
@@ -1177,16 +1177,16 @@ pkg/claudebridge/spend.go	PENDING
 pkg/claudebridge/spend_test.go	PENDING			
 pkg/claudebridge/tools.go	PENDING			
 pkg/claudebridge/well_integration_test.go	PENDING			
-pkg/compliance/audit/audit.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/audit/audit_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/audit/trail.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/audit/trail_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/controls/check.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/controls/check_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/controls/control.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/controls/control_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/controls/evidence.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/controls/evidence_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/audit/audit.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/audit/audit_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/audit/trail.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/audit/trail_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/controls/check.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/controls/check_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/controls/control.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/controls/control_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/controls/evidence.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/controls/evidence_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
 pkg/compliance/crosswalk/catalog.go	PENDING			
 pkg/compliance/crosswalk/catalog_test.go	PENDING			
 pkg/compliance/crosswalk/collect/agent.go	PENDING			
@@ -1210,8 +1210,8 @@ pkg/compliance/crosswalk/serviceauth_script_test.go	PENDING
 pkg/compliance/crosswalk/sourcemaps_test.go	PENDING			
 pkg/compliance/crosswalk/status.go	PENDING			
 pkg/compliance/crosswalk/status_test.go	PENDING			
-pkg/compliance/engine.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/engine_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/engine.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/engine_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
 pkg/compliance/executor/executor.go	PENDING			
 pkg/compliance/executor/executor_test.go	PENDING			
 pkg/compliance/executor/journal.go	PENDING			
@@ -1221,23 +1221,23 @@ pkg/compliance/remediation/journal_test.go	PENDING
 pkg/compliance/remediation/model.go	PENDING			
 pkg/compliance/remediation/model_test.go	PENDING			
 pkg/compliance/remediation/profiles.go	PENDING			
-pkg/compliance/report/export.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/report/report.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/report/report_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/report/export.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/report/report.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/report/report_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
 pkg/compliance/snapshot/snapshot.go	PENDING			
 pkg/compliance/snapshot/snapshot_test.go	PENDING			
-pkg/compliance/standards/gdpr.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/gdpr_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/hipaa.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/hipaa_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/nist.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/nist_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/pci.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/pci_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/soc2.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/soc2_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/standard.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
-pkg/compliance/standards/standard_test.go	SWEPT	DELETED	aad33414	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/gdpr.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/gdpr_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/hipaa.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/hipaa_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/nist.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/nist_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/pci.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/pci_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/soc2.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/soc2_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/standard.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
+pkg/compliance/standards/standard_test.go	SWEPT	DELETED	3d5c7977	S-REAL-STEEL Phase 1, E1 G10c
 pkg/compliance/well/export.go	PENDING			
 pkg/compliance/well/export_test.go	PENDING			
 pkg/compliance/well/lazy.go	PENDING			
@@ -1246,32 +1246,32 @@ pkg/compliance/well/store.go	PENDING
 pkg/compliance/well/store_test.go	PENDING			
 pkg/compliance/well/sync.go	PENDING			
 pkg/compliance/well/sync_test.go	PENDING			
-pkg/config/config.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/config_extended_test.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/config_test.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/merge/merge.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/merge/merge_test.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/merge/validate.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/setfield_negative_test.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/sources/env.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/sources/file.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/sources/flags.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/sources/remote.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/sources/sources_test.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/template/functions.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/template/functions_test.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/template/template.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/watch/notify.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/watch/watch_test.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/config/watch/watcher.go	SWEPT	DELETED	fc727ce2	S-REAL-STEEL Phase 1, E1 G10f
-pkg/container/image/image.go.dev	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/container/lxd/lxd.go.dev	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-pkg/container/mock_runtime.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/container/mock_runtime_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/container/network/network.go.dev	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/container/runtime.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/container/runtime_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/container/storage/storage.go.dev	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
+pkg/config/config.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/config_extended_test.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/config_test.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/merge/merge.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/merge/merge_test.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/merge/validate.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/setfield_negative_test.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/sources/env.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/sources/file.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/sources/flags.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/sources/remote.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/sources/sources_test.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/template/functions.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/template/functions_test.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/template/template.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/watch/notify.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/watch/watch_test.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/config/watch/watcher.go	SWEPT	DELETED	ad7e4635	S-REAL-STEEL Phase 1, E1 G10f
+pkg/container/image/image.go.dev	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/container/lxd/lxd.go.dev	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+pkg/container/mock_runtime.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/container/mock_runtime_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/container/network/network.go.dev	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/container/runtime.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/container/runtime_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/container/storage/storage.go.dev	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
 pkg/crypto/pqc/fn_dsa.go	PENDING			
 pkg/crypto/pqc/hash_pfx.go	PENDING			
 pkg/crypto/pqc/hqc.go	PENDING			
@@ -1308,12 +1308,12 @@ pkg/database/timeline.go	PENDING
 pkg/database/validate.go	PENDING			
 pkg/database/validate_test.go	PENDING			
 pkg/database/zhen.go	PENDING			
-pkg/deploy/artifact/artifact.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/artifact/artifact_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/artifact/registry.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/artifact/registry_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/artifact/storage.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/artifact/storage_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/artifact/artifact.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/artifact/artifact_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/artifact/registry.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/artifact/registry_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/artifact/storage.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/artifact/storage_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
 pkg/deploy/cuirassdriver/cuirasstest/fake.go	PENDING			
 pkg/deploy/cuirassdriver/driver.go	PENDING			
 pkg/deploy/cuirassdriver/driver_test.go	PENDING			
@@ -1322,26 +1322,26 @@ pkg/deploy/cuirassdriver/fake_test.go	PENDING
 pkg/deploy/cuirassdriver/ping_test.go	PENDING			
 pkg/deploy/cuirassdriver/rollback.go	PENDING			
 pkg/deploy/cuirassdriver/rollback_test.go	PENDING			
-pkg/deploy/deploy.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/deploy_engine_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/deploy_extended_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/deploy_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/artifact.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/artifact_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/healthgate.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/healthgate_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/hooks.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/hooks_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/notification.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/notification_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/pipeline.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/pipeline_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/rollback.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/rollback_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/stage.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/stage_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/strategy.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-pkg/deploy/pipeline/strategy_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/deploy.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/deploy_engine_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/deploy_extended_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/deploy_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/artifact.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/artifact_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/healthgate.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/healthgate_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/hooks.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/hooks_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/notification.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/notification_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/pipeline.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/pipeline_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/rollback.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/rollback_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/stage.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/stage_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/strategy.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+pkg/deploy/pipeline/strategy_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
 pkg/deploy/rollback/history.go	PENDING			
 pkg/deploy/rollback/rollback.go	PENDING			
 pkg/deploy/rollback/rollback_test.go	PENDING			
@@ -1371,32 +1371,32 @@ pkg/discovery/wotan.go	PENDING
 pkg/discovery/wotan_test.go	PENDING			
 pkg/discovery/yaml_loader.go	PENDING			
 pkg/discovery/yaml_loader_test.go	PENDING			
-pkg/dns/cache.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/cache_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/compression_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/discovery.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/discovery_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/forward_security_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/health_checker.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/health_checker_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/mesh_integration.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/mesh_integration_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/metrics.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/metrics_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/protocol.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/protocol_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/rdata_compression_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/records.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/records_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/resolver.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/resolver_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/server.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/server_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/service_discovery.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/service_discovery_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/udp_size_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/zone.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/dns/zone_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/cache.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/cache_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/compression_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/discovery.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/discovery_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/forward_security_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/health_checker.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/health_checker_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/mesh_integration.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/mesh_integration_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/metrics.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/metrics_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/protocol.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/protocol_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/rdata_compression_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/records.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/records_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/resolver.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/resolver_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/server.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/server_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/service_discovery.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/service_discovery_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/udp_size_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/zone.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/dns/zone_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
 pkg/ebpf/anamnesis.go	PENDING			
 pkg/ebpf/anamnesis_compute_test.go	PENDING			
 pkg/ebpf/anamnesis_reader.go	PENDING			
@@ -1427,20 +1427,20 @@ pkg/ebpf/ringbuf_consume.go	PENDING
 pkg/ebpf/ringbuf_consume_test.go	PENDING			
 pkg/enkrateia/enkrateia.go	PENDING			
 pkg/enkrateia/enkrateia_test.go	PENDING			
-pkg/eventbus/async.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/eventbus/bus.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/eventbus/bus_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/eventbus/eventbus_comprehensive_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/eventbus/filter.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/eventbus/middleware.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/eventbus/store.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/eventbus/subscriber.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/eventbus/topic.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/events/events.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/events/events_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/events/integration_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/events/router.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/events/router_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+pkg/eventbus/async.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/eventbus/bus.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/eventbus/bus_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/eventbus/eventbus_comprehensive_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/eventbus/filter.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/eventbus/middleware.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/eventbus/store.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/eventbus/subscriber.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/eventbus/topic.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/events/events.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/events/events_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/events/integration_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/events/router.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/events/router_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 pkg/gjallarhorn/types.go	PENDING			
 pkg/gjallarhorn/types_test.go	PENDING			
 pkg/gpulease/gpulease.go	PENDING			
@@ -1451,28 +1451,28 @@ pkg/gungnir/gungnir.go	PENDING
 pkg/gungnir/gungnir_test.go	PENDING			
 pkg/gungnir/keys.go	PENDING			
 pkg/gungnir/keys_test.go	PENDING			
-pkg/health/aggregator.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/health/aggregator_extended_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/health/aggregator_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+pkg/health/aggregator.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/health/aggregator_extended_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/health/aggregator_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 pkg/health/akira.go	PENDING			
 pkg/health/akira_test.go	PENDING			
 pkg/health/consensus.go	PENDING			
 pkg/health/consensus_test.go	PENDING			
-pkg/health/coverage_extended_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+pkg/health/coverage_extended_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 pkg/health/response.go	PENDING			
 pkg/health/response_test.go	PENDING			
-pkg/http/context.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/context_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/coverage_extended_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/group.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/group_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/middleware.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/middleware_extended_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/pq_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/response.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/router.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/router_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/http/server.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/context.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/context_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/coverage_extended_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/group.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/group_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/middleware.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/middleware_extended_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/pq_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/response.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/router.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/router_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/http/server.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 pkg/httputil/middleware.go	PENDING			
 pkg/httputil/middleware_test.go	PENDING			
 pkg/httputil/origin.go	PENDING			
@@ -1521,28 +1521,28 @@ pkg/lichtools/tools_real.go	PENDING
 pkg/lichtools/tools_real_test.go	PENDING			
 pkg/lifecycle/shutdown.go	PENDING			
 pkg/lifecycle/shutdown_test.go	PENDING			
-pkg/loadbalancer/algorithms.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/algorithms_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/backend.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/backend_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/balancer.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/balancer_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/config.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/config_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/failover.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/failover_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/health.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/health_enhanced.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/health_enhanced_extra_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/health_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/l4.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/l4_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/l7.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/l7_forward_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/l7_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/pq_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/session.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/loadbalancer/session_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/algorithms.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/algorithms_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/backend.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/backend_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/balancer.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/balancer_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/config.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/config_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/failover.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/failover_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/health.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/health_enhanced.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/health_enhanced_extra_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/health_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/l4.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/l4_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/l7.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/l7_forward_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/l7_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/pq_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/session.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/loadbalancer/session_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
 pkg/localllm/lease_test.go	PENDING			
 pkg/localllm/localllm.go	PENDING			
 pkg/localllm/localllm_test.go	PENDING			
@@ -1563,9 +1563,9 @@ pkg/logagg/subscriber_test.go	PENDING
 pkg/logger/logger.go	PENDING			
 pkg/logger/logger_extended_test.go	PENDING			
 pkg/logger/logger_test.go	PENDING			
-pkg/lxd/client.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-pkg/lxd/lxd_test.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-pkg/lxd/real_client.go.dev	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
+pkg/lxd/client.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+pkg/lxd/lxd_test.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+pkg/lxd/real_client.go.dev	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
 pkg/mcpclient/client.go	PENDING			
 pkg/mcpclient/client_test.go	PENDING			
 pkg/mcpclient/fakeserver_test.go	PENDING			
@@ -1574,80 +1574,80 @@ pkg/mcpclient/protocol.go	PENDING
 pkg/mcpclient/sanitize.go	PENDING			
 pkg/mcpclient/sanitize_test.go	PENDING			
 pkg/mcpclient/tools.go	PENDING			
-pkg/mesh/circuit.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/config.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/discovery.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/discovery/discovery.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/discovery/discovery_coverage_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/discovery/discovery_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/discovery/dns.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/discovery/registry.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalance/lb.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalance/leastconn.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalance/loadbalance_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalance/roundrobin.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalance/weighted.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalancer.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalancer/leastconn.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalancer/loadbalancer.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalancer/loadbalancer_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalancer/roundrobin.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/loadbalancer/weighted.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mesh.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mesh_extended_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mesh_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/certs.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/certs_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/identity.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/identity_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/integration_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/manager_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/mtls.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/mtls_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/pq_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/provider.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/provider_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/spiffe.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/spiffe_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/validation.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/mtls/validation_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/observe/access.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/observe/metrics.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/observe/observe_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/observe/tracing.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/policy/circuit.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/policy/circuit_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/policy/policy.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/policy/retry.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/policy/retry_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/policy/timeout.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/policy/timeout_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/pq_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/getorigdst_linux.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/getorigdst_other.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/health.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/health_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/listener.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/listener_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/pool.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/pool_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/proxy.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/proxy/proxy_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/resilience/circuitbreaker.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/resilience/circuitbreaker_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/resilience/ratelimit.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/resilience/resilience_extended_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/resilience/retry.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/resilience/retry_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/resilience/timeout.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/resilience/timeout_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/routing/match.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/routing/routing.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/routing/routing_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/routing/rules.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/sidecar.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-pkg/mesh/sidecar_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/circuit.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/config.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/discovery.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/discovery/discovery.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/discovery/discovery_coverage_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/discovery/discovery_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/discovery/dns.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/discovery/registry.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalance/lb.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalance/leastconn.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalance/loadbalance_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalance/roundrobin.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalance/weighted.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalancer.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalancer/leastconn.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalancer/loadbalancer.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalancer/loadbalancer_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalancer/roundrobin.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/loadbalancer/weighted.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mesh.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mesh_extended_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mesh_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/certs.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/certs_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/identity.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/identity_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/integration_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/manager_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/mtls.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/mtls_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/pq_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/provider.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/provider_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/spiffe.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/spiffe_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/validation.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/mtls/validation_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/observe/access.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/observe/metrics.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/observe/observe_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/observe/tracing.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/policy/circuit.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/policy/circuit_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/policy/policy.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/policy/retry.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/policy/retry_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/policy/timeout.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/policy/timeout_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/pq_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/getorigdst_linux.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/getorigdst_other.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/health.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/health_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/listener.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/listener_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/pool.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/pool_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/proxy.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/proxy/proxy_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/resilience/circuitbreaker.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/resilience/circuitbreaker_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/resilience/ratelimit.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/resilience/resilience_extended_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/resilience/retry.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/resilience/retry_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/resilience/timeout.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/resilience/timeout_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/routing/match.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/routing/routing.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/routing/routing_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/routing/rules.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/sidecar.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+pkg/mesh/sidecar_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
 pkg/metrics/auto/auto.go	PENDING			
 pkg/metrics/baremetal.go	PENDING			
 pkg/metrics/baremetal_test.go	PENDING			
@@ -1684,14 +1684,14 @@ pkg/monad/pqc_value_test.go	PENDING
 pkg/monad/pseudo_header.go	PENDING			
 pkg/monad/sequence.go	PENDING			
 pkg/monad/sequence_test.go	PENDING			
-pkg/netlink/netlink.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/netlink/netlink_linux_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/netlink/netlink_stub.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/netlink/netlink_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/network/network_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/network/policy_controller.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/nix/builder.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
-pkg/nix/nix_test.go	SWEPT	DELETED	f7df5d23	S-REAL-STEEL Phase 1, E1 G1
+pkg/netlink/netlink.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/netlink/netlink_linux_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/netlink/netlink_stub.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/netlink/netlink_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/network/network_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/network/policy_controller.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/nix/builder.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
+pkg/nix/nix_test.go	SWEPT	DELETED	e38cddf9	S-REAL-STEEL Phase 1, E1 G1
 pkg/observability/adapters_test.go	PENDING			
 pkg/observability/elk.go	PENDING			
 pkg/observability/fluentd.go	PENDING			
@@ -1751,69 +1751,69 @@ pkg/protocol/sophiasync/sophiasync_test.go	PENDING
 pkg/protocol/tlv/tlv.go	PENDING			
 pkg/protocol/tlv/tlv_fuzz_test.go	PENDING			
 pkg/protocol/tlv/tlv_test.go	PENDING			
-pkg/runtime/cgroups.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/cgroups_stub.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/cgroups_v2.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/cgroups_v2_stub.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/cgroups_v2_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/container.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/container_linux.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/container_stub.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/container_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/exec.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/exec_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/image.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/image_extract_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/image_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/logs.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/logs_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/namespace.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/namespace_stub.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/namespace_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/portable_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/runtime.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/runtime_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/sandbox.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/sandbox_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/volume.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/volume_stub.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/runtime/volume_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/cgroups.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/cgroups_stub.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/cgroups_v2.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/cgroups_v2_stub.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/cgroups_v2_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/container.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/container_linux.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/container_stub.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/container_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/exec.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/exec_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/image.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/image_extract_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/image_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/logs.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/logs_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/namespace.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/namespace_stub.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/namespace_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/portable_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/runtime.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/runtime_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/sandbox.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/sandbox_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/volume.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/volume_stub.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/runtime/volume_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 pkg/sandbox/sandbox.go	PENDING			
 pkg/sandbox/sandbox_systemd_test.go	PENDING			
 pkg/sandbox/sandbox_test.go	PENDING			
-pkg/scheduler/affinity.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/affinity_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/algorithm.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/algorithm_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/binding.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/binding_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/node.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/node_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/preemption.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/preemption_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/queue.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/queue_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/quota.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/quota_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/scheduler.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
-pkg/scheduler/scheduler_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/affinity.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/affinity_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/algorithm.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/algorithm_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/binding.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/binding_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/node.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/node_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/preemption.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/preemption_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/queue.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/queue_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/quota.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/quota_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/scheduler.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
+pkg/scheduler/scheduler_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
 pkg/secrets/encryption/age.go	PENDING			
 pkg/secrets/encryption/encryption_test.go	PENDING			
 pkg/secrets/encryption/envelope.go	PENDING			
 pkg/secrets/manager_extended_test.go	PENDING			
-pkg/secrets/rotation/history.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/history_test.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/hooks.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/hooks_test.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/integration.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/integration_test.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/keymanager.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/keymanager_test.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/policy.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/policy_test.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/rotation.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/rotation_test.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
-pkg/secrets/rotation/scheduler.go	SWEPT	DELETED	947770a9	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/history.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/history_test.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/hooks.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/hooks_test.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/integration.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/integration_test.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/keymanager.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/keymanager_test.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/policy.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/policy_test.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/rotation.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/rotation_test.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
+pkg/secrets/rotation/scheduler.go	SWEPT	DELETED	a693e714	S-REAL-STEEL Phase 1, E1 F1
 pkg/secrets/secrets.go	PENDING			
 pkg/secrets/secrets_test.go	PENDING			
 pkg/secrets/store/file.go	PENDING			
@@ -1823,55 +1823,55 @@ pkg/secrets/store/memory_test.go	PENDING
 pkg/secrets/store/store_extended_test.go	PENDING			
 pkg/secrets/store/vault.go	PENDING			
 pkg/secrets/store/vault_test.go	PENDING			
-pkg/service/service.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/service/service_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+pkg/service/service.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/service/service_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 pkg/sloguard/sloguard.go	PENDING			
 pkg/sloguard/sloguard_test.go	PENDING			
 pkg/sophia/pqc_control.go	PENDING			
 pkg/sophia/pqc_control_test.go	PENDING			
 pkg/sophia/pqc_maps.go	PENDING			
 pkg/sophia/pqc_maps_test.go	PENDING			
-pkg/state/reconciler.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/state/state_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+pkg/state/reconciler.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/state/state_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 pkg/statefile/statefile.go	PENDING			
 pkg/statefile/statefile_test.go	PENDING			
-pkg/storage/cache/cache.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/cache/cache_test.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/cache/lru.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/cache/ttl.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/kv/badger.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/kv/bolt.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/kv/kv.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/kv/kv_extended_test.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/kv/kv_test.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/kv/memory.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/object/filesystem.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/object/object.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/object/object_extended_test.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/object/object_test.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
-pkg/storage/object/s3.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/cache/cache.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/cache/cache_test.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/cache/lru.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/cache/ttl.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/kv/badger.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/kv/bolt.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/kv/kv.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/kv/kv_extended_test.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/kv/kv_test.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/kv/memory.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/object/filesystem.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/object/object.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/object/object_extended_test.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/object/object_test.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/object/s3.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
 pkg/storage/storage.go	PENDING			
-pkg/storage/storage_test.go	SWEPT	DELETED	b00feb77	S-REAL-STEEL Phase 1, E1 F1
+pkg/storage/storage_test.go	SWEPT	DELETED	f22cc267	S-REAL-STEEL Phase 1, E1 F1
 pkg/storage/wal/segment.go	PENDING			
 pkg/storage/wal/wal.go	PENDING			
 pkg/storage/wal/wal_test.go	PENDING			
-pkg/telemetry/main.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/telemetry/telemetry.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/telemetry/telemetry_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/testing/assert.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/assert_test.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/benchmark.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/benchmark_test.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/fixture.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/fixture_test.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/golden.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/golden_test.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/http.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/http_test.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/mock.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/mock_test.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/table.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-pkg/testing/table_test.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
+pkg/telemetry/main.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/telemetry/telemetry.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/telemetry/telemetry_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/testing/assert.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/assert_test.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/benchmark.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/benchmark_test.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/fixture.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/fixture_test.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/golden.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/golden_test.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/http.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/http_test.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/mock.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/mock_test.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/table.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+pkg/testing/table_test.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
 pkg/threatfeed/kev/fetch.go	PENDING			
 pkg/threatfeed/kev/fuzz_test.go	PENDING			
 pkg/threatfeed/kev/kev.go	PENDING			
@@ -1895,10 +1895,10 @@ pkg/tls/server.go	PENDING
 pkg/tls/setup.go	PENDING			
 pkg/trace/traceid.go	PENDING			
 pkg/trace/traceid_test.go	PENDING			
-pkg/tracing/collector.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/tracing/tracing_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/transport/cascade.go	SWEPT	DELETED	2c8fdc31	S-REAL-STEEL Phase 1, E1 G5
-pkg/transport/cascade_test.go	SWEPT	DELETED	2c8fdc31	S-REAL-STEEL Phase 1, E1 G5
+pkg/tracing/collector.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/tracing/tracing_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/transport/cascade.go	SWEPT	DELETED	231c69db	S-REAL-STEEL Phase 1, E1 G5
+pkg/transport/cascade_test.go	SWEPT	DELETED	231c69db	S-REAL-STEEL Phase 1, E1 G5
 pkg/transport/flags.go	PENDING			
 pkg/transport/flags_test.go	PENDING			
 pkg/transport/grpc.go	PENDING			
@@ -1927,10 +1927,10 @@ pkg/upc/filesystem_test.go	PENDING
 pkg/upc/ivt.go	PENDING			
 pkg/upc/loader.go	PENDING			
 pkg/upc/loader_test.go	PENDING			
-pkg/validation/bounds_check.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/validation/bounds_check_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/validation/syscall_validator.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/validation/syscall_validator_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+pkg/validation/bounds_check.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/validation/bounds_check_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/validation/syscall_validator.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/validation/syscall_validator_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 pkg/vorquery/vorquery.go	PENDING			
 pkg/vorquery/vorquery_test.go	PENDING			
 pkg/waf/detection/bot.go	PENDING			
@@ -1980,15 +1980,15 @@ pkg/waf/scoring.go	PENDING
 pkg/waf/scoring_extended_test.go	PENDING			
 pkg/waf/waf.go	PENDING			
 pkg/waf/waf_test.go	PENDING			
-pkg/worker/job.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/worker/pool.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/worker/pool_extended_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/worker/pool_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/worker/pool_trace_test.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/worker/queue.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/worker/result.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/worker/retry.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
-pkg/worker/scheduler.go	SWEPT	DELETED	3b03cfc7	S-REAL-STEEL Phase 1, E1 G10h
+pkg/worker/job.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/worker/pool.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/worker/pool_extended_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/worker/pool_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/worker/pool_trace_test.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/worker/queue.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/worker/result.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/worker/retry.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
+pkg/worker/scheduler.go	SWEPT	DELETED	3c4585aa	S-REAL-STEEL Phase 1, E1 G10h
 pkg/wotan-client/client.go	PENDING			
 pkg/wotan-client/client_extended_test.go	PENDING			
 pkg/wotan-client/client_test.go	PENDING			
@@ -2318,9 +2318,9 @@ scripts/ws3/sustained-test.sh	PENDING
 scripts/zhen-agent-preflight.sh	PENDING			
 scripts/zhen-mcp.sh	PENDING			
 scripts/zlora-to-gguf.py	PENDING			
-services/anamnesis/anamnesis.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/anamnesis/anamnesis_extended_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/anamnesis/anamnesis_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
+services/anamnesis/anamnesis.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/anamnesis/anamnesis_extended_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/anamnesis/anamnesis_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
 services/anomaly/anomaly.go	PENDING			
 services/anomaly/anomaly_test.go	PENDING			
 services/anomaly/scores.go	PENDING			
@@ -2333,10 +2333,10 @@ services/architect/handlers.go	PENDING
 services/architect/handlers_test.go	PENDING			
 services/architect/persist_test.go	PENDING			
 services/architect/wotan_retry_test.go	PENDING			
-services/canary/canary.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-services/canary/canary_test.go	SWEPT	DELETED	e86a2423	S-REAL-STEEL Phase 1, E1 G3
-services/cape/cape.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/cape/cape_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
+services/canary/canary.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+services/canary/canary_test.go	SWEPT	DELETED	e7c9b544	S-REAL-STEEL Phase 1, E1 G3
+services/cape/cape.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/cape/cape_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
 services/captain/api.go	PENDING			
 services/captain/api_test.go	PENDING			
 services/captain/captain.go	PENDING			
@@ -2346,13 +2346,13 @@ services/captain/cmd/captain/main.go	PENDING
 services/captain/metrics_exposition_test.go	PENDING			
 services/captain/storage.go	PENDING			
 services/captain/storage_test.go	PENDING			
-services/cloak/cloak.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/cloak/cloak_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
+services/cloak/cloak.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/cloak/cloak_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
 services/compliance/wire_compliance.go	PENDING			
 services/compliance/wire_compliance_extended_test.go	PENDING			
 services/compliance/wire_compliance_test.go	PENDING			
-services/cuirass/cuirass.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/cuirass/cuirass_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
+services/cuirass/cuirass.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/cuirass/cuirass_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
 services/firewall/firewall.go	PENDING			
 services/firewall/firewall_test.go	PENDING			
 services/gateway/cmd/main.go	PENDING			
@@ -2373,13 +2373,13 @@ services/gateway/proxy/proxy.go	PENDING
 services/gateway/proxy/proxy_test.go	PENDING			
 services/gateway/routes/routes.go	PENDING			
 services/gateway/routes/routes_test.go	PENDING			
-services/gauntlets/gauntlets.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/gauntlets/gauntlets_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/hauberk/hauberk.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-services/hauberk/hauberk_test.go	SWEPT	DELETED	4215ff4c	S-REAL-STEEL Phase 1, E1 G10d
-services/kenoma/kenoma.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-services/kenoma/kenoma_extended_test.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
-services/kenoma/kenoma_test.go	SWEPT	DELETED	7e524105	S-REAL-STEEL Phase 1, E1 F4
+services/gauntlets/gauntlets.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/gauntlets/gauntlets_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/hauberk/hauberk.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+services/hauberk/hauberk_test.go	SWEPT	DELETED	ac7f2e38	S-REAL-STEEL Phase 1, E1 G10d
+services/kenoma/kenoma.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+services/kenoma/kenoma_extended_test.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
+services/kenoma/kenoma_test.go	SWEPT	DELETED	36ca8714	S-REAL-STEEL Phase 1, E1 F4
 services/keymgmt/handler/keygen.go	PENDING			
 services/keymgmt/keymgmt.go	PENDING			
 services/keymgmt/keymgmt_extended_test.go	PENDING			
@@ -2408,10 +2408,10 @@ services/monad/monad_test.go	PENDING
 services/monad/retention_test.go	PENDING			
 services/nfv/nfv.go	PENDING			
 services/nfv/nfv_test.go	PENDING			
-services/pauldrons/pauldrons.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/pauldrons/pauldrons_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/pleroma/pleroma.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/pleroma/pleroma_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
+services/pauldrons/pauldrons.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/pauldrons/pauldrons_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/pleroma/pleroma.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/pleroma/pleroma_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
 services/qos/qos.go	PENDING			
 services/qos/qos_extended_test.go	PENDING			
 services/qos/qos_test.go	PENDING			
@@ -2448,12 +2448,12 @@ services/sword/analysis_test.go	PENDING
 services/sword/events.go	PENDING			
 services/sword/sword.go	PENDING			
 services/sword/sword_test.go	PENDING			
-services/tassets/tassets.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/tassets/tassets_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/telemetry/telemetry.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/telemetry/telemetry_coverage_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/telemetry/telemetry_extended_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/telemetry/telemetry_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
+services/tassets/tassets.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/tassets/tassets_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/telemetry/telemetry.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/telemetry/telemetry_coverage_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/telemetry/telemetry_extended_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/telemetry/telemetry_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
 services/timeguru/cmd/timeguru/main.go	PENDING			
 services/timeguru/cmd/timeguru/routes_test.go	PENDING			
 services/timeguru/cmd/timeguru/wotan_test.go	PENDING			
@@ -2473,8 +2473,8 @@ services/timeguru/internal/timeline/hasdate_test.go	PENDING
 services/timeguru/internal/timeline/timeline.go	PENDING			
 services/timeguru/internal/timeline/timeline_test.go	PENDING			
 services/timeguru/main.go	PENDING			
-services/vambraces/vambraces.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
-services/vambraces/vambraces_test.go	SWEPT	DELETED	4ce33664	S-REAL-STEEL Phase 1, E1 G10g
+services/vambraces/vambraces.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
+services/vambraces/vambraces_test.go	SWEPT	DELETED	876438a7	S-REAL-STEEL Phase 1, E1 G10g
 services/version/version.go	PENDING			
 services/version/version_test.go	PENDING			
 services/wotan/cmd/wotan/allowlist_test.go	PENDING			
@@ -2494,8 +2494,8 @@ services/wotan/internal/api/topic_metrics_test.go	PENDING
 services/wotan/internal/api/topic_persist_test.go	PENDING			
 services/wotan/internal/api/topics.go	PENDING			
 services/wotan/internal/api/topics_wildcard_test.go	PENDING			
-services/wotan/internal/circuitbreaker/circuitbreaker.go	SWEPT	DELETED	2c8fdc31	S-REAL-STEEL Phase 1, E1 G5
-services/wotan/internal/circuitbreaker/circuitbreaker_test.go	SWEPT	DELETED	2c8fdc31	S-REAL-STEEL Phase 1, E1 G5
+services/wotan/internal/circuitbreaker/circuitbreaker.go	SWEPT	DELETED	231c69db	S-REAL-STEEL Phase 1, E1 G5
+services/wotan/internal/circuitbreaker/circuitbreaker_test.go	SWEPT	DELETED	231c69db	S-REAL-STEEL Phase 1, E1 G5
 services/wotan/internal/cluster/config.go	PENDING			
 services/wotan/internal/cluster/config_test.go	PENDING			
 services/wotan/internal/cluster/failover.go	PENDING			
@@ -2588,7 +2588,7 @@ skills/marshal-eval-review.html	PENDING
 tests/doom-memwrite/doom_memwrite_integration_test.go	PENDING			
 tests/doom-memwrite/doom_memwrite_test.go	PENDING			
 tests/e2e/full_pipeline_test.go	PENDING			
-tests/e2e/integration_test.go	SWEPT	DELETED	2e77e47d	S-REAL-STEEL Phase 1, E1 F2
+tests/e2e/integration_test.go	SWEPT	DELETED	b6e70182	S-REAL-STEEL Phase 1, E1 F2
 tests/e2e/kanban_smoke_test.go	PENDING			
 tests/e2e/performance_e2e_test.go	PENDING			
 tests/e2e/security_e2e_test.go	PENDING			
