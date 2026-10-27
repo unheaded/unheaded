@@ -244,8 +244,18 @@ Binding rules:
 4. **Phase 4**: Update systemd units to set `PKI_DIR=/var/lib/unheaded/pki`
 5. **Phase 5**: Verify gRPC+mTLS connections between all service pairs
 6. **Phase 6**: Lock down REST endpoints (TLS required for non-localhost)
-7. **Phase 7**: Register Akira cert-expiry exec check (6-hour cycle)
-8. **Phase 8**: Test auto-rotation end-to-end (issue short-lived test cert, wait for Akira trigger)
+7. **Phase 7**: Register Akira cert-expiry exec check (6-hour cycle). **Done 2026-10-27**
+   (S-IRON-GATE Phase 10): `type: exec` targets in Akira (`pkg/health/exec_check.go`: argv only,
+   no shell, Akira's own uid, minimal environment, 30 s timeout on the whole process group, last
+   4 KiB of output kept; exit 0 healthy). `configs/akira-{west,east}.yaml` run the runbook hourly
+   (the cadence this ADR's Akira section and the runbook's schedule give), the compose stack every
+   sweep. The runbook reads the TLS layout (`/etc/unheaded/tls/<identity>/`) with this ADR's
+   `/var/lib/unheaded/pki` as fallback. It is read-only: a cert due for rotation is reported, not
+   rotated (Akira's sandbox cannot write certificates); rotation stays
+   `runbooks/pki/rotate-service-cert.yaml` or, in dev, `scripts/gen-dev-certs.sh`.
+8. **Phase 8**: Test auto-rotation end-to-end (issue short-lived test cert, wait for Akira trigger).
+   Scripted in compose (S-IRON-GATE Step 294: a 2-minute timeguru cert flips `cert-expiry` to
+   failing in Akira's `/api/v1/status`, a re-issue returns it to ok); **pending the live run**.
 
 ## Security Review (BlackMage / MoatGhost / Sentinel)
 
@@ -274,10 +284,10 @@ production tuning once confidence is established.
 
 - `pkg/transport/mtls/` — existing mTLS implementation (mtls.go, integration.go, 8 tests)
 - `pkg/transport/cascade.go` — gRPC-first cascade with HTTP fallback
-- `pkg/health/aggregator.go` — Akira health check framework (exec checks for cert monitoring)
+- `pkg/health/exec_check.go` — Akira exec checks (cert monitoring); `cmd/akira` `type: exec` targets
 - `runbooks/pki/generate-kingdom-certs.yaml` — CA bootstrap + 14 service certs
 - `runbooks/pki/rotate-service-cert.yaml` — zero-downtime per-service rotation
-- `runbooks/pki/akira-cert-expiry-check.yaml` — automated expiry monitoring + rotation trigger
+- `runbooks/pki/akira-cert-expiry-check.yaml` — automated expiry monitoring (read-only; reports rotation due)
 - ADR-015 — Go-Fiber HTTP Layer (REST fallback framework)
 - ADR-008 — Security Hardening Baseline
 - ADR-029 — Wotan Consensus Health (Akira)

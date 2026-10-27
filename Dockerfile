@@ -208,6 +208,16 @@ WORKDIR /app
 
 COPY --from=builder /build/bin/akira /app/akira
 
+# The cert-expiry exec check (S-IRON-GATE Phase 10, config/akira/akira.yaml):
+# the runbook runner and the read-only runbook it runs. bash, GNU date and
+# openssl are what the runbook's steps call; python3 + PyYAML run the runner.
+# Unpinned on purpose, like the runtime stage: alpine:3.24 is the pin, and a
+# pinned openssl keeps its CVEs (and vanishes from the 3.24 repo when bumped).
+# hadolint ignore=DL3018
+RUN apk add --no-cache bash coreutils openssl python3 py3-yaml
+COPY scripts/run-runbook.py scripts/svc_token.py /usr/share/unheaded/scripts/
+COPY runbooks/pki/akira-cert-expiry-check.yaml /usr/share/unheaded/runbooks/pki/
+
 USER 16731:16731
 
 EXPOSE 19100

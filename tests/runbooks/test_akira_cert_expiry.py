@@ -35,7 +35,7 @@ def _stamp(t):
 
 def make_cert(path, *, pct_left, hours=24, cn="svc"):
     """A self-signed cert of `hours` lifetime with `pct_left` % of it left."""
-    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
     total = dt.timedelta(hours=hours)
     not_after = now + total * pct_left / 100
     not_before = not_after - total

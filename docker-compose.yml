@@ -1049,6 +1049,24 @@ services:
       - ./configs/certs/dev/akira:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./config/akira/akira.yaml:/etc/unheaded/akira.yaml:ro
+      # S-IRON-GATE Phase 10: what the cert-expiry exec check reads. Each
+      # listener's certificate file and the CA, never a key or a whole
+      # service directory (those are 0750 to their own uid). File mounts
+      # follow gen-dev-certs.sh re-issues: cert-gen rewrites in place.
+      - ./configs/certs/dev/ca.pem:/etc/unheaded/tls-watch/ca.pem:ro
+      - ./configs/certs/dev/akira/akira.pem:/etc/unheaded/tls-watch/akira/akira.pem:ro
+      - ./configs/certs/dev/architect/architect.pem:/etc/unheaded/tls-watch/architect/architect.pem:ro
+      - ./configs/certs/dev/auth/auth.pem:/etc/unheaded/tls-watch/auth/auth.pem:ro
+      - ./configs/certs/dev/captain/captain.pem:/etc/unheaded/tls-watch/captain/captain.pem:ro
+      - ./configs/certs/dev/cuirass/cuirass.pem:/etc/unheaded/tls-watch/cuirass/cuirass.pem:ro
+      - ./configs/certs/dev/dashboard-backend/dashboard-backend.pem:/etc/unheaded/tls-watch/dashboard-backend/dashboard-backend.pem:ro
+      - ./configs/certs/dev/kanban-app/kanban-app.pem:/etc/unheaded/tls-watch/kanban-app/kanban-app.pem:ro
+      - ./configs/certs/dev/micromanager/micromanager.pem:/etc/unheaded/tls-watch/micromanager/micromanager.pem:ro
+      - ./configs/certs/dev/monad/monad.pem:/etc/unheaded/tls-watch/monad/monad.pem:ro
+      - ./configs/certs/dev/sophia/sophia.pem:/etc/unheaded/tls-watch/sophia/sophia.pem:ro
+      - ./configs/certs/dev/sword/sword.pem:/etc/unheaded/tls-watch/sword/sword.pem:ro
+      - ./configs/certs/dev/timeguru/timeguru.pem:/etc/unheaded/tls-watch/timeguru/timeguru.pem:ro
+      - ./configs/certs/dev/wotan/wotan.pem:/etc/unheaded/tls-watch/wotan/wotan.pem:ro
     ports:
       - "19100:19100"
     networks:
