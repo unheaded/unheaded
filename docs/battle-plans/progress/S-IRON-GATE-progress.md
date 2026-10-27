@@ -67,7 +67,7 @@ around it with `-audiences` + a login `audience`, so the BFF requests e.g. `dash
 fetch is loopback-only, so no other container can verify compose issuer tokens until TLS (Phase 8). Deb name
 `unheaded-unheaded-auth` (double prefix, Phase 14). Jenkinsfile `deb_postinst` call is out of date (Phase 14).
 
-### Phase 5 code half (coordinator, 9cd7d0be)
+### Phase 5 code half (coordinator, deb25a08)
 
 RBAC behind auth in Cuirass (writes: admin/operator/service); CLI mints `unheaded-cli` tokens for aud
 `unheaded-daemon` (Cuirass's identity, not `cuirass`); Sword mints its own (CUIRASS_API_KEY now fallback);
@@ -77,7 +77,7 @@ the issuer and Akira). Live Cuirass on west runs from compose without auth today
 running. LIVE 171-174: `sudo scripts/gen-dev-keys.sh` (after `make binaries`), then recreate cuirass + sword and run
 Steps 171-174.
 
-### Phase 6 per-service wave merged (8a0daa5e)
+### Phase 6 per-service wave merged (0c547c46)
 
 `auth.NewServiceHandler` / `NewServiceChain` (bad config refuses start; RBAC behind auth; per-route open reads).
 Allowlists (identity = key name = aud): protocol-api <- unheaded-cli; kanban-app <- dashboard-backend, zhen-agentd,
@@ -95,7 +95,7 @@ dashboard-backend, kanban-app, wotan); Step 185's expected list should include a
 kanban-app together with timeguru (else the board loses its timeline); recreate timeguru, captain, architect,
 micromanager, monad, sophia, sword; probe anonymous write 401 and /health 200 each; update + restart zhen-agentd unit.
 
-### Phase 6 BFF merged (7b7ae15c)
+### Phase 6 BFF merged (e4603171)
 
 `pkg/bff`: login/me/logout, swappable session store, cookie authenticator (re-checks the stored token each request),
 CSRF header, login rate limit (60/min per client; behind traefik all users share the BFF's address), `AuthorizeOutgoing`;
@@ -110,7 +110,7 @@ check-service-auth: akira, wotan remain (Steps 209/222 should expect those two u
 **LIVE 202-205, 208-210, 215-216:** `make binaries && sudo scripts/gen-dev-keys.sh`, then recreate `auth` (now
 `-audiences unheaded,dashboard-backend,kanban-app`), `dashboard-backend`, `kanban-app` (kanban only after the E-A batch).
 
-### Phase 7 code merged (249298fb): all 13 first-party services on auth
+### Phase 7 code merged (701428ef): all 13 first-party services on auth
 
 `wotanClient.InitServiceIdentity("<id>")` once per process covers healthreport/discovery/logagg clients; a missing key
 warns and runs without a token. Tokens go over plaintext gRPC with a one-time warning until Phase 8 (plan said
@@ -129,7 +129,7 @@ perf-benchmark e2e reads the dashboard's `/api/v1/ebpf/events`, which needs a BF
 LIVE 239-250: `make binaries && sudo scripts/gen-dev-keys.sh` first (Wotan refuses to start with auth on and nothing to
 verify against; every binary without a readable key loses Wotan). East needs keys for every service before a deb upgrade.
 
-### Non-Go Wotan publishers converted (d023ce82)
+### Non-Go Wotan publishers converted (028f2e72)
 
 Correction to the Phase 7 note: the dashboard does not lose eBPF flows. `crates/svc-token` (Rust, ring) and
 `scripts/svc_token.py` mint tokens byte-identical to `auth.SignEdDSA` (`tests/svctoken` cross-language test).
@@ -144,7 +144,7 @@ Still broken regardless of tokens: `scripts/bare-metal/validate-cross-host.sh` a
 Rust clients have no TLS (would need rustls on aws-lc-rs for the hybrid group); Phase 8 must decide whether
 run-runbook.py should refuse a token over plain http, matching wotan-client.
 
-### Phase 8 code merged (4fb64c3a)
+### Phase 8 code merged (19a968a9)
 
 `scripts/gen-dev-certs.sh`: dev CA + per-service cert dirs (13 services + unheaded-cli + gateway; SANs = compose name,
 auth identity, localhost, 127.0.0.1, ::1); under sudo each dir goes to the service's uid; re-run keeps the CA;
@@ -176,3 +176,14 @@ reports instead of rotating (the old auto-rotate called a runner flag that does 
 reports share one verdict. `runbooks/pki/rotate-service-cert.yaml` still targets the old layout (follow-up).
 LIVE Step 294: check `/api/v1/status` for "cert-expiry" (not `/api/v1/checks`); re-issue with
 `sudo CERT_VALIDITY=2m scripts/gen-dev-certs.sh timeguru`; expect an immediate failing vote (certs backdated 5 min).
+
+### History correction (coordinator, 2026-10-27 ~22:00Z)
+
+The security-headers commit (Steps 298-300) was staged with `git add -A cmd services pkg`, which swept in the
+operator's untracked 10 MB `cmd/host-agent/host-agent` binary. Nothing was pushed. The binary was removed from all 120
+unpushed commits after that point with `git filter-branch --index-filter`, those commits were re-signed with
+`scripts/resign-unpushed.py --merges` (all 254 unpushed commits G), the binary was restored on disk untracked (same
+sha256), and every commit hash cited in the progress logs, OUTSTANDING and next.md was remapped to the new commits.
+Commit messages in that range that cite earlier hashes from the same range still show the pre-rewrite values.
+Backups: `refs/backup/develop-before-host-agent-purge` (contains the binary: delete once satisfied) and
+`refs/backup/develop-before-resign`. Lesson: stage named files, never `git add -A <dir>` while untracked operator files exist.

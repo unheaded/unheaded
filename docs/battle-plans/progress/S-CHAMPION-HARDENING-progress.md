@@ -112,7 +112,7 @@ Python server: `..` in names, substring deny list (`secrets_manager.go`), a chec
 server needs it). The E1 runbook `security/mcp-write-exec-enablement.yaml` and its brief still describe the Python
 server; left untouched while it is in front of Stevie.
 
-### Phase 11 merged (7706d8bf)
+### Phase 11 merged (91462794)
 
 agentd: `GET /api/v1/memory/recall`, `POST /api/v1/memory/remember` (Postgres full-text, not embeddings), `GET /api/v1/models`,
 `-memory-store none|pg`; new mutating tool `memory_write` (authenticated caller = direct-user; `-no-auth` refused).
@@ -130,7 +130,7 @@ a live `/model` swap, `-memory-store pg` in the agentd unit (E4).
 
 Two 5-seed sweeps of `make coding-gate-ci` on qwen-7b (pin ok, fit ok, loaded through `switch-model.sh`), `cs serve`
 for vor: baseline at `1c87b996` (before any Champion merge, so before pkg/zhenrag) in a scratch worktree, then the
-merged tree (`bin/zhen-rag` at 28c0797c). Each sweep hit the 40-minute cap during seed 999, so both are graded on the
+merged tree (`bin/zhen-rag` at 051847a6). Each sweep hit the 40-minute cap during seed 999, so both are graded on the
 same four seeds with the script's own grader:
 
 | seed | baseline PASS | merged PASS |
@@ -152,7 +152,7 @@ time: a 5-seed sweep takes about 50 minutes on west under load; use a 70-minute 
 well-vacuum-report pass all three judges; akira-band-check: dry_run pass, check-runbooks fail, requirements pass).
 llama-server and `cs serve` stopped afterwards (nothing was serving before).
 
-### Phase 8 merged (a3176839)
+### Phase 8 merged (fae5c9af)
 
 Scheduled jobs: `observe/service-health-sweep` every 6 h (Python had 30 m = 48 cards/day);
 `data/conversation-memory-maintenance` weekly, disabled (its steps use `sudo docker exec`, which the unit forbids).
@@ -164,10 +164,10 @@ none) until E4, which is accurate. E4 prerequisite: `/var/zhen/projects/default`
 
 ### Phase 9 (coordinator): Steps 177-178, 182, 183 done; 179-181 wait on a port decision (Stevie, with E4)
 
-- 182 (737543df): `_strip_tool_call_json` let a payload through when it nested deeper than one level, had a brace in
+- 182 (d29fc809): `_strip_tool_call_json` let a payload through when it nested deeper than one level, had a brace in
   a string, or was truncated (the regex matched one fixed depth). Now a JSON-aware brace scan; 9 tests, 4 red on the
   old code; in raft CI.
-- 183 (792be243): recalled memories never enter the prompt (side-channel `matched_memory` only, by design), so the
+- 183 (a76214ae): recalled memories never enter the prompt (side-channel `matched_memory` only, by design), so the
   marker `[memory: <topic> @ <date> via well]` + `created_at` go on that side-channel. pkg/vorquery has no memory path.
   Consolidation job stays disabled (Phase 8: its steps need `sudo docker exec`).
 - **179-181 [ESCALATE, folded into E4]: ports.** vor cannot be registered at its default 9876: `pkg/ports` requires
@@ -180,7 +180,7 @@ none) until E4, which is accurate. E4 prerequisite: `/var/zhen/projects/default`
   `$HOME/.config/cs/sources/`; the repo lives under /home, which a hardened unit cannot read). Not done unattended:
   moving the ports breaks the manual `cs serve` + coding-gate workflow until the unit is installed.
 
-### Phase 12 merged (314406df)
+### Phase 12 merged (3ed2eb49)
 
 Kanban: `GET /api/v1/runbooks` (from MANIFEST + front matter, `manifest_ok`), `POST /api/v1/tasks/from-runbook` (board
 store, runbook name in a fenced `runbook` block since kanban_tasks has no metadata column), `agent_run` block on
@@ -212,6 +212,6 @@ Step 86, branch-sandbox E3, shared UI principal).
 
 Correction to Phase 13 (coordinator): the overnight run already had user units from S-TWO-BRAINS
 (`deploy/systemd/user/zhen-agentd-overnight.{service,timer}`, running as the operator on the real repo). The system
-unit + timer written in 29861355 duplicated them and introduced the GPU-lease mismatch it then warned about; both
+unit + timer written in 329a6678 duplicated them and introduced the GPU-lease mismatch it then warned about; both
 removed. The kill-switch runbook, morning-report script (default `${XDG_STATE_HOME:-~/.local/state}/unheaded/zhen-reports`),
 env example and E2 packet now point at the user units (no sudo).

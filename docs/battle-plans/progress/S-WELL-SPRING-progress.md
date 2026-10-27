@@ -78,7 +78,7 @@ as written (http3 will be `skipped`: west's curl 8.14.1 lacks HTTP/3, no Go HTTP
 `CUIRASS_API_KEY=... go run ./cmd/perf-benchmark -scenario container-start -allow-lxd -iterations 5 -output /tmp/perf-cs.json`
 (Cuirass now also accepts a minted token); 225 `check-perf-regression.sh --update /tmp/perf-*.json`, then without.
 
-### Phase 12 merged; Phase 11 merged (3882e911)
+### Phase 12 merged; Phase 11 merged (7fd6e405)
 
 12: nothing signed. Attestation drafts in `docs/compliance/drafts/attestations/`; Stevie signs each with
 `scripts/compliance/sign-attestation.sh <name>` (E-C); `expires_at` = each control's freshness window (access review
@@ -99,7 +99,7 @@ reserved for the baseline agent. LIVE 235-236 (E-D): deploy reporter builds on b
 consensus message into ADR-029; rollout also needs Vector restart (both hosts), Prometheus + Alertmanager reload.
 Expect one SSHLoginNewSource ticket digest of known operator addresses at first evaluation.
 
-### Phase 1 Steps 19-43 merged (b5aedf68)
+### Phase 1 Steps 19-43 merged (16fcb2c1)
 
 Premise corrections: kanban-app's and timeguru's `CREATE TABLE IF NOT EXISTS` create their own local SQLite files,
 not Well tables (ERDA 3.3 left them on purpose; Step 27 n/a, timeguru has no Well backend). The real gap: kanban-app
@@ -117,7 +117,7 @@ backs up to `/srv/backups/unheaded-well/pre-batch-<UTC>/` via `db-backup.sh` as 
 commit the reviewed DROP list as a `notx` migration per database. Retention (Phase 4): `zhen_agent_runs.card_id` references
 `kanban_tasks` with no ON DELETE; purging cards must not orphan run history.
 
-### Phase 3 merged (107ef3fe)
+### Phase 3 merged (ee104330)
 
 Migration `040_ops_slo_definitions.sql` (plan's 037); column `slo_window` (`window` is reserved); history via a
 SECURITY DEFINER trigger; ops_writer has DELETE (`-sync-well` removes an SLO that left the YAML); 8 SLOs (ci-develop
@@ -130,7 +130,7 @@ CI: `test-slo-definitions.sh` runs in the well-schema job (throwaway Well); `ci-
 ./cmd/alert-policy -sync-well`, confirm 8 rows, then `-check` (no drift). Flake seen under load:
 `pkg/deploy/rollback TestManager_Rollback_DuplicateInProgress` (passes 20/20 alone).
 
-### Phase 2 merged (5ceef55f)
+### Phase 2 merged (586fbd8d)
 
 Migration `039_ops_deploy_chaos.sql`: `deploy_history` + `deploy_history_transitions` (status/times per transition,
 whole record as jsonb), `chaos_journal` + `chaos_journal_transitions` (a revert is a new row), views
@@ -160,7 +160,7 @@ LIVE 127-131 (role password file 0400, deb install + dry run, enable timer only 
 `check-gates-can-fail.sh` entry for `test-retention.sh`. Connection budget 44/47; `app_auth`'s 40-connection limit is
 not in that table (pre-existing gap).
 
-### Phase 13 code merged (b3d4407a); E-E filed
+### Phase 13 code merged (1e4f3b22); E-E filed
 
 Parity: 104/104 subtests, 52 goldens of the retired `remediate.sh` output (`TestExecutorMatchesRetiredScript`);
 `remediate.sh` is a shim (prints the `unheaded-remediate` command, exit 2). New fixes rocm-log-perms, aide-install,
@@ -172,4 +172,4 @@ breaker + preinst gate; every mode file stays audit. LICH-017: 7 cases, 0 bypass
 `docs/compliance/privacy/decisions-for-stevie.md`. LIVE 280-282: east then west debs, `-record-existing` for the 8 lab
 fixes (`-applied-by "remediate.sh (2026-10-13)"` for journald-caps and time-p2p), apply the new fixes; then sync the Well
 mirrors of fixes/profiles (`compliance-evidence well`). ADR-098 line 193 still names `scripts/host/remediate.sh`
-(generated file: regenerate after the register changes). Flaky dashboard eBPF broadcast test fixed (33f96fdc).
+(generated file: regenerate after the register changes). Flaky dashboard eBPF broadcast test fixed (848118ab).
