@@ -868,10 +868,12 @@ drift-detect|reports drift; alerts-only by design (pkg/enkrateia contract)
 qa-smoke|prints a score for a human to compare against the previous batch
 ci-fetch-doomgeneric|fetches a pinned checkout the Go jobs need; no verdict of its own
 ci-python-lock|regenerates .github/ci-python/requirements.txt (uv in a throwaway container); no verdict of its own: check-tool-freshness and the --require-hashes installs are the gates
-ci-install-tools|installs pinned syft/grype/helm/kubeconform for CI jobs (lib/tool-pins + lib/fetch-tool, which the check-* scripts also use); no verdict of its own
+ci-install-tools|installs pinned syft/grype/cosign/helm/kubeconform for CI jobs (lib/tool-pins + lib/fetch-tool, which the check-* scripts also use); no verdict of its own
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
 lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs, Jenkinsfile); proven by test-deb-maintscripts
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
+lib/fetch-tool|library sourced by ci-install-tools and the check-* scripts (download once, sha256 on every use); no verdict of its own
+verify-release|verifies a published release by tag (needs the network and a real release); its pass/fail contract is proven offline by tests/release/verify_release_test.sh (CI job release-verify)
 well/make-tls|makes TLS material outside the repo; exercised by well/test-config, no verdict of its own
 db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); its refusals and the set it writes are proven by well/test-backup-restore
 well/restore-drill|needs a backup set to run; its refusals are provoked by well/test-backup-restore (flipped byte, wrong count, unlisted dump)
