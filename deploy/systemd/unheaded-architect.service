@@ -27,6 +27,10 @@ LimitNOFILE=4096
 # comes from `unheaded-keygen -owner unheaded-architect architect` (root, once per host).
 Environment=AUTH_KEY_FILE=/etc/unheaded/keys/architect.key
 Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+# S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
+# service token from one of these callers (none calls the API today).
+Environment=AUTH_ENABLED=true
+Environment=AUTH_ALLOW_CALLERS=captain,micromanager,dashboard-backend
 ReadOnlyPaths=-/etc/unheaded/trust.d
 
 User=unheaded-architect

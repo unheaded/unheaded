@@ -161,22 +161,15 @@ func main() {
 		_, _ = w.Write([]byte(`{"ready":true}`))
 	}))
 
-	// Infrastructure endpoints
-	mux.HandleFunc("/infrastructure", instrument(handler.GetInfrastructure, "GET_INFRASTRUCTURE"))
-	mux.HandleFunc("/infrastructure/services", instrument(handler.AddService, "ADD_SERVICE"))
-
-	// Network endpoints
-	mux.HandleFunc("/network", instrument(handler.GetNetwork, "GET_NETWORK"))
-	mux.HandleFunc("/network/nodes", instrument(handler.AddNetworkNode, "ADD_NETWORK_NODE"))
-
-	// Design endpoints
-	mux.HandleFunc("/design", handleDesign(handler, "GET_DESIGN_DECISIONS"))
+	registerAPIRoutes(mux, handler)
 	mux.Handle("/metrics", prom.Handler())
 
-	// Auth middleware (activated via AUTH_ENABLED=true)
-	authCfg := auth.LoadServiceAuthConfig("architect")
-	var httpHandler http.Handler = mux
-	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+	// Auth (AUTH_ENABLED=true, ADR-103). A configuration auth cannot use
+	// stops the service here rather than serving it open.
+	httpHandler, err := wrapAuth(mux, auth.LoadServiceAuthConfig("architect"))
+	if err != nil {
+		log.Fatal().Err(err).Msg("auth: refusing to start (see ADR-103)")
+	}
 	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("architect").Instrument(mux, httpHandler))
 
 	// HTTP server
@@ -260,4 +253,26 @@ func parseLogLevel(level string) zerolog.Level {
 	default:
 		return zerolog.InfoLevel
 	}
+}
+
+// registerAPIRoutes registers the infrastructure, network and design routes.
+func registerAPIRoutes(mux *http.ServeMux, handler *architect.HTTPHandler) {
+	// Infrastructure endpoints
+	mux.HandleFunc("/infrastructure", instrument(handler.GetInfrastructure, "GET_INFRASTRUCTURE"))
+	mux.HandleFunc("/infrastructure/services", instrument(handler.AddService, "ADD_SERVICE"))
+
+	// Network endpoints
+	mux.HandleFunc("/network", instrument(handler.GetNetwork, "GET_NETWORK"))
+	mux.HandleFunc("/network/nodes", instrument(handler.AddNetworkNode, "ADD_NETWORK_NODE"))
+
+	// Design endpoints
+	mux.HandleFunc("/design", handleDesign(handler, "GET_DESIGN_DECISIONS"))
+}
+
+// wrapAuth puts auth in front of the mux (S-IRON-GATE Phase 6): with
+// AUTH_ENABLED=true every route but /health, /ready and /metrics needs a
+// token from an AUTH_ALLOW_CALLERS caller (captain, micromanager,
+// dashboard-backend), and a write needs a write role.
+func wrapAuth(h http.Handler, cfg auth.ServiceAuthConfig) (http.Handler, error) {
+	return auth.NewServiceHandler(h, cfg, auth.ServiceRoutes{})
 }
