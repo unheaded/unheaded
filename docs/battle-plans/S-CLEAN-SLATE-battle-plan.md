@@ -589,8 +589,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-041 east bundle
 
-- [ ] **Step 168** [W] ~2m: `configs/wotan.yaml` `topics.auto_approve`: add `chaos-controller` (east's controller publishes `chaos.refused`; next.md S23) and `unheaded-baseline` (Phase 5 Step 185). One comment each.
-- [ ] **Step 169** [B] ~2m: `cd /home/govan/tmp/unheaded && bash scripts/check-manifest-yaml.sh 2>&1 | tail -1 && go test ./services/wotan/... -run 'Config|Topic' -count=1 2>&1 | grep -E '^(ok|FAIL)'`
+- [x] **Step 168** [W] ~2m: `configs/wotan.yaml` `topics.auto_approve`: add `chaos-controller` (east's controller publishes `chaos.refused`; next.md S23) and `unheaded-baseline` (Phase 5 Step 185). One comment each.
+- [x] **Step 169** [B] ~2m: `cd /home/govan/tmp/unheaded && bash scripts/check-manifest-yaml.sh 2>&1 | tail -1 && go test ./services/wotan/... -run 'Config|Topic' -count=1 2>&1 | grep -E '^(ok|FAIL)'`
 - [ ] **Step 170** [BUILD][B] ~10m: `cd /home/govan/tmp/unheaded && bash scripts/build-all-debs.sh 2>&1 | tail -8 && ls -1 dist/*.deb 2>/dev/null | wc -l`
 - [ ] **Step 171** [V] ~2m: deb count ≥ the count in `scripts/build-all-debs.sh`'s package list; `bash scripts/test-deb-maintscripts.sh 2>&1 | tail -3` passes; `bash scripts/check-unit-binaries.sh 2>&1 | tail -1` passes.
 - [ ] **Step 172** [ESCALATE] **E3** ~0m: Context: east runs older debs (huginn rename, chaos-controller unit, wotan.yaml without `chaos-controller`); west's installed debs predate Phases 2-3. Question: grant a deploy window on east then west (install `dist/*.deb`, restart units, update the huginn baseline). Why no recommendation: host-changing, both hosts.
