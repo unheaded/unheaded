@@ -18,6 +18,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/ports"
+	utls "unheaded/pkg/tls"
 )
 
 // The CLI reads and changes the Kingdom only through its services' HTTP
@@ -26,11 +27,20 @@ import (
 
 const apiMaxResponse = 8 << 20
 
-var apiClient = &http.Client{Timeout: 10 * time.Second}
+// apiClient reaches the Kingdom's services. With UNHEADED_TLS_ENABLED=true
+// and UNHEADED_TLS_CA_CERT it trusts the deployment CA as well as the
+// system roots (S-IRON-GATE Phase 8: every service listens TLS).
+func apiClient() (*http.Client, error) {
+	tr, err := utls.TransportTrustingDeploymentCA()
+	if err != nil {
+		return nil, err
+	}
+	return &http.Client{Timeout: 10 * time.Second, Transport: tr}, nil
+}
 
 var (
-	defaultAkira     = fmt.Sprintf("http://localhost:%d", ports.Akira)
-	defaultDashboard = fmt.Sprintf("http://localhost:%d", ports.DashboardBackend)
+	defaultAkira     = utls.BaseURL(fmt.Sprintf("localhost:%d", ports.Akira))
+	defaultDashboard = utls.BaseURL(fmt.Sprintf("localhost:%d", ports.DashboardBackend))
 )
 
 // cluster returns the context chosen by --context, else the current one.
@@ -151,7 +161,11 @@ func callJSONAs(aud, method, target string, body, out any) error {
 	if authz != "" {
 		req.Header.Set("Authorization", authz)
 	}
-	resp, err := apiClient.Do(req)
+	client, err := apiClient()
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err // *url.Error already names the method and URL
 	}

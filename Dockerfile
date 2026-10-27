@@ -78,7 +78,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /build/bin/sword ./cmd/sword && \
     CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/unheaded-auth ./cmd/unheaded-auth
+    -o /build/bin/unheaded-auth ./cmd/unheaded-auth && \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -o /build/bin/healthprobe ./cmd/healthprobe
 
 # ============================================================================
 # RUNTIME BASE - what every service image starts from
@@ -89,6 +91,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 FROM alpine:3.24 AS runtime
 
 RUN apk add --no-cache ca-certificates tzdata
+
+# The healthcheck every service image uses (S-IRON-GATE Phase 8): busybox
+# wget cannot verify a TLS listener against the deployment CA.
+COPY --from=builder /build/bin/healthprobe /usr/local/bin/healthprobe
 
 # ============================================================================
 # STAGE 2: WOTAN - THE FAE CHAMBER
@@ -111,7 +117,7 @@ USER 16720:16720
 EXPOSE 18000 18001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:18000/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "18000"]
 
 ENTRYPOINT ["/app/wotan"]
 
@@ -135,7 +141,7 @@ USER 16722:16722
 EXPOSE 19000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19000/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "19000"]
 
 ENTRYPOINT ["/app/timeguru"]
 
@@ -159,7 +165,7 @@ USER 16724:16724
 EXPOSE 19002
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19002/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "19002"]
 
 ENTRYPOINT ["/app/captain"]
 
@@ -183,7 +189,7 @@ USER 16723:16723
 EXPOSE 19001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19001/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "19001"]
 
 ENTRYPOINT ["/app/architect"]
 
@@ -207,7 +213,7 @@ USER 16731:16731
 EXPOSE 19100
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19100/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "19100"]
 
 ENTRYPOINT ["/app/akira"]
 
@@ -232,7 +238,7 @@ USER 16732:16732
 EXPOSE 19120
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19120/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "http://127.0.0.1:19120/health"]
 
 ENTRYPOINT ["/app/kev-poller", "--state-dir", "/data", "--stack", "/etc/unheaded/kev-stack.yaml"]
 
@@ -254,7 +260,7 @@ USER 16725:16725
 EXPOSE 19003
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19003/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "19003"]
 
 ENTRYPOINT ["/app/micromanager"]
 
@@ -278,7 +284,7 @@ USER 16726:16726
 EXPOSE 19004
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19004/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "19004"]
 
 ENTRYPOINT ["/app/monad"]
 
@@ -302,7 +308,7 @@ USER 16727:16727
 EXPOSE 19005
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19005/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "19005"]
 
 ENTRYPOINT ["/app/sophia"]
 
@@ -327,7 +333,7 @@ USER 16740:16740
 EXPOSE 17000 17001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:17000/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "17000"]
 
 ENTRYPOINT ["/app/unheaded-daemon"]
 
@@ -352,7 +358,7 @@ USER 16746:16746
 EXPOSE 19011
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19011/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "19011"]
 
 ENTRYPOINT ["/app/sword"]
 
@@ -378,7 +384,7 @@ USER 16728:16728
 EXPOSE 20000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:20000/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "20000"]
 
 ENTRYPOINT ["/app/dashboard-backend", "--viz-dir", "/app/viz"]
 
@@ -405,7 +411,7 @@ USER 16729:16729
 EXPOSE 20001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:20001/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "20001"]
 
 ENTRYPOINT ["/app/kanban-app"]
 
@@ -427,7 +433,7 @@ USER 16735:16735
 EXPOSE 19020
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19020/health || exit 1"]
+    CMD ["/usr/local/bin/healthprobe", "19020"]
 
 ENTRYPOINT ["/app/unheaded-auth"]
 

@@ -26,6 +26,7 @@ import (
 	"unicode/utf8"
 
 	"unheaded/pkg/health"
+	pqtls "unheaded/pkg/tls"
 )
 
 // Topic is where every report goes (ADR-029).
@@ -155,22 +156,32 @@ func truncate(s string, n int) string {
 }
 
 // probeClient never follows a redirect: a /health that redirects is not a
-// 200 from this service.
-var probeClient = &http.Client{
-	Timeout: 5 * time.Second,
-	CheckRedirect: func(*http.Request, []*http.Request) error {
+// 200 from this service. With UNHEADED_TLS_ENABLED=true it trusts the
+// deployment CA (pkg/tls.ClientFromEnv, S-IRON-GATE Phase 8).
+func probeClient() (*http.Client, error) {
+	c, err := pqtls.ClientFromEnv(5 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+	c.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
-	},
+	}
+	return c, nil
 }
 
 // HTTPProbe probes url with GET; healthy is a 200, as for Akira's own checks.
+// A TLS environment the client cannot use fails every probe with its error.
 func HTTPProbe(url string) Probe {
+	client, cerr := probeClient()
 	return func(ctx context.Context) error {
+		if cerr != nil {
+			return cerr
+		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return err
 		}
-		resp, err := probeClient.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return err
 		}
@@ -192,7 +203,7 @@ func HealthURL(listenAddr string, port int) string {
 			host = h
 		}
 	}
-	return "http://" + net.JoinHostPort(host, strconv.Itoa(port)) + "/health"
+	return pqtls.Scheme() + "://" + net.JoinHostPort(host, strconv.Itoa(port)) + "/health"
 }
 
 // ballotNames maps a Wotan display name to the name Akira's targets use for

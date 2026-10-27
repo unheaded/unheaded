@@ -23,6 +23,7 @@ import (
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/ports"
+	utls "unheaded/pkg/tls"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/micromanager"
@@ -193,10 +194,18 @@ func main() {
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
+	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): never a silent
+	// plaintext fallback.
+	tlsOn, err := utls.ConfigureServer(srv)
+	if err != nil {
+		log.Error().Err(err).Msg("TLS: refusing to start")
+		os.Exit(1)
+	}
+
 	// Start server in goroutine
 	go func() {
-		log.Info().Str("addr", srv.Addr).Msg("server listening")
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Info().Str("addr", srv.Addr).Bool("tls", tlsOn).Msg("server listening")
+		if err := utls.ListenAndServe(srv); err != nil && err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("server error")
 		}
 	}()

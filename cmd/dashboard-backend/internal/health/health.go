@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"unheaded/pkg/logger"
+	utls "unheaded/pkg/tls"
 )
 
 var (
@@ -294,11 +295,18 @@ func NewMonitor(config *Config, log *logger.Logger) (*Monitor, error) {
 		log = logger.New(nil)
 	}
 
+	// https targets verify against the deployment CA (UNHEADED_TLS_*).
+	tr, err := utls.TransportFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("health monitor TLS: %w", err)
+	}
+
 	return &Monitor{
 		config: config,
 		log:    log,
 		client: &http.Client{
-			Timeout: config.PollTimeout,
+			Timeout:   config.PollTimeout,
+			Transport: tr,
 		},
 		targets: make(map[string]*ServiceTarget),
 		health:  make(map[string]*ServiceHealth),
@@ -876,6 +884,17 @@ var DefaultServiceEndpoints = map[string]string{
 	// services file can still name one.
 }
 
+// FirstParty names the services that listen through pkg/tls: an endpoint
+// written without a scheme reaches them over https when
+// UNHEADED_TLS_ENABLED=true (S-IRON-GATE Phase 8). Anything else stays
+// http unless its endpoint says https://.
+var FirstParty = map[string]bool{
+	"timeguru": true, "captain": true, "architect": true, "micromanager": true,
+	"wotan": true, "monad": true, "sophia": true, "cuirass": true, "daemon": true,
+	"kanban": true, "kanban-app": true, "dashboard": true, "akira": true,
+	"sword": true, "auth": true,
+}
+
 // serviceHealthPaths overrides the default "/health" liveness path for services
 // whose liveness lives elsewhere (Grafana + vor at /api/health, the Doom bridge
 // which only serves "/", Traefik's dashboard at /dashboard). Keys must match the
@@ -903,10 +922,11 @@ func (m *Monitor) RegisterKingdomServices(overrides map[string]string) {
 		if p, ok := serviceHealthPaths[name]; ok {
 			path = p
 		}
+		base := utls.EndpointURL(hostPort, FirstParty[name])
 		target := &ServiceTarget{
 			Name:      name,
-			HealthURL: fmt.Sprintf("http://%s%s", hostPort, path),
-			ReadyURL:  fmt.Sprintf("http://%s%s", hostPort, path),
+			HealthURL: base + path,
+			ReadyURL:  base + path,
 			Tags:      []string{"kingdom"},
 		}
 		if err := m.RegisterTarget(target); err != nil {

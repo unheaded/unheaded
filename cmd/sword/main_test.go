@@ -39,6 +39,17 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	}
 }
 
+// S-IRON-GATE Phase 8: with TLS on, the default Cuirass URL is https.
+func TestLoadConfig_DefaultCuirassURLIsHTTPSUnderTLS(t *testing.T) {
+	c, err := loadConfig(env(map[string]string{"CUIRASS_API_KEY": "k", "UNHEADED_TLS_ENABLED": "true"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.cuirassURL != "https://127.0.0.1:19006" {
+		t.Fatalf("cuirass url %q, want https", c.cuirassURL)
+	}
+}
+
 func TestBuild_GuardNeedsAReadablePolicy(t *testing.T) {
 	log := zerolog.Nop()
 	c := config{cuirassURL: "http://127.0.0.1:19006", cuirassKey: "k", vmURL: "http://127.0.0.1:8428",

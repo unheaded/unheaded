@@ -28,6 +28,7 @@ import (
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
+	utls "unheaded/pkg/tls"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/timeguru/internal/api"
@@ -215,6 +216,13 @@ func main() {
 	discovery.Start(ctx, transportCfg, "timeguru", ports.PortOf(":"+config.Port, ports.Timeguru))
 	healthreport.StartService(ctx, transportCfg, "timeguru", healthreport.HealthURL(":"+config.Port, ports.PortOf(":"+config.Port, ports.Timeguru))) // ADR-029: a vote on Akira's ballot
 
+	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is a
+	// startup failure, never a plaintext listener.
+	tlsOn, err := utls.ConfigureServer(srv)
+	if err != nil {
+		log.Fatal().Err(err).Msg("TLS: refusing to start")
+	}
+
 	// Start HTTP server in goroutine. Bind synchronously so that anything
 	// announced below can be fetched the moment the announcement lands.
 	ln, err := net.Listen("tcp", srv.Addr)
@@ -222,9 +230,9 @@ func main() {
 		log.Fatal().Err(err).Str("addr", srv.Addr).Msg("HTTP listen failed")
 	}
 	go func() {
-		log.Info().Str("addr", ":"+config.Port).Msg("HTTP server listening")
+		log.Info().Str("addr", ":"+config.Port).Bool("tls", tlsOn).Msg("HTTP server listening")
 		log.Info().Msg("endpoints: /health, /timeline, /milestones, /api/v1/timeline/{sync,import,tasks,stream}")
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		if err := utls.Serve(srv, ln); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("HTTP server failed")
 		}
 	}()

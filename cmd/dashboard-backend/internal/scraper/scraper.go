@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"unheaded/pkg/logger"
+	utls "unheaded/pkg/tls"
 )
 
 var (
@@ -312,11 +313,18 @@ func NewScraper(config *Config, log *logger.Logger) (*Scraper, error) {
 		log = logger.New(nil)
 	}
 
+	// https targets verify against the deployment CA (UNHEADED_TLS_*).
+	tr, err := utls.TransportFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("scraper TLS: %w", err)
+	}
+
 	return &Scraper{
 		config: config,
 		log:    log,
 		client: &http.Client{
-			Timeout: config.ScrapeTimeout,
+			Transport: tr,
+			Timeout:   config.ScrapeTimeout,
 		},
 		targets:  make(map[string]*ServiceTarget),
 		series:   make(map[string]*MetricSeries),
@@ -911,6 +919,15 @@ func (s *Scraper) IsRunning() bool {
 }
 
 // DefaultServiceEndpoints returns the default LXD bridge addresses for Kingdom services.
+// firstParty: services that listen through pkg/tls (keep in step with
+// internal/health.FirstParty).
+var firstParty = map[string]bool{
+	"timeguru": true, "captain": true, "architect": true, "micromanager": true,
+	"wotan": true, "monad": true, "sophia": true, "cuirass": true, "daemon": true,
+	"kanban": true, "kanban-app": true, "dashboard": true, "akira": true,
+	"sword": true, "auth": true,
+}
+
 var DefaultServiceEndpoints = map[string]string{
 	"timeguru":     "localhost:19000",
 	"captain":      "localhost:19002",
@@ -935,10 +952,13 @@ func (s *Scraper) RegisterKingdomServices(overrides map[string]string) {
 	}
 
 	for name, hostPort := range endpoints {
+		// Scheme: explicit in the endpoint, else https for a first-party
+		// service when UNHEADED_TLS_ENABLED=true (health.FirstParty's list).
+		base := utls.EndpointURL(hostPort, firstParty[name])
 		target := &ServiceTarget{
 			Name:       name,
-			MetricsURL: fmt.Sprintf("http://%s/metrics", hostPort),
-			HealthURL:  fmt.Sprintf("http://%s/health", hostPort),
+			MetricsURL: base + "/metrics",
+			HealthURL:  base + "/health",
 			Labels: map[string]string{
 				"job":      "kingdom",
 				"instance": hostPort,

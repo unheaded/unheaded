@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	pqtls "unheaded/pkg/tls"
 )
 
 // CuirassResolver looks LXD instances up in Cuirass's actual state (GET,
@@ -29,11 +31,18 @@ func NewCuirassResolver(baseURL string) (*CuirassResolver, error) {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
 		return nil, fmt.Errorf("cuirass resolver: bad URL %q", baseURL)
 	}
+	// https to Cuirass trusts the deployment CA under UNHEADED_TLS_ENABLED
+	// (S-IRON-GATE Phase 8); never through a proxy.
+	tr, err := pqtls.TransportFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("cuirass resolver: %w", err)
+	}
+	tr.Proxy = nil
 	return &CuirassResolver{
 		base: strings.TrimRight(baseURL, "/"),
 		client: &http.Client{
 			Timeout:       5 * time.Second,
-			Transport:     &http.Transport{Proxy: nil},
+			Transport:     tr,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}, nil

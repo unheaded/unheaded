@@ -16,7 +16,6 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -265,21 +264,19 @@ func NewClient(addr string, opts ...ClientOption) (*Client, error) {
 		return nil, errors.New("address cannot be empty")
 	}
 
-	var baseURL string
-	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
-		baseURL = strings.TrimRight(addr, "/") + "/api/v1"
-	} else {
-		baseURL = fmt.Sprintf("http://%s/api/v1", addr)
+	baseURL, tr, err := httpBase(addr, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Client{
 		baseURL:       baseURL,
-		controlClient: &http.Client{Timeout: controlPlaneTimeout},
-		streamClient:  &http.Client{Timeout: streamingTimeout},
+		controlClient: &http.Client{Timeout: controlPlaneTimeout, Transport: tr},
+		streamClient:  &http.Client{Timeout: streamingTimeout, Transport: tr},
 		subscribers:   make(map[string]*Subscriber),
 		channels:      make(map[string]*safeChannel),
 		opts:          opts,
-		tokens:        newTokenAuth(opts, false),
+		tokens:        newTokenAuth(opts, false, ""),
 	}, nil
 }
 
@@ -296,7 +293,7 @@ func NewClientWithTLS(addr string, tlsConfig *http.Transport, opts ...ClientOpti
 		subscribers:   make(map[string]*Subscriber),
 		channels:      make(map[string]*safeChannel),
 		opts:          opts,
-		tokens:        newTokenAuth(opts, false),
+		tokens:        newTokenAuth(opts, false, ""),
 	}, nil
 }
 
@@ -323,10 +320,20 @@ func newClientWithGRPC(httpAddr, grpcAddr string, reprobeEvery time.Duration, op
 		return nil, errors.New("gRPC address cannot be empty")
 	}
 
+	baseURL, tr, err := httpBase(httpAddr, opts)
+	if err != nil {
+		return nil, err
+	}
+	// Fail at construction, not on the first probe, when the gRPC side
+	// cannot be secured as asked (no CA, or WithInsecureTransport under TLS).
+	if _, err := grpcCredentials(opts); err != nil {
+		return nil, err
+	}
+
 	c := &Client{
-		baseURL:       fmt.Sprintf("http://%s/api/v1", httpAddr),
-		controlClient: &http.Client{Timeout: controlPlaneTimeout},
-		streamClient:  &http.Client{Timeout: streamingTimeout},
+		baseURL:       baseURL,
+		controlClient: &http.Client{Timeout: controlPlaneTimeout, Transport: tr},
+		streamClient:  &http.Client{Timeout: streamingTimeout, Transport: tr},
 		grpcAddr:      grpcAddr,
 		transport:     TransportHTTP, // start degraded, promote after probe
 		grpcHealthy:   false,
@@ -334,7 +341,7 @@ func newClientWithGRPC(httpAddr, grpcAddr string, reprobeEvery time.Duration, op
 		channels:      make(map[string]*safeChannel),
 		reprobeEvery:  reprobeEvery,
 		opts:          opts,
-		tokens:        newTokenAuth(opts, false),
+		tokens:        newTokenAuth(opts, false, ""),
 	}
 
 	// Probe gRPC at startup — if healthy, promote to primary transport

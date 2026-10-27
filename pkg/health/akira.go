@@ -11,13 +11,17 @@ package health
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	pqtls "unheaded/pkg/tls"
 )
 
 // ConsensusThreshold is the fraction of reporters that must agree
@@ -38,6 +42,10 @@ type ServiceTarget struct {
 	Host       string
 	Port       int
 	HealthPath string // default: /health
+	// Scheme is "http" or "https"; empty means pkg/tls.Scheme() (https when
+	// UNHEADED_TLS_ENABLED=true). Set "http" for a third-party service that
+	// does not serve TLS.
+	Scheme string
 }
 
 // HealthReport is a single health check result, the payload of every
@@ -90,6 +98,15 @@ func NewAkira(nodeID string, targets []ServiceTarget) *Akira {
 	}
 }
 
+// SetHTTPClient replaces the checks' client, e.g. with pkg/tls.ClientFromEnv
+// so https targets verify against the deployment CA. Call it before the
+// first sweep.
+func (w *Akira) SetHTTPClient(c *http.Client) {
+	if c != nil {
+		w.client = c
+	}
+}
+
 // OnReport sets a callback for each health check result.
 func (w *Akira) OnReport(fn func(HealthReport)) {
 	w.onReport = fn
@@ -117,7 +134,11 @@ func (w *Akira) CheckService(target ServiceTarget) HealthReport {
 	if path == "" {
 		path = "/health"
 	}
-	url := fmt.Sprintf("http://%s:%d%s", target.Host, target.Port, path)
+	scheme := target.Scheme
+	if scheme == "" {
+		scheme = pqtls.Scheme()
+	}
+	url := fmt.Sprintf("%s://%s%s", scheme, net.JoinHostPort(target.Host, strconv.Itoa(target.Port)), path)
 
 	start := time.Now()
 	resp, err := w.client.Get(url)
