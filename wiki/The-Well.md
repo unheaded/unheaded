@@ -21,7 +21,7 @@ The Well is Unheaded's PostgreSQL: one Postgres 16 cluster with three databases,
 
 | Database | Holds | Owner (NOLOGIN) |
 |---|---|---|
-| `unheaded_app` | kanban tasks, timeline milestones, Zhen conversations/memories/actions | `well_app_owner` |
+| `unheaded_app` | kanban tasks, timeline milestones, Zhen conversations/memories/actions, API keys (`api_keys`: SHA-256 of each `uhk_` key, owner, role, expiry, revocation; migration 036) | `well_app_owner` |
 | `unheaded_ops` | service health, audit events, compliance evidence and findings, LLM request telemetry (`llm_requests`) | `well_ops_owner` |
 | `unheaded_config` | kingdom_config (+ history), service registry, compliance catalogue | `well_config_owner` |
 | `postgres` | `pg_stat_statements` only | `unheaded` |
@@ -35,6 +35,7 @@ Each database has its own `well_schema_migrations` ledger. The legacy `unheaded`
 | Role | Reaches | Used by |
 |---|---|---|
 | `app_kanban`, `app_timeguru`, `app_zhen` | `unheaded_app` (+ read `unheaded_config`) | kanban-app, timeguru, Zhen |
+| `app_auth` | `unheaded_app` `api_keys` only: SELECT, INSERT, UPDATE of `revoked_at`/`last_used_at` (no DELETE), 40 conns; password `APP_AUTH_PASSWORD` (migration 035) | `unheaded apikey`, services with `AUTH_APIKEY_STORE=well` (login `AUTH_WELL_USER`/`AUTH_WELL_PASSWORD`) |
 | `ops_writer`, `ops_reader` | `unheaded_ops` | dashboard-backend, zhen-claude / zhen-agentd audit sinks (`llm_requests`, `audit_events`), read views |
 | `config_admin`, `config_reader` | `unheaded_config` | unheaded-daemon, services |
 | `huginn_reader` | all three, `pg_monitor`, 3 conns | Huginn |

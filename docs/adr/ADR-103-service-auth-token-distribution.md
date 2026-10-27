@@ -159,6 +159,38 @@ display-name list. That is a later step, not part of this ADR's first cut.
 3. **Post-quantum service tokens:** start with Ed25519 and switch to ML-DSA-65
    after measuring [recommended], or ML-DSA-65 from day one.
 4. **API-key store:** the Well [recommended where it runs], files elsewhere?
+   Decided (S-IRON-GATE Step 10, the recommendation): the Well where it
+   runs, a 0600 file elsewhere, same record format. Built in Phase 3; see
+   "API keys as built" below.
+
+## API keys as built (S-IRON-GATE Phase 3)
+
+`pkg/auth` (`apikey_store.go`): `NewAPIKey()` returns `uhk_` + 43 base64url
+characters (32 random bytes). `APIKeyStore` is one interface, `Create`,
+`Authenticate`, `Revoke` (by the 12-character prefix or the id), `List`, with
+the rules in one place (expiry required and at most 365 days, roles admin,
+operator, observer, service, revoked and expired keys refused, 401) over three
+backends:
+
+- `NewWellAPIKeyStore`: `unheaded_app.api_keys` (migration 036; the role
+  `app_auth`, migration 035). §5 said `unheaded_config`; the table went into
+  `unheaded_app` with the plan's Step 10 decision, beside the other
+  application data, under its own role. Only `revoked_at` (once) and
+  `last_used_at` ever change, and rows are never deleted. Services log in
+  with `AUTH_WELL_USER`/`AUTH_WELL_PASSWORD` (`database.AppAuthConfig`), not
+  their own Well login.
+- `NewFileAPIKeyStore`: JSON lines, written 0600, refused when group- or
+  world-writable or world-readable, re-read when it changes, writers locked
+  on `<path>.lock`. Default `/etc/unheaded/auth/apikeys.jsonl`.
+- `NewMemAPIKeyStore`: tests.
+
+A service accepts keys when `AUTH_APIKEY_STORE` is `well` or `file:<path>`
+(`X-API-Key`, or `Authorization: Bearer uhk_...`); the identity is the key's
+owner with its role. The plain `AUTH_API_KEYS`/`AUTH_API_KEY_FILE` list still
+works for one release and logs a deprecation warning. `unheaded apikey
+create|list|revoke` manages keys; gitleaks rule `unheaded-api-key`
+(`.gitleaks.toml`) catches a leaked key. Proof: `scripts/well/test-api-keys.sh
+--with-go` (CI job well-schema).
 
 ## Measurements (S-IRON-GATE Step 63)
 
