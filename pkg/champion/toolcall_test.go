@@ -442,3 +442,24 @@ func TestAcceptToolCall_AuditLoggedAlways(t *testing.T) {
 		}
 	}
 }
+
+func TestHasUntrustedJustification_ExactAllowlist(t *testing.T) {
+	bad := []string{"external", "External", "EXTERNAL", "externa\x00l", "ext", "", " canonical", "canonical ", "canonical\n", "Canonical", "direct_user", "directuser", "local;", "unknown"}
+	for _, s := range bad {
+		tc := ToolCall{Name: "write_file", Args: map[string]any{"path": "/x"}, Justification: []Reference{{SourceTrust: s}}}
+		if !tc.HasUntrustedJustification() {
+			t.Errorf("label %q must be untrusted", s)
+		}
+	}
+	for _, s := range []string{"canonical", "local", "direct-user"} {
+		tc := ToolCall{Name: "write_file", Args: map[string]any{"path": "/x"}, Justification: []Reference{{SourceTrust: s}}}
+		if tc.HasUntrustedJustification() {
+			t.Errorf("label %q must be trusted", s)
+		}
+	}
+	// one bad reference anywhere in the chain poisons the call
+	tc := ToolCall{Name: "write_file", Args: map[string]any{"path": "/x"}, Justification: []Reference{{SourceTrust: "canonical"}, {SourceTrust: "Canonical"}}}
+	if !tc.HasUntrustedJustification() {
+		t.Error("mixed chain must be untrusted")
+	}
+}

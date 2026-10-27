@@ -152,11 +152,18 @@ func (tc *ToolCall) IsMutating() bool {
 	return true
 }
 
+// TrustedSourceLabels is the closed set of SourceTrust values a
+// justification may carry. Anything else, including case or whitespace
+// variants, is untrusted (RT-06: the old check compared only against
+// "external", so a typo passed).
+var TrustedSourceLabels = map[string]bool{"canonical": true, "local": true, "direct-user": true}
+
 // HasUntrustedJustification reports whether the justification chain
 // is untrusted from the gate's perspective. Returns true if either:
 //
-//   - Any reference has source_trust == "external" (user-symlinked
-//     source under ~/.config/cs/sources/ — possibly poisoned), OR
+//   - Any reference has a source_trust outside TrustedSourceLabels:
+//     "external" (user-symlinked source under ~/.config/cs/sources/ —
+//     possibly poisoned) or any other unlisted string, OR
 //
 //   - The chain is EMPTY and the tool is mutating. Empty justification
 //     on a mutating tool is treated as untrusted by default
@@ -191,7 +198,7 @@ func (tc *ToolCall) HasUntrustedJustification() bool {
 		return tc.IsMutating()
 	}
 	for _, r := range tc.Justification {
-		if r.SourceTrust == "external" {
+		if !TrustedSourceLabels[r.SourceTrust] {
 			return true
 		}
 	}
@@ -330,7 +337,7 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 func untrustedRefSummary(refs []Reference) string {
 	var parts []string
 	for _, r := range refs {
-		if r.SourceTrust != "external" {
+		if TrustedSourceLabels[r.SourceTrust] {
 			continue
 		}
 		label := r.SourceLabel
