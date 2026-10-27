@@ -69,7 +69,7 @@ services:
     read_only: true
     cap_drop: [ALL]
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"   # loopback only: the Prometheus API has no auth (S24, 2026-10-27)
     volumes:
       - ./prometheus:/etc/prometheus:ro
       - prometheus_data:/prometheus
@@ -155,7 +155,7 @@ services:
       - /tmp:size=64M
     cap_drop: [ALL]
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"   # loopback only: no auth, and the push API would take injected logs
     volumes:
       - ./loki:/etc/loki:ro
       - loki_data:/var/lib/loki
