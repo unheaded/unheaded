@@ -50,6 +50,7 @@ type JWKSVerifier struct {
 	client   *http.Client
 	ttl      time.Duration
 	skew     time.Duration
+	maxLife  time.Duration
 	now      func() time.Time
 
 	fetchMu sync.Mutex // serialises fetches
@@ -93,8 +94,23 @@ func NewJWKSVerifier(issuerURL, audience string, httpClient *http.Client, ttl ti
 		client:   c,
 		ttl:      ttl,
 		skew:     5 * time.Second,
+		maxLife:  DefaultMaxUserTokenLifetime,
 		now:      time.Now,
 	}, nil
+}
+
+// DefaultMaxUserTokenLifetime bounds exp - now for a user token unless
+// SetMaxLifetime says otherwise. The built-in issuer mints 15-minute tokens
+// (ADR-103 §3); an hour leaves room for other OIDC providers' defaults while
+// a mis-set issuer still cannot hand out day-long tokens.
+const DefaultMaxUserTokenLifetime = time.Hour
+
+// SetMaxLifetime replaces DefaultMaxUserTokenLifetime (AUTH_OIDC_MAX_LIFETIME).
+// A value <= 0 keeps the current cap. Call it before the verifier is in use.
+func (v *JWKSVerifier) SetMaxLifetime(d time.Duration) {
+	if d > 0 {
+		v.maxLife = d
+	}
 }
 
 // checkFetchURL allows https anywhere and http only to loopback, with no
@@ -162,7 +178,7 @@ func (v *JWKSVerifier) Authenticate(ctx context.Context, r *http.Request) (*Iden
 	if err := claims.Validate(now, v.issuer, v.audience, v.skew); err != nil {
 		return nil, err
 	}
-	if err := checkLifetime(&claims, now, 0, v.skew); err != nil {
+	if err := checkLifetime(&claims, now, v.maxLife, v.skew); err != nil {
 		return nil, err
 	}
 	return &Identity{

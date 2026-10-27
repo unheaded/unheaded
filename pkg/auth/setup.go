@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -88,6 +89,11 @@ type ServiceAuthConfig struct {
 	// (AUTH_OIDC_ISSUER_URL). Empty: no user tokens.
 	OIDCIssuerURL string
 
+	// OIDCMaxLifetime caps a user token's exp - now (AUTH_OIDC_MAX_LIFETIME,
+	// a Go duration). Zero: DefaultMaxUserTokenLifetime. Negative: the
+	// variable did not parse, and NewServiceMiddleware refuses to start.
+	OIDCMaxLifetime time.Duration
+
 	// APIKeyStore names where uhk_ API keys live (AUTH_APIKEY_STORE):
 	// "well" (unheaded_app.api_keys, as AUTH_WELL_USER, default app_auth)
 	// or "file:<absolute path>". Empty: no uhk_ keys. ADR-103 §5.
@@ -107,6 +113,13 @@ func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 		TrustDir:      getEnvDefault("AUTH_TRUST_DIR", DefaultTrustDir),
 		OIDCIssuerURL: os.Getenv("AUTH_OIDC_ISSUER_URL"),
 		APIKeyStore:   os.Getenv("AUTH_APIKEY_STORE"),
+	}
+	if v := os.Getenv("AUTH_OIDC_MAX_LIFETIME"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d <= 0 {
+			d = -1
+		}
+		cfg.OIDCMaxLifetime = d
 	}
 	if callers := os.Getenv("AUTH_ALLOW_CALLERS"); callers != "" {
 		cfg.AllowCallers = splitNonEmpty(callers, ",")
@@ -240,10 +253,14 @@ func eddsaAuthenticators(cfg ServiceAuthConfig) ([]Authenticator, error) {
 		}
 	}
 	if cfg.OIDCIssuerURL != "" {
+		if cfg.OIDCMaxLifetime < 0 {
+			return nil, errors.New("auth: AUTH_OIDC_MAX_LIFETIME is not a positive Go duration (e.g. 30m)")
+		}
 		v, err := NewJWKSVerifier(cfg.OIDCIssuerURL, cfg.ServiceName, nil, 0)
 		if err != nil {
 			return nil, err
 		}
+		v.SetMaxLifetime(cfg.OIDCMaxLifetime)
 		out = append(out, v)
 	}
 	return out, nil
