@@ -118,6 +118,17 @@ func waitForIngested(t *testing.T, ing *AnamnesisIngestor, n int64, timeout time
 }
 
 // waitForCompleted polls until the flow builder has completed at least n flows.
+// waitForBroadcasts polls until the collector has seen n WebSocket messages
+// or the timeout passes (the caller's assertion then reports the shortfall).
+// A flow counts as completed in the FlowBuilder before its broadcast lands,
+// so asserting right after waitForCompleted raced under load.
+func waitForBroadcasts(c *wsBroadcastCollector, n int, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for c.count() < n && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func waitForCompleted(t *testing.T, ing *AnamnesisIngestor, n int64, timeout time.Duration) {
 	t.Helper()
 	deadline := time.After(timeout)
@@ -217,6 +228,7 @@ func TestE2E_BPFDashboard_FullPipeline(t *testing.T) {
 
 	// WebSocket broadcasts: hopsPerFlow hop msgs + 1 flow msg per flow
 	expectedBroadcasts := numFlows * (hopsPerFlow + 1)
+	waitForBroadcasts(collector, expectedBroadcasts, 5*time.Second)
 	bcCount := collector.count()
 	t.Logf("WebSocket broadcasts: %d (expected %d)", bcCount, expectedBroadcasts)
 	if bcCount < expectedBroadcasts {
