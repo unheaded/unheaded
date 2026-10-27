@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -86,6 +87,11 @@ type ServiceAuthConfig struct {
 	// OIDCIssuerURL is the issuer whose JWKS verifies user tokens
 	// (AUTH_OIDC_ISSUER_URL). Empty: no user tokens.
 	OIDCIssuerURL string
+
+	// APIKeyStore names where uhk_ API keys live (AUTH_APIKEY_STORE):
+	// "well" (unheaded_app.api_keys, as AUTH_WELL_USER, default app_auth)
+	// or "file:<absolute path>". Empty: no uhk_ keys. ADR-103 §5.
+	APIKeyStore string
 }
 
 // LoadServiceAuthConfig loads auth configuration from environment variables.
@@ -100,6 +106,7 @@ func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 		KeyFile:       getEnvDefault("AUTH_KEY_FILE", filepath.Join(DefaultKeyDir, serviceName+".key")),
 		TrustDir:      getEnvDefault("AUTH_TRUST_DIR", DefaultTrustDir),
 		OIDCIssuerURL: os.Getenv("AUTH_OIDC_ISSUER_URL"),
+		APIKeyStore:   os.Getenv("AUTH_APIKEY_STORE"),
 	}
 	if callers := os.Getenv("AUTH_ALLOW_CALLERS"); callers != "" {
 		cfg.AllowCallers = splitNonEmpty(callers, ",")
@@ -145,8 +152,8 @@ func SetupMiddleware(cfg ServiceAuthConfig) func(http.Handler) http.Handler {
 // NewServiceMiddleware is SetupMiddleware for callers that refuse to start
 // on a bad configuration: it returns (nil, nil) with auth off, the
 // middleware with auth on, or an error (ErrSharedKeyForbidden,
-// ErrNoCredentials, or why a trust dir, OIDC issuer or API key file is
-// unusable). /health, /ready and /metrics are skipped.
+// ErrNoCredentials, or why a trust dir, OIDC issuer, API key file or API
+// key store is unusable). /health, /ready and /metrics are skipped.
 func NewServiceMiddleware(cfg ServiceAuthConfig) (func(http.Handler) http.Handler, error) {
 	if !cfg.Enabled {
 		return nil, nil
@@ -184,8 +191,16 @@ func NewServiceAuthenticator(cfg ServiceAuthConfig) (Authenticator, error) {
 		return nil, fmt.Errorf("auth: unknown AUTH_MODE %q (want %q)", cfg.Mode, ModeEdDSA)
 	}
 
-	if len(cfg.APIKeys) > 0 || cfg.APIKeyFile != "" {
-		apiKeyAuth, err := NewAPIKeyAuthenticator(APIKeyConfig{Keys: cfg.APIKeys, KeyFile: cfg.APIKeyFile})
+	if len(cfg.APIKeys) > 0 || cfg.APIKeyFile != "" || cfg.APIKeyStore != "" {
+		keyCfg := APIKeyConfig{Keys: cfg.APIKeys, KeyFile: cfg.APIKeyFile}
+		if cfg.APIKeyStore != "" {
+			store, err := OpenAPIKeyStore(context.Background(), cfg.APIKeyStore)
+			if err != nil {
+				return nil, fmt.Errorf("auth: API key store unusable: %w", err)
+			}
+			keyCfg.Store = store
+		}
+		apiKeyAuth, err := NewAPIKeyAuthenticator(keyCfg)
 		if err != nil {
 			return nil, fmt.Errorf("auth: API keys unusable: %w", err)
 		}
