@@ -193,10 +193,14 @@ findings:
       Install the fixed kernel as soon as Ubuntu publishes it (unattended-upgrades or apt), then reboot; re-run the
       verify commands. Until then, for CVE-2026-53266: nothing here uses ebtables, so /etc/modprobe.d/unheaded-cis.conf
       can gain `install ebtables /bin/false`, `install ebtable_nat /bin/false`, `install ebt_snat /bin/false` (no
-      module to unload today). CVE-2026-53362 has no published mitigation short of the fixed kernel
+      module to unload today). CVE-2026-53362 has no published mitigation short of the fixed kernel. 2026-10-27
+      (S24, S-CLEAN-SLATE E4, Stevie's yes): the stopgap is in remediate.sh kmod-cis and fixes.yaml (9d3c6cf1,
+      12adcb92) and applied on east (12:42:11Z) then west (12:42:12Z); on both, modprobe -n -v ebtables shows
+      /bin/false, a real modprobe fails, no ebt module is loaded; undo dirs under /var/lib/unheaded/remediate/.
+      LXD (nftables driver) and Docker unaffected. This entry stays open until the fixed kernel is installed
     decision: >-
-      the modprobe stopgap on both hosts (host change); whether west keeps unprivileged user namespaces open for LXD
-      (turning the restriction back on may break LXD's unprivileged containers: test first)
+      stopgap applied 2026-10-27; west keeps unprivileged user namespaces open for LXD until an LXD test says
+      closing them is safe (Stevie, decision 6)
 
   - id: FND-013
     title: >-
