@@ -50,6 +50,7 @@ sudo docker exec -it unheaded-postgres psql -U unheaded -d unheaded_app
 | `config_reader` | unheaded_config | SELECT only | all services (read config) |
 | `huginn_reader` | all three | `pg_monitor`, 3 connections | Huginn's Postgres metrics |
 | `well_backup` | all | `pg_read_all_data`, 3 connections | db-backup.sh, restore drill |
+| `retention_runner` | unheaded_app, unheaded_ops | DELETE on zhen_conversations, kanban_tasks, retention_archive; `zhen_captures_purge()`; age columns of append-only tables; INSERT retention_runs; 4 connections (042/043) | well-retention (weekly timer) |
 | `well_{app,ops,config}_owner` | its database | owns it; NOLOGIN | migrations `SET ROLE` to it |
 | `unheaded` | all | superuser; TLS from the host only | well-migrate, operators |
 
@@ -152,8 +153,9 @@ renew with `--renew`).
 | Huginn (one per database) | huginn_reader | 3 (role limit 3) |
 | db-backup.sh / restore drill | well_backup | 3 (role limit 3) |
 | well-migrate | superuser | 2 |
+| well-retention (weekly; one per database) | retention_runner | 2 (role limit 4) |
 | compliance-evidence, zhen python, psql | various | ~4 |
-| **Total** | | **42 of 47** |
+| **Total** | | **44 of 47** |
 
 A new pooled client means a new row here first; PgBouncer only when the
 sum no longer fits.
