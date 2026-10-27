@@ -1,0 +1,4 @@
+# ADR-089 entry gate item 4: byte size of the eBPF object, per toolchain.
+# Written by scripts/check-ebpf-size-pin.sh --update; review the delta before committing.
+# <object+features> <bytes> <rustc version...>
+monad-cpu-ebpf+ascend-linux 918840 rustc 1.101.0-nightly (5c543b0b8 2026-09-29)

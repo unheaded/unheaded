@@ -1025,19 +1025,19 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
   cd /home/govan/tmp/unheaded && bash scripts/check-actions-pinned.sh 2>&1 | tail -1 && for f in scorecard codeql; do python3 -c "import yaml; yaml.safe_load(open('.github/workflows/$f.yml')); print('$f YAML_OK')"; done
   ```
 - [x] **Step 315** [V] ~1m: `[PASS]`, two `YAML_OK`. (Results appear only after the push; Phase 16 records "first run pending push" in next.md.)
-- [ ] **Step 316** [W][CODE] ~15m: ADR-089 entry gate as a script: `scripts/check-ebpf-size-pin.sh`: builds `monad-cpu-ebpf --features ascend-linux` (`cargo build --release -p monad-cpu-ebpf --features ascend-linux` under `ebpf/`), finds the object (`ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf`), compares its byte size to `docs/policy/ebpf-size-pins.txt` (`monad-cpu-ebpf+ascend-linux <bytes>`); `--update` rewrites the pin and prints the delta; without `--update`, any difference fails with both numbers. Pin file seeded from the current build (the ADR's 901,888 is from July; S5 measured 926,542 verified insns, so the byte size has moved: record today's).
-- [ ] **Step 317** [B] ~6m
+- [x] **Step 316** [W][CODE] ~15m: ADR-089 entry gate as a script: `scripts/check-ebpf-size-pin.sh`: builds `monad-cpu-ebpf --features ascend-linux` (`cargo build --release -p monad-cpu-ebpf --features ascend-linux` under `ebpf/`), finds the object (`ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf`), compares its byte size to `docs/policy/ebpf-size-pins.txt` (`monad-cpu-ebpf+ascend-linux <bytes>`); `--update` rewrites the pin and prints the delta; without `--update`, any difference fails with both numbers. Pin file seeded from the current build (the ADR's 901,888 is from July; S5 measured 926,542 verified insns, so the byte size has moved: record today's).
+- [x] **Step 317** [B] ~6m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-ebpf-size-pin.sh --update 2>&1 | tail -2 && bash scripts/check-ebpf-size-pin.sh 2>&1 | tail -1 && cat docs/policy/ebpf-size-pins.txt
   ```
-- [ ] **Step 318** [V] ~1m: second run `[PASS]`; pin file has one line with a byte count.
+- [x] **Step 318** [V] ~1m: second run `[PASS]`; pin file has one line with a byte count.
 - [ ] **Step 319** [W] ~5m: `.github/workflows/ebpf.yml`: add a step after `check-ebpf-loads.sh` that runs `scripts/check-ebpf-size-pin.sh`; `docs/adr/ADR-089`: entry gate item 4 now cites the script and the pin file instead of the literal number.
-- [ ] **Step 320** [TEST][B] ~2m: The gate can fail (ADR-089 "gates that bite")
+- [x] **Step 320** [TEST][B] ~2m: The gate can fail (ADR-089 "gates that bite")
   ```bash
   cd /home/govan/tmp/unheaded && cp docs/policy/ebpf-size-pins.txt /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/pin.bak && sed -i 's/[0-9]\+$/1/' docs/policy/ebpf-size-pins.txt && bash scripts/check-ebpf-size-pin.sh >/dev/null 2>&1; echo "tampered exit=$?"; cp /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/pin.bak docs/policy/ebpf-size-pins.txt && git diff --quiet docs/policy/ebpf-size-pins.txt && echo restored
   ```
-- [ ] **Step 321** [V] ~1m: `tampered exit=1`, `restored`. Add the script to `scripts/check-gates-can-fail.sh`'s list.
-- [ ] **Step 322** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 313-321: Scorecard + CodeQL workflows; ADR-089 eBPF size pin is a gate`.
+- [x] **Step 321** [V] ~1m: `tampered exit=1`, `restored`. Add the script to `scripts/check-gates-can-fail.sh`'s list.
+- [x] **Step 322** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 313-321: Scorecard + CodeQL workflows; ADR-089 eBPF size pin is a gate`.
 - [ ] **Step 323** [W] ~10m: `.github/dependabot.yml`: add `package-ecosystem: docker` for `/`, `/deploy/sophia-eye`, `/docker` (weekly, grouped, target develop, limit 2) and `gomod` for `/` (weekly, grouped, limit 2; ADR-096's 7-day cooldown is enforced by `check-dependency-baseline.sh`/`check-tool-freshness.sh`, not by Dependabot).
 - [ ] **Step 324** [B] ~1m
   ```bash

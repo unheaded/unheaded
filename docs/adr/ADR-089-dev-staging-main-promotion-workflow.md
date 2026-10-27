@@ -100,8 +100,11 @@ covers?
   2. The change is decomposed into individually-revertible commits.
   3. Each commit body states what it changed and why, and — for remediation work — the
      risk rung (see the Staging Ladder's R0-R3 ladder).
-  4. `monad-cpu-ebpf --features ascend-linux` is still **901,888 bytes** if the change
-     claimed to be inert to the eBPF layer. This is the cheapest available proof that a
+  4. `monad-cpu-ebpf --features ascend-linux` still matches its pinned byte size if the
+     change claimed to be inert to the eBPF layer: `scripts/check-ebpf-size-pin.sh` against
+     `docs/policy/ebpf-size-pins.txt` (918,840 bytes with rustc 1.101.0-nightly 2026-09-29, pinned
+     2026-10-27; it was 901,888 in July). The pin records its toolchain, and a different rustc
+     fails as not comparable, so the gate runs on the build host before promotion, not in CI. This is the cheapest available proof that a
      change did not perturb the UPC substrate, and it has caught drift before.
 
 - **Exit gate (`staging` → `main`)**:

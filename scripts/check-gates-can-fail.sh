@@ -892,6 +892,7 @@ zhen-mcp|launches the Zhen MCP server for Claude Code (.mcp.json, runbooks/secur
 # ---------------------------------------------------------------------------
 NEEDS_HARDWARE="
 ascend-linux-smoke|attaches XDP and boots the UPC; needs sudo + a live kernel
+check-ebpf-size-pin|needs the build host's pinned Rust nightly (CI's floats: byte sizes are not comparable there); proven by hand 2026-10-27: size edit exit 1, other toolchain exit 2
 doom-smoke|drives BPF maps via bpftool under sudo
 doom-ring|reads a live ring buffer from a running instance
 verify-binding-rune|verifies a sealed-cask image that must be built first
