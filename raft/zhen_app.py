@@ -345,13 +345,29 @@ def _recall_semantic(search_term, days=30, k=20):
         return []
 
 
+def _memory_provenance(question, created_at):
+    """Where a recalled memory came from (S-CHAMPION-HARDENING Step 183):
+    `[memory: <topic> @ <date> via well]`. zhen-agentd's recall API carries
+    the same facts as fields (source, created_at). The topic is the stored
+    question, cut at 60 characters. Memories stay a side-channel on the
+    response; they never enter the prompt."""
+    topic = (question or '').strip().replace('\n', ' ')
+    if len(topic) > 60:
+        topic = topic[:60] + '…'
+    date = created_at.date().isoformat() if created_at is not None else 'unknown date'
+    return {
+        'created_at': date if created_at is not None else None,
+        'provenance': f'[memory: {topic} @ {date} via well]',
+    }
+
+
 def _search_memories(question, threshold=0.9):
     """Search zhen_memories for a cached answer using embedding similarity."""
     if pg_conn is None or rag is None:
         return None
     try:
         cur = pg_conn.cursor()
-        cur.execute("SELECT id, question, answer, embedding, model FROM zhen_memories ORDER BY created_at DESC LIMIT 200")
+        cur.execute("SELECT id, question, answer, embedding, model, created_at FROM zhen_memories ORDER BY created_at DESC LIMIT 200")
         rows = cur.fetchall()
         cur.close()
         if not rows:
@@ -364,7 +380,7 @@ def _search_memories(question, threshold=0.9):
         best_match = None
         best_sim = 0.0
         for row in rows:
-            mem_id, mem_q, mem_a, mem_emb_bytes, mem_model = row
+            mem_id, mem_q, mem_a, mem_emb_bytes, mem_model, mem_created = row
             if mem_emb_bytes is None:
                 continue
             mem_emb = np.frombuffer(mem_emb_bytes, dtype='float32')
@@ -372,7 +388,8 @@ def _search_memories(question, threshold=0.9):
             sim = float(np.dot(q_emb, mem_emb) / (np.linalg.norm(q_emb) * np.linalg.norm(mem_emb) + 1e-8))
             if sim > best_sim:
                 best_sim = sim
-                best_match = {'id': mem_id, 'question': mem_q, 'answer': mem_a, 'model': mem_model, 'similarity': sim}
+                best_match = {'id': mem_id, 'question': mem_q, 'answer': mem_a, 'model': mem_model, 'similarity': sim,
+                              **_memory_provenance(mem_q, mem_created)}
 
         if best_match and best_match['similarity'] >= threshold:
             return best_match
