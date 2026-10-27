@@ -4,11 +4,14 @@
 package store
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+
+	"unheaded/services/wotan/internal/ringbuffer"
 )
 
 func TestEncodeDecodeMessage(t *testing.T) {
@@ -91,5 +94,31 @@ func TestEncodeLargeContent(t *testing.T) {
 
 	if len(decoded.Content) != 100_000 {
 		t.Errorf("content length: %d != 100000", len(decoded.Content))
+	}
+}
+
+// A signed message keeps its signature through the WAL encoding (FND-020);
+// an unsigned one encodes exactly as before the field existed.
+func TestEncodeDecodeMessage_Signature(t *testing.T) {
+	plain := &Message{ID: uuid.New(), CreatorID: uuid.New(), RoomID: "logs.x", Content: "a", Timestamp: time.Now()}
+	data, err := EncodeMessage(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"signed"`) {
+		t.Fatalf("unsigned message encodes a signed field: %s", data)
+	}
+	signed := *plain
+	signed.Signed = &ringbuffer.Signature{Sender: "s", Signature: []byte{1, 2}, PublicKey: []byte{3}, Algorithm: "ml-dsa-65", SignedAtUnixMs: 42}
+	data, err = EncodeMessage(&signed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeMessage(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Signed, signed.Signed) {
+		t.Fatalf("signature did not round-trip: %+v != %+v", got.Signed, signed.Signed)
 	}
 }

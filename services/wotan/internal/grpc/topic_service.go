@@ -723,7 +723,9 @@ func (s *TopicService) PublishTopic(
 	// returns, before the write lands. A store error is logged, not returned:
 	// the message is already in the ring buffer and on its way out.
 	if s.Store != nil {
-		storeMsg := &store.Message{ID: msg.ID, CreatorID: msg.CreatorID, RoomID: msg.RoomID, Content: msg.Content, Timestamp: msg.Timestamp}
+		// The signature is persisted with the message: replication sends
+		// the WAL, and a standby must receive it signed (FND-020).
+		storeMsg := &store.Message{ID: msg.ID, CreatorID: msg.CreatorID, RoomID: msg.RoomID, Content: msg.Content, Timestamp: msg.Timestamp, Signed: msg.Signed}
 		pctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), persistTimeout)
 		log := logger.FromContext(ctx)
 		topic := req.Topic

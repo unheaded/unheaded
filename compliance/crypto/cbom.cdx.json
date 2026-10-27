@@ -2756,6 +2756,49 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "pkg/protocol/sophiasync/signing.go:17:sig-import",
+      "name": "ML-DSA-65 (unheaded/pkg/crypto/pqc)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204 via the in-tree wrapper"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/protocol/sophiasync/signing.go:17"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "pkg/secrets/encryption/age.go:19:kex-import",
       "name": "X25519 (golang.org/x/crypto/curve25519)",
       "cryptoProperties": {

@@ -30,6 +30,20 @@ message WALEntry {
   string node_id = 4;
   google.protobuf.Timestamp timestamp = 5;
   int64 epoch = 6;
+
+  // ML-DSA-65 signature of a signed topic message (config.*, drift.* and
+  // configured signed prefixes; ADR-043 #2, ADR-105), copied from the
+  // signature persisted with the message in data, so a signed message
+  // replicated to a standby is still signed (FND-020). The standby verifies
+  // them against its own trusted keys before applying the entry and rejects
+  // an entry on a signed topic that carries none. Empty on unsigned
+  // messages. sender_id is the sender the signature covers. Additive fields
+  // (proto3): an old peer ignores them.
+  bytes signature = 7;
+  bytes public_key = 8;
+  string algorithm = 9;
+  int64 signed_at_unix_ms = 10;
+  string sender_id = 11;
 }
 
 // CatchUpRequest is sent by standby to request WAL entries.

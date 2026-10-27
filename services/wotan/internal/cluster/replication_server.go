@@ -15,8 +15,6 @@ import (
 
 	"unheaded/pkg/storage/wal"
 	chatpb "unheaded/services/wotan/proto"
-
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // ReplicationServer implements the WotanReplication gRPC service (primary side).
@@ -56,13 +54,8 @@ func (s *ReplicationServer) CatchUp(req *chatpb.CatchUpRequest, stream chatpb.Wo
 	// Stream historical entries
 	sent := 0
 	err := s.wal.Scan(stream.Context(), sinceSeq, func(seq uint64, data []byte) error {
-		entry := &chatpb.WALEntry{
-			Sequence:  seq,
-			Data:      data,
-			NodeId:    s.nodeID,
-			Timestamp: timestamppb.Now(),
-			Epoch:     s.epoch,
-		}
+		// A signed message goes out with its signature (FND-020).
+		entry := walEntry(seq, data, s.nodeID, s.epoch)
 		if err := stream.Send(entry); err != nil {
 			return fmt.Errorf("replication: send entry %d: %w", seq, err)
 		}
