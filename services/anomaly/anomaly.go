@@ -166,25 +166,21 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client) *Service {
 func (s *Service) Start(ctx context.Context) error {
 	s.log.Info().Msg("Anomaly Detection Service starting")
 
-	// Subscribe to Wotan topics
+	// Join Wotan topics in the background with retry until ctx ends
+	// (SubscribeWithRetry), so a Wotan that comes up after anomaly is still
+	// joined. Start used to subscribe once per topic and give up.
 	if s.wotan != nil {
-		topics := []string{
-			"anomaly.scores",
-			"anomaly.alerts",
-			"anomaly.baseline",
-			"alerts.critical",
+		// Published on (publishEvent): join only.
+		for _, topic := range []string{"anomaly.alerts", "anomaly.baseline"} {
+			go func(topic string) {
+				if err := s.wotan.SubscribeWithRetry(ctx, topic, wotanName, nil); err == nil {
+					s.log.Info().Str("topic", topic).Msg("joined wotan topic")
+				}
+			}(topic)
 		}
-		for _, topic := range topics {
-			if _, err := s.wotan.Subscribe(ctx, topic, "anomaly-service"); err != nil {
-				s.log.Warn().Err(err).Str("topic", topic).Msg("failed to subscribe")
-			} else {
-				s.log.Info().Str("topic", topic).Msg("subscribed")
-			}
-		}
-
-		// Start alert listener
+		// Streamed: alerts.critical and the score intake (ADR-108
+		// cartridge scores via cmd/anomaly).
 		go s.listenForAlerts(ctx)
-		// Score intake (ADR-108 cartridge scores via cmd/anomaly)
 		go s.listenForScores(ctx)
 	} else {
 		s.log.Info().Msg("Wotan not configured, skipping subscriptions")
@@ -762,30 +758,16 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 }
 
-// listenForAlerts listens for critical alerts from Wotan.
+// wotanName is the name anomaly joins Wotan topics as.
+const wotanName = "anomaly-service"
+
+// listenForAlerts streams alerts.critical to handleCriticalAlert until ctx
+// ends, rejoining and reopening the stream whenever Wotan is away.
 func (s *Service) listenForAlerts(ctx context.Context) {
 	if s.wotan == nil {
-		s.log.Warn().Msg("wotan unavailable — alert listener disabled (degraded mode)")
 		return
 	}
-
-	msgCh, err := s.wotan.StreamMessages(ctx, "alerts.critical")
-	if err != nil {
-		s.log.Warn().Err(err).Msg("failed to stream alerts.critical")
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok := <-msgCh:
-			if !ok {
-				return
-			}
-			s.handleCriticalAlert(msg)
-		}
-	}
+	_ = s.wotan.SubscribeWithRetry(ctx, "alerts.critical", wotanName, s.handleCriticalAlert)
 }
 
 // handleCriticalAlert processes critical alerts.

@@ -251,7 +251,7 @@ func (s *ArchitectService) SetWotan(wotan *wotanClient.Client) {
 // restarted, left it without Wotan until architect was restarted.
 func (s *ArchitectService) Start(ctx context.Context) error {
 	if s.wotan == nil {
-		log.Println("[WARN] architect: wotan unavailable — subscriptions disabled (degraded mode)")
+		log.Println("[WARN] architect: no wotan client configured: running without Wotan")
 		return nil
 	}
 	go func() {
@@ -265,8 +265,7 @@ func (s *ArchitectService) Start(ctx context.Context) error {
 // ends, rejoining whenever Wotan drops the subscription.
 func (s *ArchitectService) listenForAlerts(ctx context.Context) {
 	if s.wotan == nil {
-		log.Println("[WARN] architect: wotan unavailable — alert listener disabled (degraded mode)")
-		return
+		return // Start has said so
 	}
 	_ = s.wotan.SubscribeWithRetry(ctx, "alerts.critical", "architect-service", func(msg *wotanClient.Message) {
 		s.handleCriticalAlert(ctx, msg)

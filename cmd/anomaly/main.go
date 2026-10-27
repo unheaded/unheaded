@@ -129,10 +129,12 @@ func main() {
 				fmt.Fprintf(os.Stderr, "anomaly: wotan: %v\n", err)
 				os.Exit(1)
 			}
-			if _, err := pub.Subscribe(ctx, anomaly.ScoreTopic, "anomaly-bridge"); err != nil {
-				fmt.Fprintf(os.Stderr, "anomaly: subscribe %s: %v\n", anomaly.ScoreTopic, err)
-				os.Exit(1)
-			}
+			// Join with retry in the background: a Wotan that is not up yet
+			// used to make anomaly exit here. Until the join lands, forwards
+			// fail "not subscribed" and the bridge logs and carries on.
+			go func() {
+				_ = pub.SubscribeWithRetry(ctx, anomaly.ScoreTopic, "anomaly-bridge", nil)
+			}()
 			out = func(ctx context.Context, b []byte) error { return pub.Publish(ctx, anomaly.ScoreTopic, b) }
 		}
 		go func() {

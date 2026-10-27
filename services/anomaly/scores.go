@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/netip"
 	"sync/atomic"
+
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ScoreTopic carries flow scores into the service (ADR-108; provisional
@@ -84,30 +86,15 @@ func (s *Service) IngestScore(payload []byte) error {
 	return nil
 }
 
-// listenForScores consumes anomaly.scores from Wotan into IngestScore.
+// listenForScores consumes anomaly.scores from Wotan into IngestScore until
+// ctx ends, rejoining and reopening the stream whenever Wotan is away.
 func (s *Service) listenForScores(ctx context.Context) {
 	if s.wotan == nil {
 		return
 	}
-	ch, err := s.wotan.StreamMessages(ctx, ScoreTopic)
-	if err != nil {
-		s.log.Warn().Err(err).Str("topic", ScoreTopic).Msg("failed to stream scores")
-		return
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok := <-ch:
-			if !ok {
-				return
-			}
-			if msg == nil {
-				continue
-			}
-			if err := s.IngestScore([]byte(msg.Payload)); err != nil {
-				s.log.Warn().Err(err).Str("message_id", msg.MessageID).Msg("score refused")
-			}
+	_ = s.wotan.SubscribeWithRetry(ctx, ScoreTopic, wotanName, func(msg *wotanClient.Message) {
+		if err := s.IngestScore([]byte(msg.Payload)); err != nil {
+			s.log.Warn().Err(err).Str("message_id", msg.MessageID).Msg("score refused")
 		}
-	}
+	})
 }
