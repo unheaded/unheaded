@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Where the repository is checked out on west (compose runs from it).
+unheaded_repo_on_host: /home/govan/tmp/unheaded

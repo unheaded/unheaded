@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Every Unheaded service runs as its own nologin system account
+# (deploy/sysusers.d/unheaded.conf, pkg/uids); config lives in /etc/unheaded.
+- name: Install the service accounts' sysusers.d file
+  ansible.builtin.copy:
+    src: "{{ unheaded_repo }}/deploy/sysusers.d/unheaded.conf"
+    dest: /etc/sysusers.d/unheaded.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: kingdom_base_sysusers
+
+- name: Create the accounts
+  ansible.builtin.command:
+    argv: [systemd-sysusers, /etc/sysusers.d/unheaded.conf]
+  when: kingdom_base_sysusers is changed
+  changed_when: true
+
+- name: Config directory
+  ansible.builtin.file:
+    path: /etc/unheaded
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"

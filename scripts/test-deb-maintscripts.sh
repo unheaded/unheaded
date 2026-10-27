@@ -101,4 +101,36 @@ expect "unit reads that path" "$(grep -c -- '--topic-config /etc/unheaded/wotan.
 deb_conffiles timeguru "$T/other" "$REPO_ROOT"
 expect "other services ship no conffiles" "$(ls "$T/other/DEBIAN")" ""
 
+# The ADR-098 enforcing gate (S-WELL-SPRING Step 276): preinst refuses an
+# install or upgrade only when the baseline agent's report says enforcing is
+# in effect with critical deviations left. The report is the agent's own
+# MarshalIndent output (two-space keys).
+deb_preinst unheaded-wotan >"$T/preinst"
+chmod +x "$T/preinst"
+report() { # report MODE CRIT
+	printf '{\n  "version": 1,\n  "host": "east",\n  "mode_config": "%s",\n  "mode_effective": "%s",\n  "critical_deviations": %s,\n  "checks": []\n}\n' "$1" "$1" "$2" >"$T/report.json"
+}
+gate() { # gate ARGS...: exit code of preinst against $T/report.json
+	local rc=0
+	UNHEADED_BASELINE_REPORT="$T/report.json" "$T/preinst" "$@" 2>/dev/null || rc=$?
+	echo "$rc"
+}
+rm -f "$T/report.json"
+expect "preinst: no baseline report, install goes ahead" "$(gate install)" "0"
+report audit 0
+expect "preinst: audit, install goes ahead" "$(gate install)" "0"
+report audit 4
+expect "preinst: audit with deviations, install goes ahead (audit never blocks)" "$(gate upgrade 1.0.0)" "0"
+report enforcing 0
+expect "preinst: enforcing with nothing left, install goes ahead" "$(gate install)" "0"
+report enforcing 2
+expect "preinst: enforcing with critical deviations refuses install" "$(gate install)" "1"
+expect "preinst: and refuses upgrade" "$(gate upgrade 1.0.0)" "1"
+expect "preinst: abort-upgrade is never refused" "$(gate abort-upgrade 1.0.1)" "0"
+expect "preinst: the override lets it through" "$(UNHEADED_BASELINE_GATE=off gate install)" "0"
+printf '{\n  "mode_effective": "enforcing",\n  "critical_deviations": "x"\n}\n' >"$T/report.json"
+expect "preinst: enforcing with an unreadable count refuses (fail closed)" "$(gate install)" "1"
+expect "build-all-debs ships the gate in every service package" \
+	"$(grep -c 'deb_preinst "\$PKG_NAME" >"\$PKG_DIR/DEBIAN/preinst"' "$REPO_ROOT/scripts/build-all-debs.sh")" "1"
+
 exit "$fail"

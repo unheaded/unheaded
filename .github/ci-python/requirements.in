@@ -1,6 +1,9 @@
 # CI Python tools (static-analysis, security, yggdrasil-verify). Exact top-level
 # pins; scripts/ci-python-lock.sh resolves them into requirements.txt with every
 # transitive dependency pinned by sha256 (pip install --require-hashes).
+# ansible-core: `ansible-playbook --syntax-check` on deploy/ansible/compliance
+# (static-analysis, S-WELL-SPRING Step 271); never runs a play in CI.
+ansible-core==2.21.5
 bandit==1.9.4
 jsonschema==4.26.0
 pip-audit==2.10.1

@@ -19,3 +19,6 @@
     - auditd-rules
     - journald-caps
     - time-p2p
+    - rocm-log-perms
+    - aide-install
+    - apparmor-enforce

@@ -176,6 +176,17 @@ jobs:
       - name: ruff (GATING, ratcheted)
         run: ./scripts/check-ruff.sh
 
+      # GATING (M-107, S-WELL-SPRING Step 271). deploy/ansible/compliance is
+      # rendered from compliance/remediation/fixes.yaml; a Go drift test keeps
+      # it current, and this keeps it loadable by Ansible itself. Syntax only:
+      # nothing connects to a host. ansible-core is pinned with the other tools.
+      - name: Ansible playbooks parse (GATING)
+        run: >
+          ansible-playbook --syntax-check
+          -i deploy/ansible/compliance/inventory.yml
+          deploy/ansible/compliance/profile-*.yml
+          deploy/ansible/kingdom/site.yml
+
       # bandit is the Python analogue of gosec — security-focused, not style.
       #
       # `-ll` was REMOVED on 2026-08-03. It is a severity filter, and it was

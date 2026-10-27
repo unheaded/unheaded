@@ -143,6 +143,51 @@ func TestRemediationAnsibleStructure(t *testing.T) {
 	}
 }
 
+// S-WELL-SPRING Step 267's actions: no recommends, enable+start, AppArmor
+// enforce (only on its hosts, never over the operator's disable or
+// force-complain), and the two new allowlisted commands.
+func TestRemediationAnsibleHardeningActions(t *testing.T) {
+	m, err := remediation.Parse([]byte(`fixes:
+  - id: h
+    title: t
+    controls: [UH-FIM-01]
+    closes: []
+    risk: low
+    class: package
+    actions:
+      - package: {name: aide, no_recommends: true}
+      - run: "systemctl daemon-reload"
+      - run: "aideinit -y -f"
+      - service: {name: dailyaidecheck.timer, enabled: true, active: true}
+      - apparmor: {enforce: [Xorg], hosts: [west]}
+      - mode: {paths: [/var/log/rocm_smi_lib/ROCm-SMI-lib.log], mode: "0640", owner: root, group: root}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps, err := remediation.NewProfileSet([]remediation.Profile{{Name: "all", All: true}}, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := RenderRemediationAnsible(m, ps, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := out.Files["roles/h/tasks/main.yml"]
+	var tasks []map[string]any
+	if err := yaml.Unmarshal([]byte(body), &tasks); err != nil {
+		t.Fatal(err)
+	}
+	checkTasks(t, "h", tasks)
+	for _, want := range []string{"install_recommends: false", "- daemon-reload", "- aideinit", "state: started",
+		"- aa-enforce", "/etc/apparmor.d/Xorg", "inventory_hostname in ['west']", "/etc/apparmor.d/disable/Xorg",
+		"/etc/apparmor.d/force-complain/Xorg", "/var/log/rocm_smi_lib/ROCm-SMI-lib.log"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("role lacks %q:\n%s", want, body)
+		}
+	}
+}
+
 func TestRemediationAnsibleNeedsModel(t *testing.T) {
 	if _, err := RenderRemediationAnsible(nil, nil, nil); err == nil {
 		t.Error("rendered without a model")

@@ -1,0 +1,31 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# rocm-log-perms: ROCm and AMD SMI library logs not world-writable (CIS 6.1.4.1)
+- block:
+    - ansible.builtin.stat:
+        path: /var/log/rocm_smi_lib/ROCm-SMI-lib.log
+      name: Is /var/log/rocm_smi_lib/ROCm-SMI-lib.log there
+      register: uh_rocm_log_perms_1_1_stat
+    - ansible.builtin.file:
+        group: root
+        mode: "0640"
+        owner: root
+        path: /var/log/rocm_smi_lib/ROCm-SMI-lib.log
+      name: Mode 0640 root:root on /var/log/rocm_smi_lib/ROCm-SMI-lib.log
+      when: uh_rocm_log_perms_1_1_stat.stat.exists
+    - ansible.builtin.stat:
+        path: /var/log/amd_smi_lib/AMD-SMI-lib.log
+      name: Is /var/log/amd_smi_lib/AMD-SMI-lib.log there
+      register: uh_rocm_log_perms_1_2_stat
+    - ansible.builtin.file:
+        group: root
+        mode: "0640"
+        owner: root
+        path: /var/log/amd_smi_lib/AMD-SMI-lib.log
+      name: Mode 0640 root:root on /var/log/amd_smi_lib/AMD-SMI-lib.log
+      when: uh_rocm_log_perms_1_2_stat.stat.exists
+  name: rocm-log-perms
+  rescue:
+    - ansible.builtin.fail:
+        msg: rocm-log-perms failed a check; every file it changed was restored
+      name: Fail after restoring

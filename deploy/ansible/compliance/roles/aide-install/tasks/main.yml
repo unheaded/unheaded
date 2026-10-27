@@ -1,0 +1,74 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# aide-install: AIDE installed with a database and a weekly check (CIS 6.3.1, 6.3.2)
+- block:
+    - ansible.builtin.apt:
+        install_recommends: false
+        name: aide
+        state: present
+      name: Install aide
+    - ansible.builtin.stat:
+        path: /etc/systemd/system/dailyaidecheck.timer.d
+      name: Is /etc/systemd/system/dailyaidecheck.timer.d there
+      register: uh_aide_install_2_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/systemd/system/dailyaidecheck.timer.d
+        state: directory
+      name: Create /etc/systemd/system/dailyaidecheck.timer.d
+      when: not uh_aide_install_2_dir.stat.exists
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # CIS Ubuntu 24.04 6.3.2: AIDE checks weekly. Managed by unheaded-remediate (aide-install).
+          [Timer]
+          OnCalendar=
+          OnCalendar=weekly
+          RandomizedDelaySec=6h
+        dest: /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+      register: uh_aide_install_2_v1
+    - ansible.builtin.command:
+        argv:
+          - systemctl
+          - daemon-reload
+      changed_when: true
+      name: Run systemctl daemon-reload
+    - ansible.builtin.command:
+        argv:
+          - aideinit
+          - -y
+          - -f
+      changed_when: true
+      name: Run aideinit -y -f
+    - ansible.builtin.systemd_service:
+        enabled: true
+        name: dailyaidecheck.timer
+        state: started
+      name: Service dailyaidecheck.timer
+  name: aide-install
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+        remote_src: true
+        src: '{{ uh_aide_install_2_v1.backup_file }}'
+      name: Restore /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+      when: uh_aide_install_2_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+        state: absent
+      name: Remove /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf if this role created it
+      when: uh_aide_install_2_v1 is changed and uh_aide_install_2_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/systemd/system/dailyaidecheck.timer.d
+        state: absent
+      name: Remove /etc/systemd/system/dailyaidecheck.timer.d if this role created it
+      when: not uh_aide_install_2_dir.stat.exists
+    - ansible.builtin.fail:
+        msg: aide-install failed a check; every file it changed was restored
+      name: Fail after restoring

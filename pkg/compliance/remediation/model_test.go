@@ -45,8 +45,8 @@ func TestRepoModelValidAgainstCatalog(t *testing.T) {
 	if err := m.CheckCatalog(repoCatalog(t)); err != nil {
 		t.Fatal(err)
 	}
-	if len(m.Fixes) != 13 {
-		t.Errorf("%d fixes, want the 13 remediate.sh carries", len(m.Fixes))
+	if len(m.Fixes) != 16 {
+		t.Errorf("%d fixes, want 16 (the 13 remediate.sh carried, plus rocm-log-perms, aide-install, apparmor-enforce)", len(m.Fixes))
 	}
 }
 
@@ -241,7 +241,7 @@ func TestModeBits(t *testing.T) {
 // modules the exploit chain loads from being autoloaded, on both hosts,
 // until a fixed kernel ships. Nothing on west or east uses ebtables (LXD
 // filters with nftables; lsmod shows no ebt* module, 2026-10-27).
-// scripts/host/executor_diff_test.go keeps remediate.sh's copy identical.
+// cmd/unheaded-remediate TestExecutorMatchesRetiredScript pins what is written.
 func TestKmodCISCarriesFND011Stopgap(t *testing.T) {
 	m := repoModel(t)
 	var fa *FileAction
@@ -272,5 +272,80 @@ func TestKmodCISCarriesFND011Stopgap(t *testing.T) {
 		if !strings.Contains(got, "FND-011") {
 			t.Errorf("%s: the stopgap lines carry no FND-011 comment", host)
 		}
+	}
+}
+
+// A new optional field must not change the hash of a fix that does not use
+// it: every journal entry already written records the old hash.
+func TestNewFieldsKeepOldFixHashes(t *testing.T) {
+	f := Fix{ID: "apparmor-utils", Title: "t", Controls: []string{"UH-MAC-01"}, Risk: "none", Class: "package",
+		Actions: []Action{{Package: &PackageAction{Name: "apparmor-utils"}}, {Mode: &ModeAction{Paths: []string{"/etc/x"}, Mode: "0600", Owner: "root", Group: "root"}},
+			{Service: &ServiceAction{Name: "x.service", Enabled: new(bool)}}}}
+	got, err := f.SHA256()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// sha256 of this fix's JSON before Step 267 (S-WELL-SPRING) added
+	// apparmor and no_recommends (in pieces: a 64-hex literal reads as a key
+	// to gitleaks).
+	want := strings.Join([]string{"736ed113d64538e1", "87c2023af560955d", "db6253bc849eff93", "51a4319cd7f96f53"}, "")
+	if got != want {
+		t.Errorf("hash %s, want %s", got, want)
+	}
+}
+
+// Step 267 (S-WELL-SPRING): the action set grows by what rocm-log-perms,
+// aide-install and apparmor-enforce need, and by nothing broader.
+func TestParseAcceptsHardeningActions(t *testing.T) {
+	for name, a := range map[string]string{
+		"mode on a log file":         "      - mode: {paths: [/var/log/rocm_smi_lib/ROCm-SMI-lib.log], mode: \"0640\", owner: root, group: root}\n",
+		"package without recommends": "      - package: {name: aide, no_recommends: true}\n",
+		"apparmor enforce":           "      - apparmor: {enforce: [Xorg]}\n",
+		"apparmor enforce on a host": "      - apparmor: {enforce: [Xorg, usr.sbin.cupsd], hosts: [west]}\n",
+		"aideinit":                   "      - run: \"aideinit -y -f\"\n",
+		"daemon-reload":              "      - run: \"systemctl daemon-reload\"\n",
+		"enable a timer":             "      - service: {name: dailyaidecheck.timer, enabled: true, active: true}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Parse([]byte(minimal + a)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestParseRejectsHardeningActionAbuse(t *testing.T) {
+	for name, a := range map[string]string{
+		"mode outside /etc and /var/log": "      - mode: {paths: [/usr/bin/sudo], mode: \"0640\", owner: root, group: root}\n",
+		"mode dotdot out of /var/log":    "      - mode: {paths: [/var/log/../lib/x], mode: \"0640\", owner: root, group: root}\n",
+		"mode on /var/log itself":        "      - mode: {paths: [/var/log], mode: \"0640\", owner: root, group: root}\n",
+		"glob under /var/log":            "      - mode: {glob: \"/var/log/*\", mode: \"0640\", owner: root, group: root}\n",
+		"file under /var/log":            "      - file: {path: /var/log/x, mode: \"0644\", parts: [{text: a}]}\n",
+		"absent under /var/log":          "      - absent: /var/log/x\n",
+		"apparmor nothing to enforce":    "      - apparmor: {enforce: []}\n",
+		"apparmor path in a name":        "      - apparmor: {enforce: [\"../shadow\"]}\n",
+		"apparmor hidden name":           "      - apparmor: {enforce: [\".x\"]}\n",
+		"apparmor unknown host":          "      - apparmor: {enforce: [Xorg], hosts: [north]}\n",
+		"apparmor named twice":           "      - apparmor: {enforce: [Xorg, Xorg]}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Parse([]byte(minimal + a)); !errors.Is(err, ErrInvalidModel) {
+				t.Fatalf("got %v, want ErrInvalidModel", err)
+			}
+		})
+	}
+}
+
+func TestAppArmorProfilesForHost(t *testing.T) {
+	a := &AppArmorAction{Enforce: []string{"Xorg"}, Hosts: []string{"west"}}
+	if got := a.ProfilesFor("west"); len(got) != 1 || got[0] != "Xorg" {
+		t.Errorf("west: %v", got)
+	}
+	if got := a.ProfilesFor("east"); len(got) != 0 {
+		t.Errorf("east: %v", got)
+	}
+	all := &AppArmorAction{Enforce: []string{"Xorg"}}
+	if got := all.ProfilesFor("east"); len(got) != 1 {
+		t.Errorf("no hosts means every host: %v", got)
 	}
 }

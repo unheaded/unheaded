@@ -340,7 +340,7 @@ func TestComplianceProfiles_ReadOnlyFromTheRepoFallback(t *testing.T) {
 	fixes, _ := body["fixes"].([]any)
 	profiles, _ := body["profiles"].([]any)
 	bindings, _ := body["bindings"].([]any)
-	if len(fixes) != 13 || len(profiles) != 5 || len(bindings) != 2 {
+	if len(fixes) != 16 || len(profiles) != 5 || len(bindings) != 2 { // 13 + rocm-log-perms, aide-install, apparmor-enforce (S-WELL-SPRING Step 267)
 		t.Fatalf("%d fixes, %d profiles, %d bindings", len(fixes), len(profiles), len(bindings))
 	}
 	for _, p := range profiles {

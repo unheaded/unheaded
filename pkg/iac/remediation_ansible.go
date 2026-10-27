@@ -113,6 +113,8 @@ var argvFor = map[string][]string{
 	"augenrules --load":            {"augenrules", "--load"},
 	"systemctl restart systemd-journald.service": {"systemctl", "restart", "systemd-journald.service"},
 	"systemctl restart chrony.service":           {"systemctl", "restart", "chrony.service"},
+	"systemctl daemon-reload":                    {"systemctl", "daemon-reload"},
+	"aideinit -y -f":                             {"aideinit", "-y", "-f"},
 }
 
 const auditdHalt = `(?im)^[ \t]*(disk_full_action|disk_error_action|admin_space_left_action)[ \t]*=[ \t]*halt`
@@ -189,13 +191,21 @@ func fixTasks(f remediation.Fix) ([]any, error) {
 			}
 			if a.Service.Active != nil && !*a.Service.Active || a.Service.Enabled != nil && !*a.Service.Enabled {
 				svc["state"] = "stopped"
+			} else if a.Service.Active != nil && *a.Service.Active {
+				svc["state"] = "started"
 			}
 			if a.Service.Masked != nil {
 				svc["masked"] = *a.Service.Masked
 			}
 			body = append(body, task{"name": "Service " + a.Service.Name, "ansible.builtin.systemd_service": svc})
 		case a.Package != nil:
-			body = append(body, task{"name": "Install " + a.Package.Name, "ansible.builtin.apt": task{"name": a.Package.Name, "state": "present"}})
+			apt := task{"name": a.Package.Name, "state": "present"}
+			if a.Package.NoRecommends {
+				apt["install_recommends"] = false
+			}
+			body = append(body, task{"name": "Install " + a.Package.Name, "ansible.builtin.apt": apt})
+		case a.AppArmor != nil:
+			body = append(body, apparmorTasks(a.AppArmor, reg)...)
 		case a.Run != "":
 			argv, ok := argvFor[a.Run]
 			if !ok {
@@ -230,7 +240,13 @@ func fixTasks(f remediation.Fix) ([]any, error) {
 	for _, g := range groups {
 		pre = append(pre, task{"name": "Members of group " + g, "ansible.builtin.getent": task{"database": "group", "key": g}})
 	}
-	rescue = append(rescue, task{"name": "Fail after restoring", "ansible.builtin.fail": task{"msg": f.ID + " failed a check; every file it changed was restored"}})
+	msg := f.ID + " failed a check; every file it changed was restored"
+	for _, a := range f.Actions {
+		if a.AppArmor != nil {
+			msg = f.ID + " failed; profiles aa-enforce already rewrote stay in enforce (unheaded-remediate undo restores them)"
+		}
+	}
+	rescue = append(rescue, task{"name": "Fail after restoring", "ansible.builtin.fail": task{"msg": msg}})
 	return append(pre, task{"name": f.ID, "block": body, "rescue": rescue}), nil
 }
 
@@ -322,6 +338,49 @@ func fileTasks(fa *remediation.FileAction, reg string) ([]any, []string, bool, s
 		}
 	}
 	return out, regs, usesFact, "", nil
+}
+
+// apparmorTasks renders an AppArmor enforce action as the executor runs
+// it: a profile not installed is skipped, one the operator put in disable/
+// or force-complain/ fails the role, the rest go through aa-enforce. The
+// rescue cannot put back the flags aa-enforce rewrote (unheaded-remediate
+// undo can: it backs the profile file up first).
+func apparmorTasks(aa *remediation.AppArmorAction, reg string) []any {
+	var out []any
+	onHost := ""
+	if len(aa.Hosts) > 0 {
+		onHost = "inventory_hostname in ['" + strings.Join(aa.Hosts, "', '") + "']"
+	}
+	and := func(conds ...string) string {
+		var keep []string
+		for _, c := range conds {
+			if c != "" {
+				keep = append(keep, c)
+			}
+		}
+		return strings.Join(keep, " and ")
+	}
+	withWhen := func(t task, when string) task {
+		if when != "" {
+			t["when"] = when
+		}
+		return t
+	}
+	for j, name := range aa.Enforce {
+		r := fmt.Sprintf("%s_%d", reg, j+1)
+		p := "/etc/apparmor.d/" + name
+		out = append(out,
+			withWhen(task{"name": "Is " + p + " there", "ansible.builtin.stat": task{"path": p}, "register": r + "_stat"}, onHost),
+			withWhen(task{"name": "Is " + name + " disabled by the operator", "ansible.builtin.stat": task{"path": "/etc/apparmor.d/disable/" + name}, "register": r + "_disabled"}, onHost),
+			withWhen(task{"name": "Is " + name + " forced to complain by the operator", "ansible.builtin.stat": task{"path": "/etc/apparmor.d/force-complain/" + name}, "register": r + "_complain"}, onHost),
+			withWhen(task{"name": name + " is the operator's to leave as it is", "ansible.builtin.assert": task{
+				"that":     []string{"not " + r + "_disabled.stat.exists", "not " + r + "_complain.stat.exists"},
+				"fail_msg": "profile " + name + " is in /etc/apparmor.d/disable or force-complain; not enforcing it"}},
+				and(onHost, r+"_stat.stat.exists")),
+			withWhen(task{"name": "Enforce " + name, "ansible.builtin.command": task{"argv": []string{"aa-enforce", p}}, "changed_when": true},
+				and(onHost, r+"_stat.stat.exists")))
+	}
+	return out
 }
 
 func regexpQuote(s string) string {

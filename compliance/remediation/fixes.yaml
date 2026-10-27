@@ -2,14 +2,21 @@
 # because fixes run as root and must change only by signed commit; mirrored
 # into The Well (unheaded_config.compliance_fixes) by sha256 for display and
 # query. Actions come from a closed set (file, setting, mode, service,
-# package, absent, run, validate); `run`/`validate`/`precheck` values come
-# from a fixed allowlist in pkg/compliance/remediation.
+# package, apparmor, absent, run, validate); `run`/`validate`/`precheck`
+# values come from a fixed allowlist in pkg/compliance/remediation.
 #
 # A file's content is an ordered list of parts. A part may name the hosts it
 # is for, or a fact under which it is left out; or the whole content comes
-# from a named generator. Rendering is checked against what
-# scripts/host/remediate.sh writes (TestModelMatchesRemediateScript), and
-# the script stays authoritative until the native executor replaces it.
+# from a named generator. `closes` lists the baseline checks (evidence-source
+# keys) a fix makes pass: enforcing mode maps a deviation to its fix by it.
+#
+# unheaded-remediate applies these (list, check, plan, apply, undo,
+# -record-existing). scripts/host/remediate.sh was retired on parity
+# 2026-10-27 (S-WELL-SPRING Step 270): what it wrote for the first 13 fixes
+# is kept in cmd/unheaded-remediate/testdata/parity and the executor is
+# tested against it. The "Managed by scripts/host/remediate.sh" lines in
+# file content stay: changing them would change each applied fix's hash and
+# the files on the hosts.
 
 fixes:
   - id: sysctl-cis
@@ -374,3 +381,59 @@ fixes:
               text: |
                 server 192.168.13.2 iburst
       - run: "systemctl restart chrony.service"
+
+  - id: rocm-log-perms
+    title: ROCm and AMD SMI library logs not world-writable (CIS 6.1.4.1)
+    controls: [UH-LOG-02]
+    closes: []
+    risk: none
+    class: fileperm
+    note: >-
+      The ROCm and AMD SMI libraries created their logs world-writable on west (next.md S14). A log that is not there
+      (east has no ROCm) is skipped. A library that recreates its log uses its own mode, so var-log-perms (UH-LOG-02)
+      keeps watching. Read 2026-10-27: both logs on west were already 0640 root:root, so this fix is recorded, not
+      applied (unheaded-remediate -record-existing).
+    actions:
+      - mode: {paths: [/var/log/rocm_smi_lib/ROCm-SMI-lib.log, /var/log/amd_smi_lib/AMD-SMI-lib.log], mode: "0640", owner: root, group: root}
+
+  - id: aide-install
+    title: AIDE installed with a database and a weekly check (CIS 6.3.1, 6.3.2)
+    controls: [UH-FIM-01]
+    closes: ["host-probe:*:aide-installed", "host-probe:*:aide-timer"]
+    risk: low
+    class: package
+    note: >-
+      Recommends are left out: aide-common recommends a mail transport agent, which mta-local-only would then flag.
+      aideinit hashes the whole filesystem once (minutes of disk I/O; run it in the host window). Ubuntu's
+      dailyaidecheck.timer runs weekly through a drop-in: a daily full scan of west (models, build trees) costs more
+      than it tells. Undo removes the package, the drop-in and the timer; the database in /var/lib/aide stays.
+    actions:
+      - package: {name: aide, no_recommends: true}
+      - file:
+          path: /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+          mode: "0644"
+          parts:
+            - text: |
+                # CIS Ubuntu 24.04 6.3.2: AIDE checks weekly. Managed by unheaded-remediate (aide-install).
+                [Timer]
+                OnCalendar=
+                OnCalendar=weekly
+                RandomizedDelaySec=6h
+      - run: "systemctl daemon-reload"
+      - run: "aideinit -y -f"
+      - service: {name: dailyaidecheck.timer, enabled: true, active: true}
+
+  - id: apparmor-enforce
+    title: AppArmor profiles shipped in complain mode put in enforce (CIS 1.3.1.4)
+    controls: [UH-MAC-01]
+    closes: []
+    risk: medium
+    class: mac
+    note: >-
+      Read 2026-10-27: the only profile file with flags=(complain) on west and east is Xorg, and no Xorg runs on either
+      host. Ubuntu's flags=(unconfined) profiles (browsers, editors: user-namespace permission only) are not listed:
+      enforcing one confines its program to almost nothing. A profile in /etc/apparmor.d/disable or force-complain is
+      the operator's choice and is refused. Profiles are named by their file in /etc/apparmor.d; an action can be
+      limited to some hosts.
+    actions:
+      - apparmor: {enforce: [Xorg]}

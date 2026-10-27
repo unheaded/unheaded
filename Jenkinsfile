@@ -288,7 +288,8 @@ EOF
               . scripts/lib/deb-maintscripts.sh
               deb_postinst ${PKG_NAME} > ${PKG_DIR}/DEBIAN/postinst
               deb_prerm ${PKG_NAME} > ${PKG_DIR}/DEBIAN/prerm
-              chmod 755 ${PKG_DIR}/DEBIAN/postinst ${PKG_DIR}/DEBIAN/prerm
+              deb_preinst ${PKG_NAME} > ${PKG_DIR}/DEBIAN/preinst
+              chmod 755 ${PKG_DIR}/DEBIAN/postinst ${PKG_DIR}/DEBIAN/prerm ${PKG_DIR}/DEBIAN/preinst
               deb_conffiles ${svc_bin} ${PKG_DIR} .
 
               # root:root inside the package, not the Jenkins agent's uid.
