@@ -78,6 +78,7 @@ func main() {
 		auditWell    = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
 		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
 		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
+		memoryStore  = flag.String("memory-store", "none", "memory backend for /api/v1/memory/recall and /remember (zhen-cli /recall, /remember): none (503) | pg (unheaded_app.zhen_memories, DSN from env WELL_APP_ZHEN_DSN)")
 		askTokens    = flag.Bool("ask-tokens", false, "legacy: return pending-confirmation tokens in /api/v1/agent/ask traces. Only for a listener no model can reach; by default /ask queues (-confirm-queue) or denies such writes and returns no token")
 	)
 	var wf workerFlags
@@ -167,6 +168,12 @@ func main() {
 		fatal("kanban-store init: %v", err)
 	}
 	pool := newChampionPool(store, kStore)
+	mem, closeMem, err := buildMemoryStore(context.Background(), *memoryStore)
+	if err != nil {
+		fatal("memory-store init: %v", err)
+	}
+	defer closeMem()
+	pool.memory = mem
 	gcCtx, stopGC := context.WithCancel(context.Background())
 	defer stopGC()
 	pool.gcCtx = gcCtx // RT-04: confirmation tokens are swept on a ticker
@@ -226,6 +233,7 @@ func main() {
 		llamaURL:    llamaURL,
 		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
 		askTokens:   *askTokens,
+		memory:      mem,
 	}
 	if queue != nil {
 		srv.confirmQueue = queue
@@ -246,6 +254,9 @@ func main() {
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
 	mux.Handle("/api/v1/tool/exec", instrument("/api/v1/tool/exec", http.HandlerFunc(srv.handleToolExec)))
 	mux.Handle("/api/v1/openapi.json", instrument("/api/v1/openapi.json", http.HandlerFunc(srv.handleOpenAPI)))
+	mux.Handle("/api/v1/memory/recall", instrument("/api/v1/memory/recall", http.HandlerFunc(srv.handleMemoryRecall)))
+	mux.Handle("/api/v1/memory/remember", instrument("/api/v1/memory/remember", http.HandlerFunc(srv.handleMemoryRemember)))
+	mux.Handle("/api/v1/models", instrument("/api/v1/models", http.HandlerFunc(srv.handleModels)))
 
 	// Outer middleware chain (innermost-last):
 	//   rate-limit  →  auth  →  mux
@@ -430,6 +441,7 @@ type server struct {
 	vorURL    string
 	llamaURL  string
 	ready     *readyTracker
+	memory    champion.MemoryStore // nil: /api/v1/memory/* answer 503
 }
 
 // championPool caches *champion.Champion instances keyed by absolute
@@ -441,6 +453,7 @@ type championPool struct {
 	mu     sync.Mutex
 	store  champion.ActionStore
 	kanban champion.KanbanStore // nil → kanban_* tool calls fail at dispatch
+	memory champion.MemoryStore // nil → memory_write fails at dispatch
 	cache  map[string]*champion.Champion
 	// gcCtx, when set, starts each new Champion's confirmation-token GC
 	// (RT-04); it ends with the daemon.
@@ -475,6 +488,10 @@ func (p *championPool) get(root string) (*champion.Champion, error) {
 	if p.kanban != nil {
 		c = c.WithKanbanStore(p.kanban)
 	}
+	if p.memory != nil {
+		c = c.WithMemoryStore(p.memory)
+	}
+	c = c.WithModelSwapObserver(observeModelSwap)
 	if p.gcCtx != nil && p.startGC != nil {
 		p.startGC(p.gcCtx, c)
 	}

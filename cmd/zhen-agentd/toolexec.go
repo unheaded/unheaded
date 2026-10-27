@@ -190,6 +190,14 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 		Principal:     requestPrincipal(r), // RT-03: a pending token is bound to it
 	}
 
+	s.dispatchAndRespond(w, r, champ, tc, req.SessionID)
+}
+
+// dispatchAndRespond runs tc through the Champion gate and answers with
+// the /api/v1/tool/exec response shapes (also used by
+// /api/v1/memory/remember).
+func (s *server) dispatchAndRespond(w http.ResponseWriter, r *http.Request, champ *champion.Champion, tc champion.ToolCall, session string) {
+	emittedBy := tc.EmittedBy
 	out, dispatchErr := champ.Dispatch(r.Context(), tc)
 
 	if dispatchErr == nil {
@@ -198,7 +206,7 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, toolExecResponse{
 			Status:    "ok",
 			Result:    out,
-			SessionID: req.SessionID,
+			SessionID: session,
 		})
 		return
 	}
@@ -207,7 +215,7 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 	var ge *champion.GateError
 	if errors.As(dispatchErr, &ge) {
 		if ge.PendingConfirmation() && isAgentLoop(emittedBy) {
-			s.queueAgentCall(w, r, champ, tc, req.SessionID, ge)
+			s.queueAgentCall(w, r, champ, tc, session, ge)
 			return
 		}
 		if ge.PendingConfirmation() {
@@ -225,7 +233,7 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 				Status:       "pending_confirmation",
 				PendingToken: tok,
 				Reason:       ge.Error(),
-				SessionID:    req.SessionID,
+				SessionID:    session,
 			})
 			return
 		}
@@ -233,7 +241,7 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, toolExecResponse{
 			Status:    "denied",
 			Reason:    ge.Error(),
-			SessionID: req.SessionID,
+			SessionID: session,
 		})
 		return
 	}
@@ -244,7 +252,7 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusInternalServerError, toolExecResponse{
 		Status:    "error",
 		Reason:    dispatchErr.Error(),
-		SessionID: req.SessionID,
+		SessionID: session,
 	})
 }
 

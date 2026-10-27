@@ -159,6 +159,13 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 		}
 		return c.ModelSwap(ctx, key)
 
+	case "memory_write":
+		m, err := memoryWriteCall(tc)
+		if err != nil {
+			return nil, err
+		}
+		return c.RememberMemory(ctx, m)
+
 	default:
 		// Unknown / unimplemented tool: fail closed even though the gate
 		// didn't reject — the gate's IsMutating() defaults unknown to
@@ -176,7 +183,7 @@ var dispatchable = map[string]bool{
 	"read_file": true, "write_file": true, "patch_file": true,
 	"kanban_create": true, "kanban_update": true, "kanban_list": true,
 	"runbook_list": true, "runbook_show": true, "runbook_execute": true,
-	"run_check": true, "model_switch": true,
+	"run_check": true, "model_switch": true, "memory_write": true,
 }
 
 // GateError wraps a ToolCallDecision when AcceptToolCall returns a

@@ -122,6 +122,8 @@ Prometheus exposition format. Always 200 once the listener is up. Bypasses auth 
 | `zhen_agentd_confirm_tokens_issued_total` | (counter) | pending-confirm tokens produced |
 | `zhen_agentd_confirm_tokens_redeemed_total` | outcome (ok / expired / unknown / used / denied / error) | confirm-flow outcomes |
 | `zhen_agentd_rate_limited_requests_total` | (counter) | 429 responses |
+| `zhen_model_swap_duration_seconds` | key, outcome (ok / failed / rolled_back) | every `model_switch` (ADR-060) |
+| `zhen_model_swap_failures_total` | reason (timeout / refused / error) | failed swaps; a timeout is rolled back to the model that was serving when it still can be |
 
 ### `POST /api/v1/agent/ask/stream`
 
@@ -189,6 +191,12 @@ Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec`
 | 403 | `{"status":"denied","reason":"destructive shell verbs cannot be confirmed; refused"}` | Rule 3 fires post-confirm |
 | 403 | `{"status":"denied","reason":"path-allowlist (still enforced after confirm): ..."}` | Rule 1 fires post-confirm |
 
+### Memory and models (zhen-cli `/recall`, `/remember`, `/model`; ADR-059 Phase 2b/3)
+
+- `GET /api/v1/memory/recall?q=<text>&k=<1..20>` → `{"memories":[{"id","question","answer","source","model","created_at","score"}]}`, ranked by Postgres full-text search over `unheaded_app.zhen_memories`. `source` is the provenance: the principal that wrote the row (`ui:<subject>`), or `user` for rows the web app wrote. 503 without `-memory-store pg`.
+- `POST /api/v1/memory/remember` `{"question","answer","model","emitted_by"}` → the `/api/v1/tool/exec` shapes. Runs the mutating Champion tool `memory_write`: an authenticated caller's request carries a direct-user justification, Rule 3 refuses destructive verbs in the text (16 KiB cap per field), and a request with no authenticated principal is refused (a token it got could never be confirmed).
+- `GET /api/v1/models` → `scripts/switch-model.sh --json --status` under `-project-root`: the key llama-server serves and the allowlisted keys with their documented load times. A swap is `POST /api/v1/tool/exec` `{"tool":"model_switch","args":{"key":...}}`; it gets 4x the key's documented load time plus the GPU lease wait (`GPU_LEASE_TIMEOUT`, default 60 s here), then the previous model is started again (ADR-060 T19).
+
 ## Flags
 
 | Flag | Default | Purpose |
@@ -203,6 +211,7 @@ Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec`
 | `-no-auth` | off | serve without authentication: only with a loopback `-host` and `AUTH_ENABLED` unset (dev). Without it the daemon exits 2 unless auth is configured (see Auth) |
 | `-rate-burst <n>` | 10 | per-IP burst capacity (only used when `-rate-limit > 0`) |
 | `-confirm-queue` | off | queue agent-loop writes refused pending confirmation in the Well (`WELL_APP_ZHEN_DSN`) instead of denying them |
+| `-memory-store <kind>` | `none` | memory backend for `/api/v1/memory/*`: `none` (503) or `pg` (`unheaded_app.zhen_memories` as app_zhen, DSN from `WELL_APP_ZHEN_DSN`; unreachable at start = exit) |
 | `-ask-tokens` | off | legacy: put `pending_token` in `/ask` traces (only for a listener no model can reach) |
 | `-worker` | off | work eligible Kanban cards from the Well into local `zhen/<card>` branches ([wiki/Zhen-Agents.md](../../wiki/Zhen-Agents.md)); `-once`, `-poll`, `-base`, `-agent-root`, `-review-dir`, `-routing`, `-checks`, `-claude fake\|live`, `-ledger`, `-daily-cap-usd`, `-privacy` |
 | `-overnight` | off | with `-worker`: one unattended night inside `-window` (01:00-07:00), then a morning report (`-report-dir`) and exit; `-max-cards`, its own ledger and cap, a memory floor without swap, `-stop-file`, strict privacy (wiki/Zhen-Agents.md, "Overnight mode") |
@@ -252,7 +261,7 @@ export AUTH_JWT_ISSUER="https://auth.unheaded.dev"
 export AUTH_JWT_AUDIENCE="zhen-agentd"
 ```
 
-Callers send `X-API-Key: <one of AUTH_API_KEYS>` (or `Authorization: Bearer <JWT>`). `zhen-cli` reads the key from `ZHEN_AGENTD_API_KEY`.
+Callers send `X-API-Key: <one of AUTH_API_KEYS>` (or `Authorization: Bearer <JWT>`). `zhen-cli` reads the key from `ZHEN_API_KEY` (or `ZHEN_AGENTD_API_KEY`, the web UI's name), else `api_key = <key>` in `~/.config/unheaded/zhen-cli.conf` (refused unless mode 0600), and sends it as both `X-API-Key` and `Authorization: Bearer`.
 
 Wires `pkg/auth.SetupMiddleware` (see `pkg/auth/README.md` for the full auth design). When enabled:
 

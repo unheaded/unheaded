@@ -15,6 +15,21 @@
 #   ./scripts/switch-model.sh --dry-run <model-key>  # sha256 pin + fit check; swaps nothing
 #   ./scripts/switch-model.sh --stop      # stop llama-server on LLAMA_PORT, load nothing
 #   ./scripts/switch-model.sh --no-verify <model-key>  # skip the sha256 pin (experiments only; logged)
+#   ./scripts/switch-model.sh --status    # what llama-server serves now + the keys; no lease
+#   ./scripts/switch-model.sh --json [--status|--list]  # the same as one JSON object
+#   ./scripts/switch-model.sh --json --check|--dry-run <model-key>  # verdict as JSON
+#
+# --json (ADR-060 T19 / Consequences): machine-readable output for
+# zhen-agentd, which reads this and never the human lines. One object on
+# stdout, the human lines on stderr, the exit code unchanged:
+#   {"active":"qwen-7b"|null,"pid":N|null,"port":8081,"gguf":path|null,
+#    "models":[{"key","name","file","present","pinned","load_seconds"}],
+#    "fit":null|{"key","verdict":"fits"|"refused","weights_mib","need_mib",
+#                "budget_mib","cache_ram_mib","ram_avail_mib","vram_free_mib","offload"},
+#    "pin":"ok"|"mismatch"|"missing"|"unhashable"|"skipped" (--dry-run only),
+#    "decision":"fits"|"would_swap"|"refused_fit"|"refused_pin" (--check/--dry-run)}
+# --status/--list take no GPU lease (they read ss and /proc only). --json
+# with a real swap is refused (exit 2): a swap's result is its exit code.
 #
 # Model pins (RT-15): every GGUF's sha256 is pinned in scripts/lib/model-pins.sh.
 # A swap (and --dry-run) hashes the file and refuses, exit 4, when the hash
@@ -57,10 +72,6 @@
 # ~30-90 second gap while the new model loads.
 
 set -euo pipefail
-
-if [[ "${GPU_LEASE_HELD:-}" != exclusive ]]; then
-    exec "$(dirname "${BASH_SOURCE[0]}")/lib/gpu-lease.sh" exclusive "${GPU_LEASE_TIMEOUT:-600}" -- "${BASH_SOURCE[0]}" "$@"
-fi
 
 # llama_cache_ram_mib: the --cache-ram a flag string asks for (default 8192).
 # shellcheck source=scripts/lib/llama-cache-ram.sh
@@ -118,6 +129,17 @@ MODEL_NAME[deepseek]="deepseek-coder-v2-lite-instruct"
 MODEL_NAME[deepseek-cpu]="deepseek-coder-v2-lite-cpu-moe"
 MODEL_NAME[qwen-coder-14b]="qwen2.5-coder-14b-instruct"
 
+# Documented load time per key, seconds (ADR-060 T19): zhen-agentd gives a
+# swap 4x this, plus the GPU lease wait, then rolls back to the model that
+# was serving. Measured 2026-05-04 (ADR-060 Context): qwen-7b ~45 s warm,
+# deepseek-cpu ~142 s. deepseek and qwen-coder-14b are estimates (not
+# measured here); replace them with a measured "healthy after Ns".
+declare -A MODEL_LOAD_SECONDS
+MODEL_LOAD_SECONDS[qwen-7b]=45
+MODEL_LOAD_SECONDS[deepseek]=90
+MODEL_LOAD_SECONDS[deepseek-cpu]=142
+MODEL_LOAD_SECONDS[qwen-coder-14b]=120
+
 # PID of the llama-server listening on LLAMA_PORT, or nothing (exit 0 either
 # way: under set -e/pipefail a no-match must not end the script).
 # The port is matched exactly at the end of ss's local-address field
@@ -156,6 +178,143 @@ stop_llama() {
     return 1
 }
 
+# model_keys: the MODEL_FILE keys in declaration order (bash associative
+# arrays have none; this is the order zhen-agentd's allowlist parser sees).
+model_keys() {
+    grep -oE '^MODEL_FILE\[[a-z0-9][a-z0-9-]*\]=' "${BASH_SOURCE[0]}" \
+        | sed -E 's/^MODEL_FILE\[(.*)\]=$/\1/' | awk '!seen[$0]++'
+}
+
+# json_str <s>: s as a JSON string (backslash and quote escaped, control
+# characters dropped).
+json_str() {
+    local s=${1//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=$(printf '%s' "$s" | tr -d '\001-\037')
+    printf '"%s"' "$s"
+}
+
+# active_model: ACTIVE_PID, ACTIVE_GGUF and ACTIVE_KEY for the llama-server
+# on LLAMA_PORT, read from its /proc cmdline. Two keys can share a GGUF
+# (deepseek, deepseek-cpu): the key whose MODEL_FLAGS appear in the command
+# line wins, else the first. Empty when nothing listens or it is unreadable.
+active_model() {
+    ACTIVE_PID=$(llama_pid)
+    ACTIVE_GGUF=""
+    ACTIVE_KEY=""
+    if [[ -z "$ACTIVE_PID" || ! -r "/proc/$ACTIVE_PID/cmdline" ]]; then
+        return 0
+    fi
+    local -a argv=()
+    mapfile -d '' argv < "/proc/$ACTIVE_PID/cmdline" 2>/dev/null || true
+    local i k first="" joined=" ${argv[*]} "
+    for ((i = 0; i + 1 < ${#argv[@]}; i++)); do
+        if [[ "${argv[i]}" == --model || "${argv[i]}" == -m ]]; then
+            ACTIVE_GGUF=${argv[i+1]}
+        fi
+    done
+    if [[ -z "$ACTIVE_GGUF" ]]; then
+        return 0
+    fi
+    for k in $(model_keys); do
+        [[ "$(basename "$ACTIVE_GGUF")" == "${MODEL_FILE[$k]}" ]] || continue
+        [[ -n "$first" ]] || first=$k
+        if [[ "$joined" == *" ${MODEL_FLAGS[$k]} "* ]]; then
+            ACTIVE_KEY=$k
+            return 0
+        fi
+    done
+    ACTIVE_KEY=$first
+}
+
+# print_status_json [fit-json] [pin] [decision]: the --json object.
+print_status_json() {
+    active_model
+    local k sep="" present pinned active=null gguf=null
+    [[ -z "$ACTIVE_KEY" ]] || active=$(json_str "$ACTIVE_KEY")
+    [[ -z "$ACTIVE_GGUF" ]] || gguf=$(json_str "$ACTIVE_GGUF")
+    printf '{"active":%s,"pid":%s,"port":%s,"gguf":%s,"models":[' \
+        "$active" "${ACTIVE_PID:-null}" "$LLAMA_PORT" "$gguf"
+    for k in $(model_keys); do
+        present=false
+        pinned=false
+        [[ ! -f "$MODELS_DIR/${MODEL_FILE[$k]}" ]] || present=true
+        [[ -z "${MODEL_SHA256[$k]:-}" ]] || pinned=true
+        printf '%s{"key":%s,"name":%s,"file":%s,"present":%s,"pinned":%s,"load_seconds":%s}' \
+            "$sep" "$(json_str "$k")" "$(json_str "${MODEL_NAME[$k]:-}")" "$(json_str "${MODEL_FILE[$k]}")" \
+            "$present" "$pinned" "${MODEL_LOAD_SECONDS[$k]:-0}"
+        sep=,
+    done
+    printf '],"fit":%s' "${1:-null}"
+    if [[ -n "${2:-}" ]]; then
+        printf ',"pin":%s' "$(json_str "$2")"
+    fi
+    if [[ -n "${3:-}" ]]; then
+        printf ',"decision":%s' "$(json_str "$3")"
+    fi
+    printf '}\n'
+}
+
+# print_status: --status for a person.
+print_status() {
+    active_model
+    local k mark missing
+    if [[ -n "$ACTIVE_PID" ]]; then
+        echo "llama-server on :$LLAMA_PORT: pid $ACTIVE_PID, ${ACTIVE_KEY:-unknown key} (${ACTIVE_GGUF:-cmdline unreadable})"
+    else
+        echo "llama-server on :$LLAMA_PORT: not running"
+    fi
+    for k in $(model_keys); do
+        mark=" "
+        missing=""
+        [[ "$k" != "$ACTIVE_KEY" ]] || mark="*"
+        [[ -f "$MODELS_DIR/${MODEL_FILE[$k]}" ]] || missing="  (file missing)"
+        printf '%s %-16s %-36s load ~%ss%s\n' "$mark" "$k" "${MODEL_NAME[$k]:-}" "${MODEL_LOAD_SECONDS[$k]:-?}" "$missing"
+    done
+}
+
+# Read-only modes, before the GPU lease: --status, --list, and --json with
+# nothing else. --json elsewhere only with --check or --dry-run.
+JSON=0
+STATUS=0
+WANTS_KEY_MODE=0
+for a in "$@"; do
+    case "$a" in
+        --json) JSON=1 ;;
+        --status|--list) STATUS=1 ;;
+        --check|--dry-run) WANTS_KEY_MODE=1 ;;
+    esac
+done
+if (( STATUS )) || [[ "$*" == "--json" ]]; then
+    if (( JSON )); then
+        print_status_json
+    else
+        print_status
+    fi
+    exit 0
+fi
+if (( JSON && ! WANTS_KEY_MODE )); then
+    echo "--json works with --status, --list, --check and --dry-run; a swap reports by its exit code" >&2
+    exit 2
+fi
+
+if [[ "${GPU_LEASE_HELD:-}" != exclusive ]]; then
+    exec "$(dirname "${BASH_SOURCE[0]}")/lib/gpu-lease.sh" exclusive "${GPU_LEASE_TIMEOUT:-600}" -- "${BASH_SOURCE[0]}" "$@"
+fi
+
+# --json: the object goes to the original stdout (fd 3), everything a
+# person reads goes to stderr.
+if (( JSON )); then
+    exec 3>&1 1>&2
+fi
+
+# json_out [fit-json] [pin] [decision]: the --json object, when asked for.
+json_out() {
+    if (( JSON )); then
+        print_status_json "$@" >&3
+    fi
+}
+
 if [[ "${1:-}" == "--stop" ]]; then
     stop_llama
     exit $?
@@ -174,12 +333,13 @@ while [[ $# -gt 0 ]]; do
         # (0 = would swap, 3 = would not fit, 4 = pin refused). Starts nothing.
         --dry-run) DRY_RUN=1; shift ;;
         --no-verify) NO_VERIFY=1; shift ;;
+        --json) shift ;;
         *) break ;;
     esac
 done
 
 if [[ $# -lt 1 ]]; then
-    echo "usage: $0 [--no-verify] <model-key> | --check <model-key> | --dry-run <model-key> | --stop" >&2
+    echo "usage: $0 [--no-verify] <model-key> | [--json] --check <model-key> | [--json] --dry-run <model-key> | --stop | [--json] --status" >&2
     echo "available keys:" >&2
     for k in "${!MODEL_FILE[@]}"; do
         echo "  $k → $MODELS_DIR/${MODEL_FILE[$k]}" >&2
@@ -203,8 +363,10 @@ fi
 
 # ─────────────────────── sha256 pin (RT-15) ───────────────────────
 # Before anything is stopped, so a refusal leaves the running model up.
+PIN_STATE=""
 if (( ! CHECK_ONLY )); then
     if (( NO_VERIFY )); then
+        PIN_STATE=skipped
         msg="--no-verify: loading '$KEY' ($GGUF) WITHOUT its sha256 pin (user $(id -un))"
         echo "[switch-model] WARNING: $msg" >&2
         logger -t switch-model -- "$msg" 2>/dev/null || true
@@ -213,15 +375,20 @@ if (( ! CHECK_ONLY )); then
         pin_rc=0
         verify_model_pin "$KEY" "$GGUF" || pin_rc=$?
         if (( pin_rc != 0 )); then
+            PIN_STATE=mismatch
             if (( pin_rc == 5 )); then
+                PIN_STATE=missing
                 echo "[switch-model] ✗ no sha256 pin for $KEY: refusing (add MODEL_SHA256[$KEY] to scripts/lib/model-pins.sh)" >&2
             elif (( pin_rc == 6 )); then
+                PIN_STATE=unhashable
                 echo "[switch-model] ✗ cannot hash $GGUF for $KEY: refusing" >&2
             else
                 echo "[switch-model] ✗ sha256 mismatch for $KEY: refusing ($GGUF is not the pinned file)" >&2
             fi
+            json_out null "$PIN_STATE" refused_pin
             exit 4
         fi
+        PIN_STATE=ok
         echo "[switch-model] sha256 pin ok"
     fi
 fi
@@ -271,6 +438,7 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
 
     if ! CACHE_RAM_MIB=$(llama_cache_ram_mib "$FLAGS"); then
         echo "[switch-model] ✗ REFUSING to load '$KEY': its --cache-ram is unbounded; give it a MiB cap in MODEL_FLAGS." >&2
+        json_out null "$PIN_STATE" refused_fit
         exit 3
     fi
     CACHE_RAM_BYTES=$(( CACHE_RAM_MIB * 1024 * 1024 ))
@@ -315,6 +483,12 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
 
     hb() { numfmt --to=iec-i --suffix=B "$1" 2>/dev/null || echo "${1}B"; }
     mib() { echo $(( $1 / 1048576 )); }
+    # fit_json <verdict>: the fit numbers for --json.
+    fit_json() {
+        printf '{"key":%s,"verdict":"%s","weights_mib":%d,"need_mib":%d,"budget_mib":%d,"cache_ram_mib":%d,"ram_avail_mib":%d,"vram_free_mib":%d,"offload":"%s"}' \
+            "$(json_str "$KEY")" "$1" "$(mib "$GGUF_BYTES")" "$(mib "$NEED_TOTAL")" "$(mib "$BUDGET")" \
+            "$CACHE_RAM_MIB" "$(mib "$RAM_AVAIL")" "$(mib "$VRAM_FREE")" "$OFFLOAD"
+    }
 
     FIT_LINE="weights_mib=$(mib "$GGUF_BYTES") est_mib=$(mib "$NEED_BYTES") cache_ram_mib=$CACHE_RAM_MIB need_mib=$(mib "$NEED_TOTAL") budget_mib=$(mib "$BUDGET") ram_avail_mib=$(mib "$RAM_AVAIL") vram_free_mib=$(mib "$VRAM_FREE") offload=$OFFLOAD"
 
@@ -335,21 +509,25 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
         echo "  Loading it anyway would swap-thrash and can lock up the desktop." >&2
         echo "  Use a smaller quant, or free VRAM/RAM and retry." >&2
         echo "  To override if you are sure: ZHEN_SKIP_FIT_CHECK=1 $0 $KEY" >&2
+        json_out "$(fit_json refused)" "$PIN_STATE" refused_fit
         exit 3
     fi
 
     echo "[switch-model] fit ok: need $(hb "$NEED_TOTAL") of $(hb "$BUDGET") ($OFFLOAD), cache-ram $(hb "$CACHE_RAM_BYTES") of $(hb "$RAM_BUDGET") RAM"
     echo "[switch-model] $FIT_LINE verdict=fits"
+    FIT_JSON=$(fit_json fits)
     if [[ -n "$OLD_PID" ]]; then
         echo "[switch-model]   incl. $(hb "$RECLAIM_VRAM") VRAM + $(hb "$RECLAIM_RAM") RAM released by stopping pid $OLD_PID"
     fi
 fi
 
 if (( CHECK_ONLY )); then
+    json_out "${FIT_JSON:-null}" "" fits
     exit 0
 fi
 if (( DRY_RUN )); then
     echo "[switch-model] dry run: would swap to '$KEY' ($NAME); nothing stopped or started"
+    json_out "${FIT_JSON:-null}" "$PIN_STATE" would_swap
     exit 0
 fi
 

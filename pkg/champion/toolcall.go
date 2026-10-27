@@ -25,7 +25,7 @@ type ToolCall struct {
 	// Name is the registered tool name: "read_file", "write_file",
 	// "patch_file", "kanban_create", "kanban_update", "kanban_list",
 	// "runbook_list", "runbook_show", "runbook_execute", "run_check",
-	// "model_switch", or an MCP server's tool ("corpus_search",
+	// "model_switch", "memory_write", or an MCP server's tool ("corpus_search",
 	// "service_health", ...). See MutatingTools and ReadOnlyTools.
 	Name string `json:"name"`
 
@@ -92,6 +92,9 @@ var MutatingTools = map[string]bool{
 	"kanban_update":   true,
 	"runbook_execute": true,
 	"model_switch":    true, // ADR-060: kills+respawns llama-server subprocess
+	// memory_write (S-CHAMPION-HARDENING Step 209): one zhen_memories row,
+	// written for zhen-cli /remember through zhen-agentd.
+	"memory_write": true,
 	// Lich MCP (S-LICH-AWAKENS, ADR-098): writes the findings register, so it
 	// is mutating and — with no retrieval justification from a model — always
 	// pending-confirmation (Rule 2). Never auto-publishes.

@@ -8,11 +8,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -134,8 +136,28 @@ func hashFile(path string) (string, error) {
 // The audit row in zhen_actions records action_type=model_switch with
 // triggered_by from the caller (must be 'direct' for the gate to allow
 // this destructive verb at the dispatch layer).
-func (c *Champion) ModelSwap(ctx context.Context, key string) (*ModelSwapResult, error) {
+//
+// T19 (S-CHAMPION-HARDENING Step 216): before the swap it reads which key
+// is serving (switch-model.sh --json --status) and the target's documented
+// load time; the swap gets 4x that plus the GPU lease wait (swapBudget).
+// A swap that runs out of time, or exits 1 (the script had stopped the old
+// server), is followed by a swap back to the previous key, unless that key
+// is still serving. The error says what happened: errors.Is(err,
+// ErrSwapTimeout) holds after a timeout either way.
+func (c *Champion) ModelSwap(ctx context.Context, key string) (res *ModelSwapResult, err error) {
 	start := time.Now()
+	ev := ModelSwapEvent{Key: key, Outcome: "failed"}
+	if !allowlistKey.MatchString(key) {
+		ev.Key = "invalid"
+	}
+	defer func() {
+		if err == nil {
+			ev.Outcome = "ok"
+		}
+		ev.Err = err
+		ev.Duration = time.Since(start)
+		c.observeModelSwap(ev)
+	}()
 	intent := fmt.Sprintf("Switch llama-server model to: %s", key)
 	actionID, auditErr := c.logMutation(ctx, "model_switch", intent, "user")
 	if auditErr != nil {
@@ -215,28 +237,31 @@ func (c *Champion) ModelSwap(ctx context.Context, key string) (*ModelSwapResult,
 		swapState.mu.Unlock()
 	}()
 
-	// Subprocess timeout — generous because cold-cache deepseek-cpu took
-	// 142 s in our prior session. 6 minutes covers the worst observed +
-	// margin; ROCm cold-init has a long tail.
-	const swapTimeout = 6 * time.Minute
-	cmdCtx, cancel := context.WithTimeout(ctx, swapTimeout)
-	defer cancel()
+	// What serves now, and how long the target is documented to take. A
+	// script without --json leaves both unknown: the legacy budget, no
+	// rollback.
+	before, _ := c.ModelStatus(ctx)
+	if before != nil {
+		ev.From = before.Active
+	}
+	budget := swapBudget(before.loadSeconds(key))
 
-	cmd := exec.CommandContext(cmdCtx, scriptPath, key) // #nosec G204 — scriptPath is fixed under projectRoot, key passed allowlist check
-	cmd.Dir = c.config.ProjectRoot
-	out, runErr := cmd.CombinedOutput()
+	output, timedOut, runErr := c.runSwitchScript(ctx, scriptPath, key, budget)
 	elapsed := time.Since(start)
 
-	output := string(out)
-	const outputCap = 8 * 1024
-	if len(output) > outputCap {
-		output = output[len(output)-outputCap:]
-		output = "[…earlier output truncated]\n" + output
-	}
-
-	if cmdCtx.Err() == context.DeadlineExceeded {
-		c.completeAction(ctx, actionID, "failed", output, ErrSwapTimeout.Error(), elapsed)
-		return nil, ErrSwapTimeout
+	if timedOut || exitCode(runErr) == 1 {
+		// The old server may be gone: put the previous model back.
+		note, rolled := c.rollbackModel(ctx, scriptPath, key, before)
+		if rolled {
+			ev.Outcome = "rolled_back"
+		}
+		if timedOut {
+			msg := fmt.Sprintf("after %s; %s", budget.Round(time.Millisecond), note)
+			c.completeAction(ctx, actionID, "failed", output, ErrSwapTimeout.Error()+" "+msg, elapsed)
+			return nil, fmt.Errorf("%w %s", ErrSwapTimeout, msg)
+		}
+		c.completeAction(ctx, actionID, "failed", "", "subprocess: "+runErr.Error()+" — "+lastLine(output)+"; "+note, elapsed)
+		return nil, fmt.Errorf("model_switch subprocess: %w; %s", runErr, note)
 	}
 
 	if runErr != nil {
@@ -253,6 +278,109 @@ func (c *Champion) ModelSwap(ctx context.Context, key string) (*ModelSwapResult,
 		fmt.Sprintf("Switched to %s in %.1fs", key, elapsed.Seconds()),
 		"", elapsed)
 	return result, nil
+}
+
+// ModelSwapEvent is what a ModelSwap observer sees once per call.
+type ModelSwapEvent struct {
+	Key      string // the requested key; "invalid" when it fails the key format
+	From     string // the key serving before the swap, "" if unknown
+	Outcome  string // ok | failed | rolled_back
+	Duration time.Duration
+	Err      error
+}
+
+// WithModelSwapObserver sets a function called after every ModelSwap
+// (zhen-agentd's swap metrics).
+func (c *Champion) WithModelSwapObserver(f func(ModelSwapEvent)) *Champion {
+	c.swapObserver = f
+	return c
+}
+
+func (c *Champion) observeModelSwap(ev ModelSwapEvent) {
+	if c.swapObserver != nil {
+		c.swapObserver(ev)
+	}
+}
+
+const (
+	// legacySwapTimeout is the budget when the load time is unknown:
+	// cold-cache deepseek-cpu took 142 s; ROCm cold-init has a long tail.
+	legacySwapTimeout = 6 * time.Minute
+	// defaultSwapLeaseWait is the GPU lease wait zhen-agentd allows a swap
+	// (switch-model.sh's own default is 600 s); GPU_LEASE_TIMEOUT overrides.
+	defaultSwapLeaseWait = 60 * time.Second
+	// swapOutputCap keeps the last 8 KiB of the script's output.
+	swapOutputCap = 8 * 1024
+)
+
+// swapLeaseWait is GPU_LEASE_TIMEOUT if set, else defaultSwapLeaseWait.
+func swapLeaseWait() time.Duration {
+	if v, err := strconv.Atoi(strings.TrimSpace(os.Getenv("GPU_LEASE_TIMEOUT"))); err == nil && v >= 0 {
+		return time.Duration(v) * time.Second
+	}
+	return defaultSwapLeaseWait
+}
+
+// swapBudget is ADR-060 T19's hard timeout: 4x the documented load time,
+// plus the lease wait; legacySwapTimeout when the load time is unknown.
+func swapBudget(loadSeconds float64) time.Duration {
+	if loadSeconds <= 0 {
+		return legacySwapTimeout
+	}
+	return time.Duration(4*loadSeconds*float64(time.Second)) + swapLeaseWait()
+}
+
+// runSwitchScript runs switch-model.sh <key> in its own process group with
+// the given budget. On timeout the whole group is killed, including a
+// llama-server the script had started that never became healthy.
+func (c *Champion) runSwitchScript(ctx context.Context, scriptPath, key string, budget time.Duration) (output string, timedOut bool, err error) {
+	cmdCtx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	cmd := exec.CommandContext(cmdCtx, scriptPath, key) // #nosec G204 — scriptPath is fixed under projectRoot, key passed allowlist check
+	cmd.Dir = c.config.ProjectRoot
+	cmd.Env = append(os.Environ(), "GPU_LEASE_TIMEOUT="+strconv.Itoa(int(swapLeaseWait()/time.Second)))
+	killProcessGroupOnCancel(cmd)
+	cmd.WaitDelay = 5 * time.Second
+	out, err := cmd.CombinedOutput()
+	output = string(out)
+	if len(output) > swapOutputCap {
+		output = "[…earlier output truncated]\n" + output[len(output)-swapOutputCap:]
+	}
+	return output, errors.Is(cmdCtx.Err(), context.DeadlineExceeded), err
+}
+
+// rollbackModel starts the previous key again after a failed swap to key.
+// It returns what happened, for the error and the audit row, and whether
+// a rollback swap succeeded. It runs even if the caller has gone away.
+func (c *Champion) rollbackModel(ctx context.Context, scriptPath, key string, before *ModelStatus) (string, bool) {
+	if before == nil || before.Active == "" {
+		return "nothing to roll back to (no model was serving, or the script has no --json)", false
+	}
+	prev := before.Active
+	if prev == key {
+		return "the previous model was " + key + " itself; not restarted", false
+	}
+	bg := context.WithoutCancel(ctx)
+	if now, err := c.ModelStatus(bg); err == nil && now.Active == prev {
+		return prev + " is still serving; no rollback needed", false
+	}
+	out, timedOut, err := c.runSwitchScript(bg, scriptPath, prev, swapBudget(before.loadSeconds(prev)))
+	switch {
+	case timedOut:
+		return "rollback to " + prev + " also timed out; nothing is serving", false
+	case err != nil:
+		return "rollback to " + prev + " failed: " + err.Error() + " — " + lastLine(out), false
+	}
+	return "rolled back to " + prev, true
+}
+
+// exitCode is err's process exit code, or -1.
+func exitCode(err error) int {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return ee.ExitCode()
+	}
+	return -1
 }
 
 // contains is the tiny reusable helper. Generics in stdlib slices.Contains

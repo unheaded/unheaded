@@ -318,6 +318,18 @@ func (c *Champion) dispatchUnderlying(ctx context.Context, tc ToolCall) (any, er
 			dryRun = v
 		}
 		return c.RunbookExecute(ctx, name, dryRun)
+	case "memory_write":
+		m, err := memoryWriteCall(tc)
+		if err != nil {
+			return nil, err
+		}
+		return c.RememberMemory(ctx, m)
+	case "model_switch":
+		key, err := requireString(tc.Args, "key")
+		if err != nil {
+			return nil, err
+		}
+		return c.ModelSwap(ctx, key)
 	default:
 		return nil, fmt.Errorf("ConfirmPendingToolCall: unimplemented tool %q", tc.Name)
 	}
