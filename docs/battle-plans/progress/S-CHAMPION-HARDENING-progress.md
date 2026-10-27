@@ -161,3 +161,21 @@ insert `kanban_tasks`, so `-kanban-store=pg` reads `WELL_KANBAN_DSN` first: set 
 E4. New `-metrics-addr` (`[fd00:dead:beef::1]:20105`) + scrape job `zhen-agentd`; `ZhenSchedulerStalled` fires (warning,
 none) until E4, which is accurate. E4 prerequisite: `/var/zhen/projects/default` must hold `runbooks/`,
 `MANIFEST.sha256`, `scripts/run-runbook.py`. `zhen-claude review` refuses scheduled runs.
+
+### Phase 9 (coordinator): Steps 177-178, 182, 183 done; 179-181 wait on a port decision (Stevie, with E4)
+
+- 182 (737543df): `_strip_tool_call_json` let a payload through when it nested deeper than one level, had a brace in
+  a string, or was truncated (the regex matched one fixed depth). Now a JSON-aware brace scan; 9 tests, 4 red on the
+  old code; in raft CI.
+- 183 (792be243): recalled memories never enter the prompt (side-channel `matched_memory` only, by design), so the
+  marker `[memory: <topic> @ <date> via well]` + `created_at` go on that side-channel. pkg/vorquery has no memory path.
+  Consolidation job stays disabled (Phase 8: its steps need `sudo docker exec`).
+- **179-181 [ESCALATE, folded into E4]: ports.** vor cannot be registered at its default 9876: `pkg/ports` requires
+  every port in 16666-26666 (TestAllPortsInDoomRange). The AI band 20100-20106 is full and 20107 is taken by
+  sophia-eye. And zhen-agentd's 20105 collides with `SophiaEye = 20105`, which deploy/sophia-eye publishes on the host
+  (`20105:8080`; gateway also `20107:20105`). Proposal: `ZhenVor = 20110`, `ZhenAgentd = 20111` (both free), change the
+  ~20 callers' defaults (zhen-rag, zhen-agentd, zhen-agent, zhen-mcp, zhen-cli, raft, coding-gate scripts, Dockerfile,
+  unit, docs) in one commit, and run vor as `unheaded-vor` (uid 16736, Kingdom tier, hostOnly pin) with
+  `HOME=/var/lib/unheaded/vor` and a `git archive` export of the repo as its `unheaded` source (vor finds sources via
+  `$HOME/.config/cs/sources/`; the repo lives under /home, which a hardened unit cannot read). Not done unattended:
+  moving the ports breaks the manual `cs serve` + coding-gate workflow until the unit is installed.

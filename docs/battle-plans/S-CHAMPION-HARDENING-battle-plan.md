@@ -732,11 +732,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 1.5 h + E4
 **Agent**: Coordinator
 
-- [ ] **Step 177** [R] ~3m
+- [x] **Step 177** [R] ~3m
   ```bash
   /usr/local/bin/vor --help 2>&1 | head -20; /usr/local/bin/vor serve --help 2>&1 | grep -iE 'port|listen|addr|index|data' | head -6; grep -nE 'VOR_|vor' raft/start-zhen.sh raft/scripts/zhen_rag.py | head -8
   ```
-- [ ] **Step 178** [R] ~2m: Free port and uid
+- [x] **Step 178** [R] ~2m: Free port and uid
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE '= 2010[0-9]' pkg/ports/ports.go && grep -nE '= 1679[0-9]' pkg/uids/uids.go | tail -3
   ```
@@ -746,11 +746,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
   cd /home/govan/tmp/unheaded && scripts/check-systemd-units.sh 2>&1 | tail -2 && systemd-analyze verify deploy/systemd/unheaded-vor.service 2>&1 | head -3
   ```
 - [ ] **Step 181** [CODE][W] ~4m: `raft/start-zhen.sh` and `raft/scripts/zhen_rag.py` read `VOR_URL` (default `http://127.0.0.1:<port>`) instead of a hardcoded port; the 60 s startup wait (S21 `ecbd14d1`) stays.
-- [ ] **Step 182** [CODE][W] ~5m: `raft/tests/test_zhen_rag_strip.py`: `_strip_tool_call_json` removes a trailing/embedded `{"tool_call": …}` object, leaves prose, handles nested braces and a bare `{`; add the file to the raft CI pytest list (Phase 10 Step 203 edits the same line: coordinate by adding both here).
+- [x] **Step 182** [CODE][W] ~5m: `raft/tests/test_zhen_rag_strip.py`: `_strip_tool_call_json` removes a trailing/embedded `{"tool_call": …}` object, leaves prose, handles nested braces and a bare `{`; add the file to the raft CI pytest list (Phase 10 Step 203 edits the same line: coordinate by adding both here).
   ```bash
   cd /home/govan/tmp/unheaded && ~/.venv/zhen/bin/python3 -m pytest raft/tests/test_zhen_rag_strip.py -q 2>&1 | tail -2
   ```
-- [ ] **Step 183** [CODE][W] ~6m: Provenance: every recalled memory passed to the prompt carries `[memory: <topic> @ <date> via <vor|well>]`, rendered in the UI's references list; Python test asserting the marker; `pkg/vorquery` Go side gets the same field (`TestMatchesPython` already compares the two). Add the consolidation job to `configs/zhen-schedules.yaml` (weekly, `runbooks/data/conversation-memory-maintenance.yaml`).
+- [x] **Step 183** [CODE][W] ~6m: Provenance: every recalled memory passed to the prompt carries `[memory: <topic> @ <date> via <vor|well>]`, rendered in the UI's references list; Python test asserting the marker; `pkg/vorquery` Go side gets the same field (`TestMatchesPython` already compares the two). Add the consolidation job to `configs/zhen-schedules.yaml` (weekly, `runbooks/data/conversation-memory-maintenance.yaml`).
 - [ ] **Step 184** [AFTER-E4][LIVE-RW][S][BARE-METAL][B] ~5m
   ```bash
   cd /home/govan/tmp/unheaded && sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/unheaded.conf && sudo systemd-sysusers && id unheaded-vor && sudo install -d -o unheaded-vor -g unheaded-vor -m 0750 /var/lib/unheaded/vor && sudo rsync -a --chown=unheaded-vor:unheaded-vor ~/.local/share/vor/ /var/lib/unheaded/vor/ 2>/dev/null; sudo install -m 0644 deploy/systemd/unheaded-vor.service /etc/systemd/system/ && sudo systemctl daemon-reload && systemctl --user stop unheaded-vor.scope 2>/dev/null; sudo systemctl enable --now unheaded-vor && sleep 3 && systemctl is-active unheaded-vor
