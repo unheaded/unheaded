@@ -24,8 +24,10 @@ type Task struct {
 }
 
 // Router is the ADR-053 routing hook: it decides whether a task goes to
-// Claude (WeightHeavy) or to local Zhenai (WeightMinor). Interface only;
-// no implementation ships with ADR-104. A router must not send a task
+// Claude (WeightHeavy) or to local Zhenai (WeightMinor). Two
+// implementations, kept separate (ADR-106 Q7): AutoRouter (weight class,
+// Lich drivers) and *ThresholdRouter (the eval's per-family route);
+// AutoRouter.Fallback is the one seam between them. A router must not send a task
 // to Claude that holds data the operator has not cleared for an
 // external API (zero user data access).
 type Router interface {

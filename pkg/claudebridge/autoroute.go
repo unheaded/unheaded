@@ -5,6 +5,7 @@ package claudebridge
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 )
@@ -22,13 +23,26 @@ import (
 // bypass them.
 //
 // A Hint wins over the prompt text (a workflow template or Kanban label is more
-// reliable than guessing). When nothing matches it returns WeightMinor: the
-// cheaper, local, on-host default, so an ambiguous task never silently spends
-// dollars or leaves the host.
-type AutoRouter struct{}
+// reliable than guessing). When nothing matches it asks Fallback, if one is
+// set; otherwise, or when Fallback has no route for the task
+// (ErrNoFamilyRoute), it returns WeightMinor: the cheaper, local, on-host
+// default, so an ambiguous task never spends dollars or leaves the host
+// unless the operator wired a fallback whose measurement says it should.
+//
+// The two routers stay separate (ADR-106 Q7, S-CHAMPION-HARDENING Step 112):
+// AutoRouter answers "how heavy is this work" for the Lich drivers;
+// ThresholdRouter answers "has the eval shown the local model can do this
+// family". Folding them would couple the Lich's weight classes to the
+// eval's per-family bars. The one seam between them is Fallback: set it to
+// a *ThresholdRouter and an unclassifiable task carrying a "family" hint
+// takes that family's measured route.
+type AutoRouter struct {
+	// Fallback decides tasks AutoRouter cannot classify. nil: minor.
+	Fallback Router
+}
 
 // Route implements Router.
-func (AutoRouter) Route(_ context.Context, t Task) (Weight, error) {
+func (a AutoRouter) Route(ctx context.Context, t Task) (Weight, error) {
 	if h, ok := t.Hints["weight"]; ok {
 		switch strings.ToLower(strings.TrimSpace(h)) {
 		case string(WeightHeavy):
@@ -37,10 +51,20 @@ func (AutoRouter) Route(_ context.Context, t Task) (Weight, error) {
 			return WeightMinor, nil
 		}
 	}
-	if ClassifyWeight(t.Prompt) == WeightHeavy {
-		return WeightHeavy, nil
+	if w, ok := classifyWeight(t.Prompt); ok {
+		return w, nil
 	}
-	return WeightMinor, nil
+	if a.Fallback == nil {
+		return WeightMinor, nil
+	}
+	w, err := a.Fallback.Route(ctx, t)
+	if errors.Is(err, ErrNoFamilyRoute) {
+		return WeightMinor, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return w, nil
 }
 
 // heavyWeightRE matches work that benefits from Claude: triage, synthesis,
@@ -56,13 +80,22 @@ var minorWeightRE = regexp.MustCompile(`(?i)\b(seed\w*|mutat\w*|fuzz\s+input|inp
 // wins over a minor one (synthesising findings over a corpus is heavy even
 // though it mentions "corpus"); with no signal at all it is minor.
 func ClassifyWeight(prompt string) Weight {
-	if heavyWeightRE.MatchString(prompt) {
-		return WeightHeavy
-	}
-	if minorWeightRE.MatchString(prompt) {
-		return WeightMinor
+	if w, ok := classifyWeight(prompt); ok {
+		return w
 	}
 	return WeightMinor
+}
+
+// classifyWeight reports the weight a prompt's text implies and whether it
+// implied one at all.
+func classifyWeight(prompt string) (Weight, bool) {
+	if heavyWeightRE.MatchString(prompt) {
+		return WeightHeavy, true
+	}
+	if minorWeightRE.MatchString(prompt) {
+		return WeightMinor, true
+	}
+	return "", false
 }
 
 // ModelForWeight picks the model a weight routes to: Haiku (volume) for MINOR

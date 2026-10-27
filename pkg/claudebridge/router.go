@@ -181,6 +181,34 @@ type ThresholdRouter struct {
 	Auditor Auditor
 }
 
+// ErrNoFamilyRoute: ThresholdRouter.Route was given a task with no
+// "family" hint, or a family the routing table does not list.
+var ErrNoFamilyRoute = errors.New("routing: no measured route for the task's family")
+
+// Route implements Router (ADR-106 Q7): it classifies a task by the route
+// the eval measured for its family (Hints["family"]). local_only and
+// local_first send the first hop to the local model (WeightMinor);
+// claude_direct is WeightHeavy. A family the table does not list is
+// ErrNoFamilyRoute, not the default route: Run falls back to Default to
+// execute a task, but the default is a guess, not a measurement, and a
+// caller classifying a task (AutoRouter's Fallback) keeps its own default.
+func (r *ThresholdRouter) Route(_ context.Context, t Task) (Weight, error) {
+	fam := t.Hints["family"]
+	if r == nil || r.Config == nil || fam == "" {
+		return "", ErrNoFamilyRoute
+	}
+	fr, ok := r.Config.Families[fam]
+	if !ok {
+		return "", fmt.Errorf("%w: %q", ErrNoFamilyRoute, fam)
+	}
+	if fr.Route == RouteClaudeDirect {
+		return WeightHeavy, nil
+	}
+	return WeightMinor, nil
+}
+
+var _ Router = (*ThresholdRouter)(nil)
+
 // RouteOutcome is what happened to one task.
 type RouteOutcome struct {
 	Family        string  `json:"family"`
