@@ -21,7 +21,7 @@ This document defines the mandatory start and end procedures for every agent ses
 ### Step 1: Read Previous Handoff (MANDATORY)
 
 ```
-Agent reads: docs/sessions/S<N-1>-*-handoff.md
+Agent reads: ~/tmp/next.md (cross-session handoff) and the active plan's progress log under docs/battle-plans/progress/
 ```
 
 This is the single most important action. The handoff contains:
@@ -46,13 +46,13 @@ Check: docs/adr/ for active Architecture Decision Records
 
 ```bash
 # Verify toolchains
-go version              # Need 1.24.0+
+go version              # Need the version in go.mod (1.26.0 as of 2026-10-27)
 rustup show             # Need nightly for fuzzing
 cargo --version         # eBPF compilation
 
 # Verify codebase
 go build ./...          # Must exit 0
-go test -race ./...     # Must pass (currently 134/134)
+go test -race ./...     # Must pass (0 failures, see KNOWN FAILURES BASELINE in the active plan)
 
 # Verify git state
 git status              # Clean working tree?
@@ -79,7 +79,8 @@ Begin execution
 ### Step 1: Write Handoff Document (MANDATORY)
 
 ```
-Create: docs/sessions/S<N>-<description>-handoff.md
+Write: ~/tmp/next.md (overwrite the stale briefing)
+Append: docs/battle-plans/progress/<PLAN>-progress.md (in the repo)
 ```
 
 The handoff MUST include:
@@ -98,16 +99,16 @@ The handoff MUST include:
 ### Step 2: Update Timeline
 
 ```
-Update: timeline.md
+Update: references/timeline.md
 Add: Session wins, milestone progress, velocity metrics
 Update: Current Age/Epoch progress percentage
 ```
 
-### Step 3: Commit and Push
+### Step 3: Commit (Claude never pushes)
 
 ```bash
-git add docs/sessions/S<N>-*-handoff.md
-git add timeline.md
+git add docs/battle-plans/progress/<PLAN>-progress.md
+git add references/timeline.md
 git commit -m "$(cat <<'EOF'
 docs(session): add S<N> handoff — <brief description>
 
@@ -116,7 +117,7 @@ docs(session): add S<N> handoff — <brief description>
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 EOF
 )"
-git push origin main
+# Claude never pushes; Stevie pushes `develop` (CLAUDE.md §Branches)
 ```
 
 ### Step 4: Final Status Check
@@ -151,7 +152,7 @@ git status           # Clean tree?
 - [ ] Write S<N> handoff document with all 10 required sections
 - [ ] Update timeline.md with wins and progress
 - [ ] Commit all changes with proper commit messages
-- [ ] Push to remote
+- [ ] Leave the push to Stevie (Claude never pushes)
 - [ ] Verify build still green
 - [ ] Verify tests still pass
 ```
@@ -159,6 +160,8 @@ git status           # Clean tree?
 ---
 
 ## Naming Convention for Session Documents
+
+Since 2026-10 the handoff is `~/tmp/next.md` plus `docs/battle-plans/progress/<PLAN>-progress.md`. The S-numbered files below are the historical convention (now in `docs/archive/internal-2026/sessions/`):
 
 ```
 docs/sessions/S<number>-<description>-handoff.md

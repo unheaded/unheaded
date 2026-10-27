@@ -1,9 +1,11 @@
 # LAUNCH READINESS REPORT
 
+> **Historical S73 report (2026-03-18); corrected 2026-10-27.** Not a current readiness verdict. Work lands on `develop` and is promoted develop → staging → main per ADR-089. `docs/legal/SURICATA_GPL_ISOLATION.md` was deleted with Suricata on 2026-10-22 (51388cde).
+
 **Date**: 2026-03-18
 **Phase**: S73 Phase 5 — Final Verification Gate
 **Repo**: unheaded
-**Branch**: main
+**Branch**: develop; promotion per ADR-089
 
 ---
 
@@ -18,7 +20,7 @@
 | 407 | Commented Code | PASS | MEDIUM | No large comment blocks in main.go files |
 | 408 | Secrets Sweep | PASS | CRITICAL | All matches are variable names, not literals |
 | 409 | README Links | PASS | MEDIUM | Links resolve |
-| 411 | License Files | PASS | CRITICAL | LICENSE + LICENSE-PROTOCOLS + SURICATA_GPL_ISOLATION.md + CLA.md present |
+| 411 | License Files | PASS | CRITICAL | LICENSE + LICENSE-PROTOCOLS + CLA.md present (SURICATA_GPL_ISOLATION.md deleted with Suricata 2026-10-22) |
 | 413 | go.mod Tidiness | PASS | CRITICAL | `go mod tidy` produces no changes |
 | 415 | No .env Files | PASS | CRITICAL | No secrets files committed |
 
@@ -39,13 +41,13 @@ Recent analysis complete. OSS project legally cleared. Pre-public-flip legal ite
 | L1 | Legal Analysis — OSS project cleared | — | ✅ COMPLETE | Barrister |
 | L2 | IETF Note Well patent disclosure review (6 Internet-Drafts) | P1 | COMPLETE | Barrister + RFC Editor |
 | L3 | Contributor License Agreement drafted (DCO) | P1 | COMPLETE | Barrister + Developer |
-| L4 | GPL clean-room boundary documented (SURICATA_GPL_ISOLATION.md) | P1 | COMPLETE | Architect |
+| L4 | GPL clean-room boundary for Suricata | P1 | MOOT (Suricata removed 2026-10-22) | Architect |
 | L5 | Provisional patent evaluation for unpublished Monad encoding claims | P2 | 📋 PENDING | Barrister |
 
 **Reference**: Legal analysis on file (private).
 
-> L2, L3, L4 completed 2026-03-25. See CLA.md, docs/legal/IETF-NOTE-WELL-REVIEW.md,
-> docs/legal/SURICATA_GPL_ISOLATION.md. L5 remains pending before commercial/investor engagement.
+> L2, L3 completed 2026-03-25. See CLA.md, docs/legal/IETF-NOTE-WELL-REVIEW.md.
+> L4 is moot since Suricata's removal (2026-10-22). L5 remains pending.
 
 ---
 
@@ -58,8 +60,7 @@ Recent analysis complete. OSS project legally cleared. Pre-public-flip legal ite
    - `services/kenoma`: Double-protocol URL bug
    - `cmd/dashboard-backend/internal/server`: Test crash
 
-2. **SURICATA_GPL_ISOLATION.md**: RESOLVED (2026-03-25)
-   - docs/legal/SURICATA_GPL_ISOLATION.md complete with rules isolation + binary boundary
+2. **Suricata GPL isolation**: moot; Suricata and its isolation doc were removed 2026-10-22
 
 ---
 
@@ -81,10 +82,7 @@ Recent analysis complete. OSS project legally cleared. Pre-public-flip legal ite
 
 **Verified By**: Claude Opus 4.6 (S73 Sprint Agent)
 **Date**: 2026-03-18
-**Decision**: **READY TO LAUNCH**
-
-All CRITICAL checks pass. Known issues are pre-existing and documented.
-The Kingdom is ready for the world.
+**Decision (2026-03-18, superseded)**: the S73 sprint closed its checks. No launch followed; promotion now follows ADR-089.
 
 ---
 

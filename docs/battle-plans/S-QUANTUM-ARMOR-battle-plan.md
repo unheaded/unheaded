@@ -33,7 +33,7 @@
 | `cmd/heimdall-daemon/main.go:190-200` | `TODO: wire to actual Wotan client with ML-DSA-65 signing`; alert drain prints to stdout. |
 | ADR-043 (hard conditions #1 alerts-only, #2 signed topics, #4 key separation, #7 no wire change), ADR-097 (crosswalk, evidence must be able to fail), ADR-098 (findings register, shrink-only ratchets), ADR-099 §2 (sealed snapshots), ADR-004 (no new external deps without approval), ADR-034 (gRPC mTLS default) | Rules this sprint obeys. |
 | `scripts/check-gates-can-fail.sh` REGISTRY (`name|provoke_fn|fast|desc`) | How new gates are registered; an unregistered `check-*.sh` fails the meta-gate. |
-| `docs/internal/battle-plans/S-PQC-battle-plan.md`, `docs/battle-plans/BATTLE-PLAN-MIMIRS-LAW-GLEIPNIR-PHASE-0.md`, `docs/battle-plans/COMPLIANCE-WELL-BATTLE-PLAN.md` | Prior PQC (wire-level, FROZEN, out of scope here), Mímir's Law (Heimdall origin), compliance pipeline. This plan does not redo them. |
+| `docs/archive/internal-2026/battle-plans/S-PQC-battle-plan.md`, `docs/battle-plans/BATTLE-PLAN-MIMIRS-LAW-GLEIPNIR-PHASE-0.md`, `docs/battle-plans/COMPLIANCE-WELL-BATTLE-PLAN.md` | Prior PQC (wire-level, FROZEN, out of scope here), Mímir's Law (Heimdall origin), compliance pipeline. This plan does not redo them. |
 | `docs/protocol/draft-bellis-unheaded-pqc-authentication-00.md` §9.2 | OPTIMISTIC policy leans on east-west mTLS. Hybrid mTLS keeps that argument sound against harvest-now-decrypt-later. |
 | `~/tmp/next.md` S17 | develop unsigned, never push, staging only on Stevie's word, east debs old, Well down, CI was dark until 6dc1e038, open Wotan item "an approved ID can publish to any topic". |
 

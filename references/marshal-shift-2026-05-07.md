@@ -34,7 +34,7 @@ All artifacts present:
 
 Three agents dispatched. Two completed clean as no-ops, confirming Phase B from 2026-05-06 was already complete. One returned with a real artifact:
 
-- **P2-LIB Librarian (NO-OP)** — Wiki ADR scaffolds 65/65 in sync, ADR-Index canonical-vs-wiki 65/65 match, `docs/internal/battle-plans/` is the archive convention, `docs/battle-plans/` plans still active and ADR-cross-referenced. No files touched.
+- **P2-LIB Librarian (NO-OP)** — Wiki ADR scaffolds 65/65 in sync, ADR-Index canonical-vs-wiki 65/65 match, `docs/archive/internal-2026/battle-plans/` (then under docs/internal) is the archive convention, `docs/battle-plans/` plans still active and ADR-cross-referenced. No files touched.
 - **P2-CI ADR-052 + ADR-058 (PASS + REVIEW-APPENDED)** — Drift-guard CI re-verified: PASS (1d delta vs 7d limit; GHA + Jenkinsfile fail-the-build paths confirmed). ADR-058 GCP cost alarm reviewed; appended a `Marshal Review 2026-05-07` section listing 5 architectural gaps blocking Planned→Accepted transition. Added 1 reference link.
 
 **Phase 2 commit `363597fb`:** 2 files changed, +140.

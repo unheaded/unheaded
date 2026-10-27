@@ -128,7 +128,7 @@ All correctly placed.
 **Active Battle Plans in Repo**:
 - WAVE13 (off-tree, accepted: `~/.claude/plans/synthetic-stirring-pudding.md`).
 - WAVE10F (`docs/battle-plans/WAVE10F-FORGE-REAL-ATTENTION-GEMMA4.md`) — DONE.
-- S73 public launch (`docs/internal/battle-plans/battle-plan-S73-public-launch/`) — STALLED.
+- S73 public launch (`docs/archive/internal-2026/battle-plans/battle-plan-S73-public-launch/`) — STALLED.
 - 31 operational runbooks at `runbooks/` (per CLAUDE.md).
 **Stuck Items**: S73 public launch since Mar 18 (~40 days stalled). Either resurrect or formally archive.
 **Recommendation**: After this Round Table, draft `docs/battle-plans/W13-W14-twin-track.md` if Captain picks Track C.

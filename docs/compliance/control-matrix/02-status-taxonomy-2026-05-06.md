@@ -20,7 +20,7 @@ The kingdom commits: **after this taxonomy is locked, no new label may be introd
 
 ## 1. Formal Label Set
 
-There are **twelve** terminal labels, organized into five families. STUCK / CAPTURED / INTENTIONAL / ENG-DECLARED / CONFIRMED-CLEAN — labels enumerated in S1 as "appearing across the matrix family" — were investigated and found to **not appear inside matrix rows**. STUCK is a Skip-Protocol convention belonging to battle plans (e.g. `docs/internal/battle-plans/S-WEST-BOOTSTRAP-battle-plan.md` line 25). The matrix family inherits no obligation to support those terms; this taxonomy excludes them.
+There are **twelve** terminal labels, organized into five families. STUCK / CAPTURED / INTENTIONAL / ENG-DECLARED / CONFIRMED-CLEAN — labels enumerated in S1 as "appearing across the matrix family" — were investigated and found to **not appear inside matrix rows**. STUCK is a Skip-Protocol convention belonging to battle plans (e.g. `docs/archive/internal-2026/battle-plans/S-WEST-BOOTSTRAP-battle-plan.md` line 25). The matrix family inherits no obligation to support those terms; this taxonomy excludes them.
 
 ### Family A — Coverage claims (kingdom owns the control)
 
