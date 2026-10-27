@@ -35,6 +35,9 @@ services:
         own 16700:16700 /volumes/prometheus
 
   vllm:
+    # Not pinned: Docker Hub has no vllm/vllm-openai:latest-rocm (404,
+    # 2026-10-27) and west holds no such image, so this cannot pull. Which
+    # image replaces it is open (S-IRON-GATE Step 363, M-067).
     image: vllm/vllm-openai:latest-rocm
     container_name: sophia-vllm-deepseek
     hostname: vllm
@@ -113,6 +116,9 @@ services:
         max-file: "3"
 
   qwen-coder:
+    # Not pinned: Docker Hub has no vllm/vllm-openai:latest-rocm (404,
+    # 2026-10-27) and west holds no such image, so this cannot pull. Which
+    # image replaces it is open (S-IRON-GATE Step 363, M-067).
     image: vllm/vllm-openai:latest-rocm
     container_name: sophia-vllm-qwen
     hostname: qwen-coder
@@ -192,7 +198,8 @@ services:
         max-file: "3"
 
   qdrant:
-    image: qdrant/qdrant:latest
+    # The image west holds (docker images --digests, 2026-10-27): v1.19.2.
+    image: qdrant/qdrant:v1.19.2@sha256:b7b0444c4c351c970b98e90a6f89c2ee4287c65b44e52b4cb503fa5b2aa927ad
     container_name: sophia-qdrant
     hostname: qdrant
     restart: unless-stopped
@@ -256,7 +263,8 @@ services:
         max-file: "3"
 
   embeddings:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    # The image west holds (2026-10-27): cpu-1.5 resolved to version cpu-1.5.0.
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5@sha256:0502794a4d86974839e701dadd6d06e693ec78a0f6e87f68c391e88c52154f3f
     container_name: sophia-embeddings
     hostname: embeddings
     restart: unless-stopped
@@ -305,7 +313,9 @@ services:
         max-file: "3"
 
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main
+    # open-webui publishes main as a branch build; this is the one west holds
+    # (2026-10-27): revision 91ea4e3421d1, built 2026-10-16.
+    image: ghcr.io/open-webui/open-webui:main@sha256:4860ba005ae8f19f08d1e12b0868855b7b339ea0dad9927f196820fc0de04575
     container_name: sophia-webui
     hostname: open-webui
     restart: unless-stopped

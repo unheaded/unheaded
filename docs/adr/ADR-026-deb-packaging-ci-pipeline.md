@@ -2,6 +2,18 @@
 
 **Status:** Accepted
 **Date:** 2026-04-03
+
+**Implementation note (2026-10-27, S-IRON-GATE Phase 14):** implemented in
+code; the repo is on west, GHA builds, a runbook publishes. GitHub Actions
+(`release.yml`) builds the debs on a tag and attaches them, cosign-signed, to
+the release; `scripts/build-all-debs.sh` (table `scripts/lib/deb-packages.sh`)
+is the one packager, also used by the Jenkinsfile and `debian/rules`. The
+repo is `/srv/unheaded-apt` on west, kept by `scripts/apt-repo.sh` (reprepro,
+Codename `unheaded`, signed `InRelease`), served by nginx as the `nginx`
+account on 18888 (`deploy/nginx/unheaded-apt.conf`); publishing is
+`runbooks/deploy/apt-repo-publish.yaml`. Clients pin the key with
+`signed-by=`; the `[trusted=yes]` line below is superseded. Open: the signing
+key's custody (E4) and the live install on west and east (E3).
 **Deciders:** Captain, Architect, Developer, Micromanager
 
 ## Context
@@ -87,7 +99,7 @@ WEST hosts the APT repo at port 18888:
 - `reprepro` manages the repository
 - nginx serves it to EAST and future hosts
 - Packages are signed (GPG key per ADR-004 approved exceptions)
-- EAST adds: `deb [trusted=yes] http://192.168.13.2:18888 noble main`
+- EAST adds: `deb [signed-by=/etc/apt/keyrings/unheaded.gpg] http://192.168.13.2:18888 unheaded main` (was `[trusted=yes] ... noble main` until 2026-10-27)
 
 ### Directory Layout (Installed)
 

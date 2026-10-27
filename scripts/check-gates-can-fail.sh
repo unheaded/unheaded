@@ -883,6 +883,7 @@ ci-python-lock|regenerates .github/ci-python/requirements.txt (uv in a throwaway
 ci-install-tools|installs pinned syft/grype/cosign/helm/kubeconform for CI jobs (lib/tool-pins + lib/fetch-tool, which the check-* scripts also use); no verdict of its own
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
 lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs, Jenkinsfile); proven by test-deb-maintscripts
+apt-repo|keeps the signed apt repo on west (runbooks/deploy/apt-repo-publish.yaml, Jenkinsfile); its refusals and signatures are proven by tests/apt/apt_repo_test.sh (security.yml)
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
 lib/fetch-tool|library sourced by ci-install-tools and the check-* scripts (download once, sha256 on every use); no verdict of its own
 verify-release|verifies a published release by tag (needs the network and a real release); its pass/fail contract is proven offline by tests/release/verify_release_test.sh (CI job release-verify)
