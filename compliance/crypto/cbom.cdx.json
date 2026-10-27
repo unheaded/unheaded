@@ -473,7 +473,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/unheaded-keygen/main.go:26:sig-import",
+      "bom-ref": "cmd/unheaded-keygen/main.go:33:sig-import",
       "name": "Ed25519 (crypto/ed25519)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -506,7 +506,50 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/unheaded-keygen/main.go:26"
+          "value": "cmd/unheaded-keygen/main.go:33"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/unheaded-keygen/mldsa.go:15:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/unheaded-keygen/mldsa.go:15"
         }
       ]
     },
@@ -3355,7 +3398,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/wotan-client/grpc_client.go:65:tls-config",
+      "bom-ref": "pkg/wotan-client/grpc_client.go:66:tls-config",
       "name": "TLS config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -3395,7 +3438,48 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/wotan-client/grpc_client.go:65"
+          "value": "pkg/wotan-client/grpc_client.go:66"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/wotansig/keys.go:12:sig-import",
+      "name": "PQC helpers (unheaded/pkg/crypto/pqc)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "post-quantum signatures via the in-tree wrapper; parameter set chosen at run time"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/wotansig/keys.go:12"
         }
       ]
     },
