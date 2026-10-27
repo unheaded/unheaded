@@ -62,3 +62,18 @@ the old bytes; 8 pqc + 4 secrets metrics deleted (not 9/12). `HeimdallDriftPubli
 Stale descriptor: root `services.yaml` lists `shield-waf` on 19101 (Shield is 19009), not changed.
 Merge fixes by coordinator: Well lint red since Champion Phase 4 (verb table read as DDL; files excluded with a
 reason, ca501174); pkg/uids walker read agent worktrees (skips `.claude` now); ruff red (67cf4b07).
+
+### Phase 10 merged
+
+Harness `cmd/perf-benchmark -scenario e2e-trace,container-start,http-load,http3,all` (perf/v1 report);
+`scripts/check-perf-regression.sh` (16/16 fixture tests); VERDICTS H1-H8 scored (H5 SUPPORTED with a protocol
+deviation: llama.cpp measured, not vLLM; H3 untested: 2 of 10 trials); AF_XDP label fixed. **No number measured
+yet**: `docs/BENCHMARKS.md` section 5 reads "pending"; no `docs/policy/perf-baseline.json`.
+Premises that were false: Wotan `auto_approve` holds display names (added `perf-benchmark`, not `bench.perf`;
+Phase 14 attack-surface row); dashboard-backend never ingested `bench.*` (its eBPF ingestor now also consumes
+`bench.perf.packet`, RFC 2544 addresses 198.18.0.1->.2, shows as one bench flow); container-start uses its own
+`steel-echo-bench-<i>` instances, not Sword's.
+LIVE: before 217, restart Wotan (reloads bind-mounted `configs/wotan.yaml`) and rebuild/up dashboard-backend; 217-218
+as written (http3 will be `skipped`: west's curl 8.14.1 lacks HTTP/3, no Go HTTP/3 client); 219-220 after E-D:
+`CUIRASS_API_KEY=... go run ./cmd/perf-benchmark -scenario container-start -allow-lxd -iterations 5 -output /tmp/perf-cs.json`
+(Cuirass now also accepts a minted token); 225 `check-perf-regression.sh --update /tmp/perf-*.json`, then without.

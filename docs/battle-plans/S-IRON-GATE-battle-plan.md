@@ -600,30 +600,30 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
 **Time**: 2.5 h
 **Agent**: Coordinator
 
-- [ ] **Step 159** [R] ~3m: How Cuirass wires auth today and which routes write
+- [x] **Step 159** [R] ~3m: How Cuirass wires auth today and which routes write
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'auth\.|AUTH_|SkipAuthPaths|RBAC' cmd/unheaded-daemon/*.go | grep -v _test | head -20 && grep -nE 'HandleFunc\("(POST|PUT|DELETE)|Methods\(|"/api/v1/' cmd/unheaded-daemon/*.go | grep -v _test | head -20
   ```
-- [ ] **Step 160** [W][CODE] ~15m: Test `cmd/unheaded-daemon/auth_e2e_test.go`: start the daemon handler with `AUTH_ENABLED=true`, `AUTH_MODE=eddsa`, a temp key, temp trust.d holding `unheaded-cli.pub`, `AUTH_ALLOW_CALLERS=unheaded-cli,sword`; `GET /api/v1/info` and `/api/v1/state` → 200 unauthenticated (read endpoints opened 2ff3be29 stay open); `POST /api/v1/reconcile` without a token → 401; with a `sword`-minted token → 200 (or the handler's normal non-auth error, asserted ≠ 401/403); with a token from a key NOT in trust.d → 401; with a trusted key whose `sub` is not allowlisted → 403; `/health`, `/ready`, `/metrics` → 200.
-- [ ] **Step 161** [TEST][B] ~1m: Red
+- [x] **Step 160** [W][CODE] ~15m: Test `cmd/unheaded-daemon/auth_e2e_test.go`: start the daemon handler with `AUTH_ENABLED=true`, `AUTH_MODE=eddsa`, a temp key, temp trust.d holding `unheaded-cli.pub`, `AUTH_ALLOW_CALLERS=unheaded-cli,sword`; `GET /api/v1/info` and `/api/v1/state` → 200 unauthenticated (read endpoints opened 2ff3be29 stay open); `POST /api/v1/reconcile` without a token → 401; with a `sword`-minted token → 200 (or the handler's normal non-auth error, asserted ≠ 401/403); with a token from a key NOT in trust.d → 401; with a trusted key whose `sub` is not allowlisted → 403; `/health`, `/ready`, `/metrics` → 200.
+- [x] **Step 161** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-daemon/ -run 'AuthE2E' -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 162** [V] ~1m: Red (today everything is 200 under Noop, or the env is ignored).
-- [ ] **Step 163** [W][CODE] ~20m: `cmd/unheaded-daemon`: use `auth.SetupMiddleware(auth.LoadServiceAuthConfig("cuirass"))` with the Phase 1 config (it already does, so the work is: ensure read-only GETs are in `SkipAuthPaths` exactly as 2ff3be29 opened them, and that `RBACMiddleware(DefaultServicePolicies("cuirass"))` requires role `operator` or `service` on writes). Where a `service` identity comes from an EdDSA token, give it role `service` in `Identity.Roles` (pkg/auth change if missing).
-- [ ] **Step 164** [TEST][B] ~2m: Green
+- [x] **Step 162** [V] ~1m: Red (today everything is 200 under Noop, or the env is ignored).
+- [x] **Step 163** [W][CODE] ~20m: `cmd/unheaded-daemon`: use `auth.SetupMiddleware(auth.LoadServiceAuthConfig("cuirass"))` with the Phase 1 config (it already does, so the work is: ensure read-only GETs are in `SkipAuthPaths` exactly as 2ff3be29 opened them, and that `RBACMiddleware(DefaultServicePolicies("cuirass"))` requires role `operator` or `service` on writes). Where a `service` identity comes from an EdDSA token, give it role `service` in `Identity.Roles` (pkg/auth change if missing).
+- [x] **Step 164** [TEST][B] ~2m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-daemon/... ./pkg/auth/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 165** [V] ~1m: `ok`.
-- [ ] **Step 166** [W][CODE] ~15m: `cmd/unheaded-cli`: mint a service token from its own key (`AUTH_KEY_FILE` default `~/.config/unheaded/cli.key` for a human operator, `/etc/unheaded/keys/unheaded-cli.key` on a host) for `aud=cuirass` on every Cuirass call; `--api-key` alternative sends `Authorization: Bearer uhk_...`. Test: the CLI's HTTP client sets the header (httptest server asserts).
-- [ ] **Step 167** [TEST][B] ~1m
+- [x] **Step 165** [V] ~1m: `ok`.
+- [x] **Step 166** [W][CODE] ~15m: `cmd/unheaded-cli`: mint a service token from its own key (`AUTH_KEY_FILE` default `~/.config/unheaded/cli.key` for a human operator, `/etc/unheaded/keys/unheaded-cli.key` on a host) for `aud=cuirass` on every Cuirass call; `--api-key` alternative sends `Authorization: Bearer uhk_...`. Test: the CLI's HTTP client sets the header (httptest server asserts).
+- [x] **Step 167** [TEST][B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-cli/... -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 168** [V] ~1m: `ok`.
-- [ ] **Step 169** [W] ~5m: `docker-compose.yml` `cuirass`: `AUTH_ENABLED: "true"`, `AUTH_ALLOW_CALLERS: "sword,unheaded-cli,dashboard-backend"`. `deploy/systemd/unheaded-daemon.service`: `Environment=AUTH_ENABLED=true` and the same allowlist. `docker/compose.cuirass-lxd.yml`: nothing (inherits).
-- [ ] **Step 170** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 159-169: Cuirass requires service tokens on writes; CLI mints them`.
+- [x] **Step 168** [V] ~1m: `ok`.
+- [x] **Step 169** [W] ~5m: `docker-compose.yml` `cuirass`: `AUTH_ENABLED: "true"`, `AUTH_ALLOW_CALLERS: "sword,unheaded-cli,dashboard-backend"`. `deploy/systemd/unheaded-daemon.service`: `Environment=AUTH_ENABLED=true` and the same allowlist. `docker/compose.cuirass-lxd.yml`: nothing (inherits).
+- [x] **Step 170** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 159-169: Cuirass requires service tokens on writes; CLI mints them`.
 - [ ] **Step 171** [BUILD][B] ~5m: Live in compose: Cuirass + Sword (Sword is Cuirass's only in-stack writer)
   ```bash
   cd /home/govan/tmp/unheaded && docker compose up -d --build cuirass sword && sleep 8 && docker compose logs --tail=20 cuirass sword 2>&1 | grep -iE 'auth|401|403|error' | head -10; echo "--- unauth write:"; docker run --rm --network unheaded_control busybox:1.37.0 wget -S -qO- --post-data='{}' http://cuirass:19006/api/v1/reconcile 2>&1 | grep -E 'HTTP/' | head -1
@@ -634,11 +634,11 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
   cd /home/govan/tmp/unheaded && go build -o /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/bin/unheaded-cli ./cmd/unheaded-cli && AUTH_KEY_FILE=configs/keys/dev/unheaded-cli.key /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/bin/unheaded-cli --cuirass http://127.0.0.1:19006 state 2>&1 | head -3
   ```
 - [ ] **Step 174** [V] ~1m: JSON state, not 401. (Cuirass publishes 19006 to the host per `wiki/Containers.md`; if not published in this profile, run the binary inside the network as in Step 171.)
-- [ ] **Step 175** [B] ~1m
+- [x] **Step 175** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && docker compose stop cuirass sword && bash scripts/compliance/check-service-auth.sh 2>&1 | tail -9
   ```
-- [ ] **Step 176** [V] ~1m: The FAIL list no longer contains `cuirass` (7 remain).
+- [x] **Step 176** [V] ~1m: The FAIL list no longer contains `cuirass` (7 remain).
 - [ ] **Step 177** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 171-176: Cuirass auth proven live in compose (Sword 200, anonymous 401)`.
 - [ ] **Step 178** [V]: **PHASE 5 EXIT GATE** — Steps 165, 168, 172, 174, 176 passed; tree clean. → Phase 6.
 

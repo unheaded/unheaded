@@ -66,3 +66,13 @@ checks `aud` against the service name while the plan says user tokens carry `aud
 around it with `-audiences` + a login `audience`, so the BFF requests e.g. `dashboard-backend`. Plain-http JWKS
 fetch is loopback-only, so no other container can verify compose issuer tokens until TLS (Phase 8). Deb name
 `unheaded-unheaded-auth` (double prefix, Phase 14). Jenkinsfile `deb_postinst` call is out of date (Phase 14).
+
+### Phase 5 code half (coordinator, 9cd7d0be)
+
+RBAC behind auth in Cuirass (writes: admin/operator/service); CLI mints `unheaded-cli` tokens for aud
+`unheaded-daemon` (Cuirass's identity, not `cuirass`); Sword mints its own (CUIRASS_API_KEY now fallback);
+`cuirassdriver.Config.Authorizer`. compose + unit: `AUTH_ENABLED=true`, allowlist sword, unheaded-cli,
+dashboard-backend. check-service-auth: issuer exempt with reason; 10 services remain (plan said 7, counted before
+the issuer and Akira). Live Cuirass on west runs from compose without auth today (writes refused); Sword is not
+running. LIVE 171-174: `sudo scripts/gen-dev-keys.sh` (after `make binaries`), then recreate cuirass + sword and run
+Steps 171-174.
