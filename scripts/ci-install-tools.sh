@@ -11,10 +11,10 @@
 # lib/tool-pins.sh; lib/fetch-tool.sh checks the hash on every use;
 # scripts/check-tool-freshness.sh keeps them current.
 #
-#   scripts/ci-install-tools.sh DIR syft|grype|helm|kubeconform...
+#   scripts/ci-install-tools.sh DIR syft|grype|cosign|helm|kubeconform...
 set -euo pipefail
 
-dir="${1:?usage: $0 DIR syft|grype|helm|kubeconform...}"
+dir="${1:?usage: $0 DIR syft|grype|cosign|helm|kubeconform...}"
 shift
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib/tool-pins.sh
@@ -33,6 +33,9 @@ for tool in "$@"; do
 	helm) bin="$(fetch_tool helm "$HELM_VERSION" \
 		"https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" \
 		"$HELM_SHA256" linux-amd64/helm)" ;;
+	cosign) bin="$(fetch_tool cosign "$COSIGN_VERSION" \
+		"https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" \
+		"$COSIGN_SHA256" -)" ;;
 	kubeconform) bin="$(fetch_tool kubeconform "$KUBECONFORM_VERSION" \
 		"https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
 		"$KUBECONFORM_SHA256" kubeconform)" ;;

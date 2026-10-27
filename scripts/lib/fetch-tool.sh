@@ -8,7 +8,8 @@
 #   source scripts/lib/fetch-tool.sh
 #   bin="$(fetch_tool NAME VERSION URL SHA256 MEMBER)"
 #
-# MEMBER is the binary's path inside the .tar.gz. The archive is cached under
+# MEMBER is the binary's path inside the .tar.gz, or "-" when the release
+# asset is the bare binary itself (cosign). The archive is cached under
 # ${XDG_CACHE_HOME:-~/.cache}/unheaded-tools/NAME-VERSION. A cached archive
 # whose hash no longer matches is deleted and the call fails: a swapped file
 # must never run. Pins and their freshness: scripts/check-tool-freshness.sh.
@@ -31,6 +32,11 @@ fetch_tool() {
 		rm -f "$tarball" "$cache/$member"
 		return 2
 	}
+	if [[ "$member" == "-" ]]; then
+		install -m 0755 "$tarball" "$cache/$name" || return 2
+		echo "$cache/$name"
+		return 0
+	fi
 	tar -xzf "$tarball" -C "$cache" "$member" || return 2
 	echo "$cache/$member"
 }

@@ -1,25 +1,24 @@
 name: Release
 
+# Cut by pushing a tag vX.Y.Z[-alpha|-beta|-rc...]. Every file attached to the
+# release is signed with keyless cosign (OIDC identity of this workflow at the
+# tag) and covered by GitHub build provenance; the SBOM is attested against
+# checksums.txt. Verify a release with scripts/verify-release.sh <tag>
+# (wiki/Releases.md). S-IRON-GATE Phase 12 (M-060, M-063).
+
 on:
   push:
     tags:
       - 'v*'
 
 permissions:
-  contents: write
-  packages: write
-  security-events: write
-
+  contents: read
 
 jobs:
   build:
-    name: Build Release
+    name: Binaries and debs (linux/amd64)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      matrix:
-        goos: [linux, darwin]
-        goarch: [amd64, arm64]
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -29,72 +28,117 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run security scan before release
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+      - name: Vulnerability scan before release
+        # Pinned, not @latest: a release must not depend on what was newest that day.
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
-      - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          mkdir -p dist
-          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-            -o dist/wotan-${{ matrix.goos }}-${{ matrix.goarch }} \
-            ./wotan/cmd/wotan
-          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-            -o dist/wotan-cli-${{ matrix.goos }}-${{ matrix.goarch }} \
-            ./wotan/cmd/wotan-cli
+      - name: Build every binary
+        run: ./scripts/build-binaries.sh --out dist/bin
 
-      - name: Upload artifacts
+      - name: Build the debs
+        # Version from the tag without its leading v (Debian form: - becomes ~).
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          ./scripts/build-all-debs.sh "${v/-/\~}"
+          mkdir -p dist/debs-out && cp dist/debs/*.deb dist/debs-out/
+
+      - name: Upload
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
-          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/
+          name: go
+          path: |
+            dist/bin/*
+            dist/debs-out/*.deb
+          if-no-files-found: error
 
-  release:
-    name: Create Release
+  ebpf:
+    name: eBPF objects
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: build
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - name: Download all artifacts
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
+        with:
+          toolchain: nightly
+          components: rust-src
+          targets: bpfel-unknown-none
+
+      - name: Install bpf-linker
+        run: cargo install bpf-linker --no-default-features
+
+      - name: Build
+        working-directory: ebpf
+        run: cargo build --release --target=bpfel-unknown-none
+
+      - name: Collect objects
+        run: |
+          mkdir -p dist/ebpf
+          find ebpf/target/bpfel-unknown-none/release -maxdepth 1 -type f \
+            ! -name '*.d' ! -name '.*' -exec cp {} dist/ebpf/ \;
+          ls dist/ebpf | grep -q . || { echo "no eBPF objects built" >&2; exit 1; }
+
+      - name: Upload
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: ebpf
+          path: dist/ebpf/*
+          if-no-files-found: error
+
+  release:
+    name: Sign, attest, publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, ebpf]
+    permissions:
+      contents: write      # create the release
+      id-token: write      # keyless cosign and provenance (OIDC)
+      attestations: write  # actions/attest-build-provenance
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Download artifacts
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
-          path: dist
-          merge-multiple: true
+          path: artifacts
 
-      - name: Create checksums
+      - name: Flatten into dist/
+        run: |
+          mkdir -p dist
+          find artifacts -type f -exec cp {} dist/ \;
+          ls -la dist
+
+      - name: SBOM
+        # Pinned syft (sha256-checked by scripts/lib/fetch-tool.sh).
+        run: |
+          ./scripts/ci-install-tools.sh "$RUNNER_TEMP/bin" syft cosign
+          "$RUNNER_TEMP/bin/syft" dir:. -o cyclonedx-json=dist/sbom.cdx.json
+
+      - name: Checksums
+        run: cd dist && sha256sum -- * > checksums.txt && cat checksums.txt
+
+      - name: Sign every file (keyless cosign)
+        # The bundle carries the Fulcio certificate (identity: this workflow at
+        # this tag) and the Rekor inclusion proof; verify-release.sh checks both.
         run: |
           cd dist
-          sha256sum * > checksums.txt
+          for f in *; do
+            case "$f" in *.sigstore.json) continue ;; esac
+            "$RUNNER_TEMP/bin/cosign" sign-blob --yes --bundle "$f.sigstore.json" "$f" >/dev/null
+          done
+          "$RUNNER_TEMP/bin/cosign" attest-blob --yes --type cyclonedx \
+            --predicate sbom.cdx.json --bundle checksums.txt.sbom-attestation.sigstore.json checksums.txt >/dev/null
 
-      - name: Generate SBOM for release
-        # Pinned syft (sha256-checked). `go install github.com/anchore/syft@latest`
-        # floated, and could not build anyway: the binary is at ./cmd/syft.
-        run: |
-          ./scripts/ci-install-tools.sh "$RUNNER_TEMP/bin" syft
-          "$RUNNER_TEMP/bin/syft" dir:. -o cyclonedx-json=dist/sbom.json
+      - name: Build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: dist/checksums.txt
 
-      - name: Create Release
+      - name: Publish the release
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
-          files: |
-            dist/*
+          files: dist/*
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
-
-      - name: SLSA provenance placeholder
-        run: |
-          echo "# SLSA Provenance" > dist/provenance.json
-          echo "TODO: Integrate slsa-framework/slsa-github-generator for production"
-          echo "Version: ${{ github.ref_name }}" >> dist/provenance.json
-
-      - name: Signing placeholder (cosign)
-        run: |
-          echo "TODO: Integrate sigstore/cosign for artifact signing"
-          echo "Use: cosign sign-blob --key cosign.key dist/* > dist/signatures.txt"

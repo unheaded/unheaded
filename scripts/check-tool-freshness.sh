@@ -32,6 +32,7 @@ TOOLS=(
 	"gitleaks|scripts/lib/tool-pins.sh|GITLEAKS_VERSION|gitleaks/gitleaks|v"
 	"syft|scripts/lib/tool-pins.sh|SYFT_VERSION|anchore/syft|v"
 	"grype|scripts/lib/tool-pins.sh|GRYPE_VERSION|anchore/grype|v"
+	"cosign|scripts/lib/tool-pins.sh|COSIGN_VERSION|sigstore/cosign|v"
 	"helm|scripts/lib/tool-pins.sh|HELM_VERSION|helm/helm|v"
 	"kubeconform|scripts/lib/tool-pins.sh|KUBECONFORM_VERSION|yannh/kubeconform|v"
 	"hadolint|scripts/lib/tool-pins.sh|HADOLINT_VERSION|hadolint/hadolint|v"

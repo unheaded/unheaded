@@ -24,6 +24,9 @@ SYFT_SHA256="bb65249542db5fedeeb4d3f9b018b75e7264dbfbbb10486f044581a92f90490d" #
 GRYPE_VERSION="0.121.0"
 GRYPE_SHA256="64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519" # grype_<v>_linux_amd64.tar.gz
 
+COSIGN_VERSION="3.1.3"
+COSIGN_SHA256="4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71" # cosign-linux-amd64 (bare binary; cosign_checksums.txt)
+
 HELM_VERSION="4.3.1"
 HELM_SHA256="0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b" # helm-v<v>-linux-amd64.tar.gz (get.helm.sh, matches the release notes)
 
