@@ -125,6 +125,12 @@ else
     export ZHEN_AGENTD_URL="${ZHEN_AGENTD_URL:-http://localhost:20105}"
     export ZHEN_MODEL="${ZHEN_MODEL:-qwen2.5-coder-7b-instruct}"
     export VOR_URL="${VOR_URL:-http://localhost:9876}"
+    # Memory-embedder pin (RT-15): RAGPipeline hashes the cached weights and
+    # refuses to start when they are not the pinned file.
+    # shellcheck source=../scripts/lib/model-pins.sh
+    . "$HOME/tmp/unheaded/scripts/lib/model-pins.sh"
+    export ZHEN_EMBEDDER_SHA256="${ZHEN_EMBEDDER_SHA256:-$EMBEDDER_SHA256}"
+    export ZHEN_EMBEDDER_REVISION="${ZHEN_EMBEDDER_REVISION:-$EMBEDDER_REVISION}"
     if [[ -z "${ZHEN_AGENTD_API_KEY:-}" && "${ZHEN_AGENTD_NO_AUTH:-}" != "1" ]]; then
         echo "  ! ZHEN_AGENTD_API_KEY unset (and ZHEN_AGENTD_NO_AUTH!=1): gated chat and mutations will answer 503"
     fi

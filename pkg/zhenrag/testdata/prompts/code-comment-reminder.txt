@@ -1,0 +1,1 @@
+(If your answer includes code: comment every line or small group of lines, explaining what it does and how its syntax works, inside the code block itself, e.g. `while IFS= read -r line; do  # IFS= keeps leading spaces; -r keeps backslashes literal`. Do not add a separate Explanation list after the code.)

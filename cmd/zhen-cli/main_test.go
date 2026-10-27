@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -260,5 +261,21 @@ func TestToolExec_SendsDirectUserJustificationAndKey(t *testing.T) {
 	}
 	if f.apiKeys[1] != "" {
 		t.Errorf("X-API-Key sent without a key configured: %q", f.apiKeys[1])
+	}
+}
+
+// The CLI sends the same chat prompt as cmd/zhen-rag (pkg/zhenrag), not a
+// paraphrase of it: the golden is zhen-rag's prompt before the move.
+func TestSystemPrompt_IsSharedChatPrompt(t *testing.T) {
+	t.Parallel()
+	want, err := os.ReadFile("../../pkg/zhenrag/testdata/prompts/zhen-rag.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := systemPrompt(); got != string(want) {
+		t.Errorf("zhen-cli prompt (%d bytes) is not the shared chat prompt (%d bytes)", len(got), len(want))
+	}
+	if !strings.Contains(systemPrompt(), "CODE COMMENTS:") {
+		t.Error("zhen-cli prompt lacks the CODE COMMENTS rule")
 	}
 }

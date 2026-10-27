@@ -26,9 +26,17 @@ type fitEnv struct {
 	vramFree int64 // bytes rocm-smi reports free on card0
 	ramAvail int64 // MemAvailable
 	gguf     map[string]int64
+	logger   bool // put a fake logger on PATH that echoes "LOGGER: <args>"
 }
 
 func runFitCheck(t *testing.T, fe fitEnv, key string) (int, string) {
+	t.Helper()
+	return runSwitchModel(t, fe, "--check", key)
+}
+
+// runSwitchModel runs switch-model.sh with args in the fake environment
+// (LLAMA_BIN=/nonexistent: nothing can be launched).
+func runSwitchModel(t *testing.T, fe fitEnv, args ...string) (int, string) {
 	t.Helper()
 	for _, tool := range []string{"flock", "ss", "numfmt"} {
 		if _, err := exec.LookPath(tool); err != nil {
@@ -49,6 +57,11 @@ func runFitCheck(t *testing.T, fe fitEnv, key string) (int, string) {
 	if err := os.WriteFile(filepath.Join(bin, "rocm-smi"), []byte(smi), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if fe.logger {
+		if err := os.WriteFile(filepath.Join(bin, "logger"), []byte("#!/bin/sh\necho \"LOGGER: $*\"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	meminfo := filepath.Join(dir, "meminfo")
 	if err := os.WriteFile(meminfo, []byte(fmt.Sprintf("MemTotal: %d kB\nMemAvailable: %d kB\n", 14*gib/1024, fe.ramAvail/1024)), 0o644); err != nil {
 		t.Fatal(err)
@@ -63,7 +76,7 @@ func runFitCheck(t *testing.T, fe fitEnv, key string) (int, string) {
 		}
 		_ = f.Close()
 	}
-	cmd := exec.Command("bash", filepath.Join("..", "switch-model.sh"), "--check", key)
+	cmd := exec.Command("bash", append([]string{filepath.Join("..", "switch-model.sh")}, args...)...)
 	cmd.Env = []string{
 		"PATH=" + bin + ":" + os.Getenv("PATH"),
 		"GPU_LOCK=" + filepath.Join(dir, "u", "gpu.lock"),

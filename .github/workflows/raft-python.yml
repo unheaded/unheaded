@@ -13,10 +13,12 @@ on:
   push:
     paths:
       - 'raft/**'
+      - 'pkg/zhenrag/testdata/**'
       - '.github/workflows/raft-python.yml'
   pull_request:
     paths:
       - 'raft/**'
+      - 'pkg/zhenrag/testdata/**'
       - '.github/workflows/raft-python.yml'
   workflow_dispatch:
 
@@ -52,7 +54,9 @@ jobs:
           # so it's excluded from this job. Run it locally with the
           # webapp + Well online, or via a future integration workflow.
           # test_zhen_rag_retrieve.py stubs sentence-transformers and fakes vor.
-          pytest raft/tests/test_action_manager.py raft/tests/test_zhen_highlight.py raft/tests/test_zhen_rag_retrieve.py -v --tb=short
+          # test_zhen_prompt.py pins the direct chat path's prompt bytes to
+          # pkg/zhenrag's pre-move goldens (same stub, no network).
+          pytest raft/tests/test_action_manager.py raft/tests/test_zhen_highlight.py raft/tests/test_zhen_rag_retrieve.py raft/tests/test_zhen_prompt.py raft/tests/test_zhen_embedder_pin.py -v --tb=short
 
       - name: Confirm test_memory_poison.py imports cleanly (syntax only)
         # We don't execute the integration test in CI, but we DO want
