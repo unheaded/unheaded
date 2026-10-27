@@ -444,7 +444,7 @@ findings:
     verify: curl -s -o /dev/null -w '%{http_code}' http://<west LAN address>:18888/conf/distributions is not 200, and only the signed reprepro repo (deploy/nginx/unheaded-apt.conf) answers on 18888
     host: west
     severity: medium
-    class: host
+    class: service
     opened: 2026-10-27
     exposure: west's old unsigned apt repo (/var/lib/apt-repo, codename noble) is served by nginx on 0.0.0.0:18888 with autoindex; /conf/distributions and /db/ answer 200 on the LAN address 192.168.69.184 (checked 2026-10-27). East does not use it.
     lockout: none
