@@ -129,3 +129,15 @@ CI: `test-slo-definitions.sh` runs in the well-schema job (throwaway Well); `ci-
 `WELL_DB` is set. LIVE 105-106 after E-A applies 040: `WELL_DB=unheaded_ops WELL_PASSWORD=<OPS_WRITER_PASSWORD> go run
 ./cmd/alert-policy -sync-well`, confirm 8 rows, then `-check` (no drift). Flake seen under load:
 `pkg/deploy/rollback TestManager_Rollback_DuplicateInProgress` (passes 20/20 alone).
+
+### Phase 2 merged (5ceef55f)
+
+Migration `039_ops_deploy_chaos.sql`: `deploy_history` + `deploy_history_transitions` (status/times per transition,
+whole record as jsonb), `chaos_journal` + `chaos_journal_transitions` (a revert is a new row), views
+`deploy_history_current`, `chaos_journal_open`; append-only triggers; rows per host (`KINGDOM_NODE`, else hostname).
+No `actor` column (would touch auth). `WELL_DB` set but Well unreachable or 039 missing refuses to start (never falls
+back); file state imported into the Well once. `revert-all` reads every open entry (`OpenOlderThan` exists, unused).
+**E-A order:** apply the batch (now 030-041, 12 files) BEFORE rebuilding Sword: compose sets `WELL_DB` for it.
+Chaos-controller: put `WELL_DB` in a host's `chaos.env` only if its Well starts before the unit and outlives it
+(else ExecStopPost `revert-all` exits 2); east stays in file mode. LIVE 78-80: Sword has no dry-run, so 78 needs a real
+rolling deploy of steel-echo.

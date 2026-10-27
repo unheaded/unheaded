@@ -288,56 +288,56 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 
 ### Schema
 
-- [ ] **Step 51** [R] ~5m: Read the three record shapes: `sed -n '115,210p' services/sword/sword.go` (StepSpec, AnalysisSpec, StrategySpec, DeployRequest, Deployment), `sed -n '25,60p' services/yaldabaoth/journal.go` (JournalEntry), `grep -n -A20 'type packetJournal' cmd/chaos-controller/packetcmd.go`. List every field and its type in the progress file.
-- [ ] **Step 52** [DECIDE][DESIGN] ~3m: **Store shape.** RECOMMENDATION: three append-only tables in `unheaded_ops` with a `jsonb spec` column for the strategy/recipe and typed columns for what is queried (id, service, strategy, status, started_at, finished_at, host, actor), plus `deploy_history_transitions` for status changes; `chaos_journal` rows are never deleted (reverted = status column). Rationale: ERDA §5.4 append-only + the retention policy's archive class; jsonb avoids a migration per strategy field; queries are by id/service/time. Override ONLY if Stevie wants a normalized step table (nothing reads steps individually today).
-- [ ] **Step 53** [W] ~12m: `db/migrations/036_ops_deploy_chaos.sql`: tables `deploy_history`, `deploy_history_transitions`, `chaos_journal` (owner per 025 pattern; `GRANT SELECT, INSERT ON ... TO ops_writer`; `GRANT SELECT TO ops_reader` if that role exists: `grep -n 'ops_reader\|ops_writer' db/migrations/025*.sql`); indexes on `(service, started_at DESC)` and `(status)`; `CHECK (status IN (...))` from the Go constants; an `append_only` trigger copied from the one 019/028 use (grep `change_reason`/`append` for the pattern). MANIFEST line `unheaded_ops 036_ops_deploy_chaos.sql`.
-- [ ] **Step 54** [TEST][W] ~8m: `scripts/well/test-deploy-journal.sh`: docker Well → migrate → as `ops_writer` INSERT a deployment + 2 transitions + 1 chaos row → UPDATE on `chaos_journal` is refused by the trigger → SELECT by service returns ordered rows → `well_lint.py` clean on 036.
-- [ ] **Step 55** [TEST][B] ~4m
+- [x] **Step 51** [R] ~5m: Read the three record shapes: `sed -n '115,210p' services/sword/sword.go` (StepSpec, AnalysisSpec, StrategySpec, DeployRequest, Deployment), `sed -n '25,60p' services/yaldabaoth/journal.go` (JournalEntry), `grep -n -A20 'type packetJournal' cmd/chaos-controller/packetcmd.go`. List every field and its type in the progress file.
+- [x] **Step 52** [DECIDE][DESIGN] ~3m: **Store shape.** RECOMMENDATION: three append-only tables in `unheaded_ops` with a `jsonb spec` column for the strategy/recipe and typed columns for what is queried (id, service, strategy, status, started_at, finished_at, host, actor), plus `deploy_history_transitions` for status changes; `chaos_journal` rows are never deleted (reverted = status column). Rationale: ERDA §5.4 append-only + the retention policy's archive class; jsonb avoids a migration per strategy field; queries are by id/service/time. Override ONLY if Stevie wants a normalized step table (nothing reads steps individually today).
+- [x] **Step 53** [W] ~12m: `db/migrations/036_ops_deploy_chaos.sql`: tables `deploy_history`, `deploy_history_transitions`, `chaos_journal` (owner per 025 pattern; `GRANT SELECT, INSERT ON ... TO ops_writer`; `GRANT SELECT TO ops_reader` if that role exists: `grep -n 'ops_reader\|ops_writer' db/migrations/025*.sql`); indexes on `(service, started_at DESC)` and `(status)`; `CHECK (status IN (...))` from the Go constants; an `append_only` trigger copied from the one 019/028 use (grep `change_reason`/`append` for the pattern). MANIFEST line `unheaded_ops 036_ops_deploy_chaos.sql`.
+- [x] **Step 54** [TEST][W] ~8m: `scripts/well/test-deploy-journal.sh`: docker Well → migrate → as `ops_writer` INSERT a deployment + 2 transitions + 1 chaos row → UPDATE on `chaos_journal` is refused by the trigger → SELECT by service returns ordered rows → `well_lint.py` clean on 036.
+- [x] **Step 55** [TEST][B] ~4m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/well/test-deploy-journal.sh 2>&1 | tail -6 && bash scripts/check-well-lint.sh 2>&1 | tail -3
   ```
-- [ ] **Step 56** [V] ~1m: PASS and lint has no new rows (baseline shrink-only). If lint flags nullable defaults → fix 036 (`NOT NULL`, `timestamptz`, identity columns; ERDA 5.7).
-- [ ] **Step 57** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 51-56: migration 036 deploy_history/chaos_journal + suite`
+- [x] **Step 56** [V] ~1m: PASS and lint has no new rows (baseline shrink-only). If lint flags nullable defaults → fix 036 (`NOT NULL`, `timestamptz`, identity columns; ERDA 5.7).
+- [x] **Step 57** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 51-56: migration 036 deploy_history/chaos_journal + suite`
 
 ### Go stores (red → green)
 
-- [ ] **Step 58** [CODE][W] ~10m: `pkg/database/deploy_store_test.go`: table-driven against the docker Well when `WELL_TEST_DSN` is set, else `t.Skip` (the pattern `kanban_store_test.go` uses: `grep -n 'Skip' pkg/database/*_test.go | head -3`). Cases: Record → Get round-trips the jsonb spec byte-for-byte; Transition appends and `List(service, limit)` orders newest first; `Record` twice with the same id is a unique-violation error, not silent.
-- [ ] **Step 59** [CODE][W] ~10m: `pkg/database/chaos_store_test.go`: Append → `Open()` lists only non-reverted; `MarkReverted(id, why)` inserts a transition row (never UPDATEs the original); `OpenOlderThan(d)` for revert-all.
-- [ ] **Step 60** [TEST][B] ~2m: Expect FAIL
+- [x] **Step 58** [CODE][W] ~10m: `pkg/database/deploy_store_test.go`: table-driven against the docker Well when `WELL_TEST_DSN` is set, else `t.Skip` (the pattern `kanban_store_test.go` uses: `grep -n 'Skip' pkg/database/*_test.go | head -3`). Cases: Record → Get round-trips the jsonb spec byte-for-byte; Transition appends and `List(service, limit)` orders newest first; `Record` twice with the same id is a unique-violation error, not silent.
+- [x] **Step 59** [CODE][W] ~10m: `pkg/database/chaos_store_test.go`: Append → `Open()` lists only non-reverted; `MarkReverted(id, why)` inserts a transition row (never UPDATEs the original); `OpenOlderThan(d)` for revert-all.
+- [x] **Step 60** [TEST][B] ~2m: Expect FAIL
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/database/ -run 'TestDeployStore|TestChaosStore' -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 61** [V] ~1m: red (`undefined: NewDeployStore`).
-- [ ] **Step 62** [CODE][W] ~20m: `pkg/database/deploy_store.go` (`NewDeployStore(db)`, `Record`, `Transition`, `Get`, `List`) and `chaos_store.go` (`NewChaosStore(db)`, `Append`, `MarkReverted`, `Open`, `OpenOlderThan`), both following `kanban_store.go`'s style (context first, `sql.ErrNoRows` → typed `ErrNotFound`, no string-built SQL).
-- [ ] **Step 63** [TEST][B] ~3m: Expect PASS, with the docker Well
+- [x] **Step 61** [V] ~1m: red (`undefined: NewDeployStore`).
+- [x] **Step 62** [CODE][W] ~20m: `pkg/database/deploy_store.go` (`NewDeployStore(db)`, `Record`, `Transition`, `Get`, `List`) and `chaos_store.go` (`NewChaosStore(db)`, `Append`, `MarkReverted`, `Open`, `OpenOlderThan`), both following `kanban_store.go`'s style (context first, `sql.ErrNoRows` → typed `ErrNotFound`, no string-built SQL).
+- [x] **Step 63** [TEST][B] ~3m: Expect PASS, with the docker Well
   ```bash
   cd /home/govan/tmp/unheaded && WELL_TEST_DSN="$(bash scripts/well/test-config.sh --dsn ops_writer 2>/dev/null || echo '')" go test ./pkg/database/ -run 'TestDeployStore|TestChaosStore' -race -count=1 2>&1 | tail -4
   ```
   (If `test-config.sh` has no `--dsn` flag, read how the other `scripts/well/test-*.sh` build their connection string and export the same.)
-- [ ] **Step 64** [V] ~1m: green, not skipped (`-v` shows the cases ran). If skipped → the DSN export is wrong: Step 65.
-- [ ] **Step 65** [D] ~5m: `grep -n 'PGPASSWORD\|psql' scripts/well/test-zhen-captures.sh | head -5` and mirror it. Max 2 attempts.
-- [ ] **Step 66** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 58-65: DeployStore and ChaosStore on the Well`
+- [x] **Step 64** [V] ~1m: green, not skipped (`-v` shows the cases ran). If skipped → the DSN export is wrong: Step 65.
+- [x] **Step 65** [D] ~5m: `grep -n 'PGPASSWORD\|psql' scripts/well/test-zhen-captures.sh | head -5` and mirror it. Max 2 attempts.
+- [x] **Step 66** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 58-65: DeployStore and ChaosStore on the Well`
 
 ### Writers: Sword, Yaldabaoth, chaos-controller
 
-- [ ] **Step 67** [CODE][W] ~10m: `services/sword/history.go`: `type History interface { Record(ctx, *Deployment) error; Transition(ctx, id, from, to string, note string) error; Get(ctx, id) (*Deployment, error); List(ctx, service string, n int) ([]*Deployment, error) }`; two implementations: `wellHistory` (wraps `database.DeployStore`) and `fileHistory` (today's statefile code moved verbatim). Test: `history_test.go` runs the same contract against both (file impl always; well impl under `WELL_TEST_DSN`).
-- [ ] **Step 68** [CODE][W] ~8m: Wire `services/sword/sword.go`: `Config` gains `Well database.Config` (zero value = file mode); `New()` picks `wellHistory` when `cfg.Well.DBName != ""` and logs `history=well` or `history=file`; every `s.file.` call site goes through `s.history`. `ErrNoDir` stays for file mode.
-- [ ] **Step 69** [CODE][W] ~8m: Same for Yaldabaoth: `services/yaldabaoth/journal.go` → `Journal interface` with `wellJournal` (ChaosStore) and the existing file journal; `chaos-controller revert-all` reads `OpenOlderThan`. The packet journal in `cmd/chaos-controller/packetcmd.go` writes one `chaos_journal` row per injection with `kind='packet'`.
-- [ ] **Step 70** [CODE][W] ~5m: Compose/env: `docker-compose.yml` sword and chaos-controller services get `WELL_DB=unheaded_ops`, `WELL_USER=ops_writer`, `WELL_PASSWORD_FILE=/run/secrets/...` the same way dashboard-backend gets ops_writer today (`grep -n -B2 -A8 'ops_writer' docker-compose.yml | head -30`); `deploy/systemd/unheaded-sword.service` and `unheaded-chaos-controller.service` read `/etc/unheaded/sword/sword.env` / `/etc/unheaded/chaos/chaos.env` (already their EnvironmentFile). (Stronger after S-IRON-GATE: the password file becomes a service token; nothing here changes then.)
-- [ ] **Step 71** [TEST][B] ~4m
+- [x] **Step 67** [CODE][W] ~10m: `services/sword/history.go`: `type History interface { Record(ctx, *Deployment) error; Transition(ctx, id, from, to string, note string) error; Get(ctx, id) (*Deployment, error); List(ctx, service string, n int) ([]*Deployment, error) }`; two implementations: `wellHistory` (wraps `database.DeployStore`) and `fileHistory` (today's statefile code moved verbatim). Test: `history_test.go` runs the same contract against both (file impl always; well impl under `WELL_TEST_DSN`).
+- [x] **Step 68** [CODE][W] ~8m: Wire `services/sword/sword.go`: `Config` gains `Well database.Config` (zero value = file mode); `New()` picks `wellHistory` when `cfg.Well.DBName != ""` and logs `history=well` or `history=file`; every `s.file.` call site goes through `s.history`. `ErrNoDir` stays for file mode.
+- [x] **Step 69** [CODE][W] ~8m: Same for Yaldabaoth: `services/yaldabaoth/journal.go` → `Journal interface` with `wellJournal` (ChaosStore) and the existing file journal; `chaos-controller revert-all` reads `OpenOlderThan`. The packet journal in `cmd/chaos-controller/packetcmd.go` writes one `chaos_journal` row per injection with `kind='packet'`.
+- [x] **Step 70** [CODE][W] ~5m: Compose/env: `docker-compose.yml` sword and chaos-controller services get `WELL_DB=unheaded_ops`, `WELL_USER=ops_writer`, `WELL_PASSWORD_FILE=/run/secrets/...` the same way dashboard-backend gets ops_writer today (`grep -n -B2 -A8 'ops_writer' docker-compose.yml | head -30`); `deploy/systemd/unheaded-sword.service` and `unheaded-chaos-controller.service` read `/etc/unheaded/sword/sword.env` / `/etc/unheaded/chaos/chaos.env` (already their EnvironmentFile). (Stronger after S-IRON-GATE: the password file becomes a service token; nothing here changes then.)
+- [x] **Step 71** [TEST][B] ~4m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./services/sword/... ./services/yaldabaoth/... ./cmd/chaos-controller/... -race -count=1 2>&1 | tail -5 && WELL_TEST_DSN="$WELL_TEST_DSN" go test ./services/sword/ -run TestHistoryContract -race -count=1 -v 2>&1 | grep -E '^(=== RUN|--- |ok|FAIL)' | tail -8
   ```
-- [ ] **Step 72** [V] ~1m: all `ok`; contract ran for both `file` and `well` subtests. If the well subtest skipped → the DSN was not exported in this shell; re-run with Step 63's export.
-- [ ] **Step 73** [TEST][B] ~3m: Sword in docker against the docker Well, end to end (in-memory Cuirass as the S-REAL-STEEL Phase 7 tests do)
+- [x] **Step 72** [V] ~1m: all `ok`; contract ran for both `file` and `well` subtests. If the well subtest skipped → the DSN was not exported in this shell; re-run with Step 63's export.
+- [x] **Step 73** [TEST][B] ~3m: Sword in docker against the docker Well, end to end (in-memory Cuirass as the S-REAL-STEEL Phase 7 tests do)
   ```bash
   cd /home/govan/tmp/unheaded && go test ./services/sword/ -run 'TestDeploy.*Well' -race -count=1 2>&1 | tail -3
   ```
   (Write `TestDeployRollingRecordsHistoryInWell` in Step 67 if no such test exists: a rolling deploy against the fake driver leaves 1 `deploy_history` row and ≥ 3 transitions.)
-- [ ] **Step 74** [V] ~1m: green.
-- [ ] **Step 75** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 67-74: Sword, Yaldabaoth and chaos-controller write to the Well; file mode kept as fallback`
-- [ ] **Step 76** [W] ~5m: `docs/adr/ADR-099*.md` "Progress" entry: deploy and chaos journals are Well tables (036), file mode is the documented fallback when `WELL_DB` is unset; `pkg/statefile` remains for architect/micromanager/unheaded-daemon (follow-on, out of this sprint). `wiki/Service-Sword.md` and `wiki/Chaos-Engineering.md`: where history lives now, how to query it (`psql ... -c "SELECT id, service, status, started_at FROM deploy_history ORDER BY started_at DESC LIMIT 10"`).
-- [ ] **Step 77** [B] ~1m: `cd /home/govan/tmp/unheaded && bash scripts/check-systemd-units.sh 2>&1 | tail -3 && bash scripts/check-compose-hardening.sh 2>&1 | tail -3`
+- [x] **Step 74** [V] ~1m: green.
+- [x] **Step 75** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 67-74: Sword, Yaldabaoth and chaos-controller write to the Well; file mode kept as fallback`
+- [x] **Step 76** [W] ~5m: `docs/adr/ADR-099*.md` "Progress" entry: deploy and chaos journals are Well tables (036), file mode is the documented fallback when `WELL_DB` is unset; `pkg/statefile` remains for architect/micromanager/unheaded-daemon (follow-on, out of this sprint). `wiki/Service-Sword.md` and `wiki/Chaos-Engineering.md`: where history lives now, how to query it (`psql ... -c "SELECT id, service, status, started_at FROM deploy_history ORDER BY started_at DESC LIMIT 10"`).
+- [x] **Step 77** [B] ~1m: `cd /home/govan/tmp/unheaded && bash scripts/check-systemd-units.sh 2>&1 | tail -3 && bash scripts/check-compose-hardening.sh 2>&1 | tail -3`
 - [ ] **Step 78** [AFTER-E-A][LIVE-RW][S][BARE-METAL][B] ~8m: After the batch (Step 47 included 036): rebuild and restart sword + chaos-controller on west with the Well env (`sudo docker compose up -d --build sword`; `sudo systemctl restart unheaded-chaos-controller`), then one dry-run deploy
   ```bash
   curl -s -X POST localhost:19011/api/v1/deploy -H 'content-type: application/json' -d @services/sword/testdata/rolling-dryrun.json | jq -r '.id' ; docker logs --tail 3 unheaded-sword | grep -E 'history=(well|file)'
@@ -345,12 +345,12 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
   (Create `testdata/rolling-dryrun.json` in Step 67 if Sword has no dry-run request fixture; a dry run must not touch LXD.)
 - [ ] **Step 79** [AFTER-E-A][LIVE-RO][V] ~2m: `history=well`; `psql` as ops_reader (or the owner) `SELECT count(*) FROM deploy_history` increased by 1; `SELECT count(*) FROM chaos_journal` unchanged (dry run, no chaos).
 - [ ] **Step 80** [AFTER-E-A][D] ~5m: If `history=file`: the env did not reach the container (`docker inspect unheaded-sword | jq '.[0].Config.Env' | grep WELL`); fix compose, re-up. If `history=well` but count unchanged: the dry-run path returns before `Record`; it must record with `status='dry-run'`.
-- [ ] **Step 81** [W] ~4m: `scripts/well/test-deploy-journal.sh` gains the revert-all case: 3 open chaos rows → `chaos-controller revert-all` (against the docker Well, fake injector) → 3 transition rows `reverted`, originals untouched.
-- [ ] **Step 82** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && bash scripts/well/test-deploy-journal.sh 2>&1 | tail -4`
-- [ ] **Step 83** [V] ~1m: PASS.
-- [ ] **Step 84** [SECURITY][R] ~3m: Confirm no row stores a packet payload or user data: `grep -nE 'payload|body|headers' pkg/database/deploy_store.go pkg/database/chaos_store.go db/migrations/036_ops_deploy_chaos.sql` returns nothing; the jsonb spec is the strategy/recipe only (DoD-STD 8).
-- [ ] **Step 85** [V] ~1m: nothing matched.
-- [ ] **Step 86** [V]+[C] ~2m: **PHASE 2 EXIT GATE** — Steps 56, 64, 72, 74, 83, 85 passed (79 if E-A answered). Commit: `[PLAN S-WELL-SPRING] Steps 76-86: ADR-099 progress, wiki, revert-all on the Well, security check`.
+- [x] **Step 81** [W] ~4m: `scripts/well/test-deploy-journal.sh` gains the revert-all case: 3 open chaos rows → `chaos-controller revert-all` (against the docker Well, fake injector) → 3 transition rows `reverted`, originals untouched.
+- [x] **Step 82** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && bash scripts/well/test-deploy-journal.sh 2>&1 | tail -4`
+- [x] **Step 83** [V] ~1m: PASS.
+- [x] **Step 84** [SECURITY][R] ~3m: Confirm no row stores a packet payload or user data: `grep -nE 'payload|body|headers' pkg/database/deploy_store.go pkg/database/chaos_store.go db/migrations/036_ops_deploy_chaos.sql` returns nothing; the jsonb spec is the strategy/recipe only (DoD-STD 8).
+- [x] **Step 85** [V] ~1m: nothing matched.
+- [x] **Step 86** [V]+[C] ~2m: **PHASE 2 EXIT GATE** — Steps 56, 64, 72, 74, 83, 85 passed (79 if E-A answered). Commit: `[PLAN S-WELL-SPRING] Steps 76-86: ADR-099 progress, wiki, revert-all on the Well, security check`.
 
 ---
 
