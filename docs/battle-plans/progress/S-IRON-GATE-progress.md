@@ -128,3 +128,18 @@ progress goes dark), the Rust `cmd/trace-collector` gRPC publisher and `cmd/ebpf
 perf-benchmark e2e reads the dashboard's `/api/v1/ebpf/events`, which needs a BFF login since Phase 6.
 LIVE 239-250: `make binaries && sudo scripts/gen-dev-keys.sh` first (Wotan refuses to start with auth on and nothing to
 verify against; every binary without a readable key loses Wotan). East needs keys for every service before a deb upgrade.
+
+### Non-Go Wotan publishers converted (d023ce82)
+
+Correction to the Phase 7 note: the dashboard does not lose eBPF flows. `crates/svc-token` (Rust, ring) and
+`scripts/svc_token.py` mint tokens byte-identical to `auth.SignEdDSA` (`tests/svctoken` cross-language test).
+The Rust `cmd/trace-collector` publish is a stub and nothing deploys it (production traces are trace-collector-go,
+converted in Phase 7). `cmd/ebpf-collector`'s gRPC and HTTP publishes were malformed and its default ports pointed at
+9080/9090 (Prometheus): fixed; it publishes as new identity `ebpf-collector` (on Wotan's allowlist and auto_approve;
+key by hand: `unheaded-keygen ebpf-collector`). run-runbook.py progress carries a token (identity follows the key:
+`zhen-agentd` under the Champion, else `unheaded-cli`) and accepts an https Wotan (`UNHEADED_TLS_CA_CERT`).
+`unheaded token --aud <svc>` prints a 5-minute token for curl; demo-trace-injector is `unheaded-cli`.
+Still broken regardless of tokens: `scripts/bare-metal/validate-cross-host.sh` and `runbooks/wotan/cluster-*` curls
+(wrong body, admin API). `docker/services/trace-collector/Dockerfile` go-builds a Rust directory and cannot build.
+Rust clients have no TLS (would need rustls on aws-lc-rs for the hybrid group); Phase 8 must decide whether
+run-runbook.py should refuse a token over plain http, matching wotan-client.
