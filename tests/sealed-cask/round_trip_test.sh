@@ -14,7 +14,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 T="$(mktemp -d)"
 PROBE="${ROOT}/configs/keys/.cask-leak-probe-$$"
-trap 'rm -rf "$T"; rm -f "$PROBE"' EXIT
+trap 'rm -rf "$T"; rm -f "$PROBE"; rmdir "$(dirname "$PROBE")" 2>/dev/null || true' EXIT
 fail=0
 pass() { echo "[PASS] $*"; }
 bad() { echo "[FAIL] $*"; fail=1; }
