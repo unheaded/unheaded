@@ -218,25 +218,6 @@ findings:
       from that environment rather than by hand. Until PYSEC-2026-139 has a fix, load only .pt2 files built here
     decision: when to take the GPU stack to a current torch (a ROCm upgrade and a training run, not a pin edit)
 
-  - id: FND-014
-    title: >-
-      The Well's role passwords were written in plaintext to the Postgres server log (log_statement = 'ddl' logs
-      ALTER ROLE ... PASSWORD) and kept in pg_stat_statements, by db/init.sh and scripts/well/set-role-passwords.sh.
-      Fixed for future password sets (586212e5); copies set since 2026-10-15 probably remain on the live Well.
-    verify: >-
-      pg_stat_statements holds no ALTER ROLE ... PASSWORD text, the container log has no such line, and every role
-      password set before the fix has been rotated with the fixed script
-    severity: medium
-    class: app
-    host: west
-    opened: 2026-10-23
-    exposure: readable by whoever can read the Well container's log or query pg_stat_statements (superuser, pg_read_all_stats); lab host, not internet-facing
-    lockout: none
-    step: 1
-    plan: >-
-      With the Well up, at Stevie's yes: SELECT pg_stat_statements_reset(); clear or rotate the old Postgres logs that
-      carry ALTER ROLE ... PASSWORD lines; rotate the role passwords with scripts/well/set-role-passwords.sh (fixed:
-      it now sets them with logging off). The suites test-backup-restore and test-config check the fix.
 
   # --- S-QUANTUM-ARMOR (ADR-105): post-quantum gaps left for Stevie (E1-E5) and parked items ---
   - id: FND-015

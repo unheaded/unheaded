@@ -72,10 +72,22 @@ in_log() { "${DOCKER[@]}" logs "$N" 2>&1 | grep -qF -- "${1##*\'}"; }
 if in_log "$KANBAN_PW"; then fail "a password appears in the init log"; else pass "no password in the init log"; fi
 # Rotation (and a restore's password step) goes through set-role-passwords.sh.
 NEW_PW="rot'-$RANDOM$RANDOM"
-env -u POSTGRES_PASSWORD WELL_CONTAINER="$N" APP_KANBAN_PASSWORD="$NEW_PW" "$R/scripts/well/set-role-passwords.sh" >/dev/null
+# A docker shim first on PATH records every argv the script hands docker:
+# /proc/<pid>/cmdline is world-readable, so the password must never be in one.
+SHIM="$TMP/argv-shim"
+mkdir -p "$SHIM"
+REAL_DOCKER="$(command -v docker)"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"%s/argv.log"\nexec "%s" "$@"\n' "$SHIM" "$REAL_DOCKER" >"$SHIM/docker"
+chmod 755 "$SHIM/docker"
+env -u POSTGRES_PASSWORD PATH="$SHIM:$PATH" WELL_CONTAINER="$N" APP_KANBAN_PASSWORD="$NEW_PW" "$R/scripts/well/set-role-passwords.sh" >/dev/null
 if login app_kanban "$NEW_PW" unheaded_app && ! login app_kanban "$KANBAN_PW" unheaded_app; then
 	pass "set-role-passwords.sh rotates app_kanban"
 else fail "set-role-passwords.sh rotation"; fi
+if [[ ! -s "$SHIM/argv.log" ]]; then
+	echo "  [skip] argv check: docker ran through sudo (secure_path bypasses the shim)"
+elif grep -qF -- "${NEW_PW##*\'}" "$SHIM/argv.log"; then
+	fail "set-role-passwords.sh put the password in docker's argv"
+else pass "the rotated password is in no argv ($(wc -l <"$SHIM/argv.log") docker calls)"; fi
 if in_log "$NEW_PW"; then fail "a rotated password appears in the server log"; else pass "no rotated password in the server log"; fi
 leaked="$("${DOCKER[@]}" exec "$N" psql -X -At -v ON_ERROR_STOP=1 -U unheaded -d postgres \
 	-c "SELECT count(*) FROM pg_stat_statements WHERE query ILIKE '%PASSWORD%'")"

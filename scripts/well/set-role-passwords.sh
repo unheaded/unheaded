@@ -12,12 +12,15 @@
 #   APP_KANBAN_PASSWORD=... scripts/well/set-role-passwords.sh   # e.g. with `set -a; . ./.env`
 set -euo pipefail
 C="${WELL_CONTAINER:-unheaded-postgres}"
-DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
+# The value travels in the environment: `docker exec -e PW` (no "=value")
+# copies it from docker's own environment, so it is never in any argv
+# (/proc/<pid>/cmdline is readable by every local user).
+DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n --preserve-env=PW docker)
 SU="$("${DOCKER[@]}" exec "$C" printenv POSTGRES_USER)"
 n=0
 while read -r role var; do
 	[[ -n "${!var:-}" ]] || continue
-	"${DOCKER[@]}" exec -i -e "PW=${!var}" "$C" psql -X -q -v ON_ERROR_STOP=1 -v role="$role" -U "$SU" -d postgres <<'SQL'
+	PW="${!var}" "${DOCKER[@]}" exec -i -e PW "$C" psql -X -q -v ON_ERROR_STOP=1 -v role="$role" -U "$SU" -d postgres <<'SQL'
 \getenv pw PW
 SET log_statement = 'none';
 SET log_min_duration_statement = -1;
