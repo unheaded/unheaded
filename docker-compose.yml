@@ -645,7 +645,16 @@ services:
       - /tmp:size=64M
     # Wotan reads its log level from --log-level only; a LOG_LEVEL env var
     # here was never read.
+    # Admin endpoints (/api/v1/admin/*) are off by default. To turn them on,
+    # put WOTAN_ADMIN_API_KEY in /etc/unheaded/wotan/wotan.env (0600, see
+    # deploy/systemd/wotan.env.example) and add "--admin"; with --admin and
+    # no key Wotan exits rather than refusing every admin call:
+    #   command: ["--log-level", "info", "--admin"]
     command: ["--log-level", "info"]
+    env_file:
+      # WOTAN_ADMIN_API_KEY; 0600 on the host, never in the repo.
+      - path: /etc/unheaded/wotan/wotan.env
+        required: false
     environment:
       WOTAN_TOPIC_CONFIG: /etc/wotan/wotan.yaml   # auto-approve allowlist; without it every subscriber stays pending_approval
       # Under the 256M limit so the GC works harder before the kernel OOM-kills.

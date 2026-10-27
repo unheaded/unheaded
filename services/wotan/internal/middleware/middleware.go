@@ -197,27 +197,39 @@ func SecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// CORS middleware adds CORS headers
+// CORS middleware adds CORS headers.
+//
+// A "*" anywhere in allowedOrigins answers Access-Control-Allow-Origin: *
+// and never allows credentials. A named list echoes only a matching origin,
+// allows credentials for it, and sets Vary: Origin. It used to reflect any
+// Origin with Allow-Credentials: true under "*" (Wotan's default), which let
+// any web page make credentialed requests and read the answers.
 func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
+	wildcard := false
+	named := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		if o == "*" {
+			wildcard = true
+		} else if o != "" {
+			named[o] = true
+		}
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 
-			// Check if origin is allowed
-			allowed := false
-			for _, allowedOrigin := range allowedOrigins {
-				if allowedOrigin == "*" || allowedOrigin == origin {
-					allowed = true
-					break
+			if origin != "" && (wildcard || named[origin]) {
+				h := w.Header()
+				if wildcard {
+					h.Set("Access-Control-Allow-Origin", "*")
+				} else {
+					h.Set("Access-Control-Allow-Origin", origin)
+					h.Set("Access-Control-Allow-Credentials", "true")
+					h.Add("Vary", "Origin")
 				}
-			}
-
-			if allowed {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
-				w.Header().Set("Access-Control-Max-Age", "86400")
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+				h.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
+				h.Set("Access-Control-Max-Age", "86400")
 			}
 
 			// Handle preflight

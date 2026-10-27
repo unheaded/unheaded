@@ -135,18 +135,6 @@ func main() {
 		log.Info().
 			Str("wotan_addr", transportCfg.WotanHTTPAddr).
 			Msg("Wotan client created")
-
-		// Subscribe to monad operations topic
-		subCtx, subCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		_, subscribeErr := wotan.Subscribe(subCtx, "monad.operations", "monad-service")
-		subCancel()
-		if subscribeErr != nil {
-			log.Warn().
-				Err(subscribeErr).
-				Msg("failed to subscribe to Wotan topic, continuing without subscription")
-		} else {
-			log.Info().Msg("subscribed to monad.operations topic")
-		}
 	}
 
 	// Log aggregation publisher — forwards structured logs to Wotan
@@ -165,6 +153,14 @@ func main() {
 
 	// Create Monad service
 	monadService := monad.NewService(log, wotan)
+
+	// Join monad.operations and stream alerts.critical with retry in the
+	// background. main used to subscribe to monad.operations once (10 s) and
+	// never call Start, so alerts.critical was never subscribed and a Wotan
+	// that came up after monad was never joined.
+	if err := monadService.Start(ctx); err != nil {
+		log.Fatal().Err(err).Msg("failed to start monad service")
+	}
 
 	// Register default handlers for demonstration
 	registerDefaultHandlers(monadService, log)

@@ -25,8 +25,8 @@ var (
 //
 // With onMsg nil it only joins (to publish on the topic) and returns nil once
 // Wotan approves. Otherwise it blocks until ctx ends and returns ctx.Err(), so
-// run it in a goroutine. The degraded-mode line is logged once, at the first
-// failure, and recovery once.
+// run it in a goroutine. After Close it returns nil at its next attempt. The
+// degraded-mode line is logged once, at the first failure, and recovery once.
 func (c *Client) SubscribeWithRetry(ctx context.Context, topic, name string, onMsg func(*Message)) error {
 	failing := false
 	attempt := 0
@@ -34,6 +34,9 @@ func (c *Client) SubscribeWithRetry(ctx context.Context, topic, name string, onM
 		ch, err := c.joinAndStream(ctx, topic, name, onMsg != nil)
 		if ctx.Err() != nil {
 			return ctx.Err()
+		}
+		if err != nil && c.isClosed() {
+			return nil // Close ends the retries
 		}
 		if err != nil {
 			if !failing {

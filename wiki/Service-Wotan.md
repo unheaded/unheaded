@@ -33,7 +33,11 @@ DNS-like hierarchy with subscription mirroring:
 - **At most 10,000 topics** (`--max-rooms`): a publish naming a new topic past it is refused (`ResourceExhausted` over gRPC, 503 over HTTP); existing topics keep working. Topics are never reaped, and any auto-approved publisher creates one by naming it. An unnamed publisher (both gRPC clients send no sender_id) is one member per topic and name, not one per message: until 2026-10-20 every publish created and approved a new member that was never freed (245 bytes each). A stream's subscriber member goes away with the stream. **At most 100,000 members at once** (`--max-members`; ~25 MB at the cap): past it new subscribes and new publishers are refused (ResourceExhausted / 503). Approved members are never reaped; an allowlisted HTTP subscribe reuses the one member for its topic and name (until 2026-10-23 it made a new one per call, so every client restart left its old ones behind). A subscribe under a name not on the allowlist makes a pending member per request, which expires.
 - **Seqs are global across topics.** HTTP and gRPC paging resume from `after_seq`, so a client picks up where it left off across a Wotan restart.
 - **Wildcard topics** over HTTP and gRPC: `alerts.*` (one segment), `logs.#` (one or more segments).
-- **Join + approval:** services `POST /api/v1/join`; unknown names wait in `/api/v1/admin/pending` until approved.
+- **Join + approval:** services `POST /api/v1/join`; unknown names wait in `/api/v1/admin/pending` until approved. The admin endpoints exist only with `--admin` and `WOTAN_ADMIN_API_KEY` in `/etc/unheaded/wotan/wotan.env` (`deploy/systemd/wotan.env.example`); `--admin` without the key exits at startup. Before 2026-10-27 `--admin` was on by default with no key ever set, so every admin call was refused.
+- **Services that start before Wotan still subscribe.** `pkg/wotan-client`'s `SubscribeWithRetry` (1 s doubling to 30 s, jitter) is what micromanager, monad, sophia, gateway, architect, anomaly, loadbalancer, timeguru and yaldabaoth use; a client on HTTP polling re-probes gRPC every 30 s and promotes itself back. Tests: `TestLateWotan_*` (fake Wotan from `pkg/wotan-client/wotantest`).
+- **Rate limit is per client IP** (`--rate-limit`, 100/s), not per connection: it keyed on IP:port until 2026-10-27, so reconnecting got a fresh bucket.
+- **CORS:** with the default allow-list `*` the answer is `Access-Control-Allow-Origin: *` without credentials; a named list echoes only a matching origin, with credentials. Until 2026-10-27 `*` reflected any origin with `Allow-Credentials: true`.
+- **`unheaded_chat_streams_active`** counts gRPC topic streams under `room_id="_topic_streams"` as well as legacy room streams (it used to read 0 with every service subscribed).
 - **Topic signing:** `config.*` topics require ML-DSA-65 signatures ([[Wotan Topic Signing|Wotan-Topic-Signing]]).
 - **Durable store (optional):** Postgres via `--store-conn-str` (runbooks pass `$WOTAN_STORE_CONN_STR`), with no default and `sslmode=require` against The Well.
 
@@ -47,7 +51,7 @@ DNS-like hierarchy with subscription mirroring:
 | `GET /api/v1/topics` | List topics |
 | `POST /api/v1/topics/<topic>/subscribe`, `POST …/publish`, `GET …/messages` | Topic pub/sub; `messages` pages with `after_seq` and takes wildcards |
 | `POST /api/v1/messages/send`, `GET /api/v1/messages`, `POST`/`DELETE /api/v1/messages/delete` | Room (legacy chat) API |
-| `GET /api/v1/admin/pending`, `POST /api/v1/admin/{approve,approve-all,deny}` | Join approval (registered only with `--admin`, default on) |
+| `GET /api/v1/admin/pending`, `POST /api/v1/admin/{approve,approve-all,deny}` | Join approval (registered only with `--admin` and `WOTAN_ADMIN_API_KEY` set (default off since S-CLEAN-SLATE); send the key as `X-Admin-API-Key` or `Authorization: Bearer`; `--admin` without the key exits at startup) |
 | gRPC `:18001` | Streaming publish/subscribe |
 
 ---

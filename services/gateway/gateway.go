@@ -224,29 +224,19 @@ func (g *Gateway) Start(ctx context.Context) error {
 	g.running = true
 	g.mu.Unlock()
 
-	// Subscribe to alerts.critical (required by CLAUDE.md)
+	// Join the gateway's own topic (published on by wotanMiddleware) and
+	// stream alerts.critical (required by CLAUDE.md) in the background with
+	// retry until Shutdown, so a Wotan that comes up after the gateway is
+	// still joined. Start used to subscribe once and give up.
 	if g.wotan != nil {
-		subCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if _, err := g.wotan.Subscribe(subCtx, "alerts.critical", "gateway-service"); err != nil {
-			g.log.Warn().Str("error", err.Error()).Msg("failed to subscribe to alerts.critical")
-		} else {
-			g.log.Info().Msg("subscribed to alerts.critical")
-		}
-		cancel()
-
-		// Subscribe to gateway.events for own topic
-		subCtx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
-		if _, err := g.wotan.Subscribe(subCtx2, g.cfg.Wotan.Topic, "gateway-service"); err != nil {
-			g.log.Warn().Str("error", err.Error()).Msg("failed to subscribe to gateway topic")
-		} else {
-			g.log.Info().Str("topic", g.cfg.Wotan.Topic).Msg("subscribed to gateway topic")
-		}
-		cancel2()
-
-		// Start alert listener
-		alertCtx, alertCancel := context.WithCancel(context.Background())
-		g.alertCancel = alertCancel
-		go g.listenForAlerts(alertCtx)
+		wotanCtx, wotanCancel := context.WithCancel(context.Background())
+		g.alertCancel = wotanCancel
+		go func() {
+			if err := g.wotan.SubscribeWithRetry(wotanCtx, g.cfg.Wotan.Topic, wotanName, nil); err == nil {
+				g.log.Info().Str("topic", g.cfg.Wotan.Topic).Msg("joined gateway topic")
+			}
+		}()
+		go g.listenForAlerts(wotanCtx)
 	}
 
 	// Build handler
@@ -364,30 +354,18 @@ func (g *Gateway) Shutdown() error {
 	return nil
 }
 
-// listenForAlerts listens for critical alerts from Wotan
+// wotanName is the name the gateway joins Wotan topics as.
+const wotanName = "gateway-service"
+
+// listenForAlerts streams alerts.critical to handleCriticalAlert until ctx
+// ends, rejoining and reopening the stream whenever Wotan is away.
 func (g *Gateway) listenForAlerts(ctx context.Context) {
 	if g.wotan == nil {
-		g.log.Warn().Msg("wotan unavailable — alert listener disabled (degraded mode)")
 		return
 	}
-
-	msgCh, err := g.wotan.StreamMessages(ctx, "alerts.critical")
-	if err != nil {
-		g.log.Warn().Str("error", err.Error()).Msg("failed to stream alerts.critical")
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok := <-msgCh:
-			if !ok {
-				return
-			}
-			g.handleCriticalAlert(ctx, msg)
-		}
-	}
+	_ = g.wotan.SubscribeWithRetry(ctx, "alerts.critical", wotanName, func(msg *wotanClient.Message) {
+		g.handleCriticalAlert(ctx, msg)
+	})
 }
 
 // handleCriticalAlert processes critical alerts

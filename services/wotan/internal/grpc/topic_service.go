@@ -26,6 +26,12 @@ import (
 	chatpb "unheaded/services/wotan/proto"
 )
 
+// TopicStreamsLabel is the room_id label under which open topic streams
+// count in wotan_streams_active and wotan_streams_total. The pattern is
+// chosen by the client, so it is not used as a label value (unbounded
+// cardinality); room streams keep their room ID.
+const TopicStreamsLabel = "_topic_streams"
+
 // TopicService implements the TopicStream gRPC service for topic-based pub/sub.
 // This is the gRPC equivalent of the HTTP topic handlers in api/topics.go.
 // It uses the same underlying wotan.Wotan engine, room.Manager, and member.Manager.
@@ -175,6 +181,11 @@ func (s *TopicService) StreamTopics(
 
 	s.activeStreams.Add(1)
 	defer s.activeStreams.Add(-1)
+	// wotan_streams_active counted only room streams; every service streams
+	// topics, so it read 0 with the kingdom subscribed.
+	metrics.StreamsActive.WithLabelValues(TopicStreamsLabel).Inc()
+	defer metrics.StreamsActive.WithLabelValues(TopicStreamsLabel).Dec()
+	metrics.StreamsTotal.WithLabelValues(TopicStreamsLabel).Inc()
 
 	// Every message from here on has a higher seq. A topic the watcher finds
 	// later replays its messages above this, which it took before the

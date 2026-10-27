@@ -5,6 +5,7 @@ package middleware
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -78,9 +79,10 @@ func (rl *RateLimiter) cleanupRoutine() {
 // Middleware returns HTTP middleware for rate limiting
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Use client IP as key
-		key := r.RemoteAddr
-		limiter := rl.GetLimiter(key)
+		// One bucket per client IP. RemoteAddr is IP:port, and every new
+		// connection has a fresh port, so keying on it gave each connection
+		// its own bucket. X-Forwarded-For is not trusted here.
+		limiter := rl.GetLimiter(clientIP(r.RemoteAddr))
 
 		if !limiter.Allow() {
 			http.Error(w, `{"error":"rate_limit_exceeded","message":"Too many requests"}`, http.StatusTooManyRequests)
@@ -89,6 +91,16 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// clientIP is the host part of a RemoteAddr, or the whole string when it
+// has no port.
+func clientIP(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return remoteAddr
+	}
+	return host
 }
 
 // Wait waits until rate limit allows or context is cancelled

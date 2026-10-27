@@ -44,42 +44,41 @@ func NewService(store *Store, wotan *wotanClient.Client) *Service {
 	}
 }
 
-// Start initializes the service (connects to Wotan, subscribes to topics)
+// wotanName is the name micromanager joins Wotan topics as (on Wotan's
+// topics.auto_approve list).
+const wotanName = "micromanager-service"
+
+// publishTopics are the topics PublishTask* publish to. The Wotan client
+// refuses to publish to a topic it has not joined, and nothing joined these,
+// so every task event failed "not subscribed to topic tasks.created".
+var publishTopics = []string{"tasks.created", "tasks.updated", "tasks.completed"}
+
+// Start joins micromanager's Wotan topics and starts the alert listener in
+// the background, retrying until ctx ends (pkg/wotan-client
+// SubscribeWithRetry), so a Wotan that comes up after micromanager is still
+// joined. It does not block on Wotan. Before, it subscribed once and a
+// refused join stayed refused for the life of the process.
 func (s *Service) Start(ctx context.Context) error {
 	if s.wotan == nil {
-		log.Warn().Msg("wotan unavailable — subscriptions disabled (degraded mode)")
+		log.Warn().Msg("no wotan client configured: running without Wotan")
 		return nil
 	}
-
-	// Join the topics PublishTask* publish to. The Wotan client refuses to
-	// publish to a topic it has not joined, and nothing joined these, so
-	// every task event failed "not subscribed to topic tasks.created".
-	for _, topic := range []string{"tasks.created", "tasks.updated", "tasks.completed"} {
-		if _, err := s.wotan.Subscribe(ctx, topic, "micromanager-service"); err != nil {
-			log.Warn().Err(err).Str("topic", topic).Msg("failed to join wotan publish topic")
-		}
+	for _, topic := range publishTopics {
+		go s.join(ctx, topic)
 	}
-
-	// Subscribe to alerts
-	sub, err := s.wotan.Subscribe(ctx, "alerts.critical", "micromanager-service")
-	if err != nil {
-		log.Warn().Err(err).Msg("failed to subscribe to alerts.critical, continuing without subscription")
-		return nil
-	}
-
-	log.Info().
-		Str("subscriber_id", sub.SubscriberID).
-		Str("status", sub.Status).
-		Msg("subscribed to alerts.critical")
-
-	s.subMu.Lock()
-	s.subscriptions["alerts.critical"] = true
-	s.subMu.Unlock()
-
-	// Start alert listener goroutine
 	go s.listenForAlerts(ctx)
-
 	return nil
+}
+
+// join joins topic with retry and records it once Wotan approves.
+func (s *Service) join(ctx context.Context, topic string) {
+	if err := s.wotan.SubscribeWithRetry(ctx, topic, wotanName, nil); err != nil {
+		return // ctx ended
+	}
+	s.subMu.Lock()
+	s.subscriptions[topic] = true
+	s.subMu.Unlock()
+	log.Info().Str("topic", topic).Msg("joined wotan topic")
 }
 
 // Stop gracefully shuts down the service
@@ -218,44 +217,29 @@ func (s *Service) PublishTaskCompleted(taskID string, task *Task) error {
 	return nil
 }
 
-// listenForAlerts subscribes to critical alerts
+// listenForAlerts joins alerts.critical and streams it to onAlert until ctx
+// ends, rejoining and reopening the stream whenever Wotan is away.
 func (s *Service) listenForAlerts(ctx context.Context) {
 	if s.wotan == nil {
-		log.Warn().Msg("wotan unavailable — alert listener disabled (degraded mode)")
 		return
 	}
+	s.join(ctx, "alerts.critical")
+	_ = s.wotan.SubscribeWithRetry(ctx, "alerts.critical", wotanName, s.onAlert)
+}
 
-	msgCh, err := s.wotan.StreamMessages(ctx, "alerts.critical")
-	if err != nil {
-		log.Error().Err(err).Msg("failed to stream alerts")
+// onAlert handles one alerts.critical message.
+func (s *Service) onAlert(msg *wotanClient.Message) {
+	log.Warn().
+		Str("message_id", msg.MessageID).
+		Str("payload", msg.Payload).
+		Msg("received critical alert")
+
+	var alert map[string]interface{}
+	if err := json.Unmarshal([]byte(msg.Payload), &alert); err != nil {
+		log.Error().Err(err).Msg("failed to parse alert payload")
 		return
 	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-msgCh:
-			if msg == nil {
-				return
-			}
-
-			log.Warn().
-				Str("message_id", msg.MessageID).
-				Str("payload", msg.Payload).
-				Msg("received critical alert")
-
-			// Parse alert
-			var alert map[string]interface{}
-			if err := json.Unmarshal([]byte(msg.Payload), &alert); err != nil {
-				log.Error().Err(err).Msg("failed to parse alert payload")
-				continue
-			}
-
-			// Handle alert (can be extended with routing logic)
-			s.handleAlert(alert)
-		}
-	}
+	s.handleAlert(alert)
 }
 
 // handleAlert processes incoming alerts

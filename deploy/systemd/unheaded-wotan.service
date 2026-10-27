@@ -13,6 +13,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-/etc/unheaded/wotan.env
+# WOTAN_ADMIN_API_KEY (deploy/systemd/wotan.env.example). Admin endpoints stay
+# off unless ExecStart also passes --admin; --admin without the key exits.
+EnvironmentFile=-/etc/unheaded/wotan/wotan.env
 ExecStart=/usr/local/bin/wotan \
     --http-port 18000 \
     --grpc-port 18001 \
