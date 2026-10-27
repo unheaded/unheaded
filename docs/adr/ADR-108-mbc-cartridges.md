@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-108: MBC cartridges — small signed network functions run per flow by a UPC interpreter
 
-**Status:** Proposed (Stevie to accept; RFC Editor items in `docs/protocol/RFC-EDITOR-REQUESTS-S5.md` must be resolved first).
+**Status:** Proposed (RFC Editor items 1-5 ruled in S-TRUE-WIRE Steps 29-50, 2026-10-27; acceptance is Stevie's, E1).
 **Date:** 2026-10-23
 **Sprint:** S5 S-UPC-WIRE-COMPUTE, Part 2 (`docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md`, Phases 9–19).
 **Related:** ADR-080 (UPC programmatic API: cartridges are its third client, after Doom and xv6), ADR-067 (MBC ISA v2; no opcode is added here), ADR-043 (Gungnir ML-DSA-65 seals), ADR-105 (`pkg/wotansig` signing), ADR-062 (Lich process), ADR-004 (no new external deps).
@@ -81,7 +81,10 @@ those bytes, validates the same bytes, and writes `CART_ROM`/`CART_DATA` for
 the slot from the same buffer (no re-read, no TOCTOU). Records live under a
 Sophia dictionary namespace requested from the Sophia Root Dictionary Keys
 registry (0x10–0xFE, First Come First Served). **Until it is assigned the
-namespace is the provisional string `x-cartridge`.** While the stack is down
+namespace is the provisional string `x-cartridge`.** (Ruled 2026-10-27: root key
+`0x15`, category `cartridge`; the code still writes `x-cartridge` until the
+S-TRUE-WIRE wire-values phase moves it, reading the old name for one release.)
+While the stack is down
 (KF5) a file-backed registry (`--registry-dir`, one JSON record per
 cartridge, same schema) is used.
 
@@ -355,9 +358,15 @@ not the cartridges' logic. The rate limiter follows the `qos-ebpf` refill fix
 model is trained on synthetic flows only. Differential and fuzz hooks for the Lich:
 `tomb/lich/UPC-CARTRIDGE-HOOKS.md`.
 
-## RFC Editor items (open — not self-approved)
+## RFC Editor items (ruled 2026-10-27, S-TRUE-WIRE Phase 1)
 
-See `docs/protocol/RFC-EDITOR-REQUESTS-S5.md`: (a) Sophia root key for the
-cartridge registry, (b) the `EVENT_COMPUTED` cartridge sub-kind, (c) Wotan
-topics `anomaly.scores` and `upc.cart.*`. Implementation proceeds behind the
-provisional names; this ADR stays Proposed until they are answered.
+See `docs/protocol/RFC-EDITOR-REQUESTS-S5.md`. (a) Sophia root key `0x15`
+`cartridge` (COMPOSITE), entry schema and the loader rule (verify the seal over
+the exact bytes; an entry locates, never authorizes) in sophia-dictionary;
+(b) sub-kind `0x43` CARTRIDGE_TRACE under `EVENT_COMPUTED`, in a new
+EVENT_COMPUTED Sub-kinds registry in foundation; sub-kinded records live on
+their own stream (`CART_TRACE`), never inside the 32-octet event record;
+(c) `anomaly.scores` and `upc.cart.*` registered in the Wotan Topic Namespace,
+which wotan-memory now requests rather than leaves optional. No Monad byte and
+no MBC opcode changed. What is left is acceptance (E1) and moving the code's
+`x-cartridge` string to `cartridge` (S-TRUE-WIRE Phase 2).

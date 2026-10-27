@@ -16,9 +16,8 @@ import (
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
-// ScoreTopic carries flow scores into the service (ADR-108; provisional
-// name until the RFC Editor answers docs/protocol/RFC-EDITOR-REQUESTS-S5.md
-// item 3).
+// ScoreTopic carries flow scores into the service (ADR-108; registered in
+// the Wotan Topic Namespace, wotan-memory draft, RFC Editor item 3).
 const ScoreTopic = "anomaly.scores"
 
 // MaxScoreMessage bounds one anomaly.scores payload.

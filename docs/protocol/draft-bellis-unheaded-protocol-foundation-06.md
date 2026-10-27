@@ -54,6 +54,19 @@ normative:
   RFC9114:
 
 informative:
+  UNHEADED-MBC-ISA:
+    title: "MBC Instruction Set Architecture for the Unheaded Protocol Computer"
+    author:
+      - ins: S. Bellis
+    date: 2026-03
+    seriesinfo:
+      Internet-Draft: draft-bellis-unheaded-mbc-isa-00
+  UNHEADED-ADR108:
+    title: "ADR-108: MBC Cartridges"
+    author:
+      - ins: S. Bellis
+    date: 2026-10
+    target: "https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-108-mbc-cartridges.md"
   RFC0768:
   RFC0791:
   RFC0792:
@@ -813,10 +826,11 @@ IPv6 Hop-by-Hop Option Type           IETF Review
 IPv6 Next Header Type                 Standards Action
 Sophia Dictionary Namespace           First Come First Served
 Anamnesis Event Types                 Specification Required
+Anamnesis EVENT_COMPUTED Sub-kinds    Specification Required
 Error Codes                           Specification Required
 TLV Type Allocations                  Specification Required
 PQC Algorithm Identifiers             Specification Required
-UPC MBC Opcode Numbers                Specification Required
+MBC Opcodes [UNHEADED-MBC-ISA]       Standards Action
 UPC MBC Syscall Numbers               Expert Review
 UPC Memory Region Types               Specification Required
 UPC Event Types                       Specification Required
@@ -1325,6 +1339,48 @@ Initial entries:
   EVENT_ANOMALY (0x08)   Integrity or version error
 ~~~~
 
+### EVENT_COMPUTED Sub-kinds
+
+Some producers emit EVENT_COMPUTED records that are larger than the
+fixed 32-octet Anamnesis event record (timestamp, Event Type, hop
+identifier, flow label, Monad snapshot).  Such records are carried on a
+record stream separate from the 32-octet event ring.  Each record on
+such a stream begins with the Event Type octet (0x01, EVENT_COMPUTED)
+followed by a Sub-kind octet that names the record format; the rest of
+the record is defined by the Sub-kind's specification.
+
+A Sub-kind is meaningful only on such a stream.  A receiver MUST NOT
+interpret any octet of a 32-octet Anamnesis event record as a Sub-kind.
+A receiver that does not recognize a Sub-kind MUST treat the record as
+an opaque EVENT_COMPUTED record and MUST NOT discard the stream because
+of it.  Sub-kinded records carry header fields, counters and computed
+state only; a Sub-kind specification MUST NOT define a field that
+carries packet payload octets.
+
+Sub-kind 0x43 (ASCII 'C') is the cartridge trace record
+[UNHEADED-ADR108].  Its third octet is the record kind: 0x00 starts a
+traced cartridge run (the cartridge state and every input the run can
+read), 0x01 is one executed instruction (program counter, instruction
+word, stop code, state hash), and 0x02 ends the run.  These records stay
+on the host that produced them and are never placed on the wire.
+
+IANA is requested to create a registry entitled "Unheaded Anamnesis
+EVENT_COMPUTED Sub-kinds":
+
+~~~~
+Registry Name:  Unheaded Anamnesis EVENT_COMPUTED Sub-kinds
+Template:       Sub-kind (0x00-0xFF), Name, Description,
+                Specification Reference
+Policy:         Specification Required
+
+Initial entries:
+  0x00-0x42      Unassigned
+  0x43 ('C')     CARTRIDGE_TRACE  Cartridge trace record
+                 (run start, instruction step, run end)
+                 [ADR-108], this document
+  0x44-0xFF      Unassigned
+~~~~
+
 ## Error Code Registry
 
 ~~~~
@@ -1388,72 +1444,18 @@ Initial entries:
 
 ## MBC Opcode Numbers (NEW in draft-06 update)
 
-IANA is requested to create a new registry entitled "UPC MBC Opcode
-Numbers" in the "Unheaded Protocol Parameters" registry group.
-
-Registration Policy: Specification Required [RFC8126]
+The MBC opcode registry, "MBC Instruction Set Architecture Opcode
+Values", is created by [UNHEADED-MBC-ISA], which specifies every opcode
+and lists every assignment.  Earlier revisions of this document also
+requested a registry "UPC MBC Opcode Numbers" for the same 8-bit values
+under a different policy.  That request is withdrawn: one registry
+governs the opcode space, and this document makes no opcode assignment
+of its own.
 
 The MBC (Monad Bytecode) ISA defines the instruction set for the
-Unheaded Protocol Computer (UPC), a Turing-complete computational
-model operating within BPF programs.  Each instruction is a 32-bit
-word with the opcode in bits [31:24].
-
-~~~~
-Value   Mnemonic    Description                                   Reference
------   --------    -------------------------------------------   ---------
-0x00    NOP         No operation                                  [this document]
-0x01    ADD         dst = dst + src                               [this document]
-0x02    SUB         dst = dst - src                               [this document]
-0x03    MUL         dst = dst * src                               [this document]
-0x04    DIV         dst = dst / src (unsigned)                    [this document]
-0x05    MOD         dst = dst % src (unsigned)                    [this document]
-0x06    NEG         dst = -dst                                    [this document]
-0x07    AND         dst = dst & src                               [this document]
-0x08    OR          dst = dst | src                               [this document]
-0x09    XOR         dst = dst ^ src                               [this document]
-0x0A    NOT         dst = ~dst                                    [this document]
-0x0B    SHL         dst = dst << imm16                            [this document]
-0x0C    SHR         dst = dst >> imm16 (logical)                  [this document]
-0x0D    SAR         dst = dst >> imm16 (arithmetic)               [this document]
-0x0E    MOV         dst = src                                     [this document]
-0x0F    MOVI        dst = zero_extend(imm16)                      [this document]
-0x10    CMP         flags = cmp(dst, src)                         [this document]
-0x17    INT         Software interrupt (push flags+PC, jmp IVT)   [this document]
-0x18    IRET        Return from interrupt (pop PC+flags)          [this document]
-0x1A    PUSH        SP -= 1; ram[SP] = regs[dst]                  [this document]
-0x1B    POP         regs[dst] = ram[SP]; SP += 1                  [this document]
-0x1C    LOAD_IMM32  regs[dst][31:16] = imm16                      [this document]
-0x1D    ADDI        dst = dst + sign_extend(imm16)                [this document]
-0x20    JMP         pc += imm16_signed (unconditional)            [this document]
-0x21    JZ          if Z: pc += imm16_signed                      [this document]
-0x22    JNZ         if !Z: pc += imm16_signed                     [this document]
-0x23    JN          if N: pc += imm16_signed                      [this document]
-0x24    JP          if !N: pc += imm16_signed                     [this document]
-0x25    JC          if C: pc += imm16_signed                      [this document]
-0x26    JNC         if !C: pc += imm16_signed                     [this document]
-0x27    CALL        push(PC+1); pc = imm16                        [this document]
-0x28    RET         Pop PC from stack                              [this document]
-0x29    JMPR        pc = regs[dst] (indirect jump)                [this document]
-0x2A    CALLR       push(PC+1); pc = regs[dst] (indirect call)    [this document]
-0x30    LD          dst = ram[src + imm16] (32-bit load)          [this document]
-0x31    ST          ram[dst + imm16] = src (32-bit store)         [this document]
-0x32    LDB         dst = ram[src + imm16] (byte load)            [this document]
-0x33    STB         ram[dst + imm16] = src & 0xFF (byte store)    [this document]
-0x34    LDH         dst = ram[src + imm16] (16-bit load)          [this document]
-0x35    STH         ram[dst + imm16] = src & 0xFFFF (16-bit store)[this document]
-0x36    SHLR        dst = dst << (src & 31) (register shift)      [this document]
-0x37    SHRR        dst = dst >> (src & 31) (logical, register)   [this document]
-0x38    SARR        dst = dst >> (src & 31) (arithmetic, register)[this document]
-0x39    MULH        dst = (i64(dst)*i64(src))>>32 (signed high)   [this document]
-0x3A    MULHU       dst = (u64(dst)*u64(src))>>32 (unsigned high) [this document]
-0x3B    CLI         Clear interrupt flag (disable interrupts)     [this document]
-0x3C    STI         Set interrupt flag (enable interrupts)        [this document]
-0x3D    XCHG        Atomic exchange: dst <-> ram[src+imm]         [this document]
-0x3E    CAS         Compare-and-swap: if ram==r0 then ram=r2      [this document]
-0x40    SYSCALL     Invoke I/O callback; imm16 = syscall number   [this document]
-0x41-0xFE           Unassigned
-0xFF    HALT        Halt execution; sets halted flag               [this document]
-~~~~
+Unheaded Protocol Computer (UPC), a Turing-complete computational model
+operating within BPF programs.  Each instruction is a 32-bit word with
+the opcode in bits [31:24].
 
 ### MBC Instruction Encoding
 
