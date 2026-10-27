@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"math/rand"
 	"testing"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 // ── MonadState tests ────────────────────────────────────────────────────────
@@ -145,23 +147,23 @@ func TestMonadState_Flags(t *testing.T) {
 
 func TestCRC16CCITT_StandardCheckValue(t *testing.T) {
 	// Canonical test vector for CRC-16/IBM-3740 (CCITT-FALSE)
-	crc := CRC16CCITT([]byte("123456789"))
+	crc := encoding.CRC16CCITT([]byte("123456789"))
 	if crc != 0x29B1 {
-		t.Errorf("CRC16CCITT(\"123456789\") = 0x%04x, want 0x29B1", crc)
+		t.Errorf("encoding.CRC16CCITT(\"123456789\") = 0x%04x, want 0x29B1", crc)
 	}
 }
 
 func TestCRC16CCITT_EmptyInput(t *testing.T) {
-	crc := CRC16CCITT([]byte{})
+	crc := encoding.CRC16CCITT([]byte{})
 	if crc != 0xFFFF {
-		t.Errorf("CRC16CCITT(\"\") = 0x%04x, want 0xFFFF", crc)
+		t.Errorf("encoding.CRC16CCITT(\"\") = 0x%04x, want 0xFFFF", crc)
 	}
 }
 
 func TestCRC16CCITT_SingleZeroByte(t *testing.T) {
-	crc := CRC16CCITT([]byte{0x00})
+	crc := encoding.CRC16CCITT([]byte{0x00})
 	if crc != 0xE1F0 {
-		t.Errorf("CRC16CCITT([0x00]) = 0x%04x, want 0xE1F0", crc)
+		t.Errorf("encoding.CRC16CCITT([0x00]) = 0x%04x, want 0xE1F0", crc)
 	}
 }
 
@@ -169,13 +171,13 @@ func TestCRC16CCITT_DetectsSingleBitFlip(t *testing.T) {
 	data := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
 		0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
 		0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12}
-	original := CRC16CCITT(data)
+	original := encoding.CRC16CCITT(data)
 
 	corrupted := make([]byte, len(data))
 	copy(corrupted, data)
 	corrupted[7] ^= 0x01
 
-	if CRC16CCITT(corrupted) == original {
+	if encoding.CRC16CCITT(corrupted) == original {
 		t.Error("CRC should detect single-bit flip")
 	}
 }
@@ -533,12 +535,12 @@ func TestMonadState_MatchesRustLayout(t *testing.T) {
 
 func TestCRC16CCITT_MatchesRustCrcCcitt(t *testing.T) {
 	// Cross-validate with Rust test: crc_ccitt_single_zero_byte
-	if crc := CRC16CCITT([]byte{0x00}); crc != 0xE1F0 {
+	if crc := encoding.CRC16CCITT([]byte{0x00}); crc != 0xE1F0 {
 		t.Errorf("single zero byte CRC = 0x%04x, want 0xE1F0", crc)
 	}
 
 	// Cross-validate with Rust test: crc_ccitt_standard_check_value
-	if crc := CRC16CCITT([]byte("123456789")); crc != 0x29B1 {
+	if crc := encoding.CRC16CCITT([]byte("123456789")); crc != 0x29B1 {
 		t.Errorf("standard check value CRC = 0x%04x, want 0x29B1", crc)
 	}
 }

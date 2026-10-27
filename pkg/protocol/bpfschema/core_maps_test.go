@@ -6,6 +6,8 @@ package bpfschema
 import (
 	"testing"
 	"unsafe"
+
+	"unheaded/pkg/monad"
 )
 
 // TestMonadRegisterSize_CoreMaps verifies the Monad register is exactly 20 bytes.
@@ -81,7 +83,7 @@ func TestCoreMapStructSizes(t *testing.T) {
 func TestMonadFlagConstants(t *testing.T) {
 	flags := []uint8{
 		FlagChaos, FlagCanary, FlagTraced, FlagEncrypt,
-		FlagSampled, FlagMirror, FlagK1, FlagK0,
+		FlagSampled, FlagMirror, FlagCustom, FlagReserved,
 	}
 
 	// Each flag should be a single bit.
@@ -150,16 +152,23 @@ func TestChaosModeConstants(t *testing.T) {
 	}
 }
 
-// TestKingdomModeValues verifies the 2-bit Kingdom Mode encoding.
-func TestKingdomModeValues(t *testing.T) {
-	modes := []uint8{KingdomNormal, KingdomPriority, KingdomExperimental, KingdomReserved}
-	for i, m := range modes {
-		if m != uint8(i) {
-			t.Errorf("KingdomMode[%d] = %d, want %d", i, m, i)
-		}
-		if m > 3 {
-			t.Errorf("KingdomMode[%d] = %d, exceeds 2-bit range", i, m)
-		}
+// TestFlagNamesFollowSpec pins bits 1:0 of the flags byte to the
+// foundation-06 Flags Bitfield names (CUSTOM 0x02, RSVD 0x01), the same
+// names pkg/monad and ebpf/monad-common use. The spec has no 2-bit
+// Kingdom Mode field in the flags byte (S-TRUE-WIRE Step 102).
+func TestFlagNamesFollowSpec(t *testing.T) {
+	if FlagCustom != monad.FlagCustom {
+		t.Errorf("FlagCustom = 0x%02x, pkg/monad says 0x%02x", FlagCustom, monad.FlagCustom)
+	}
+	if FlagReserved != monad.FlagReserved {
+		t.Errorf("FlagReserved = 0x%02x, pkg/monad says 0x%02x", FlagReserved, monad.FlagReserved)
+	}
+	// Deprecated aliases keep their old values for one release.
+	if FlagK0 != FlagReserved {
+		t.Errorf("FlagK0 = 0x%02x, want alias of FlagReserved 0x%02x", FlagK0, FlagReserved)
+	}
+	if FlagK1 != FlagCustom {
+		t.Errorf("FlagK1 = 0x%02x, want alias of FlagCustom 0x%02x", FlagK1, FlagCustom)
 	}
 }
 

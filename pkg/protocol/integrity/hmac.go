@@ -84,16 +84,8 @@ func (hc *HMACComputer) Verify(monadHeader [18]byte, tag [8]byte) bool {
 	return hmac.Equal(computed[:], tag[:])
 }
 
-// CRC16CCITT computes CRC-16/CCITT-FALSE over the given data.
-// Uses pkg/protocol/encoding.CRC16CCITT per Monad wire format spec (polynomial 0x1021, init 0xFFFF).
-func CRC16CCITT(data []byte) uint16 {
-	return encoding.CRC16CCITT(data)
-}
-
-// ComputeCRC16CCITT is a convenience function that delegates to pkg/protocol/encoding.CRC16CCITT
-func ComputeCRC16CCITT(data []byte) uint16 {
-	return encoding.CRC16CCITT(data)
-}
+// The Monad checksum itself is encoding.CRC16CCITT; this package only verifies
+// against it (S-TRUE-WIRE Step 110: one CRC-16/CCITT implementation).
 
 // VerifyCRC16CCITT verifies a CRC-16/CCITT-FALSE checksum using pkg/protocol/encoding.CRC16CCITT
 func VerifyCRC16CCITT(data []byte, expectedCRC uint16) bool {

@@ -8,6 +8,8 @@ import (
 	"encoding/binary"
 	"io"
 	"testing"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 // FuzzVarintRoundtrip fuzzes the EncodeVarint/DecodeVarint roundtrip
@@ -264,21 +266,10 @@ func DecodeExponent(data []byte) (int32, error) {
 	return int32(binary.LittleEndian.Uint32(data[:4])), nil
 }
 
+// ComputeCRC16CCITT fuzzes the one Monad checksum, encoding.CRC16CCITT
+// (S-TRUE-WIRE Step 110), rather than a private copy of it.
 func ComputeCRC16CCITT(data []byte) uint16 {
-	// CRC-16-CCITT polynomial: x^16 + x^12 + x^5 + 1 (0x1021)
-	const polynomial = 0x1021
-	crc := uint32(0xFFFF)
-
-	for _, b := range data {
-		crc ^= uint32(b) << 8
-		for i := 0; i < 8; i++ {
-			crc <<= 1
-			if crc&0x10000 != 0 {
-				crc ^= polynomial
-			}
-		}
-	}
-	return uint16(crc)
+	return encoding.CRC16CCITT(data)
 }
 
 func EncodeTLV(tlvType uint8, value []byte) []byte {

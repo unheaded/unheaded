@@ -25,6 +25,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 // ── Size constants ──────────────────────────────────────────────────────────
@@ -261,35 +263,19 @@ func (m *MonadState) ScratchR1() uint16 {
 // VerifyChecksum verifies the CRC-16/CCITT over Monad octets 0x00–0x11.
 func (m *MonadState) VerifyChecksum() bool {
 	b := m.Encode()
-	expected := CRC16CCITT(b[:MonadCRCDataLen])
+	expected := encoding.CRC16CCITT(b[:MonadCRCDataLen])
 	return expected == m.Checksum
 }
 
 // RecomputeChecksum recomputes and stores the CRC-16/CCITT checksum.
 func (m *MonadState) RecomputeChecksum() {
 	b := m.Encode()
-	m.Checksum = CRC16CCITT(b[:MonadCRCDataLen])
+	m.Checksum = encoding.CRC16CCITT(b[:MonadCRCDataLen])
 	// Re-encode checksum bytes are now correct since we update m.Checksum
 }
 
-// ── CRC-16/CCITT ────────────────────────────────────────────────────────────
-
-// CRC16CCITT computes CRC-16/CCITT (polynomial 0x1021, initial 0xFFFF).
-// No final XOR, no input/output reflection — CRC-16/IBM-3740 variant.
-func CRC16CCITT(data []byte) uint16 {
-	crc := uint16(0xFFFF)
-	for _, b := range data {
-		crc ^= uint16(b) << 8
-		for j := 0; j < 8; j++ {
-			if crc&0x8000 != 0 {
-				crc = (crc << 1) ^ 0x1021
-			} else {
-				crc <<= 1
-			}
-		}
-	}
-	return crc
-}
+// The Monad checksum is encoding.CRC16CCITT (CRC-16/CCITT-FALSE, poly 0x1021,
+// init 0xFFFF): one implementation for the whole tree (S-TRUE-WIRE Step 110).
 
 // ── Compute event type constants ─────────────────────────────────────────────
 // These must match the Rust side byte-for-byte.

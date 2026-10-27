@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 
+	"unheaded/pkg/protocol/encoding"
 	pb "unheaded/proto/unheaded/v1"
 )
 
@@ -18,10 +19,8 @@ const MonadPayloadSize = 20
 // MonadCRCSize is the size of the CRC-16 checksum
 const MonadCRCSize = 2
 
-// CRC-16/CCITT-FALSE parameters
+// CRC-16/CCITT-FALSE coverage (the algorithm is encoding.CRC16CCITT)
 const (
-	CRCPoly    = 0x1021
-	CRCInit    = 0xFFFF
 	CRCDataLen = 18 // CRC computed over first 18 bytes, stored in bytes 18-19
 )
 
@@ -65,21 +64,7 @@ func computeCRC16(data []byte) uint16 {
 		return 0
 	}
 
-	crc := uint16(CRCInit)
-
-	for i := 0; i < CRCDataLen; i++ {
-		crc ^= uint16(data[i]) << 8
-
-		for j := 0; j < 8; j++ {
-			if (crc & 0x8000) != 0 {
-				crc = (crc << 1) ^ CRCPoly
-			} else {
-				crc <<= 1
-			}
-		}
-	}
-
-	return crc
+	return encoding.CRC16CCITT(data[:CRCDataLen])
 }
 
 // verifyCRC16 verifies the CRC-16 checksum in a 20-byte Monad register

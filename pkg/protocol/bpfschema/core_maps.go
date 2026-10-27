@@ -69,25 +69,29 @@ type MonadRegister struct {
 // MonadRegisterSize is the exact wire size. Tests verify this.
 const MonadRegisterSize = 20
 
-// Monad flag bits (Flags field, offset 0x07).
+// Monad flag bits (Flags field, offset 0x07). Names and values follow the
+// foundation-06 Flags Bitfield registry (C Y T E S M CUSTOM RSVD), the same
+// names as pkg/monad and ebpf/monad-common flags. Bits 1:0 are two
+// independent flags, not a 2-bit field: the Kingdom Mode registry in
+// foundation-06 is a separate concept and is not carried here.
 const (
-	FlagChaos   uint8 = 0x80 // Bit 7: Chaos injection active.
-	FlagCanary  uint8 = 0x40 // Bit 6: Canary deployment marker.
-	FlagTraced  uint8 = 0x20 // Bit 5: Full trace enabled.
-	FlagEncrypt uint8 = 0x10 // Bit 4: Encryption requested.
-	FlagSampled uint8 = 0x08 // Bit 3: Sampled for observability.
-	FlagMirror  uint8 = 0x04 // Bit 2: Mirrored flow.
-	FlagK1      uint8 = 0x02 // Bit 1: Kingdom Mode bit 1.
-	FlagK0      uint8 = 0x01 // Bit 0: Kingdom Mode bit 0.
+	FlagChaos    uint8 = 0x80 // Bit 7: CHAOS, chaos injection active.
+	FlagCanary   uint8 = 0x40 // Bit 6: CANARY, canary deployment path.
+	FlagTraced   uint8 = 0x20 // Bit 5: TRACED, full trace enabled.
+	FlagEncrypt  uint8 = 0x10 // Bit 4: ENCRYPT, payload encrypted.
+	FlagSampled  uint8 = 0x08 // Bit 3: SAMPLED, statistically sampled.
+	FlagMirror   uint8 = 0x04 // Bit 2: MIRROR, mirror copy.
+	FlagCustom   uint8 = 0x02 // Bit 1: CUSTOM, scratch and checksum carry exponent-encoded values.
+	FlagReserved uint8 = 0x01 // Bit 0: RSVD, senders MUST set to zero.
 )
 
-// Kingdom Mode values (bits 1:0 of Flags).
-// Per IANA: 00=NORMAL, 01=PRIORITY, 10=EXPERIMENTAL, 11=RESERVED.
+// Deprecated aliases for the old "Kingdom Mode bit" names; removed after
+// one release (S-TRUE-WIRE Step 102).
 const (
-	KingdomNormal       uint8 = 0x00
-	KingdomPriority     uint8 = 0x01
-	KingdomExperimental uint8 = 0x02
-	KingdomReserved     uint8 = 0x03
+	// Deprecated: use FlagCustom.
+	FlagK1 = FlagCustom
+	// Deprecated: use FlagReserved.
+	FlagK0 = FlagReserved
 )
 
 // Flow action values (FlowAction field, offset 0x05).

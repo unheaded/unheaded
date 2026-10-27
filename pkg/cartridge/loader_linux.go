@@ -19,6 +19,8 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 // Options configure Load.
@@ -429,28 +431,12 @@ func IPv6MonadPacket(flowLabel uint32, sport, dport uint16, qos, fl uint8, n int
 	hbh[0], hbh[1], hbh[2], hbh[3] = 17, 2, 0x3E, 20 // UDP next, (2+1)*8 = 24 bytes
 	m := hbh[4:24]
 	m[0], m[8], m[11] = 1, qos, fl
-	binary.BigEndian.PutUint16(m[18:], crc16CCITT(m[:18]))
+	binary.BigEndian.PutUint16(m[18:], encoding.CRC16CCITT(m[:18]))
 	udp := hbh[24:]
 	binary.BigEndian.PutUint16(udp[0:], sport)
 	binary.BigEndian.PutUint16(udp[2:], dport)
 	binary.BigEndian.PutUint16(udp[4:], uint16(n-78)) // #nosec G115 -- small test frames
 	return p
-}
-
-// crc16CCITT is CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF), the Monad checksum.
-func crc16CCITT(b []byte) uint16 {
-	crc := uint16(0xFFFF)
-	for _, x := range b {
-		crc ^= uint16(x) << 8
-		for i := 0; i < 8; i++ {
-			if crc&0x8000 != 0 {
-				crc = crc<<1 ^ 0x1021
-			} else {
-				crc <<= 1
-			}
-		}
-	}
-	return crc
 }
 
 // Packet builders for tests and benchmarks (Ethernet + IPv4 + UDP/TCP).
