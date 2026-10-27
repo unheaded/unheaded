@@ -30,6 +30,10 @@
           blacklist jffs2
           install udf /bin/false
           blacklist udf
+          # FND-011 stopgap (CVE-2026-53266): nothing here uses ebtables
+          install ebtables /bin/false
+          install ebtable_nat /bin/false
+          install ebt_snat /bin/false
         dest: /etc/modprobe.d/unheaded-cis.conf
         group: root
         mode: "0644"
