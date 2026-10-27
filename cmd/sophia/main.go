@@ -50,6 +50,7 @@ import (
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
+	utls "unheaded/pkg/tls"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/sophia"
@@ -291,6 +292,11 @@ func newHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logg
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
+	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is an
+	// error, never a plaintext listener.
+	if _, err := utls.ConfigureServer(hs.server); err != nil {
+		return nil, err
+	}
 
 	return hs, nil
 }
@@ -401,10 +407,11 @@ func (hs *HTTPServer) Start(ctx context.Context) error {
 
 	hs.log.Info().
 		Str("addr", hs.server.Addr).
+		Bool("tls", hs.server.TLSConfig != nil).
 		Msg("Sophia HTTP server starting")
 
 	go func() {
-		if err := hs.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := utls.ListenAndServe(hs.server); err != nil && err != http.ErrServerClosed {
 			hs.log.Error().Err(err).Msg("HTTP server error")
 		}
 	}()

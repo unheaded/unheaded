@@ -36,6 +36,12 @@ Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 Environment=AUTH_ENABLED=true
 Environment=AUTH_ALLOW_CALLERS=unheaded-cli,dashboard-backend
 ReadOnlyPaths=-/etc/unheaded/trust.d
+# TLS (S-IRON-GATE Phase 8; deploy/systemd/README.md#tls): Wotan and Cuirass
+# serve TLS only, so this unit dials them with the Kingdom CA. Its own
+# listener stays plain HTTP: no certificate of its own here (pkg/tls.ServesTLS).
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
+ReadOnlyPaths=-/etc/unheaded/tls/ca.pem
 
 User=zhen-agentd
 Group=zhen-agentd

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"sync"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	pqtls "unheaded/pkg/tls"
 	chatpb "unheaded/services/wotan/proto"
@@ -76,17 +74,15 @@ func NewGRPCClient(addr string, opts ...ClientOption) (*GRPCClient, error) {
 		return nil, errors.New("address cannot be empty")
 	}
 
-	var creds credentials.TransportCredentials
-	if os.Getenv("UNHEADED_GRPC_TLS") == "1" {
-		creds = credentials.NewTLS(TLSConfig())
-	} else {
-		creds = insecure.NewCredentials()
+	creds, err := grpcCredentials(opts)
+	if err != nil {
+		return nil, err
 	}
 
 	conn, err := grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(creds),
-		grpc.WithPerRPCCredentials(newTokenAuth(opts, isPlaintext(creds))),
+		grpc.WithPerRPCCredentials(newTokenAuth(opts, isPlaintext(creds), addr)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("dial grpc server: %w", err)
@@ -116,7 +112,7 @@ func NewGRPCClientWithTLS(addr string, creds credentials.TransportCredentials, o
 	conn, err := grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(creds),
-		grpc.WithPerRPCCredentials(newTokenAuth(opts, isPlaintext(creds))),
+		grpc.WithPerRPCCredentials(newTokenAuth(opts, isPlaintext(creds), addr)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("dial grpc server: %w", err)

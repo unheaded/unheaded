@@ -47,6 +47,7 @@ import (
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/probenet"
+	utls "unheaded/pkg/tls"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 
@@ -684,12 +685,17 @@ func (d *Daemon) Start() error {
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
+	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is a
+	// startup failure, never a plaintext listener.
+	if _, err := utls.ConfigureServer(d.httpServer); err != nil {
+		return fmt.Errorf("TLS: %w", err)
+	}
 
 	// Start HTTP server
 	d.wg.Add(1)
 	go func() {
 		defer d.wg.Done()
-		if err := d.httpServer.ListenAndServe(); err != http.ErrServerClosed {
+		if err := utls.ListenAndServe(d.httpServer); err != http.ErrServerClosed {
 			d.log.Error().Err(err).Msg("HTTP server error")
 		}
 	}()

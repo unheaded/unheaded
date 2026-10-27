@@ -52,6 +52,7 @@ import (
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
+	utls "unheaded/pkg/tls"
 )
 
 var (
@@ -573,6 +574,11 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		IdleTimeout:    5 * config.ReadTimeout,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
+	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is an
+	// error, never a plaintext listener.
+	if _, err := utls.ConfigureServer(s.httpServer); err != nil {
+		return nil, err
+	}
 
 	return s, nil
 }
@@ -909,7 +915,7 @@ func (s *Server) Start(ctx context.Context) error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := utls.ListenAndServe(s.httpServer); err != nil && err != http.ErrServerClosed {
 			s.log.Error().Err(err).Msg("http server error")
 		}
 	}()
@@ -2192,26 +2198,31 @@ func (s *Server) serviceFlowGenerator(ctx context.Context) {
 		url  string
 	}
 
+	// All first-party: https when UNHEADED_TLS_ENABLED=true (S-IRON-GATE
+	// Phase 8), unless an override names its scheme.
 	targets := []svcTarget{
-		{"wotan", "http://localhost:18000/health"},
-		{"timeguru", "http://localhost:19000/health"},
-		{"architect", "http://localhost:19001/health"},
-		{"captain", "http://localhost:19002/health"},
-		{"micromanager", "http://localhost:19003/health"},
-		{"monad", "http://localhost:19004/health"},
-		{"sophia", "http://localhost:19005/health"},
+		{"wotan", "localhost:18000"},
+		{"timeguru", "localhost:19000"},
+		{"architect", "localhost:19001"},
+		{"captain", "localhost:19002"},
+		{"micromanager", "localhost:19003"},
+		{"monad", "localhost:19004"},
+		{"sophia", "localhost:19005"},
 	}
 
 	// Apply overrides from config
-	if s.config.ServiceEndpoints != nil {
-		for i := range targets {
-			if ep, ok := s.config.ServiceEndpoints[targets[i].name]; ok {
-				targets[i].url = fmt.Sprintf("http://%s/health", ep)
-			}
+	for i := range targets {
+		if ep, ok := s.config.ServiceEndpoints[targets[i].name]; ok {
+			targets[i].url = ep
 		}
+		targets[i].url = utls.EndpointURL(targets[i].url, true) + "/health"
 	}
 
-	client := &http.Client{Timeout: 2 * time.Second}
+	client, err := utls.ClientFromEnv(2 * time.Second)
+	if err != nil {
+		s.log.Error().Err(err).Msg("service flow generator: TLS client; not polling")
+		return
+	}
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 

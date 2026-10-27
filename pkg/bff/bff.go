@@ -47,6 +47,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	pqtls "unheaded/pkg/tls"
 )
 
 const (
@@ -149,6 +150,16 @@ func New(cfg Config) (*BFF, error) {
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
+	}
+	if cfg.HTTPClient == nil {
+		// The issuer may be internal (unheaded-auth, signed by the
+		// deployment CA under UNHEADED_TLS_ENABLED) or a public provider:
+		// trust both (S-IRON-GATE Phase 8).
+		tr, err := pqtls.TransportTrustingDeploymentCA()
+		if err != nil {
+			return nil, fmt.Errorf("bff: %w", err)
+		}
+		cfg.HTTPClient = &http.Client{Timeout: issuerTimeout, Transport: tr}
 	}
 	var opts []auth.JWKSOption
 	if cfg.DevPlaintext {

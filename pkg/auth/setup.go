@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+
+	pqtls "unheaded/pkg/tls"
 )
 
 // Auth modes (AUTH_MODE).
@@ -256,7 +258,13 @@ func eddsaAuthenticators(cfg ServiceAuthConfig) ([]Authenticator, error) {
 		if cfg.OIDCMaxLifetime < 0 {
 			return nil, errors.New("auth: AUTH_OIDC_MAX_LIFETIME is not a positive Go duration (e.g. 30m)")
 		}
-		v, err := NewJWKSVerifier(cfg.OIDCIssuerURL, cfg.ServiceName, nil, 0)
+		// The issuer may be unheaded-auth signed by the deployment CA
+		// (UNHEADED_TLS_ENABLED, S-IRON-GATE Phase 8) or a public provider.
+		tr, err := pqtls.TransportTrustingDeploymentCA()
+		if err != nil {
+			return nil, fmt.Errorf("auth: OIDC issuer TLS: %w", err)
+		}
+		v, err := NewJWKSVerifier(cfg.OIDCIssuerURL, cfg.ServiceName, &http.Client{Transport: tr, Timeout: jwksFetchTimeout}, 0)
 		if err != nil {
 			return nil, err
 		}

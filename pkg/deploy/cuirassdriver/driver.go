@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"unheaded/pkg/deploy/strategy"
+	pqtls "unheaded/pkg/tls"
 )
 
 // HealthSpec and ProxySpec mirror Cuirass's ContainerSpec fields.
@@ -147,7 +148,14 @@ func New(cfg Config) (*Driver, error) {
 	}
 	client := cfg.Client
 	if client == nil {
-		client = &http.Client{Transport: &http.Transport{Proxy: nil}}
+		// https to Cuirass trusts the deployment CA under
+		// UNHEADED_TLS_ENABLED (S-IRON-GATE Phase 8); never via a proxy.
+		tr, err := pqtls.TransportFromEnv()
+		if err != nil {
+			return nil, fmt.Errorf("cuirassdriver: %w", err)
+		}
+		tr.Proxy = nil
+		client = &http.Client{Transport: tr}
 	}
 	c := *client
 	c.Timeout = requestTimeout

@@ -9,15 +9,18 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 
 	"google.golang.org/grpc/credentials"
 
 	"unheaded/pkg/auth"
+	pqtls "unheaded/pkg/tls"
 )
 
 // WotanAudience is the aud every Wotan service token is minted for: Wotan's
@@ -111,22 +114,31 @@ func WithServiceToken(m *auth.ServiceTokenMinter) ClientOption {
 	}
 }
 
-// WithInsecureTransport lets the gRPC token travel over a plaintext
-// connection without the one-time warning (tests, loopback).
+// WithInsecureTransport makes the client dial Wotan in plaintext and send
+// its token there (tests, a loopback Wotan without TLS). It is refused (the
+// constructor returns an error) when UNHEADED_TLS_ENABLED=true, and logs a
+// WARN once otherwise (pkg/tls.PlaintextGRPCCredentials).
 func WithInsecureTransport() ClientOption {
 	return func(o *clientOptions) { o.insecureOK = true }
 }
 
-// newTokenAuth builds the authorizer for a client from its options;
-// plaintext says its gRPC connection is not TLS.
-func newTokenAuth(opts []ClientOption, plaintext bool) *tokenAuth {
+// collectOptions applies opts.
+func collectOptions(opts []ClientOption) clientOptions {
 	var o clientOptions
 	for _, f := range opts {
 		if f != nil {
 			f(&o)
 		}
 	}
-	return &tokenAuth{minter: o.minter, plaintext: plaintext, quiet: o.insecureOK}
+	return o
+}
+
+// newTokenAuth builds the authorizer for a client from its options;
+// plaintext says its gRPC connection is not TLS, target is the address it
+// dials (a plaintext link carries the token only to loopback).
+func newTokenAuth(opts []ClientOption, plaintext bool, target string) *tokenAuth {
+	o := collectOptions(opts)
+	return &tokenAuth{minter: o.minter, plaintext: plaintext, quiet: o.insecureOK, target: target}
 }
 
 // isPlaintext reports whether creds send in the clear.
@@ -136,11 +148,17 @@ func isPlaintext(creds credentials.TransportCredentials) bool {
 
 // tokenAuth authorizes a client's requests to Wotan: its own minter, else
 // the process identity, else nothing (Wotan with auth off still answers).
+// A token travels only over TLS (S-IRON-GATE Phase 8): on a plaintext link
+// it is withheld unless the peer is loopback or the client was built
+// WithInsecureTransport.
 type tokenAuth struct {
 	minter tokenMinter
 	// plaintext: the gRPC connection this serves is not TLS.
 	plaintext bool
-	quiet     bool
+	// quiet: WithInsecureTransport, plaintext on purpose.
+	quiet bool
+	// target is the gRPC address dialled ("" for HTTP-only use).
+	target string
 }
 
 // header returns the Authorization value, "" when the client has no identity.
@@ -161,22 +179,52 @@ func (t *tokenAuth) header() (string, error) {
 	return "Bearer " + tok, nil
 }
 
-// authorize sets Authorization on an HTTP request to Wotan.
+// authorize sets Authorization on an HTTP request to Wotan: over https, to
+// loopback, or for a WithInsecureTransport client; never over plain http
+// to another host.
 func (t *tokenAuth) authorize(req *http.Request) error {
 	h, err := t.header()
 	if err != nil {
 		return err
 	}
-	if h != "" {
-		req.Header.Set("Authorization", h)
+	if h == "" {
+		return nil
 	}
+	quiet := t != nil && t.quiet
+	if req.URL != nil && req.URL.Scheme != "https" && !quiet && !pqtls.IsLoopbackHost(req.URL.Hostname()) {
+		warnWithheld(req.URL.Host)
+		return nil
+	}
+	req.Header.Set("Authorization", h)
 	return nil
 }
 
-var plaintextWarnOnce sync.Once
+var withheldWarned sync.Map
+
+// warnWithheld logs once per peer that a token was not sent over plaintext.
+func warnWithheld(peer string) {
+	if _, dup := withheldWarned.LoadOrStore(peer, true); dup {
+		return
+	}
+	log.Printf("[WARN] wotan_client: service token withheld on a plaintext link to %s: tokens travel only over TLS (set UNHEADED_TLS_ENABLED=true and UNHEADED_TLS_CA_CERT, S-IRON-GATE Phase 8); a Wotan with auth on answers 401", peer)
+}
+
+// targetIsLoopback reports whether a gRPC target ("host:port", optionally
+// behind a "scheme:///" prefix) names a loopback host.
+func targetIsLoopback(target string) bool {
+	if i := strings.LastIndex(target, ":///"); i >= 0 {
+		target = target[i+4:]
+	}
+	host, _, err := net.SplitHostPort(target)
+	if err != nil {
+		host = target
+	}
+	return pqtls.IsLoopbackHost(host)
+}
 
 // GetRequestMetadata implements credentials.PerRPCCredentials: the token in
-// the "authorization" metadata of every unary and stream call.
+// the "authorization" metadata of every unary and stream call, over TLS
+// only (or plaintext to loopback, or WithInsecureTransport).
 func (t *tokenAuth) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
 	h, err := t.header()
 	if err != nil {
@@ -185,19 +233,17 @@ func (t *tokenAuth) GetRequestMetadata(context.Context, ...string) (map[string]s
 	if h == "" {
 		return nil, nil
 	}
-	if t.plaintext && !t.quiet {
-		plaintextWarnOnce.Do(func() {
-			log.Printf("[WARN] wotan_client: service token sent over plaintext gRPC; set UNHEADED_GRPC_TLS=1 once Wotan serves TLS (S-IRON-GATE Phase 8)")
-		})
+	if t.plaintext && !t.quiet && !targetIsLoopback(t.target) {
+		warnWithheld(t.target)
+		return nil, nil
 	}
 	return map[string]string{"authorization": h}, nil
 }
 
-// RequireTransportSecurity implements credentials.PerRPCCredentials. A
-// client that dials TLS never sends its token on anything else; one that
-// dials plaintext (no Wotan TLS before S-IRON-GATE Phase 8) sends it there,
-// warning once: a 5-minute token bound to aud=wotan, the same exposure as
-// the HTTP control plane on the same network.
+// RequireTransportSecurity implements credentials.PerRPCCredentials: a
+// client that dials TLS never sends its token on anything else. On a
+// plaintext connection the call proceeds and GetRequestMetadata decides
+// whether the token goes with it (loopback or WithInsecureTransport only).
 func (t *tokenAuth) RequireTransportSecurity() bool {
 	return !t.plaintext
 }

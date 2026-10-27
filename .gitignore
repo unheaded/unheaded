@@ -312,3 +312,5 @@ db/migrations/init.sh
 configs/keys/
 configs/trust.d/dev/
 configs/auth/
+# Dev TLS CA, certificates and keys (scripts/gen-dev-certs.sh, S-IRON-GATE Phase 8).
+configs/certs/

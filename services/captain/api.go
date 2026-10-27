@@ -16,6 +16,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
+	utls "unheaded/pkg/tls"
 )
 
 // HTTPServer provides REST API endpoints for the captain service
@@ -105,6 +106,11 @@ func newHTTPServer(service *Service, addr string, authCfg auth.ServiceAuthConfig
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
+	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is an
+	// error, never a plaintext listener.
+	if _, err := utls.ConfigureServer(hs.server); err != nil {
+		return nil, err
+	}
 
 	return hs, nil
 }
@@ -119,7 +125,7 @@ func (hs *HTTPServer) Start() error {
 	}
 
 	go func() {
-		if err := hs.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := utls.ListenAndServe(hs.server); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "captain api: ListenAndServe: %v\n", err)
 		}
 	}()

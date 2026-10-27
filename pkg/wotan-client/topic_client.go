@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"unheaded/pkg/auth"
 	chatpb "unheaded/services/wotan/proto"
@@ -194,14 +193,18 @@ func NewTopicStreamClient(grpcAddr string, opts ...TopicStreamOption) (*TopicStr
 		opt(c)
 	}
 
-	// Dial gRPC
+	// Dial gRPC: WithTLS's credentials, else the environment's (TLS when
+	// UNHEADED_TLS_ENABLED=true, never a silent plaintext fallback).
 	creds := c.tlsCreds
 	if creds == nil {
-		creds = insecure.NewCredentials()
+		var err error
+		if creds, err = grpcCredentials(c.tokenOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(creds),
-		grpc.WithPerRPCCredentials(newTokenAuth(c.tokenOpts, isPlaintext(creds))))
+		grpc.WithPerRPCCredentials(newTokenAuth(c.tokenOpts, isPlaintext(creds), grpcAddr)))
 	if err != nil {
 		return nil, fmt.Errorf("dial gRPC server %s: %w", grpcAddr, err)
 	}
@@ -238,7 +241,7 @@ func NewTopicStreamClientWithTLS(grpcAddr string, creds credentials.TransportCre
 	}
 
 	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(creds),
-		grpc.WithPerRPCCredentials(newTokenAuth(c.tokenOpts, isPlaintext(creds))))
+		grpc.WithPerRPCCredentials(newTokenAuth(c.tokenOpts, isPlaintext(creds), grpcAddr)))
 	if err != nil {
 		return nil, fmt.Errorf("dial gRPC server %s: %w", grpcAddr, err)
 	}
@@ -247,6 +250,15 @@ func NewTopicStreamClientWithTLS(grpcAddr string, creds credentials.TransportCre
 	c.client = chatpb.NewTopicStreamClient(conn)
 
 	return c, nil
+}
+
+// WithStreamInsecureTransport is WithInsecureTransport for a
+// TopicStreamClient: plaintext gRPC on purpose (tests, loopback), refused
+// when UNHEADED_TLS_ENABLED=true.
+func WithStreamInsecureTransport() TopicStreamOption {
+	return func(c *TopicStreamClient) {
+		c.tokenOpts = append(c.tokenOpts, WithInsecureTransport())
+	}
 }
 
 // Subscribe registers a subscription to a topic pattern.

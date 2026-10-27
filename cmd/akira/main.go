@@ -40,6 +40,7 @@ import (
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
+	utls "unheaded/pkg/tls"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -50,6 +51,8 @@ type AkiraConfig struct {
 		Host       string `yaml:"host"`
 		Port       int    `yaml:"port"`
 		HealthPath string `yaml:"health_path"`
+		// Scheme: http or https; empty follows UNHEADED_TLS_ENABLED.
+		Scheme string `yaml:"scheme"`
 	} `yaml:"targets"`
 }
 
@@ -87,8 +90,13 @@ func loadConfig(path string) ([]health.ServiceTarget, error) {
 		if hp == "" {
 			hp = "/health"
 		}
+		switch t.Scheme {
+		case "", "http", "https":
+		default:
+			return nil, fmt.Errorf("target %q: scheme %q is not http or https", t.Name, t.Scheme)
+		}
 		targets = append(targets, health.ServiceTarget{
-			Name: t.Name, Host: host, Port: t.Port, HealthPath: hp,
+			Name: t.Name, Host: host, Port: t.Port, HealthPath: hp, Scheme: t.Scheme,
 		})
 	}
 	return targets, nil
@@ -105,10 +113,12 @@ var defaultTargets = []health.ServiceTarget{
 	{Name: "sophia", Host: "localhost", Port: 19005, HealthPath: "/health"},
 	{Name: "dashboard", Host: "localhost", Port: 20000, HealthPath: "/health"},
 	{Name: "kanban", Host: "localhost", Port: 20001, HealthPath: "/health"},
-	{Name: "zhenai", Host: "localhost", Port: 20103, HealthPath: "/health"},
-	{Name: "inference", Host: "localhost", Port: 20100, HealthPath: "/health"},
+	// Not first-party Go listeners: they never serve pkg/tls, so they stay
+	// plain http when the host turns UNHEADED_TLS_ENABLED on.
+	{Name: "zhenai", Host: "localhost", Port: 20103, HealthPath: "/health", Scheme: "http"},
+	{Name: "inference", Host: "localhost", Port: 20100, HealthPath: "/health", Scheme: "http"},
 	{Name: "daemon", Host: "localhost", Port: 17000, HealthPath: "/health"},
-	{Name: "gateway", Host: "localhost", Port: 21000, HealthPath: "/health"},
+	{Name: "gateway", Host: "localhost", Port: 21000, HealthPath: "/health", Scheme: "http"},
 }
 
 func main() {
@@ -187,6 +197,13 @@ func main() {
 
 	// Create Akira instance
 	akira := health.NewAkira(*nodeID, targets)
+	// Checks of first-party targets go over TLS with the deployment CA when
+	// UNHEADED_TLS_ENABLED=true (S-IRON-GATE Phase 8).
+	checkClient, err := utls.ClientFromEnv(5 * time.Second)
+	if err != nil {
+		log.Fatal().Err(err).Msg("TLS: refusing to start")
+	}
+	akira.SetHTTPClient(checkClient)
 
 	// Every other reporter's reports are votes too (ADR-029: every node a
 	// watchdog). This node's own are recorded locally by CheckAll.
@@ -292,18 +309,23 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("auth configuration unusable (ADR-103)")
 	}
+	srv := &http.Server{
+		Addr:              fmt.Sprintf(":%d", *listenPort),
+		Handler:           api,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): never a silent
+	// plaintext fallback.
+	tlsOn, err := utls.ConfigureServer(srv)
+	if err != nil {
+		log.Fatal().Err(err).Msg("TLS: refusing to start")
+	}
 	go func() {
-		addr := fmt.Sprintf(":%d", *listenPort)
-		log.Info().Str("addr", addr).Msg("Akira HTTP API listening")
-		srv := &http.Server{
-			Addr:              addr,
-			Handler:           api,
-			ReadHeaderTimeout: 10 * time.Second,
-			ReadTimeout:       30 * time.Second,
-			WriteTimeout:      30 * time.Second,
-			IdleTimeout:       120 * time.Second,
-		}
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Info().Str("addr", srv.Addr).Bool("tls", tlsOn).Msg("Akira HTTP API listening")
+		if err := utls.ListenAndServe(srv); err != nil && err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("Akira HTTP API listen failed")
 		}
 	}()

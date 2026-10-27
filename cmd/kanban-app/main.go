@@ -40,6 +40,7 @@ import (
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
+	utls "unheaded/pkg/tls"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
@@ -310,15 +311,22 @@ func (s *Server) Start() error {
 		IdleTimeout:    5 * s.config.ReadTimeout,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
+	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is an
+	// error, never a plaintext listener.
+	tlsOn, err := utls.ConfigureServer(s.httpServer)
+	if err != nil {
+		return err
+	}
 
 	log.Info().
 		Str("port", s.config.Port).
+		Bool("tls", tlsOn).
 		Str("timeguru", s.config.TimeGuruAddr).
 		Str("wotan", s.config.WotanAddr).
 		Bool("wotan_enabled", s.taskManager != nil).
 		Msg("Starting kanban-app server")
 
-	return s.httpServer.ListenAndServe()
+	return utls.ListenAndServe(s.httpServer)
 }
 
 // Shutdown gracefully shuts down the server
@@ -349,7 +357,8 @@ func (s *Server) getTimelineManager() *TimelineManager {
 
 // fetchTimelineFromTimeguru fetches the timeline via HTTP from Timeguru
 func (s *Server) fetchTimelineFromTimeguru() error {
-	url := fmt.Sprintf("http://%s/timeline", s.config.TimeGuruAddr)
+	// https with the deployment CA when UNHEADED_TLS_ENABLED=true.
+	url := utls.BaseURL(s.config.TimeGuruAddr) + "/timeline"
 
 	req, err := http.NewRequestWithContext(s.ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -362,7 +371,10 @@ func (s *Server) fetchTimelineFromTimeguru() error {
 		}
 		req.Header.Set("Authorization", authz)
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
+	client, err := utls.ClientFromEnv(10 * time.Second)
+	if err != nil {
+		return fmt.Errorf("fetch timeline: %w", err)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("fetch timeline: %w", err)

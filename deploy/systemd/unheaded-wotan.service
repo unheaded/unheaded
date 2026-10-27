@@ -19,7 +19,10 @@ EnvironmentFile=-/etc/unheaded/wotan/wotan.env
 ExecStart=/usr/local/bin/wotan \
     --http-port 18000 \
     --grpc-port 18001 \
-    --topic-config /etc/unheaded/wotan.yaml
+    --topic-config /etc/unheaded/wotan.yaml \
+    --enable-tls \
+    --tls-cert /etc/unheaded/tls/wotan/wotan.pem \
+    --tls-key /etc/unheaded/tls/wotan/wotan-key.pem
 WorkingDirectory=/var/lib/unheaded/wotan
 Restart=on-failure
 RestartSec=5s
@@ -36,6 +39,16 @@ Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 Environment=AUTH_ENABLED=true
 Environment=AUTH_ALLOW_CALLERS=akira,anomaly,architect,captain,chaos-controller,dashboard-backend,ebpf-collector,gateway,heimdall,kanban-app,kev-poller,micromanager,monad,perf-benchmark,shield,sophia,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,zhen-agentd,zhen-claude
 ReadOnlyPaths=-/etc/unheaded/trust.d
+# TLS (S-IRON-GATE Phase 8, ADR-105, FND-017; deploy/systemd/README.md#tls):
+# TLS 1.3 with hybrid ML-KEM on the listener and every first-party link.
+# Material in /etc/unheaded/tls/wotan/ from the Kingdom CA runbook
+# (runbooks/pki/generate-kingdom-certs.yaml); key root:unheaded-wotan 0640, certs 0644.
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/wotan/ca.pem
+Environment=UNHEADED_TLS_CERT=/etc/unheaded/tls/wotan/wotan.pem
+Environment=UNHEADED_TLS_KEY_FILE=/etc/unheaded/tls/wotan/wotan-key.pem
+Environment=UNHEADED_TLS_MTLS_ENABLED=false
+ReadOnlyPaths=-/etc/unheaded/tls/wotan
 
 User=unheaded-wotan
 Group=unheaded-wotan

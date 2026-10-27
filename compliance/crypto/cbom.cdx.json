@@ -1523,7 +1523,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:350:postgres-image",
+      "bom-ref": "docker-compose.yml:352:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1563,7 +1563,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:350"
+          "value": "docker-compose.yml:352"
         }
       ]
     },
@@ -3044,6 +3044,94 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "pkg/tls/setup.go:284:tls-config",
+      "name": "TLS client config",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "pkg/tls ApplyStrict (ADR-105)"
+        },
+        {
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid-strict"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/tls/setup.go:284"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/tls/setup.go:360:tls-config",
+      "name": "TLS client config",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "pkg/tls ApplyPreferred (ADR-105); Go default groups (X25519MLKEM768 first)"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/tls/setup.go:360"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "pkg/transport/mtls/mtls.go:116:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
@@ -3267,7 +3355,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/wotan-client/grpc_client.go:67:tls-config",
+      "bom-ref": "pkg/wotan-client/grpc_client.go:65:tls-config",
       "name": "TLS config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -3307,7 +3395,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/wotan-client/grpc_client.go:67"
+          "value": "pkg/wotan-client/grpc_client.go:65"
         }
       ]
     },

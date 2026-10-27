@@ -10,6 +10,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/subtle"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -49,6 +50,12 @@ type user struct {
 // NewIssuer starts an issuer that mints tokens for the given audiences.
 func NewIssuer(t testing.TB, audiences ...string) *Issuer {
 	t.Helper()
+	return NewIssuerTLS(t, nil, audiences...)
+}
+
+// NewIssuerTLS is NewIssuer served over TLS with cfg (nil: plain http).
+func NewIssuerTLS(t testing.TB, cfg *tls.Config, audiences ...string) *Issuer {
+	t.Helper()
 	is := &Issuer{audiences: audiences, users: map[string]user{}, Lifetime: 15 * time.Minute}
 	is.RotateKey(t)
 	mux := http.NewServeMux()
@@ -66,7 +73,13 @@ func NewIssuer(t testing.TB, audiences ...string) *Issuer {
 		}}})
 	})
 	mux.HandleFunc("POST /login", is.login)
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewUnstartedServer(mux)
+	if cfg != nil {
+		srv.TLS = cfg
+		srv.StartTLS()
+	} else {
+		srv.Start()
+	}
 	t.Cleanup(srv.Close)
 	is.URL = srv.URL
 	return is

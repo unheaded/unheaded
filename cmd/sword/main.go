@@ -52,6 +52,7 @@ import (
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/sloguard"
+	utls "unheaded/pkg/tls"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/sword"
@@ -86,9 +87,13 @@ const cuirassAudience = "unheaded-daemon"
 // loadConfig reads the environment. A missing Cuirass key is an error:
 // credentials fail loud, never a default.
 func loadConfig(getenv func(string) string) (config, error) {
+	cuirassScheme := "http"
+	if getenv(utls.EnvEnabled) == "true" { // Cuirass serves TLS too (S-IRON-GATE Phase 8)
+		cuirassScheme = "https"
+	}
 	c := config{
 		addr:       envOr(getenv, "HTTP_ADDR", ports.DefaultAddr(ports.Sword)),
-		cuirassURL: envOr(getenv, "CUIRASS_URL", fmt.Sprintf("http://127.0.0.1:%d", ports.Cuirass)),
+		cuirassURL: envOr(getenv, "CUIRASS_URL", fmt.Sprintf("%s://127.0.0.1:%d", cuirassScheme, ports.Cuirass)),
 		cuirassKey: getenv("CUIRASS_API_KEY"),
 		keyFile:    getenv("AUTH_KEY_FILE"),
 		dataDir:    getenv("SWORD_DATA_DIR"),
@@ -108,6 +113,14 @@ func loadConfig(getenv func(string) string) (config, error) {
 // build wires the service from a config.
 func build(c config, log *zerolog.Logger) (*sword.Service, error) {
 	dc := cuirassdriver.Config{URL: c.cuirassURL, APIKey: c.cuirassKey}
+	// https to Cuirass trusts the deployment CA (UNHEADED_TLS_CA_CERT); no
+	// proxy, as the driver's own default.
+	tr, err := utls.TransportFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("cuirass TLS: %w", err)
+	}
+	tr.Proxy = nil
+	dc.Client = &http.Client{Transport: tr}
 	if c.keyFile != "" {
 		minter, err := auth.LoadServiceTokenMinter(serviceName, c.keyFile)
 		if err != nil {
@@ -243,10 +256,16 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
+	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): never a silent
+	// plaintext fallback.
+	tlsOn, err := utls.ConfigureServer(srv)
+	if err != nil {
+		log.Fatal().Err(err).Msg("sword cannot start: TLS")
+	}
 	errc := make(chan error, 1)
 	go func() {
-		log.Info().Str("addr", c.addr).Msg("sword listening")
-		errc <- srv.ListenAndServe()
+		log.Info().Str("addr", c.addr).Bool("tls", tlsOn).Msg("sword listening")
+		errc <- utls.ListenAndServe(srv)
 	}()
 	select {
 	case err := <-errc:

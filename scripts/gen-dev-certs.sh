@@ -1,78 +1,85 @@
 #!/usr/bin/env bash
-# gen-dev-certs.sh — Generate development TLS certificates for the Unheaded service mesh.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 #
-# This script generates a complete PKI setup with:
-#   - Root CA (10-year validity)
-#   - Service certificates for all Unheaded services (1-year validity)
-#   - Support for custom service lists and output directories
+# gen-dev-certs.sh: development TLS material for the compose stack
+# (S-IRON-GATE Phase 8, ADR-105, FND-017). A dev CA and one certificate per
+# first-party compose service (SANs: the compose service name, its auth
+# identity where different, localhost, 127.0.0.1, ::1), plus unheaded-cli's
+# client certificate, laid out one directory per service so each container
+# mounts only its own key:
 #
-# Usage:
-#   ./scripts/gen-dev-certs.sh                          # Generate all service certs
-#   ./scripts/gen-dev-certs.sh [service1,service2,...]  # Generate specific services
-#   CERT_DIR=/tmp/certs ./scripts/gen-dev-certs.sh      # Custom output directory
+#   configs/certs/dev/ca.pem              the CA every service trusts (0644)
+#   configs/certs/dev/ca-key.pem          the CA's key (0600; never mounted)
+#   configs/certs/dev/<svc>/<svc>.pem     certificate (0644)
+#   configs/certs/dev/<svc>/<svc>-key.pem private key (0600)
+#   configs/certs/dev/<svc>/ca.pem        copy of the CA certificate
 #
-# Environment variables:
-#   CERT_DIR      Output directory (default: configs/certs/dev)
-#   CA_VALIDITY   Root CA validity (default: 87600h = 10 years)
-#   CERT_VALIDITY Service cert validity (default: 8760h = 1 year)
+# Everything here is generated at run time and gitignored (*.pem); never
+# commit it. Development only: hosts get certificates from the Kingdom CA
+# runbook (runbooks/pki/generate-kingdom-certs.yaml), not from this script.
+# A re-run keeps the existing CA and re-issues every certificate.
 #
-# Requires: Go toolchain (builds cert-gen tool).
-
+# Containers run as their own uid (pkg/uids) and read their key through a
+# bind mount that keeps the host file's owner and mode. Run it once as
+# yourself (builds bin/cert-gen), then with sudo so each service directory
+# and key belong to its compose uid (root never runs the Go toolchain):
+#
+#   scripts/gen-dev-certs.sh && sudo scripts/gen-dev-certs.sh
+#
+# Usage: scripts/gen-dev-certs.sh [svc1,svc2,...]
+# Environment: CERT_DIR (default configs/certs/dev), CERT_VALIDITY (8760h).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-CERT_DIR="${CERT_DIR:-${PROJECT_DIR}/configs/certs/dev}"
+cd "$PROJECT_DIR" || exit 2
+CERT_DIR="${CERT_DIR:-configs/certs/dev}"
 SERVICES="${1:-}"
-CA_VALIDITY="${CA_VALIDITY:-87600h}"
 CERT_VALIDITY="${CERT_VALIDITY:-8760h}"
+CERTGEN="${CERTGEN:-bin/cert-gen}"
 
-echo "======================================================================="
-echo "Unheaded Service Mesh — Development Certificate Generator"
-echo "======================================================================="
-echo "  Project:         ${PROJECT_DIR}"
-echo "  Output:          ${CERT_DIR}"
-echo "  CA Validity:     ${CA_VALIDITY}"
-echo "  Cert Validity:   ${CERT_VALIDITY}"
-echo "  Specific SVCs:   ${SERVICES:-all}"
-echo ""
+IS_ROOT=0
+[[ "$(id -u)" -eq 0 ]] && IS_ROOT=1
 
-# Ensure output directory exists
-mkdir -p "${CERT_DIR}"
-
-# Build cert-gen tool
-echo "[*] Building cert-gen tool..."
-go build -o "${PROJECT_DIR}/bin/cert-gen" "${PROJECT_DIR}/cmd/cert-gen"
-
-# Run cert-gen
-# cert-gen uses a single -ttl flag for certificate validity.
-ARGS="-out ${CERT_DIR} -ttl ${CERT_VALIDITY}"
-if [ -n "${SERVICES}" ]; then
-    ARGS="${ARGS} -services ${SERVICES}"
+if [[ $IS_ROOT -eq 1 ]]; then
+	[[ -x "$CERTGEN" ]] || { echo "gen-dev-certs: $CERTGEN missing; run scripts/gen-dev-certs.sh as yourself first (root does not run the Go toolchain)" >&2; exit 2; }
+else
+	go build -o "$CERTGEN" ./cmd/cert-gen
 fi
 
-echo "[*] Generating PKI..."
-# shellcheck disable=SC2086  # ARGS is an argument list; it must word-split
-"${PROJECT_DIR}/bin/cert-gen" ${ARGS}
+mkdir -p "$CERT_DIR"
+chmod 0750 "$CERT_DIR"
+ARGS=(-out "$CERT_DIR" -ttl "$CERT_VALIDITY" -layout per-service -reuse-ca)
+[[ -n "$SERVICES" ]] && ARGS+=(-services "$SERVICES")
+"$CERTGEN" "${ARGS[@]}"
 
-echo ""
-echo "======================================================================="
-echo "Certificate generation complete!"
-echo "======================================================================="
-echo ""
-echo "PKI Structure:"
-echo "  ${CERT_DIR}/"
-echo "  ├── root-ca.crt       (Root CA certificate)"
-echo "  ├── root-ca.key       (Root CA private key, 0600)"
-echo "  ├── <service>.crt     (Service certificate)"
-echo "  └── <service>.key     (Service private key, 0600)"
-echo ""
-echo "To enable mTLS in services, configure:"
-echo "  PKI_DIR=\"${CERT_DIR}\""
-echo ""
-echo "For environment-based configuration:"
-echo "  export UNHEADED_PKI_DIR=\"${CERT_DIR}\""
-echo ""
-echo "Services with generated certificates:"
-ls -1 "${CERT_DIR}"/*.crt 2>/dev/null | sed 's/.*\//  - /' | sed 's/\.crt//' || echo "  (none yet)"
-echo ""
+# As root: each service directory and key to its compose uid; the CLI's and
+# the CA's to whoever ran sudo. Compose names map to uids through the
+# `user:` lines of docker-compose.yml.
+if [[ $IS_ROOT -eq 1 ]]; then
+	owner_sudo="${SUDO_UID:?run with sudo, not as root directly (SUDO_UID owns the CA and CLI material)}:${SUDO_GID:?}"
+	chown "$owner_sudo" "$CERT_DIR" "$CERT_DIR/ca.pem" "$CERT_DIR/ca-key.pem"
+	python3 - docker-compose.yml >"$CERT_DIR/.uids" <<'PY'
+import sys, yaml
+doc = yaml.safe_load(open(sys.argv[1]))
+for name, svc in sorted(doc["services"].items()):
+    if "build" in svc and svc.get("user"):
+        print(name, str(svc["user"]).split(":")[0])
+PY
+	for dir in "$CERT_DIR"/*/; do
+		svc="$(basename "$dir")"
+		uid="$(awk -v s="$svc" '$1 == s {print $2}' "$CERT_DIR/.uids")"
+		if [[ -n "$uid" ]]; then
+			owner="$uid:$uid"
+		else
+			owner="$owner_sudo"
+		fi
+		chown -R "$owner" "$dir"
+		chmod 0750 "$dir"
+		printf '  %-18s %s\n' "$svc" "$owner"
+	done
+	rm -f "$CERT_DIR/.uids"
+fi
+
+echo "CA: $CERT_DIR/ca.pem  (curl --cacert $CERT_DIR/ca.pem https://127.0.0.1:<port>/health)"

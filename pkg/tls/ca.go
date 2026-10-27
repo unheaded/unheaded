@@ -114,6 +114,36 @@ func NewCA() (*CA, error) {
 	}, nil
 }
 
+// LoadCA rebuilds a CA from the PEM that CertPEM and KeyPEM returned, so a
+// re-run of a dev certificate generator keeps the CA every service already
+// trusts. The certificate must be a CA whose public key matches the key.
+func LoadCA(certPEM, keyPEM []byte) (*CA, error) {
+	cb, _ := pem.Decode(certPEM)
+	if cb == nil || cb.Type != "CERTIFICATE" {
+		return nil, errors.New("tls: LoadCA: no CERTIFICATE block")
+	}
+	cert, err := x509.ParseCertificate(cb.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	if !cert.IsCA {
+		return nil, errors.New("tls: LoadCA: certificate is not a CA")
+	}
+	kb, _ := pem.Decode(keyPEM)
+	if kb == nil || kb.Type != "EC PRIVATE KEY" {
+		return nil, errors.New("tls: LoadCA: no EC PRIVATE KEY block")
+	}
+	key, err := x509.ParseECPrivateKey(kb.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	pub, ok := cert.PublicKey.(*ecdsa.PublicKey)
+	if !ok || !pub.Equal(&key.PublicKey) {
+		return nil, errors.New("tls: LoadCA: key does not match the certificate")
+	}
+	return &CA{cert: cert, key: key, certPEM: certPEM, keyPEM: keyPEM}, nil
+}
+
 // CertPEM returns the CA certificate in PEM format.
 func (ca *CA) CertPEM() []byte {
 	return ca.certPEM

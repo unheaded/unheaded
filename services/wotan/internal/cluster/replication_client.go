@@ -13,8 +13,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
+	pqtls "unheaded/pkg/tls"
 	"unheaded/pkg/transport/mtls"
 	chatpb "unheaded/services/wotan/proto"
 )
@@ -55,17 +55,22 @@ func NewReplicationClient(peerAddr, nodeID, pkiDir string, epoch int64) *Replica
 // ctx is now consumed by downstream RPCs (CatchUp / StartReplication
 // loop) rather than the dial itself.
 func (c *ReplicationClient) Connect(_ context.Context) error {
+	// No silent plaintext fallback (S-IRON-GATE Phase 8, FND-017): a PKI
+	// directory that cannot be loaded is an error, and plaintext without
+	// one is refused under UNHEADED_TLS_ENABLED=true.
 	var dialOpt grpc.DialOption
 	if c.pkiDir != "" {
 		tlsCfg, err := mtls.SetupServiceClientTLS("wotan", c.pkiDir)
 		if err != nil {
-			log.Warn().Err(err).Msg("replication: mTLS setup failed, falling back to insecure")
-			dialOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
-		} else {
-			dialOpt = grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
+			return fmt.Errorf("replication_client: mTLS setup from %s: %w", c.pkiDir, err)
 		}
+		dialOpt = grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
 	} else {
-		dialOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
+		creds, err := pqtls.PlaintextGRPCCredentials("wotan replication (no -cluster-pki-dir)")
+		if err != nil {
+			return fmt.Errorf("replication_client: %w", err)
+		}
+		dialOpt = grpc.WithTransportCredentials(creds)
 	}
 
 	// grpc.NewClient (lazy/non-blocking) replaces deprecated DialContext +
