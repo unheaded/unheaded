@@ -25,10 +25,10 @@ Every plan has its own PREFLIGHT, exit gates, [DECIDE] defaults and
 | # | Sprint | Plan | Size | Epics | Status |
 |---|---|---|---|---|---|
 | 1 | Clean Slate: CI green, live-service bugs, public-repo hygiene, docs tell the truth | [S-CLEAN-SLATE](S-CLEAN-SLATE-battle-plan.md) | 9 phases, 288 steps | E01, E02, E03, doc hygiene | **Shipped 2026-10-27** (S24): 273/289 steps, the 16 open are Stevie's escalations (E6, E9 west, E10, E11, E12); FND-001/014/023/024 closed or live; CI fixes pushed-pending |
-| 2 | Iron Gate: service auth (ADR-103), TLS on every internal link, signed releases and an apt repo | [S-IRON-GATE](S-IRON-GATE-battle-plan.md) | 17 phases, 402 steps | E04, E05, M-201 | forged 2026-10-27 |
-| 3 | Well Spring: the Well as source of truth, SRE remainder (ADR-100), compliance paperwork and enforcing mode | [S-WELL-SPRING](S-WELL-SPRING-battle-plan.md) | 16 phases, 294 steps | E06, E07, E08, M-200/203/205 | forged 2026-10-27 |
-| 4 | Champion Hardening: tool-call path, runbook approvals, eval, Zhen units | [S-CHAMPION-HARDENING](S-CHAMPION-HARDENING-battle-plan.md) | 16 phases, 252 steps | E09 | forged 2026-10-27 |
-| 5 | True Wire: spec-vs-code rulings, RFC Editor desk, Shield data-plane truth, supply chain | [S-TRUE-WIRE](S-TRUE-WIRE-battle-plan.md) | 13 phases, 404 steps | E10, E11, E12 | forged 2026-10-27 |
+| 2 | Iron Gate: service auth (ADR-103), TLS on every internal link, signed releases and an apt repo | [S-IRON-GATE](S-IRON-GATE-battle-plan.md) | 17 phases, 402 steps | E04, E05, M-201 | **Code complete 2026-10-27** (S24; live steps + E1-E5 open; see the plan banner) |
+| 3 | Well Spring: the Well as source of truth, SRE remainder (ADR-100), compliance paperwork and enforcing mode | [S-WELL-SPRING](S-WELL-SPRING-battle-plan.md) | 16 phases, 294 steps | E06, E07, E08, M-200/203/205 | **Code complete 2026-10-27** (S24; Phase 5 PG 18 on E-B; E-A..E-E open) |
+| 4 | Champion Hardening: tool-call path, runbook approvals, eval, Zhen units | [S-CHAMPION-HARDENING](S-CHAMPION-HARDENING-battle-plan.md) | 16 phases, 252 steps | E09 | **Code complete 2026-10-27** (S24; E1-E4 open) |
+| 5 | True Wire: spec-vs-code rulings, RFC Editor desk, Shield data-plane truth, supply chain | [S-TRUE-WIRE](S-TRUE-WIRE-battle-plan.md) | 13 phases, 404 steps | E10, E11, E12 | **In progress** on `sprint/true-wire` (Phases 0, 1, 3, 8, 9 done 2026-10-27; merges into develop after E2) |
 | 6 | Ascend 2: getpid flip, N-way isolation, loader gates, required-before-prod, EVOLUTION-1 Stage 2, east as a node | [S-ASCEND-2](S-ASCEND-2-battle-plan.md) | 14 phases, 314 steps | E14, M-202/204 | forged 2026-10-27 |
 | 7 | Doom Last: docs tell the truth, Doom units off root, doom.mbc provenance, one banding pass | [S-DOOM-LAST](S-DOOM-LAST-battle-plan.md) | 9 phases, 104 steps | E15 | forged 2026-10-27; runs only after 1-6 or in an idle window |
 
@@ -64,10 +64,10 @@ Escalations table carries the answers.
 | # | Decision | Answer |
 |---|---|---|
 | 1 | drift-detect on main | Delete the workflow |
-| 2 | "Gates can actually fail" timeout | Measure once, set timeout-minutes to measured + 20 % |
-| 3 | develop to staging promotion | After Sprint 1's CI is green, on Stevie's word (Step 288 stays an [ESCALATE]) |
-| 4 | Credential rotation | Stevie rotates during Sprint 1; the plan shrinks the baseline after |
-| 5 | FND-001 SMTP relay | Stevie places Gmail app-password env on west (/etc/unheaded/alertmailer); plan flips `mode send` |
+| 2 | "Gates can actually fail" timeout | **Code complete 2026-10-27** (S24; live steps + E1-E5 open; see the plan banner) |
+| 3 | develop to staging promotion | **Code complete 2026-10-27** (S24; Phase 5 PG 18 on E-B; E-A..E-E open) |
+| 4 | Credential rotation | **Code complete 2026-10-27** (S24; E1-E4 open) |
+| 5 | FND-001 SMTP relay | **In progress** on `sprint/true-wire` (Phases 0, 1, 3, 8, 9 done 2026-10-27; merges into develop after E2) |
 | 6 | FND-011 | Apply the ebtables modprobe stopgap on both hosts; west userns stays open until an LXD test |
 | 7 | E2 sshd hybrid-only | Go; east first with a fallback session, then west. E3 WireGuard PSK rotation + weekly timer: go |
 | 8 | EAR TSU notice | Plan drafts the notice and README line; Stevie sends the email; date recorded |
