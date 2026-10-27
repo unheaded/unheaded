@@ -95,6 +95,10 @@ fixes:
                 blacklist jffs2
                 install udf /bin/false
                 blacklist udf
+                # FND-011 stopgap (CVE-2026-53266): nothing here uses ebtables
+                install ebtables /bin/false
+                install ebtable_nat /bin/false
+                install ebt_snat /bin/false
 
   - id: cron-perms
     title: Scheduled-job files root-only; cron.allow lists root and the sudo group

@@ -66,6 +66,12 @@ content_kmod() {
 	for m in cramfs freevxfs hfs hfsplus jffs2 udf; do
 		printf 'install %s /bin/false\nblacklist %s\n' "$m" "$m"
 	done
+	# Until Ubuntu ships the fixed kernel (register FND-011). No blacklist
+	# line: install alone stops autoload and explicit modprobe alike.
+	echo "# FND-011 stopgap (CVE-2026-53266): nothing here uses ebtables"
+	for m in ebtables ebtable_nat ebt_snat; do
+		printf 'install %s /bin/false\n' "$m"
+	done
 }
 
 content_tmout() {
