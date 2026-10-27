@@ -78,6 +78,27 @@ SLH-DSA / ML-DSA-65 post-quantum crypto, deterministic Sealed Cask builds.
 — LoRA fine-tuning on Gemma-4 / Mistral-7B via ROCm. Flask web UI on port 20103 over a
 1.52M-vector RAG corpus.
 
+## Security
+
+Every push and pull request to `develop`, `staging` and `main` runs these gates
+(`.github/workflows/`; most are `scripts/check-*.sh` scripts that also run locally):
+
+- gitleaks over the working tree, with a baseline (`.gitleaksignore`) that may only shrink;
+  Trivy secret, vulnerability and IaC scans.
+- gosec with a ratchet that may only shrink; govulncheck; cargo-audit; pip-audit.
+- A third-party dependency baseline that may only shrink (`docs/policy/dependency-baseline.txt`).
+- An SBOM per build, scanned with grype; a GPL boundary check.
+- Pinned CI tools checked against upstream releases after a 7-day cooldown; GitHub Actions
+  pinned to commit SHAs.
+- Runbook schema and dry-run tests; eBPF programs held to verifier instruction budgets.
+
+Open findings, their severity, owner and due date live in the findings register,
+[`compliance/findings/register.yaml`](compliance/findings/register.yaml)
+([ADR-098](docs/adr/ADR-098-findings-register-and-baseline-modes.md)).
+
+To report a vulnerability, follow [SECURITY.md](SECURITY.md). The same contact is served
+at `/.well-known/security.txt` (RFC 9116) by the dashboard backend.
+
 ## License
 
 GPL-3.0-or-later. Protocol specs dual-licensed GPL-3.0-or-later / Apache-2.0.
