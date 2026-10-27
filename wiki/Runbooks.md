@@ -18,6 +18,10 @@ Operational procedures. `runbooks/` holds YAML runbooks that Zhen's Champion can
 
 79 runbooks. Lifecycle (`metadata.status` draft → approved, only Stevie approves), the checker `scripts/check-runbooks.sh` and its shrink-only baseline `runbooks/.check-baseline`: ADR-024 §6. The eleven S-TWO-BRAINS drafts each have a dry-run test in `tests/runbooks/`.
 
+`scripts/run-runbook.py` runs a runbook's `verification:` section after its steps succeed: each entry's `command` (or `check`) runs, `action: manual` entries are printed for the operator, and the run ends with `verification: n/m passed`; any failed check exits 1 (no rollback: every step succeeded). `--dry-run` lists the checks without running them. The checker `bash -n`s verification commands too.
+
+`zhen-eval -family runbook-draft` scores the five runbook-draft tasks of `eval/two-brains` with the same harness: the drafted YAML must dry-run, pass `scripts/check-runbooks.py --one` (strict draft rules, no baseline) and match the task's `requirements.json` (judge contract: `eval/two-brains/PREREG.md`, amendment 2026-10-27).
+
 Plans in prose: `runbooks/security/ir-plan-v1-2026-05-06.md` (incident response), `runbooks/security/vuln-management-2026-05-06.md` (vulnerability management).
 
 The Well's runbooks (backup-restore, migration, secrets-rotation) follow the migration ledger (ADR-101): no `DROP DATABASE`, no passwords in SQL. Backup locations are in [[Well Backups|Well-Backups]].
