@@ -99,6 +99,10 @@ type Server struct {
 
 	// logPublisher, when set, contributes log-forwarding counters.
 	logPublisher *logagg.Publisher
+
+	// runbooks lists runbooks/ for the Runbooks view (runbooks.go); nil:
+	// the runbook routes answer 503.
+	runbooks *runbookCatalog
 }
 
 // initMetrics registers every series this service publishes. Values are read
@@ -161,6 +165,7 @@ func NewServer(cfg Config) *Server {
 		sseClients: make(map[chan []byte]bool),
 		ctx:        ctx,
 		cancel:     cancel,
+		runbooks:   newRunbookCatalogFromEnv(),
 	}
 	s.initMetrics()
 
@@ -213,6 +218,7 @@ func NewServerWithTaskManager(cfg Config, tm *TaskManager, store TaskStore) *Ser
 		taskManager: tm,
 		ctx:         ctx,
 		cancel:      cancel,
+		runbooks:    newRunbookCatalogFromEnv(),
 	}
 	s.initMetrics()
 	return s
@@ -236,6 +242,9 @@ func (s *Server) Start() error {
 	// Timeline API endpoints - THE META MOMENT
 	mux.HandleFunc("/api/v1/timeline", s.handleTimeline)
 	mux.HandleFunc("/api/v1/timeline/cards", s.handleTimelineCards)
+
+	// Runbooks view and cards from runbooks (runbooks.go)
+	s.registerRunbookRoutes(mux)
 
 	// Static files - embedded in binary
 	staticFS, err := fs.Sub(staticFiles, "static")
@@ -566,60 +575,10 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.taskManager != nil {
-		// Create task via TaskManager
-		ctx := r.Context()
-		if err := s.taskManager.CreateTask(ctx, &task); err != nil {
-			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to create task")
-
-			// errors.Is: TaskManager wraps ErrInvalidTask with the reason, so
-			// `switch err` never matched it and a bad status was a 500.
-			switch {
-			case errors.Is(err, ErrTaskAlreadyExists):
-				http.Error(w, err.Error(), http.StatusConflict)
-			case errors.Is(err, ErrInvalidTask):
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			default:
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-			}
-			return
-		}
-	} else if s.store != nil {
-		// Standalone + SQLite persistence
-		now := time.Now()
-		task.CreatedAt = now
-		task.UpdatedAt = now
-		// SaveTask upserts: a lookup error taken for "absent" let a create
-		// overwrite an existing task.
-		existing, err := s.store.GetTask(task.ID)
-		if err != nil && !errors.Is(err, ErrStoreNotFound) {
-			storeReadFailed(w, task.ID, err)
-			return
-		}
-		if existing != nil {
-			http.Error(w, "task already exists", http.StatusConflict)
-			return
-		}
-		if err := s.store.SaveTask(&task); err != nil {
-			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to save task to store")
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		// Fallback: in-memory only (no persistence)
-		now := time.Now()
-		task.CreatedAt = now
-		task.UpdatedAt = now
-		s.tasksMu.Lock()
-		for _, t := range s.tasks {
-			if t.ID == task.ID {
-				s.tasksMu.Unlock()
-				http.Error(w, "task already exists", http.StatusConflict)
-				return
-			}
-		}
-		s.tasks = append(s.tasks, task)
-		s.tasksMu.Unlock()
+	// TaskManager, else the store, else memory (insertTask, runbooks.go).
+	if code, err := s.insertTask(r.Context(), &task); err != nil {
+		http.Error(w, err.Error(), code)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -824,8 +783,7 @@ func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskI
 			}
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(task) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		s.writeTaskDetail(w, r, task)
 		return
 	}
 
@@ -836,22 +794,25 @@ func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskI
 			storeReadFailed(w, taskID, err)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(task) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		s.writeTaskDetail(w, r, task)
 		return
 	}
 
 	// Fallback: in-memory
 	s.tasksMu.RLock()
-	defer s.tasksMu.RUnlock()
+	var found *Task
 	for _, t := range s.tasks {
 		if t.ID == taskID {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(t) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-			return
+			found = &t
+			break
 		}
 	}
-	http.Error(w, "Task not found", http.StatusNotFound)
+	s.tasksMu.RUnlock()
+	if found == nil {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+	s.writeTaskDetail(w, r, found)
 }
 
 // handleUpdateTaskByID updates a single task

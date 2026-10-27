@@ -157,6 +157,29 @@ func TestRunbookExecute_ExecutesTheVerifiedCopy(t *testing.T) {
 	}
 }
 
+// run-runbook.py names its progress events (runbooks.progress, Kanban's
+// step k/n) by RUNBOOK_REF: a live run executes a private copy whose path
+// says nothing about which runbook it is (S-CHAMPION-HARDENING Step 224).
+func TestRunbookExecute_PassesRunbookRef(t *testing.T) {
+	needPython(t)
+	for _, dry := range []bool{true, false} {
+		c, _, p := rbRoot(t, "infra/safe", safeRunbook, entry("infra/safe"))
+		fake := "import os\nprint('REF=' + os.environ.get('RUNBOOK_REF', '<unset>'))\n"
+		script := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(p))), "scripts", "run-runbook.py")
+		if err := os.WriteFile(script, []byte(fake), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("RUNBOOK_REF", "stale/from-parent")
+		res, err := c.RunbookExecute(context.Background(), "infra/safe", dry)
+		if err != nil {
+			t.Fatalf("dry=%v: %v", dry, err)
+		}
+		if !strings.Contains(res.Output, "REF=infra/safe\n") {
+			t.Errorf("dry=%v: output %q, want REF=infra/safe", dry, res.Output)
+		}
+	}
+}
+
 const destructiveRunbook = `apiVersion: runbook/v1
 kind: Runbook
 metadata:

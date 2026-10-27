@@ -1,6 +1,14 @@
 # ADR-038: Kanban Task GUID → Git Commit Audit Trail
 
-## Status: ACCEPTED
+## Status: ACCEPTED, DORMANT (2026-10-27)
+
+Dormant since 2026-10-27 (S-CHAMPION-HARDENING Step 222): the
+`zhen_agent_runs` row (migration 032; `branch` = `zhen/<card>`, `card_id`)
+links every agent commit to its card, and the Kanban card modal shows that
+run (branch, review note, review reason; migration 038). The post-commit
+trailer hook was never installed; `scripts/kanban-git-link.sh` stays as a
+manual scanner and the `commits` column and modal list stay. Revive the
+hook only if human commits need the link.
 
 ## Date: 2026-04-05
 ## Decision Makers: Stevie Bellis (Principal), Claude (Advisor)

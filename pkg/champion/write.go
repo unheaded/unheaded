@@ -451,6 +451,11 @@ func (c *Champion) RunbookExecute(ctx context.Context, name string, dryRun bool)
 
 	cmd := exec.CommandContext(cmdCtx, "python3", args...) // #nosec G204 -- runbook path validated inside runbooks/ (see above); python3 fixed, argv programmatic
 	cmd.Dir = c.config.ProjectRoot
+	// RUNBOOK_REF names the runbook in run-runbook.py's progress events
+	// (Wotan runbooks.progress, Kanban's step k/n): a live run executes a
+	// private copy whose path does not say which runbook it is. exec keeps
+	// the last value of a duplicated key, so an inherited one is replaced.
+	cmd.Env = append(os.Environ(), "RUNBOOK_REF="+strings.TrimSuffix(filepath.ToSlash(rel), ".yaml"))
 	out, runErr := cmd.CombinedOutput()
 	elapsed := time.Since(start)
 

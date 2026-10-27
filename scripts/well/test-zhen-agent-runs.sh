@@ -24,7 +24,10 @@
 #      WELL_TEST_KANBAN_DSN); a skipped Go test counts as a failure;
 #   9. scheduled runs (037): born without a branch or base commit, finish
 #      succeeded or failed, never take a head commit or a review; every
-#      other mode still needs both; an unknown mode is refused.
+#      other mode still needs both; an unknown mode is refused;
+#  10. app_kanban (038) reads the columns the card modal shows, not the
+#      error text or the cost, and cannot write a run; kanban-app's
+#      PgStore.LatestAgentRun (build tag wellint) as app_kanban.
 #
 #   scripts/well/test-zhen-agent-runs.sh [--sql-only] [--keep] [image]   # default postgres:16.15-alpine
 #
@@ -85,6 +88,7 @@ PORT="$("${DOCKER[@]}" port "$N" 5432/tcp | head -1 | sed 's/.*://')"
 
 sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c "$1"; }
 zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_app -c "$1"; }
+kb() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$KPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_kanban -d unheaded_app -c "$1"; }
 own() { sq "SET ROLE well_app_owner; $1"; }
 # The passwords exist only inside this throwaway container.
 sq "ALTER ROLE app_zhen PASSWORD '$ZPW'; ALTER ROLE app_kanban PASSWORD '$KPW';" >/dev/null
@@ -193,7 +197,19 @@ refused "an interactive run without a branch" zh "INSERT INTO zhen_agent_runs (i
 refused "an overnight run without a base commit" zh "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family, branch) VALUES ('000000000000000e', 'chk-card', now() + interval '30 minutes', 'overnight', 'repo-task', 'zhen/chk-card')"
 refused "mode cron" zh "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family) VALUES ('000000000000000f', 'sched-card', now() + interval '15 minutes', 'cron', 'x')"
 
-# 8. The Go store against this server.
+# 10. The Kanban board reads runs (038): the columns the card modal shows,
+#     nothing else, and never writes.
+if [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '038_app_kanban_reads_agent_runs.sql'")" == 1 ]]; then
+	pass "bootstrap recorded 038 in unheaded_app"; else fail "038 not in the ledger"; fi
+ok "app_kanban reads a card's newest run" kb "SELECT id, status, mode, family, branch, head_commit, route_summary->>'review_note', review_reason, claimed_at, reviewed_at FROM zhen_agent_runs WHERE card_id = 'race-card' ORDER BY claimed_at DESC LIMIT 1"
+refused "app_kanban SELECT error" kb "SELECT error FROM zhen_agent_runs LIMIT 1"
+refused "app_kanban SELECT claude_nano_usd" kb "SELECT claude_nano_usd FROM zhen_agent_runs LIMIT 1"
+refused "app_kanban SELECT *" kb "SELECT * FROM zhen_agent_runs LIMIT 1"
+refused "app_kanban UPDATE of a run" kb "UPDATE zhen_agent_runs SET status = 'cancelled' WHERE id = '0000000000000005'"
+refused "app_kanban INSERT of a run" kb "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family) VALUES ('00000000000000ff', 'sched-card', now() + interval '15 minutes', 'scheduled', 'x')"
+
+# 8. The Go stores against this server: pkg/zhenagent as app_zhen, and
+#    kanban-app's agent-run read (038) as app_kanban.
 if ((GO)); then
 	export WELL_TEST_APP_DSN="postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
 	export WELL_TEST_KANBAN_DSN="postgres://app_kanban:$KPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
@@ -201,6 +217,11 @@ if ((GO)); then
 		pass "go test -tags wellint ./pkg/zhenagent -run Well"
 	else
 		fail "go store test"; tail -25 "$TMP/go.out" | sed 's/^/    /'
+	fi
+	if (cd "$R" && go test -count=1 -race -tags wellint ./cmd/kanban-app/ -run TestWell -v >"$TMP/go.out" 2>&1) && grep -q '^--- PASS: TestWellLatestAgentRun' "$TMP/go.out"; then
+		pass "go test -tags wellint ./cmd/kanban-app -run TestWell"
+	else
+		fail "kanban-app agent-run read"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi
 	unset WELL_TEST_APP_DSN WELL_TEST_KANBAN_DSN
 fi
