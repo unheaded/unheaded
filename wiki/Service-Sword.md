@@ -14,9 +14,24 @@ Sword runs deployments of a service into LXD, through [[Cuirass|Containers]]: ro
 | Compose | service `sword`, profile `deploy`: off by default. Window: `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d --build sword cuirass` |
 | Env file | `/etc/unheaded/sword/sword.env`, 0640 root:16746, created by hand on west: `CUIRASS_API_KEY`, `AUTH_API_KEYS`. Never in the repo |
 | Host unit | `deploy/systemd/unheaded-sword.service` (fallback if a compose container could not reach instance IPs; H17 was TRUE, so it is not installed) |
-| State | `SWORD_DATA_DIR/sword.json` (volume `sword-data`): the deployment history, one JSON file, replaced atomically (`pkg/statefile`). Survives `docker restart unheaded-sword` (6 records listed after the Phase 9 restart) |
+| State | The Well, `unheaded_ops.deploy_history` + `deploy_history_transitions` (migration 039) as `ops_writer`, when `WELL_DB` is set (compose sets it). Without `WELL_DB`: `SWORD_DATA_DIR/sword.json` (volume `sword-data`), one JSON file replaced atomically (`pkg/statefile`). `WELL_DB` set and the Well unreachable, or 039 not applied: Sword does not start. The first start on an empty Well imports `sword.json` once. The log says `history=well` or `history=file` |
 
 **Turning it off:** `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml stop sword` (the history volume stays), or close the whole window with `... stop`. Instances Sword created are desired state in Cuirass and keep running; remove them with a `recreate` to zero replicas or `DELETE $CUIRASS/api/v1/containers/<id>` (prune deletes the instances).
+
+## Where the history lives
+
+Rows in The Well are append-only: a deployment is one `deploy_history` row (what was asked for) and one
+`deploy_history_transitions` row per change, the newest carrying the whole record. Records are per host
+(`KINGDOM_NODE`): Sword loads its own host's newest 500 at start and rolls back only to those. Query it
+(any role with SELECT, e.g. `ops_reader`; no psql on the host, use a client container on `--network host`):
+
+```sql
+SELECT deployment_id, service, version, status, created_at, updated_at
+FROM deploy_history_current ORDER BY created_at DESC LIMIT 10;
+
+SELECT from_status, to_status, note, occurred_at
+FROM deploy_history_transitions WHERE deployment_id = 'd...' ORDER BY id;
+```
 
 ## Environment
 
