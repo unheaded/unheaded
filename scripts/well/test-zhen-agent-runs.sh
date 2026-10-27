@@ -21,7 +21,10 @@
 #      LOCKED on it, but cannot change its title or delete it;
 #   8. pkg/zhenagent's SQL store (build tag wellint) against the same
 #      server as app_zhen (WELL_TEST_APP_DSN; cards created as app_kanban,
-#      WELL_TEST_KANBAN_DSN); a skipped Go test counts as a failure.
+#      WELL_TEST_KANBAN_DSN); a skipped Go test counts as a failure;
+#   9. scheduled runs (037): born without a branch or base commit, finish
+#      succeeded or failed, never take a head commit or a review; every
+#      other mode still needs both; an unknown mode is refused.
 #
 #   scripts/well/test-zhen-agent-runs.sh [--sql-only] [--keep] [image]   # default postgres:16.15-alpine
 #
@@ -171,6 +174,24 @@ refused "app_zhen UPDATE of a card title" zh "UPDATE kanban_tasks SET title = 'p
 refused "app_zhen UPDATE of a card owner" zh "UPDATE kanban_tasks SET owner = 'zhen' WHERE id = 'race-card'"
 refused "app_zhen DELETE of a card" zh "DELETE FROM kanban_tasks WHERE id = 'id-card'"
 refused "hard delete of a card with runs" sq "DELETE FROM kanban_tasks WHERE id = 'id-card'"
+
+# 9. Scheduled runs (037): no branch, no base commit, never reviewed.
+if [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '037_app_zhen_agent_runs_scheduled.sql'")" == 1 ]]; then
+	pass "bootstrap recorded 037 in unheaded_app"; else fail "037 not in the ledger"; fi
+sq "INSERT INTO kanban_tasks (id, title, status, type, owner) VALUES ('sched-card', 'Scheduled: sweep', 'in-progress', 'scheduled-run', 'zhen-scheduler')" >/dev/null
+sched() { # id [extra-cols] [extra-vals]
+	echo "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family${2:-}) VALUES ('$1', 'sched-card', now() + interval '15 minutes', 'scheduled', 'service-health-sweep'${3:-})"
+}
+ok "a scheduled run without a branch" zh "$(sched 000000000000000a)"
+ok "scheduled claimed -> running" zh "$(setst 000000000000000a running)"
+refused "a head commit on a scheduled run" zh "UPDATE zhen_agent_runs SET status = 'succeeded', head_commit = '$SHA' WHERE id = '000000000000000a'"
+ok "scheduled running -> succeeded" zh "UPDATE zhen_agent_runs SET status = 'succeeded', route_summary = '{\"route\":\"runbook\",\"check\":\"pass\"}' WHERE id = '000000000000000a'"
+refused "a scheduled run reviewed" zh "UPDATE zhen_agent_runs SET status = 'accepted', reviewed_at = now() WHERE id = '000000000000000a'"
+refused "a scheduled run with a branch" zh "$(sched 000000000000000b ', branch' ", 'zhen/sched-card'")"
+refused "a scheduled run with a base commit" zh "$(sched 000000000000000c ', base_commit' ", '$SHA'")"
+refused "an interactive run without a branch" zh "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family, base_commit) VALUES ('000000000000000d', 'chk-card', now() + interval '30 minutes', 'interactive', 'repo-task', '$SHA')"
+refused "an overnight run without a base commit" zh "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family, branch) VALUES ('000000000000000e', 'chk-card', now() + interval '30 minutes', 'overnight', 'repo-task', 'zhen/chk-card')"
+refused "mode cron" zh "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family) VALUES ('000000000000000f', 'sched-card', now() + interval '15 minutes', 'cron', 'x')"
 
 # 8. The Go store against this server.
 if ((GO)); then

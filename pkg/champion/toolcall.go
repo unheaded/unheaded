@@ -95,6 +95,10 @@ var MutatingTools = map[string]bool{
 	// memory_write (S-CHAMPION-HARDENING Step 209): one zhen_memories row,
 	// written for zhen-cli /remember through zhen-agentd.
 	"memory_write": true,
+	// zhen-agentd's runbook schedule (add, remove, pause): the jobs it
+	// names run unattended, so a change needs a trusted justification
+	// like any other mutation (S-CHAMPION-HARDENING Step 165).
+	"schedule_update": true,
 	// Lich MCP (S-LICH-AWAKENS, ADR-098): writes the findings register, so it
 	// is mutating and — with no retrieval justification from a model — always
 	// pending-confirmation (Rule 2). Never auto-publishes.

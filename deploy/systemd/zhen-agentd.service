@@ -7,6 +7,8 @@
 #   sudo $EDITOR /etc/zhen-agentd.env       # set AUTH_*, WELL_DSN, etc.
 #   sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/ && sudo systemd-sysusers
 #   sudo install -d -o zhen-agentd -g zhen-agentd -m 0700 /var/zhen/projects/default
+#   sudo install -d -o root -g zhen-agentd -m 0750 /etc/unheaded/zhen
+#   sudo install -m 0640 -o root -g zhen-agentd configs/zhen-schedules.yaml /etc/unheaded/zhen/schedules.yaml
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now zhen-agentd
 #   sudo journalctl -u zhen-agentd -f       # follow logs
@@ -44,8 +46,20 @@ ExecStart=/usr/local/bin/zhen-agentd \
     -host 127.0.0.1 \
     -project-root /var/zhen/projects/default \
     -action-store=pg \
+    -kanban-store=pg \
     -rate-limit 10 \
-    -rate-burst 25
+    -rate-burst 25 \
+    -scheduler \
+    -schedules /etc/unheaded/zhen/schedules.yaml \
+    -schedules-state /var/lib/zhen-agentd/schedules-state.json
+# The scheduler (S-CHAMPION-HARDENING Phase 8) runs the approved runbooks in
+# /etc/unheaded/zhen/schedules.yaml (root:zhen-agentd 0640, read-only here)
+# from -project-root's runbooks/ and scripts/run-runbook.py. Run-time
+# changes (web UI `schedule`/`unschedule`/`emergency stop`) persist to
+# -schedules-state under StateDirectory. Its heartbeat gauge reaches
+# Prometheus through -metrics-addr (ZHEN_METRICS_ADDR in the env file).
+StateDirectory=zhen-agentd
+StateDirectoryMode=0700
 
 # Graceful shutdown — daemon waits up to 10s for in-flight requests
 # before exiting; give systemd a slightly larger window.
@@ -85,7 +99,7 @@ AmbientCapabilities=
 # Filesystem access — must include the project roots from -allowed-roots.
 # Default assumes /var/zhen/projects/ is the parent of all tenant roots.
 ReadWritePaths=/var/zhen/projects
-ReadOnlyPaths=/var/zhen/models /etc/zhen-agentd.env
+ReadOnlyPaths=/var/zhen/models /etc/zhen-agentd.env /etc/unheaded/zhen
 
 # Seccomp — block privileged syscalls.
 SystemCallArchitectures=native

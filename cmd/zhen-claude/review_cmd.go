@@ -170,6 +170,10 @@ func runReviewCmd(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, "zhen-claude review:", err)
 		return 1
 	}
+	if run.Mode == zhenagent.ModeScheduled {
+		_, _ = fmt.Fprintf(stderr, "zhen-claude review: run %s is a scheduled runbook run (zhen-agentd -scheduler); it has no branch and is not reviewed\n", id)
+		return 1
+	}
 	if run.Status != zhenagent.StatusSucceeded {
 		_, _ = fmt.Fprintf(stderr, "zhen-claude review: run %s is %s; only a succeeded run can be accepted or rejected (once)\n", id, run.Status)
 		return 1

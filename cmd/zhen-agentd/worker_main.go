@@ -164,13 +164,17 @@ func runAuditEvent(ev runEvent) *audit.AuditEvent {
 	case zhenagent.StatusCancelled:
 		outcome = audit.OutcomeFailure
 	}
+	actor := "zhen-agentd/worker"
+	if ev.Mode == zhenagent.ModeScheduled {
+		actor = "zhen-agentd/scheduler"
+	}
 	resType, resID := "agent_run", ev.Run
 	if ev.Kind == "card_move" {
 		resType, resID = "kanban_card", truncateID(ev.Card)
 	}
 	return &audit.AuditEvent{
 		Type: audit.EventTypeSystem, Severity: severity, Action: ev.Kind, Outcome: outcome,
-		Actor:    &audit.Actor{ID: "zhen-agentd/worker", Type: "service"},
+		Actor:    &audit.Actor{ID: actor, Type: "service"},
 		Resource: &audit.Resource{ID: resID, Type: resType},
 		Source:   &audit.Source{Service: "zhen-agentd", RequestID: ev.Run},
 		Details: map[string]any{
