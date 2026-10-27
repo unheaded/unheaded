@@ -198,13 +198,16 @@ identity. Install, as root (`<unit>` as in `unheaded-<unit>.service`,
 ```bash
 sudo install -d -m 0755 /etc/unheaded/tls
 sudo install -m 0644 ca.pem /etc/unheaded/tls/ca.pem                  # client-only units
-sudo install -d -m 0750 -o root -g unheaded-<unit> /etc/unheaded/tls/<identity>
+sudo install -d -m 0755 /etc/unheaded/tls/<identity>   # listable: Akira's cert-expiry check reads every cert
 sudo install -m 0644 ca.pem /etc/unheaded/tls/<identity>/ca.pem
 sudo install -m 0644 svc.pem /etc/unheaded/tls/<identity>/<identity>.pem
 sudo install -m 0640 -o root -g unheaded-<unit> svc-key.pem /etc/unheaded/tls/<identity>/<identity>-key.pem
 ```
 
-Keys are `root:unheaded-<unit>` 0640, certificates 0644. Restarting a
+Keys are `root:unheaded-<unit>` 0640, certificates 0644, directories 0755 (the
+hourly `runbooks/pki/akira-cert-expiry-check.yaml`, run by Akira as
+`unheaded-akira`, lists every `<identity>/` and reads its certificate; it never
+opens a key). Restarting a
 unit picks up a new certificate. Turning TLS on is a host change: every
 unit that talks to Wotan must move in the same window (a plaintext client
 cannot reach a TLS port), and Prometheus jobs that scrape these units need

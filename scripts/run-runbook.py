@@ -18,6 +18,7 @@ Usage:
 """
 
 import argparse
+import ipaddress
 import json
 import os
 import re
@@ -27,6 +28,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 import yaml
@@ -165,7 +167,8 @@ def check_preconditions(runbook, env, dry_run):
 # board shows `step k/n` for a running runbook. Opt-in: only when
 # RUNBOOK_PROGRESS_WOTAN names Wotan's HTTP address (host:port or a URL).
 # Every request carries an EdDSA service token for Wotan (ADR-103 §6,
-# scripts/svc_token.py), whose subject Wotan's AUTH_ALLOW_CALLERS and
+# scripts/svc_token.py) over https, or plain http to loopback only (never in
+# clear to another host: token_in_clear), whose subject Wotan's AUTH_ALLOW_CALLERS and
 # topics.auto_approve must list (configs/wotan.yaml). The runner presents
 # the key it is given (progress_identity): under the Champion that is
 # zhen-agentd's own key (its unit sets AUTH_KEY_FILE), run by hand the
@@ -244,6 +247,23 @@ def runbook_ref(path, meta):
     return str(meta.get("name", ""))
 
 
+def token_in_clear(url):
+    """True when a token sent to url would cross the network in clear: plain
+    http to anything but loopback. A service token travels only over TLS, or
+    in clear to loopback (S-IRON-GATE Phase 8; pkg/wotan-client withholds it
+    the same way, pkg/tls.IsLoopbackHost)."""
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme == "https":
+        return False
+    host = (parsed.hostname or "").strip("[]")
+    if host == "localhost":
+        return False
+    try:
+        return not ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return True
+
+
 class Progress:
     """Best-effort publisher of runbooks.progress events."""
 
@@ -261,7 +281,11 @@ class Progress:
         if not addr.startswith(("http://", "https://")):
             addr = "http://" + addr
         self.base = addr.rstrip("/") + "/api/v1/topics/" + PROGRESS_TOPIC
-        self.minter = load_progress_minter()
+        if token_in_clear(addr):
+            print(f"[progress] no token over plain http to {addr}: use https:// (ADR-103; a Wotan with"
+                  f" AUTH_ENABLED=true refuses the join)", file=sys.stderr)
+        else:
+            self.minter = load_progress_minter()
 
     def off(self, why):
         print(f"[progress] off: {why}", file=sys.stderr)

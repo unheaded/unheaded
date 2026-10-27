@@ -4163,6 +4163,45 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "tomb/lich/seeds/auth/gen/main.go:22:sig-import",
+      "name": "Ed25519 (crypto/ed25519)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "Ed25519",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "tomb/lich/seeds/auth/gen/main.go:22"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "tools/gosec/go.mod:3:go-directive",
       "name": "Go language version (go.mod)",
       "cryptoProperties": {

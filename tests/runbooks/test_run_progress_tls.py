@@ -12,8 +12,11 @@ import subprocess
 import threading
 import typing
 
+import harness
 import pytest
 from test_run_progress import TWO_STEPS, run, write_runbook
+
+RUNNER = harness._RUNNER
 
 pytestmark = pytest.mark.skipif(shutil.which("openssl") is None, reason="no openssl to make a test certificate")
 
@@ -76,3 +79,27 @@ def test_https_wotan_without_its_ca_is_refused(tls_wotan, tmp_path):
     assert code == 0, out
     assert "[progress] off" in out and "CERTIFICATE_VERIFY_FAILED" in out, out
     assert _Wotan.seen == []
+
+
+# A service token travels only over TLS, or in clear to loopback (S-IRON-GATE
+# Phase 15, matching pkg/wotan-client's tokenAuth.authorize): over plain http
+# to another host the runner sends no token at all.
+@pytest.mark.parametrize("addr,carries", [
+    ("http://192.0.2.10:18000", False),
+    ("192.0.2.10:18000", False),
+    ("http://wotan:18000", False),
+    ("http://[2001:db8::1]:18000", False),
+    ("http://127.0.0.1:18000", True),
+    ("http://localhost:18000", True),
+    ("http://[::1]:18000", True),
+    ("https://wotan:18000", True),
+])
+def test_token_only_over_tls_or_loopback(monkeypatch, capsys, addr, carries):
+    sentinel = object()
+    monkeypatch.setattr(RUNNER, "load_progress_minter", lambda: sentinel)
+    monkeypatch.setenv("RUNBOOK_PROGRESS_WOTAN", addr)
+    p = RUNNER.Progress("pki/akira-cert-expiry-check", 2, False)
+    assert p.base is not None
+    assert (p.minter is sentinel) is carries
+    if not carries:
+        assert "no token over plain http" in capsys.readouterr().err
