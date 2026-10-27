@@ -1,7 +1,7 @@
 ---
 title: "Wotan Memory Protocol for the Unheaded Protocol"
 abbrev: "Wotan Memory Protocol"
-docname: draft-bellis-unheaded-wotan-memory-03
+docname: draft-bellis-unheaded-wotan-memory-00
 category: exp
 ipr: trust200902
 submissionType: independent
@@ -1044,7 +1044,7 @@ Template:       Origin Code (0x00-0x1F), Origin Name, Description,
                 Specification Reference
 Policy:         Specification Required
 
-Initial entries: See Section 3.2 (16 entries, codes 0x00-0x0C)
+Initial entries: See Section 3.2 (13 entries, codes 0x00-0x0C)
 ~~~~~
 
 ## Wotan Error Category Registry (NEW in draft-03)

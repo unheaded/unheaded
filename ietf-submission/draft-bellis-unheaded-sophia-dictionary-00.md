@@ -1,7 +1,7 @@
 ---
 title: "Sophia Dictionary Format for the Unheaded Protocol"
 abbrev: "Sophia Dictionary Format"
-docname: draft-bellis-unheaded-sophia-dictionary-03
+docname: draft-bellis-unheaded-sophia-dictionary-00
 category: exp
 ipr: trust200902
 submissionType: independent

@@ -7,7 +7,9 @@ DRAFTS = \
 	draft-bellis-unheaded-wotan-memory-00 \
 	draft-bellis-unheaded-mbc-isa-00 \
 	draft-bellis-unheaded-shim-00 \
-	draft-bellis-unheaded-pqc-authentication-00
+	draft-bellis-unheaded-pqc-authentication-00 \
+	draft-bellis-unheaded-anamnesis-00 \
+	draft-bellis-unheaded-protocol-overview-00
 
 # xml2rfc 3.x; on west it lives in ~/.local/bin.
 XML2RFC ?= $(or $(shell command -v xml2rfc 2>/dev/null),$(HOME)/.local/bin/xml2rfc)

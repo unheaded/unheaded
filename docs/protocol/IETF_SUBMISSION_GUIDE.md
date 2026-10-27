@@ -4,11 +4,15 @@
 
 **Author**: Stevie Bellis
 **Date**: March 15, 2026
-**Applicable Drafts**:
-- draft-bellis-unheaded-protocol-foundation-06
-- draft-bellis-unheaded-sophia-dictionary-03
-- draft-bellis-unheaded-wotan-memory-03
+**Applicable Drafts** (all reset to `-00` for the first upload; sources in `ietf-submission/`):
+- draft-bellis-unheaded-protocol-foundation-00
+- draft-bellis-unheaded-sophia-dictionary-00
+- draft-bellis-unheaded-wotan-memory-00
+- draft-bellis-unheaded-mbc-isa-00
+- draft-bellis-unheaded-shim-00
 - draft-bellis-unheaded-pqc-authentication-00
+- draft-bellis-unheaded-anamnesis-00 (event records; added 2026-10-27)
+- draft-bellis-unheaded-protocol-overview-00 (reader's map of the suite, Informational; added 2026-10-27)
 
 ---
 
@@ -86,8 +90,9 @@ The IETF is an open standards organization. Anyone can submit an Internet-Draft.
 
 Before submitting, validate your draft:
 ```bash
-# Check formatting
-xml2rfc --check draft-bellis-unheaded-protocol-foundation-06.xml
+# Check formatting: renders every draft and fails on any xml2rfc error
+# (xml2rfc 3.x has no --check flag)
+cd ietf-submission && make validate
 
 # Run idnits (checks IETF compliance)
 idnits draft-bellis-unheaded-protocol-foundation-06.txt

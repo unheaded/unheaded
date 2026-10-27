@@ -1,7 +1,7 @@
 ---
 title: "Unheaded: Protocol Foundation — A Mapped Data Bus over IPv6 Hop-by-Hop Options"
 abbrev: "Unheaded Protocol"
-docname: draft-bellis-unheaded-protocol-foundation-06
+docname: draft-bellis-unheaded-protocol-foundation-00
 category: exp
 ipr: trust200902
 submissionType: independent
