@@ -52,8 +52,8 @@ ssh -vv east true 2>&1 | grep 'kex: algorithm'           # mlkem768x25519-sha256
 | What | Why | Tracked |
 |---|---|---|
 | The Well (PostgreSQL 16, P-256 only) | PG 16 takes one curve; PG 18 `ssl_groups` is needed | E1, FND-015, [[The Well|The-Well]] |
-| Host sshd accepts classical KEX | ML-KEM is first and negotiated; hybrid-only is a lockout-relevant change | E2, UH-PQC-03 |
-| WireGuard PSK static since setup | the PSK is the post-quantum part; rotation tool ready | E3, FND-016, [[Overlay Network|Overlay-Network]] |
+| Host sshd accepts classical KEX | east hybrid-only since 2026-10-27 (`/etc/ssh/sshd_config.d/00-unheaded-kex.conf`; classical clients refused); west waits until its LAN clients are checked | E2, UH-PQC-03 |
+| WireGuard PSK | rotated live 2026-10-27 12:23Z (`scripts/wireguard/rotate-psk.sh --apply`); units installed on west, weekly timer not enabled: it runs as root and needs a root SSH key on east | E3, FND-016, [[Overlay Network|Overlay-Network]] |
 | Links without TLS (Wotan in compose, the dev edge) | plaintext today; hybrid the day TLS is on | FND-017 |
 | Certificates, handshake signatures | not exposed to harvest-now-decrypt-later | ADR-105 |
 

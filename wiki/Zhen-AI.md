@@ -37,7 +37,7 @@ Since WAVE15 (2026-05) retrieval is `vor` (`vor serve`, :9876), not the old FAIS
 |---|---|
 | Web UI + RAG (Flask) | `raft/zhen_app.py` (port 20103) |
 | Champion (gated actions: kanban, files, runbooks, model switch) | `pkg/champion/` (ADR-019) |
-| Agent daemon | `cmd/zhen-agentd` (actions + kanban in The Well as `app_zhen`) |
+| Agent daemon | `cmd/zhen-agentd` (actions + kanban in The Well as `app_zhen`). The web UI's chat goes through it (`/api/v1/agent/ask`): with the daemon down the UI answers 503 "the gate is required", never falling back to llama-server. The daemon refuses to start without auth (`AUTH_API_KEYS`, or `-no-auth` on loopback only); the UI sends `ZHEN_AGENTD_API_KEY` as `X-API-Key` (`raft/start-zhen.sh -gated` wires both). Browser POSTs carry a CSRF token; the UI sets no CORS headers |
 | CLI | `cmd/zhen-cli` (ADR-059) |
 | Claude API bridge (`-route auto`: local model first, Claude on failure) | `cmd/zhen-claude`, `pkg/claudebridge` (ADR-104) |
 | Training capture (opt-in, redacted JSONL) | `pkg/zhencapture` ([format](../docs/architecture/zhen-capture.md)) |

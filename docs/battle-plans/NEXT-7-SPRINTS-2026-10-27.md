@@ -24,7 +24,7 @@ Every plan has its own PREFLIGHT, exit gates, [DECIDE] defaults and
 
 | # | Sprint | Plan | Size | Epics | Status |
 |---|---|---|---|---|---|
-| 1 | Clean Slate: CI green, live-service bugs, public-repo hygiene, docs tell the truth | [S-CLEAN-SLATE](S-CLEAN-SLATE-battle-plan.md) | 9 phases, 288 steps | E01, E02, E03, doc hygiene | forged 2026-10-27 |
+| 1 | Clean Slate: CI green, live-service bugs, public-repo hygiene, docs tell the truth | [S-CLEAN-SLATE](S-CLEAN-SLATE-battle-plan.md) | 9 phases, 288 steps | E01, E02, E03, doc hygiene | **Shipped 2026-10-27** (S24): 273/289 steps, the 16 open are Stevie's escalations (E6, E9 west, E10, E11, E12); FND-001/014/023/024 closed or live; CI fixes pushed-pending |
 | 2 | Iron Gate: service auth (ADR-103), TLS on every internal link, signed releases and an apt repo | [S-IRON-GATE](S-IRON-GATE-battle-plan.md) | 17 phases, 402 steps | E04, E05, M-201 | forged 2026-10-27 |
 | 3 | Well Spring: the Well as source of truth, SRE remainder (ADR-100), compliance paperwork and enforcing mode | [S-WELL-SPRING](S-WELL-SPRING-battle-plan.md) | 16 phases, 294 steps | E06, E07, E08, M-200/203/205 | forged 2026-10-27 |
 | 4 | Champion Hardening: tool-call path, runbook approvals, eval, Zhen units | [S-CHAMPION-HARDENING](S-CHAMPION-HARDENING-battle-plan.md) | 16 phases, 252 steps | E09 | forged 2026-10-27 |

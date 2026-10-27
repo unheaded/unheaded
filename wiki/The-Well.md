@@ -10,7 +10,7 @@ The Well is Unheaded's PostgreSQL: one Postgres 16 cluster with three databases,
 | Data | Docker volume `unheaded-dev_postgres-data`, `/var/lib/docker/volumes/...` on disk **sdb** (`/var`); data checksums on |
 | Config | `db/postgresql.conf`, `db/pg_hba.conf` (repo, mounted read-only) |
 | TLS | private CA + server cert in `/etc/unheaded/well-tls` (outside the repo), made by `scripts/well/make-tls.sh`; cert valid to 2029-01-17 |
-| Passwords | repo-root `.env` (0600, gitignored); never in the repo. Names in `db/.env.example` |
+| Passwords | repo-root `.env` (0600, gitignored); never in the repo. Names in `db/.env.example`. A second copy: west's `/etc/huginn.env` (`PGPASSWORD`, huginn_reader). Rotate with `scripts/well/set-role-passwords.sh` (value passed by env name, never argv), update both files, restart `huginn.service`; last rotation 2026-10-27 (all nine roles). The host has no `psql`: check a login with a `postgres:16.15-alpine` client container on `--network host` |
 | Migrations | `db/migrations/` routed by `db/migrations/MANIFEST`; applied by `cmd/well-migrate` (ADR-101) |
 | Backups | `/srv/backups/unheaded-well` on the NVMe, plus east. See [[Well-Backups]] |
 | Backup/drill scripts | `/usr/local/lib/unheaded/well/` (root-owned copies of `scripts/`) |
