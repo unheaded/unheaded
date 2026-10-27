@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/crypto/pqc"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/room"
@@ -55,10 +56,16 @@ func TestPublishTopic_ConfigTopicSignatureIsActuallyVerified(t *testing.T) {
 	}
 }
 
-// allowList is a test AutoApprover.
+// allowList is a test AutoApprover: the verified subject when there is
+// one, else the display name.
 type allowList map[string]bool
 
-func (a allowList) IsAutoApproved(displayName string) bool { return a[displayName] }
+func (a allowList) IsAutoApproved(id *auth.Identity, displayName string) bool {
+	if id != nil {
+		return a[id.Subject]
+	}
+	return a[displayName]
+}
 
 // PublishTopic checks IsApproved only when sender_id is supplied. When it is
 // omitted the else-branch creates a member and approves it, so the check was

@@ -44,6 +44,7 @@ import (
 
 	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/crosswalk/collect"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 const (
@@ -99,6 +100,7 @@ func main() {
 	flag.StringVar(&o.wotanAddr, "wotan-addr", "", "Wotan HTTP host:port; when set, deviations are published on compliance.deviation.<host> (default: $WOTAN_ADDR, empty = off)")
 	timeout := flag.Duration("timeout", 2*time.Minute, "give up after this long")
 	flag.Parse()
+	wotanClient.InitServiceIdentity("unheaded-baseline") // ADR-103 §6: every Wotan call carries unheaded-baseline's service token
 	o.trustedUID = 0
 	o.wotanAddr = wotanAddrFrom(o.wotanAddr, os.Getenv)
 

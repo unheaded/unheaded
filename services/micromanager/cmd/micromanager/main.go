@@ -72,6 +72,7 @@ func init() {
 
 func main() {
 	flag.Parse()
+	wotanClient.InitServiceIdentity("micromanager") // ADR-103 §6: every Wotan call carries micromanager's service token
 
 	// Set log level
 	switch *logLevel {

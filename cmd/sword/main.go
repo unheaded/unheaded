@@ -211,6 +211,7 @@ func handler(s *sword.Service, authCfg auth.ServiceAuthConfig) (http.Handler, er
 }
 
 func main() {
+	wotanClient.InitServiceIdentity("sword") // ADR-103 §6: every Wotan call carries sword's service token
 	log := zerolog.New(os.Stderr).With().Timestamp().Str("service", serviceName).Logger()
 	c, err := loadConfig(os.Getenv)
 	if err != nil {

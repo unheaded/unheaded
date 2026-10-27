@@ -49,6 +49,7 @@ func main() {
 		shutTimeout = flag.Duration("shutdown-timeout", 10*time.Second, "graceful shutdown deadline")
 	)
 	flag.Parse()
+	wotanClient.InitServiceIdentity("shield") // ADR-103 §6: every Wotan call carries shield's service token
 
 	if env := os.Getenv("SHIELD_PORT"); env != "" {
 		var p int

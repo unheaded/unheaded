@@ -9,47 +9,67 @@
 #   WOTAN_TOPIC_CONFIG=configs/wotan.yaml wotan
 
 topics:
-  # Subscribers with these display_name values are auto-approved on subscribe.
-  # All other subscribers remain in "pending" status until manually approved
-  # via the admin API (POST /api/v1/admin/approve).
+  # Callers approved at once on subscribe and on an unnamed publish.
   #
-  # Use "*" to auto-approve all subscribers (not recommended for production).
+  # With AUTH_ENABLED=true (S-IRON-GATE Phase 7, ADR-103 §6) these are
+  # service identities: the verified sub of the caller's EdDSA service token,
+  # the name its key is filed under (unheaded-keygen <name>; Cuirass is
+  # unheaded-daemon). The display_name a client sends is a label only. Every
+  # caller must also be in Wotan's AUTH_ALLOW_CALLERS (docker-compose.yml,
+  # deploy/systemd/unheaded-wotan.service) or it gets 403 before this list
+  # is read. Any other authenticated caller's subscription stays "pending"
+  # until approved through the admin API (POST /api/v1/admin/approve, off
+  # unless Wotan runs with --admin).
+  #
+  # With auth off, the self-reported display_name is matched against this
+  # list and legacy_display_names below.
+  #
+  # Use "*" to auto-approve all callers (not recommended for production).
   auto_approve:
-    - "service"          # default display_name for internal services
-    - "timeguru"
-    - "loadbalancer"   # services/loadbalancer xdpsync: lb.* topics
-    - "captain"
+    - "akira"                # system.health.* consensus (cmd/akira)
+    - "anomaly"              # anomaly.* consumer and anomaly.scores bridge (cmd/anomaly, ADR-108)
     - "architect"
-    - "architect-service"    # architect's alerts.critical / architecture.updates subscriptions
-    - "micromanager"
-    - "micromanager-service" # micromanager's alerts.critical subscription
-    - "monad"
-    - "sophia"
-    - "dashboard"
+    - "captain"
+    - "chaos-controller"     # chaos.* events and the chaos.abort path (ADR-107)
     - "dashboard-backend"
-    - "kanban"
-    - "kanban-app"        # logagg display name
-    - "daemon"
-    - "unheaded-daemon"   # logagg display name
-    - "cuirass"           # unheaded-daemon's cuirass.drift / cuirass.metrics publisher
+    - "heimdall"             # drift.detected.<node> (signed; drift. keys decide what is taken)
+    - "kanban-app"
+    - "kev-poller"           # threats.cisa-kev.{updates,delta} (ADR-055)
+    - "loadbalancer"         # services/loadbalancer xdpsync: lb.* topics (library; no binary yet)
+    - "micromanager"
+    - "monad"
+    - "perf-benchmark"       # cmd/perf-benchmark -scenario e2e-trace: bench.perf.packet only (S-WELL-SPRING Phase 10)
+    - "sophia"
+    - "sword"                # deploy.{started,progress,succeeded,failed,rolled_back} (S-REAL-STEEL)
+    - "timeguru"
     - "trace-collector"
-    - "chaos-controller"      # service discovery display name (system.discovery)
-    - "kev-poller"            # threats.cisa-kev.{updates,delta} (ADR-055)
-    - "anomaly-service"       # consumes anomaly.scores / anomaly.* / alerts.critical (cmd/anomaly, ADR-108)
-    - "anomaly-bridge"        # publishes anomaly.scores from the cartridge ring (cmd/anomaly --wotan, lab run)
-    - "sword"                 # deploy.{started,progress,succeeded,failed,rolled_back} (S-REAL-STEEL)
-    - "sophia-service"        # sophia's own gRPC display name (not "sophia")
-    - "monad-service"         # monad's own gRPC display name (not "monad")
-    - "kanban-app-timeline"   # kanban's timeline subscription
-    - "wiki"
-    - "akira"
-    - "zhenai"
-    - "zhen-claude"          # zhen.llm.requests / zhen.audit.toolcalls / zhen.confirm.pending (S-TWO-BRAINS)
-    - "zhen-agentd"          # same topics, the local brain
-    - "zhen-eval"            # zhen.llm.requests from the two-brains eval
-    - "runbook-runner"       # runbooks.progress from scripts/run-runbook.py when RUNBOOK_PROGRESS_WOTAN is set (S-CHAMPION-HARDENING Step 224)
     - "unheaded-baseline"    # compliance.deviation.<host> from the host baseline agent (ADR-098)
-    - "perf-benchmark"       # cmd/perf-benchmark -scenario e2e-trace: publishes bench.perf.packet only (S-WELL-SPRING Phase 10)
+    - "unheaded-cli"
+    - "unheaded-daemon"      # Cuirass: cuirass.drift / cuirass.metrics / cuirass.chaos
+    - "zhen-agentd"          # zhen.llm.requests / zhen.audit.toolcalls / zhen.confirm.pending (S-TWO-BRAINS)
+    - "zhen-claude"          # same topics, the Claude side
+
+  # Display names approved ONLY while AUTH_ENABLED is off: the names clients
+  # sent before Phase 7, kept so turning Wotan's auth off (Appendix A3 of the
+  # S-IRON-GATE plan) restores the old behaviour. A verified identity never
+  # matches them. Delete once auth is on everywhere (west and east).
+  legacy_display_names:
+    - "service"              # the default display_name of an unnamed caller
+    - "architect-service"
+    - "micromanager-service"
+    - "monad-service"
+    - "sophia-service"
+    - "dashboard"
+    - "kanban"
+    - "kanban-app-timeline"
+    - "daemon"
+    - "cuirass"
+    - "anomaly-service"
+    - "anomaly-bridge"
+    - "wiki"
+    - "zhenai"
+    - "zhen-eval"
+    - "runbook-runner"       # scripts/run-runbook.py (Python; mints no token, so refused with auth on)
 
   # ML-DSA-65 public keys (base64) trusted to sign config.* messages
   # (ADR-043 #2). config.* is published only over gRPC, signed by one of

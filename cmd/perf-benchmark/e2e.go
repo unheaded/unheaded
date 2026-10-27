@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // e2e-trace: one packet event with a fresh trace id is published to Wotan
@@ -248,6 +250,10 @@ func (e *e2eRunner) post(ctx context.Context, u string, body []byte, out any) er
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// post only talks to Wotan: subscribe and publish carry its token.
+	if err := wotanClient.AuthorizeRequest(req); err != nil {
+		return err
+	}
 	return e.do(req, out)
 }
 

@@ -1139,6 +1139,7 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 
 func main() {
 	flag.Parse()
+	wotanClient.InitServiceIdentity("trace-collector") // ADR-103 §6: every Wotan call carries trace-collector's service token
 
 	// Configure logging
 	if *logJSON {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/gateway"
 	"unheaded/services/gateway/config"
 )
@@ -29,6 +30,7 @@ func main() {
 	configFile := flag.String("config", "", "Path to configuration file")
 	showVersion := flag.Bool("version", false, "Show version information")
 	flag.Parse()
+	wotanClient.InitServiceIdentity("gateway") // ADR-103 §6: every Wotan call carries gateway's service token
 
 	// Show version and exit
 	if *showVersion {

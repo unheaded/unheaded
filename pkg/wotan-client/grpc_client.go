@@ -68,8 +68,10 @@ func TLSConfig() *tls.Config {
 }
 
 // NewGRPCClient creates a new gRPC-based Wotan client.
-// Set UNHEADED_GRPC_TLS=1 to enable TLS 1.3 transport credentials.
-func NewGRPCClient(addr string) (*GRPCClient, error) {
+// Set UNHEADED_GRPC_TLS=1 to enable TLS 1.3 transport credentials. With a
+// service identity (WithServiceToken, or SetServiceIdentity) every call
+// carries a token for aud=wotan in its "authorization" metadata.
+func NewGRPCClient(addr string, opts ...ClientOption) (*GRPCClient, error) {
 	if addr == "" {
 		return nil, errors.New("address cannot be empty")
 	}
@@ -84,6 +86,7 @@ func NewGRPCClient(addr string) (*GRPCClient, error) {
 	conn, err := grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(creds),
+		grpc.WithPerRPCCredentials(newTokenAuth(opts, isPlaintext(creds))),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("dial grpc server: %w", err)
@@ -102,7 +105,7 @@ func NewGRPCClient(addr string) (*GRPCClient, error) {
 }
 
 // NewGRPCClientWithTLS creates a new gRPC-based Wotan client with TLS credentials
-func NewGRPCClientWithTLS(addr string, creds credentials.TransportCredentials) (*GRPCClient, error) {
+func NewGRPCClientWithTLS(addr string, creds credentials.TransportCredentials, opts ...ClientOption) (*GRPCClient, error) {
 	if addr == "" {
 		return nil, errors.New("address cannot be empty")
 	}
@@ -113,6 +116,7 @@ func NewGRPCClientWithTLS(addr string, creds credentials.TransportCredentials) (
 	conn, err := grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(creds),
+		grpc.WithPerRPCCredentials(newTokenAuth(opts, isPlaintext(creds))),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("dial grpc server: %w", err)

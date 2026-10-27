@@ -35,6 +35,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/health"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
@@ -119,6 +120,7 @@ func main() {
 	remediate := flag.Bool("remediate", false, "restart a service (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
 	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
 	flag.Parse()
+	wotanClient.InitServiceIdentity("akira") // ADR-103 §6: every Wotan call carries akira's service token
 
 	// Logger
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
@@ -284,29 +286,18 @@ func main() {
 		return
 	}
 
-	// Start HTTP API for status queries
+	// HTTP API for status queries. A bad auth configuration refuses to
+	// start rather than serve open (S-IRON-GATE Phase 6 recipe).
+	api, err := apiHandler(akira, *nodeID, auth.LoadServiceAuthConfig("akira"))
+	if err != nil {
+		log.Fatal().Err(err).Msg("auth configuration unusable (ADR-103)")
+	}
 	go func() {
-		mux := http.NewServeMux()
-		mux.HandleFunc("/health", httputil.ProbeMethods(func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintf(w, `{"status":"ok","service":"akira","node":"%s"}`, *nodeID)
-		}))
-		mux.Handle("/ready", httputil.ProbeMethods(readyHandler(akira).ServeHTTP))
-		// /metrics did not exist here, though CLAUDE.md requires it of every
-		// component (ADR-094 step 5). Akira keeps no registry of its own, so
-		// this serves the default one: go_*, process_*, and what linked
-		// libraries register at load.
-		mux.Handle("/metrics", metrics.HandlerFor(metrics.DefaultRegistry))
-		mux.HandleFunc("/api/v1/status", func(w http.ResponseWriter, _ *http.Request) {
-			states := akira.GetStates()
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(states) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		})
 		addr := fmt.Sprintf(":%d", *listenPort)
 		log.Info().Str("addr", addr).Msg("Akira HTTP API listening")
 		srv := &http.Server{
 			Addr:              addr,
-			Handler:           mux,
+			Handler:           api,
 			ReadHeaderTimeout: 10 * time.Second,
 			ReadTimeout:       30 * time.Second,
 			WriteTimeout:      30 * time.Second,
@@ -329,6 +320,39 @@ func main() {
 // completed: before that /api/v1/status is empty, and the first sweep waits
 // a whole HealthCheckInterval. A constant 200 would publish a readiness
 // nothing measured.
+// akiraAPI is what the HTTP API reads from the daemon (*health.Akira).
+type akiraAPI interface {
+	Sweeps() uint64
+	GetStates() map[string]health.Verdict
+}
+
+// apiHandler is Akira's HTTP API behind service auth: with AUTH_ENABLED=true
+// every route but /health, /ready, /metrics and the GET consensus read
+// /api/v1/status needs a service token from AUTH_ALLOW_CALLERS (no service
+// calls Akira today, so none is listed: every token is 403). The status read
+// stays open like the Kanban board's reads: health bands, no user data, and
+// runbooks and game days curl it. Akira has no write route; any write is
+// refused before a handler sees it.
+func apiHandler(a akiraAPI, node string, cfg auth.ServiceAuthConfig) (http.Handler, error) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", httputil.ProbeMethods(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"status":"ok","service":"akira","node":"%s"}`, node)
+	}))
+	mux.Handle("/ready", httputil.ProbeMethods(readyHandler(a).ServeHTTP))
+	// /metrics did not exist here, though CLAUDE.md requires it of every
+	// component (ADR-094 step 5). Akira keeps no registry of its own, so
+	// this serves the default one: go_*, process_*, and what linked
+	// libraries register at load.
+	mux.Handle("/metrics", metrics.HandlerFor(metrics.DefaultRegistry))
+	mux.HandleFunc("/api/v1/status", func(w http.ResponseWriter, _ *http.Request) {
+		states := a.GetStates()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(states) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	})
+	return auth.NewServiceHandler(mux, cfg, auth.ServiceRoutes{OpenReads: []string{"/api/v1/status"}})
+}
+
 func readyHandler(a interface{ Sweeps() uint64 }) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

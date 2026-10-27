@@ -236,6 +236,11 @@ type Client struct {
 
 	// Dead letter counter — total messages sent to dead letter topics.
 	deadLetterCount int64 // atomic counter
+
+	// opts are the ClientOptions it was built with; tokens authorizes its
+	// HTTP requests (auth.go), and the gRPC client it makes gets opts too.
+	opts   []ClientOption
+	tokens *tokenAuth
 }
 
 // Transport returns the currently active streaming transport.
@@ -252,8 +257,10 @@ func (c *Client) IsGRPCHealthy() bool {
 	return c.grpcHealthy
 }
 
-// NewClient creates a new Wotan client
-func NewClient(addr string) (*Client, error) {
+// NewClient creates a new Wotan client. With a service identity
+// (WithServiceToken, or the process's SetServiceIdentity) every request
+// carries a token for aud=wotan.
+func NewClient(addr string, opts ...ClientOption) (*Client, error) {
 	if addr == "" {
 		return nil, errors.New("address cannot be empty")
 	}
@@ -271,11 +278,13 @@ func NewClient(addr string) (*Client, error) {
 		streamClient:  &http.Client{Timeout: streamingTimeout},
 		subscribers:   make(map[string]*Subscriber),
 		channels:      make(map[string]*safeChannel),
+		opts:          opts,
+		tokens:        newTokenAuth(opts, false),
 	}, nil
 }
 
 // NewClientWithTLS creates a client with TLS support and split timeouts.
-func NewClientWithTLS(addr string, tlsConfig *http.Transport) (*Client, error) {
+func NewClientWithTLS(addr string, tlsConfig *http.Transport, opts ...ClientOption) (*Client, error) {
 	if addr == "" {
 		return nil, errors.New("address cannot be empty")
 	}
@@ -286,6 +295,8 @@ func NewClientWithTLS(addr string, tlsConfig *http.Transport) (*Client, error) {
 		streamClient:  &http.Client{Timeout: streamingTimeout, Transport: tlsConfig},
 		subscribers:   make(map[string]*Subscriber),
 		channels:      make(map[string]*safeChannel),
+		opts:          opts,
+		tokens:        newTokenAuth(opts, false),
 	}, nil
 }
 
@@ -298,13 +309,13 @@ func NewClientWithTLS(addr string, tlsConfig *http.Transport) (*Client, error) {
 //   - While degraded (startup probe failed, or a stream tripped the circuit
 //     breaker) a background loop re-probes every 30 s and promotes back to
 //     gRPC once Wotan answers SERVING. Close stops it.
-func NewClientWithGRPC(httpAddr, grpcAddr string) (*Client, error) {
-	return newClientWithGRPC(httpAddr, grpcAddr, 0)
+func NewClientWithGRPC(httpAddr, grpcAddr string, opts ...ClientOption) (*Client, error) {
+	return newClientWithGRPC(httpAddr, grpcAddr, 0, opts...)
 }
 
 // newClientWithGRPC is NewClientWithGRPC with the re-probe interval as a
 // parameter (0 = defaultReprobeInterval); tests shorten it.
-func newClientWithGRPC(httpAddr, grpcAddr string, reprobeEvery time.Duration) (*Client, error) {
+func newClientWithGRPC(httpAddr, grpcAddr string, reprobeEvery time.Duration, opts ...ClientOption) (*Client, error) {
 	if httpAddr == "" {
 		return nil, errors.New("HTTP address cannot be empty")
 	}
@@ -322,6 +333,8 @@ func newClientWithGRPC(httpAddr, grpcAddr string, reprobeEvery time.Duration) (*
 		subscribers:   make(map[string]*Subscriber),
 		channels:      make(map[string]*safeChannel),
 		reprobeEvery:  reprobeEvery,
+		opts:          opts,
+		tokens:        newTokenAuth(opts, false),
 	}
 
 	// Probe gRPC at startup — if healthy, promote to primary transport
@@ -463,6 +476,9 @@ func (c *Client) Subscribe(ctx context.Context, topic, displayName string) (*Sub
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if err := c.tokens.authorize(req); err != nil {
+		return nil, err
+	}
 
 	resp, err := c.controlClient.Do(req)
 	if err != nil {
@@ -641,6 +657,9 @@ func (c *Client) doPublish(ctx context.Context, topic, subscriberID string, payl
 		return fmt.Errorf("create request: %w", err), nil
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if err := c.tokens.authorize(req); err != nil {
+		return nil, err
+	}
 
 	resp, err := c.controlClient.Do(req)
 	if err != nil {
@@ -682,6 +701,9 @@ func (c *Client) getMessagesPage(ctx context.Context, topic string, afterSeq int
 	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create request: %w", err)
+	}
+	if err := c.tokens.authorize(req); err != nil {
+		return nil, nil, err
 	}
 
 	resp, err := c.streamClient.Do(req)
@@ -857,7 +879,7 @@ func (c *Client) getOrCreateGRPCClient() (*GRPCClient, error) {
 	}
 
 	// Still nil — create the gRPC client under write lock
-	client, err := NewGRPCClient(c.grpcAddr)
+	client, err := NewGRPCClient(c.grpcAddr, c.opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create gRPC client: %w", err)
 	}

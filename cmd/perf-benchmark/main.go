@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"unheaded/pkg/benchmark"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 var (
@@ -67,6 +68,7 @@ var (
 
 func main() {
 	flag.Parse()
+	wotanClient.InitServiceIdentity("perf-benchmark") // ADR-103 §6: every Wotan call carries perf-benchmark's service token
 
 	if *scenario != "" {
 		os.Exit(runScenarios())
