@@ -38,7 +38,10 @@ var ErrWriteTooLarge = errors.New("write exceeds the size cap")
 func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 	start := time.Now()
 
-	actionID, _ := c.logAction(ctx, "file.write", fmt.Sprintf("Write file: %s (%d bytes)", path, len(content)), "user")
+	actionID, auditErr := c.logMutation(ctx, "file.write", fmt.Sprintf("Write file: %s (%d bytes)", path, len(content)), "user")
+	if auditErr != nil {
+		return auditErr
+	}
 
 	if len(content) > MaxWriteBytes {
 		err := fmt.Errorf("%w: %d bytes, cap %d", ErrWriteTooLarge, len(content), MaxWriteBytes)
@@ -93,7 +96,10 @@ func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string) error {
 	start := time.Now()
 
-	actionID, _ := c.logAction(ctx, "file.patch", fmt.Sprintf("Patch file: %s", path), "user")
+	actionID, auditErr := c.logMutation(ctx, "file.patch", fmt.Sprintf("Patch file: %s", path), "user")
+	if auditErr != nil {
+		return auditErr
+	}
 
 	if err := c.validatePath(path); err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
@@ -146,7 +152,10 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 func (c *Champion) RevertAction(ctx context.Context, actionID int64) error {
 	start := time.Now()
 
-	revertID, _ := c.logAction(ctx, "file.write", fmt.Sprintf("Revert action %d", actionID), "user")
+	revertID, auditErr := c.logMutation(ctx, "file.write", fmt.Sprintf("Revert action %d", actionID), "user")
+	if auditErr != nil {
+		return auditErr
+	}
 
 	if c.snapshotStore == nil {
 		c.completeAction(ctx, revertID, "failed", "", "no snapshot store configured", time.Since(start))
@@ -193,7 +202,10 @@ func (c *Champion) CreateKanbanTask(ctx context.Context, task *KanbanTask) error
 	start := time.Now()
 
 	paramsJSON, _ := json.Marshal(task)
-	actionID, _ := c.logAction(ctx, "kanban.create", fmt.Sprintf("Create task: %s", task.Title), "user")
+	actionID, auditErr := c.logMutation(ctx, "kanban.create", fmt.Sprintf("Create task: %s", task.Title), "user")
+	if auditErr != nil {
+		return auditErr
+	}
 
 	if c.kanbanStore == nil {
 		c.completeAction(ctx, actionID, "failed", "", "no kanban store configured", time.Since(start))
@@ -214,7 +226,10 @@ func (c *Champion) CreateKanbanTask(ctx context.Context, task *KanbanTask) error
 func (c *Champion) UpdateKanbanTask(ctx context.Context, id string, updates map[string]interface{}) error {
 	start := time.Now()
 
-	actionID, _ := c.logAction(ctx, "kanban.update", fmt.Sprintf("Update task: %s", id), "user")
+	actionID, auditErr := c.logMutation(ctx, "kanban.update", fmt.Sprintf("Update task: %s", id), "user")
+	if auditErr != nil {
+		return auditErr
+	}
 
 	if c.kanbanStore == nil {
 		c.completeAction(ctx, actionID, "failed", "", "no kanban store configured", time.Since(start))
@@ -291,7 +306,10 @@ type RunbookExecuteResult struct {
 func (c *Champion) RunbookExecute(ctx context.Context, name string, dryRun bool) (*RunbookExecuteResult, error) {
 	start := time.Now()
 	intent := fmt.Sprintf("Execute runbook: %s (dry-run=%v)", name, dryRun)
-	actionID, _ := c.logAction(ctx, "runbook.execute", intent, "user")
+	actionID, auditErr := c.logMutation(ctx, "runbook.execute", intent, "user")
+	if auditErr != nil {
+		return nil, auditErr
+	}
 
 	// Reject empty / suspicious names early.
 	if name == "" {

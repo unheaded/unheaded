@@ -137,7 +137,10 @@ func hashFile(path string) (string, error) {
 func (c *Champion) ModelSwap(ctx context.Context, key string) (*ModelSwapResult, error) {
 	start := time.Now()
 	intent := fmt.Sprintf("Switch llama-server model to: %s", key)
-	actionID, _ := c.logAction(ctx, "model_switch", intent, "user")
+	actionID, auditErr := c.logMutation(ctx, "model_switch", intent, "user")
+	if auditErr != nil {
+		return nil, auditErr
+	}
 
 	// T16 — refuse to run as root. The daemon should never have EUID==0;
 	// hard fail rather than execute the subprocess with elevated privileges.
