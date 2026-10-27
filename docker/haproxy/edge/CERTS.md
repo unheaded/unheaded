@@ -3,6 +3,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis.
 -->
 
+> Lives beside `certs/`, not in it: haproxy loads every non-hidden file in a `crt` directory as a certificate, and a README there stopped the edge from starting (found live 2026-10-27).
+
 # haproxy edge certificates
 
 `docker/docker-compose.loadbalancers.yml` mounts this directory read-only at

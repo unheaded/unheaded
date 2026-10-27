@@ -20,7 +20,7 @@ Deployment methods:
 
 | Target | Method | Config Source |
 |--------|--------|--------------|
-| Docker Compose | `docker compose -f docker/docker-compose.loadbalancers.yml up` | `docker/` |
+| Docker Compose | `docker compose -f docker-compose.yml -f docker/docker-compose.loadbalancers.yml up -d haproxy-edge haproxy-internal` (an overlay: control/data networks come from the main file; the edge ports 21080/21443 are Traefik's while the main stack runs, so stop `unheaded-traefik` first) | `docker/` |
 | Bare Metal | systemd units + apt packages | Manual install |
 | LXD | System containers with proxy devices | `lxc launch` |
 | containerd | OCI containers with `ctr run` | `ctr` CLI |

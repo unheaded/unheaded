@@ -12,7 +12,8 @@
 # Both haproxy.cfg files are validated by scripts/check-haproxy-cfg.sh
 # (S-CLEAN-SLATE Step 109) under this image and the host binary. The edge's TLS
 # bind reads /etc/haproxy/certs, mounted from docker/haproxy/edge/certs/ (see
-# the README there; scripts/gen-haproxy-dev-cert.sh makes a dev cert). Still
+# docker/haproxy/edge/CERTS.md, kept out of certs/ because haproxy loads every
+# file there; scripts/gen-haproxy-dev-cert.sh makes a dev cert). Still
 # open: nginx-gateway.conf proxies to a gateway service the stack does not run.
 #
 # USAGE:

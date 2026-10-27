@@ -46,6 +46,14 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 
 	-subj /CN=haproxy-dev -keyout "${WORK}/key.pem" -out "${WORK}/cert.pem" 2>/dev/null
 cat "${WORK}/cert.pem" "${WORK}/key.pem" >"${CERTDIR}/dev.pem"
 chmod 0600 "${CERTDIR}/dev.pem"
+# Mirror the real mount: every tracked file in docker/haproxy/edge/certs/ is
+# copied in too, because haproxy loads every non-hidden file in a `crt`
+# directory as a certificate. A README left there stopped the live edge
+# while this check, with a clean directory of its own, still passed.
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+while IFS= read -r f; do
+	[[ -n "$f" ]] && cp -- "${ROOT}/${f}" "${CERTDIR}/"
+done < <(git -C "$ROOT" ls-files -- docker/haproxy/edge/certs/)
 
 docker_ok=0
 if [[ "${HAPROXY_CHECK_SKIP_IMAGE:-0}" != "1" ]]; then
