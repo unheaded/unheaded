@@ -5,6 +5,7 @@ package crosswalk
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -147,5 +148,48 @@ func TestRepoRegister(t *testing.T) {
 	}
 	if _, err := LoadRegister(b, c); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// UH-SLO-01 has one slo source per SLO in observability/alerting/policy.yaml
+// and no other: an SLO added to the policy without its evidence source, or
+// a source left behind by a removed SLO, fails here.
+func TestRepoSLOSourcesMatchPolicy(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile("../../../observability/alerting/policy.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var policy struct {
+		SLOs []struct {
+			Name string `yaml:"name"`
+		} `yaml:"slos"`
+	}
+	if err := yaml.Unmarshal(raw, &policy); err != nil {
+		t.Fatal(err)
+	}
+	var want, got []string
+	for _, s := range policy.SLOs {
+		want = append(want, s.Name)
+	}
+	for _, ctl := range c.Controls {
+		for _, s := range ctl.Evidence {
+			if s.Kind != KindSLO {
+				continue
+			}
+			if ctl.ID != "UH-SLO-01" {
+				t.Errorf("%s uses an slo source (%s); SLO evidence belongs to UH-SLO-01", ctl.ID, s.Ref)
+				continue
+			}
+			got = append(got, s.Ref)
+		}
+	}
+	slices.Sort(want)
+	slices.Sort(got)
+	if len(want) == 0 || !slices.Equal(got, want) {
+		t.Fatalf("UH-SLO-01 slo sources %v, policy.yaml SLOs %v", got, want)
 	}
 }
