@@ -26,7 +26,7 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 | ID | Item | Sources | Doc | St | Stevie | Sz |
 |---|---|---|---|---|---|---|
 | M-010 | Rotate every baselined credential (20 history fingerprints, 25 .gitleaksignore): repo IS public, PRE-PUBLIC "lab-only" exemption void; then shrink baseline | SEC SP-01, CG-17; PLANS D-01 | docs/security/PRE-PUBLIC-BLOCKERS.md | NS | Y: rotation is yours (OPNsense API, Grafana, LXD trust, tokens) | M |
-| M-011 | FND-001 (high, due 10-30): alert-mailer dry-run → `mode send`; SMTP relay + password file; then `alert-route` host probe | SEC FND-001, CG-02 | ADR-098:276; wiki/Alerting.md | P | Y: Gmail account + app password | S |
+| M-011 | FND-001 (high, due 10-30): alert-mailer dry-run → `mode send`; SMTP relay + password file; then `alert-route` host probe | SEC FND-001, CG-02 | ADR-098:276; wiki/Alerting.md | P → mode send live 2026-10-27 S24 (first real page delivered; alert-route probe pending) | N | S |
 | M-012 | FND-011 (high, due 11-18): add ebtables/ebtable_nat/ebt_snat `install /bin/false` to fixes.yaml + apply both hosts; decide west userns vs LXD; kernel+reboot when Ubuntu ships | SEC FND-011 | compliance/remediation/fixes.yaml:78-88 | NS | Y: host change; LXD userns test | S |
 | M-013 | FND-014: live Well role password rotation + `pg_stat_statements_reset()` + old PG logs | SEC FND-014; PLANS F-42 | ADR-098:281 | P | Y: live DB window | S |
 | M-014 | FND-016 / E3: first live WireGuard PSK `--apply` rotation on west, remove east stale key, enable weekly timer | SEC FND-016; ADR tracked E3 | deploy/systemd/unheaded-wg-psk-rotate.timer | NS | Y: E3 go | S |

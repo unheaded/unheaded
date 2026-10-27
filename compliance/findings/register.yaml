@@ -43,8 +43,12 @@ findings:
       "deviation in slo and sla should be the only alerts - no noise", "I might read 5"): ADR-100 built. Only SLO
       burn-rate alerts notify (observability/alerting/policy.yaml, 7 SLOs, urgency page/ticket/none); alert-mailer is
       the only sender, capped at 6 a day, tickets in one 09:00 digest, running on west in dry-run. Left: a week of
-      dry-run outbox review, then the Gmail app password (wiki/Alerting.md) and mode send
-    decision: SMTP relay (Stevie leaning to the bellis.tech Google Workspace account) and when to leave dry-run
+      dry-run outbox review, then the Gmail app password (wiki/Alerting.md) and mode send. 2026-10-27 (S24, Stevie: send
+      from personal Gmail stevenrbellis@gmail.com to stevie@bellis.tech, short-term): app password at
+      /etc/unheaded/alert-mailer/smtp-password (0400, uid 16710), relay keys in the gitignored monitoring/.env, one
+      synthetic page sent through smtp.gmail.com:587 (outbox outcome sent, HTTP 204), policy.yaml mailer.mode=send,
+      monitoring stack up on west. Left: the first real SLO page, or the alert-route host probe, closes this entry
+    decision: 'SMTP relay: personal Gmail (Stevie 2026-10-27, short-term; Workspace account later). Left dry-run 2026-10-27'
 
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
   # --- step 3: auditd -------------------------------------------------------

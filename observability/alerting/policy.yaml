@@ -26,7 +26,7 @@
 mailer:
   # dry-run: decide and log every mail, send none. Run a week like this,
   # read the outbox, tune, then switch to send.
-  mode: dry-run
+  mode: send
   # Hard cap across everything, per calendar day in timezone. The last
   # allowed mail says so; past it nothing is sent until midnight, and the
   # next digest counts what was held back.
