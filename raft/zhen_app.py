@@ -93,7 +93,7 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 # the page echoes it in X-Zhen-CSRF on every state-changing request. A
 # cross-site page can neither read the cookie nor make the browser send it.
 # A request with neither Origin nor Sec-Fetch-Site did not come from a browser
-# (curl, zhen_mcp_server, eval scripts); it has no browser state to ride, so it
+# (curl, zhen-mcp, eval scripts); it has no browser state to ride, so it
 # is not CSRF and is not asked for the token.
 # ---------------------------------------------------------------------------
 CSRF_COOKIE = 'zhen_csrf'

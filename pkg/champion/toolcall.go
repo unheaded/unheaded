@@ -103,13 +103,13 @@ var MutatingTools = map[string]bool{
 // default.
 var ReadOnlyTools = map[string]bool{
 	"read_file":      true,
-	"file_read":      true, // raft/zhen_mcp_server.py's read; Rule 1 still checks its path
+	"file_read":      true, // cmd/zhen-mcp's read; Rule 1 still checks its path
 	"kanban_list":    true,
 	"runbook_show":   true,
 	"runbook_list":   true,
 	"corpus_search":  true,
 	"service_health": true,
-	// raft/zhen_mcp_server.py's local_llm: one completion from the
+	// cmd/zhen-mcp's local_llm: one completion from the
 	// llama-server that is already running. It loads nothing (model
 	// loads go through model_switch and switch-model.sh's fit check),
 	// writes nothing, and its answer goes back to the caller as text.

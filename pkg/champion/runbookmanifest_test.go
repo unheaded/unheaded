@@ -113,6 +113,30 @@ func TestRunbookExecute_DryRunIgnoresManifest(t *testing.T) {
 	}
 }
 
+// A runbook name that is a symlink out of runbooks/ is refused before
+// anything runs, dry run included (found porting the MCP server's tests,
+// S-CHAMPION-HARDENING Step 199; RunbookShow already refused it).
+func TestRunbookExecute_SymlinkOutOfRunbooksRefused(t *testing.T) {
+	needPython(t)
+	c, store, p := rbRoot(t, "infra/safe", safeRunbook, nil)
+	outside := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(p))), "evil.yaml")
+	if err := os.WriteFile(outside, []byte(safeRunbook), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(filepath.Dir(p), "linked.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	for _, dry := range []bool{true, false} {
+		res, err := c.RunbookExecute(context.Background(), "infra/linked", dry)
+		if err == nil || !strings.Contains(err.Error(), "outside runbooks/") {
+			t.Fatalf("dry=%v: err = %v, res = %+v; want refused as outside runbooks/", dry, err, res)
+		}
+		if got := store.actions[len(store.actions)-1].Status; got != "denied" {
+			t.Errorf("dry=%v: action status = %q, want denied", dry, got)
+		}
+	}
+}
+
 func TestRunbookExecute_ExecutesTheVerifiedCopy(t *testing.T) {
 	needPython(t)
 	c, _, p := rbRoot(t, "infra/safe", safeRunbook, entry("infra/safe"))

@@ -43,7 +43,8 @@ func testRoot(t *testing.T) string {
 	write("README.md", "hello from the sandbox\n")
 	write("runbooks/infra/service-health-sweep.yaml", "apiVersion: runbook/v1\nkind: Runbook\nmetadata:\n  name: service-health-sweep\n")
 	write("runbooks/observe/slo-check.yaml", "apiVersion: runbook/v1\nkind: Runbook\nmetadata:\n  name: slo-check\n")
-	write("scripts/run-runbook.py", "import sys\nprint('ran', ' '.join(sys.argv[1:]))\n")
+	// The stand-in leaves a marker so a test can tell whether it ran.
+	write("scripts/run-runbook.py", "import os, sys\nopen(os.path.join(os.path.dirname(__file__), 'ran.marker'), 'a').write('x')\nprint('ran', ' '.join(sys.argv[1:]))\n")
 	return root
 }
 
@@ -580,5 +581,144 @@ func TestServeHandshake(t *testing.T) {
 	_ = json.Unmarshal([]byte(lines[2]), &callRes)
 	if !callRes.Result.IsError {
 		t.Errorf("file_read /etc/shadow = %s", lines[2])
+	}
+}
+
+// --- cases ported from raft/tests/test_zhen_mcp_server.py (Step 199) ---
+
+func TestFileReadSiblingPrefixSymlinkToDeniedNameAndNUL(t *testing.T) {
+	root := testRoot(t)
+	sibling := root + "-evil"
+	if err := os.MkdirAll(sibling, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(sibling) })
+	if err := os.WriteFile(filepath.Join(sibling, "loot.txt"), []byte("LOOT-CONTENT"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".env"), []byte("SECRET=1"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, ".env"), filepath.Join(root, "harmless-name")); err != nil {
+		t.Fatal(err)
+	}
+	srv := testServer(t, root, nil)
+	for _, p := range []string{
+		filepath.Join(sibling, "loot.txt"),
+		filepath.Join(root, "harmless-name"),
+		filepath.Join(root, "README.md") + "\x00.txt",
+	} {
+		args, _ := json.Marshal(map[string]string{"path": p})
+		res := call(t, srv, "file_read", string(args))
+		if !res.IsError || strings.Contains(res.Content[0].Text, "LOOT-CONTENT") || strings.Contains(res.Content[0].Text, "SECRET=1") {
+			t.Errorf("file_read %q = %+v, want isError and no content", p, res)
+		}
+	}
+}
+
+func TestRealRunbookNamesMatchPattern(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := findProjectRoot("", []string{wd})
+	if err != nil {
+		t.Skipf("not in a checkout: %v", err)
+	}
+	names, _ := filepath.Glob(filepath.Join(root, "runbooks", "*", "*.yaml"))
+	if len(names) == 0 {
+		t.Fatal("no runbooks found")
+	}
+	for _, n := range names {
+		if stem := strings.TrimSuffix(filepath.Base(n), ".yaml"); !runbookNameRE.MatchString(stem) {
+			t.Errorf("runbook %s does not match %s", n, runbookNameRE)
+		}
+	}
+}
+
+func TestRunbookBadNamesNeverRun(t *testing.T) {
+	root := testRoot(t)
+	if err := os.WriteFile(filepath.Join(filepath.Dir(root), "evil.yaml"), []byte("name: evil\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(filepath.Dir(root), "evil.yaml"), filepath.Join(root, "runbooks", "infra", "linked.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	srv := testServer(t, root, map[string]string{envAllowExec: "1"})
+	bad := []string{"*", "../evil", "Good-One", "-x", "", strings.Repeat("a", 65), "slo-check\n", "slo*", "[s]lo-check", "linked", "/etc/passwd"}
+	for _, name := range bad {
+		args, _ := json.Marshal(map[string]any{"name": name, "dry_run": true})
+		for _, tool := range []string{"runbook_show", "runbook_execute"} {
+			res := call(t, srv, tool, string(args))
+			if !res.IsError || strings.Contains(res.Content[0].Text, "name: evil") {
+				t.Errorf("%s %q = %+v, want isError", tool, name, res)
+			}
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "scripts", "ran.marker")); err == nil {
+		t.Fatal("run-runbook.py ran for a bad name")
+	}
+	if res := call(t, srv, "runbook_execute", `{"name":"slo-check","dry_run":"yes"}`); !res.IsError {
+		t.Errorf("non-boolean dry_run = %+v", res)
+	}
+}
+
+func TestLocalLLMDefaultsAndTimeout(t *testing.T) {
+	cfg, err := configFromEnv(func(k string) string {
+		if k == envProjectRoot {
+			return testRoot(t)
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.llmURL != "http://127.0.0.1:8081" || cfg.llmModel != "local" || cfg.llmTimeout != 120*time.Second || cfg.llmErr != nil {
+		t.Errorf("defaults = %q %q %v %v", cfg.llmURL, cfg.llmModel, cfg.llmTimeout, cfg.llmErr)
+	}
+	if cfg.vorURL != "http://127.0.0.1:9876" || cfg.allowWrite || cfg.allowExec {
+		t.Errorf("defaults = vor %q write %v exec %v", cfg.vorURL, cfg.allowWrite, cfg.allowExec)
+	}
+
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-time.After(time.Second): // bounds slow.Close, which waits for this handler
+		}
+	}))
+	defer slow.Close()
+	srv := testServer(t, testRoot(t), map[string]string{envLocalLLMURL: slow.URL, envLocalLLMTimeout: "0.2"})
+	res := call(t, srv, "local_llm", `{"prompt":"x"}`)
+	if !res.IsError || !strings.Contains(res.Content[0].Text, "did not answer within") {
+		t.Fatalf("slow server = %+v", res)
+	}
+}
+
+func TestLocalLLMCaptureOffByDefaultAndFailureCaptured(t *testing.T) {
+	srv := testServer(t, testRoot(t), nil)
+	if srv.cfg.captureDir != "" {
+		t.Fatal("capture must be off by default")
+	}
+	dir := filepath.Join(t.TempDir(), "cap")
+	srv = testServer(t, testRoot(t), map[string]string{envCaptureDir: dir}) // llama-server down
+	if res := call(t, srv, "local_llm", `{"prompt":"hi"}`); !res.IsError {
+		t.Fatalf("down = %+v", res)
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "zhen-capture-*.jsonl"))
+	if len(files) != 1 {
+		t.Fatalf("capture files = %v", files)
+	}
+	b, _ := os.ReadFile(files[0])
+	var rec struct {
+		Final string `json:"final"`
+		Local struct {
+			Error string `json:"error"`
+		} `json:"local"`
+	}
+	if err := json.Unmarshal(bytes.TrimSpace(b), &rec); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rec.Local.Error, "unavailable") || rec.Final != "" {
+		t.Errorf("failure capture = %+v", rec)
 	}
 }

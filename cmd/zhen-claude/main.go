@@ -123,7 +123,7 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	fs.BoolVar(&o.repl, "repl", false, "interactive conversation; one line per turn, /quit to leave")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "print the request that would be sent and exit; needs no credentials, sends nothing")
 	fs.StringVar(&o.tools, "tools", "champion", "tool providers, comma separated: champion, mcp (or none)")
-	fs.StringVar(&o.mcpCmd, "mcp-cmd", "python3 raft/zhen_mcp_server.py", "MCP stdio server command for -tools mcp (split on spaces, no shell)")
+	fs.StringVar(&o.mcpCmd, "mcp-cmd", "scripts/zhen-mcp.sh", "MCP stdio server command for -tools mcp (split on spaces, no shell; the default runs bin/zhen-mcp, built by make build-zhen-mcp)")
 	fs.BoolVar(&o.mcpMutating, "mcp-mutating", false, "also offer the MCP server's mutating tools (file_write, file_patch, runbook_execute); they still go through the Champion gate")
 	fs.StringVar(&o.projectRoot, "project-root", "", "Champion sandbox root (default: current directory)")
 	fs.StringVar(&o.model, "model", claudebridge.DefaultModel, "Claude model ID")

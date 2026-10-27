@@ -59,8 +59,8 @@ var _ zhentools.Provider = (*Client)(nil)
 // Config describes the server to spawn and the client's limits. Only
 // Command is required.
 type Config struct {
-	// Command and Args start the server, e.g. "python3",
-	// []string{"raft/zhen_mcp_server.py"}. No shell is involved.
+	// Command and Args start the server, e.g. "bin/zhen-mcp" and no
+	// Args. No shell is involved.
 	Command string
 	Args    []string
 	// Env is the server's environment. nil inherits this process's.
