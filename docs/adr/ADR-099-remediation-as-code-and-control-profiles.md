@@ -180,3 +180,25 @@ packet-chaos`: each fault's revert recipe before it lands, then a `reverted` row
 - Proof: `scripts/well/test-deploy-journal.sh` (throwaway server: grants, triggers, CHECKs, and the Go stores,
   Sword, Yaldabaoth and `revert-all` against it as ops_writer). Live: 039 is applied in the E-A window; until
   then a rebuilt Sword (compose sets `WELL_DB`) refuses to start.
+
+## Progress (2026-10-27): phase 2 closed, phase 4's code path (S-WELL-SPRING Phase 13)
+
+- **Phase 2 done: `remediate.sh` retired on parity.** Both parity tests passed for all 13 fixes (104 subtests);
+  what the script wrote per fix, host and sudo flavour is kept in `cmd/unheaded-remediate/testdata/parity` and
+  `TestExecutorMatchesRetiredScript` holds the executor to it. `scripts/host/remediate.sh` is a shim that names the
+  `unheaded-remediate` command and exits 2.
+- **Executor:** `check <fix>` (exit 3 when not in place) and `-record-existing <fix> -applied-by "..."`, which journals
+  a backfilled apply only when check finds the fix in place, and changes nothing: how the 2026-10-01 lab fixes get a
+  journal (UH-REMED-01) in the E-D window. Fixed: undo replayed a fix's reload before restoring its files; reloads are
+  now replayed last.
+- **Model:** 16 fixes. New: `rocm-log-perms`, `aide-install`, `apparmor-enforce` (in `lab-hardened`). Action set:
+  `apparmor` (enforce; refuses a profile the operator disabled or forced to complain), `package.no_recommends`, mode on
+  `/var/log` files, `service` enable with start, and `systemctl daemon-reload`, `aideinit -y -f` on the run allowlist.
+  `closes` is the deviation-to-fix map enforcing uses (the plan's `checks:`). Old fix hashes are unchanged.
+- **Phase 3:** the renderer covers the new actions; `ansible-playbook --syntax-check` runs in static-analysis
+  (ansible-core 2.21.5, hash-pinned) on every rendered playbook and on the hand-written `deploy/ansible/kingdom/`
+  roles (kingdom-base, huginn, victoria).
+- **Phase 4, code only:** `unheaded-baseline` applies the fix that closes a deviation through the executor, only after
+  a 7-day soak it measures itself, behind a flapping breaker (no third apply of one fix inside 24 h) and the packages'
+  `preinst` gate. Every mode file stays `audit`; the flip, its root drop-in and Q5 are Stevie's (E-E).
+  `docs/compliance/enforcing-soak.md`; red team LICH-017.

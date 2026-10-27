@@ -93,7 +93,8 @@ Priority: optional
 EOF
 deb_postinst "$WR" >"$WR_DIR/DEBIAN/postinst"
 deb_prerm "$WR" "${WR}.timer" "${WR}.service" >"$WR_DIR/DEBIAN/prerm"
-chmod 755 "$WR_DIR/DEBIAN/postinst" "$WR_DIR/DEBIAN/prerm"
+deb_preinst "$WR" >"$WR_DIR/DEBIAN/preinst"
+chmod 755 "$WR_DIR/DEBIAN/postinst" "$WR_DIR/DEBIAN/prerm" "$WR_DIR/DEBIAN/preinst"
 dpkg-deb --root-owner-group --build "$WR_DIR" 2>/dev/null
 echo "  Built: ${WR}_${VERSION}.deb"
 
@@ -156,7 +157,10 @@ EOF
     # disables only on removal, never on upgrade.
     deb_postinst "$PKG_NAME" "$svc" "$SVC_USER" >"$PKG_DIR/DEBIAN/postinst"
     deb_prerm "$PKG_NAME" >"$PKG_DIR/DEBIAN/prerm"
-    chmod 755 "$PKG_DIR/DEBIAN/postinst" "$PKG_DIR/DEBIAN/prerm"
+    # ADR-098 enforcing gate: no install on a host that is out of its
+    # baseline while enforcing (scripts/lib/deb-maintscripts.sh).
+    deb_preinst "$PKG_NAME" >"$PKG_DIR/DEBIAN/preinst"
+    chmod 755 "$PKG_DIR/DEBIAN/postinst" "$PKG_DIR/DEBIAN/prerm" "$PKG_DIR/DEBIAN/preinst"
     deb_conffiles "$svc" "$PKG_DIR" "$PROJECT_ROOT"
 
     # Build .deb

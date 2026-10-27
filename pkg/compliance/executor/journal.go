@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"unheaded/pkg/compliance/remediation"
 )
@@ -34,8 +35,8 @@ type undoMeta struct {
 
 func (e *Executor) journalPath() string { return filepath.Join(e.o.State, journalName) }
 
-// lastEntry verifies the journal and returns its last entry (nil if empty).
-func (e *Executor) lastEntry() (*remediation.JournalEntry, error) {
+// entries reads and verifies the whole journal (nil if there is none).
+func (e *Executor) entries() ([]remediation.JournalEntry, error) {
 	b, err := os.ReadFile(e.journalPath())
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -50,10 +51,34 @@ func (e *Executor) lastEntry() (*remediation.JournalEntry, error) {
 	if err := remediation.VerifyChain(entries, remediation.GenesisHash); err != nil {
 		return nil, fmt.Errorf("%s: %w", e.journalPath(), err)
 	}
-	if len(entries) == 0 {
-		return nil, nil
+	return entries, nil
+}
+
+// lastEntry verifies the journal and returns its last entry (nil if empty).
+func (e *Executor) lastEntry() (*remediation.JournalEntry, error) {
+	entries, err := e.entries()
+	if err != nil || len(entries) == 0 {
+		return nil, err
 	}
 	return &entries[len(entries)-1], nil
+}
+
+// AppliesSince counts the successful applies of fixID journaled at or after
+// since, recorded (backfilled) entries left out. The baseline agent's
+// flapping breaker reads it: the journal is its memory, and a journal that
+// does not verify is an error, never zero.
+func (e *Executor) AppliesSince(fixID string, since time.Time) (int, error) {
+	entries, err := e.entries()
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, en := range entries {
+		if en.FixID == fixID && en.Action == "apply" && en.Outcome == "success" && !en.Backfilled && !en.At.Before(since) {
+			n++
+		}
+	}
+	return n, nil
 }
 
 // checkJournal is run before any change: no apply on a broken journal.

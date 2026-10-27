@@ -79,3 +79,37 @@ ${lines}	;;
 esac
 SCRIPT
 }
+
+# deb_preinst PKG: the ADR-098 enforcing gate (S-WELL-SPRING Step 276). On
+# install or upgrade, refuse when the host's baseline agent says enforcing is
+# in effect and left critical deviations (report.json: "mode_effective":
+# "enforcing" and "critical_deviations" above 0): installing more on a host
+# that is out of its baseline is what enforcing exists to stop. Installs
+# only; refusing to START services on such a host is E-E Q5. Audit mode, no
+# agent, or no report: the install goes ahead. A report claiming enforcing
+# whose count cannot be read blocks (fail closed); the agent flags a report
+# changed behind its back as a critical event on its next run. Recovery
+# override, which the refusal names: UNHEADED_BASELINE_GATE=off apt install ...
+deb_preinst() {
+	cat <<SCRIPT
+#!/bin/sh
+set -e
+REPORT=\${UNHEADED_BASELINE_REPORT:-/var/lib/unheaded/baseline/report.json}
+case "\$1" in
+install|upgrade)
+	[ -r "\$REPORT" ] || exit 0
+	grep -Eq '"mode_effective"[[:space:]]*:[[:space:]]*"enforcing"' "\$REPORT" || exit 0
+	crit=\$(grep -Eo '"critical_deviations"[[:space:]]*:[[:space:]]*[0-9]+' "\$REPORT" | grep -Eo '[0-9]+\$' | head -n 1)
+	if [ "\${crit:-1}" != 0 ]; then
+		if [ "\${UNHEADED_BASELINE_GATE:-}" = off ]; then
+			echo "$1: baseline gate overridden (UNHEADED_BASELINE_GATE=off); host is enforcing with \${crit:-unknown} critical deviation(s)" >&2
+			exit 0
+		fi
+		echo "$1: refusing to install: this host's baseline is enforcing and \${crit:-unknown} critical deviation(s) remain (\$REPORT, ADR-098). Fix or undo them, or set UNHEADED_BASELINE_GATE=off." >&2
+		exit 1
+	fi
+	;;
+esac
+exit 0
+SCRIPT
+}

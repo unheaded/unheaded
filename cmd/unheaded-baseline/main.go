@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-// unheaded-baseline is the host baseline agent (ADR-098), audit mode only.
+// unheaded-baseline is the host baseline agent (ADR-098).
 //
 // It evaluates this host's entries of the shipped baseline with the same
 // collectors the central compliance pull uses, and reports every deviation
 // with what enforcing mode would have done about it (the audit-mode record,
-// like SELinux logging permissive=1 denials). It changes nothing on the
-// host: this build has no enforcing code path, and a config asking for
-// enforcing is reported as a critical event and run as audit.
+// like SELinux logging permissive=1 denials). In audit it changes nothing on
+// the host. Enforcing (enforce.go) applies the fix that closes a deviation
+// through the remediation executor, and is in effect only after a 7-day
+// soak the agent measures itself; every host's mode file says audit until
+// Stevie flips one (docs/compliance/enforcing-soak.md).
 //
 // Outputs: /var/lib/unheaded/baseline/report.json, one log line per
 // deviation (journald via the unit's stdout), with -textfile-dir a
@@ -44,6 +46,7 @@ import (
 
 	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/crosswalk/collect"
+	"unheaded/pkg/compliance/remediation"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -66,6 +69,13 @@ type options struct {
 	now          func() time.Time
 	sshdDump     func(ctx context.Context, host string) (string, error)
 	runProbes    func(ctx context.Context, host, script string) (string, error)
+
+	// Enforcing (enforce.go).
+	snapshotPath   string // sealed snapshot of this host's fixes; "" = none
+	pubkeyPath     string
+	remediateState string // the executor's backups and journal
+	loadModel      func(host string) (*remediation.Model, error)
+	newEnforcer    func(ctx context.Context, host string, logw io.Writer) (enforcer, error)
 }
 
 type check struct {
@@ -73,6 +83,12 @@ type check struct {
 	Verdict      string `json:"verdict"` // pass | fail | unevaluated
 	Detail       string `json:"detail,omitempty"`
 	WouldEnforce string `json:"would_enforce,omitempty"`
+	// Fix is the fix that closes this check, from the host's fix model.
+	Fix string `json:"fix,omitempty"`
+	// Enforced is what enforcing did: "applied <backup dir>", "breaker
+	// open" or "failed"; empty in audit.
+	Enforced string           `json:"enforced,omitempty"`
+	fix      *remediation.Fix `json:"-"`
 }
 
 type report struct {
@@ -86,7 +102,18 @@ type report struct {
 	Evaluated      int       `json:"evaluated"`
 	Deviations     int       `json:"deviations"`
 	Unevaluated    int       `json:"unevaluated"`
-	Checks         []check   `json:"checks"`
+	// WouldEnforce counts deviations a fix closes: what the soak watches.
+	WouldEnforce int `json:"would_enforce"`
+	Enforced     int `json:"enforced"`
+	// CriticalDeviations are deviations enforcing left in place (no fix,
+	// breaker open, apply failed); the packages' preinst refuses an install
+	// while it is non-zero in enforcing mode.
+	CriticalDeviations int        `json:"critical_deviations"`
+	CriticalEvents     []string   `json:"critical_events,omitempty"`
+	BreakerOpen        []string   `json:"breaker_open,omitempty"`
+	SoakCleanSince     *time.Time `json:"soak_clean_since,omitempty"`
+	Checks             []check    `json:"checks"`
+	soak               soakState
 }
 
 func main() {
@@ -98,10 +125,16 @@ func main() {
 	flag.StringVar(&o.hostname, "hostname", "", "host name in the baseline (default: os.Hostname)")
 	flag.StringVar(&o.rootFacts, "root-facts", "", "directory holding aa-status.json and root-path, written as root before the agent runs")
 	flag.StringVar(&o.wotanAddr, "wotan-addr", "", "Wotan HTTP host:port; when set, deviations are published on compliance.deviation.<host> (default: $WOTAN_ADDR, empty = off)")
+	flag.StringVar(&o.snapshotPath, "snapshot", "/etc/unheaded/compliance/snapshot.json", "sealed snapshot of this host's fixes (maps deviations to fixes; enforcing needs it)")
+	flag.StringVar(&o.pubkeyPath, "pubkey", "/etc/unheaded/compliance/snapshot.pub", "ML-DSA-65 public key that must have sealed the snapshot")
+	flag.StringVar(&o.remediateState, "remediate-state", "/var/lib/unheaded/remediate", "the remediation executor's backups and journal (enforcing)")
+	flag.StringVar(&o.procSys, "proc-sys", "", "sysctl tree to read (default /proc/sys; tests)")
+	// Whoever sets flags writes the unit, which is root's; the default is
+	// the only production value. LICH-017 runs the binary unprivileged.
+	flag.IntVar(&o.trustedUID, "trusted-uid", 0, "uid that must own the baseline and the snapshot (root; tests)")
 	timeout := flag.Duration("timeout", 2*time.Minute, "give up after this long")
 	flag.Parse()
 	wotanClient.InitServiceIdentity("unheaded-baseline") // ADR-103 §6: every Wotan call carries unheaded-baseline's service token
-	o.trustedUID = 0
 	o.wotanAddr = wotanAddrFrom(o.wotanAddr, os.Getenv)
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
@@ -132,6 +165,7 @@ func run(ctx context.Context, o options, logw io.Writer) (*report, error) {
 	}
 
 	if err := checkTrust(o.baselinePath, o.trustedUID); err != nil {
+		logf(logw, "CRITICAL host=%s event=baseline-untrusted detail=%q", host, err.Error())
 		return nil, err
 	}
 	raw, err := readBounded(o.baselinePath)
@@ -151,11 +185,25 @@ func run(ctx context.Context, o options, logw io.Writer) (*report, error) {
 	rep := &report{Version: 1, Host: host, ModeEffective: modeAudit, ObservedAt: now().UTC(),
 		BaselineSHA256: hex.EncodeToString(sum[:])}
 	rep.ModeConfig, rep.ConfigError = readMode(o.configPath)
-	switch {
-	case rep.ConfigError != "":
+	if rep.ConfigError != "" {
 		logf(logw, "CRITICAL host=%s config %s: %s; running audit", host, o.configPath, rep.ConfigError)
-	case rep.ModeConfig == modeEnforcing:
-		logf(logw, "CRITICAL enforcing requested host=%s: not available in this build (ADR-098 phase 4); running audit", host)
+	}
+	soak := loadSoak(o.stateDir, rep, logw)
+	loadModel := o.loadModel
+	if loadModel == nil {
+		loadModel = func(h string) (*remediation.Model, error) {
+			return loadSnapshotModel(o.snapshotPath, o.pubkeyPath, h, o.trustedUID)
+		}
+	}
+	model, modelErr := loadModel(host)
+	byKey := map[string]remediation.Fix{}
+	if modelErr == nil {
+		byKey = fixesByKey(model, host)
+	}
+	var why string
+	rep.ModeEffective, why = decideMode(rep, soak, modelErr, now())
+	if rep.ModeConfig == modeEnforcing && rep.ModeEffective != modeEnforcing && rep.ConfigError == "" {
+		logf(logw, "CRITICAL enforcing requested host=%s but not in effect: %s; running audit", host, why)
 	}
 
 	recs, err := evaluate(ctx, o, host, sources, now)
@@ -176,8 +224,15 @@ func run(ctx context.Context, o options, logw io.Writer) (*report, error) {
 			rep.Evaluated++
 			rep.Deviations++
 			c.WouldEnforce = wouldEnforce(s)
+			if f, ok := byKey[c.Key]; ok {
+				c.Fix, c.fix = f.ID, &f
+				rep.WouldEnforce++
+			}
 			logf(logw, "DEVIATION host=%s mode=%s key=%q detail=%q would_enforce=%q",
 				host, rep.ModeEffective, c.Key, c.Detail, c.WouldEnforce)
+			if c.Fix != "" && rep.ModeEffective == modeAudit {
+				logf(logw, "WOULD_ENFORCE host=%s key=%q fix=%s", host, c.Key, c.Fix)
+			}
 		case string(crosswalk.VerdictPass):
 			rep.Evaluated++
 		default:
@@ -189,18 +244,46 @@ func run(ctx context.Context, o options, logw io.Writer) (*report, error) {
 	if rep.Evaluated == 0 {
 		return nil, fmt.Errorf("no check could be evaluated on %s (%d in the baseline)", host, len(sources))
 	}
-	logf(logw, "SUMMARY host=%s mode_config=%s mode_effective=%s evaluated=%d deviations=%d unevaluated=%d",
-		host, rep.ModeConfig, rep.ModeEffective, rep.Evaluated, rep.Deviations, rep.Unevaluated)
+	if rep.ModeEffective == modeEnforcing {
+		if err := enforce(ctx, o, rep, logw, now()); err != nil {
+			return nil, err
+		}
+	}
+	// The soak clock runs in audit only, and only on runs that could judge
+	// what enforcing would do (a fix model loaded, nothing tampered with).
+	switch {
+	case rep.ModeEffective == modeEnforcing:
+	case modelErr != nil || len(rep.CriticalEvents) > 0 || rep.WouldEnforce > 0:
+		soak.CleanSince = nil
+	case soak.CleanSince == nil:
+		t := now().UTC()
+		soak.CleanSince = &t
+	}
+	soak.WouldEnforceTotal += int64(rep.WouldEnforce)
+	soak.EnforcedTotal += int64(rep.Enforced)
+	rep.SoakCleanSince, rep.soak = soak.CleanSince, soak
+	logf(logw, "SUMMARY host=%s mode_config=%s mode_effective=%s evaluated=%d deviations=%d unevaluated=%d would_enforce=%d enforced=%d critical_events=%d",
+		host, rep.ModeConfig, rep.ModeEffective, rep.Evaluated, rep.Deviations, rep.Unevaluated, rep.WouldEnforce, rep.Enforced, len(rep.CriticalEvents))
 
 	body, err := json.MarshalIndent(rep, "", "  ")
 	if err != nil {
 		return nil, err
 	}
 	body = append(body, '\n')
-	if err := writeAtomic(o.stateDir, "report.json", body); err != nil {
+	if err := writeAtomic(o.stateDir, reportFile, body); err != nil {
 		return nil, err
 	}
-	if o.wotanAddr != "" && rep.Deviations > 0 {
+	reportSum := sha256.Sum256(body)
+	soak.LastReportSHA256 = hex.EncodeToString(reportSum[:])
+	rep.soak = soak
+	soakBody, err := json.Marshal(soak)
+	if err != nil {
+		return nil, err
+	}
+	if err := writeAtomic(o.stateDir, soakFile, append(soakBody, '\n')); err != nil {
+		return nil, err
+	}
+	if o.wotanAddr != "" && (rep.Deviations > 0 || len(rep.CriticalEvents) > 0) {
 		// report.json is the record; a Wotan that is down costs the bus
 		// one message, not the host its report.
 		if err := publishDeviations(ctx, o.wotanAddr, rep, body); err != nil {
@@ -530,8 +613,31 @@ func textfile(r *report) []byte {
 		cfgErr = 1
 	}
 	fmt.Fprintf(&b, "unheaded_baseline_config_error %d\n", cfgErr)
-	gauge("unheaded_baseline_enforcing", "1 if enforcing is in effect (never, in this build)")
-	b.WriteString("unheaded_baseline_enforcing 0\n")
+	gauge("unheaded_baseline_enforcing", "1 if enforcing is in effect (after the 7-day soak, ADR-098)")
+	enf := 0
+	if r.ModeEffective == modeEnforcing {
+		enf = 1
+	}
+	fmt.Fprintf(&b, "unheaded_baseline_enforcing %d\n", enf)
+	gauge("unheaded_baseline_would_enforce", "Deviations at the last run that a fix in the host's model closes")
+	fmt.Fprintf(&b, "unheaded_baseline_would_enforce %d\n", r.WouldEnforce)
+	counter := func(name, help string, v int64) {
+		fmt.Fprintf(&b, "# HELP %s %s\n# TYPE %s counter\n%s %d\n", name, help, name, name, v)
+	}
+	counter("unheaded_baseline_would_enforce_total", "Deviations a fix closes, summed over runs; the soak needs it flat for 7 days", r.soak.WouldEnforceTotal)
+	counter("unheaded_baseline_enforced_total", "Fixes enforcing applied, summed over runs", r.soak.EnforcedTotal)
+	gauge("unheaded_baseline_soak_clean_seconds", "How long audit runs have had nothing to enforce (0 while something would be)")
+	clean := int64(0)
+	if r.SoakCleanSince != nil {
+		clean = int64(r.ObservedAt.Sub(*r.SoakCleanSince).Seconds())
+	}
+	fmt.Fprintf(&b, "unheaded_baseline_soak_clean_seconds %d\n", clean)
+	gauge("unheaded_baseline_critical_events", "Critical events at the last run (tampered state, breaker, failed apply)")
+	fmt.Fprintf(&b, "unheaded_baseline_critical_events %d\n", len(r.CriticalEvents))
+	gauge("unheaded_baseline_breaker_open", "1 for a fix the flapping breaker held back at the last run")
+	for _, id := range r.BreakerOpen {
+		fmt.Fprintf(&b, "unheaded_baseline_breaker_open{fix=\"%s\"} 1\n", escapeLabel(id))
+	}
 	gauge("unheaded_baseline_last_run_timestamp_seconds", "When the agent last completed a run")
 	fmt.Fprintf(&b, "unheaded_baseline_last_run_timestamp_seconds %s\n", strconv.FormatInt(r.ObservedAt.Unix(), 10))
 	return []byte(b.String())

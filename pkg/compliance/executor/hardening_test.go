@@ -359,3 +359,38 @@ func TestPlanNamesNewActions(t *testing.T) {
 		t.Errorf("plan ran commands: %q", e.callLog())
 	}
 }
+
+// The baseline agent's flapping breaker counts applies from the journal.
+func TestAppliesSince(t *testing.T) {
+	e := newEnv(t)
+	x := e.executor("east")
+	t0 := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
+	now := t0
+	x.o.Now = func() time.Time { return now }
+	f := fix(t, "banner-cis")
+	for i := 0; i < 3; i++ {
+		now = t0.Add(time.Duration(i) * 10 * time.Hour)
+		if _, err := x.Apply(context.Background(), f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := x.RecordExisting(context.Background(), f, "test"); err != nil {
+		t.Fatal(err)
+	}
+	for since, want := range map[time.Time]int{t0: 3, t0.Add(time.Hour): 2, t0.Add(25 * time.Hour): 0} {
+		if n, err := x.AppliesSince("banner-cis", since); err != nil || n != want {
+			t.Errorf("since %v: %d %v, want %d (the recorded entry never counts)", since, n, err, want)
+		}
+	}
+	if n, _ := x.AppliesSince("kmod-cis", t0); n != 0 {
+		t.Errorf("another fix counted: %d", n)
+	}
+	p := filepath.Join(e.state, journalName)
+	b, _ := os.ReadFile(p)
+	if err := os.WriteFile(p, []byte(strings.Replace(string(b), `"success"`, `"failure"`, 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := x.AppliesSince("banner-cis", t0); err == nil {
+		t.Error("a broken journal counted as an answer")
+	}
+}

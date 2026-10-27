@@ -138,8 +138,8 @@ Evidence, not intent (ADR-097): common controls are mapped many-to-many onto eac
 | CIS Ubuntu 24.04 L1 Server | Probed per host (`cmd/unheaded-baseline`, audit-only) |
 | PCI-DSS, HIPAA, ITAR, GDPR | Not crosswalked |
 
+- **Findings register** (ADR-098): `compliance/findings/register.yaml` triages; evidence decides what is open. Every host runs `unheaded-baseline` in audit mode. Its enforcing code path (applies the fix that closes a deviation, only after a 7-day soak, behind a flapping breaker and a package `preinst` gate) waits on Stevie's flip: `docs/compliance/enforcing-soak.md`.
 - **Remediation as code** (ADR-099): one fix model (`compliance/remediation/fixes.yaml`, 16 fixes) applied by `cmd/unheaded-remediate` (check, plan, apply, undo, `-record-existing`; backups and a hash-chained journal) and rendered to Ansible (`deploy/ansible/compliance/`, syntax-checked in CI). `scripts/host/remediate.sh` was retired on parity 2026-10-27; its output for the first 13 fixes is the executor's test fixture. Profiles (`compliance/profiles/profiles.yaml`): `none` / `lab` / `lab-hardened` / `cis-l1-server` / `all`.
-- **Remediation as code** (ADR-099): one fix model rendered as `remediate.sh`, `cmd/unheaded-remediate` (backup, undo, hash-chained journal) and Ansible. Profiles (`compliance/profiles/profiles.yaml`): `none` / `lab` / `lab-hardened` / `cis-l1-server` / `all`.
 - State lives in The Well (`unheaded_ops.compliance_*`, `unheaded_config.compliance_*`). The dashboard's compliance page (`:20000/compliance.html`) shows each framework against its full denominator.
 
 West and east are a dev/lab environment: lab-only gaps (for example, no disk encryption) are recorded and accepted, not remediated.
