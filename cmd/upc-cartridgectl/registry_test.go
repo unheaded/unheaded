@@ -147,10 +147,45 @@ func TestSophiaRegistry_RoundTrip(t *testing.T) {
 	if fs.auth != "Bearer tok" {
 		t.Fatalf("auth header %q", fs.auth)
 	}
-	if fs.rows[0]["subject"] != "x-cartridge/ratelimit" || fs.rows[0]["predicate"] != "cartridge.record" {
+	if fs.rows[0]["subject"] != "cartridge/ratelimit" || fs.rows[0]["predicate"] != "cartridge.record" {
 		t.Fatalf("row %v", fs.rows[0])
 	}
 	if _, _, _, err := r.Get("missing"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing: %v", err)
+	}
+}
+
+// S-TRUE-WIRE Steps 33-35: the RFC Editor assigned root key 0x15, category
+// "cartridge". Records are written under "cartridge/<name>" only; a record
+// written before the assignment under "x-cartridge/<name>" is still read
+// (sophia-dictionary-03: MAY be accepted on read, MUST NOT be written).
+func TestSophiaRegistry_ReadsLegacyNamespace(t *testing.T) {
+	t.Parallel()
+	if Namespace != "cartridge" || LegacyNamespace != "x-cartridge" || CartridgeRootKey != 0x15 {
+		t.Fatalf("namespace %q legacy %q root key %#x", Namespace, LegacyNamespace, CartridgeRootKey)
+	}
+	fs := &fakeSophia{}
+	srv := httptest.NewServer(fs)
+	defer srv.Close()
+	r := &SophiaRegistry{BaseURL: srv.URL, Blobs: &FileRegistry{Dir: t.TempDir()}, Client: srv.Client()}
+	raw := testImage(t, 0xFF000000)
+	if err := r.Put(testRecord("old", raw), raw, []byte("seal")); err != nil {
+		t.Fatal(err)
+	}
+	// Rewrite the stored row as a pre-assignment record.
+	fs.mu.Lock()
+	fs.rows[0]["subject"] = "x-cartridge/old"
+	fs.mu.Unlock()
+	rec, gotRaw, _, err := r.Get("old")
+	if err != nil {
+		t.Fatalf("legacy record not read: %v", err)
+	}
+	if rec.SHA256 != sha256Hex(raw) || string(gotRaw) != string(raw) {
+		t.Fatalf("legacy record %+v", rec)
+	}
+	for _, row := range fs.rows {
+		if row["subject"] != "x-cartridge/old" {
+			t.Fatalf("a read wrote a row: %v", row)
+		}
 	}
 }

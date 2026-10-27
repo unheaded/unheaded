@@ -21,17 +21,25 @@ import (
 
 // The cartridge registry (ADR-108 D-C4). A record names an image by its
 // sha256; the image bytes and seal are stored content-addressed on disk.
-// Where the record lives is the registry backend: Sophia (namespace
-// x-cartridge, provisional until the RFC Editor assigns a root key) or a
-// file-backed directory with the same schema while the stack is down.
+// Where the record lives is the registry backend: Sophia (category
+// "cartridge", root key 0x15, assigned by the RFC Editor in S-TRUE-WIRE
+// Phase 1; sophia-dictionary-03) or a file-backed directory with the same
+// schema while the stack is down. Records written before the assignment
+// under "x-cartridge" are still read, never written.
 // The storage location is not trusted either way: every load re-verifies
 // the seal on the bytes it reads.
 
 const (
-	Namespace      = "x-cartridge"
-	SurfaceVersion = "cartridge/v0"
-	predicate      = "cartridge.record"
-	maxBlob        = 1 << 20
+	// Namespace is the Sophia category records are written under.
+	Namespace = "cartridge"
+	// LegacyNamespace is the provisional pre-assignment category: read as an
+	// alias (MAY be accepted on read), never written.
+	LegacyNamespace = "x-cartridge"
+	// CartridgeRootKey is the root dictionary key assigned to the category.
+	CartridgeRootKey uint8 = 0x15
+	SurfaceVersion         = "cartridge/v0"
+	predicate              = "cartridge.record"
+	maxBlob                = 1 << 20
 )
 
 var (
@@ -183,7 +191,7 @@ func (r *FileRegistry) List() ([]Record, error) {
 }
 
 // SophiaRegistry stores records as Sophia knowledge entries
-// (subject "x-cartridge/<name>", predicate "cartridge.record", object the
+// (subject "cartridge/<name>", predicate "cartridge.record", object the
 // sha256, the record in metadata) and the bytes in Blobs.
 type SophiaRegistry struct {
 	BaseURL string
@@ -280,6 +288,12 @@ func (r *SophiaRegistry) Get(name string) (Record, []byte, []byte, error) {
 	rows, err := r.query(Namespace + "/" + name)
 	if err != nil {
 		return rec, nil, nil, err
+	}
+	if len(rows) == 0 {
+		// A record registered before the root key was assigned.
+		if rows, err = r.query(LegacyNamespace + "/" + name); err != nil {
+			return rec, nil, nil, err
+		}
 	}
 	if len(rows) == 0 {
 		return rec, nil, nil, ErrNotFound

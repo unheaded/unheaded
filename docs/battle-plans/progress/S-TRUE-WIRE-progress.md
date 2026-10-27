@@ -50,3 +50,22 @@ Rust map deleted. No wire byte, map or eBPF object changed. Follow-ons: Phase 1 
 (and note the duplicate `docs/RFC-ALIGNMENT-FINDINGS.md`); Phase 2 must update `TestActionValues`/`TestEventTypeConstants`;
 `pkg/ebpf/maploader` (parked, E3) still has old sizes and `unhd_*` names; `ebpf/flow-tracker` comments still say 48/24.
 M-143, M-185 resolved; sweep-internal D-11 resolved.
+
+## Phase 1 merged into sprint/true-wire (RFC desk, b8b2b8c2); Steps 33-35 by the coordinator
+
+Items 1-8 of `RFC-EDITOR-REQUESTS-S5.md` ruled with text in the drafts: cartridge root key `0x15` (item 1); the opcode
+dictionary's `code` key moves `0x10` -> `0x16` (new item 6: `routing` has held 0x10 since 03-05); mbc-isa gains NOP, the
+five ISA v2 opcodes and an "ISA v2 Instructions" section, MOV/MOVI/LOAD_IMM32 match the engines (item 7); one MBC opcode
+registry, in mbc-isa (item 8). Two new drafts: anamnesis-00, protocol-overview-00 (8 drafts validate). `make validate`
+had been a false green (xml2rfc 3.32 has no `--check`, so it validated nothing): it now renders each draft and fails on
+errors. `ietf-submission/*.xml` are hand-maintained upload sources; the `%.xml: %.md` rule became `%.kramdown.xml`.
+Step 69 overrides: `flowtype`, `sequence`, `registry` go to E3 delete rows. `docs/protocol/RFC-EDITOR-REQUESTS-TW.md`:
+seven new conflicts with recommendations (TW-1 PQC algorithm IDs defined three ways; TW-2 flag bit 3 reused as Signed;
+TW-6 CSR region overlaps the boot stub region; TW-7 Standards Action unusable on the Independent Stream).
+Steps 33-35 (coordinator): `cmd/upc-cartridgectl` writes `cartridge/<name>` (`Namespace = "cartridge"`,
+`CartridgeRootKey = 0x15`) and reads `x-cartridge/<name>` as an alias (`LegacyNamespace`); test
+`TestSophiaRegistry_ReadsLegacyNamespace`. Items 2 and 3 needed no code change.
+**E1 (Stevie):** accept ADR-108 now, or keep it Proposed until the cartridges run on east (S-ASCEND-2 M-228)?
+**E6 (Stevie):** upload the eight `-00` drafts to the datatracker now, or after the first staging->main promotion
+and/or the mbc-isa `-01` pass (TW-5 divergences remain)? **TW-7:** keep the MBC opcode registry at Standards Action or
+loosen to Specification Required? **TW-1, TW-2** need a decision before the PQC values are spec'd.

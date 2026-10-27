@@ -82,8 +82,8 @@ the slot from the same buffer (no re-read, no TOCTOU). Records live under a
 Sophia dictionary namespace requested from the Sophia Root Dictionary Keys
 registry (0x10–0xFE, First Come First Served). **Until it is assigned the
 namespace is the provisional string `x-cartridge`.** (Ruled 2026-10-27: root key
-`0x15`, category `cartridge`; the code still writes `x-cartridge` until the
-S-TRUE-WIRE wire-values phase moves it, reading the old name for one release.)
+`0x15`, category `cartridge`; since S-TRUE-WIRE Steps 33-35 the code writes
+`cartridge/<name>` and still reads `x-cartridge/<name>` records for one release.)
 While the stack is down
 (KF5) a file-backed registry (`--registry-dir`, one JSON record per
 cartridge, same schema) is used.
@@ -368,5 +368,5 @@ EVENT_COMPUTED Sub-kinds registry in foundation; sub-kinded records live on
 their own stream (`CART_TRACE`), never inside the 32-octet event record;
 (c) `anomaly.scores` and `upc.cart.*` registered in the Wotan Topic Namespace,
 which wotan-memory now requests rather than leaves optional. No Monad byte and
-no MBC opcode changed. What is left is acceptance (E1) and moving the code's
-`x-cartridge` string to `cartridge` (S-TRUE-WIRE Phase 2).
+no MBC opcode changed. The code moved to `cartridge` (S-TRUE-WIRE Steps 33-35,
+`x-cartridge` read as an alias); what is left is acceptance (E1).
