@@ -127,7 +127,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 | E | Question for Stevie | Blocks | Answer 2026-10-27 |
 |---|---|---| --- |
-| E1 | Pull the job log for Static Analysis run 40426721063, job "Runbooks (schema + dry-run tests)", step "runbook dry-run tests (GATING)" (needs GitHub auth; west has no `gh`). | Step 42 only | OPEN, Stevie pastes the failing lines from run 40426721063 |
+| E1 | Pull the job log for Static Analysis run 40426721063, job "Runbooks (schema + dry-run tests)", step "runbook dry-run tests (GATING)" (needs GitHub auth; west has no `gh`). | Step 42 only | ANSWERED 2026-10-27 (S24): log pasted; root cause = the runner has no Python with the `mcp` package, so `scripts/zhen-mcp.sh` exits 1 and `verify-tools-disabled` cannot list tools. Fixed: step split (`verify-mcp-json-clean` needs only git+jq), server test gated on `mcp`, CI step writes failures to the job summary. Steps 38-42 done |
 | E2 | West live window: start the monitoring stack from kingdom-startup, bring the haproxy pair up, enable the git-mirror user timer, re-run FND-023's Step 310 experiment. | Steps 153-157, 155b, 164-166 | GRANTED 2026-10-27: unattended west window OK; FND-024 via kingdom-startup.sh; FND-023 client probe |
 | E3 | Deb deploy window on east and west (install the rebuilt debs, restart units, update huginn baseline). | Steps 173-174 | GRANTED 2026-10-27: any time, unattended; report before/after unit list |
 | E4 | Apply the FND-011 ebtables modprobe stopgap on both hosts (kmod-cis); keep west's unprivileged userns open for LXD until tested. | Steps 195-196 | GRANTED 2026-10-27: stopgap on both hosts; west userns stays open until an LXD test |
@@ -285,17 +285,17 @@ Copyright (c) 2024-2026 Stevie Bellis.
   cd /home/govan/tmp/unheaded && python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/static-analysis.yml'))" && echo YAML_OK && bash scripts/check-actions-pinned.sh 2>&1 | tail -2
   ```
 - [ ] **Step 37** [V] ~0.5m: `YAML_OK`; actions-pinned check passes (no new `uses:`).
-- [ ] **Step 38** [B] ~6m: Reproduce the CI environment as closely as west can: Python 3.12 in a container, pinned requirements, no Go, no gpg (conftest skips those tests; a *fail* that is not a *skip* is the clue).
+- [x] **Step 38** [B] ~6m: Reproduce the CI environment as closely as west can: Python 3.12 in a container, pinned requirements, no Go, no gpg (conftest skips those tests; a *fail* that is not a *skip* is the clue).
   ```bash
   cd /home/govan/tmp/unheaded && sudo docker run --rm -v "$PWD":/w -w /w python:3.12-slim bash -c 'pip install -q --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt && python3 -m pytest tests/runbooks -q -rA -m "not live" 2>&1 | tail -40'
   ```
-- [ ] **Step 39** [V] ~0.5m: Either (a) a FAIL appears → Step 40; or (b) all pass/skip → Step 41.
-- [ ] **Step 40** [D][CODE] ~15m: Fix the failing test or the runbook it exercises (red → green in the same container command). If the failure is "needs X on PATH" that the runner lacks, make the test `skipif` on `shutil.which`, the pattern `tests/runbooks/harness.py:148` already uses. Re-run Step 38 until clean. Max 2 attempts.
-- [ ] **Step 41** [B] ~1m: Local gate still green under the pinned venv.
+- [x] **Step 39** [V] ~0.5m: Either (a) a FAIL appears → Step 40; or (b) all pass/skip → Step 41.
+- [x] **Step 40** [D][CODE] ~15m: Fix the failing test or the runbook it exercises (red → green in the same container command). If the failure is "needs X on PATH" that the runner lacks, make the test `skipif` on `shutil.which`, the pattern `tests/runbooks/harness.py:148` already uses. Re-run Step 38 until clean. Max 2 attempts.
+- [x] **Step 41** [B] ~1m: Local gate still green under the pinned venv.
   ```bash
   cd /home/govan/tmp/unheaded && S=/tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad; ( export PATH=$S/civenv/bin:$PATH; python3 -m pytest tests/runbooks -q -m "not live" 2>&1 | tail -2 )
   ```
-- [ ] **Step 42** [ESCALATE] **E1** ~0m: Context: Steps 38-41 may not reproduce the GitHub failure (passes 4 ways locally). Question: pull the step log for run 40426721063 job "Runbooks (schema + dry-run tests)" and paste the FAIL lines into the progress file. Why no recommendation: the log needs GitHub auth; west has no `gh`. This chain stops here; the self-reporting change in Step 35 makes the next failure readable without auth.
+- [x] **Step 42** [ESCALATE] **E1** ~0m: Context: Steps 38-41 may not reproduce the GitHub failure (passes 4 ways locally). Question: pull the step log for run 40426721063 job "Runbooks (schema + dry-run tests)" and paste the FAIL lines into the progress file. Why no recommendation: the log needs GitHub auth; west has no `gh`. This chain stops here; the self-reporting change in Step 35 makes the next failure readable without auth.
 
 ### M-004 meta-gate timeout
 

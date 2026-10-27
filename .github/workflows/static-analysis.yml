@@ -220,7 +220,13 @@ jobs:
       - name: runbook/v1 schema (GATING, ratcheted)
         run: ./scripts/check-runbooks.sh
       - name: runbook dry-run tests (GATING)
-        run: python3 -m pytest tests/runbooks -q -m "not live"
+        # -rfE prints every FAILED/ERROR line; the summary carries them so a
+        # red run is readable from the public API without the job log.
+        run: |
+          rc=0
+          python3 -m pytest tests/runbooks -q -rfE -m "not live" 2>&1 | tee runbooks-pytest.log || rc=$?
+          { echo '### runbook dry-run tests'; echo '```'; grep -E '^(FAILED|ERROR|=+ .*(passed|failed|error).* =+$|E +)' runbooks-pytest.log | tail -60; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
 
   javascript:
     name: JavaScript (oxlint)

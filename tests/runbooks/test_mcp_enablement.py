@@ -59,11 +59,23 @@ def test_enable_and_disable_are_manual_and_the_work_is_attended():
 
 
 def test_preflight_guard_passes_on_this_repo():
+    # The .mcp.json guards need only git and jq, so they run on every runner.
+    # Steps that start the MCP server are tested below, gated on `mcp`.
     rb = harness.load(RB)
-    guards = [s["name"] for s in harness.steps(rb) if s["action"] == "shell" and ".mcp.json" in (s.get("command") or "")]
+    guards = [s["name"] for s in harness.steps(rb)
+              if s["action"] == "shell" and ".mcp.json" in (s.get("command") or "") and "-tools mcp" not in (s.get("command") or "")]
     assert guards, "no step checks the committed .mcp.json"
     for g in guards:
         harness.run_step(rb, g, env={"REPO": str(harness.REPO)}, cwd=harness.REPO)
+
+
+@pytest.mark.skipif(not mcp_importable(), reason="the MCP server needs the mcp package (~/.venv/zhen)")
+def test_tools_disabled_guard_passes_on_this_repo():
+    # With both gates off in the launching shell, the server lists no mutating tool.
+    rb = harness.load(RB)
+    harness.run_step(rb, "verify-tools-disabled",
+                     env={"REPO": str(harness.REPO), "ZHEN_MCP_ALLOW_WRITE": "", "ZHEN_MCP_ALLOW_EXEC": ""},
+                     cwd=harness.REPO, timeout=300)
 
 
 @pytest.mark.skipif(not mcp_importable(), reason="the MCP server needs the mcp package (~/.venv/zhen)")

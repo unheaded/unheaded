@@ -60,17 +60,28 @@ steps:
     action: shell
     command: |
       set -euo pipefail
-      # Run in the same shell that launches the session.
+      # Run in the same shell that launches the session. Needs a Python with the
+      # `mcp` package (scripts/zhen-mcp.sh picks it); without one the server
+      # cannot start and this check cannot answer.
       cd "${REPO}"
-      out=$(go run ./cmd/zhen-claude -dry-run -tools mcp -mcp-mutating -mcp-cmd scripts/zhen-mcp.sh -p x 2>&1 | grep -o '"tools":\[[^]]*')
+      if ! out=$(go run ./cmd/zhen-claude -dry-run -tools mcp -mcp-mutating -mcp-cmd scripts/zhen-mcp.sh -p x 2>&1 | grep -o '"tools":\[[^]]*'); then
+        echo "the MCP server listed no tools: it did not start (no Python with the mcp package? see scripts/zhen-mcp.sh)" >&2
+        exit 1
+      fi
       # (`! grep` would not stop the step: set -e ignores a negated command)
       if grep -qE '"(file_write|file_patch|runbook_execute)"' <<<"${out}"; then
         echo "mutating MCP tools still listed: ${out}" >&2
         exit 1
       fi
+    description: Verify no mutating tool is listed. Needs the MCP server, so run in the launching shell.
+  - name: verify-mcp-json-clean
+    action: shell
+    command: |
+      set -euo pipefail
+      # Needs only git and jq; the committed .mcp.json must keep both flags off.
       git -C "${REPO}" diff --quiet -- .mcp.json
       jq -e '[.mcpServers[] | .env // {} | (.ZHEN_MCP_ALLOW_WRITE // "0", .ZHEN_MCP_ALLOW_EXEC // "0")] | all(. != "1")' "${REPO}/.mcp.json"
-    description: Verify the tools are not listed and .mcp.json is clean. Run in the launching shell.
+    description: Verify .mcp.json is unchanged and both flags are off in the committed file.
   - name: review-changes
     action: manual
     command: |
