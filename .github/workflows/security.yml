@@ -565,6 +565,11 @@ jobs:
       - name: Package maintainer scripts keep services across upgrades
         run: ./scripts/test-deb-maintscripts.sh
 
+      # M-089: the perf baseline gate itself (fixtures; the live run is
+      # west-only, scripts/ci-local.sh CI_LOCAL_PERF=1).
+      - name: Perf regression gate passes faster, fails slower
+        run: ./scripts/test-check-perf-regression.sh
+
   # ============================================================================
   # Alert rules: every Prometheus rule parses and its promtool tests pass
   # ============================================================================

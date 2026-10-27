@@ -133,6 +133,24 @@ else
     skip_step "haproxy configs" "neither docker nor haproxy installed"
 fi
 
+# 11. Perf regression (west only, needs the running stack; M-089).
+#     Opt-in: it publishes to Wotan (bench.perf.packet only) and holds
+#     1000 req/s against -health for 60 s, so a casual run never loads the
+#     stack. container-start is not run here (it creates LXD instances).
+run_step "perf regression gate (fixtures)" scripts/test-check-perf-regression.sh
+if [ "${CI_LOCAL_PERF:-0}" != "1" ]; then
+    skip_step "perf regression (live)" "set CI_LOCAL_PERF=1 on west with the stack up"
+elif [ ! -r docs/policy/perf-baseline.json ]; then
+    skip_step "perf regression (live)" "no docs/policy/perf-baseline.json yet (S-WELL-SPRING Step 225)"
+else
+    PERF_REPORT="$(mktemp --suffix=.json)"
+    run_step "perf regression (live)" bash -c '
+        go run ./cmd/perf-benchmark -scenario e2e-trace,http-load,http3 -iterations 200 -duration 60s -output "$1" &&
+        scripts/check-perf-regression.sh "$1"
+    ' _ "${PERF_REPORT}"
+    rm -f "${PERF_REPORT}"
+fi
+
 # Summary
 echo ""
 echo "========================================"
