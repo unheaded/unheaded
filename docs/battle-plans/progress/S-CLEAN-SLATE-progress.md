@@ -87,6 +87,23 @@ fixture, fixed in `801befcc`). Re-proved with `--only check-gitleaks` at `a3f2eb
 Eighteen gates exit 0 (list in `3bb9d44b`); FuzzClientIP 4.8 M execs and the two wotan-client fuzzers
 30 s each, no crasher; full `go test -count=1 ./...` at `3bb9d44b`: 221 ok, 0 FAIL (the base carried 2).
 
+### Phase 4 live (E2, E3), 2026-10-27 afternoon
+
+- Step 153/154: kingdom-startup live, warm (96 s, 7 series) and cold (monitoring stopped first: 48 s to all 7 series);
+  every compose service healthy on the rotated Well passwords. Found and fixed: Cuirass panicked with auth off (`d70badf6`).
+- Step 155: haproxy pair live once (Traefik stopped about a minute): both /stats 200, edge TLS 1.3. Found and fixed: a
+  README in the edge's `crt` directory stopped the edge; gate now mirrors the directory (`1266b254`).
+- Steps 164-166: FND-023 re-run, availability 0.9961, MTTR 11.2 s; window closed clean (`77c2ca5c`).
+- Steps 170-174: debs `0.1.0~alpha+20261027172659.g77c2ca5c` (explicit version: the build refuses untracked files, and
+  the only untracked items are the host-agent binaries, no Go source). East: nine packages upgraded, wotan.yaml replaced
+  (it was unmodified), services restarted, all /health 200, unit states identical to the baseline; chaos-controller
+  reinstalled from a git-archive bundle with a binary built on west (sha256 874bb550...), dry-run, probe_subnets, polkit
+  re-rendered; east Wotan now approves chaos-controller (it had retried chaos.abort 2150 times). Rollback: the 10-21
+  debs are in `dist/debs/`. West: its only deb, `unheaded-wotan 1.0.0`, is a leftover (unit file gone; compose runs
+  Wotan), not upgraded; purge candidate.
+- Pre-existing on east, not caused here: `unheaded-well-offsite-check.service` failed (the Well was down overnight, so
+  the newest offsite set is stale; the 03:xx copy will refresh it).
+
 ### Open escalations (live halves)
 
 | E | State | Blocks |
