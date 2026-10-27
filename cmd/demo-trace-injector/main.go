@@ -108,6 +108,12 @@ var latOps = []struct {
 func newTID() traceID { return traceID{High: rand.Uint64(), Low: rand.Uint64()} } // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 
 func main() {
+	// An operator's demo tool, so it presents the operator's CLI identity
+	// (ADR-103 §6): unheaded-cli, already on Wotan's AUTH_ALLOW_CALLERS and
+	// auto_approve. Key: AUTH_KEY_FILE (e.g. ~/.config/unheaded/cli.key),
+	// else /etc/unheaded/keys/unheaded-cli.key; none: one warning and a
+	// Wotan with auth on refuses the publishes.
+	wotan.InitServiceIdentity("unheaded-cli")
 	c, err := wotan.NewClientWithGRPC("localhost:18000", "localhost:18001")
 	if err != nil {
 		log.Fatalf("wotan client: %v", err)
