@@ -192,6 +192,11 @@ Every [ESCALATE] still open:
    run against the live Well.
 2. **First real unattended night** (Step 254): when, the cap, the env file.
 3. **Runbook approvals** (Step 337): the 11 drafts are `status: draft`.
+   The authorship policy ("Claude authors, Zhen executes, Stevie approves;
+   a local model authors only once it clears the eval bar") is written in
+   ADR-024 "Authorship and approval" (2026-10-27) and enforced by
+   `scripts/check-runbooks.py`; the approvals themselves are E1 of
+   S-CHAMPION-HARDENING.
 4. **Anthropic's written answer on Claude text as training targets**
    (Step 340). The flag stays OFF.
 5. **The LoRA window** (Step 400), once there are enough examples.

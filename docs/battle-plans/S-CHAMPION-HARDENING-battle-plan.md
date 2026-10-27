@@ -578,34 +578,34 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 1 h + Stevie
 **Agent**: Coordinator
 
-- [ ] **Step 125** [R] ~3m: The eleven and their fields
+- [x] **Step 125** [R] ~3m: The eleven and their fields
   ```bash
   cd /home/govan/tmp/unheaded && for f in $(grep -rlE '^\s+status: draft' runbooks --include=*.yaml | sort); do printf "%-62s %s\n" "$f" "$(grep -oE '^\s+(authored_by|approved_by):.*' $f | tr -d ' ' | tr '\n' ' ')"; done
   ```
-- [ ] **Step 126** [R] ~3m: Eval verdict for local authorship (the bar is locked; read only)
+- [x] **Step 126** [R] ~3m: Eval verdict for local authorship (the bar is locked; read only)
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'rb-author|\*\*all\*\*' eval/champion-runbooks/RESULTS-2026-10-26.md | head -8 && sed -n '/## Verdict/,/^## /p' eval/champion-runbooks/RESULTS-2026-10-26.md | head -12
   ```
-- [ ] **Step 127** [DECIDE][DESIGN] ~5m: Authorship policy
+- [x] **Step 127** [DECIDE][DESIGN] ~5m: Authorship policy
   - RECOMMENDATION: "Claude (via `zhen-claude`/Claude Code) authors runbooks; Zhen (local model through the Champion) executes approved runbooks and may propose edits as `status: draft`; a local model may author only after it clears the PREREG bar on `rb-author` (0.80) AND overall (0.85) in `eval/champion-runbooks`; Stevie approves every runbook (`approved_by: stevie`, `approved_at: <date>`)." Rationale: RESULTS-2026-10-26 shows local models at 0.36-0.73 on `rb-author`; Claude at 1.00. Override ONLY if Stevie wants a second approver (none exists: solo project, memory project_solo_passion_project).
-- [ ] **Step 128** [W] ~6m: Record it: new section "Authorship and approval" in `docs/adr/ADR-024-zhen-runbook-automation.md` (status line unchanged, add "Amended 2026-10-xx: authorship policy") and a one-line pointer under ADR-106 Q3. State the re-run trigger verbatim.
-- [ ] **Step 129** [CODE][W] ~6m: `scripts/check-runbooks.py`: when `metadata.status == approved`, require `approved_by` non-empty and `approved_at` ISO date, and `authored_by ∈ {claude, stevie, zhen-local}`; `zhen-local` is allowed only if `eval/champion-runbooks/RESULTS-*.md` contains a row `local/... | **all** | ... | 0.85 |` without ✗ (parse the latest file). Add `tests/runbooks/test_check_runbooks.py` cases for each rule.
-- [ ] **Step 130** [TEST][B] ~3m
+- [x] **Step 128** [W] ~6m: Record it: new section "Authorship and approval" in `docs/adr/ADR-024-zhen-runbook-automation.md` (status line unchanged, add "Amended 2026-10-xx: authorship policy") and a one-line pointer under ADR-106 Q3. State the re-run trigger verbatim.
+- [x] **Step 129** [CODE][W] ~6m: `scripts/check-runbooks.py`: when `metadata.status == approved`, require `approved_by` non-empty and `approved_at` ISO date, and `authored_by ∈ {claude, stevie, zhen-local}`; `zhen-local` is allowed only if `eval/champion-runbooks/RESULTS-*.md` contains a row `local/... | **all** | ... | 0.85 |` without ✗ (parse the latest file). Add `tests/runbooks/test_check_runbooks.py` cases for each rule.
+- [x] **Step 130** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && ~/.venv/zhen/bin/python3 -m pytest tests/runbooks/test_check_runbooks.py -q 2>&1 | tail -2 && scripts/check-runbooks.sh 2>&1 | tail -2
   ```
-- [ ] **Step 131** [V] ~1m: PASS; still 0 new findings on the current tree (drafts have no `approved_at`, which is allowed for drafts).
-- [ ] **Step 132** [W] ~5m: Approval packet for Stevie: `docs/battle-plans/progress/S-CHAMPION-HARDENING-approvals.md` listing each of the 11 with: path, description, risk, requires_sudo, the test file in `tests/runbooks/` that covers it, last dry-run result (`scripts/run-runbook.py --dry-run <file> | tail -1`).
-- [ ] **Step 133** [B] ~5m
+- [x] **Step 131** [V] ~1m: PASS; still 0 new findings on the current tree (drafts have no `approved_at`, which is allowed for drafts).
+- [x] **Step 132** [W] ~5m: Approval packet for Stevie: `docs/battle-plans/progress/S-CHAMPION-HARDENING-approvals.md` listing each of the 11 with: path, description, risk, requires_sudo, the test file in `tests/runbooks/` that covers it, last dry-run result (`scripts/run-runbook.py --dry-run <file> | tail -1`).
+- [x] **Step 133** [B] ~5m
   ```bash
   cd /home/govan/tmp/unheaded && for f in $(grep -rlE '^\s+status: draft' runbooks --include=*.yaml | sort); do echo "== $f"; ~/.venv/zhen/bin/python3 scripts/run-runbook.py --dry-run $f 2>&1 | tail -1; done
   ```
-- [ ] **Step 134** [V] ~1m: Every dry-run ends without a Python traceback (a runbook that fails dry-run is NOT in the approval packet; it gets a card instead).
-- [ ] **Step 135** [ESCALATE] ~2m: **E1: approve the runbooks and the policy**
+- [x] **Step 134** [V] ~1m: Every dry-run ends without a Python traceback (a runbook that fails dry-run is NOT in the approval packet; it gets a card instead).
+- [x] **Step 135** [ESCALATE] (filed 2026-10-27: `docs/battle-plans/progress/S-CHAMPION-HARDENING-approvals.md`; awaiting Stevie) ~2m: **E1: approve the runbooks and the policy**
   - Context: Step 132 packet; Step 127 policy text.
   - Questions: (1) Is the authorship policy wording acceptable as written in ADR-024? (2) Which of the 11 do you approve now (`approved_by: stevie`)? Any to keep draft, and why?
   - Why no recommendation on (2): approval is the operator's signature on runbooks that execute with `requires_sudo` on west/east.
-- [ ] **Step 136** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 125-135: authorship policy in ADR-024, check-runbooks enforces it, E1 packet` (policy + checker + packet; runbooks untouched)
+- [x] **Step 136** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 125-135: authorship policy in ADR-024, check-runbooks enforces it, E1 packet` (policy + checker + packet; runbooks untouched)
 - [ ] **Step 137** [AFTER-E1][W] ~5m: For each approved runbook set `status: approved`, `approved_by: stevie`, `approved_at: <answer date>`; regenerate the manifest.
   ```bash
   cd /home/govan/tmp/unheaded && scripts/runbook-manifest.sh --write && scripts/check-runbooks.sh 2>&1 | tail -2

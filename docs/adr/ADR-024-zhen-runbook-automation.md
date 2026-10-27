@@ -1,6 +1,7 @@
 # ADR-024: Zhen Runbook Automation — Champion-Executable Infrastructure Playbooks
 
 **Status:** Accepted — Phase 1 complete (2026-04-03). 50 runbooks across 7 categories.
+**Amended:** 2026-10-27, authorship and approval policy (below; wording awaits Stevie, E1 of S-CHAMPION-HARDENING).
 **Date:** 2026-04-02
 **Deciders:** Architect, Developer, Captain, Micromanager
 **Depends on:** ADR-019 (Zhen Champion Agent), ADR-018 (RAFT training)
@@ -178,6 +179,37 @@ Claude, read and fixed by hand, and given dry-run tests
 them (ADR-106, open question 3). Corpus: 79 runbooks in 9 categories (data
 9, deploy 7, doom 4, infra 17, network 9, observe 10, pki 4, security 14,
 wotan 5).
+
+## Authorship and approval
+
+Amended 2026-10-27 (S-CHAMPION-HARDENING Phase 6, M-120, ADR-106 Q3). The
+wording is proposed and awaits Stevie's acceptance (E1); the checker below
+already enforces it.
+
+- **Claude authors runbooks** (through `zhen-claude` or Claude Code),
+  `authored_by: claude`. Stevie may author too (`authored_by: human`).
+- **Zhen executes approved runbooks** through the Champion
+  (`runbook_execute`), and may propose a new runbook or an edit only as
+  `status: draft`, `authored_by: zhen-local`.
+- **A local model may author for approval** only after it clears the
+  pre-registered bar in `eval/champion-runbooks/PREREG.md`: `rb-author`
+  at 0.80 **and** overall at 0.85. The 2026-10-26 hold-out has
+  qwen-7b at 0.73 / 0.796 and qwen-coder-14b at 0.36 / 0.796, so not yet;
+  Claude scored 1.00 / 0.907.
+- **Stevie approves every runbook**: `status: approved`,
+  `approved_by: stevie`, `approved_at: YYYY-MM-DD`. There is no second
+  approver; this is a solo project.
+- **Re-run trigger**: re-run `cmd/zhen-eval` on `eval/champion-runbooks`
+  whenever the local model, its LoRA, or the system prompt changes. When the
+  newest `RESULTS-<date>.md` shows a local model's `**all**` row at the bar
+  with no ✗, `zhen-local` may be approved.
+
+`scripts/check-runbooks.py` enforces the mechanical half: an approved
+runbook needs `approved_by` and an ISO `approved_at`, and an approved
+`zhen-local` runbook fails unless the newest results file shows a local
+model at the bar. A live `runbook_execute` additionally needs the runbook's
+sha256 in `runbooks/MANIFEST.sha256` (regenerate with
+`scripts/runbook-manifest.sh --write` after any runbook edit).
 
 ## Consequences
 

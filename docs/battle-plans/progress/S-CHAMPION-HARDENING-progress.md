@@ -59,3 +59,13 @@ Behaviour changes to know:
 
 Steps 90-92 / 109-110 (coding gate): run by the coordinator as a pair of 5-seed sweeps, baseline `1c87b996` vs
 merged tree, same seeds, qwen-7b via `switch-model.sh` (pin ok, fit ok).
+
+### Phase 6 (coordinator): Steps 125-136 done; E1 filed
+
+Policy written in ADR-024 "Authorship and approval" (pointer under ADR-106 Q3). `check-runbooks.py` gained
+`approved-at` (ISO date required when approved) and a bar rule: an approved `zhen-local` runbook fails unless the
+newest `eval/champion-runbooks/RESULTS-<date>.md` shows a local `**all**` row without ✗ (today: none clear it).
+Deviation: the plan's author set `{claude, stevie, zhen-local}` kept the checker's existing `human` for Stevie
+rather than renaming a value the corpus already uses. 39 checker tests pass; corpus 0 new findings. All eleven drafts
+dry-run `[SUCCESS]`. E1 packet: `S-CHAMPION-HARDENING-approvals.md` (also lists the eight legacy runbooks Phase 4
+blocks from live execution). Steps 137-141 wait on E1; Phase 7 does not.

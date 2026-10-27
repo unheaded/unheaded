@@ -27,6 +27,11 @@ A runbook with metadata.status (the S-TWO-BRAINS ones) also:
   authored-by      zhen-local | claude | human
   reviewed-by      present
   approved-by      present; "" while draft, a name once approved
+  approved-at      status approved needs approved_at, an ISO date (YYYY-MM-DD)
+  authored-by (bar) an approved runbook authored by zhen-local needs the
+                   latest eval/champion-runbooks/RESULTS-*.md to show a local
+                   model's **all** row at the bar (no \u2717); a zhen-local
+                   draft is always allowed (ADR-024 "Authorship and approval")
   dry-run-test     a path, relative to the repo root, that exists
   set-euo          a multi-line shell command or verify starts (after
                    comments) with `set -euo pipefail`
@@ -65,6 +70,29 @@ ACTIONS = ("shell", "manual")
 HOSTS = ("west", "east")
 STATUSES = ("draft", "approved")
 AUTHORS = ("zhen-local", "claude", "human")
+ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+RESULTS_DIR = os.path.join("eval", "champion-runbooks")
+RESULTS_FILE = re.compile(r"RESULTS-\d{4}-\d{2}-\d{2}\.md")
+ALL_ROW = re.compile(r"^\|\s*local/[^|]+\|\s*\*\*all\*\*\s*\|")
+
+
+def local_model_clears_bar(root):
+    """True when the newest RESULTS-<date>.md has a local model's **all**
+    row whose bar cell carries no \u2717 (PREREG bar, 0.85 overall)."""
+    d = os.path.join(root, RESULTS_DIR)
+    try:
+        names = sorted(n for n in os.listdir(d) if RESULTS_FILE.fullmatch(n))
+    except OSError:
+        return False
+    if not names:
+        return False
+    with open(os.path.join(d, names[-1]), encoding="utf-8") as f:
+        for line in f:
+            if ALL_ROW.match(line):
+                cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                if len(cells) >= 6 and "\u2717" not in cells[5]:
+                    return True
+    return False
 
 # Shell text that cannot be taken back. In a runbook with a status, a step
 # that does this must be manual: the operator runs it, the runner never does.
@@ -206,6 +234,14 @@ def check_strict_meta(meta, root, add):
         add("approved-by", "metadata.approved_by", "must be \"\" while status is draft")
     elif status == "approved" and not meta["approved_by"].strip():
         add("approved-by", "metadata.approved_by", "status approved needs an approver")
+    if status == "approved":
+        at = meta.get("approved_at")
+        if not isinstance(at, str) or not ISO_DATE.fullmatch(at):
+            add("approved-at", "metadata.approved_at", f"{at!r} is not an ISO date (YYYY-MM-DD)")
+        if meta.get("authored_by") == "zhen-local" and not local_model_clears_bar(root):
+            add("authored-by", "metadata.authored_by",
+                "zhen-local may only draft until a local model clears the eval bar "
+                "(latest eval/champion-runbooks/RESULTS-*.md, **all** row without \u2717)")
     t = meta.get("dry_run_test")
     if not isinstance(t, str) or not t:
         add("dry-run-test", "metadata.dry_run_test", "missing")

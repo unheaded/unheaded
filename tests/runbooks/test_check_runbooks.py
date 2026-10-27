@@ -176,10 +176,65 @@ def test_approved_needs_approver(tmp_path):
     make_draft(tmp_path, text=GOOD_DRAFT.replace("status: draft", "status: approved"))
     code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
     assert code == 1 and "approved-by" in rules(out), out
-    make_draft(tmp_path, text=GOOD_DRAFT.replace("status: draft", "status: approved")
-               .replace('approved_by: ""', "approved_by: stevie"))
+    make_draft(tmp_path, text=APPROVED)
     code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
     assert code == 0, out
+
+
+APPROVED = (GOOD_DRAFT.replace("status: draft", "status: approved")
+            .replace("authored_by: zhen-local", "authored_by: claude")
+            .replace('approved_by: ""', "approved_by: stevie\n  approved_at: \"2026-10-27\""))
+
+
+def test_approved_needs_iso_approved_at(tmp_path):
+    make_draft(tmp_path, text=APPROVED.replace('  approved_at: "2026-10-27"\n', ""))
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 1 and "approved-at" in rules(out), out
+    make_draft(tmp_path, text=APPROVED.replace('"2026-10-27"', '"last tuesday"'))
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 1 and "approved-at" in rules(out), out
+    make_draft(tmp_path, text=APPROVED)
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 0, out
+
+
+def test_draft_needs_no_approved_at(tmp_path):
+    make_draft(tmp_path)
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 0, out
+
+
+RESULT_ROW = "| local/qwen-7b | **all** | 54 | 43 | {rate} | 0.85{mark} | 0 | |\n"
+
+
+def results(root, name, rate, passed):
+    write(root, f"eval/champion-runbooks/{name}",
+          "| config | family | n | pass | rate | bar | refused | failing tasks |\n|---|---|---|---|---|---|---|---|\n"
+          + RESULT_ROW.format(rate=rate, mark="" if passed else " \u2717"))
+
+
+def test_zhen_local_may_draft_but_not_be_approved_below_the_bar(tmp_path):
+    local = "authored_by: zhen-local"
+    make_draft(tmp_path, text=GOOD_DRAFT)  # GOOD_DRAFT is zhen-local
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 0, out  # Zhen may propose a draft
+    make_draft(tmp_path, text=APPROVED.replace("authored_by: claude", local))
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 1 and "authored-by" in rules(out), out  # no results at all
+    results(tmp_path, "RESULTS-2026-10-26.md", "0.796", passed=False)
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 1 and "authored-by" in rules(out), out
+
+
+def test_zhen_local_approved_once_latest_results_clear_the_bar(tmp_path):
+    make_draft(tmp_path, text=APPROVED.replace("authored_by: claude", "authored_by: zhen-local"))
+    results(tmp_path, "RESULTS-2026-10-26.md", "0.796", passed=False)
+    results(tmp_path, "RESULTS-2026-11-30.md", "0.870", passed=True)
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 0, out
+    results(tmp_path, "RESULTS-2026-12-31.md", "0.800", passed=False)  # latest file rules
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 1 and "authored-by" in rules(out), out
 
 
 def test_single_line_shell_needs_no_set_euo(tmp_path):
