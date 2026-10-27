@@ -147,3 +147,20 @@ slos:
     checks: >-
       systemctl status unheaded-kev-poller on each host; curl :19120/health;
       CISA's feed itself may be down.
+
+  # ADR-100 Phase 4: the clippy job was red on develop for nine days in
+  # September and nobody was told (docs/incidents/2026-09-21-ci-clippy-red-on-develop.md).
+  # unheaded-ci-status.timer on west writes the SLI from the public Actions
+  # API every 10 minutes; data over 2 h old counts as red.
+  - name: ci-develop
+    service: github-actions
+    description: Every workflow's latest finished run on develop is green
+    objective: 99.0
+    page: false
+    good: >-
+      min(unheaded_ci_run_success)
+      * (time() - max(unheaded_ci_run_checked_timestamp_seconds) < bool 7200)
+    checks: >-
+      unheaded_ci_run_success == 0 names the workflow; the Actions API lists
+      its failing run and step; reproduce the job in a clean clone.
+    runbook: runbooks/observe/ci-red.yaml

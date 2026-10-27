@@ -35,6 +35,19 @@ Every alert carries `urgency`:
 | overlay | west scrapes east's node_exporter over wg0 | 99% | ticket |
 | log-shipping | Vector delivered journal lines to ClickHouse in the last 30 min | 99% | ticket |
 | kev-feed | the CISA KEV catalog is under 6 h old on a host | 99% | ticket |
+| ci-develop | every GitHub Actions workflow's latest finished run on develop is green, data under 2 h old | 99% | ticket |
+
+`ci-develop`'s SLI comes from `unheaded-ci-status.timer` on west
+(`scripts/monitoring/ci-status-textfile.sh`, public Actions API every 10
+minutes, no token) through huginn's textfile directory; a cancelled run does
+not count, a stale reader counts as red. Runbook `runbooks/observe/ci-red.yaml`
+(an SLO may name its own runbook in the policy; the rest share
+`slo-error-budget-burn.yaml`).
+
+The Grafana dashboard **SLO Error Budget** (`monitoring/grafana/dashboards/08_slo_error_budget.json`)
+shows each SLO's budget left (red when spent, amber under a quarter), the
+burn rate over 1 h, 6 h and 3 d against the tier thresholds, and what is
+burning now.
 
 The burn-rate tiers come from the Google SRE Workbook, ch. 5. A tier fires when both its windows burn faster than its rate:
 

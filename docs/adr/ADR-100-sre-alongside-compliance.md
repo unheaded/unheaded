@@ -190,6 +190,19 @@ then; that is the recorded gap.
 Live after the E-D host window: token on both hosts, `HEARTBEAT_HOSTS=east`
 and `HEARTBEAT_LISTEN=192.168.13.2` in `monitoring/.env`, the east timer.
 
+## CI SLO and error-budget panel, 2026-10-27 (S-WELL-SPRING Step 179)
+
+| Piece | Where |
+|---|---|
+| `ci-develop` SLO (99 %, tickets): every workflow's latest finished run on develop green, data under 2 h old | `observability/alerting/policy.yaml`; tests in `tests/slo_test.yml` |
+| SLI writer: public Actions API every 10 min into huginn's textfile dir, as `unheaded-ci-status` (uid 16712) | `scripts/monitoring/ci-status-textfile.sh`, `deploy/systemd/unheaded-ci-status.{service,timer}` |
+| Per-SLO runbook (`runbook:` in the policy) | `cmd/alert-policy`; `runbooks/observe/ci-red.yaml` |
+| Error-budget dashboard (Phase 5's panel, in Grafana rather than the dashboard UI) | `monitoring/grafana/dashboards/08_slo_error_budget.json` |
+
+Live after the timer is installed on west (E-D window), before Prometheus
+loads the new rules: until the first file lands the SLI has no data, which
+counts as bad.
+
 ## Consequences
 
 - Operations and compliance stop being two backlogs. An SLO, an alert, a runbook and a postmortem are each an operational tool *and* a piece of audit evidence, mapped once in the crosswalk.

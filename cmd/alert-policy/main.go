@@ -33,7 +33,8 @@ const (
 	rulesDir   = "monitoring/prometheus/rules"
 	sloRules   = "monitoring/prometheus/rules/slo.yml"
 	amConfig   = "monitoring/alertmanager/alertmanager.yml"
-	runbookURL = "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml"
+	repoBlob   = "https://github.com/unheaded/unheaded/blob/develop/"
+	runbookURL = repoBlob + "runbooks/observe/slo-error-budget-burn.yaml"
 )
 
 // Policy is observability/alerting/policy.yaml.
@@ -70,6 +71,9 @@ type SLO struct {
 	Page        bool    `yaml:"page"`
 	Good        string  `yaml:"good"`
 	Checks      string  `yaml:"checks"`
+	// Runbook is optional: a runbooks/<area>/<name>.yaml for this SLO's burn
+	// alerts. Without it they link the shared slo-error-budget-burn runbook.
+	Runbook string `yaml:"runbook,omitempty"`
 }
 
 // tier is one multi-window burn-rate alert (SRE Workbook table 5-8).
@@ -93,6 +97,7 @@ var (
 	nameRE     = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
 	durationRE = regexp.MustCompile(`^[0-9]+[smhdw]$`)
 	clockRE    = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
+	runbookRE  = regexp.MustCompile(`^runbooks/[a-z]+/[a-z0-9][a-z0-9-]*\.yaml$`)
 )
 
 func loadPolicy(path string) (*Policy, error) {
@@ -149,6 +154,9 @@ func (p *Policy) validate() []error {
 		// Below 14.4x(1-objective) >= 1 the fast tier could never fire.
 		if s.Objective < 95 || s.Objective >= 100 {
 			bad("%s: objective %v: want 95 <= objective < 100", where, s.Objective)
+		}
+		if s.Runbook != "" && !runbookRE.MatchString(s.Runbook) {
+			bad("%s: runbook %q: want runbooks/<area>/<name>.yaml", where, s.Runbook)
 		}
 		for _, t := range []string{s.Description, s.Checks, s.Service} {
 			if strings.Contains(t, "{{") || strings.Contains(t, "}}") {
@@ -211,6 +219,10 @@ func renderRules(p *Policy) ([]byte, error) {
 			Expr:   fmt.Sprintf(`1 - (1 - avg_over_time(slo:good{slo=%q}[%s])) / %s`, s.Name, p.Window, num(budget(s))),
 			Labels: ids,
 		})
+		book := runbookURL
+		if s.Runbook != "" {
+			book = repoBlob + s.Runbook
+		}
 		for _, t := range tiers {
 			urgency := "ticket"
 			if t.pages && s.Page {
@@ -230,7 +242,7 @@ func renderRules(p *Policy) ([]byte, error) {
 					"description": fmt.Sprintf(`Burning the error budget (%s%% over %s) {{ $value | printf "%%.1f" }}x as fast as it allows, over the last %s; `+
 						`{{ with query "100 * slo:error_budget_remaining{slo=\"%s\"}" }}{{ . | first | value | printf "%%.0f" }}%%{{ else }}an unknown share{{ end }} of it left. Check: %s`,
 						num(s.Objective), p.Window, t.long, s.Name, oneLine(s.Checks)),
-					"runbook_url": runbookURL,
+					"runbook_url": book,
 				},
 			})
 		}

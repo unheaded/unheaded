@@ -29,6 +29,10 @@ tests:
         values: '0+10x4500'
       - series: 'unheaded_kev_last_success_timestamp_seconds'
         values: '0+60x4500'
+      - series: 'unheaded_ci_run_success{workflow="Static Analysis"}'
+        values: '1x4500'
+      - series: 'unheaded_ci_run_checked_timestamp_seconds'
+        values: '0+60x4500'
     alert_rule_test:
       - eval_time: 4400m
         alertname: ErrorBudgetBurn
@@ -56,6 +60,10 @@ tests:
       - series: 'vector_component_sent_events_total{job="vector",component_id="clickhouse"}'
         values: '0+10x4500'
       - series: 'unheaded_kev_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_ci_run_success{workflow="Static Analysis"}'
+        values: '1x4500'
+      - series: 'unheaded_ci_run_checked_timestamp_seconds'
         values: '0+60x4500'
     alert_rule_test:
       # 3 minutes in: a blip. No alert.
@@ -111,6 +119,10 @@ tests:
         values: '0+10x4500'
       - series: 'unheaded_kev_last_success_timestamp_seconds'
         values: '0+60x4500'
+      - series: 'unheaded_ci_run_success{workflow="Static Analysis"}'
+        values: '1x4500'
+      - series: 'unheaded_ci_run_checked_timestamp_seconds'
+        values: '0+60x4500'
     alert_rule_test:
       - eval_time: 4420m
         alertname: ErrorBudgetBurn
@@ -130,3 +142,87 @@ tests:
               summary: "SLO well: The Well accepts connections for every database"
               description: "Burning the error budget (99.5% over 28d) 8.9x as fast as it allows, over the last 6h; 28% of it left. Check: huginn_pg_up by db; docker ps -a | grep postgres; docker logs unheaded-postgres | tail. Kanban and compliance fall back while it is down."
               runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml"
+
+  # ci-develop (page: false): a workflow red on develop for 2 hours after
+  # three green days sends tickets, never a page; data that stops arriving
+  # (the reader died) is red too.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="wotan",instance="west"}'
+        values: '1x4500'
+      - series: 'up{job="dashboard-backend",instance="west"}'
+        values: '1x4500'
+      - series: 'huginn_pg_up{db="unheaded_app"}'
+        values: '1x4500'
+      - series: 'unheaded_well_backup_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_well_offsite_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_well_drill_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'up{job="node_exporter",instance="[fd00:dead:beef::2]:9100"}'
+        values: '1x4500'
+      - series: 'vector_component_sent_events_total{job="vector",component_id="clickhouse"}'
+        values: '0+10x4500'
+      - series: 'unheaded_kev_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_ci_run_success{workflow="Static Analysis"}'
+        values: '1x4320 0x180'
+      - series: 'unheaded_ci_run_success{workflow="Security Scan"}'
+        values: '1x4500'
+      - series: 'unheaded_ci_run_checked_timestamp_seconds'
+        values: '0+60x4500'
+    promql_expr_test:
+      - expr: slo:good{slo="ci-develop"}
+        eval_time: 4300m
+        exp_samples:
+          - labels: 'slo:good{slo="ci-develop",service="github-actions"}'
+            value: 1
+      - expr: slo:good{slo="ci-develop"}
+        eval_time: 4330m
+        exp_samples:
+          - labels: 'slo:good{slo="ci-develop",service="github-actions"}'
+            value: 0
+    alert_rule_test:
+      - eval_time: 4440m
+        alertname: ErrorBudgetBurn
+        exp_alerts:
+          - exp_labels: {slo: ci-develop, service: github-actions, tier: fast, urgency: ticket}
+            exp_annotations:
+              summary: "SLO ci-develop: Every workflow's latest finished run on develop is green"
+              description: "Burning the error budget (99% over 28d) 100.0x as fast as it allows, over the last 1h; -170% of it left. Check: unheaded_ci_run_success == 0 names the workflow; the Actions API lists its failing run and step; reproduce the job in a clean clone."
+              runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml"
+          - exp_labels: {slo: ci-develop, service: github-actions, tier: medium, urgency: ticket}
+            exp_annotations:
+              summary: "SLO ci-develop: Every workflow's latest finished run on develop is green"
+              description: "Burning the error budget (99% over 28d) 33.3x as fast as it allows, over the last 6h; -170% of it left. Check: unheaded_ci_run_success == 0 names the workflow; the Actions API lists its failing run and step; reproduce the job in a clean clone."
+              runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml"
+          - exp_labels: {slo: ci-develop, service: github-actions, tier: slow, urgency: ticket}
+            exp_annotations:
+              summary: "SLO ci-develop: Every workflow's latest finished run on develop is green"
+              description: "Burning the error budget (99% over 28d) 8.3x as fast as it allows, over the last 1d; -170% of it left. Check: unheaded_ci_run_success == 0 names the workflow; the Actions API lists its failing run and step; reproduce the job in a clean clone."
+              runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml"
+          - exp_labels: {slo: ci-develop, service: github-actions, tier: steady, urgency: ticket}
+            exp_annotations:
+              summary: "SLO ci-develop: Every workflow's latest finished run on develop is green"
+              description: "Burning the error budget (99% over 28d) 2.8x as fast as it allows, over the last 3d; -170% of it left. Check: unheaded_ci_run_success == 0 names the workflow; the Actions API lists its failing run and step; reproduce the job in a clean clone."
+              runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml"
+
+  # The reader stops at 3d (timestamp frozen): 2 h later the data is stale and bad.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_ci_run_success{workflow="Static Analysis"}'
+        values: '1x4500'
+      - series: 'unheaded_ci_run_checked_timestamp_seconds'
+        values: '0+60x4320 259200x180'
+    promql_expr_test:
+      - expr: slo:good{slo="ci-develop"}
+        eval_time: 4400m
+        exp_samples:
+          - labels: 'slo:good{slo="ci-develop",service="github-actions"}'
+            value: 1
+      - expr: slo:good{slo="ci-develop"}
+        eval_time: 4445m
+        exp_samples:
+          - labels: 'slo:good{slo="ci-develop",service="github-actions"}'
+            value: 0

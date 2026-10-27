@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // The repo's generated files match its policy, and every hand-written rule
@@ -95,6 +97,7 @@ func TestRefusals(t *testing.T) {
 		{"promotion of an alert that does not exist", addPromotion(t, "  - alert: Nope\n    urgency: ticket\n    reason: test"), "", "Nope is not an alert"},
 		{"promotion without a reason", addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: \"\""), "", "a reason is required"},
 		{"unknown policy key", replace("window: 28d", "window: 28d\nwindw: 7d"), "", "field windw not found"},
+		{"slo runbook outside runbooks/", replace("  - name: dashboard\n", "  - name: dashboard\n    runbook: ../etc/passwd\n"), "", "runbook \"../etc/passwd\": want runbooks/<area>/<name>.yaml"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -174,6 +177,41 @@ func TestMaintenanceTailsCoverShortWindows(t *testing.T) {
 	}
 	if got := tail("TICKET_TAIL_MIN"); got < ticket {
 		t.Errorf("TICKET_TAIL_MIN = %v, the short windows reach %v", got, ticket)
+	}
+}
+
+// An SLO with its own runbook: its burn alerts link to it; the others keep
+// the shared slo-error-budget-burn runbook.
+func TestSLORunbookOverride(t *testing.T) {
+	p, err := loadPolicy(filepath.Join("..", "..", policyPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.SLOs[0].Runbook = "runbooks/observe/ci-red.yaml"
+	out, err := renderRules(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rf ruleFile
+	if err := yaml.Unmarshal(out, &rf); err != nil {
+		t.Fatal(err)
+	}
+	own, shared := 0, 0
+	for _, r := range rf.Groups[0].Rules {
+		if r.Alert == "" {
+			continue
+		}
+		switch u := r.Annotations["runbook_url"]; {
+		case r.Labels["slo"] == p.SLOs[0].Name && u == "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml":
+			own++
+		case r.Labels["slo"] != p.SLOs[0].Name && (u == runbookURL || strings.HasPrefix(u, repoBlob+"runbooks/")):
+			shared++
+		default:
+			t.Fatalf("%s %s: runbook_url %q", r.Alert, r.Labels["slo"], u)
+		}
+	}
+	if own != len(tiers) || shared == 0 {
+		t.Fatalf("own %d (want %d), shared %d", own, len(tiers), shared)
 	}
 }
 
