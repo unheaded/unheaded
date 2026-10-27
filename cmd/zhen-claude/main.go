@@ -299,7 +299,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	aud := setupAudit(ctx, o, log, "zhen-claude")
 	defer aud.close()
 	if o.family != "" && !o.dryRun {
-		return runRouted(ctx, o, prompt, stdout, stderr, log, aud)
+		return runRouted(ctx, o, prompt, stdout, stderr, log, capw, aud)
 	}
 	if o.route == routeAuto && !o.dryRun {
 		return runAuto(ctx, o, prompt, stdout, stderr, log, capw, tools, aud)

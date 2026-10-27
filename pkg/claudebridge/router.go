@@ -196,6 +196,11 @@ type RouteOutcome struct {
 	// CheckOutput is the last check's output, unredacted (for the
 	// operator's review note on this host; never put into a prompt).
 	CheckOutput string `json:"-"`
+	// LocalText and LocalModel are the last local draft, accepted or not,
+	// and the model that wrote it: what zhen-claude captures for a routed
+	// turn that stays local (S-CLEAN-SLATE M-042). Never Claude's text.
+	LocalText  string `json:"-"`
+	LocalModel string `json:"-"`
 }
 
 const maxCheckOutputInPrompt = 4 << 10
@@ -276,6 +281,7 @@ func (r *ThresholdRouter) Run(ctx context.Context, family, task string) (out Rou
 			continue
 		}
 		lastDraft = ans.Text
+		out.LocalText, out.LocalModel = ans.Text, ans.Model
 		if r.Check == nil {
 			out.Text = ans.Text
 			return out, nil

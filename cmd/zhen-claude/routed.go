@@ -16,6 +16,7 @@ import (
 
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/sandbox"
+	"unheaded/pkg/zhencapture"
 	"unheaded/pkg/zhenroute"
 )
 
@@ -63,8 +64,9 @@ func defaultAgentRoot() string {
 }
 
 // runRouted is -route auto|local with -family: one task through
-// pkg/zhenroute, in process.
-func runRouted(ctx context.Context, o *options, prompt string, stdout, stderr io.Writer, log *slog.Logger, aud *auditSetup) int {
+// pkg/zhenroute, in process. With -capture, a turn that stays on the local
+// model is written as a zhen-capture record (captureRoutedLocal).
+func runRouted(ctx context.Context, o *options, prompt string, stdout, stderr io.Writer, log *slog.Logger, capw *zhencapture.Writer, aud *auditSetup) int {
 	cfg, err := claudebridge.LoadRoutingConfig(o.routing)
 	if err != nil {
 		log.Error("routing", "error", err.Error())
@@ -99,6 +101,7 @@ func runRouted(ctx context.Context, o *options, prompt string, stdout, stderr io
 	if err != nil {
 		log.Error("route", "error", err.Error())
 	}
+	captureRoutedLocal(capw, o, root, prompt, out, time.Since(t0), log)
 	line := map[string]any{
 		"family": out.Family, "route": out.Route, "route_reason": out.RouteReason, "local_attempts": out.LocalAttempts,
 		"escalated": out.Escalated, "check": out.Check, "cost_usd": out.CostUSD, "stop": out.Stop,
@@ -115,4 +118,50 @@ func runRouted(ctx context.Context, o *options, prompt string, stdout, stderr io
 		return 1
 	}
 	return 0
+}
+
+// captureRoutedLocal writes one redacted capture record for a routed turn
+// that resolved on the local model (-route local, or -route auto whose local
+// draft was accepted or stopped short of escalating), so the Phase 12 data
+// trigger counts routed turns too (S-CLEAN-SLATE M-042). An escalated turn
+// is not captured here: its Claude leg runs inside pkg/zhenroute and its
+// text never enters a record from this path.
+func captureRoutedLocal(capw *zhencapture.Writer, o *options, root, prompt string, out claudebridge.RouteOutcome, d time.Duration, log *slog.Logger) {
+	if capw == nil || out.Escalated || out.LocalAttempts == 0 || out.LocalText == "" {
+		return
+	}
+	system := claudebridge.DefaultLocalSystem
+	if root != "" {
+		system = zhenroute.LocalSystem
+	}
+	model := out.LocalModel
+	if model == "" {
+		model = o.localModel
+	}
+	rec := &zhencapture.Record{
+		Source: "zhen-claude", Route: zhencapture.RouteLocal, System: system, Prompt: prompt,
+		Local:          &zhencapture.Leg{Model: model, System: system, Answer: out.LocalText, Requests: out.LocalAttempts},
+		LatencyMS:      d.Milliseconds(),
+		LocalOnly:      o.localOnly || o.route == routeLocal,
+		ConversationID: claudebridge.NewRecordID(),
+		TaskFamily:     out.Family,
+	}
+	if out.Check != "" {
+		// A run_check key, not an argv; Exit is 0 on pass, -1 otherwise
+		// (pkg/champion reports pass/fail, not the exit status).
+		c := &zhencapture.Check{Argv: []string{"run_check", o.runCheck}, Exit: -1, Accepted: out.Check == "pass"}
+		switch out.Check {
+		case "pass":
+			c.Exit = 0
+		case "fail":
+			c.Error = "check failed"
+		default:
+			c.Error = "check " + out.Check
+		}
+		rec.Check = c
+	}
+	if out.Text != "" && (out.Check == "" || out.Check == "pass") {
+		rec.Final, rec.AcceptedBy = out.Text, "local"
+	}
+	writeCapture(capw, rec, log)
 }

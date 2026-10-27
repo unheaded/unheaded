@@ -107,7 +107,7 @@ form gets through, which is why the directory rules above exist as well.
 | `local_only` | present and `true` when the turn was marked keep-local (`-local-only` / `local_only`): it never went to Claude |
 | `conversation_id` | the conversation the turn belongs to: for `zhen-claude`, the id its `llm_requests` rows carry (an escalated turn takes the Claude conversation's id); for `local_llm`, a fresh id per call. Used by `zhen-flywheel label` to join outcomes |
 | `run_id` | the `zhen_agent_runs` id when an agent run produced the turn |
-| `task_family` | the routing or eval family (`configs/zhen-routing.yaml`); `local_llm` takes it from its optional `task_family` argument |
+| `task_family` | the routing or eval family (`configs/zhen-routing.yaml`); `local_llm` takes it from its optional `task_family` argument; a routed `zhen-claude -family` turn that stays local is captured with it (`route: local`, last local draft in `local`, `check.argv` = `["run_check", <key>]`; an escalated routed turn is not captured) |
 | `author_kind` | `human` when `final` is human-written text; absent otherwise (each leg's author is the leg: local or Claude) |
 
 The last four are optional and were added after v1 shipped (a new optional
