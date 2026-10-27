@@ -64,7 +64,7 @@ They mint the same tokens, byte for byte (Ed25519 is deterministic), and `tests/
 |---|---|---|
 | Rust `cmd/ebpf-collector` | `crates/svc-token` (ring) | `ebpf-collector`, on Wotan's allowlist and `auto_approve`; `AUTH_KEY_FILE`, else `/etc/unheaded/keys/ebpf-collector.key` (made by hand: no unit or compose service runs it). Token on every gRPC call (tonic interceptor) and HTTP request |
 | Rust `cmd/trace-collector` | `crates/svc-token` | `trace-collector`, same key rule. Its publish RPC is still a simulation, and production traces come from `cmd/trace-collector-go` |
-| `scripts/run-runbook.py` | `scripts/svc_token.py` (Python `cryptography`) | the key it is given: `AUTH_KEY_FILE` as the name it is filed under (a Champion run is `zhen-agentd`), else the operator's CLI key as `unheaded-cli`; `RUNBOOK_PROGRESS_IDENTITY` overrides the name |
+| `scripts/run-runbook.py` | `scripts/svc_token.py` (Python `cryptography`) | the key it is given: `AUTH_KEY_FILE` as the name it is filed under (a Champion run is `zhen-agentd`), else the operator's CLI key as `unheaded-cli`; `RUNBOOK_PROGRESS_IDENTITY` overrides the name. An `https://` `RUNBOOK_PROGRESS_WOTAN` is TLS 1.3 only, checked against `UNHEADED_TLS_CA_CERT` (else the system roots) |
 | `cmd/demo-trace-injector` | `pkg/wotan-client` | `unheaded-cli` (an operator's demo tool) |
 | `curl` | `unheaded token --aud wotan` prints one 5-minute token from the CLI's key | `unheaded-cli`: `curl -H "Authorization: Bearer $(unheaded token --aud wotan)" ...` |
 

@@ -22,6 +22,7 @@ import json
 import os
 import re
 import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -276,8 +277,19 @@ class Progress:
         req = urllib.request.Request(self.base + suffix, data=json.dumps(body).encode(), method="POST",
                                      headers=headers)
         # The operator's own RUNBOOK_PROGRESS_WOTAN; http(s) only (prefixed above).
-        with urllib.request.urlopen(req, timeout=PROGRESS_TIMEOUT) as resp:  # nosec B310
+        with urllib.request.urlopen(req, timeout=PROGRESS_TIMEOUT, context=self.tls_context()) as resp:  # nosec B310
             return resp.status, json.loads(resp.read().decode() or "{}")
+
+    def tls_context(self):
+        """For an https:// Wotan (S-IRON-GATE Phase 8): TLS 1.3 only, the
+        server checked against UNHEADED_TLS_CA_CERT (pkg/tls's CA variable)
+        when set, else the system roots. OpenSSL 3.5+ offers the hybrid
+        X25519MLKEM768 group by default."""
+        if not self.base.startswith("https://"):
+            return None
+        ctx = ssl.create_default_context(cafile=os.environ.get("UNHEADED_TLS_CA_CERT") or None)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+        return ctx
 
     def join(self):
         status, body = self.post("/subscribe", {"display_name": PROGRESS_PUBLISHER})
