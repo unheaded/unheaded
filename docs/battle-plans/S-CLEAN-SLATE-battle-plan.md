@@ -435,97 +435,97 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-035 haproxy configs
 
-- [ ] **Step 102** [W] ~10m: `scripts/check-haproxy-cfg.sh`: for each of `docker/haproxy/internal/haproxy.cfg` and `docker/haproxy/edge/haproxy.cfg`, (1) if `haproxy` is on PATH run `haproxy -c -f <cfg>`; (2) always run the pinned image: `sudo docker run --rm -v "$PWD/<cfg>":/usr/local/etc/haproxy/haproxy.cfg:ro -v "$CERTDIR":/etc/haproxy/certs:ro haproxy:2.9.15-alpine haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg`, where `$CERTDIR` is a mktemp dir holding `dev.pem` generated with `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj /CN=haproxy-dev -keyout - -out -` concatenated. Exit 1 on any failure; print PASS/FAIL per config. `set -euo pipefail`; `# SPDX-License-Identifier: GPL-3.0-or-later` header.
-- [ ] **Step 103** [TEST][B] ~2m: Red (both FAIL today).
+- [x] **Step 102** [W] ~10m: `scripts/check-haproxy-cfg.sh`: for each of `docker/haproxy/internal/haproxy.cfg` and `docker/haproxy/edge/haproxy.cfg`, (1) if `haproxy` is on PATH run `haproxy -c -f <cfg>`; (2) always run the pinned image: `sudo docker run --rm -v "$PWD/<cfg>":/usr/local/etc/haproxy/haproxy.cfg:ro -v "$CERTDIR":/etc/haproxy/certs:ro haproxy:2.9.15-alpine haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg`, where `$CERTDIR` is a mktemp dir holding `dev.pem` generated with `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj /CN=haproxy-dev -keyout - -out -` concatenated. Exit 1 on any failure; print PASS/FAIL per config. `set -euo pipefail`; `# SPDX-License-Identifier: GPL-3.0-or-later` header.
+- [x] **Step 103** [TEST][B] ~2m: Red (both FAIL today).
   ```bash
   cd /home/govan/tmp/unheaded && shellcheck scripts/check-haproxy-cfg.sh && bash scripts/check-haproxy-cfg.sh 2>&1 | tail -6; echo "rc=${PIPESTATUS[0]}"
   ```
-- [ ] **Step 104** [R] ~2m: Section map of the internal config.
+- [x] **Step 104** [R] ~2m: Section map of the internal config.
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE '^(global|defaults|frontend|backend|listen)\b|^\s+mode\s' docker/haproxy/internal/haproxy.cfg
   ```
-- [ ] **Step 105** [W] ~5m: Internal: delete the `log-format` line from `defaults` (`:36`) and place it, unchanged, inside every `frontend`/`listen` whose `mode` is `http` (after its `mode http` line). Sections without `mode http` keep the default TCP log format.
-- [ ] **Step 106** [R] ~2m: Section map of the edge config (same command on `docker/haproxy/edge/haproxy.cfg`).
-- [ ] **Step 107** [W] ~8m: Edge: remove `module-path /usr/lib/haproxy` (`:30`); if a `http-request use-service prometheus-exporter` already exists keep it, else leave metrics to the stats listener; move `http-request redirect scheme https code 301 unless is_acme` (`:94`) above the first `use_backend`; move the `log-format` from `defaults` into the HTTP frontends as in Step 105; keep `bind *:21443 ssl crt /etc/haproxy/certs/ alpn h2,http/1.1` and document that the directory is mounted (next step).
-- [ ] **Step 108** [W] ~6m: `docker/docker-compose.loadbalancers.yml`: edge service mounts `./docker/haproxy/edge/certs:/etc/haproxy/certs:ro`; add `docker/haproxy/edge/certs/.gitignore` (`*.pem`) and `docker/haproxy/edge/certs/README.md` (one paragraph: dev cert via `scripts/gen-haproxy-dev-cert.sh`, production certs from the gateway's ACME path; never commit a key); write `scripts/gen-haproxy-dev-cert.sh` (the openssl line from Step 102, output `docker/haproxy/edge/certs/dev.pem`, 0600); replace the `KNOWN BROKEN` comment (`:12`) with "Validated by scripts/check-haproxy-cfg.sh (S-CLEAN-SLATE Step 109)".
-- [ ] **Step 109** [TEST][B] ~2m: Green.
+- [x] **Step 105** [W] ~5m: Internal: delete the `log-format` line from `defaults` (`:36`) and place it, unchanged, inside every `frontend`/`listen` whose `mode` is `http` (after its `mode http` line). Sections without `mode http` keep the default TCP log format.
+- [x] **Step 106** [R] ~2m: Section map of the edge config (same command on `docker/haproxy/edge/haproxy.cfg`).
+- [x] **Step 107** [W] ~8m: Edge: remove `module-path /usr/lib/haproxy` (`:30`); if a `http-request use-service prometheus-exporter` already exists keep it, else leave metrics to the stats listener; move `http-request redirect scheme https code 301 unless is_acme` (`:94`) above the first `use_backend`; move the `log-format` from `defaults` into the HTTP frontends as in Step 105; keep `bind *:21443 ssl crt /etc/haproxy/certs/ alpn h2,http/1.1` and document that the directory is mounted (next step).
+- [x] **Step 108** [W] ~6m: `docker/docker-compose.loadbalancers.yml`: edge service mounts `./docker/haproxy/edge/certs:/etc/haproxy/certs:ro`; add `docker/haproxy/edge/certs/.gitignore` (`*.pem`) and `docker/haproxy/edge/certs/README.md` (one paragraph: dev cert via `scripts/gen-haproxy-dev-cert.sh`, production certs from the gateway's ACME path; never commit a key); write `scripts/gen-haproxy-dev-cert.sh` (the openssl line from Step 102, output `docker/haproxy/edge/certs/dev.pem`, 0600); replace the `KNOWN BROKEN` comment (`:12`) with "Validated by scripts/check-haproxy-cfg.sh (S-CLEAN-SLATE Step 109)".
+- [x] **Step 109** [TEST][B] ~2m: Green.
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-haproxy-cfg.sh 2>&1 | tail -6; echo "rc=${PIPESTATUS[0]}"
   ```
-- [ ] **Step 110** [V] ~0.5m: rc=0, both PASS under the host binary and the 2.9.15 image. Warnings about `option httplog` overridden are acceptable only if zero `[ALERT]` lines remain (`bash scripts/check-haproxy-cfg.sh 2>&1 | grep -c ALERT` is 0).
+- [x] **Step 110** [V] ~0.5m: rc=0, both PASS under the host binary and the 2.9.15 image. Warnings about `option httplog` overridden are acceptable only if zero `[ALERT]` lines remain (`bash scripts/check-haproxy-cfg.sh 2>&1 | grep -c ALERT` is 0).
   - If the edge still alerts on the cert → Step 111.
-- [ ] **Step 111** [D] ~5m: The mounted dir must contain at least one `.pem` with cert+key; confirm the check script generated it into `$CERTDIR` and that the compose mount path matches the `crt` path exactly. Max 2 attempts, then STUCK.
-- [ ] **Step 112** [B] ~1m: Compose file still renders.
+- [x] **Step 111** [D] ~5m: The mounted dir must contain at least one `.pem` with cert+key; confirm the check script generated it into `$CERTDIR` and that the compose mount path matches the `crt` path exactly. Max 2 attempts, then STUCK.
+- [x] **Step 112** [B] ~1m: Compose file still renders.
   ```bash
   cd /home/govan/tmp/unheaded && sudo docker compose -f docker/docker-compose.loadbalancers.yml config -q && echo LB_COMPOSE_OK; bash scripts/check-compose-hardening.sh 2>&1 | tail -2
   ```
-- [ ] **Step 113** [W] ~3m: Add `scripts/check-haproxy-cfg.sh` to the local gate list in `scripts/ci-local.sh` (same block as the other `check-*.sh`) and to the Makefile `lint` target's script list; add one row to `wiki/Security-Tooling.md` (or the page that lists gates) if such a table exists.
-- [ ] **Step 114** [V] ~1m: `grep -c check-haproxy-cfg scripts/ci-local.sh Makefile` ≥ 2; `make -n lint 2>/dev/null | grep -c check-haproxy-cfg` is 1.
-- [ ] **Step 115** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 102-114: both haproxy configs parse under 2.9.15 and 3.0; check-haproxy-cfg.sh gate`.
+- [x] **Step 113** [W] ~3m: Add `scripts/check-haproxy-cfg.sh` to the local gate list in `scripts/ci-local.sh` (same block as the other `check-*.sh`) and to the Makefile `lint` target's script list; add one row to `wiki/Security-Tooling.md` (or the page that lists gates) if such a table exists.
+- [x] **Step 114** [V] ~1m: `grep -c check-haproxy-cfg scripts/ci-local.sh Makefile` ≥ 2; `make -n lint 2>/dev/null | grep -c check-haproxy-cfg` is 1.
+- [x] **Step 115** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 102-114: both haproxy configs parse under 2.9.15 and 3.0; check-haproxy-cfg.sh gate`.
 
 ### M-036 Zhen web UI through the Champion gate
 
-- [ ] **Step 116** [R] ~5m: How `proxy_via_agentd` is consumed, how `zhen_app.py` constructs the pipeline, and where the raft tests live.
+- [x] **Step 116** [R] ~5m: How `proxy_via_agentd` is consumed, how `zhen_app.py` constructs the pipeline, and where the raft tests live.
   ```bash
   cd /home/govan/tmp/unheaded && grep -n 'proxy_via_agentd\|agentd_url\|/api/v1/agent/ask' raft/scripts/zhen_rag.py raft/zhen_app.py | head -20 && ls raft/tests | head -20 && grep -rn 'def test' raft/tests/test_zhen_rag*.py 2>/dev/null | wc -l
   ```
-- [ ] **Step 117** [CODE] ~20m: In `raft/scripts/zhen_rag.py`, `proxy_via_agentd` defaults to `os.environ.get("ZHEN_PROXY_VIA_AGENTD", "1") == "1"`; when true, the ask path POSTs to `{agentd_url}/api/v1/agent/ask` (and `/stream` for streaming) and never falls back to the direct llama-server URL: an unreachable agentd is a 503 to the UI with the message "zhen-agentd not reachable; the gate is required", logged once. `zhen_app.py` passes the env-derived value explicitly. Tests in `raft/tests/`: (a) default is proxy; (b) `ZHEN_PROXY_VIA_AGENTD=0` restores direct mode; (c) agentd down → 503, no direct call (mock `requests`).
-- [ ] **Step 118** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded/raft && source ~/.venv/zhen/bin/activate && python3 -m pytest tests -q -k 'rag or agentd or proxy' 2>&1 | tail -4`
-- [ ] **Step 119** [V] ~0.5m: all pass; `grep -c 'proxy_via_agentd=None' raft/scripts/zhen_rag.py` is 0.
-- [ ] **Step 120** [CODE] ~15m: CSRF interim (threat model T8): `zhen_app.py` issues a per-session random token (`secrets.token_urlsafe(32)`) in a `SameSite=Strict` cookie and in the page; every state-changing POST (`/api/v1/ask`, `/api/v1/highlight` excluded as idempotent? no: all POSTs) requires header `X-Zhen-CSRF` equal to the cookie; test: POST without header → 403, with header → passes to the handler.
-- [ ] **Step 121** [TEST][B] ~2m: same as Step 118 with `-k csrf`.
-- [ ] **Step 122** [V] ~0.5m: pass; `raft/README` or `wiki/Zhen-AI.md` gains two lines (gate required, CSRF header) in Phase 8.
+- [x] **Step 117** [CODE] ~20m: In `raft/scripts/zhen_rag.py`, `proxy_via_agentd` defaults to `os.environ.get("ZHEN_PROXY_VIA_AGENTD", "1") == "1"`; when true, the ask path POSTs to `{agentd_url}/api/v1/agent/ask` (and `/stream` for streaming) and never falls back to the direct llama-server URL: an unreachable agentd is a 503 to the UI with the message "zhen-agentd not reachable; the gate is required", logged once. `zhen_app.py` passes the env-derived value explicitly. Tests in `raft/tests/`: (a) default is proxy; (b) `ZHEN_PROXY_VIA_AGENTD=0` restores direct mode; (c) agentd down → 503, no direct call (mock `requests`).
+- [x] **Step 118** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded/raft && source ~/.venv/zhen/bin/activate && python3 -m pytest tests -q -k 'rag or agentd or proxy' 2>&1 | tail -4`
+- [x] **Step 119** [V] ~0.5m: all pass; `grep -c 'proxy_via_agentd=None' raft/scripts/zhen_rag.py` is 0.
+- [x] **Step 120** [CODE] ~15m: CSRF interim (threat model T8): `zhen_app.py` issues a per-session random token (`secrets.token_urlsafe(32)`) in a `SameSite=Strict` cookie and in the page; every state-changing POST (`/api/v1/ask`, `/api/v1/highlight` excluded as idempotent? no: all POSTs) requires header `X-Zhen-CSRF` equal to the cookie; test: POST without header → 403, with header → passes to the handler.
+- [x] **Step 121** [TEST][B] ~2m: same as Step 118 with `-k csrf`.
+- [x] **Step 122** [V] ~0.5m: pass; `raft/README` or `wiki/Zhen-AI.md` gains two lines (gate required, CSRF header) in Phase 8.
 - [ ] **Step 123** [DECIDE][LIVE-RO] ~15m: **Coding-gate re-run.** RECOMMENDATION: if `curl -s --max-time 2 http://127.0.0.1:8081/health` answers (a model is already serving), run `bash scripts/coding-gate-probe.sh 2>&1 | tail -8` through the proxied UI path and record the result in the progress file; otherwise defer the re-run to the E2 window (Step 155b) rather than starting a model for it (memory: feedback_resource_awareness). Override ONLY if Stevie asks for the number now.
-- [ ] **Step 124** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 116-123: Zhen web UI goes through zhen-agentd (gate required, no direct fallback), CSRF token on POSTs`.
+- [x] **Step 124** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 116-123: Zhen web UI goes through zhen-agentd (gate required, no direct fallback), CSRF token on POSTs`.
 
 ### M-037 switch-model fit check
 
-- [ ] **Step 125** [R] ~3m: The fit arithmetic and per-model launch args.
+- [x] **Step 125** [R] ~3m: The fit arithmetic and per-model launch args.
   ```bash
   cd /home/govan/tmp/unheaded && sed -n '170,240p' scripts/switch-model.sh | grep -nE 'need|avail|ctx|MemAvailable|llama-server|--' | head -30
   ```
-- [ ] **Step 126** [CODE][W] ~15m: Add `--cache-ram` to every model's launch args explicitly (per-model MiB; default 8192 if unspecified, matching llama-server), parse it into the fit sum (`need_mib = model_mib + ctx_mib + cache_ram_mib + margin`), and print the breakdown in `--check`. Swap stays refused when the sum exceeds MemAvailable (never swap: memory feedback_no_oom_from_ui_actions). Add a `tests/scripts/switch-model-fit.bats`-style check if a bats harness exists (`ls tests/scripts 2>/dev/null`); otherwise a `scripts/switch-model.sh --check qwen-7b` run whose output includes `cache_ram_mib=`.
-- [ ] **Step 127** [TEST][B] ~1m: `cd /home/govan/tmp/unheaded && bash -n scripts/switch-model.sh && shellcheck scripts/switch-model.sh | tail -3; bash scripts/switch-model.sh --check qwen-7b 2>&1 | tail -6`
-- [ ] **Step 128** [V] ~0.5m: shellcheck clean (or only pre-existing baselined codes), `--check` prints `cache_ram_mib=` and a verdict; the verdict for qwen-7b matches reality on this box (fits).
+- [x] **Step 126** [CODE][W] ~15m: Add `--cache-ram` to every model's launch args explicitly (per-model MiB; default 8192 if unspecified, matching llama-server), parse it into the fit sum (`need_mib = model_mib + ctx_mib + cache_ram_mib + margin`), and print the breakdown in `--check`. Swap stays refused when the sum exceeds MemAvailable (never swap: memory feedback_no_oom_from_ui_actions). Add a `tests/scripts/switch-model-fit.bats`-style check if a bats harness exists (`ls tests/scripts 2>/dev/null`); otherwise a `scripts/switch-model.sh --check qwen-7b` run whose output includes `cache_ram_mib=`.
+- [x] **Step 127** [TEST][B] ~1m: `cd /home/govan/tmp/unheaded && bash -n scripts/switch-model.sh && shellcheck scripts/switch-model.sh | tail -3; bash scripts/switch-model.sh --check qwen-7b 2>&1 | tail -6`
+- [x] **Step 128** [V] ~0.5m: shellcheck clean (or only pre-existing baselined codes), `--check` prints `cache_ram_mib=` and a verdict; the verdict for qwen-7b matches reality on this box (fits).
 
 ### M-040 shipped default credential
 
-- [ ] **Step 129** [DECIDE] ~1m: **`core.trust_password`.** RECOMMENDATION: delete the `core.trust_password` line from the preseed entirely; LXD 5.21 uses trust tokens (`scripts/cuirass-lxd-trust.sh` already does). Rationale: a password default is the bug; an unset-guard would keep a deprecated mechanism alive. Override ONLY if `lxd --version` on west is < 5.21.
-- [ ] **Step 130** [W] ~2m: Edit `scripts/setup-host.sh:222` accordingly; add a comment pointing at `scripts/cuirass-lxd-trust.sh`.
-- [ ] **Step 131** [B] ~1m: `cd /home/govan/tmp/unheaded && bash -n scripts/setup-host.sh && shellcheck scripts/setup-host.sh | tail -3; grep -c 'changeme' scripts/setup-host.sh; grep -rn 'changeme\|password123\|:-secret' scripts/*.sh docker/*.yml docker-compose*.yml | grep -v '#' | head`
-- [ ] **Step 132** [V] ~0.5m: `changeme` count 0; the repo-wide grep prints nothing new (anything it prints becomes a new M-item line in the progress file).
+- [x] **Step 129** [DECIDE] ~1m: **`core.trust_password`.** RECOMMENDATION: delete the `core.trust_password` line from the preseed entirely; LXD 5.21 uses trust tokens (`scripts/cuirass-lxd-trust.sh` already does). Rationale: a password default is the bug; an unset-guard would keep a deprecated mechanism alive. Override ONLY if `lxd --version` on west is < 5.21.
+- [x] **Step 130** [W] ~2m: Edit `scripts/setup-host.sh:222` accordingly; add a comment pointing at `scripts/cuirass-lxd-trust.sh`.
+- [x] **Step 131** [B] ~1m: `cd /home/govan/tmp/unheaded && bash -n scripts/setup-host.sh && shellcheck scripts/setup-host.sh | tail -3; grep -c 'changeme' scripts/setup-host.sh; grep -rn 'changeme\|password123\|:-secret' scripts/*.sh docker/*.yml docker-compose*.yml | grep -v '#' | head`
+- [x] **Step 132** [V] ~0.5m: `changeme` count 0; the repo-wide grep prints nothing new (anything it prints becomes a new M-item line in the progress file).
 
 ### M-039 probe addresses on lxdbr0 only
 
-- [ ] **Step 133** [R] ~3m: Where instance-reported addresses enter probe URLs.
+- [x] **Step 133** [R] ~3m: Where instance-reported addresses enter probe URLs.
   ```bash
   cd /home/govan/tmp/unheaded && grep -rn 'Addresses\|\.Address\b\|probeURL\|http://%s' pkg/deploy/cuirassdriver/*.go cmd/unheaded-daemon/internal/*/*.go services/yaldabaoth/*.go 2>/dev/null | grep -v _test | head -12 && grep -n 'lxdbr0\|10.10.10' configs/chaos/allowlist.yaml docker/compose.cuirass-lxd.yml | head
   ```
-- [ ] **Step 134** [CODE] ~20m: Add `probe_subnets` (list of CIDRs, default `["10.10.10.0/24"]`, env `CUIRASS_PROBE_SUBNETS` / allowlist key) to Cuirass's instance-probe config and to `configs/chaos/allowlist.yaml`; any instance-reported address outside the list is rejected with a logged reason and the instance counted unhealthy, never probed. Tests: in-subnet address probed; `192.168.13.1` (the P2P peer) rejected; IPv6 link-local rejected.
-- [ ] **Step 135** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./pkg/deploy/... ./cmd/unheaded-daemon/... ./services/yaldabaoth/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 136** [V] ~0.5m: ok; `configs/chaos/allowlist.yaml` passes `bash scripts/check-manifest-yaml.sh 2>&1 | tail -1`.
+- [x] **Step 134** [CODE] ~20m: Add `probe_subnets` (list of CIDRs, default `["10.10.10.0/24"]`, env `CUIRASS_PROBE_SUBNETS` / allowlist key) to Cuirass's instance-probe config and to `configs/chaos/allowlist.yaml`; any instance-reported address outside the list is rejected with a logged reason and the instance counted unhealthy, never probed. Tests: in-subnet address probed; `192.168.13.1` (the P2P peer) rejected; IPv6 link-local rejected.
+- [x] **Step 135** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./pkg/deploy/... ./cmd/unheaded-daemon/... ./services/yaldabaoth/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 136** [V] ~0.5m: ok; `configs/chaos/allowlist.yaml` passes `bash scripts/check-manifest-yaml.sh 2>&1 | tail -1`.
 
 ### M-019 zhen-agentd refuses to start unauthenticated
 
-- [ ] **Step 137** [R] ~3m: The auth mechanism in place.
+- [x] **Step 137** [R] ~3m: The auth mechanism in place.
   ```bash
   cd /home/govan/tmp/unheaded && grep -n 'AGENTD_TOKEN\|auth\|Bearer\|apiKey' cmd/zhen-agentd/main.go cmd/zhen-agentd/server.go 2>/dev/null | head -12 && sed -n '136,160p' cmd/zhen-agentd/toolexec.go
   ```
-- [ ] **Step 138** [CODE] ~20m: (a) `-no-auth` bool flag (default false); if the configured token env is empty and `-no-auth` is not set, exit 2 with "zhen-agentd: no auth token set; set <ENV> or pass -no-auth for a loopback dev listener"; `-no-auth` with `-host` other than `127.0.0.1` is refused. (b) `-rate-limit` default `5`. (c) `toolexec.go:140-152`: a request without `justification` is denied with "justification required" instead of a synthesised `direct-user`; the web UI (Step 117) and `zhen-claude` send it explicitly. Update `ask_tokens_test.go` / `integration_test.go` fixtures to pass `-no-auth` and a justification. Tests for (a), (b), (c).
-- [ ] **Step 139** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go test ./cmd/zhen-agentd/... ./pkg/champion/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 140** [V] ~1m: ok; `deploy/systemd/zhen-agentd.service` + `zhen-agentd.env.example` document the token env (no value); `raft/start-zhen.sh` passes it from the env it already loads.
+- [x] **Step 138** [CODE] ~20m: (a) `-no-auth` bool flag (default false); if the configured token env is empty and `-no-auth` is not set, exit 2 with "zhen-agentd: no auth token set; set <ENV> or pass -no-auth for a loopback dev listener"; `-no-auth` with `-host` other than `127.0.0.1` is refused. (b) `-rate-limit` default `5`. (c) `toolexec.go:140-152`: a request without `justification` is denied with "justification required" instead of a synthesised `direct-user`; the web UI (Step 117) and `zhen-claude` send it explicitly. Update `ask_tokens_test.go` / `integration_test.go` fixtures to pass `-no-auth` and a justification. Tests for (a), (b), (c).
+- [x] **Step 139** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go test ./cmd/zhen-agentd/... ./pkg/champion/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 140** [V] ~1m: ok; `deploy/systemd/zhen-agentd.service` + `zhen-agentd.env.example` document the token env (no value); `raft/start-zhen.sh` passes it from the env it already loads.
 
 ### M-042 routed local turns captured
 
-- [ ] **Step 141** [R] ~2m: The capture writer used for the Claude route.
+- [x] **Step 141** [R] ~2m: The capture writer used for the Claude route.
   ```bash
   cd /home/govan/tmp/unheaded && grep -n 'capture\|Capture' cmd/zhen-claude/*.go | grep -v _test | head -10 && grep -n 'func runRouted' -A30 cmd/zhen-claude/routed.go | grep -n 'local\|Local' | head
   ```
-- [ ] **Step 142** [CODE] ~15m: In `runRouted`, when the route resolves to `local`, write the same redacted capture record the Claude leg writes (same privacy tier, `route: "local"`, family, worktree), so the Phase 12 data trigger counts them. Test: `TestRouted_LocalTurnCaptured` with a fake local backend and a temp capture dir → exactly one record with `route=local`.
-- [ ] **Step 143** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./cmd/zhen-claude/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 144** [V] ~0.5m: ok; `-include-claude-text` default remains OFF (`grep -n 'include-claude-text' cmd/zhen-flywheel/*.go | grep -c 'false'` ≥ 1).
-- [ ] **Step 145** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 125-144: switch-model counts cache-ram; LXD preseed has no password; probes confined to lxdbr0; zhen-agentd requires auth; local turns captured`.
-- [ ] **Step 146** [V] ~5m: **PHASE 3 EXIT GATE** — `bash scripts/check-haproxy-cfg.sh` rc 0; raft pytest green; `go test ./cmd/zhen-agentd/... ./cmd/zhen-claude/... ./pkg/deploy/... ./services/yaldabaoth/... -race -count=1` all ok; `shellcheck scripts/switch-model.sh scripts/setup-host.sh scripts/check-haproxy-cfg.sh scripts/gen-haproxy-dev-cert.sh` clean; `bash scripts/check-gitleaks.sh | tail -1` PASS. If in a worktree: merge `clean-slate/code` into develop.
+- [x] **Step 142** [CODE] ~15m: In `runRouted`, when the route resolves to `local`, write the same redacted capture record the Claude leg writes (same privacy tier, `route: "local"`, family, worktree), so the Phase 12 data trigger counts them. Test: `TestRouted_LocalTurnCaptured` with a fake local backend and a temp capture dir → exactly one record with `route=local`.
+- [x] **Step 143** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./cmd/zhen-claude/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 144** [V] ~0.5m: ok; `-include-claude-text` default remains OFF (`grep -n 'include-claude-text' cmd/zhen-flywheel/*.go | grep -c 'false'` ≥ 1).
+- [x] **Step 145** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 125-144: switch-model counts cache-ram; LXD preseed has no password; probes confined to lxdbr0; zhen-agentd requires auth; local turns captured`.
+- [x] **Step 146** [V] ~5m: **PHASE 3 EXIT GATE** — `bash scripts/check-haproxy-cfg.sh` rc 0; raft pytest green; `go test ./cmd/zhen-agentd/... ./cmd/zhen-claude/... ./pkg/deploy/... ./services/yaldabaoth/... -race -count=1` all ok; `shellcheck scripts/switch-model.sh scripts/setup-host.sh scripts/check-haproxy-cfg.sh scripts/gen-haproxy-dev-cert.sh` clean; `bash scripts/check-gitleaks.sh | tail -1` PASS. If in a worktree: merge `clean-slate/code` into develop.
   - If pass → Phase 4.
   - If fail → DO NOT PROCEED.
 
