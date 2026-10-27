@@ -98,6 +98,13 @@ func TestPublishTask_AfterStart(t *testing.T) {
 	if err := service.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// Start joins in the background (it no longer blocks on Wotan).
+	deadline := time.Now().Add(5 * time.Second)
+	for _, topic := range publishTopics {
+		for !client.IsApproved(topic) && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
 	task := NewTask("task-1", "Test", "owner")
 	for name, publish := range map[string]func(string, *Task) error{
 		"created":   service.PublishTaskCreated,

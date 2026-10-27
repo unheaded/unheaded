@@ -150,3 +150,31 @@ func TestRetryDelay_GrowsAndCaps(t *testing.T) {
 		t.Errorf("retryDelay(50) = %v, want capped near 30 s", d)
 	}
 }
+
+// Close ends a retry loop that is still waiting for Wotan: a service's Stop
+// closes its client and must not leave joins retrying behind it.
+func TestSubscribeWithRetry_CloseEndsRetries(t *testing.T) {
+	fastRetries(t)
+	addr, _, _ := lateWotan(t) // never started
+	c, err := NewClient(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 2)
+	go func() {
+		done <- c.SubscribeWithRetry(context.Background(), "alerts.critical", "svc", func(*Message) {})
+	}()
+	go func() { done <- c.SubscribeWithRetry(context.Background(), "tasks.created", "svc", nil) }()
+	time.Sleep(100 * time.Millisecond)
+	_ = c.Close()
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("SubscribeWithRetry after Close = %v, want nil", err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("SubscribeWithRetry kept retrying after Close")
+		}
+	}
+}
