@@ -16,8 +16,8 @@ containers running, which is the mistake ADR-093 rule 4 names.
 |---|---|---|
 | CONTAINER | built into the container image | 14 |
 | SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 18 |
-| TOOL | invoked by a script, runbook or Makefile, not supervised | 26 |
-| ORPHAN | referenced by nothing outside its own directory | 25 |
+| TOOL | invoked by a script, runbook or Makefile, not supervised | 27 |
+| ORPHAN | referenced by nothing outside its own directory | 24 |
 | **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **83** |
 
 ORPHAN is not an accusation — kept experiments are the point of a solo
@@ -62,7 +62,7 @@ that keeping them stays a decision.
 | `cmd/lich-mcp` | TOOL |
 | `cmd/lich-security` | TOOL |
 | `cmd/monad` | CONTAINER |
-| `cmd/perf-benchmark` | ORPHAN |
+| `cmd/perf-benchmark` | TOOL |
 | `cmd/pqc-verifier` | ORPHAN |
 | `cmd/protocol-api` | ORPHAN |
 | `cmd/routing-health` | ORPHAN |

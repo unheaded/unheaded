@@ -1,27 +1,38 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // perf-benchmark is the Unheaded performance benchmarking harness.
-// It measures latency across the P2P link, WireGuard overlay, HTTP services,
-// and Wotan publish path.
 //
-// Usage:
+// Without -scenario it runs the original suite: latency across the P2P
+// link, the WireGuard overlay, one HTTP health endpoint and the Wotan
+// publish path (pkg/benchmark JSON).
 //
-//	go run ./cmd/perf-benchmark [flags]
-//	  -iterations int   Number of iterations per test (default 50)
-//	  -output string    JSON output file (default "benchmark-results.json")
-//	  -east-p2p string  EAST P2P IPv4 address (default "192.168.13.1")
-//	  -east-wg string   EAST WireGuard IPv6 address (default "fd00:dead:beef::1")
-//	  -health string    Health endpoint URL (default "http://localhost:19000/health")
-//	  -wotan string     Wotan HTTP endpoint (default "http://localhost:18000")
+// With -scenario it runs the measured scenarios and writes a perf/v1
+// report (schema, host, commit, at, results[] with n, p50, p95, p99 in ns,
+// error_ratio, skipped), which scripts/check-perf-regression.sh compares
+// with docs/policy/perf-baseline.json:
+//
+//	e2e-trace        publish a trace-id'd packet event to Wotan, time until
+//	                 dashboard-backend's /api/v1/ebpf/events returns it
+//	container-start  steel-echo instance via Cuirass until healthy, then
+//	                 deleted (creates LXD instances: needs -allow-lxd)
+//	http-load        -rate req/s for -duration against -health
+//	http3            curl --http3-only against -http3-url (skipped when
+//	                 curl lacks HTTP3)
+//	all              the four above
+//
+//	go run ./cmd/perf-benchmark -scenario e2e-trace,http-load,http3 -iterations 200 -duration 60s -output perf.json
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"unheaded/pkg/benchmark"
@@ -34,10 +45,32 @@ var (
 	eastWG     = flag.String("east-wg", "fd00:dead:beef::1", "EAST WireGuard IPv6 address")
 	healthURL  = flag.String("health", "http://localhost:19000/health", "Health endpoint URL")
 	wotanURL   = flag.String("wotan", "http://localhost:18000", "Wotan HTTP endpoint")
+
+	scenario      = flag.String("scenario", "", "Comma-separated scenarios: e2e-trace, container-start, http-load, http3, all (empty: the original suite)")
+	duration      = flag.Duration("duration", 60*time.Second, "http-load: how long to hold the rate")
+	rate          = flag.Int("rate", 1000, "http-load: requests per second")
+	concurrency   = flag.Int("concurrency", 64, "http-load: workers")
+	dashboardURL  = flag.String("dashboard", "http://localhost:20000", "e2e-trace: dashboard-backend base URL")
+	e2eTopic      = flag.String("e2e-topic", "bench.perf.packet", "e2e-trace: Wotan topic the bench packet is published on (dashboard-backend ingests it)")
+	wotanName     = flag.String("wotan-name", "perf-benchmark", "e2e-trace: Wotan display name (must be in topics.auto_approve)")
+	e2eTimeout    = flag.Duration("e2e-timeout", 5*time.Second, "e2e-trace: longest wait for one event")
+	poll          = flag.Duration("poll", 5*time.Millisecond, "e2e-trace/container-start: re-read interval while waiting")
+	allowLXD      = flag.Bool("allow-lxd", false, "container-start: allow creating and deleting LXD instances through Cuirass (host window only)")
+	cuirassURL    = flag.String("cuirass", "http://127.0.0.1:19006", "container-start: Cuirass base URL (key in CUIRASS_API_KEY)")
+	csImage       = flag.String("cs-image", "steel-echo-v1", "container-start: image to start")
+	csTimeout     = flag.Duration("cs-timeout", 2*time.Minute, "container-start: longest wait for one instance to turn healthy")
+	http3URL      = flag.String("http3-url", "https://localhost:21443/health", "http3: URL fetched over HTTP/3")
+	http3Insecure = flag.Bool("http3-insecure", false, "http3: skip TLS verification (self-signed gateway)")
+	curlPath      = flag.String("curl", "curl", "http3: curl binary")
+	commitFlag    = flag.String("commit", "", "report commit (default: build info, then git rev-parse HEAD)")
 )
 
 func main() {
 	flag.Parse()
+
+	if *scenario != "" {
+		os.Exit(runScenarios())
+	}
 
 	fmt.Println("==========================================================")
 	fmt.Println(" Unheaded Performance Benchmark — S77 Age 2")
@@ -147,4 +180,33 @@ func wotanPublishLatency(iterations int) error {
 		}
 	}
 	return nil
+}
+
+// runScenarios is the -scenario path; it returns the exit code.
+func runScenarios() int {
+	names, viaAll, err := parseScenarios(*scenario)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "perf-benchmark:", err)
+		return 2
+	}
+	cfg := Config{
+		Iterations: *iterations, Poll: *poll,
+		HealthURL: *healthURL, Rate: *rate, Duration: *duration, Concurrency: *concurrency,
+		WotanURL: *wotanURL, DashboardURL: *dashboardURL, E2ETopic: *e2eTopic, WotanName: *wotanName, E2ETimeout: *e2eTimeout,
+		AllowLXD: *allowLXD, CuirassURL: *cuirassURL, CuirassKey: os.Getenv("CUIRASS_API_KEY"), CSImage: *csImage, CSTimeout: *csTimeout,
+		HTTP3URL: *http3URL, Curl: *curlPath, HTTP3Insecure: *http3Insecure,
+	}
+	if err := validate(names, viaAll, cfg); err != nil {
+		fmt.Fprintln(os.Stderr, "perf-benchmark:", err)
+		return 2
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	host, _ := os.Hostname()
+	if err := run(ctx, names, cfg, *output, host, commitOf(*commitFlag)); err != nil {
+		fmt.Fprintln(os.Stderr, "perf-benchmark:", err)
+		return 1
+	}
+	fmt.Printf("Report (perf/v1) saved to %s\n", *output)
+	return 0
 }
