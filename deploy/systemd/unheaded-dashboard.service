@@ -22,6 +22,12 @@ TimeoutStopSec=15s
 
 LimitNOFILE=8192
 
+# Service identity (ADR-103, deploy/systemd/README.md#keys-adr-103): the key
+# comes from `unheaded-keygen -owner unheaded-dashboard dashboard-backend` (root, once per host).
+Environment=AUTH_KEY_FILE=/etc/unheaded/keys/dashboard-backend.key
+Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+ReadOnlyPaths=-/etc/unheaded/trust.d
+
 User=unheaded-dashboard
 Group=unheaded-dashboard
 StateDirectory=unheaded/dashboard

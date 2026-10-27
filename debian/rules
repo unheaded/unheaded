@@ -14,14 +14,20 @@ override_dh_auto_build:
 	go build -ldflags="-s -w" -o bin/unheaded-daemon ./cmd/unheaded-daemon/
 	go build -ldflags="-s -w" -o bin/dashboard-backend ./cmd/dashboard-backend/
 	go build -ldflags="-s -w" -o bin/kanban-app ./cmd/kanban-app/
+	go build -ldflags="-s -w" -o bin/unheaded-keygen ./cmd/unheaded-keygen/
 
 override_dh_auto_test:
 	go test ./... -count=1 -timeout 5m
 
 override_dh_auto_install:
-	# unheaded-wotan
+	# unheaded-wotan: binary, topic config, its own account and unit (what
+	# debian/unheaded-wotan.postinst expects), and the key tool (ADR-103)
 	install -D -m 755 bin/wotan $(CURDIR)/debian/unheaded-wotan/opt/unheaded/bin/wotan
+	install -D -m 755 bin/unheaded-keygen $(CURDIR)/debian/unheaded-wotan/opt/unheaded/bin/unheaded-keygen
 	install -D -m 644 configs/wotan.yaml $(CURDIR)/debian/unheaded-wotan/etc/unheaded/wotan.yaml
+	install -d $(CURDIR)/debian/unheaded-wotan/usr/lib/sysusers.d $(CURDIR)/debian/unheaded-wotan/etc/systemd/system
+	awk '$$1 == "u" && $$2 == "unheaded-wotan"' deploy/sysusers.d/unheaded.conf >$(CURDIR)/debian/unheaded-wotan/usr/lib/sysusers.d/unheaded-wotan.conf
+	sed 's|/usr/local/bin/|/opt/unheaded/bin/|g' deploy/systemd/unheaded-wotan.service >$(CURDIR)/debian/unheaded-wotan/etc/systemd/system/unheaded-wotan.service
 
 	# unheaded-daemon
 	install -D -m 755 bin/unheaded-daemon $(CURDIR)/debian/unheaded-daemon/opt/unheaded/bin/unheaded-daemon

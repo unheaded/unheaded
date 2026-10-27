@@ -306,3 +306,8 @@ db/migrations/init.sh
 
 # Lich MCP out-of-band confirmation tickets + local runtime state (never committed)
 /var/lich/
+
+# Service keys and per-deployment trust material (ADR-103,
+# scripts/gen-dev-keys.sh). Private keys must never be tracked.
+configs/keys/
+configs/trust.d/dev/

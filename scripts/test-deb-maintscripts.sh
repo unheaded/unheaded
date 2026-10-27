@@ -15,13 +15,20 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 mkdir "$T/bin"
-for tool in systemctl systemd-sysusers; do
+for tool in systemctl systemd-sysusers unheaded-keygen; do
 	printf '#!/bin/sh\necho "%s $*" >>"%s/calls"\n' "$tool" "$T" >"$T/bin/$tool"
 	chmod +x "$T/bin/$tool"
 done
-deb_postinst unheaded-wotan >"$T/postinst"
+mkdir "$T/keys"
+# The generated postinst names its keygen and key directory on two lines of
+# its own; point them at the fake tool and a temp dir.
+fake_paths() {
+	sed -e "s|^KEYGEN=.*|KEYGEN=$T/bin/unheaded-keygen|" -e "s|^KEYDIR=.*|KEYDIR=$T/keys|"
+}
+deb_postinst unheaded-wotan wotan unheaded-wotan | fake_paths >"$T/postinst"
+deb_postinst unheaded-wotan | fake_paths >"$T/postinst-nokey"
 deb_prerm unheaded-wotan >"$T/prerm"
-chmod +x "$T/postinst" "$T/prerm"
+chmod +x "$T/postinst" "$T/postinst-nokey" "$T/prerm"
 
 fail=0
 run() { # run SCRIPT ARGS...: the calls it made, one per line
@@ -43,11 +50,40 @@ expect "prerm failed-upgrade touches nothing" "$(run prerm failed-upgrade 1.0.0)
 expect "prerm remove stops and disables" "$(run prerm remove)" \
 	"systemctl stop unheaded-wotan.service
 systemctl disable unheaded-wotan.service"
-expect "postinst configure: account, reload, try-restart" "$(run postinst configure 1.0.0)" \
+expect "postinst configure: account, key (absent), reload, try-restart" "$(run postinst configure 1.0.0)" \
+	"systemd-sysusers /usr/lib/sysusers.d/unheaded-wotan.conf
+unheaded-keygen -owner unheaded-wotan wotan
+systemctl daemon-reload
+systemctl try-restart unheaded-wotan.service"
+: >"$T/keys/wotan.key"
+expect "postinst configure never touches an existing key" "$(run postinst configure 1.0.1)" \
+	"systemd-sysusers /usr/lib/sysusers.d/unheaded-wotan.conf
+systemctl daemon-reload
+systemctl try-restart unheaded-wotan.service"
+rm "$T/keys/wotan.key"
+expect "postinst without an identity makes no key" "$(run postinst-nokey configure 1.0.0)" \
 	"systemd-sysusers /usr/lib/sysusers.d/unheaded-wotan.conf
 systemctl daemon-reload
 systemctl try-restart unheaded-wotan.service"
 expect "postinst abort-upgrade touches nothing" "$(run postinst abort-upgrade 1.0.1)" ""
+expect "unpatched postinst runs the packaged keygen" \
+	"$(deb_postinst unheaded-wotan wotan unheaded-wotan | grep -c '^KEYGEN=/opt/unheaded/bin/unheaded-keygen$')" "1"
+
+# build-all-debs.sh passes each service's identity and account, and every
+# service package depends on the one package that ships unheaded-keygen.
+expect "build-all-debs passes identity and account to deb_postinst" \
+	"$(grep -c 'deb_postinst "\$PKG_NAME" "\$svc" "\$SVC_USER"' "$REPO_ROOT/scripts/build-all-debs.sh")" "1"
+expect "service packages depend on unheaded-keygen" \
+	"$(grep -c '^Depends: libc6, unheaded-keygen (= \${VERSION})$' "$REPO_ROOT/scripts/build-all-debs.sh")" "1"
+
+# debian/unheaded-wotan.postinst (the dh tree) is the generated script, not a
+# second hand-written one: no shared "unheaded" account (deploy/sysusers.d
+# gives every service its own), no unit written inline.
+DH="$REPO_ROOT/debian/unheaded-wotan.postinst"
+expect "debian postinst is the generated one" \
+	"$(sed -n '1,/^esac$/p' "$DH")" "$(deb_postinst unheaded-wotan wotan unheaded-wotan)"
+expect "debian postinst creates no shared account" \
+	"$(grep -cE 'useradd|adduser|User=unheaded$|id -u unheaded( |$)' "$DH")" "0"
 
 # The wotan package ships the topic config its unit reads, as a conffile.
 mkdir -p "$T/pkg/DEBIAN" "$T/other/DEBIAN"

@@ -38,7 +38,28 @@ echo "=============================================="
 
 echo "Building service binaries..."
 cd "$PROJECT_ROOT"
-"$PROJECT_ROOT/scripts/build-binaries.sh" --out "$BUILD_DIR" "${SERVICES[@]}"
+"$PROJECT_ROOT/scripts/build-binaries.sh" --out "$BUILD_DIR" "${SERVICES[@]}" unheaded-keygen
+
+# unheaded-keygen ships once, in its own package, and every service package
+# depends on it: the service postinst creates the service's key with it
+# (ADR-103). One file in several packages would make dpkg refuse the second.
+KG_DIR="${OUTPUT_DIR}/unheaded-keygen_${VERSION}"
+rm -rf "$KG_DIR"
+mkdir -p "$KG_DIR/DEBIAN" "$KG_DIR/opt/unheaded/bin"
+install -m 0755 "$BUILD_DIR/unheaded-keygen" "$KG_DIR/opt/unheaded/bin/unheaded-keygen"
+cat > "$KG_DIR/DEBIAN/control" <<EOF
+Package: unheaded-keygen
+Version: ${VERSION}
+Architecture: amd64
+Maintainer: Stevie Bellis <stevie@bellis.tech>
+Description: Unheaded service key tool (ADR-103)
+ Creates, rotates and retires each service's Ed25519 key pair.
+Depends: libc6
+Section: admin
+Priority: optional
+EOF
+dpkg-deb --root-owner-group --build "$KG_DIR" 2>/dev/null
+echo "  Built: unheaded-keygen_${VERSION}.deb"
 
 # deploy/systemd unit for each packaged binary
 unit_for() {
@@ -51,7 +72,7 @@ unit_for() {
 }
 
 # Build .deb for each service
-BUILT=0
+BUILT=1   # unheaded-keygen
 for svc in "${SERVICES[@]}"; do
     BIN="${BUILD_DIR}/${svc}"
 
@@ -74,7 +95,7 @@ Architecture: amd64
 Maintainer: Stevie Bellis <stevie@bellis.tech>
 Description: Unheaded ${svc} service
  Part of the Unheaded Kingdom infrastructure platform.
-Depends: libc6
+Depends: libc6, unheaded-keygen (= ${VERSION})
 Section: admin
 Priority: optional
 EOF
@@ -92,9 +113,11 @@ EOF
     [ -s "$PKG_DIR/usr/lib/sysusers.d/${PKG_NAME}.conf" ] || { echo "  FAIL: $SVC_USER not in deploy/sysusers.d/unheaded.conf" >&2; exit 1; }
 
     # Maintainer scripts (scripts/lib/deb-maintscripts.sh): postinst creates
-    # the account (systemd creates and owns the StateDirectory); prerm stops
-    # and disables only on removal, never on upgrade.
-    deb_postinst "$PKG_NAME" >"$PKG_DIR/DEBIAN/postinst"
+    # the account (systemd creates and owns the StateDirectory) and, on first
+    # install, the service's key owned by that account (identity = the binary
+    # name, what it passes to auth.LoadServiceAuthConfig); prerm stops and
+    # disables only on removal, never on upgrade.
+    deb_postinst "$PKG_NAME" "$svc" "$SVC_USER" >"$PKG_DIR/DEBIAN/postinst"
     deb_prerm "$PKG_NAME" >"$PKG_DIR/DEBIAN/prerm"
     chmod 755 "$PKG_DIR/DEBIAN/postinst" "$PKG_DIR/DEBIAN/prerm"
     deb_conffiles "$svc" "$PKG_DIR" "$PROJECT_ROOT"
