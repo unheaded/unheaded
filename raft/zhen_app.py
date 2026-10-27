@@ -45,7 +45,6 @@ from urllib.parse import urlsplit
 
 import yaml
 from flask import Flask, jsonify, request, send_file
-from flask_cors import CORS
 
 # Add scripts dir to path for RAG import
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
@@ -80,7 +79,9 @@ def _http_url_from_env(var: str, default: str) -> str:
 
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
-CORS(app)
+# No CORS: the UI is served by this app (same origin) and every other surface
+# only links here. CORS(app) let any page a LAN user visited read these
+# responses, conversation history included (found 2026-10-27).
 # No shipped default: a known key signs whatever a session cookie claims.
 # Nothing here uses Flask sessions today; a per-process random key keeps it so.
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)

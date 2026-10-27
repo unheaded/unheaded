@@ -186,3 +186,22 @@ def test_agentd_kanban_create_without_auth_config_is_503(client, monkeypatch):
 def test_agentd_page_no_longer_posts_to_the_daemon_directly():
     html = (RAFT / 'static' / 'index.html').read_text()
     assert ':20105/api/v1/tool/exec' not in html
+
+
+# ── CORS (found 2026-10-27, S-CLEAN-SLATE Phase 3) ──────────────────────
+# CORS(app) answered every origin, so any page a LAN user visited could read
+# Zhen's GET responses, conversation history included. The UI is served by
+# this app (same origin) and every other surface only links to it, so no
+# cross-origin read is needed: no Access-Control-Allow-Origin, for any origin.
+
+@pytest.mark.parametrize('path', ['/health', '/api/v1/conversations'])
+def test_no_cors_grant_to_another_origin(client, path):
+    r = client.get(path, base_url=ORIGIN, headers={'Origin': 'http://evil.example'})
+    assert 'Access-Control-Allow-Origin' not in r.headers, (path, r.headers.get('Access-Control-Allow-Origin'))
+    assert 'Access-Control-Allow-Credentials' not in r.headers
+
+
+def test_no_cors_preflight_grant(client):
+    r = client.options('/api/v1/conversations', base_url=ORIGIN,
+                       headers={'Origin': 'http://evil.example', 'Access-Control-Request-Method': 'GET'})
+    assert 'Access-Control-Allow-Origin' not in r.headers

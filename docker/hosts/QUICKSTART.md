@@ -346,8 +346,8 @@ WG_PUBLIC_KEY=<your-key>                      # WireGuard public key
 WG_PEER_PUBLIC_KEY=<host-b-public>           # Host-B's public key
 WG_ENDPOINT_PEER=<host-b-ip>:51820           # Host-B endpoint
 WG_IPV6_ADDR=fd00:dead:beef::1/48             # IPv6 address
-GRAFANA_ADMIN_PASSWORD=changeme               # Grafana password
-GRAFANA_SECRET_KEY=change32characterssecretkey!! # Secret key
+GRAFANA_ADMIN_PASSWORD=<set-a-strong-password>  # Grafana password (never a shared default)
+GRAFANA_SECRET_KEY=<openssl rand -hex 32>         # Secret key
 VM_RETENTION_PERIOD=90d                       # Metrics retention
 ```
 

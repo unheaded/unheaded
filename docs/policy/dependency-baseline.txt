@@ -568,7 +568,6 @@ pypi fasteners
 pypi filelock
 pypi fingerprints
 pypi flask
-pypi flask-cors
 pypi frozenlist
 pypi fsspec
 pypi ftfy
