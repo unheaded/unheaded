@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Starts zhen-agentd-overnight.service at 01:00 local time. NOT enabled
+# (E2, S-CHAMPION-HARDENING Phase 13); see the service file for the steps.
+
+[Unit]
+Description=Zhen overnight worker, nightly at 01:00
+
+[Timer]
+OnCalendar=*-*-* 01:00:00
+Persistent=false
+RandomizedDelaySec=0
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# zhen-agentd-overnight: the first unattended night (ADR-106 Q2,
+# S-CHAMPION-HARDENING Phase 13). NOT enabled: E2 is Stevie's decision
+# (which night, the cap, which cards, Well-recorded or memory-only).
+#
+# One run = `zhen-agentd -worker -overnight`: works eligible Kanban cards
+# (owner zhen, a ```zhen block) into local zhen/<card> branches inside
+# -window, at most -max-cards, with its own spend ledger and cap, strict
+# privacy, a memory floor that never counts swap; never pushes. It writes
+# the morning report to -report-dir (scripts/zhen-morning-report.sh reads it).
+#
+# Kill switch (runbooks/observe/zhen-overnight-abort.yaml):
+#   sudo -u zhen-agentd touch /var/lib/zhen-agentd/zhen-agentd.stop   # stop after the card in flight
+#   sudo systemctl stop zhen-agentd-overnight                         # stop now
+#
+# Before enabling (E2):
+#   - -claude fake below changes nothing and spends nothing. A live night is
+#     `-claude live -daily-cap-usd <cap>` with ANTHROPIC credentials in
+#     /etc/zhen-agentd.env.
+#   - GPU_LOCK must name a lease file that scripts/switch-model.sh and
+#     forge-train.sh also use (they run as the operator): the default is per
+#     user ($XDG_RUNTIME_DIR), so without a shared path the lease protects
+#     nothing. E.g. GPU_LOCK=/run/unheaded/gpu.lock, directory group-writable
+#     by a group both accounts are in.
+#   - WELL_APP_ZHEN_DSN and WELL_KANBAN_DSN in /etc/zhen-agentd.env, with
+#     migrations through 041 applied (else runs are memory-only).
+#   - /var/zhen/projects/default is a git checkout with `develop`.
+#   sudo install -m 0644 deploy/systemd/zhen-agentd-overnight.{service,timer} /etc/systemd/system/
+#   sudo install -d -o zhen-agentd -g zhen-agentd -m 0700 /var/zhen/agent-worktrees
+#   sudo systemctl daemon-reload && sudo systemctl enable --now zhen-agentd-overnight.timer
+
+[Unit]
+Description=Zhen overnight worker (one unattended night, ADR-106 Q2)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-106-two-brains-one-gate.md
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=zhen-agentd
+Group=zhen-agentd
+UMask=0077
+Environment=AUTH_KEY_FILE=/etc/unheaded/keys/zhen-agentd.key
+Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+Environment=GPU_LOCK=/run/unheaded/gpu.lock
+EnvironmentFile=-/etc/zhen-agentd.env
+StateDirectory=zhen-agentd
+StateDirectoryMode=0700
+ExecStart=/usr/local/bin/zhen-agentd \
+    -worker -overnight \
+    -project-root /var/zhen/projects/default \
+    -agent-root /var/zhen/agent-worktrees \
+    -window 01:00-07:00 \
+    -max-cards 5 \
+    -claude fake \
+    -stop-file /var/lib/zhen-agentd/zhen-agentd.stop \
+    -report-dir /var/lib/zhen-agentd/zhen-reports
+# The window bounds the night; this bounds the unit if the binary hangs.
+TimeoutStartSec=6h30min
+
+# --- Hardening (defense-in-depth on top of the in-process gate) ---
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RemoveIPC=yes
+# 127.0.0.1 listener + The Well over TCP.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Capabilities: zhen-agentd binds an unprivileged port (20105) and does
+# not need any capabilities. CAP_NET_BIND_SERVICE only required if you
+# move the listen port below 1024.
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Filesystem access: the project repo (zhen/<card> branches), the agent
+# worktrees, and the shared GPU lease directory.
+ReadWritePaths=/var/zhen/projects /var/zhen/agent-worktrees /run/unheaded
+ReadOnlyPaths=/var/zhen/models /etc/zhen-agentd.env /etc/unheaded/zhen
+
+# Seccomp — block privileged syscalls.
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+# Resource limits.
+LimitNOFILE=4096
+

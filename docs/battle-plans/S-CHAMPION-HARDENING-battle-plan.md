@@ -873,29 +873,29 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 2 h
 **Agent**: Agent A
 
-- [ ] **Step 221** [R] ~5m
+- [x] **Step 221** [R] ~5m
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'func \(.*\) handle|HandleFunc\("/api' cmd/kanban-app/main.go | head -30 && ls cmd/kanban-app/data | head && grep -nE 'modal|review_note|branch' kanban/*.js kanban/*.html 2>/dev/null | head -8; ls kanban | head
   ```
-- [ ] **Step 222** [DECIDE][DESIGN] ~3m: ADR-038 trailer hook
+- [x] **Step 222** [DECIDE][DESIGN] ~3m: ADR-038 trailer hook
   - RECOMMENDATION: mark ADR-038 Dormant (status line: "Accepted, dormant 2026-10-xx: the `zhen_agent_runs.branch` + card id link (migration 032) supersedes the commit-trailer hook; revive only if human commits need the link"). Rationale: every agent commit already lands on a `zhen/<card>` branch recorded in the Well; a hook on Stevie's commits would add friction for a link the board already has. Override ONLY if Stevie wants trailers on human commits.
-- [ ] **Step 223** [CODE][W] ~10m: Red (Go, `cmd/kanban-app`): `GET /api/v1/runbooks` lists runbooks from `runbooks/MANIFEST.sha256` + front-matter (name, category, status, risk); `POST /api/v1/tasks/from-runbook` creates a card in the Well (`kanban_tasks`, type `runbook`, `metadata.runbook=<name>`) through the existing store (pg in prod, memory in tests), never a hardcoded card; `GET /api/v1/tasks/{id}` includes `agent_run: {branch, review_note, mode, finished_at}` joined from `zhen_agent_runs` when present. Green.
-- [ ] **Step 224** [CODE][W] ~8m: UI (`kanban/`, vanilla JS): a "Runbooks" tab listing `GET /api/v1/runbooks` with a "Create task" button; card modal gains a "Agent run" block (branch as text, review_note, link `git log zhen/<branch>` as a copyable command, not a link to GitHub); per-step progress: subscribe to the existing `zhen.audit.toolcalls` stream the dashboard already consumes (check `grep -rn 'zhen.audit' dashboard/js | head -3`) filtered by `runbook=<name>`, rendering `step k/n`. `scripts/check-js-lint.sh` passes.
+- [x] **Step 223** [CODE][W] ~10m: Red (Go, `cmd/kanban-app`): `GET /api/v1/runbooks` lists runbooks from `runbooks/MANIFEST.sha256` + front-matter (name, category, status, risk); `POST /api/v1/tasks/from-runbook` creates a card in the Well (`kanban_tasks`, type `runbook`, `metadata.runbook=<name>`) through the existing store (pg in prod, memory in tests), never a hardcoded card; `GET /api/v1/tasks/{id}` includes `agent_run: {branch, review_note, mode, finished_at}` joined from `zhen_agent_runs` when present. Green.
+- [x] **Step 224** [CODE][W] ~8m: UI (`kanban/`, vanilla JS): a "Runbooks" tab listing `GET /api/v1/runbooks` with a "Create task" button; card modal gains a "Agent run" block (branch as text, review_note, link `git log zhen/<branch>` as a copyable command, not a link to GitHub); per-step progress: subscribe to the existing `zhen.audit.toolcalls` stream the dashboard already consumes (check `grep -rn 'zhen.audit' dashboard/js | head -3`) filtered by `runbook=<name>`, rendering `step k/n`. `scripts/check-js-lint.sh` passes.
   ```bash
   cd /home/govan/tmp/unheaded && scripts/check-js-lint.sh 2>&1 | tail -2
   ```
-- [ ] **Step 225** [TEST][B] ~3m
+- [x] **Step 225** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/kanban-app/... -race -count=1 2>&1 | tail -3 && scripts/check-kanban-genesis.sh 2>&1 | tail -1
   ```
-- [ ] **Step 226** [V] ~1m: PASS; the Genesis check still passes (no card was hardcoded; memory feedback_kanban_cards_from_well).
+- [x] **Step 226** [V] ~1m: PASS; the Genesis check still passes (no card was hardcoded; memory feedback_kanban_cards_from_well).
 - [ ] **Step 227** [LIVE-RO][B] ~3m: If the kanban container is up on west, read-only smoke; else skip (not STUCK)
   ```bash
   curl -s --max-time 3 http://127.0.0.1:20001/api/v1/runbooks | jq 'length' 2>/dev/null || echo "kanban not running here (ok)"
   ```
-- [ ] **Step 228** [DOC-UPDATE][W] ~4m: `wiki/Kanban.md` (or the board's wiki page): Runbooks tab, agent-run block, "cards come from The Well" sentence; ADR-038 status per Step 222; ADR-106 §6 pointer.
-- [ ] **Step 229** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 221-228: Kanban runbooks view and agent-run block; ADR-038 dormant`
-- [ ] **Step 230** [V] ~1m: **PHASE 12 EXIT GATE** — Steps 224 lint, 225, 226 green.
+- [x] **Step 228** [DOC-UPDATE][W] ~4m: `wiki/Kanban.md` (or the board's wiki page): Runbooks tab, agent-run block, "cards come from The Well" sentence; ADR-038 status per Step 222; ADR-106 §6 pointer.
+- [x] **Step 229** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 221-228: Kanban runbooks view and agent-run block; ADR-038 dormant`
+- [x] **Step 230** [V] ~1m: **PHASE 12 EXIT GATE** — Steps 224 lint, 225, 226 green.
 
 ---
 
@@ -906,24 +906,24 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 45 min + E2
 **Agent**: Coordinator
 
-- [ ] **Step 231** [R] ~4m
+- [x] **Step 231** [R] ~4m
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'overnight|gpu-lease|mem-floor|daily-cap|cards?-filter|kill|ABORT' cmd/zhen-agentd/main.go | head -14 && grep -nE 'Step 254|unattended' docs/adr/ADR-106-two-brains-one-gate.md | head -4
   ```
-- [ ] **Step 232** [W] ~5m: `deploy/systemd/zhen-agentd.env.example` gains the overnight block (commented): `ZHEN_OVERNIGHT=1`, `ZHEN_CLAUDE_DAILY_CAP_USD=5`, `ZHEN_CARD_FILTER=label:zhen,status:ready`, `ZHEN_MEM_FLOOR_MB=…`, `ZHEN_ABORT_FILE=/run/unheaded/zhen/ABORT`; `runbooks/observe/zhen-overnight-abort.yaml` (draft) documents the kill switch (`touch` the abort file, `systemctl stop zhen-agentd`); `scripts/zhen-morning-report.sh` prints last night's `zhen_agent_runs` rows (via agentd `GET /api/v1/runs?since=`), spend, cards moved, branches to review.
+- [x] **Step 232** [W] ~5m: `deploy/systemd/zhen-agentd.env.example` gains the overnight block (commented): `ZHEN_OVERNIGHT=1`, `ZHEN_CLAUDE_DAILY_CAP_USD=5`, `ZHEN_CARD_FILTER=label:zhen,status:ready`, `ZHEN_MEM_FLOOR_MB=…`, `ZHEN_ABORT_FILE=/run/unheaded/zhen/ABORT`; `runbooks/observe/zhen-overnight-abort.yaml` (draft) documents the kill switch (`touch` the abort file, `systemctl stop zhen-agentd`); `scripts/zhen-morning-report.sh` prints last night's `zhen_agent_runs` rows (via agentd `GET /api/v1/runs?since=`), spend, cards moved, branches to review.
   ```bash
   cd /home/govan/tmp/unheaded && bash -n scripts/zhen-morning-report.sh && scripts/check-runbooks.sh 2>&1 | tail -1
   ```
-- [ ] **Step 233** [TEST][B] ~5m: Dry overnight for 2 minutes against the fake Champion/in-memory stores (no model, no Claude): the worker picks a fixture card, writes a branch in a temp worktree, records a run, respects the abort file.
+- [x] **Step 233** [TEST][B] ~5m: Dry overnight for 2 minutes against the fake Champion/in-memory stores (no model, no Claude): the worker picks a fixture card, writes a branch in a temp worktree, records a run, respects the abort file.
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-agentd/ -run 'Overnight|Worker' -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 234** [V] ~1m: PASS (these tests exist from S-TWO-BRAINS; if any is skipped for a missing Well, it stays skipped here: the live night is Stevie's call).
-- [ ] **Step 235** [ESCALATE] ~2m: **E2: the first unattended night**
+- [x] **Step 234** [V] ~1m: PASS (these tests exist from S-TWO-BRAINS; if any is skipped for a missing Well, it stays skipped here: the live night is Stevie's call).
+- [x] **Step 235** [ESCALATE] (filed 2026-10-27 in `progress/S-CHAMPION-HARDENING-approvals.md`, section E2) ~2m: **E2: the first unattended night**
   - Context: Step 232 env template; Phase 2 made confirmations requester-bound, Phase 8 made the scheduler part of the same unit, Phase 6 approvals decide which runbooks the night may execute.
   - Questions: which night; `-daily-cap-usd` (default 5); which cards (filter); whether migrations 030-034 are applied first (S-WELL-SPRING M-070) or the night runs memory-only (branches still land, runs are not recorded in the Well).
   - Why Stevie: it spends money and writes branches while nobody watches.
-- [ ] **Step 236** [V] ~1m: **PHASE 13 EXIT GATE** — Steps 232 checks and 234 green; E2 filed with the date. The night itself is executed by the on-call session following `runbooks/observe/zhen-overnight-abort.yaml` and reported with `scripts/zhen-morning-report.sh`; its result is appended to this file's progress ledger.
+- [x] **Step 236** [V] ~1m: **PHASE 13 EXIT GATE** — Steps 232 checks and 234 green; E2 filed with the date. The night itself is executed by the on-call session following `runbooks/observe/zhen-overnight-abort.yaml` and reported with `scripts/zhen-morning-report.sh`; its result is appended to this file's progress ledger.
 
 ---
 
