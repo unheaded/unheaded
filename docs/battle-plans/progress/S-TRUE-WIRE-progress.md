@@ -88,3 +88,20 @@ the merge into develop (the register lives on develop). Draft text for sophia-di
 "Reference implementation pkg/protocol/sophiasync: ML-DSA-65 over SHA-256("sophia/delta-sig/v1" || 0x00 || algorithm ||
 0x00 || signed_at_ms int64 BE || canonical delta); signing time within 5 minutes of the receiver's clock; unsigned
 deltas run in observe mode until the severity-ladder rule flips them."
+
+## Phase 9 merged into sprint/true-wire (SPDX, relicense)
+
+`scripts/check-spdx.sh` (default `--langs go,rs`, `--forbid MIT` respecting MIT-KEEP), `scripts/spdx-backfill.sh`,
+`scripts/lib/spdx.sh`; ci.yml spdx-check and the Jenkinsfile stage run the gate over 1870 tracked Go/Rust files. 69 .rs
+headed: 61 GPL-3.0-or-later, 8 GPL-2.0-only (`ebpf/{common,flow-tracker,packet-marker,latency-probe}`,
+`cmd/ebpf-loader`: their Cargo.toml declares it). py/sh: 112 missing of 463 before, 28 after (22 Doom, 6 fixtures/archive),
+so CI gates Go and Rust only. Steps 331-337 ALREADY-DONE (S-CLEAN-SLATE decision 12, 279 files relicensed; dry run finds
+0 MIT headers; MIT-KEEP empty; Phase 0's mit-spdx=4 were quotes in plans/scripts). THIRD_PARTY: 11 rows MIT -> GPL.
+`pkg/iac/chef.go:133` writes `license 'MIT'` into generated Chef cookbooks (product question). Rust line numbers in
+packet-marker shifted by 2. eBPF objects unchanged (coordinator: load gate 34 PASS, UPC 926542/761580).
+**E4 (Stevie):** `cmd/trace-collector/Cargo.toml` and `crates/monad-mbc/Cargo.toml` still say `license = "MIT"` (files
+are GPL-3.0-or-later): change both to GPL-3.0-or-later? The `ebpf/` workspace says GPL-2.0-only (followed by the newly
+headed common/flow-tracker/packet-marker/latency-probe and ebpf-loader) while monad-common, shield, monad-cpu, cartridge,
+yaldabaoth, syscall-tracer say GPL-3.0-or-later, and zhend's manifest says GPL-3.0-only against or-later headers: which
+licence on each side (GPL-2.0-only for kernel-side programs, or GPL-3.0-or-later everywhere)? Keep the external
+doomgeneric module MIT?
