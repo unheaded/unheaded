@@ -17,6 +17,7 @@
 //	verify-custody    hash-chained, signed, monotonic chain_of_custody
 //	verify            all of the above, each stage reported
 //	diff              two packs; exit 3 if custody history was rewritten
+//	cask sign|verify  Sealed Cask Binding Rune seal (pkg/sealedcask)
 //
 // Packs are read in memory with size caps and no extraction (pack.go). Runbooks
 // at nix/yggdrasil/evidence-pack/runbooks/ use these subcommands.
@@ -68,6 +69,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdVerifyCustody(rest, stdout, stderr)
 	case "diff":
 		return cmdDiff(rest, stdout, stderr)
+	case "cask":
+		return cmdCask(rest, stdout, stderr)
 	case "-h", "--help", "help":
 		usage(stdout)
 		return exitOK
@@ -94,6 +97,8 @@ Subcommands:
   verify-gates       Just check the CI gates from the manifest
   verify-custody     Just check the chain-of-custody log
   diff               Diff two evidence packs
+  cask sign          Seal a Sealed Cask's BINDING_RUNE.sha256 with the build key
+  cask verify        Verify a Sealed Cask (also: the standalone cask-verify)
 
 Exit codes: 0 ok, 1 verification failed, 2 usage or unreadable input.
 
