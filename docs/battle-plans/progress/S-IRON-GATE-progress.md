@@ -248,3 +248,22 @@ Who may run `apt-repo.sh include`? Where is the fingerprint published for first 
 TLS material and trust.d on east and run the east upgrade (unit renames, new unheaded-auth); then west.
 **vllm (Stevie):** `vllm/vllm-openai-rocm:<version>` (exists upstream) or `rocm/vllm` (west holds an old `latest`,
 `sha256:e7f02dd2...`)?
+
+### Phase 15 merged: security review
+
+`docs/security/iron-gate-attack-surface.md` built from the code (listeners, key files, headers/cookies/tokens, workflows,
+host privilege; checked read-only against west: west still runs the pre-Iron-Gate stack, nothing on 19020, Wotan plain
+HTTP on 0.0.0.0:18000; compose ports bypass the nftables INPUT policy via Docker DNAT, so auth and TLS are the LAN
+boundary). 12 fuzz targets 90 s each, 0 crashers. go.mod unchanged since 1f44cc46; dependency baseline PASS; SPDX 0
+missing; govulncheck clean. Lich hand-off `tomb/lich/IRON-GATE-HOOKS.md`, seeds `tomb/lich/seeds/auth/` (5 JWKS docs;
+10 malformed tokens built at run time by `go run ./tomb/lich/seeds/auth/gen`, gitignored, because they trip gitleaks'
+jwt rule). Fixed during review: run-runbook.py sent its Wotan token over plain http to any host (now https or loopback
+only); deploy/systemd/README TLS dirs 0750 -> 0755 (keys stay 0640) so Akira's cert check can read certs. The coordinator
+fixed `TestRepoRegister` (red from the FND-026 entry's undeclared source; now an FND id with class service).
+Open items: `check-edge-tls` FAIL is accepted risk (until 2026-12-29); `check-ebpf-size-pin` gives 919,096 vs the
+918,840 pin from a worktree because the object embeds the checkout's absolute path (run it from the main checkout, or
+add `--remap-path-prefix` and re-pin); `crates/svc-token` brings `ring` back into cmd/trace-collector's lock (ADR-096
+review note open); behind traefik the BFF/issuer lockouts become global (one source address); `jwks_uri` may point at any
+https host; `secrets/cask.age.key` is generated inside the checkout; apt `Release` has no Valid-Until (freeze/replay);
+uid 16738 (`unheaded-apt`) waits on E4. Flake: `pkg/deploy/rollback TestManager_Rollback_DuplicateInProgress` (races an
+async rollback against a non-blocking mock; 20/20 alone).
