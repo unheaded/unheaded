@@ -203,7 +203,11 @@ func HealthURL(listenAddr string, port int) string {
 			host = h
 		}
 	}
-	return pqtls.Scheme() + "://" + net.JoinHostPort(host, strconv.Itoa(port)) + "/health"
+	scheme := "http"
+	if pqtls.ServesTLS() { // its own listener is TLS (S-IRON-GATE Phase 8)
+		scheme = "https"
+	}
+	return scheme + "://" + net.JoinHostPort(host, strconv.Itoa(port)) + "/health"
 }
 
 // ballotNames maps a Wotan display name to the name Akira's targets use for

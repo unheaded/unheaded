@@ -1523,7 +1523,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:350:postgres-image",
+      "bom-ref": "docker-compose.yml:352:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1563,7 +1563,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:350"
+          "value": "docker-compose.yml:352"
         }
       ]
     },
@@ -3044,7 +3044,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/tls/setup.go:276:tls-config",
+      "bom-ref": "pkg/tls/setup.go:284:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -3084,13 +3084,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/tls/setup.go:276"
+          "value": "pkg/tls/setup.go:284"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/tls/setup.go:352:tls-config",
+      "bom-ref": "pkg/tls/setup.go:360:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -3126,7 +3126,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/tls/setup.go:352"
+          "value": "pkg/tls/setup.go:360"
         }
       ]
     },

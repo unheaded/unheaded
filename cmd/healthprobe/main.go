@@ -44,7 +44,11 @@ func target(arg string) (string, error) {
 	if err != nil || p < 1 || p > 65535 {
 		return "", fmt.Errorf("want a port (1-65535) or a URL, got %q", arg)
 	}
-	return utls.BaseURL("127.0.0.1:"+strconv.Itoa(p)) + "/health", nil
+	scheme := "http"
+	if utls.ServesTLS() { // the container's own listener is TLS
+		scheme = "https"
+	}
+	return scheme + "://127.0.0.1:" + strconv.Itoa(p) + "/health", nil
 }
 
 func run(args []string, stderr io.Writer) int {

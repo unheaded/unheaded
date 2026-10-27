@@ -34,6 +34,16 @@ Environment=AUTH_ENABLED=true
 Environment=AUTH_ISSUER_URL=https://%H:19020
 Environment=AUTH_ALLOW_CALLERS=dashboard-backend,zhen-agentd,micromanager
 ReadOnlyPaths=-/etc/unheaded/trust.d
+# TLS (S-IRON-GATE Phase 8, ADR-105, FND-017; deploy/systemd/README.md#tls):
+# TLS 1.3 with hybrid ML-KEM on the listener and every first-party link.
+# Material in /etc/unheaded/tls/kanban-app/ from the Kingdom CA runbook
+# (runbooks/pki/generate-kingdom-certs.yaml); key root:unheaded-kanban 0640, certs 0644.
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/kanban-app/ca.pem
+Environment=UNHEADED_TLS_CERT=/etc/unheaded/tls/kanban-app/kanban-app.pem
+Environment=UNHEADED_TLS_KEY_FILE=/etc/unheaded/tls/kanban-app/kanban-app-key.pem
+Environment=UNHEADED_TLS_MTLS_ENABLED=false
+ReadOnlyPaths=-/etc/unheaded/tls/kanban-app
 
 User=unheaded-kanban
 Group=unheaded-kanban

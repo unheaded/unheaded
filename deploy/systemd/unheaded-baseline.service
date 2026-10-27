@@ -43,6 +43,11 @@ ExecStartPre=+/bin/sh -c 'umask 027; d="$RUNTIME_DIRECTORY"; aa-status --json > 
 #   echo 'WOTAN_ADDR=127.0.0.1:18000' | sudo tee /etc/unheaded/baseline.env
 #Environment=WOTAN_ADDR=127.0.0.1:18000
 EnvironmentFile=-/etc/unheaded/baseline.env
+# TLS (S-IRON-GATE Phase 8; deploy/systemd/README.md#tls): Wotan and Cuirass
+# serve TLS only, so this unit dials them with the Kingdom CA. Its own
+# listener stays plain HTTP: no certificate of its own here (pkg/tls.ServesTLS).
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
 ExecStart=/usr/local/bin/unheaded-baseline -root-facts /run/unheaded-baseline
 StateDirectory=unheaded/baseline
 StateDirectoryMode=0755

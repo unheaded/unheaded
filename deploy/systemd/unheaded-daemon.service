@@ -35,6 +35,16 @@ Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 Environment=AUTH_ENABLED=true
 Environment=AUTH_ALLOW_CALLERS=sword,unheaded-cli,dashboard-backend
 ReadOnlyPaths=-/etc/unheaded/trust.d
+# TLS (S-IRON-GATE Phase 8, ADR-105, FND-017; deploy/systemd/README.md#tls):
+# TLS 1.3 with hybrid ML-KEM on the listener and every first-party link.
+# Material in /etc/unheaded/tls/unheaded-daemon/ from the Kingdom CA runbook
+# (runbooks/pki/generate-kingdom-certs.yaml); key root:unheaded-daemon 0640, certs 0644.
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/unheaded-daemon/ca.pem
+Environment=UNHEADED_TLS_CERT=/etc/unheaded/tls/unheaded-daemon/unheaded-daemon.pem
+Environment=UNHEADED_TLS_KEY_FILE=/etc/unheaded/tls/unheaded-daemon/unheaded-daemon-key.pem
+Environment=UNHEADED_TLS_MTLS_ENABLED=false
+ReadOnlyPaths=-/etc/unheaded/tls/unheaded-daemon
 
 User=unheaded-daemon
 Group=unheaded-daemon

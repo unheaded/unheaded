@@ -21,6 +21,12 @@ After=unheaded-wotan.service
 [Service]
 Type=simple
 EnvironmentFile=-/etc/unheaded/kev-poller.env
+# TLS (S-IRON-GATE Phase 8; deploy/systemd/README.md#tls): Wotan and Cuirass
+# serve TLS only, so this unit dials them with the Kingdom CA. Its own
+# listener stays plain HTTP: no certificate of its own here (pkg/tls.ServesTLS).
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
+ReadOnlyPaths=-/etc/unheaded/tls/ca.pem
 # --stack: install config/kev-poller/stack.yaml as /etc/unheaded/kev-stack.yaml
 ExecStart=/usr/local/bin/kev-poller --port 19120 --state-dir /var/lib/unheaded/threat-feeds/cisa-kev --stack /etc/unheaded/kev-stack.yaml
 WorkingDirectory=/var/lib/unheaded/threat-feeds/cisa-kev

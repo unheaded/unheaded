@@ -22,6 +22,8 @@ func TestTarget(t *testing.T) {
 		t.Errorf("TLS off: %q", got)
 	}
 	t.Setenv("UNHEADED_TLS_ENABLED", "true")
+	t.Setenv("UNHEADED_TLS_CERT", "/c.pem")
+	t.Setenv("UNHEADED_TLS_KEY_FILE", "/k.pem")
 	if got, _ := target("19000"); got != "https://127.0.0.1:19000/health" {
 		t.Errorf("TLS on: %q", got)
 	}
@@ -62,10 +64,18 @@ func TestRun_TLSHealthyAndPlainRefused(t *testing.T) {
 	defer srv.Close()
 	_, port, _ := net.SplitHostPort(srv.Listener.Addr().String())
 
+	certFile := filepath.Join(t.TempDir(), "svc.pem")
+	keyFile := filepath.Join(t.TempDir(), "svc-key.pem")
+	if err := os.WriteFile(certFile, sc.CertPEM, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyFile, sc.KeyPEM, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("UNHEADED_TLS_ENABLED", "true")
 	t.Setenv("UNHEADED_TLS_CA_CERT", caFile)
-	t.Setenv("UNHEADED_TLS_CERT", "")
-	t.Setenv("UNHEADED_TLS_KEY_FILE", "")
+	t.Setenv("UNHEADED_TLS_CERT", certFile)
+	t.Setenv("UNHEADED_TLS_KEY_FILE", keyFile)
 	if code := run([]string{port}, io.Discard); code != 0 {
 		t.Fatalf("healthy TLS service: exit %d", code)
 	}

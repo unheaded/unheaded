@@ -32,6 +32,12 @@ Requires=unheaded-wotan.service
 [Service]
 Type=simple
 Environment=ANOMALY_WOTAN=127.0.0.1:18000
+# TLS (S-IRON-GATE Phase 8; deploy/systemd/README.md#tls): Wotan and Cuirass
+# serve TLS only, so this unit dials them with the Kingdom CA. Its own
+# listener stays plain HTTP: no certificate of its own here (pkg/tls.ServesTLS).
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
+ReadOnlyPaths=-/etc/unheaded/tls/ca.pem
 EnvironmentFile=-/etc/unheaded/anomaly.env
 ExecStart=/usr/local/bin/anomaly --listen 127.0.0.1:19018 --wotan ${ANOMALY_WOTAN} --pin-dir /run/unheaded-anomaly/cart
 Restart=on-failure

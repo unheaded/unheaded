@@ -21,8 +21,16 @@ import (
 
 func TestHealthURL_HTTPSWhenTLSOn(t *testing.T) {
 	t.Setenv("UNHEADED_TLS_ENABLED", "true")
+	t.Setenv("UNHEADED_TLS_CERT", "/etc/unheaded/tls/x/x.pem")
+	t.Setenv("UNHEADED_TLS_KEY_FILE", "/etc/unheaded/tls/x/x-key.pem")
 	if got := HealthURL(":19000", 19000); got != "https://127.0.0.1:19000/health" {
 		t.Fatalf("HealthURL with TLS on = %q", got)
+	}
+	// A client-only unit (TLS to others, plain listener: no cert of its
+	// own) probes itself over http.
+	t.Setenv("UNHEADED_TLS_CERT", "")
+	if got := HealthURL(":19012", 19012); got != "http://127.0.0.1:19012/health" {
+		t.Fatalf("HealthURL for a client-only unit = %q", got)
 	}
 }
 

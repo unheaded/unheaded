@@ -69,6 +69,14 @@ func LoadServiceTLSConfig() ServiceTLSConfig {
 // Enabled reports whether UNHEADED_TLS_ENABLED is exactly "true".
 func Enabled() bool { return os.Getenv(EnvEnabled) == "true" }
 
+// ServesTLS reports whether this process's own listener is TLS: TLS is on
+// and it has a certificate and key (UNHEADED_TLS_CERT, UNHEADED_TLS_KEY_FILE).
+// A client-only unit (one that dials TLS services but serves plain HTTP on
+// loopback) sets UNHEADED_TLS_ENABLED and UNHEADED_TLS_CA_CERT only.
+func ServesTLS() bool {
+	return Enabled() && strings.TrimSpace(os.Getenv(EnvCert)) != "" && strings.TrimSpace(os.Getenv(EnvKeyFile)) != ""
+}
+
 // Scheme is "https" when UNHEADED_TLS_ENABLED=true, else "http": the scheme
 // for a URL to another first-party service.
 func Scheme() string {

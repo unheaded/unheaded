@@ -10,7 +10,7 @@
 | Port | 19020 (`pkg/ports.Auth`) |
 | Account | `unheaded-auth`, uid 16735 (`pkg/uids.Auth`), nologin |
 | Host unit | `deploy/systemd/unheaded-auth.service` (not installed anywhere yet) |
-| Compose | service `auth` on the `data` network, no host port, `-dev-plaintext` |
+| Compose | service `auth` on the `data` network, no host port, `https://auth:19020` with a dev certificate (`scripts/gen-dev-certs.sh`) |
 | Signing key | `/etc/unheaded/keys/unheaded-auth.key` (0400, `unheaded-keygen -owner unheaded-auth unheaded-auth`); compose: secret `svc_key_unheaded-auth` |
 | Users file | `/etc/unheaded/auth/users.json` (0600, owned by `unheaded-auth`); compose: `configs/auth/dev-users.json` |
 
@@ -30,7 +30,7 @@ Token: header `{"alg":"EdDSA","typ":"JWT","kid":...}`; claims `sub` (user), `iss
 - **Passwords** are argon2id (64 MiB, 3 passes, 2 lanes, 16-byte salt). Parameters read back from the users file are bounded, so a bad file cannot make one login allocate gigabytes. At most two hashes run at once. An unknown user costs the same as a wrong password and gets the same answer.
 - **Lockout:** 5 failures for one user from one address, or 20 from one address across users, within 10 minutes answer 429 with `Retry-After` without hashing anything. There is no per-user lock across addresses, so nobody can lock another user out. The address is the TCP peer, never `X-Forwarded-For`.
 - **Refuses to start** when its key or users file is readable by group or others, the users file is malformed, or the issuer URL is not https (plain http only to loopback, or anywhere with `-dev-plaintext`).
-- **TLS** comes from `pkg/tls` (`UNHEADED_TLS_*`, in `/etc/unheaded/auth.env` for the unit) with the hybrid ML-KEM Strict profile ([[Post-Quantum Key Exchange|Post-Quantum-Key-Exchange]]). Without TLS and without `-dev-plaintext` only the probes answer.
+- **TLS** comes from `pkg/tls` (`UNHEADED_TLS_*`, set in the unit; material under `/etc/unheaded/tls/unheaded-auth/`) with the hybrid ML-KEM Strict profile ([[Post-Quantum Key Exchange|Post-Quantum-Key-Exchange]]). Without TLS and without `-dev-plaintext` only the probes answer.
 - **Users:** `unheaded-auth user add <name> --roles operator` (prompts twice; `--password-stdin` for scripts), `user list`, `user del <name>`. Roles: `admin`, `operator`, `viewer`, `observer`, `guest` (`service` is refused: it is what service tokens carry). The file is replaced atomically and keeps its owner. Reload with `SIGHUP` (`systemctl kill -s HUP unheaded-auth`, `docker compose kill -s HUP auth`); a broken file keeps the users already loaded. Removing a user does not revoke tokens already issued; they expire within 15 minutes.
 - **Dev stack:** `scripts/gen-dev-keys.sh` makes the key and one operator `dev` with a random password printed once; `--reset-users` makes a new one. Run it once with `sudo` (after `make binaries`) so uid 16735 can read both files.
 - No WebAuthn yet (S-IRON-GATE Step 125: it needs a new module and a browser ceremony).
@@ -39,7 +39,7 @@ Token: header `{"alg":"EdDSA","typ":"JWT","kid":...}`; claims `sub` (user), `iss
 
 Set `AUTH_OIDC_ISSUER_URL` to the issuer URL. `pkg/auth.JWKSVerifier` fetches discovery and the JWKS, caches the keys for 10 minutes, refetches once for an unknown kid, and checks `alg` = `EdDSA`, `iss`, `exp` and `aud` = the service's own name. A token for a service therefore needs that service in `-audiences` and the login's `audience` field; the browser-facing backends log users in with their own name as `audience` (below) and call other services with their own service tokens.
 
-The verifier fetches over https, or plain http to loopback only. The compose `auth` service runs plain HTTP on the data network, so no other container can verify its tokens until TLS is on every internal link (S-IRON-GATE Phase 8).
+The verifier fetches over https, or plain http to loopback only. With `UNHEADED_TLS_ENABLED=true` it trusts the system roots plus the deployment CA (`UNHEADED_TLS_CA_CERT`), so the compose issuer at `https://auth:19020` verifies with the dev CA (S-IRON-GATE Phase 8).
 
 ## Wotan
 
@@ -51,7 +51,7 @@ Wotan is the last service behind auth (S-IRON-GATE Phase 7, ADR-103 §6). With `
 | Approval | `configs/wotan.yaml` `topics.auto_approve` lists service identities. With auth on, only a verified EdDSA service token's `sub` is matched; the `display_name` a client sends is a label. Members are named by the `sub`, and a publish through a `subscriber_id`/`sender_id` is refused when that member belongs to another identity |
 | Auth off | The display name is matched against `auto_approve` and `legacy_display_names` (the names clients sent before Phase 7), with a warning. This keeps the Appendix A3 rollback (`AUTH_ENABLED` unset on Wotan only) working |
 | Allowlist | compose `wotan` and `unheaded-wotan.service` allow every identity a binary presents; `services/wotan/cmd/wotan/allowlist_test.go` fails when a new `InitServiceIdentity` name is missing from either, or from `auto_approve` |
-| Plaintext | Before Wotan serves TLS (Phase 8) the gRPC token travels over plaintext with a one-time warning; a client that dials TLS (`UNHEADED_GRPC_TLS=1`) never sends it on anything else |
+| Transport | With `UNHEADED_TLS_ENABLED=true` every client dials Wotan gRPC and HTTP over TLS 1.3 (Strict hybrid ML-KEM, the deployment CA, server name verified; no plaintext fallback). A token travels over TLS only: on a plaintext link it is withheld (a WARN once) unless the peer is loopback or the client was built `WithInsecureTransport()`, which is refused under TLS (S-IRON-GATE Phase 8) |
 | Admin API | Still off unless Wotan runs with `--admin`; with auth on it needs an `admin` identity as well as the admin key |
 
 A signed publish (`drift.*`, `config.*`) covers the sender Wotan authorized: with auth on, the caller's `sub`, so a signing publisher uses its identity as its display name (Heimdall: `heimdall`).
@@ -76,7 +76,7 @@ Browsers never hold a bearer token ([ADR-103](../docs/adr/ADR-103-service-auth-t
 - **Roles:** reads take `admin`, `operator`, `observer`, `viewer` or `service`; writes take `admin`, `operator` or `service`; `guest` gets nothing. The dashboard needs a login for every `/api/` call and WebSocket (its pages, scripts and styles stay open); the board stays publicly readable and needs an operator login to write. The compliance profile switch (`POST /api/v1/compliance/profile`) takes `admin` or `operator` only and records the login's `sub` as the change's actor.
 - **WebSockets** authenticate by the cookie; on the dashboard a handshake from a foreign `Origin` is refused (403) before authentication.
 - **Calling other services for a user:** the backend uses its own service token and signs the user into it as the RFC 8693 `act` claim (`auth.WithActor`; `bff.AuthorizeOutgoing` also sets `X-Unheaded-On-Behalf-Of`). The receiver sees `Identity.Extra["act"]`; it grants nothing and is for audit records.
-- **Compose before TLS:** `AUTH_BFF_DEV_PLAINTEXT=true` (or dashboard-backend `-dev-plaintext`) drops `Secure` from the cookie and lets the backend reach the issuer over plain http on the data network. Nothing else changes; without it a plain-http issuer off loopback refuses to start.
+- **Issuer over TLS:** the BFF reaches the issuer with the system roots plus the deployment CA when `UNHEADED_TLS_ENABLED=true` (compose: `https://auth:19020`, Secure cookie). `AUTH_BFF_DEV_PLAINTEXT=true` (or dashboard-backend `-dev-plaintext`) remains for a stack without TLS: it drops `Secure` and allows a plain-http issuer; without it a plain-http issuer off loopback refuses to start.
 - The login speaks this issuer's `POST /login`. Another OIDC provider would need an authorization-code flow in `pkg/bff`, which is not built.
 
 ## Replacing it with another IdP

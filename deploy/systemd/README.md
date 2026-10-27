@@ -166,6 +166,49 @@ Removing a `.pub` from trust.d revokes that key. `unheaded-keygen -print-kid
 <identity>` prints the current kid. Copy each host's new `.pub` to the other
 host's trust.d for cross-host calls.
 
+## TLS (ADR-105, FND-017)
+
+S-IRON-GATE Phase 8. The thirteen first-party server units (akira,
+architect, auth, captain, daemon, dashboard, kanban, micromanager, monad,
+sophia, sword, timeguru, wotan) listen and dial TLS 1.3 with the Strict
+hybrid ML-KEM profile (`pkg/tls`): a classical-only client is refused, and
+a missing or unreadable certificate, key or CA stops the service instead of
+starting it in plaintext. Each sets `UNHEADED_TLS_ENABLED=true`,
+`UNHEADED_TLS_CA_CERT`, `UNHEADED_TLS_CERT`, `UNHEADED_TLS_KEY_FILE` under
+`/etc/unheaded/tls/<identity>/` and `UNHEADED_TLS_MTLS_ENABLED=false` (the
+caller's identity is its service token, not a client certificate). Wotan
+takes its certificate from `--enable-tls --tls-cert --tls-key` (HTTP 18000
+serves the Preferred profile for scrapers and scripts, gRPC 18001 Strict).
+A Wotan client sends its service token over TLS only.
+
+The units that dial Wotan or Cuirass but keep a plain listener
+(chaos-controller, kev-poller, anomaly, baseline, trace-collector,
+zhen-agentd) set `UNHEADED_TLS_ENABLED=true` and
+`UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem` only.
+
+`scripts/gen-dev-certs.sh` is for the compose stack only. On a host, issue
+from the Kingdom CA (`runbooks/pki/generate-kingdom-certs.yaml`; rotation:
+`runbooks/pki/rotate-service-cert.yaml`). Each certificate must name what
+its callers dial: the host's name (`%H`, e.g. the BFFs' `AUTH_ISSUER_URL`),
+`localhost`, `127.0.0.1` and `::1` (Akira and the healthchecks), and the
+identity. Install, as root (`<unit>` as in `unheaded-<unit>.service`,
+`<identity>` as for keys above, e.g. `daemon` / `unheaded-daemon`):
+
+```bash
+sudo install -d -m 0755 /etc/unheaded/tls
+sudo install -m 0644 ca.pem /etc/unheaded/tls/ca.pem                  # client-only units
+sudo install -d -m 0750 -o root -g unheaded-<unit> /etc/unheaded/tls/<identity>
+sudo install -m 0644 ca.pem /etc/unheaded/tls/<identity>/ca.pem
+sudo install -m 0644 svc.pem /etc/unheaded/tls/<identity>/<identity>.pem
+sudo install -m 0640 -o root -g unheaded-<unit> svc-key.pem /etc/unheaded/tls/<identity>/<identity>-key.pem
+```
+
+Keys are `root:unheaded-<unit>` 0640, certificates 0644. Restarting a
+unit picks up a new certificate. Turning TLS on is a host change: every
+unit that talks to Wotan must move in the same window (a plaintext client
+cannot reach a TLS port), and Prometheus jobs that scrape these units need
+`scheme: https` with the CA.
+
 ## Binary paths and unit names
 
 The units here exec `/usr/local/bin/<name>`, for a hand install (copy the
