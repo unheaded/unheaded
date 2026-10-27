@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # Unheaded Build Script
 # ======================
 # Builds all binaries with version metadata injection

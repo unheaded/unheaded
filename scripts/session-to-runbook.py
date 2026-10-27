@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 session-to-runbook.py — Extract operational steps from a session log into a YAML runbook draft.
 

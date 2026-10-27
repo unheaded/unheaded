@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 16_embed_v2.py — Embed ring_all.jsonl and build FAISS v2 index.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Unheaded Kingdom - Latency Probe Kprobe Program
 //!
 //! THE WHISPERING VOID measures time itself within the kernel.

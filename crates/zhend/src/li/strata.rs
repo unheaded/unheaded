@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Geological layer management — observing sedimentation patterns.
 //!
 //! Tracks how fragments migrate between tiers over time.

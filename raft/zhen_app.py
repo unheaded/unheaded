@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 Zhen Web App — RAG UI for Unheaded Infrastructure
 Port: 20103 (zhen-ui in Doom Range)

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 10_hotswap_index.py — Hot-swap FAISS index for Zhen RAG pipeline
 

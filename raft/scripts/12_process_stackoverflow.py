@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """Process Stack Overflow / Stack Exchange Posts.xml into JSONL corpus chunks.
 
 Streaming XML parser (iterparse) — never loads the full file into memory.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Perf Event Array Collector - per-CPU event reading.
 //!
 //! THE WHISPERING VOID's secondary ears: perf event arrays provide

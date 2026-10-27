@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Ring Buffer Collector - mmap-based zero-copy event reading.
 //!
 //! THE WHISPERING VOID's primary ear: the BPF ring buffer provides

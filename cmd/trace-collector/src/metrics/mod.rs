@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Metrics module for THE WHISPERING VOID.
 //!
 //! Provides Prometheus metrics and HTTP server for observability.

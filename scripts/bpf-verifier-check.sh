@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # BPF Verifier CI Gate — ADR-012
 # Checks: compilation, instruction budget, known issues
 # Exit 0 = all gates pass, Exit 1 = failure

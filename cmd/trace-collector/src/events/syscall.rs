@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Syscall event parsing.
 //!
 //! Handles system call traces from eBPF programs attached to

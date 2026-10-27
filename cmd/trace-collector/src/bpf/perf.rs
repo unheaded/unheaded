@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Perf Event Array reading.
 //!
 //! Perf event arrays are older than ring buffers but still widely used.

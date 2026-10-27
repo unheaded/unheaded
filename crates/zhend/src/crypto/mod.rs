@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! # Crypto — Post-Quantum Hardened Cryptography for Zhen
 //!
 //! **Sacred Law: "That which remembers forever must be armored against forever."**

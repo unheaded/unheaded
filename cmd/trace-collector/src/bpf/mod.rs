@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! BPF interaction layer.
 //!
 //! Provides direct access to BPF ring buffers, perf event arrays,

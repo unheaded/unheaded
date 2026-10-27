@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # Phase 10 Shield Monitor — real-time BPF stats + ring buffer health
 #
 # Usage: sudo ./scripts/shield-monitor.sh [interval_seconds]

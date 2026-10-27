@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # verify-mbc-pipeline.sh — Run all MBC assembler pipeline verification tests
 # Phase 5 of S31 DOOM Battle Plan (Steps 136-160)
 #

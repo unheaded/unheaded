@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """Ring 2-4 Corpus Expansion Pipeline for Zhen AI.
 
 Processes all completed Ring 2-4 data sources into chunked JSONL,

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # 07-lynis-gate.sh — Run lynis + custom CIS check; fail build if scores too low.
 # Free to use. Free to share.
 set -euo pipefail

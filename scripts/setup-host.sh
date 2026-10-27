@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 #
 # Unheaded Host Setup
 # Fully automated setup for any Linux host (bare metal or VM)

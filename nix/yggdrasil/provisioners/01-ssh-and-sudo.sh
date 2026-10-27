@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # 01-ssh-and-sudo.sh — Replace preseed password with SSH key + sudo lockdown.
 # Runs as root via packer shell provisioner.
 # Free to use. Free to share.

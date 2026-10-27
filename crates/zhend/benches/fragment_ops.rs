@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn bench_fragment_creation(c: &mut Criterion) {

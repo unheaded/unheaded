@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Phase 2 Exit Gate: fragments survive restart across all tiers.
 //!
 //! This test simulates the full lifecycle:

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # Start Zhenai — WAVE15 post-rewire shape.
 #
 # Pre-rewire this script launched its own llama-server with Mistral-7B

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """
 Zhen Integration Tests — Phase 7
 Tests inference server, RAG API, web UI, domain knowledge, and load.

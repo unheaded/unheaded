@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Phase 3 Exit Gate: Two nodes see each other.
 //!
 //! Fragment ingested on node A appears on node B within 30 seconds (localhost test).

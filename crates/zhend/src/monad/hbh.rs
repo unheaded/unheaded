@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! IPv6 Hop-by-Hop extension header parsing for Zhen option type.
 //!
 //! The Zhen HbH option carries fragment metadata piggybacked on

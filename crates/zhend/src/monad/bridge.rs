@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Bridge between Monad protocol flows and Zhen fragment operations.
 //!
 //! Listens for Monad packet events (via Anamnesis ring buffer or eBPF)

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! # De (德) — Virtue / Relevance Gravity
 //!
 //! Fragments surface through De — not query. Context attracts relevant

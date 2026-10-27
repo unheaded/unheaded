@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Similarity search for De (relevance surfacing).
 //!
 //! Cosine similarity between context vector and fragment embeddings.

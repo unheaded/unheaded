@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Shared types for eBPF kernel programs and userspace collector.
 //!
 //! All structs are `#[repr(C)]` for stable ABI between BPF programs

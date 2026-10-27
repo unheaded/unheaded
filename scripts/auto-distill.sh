@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # auto-distill.sh — Wait for training to finish, then run local distillation
 # Run with: nohup bash scripts/auto-distill.sh > "$(scripts/lib/logpath.sh forge auto-distill.log)" 2>&1 &
 

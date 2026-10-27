@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """Fast bulk packet injector for Doom ring. Run inside monad0 namespace.
 Adds a small delay between packets to prevent drops."""
 import socket
