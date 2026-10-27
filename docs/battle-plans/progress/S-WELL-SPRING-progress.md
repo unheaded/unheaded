@@ -77,3 +77,24 @@ LIVE: before 217, restart Wotan (reloads bind-mounted `configs/wotan.yaml`) and 
 as written (http3 will be `skipped`: west's curl 8.14.1 lacks HTTP/3, no Go HTTP/3 client); 219-220 after E-D:
 `CUIRASS_API_KEY=... go run ./cmd/perf-benchmark -scenario container-start -allow-lxd -iterations 5 -output /tmp/perf-cs.json`
 (Cuirass now also accepts a minted token); 225 `check-perf-regression.sh --update /tmp/perf-*.json`, then without.
+
+### Phase 12 merged; Phase 11 merged (3882e911)
+
+12: nothing signed. Attestation drafts in `docs/compliance/drafts/attestations/`; Stevie signs each with
+`scripts/compliance/sign-attestation.sh <name>` (E-C); `expires_at` = each control's freshness window (access review
+90 days, decision D10). Decisions D1-D10 with defaults: `docs/compliance/privacy/decisions-for-stevie.md`. SSP
+`docs/compliance/SSP-generated.md` has 49 sections (50 once Phase 3's UH-SLO-01 lands: re-run `go run
+./cmd/compliance-evidence ssp -out docs/compliance/SSP-generated.md`); 24 FAIL controls today (plan expected 13).
+Rebuild exercise is a draft runbook, scheduled not run. `scripts/east-bootstrap.sh` still assumes NixOS and
+`fd00:dead:beef::`; east runs Ubuntu 25.10. New items without M-ids: eBPF "no payload bytes leave the kernel" static
+check (DPIA R1); backup of `/etc/unheaded`, `/var/lib/unheaded`, ClickHouse logs (contingency C1/C2).
+
+11: `pkg/healthreport` in all 12 discovered services; `system.health.remediate` advisory (no subscriber acts);
+Vector `unheaded_ssh_accepted_total`; `detection.yml` (SSHLoginNewSource uses "seen in 30 d", since `increase()` cannot
+fire on a new address; outbound watches enp*/wlp* with a 256 KiB/s floor; burst points at a read-only runbook).
+Vote change: a service's own report is a vote, so during a partition a service with healthy `/health` reads 50 %
+(ERROR) not 100 % (PANIC); a down service's vote expires in 90 s. RT-32 (`CPU_MAP` single-writer, not enforced)
+proposed lab-accepted: needs Stevie. LICH id collision: ADR-064 pre-registered 014-016; 015/016 reused since; LICH-017
+reserved for the baseline agent. LIVE 235-236 (E-D): deploy reporter builds on both hosts, read both topics, paste one
+consensus message into ADR-029; rollout also needs Vector restart (both hosts), Prometheus + Alertmanager reload.
+Expect one SSHLoginNewSource ticket digest of known operator addresses at first evaluation.

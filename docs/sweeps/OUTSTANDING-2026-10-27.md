@@ -108,16 +108,16 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 ### E08 — COMPLIANCE PAPERWORK + ENFORCING MODE  (tier d, size L, 10 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |
 |---|---|---|---|---|---|---|
-| M-100 | Three attestations never filed (security-policy-review, ir-plan-review, access-review): zero is unclaimable | SEC never-observed, CG-05/06/09; ADR C-01 | compliance/attestations/ | NS | Y: review + signed commit | S |
-| M-101 | Information security policy + single-operator posture page (roles, AT/PS accepted gaps) | SEC CG-05, CG-06 | compliance/ | NS | Y: sign | M |
-| M-102 | IR plan: refresh §1 (Suricata gone), first tabletop recorded, counsel/DFIR decision | SEC CG-01 | runbooks/security/ir-plan-v1 | P | Y | M |
-| M-103 | System contingency plan (hosts, Wotan state, /var/lib/unheaded, models, LXD; RTO per service; one host-rebuild exercise) | SEC CG-03 | compliance/ | P | N | M |
-| M-104 | Risk strategy (appetite, categorization, criticality, SoA) + SSP generated from catalog + evidence | SEC CG-07, CG-08 | compliance/catalog | NS | Y: appetite | L |
+| M-100 | Three attestations never filed (security-policy-review, ir-plan-review, access-review): zero is unclaimable | SEC never-observed, CG-05/06/09; ADR C-01 | compliance/attestations/ | P → drafts + signing script merged 2026-10-27; signing = E-C (Stevie) | Y: review + signed commit | S |
+| M-101 | Information security policy + single-operator posture page (roles, AT/PS accepted gaps) | SEC CG-05, CG-06 | compliance/ | CLOSED 2026-10-27 S24 (Phase 12 merge) | Y: sign | M |
+| M-102 | IR plan: refresh §1 (Suricata gone), first tabletop recorded, counsel/DFIR decision | SEC CG-01 | runbooks/security/ir-plan-v1 | CLOSED 2026-10-27 S24 (IR plan v2 + tabletop; counsel/DFIR = decision D6) | Y | M |
+| M-103 | System contingency plan (hosts, Wotan state, /var/lib/unheaded, models, LXD; RTO per service; one host-rebuild exercise) | SEC CG-03 | compliance/ | CLOSED 2026-10-27 S24 (contingency plan; rebuild exercise scheduled, not run) | N | M |
+| M-104 | Risk strategy (appetite, categorization, criticality, SoA) + SSP generated from catalog + evidence | SEC CG-07, CG-08 | compliance/catalog | CLOSED 2026-10-27 S24 (risk strategy; appetite = decision D7) | Y: appetite | L |
 | M-105 | Host CIS hardening applied (ADR-098 steps 2-6, east first, nft commit-confirm, AIDE, AppArmor enforce); re-apply lab fixes via `unheaded-remediate` so hosts have journals; retire remediate.sh; journald caps | SEC CG-13; ADR C-05; next.md S7b | compliance/findings/register.yaml host-journal rows | P | Y: host changes, SystemMaxUse numbers | L |
 | M-106 | Enforcing mode: typed enforce actions via ADR-099 executor, flapping breaker, preinst gate, 7-day soak, Lich campaign against the baseline agent; Q5 | ADR C-03 | cmd/unheaded-baseline | NS | Y: Q5 refuse starts vs installs | L |
 | M-107 | Rendered Ansible syntax-check in CI; Kingdom Ansible roles (kingdom-base, huginn, victoria) | ADR C-04, K-05 | deploy/ansible/compliance | NS | N | S |
-| M-108 | Crosswalk mappings checked against OLIR/TSC/CCM; control matrices bannered as May-2026 snapshot (cite deleted code, GDPR/CCPA PII rows MAPPED to deleted DataIsolationConfig) | SEC CG-02, CG-26; INT B-3 | docs/compliance/control-matrix | NS | N | S |
-| M-109 | Privacy pack (F-PII scan, notice, processing record, DPIA for eBPF + Zhen capture); processor/BAA template; MFA scope decision; FIPS build variant; supplier inventory; independent assessment decision; host malware/IDS decision | SEC CG-10, CG-11, CG-16, CG-19, CG-20, CG-22, CG-23 | docs/compliance | NS | Y: MFA scope, external pentest, IDS/AV | L |
+| M-108 | Crosswalk mappings checked against OLIR/TSC/CCM; control matrices bannered as May-2026 snapshot (cite deleted code, GDPR/CCPA PII rows MAPPED to deleted DataIsolationConfig) | SEC CG-02, CG-26; INT B-3 | docs/compliance/control-matrix | CLOSED 2026-10-27 S24 (Phase 12 merge) | N | S |
+| M-109 | Privacy pack (F-PII scan, notice, processing record, DPIA for eBPF + Zhen capture); processor/BAA template; MFA scope decision; FIPS build variant; supplier inventory; independent assessment decision; host malware/IDS decision | SEC CG-10, CG-11, CG-16, CG-19, CG-20, CG-22, CG-23 | docs/compliance | CLOSED 2026-10-27 S24 (decisions D1-D10 with defaults) | Y: MFA scope, external pentest, IDS/AV | L |
 
 ### E09 — CHAMPION / ZHEN HARDENING + RUNBOOKS  (tier d, size M, 12 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |
@@ -180,12 +180,12 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 ### E13 — CONSENSUS + DRIFT: AKIRA, HEIMDALL, MÍMIR  (tier d, size M, 6 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |
 |---|---|---|---|---|---|---|
-| M-200 | Akira: per-service health reporter in every binary (hosts read 0 %/100 %); Wotan ballot + `system.health.remediate`; cross-host two-reporter run recorded | ADR H-01, H-02, H-03 | docs/adr/ADR-029 | NS | N | M |
+| M-200 | Akira: per-service health reporter in every binary (hosts read 0 %/100 %); Wotan ballot + `system.health.remediate`; cross-host two-reporter run recorded | ADR H-01, H-02, H-03 | docs/adr/ADR-029 | P → code merged 2026-10-27 (3882e911); cross-host ballot = Step 236 (E-D) | N | M |
 | M-201 | E5 / FND-019: Heimdall drift keys per node, `heimdall` in auto_approve, unit on west/east (ORPHAN today) | SEC FND-019, RT-19; ADR M-01 dep | cmd/heimdall-daemon | NS | Y: key custody | M |
 | M-202 | LICH-012 L12a (key storage) + L12d (eBPF drift fuzz) not run; Enkrateia auto-restore v2; semantic drift diff; CTF activation wiring | ADR M-01, M-03, L-02 | tomb/lich/LICH-012-config-convergence | NS | N | L |
-| M-203 | Detection rules missing (SSH origin, DGA/beaconing, outbound volume, DNS tunnelling, lockout); NVD/GHSA pollers (ADR-055 P2) or declare KEV-only | SEC RT-21, RT-23, SP-18 | monitoring/prometheus/rules | NS | N | M |
+| M-203 | Detection rules missing (SSH origin, DGA/beaconing, outbound volume, DNS tunnelling, lockout); NVD/GHSA pollers (ADR-055 P2) or declare KEV-only | SEC RT-21, RT-23, SP-18 | monitoring/prometheus/rules | CLOSED 2026-10-27 S24 (detection.yml; DNS detection UNTESTED as DET-01) | N | M |
 | M-204 | Multicast bootstrap `ff02::1:abba` never run end to end on L2 (east as node) | ADR M-07 | cmd/gjallarhorn-sender | P | Y: east | S |
-| M-205 | Threat-model review cadence lines; RT-32 CPU_MAP concurrent-write disposition; Tomb offensive campaigns registered in ADR-062 before host exposure | SEC RT-31, RT-32, RT-29 | docs/security/threat-model-* | NS | N | S |
+| M-205 | Threat-model review cadence lines; RT-32 CPU_MAP concurrent-write disposition; Tomb offensive campaigns registered in ADR-062 before host exposure | SEC RT-31, RT-32, RT-29 | docs/security/threat-model-* | CLOSED 2026-10-27 S24 (threat-model review cadence, ADR-055/062 amendments) | N | S |
 
 ### E14 — UPC (NON-DOOM)  (tier e, size L, 12 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |

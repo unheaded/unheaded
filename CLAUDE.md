@@ -150,7 +150,7 @@ Four-layer approach implemented in `pkg/discovery/`:
 3. **Convention scan:** /opt/unheaded/<service>/config.yaml discovery
 4. **Static fallback:** configs/services.yaml for known-good defaults
 
-11 services call `discovery.Start(ctx, transportCfg, name, port)` on startup: it joins `system.discovery` as `name` (must be on Wotan's `topics.auto_approve`), announces `$DISCOVERY_ADDR` or the hostname every 15 s, and retries in the background until Wotan answers. Until 2026-10-22 every service passed a nil connection and nothing ever registered.
+12 services call `discovery.Start(ctx, transportCfg, name, port)` on startup (and each also reports its own `/health` to Akira every 30 s through `pkg/healthreport`, as `<service>@<host>` on `system.health.reports`; a test fails a service that announces without reporting): it joins `system.discovery` as `name` (must be on Wotan's `topics.auto_approve`), announces `$DISCOVERY_ADDR` or the hostname every 15 s, and retries in the background until Wotan answers. Until 2026-10-22 every service passed a nil connection and nothing ever registered.
 
 ### Log Aggregation — "The Chronicler's Well"
 
@@ -812,7 +812,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - ADR Sweep (2026-04-03): All 27 ADRs resolved (19 accepted, 4 deferred, 1 in-progress, 1 pipe dream)
 - Zhen Champion (pkg/champion/): Trust Level 1+2, sandboxed file R/W, Kanban CRUD, action logging, snapshots (18 tests)
 - Zhen MCP Server (`cmd/zhen-mcp`, built by `make build-zhen-mcp`; stdio transport in `pkg/mcpserver`, shared with `cmd/lich-mcp`): 9 tools for Claude Code integration, every call through the Champion gate (S-CHAMPION-HARDENING Phase 10; the Python server is retired). Read-only, always on: corpus_search (queries vor directly), file_read, service_health, runbook_list, runbook_show, local_llm (one completion from the running llama-server at `ZHEN_LOCAL_LLM_URL`, default `http://127.0.0.1:8081`; isError when nothing listens; never starts or swaps a model; `ZHEN_CAPTURE_DIR` opts in to redacted training capture, docs/architecture/zhen-capture.md). Off unless the server env opts in: file_write, file_patch (`ZHEN_MCP_ALLOW_WRITE=1`), runbook_execute (`ZHEN_MCP_ALLOW_EXEC=1`; manifest-checked). Tests in `cmd/zhen-mcp`; CI handshake gate `scripts/check-zhen-mcp.sh`. Registered for Claude Code in the repo's `.mcp.json` as server `zhen` (read-only: no `ZHEN_MCP_ALLOW_*` set; approve it once at the `claude` prompt). It launches `scripts/zhen-mcp.sh`, which runs `bin/zhen-mcp` and fails loudly naming `make build-zhen-mcp` if the binary is missing
-- 86 Operational Runbooks (runbooks/): 9 categories (infra 18, security 15, observe 15, data 9, network 9, deploy 7, wotan 5, doom 4, pki 4); `scripts/check-runbooks.sh` with a shrink-only baseline, `metadata.status` draft → approved (Stevie only, with an ISO `approved_at`; authorship policy in ADR-024 "Authorship and approval"); live Champion execution needs the runbook in `runbooks/MANIFEST.sha256` (`scripts/runbook-manifest.sh --write` after any edit)
+- 89 Operational Runbooks (runbooks/): 9 categories (infra 19, security 17, observe 15, data 9, network 9, deploy 7, wotan 5, doom 4, pki 4); `scripts/check-runbooks.sh` with a shrink-only baseline, `metadata.status` draft → approved (Stevie only, with an ISO `approved_at`; authorship policy in ADR-024 "Authorship and approval"); live Champion execution needs the runbook in `runbooks/MANIFEST.sha256` (`scripts/runbook-manifest.sh --write` after any edit)
 - BPF CI Gate (scripts/bpf-verifier-check.sh): Instruction budget tracking, static analysis
 - Sealed Cask (scripts/build-sealed-cask.sh + verify-binding-rune.sh): Deterministic image builder with SHA256 integrity
 - ROCm GPU acceleration: PyTorch 2.5.1+rocm6.2 for embedding (862 chunks/s), llama.cpp for inference (60 tok/s)
@@ -1107,7 +1107,7 @@ Every microservice MUST health check all services it depends on. Reports go to W
 
 **Formula:** `failing_reporters / reporters × 100`, where each reporter's latest report from the last three sweeps is one vote (one reporter's repeated checks are one vote).
 
-**Implementation:** Akira (`cmd/akira`, `pkg/health/consensus.go`, compose service `akira`, port 19100) checks every service, publishes its reports, tallies all reporters' votes and publishes band changes. Remediation (`systemctl restart`, at most 3 per outage, then escalate) is off unless Akira runs with `--remediate`; the compose stack runs it for detection only.
+**Implementation:** Akira (`cmd/akira`, `pkg/health/consensus.go`, compose service `akira`, port 19100) checks every service, publishes its reports, tallies all reporters' votes (each service's own report is a vote; it expires after 90 s) and publishes band changes; on CRITICAL or PANIC it publishes one advisory `system.health.remediate` message (`akira_remediate_suggested_total`). Remediation (`systemctl restart`, at most 3 per outage, then escalate) is off unless Akira runs with `--remediate`; the compose stack runs it for detection only.
 
 Scales automatically from 8 to 800+ services.
 
