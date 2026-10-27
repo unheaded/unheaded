@@ -141,3 +141,21 @@ back); file state imported into the Well once. `revert-all` reads every open ent
 Chaos-controller: put `WELL_DB` in a host's `chaos.env` only if its Well starts before the unit and outlives it
 (else ExecStopPost `revert-all` exits 2); east stays in file mode. LIVE 78-80: Sword has no dry-run, so 78 needs a real
 rolling deploy of steel-echo.
+
+### Phase 4 merged: retention
+
+Migrations `042_retention_runner.sql` (postgres + unheaded_app, branching like 007) and `043_ops_retention.sql`
+(`retention_runs`, `retention_archive`); pending batch is now **030-043 (15 files)**, and 042/043 must be applied before
+Step 128. `cmd/well-retention` archives then purges; `compliance/retention/classes.yaml` says `ratified: false` and live
+runs exit 2 until it says true (dry runs always work). Premises corrected: zhen_captures age is 180 days (033's
+trigger; the job calls 033's purge and refuses a disagreeing classes file); `llm_requests`,
+`service_health_transitions`, `audit_events` are append-only (never deleted; partition-trigger check only); no
+well-drill deb existed, so a separate `unheaded-well-retention` deb. `_pg_log` in zhen_app.py redacts every conversation
+row with `raft/zhen_redact.py` (stores nothing if the rules cannot load); `pkg/zhencapture` gained an `email` pattern
+(captures now redact emails; zhen-flywheel tags instead of quarantining). Cards referenced by `zhen_agent_runs` are held.
+Live read (Step 112): 126 of 226 conversations are older than 90 days, none older than 180; service_health_transitions'
+oldest row turns 90 days on 2027-01-16. **E-C (Stevie):** ratify `docs/policy/retention-policy-v1-2026-05-06.md` §11
+(proposed conversations 90 d, health transitions 90 d); then flip `ratified: true` in the same commit as any age change.
+LIVE 127-131 (role password file 0400, deb install + dry run, enable timer only after E-C). Not done: a
+`check-gates-can-fail.sh` entry for `test-retention.sh`. Connection budget 44/47; `app_auth`'s 40-connection limit is
+not in that table (pre-existing gap).
