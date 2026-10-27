@@ -184,7 +184,8 @@ func TestComposeOnlyListed(t *testing.T) {
 func altComposeUsers(t *testing.T) map[string][]altService {
 	t.Helper()
 	root := filepath.Join("..", "..")
-	skip := map[string]bool{".git": true, "tomb": true, "target": true, "node_modules": true, "vendor": true, "dist": true}
+	// .claude holds agent worktrees: whole other checkouts, mid-edit.
+	skip := map[string]bool{".git": true, ".claude": true, "tomb": true, "target": true, "node_modules": true, "vendor": true, "dist": true}
 	name := regexp.MustCompile(`^docker-compose[^/]*\.ya?ml$`)
 	out := map[string][]altService{}
 	files := 0
