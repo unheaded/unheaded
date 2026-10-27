@@ -64,10 +64,10 @@ Escalations table carries the answers.
 | # | Decision | Answer |
 |---|---|---|
 | 1 | drift-detect on main | Delete the workflow |
-| 2 | "Gates can actually fail" timeout | **Code complete 2026-10-27** (S24; live steps + E1-E5 open; see the plan banner) |
-| 3 | develop to staging promotion | **Code complete 2026-10-27** (S24; Phase 5 PG 18 on E-B; E-A..E-E open) |
-| 4 | Credential rotation | **Code complete 2026-10-27** (S24; E1-E4 open) |
-| 5 | FND-001 SMTP relay | **In progress** on `sprint/true-wire` (Phases 0, 1, 3, 8, 9 done 2026-10-27; merges into develop after E2) |
+| 2 | "Gates can actually fail" timeout | Measure once, set timeout-minutes to measured + 20 % |
+| 3 | develop to staging promotion | After Sprint 1's CI is green, on Stevie's word (Step 288 stays an [ESCALATE]) |
+| 4 | Credential rotation | Stevie rotates during Sprint 1; the plan shrinks the baseline after |
+| 5 | FND-001 SMTP relay | Stevie places Gmail app-password env on west (/etc/unheaded/alertmailer); plan flips `mode send` |
 | 6 | FND-011 | Apply the ebtables modprobe stopgap on both hosts; west userns stays open until an LXD test |
 | 7 | E2 sshd hybrid-only | Go; east first with a fallback session, then west. E3 WireGuard PSK rotation + weekly timer: go |
 | 8 | EAR TSU notice | Plan drafts the notice and README line; Stevie sends the email; date recorded |
