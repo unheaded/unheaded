@@ -268,7 +268,7 @@ func (s *Server) Start() error {
 	}
 
 	// Outermost, so rate-limited and CORS-rejected requests are counted too.
-	handler = httputil.NewServiceMetrics("kanban").Instrument(mux, handler)
+	handler = httputil.SecurityHeaders(httputil.NewServiceMetrics("kanban").Instrument(mux, handler))
 
 	s.httpServer = &http.Server{
 		Addr:           ":" + s.config.Port,

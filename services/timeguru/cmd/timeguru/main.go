@@ -209,7 +209,7 @@ func main() {
 	authCfg := auth.LoadServiceAuthConfig("timeguru")
 	var srvHandler http.Handler = mux
 	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
-	srvHandler = httputil.NewServiceMetrics("timeguru").Instrument(mux, srvHandler)
+	srvHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("timeguru").Instrument(mux, srvHandler))
 
 	// HTTP server with defensive timeouts
 	srv := &http.Server{

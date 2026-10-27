@@ -127,7 +127,7 @@ func build(c config, log *zerolog.Logger) (*sword.Service, error) {
 func handler(s *sword.Service) http.Handler {
 	mux := s.Handler()
 	h := auth.WrapHandler(mux, auth.SetupMiddleware(auth.LoadServiceAuthConfig(serviceName)))
-	return httputil.NewServiceMetrics(serviceName).Instrument(mux, h)
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, h))
 }
 
 func main() {

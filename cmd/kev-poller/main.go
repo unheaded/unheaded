@@ -475,7 +475,7 @@ func (d *daemon) handler() http.Handler {
 		d.mu.Unlock()
 		httputil.WriteJSON(w, http.StatusOK, resp)
 	})
-	return httputil.NewServiceMetrics(serviceName).Instrument(mux, mux)
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, mux))
 }
 
 // runReport prints a threat-register refresh entry (markdown) from the

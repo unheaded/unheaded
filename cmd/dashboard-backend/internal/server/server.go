@@ -374,6 +374,12 @@ type TraceBuffer struct {
 // every response. Deliberately no Content-Security-Policy: the vanilla-JS SPA
 // uses inline styles and handlers that a strict default-src 'self' would break;
 // CSP is a separate follow-up once those are refactored.
+// dashboardCSP is the dashboard's Content-Security-Policy (S-IRON-GATE Step
+// 298): scripts only from this origin (no inline handlers), inline styles
+// still allowed until the SPA's style attributes move to classes, and the
+// live views' WebSocket / EventSource on this origin.
+const dashboardCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none'"
+
 func withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
@@ -549,7 +555,7 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	// Outermost, so auth rejections are counted too.
 	httpHandler = s.instrumentHTTP(httpHandler)
 	// The cross-service family CLAUDE.md requires, on the default registry.
-	httpHandler = httputil.NewServiceMetrics("dashboard").Instrument(s.mux, httpHandler)
+	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("dashboard").Instrument(s.mux, httpHandler), httputil.WithCSP(dashboardCSP))
 
 	s.httpServer = &http.Server{
 		Addr:           config.ListenAddr,

@@ -433,7 +433,7 @@ func NewHTTPServer(service *monad.Service, log *logger.Logger, addr string) (*HT
 	var httpHandler http.Handler = mux
 	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
 	httpHandler = http.MaxBytesHandler(hs.loggingMiddleware(httpHandler), 10*1024*1024)
-	httpHandler = httputil.NewServiceMetrics("monad").Instrument(mux, httpHandler)
+	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("monad").Instrument(mux, httpHandler))
 
 	hs.server = &http.Server{
 		Addr:           addr,

@@ -671,7 +671,7 @@ func (d *Daemon) Start() error {
 		d.log.Warn().Msg("AUTH_ENABLED is not true: container write API refused (read-only)")
 	}
 	httpHandler := d.wrapAuth(mux, authCfg)
-	httpHandler = httputil.NewServiceMetrics("cuirass").Instrument(mux, httpHandler)
+	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("cuirass").Instrument(mux, httpHandler))
 
 	d.httpServer = &http.Server{
 		Addr:           d.config.HTTPAddr,

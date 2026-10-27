@@ -1483,7 +1483,9 @@
                 '<div class="toast-title">' + esc(title) + '</div>' +
                 '<div class="toast-message">' + esc(message) + '</div>' +
             '</div>' +
-            '<button class="toast-close" onclick="this.parentElement.remove()">&times;</button>';
+            '<button class="toast-close" type="button">&times;</button>';
+        // No inline handler: the dashboard's CSP has script-src 'self'.
+        toast.querySelector('.toast-close').addEventListener('click', function() { toast.remove(); });
         el.toastContainer.appendChild(toast);
         setTimeout(function() {
             toast.classList.add('hiding');

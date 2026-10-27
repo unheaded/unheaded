@@ -33,6 +33,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"html/template"
@@ -350,7 +352,7 @@ func buildHandler(wikiDir string) (http.Handler, error) {
 	}
 	mux := setupMux(ws)
 	// Outermost, so requests auth rejects are counted too.
-	return httputil.NewServiceMetrics(serviceName).Instrument(mux, wrapAuth(mux)), nil
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, wrapAuth(mux)), httputil.WithCSP(wikiCSP())), nil
 }
 
 // newServer creates an http.Server with standard timeouts.
@@ -402,6 +404,31 @@ func main() {
 }
 
 // pageTemplate is the HTML template for rendering wiki pages.
+// wikiCSP allows exactly the page template's inline <style> and <script>
+// blocks, by sha256 (CSP Level 2 hash sources), and nothing else inline:
+// rendered markdown cannot add a script. Images may come from https (page
+// badges). The hashes are taken from a render of pageTemplate, not its
+// source: html/template rewrites the blocks (it strips CSS comments), and
+// the browser hashes what is served. The blocks hold no template actions,
+// so every page serves them identically.
+func wikiCSP() string {
+	var page bytes.Buffer
+	if err := template.Must(template.New("csp").Parse(pageTemplate)).Execute(&page, PageData{}); err != nil {
+		panic("wiki-server: render page template for CSP: " + err.Error())
+	}
+	hashes := func(tag string) string {
+		re := regexp.MustCompile(`(?s)<` + tag + `>(.*?)</` + tag + `>`)
+		var out []string
+		for _, m := range re.FindAllStringSubmatch(page.String(), -1) {
+			sum := sha256.Sum256([]byte(m[1]))
+			out = append(out, "'sha256-"+base64.StdEncoding.EncodeToString(sum[:])+"'")
+		}
+		return strings.Join(out, " ")
+	}
+	return "default-src 'self'; script-src " + hashes("script") + "; style-src " + hashes("style") +
+		"; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'none'"
+}
+
 const pageTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>

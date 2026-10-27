@@ -208,24 +208,19 @@ func (s *issuer) requireTLS(next http.Handler) http.Handler {
 	})
 }
 
-// securityHeaders sets the S-IRON-GATE Step 296 header set on every
-// response (local until pkg/httputil grows the shared middleware). The
-// issuer serves only JSON, so the CSP allows nothing.
+// securityHeaders is the shared S-IRON-GATE Phase 11 header set
+// (httputil.SecurityHeaders) with a CSP that allows nothing, since the
+// issuer serves only JSON, plus Cache-Control: no-store on every response:
+// /login answers carry tokens.
 func securityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h := w.Header()
-		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("X-Frame-Options", "DENY")
-		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-		h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
-		h.Set("Cache-Control", "no-store")
-		if r.TLS != nil {
-			h.Set("Strict-Transport-Security", "max-age=31536000")
-		}
+	noStore := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)
 	})
+	return httputil.SecurityHeaders(noStore, httputil.WithCSP(issuerCSP))
 }
+
+const issuerCSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
 
 func (s *issuer) discovery(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{

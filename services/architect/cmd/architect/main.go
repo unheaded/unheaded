@@ -175,7 +175,7 @@ func main() {
 	authCfg := auth.LoadServiceAuthConfig("architect")
 	var httpHandler http.Handler = mux
 	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
-	httpHandler = httputil.NewServiceMetrics("architect").Instrument(mux, httpHandler)
+	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("architect").Instrument(mux, httpHandler))
 
 	// HTTP server
 	server := &http.Server{

@@ -245,7 +245,7 @@ func main() {
 	// auth.WrapHandler's http.Handler return value.
 	var srvHandler http.Handler = httpHandler //nolint:staticcheck // QF1011 false-positive: interface type required for reassignment
 	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
-	srvHandler = httputil.NewServiceMetrics("wotan").Instrument(httpMux, srvHandler)
+	srvHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("wotan").Instrument(httpMux, srvHandler))
 
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf(":%d", config.HTTPPort),

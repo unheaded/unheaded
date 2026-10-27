@@ -431,7 +431,7 @@ func newAPI(s *yaldabaoth.Service, pub yaldabaoth.Publisher, authEnabled bool) *
 func handler(a *api) http.Handler {
 	mux := a.routes(a.s.Registry())
 	h := auth.WrapHandler(mux, auth.SetupMiddleware(auth.LoadServiceAuthConfig(serviceName)))
-	return httputil.NewServiceMetrics(serviceName).Instrument(mux, h)
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, h))
 }
 
 // renderPolkit prints the polkit rule for the configured allowlist's systemd

@@ -187,7 +187,7 @@ func main() {
 	authCfg := auth.LoadServiceAuthConfig("micromanager")
 	var httpHandler http.Handler = mux
 	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
-	httpHandler = httputil.NewServiceMetrics("micromanager").Instrument(mux, httpHandler)
+	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("micromanager").Instrument(mux, httpHandler))
 
 	// Server configuration
 	srv := &http.Server{

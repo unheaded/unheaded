@@ -270,7 +270,7 @@ func NewHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logg
 
 	hs.server = &http.Server{
 		Addr:           addr,
-		Handler:        httputil.NewServiceMetrics("sophia").Instrument(mux, hs.middlewareChain(mux)),
+		Handler:        httputil.SecurityHeaders(httputil.NewServiceMetrics("sophia").Instrument(mux, hs.middlewareChain(mux))),
 		ReadTimeout:    15 * time.Second,
 		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,

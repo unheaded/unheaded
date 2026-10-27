@@ -112,7 +112,7 @@ func (s *server) handler() http.Handler {
 		}
 		getOnly(s.root)(w, r)
 	})
-	return httputil.NewServiceMetrics(serviceName).Instrument(mux, mux)
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, mux))
 }
 
 // getOnly refuses everything but GET and HEAD.

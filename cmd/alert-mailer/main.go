@@ -235,5 +235,5 @@ func handler(m *Mailer, reg *metrics.Registry) http.Handler {
 	}
 	mux.HandleFunc("POST /v1/alerts/page", hook(m.Page))
 	mux.HandleFunc("POST /v1/alerts/ticket", hook(m.Ticket))
-	return httputil.NewServiceMetrics("alert-mailer").Instrument(mux, mux)
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics("alert-mailer").Instrument(mux, mux))
 }
