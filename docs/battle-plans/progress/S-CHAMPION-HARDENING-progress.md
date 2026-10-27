@@ -209,3 +209,9 @@ the unit sets `GPU_LOCK=/run/unheaded/gpu.lock` and E2 asks for the shared group
 `docs/security/S-CHAMPION-HARDENING-review.md`: attack-surface delta for every change, 10 gates exit 0, both fuzz
 targets 45 s clean, go.mod only the sqlite bump, full suite 232 ok / 0 FAIL. Open decisions listed there (MCP flags vs
 Step 86, branch-sandbox E3, shared UI principal).
+
+Correction to Phase 13 (coordinator): the overnight run already had user units from S-TWO-BRAINS
+(`deploy/systemd/user/zhen-agentd-overnight.{service,timer}`, running as the operator on the real repo). The system
+unit + timer written in 29861355 duplicated them and introduced the GPU-lease mismatch it then warned about; both
+removed. The kill-switch runbook, morning-report script (default `${XDG_STATE_HOME:-~/.local/state}/unheaded/zhen-reports`),
+env example and E2 packet now point at the user units (no sudo).

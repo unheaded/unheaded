@@ -6,7 +6,7 @@ metadata:
   owner: zhenai
   estimated_duration: 5m
   risk: low
-  requires_sudo: true
+  requires_sudo: false
   status: draft
   authored_by: claude
   reviewed_by: ""
@@ -14,10 +14,12 @@ metadata:
   dry_run_test: tests/runbooks/test_zhen_overnight_abort.py
 
 notes: |
-  S-CHAMPION-HARDENING Phase 13 (ADR-106 Q2). zhen-agentd-overnight.service
-  runs `zhen-agentd -worker -overnight` from its timer at 01:00 inside
-  -window 01:00-07:00: Kanban cards into local zhen/<card> branches, never
-  pushed, with its own spend cap and a memory floor.
+  S-CHAMPION-HARDENING Phase 13 (ADR-106 Q2). The operator's user unit
+  deploy/systemd/user/zhen-agentd-overnight.service (S-TWO-BRAINS) runs
+  `zhen-agentd -worker -overnight` from its timer at 01:00 inside -window
+  01:00-07:00: Kanban cards into local zhen/<card> branches, never pushed,
+  with its own spend ledger and cap and a memory floor. It runs as the
+  operator, so it shares the GPU lease with switch-model.sh.
 
   Two ways to stop it. The stop file is soft: the card in flight finishes its
   check and commits nothing, then the night ends and the morning report is
@@ -28,32 +30,32 @@ notes: |
 
 parameters:
   - name: STATE_DIR
-    default: "/var/lib/zhen-agentd"
-    description: The unit's StateDirectory (stop file and zhen-reports/ live here)
+    default: "${HOME}/.local/state/unheaded"
+    description: zhen-agentd's state dir (XDG_STATE_HOME/unheaded); the stop file and zhen-reports/ live here
 
 steps:
   - name: is-it-running
     action: shell
     command: |
       set -euo pipefail
-      systemctl is-active zhen-agentd-overnight.service || true
-      systemctl list-timers zhen-agentd-overnight.timer --no-pager | head -3
+      systemctl --user is-active zhen-agentd-overnight.service || true
+      systemctl --user list-timers zhen-agentd-overnight.timer --no-pager | head -3
     description: "Is a night running now, and when is the next one"
 
   - name: soft-stop
     action: manual
-    command: "sudo -u zhen-agentd touch ${STATE_DIR}/zhen-agentd.stop"
+    command: "touch ${STATE_DIR}/zhen-agentd.stop"
     description: "Ask the worker to stop after the card in flight (it checks the file between cards and before committing)"
 
   - name: hard-stop
     action: manual
     irreversible: true
-    command: "sudo systemctl stop zhen-agentd-overnight.service"
+    command: "systemctl --user stop zhen-agentd-overnight.service"
     description: "Only if the night must end now: stops the worker mid-card (local zhen/* branch may be half-worked; nothing is pushed)"
 
   - name: no-more-nights
     action: manual
-    command: "sudo systemctl disable --now zhen-agentd-overnight.timer"
+    command: "systemctl --user disable --now zhen-agentd-overnight.timer"
     description: "Keep tonight's stop from being undone by tomorrow's timer, until the cause is understood"
 
   - name: read-the-report
@@ -65,11 +67,11 @@ verification:
   - name: worker-stopped
     command: |
       set -euo pipefail
-      ! systemctl is-active --quiet zhen-agentd-overnight.service
+      ! systemctl --user is-active --quiet zhen-agentd-overnight.service
     description: "The overnight unit is not running"
 
 rollback:
   - name: re-enable-nights
     action: manual
-    command: "sudo rm -f ${STATE_DIR}/zhen-agentd.stop && sudo systemctl enable zhen-agentd-overnight.timer"
+    command: "rm -f ${STATE_DIR}/zhen-agentd.stop && systemctl --user enable zhen-agentd-overnight.timer"
     description: "Remove the stop file (or the next night stops at once) and re-enable the timer"

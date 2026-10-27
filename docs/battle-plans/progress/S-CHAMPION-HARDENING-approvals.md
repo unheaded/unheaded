@@ -43,17 +43,18 @@ Since Phase 4 (`9c1c4e25`) a live `runbook_execute` refuses a runbook that is no
 
 ## E2: the first unattended night (ADR-106 Q2)
 
-Prepared 2026-10-27 (Phase 13). Nothing is enabled. What exists:
-`deploy/systemd/zhen-agentd-overnight.{service,timer}` (01:00, `-worker -overnight`, window 01:00-07:00,
-max 5 cards, `-claude fake`), the kill switch `runbooks/observe/zhen-overnight-abort.yaml` (draft),
+Prepared 2026-10-27 (Phase 13). Nothing is enabled. The night is the operator's user unit from S-TWO-BRAINS,
+`deploy/systemd/user/zhen-agentd-overnight.{service,timer}` (01:00, `-worker -overnight -window 01:00-07:00
+-max-cards 5 -claude live -effort low -audit-well`, own ledger, cap $3 by default, `MemoryMax=3G`), enabled with
+`systemctl --user` as in `wiki/Zhen-Agents.md` "Overnight mode". It runs as you, so it shares the GPU lease with
+`switch-model.sh`. Kill switch: `runbooks/observe/zhen-overnight-abort.yaml` (draft). Morning report:
 `scripts/zhen-morning-report.sh`. The worker's overnight tests pass (20).
 
 Questions:
 1. Which night?
-2. Claude leg: stay `fake` (no spend, changes nothing) or `live` with which daily cap (default $5; overnight's own ledger defaults to $3)?
-3. Which cards: today the worker takes Kanban cards owned by `zhen` with a ```zhen block. Any further filter?
-4. Well-recorded (needs the E-A batch 030-041 applied first, and `WELL_APP_ZHEN_DSN`, `WELL_KANBAN_DSN`) or memory-only (branches still land; runs are not recorded)?
-5. The shared GPU lease path (`GPU_LOCK`) for zhen-agentd and the operator's `switch-model.sh`: `/run/unheaded/gpu.lock` with a shared group?
+2. Claude leg: the unit says `-claude live` (cap $3 on its own ledger). Keep, change the cap, or run `fake` first?
+3. Which cards: the worker takes Kanban cards owned by `zhen` with a ```zhen block. Any further filter?
+4. Well-recorded (`-audit-well`; needs the E-A batch 030-043 applied first, and the DSNs in `~/.config/unheaded/zhen-agentd.env`) or memory-only?
 
 Why yours: it spends money and writes branches while nobody watches.
 

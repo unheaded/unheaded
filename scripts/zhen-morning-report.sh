@@ -3,20 +3,21 @@
 # Copyright (c) 2026 Stevie Bellis.
 #
 # zhen-morning-report.sh — print the overnight worker's morning report
-# (S-CHAMPION-HARDENING Phase 13). zhen-agentd -overnight writes one
-# Markdown file per night to its -report-dir (<YYYY-MM-DD>.md, 0600, owned
-# by zhen-agentd), with the night's runs, spend, cards and branches to review.
+# (S-CHAMPION-HARDENING Phase 13). zhen-agentd -overnight (the operator's
+# user unit deploy/systemd/user/zhen-agentd-overnight.service) writes one
+# Markdown file per night to its -report-dir, by default
+# ${XDG_STATE_HOME:-~/.local/state}/unheaded/zhen-reports/<YYYY-MM-DD>.md (0600),
+# with the night's runs, spend, cards and branches to review.
 #
 #   scripts/zhen-morning-report.sh                    # newest report
 #   scripts/zhen-morning-report.sh --date 2026-10-28  # that night's
 #   scripts/zhen-morning-report.sh --dir DIR          # another report dir
 #   scripts/zhen-morning-report.sh --list             # list reports
 #
-# The reports are readable by zhen-agentd only: run with sudo, or as that
-# user. Exit: 0 printed, 1 no report, 2 usage or unreadable.
+# Exit: 0 printed, 1 no report, 2 usage or unreadable.
 set -euo pipefail
 
-DIR="/var/lib/zhen-agentd/zhen-reports" DATE="" LIST=0
+DIR="${XDG_STATE_HOME:-$HOME/.local/state}/unheaded/zhen-reports" DATE="" LIST=0
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--dir) DIR="${2:?--dir needs a directory}"; shift ;;
@@ -33,7 +34,7 @@ if [[ ! -d "$DIR" ]]; then
 	exit 1
 fi
 if [[ ! -r "$DIR" || ! -x "$DIR" ]]; then
-	echo "zhen-morning-report: cannot read $DIR (owned by zhen-agentd, 0700): run with sudo" >&2
+	echo "zhen-morning-report: cannot read $DIR (0700, owned by whoever ran the night)" >&2
 	exit 2
 fi
 mapfile -t reports < <(find "$DIR" -maxdepth 1 -type f -name '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md' -printf '%f\n' | sort)

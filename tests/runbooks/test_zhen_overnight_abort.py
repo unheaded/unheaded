@@ -25,11 +25,19 @@ def test_stops_and_host_changes_are_manual():
 
 
 def test_soft_stop_names_the_units_stop_file():
-    unit = (harness.REPO / "deploy/systemd/zhen-agentd-overnight.service").read_text()
+    unit = (harness.REPO / "deploy/systemd/user/zhen-agentd-overnight.service").read_text()
     rb = harness.load(RB)
-    assert "-stop-file /var/lib/zhen-agentd/zhen-agentd.stop" in unit
+    assert "-overnight" in unit
+    # The user unit takes zhen-agentd's default -stop-file, under XDG_STATE_HOME/unheaded.
+    assert "-stop-file" not in unit
     assert "zhen-agentd.stop" in harness.step(rb, "soft-stop")["command"]
-    assert "-report-dir /var/lib/zhen-agentd/zhen-reports" in unit
+    params = {p["name"]: p["default"] for p in rb["parameters"]}
+    assert params["STATE_DIR"].endswith("/.local/state/unheaded")
+
+
+def test_no_sudo_for_a_user_unit():
+    text = (harness.REPO / RB).read_text()
+    assert "sudo " not in text and "systemctl --user" in text
 
 
 def _report(*args):
