@@ -146,7 +146,24 @@ already-installed package still runs that package's old prerm: enable the
 services once after it. Still open: signing, publishing to the repo, and the
 package for unheaded-daemon is named `unheaded-unheaded-daemon`.
 
+**Progress (2026-10-27, S-IRON-GATE Phase 14):** the package for
+unheaded-daemon is `unheaded-daemon` (Conflicts/Replaces
+`unheaded-unheaded-daemon`); every binary a unit runs is packaged from one
+table (`scripts/lib/deb-packages.sh`), units ship under the repo's names and
+a renamed unit keeps its enabled/running state. Signing: the apt repo's
+signed `InRelease` (`scripts/apt-repo.sh`), plus an optional signed
+`SHA256SUMS` per build (`DEB_SIGN_KEY`); the repo lives at
+`/srv/unheaded-apt`, not `/var/lib/unheaded/apt-repo/`. Live publish waits
+on E3/E4.
+
 ### Phase 3 — CI pipeline (Jenkins or GHA)
+
+**Decided (2026-10-27, S-IRON-GATE Step 11):** GitHub Actions is the live
+builder (`release.yml` on a tag: binaries, debs, eBPF objects, cosign
+signatures, provenance). The Jenkinsfile stays as the offline fallback and
+packages through the same `scripts/build-all-debs.sh`. Publishing to the apt
+repo on west is a runbook step (`runbooks/deploy/apt-repo-publish.yaml`),
+not CI: the repo is not reachable from GitHub.
 
 - On merge to `main`: `go build ./...`, `cargo build --release` (non-ascend +
   ascend variants), run tests, build `.deb` packages, publish to local APT repo
