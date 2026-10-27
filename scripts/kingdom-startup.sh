@@ -121,9 +121,32 @@ HEALTH_ENDPOINTS=(
     "protocol-api:17100"
 )
 
+# ── Phase 0a: Monitoring stack first (FND-024) ───────────────────────
+# Nothing else starts it: a stack stopped by hand stays down across reboots
+# (restart: unless-stopped), and without it the Kingdom SLO guard refuses
+# every canary and chaos experiment (fail closed). It starts before
+# everything else so Phase 0 can silence warm-up alerts in its Alertmanager;
+# started after the main stack, the warm-up would page (alert mail sends).
+MON_COMPOSE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/monitoring/docker-compose.yml"
+if [[ "$NATIVE_ONLY" != "true" && -f "$MON_COMPOSE" ]] && command -v docker &>/dev/null; then
+    log_info "Phase 0a: Starting the monitoring stack..."
+    run docker compose -f "$MON_COMPOSE" up -d 2>&1 | grep -E "Started|Running|Created|dry-run" | while read -r line; do
+        log_info "  $line"
+    done || true
+    if [[ "$DRY_RUN" != "true" ]]; then
+        am_ready=false
+        for _ in $(seq 1 30); do
+            curl -fsS --max-time 2 http://127.0.0.1:9093/-/ready >/dev/null 2>&1 && { am_ready=true; break; }
+            sleep 2
+        done
+        [[ "$am_ready" == "true" ]] && log_success "Phase 0a complete (Alertmanager ready)" ||
+            log_warn "Phase 0a: Alertmanager not ready after 60 s; continuing"
+    fi
+    echo ""
+fi
+
 # ── Phase 0: Silence alert mail during warm-up (ADR-100) ─────────────
-# Services that are still starting look down to the SLOs. Best effort: the
-# monitoring stack may not be up yet.
+# Services that are still starting look down to the SLOs. Best effort.
 "$SCRIPT_DIR/monitoring/maintenance.sh" 15m "kingdom-startup warm-up" >/dev/null 2>&1 ||
     log_warn "Alertmanager not reachable; warm-up not silenced"
 
@@ -134,7 +157,7 @@ if [[ "$NATIVE_ONLY" != "true" ]]; then
     if [[ -f "$COMPOSE_FILE" ]]; then
         if command -v docker &> /dev/null; then
             log_info "  docker compose up -d..."
-            run docker compose -f "$COMPOSE_FILE" up -d 2>&1 | grep -E "Started|Running|Created" | while read -r line; do
+            run docker compose -f "$COMPOSE_FILE" up -d 2>&1 | grep -E "Started|Running|Created|dry-run" | while read -r line; do
                 log_info "  $line"
             done || true
             log_success "Phase 1 complete"
@@ -147,6 +170,26 @@ if [[ "$NATIVE_ONLY" != "true" ]]; then
     echo ""
 else
     log_info "Phase 1: Skipped (--native-only)"
+    echo ""
+fi
+
+# ── Phase 1b: Wait for the SLO series the guard reads (FND-024) ──────
+# Recording rules evaluate after the first scrapes; the guard is only
+# useful once slo:error_ratio:5m exists. Up to 180 s, then warn and go on.
+if [[ "$NATIVE_ONLY" != "true" && -f "$MON_COMPOSE" && "$DRY_RUN" != "true" ]] && command -v docker &>/dev/null; then
+    log_info "Phase 1b: Waiting for slo:error_ratio:5m..."
+    n=0
+    for _ in $(seq 1 36); do
+        n=$(curl -fsS --max-time 3 'http://127.0.0.1:9090/api/v1/query?query=slo:error_ratio:5m' 2>/dev/null |
+            jq -r '.data.result | length' 2>/dev/null || echo 0)
+        [[ "${n:-0}" =~ ^[0-9]+$ && "${n:-0}" -gt 0 ]] && break
+        sleep 5
+    done
+    if [[ "${n:-0}" =~ ^[0-9]+$ && "${n:-0}" -gt 0 ]]; then
+        log_success "Phase 1b complete (slo:error_ratio:5m has $n series)"
+    else
+        log_warn "Phase 1b: slo:error_ratio:5m still empty after 180 s; the SLO guard will refuse canaries and chaos until it fills"
+    fi
     echo ""
 fi
 

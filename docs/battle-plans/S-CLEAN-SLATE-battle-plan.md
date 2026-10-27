@@ -540,8 +540,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-033 FND-024
 
-- [ ] **Step 147** [DECIDE] ~1m: **Where monitoring starts.** RECOMMENDATION: `scripts/kingdom-startup.sh` gains Phase 1b that runs `docker compose -f monitoring/docker-compose.yml up -d` after Phase 1 and waits ≤ 180 s for `slo:error_ratio:5m` to exist. Rationale: decision 13 default; the stacks stay separable (`kingdom-shutdown.sh` already excludes monitoring on purpose, 168410a9). Override ONLY if Stevie answers "fold into main compose".
-- [ ] **Step 148** [W] ~10m: Insert after Phase 1 in `scripts/kingdom-startup.sh` (respecting `$NATIVE_ONLY`, `$DRY_RUN` via `run`, `$REPO_ROOT`):
+- [x] **Step 147** [DECIDE] ~1m: **Where monitoring starts.** RECOMMENDATION: `scripts/kingdom-startup.sh` gains Phase 1b that runs `docker compose -f monitoring/docker-compose.yml up -d` after Phase 1 and waits ≤ 180 s for `slo:error_ratio:5m` to exist. Rationale: decision 13 default; the stacks stay separable (`kingdom-shutdown.sh` already excludes monitoring on purpose, 168410a9). Override ONLY if Stevie answers "fold into main compose".
+- [x] **Step 148** [W] ~10m: Insert after Phase 1 in `scripts/kingdom-startup.sh` (respecting `$NATIVE_ONLY`, `$DRY_RUN` via `run`, `$REPO_ROOT`):
   ```bash
   # ── Phase 1b: Monitoring stack (FND-024: the SLO guard fails closed without it) ──
   MON_COMPOSE="${REPO_ROOT}/monitoring/docker-compose.yml"
@@ -559,12 +559,12 @@ Copyright (c) 2024-2026 Stevie Bellis.
   fi
   ```
   Confirm the Prometheus port from `wiki/Port-Registry.md:36` (9090) and that `REPO_ROOT` is defined above Phase 1 (else derive it from `$0`).
-- [ ] **Step 149** [B] ~1m: Lint and dry-run.
+- [x] **Step 149** [B] ~1m: Lint and dry-run.
   ```bash
   cd /home/govan/tmp/unheaded && shellcheck scripts/kingdom-startup.sh | tail -3; bash scripts/kingdom-startup.sh --dry-run --docker-only 2>&1 | grep -E 'Phase 1b|monitoring/docker-compose' | head -3
   ```
-- [ ] **Step 150** [V] ~0.5m: shellcheck clean; dry-run prints the Phase 1b compose command.
-- [ ] **Step 151** [DOC-UPDATE][W] ~3m: `wiki/Containers.md` bring-up recipe and `wiki/Chaos-Engineering.md:81` FND-024 bullet: "started by `kingdom-startup.sh` Phase 1b since S-CLEAN-SLATE; the register row closes when Step 154 verifies it live".
+- [x] **Step 150** [V] ~0.5m: shellcheck clean; dry-run prints the Phase 1b compose command.
+- [x] **Step 151** [DOC-UPDATE][W] ~3m: `wiki/Containers.md` bring-up recipe and `wiki/Chaos-Engineering.md:81` FND-024 bullet: "started by `kingdom-startup.sh` Phase 1b since S-CLEAN-SLATE; the register row closes when Step 154 verifies it live".
 - [ ] **Step 152** [ESCALATE] **E2** ~0m: Context: Steps 153-157, 164-166 and 155b change west (start stacks, run a chaos experiment, enable a user timer). Question: grant a west live window (date/time), same scope as S-REAL-STEEL E2. Why no recommendation: host-changing.
 - [ ] **Step 153** [AFTER-E2][LIVE-RW][BARE-METAL][S][B] ~5m: `cd /home/govan/tmp/unheaded && sudo bash scripts/kingdom-startup.sh --force --docker-only 2>&1 | tail -15`
 - [ ] **Step 154** [AFTER-E2][LIVE-RO][V] ~3m: `curl -s 'http://127.0.0.1:9090/api/v1/query?query=slo:error_ratio:5m' | jq '.data.result|length'` > 0 within 180 s of the stack starting; `sudo docker compose -f monitoring/docker-compose.yml ps --format '{{.Name}} {{.Status}}' | grep -c healthy` equals the service count.

@@ -78,7 +78,7 @@ Residue check: `tc qdisc show | grep -c c4a0` (0), `bpftool net show | grep -i y
 ## Known gaps
 
 - **FND-023** (ADR-098 register): `steel-echo load --discover` follows Cuirass's actual state, which follows its 30 s sync, so a killed replica keeps its share of the traffic until the next sync (availability 0.9343 in Phase 11, 0.9829 in game day B, against a 0.99 bar). Fix candidates: probe targets between refreshes, or publish health transitions on Wotan.
-- **FND-024**: the monitoring compose stack that records `slo:error_ratio:5m` is started by nobody; with it down the guard refuses everything (correct, fail closed) and no experiment or canary can run.
+- **FND-024**: the monitoring compose stack that records `slo:error_ratio:5m` was started by nobody; with it down the guard refuses everything (correct, fail closed). Since 2026-10-27 `scripts/kingdom-startup.sh` starts it first (Phase 0a, before the warm-up silence) and waits up to 180 s for the series (Phase 1b). Started by hand: `sudo docker compose -f monitoring/docker-compose.yml up -d`.
 - East's Wotan does not auto-approve `chaos-controller`, so `chaos.refused` events are not published from east (follow-on in the handoff).
 - An allowlisted instance chooses its own address, so a compromised one could point probes at another routable host; only a status bit comes back. Follow-on: restrict probe addresses to the lxdbr0 subnet (Phase 4/10 BlackMage residual, low).
 - `shield-ebpf` no longer reuses the CHAOS flag for blocked-source events, and the Anamnesis event codes moved to the spec's values (E4: `EVENT_CHAOS 0x04`, `EVENT_ANOMALY 0x08`, `6ae71c3f`). The BORN/COMPUTED/DIED codes still differ from the draft; separate escalation.
