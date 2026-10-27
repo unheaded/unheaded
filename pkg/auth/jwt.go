@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-// Package auth — JWT authentication with HMAC-SHA256.
-// No external JWT libraries — uses crypto/hmac + crypto/sha256 from stdlib.
+// Package auth — JWT authentication. Services verify EdDSA (Ed25519) tokens
+// (jwt_eddsa.go, ADR-103); HMAC-SHA256 (HS256) here is for tests only and
+// refused unless a test opted in with AllowHS256ForTests.
+// No external JWT libraries — stdlib crypto only.
 package auth
 
 import (
@@ -14,8 +16,20 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 )
+
+// hs256Allowed gates HS256 verification. It is false in every binary: a
+// shared HMAC key lets anyone who can verify a token also mint one
+// (ADR-103 §1). Only tests set it, through AllowHS256ForTests.
+var hs256Allowed atomic.Bool
+
+// AllowHS256ForTests turns HS256 verification on for the rest of the
+// process. Call it from tests only (a TestMain, or the test itself);
+// TestAllowHS256ForTests_OnlyCalledFromTests fails on any non-test caller
+// in this module.
+func AllowHS256ForTests() { hs256Allowed.Store(true) }
 
 // JWTConfig configures the JWT validator.
 type JWTConfig struct {
@@ -35,6 +49,7 @@ type JWTConfig struct {
 type JWTHeader struct {
 	Alg string `json:"alg"`
 	Typ string `json:"typ"`
+	Kid string `json:"kid,omitempty"`
 }
 
 // JWTClaims represents the JWT payload claims.
@@ -106,7 +121,8 @@ func NewJWTAuthenticator(cfg JWTConfig) *JWTAuthenticator {
 	}
 }
 
-// JWTAuthenticator validates JWT tokens using HMAC-SHA256.
+// JWTAuthenticator validates JWT tokens using HMAC-SHA256. Test-only: its
+// tokens verify only after AllowHS256ForTests; services use EdDSAVerifier.
 type JWTAuthenticator struct {
 	signingKey   []byte
 	issuer       string
@@ -184,7 +200,10 @@ func (j *JWTAuthenticator) parseAndVerify(tokenStr string) (*JWTClaims, error) {
 	}
 
 	if header.Alg != "HS256" {
-		return nil, fmt.Errorf("%w: unsupported algorithm %q", ErrUnauthenticated, header.Alg)
+		return nil, fmt.Errorf("%w: unsupported algorithm %q", ErrAlgMismatch, header.Alg)
+	}
+	if !hs256Allowed.Load() {
+		return nil, fmt.Errorf("%w: HS256 is accepted in tests only (ADR-103)", ErrAlgMismatch)
 	}
 	// With no key, an HMAC anyone can compute would pass. Callers only build
 	// a JWTAuthenticator with a key; this fails closed if one ever does not.
@@ -221,7 +240,9 @@ func (j *JWTAuthenticator) parseAndVerify(tokenStr string) (*JWTClaims, error) {
 	return &claims, nil
 }
 
-// SignToken creates a signed JWT from the given claims.
+// SignToken creates an HS256-signed JWT from the given claims. Test-only:
+// no verifier accepts HS256 outside tests (AllowHS256ForTests). Services
+// mint EdDSA tokens with SignEdDSA / ServiceTokenMinter.
 func SignToken(signingKey []byte, claims *JWTClaims) (string, error) {
 	// Encode header
 	header := JWTHeader{Alg: "HS256", Typ: "JWT"}
