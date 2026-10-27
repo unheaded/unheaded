@@ -104,6 +104,17 @@ Eighteen gates exit 0 (list in `3bb9d44b`); FuzzClientIP 4.8 M execs and the two
 - Pre-existing on east, not caused here: `unheaded-well-offsite-check.service` failed (the Well was down overnight, so
   the newest offsite set is stale; the 03:xx copy will refresh it).
 
+### Step 155b / 123: the Zhen chat path through the gate, live
+
+[DECIDE] deviation: `scripts/coding-gate-probe.sh` drives `bin/zhen-rag` straight at llama-server, so it cannot see the
+M-036 change (web UI -> zhen-agentd). Instead the real path was smoke-tested: qwen-7b via `switch-model.sh` (fit check:
+5.1 GiB of 9 GiB), vor with swap off, `start-zhen.sh -gated` with a throwaway AUTH_API_KEYS (never written down) and the
+rotated app_zhen password. A Python coding question through `/api/v1/query`: HTTP 200 in 5.6 s, correct commented code.
+Then zhen-agentd stopped and the same endpoint answered 503 "zhen-agentd not reachable; the gate is required": no
+fallback to llama-server. Everything stopped afterwards (8081, 9876, 20103, 20105 all closed). A graded quality
+comparison of the gated path belongs to S-CHAMPION-HARDENING, whose prompt consolidation (M-123) would invalidate a number
+taken now; the "7/14 vs 12/14" figure the Phase 3 agent cited has no record in eval/ and is not repeated here.
+
 ### Open escalations (live halves)
 
 | E | State | Blocks |
