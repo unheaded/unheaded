@@ -81,9 +81,6 @@ scrape_configs:
       - targets: ['[fd00:dead:beef::1]:16670']
         labels:
           service: "anamnesis"
-      - targets: ['[fd00:dead:beef::1]:16671']
-        labels:
-          service: "wotan"
       - targets: ['[fd00:dead:beef::1]:16672']
         labels:
           service: "shield"
@@ -139,6 +136,18 @@ scrape_configs:
         labels:
           service: "unheaded-daemon"
 
+  # eBPF trace collector, one per host (host unit unheaded-trace-collector,
+  # /metrics on 16671 = pkg/ports.TraceCollectorMetrics); alerts in
+  # rules/collector.yml. 16671 used to sit in doom_services above labelled
+  # "wotan", so the collector was scraped under the wrong name and never
+  # on east.
+  - job_name: trace-collector
+    static_configs:
+      - targets: ['[fd00:dead:beef::1]:16671']
+        labels: {host: west}
+      - targets: ['[fd00:dead:beef::2]:16671']
+        labels: {host: east}
+
   # CISA KEV feed poller, one per host (ADR-055); alerts in rules/threat-feeds.yml
   - job_name: kev-poller
     static_configs:
@@ -182,6 +191,15 @@ scrape_configs:
           - '[fd00:dead:beef::2]:18000'
         labels:
           service: "wotan"
+
+  # alert-mailer (same compose network): its own counters, and the
+  # dead-man's switch gauge unheaded_heartbeat_last_seen_timestamp_seconds
+  # that rules/heartbeat.yml alerts on (present only with HEARTBEAT_HOSTS).
+  - job_name: alert-mailer
+    static_configs:
+      # No host target label: the gauge's own host label names the watched
+      # host, and a target label would rename it to exported_host.
+      - targets: ['alert-mailer:19130']
 
 remote_write:
   - url: 'http://[fd00:dead:beef::1]:8428/api/v1/write'

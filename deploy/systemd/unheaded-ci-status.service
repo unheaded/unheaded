@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# West: the ci-develop SLI (ADR-100 Phase 4, S-WELL-SPRING Step 179). Reads
+# the latest GitHub Actions runs on develop from the public API (no token)
+# and writes ci_status.prom into huginn's textfile directory; the ci-develop
+# SLO in observability/alerting/policy.yaml alerts on it (runbook
+# runbooks/observe/ci-red.yaml).
+#
+# Install on west (users first: deploy/sysusers.d/unheaded.conf; needs curl and jq):
+#   sudo install -D -m 0755 scripts/monitoring/ci-status-textfile.sh /usr/local/lib/unheaded/monitoring/ci-status-textfile.sh
+#   sudo setfacl -m u:unheaded-ci-status:rwx /var/lib/unheaded/textfile   # write its own file there, nothing else
+#   sudo cp deploy/systemd/unheaded-ci-status.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-ci-status.timer
+# Install the timer before Prometheus loads the ci-develop SLO: until the
+# first file lands the SLI has no data, which counts as bad.
+
+[Unit]
+Description=CI status on develop for the ci-develop SLO
+Documentation=https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/unheaded/monitoring/ci-status-textfile.sh /var/lib/unheaded/textfile
+TimeoutStartSec=60s
+
+User=unheaded-ci-status
+Group=unheaded-ci-status
+UMask=0022
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/unheaded/textfile
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM

@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# East: one dead-man's-switch heartbeat to west's alert-mailer (ADR-100,
+# S-WELL-SPRING Phase 6). West raises HeartbeatMissing{host="east"} (a page)
+# after ten minutes without one: monitoring/prometheus/rules/heartbeat.yml,
+# runbook runbooks/observe/heartbeat-missing.yaml.
+#
+# Install on east (users first: deploy/sysusers.d/unheaded.conf):
+#   sudo install -D -m 0755 scripts/monitoring/heartbeat.sh /usr/local/lib/unheaded/monitoring/heartbeat.sh
+#   sudo install -m 0400 -o root -g root <token> /etc/unheaded/heartbeat.token   # same bytes as west's heartbeat-token
+#   sudo cp deploy/systemd/unheaded-heartbeat.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-heartbeat.timer
+# West's side: HEARTBEAT_HOSTS=east and HEARTBEAT_LISTEN=192.168.13.2 in
+# monitoring/.env, heartbeat-token (0400, uid 16710) in ALERT_MAILER_SECRETS_DIR.
+#
+# The token stays root's 0400 file; systemd hands this unit a copy through
+# LoadCredential, readable by unheaded-heartbeat only for the run.
+
+[Unit]
+Description=Dead-man's switch: heartbeat to west's alert-mailer
+Documentation=https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/heartbeat-missing.yaml
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=HEARTBEAT_URL=http://192.168.13.2:19131/heartbeat/east
+EnvironmentFile=-/etc/unheaded/heartbeat.env
+LoadCredential=heartbeat-token:/etc/unheaded/heartbeat.token
+ExecStart=/usr/local/lib/unheaded/monitoring/heartbeat.sh
+TimeoutStartSec=30s
+
+User=unheaded-heartbeat
+Group=unheaded-heartbeat
+UMask=0077
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=192.168.13.2 fd00:dead:beef::2
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM

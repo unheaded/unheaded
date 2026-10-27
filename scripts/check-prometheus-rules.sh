@@ -47,13 +47,11 @@ fi
 
 # A rule file nobody tests is a rule file whose alerts nobody has seen fire.
 #
-# UNTESTED may only SHRINK. Both entries alert on series nothing scrapes
-# (2026-10-13): monad.yml's unheaded_monad_hbh_drop_total, unheaded_bgp_session_up,
-# unheaded_bfd_failover_total and unheaded_routing_health_up are emitted by no code in this repo, and
-# loadbalancers.yml's haproxy_*/nginx_* have no scrape job in prometheus.yml.
-# Testing them would pin thresholds on metrics that do not exist; deciding
-# which metrics they should watch comes first.
-UNTESTED=(loadbalancers.yml monad.yml)
+# UNTESTED may only SHRINK, and is empty. Its last two entries, monad.yml and
+# loadbalancers.yml, alerted on series nothing emitted or scraped; they were
+# deleted (S-WELL-SPRING Step 163, decision 25: a rule returns with its
+# producer and a test), NodeExporterDown moving to host.yml.
+UNTESTED=()
 rc=0
 for f in "${rule_files[@]}"; do
     covered=false
@@ -71,6 +69,15 @@ done
 for u in "${UNTESTED[@]}"; do
     [[ -f "$u" ]] || { echo "[FAIL] UNTESTED names ${u}, which no longer exists: remove it" >&2; rc=1; }
 done
+
+# ADR-100 section 4: every alert names a runbook that exists in this repo
+# (annotations.runbook_url: a repo path, or a GitHub blob/wiki URL to one).
+# Strict, no baseline; cmd/alert-policy's tests prove it refuses a missing
+# annotation, a missing file and a dead URL. Appendix A6 of
+# docs/battle-plans/S-WELL-SPRING-battle-plan.md says what to do when it fails.
+if ! (cd "$REPO_ROOT" && go run ./cmd/alert-policy -runbooks); then
+    rc=1
+fi
 
 promtool() {
     docker run --rm --network none --user "$(id -u):$(id -g)" \

@@ -116,7 +116,14 @@ All HAProxy and Nginx instances emit structured JSON logs:
 
 **Nginx fields:** timestamp, remote_addr, request_method, request_uri, status, body_bytes_sent, request_time, upstream_response_time, upstream_addr, upstream_status, trace_id, service
 
-### Alerts (7 rules in loadbalancers.yml)
+### Alerts (none today)
+
+The seven rules below lived in `monitoring/prometheus/rules/loadbalancers.yml`
+until 2026-10-27. Nothing scraped `haproxy_*` or `nginx_*`, so none could ever
+fire; they were deleted (S-WELL-SPRING Step 163, decision 25) and come back,
+each with a promtool test, when Prometheus scrapes an HAProxy/Nginx exporter.
+`git log --diff-filter=D -- monitoring/prometheus/rules/loadbalancers.yml`
+names the deleting commit; its parent still has them.
 
 | Alert | Severity | Condition |
 |-------|----------|-----------|

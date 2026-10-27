@@ -1,0 +1,32 @@
+# Prometheus alert rules - the dead-man's switch (ADR-100 section 4)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# East POSTs west's alert-mailer every two minutes
+# (deploy/systemd/unheaded-heartbeat.timer on east; cmd/alert-mailer
+# heartbeat.go on west); the mailer exports when it last heard from each host
+# it watches (HEARTBEAT_HOSTS). Ten minutes without one is HeartbeatMissing,
+# the only alert allowed to page on an absence (observability/alerting/
+# policy.yaml promote:). Absence is all it can see: a silent east, a broken
+# P2P link and a stopped timer look the same from west, and the runbook
+# tells them apart.
+#
+# The series exists only while the mailer runs with HEARTBEAT_HOSTS set; a
+# restart starts every host at the restart time, so a host that never beats
+# fires one window later. West dying is not covered: that needs a receiver
+# outside both hosts (ADR-100, recorded as the gap).
+
+groups:
+  - name: heartbeat
+    interval: 1m
+    rules:
+      - alert: HeartbeatMissing
+        expr: time() - unheaded_heartbeat_last_seen_timestamp_seconds > 600
+        for: 1m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "No heartbeat from {{ $labels.host }} for over 10 minutes"
+          description: "Last heartbeat {{ $value | humanizeDuration }} ago: {{ $labels.host }} is down, the P2P link is down, or its heartbeat timer stopped"
+          runbook_url: "runbooks/observe/heartbeat-missing.yaml"

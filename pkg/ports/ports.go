@@ -62,7 +62,8 @@ const (
 	KEVPoller = 19120 // CISA KEV catalog poller (ADR-055)
 
 	// Alerting (19130-19139)
-	AlertMailer = 19130 // alert-mailer: Alertmanager webhook to capped email (ADR-100)
+	AlertMailer          = 19130 // alert-mailer: Alertmanager webhook to capped email (ADR-100)
+	AlertMailerHeartbeat = 19131 // alert-mailer: dead-man's switch heartbeats from the other host only (ADR-100)
 
 	// Applications (20000-20999)
 	DashboardBackend = 20000

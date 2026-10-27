@@ -22,6 +22,7 @@ groups:
         annotations:
           summary: "CISA KEV catalog on {{ $labels.instance }} not refreshed for 6h"
           description: "Last good pull {{ $value | humanizeDuration }} ago; GET /api/v1/kev on the poller shows the last error"
+          runbook_url: "runbooks/security/kev-feed-stale.yaml"
 
       - alert: KEVFeedExpired
         expr: time() - unheaded_kev_last_success_timestamp_seconds > 7 * 86400
@@ -32,6 +33,7 @@ groups:
         annotations:
           summary: "CISA KEV catalog on {{ $labels.instance }} older than 7 days (ADR-052)"
           description: "Last good pull {{ $value | humanizeDuration }} ago; the threat register is past its freshness limit"
+          runbook_url: "runbooks/security/kev-feed-stale.yaml"
 
       - alert: KEVPollerDown
         expr: up{job="kev-poller"} == 0
@@ -42,3 +44,4 @@ groups:
         annotations:
           summary: "kev-poller on {{ $labels.instance }} is not answering /metrics"
           description: "ADR-055 requires it always on; systemctl status unheaded-kev-poller"
+          runbook_url: "runbooks/security/kev-feed-stale.yaml"

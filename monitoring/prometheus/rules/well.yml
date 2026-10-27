@@ -24,6 +24,7 @@ groups:
         annotations:
           summary: "No backup of The Well on {{ $labels.host }} for over a day"
           description: "Last good set {{ $value | humanizeDuration }} ago; see journalctl -u unheaded-well-backup"
+          runbook_url: "runbooks/data/postgresql-backup-restore.yaml"
 
       - alert: WellBackupMissing
         expr: time() - unheaded_well_backup_last_success_timestamp_seconds > 50 * 3600
@@ -34,6 +35,7 @@ groups:
         annotations:
           summary: "No backup of The Well on {{ $labels.host }} for two nights"
           description: "Last good set {{ $value | humanizeDuration }} ago; a restore now would lose more than two days"
+          runbook_url: "runbooks/data/postgresql-backup-restore.yaml"
 
       - alert: WellOffsiteLate
         expr: time() - unheaded_well_offsite_last_success_timestamp_seconds > 26 * 3600
@@ -44,6 +46,7 @@ groups:
         annotations:
           summary: "No backup set of The Well copied to east for over a day"
           description: "Last copy {{ $value | humanizeDuration }} ago; see journalctl -u unheaded-well-offsite"
+          runbook_url: "runbooks/data/postgresql-backup-restore.yaml"
 
       - alert: WellDrillLate
         expr: time() - unheaded_well_drill_last_success_timestamp_seconds > 8 * 86400
@@ -54,6 +57,7 @@ groups:
         annotations:
           summary: "No passing restore drill of The Well for over a week"
           description: "Last pass {{ $value | humanizeDuration }} ago; an untested backup is a hope, see journalctl -u unheaded-well-drill"
+          runbook_url: "runbooks/data/postgresql-backup-restore.yaml"
 
       - alert: WellBackupMetricsMissing
         expr: absent(unheaded_well_backup_last_success_timestamp_seconds)
@@ -64,6 +68,7 @@ groups:
         annotations:
           summary: "No backup metrics for The Well"
           description: "huginn has no textfile_dir, cannot read /var/lib/unheaded/textfile, or no backup has ever succeeded"
+          runbook_url: "runbooks/data/postgresql-backup-restore.yaml"
 
       - alert: HuginnTextfileRejected
         expr: huginn_textfile_rejected_lines > 0
@@ -74,3 +79,4 @@ groups:
         annotations:
           summary: "{{ $labels.file }} on {{ $labels.host }} has malformed lines"
           description: "huginn dropped {{ $value }} line(s); whatever wrote the file is broken"
+          runbook_url: "runbooks/data/postgresql-backup-restore.yaml"

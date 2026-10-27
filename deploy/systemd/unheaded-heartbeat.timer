@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# East: a heartbeat to west every two minutes; west pages after ten quiet.
+
+[Unit]
+Description=Dead-man's switch: heartbeat every two minutes
+
+[Timer]
+OnCalendar=*:0/2
+AccuracySec=10s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

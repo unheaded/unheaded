@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // The repo's generated files match its policy, and every hand-written rule
@@ -47,6 +49,20 @@ func tree(t *testing.T, policyEdit func(string) string, extraRule string) string
 
 func same(s string) string { return s }
 
+// promoteRE finds the promote: key, empty ("promote: []") or a list.
+var promoteRE = regexp.MustCompile(`(?m)^promote:( \[\])?$`)
+
+// addPromotion returns an edit that puts one entry first in promote:,
+// whatever the live policy already promotes.
+func addPromotion(t *testing.T, entry string) func(string) string {
+	return func(s string) string {
+		if !promoteRE.MatchString(s) {
+			t.Fatalf("no promote: line in policy")
+		}
+		return promoteRE.ReplaceAllLiteralString(s, "promote:\n"+entry)
+	}
+}
+
 func TestRefusals(t *testing.T) {
 	replace := func(old, new string) func(string) string {
 		return func(s string) string {
@@ -78,9 +94,10 @@ func TestRefusals(t *testing.T) {
 		}, "", `mailer.mode "yolo"`},
 		{"template in text", replace("description: The message bus answers on both hosts", "description: hi {{ $labels }}"), "", "may not contain {{"},
 		{"duplicate slo", replace("  - name: dashboard\n", "  - name: wotan\n"), "", "duplicate name"},
-		{"promotion of an alert that does not exist", replace("promote: []", "promote:\n  - alert: Nope\n    urgency: ticket\n    reason: test"), "", "Nope is not an alert"},
-		{"promotion without a reason", replace("promote: []", "promote:\n  - alert: HostDiskFull\n    urgency: ticket\n    reason: \"\""), "", "a reason is required"},
+		{"promotion of an alert that does not exist", addPromotion(t, "  - alert: Nope\n    urgency: ticket\n    reason: test"), "", "Nope is not an alert"},
+		{"promotion without a reason", addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: \"\""), "", "a reason is required"},
 		{"unknown policy key", replace("window: 28d", "window: 28d\nwindw: 7d"), "", "field windw not found"},
+		{"slo runbook outside runbooks/", replace("  - name: dashboard\n", "  - name: dashboard\n    runbook: ../etc/passwd\n"), "", "runbook \"../etc/passwd\": want runbooks/<area>/<name>.yaml"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -105,9 +122,7 @@ func TestRefusals(t *testing.T) {
 
 // A promotion routes exactly that alert, ahead of the urgency routes.
 func TestPromotionRoutesOneAlert(t *testing.T) {
-	root := tree(t, func(s string) string {
-		return strings.Replace(s, "promote: []", "promote:\n  - alert: HostDiskFull\n    urgency: ticket\n    reason: test", 1)
-	}, "")
+	root := tree(t, addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: test"), "")
 	matches, _ := filepath.Glob(filepath.Join("..", "..", rulesDir, "*.yml"))
 	for _, m := range matches {
 		b, _ := os.ReadFile(m)
@@ -162,5 +177,99 @@ func TestMaintenanceTailsCoverShortWindows(t *testing.T) {
 	}
 	if got := tail("TICKET_TAIL_MIN"); got < ticket {
 		t.Errorf("TICKET_TAIL_MIN = %v, the short windows reach %v", got, ticket)
+	}
+}
+
+// An SLO with its own runbook: its burn alerts link to it; the others keep
+// the shared slo-error-budget-burn runbook.
+func TestSLORunbookOverride(t *testing.T) {
+	p, err := loadPolicy(filepath.Join("..", "..", policyPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.SLOs[0].Runbook = "runbooks/observe/ci-red.yaml"
+	out, err := renderRules(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rf ruleFile
+	if err := yaml.Unmarshal(out, &rf); err != nil {
+		t.Fatal(err)
+	}
+	own, shared := 0, 0
+	for _, r := range rf.Groups[0].Rules {
+		if r.Alert == "" {
+			continue
+		}
+		switch u := r.Annotations["runbook_url"]; {
+		case r.Labels["slo"] == p.SLOs[0].Name && u == "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml":
+			own++
+		case r.Labels["slo"] != p.SLOs[0].Name && (u == runbookURL || strings.HasPrefix(u, repoBlob+"runbooks/")):
+			shared++
+		default:
+			t.Fatalf("%s %s: runbook_url %q", r.Alert, r.Labels["slo"], u)
+		}
+	}
+	if own != len(tiers) || shared == 0 {
+		t.Fatalf("own %d (want %d), shared %d", own, len(tiers), shared)
+	}
+}
+
+// Every alert in the repo names a runbook that exists (ADR-100 section 4;
+// scripts/check-prometheus-rules.sh runs the same check through -runbooks).
+func TestRepoRunbookURLs(t *testing.T) {
+	if errs := checkRunbookURLs(filepath.Join("..", "..")); len(errs) > 0 {
+		t.Fatal(errs)
+	}
+}
+
+// The runbook_url gate refuses an alert without one, a repo path that does
+// not exist, and a URL whose file is not in the repo; it accepts both forms
+// when the file exists. No baseline: it starts strict.
+func TestRunbookURLRefusals(t *testing.T) {
+	alert := func(name, annotation string) string {
+		s := "groups:\n  - name: x\n    rules:\n      - alert: " + name + "\n        expr: vector(1)\n        labels:\n          urgency: none\n"
+		if annotation != "" {
+			s += "        annotations:\n          runbook_url: \"" + annotation + "\"\n"
+		}
+		return s
+	}
+	cases := []struct {
+		name, rule, wants string
+	}{
+		{"no runbook_url", alert("Bare", ""), "Bare: no annotations.runbook_url"},
+		{"repo path missing", alert("Lost", "runbooks/observe/nope.yaml"), "Lost: runbooks/observe/nope.yaml does not exist"},
+		{"path escapes the repo", alert("Escape", "../outside.yaml"), "Escape: ../outside.yaml"},
+		{"blob URL to a missing file", alert("Remote", "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/nope.yaml"), "Remote: "},
+		{"other URL, no such page", alert("Wiki", "https://github.com/unheaded/unheaded/wiki/No-Such-Page"), "Wiki: "},
+		{"repo path ok", alert("Fine", "runbooks/observe/ok.yaml"), ""},
+		{"blob URL ok", alert("FineURL", "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ok.yaml"), ""},
+		{"wiki URL ok", alert("FineWiki", "https://github.com/unheaded/unheaded/wiki/Alerting"), ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, d := range []string{rulesDir, "runbooks/observe", "wiki"} {
+				if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for f, body := range map[string]string{"runbooks/observe/ok.yaml": "x", "wiki/Alerting.md": "x", rulesDir + "/x.yml": c.rule} {
+				if err := os.WriteFile(filepath.Join(root, f), []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var all []string
+			for _, e := range checkRunbookURLs(root) {
+				all = append(all, e.Error())
+			}
+			got := strings.Join(all, "\n")
+			if c.wants == "" && got != "" {
+				t.Fatalf("want no error, got %s", got)
+			}
+			if c.wants != "" && !strings.Contains(got, c.wants) {
+				t.Fatalf("want an error containing %q, got %q", c.wants, got)
+			}
+		})
 	}
 }

@@ -1,0 +1,86 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: ci-red
+  description: A GitHub Actions workflow's latest run on develop failed (the ci-develop SLO is burning)
+  owner: micromanager
+  estimated_duration: 30m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-100 Phase 4, S-WELL-SPRING Step 179; postmortem
+  docs/incidents/2026-09-21-ci-clippy-red-on-develop.md is why this exists.
+  unheaded-ci-status.timer on west writes unheaded_ci_run_success{workflow}
+  every 10 minutes from the public Actions API (no token): 1 when that
+  workflow's latest finished, non-cancelled run on develop succeeded. The
+  ci-develop SLO is good only while every workflow is green and the data is
+  under 2 h old, so a stale reader counts as red, not green.
+
+  The API is public; job logs are not (they need auth), so read the failing
+  step and its annotations, then reproduce the job locally in a clean clone
+  (environment differences, such as a tool the runner lacks, are the usual
+  cause of "red on GitHub, green on west").
+
+parameters:
+  - name: RUN_ID
+    default: ""
+    description: The failing run's id, from the list-failing step
+
+steps:
+  - name: which-workflows
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=unheaded_ci_run_success == 0' |
+        python3 -c 'import json,sys; [print("RED", r["metric"]["workflow"]) for r in json.load(sys.stdin)["data"]["result"]] or print("no workflow red in Prometheus")'
+    description: "Which workflows the SLI sees red (run on west)"
+
+  - name: list-failing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'https://api.github.com/repos/unheaded/unheaded/actions/runs?branch=develop&per_page=30' |
+        jq -r '.workflow_runs[] | select(.conclusion == "failure") | [.id, .name, .head_sha[0:8], .created_at] | @tsv' | head -10
+    description: "Recent failing runs on develop: id, workflow, commit, time"
+
+  - name: failing-jobs
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s "https://api.github.com/repos/unheaded/unheaded/actions/runs/${RUN_ID}/jobs" |
+        jq -r '.jobs[] | select(.conclusion == "failure") | [.id, .name, ([.steps[] | select(.conclusion == "failure") | .name] | join("; "))] | @tsv'
+    description: "The failing jobs of RUN_ID and their failing steps"
+
+  - name: annotations
+    action: manual
+    command: "curl -s https://api.github.com/repos/unheaded/unheaded/check-runs/<job id>/annotations | jq -r '.[] | [.path, .start_line, .message] | @tsv'"
+    description: "MANUAL. The error text GitHub attached to a failing job (job id from failing-jobs)"
+
+  - name: reproduce-locally
+    action: manual
+    command: "Reproduce the job in a clean clone in a scratch directory: run the workflow's own setup and command, with scripts/ci-fetch-doomgeneric.sh first."
+    description: "MANUAL. Fix on develop, push; the SLI turns green on the next successful run"
+
+  - name: reader-health
+    action: shell
+    command: "systemctl status unheaded-ci-status.timer unheaded-ci-status.service --no-pager"
+    description: "If the SLI is stale rather than red: is the reader's timer running on west"
+
+verification:
+  - name: all-green
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(unheaded_ci_run_success == 0) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("red workflows:", v); sys.exit(v != "0")'
+
+rollback:
+  - name: nothing-to-roll-back
+    action: manual
+    command: "echo 'Every step reads; the fix is a commit on develop.'"
+    description: "MANUAL. Nothing here changes state"

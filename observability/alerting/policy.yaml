@@ -43,12 +43,24 @@ page:
   group_interval: 5m
   repeat_interval: 12h
 
-# Cause alerts that should notify anyway. Keep this empty: every entry is
+# Cause alerts that should notify anyway. Keep this short: every entry is
 # noise the SLOs should already catch. Form:
 #   - alert: WellBackupMissing
 #     urgency: ticket
 #     reason: why the SLOs miss it
-promote: []
+promote:
+  - alert: HeartbeatMissing
+    urgency: page
+    reason: >-
+      Dead-man's switch: a host that stops reporting stops every SLI on it
+      too, so no SLO can burn for it. The only alert allowed to page on an
+      absence. Fires only where alert-mailer runs with HEARTBEAT_HOSTS set.
+  - alert: TraceCollectorDown
+    urgency: ticket
+    reason: >-
+      No SLO covers the eBPF trace collector; when it dies the dashboard's
+      flow and latency views go empty while everything else stays healthy.
+      A ticket, not a page: nothing user-facing breaks.
 
 # Burn-rate tiers (Google SRE Workbook ch. 5, table 5-8). An alert fires
 # when both windows exceed burn x (1 - objective). page: false SLOs send the
@@ -135,3 +147,20 @@ slos:
     checks: >-
       systemctl status unheaded-kev-poller on each host; curl :19120/health;
       CISA's feed itself may be down.
+
+  # ADR-100 Phase 4: the clippy job was red on develop for nine days in
+  # September and nobody was told (docs/incidents/2026-09-21-ci-clippy-red-on-develop.md).
+  # unheaded-ci-status.timer on west writes the SLI from the public Actions
+  # API every 10 minutes; data over 2 h old counts as red.
+  - name: ci-develop
+    service: github-actions
+    description: Every workflow's latest finished run on develop is green
+    objective: 99.0
+    page: false
+    good: >-
+      min(unheaded_ci_run_success)
+      * (time() - max(unheaded_ci_run_checked_timestamp_seconds) < bool 7200)
+    checks: >-
+      unheaded_ci_run_success == 0 names the workflow; the Actions API lists
+      its failing run and step; reproduce the job in a clean clone.
+    runbook: runbooks/observe/ci-red.yaml

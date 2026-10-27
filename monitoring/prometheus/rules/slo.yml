@@ -74,6 +74,16 @@ groups:
         labels:
           service: kev-poller
           slo: kev-feed
+      - record: slo:good
+        expr: (min(unheaded_ci_run_success) * (time() - max(unheaded_ci_run_checked_timestamp_seconds) < bool 7200)) or on() vector(0)
+        labels:
+          service: github-actions
+          slo: ci-develop
+      - record: slo:objective
+        expr: vector(0.99)
+        labels:
+          service: github-actions
+          slo: ci-develop
       - record: slo:error_ratio:5m
         expr: 1 - avg_over_time(slo:good[5m])
       - record: slo:error_ratio:30m
@@ -123,6 +133,11 @@ groups:
         labels:
           service: kev-poller
           slo: kev-feed
+      - record: slo:error_budget_remaining
+        expr: 1 - (1 - avg_over_time(slo:good{slo="ci-develop"}[28d])) / 0.01
+        labels:
+          service: github-actions
+          slo: ci-develop
       - alert: ErrorBudgetBurn
         expr: slo:error_ratio:1h{slo="wotan"} / 0.005 > 14.4 and slo:error_ratio:5m{slo="wotan"} / 0.005 > 14.4
         for: 2m
@@ -459,3 +474,51 @@ groups:
           description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 3d; {{ with query "100 * slo:error_budget_remaining{slo=\"kev-feed\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: systemctl status unheaded-kev-poller on each host; curl :19120/health; CISA''s feed itself may be down.'
           runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
           summary: 'SLO kev-feed: The CISA KEV catalog is under six hours old on at least one host'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1h{slo="ci-develop"} / 0.01 > 14.4 and slo:error_ratio:5m{slo="ci-develop"} / 0.01 > 14.4
+        for: 2m
+        labels:
+          service: github-actions
+          slo: ci-develop
+          tier: fast
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1h; {{ with query "100 * slo:error_budget_remaining{slo=\"ci-develop\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: unheaded_ci_run_success == 0 names the workflow; the Actions API lists its failing run and step; reproduce the job in a clean clone.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml
+          summary: 'SLO ci-develop: Every workflow''s latest finished run on develop is green'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:6h{slo="ci-develop"} / 0.01 > 6 and slo:error_ratio:30m{slo="ci-develop"} / 0.01 > 6
+        for: 2m
+        labels:
+          service: github-actions
+          slo: ci-develop
+          tier: medium
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 6h; {{ with query "100 * slo:error_budget_remaining{slo=\"ci-develop\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: unheaded_ci_run_success == 0 names the workflow; the Actions API lists its failing run and step; reproduce the job in a clean clone.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml
+          summary: 'SLO ci-develop: Every workflow''s latest finished run on develop is green'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1d{slo="ci-develop"} / 0.01 > 3 and slo:error_ratio:2h{slo="ci-develop"} / 0.01 > 3
+        for: 2m
+        labels:
+          service: github-actions
+          slo: ci-develop
+          tier: slow
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1d; {{ with query "100 * slo:error_budget_remaining{slo=\"ci-develop\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: unheaded_ci_run_success == 0 names the workflow; the Actions API lists its failing run and step; reproduce the job in a clean clone.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml
+          summary: 'SLO ci-develop: Every workflow''s latest finished run on develop is green'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:3d{slo="ci-develop"} / 0.01 > 1 and slo:error_ratio:6h{slo="ci-develop"} / 0.01 > 1
+        for: 2m
+        labels:
+          service: github-actions
+          slo: ci-develop
+          tier: steady
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 3d; {{ with query "100 * slo:error_budget_remaining{slo=\"ci-develop\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: unheaded_ci_run_success == 0 names the workflow; the Actions API lists its failing run and step; reproduce the job in a clean clone.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ci-red.yaml
+          summary: 'SLO ci-develop: Every workflow''s latest finished run on develop is green'

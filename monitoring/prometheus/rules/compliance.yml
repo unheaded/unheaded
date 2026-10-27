@@ -26,6 +26,7 @@ groups:
         annotations:
           summary: "Findings register cannot be built"
           description: "dashboard-backend could not read the catalog, register or evidence; the finding count is not trustworthy until fixed"
+          runbook_url: "runbooks/security/compliance-evidence.yaml"
 
       - alert: ComplianceMetricsMissing
         expr: absent(unheaded_compliance_report_ok)
@@ -36,6 +37,7 @@ groups:
         annotations:
           summary: "No findings register metrics"
           description: "dashboard-backend is down, not scraped, or started without --compliance-root"
+          runbook_url: "runbooks/security/compliance-evidence.yaml"
 
       # Central collection (compliance-evidence) has stopped producing
       # evidence. Warning while collection is still run by hand; critical once
@@ -49,6 +51,7 @@ groups:
         annotations:
           summary: "No new compliance evidence for over 6 hours"
           description: "Newest evidence record is {{ $value | humanizeDuration }} old; run cmd/compliance-evidence"
+          runbook_url: "runbooks/security/compliance-evidence.yaml"
 
       # A finding that was not there an hour ago: something regressed. Only
       # when there is an hour-old register to compare with: on a fresh
@@ -62,6 +65,7 @@ groups:
         annotations:
           summary: "New finding: {{ $labels.key }}"
           description: "{{ $labels.key }} on {{ $labels.host }} ({{ $labels.severity }}) started failing within the last hour"
+          runbook_url: "runbooks/security/compliance-evidence.yaml"
 
       - alert: ComplianceNewSevereFinding
         expr: (unheaded_compliance_finding{severity=~"critical|high"} unless unheaded_compliance_finding offset 1h) and on() (count(unheaded_compliance_finding offset 1h) > 0)
@@ -71,6 +75,7 @@ groups:
         annotations:
           summary: "New {{ $labels.severity }} finding: {{ $labels.key }}"
           description: "{{ $labels.key }} on {{ $labels.host }} started failing within the last hour"
+          runbook_url: "runbooks/security/compliance-evidence.yaml"
 
       - alert: ComplianceCriticalFindingOpen
         expr: unheaded_compliance_finding{severity="critical"} == 1
@@ -81,6 +86,7 @@ groups:
         annotations:
           summary: "Critical finding open: {{ $labels.key }}"
           description: "{{ $labels.key }} on {{ $labels.host }}; due 7 days after it opened"
+          runbook_url: "runbooks/security/compliance-evidence.yaml"
 
       - alert: ComplianceFindingsUntriaged
         expr: unheaded_compliance_findings_open{severity="untriaged"} > 0
@@ -91,6 +97,7 @@ groups:
         annotations:
           summary: "{{ $value }} finding(s) have no register entry"
           description: "Add them to compliance/findings/register.yaml with a severity and plan"
+          runbook_url: "runbooks/security/compliance-evidence.yaml"
 
       - alert: ComplianceFindingsOverdue
         expr: unheaded_compliance_findings_overdue > 0
@@ -100,6 +107,7 @@ groups:
         annotations:
           summary: "{{ $value }} finding(s) past their due date"
           description: "See /compliance; due = opened + severity window (7/30/90/180 days)"
+          runbook_url: "runbooks/security/compliance-evidence.yaml"
 
       - alert: ComplianceAcceptanceExpired
         expr: unheaded_compliance_acceptances_expired > 0
@@ -109,6 +117,7 @@ groups:
         annotations:
           summary: "{{ $value }} risk acceptance(s) expired"
           description: "Fix the finding or re-decide the acceptance in compliance/findings/register.yaml"
+          runbook_url: "runbooks/security/compliance-evidence.yaml"
 
       # The Well was serving compliance data within the last day and the
       # dashboard has been on its file/YAML fallback for 15 minutes since: a

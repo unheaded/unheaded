@@ -255,6 +255,14 @@ services:
   # Relay settings in monitoring/.env (none secret); the password file in
   # ALERT_MAILER_SECRETS_DIR (smtp-password, 0400, uid 16710). What it sent
   # or would have: curl -s 127.0.0.1:19130/v1/outbox
+  #
+  # Dead-man's switch (ADR-100, heartbeat.go): off unless HEARTBEAT_HOSTS
+  # (monitoring/.env, e.g. "east") names hosts; then the token file
+  # heartbeat-token (0400, uid 16710) must sit beside smtp-password and the
+  # heartbeat listener (19131, heartbeat only: no webhook, no outbox) answers.
+  # It stays on loopback until HEARTBEAT_LISTEN=192.168.13.2 publishes it on
+  # the P2P link; set that only while the link is configured at boot, since
+  # docker will not start a container whose published address is missing.
   alert-mailer:
     build:
       context: ..
@@ -267,12 +275,15 @@ services:
     cap_drop: [ALL]
     ports:
       - "127.0.0.1:19130:19130"
+      - "${HEARTBEAT_LISTEN:-127.0.0.1}:19131:19131"
     environment:
       SMTP_SMARTHOST: ${SMTP_SMARTHOST:-}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD_FILE: /run/secrets/alert-mailer/smtp-password
       ALERT_MAIL_FROM: ${ALERT_MAIL_FROM:-}
       ALERT_MAIL_TO: ${ALERT_MAIL_TO:-}
+      HEARTBEAT_HOSTS: ${HEARTBEAT_HOSTS:-}
+      HEARTBEAT_TOKEN_FILE: /run/secrets/alert-mailer/heartbeat-token
     volumes:
       - ../observability/alerting/policy.yaml:/etc/alert-mailer/policy.yaml:ro
       - alert_mailer_data:/var/lib/alert-mailer

@@ -1,0 +1,76 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: kev-feed-stale
+  description: The CISA KEV catalog is not being refreshed, or the poller is down (KEVFeedStale, KEVFeedExpired, KEVPollerDown)
+  owner: sentinel
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-055 and ADR-052. kev-poller (host unit unheaded-kev-poller on west and
+  east, port 19120) pulls the CISA Known Exploited Vulnerabilities catalog
+  hourly and keeps the last good copy when a pull fails. Stale is 6 h, expired
+  7 days (ADR-052's limit for the threat register). The kev-feed SLO is what
+  notifies; these alerts are urgency none.
+
+  CISA's feed itself being down looks the same as a broken poller from here;
+  the poller's last error says which.
+
+parameters:
+  - name: KEV_HOST
+    default: "127.0.0.1"
+    description: The poller's host as seen from where you run this
+
+steps:
+  - name: what-is-firing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=time() - unheaded_kev_last_success_timestamp_seconds' |
+        python3 -c 'import json,sys; [print(r["metric"]["instance"], "%.1fh since the last good pull" % (float(r["value"][1]) / 3600)) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Hours since each poller's last good pull (run on west)"
+
+  - name: unit-status
+    action: shell
+    command: "systemctl status unheaded-kev-poller --no-pager"
+    description: "Running, restarting or failed (on the host the alert names)"
+
+  - name: poller-health
+    action: shell
+    command: "curl -s -m 5 \"http://${KEV_HOST}:19120/health\""
+    description: "The poller answers"
+
+  - name: last-error
+    action: shell
+    command: "curl -s -m 5 \"http://${KEV_HOST}:19120/api/v1/kev\""
+    description: "The poller's state (no catalog body): catalog version, count, fetched_at, next pull, and the last error when a pull failed"
+
+  - name: unit-log
+    action: shell
+    command: "journalctl -u unheaded-kev-poller -n 30 --no-pager"
+    description: "Fetch errors (DNS, TLS, CISA returning an error) or a crash"
+
+  - name: restart-poller
+    action: manual
+    command: "sudo systemctl restart unheaded-kev-poller"
+    description: "MANUAL. Only if the unit is wedged; it keeps its last good copy and pulls again on start"
+
+verification:
+  - name: feed-fresh
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(ALERTS{alertname=~"KEVFeedStale|KEVFeedExpired|KEVPollerDown",alertstate="firing"}) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("firing:", v); sys.exit(v != "0")'
+
+rollback:
+  - name: nothing-to-roll-back
+    action: manual
+    command: "echo 'Every shell step reads; restarting the poller is safe to repeat.'"
+    description: "MANUAL. Nothing here changes state except the optional restart"

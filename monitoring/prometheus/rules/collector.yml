@@ -1,0 +1,60 @@
+# Prometheus alert rules - the eBPF trace collector (M-084) and heimdall-daemon (M-085)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# unheaded-trace-collector (cmd/trace-collector-go) runs on west and east as
+# a host unit and serves /metrics on 16671 (pkg/ports.TraceCollectorMetrics);
+# the trace-collector job in prometheus.yml scrapes both. It loads the XDP/TC
+# programs and publishes Anamnesis events to Wotan, so when it is down the
+# dashboard's flow and latency views go empty without anything else failing.
+#
+# TraceCollectorDown is promoted to a ticket in observability/alerting/
+# policy.yaml (no SLO covers the collector). TraceCollectorHighLatency is a
+# cause, recorded only: trace_collector_batch_latency_seconds is the time to
+# publish one batch to Wotan, so it is usually Wotan being slow.
+
+groups:
+  - name: trace-collector
+    interval: 1m
+    rules:
+      - alert: TraceCollectorDown
+        expr: up{job="trace-collector"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Trace collector on {{ $labels.host }} is not answering"
+          description: "{{ $labels.instance }} has failed every scrape for 5 minutes: no eBPF events reach Wotan from {{ $labels.host }}"
+          runbook_url: "runbooks/observe/trace-collector-down.yaml"
+
+      # p99 over 10m, only while batches are being published (an idle
+      # collector has no latency to judge).
+      - alert: TraceCollectorHighLatency
+        expr: |
+          histogram_quantile(0.99, sum by (job, instance, host, le) (rate(trace_collector_batch_latency_seconds_bucket[10m]))) > 1
+          and sum by (job, instance, host) (rate(trace_collector_batch_latency_seconds_count[10m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Trace collector on {{ $labels.host }}: batches take over 1s to reach Wotan"
+          description: "p99 batch publish latency {{ $value | humanizeDuration }} over 10m; Wotan is slow or the collector is backlogged"
+          runbook_url: "runbooks/observe/high-latency.yaml"
+
+  - name: heimdall
+    interval: 1m
+    rules:
+      # heimdall-daemon /metrics (M-085, S-WELL-SPRING Step 186): drift is
+      # still detected and printed, but the signed copy never reaches Wotan.
+      - alert: HeimdallDriftPublishFailing
+        expr: rate(heimdall_drift_publish_failed_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "heimdall-daemon on {{ $labels.instance }} cannot publish drift events to Wotan"
+          description: "Drift alerts are printed locally but not published, signed, to drift.detected.<node>; Wotan down or the drift key not enrolled"
+          runbook_url: "runbooks/infra/heimdall-drift-publish-failing.yaml"

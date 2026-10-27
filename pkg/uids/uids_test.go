@@ -117,6 +117,10 @@ var hostOnly = map[string]string{
 	"chaos-controller": "unheaded-chaos",
 	// The anomaly service and its Wotan intake: deploy/systemd/unheaded-anomaly.service.
 	"anomaly": "unheaded-anomaly",
+	// The dead-man's switch sender on east and the CI status writer on
+	// west: deploy/systemd/unheaded-heartbeat.service, unheaded-ci-status.service.
+	"heartbeat": "unheaded-heartbeat",
+	"ci-status": "unheaded-ci-status",
 }
 
 // composeOnly lists services that exist only in compose files (or as the

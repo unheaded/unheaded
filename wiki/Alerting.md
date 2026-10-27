@@ -8,7 +8,7 @@ Only an SLO burning its error budget notifies anyone (ADR-100). Everything else 
 
 - **SLOs**: each has a name, an objective (99.5% or 99% over 28 days), whether it can page, and a `good` expression that is 1 when the service is fine this minute. A missing series counts as bad.
 - **mailer**: `mode` (`dry-run` or `send`), `max_per_day` (hard cap, 6), `digest_at` (09:00) and `timezone` (America/Chicago).
-- **page** timing, and **promote**: cause alerts that should notify anyway. Keep it empty; each entry needs a reason.
+- **page** timing, and **promote**: cause alerts that should notify anyway. Keep it short; each entry needs a reason. Today: `HeartbeatMissing` (page).
 
 After an edit: `go run ./cmd/alert-policy` regenerates `monitoring/prometheus/rules/slo.yml` and `monitoring/alertmanager/alertmanager.yml`. CI fails if they are stale, or if a hand-written rule is not `urgency: none`. Then restart Prometheus and Alertmanager: `cd monitoring && sudo docker compose up -d --force-recreate prometheus alertmanager alert-mailer`.
 
@@ -20,7 +20,7 @@ Every alert carries `urgency`:
 |---|---|
 | `page` | Mailed within about 2 minutes. One mail per incident, plus one when everything is clear, plus a reminder after 12 h if it is still burning. |
 | `ticket` | Collected, then one digest mail at 09:00, only if something is open, resolved since the last digest, or held back by the cap. |
-| `none` | Nobody. All 47 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence and auth-failure bursts, compliance, Well backups, KEV, …). |
+| `none` | Nobody. All 40 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence and auth-failure bursts, compliance, Well backups, KEV, trace collector, Watchdog, …), except the two the policy promotes: `HeartbeatMissing` (page) and `TraceCollectorDown` (ticket). |
 
 `severity` (warning/critical) still describes how bad a cause is. It no longer decides who hears about it.
 
@@ -35,6 +35,19 @@ Every alert carries `urgency`:
 | overlay | west scrapes east's node_exporter over wg0 | 99% | ticket |
 | log-shipping | Vector delivered journal lines to ClickHouse in the last 30 min | 99% | ticket |
 | kev-feed | the CISA KEV catalog is under 6 h old on a host | 99% | ticket |
+| ci-develop | every GitHub Actions workflow's latest finished run on develop is green, data under 2 h old | 99% | ticket |
+
+`ci-develop`'s SLI comes from `unheaded-ci-status.timer` on west
+(`scripts/monitoring/ci-status-textfile.sh`, public Actions API every 10
+minutes, no token) through huginn's textfile directory; a cancelled run does
+not count, a stale reader counts as red. Runbook `runbooks/observe/ci-red.yaml`
+(an SLO may name its own runbook in the policy; the rest share
+`slo-error-budget-burn.yaml`).
+
+The Grafana dashboard **SLO Error Budget** (`monitoring/grafana/dashboards/08_slo_error_budget.json`)
+shows each SLO's budget left (red when spent, amber under a quarter), the
+burn rate over 1 h, 6 h and 3 d against the tier thresholds, and what is
+burning now.
 
 The burn-rate tiers come from the Google SRE Workbook, ch. 5. A tier fires when both its windows burn faster than its rate:
 
@@ -101,6 +114,64 @@ scripts/monitoring/maintenance.sh --end
 ```
 
 Alerts still fire and show; only mail stops. The duration is the work; each silence runs past it until the tiers can have cleared: pages +30m (the medium tier's short window), tickets +6h (the steady tier's). A silence that ended with the work mailed about the planned outage after it was over. `cmd/alert-policy`'s tests keep the tails in step with the tiers. `scripts/kingdom-shutdown.sh` silences 30m of work before it stops anything, and `kingdom-startup.sh` 15m of warm-up (both best effort).
+
+## Rules that cannot fire are deleted
+
+A rule on a metric nothing emits is a false sense of coverage. On 2026-10-27
+(S-WELL-SPRING Step 163) `monad.yml` (`MonadHbHDropRateHigh`, `BGPSessionDown`,
+`BFDFailoverTriggered`, `RoutingHealthDown`) and `loadbalancers.yml` (seven
+`HAProxy*`/`Nginx*` rules) were deleted: no binary emits the `unheaded_*`
+series and no job scrapes `haproxy_*`/`nginx_*` (checked live: zero series).
+`NodeExporterDown`, the one live rule among them, moved to `host.yml`. A
+deleted rule comes back with its producer and a promtool test; the load
+balancer rules return with an HAProxy/Nginx exporter.
+
+## Dead-man's switch
+
+Two alerts watch the watchers (ADR-100 section 4):
+
+- **`Watchdog`** is always firing, urgency `none`. It mails no one; it should
+  always be on Alertmanager's page. If it is missing, rule evaluation or
+  delivery is broken and every quiet alert is suspect.
+- **`HeartbeatMissing{host}`** pages when a watched host has not sent a
+  heartbeat for 10 minutes. East POSTs `http://192.168.13.2:19131/heartbeat/east`
+  every 2 minutes (`unheaded-heartbeat.timer`, token through `LoadCredential`);
+  alert-mailer records it on a heartbeat-only listener and exports
+  `unheaded_heartbeat_last_seen_timestamp_seconds`. West dying is not covered
+  until a receiver outside both hosts exists.
+
+Off until configured. To turn it on (the E-D host window):
+
+1. Generate a token once and give both hosts the same bytes:
+   west `ALERT_MAILER_SECRETS_DIR/heartbeat-token` (0400, uid 16710), east
+   `/etc/unheaded/heartbeat.token` (0400 root).
+2. `monitoring/.env` on west: `HEARTBEAT_HOSTS=east`,
+   `HEARTBEAT_LISTEN=192.168.13.2` (only while the P2P address exists at
+   boot: docker will not start a container whose published address is
+   missing). `docker compose up -d alert-mailer prometheus alertmanager`.
+3. East: install `scripts/monitoring/heartbeat.sh`, the sysusers line and
+   `deploy/systemd/unheaded-heartbeat.{service,timer}`; enable the timer.
+
+Runbook: `runbooks/observe/heartbeat-missing.yaml`.
+
+## Postmortems
+
+Blameless, in `docs/incidents/` from `docs/incidents/TEMPLATE.md`. Written
+for an outage of Wotan, the dashboard, The Well or Zhen over 1 h, a silent
+failure over a day, or a data-loss near miss; not for a page that cleared
+inside the hour (the default until Stevie decides, ADR-100 question 3). Every
+action item is an `M-###`, a finding, or "done: <commit>".
+
+## Every alert has a runbook
+
+Every alert, generated or hand-written, carries `annotations.runbook_url`
+naming a file in this repo: a repo path (`runbooks/observe/log-pipeline.yaml`)
+or a GitHub blob/wiki URL to one. `scripts/check-prometheus-rules.sh` fails
+otherwise (`go run ./cmd/alert-policy -runbooks`), with no baseline. A new
+rule points at an existing runbook or comes with one (runbook/v1,
+`status: draft`); `runbooks/observe/log-pipeline.yaml`,
+`runbooks/security/kev-feed-stale.yaml`, `trace-collector-down.yaml` and
+`high-latency.yaml` were written for the rules that had none (2026-10-27).
 
 ## When one arrives
 

@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# West: read develop's CI status every 10 minutes (6 of the 60 unauthenticated
+# GitHub API calls an hour).
+
+[Unit]
+Description=CI status on develop every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+RandomizedDelaySec=30s
+
+[Install]
+WantedBy=timers.target

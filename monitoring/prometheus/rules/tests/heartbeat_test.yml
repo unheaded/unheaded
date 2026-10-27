@@ -1,0 +1,56 @@
+# promtool test rules heartbeat_test.yml (from this directory)
+rule_files:
+  - ../heartbeat.yml
+evaluation_interval: 1m
+tests:
+  # East beats every minute until 10m and then goes quiet; west keeps
+  # beating. Quiet for exactly 10m is not yet missing; past it, after the
+  # 1m hold, east fires and west never does.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_heartbeat_last_seen_timestamp_seconds{job="alert-mailer",host="east"}'
+        values: '0+60x10 600x30'
+      - series: 'unheaded_heartbeat_last_seen_timestamp_seconds{job="alert-mailer",host="west"}'
+        values: '0+60x40'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HeartbeatMissing
+        exp_alerts: []
+      - eval_time: 21m
+        alertname: HeartbeatMissing
+        exp_alerts: []
+      - eval_time: 22m
+        alertname: HeartbeatMissing
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, job: alert-mailer, host: east}
+            exp_annotations:
+              summary: "No heartbeat from east for over 10 minutes"
+              description: "Last heartbeat 12m 0s ago: east is down, the P2P link is down, or its heartbeat timer stopped"
+              runbook_url: "runbooks/observe/heartbeat-missing.yaml"
+      # Still missing while it stays quiet.
+      - eval_time: 40m
+        alertname: HeartbeatMissing
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, job: alert-mailer, host: east}
+            exp_annotations:
+              summary: "No heartbeat from east for over 10 minutes"
+              description: "Last heartbeat 30m 0s ago: east is down, the P2P link is down, or its heartbeat timer stopped"
+              runbook_url: "runbooks/observe/heartbeat-missing.yaml"
+
+  # A host that comes back clears the alert.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_heartbeat_last_seen_timestamp_seconds{job="alert-mailer",host="east"}'
+        values: '0x15 960+60x10'
+    alert_rule_test:
+      - eval_time: 14m
+        alertname: HeartbeatMissing
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, job: alert-mailer, host: east}
+            exp_annotations:
+              summary: "No heartbeat from east for over 10 minutes"
+              description: "Last heartbeat 14m 0s ago: east is down, the P2P link is down, or its heartbeat timer stopped"
+              runbook_url: "runbooks/observe/heartbeat-missing.yaml"
+      - eval_time: 17m
+        alertname: HeartbeatMissing
+        exp_alerts: []
