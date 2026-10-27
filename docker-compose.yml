@@ -1227,7 +1227,11 @@ services:
     tmpfs:
       - /tmp:size=64M
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_unheaded-daemon   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_unheaded-daemon   # ADR-103
+      # S-IRON-GATE Phase 5: writes need a service token from an allowlisted
+      # caller (reads under /api/v1/info and /api/v1/state stay open).
+      AUTH_ENABLED: "true"
+      AUTH_ALLOW_CALLERS: "sword,unheaded-cli,dashboard-backend"
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       HTTP_ADDR: ":19006"
       WOTAN_ADDR: "wotan:18000"

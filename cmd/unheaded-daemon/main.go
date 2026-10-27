@@ -968,9 +968,18 @@ func (d *Daemon) publishDriftEvents(drifts []DriftReport) {
 // container write (PUT/DELETE/chaos under /api/v1/containers) and the
 // reconcile trigger stay behind the key; the handlers refuse them as well
 // when auth is off (authEnabled).
+//
+// Behind authentication sits RBAC (S-IRON-GATE Phase 5): a write needs role
+// admin, operator or service (an EdDSA service token carries service), so an
+// observer key can read the keyed endpoints but not change anything.
 func (d *Daemon) wrapAuth(mux *http.ServeMux, cfg auth.ServiceAuthConfig) http.Handler {
-	mw := auth.SkipAuthPaths(auth.SetupMiddleware(cfg), "/api/v1/info", "/api/v1/state")
-	return auth.WrapHandler(mux, mw)
+	authn := auth.SetupMiddleware(cfg)
+	if authn == nil {
+		return mux
+	}
+	rbac := auth.RBACMiddleware(auth.DefaultServicePolicies(cfg.ServiceName))
+	authz := func(next http.Handler) http.Handler { return authn(rbac(next)) }
+	return auth.SkipAuthPaths(authz, "/api/v1/info", "/api/v1/state")(mux)
 }
 
 func (d *Daemon) registerHandlers(mux *http.ServeMux) {

@@ -87,3 +87,23 @@ func TestHandler_AuthInFront(t *testing.T) {
 		t.Fatal("/metrics lacks the house HTTP series")
 	}
 }
+
+// S-IRON-GATE Phase 5: Sword's own key (AUTH_KEY_FILE) is enough; it mints
+// tokens for Cuirass, and CUIRASS_API_KEY becomes optional.
+func TestLoadConfig_KeyFileIsEnough(t *testing.T) {
+	c, err := loadConfig(env(map[string]string{"AUTH_KEY_FILE": "/run/secrets/svc_key_sword"}))
+	if err != nil {
+		t.Fatalf("AUTH_KEY_FILE alone refused: %v", err)
+	}
+	if c.keyFile != "/run/secrets/svc_key_sword" {
+		t.Errorf("keyFile %q", c.keyFile)
+	}
+}
+
+func TestBuild_UnreadableKeyFileFails(t *testing.T) {
+	log := zerolog.Nop()
+	c := config{cuirassURL: "http://127.0.0.1:19006", keyFile: filepath.Join(t.TempDir(), "missing.key")}
+	if _, err := build(c, &log); err == nil {
+		t.Error("build with an unreadable AUTH_KEY_FILE succeeded")
+	}
+}

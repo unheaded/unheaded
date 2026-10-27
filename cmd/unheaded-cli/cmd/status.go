@@ -115,7 +115,7 @@ func gatherSystemStatus(ctx *Context) *SystemStatus {
 	target, err := cuirassURL(ctx, "/api/v1/containers")
 	var list []ContainerInfo
 	if err == nil {
-		err = callJSON(http.MethodGet, target, nil, &list)
+		err = callCuirass(http.MethodGet, target, nil, &list)
 	}
 	if err != nil {
 		status.ContainErr = "cuirass: " + err.Error()

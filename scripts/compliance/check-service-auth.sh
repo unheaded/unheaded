@@ -40,7 +40,18 @@ def env(spec):
         e = dict(x.split("=", 1) if "=" in x else (x, "") for x in e)
     return {k: str(v) for k, v in e.items()}
 
-open_ = sorted(n for n, s in first_party.items() if env(s).get("AUTH_ENABLED", "") != "true")
+# Services whose routes are public by design, each with the reason. Keep
+# this short; a new entry needs a reason a reviewer can check in the code.
+EXEMPT = {
+    # The built-in OIDC issuer (ADR-103 §3): its routes are login, JWKS and
+    # discovery, which every client must reach unauthenticated; login checks
+    # the password itself, and user management is a CLI over its users file,
+    # not an HTTP route (cmd/unheaded-auth/issuer.go).
+    "auth": "OIDC issuer: login/JWKS/discovery are public by design",
+}
+for n in sorted(set(EXEMPT) & set(first_party)):
+    print(f"[EXEMPT] {n}: {EXEMPT[n]}")
+open_ = sorted(n for n, s in first_party.items() if n not in EXEMPT and env(s).get("AUTH_ENABLED", "") != "true")
 if open_:
     print(f"[FAIL] {len(open_)} of {len(first_party)} first-party services accept unauthenticated requests (no AUTH_ENABLED=true):")
     for n in open_:

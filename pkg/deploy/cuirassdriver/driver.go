@@ -114,8 +114,12 @@ func (e *StatusError) Error() string {
 
 // Config configures a Driver.
 type Config struct {
-	URL          string // Cuirass base URL
-	APIKey       string // required
+	URL    string // Cuirass base URL
+	APIKey string // X-API-Key on writes; required unless Authorizer is set
+	// Authorizer returns the Authorization header value for a write (an
+	// EdDSA service token minted for Cuirass, S-IRON-GATE Phase 5). When
+	// set it is used instead of APIKey; an error fails the write unsent.
+	Authorizer   func() (string, error)
 	Client       *http.Client
 	PollInterval time.Duration // how often to re-read Cuirass while waiting
 	Timeout      time.Duration // longest wait for one create/delete/switch
@@ -125,6 +129,7 @@ type Config struct {
 type Driver struct {
 	base    string
 	key     string
+	authz   func() (string, error)
 	client  *http.Client
 	poll    time.Duration
 	timeout time.Duration
@@ -133,8 +138,8 @@ type Driver struct {
 // New makes a Driver. A missing API key is an error: credentials fail
 // loud, never a default.
 func New(cfg Config) (*Driver, error) {
-	if cfg.APIKey == "" {
-		return nil, errors.New("cuirassdriver: no API key (set CUIRASS_API_KEY)")
+	if cfg.APIKey == "" && cfg.Authorizer == nil {
+		return nil, errors.New("cuirassdriver: no credential (a service key via AUTH_KEY_FILE, or CUIRASS_API_KEY)")
 	}
 	u, err := url.Parse(cfg.URL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
@@ -147,7 +152,7 @@ func New(cfg Config) (*Driver, error) {
 	c := *client
 	c.Timeout = requestTimeout
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	d := &Driver{base: strings.TrimRight(cfg.URL, "/"), key: cfg.APIKey, client: &c,
+	d := &Driver{base: strings.TrimRight(cfg.URL, "/"), key: cfg.APIKey, authz: cfg.Authorizer, client: &c,
 		poll: cfg.PollInterval, timeout: cfg.Timeout}
 	if d.poll <= 0 {
 		d.poll = defaultPoll
@@ -212,7 +217,15 @@ func (d *Driver) do(ctx context.Context, method, path string, body, out any) err
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if method != http.MethodGet {
-		req.Header.Set("X-API-Key", d.key)
+		if d.authz != nil {
+			h, err := d.authz()
+			if err != nil {
+				return fmt.Errorf("cuirass %s %s: service token: %w", method, path, err)
+			}
+			req.Header.Set("Authorization", h)
+		} else {
+			req.Header.Set("X-API-Key", d.key)
+		}
 	}
 	resp, err := d.client.Do(req)
 	if err != nil {

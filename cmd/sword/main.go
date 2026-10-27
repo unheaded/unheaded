@@ -10,7 +10,10 @@
 //
 //	HTTP_ADDR         listen address (default :19011, pkg/ports.Sword)
 //	CUIRASS_URL       Cuirass base URL (default http://127.0.0.1:19006)
-//	CUIRASS_API_KEY   required: Sword refuses to start without it
+//	AUTH_KEY_FILE     Sword's Ed25519 key: writes to Cuirass carry a service
+//	                  token minted from it (aud unheaded-daemon, ADR-103)
+//	CUIRASS_API_KEY   fallback when there is no AUTH_KEY_FILE; Sword refuses
+//	                  to start with neither
 //	SWORD_DATA_DIR    deployment history; unset = read-only (writes 503)
 //	VM_URL            VictoriaMetrics for the SLO guard; unset = canary refused
 //	SWORD_SLO_POLICY  alerting policy file (default /etc/unheaded/sword/policy.yaml)
@@ -48,6 +51,7 @@ type config struct {
 	addr       string
 	cuirassURL string
 	cuirassKey string
+	keyFile    string
 	dataDir    string
 	vmURL      string
 	policy     string
@@ -62,6 +66,9 @@ func envOr(getenv func(string) string, k, def string) string {
 	return def
 }
 
+// cuirassAudience is Cuirass's auth identity, the "aud" of Sword's tokens.
+const cuirassAudience = "unheaded-daemon"
+
 // loadConfig reads the environment. A missing Cuirass key is an error:
 // credentials fail loud, never a default.
 func loadConfig(getenv func(string) string) (config, error) {
@@ -69,21 +76,30 @@ func loadConfig(getenv func(string) string) (config, error) {
 		addr:       envOr(getenv, "HTTP_ADDR", ports.DefaultAddr(ports.Sword)),
 		cuirassURL: envOr(getenv, "CUIRASS_URL", fmt.Sprintf("http://127.0.0.1:%d", ports.Cuirass)),
 		cuirassKey: getenv("CUIRASS_API_KEY"),
+		keyFile:    getenv("AUTH_KEY_FILE"),
 		dataDir:    getenv("SWORD_DATA_DIR"),
 		vmURL:      getenv("VM_URL"),
 		policy:     envOr(getenv, "SWORD_SLO_POLICY", "/etc/unheaded/sword/policy.yaml"),
 		wotanHTTP:  getenv("WOTAN_ADDR"),
 		wotanGRPC:  getenv("WOTAN_GRPC_ADDR"),
 	}
-	if c.cuirassKey == "" {
-		return c, errors.New("CUIRASS_API_KEY is not set: Sword deploys through Cuirass's write API and credentials are not stored in the repo")
+	if c.cuirassKey == "" && c.keyFile == "" {
+		return c, errors.New("neither AUTH_KEY_FILE nor CUIRASS_API_KEY is set: Sword deploys through Cuirass's write API and credentials are not stored in the repo")
 	}
 	return c, nil
 }
 
 // build wires the service from a config.
 func build(c config, log *zerolog.Logger) (*sword.Service, error) {
-	d, err := cuirassdriver.New(cuirassdriver.Config{URL: c.cuirassURL, APIKey: c.cuirassKey})
+	dc := cuirassdriver.Config{URL: c.cuirassURL, APIKey: c.cuirassKey}
+	if c.keyFile != "" {
+		minter, err := auth.LoadServiceTokenMinter(serviceName, c.keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("sword key: %w", err)
+		}
+		dc.Authorizer = func() (string, error) { return minter.AuthorizationHeader(cuirassAudience) }
+	}
+	d, err := cuirassdriver.New(dc)
 	if err != nil {
 		return nil, err
 	}

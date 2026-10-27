@@ -12,9 +12,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/ports"
 )
 
@@ -64,10 +66,73 @@ func serviceURL(base, path string) (string, error) {
 	return strings.TrimRight(base, "/") + path, nil
 }
 
+// cuirassAudience is Cuirass's auth identity, the "aud" of tokens for it
+// (its key and trust.d name is unheaded-daemon, S-IRON-GATE Phase 2).
+const cuirassAudience = "unheaded-daemon"
+
+// cliKeyName is the CLI's own identity: its key's trust.d name and the
+// "sub" of the tokens it mints.
+const cliKeyName = "unheaded-cli"
+
+// cliHostKeyFile is where a provisioned host keeps the CLI key.
+var cliHostKeyFile = "/etc/unheaded/keys/unheaded-cli.key"
+
+// callCuirass is callJSON for Cuirass: it authenticates as the CLI with a
+// service token minted for Cuirass (S-IRON-GATE Step 166), unless
+// UNHEADED_TOKEN is set.
+func callCuirass(method, target string, body, out any) error {
+	return callJSONAs(cuirassAudience, method, target, body, out)
+}
+
+// authorization picks the credential for a call to aud: UNHEADED_TOKEN
+// (a uhk_ API key or a token) when set; else, for a service audience, a
+// token minted from the CLI's key: AUTH_KEY_FILE, then
+// ~/.config/unheaded/cli.key, then the host key. An AUTH_KEY_FILE that
+// cannot be used is an error, never a silent anonymous call; with no key
+// anywhere the call goes without one and the service answers for itself.
+func authorization(aud string) (string, error) {
+	if tok := os.Getenv("UNHEADED_TOKEN"); tok != "" {
+		return "Bearer " + tok, nil
+	}
+	if aud == "" {
+		return "", nil
+	}
+	keyFile := os.Getenv("AUTH_KEY_FILE")
+	if keyFile == "" {
+		var candidates []string
+		if home, err := os.UserHomeDir(); err == nil {
+			candidates = append(candidates, filepath.Join(home, ".config", "unheaded", "cli.key"))
+		}
+		candidates = append(candidates, cliHostKeyFile)
+		for _, c := range candidates {
+			if _, err := os.Stat(c); err == nil {
+				keyFile = c
+				break
+			}
+		}
+		if keyFile == "" {
+			return "", nil
+		}
+	}
+	m, err := auth.LoadServiceTokenMinter(cliKeyName, keyFile)
+	if err != nil {
+		return "", fmt.Errorf("CLI key %s: %w", keyFile, err)
+	}
+	return m.AuthorizationHeader(aud)
+}
+
 // callJSON sends body (if any) as JSON and decodes a 2xx response into out
-// (if any). UNHEADED_TOKEN, when set, goes as a bearer token: writes to
-// Cuirass need auth.
+// (if any). UNHEADED_TOKEN, when set, goes as a bearer token.
 func callJSON(method, target string, body, out any) error {
+	return callJSONAs("", method, target, body, out)
+}
+
+// callJSONAs is callJSON authenticating for audience aud (see authorization).
+func callJSONAs(aud, method, target string, body, out any) error {
+	authz, err := authorization(aud)
+	if err != nil {
+		return err
+	}
 	var rd io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -83,8 +148,8 @@ func callJSON(method, target string, body, out any) error {
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if tok := os.Getenv("UNHEADED_TOKEN"); tok != "" {
-		req.Header.Set("Authorization", "Bearer "+tok)
+	if authz != "" {
+		req.Header.Set("Authorization", authz)
 	}
 	resp, err := apiClient.Do(req)
 	if err != nil {

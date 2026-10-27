@@ -169,7 +169,7 @@ func newContainerListCommand() *Command {
 				return err
 			}
 			var list []ContainerInfo
-			if err := callJSON(http.MethodGet, target, nil, &list); err != nil {
+			if err := callCuirass(http.MethodGet, target, nil, &list); err != nil {
 				return cuirassErr(ctx, "list containers", err)
 			}
 			sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
@@ -236,7 +236,7 @@ func newContainerCreateCommand() *Command {
 			if err != nil {
 				return err
 			}
-			if err := callJSON(http.MethodPut, target, spec, nil); err != nil {
+			if err := callCuirass(http.MethodPut, target, spec, nil); err != nil {
 				return cuirassErr(ctx, "create "+name, err)
 			}
 			ctx.Output.WriteSuccess("Container '%s' added to the desired state; Cuirass reconciles it", name)
@@ -261,7 +261,7 @@ func newContainerDeleteCommand() *Command {
 				if err != nil {
 					return err
 				}
-				if err := callJSON(http.MethodDelete, target, nil, nil); err != nil {
+				if err := callCuirass(http.MethodDelete, target, nil, nil); err != nil {
 					ctx.Output.WriteError("delete %s: %v", name, err)
 					failed++
 					continue
@@ -292,7 +292,7 @@ func newContainerInspectCommand() *Command {
 				return err
 			}
 			var c ContainerInfo
-			if err := callJSON(http.MethodGet, target, nil, &c); err != nil {
+			if err := callCuirass(http.MethodGet, target, nil, &c); err != nil {
 				if isHTTPStatus(err, http.StatusNotFound) {
 					return fmt.Errorf("container %s: not desired and not in LXD", name)
 				}
