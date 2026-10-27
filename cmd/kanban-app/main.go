@@ -166,18 +166,16 @@ func NewServer(cfg Config) *Server {
 
 	// Try Postgres first
 	pgDB, pgErr := database.Connect(context.Background(), database.AppKanbanConfig())
-	if pgErr == nil {
-		pgStore, pgStoreErr := NewPgStore(pgDB)
-		if pgStoreErr == nil {
-			// The Well is the source of cards; a fresh Well gets the
-			// Genesis cards from migration 034, not from this binary.
-			s.store = pgStore
-			log.Info().Msg("Postgres connected — kanban tasks persisted to The Well (standalone mode)")
-		} else {
-			log.Warn().Err(pgStoreErr).Msg("Postgres schema init failed — falling back to SQLite")
-			pgDB.Close() // #nosec G104 -- logging call; a logging failure must not alter control flow
-		}
-	} else {
+	pgStore, pgStoreErr := wellStore(pgDB, pgErr)
+	switch {
+	case pgStoreErr != nil:
+		log.Fatal().Err(pgStoreErr).Msg("The Well answers but is not migrated for kanban-app: refusing to start (run well-migrate; no SQLite fallback, it would split the board)")
+	case pgStore != nil:
+		// The Well is the source of cards; a fresh Well gets the
+		// Genesis cards from migration 034, not from this binary.
+		s.store = pgStore
+		log.Info().Msg("Postgres connected — kanban tasks persisted to The Well (standalone mode)")
+	default:
 		log.Warn().Err(pgErr).Msg("Postgres unavailable — trying SQLite")
 	}
 
@@ -1551,17 +1549,15 @@ func main() {
 			var kanbanStore TaskStore
 
 			pgDB, pgErr := database.Connect(context.Background(), database.AppKanbanConfig())
-			if pgErr != nil {
+			pgStore, pgStoreErr := wellStore(pgDB, pgErr)
+			switch {
+			case pgStoreErr != nil:
+				log.Fatal().Err(pgStoreErr).Msg("The Well answers but is not migrated for kanban-app: refusing to start (run well-migrate; no SQLite fallback, it would split the board)")
+			case pgStore != nil:
+				kanbanStore = pgStore
+				log.Info().Msg("Postgres connected — kanban tasks persisted to The Well")
+			default:
 				log.Warn().Err(pgErr).Msg("Postgres unavailable — trying SQLite fallback")
-			} else {
-				pgStore, pgStoreErr := NewPgStore(pgDB)
-				if pgStoreErr != nil {
-					log.Warn().Err(pgStoreErr).Msg("Postgres schema init failed — trying SQLite fallback")
-					pgDB.Close() // #nosec G104 -- logging call; a logging failure must not alter control flow
-				} else {
-					kanbanStore = pgStore
-					log.Info().Msg("Postgres connected — kanban tasks persisted to The Well")
-				}
 			}
 
 			if kanbanStore == nil {

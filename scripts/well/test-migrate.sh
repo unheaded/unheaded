@@ -128,6 +128,12 @@ done
 reach=$(sq postgres "SELECT string_agg(r || '>' || d, ' ' ORDER BY r, d) FROM unnest(ARRAY['app_kanban','ops_writer','config_admin','huginn_reader','well_backup']) r, unnest(ARRAY['postgres','unheaded_app','unheaded_ops','unheaded_config']) d WHERE has_database_privilege(r, d, 'CONNECT')")
 want_reach="app_kanban>unheaded_app app_kanban>unheaded_config config_admin>unheaded_config huginn_reader>unheaded_app huginn_reader>unheaded_config huginn_reader>unheaded_ops ops_writer>unheaded_ops well_backup>postgres well_backup>unheaded_app well_backup>unheaded_config well_backup>unheaded_ops"
 [[ "$reach" == "$want_reach" ]] && pass "service roles connect only where granted" || fail "CONNECT map: $reach"
+# 038: kanban-app's startup ledger check (pkg/database.RequireMigrations)
+# reads unheaded_app's ledger as app_kanban; reading is all it may do.
+[[ "$(sq unheaded_app "SELECT has_table_privilege('app_kanban', 'well_schema_migrations', 'SELECT') || ' ' || has_table_privilege('app_kanban', 'well_schema_migrations', 'INSERT,UPDATE,DELETE,TRUNCATE')")" == "true false" ]] &&
+	pass "038: app_kanban reads the unheaded_app ledger and cannot write it" || fail "038: app_kanban ledger privileges"
+[[ "$(sq unheaded_app "SELECT count(*) FROM well_schema_migrations WHERE filename IN ('003_app_schema.sql', '007_grants.sql', '038_app_ledger_read.sql')")" == 3 ]] &&
+	pass "unheaded_app ledger holds kanban-app's required files (003, 007) and 038" || fail "kanban-app's required files not in the ledger"
 [[ "$(sq postgres "SELECT has_database_privilege('public', 'template1', 'CONNECT') OR has_database_privilege('public', 'template1', 'TEMPORARY') OR has_database_privilege('app_kanban', 'template1', 'CONNECT')")" == f ]] &&
 	pass "template1: PUBLIC has no CONNECT/TEMPORARY" || fail "template1: PUBLIC can connect"
 

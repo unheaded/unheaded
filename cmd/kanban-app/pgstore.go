@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"unheaded/pkg/database"
 )
@@ -20,15 +21,46 @@ type PgStore struct {
 	db    *sql.DB // retained for Close()
 }
 
+// kanbanMigrations are the ledger rows (ADR-101) the Postgres store needs
+// in unheaded_app: 003 defines kanban_tasks, 007 grants app_kanban its
+// rows. Reading the ledger as app_kanban needs 038's SELECT grant.
+var kanbanMigrations = []string{"003_app_schema.sql", "007_grants.sql"}
+
+// startupCheckTimeout bounds the ledger and shape checks at startup.
+const startupCheckTimeout = 10 * time.Second
+
 // NewPgStore creates a Postgres-backed TaskStore. It refuses to start when
-// The Well lacks the kanban_tasks shape (migrations define it, not this
-// process).
+// The Well's ledger lacks kanban's migrations or the kanban_tasks shape is
+// incomplete (migrations define the table, never this process: M-073).
 func NewPgStore(db *sql.DB) (*PgStore, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), startupCheckTimeout)
+	defer cancel()
+	if err := database.RequireMigrations(ctx, db, kanbanMigrations...); err != nil {
+		return nil, err
+	}
 	ks := database.NewKanbanStore(db)
-	if err := ks.CheckSchema(context.Background()); err != nil {
+	if err := ks.CheckSchema(ctx); err != nil {
 		return nil, err
 	}
 	return &PgStore{inner: ks, db: db}, nil
+}
+
+// wellStore decides the store from database.Connect's result. A Well that
+// is not configured or does not answer (connErr) gives (nil, nil): the
+// caller falls back to SQLite, which is for dev runs without a Well. A Well
+// that answers but whose ledger or shape is not kanban's gives an error and
+// the caller refuses to start: falling back there would split the board
+// between the Well and a local file (cards come from the Well).
+func wellStore(db *sql.DB, connErr error) (TaskStore, error) {
+	if connErr != nil || db == nil {
+		return nil, nil
+	}
+	st, err := NewPgStore(db)
+	if err != nil {
+		db.Close() // #nosec G104 -- cleanup on an error path; the caller reports err
+		return nil, err
+	}
+	return st, nil
 }
 
 func (p *PgStore) GetAllTasks() ([]Task, error) {

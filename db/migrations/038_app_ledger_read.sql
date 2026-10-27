@@ -1,0 +1,21 @@
+-- SPDX-License-Identifier: GPL-3.0-or-later
+-- The Well — app_kanban may read unheaded_app's migration ledger
+-- (S-WELL-SPRING Phase 1, M-073; ADR-101), unheaded_app.
+--
+-- kanban-app checks at startup that the ledger holds the migrations its
+-- store depends on (003, 007; pkg/database.RequireMigrations) and refuses
+-- to start when they are missing, rather than creating tables or falling
+-- back to a local SQLite board. LEDGER.sql revokes everything on
+-- well_schema_migrations from PUBLIC, so the role needs SELECT on it: the
+-- filenames, checksums and apply times, nothing else. No write: the ledger
+-- stays append-only and only well-migrate and db/init.sh add to it.
+--
+-- MANIFEST flags this file superuser: the ledger belongs to the bootstrap
+-- superuser (026 leaves it there), so the owner role cannot grant on it.
+--
+-- Lock plan: one GRANT, a catalog update on an existing table, instant.
+-- Rollback: a later numbered migration revokes it (kanban-app then refuses
+-- to start until its check is removed). Proof: scripts/well/test-migrate.sh
+-- (app_kanban reads the ledger and cannot write it).
+
+GRANT SELECT ON well_schema_migrations TO app_kanban;
