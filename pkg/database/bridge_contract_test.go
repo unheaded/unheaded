@@ -30,7 +30,7 @@ func TestHealthReportContract(t *testing.T) {
 	if a, b := jsonTags(reflect.TypeOf(health.HealthReport{})), jsonTags(reflect.TypeOf(database.HealthReport{})); !reflect.DeepEqual(a, b) {
 		t.Fatalf("shapes differ:\n akira  %v\n bridge %v", a, b)
 	}
-	in := health.HealthReport{Service: "wotan", Reporter: "west", Healthy: false, Latency: 1500 * time.Millisecond,
+	in := health.HealthReport{Service: "wotan", Reporter: "wotan@west", Host: "west", Healthy: false, Latency: 1500 * time.Millisecond,
 		Error: "connection refused", Timestamp: time.Date(2026, 10, 15, 1, 2, 3, 0, time.UTC)}
 	b, err := json.Marshal(in)
 	if err != nil {
@@ -40,7 +40,7 @@ func TestHealthReportContract(t *testing.T) {
 	if err := json.Unmarshal(b, &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.Service != in.Service || out.Reporter != in.Reporter || out.Healthy != in.Healthy ||
+	if out.Service != in.Service || out.Reporter != in.Reporter || out.Host != in.Host || out.Healthy != in.Healthy ||
 		out.Latency != in.Latency || out.Error != in.Error || !out.Timestamp.Equal(in.Timestamp) {
 		t.Fatalf("round trip: %+v", out)
 	}

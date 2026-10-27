@@ -16,6 +16,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/lifecycle"
 	"unheaded/pkg/logagg"
@@ -151,6 +152,7 @@ func main() {
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
 	discovery.Start(ctx, transportCfg, "micromanager", ports.PortOf(":"+*port, ports.Micromanager))
+	healthreport.StartService(ctx, transportCfg, "micromanager", healthreport.HealthURL(":"+*port, ports.PortOf(":"+*port, ports.Micromanager))) // ADR-029: a vote on Akira's ballot
 
 	if err := service.Start(ctx); err != nil {
 		log.Error().Err(err).Msg("failed to start service")

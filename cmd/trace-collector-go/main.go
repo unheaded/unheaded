@@ -48,6 +48,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/ebpf"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
@@ -1191,6 +1192,7 @@ func main() {
 		announceAddr = *metricsAddr
 	}
 	discovery.Start(ctx, transportCfg, "trace-collector", ports.PortOf(announceAddr, ports.TraceCollectorHTTP))
+	healthreport.StartService(ctx, transportCfg, "trace-collector", healthreport.HealthURL(announceAddr, ports.PortOf(announceAddr, ports.TraceCollectorHTTP))) // ADR-029: a vote on Akira's ballot
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

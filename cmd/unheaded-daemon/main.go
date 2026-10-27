@@ -40,6 +40,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
@@ -575,6 +576,7 @@ func main() {
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
 	discovery.Start(discoveryCtx, transportCfg, "unheaded-daemon", ports.PortOf(cfg.HTTPAddr, ports.DaemonHTTP))
+	healthreport.StartService(discoveryCtx, transportCfg, "unheaded-daemon", healthreport.HealthURL(cfg.HTTPAddr, ports.PortOf(cfg.HTTPAddr, ports.DaemonHTTP))) // ADR-029: a vote on Akira's ballot
 
 	// Create daemon
 	daemon := NewDaemon(cfg, log, transportCfg, healthSrv)

@@ -44,6 +44,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
@@ -935,6 +936,7 @@ func main() {
 
 	// Service discovery registration
 	discovery.Start(ctx, transportCfg, "sophia", ports.PortOf(*listenAddr, ports.Sophia))
+	healthreport.StartService(ctx, transportCfg, "sophia", healthreport.HealthURL(*listenAddr, ports.PortOf(*listenAddr, ports.Sophia))) // ADR-029: a vote on Akira's ballot
 
 	if err := sophiaService.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("failed to start Sophia service")

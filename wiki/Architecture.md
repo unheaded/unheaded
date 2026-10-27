@@ -148,8 +148,9 @@ Service A                    Wotan                    Service B
 |-------|-----------|-------------|---------|
 | `alerts.critical` | Any service | Services that wire it (timeguru, captain, micromanager, chaos-controller, …) | Critical alert broadcast |
 | `timeline.updates` | timeguru | kanban-app | Timeline changes |
-| `system.health.reports` | akira | akira (tally), dashboard-backend (into The Well) | Each reporter's checks |
+| `system.health.reports` | akira, every service with `discovery.Start` (`pkg/healthreport`) | akira (tally), dashboard-backend (into The Well) | Each reporter's checks, and each service's check of itself |
 | `system.health.consensus` | akira | dashboard-backend | Health band changes |
+| `system.health.remediate` | akira | none yet (advisory) | One restart suggestion per entry into CRITICAL or PANIC |
 | `metrics.<service>` | dashboard-backend event helper | dashboard-backend (`metrics.*`) | Per-service metric events |
 
 ### Health Monitoring Protocol

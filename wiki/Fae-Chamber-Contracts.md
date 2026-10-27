@@ -14,7 +14,7 @@ Topic and message contracts for Wotan (the Fae Chamber): which service publishes
 | `architecture` | Architect | `architecture.updates` |
 | `alerts` | everyone | `alerts.critical` (every service subscribes) |
 | `state` | unheaded-daemon | `state.changed` |
-| `system` | Akira, discovery | `system.health.reports`, `system.health.consensus` (ADR-029), `system.discovery` (TTL registration) |
+| `system` | Akira, discovery | `system.health.reports`, `system.health.consensus`, `system.health.remediate` (ADR-029), `system.discovery` (TTL registration) |
 | `logs` | every service | `logs.<service>.<level>` (`pkg/logagg`) |
 | `traces` | trace collectors | `traces.packet`, `.flow`, `.latency`, `.correlated`, `.stats`, `.collected` |
 | `anamnesis` | Shield / hop eBPF | `anamnesis.birth`, `.hop`, `.death`, `.chaos`, `.anomaly`, `.unknown` |

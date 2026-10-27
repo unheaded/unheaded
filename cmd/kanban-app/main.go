@@ -34,6 +34,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
@@ -1459,6 +1460,7 @@ func main() {
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
 	discovery.Start(discoveryCtx, transportCfg, "kanban-app", ports.PortOf(":"+cfg.Port, ports.KanbanApp))
+	healthreport.StartService(discoveryCtx, transportCfg, "kanban-app", healthreport.HealthURL(":"+cfg.Port, ports.PortOf(":"+cfg.Port, ports.KanbanApp))) // ADR-029: a vote on Akira's ballot
 
 	// Initialize Wotan client
 	// WOTAN_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)

@@ -126,6 +126,7 @@ alerts.warning           -- warnings
 timeline.updates         -- timeguru -> kanban-app
 system.health.reports    -- akira reports (ADR-029)
 system.health.consensus  -- akira band changes
+system.health.remediate  -- akira restart suggestions on CRITICAL/PANIC entry
 system.discovery         -- service announcements (pkg/discovery)
 logs.<service>.<level>   -- log aggregation (pkg/logagg)
 metrics.<service>        -- metric events, read by dashboard-backend as metrics.*
