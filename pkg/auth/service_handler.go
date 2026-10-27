@@ -40,12 +40,26 @@ var writeMethods = []string{http.MethodPost, http.MethodPut, http.MethodDelete, 
 // admin, operator or service, so a read-only identity cannot write through
 // a route outside /api/v1/.
 func NewServiceHandler(h http.Handler, cfg ServiceAuthConfig, routes ServiceRoutes) (http.Handler, error) {
+	mw, err := NewServiceChain(cfg, routes)
+	if err != nil {
+		return nil, err
+	}
+	if mw == nil {
+		return h, nil
+	}
+	return mw(h), nil
+}
+
+// NewServiceChain is NewServiceHandler as a middleware, for callers that
+// wrap their handler later: (nil, nil) with auth off, the middleware with
+// auth on, or the configuration error.
+func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Handler) http.Handler, error) {
 	authn, err := NewServiceMiddleware(cfg)
 	if err != nil {
 		return nil, err
 	}
 	if authn == nil {
-		return h, nil
+		return nil, nil
 	}
 	rbacCfg := DefaultServicePolicies(cfg.ServiceName)
 	if routes.RBAC != nil {
@@ -56,23 +70,26 @@ func NewServiceHandler(h http.Handler, cfg ServiceAuthConfig, routes ServiceRout
 	policies = append(policies, EndpointPolicy{PathPrefix: "/", Methods: writeMethods,
 		RequiredRoles: []string{RoleAdmin, RoleOperator, RoleService}})
 	rbacCfg.Policies = policies
+	rbac := RBACMiddleware(rbacCfg)
 
-	guarded := authn(RBACMiddleware(rbacCfg)(h))
 	open := append([]string(nil), routes.OpenPaths...)
 	reads := append([]string(nil), routes.OpenReads...)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if canonicalPath(r.URL) {
-			if underAny(r.URL.Path, open) {
-				h.ServeHTTP(w, r)
-				return
+	return func(h http.Handler) http.Handler {
+		guarded := authn(rbac(h))
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if canonicalPath(r.URL) {
+				if underAny(r.URL.Path, open) {
+					h.ServeHTTP(w, r)
+					return
+				}
+				if (r.Method == http.MethodGet || r.Method == http.MethodHead) && underAny(r.URL.Path, reads) {
+					h.ServeHTTP(w, r)
+					return
+				}
 			}
-			if (r.Method == http.MethodGet || r.Method == http.MethodHead) && underAny(r.URL.Path, reads) {
-				h.ServeHTTP(w, r)
-				return
-			}
-		}
-		guarded.ServeHTTP(w, r)
-	}), nil
+			guarded.ServeHTTP(w, r)
+		})
+	}, nil
 }
 
 // underAny reports whether p is one of prefixes or below one ("/" covers
