@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"unheaded/pkg/auth"
 )
 
 // --- NewWikiServer error paths ---
@@ -872,8 +874,10 @@ func TestBuildHandler_InvalidDir(t *testing.T) {
 func TestWrapAuth(t *testing.T) {
 	ws := setupTestWiki(t)
 	mux := setupMux(ws)
-	handler := wrapAuth(mux)
-
+	handler, err := wrapAuth(mux, auth.LoadServiceAuthConfig("wiki-server"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if handler == nil {
 		t.Fatal("wrapAuth should not return nil")
 	}
