@@ -12,7 +12,17 @@
 # Usage:
 #   ./scripts/switch-model.sh <model-key>
 #   ./scripts/switch-model.sh --check <model-key>  # fit check only; swaps nothing
+#   ./scripts/switch-model.sh --dry-run <model-key>  # sha256 pin + fit check; swaps nothing
 #   ./scripts/switch-model.sh --stop      # stop llama-server on LLAMA_PORT, load nothing
+#   ./scripts/switch-model.sh --no-verify <model-key>  # skip the sha256 pin (experiments only; logged)
+#
+# Model pins (RT-15): every GGUF's sha256 is pinned in scripts/lib/model-pins.sh.
+# A swap (and --dry-run) hashes the file and refuses, exit 4, when the hash
+# differs from the pin or the key has no pin, so a GGUF swapped on disk is
+# never loaded. Adding a model = add MODEL_FILE/MODEL_FLAGS/MODEL_NAME here and
+# its MODEL_SHA256 there. --check stays a fast fit-only answer and hashes
+# nothing. --no-verify is for Stevie's local experiments; it is logged to
+# stderr and syslog (tag switch-model) and never used by a plan step.
 #
 # GPU lease (S-TWO-BRAINS Step 233): the whole swap runs under the
 # exclusive lease of scripts/lib/gpu-lease.sh, so it never meets an
@@ -55,6 +65,9 @@ fi
 # llama_cache_ram_mib: the --cache-ram a flag string asks for (default 8192).
 # shellcheck source=scripts/lib/llama-cache-ram.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/llama-cache-ram.sh"
+# MODEL_SHA256 pins and verify_model_pin.
+# shellcheck source=scripts/lib/model-pins.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/model-pins.sh"
 
 LLAMA_BIN="${LLAMA_BIN:-/home/govan/tmp/unheaded/llama.cpp/build/bin/llama-server}"
 LLAMA_HOST="${LLAMA_HOST:-127.0.0.1}"
@@ -152,13 +165,21 @@ fi
 # refused), without stopping or launching anything. Lets the UI or an operator
 # ask "would this swap be allowed?" without the 30-90 s outage of trying.
 CHECK_ONLY=0
-if [[ "${1:-}" == "--check" ]]; then
-    CHECK_ONLY=1
-    shift
-fi
+DRY_RUN=0
+NO_VERIFY=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --check) CHECK_ONLY=1; shift ;;
+        # --dry-run <key>: the sha256 pin check and the fit check, then exit
+        # (0 = would swap, 3 = would not fit, 4 = pin refused). Starts nothing.
+        --dry-run) DRY_RUN=1; shift ;;
+        --no-verify) NO_VERIFY=1; shift ;;
+        *) break ;;
+    esac
+done
 
 if [[ $# -lt 1 ]]; then
-    echo "usage: $0 <model-key> | --check <model-key> | --stop" >&2
+    echo "usage: $0 [--no-verify] <model-key> | --check <model-key> | --dry-run <model-key> | --stop" >&2
     echo "available keys:" >&2
     for k in "${!MODEL_FILE[@]}"; do
         echo "  $k → $MODELS_DIR/${MODEL_FILE[$k]}" >&2
@@ -178,6 +199,31 @@ if [[ ! -f "$GGUF" ]]; then
     echo "model file missing: $GGUF" >&2
     echo "  download it first; see /var/zhen/models/ for current inventory" >&2
     exit 2
+fi
+
+# ─────────────────────── sha256 pin (RT-15) ───────────────────────
+# Before anything is stopped, so a refusal leaves the running model up.
+if (( ! CHECK_ONLY )); then
+    if (( NO_VERIFY )); then
+        msg="--no-verify: loading '$KEY' ($GGUF) WITHOUT its sha256 pin (user $(id -un))"
+        echo "[switch-model] WARNING: $msg" >&2
+        logger -t switch-model -- "$msg" 2>/dev/null || true
+    else
+        echo "[switch-model] verifying sha256 pin for '$KEY'..."
+        pin_rc=0
+        verify_model_pin "$KEY" "$GGUF" || pin_rc=$?
+        if (( pin_rc != 0 )); then
+            if (( pin_rc == 5 )); then
+                echo "[switch-model] ✗ no sha256 pin for $KEY: refusing (add MODEL_SHA256[$KEY] to scripts/lib/model-pins.sh)" >&2
+            elif (( pin_rc == 6 )); then
+                echo "[switch-model] ✗ cannot hash $GGUF for $KEY: refusing" >&2
+            else
+                echo "[switch-model] ✗ sha256 mismatch for $KEY: refusing ($GGUF is not the pinned file)" >&2
+            fi
+            exit 4
+        fi
+        echo "[switch-model] sha256 pin ok"
+    fi
 fi
 
 FLAGS="${MODEL_FLAGS[$KEY]}"
@@ -300,6 +346,10 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
 fi
 
 if (( CHECK_ONLY )); then
+    exit 0
+fi
+if (( DRY_RUN )); then
+    echo "[switch-model] dry run: would swap to '$KEY' ($NAME); nothing stopped or started"
     exit 0
 fi
 

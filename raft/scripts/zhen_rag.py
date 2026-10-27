@@ -19,6 +19,7 @@ Memory recall semantics (T1 closure):
     as a side-channel ("matched_memory" field), but query() always
     runs the full RAG path.
 """
+import hashlib
 import logging
 import os
 import re
@@ -61,6 +62,41 @@ class AgentdGateUnavailable(RuntimeError):
     """zhen-agentd cannot gate this request (down, timing out, refusing the
     UI's credentials, or no credentials configured). zhen_app.py answers 503.
     Never caught to fall back to the direct llama-server path."""
+
+
+# The memory embedder's weights are pinned by sha256 (RT-15). The pin lives
+# in scripts/lib/model-pins.sh; raft/start-zhen.sh exports it as
+# ZHEN_EMBEDDER_SHA256 (and the Hugging Face snapshot as
+# ZHEN_EMBEDDER_REVISION). Unset = unpinned: a warning, not a refusal, so a
+# hand-started dev pipeline still loads.
+EMBEDDER_MODEL = "all-MiniLM-L6-v2"
+EMBEDDER_REPO = "sentence-transformers/" + EMBEDDER_MODEL
+
+
+class EmbedderPinMismatch(RuntimeError):
+    """The cached embedder weights are not the pinned file (or are missing
+    while a pin is set). RAGPipeline does not start."""
+
+
+def _embedder_weights_path(revision):
+    """Path of the cached model.safetensors for revision (None = the cache's
+    main ref), or None when it is not in the local Hugging Face cache."""
+    from huggingface_hub import try_to_load_from_cache
+    path = try_to_load_from_cache(EMBEDDER_REPO, "model.safetensors", revision=revision)
+    return path if isinstance(path, str) else None
+
+
+def verify_embedder_pin(path, expected_sha256):
+    """Raise EmbedderPinMismatch unless sha256(path) == expected_sha256."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    got = h.hexdigest()
+    if got != expected_sha256.strip().lower():
+        raise EmbedderPinMismatch(
+            f"embedder sha256 mismatch for {path}: got {got[:16]}…, "
+            f"pinned {expected_sha256.strip().lower()[:16]}… (scripts/lib/model-pins.sh)")
 
 
 def proxy_via_agentd_from_env(environ=None):
@@ -266,8 +302,23 @@ class RAGPipeline:
         # Embedding model — kept SOLELY for memory-cache cosine recall
         # in zhen_app.py:_search_memories. NOT used for primary retrieval
         # anymore. Loading is fast (~1 s for the ~80 MB model).
-        print("Loading memory embedder (all-MiniLM-L6-v2)...")
-        self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+        # Pinned by sha256 when ZHEN_EMBEDDER_SHA256 is set (RT-15).
+        pin = os.environ.get("ZHEN_EMBEDDER_SHA256", "").strip()
+        revision = os.environ.get("ZHEN_EMBEDDER_REVISION", "").strip() or None
+        if pin:
+            weights = _embedder_weights_path(revision)
+            if not weights:
+                raise EmbedderPinMismatch(
+                    f"ZHEN_EMBEDDER_SHA256 is set but {EMBEDDER_REPO} "
+                    f"(revision {revision or 'main'}) is not in the local cache")
+            verify_embedder_pin(weights, pin)
+        else:
+            log.warning("memory embedder %s not pinned (ZHEN_EMBEDDER_SHA256 unset; "
+                        "raft/start-zhen.sh sets it from scripts/lib/model-pins.sh)",
+                        EMBEDDER_MODEL)
+        print(f"Loading memory embedder ({EMBEDDER_MODEL})...")
+        kw = {"revision": revision} if revision else {}
+        self.embedding_model = SentenceTransformer(EMBEDDER_MODEL, **kw)
 
         # Memory store (loaded from PG by zhen_app.py).
         self._memories = []
