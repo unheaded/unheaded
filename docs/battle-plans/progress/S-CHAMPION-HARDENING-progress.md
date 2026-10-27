@@ -96,3 +96,18 @@ Step 148 (live eval on the local model) is LIVE for the coordinator: `zhen-eval 
 -out <scratch>` (the plan's `-families` flag does not exist; fixed in the plan text).
 Correction to the agent's note: `wotan/active-active-cutover.yaml` (TODO verification) is `status: stub`, not one
 of the E1 drafts.
+
+### Phase 10 merged (637a0925)
+
+`cmd/zhen-mcp` (9 tools; file/runbook tools via `Dispatch`, others via `AcceptToolCall`), `pkg/mcpserver` extracted
+from lich-mcp, `scripts/zhen-mcp.sh` runs `bin/zhen-mcp`, `scripts/check-zhen-mcp.sh` in ci.yml's Go job.
+Python server and its `mcp` dependency retired (`sbom/python-requirements.txt` still lists `mcp==1.30.0`: regenerate).
+Fixed in pkg/champion: `RunbookExecute` followed a symlink out of `runbooks/` (RunbookShow refused it).
+**Phase 14 decision**: with `ZHEN_MCP_ALLOW_WRITE/EXEC` set, enabled calls carry a `direct-user` reference naming
+the flag (else the gate refuses every write); conflicts with Step 86's "a model loop never asserts direct-user".
+Alternative: pending confirmation via a lich-mcp-style confirm flow. Behaviour: destructive-verb rule now applies to
+`corpus_search`/`local_llm` text; `service_health` checks kanban on 20001 and llama-server :8081. Stricter than the
+Python server: `..` in names, substring deny list (`secrets_manager.go`), a checkout path containing `secrets`/
+`credentials`/`.env` denies everything. `bin/zhen-mcp` built in the main checkout after merge (the live `zhen` MCP
+server needs it). The E1 runbook `security/mcp-write-exec-enablement.yaml` and its brief still describe the Python
+server; left untouched while it is in front of Stevie.

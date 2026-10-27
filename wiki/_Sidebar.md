@@ -142,6 +142,7 @@
 - [[Huginn|Service-Huginn]]
 - [[kev-poller|Service-KEV-Poller]]
 - [[Sword|Service-Sword]]
+- [[Auth issuer|Service-Auth]]
 
 **Deploy and Chaos**
 - [[Sword|Service-Sword]]

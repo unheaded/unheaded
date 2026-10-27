@@ -358,72 +358,72 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 
 ### Registries
 
-- [ ] **Step 67** [W][CODE] ~5m: `pkg/uids/uids.go`: add `Auth = 16735 // cmd/unheaded-auth, the built-in OIDC issuer (ADR-103)` to the Kingdom tier block after `Anomaly`. `pkg/ports/ports.go`: add `Auth = 19020 // unheaded-auth issuer (ADR-103): login, JWKS, discovery` after `TelemetryAgg`.
-- [ ] **Step 68** [TEST][B] ~1m
+- [x] **Step 67** [W][CODE] ~5m: `pkg/uids/uids.go`: add `Auth = 16735 // cmd/unheaded-auth, the built-in OIDC issuer (ADR-103)` to the Kingdom tier block after `Anomaly`. `pkg/ports/ports.go`: add `Auth = 19020 // unheaded-auth issuer (ADR-103): login, JWKS, discovery` after `TelemetryAgg`.
+- [x] **Step 68** [TEST][B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/uids/... ./pkg/ports/... -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 69** [V] ~1m: both `ok` (uniqueness and range tests).
-- [ ] **Step 70** [W] ~3m: `deploy/sysusers.d/unheaded.conf`: add
+- [x] **Step 69** [V] ~1m: both `ok` (uniqueness and range tests).
+- [x] **Step 70** [W] ~3m: `deploy/sysusers.d/unheaded.conf`: add
   ```
   u     unheaded-auth          16735 "Unheaded auth issuer (ADR-103)"       /    /usr/sbin/nologin
   ```
-- [ ] **Step 71** [B] ~1m
+- [x] **Step 71** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-systemd-units.sh 2>&1 | tail -2
   ```
-- [ ] **Step 72** [V] ~1m: `[PASS]` (the gate reads sysusers; no unit references `unheaded-auth` yet).
+- [x] **Step 72** [V] ~1m: `[PASS]` (the gate reads sysusers; no unit references `unheaded-auth` yet).
 
 ### The keygen tool
 
-- [ ] **Step 73** [W][CODE] ~10m: Tests `cmd/unheaded-keygen/main_test.go`: `--dir <tmp> --trust-dir <tmp2> cuirass` creates `cuirass.key` 0400 and `cuirass.pub` 0444 and copies the pub into trust-dir; running twice without `--rotate` exits 2 ("key exists"); `--rotate` writes `cuirass.key` with a new kid and keeps the old `.pub` in trust-dir until `--retire <oldkid>`; `--owner` is refused when not root (exit 2 with a clear message) so tests never chown.
-- [ ] **Step 74** [TEST][B] ~1m: Red
+- [x] **Step 73** [W][CODE] ~10m: Tests `cmd/unheaded-keygen/main_test.go`: `--dir <tmp> --trust-dir <tmp2> cuirass` creates `cuirass.key` 0400 and `cuirass.pub` 0444 and copies the pub into trust-dir; running twice without `--rotate` exits 2 ("key exists"); `--rotate` writes `cuirass.key` with a new kid and keeps the old `.pub` in trust-dir until `--retire <oldkid>`; `--owner` is refused when not root (exit 2 with a clear message) so tests never chown.
+- [x] **Step 74** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-keygen/ -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 75** [V] ~1m: Red (package does not exist yet).
-- [ ] **Step 76** [W][CODE] ~25m: `cmd/unheaded-keygen/main.go` (flags: `-dir` default `/etc/unheaded/keys`, `-trust-dir` default `/etc/unheaded/trust.d`, `-owner` (user name; chown only when euid 0), `-rotate`, `-retire <kid>`, `-print-kid`); uses `auth.GenerateKeyPair`; creates directories 0750 (keys) and 0755 (trust.d); never prints the private key; exit codes 0/1/2 documented in `--help`.
-- [ ] **Step 77** [TEST][B] ~1m: Green
+- [x] **Step 75** [V] ~1m: Red (package does not exist yet).
+- [x] **Step 76** [W][CODE] ~25m: `cmd/unheaded-keygen/main.go` (flags: `-dir` default `/etc/unheaded/keys`, `-trust-dir` default `/etc/unheaded/trust.d`, `-owner` (user name; chown only when euid 0), `-rotate`, `-retire <kid>`, `-print-kid`); uses `auth.GenerateKeyPair`; creates directories 0750 (keys) and 0755 (trust.d); never prints the private key; exit codes 0/1/2 documented in `--help`.
+- [x] **Step 77** [TEST][B] ~1m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-keygen/ -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 78** [V] ~1m: `ok`.
-- [ ] **Step 79** [W] ~5m: Add `unheaded-keygen` to `scripts/build-binaries.sh`'s known binaries list (read the file's list format first: `grep -n 'unheaded-daemon' scripts/build-binaries.sh`) and to `Makefile` `build-services` if it enumerates binaries.
-- [ ] **Step 80** [B] ~3m
+- [x] **Step 78** [V] ~1m: `ok`.
+- [x] **Step 79** [W] ~5m: Add `unheaded-keygen` to `scripts/build-binaries.sh`'s known binaries list (read the file's list format first: `grep -n 'unheaded-daemon' scripts/build-binaries.sh`) and to `Makefile` `build-services` if it enumerates binaries.
+- [x] **Step 80** [B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && ./scripts/build-binaries.sh --out /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/bin unheaded-keygen && ls -la /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/bin/unheaded-keygen
   ```
-- [ ] **Step 81** [V] ~1m: binary present.
-- [ ] **Step 82** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 67-81: uid 16735 / port 19020 for unheaded-auth; unheaded-keygen`.
+- [x] **Step 81** [V] ~1m: binary present.
+- [x] **Step 82** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 67-81: uid 16735 / port 19020 for unheaded-auth; unheaded-keygen`.
 
 ### Compose, systemd and deb carry the keys
 
-- [ ] **Step 83** [W] ~15m: `scripts/gen-dev-keys.sh` (new): for every first-party service name in `docker-compose.yml` (`python3` + yaml, services with `build:`) plus `unheaded-cli` and `unheaded-auth`, run the built keygen into `configs/keys/dev/` (gitignored) and `configs/trust.d/dev/`; print the kid table. Add `configs/keys/` to `.gitignore` (whole dir; private material must never be tracked) and `configs/trust.d/dev/` too (per-deployment).
-- [ ] **Step 84** [B] ~2m
+- [x] **Step 83** [W] ~15m: `scripts/gen-dev-keys.sh` (new): for every first-party service name in `docker-compose.yml` (`python3` + yaml, services with `build:`) plus `unheaded-cli` and `unheaded-auth`, run the built keygen into `configs/keys/dev/` (gitignored) and `configs/trust.d/dev/`; print the kid table. Add `configs/keys/` to `.gitignore` (whole dir; private material must never be tracked) and `configs/trust.d/dev/` too (per-deployment).
+- [x] **Step 84** [B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/gen-dev-keys.sh && ls configs/keys/dev | wc -l && ls configs/trust.d/dev | wc -l && git status --short configs | wc -l
   ```
-- [ ] **Step 85** [V] ~1m: 14 keys, 14 pubs, `0` tracked changes under configs (gitignore works).
-- [ ] **Step 86** [W] ~20m: `docker-compose.yml`: add a top-level `secrets:` block with one `svc_key_<name>` per first-party service (`file: ./configs/keys/dev/<name>.key`); for each first-party service add `secrets: [svc_key_<name>]`, the read-only bind `./configs/trust.d/dev:/etc/unheaded/trust.d:ro`, and environment `AUTH_KEY_FILE: /run/secrets/svc_key_<name>`, `AUTH_TRUST_DIR: /etc/unheaded/trust.d`. Do NOT set `AUTH_ENABLED` yet (Phases 5-7 flip it per service). Replace the commented block at `:106-117` with a two-line pointer to this plan and ADR-103.
-- [ ] **Step 87** [B] ~1m
+- [x] **Step 85** [V] ~1m: 14 keys, 14 pubs, `0` tracked changes under configs (gitignore works).
+- [x] **Step 86** [W] ~20m: `docker-compose.yml`: add a top-level `secrets:` block with one `svc_key_<name>` per first-party service (`file: ./configs/keys/dev/<name>.key`); for each first-party service add `secrets: [svc_key_<name>]`, the read-only bind `./configs/trust.d/dev:/etc/unheaded/trust.d:ro`, and environment `AUTH_KEY_FILE: /run/secrets/svc_key_<name>`, `AUTH_TRUST_DIR: /etc/unheaded/trust.d`. Do NOT set `AUTH_ENABLED` yet (Phases 5-7 flip it per service). Replace the commented block at `:106-117` with a two-line pointer to this plan and ADR-103.
+- [x] **Step 87** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && docker compose -f docker-compose.yml config --quiet && echo COMPOSE_OK && bash scripts/check-compose-hardening.sh 2>&1 | tail -2 && bash scripts/check-compose-bind-nesting.sh 2>&1 | tail -1
   ```
-- [ ] **Step 88** [V] ~1m: `COMPOSE_OK` and both gates `[PASS]`. If a gate fails on the new bind → it wants `:ro` and a non-nested path; both are already so; read its message.
-- [ ] **Step 89** [W] ~10m: `deploy/systemd/README.md` section "Keys (ADR-103)": the install recipe (`unheaded-keygen -owner unheaded-<svc> <svc>` as root once per service, trust.d is world-readable, rotation and retire). Add to each first-party unit in `deploy/systemd/` an `Environment=AUTH_KEY_FILE=/etc/unheaded/keys/<svc>.key` and `Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d` line, and `ReadOnlyPaths=/etc/unheaded/trust.d` (ProtectSystem=strict already blocks writes; this documents intent). Units: wotan, timeguru, architect, captain, micromanager, monad, sophia, dashboard, kanban, daemon, sword, zhen-agentd, anomaly.
-- [ ] **Step 90** [B] ~1m
+- [x] **Step 88** [V] ~1m: `COMPOSE_OK` and both gates `[PASS]`. If a gate fails on the new bind → it wants `:ro` and a non-nested path; both are already so; read its message.
+- [x] **Step 89** [W] ~10m: `deploy/systemd/README.md` section "Keys (ADR-103)": the install recipe (`unheaded-keygen -owner unheaded-<svc> <svc>` as root once per service, trust.d is world-readable, rotation and retire). Add to each first-party unit in `deploy/systemd/` an `Environment=AUTH_KEY_FILE=/etc/unheaded/keys/<svc>.key` and `Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d` line, and `ReadOnlyPaths=/etc/unheaded/trust.d` (ProtectSystem=strict already blocks writes; this documents intent). Units: wotan, timeguru, architect, captain, micromanager, monad, sophia, dashboard, kanban, daemon, sword, zhen-agentd, anomaly.
+- [x] **Step 90** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-systemd-units.sh 2>&1 | tail -2 && bash scripts/check-unit-binaries.sh 2>&1 | tail -1
   ```
-- [ ] **Step 91** [V] ~1m: both `[PASS]`.
-- [ ] **Step 92** [W][CODE] ~15m: `scripts/lib/deb-maintscripts.sh` `deb_postinst`: after `systemd-sysusers`, if `/etc/unheaded/keys/<svc>.key` is absent, run `/usr/local/bin/unheaded-keygen -owner unheaded-<svc> <svc>` (keygen ships in every deb; `scripts/build-all-debs.sh` copies it alongside the service binary). Rewrite `debian/unheaded-wotan.postinst` to call the shared helper instead of creating the shared `unheaded` user (it contradicts `deploy/sysusers.d`). Test: `tests/deb/postinst_test.sh` (new, bash) runs the postinst in a fakeroot-free dry mode (`DEB_DRY_RUN=1` prints the commands) and asserts the keygen line and the absence of `useradd ... unheaded$`.
-- [ ] **Step 93** [B] ~2m
+- [x] **Step 91** [V] ~1m: both `[PASS]`.
+- [x] **Step 92** [W][CODE] ~15m: `scripts/lib/deb-maintscripts.sh` `deb_postinst`: after `systemd-sysusers`, if `/etc/unheaded/keys/<svc>.key` is absent, run `/usr/local/bin/unheaded-keygen -owner unheaded-<svc> <svc>` (keygen ships in every deb; `scripts/build-all-debs.sh` copies it alongside the service binary). Rewrite `debian/unheaded-wotan.postinst` to call the shared helper instead of creating the shared `unheaded` user (it contradicts `deploy/sysusers.d`). Test: `tests/deb/postinst_test.sh` (new, bash) runs the postinst in a fakeroot-free dry mode (`DEB_DRY_RUN=1` prints the commands) and asserts the keygen line and the absence of `useradd ... unheaded$`.
+- [x] **Step 93** [B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && bash tests/deb/postinst_test.sh 2>&1 | tail -3 && bash -n debian/unheaded-wotan.postinst && shellcheck -S warning scripts/lib/deb-maintscripts.sh debian/unheaded-wotan.postinst 2>&1 | tail -3
   ```
-- [ ] **Step 94** [V] ~1m: test PASS, `bash -n` silent, shellcheck no warnings.
-- [ ] **Step 95** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 83-94: dev keys script, compose secrets + trust.d, unit env, deb postinst keygen`.
-- [ ] **Step 96** [V]: **PHASE 2 EXIT GATE** — Steps 69, 72, 78, 81, 85, 88, 91, 94 passed; `go test ./cmd/unheaded-keygen/... ./pkg/uids/... ./pkg/ports/... -count=1` ok; tree clean.
+- [x] **Step 94** [V] ~1m: test PASS, `bash -n` silent, shellcheck no warnings.
+- [x] **Step 95** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 83-94: dev keys script, compose secrets + trust.d, unit env, deb postinst keygen`.
+- [x] **Step 96** [V]: **PHASE 2 EXIT GATE** — Steps 69, 72, 78, 81, 85, 88, 91, 94 passed; `go test ./cmd/unheaded-keygen/... ./pkg/uids/... ./pkg/ports/... -count=1` ok; tree clean.
   - Pass → Phase 5 may start (Phases 3 and 4 may already be running).
 
 ---
@@ -435,42 +435,42 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 **Time**: 3 h
 **Agent**: Agent (worktree `apikeys`) [P:1]
 
-- [ ] **Step 97** [R] ~3m
+- [x] **Step 97** [R] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && sed -n '1,120p' pkg/auth/apikey.go && grep -n 'func\|type' cmd/unheaded-cli/*.go | head -30 && sed -n '1,30p' db/migrations/034_app_kanban_genesis.sql
   ```
-- [ ] **Step 98** [W][CODE] ~10m: Tests `pkg/auth/apikey_store_test.go`: `NewAPIKey()` returns `uhk_` + 43 base64url chars (32 bytes), shown once; `Store.Create(owner, role, expiry)` stores only `sha256(key)`; `Store.Authenticate(key)` returns identity with role and refuses expired/revoked; `FileStore` (JSON lines, 0600) and an in-memory store share the test suite; a `fakeWellStore` implements the same interface so the SQL store can be tested against a throwaway Postgres later.
-- [ ] **Step 99** [TEST][B] ~1m: Red
+- [x] **Step 98** [W][CODE] ~10m: Tests `pkg/auth/apikey_store_test.go`: `NewAPIKey()` returns `uhk_` + 43 base64url chars (32 bytes), shown once; `Store.Create(owner, role, expiry)` stores only `sha256(key)`; `Store.Authenticate(key)` returns identity with role and refuses expired/revoked; `FileStore` (JSON lines, 0600) and an in-memory store share the test suite; a `fakeWellStore` implements the same interface so the SQL store can be tested against a throwaway Postgres later.
+- [x] **Step 99** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/ -run 'APIKeyStore|NewAPIKey' -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 100** [V] ~1m: Red.
-- [ ] **Step 101** [W][CODE] ~25m: `pkg/auth/apikey_store.go`: `NewAPIKey()`, `type APIKeyStore interface { Create; Authenticate; Revoke; List }`, `FileStore`, `MemStore`; wire `APIKeyAuthenticator` (`apikey.go:42`) to accept a store (keep the existing env/file list path for backward compatibility one release, logged as deprecated).
-- [ ] **Step 102** [TEST][B] ~2m: Green
+- [x] **Step 100** [V] ~1m: Red.
+- [x] **Step 101** [W][CODE] ~25m: `pkg/auth/apikey_store.go`: `NewAPIKey()`, `type APIKeyStore interface { Create; Authenticate; Revoke; List }`, `FileStore`, `MemStore`; wire `APIKeyAuthenticator` (`apikey.go:42`) to accept a store (keep the existing env/file list path for backward compatibility one release, logged as deprecated).
+- [x] **Step 102** [TEST][B] ~2m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/... -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 103** [V] ~1m: `ok`.
-- [ ] **Step 104** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 97-103: uhk_ API keys, hashed stores`.
-- [ ] **Step 105** [W] ~15m: Migration `db/migrations/035_app_api_keys.sql` (header style of 033): `unheaded_app.api_keys (id uuid pk, key_hash char(64) unique, prefix char(12), owner text, role text check (role in ('admin','operator','viewer','service')), created_at, expires_at not null, revoked_at, last_used_at)`; append-only on `key_hash` (no UPDATE of hash), grants to `app_auth` role only (create the role in this migration if the ledger pattern creates roles per service; read `db/migrations/007_grants.sql` first). Add the file to `db/migrations/MANIFEST` with the pattern the other `app` migrations use.
-- [ ] **Step 106** [B] ~2m
+- [x] **Step 103** [V] ~1m: `ok`.
+- [x] **Step 104** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 97-103: uhk_ API keys, hashed stores`.
+- [x] **Step 105** [W] ~15m: Migration `db/migrations/035_app_api_keys.sql` (header style of 033): `unheaded_app.api_keys (id uuid pk, key_hash char(64) unique, prefix char(12), owner text, role text check (role in ('admin','operator','viewer','service')), created_at, expires_at not null, revoked_at, last_used_at)`; append-only on `key_hash` (no UPDATE of hash), grants to `app_auth` role only (create the role in this migration if the ledger pattern creates roles per service; read `db/migrations/007_grants.sql` first). Add the file to `db/migrations/MANIFEST` with the pattern the other `app` migrations use.
+- [x] **Step 106** [B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-well-migrations.sh 2>&1 | tail -3 && bash scripts/check-well-lint.sh 2>&1 | tail -2
   ```
-- [ ] **Step 107** [V] ~1m: both `[PASS]`.
-- [ ] **Step 108** [W][CODE] ~20m: `pkg/auth/apikey_well.go`: `WellStore` over `*sql.DB` (uses `pkg/database` config `AppKanbanConfig`-style helper for `unheaded_app`; read `pkg/database/config.go:80-110` and add `AppAuthConfig` with `WELL_DB` default `unheaded_app`). Test `apikey_well_test.go` behind `//go:build well` runs against the throwaway Postgres the CI job `well-schema` provides (see `.github/workflows/security.yml:512`); the shared suite from Step 98 runs against it.
-- [ ] **Step 109** [TEST][B] ~4m: Throwaway Postgres run (local docker)
+- [x] **Step 107** [V] ~1m: both `[PASS]`.
+- [x] **Step 108** [W][CODE] ~20m: `pkg/auth/apikey_well.go`: `WellStore` over `*sql.DB` (uses `pkg/database` config `AppKanbanConfig`-style helper for `unheaded_app`; read `pkg/database/config.go:80-110` and add `AppAuthConfig` with `WELL_DB` default `unheaded_app`). Test `apikey_well_test.go` behind `//go:build well` runs against the throwaway Postgres the CI job `well-schema` provides (see `.github/workflows/security.yml:512`); the shared suite from Step 98 runs against it.
+- [x] **Step 109** [TEST][B] ~4m: Throwaway Postgres run (local docker)
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'docker run|postgres:' .github/workflows/security.yml | sed -n '1,4p'; echo "--- replicate locally:"; cid=$(docker run -d --rm -e POSTGRES_PASSWORD=t -p 55432:5432 postgres:16-alpine) && sleep 6 && WELL_TEST_DSN='postgres://postgres:t@127.0.0.1:55432/postgres?sslmode=disable' go test -tags well ./pkg/auth/ -run 'WellStore' -count=1 2>&1 | tail -3; docker stop "$cid" >/dev/null
   ```
-- [ ] **Step 110** [V] ~1m: `ok`. If the CI job uses a different image/DSN env, use that one (the step's first grep shows it) and fix the test's env name to match.
-- [ ] **Step 111** [W][CODE] ~15m: `cmd/unheaded-cli`: subcommands `apikey create --owner <o> --role <r> --expires 90d`, `apikey list`, `apikey revoke <prefix>`; store chosen by `AUTH_APIKEY_STORE` (`well` default when `WELL_DB` is set, else `file:/etc/unheaded/auth/apikeys.jsonl`); prints the key exactly once with a leading line "store this now; it is not shown again". Tests with the `MemStore`.
-- [ ] **Step 112** [TEST][B] ~2m
+- [x] **Step 110** [V] ~1m: `ok`. If the CI job uses a different image/DSN env, use that one (the step's first grep shows it) and fix the test's env name to match.
+- [x] **Step 111** [W][CODE] ~15m: `cmd/unheaded-cli`: subcommands `apikey create --owner <o> --role <r> --expires 90d`, `apikey list`, `apikey revoke <prefix>`; store chosen by `AUTH_APIKEY_STORE` (`well` default when `WELL_DB` is set, else `file:/etc/unheaded/auth/apikeys.jsonl`); prints the key exactly once with a leading line "store this now; it is not shown again". Tests with the `MemStore`.
+- [x] **Step 112** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-cli/... -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 113** [V] ~1m: `ok`.
-- [ ] **Step 114** [W] ~5m: gitleaks rule for the prefix: create `.gitleaks.toml` (if `scripts/check-gitleaks.sh` passes a config, extend that one; check `grep -n 'config\|toml' scripts/check-gitleaks.sh`) with
+- [x] **Step 113** [V] ~1m: `ok`.
+- [x] **Step 114** [W] ~5m: gitleaks rule for the prefix: create `.gitleaks.toml` (if `scripts/check-gitleaks.sh` passes a config, extend that one; check `grep -n 'config\|toml' scripts/check-gitleaks.sh`) with
   ```toml
   [extend]
   useDefault = true
@@ -480,25 +480,25 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
   regex = '''uhk_[A-Za-z0-9_-]{43}'''
   keywords = ["uhk_"]
   ```
-- [ ] **Step 115** [TEST][B] ~2m: The rule bites and the tree is clean
+- [x] **Step 115** [TEST][B] ~2m: The rule bites and the tree is clean
   ```bash
   cd /home/govan/tmp/unheaded && printf 'k = "uhk_%s"\n' "$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=' | head -c 43)" > /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/leak.txt && gitleaks detect --no-git --source /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad --config .gitleaks.toml 2>&1 | grep -c 'unheaded-api-key'; rm /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/leak.txt; bash scripts/check-gitleaks.sh 2>&1 | tail -1
   ```
-- [ ] **Step 116** [V] ~1m: first number ≥ 1 (rule fires on the planted key), then `[PASS]` on the tree.
-- [ ] **Step 117** [W][COMPLIANCE] ~3m: `scripts/check-gitleaks.sh`: pass `--config .gitleaks.toml` if it does not already; `docs/security/` finding note: none needed (no new finding), but `wiki/Security-Tooling.md` (or the page `grep -l gitleaks wiki/*.md` finds) gets one line for the rule.
-- [ ] **Step 118** [B] ~1m
+- [x] **Step 116** [V] ~1m: first number ≥ 1 (rule fires on the planted key), then `[PASS]` on the tree.
+- [x] **Step 117** [W][COMPLIANCE] ~3m: `scripts/check-gitleaks.sh`: pass `--config .gitleaks.toml` if it does not already; `docs/security/` finding note: none needed (no new finding), but `wiki/Security-Tooling.md` (or the page `grep -l gitleaks wiki/*.md` finds) gets one line for the rule.
+- [x] **Step 118** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-gitleaks.sh 2>&1 | tail -1 && bash scripts/check-secrets-baseline.sh 2>&1 | tail -1
   ```
-- [ ] **Step 119** [V] ~1m: both `[PASS]`.
-- [ ] **Step 120** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 105-119: api_keys migration 035, WellStore, unheaded-cli apikey, gitleaks uhk_ rule`.
-- [ ] **Step 121** [W][DOC-UPDATE] ~5m: `wiki/The-Well.md` (or `wiki/Well-Schema.md`, whichever lists tables): add `api_keys` with its grant; `docs/adr/ADR-103`: note Q4 decided (Step 10) and the store interface.
-- [ ] **Step 122** [B] ~1m
+- [x] **Step 119** [V] ~1m: both `[PASS]`.
+- [x] **Step 120** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 105-119: api_keys migration 035, WellStore, unheaded-cli apikey, gitleaks uhk_ rule`.
+- [x] **Step 121** [W][DOC-UPDATE] ~5m: `wiki/The-Well.md` (or `wiki/Well-Schema.md`, whichever lists tables): add `api_keys` with its grant; `docs/adr/ADR-103`: note Q4 decided (Step 10) and the store interface.
+- [x] **Step 122** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/... ./cmd/unheaded-cli/... -race -count=1 2>&1 | tail -2 && git status --short | wc -l
   ```
-- [ ] **Step 123** [V] ~1m: `ok` x2, `0`.
-- [ ] **Step 124** [V]: **PHASE 3 EXIT GATE** — Steps 103, 107, 110, 113, 116, 119, 123 passed. → merge `wt/iron-gate-apikeys` into the sprint branch (`git merge --no-ff`), re-run Step 122 on the merged tree.
+- [x] **Step 123** [V] ~1m: `ok` x2, `0`.
+- [x] **Step 124** [V]: **PHASE 3 EXIT GATE** — Steps 103, 107, 110, 113, 116, 119, 123 passed. → merge `wt/iron-gate-apikeys` into the sprint branch (`git merge --no-ff`), re-run Step 122 on the merged tree.
 
 ---
 
@@ -509,46 +509,46 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 **Time**: 5 h
 **Agent**: Agent (worktree `issuer`) [P:2]
 
-- [ ] **Step 125** [DECIDE][DESIGN] ~2m: **WebAuthn in the first cut?** RECOMMENDATION: no. Rationale: it needs a new Go module (Barrister/ADR-004 admission) and a browser ceremony to test; password + argon2id + rate limit + lockout covers the lab; the ADR already says "optional". Override ONLY if Stevie wants WebAuthn now; then add an ADR-004 row first.
-- [ ] **Step 126** [W][CODE] ~15m: Tests `cmd/unheaded-auth/issuer_test.go` (httptest):
+- [x] **Step 125** [DECIDE][DESIGN] ~2m: **WebAuthn in the first cut?** RECOMMENDATION: no. Rationale: it needs a new Go module (Barrister/ADR-004 admission) and a browser ceremony to test; password + argon2id + rate limit + lockout covers the lab; the ADR already says "optional". Override ONLY if Stevie wants WebAuthn now; then add an ADR-004 row first.
+- [x] **Step 126** [W][CODE] ~15m: Tests `cmd/unheaded-auth/issuer_test.go` (httptest):
   - `GET /.well-known/openid-configuration` returns `issuer`, `jwks_uri`, `token_endpoint`, `response_types_supported: ["token"]`.
   - `GET /jwks.json` returns one `OKP/Ed25519` key with `kid` = `auth.TrustDir` kid of the issuer's key.
   - `POST /login` (JSON `{username,password}`) with the right password returns `{access_token, token_type:"Bearer", expires_in: 900}`; the token verifies with `auth.JWKSVerifier` pointed at the test server; claims `sub`, `roles`, `iss`, `aud:"unheaded"`, `exp-iat=900s`.
   - wrong password → 401 with constant-time compare; 6th failure within 10 min → 429 for that username and source IP (lockout 10 min).
   - users file `0600` JSON `{username, argon2id_hash, roles}`; a world-readable users file refuses to start.
   - `/health`, `/ready`, `/metrics` unauthenticated; everything else over plaintext refused unless `-dev-plaintext` (test uses it).
-- [ ] **Step 127** [TEST][B] ~1m: Red
+- [x] **Step 127** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-auth/ -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 128** [V] ~1m: Red.
-- [ ] **Step 129** [W][CODE] ~45m: `cmd/unheaded-auth/{main.go,issuer.go,users.go,lockout.go}`: flags `-listen :19020` (`ports.Auth`), `-issuer-url` (external URL for `iss`), `-key-file /etc/unheaded/keys/unheaded-auth.key`, `-users-file /etc/unheaded/auth/users.json`, `-dev-plaintext`; argon2id via `golang.org/x/crypto/argon2` (time 3, memory 64 MiB, threads 2, salt 16); `httputil.NewServiceMetrics("unheaded-auth")` instrumented; structured zerolog like the other services; refuse start if key or users file is group/world readable; `Content-Security-Policy` and the Step 300 security headers on every response; request body cap 4 KiB; `ReadHeaderTimeout 5s`.
-- [ ] **Step 130** [TEST][B] ~2m: Green
+- [x] **Step 128** [V] ~1m: Red.
+- [x] **Step 129** [W][CODE] ~45m: `cmd/unheaded-auth/{main.go,issuer.go,users.go,lockout.go}`: flags `-listen :19020` (`ports.Auth`), `-issuer-url` (external URL for `iss`), `-key-file /etc/unheaded/keys/unheaded-auth.key`, `-users-file /etc/unheaded/auth/users.json`, `-dev-plaintext`; argon2id via `golang.org/x/crypto/argon2` (time 3, memory 64 MiB, threads 2, salt 16); `httputil.NewServiceMetrics("unheaded-auth")` instrumented; structured zerolog like the other services; refuse start if key or users file is group/world readable; `Content-Security-Policy` and the Step 300 security headers on every response; request body cap 4 KiB; `ReadHeaderTimeout 5s`.
+- [x] **Step 130** [TEST][B] ~2m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-auth/... -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 131** [V] ~1m: `ok`.
-- [ ] **Step 132** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 125-131: unheaded-auth issuer (login, JWKS, discovery, lockout)`.
-- [ ] **Step 133** [W][CODE] ~15m: `cmd/unheaded-auth` subcommand `user add <name> --roles viewer,operator` (prompts for the password on a tty; `--password-stdin` for scripts), `user list`, `user del`; writes the users file atomically (temp + rename, 0600). Tests for add/list/del and for refusing an empty password.
-- [ ] **Step 134** [TEST][B] ~1m
+- [x] **Step 131** [V] ~1m: `ok`.
+- [x] **Step 132** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 125-131: unheaded-auth issuer (login, JWKS, discovery, lockout)`.
+- [x] **Step 133** [W][CODE] ~15m: `cmd/unheaded-auth` subcommand `user add <name> --roles viewer,operator` (prompts for the password on a tty; `--password-stdin` for scripts), `user list`, `user del`; writes the users file atomically (temp + rename, 0600). Tests for add/list/del and for refusing an empty password.
+- [x] **Step 134** [TEST][B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-auth/... -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 135** [V] ~1m: `ok`.
-- [ ] **Step 136** [W] ~10m: `deploy/systemd/unheaded-auth.service`: copy the sandbox block from `unheaded-wotan.service` verbatim; `User=unheaded-auth`, `Group=unheaded-auth`, `ExecStart=/usr/local/bin/unheaded-auth -listen :19020 -issuer-url https://%H:19020 -key-file /etc/unheaded/keys/unheaded-auth.key -users-file /etc/unheaded/auth/users.json`, `StateDirectory=unheaded/auth`, `ReadOnlyPaths=/etc/unheaded/trust.d`, `EnvironmentFile=-/etc/unheaded/auth.env`. `deploy/sysusers.d` already has the user (Step 70).
-- [ ] **Step 137** [B] ~1m
+- [x] **Step 135** [V] ~1m: `ok`.
+- [x] **Step 136** [W] ~10m: `deploy/systemd/unheaded-auth.service`: copy the sandbox block from `unheaded-wotan.service` verbatim; `User=unheaded-auth`, `Group=unheaded-auth`, `ExecStart=/usr/local/bin/unheaded-auth -listen :19020 -issuer-url https://%H:19020 -key-file /etc/unheaded/keys/unheaded-auth.key -users-file /etc/unheaded/auth/users.json`, `StateDirectory=unheaded/auth`, `ReadOnlyPaths=/etc/unheaded/trust.d`, `EnvironmentFile=-/etc/unheaded/auth.env`. `deploy/sysusers.d` already has the user (Step 70).
+- [x] **Step 137** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-systemd-units.sh 2>&1 | tail -1 && bash scripts/check-unit-binaries.sh 2>&1 | tail -1 && systemd-analyze verify deploy/systemd/unheaded-auth.service 2>&1 | grep -vE 'Unit .* not found|^$' | head -3
   ```
-- [ ] **Step 138** [V] ~1m: two `[PASS]`; `systemd-analyze` prints nothing but "not found" noise for the binary path.
-- [ ] **Step 139** [W] ~10m: `docker-compose.yml`: service `auth` (image built from the shared Dockerfile stage like `kanban-app`; read how `kanban-app`'s `build:` is declared and copy it), `user: 16735:16735`, port `19020` on the `control` network only (no `ports:` to the host unless the dashboard needs it; dashboard-backend is the BFF and reaches it on the Docker network), secret `svc_key_unheaded-auth`, a bind for a users file `./configs/auth/dev-users.json:/etc/unheaded/auth/users.json:ro` (file is created by Step 140 and gitignored), `healthcheck` on `/health`, `kingdom.component: control-plane` label, log cap like the others.
-- [ ] **Step 140** [W] ~5m: `scripts/gen-dev-keys.sh`: also create `configs/auth/dev-users.json` with one `operator` user `dev` whose password is printed once to the terminal (random 20 chars), never written anywhere else; add `configs/auth/` to `.gitignore`. Add `scripts/build-binaries.sh` entry for `unheaded-auth` and `SERVICES` entry in `scripts/build-all-debs.sh` (`unheaded-auth` → `unheaded-auth.service`).
-- [ ] **Step 141** [B] ~2m
+- [x] **Step 138** [V] ~1m: two `[PASS]`; `systemd-analyze` prints nothing but "not found" noise for the binary path.
+- [x] **Step 139** [W] ~10m: `docker-compose.yml`: service `auth` (image built from the shared Dockerfile stage like `kanban-app`; read how `kanban-app`'s `build:` is declared and copy it), `user: 16735:16735`, port `19020` on the `control` network only (no `ports:` to the host unless the dashboard needs it; dashboard-backend is the BFF and reaches it on the Docker network), secret `svc_key_unheaded-auth`, a bind for a users file `./configs/auth/dev-users.json:/etc/unheaded/auth/users.json:ro` (file is created by Step 140 and gitignored), `healthcheck` on `/health`, `kingdom.component: control-plane` label, log cap like the others.
+- [x] **Step 140** [W] ~5m: `scripts/gen-dev-keys.sh`: also create `configs/auth/dev-users.json` with one `operator` user `dev` whose password is printed once to the terminal (random 20 chars), never written anywhere else; add `configs/auth/` to `.gitignore`. Add `scripts/build-binaries.sh` entry for `unheaded-auth` and `SERVICES` entry in `scripts/build-all-debs.sh` (`unheaded-auth` → `unheaded-auth.service`).
+- [x] **Step 141** [B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/gen-dev-keys.sh | tail -3 && docker compose config --quiet && echo COMPOSE_OK && bash scripts/check-compose-hardening.sh 2>&1 | tail -1 && bash scripts/check-compose-log-caps.sh 2>&1 | tail -1 && bash scripts/check-image-tags.sh 2>&1 | tail -1
   ```
-- [ ] **Step 142** [V] ~1m: `COMPOSE_OK` and three `[PASS]`.
-- [ ] **Step 143** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 133-142: unheaded-auth user mgmt, unit, compose service`.
+- [x] **Step 142** [V] ~1m: `COMPOSE_OK` and three `[PASS]`.
+- [x] **Step 143** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 133-142: unheaded-auth user mgmt, unit, compose service`.
 - [ ] **Step 144** [BUILD][B] ~4m: Bring up only the issuer and prove the round trip locally
   ```bash
   cd /home/govan/tmp/unheaded && docker compose up -d --build auth && sleep 5 && docker compose exec -T auth wget -qO- http://127.0.0.1:19020/.well-known/openid-configuration | head -c 300; echo; docker compose exec -T auth wget -qO- http://127.0.0.1:19020/jwks.json | grep -c '"kty":"OKP"'
@@ -563,25 +563,25 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
   ```bash
   cd /home/govan/tmp/unheaded && docker compose stop auth && docker compose rm -f auth >/dev/null && echo down
   ```
-- [ ] **Step 149** [W][DOC-UPDATE] ~8m: `wiki/Service-Auth.md` (new, from the `wiki/Service-Wotan.md` template): purpose, port 19020, uid 16735, endpoints, users file, lockout, how a service verifies (JWKS URL), how an external OIDC provider replaces it (`AUTH_OIDC_ISSUER_URL`). Add to `wiki/_Sidebar.md` under Services and to `wiki/Port-Registry.md` + the uid table page (`grep -l 16734 wiki/*.md`).
-- [ ] **Step 150** [B] ~1m
+- [x] **Step 149** [W][DOC-UPDATE] ~8m: `wiki/Service-Auth.md` (new, from the `wiki/Service-Wotan.md` template): purpose, port 19020, uid 16735, endpoints, users file, lockout, how a service verifies (JWKS URL), how an external OIDC provider replaces it (`AUTH_OIDC_ISSUER_URL`). Add to `wiki/_Sidebar.md` under Services and to `wiki/Port-Registry.md` + the uid table page (`grep -l 16734 wiki/*.md`).
+- [x] **Step 150** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && grep -c 'Service-Auth' wiki/_Sidebar.md && grep -c '19020' wiki/Port-Registry.md && grep -lc '16735' wiki/*.md | head -2
   ```
-- [ ] **Step 151** [V] ~1m: all ≥ 1.
-- [ ] **Step 152** [SECURITY][W] ~10m: Fuzz `cmd/unheaded-auth`: `FuzzLoginBody` (random JSON bodies never panic, never 200), `FuzzUsersFile` (random users files never panic; malformed refused at start). Run 60 s each.
-- [ ] **Step 153** [TEST][B] ~3m
+- [x] **Step 151** [V] ~1m: all ≥ 1.
+- [x] **Step 152** [SECURITY][W] ~10m: Fuzz `cmd/unheaded-auth`: `FuzzLoginBody` (random JSON bodies never panic, never 200), `FuzzUsersFile` (random users files never panic; malformed refused at start). Run 60 s each.
+- [x] **Step 153** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && for f in FuzzLoginBody FuzzUsersFile; do go test ./cmd/unheaded-auth/ -run '^$' -fuzz="^$f\$" -fuzztime=60s 2>&1 | tail -1; done; git status --short cmd/unheaded-auth | grep -c testdata
   ```
-- [ ] **Step 154** [V] ~1m: two `ok`/`PASS`, `0` crashers.
-- [ ] **Step 155** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 144-154: issuer round trip in compose, wiki page, fuzz`.
-- [ ] **Step 156** [B] ~3m: Crypto inventory must learn the new key material (CBOM gate)
+- [x] **Step 154** [V] ~1m: two `ok`/`PASS`, `0` crashers.
+- [x] **Step 155** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 144-154: issuer round trip in compose, wiki page, fuzz`.
+- [x] **Step 156** [B] ~3m: Crypto inventory must learn the new key material (CBOM gate)
   ```bash
   cd /home/govan/tmp/unheaded && go run ./cmd/crypto-inventory scan --out compliance/crypto/cbom.cdx.json 2>&1 | tail -2 && bash scripts/check-crypto-inventory.sh 2>&1 | tail -1 && git diff --stat compliance/crypto/cbom.cdx.json | tail -1
   ```
-- [ ] **Step 157** [V] ~1m: `[PASS]`; the diff adds Ed25519 (`crypto/ed25519`) and argon2id entries. Commit as part of Step 158's gate commit.
-- [ ] **Step 158** [V]: **PHASE 4 EXIT GATE**
+- [x] **Step 157** [V] ~1m: `[PASS]`; the diff adds Ed25519 (`crypto/ed25519`) and argon2id entries. Commit as part of Step 158's gate commit.
+- [x] **Step 158** [V]: **PHASE 4 EXIT GATE**
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/unheaded-auth/... ./pkg/auth/... -race -count=1 2>&1 | tail -2 && docker compose config --quiet && bash scripts/check-systemd-units.sh 2>&1 | tail -1 && git add -A compliance/crypto && git commit --no-gpg-sign -q -m "[PLAN S-IRON-GATE] Steps 156-158: CBOM regenerated for Ed25519 + argon2id; Phase 4 exit
 

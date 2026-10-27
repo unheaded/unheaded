@@ -101,6 +101,7 @@ Recent:
 - [[Huginn|Service-Huginn]] — host metrics agent on each host (ADR-084)
 - [[kev-poller|Service-KEV-Poller]] — CISA KEV feed, tagged against what we run (ADR-055)
 - [[Sword|Service-Sword]] — deploys through Cuirass: rolling, blue-green, canary with analysis, rollback
+- [[Auth issuer|Service-Auth]] — built-in OIDC issuer: password login, 15-minute EdDSA tokens, JWKS (ADR-103)
 - [[Steel Echo|Steel-Echo]] — the game-day workload: `serve` with fault knobs, `load` meter, Monad lab sender/counter, images v1-v4
 
 ## Deploy and Chaos (S-REAL-STEEL, live on west 2026-10-26)

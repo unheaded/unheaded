@@ -44,3 +44,25 @@ Hand-offs to Phase 6: switch each service from `SetupMiddleware` (now fails clos
 work; compose runs it with auth off, so no live impact) and need `NewServiceAuthenticator`; `raft/start-zhen.sh` and
 `cmd/sword/main.go` still mention `AUTH_JWT_KEY`; `pkg/auth/README.md` says "Stub" (Phase 16). Phase 3 (API keys) touches
 `pkg/auth/setup.go` next; golangci-lint panics under Go 1.27.3 (tool mismatch, not code).
+
+### Phases 2, 3, 4 merged (b341e904 Phase 3; 362755e9 Phases 2+4)
+
+Phase 3: `uhk_` keys (memory/file/Well stores), migrations 035 (`app_auth` role, in `postgres`) and 036
+(`api_keys`, in `unheaded_app`), `unheaded-cli apikey`, gitleaks `uhk_` rule. Deviations: role `observer` not
+`viewer` (pkg/auth has no viewer); `wellint` tag + `WELL_TEST_APP_DSN`; own `AUTH_WELL_*` env. pkg/auth now imports
+pkg/database (lib/pq linked by auth users). Old `AUTH_API_KEYS` lists still work with a deprecation warning.
+LIVE: apply 035/036 to the Well; `APP_AUTH_PASSWORD` in `.env` then `scripts/well/set-role-passwords.sh`.
+
+Phases 2+4: `unheaded-keygen` (own deb, every service deb depends on it), key dir 0711 (0750 root-owned would
+block each service reading its key), keys named by each binary's auth identity (cuirass = `unheaded-daemon`),
+unit env on 13 units, compose `auth` on `data`, `-dev-plaintext` issuer at `http://auth:19020`. No WebAuthn in the
+first cut. No argon2id CBOM row (symmetric/hash primitives are out of the inventory by design). Merge: `auth`
+moved to the journald logging anchor; sysusers/uids/CBOM conflicts resolved. LIVE: Steps 144-148 (compose up
+auth, login round trip) and one-time `sudo scripts/gen-dev-keys.sh` after `make binaries`.
+
+Coordinator fix (fefac3e0): `JWKSVerifier` passed lifetime 0, so user tokens of any lifetime were accepted. Now
+capped at 1h by default (`AUTH_OIDC_MAX_LIFETIME`; unparseable value refuses start). Open for Phase 6: the verifier
+checks `aud` against the service name while the plan says user tokens carry `aud=unheaded`; the issuer works
+around it with `-audiences` + a login `audience`, so the BFF requests e.g. `dashboard-backend`. Plain-http JWKS
+fetch is loopback-only, so no other container can verify compose issuer tokens until TLS (Phase 8). Deb name
+`unheaded-unheaded-auth` (double prefix, Phase 14). Jenkinsfile `deb_postinst` call is out of date (Phase 14).

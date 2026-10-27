@@ -40,3 +40,25 @@ First wave: Phases 6-7 (watchdog, postmortems, alert rules) in a worktree agent;
   (MPL-2.0, separate process). Vector 0.43.1 is old on both hosts; bumping image + deb together is a follow-on.
 - Host window E-D also needs: west ClickHouse listening on 192.168.13.2:8123 (east only, nft), and a Prometheus
   scrape job for 192.168.13.1:9598.
+
+### Phases 6-7 merged (c2c7c0fb) and Phase 8 merged (374984fc)
+
+6-7: Watchdog rule; heartbeat on its own port 19131 (`/heartbeat/{host}` only, loopback until `HEARTBEAT_LISTEN`);
+postmortem template + four incidents (Well postmortem dated 2026-09-30, the outage; 10-13 was the audit);
+dead alerts deleted; trace-collector moved to its own scrape job for both hosts (16671 was scraped as "wotan");
+alert-mailer now scraped; `alert-policy -runbooks` gate (every alert names a runbook); ci-develop SLO with its
+own runbook; textfile collector; error-budget dashboard 08. uids 16711/16712.
+LIVE (E-D / monitoring reload), in order: ci-status sysusers + script + timer + `setfacl` on
+`/var/lib/unheaded/textfile` BEFORE Prometheus loads the rules (missing data counts as bad and would mail);
+heartbeat token on west (0400 uid 16710) and east; `HEARTBEAT_HOSTS=east`, `HEARTBEAT_LISTEN=192.168.13.2`;
+east sysusers + heartbeat timer; then `docker compose up -d prometheus alertmanager alert-mailer grafana`.
+Expect mail: ci-develop ticket while CI is red; five ErrorBudgetBurn tickets firing since 17:26:47Z look like a
+Prometheus restart, not a burn.
+
+8: heimdall-daemon `-metrics-addr` (default 127.0.0.1:19101), counters are `heimdall_drift_publish_{failed,dropped}_total`
++ `heimdall_scan_duration_seconds`; `pkg/logagg.RegisterCollectors`; `WriteMetrics` deleted with a golden test pinning
+the old bytes; 8 pqc + 4 secrets metrics deleted (not 9/12). `HeimdallDriftPublishFailing` landed in collector.yml
+(record-only; no heimdall unit runs, so both targets read `up == 0` until one runs on an overlay address).
+Stale descriptor: root `services.yaml` lists `shield-waf` on 19101 (Shield is 19009), not changed.
+Merge fixes by coordinator: Well lint red since Champion Phase 4 (verb table read as DDL; files excluded with a
+reason, ca501174); pkg/uids walker read agent worktrees (skips `.claude` now); ruff red (67cf4b07).

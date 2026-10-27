@@ -811,8 +811,8 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - EAST bare metal: Online, P2P link live, BPF flow graph cross-host
 - ADR Sweep (2026-04-03): All 27 ADRs resolved (19 accepted, 4 deferred, 1 in-progress, 1 pipe dream)
 - Zhen Champion (pkg/champion/): Trust Level 1+2, sandboxed file R/W, Kanban CRUD, action logging, snapshots (18 tests)
-- Zhen MCP Server (raft/zhen_mcp_server.py): 9 tools for Claude Code integration. Read-only, always on: corpus_search, file_read, service_health, runbook_list, runbook_show, local_llm (one completion from the running llama-server at `ZHEN_LOCAL_LLM_URL`, default `http://127.0.0.1:8081`; isError when nothing listens; never starts or swaps a model; `ZHEN_CAPTURE_DIR` opts in to redacted training capture, docs/architecture/zhen-capture.md). Off unless the server env opts in: file_write, file_patch (`ZHEN_MCP_ALLOW_WRITE=1`), runbook_execute (`ZHEN_MCP_ALLOW_EXEC=1`). Repo root from the script path (`ZHEN_MCP_PROJECT_ROOT` overrides); tests in raft/tests/test_zhen_mcp_server.py. Registered for Claude Code in the repo's `.mcp.json` as server `zhen` (read-only: no `ZHEN_MCP_ALLOW_*` set; approve it once at the `claude` prompt). It launches `scripts/zhen-mcp.sh`, which picks `$ZHEN_MCP_PYTHON`, then `~/.venv/zhen/bin/python`, then `python3`, and exits non-zero naming what it tried if none can import `mcp`
-- 79 Operational Runbooks (runbooks/): 9 categories (infra 17, security 14, observe 10, data 9, network 9, deploy 7, wotan 5, doom 4, pki 4); `scripts/check-runbooks.sh` with a shrink-only baseline, `metadata.status` draft → approved (Stevie only), ADR-024 §6
+- Zhen MCP Server (`cmd/zhen-mcp`, built by `make build-zhen-mcp`; stdio transport in `pkg/mcpserver`, shared with `cmd/lich-mcp`): 9 tools for Claude Code integration, every call through the Champion gate (S-CHAMPION-HARDENING Phase 10; the Python server is retired). Read-only, always on: corpus_search (queries vor directly), file_read, service_health, runbook_list, runbook_show, local_llm (one completion from the running llama-server at `ZHEN_LOCAL_LLM_URL`, default `http://127.0.0.1:8081`; isError when nothing listens; never starts or swaps a model; `ZHEN_CAPTURE_DIR` opts in to redacted training capture, docs/architecture/zhen-capture.md). Off unless the server env opts in: file_write, file_patch (`ZHEN_MCP_ALLOW_WRITE=1`), runbook_execute (`ZHEN_MCP_ALLOW_EXEC=1`; manifest-checked). Tests in `cmd/zhen-mcp`; CI handshake gate `scripts/check-zhen-mcp.sh`. Registered for Claude Code in the repo's `.mcp.json` as server `zhen` (read-only: no `ZHEN_MCP_ALLOW_*` set; approve it once at the `claude` prompt). It launches `scripts/zhen-mcp.sh`, which runs `bin/zhen-mcp` and fails loudly naming `make build-zhen-mcp` if the binary is missing
+- 86 Operational Runbooks (runbooks/): 9 categories (infra 18, security 15, observe 15, data 9, network 9, deploy 7, wotan 5, doom 4, pki 4); `scripts/check-runbooks.sh` with a shrink-only baseline, `metadata.status` draft → approved (Stevie only, with an ISO `approved_at`; authorship policy in ADR-024 "Authorship and approval"); live Champion execution needs the runbook in `runbooks/MANIFEST.sha256` (`scripts/runbook-manifest.sh --write` after any edit)
 - BPF CI Gate (scripts/bpf-verifier-check.sh): Instruction budget tracking, static analysis
 - Sealed Cask (scripts/build-sealed-cask.sh + verify-binding-rune.sh): Deterministic image builder with SHA256 integrity
 - ROCm GPU acceleration: PyTorch 2.5.1+rocm6.2 for embedding (862 chunks/s), llama.cpp for inference (60 tok/s)
@@ -1213,9 +1213,13 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | monad | 19004 | gRPC | State Management |
 | sophia | 19005 | gRPC | Knowledge Graph |
 | cuirass | 19006 | HTTP | Control Plane Service |
+| unheaded-auth | 19020 | HTTP(S) | Built-in OIDC issuer (ADR-103): login, JWKS, discovery; uid 16735 |
 | sword | 19011 | HTTP | Deploy service through Cuirass (was Canary's port; Canary folded into Sword), uid 16746 |
 | chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east |
+| heimdall-daemon /metrics | 19101 | HTTP | Drift detection metrics (loopback default, `-metrics-addr`) |
 | kev-poller | 19120 | HTTP | CISA KEV feed poller (ADR-055) |
+| alert-mailer | 19130 | HTTP | Alertmanager webhook to mail |
+| alert-mailer heartbeat | 19131 | HTTP | `/heartbeat/{host}` dead-man switch only (loopback until `HEARTBEAT_LISTEN`) |
 | dashboard-backend | 20000 | HTTP/WS | Observability |
 | kanban-app | 20001 | HTTP/WS | User Interface |
 | haproxy-edge | 21080/21443/21404 | HTTP/HTTPS/Stats | Edge LB: TLS term, rate limiting |

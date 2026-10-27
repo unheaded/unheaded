@@ -782,47 +782,47 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 3 h
 **Agent**: Agent D (worktree mcp)
 
-- [ ] **Step 191** [R] ~6m
+- [x] **Step 191** [R] ~6m
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE '@mcp\.tool|^def |ALLOW_WRITE|ALLOW_EXEC|isError|is_error' raft/zhen_mcp_server.py | head -30 && ls cmd/lich-mcp && grep -nE 'jsonrpc|"method"|tools/list|tools/call' cmd/lich-mcp/*.go | grep -v _test | head -8 && grep -n 'mcp' go.mod
   ```
-- [ ] **Step 192** [DECIDE][DESIGN] ~4m: Transport and library
+- [x] **Step 192** [DECIDE][DESIGN] ~4m: Transport and library
   - RECOMMENDATION: reuse `cmd/lich-mcp`'s stdio JSON-RPC implementation (extract the transport into `pkg/mcpserver` if it is inline; it is already first-party and has tests) rather than admitting an MCP SDK module. Rationale: ADR-004 admission cost and attack surface; the protocol subset Claude Code needs (`initialize`, `tools/list`, `tools/call`) is small. Override ONLY if `cmd/lich-mcp` turns out to depend on an SDK already (then reuse that module, no new admission).
-- [ ] **Step 193** [CODE][W] ~12m: Red tests in `cmd/zhen-mcp/main_test.go`: `tools/list` returns the nine names (`corpus_search`, `file_read`, `service_health`, `runbook_list`, `runbook_show`, `local_llm`, and, only when `ZHEN_MCP_ALLOW_WRITE=1`/`ZHEN_MCP_ALLOW_EXEC=1`, `file_write`, `file_patch`, `runbook_execute`); a `file_read` outside the project root is `isError: true` with `ACCESS DENIED`; a not-found path is `isError: true`; a write without the env flag is absent from the list AND `isError` if called; `local_llm` with nothing listening is `isError` (never starts a model). Green: `cmd/zhen-mcp/main.go` on `pkg/mcpserver`, every tool through `champion.Dispatch` (mapping `file_read`→`read_file`, `file_write`→`write_file`, `file_patch`→`patch_file`); `corpus_search` through `pkg/vorquery`; `local_llm` through the existing llama client in `pkg/agent`; project root from `ZHEN_MCP_PROJECT_ROOT` or the executable's repo.
-- [ ] **Step 194** [TEST][B] ~3m
+- [x] **Step 193** [CODE][W] ~12m: Red tests in `cmd/zhen-mcp/main_test.go`: `tools/list` returns the nine names (`corpus_search`, `file_read`, `service_health`, `runbook_list`, `runbook_show`, `local_llm`, and, only when `ZHEN_MCP_ALLOW_WRITE=1`/`ZHEN_MCP_ALLOW_EXEC=1`, `file_write`, `file_patch`, `runbook_execute`); a `file_read` outside the project root is `isError: true` with `ACCESS DENIED`; a not-found path is `isError: true`; a write without the env flag is absent from the list AND `isError` if called; `local_llm` with nothing listening is `isError` (never starts a model). Green: `cmd/zhen-mcp/main.go` on `pkg/mcpserver`, every tool through `champion.Dispatch` (mapping `file_read`→`read_file`, `file_write`→`write_file`, `file_patch`→`patch_file`); `corpus_search` through `pkg/vorquery`; `local_llm` through the existing llama client in `pkg/agent`; project root from `ZHEN_MCP_PROJECT_ROOT` or the executable's repo.
+- [x] **Step 194** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-mcp/... ./pkg/mcpserver/... -race -count=1 2>&1 | tail -4 && go vet ./cmd/zhen-mcp/...
   ```
-- [ ] **Step 195** [V] ~1m: PASS; `grep -c isError cmd/zhen-mcp/main.go` ≥ 4.
-- [ ] **Step 196** [CODE][W] ~4m: `scripts/zhen-mcp.sh` launches `bin/zhen-mcp` (built by `make build-zhen-mcp`; add the target next to `build-zhen-agent`), falling back to the Python server ONLY when the binary is absent AND `ZHEN_MCP_PYTHON_FALLBACK=1` (so a missing build fails loudly by default, naming `make build-zhen-mcp`).
+- [x] **Step 195** [V] ~1m: PASS; `grep -c isError cmd/zhen-mcp/main.go` ≥ 4.
+- [x] **Step 196** [CODE][W] ~4m: `scripts/zhen-mcp.sh` launches `bin/zhen-mcp` (built by `make build-zhen-mcp`; add the target next to `build-zhen-agent`), falling back to the Python server ONLY when the binary is absent AND `ZHEN_MCP_PYTHON_FALLBACK=1` (so a missing build fails loudly by default, naming `make build-zhen-mcp`).
   ```bash
   cd /home/govan/tmp/unheaded && make build-zhen-mcp 2>&1 | tail -2 && bash -n scripts/zhen-mcp.sh && shellcheck -S warning scripts/zhen-mcp.sh | tail -2
   ```
-- [ ] **Step 197** [TEST][B] ~3m: Hand-shake over stdio exactly as Claude Code does
+- [x] **Step 197** [TEST][B] ~3m: Hand-shake over stdio exactly as Claude Code does
   ```bash
   cd /home/govan/tmp/unheaded && printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"file_read","arguments":{"path":"/etc/shadow"}}}' | timeout 10 scripts/zhen-mcp.sh 2>/dev/null | jq -c '{id, tools: (.result.tools|length?), isError: .result.isError?}' 
   ```
-- [ ] **Step 198** [V] ~1m: id 1 answers, id 2 lists 6 tools (read-only env), id 3 is `isError: true`.
-- [ ] **Step 199** [W] ~3m: Retire the Python server: `git rm raft/zhen_mcp_server.py raft/tests/test_zhen_mcp_server.py` AFTER porting any test case not yet covered by Step 193 (diff the two test lists first and record in the progress file); `.mcp.json` unchanged (still `scripts/zhen-mcp.sh`); CLAUDE.md "Zhen MCP Server" paragraph rewritten (Phase 15 does the wording; here only the path).
-- [ ] **Step 200** [TEST][B] ~2m: Nothing else imports the Python server
+- [x] **Step 198** [V] ~1m: id 1 answers, id 2 lists 6 tools (read-only env), id 3 is `isError: true`.
+- [x] **Step 199** [W] ~3m: Retire the Python server: `git rm raft/zhen_mcp_server.py raft/tests/test_zhen_mcp_server.py` AFTER porting any test case not yet covered by Step 193 (diff the two test lists first and record in the progress file); `.mcp.json` unchanged (still `scripts/zhen-mcp.sh`); CLAUDE.md "Zhen MCP Server" paragraph rewritten (Phase 15 does the wording; here only the path).
+- [x] **Step 200** [TEST][B] ~2m: Nothing else imports the Python server
   ```bash
   cd /home/govan/tmp/unheaded && grep -rn 'zhen_mcp_server' --include=*.py --include=*.sh --include=*.yml --include=*.json . | grep -v '^./docs/' | grep -v '^./wiki/' || echo "no references left"
   ```
-- [ ] **Step 201** [CODE][W] ~4m: CI: `.github/workflows/ci.yml` (Go) already runs `go test ./...` so `cmd/zhen-mcp` is covered; add the stdio handshake of Step 197 as `scripts/check-zhen-mcp.sh` and call it from the Static Analysis workflow's Go job (5 s, no model). `raft-python.yml:55` gains `raft/tests/test_zhen_rag_strip.py` (Phase 9) and drops the MCP test it never ran.
-- [ ] **Step 202** [TEST][B] ~2m
+- [x] **Step 201** [CODE][W] ~4m: CI: `.github/workflows/ci.yml` (Go) already runs `go test ./...` so `cmd/zhen-mcp` is covered; add the stdio handshake of Step 197 as `scripts/check-zhen-mcp.sh` and call it from the Static Analysis workflow's Go job (5 s, no model). `raft-python.yml:55` gains `raft/tests/test_zhen_rag_strip.py` (Phase 9) and drops the MCP test it never ran.
+- [x] **Step 202** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && scripts/check-zhen-mcp.sh && scripts/check-manifest-yaml.sh 2>&1 | tail -1 && ~/.venv/zhen/bin/python3 -m pytest raft/tests -q 2>&1 | tail -1
   ```
-- [ ] **Step 203** [B] ~2m: Merge the worktree
+- [x] **Step 203** [B] ~2m: Merge the worktree
   ```bash
   cd /home/govan/tmp/unheaded && git merge --no-ff sprint/champion-hardening-mcp -m "merge Phase 10: Go MCP server, Python server retired" && go build ./... && echo MERGED
   ```
-- [ ] **Step 204** [TEST][B] ~3m
+- [x] **Step 204** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-mcp/... ./pkg/champion/... ./cmd/zhen-agentd/... -race -count=1 2>&1 | tail -4
   ```
 - [ ] **Step 205** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 191-204: Go MCP server through the Champion; denied calls are isError; MCP in CI`
-- [ ] **Step 206** [V] ~1m: **PHASE 10 EXIT GATE** — Steps 195, 198, 200, 202, 204 green.
+- [x] **Step 206** [V] ~1m: **PHASE 10 EXIT GATE** — Steps 195, 198, 200, 202, 204 green.
 
 ---
 
