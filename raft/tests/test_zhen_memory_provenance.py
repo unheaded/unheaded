@@ -49,7 +49,7 @@ class _Emb:
 
 
 def test_matched_memory_names_its_origin(monkeypatch):
-    when = dt.datetime(2026, 10, 1, 12, 0, tzinfo=dt.timezone.utc)
+    when = dt.datetime(2026, 10, 1, 12, 0, tzinfo=dt.UTC)
     vec = np.array([1.0, 0.0], dtype='float32').tobytes()
     rows = [(7, "how do I restart wotan safely?", "use the runbook", vec, "qwen-7b", when)]
     monkeypatch.setattr(zhen_app, 'pg_conn', _Conn(rows))
