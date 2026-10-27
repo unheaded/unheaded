@@ -74,10 +74,11 @@ func allPorts(t *testing.T) map[string]int {
 		// ASCEND-LINUX
 		"UPCTtyBridge": UPCTtyBridge,
 		// MBC cartridges (ADR-108)
-		"UPCCartridgeMetrics": UPCCartridgeMetrics,
-		"Akira":               Akira,
-		"KEVPoller":           KEVPoller,
-		"AlertMailer":         AlertMailer,
+		"UPCCartridgeMetrics":  UPCCartridgeMetrics,
+		"Akira":                Akira,
+		"KEVPoller":            KEVPoller,
+		"AlertMailer":          AlertMailer,
+		"AlertMailerHeartbeat": AlertMailerHeartbeat,
 	}
 }
 

@@ -1,0 +1,94 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: heartbeat-missing
+  description: A watched host stopped sending heartbeats (HeartbeatMissing), or the always-firing Watchdog is missing from Alertmanager
+  owner: architect
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-100 section 4, S-WELL-SPRING Phase 6. Two alerts point here.
+
+  HeartbeatMissing{host}: east POSTs west's alert-mailer every two minutes
+  (unheaded-heartbeat.timer on east, http://192.168.13.2:19131/heartbeat/east)
+  and the mailer exports unheaded_heartbeat_last_seen_timestamp_seconds. Ten
+  minutes without one pages. From west, a powered-off east, a dead P2P link,
+  a stopped timer and a token mismatch all look the same; the steps below
+  tell them apart in that order. West dying is not covered (no receiver
+  outside both hosts yet).
+
+  Watchdog: always firing, urgency none. If it is missing from Alertmanager
+  (http://127.0.0.1:9093 on west, ssh -L 9093:127.0.0.1:9093 west), rule
+  evaluation or delivery is broken and every quiet alert is suspect: start
+  with the monitoring-stack step.
+
+  Planned work on east (reboot, link maintenance): silence first,
+  scripts/monitoring/maintenance.sh 30m "reboot east".
+
+steps:
+  - name: what-is-firing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname=~"HeartbeatMissing|Watchdog"}' |
+        python3 -c 'import json,sys; [print(r["metric"]["alertname"], r["metric"].get("host", "-"), r["metric"]["alertstate"]) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Is Watchdog firing (it should be), and which host is missing"
+
+  - name: last-seen
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=time() - unheaded_heartbeat_last_seen_timestamp_seconds' |
+        python3 -c 'import json,sys; [print(r["metric"]["host"], "%.0fs ago" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Seconds since each watched host's last heartbeat; no output means the mailer runs without HEARTBEAT_HOSTS"
+
+  - name: monitoring-stack
+    action: shell
+    command: "timeout 10 docker ps --filter name=unheaded-prometheus --filter name=unheaded-alertmanager --filter name=unheaded-alert-mailer --format '{{.Names}} {{.Status}}'"
+    description: "Prometheus, Alertmanager and alert-mailer are up on west (a missing Watchdog starts here)"
+
+  - name: p2p-link
+    action: shell
+    command: "ping -c3 -W2 192.168.13.1"
+    description: "West reaches east over the P2P link; no reply means east is off or the link is down"
+
+  - name: east-timer
+    action: shell
+    command: "ssh -o ConnectTimeout=5 govan@east systemctl status unheaded-heartbeat.timer unheaded-heartbeat.service --no-pager"
+    description: "The timer is active on east and the last run succeeded"
+
+  - name: mailer-heartbeat-log
+    action: shell
+    command: "timeout 10 docker logs --since 30m unheaded-alert-mailer 2>&1 | grep -i heartbeat | tail -20"
+    description: "West's alert-mailer started its heartbeat listener and logged nothing alarming"
+
+  - name: token-check-from-east
+    action: manual
+    command: |
+      ssh govan@east 'curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "X-Heartbeat-Token: $(sudo cat /etc/unheaded/heartbeat.token)" http://192.168.13.2:19131/heartbeat/east'
+    description: "MANUAL (reads the token as root on east). 204 is healthy; 401 means east's token differs from west's (HEARTBEAT_TOKEN_FILE); 404 means HEARTBEAT_HOSTS on west lacks east; no answer means west's heartbeat port is not published on the P2P address (HEARTBEAT_LISTEN in monitoring/.env)"
+
+  - name: restart-east-timer
+    action: manual
+    command: "ssh govan@east sudo systemctl restart unheaded-heartbeat.timer"
+    description: "MANUAL. Only once the steps above show east is up and the link works but the timer is stopped"
+
+verification:
+  - name: heartbeat-current
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(ALERTS{alertname="HeartbeatMissing",alertstate="firing"}) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("missing:", v); sys.exit(v != "0")'
+
+rollback:
+  - name: nothing-to-roll-back
+    action: manual
+    command: "echo 'Every shell step reads; the only change is restarting the timer on east, which is safe to repeat.'"
+    description: "MANUAL. Nothing here changes state except the east timer restart"

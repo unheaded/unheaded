@@ -186,7 +186,15 @@ func (m *Mailer) Page(w Webhook) error {
 	}
 	now := m.now()
 	names := names(firing)
-	subject := "[page] " + strings.Join(names, ", ") + ": error budget burning"
+	// An SLO page says its budget is burning; a promoted cause alert (no slo
+	// label, e.g. HeartbeatMissing) only that it fires.
+	what := ": firing"
+	for _, a := range firing {
+		if a.Labels["slo"] != "" {
+			what = ": error budget burning"
+		}
+	}
+	subject := "[page] " + strings.Join(names, ", ") + what
 	newSLO := false
 	for _, n := range names {
 		newSLO = newSLO || !contains(m.st.PageFiring, n)
@@ -214,7 +222,7 @@ func (m *Mailer) Page(w Webhook) error {
 	if len(resolved) > 0 {
 		b.WriteString("Resolved:\n\n")
 		for _, a := range resolved {
-			fmt.Fprintf(&b, "- %s (%s tier), since %s\n", a.Labels["slo"], a.Labels["tier"], a.StartsAt.In(m.cfg.Loc).Format("Jan 2 15:04"))
+			fmt.Fprintf(&b, "- %s%s, since %s\n", name(a), tierNote(a), a.StartsAt.In(m.cfg.Loc).Format("Jan 2 15:04"))
 		}
 		b.WriteString("\n")
 	}
@@ -374,8 +382,16 @@ func contains(list []string, s string) bool {
 	return false
 }
 
+// tierNote is " (fast tier)" for an SLO alert and "" for one without a tier.
+func tierNote(a Alert) string {
+	if t := a.Labels["tier"]; t != "" {
+		return " (" + t + " tier)"
+	}
+	return ""
+}
+
 func writeAlert(b *strings.Builder, a Alert) {
-	fmt.Fprintf(b, "- %s (%s tier)\n", a.Annotations["summary"], a.Labels["tier"])
+	fmt.Fprintf(b, "- %s%s\n", a.Annotations["summary"], tierNote(a))
 	if d := a.Annotations["description"]; d != "" {
 		fmt.Fprintf(b, "  %s\n", d)
 	}

@@ -47,6 +47,20 @@ func tree(t *testing.T, policyEdit func(string) string, extraRule string) string
 
 func same(s string) string { return s }
 
+// promoteRE finds the promote: key, empty ("promote: []") or a list.
+var promoteRE = regexp.MustCompile(`(?m)^promote:( \[\])?$`)
+
+// addPromotion returns an edit that puts one entry first in promote:,
+// whatever the live policy already promotes.
+func addPromotion(t *testing.T, entry string) func(string) string {
+	return func(s string) string {
+		if !promoteRE.MatchString(s) {
+			t.Fatalf("no promote: line in policy")
+		}
+		return promoteRE.ReplaceAllLiteralString(s, "promote:\n"+entry)
+	}
+}
+
 func TestRefusals(t *testing.T) {
 	replace := func(old, new string) func(string) string {
 		return func(s string) string {
@@ -78,8 +92,8 @@ func TestRefusals(t *testing.T) {
 		}, "", `mailer.mode "yolo"`},
 		{"template in text", replace("description: The message bus answers on both hosts", "description: hi {{ $labels }}"), "", "may not contain {{"},
 		{"duplicate slo", replace("  - name: dashboard\n", "  - name: wotan\n"), "", "duplicate name"},
-		{"promotion of an alert that does not exist", replace("promote: []", "promote:\n  - alert: Nope\n    urgency: ticket\n    reason: test"), "", "Nope is not an alert"},
-		{"promotion without a reason", replace("promote: []", "promote:\n  - alert: HostDiskFull\n    urgency: ticket\n    reason: \"\""), "", "a reason is required"},
+		{"promotion of an alert that does not exist", addPromotion(t, "  - alert: Nope\n    urgency: ticket\n    reason: test"), "", "Nope is not an alert"},
+		{"promotion without a reason", addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: \"\""), "", "a reason is required"},
 		{"unknown policy key", replace("window: 28d", "window: 28d\nwindw: 7d"), "", "field windw not found"},
 	}
 	for _, c := range cases {
@@ -105,9 +119,7 @@ func TestRefusals(t *testing.T) {
 
 // A promotion routes exactly that alert, ahead of the urgency routes.
 func TestPromotionRoutesOneAlert(t *testing.T) {
-	root := tree(t, func(s string) string {
-		return strings.Replace(s, "promote: []", "promote:\n  - alert: HostDiskFull\n    urgency: ticket\n    reason: test", 1)
-	}, "")
+	root := tree(t, addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: test"), "")
 	matches, _ := filepath.Glob(filepath.Join("..", "..", rulesDir, "*.yml"))
 	for _, m := range matches {
 		b, _ := os.ReadFile(m)

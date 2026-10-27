@@ -65,6 +65,14 @@ const (
 	// the only thing that sends alert mail, so the only holder of the SMTP
 	// login.
 	AlertMailer = 16710
+	// Heartbeat is east's dead-man's-switch sender (ADR-100), a host timer
+	// only: deploy/systemd/unheaded-heartbeat.service, account
+	// unheaded-heartbeat.
+	Heartbeat = 16711
+	// CIStatus writes the ci-develop SLO's textfile on west (ADR-100), a
+	// host timer only: deploy/systemd/unheaded-ci-status.service, account
+	// unheaded-ci-status.
+	CIStatus = 16712
 )
 
 // Kingdom services tier (16720-16759). These are Unheaded's own Go binaries
@@ -232,6 +240,8 @@ var Registry = map[string]int{
 	"clickhouse-schema": ClickHouseSchema,
 	"alertmanager":      Alertmanager,
 	"alert-mailer":      AlertMailer,
+	"heartbeat":         Heartbeat,
+	"ci-status":         CIStatus,
 	"postgres":          Postgres,
 }
 

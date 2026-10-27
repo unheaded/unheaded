@@ -291,3 +291,35 @@ func TestSMTPRefusesWithoutStartTLS(t *testing.T) {
 		t.Fatalf("sent without TLS: %v", err)
 	}
 }
+
+// A promoted cause alert (HeartbeatMissing) pages without an SLO or a tier:
+// the mail must not claim an error budget is burning or print an empty tier.
+func TestPromotedPageIsNotAnSLO(t *testing.T) {
+	m, f, _, _ := newTest(t, "send", 6)
+	hb := Alert{Status: "firing", Fingerprint: "hb-east",
+		Labels:      map[string]string{"alertname": "HeartbeatMissing", "host": "east", "urgency": "none"},
+		Annotations: map[string]string{"summary": "No heartbeat from east for over 10 minutes", "runbook_url": "runbooks/observe/heartbeat-missing.yaml"},
+		StartsAt:    time.Date(2026, 10, 20, 1, 55, 0, 0, chicago)}
+	if err := page(m, hb); err != nil {
+		t.Fatal(err)
+	}
+	hb.Status = "resolved"
+	if err := page(m, hb); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.sent) != 2 {
+		t.Fatalf("want a page and an all-clear, got %d mails", len(f.sent))
+	}
+	first, clear := f.sent[0], f.sent[1]
+	if first.Subject != "[page] HeartbeatMissing: firing" {
+		t.Fatalf("subject %q", first.Subject)
+	}
+	for _, msg := range []Message{first, clear} {
+		if strings.Contains(msg.Body, "( tier)") || strings.Contains(msg.Body, "error budget") {
+			t.Fatalf("SLO wording in a cause page:\n%s", msg.Body)
+		}
+	}
+	if !strings.Contains(first.Body, "Runbook: runbooks/observe/heartbeat-missing.yaml") {
+		t.Fatalf("no runbook line:\n%s", first.Body)
+	}
+}

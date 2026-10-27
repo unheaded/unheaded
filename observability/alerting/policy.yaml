@@ -43,12 +43,18 @@ page:
   group_interval: 5m
   repeat_interval: 12h
 
-# Cause alerts that should notify anyway. Keep this empty: every entry is
+# Cause alerts that should notify anyway. Keep this short: every entry is
 # noise the SLOs should already catch. Form:
 #   - alert: WellBackupMissing
 #     urgency: ticket
 #     reason: why the SLOs miss it
-promote: []
+promote:
+  - alert: HeartbeatMissing
+    urgency: page
+    reason: >-
+      Dead-man's switch: a host that stops reporting stops every SLI on it
+      too, so no SLO can burn for it. The only alert allowed to page on an
+      absence. Fires only where alert-mailer runs with HEARTBEAT_HOSTS set.
 
 # Burn-rate tiers (Google SRE Workbook ch. 5, table 5-8). An alert fires
 # when both windows exceed burn x (1 - objective). page: false SLOs send the

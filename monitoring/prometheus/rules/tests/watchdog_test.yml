@@ -1,0 +1,24 @@
+# promtool test rules watchdog_test.yml (from this directory)
+rule_files:
+  - ../watchdog.yml
+evaluation_interval: 1m
+tests:
+  # Fires from the first evaluation and never stops.
+  - interval: 1m
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels: {severity: none, urgency: none}
+            exp_annotations:
+              summary: "Watchdog: the alerting pipeline is alive"
+              description: "Always firing. If this alert is missing from Alertmanager, rule evaluation or delivery is broken."
+              runbook_url: "runbooks/observe/heartbeat-missing.yaml"
+      - eval_time: 3d
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels: {severity: none, urgency: none}
+            exp_annotations:
+              summary: "Watchdog: the alerting pipeline is alive"
+              description: "Always firing. If this alert is missing from Alertmanager, rule evaluation or delivery is broken."
+              runbook_url: "runbooks/observe/heartbeat-missing.yaml"

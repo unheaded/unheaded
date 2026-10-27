@@ -16,6 +16,11 @@
 //	GET  /v1/status   cap, counts, open tickets
 //	GET  /v1/outbox   the last 50 mails: sent, dry-run, capped or failed
 //	POST /v1/alerts/page, /v1/alerts/ticket   Alertmanager webhooks
+//
+// With HEARTBEAT_HOSTS set it also runs the dead-man's switch on its own
+// listener (-heartbeat-addr, heartbeat.go):
+//
+//	POST /heartbeat/{host}   X-Heartbeat-Token: <HEARTBEAT_TOKEN_FILE>
 package main
 
 import (
@@ -98,6 +103,7 @@ func main() {
 	addr := flag.String("addr", ":"+strconv.Itoa(ports.AlertMailer), "listen address")
 	policy := flag.String("policy", "/etc/alert-mailer/policy.yaml", "observability/alerting/policy.yaml")
 	stateDir := flag.String("state-dir", "/var/lib/alert-mailer", "where state.json lives (cap, tickets, outbox)")
+	hbAddr := flag.String("heartbeat-addr", ":"+strconv.Itoa(ports.AlertMailerHeartbeat), "heartbeat listen address (used only when HEARTBEAT_HOSTS is set)")
 	flag.Parse()
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 	log.Logger = log.With().Str("service", "alert-mailer").Logger()
@@ -118,6 +124,10 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("state")
 	}
+	hb, err := heartbeatFromEnv(os.Getenv, time.Now)
+	if err != nil {
+		log.Fatal().Err(err).Msg("heartbeat")
+	}
 
 	reg := metrics.NewRegistry()
 	msgs := metrics.NewCounterVec("unheaded_alert_mailer_messages_total",
@@ -131,6 +141,9 @@ func main() {
 		func() float64 { return float64(cfg.MaxPerDay) }))
 	reg.MustRegister(metrics.NewFuncGauge("unheaded_alert_mailer_open_tickets", "Tickets waiting for the next digest", nil,
 		func() float64 { return float64(m.Status(false).OpenTickets) }))
+	if hb != nil {
+		reg.MustRegister(hb.Gauge())
+	}
 
 	srv := &http.Server{
 		Addr:              *addr,
@@ -146,6 +159,24 @@ func main() {
 			log.Fatal().Err(err).Msg("HTTP listen failed")
 		}
 	}()
+	var hbSrv *http.Server
+	if hb != nil {
+		hbSrv = &http.Server{
+			Addr:              *hbAddr,
+			Handler:           hb.Handler(),
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      10 * time.Second,
+			IdleTimeout:       60 * time.Second,
+			MaxHeaderBytes:    8 << 10,
+		}
+		go func() {
+			if err := hbSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Fatal().Err(err).Msg("heartbeat listen failed")
+			}
+		}()
+		log.Info().Str("addr", *hbAddr).Str("hosts", os.Getenv("HEARTBEAT_HOSTS")).Msg("heartbeat listener started")
+	}
 	log.Info().Str("addr", *addr).Str("mode", cfg.Mode).Int("max_per_day", cfg.MaxPerDay).
 		Bool("relay_configured", sender != nil).Msg("alert-mailer started")
 
@@ -161,6 +192,9 @@ func main() {
 		case <-ctx.Done():
 			sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			_ = srv.Shutdown(sctx)
+			if hbSrv != nil {
+				_ = hbSrv.Shutdown(sctx)
+			}
 			cancel()
 			return
 		case <-t.C:

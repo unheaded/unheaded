@@ -1,0 +1,25 @@
+# Prometheus alert rules - the always-firing Watchdog (ADR-100 section 4)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# Watchdog is always firing. It is urgency none, so it never mails anyone:
+# it is the proof, on Alertmanager's page (ssh -L 9093:127.0.0.1:9093 west)
+# and in Grafana, that Prometheus is evaluating rules and Alertmanager is
+# receiving them. If Watchdog is missing there, the alerting path is broken
+# and nothing else on the page can be trusted, quiet or not.
+#
+# A host that stops reporting at all is heartbeat.yml's HeartbeatMissing.
+
+groups:
+  - name: watchdog
+    interval: 1m
+    rules:
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+          urgency: none
+        annotations:
+          summary: "Watchdog: the alerting pipeline is alive"
+          description: "Always firing. If this alert is missing from Alertmanager, rule evaluation or delivery is broken."
+          runbook_url: "runbooks/observe/heartbeat-missing.yaml"

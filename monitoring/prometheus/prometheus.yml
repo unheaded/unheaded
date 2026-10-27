@@ -171,6 +171,15 @@ scrape_configs:
         labels:
           service: "wotan"
 
+  # alert-mailer (same compose network): its own counters, and the
+  # dead-man's switch gauge unheaded_heartbeat_last_seen_timestamp_seconds
+  # that rules/heartbeat.yml alerts on (present only with HEARTBEAT_HOSTS).
+  - job_name: alert-mailer
+    static_configs:
+      # No host target label: the gauge's own host label names the watched
+      # host, and a target label would rename it to exported_host.
+      - targets: ['alert-mailer:19130']
+
 remote_write:
   - url: 'http://[fd00:dead:beef::1]:8428/api/v1/write'
     queue_config:
