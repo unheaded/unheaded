@@ -104,6 +104,45 @@ func (l *Ledger) Spent() (NanoUSD, error) {
 	return st.Spent, err
 }
 
+// Remaining returns what today's cap has left after the committed spend
+// and this process's in-flight reservations; never negative.
+func (l *Ledger) Remaining() (NanoUSD, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	st, err := l.readLocked()
+	if err != nil {
+		return 0, err
+	}
+	return max(l.cap-st.Spent-l.pending, 0), nil
+}
+
+// WorstCase is the most one request can cost: promptTokens at inRate plus
+// maxTokens at outRate (rates in milli-USD per million tokens, as in
+// Price), times hops (2 when a server-side refusal fallback may run the
+// request a second time).
+func WorstCase(promptTokens, inRate, maxTokens, outRate, hops int64) NanoUSD {
+	return NanoUSD(hops * (promptTokens*inRate + maxTokens*outRate))
+}
+
+// FitMaxTokens is the pre-check behind a capped request (S-CHAMPION-
+// HARDENING Step 114): the largest max_tokens, at most want, whose
+// WorstCase fits avail. 0 means not even floor fits, so the request must
+// be refused before it is sent.
+func FitMaxTokens(avail NanoUSD, promptTokens, inRate, outRate, hops, want, floor int64) int64 {
+	if avail <= 0 || outRate <= 0 || hops <= 0 || want <= 0 {
+		return 0
+	}
+	room := int64(avail)/hops - promptTokens*inRate
+	if room <= 0 {
+		return 0
+	}
+	n := min(want, room/outRate)
+	if n < max(floor, 1) {
+		return 0
+	}
+	return n
+}
+
 // Reservation is an amount held against the cap for one request.
 type Reservation struct {
 	l      *Ledger

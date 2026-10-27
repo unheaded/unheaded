@@ -244,6 +244,44 @@ gate from the call to the branch:
 Outside such a worktree nothing changes. If rejected: models return patches as
 text and the agent applies them (still sandboxed, still reviewed).
 
+**What the code does today** (verified 2026-10-27 on develop `4e0a9044`; the
+status above lags it): the mode is live and has no off switch.
+`pkg/zhenroute.worktreeChampion` calls `WithBranchSandbox` for every routed
+task that names a worktree and refuses the task (`ErrNotAgentWorktree`) when
+the root does not qualify. The callers are `zhen-claude -family <f> -worktree
+<wt>` (both `-route local` and the Claude leg) and `zhen-agentd -worker` /
+`-overnight` (Kanban cards owned by `zhen`). Inside the worktree,
+`write_file`/`patch_file` pass Rule 2 with justification
+`branch-sandbox:zhen/<name>` (`pkg/champion/toolcall.go`, tests
+`TestBranchSandbox_WritesWithoutConfirmation`,
+`TestBranchSandbox_FallsBackToConfirmation`). Rule 1 (path allowlist) and Rule 3
+(destructive verbs) still run first, and the write itself goes through
+`openat2(RESOLVE_BENEATH|RESOLVE_NO_SYMLINKS)` (`pkg/champion/safeopen_linux.go`,
+S-CHAMPION-HARDENING Phase 3), so a symlink inside the worktree cannot lead
+out of it. Kanban, `runbook_execute` and `model_switch` stay pending
+confirmation, and the routed Claude leg runs with `DenyConfirmer`, so they are
+refused there. Nothing is merged or pushed by the agent.
+
+**Decision requested from Stevie (E3, S-CHAMPION-HARDENING Step 117, filed
+2026-10-27).** Accept (Rule 2 is satisfied by the `zhen/<name>` branch
+sandbox for `write_file`/`patch_file`; you review the branch) or reject
+(models return patches as text, the agent applies them, per-call
+confirmations stay)? This moves the human review point from each write to
+each branch, which is the trust decision this ADR reserves to the operator,
+so there is no recommendation.
+
+- On **accept**: this section's status becomes Accepted with the date and one
+  line why. No code change.
+- On **reject**: Step 118 adds a feature flag to `branchsandbox.go`, default
+  off, with `TestBranchSandbox_Disabled`. With it off, `ApplyDraft`'s writes in
+  a worktree fall back to pending confirmation, so a routed task with a check
+  fails to apply its draft (`parse_fail`) and `zhen-agentd -worker` /
+  `-overnight` can no longer write a branch unattended; the agent returns the
+  draft as text for Stevie to apply.
+
+Steps 118-119 (record the answer, run `go test ./pkg/champion/ -run Branch`)
+wait on E3.
+
 ## MCP Server Architecture
 
 Zhen exposes capabilities as MCP tools. Any MCP client (Claude Code, Claude Desktop, custom) can use them.
@@ -503,17 +541,56 @@ Three things Zhen checks at every trust level, always, no exceptions:
 
 If any of the three fail, Zhen logs the failure and refuses to proceed with write operations.
 
-## Open Questions (To Be Filled In)
+## Open Questions
 
-- [ ] Additional desired features and workflows (Stevie to provide)
-- [ ] Config template library — specific formats and services needed
-- [ ] Runbook authoring format — YAML? JSON? Markdown with structured steps?
-- [ ] Notification channels beyond kanban (Wotan topics? email? webhook?)
-- [ ] Multi-step approval granularity — per-action or per-workflow?
-- [ ] RAFT training integration — action logs and kanban feedback as training data?
-- [ ] Rate limiting — max corvée actions per cycle?
-- [ ] Concurrent sessions — multiple Zhen instances sharing The Well?
-- [ ] Escalation path — what happens when Zhen can't resolve and no human is watching?
+Checklist closed by cross-reference 2026-10-27 (S-CHAMPION-HARDENING Step 120).
+Two items stay open and say why.
+
+- [ ] Additional desired features and workflows: Stevie's to provide; the
+  Kanban board (cards owned by `zhen`) is where they land.
+- [ ] Config template library: not built. No `config_generate` tool exists;
+  generated configs are written with `write_file` and judged by a named check
+  (`configs/zhen-checks.yaml`, ADR-106 §5).
+- [x] Runbook authoring format: YAML under `runbooks/<category>/`, schema and
+  shrink-only checker `scripts/check-runbooks.sh`, `metadata.status` draft →
+  approved (Stevie only), body hashes in `runbooks/MANIFEST.sha256` checked
+  before a live `runbook_execute` (ADR-024 §6; S-CHAMPION-HARDENING Phase 4).
+- [x] Notification channels: Wotan (`zhen.llm.requests`,
+  `zhen.audit.toolcalls`) plus the Well's `audit_events` and `llm_requests`
+  (ADR-106 §Audit); the overnight morning report (`cmd/zhen-agentd`); Kanban
+  cards for agent work (ADR-106 §6).
+- [x] Multi-step approval granularity: per action. A confirmation binds the
+  hash of `{tool, args, project_root}` and the requester; a token cannot be
+  replayed or redeemed by another principal (`pkg/champion/confirmcall.go`,
+  `TestConfirmCall_BoundToRequester`, `TestConfirmPendingToolCall_BoundToRequester`;
+  S-CHAMPION-HARDENING Steps 41-48). Per branch only inside the branch-sandbox
+  sub-mode above, whose status is E3.
+- [x] RAFT training integration: captures and agent outcomes feed
+  `zhen-flywheel`; Claude-authored text is not a training target (default
+  OFF, ADR-106 §8 and §9).
+- [x] Rate limiting: the per-day and per-family Claude spend caps
+  (`pkg/claudebridge` Ledger, refused before the API call; ADR-106
+  Consequences), zhen-agentd's auth and rate-limit defaults, the GPU lease
+  (`pkg/gpulease`), the 20-pending-per-service cap on the confirmation queue,
+  the 1 MiB cap on one write (`champion.MaxWriteBytes`) and the confirm-token
+  GC ticker (S-CHAMPION-HARDENING Phase 2). The corvée loop's own per-cycle cap goes with
+  the scheduler (S-CHAMPION-HARDENING Phase 8).
+- [x] Concurrent sessions: exclusive Kanban claims in
+  `unheaded_app.zhen_agent_runs` with a lease (ADR-106 §6), one GPU lease, and
+  a flock'd spend ledger shared across processes.
+- [ ] Escalation path with no human watching: partly answered. A call that
+  needs a human waits in `zhen_pending_confirmations` until it expires; an
+  unattended night stops on its guards (stop file, cap, memory floor, window)
+  and leaves a morning report; a card gets two attempts. Still open: whether
+  an unresolved card should also raise an alert or move to a Kanban
+  `blocked` state (ADR-106 Q2, the first unattended night, E2).
+
+Rules 1-3 of the tool-call gate (`pkg/champion/toolcall.go`) and their tests:
+Rule 1 path allowlist (`TestAcceptToolCall_DeniedPathOutsideAllowlist`),
+Rule 2 untrusted justification needs confirmation
+(`TestAcceptToolCall_DeniedUntrustedMutating`,
+`TestHasUntrustedJustification_ExactAllowlist`), Rule 3 destructive verbs
+(`TestAcceptToolCall_DeniedDestructiveVerbBeatsTrust`).
 
 ## Implementation Phases
 

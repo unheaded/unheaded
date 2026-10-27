@@ -48,8 +48,8 @@ A write the Champion would refuse for lack of a human goes to a
 
 BlackMage review (Step 86): 9 attacks, 2 found open and fixed (symlink
 escape from the sandbox; agent loop as `direct-user`). Residual: a
-symlink swap between the path check and the write (`openat2
-RESOLVE_BENEATH`, not done).
+symlink swap between the path check and the write; closed by S-CHAMPION-HARDENING
+Phase 3 (writes through `openat2 RESOLVE_BENEATH`, `pkg/champion/safeopen_linux.go`).
 
 ### 2. Branch-sandbox writes (ADR-019 Level 2 amendment)
 
@@ -182,6 +182,18 @@ text. A Well that cannot be reached makes `zhen-claude` read-only.
 - 11 new runbooks with dry-run tests and a shrink-only checker (ADR-024).
 - Sprint spend on the Claude API: $1.38 (Phases 0-5), $0.03 (6-7), $2.37
   (8-9).
+- **Cap headroom rule** (S-CHAMPION-HARDENING Step 114, 2026-10-27): every
+  request reserves its worst case (prompt estimate at the input rate plus
+  `max_tokens` at the output rate, doubled when a refusal fallback may run
+  it again) before it is sent, and is refused before the API call when
+  that does not fit what the day or the family cap has left. Without a
+  fallback the worst case is priced at the routed model, not the table's
+  dearest. A routed Claude leg (`pkg/zhenroute.LiveClaude`) sets
+  `Config.MinMaxTokens` (1024): a later request of its tool loop goes out
+  with the largest `max_tokens` that still fits instead of ending the leg,
+  so a $0.05-0.07 family cap buys more than one request.
+  `zhen-claude`'s own defaults (`-daily-cap-usd 5`, `-max-tokens 16000`)
+  never shrink: the request that would not fit is refused.
 
 ## Open questions
 
@@ -200,8 +212,18 @@ Every [ESCALATE] still open:
 4. **Anthropic's written answer on Claude text as training targets**
    (Step 340). The flag stays OFF.
 5. **The LoRA window** (Step 400), once there are enough examples.
-6. **ADR-019 Level 2 amendment**: accept or reject.
-7. **Two routers**: `ThresholdRouter` (this sprint: per family, from the
-   eval) and `AutoRouter` (S-LICH-AWAKENS: the ADR-053 `Router` weight
-   classifier for the Lich drivers) both live in `pkg/claudebridge`. They
-   do not conflict; whether one should feed the other is open.
+6. **ADR-019 Level 2 amendment**: accept or reject. Still open: filed as
+   S-CHAMPION-HARDENING E3 (Step 117, 2026-10-27); ADR-019's amendment now
+   states what the code does today (the mode is live in every routed
+   worktree task) and what each answer changes.
+7. **Two routers**: answered 2026-10-27 (S-CHAMPION-HARDENING Steps
+   112-113): both kept, behind the one ADR-053 `Router` interface in
+   `pkg/claudebridge`. `AutoRouter` answers "how heavy is this work" (Lich
+   drivers); `*ThresholdRouter` answers "has the eval shown the local model
+   can do this family" (`Route` maps `claude_direct` to heavy,
+   `local_only`/`local_first` to minor; an unlisted family is
+   `ErrNoFamilyRoute`). The one seam: `AutoRouter.Fallback`, default nil,
+   consulted only for a task `AutoRouter` cannot classify, so an
+   unclassifiable task with a `family` hint takes that family's measured
+   route. Folding them would couple the Lich's weight classes to the
+   eval's per-family bars; revisit only if a third router appears.
