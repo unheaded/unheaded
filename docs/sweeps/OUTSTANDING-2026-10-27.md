@@ -88,7 +88,7 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 | M-074 | Retention: ratify policy v1; archive-then-purge respecting append-only trigger; timers for service_health_*, zhen_conversations (DELETE grant); PII redaction before `_pg_log` | SEC DL-01, RT-12, RT-13, CG-04 | docs/policy/retention-policy-v1 | P | Y: ratify | M |
 | M-075 | kanban_tasks soft-delete purge (ADR-011 Q4) or amend Q4 | ADR X-02 | db/migrations | CLOSED 2026-10-27 S24 (decided: 90 days, purged by the Phase 4 retention timer; ADR-011 Q4) | N | S |
 | M-076 | ERDA deferred-with-trigger: drop zero-scan indexes after 2026-11-15; NOT NULL/identity migration | PLANS B-25 | WELL-ERDA-AUDIT:240-255 | CLOSED 2026-10-27 S24 (date-gated script; run after 2026-11-15) | N | S |
-| M-077 | SLO definitions as data in the Well + `slo` evidence kind | ADR O-14 | ADR-100 Phase 2 | NS | N | M |
+| M-077 | SLO definitions as data in the Well + `slo` evidence kind | ADR O-14 | ADR-100 Phase 2 | P → code merged 2026-10-27 (107ef3fe: SLOs in the Well, drift check, UH-SLO-01); live sync after E-A | N | M |
 
 ### E07 — OBSERVABILITY + SRE REMAINDER  (tier d, size M, 11 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |

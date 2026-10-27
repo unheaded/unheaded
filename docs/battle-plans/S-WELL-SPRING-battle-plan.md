@@ -361,39 +361,39 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 **Time**: 3 h
 **Agent**: Agent
 
-- [ ] **Step 87** [R] ~4m: `sed -n '60,140p' observability/alerting/policy.yaml` and `grep -n 'type SLO\|type Policy' -A14 cmd/alert-policy/*.go | head -60`: list every SLO field (name, objective, window, sli expr, urgency labels, runbook).
-- [ ] **Step 88** [W] ~10m: `db/migrations/037_ops_slo_definitions.sql`: `slo_definitions(name text primary key, objective numeric(6,4) not null check (objective > 0 and objective < 1), window interval not null, sli_good_expr text not null, sli_total_expr text, urgency text not null check (urgency in ('page','ticket','none')), runbook_url text not null, source_sha256 text not null, updated_at timestamptz not null default now())` plus `slo_definitions_history` append-only via the same trigger pattern as 036. Grants: `ops_writer` INSERT/UPDATE; readers SELECT. MANIFEST `unheaded_ops 037_ops_slo_definitions.sql`.
-- [ ] **Step 89** [TEST][W] ~6m: `scripts/well/test-slo-definitions.sh`: migrate → insert 7 rows from a fixture → UPDATE objective writes a history row → objective 1.0 refused by CHECK.
-- [ ] **Step 90** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && bash scripts/well/test-slo-definitions.sh 2>&1 | tail -4 && bash scripts/check-well-lint.sh 2>&1 | tail -2`
-- [ ] **Step 91** [V] ~1m: PASS; lint clean.
-- [ ] **Step 92** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 87-91: migration 037 slo_definitions`
-- [ ] **Step 93** [CODE][W] ~8m: `cmd/alert-policy/well_test.go`: with `WELL_TEST_DSN`, `-sync-well` upserts the YAML SLOs into `slo_definitions` (sha256 of the policy file recorded); `-check` with the Well reachable fails when a row differs from YAML (`drift: slo wotan objective well=0.99 yaml=0.995`) and passes when equal; without a DSN `-check` behaves as today.
-- [ ] **Step 94** [TEST][B] ~1m: expect FAIL (`unknown flag -sync-well`)
+- [x] **Step 87** [R] ~4m: `sed -n '60,140p' observability/alerting/policy.yaml` and `grep -n 'type SLO\|type Policy' -A14 cmd/alert-policy/*.go | head -60`: list every SLO field (name, objective, window, sli expr, urgency labels, runbook).
+- [x] **Step 88** [W] ~10m: `db/migrations/037_ops_slo_definitions.sql`: `slo_definitions(name text primary key, objective numeric(6,4) not null check (objective > 0 and objective < 1), window interval not null, sli_good_expr text not null, sli_total_expr text, urgency text not null check (urgency in ('page','ticket','none')), runbook_url text not null, source_sha256 text not null, updated_at timestamptz not null default now())` plus `slo_definitions_history` append-only via the same trigger pattern as 036. Grants: `ops_writer` INSERT/UPDATE; readers SELECT. MANIFEST `unheaded_ops 037_ops_slo_definitions.sql`.
+- [x] **Step 89** [TEST][W] ~6m: `scripts/well/test-slo-definitions.sh`: migrate → insert 7 rows from a fixture → UPDATE objective writes a history row → objective 1.0 refused by CHECK.
+- [x] **Step 90** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && bash scripts/well/test-slo-definitions.sh 2>&1 | tail -4 && bash scripts/check-well-lint.sh 2>&1 | tail -2`
+- [x] **Step 91** [V] ~1m: PASS; lint clean.
+- [x] **Step 92** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 87-91: migration 037 slo_definitions`
+- [x] **Step 93** [CODE][W] ~8m: `cmd/alert-policy/well_test.go`: with `WELL_TEST_DSN`, `-sync-well` upserts the YAML SLOs into `slo_definitions` (sha256 of the policy file recorded); `-check` with the Well reachable fails when a row differs from YAML (`drift: slo wotan objective well=0.99 yaml=0.995`) and passes when equal; without a DSN `-check` behaves as today.
+- [x] **Step 94** [TEST][B] ~1m: expect FAIL (`unknown flag -sync-well`)
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/alert-policy/ -run TestWell -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 95** [V] ~1m: red.
-- [ ] **Step 96** [CODE][W] ~15m: implement `-sync-well` and the `-check` drift leg in `cmd/alert-policy` using `database.OpsWriterConfig()` + a new `pkg/database/slo_store.go` (`Upsert`, `All`); connection only when `WELL_DB` env is set; errors are loud, a missing Well with `WELL_DB` set is a check failure (fail closed), no `WELL_DB` means YAML-only (today).
-- [ ] **Step 97** [TEST][B] ~3m
+- [x] **Step 95** [V] ~1m: red.
+- [x] **Step 96** [CODE][W] ~15m: implement `-sync-well` and the `-check` drift leg in `cmd/alert-policy` using `database.OpsWriterConfig()` + a new `pkg/database/slo_store.go` (`Upsert`, `All`); connection only when `WELL_DB` env is set; errors are loud, a missing Well with `WELL_DB` set is a check failure (fail closed), no `WELL_DB` means YAML-only (today).
+- [x] **Step 97** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && WELL_TEST_DSN="$WELL_TEST_DSN" go test ./cmd/alert-policy/ ./pkg/database/ -run 'TestWell|TestSLOStore' -race -count=1 2>&1 | tail -4 && go run ./cmd/alert-policy -check && echo "check ok (yaml-only)"
   ```
-- [ ] **Step 98** [V] ~1m: green; `check ok (yaml-only)`.
-- [ ] **Step 99** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 93-98: alert-policy -sync-well and Well drift check`
-- [ ] **Step 100** [CODE][W] ~8m: `pkg/compliance/crosswalk/collect/slo_test.go`: evidence kind `slo` → for each SLO row, a record `slo:<name>` PASS when `slo:error_budget_remaining{slo=<name>} > 0` over the window from Victoria (URL from env `VICTORIA_URL`, default `http://localhost:8428`), FAIL when ≤ 0, NOT_ASSESSED when the series is absent. Fake HTTP server in the test.
-- [ ] **Step 101** [TEST][B] ~1m: expect FAIL (`undefined: SLO`)
-- [ ] **Step 102** [CODE][W] ~12m: `collect/slo.go` + register the kind where `agent.go`'s kind is registered (`grep -rn '"host-agent"' pkg/compliance/crosswalk | head -3`); add control `UH-SLO-01` ("Service-level objectives are declared as data and their error budgets are measured") to `compliance/catalog/controls.yaml` with mappings (800-53 CA-7 continuous monitoring, SI-4; CSF DE.CM-01; ISO A.8.16) and `rationale`; `evidence: [{kind: slo, ref: "*"}]` following the catalog's ref syntax (read two existing entries first).
-- [ ] **Step 103** [TEST][B] ~3m
+- [x] **Step 98** [V] ~1m: green; `check ok (yaml-only)`.
+- [x] **Step 99** [C] ~1m: `[PLAN S-WELL-SPRING] Steps 93-98: alert-policy -sync-well and Well drift check`
+- [x] **Step 100** [CODE][W] ~8m: `pkg/compliance/crosswalk/collect/slo_test.go`: evidence kind `slo` → for each SLO row, a record `slo:<name>` PASS when `slo:error_budget_remaining{slo=<name>} > 0` over the window from Victoria (URL from env `VICTORIA_URL`, default `http://localhost:8428`), FAIL when ≤ 0, NOT_ASSESSED when the series is absent. Fake HTTP server in the test.
+- [x] **Step 101** [TEST][B] ~1m: expect FAIL (`undefined: SLO`)
+- [x] **Step 102** [CODE][W] ~12m: `collect/slo.go` + register the kind where `agent.go`'s kind is registered (`grep -rn '"host-agent"' pkg/compliance/crosswalk | head -3`); add control `UH-SLO-01` ("Service-level objectives are declared as data and their error budgets are measured") to `compliance/catalog/controls.yaml` with mappings (800-53 CA-7 continuous monitoring, SI-4; CSF DE.CM-01; ISO A.8.16) and `rationale`; `evidence: [{kind: slo, ref: "*"}]` following the catalog's ref syntax (read two existing entries first).
+- [x] **Step 103** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/compliance/... -race -count=1 2>&1 | tail -4 && go run ./cmd/compliance-evidence 2>&1 | grep -E 'UH-SLO-01|catalog' | head -3
   ```
-- [ ] **Step 104** [V] ~1m: green; `UH-SLO-01` appears (NOT_ASSESSED or PASS depending on the stack). Catalog loader accepted the new control (no `catalog:` error).
+- [x] **Step 104** [V] ~1m: green; `UH-SLO-01` appears (NOT_ASSESSED or PASS depending on the stack). Catalog loader accepted the new control (no `catalog:` error).
 - [ ] **Step 105** [AFTER-E-A][LIVE-RW][B] ~2m: After the batch (037 included): `cd /home/govan/tmp/unheaded && WELL_DB=unheaded_ops WELL_USER=ops_writer WELL_PASSWORD="$(grep '^OPS_WRITER_PASSWORD=' .env | cut -d= -f2-)" go run ./cmd/alert-policy -sync-well 2>&1 | tail -3` (confirm the env variable names against `pkg/database/config.go:80-100` first).
 - [ ] **Step 106** [AFTER-E-A][LIVE-RO][V] ~1m: 7 rows in `slo_definitions`; `go run ./cmd/alert-policy -check` with the same env prints no drift; `go run ./cmd/compliance-evidence | grep UH-SLO-01` is PASS (stack up, budgets > 0).
-- [ ] **Step 107** [W] ~4m: `security.yml` CI: the existing `alert-policy -check` step stays YAML-only in CI (no Well in GitHub); add a comment line saying the Well leg runs on west via `scripts/ci-local.sh` and add it there under the Well suites.
-- [ ] **Step 108** [W] ~4m: ADR-100 "Phase 2" row → built: table 037, `-sync-well`, drift check, `slo` evidence kind; the YAML stays the reviewable source and the Well is what the dashboard and compliance read. (After S-IRON-GATE: dashboard admin can edit objectives with a signed change record, ADR-099 §5; not here.)
-- [ ] **Step 109** [B] ~1m: `cd /home/govan/tmp/unheaded && go run ./cmd/alert-policy -check && git status --short | head`
-- [ ] **Step 110** [V]+[C] ~2m: **PHASE 3 EXIT GATE** — Steps 91, 98, 104 passed (106 if E-A). Commit: `[PLAN S-WELL-SPRING] Steps 100-110: slo evidence kind, UH-SLO-01, ADR-100 Phase 2 recorded`.
+- [x] **Step 107** [W] ~4m: `security.yml` CI: the existing `alert-policy -check` step stays YAML-only in CI (no Well in GitHub); add a comment line saying the Well leg runs on west via `scripts/ci-local.sh` and add it there under the Well suites.
+- [x] **Step 108** [W] ~4m: ADR-100 "Phase 2" row → built: table 037, `-sync-well`, drift check, `slo` evidence kind; the YAML stays the reviewable source and the Well is what the dashboard and compliance read. (After S-IRON-GATE: dashboard admin can edit objectives with a signed change record, ADR-099 §5; not here.)
+- [x] **Step 109** [B] ~1m: `cd /home/govan/tmp/unheaded && go run ./cmd/alert-policy -check && git status --short | head`
+- [x] **Step 110** [V]+[C] ~2m: **PHASE 3 EXIT GATE** — Steps 91, 98, 104 passed (106 if E-A). Commit: `[PLAN S-WELL-SPRING] Steps 100-110: slo evidence kind, UH-SLO-01, ADR-100 Phase 2 recorded`.
 
 ---
 

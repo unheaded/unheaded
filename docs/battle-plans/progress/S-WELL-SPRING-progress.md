@@ -116,3 +116,16 @@ backs up to `/srv/backups/unheaded-well/pre-batch-<UTC>/` via `db-backup.sh` as 
 `WELL_BATCH_BACKUP_ROOT`). Follow-on: first live window after 2026-11-15, run `scripts/well/index-drops-after-2026-11-15.sh`,
 commit the reviewed DROP list as a `notx` migration per database. Retention (Phase 4): `zhen_agent_runs.card_id` references
 `kanban_tasks` with no ON DELETE; purging cards must not orphan run history.
+
+### Phase 3 merged (107ef3fe)
+
+Migration `040_ops_slo_definitions.sql` (plan's 037); column `slo_window` (`window` is reserved); history via a
+SECURITY DEFINER trigger; ops_writer has DELETE (`-sync-well` removes an SLO that left the YAML); 8 SLOs (ci-develop
+added since the plan); objectives limited to two decimals (numeric(6,4)). `alert-policy -check` compares YAML and the
+Well when `WELL_DB` is set. Compliance: `slo` evidence kind, UH-SLO-01 (50 controls; SSP regenerated with its 50th
+section). **UH-SLO-01 reads FAIL** on today's data (spent: wotan, dashboard, well, well-backups, log-shipping;
+passing: overlay, kev-feed; ci-develop no series yet), so failing controls go 24 -> 25 at the next collection.
+CI: `test-slo-definitions.sh` runs in the well-schema job (throwaway Well); `ci-local.sh` runs a live `-check` when
+`WELL_DB` is set. LIVE 105-106 after E-A applies 040: `WELL_DB=unheaded_ops WELL_PASSWORD=<OPS_WRITER_PASSWORD> go run
+./cmd/alert-policy -sync-well`, confirm 8 rows, then `-check` (no drift). Flake seen under load:
+`pkg/deploy/rollback TestManager_Rollback_DuplicateInProgress` (passes 20/20 alone).
