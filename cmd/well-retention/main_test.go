@@ -221,6 +221,19 @@ func TestPassword(t *testing.T) {
 	if _, err := password(env(map[string]string{"WELL_PASSWORD_FILE": filepath.Join(dir, "missing")})); err == nil {
 		t.Fatal("missing file accepted")
 	}
+	cred := t.TempDir()
+	if err := os.WriteFile(filepath.Join(cred, "well-password"), []byte("from-credential"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := password(env(map[string]string{"CREDENTIALS_DIRECTORY": cred})); err != nil || got != "from-credential" {
+		t.Fatalf("credential: %q %v", got, err)
+	}
+	if got, err := password(env(map[string]string{"CREDENTIALS_DIRECTORY": cred, "WELL_PASSWORD": "from-env"})); err != nil || got != "from-env" {
+		t.Fatalf("env over credential: %q %v", got, err)
+	}
+	if _, err := password(env(map[string]string{"CREDENTIALS_DIRECTORY": dir})); err == nil {
+		t.Fatal("a credentials directory without well-password accepted")
+	}
 }
 
 // A live run of an unratified policy is refused before any connection.

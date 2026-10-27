@@ -73,6 +73,11 @@ const (
 	// host timer only: deploy/systemd/unheaded-ci-status.service, account
 	// unheaded-ci-status.
 	CIStatus = 16712
+	// WellRetention runs The Well's weekly retention job on west
+	// (S-WELL-SPRING Phase 4), a host timer only:
+	// deploy/systemd/unheaded-well-retention.service, account
+	// unheaded-well-retention. It writes only its textfile.
+	WellRetention = 16713
 )
 
 // Kingdom services tier (16720-16759). These are Unheaded's own Go binaries
@@ -247,6 +252,7 @@ var Registry = map[string]int{
 	"alert-mailer":      AlertMailer,
 	"heartbeat":         Heartbeat,
 	"ci-status":         CIStatus,
+	"well-retention":    WellRetention,
 	"postgres":          Postgres,
 }
 

@@ -20,7 +20,8 @@
 //
 // Connection, as the login role retention_runner (migrations 042/043):
 // WELL_HOST (127.0.0.1), WELL_PORT (5432), WELL_USER (retention_runner),
-// WELL_PASSWORD or WELL_PASSWORD_FILE (exactly one; no default, FND-007),
+// WELL_PASSWORD or WELL_PASSWORD_FILE (not both), else the systemd
+// credential well-password (no default, FND-007),
 // WELL_SSLMODE (require; disable only for this host), WELL_APP_DB
 // (unheaded_app), WELL_OPS_DB (unheaded_ops). -metrics-dir (or
 // WELL_METRICS_DIR) writes well_retention.prom for node_exporter.
@@ -39,6 +40,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -60,11 +62,21 @@ func getenv(key, def string) string {
 	return def
 }
 
-// password returns the login password from WELL_PASSWORD or the file
-// WELL_PASSWORD_FILE names (systemd LoadCredential), never both, never
-// neither.
+// credentialName is the systemd credential the unit loads
+// (LoadCredential=well-password:...).
+const credentialName = "well-password"
+
+// password returns the login password from WELL_PASSWORD, or the file
+// WELL_PASSWORD_FILE names, or else the systemd credential well-password
+// ($CREDENTIALS_DIRECTORY); never WELL_PASSWORD and WELL_PASSWORD_FILE
+// both, never none.
 func password(get func(string) string) (string, error) {
 	pw, file := get("WELL_PASSWORD"), get("WELL_PASSWORD_FILE")
+	if pw == "" && file == "" {
+		if dir := get("CREDENTIALS_DIRECTORY"); dir != "" {
+			file = filepath.Join(dir, credentialName)
+		}
+	}
 	switch {
 	case pw != "" && file != "":
 		return "", errors.New("set WELL_PASSWORD or WELL_PASSWORD_FILE, not both")
