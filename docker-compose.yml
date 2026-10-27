@@ -694,7 +694,7 @@ services:
       # checked by services/wotan/cmd/wotan/allowlist_test.go). Auto-approve
       # then keys on the token's verified sub (configs/wotan.yaml).
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "akira,anomaly,architect,captain,chaos-controller,dashboard-backend,gateway,heimdall,kanban-app,kev-poller,micromanager,monad,perf-benchmark,shield,sophia,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,zhen-agentd,zhen-claude"
+      AUTH_ALLOW_CALLERS: "akira,anomaly,architect,captain,chaos-controller,dashboard-backend,ebpf-collector,gateway,heimdall,kanban-app,kev-poller,micromanager,monad,perf-benchmark,shield,sophia,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,zhen-agentd,zhen-claude"
       WOTAN_TOPIC_CONFIG: /etc/wotan/wotan.yaml   # auto-approve allowlist; without it every subscriber stays pending_approval
       # Under the 256M limit so the GC works harder before the kernel OOM-kills.
       # Payload is bounded by --buffer-bytes (8 MiB per room) and, for every
