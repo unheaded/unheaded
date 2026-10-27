@@ -46,6 +46,9 @@ type ServiceTarget struct {
 	// UNHEADED_TLS_ENABLED=true). Set "http" for a third-party service that
 	// does not serve TLS.
 	Scheme string
+	// Exec, when set, makes this an exec check (exec_check.go): Host, Port,
+	// HealthPath and Scheme are ignored and the command's exit code is the vote.
+	Exec *ExecCheck
 }
 
 // HealthReport is a single health check result, the payload of every
@@ -77,6 +80,9 @@ type Akira struct {
 	severity map[string]Severity // last severity per service, to report changes
 	verdicts map[string]Verdict  // last tally, for GetStates
 
+	execMu   sync.Mutex
+	execLast map[string]execRun // last run per exec target, reused within its Interval
+
 	sweeps atomic.Uint64 // completed CheckAll passes; see Sweeps
 
 	// Callbacks
@@ -95,7 +101,14 @@ func NewAkira(nodeID string, targets []ServiceTarget) *Akira {
 		ballot:   NewBallot(),
 		severity: map[string]Severity{},
 		verdicts: map[string]Verdict{},
+		execLast: map[string]execRun{},
 	}
+}
+
+// execRun is an exec target's last run.
+type execRun struct {
+	at  time.Time
+	res ExecResult
 }
 
 // SetHTTPClient replaces the checks' client, e.g. with pkg/tls.ClientFromEnv
@@ -130,6 +143,9 @@ func (w *Akira) Record(r HealthReport) {
 
 // CheckService performs a single health check on a service.
 func (w *Akira) CheckService(target ServiceTarget) HealthReport {
+	if target.Exec != nil {
+		return w.checkExec(target)
+	}
 	path := target.HealthPath
 	if path == "" {
 		path = "/health"
@@ -162,6 +178,38 @@ func (w *Akira) CheckService(target ServiceTarget) HealthReport {
 		}
 	}
 
+	return report
+}
+
+// checkExec runs an exec target when its Interval has passed (or it never
+// ran), else re-votes the last result with a fresh timestamp so the vote
+// does not expire between runs.
+func (w *Akira) checkExec(target ServiceTarget) HealthReport {
+	w.execMu.Lock()
+	last, ok := w.execLast[target.Name]
+	w.execMu.Unlock()
+	now := time.Now()
+	if !ok || target.Exec.Interval <= 0 || now.Sub(last.at) >= target.Exec.Interval {
+		last = execRun{at: now, res: RunExec(context.Background(), *target.Exec)}
+		w.execMu.Lock()
+		w.execLast[target.Name] = last
+		w.execMu.Unlock()
+		if !last.res.Healthy() {
+			w.logger.Warn().Str("check", target.Name).Int("exit", last.res.ExitCode).
+				Bool("timed_out", last.res.TimedOut).Dur("took", last.res.Duration).
+				Msg("exec check failing")
+		}
+	}
+	report := HealthReport{
+		Service:   target.Name,
+		Reporter:  w.nodeID,
+		Timestamp: time.Now(),
+		Latency:   last.res.Duration,
+		Healthy:   last.res.Healthy(),
+	}
+	if !report.Healthy {
+		report.Error = last.res.summary()
+	}
 	return report
 }
 

@@ -17,3 +17,12 @@ targets:
     port: 20001
   - name: daemon
     port: 17000
+  # S-IRON-GATE Phase 10 (ADR-034 Phase 7): cert expiry as an exec check.
+  # argv only (no shell), Akira's own uid, killed after 30 s; exit 0 healthy.
+  # The runbook reads /etc/unheaded/tls/*/ (falls back to
+  # /var/lib/unheaded/pki); runner and runbook ship in unheaded-configs.
+  - name: cert-expiry
+    type: exec
+    argv: ["/usr/bin/python3", "-B", "/opt/unheaded/scripts/run-runbook.py", "/opt/unheaded/runbooks/pki/akira-cert-expiry-check.yaml"]
+    interval: 1h
+    timeout: 30s

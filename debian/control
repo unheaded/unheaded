@@ -38,6 +38,7 @@ Description: Unheaded Kanban Application
 
 Package: unheaded-configs
 Architecture: all
+Depends: python3, python3-yaml, openssl
 Description: Unheaded Kingdom Configuration Files
  Default configuration files, systemd service units, and security
  baselines for all Unheaded services.
