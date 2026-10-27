@@ -8,10 +8,15 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 )
+
+// ErrConfirmerNotAllowed: the confirming principal may not confirm for
+// the principal that requested the call (RT-03, confirmerAllowed).
+var ErrConfirmerNotAllowed = errors.New("confirmation refused")
 
 // PendingConfirmTTL is how long a pending-confirmation token remains
 // valid after issuance. Per B2 design (eval/coding-gate/probe-2026-
@@ -59,9 +64,11 @@ func (s *confirmStore) IssuePending(tc ToolCall) (string, error) {
 
 // consume returns the bound ToolCall for a valid token and atomically
 // marks the token used. Returns error if the token is unknown, used,
-// or expired. Callers should treat any error as "do not execute" and
-// surface a fresh confirmation prompt.
-func (s *confirmStore) consume(token string) (ToolCall, error) {
+// or expired, or if approvedBy may not confirm for the principal that
+// requested the call (RT-03; that refusal leaves the token unused, so a
+// borrowed token cannot be burned by the borrower). Callers should treat
+// any error as "do not execute" and surface a fresh confirmation prompt.
+func (s *confirmStore) consume(token, approvedBy string) (ToolCall, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -77,6 +84,9 @@ func (s *confirmStore) consume(token string) (ToolCall, error) {
 		// against a token that briefly straddles the deadline).
 		e.Used = true
 		return ToolCall{}, fmt.Errorf("confirmation token expired")
+	}
+	if !confirmerAllowed(e.Call.Principal, approvedBy) {
+		return ToolCall{}, fmt.Errorf("%w: confirmer %q may not confirm a call requested by %q", ErrConfirmerNotAllowed, approvedBy, e.Call.Principal)
 	}
 	e.Used = true
 	return e.Call, nil
@@ -136,15 +146,22 @@ func (c *Champion) IssuePendingConfirmation(tc ToolCall) (string, error) {
 // and 3 (destructive-verb) are still enforced — the user can authorize
 // an untrusted source, but they cannot authorize destruction.
 //
+// approvedBy is the confirming principal; it must be allowed to confirm
+// for the principal the call was issued for (confirmerAllowed: the same
+// ui:/tty: principal, or QueuePrincipal; agent:* never).
+//
 // Returns the same shape as Dispatch (any output, error). On token
-// failure (unknown / used / expired) returns the token error and does
-// NOT execute the call.
-func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token string) (any, error) {
+// failure (unknown / used / expired / wrong confirmer) returns the token
+// error and does NOT execute the call.
+func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token, approvedBy string) (any, error) {
 	if c.confirmStore == nil {
 		return nil, fmt.Errorf("no pending confirmations")
 	}
-	tc, err := c.confirmStore.consume(token)
+	tc, err := c.confirmStore.consume(token, approvedBy)
 	if err != nil {
+		if errors.Is(err, ErrConfirmerNotAllowed) {
+			_, _ = c.logAction(ctx, "confirm_refused_principal", "ToolCall token: "+err.Error(), approvedBy)
+		}
 		return nil, err
 	}
 
@@ -159,7 +176,7 @@ func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token string) (an
 	// this despite the warning."
 	_, _ = c.logAction(ctx, "tool_call_user_confirmed",
 		fmt.Sprintf("ToolCall: %s (user confirmed untrusted justification)", tc.Name),
-		"user")
+		approvedBy)
 
 	// Now route to underlying — bypass AcceptToolCall by using the
 	// same switch as Dispatch (we already cleared the relevant gates).

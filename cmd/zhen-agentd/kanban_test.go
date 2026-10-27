@@ -111,7 +111,7 @@ func newKanbanDaemon(t *testing.T, kStore champion.KanbanStore, retr agent.Retri
 	mux.Handle("/metrics", prom.Handler())
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
-	ts := httptest.NewServer(mux)
+	ts := httptest.NewServer(testAuth(mux))
 	t.Cleanup(ts.Close)
 	return ts, root
 }

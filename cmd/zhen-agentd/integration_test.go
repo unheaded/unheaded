@@ -88,7 +88,8 @@ func (nopActionStore) GetActions(context.Context, string, int) ([]champion.Actio
 
 // newTestDaemon spins up the full mux + server wrapped in an
 // httptest.Server. Returns the server and the Champion-pool tempdir
-// (which is also the daemon's defaultRoot). No auth, no rate limit —
+// (which is also the daemon's defaultRoot). Authenticated as "stevie"
+// (testAuth, so tokens are redeemable by the caller), no rate limit —
 // tests assert the handler chain end-to-end, not the middleware
 // wrappers (those are unit-tested separately).
 func newTestDaemon(t *testing.T, retr agent.Retriever, llm agent.LLM) (*httptest.Server, string) {
@@ -137,7 +138,7 @@ func newTestDaemonOpts(t *testing.T, root string, retr agent.Retriever, llm agen
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
 	mux.Handle("/api/v1/openapi.json", instrument("/api/v1/openapi.json", http.HandlerFunc(srv.handleOpenAPI)))
 
-	ts := httptest.NewServer(mux)
+	ts := httptest.NewServer(testAuth(mux))
 	t.Cleanup(ts.Close)
 	return ts
 }

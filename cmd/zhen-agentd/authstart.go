@@ -19,6 +19,21 @@ const (
 	defaultRateBurst    = 10
 )
 
+// anonymousPrincipal is the principal of a request with no authenticated
+// identity (the -no-auth loopback daemon). Its calls run as before, but a
+// confirmation it caused cannot be redeemed (RT-03).
+const anonymousPrincipal = "ui:anonymous"
+
+// requestPrincipal is the champion.ToolCall.Principal for a request:
+// "ui:"+the authenticated subject, or anonymousPrincipal. It comes only
+// from the auth middleware's identity, never from the request body.
+func requestPrincipal(r *http.Request) string {
+	if id := auth.IdentityFromContext(r.Context()); id != nil && id.Subject != "" {
+		return "ui:" + id.Subject
+	}
+	return anonymousPrincipal
+}
+
 // errNoAuthToken is why zhen-agentd will not open its listener.
 var errNoAuthToken = errors.New("no auth token set; set AUTH_ENABLED=true with AUTH_API_KEYS " +
 	"(or AUTH_API_KEY_FILE / AUTH_JWT_KEY), or pass -no-auth for a loopback dev listener")

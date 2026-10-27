@@ -54,5 +54,19 @@ func FuzzPendingCallFor(f *testing.F) {
 		if string(mod) != content && pm.SHA256 == pa.SHA256 {
 			t.Fatalf("a one-byte change in content kept the hash: %q -> %q", content, mod)
 		}
+		// RT-03: binding a requester changes the hash; two different
+		// requesters never share one.
+		a["content"] = content
+		pr, err := c.PendingCallFor(ToolCall{Name: "write_file", Args: a, Principal: "ui:" + k}, time.Minute)
+		if err != nil {
+			return
+		}
+		ps, err := c.PendingCallFor(ToolCall{Name: "write_file", Args: a, Principal: "tty:" + k}, time.Minute)
+		if err != nil {
+			return
+		}
+		if pr.SHA256 == pa.SHA256 || pr.SHA256 == ps.SHA256 {
+			t.Fatalf("requester not bound into the hash: %s / %s", pr.Canonical, ps.Canonical)
+		}
 	})
 }

@@ -40,6 +40,13 @@ type ToolCall struct {
 	// for audit. Free-form string; e.g. "zhen-rag@<gguf-sha>" or
 	// "session-uid".
 	EmittedBy string `json:"emitted_by"`
+
+	// Principal is the authenticated caller the call acts for, set by
+	// the serving layer from its own authentication, never from model
+	// output or a request body: "ui:<subject>", "tty:<user>". A pending
+	// confirmation is bound to it (RT-03): only the same principal, or
+	// "queue:stevie", may confirm; "agent:<model>" never confirms.
+	Principal string `json:"principal,omitempty"`
 }
 
 // Reference mirrors the cs/vor B1-schema source-provenance fields.

@@ -187,6 +187,7 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 		Args:          req.Args,
 		Justification: justification,
 		EmittedBy:     emittedBy,
+		Principal:     requestPrincipal(r), // RT-03: a pending token is bound to it
 	}
 
 	out, dispatchErr := champ.Dispatch(r.Context(), tc)

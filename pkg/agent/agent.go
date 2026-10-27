@@ -60,6 +60,10 @@ type Config struct {
 	// issued, so none can reach whoever reads the trace (S-TWO-BRAINS
 	// Step 222: an /ask caller may be a model).
 	OnPending func(ctx context.Context, tc champion.ToolCall, reason string) (queueID string)
+	// Principal is the authenticated caller the run acts for ("ui:<x>"),
+	// set by the serving layer. Every tool call carries it, so a pending
+	// confirmation token is bound to it (RT-03).
+	Principal string
 }
 
 func (c *Config) defaulted() Config {
@@ -286,6 +290,7 @@ func (a *Agent) Stream(ctx context.Context, goal string, cb TurnCallback) (*Resu
 				Args:          out.ToolCall.Args,
 				Justification: justification,
 				EmittedBy:     "zhen-agent",
+				Principal:     a.cfg.Principal,
 			}
 			t.ToolCall = &tc
 

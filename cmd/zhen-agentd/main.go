@@ -560,6 +560,7 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		MaxTopicChars: defaultMaxChars,
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
+		Principal:     requestPrincipal(r), // RT-03: pending tokens bind to the caller
 	}
 	if !s.askTokens {
 		cfg.OnPending = s.askPending(champ, req.SessionID)
@@ -738,6 +739,7 @@ func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
 		MaxTopicChars: defaultMaxChars,
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
+		Principal:     requestPrincipal(r), // RT-03: pending tokens bind to the caller
 	}
 	if !s.askTokens {
 		cfg.OnPending = s.askPending(champ, req.SessionID)
@@ -860,7 +862,19 @@ func (s *server) handleConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, err := champ.ConfirmPendingToolCall(r.Context(), req.Token)
+	// RT-03: the token is bound to the principal that caused it; only an
+	// authenticated caller can be that principal.
+	principal := requestPrincipal(r)
+	if principal == anonymousPrincipal {
+		confirmTokensRedeemed.WithLabelValues("denied").Inc()
+		writeJSON(w, http.StatusForbidden, confirmResponse{
+			Status: "denied",
+			Reason: "confirmation requires an authenticated principal",
+		})
+		return
+	}
+
+	out, err := champ.ConfirmPendingToolCall(r.Context(), req.Token, principal)
 	if err != nil {
 		// Classify the error for metrics + machine-readable status.
 		status := classifyConfirmError(err)
@@ -890,6 +904,9 @@ func (s *server) handleConfirm(w http.ResponseWriter, r *http.Request) {
 func classifyConfirmError(err error) string {
 	if err == nil {
 		return "ok"
+	}
+	if errors.Is(err, champion.ErrConfirmerNotAllowed) {
+		return "denied"
 	}
 	msg := err.Error()
 	switch {

@@ -25,6 +25,7 @@ func untrustedWrite(t *testing.T, c *Champion) ToolCall {
 		},
 		Justification: []Reference{externalRef("evil", "lbl")},
 		EmittedBy:     "test",
+		Principal:     "ui:stevie",
 	}
 }
 
@@ -49,7 +50,7 @@ func TestConfirm_HappyPath(t *testing.T) {
 	}
 
 	// Confirm — should run the call.
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err != nil {
 		t.Fatalf("ConfirmPendingToolCall: %v", err)
 	}
@@ -73,11 +74,11 @@ func TestConfirm_TokenSingleUse(t *testing.T) {
 		t.Fatalf("issue: %v", err)
 	}
 	// First confirm consumes the token.
-	if _, err := c.ConfirmPendingToolCall(context.Background(), tok); err != nil {
+	if _, err := c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie"); err != nil {
 		t.Fatalf("first confirm: %v", err)
 	}
 	// Second confirm should fail.
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected error on token reuse")
 	}
@@ -93,7 +94,7 @@ func TestConfirm_UnknownToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issue: %v", err)
 	}
-	_, err = c.ConfirmPendingToolCall(context.Background(), "nope-not-a-real-token")
+	_, err = c.ConfirmPendingToolCall(context.Background(), "nope-not-a-real-token", "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -116,7 +117,7 @@ func TestConfirm_ExpiredToken(t *testing.T) {
 	c.confirmStore.entries[tok].ExpiresAt = time.Now().Add(-1 * time.Second)
 	c.confirmStore.mu.Unlock()
 
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected expired error")
 	}
@@ -138,12 +139,13 @@ func TestConfirm_DestructiveStillRefusedAfterConfirm(t *testing.T) {
 		},
 		Justification: []Reference{externalRef("evil", "lbl")},
 		EmittedBy:     "test",
+		Principal:     "ui:stevie",
 	}
 	tok, err := c.IssuePendingConfirmation(tc)
 	if err != nil {
 		t.Fatalf("issue: %v", err)
 	}
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected destructive refusal even after confirm")
 	}
@@ -166,12 +168,13 @@ func TestConfirm_PathStillEnforcedAfterConfirm(t *testing.T) {
 		},
 		Justification: []Reference{externalRef("evil", "lbl")},
 		EmittedBy:     "test",
+		Principal:     "ui:stevie",
 	}
 	tok, err := c.IssuePendingConfirmation(tc)
 	if err != nil {
 		t.Fatalf("issue: %v", err)
 	}
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected path-allowlist refusal even after confirm")
 	}
@@ -183,7 +186,7 @@ func TestConfirm_PathStillEnforcedAfterConfirm(t *testing.T) {
 func TestConfirm_NoStoreNoConfirm(t *testing.T) {
 	c, _ := newTestChampion(t)
 	// Have not called IssuePendingConfirmation yet → store is nil.
-	_, err := c.ConfirmPendingToolCall(context.Background(), "any-token")
+	_, err := c.ConfirmPendingToolCall(context.Background(), "any-token", "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected error when store is nil")
 	}

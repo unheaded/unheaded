@@ -244,7 +244,10 @@ func confirmApprove(ctx context.Context, store confirmStore, id string, allowed 
 	if err := store.Decide(ctx, id, "approved", by); err != nil {
 		return refuse("%v", err)
 	}
-	out, err := champ.ConfirmCall(ctx, p, r.CallSHA256, by)
+	// The queue confirms as QueuePrincipal (RT-03): this command runs
+	// under Stevie's own Well login, the out-of-band channel that may
+	// confirm any requester's call. by (the human) is what the row records.
+	out, err := champ.ConfirmCall(ctx, p, r.CallSHA256, champion.QueuePrincipal)
 	if err != nil {
 		_ = store.Finish(ctx, id, "failed")
 		_, _ = fmt.Fprintf(stderr, "zhen-claude confirm: %s approved by %s but failed: %v\n", id, by, err)

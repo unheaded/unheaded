@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -42,15 +43,67 @@ type PendingCall struct {
 	Args        map[string]any `json:"args"`
 	ProjectRoot string         `json:"project_root"`
 	EmittedBy   string         `json:"emitted_by"`
-	Canonical   []byte         `json:"-"` // canonical JSON of tool, args, project_root
+	Requester   string         `json:"requester,omitempty"` // principal that asked (RT-03); hashed
+	Canonical   []byte         `json:"-"`                   // canonical JSON of tool, args, project_root[, requester]
 	SHA256      string         `json:"sha256"`
 	ExpiresAt   time.Time      `json:"expires_at"`
+}
+
+// QueuePrincipal is the confirmer for the Well queue: `zhen-claude
+// confirm approve`, run under Stevie's own login to the Well. It may
+// confirm any requester's call (and the only one that may confirm a
+// call with no recorded requester).
+const QueuePrincipal = "queue:stevie"
+
+// confirmerAllowed reports whether approvedBy may confirm a call that
+// requester asked for (RT-03). agent:* never confirms; ui:<x> and
+// tty:<x> confirm only their own requests; QueuePrincipal confirms any.
+// Principals are compared exactly: no case folding, no trimming.
+func confirmerAllowed(requester, approvedBy string) bool {
+	if approvedBy == QueuePrincipal {
+		return true
+	}
+	if !humanPrincipal(approvedBy) {
+		return false
+	}
+	return approvedBy == requester
+}
+
+// humanPrincipal reports whether p is a well-formed ui:<x> or tty:<x>
+// principal: a non-empty name of printable ASCII with no spaces.
+func humanPrincipal(p string) bool {
+	var name string
+	switch {
+	case strings.HasPrefix(p, "ui:"):
+		name = p[len("ui:"):]
+	case strings.HasPrefix(p, "tty:"):
+		name = p[len("tty:"):]
+	default:
+		return false
+	}
+	if name == "" || len(name) > 256 {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		if name[i] <= ' ' || name[i] > '~' {
+			return false
+		}
+	}
+	return true
 }
 
 // CanonicalCall serialises a call deterministically: encoding/json sorts
 // map keys at every depth, so equal maps give equal bytes whatever their
 // insertion order. It returns the bytes and their SHA-256 (hex).
 func CanonicalCall(tool string, args map[string]any, projectRoot string) ([]byte, string, error) {
+	return CanonicalCallFor(tool, args, projectRoot, "")
+}
+
+// CanonicalCallFor is CanonicalCall bound to the requesting principal:
+// a non-empty requester is part of the hashed bytes, so an approval
+// cannot be re-bound to another requester. An empty requester hashes
+// exactly like CanonicalCall (rows queued before the field existed).
+func CanonicalCallFor(tool string, args map[string]any, projectRoot, requester string) ([]byte, string, error) {
 	if args == nil {
 		args = map[string]any{}
 	}
@@ -58,10 +111,14 @@ func CanonicalCall(tool string, args map[string]any, projectRoot string) ([]byte
 	// different byte strings would hash alike (found by
 	// FuzzPendingCallFor). Arguments decoded from JSON are always valid;
 	// anything else is refused rather than hashed ambiguously.
-	if !validUTF8Value(tool) || !validUTF8Value(projectRoot) || !validUTF8Value(args) {
+	if !validUTF8Value(tool) || !validUTF8Value(projectRoot) || !validUTF8Value(requester) || !validUTF8Value(args) {
 		return nil, "", errors.New("canonical call: a string is not valid UTF-8")
 	}
-	b, err := json.Marshal(map[string]any{"tool": tool, "args": args, "project_root": projectRoot})
+	call := map[string]any{"tool": tool, "args": args, "project_root": projectRoot}
+	if requester != "" {
+		call["requester"] = requester
+	}
+	b, err := json.Marshal(call)
 	if err != nil {
 		return nil, "", fmt.Errorf("canonical call: %w", err)
 	}
@@ -81,7 +138,7 @@ func (c *Champion) PendingCallFor(tc ToolCall, ttl time.Duration) (PendingCall, 
 	if ttl <= 0 {
 		return PendingCall{}, errors.New("confirmation TTL must be positive")
 	}
-	canon, sum, err := CanonicalCall(tc.Name, tc.Args, c.config.ProjectRoot)
+	canon, sum, err := CanonicalCallFor(tc.Name, tc.Args, c.config.ProjectRoot, tc.Principal)
 	if err != nil {
 		return PendingCall{}, err
 	}
@@ -95,14 +152,16 @@ func (c *Champion) PendingCallFor(tc ToolCall, ttl time.Duration) (PendingCall, 
 	}
 	return PendingCall{
 		Tool: tc.Name, Args: round.Args, ProjectRoot: c.config.ProjectRoot, EmittedBy: tc.EmittedBy,
-		Canonical: canon, SHA256: sum, ExpiresAt: time.Now().Add(ttl),
+		Requester: tc.Principal, Canonical: canon, SHA256: sum, ExpiresAt: time.Now().Add(ttl),
 	}, nil
 }
 
 // ConfirmCall runs an approved PendingCall. approvedSHA is the hash the
 // human approved (the stored call_sha256); the call is re-hashed here
 // with this Champion's root, so tampered arguments, a different tool or a
-// different project root all refuse. approvedBy names the human.
+// different project root all refuse. approvedBy is the confirming
+// principal (ui:<x>, tty:<x> or QueuePrincipal); it must be allowed to
+// confirm for p.Requester (confirmerAllowed), which the hash binds.
 func (c *Champion) ConfirmCall(ctx context.Context, p PendingCall, approvedSHA, approvedBy string) (any, error) {
 	if !ConfirmableTools[p.Tool] {
 		return nil, fmt.Errorf("tool %q cannot be confirmed", p.Tool)
@@ -110,15 +169,20 @@ func (c *Champion) ConfirmCall(ctx context.Context, p PendingCall, approvedSHA, 
 	if !p.ExpiresAt.IsZero() && !time.Now().Before(p.ExpiresAt) {
 		return nil, fmt.Errorf("confirmation expired at %s", p.ExpiresAt.UTC().Format(time.RFC3339))
 	}
-	_, sum, err := CanonicalCall(p.Tool, p.Args, c.config.ProjectRoot)
+	_, sum, err := CanonicalCallFor(p.Tool, p.Args, c.config.ProjectRoot, p.Requester)
 	if err != nil {
 		return nil, err
 	}
 	if len(approvedSHA) != len(sum) || subtle.ConstantTimeCompare([]byte(sum), []byte(approvedSHA)) != 1 {
 		_, _ = c.logAction(ctx, "confirm_refused_hash", fmt.Sprintf("ToolCall: %s (call does not match its approved hash)", p.Tool), approvedBy)
-		return nil, errors.New("the call does not match the approved hash (tampered, or approved for another project root)")
+		return nil, errors.New("the call does not match the approved hash (tampered, re-bound to another requester, or approved for another project root)")
 	}
-	tc := ToolCall{Name: p.Tool, Args: p.Args, EmittedBy: p.EmittedBy}
+	if !confirmerAllowed(p.Requester, approvedBy) {
+		_, _ = c.logAction(ctx, "confirm_refused_principal",
+			fmt.Sprintf("ToolCall: %s (confirmer %q may not confirm a call requested by %q)", p.Tool, approvedBy, p.Requester), approvedBy)
+		return nil, fmt.Errorf("%w: confirmer %q may not confirm a call requested by %q", ErrConfirmerNotAllowed, approvedBy, p.Requester)
+	}
+	tc := ToolCall{Name: p.Tool, Args: p.Args, EmittedBy: p.EmittedBy, Principal: p.Requester}
 	if err := c.confirmedGate(ctx, tc); err != nil {
 		return nil, err
 	}

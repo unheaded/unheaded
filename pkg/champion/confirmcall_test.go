@@ -18,6 +18,7 @@ func writeCall(c *Champion, name, content string) ToolCall {
 		Name:      "write_file",
 		Args:      map[string]any{"path": filepath.Join(c.config.ProjectRoot, name), "content": content},
 		EmittedBy: "claude-api/claude-opus-5-5/conv1",
+		Principal: "tty:stevie@west",
 	}
 }
 
@@ -81,7 +82,7 @@ func TestConfirmCall_RunsTheBoundCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.ConfirmCall(context.Background(), p, p.SHA256, "stevie@west"); err != nil {
+	if _, err := c.ConfirmCall(context.Background(), p, p.SHA256, "tty:stevie@west"); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(filepath.Join(c.config.ProjectRoot, "out.txt"))
@@ -98,7 +99,7 @@ func TestConfirmCall_RunsTheBoundCall(t *testing.T) {
 		t.Errorf("actions = %v; want confirm_approve, then the tool's own file.write row", types)
 	}
 	for _, a := range store.actions {
-		if a.ActionType == "confirm_approve" && a.TriggeredBy != "stevie@west" {
+		if a.ActionType == "confirm_approve" && a.TriggeredBy != "tty:stevie@west" {
 			t.Errorf("approval recorded as %q", a.TriggeredBy)
 		}
 	}
@@ -109,12 +110,12 @@ func TestConfirmCall_RefusesTamper(t *testing.T) {
 	p, _ := c.PendingCallFor(writeCall(c, "out.txt", "benign"), time.Minute)
 	// The stored args are swapped after the hash was taken.
 	p.Args["content"] = "evil"
-	if _, err := c.ConfirmCall(context.Background(), p, p.SHA256, "stevie"); err == nil {
+	if _, err := c.ConfirmCall(context.Background(), p, p.SHA256, "tty:stevie@west"); err == nil {
 		t.Fatal("a call whose args no longer match its hash ran")
 	}
 	// A wrong hash for honest args.
 	q, _ := c.PendingCallFor(writeCall(c, "out.txt", "benign"), time.Minute)
-	if _, err := c.ConfirmCall(context.Background(), q, strings.Repeat("0", 64), "stevie"); err == nil {
+	if _, err := c.ConfirmCall(context.Background(), q, strings.Repeat("0", 64), "tty:stevie@west"); err == nil {
 		t.Fatal("a mismatched hash ran")
 	}
 	if _, err := os.Stat(filepath.Join(c.config.ProjectRoot, "out.txt")); !os.IsNotExist(err) {
@@ -126,7 +127,7 @@ func TestConfirmCall_RefusesOtherRoot(t *testing.T) {
 	a, _ := newTestChampion(t)
 	b, _ := newTestChampion(t)
 	p, _ := a.PendingCallFor(writeCall(a, "out.txt", "x"), time.Minute)
-	if _, err := b.ConfirmCall(context.Background(), p, p.SHA256, "stevie"); err == nil {
+	if _, err := b.ConfirmCall(context.Background(), p, p.SHA256, "tty:stevie@west"); err == nil {
 		t.Fatal("an approval for root A ran under root B")
 	}
 }
@@ -135,7 +136,7 @@ func TestConfirmCall_RefusesExpired(t *testing.T) {
 	c, _ := newTestChampion(t)
 	p, _ := c.PendingCallFor(writeCall(c, "out.txt", "x"), time.Minute)
 	p.ExpiresAt = time.Now().Add(-time.Second)
-	if _, err := c.ConfirmCall(context.Background(), p, p.SHA256, "stevie"); err == nil {
+	if _, err := c.ConfirmCall(context.Background(), p, p.SHA256, "tty:stevie@west"); err == nil {
 		t.Fatal("an expired call ran")
 	}
 }
@@ -143,18 +144,18 @@ func TestConfirmCall_RefusesExpired(t *testing.T) {
 func TestConfirmCall_GatesStillHold(t *testing.T) {
 	c, _ := newTestChampion(t)
 	destructive, _ := c.PendingCallFor(writeCall(c, "x.sh", "rm -rf /"), time.Minute)
-	if _, err := c.ConfirmCall(context.Background(), destructive, destructive.SHA256, "stevie"); err == nil {
+	if _, err := c.ConfirmCall(context.Background(), destructive, destructive.SHA256, "tty:stevie@west"); err == nil {
 		t.Error("Rule 3: a destructive verb ran after approval")
 	}
 	outside := writeCall(c, "x", "y")
 	outside.Args["path"] = "/etc/unheaded-test-outside"
 	po, _ := c.PendingCallFor(outside, time.Minute)
-	if _, err := c.ConfirmCall(context.Background(), po, po.SHA256, "stevie"); err == nil {
+	if _, err := c.ConfirmCall(context.Background(), po, po.SHA256, "tty:stevie@west"); err == nil {
 		t.Error("Rule 1: an out-of-sandbox path ran after approval")
 	}
 	denied := writeCall(c, ".env", "K=V")
 	pd, _ := c.PendingCallFor(denied, time.Minute)
-	if _, err := c.ConfirmCall(context.Background(), pd, pd.SHA256, "stevie"); err == nil {
+	if _, err := c.ConfirmCall(context.Background(), pd, pd.SHA256, "tty:stevie@west"); err == nil {
 		t.Error("Rule 1: a denied path ran after approval")
 	}
 }
@@ -167,7 +168,7 @@ func TestConfirmCall_RefusesSymlinkOutOfSandbox(t *testing.T) {
 		t.Skip("symlinks unavailable:", err)
 	}
 	p, _ := c.PendingCallFor(writeCall(c, "escape/pwned.txt", "x"), time.Minute)
-	if _, err := c.ConfirmCall(context.Background(), p, p.SHA256, "stevie"); err == nil {
+	if _, err := c.ConfirmCall(context.Background(), p, p.SHA256, "tty:stevie@west"); err == nil {
 		t.Error("a write through a symlink out of the sandbox ran")
 	}
 	if _, err := os.Stat(filepath.Join(outside, "pwned.txt")); !os.IsNotExist(err) {
