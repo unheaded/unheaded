@@ -155,89 +155,89 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Environment
 
-- [ ] **Step 1** [ENV][B] ~1m: Confirm base commit and clean tree
+- [x] **Step 1** [ENV][B] ~1m: Confirm base commit and clean tree
   ```bash
   cd /home/govan/tmp/unheaded && git rev-parse --abbrev-ref HEAD && git log --oneline -1 && git status --short | wc -l
   ```
-- [ ] **Step 2** [V] ~1m: Branch is `develop` at or after `a7fe3acd` (`git merge-base --is-ancestor a7fe3acd HEAD && echo ok`), `git status --short | wc -l` prints `0` (the two untracked `host-agent` entries from the handoff are allowed: `git status --short | grep -v host-agent | wc -l` prints `0`). If fail → `git stash list` and STOP; do not start a sprint on a dirty tree.
-- [ ] **Step 3** [ENV][B] ~1m: Create the sprint branch
+- [x] **Step 2** [V] ~1m: Branch is `develop` at or after `a7fe3acd` (`git merge-base --is-ancestor a7fe3acd HEAD && echo ok`), `git status --short | wc -l` prints `0` (the two untracked `host-agent` entries from the handoff are allowed: `git status --short | grep -v host-agent | wc -l` prints `0`). If fail → `git stash list` and STOP; do not start a sprint on a dirty tree.
+- [x] **Step 3** [ENV][B] ~1m: Create the sprint branch
   ```bash
   cd /home/govan/tmp/unheaded && git checkout -b sprint/true-wire && git branch --show-current
   ```
-- [ ] **Step 4** [ENV][B] ~2m: Required tools
+- [x] **Step 4** [ENV][B] ~2m: Required tools
   ```bash
   for t in go cargo rustup bpftool jq python3 xml2rfc cargo-audit docker sudo; do printf '%-12s %s\n' "$t" "$(command -v $t 2>/dev/null || echo MISSING)"; done; go version; cargo --version; ls ~/.local/bin/xml2rfc
   ```
-- [ ] **Step 5** [V] ~1m: Every tool present except none of them MISSING; `xml2rfc` resolves (either on PATH or at `~/.local/bin/xml2rfc`; later steps use `~/.local/bin/xml2rfc` explicitly). If `bpftool` MISSING → Step 5a.
+- [x] **Step 5** [V] ~1m: Every tool present except none of them MISSING; `xml2rfc` resolves (either on PATH or at `~/.local/bin/xml2rfc`; later steps use `~/.local/bin/xml2rfc` explicitly). If `bpftool` MISSING → Step 5a.
 - [ ] **Step 5a** [D][S][B] ~3m: `sudo apt-get install -y linux-tools-common linux-tools-$(uname -r) | tail -2`; re-run Step 4.
-- [ ] **Step 6** [ENV][B] ~1m: GPG probe decides the commit flag for this session
+- [x] **Step 6** [ENV][B] ~1m: GPG probe decides the commit flag for this session
   ```bash
   cd /home/govan/tmp/unheaded && if timeout 20 git commit-tree -S -m probe "$(git rev-parse HEAD^{tree})" >/dev/null 2>&1; then echo "SIGN=yes"; else echo "SIGN=no -> use --no-gpg-sign"; fi
   ```
-- [ ] **Step 7** [ENV][B] ~1m: Sudo for the load gate
+- [x] **Step 7** [ENV][B] ~1m: Sudo for the load gate
   ```bash
   sudo -n true && echo "sudo: ok" || echo "sudo: NEEDS PASSWORD (load gates will exit 2)"
   ```
 
 ### Baselines (recorded, never edited by hand later)
 
-- [ ] **Step 8** [BUILD][B] ~4m: Go build + tidy
+- [x] **Step 8** [BUILD][B] ~4m: Go build + tidy
   ```bash
   cd /home/govan/tmp/unheaded && go build ./... && go mod tidy -diff | head -5; echo "tidy-rc=${PIPESTATUS[0]}"
   ```
-- [ ] **Step 9** [V] ~1m: `go build` exit 0 and `tidy-rc=0` with no diff lines. If fail → STOP (S-CLEAN-SLATE regressed; fix there first).
-- [ ] **Step 10** [TEST][B] ~15m: KNOWN FAILURES BASELINE
+- [x] **Step 9** [V] ~1m: `go build` exit 0 and `tidy-rc=0` with no diff lines. If fail → STOP (S-CLEAN-SLATE regressed; fix there first).
+- [x] **Step 10** [TEST][B] ~15m: KNOWN FAILURES BASELINE
   ```bash
   cd /home/govan/tmp/unheaded && mkdir -p docs/battle-plans/progress && go test ./... 2>&1 | grep -E '^(ok|FAIL|---)' | sort > docs/battle-plans/progress/S-TRUE-WIRE-go-baseline.txt; grep -c '^ok' docs/battle-plans/progress/S-TRUE-WIRE-go-baseline.txt; grep -E '^FAIL' docs/battle-plans/progress/S-TRUE-WIRE-go-baseline.txt || echo "no FAIL lines"
   ```
-- [ ] **Step 11** [TEST][B] ~6m: Rust baselines for the crates this plan touches
+- [x] **Step 11** [TEST][B] ~6m: Rust baselines for the crates this plan touches
   ```bash
   cd /home/govan/tmp/unheaded && for c in ebpf/monad-common pkg/../crates/upc-api crates/monad-mbc; do [ -f $c/Cargo.toml ] && (cd $c && cargo test 2>&1 | grep -E '^test result' | tail -1 | sed "s|^|$c: |"); done; (cd ebpf && cargo check --target=x86_64-unknown-linux-gnu 2>&1 | tail -1)
   ```
-- [ ] **Step 12** [V] ~1m: Every `test result:` line shows `0 failed`; `cargo check` prints `Finished`. Record the three lines into the progress file. If fail → the failing crate is a pre-existing failure: record it as KNOWN and continue.
-- [ ] **Step 13** [TEST][S][BARE-METAL][B] ~6m: eBPF load gate as it stands today
+- [x] **Step 12** [V] ~1m: Every `test result:` line shows `0 failed`; `cargo check` prints `Finished`. Record the three lines into the progress file. If fail → the failing crate is a pre-existing failure: record it as KNOWN and continue.
+- [x] **Step 13** [TEST][S][BARE-METAL][B] ~6m: eBPF load gate as it stands today
   ```bash
   cd /home/govan/tmp/unheaded && sudo -n true && scripts/check-ebpf-loads.sh 2>&1 | tail -8; echo "rc=${PIPESTATUS[0]}"
   ```
-- [ ] **Step 14** [V] ~1m: `rc=0` ([PASS]). If `rc=2` → sudo missing: mark Steps 13-16, 203-208, 224-230, 270-278 [BLOCKED] on sudo and continue (Appendix A.1). If `rc=1` → the known-failing list drifted on a7fe3acd: STOP, this is a S-CLEAN-SLATE regression.
-- [ ] **Step 15** [PREFLIGHT][S][BARE-METAL][B] ~8m: Record today's verified-insn numbers (the ratchet's seed; Phase 7 turns this into a file)
+- [x] **Step 14** [V] ~1m: `rc=0` ([PASS]). If `rc=2` → sudo missing: mark Steps 13-16, 203-208, 224-230, 270-278 [BLOCKED] on sudo and continue (Appendix A.1). If `rc=1` → the known-failing list drifted on a7fe3acd: STOP, this is a S-CLEAN-SLATE regression.
+- [x] **Step 15** [PREFLIGHT][S][BARE-METAL][B] ~8m: Record today's verified-insn numbers (the ratchet's seed; Phase 7 turns this into a file)
   ```bash
   cd /home/govan/tmp/unheaded && scripts/upc-regression.sh 2>&1 | grep -aE 'verified [0-9]+ insns|ascend|Doom|cart_(xdp|tick)|SAME|DIFF|ALL GREEN|FAIL' | head -14
   ```
-- [ ] **Step 16** [V] ~1m: Output contains `ALL GREEN`, ascend `926,542` (or the kernel's exact `verified 926542 insns`), Doom `761,580`, and `12/12 SAME`. Any other ascend/Doom number → record it in the progress file as the pre-sprint number with the kernel version (`uname -r`); the plan's gates compare against the recorded number, not the S5 one. If the harness fails → Appendix A.2.
+- [x] **Step 16** [V] ~1m: Output contains `ALL GREEN`, ascend `926,542` (or the kernel's exact `verified 926542 insns`), Doom `761,580`, and `12/12 SAME`. Any other ascend/Doom number → record it in the progress file as the pre-sprint number with the kernel version (`uname -r`); the plan's gates compare against the recorded number, not the S5 one. If the harness fails → Appendix A.2.
 
 ### Hypothesis verification (one pair per SITUATION claim)
 
-- [ ] **Step 17** [PREFLIGHT][B] ~1m: Flow action and event type values in code
+- [x] **Step 17** [PREFLIGHT][B] ~1m: Flow action and event type values in code
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'ActionForward|ActionDrop|EventBirth|EventAnomaly|FlagK0|KingdomReserved' pkg/protocol/bpfschema/core_maps.go; grep -nE 'Birth = |Hop = |Death = |Chaos = |Anomaly = ' ebpf/monad-common/src/lib.rs
   ```
-- [ ] **Step 18** [V] ~1m: `ActionForward uint8 = 0x01`, `ActionDrop uint8 = 0x05`, `EventBirth uint8 = 0x01`, `FlagK0 uint8 = 0x01`, Rust `Birth = 0x01 … Anomaly = 0x08`. If any differs → someone moved first; re-read Phase 2 against the actual values before executing it.
-- [ ] **Step 19** [PREFLIGHT][B] ~1m: Spec values
+- [x] **Step 18** [V] ~1m: `ActionForward uint8 = 0x01`, `ActionDrop uint8 = 0x05`, `EventBirth uint8 = 0x01`, `FlagK0 uint8 = 0x01`, Rust `Birth = 0x01 … Anomaly = 0x08`. If any differs → someone moved first; re-read Phase 2 against the actual values before executing it.
+- [x] **Step 19** [PREFLIGHT][B] ~1m: Spec values
   ```bash
   cd /home/govan/tmp/unheaded && sed -n '1249p;1317,1325p' docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md; grep -c 'open' docs/protocol/RFC-EDITOR-REQUESTS-S5.md
   ```
-- [ ] **Step 20** [V] ~1m: `0x00 FORWARD`, the nine EVENT_* lines 0x00-0x08, and `open` count ≥ 5. If the requests file has fewer than 5 `open` → someone ruled already; Phase 1 reviews the rulings instead of writing them.
-- [ ] **Step 21** [PREFLIGHT][B] ~1m: Shield stubs, debug stats, PQC map, packet-marker TODOs
+- [x] **Step 20** [V] ~1m: `0x00 FORWARD`, the nine EVENT_* lines 0x00-0x08, and `open` count ≥ 5. If the requests file has fewer than 5 `open` → someone ruled already; Phase 1 reviews the rulings instead of writing them.
+- [x] **Step 21** [PREFLIGHT][B] ~1m: Shield stubs, debug stats, PQC map, packet-marker TODOs
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'Deferred to reduce verifier|populated by|Future: validate monotonicity|Future: check fingerprint|hop_count as u16|STAT_TC_ENTRY|PQC_SIG_STATUS|pqc_fast_path_check' ebpf/shield-ebpf/src/main.rs | head -12; grep -nc 'TODO(E1)' ebpf/packet-marker/src/main.rs; grep -rlE 'unhd_hmac_keys|MapHmacKeys' --include=*.go cmd services pkg | grep -v bpfschema | grep -v maploader || echo "no userspace writer (as claimed)"
   ```
-- [ ] **Step 22** [V] ~1m: All eight patterns found in shield; `TODO(E1)` count is 2; "no userspace writer (as claimed)". If a writer exists → read it before Phase 5 and shrink Steps 191-199 accordingly.
-- [ ] **Step 23** [PREFLIGHT][B] ~2m: Supply-chain and licence facts
+- [x] **Step 22** [V] ~1m: All eight patterns found in shield; `TODO(E1)` count is 2; "no userspace writer (as claimed)". If a writer exists → read it before Phase 5 and shrink Steps 191-199 accordingly.
+- [x] **Step 23** [PREFLIGHT][B] ~2m: Supply-chain and licence facts
   ```bash
   cd /home/govan/tmp/unheaded && echo "rs-no-spdx=$(find . -name '*.rs' -not -path '*/target/*' -not -path './llama.cpp/*' -not -path './doom/*' -not -path './crates/xv6-mbc/upstream/*' | xargs grep -L 'SPDX-License-Identifier' 2>/dev/null | wc -l)"; echo "mit-spdx=$(grep -rl 'SPDX-License-Identifier: MIT' --exclude-dir=node_modules --exclude-dir=llama.cpp --exclude-dir=target --exclude-dir=.git --exclude-dir=doom --exclude-dir=upstream . | wc -l)"; echo "ledger-pending=$(awk -F'\t' 'NR>1 && $2=="PENDING"' docs/sweeps/TOTAL-SOURCE-SWEEP.tsv | wc -l)"; grep -c 'sign-off pending' docs/adr/ADR-004*.md; sed -n '2p' LICENSE; grep -nE '^(SYFT|GRYPE)_VERSION' scripts/lib/tool-pins.sh
   ```
-- [ ] **Step 24** [V] ~1m: `rs-no-spdx=71` (±3), `mit-spdx` ≈ 290, `ledger-pending=2192`, sign-off pending `2`, LICENSE line 2 `Copyright (c) 2024-2026 Stevie Bellis`. Record the exact numbers in the progress file; Phases 9-10 ratchet against them.
+- [x] **Step 24** [V] ~1m: `rs-no-spdx=71` (±3), `mit-spdx` ≈ 290, `ledger-pending=2192`, sign-off pending `2`, LICENSE line 2 `Copyright (c) 2024-2026 Stevie Bellis`. Record the exact numbers in the progress file; Phases 9-10 ratchet against them.
 
 ### Worktrees for parallel agents (skip if executing solo)
 
-- [ ] **Step 25** [ENV][B] ~2m: One worktree per parallel lane
+- [x] **Step 25** [ENV][B] ~2m: One worktree per parallel lane
   ```bash
   cd /home/govan/tmp/unheaded && for lane in rfc-desk bpfschema errors-wotan spdx fnd020-sophia supply; do git worktree add -q ../unheaded-tw-$lane -b sprint/true-wire-$lane sprint/true-wire 2>&1 | tail -1; done; git worktree list | grep true-wire | wc -l
   ```
-- [ ] **Step 26** [V] ~1m: `6` worktrees listed. Each agent merges its lane branch back into `sprint/true-wire` at its phase exit gate (`git merge --no-ff sprint/true-wire-<lane>`); the coordinator resolves conflicts. If any `git worktree add` failed → remove the half-made dir and retry once; else run that lane in the main tree sequentially.
-- [ ] **Step 27** [V] ~2m: **PHASE 0 EXIT GATE** — Steps 2, 5, 9, 12, 14 (or its BLOCKED note), 16, 18, 20, 22, 24 all passed; baselines written to `docs/battle-plans/progress/S-TRUE-WIRE-go-baseline.txt` and the progress file. If any hypothesis failed → amend the affected phase's SITUATION line before proceeding; do not execute a phase against a false premise.
-- [ ] **Step 28** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 26** [V] ~1m: `6` worktrees listed. Each agent merges its lane branch back into `sprint/true-wire` at its phase exit gate (`git merge --no-ff sprint/true-wire-<lane>`); the coordinator resolves conflicts. If any `git worktree add` failed → remove the half-made dir and retry once; else run that lane in the main tree sequentially.
+- [x] **Step 27** [V] ~2m: **PHASE 0 EXIT GATE** — Steps 2, 5, 9, 12, 14 (or its BLOCKED note), 16, 18, 20, 22, 24 all passed; baselines written to `docs/battle-plans/progress/S-TRUE-WIRE-go-baseline.txt` and the progress file. If any hypothesis failed → amend the affected phase's SITUATION line before proceeding; do not execute a phase against a false premise.
+- [x] **Step 28** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   cd /home/govan/tmp/unheaded && git add docs/battle-plans/progress/ && git commit $([ "$(git config commit.gpgsign)" = true ] && timeout 20 git commit-tree -S -m p "$(git rev-parse HEAD^{tree})" >/dev/null 2>&1 || echo --no-gpg-sign) -m "[PLAN S-TRUE-WIRE] Steps 1-28: preflight, baselines, sprint branch
 
