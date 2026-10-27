@@ -170,7 +170,13 @@ if ((GO)); then
 		fi
 	}
 	gotest "pkg/database DeployStore, ChaosStore" ./pkg/database/ 'TestDeployStore|TestChaosStore'
+	gotest "sword history contract (file + well)" ./services/sword/ 'TestHistoryContract'
+	gotest "sword rolling deploy and file import in the Well" ./services/sword/ 'TestDeploy.*Well|TestWellHistory'
+	gotest "yaldabaoth journal in the Well" ./services/yaldabaoth/ 'TestJournal.*Well|TestWellJournal'
+	gotest "chaos-controller revert-all and packet-chaos on the Well" ./cmd/chaos-controller/ 'TestRevertAllWell|TestPacketChaosWell'
 	unset WELL_TEST_DSN
+	rows=$(sq "SELECT count(*) FROM chaos_journal_transitions WHERE note = 'revert-all'")
+	[[ "$rows" -ge 3 ]] && pass "revert-all left $rows 'reverted' rows" || fail "revert-all rows: $rows"
 fi
 
 if ((fails > 0)); then echo "$fails check(s) failed"; exit 1; fi

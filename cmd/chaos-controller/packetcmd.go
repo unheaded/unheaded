@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"unheaded/pkg/statefile"
 	"unheaded/services/yaldabaoth"
 	"unheaded/services/yaldabaoth/packet"
 )
@@ -26,7 +25,8 @@ import (
 // Victoria SLO guard or HTTP auth is in reach of a netns on west. It keeps
 // the parts of the envelope that matter there: the lab-interface fence
 // (steel<N>-h, present), the revert recipe journaled before the fault
-// lands (packet-chaos.json in --state-dir; leftovers are reverted at the
+// lands (chaos_journal rows of kind 'packet' in The Well with WELL_DB set,
+// else packet-chaos.json in --state-dir; leftovers are reverted at the
 // next start), the ABORT file, SIGINT/SIGTERM, and a hard duration cap.
 //
 //	chaos-controller packet-chaos --iface steel0-h --flow-label 0x5EE1 \
@@ -134,6 +134,7 @@ type packetJournalFile struct {
 }
 
 type packetJournalItem struct {
+	ID      string            `json:"id,omitempty"` // the Well's entry id; older files have none
 	Created time.Time         `json:"created"`
 	Expires time.Time         `json:"expires"`
 	Recipe  yaldabaoth.Recipe `json:"recipe"`
@@ -159,14 +160,15 @@ func runPacketChaos(ctx context.Context, args []string, out io.Writer, be packet
 		return 0
 	}
 
-	jf := statefile.In(c.stateDir, packetJournal)
-	var j packetJournalFile
-	if _, err := jf.Load(&j); err != nil {
+	js, closeJournal, err := openPacketJournal(ctx, c.stateDir, getenv)
+	if err != nil {
 		fmt.Fprintf(out, "packet-chaos: journal: %v\n", err)
 		return 1
 	}
+	defer closeJournal()
+	fmt.Fprintf(out, "journal: %s\n", js.mode())
 	// Faults a previous run left behind come back first.
-	if n := revertPacketJournal(ctx, out, inj, jf, &j); n > 0 {
+	if n := revertPacketJournal(ctx, out, inj, js); n > 0 {
 		fmt.Fprintf(out, "packet-chaos: %d earlier fault(s) still in place, see %s\n", n, c.stateDir)
 		return 1
 	}
@@ -177,16 +179,15 @@ func runPacketChaos(ctx context.Context, args []string, out io.Writer, be packet
 		return 2
 	}
 	now := time.Now().UTC()
-	j.Version = 1
-	j.Entries = append(j.Entries, packetJournalItem{Created: now, Expires: now.Add(c.duration + 30*time.Second), Recipe: recipe})
-	if err := jf.Save(j); err != nil {
+	item := packetJournalItem{ID: newPacketID(now), Created: now, Expires: now.Add(c.duration + 30*time.Second), Recipe: recipe}
+	if err := js.add(ctx, item); err != nil {
 		fmt.Fprintf(out, "packet-chaos: journal write failed, nothing injected: %v\n", err)
 		return 1
 	}
 	fmt.Fprintf(out, "journaled %s (pin %s)\n", recipe["flow_labels"], recipe["pin_dir"])
 	if err := inj.Inject(ctx, c.target(), c.params(), recipe); err != nil {
 		fmt.Fprintf(out, "packet-chaos: inject: %v; reverting\n", err)
-		return finishPacket(ctx, out, inj, jf, &j, recipe, "inject failed")
+		return finishPacket(ctx, out, inj, js, item, "inject failed")
 	}
 	fmt.Fprintf(out, "injected on %s for %v: flow labels %s, mode %s, netem %q\n", c.iface, c.duration, recipe["flow_labels"], recipe["mode"], recipe["netem"])
 	fmt.Fprintf(out, "abort: touch %s, or SIGINT/SIGTERM\n", c.abortFile)
@@ -212,10 +213,11 @@ loop:
 		}
 	}
 	// The revert runs on its own context: a signal must not cut it short.
-	return finishPacket(context.WithoutCancel(ctx), out, inj, jf, &j, recipe, why)
+	return finishPacket(context.WithoutCancel(ctx), out, inj, js, item, why)
 }
 
-func finishPacket(ctx context.Context, out io.Writer, inj *packet.Injector, jf *statefile.File, j *packetJournalFile, recipe yaldabaoth.Recipe, why string) int {
+func finishPacket(ctx context.Context, out io.Writer, inj *packet.Injector, js packetJournalStore, item packetJournalItem, why string) int {
+	recipe := item.Recipe
 	rctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	err := inj.Revert(rctx, recipe)
@@ -231,14 +233,7 @@ func finishPacket(ctx context.Context, out io.Writer, inj *packet.Injector, jf *
 		fmt.Fprintln(out, "packet-chaos: the fault is still in place; its journal entry stays (run again, or Appendix A1)")
 		return 1
 	}
-	kept := j.Entries[:0]
-	for _, e := range j.Entries {
-		if e.Recipe["pin_dir"] != recipe["pin_dir"] {
-			kept = append(kept, e)
-		}
-	}
-	j.Entries = kept
-	if err := jf.Save(*j); err != nil {
+	if err := js.remove(ctx, item, why); err != nil {
 		fmt.Fprintf(out, "packet-chaos: reverted, but the journal could not be updated: %v\n", err)
 		return 1
 	}
@@ -247,30 +242,35 @@ func finishPacket(ctx context.Context, out io.Writer, inj *packet.Injector, jf *
 }
 
 // revertPacketJournal reverts every journaled recipe and returns how many remain.
-func revertPacketJournal(ctx context.Context, out io.Writer, inj *packet.Injector, jf *statefile.File, j *packetJournalFile) int {
-	if len(j.Entries) == 0 {
+func revertPacketJournal(ctx context.Context, out io.Writer, inj *packet.Injector, js packetJournalStore) int {
+	entries, err := js.load(ctx)
+	if err != nil {
+		fmt.Fprintf(out, "packet-chaos: journal: %v\n", err)
+		return 1
+	}
+	if len(entries) == 0 {
 		return 0
 	}
-	fmt.Fprintf(out, "reverting %d journaled fault(s) first\n", len(j.Entries))
-	var kept []packetJournalItem
-	for _, e := range j.Entries {
+	fmt.Fprintf(out, "reverting %d journaled fault(s) first\n", len(entries))
+	kept := 0
+	for _, e := range entries {
 		rctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		err := inj.Revert(rctx, e.Recipe)
 		gone, verr := inj.Reverted(rctx, e.Recipe)
 		cancel()
 		if err != nil || verr != nil || !gone {
 			fmt.Fprintf(out, "  %s on %s: still in place (%v %v)\n", e.Recipe["flow_labels"], e.Recipe["iface"], err, verr)
-			kept = append(kept, e)
+			kept++
+			continue
+		}
+		if err := js.remove(ctx, e, "revert-all"); err != nil {
+			fmt.Fprintf(out, "  %s on %s: reverted, but the journal could not be updated: %v\n", e.Recipe["flow_labels"], e.Recipe["iface"], err)
+			kept++
 			continue
 		}
 		fmt.Fprintf(out, "  %s on %s: reverted\n", e.Recipe["flow_labels"], e.Recipe["iface"])
 	}
-	j.Entries = kept
-	if err := jf.Save(*j); err != nil {
-		fmt.Fprintf(out, "packet-chaos: journal could not be updated: %v\n", err)
-		return len(kept) + 1
-	}
-	return len(kept)
+	return kept
 }
 
 func printStats(out io.Writer, st map[uint32]uint64) {

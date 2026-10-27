@@ -21,7 +21,14 @@
 // Environment:
 //
 //	CHAOS_ALLOWLIST    allowlist file (default /etc/unheaded/chaos/allowlist.yaml); required
-//	CHAOS_STATE_DIR    revert journal (default /var/lib/unheaded-chaos)
+//	CHAOS_STATE_DIR    revert journal files (default /var/lib/unheaded-chaos)
+//	WELL_DB            revert journals in The Well instead (unheaded_ops
+//	                   chaos_journal, migration 039) as WELL_USER (default
+//	                   ops_writer) with WELL_PASSWORD, WELL_HOST, WELL_PORT,
+//	                   WELL_SSLMODE; open file entries are moved in at start.
+//	                   Set and unreachable: the controller does not start and
+//	                   revert-all exits 2 (journal.go)
+//	KINGDOM_NODE       this host's name in the Well (default: the hostname)
 //	CHAOS_ABORT_FILE   abort file (default /run/unheaded/chaos/ABORT)
 //	CHAOS_DRY_RUN      "false" turns dry run off (a game-day window); anything else keeps it on
 //	CUIRASS_URL        resolves LXD targets (default http://127.0.0.1:19006)
@@ -70,6 +77,15 @@ type config struct {
 	policy     string
 	wotanHTTP  string
 	wotanGRPC  string
+	// getenv reads WELL_* for the journal store; nil reads nothing (files).
+	getenv func(string) string
+}
+
+func (c config) env(k string) string {
+	if c.getenv == nil {
+		return ""
+	}
+	return c.getenv(k)
 }
 
 func envOr(getenv func(string) string, k, def string) string {
@@ -92,6 +108,7 @@ func loadConfig(getenv func(string) string) config {
 		policy:     envOr(getenv, "CHAOS_SLO_POLICY", "/etc/unheaded/chaos/policy.yaml"),
 		wotanHTTP:  getenv("WOTAN_ADDR"),
 		wotanGRPC:  getenv("WOTAN_GRPC_ADDR"),
+		getenv:     getenv,
 	}
 }
 
@@ -213,6 +230,19 @@ func build(c config, log *logger.Logger) (*yaldabaoth.Service, error) {
 	cfg.AbortFile = c.abortFile
 	cfg.DryRunMode = c.dryRun
 	cfg.Hostname = os.Hostname
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	// The connection lives as long as the process.
+	journal, _, err := experimentJournal(ctx, c.env)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Journal = journal
+	mode := "file"
+	if journal != nil {
+		mode = journal.Mode()
+	}
+	log.Info().Str("journal", mode).Msg("chaos: revert journal")
 	s, err := yaldabaoth.NewService(cfg, deps)
 	if err != nil {
 		return nil, err
@@ -229,6 +259,15 @@ func revertAll(c config, out io.Writer) int {
 	cfg.StateDir = c.stateDir
 	cfg.AbortFile = ""
 	log := logger.New(io.Discard)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	journal, closeJournal, err := experimentJournal(ctx, c.env)
+	if err != nil {
+		fmt.Fprintf(out, "revert-all: %v\n", err)
+		return 2
+	}
+	defer closeJournal()
+	cfg.Journal = journal
 	s, err := yaldabaoth.NewService(cfg, yaldabaoth.Deps{Log: log})
 	if err == nil {
 		registerInjectors(s, c, log)

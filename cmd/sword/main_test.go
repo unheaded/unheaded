@@ -111,3 +111,21 @@ func TestBuild_UnreadableKeyFileFails(t *testing.T) {
 		t.Error("build with an unreadable AUTH_KEY_FILE succeeded")
 	}
 }
+
+// WELL_DB set means the Well or nothing: a Sword that cannot reach it
+// refuses to start instead of writing a file nobody reads (a split history).
+func TestBuild_WellSetButUnreachableRefuses(t *testing.T) {
+	t.Setenv("WELL_HOST", "127.0.0.1")
+	t.Setenv("WELL_PORT", "1") // nothing listens
+	t.Setenv("WELL_SSLMODE", "disable")
+	t.Setenv("WELL_PASSWORD", "x")
+	log := zerolog.Nop()
+	c := config{cuirassURL: "http://127.0.0.1:19006", cuirassKey: "k", wellDB: "unheaded_ops", dataDir: t.TempDir()}
+	if _, err := build(c, &log); err == nil || !strings.Contains(err.Error(), "WELL_DB") {
+		t.Fatalf("build with an unreachable Well: %v", err)
+	}
+	c2, err := loadConfig(env(map[string]string{"CUIRASS_API_KEY": "k", "WELL_DB": "unheaded_ops", "KINGDOM_NODE": "west"}))
+	if err != nil || c2.wellDB != "unheaded_ops" || c2.node != "west" {
+		t.Fatalf("loadConfig: %+v %v", c2, err)
+	}
+}

@@ -30,8 +30,10 @@
 -- Writer: ops_writer (SELECT, INSERT). Reader: ops_reader. Owner:
 -- well_ops_owner (the runner SET ROLEs to it).
 --
--- Access paths: Sword loads its newest records at start (deploy_history by
--- id DESC, pkey) and lists by service (deploy_history_service_idx); a
+-- Access paths: Sword loads its own host's newest records at start
+-- (deploy_history_host_idx: a Sword deploys through its host's Cuirass, so
+-- only those are rollback targets); people list by service
+-- (deploy_history_service_idx); a
 -- record's newest transition by deployment_id (the transitions index).
 -- The controller loads open faults for its own host and kind
 -- (chaos_journal_host_kind_idx). Status columns have six values or one and
@@ -54,6 +56,7 @@ CREATE TABLE deploy_history (
     recorded_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX deploy_history_host_idx ON deploy_history (host, created_at DESC);
 CREATE INDEX deploy_history_service_idx ON deploy_history (service, created_at DESC);
 
 CREATE TABLE deploy_history_transitions (

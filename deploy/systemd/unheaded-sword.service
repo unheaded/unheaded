@@ -9,7 +9,10 @@
 #   sudo install -d -m 0750 -o root -g unheaded-sword /etc/unheaded/sword
 #   sudo install -m 0640 -o root -g unheaded-sword observability/alerting/policy.yaml /etc/unheaded/sword/policy.yaml
 #   # /etc/unheaded/sword/sword.env (0640 root:unheaded-sword) holds
-#   # CUIRASS_API_KEY and AUTH_API_KEYS; never in the repo.
+#   # CUIRASS_API_KEY and AUTH_API_KEYS; never in the repo. For the history in
+#   # The Well (migration 039) it also sets WELL_DB=unheaded_ops,
+#   # WELL_HOST=127.0.0.1, WELL_PASSWORD (ops_writer) and KINGDOM_NODE; without
+#   # WELL_DB the history stays in /var/lib/unheaded/sword/sword.json.
 #   sudo cp deploy/systemd/unheaded-sword.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-sword
 

@@ -187,16 +187,18 @@ func (s *DeployStore) Get(ctx context.Context, id string) (*DeployRecord, error)
 	return r, nil
 }
 
-// List returns up to limit deployments of service ("" = every service),
-// newest first.
-func (s *DeployStore) List(ctx context.Context, service string, limit int) ([]*DeployRecord, error) {
+// List returns up to limit deployments recorded on host of service, newest
+// first; "" for host or service matches all. Sword reads its own host's:
+// a Sword deploys through that host's Cuirass, so only its records are
+// rollback targets.
+func (s *DeployStore) List(ctx context.Context, host, service string, limit int) ([]*DeployRecord, error) {
 	if limit <= 0 {
 		return nil, errors.New("deploy list: limit must be positive")
 	}
 	rows, err := s.db.QueryContext(ctx, deploySelect+`
-		WHERE ($1 = '' OR h.service = $1)
+		WHERE ($1 = '' OR h.host = $1) AND ($2 = '' OR h.service = $2)
 		ORDER BY h.created_at DESC, h.id DESC
-		LIMIT $2`, service, limit)
+		LIMIT $3`, host, service, limit)
 	if err != nil {
 		return nil, fmt.Errorf("deploy list: %w", err)
 	}

@@ -126,7 +126,7 @@ func TestDeployStore(t *testing.T) {
 		if err := s.Record(ctx, rec(idB, "v2", t0.Add(time.Minute))); err != nil {
 			t.Fatal(err)
 		}
-		got, err := s.List(ctx, svc, 10)
+		got, err := s.List(ctx, "", svc, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,13 +136,17 @@ func TestDeployStore(t *testing.T) {
 		if got[1].Status != "succeeded" {
 			t.Errorf("list reads the newest status: %s", got[1].Status)
 		}
-		one, err := s.List(ctx, svc, 1)
+		one, err := s.List(ctx, "west", svc, 1)
 		if err != nil || len(one) != 1 || one[0].ID != idB {
 			t.Fatalf("limit 1: %+v %v", one, err)
 		}
-		all, err := s.List(ctx, "", 1000)
+		all, err := s.List(ctx, "", "", 1000)
 		if err != nil || len(all) < 2 {
 			t.Fatalf("all services: %d %v", len(all), err)
+		}
+		east, err := s.List(ctx, "east", svc, 10)
+		if err != nil || len(east) != 0 {
+			t.Fatalf("another host's records: %d %v", len(east), err)
 		}
 	})
 
