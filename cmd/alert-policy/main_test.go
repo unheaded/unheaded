@@ -67,7 +67,15 @@ func TestRefusals(t *testing.T) {
 		{"objective the fast tier can never reach", replace("objective: 99.5", "objective: 90"), "", "want 95 <= objective < 100"},
 		{"cap of zero", replace("max_per_day: 6", "max_per_day: 0"), "", "max_per_day 0"},
 		{"cap too big to mean anything", replace("max_per_day: 6", "max_per_day: 500"), "", "max_per_day 500"},
-		{"unknown mode", replace("mode: dry-run", "mode: yolo"), "", `mailer.mode "yolo"`},
+		// The live mode changes (dry-run → send on 2026-10-27), so anchor on the
+		// mailer's mode line whatever it holds, not on one literal value.
+		{"unknown mode", func(s string) string {
+			re := regexp.MustCompile(`(?m)^  mode: (dry-run|send)$`)
+			if !re.MatchString(s) {
+				t.Fatalf("no mailer mode line in policy")
+			}
+			return re.ReplaceAllString(s, "  mode: yolo")
+		}, "", `mailer.mode "yolo"`},
 		{"template in text", replace("description: The message bus answers on both hosts", "description: hi {{ $labels }}"), "", "may not contain {{"},
 		{"duplicate slo", replace("  - name: dashboard\n", "  - name: wotan\n"), "", "duplicate name"},
 		{"promotion of an alert that does not exist", replace("promote: []", "promote:\n  - alert: Nope\n    urgency: ticket\n    reason: test"), "", "Nope is not an alert"},
