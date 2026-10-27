@@ -153,9 +153,122 @@ func TestDispatch_UnknownTool(t *testing.T) {
 	// closed) BUT no destructive verb and no untrusted ref, so the gate
 	// passes. Then Dispatch's switch falls through to "unimplemented".
 	if err == nil {
-		t.Fatalf("expected unimplemented error")
+		t.Fatalf("expected unknown-tool error")
 	}
-	if !strings.Contains(err.Error(), "unimplemented") {
-		t.Errorf("expected unimplemented, got %v", err)
+	var ge *GateError
+	if !errors.As(err, &ge) || !strings.Contains(err.Error(), "unknown tool") {
+		t.Errorf("expected a GateError naming an unknown tool, got %v", err)
+	}
+}
+
+// RT-09 (S-CHAMPION-HARDENING Steps 53-55): every tool the lists name is
+// dispatched; system_command (never implemented) is gone and refused as
+// unknown.
+
+func runbookFixture(t *testing.T) *Champion {
+	t.Helper()
+	c, _ := newTestChampion(t)
+	root := c.config.ProjectRoot
+	for name, body := range map[string]string{
+		"runbooks/infra/host-bootstrap.yaml": "name: host-bootstrap\n",
+		"runbooks/wotan/acl.yaml":            "name: acl\n",
+		"runbooks/README.md":                 "not a runbook\n",
+	} {
+		p := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return c
+}
+
+func TestDispatch_RunbookListShow(t *testing.T) {
+	ctx := context.Background()
+	c := runbookFixture(t)
+	// Read-only tools: no justification needed.
+	out, err := c.Dispatch(ctx, ToolCall{Name: "runbook_list", Args: map[string]any{}})
+	if err != nil {
+		t.Fatalf("runbook_list: %v", err)
+	}
+	names, ok := out.([]string)
+	if !ok || strings.Join(names, ",") != "infra/host-bootstrap,wotan/acl" {
+		t.Fatalf("runbook_list = %#v", out)
+	}
+	out, err = c.Dispatch(ctx, ToolCall{Name: "runbook_show", Args: map[string]any{"name": "wotan/acl"}})
+	if err != nil || out != "name: acl\n" {
+		t.Fatalf("runbook_show = %#v, %v", out, err)
+	}
+
+	outside := filepath.Join(t.TempDir(), "secret.yaml")
+	if err := os.WriteFile(outside, []byte("secret: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(c.config.ProjectRoot, "runbooks", "infra", "evil.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"", "../x", "/etc/passwd", "infra/../../x", "nope", "infra/evil", "README"} {
+		if out, err := c.Dispatch(ctx, ToolCall{Name: "runbook_show", Args: map[string]any{"name": bad}}); err == nil {
+			t.Errorf("runbook_show %q = %#v; want refused", bad, out)
+		}
+	}
+	if _, err := c.Dispatch(ctx, ToolCall{Name: "runbook_show", Args: map[string]any{}}); err == nil {
+		t.Error("runbook_show without a name ran")
+	}
+}
+
+func TestDispatch_RunbookList_RepoRunbooks(t *testing.T) {
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, _ := filepath.Glob(filepath.Join(root, "runbooks", "*", "*.yaml"))
+	if len(want) == 0 {
+		t.Skip("no runbooks/ in this checkout")
+	}
+	c, err := New(Config{ProjectRoot: root}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, err := c.RunbookList(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(names) != len(want) {
+		t.Errorf("RunbookList = %d names; runbooks/*/*.yaml has %d", len(names), len(want))
+	}
+}
+
+// mcpOnlyTools are listed for the gate (MCP servers call AcceptToolCall)
+// but run in those servers, never through Dispatch.
+func mcpOnlyTool(name string) bool {
+	switch name {
+	case "file_read", "corpus_search", "service_health", "local_llm":
+		return true
+	}
+	return strings.HasPrefix(name, "lich_")
+}
+
+func TestToolLists_EveryListedToolDispatches(t *testing.T) {
+	c, _ := newTestChampion(t)
+	for _, list := range []map[string]bool{MutatingTools, ReadOnlyTools} {
+		for name := range list {
+			if mcpOnlyTool(name) {
+				continue
+			}
+			_, err := c.Dispatch(context.Background(), ToolCall{Name: name, Args: map[string]any{}, Justification: []Reference{{SourceTrust: "direct-user"}}})
+			if err != nil && (strings.Contains(err.Error(), "unknown tool") || strings.Contains(err.Error(), "unimplemented")) {
+				t.Errorf("%s is listed but not dispatched: %v", name, err)
+			}
+		}
+	}
+	if MutatingTools["system_command"] || ReadOnlyTools["system_command"] {
+		t.Error("system_command is listed; it has no implementation and must not get one")
+	}
+	_, err := c.Dispatch(context.Background(), ToolCall{Name: "system_command", Args: map[string]any{"cmd": "id"}, Justification: []Reference{{SourceTrust: "direct-user"}}})
+	if err == nil || !strings.Contains(err.Error(), "unknown tool") {
+		t.Errorf("system_command: %v; want unknown tool", err)
 	}
 }

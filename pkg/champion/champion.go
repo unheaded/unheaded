@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -81,7 +82,8 @@ type Champion struct {
 	store         ActionStore
 	snapshotStore SnapshotStore
 	kanbanStore   KanbanStore
-	confirmStore  *confirmStore   // lazy-init via IssuePendingConfirmation
+	confirmMu     sync.Mutex
+	confirmStore  *confirmStore   // lazy-init via confirms(); guarded by confirmMu
 	runCheck      *RunCheckConfig // nil: run_check refused (runcheck.go)
 	branchSandbox *branchSandbox  // nil: off (branchsandbox.go)
 }

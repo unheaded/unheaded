@@ -22,9 +22,10 @@ import (
 // layer must not blindly execute model-emitted tool calls).
 type ToolCall struct {
 	// Name is the registered tool name: "read_file", "write_file",
-	// "patch_file", "kanban_create", "kanban_update", "kanban_delete",
-	// "kanban_list", "runbook_show", "runbook_execute", "corpus_search",
-	// "service_health", "system_command".
+	// "patch_file", "kanban_create", "kanban_update", "kanban_list",
+	// "runbook_list", "runbook_show", "runbook_execute", "run_check",
+	// "model_switch", or an MCP server's tool ("corpus_search",
+	// "service_health", ...). See MutatingTools and ReadOnlyTools.
 	Name string `json:"name"`
 
 	// Args is the tool-specific argument map. Keys depend on Name.
@@ -76,15 +77,19 @@ type Reference struct {
 //
 // CONSERVATIVE: an unknown tool name is treated as MUTATING (fail-closed).
 // New tools must register here explicitly.
+//
+// Every name here is dispatched (dispatch.go) or run by an MCP server
+// that gates through AcceptToolCall (RT-09). system_command, delete_file
+// and kanban_delete were listed but never implemented and were removed
+// (S-CHAMPION-HARDENING Step 53): an unlisted name is still mutating by
+// default here and refused as unknown by Dispatch. system_command must
+// not get an implementation; arbitrary shell needs its own ADR.
 var MutatingTools = map[string]bool{
 	"write_file":      true,
 	"patch_file":      true,
-	"delete_file":     true,
 	"kanban_create":   true,
 	"kanban_update":   true,
-	"kanban_delete":   true,
 	"runbook_execute": true,
-	"system_command":  true,
 	"model_switch":    true, // ADR-060: kills+respawns llama-server subprocess
 	// Lich MCP (S-LICH-AWAKENS, ADR-098): writes the findings register, so it
 	// is mutating and — with no retrieval justification from a model — always

@@ -38,10 +38,36 @@ type pendingEntry struct {
 type confirmStore struct {
 	mu      sync.Mutex
 	entries map[string]*pendingEntry
+	ttl     time.Duration // PendingConfirmTTL; tests shorten it
 }
 
 func newConfirmStore() *confirmStore {
-	return &confirmStore{entries: make(map[string]*pendingEntry)}
+	return &confirmStore{entries: make(map[string]*pendingEntry), ttl: PendingConfirmTTL}
+}
+
+// DefaultConfirmGCInterval is how often StartConfirmGC sweeps used and
+// expired tokens.
+const DefaultConfirmGCInterval = time.Minute
+
+// StartGC sweeps used and expired entries every interval until ctx ends
+// (RT-04: before this, entries were collected only when the next token
+// was issued, so an idle process held them indefinitely).
+func (s *confirmStore) StartGC(ctx context.Context, every time.Duration) {
+	if every <= 0 {
+		every = DefaultConfirmGCInterval
+	}
+	go func() {
+		t := time.NewTicker(every)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				s.gc()
+			}
+		}
+	}()
 }
 
 // IssuePending creates a new token bound to the given ToolCall. The
@@ -56,7 +82,7 @@ func (s *confirmStore) IssuePending(tc ToolCall) (string, error) {
 	s.entries[tok] = &pendingEntry{
 		Call:      tc,
 		IssuedAt:  now,
-		ExpiresAt: now.Add(PendingConfirmTTL),
+		ExpiresAt: now.Add(s.ttl),
 	}
 	s.mu.Unlock()
 	return tok, nil
@@ -132,11 +158,35 @@ func freshToken() (string, error) {
 //
 // before showing the token to the human.
 func (c *Champion) IssuePendingConfirmation(tc ToolCall) (string, error) {
+	s := c.confirms()
+	s.gc()
+	return s.IssuePending(tc)
+}
+
+// confirms returns the token store, creating it on first use. Guarded:
+// agentd serves concurrent requests from one pooled Champion per root.
+func (c *Champion) confirms() *confirmStore {
+	c.confirmMu.Lock()
+	defer c.confirmMu.Unlock()
 	if c.confirmStore == nil {
 		c.confirmStore = newConfirmStore()
 	}
-	c.confirmStore.gc()
-	return c.confirmStore.IssuePending(tc)
+	return c.confirmStore
+}
+
+// existingConfirms returns the token store, or nil if no token was ever
+// issued and no GC started.
+func (c *Champion) existingConfirms() *confirmStore {
+	c.confirmMu.Lock()
+	defer c.confirmMu.Unlock()
+	return c.confirmStore
+}
+
+// StartConfirmGC sweeps used and expired confirmation tokens every
+// interval (DefaultConfirmGCInterval when <= 0) until ctx ends (RT-04).
+// zhen-agentd starts it for every pooled Champion with its root context.
+func (c *Champion) StartConfirmGC(ctx context.Context, every time.Duration) {
+	c.confirms().StartGC(ctx, every)
 }
 
 // ConfirmPendingToolCall redeems a token issued by
@@ -154,10 +204,11 @@ func (c *Champion) IssuePendingConfirmation(tc ToolCall) (string, error) {
 // failure (unknown / used / expired / wrong confirmer) returns the token
 // error and does NOT execute the call.
 func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token, approvedBy string) (any, error) {
-	if c.confirmStore == nil {
+	s := c.existingConfirms()
+	if s == nil {
 		return nil, fmt.Errorf("no pending confirmations")
 	}
-	tc, err := c.confirmStore.consume(token, approvedBy)
+	tc, err := s.consume(token, approvedBy)
 	if err != nil {
 		if errors.Is(err, ErrConfirmerNotAllowed) {
 			_, _ = c.logAction(ctx, "confirm_refused_principal", "ToolCall token: "+err.Error(), approvedBy)

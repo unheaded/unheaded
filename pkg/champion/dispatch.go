@@ -25,6 +25,15 @@ import (
 // On gate refusal, the returned error wraps ToolCallDecision so the
 // caller can inspect PendingConfirmation.
 func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
+	// A name this switch does not implement never reaches the gate's
+	// accept path (RT-09): it is refused as unknown and audited.
+	if !dispatchable[tc.Name] {
+		reason := fmt.Sprintf("unknown tool %q", tc.Name)
+		actionID, _ := c.logAction(ctx, "tool_call_attempt", fmt.Sprintf("ToolCall: %s", tc.Name), tc.EmittedBy)
+		c.completeAction(ctx, actionID, "denied_unknown_tool", summarizeArgs(tc.Args), reason, 0)
+		decision := ToolCallDecision{Allow: false, Reason: reason}
+		return nil, &GateError{Decision: decision, Wrapped: fmt.Errorf("tool call denied: %s", reason)}
+	}
 	decision, gateErr := c.AcceptToolCall(ctx, tc)
 	if gateErr != nil {
 		return nil, &GateError{Decision: decision, Wrapped: gateErr}
@@ -103,6 +112,16 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 	case "kanban_list":
 		return c.ListKanbanTasks(ctx)
 
+	case "runbook_list":
+		return c.RunbookList(ctx)
+
+	case "runbook_show":
+		name, err := requireString(tc.Args, "name")
+		if err != nil {
+			return nil, err
+		}
+		return c.RunbookShow(ctx, name)
+
 	case "run_check":
 		key, err := requireString(tc.Args, "check")
 		if err != nil {
@@ -147,6 +166,17 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 		// distinct failure that surfaces a real bug.
 		return nil, fmt.Errorf("Dispatch: unimplemented tool %q", tc.Name)
 	}
+}
+
+// dispatchable is the set of tools Dispatch's switch implements. Keep it
+// in step with the switch; TestToolLists_EveryListedToolDispatches checks
+// that every name in MutatingTools and ReadOnlyTools (minus the MCP-only
+// ones) is here.
+var dispatchable = map[string]bool{
+	"read_file": true, "write_file": true, "patch_file": true,
+	"kanban_create": true, "kanban_update": true, "kanban_list": true,
+	"runbook_list": true, "runbook_show": true, "runbook_execute": true,
+	"run_check": true, "model_switch": true,
 }
 
 // GateError wraps a ToolCallDecision when AcceptToolCall returns a

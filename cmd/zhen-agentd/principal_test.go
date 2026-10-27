@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/champion"
 )
 
 // RT-03 (S-CHAMPION-HARDENING Step 46): a pending token is bound to the
@@ -95,6 +96,32 @@ func TestConfirm_RefusedWithoutAuthenticatedPrincipal(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "a.txt")); !os.IsNotExist(err) {
 		t.Fatal("an unauthenticated confirm wrote the file")
+	}
+}
+
+// RT-04 (Step 49): every pooled Champion gets the confirmation-token GC.
+func TestChampionPool_StartsConfirmGC(t *testing.T) {
+	pool := newChampionPool(newMetricsActionStore(nopActionStore{}), nil)
+	var started []string
+	pool.startGC = func(_ context.Context, c *champion.Champion) { started = append(started, c.GetProjectRoot()) }
+	root := t.TempDir()
+	if _, err := pool.get(root); err != nil {
+		t.Fatal(err)
+	}
+	if len(started) != 0 {
+		t.Fatal("GC started without a daemon context")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pool.gcCtx = ctx
+	other := t.TempDir()
+	for i := 0; i < 2; i++ {
+		if _, err := pool.get(other); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(started) != 1 || started[0] != other {
+		t.Fatalf("GC started for %v; want once for %s", started, other)
 	}
 }
 

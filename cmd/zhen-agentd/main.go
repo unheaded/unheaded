@@ -167,6 +167,9 @@ func main() {
 		fatal("kanban-store init: %v", err)
 	}
 	pool := newChampionPool(store, kStore)
+	gcCtx, stopGC := context.WithCancel(context.Background())
+	defer stopGC()
+	pool.gcCtx = gcCtx // RT-04: confirmation tokens are swept on a ticker
 
 	queue, closeQueue, err := buildConfirmQueue(context.Background(), *confirmQ)
 	if err != nil {
@@ -439,6 +442,10 @@ type championPool struct {
 	store  champion.ActionStore
 	kanban champion.KanbanStore // nil → kanban_* tool calls fail at dispatch
 	cache  map[string]*champion.Champion
+	// gcCtx, when set, starts each new Champion's confirmation-token GC
+	// (RT-04); it ends with the daemon.
+	gcCtx   context.Context
+	startGC func(context.Context, *champion.Champion) // tests replace it
 }
 
 func newChampionPool(store champion.ActionStore, kanban champion.KanbanStore) *championPool {
@@ -446,6 +453,9 @@ func newChampionPool(store champion.ActionStore, kanban champion.KanbanStore) *c
 		store:  store,
 		kanban: kanban,
 		cache:  make(map[string]*champion.Champion),
+		startGC: func(ctx context.Context, c *champion.Champion) {
+			c.StartConfirmGC(ctx, champion.DefaultConfirmGCInterval)
+		},
 	}
 }
 
@@ -464,6 +474,9 @@ func (p *championPool) get(root string) (*champion.Champion, error) {
 	}
 	if p.kanban != nil {
 		c = c.WithKanbanStore(p.kanban)
+	}
+	if p.gcCtx != nil && p.startGC != nil {
+		p.startGC(p.gcCtx, c)
 	}
 	p.cache[root] = c
 	return c, nil

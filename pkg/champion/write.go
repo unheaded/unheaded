@@ -6,10 +6,12 @@ package champion
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -20,12 +22,29 @@ type SnapshotStore interface {
 	GetSnapshot(ctx context.Context, actionID int64) (before string, after string, err error)
 }
 
+// MaxWriteBytes caps what one WriteFile or PatchFile (the patched
+// result) may put on disk (RT-05). The HTTP bodies are capped at 64 KiB;
+// this stops runaway generation from in-process callers (agent loop,
+// MCP, CLI) and keeps vendored fixtures writable. 1 MiB, the same bound
+// as MaxPendingCallBytes. S-CHAMPION-HARDENING Step 50 [DECIDE]; no
+// runbook calls write_file.
+const MaxWriteBytes = 1 << 20
+
+// ErrWriteTooLarge: the content is over MaxWriteBytes; nothing was written.
+var ErrWriteTooLarge = errors.New("write exceeds the size cap")
+
 // WriteFile writes content to a file within the sandbox.
 // Captures a snapshot of the file's previous state for revert.
 func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 	start := time.Now()
 
 	actionID, _ := c.logAction(ctx, "file.write", fmt.Sprintf("Write file: %s (%d bytes)", path, len(content)), "user")
+
+	if len(content) > MaxWriteBytes {
+		err := fmt.Errorf("%w: %d bytes, cap %d", ErrWriteTooLarge, len(content), MaxWriteBytes)
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return err
+	}
 
 	// Validate path
 	if err := c.validatePath(path); err != nil {
@@ -100,6 +119,11 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 	if before == after {
 		c.completeAction(ctx, actionID, "failed", "", "old_text not found in file", time.Since(start))
 		return fmt.Errorf("old_text not found in %s", absPath)
+	}
+	if len(after) > MaxWriteBytes {
+		err := fmt.Errorf("%w: patched file would be %d bytes, cap %d", ErrWriteTooLarge, len(after), MaxWriteBytes)
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return err
 	}
 
 	// path is gated by c.validatePath(path) at line 77 — same sandbox rules.
@@ -356,6 +380,99 @@ func (c *Champion) RunbookExecute(ctx context.Context, name string, dryRun bool)
 	c.completeAction(ctx, actionID, status, summary, "", elapsed)
 
 	return result, nil
+}
+
+// maxRunbookShowBytes caps runbook_show's output (the largest runbook is
+// well under it; a bigger file is refused rather than truncated).
+const maxRunbookShowBytes = 256 * 1024
+
+// runbookFile resolves a runbook name ("category/name", no extension) to
+// its file under <project_root>/runbooks, refusing names that escape the
+// tree, and symlinks that resolve outside it.
+func (c *Champion) runbookFile(name string) (string, error) {
+	if name == "" {
+		return "", errors.New("empty runbook name")
+	}
+	if strings.Contains(name, "..") || strings.HasPrefix(name, "/") || strings.ContainsAny(name, "\\\x00") {
+		return "", fmt.Errorf("runbook name %q escapes runbooks/ tree", name)
+	}
+	dir := filepath.Join(c.config.ProjectRoot, "runbooks")
+	p := filepath.Join(dir, name+".yaml")
+	rel, err := filepath.Rel(dir, p)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("runbook %q resolves outside runbooks/ tree", name)
+	}
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", fmt.Errorf("runbooks/: %w", err)
+	}
+	realP, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return "", fmt.Errorf("runbook not found: %w", err)
+	}
+	if !strings.HasPrefix(realP, realDir+string(filepath.Separator)) {
+		return "", fmt.Errorf("runbook %q resolves outside runbooks/ tree", name)
+	}
+	return realP, nil
+}
+
+// RunbookList returns every runbook's name ("category/name"), sorted:
+// the *.yaml files under <project_root>/runbooks. Read-only; logged.
+func (c *Champion) RunbookList(ctx context.Context) ([]string, error) {
+	start := time.Now()
+	actionID, _ := c.logAction(ctx, "runbook.list", "List runbooks", "user")
+	dir := filepath.Join(c.config.ProjectRoot, "runbooks")
+	var names []string
+	err := filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Type().IsRegular() && strings.HasSuffix(p, ".yaml") {
+			rel, rerr := filepath.Rel(dir, p)
+			if rerr != nil {
+				return rerr
+			}
+			names = append(names, filepath.ToSlash(strings.TrimSuffix(rel, ".yaml")))
+		}
+		return nil
+	})
+	if err != nil {
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return nil, fmt.Errorf("list runbooks: %w", err)
+	}
+	sort.Strings(names)
+	c.completeAction(ctx, actionID, "completed", fmt.Sprintf("Listed %d runbooks", len(names)), "", time.Since(start))
+	return names, nil
+}
+
+// RunbookShow returns one runbook's YAML text. The name is checked like
+// RunbookExecute's, and a symlink out of runbooks/ is refused.
+func (c *Champion) RunbookShow(ctx context.Context, name string) (string, error) {
+	start := time.Now()
+	actionID, _ := c.logAction(ctx, "runbook.show", "Show runbook: "+name, "user")
+	p, err := c.runbookFile(name)
+	if err != nil {
+		c.completeAction(ctx, actionID, "denied", summarizeArgs(map[string]any{"name": name}), err.Error(), time.Since(start))
+		return "", err
+	}
+	info, err := os.Stat(p)
+	if err != nil || !info.Mode().IsRegular() {
+		msg := fmt.Sprintf("runbook %q is not a regular file", name)
+		c.completeAction(ctx, actionID, "failed", "", msg, time.Since(start))
+		return "", errors.New(msg)
+	}
+	if info.Size() > maxRunbookShowBytes {
+		msg := fmt.Sprintf("runbook %q is %d bytes, over %d", name, info.Size(), maxRunbookShowBytes)
+		c.completeAction(ctx, actionID, "failed", "", msg, time.Since(start))
+		return "", errors.New(msg)
+	}
+	data, err := os.ReadFile(p) // #nosec G304 -- p is resolved by runbookFile inside <root>/runbooks
+	if err != nil {
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return "", fmt.Errorf("read runbook: %w", err)
+	}
+	c.completeAction(ctx, actionID, "completed", fmt.Sprintf("Showed %s (%d bytes)", name, len(data)), "", time.Since(start))
+	return string(data), nil
 }
 
 // replaceFirst replaces the first occurrence of old with new in s.
