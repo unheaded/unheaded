@@ -299,13 +299,13 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-004 meta-gate timeout
 
-- [ ] **Step 43** [B] ~60m: Measure the real duration once, the way the job runs it (full, not `--quick`).
+- [x] **Step 43** [B] ~60m: Measure the real duration once, the way the job runs it (full, not `--quick`).
   ```bash
   cd /home/govan/tmp/unheaded && ( time bash scripts/check-gates-can-fail.sh ) 2>&1 | tail -6
   ```
-- [ ] **Step 44** [DECIDE] ~1m: **Timeout.** RECOMMENDATION: set `timeout-minutes` on `meta-gate` to `ceil(measured_minutes * 1.2) + 5`, minimum 30. If measured > 50 min, instead split: a `meta-gate-fast` job running `--quick` on every push and a `meta-gate-slow` job on `schedule` (nightly) + `workflow_dispatch`. Rationale: a gate that always cancels proves nothing (SPRINT-AUDIT, S21). Override ONLY if the measured time is under 20 min (then the cancellations had another cause: inspect `check-gates-can-fail.sh` for a network wait and fix that instead).
-- [ ] **Step 45** [W] ~3m: Apply Step 44 to `.github/workflows/static-analysis.yml:276` (or add the split job below `meta-gate`, same pinned `uses:` shas as the existing job).
-- [ ] **Step 46** [V] ~1m: YAML valid (Step 36 command); `scripts/check-actions-pinned.sh` green; `scripts/check-gates-can-fail.sh --quick 2>&1 | tail -3` still exits 0.
+- [x] **Step 44** [DECIDE] ~1m: **Timeout.** RECOMMENDATION: set `timeout-minutes` on `meta-gate` to `ceil(measured_minutes * 1.2) + 5`, minimum 30. If measured > 50 min, instead split: a `meta-gate-fast` job running `--quick` on every push and a `meta-gate-slow` job on `schedule` (nightly) + `workflow_dispatch`. Rationale: a gate that always cancels proves nothing (SPRINT-AUDIT, S21). Override ONLY if the measured time is under 20 min (then the cancellations had another cause: inspect `check-gates-can-fail.sh` for a network wait and fix that instead).
+- [x] **Step 45** [W] ~3m: Apply Step 44 to `.github/workflows/static-analysis.yml:276` (or add the split job below `meta-gate`, same pinned `uses:` shas as the existing job).
+- [x] **Step 46** [V] ~1m: YAML valid (Step 36 command); `scripts/check-actions-pinned.sh` green; `scripts/check-gates-can-fail.sh --quick 2>&1 | tail -3` still exits 0.
 
 ### M-005 nightly drift-detect
 

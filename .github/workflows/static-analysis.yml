@@ -279,7 +279,11 @@ jobs:
   meta-gate:
     name: Gates can actually fail
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Measured 2026-10-27: a full run took 31.75 min on west in a clean clone,
+    # and 25 cancelled every run on GitHub. ceil(31.75 * 1.2) + 5 = 44
+    # (S-CLEAN-SLATE Step 44). If the runner still cancels, split it into a
+    # --quick job per push and a nightly full job instead of raising this again.
+    timeout-minutes: 44
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:

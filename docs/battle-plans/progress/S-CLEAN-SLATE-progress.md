@@ -74,6 +74,14 @@ Claude worktrees, not `../unheaded-wt-*` (see amendments). Step 10's baseline: p
 | `0c29126f` | — | found by Phase 3: Zhen UI `CORS(app)` let any origin read conversation history; removed with flask-cors; QUICKSTART placeholders |
 | `801befcc` | — | Phase 2's admin-key test fixture tripped gitleaks; built at run time |
 
+### Step 43: the meta-gate, measured
+
+Full `scripts/check-gates-can-fail.sh` in a clean clone on disk at `18a4b861`: WALL 1904.76 s (31.75 min),
+max RSS 0.98 GB, run while two worktree agents worked (an upper bound for west). Every registered gate bit
+when provoked except `check-gitleaks`, INCONCLUSIVE because that tree already failed it (Phase 2's admin-key
+fixture, fixed in `801befcc`). Re-proved with `--only check-gitleaks` at `a3f2eb70`: bites. The new
+`check-haproxy-cfg` (merged after that clone): `--only` bites. Timeout 25 -> 44 min (Step 44's formula).
+
 ### Open escalations (live halves)
 
 | E | State | Blocks |
