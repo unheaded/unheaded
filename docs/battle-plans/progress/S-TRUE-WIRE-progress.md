@@ -69,3 +69,22 @@ Steps 33-35 (coordinator): `cmd/upc-cartridgectl` writes `cartridge/<name>` (`Na
 **E6 (Stevie):** upload the eight `-00` drafts to the datatracker now, or after the first staging->main promotion
 and/or the mbc-isa `-01` pass (TW-5 divergences remain)? **TW-7:** keep the MBC opcode registry at Standards Action or
 loosen to Specification Required? **TW-1, TW-2** need a decision before the PQC values are spec'd.
+
+## Phase 8 merged into sprint/true-wire (FND-020, Sophia signing)
+
+Wotan: the gRPC publish path stored messages without their signature, so replication could not carry it; the stored
+message keeps it now and `WALEntry` gains fields 7-11 (signature, public key, algorithm, signing time, sender). The
+standby verifies with `cluster.VerifyEntry` against its own policy before applying
+(`unheaded_wotan_replication_rejected_total{reason}`); `TopicVerifier.VerifyStored` checks key and signature only (no
+clock window or replay cache for stored messages). Bug fixed: the standby asked for entries starting at its last applied
+one and re-applied it every 500 ms. Cluster mode is not wired in `cmd/wotan` (ADR-064), so the witness is the in-process
+bufconn test. Sophia: deltas get `Signer`, `Verify`, `Digest()` (the old SHA-256 "signature" is now only an identity),
+`SetSignaturePolicy`; bad/untrusted/older-than-5-min signatures always refused, unsigned accepted and counted in observe
+mode; `DecodeDelta` bounds-checked, `FuzzDeserialize` (60 s ~924k execs clean; coordinator 30 s clean).
+`SOPHIA_DELTA_SIGNING_KEY` / `SOPHIA_REQUIRE_DELTA_SIGNATURE` exist in the package; no service reads them yet.
+Follow-ups: `wotan_messages` in Postgres has no signature column (a migration); LICH-011's observe-mode pin must change
+when require=true. Step 291 (register): FND-020 -> mitigated (cluster mode not wired; PGStore keeps no signature) at
+the merge into develop (the register lives on develop). Draft text for sophia-dictionary-03 Security Considerations 1:
+"Reference implementation pkg/protocol/sophiasync: ML-DSA-65 over SHA-256("sophia/delta-sig/v1" || 0x00 || algorithm ||
+0x00 || signed_at_ms int64 BE || canonical delta); signing time within 5 minutes of the receiver's clock; unsigned
+deltas run in observe mode until the severity-ladder rule flips them."
