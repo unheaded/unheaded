@@ -2,8 +2,10 @@
 # Dependabot (free on GitHub; this repo is public, so the CI its PRs start
 # costs nothing either). Actions only for now: every workflow pins actions
 # to a commit SHA with the tag in a comment (ADR-095, check-actions-pinned),
-# and Dependabot bumps both together. One grouped PR a week, not one per
-# action. Container images: ADR-102 (exact tags; revisit digests + bot).
+# and Dependabot bumps both together. One grouped PR a week per ecosystem,
+# not one per update. Container base images and Go modules too (S-IRON-GATE
+# Step 323); each waits out the same 7-day cooldown the gates enforce
+# (ADR-096: check-dependency-baseline.sh, check-tool-freshness.sh).
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -18,3 +20,35 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: ci
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: docker
+    directories: ["/", "/docker/**", "/deploy/**"]
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: develop
+    open-pull-requests-limit: 2
+    groups:
+      images:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore(images)
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: develop
+    open-pull-requests-limit: 2
+    groups:
+      go:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore(deps)

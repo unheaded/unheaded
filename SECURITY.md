@@ -12,6 +12,10 @@ There are no versioned releases yet. Fixes are made on branches, in this order:
 
 Older commits and forks are not patched.
 
+## Verifying a Release
+
+Every file in a GitHub release is signed with keyless cosign by this repository's release workflow and covered by build provenance. Verify before you run anything: `scripts/verify-release.sh <tag> --download` (details: `wiki/Releases.md`).
+
 ## Reporting a Vulnerability
 
 We take the security of Unheaded seriously. If you believe you have found a security vulnerability, please report it to us as described below.

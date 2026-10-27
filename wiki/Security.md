@@ -160,13 +160,18 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | gitleaks (pinned binary, sha256) + shrink-only baseline | Secrets in the tracked tree | `scripts/check-gitleaks.sh`, `scripts/check-secrets-baseline.sh` |
 | ruff, shellcheck, clippy | Python, shell and Rust lint (gating) | CI |
 | oxlint (pinned binary, sha256) | JavaScript lint (gating); replaced eslint, the only npm use (ADR-006) | `scripts/check-js-lint.sh` |
-| release freshness | Pinned tools (oxlint, gitleaks, syft, grype, helm, kubeconform; all in `scripts/lib/tool-pins.sh`) fail once a newer release is 7 days old; each is sha256-checked on every use (`scripts/lib/fetch-tool.sh`) | `scripts/check-tool-freshness.sh` |
+| release freshness | Pinned tools (oxlint, gitleaks, syft, grype, cosign, helm, kubeconform; all in `scripts/lib/tool-pins.sh`) fail once a newer release is 7 days old; each is sha256-checked on every use (`scripts/lib/fetch-tool.sh`) | `scripts/check-tool-freshness.sh` |
 | Helm chart lockdown | Every rendered container: read-only root, no privilege escalation, drop ALL, not privileged; no host namespaces (default/dev/prod values) | `scripts/check-helm-security.sh` |
 | haproxy configs | Both haproxy configs pass `haproxy -c` under the compose-pinned image and the host binary, with a throwaway cert for the edge's TLS bind | `scripts/check-haproxy-cfg.sh` |
 | hadolint | Dockerfile lint: a Dockerfile it cannot parse fails; (rule, file) counts may only shrink | `scripts/check-hadolint.sh` |
 | bandit | Python security lint (reporting only) | CI |
 | syft | SBOM | CI |
 | Meta-gate | Plants a violation in every gate and requires it to fail | `scripts/check-gates-can-fail.sh` |
+| Signed releases | Every release file signed with keyless cosign (identity: `release.yml` at the tag), SBOM attested, GitHub build provenance; verify with the script ([[Releases]]) | `.github/workflows/release.yml`, `scripts/verify-release.sh`, CI `release-verify` |
+| OpenSSF Scorecard | Supply-chain posture score, published, uploaded as code scanning | `.github/workflows/scorecard.yml` |
+| CodeQL | Go, JavaScript and Python analysis on push/PR to develop, staging, main | `.github/workflows/codeql.yml` |
+| eBPF size pin | ADR-089 promotion gate: `monad-cpu-ebpf --features ascend-linux` keeps its pinned byte size (per toolchain); run on the build host | `scripts/check-ebpf-size-pin.sh`, `docs/policy/ebpf-size-pins.txt` |
+| Dependabot | Grouped weekly PRs for actions, base images and Go modules, each after a 7-day cooldown | `.github/dependabot.yml` |
 | Go fuzz targets | Every package with Fuzz functions, 10 s each, on every security run | `.github/workflows/security.yml` (lich-fuzz) |
 | LICH campaigns | Fuzz / red team (ADR-062); LICH-005 fuzzes `.bpf.o` through the real loader into `bpf(2)` | `tomb/lich/`, `crates/*/fuzz/` |
 | Fuzz targets | MBC interpreter fuzzing | `crates/monad-mbc/fuzz/` |

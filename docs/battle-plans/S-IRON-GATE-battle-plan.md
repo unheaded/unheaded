@@ -1038,15 +1038,15 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
   ```
 - [x] **Step 321** [V] ~1m: `tampered exit=1`, `restored`. Add the script to `scripts/check-gates-can-fail.sh`'s list.
 - [x] **Step 322** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 313-321: Scorecard + CodeQL workflows; ADR-089 eBPF size pin is a gate`.
-- [ ] **Step 323** [W] ~10m: `.github/dependabot.yml`: add `package-ecosystem: docker` for `/`, `/deploy/sophia-eye`, `/docker` (weekly, grouped, target develop, limit 2) and `gomod` for `/` (weekly, grouped, limit 2; ADR-096's 7-day cooldown is enforced by `check-dependency-baseline.sh`/`check-tool-freshness.sh`, not by Dependabot).
-- [ ] **Step 324** [B] ~1m
+- [x] **Step 323** [W] ~10m: `.github/dependabot.yml`: add `package-ecosystem: docker` for `/`, `/deploy/sophia-eye`, `/docker` (weekly, grouped, target develop, limit 2) and `gomod` for `/` (weekly, grouped, limit 2; ADR-096's 7-day cooldown is enforced by `check-dependency-baseline.sh`/`check-tool-freshness.sh`, not by Dependabot).
+- [x] **Step 324** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && python3 -c "import yaml; d=yaml.safe_load(open('.github/dependabot.yml')); print([u['package-ecosystem'] for u in d['updates']])"
   ```
-- [ ] **Step 325** [V] ~1m: `['github-actions', 'docker', 'docker', 'docker', 'gomod']` (order may differ).
-- [ ] **Step 326** [W][DOC-UPDATE] ~8m: `wiki/Releases.md`: how a release is cut (tag `vX.Y.Z-alpha`, what the workflow produces, how to verify with `scripts/verify-release.sh`, where provenance shows up); `wiki/Security-Tooling.md` rows for Scorecard, CodeQL, cosign, size pin; `SECURITY.md`: "verifying releases" paragraph linking the script.
-- [ ] **Step 327** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 323-326: dependabot docker+gomod; release and tooling docs`.
-- [ ] **Step 328** [V]: **PHASE 12 EXIT GATE**
+- [x] **Step 325** [V] ~1m: `['github-actions', 'docker', 'docker', 'docker', 'gomod']` (order may differ).
+- [x] **Step 326** [W][DOC-UPDATE] ~8m: `wiki/Releases.md`: how a release is cut (tag `vX.Y.Z-alpha`, what the workflow produces, how to verify with `scripts/verify-release.sh`, where provenance shows up); `wiki/Security-Tooling.md` rows for Scorecard, CodeQL, cosign, size pin; `SECURITY.md`: "verifying releases" paragraph linking the script.
+- [x] **Step 327** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 323-326: dependabot docker+gomod; release and tooling docs`.
+- [x] **Step 328** [V]: **PHASE 12 EXIT GATE**
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-actions-pinned.sh 2>&1 | tail -1 && bash scripts/check-ebpf-size-pin.sh 2>&1 | tail -1 && bash scripts/check-gates-can-fail.sh --quick 2>&1 | tail -2 && git status --short | wc -l
   ```
