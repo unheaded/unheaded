@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Well: weekly retention (S-WELL-SPRING Phase 4, M-074; retention policy
+# v1 §11). cmd/well-retention, as the login role retention_runner
+# (migrations 042/043), applies compliance/retention/classes.yaml: purges
+# what a class ages out, archives (redacted) before purging where a class
+# says so, and measures the partition trigger on append-only history. Every
+# run writes unheaded_ops.retention_runs; well_retention.prom goes to the
+# textfile directory.
+#
+# Package: unheaded-well-retention (scripts/build-all-debs.sh) installs the
+# binary, this unit, its timer (not enabled) and the classes file as
+# /etc/unheaded/well/retention-classes.yaml (a conffile). Then, on west:
+#   sudo install -m 0400 -o root -g root /dev/null /etc/unheaded/well/retention.password
+#     and write RETENTION_RUNNER_PASSWORD (from the repo's .env) into it; the
+#     role gets the same value: RETENTION_RUNNER_PASSWORD=... scripts/well/set-role-passwords.sh
+#   sudo setfacl -m u:unheaded-well-retention:rwx /var/lib/unheaded/textfile
+# Dry run (counts only; one retention_runs row per class, dry_run true):
+#   sudo systemd-run --wait --pipe --uid=unheaded-well-retention \
+#     -p LoadCredential=well-password:/etc/unheaded/well/retention.password \
+#     /opt/unheaded/bin/well-retention -classes /etc/unheaded/well/retention-classes.yaml -dry-run
+# The timer stays disabled until Stevie ratifies the ages (E-C); until the
+# classes file says ratified: true, this unit's live run exits 2 and
+# deletes nothing.
+#
+# The password stays root's 0400 file; systemd hands this unit a copy
+# (credential well-password, which well-retention reads from
+# $CREDENTIALS_DIRECTORY), readable by unheaded-well-retention only for the run.
+
+[Unit]
+Description=The Well: retention classes (purge, archive, partition check)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/policy/retention-policy-v1-2026-05-06.md
+After=network-online.target unheaded-well-backup.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=WELL_HOST=127.0.0.1
+Environment=WELL_PORT=5432
+Environment=WELL_SSLMODE=require
+Environment=WELL_USER=retention_runner
+Environment=WELL_METRICS_DIR=/var/lib/unheaded/textfile
+EnvironmentFile=-/etc/unheaded/well/retention.env
+LoadCredential=well-password:/etc/unheaded/well/retention.password
+ExecStart=/usr/local/bin/well-retention -classes /etc/unheaded/well/retention-classes.yaml
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=idle
+
+User=unheaded-well-retention
+Group=unheaded-well-retention
+UMask=0022
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/unheaded/textfile
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM

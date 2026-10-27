@@ -920,6 +920,63 @@ ground truth.
 
 ---
 
+## 11. Proposed for ratification 2026-10-27 (S-WELL-SPRING Phase 4, M-074)
+
+This is what E-C ratifies. The Well's classes below are enforced by one
+job, `well-retention` (`cmd/well-retention`), from one file,
+`compliance/retention/classes.yaml`; the weekly timer
+`unheaded-well-retention.timer` stays disabled until this table is
+ratified, and the job refuses a live run while that file says
+`ratified: false` (a dry run always works). Classes outside The Well (§3.1-3.6,
+3.11-3.15) are unchanged by this section.
+
+| Class (`classes.yaml`) | Table (database) | Online | Archive | Action | Where the value comes from |
+|---|---|---|---|---|---|
+| `zhen-conversations` | `zhen_conversations` (app) | 90 d | none: operator-typed text | purge | §3.9 of this policy. The sprint plan drafted 180 d. |
+| `zhen-captures` | `zhen_captures` + labels (app) | 180 d unless promoted; quarantined at once | none | purge through `zhen_captures_purge()` | Migration 033's insert trigger fixes 180 d; a different age is a migration first. The plan drafted 365 d. |
+| `kanban-soft-deleted` | `kanban_tasks` with `deleted_at` set (app) | 90 d after `deleted_at` | `retention_archive`, redacted | archive, then purge; a card any `zhen_agent_runs` row names is kept and counted as held | ADR-011 Q4 amendment (Step 40). |
+| `retention-archive` | `retention_archive` (ops) | 365 d | none | purge | §3.4's "1 year archive". |
+| `llm-requests` | `llm_requests` (ops) | 90 d | 1 y | partition check: rows are never deleted (030's trigger) | Plan draft. |
+| `service-health-transitions` | `service_health_transitions` (ops) | 90 d | 1 y | partition check (015's trigger) | §3.8.2. The plan drafted 365 d. |
+| `audit-events` | `audit_events` (ops) | 90 d | 1 y | partition check; this job never deletes audit rows | §3.4, §3.8.2. |
+| `compliance-findings-history` | `compliance_findings_history` (ops) | 365 d | permanent | partition check | Proposed here: no earlier row. |
+| `deploy-history` | `deploy_history_transitions` (ops) | 365 d | permanent | partition check (039) | Proposed here. |
+| `chaos-journal` | `chaos_journal` (ops) | 365 d | permanent | partition check (039) | Proposed here. |
+| `zhen-agent-runs` | `zhen_agent_runs` (app) | kept | n/a | partition check (size and rows only) | 032: runs are never deleted. |
+
+**Partition check** is ERDA 5.4's trigger, measured each run: a table is
+due for monthly time partitions when it passes 1 M rows or 1 GB, or 90 days
+before its oldest row reaches the online age (`partition_by` in
+`retention_runs.detail`). The job reports and records; the partition
+conversion is a reviewed migration, not something the job does.
+
+**What the first live run would delete** (read-only count, live Well,
+2026-10-27): `zhen_conversations` 226 rows, oldest 2026-05-02; 126 are
+older than 90 days, none older than 180. `kanban_tasks` 0 rows.
+`service_health_transitions` (15 rows, oldest 2026-10-18) is due for
+partitions now under a 90-day online age (its oldest row reaches 90 days on
+2027-01-16, and the trigger fires 90 days before that): with 90 d
+ratified, its partition migration has to land before 2027-01-16.
+`compliance_findings_history` (148 rows, oldest 2026-10-15) is due by
+2027-07-17 under 365 d.
+
+**PII.** Nothing this job reads leaves the database except into
+`retention_archive`, and every string in an archived row passes the shared
+redactor first (`pkg/zhencapture/redact_patterns.json`: secrets, tokens,
+keys, URL passwords, email addresses). The Zhen web UI's conversation
+writer (`raft/zhen_app.py` `_pg_log`) runs the same patterns before its
+INSERT and refuses to persist when it cannot load them. The job logs
+counts, never row contents.
+
+**Legal hold** (§4.2): `hold: true` on a class in `classes.yaml` suspends
+its purge; the run is recorded with action `held`.
+
+**Ratify by** answering E-C: the ages as drafted, or which to change. Then
+`ratified: true` in `classes.yaml` (same commit as any age change), and
+`systemctl enable --now unheaded-well-retention.timer`.
+
+---
+
 ## Appendix A: Files referenced
 
 - `pkg/auth/audit.go` — current audit logger implementation

@@ -42,5 +42,6 @@ config_admin CONFIG_ADMIN_PASSWORD
 config_reader CONFIG_READER_PASSWORD
 huginn_reader HUGINN_READER_PASSWORD
 well_backup WELL_BACKUP_PASSWORD
+retention_runner RETENTION_RUNNER_PASSWORD
 ROLES
 echo "[well] $n role password(s) set"

@@ -121,6 +121,8 @@ var hostOnly = map[string]string{
 	// west: deploy/systemd/unheaded-heartbeat.service, unheaded-ci-status.service.
 	"heartbeat": "unheaded-heartbeat",
 	"ci-status": "unheaded-ci-status",
+	// The Well's weekly retention job: deploy/systemd/unheaded-well-retention.service.
+	"well-retention": "unheaded-well-retention",
 	// The built-in issuer (ADR-103): deploy/systemd/unheaded-auth.service.
 	// It also runs as compose service "auth" with the same uid; listing it
 	// here keeps the sysusers pin checked.

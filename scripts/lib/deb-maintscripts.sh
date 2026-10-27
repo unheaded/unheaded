@@ -57,18 +57,25 @@ deb_conffiles() {
 	esac
 }
 
-# deb_prerm PKG: stop and disable only when the package is being removed.
-# dpkg also runs prerm with "upgrade" on every upgrade; disabling there left
-# the service disabled at the next boot after any apt upgrade.
+# deb_prerm PKG [UNIT...]: stop and disable only when the package is being
+# removed. dpkg also runs prerm with "upgrade" on every upgrade; disabling
+# there left the service disabled at the next boot after any apt upgrade.
+# UNITs default to PKG.service; a timer package names its timer first.
 deb_prerm() {
+	local pkg=$1 u lines=""
+	shift
+	[ $# -gt 0 ] || set -- "$pkg.service"
+	for u in "$@"; do
+		lines="$lines	systemctl stop $u 2>/dev/null || true
+	systemctl disable $u 2>/dev/null || true
+"
+	done
 	cat <<SCRIPT
 #!/bin/sh
 set -e
 case "\$1" in
 remove|deconfigure)
-	systemctl stop $1.service 2>/dev/null || true
-	systemctl disable $1.service 2>/dev/null || true
-	;;
+${lines}	;;
 esac
 SCRIPT
 }

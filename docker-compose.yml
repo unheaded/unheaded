@@ -379,6 +379,7 @@ services:
       CONFIG_ADMIN_PASSWORD: ${CONFIG_ADMIN_PASSWORD:-}
       CONFIG_READER_PASSWORD: ${CONFIG_READER_PASSWORD:-}
       HUGINN_READER_PASSWORD: ${HUGINN_READER_PASSWORD:-}
+      RETENTION_RUNNER_PASSWORD: ${RETENTION_RUNNER_PASSWORD:-}
     ports:
       - "127.0.0.1:5432:5432"   # loopback only — host clients use localhost, containers use docker DNS; keeps The Well off the LAN
     volumes:

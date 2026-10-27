@@ -28,7 +28,8 @@ fake_paths() {
 deb_postinst unheaded-wotan wotan unheaded-wotan | fake_paths >"$T/postinst"
 deb_postinst unheaded-wotan | fake_paths >"$T/postinst-nokey"
 deb_prerm unheaded-wotan >"$T/prerm"
-chmod +x "$T/postinst" "$T/postinst-nokey" "$T/prerm"
+deb_prerm unheaded-well-retention unheaded-well-retention.timer unheaded-well-retention.service >"$T/prerm-timer"
+chmod +x "$T/postinst" "$T/postinst-nokey" "$T/prerm" "$T/prerm-timer"
 
 fail=0
 run() { # run SCRIPT ARGS...: the calls it made, one per line
@@ -50,6 +51,12 @@ expect "prerm failed-upgrade touches nothing" "$(run prerm failed-upgrade 1.0.0)
 expect "prerm remove stops and disables" "$(run prerm remove)" \
 	"systemctl stop unheaded-wotan.service
 systemctl disable unheaded-wotan.service"
+expect "prerm of a timer package stops and disables the timer, then the service" "$(run prerm-timer remove)" \
+	"systemctl stop unheaded-well-retention.timer
+systemctl disable unheaded-well-retention.timer
+systemctl stop unheaded-well-retention.service
+systemctl disable unheaded-well-retention.service"
+expect "prerm of a timer package: upgrade touches nothing" "$(run prerm-timer upgrade 1.0.1)" ""
 expect "postinst configure: account, key (absent), reload, try-restart" "$(run postinst configure 1.0.0)" \
 	"systemd-sysusers /usr/lib/sysusers.d/unheaded-wotan.conf
 unheaded-keygen -owner unheaded-wotan wotan

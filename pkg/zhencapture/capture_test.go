@@ -43,6 +43,9 @@ func TestRedact(t *testing.T) {
 		{"yaml secret", "client_secret: " + fake("", 10, "c"), []string{"cccccc"}, []string{"client_secret: [REDACTED:assignment]"}, 1},
 		{"plain prose untouched", "the password policy is strict; see secrets_manager.go", nil, []string{"the password policy is strict; see secrets_manager.go"}, 0},
 		{"short value untouched", "password=abc", nil, []string{"password=abc"}, 0},
+		{"email", "ask jane.doe+ops@mail.example.co.uk today", []string{"jane.doe", "example.co.uk"}, []string{"ask [REDACTED:email] today"}, 1},
+		{"url password then host", "https://bob:" + fake("", 10, "s") + "@git.example.com/x", []string{"ssssss"}, []string{"https://bob:[REDACTED:url_password]@git.example.com/x"}, 1},
+		{"at-sign without a domain untouched", "@stevie and user@localhost", nil, []string{"@stevie and user@localhost"}, 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

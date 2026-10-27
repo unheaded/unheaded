@@ -22,11 +22,11 @@ The Well is Unheaded's PostgreSQL: one Postgres 16 cluster with three databases,
 | Database | Holds | Owner (NOLOGIN) |
 |---|---|---|
 | `unheaded_app` | kanban tasks, timeline milestones, Zhen conversations/memories/actions, API keys (`api_keys`: SHA-256 of each `uhk_` key, owner, role, expiry, revocation; migration 036) | `well_app_owner` |
-| `unheaded_ops` | service health, audit events, compliance evidence and findings, LLM request telemetry (`llm_requests`) | `well_ops_owner` |
+| `unheaded_ops` | service health, audit events, compliance evidence and findings, LLM request telemetry (`llm_requests`), retention records (`retention_runs`, `retention_archive`; 043) | `well_ops_owner` |
 | `unheaded_config` | kingdom_config (+ history), service registry, compliance catalogue | `well_config_owner` |
 | `postgres` | `pg_stat_statements` only | `unheaded` |
 
-`unheaded_ops.llm_requests` (030) holds one append-only row per model request from either Zhen brain: counts, cost and timing, never text; written by `ops_writer` when `zhen-claude`/`zhen-agentd` run with `-audit-well`; no retention yet (small rows; time partitions when it grows). See [[Zhen Audit|Zhen-Audit]].
+`unheaded_ops.llm_requests` (030) holds one append-only row per model request from either Zhen brain: counts, cost and timing, never text; written by `ops_writer` when `zhen-claude`/`zhen-agentd` run with `-audit-well`; rows are never deleted; the retention job measures when it needs time partitions (see Retention below). See [[Zhen Audit|Zhen-Audit]].
 
 Each database has its own `well_schema_migrations` ledger. The legacy `unheaded` database was dropped on 2026-10-15; its final dump is archived in `~/backups/well/2026-10-15/`.
 
@@ -40,9 +40,31 @@ Each database has its own `well_schema_migrations` ledger. The legacy `unheaded`
 | `config_admin`, `config_reader` | `unheaded_config` | unheaded-daemon, services |
 | `huginn_reader` | all three, `pg_monitor`, 3 conns | Huginn |
 | `well_backup` | all, `pg_read_all_data`, 3 conns | backups, restore drill |
+| `retention_runner` | `unheaded_app` + `unheaded_ops`, 4 conns: DELETE on `zhen_conversations`, `kanban_tasks`, `retention_archive` only; `zhen_captures_purge()`; age columns of the append-only tables; INSERT on `retention_runs`; password `RETENTION_RUNNER_PASSWORD` (migrations 042/043) | `well-retention` (`unheaded-well-retention.timer`) |
 | `unheaded` | superuser, TLS from the host only | well-migrate, operators |
 
 PUBLIC has no CONNECT or TEMP anywhere: a role reaches only the databases it is granted.
+
+## Retention
+
+One job, `well-retention` (`cmd/well-retention`, package `unheaded-well-retention`, unit + weekly timer Sunday 04:10 as account `unheaded-well-retention`), logs in as `retention_runner` and applies `compliance/retention/classes.yaml` (installed as the conffile `/etc/unheaded/well/retention-classes.yaml`). The ages are a proposal until Stevie ratifies them (E-C): policy table in `docs/policy/retention-policy-v1-2026-05-06.md` §11. Until then the file says `ratified: false`, a live run exits 2, and the timer is not enabled.
+
+| Class | Table | Age | What happens |
+|---|---|---|---|
+| zhen-conversations | `zhen_conversations` | 90 d | purged in batches; no archive (operator text) |
+| zhen-captures | `zhen_captures` | 180 d (033's trigger) | `zhen_captures_purge()`; promoted ones stay, quarantined go at once |
+| kanban-soft-deleted | `kanban_tasks`, `deleted_at` set | 90 d | redacted copy into `retention_archive`, then deleted; a card any `zhen_agent_runs` row names is kept (held) |
+| retention-archive | `retention_archive` | 365 d | purged |
+| llm-requests, service-health-transitions, audit-events, compliance-findings-history, deploy-history, chaos-journal, zhen-agent-runs | append-only history | 90-365 d | **never deleted**: partition check only (ERDA 5.4: due at 1 M rows, 1 GB, or 90 days before the oldest row reaches its age); the partition migration is a reviewed change |
+
+- **Audit rows are never deleted** by this job; `retention_runner` cannot (permission denied, proved by `scripts/well/test-retention.sh`).
+- **Every run is recorded**: one `unheaded_ops.retention_runs` row per class (dry runs too): cutoff, eligible, deleted, archived, held, partition verdict in `detail`. Read: `SELECT class, action, dry_run, eligible, deleted, held, detail FROM retention_runs ORDER BY id DESC LIMIT 20` (as `ops_reader`).
+- **Dry run**: `sudo systemd-run --wait --pipe --uid=unheaded-well-retention -p LoadCredential=well-password:/etc/unheaded/well/retention.password /opt/unheaded/bin/well-retention -classes /etc/unheaded/well/retention-classes.yaml -dry-run`. Counts only.
+- **Password**: root's 0400 `/etc/unheaded/well/retention.password`, handed to the unit as the credential `well-password`; same value as `RETENTION_RUNNER_PASSWORD` in `.env`.
+- **PII**: archived rows pass the shared redactor (`pkg/zhencapture/redact_patterns.json`, emails included) first; the Zhen web UI redacts conversation rows the same way before they are written. The job logs counts, never contents.
+- **Legal hold**: `hold: true` on a class stops its deletes (recorded as `held`).
+- **Metrics**: `/var/lib/unheaded/textfile/well_retention.prom` (`unheaded_well_retention_last_success_timestamp_seconds`, `_rows_deleted`, `_partition_due`, `_class_failed`).
+- First live run (counted read-only 2026-10-27): 126 of 226 conversations are past 90 days; `service_health_transitions` is due for partitions under 90 d.
 
 ## Connecting
 
@@ -52,13 +74,13 @@ PUBLIC has no CONNECT or TEMP anywhere: a role reaches only the databases it is 
 - From containers: host `postgres:5432` on the `data` network (`172.28.1.0/24`).
 - From west itself: `127.0.0.1:5432` (published to localhost only).
 - `docker exec` over the socket needs no password (root on the host already).
-- Budget: `max_connections` 50, 42 of 47 allotted. A new pooled client gets a row in the operations guide first.
+- Budget: `max_connections` 50, 44 of 47 allotted. A new pooled client gets a row in the operations guide first.
 
 ## Rules
 
 - **No DB = read-only mode.** Mutable UI is never allowed without persistence.
 - **Ledger only.** Schema changes are new migrations through `cmd/well-migrate`; no service creates tables at startup, no hand-run SQL files. Services check the ledger instead: `pkg/database.RequireMigrations` (kanban-app requires 003 and 007 and refuses to start against a Well that answers without them, rather than falling back to its local SQLite board; `app_kanban` reads `unheaded_app`'s ledger through migration 038). kanban-app's and timeguru's `CREATE TABLE IF NOT EXISTS` are their own local SQLite files, not the Well.
-- **Batches go through `scripts/well/batch-apply.sh`.** `--dry-run [--from NNN]` lists what is pending (MANIFEST minus ledgers) and changes nothing; without it the script backs up the whole cluster (`scripts/db-backup.sh` layout) into `/srv/backups/unheaded-well/pre-batch-<UTC>/` with `pending.tsv`, applies, and prints the ledger rows added. A batch that fails part-way: do not re-run; `scripts/well/batch-rollback.sh --yes <pre-batch-dir>` drops and restores only the databases the batch touched and drops roles it created (writes since the backup are lost). Rehearsal: `scripts/well/test-batch-apply.sh` (CI). Pending live as of 2026-10-27: 030-038.
+- **Batches go through `scripts/well/batch-apply.sh`.** `--dry-run [--from NNN]` lists what is pending (MANIFEST minus ledgers) and changes nothing; without it the script backs up the whole cluster (`scripts/db-backup.sh` layout) into `/srv/backups/unheaded-well/pre-batch-<UTC>/` with `pending.tsv`, applies, and prints the ledger rows added. A batch that fails part-way: do not re-run; `scripts/well/batch-rollback.sh --yes <pre-batch-dir>` drops and restores only the databases the batch touched and drops roles it created (writes since the backup are lost). Rehearsal: `scripts/well/test-batch-apply.sh` (CI). Pending live as of 2026-10-27: 030-043.
 - **Unused indexes** (ERDA 5.3): `scripts/well/index-drops-after-2026-11-15.sh` prints `DROP INDEX CONCURRENTLY` drafts for indexes still at `idx_scan = 0`; it refuses before 2026-11-15 or on statistics younger than 28 days and never drops anything. The reviewed list becomes a `notx` migration.
 - **No credentials in the repo**, and every `kingdom_config` change states a reason (`well.change_reason`, 028).
 - **Backup before change:** `sudo systemctl start unheaded-well-backup.service`.

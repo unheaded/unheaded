@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Well: retention once a week, Sunday after that night's backup (03:30)
+# and before the restore drill (05:00). Not enabled until the retention
+# policy's ages are ratified (E-C): see unheaded-well-retention.service.
+
+[Unit]
+Description=The Well: weekly retention
+
+[Timer]
+OnCalendar=Sun *-*-* 04:10:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -27,7 +27,7 @@ func (f funcScanner) Scan(_ context.Context, s string) (map[string]int, error) {
 	return out, nil
 }
 
-var testScanner = funcScanner{"PLANTED-SECRET": "secret", "alice@corp-internal.net": "email"}
+var testScanner = funcScanner{"PLANTED-SECRET": "secret", "10.20.30.40": "ipv4"}
 
 // captureDir is a private capture directory outside any repository.
 func captureDir(t *testing.T) string {
@@ -167,7 +167,7 @@ func TestIngest_RescanQuarantines(t *testing.T) {
 	dir := captureDir(t)
 	writeRecords(t, dir,
 		localRecord("leak", "the key is PLANTED-SECRET ok"),
-		localRecord("mail", "write to alice@corp-internal.net"),
+		localRecord("addr", "connect to 10.20.30.40"),
 		localRecord("clean", "nothing to see"))
 	st := newMemStore()
 	rep, err := newIngester(st).IngestDir(context.Background(), dir)
@@ -178,7 +178,7 @@ func TestIngest_RescanQuarantines(t *testing.T) {
 		t.Fatalf("report = %+v", rep)
 	}
 	for _, c := range st.captures {
-		if strings.Contains(c.Response, "PLANTED") || strings.Contains(c.Response, "alice@") {
+		if strings.Contains(c.Response, "PLANTED") || strings.Contains(c.Response, "10.20.30.40") {
 			t.Errorf("quarantined text reached the Well: %q", c.Response)
 		}
 	}
@@ -196,8 +196,29 @@ func TestIngest_RescanQuarantines(t *testing.T) {
 		t.Errorf("quarantine file: %d lines, %s", n, raw)
 	}
 	for _, r := range rep.QuarantineReasons {
-		if strings.Contains(r, "PLANTED") || strings.Contains(r, "alice") {
+		if strings.Contains(r, "PLANTED") || strings.Contains(r, "10.20.30.40") {
 			t.Errorf("a reason carries the value: %q", r)
+		}
+	}
+}
+
+// The capture writer redacts email addresses itself (redact_patterns.json,
+// retention policy v1 §11), so an address never reaches the file: the
+// record is ingested with the tag, not quarantined.
+func TestIngest_EmailRedactedAtCapture(t *testing.T) {
+	dir := captureDir(t)
+	writeRecords(t, dir, localRecord("mail", "write to alice@corp-internal.net"))
+	st := newMemStore()
+	rep, err := newIngester(st).IngestDir(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Inserted != 1 || rep.Quarantined != 0 {
+		t.Fatalf("report = %+v", rep)
+	}
+	for _, c := range st.captures {
+		if strings.Contains(c.Response, "alice@") || !strings.Contains(c.Response, "[REDACTED:email]") {
+			t.Errorf("response %q", c.Response)
 		}
 	}
 }
