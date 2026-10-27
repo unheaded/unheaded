@@ -307,7 +307,13 @@ findings:
     plan: >-
       E3: first live rotation with scripts/wireguard/rotate-psk.sh --apply (dry run by default; waits 200 s for a
       handshake and rolls back), then enable the weekly timer from deploy/systemd/ (docs/security/pq-host-escalations.md)
-    decision: E3, the first live rotation and enabling the weekly timer
+      2026-10-27 (S24, E3 granted by Stevie): first live rotation done at 12:23:16Z (handshake within
+      seconds, overlay ping 3/3, verify-wireguard 8/8 PASS); wg0.conf backed up to /root on both hosts first;
+      east's setup-era /etc/wireguard/preshared.key shredded. Script and units installed on west, timer NOT
+      enabled: the unit runs as root and root on west has no SSH key for east, so enabling it needs a new
+      root key authorized on govan@east (which has passwordless sudo, i.e. root on east). Closes when that
+      trust decision is made and the timer is enabled.
+    decision: 'E3 rotation done 2026-10-27; open: root-on-west SSH key to east for the weekly timer (trust expansion)'
 
   - id: FND-017
     title: >-

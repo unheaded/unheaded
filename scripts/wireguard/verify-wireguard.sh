@@ -12,6 +12,9 @@ WEST_WG="fd00:dead:beef::1"
 EAST_WG="fd00:dead:beef::2"
 WG_IFACE="wg0"
 REMOTE_USER="govan"
+# SSH by host alias, not the raw P2P address: ~/.ssh/config picks the key for
+# "east"; by IP the login is refused and every east check reported a false FAIL.
+EAST_SSH="${EAST_SSH:-${REMOTE_USER}@east}"
 PING_COUNT=10
 TCPDUMP_DURATION=5
 PASS=0
@@ -42,7 +45,7 @@ test_interfaces() {
     fi
 
     # EAST
-    if ssh -o ConnectTimeout=5 "${REMOTE_USER}@${EAST_P2P}" \
+    if ssh -o ConnectTimeout=5 -o BatchMode=yes "${EAST_SSH}" \
         "ip link show ${WG_IFACE}" >/dev/null 2>&1; then
         pass "EAST wg0 interface exists"
     else
@@ -86,7 +89,7 @@ test_ping_east_to_west() {
     header "EAST -> WEST IPv6 Ping (${PING_COUNT} packets)"
 
     local output
-    output=$(ssh -o ConnectTimeout=5 "${REMOTE_USER}@${EAST_P2P}" \
+    output=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "${EAST_SSH}" \
         "ping6 -c ${PING_COUNT} -W 3 ${WEST_WG}" 2>&1) || true
 
     if echo "$output" | grep -q "0% packet loss"; then
@@ -137,7 +140,7 @@ test_wg_show() {
     echo
     log "--- EAST wg show ---"
     local east_wg
-    east_wg=$(ssh -o ConnectTimeout=5 "${REMOTE_USER}@${EAST_P2P}" \
+    east_wg=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "${EAST_SSH}" \
         "sudo wg show ${WG_IFACE}" 2>&1) || true
     echo "$east_wg"
 
