@@ -8,6 +8,7 @@ Strong Inference methodology (Platt 1964). Bootstrap CI N=10,000. α=0.05.
 | Date | H1 | H2 | H3 | H4 | H5 | H6 | H7 | H8 | Score |
 |------|----|----|----|----|----|----|----|----|-------|
 | PENDING | — | — | — | — | — | — | — | — | 0/8 |
+| 2026-10-27 | UNTESTED | UNTESTED | UNTESTED | UNTESTED | SUPPORTED (deviation) | UNTESTED | UNTESTED | UNTESTED (pending Step 217) | 1/8 supported, 0 refuted, 7 untested |
 
 ## Hypothesis Definitions
 
@@ -21,7 +22,7 @@ Strong Inference methodology (Platt 1964). Bootstrap CI N=10,000. α=0.05.
 
 **Success Criterion**: P99 latency consistently < 1000 ns (1µs) across 30-second windows.
 
-**Status**: PENDING
+**Verdict**: UNTESTED: needs pktgen at a sustained 100K pps and the `unheaded_flow_latency_ns` histogram over 30 s windows. No run exists (2026-10-27); the 920K pps figure once quoted was a Python `sendto` ceiling, not XDP (BENCHMARKS.md section 4, M-090).
 
 ---
 
@@ -35,7 +36,7 @@ Strong Inference methodology (Platt 1964). Bootstrap CI N=10,000. α=0.05.
 
 **Success Criterion**: `(CPU_with_policy - CPU_baseline) / CPU_baseline < 0.05`
 
-**Status**: PENDING
+**Verdict**: UNTESTED: needs /proc/stat CPU with the policy programs loaded and unloaded at a fixed 100K pps. No run exists (2026-10-27).
 
 ---
 
@@ -49,7 +50,7 @@ Strong Inference methodology (Platt 1964). Bootstrap CI N=10,000. α=0.05.
 
 **Success Criterion**: `T_restart - T_kill < 30s` in 10/10 trials.
 
-**Status**: PENDING
+**Verdict**: UNTESTED: needs the 10 pre-registered trials. Two related observations exist, both under 30 s: container kill to Cuirass restart 24.4 s (S-REAL-STEEL Phase 11, 2026-10-26) and 1.7 s (game day 1 B, `docs/gamedays/2026-10-26-real-steel-1.md`). They are LXD instances restarted by Cuirass's enforce loop, not `kill -9` of a systemd service, and the restart waits for Cuirass's 30 s sync, so a trial that lands just after a sync can exceed 30 s: the claim is at risk at the boundary, not shown.
 
 ---
 
@@ -63,7 +64,7 @@ Strong Inference methodology (Platt 1964). Bootstrap CI N=10,000. α=0.05.
 
 **Success Criterion**: P99 RTT < 5000 µs (5ms).
 
-**Status**: PENDING
+**Verdict**: UNTESTED: needs 1000 probes (`ping6 -c 1000` over the overlay, or `go run ./cmd/perf-benchmark -iterations 1000` without `-scenario`, whose `-east-wg` probe pings6 once per iteration). The only data is 10 probes on 2026-03-25, max 0.891 ms WEST to EAST (BENCHMARKS.md section 3): consistent with the claim, too few for a P99.
 
 ---
 
@@ -77,7 +78,7 @@ Strong Inference methodology (Platt 1964). Bootstrap CI N=10,000. α=0.05.
 
 **Success Criterion**: Sustained throughput > 30 tok/s measured over 60s window.
 
-**Status**: PENDING
+**Verdict**: SUPPORTED, with a protocol deviation: llama.cpp, not vLLM, Mistral-7B on the RX 7700 XT, 58.3 to 59.7 tok/s average across five context sizes on 2026-03-16 (ADR-017 results table); one run per size, no 60 s window or bootstrap recorded. The margin (about 2x the 30 tok/s bar) is why the deviation is not judged to flip it; a vLLM run per the protocol would make it clean.
 
 **Note**: Optional for Host-B (outpost); GPU not required.
 
@@ -93,7 +94,7 @@ Strong Inference methodology (Platt 1964). Bootstrap CI N=10,000. α=0.05.
 
 **Success Criterion**: P99 register overhead < 2000 ns (2µs).
 
-**Status**: PENDING
+**Verdict**: UNTESTED: needs the kprobe timing of the Monad register/unregister path. No run exists (2026-10-27).
 
 ---
 
@@ -107,7 +108,7 @@ Strong Inference methodology (Platt 1964). Bootstrap CI N=10,000. α=0.05.
 
 **Success Criterion**: `(RTT_wg_p99 - RTT_bare_p99) < 1000 µs (1ms)`
 
-**Status**: PENDING
+**Verdict**: UNTESTED: needs bare P2P and WireGuard P99 from the same run (`go run ./cmd/perf-benchmark` without `-scenario` measures both: `p2p-direct-latency`, `wireguard-ipv6-latency`). BENCHMARKS.md has WireGuard RTT only.
 
 ---
 
@@ -121,7 +122,7 @@ Strong Inference methodology (Platt 1964). Bootstrap CI N=10,000. α=0.05.
 
 **Success Criterion**: `T_trace_complete < 10ms` for 95th percentile.
 
-**Status**: PENDING
+**Verdict**: UNTESTED: needs Step 217's `e2e-trace` p95 (S-WELL-SPRING Phase 10, coordinator run on west), and that run is a partial test: Wotan publish to the dashboard API on one host, no OpenTelemetry span and no WireGuard leg. A full test needs a traced request crossing west to east.
 
 ---
 
@@ -170,5 +171,5 @@ Captured with:
 
 ---
 
-Last Updated: 2026-02-26
+Last Updated: 2026-10-27 (S-WELL-SPRING Phase 10: every hypothesis has a verdict line; M-090)
 Repository: github.com/unheaded-kingdom/unheaded

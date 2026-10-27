@@ -1,6 +1,6 @@
 # S77 — Phase 2: Performance Benchmarking
 
-> **Historical design doc (S77).** `e2ePacketTrace`, `--only`, `make ci-bench` and the 18 ms figure do not exist in the tree (2026-10-27: `cmd/perf-benchmark/main.go` has no such scenario or flag, the Makefile no such target). The benchmark is M-089 in docs/sweeps/OUTSTANDING-2026-10-27.md (S-WELL-SPRING).
+> **Historical design doc (S77).** S77 figures were never measured by the named harness (it did not exist); see BENCHMARKS.md 2026-10 (section 5). `e2ePacketTrace`, `--only`, `make ci-bench` and the 18 ms figure never existed in the tree. Since S-WELL-SPRING Phase 10 (M-089) the real harness is `go run ./cmd/perf-benchmark -scenario e2e-trace,container-start,http-load,http3|all`, with `scripts/check-perf-regression.sh` against `docs/policy/perf-baseline.json`.
 
 **Sprint:** S77 (Age 2 Acceleration)
 **Phase:** 2 — Benchmark Framework + Results
@@ -49,21 +49,21 @@ func (s *Suite) Run(t *testing.T) (Report, error)
 | `gatewayIngressLatency` | client → HAProxy edge → service | < 20 ms p99 |
 | `e2ePacketTrace` | XDP packet → Wotan → dashboard WebSocket | **< 50 ms p99** (the headline gate) |
 
-Each scenario can be run alone via flags (`./perf-benchmark --only=e2ePacketTrace`).
+As designed in S77; none of these scenario names existed. The scenarios that exist are selected with `-scenario` (comma-separated): `e2e-trace`, `container-start` (needs `-allow-lxd`), `http-load` (`-rate`, `-duration`, `-health`), `http3` (`-http3-url`), or `all`.
 
 ## Reproduction
 
 ```bash
-make build
-./bin/perf-benchmark --duration=60s --warmup=5s --output=docs/PERFORMANCE-S77.results.json
+go run ./cmd/perf-benchmark -scenario e2e-trace,http-load,http3 -iterations 200 -duration 60s -output /tmp/perf.json
+scripts/check-perf-regression.sh /tmp/perf.json
 ```
 
-Results land alongside this doc; the file is gitignored to avoid noise. CI runs a 5s smoke variant via `make ci-bench` and asserts each scenario stays inside its target.
+The report is perf/v1 JSON (`schema`, `host`, `commit`, `at`, per scenario `n`, `p50`/`p95`/`p99` in ns, `error_ratio`, `skipped`). There is no `make ci-bench`; the live gate is opt-in in `scripts/ci-local.sh` (`CI_LOCAL_PERF=1`, west, stack up).
 
 ## Notes
 
 - "WireGuard IPv6 latency" picks up overhead from ChaCha20-Poly1305 AEAD + the kernel WG module's UDP path. On WEST it's ~1.2 ms p99; on EAST P2P link it's ~2.8 ms p99 (the slower CPU dominates).
-- The full e2e path (`e2ePacketTrace`) currently sits around 18 ms p99 cold and 8 ms p99 warm — well within the < 50 ms gate but the cold tail is dominated by the dashboard WebSocket reconnect handshake.
+- (Struck 2026-10-27: an 18 ms / 8 ms p99 `e2ePacketTrace` figure stood here; no harness existed to produce it. The measured e2e number lives in BENCHMARKS.md section 5.)
 - Per S78 LoC audit: 415K production lines, 34 services, 23 eBPF programs all participate in the e2e flow.
 
 ## References

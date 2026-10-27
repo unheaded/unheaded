@@ -77,11 +77,38 @@ From S76 Round Table (2026-03-05):
 
 | Metric | Value |
 |--------|-------|
-| AF_XDP throughput | **920,000 pps** |
+| Python `sendto` sender ceiling | 920K pps (not AF_XDP; the AF_XDP product path is M-187) |
 | XDP_TX cache warmth speedup | **256x** |
 | Doom MBC instructions executed | 5,596,059 |
 | Doom XDP bounces | 11,636,475 |
 | Doom system ticks | 78,905,128 |
+
+---
+
+## 5. Measured scenarios, 2026-10 (`cmd/perf-benchmark -scenario`, M-089)
+
+The four claims below had no harness before S-WELL-SPRING Phase 10. Each
+cell is filled only from a perf/v1 report a run actually wrote; "pending"
+means the run has not happened yet. Durations are p50 / p99.
+
+| Scenario | What is timed | Target | Host | Commit | Result |
+|----------|---------------|--------|------|--------|--------|
+| `e2e-trace` | Wotan publish of a trace-id'd packet event on `bench.perf.packet` until dashboard-backend's `/api/v1/ebpf/events` (the endpoint the page polls) returns it; no XDP leg, 5 ms read resolution | p99 < 50 ms | west | pending | pending (Step 217) |
+| `http-load` | open-loop 1000 req/s for 60 s against timeguru `/health`, latency from release (queueing counts) | error ratio < 0.01 at 1000 req/s | west | pending | pending (Step 217) |
+| `http3` | `curl --http3-only` against the gateway `:21443` | measured, or skipped with the reason | west | pending | pending (Step 217); west's curl 8.14.1 has no HTTP3 feature, so expect `skipped` |
+| `container-start` | `steel-echo-bench-<i>` PUT through Cuirass until running and healthy by Cuirass's probe, then deleted | < 10 s | west | pending | pending (Step 219, host window E-D) |
+
+Reproduce (stack up; Wotan must have `perf-benchmark` in `topics.auto_approve`
+and dashboard-backend must ingest `bench.perf.packet`, both since 2026-10-27):
+
+```bash
+go run ./cmd/perf-benchmark -scenario e2e-trace,http-load,http3 -iterations 200 -duration 60s -output /tmp/perf.json
+CUIRASS_API_KEY=... go run ./cmd/perf-benchmark -scenario container-start -allow-lxd -iterations 5 -output /tmp/perf-cs.json
+scripts/check-perf-regression.sh /tmp/perf.json /tmp/perf-cs.json   # against docs/policy/perf-baseline.json
+```
+
+Without `-scenario` the harness runs the original four probes (P2P ping,
+WireGuard ping6, one `/health`, Wotan publish).
 
 ---
 
