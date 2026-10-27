@@ -75,15 +75,17 @@ controls:
       pre-existing findings may only shrink (scripts/check-secrets-baseline.sh).
     rationale: >-
       Prevents embedded static authenticators (IA-5(7)) and protects
-      authentication information in code (ISO A.5.17); SSDF PS.1 protect all
-      forms of code; SOC 2 CC6.1 logical access protections over credentials.
+      authentication information in code (ISO A.5.17); SOC 2 CC6.1 logical
+      access protections over credentials. SSDF PS.1 removed 2026-10-27
+      (docs/compliance/crosswalk-review-2026-10-27.md): PS.1 is protecting
+      code from unauthorized access and tampering, which secret scanning
+      does not do.
     freshness_days: 7
     evidence:
       - {kind: github-job, ref: "Security Scan (Daily + PR)/Secret Scan (gitleaks)"}
       - {kind: github-job, ref: "Security Scan (Daily + PR)/Trivy Filesystem Scan"}
     mappings:
       nist-800-53r5: [IA-5(7)]
-      nist-ssdf: [PS.1]
       soc2-security: [CC6.1]
       iso27001-2022: [A.5.17]
 
@@ -915,7 +917,9 @@ controls:
     rationale: >-
       Audit log storage capacity (AU-4: journald caps and rotation, so one
       runaway logger cannot fill the disk, ADR-092 section 5) and protection
-      of audit information (AU-9: file modes). CIS Ubuntu 24.04 6.1.1.2,
+      of audit information (AU-9: file modes); ISO A.8.15 logging, whose
+      control includes protecting logs (added 2026-10-27 from NIST's 800-53
+      to ISO/IEC 27001:2022 mapping, AU-9). CIS Ubuntu 24.04 6.1.1.2,
       6.1.1.3 and 6.1.3.8 are manual in ComplianceAsCode; the probes check
       their mechanical part (journal file modes; SystemMaxUse and
       RuntimeMaxUse set; logrotate installed with its timer enabled and
@@ -935,6 +939,7 @@ controls:
     mappings:
       nist-800-53r5: [AU-4, AU-9]
       nist-800-171r3: ["03.03.01", "03.03.08"]
+      iso27001-2022: [A.8.15]
 
   - id: UH-PAM-01
     title: Local authentication locks out guessing and refuses weak or reused passwords
@@ -1464,20 +1469,23 @@ controls:
   - id: UH-IR-01
     title: The incident response plan is maintained and reviewed yearly
     statement: >-
-      The incident response plan (runbooks/security/ir-plan-v1-2026-05-06.md
+      The incident response plan (runbooks/security/ir-plan-v2-2026-10-27.md
       and successors) is reviewed and approved at least yearly. Evidence is a
       signed, expiring attestation.
     rationale: >-
-      Incident response plan (IR-8) and incident handling (IR-4; 800-171
-      03.06.01); CSF RS.MA-01 incident response plan executed; ISO A.5.24
-      planning and A.5.26 response to incidents; SOC 2 CC7.4.
+      Incident response plan (IR-8; 800-171 03.06.05) and incident handling
+      (IR-4; 800-171 03.06.01); CSF ID.IM-04 incident response plans
+      established and maintained, and RS.MA-01 the plan executed; ISO A.5.24
+      planning and A.5.26 response to incidents; SOC 2 CC7.4. 03.06.05 and
+      ID.IM-04 added 2026-10-27 (docs/compliance/crosswalk-review-2026-10-27.md):
+      the yearly review evidences the plan itself, which is what both name.
     freshness_days: 365
     evidence:
       - {kind: attestation, ref: compliance/attestations/ir-plan-review.yaml}
     mappings:
       nist-800-53r5: [IR-8, IR-4]
-      nist-800-171r3: ["03.06.01"]
-      nist-csf-2: [RS.MA-01]
+      nist-800-171r3: ["03.06.01", "03.06.05"]
+      nist-csf-2: [ID.IM-04, RS.MA-01]
       soc2-security: [CC7.4]
       iso27001-2022: [A.5.24, A.5.26]
 

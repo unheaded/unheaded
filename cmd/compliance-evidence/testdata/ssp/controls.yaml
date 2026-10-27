@@ -1,0 +1,36 @@
+controls:
+  - id: UH-FX-01
+    title: Gates fail the build
+    statement: >-
+      Every push runs the gate; it fails the build on a finding.
+    rationale: >-
+      A-1 scanning; B.1 monitoring.
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/check-a.sh}
+      - {kind: git-signatures, ref: develop}
+    mappings:
+      fx-b: [B.1]
+      fx-a: [A-1, A-2]
+
+  - id: UH-FX-02
+    title: Hosts deny inbound by default
+    statement: >-
+      Both hosts drop unsolicited inbound traffic.
+    rationale: >-
+      A-3 boundary protection.
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/check-b.sh}
+    mappings:
+      fx-a: [A-3]
+
+  - id: UH-FX-03
+    title: The policy is approved yearly
+    statement: >-
+      A signed, expiring attestation.
+    freshness_days: 365
+    evidence:
+      - {kind: attestation, ref: compliance/attestations/policy.yaml}
+    mappings:
+      fx-b: [B.2]

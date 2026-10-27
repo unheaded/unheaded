@@ -1,0 +1,19 @@
+frameworks:
+  - id: fx-a
+    name: "Fixture Framework A"
+    version: "1"
+    granularity: "controls"
+    source: "fixture"
+    requirements:
+      - {id: "A-1", title: "One"}
+      - {id: "A-2", title: "Two"}
+      - {id: "A-3", title: "Three"}
+      - {id: "A-4", title: "Four"}
+  - id: fx-b
+    name: "Fixture Framework B"
+    version: "2"
+    granularity: "criteria"
+    source: "fixture"
+    requirements:
+      - {id: "B.1", title: "Uno"}
+      - {id: "B.2", title: "Dos"}

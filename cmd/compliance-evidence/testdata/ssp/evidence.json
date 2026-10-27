@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "records": [
+    {"source": {"kind": "gate-script", "ref": "scripts/check-a.sh"}, "verdict": "pass", "observed_at": "2026-10-25T10:00:00Z", "detail": "ok"},
+    {"source": {"kind": "gate-script", "ref": "scripts/check-a.sh"}, "verdict": "fail", "observed_at": "2026-10-20T10:00:00Z", "detail": "older failure"},
+    {"source": {"kind": "git-signatures", "ref": "develop"}, "verdict": "pass", "observed_at": "2026-10-26T08:30:00Z", "commit": "0123456789abcdef"},
+    {"source": {"kind": "gate-script", "ref": "scripts/check-b.sh"}, "verdict": "fail", "observed_at": "2026-10-24T12:00:00Z", "detail": "east: INPUT policy ACCEPT"},
+    {"source": {"kind": "gate-script", "ref": "scripts/check-b.sh"}, "verdict": "pass", "observed_at": "2026-10-28T12:00:00Z", "detail": "future record, ignored"}
+  ]
+}
