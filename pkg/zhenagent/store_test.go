@@ -138,9 +138,69 @@ func conformance(t *testing.T, s Store, addCard func(Card), prefix string) {
 	}
 }
 
+// scheduledConformance is a scheduled run (migration 037): no branch, no
+// base commit, born running, never reviewed, its card never a candidate.
+func scheduledConformance(t *testing.T, s interface {
+	Store
+	ScheduledStore
+}, addCard func(Card), prefix string) {
+	t.Helper()
+	ctx := context.Background()
+	card := prefix + "sched-1"
+	addCard(Card{ID: card, Title: "Scheduled: sweep", Status: "in-progress", Type: ScheduledCardType, Owner: ScheduledCardOwner})
+	run := Run{ID: NewRunID(), CardID: card, Family: "service-health-sweep", LeaseUntil: time.Now().Add(15 * time.Minute)}
+	if err := s.BeginScheduled(ctx, run); err != nil {
+		t.Fatalf("begin scheduled: %v", err)
+	}
+	g, err := s.Get(ctx, run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Status != StatusRunning || g.Mode != ModeScheduled || g.Branch != "" || g.BaseCommit != "" || g.CardID != card {
+		t.Fatalf("scheduled run = %+v", g)
+	}
+	if err := s.BeginScheduled(ctx, Run{ID: NewRunID(), CardID: card, Family: "Bad Family!", LeaseUntil: time.Now().Add(time.Minute)}); err == nil {
+		t.Error("bad family accepted")
+	}
+	if err := s.BeginScheduled(ctx, Run{ID: "nope", CardID: card, Family: "x", LeaseUntil: time.Now().Add(time.Minute)}); err == nil {
+		t.Error("bad run id accepted")
+	}
+	if err := s.BeginScheduled(ctx, Run{ID: NewRunID(), CardID: card, Family: "x", LeaseUntil: time.Now().Add(-time.Minute)}); err == nil {
+		t.Error("a lease in the past accepted")
+	}
+	if err := s.Finish(ctx, run.ID, Outcome{Status: StatusFailed, Error: "exit 1: verification: 0/1 passed",
+		Summary: RouteSummary{Route: "runbook", Check: "fail"}}); err != nil {
+		t.Fatal(err)
+	}
+	if g, _ := s.Get(ctx, run.ID); g.Status != StatusFailed || g.Error == "" || g.Summary.Check != "fail" {
+		t.Errorf("finished scheduled run = %+v", g)
+	}
+	// A succeeded scheduled run is not reviewable.
+	ok := Run{ID: NewRunID(), CardID: card, Family: "service-health-sweep", LeaseUntil: time.Now().Add(15 * time.Minute)}
+	if err := s.BeginScheduled(ctx, ok); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Finish(ctx, ok.ID, Outcome{Status: StatusSucceeded}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Review(ctx, ok.ID, StatusAccepted, "x"); err == nil {
+		t.Error("a scheduled run was reviewed")
+	}
+	cs, err := s.Candidates(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cs {
+		if c.ID == card {
+			t.Error("a scheduled-run card is a worker candidate")
+		}
+	}
+}
+
 func TestMemStore_Conformance(t *testing.T) {
 	m := NewMemStore()
 	conformance(t, m, m.AddCard, "m-")
+	scheduledConformance(t, m, m.AddCard, "m-")
 	if c, _ := m.CardState("m-ok"); c.Status != "review" || len(c.Commits) != 1 || c.Commits[0].Run == "" {
 		t.Errorf("card = %+v", c)
 	}

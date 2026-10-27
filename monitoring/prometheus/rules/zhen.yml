@@ -1,0 +1,35 @@
+# Prometheus alert rules - Zhen's scheduler (S-CHAMPION-HARDENING Phase 8)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# zhen-agentd -scheduler runs approved runbooks on a schedule
+# (configs/zhen-schedules.yaml) and sets
+# zhen_scheduler_heartbeat_timestamp_seconds on every 60 s tick, paused or
+# not. Two ways it stops: the daemon is gone or runs without -scheduler
+# (the series is absent), or the ticker is stuck while the daemon still
+# answers /metrics (the series stays, its value goes stale). Fifteen minutes
+# of either is ZhenSchedulerStalled. A scheduled job that fails is not this
+# alert: it is a failed zhen_agent_runs row and a card in review.
+#
+# Producer: zhen-agentd -metrics-addr on west's WireGuard address, scraped
+# as job zhen-agentd (prometheus.yml). Until the unit runs with -scheduler
+# (E4) the series is absent and this fires: that is the truth (no Zhen
+# schedule runs), not noise.
+
+groups:
+  - name: zhen
+    interval: 1m
+    rules:
+      - alert: ZhenSchedulerStalled
+        expr: |
+          absent_over_time(zhen_scheduler_heartbeat_timestamp_seconds{job="zhen-agentd"}[15m])
+            or
+          (time() - max by (job, instance) (zhen_scheduler_heartbeat_timestamp_seconds{job="zhen-agentd"}) > 900)
+        for: 1m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Zhen's scheduler has not ticked for over 15 minutes"
+          description: "No zhen_scheduler_heartbeat_timestamp_seconds from zhen-agentd, or its last tick is stale: scheduled runbooks are not running (zhen-agentd down, started without -scheduler, or its ticker stuck)"
+          runbook_url: "runbooks/observe/zhen-scheduler-stalled.yaml"

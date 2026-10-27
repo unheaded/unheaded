@@ -166,6 +166,8 @@ data:
     unheaded_app     034_app_kanban_genesis.sql
     postgres         035_app_auth_role.sql
     unheaded_app     036_app_api_keys.sql
+    unheaded_app     037_app_zhen_agent_runs_scheduled.sql
+    unheaded_app     038_app_ledger_read.sql superuser
 
     # The pre-split single-database schema, superseded by 003/004/005: applying
     # it would put a fourth copy of kanban_tasks, timeline_milestones and
@@ -2326,9 +2328,8 @@ data:
     --
     -- Access paths: authentication `WHERE key_hash = $1` (the unique index),
     -- once per request that carries a key; revoke and the create-time clash
-    -- check `WHERE prefix = $1 OR id::text = $1` (prefix index; the id
-    -- matches by the primary key); list reads the whole table by created_at
-    -- (tens of rows).
+    -- check `WHERE prefix = $1` (prefix index) or `WHERE id = $1` (the primary
+    -- key); list reads the whole table by created_at (tens of rows).
     --
     -- Size: one row per key ever issued; hundreds at most. last_used_at is
     -- written at most once a minute per key.
@@ -2377,3 +2378,79 @@ data:
         FOR EACH STATEMENT EXECUTE FUNCTION well_append_only();
 
     GRANT SELECT, INSERT, UPDATE (revoked_at, last_used_at) ON api_keys TO app_auth;
+  037_app_zhen_agent_runs_scheduled.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — scheduled runs in zhen_agent_runs (S-CHAMPION-HARDENING
+    -- Steps 160-161), unheaded_app.
+    --
+    -- zhen-agentd -scheduler runs approved runbooks on a schedule
+    -- (configs/zhen-schedules.yaml; raft/zhen_scheduler.py is retired, ADR-028
+    -- superseded). Each run is one row here with mode 'scheduled' and one
+    -- Kanban card (type 'scheduled-run', owner 'zhen-scheduler', which the
+    -- worker never takes). A scheduled run has no branch and no base commit,
+    -- and it is not reviewed: it ends succeeded or failed (a runbook whose
+    -- steps or verification section fail is failed), or abandoned when its
+    -- lease runs out because the daemon died mid-run.
+    --
+    -- Changes to 032's table:
+    --   mode       gains 'scheduled';
+    --   branch, base_commit
+    --              drop NOT NULL; zhen_agent_runs_scheduled_shape requires
+    --              them for every other mode and forbids them (and a head
+    --              commit, and accepted/rejected) for a scheduled run.
+    -- 032's triggers already hold: a run is born claimed, moves one way, its
+    -- identity and finished outcome are immutable, it is never deleted.
+    --
+    -- Writer: app_zhen, through 032's grants (no new grant).
+    -- Access paths: the scheduler inserts by id and finishes by id (the
+    -- primary key); `zhen-claude review list` reads the newest runs
+    -- (zhen_agent_runs_claimed_at_idx). Volume: a handful of rows per day.
+    -- Retention: kept, like every run.
+    --
+    -- Lock plan: the table is small (one row per card attempt). The new CHECKs
+    -- are added NOT VALID and validated in a second statement (SHARE UPDATE
+    -- EXCLUSIVE while it scans); DROP NOT NULL and DROP CONSTRAINT are catalog
+    -- updates under a short ACCESS EXCLUSIVE, bounded by lock_timeout.
+    -- Rollback: stop the scheduler (zhen-agentd without -scheduler). Runs are
+    -- append-only, so once a scheduled row exists 032's narrower CHECKs cannot
+    -- return; before the first one, a later migration may restore them.
+    -- Proof: scripts/well/test-zhen-agent-runs.sh (step 9).
+
+    SET lock_timeout = '5s';
+
+    ALTER TABLE zhen_agent_runs DROP CONSTRAINT zhen_agent_runs_mode_check;
+    ALTER TABLE zhen_agent_runs ADD CONSTRAINT zhen_agent_runs_mode_check
+        CHECK (mode IN ('interactive', 'overnight', 'scheduled')) NOT VALID;
+    ALTER TABLE zhen_agent_runs VALIDATE CONSTRAINT zhen_agent_runs_mode_check;
+
+    ALTER TABLE zhen_agent_runs ALTER COLUMN branch DROP NOT NULL;
+    ALTER TABLE zhen_agent_runs ALTER COLUMN base_commit DROP NOT NULL;
+    ALTER TABLE zhen_agent_runs ADD CONSTRAINT zhen_agent_runs_scheduled_shape CHECK (
+        CASE WHEN mode = 'scheduled'
+             THEN branch IS NULL AND base_commit IS NULL AND head_commit IS NULL
+                  AND status NOT IN ('accepted', 'rejected')
+             ELSE branch IS NOT NULL AND base_commit IS NOT NULL
+        END) NOT VALID;
+    ALTER TABLE zhen_agent_runs VALIDATE CONSTRAINT zhen_agent_runs_scheduled_shape;
+  038_app_ledger_read.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — app_kanban may read unheaded_app's migration ledger
+    -- (S-WELL-SPRING Phase 1, M-073; ADR-101), unheaded_app.
+    --
+    -- kanban-app checks at startup that the ledger holds the migrations its
+    -- store depends on (003, 007; pkg/database.RequireMigrations) and refuses
+    -- to start when they are missing, rather than creating tables or falling
+    -- back to a local SQLite board. LEDGER.sql revokes everything on
+    -- well_schema_migrations from PUBLIC, so the role needs SELECT on it: the
+    -- filenames, checksums and apply times, nothing else. No write: the ledger
+    -- stays append-only and only well-migrate and db/init.sh add to it.
+    --
+    -- MANIFEST flags this file superuser: the ledger belongs to the bootstrap
+    -- superuser (026 leaves it there), so the owner role cannot grant on it.
+    --
+    -- Lock plan: one GRANT, a catalog update on an existing table, instant.
+    -- Rollback: a later numbered migration revokes it (kanban-app then refuses
+    -- to start until its check is removed). Proof: scripts/well/test-migrate.sh
+    -- (app_kanban reads the ledger and cannot write it).
+
+    GRANT SELECT ON well_schema_migrations TO app_kanban;

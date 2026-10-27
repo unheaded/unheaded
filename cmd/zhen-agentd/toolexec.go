@@ -121,7 +121,12 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 	if req.Args == nil {
 		req.Args = map[string]any{}
 	}
+	s.execToolRequest(w, r, req)
+}
 
+// execToolRequest is /api/v1/tool/exec after the body is decoded; the
+// scheduler's change endpoints use it too (scheduler_http.go).
+func (s *server) execToolRequest(w http.ResponseWriter, r *http.Request, req toolExecRequest) {
 	// Resolve + allow-check the project_root (same posture as /ask).
 	rootReq := strings.TrimSpace(req.ProjectRoot)
 	if rootReq == "" {

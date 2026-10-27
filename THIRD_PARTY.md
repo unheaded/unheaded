@@ -267,7 +267,6 @@ this entire surface. See `docs/security/python-deps-unscanned-2026-08-04.md`.
 | transformers, datasets, peft, trl | Apache-2.0 | RAFT fine-tuning pipeline |
 | mcp | MIT | MCP server (`raft/zhen_mcp_server.py`) |
 | anthropic | MIT | Claude API client |
-| schedule | MIT | `raft/zhen_scheduler.py` |
 | PyYAML | MIT | Runbook / config parsing |
 | pytest | MIT | Tests |
 

@@ -28,11 +28,48 @@ const (
 	StatusRejected  = "rejected"
 )
 
-// Modes.
+// Modes. ModeScheduled is zhen-agentd's scheduler running an approved
+// runbook (migration 037): no branch, no base commit, never reviewed.
 const (
 	ModeInteractive = "interactive"
 	ModeOvernight   = "overnight"
+	ModeScheduled   = "scheduled"
 )
+
+// A scheduled run's card: its own type and owner, so the worker never
+// takes it (EligibleTypes, Owner).
+const (
+	ScheduledCardType  = "scheduled-run"
+	ScheduledCardOwner = "zhen-scheduler"
+)
+
+// ScheduledStore records the scheduler's runs in zhen_agent_runs (mode
+// scheduled). Finish ends them like any run; Review refuses them.
+type ScheduledStore interface {
+	// BeginScheduled inserts r as mode scheduled, without a branch or
+	// base commit, and moves it to running.
+	BeginScheduled(ctx context.Context, r Run) error
+	Finish(ctx context.Context, id string, o Outcome) error
+	// ExpireLeases abandons active runs whose lease ran out (a daemon
+	// that died mid-run), whatever their mode.
+	ExpireLeases(ctx context.Context, now time.Time) ([]Run, error)
+}
+
+// checkScheduled validates a scheduled run before it is recorded (032's
+// and 037's CHECKs, so a MemStore refuses what the Well would).
+func checkScheduled(r Run, now time.Time) error {
+	switch {
+	case !ValidRunID(r.ID):
+		return fmt.Errorf("zhenagent: bad run id %q", r.ID)
+	case r.CardID == "":
+		return errors.New("zhenagent: a scheduled run needs its card")
+	case !familyRE.MatchString(r.Family):
+		return fmt.Errorf("zhenagent: bad family %q", r.Family)
+	case !r.LeaseUntil.After(now):
+		return errors.New("zhenagent: a scheduled run's lease must end in the future")
+	}
+	return nil
+}
 
 // Lease timing (Step 197).
 const (
@@ -375,10 +412,39 @@ func (m *MemStore) Get(_ context.Context, id string) (Run, error) {
 	return *r, nil
 }
 
+// BeginScheduled implements ScheduledStore. The card is not looked up:
+// the MemStore does not model kanban_tasks' foreign key.
+func (m *MemStore) BeginScheduled(_ context.Context, r Run) error {
+	now := time.Now()
+	if err := checkScheduled(r, now); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, dup := m.runs[r.ID]; dup {
+		return fmt.Errorf("zhenagent: duplicate run id %q", r.ID)
+	}
+	if m.activeLocked(r.CardID) {
+		return ErrClaimConflict
+	}
+	r.Status, r.Mode, r.Branch, r.BaseCommit, r.ClaimedAt = StatusRunning, ModeScheduled, "", "", now
+	cp := r
+	m.runs[r.ID] = &cp
+	m.order = append(m.order, r.ID)
+	return nil
+}
+
 // Review implements Store.
 func (m *MemStore) Review(_ context.Context, id, status, reason string) error {
 	if status != StatusAccepted && status != StatusRejected {
 		return fmt.Errorf("zhenagent: review status %q", status)
+	}
+	m.mu.Lock()
+	r, ok := m.runs[id]
+	scheduled := ok && r.Mode == ModeScheduled
+	m.mu.Unlock()
+	if scheduled {
+		return fmt.Errorf("%w: a scheduled run is not reviewed", ErrNotInState)
 	}
 	now := time.Now()
 	return m.move(id, status, func(r *Run) { r.ReviewReason, r.ReviewedAt = reason, &now })

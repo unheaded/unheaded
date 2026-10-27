@@ -205,3 +205,32 @@ def test_no_cors_preflight_grant(client):
     r = client.options('/api/v1/conversations', base_url=ORIGIN,
                        headers={'Origin': 'http://evil.example', 'Access-Control-Request-Method': 'GET'})
     assert 'Access-Control-Allow-Origin' not in r.headers
+
+
+# ── Scheduler commands → zhen-agentd -scheduler (S-CHAMPION-HARDENING Step 165) ──
+
+def test_schedule_commands_call_agentd_not_a_local_scheduler(monkeypatch):
+    import subprocess
+
+    import zhen_scheduler_client
+    calls = []
+
+    def fake_call(url, headers, op, body=None, timeout=30):
+        calls.append((op, body))
+        if op == 'list':
+            return 200, {'jobs': [], 'paused': False, 'config': 'x'}
+        return 200, {'status': 'ok', 'result': {'name': 'service-health-sweep', 'runbook': 'observe/service-health-sweep', 'next_due': 't'}}
+
+    def no_subprocess(*a, **kw):
+        raise AssertionError(f'a schedule command ran a subprocess: {a}')
+
+    monkeypatch.setattr(zhen_scheduler_client, 'call', fake_call)
+    monkeypatch.setattr(subprocess, 'run', no_subprocess)
+    for q, op in (('schedule service-health-sweep every 6h', 'add'), ('unschedule service-health-sweep', 'remove'),
+                  ('list schedules', 'list'), ('emergency stop', 'pause'), ('resume schedules', 'pause')):
+        _, handled = zhen_app._try_command(q)
+        assert handled, q
+        assert calls[-1][0] == op, (q, calls[-1])
+    assert calls[0][1] == {'name': 'service-health-sweep', 'every': '6h'}
+    assert calls[3][1] == {'paused': True} and calls[4][1] == {'paused': False}
+    assert 'zhen_scheduler' not in sys.modules or not hasattr(sys.modules['zhen_scheduler'], 'add_schedule')

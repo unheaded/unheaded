@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Stevie Bellis.
+#
+# zhen-agentd -scheduler: runbooks Zhen runs on its own (S-CHAMPION-HARDENING
+# Phase 8; replaces raft/zhen_scheduler.py and its schedule.json, ADR-028).
+# Installed on west as /etc/unheaded/zhen/schedules.yaml (root:zhen-agentd
+# 0640); the daemon never writes it. Changes made at run time (the web UI's
+# `schedule`/`unschedule`, POST /api/v1/scheduler/*) persist to
+# -schedules-state instead. Format and rules: wiki/Zhen-AI.md "Scheduler".
+#
+#   every: <N>m | <N>h            (5m .. 744h, counted from the last run)
+#          daily@HH:MM            (the host's local time)
+#          weekly@<sun..sat>@HH:MM
+#
+# Every job names a runbook (category/name under runbooks/) whose
+# metadata.status is approved, or that carries no status (the pre-policy
+# set); a draft or stub is refused when the file loads and again before
+# every run (ADR-024 "Authorship and approval"). Each run is one Kanban
+# card (type scheduled-run) and one zhen_agent_runs row (mode scheduled).
+# The heartbeat is built in (zhen_scheduler_heartbeat_timestamp_seconds,
+# every 60 s); it is not a job.
+version: 1
+jobs:
+  # The Python scheduler's one enabled default (every 30m there). Six hours
+  # here: each run is a card on the board, and minute-level health is
+  # Akira's and the Watchdog's job. No metadata.status.
+  - name: service-health-sweep
+    runbook: observe/service-health-sweep
+    every: 6h
+
+  # Weekly consolidation (the step's starting job). Disabled: its steps run
+  # `sudo docker exec unheaded-postgres psql`, which the unit's
+  # NoNewPrivileges refuses and which no longer reaches the Well (TLS-only,
+  # per-role logins). Enable after the runbook talks to the Well as a
+  # least-privilege role. No metadata.status.
+  - name: conversation-memory-maintenance
+    runbook: data/conversation-memory-maintenance
+    every: weekly@sun@03:00
+    enabled: false

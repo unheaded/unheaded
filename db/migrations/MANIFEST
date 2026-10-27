@@ -55,6 +55,7 @@ unheaded_app     033_app_zhen_captures.sql
 unheaded_app     034_app_kanban_genesis.sql
 postgres         035_app_auth_role.sql
 unheaded_app     036_app_api_keys.sql
+unheaded_app     037_app_zhen_agent_runs_scheduled.sql
 unheaded_app     038_app_ledger_read.sql superuser
 
 # The pre-split single-database schema, superseded by 003/004/005: applying

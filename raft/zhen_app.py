@@ -49,6 +49,7 @@ from flask import Flask, jsonify, request, send_file
 # Add scripts dir to path for RAG import
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
 import zhen_highlight
+import zhen_scheduler_client
 from zhen_rag import (
     AgentdGateUnavailable,
     RAGPipeline,
@@ -616,11 +617,11 @@ def _try_command(question):
 - `run <name>` — execute a runbook
 - `run --dry <name>` — dry-run validation
 
-**Scheduling:**
-- `schedule <runbook> every <interval>` — schedule recurring execution
+**Scheduling** (zhen-agentd -scheduler; approved runbooks only):
+- `schedule <runbook> every <interval>` — 30m, 6h, daily@03:00 or weekly@sun@03:00
 - `unschedule <runbook>` — remove schedule
-- `list schedules` — show all scheduled jobs
-- `emergency stop` — kill all jobs and schedules
+- `list schedules` — show all scheduled jobs and their last run
+- `emergency stop` — pause the scheduler (`resume schedules` to restart)
 
 **Memory:**
 - `recall <topic>` — search past conversations
@@ -891,47 +892,47 @@ backend {svc_name}_back
         fence = {'nginx': 'nginx', 'systemd': 'systemd'}.get(config_type, '')
         return {'answer': f'**Generated {config_type} config for {svc_name} (port {port}):**\n\n```{fence}\n{config}\n```', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
-    # Schedule commands
+    # Schedule commands: zhen-agentd -scheduler (raft/zhen_scheduler.py is
+    # retired, ADR-028 superseded). Changes go through the Champion gate as
+    # schedule_update with this typed command as the direct-user action.
     if q.startswith('schedule ') and 'every' in q:
         # schedule service-health-sweep every 30m
         parts = q.split()
         name = parts[1] if len(parts) > 1 else ''
         interval = parts[-1] if len(parts) > 3 else '30m'
-        try:
-            from zhen_scheduler import add_schedule
-            add_schedule(name, interval)
-            return {'answer': f'Scheduled `{name}` every {interval}.\n\nTo start the scheduler daemon: `python3 zhen_scheduler.py`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
-        except Exception as e:
-            return {'answer': f'Schedule error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        code, body = zhen_scheduler_client.call(ZHEN_AGENTD_URL, _agentd_headers(), 'add', {'name': name, 'every': interval})
+        if code == 200:
+            job = body.get('result') or {}
+            return {'answer': f'Scheduled `{job.get("name", name)}` (`{job.get("runbook", "?")}`) every {interval}; next run {job.get("next_due", "?")}.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        return {'answer': f'Schedule error ({code}): {zhen_scheduler_client.reason(body)}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     if q.startswith('unschedule '):
         name = q.split(None, 1)[1].strip() if len(q.split()) > 1 else ''
-        try:
-            from zhen_scheduler import remove_schedule
-            remove_schedule(name)
+        code, body = zhen_scheduler_client.call(ZHEN_AGENTD_URL, _agentd_headers(), 'remove', {'name': name})
+        if code == 200:
             return {'answer': f'Unscheduled `{name}`.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
-        except Exception as e:
-            return {'answer': f'Unschedule error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        return {'answer': f'Unschedule error ({code}): {zhen_scheduler_client.reason(body)}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     if q in ('list schedules', 'schedules', 'show schedules'):
-        try:
-            from zhen_scheduler import load_schedules
-            schedules = load_schedules()
-            lines = [f'**Scheduled Jobs ({len(schedules)}):**\n']
-            for s in schedules:
-                status = 'ENABLED' if s.get('enabled') else 'disabled'
-                lines.append(f'  {"●" if s.get("enabled") else "○"} `{s["name"]}` — {s.get("interval", "?")} [{status}]')
-            lines.append('\nScheduler daemon: `python3 zhen_scheduler.py`')
-            return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
-        except Exception as e:
-            return {'answer': f'Schedule list error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        code, body = zhen_scheduler_client.call(ZHEN_AGENTD_URL, _agentd_headers(), 'list')
+        if code == 200:
+            return {'answer': zhen_scheduler_client.format_list(body), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        return {'answer': f'Schedule list error ({code}): {zhen_scheduler_client.reason(body)}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
-    # Emergency stop
+    if q in ('resume schedules', 'resume scheduler'):
+        code, body = zhen_scheduler_client.call(ZHEN_AGENTD_URL, _agentd_headers(), 'pause', {'paused': False})
+        if code == 200:
+            return {'answer': 'Scheduler resumed: due jobs start on the next tick.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        return {'answer': f'Resume error ({code}): {zhen_scheduler_client.reason(body)}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+    # Emergency stop: pause the scheduler through the gate (no pkill: the
+    # daemon is another user's process). A run in flight finishes; nothing
+    # new starts until `resume schedules`.
     if q in ('emergency stop', 'stop all', 'kill all'):
-        import subprocess as sp
-        sp.run(['pkill', '-f', 'zhen_scheduler'], capture_output=True, check=False)
-        sp.run(['pkill', '-f', 'run-runbook'], capture_output=True, check=False)
-        return {'answer': '**EMERGENCY STOP** — All scheduled jobs killed. Runbook executions terminated.\n\nManual-only mode until scheduler is restarted.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        code, body = zhen_scheduler_client.call(ZHEN_AGENTD_URL, _agentd_headers(), 'pause', {'paused': True})
+        if code == 200:
+            return {'answer': '**EMERGENCY STOP**: the scheduler is paused; no scheduled runbook starts until `resume schedules`. A run already in flight finishes (zhen-agentd caps it at 10 minutes).', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        return {'answer': f'**EMERGENCY STOP FAILED** ({code}): {zhen_scheduler_client.reason(body)}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Trust level
     if 'trust level' in q or 'trust' == q:

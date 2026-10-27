@@ -1,7 +1,35 @@
 # ADR-028: Zhenai Scheduler & Heartbeat — From Reactive to Proactive
 
-**Status:** Accepted (implemented 2026-04-04: `raft/zhen_scheduler.py`, heartbeat + schedules)
+**Status:** Superseded by zhen-agentd -scheduler (S-CHAMPION-HARDENING Step 160, 2026-10-27). Was Accepted (implemented 2026-04-04: `raft/zhen_scheduler.py`, heartbeat + schedules); that file is deleted.
 **Date:** 2026-04-03
+
+## Superseded (2026-10-27)
+
+`raft/zhen_scheduler.py` ran by hand, with no unit, user, Well record or
+alert, and the web UI stopped it with `pkill -f`. S-CHAMPION-HARDENING
+Step 160 folded the scheduler into `cmd/zhen-agentd` (`-scheduler`), which
+already had the unit, the nologin user, the Well role and the Champion's
+audit path. What changed from this ADR:
+
+- Schedule: `configs/zhen-schedules.yaml` (installed as
+  `/etc/unheaded/zhen/schedules.yaml`) replaces `raft/schedule.json`; cadences
+  are `<N>m|<N>h`, `daily@HH:MM`, `weekly@<day>@HH:MM`. Only approved
+  runbooks (or ones with no status) may be scheduled (ADR-024).
+- Execution: `runbook_execute` through the Champion gate (manifest hash,
+  destructive scan, audit row); a non-zero exit, including a failed
+  `verification:` section, is a failed run.
+- Record: one Kanban card (type `scheduled-run`) and one `zhen_agent_runs`
+  row (mode `scheduled`, migration 037) per run, instead of nothing.
+- Heartbeat: a 60 s tick sets `zhen_scheduler_heartbeat_timestamp_seconds`
+  and publishes `zhen.scheduler.heartbeat`; `ZhenSchedulerStalled` alerts
+  when it stops. The service/disk/swap pulse below is not carried over:
+  Akira, the Watchdog and the host rules cover it.
+- Chat commands call `POST /api/v1/scheduler/{add,remove,pause,list}` (the
+  mutating tool `schedule_update`); `emergency stop` pauses the scheduler
+  instead of killing processes.
+
+See `wiki/Zhen-AI.md` "Scheduler". The rest of this record is the original
+decision, kept for history.
 **Deciders:** Captain, Architect, Micromanager
 **Inspired by:** OpenClaw heartbeat/cron system (competitive analysis)
 

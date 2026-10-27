@@ -86,7 +86,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [025](ADR-025-kanban-mobile-app.md) | Kanban Mobile App | **Pipe Dream (Age 4+)** | 2026-04-03 |
 | [026](ADR-026-deb-packaging-ci-pipeline.md) | .deb Packaging + CI/CD | Accepted | 2026-04-03 |
 | [027](ADR-027-zhenai-conversation-memory.md) | Zhenai Conversation Memory | Accepted (semantic recall + browser) | 2026-04-04 |
-| [028](ADR-028-zhenai-scheduler-heartbeat.md) | Zhenai Scheduler + Heartbeat | Accepted (Sprint C complete) | 2026-04-04 |
+| [028](ADR-028-zhenai-scheduler-heartbeat.md) | Zhenai Scheduler + Heartbeat | **Superseded** by zhen-agentd `-scheduler` (S-CHAMPION-HARDENING Step 160, 2026-10-27) | 2026-04-04 |
 | [029](ADR-029-wotan-consensus-health-remediation.md) | Wotan Consensus Health (Akira) | **Partially implemented** (2026-09-29: Akira consensus side; remediation off by default) | 2026-04-04 |
 | [030](ADR-030-zhenai-forge-rust-training.md) | Zhenai Forge (Rust LoRA training) | **Accepted** (forge pipeline; kingdom-v5 run 2026-04-06) | 2026-04-04 |
 | [031](ADR-031-hybrid-model-handoff.md) | Hybrid Model Handoff | **Superseded** by ADR-104/106 | 2026-04-03 |
