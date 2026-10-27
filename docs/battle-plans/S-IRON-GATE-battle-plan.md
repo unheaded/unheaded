@@ -1019,12 +1019,12 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
   ```
 - [x] **Step 311** [V] ~1m: PASS. If `cosign` is not in `scripts/lib/tool-pins.sh`, add `COSIGN_VERSION` + sha256 there (tool freshness gate covers it) and teach `ci-install-tools.sh` to fetch it; re-run.
 - [x] **Step 312** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 304-311: release.yml builds everything, keyless cosign + provenance; verify-release.sh`.
-- [ ] **Step 313** [W] ~10m: `.github/workflows/scorecard.yml` (ossf/scorecard-action pinned by SHA, `publish_results: true`, weekly + on push to develop, `permissions: security-events: write, id-token: write`) and `.github/workflows/codeql.yml` (github/codeql-action init/analyze pinned, languages `go, javascript, python`, on push/PR to develop/staging/main + weekly; `build-mode: autobuild` for Go). Pins via `git ls-remote` as in Step 306.
-- [ ] **Step 314** [B] ~1m
+- [x] **Step 313** [W] ~10m: `.github/workflows/scorecard.yml` (ossf/scorecard-action pinned by SHA, `publish_results: true`, weekly + on push to develop, `permissions: security-events: write, id-token: write`) and `.github/workflows/codeql.yml` (github/codeql-action init/analyze pinned, languages `go, javascript, python`, on push/PR to develop/staging/main + weekly; `build-mode: autobuild` for Go). Pins via `git ls-remote` as in Step 306.
+- [x] **Step 314** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-actions-pinned.sh 2>&1 | tail -1 && for f in scorecard codeql; do python3 -c "import yaml; yaml.safe_load(open('.github/workflows/$f.yml')); print('$f YAML_OK')"; done
   ```
-- [ ] **Step 315** [V] ~1m: `[PASS]`, two `YAML_OK`. (Results appear only after the push; Phase 16 records "first run pending push" in next.md.)
+- [x] **Step 315** [V] ~1m: `[PASS]`, two `YAML_OK`. (Results appear only after the push; Phase 16 records "first run pending push" in next.md.)
 - [ ] **Step 316** [W][CODE] ~15m: ADR-089 entry gate as a script: `scripts/check-ebpf-size-pin.sh`: builds `monad-cpu-ebpf --features ascend-linux` (`cargo build --release -p monad-cpu-ebpf --features ascend-linux` under `ebpf/`), finds the object (`ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf`), compares its byte size to `docs/policy/ebpf-size-pins.txt` (`monad-cpu-ebpf+ascend-linux <bytes>`); `--update` rewrites the pin and prints the delta; without `--update`, any difference fails with both numbers. Pin file seeded from the current build (the ADR's 901,888 is from July; S5 measured 926,542 verified insns, so the byte size has moved: record today's).
 - [ ] **Step 317** [B] ~6m
   ```bash
