@@ -541,7 +541,7 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		// Also skip WebSocket endpoints from auth (upgrade needs special handling)
 		httpHandler = auth.SkipAuthPaths(auth.Middleware(
 			&auth.MultiAuthenticator{Authenticators: buildDashboardAuthenticators(authCfg)},
-		), "/health", "/ready", "/metrics", "/ws")(httpHandler)
+		), "/health", "/ready", "/metrics", "/ws", securityTxtPath)(httpHandler)
 	}
 	// Security headers on every response. No CSP: the dashboard SPA relies on
 	// inline styles/handlers that a strict default-src would break.
@@ -724,6 +724,9 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/doom/screen", s.handleDoomScreen)
 	s.mux.HandleFunc("/api/v1/doom/cpu", s.handleDoomCPU)
 	s.mux.HandleFunc("/api/v1/doom/input", s.handleDoomInput)
+
+	// RFC 9116 vulnerability-report contact (public; skipped by auth).
+	s.mux.HandleFunc(securityTxtPath, handleSecurityTxt)
 
 	// Static file serving for dashboard UI
 	var staticFS http.FileSystem

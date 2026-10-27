@@ -2,12 +2,15 @@
 
 ## Supported Versions
 
-We release patches for security vulnerabilities. Below is a table indicating which versions currently receive security updates:
+There are no versioned releases yet. Fixes are made on branches, in this order:
 
-| Version | Supported          |
-|---------|--------------------|
-| 1.0.x   | Yes                |
-| < 1.0   | No                 |
+| Branch    | Supported | Notes |
+|-----------|-----------|-------|
+| `develop` | Yes       | Every fix lands here first. |
+| `staging` | Yes       | Receives fixes when a batch is promoted from `develop`. |
+| `main`    | Yes       | Receives fixes when Stevie promotes `staging`. |
+
+Older commits and forks are not patched.
 
 ## Reporting a Vulnerability
 
@@ -18,6 +21,10 @@ We take the security of Unheaded seriously. If you believe you have found a secu
 ### How to Report
 
 Email your findings to: **stevie@bellis.tech**
+
+The same contact is published in machine-readable form (RFC 9116) at
+`/.well-known/security.txt` on the dashboard backend; the source is
+[`cmd/dashboard-backend/internal/server/security.txt`](cmd/dashboard-backend/internal/server/security.txt).
 
 Include the following information to help us better understand and resolve the issue:
 

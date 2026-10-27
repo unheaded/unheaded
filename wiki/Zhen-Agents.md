@@ -63,7 +63,7 @@ zhen-claude review reject <run> -reason "..."            # card back to todo
 export WELL_APP_ZHEN_DSN=...   # unheaded_app as app_zhen (your shell, never the repo)
 export WELL_OPS_DSN=...        # unheaded_ops as ops_writer, for -audit-well
 zhen-agentd -worker -once -project-root ~/tmp/unheaded -claude fake -audit-well   # one card, then exit
-zhen-agentd -worker -claude live -effort low -daily-cap-usd 2 -audit-well          # poll every 60 s beside the HTTP API
+zhen-agentd -worker -claude live -effort low -daily-cap-usd 2 -audit-well          # poll every 60 s beside the HTTP API (needs AUTH_ENABLED=true + AUTH_API_KEYS, or -no-auth on loopback)
 ```
 
 `-claude fake` never calls the API: a route that needs Claude ends with the check's verdict on the unchanged worktree. `-claude live` uses `ANTHROPIC_API_KEY` from the environment and the zhen-claude spend ledger (`-ledger`, `-daily-cap-usd`).

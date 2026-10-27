@@ -45,7 +45,7 @@ import (
 //	  "project_root":  "/home/govan/tmp/unheaded",  // optional
 //	  "session_id":    "...",                        // optional, for audit
 //	  "emitted_by":    "zhen-web-ui",                // optional, default "direct"
-//	  "justification": [                              // optional; default = direct-user
+//	  "justification": [                              // required unless emitted_by is an agent loop
 //	    {"topic": "user-clicked-runbook", "source_trust": "direct-user"}
 //	  ]
 //	}
@@ -55,6 +55,7 @@ import (
 //
 //	200 OK  → {"status": "ok",                    "result": <tool output>}
 //	400     → {"status": "unknown"|"used"|"expired"|"error", "reason": "..."}
+//	400     → {"status": "denied", "reason": "justification required: ..."} (direct caller sent none)
 //	403     → {"status": "denied",                "reason": "..."}
 //	403     → {"status": "pending_confirmation",  "pending_token": "...", "reason": "..."}
 //	202     → {"status": "queued",                "queue_id": "<16 hex>", "reason": "..."}
@@ -137,16 +138,19 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default justification: direct-user (the UI is asserting that the
-	// user explicitly invoked this action). Champion's Rule 2 treats
-	// `source_trust: "direct-user"` as the escape from "untrusted
-	// justification" — see pkg/champion/toolcall.go HasUntrustedJustification.
+	// The caller states the justification. A direct caller (the web UI,
+	// zhen-cli) that clicked or typed the action sends
+	// `source_trust: "direct-user"`, Champion's Rule 2 escape (see
+	// pkg/champion/toolcall.go HasUntrustedJustification). The daemon no
+	// longer asserts it on a caller's behalf (M-019): a request without
+	// one is refused before Champion sees it.
 	justification := req.Justification
 	agentLoop := isAgentLoop(req.EmittedBy)
 	if agentLoop {
-		// A model loop is never the direct user: it gets no default
-		// direct-user trust and cannot assert one (S-TWO-BRAINS Step 86).
-		// Its mutating calls are refused pending confirmation (Rule 2).
+		// A model loop is never the direct user: it cannot assert
+		// direct-user (S-TWO-BRAINS Step 86). Its mutating calls are
+		// refused pending confirmation (Rule 2); with no references at
+		// all its reads still run and its writes still queue.
 		kept := justification[:0:0]
 		for _, ref := range justification {
 			if ref.SourceTrust != "direct-user" {
@@ -156,13 +160,12 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 		justification = kept
 	}
 	if len(justification) == 0 && !agentLoop {
-		justification = []champion.Reference{{
-			Topic:       "tool-exec-direct-user",
-			Category:    "user-action",
-			SourceKind:  "user-action",
-			SourceTrust: "direct-user",
-			SourceLabel: "/api/v1/tool/exec",
-		}}
+		writeJSON(w, http.StatusBadRequest, toolExecResponse{
+			Status:    "denied",
+			Reason:    `justification required: send a "justification" array (a direct user action is {"source_trust": "direct-user", ...})`,
+			SessionID: req.SessionID,
+		})
+		return
 	}
 
 	emittedBy := strings.TrimSpace(req.EmittedBy)

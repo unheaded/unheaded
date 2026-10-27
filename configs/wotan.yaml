@@ -47,6 +47,7 @@ topics:
     - "zhen-claude"          # zhen.llm.requests / zhen.audit.toolcalls / zhen.confirm.pending (S-TWO-BRAINS)
     - "zhen-agentd"          # same topics, the local brain
     - "zhen-eval"            # zhen.llm.requests from the two-brains eval
+    - "unheaded-baseline"    # compliance.deviation.<host> from the host baseline agent (ADR-098)
 
   # ML-DSA-65 public keys (base64) trusted to sign config.* messages
   # (ADR-043 #2). config.* is published only over gRPC, signed by one of

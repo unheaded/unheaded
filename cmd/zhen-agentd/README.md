@@ -17,7 +17,7 @@ make build-zhen-agentd
 # 2. Make sure vor + llama-server are running
 
 # 3. Run
-bin/zhen-agentd -project-root /home/govan/tmp/unheaded
+bin/zhen-agentd -no-auth -project-root /home/govan/tmp/unheaded   # dev, loopback; see Auth
 
 # 4. Ask
 curl -s -X POST http://127.0.0.1:20105/api/v1/agent/ask \
@@ -199,7 +199,8 @@ Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec`
 | `-allowed-roots <list>` | (just `-project-root`) | comma-separated list of additional roots requests may target |
 | `-action-store <kind>` | `stderr` | audit-log backend: `stderr` (dev) or `pg` (production; requires `WELL_DSN` env) |
 | `-kanban-store <kind>` | `memory` | kanban-task backend for `kanban_create` / `kanban_update`: `memory` (no persistence — these calls fail at dispatch with "no kanban store configured") or `pg` (persists to The Well's `kanban_tasks` table; requires `WELL_DSN`) |
-| `-rate-limit <rps>` | 0 | per-IP requests/sec; 0 disables. Recommended ~5 unauthenticated, higher behind auth |
+| `-rate-limit <rps>` | 5 | per-IP requests/sec; 0 disables |
+| `-no-auth` | off | serve without authentication: only with a loopback `-host` and `AUTH_ENABLED` unset (dev). Without it the daemon exits 2 unless auth is configured (see Auth) |
 | `-rate-burst <n>` | 10 | per-IP burst capacity (only used when `-rate-limit > 0`) |
 | `-confirm-queue` | off | queue agent-loop writes refused pending confirmation in the Well (`WELL_APP_ZHEN_DSN`) instead of denying them |
 | `-ask-tokens` | off | legacy: put `pending_token` in `/ask` traces (only for a listener no model can reach) |
@@ -239,21 +240,24 @@ Per-session sandboxing (different sandbox-root per `session_id`) is NOT yet impl
 
 ## Auth
 
-Auth is **disabled by default** (`AUTH_ENABLED=false`) for back-compat with the dev-mode CLI flow. For production, opt in via env:
+zhen-agentd **refuses to start without auth** (exit 2, "no auth token set") unless `-no-auth` is passed, and `-no-auth` is refused off loopback (`-host` other than `127.0.0.1`, `::1`, `localhost`) or together with `AUTH_ENABLED=true`. `-overnight` and `-once` runs open no listener and need neither. Configure auth via env (the systemd unit reads `/etc/zhen-agentd.env`, keys only in `deploy/systemd/zhen-agentd.env.example`):
 
 ```bash
 export AUTH_ENABLED=true
-export AUTH_API_KEYS="prod-key-1,prod-key-2"            # static API keys (X-API-Key header)
+export AUTH_API_KEYS="$(openssl rand -hex 32)"           # static API keys, comma-separated (X-API-Key header)
+# or AUTH_API_KEY_FILE=/etc/zhen/api-keys               # one key per line, first is current
 # OR / AND
 export AUTH_JWT_KEY="$(openssl rand -hex 32)"           # JWT signing key (Authorization: Bearer)
 export AUTH_JWT_ISSUER="https://auth.unheaded.dev"
 export AUTH_JWT_AUDIENCE="zhen-agentd"
 ```
 
+Callers send `X-API-Key: <one of AUTH_API_KEYS>` (or `Authorization: Bearer <JWT>`). `zhen-cli` reads the key from `ZHEN_AGENTD_API_KEY`.
+
 Wires `pkg/auth.SetupMiddleware` (see `pkg/auth/README.md` for the full auth design). When enabled:
 
-- `/api/v1/agent/ask` and `/api/v1/agent/confirm` require valid auth → 401 without
-- `/health`, `/ready`, `/metrics` always bypass auth (orchestrator-friendly)
+- `/api/v1/agent/ask`, `/api/v1/agent/ask/stream`, `/api/v1/agent/confirm` and `/api/v1/tool/exec` require valid auth → 401 without
+- `/health`, `/ready`, `/metrics` and `/api/v1/openapi.json` bypass auth (orchestrator-friendly)
 - Rate-limit and auth chain: rate-limit is OUTERMOST (drops floods before the auth path-skip check), then auth, then the mux
 
 Smoke verified:
@@ -267,7 +271,7 @@ correct API key      → 200 (or 400 if request body invalid, etc.)
 
 ## Rate limiting
 
-Per-IP token-bucket. Set via `-rate-limit <rps>` (default 0 = disabled) and `-rate-burst <n>` (default 10).
+Per-IP token-bucket, on by default. Set via `-rate-limit <rps>` (default 5; 0 disables) and `-rate-burst <n>` (default 10).
 
 ```bash
 bin/zhen-agentd -rate-limit 5 -rate-burst 10
@@ -375,7 +379,7 @@ pkg/champion/                 — gate + dispatch + confirm (shared)
 
 ```bash
 # Smoke against a running daemon
-bin/zhen-agentd -port 20105 &
+bin/zhen-agentd -no-auth -port 20105 &
 curl -s -X POST http://127.0.0.1:20105/api/v1/agent/ask \
     -H 'Content-Type: application/json' \
     -d '{"goal":"What is the right tag for a clickable button?","seed":42,"temperature":0}'

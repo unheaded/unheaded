@@ -236,3 +236,41 @@ func TestModeBits(t *testing.T) {
 		t.Errorf("Perm = %o %v", got, err)
 	}
 }
+
+// FND-011 stopgap (CVE-2026-53266): kmod-cis keeps ebtables and the two
+// modules the exploit chain loads from being autoloaded, on both hosts,
+// until a fixed kernel ships. Nothing on west or east uses ebtables (LXD
+// filters with nftables; lsmod shows no ebt* module, 2026-10-27).
+// scripts/host/executor_diff_test.go keeps remediate.sh's copy identical.
+func TestKmodCISCarriesFND011Stopgap(t *testing.T) {
+	m := repoModel(t)
+	var fa *FileAction
+	for i := range m.Fixes {
+		if m.Fixes[i].ID != "kmod-cis" {
+			continue
+		}
+		for _, a := range m.Fixes[i].Actions {
+			if a.File != nil && a.File.Path == "/etc/modprobe.d/unheaded-cis.conf" {
+				fa = a.File
+			}
+		}
+	}
+	if fa == nil {
+		t.Fatal("kmod-cis has no /etc/modprobe.d/unheaded-cis.conf action")
+	}
+	for _, host := range KnownHosts {
+		got, err := fa.Render(host, Facts{}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, mod := range []string{"ebtables", "ebtable_nat", "ebt_snat"} {
+			line := "install " + mod + " /bin/false\n"
+			if !strings.Contains(got, line) {
+				t.Errorf("%s: kmod-cis lacks %q", host, strings.TrimSpace(line))
+			}
+		}
+		if !strings.Contains(got, "FND-011") {
+			t.Errorf("%s: the stopgap lines carry no FND-011 comment", host)
+		}
+	}
+}

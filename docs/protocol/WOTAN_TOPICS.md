@@ -184,6 +184,7 @@ Topics use dot-separated hierarchical names:
 - `alerts.critical` — Critical system alerts
 - `logs.timeguru.info` — Timeguru info-level logs
 - `system.discovery` — Service discovery events
+- `compliance.deviation.<host>` — Host baseline deviations from `cmd/unheaded-baseline` (display name `unheaded-baseline`, ADR-098): one message per run with deviations, `{host, mode, deviations:[{id, kind}], report_sha256, ts}`; metadata only, details stay in the host's `report.json`. Off unless the host sets `WOTAN_ADDR`.
 
 **Allowed characters:** `a-z`, `A-Z`, `0-9`, `.`, `-`, `_`, and `*`, `#` in patterns
 

@@ -72,8 +72,9 @@ func main() {
 		allowedRoots = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
 		actionStore  = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
 		kanbanStore  = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; requires WELL_DSN env). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
-		rateRPS      = flag.Float64("rate-limit", 0, "per-IP requests/sec (0 disables; recommended ~5 for unauthenticated, higher behind auth)")
-		rateBurst    = flag.Int("rate-burst", 10, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
+		rateRPS      = flag.Float64("rate-limit", defaultRateLimitRPS, "per-IP requests/sec (0 disables)")
+		rateBurst    = flag.Int("rate-burst", defaultRateBurst, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
+		noAuth       = flag.Bool("no-auth", false, "serve without authentication; only with a loopback -host and AUTH_ENABLED unset (dev). Without it, zhen-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or AUTH_JWT_KEY are set")
 		auditWell    = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
 		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
 		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
@@ -91,6 +92,18 @@ func main() {
 		if err := applyOvernightDefaults(&wf, set, defaultStateDir()); err != nil {
 			fatal("overnight: %v", err)
 		}
+	}
+
+	// The listener needs auth (M-019). Checked before anything starts;
+	// -overnight and -once runs open no listener.
+	var authMW func(http.Handler) http.Handler
+	if !wf.overnight && !wf.once {
+		mw, err := listenerAuth(auth.LoadServiceAuthConfig("zhen-agentd"), *noAuth, *host)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "zhen-agentd: %v\n", err)
+			os.Exit(2)
+		}
+		authMW = mw
 	}
 
 	vorURL := envOr("VOR_URL", defaultVorURL)
@@ -236,19 +249,12 @@ func main() {
 	// Auth wraps the mux so /metrics is exempted via SkipAuthPaths.
 	// Rate-limit is outermost so a flood of unauthenticated requests
 	// gets dropped before the auth path-skip check + verification.
-	authCfg := auth.LoadServiceAuthConfig("zhen-agentd")
-	authMW := auth.SetupMiddleware(authCfg)
 	var handler http.Handler = mux
 	if authMW != nil {
 		fmt.Fprintf(os.Stderr, "zhen-agentd: auth middleware enabled\n")
-		// SetupMiddleware already exempts /health, /ready, /metrics.
-		// Layer an additional skip for /api/v1/openapi.json so clients
-		// can discover the spec (and how to authenticate) without
-		// auth — same posture as /metrics.
-		extendedAuth := auth.SkipAuthPaths(authMW, "/api/v1/openapi.json")
-		handler = extendedAuth(mux)
+		handler = authMW(mux)
 	} else {
-		fmt.Fprintf(os.Stderr, "zhen-agentd: auth middleware DISABLED (set AUTH_ENABLED=true to enable)\n")
+		fmt.Fprintf(os.Stderr, "zhen-agentd: -no-auth: serving WITHOUT authentication on loopback %s (dev only)\n", *host)
 	}
 	if rl := newRateLimiter(*rateRPS, *rateBurst); rl != nil {
 		fmt.Fprintf(os.Stderr, "zhen-agentd: per-IP rate limit %.1f rps, burst %d\n", *rateRPS, *rateBurst)

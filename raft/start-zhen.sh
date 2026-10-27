@@ -70,9 +70,25 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         echo "[2/3] Starting cmd/zhen-agentd on :20105 (mutation gating)..."
         cd "$HOME/tmp/unheaded"
         AGENTD_LOG="$("$LOGPATH" zhen-agentd)"
+        # zhen-agentd exits 2 without auth (M-019). With a key in this
+        # environment (AUTH_API_KEYS, AUTH_API_KEY_FILE or AUTH_JWT_KEY) it
+        # runs authenticated and the UI gets the key as ZHEN_AGENTD_API_KEY;
+        # without one it runs -no-auth, which it allows on loopback only.
+        AGENTD_AUTH=(-no-auth)
+        if [[ -n "${AUTH_API_KEYS:-}${AUTH_API_KEY_FILE:-}${AUTH_JWT_KEY:-}" ]]; then
+            export AUTH_ENABLED=true
+            AGENTD_AUTH=()
+            if [[ -z "${ZHEN_AGENTD_API_KEY:-}" && -n "${AUTH_API_KEYS:-}" ]]; then
+                export ZHEN_AGENTD_API_KEY="${AUTH_API_KEYS%%,*}"
+            fi
+        else
+            echo "  ! no AUTH_API_KEYS/AUTH_API_KEY_FILE/AUTH_JWT_KEY: zhen-agentd runs -no-auth on 127.0.0.1 (dev only)"
+        fi
         nohup ./bin/zhen-agentd \
+            -host 127.0.0.1 \
             -port 20105 \
             -project-root "$HOME/tmp/unheaded" \
+            "${AGENTD_AUTH[@]}" \
             > "$AGENTD_LOG" 2>&1 &
         echo "  zhen-agentd PID: $!"
         for _ in $(seq 1 10); do

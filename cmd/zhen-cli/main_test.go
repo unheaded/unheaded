@@ -23,6 +23,7 @@ import (
 type fakeAgentd struct {
 	srv      *httptest.Server
 	captured []toolExecRequest
+	apiKeys  []string // X-API-Key of each captured request
 	respond  func(req toolExecRequest) toolExecResponse
 }
 
@@ -45,6 +46,7 @@ func newFakeAgentd(t *testing.T, respond func(toolExecRequest) toolExecResponse)
 			t.Fatalf("decode: %v", err)
 		}
 		f.captured = append(f.captured, req)
+		f.apiKeys = append(f.apiKeys, r.Header.Get("X-API-Key"))
 		resp := f.respond(req)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -230,5 +232,33 @@ func TestToolExec_DaemonUnreachableErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "zhen-agentd unreachable") {
 		t.Errorf("error message lost the daemon-unreachable hint: %v", err)
+	}
+}
+
+// zhen-agentd no longer asserts direct-user for a caller (M-019): the CLI,
+// whose user typed the command, states it, and sends the API key when set.
+func TestToolExec_SendsDirectUserJustificationAndKey(t *testing.T) {
+	f := newFakeAgentd(t, func(req toolExecRequest) toolExecResponse {
+		return toolExecResponse{Status: "ok"}
+	})
+	s := newTestSession(f.srv.URL)
+	s.agentdKey = "k-test"
+	if _, err := s.toolExec("runbook_list", nil); err != nil {
+		t.Fatal(err)
+	}
+	if f.apiKeys[0] != "k-test" {
+		t.Errorf("X-API-Key = %q, want k-test", f.apiKeys[0])
+	}
+	got := f.captured[0].Justification
+	if len(got) != 1 || got[0].SourceTrust != "direct-user" || got[0].SourceKind != "user-action" || got[0].Topic == "" {
+		t.Errorf("justification = %+v, want one direct-user user-action reference", got)
+	}
+
+	s.agentdKey = ""
+	if _, err := s.toolExec("runbook_list", nil); err != nil {
+		t.Fatal(err)
+	}
+	if f.apiKeys[1] != "" {
+		t.Errorf("X-API-Key sent without a key configured: %q", f.apiKeys[1])
 	}
 }

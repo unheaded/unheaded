@@ -249,7 +249,7 @@
     "/api/v1/tool/exec": {
       "post": {
         "summary": "Direct Champion tool dispatch (no LLM)",
-        "description": "WAVE15 Phase 2b mutation-path proxy. The web UI hits this when the user explicitly invokes a kingdom-altering action (e.g., 'Execute runbook X'). Bypasses the LLM entirely — caller specifies the tool + args directly. Champion's three rules still gate the request. Default justification is `source_trust: \"direct-user\"` (Rule 2 escape).",
+        "description": "WAVE15 Phase 2b mutation-path proxy. The web UI hits this when the user explicitly invokes a kingdom-altering action (e.g., 'Execute runbook X'). Bypasses the LLM entirely — caller specifies the tool + args directly. Champion's three rules still gate the request. `justification` is required for a direct caller (400 `justification required` without one); a user action sends `source_trust: \"direct-user\"` (Rule 2 escape). Agent loops (`emitted_by` zhen-agent*) cannot assert direct-user.",
         "security": [{"ApiKey": []}, {"BearerJWT": []}],
         "requestBody": {
           "required": true,

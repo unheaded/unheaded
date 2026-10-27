@@ -114,14 +114,25 @@ type chatResponse struct {
 
 // toolExecRequest mirrors the request shape of cmd/zhen-agentd
 // /api/v1/tool/exec (see cmd/zhen-agentd/toolexec.go for canonical
-// wire format). Justification omitted → daemon defaults to a
-// direct-user trust label, satisfying Champion's Rule 2 escape.
+// wire format). The daemon refuses a direct caller without a
+// justification, so the CLI states direct-user: its user typed the
+// command (Champion's Rule 2 escape; Rules 1 and 3 still apply).
 type toolExecRequest struct {
-	Tool        string         `json:"tool"`
-	Args        map[string]any `json:"args"`
-	ProjectRoot string         `json:"project_root,omitempty"`
-	SessionID   string         `json:"session_id,omitempty"`
-	EmittedBy   string         `json:"emitted_by,omitempty"`
+	Tool          string         `json:"tool"`
+	Args          map[string]any `json:"args"`
+	ProjectRoot   string         `json:"project_root,omitempty"`
+	SessionID     string         `json:"session_id,omitempty"`
+	EmittedBy     string         `json:"emitted_by,omitempty"`
+	Justification []reference    `json:"justification,omitempty"`
+}
+
+// reference mirrors pkg/champion.Reference's wire shape.
+type reference struct {
+	Topic       string `json:"topic"`
+	Category    string `json:"category"`
+	SourceKind  string `json:"source_kind"`
+	SourceTrust string `json:"source_trust"`
+	SourceLabel string `json:"source_label,omitempty"`
 }
 
 // toolExecResponse mirrors the response shape — same shape as
@@ -147,6 +158,7 @@ type session struct {
 	vorURL    string
 	llamaURL  string
 	agentdURL string
+	agentdKey string // X-API-Key for zhen-agentd (ZHEN_AGENTD_API_KEY); "" = none
 	model     string
 
 	client *http.Client
@@ -175,6 +187,7 @@ func main() {
 		vorURL:    envOr("VOR_URL", defaultVorURL),
 		llamaURL:  envOr("LLAMA_URL", defaultLlamaURL),
 		agentdURL: envOr("ZHEN_AGENTD_URL", defaultAgentdURL),
+		agentdKey: os.Getenv("ZHEN_AGENTD_API_KEY"),
 		model:     envOr("RAG_MODEL", defaultModel),
 		client:    &http.Client{Timeout: httpTimeout},
 	}
@@ -417,6 +430,10 @@ func (s *session) toolExec(tool string, args map[string]any) (*toolExecResponse,
 		Tool:      tool,
 		Args:      args,
 		EmittedBy: "zhen-cli",
+		Justification: []reference{{
+			Topic: "user-typed-" + tool, Category: "user-action", SourceKind: "user-action",
+			SourceTrust: "direct-user", SourceLabel: "zhen-cli",
+		}},
 	})
 	if err != nil {
 		return nil, err
@@ -427,6 +444,9 @@ func (s *session) toolExec(tool string, args map[string]any) (*toolExecResponse,
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if s.agentdKey != "" {
+		req.Header.Set("X-API-Key", s.agentdKey)
+	}
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("zhen-agentd unreachable: %w", err)
