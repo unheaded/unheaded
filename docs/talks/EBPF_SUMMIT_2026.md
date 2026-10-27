@@ -1,5 +1,7 @@
 # The Packet IS the Telemetry: Embedding Distributed Traces in IPv6 Headers at Wire Speed
 
+> **Unverified (2026-10-27).** The 52-byte HbH metric option (UNHEADED_METRIC_V1) was a research proposal (docs/research/IPV6_METRIC_CAPACITY.md), not shipped; the wire format is the 20-byte Monad register (Foundation-06). Numbers below were not re-measured.
+
 ## Talk Metadata
 
 - **Conference**: eBPF Summit 2026

@@ -1,5 +1,7 @@
 # The Unheaded Kingdom Architecture
 
+> **Status of the items marked "(Future)" below (2026-10-27).** VXLAN overlay and BGP EVPN: the Sleipnir (BGP) vision in ADR-69420, not scheduled; the live overlay is WireGuard `fd00:dead:beef::/48`. Vault: not planned; secrets are 0400 files per service under `/etc/unheaded` (ADR-103). Secret rotation: ADR-103 (not built) and the credential rotation in S-CLEAN-SLATE E6. Container-to-container mTLS: ADR-034 / ADR-105, tracked as FND-017. alerting-service: built as Alertmanager + alert-mailer (ADR-100).
+
 ```
                             +-----------------------------------------+
                             |    Self-hosting is proof.               |

@@ -1,5 +1,7 @@
 # Doom in the Data Plane: Observing Every Packet with eBPF
 
+> **Unverified (2026-10-27).** The service count and size figures below are stale (the tree no longer has 49 services; internal links are not mTLS, FND-017), and none of the numbers were re-measured. Dormant under Track C.
+
 ## Abstract
 
 Traditional observability samples traffic. We observe EVERY packet. Unheaded is a 49-service infrastructure platform where eBPF XDP/TC programs stamp packet metadata, track flows, and measure latency — all with zero context switches in the hot path.

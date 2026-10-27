@@ -266,6 +266,8 @@ The Sophia dictionary maps 128-bit flow labels to dictionary entries. Each entry
 
 **ACTION ITEM 4** (MINOR): Document reserved capability flags 18-23 in `draft-bellis-unheaded-sophia-dictionary-01` Section 2.3.
 
+> **Obsolete (2026-10-27, MON-22).** There is no `monad-sophia` crate and no `Cap*` constants in `pkg/protocol/settings`; items 3 and 4 refer to code that never landed on `develop`. Dropped.
+
 ---
 
 ## Wotan Memory Model Alignment

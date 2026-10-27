@@ -23,6 +23,8 @@ The 2026-04-04 scan is 32 days old; ADR-052 / S37 cadence is ≤30 days. Trigger
 **Owner:** MoatGhost.
 
 ### [STUCK] C2 — aya 0.1.1 ELF map upgrade requires Linux
+
+> **Moot (2026-10-27).** The blocker was the Darwin host of that run; the eBPF workspace builds and loads on west (kernel 6.17) daily. The remaining question, whether the `ebpf-aya-upgrade-mn05` card is still wanted, belongs to the Anamnesis Lite re-scope (docs/sweeps/outstanding-2026-10-27/sweep-plans.md A-02).
 **Captured during:** Phase C step C2 (NORTH-STAR Appendix A).
 
 The kanban-tracked `ebpf-aya-upgrade-mn05` upgrade goal is ELF-loader compatibility with `bpftool 7.7+` / `libbpf 1.7+`. Verifying that goal requires:
@@ -49,6 +51,8 @@ Current pinned versions:
 **Owner:** Developer (with bare-metal Linux access — WEST or EAST).
 
 ### [STUCK] C4 — heimdall-daemon: 4 TODOs all architectural / Linux-only
+
+> **Resolved by S5 (2026-10-23).** Seal verification, Wotan signing of `drift.*` (`pkg/wotansig`), the BPF ringbuf reader and the Gjallarhorn XDP listener all landed (docs/sweeps/outstanding-2026-10-27/sweep-plans.md:179). What stays open is the bare-metal re-run of Mímir's Law Phases 9/11/13 with east as a node.
 **Captured during:** Phase C step C4 (NORTH-STAR Appendix A).
 
 The plan said "stub-with-comment and park if architecturally non-trivial." Going through all four:

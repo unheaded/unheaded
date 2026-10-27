@@ -1,5 +1,7 @@
 # Demo Video Script — v0 outline
 
+> **Dormant under Track C (2026-05-11); commands unverified (2026-10-27).** No external demo push is planned; several commands and targets below no longer exist.
+
 > **Conditional on Track B or Track C.** This outline activates when `docs/decisions/2026-04-29-track-call.md` locks Track B (launch-first) or Track C (twin-track). If Track A is locked, this outline is deferred to Age 4+ and may be revised before resumption.
 
 **Drafted**: 2026-04-27 from Cowork-on-Macbook (Captain + Micromanager hats)

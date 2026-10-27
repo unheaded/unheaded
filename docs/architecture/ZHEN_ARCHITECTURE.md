@@ -5,6 +5,8 @@
 **Date:** 2026-03-15
 **Status:** Operational (594K indexed chunks, inference + RAG + UI live)
 
+> **Corrected 2026-10-27.** Inference is the shared `llama-server` on `127.0.0.1:8081` serving an allowlisted GGUF chosen with `scripts/switch-model.sh` (qwen2.5-coder 7B default; ADR-060), not Mistral 7B on 20100. Training is the Gemma-4 E2B forge (`crates/zhenai-forge`, ADR-048/049/050); the Mistral QLoRA plan below is superseded.
+
 ---
 
 ## Overview
@@ -27,8 +29,8 @@ The name comes from Chinese: "Zhen" -- meaning "true love" for the codebase.
 │  RAG Pipeline (Python)       raft/scripts/zhen_rag.py        │
 │  FAISS index (594K vectors) + corpus lookup + prompt build   │
 ├──────────────────────────────────────────────────────────────┤
-│  Inference Server            http://localhost:20100           │
-│  llama.cpp (ROCm) — Mistral 7B Instruct Q5_K_M, 40 layers   │
+│  Inference Server            http://127.0.0.1:8081            │
+│  llama.cpp (ROCm) — allowlisted GGUF (switch-model.sh)      │
 ├──────────────────────────────────────────────────────────────┤
 │  The Well (PostgreSQL)       localhost:5432                   │
 │  zhen_conversations table — session logging, feedback         │
@@ -39,7 +41,7 @@ The name comes from Chinese: "Zhen" -- meaning "true love" for the codebase.
 
 | Component | Port | Protocol |
 |-----------|------|----------|
-| llama-server (inference) | 20100 | HTTP (OpenAI-compatible `/v1/` API) |
+| llama-server (inference) | 8081 (loopback) | HTTP (OpenAI-compatible `/v1/` API) |
 | Zhen Web UI + RAG API | 20103 | HTTP (Flask) |
 | PostgreSQL (The Well) | 5432 | PostgreSQL wire protocol |
 
@@ -48,7 +50,7 @@ The name comes from Chinese: "Zhen" -- meaning "true love" for the codebase.
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | Inference | llama.cpp with ROCm | GPU-accelerated, 40 layers offloaded |
-| Model | Mistral 7B Instruct Q5_K_M | GGUF quantized, 2048 context |
+| Model | qwen2.5-coder 7B (default) / 14B, DeepSeek-Coder-V2-Lite | GGUF Q4_K_M, allowlist in `scripts/switch-model.sh` (ADR-060) |
 | Embeddings | sentence-transformers (all-MiniLM-L6-v2) | 384-dim vectors |
 | Vector Index | FAISS (IndexFlatIP) | 594K vectors, inner product search |
 | Web Framework | Flask + flask-cors | Python 3, dev server |
@@ -128,7 +130,7 @@ RAFT (Retrieval-Augmented Fine-Tuning) is the planned training approach:
 
 1. Generate QA pairs from corpus chunks
 2. Use retrieved context as training signal
-3. QLoRA fine-tune on Mistral 7B
+3. LoRA on Gemma-4 E2B with the forge (WAVE12 shipped one; retrain deferred until the flywheel has ≥ 300 SFT examples)
 4. Merge adapters + quantize to GGUF
 5. Hot-swap into running llama-server
 
@@ -148,8 +150,8 @@ script ready but not yet executed (awaiting sufficient QA pairs).
 # Or manually:
 # 1. Start inference
 cd ~/tmp/unheaded/llama.cpp/build
-./bin/llama-server -m ~/tmp/unheaded/raft/models/mistral-7b-instruct-q5_k_m.gguf \
-  -ngl 40 -c 2048 --port 20100
+# Use scripts/switch-model.sh <name>: it runs the fit check and starts
+# llama-server on 127.0.0.1:8081 with that model's flags.
 
 # 2. Start Web UI + RAG
 source ~/.venv/zhen/bin/activate

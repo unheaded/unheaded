@@ -53,7 +53,7 @@ routing/
 nixos/modules/
 ├── frr.nix       BGP EVPN module
 ├── frr-ospf.nix  OSPFv3 module
-├── frr-isis.nix  IS-IS module (TODO)
+├── frr-isis.nix  IS-IS (done: isisd + isisNet in nixos/modules/frr.nix; routing/isis/frr-isis-{ha,hb}.conf)
 └── frr-mpls.nix  MPLS module
 
 scripts/routing/

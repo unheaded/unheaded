@@ -46,7 +46,7 @@ Mirrors the GHA matrix on the developer's host before pushing. Runs in this orde
 |--------|---------|
 | `make ci-local` | Full local CI (mirrors GHA). |
 | `make ci-security` | Subset: cargo audit, gosec, gpl-boundary, bpf-verifier. |
-| `make sbom-verify` | Regenerate SBOM and diff against committed `docs/sbom/`; fails on drift. |
+| `make sbom-verify` | Runs `scripts/verify-gpl-boundary.sh` (GPL boundary check). It does not regenerate or diff the SBOM. |
 | `make install-hooks` | Symlink `scripts/git-hooks/pre-commit` into `.git/hooks/`. |
 | `make test-hooks` | Run `scripts/git-hooks/test-pre-commit.sh` (T1-T6 audit). |
 
@@ -63,7 +63,7 @@ Hardware-gated stages:
 
 - `docs/sbom/` is the in-tree canonical SBOM directory.
 - ScanCode + syft + cyclonedx generate three views (license, package, BOM) committed alongside each release tag.
-- `make sbom-verify` ensures the three views agree.
+- Nothing checks that the three views agree today: `make sbom-verify` only runs the GPL boundary script (corrected 2026-10-27).
 
 ## References
 

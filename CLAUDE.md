@@ -1093,7 +1093,7 @@ for {
 
 ### Cross-Service Health Monitoring
 
-**Location:** `docs/SERVICE_BREAKOUT_STRATEGY.md`
+**Location:** `docs/architecture/SERVICE_BREAKOUT_STRATEGY.md`
 
 Every microservice MUST health check all services it depends on. Reports go to Wotan topic `system.health.reports`; consensus severity changes to `system.health.consensus` (ADR-029). Severity by **percentage-based consensus**:
 
@@ -1117,7 +1117,7 @@ After stable alpha, monorepo splits into individual service repos. Each service 
 
 **Status:** not started (2026-10-16): still one Go module. The Feb plan targeted Mar 15; extraction order is now framed by ADR-047.
 
-See `docs/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
+See `docs/architecture/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
 
 ---
 

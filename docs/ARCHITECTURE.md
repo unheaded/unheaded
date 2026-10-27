@@ -383,29 +383,19 @@ unheaded-daemon polls every 30 seconds:
 
 ## Future Enhancements
 
-### Phase 2: Production Hardening
-- Message persistence (WAL)
-- Multi-node clustering
-- Geographic distribution
-- Advanced RBAC
+The phase list that stood here (2026-01) is replaced by pointers to the ADRs that now
+own each item (index: `docs/adr/ADR-INDEX.md`; open work: `docs/sweeps/OUTSTANDING-2026-10-27.md`).
 
-### Phase 3: Compliance
-- FEDRAMP baseline
-- NIST controls
-- SOC2 audit support
-- Automated compliance reporting
-
-### Phase 4: Advanced Observability
-- Distributed tracing (OpenTelemetry)
-- Log analytics (ClickHouse)
-- Anomaly detection (ML)
-- Predictive alerting
-
-### Phase 5: Full IDP
-- Service registry
-- Circuit breakers
-- Rate limiting per-service
-- API gateway features
+| Item | Where it lives now |
+|---|---|
+| Wotan multi-node clustering | ADR-064 (active/active, Raft membership; not started) |
+| Service auth, RBAC, key distribution | ADR-103 (Ed25519 service JWTs; not built), ADR-099 (control profiles) |
+| Internal TLS | ADR-034 (mTLS), ADR-105 (hybrid ML-KEM); FND-017 |
+| Compliance (NIST 800-53, CIS, FedRAMP, ISO 27001, SOC 2) | ADR-097 (crosswalk), ADR-098 (findings register), ADR-099 (remediation as code) |
+| Alerting | ADR-100 (SLO-only alerting, built) |
+| Log analytics in ClickHouse | ADR-092 step 8 (west journal shipping deployed), ADR-076, ADR-086 |
+| Anomaly detection | `services/anomaly` + the int8 scorer cartridge (ADR-108) |
+| Service registry | `pkg/discovery` (four-layer discovery, built) |
 
 ## References
 

@@ -109,8 +109,8 @@ grep -aq 'hello' <<<"$UI" && pass "uinit forks+execs sh, echo runs" \
 # ---- Variant 2: non-ascend (Doom) — LOAD test -----------------------------
 # The regression that actually happens is "Doom object over the 1M ceiling →
 # won't load." doom-runner loads it through the real pipeline; "pipeline
-# complete" == loaded == under budget. (Exact Doom insn count would need the
-# UPC_VERIFIER_STATS knob mirrored into doom-runner — future enhancement.)
+# complete" == loaded == under budget. doom-runner honours UPC_VERIFIER_STATS,
+# so the exact Doom insn count is captured below as DBUD.
 echo "[2/3] non-ascend build (Doom load)"
 ( cd "$EBPF" && cargo build --release -p monad-cpu-ebpf 2>&1 ) \
   | grep -qE "error" && { fail "non-ascend build"; }

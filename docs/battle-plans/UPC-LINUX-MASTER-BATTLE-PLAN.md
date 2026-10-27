@@ -54,10 +54,11 @@ Scientist).*
       cut it off; the 4 missing modules — surface/boot/workload/registry — were finished as bones,
       crate builds). NOTE: the agent used object-safe **traits** (`&dyn`); the panel preferred
       **descriptor structs + free functions** — settle that in 1.2.3 adoption. Standalone crate.
-- [~] **1.2.2** Characterization tests — upc-bootctl's three pure transforms golden-tested
+- [x] **1.2.2** Characterization tests — upc-bootctl's three pure transforms golden-tested
       (`relocate_call_word`, `relocate_rv2mbc_entry`, `fnv1a` vs canonical FNV-1a; 11 tests);
-      doom-runner already has 24 tests over its load logic. REMAINS: full map-population byte
-      capture (exact ROM/RV2MBC slots + entry PC + BootParams) as the ultimate no-regression oracle.
+      doom-runner already has 24 tests over its load logic. The full map-population byte
+      oracle (exact ROM/RV2MBC slots + entry PC + BootParams) landed with 1.2.3: `RecordingSink`
+      characterization tests in `crates/upc-api/src/load.rs` (`67d4d4ea`). Done (K-2, 2026-10-27).
 - [x] **1.2.3** SHIPPED 2026-07-04 (`67d4d4ea`, Stevie-authorized). Both loaders build a
       `Workload` and route ROM/RV2MBC population through one shared
       `upc_api::load(&Workload, &MapCapacities, &mut impl ImageSink)`; `load()` runs `validate()`

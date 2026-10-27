@@ -1,5 +1,7 @@
 # FUZIX Port Analysis — UPC Level 5b
 
+> **Superseded by ADR-081 (own tiny kernel), 2026-07-03.** The L6 uClinux / full Linux / busybox route described here was killed; ASCEND-LINUX evolved the xv6 kernel into an Unheaded-authored one instead (docs/adr/ADR-081-unheaded-linux-from-scratch.md). Kept for history; the live record is wiki/Linux-on-UPC.md.
+
 **Date:** 2026-03-15
 **Status:** Feasibility assessment complete
 **Target:** FUZIX on UPC (Monad Bytecode CPU running in eBPF XDP)
