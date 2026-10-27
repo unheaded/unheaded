@@ -1,6 +1,6 @@
 # ADR-067: MBC ISA v2 + UPC ABI v1
 
-**Status:** Accepted (Phase 0 complete 2026-05-08)
+**Status:** Accepted (decisions made 2026-05-08; implementation lands across Phase 0)  
 **Date:** 2026-05-08
 
 > Wiki stub generated 2026-05-11. See the canonical ADR for full text + rationale.

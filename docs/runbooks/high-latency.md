@@ -1,5 +1,7 @@
 # Runbook: High Latency (P99 > 2s)
 
+> **Reference design for a Kubernetes/Vault deployment that is not running (decision 43 pending).** Live runbooks are `runbooks/**/*.yaml`.
+
 ## Symptoms
 - Grafana alert: HighLatency fires
 - Dashboard shows slow responses

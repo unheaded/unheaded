@@ -1,7 +1,7 @@
 # CLAUDE.md - Unheaded Alpha Development Guide
 
 **For:** Claude AI agents working on Unheaded
-**Updated:** March 19, 2026
+**Updated:** 2026-10-27
 **Project:** github.com/unheaded/unheaded
 
 ---
@@ -542,25 +542,10 @@ it was used.
 
 **Required metrics for all services:**
 
+HTTP metrics come from the shared middleware, not per-service vectors: `m := httputil.NewServiceMetrics("timeguru")` then `m.Instrument(mux, handler)` (`pkg/httputil/middleware.go`). It registers `unheaded_http_requests_total{method,path,status}` and `unheaded_http_request_duration_seconds{method,path}`; `service` is a const label set by the shared middleware, and `path` is the ServeMux pattern, never the raw URL. Service-specific metrics follow the same naming:
+
 ```go
 var (
-    httpRequestsTotal = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "unheaded_http_requests_total",
-            Help: "Total HTTP requests",
-        },
-        []string{"service", "method", "path", "status"},
-    )
-
-    httpRequestDuration = promauto.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name: "unheaded_http_request_duration_seconds",
-            Help: "HTTP request latency",
-            Buckets: prometheus.DefBuckets,
-        },
-        []string{"service", "method", "path"},
-    )
-
     wotanMessagesPublished = promauto.NewCounterVec(
         prometheus.CounterOpts{
             Name: "unheaded_wotan_messages_published_total",
@@ -800,9 +785,8 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - [x] Dual bare metal hosts online (WEST + EAST)
 - [x] Cross-host BPF flow graph operational
 - [x] Authentication framework deployed (64 test cases, 100% coverage)
-- [ ] Publicly accessible (optional auth) — deferred to Age 2
-- [ ] Sub-50ms latency (packet → browser) — needs benchmarking
-- [ ] Containers start in <10s — needs benchmarking
+- [ ] Publicly accessible (optional auth): edge haproxy config M-035, dashboard login M-055
+- [ ] Benchmarks: packet → browser p99 < 50 ms and container start < 10 s, unmeasured (M-089)
 
 **What's Done (cumulative through S76):**
 - All 10 services have HTTP APIs with health/ready/metrics endpoints
@@ -879,19 +863,15 @@ goes stale. The docs/ folder is the living record.
 - All 4 P1 bugs fixed (#20 Nix TLS, #36 log forwarding, #29 Kanban logging, E2E smoke)
 
 **Age 2 Remaining Epics:**
-- WireGuard IPv6 overlay (fd00:dead:beef::/48)
-- Foundation spec draft-06 (IANA integration)
-- Sophia draft-03 (sub-dictionary types, QPACK compression)
-- Wotan draft-03 (error code taxonomy)
-- Demo video + README polish (VC readiness)
-- Public accessibility (optional auth)
-- Performance benchmarking (sub-50ms target)
-- RAFT fine-tuning (QLoRA on Mistral-7B with 616 QA pairs)
-- Zhen Engine (custom Rust inference + Go management plane)
+- README polish
+- Public accessibility (optional auth): M-035, M-055
+- Performance benchmarking (sub-50 ms target): M-089
+
+Shipped and dropped from this list 2026-10-27: WireGuard IPv6 overlay, Foundation-06, Sophia-03, Wotan-03. Superseded: RAFT/Mistral-7B QLoRA and the custom Zhen Engine (Gemma-4 forge, ADR-049; model selector, ADR-060).
 
 **S35 Strategic Decisions (Feb 24, 2026):**
 - **License**: GPL-3.0. Protocol specs dual-licensed GPL-3.0/Apache 2.0 for ecosystem adoption.
-- **Doom**: Fork official id-Software/DOOM (with sound), replace doomgeneric. Move out of repo before going public.
+- **Doom**: Doom stays in the repo (decision 50, 2026-10-27); lowest-priority track.
 - **SBOM**: Run ScanCode + FOSSology + ORT against codebase. Must complete before going public.
 - **Backends**: All observability + IaC adapters DEFERRED not killed. Anti-lock-in is core principle. Ship Prometheus + zerolog first.
 - **Inverse Mask**: Deep exploration session required (BlackMage + Developer + Architect + Scientist).
@@ -1171,7 +1151,7 @@ See `docs/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
   - IANA-REGISTRATION.md: Plan for registering UNHEADED_METRIC_V1 (Type 0x2A)
 - **CONTRIBUTOR-GUIDE.md**:
   - CLA policy (copyright assignment for commercial licensing)
-  - Branch strategy (main/staging/feature/)
+  - Branch strategy: develop → staging → main (ADR-089; see §Branches)
   - Testing requirements (80%+ coverage, no skipped tests)
   - Commit message format (Conventional Commits)
 - **THIRD_PARTY.md**: Complete dependency inventory

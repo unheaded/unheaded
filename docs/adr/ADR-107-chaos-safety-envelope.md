@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-107: Chaos safety envelope (one engine, allowlist, abort, revert journal, SLO steady state)
 
-**Status:** Proposed (Stevie to accept).
+**Status:** Proposed (Stevie to accept). Chaos unit installed on west and east 2026-10-26 (`unheaded-chaos`, uid 16763); acceptance pending (decision 29).
 **Date:** 2026-10-23
 **Sprint:** S-REAL-STEEL Phase 10 (`docs/battle-plans/S-REAL-STEEL-battle-plan.md`, decisions D-16..D-20).
 **Related:** ADR-090 (no fake success), ADR-100 (SLOs, burn tiers, missing counts as bad), ADR-098 (findings register), ADR-029 (Akira consensus), ADR-106 (number taken on `sprint/upc-wire-compute`).
@@ -98,9 +98,10 @@ exist, and be proven to refuse, before the first real fault does.
 ## Status of the parts
 
 Code and tests on `sprint/real-steel` (each refusal has a bite test: remove
-the guard and its test fails). The unit and drop-in are written, not
-installed (E2.5 for west, E3 for east). Injectors arrive in Phases 11-13;
-until then every experiment type is refused.
+the guard and its test fails). The unit and drop-in were installed on west
+and east on 2026-10-26 (E2.5, E3). Injectors landed in Phases 11-13: netem,
+container kill, systemd stop/kill (east), packet_chaos; unimplemented types
+are refused. (Corrected 2026-10-27; this said written-not-installed.)
 
 ## Consequences
 

@@ -24,6 +24,8 @@ The Well's runbooks (backup-restore, migration, secrets-rotation) follow the mig
 
 ## docs/runbooks/ (incident prose)
 
+> Reference design for a Kubernetes/Vault deployment that is not running (decision 43 pending); the live runbooks are the YAML ones above.
+
 | Runbook | Trigger |
 |---------|---------|
 | `dns-failure.md` | DNS resolution failure (Greaves) |

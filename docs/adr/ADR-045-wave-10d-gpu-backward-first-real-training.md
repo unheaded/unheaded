@@ -1,6 +1,6 @@
 # ADR-045: Wave 10D — GPU Backward + First Real Training Run
 
-## Status: PLANNED (battle plan: `docs/battle-plans/WAVE10D-GPU-BACKWARD.md`)
+## Status: IMPLEMENTED (1e8fec51, Wave 10D Path B: bf16 storage + hipblasGemmEx); superseded in practice by WAVE10F/11/12 (Gemma-4 forge, ADR-048/049/050). Corrected 2026-10-27. Battle plan: `docs/battle-plans/WAVE10D-GPU-BACKWARD.md`
 
 ## Date: 2026-04-11
 

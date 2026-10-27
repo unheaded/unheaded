@@ -1,6 +1,6 @@
 # ADR-036: Claude Distillation for Zhenai Training Data
 
-**Status:** IN PROGRESS — 368 Claude QA pairs generated (2026-04-06). kingdom-v5 training step 13150/16304, loss 0.047. Scientist overfitting warning: epoch 1 checkpoint test required before epochs 2+3. CS sheets + learning library distillation queued (Wave 10 Phase 2 continuation).  
+**Status:** WITHDRAWN 2026-10-27 — Anthropic (2026-10-26): training on Claude outputs needs prior written authorization; none granted. The 368 QA pairs are not training data.  
 **Date:** 2026-04-05
 
 > Wiki stub generated 2026-05-06 by Marshal overnight sweep (NORTH-STAR Appendix A B5). See the canonical ADR for full text and rationale.

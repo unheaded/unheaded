@@ -1,5 +1,7 @@
 # Runbook: DNS Resolution Failure (Greaves)
 
+> **Reference design for a Kubernetes/Vault deployment that is not running (decision 43 pending).** Live runbooks are `runbooks/**/*.yaml`.
+
 ## Symptoms
 - SERVFAIL on internal service discovery
 - Pods cannot resolve `*.unheaded-*.svc.cluster.local`

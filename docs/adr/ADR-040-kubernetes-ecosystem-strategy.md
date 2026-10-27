@@ -1,6 +1,6 @@
 # ADR-040: Kubernetes Ecosystem Strategy — Kingdom Operator
 
-## Status: PLANNED
+## Status: DEFERRED (2026-10-27) — Kingdom Operator extraction is unscheduled under ADR-047; whether Kubernetes is a deploy target at all is decision 43 (docs/sweeps/OUTSTANDING-2026-10-27.md §2).
 
 ## Date: 2026-04-05
 ## Decision Makers: Stevie Bellis (Principal), Claude (Advisor)

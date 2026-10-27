@@ -61,7 +61,7 @@ curl -s 127.0.0.1:19130/v1/outbox    # last 50 mails: sent, dry-run, capped, fai
 
 Its state (cap count, open tickets, outbox) lives in the `alert_mailer_data` volume and survives restarts.
 
-**Mode is `dry-run` (2026-10-20).** It decides everything as if sending, including the cap, and sends nothing. Read the outbox for a week. If anything in it would have been noise, fix the SLO, not the mailer. Then switch to `send`.
+**Mode is `send` (since 2026-10-27, 265badbb).** Short term it sends from personal Gmail to stevie@bellis.tech; the Workspace account below is the longer-term sender. One synthetic page went through `smtp.gmail.com:587` with outbox outcome `sent` before the flip. `dry-run` (2026-10-20 → 10-27) decides everything as if sending, including the cap, and sends nothing; switch back to it in the policy if the outbox shows noise, and fix the SLO, not the mailer.
 
 ### Switching to send (Gmail)
 

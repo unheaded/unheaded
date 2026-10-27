@@ -87,6 +87,8 @@ What the translator actually does, which differs from the text above in three pl
 
 For Phase 0-3 we run with NumCPUs=1 (single-CPU UPC instance), but the map shape and the kernel build (`CONFIG_SMP=y`) are SMP-aware so Phase 4+ can add CPUs without re-architecting.
 
+> **Deviation (recorded 2026-10-27).** The `PerCPU<MbcCpuState>` map was not adopted: `CPU_MAP` is `HashMap<u32, MbcCpuState>` keyed by instance (`ebpf/monad-cpu-ebpf/src/main.rs:125`). Correct for NumCPUs=1; SMP needs this decision revisited.
+
 Inter-CPU sync requires:
 - `0x3F FENCE` (Decision 5) — full memory barrier
 - `0x49 LR.W`, `0x4A SC.W` (Decision 4) — atomic load-reserved / store-conditional
