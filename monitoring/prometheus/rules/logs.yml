@@ -22,6 +22,7 @@ groups:
         annotations:
           summary: "{{ $labels.instance }} has shipped no journal entries to ClickHouse for 45m"
           description: "Audit records are not leaving the host; docker logs unheaded-vector, and check clickhouse is up"
+          runbook_url: "runbooks/observe/log-pipeline.yaml"
 
       - alert: JournalShipErrors
         expr: sum by (instance) (increase(vector_component_errors_total{job="vector",component_id="clickhouse"}[15m])) > 0
@@ -32,6 +33,7 @@ groups:
         annotations:
           summary: "Vector on {{ $labels.instance }} keeps failing to write to ClickHouse"
           description: "{{ $value }} sink errors in 15m; Vector retries, so rows may be late rather than lost"
+          runbook_url: "runbooks/observe/log-pipeline.yaml"
 
       - alert: VectorDown
         expr: up{job="vector"} == 0
@@ -42,6 +44,7 @@ groups:
         annotations:
           summary: "Vector on {{ $labels.instance }} is not answering /metrics"
           description: "The journal is not shipping while it is down; docker compose ps vector"
+          runbook_url: "runbooks/observe/log-pipeline.yaml"
 
   # Log-volume deviation (ADR-100 Phase 3). Vector counts journal lines per
   # host, unit and level (unheaded_log_lines_total; config/vector/vector.yaml)
@@ -119,6 +122,7 @@ groups:
         annotations:
           summary: "{{ $labels.unit }} on {{ $labels.host }} logs {{ printf `%.2f` $value }} lines/s, over 10x its usual for this time of day"
           description: "journalctl -u {{ $labels.unit }} --since -15min on {{ $labels.host }}; a loop or a retry storm usually repeats one line"
+          runbook_url: "runbooks/observe/log-pipeline.yaml"
 
       # Error spam: warning-or-worse lines over 5x usual, at least 10/min.
       - alert: LogErrorSpam
@@ -133,6 +137,7 @@ groups:
         annotations:
           summary: "{{ $labels.unit }} on {{ $labels.host }} logs {{ printf `%.2f` $value }} {{ $labels.level }} lines/s, over 5x its usual"
           description: "journalctl -u {{ $labels.unit }} -p {{ $labels.level }} --since -15min on {{ $labels.host }}"
+          runbook_url: "runbooks/observe/log-pipeline.yaml"
 
       # Silence: a unit that usually logs at least a line a minute has logged
       # nothing for 10 minutes while the rest of its host's journal still
@@ -150,6 +155,7 @@ groups:
         annotations:
           summary: "{{ $labels.unit }} on {{ $labels.host }} has logged nothing for 40m; it usually logs {{ printf `%.0f` $value }} lines/min"
           description: "systemctl status {{ $labels.unit }} on {{ $labels.host }}; a stopped or hung process logs nothing"
+          runbook_url: "runbooks/observe/log-pipeline.yaml"
 
       # Authentication failures (ADR-100 security SLIs): sshd failed or
       # invalid-user logins, sudo wrong passwords, pam_unix auth failures,
@@ -164,3 +170,4 @@ groups:
         annotations:
           summary: "{{ printf `%.0f` $value }} {{ $labels.kind }} authentication failures in 10m on {{ $labels.host }}"
           description: "journalctl --since -15min -g 'Failed|Invalid user|incorrect password|authentication failure' on {{ $labels.host }}"
+          runbook_url: "runbooks/security/incident-response.yaml"

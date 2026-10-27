@@ -20,7 +20,7 @@ Every alert carries `urgency`:
 |---|---|
 | `page` | Mailed within about 2 minutes. One mail per incident, plus one when everything is clear, plus a reminder after 12 h if it is still burning. |
 | `ticket` | Collected, then one digest mail at 09:00, only if something is open, resolved since the last digest, or held back by the cap. |
-| `none` | Nobody. All 47 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence and auth-failure bursts, compliance, Well backups, KEV, …). |
+| `none` | Nobody. All 40 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence and auth-failure bursts, compliance, Well backups, KEV, trace collector, Watchdog, …), except the two the policy promotes: `HeartbeatMissing` (page) and `TraceCollectorDown` (ticket). |
 
 `severity` (warning/critical) still describes how bad a cause is. It no longer decides who hears about it.
 
@@ -148,6 +148,17 @@ for an outage of Wotan, the dashboard, The Well or Zhen over 1 h, a silent
 failure over a day, or a data-loss near miss; not for a page that cleared
 inside the hour (the default until Stevie decides, ADR-100 question 3). Every
 action item is an `M-###`, a finding, or "done: <commit>".
+
+## Every alert has a runbook
+
+Every alert, generated or hand-written, carries `annotations.runbook_url`
+naming a file in this repo: a repo path (`runbooks/observe/log-pipeline.yaml`)
+or a GitHub blob/wiki URL to one. `scripts/check-prometheus-rules.sh` fails
+otherwise (`go run ./cmd/alert-policy -runbooks`), with no baseline. A new
+rule points at an existing runbook or comes with one (runbook/v1,
+`status: draft`); `runbooks/observe/log-pipeline.yaml`,
+`runbooks/security/kev-feed-stale.yaml`, `trace-collector-down.yaml` and
+`high-latency.yaml` were written for the rules that had none (2026-10-27).
 
 ## When one arrives
 

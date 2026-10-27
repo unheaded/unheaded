@@ -25,6 +25,7 @@ tests:
             exp_annotations:
               summary: "host.docker.internal:9598 has shipped no journal entries to ClickHouse for 45m"
               description: "Audit records are not leaving the host; docker logs unheaded-vector, and check clickhouse is up"
+              runbook_url: "runbooks/observe/log-pipeline.yaml"
       - eval_time: 106m
         alertname: VectorDown
         exp_alerts: []
@@ -48,6 +49,7 @@ tests:
             exp_annotations:
               summary: "Vector on west keeps failing to write to ClickHouse"
               description: "15 sink errors in 15m; Vector retries, so rows may be late rather than lost"
+              runbook_url: "runbooks/observe/log-pipeline.yaml"
       - eval_time: 69m
         alertname: VectorDown
         exp_alerts: []
@@ -58,6 +60,7 @@ tests:
             exp_annotations:
               summary: "Vector on west is not answering /metrics"
               description: "The journal is not shipping while it is down; docker compose ps vector"
+              runbook_url: "runbooks/observe/log-pipeline.yaml"
 
   # Log-volume deviation (ADR-100 Phase 3). 10080m is 7 days: the baseline
   # is the median of the unit's own 10m rate at this time on days 1-7 back.
@@ -82,6 +85,7 @@ tests:
             exp_annotations:
               summary: "huginn.service on west logs 20.00 lines/s, over 10x its usual for this time of day"
               description: "journalctl -u huginn.service --since -15min on west; a loop or a retry storm usually repeats one line"
+              runbook_url: "runbooks/observe/log-pipeline.yaml"
       - eval_time: 10097m
         alertname: LogErrorSpam
         exp_alerts: []
@@ -121,6 +125,7 @@ tests:
             exp_annotations:
               summary: "ssh.service on east logs 0.60 err lines/s, over 5x its usual"
               description: "journalctl -u ssh.service -p err --since -15min on east"
+              runbook_url: "runbooks/observe/log-pipeline.yaml"
       - eval_time: 10101m
         alertname: LogSpam
         exp_alerts: []
@@ -145,6 +150,7 @@ tests:
             exp_annotations:
               summary: "huginn.service on west has logged nothing for 40m; it usually logs 60 lines/min"
               description: "systemctl status huginn.service on west; a stopped or hung process logs nothing"
+              runbook_url: "runbooks/observe/log-pipeline.yaml"
 
   # The whole host stops shipping: that is VectorDown/JournalNotShipping,
   # not a silence per unit.
@@ -174,3 +180,4 @@ tests:
             exp_annotations:
               summary: "30 ssh authentication failures in 10m on west"
               description: "journalctl --since -15min -g 'Failed|Invalid user|incorrect password|authentication failure' on west"
+              runbook_url: "runbooks/security/incident-response.yaml"

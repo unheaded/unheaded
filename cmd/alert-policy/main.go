@@ -8,6 +8,7 @@
 //
 //	go run ./cmd/alert-policy           # write the generated files
 //	go run ./cmd/alert-policy --check   # fail if they are stale or the policy is invalid
+//	go run ./cmd/alert-policy -runbooks # fail unless every alert's runbook_url names a repo file
 package main
 
 import (
@@ -431,7 +432,20 @@ func run(root string, check bool) []error {
 func main() {
 	root := flag.String("root", ".", "repository root")
 	check := flag.Bool("check", false, "fail if the generated files are stale or the policy is invalid")
+	runbooks := flag.Bool("runbooks", false, "only check that every alert's runbook_url names a file in the repo")
 	flag.Parse()
+	if *runbooks {
+		errs := checkRunbookURLs(*root)
+		for _, e := range errs {
+			fmt.Fprintln(os.Stderr, "[FAIL] runbook_url:", e)
+		}
+		if len(errs) > 0 {
+			fmt.Fprintf(os.Stderr, "[FAIL] %d alert(s) without a runbook in the repo (S-WELL-SPRING Appendix A6)\n", len(errs))
+			os.Exit(1)
+		}
+		fmt.Println("[PASS] runbook_url: every alert names a runbook in the repo")
+		return
+	}
 	errs := run(*root, *check)
 	for _, e := range errs {
 		fmt.Fprintln(os.Stderr, "[FAIL]", e)

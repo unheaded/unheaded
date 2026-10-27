@@ -70,6 +70,15 @@ for u in "${UNTESTED[@]}"; do
     [[ -f "$u" ]] || { echo "[FAIL] UNTESTED names ${u}, which no longer exists: remove it" >&2; rc=1; }
 done
 
+# ADR-100 section 4: every alert names a runbook that exists in this repo
+# (annotations.runbook_url: a repo path, or a GitHub blob/wiki URL to one).
+# Strict, no baseline; cmd/alert-policy's tests prove it refuses a missing
+# annotation, a missing file and a dead URL. Appendix A6 of
+# docs/battle-plans/S-WELL-SPRING-battle-plan.md says what to do when it fails.
+if ! (cd "$REPO_ROOT" && go run ./cmd/alert-policy -runbooks); then
+    rc=1
+fi
+
 promtool() {
     docker run --rm --network none --user "$(id -u):$(id -g)" \
         -v "$RULES:/rules:ro" -w "/rules${2:-}" --entrypoint promtool "$1" "${@:3}"

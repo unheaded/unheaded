@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Stevie Bellis.
 """Dry-run tests for the runbooks alert rules point at (S-WELL-SPRING Phases
-6-7): heartbeat-missing, trace-collector-down, high-latency, ci-red. Nothing
+6-7) that were written for them. Nothing
 runs against a host. Each runbook dry-runs through the runner; every shell
 step only reads (the commands are held to an allowlist); anything that
 restarts or changes state is a manual step; and the alert rules that name
 the runbook exist."""
 import re
-from pathlib import Path
 
 import pytest
 
@@ -17,6 +16,8 @@ RUNBOOKS = {
     "runbooks/observe/heartbeat-missing.yaml": ("HeartbeatMissing", "Watchdog"),
     "runbooks/observe/trace-collector-down.yaml": ("TraceCollectorDown",),
     "runbooks/observe/high-latency.yaml": ("TraceCollectorHighLatency",),
+    "runbooks/observe/log-pipeline.yaml": ("JournalNotShipping", "JournalShipErrors", "VectorDown", "LogSpam", "LogErrorSpam", "LogSilence"),
+    "runbooks/security/kev-feed-stale.yaml": ("KEVFeedStale", "KEVFeedExpired", "KEVPollerDown"),
 }
 
 READ_ONLY = {

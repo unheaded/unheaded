@@ -176,3 +176,62 @@ func TestMaintenanceTailsCoverShortWindows(t *testing.T) {
 		t.Errorf("TICKET_TAIL_MIN = %v, the short windows reach %v", got, ticket)
 	}
 }
+
+// Every alert in the repo names a runbook that exists (ADR-100 section 4;
+// scripts/check-prometheus-rules.sh runs the same check through -runbooks).
+func TestRepoRunbookURLs(t *testing.T) {
+	if errs := checkRunbookURLs(filepath.Join("..", "..")); len(errs) > 0 {
+		t.Fatal(errs)
+	}
+}
+
+// The runbook_url gate refuses an alert without one, a repo path that does
+// not exist, and a URL whose file is not in the repo; it accepts both forms
+// when the file exists. No baseline: it starts strict.
+func TestRunbookURLRefusals(t *testing.T) {
+	alert := func(name, annotation string) string {
+		s := "groups:\n  - name: x\n    rules:\n      - alert: " + name + "\n        expr: vector(1)\n        labels:\n          urgency: none\n"
+		if annotation != "" {
+			s += "        annotations:\n          runbook_url: \"" + annotation + "\"\n"
+		}
+		return s
+	}
+	cases := []struct {
+		name, rule, wants string
+	}{
+		{"no runbook_url", alert("Bare", ""), "Bare: no annotations.runbook_url"},
+		{"repo path missing", alert("Lost", "runbooks/observe/nope.yaml"), "Lost: runbooks/observe/nope.yaml does not exist"},
+		{"path escapes the repo", alert("Escape", "../outside.yaml"), "Escape: ../outside.yaml"},
+		{"blob URL to a missing file", alert("Remote", "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/nope.yaml"), "Remote: "},
+		{"other URL, no such page", alert("Wiki", "https://github.com/unheaded/unheaded/wiki/No-Such-Page"), "Wiki: "},
+		{"repo path ok", alert("Fine", "runbooks/observe/ok.yaml"), ""},
+		{"blob URL ok", alert("FineURL", "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/ok.yaml"), ""},
+		{"wiki URL ok", alert("FineWiki", "https://github.com/unheaded/unheaded/wiki/Alerting"), ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, d := range []string{rulesDir, "runbooks/observe", "wiki"} {
+				if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for f, body := range map[string]string{"runbooks/observe/ok.yaml": "x", "wiki/Alerting.md": "x", rulesDir + "/x.yml": c.rule} {
+				if err := os.WriteFile(filepath.Join(root, f), []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var all []string
+			for _, e := range checkRunbookURLs(root) {
+				all = append(all, e.Error())
+			}
+			got := strings.Join(all, "\n")
+			if c.wants == "" && got != "" {
+				t.Fatalf("want no error, got %s", got)
+			}
+			if c.wants != "" && !strings.Contains(got, c.wants) {
+				t.Fatalf("want an error containing %q, got %q", c.wants, got)
+			}
+		})
+	}
+}

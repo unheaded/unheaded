@@ -40,6 +40,7 @@ groups:
         annotations:
           summary: "{{ $labels.mount }} on {{ $labels.host }} under 10% free"
           description: "{{ $labels.mount }} ({{ $labels.device }}) has {{ $value | humanizePercentage }} left"
+          runbook_url: "runbooks/infra/storage-health.yaml"
 
       - alert: HostDiskFull
         expr: host_disk_avail_bytes / host_disk_total_bytes < 0.03
@@ -50,6 +51,7 @@ groups:
         annotations:
           summary: "{{ $labels.mount }} on {{ $labels.host }} under 3% free"
           description: "{{ $labels.mount }} ({{ $labels.device }}) has {{ $value | humanizePercentage }} left; writes will start failing"
+          runbook_url: "runbooks/infra/storage-health.yaml"
 
       # Linear fit over 6h, projected a day out. The ratio guard keeps a
       # healthy disk with a busy afternoon from paging.
@@ -64,6 +66,7 @@ groups:
         annotations:
           summary: "{{ $labels.mount }} on {{ $labels.host }} fills within 24h at this rate"
           description: "{{ $labels.mount }} ({{ $labels.device }}) is under 25% free and its 6h trend reaches zero within a day"
+          runbook_url: "runbooks/infra/storage-health.yaml"
 
   - name: host-logs
     interval: 1m
@@ -117,6 +120,7 @@ groups:
         annotations:
           summary: "/var/log/unheaded/{{ $labels.dir }} on {{ $labels.host }} growing over 1 MiB/s"
           description: "Growing {{ $value | humanize1024 }}B/s for 15m; rate-limit the log line at its source (ADR-092 section 6)"
+          runbook_url: "runbooks/observe/log-rotation.yaml"
 
       # Fires only when the log root was readable within the last day: a host
       # that never had /var/log/unheaded is not a regression.
@@ -129,3 +133,4 @@ groups:
         annotations:
           summary: "huginn can no longer read /var/log/unheaded on {{ $labels.host }}"
           description: "Log directory sizes are unknown; the directory was removed or its permissions changed"
+          runbook_url: "runbooks/observe/log-rotation.yaml"

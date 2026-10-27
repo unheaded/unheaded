@@ -134,7 +134,7 @@ These answer the questions above:
 | Routing by `urgency` (page / ticket / none) | `monitoring/alertmanager/alertmanager.yml` (generated, no secrets) |
 | The only sender: daily cap, ticket digest, two mails per incident, dry-run, outbox | `cmd/alert-mailer`, `docker/alert-mailer/Dockerfile`, compose service `alert-mailer` |
 | Planned-work silences | `scripts/monitoring/maintenance.sh` |
-| Runbook for every notifying alert | `runbooks/observe/slo-error-budget-burn.yaml` |
+| Runbook for every notifying alert | `runbooks/observe/slo-error-budget-burn.yaml`; since 2026-10-27 every alert, gated by `go run ./cmd/alert-policy -runbooks` in `scripts/check-prometheus-rules.sh` (S-WELL-SPRING Steps 172-178) |
 | End-to-end proof | `scripts/monitoring/test-alert-path.sh` (meta-gate provoked) |
 | Operator page | `wiki/Alerting.md` |
 

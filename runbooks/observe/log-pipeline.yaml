@@ -1,0 +1,78 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: log-pipeline
+  description: The journal is not reaching ClickHouse, or a unit's log volume left its usual envelope (JournalNotShipping, JournalShipErrors, VectorDown, LogSpam, LogErrorSpam, LogSilence)
+  owner: architect
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-092 step 8 and ADR-100 Phase 3. Vector (compose service vector,
+  container unheaded-vector) reads the host journal, ships it to ClickHouse
+  (unheaded-clickhouse) and counts lines per host, unit and level for the
+  volume SLIs (unheaded_log_lines_total; text is never stored for this).
+  Every alert here is urgency none; the log-shipping SLO is what notifies.
+
+  Shipping alerts (JournalNotShipping, JournalShipErrors, VectorDown): audit
+  records stay only in the journal's own rotation until shipping resumes.
+  Volume alerts (LogSpam, LogErrorSpam, LogSilence): a unit is far louder or
+  quieter than its own median for this time of day. Spam is usually a retry
+  loop; silence is usually a dead process (check the unit before the logs).
+  Look at counts and the unit's status, not at other services' log text.
+
+steps:
+  - name: what-is-firing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname=~"JournalNotShipping|JournalShipErrors|VectorDown|LogSpam|LogErrorSpam|LogSilence",alertstate="firing"}' |
+        python3 -c 'import json,sys; [print(r["metric"]["alertname"], r["metric"].get("unit", "-"), r["metric"].get("host", r["metric"].get("instance", "-"))) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Which alert, unit and host"
+
+  - name: vector-and-clickhouse
+    action: shell
+    command: "timeout 10 docker ps -a --filter name=unheaded-vector --filter name=unheaded-clickhouse --format '{{.Names}} {{.Status}}'"
+    description: "Both containers up (a VectorDown or JournalNotShipping starts here)"
+
+  - name: vector-errors
+    action: shell
+    command: "timeout 10 docker logs --since 30m unheaded-vector 2>&1 | grep -iE 'error|warn' | tail -20"
+    description: "Sink or remap errors from Vector itself (its own log, not the journal it ships)"
+
+  - name: unit-status
+    action: manual
+    command: "systemctl status <unit> --no-pager"
+    description: "MANUAL. For LogSpam/LogErrorSpam/LogSilence: the unit named in the alert. Silence plus a dead unit is an outage; spam plus restarts is a crash loop"
+
+  - name: unit-rate
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=topk(10, host_unit_level:unheaded_log_lines:rate10m)' |
+        python3 -c 'import json,sys; [print(r["metric"].get("host"), r["metric"].get("unit"), r["metric"].get("level"), "%.2f/s" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "The ten loudest unit/level pairs right now (counts only)"
+
+  - name: restart-vector
+    action: manual
+    command: "cd ~/tmp/unheaded && sudo docker compose up -d vector"
+    description: "MANUAL. Only for VectorDown or a sink error that the log shows is transient; Vector resumes from its journal cursor"
+
+verification:
+  - name: shipping-again
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(ALERTS{alertname=~"JournalNotShipping|VectorDown",alertstate="firing"}) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("firing:", v); sys.exit(v != "0")'
+
+rollback:
+  - name: nothing-to-roll-back
+    action: manual
+    command: "echo 'Every shell step reads; restarting Vector is safe to repeat.'"
+    description: "MANUAL. Nothing here changes state except the optional Vector restart"
