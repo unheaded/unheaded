@@ -535,20 +535,20 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 1.5 h
 **Agent**: Agent C (worktree claudebridge)
 
-- [ ] **Step 111** [R] ~5m
+- [x] **Step 111** [R] ~5m
   ```bash
   cd /home/govan/tmp/unheaded && sed -n 150,200p pkg/claudebridge/router.go && sed -n 20,60p pkg/claudebridge/autoroute.go && grep -n 'Router' cmd/zhen-claude/main.go cmd/lich-mcp/*.go | grep -v _test | head -8 && cat configs/zhen-routing.yaml | head -40
   ```
-- [ ] **Step 112** [DECIDE][DESIGN] ~3m: Two routers
+- [x] **Step 112** [DECIDE][DESIGN] ~3m: Two routers
   - RECOMMENDATION: keep both; `AutoRouter` (weight class for Lich drivers) and `ThresholdRouter` (family bar from the eval) stay separate types behind one `Router` interface in `router.go`; `AutoRouter` may consult `ThresholdRouter` for the `family` it derives, via an optional `Fallback Router` field, default nil. Rationale: they answer different questions (how heavy vs how trusted-locally); folding them would couple the Lich's weight classes to the eval's per-family bars. Override ONLY if a third router appears.
-- [ ] **Step 113** [CODE][W] ~8m: Red: `TestRouterInterface_BothSatisfy`, `TestAutoRouter_FallbackToThreshold` (a family the AutoRouter cannot classify defers). Green: the interface + optional fallback; doc comment cites ADR-106 Q7 and this plan.
-- [ ] **Step 114** [CODE][W] ~6m: Family caps headroom: red `TestFamilyCap_LeavesWorstCaseHeadroom` (with `-daily-cap-usd 5`, after N requests the remaining budget is at least `prices.json` worst-case for `-max-tokens` at the routed model; the (N+1)th request that would exceed is refused BEFORE the API call). Green in `spend.go` (pre-check against `maxTokens * outputPrice + promptEstimate * inputPrice`).
-- [ ] **Step 115** [TEST][B] ~3m
+- [x] **Step 113** [CODE][W] ~8m: Red: `TestRouterInterface_BothSatisfy`, `TestAutoRouter_FallbackToThreshold` (a family the AutoRouter cannot classify defers). Green: the interface + optional fallback; doc comment cites ADR-106 Q7 and this plan.
+- [x] **Step 114** [CODE][W] ~6m: Family caps headroom: red `TestFamilyCap_LeavesWorstCaseHeadroom` (with `-daily-cap-usd 5`, after N requests the remaining budget is at least `prices.json` worst-case for `-max-tokens` at the routed model; the (N+1)th request that would exceed is refused BEFORE the API call). Green in `spend.go` (pre-check against `maxTokens * outputPrice + promptEstimate * inputPrice`).
+- [x] **Step 115** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/claudebridge/... -race -count=1 2>&1 | tail -4 && go test ./cmd/zhen-claude/... -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 116** [V] ~1m: PASS; `fake_api_test.go` unchanged (no live API call in tests).
-- [ ] **Step 117** [ESCALATE][DESIGN] ~5m: **E3: ADR-019 Level 2 amendment (branch-sandbox sub-mode)**
+- [x] **Step 116** [V] ~1m: PASS; `fake_api_test.go` unchanged (no live API call in tests).
+- [x] **Step 117** [ESCALATE][DESIGN] ~5m: **E3: ADR-019 Level 2 amendment (branch-sandbox sub-mode)**
   - Context: `docs/adr/ADR-019-zhen-champion-agent.md:220-245` Proposed 2026-10-23; code `pkg/champion/branchsandbox.go` is live and used by `zhen-claude -route local -family -worktree`. Phase 3 above added openat2 so the sandbox cannot be escaped by a symlink even inside a worktree.
   - Question: accept (Rule 2 satisfied by the `zhen/<name>` branch sandbox for `write_file`/`patch_file`; you review the branch) or reject (models return patches as text; agent applies them; per-call confirmations stay)?
   - Why no recommendation: this moves the human review point from each write to each branch; that is the trust decision ADR-019 reserves to the operator.
@@ -557,17 +557,17 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run Branch -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 120** [DOC-UPDATE][W] ~5m: `docs/adr/ADR-106-two-brains-one-gate.md` §Open questions: Q7 answered (Step 112), caps rule (Step 114) recorded under Consequences; ADR-019 "Open Questions (To Be Filled In)" at `:506` gets the checklist closed with pointers (Rules 1-3 tests, L2 amendment status, confirm flow Steps 41-48).
-- [ ] **Step 121** [B] ~2m: Merge
+- [x] **Step 120** [DOC-UPDATE][W] ~5m: `docs/adr/ADR-106-two-brains-one-gate.md` §Open questions: Q7 answered (Step 112), caps rule (Step 114) recorded under Consequences; ADR-019 "Open Questions (To Be Filled In)" at `:506` gets the checklist closed with pointers (Rules 1-3 tests, L2 amendment status, confirm flow Steps 41-48).
+- [x] **Step 121** [B] ~2m: Merge
   ```bash
   cd /home/govan/tmp/unheaded && git merge --no-ff sprint/champion-hardening-claudebridge -m "merge Phase 5: router seam, cap headroom, ADR-019/106 answers" && go build ./... && echo MERGED
   ```
-- [ ] **Step 122** [TEST][B] ~3m
+- [x] **Step 122** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/claudebridge/... ./pkg/champion/... -race -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 123** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 111-122: routers kept behind one interface, cap headroom, E3 filed`
-- [ ] **Step 124** [V] ~1m: **PHASE 5 EXIT GATE** — Steps 116, 122 green; E3 filed in this file's Escalations table with the date. Steps 118-119 remain open [AFTER-E3] without blocking Phase 6.
+- [x] **Step 123** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 111-122: routers kept behind one interface, cap headroom, E3 filed`
+- [x] **Step 124** [V] ~1m: **PHASE 5 EXIT GATE** — Steps 116, 122 green; E3 filed in this file's Escalations table with the date. Steps 118-119 remain open [AFTER-E3] without blocking Phase 6.
 
 ---
 

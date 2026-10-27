@@ -69,3 +69,16 @@ Deviation: the plan's author set `{claude, stevie, zhen-local}` kept the checker
 rather than renaming a value the corpus already uses. 39 checker tests pass; corpus 0 new findings. All eleven drafts
 dry-run `[SUCCESS]`. E1 packet: `S-CHAMPION-HARDENING-approvals.md` (also lists the eight legacy runbooks Phase 4
 blocks from live execution). Steps 137-141 wait on E1; Phase 7 does not.
+
+### Phase 5 merged (routers, caps; E3 filed)
+
+Both routers kept: `*ThresholdRouter` satisfies the existing `Router` interface (claude_direct = heavy,
+local_only/local_first = minor; unknown family -> `ErrNoFamilyRoute`); `AutoRouter.Fallback` (nil default) is
+asked only when it cannot classify. F-23 was worse than "no headroom": a routed leg sized its first request to
+~70% of the family cap, so the tool loop's second request never fit and every leg stopped after one request.
+Now `Ledger.Remaining/WorstCase/FitMaxTokens`, `Config.MinMaxTokens` (1024 for routed legs); with fallbacks off the
+worst case is priced at the routed model (routed legs get ~25% more output tokens). zhen-claude defaults unchanged.
+Step 114's "refused before the API call" was already true. **Branch-sandbox mode is live with no off switch**:
+the code already behaves as if the ADR-019 L2 amendment were accepted; ADR-019 now says what rejecting changes.
+Steps 118-119 wait on E3. ADR-019 checklist closed by cross-reference except config template library and the
+no-human escalation path (E2).
