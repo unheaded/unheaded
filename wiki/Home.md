@@ -201,6 +201,7 @@ Full record: [[Timeline]] (`references/timeline.md`).
 - [[Rust Components|Rust-Components]]
 - [[Demo Script|Demo-Script]]
 - [[Bug Kill Chain|Bug-Kill-Chain]]
+- [[Benchmarks]] — perf-benchmark scenarios (packet to browser, container start, HTTP load, HTTP/3) and the regression gate
 - [[Performance]] — Doom engine performance (historical)
 
 ## Battle Plans & Timeline

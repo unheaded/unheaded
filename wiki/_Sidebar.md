@@ -214,6 +214,7 @@
 - [[Rust Components|Rust-Components]]
 - [[Demo Script|Demo-Script]]
 - [[Bug Kill Chain|Bug-Kill-Chain]]
+- [[Benchmarks]]
 - [[Performance]]
 
 **Compliance**
