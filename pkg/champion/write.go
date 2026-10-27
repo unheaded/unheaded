@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,22 +62,17 @@ func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 		return fmt.Errorf("resolve path: %w", err)
 	}
 
-	// Snapshot: capture current state (if file exists)
+	// Snapshot: capture current state (if file exists). Read through
+	// the same in-kernel resolution as the write.
 	var before string
-	if data, err := os.ReadFile(absPath); err == nil { // #nosec G304 -- sandboxed path — validated by validatePath (no .., blocklist, allowed-prefix check)
-		before = string(data)
+	if data, err := c.readBeneath(absPath); err == nil {
+		before = data
 	}
 
-	// Write the file
-	dir := filepath.Dir(absPath)
-	if err := os.MkdirAll(dir, 0750); err != nil {
-		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
-		return fmt.Errorf("create directory: %w", err)
-	}
-
-	// path is gated by c.validatePath(path) at line 31 — sandbox enforces
-	// no `..`, denied-paths blocklist, and allowed-paths prefix-check.
-	if err := os.WriteFile(absPath, []byte(content), 0644); err != nil { // #nosec G703,G306 -- validated by c.validatePath; 0644 non-secret sandbox file
+	// Write the file: parents created and the file opened under the
+	// sandbox root fd with openat2 (safeopen_linux.go), so a symlink
+	// swapped in after validatePath cannot redirect it (T-05).
+	if err := c.writeBeneath(absPath, content, true); err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("write file: %w", err)
 	}
@@ -112,14 +108,13 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 		return err
 	}
 
-	// Read current content
-	data, err := os.ReadFile(absPath) // #nosec G304 -- sandboxed path — validated by validatePath (no .., blocklist, allowed-prefix check)
+	// Read current content (resolved in-kernel beneath the sandbox root)
+	before, err := c.readBeneath(absPath)
 	if err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("read file: %w", err)
 	}
 
-	before := string(data)
 	after := replaceFirst(before, oldText, newText)
 
 	if before == after {
@@ -132,8 +127,8 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 		return err
 	}
 
-	// path is gated by c.validatePath(path) at line 77 — same sandbox rules.
-	if err := os.WriteFile(absPath, []byte(after), 0644); err != nil { // #nosec G703,G306 -- validated by c.validatePath; 0644 non-secret sandbox file
+	// Same in-kernel resolution as WriteFile; the file must still exist.
+	if err := c.writeBeneath(absPath, after, false); err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("write patched file: %w", err)
 	}
@@ -146,6 +141,83 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 	summary := fmt.Sprintf("Patched %s: replaced %d chars with %d chars", absPath, len(oldText), len(newText))
 	c.completeAction(ctx, actionID, "completed", summary, "", time.Since(start))
 	return nil
+}
+
+// sandboxRel splits a validated absolute path into the allowed root that
+// contains it (the longest match) and the path relative to that root.
+func (c *Champion) sandboxRel(absPath string) (root, rel string, err error) {
+	for _, allowed := range c.config.AllowedPaths {
+		a, aerr := filepath.Abs(allowed)
+		if aerr != nil {
+			continue
+		}
+		prefix := strings.TrimSuffix(a, string(filepath.Separator)) + string(filepath.Separator)
+		if strings.HasPrefix(absPath, prefix) && len(a) > len(root) {
+			root, rel = a, absPath[len(prefix):]
+		}
+	}
+	if root == "" || rel == "" {
+		return "", "", fmt.Errorf("%s is not a file under a sandbox root", absPath)
+	}
+	return root, rel, nil
+}
+
+// readBeneath reads a validated path through openat2 under its sandbox
+// root (no symlink, no escape at the moment of the open).
+func (c *Champion) readBeneath(absPath string) (string, error) {
+	root, rel, err := c.sandboxRel(absPath)
+	if err != nil {
+		return "", err
+	}
+	rootFD, err := openRoot(root)
+	if err != nil {
+		return "", err
+	}
+	defer closeFD(rootFD)
+	f, err := openBeneath(rootFD, rel, os.O_RDONLY, 0)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// writeBeneath writes content to a validated path through openat2 under
+// its sandbox root, creating missing parent directories one component at
+// a time (create) or requiring the file to exist (!create).
+func (c *Champion) writeBeneath(absPath, content string, create bool) error {
+	root, rel, err := c.sandboxRel(absPath)
+	if err != nil {
+		return err
+	}
+	rootFD, err := openRoot(root)
+	if err != nil {
+		return err
+	}
+	defer closeFD(rootFD)
+	flags := os.O_WRONLY | os.O_TRUNC
+	if create {
+		if err := mkdirAllBeneath(rootFD, filepath.Dir(rel), 0o750); err != nil {
+			return fmt.Errorf("create directory: %w", err)
+		}
+		flags |= os.O_CREATE
+	}
+	if c.beforeOpen != nil {
+		c.beforeOpen()
+	}
+	f, err := openBeneath(rootFD, rel, flags, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.WriteString(content); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // RevertAction undoes a previous action by restoring the snapshot.
