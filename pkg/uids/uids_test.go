@@ -117,6 +117,10 @@ var hostOnly = map[string]string{
 	"chaos-controller": "unheaded-chaos",
 	// The anomaly service and its Wotan intake: deploy/systemd/unheaded-anomaly.service.
 	"anomaly": "unheaded-anomaly",
+	// The built-in issuer (ADR-103): deploy/systemd/unheaded-auth.service.
+	// It also runs as compose service "auth" with the same uid; listing it
+	// here keeps the sysusers pin checked.
+	"unheaded-auth": "unheaded-auth",
 }
 
 // composeOnly lists services that exist only in compose files (or as the

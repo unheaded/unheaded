@@ -91,6 +91,10 @@ const (
 	// Anomaly is cmd/anomaly (services/anomaly), a host systemd unit only
 	// (deploy/systemd/unheaded-anomaly.service, account unheaded-anomaly).
 	Anomaly = 16734
+	// Auth is cmd/unheaded-auth, the built-in OIDC issuer (ADR-103): host
+	// unit unheaded-auth.service (account unheaded-auth) and compose service
+	// "auth".
+	Auth = 16735
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -194,6 +198,7 @@ var Registry = map[string]int{
 	"kev-poller":        KEVPoller,
 	"sophia-gateway":    SophiaGateway,
 	"anomaly":           Anomaly,
+	"unheaded-auth":     Auth,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

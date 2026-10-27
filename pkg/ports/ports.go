@@ -53,6 +53,7 @@ const (
 	VersionSvc   = 19017
 	Anomaly      = 19018
 	TelemetryAgg = 19019
+	Auth         = 19020 // unheaded-auth issuer (ADR-103): login, JWKS, discovery
 
 	// Kingdom health (19100-19109)
 	Akira = 19100 // consensus health daemon (ADR-029)
