@@ -41,6 +41,23 @@ Set `AUTH_OIDC_ISSUER_URL` to the issuer URL. `pkg/auth.JWKSVerifier` fetches di
 
 The verifier fetches over https, or plain http to loopback only. The compose `auth` service runs plain HTTP on the data network, so no other container can verify its tokens until TLS is on every internal link (S-IRON-GATE Phase 8).
 
+## Wotan
+
+Wotan is the last service behind auth (S-IRON-GATE Phase 7, ADR-103 §6). With `AUTH_ENABLED=true` every HTTP route and every gRPC call needs a service token for `aud=wotan` from a caller in its `AUTH_ALLOW_CALLERS`; `/health`, `/ready`, `/metrics` and `grpc.health.v1` stay open. Topic reads need a token too: topics carry every service's logs and health reports.
+
+| | |
+|---|---|
+| Client side | `pkg/wotan-client` sends the token on every HTTP request and, as per-RPC credentials, every gRPC call. Each binary names its identity once in `main()`: `wotanClient.InitServiceIdentity("<name>")` (key from `AUTH_KEY_FILE`, else `/etc/unheaded/keys/<name>.key`); every client in the process then presents it, including the ones `pkg/healthreport`, `pkg/discovery` and `pkg/logagg` build. `WithServiceToken` / `WithStreamServiceToken` give one client another identity; `AuthorizeRequest` covers hand-built requests. No key: a warning, and calls carry no token |
+| Approval | `configs/wotan.yaml` `topics.auto_approve` lists service identities. With auth on, only a verified EdDSA service token's `sub` is matched; the `display_name` a client sends is a label. Members are named by the `sub`, and a publish through a `subscriber_id`/`sender_id` is refused when that member belongs to another identity |
+| Auth off | The display name is matched against `auto_approve` and `legacy_display_names` (the names clients sent before Phase 7), with a warning. This keeps the Appendix A3 rollback (`AUTH_ENABLED` unset on Wotan only) working |
+| Allowlist | compose `wotan` and `unheaded-wotan.service` allow every identity a binary presents; `services/wotan/cmd/wotan/allowlist_test.go` fails when a new `InitServiceIdentity` name is missing from either, or from `auto_approve` |
+| Plaintext | Before Wotan serves TLS (Phase 8) the gRPC token travels over plaintext with a one-time warning; a client that dials TLS (`UNHEADED_GRPC_TLS=1`) never sends it on anything else |
+| Admin API | Still off unless Wotan runs with `--admin`; with auth on it needs an `admin` identity as well as the admin key |
+
+A signed publish (`drift.*`, `config.*`) covers the sender Wotan authorized: with auth on, the caller's `sub`, so a signing publisher uses its identity as its display name (Heimdall: `heimdall`).
+
+Not converted, refused once Wotan's auth is on: `scripts/run-runbook.py` (`runbook-runner`, Python), the Rust `cmd/trace-collector` and `cmd/ebpf-collector` publishers, `cmd/demo-trace-injector`, and anonymous `curl`s in `scripts/demo-start.sh`, `scripts/bare-metal/validate-cross-host.sh` and the `runbooks/wotan/cluster-*` runbooks.
+
 ## Browser login: the backend-for-frontend
 
 Browsers never hold a bearer token ([ADR-103](../docs/adr/ADR-103-service-auth-token-distribution.md) §4). dashboard-backend (20000) and kanban-app (20001) each run `pkg/bff` (cookies are per origin, so each page's own backend logs its users in):

@@ -117,6 +117,14 @@ Wotan's gRPC clients present a service token in call metadata, with
 build on the caller identity this gives, replacing today's `auto_approve`
 display-name list. That is a later step, not part of this ADR's first cut.
 
+Implemented 2026-10-27 (S-IRON-GATE Phase 7): `pkg/wotan-client` presents the
+token on gRPC (per-RPC credentials) and HTTP, from a per-process identity
+(`InitServiceIdentity`); Wotan verifies it on both listeners
+(`grpc.health.v1`, `/health`, `/ready`, `/metrics` open) and `auto_approve`
+now lists service identities matched against the verified `sub`, the display
+name being a label. Per-topic ACLs are still the later step. Details:
+`wiki/Service-Auth.md` (Wotan).
+
 ### 7. Rollout: one service at a time, as the finding's plan says
 
 1. `pkg/auth`: EdDSA sign and verify, trust.d loading, JWKS client, caller
