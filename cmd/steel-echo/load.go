@@ -136,23 +136,66 @@ func parseLoadFlags(args []string) (loadConfig, error) {
 
 // --- discovery ---
 
+// Cuirass only notices a killed replica at its next sync (30 s), and until
+// then its actual state still lists it as healthy (FND-023). So the meter
+// also watches its own requests, the way a client-side balancer ejects an
+// outlier: the first connection error drops that target at once, and it
+// comes back only when Cuirass still lists it and a direct probe answers
+// 2xx. The failed request itself is still counted as errconn.
 type discoverer struct {
 	stateURL string
 	svc      string
 	port     int
 	client   *http.Client
+	// probe asks one target whether it answers; replaceable in tests.
+	probe func(ctx context.Context, target string) bool
 
 	mu      sync.RWMutex
 	targets []string
+	dead    map[string]bool
 }
 
+const probeTimeout = time.Second
+
 func newDiscoverer(base, svc string, port int, client *http.Client) *discoverer {
-	return &discoverer{
+	d := &discoverer{
 		stateURL: strings.TrimRight(base, "/") + "/api/v1/state/actual",
 		svc:      svc,
 		port:     port,
 		client:   client,
+		dead:     map[string]bool{},
 	}
+	d.probe = d.httpProbe
+	return d
+}
+
+// httpProbe is one GET with a short timeout; only a 2xx answer counts.
+func (d *discoverer) httpProbe(ctx context.Context, target string) bool {
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return false
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxAnswerBody))
+	_ = resp.Body.Close()
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
+}
+
+// observe feeds one request's outcome back: a connection error (no HTTP
+// answer at all) ejects the target. Any answer, a 5xx included, means the
+// replica is alive; its errors are the meter's to count, not to hide.
+func (d *discoverer) observe(target string, r result) {
+	if !r.connErr || target == "" {
+		return
+	}
+	d.mu.Lock()
+	d.dead[target] = true
+	d.mu.Unlock()
 }
 
 // instanceState is the subset of Cuirass's ContainerState discovery reads.
@@ -214,8 +257,34 @@ func (d *discoverer) refresh(ctx context.Context) error {
 		}
 		targets = append(targets, "http://"+net.JoinHostPort(ip.String(), strconv.Itoa(d.port))+"/")
 	}
+	// Dead targets Cuirass no longer lists are forgotten (a later replica on
+	// the same address starts clean); listed ones are probed, outside the
+	// lock, and re-admitted only if they answer.
+	listed := make(map[string]bool, len(targets))
+	for _, t := range targets {
+		listed[t] = true
+	}
+	d.mu.RLock()
+	var suspects []string
+	for t := range d.dead {
+		if listed[t] {
+			suspects = append(suspects, t)
+		}
+	}
+	d.mu.RUnlock()
+	revived := map[string]bool{}
+	for _, t := range suspects {
+		if d.probe(ctx, t) {
+			revived[t] = true
+		}
+	}
 	d.mu.Lock()
 	d.targets = targets
+	for t := range d.dead {
+		if !listed[t] || revived[t] {
+			delete(d.dead, t)
+		}
+	}
 	d.mu.Unlock()
 	return nil
 }
@@ -235,10 +304,18 @@ func (d *discoverer) run(ctx context.Context, period time.Duration) {
 	}
 }
 
+// snapshot is the targets to send to: Cuirass's healthy list minus the ones
+// this meter saw die since.
 func (d *discoverer) snapshot() []string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return append([]string(nil), d.targets...)
+	out := make([]string, 0, len(d.targets))
+	for _, t := range d.targets {
+		if !d.dead[t] {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // --- meter ---
@@ -391,6 +468,7 @@ func runLoad(ctx context.Context, cfg loadConfig, out io.Writer, client *http.Cl
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 	var pick func() string
+	observe := func(string, result) {}
 	if cfg.discover != "" {
 		d := newDiscoverer(cfg.discover, cfg.svc, cfg.port, &c)
 		if err := d.refresh(ctx); err != nil {
@@ -403,6 +481,7 @@ func runLoad(ctx context.Context, cfg loadConfig, out io.Writer, client *http.Cl
 		dctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		go d.run(dctx, refresh)
+		observe = d.observe
 		var mu sync.Mutex
 		next := 0
 		pick = func() string {
@@ -455,7 +534,9 @@ loop:
 			go func() {
 				defer wg.Done()
 				defer func() { <-sem }()
-				m.record(ts, sendOne(ctx, &c, target))
+				r := sendOne(ctx, &c, target)
+				observe(target, r)
+				m.record(ts, r)
 			}()
 			if err := m.flushBefore(out, ts-lag); err != nil {
 				return m.summary(), err

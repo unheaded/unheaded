@@ -576,11 +576,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-034 FND-023
 
-- [ ] **Step 159** [DECIDE] ~1m: **Dead-replica detection.** RECOMMENDATION: the client drops a target on its first connection error and re-admits it only when a later discover refresh lists it AND a direct probe succeeds. Rationale: decision 14 default; no new Wotan topic; any discover-mode client gets the same fix. Override ONLY if Stevie answers "Cuirass publishes health transitions".
-- [ ] **Step 160** [R] ~3m: `cd /home/govan/tmp/unheaded && grep -n 'refresh\|targets\|discover' cmd/steel-echo/load.go | head -30`
-- [ ] **Step 161** [CODE] ~20m: `cmd/steel-echo/load.go`: per-target state `{addr, dead bool, deadSince}`; on `net.OpError`/connection refused/timeout mark dead and skip it in the round-robin; on each refresh, for a dead target that the list still reports healthy, `GET /health` once; success re-admits. Test `TestDiscover_DropsDeadTargetOnFirstError`: three `httptest.Server`s, close one mid-run, assert no further request reaches it and that the meter's availability over the next 100 requests is 1.0; `TestDiscover_ReadmitsAfterProbe`.
-- [ ] **Step 162** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./cmd/steel-echo/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 163** [V] ~0.5m: ok.
+- [x] **Step 159** [DECIDE] ~1m: **Dead-replica detection.** RECOMMENDATION: the client drops a target on its first connection error and re-admits it only when a later discover refresh lists it AND a direct probe succeeds. Rationale: decision 14 default; no new Wotan topic; any discover-mode client gets the same fix. Override ONLY if Stevie answers "Cuirass publishes health transitions".
+- [x] **Step 160** [R] ~3m: `cd /home/govan/tmp/unheaded && grep -n 'refresh\|targets\|discover' cmd/steel-echo/load.go | head -30`
+- [x] **Step 161** [CODE] ~20m: `cmd/steel-echo/load.go`: per-target state `{addr, dead bool, deadSince}`; on `net.OpError`/connection refused/timeout mark dead and skip it in the round-robin; on each refresh, for a dead target that the list still reports healthy, `GET /health` once; success re-admits. Test `TestDiscover_DropsDeadTargetOnFirstError`: three `httptest.Server`s, close one mid-run, assert no further request reaches it and that the meter's availability over the next 100 requests is 1.0; `TestDiscover_ReadmitsAfterProbe`.
+- [x] **Step 162** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./cmd/steel-echo/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 163** [V] ~0.5m: ok.
 - [ ] **Step 164** [AFTER-E2][LIVE-RW][BARE-METAL][S][B] ~20m: Re-run the Step 310 experiment exactly as `wiki/Chaos-Engineering.md` records it (three steel-echo replicas, 20 rps discover meter from the rebuilt `cmd/steel-echo`, `container_kill` on one replica, `CHAOS_DRY_RUN=false` only for the window), capture the meter's availability and MTTR lines.
 - [ ] **Step 165** [AFTER-E2][V] ~1m: availability ≥ 0.99 over the experiment window; MTTR within the FND-023 row's expectation (unchanged). Then `CHAOS_DRY_RUN=true` restored and the controller restarted (window off).
   - If < 0.99 → one [D] attempt: lower `-refresh` to 1 s and repeat; if still < 0.99, leave FND-023 open with the new numbers (not STUCK: the register row stays).

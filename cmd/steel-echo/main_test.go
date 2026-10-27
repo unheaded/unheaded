@@ -475,3 +475,102 @@ func TestLoad_ConnectionErrorsCounted(t *testing.T) {
 		t.Fatalf("summary %+v, want every request a connection error", sum)
 	}
 }
+
+// FND-023: Cuirass keeps a killed replica "healthy" until its next sync, so a
+// discover refresh alone kept sending it a share of the traffic. The meter
+// now drops a target on its first connection error and re-admits it only
+// when Cuirass still lists it and a direct probe answers.
+func TestDiscover_DeadTargetDroppedUntilProbeAnswers(t *testing.T) {
+	fc := &fakeCuirass{state: map[string]any{
+		"steel-echo-v1-0": inst("10.10.10.21", "steel-echo", "running", "healthy", true),
+		"steel-echo-v1-1": inst("10.10.10.22", "steel-echo", "running", "healthy", true),
+	}}
+	srv := httptest.NewServer(fc)
+	defer srv.Close()
+
+	const a, b = "http://10.10.10.21:8080/", "http://10.10.10.22:8080/"
+	d := newDiscoverer(srv.URL, "steel-echo", 8080, srv.Client())
+	var probeOK atomic.Bool
+	var probed sync.Map
+	d.probe = func(_ context.Context, target string) bool { probed.Store(target, true); return probeOK.Load() }
+	ctx := context.Background()
+	if err := d.refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.snapshot(); len(got) != 2 {
+		t.Fatalf("targets = %v, want 2", got)
+	}
+
+	// An answered request, even a 5xx, is a live replica: it stays.
+	d.observe(b, result{status: http.StatusInternalServerError})
+	d.observe(b, result{status: http.StatusOK})
+	if got := d.snapshot(); len(got) != 2 {
+		t.Fatalf("an answering replica was dropped: %v", got)
+	}
+	// The first connection error drops it at once, before any refresh.
+	d.observe(b, result{connErr: true})
+	if got := d.snapshot(); len(got) != 1 || got[0] != a {
+		t.Fatalf("after a connection error targets = %v, want only %s", got, a)
+	}
+	// Cuirass still lists it (its sync lags) and the probe fails: stays out.
+	if err := d.refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.snapshot(); len(got) != 1 || got[0] != a {
+		t.Fatalf("a listed but dead replica came back: %v", got)
+	}
+	if _, ok := probed.Load(b); !ok {
+		t.Fatal("refresh did not probe the dead target")
+	}
+	if _, ok := probed.Load(a); ok {
+		t.Fatal("refresh probed a live target")
+	}
+	// The probe answers: re-admitted.
+	probeOK.Store(true)
+	if err := d.refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.snapshot(); len(got) != 2 {
+		t.Fatalf("a replica whose probe answers was not re-admitted: %v", got)
+	}
+	// Dead again, then Cuirass drops it: the dead mark goes with it, so a
+	// later replica on the same address is not born dead.
+	d.observe(b, result{connErr: true})
+	fc.mu.Lock()
+	delete(fc.state, "steel-echo-v1-1")
+	fc.mu.Unlock()
+	if err := d.refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	fc.mu.Lock()
+	fc.state["steel-echo-v1-2"] = inst("10.10.10.22", "steel-echo", "running", "healthy", true)
+	fc.mu.Unlock()
+	probeOK.Store(false)
+	if err := d.refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.snapshot(); len(got) != 2 {
+		t.Fatalf("a new replica on a once-dead address was kept out: %v", got)
+	}
+}
+
+func TestDiscover_ProbeNeedsA2xx(t *testing.T) {
+	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	defer ok.Close()
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
+	defer bad.Close()
+	gone := httptest.NewServer(http.NotFoundHandler())
+	goneURL := gone.URL + "/"
+	gone.Close()
+	d := newDiscoverer("http://127.0.0.1:1", "steel-echo", 8080, http.DefaultClient)
+	ctx := context.Background()
+	if !d.probe(ctx, ok.URL+"/") {
+		t.Fatal("a 200 probe was refused")
+	}
+	if d.probe(ctx, bad.URL+"/") {
+		t.Fatal("a 503 probe re-admitted the target")
+	}
+	if d.probe(ctx, goneURL) {
+		t.Fatal("a closed port re-admitted the target")
+	}
+}
