@@ -7,8 +7,8 @@ uses the provisional names below until an item is answered; ADR-108 stays Propos
 items 1–3 are resolved (plan Step 447).
 
 **All items ruled 2026-10-27** by the in-repo RFC Editor pass of S-TRUE-WIRE Phase 1
-(`docs/battle-plans/S-TRUE-WIRE-battle-plan.md` Steps 29-58). Items 6 and 7 were found
-during that pass and ruled in it. The ruled text lives in the drafts themselves; see
+(`docs/battle-plans/S-TRUE-WIRE-battle-plan.md` Steps 29-58). Items 6, 7 and 8 were
+found during that pass and ruled in it. The ruled text lives in the drafts themselves; see
 "Status at S-TRUE-WIRE" below.
 
 Monad v0x01 is unchanged by every item here, and no MBC opcode is added or renumbered.
@@ -22,10 +22,11 @@ Monad v0x01 is unchanged by every item here, and no MBC opcode is added or renum
 | 5 | `draft-bellis-unheaded-mbc-isa-00` §IANA (KF10) | MBC Instruction Set Architecture Opcode Values | Standards Action | 0x11–0x1B are listed RESERVED and also assigned (0x17/0x18/0x1A/0x1B); MOVI is documented sign-extended while both interpreters zero-extend `imm16` | implementations unchanged (zero-extend) | ruled 2026-10-27: table follows the engines; MOVI zero-extends (Step 49) |
 | 6 | `draft-bellis-unheaded-sophia-dictionary-00` | Unheaded Sophia Root Dictionary Keys | First Come First Served | found during item 1: the UPC opcode dictionary section put category `code` at root key `0x10`, which the initial entries already assign to `routing` (2026-03-05; `code` arrived 2026-03-15) | none (no code implements the opcode dictionary) | ruled 2026-10-27: `code` moves to `0x16` (BRANCH); `0x10` stays `routing` (Step 31) |
 | 7 | `draft-bellis-unheaded-mbc-isa-00` | Instruction Set, §IANA | Standards Action (table); n/a (text) | found during item 5: the draft omitted NOP (0x00, decoded by every engine) and the five ISA v2 opcodes (0x3F, 0x47-0x4A, ADR-067); MOV/MOVI/LOAD_IMM32 were documented as setting Z/N, and LOAD_IMM32 as `(src<<16)\|imm`, while every engine leaves flags alone and computes `(imm<<16)\|(dst&0xFFFF)` | implementations unchanged | ruled 2026-10-27: table lists NOP and ISA v2; new §"ISA v2 Instructions"; MOV/MOVI/LOAD_IMM32 text follows the engines (Step 49). Further divergences listed for `-01` below |
+| 8 | `draft-bellis-unheaded-protocol-foundation-00` + `-mbc-isa-00` | MBC opcode registries | Specification Required (foundation) vs Standards Action (mbc-isa) | found during item 5: two registries for the same 8-bit opcode space under two names and two policies; foundation's copy lacked 0xFE and the ISA v2 opcodes | none | ruled 2026-10-27: mbc-isa owns the one registry at its stated policy (Standards Action); foundation's request is withdrawn and points there (Step 49). Loosening the policy to Specification Required, like the rest of the suite, is Stevie's call |
 
 ## Status at S-TRUE-WIRE (2026-10-27, Steps 29-58)
 
-All seven items are ruled by the in-repo RFC Editor pass (S-TRUE-WIRE Phase 1, the
+All eight items are ruled by the in-repo RFC Editor pass (S-TRUE-WIRE Phase 1, the
 `rfc-desk` lane). No Monad wire byte changed, the 20-byte register layout is untouched,
 and no MBC opcode was added or renumbered: every ruling either registers a value the
 code already uses or makes a draft describe what the engines already do.
@@ -39,6 +40,7 @@ code already uses or makes a draft describe what the engines already do.
 | 5 | Opcode table lists the actual unassigned spans (0x11-0x16, 0x19, 0x1E-0x1F, 0x2B-0x2F, 0x41-0x46, 0x4B-0xFD), 0xFE Reserved; MOVI zero-extends `imm16` | mbc-isa-00 §IANA + §MOVI; `mbc-isa-reference.md` opcode map | none (all three engines zero-extend) |
 | 6 | `code` (opcode dictionary) moves `0x10` → `0x16` | sophia-dictionary §"Opcode Dictionary Structure" + §IANA | none |
 | 7 | NOP and ISA v2 in the table and a new §"ISA v2 Instructions"; MOV/MOVI/LOAD_IMM32 flags and LOAD_IMM32 semantics follow the engines | mbc-isa-00 | none |
+| 8 | One MBC opcode registry, in mbc-isa (Standards Action); foundation's "UPC MBC Opcode Numbers" request withdrawn | foundation-06 / -00 §"MBC Opcode Numbers" | none |
 
 **Remaining action:** E1, Stevie accepts ADR-108 (or keeps it Proposed until the
 cartridges run on east, S-ASCEND-2 M-228). E6 (datatracker upload) is separate.

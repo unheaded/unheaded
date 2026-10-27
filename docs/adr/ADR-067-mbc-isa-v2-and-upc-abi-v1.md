@@ -85,7 +85,8 @@ What the translator actually does, which differs from the text above in three pl
   0x17/0x18/0x1A/0x1B assigned, the five ISA v2 opcodes 0x3F/0x47-0x4A, unassigned
   spans exact); MOVI is documented as zero-extending `imm16`, and MOV, MOVI and
   LOAD_IMM32 as leaving the flags alone. The draft gained an "ISA v2 Instructions"
-  section for FENCE, MRET, SRET, LR.W, SC.W.
+  section for FENCE, MRET, SRET, LR.W, SC.W. The opcode space has one registry, in
+  the mbc-isa draft; foundation no longer requests a second one (item 8).
 
 ### Decision 3 — Single-CPU per UPC instance, SMP-aware ABI
 
