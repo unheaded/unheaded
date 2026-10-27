@@ -143,68 +143,68 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Environment and baseline
 
-- [ ] **Step 1** [ENV][B] ~1m: Confirm branch, base and clean tree
+- [x] **Step 1** [ENV][B] ~1m: Confirm branch, base and clean tree
   ```bash
   cd /home/govan/tmp/unheaded && git rev-parse --abbrev-ref HEAD && git merge-base --is-ancestor a7fe3acd HEAD && echo "base ok" && git status --short | wc -l
   ```
-- [ ] **Step 2** [V] ~1m: Branch is `develop` (or a sprint branch off it), `base ok` printed, `0` untracked/modified files (the two untracked `host-agent` binaries from July may show; they are not ours, ignore exactly those two).
+- [x] **Step 2** [V] ~1m: Branch is `develop` (or a sprint branch off it), `base ok` printed, `0` untracked/modified files (the two untracked `host-agent` binaries from July may show; they are not ours, ignore exactly those two).
   - If fail → STOP; finish or stash whatever is in flight first.
-- [ ] **Step 3** [ENV][B] ~2m: Toolchain check
+- [x] **Step 3** [ENV][B] ~2m: Toolchain check
   ```bash
   go version && cargo --version && docker --version && python3 --version && which reprepro gpg cosign openssl haproxy 2>/dev/null; echo "(missing above = install in the phase that needs it)"
   ```
-- [ ] **Step 4** [BUILD][B] ~4m: Compile everything
+- [x] **Step 4** [BUILD][B] ~4m: Compile everything
   ```bash
   cd /home/govan/tmp/unheaded && go build ./... && echo BUILD_OK
   ```
-- [ ] **Step 5** [V] ~1m: `BUILD_OK`. If fail → S-CLEAN-SLATE is not actually done; STOP.
-- [ ] **Step 6** [ENV][B] ~1m: GPG probe (decides `--no-gpg-sign` for every [C] in this plan)
+- [x] **Step 5** [V] ~1m: `BUILD_OK`. If fail → S-CLEAN-SLATE is not actually done; STOP.
+- [x] **Step 6** [ENV][B] ~1m: GPG probe (decides `--no-gpg-sign` for every [C] in this plan)
   ```bash
   cd /home/govan/tmp/unheaded && t=$(git rev-parse HEAD^{tree}); timeout 20 git commit-tree -S -m probe "$t" >/dev/null 2>&1 && echo "SIGN=yes" || echo "SIGN=no (use --no-gpg-sign)"
   ```
-- [ ] **Step 7** [DECIDE][DESIGN] ~2m: **ADR-103 Q1, issuer placement.** RECOMMENDATION: a separate service `unheaded-auth` (new binary `cmd/unheaded-auth`, uid 16735, port 19020). Rationale: the ADR's own recommendation; the dashboard then never holds user signing keys; smallest attack surface per uid. Override ONLY if Stevie has said the dashboard should hold the issuer.
-- [ ] **Step 8** [DECIDE][DESIGN] ~1m: **ADR-103 Q2, lab IdP.** RECOMMENDATION: the built-in issuer is the default; any OIDC provider plugs in via JWKS discovery URL (`AUTH_OIDC_ISSUER_URL`). Rationale: ADR recommendation; Authentik/Keycloak are new third-party services (Barrister + nologin user + images) and nothing today needs SSO/MFA. Override ONLY if an IdP is already running in the lab.
-- [ ] **Step 9** [DECIDE][DESIGN] ~1m: **ADR-103 Q3, token signature.** RECOMMENDATION: Ed25519 now; Phase 1 includes a measured ML-DSA-65 switch point (header bytes + verify ns) recorded in the ADR so the later flip is one `alg` value. Rationale: ADR recommendation; 3.3 KB signature per request header is the cost to measure before paying. Override ONLY if Stevie wants ML-DSA from day one.
-- [ ] **Step 10** [DECIDE][DESIGN] ~1m: **ADR-103 Q4, API-key store.** RECOMMENDATION: the Well (`unheaded_app.api_keys`, migration 035) where the Well runs; a 0600 file under `/etc/unheaded/auth/` elsewhere, same hashed format. Rationale: ADR recommendation; one code path, two stores behind one interface. Override ONLY if the Well is not to hold any auth data.
-- [ ] **Step 11** [DECIDE][DESIGN] ~1m: **Live release runner (master decision 4).** RECOMMENDATION: GitHub Actions. Rationale: `docs/LIVE-PATHS.md` lists no Jenkins; every gate already runs in GHA; the Jenkinsfile keeps working as the offline fallback. Override ONLY if Stevie wants Jenkins live.
-- [ ] **Step 12** [TEST][B] ~12m: KNOWN FAILURES BASELINE
+- [x] **Step 7** [DECIDE][DESIGN] ~2m: **ADR-103 Q1, issuer placement.** RECOMMENDATION: a separate service `unheaded-auth` (new binary `cmd/unheaded-auth`, uid 16735, port 19020). Rationale: the ADR's own recommendation; the dashboard then never holds user signing keys; smallest attack surface per uid. Override ONLY if Stevie has said the dashboard should hold the issuer.
+- [x] **Step 8** [DECIDE][DESIGN] ~1m: **ADR-103 Q2, lab IdP.** RECOMMENDATION: the built-in issuer is the default; any OIDC provider plugs in via JWKS discovery URL (`AUTH_OIDC_ISSUER_URL`). Rationale: ADR recommendation; Authentik/Keycloak are new third-party services (Barrister + nologin user + images) and nothing today needs SSO/MFA. Override ONLY if an IdP is already running in the lab.
+- [x] **Step 9** [DECIDE][DESIGN] ~1m: **ADR-103 Q3, token signature.** RECOMMENDATION: Ed25519 now; Phase 1 includes a measured ML-DSA-65 switch point (header bytes + verify ns) recorded in the ADR so the later flip is one `alg` value. Rationale: ADR recommendation; 3.3 KB signature per request header is the cost to measure before paying. Override ONLY if Stevie wants ML-DSA from day one.
+- [x] **Step 10** [DECIDE][DESIGN] ~1m: **ADR-103 Q4, API-key store.** RECOMMENDATION: the Well (`unheaded_app.api_keys`, migration 035) where the Well runs; a 0600 file under `/etc/unheaded/auth/` elsewhere, same hashed format. Rationale: ADR recommendation; one code path, two stores behind one interface. Override ONLY if the Well is not to hold any auth data.
+- [x] **Step 11** [DECIDE][DESIGN] ~1m: **Live release runner (master decision 4).** RECOMMENDATION: GitHub Actions. Rationale: `docs/LIVE-PATHS.md` lists no Jenkins; every gate already runs in GHA; the Jenkinsfile keeps working as the offline fallback. Override ONLY if Stevie wants Jenkins live.
+- [x] **Step 12** [TEST][B] ~12m: KNOWN FAILURES BASELINE
   ```bash
   cd /home/govan/tmp/unheaded && mkdir -p docs/battle-plans/progress && go test ./... 2>&1 | grep -E '^(FAIL|ok|---)' | grep -v '^ok' | tee docs/battle-plans/progress/S-IRON-GATE-baseline.txt | tail -20; echo "FAIL lines: $(grep -c '^FAIL' docs/battle-plans/progress/S-IRON-GATE-baseline.txt)"
   ```
-- [ ] **Step 13** [V] ~1m: Baseline recorded. S-CLEAN-SLATE left `go test ./...` at 0 FAIL; if the count is not 0, list the failing packages in the progress file and treat them as pre-existing (DoD-STD 3 is "zero NEW").
+- [x] **Step 13** [V] ~1m: Baseline recorded. S-CLEAN-SLATE left `go test ./...` at 0 FAIL; if the count is not 0, list the failing packages in the progress file and treat them as pre-existing (DoD-STD 3 is "zero NEW").
 
 ### Hypothesis verification
 
-- [ ] **Step 14** [PREFLIGHT][B] ~1m: H1 — pkg/auth is HS256-only, no EdDSA, no trust.d
+- [x] **Step 14** [PREFLIGHT][B] ~1m: H1 — pkg/auth is HS256-only, no EdDSA, no trust.d
   ```bash
   cd /home/govan/tmp/unheaded && grep -c 'HS256' pkg/auth/jwt.go; grep -rlE 'ed25519|EdDSA|trust\.d|jwks' pkg/auth/*.go | grep -v _test | wc -l
   ```
-- [ ] **Step 15** [V] ~1m: First number ≥ 2, second number `0`. If the second is not 0 → someone started Phase 1 already; read those files before continuing.
-- [ ] **Step 16** [PREFLIGHT][B] ~1m: H2 — the service-auth gate fails with 8 open services
+- [x] **Step 15** [V] ~1m: First number ≥ 2, second number `0`. If the second is not 0 → someone started Phase 1 already; read those files before continuing.
+- [x] **Step 16** [PREFLIGHT][B] ~1m: H2 — the service-auth gate fails with 8 open services
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/compliance/check-service-auth.sh; echo "exit=$?"
   ```
-- [ ] **Step 17** [V] ~1m: `exit=1` and the list is exactly cuirass, dashboard-backend, kanban-app, micromanager, monad, sophia, timeguru, wotan. A different list changes Phase 6's order; update the phase header, not the code.
-- [ ] **Step 18** [PREFLIGHT][B] ~1m: H3 — no TLS flags in compose or the Wotan unit; client dials insecure
+- [x] **Step 17** [V] ~1m: `exit=1` and the list is exactly cuirass, dashboard-backend, kanban-app, micromanager, monad, sophia, timeguru, wotan. A different list changes Phase 6's order; update the phase header, not the code.
+- [x] **Step 18** [PREFLIGHT][B] ~1m: H3 — no TLS flags in compose or the Wotan unit; client dials insecure
   ```bash
   cd /home/govan/tmp/unheaded && grep -cE 'UNHEADED_TLS_ENABLED: *"true"|enable-tls' docker-compose.yml deploy/systemd/unheaded-wotan.service; grep -n 'insecure.NewCredentials' pkg/wotan-client/*.go | grep -v _test
   ```
-- [ ] **Step 19** [V] ~1m: Both counts `0`; two insecure sites (`grpc_client.go`, `topic_client.go`).
-- [ ] **Step 20** [PREFLIGHT][B] ~1m: H4 — release.yml placeholders and the deb name bug
+- [x] **Step 19** [V] ~1m: Both counts `0`; two insecure sites (`grpc_client.go`, `topic_client.go`).
+- [x] **Step 20** [PREFLIGHT][B] ~1m: H4 — release.yml placeholders and the deb name bug
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'TODO: Integrate' .github/workflows/release.yml; grep -n 'PKG_NAME="unheaded-\${svc}"' scripts/build-all-debs.sh; grep -n '^Package:' debian/control
   ```
-- [ ] **Step 21** [V] ~1m: Two `TODO: Integrate` lines; `PKG_NAME` line present; `Package: unheaded-daemon`.
-- [ ] **Step 22** [PREFLIGHT][B] ~1m: H5 — registries have the slots this plan uses
+- [x] **Step 21** [V] ~1m: Two `TODO: Integrate` lines; `PKG_NAME` line present; `Package: unheaded-daemon`.
+- [x] **Step 22** [PREFLIGHT][B] ~1m: H5 — registries have the slots this plan uses
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE '= 1673[5-9]' pkg/uids/uids.go; grep -nE '= 1902[0-9]' pkg/ports/ports.go; echo "(empty above = 16735 and 19020 free)"
   ```
-- [ ] **Step 23** [V] ~1m: Both greps empty. If 16735 or 19020 is taken → use the next free value and replace it in every step of this plan (grep this file for `16735` / `19020`).
-- [ ] **Step 24** [PREFLIGHT][B] ~1m: H6 — image-tag baseline still has the sophia-eye rows; FND-017/018/019 are open
+- [x] **Step 23** [V] ~1m: Both greps empty. If 16735 or 19020 is taken → use the next free value and replace it in every step of this plan (grep this file for `16735` / `19020`).
+- [x] **Step 24** [PREFLIGHT][B] ~1m: H6 — image-tag baseline still has the sophia-eye rows; FND-017/018/019 are open
   ```bash
   cd /home/govan/tmp/unheaded && grep -c 'deploy/sophia-eye' docs/policy/image-tag-baseline.txt; grep -nE 'id: FND-01[789]' compliance/findings/register.yaml | wc -l
   ```
-- [ ] **Step 25** [V] ~1m: `4` and `3`.
+- [x] **Step 25** [V] ~1m: `4` and `3`.
 
 ### Worktrees for parallel agents
 
@@ -228,27 +228,27 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Key material and trust directory
 
-- [ ] **Step 29** [R] ~3m: Read what exists so the new code extends it, not forks it
+- [x] **Step 29** [R] ~3m: Read what exists so the new code extends it, not forks it
   ```bash
   cd /home/govan/tmp/unheaded && sed -n '1,60p' pkg/auth/jwt.go && sed -n '160,260p' pkg/auth/jwt.go && sed -n '1,110p' pkg/auth/service_token.go
   ```
-- [ ] **Step 30** [W][CODE] ~10m: Write the failing tests first: `pkg/auth/keys_test.go`
+- [x] **Step 30** [W][CODE] ~10m: Write the failing tests first: `pkg/auth/keys_test.go`
   - `TestGenerateKeyPair_WritesSeedAndPub`: `GenerateKeyPair(dir, "cuirass")` writes `cuirass.key` (0400, 32-byte seed, PEM `UNHEADED ED25519 SEED`) and `cuirass.pub` (0444, PEM `PUBLIC KEY`), returns `kid` = first 16 hex of SHA-256(pub).
   - `TestLoadPrivateKey_RefusesWorldReadable`: a 0644 key file returns `ErrKeyPermissions`.
   - `TestTrustDir_LoadsOnlyPub`: a dir with `a.pub`, `b.pub`, `junk.txt`, `c.key` yields 2 keys keyed by kid; `.key` in trust.d is an error (private key in a public dir).
   - `TestTrustDir_Reload_RemovedKeyRevokes`: delete `b.pub`, `Reload()`, `Lookup(kidB)` fails.
-- [ ] **Step 31** [TEST][B] ~1m: Red
+- [x] **Step 31** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/ -run 'TestGenerateKeyPair|TestLoadPrivateKey|TestTrustDir' -count=1 2>&1 | tail -5
   ```
-- [ ] **Step 32** [V] ~1m: Compile error or FAIL (red). If PASS → the tests are not testing anything; fix them.
-- [ ] **Step 33** [W][CODE] ~25m: `pkg/auth/keys.go`: `GenerateKeyPair(dir, name string) (kid string, err error)` using `crypto/ed25519` + `crypto/rand`; `LoadPrivateKey(path) (ed25519.PrivateKey, kid string, error)` refusing mode bits `0077` (`ErrKeyPermissions`); `type TrustDir struct` with `NewTrustDir(path)`, `Reload()`, `Lookup(kid) (ed25519.PublicKey, bool)`, `Kids() []string`; `kidOf(pub)` = hex(SHA-256(pub))[:16]. No new module.
-- [ ] **Step 34** [TEST][B] ~1m: Green
+- [x] **Step 32** [V] ~1m: Compile error or FAIL (red). If PASS → the tests are not testing anything; fix them.
+- [x] **Step 33** [W][CODE] ~25m: `pkg/auth/keys.go`: `GenerateKeyPair(dir, name string) (kid string, err error)` using `crypto/ed25519` + `crypto/rand`; `LoadPrivateKey(path) (ed25519.PrivateKey, kid string, error)` refusing mode bits `0077` (`ErrKeyPermissions`); `type TrustDir struct` with `NewTrustDir(path)`, `Reload()`, `Lookup(kid) (ed25519.PublicKey, bool)`, `Kids() []string`; `kidOf(pub)` = hex(SHA-256(pub))[:16]. No new module.
+- [x] **Step 34** [TEST][B] ~1m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/ -run 'TestGenerateKeyPair|TestLoadPrivateKey|TestTrustDir' -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 35** [V] ~1m: `ok`. If fail → Step 35a [D]: `go vet ./pkg/auth/` and read the first failure; max 2 attempts.
-- [ ] **Step 36** [C]: **COMMIT CHECKPOINT**
+- [x] **Step 35** [V] ~1m: `ok`. If fail → Step 35a [D]: `go vet ./pkg/auth/` and read the first failure; max 2 attempts.
+- [x] **Step 36** [C]: **COMMIT CHECKPOINT**
   ```bash
   cd /home/govan/tmp/unheaded && git add pkg/auth/keys.go pkg/auth/keys_test.go && git commit --no-gpg-sign -m "[PLAN S-IRON-GATE] Steps 29-35: Ed25519 key files and trust directory in pkg/auth
 
@@ -263,72 +263,72 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 
 ### EdDSA JWS
 
-- [ ] **Step 37** [W][CODE] ~12m: Tests `pkg/auth/jwt_eddsa_test.go`
+- [x] **Step 37** [W][CODE] ~12m: Tests `pkg/auth/jwt_eddsa_test.go`
   - `TestSignEdDSA_HeaderHasKidAndAlg`: header `{"alg":"EdDSA","typ":"JWT","kid":"<kid>"}`.
   - `TestVerifyEdDSA_RoundTrip`: sign with key A, verify with trust dir containing A.pub → claims.
   - `TestVerifyEdDSA_UnknownKid`: kid not in trust dir → `ErrUnknownKey`.
   - `TestVerifyEdDSA_AlgConfusion`: a token with `alg: HS256` presented to the EdDSA verifier is refused even if an HS256 key is configured (`ErrAlgMismatch`); and `alg: none` refused.
   - `TestVerifyEdDSA_AudienceAndExpiry`: wrong `aud` refused; `exp` in the past refused; missing `exp` refused (pkg/auth README rule).
   - `TestVerify_HS256OnlyUnderTestBuildTag`: HS256 verification requires `AllowHS256ForTests()` to have been called; production default refuses (`ErrAlgMismatch`).
-- [ ] **Step 38** [TEST][B] ~1m: Red
+- [x] **Step 38** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/ -run 'EdDSA|HS256Only' -count=1 2>&1 | tail -5
   ```
-- [ ] **Step 39** [V] ~1m: Red.
-- [ ] **Step 40** [W][CODE] ~30m: `pkg/auth/jwt_eddsa.go`: `SignEdDSA(priv ed25519.PrivateKey, kid string, claims *JWTClaims) (string, error)`; `type EdDSAVerifier struct{ trust *TrustDir; issuer, audience string; skew time.Duration }` implementing `Authenticator` (`Authenticate(ctx, r)`), parsing header, requiring `alg == "EdDSA"` and a known `kid`, constant-time where it matters, reusing `JWTClaims.Validate` (`jwt.go:56`). In `jwt.go`, gate HS256 verification behind a package-level `allowHS256` set only by `AllowHS256ForTests()`; `parseAndVerify` returns `ErrAlgMismatch` otherwise. Keep `SignToken` (HS256) exported for tests, document it as test-only.
-- [ ] **Step 41** [TEST][B] ~2m: Green, whole package with race
+- [x] **Step 39** [V] ~1m: Red.
+- [x] **Step 40** [W][CODE] ~30m: `pkg/auth/jwt_eddsa.go`: `SignEdDSA(priv ed25519.PrivateKey, kid string, claims *JWTClaims) (string, error)`; `type EdDSAVerifier struct{ trust *TrustDir; issuer, audience string; skew time.Duration }` implementing `Authenticator` (`Authenticate(ctx, r)`), parsing header, requiring `alg == "EdDSA"` and a known `kid`, constant-time where it matters, reusing `JWTClaims.Validate` (`jwt.go:56`). In `jwt.go`, gate HS256 verification behind a package-level `allowHS256` set only by `AllowHS256ForTests()`; `parseAndVerify` returns `ErrAlgMismatch` otherwise. Keep `SignToken` (HS256) exported for tests, document it as test-only.
+- [x] **Step 41** [TEST][B] ~2m: Green, whole package with race
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 42** [V] ~1m: `ok`. Existing HS256 tests must now call `AllowHS256ForTests()` in a `TestMain` or per test; if they fail for that reason, that is the intended change: fix the tests, not the gate.
-- [ ] **Step 43** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 37-42: EdDSA JWS sign/verify; HS256 verification test-only` (same trailer format as Step 36).
+- [x] **Step 42** [V] ~1m: `ok`. Existing HS256 tests must now call `AllowHS256ForTests()` in a `TestMain` or per test; if they fail for that reason, that is the intended change: fix the tests, not the gate.
+- [x] **Step 43** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 37-42: EdDSA JWS sign/verify; HS256 verification test-only` (same trailer format as Step 36).
 
 ### Service tokens, caller allowlist, JWKS
 
-- [ ] **Step 44** [W][CODE] ~10m: Tests `pkg/auth/service_token_eddsa_test.go`
+- [x] **Step 44** [W][CODE] ~10m: Tests `pkg/auth/service_token_eddsa_test.go`
   - `TestServiceTokenMinter_PerTargetCache`: `Mint("wotan")` twice within 4 min returns the same token; after the clock passes `exp - 30s` a new one.
   - `TestServiceTokenMinter_Claims`: `sub`=caller name, `aud`=target, `iss`="unheaded", `exp-iat`=5m, `kid` set.
   - `TestCallerAllowlist`: verifier with `AllowCallers: ["cuirass","unheaded-cli"]` accepts `sub=cuirass`, refuses `sub=sword` with `ErrCallerNotAllowed` (403, not 401), refuses empty allowlist = deny-all.
-- [ ] **Step 45** [TEST][B] ~1m: Red
+- [x] **Step 45** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/ -run 'ServiceTokenMinter|CallerAllowlist' -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 46** [V] ~1m: Red.
-- [ ] **Step 47** [W][CODE] ~25m: `pkg/auth/service_token_eddsa.go`: `type ServiceTokenMinter struct` (`NewServiceTokenMinter(name string, priv ed25519.PrivateKey, kid string, clock func() time.Time)`), `Mint(target string) (string, error)` with a per-target cache (mutex; refresh at `exp-30s`); `AuthorizationHeader(target)`. Extend `EdDSAVerifier` with `AllowCallers []string` and the 403 path: add `ErrCallerNotAllowed` and make `Middleware` (`auth.go:165`) map it to 403.
-- [ ] **Step 48** [TEST][B] ~2m: Green
+- [x] **Step 46** [V] ~1m: Red.
+- [x] **Step 47** [W][CODE] ~25m: `pkg/auth/service_token_eddsa.go`: `type ServiceTokenMinter struct` (`NewServiceTokenMinter(name string, priv ed25519.PrivateKey, kid string, clock func() time.Time)`), `Mint(target string) (string, error)` with a per-target cache (mutex; refresh at `exp-30s`); `AuthorizationHeader(target)`. Extend `EdDSAVerifier` with `AllowCallers []string` and the 403 path: add `ErrCallerNotAllowed` and make `Middleware` (`auth.go:165`) map it to 403.
+- [x] **Step 48** [TEST][B] ~2m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 49** [V] ~1m: `ok`.
-- [ ] **Step 50** [W][CODE] ~10m: Tests `pkg/auth/jwks_test.go`: an `httptest.Server` serving `/.well-known/openid-configuration` (with `jwks_uri`) and a JWKS with one `OKP`/`Ed25519` key; `JWKSVerifier` verifies a token signed by that key; cache TTL honoured (second verify makes no HTTP call); unknown `kid` triggers one refetch then `ErrUnknownKey`; discovery over plain `http://` is refused unless host is `127.0.0.1`/`localhost` (test uses loopback).
-- [ ] **Step 51** [TEST][B] ~1m: Red
+- [x] **Step 49** [V] ~1m: `ok`.
+- [x] **Step 50** [W][CODE] ~10m: Tests `pkg/auth/jwks_test.go`: an `httptest.Server` serving `/.well-known/openid-configuration` (with `jwks_uri`) and a JWKS with one `OKP`/`Ed25519` key; `JWKSVerifier` verifies a token signed by that key; cache TTL honoured (second verify makes no HTTP call); unknown `kid` triggers one refetch then `ErrUnknownKey`; discovery over plain `http://` is refused unless host is `127.0.0.1`/`localhost` (test uses loopback).
+- [x] **Step 51** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/ -run 'JWKS' -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 52** [V] ~1m: Red.
-- [ ] **Step 53** [W][CODE] ~30m: `pkg/auth/jwks.go`: `NewJWKSVerifier(issuerURL string, audience string, httpClient *http.Client, ttl time.Duration)`; fetch discovery → `jwks_uri` → keys (`kty=OKP, crv=Ed25519, x=base64url`), cache with TTL, single refetch on unknown kid, size cap 64 KiB on both documents, 5 s timeout; implements `Authenticator`; roles from the `roles` claim into `Identity.Roles`.
-- [ ] **Step 54** [TEST][B] ~2m: Green
+- [x] **Step 52** [V] ~1m: Red.
+- [x] **Step 53** [W][CODE] ~30m: `pkg/auth/jwks.go`: `NewJWKSVerifier(issuerURL string, audience string, httpClient *http.Client, ttl time.Duration)`; fetch discovery → `jwks_uri` → keys (`kty=OKP, crv=Ed25519, x=base64url`), cache with TTL, single refetch on unknown kid, size cap 64 KiB on both documents, 5 s timeout; implements `Authenticator`; roles from the `roles` claim into `Identity.Roles`.
+- [x] **Step 54** [TEST][B] ~2m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 55** [V] ~1m: `ok`.
-- [ ] **Step 56** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 44-55: service token minter, caller allowlist (403), JWKS verifier`.
+- [x] **Step 55** [V] ~1m: `ok`.
+- [x] **Step 56** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 44-55: service token minter, caller allowlist (403), JWKS verifier`.
 
 ### Config, fuzz, measurement
 
-- [ ] **Step 57** [W][CODE] ~15m: Extend `LoadServiceAuthConfig`/`SetupMiddleware` (`pkg/auth/setup.go`) with the file-based mode: `AUTH_MODE` (`eddsa` default when `AUTH_ENABLED=true`, `hs256-test` only when `AllowHS256ForTests` is set), `AUTH_KEY_FILE` (default `/etc/unheaded/keys/<service>.key`), `AUTH_TRUST_DIR` (default `/etc/unheaded/trust.d`), `AUTH_ALLOW_CALLERS` (comma list), `AUTH_OIDC_ISSUER_URL` (optional JWKS for humans), keep `AUTH_API_KEY_FILE`. Build a `MultiAuthenticator` of EdDSA(service) + JWKS(human, if configured) + APIKey(if configured). Refuse to start when `AUTH_ENABLED=true` and `AUTH_JWT_KEY` is set (`ErrSharedKeyForbidden`), with a log line naming ADR-103. Tests: `setup_eddsa_test.go` for each branch, including the refusal.
-- [ ] **Step 58** [TEST][B] ~2m
+- [x] **Step 57** [W][CODE] ~15m: Extend `LoadServiceAuthConfig`/`SetupMiddleware` (`pkg/auth/setup.go`) with the file-based mode: `AUTH_MODE` (`eddsa` default when `AUTH_ENABLED=true`, `hs256-test` only when `AllowHS256ForTests` is set), `AUTH_KEY_FILE` (default `/etc/unheaded/keys/<service>.key`), `AUTH_TRUST_DIR` (default `/etc/unheaded/trust.d`), `AUTH_ALLOW_CALLERS` (comma list), `AUTH_OIDC_ISSUER_URL` (optional JWKS for humans), keep `AUTH_API_KEY_FILE`. Build a `MultiAuthenticator` of EdDSA(service) + JWKS(human, if configured) + APIKey(if configured). Refuse to start when `AUTH_ENABLED=true` and `AUTH_JWT_KEY` is set (`ErrSharedKeyForbidden`), with a log line naming ADR-103. Tests: `setup_eddsa_test.go` for each branch, including the refusal.
+- [x] **Step 58** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 59** [V] ~1m: `ok`.
-- [ ] **Step 60** [W][CODE] ~10m: Fuzz targets `pkg/auth/fuzz_test.go`: `FuzzEdDSAParse` (random token bytes never panic, never verify), `FuzzJWKSDocument` (random JSON never panics, oversize refused), `FuzzTrustDirFilenames`.
-- [ ] **Step 61** [TEST][B] ~4m
+- [x] **Step 59** [V] ~1m: `ok`.
+- [x] **Step 60** [W][CODE] ~10m: Fuzz targets `pkg/auth/fuzz_test.go`: `FuzzEdDSAParse` (random token bytes never panic, never verify), `FuzzJWKSDocument` (random JSON never panics, oversize refused), `FuzzTrustDirFilenames`.
+- [x] **Step 61** [TEST][B] ~4m
   ```bash
   cd /home/govan/tmp/unheaded && for f in FuzzEdDSAParse FuzzJWKSDocument FuzzTrustDirFilenames; do go test ./pkg/auth/ -run '^$' -fuzz="^$f\$" -fuzztime=60s 2>&1 | tail -1; done
   ```
-- [ ] **Step 62** [V] ~1m: Three lines ending `ok` or `PASS`; no `testdata/fuzz/.../` crasher written (`git status --short pkg/auth | grep -c testdata` is 0). If a crasher appears → fix the parser, keep the crasher as a regression test, commit.
-- [ ] **Step 63** [TEST][B] ~5m: Measure the ML-DSA-65 switch point (ADR-103 Q3 evidence)
+- [x] **Step 62** [V] ~1m: Three lines ending `ok` or `PASS`; no `testdata/fuzz/.../` crasher written (`git status --short pkg/auth | grep -c testdata` is 0). If a crasher appears → fix the parser, keep the crasher as a regression test, commit.
+- [x] **Step 63** [TEST][B] ~5m: Measure the ML-DSA-65 switch point (ADR-103 Q3 evidence)
   ```bash
   cd /home/govan/tmp/unheaded && cat > /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/sigbench_test.go <<'EOF'
   package auth_test
@@ -338,9 +338,9 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
   EOF
   cp /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/sigbench_test.go pkg/auth/zz_sigbench_test.go && go test ./pkg/auth/ -run '^$' -bench 'Verify' -benchtime=2000x 2>&1 | grep -E 'Benchmark' ; rm pkg/auth/zz_sigbench_test.go
   ```
-- [ ] **Step 64** [W][DOC-UPDATE] ~5m: Append to `docs/adr/ADR-103-service-auth-token-distribution.md` under a new `## Measurements (S-IRON-GATE Step 63)` heading: both `ns/op` and `sig_bytes` numbers, the resulting per-request header size (base64url of sig + header + claims), and the switch rule: "flip `alg` to ML-DSA-65 when a verifier's p99 under load is dominated by something other than signature checks, or when policy requires PQ signatures; the code path is `SignEdDSA`/`EdDSAVerifier` with `alg` and the key type parametrised". Do not change the Status line yet.
-- [ ] **Step 65** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 57-64: file-based auth config, fuzz targets, ML-DSA switch-point measurement`.
-- [ ] **Step 66** [V]: **PHASE 1 EXIT GATE**
+- [x] **Step 64** [W][DOC-UPDATE] ~5m: Append to `docs/adr/ADR-103-service-auth-token-distribution.md` under a new `## Measurements (S-IRON-GATE Step 63)` heading: both `ns/op` and `sig_bytes` numbers, the resulting per-request header size (base64url of sig + header + claims), and the switch rule: "flip `alg` to ML-DSA-65 when a verifier's p99 under load is dominated by something other than signature checks, or when policy requires PQ signatures; the code path is `SignEdDSA`/`EdDSAVerifier` with `alg` and the key type parametrised". Do not change the Status line yet.
+- [x] **Step 65** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 57-64: file-based auth config, fuzz targets, ML-DSA switch-point measurement`.
+- [x] **Step 66** [V]: **PHASE 1 EXIT GATE**
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/auth/... -race -count=1 2>&1 | tail -1 && go vet ./pkg/auth/... && grep -c 'AllowHS256ForTests' pkg/auth/*_test.go | awk -F: '{s+=$2} END {print "hs256 test opt-ins:", s}' && git status --short | wc -l
   ```
