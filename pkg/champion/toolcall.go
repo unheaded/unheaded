@@ -45,14 +45,23 @@ type ToolCall struct {
 // Reference mirrors the cs/vor B1-schema source-provenance fields.
 // Populated by the agent layer from vor's /api/topics or /api/search
 // JSON response.
+//
+// Chain contract (chain.go, S-CHAMPION-HARDENING Step 35): a Reference
+// with SourceTrust "local" MUST carry Topic (the vor topic id) and Digest
+// (lowercase hex SHA-256 of the retrieved text the model was given).
+// VerifyChain recomputes every Digest from the text the caller retrieved
+// for that topic; a reference that fails is not trustworthy and the agent
+// layer downgrades it to "external", so Rule 2 refuses the mutating call
+// for the right reason.
 type Reference struct {
 	Topic       string `json:"topic"`
 	Category    string `json:"category"`
 	SourceKind  string `json:"source_kind"`  // "embedded" | "user-custom" | "user-source"
-	SourceTrust string `json:"source_trust"` // "canonical" | "local" | "external"
+	SourceTrust string `json:"source_trust"` // "canonical" | "local" | "direct-user"; anything else is untrusted
 	SourcePath  string `json:"source_path,omitempty"`
 	SourceLabel string `json:"source_label,omitempty"`
 	Excerpt     string `json:"excerpt,omitempty"` // 200-char snippet for audit
+	Digest      string `json:"digest,omitempty"`  // sha256 (hex) of the retrieved text; required for "local"
 }
 
 // MutatingTools is the canonical list of tool names that modify state.
