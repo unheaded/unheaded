@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 	pqtls "unheaded/pkg/tls"
+	"unheaded/pkg/wotansig"
 	chatpb "unheaded/services/wotan/proto"
 )
 
@@ -167,6 +168,9 @@ func (gc *GRPCClient) Publish(ctx context.Context, topic string, payload []byte)
 	}
 	if len(payload) == 0 {
 		return errors.New("payload cannot be empty")
+	}
+	if err := wotansig.RefuseUnsigned(topic); err != nil {
+		return err // PublishSigned is the only way onto a signed topic
 	}
 
 	gc.mu.RLock()

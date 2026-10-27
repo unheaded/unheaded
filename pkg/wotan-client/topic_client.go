@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"unheaded/pkg/auth"
+	"unheaded/pkg/wotansig"
 	chatpb "unheaded/services/wotan/proto"
 )
 
@@ -293,6 +294,9 @@ func (c *TopicStreamClient) Publish(ctx context.Context, topic string, payload [
 	}
 	if len(payload) == 0 {
 		return errors.New("payload cannot be empty")
+	}
+	if err := wotansig.RefuseUnsigned(topic); err != nil {
+		return err // signed topics: GRPCClient.PublishSigned
 	}
 
 	c.mu.RLock()
