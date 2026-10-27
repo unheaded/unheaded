@@ -161,10 +161,11 @@ def _reset_gate_log_for_test():
 # later turn as a re-justification template. Conservative regex —
 # matches the canonical {"tool_call":{"name":...,"args":{...}}} shape
 # emitted by the Go agent, plus a few neighboring whitespace variants.
-_TOOL_CALL_JSON_RE = re.compile(
-    r'\{\s*"tool_call"\s*:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\s*\}',
-    re.DOTALL,
-)
+# Where a {"tool_call": ...} object starts. The object's end is found by
+# scanning braces with JSON strings skipped (_tool_call_end): a regex can
+# match only a fixed nesting depth, and a payload one level deeper, or with a
+# brace inside a string, slipped through it.
+_TOOL_CALL_START_RE = re.compile(r'\{\s*"tool_call"\s*:')
 
 
 def _strip_tool_call_json(text: str) -> str:
@@ -174,7 +175,43 @@ def _strip_tool_call_json(text: str) -> str:
     against a poisoned prior turn smuggling a tool-call template into
     the current turn's context.
     """
-    return _TOOL_CALL_JSON_RE.sub("[tool_call payload stripped]", text)
+    out = []
+    pos = 0
+    while True:
+        m = _TOOL_CALL_START_RE.search(text, pos)
+        if m is None:
+            out.append(text[pos:])
+            return "".join(out)
+        out.append(text[pos:m.start()])
+        out.append("[tool_call payload stripped]")
+        pos = _tool_call_end(text, m.start())
+
+
+def _tool_call_end(text: str, start: int) -> int:
+    """Index just past the JSON object opening at text[start] ('{'),
+    skipping braces inside strings. An object that never closes runs to the
+    end of the text: a truncated payload is still a payload."""
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    return len(text)
 
 
 # Retrieval query shaping (2026-10-25, "what is wotan" regression).
