@@ -143,3 +143,24 @@ Still broken regardless of tokens: `scripts/bare-metal/validate-cross-host.sh` a
 (wrong body, admin API). `docker/services/trace-collector/Dockerfile` go-builds a Rust directory and cannot build.
 Rust clients have no TLS (would need rustls on aws-lc-rs for the hybrid group); Phase 8 must decide whether
 run-runbook.py should refuse a token over plain http, matching wotan-client.
+
+### Phase 8 code merged (4fb64c3a)
+
+`scripts/gen-dev-certs.sh`: dev CA + per-service cert dirs (13 services + unheaded-cli + gateway; SANs = compose name,
+auth identity, localhost, 127.0.0.1, ::1); under sudo each dir goes to the service's uid; re-run keeps the CA;
+`configs/certs/` gitignored. Listeners refuse to start without cert/key/CA (no plaintext fallback); a non-loopback
+plaintext listener logs FND-017. Every first-party link uses TLS under `UNHEADED_TLS_ENABLED=true` (healthreport,
+Akira, dashboard, kanban->timeguru, sword/chaos->Cuirass, BFFs, JWKS, CLI). wotan-client: TLS with CA and server name,
+token withheld on plaintext except loopback; Wotan cluster replication no longer drops to plaintext. One
+`insecure.NewCredentials` site left. `cmd/healthprobe` replaces busybox wget in healthchecks. Compose: issuer at
+`https://auth:19020` (no `-dev-plaintext`), BFFs without `AUTH_BFF_DEV_PLAINTEXT`, sword -> `https://cuirass:19006`,
+VictoriaMetrics scrapes and two traefik routes over https. Units: 13 server units get TLS env
+(`/etc/unheaded/tls/<identity>/`), plus CA-only env for chaos-controller, kev-poller, anomaly, baseline,
+trace-collector, zhen-agentd. New `UNHEADED_TLS_PROFILE=strict|preferred` (strict default; ADR-105 wanted preferred on
+outside-facing listeners: now explicit).
+**LIVE 262-267, 269:** `scripts/gen-dev-certs.sh && sudo scripts/gen-dev-certs.sh` first. Expect: VictoriaMetrics
+v1.108.1 (Go 1.23) and maybe traefik v3.3.7 fail the hybrid handshake (bump images or `preferred` on those links); the
+Secure session cookie does not hold through traefik's plain-http `web` entrypoint (use https://host:20000 or
+`websecure`); host Prometheus jobs (wotan, unheaded-daemon, dashboard, zhen-agentd) need `scheme: https` + CA in the E3
+window; east debs must ship certs (Phase 14). The Rust ebpf-collector has no TLS, so it cannot reach a TLS Wotan
+(follow-up: rustls on aws-lc-rs for X25519MLKEM768). FND-017: closed in compose once 264-265 pass; hosts after E3.
