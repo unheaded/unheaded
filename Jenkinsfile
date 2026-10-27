@@ -235,69 +235,14 @@ pipeline {
         script {
           echo "=== Creating .deb packages ==="
           sh '''
-            # Modes in the package must not depend on the agent's umask
-            # (0002 makes unit files 0664), as in scripts/build-all-debs.sh.
-            umask 022
-            mkdir -p build/deb
-            SERVICES="unheaded-daemon dashboard-backend kanban-app"
-
-            for svc_bin in $SERVICES; do
-              PKG_NAME="unheaded-${svc_bin}"
-              PKG_DIR="build/deb/${PKG_NAME}_${VERSION}"
-
-              mkdir -p ${PKG_DIR}/DEBIAN
-              mkdir -p ${PKG_DIR}/opt/unheaded/bin
-              mkdir -p ${PKG_DIR}/etc/systemd/system
-
-              # Copy binary. A missing one fails the stage: packaging on
-              # without it published a deb whose unit execs nothing.
-              test -f "bin/${svc_bin}" || { echo "FAIL: bin/${svc_bin} not built" >&2; exit 1; }
-              cp "bin/${svc_bin}" ${PKG_DIR}/opt/unheaded/bin/
-              chmod 755 ${PKG_DIR}/opt/unheaded/bin/${svc_bin}
-
-              # Control file
-              cat > ${PKG_DIR}/DEBIAN/control <<EOF
-Package: ${PKG_NAME}
-Version: ${VERSION}
-Architecture: amd64
-Maintainer: Stevie Bellis <stevie@bellis.tech>
-Description: Unheaded ${svc_bin} service
- Part of the Unheaded Kingdom infrastructure platform.
- https://github.com/unheaded/unheaded
-Depends: libc6
-Section: admin
-Priority: optional
-EOF
-
-              # Systemd unit: the repo's (own nologin account + sandbox), binary
-              # path moved to the package's; same as scripts/build-all-debs.sh.
-              case "${svc_bin}" in
-                dashboard-backend) UNIT=unheaded-dashboard.service ;;
-                kanban-app) UNIT=unheaded-kanban.service ;;
-                *) UNIT="${svc_bin}.service" ;;
-              esac
-              sed 's|/usr/local/bin/|/opt/unheaded/bin/|g' "deploy/systemd/${UNIT}" > ${PKG_DIR}/etc/systemd/system/${PKG_NAME}.service
-              SVC_USER=$(sed -n 's/^User=//p' "deploy/systemd/${UNIT}")
-              mkdir -p ${PKG_DIR}/usr/lib/sysusers.d
-              awk -v u="${SVC_USER}" '$1 == "u" && $2 == u' deploy/sysusers.d/unheaded.conf > ${PKG_DIR}/usr/lib/sysusers.d/${PKG_NAME}.conf
-              test -s ${PKG_DIR}/usr/lib/sysusers.d/${PKG_NAME}.conf
-
-              # Maintainer scripts, shared with scripts/build-all-debs.sh
-              # (scripts/lib/deb-maintscripts.sh): prerm stops and disables
-              # only on removal, never on upgrade.
-              . scripts/lib/deb-maintscripts.sh
-              deb_postinst ${PKG_NAME} > ${PKG_DIR}/DEBIAN/postinst
-              deb_prerm ${PKG_NAME} > ${PKG_DIR}/DEBIAN/prerm
-              deb_preinst ${PKG_NAME} > ${PKG_DIR}/DEBIAN/preinst
-              chmod 755 ${PKG_DIR}/DEBIAN/postinst ${PKG_DIR}/DEBIAN/prerm ${PKG_DIR}/DEBIAN/preinst
-              deb_conffiles ${svc_bin} ${PKG_DIR} .
-
-              # root:root inside the package, not the Jenkins agent's uid.
-              dpkg-deb --root-owner-group --build ${PKG_DIR}
-              echo "  Built: ${PKG_NAME}_${VERSION}.deb"
-            done
-
-            echo "=== All packages ==="
+            # One packager for every path (GHA release.yml, this stage, a
+            # build on west): scripts/build-all-debs.sh, which takes the
+            # package table from scripts/lib/deb-packages.sh and the
+            # maintainer scripts from scripts/lib/deb-maintscripts.sh. A
+            # VERSION that is not a Debian version (the default "dev")
+            # builds with the commit-derived default.
+            case "${VERSION}" in [0-9]*) V="${VERSION}" ;; *) V="" ;; esac
+            DEB_OUTPUT_DIR=build/deb ./scripts/build-all-debs.sh ${V:+"$V"}
             ls -lh build/deb/*.deb 2>/dev/null
           '''
         }
@@ -317,17 +262,17 @@ EOF
         script {
           echo "=== Publishing to local APT repository ==="
           sh '''
-            APT_REPO="/var/lib/apt-repo"
-            CODENAME="noble"
-            if [ -d "$APT_REPO" ] && which reprepro > /dev/null 2>&1; then
-              for deb in build/deb/*.deb; do
-                reprepro -b ${APT_REPO} includedeb ${CODENAME} ${deb} || echo "Publish failed: ${deb}"
-              done
-              echo "=== Published packages ==="
-              reprepro -b ${APT_REPO} list ${CODENAME}
+            # The signed repo on west (scripts/apt-repo.sh, ADR-026). GHA is
+            # the live builder (ADR-085); publishing is
+            # runbooks/deploy/apt-repo-publish.yaml's job, so this stage
+            # only publishes on an agent where the repo was initialised.
+            APT_REPO_BASE="${APT_REPO_BASE:-/srv/unheaded-apt}"
+            if [ -f "$APT_REPO_BASE/conf/distributions" ] && which reprepro > /dev/null 2>&1; then
+              APT_REPO_BASE="$APT_REPO_BASE" ./scripts/apt-repo.sh include build/deb/*.deb
+              APT_REPO_BASE="$APT_REPO_BASE" ./scripts/apt-repo.sh list
             else
-              echo "APT repo not configured — skipping publish"
-              echo "Run runbooks/infra/apt-repo-server.yaml to set up"
+              echo "APT repo not initialised on this agent; skipping publish"
+              echo "(runbooks/deploy/apt-repo-publish.yaml)"
             fi
           '''
         }
