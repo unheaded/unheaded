@@ -778,12 +778,12 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - [x] **Step 267** [V] ~0.5m: all green; the new `env_file` entries in compose carry `required: false` and point only under `/etc/unheaded/`.
 - [x] **Step 268** [SECURITY][B] ~4m: Fuzz targets touched by this sprint get a short run: `cd /home/govan/tmp/unheaded && go test ./services/wotan/internal/middleware/... -run=^$ -fuzz=Fuzz -fuzztime=30s 2>&1 | tail -3 || echo "no fuzz target in middleware: add FuzzRateLimitKey (RemoteAddr parser) as a [W] here"`; if no target exists, write `FuzzRateLimitKey` (any string → never panics, output has no `:`-port suffix for valid host:port) and run it 30 s.
 - [x] **Step 269** [V] ~0.5m: no crashers; corpus additions committed.
-- [ ] **Step 270** [TEST][B] ~20m: Full regression against the baseline.
+- [x] **Step 270** [TEST][B] ~20m: Full regression against the baseline.
   ```bash
   cd /home/govan/tmp/unheaded && go test ./... 2>&1 | tee /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/go-test-final.log | tail -3; diff <(grep '^FAIL' /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/go-test-baseline.log | sort) <(grep '^FAIL' /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/go-test-final.log | sort) && echo NO_NEW_FAILURES
   ```
-- [ ] **Step 271** [V] ~0.5m: `NO_NEW_FAILURES`; the ok-count is ≥ the baseline's.
-- [ ] **Step 272** [V] ~1m: **PHASE 7 EXIT GATE** — Steps 263, 265, 267, 269, 271 passed; attack-surface table written. [C] `[PLAN S-CLEAN-SLATE] Steps 261-271: security and compliance review; fuzz corpus`.
+- [x] **Step 271** [V] ~0.5m: `NO_NEW_FAILURES`; the ok-count is ≥ the baseline's.
+- [x] **Step 272** [V] ~1m: **PHASE 7 EXIT GATE** — Steps 263, 265, 267, 269, 271 passed; attack-surface table written. [C] `[PLAN S-CLEAN-SLATE] Steps 261-271: security and compliance review; fuzz corpus`.
   - If pass → Phase 8.
   - If fail → DO NOT PROCEED.
 

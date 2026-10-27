@@ -82,6 +82,11 @@ when provoked except `check-gitleaks`, INCONCLUSIVE because that tree already fa
 fixture, fixed in `801befcc`). Re-proved with `--only check-gitleaks` at `a3f2eb70`: bites. The new
 `check-haproxy-cfg` (merged after that clone): `--only` bites. Timeout 25 -> 44 min (Step 44's formula).
 
+### Phase 7 exit (Steps 262-272)
+
+Eighteen gates exit 0 (list in `3bb9d44b`); FuzzClientIP 4.8 M execs and the two wotan-client fuzzers
+30 s each, no crasher; full `go test -count=1 ./...` at `3bb9d44b`: 221 ok, 0 FAIL (the base carried 2).
+
 ### Open escalations (live halves)
 
 | E | State | Blocks |
