@@ -22,13 +22,13 @@ The Well is Unheaded's PostgreSQL: one Postgres 16 cluster with three databases,
 | Database | Holds | Owner (NOLOGIN) |
 |---|---|---|
 | `unheaded_app` | kanban tasks, timeline milestones, Zhen conversations/memories/actions, API keys (`api_keys`: SHA-256 of each `uhk_` key, owner, role, expiry, revocation; migration 036) | `well_app_owner` |
-| `unheaded_ops` | service health, audit events, compliance evidence and findings, LLM request telemetry (`llm_requests`), retention records (`retention_runs`, `retention_archive`; 043) | `well_ops_owner` |
+| `unheaded_ops` | service health, audit events, compliance evidence and findings, LLM request telemetry (`llm_requests`), retention records (`retention_runs`, `retention_archive`; 043), Sword's deployment history and the chaos journals (`deploy_history`, `deploy_history_transitions`, `chaos_journal`, `chaos_journal_transitions`; 039, append-only, written by `ops_writer`), SLO definitions with history (`slo_definitions`; 040, synced from `observability/alerting/policy.yaml` by `go run ./cmd/alert-policy -sync-well`) | `well_ops_owner` |
 | `unheaded_config` | kingdom_config (+ history), service registry, compliance catalogue | `well_config_owner` |
 | `postgres` | `pg_stat_statements` only | `unheaded` |
 
 `unheaded_ops.llm_requests` (030) holds one append-only row per model request from either Zhen brain: counts, cost and timing, never text; written by `ops_writer` when `zhen-claude`/`zhen-agentd` run with `-audit-well`; rows are never deleted; the retention job measures when it needs time partitions (see Retention below). See [[Zhen Audit|Zhen-Audit]].
 
-Each database has its own `well_schema_migrations` ledger. The legacy `unheaded` database was dropped on 2026-10-15; its final dump is archived in `~/backups/well/2026-10-15/`.
+Each database has its own `well_schema_migrations` ledger. Migrations 030-043 are written and rehearsed but not yet applied live: one batch with `scripts/well/batch-apply.sh --dry-run --from 030`, then without `--dry-run` (rollback: `scripts/well/batch-rollback.sh <backup dir>`; proof: `scripts/well/test-batch-apply.sh`). The legacy `unheaded` database was dropped on 2026-10-15; its final dump is archived in `~/backups/well/2026-10-15/`.
 
 ## Roles
 

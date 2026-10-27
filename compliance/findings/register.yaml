@@ -379,6 +379,66 @@ findings:
     plan: token distribution design first (clients, dashboard, kanban), then AUTH_ENABLED per service, one at a time
     decision: mode settled - Stevie 2026-09-30 wants several (SSO/OIDC, JWT, API key), selectable per deployment; where keys and the IdP live is proposed in ADR-103 (2026-10-23, 4 open questions for Stevie)
 
+  - source: "slo:dashboard"
+    severity: medium
+    class: app
+    opened: 2026-10-27
+    exposure: the dashboard-backend availability SLO has spent its error budget (UH-SLO-01 evidence, first collected 2026-10-27); the 30-day window includes the S-REAL-STEEL game days (2026-10-26) and the S24 restarts
+    lockout: none
+    step: 7
+    plan: >-
+      SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
+      the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
+      (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+
+  - source: "slo:log-shipping"
+    severity: medium
+    class: app
+    opened: 2026-10-27
+    exposure: the journal shipping to ClickHouse SLO has spent its error budget (UH-SLO-01 evidence, first collected 2026-10-27); the 30-day window includes the S-REAL-STEEL game days (2026-10-26) and the S24 restarts
+    lockout: none
+    step: 7
+    plan: >-
+      SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
+      the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
+      (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+
+  - source: "slo:well"
+    severity: medium
+    class: app
+    opened: 2026-10-27
+    exposure: the The Well availability SLO has spent its error budget (UH-SLO-01 evidence, first collected 2026-10-27); the 30-day window includes the S-REAL-STEEL game days (2026-10-26) and the S24 restarts
+    lockout: none
+    step: 7
+    plan: >-
+      SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
+      the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
+      (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+
+  - source: "slo:well-backups"
+    severity: medium
+    class: app
+    opened: 2026-10-27
+    exposure: the Well backup freshness SLO has spent its error budget (UH-SLO-01 evidence, first collected 2026-10-27); the 30-day window includes the S-REAL-STEEL game days (2026-10-26) and the S24 restarts
+    lockout: none
+    step: 7
+    plan: >-
+      SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
+      the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
+      (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+
+  - source: "slo:wotan"
+    severity: medium
+    class: app
+    opened: 2026-10-27
+    exposure: the Wotan availability SLO has spent its error budget (UH-SLO-01 evidence, first collected 2026-10-27); the 30-day window includes the S-REAL-STEEL game days (2026-10-26) and the S24 restarts
+    lockout: none
+    step: 7
+    plan: >-
+      SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
+      the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
+      (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+
   - source: "gate-script:scripts/compliance/check-edge-tls.sh"
     severity: medium
     class: app

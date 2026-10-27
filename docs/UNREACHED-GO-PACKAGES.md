@@ -12,6 +12,11 @@ deletion list: keeping an experiment is a fine decision, it should just be one.
 On develop at 2026-10-26, after S-REAL-STEEL Phase 13: **64 of 250** packages in
 the root module are imported by no `main` package (tests do not count). After
 Phase 1 the same day it was 66 of 248; before Phase 1 (2026-10-23) 148 of 300.
+**2026-10-27 (S24, after NEXT-7 Sprints 2-4): 68 of 265.** The four new entries are test-only by design and need no
+verdict: `pkg/auth/authtest`, `pkg/bff/bfftest`, `tests/svctoken` (the cross-language token test) and
+`tomb/lich/LICH-017-baseline-agent` (a campaign run with `go test`); `pkg/wotan-client/wotantest` was already a test
+helper. Nothing previously unreached became reached.
+
 Phase 13 added two reached packages (`services/yaldabaoth/packet`,
 `pkg/monadpkt`) and, through them, reached `pkg/protocol/bpfschema` and
 `pkg/protocol/encoding`, which left the list. Regenerate:

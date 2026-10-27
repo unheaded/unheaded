@@ -16,6 +16,7 @@ From `pkg/ports/ports.go`:
 | Health | 19101 | heimdall-daemon `/metrics` (`-metrics-addr`, default `127.0.0.1`; empty disables) |
 | Threat feeds | 19120 | kev-poller (ADR-055); 19110 is the loadbalancer's xdpsync |
 | Alerting | 19130 | alert-mailer (ADR-100), `127.0.0.1` in `monitoring/docker-compose.yml` |
+| Alerting | 19131 | alert-mailer `/heartbeat/{host}` only (dead-man switch); loopback until `HEARTBEAT_LISTEN` |
 | Applications | 20000-20099 | dashboard-backend 20000, kanban-app 20001, wiki-server 20002 |
 | AI | 20100-20106 | vLLM DeepSeek 20100, vLLM Qwen 20101, Qdrant 20102, BGE-M3 20104, Sophia-Eye 20105, AI web UI 20106 |
 | Gateway | 21000-21443 | gateway HTTP 21000, HTTPS 21443 (in compose, Traefik's dashboard is on `127.0.0.1:21000`) |

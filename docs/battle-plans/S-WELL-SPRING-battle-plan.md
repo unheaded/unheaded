@@ -1,4 +1,12 @@
 <!--
+
+> **CODE COMPLETE 2026-10-27 (S24, develop).** Phases 1-4 and 6-15 done in code; Phase 5 (PG 18) waits on E-B.
+> Not SHIPPED: the open steps are host windows and Stevie's escalations. **E-A** the Well batch 030-043 (rehearsed:
+> `scripts/well/test-batch-apply.sh`), **E-B** PG 18, **E-C** ratify the retention policy, **E-D** host windows (east
+> Vector, heartbeat, journald switch, reporters, units), **E-E** enforcing mode + paperwork decisions
+> (`docs/compliance/privacy/decisions-for-stevie.md`); attestations to sign (`scripts/compliance/sign-attestation.sh`).
+> STUCK: none. Open steps (69): 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 44, 45, 46, 47, 48, 49, 50, 78, 79, 80, 105, 106, 127, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 177, 208, 209, 210, 217, 218, 219, 220, 225, 226, 235, 236, 280, 281, 282, 283, 284, 285, 286, 287, 288, 294.
+
 SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis.
 -->
@@ -772,14 +780,14 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 **Time**: 1.5 h
 **Agent**: Coordinator (Librarian lens)
 
-- [ ] **Step 289** [DOC-UPDATE][W] ~30m: wiki: `Alerting.md` (Watchdog, heartbeat, `runbook_url` gate, `ci-develop` SLO, dead alerts removed and why, error-budget dashboard), `The-Well.md` + `Well-Backups.md` (PG 18 if E-B, migrations 035-038, retention timer, `deploy_history`/`chaos_journal`/`slo_definitions` tables and who writes them), `Logging.md` (journald driver, Vector labels, east unit), `Port-Registry.md` (19101), the compliance page (policies, SSP, attestation signing recipe, enforcing soak), `Service-Wotan.md` (`system.health.remediate`). `CLAUDE.md`: "Cross-Service Health Monitoring" doctrine → reporters in every service, remediate topic; §Observability line for the one log path. ADR statuses: ADR-100 (Phases 1, 2, 5 built; 3 partial; 4 = `ci-develop` + Well/Wotan/dashboard SLOs present), ADR-099 (Phase 2 done, Phase 3 roles hand-written, Phase 4 code path exists behind the soak), ADR-098 (Phase 1 remainder: heartbeat built, receiver still email dry-run until FND-001), ADR-029 (reporters, remediate, ballot recorded), ADR-055/062/076/086/092 amendments already written in their phases; `docs/adr/ADR-INDEX.md` rows.
-- [ ] **Step 290** [REGEN][B] ~5m
+- [x] **Step 289** [DOC-UPDATE][W] ~30m: wiki: `Alerting.md` (Watchdog, heartbeat, `runbook_url` gate, `ci-develop` SLO, dead alerts removed and why, error-budget dashboard), `The-Well.md` + `Well-Backups.md` (PG 18 if E-B, migrations 035-038, retention timer, `deploy_history`/`chaos_journal`/`slo_definitions` tables and who writes them), `Logging.md` (journald driver, Vector labels, east unit), `Port-Registry.md` (19101), the compliance page (policies, SSP, attestation signing recipe, enforcing soak), `Service-Wotan.md` (`system.health.remediate`). `CLAUDE.md`: "Cross-Service Health Monitoring" doctrine → reporters in every service, remediate topic; §Observability line for the one log path. ADR statuses: ADR-100 (Phases 1, 2, 5 built; 3 partial; 4 = `ci-develop` + Well/Wotan/dashboard SLOs present), ADR-099 (Phase 2 done, Phase 3 roles hand-written, Phase 4 code path exists behind the soak), ADR-098 (Phase 1 remainder: heartbeat built, receiver still email dry-run until FND-001), ADR-029 (reporters, remediate, ballot recorded), ADR-055/062/076/086/092 amendments already written in their phases; `docs/adr/ADR-INDEX.md` rows.
+- [x] **Step 290** [REGEN][B] ~5m
   ```bash
   cd /home/govan/tmp/unheaded && go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md 2>&1 | tail -2 && REGEN=$(grep -m1 -oE '`[^`]*unreached[^`]*`' docs/UNREACHED-GO-PACKAGES.md | tr -d '`') && echo "regen: $REGEN" && eval "$REGEN" 2>&1 | tail -2; go run ./cmd/crypto-inventory 2>&1 | tail -1; git status --short | head -8
   ```
-- [ ] **Step 291** [V] ~1m: register regenerated with 0 untriaged rows (FND-015 fixed if E-B ran; the gitleaks job row from S-CLEAN-SLATE untouched); UNREACHED list shrank by `pkg/metrics` pqc entries; CBOM unchanged unless PG 18 landed.
-- [ ] **Step 292** [DOC-UPDATE][W] ~8m: `references/timeline.md`: one dated entry for S-WELL-SPRING (what is live, what waits on which escalation) and mirrors regenerated the way `f83c9cde` did (`grep -n 'sync\|mirror' services/timeguru/cmd/timeguru/main.go | head -3` for the subcommand, or edit json/yaml/toml by the same parser); `bash scripts/check-timeline-freshness.sh | tail -2` FRESH.
-- [ ] **Step 293** [AUDIT-UPDATE][W] ~10m: `docs/sweeps/OUTSTANDING-2026-10-27.md`: every M-id in Appendix D gets a status suffix (`DONE <commit>`, `LIVE-PENDING E-x`, `DEFERRED → S-<other>`); `~/tmp/next.md`: a "S-WELL-SPRING" section at the top (what shipped, the five escalations and which are answered, live state of west/east after the window, the Step 43 index-drop follow-on after 2026-11-15, the soak start date if E-E answered).
+- [x] **Step 291** [V] ~1m: register regenerated with 0 untriaged rows (FND-015 fixed if E-B ran; the gitleaks job row from S-CLEAN-SLATE untouched); UNREACHED list shrank by `pkg/metrics` pqc entries; CBOM unchanged unless PG 18 landed.
+- [x] **Step 292** [DOC-UPDATE][W] ~8m: `references/timeline.md`: one dated entry for S-WELL-SPRING (what is live, what waits on which escalation) and mirrors regenerated the way `f83c9cde` did (`grep -n 'sync\|mirror' services/timeguru/cmd/timeguru/main.go | head -3` for the subcommand, or edit json/yaml/toml by the same parser); `bash scripts/check-timeline-freshness.sh | tail -2` FRESH.
+- [x] **Step 293** [AUDIT-UPDATE][W] ~10m: `docs/sweeps/OUTSTANDING-2026-10-27.md`: every M-id in Appendix D gets a status suffix (`DONE <commit>`, `LIVE-PENDING E-x`, `DEFERRED → S-<other>`); `~/tmp/next.md`: a "S-WELL-SPRING" section at the top (what shipped, the five escalations and which are answered, live state of west/east after the window, the Step 43 index-drop follow-on after 2026-11-15, the soak start date if E-E answered).
 - [ ] **Step 294** [V]+[C] ~5m: **FINAL EXIT GATE** — every phase exit gate passed or its STUCK marker is in this file; `go test ./... 2>&1 | grep -E '^(FAIL|---)' | diff - docs/battle-plans/progress/S-WELL-SPRING-baseline.txt` empty (zero new failures); `git status --short` empty after the commit; worktrees removed (`git worktree list | grep -c wellspring` = 0). Commit: `[PLAN S-WELL-SPRING] Steps 289-294: docs, registers, timeline, handoff`.
 
 ---

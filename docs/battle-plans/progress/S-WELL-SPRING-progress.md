@@ -173,3 +173,12 @@ breaker + preinst gate; every mode file stays audit. LICH-017: 7 cases, 0 bypass
 fixes (`-applied-by "remediate.sh (2026-10-13)"` for journald-caps and time-p2p), apply the new fixes; then sync the Well
 mirrors of fixes/profiles (`compliance-evidence well`). ADR-098 line 193 still names `scripts/host/remediate.sh`
 (generated file: regenerate after the register changes). Flaky dashboard eBPF broadcast test fixed (848118ab).
+
+### Phase 15 (coordinator): docs, registers, handoff
+
+Docs: The-Well (039/040 tables, batch 030-043 commands), Port-Registry (19131), Service-Wotan (signed families, health
+topics), Compliance-Paperwork (enforcing mode not on, soak, LICH-017), ADR-INDEX rows 029/099/100. Register: five
+`slo:*` findings triaged as open (medium; first reading of UH-SLO-01, window includes game days and S24 restarts);
+ADR-098 section regenerated with 0 untriaged. UNREACHED: 68 of 265, the new entries are test-only. Timeline: the
+combined Sprints 2-4 entry (S-CHAMPION-HARDENING Phase 15) covers this sprint. next.md START HERE carries the
+handoff. Banner: CODE COMPLETE, not SHIPPED.

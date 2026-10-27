@@ -38,3 +38,11 @@ scripts/compliance/sign-attestation.sh access-review             # write, sign, 
 ```
 
 Refuses unless `git config user.email` is the owner's and signing works. Writes `compliance/attestations/<name>.yaml` dated today (UTC), expiring after the control's freshness window (365 days; access review 90), and commits that file alone. The three controls (UH-POL-01, UH-IR-01, UH-AC-01) read NOT_ASSESSED until then, and FAIL once an attestation expires.
+
+## Enforcing mode (not on)
+
+`unheaded-baseline` has an enforcing code path behind a flapping breaker and a package preinst gate, but every host's
+mode file says `audit`. Turning it on needs a 7-day audit soak (`docs/compliance/enforcing-soak.md`:
+`unheaded_baseline_would_enforce_total` stays 0), Stevie's answers to E-E in
+`docs/compliance/privacy/decisions-for-stevie.md`, and a root drop-in measured on east first. The LICH-017 campaign
+(`go test ./tomb/lich/LICH-017-baseline-agent/...`) covers forged, replayed and soak-forged reports.

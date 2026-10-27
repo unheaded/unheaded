@@ -38,7 +38,8 @@ DNS-like hierarchy with subscription mirroring:
 - **Rate limit is per client IP** (`--rate-limit`, 100/s), not per connection: it keyed on IP:port until 2026-10-27, so reconnecting got a fresh bucket.
 - **CORS:** with the default allow-list `*` the answer is `Access-Control-Allow-Origin: *` without credentials; a named list echoes only a matching origin, with credentials. Until 2026-10-27 `*` reflected any origin with `Allow-Credentials: true`.
 - **`unheaded_chat_streams_active`** counts gRPC topic streams under `room_id="_topic_streams"` as well as legacy room streams (it used to read 0 with every service subscribed).
-- **Topic signing:** `config.*` topics require ML-DSA-65 signatures ([[Wotan Topic Signing|Wotan-Topic-Signing]]).
+- **Topic signing:** `config.`, `drift.`, `audit.`, `alerts.critical.`, `system.health.consensus.` and `system.health.remediate.` topics require ML-DSA-65 signatures ([[Wotan Topic Signing|Wotan-Topic-Signing]]); keys are enrolled per deployment.
+- **Health topics:** every discovered service reports itself on `system.health.reports` (unsigned: everyone votes); Akira publishes the verdict on `system.health.consensus` and, on CRITICAL or PANIC, one advisory `system.health.remediate` message (signed; nothing acts on it yet).
 - **Durable store (optional):** Postgres via `--store-conn-str` (runbooks pass `$WOTAN_STORE_CONN_STR`), with no default and `sslmode=require` against The Well.
 
 ## Endpoints
