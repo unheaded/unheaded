@@ -26,6 +26,13 @@ LimitNOFILE=8192
 # comes from `unheaded-keygen -owner unheaded-dashboard dashboard-backend` (root, once per host).
 Environment=AUTH_KEY_FILE=/etc/unheaded/keys/dashboard-backend.key
 Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+# S-IRON-GATE Phase 6: the browser's backend-for-frontend (pkg/bff, ADR-103
+# section 4): login against the host's issuer (unheaded-auth.service, which must
+# list dashboard-backend in -audiences), HttpOnly session cookie; unheaded-cli
+# may call with its service token.
+Environment=AUTH_ENABLED=true
+Environment=AUTH_ISSUER_URL=https://%H:19020
+Environment=AUTH_ALLOW_CALLERS=unheaded-cli
 ReadOnlyPaths=-/etc/unheaded/trust.d
 
 User=unheaded-dashboard
