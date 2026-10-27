@@ -1,5 +1,7 @@
 # S24 HANDOFF — BATTLE ORDERS FOR NEXT AGENT
 
+> **Correction (2026-10-27).** Shield HMAC/retry/GOAWAY checks are stubbed at ebpf/shield-ebpf/src/main.rs:268-273,516-544 (2026-10-27); code fix is M-180, S-TRUE-WIRE. The "WIRED" claims below are false.
+
 **Date**: 2026-02-20
 **Session**: S24 (The Aggressive Multi-Agent Code Sprint)
 **Branch**: `main`

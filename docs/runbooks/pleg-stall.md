@@ -1,5 +1,7 @@
 # Runbook: Node NotReady / PLEG Stall
 
+> **Reference design for a Kubernetes/Vault deployment that is not running (decision 43 pending).** Live runbooks are `runbooks/**/*.yaml`.
+
 ## Symptoms
 - Node flapping NotReady/Ready
 - Pod eviction storms

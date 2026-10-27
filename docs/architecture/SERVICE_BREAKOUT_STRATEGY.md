@@ -1,6 +1,6 @@
 # Service Breakout Strategy
 
-**Status:** PLANNED (Post-Alpha)
+**Status:** RETIRED under ADR-047 (2026-10-27 note). Still one Go module; extraction order and which tools leave the monorepo are framed by ADR-047 (K8s honest assessment + extractable tools), not by this plan.
 **Target:** After stable Alpha release
 **Author:** Architect + Micromanager
 **Last Updated:** February 3, 2026

@@ -1,5 +1,7 @@
 # Dashboard Gap Analysis — S41
 
+> **Historical (S41, 2026-02-24).** A point-in-time comparison; the dashboard has changed since (live view, host selector) and the gaps listed were not re-checked.
+
 **Date**: 2026-02-24
 **Compared against**: Coroot, Hubble (Cilium), Pixie, Grafana
 

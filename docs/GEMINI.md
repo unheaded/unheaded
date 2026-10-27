@@ -1,5 +1,7 @@
 # GEMINI.md - Unheaded Alpha Development Guide
 
+> **Snapshot (2026-01) of the agent guide.** `CLAUDE.md` at the repo root is the maintained version; the commands below were corrected against the Makefile on 2026-10-27, the rest is not maintained.
+
 **For:** Gemini AI agents working on Unheaded
 **Updated:** January 26, 2026
 **Project:** github.com/unheaded/unheaded
@@ -481,11 +483,11 @@ func TestTimelineAPI(t *testing.T) {
 **Browser → Gateway → Services → Wotan:**
 
 ```bash
-# Start all containers
-make containers-up
+# Start the compose stack
+make dev
 
 # Run E2E tests
-go test ./tests/e2e/... -tags=e2e
+make test-e2e   # go test -race ./tests/e2e/...
 
 # Tests should verify:
 # - HTTP/3 connection
@@ -517,30 +519,24 @@ make all
 ### Testing
 
 ```bash
-# Unit tests
+# Go + Rust tests
 make test
-
-# Integration tests
-make test-integration
 
 # E2E tests
 make test-e2e
 
-# All tests
-make test-all
+# Every target with its description
+make help
 ```
 
 ### Local Development
 
 ```bash
-# Start development environment
+# Start development environment (docker compose up -d)
 make dev
 
-# This starts:
-# - Wotan (docker)
-# - PostgreSQL (docker)
-# - Services (locally)
-# - Dashboard (http://localhost:8080)
+# Dashboard: http://localhost:20000
+# Kanban:    http://localhost:20001
 ```
 
 ### Deployment

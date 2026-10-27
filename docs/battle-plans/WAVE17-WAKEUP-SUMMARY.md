@@ -40,6 +40,8 @@ records. **18 commits total this session.**
 
 ## Commits this overnight session (20 in WAVE17)
 
+Paths under `docs/internal/` in the subjects below were rewritten to `docs/archive/internal-2026/` on 2026-10-27 (archive move); the commits themselves name the old path.
+
 ```
 0c631236 wiki: regenerate ADR-Index.md from canonical (21 → 65 entries)
 b17d0b84 docs: WAVE17 wake-up summary — append Phase 7 follow-on (3 commits)
@@ -51,11 +53,11 @@ bba0acb1 WAVE17: K8s substrate proven on kind (9/9 services running)
 6e6dfd07 cmd/tools/: scaffold the 3 P0 tools (Mímir / Anamnesis Lite / Zhen On-Prem)
 3edac195 doctrine: amend docs/philosophy/BRAINSTORM-WITNESS-FABRIC.md post-c6108fb8
 3b07db2f doctrine: amend references/battle-plan-S76-round-table.md post-c6108fb8
-5dd53254 doctrine: amend docs/internal/battle-plans/battle-plan-future.md post-c6108fb8
+5dd53254 doctrine: amend docs/archive/internal-2026/battle-plans/battle-plan-future.md post-c6108fb8
 dc6324f9 doctrine: amend docs/adr/ADR-053-hybrid-claude-zhenai-workflow-templates.md post-c6108fb8
 cb11f521 doctrine: amend docs/adr/ADR-031-hybrid-model-handoff.md post-c6108fb8
 0ba796b7 doctrine: amend docs/adr/ADR-004-no-external-deps-policy.md post-c6108fb8
-20101173 doctrine: amend docs/internal/battle-plans/S-PQC-battle-plan.md post-c6108fb8
+20101173 doctrine: amend docs/archive/internal-2026/battle-plans/S-PQC-battle-plan.md post-c6108fb8
 26f2acd2 doctrine: amend skills/unheaded-captain-SKILL-UPDATE.md (continued) post-c6108fb8
 a3c0e329 doctrine: amend skills/unheaded-captain-SKILL-UPDATE.md post-c6108fb8
 01981fa8 doctrine: amend docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md post-c6108fb8
@@ -127,10 +129,10 @@ wrong):
   a second pass after your *"no runway no revenue oss - free to use"*
   feedback explicitly removed the runway/CFO archetype + revenue
   vocabulary.
-- docs/internal/battle-plans/S-PQC-battle-plan.md
+- docs/archive/internal-2026/battle-plans/S-PQC-battle-plan.md
 - ADR-004 (no-external-deps), ADR-031 (hybrid-model-handoff), ADR-053
   (Claude-Zhenai workflow templates)
-- docs/internal/battle-plans/battle-plan-future.md
+- docs/archive/internal-2026/battle-plans/battle-plan-future.md
 - references/battle-plan-S76-round-table.md
 - docs/philosophy/BRAINSTORM-WITNESS-FABRIC.md
 

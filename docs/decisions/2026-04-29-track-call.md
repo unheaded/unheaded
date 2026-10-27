@@ -19,27 +19,29 @@
 
 ## Decision
 
-**Chosen track**: ___ (A / B / C)
+> Filled in retrospectively on 2026-10-27 from the 2026-05-11 shift report (`b84deb56`) and `references/timeline.md`; the template was never filled at the time.
 
-**Locked at**: <YYYY-MM-DD HH:MM TZ>
+**Chosen track**: C (hybrid, with the kingdom-state correction)
+
+**Locked at**: 2026-05-11
 
 **Locked by**: Stevie
 
-**WAVE13 Phase 2 verdict at time of lock**: ___ (SHIP / RETRAIN / RANK-UP / DATA-FIX / NOT-YET-RUN)
+**WAVE13 Phase 2 verdict at time of lock**: RETRAIN (2026-04-28)
 
 ---
 
 ## Rationale
 
-(1–2 paragraphs — what made this the right call given Stevie's bandwidth, VC posture, runway, and personal priorities)
-
-> <fill in>
+> The Track A/B/C framing assumed the repo was private; it had been public for over a month. Track C in the corrected frame: keep the repo public, prioritise hardening, no external-announcement push (shift report `b84deb56`, "Captain Track A/B/C — CALLED").
 
 ---
 
 ## Propagation status
 
 After locking the track above, walk the matching checklist in `2026-04-29-track-call-options.md` Section 5:
+
+> Never walked (2026-10-27): the Track C propagation docs were not produced, and the LoRA path they would have scheduled is now Sprint 2 Phase 12, deferred on data.
 
 - [ ] Track-specific timeline.md edits committed
 - [ ] Track-specific battle-plan.md re-ranking committed
@@ -62,4 +64,4 @@ If Stevie revises this decision later, append below — do NOT edit the locked e
 
 ---
 
-*Track call decision template forged 2026-04-27 from Cowork-on-Macbook. Awaiting Stevie's lock.*
+*Track call decision template forged 2026-04-27 from Cowork-on-Macbook. Locked 2026-05-11 (Track C); recorded here 2026-10-27.*

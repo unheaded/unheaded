@@ -1,5 +1,7 @@
 # Compliance Matrix Status Enum — Formal Taxonomy
 
+> **Snapshot of 2026-05-06.** Rows citing Suricata, the legacy compliance engine, DataIsolationConfig or the Sentinel daemon refer to code deleted since (E1 sweep 2026-10-26). Re-mapping is M-108 (S-WELL-SPRING).
+
 **Date:** 2026-05-06
 **Author:** Marshal (post-shift extension, F9 of S1 remediation)
 **Authority:** Resolves scrutiny finding **S1** in `01-scrutiny-2026-05-06.md` ("the status enum is logically corrupt").
@@ -20,7 +22,7 @@ The kingdom commits: **after this taxonomy is locked, no new label may be introd
 
 ## 1. Formal Label Set
 
-There are **twelve** terminal labels, organized into five families. STUCK / CAPTURED / INTENTIONAL / ENG-DECLARED / CONFIRMED-CLEAN — labels enumerated in S1 as "appearing across the matrix family" — were investigated and found to **not appear inside matrix rows**. STUCK is a Skip-Protocol convention belonging to battle plans (e.g. `docs/internal/battle-plans/S-WEST-BOOTSTRAP-battle-plan.md` line 25). The matrix family inherits no obligation to support those terms; this taxonomy excludes them.
+There are **twelve** terminal labels, organized into five families. STUCK / CAPTURED / INTENTIONAL / ENG-DECLARED / CONFIRMED-CLEAN — labels enumerated in S1 as "appearing across the matrix family" — were investigated and found to **not appear inside matrix rows**. STUCK is a Skip-Protocol convention belonging to battle plans (e.g. `docs/archive/internal-2026/battle-plans/S-WEST-BOOTSTRAP-battle-plan.md` line 25). The matrix family inherits no obligation to support those terms; this taxonomy excludes them.
 
 ### Family A — Coverage claims (kingdom owns the control)
 

@@ -316,8 +316,9 @@ by the migration itself.
   dashboard-backend. The Wotan client's dead-letter and retry counters are
   invisible in every Tier 1 service. (**Correction:** this first said the same
   of `pkg/httputil` in captain and timeguru. Its metrics are created only by
-  `NewServiceMetrics`, which no production code calls, so they exist in no
-  binary at all.)
+  `NewServiceMetrics`, which no production code called at the time, so they
+  existed in no binary. Since session 4 (2026-09-28) 16 production binaries
+  call it; note refreshed 2026-10-27.)
 
 **Revised steps 4–5:**
 
@@ -503,5 +504,6 @@ record. **Step 5 is complete for every live binary.**
 
 **ADR-094 is complete.** What it leaves behind: the eight unused PQC
 metrics (wire them up or delete them), pkg/secrets' unserved metrics,
-`health.Aggregator` and `httputil.NewServiceMetrics` never being called, and
+`health.Aggregator` never being called (`httputil.NewServiceMetrics` has 16
+production callers since 2026-09-28), and
 the live-path inventory's blind spot.

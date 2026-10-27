@@ -27,9 +27,9 @@
 |---|------------|-------|----------|
 | 1 | §5.2 | `hop_count` semantics: RFC=decrement/TTL, code=increment/counter | 2 |
 | 2 | §5.3 | Flag bits 0-1: Go uses FlagK0/K1 for Kingdom Mode; RFC reserves bit 0 (MUST be zero), bit 1=CUSTOM | 2 |
-| 3 | §10.1 | AnamnesisEvent: code=32B, RFC=64B (missing output_monad, wotan_addr/value) | 1 |
+| 3 | §10.1 | AnamnesisEvent: code=32B, RFC=64B (missing output_monad, wotan_addr/value). **Obsolete (2026-10-27, MON-04):** foundation-06 dropped the 64 B struct; the 32 B event has a parity test in `pkg/protocol/bpfschema` | ~~1~~ |
 | 4 | §10.2 | Event type codes: code uses compact 0x01-0x05, RFC uses sparse 0x00-0x08 | 2 |
-| 5 | N/A | FlowCancelValue: Go=24B (aligned), Rust=20B (packed) — BPF map r/w will corrupt | 1 |
+| 5 | N/A | FlowCancelValue: Go=24B (aligned), Rust=20B (packed) — BPF map r/w will corrupt. **Obsolete (2026-10-27, MON-06):** no Rust `FlowCancel` struct remains under `ebpf/`; `TestFlowCancelValueSize` guards the Go side | ~~1~~ |
 | 6 | §14 | Chaos modes: code 0x02=Delay vs RFC 0x02=VALUE_MUTATE (semantic mismatch) | 3 |
 
 ### Not Implemented (Deferred)
@@ -37,7 +37,7 @@
 - §12: Kingdom Mode address reclamation (explicitly deferred in RFC)
 - §13: Post-Quantum Cryptographic Identity Binding (PQC)
 - §5.2: Extended Register Option / inverse mask (companion draft)
-- §11: Wotan BPF helpers (bpf_wotan_read/write)
+- §11: Wotan BPF helpers (bpf_wotan_read/write). **Abandoned (2026-10-27, MON-21):** monad-cpu-ebpf uses in-program accessors (`mem_read_word`/`mem_write_word` and byte/half variants); the spec text should say "in-program accessor" (RFC Editor)
 
 ### Action Items
 

@@ -1603,7 +1603,7 @@ The Unheaded Protocol API is the application-facing interface to the kernel-resi
 All API requests require an API key in the `X-API-Key` header:
 
 ```bash
-curl -H "X-API-Key: your-api-key-here" http://localhost:17000/api/v1/monad/decode
+curl -H "X-API-Key: ${UNHEADED_API_KEY:?}" http://localhost:17000/api/v1/monad/decode
 ```
 
 ## Rate Limiting

@@ -2,53 +2,86 @@
 
 ## Overview
 
-This document provides a complete port reference for all Unheaded services, including WAN-exposed vs. internal-only classifications, firewall zone definitions, protocol requirements, and per-service firewall rules.
+Port reference for Unheaded. **`pkg/ports/ports.go` is the single source of truth**;
+the registry below was generated from it on 2026-10-27 (one row per constant).
+Every Unheaded service listens in the Doom Range (16666-26666). Ports owned by
+compose files rather than `pkg/ports` (haproxy edge 21080/21443/21404 and internal
+21081/21405, the nginx sidecars, the monitoring stack's Prometheus 9090 and
+Alertmanager 9093) are listed in CLAUDE.md's Port Registry and their compose files.
 
-The **Kingdom Doom Port Range** is **16666–26666**, with sub-allocations:
-- **50051–50067**: gRPC service ports (internal only)
-- **8080**: Dashboard backend (internal only)
-- **8443**: Dashboard HTTPS (internal only)
-- **443**: Gateway HTTPS (WAN-exposed)
-- **80**: HTTP redirect (WAN-exposed)
-- **51820**: WireGuard (WAN-exposed)
+Nothing below is WAN-exposed by default. The gRPC range 50051-50067 and the
+8080/8443 dashboard ports that earlier versions of this file listed were never
+assigned in the tree and were removed on 2026-10-27.
 
 ---
 
-## 1. Master Port Registry
+## 1. Master Port Registry (generated from `pkg/ports/ports.go`)
 
-### All Services at a Glance
+| Constant (`pkg/ports`) | Port | Tier (comment in ports.go) | Note |
+|---|---|---|---|
+| `DoomBridge` | 16666 | Infrastructure Tier (16666-16999) |  |
+| `DoomGoInjector` | 16667 | Infrastructure Tier (16666-16999) |  |
+| `TraceCollectorHTTP` | 16670 | Infrastructure Tier (16666-16999) |  |
+| `TraceCollectorMetrics` | 16671 | Infrastructure Tier (16666-16999) |  |
+| `DaemonHTTP` | 17000 | Control Plane (17000-17999) |  |
+| `DaemonGRPC` | 17001 | Control Plane (17000-17999) |  |
+| `CLIServer` | 17010 | Control Plane (17000-17999) |  |
+| `ProtocolAPIREST` | 17100 | Control Plane (17000-17999) |  |
+| `ProtocolAPIGRPC` | 17101 | Control Plane (17000-17999) |  |
+| `WotanHTTP` | 18000 | Wotan — Message Bus (18000-18099) |  |
+| `WotanGRPC` | 18001 | Wotan — Message Bus (18000-18099) |  |
+| `Timeguru` | 19000 | Core Services (19000-19999) |  |
+| `Architect` | 19001 | Core Services (19000-19999) |  |
+| `Captain` | 19002 | Core Services (19000-19999) |  |
+| `Micromanager` | 19003 | Core Services (19000-19999) |  |
+| `Monad` | 19004 | Core Services (19000-19999) |  |
+| `Sophia` | 19005 | Core Services (19000-19999) |  |
+| `Cuirass` | 19006 | Core Services (19000-19999) |  |
+| `KeyMgmt` | 19007 | Core Services (19000-19999) |  |
+| `PQCVerifier` | 19008 | Core Services (19000-19999) |  |
+| `Shield` | 19009 | Core Services (19000-19999) | WAF / Zero-Trust gateway daemon (services/shield) |
+| `Firewall` | 19010 | Monad CPU Application Services (19010-19019) |  |
+| `Sword` | 19011 | Monad CPU Application Services (19010-19019) | deploy service (cmd/sword); was Canary, folded into Sword (S-REAL-STEEL D-08) |
+| `Chaos` | 19012 | Monad CPU Application Services (19010-19019) |  |
+| `QoS` | 19013 | Monad CPU Application Services (19010-19019) |  |
+| `BackupMgr` | 19014 | Monad CPU Application Services (19010-19019) |  |
+| `Compliance` | 19015 | Monad CPU Application Services (19010-19019) |  |
+| `NFV` | 19016 | Monad CPU Application Services (19010-19019) |  |
+| `VersionSvc` | 19017 | Monad CPU Application Services (19010-19019) |  |
+| `Anomaly` | 19018 | Monad CPU Application Services (19010-19019) |  |
+| `TelemetryAgg` | 19019 | Monad CPU Application Services (19010-19019) |  |
+| `Akira` | 19100 | Kingdom health (19100-19109) | consensus health daemon (ADR-029) |
+| `KEVPoller` | 19120 | Kingdom health (19100-19109) | CISA KEV catalog poller (ADR-055) |
+| `AlertMailer` | 19130 | Alerting (19130-19139) | alert-mailer: Alertmanager webhook to capped email (ADR-100) |
+| `DashboardBackend` | 20000 | Applications (20000-20999) |  |
+| `KanbanApp` | 20001 | Applications (20000-20999) |  |
+| `WikiServer` | 20002 | Applications (20000-20999) |  |
+| `VLLMDeepSeek` | 20100 | AI Model Stack — Sophia's Eye (20100-20199) |  |
+| `VLLMQwen` | 20101 | AI Model Stack — Sophia's Eye (20100-20199) |  |
+| `Qdrant` | 20102 | AI Model Stack — Sophia's Eye (20100-20199) |  |
+| `BGEM3` | 20104 | AI Model Stack — Sophia's Eye (20100-20199) |  |
+| `SophiaEye` | 20105 | AI Model Stack — Sophia's Eye (20100-20199) |  |
+| `AIWebUI` | 20106 | AI Model Stack — Sophia's Eye (20100-20199) |  |
+| `GatewayHTTP` | 21000 | Gateway (21000-21443) |  |
+| `GatewayHTTPS` | 21443 | Gateway (21000-21443) |  |
+| `CertGen` | 22000 | Utilities (22000-22099) |  |
+| `CustomerStart` | 26000 | Customer Apps (26000-26666) |  |
+| `CustomerEnd` | 26666 | Customer Apps (26000-26666) |  |
+| `UPCTtyBridge` | 26100 | Customer Apps (26000-26666) |  |
+| `UPCCartridgeMetrics` | 26610 | Customer Apps (26000-26666) |  |
 
-| Service | Port | Protocol | Direction | WAN Exposed | IPv4 | IPv6 | FirewallZone | Notes |
-|---------|------|----------|-----------|-------------|------|------|--------------|-------|
-| **HTTP Redirect** | 80 | TCP | Inbound | YES | Yes | Yes | WAN | Redirect to HTTPS (301/308) |
-| **HTTPS Gateway** | 443 | TCP | Inbound | YES | Yes | Yes | WAN | TLS termination (HAProxy/squid) |
-| **WireGuard Tunnel** | 51820 | UDP | Bidirectional | YES | Yes | Yes | WAN/VPN | Host-to-host east-west VPN |
-| **gRPC Svc 1** | 50051 | TCP | Bidirectional | NO | Yes | Yes | Internal | Accounting service |
-| **gRPC Svc 2** | 50052 | TCP | Bidirectional | NO | Yes | Yes | Internal | Treasury service |
-| **gRPC Svc 3** | 50053 | TCP | Bidirectional | NO | Yes | Yes | Internal | Ledger service |
-| **gRPC Svc 4** | 50054 | TCP | Bidirectional | NO | Yes | Yes | Internal | Guardian service |
-| **gRPC Svc 5** | 50055 | TCP | Bidirectional | NO | Yes | Yes | Internal | Sentinel service |
-| **gRPC Svc 6** | 50056 | TCP | Bidirectional | NO | Yes | Yes | Internal | Herald service |
-| **gRPC Svc 7** | 50057 | TCP | Bidirectional | NO | Yes | Yes | Internal | Archivist service |
-| **gRPC Svc 8** | 50058 | TCP | Bidirectional | NO | Yes | Yes | Internal | Chronicler service |
-| **gRPC Svc 9** | 50059 | TCP | Bidirectional | NO | Yes | Yes | Internal | Philosopher service |
-| **gRPC Svc 10** | 50060 | TCP | Bidirectional | NO | Yes | Yes | Internal | Scribe service |
-| **gRPC Svc 11** | 50061 | TCP | Bidirectional | NO | Yes | Yes | Internal | Keeper service |
-| **gRPC Svc 12** | 50062 | TCP | Bidirectional | NO | Yes | Yes | Internal | Sage service |
-| **gRPC Svc 13** | 50063 | TCP | Bidirectional | NO | Yes | Yes | Internal | Oracle service |
-| **gRPC Svc 14** | 50064 | TCP | Bidirectional | NO | Yes | Yes | Internal | Mystic service |
-| **gRPC Svc 15** | 50065 | TCP | Bidirectional | NO | Yes | Yes | Internal | Harbinger service |
-| **gRPC Svc 16** | 50066 | TCP | Bidirectional | NO | Yes | Yes | Internal | Emissary service |
-| **gRPC Svc 17** | 50067 | TCP | Bidirectional | NO | Yes | Yes | Internal | Witness service |
-| **Dashboard BE** | 8080 | TCP | Bidirectional | NO | Yes | Yes | Internal | Admin dashboard backend |
-| **Dashboard HTTPS** | 8443 | TCP | Bidirectional | NO | Yes | Yes | Internal | Admin dashboard frontend (HTTPS) |
-| **DNS** | 53 | TCP/UDP | Bidirectional | NO | Yes | Yes | Internal | OPNsense/IPFire unbound DNS |
-| **mDNS Discovery** | 5353 | UDP | Bidirectional | NO | Yes | Yes | LAN | Link-local service discovery |
-| **VXLAN Overlay** | 4789 | UDP | Bidirectional | NO | Yes | Yes | Internal | Container overlay networking |
+Regenerate this table from the `const` block of `pkg/ports/ports.go` whenever a
+constant is added or changed.
 
 ---
 
 ## 2. Detailed Port Descriptions
+
+> **Historical design (2026-02-26).** Sections 2-7 below are the original
+> firewall design for HOST-A. Wherever they still name 50051-50067, 8080 or 8443,
+> read the registry above instead: those ports were never used. The OPNsense
+> ruleset was not deployed as written.
+
 
 ### 2.1 WAN-Exposed Ports
 
@@ -129,97 +162,6 @@ The **Kingdom Doom Port Range** is **16666–26666**, with sub-allocations:
   ```
 - **Key Rotation**: Every 30 days (Anamnesis-managed)
 - **Replay Protection**: Enabled (256-entry table, 64 second window)
-
----
-
-### 2.2 Internal-Only Ports (Blocked at WAN)
-
-#### Ports 50051–50067/TCP — gRPC Service Ports
-
-- **Service**: Inter-service gRPC communication (17 services)
-- **Visibility**: Internal only (blocked at WAN firewall)
-- **Protocol**: gRPC over HTTP/2
-- **TLS**: Mutual TLS (mTLS) between services
-- **Authentication**: Service-to-service mutual certificates
-- **Port Allocation**:
-
-| Port | Service | Role |
-|------|---------|------|
-| 50051 | Accounting | Transaction ledger |
-| 50052 | Treasury | Fund management |
-| 50053 | Ledger | State database |
-| 50054 | Guardian | Authorization |
-| 50055 | Sentinel | Monitoring/metrics |
-| 50056 | Herald | Event publishing |
-| 50057 | Archivist | Archive management |
-| 50058 | Chronicler | Event logging |
-| 50059 | Philosopher | Config/consensus |
-| 50060 | Scribe | Data serialization |
-| 50061 | Keeper | Secret management |
-| 50062 | Sage | Machine learning models |
-| 50063 | Oracle | Data oracle service |
-| 50064 | Mystic | Cryptographic operations |
-| 50065 | Harbinger | Predictive analytics |
-| 50066 | Emissary | External API gateway |
-| 50067 | Witness | Observability/tracing |
-
-- **Firewall Rule** (OPNsense):
-  ```pf
-  # Block gRPC ports from WAN (explicit deny)
-  block in quick on $wan_if inet proto tcp to ($wan_ip) port 50051:50067 \
-      comment "Block internal gRPC from WAN"
-  block in quick on $wan_if inet6 proto tcp to ($wan_ipv6) port 50051:50067 \
-      comment "Block internal gRPC from WAN (IPv6)"
-  ```
-- **Firewall Rule** (IPFire):
-  ```nftables
-  # Block gRPC from WAN
-  iif "eth0" tcp dport 50051:50067 drop comment "Block internal gRPC from WAN"
-  ```
-- **Internal Firewall Rule** (allow LAN ↔ LAN):
-  ```pf
-  # OPNsense: Allow gRPC between containers
-  pass in on $lan_if inet proto tcp from 10.20.0.0/16 to 10.20.0.0/16 \
-      port 50051:50067 comment "Allow internal gRPC"
-  ```
-
-#### Port 8080/TCP — Dashboard Backend
-
-- **Service**: Admin dashboard API server
-- **Visibility**: Internal only (blocked at WAN firewall)
-- **Protocol**: HTTP/REST
-- **Authentication**: JWT tokens, OAuth2
-- **Firewall Rule** (OPNsense):
-  ```pf
-  block in quick on $wan_if inet proto tcp to ($wan_ip) port 8080 \
-      comment "Block dashboard backend from WAN"
-  ```
-- **Firewall Rule** (IPFire):
-  ```nftables
-  iif "eth0" tcp dport 8080 drop comment "Block dashboard from WAN"
-  ```
-- **Allowed From**: LAN containers only
-  ```pf
-  # OPNsense
-  pass in on $lan_if inet proto tcp from 10.20.0.0/16 to 10.20.0.1 \
-      port 8080 comment "Dashboard from LAN"
-  ```
-
-#### Port 8443/TCP — Dashboard HTTPS
-
-- **Service**: Admin dashboard frontend (web UI)
-- **Visibility**: Internal only (blocked at WAN firewall)
-- **Protocol**: HTTPS
-- **TLS**: Optional (may use self-signed certificates)
-- **Firewall Rule** (OPNsense):
-  ```pf
-  block in quick on $wan_if inet proto tcp to ($wan_ip) port 8443 \
-      comment "Block dashboard HTTPS from WAN"
-  ```
-- **Firewall Rule** (IPFire):
-  ```nftables
-  iif "eth0" tcp dport 8443 drop comment "Block dashboard HTTPS from WAN"
-  ```
 
 ---
 

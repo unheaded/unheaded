@@ -1,5 +1,7 @@
 # Runbook: eBPF Collector Failure
 
+> **Reference design for a Kubernetes/Vault deployment that is not running (decision 43 pending).** Live runbooks are `runbooks/**/*.yaml`.
+
 ## Symptoms
 - EbpfCollectorDown alert fires
 - Dashboard packet-flow stops updating

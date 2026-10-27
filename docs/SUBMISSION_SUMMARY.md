@@ -75,13 +75,15 @@ The following 16 findings were identified and resolved in earlier phases of the 
 
 ## Files Ready for Upload
 
+Since `4db0bbde` every draft is reset to `-00` for the first Datatracker submission and lives in `ietf-submission/` (`.md` source plus generated `.xml`); nothing has been submitted yet (2026-10-27):
+
 ```
-docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md
-docs/protocol/draft-bellis-unheaded-sophia-dictionary-03.md
-docs/protocol/draft-bellis-unheaded-wotan-memory-03.md
-docs/protocol/draft-bellis-unheaded-mbc-isa-00.md
-docs/protocol/draft-bellis-unheaded-shim-00.md
-docs/protocol/draft-bellis-unheaded-pqc-authentication-00.md
+ietf-submission/draft-bellis-unheaded-protocol-foundation-00.md
+ietf-submission/draft-bellis-unheaded-sophia-dictionary-00.md
+ietf-submission/draft-bellis-unheaded-wotan-memory-00.md
+ietf-submission/draft-bellis-unheaded-mbc-isa-00.md
+ietf-submission/draft-bellis-unheaded-shim-00.md
+ietf-submission/draft-bellis-unheaded-pqc-authentication-00.md
 ```
 
 ---

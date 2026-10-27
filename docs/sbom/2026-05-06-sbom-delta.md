@@ -78,8 +78,8 @@ Aggregating `detected_license_expression` across the 3,404-file scan:
 
 ```
 RELEASE_CHECKLIST.md, docs/CI-CD-STRATEGY-S77.md, docs/compliance/LICENSE-AUDIT.md,
-docs/internal/battle-plans/BATTLE-PLAN-S77-AGE2-ACCELERATION.md,
-docs/internal/battle-plans/S37-LICENSE-SBOM-BATTLE-PLAN.md,
+docs/archive/internal-2026/battle-plans/BATTLE-PLAN-S77-AGE2-ACCELERATION.md,
+docs/archive/internal-2026/battle-plans/S37-LICENSE-SBOM-BATTLE-PLAN.md,
 docs/legal/PQC-DEPENDENCY-LICENSING-ASSESSMENT.md,
 docs/planning/RELEASE_CHECKLIST.md,
 LICENSES/sbom-reports/SBOM-CONSOLIDATED.md,

@@ -12,90 +12,90 @@ The Unheaded Kingdom is an ensemble system built around a constellation of speci
 - Owns: Pi-hole deployment, device inventory, IoT security, firewall management, DNS log analysis, threat detection, CVE triage, patch management
 - Part of the Daily Adversarial Loop (blue team)
 
-**BlackMage** — `.skills/skills/unheaded-blackmage/SKILL.md`
+**BlackMage** — `~/.claude/skills/unheaded-blackmage/SKILL.md`
 - The dark mage, offensive security expert, adversary
 - Breaks things so the Kingdom learns where the cracks are
 - Creator of the Lich — automated adversary that fuzzes continuously
 - Owns: Offensive testing, vulnerability assessment, fuzzing campaigns, red team exercises, exploit development
 - Part of the Daily Adversarial Loop (red team)
 
-**MoatGhost** — `.skills/skills/unheaded-moatghost/SKILL.md`
+**MoatGhost** — `~/.claude/skills/unheaded-moatghost/SKILL.md`
 - Compliance and certification expert
 - Audits security posture against frameworks (PCI-DSS, HIPAA, ISO 27001, SOC 2)
 - Owns: Compliance mapping, audit documentation, certification tracking
 
-**Architect** — `.skills/skills/unheaded-architect/SKILL.md`
+**Architect** — `~/.claude/skills/unheaded-architect/SKILL.md`
 - System design and security architecture
 - Designs defensive structures, isolation boundaries, defense-in-depth improvements
 - Owns: Architecture design, system modeling, defensive hardening
 
-**Developer** — `.skills/skills/unheaded-developer/SKILL.md`
+**Developer** — `~/.claude/skills/unheaded-developer/SKILL.md`
 - Implementation and code hardening
 - Translates security findings into hardened code
 - Owns: Code implementation, regression testing, security fixes
 
 ### Operations & Coordination
 
-**ComputerMancer** — `.skills/skills/unheaded-computermancer/SKILL.md`
+**ComputerMancer** — `~/.claude/skills/unheaded-computermancer/SKILL.md`
 - Unheaded Protocol Computer (UPC) specialist
 - Designs and develops the MBC bytecode system, Dream Ladder, Shim pipeline
 - Works with BlackMage on MBC fuzzing and bytecode safety
 
-**Captain** — `.skills/skills/unheaded-captain/SKILL.md`
+**Captain** — `~/.claude/skills/unheaded-captain/SKILL.md`
 - Leadership, direction, business context
 - Makes final calls on risk acceptance and customer-facing security narrative
 - Owns: Strategic direction, milestone planning, risk acceptance decisions
 
-**Micromanager** — `.skills/skills/unheaded-micromanager/SKILL.md`
+**Micromanager** — `~/.claude/skills/unheaded-micromanager/SKILL.md`
 - Project tracking, priority scheduling, QA gate integration
 - Ensures security findings jump the queue appropriately
 - Owns: Sprint planning, task prioritization, QA integration
 
-**Calendar** — `.skills/skills/unheaded-calendar/SKILL.md`
+**Calendar** — `~/.claude/skills/unheaded-calendar/SKILL.md`
 - Event scheduling, reminder orchestration, time management
 - Coordinates daily adversarial loop execution
 
-**Warmonger** — `.skills/skills/unheaded-warmonger/SKILL.md`
+**Warmonger** — `~/.claude/skills/unheaded-warmonger/SKILL.md`
 - Battle planning and offensive campaigns
 - Coordinates red team exercises and adversarial testing
 
-**Marshal** — `.skills/skills/unheaded-marshal/SKILL.md`
+**Marshal** — `~/.claude/skills/unheaded-marshal/SKILL.md`
 - Incident response and crisis management
 - Coordinates response when attacks succeed or issues are critical
 
 ### Research & Knowledge
 
-**Scientist** — `.skills/skills/unheaded-scientist/SKILL.md`
+**Scientist** — `~/.claude/skills/unheaded-scientist/SKILL.md`
 - Formal verification and theoretical analysis
 - Designs verification tests, proves safety properties
 
-**RFC Editor** — `.skills/skills/unheaded-rfceditor/SKILL.md`
+**RFC Editor** — `~/.claude/skills/unheaded-rfceditor/SKILL.md`
 - Protocol specification and standards work
 - IETF Internet-Draft author, RFC alignment, spec validation
 
-**Librarian** — `.skills/skills/unheaded-librarian/SKILL.md`
+**Librarian** — `~/.claude/skills/unheaded-librarian/SKILL.md`
 - Documentation, knowledge management, reference systems
 - Maintains the Tomb of Knowledge and protocol documentation
 
-**Lore** — `.skills/skills/unheaded-lore/SKILL.md`
+**Lore** — `~/.claude/skills/unheaded-lore/SKILL.md`
 - Kingdom mythology, naming conventions, lore consistency
 - Ensures naming is mythologically consistent across the system
 
 ### Specialized Roles
 
-**Barrister** — `.skills/skills/unheaded-barrister/SKILL.md`
+**Barrister** — `~/.claude/skills/unheaded-barrister/SKILL.md`
 - Legal review, licensing audit, compliance frameworks
 - IP audit, copyright/trademark verification, GPL compliance
 
-**Busboy** — `.skills/skills/unheaded-busboy/SKILL.md`
+**Busboy** — `~/.claude/skills/unheaded-busboy/SKILL.md`
 - Cleanup, maintenance, debt reduction
 - Code cleanup, documentation maintenance, technical debt tracking
 
-**Round Table** — `.skills/skills/unheaded-round-table/SKILL.md`
+**Round Table** — `~/.claude/skills/unheaded-round-table/SKILL.md`
 - Council of peers, milestone reviews, collective decision making
 - Used for major decisions at age transitions and protocol milestones
 
-**Kingdom** — `.skills/skills/unheaded-kingdom/SKILL.md`
+**Kingdom** — `~/.claude/skills/unheaded-kingdom/SKILL.md`
 - Meta-skill, system overview, cross-skill coordination
 - High-level strategic view, integration between skills
 
@@ -160,12 +160,12 @@ Every skill has defined handoff points showing where findings flow:
 
 ## Full Skill Paths
 
-All skills are stored in: `.skills/skills/unheaded-<skillname>/SKILL.md`
+All skills are stored in `~/.claude/skills/unheaded-<skillname>/SKILL.md` (synced across hosts; `.skills/` no longer exists). Suricata was removed from the platform on 2026-10-22.
 
 For example:
-- `.skills/skills/unheaded-sentinel/SKILL.md`
-- `.skills/skills/unheaded-blackmage/SKILL.md`
-- `.skills/skills/unheaded-architect/SKILL.md`
+- `~/.claude/skills/unheaded-sentinel/SKILL.md`
+- `~/.claude/skills/unheaded-blackmage/SKILL.md`
+- `~/.claude/skills/unheaded-architect/SKILL.md`
 
 ## MCP Integrations
 
@@ -177,7 +177,6 @@ Kingdom skills integrate with external systems via MCP connectors:
 - **VirusTotal API**: Hash and domain reputation lookups
 - **AbuseIPDB**: IP reputation and abuse history
 - **Custom RSS/Webhooks**: Vendor-specific threat feeds
-- **Suricata IDS**: Network-level intrusion detection
 - **Pi-hole API**: DNS monitoring and blocking
 
 ---

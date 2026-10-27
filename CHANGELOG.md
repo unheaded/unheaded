@@ -15,11 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - RBAC enforcement with 5 roles: admin, operator, observer, service, guest
   - Structured JSON audit logging for all auth events
 
-- **mTLS Service Mesh**: Mutual TLS between all services
-  - ECDSA P-256 root CA and per-service certificate generation
-  - CertRotator for zero-downtime certificate rotation
-  - Server and client TLS config factories
-  - PKI bootstrap via `pkg/transport/mtls/`
+- **mTLS library** (`pkg/transport/mtls/`): ECDSA P-256 root CA, per-service certificates, CertRotator, server/client TLS config factories
+  - Corrected 2026-10-27: this entry used to say "mutual TLS between all services". Only Wotan cluster replication uses the package; internal service links are plaintext. Internal TLS is tracked as FND-017 / S-IRON-GATE.
 
 - **Lich Security Test Suite**: 6 offensive security campaigns (D1-D6)
   - D1: Auth bypass (10 tests)
@@ -50,7 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **E2E Integration Tests**
   - Full pipeline tests (auth, health, metrics, trace propagation)
-  - Security E2E tests (auth enforcement, token validation, mTLS)
+  - Security E2E tests (auth enforcement, token validation)
   - Performance E2E tests (latency, throughput)
   - Kanban smoke tests
 
@@ -73,7 +70,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Security
 
 - All 8 application services enforce JWT/API key authentication
-- mTLS required for inter-service communication
 - RBAC enforced on all API endpoints
 - Audit logging records all authentication events
 - Container images run as non-root (uid 1000)
@@ -90,6 +86,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- S-CLEAN-SLATE (2026-10-27): CI green on `develop`, Wotan admin key and client resilience, live-service fixes, public-repo security items, documentation corrected against the code (`docs/battle-plans/S-CLEAN-SLATE-battle-plan.md`). The full rebuild of this file from sprint summaries is M-064 (S-IRON-GATE).
 - IPv6 header-space transport (experimental)
 - Kubernetes manifests and Helm charts
 - Production deployment automation

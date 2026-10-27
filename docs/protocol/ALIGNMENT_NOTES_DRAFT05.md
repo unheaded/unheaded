@@ -1,5 +1,7 @@
 # Alignment Notes — S72 Draft Updates
 
+> **Historical, unverified (2026-10-27).** The implementation paths and test tables below were not found in the tree (17 of 17 sampled, docs/sweeps/outstanding-2026-10-27/sweep-protocol.md). Kept for the drafting history; the live status is docs/RFC-ALIGNMENT-FINDINGS.md.
+
 **Date**: February 27, 2026
 **Status**: Phase 4 Protocol Cross-References
 **Scope**: Monad Foundation draft-05, Sophia Dictionary draft-02, Wotan Memory draft-02

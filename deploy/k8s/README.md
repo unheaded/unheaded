@@ -7,7 +7,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 Raw Kubernetes manifests grouped by Kingdom tier, from the 2026-03-05 "Kubernetes
 Convergence" work (`ec8108e2`, battle plan at
-`docs/internal/battle-plans/SK8_Unheaded_Kubernetes_Convergence_Battle_Plan.md`).
+`docs/archive/internal-2026/battle-plans/SK8_Unheaded_Kubernetes_Convergence_Battle_Plan.md`).
 
 Layout is by tier and by operational concern rather than by service:
 

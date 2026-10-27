@@ -1,5 +1,7 @@
 # Sophia's Eye: The Head of Unheaded - AI Model Stack Architecture
 
+> **Design never built (corrected 2026-10-27).** No vLLM, DeepSeek-R1 or Qdrant service runs; the 20100-20106 ports in `pkg/ports` are reservations. Live inference is the shared `llama-server` on `127.0.0.1:8081` (llama.cpp, models from `scripts/switch-model.sh`, ADR-060); training is the Gemma-4 forge (ADR-048/049/050). See docs/architecture/ZHEN_ARCHITECTURE.md.
+
 ## Overview
 
 Sophia's Eye is the first application running as the "head" inside Unheaded's suit of armor. It represents the decision-making and reasoning layer for the distributed Unheaded infrastructure, powered by a cutting-edge AI model stack optimized for both reasoning and code generation on consumer-grade AMD GPU hardware.

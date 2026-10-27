@@ -16,7 +16,7 @@ This cookbook is the playbook between those two roles.
 
 ```bash
 cd /home/govan/tmp/unheaded
-make health                                    # 11-gate snapshot, ~95s
+make health                                    # scripts/kingdom-health.sh: lint, build, short tests, govulncheck, cargo audit per Rust workspace, timeline freshness + 5 info checks
 cat references/next-session-pickup-*.md | head -100  # most-recent pickup
 git log --oneline | head -10
 ```
@@ -141,7 +141,7 @@ The Round Table is expensive (loads all 19 skills' worth of context). It earns i
 
 ```bash
 # Health
-make health                                          # 8-section gate check, ~95s
+make health                                          # same gates as Recipe 1 (scripts/kingdom-health.sh)
 golangci-lint run ./...                              # ADR-073 ratchet
 ~/go/bin/govulncheck ./...                           # Go side vulns
 ( cd ebpf && cargo audit )                           # Rust crate vulns

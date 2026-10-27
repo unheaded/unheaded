@@ -322,7 +322,7 @@ wait $BRIDGE_PID 2>/dev/null
 
 # Alternative: curl test
 curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
-  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  -H "Sec-WebSocket-Key: ${WS_NONCE:?}" \
   -H "Sec-WebSocket-Version: 13" \
   http://localhost:6660/ws 2>&1 | head -10
 ```
@@ -1493,7 +1493,7 @@ fi
 echo "[TEST] Testing WebSocket upgrade..."
 # This is a simple check; real WebSocket test needs browser
 WS_RESP=$(curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
-    -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+    -H "Sec-WebSocket-Key: ${WS_NONCE:?}" \
     -H "Sec-WebSocket-Version: 13" \
     http://localhost:8006/ws 2>&1 | grep -i "101\|upgrade" || echo "WebSocket check inconclusive")
 echo "  Response: ${WS_RESP}"

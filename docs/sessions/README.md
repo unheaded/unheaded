@@ -1,5 +1,5 @@
 # Sessions
 
-Session handoff documents have been moved to `docs/internal/sessions/`.
+Session handoff documents have been moved to `docs/archive/internal-2026/sessions/`.
 
-See `docs/INTERNAL.md` for the internal documentation structure.
+Index: `docs/archive/internal-2026/README.md`.

@@ -165,7 +165,7 @@ RIPPLE ORDER:
 1. CLAUDE.md        → Update relevant sections (capabilities, tech stack, strategy)
 2. battle-plan.md   → Add to Architect section if architectural
 3. timeline.md      → Add Sacred Pillar + Epoch if major; update tasks if minor
-4. docs/VISION.md   → Update core capabilities if it changes what Unheaded IS
+4. VISION.md       → Update core capabilities if it changes what Unheaded IS (docs/VISION.md is a pointer to the root file since 2026-10-27)
 5. README.md        → One-line update if it changes the elevator pitch
 6. wiki/            → Update or create wiki pages (see below)
 7. THIRD_PARTY.md   → Update if new dependencies involved
@@ -181,6 +181,10 @@ WIKI SUB-RIPPLE (Layer 6 detail):
 ```
 
 **The Golden Rule**: If you change one file, check all 7 others. The Librarian never updates a single file in isolation.
+
+**ADR review checklist** (ADR-043 consensus: a checklist item instead of a template):
+- [ ] The ADR has a Security Considerations section (threats, trust boundaries, what fails closed), or says in one line why none applies.
+- [ ] The status line in the ADR and its `docs/adr/ADR-INDEX.md` row say the same thing; the wiki ADR page and `wiki/ADR-Index.md` match.
 
 ---
 

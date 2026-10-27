@@ -57,13 +57,13 @@ Triage by **doctrine-leak risk × edit complexity**:
 **P0 — fix today (highest leak risk):**
 1. **ADR-69420** (3 violations: lines 53, 89, 111) — most egregious. SKU/premium/revenue/GTM/upsell/SLA-as-paid. Add explicit doctrine-amendment block.
 2. **skills/unheaded-captain-SKILL-UPDATE.md** (lines 238, 249) — Revenue $Z MRR + GTM/pricing/fundraising references. **Highest day-to-day leak risk** — every Captain skill invocation reads this template.
-3. **docs/internal/battle-plans/S-PQC-battle-plan.md** (line 1210) — "open-core monetization wedge" — most explicit monetization architecture.
+3. **docs/archive/internal-2026/battle-plans/S-PQC-battle-plan.md** (line 1210) — "open-core monetization wedge" — most explicit monetization architecture.
 
 **P1 — fix this sprint:**
 4. **ADR-004** (line 9) — "self-sufficiency it sells"
 5. **ADR-031** (line 31) — Claude Opus tier described as "paid"
 6. **ADR-053** (line 163) — "GTM narrative alignment"
-7. **docs/internal/battle-plans/battle-plan-future.md** (lines 13, 21, 23) — "actual product Unheaded sells", "Customer brings"
+7. **docs/archive/internal-2026/battle-plans/battle-plan-future.md** (lines 13, 21, 23) — "actual product Unheaded sells", "Customer brings"
 8. **references/battle-plan-S76-round-table.md** (line 21) — "demo that sells"
 9. **docs/philosophy/BRAINSTORM-WITNESS-FABRIC.md** (line 179) — "Stop selling YAML pipelines, start selling..."
 
@@ -128,13 +128,13 @@ contribution to the open-source governance literature. Free to share. <3
 #### Immediate Actions (Next 2 Hours — P0 batch)
 - [ ] **Developer + Architect** — Amend `docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md` lines 53, 89, 111. Add doctrine-amendment block at top of file referencing `c6108fb8`. Replace SKU/premium/revenue/GTM/upsell language per Architect's proposed fixes.
 - [ ] **Developer + Lore** — Amend `skills/unheaded-captain-SKILL-UPDATE.md` lines 238, 249. Replace `Revenue $Z MRR` → `Community impact: X projects adopting`. Replace `Unit economics, GTM models, pricing, fundraising` → `Adoption patterns, community engagement, technical milestones, project health`.
-- [ ] **Developer** — Amend `docs/internal/battle-plans/S-PQC-battle-plan.md` line 1210. Replace `open-core monetization wedge` with `policy architecture: Wire L1 (Apache-2.0) + App policy L2 are co-released to all users under GPL-3.0`.
+- [ ] **Developer** — Amend `docs/archive/internal-2026/battle-plans/S-PQC-battle-plan.md` line 1210. Replace `open-core monetization wedge` with `policy architecture: Wire L1 (Apache-2.0) + App policy L2 are co-released to all users under GPL-3.0`.
 
 #### This Sprint (Next 7 Days — P1 batch)
 - [ ] Amend `docs/adr/ADR-004-no-external-deps-policy.md` line 9 — Owner: Developer — Deadline: 2026-05-02
 - [ ] Amend `docs/adr/ADR-031-hybrid-model-handoff.md` line 31 — Owner: Developer — Deadline: 2026-05-02
 - [ ] Amend `docs/adr/ADR-053-hybrid-claude-zhenai-workflow-templates.md` line 163 — Owner: Developer — Deadline: 2026-05-03
-- [ ] Amend `docs/internal/battle-plans/battle-plan-future.md` lines 13, 21, 23 — Owner: Developer — Deadline: 2026-05-04
+- [ ] Amend `docs/archive/internal-2026/battle-plans/battle-plan-future.md` lines 13, 21, 23 — Owner: Developer — Deadline: 2026-05-04
 - [ ] Amend `references/battle-plan-S76-round-table.md` line 21 — Owner: Developer — Deadline: 2026-05-04
 - [ ] Amend `docs/philosophy/BRAINSTORM-WITNESS-FABRIC.md` line 179 — Owner: Developer — Deadline: 2026-05-05
 - [ ] Single commit per file with `doctrine: amend <file> post-c6108fb8` prefix — Owner: Developer
@@ -183,8 +183,8 @@ for f in \
   docs/adr/ADR-031-hybrid-model-handoff.md \
   docs/adr/ADR-053-hybrid-claude-zhenai-workflow-templates.md \
   skills/unheaded-captain-SKILL-UPDATE.md \
-  docs/internal/battle-plans/S-PQC-battle-plan.md \
-  docs/internal/battle-plans/battle-plan-future.md \
+  docs/archive/internal-2026/battle-plans/S-PQC-battle-plan.md \
+  docs/archive/internal-2026/battle-plans/battle-plan-future.md \
   references/battle-plan-S76-round-table.md \
   docs/philosophy/BRAINSTORM-WITNESS-FABRIC.md \
   references/timeline.md \

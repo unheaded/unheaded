@@ -35,7 +35,7 @@
 $PROJECT_ROOT  = $(git rev-parse --show-toplevel)
 $SPRINT_ID     = S[N]
 $SPEC_DIR      = $PROJECT_ROOT/references
-$AUDIT_DOC     = $PROJECT_ROOT/docs/internal/audit/S[N]-audit.md
+$AUDIT_DOC     = $PROJECT_ROOT/docs/battle-plans/progress/S[N]-audit.md
 $HANDOFF_DIR   = $PROJECT_ROOT/docs/handoffs
 $BATTLE_PLAN   = $SPEC_DIR/S[N]-BATTLE-PLAN.md
 ```

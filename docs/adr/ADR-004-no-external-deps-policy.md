@@ -22,7 +22,7 @@ Each dependency introduced:
 2. **Version churn**: Upstream breaking changes force reactive maintenance unrelated to our application.
 3. **License exposure**: Transitive dependencies may introduce incompatible licenses.
 4. **Binary bloat**: Each dependency adds to the final binary size and attack surface.
-5. **Philosophical contradiction**: Selling self-hosted infrastructure while depending on dozens of third-party packages undermines the brand.
+5. **Philosophical contradiction**: Giving away self-hosted infrastructure that depends on dozens of third-party packages hands users our supply-chain risk along with it.
 
 The question was whether to continue with external dependencies for development speed or invest in internal replacements.
 

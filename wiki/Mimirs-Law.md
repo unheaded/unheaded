@@ -5,7 +5,7 @@ self-healing — the dogfood spike for the Gleipnir convergence component
 named in [ADR-69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md). Implements ADR-043's Two-Plane Architecture: Wotan
 steady-state plane + Gjallarhorn discrete UPC trigger plane.
 
-> **Status**: PoC COMPLETE 2026-04-11 — All 13 phases shipped. Merged to `main`. Bare-metal validated on WEST↔EAST WireGuard overlay.
+> **Status**: PoC 2026-04-11 (corrected 2026-10-27) — 11 of 13 phases shipped; Phases 9/11/13 wait on east as a node (S5 Step 177). Merged to `main`. Bare-metal validated on WEST↔EAST WireGuard overlay.
 
 ## The Naming
 
@@ -66,11 +66,11 @@ steady-state plane + Gjallarhorn discrete UPC trigger plane.
 | 6 | `cmd/heimdall-daemon` userspace | ✓ smoke tested |
 | 7 | `pkg/enkrateia` alerts-only | ✓ 3 tests |
 | 8 | 2-node cluster prep (WEST + EAST) | ✓ deployed |
-| 9 | Bootstrap flow benchmark | ✓ unicast WG; multicast L2-only N/A |
+| 9 | Bootstrap flow benchmark | pending: re-run with east as a node (S5 Step 177); earlier run: ✓ unicast WG; multicast L2-only N/A |
 | 10 | Reminder flow + drift injection | ✓ injection caught on EAST |
-| 11 | Stress test | ✓ 100/100 packets + forgery rejected |
+| 11 | Stress test | pending: re-run with east as a node (S5 Step 177); earlier run: ✓ 100/100 packets + forgery rejected |
 | 12 | LICH-012 campaign | ✓ scaffold |
-| 13 | Day-14 gate evaluation | ✓ PROMOTE verdict |
+| 13 | Day-14 gate evaluation | pending: re-run with east as a node (S5 Step 177); earlier run: ✓ PROMOTE verdict |
 
 ## Real-Metal Validation
 

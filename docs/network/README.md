@@ -56,15 +56,14 @@ Covers:
 
 ---
 
-### 3. INGRESS_EGRESS_PORTS.md (802 lines)
+### 3. INGRESS_EGRESS_PORTS.md
 **Complete Port Reference and Firewall Ruleset**
 
 Master registry of all Unheaded services and ports.
 
 Covers:
-- Master port registry table (all 25+ services)
-- WAN-exposed ports (80, 443, 51820)
-- Internal-only ports (50051–50067 gRPC, 8080/8443 dashboard)
+- Master port registry table, generated from `pkg/ports/ports.go` (2026-10-27)
+- WAN-exposed ports (80, 443, 51820) — historical 2026-02 design
 - Infrastructure ports (53 DNS, 5353 mDNS, 4789 VXLAN)
 - Firewall zone definitions (WAN, LAN, VPN, DMZ, Management)
 - Per-service firewall rules (complete OPNsense + IPFire rulesets)
@@ -97,7 +96,7 @@ Detailed IPv6 address plan for both hosts.
 2. **Configuration**: Choose your platform:
    - **OPNsense**: Follow MONAD_HBH_FIREWALL_RULES.md Section 2
    - **IPFire**: Follow MONAD_HBH_FIREWALL_RULES.md Section 3
-3. **Rule Deployment**: Use complete rulesets in INGRESS_EGRESS_PORTS.md Section 4
+3. **Rule Deployment**: INGRESS_EGRESS_PORTS.md Section 4 is the 2026-02 design ruleset, not deployed; adapt it to the ports in its Section 1
 4. **Verification**: Test using Section 5 of MONAD_HBH_FIREWALL_RULES.md
 
 ### For DevOps/SRE

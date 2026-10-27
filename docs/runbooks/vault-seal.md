@@ -1,5 +1,7 @@
 # Runbook: Vault Sealed
 
+> **Reference design for a Kubernetes/Vault deployment that is not running (decision 43 pending).** Live runbooks are `runbooks/**/*.yaml`.
+
 ## Symptoms
 - Services cannot read secrets
 - Secret rotation fails

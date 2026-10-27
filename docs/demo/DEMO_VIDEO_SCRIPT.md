@@ -1,5 +1,7 @@
 # Unheaded Demo Video Script
 
+> **Dormant under Track C (2026-05-11); commands unverified (2026-10-27).** No external demo push is planned; several commands and targets below no longer exist.
+
 **Duration**: 10 minutes
 **Format**: Narrated screencast with live UI interaction
 **Audience**: Engineers, investors, open-source contributors

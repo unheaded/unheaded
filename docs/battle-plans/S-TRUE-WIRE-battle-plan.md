@@ -115,7 +115,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - :455-480 `try_shield_tc` increments `STAT_TC_ENTRY`, `STAT_TC_IPV6`, `STAT_TC_HBH` on every packet (three map ops) — debug counters in the production object.
 - `PQC_SIG_STATUS` is declared in shield (`main.rs` ~:886) with `pqc_fast_path_check` never called; `cmd/pqc-verifier` is unreached; `services/keymgmt{,/handler,/lifecycle,/store}` is unreached (G9). `wiki/PQC-Authentication.md:24` says Shield "reads cached verification status from the PQC_SIG_STATUS map".
 - `ebpf/packet-marker/src/main.rs:190-199, 214-216`: TCP and IP option trace-ID extraction disabled with `TODO(E1)` "re-enable when aya-ebpf supports BPF subprograms (#[inline(never)])". `ebpf/cartridge-ebpf/src/main.rs:372,385,454` uses `#[inline(never)]` callbacks under `bpf_loop` today, so the stated blocker is gone.
-- `docs/internal/battle-plans/S24-handoff-battle-orders.md` says the HMAC/retry/hop checks are WIRED.
+- `docs/archive/internal-2026/battle-plans/S24-handoff-battle-orders.md` says the HMAC/retry/hop checks are WIRED.
 - `docs/UNREACHED-GO-PACKAGES.md:136-137` and the live regeneration (2026-10-27) list `services/{compliance,firewall,nfv,qos,selfheal,version,keymgmt(+3),loadbalancer,sabatons}` and `services/wotan/internal/compute` as reached by no binary; `pkg/afxdp` is reached by no binary; `internal/bpfmap`, `pkg/ebpf/maploader`, `cmd/ebpf-exporter` are FLAGGED/parked rows in REAL-STEEL-UNREACHED.tsv.
 
 **Verifier ratchet**
@@ -556,10 +556,10 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 
 ### Register the finding first (the docs were wrong for months)
 
-- [ ] **Step 169** [W][AUDIT-UPDATE] ~8m: Add `FND-025` to `compliance/findings/register.yaml`: title "Shield HMAC/retry/hop-validator/GOAWAY/authority checks stubbed while docs and code comment said wired"; severity medium; evidence `ebpf/shield-ebpf/src/main.rs:268-273,513-540`, `docs/internal/battle-plans/S24-handoff-battle-orders.md`; remediation "this plan Steps 169-230"; due 30 days. Follow the schema of FND-024's entry.
+- [ ] **Step 169** [W][AUDIT-UPDATE] ~8m: Add `FND-025` to `compliance/findings/register.yaml`: title "Shield HMAC/retry/hop-validator/GOAWAY/authority checks stubbed while docs and code comment said wired"; severity medium; evidence `ebpf/shield-ebpf/src/main.rs:268-273,513-540`, `docs/archive/internal-2026/battle-plans/S24-handoff-battle-orders.md`; remediation "this plan Steps 169-230"; due 30 days. Follow the schema of FND-024's entry.
 - [ ] **Step 170** [B] ~3m: `cd /home/govan/tmp/unheaded && go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md 2>&1 | tail -2 && grep -c 'FND-025' docs/adr/ADR-098-findings-register-and-baseline-modes.md`
 - [ ] **Step 171** [V] ~1m: Register regenerates; `FND-025` appears once in the ADR's generated section.
-- [ ] **Step 172** [W][DOC-UPDATE] ~5m: Correct the claims now, before the code: `docs/internal/battle-plans/S24-handoff-battle-orders.md` "WIRED" → "STUBBED (FND-025, S-TRUE-WIRE Phase 5)"; `ebpf/shield-ebpf/src/main.rs:268-273` comment → "maps exist; no userspace writer yet (FND-025)". Both get fixed again at Step 228 when it is true.
+- [ ] **Step 172** [W][DOC-UPDATE] ~5m: Correct the claims now, before the code: `docs/archive/internal-2026/battle-plans/S24-handoff-battle-orders.md` "WIRED" → "STUBBED (FND-025, S-TRUE-WIRE Phase 5)"; `ebpf/shield-ebpf/src/main.rs:268-273` comment → "maps exist; no userspace writer yet (FND-025)". Both get fixed again at Step 228 when it is true.
 - [ ] **Step 173** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 169-173: FND-025 registered; WIRED claims corrected`.
 
 ### Measure before touching (the verifier budget is the constraint)

@@ -1,6 +1,6 @@
 # ADR-023: Virtual Memory in Wotan
 
-**Status:** Deferred to Dream Ladder L5 (MiniKernel)
+**Status:** Superseded by ADR-074 (ASCEND-LINUX Phase 1.2 per-pid page-table model), 2026-10-27
 
 **Deferral rationale (2026-04-03):** Design complete but implementation not needed until UPC reaches L5. Current L3 (Doom) runs fine with 26MB flat heap via BPF maps. TLB_MAP placeholder already exists in eBPF code.
 **Date:** 2026-03-30

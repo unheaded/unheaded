@@ -1,5 +1,7 @@
 # uClinux (nommu) Port Guide -- UPC Level 6a
 
+> **Superseded by ADR-081 (own tiny kernel), 2026-07-03.** The L6 uClinux / full Linux / busybox route described here was killed; ASCEND-LINUX evolved the xv6 kernel into an Unheaded-authored one instead (docs/adr/ADR-081-unheaded-linux-from-scratch.md). Kept for history; the live record is wiki/Linux-on-UPC.md.
+
 *SPDX-License-Identifier: GPL-3.0-or-later*
 
 **Date:** 2026-03-15

@@ -1,6 +1,6 @@
 # ADR-043: Mímir's Law — OS Baseline Delivery, Drift Detection, and Self-Healing via UPC (Gleipnir Phase 0 PoC)
 
-## Status: PoC COMPLETE (2026-04-11) — All 13 phases shipped; bare-metal Gjallarhorn unicast + drift detection + 100-packet stress + forgery rejection demonstrated on WEST↔EAST. Multicast bootstrap deferred (L2-only — not applicable on WG-overlay 2-node test setup).
+## Status: PoC (2026-04-11; corrected 2026-10-27) — 11 of 13 phases shipped; Phases 9/11/13 wait on east as a node (S5 Step 177). Earlier runs: bare-metal Gjallarhorn unicast + drift detection + 100-packet stress + forgery rejection demonstrated on WEST↔EAST. Multicast bootstrap deferred (L2-only — not applicable on WG-overlay 2-node test setup).
 
 ## Phase 13 — Day-14 Gate Evaluation
 

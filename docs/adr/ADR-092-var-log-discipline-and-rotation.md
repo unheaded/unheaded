@@ -238,7 +238,7 @@ batches). This one is checkable:
 | 2, 4 | **no subject yet** (checked 2026-10-13) | every deploy/systemd unit logs to journald (stdout); no deployed service opens its own log file. `unheaded-daemon`'s `AuditPath: /var/log/unheaded/audit.log` is a config field nothing reads, and `pkg/audit/storage`'s file backend (its own daily rotation) has no caller. Directories and stanzas land with the first service that owns a file handle, per the order above: a stanza for a path nothing writes is the ADR-091 shape |
 | 5 | open | CI check; today only the compose half exists (`check-compose-log-caps.sh`) |
 | 7 | partial | Huginn exports `/var/log` free space and per-directory sizes with alerts (`monitoring/prometheus/rules/host.yml`, 2026-10-13); journald capped at 1G/200M on both hosts 2026-10-13 (`journald-caps` fix; east 4.0G -> 973M, west 3.4G -> 971M, old journals archived first); separate `/var/log` filesystem open (west's `/var/log` shares `/dev/sdb` with `/var`) |
-| 8 | **west's journal: built, not deployed** (2026-10-19); container stdout and east open | see "Step 8, 2026-10-19" below |
+| 8 | **west's journal shipping deployed** (4272fb6a; ClickHouse); container stdout and east pending (M-082) | see "Step 8, 2026-10-19" below |
 
 **Amendment (2026-10-13): processes an operator starts by hand.** Every
 remaining call site was a dev script or runbook run as the operator, not a

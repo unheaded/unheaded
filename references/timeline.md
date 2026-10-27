@@ -2,9 +2,9 @@
 
 ## A Living Grimoire of the Kingdom's Journey
 
-**STATUS:** Age 3 IN PROGRESS — Public Release Sprint, ASCEND-LINUX (Dream Ladder L5 → L6) actively shipping
-**LAST UPDATED:** 2026-10-13
-**HEAD:** Observability truth pass (2026-09-28 → 09-29): every service emits `unheaded_http_*`, VictoriaMetrics scrapes all 10, and a run of dashboard numbers that were real but meant something else are fixed (see below). Before that: staging promotion ladder **COMPLETE** (2026-08-03 → 2026-09-21) — 124 rungs in 9 batches merged to `staging` and back to `develop`; `go vet` clean and `go test ./...` at **0 failures** for the first time (main had 7); nine gates proven able to fail by `check-gates-can-fail.sh`; qa-smoke **35/35**; the Meta Moment (timeline.md → timeguru → Wotan → kanban) live end-to-end in compose for the first time. Next: Stevie promotes `staging` → `main`; ASCEND-LINUX Phase 2 still pending the two pair calls
+**STATUS:** Age 3 IN PROGRESS — platform hardening after the five-sprint run; ASCEND-LINUX L5 complete, L6 not started
+**LAST UPDATED:** 2026-10-27
+**HEAD:** Sprints 1-5 of the 2026-10-23 plan closed 2026-10-26 (Quantum Armor, Two Brains, Real Steel, Lich Awakens, UPC wire-compute); S-CLEAN-SLATE opened 2026-10-27 from the doc sweep (`docs/sweeps/OUTSTANDING-2026-10-27.md`): CI green on `develop`, live-service correctness fixes, public-repo security items, and docs that match the code. Before that: observability truth pass (2026-09-28 → 09-29), every service emits `unheaded_http_*` and VictoriaMetrics scrapes all 10.
 **Drift policy:** ADR-052 — this file MUST be ≤ 7 days from HEAD when HEAD has new commits.
 
 ---
@@ -86,9 +86,9 @@
 - *Resolved since this list was written:* Captain Track call (Track C hybrid, 2026-05-11), branch hygiene (2026-05-11), Sophia/Wotan draft-04 deferred (2026-05-11).
 
 **Remaining for Age 3:**
-- WAVE14 retrain (extended-epoch, rank=16/alpha=32 unchanged, ≥3 epochs ≈ 10704 example-steps)
+- LoRA retrain when the flywheel reaches ≥ 300 SFT examples across ≥ 3 families (Sprint 2 Phase 12 trigger)
 - SBOM regen + license scan (REMOTE; full ScanCode regen last 2026-04-04); threat refresh is now `kev-poller report` (last 2026-10-19)
-- Demo video + README polish for VC/public readiness
+- README polish
 - Sub-50ms latency benchmark (Scientist falsifiability gate)
 - Public accessibility (optional auth)
 
@@ -105,5 +105,5 @@
 
 ---
 
-*Synced: 2026-09-30 (CI red to green on develop; prior 2026-09-29 observability truth pass; prior sync 2026-09-21 staging ladder complete; prior 2026-07-29 CI green sweep — 4 workflows red→green; per-service run-as UID registry pkg/uids replaces shared 65534; prior sync 2026-07-19 Doom browser-verified LIVE reference point + EVOLUTION-1 Stage 1 measurement complete / return blocker re-diagnosed as localized csrw-sscratch codegen bug; prior sync 2026-05-11 Round-table + Yggdrasil)*
+*Synced: 2026-10-27 (S-CLEAN-SLATE header refresh; body current to 2026-10-26; prior 2026-09-30 CI red to green on develop; prior 2026-09-29 observability truth pass; prior sync 2026-09-21 staging ladder complete; prior 2026-07-29 CI green sweep — 4 workflows red→green; per-service run-as UID registry pkg/uids replaces shared 65534; prior sync 2026-07-19 Doom browser-verified LIVE reference point + EVOLUTION-1 Stage 1 measurement complete / return blocker re-diagnosed as localized csrw-sscratch codegen bug; prior sync 2026-05-11 Round-table + Yggdrasil)*
 *Next sync trigger: any commit to main + drift-guard CI check*

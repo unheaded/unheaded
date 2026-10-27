@@ -1,5 +1,7 @@
 # S77 — Phase 2: Performance Benchmarking
 
+> **Historical design doc (S77).** `e2ePacketTrace`, `--only`, `make ci-bench` and the 18 ms figure do not exist in the tree (2026-10-27: `cmd/perf-benchmark/main.go` has no such scenario or flag, the Makefile no such target). The benchmark is M-089 in docs/sweeps/OUTSTANDING-2026-10-27.md (S-WELL-SPRING).
+
 **Sprint:** S77 (Age 2 Acceleration)
 **Phase:** 2 — Benchmark Framework + Results
 **Status:** Framework shipped, baseline numbers captured, sub-50ms target tracked

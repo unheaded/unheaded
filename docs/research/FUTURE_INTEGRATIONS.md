@@ -81,6 +81,9 @@ Suricata is the IDS/IPS layer that sits inline with OPNsense (host-a) and IPFire
 - Build: `./configure --enable-ebpf --enable-ebpf-build --enable-af-packet && make -j$(nproc)`
 
 ### Action Items (future sprint)
+
+> Withdrawn: Suricata was removed 2026-10-22; none of these will be done.
+
 - [ ] Sync ~/tmp/suricata/ (OISF/suricata git clone)
 - [ ] Write Dockerfile for Suricata from source
 - [ ] Write NixOS module: nixos/modules/suricata.nix

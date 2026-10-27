@@ -1,6 +1,6 @@
 # ADR-060 — Zhenai Multi-Model Selector (UI dropdown for live llama-server swap)
 
-**Status:** In Progress (activated 2026-05-04 mid-WAVE16; implementation lands tonight alongside the model-vetting overnight run)
+**Status:** Accepted — Implemented 2026-05-04 (8623c864: allowlist, Champion-gated `model_switch`, UI dropdown). Tail still open: LICH-013 campaign, swap metrics, `zhen-cli /model` (sweep-adr Z-13). Status corrected 2026-10-27.
 **Date:** 2026-05-04
 **Deciders:** Stevie Bellis + unheaded-blackmage + unheaded-developer (when activated)
 **Context owner:** zhenai operator surface

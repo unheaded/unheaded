@@ -1,5 +1,7 @@
 # Lab Notebook: IPv6 Header Metric Capacity Analysis
 
+> **Superseded by Foundation-06.** This lab notebook explored a 52-byte HbH metric option (UNHEADED_METRIC_V1, Type 0x2A); the protocol that shipped is the 20-byte Monad register frozen at v0x01 (draft-bellis-unheaded-protocol-foundation, ietf-submission/). Kept as research history.
+
 **Date**: 2026-02-25
 **Investigator**: The Scientist (40-mind fusion)
 **Trigger**: Muck's Directive D10 — "How much gRPC-inspired Unheaded metrics can be stuffed into IPv6 headers?"

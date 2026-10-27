@@ -192,7 +192,7 @@ curl -s 'http://192.168.13.1:9090/api/v1/query?query=up' | jq '.data.result[] | 
 
 **Step 378:** [B][V] Verify Grafana dashboards load
 ```bash
-curl -s -u admin:admin 'http://192.168.13.1:3000/api/dashboards/home' | jq '.dashboard | {title: .title, panels: (.panels | length)}'
+curl -s -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" 'http://192.168.13.1:3000/api/dashboards/home' | jq '.dashboard | {title: .title, panels: (.panels | length)}'
 # Should show dashboards with > 0 panels
 ```
 [V] Verify dashboard title appears and panels > 0
