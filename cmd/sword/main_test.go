@@ -13,6 +13,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/ports"
 )
 
@@ -68,7 +69,10 @@ func TestHandler_AuthInFront(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	h := handler(s)
+	h, err := handler(s, auth.LoadServiceAuthConfig(serviceName))
+	if err != nil {
+		t.Fatal(err)
+	}
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/deployments", strings.NewReader("{}"))
 	r.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

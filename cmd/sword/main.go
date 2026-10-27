@@ -18,7 +18,8 @@
 //	VM_URL            VictoriaMetrics for the SLO guard; unset = canary refused
 //	SWORD_SLO_POLICY  alerting policy file (default /etc/unheaded/sword/policy.yaml)
 //	WOTAN_ADDR, WOTAN_GRPC_ADDR  Wotan, for deploy.* events (best effort)
-//	AUTH_ENABLED=true and AUTH_API_KEYS / AUTH_JWT_KEY  pkg/auth; without
+//	AUTH_ENABLED=true, AUTH_TRUST_DIR, AUTH_ALLOW_CALLERS, AUTH_API_KEYS
+//	                  pkg/auth (ADR-103; AUTH_JWT_KEY is refused); without
 //	                  AUTH_ENABLED every mutating route answers 403
 package main
 
@@ -141,10 +142,27 @@ func build(c config, log *zerolog.Logger) (*sword.Service, error) {
 	return sword.New(cfg)
 }
 
-func handler(s *sword.Service) http.Handler {
+// handler is Sword's mux with auth from authCfg in front (S-IRON-GATE
+// Phase 6). With auth on, /api/v1/deployments needs a token or key: a
+// write (deploy, rollback) needs admin, operator or service (the CLI's and
+// the dashboard backend's service tokens, an AUTH_API_KEYS key), a read
+// also takes observer. DefaultServicePolicies alone would keep everything
+// under /api/v1/deploy* for admin and operator. An error means auth is on
+// but unusable, and Sword must not start.
+func handler(s *sword.Service, authCfg auth.ServiceAuthConfig) (http.Handler, error) {
 	mux := s.Handler()
-	h := auth.WrapHandler(mux, auth.SetupMiddleware(auth.LoadServiceAuthConfig(serviceName)))
-	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, h))
+	rbac := auth.DefaultServicePolicies(serviceName)
+	rbac.Policies = append([]auth.EndpointPolicy{
+		{PathPrefix: "/api/v1/deployments", Methods: []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch},
+			RequiredRoles: []string{auth.RoleAdmin, auth.RoleOperator, auth.RoleService}},
+		{PathPrefix: "/api/v1/deployments", Methods: []string{http.MethodGet, http.MethodHead},
+			RequiredRoles: []string{auth.RoleAdmin, auth.RoleOperator, auth.RoleObserver, auth.RoleService}},
+	}, rbac.Policies...)
+	h, err := auth.NewServiceHandler(mux, authCfg, auth.ServiceRoutes{RBAC: &rbac})
+	if err != nil {
+		return nil, err
+	}
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, h)), nil
 }
 
 func main() {
@@ -166,9 +184,13 @@ func main() {
 	discovery.Start(ctx, transportCfg, serviceName, ports.PortOf(c.addr, ports.Sword))
 	healthreport.StartService(ctx, transportCfg, serviceName, healthreport.HealthURL(c.addr, ports.PortOf(c.addr, ports.Sword))) // ADR-029: a vote on Akira's ballot
 
+	h, err := handler(s, auth.LoadServiceAuthConfig(serviceName))
+	if err != nil {
+		log.Fatal().Err(err).Msg("sword cannot start: auth (see ADR-103)")
+	}
 	srv := &http.Server{
 		Addr:              c.addr,
-		Handler:           handler(s),
+		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,

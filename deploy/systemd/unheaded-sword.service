@@ -39,6 +39,9 @@ MemoryMax=128M
 # comes from `unheaded-keygen -owner unheaded-sword sword` (root, once per host).
 Environment=AUTH_KEY_FILE=/etc/unheaded/keys/sword.key
 Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+# S-IRON-GATE Phase 6: deployments need a service token from one of these
+# callers, or a key from sword.env's AUTH_API_KEYS.
+Environment=AUTH_ALLOW_CALLERS=unheaded-cli,dashboard-backend
 ReadOnlyPaths=-/etc/unheaded/trust.d
 
 User=unheaded-sword
