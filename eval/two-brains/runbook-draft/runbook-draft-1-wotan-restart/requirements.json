@@ -1,0 +1,16 @@
+{
+  "name": "wotan-restart",
+  "requires": [
+    "18000/health",
+    "journalctl\\b[^\\n]*-u\\s+unheaded-wotan",
+    "systemctl\\s+restart\\s+unheaded-wotan",
+    "(?m)^verification:",
+    "systemctl\\s+is-active\\s+(--quiet\\s+)?unheaded-wotan",
+    "requires_sudo:\\s*true"
+  ],
+  "forbids": [
+    "systemctl\\s+stop\\s+unheaded-wotan",
+    "kill\\s+-9",
+    "pkill"
+  ]
+}

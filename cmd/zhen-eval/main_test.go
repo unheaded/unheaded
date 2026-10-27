@@ -32,7 +32,7 @@ func TestRealKeysCompileAndCoverEveryKeyTask(t *testing.T) {
 	for _, tk := range tasks {
 		fam[tk.Family]++
 	}
-	if fam["repo-task"] != 20 || fam["syntax"] != 7 || fam["review"] != 7 || fam["runbook-draft"] != 0 {
+	if fam["repo-task"] != 20 || fam["syntax"] != 7 || fam["review"] != 7 || fam["runbook-draft"] != 5 {
 		t.Errorf("families = %v", fam)
 	}
 }

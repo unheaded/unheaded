@@ -1,0 +1,5 @@
+{
+  "name": "demo-check",
+  "requires": ["19999/health", "requires_sudo:\\s*false"],
+  "forbids": ["systemctl\\s+restart"]
+}

@@ -23,6 +23,29 @@ exists (S-TWO-BRAINS Steps 131-133). The commit history proves the order:
     `solution.patch` cannot be changed), then `check.sh` runs in the
     no-network user sandbox; pass = exit 0.
 
+**Amendment 2026-10-27 (S-CHAMPION-HARDENING Steps 144-145): the
+`runbook-draft` judge.** Written with the five tasks' prompts and
+requirements, before any `runbook-draft` result exists. The family's rule,
+hold-out acceptance and attempts are the ones below (`local_attempts` = 1).
+
+  - `runbook`: `runbook-draft/<id>/TASK.md` is the prompt (the system prompt
+    is `systemRunbook` in `cmd/zhen-eval/runbook.go`, the same for both
+    brains); `requirements.json` holds the runbook `name`, `requires` and
+    `forbids` regexes (RE2, case-sensitive unless the pattern says `(?i)`).
+    The answer's first ```` ```file:<x>.yaml ```` block (else its first
+    ```` ```yaml ```` fence) is written to `<name>.yaml` in a temp dir, then
+    three mechanical checks run and each is recorded in the result's
+    `judges`: `dry_run` = `scripts/run-runbook.py --dry-run` exits 0;
+    `check` = `scripts/check-runbooks.py --one` exits 0 (the strict draft
+    rules, `metadata.status: draft` required, no baseline, no `dry_run_test`
+    rule since a draft has no test yet; `metadata.name` must equal `name`);
+    `requirements` = every `requires` matches the YAML text and no `forbids`
+    does. Pass = all three. No answer, no YAML block, or a YAML over 256 KiB
+    fails. Nothing in the draft executes (the dry run prints commands, the
+    checker only runs `bash -n`), so no sandbox is needed; each script has a
+    60 s timeout. `reference.yaml` beside each task passes the judge (tested
+    in `cmd/zhen-eval`) and is never shown to a model.
+
 **Pooled textbook family.** The hash split leaves `review` with 1 tune task
 and `syntax` with 2. A threshold from one or two tasks means nothing, so
 for the routing decision `syntax` and `review` are pooled into one

@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: akira-band-check
+  description: Report Akira's consensus band; escalate by hand on CRITICAL or PANIC
+  owner: sentinel
+  estimated_duration: 1m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: akira-health
+    action: shell
+    command: "curl -sf --max-time 5 http://127.0.0.1:19100/health"
+  - name: band
+    action: shell
+    command: |
+      set -euo pipefail
+      status=$(curl -sf --max-time 5 http://127.0.0.1:19100/api/v1/status)
+      echo "$status"
+      if grep -Eq '"(CRITICAL|PANIC)"' <<<"$status"; then
+        echo "a service is CRITICAL or PANIC" >&2
+        exit 1
+      fi
+  - name: escalate
+    action: manual
+    command: |
+      On CRITICAL or PANIC: open the dashboard, find the failing service in the status above,
+      and follow its runbook. Akira does not remediate here; do not enable it from this runbook.

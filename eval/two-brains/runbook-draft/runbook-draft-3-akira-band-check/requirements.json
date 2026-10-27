@@ -1,0 +1,16 @@
+{
+  "name": "akira-band-check",
+  "requires": [
+    "19100/health",
+    "19100/api/v1/status",
+    "action:\\s*manual",
+    "CRITICAL",
+    "PANIC",
+    "requires_sudo:\\s*false"
+  ],
+  "forbids": [
+    "systemctl\\s+restart",
+    "--remediate",
+    "kill\\s+-9"
+  ]
+}

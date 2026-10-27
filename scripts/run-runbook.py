@@ -237,6 +237,58 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
     return failed_step
 
 
+def run_verification(runbook, env, dry_run=False):
+    """Run the `verification:` section after every step succeeded.
+
+    Each entry is {name, description, command (or check), action, timeout};
+    `action: manual` entries are printed for the operator, not run. Every
+    check runs (one failure does not hide the others) and the summary line
+    is `verification: n/m passed`. Returns the names of the failed checks;
+    no section means nothing to do and an empty list.
+    """
+    entries = runbook.get("verification") or []
+    if not isinstance(entries, list) or not entries:
+        return []
+    checks = [v for v in entries if isinstance(v, dict) and v.get("action", "shell") != "manual"]
+    print(f"\n=== Verification ({len(checks)} check{'' if len(checks) == 1 else 's'}) ===")
+    failed, passed, manual = [], 0, 0
+    for i, v in enumerate(entries):
+        if not isinstance(v, dict):
+            continue
+        name = v.get("name", f"verification-{i+1}")
+        desc = v.get("description", "")
+        text = v.get("command") or v.get("check") or ""
+        if v.get("action", "shell") == "manual":
+            manual += 1
+            print(f"  [MANUAL] {name}: confirm yourself:")
+            for line in (text or desc or "(see description)").split("\n"):
+                print(f"             {line}")
+            continue
+        if dry_run:
+            print(f"  [DRY RUN] {name}" + (f": {desc}" if desc else ""))
+            run_command(text, env=env, dry_run=True)
+            continue
+        code, out, err = run_command(text, timeout=v.get("timeout", 120), env=env)
+        for line in (out.split("\n")[:10] if out else []):
+            print(f"           {line}")
+        if code == 0:
+            passed += 1
+            print(f"  [PASS] {name}" + (f": {desc}" if desc else ""))
+        else:
+            failed.append(name)
+            print(f"  [FAIL] {name}" + (f": {desc}" if desc else "") + f" (exit {code})")
+            if err:
+                print(f"         {err[:300]}")
+            if v.get("expect"):
+                print(f"         expected: {v['expect']}")
+    tail = f", {manual} manual" if manual else ""
+    if dry_run:
+        print(f"verification: {len(checks)}/{len(checks)} (dry run){tail}")
+    else:
+        print(f"verification: {passed}/{len(checks)} passed{tail}")
+    return failed
+
+
 def execute_rollback(runbook, env, failed_step, dry_run=False):
     """Execute rollback steps if available."""
     rollbacks = runbook.get("rollback", [])
@@ -375,9 +427,16 @@ def main():
         print(f"\n[FAILED] Runbook stopped at: {failed}")
         execute_rollback(runbook, env, failed, dry_run=args.dry_run)
         sys.exit(1)
-    else:
-        print("\n[SUCCESS] Runbook completed.")
-        sys.exit(0)
+
+    # The runbook's own end-to-end checks. A failure here does not roll
+    # back: every step succeeded, and whether to undo them is the
+    # operator's call (rollback entries are keyed to a failed step).
+    unverified = run_verification(runbook, env, dry_run=args.dry_run)
+    if unverified:
+        print(f"\n[FAILED] verification: {', '.join(unverified)}")
+        sys.exit(1)
+    print("\n[SUCCESS] Runbook completed.")
+    sys.exit(0)
 
 
 if __name__ == "__main__":

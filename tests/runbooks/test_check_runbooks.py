@@ -326,3 +326,68 @@ def test_repo_corpus_passes_with_its_baseline():
                        env={**os.environ})
     assert r.returncode == 0, r.stdout + r.stderr
 
+
+def test_verification_command_is_bash_n_checked(tmp_path):
+    # run-runbook.py executes verification: since S-CHAMPION-HARDENING Step 152
+    text = GOOD_LEGACY + "verification:\n  - name: after\n    command: \"echo $((\"\n"
+    write(tmp_path, "runbooks/data/fx.yaml", text.format(name="fx"))
+    code, out = run(tmp_path, "--no-baseline", str(tmp_path / "runbooks"))
+    assert code == 1, out
+    assert "bash-n" in rules(out) and "verification[0].command" in out, out
+
+
+# --one: the zhen-eval runbook-draft judge (S-CHAMPION-HARDENING Step 145).
+# One file, no baseline, strict rules whether or not the file carries a
+# status, and the file must be a draft. A model's draft has no dry-run test
+# yet (the judge dry-runs it instead), so dry-run-test is not checked.
+
+def one(root, path):
+    return run(root, "--one", str(path))
+
+
+def test_one_passes_a_good_draft_without_its_test(tmp_path):
+    p = make_draft(tmp_path, with_test=False)
+    code, out = one(tmp_path, p)
+    assert code == 0, out
+    assert "1 runbook(s), 0 new finding(s)" in out, out
+
+
+def test_one_is_strict_without_a_status(tmp_path):
+    p = write(tmp_path, "x/fx.yaml", GOOD_LEGACY.format(name="fx"))
+    code, out = one(tmp_path, p)
+    assert code == 1, out
+    assert {"status", "authored-by", "approved-by"} <= rules(out), out
+
+
+def test_one_refuses_a_non_draft(tmp_path):
+    text = GOOD_DRAFT.replace("status: draft", "status: approved").replace('approved_by: ""', "approved_by: stevie")
+    text = text.replace("  dry_run_test:", "  approved_at: \"2026-10-27\"\n  dry_run_test:")
+    p = make_draft(tmp_path, text=text)
+    code, out = one(tmp_path, p)
+    assert code == 1, out
+    assert "status" in rules(out), out
+
+
+def test_one_ignores_the_baseline(tmp_path):
+    text = GOOD_DRAFT.replace("risk: medium", "risk: spicy").format(name="fx", stem="fx")
+    p = write(tmp_path, "runbooks/data/fx.yaml", text)
+    (tmp_path / "runbooks" / ".check-baseline").write_text("runbooks/data/fx.yaml|risk|metadata.risk\n")
+    code, out = one(tmp_path, p)
+    assert code == 1, out
+    assert "risk" in rules(out), out
+
+
+def test_one_keeps_the_name_rule(tmp_path):
+    p = write(tmp_path, "x/wanted-name.yaml", GOOD_DRAFT.format(name="other-name", stem="x"))
+    code, out = one(tmp_path, p)
+    assert code == 1, out
+    assert "name-mismatch" in rules(out), out
+
+
+def test_one_takes_exactly_one_file(tmp_path):
+    a = make_draft(tmp_path, name="a-draft")
+    b = make_draft(tmp_path, name="b-draft")
+    assert run(tmp_path, "--one", str(a), str(b))[0] == 2
+    assert run(tmp_path, "--one", str(tmp_path / "runbooks"))[0] == 2
+    assert run(tmp_path, "--one", "--write-baseline", str(tmp_path / "bl"), str(a))[0] == 2
+

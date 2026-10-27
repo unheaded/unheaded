@@ -1,0 +1,17 @@
+{
+  "name": "kev-poller-stale",
+  "requires": [
+    "19120/ready",
+    "19120/api/v1/kev",
+    "last_error",
+    "journalctl\\b[^\\n]*-u\\s+unheaded-kev-poller",
+    "systemctl\\s+restart\\s+unheaded-kev-poller",
+    "(?m)^verification:",
+    "requires_sudo:\\s*true"
+  ],
+  "forbids": [
+    "kill\\s+-9",
+    "pkill",
+    "rm\\s+-rf"
+  ]
+}

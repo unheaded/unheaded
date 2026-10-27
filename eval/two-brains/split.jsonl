@@ -74,8 +74,8 @@
 {"family": "repo-task", "id": "repo-sh-for-ls", "judge": "check", "ref": "eval/two-brains/fixtures/sh-for-ls", "split": "tune"}
 {"family": "repo-task", "id": "repo-sh-quote-vars", "judge": "check", "ref": "eval/two-brains/fixtures/sh-quote-vars", "split": "holdout"}
 {"family": "repo-task", "id": "repo-sh-read-raw", "judge": "check", "ref": "eval/two-brains/fixtures/sh-read-raw", "split": "holdout"}
-{"family": "runbook-draft", "id": "runbook-draft-1-wotan-restart", "judge": "runbook", "ref": "blocked: Phase 8 harness", "split": "holdout"}
-{"family": "runbook-draft", "id": "runbook-draft-2-well-vacuum-report", "judge": "runbook", "ref": "blocked: Phase 8 harness", "split": "holdout"}
-{"family": "runbook-draft", "id": "runbook-draft-3-akira-band-check", "judge": "runbook", "ref": "blocked: Phase 8 harness", "split": "tune"}
-{"family": "runbook-draft", "id": "runbook-draft-4-kev-poller-stale", "judge": "runbook", "ref": "blocked: Phase 8 harness", "split": "holdout"}
-{"family": "runbook-draft", "id": "runbook-draft-5-llama-server-swap", "judge": "runbook", "ref": "blocked: Phase 8 harness", "split": "holdout"}
+{"family": "runbook-draft", "id": "runbook-draft-1-wotan-restart", "judge": "runbook", "ref": "eval/two-brains/runbook-draft/runbook-draft-1-wotan-restart", "split": "holdout"}
+{"family": "runbook-draft", "id": "runbook-draft-2-well-vacuum-report", "judge": "runbook", "ref": "eval/two-brains/runbook-draft/runbook-draft-2-well-vacuum-report", "split": "holdout"}
+{"family": "runbook-draft", "id": "runbook-draft-3-akira-band-check", "judge": "runbook", "ref": "eval/two-brains/runbook-draft/runbook-draft-3-akira-band-check", "split": "tune"}
+{"family": "runbook-draft", "id": "runbook-draft-4-kev-poller-stale", "judge": "runbook", "ref": "eval/two-brains/runbook-draft/runbook-draft-4-kev-poller-stale", "split": "holdout"}
+{"family": "runbook-draft", "id": "runbook-draft-5-llama-server-swap", "judge": "runbook", "ref": "eval/two-brains/runbook-draft/runbook-draft-5-llama-server-swap", "split": "holdout"}

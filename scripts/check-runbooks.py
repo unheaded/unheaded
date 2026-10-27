@@ -50,8 +50,14 @@ fails too, so a fix removes its line in the same commit and the problem
 cannot quietly come back. --write-baseline refuses to add entries to an
 existing baseline (same ratchet as scripts/check-secrets-baseline.sh).
 
+--one FILE judges a single draft outside the corpus (zhen-eval's
+runbook-draft judge): no baseline, the strict rules apply whether or not
+the file carries a status, status must be draft, and dry-run-test is not
+checked (a model's draft has no test yet; the judge dry-runs it instead).
+
   scripts/check-runbooks.py runbooks/                        # check
   scripts/check-runbooks.py runbooks/network/x.yaml          # one file
+  scripts/check-runbooks.py --one /tmp/draft/name.yaml       # one draft, strict
   scripts/check-runbooks.py --write-baseline runbooks/.check-baseline runbooks/
 Exit: 0 clean, 1 findings, 2 usage.
 """
@@ -152,7 +158,7 @@ def entries(rb, section):
     return v if isinstance(v, list) else []
 
 
-def check_file(path, rel, root):
+def check_file(path, rel, root, one=False):
     out = []
 
     def add(rule, where, msg):
@@ -202,9 +208,9 @@ def check_file(path, rel, root):
         if isinstance(p, dict) and p.get("name"):
             declared.add(p["name"])
 
-    strict = "status" in meta
+    strict = "status" in meta or one
     if strict:
-        check_strict_meta(meta, root, add)
+        check_strict_meta(meta, root, add, one)
 
     seen = {}
     for section in ("steps", "rollback"):
@@ -216,12 +222,23 @@ def check_file(path, rel, root):
             err = bash_n(pc["check"])
             if err:
                 add("bash-n", f"preconditions[{i}].check", err)
+    # run-runbook.py executes verification: after the steps
+    for i, v in enumerate(entries(rb, "verification")):
+        if not isinstance(v, dict) or v.get("action") == "manual":
+            continue
+        for field in ("command", "check"):
+            if isinstance(v.get(field), str):
+                err = bash_n(v[field])
+                if err:
+                    add("bash-n", f"verification[{i}].{field}", err)
     return out
 
 
-def check_strict_meta(meta, root, add):
+def check_strict_meta(meta, root, add, one=False):
     status = meta.get("status")
-    if status not in STATUSES:
+    if one and status != "draft":
+        add("status", "metadata.status", f"{status!r}: a judged draft must say status: draft")
+    elif status not in STATUSES:
         add("status", "metadata.status", f"{status!r} not in {'/'.join(STATUSES)}")
     if meta.get("authored_by") not in AUTHORS:
         add("authored-by", "metadata.authored_by",
@@ -242,6 +259,8 @@ def check_strict_meta(meta, root, add):
             add("authored-by", "metadata.authored_by",
                 "zhen-local may only draft until a local model clears the eval bar "
                 "(latest eval/champion-runbooks/RESULTS-*.md, **all** row without \u2717)")
+    if one:
+        return  # no test exists for a judged draft; the judge dry-runs it
     t = meta.get("dry_run_test")
     if not isinstance(t, str) or not t:
         add("dry-run-test", "metadata.dry_run_test", "missing")
@@ -333,8 +352,15 @@ def main(argv=None):
     ap.add_argument("--baseline", help="baseline file (default <root>/runbooks/.check-baseline)")
     ap.add_argument("--no-baseline", action="store_true", help="report every finding")
     ap.add_argument("--write-baseline", metavar="FILE", help="write the current findings as the baseline; refuses to grow an existing one")
+    ap.add_argument("--one", action="store_true",
+                    help="judge exactly one draft file: no baseline, strict, status must be draft, no dry-run-test rule")
     a = ap.parse_args(argv)
     root = os.path.abspath(a.root)
+    if a.one:
+        if len(a.paths) != 1 or not os.path.isfile(a.paths[0]) or a.write_baseline:
+            print("check-runbooks: --one takes exactly one runbook file (and no --write-baseline)", file=sys.stderr)
+            return 2
+        a.no_baseline = True
 
     try:
         files = collect(a.paths)
@@ -343,7 +369,7 @@ def main(argv=None):
         return 2
     findings = []
     for f in files:
-        findings.extend(check_file(f, relpath(f, root), root))
+        findings.extend(check_file(f, relpath(f, root), root, one=a.one))
     current = {x.key() for x in findings}
     checked = {relpath(f, root) for f in files}
 

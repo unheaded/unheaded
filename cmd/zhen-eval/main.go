@@ -5,10 +5,12 @@
 // same tasks on the local model (llama-server) or on Claude, judged
 // mechanically: `key` tasks by pre-registered regex keys, `check` tasks
 // by applying the answer's file blocks to a fresh copy of the fixture and
-// running its check.sh in a no-network user sandbox. Claude never grades
-// Claude.
+// running its check.sh in a no-network user sandbox, `runbook` tasks
+// (runbook-draft) by the runbook harness: dry run, check-runbooks --one
+// and the task's requirements (runbook.go). Claude never grades Claude.
 //
 //	zhen-eval -backend local -model qwen-7b -out results-qwen7b.jsonl
+//	zhen-eval -family runbook-draft -limit 3 -out /tmp/rb.jsonl
 //	zhen-eval -backend claude -effort low -daily-cap-usd 3 -out results-opus.jsonl
 //
 // One JSON line per task: pass, judge detail, tokens, cost, latency. No
@@ -72,6 +74,8 @@ type Result struct {
 	Error        string   `json:"error,omitempty"`
 	Details      []string `json:"attempt_details,omitempty"`
 	At           string   `json:"at"`
+	// Judges: the runbook judge's sub-results (dry_run, check, requirements).
+	Judges map[string]string `json:"judges,omitempty"`
 }
 
 // Brain answers one prompt.
@@ -212,7 +216,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		defer func() { _ = os.RemoveAll(work) }()
 	}
-	e := &evaluator{o: o, brain: brain, keys: keys, prompts: prompts, work: work, check: newSandboxRunner(work), log: log}
+	root, err := filepath.Abs(o.root)
+	if err != nil {
+		log.Error("root", "error", err.Error())
+		return 1
+	}
+	rb := scriptTools{python: envOr("ZHEN_EVAL_PYTHON", "python3"), root: root, timeout: 60 * time.Second}
+	e := &evaluator{o: o, brain: brain, keys: keys, prompts: prompts, work: work, check: newSandboxRunner(work), rb: rb, log: log}
 	return e.runAll(ctx, tasks, stdout)
 }
 
@@ -303,8 +313,8 @@ func loadAll(o *options) ([]Task, map[string]*Key, map[string]string, error) {
 	}
 	var sel []Task
 	for _, t := range tasks {
-		if t.Judge != "key" && t.Judge != "check" {
-			continue // runbook-draft: blocked on the Phase 8 harness
+		if t.Judge != "key" && t.Judge != "check" && t.Judge != "runbook" {
+			return nil, nil, nil, fmt.Errorf("task %s: unknown judge %q", t.ID, t.Judge)
 		}
 		if o.split != "all" && t.Split != o.split {
 			continue
@@ -314,6 +324,11 @@ func loadAll(o *options) ([]Task, map[string]*Key, map[string]string, error) {
 		}
 		if t.Judge == "key" && (keys[gateID(t)] == nil || prompts[gateID(t)] == "") {
 			return nil, nil, nil, fmt.Errorf("task %s has no key or prompt", t.ID)
+		}
+		if t.Judge == "runbook" {
+			if _, err := loadRunbookTask(join(t.Ref)); err != nil {
+				return nil, nil, nil, fmt.Errorf("task %s: %w", t.ID, err)
+			}
 		}
 		sel = append(sel, t)
 	}
@@ -335,6 +350,7 @@ type evaluator struct {
 	prompts map[string]string
 	work    string
 	check   CheckRunner
+	rb      RunbookTools
 	log     *slog.Logger
 }
 
@@ -478,6 +494,27 @@ func (e *evaluator) one(ctx context.Context, t Task) (r Result) {
 			ask = prompt + "\n\nYour previous answer did not pass the check (" + cr.Detail + "). Check output:\n```\n" +
 				truncate(cr.Output, 4096) + "\n```\nReply again with the complete corrected files."
 		}
+		return r
+	case "runbook":
+		task, err := loadRunbookTask(filepath.Join(e.o.root, t.Ref))
+		if err != nil {
+			r.Error, r.Detail = err.Error(), "error"
+			return r
+		}
+		maxTok := e.o.repoTokens
+		if e.brain.Name() == "claude" {
+			maxTok = int(e.o.claudeRepoTok)
+		}
+		// One attempt for both brains (PREREG: local_attempts = 1 except repo-task).
+		ans, err := e.brain.Ask(ctx, systemRunbook, task.prompt, maxTok)
+		e.account(&r, ans, err)
+		if err != nil {
+			r.Detail = "error"
+			return r
+		}
+		e.keep(t, ans.Text)
+		rr := judgeRunbookDraft(ctx, task, e.work, ans.Text, e.rb)
+		r.Pass, r.Detail, r.Judges = rr.Pass, rr.Detail, rr.Judges
 		return r
 	}
 	r.Detail = "unknown judge"

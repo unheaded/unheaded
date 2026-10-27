@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: demo-check
+  description: Check the demo service
+  owner: zhenai
+  estimated_duration: 1m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: zhen-local
+  reviewed_by: ""
+  approved_by: ""
+steps:
+  - name: health
+    action: shell
+    command: "curl -sf --max-time 5 http://127.0.0.1:19999/health"
+verification:
+  - name: still-up
+    command: "curl -sf --max-time 5 http://127.0.0.1:19999/health"
