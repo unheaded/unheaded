@@ -1,0 +1,176 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: build-key-ceremony
+  description: Generate the ML-DSA-65 evidence build key on its custody host, publish build.pubkey by signed commit, prove a signed Sealed Cask verifies, and rotate or revoke it
+  owner: moatghost
+  estimated_duration: 30m
+  risk: critical
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_build_key_ceremony.py
+
+notes: |
+  S-IRON-GATE Phase 13 (M-061, FND-018; ADR-010, ADR-043 #4, ADR-105
+  decision 7). The build key is the one ML-DSA-65 seed every release's
+  evidence trust reduces to: it seals each Sealed Cask's Binding Rune
+  (BINDING_RUNE.sig, purpose sealed-cask-v1, `yggdrasil-evidence cask
+  sign`) and each Yggdrasil evidence pack (manifest, iso-sha256,
+  custody-entry purposes). Verifiers hold only build.pubkey:
+  `cask-verify verify --cask <cask> --pubkey compliance/keys/build.pubkey`.
+
+  WAITS ON S-IRON-GATE E1 (Stevie): where the seed lives (west under
+  unheaded-buildkey 0400 with an auditd watch, as written here; a
+  TPM-sealed file; or an offline machine), who may run `cask sign`, and
+  publishing build.pubkey by signed commit. Until E1 is answered, do not
+  run this. FND-018 stays open until the verification below passes on a
+  real pack.
+
+  Custody, as drafted:
+    - The seed is generated ON the custody host and never leaves it: no
+      copy, no backup to the Well or east, never in a repository, never in
+      GitHub secrets (keyless cosign covers GitHub-built artefacts; casks
+      are signed on the custody host and attached). Losing it means a new
+      key and a revocation entry, not a restore.
+    - Account unheaded-buildkey (uid 16737, deploy/sysusers.d), nologin,
+      owns the 0400 seed; nothing else can read it. Signing runs as that
+      account through sudo: build-sealed-cask.sh with
+      UNHEADED_BUILD_SIGN_AS=unheaded-buildkey hands it the rune on stdin.
+    - An auditd watch records every open of the seed (key unheaded-buildkey).
+    - build.pubkey is published as compliance/keys/build.pubkey in the repo:
+      it is public, and the repo is the trusted channel because Stevie's
+      commits are GPG-signed. SECURITY.md records its sha256, key id and
+      the ceremony date.
+
+  Rotation is quarterly with a one-quarter overlap: the new key gets a new
+  name (unheaded-keygen never replaces a signing key), the old public key
+  moves to compliance/keys/build-previous.pubkey, verifiers pass both
+  (--pubkey twice) for one quarter, then the old public key is removed
+  from the repo and its seed shredded. Revocation (seed exposed or lost):
+  remove the public key from compliance/keys/ at once, record it in
+  SECURITY.md, run this ceremony for a new key and re-sign the current
+  release's cask with it.
+
+parameters:
+  - name: CUSTODY_HOST
+    default: "west"
+    description: the host that holds the seed (E1); run the host steps there
+  - name: KEY_NAME
+    default: "build-evidence-2026q4"
+    description: the key's file name under /etc/unheaded/keys (one per quarter; never reused)
+  - name: REPO
+    default: "/home/govan/tmp/unheaded"
+    description: a checkout of the repo (public key and SECURITY.md go here); the verification reads it on the custody host
+
+preconditions:
+  - check: "getent passwd unheaded-buildkey >/dev/null"
+    description: the unheaded-buildkey account exists (deploy/sysusers.d/unheaded.conf, uid 16737)
+  - check: "command -v unheaded-keygen >/dev/null || test -x /opt/unheaded/bin/unheaded-keygen"
+    description: unheaded-keygen is installed on the custody host
+  - check: "command -v yggdrasil-evidence >/dev/null && command -v cask-verify >/dev/null"
+    description: the signer and verifier are installed (scripts/build-binaries.sh or go build ./cmd/yggdrasil-evidence ./cmd/cask-verify)
+  - check: "test ! -e /etc/unheaded/keys/${KEY_NAME}.key"
+    description: no key under this name yet (a signing key is never replaced)
+
+steps:
+  - name: generate-build-key
+    action: manual
+    irreversible: true
+    command: |
+      # On ${CUSTODY_HOST}, as root (E1). Writes the 32-byte seed 0400
+      # owned by unheaded-buildkey and the packed public key 0444; refuses
+      # if the key exists. The seed is never printed.
+      sudo unheaded-keygen -algo mldsa65 -owner unheaded-buildkey ${KEY_NAME}
+    description: "MANUAL (E1). Create the ML-DSA-65 build key on the custody host. The seed never leaves it."
+
+  - name: audit-watch
+    action: manual
+    command: |
+      # On ${CUSTODY_HOST}. Every read of the seed lands in the audit log.
+      echo "-w /etc/unheaded/keys/${KEY_NAME}.key -p rwa -k unheaded-buildkey" \
+        | sudo tee /etc/audit/rules.d/unheaded-buildkey.rules
+      sudo augenrules --load
+      sudo auditctl -l | grep unheaded-buildkey
+    description: "MANUAL (E1). auditd watch on the seed, persistent across reboots."
+
+  - name: print-public-key
+    action: shell
+    host: ${CUSTODY_HOST}
+    command: |
+      set -euo pipefail
+      KG=$(command -v unheaded-keygen || echo /opt/unheaded/bin/unheaded-keygen)
+      "$KG" -algo mldsa65 -print-kid ${KEY_NAME}
+      sha256sum /etc/unheaded/keys/${KEY_NAME}.pub
+      stat -c '%a %U %n' /etc/unheaded/keys/${KEY_NAME}.key /etc/unheaded/keys/${KEY_NAME}.pub
+    description: Key id, public key sha256, and the modes (want 400 unheaded-buildkey and 444 root). Reads the .pub and stats the seed; never reads the seed.
+
+  - name: publish-public-key
+    action: manual
+    command: |
+      # On the operator's machine. Only the PUBLIC key travels.
+      scp ${CUSTODY_HOST}:/etc/unheaded/keys/${KEY_NAME}.pub ${REPO}/compliance/keys/build.pubkey
+      sha256sum ${REPO}/compliance/keys/build.pubkey   # must equal print-public-key's line
+      # SECURITY.md, "Verifying releases": build key id, the sha256 above,
+      # the ceremony date and ${CUSTODY_HOST}. Then a GPG-signed commit by
+      # Stevie: the signed commit is what makes the repo a trusted channel.
+      git -C ${REPO} add compliance/keys/build.pubkey SECURITY.md
+      git -C ${REPO} commit -S -m "security: publish evidence build key ${KEY_NAME} (S-IRON-GATE E1)"
+    description: "MANUAL. Publish build.pubkey by signed commit and record its sha256 in SECURITY.md."
+
+  - name: sign-a-test-cask
+    action: manual
+    command: |
+      # On ${CUSTODY_HOST}, from a checkout, as the operator. The seed is
+      # read only by unheaded-buildkey, through sudo; the rune goes over stdin.
+      set -euo pipefail
+      D=$(mktemp -d)
+      UNHEADED_BUILD_KEY=/etc/unheaded/keys/${KEY_NAME}.key UNHEADED_BUILD_SIGN_AS=unheaded-buildkey \
+        scripts/build-sealed-cask.sh --no-build --no-encrypt --output "$D/cask.tar.gz"
+      cask-verify verify --cask "$D/cask.tar.gz" --pubkey compliance/keys/build.pubkey
+      printf 'x' >> "$D/cask.tar.gz"
+      if cask-verify verify --cask "$D/cask.tar.gz" --pubkey compliance/keys/build.pubkey; then echo "TAMPER ACCEPTED"; exit 1; fi
+      rm -rf "$D"
+      sudo ausearch -k unheaded-buildkey --start recent | tail -5
+    description: "MANUAL. A cask signed with the new key VERIFIES against the published pubkey; one appended byte is refused; the audit log shows the read."
+
+  - name: rotate-quarterly
+    action: manual
+    command: |
+      # Next quarter. Run generate-build-key, audit-watch and print-public-key
+      # with KEY_NAME=<next quarter's name>, then on the operator's machine:
+      git -C ${REPO} mv compliance/keys/build.pubkey compliance/keys/build-previous.pubkey
+      scp ${CUSTODY_HOST}:/etc/unheaded/keys/<new name>.pub ${REPO}/compliance/keys/build.pubkey
+      # SECURITY.md: both key ids and sha256s, the overlap end date. Verifiers
+      # pass --pubkey twice (cask-verify, verify-binding-rune.sh) until then.
+      # At the end of the overlap: git rm compliance/keys/build-previous.pubkey
+      # and, on ${CUSTODY_HOST}: sudo shred -u /etc/unheaded/keys/<old name>.key
+    description: "MANUAL. Quarterly rotation, both public keys valid for one quarter."
+
+  - name: revoke
+    action: manual
+    irreversible: true
+    command: |
+      # Only if the seed is exposed or lost. On the operator's machine:
+      git -C ${REPO} rm compliance/keys/build.pubkey
+      # SECURITY.md: revoked key id, date, reason. Signed commit by Stevie.
+      # Then this whole runbook for a new KEY_NAME, and re-sign the current
+      # release's cask with the new key (build-sealed-cask.sh as in
+      # sign-a-test-cask, without --no-build), and attach it to the release.
+      # On ${CUSTODY_HOST}, if the seed still exists: sudo shred -u /etc/unheaded/keys/${KEY_NAME}.key
+    description: "MANUAL. Revocation: the public key leaves the repo first; casks signed with it stop verifying."
+
+verification:
+  - name: seed-owner-only-and-published-key-matches
+    action: shell
+    host: ${CUSTODY_HOST}
+    command: |
+      set -euo pipefail
+      test "$(stat -c '%a %U' /etc/unheaded/keys/${KEY_NAME}.key)" = "400 unheaded-buildkey"
+      grep -q 'unheaded-buildkey' /etc/audit/rules.d/unheaded-buildkey.rules
+      PUB=$(sha256sum < /etc/unheaded/keys/${KEY_NAME}.pub | cut -d' ' -f1)
+      REPO_PUB=$(sha256sum < "${REPO}/compliance/keys/build.pubkey" | cut -d' ' -f1)
+      test "$PUB" = "$REPO_PUB"
+    description: The seed is 0400 to unheaded-buildkey, the audit rule is installed, and the committed build.pubkey is this key's.

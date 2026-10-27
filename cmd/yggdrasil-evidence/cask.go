@@ -39,8 +39,8 @@ func cmdCask(args []string, stdout, stderr io.Writer) int {
 func cmdCaskSign(args []string, stdout, stderr io.Writer) int {
 	fs := newFlags("cask sign", stderr)
 	key := fs.String("key", "", "ML-DSA-65 build key seed (32 bytes, owner-only mode); required")
-	manifest := fs.String("manifest", "", "the cask's "+sealedcask.ManifestName)
-	out := fs.String("out", "", "signature file to write ("+sealedcask.SigName+")")
+	manifest := fs.String("manifest", "", "the cask's "+sealedcask.ManifestName+", or - for stdin")
+	out := fs.String("out", "", "signature file to write ("+sealedcask.SigName+"), or - for stdout")
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
@@ -48,7 +48,7 @@ func cmdCaskSign(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "cask sign: --key, --manifest and --out are required, no positional args")
 		return exitUsage
 	}
-	data, err := readBounded(*manifest, sealedcask.DefaultLimits.MaxManifest)
+	data, err := readManifestArg(*manifest)
 	if err != nil {
 		fmt.Fprintf(stderr, "cask sign: %v\n", err)
 		return exitUsage
@@ -68,12 +68,40 @@ func cmdCaskSign(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "cask sign: %v\n", err)
 		return exitFail
 	}
-	if err := os.WriteFile(*out, seal, 0o644); err != nil { // #nosec G306 G703 -- public signature; operator-named path
+	progress := stdout
+	if *out == "-" {
+		// stdout carries the seal and nothing else.
+		if _, err := stdout.Write(seal); err != nil {
+			fmt.Fprintf(stderr, "cask sign: %v\n", err)
+			return exitFail
+		}
+		progress = stderr
+	} else if err := os.WriteFile(*out, seal, 0o644); err != nil { // #nosec G306 G703 -- public signature; operator-named path
 		fmt.Fprintf(stderr, "cask sign: %v\n", err)
 		return exitFail
 	}
-	fmt.Fprintf(stdout, "cask sign: %s (%s) -> %s, build key %s\n", *manifest, sealedcask.Purpose, *out, parsed.KeyId)
+	fmt.Fprintf(progress, "cask sign: %s (%s) -> %s, build key %s\n", *manifest, sealedcask.Purpose, *out, parsed.KeyId)
 	return exitOK
+}
+
+// stdin is the source for --manifest -; a variable so tests can feed it.
+var stdin io.Reader = os.Stdin
+
+// readManifestArg reads the rune from a file or, for "-", from stdin, both
+// bounded by the manifest cap.
+func readManifestArg(name string) ([]byte, error) {
+	limit := sealedcask.DefaultLimits.MaxManifest
+	if name != "-" {
+		return readBounded(name, limit)
+	}
+	b, err := io.ReadAll(io.LimitReader(stdin, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("stdin: more than %d bytes", limit)
+	}
+	return b, nil
 }
 
 func cmdCaskVerify(args []string, stdout, stderr io.Writer) int {

@@ -26,6 +26,10 @@
 #   UNHEADED_BUILD_KEY   path to the ML-DSA-65 build key seed (custody per
 #                        runbooks/security/build-key-ceremony.yaml). Unset:
 #                        the cask is built UNSIGNED and cask-verify refuses it.
+#   UNHEADED_BUILD_SIGN_AS
+#                        run the signer as this account (sudo -n -u), e.g.
+#                        unheaded-buildkey on the custody host, which owns
+#                        the seed; the rune goes over stdin, the seal stdout
 #   YGGDRASIL_EVIDENCE   the yggdrasil-evidence binary (default: on PATH, else
 #                        `go run ./cmd/yggdrasil-evidence`)
 
@@ -42,7 +46,7 @@ while [ $# -gt 0 ]; do
         --output=*) OUTPUT="${1#--output=}"; shift ;;
         --no-build) BUILD=0; shift ;;
         --no-encrypt) ENCRYPT=0; shift ;;
-        -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
         -*) echo "build-sealed-cask: unknown option $1" >&2; exit 2 ;;
         *) [ -z "${OUTPUT}" ] || { echo "build-sealed-cask: one output path" >&2; exit 2; }
            OUTPUT="$1"; shift ;;
@@ -140,7 +144,17 @@ if [ -n "${UNHEADED_BUILD_KEY:-}" ]; then
     else
         YE=(go -C "${PROJECT_ROOT}" run ./cmd/yggdrasil-evidence)
     fi
-    "${YE[@]}" cask sign --key "${UNHEADED_BUILD_KEY}" --manifest "${MANIFEST}" --out "${SIG}"
+    if [ -n "${UNHEADED_BUILD_SIGN_AS:-}" ]; then
+        # The seed is 0400 to its custody account, which cannot read this
+        # 0700 staging dir: hand it the rune on stdin, take the seal on stdout.
+        [ -n "${YGGDRASIL_EVIDENCE:-}" ] || command -v yggdrasil-evidence >/dev/null 2>&1 ||
+            { echo "ERROR: UNHEADED_BUILD_SIGN_AS needs an installed yggdrasil-evidence (or YGGDRASIL_EVIDENCE)" >&2; exit 1; }
+        # shellcheck disable=SC2024 # the redirects run as the caller on purpose
+        sudo -n -u "${UNHEADED_BUILD_SIGN_AS}" "${YE[@]}" cask sign --key "${UNHEADED_BUILD_KEY}" \
+            --manifest - --out - < "${MANIFEST}" > "${SIG}"
+    else
+        "${YE[@]}" cask sign --key "${UNHEADED_BUILD_KEY}" --manifest "${MANIFEST}" --out "${SIG}"
+    fi
     SIGNED=1
 else
     echo "=== Phase 4b: UNSIGNED CASK (set UNHEADED_BUILD_KEY) ==="

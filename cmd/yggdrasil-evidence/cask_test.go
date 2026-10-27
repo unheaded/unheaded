@@ -4,14 +4,43 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"unheaded/pkg/gungnir"
 	"unheaded/pkg/sealedcask"
 	"unheaded/pkg/sealedcask/casktest"
 )
+
+// TestCaskSignStdio: --manifest - and --out - let the build key's account
+// sign across a permission boundary (sudo -u unheaded-buildkey ... < rune >
+// sig) without reading the operator's staging directory.
+func TestCaskSignStdio(t *testing.T) {
+	dir := t.TempDir()
+	k := casktest.NewKey(t)
+	seed, _ := k.WriteFiles(t, dir)
+	m := casktest.Manifest(casktest.Files())
+	old := stdin
+	stdin = bytes.NewReader(m)
+	t.Cleanup(func() { stdin = old })
+	rc, out, errs := runCLI(t, "cask", "sign", "--key", seed, "--manifest", "-", "--out", "-")
+	if rc != exitOK {
+		t.Fatalf("rc=%d err=%q", rc, errs)
+	}
+	seal, err := gungnir.ParseEvidenceSeal([]byte(out))
+	if err != nil {
+		t.Fatalf("stdout is not just the seal: %v (%q)", err, out)
+	}
+	if err := gungnir.VerifyEvidence(m, seal, k.Pub, sealedcask.Purpose); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errs, "build key") {
+		t.Fatalf("progress line belongs on stderr with --out -: %q", errs)
+	}
+}
 
 func TestCaskSignThenVerify(t *testing.T) {
 	dir := t.TempDir()

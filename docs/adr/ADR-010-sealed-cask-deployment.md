@@ -8,6 +8,27 @@
 - Binding Rune = SHA256 manifest of all files in the cask
 - LUKS encryption and Bone Shell/Soul Chamber split deferred to Beta
 
+**2026-10-27 Amendment (S-IRON-GATE Phase 13, M-061, FND-018): the Binding Rune is signed.**
+- The seal is ML-DSA-65, not Ed25519 as drafted below: `BINDING_RUNE.sig` is a gungnir evidence seal
+  (`pkg/gungnir`, FIPS 204 context `unheaded/gungnir/evidence/v1`, purpose `sealed-cask-v1`, JSON with the
+  signing key's id, no expiry) over the exact bytes of `BINDING_RUNE.sha256`, made with the evidence build
+  key that also signs Yggdrasil evidence packs (ADR-105 decision 7). The purpose keeps a cask seal from
+  verifying as a pack seal and the reverse.
+- Sign: `scripts/build-sealed-cask.sh` with `UNHEADED_BUILD_KEY` set (`yggdrasil-evidence cask sign`;
+  `UNHEADED_BUILD_SIGN_AS=unheaded-buildkey` runs the signer as the custody account over stdin/stdout).
+  Without the key the script prints `UNSIGNED CASK` and the verifier refuses the result.
+- Verify: `cask-verify verify --cask <cask> --pubkey compliance/keys/build.pubkey` (standalone, for deploy
+  hosts; `--pubkey` repeats during a rotation overlap), or `scripts/verify-binding-rune.sh`, which delegates
+  to it. The sha256-only check survives only as `--insecure-sha-only`, with a banner.
+- The tarball is hostile input (`pkg/sealedcask`): one `sealed-cask-*` root, clean relative names, no
+  links or devices, 2 GiB per member and 8 GiB in all, no bytes after the archive; the regular files must be
+  exactly the rune's. `cask-verify extract` verifies first and writes nothing until that passes, then writes
+  through `os.Root` into a new directory with setuid/setgid stripped. `FuzzVerify` runs in the lich-fuzz job.
+- Staging copies tracked files only: `cp -r configs/` had been shipping gitignored dev keys, certs and users.
+- Key custody (where the seed lives, who signs, how `build.pubkey` is published) is S-IRON-GATE E1;
+  the drafted ceremony is `runbooks/security/build-key-ceremony.yaml` (account `unheaded-buildkey`, uid 16737).
+  Until E1, casks built here are unsigned or signed with a throwaway test key.
+
 ## Date: 2026-02-18
 
 ## Naming Convention
