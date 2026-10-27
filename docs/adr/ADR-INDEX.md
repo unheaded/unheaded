@@ -94,7 +94,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [033](ADR-033-netbox-ipam.md) | NetBox IPAM | Planned | 2026-04-03 |
 | [034](ADR-034-grpc-mtls-default-transport.md) | gRPC mTLS Default Transport | Accepted | 2026-04-02 |
 | [035](ADR-035-wotan-active-passive-redundancy.md) | ~~Wotan Active-Passive Redundancy~~ | **Superseded by ADR-064** (2026-05-05) | 2026-04-05 |
-| [036](ADR-036-claude-distillation-training.md) | Claude Distillation Training Data | **In Progress** | 2026-04-05 |
+| [036](ADR-036-claude-distillation-training.md) | Claude Distillation Training Data | **Withdrawn** | 2026-04-05 |
 | [037](ADR-037-zhenai-unified-champion.md) | Zhenai Unified Champion (The Armor) | Planned | 2026-04-05 |
 | [038](ADR-038-kanban-git-audit-trail.md) | Kanban GUID → Git Commit Audit | Accepted | 2026-04-05 |
 | [69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) | BGP Sleipnir + Unheaded OS | **Deferred to Q4 2026** | 2026-03-18 |

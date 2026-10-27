@@ -1,5 +1,7 @@
 # Protocol Status — S72
 
+> **Historical, unverified (2026-10-27).** The implementation paths and test tables below were not found in the tree (17 of 17 sampled, docs/sweeps/outstanding-2026-10-27/sweep-protocol.md). Kept for the drafting history; the live status is docs/RFC-ALIGNMENT-FINDINGS.md.
+
 **Date**: February 27, 2026
 **Phase**: Phase 4 Protocol Cross-References
 **Battle Plan**: S72 Implementation Sprint
