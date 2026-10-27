@@ -2,6 +2,10 @@
 # Traefik routes, read from this file instead of the Docker socket. The socket
 # is the Docker API: read-only mount or not, whoever holds it is root on the
 # host. Two routes do not need that. Add a service here when it needs one.
+#
+# S-IRON-GATE Phase 8: the backends serve TLS only, signed by the dev CA
+# (scripts/gen-dev-certs.sh); Traefik verifies them against it by their
+# compose names.
 http:
   routers:
     dashboard:
@@ -12,12 +16,18 @@ http:
       rule: "PathPrefix(`/kanban`)"
       entryPoints: [web]
       service: kanban
+  serversTransports:
+    kingdom:
+      rootCAs:
+        - /etc/traefik/tls/ca.pem
   services:
     dashboard:
       loadBalancer:
+        serversTransport: kingdom
         servers:
-          - url: "http://dashboard-backend:20000"
+          - url: "https://dashboard-backend:20000"
     kanban:
       loadBalancer:
+        serversTransport: kingdom
         servers:
-          - url: "http://kanban-app:20001"
+          - url: "https://kanban-app:20001"

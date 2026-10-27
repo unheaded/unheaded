@@ -208,6 +208,7 @@ services:
       - "127.0.0.1:21000:21000"   # Traefik dashboard (dev only) — loopback: operator-local, not LAN
     volumes:
       - "./config/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro"
+      - "./configs/certs/dev/ca.pem:/etc/traefik/tls/ca.pem:ro"   # S-IRON-GATE Phase 8: backends are https
       - "traefik-certs:/certs"
     networks:
       - control
@@ -323,6 +324,7 @@ services:
       - victoria-data:/victoria-data
       - victoria-auth:/victoria-auth:ro
       - ./config/victoria/scrape.yml:/etc/victoria/scrape.yml:ro
+      - ./configs/certs/dev/ca.pem:/etc/victoria/tls/ca.pem:ro   # S-IRON-GATE Phase 8: scrapes are https
     networks:
       - observe
     labels:
@@ -680,13 +682,24 @@ services:
     # put WOTAN_ADMIN_API_KEY in /etc/unheaded/wotan/wotan.env (0600, see
     # deploy/systemd/wotan.env.example) and add "--admin"; with --admin and
     # no key Wotan exits rather than refusing every admin call:
-    #   command: ["--log-level", "info", "--admin"]
-    command: ["--log-level", "info"]
+    #   command: [..., "--admin"]
+    # TLS (S-IRON-GATE Phase 8): Wotan takes its certificate from flags; HTTP
+    # 18000 serves the Preferred profile, gRPC 18001 Strict (ADR-105). The
+    # UNHEADED_TLS_* env below is for its healthcheck and outgoing clients.
+    command: ["--log-level", "info", "--enable-tls", "--tls-cert", "/etc/unheaded/tls/wotan.pem", "--tls-key", "/etc/unheaded/tls/wotan-key.pem"]
     env_file:
       # WOTAN_ADMIN_API_KEY; 0600 on the host, never in the repo.
       - path: /etc/unheaded/wotan/wotan.env
         required: false
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/wotan.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/wotan-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_wotan   # ADR-103
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       # S-IRON-GATE Phase 7 (ADR-103 §6): every HTTP request and gRPC call
@@ -706,6 +719,7 @@ services:
       - "18001:18001"     # gRPC streaming
       - "18000:18000"     # HTTP REST API
     volumes:
+      - ./configs/certs/dev/wotan:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - /var/log/unheaded/wotan:/var/log/unheaded:rw
       - ./configs/wotan.yaml:/etc/wotan/wotan.yaml:ro
@@ -716,7 +730,7 @@ services:
       kingdom.armor: "fae-chamber"
       kingdom.role: "message-bus"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:18000/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "18000"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -746,6 +760,14 @@ services:
       - /tmp:size=32M,uid=16722,gid=16722
       - /data:size=64M,uid=16722,gid=16722
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/timeguru.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/timeguru-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_timeguru   # ADR-103
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token; kanban-app reads the timeline with its own, and it and
@@ -768,6 +790,7 @@ services:
       TIMELINE_PATH: "/references/timeline.md"
       SYNC_DIR: "/data/sync"
     volumes:
+      - ./configs/certs/dev/timeguru:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./references:/references:ro
     ports:
@@ -781,7 +804,7 @@ services:
       kingdom.armor: "oracle"
       kingdom.role: "timeline"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19000/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19000"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -810,6 +833,14 @@ services:
     tmpfs:
       - /tmp:size=32M
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/captain.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/captain-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_captain   # ADR-103
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
@@ -822,6 +853,7 @@ services:
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
       DATA_PATH: "/data"
     volumes:
+      - ./configs/certs/dev/captain:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - captain-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
@@ -835,7 +867,7 @@ services:
       kingdom.armor: "commander"
       kingdom.role: "strategy"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19002/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19002"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -864,6 +896,14 @@ services:
     tmpfs:
       - /tmp:size=32M
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/architect.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/architect-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_architect   # ADR-103
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
@@ -876,6 +916,7 @@ services:
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     command: ["-addr", ":19001"]
     volumes:
+      - ./configs/certs/dev/architect:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - architect-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
@@ -889,7 +930,7 @@ services:
       kingdom.armor: "sage"
       kingdom.role: "adr"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19001/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19001"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -904,6 +945,14 @@ services:
   micromanager:
     logging: *journald-logging
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/micromanager.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/micromanager-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_micromanager   # ADR-103
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
@@ -932,6 +981,7 @@ services:
       - /tmp:size=32M
     command: ["-port", "19003"]
     volumes:
+      - ./configs/certs/dev/micromanager:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - micromanager-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
@@ -945,7 +995,7 @@ services:
       kingdom.armor: "war-room"
       kingdom.role: "execution"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19003/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19003"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -971,6 +1021,14 @@ services:
     user: "16731:16731"   # pkg/uids
     secrets: [svc_key_akira]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_akira (scripts/gen-dev-keys.sh)
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/akira.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/akira-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_akira   # ADR-103: also Akira's Wotan identity
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       # S-IRON-GATE Phase 6 recipe: every route but /health /ready /metrics and
@@ -988,6 +1046,7 @@ services:
       - /tmp:size=16M
     command: ["--config", "/etc/unheaded/akira.yaml", "--wotan", "wotan:18000", "--node", "${KINGDOM_NODE:-west}"]
     volumes:
+      - ./configs/certs/dev/akira:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./config/akira/akira.yaml:/etc/unheaded/akira.yaml:ro
     ports:
@@ -1000,7 +1059,7 @@ services:
     labels:
       kingdom.role: "health"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19100/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19100"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1021,6 +1080,7 @@ services:
     user: "16726:16726"   # pkg/uids
     secrets: [svc_key_monad]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_monad (scripts/gen-dev-keys.sh)
     volumes:
+      - ./configs/certs/dev/monad:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
     restart: unless-stopped
     read_only: true
@@ -1032,6 +1092,14 @@ services:
       - /tmp:size=32M
       - /data:size=64M
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/monad.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/monad-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_monad   # ADR-103
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
@@ -1053,7 +1121,7 @@ services:
       kingdom.armor: "monad"
       kingdom.role: "state-management"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19004/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19004"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1074,6 +1142,7 @@ services:
     user: "16727:16727"   # pkg/uids
     secrets: [svc_key_sophia]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_sophia (scripts/gen-dev-keys.sh)
     volumes:
+      - ./configs/certs/dev/sophia:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
     restart: unless-stopped
     read_only: true
@@ -1085,6 +1154,14 @@ services:
       - /tmp:size=32M
       - /data:size=64M
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/sophia.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/sophia-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_sophia   # ADR-103
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
@@ -1106,7 +1183,7 @@ services:
       kingdom.armor: "sophia"
       kingdom.role: "knowledge-graph"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19005/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19005"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1136,15 +1213,22 @@ services:
       - /tmp:size=32M
       - /data:size=64M
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/dashboard-backend.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/dashboard-backend-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_dashboard-backend   # ADR-103
       # S-IRON-GATE Phase 6: the browser's backend-for-frontend (pkg/bff).
       # People log in at /auth/login against the issuer and hold only an
-      # HttpOnly session cookie; every /api/ call and WebSocket needs one
-      # (or a service token from AUTH_ALLOW_CALLERS). Plain http to the
-      # issuer and no Secure on the cookie until internal TLS (Phase 8).
+      # HttpOnly, Secure session cookie; every /api/ call and WebSocket
+      # needs one (or a service token from AUTH_ALLOW_CALLERS). The issuer
+      # is https, verified against the dev CA (Phase 8).
       AUTH_ENABLED: "true"
-      AUTH_ISSUER_URL: "http://auth:19020"
-      AUTH_BFF_DEV_PLAINTEXT: "true"
+      AUTH_ISSUER_URL: "https://auth:19020"
       AUTH_ALLOW_CALLERS: "unheaded-cli"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
@@ -1165,6 +1249,7 @@ services:
       WELL_DB: "unheaded_ops"
       WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
     volumes:
+      - ./configs/certs/dev/dashboard-backend:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
       - /proc:/host/proc:ro
@@ -1192,7 +1277,7 @@ services:
       kingdom.armor: "visor"
       kingdom.role: "dashboard"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:20000/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "20000"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1221,14 +1306,21 @@ services:
     tmpfs:
       - /tmp:size=32M
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/kanban-app.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/kanban-app-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_kanban-app   # ADR-103; also mints its tokens for Timeguru
       # S-IRON-GATE Phase 6: reads stay open (The Meta Moment); a write needs
       # an operator login on the board (pkg/bff: /auth/login against the
-      # issuer, HttpOnly session cookie) or a token from these callers.
-      # Plain http to the issuer, no Secure cookie, until Phase 8 TLS.
+      # issuer, HttpOnly, Secure session cookie) or a token from these
+      # callers. The issuer is https, verified against the dev CA (Phase 8).
       AUTH_ENABLED: "true"
-      AUTH_ISSUER_URL: "http://auth:19020"
-      AUTH_BFF_DEV_PLAINTEXT: "true"
+      AUTH_ISSUER_URL: "https://auth:19020"
       AUTH_ALLOW_CALLERS: "dashboard-backend,zhen-agentd,micromanager"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
@@ -1246,6 +1338,7 @@ services:
       WELL_DB: "unheaded_app"
       WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
     volumes:
+      - ./configs/certs/dev/kanban-app:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - kanban-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
@@ -1265,7 +1358,7 @@ services:
       kingdom.armor: "meta-moment"
       kingdom.role: "kanban"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:20001/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "20001"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1294,6 +1387,14 @@ services:
     tmpfs:
       - /tmp:size=64M
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/cuirass.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/cuirass-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_unheaded-daemon   # ADR-103
       # S-IRON-GATE Phase 5: writes need a service token from an allowlisted
       # caller (reads under /api/v1/info and /api/v1/state stay open).
@@ -1308,6 +1409,7 @@ services:
     ports:
       - "19006:19006"
     volumes:
+      - ./configs/certs/dev/cuirass:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - cuirass-state:/var/lib/unheaded   # its own volume (owned 16740 from the image), not the host's whole /var/lib/unheaded
       - /var/log/unheaded/cuirass:/var/log/unheaded:rw
@@ -1321,7 +1423,7 @@ services:
       kingdom.armor: "cuirass"
       kingdom.role: "control-plane"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19006/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19006"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1334,10 +1436,9 @@ services:
 
   # unheaded-auth, the built-in OIDC issuer (ADR-103 §3, S-IRON-GATE Phase 4):
   # password login, 15-minute EdDSA tokens, JWKS. No host port: the
-  # dashboard BFF reaches it on the data network. Dev only: plain HTTP
-  # (-dev-plaintext) until TLS lands (Phase 8); services' JWKS verifiers
-  # accept plain http to loopback only, so nothing verifies its tokens over
-  # this network before then. The users file and key come from
+  # BFFs reach it on the data network at https://auth:19020 (TLS 1.3,
+  # hybrid ML-KEM only, certificate from scripts/gen-dev-certs.sh; S-IRON-GATE
+  # Phase 8 replaced -dev-plaintext). The users file and key come from
   # scripts/gen-dev-keys.sh (gitignored; run it with sudo so uid 16735 can
   # read both). Reload users: docker compose kill -s HUP auth.
   auth:
@@ -1356,8 +1457,18 @@ services:
       - ALL
     tmpfs:
       - /tmp:size=16M
-    command: ["-listen", ":19020", "-issuer-url", "http://auth:19020", "-key-file", "/run/secrets/svc_key_unheaded-auth", "-users-file", "/etc/unheaded/auth/users.json", "-audiences", "unheaded,dashboard-backend,kanban-app", "-dev-plaintext"]
+    command: ["-listen", ":19020", "-issuer-url", "https://auth:19020", "-key-file", "/run/secrets/svc_key_unheaded-auth", "-users-file", "/etc/unheaded/auth/users.json", "-audiences", "unheaded,dashboard-backend,kanban-app"]
+    environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/auth.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/auth-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
     volumes:
+      - ./configs/certs/dev/auth:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       # Long form: a missing file is an error, not a directory Docker creates.
       - type: bind
         source: ./configs/auth/dev-users.json
@@ -1371,7 +1482,7 @@ services:
       kingdom.component: "control-plane"
       kingdom.role: "auth"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19020/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19020"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1409,6 +1520,14 @@ services:
       - path: /etc/unheaded/sword/sword.env
         required: false
     environment:
+      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
+      # listener and link; material from scripts/gen-dev-certs.sh (this
+      # service's own dir only). No mTLS: identity is the service token.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/sword.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/sword-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_sword   # ADR-103; also mints its tokens for Cuirass
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
@@ -1418,7 +1537,7 @@ services:
       # these callers (or an operator key); before this list was set, every
       # service token got 403.
       AUTH_ALLOW_CALLERS: "unheaded-cli,dashboard-backend"
-      CUIRASS_URL: "http://cuirass:19006"
+      CUIRASS_URL: "https://cuirass:19006"   # Phase 8: the cert names cuirass
       # Deployment history in The Well (unheaded_ops.deploy_history, migration
       # 039, S-WELL-SPRING Phase 2) as the scoped writer. Sword refuses to start
       # while 039 is not applied: apply it before rebuilding this service. The
@@ -1436,6 +1555,7 @@ services:
     ports:
       - "19011:19011"
     volumes:
+      - ./configs/certs/dev/sword:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - sword-data:/data
       - ./observability/alerting/policy.yaml:/etc/unheaded/sword/policy.yaml:ro
@@ -1452,7 +1572,7 @@ services:
       kingdom.armor: "sword"
       kingdom.role: "deploy"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19011/health", "-O", "/dev/null"]
+      test: ["CMD", "/usr/local/bin/healthprobe", "19011"]   # https with the CA (cmd/healthprobe)
       interval: 10s
       timeout: 5s
       retries: 5

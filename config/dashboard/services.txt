@@ -8,6 +8,10 @@ monad=monad:19004
 sophia=sophia:19005
 wotan=wotan:18000
 cuirass=cuirass:19006
+# First-party names above (and kanban) go https with the dev CA when the
+# dashboard runs with UNHEADED_TLS_ENABLED (internal/health.FirstParty); the
+# certificate names the compose service, so reach them by that name.
+kanban=kanban-app:20001
 
 # Host-native + containerized services, reached via the br-unhe-data gateway
 # (172.28.1.1 — stable, subnet pinned in docker-compose.yml). The dashboard
@@ -19,7 +23,6 @@ wiki=172.28.1.1:20002
 zhenai=172.28.1.1:20103
 grafana=172.28.1.1:3001
 victoriametrics=172.28.1.1:8428
-kanban=172.28.1.1:20001
 huginn=172.28.1.1:9110
 llama-server=172.28.1.1:8081
 vor=172.28.1.1:9876
