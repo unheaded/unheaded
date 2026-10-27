@@ -88,6 +88,32 @@ Claude worktrees, not `../unheaded-wt-*` (see amendments). Step 10's baseline: p
 | E12 | promotion after green CI, on Stevie's word | 288 |
 | E13 | granted; coordinator runs the relicense after every branch merges | 253-258 |
 
+### Attack-surface table (Phase 7, Step 261)
+
+| Change | Before | After | Proven by |
+|---|---|---|---|
+| Wotan admin endpoints | `-admin` on by default, key unsettable, every call refused | off by default; on only with `WOTAN_ADMIN_API_KEY` (fail-loud if missing); 401 without the header | `services/wotan/cmd/wotan/admin_key_test.go` |
+| wotan-client gRPC re-probe | none | outbound health probe every 30 s while degraded; no listener | `pkg/wotan-client` reprobe tests |
+| `SubscribeWithRetry` in micromanager, monad, sophia, gateway, architect, anomaly, xdpsync | one-shot join; monad never subscribed `alerts.critical`; anomaly exited on a down Wotan | retry until joined; no new listener | `TestLateWotan_*` (fake Wotan started after the service) |
+| Wotan rate limiter | keyed by IP:port (a new source port is a new bucket) | keyed by IP | middleware tests |
+| Wotan CORS under `*` | origin echoed with `Allow-Credentials: true` | `*` without credentials | middleware tests |
+| Wotan gRPC `PublishTopic` | ring buffer only (signed drift/config lost on restart) | also the persistent store, async; replayed signed messages no longer verify (store keeps no signature, FND-020): fail closed | `topic_service_store_test.go` |
+| Prometheus 9090, Loki 3100 | every interface, IPv4 and IPv6, no auth | 127.0.0.1 only | live: loopback 200, from east refused (curl 000) |
+| haproxy edge/internal | configs refused to parse (could not start) | parse under 2.9.15 and 3.0; backends resolve via Docker DNS at runtime; no cert committed | `scripts/check-haproxy-cfg.sh` (new gate) |
+| Zhen web UI | chat straight to llama-server (Champion gate bypassed, T6a); `CORS(app)` let any origin read conversation history; reflected XSS in `/view/source`; hard-coded Flask secret default | chat through zhen-agentd only (503 without it); CSRF token on state-changing browser requests; no CORS; XSS fixed; no secret default | `raft/tests/test_zhen_app_gate.py` (CSRF, CORS) |
+| zhen-agentd | started without auth; rate limit 0; direct `/api/v1/tool/exec` ran `write_file` with a synthesized justification | refuses to start unauthenticated (unless `-no-auth` on loopback); 5 rps per IP, burst 10; justification required | `authstart_test.go`, `toolexec_justification_test.go`. Open: limiter trusts `X-Forwarded-For` |
+| unheaded-baseline | audit only | also publishes `compliance.deviation.<host>` (metadata only) when `-wotan-addr` is set | `cmd/unheaded-baseline/wotan_test.go` |
+| `/.well-known/security.txt` | absent | static public GET on dashboard-backend, exempt from auth | dashboard-backend tests |
+| kingdom-startup | monitoring started by nobody | Phase 0a starts it before the warm-up silence; no new ports (all documented, now loopback where unauthenticated) | dry run; live run pending (Step 153) |
+| alert-mailer `mode: send` | dry-run | outbound SMTP to smtp.gmail.com:587 with STARTTLS; app password 0400 uid 16710 under `/etc/unheaded/alert-mailer` | live: page delivered 2026-10-27 |
+| Probe subnets (Cuirass, Yaldabaoth) | any instance-reported address | only inside the bridge subnet (10.10.20.0/24 on west, configured) | `pkg/probenet` tests |
+| `setup-host.sh` LXD preseed | `LXD_TRUST_PASSWORD:-changeme` | no trust password | script review |
+| `switch-model.sh --stop` | unanchored port match could kill a process on a longer port | exact port | `scripts/lib` gpulease tests (red: killed the test binary) |
+| Well role passwords | set via `docker exec -e PW=<value>` (argv, /proc-readable) | value passed by name only; nine roles rotated | `test-backup-restore.sh` argv shim |
+| WireGuard PSK, east sshd | static PSK since 2026-03-25; classical KEX accepted | rotated; east hybrid-only (ML-KEM / sntrup) | live checks in `e7123644` |
+| ebtables modules | loadable | `install /bin/false` on both hosts (FND-011 stopgap) | live `modprobe` refusal |
+| Relicense | — | no runtime effect | licence-only diff check |
+
 ### Found on the way (not in the plan)
 - Go known failures are ZERO on develop after the Phase 3 merge (both inherited FAIL lines fixed).
 - Live prerequisites from Phase 3, apply with the next deploy (not before: old binaries may reject the new keys):
