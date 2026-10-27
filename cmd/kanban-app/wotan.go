@@ -82,6 +82,10 @@ type TaskManager struct {
 	// The streams now live as long as the TaskManager; Close() ends them.
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
+
+	// runbookProgress holds the newest runbooks.progress event per runbook
+	// (runbooks.go).
+	runbookProgress *runbookProgressTracker
 }
 
 // NewTaskManager creates a task manager with Wotan client and optional task store.
@@ -103,6 +107,7 @@ func NewTaskManager(client WotanClient, broadcast func(string, interface{}), sto
 		timelineManager: NewTimelineManager(broadcast),
 		streamCtx:       streamCtx,
 		streamCancel:    streamCancel,
+		runbookProgress: newRunbookProgressTracker(),
 	}
 
 	return tm, nil
@@ -149,6 +154,12 @@ func (tm *TaskManager) Initialize(ctx context.Context) error {
 	if err := tm.subscribeToTimeline(ctx); err != nil {
 		log.Warn().Err(err).Msg("failed to subscribe to timeline updates (non-fatal)")
 		// Non-fatal: Kanban can work without timeline integration
+	}
+
+	// Per-step runbook progress (runbooks.go). Non-fatal: the Runbooks view
+	// works without it, minus step k/n.
+	if err := tm.subscribeToRunbookProgress(ctx); err != nil {
+		log.Warn().Err(err).Msg("failed to subscribe to runbooks.progress (non-fatal)")
 	}
 
 	return nil

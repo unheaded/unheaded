@@ -157,6 +157,15 @@
     },
     {
       "files": [
+        "cmd/kanban-app/static/js/runbooks.js"
+      ],
+      "globals": {
+        "Board": "readonly",
+        "WebSocketClient": "readonly"
+      }
+    },
+    {
+      "files": [
         "cmd/kanban-app/static/js/board.js"
       ],
       "globals": {

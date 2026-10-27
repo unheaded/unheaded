@@ -47,6 +47,7 @@ topics:
     - "zhen-claude"          # zhen.llm.requests / zhen.audit.toolcalls / zhen.confirm.pending (S-TWO-BRAINS)
     - "zhen-agentd"          # same topics, the local brain
     - "zhen-eval"            # zhen.llm.requests from the two-brains eval
+    - "runbook-runner"       # runbooks.progress from scripts/run-runbook.py when RUNBOOK_PROGRESS_WOTAN is set (S-CHAMPION-HARDENING Step 224)
     - "unheaded-baseline"    # compliance.deviation.<host> from the host baseline agent (ADR-098)
     - "perf-benchmark"       # cmd/perf-benchmark -scenario e2e-trace: publishes bench.perf.packet only (S-WELL-SPRING Phase 10)
 

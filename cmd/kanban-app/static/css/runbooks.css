@@ -1,0 +1,94 @@
+/* Runbooks view and the card modal's runbook / agent-run blocks (runbooks.js) */
+.runbooks-view {
+    display: none;
+    padding: 16px;
+    background: #111;
+    border-bottom: 1px solid #333;
+}
+.runbooks-view.visible {
+    display: block;
+}
+.runbooks-note {
+    color: #666;
+    font-size: 12px;
+}
+.runbooks-list {
+    max-height: 360px;
+    overflow-y: auto;
+}
+.runbook-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #222;
+}
+.runbook-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.runbook-ref {
+    color: #eee;
+    font-size: 13px;
+}
+.runbook-meta {
+    color: #888;
+    font-size: 11px;
+}
+.runbook-meta-warn {
+    color: #fdda61;
+}
+.runbook-desc {
+    color: #999;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+.runbook-create {
+    flex-shrink: 0;
+    font-size: 12px;
+    padding: 4px 10px;
+}
+.runbook-progress {
+    color: #888;
+    font-size: 11px;
+    font-family: monospace;
+}
+.runbook-progress-busy {
+    color: #6cb6ff;
+}
+.runbook-progress-good {
+    color: #3fb950;
+}
+.runbook-progress-bad {
+    color: #ff5c00;
+}
+.detail-runbook,
+.detail-agent-run {
+    margin-top: 16px;
+}
+.agent-run-fields {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 12px;
+    margin: 0;
+    font-size: 12px;
+}
+.agent-run-fields dt {
+    color: #888;
+}
+.agent-run-fields dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+.agent-run-copy {
+    cursor: pointer;
+}
+@media (max-width: 600px) {
+    .runbook-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

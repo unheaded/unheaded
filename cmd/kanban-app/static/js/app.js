@@ -614,6 +614,11 @@ const App = (function() {
             }
         }
 
+        // Runbook and agent-run blocks (runbooks.js: GET /api/v1/tasks/{id})
+        if (window.RunbookView) {
+            window.RunbookView.showTaskExtras(task);
+        }
+
         // Show modal
         elements.taskDetailModal.classList.add('active');
     }

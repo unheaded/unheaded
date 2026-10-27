@@ -18,11 +18,15 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import re
 import socket
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
 
 import yaml
 
@@ -151,7 +155,87 @@ def check_preconditions(runbook, env, dry_run):
     return all_pass
 
 
-def execute_steps(runbook, env, dry_run=False, start_step=0):
+# Per-step progress on Wotan (S-CHAMPION-HARDENING Step 224): the Kanban
+# board shows `step k/n` for a running runbook. Opt-in: only when
+# RUNBOOK_PROGRESS_WOTAN names Wotan's HTTP address (host:port or a URL).
+# The publisher joins the topic as PROGRESS_PUBLISHER, which must be on
+# Wotan's topics.auto_approve list (configs/wotan.yaml); a join that is not
+# approved, an HTTP error or a timeout turns progress off for the rest of
+# the run with one line on stderr. Progress never changes a run's outcome.
+# Events carry the runbook ref, step number, total, step name and state:
+# names from the committed runbook, never command output.
+PROGRESS_TOPIC = "runbooks.progress"
+PROGRESS_PUBLISHER = "runbook-runner"
+PROGRESS_TIMEOUT = 2
+RUNBOOK_REF_RE = re.compile(r"^[a-z0-9-]{1,64}/[a-z0-9-]{1,128}$")
+
+
+def runbook_ref(path, meta):
+    """category/name: RUNBOOK_REF (the Champion sets it: a live run gets a
+    private copy whose path says nothing), else the path under the nearest
+    runbooks/ directory, else metadata.name."""
+    ref = os.environ.get("RUNBOOK_REF", "").strip()
+    if ref:
+        return ref
+    parts = os.path.normpath(os.path.abspath(path)).split(os.sep)
+    if "runbooks" in parts:
+        i = len(parts) - 1 - parts[::-1].index("runbooks")
+        rel = "/".join(parts[i + 1:])
+        if rel.endswith(".yaml"):
+            return rel[:-len(".yaml")]
+    return str(meta.get("name", ""))
+
+
+class Progress:
+    """Best-effort publisher of runbooks.progress events."""
+
+    def __init__(self, ref, total, dry_run):
+        self.ref, self.total, self.dry_run = ref, total, dry_run
+        self.base = None
+        self.subscriber = None
+        addr = os.environ.get("RUNBOOK_PROGRESS_WOTAN", "").strip()
+        if not addr:
+            return
+        if not RUNBOOK_REF_RE.match(ref or ""):
+            self.off(f"runbook ref {ref!r} is not category/name")
+            return
+        if not addr.startswith(("http://", "https://")):
+            addr = "http://" + addr
+        self.base = addr.rstrip("/") + "/api/v1/topics/" + PROGRESS_TOPIC
+
+    def off(self, why):
+        print(f"[progress] off: {why}", file=sys.stderr)
+        self.base = None
+
+    def post(self, suffix, body):
+        req = urllib.request.Request(self.base + suffix, data=json.dumps(body).encode(), method="POST",
+                                     headers={"Content-Type": "application/json"})
+        # The operator's own RUNBOOK_PROGRESS_WOTAN; http(s) only (prefixed above).
+        with urllib.request.urlopen(req, timeout=PROGRESS_TIMEOUT) as resp:  # nosec B310
+            return resp.status, json.loads(resp.read().decode() or "{}")
+
+    def join(self):
+        status, body = self.post("/subscribe", {"display_name": PROGRESS_PUBLISHER})
+        sub = body.get("subscriber") or {}
+        if status != 201 or sub.get("status") != "approved" or not sub.get("subscriber_id"):
+            raise ValueError(f"join {PROGRESS_TOPIC} as {PROGRESS_PUBLISHER}: status {sub.get('status', status)!r}"
+                             f" (is {PROGRESS_PUBLISHER} on Wotan's topics.auto_approve?)")
+        self.subscriber = sub["subscriber_id"]
+
+    def emit(self, step, state, name=""):
+        if self.base is None:
+            return
+        event = {"runbook": self.ref, "step": step, "total": self.total, "name": str(name)[:128],
+                 "state": state, "dry_run": self.dry_run, "ts": int(time.time() * 1000)}
+        try:
+            if self.subscriber is None:
+                self.join()
+            self.post("/publish", {"subscriber_id": self.subscriber, "payload": json.dumps(event)})
+        except (OSError, ValueError) as e:  # URLError and HTTPError are OSErrors
+            self.off(str(e)[:200])
+
+
+def execute_steps(runbook, env, dry_run=False, start_step=0, progress=None):
     """Execute runbook steps sequentially."""
     steps = runbook.get("steps", [])
     if not steps:
@@ -160,6 +244,7 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
 
     print(f"\n=== Executing {len(steps)} Steps ===\n")
     failed_step = None
+    emit = progress.emit if progress is not None else (lambda *_a, **_k: None)
 
     for i, step in enumerate(steps):
         if i < start_step:
@@ -176,6 +261,7 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
         print(f"  [{i+1}/{len(steps)}] {name}")
         if desc:
             print(f"           {desc}")
+        emit(i + 1, "running", name)
 
         # `host:` names the machine a step belongs to (wireguard-overlay
         # alternates west and east). Nothing here can run a step elsewhere, and
@@ -186,9 +272,11 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
             print(f"    [WRONG HOST] this step runs on {host}; this is {LOCAL_HOST}.")
             print(f"           Continue there: run-runbook.py --step {i} <runbook>")
             if dry_run:
+                emit(i + 1, "skipped", name)
                 continue
             # Not a failure: nothing ran, so there is nothing to roll back.
             print(f"\n[STOPPED] before step {i+1} ({name}); no rollback, nothing failed.")
+            emit(i + 1, "stopped", name)
             sys.exit(2)
 
         if action == "manual":
@@ -204,6 +292,7 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
                 print("    [MANUAL] then confirm:")
                 for line in verify.split("\n"):
                     print(f"             {line}")
+            emit(i + 1, "manual", name)
             continue
 
         if action == "shell" and command:
@@ -220,6 +309,7 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
                 if on_fail:
                     print(f"    [HINT] {on_fail[:300]}")
                 failed_step = name
+                emit(i + 1, "failed", name)
                 break
 
         # Verification
@@ -232,7 +322,9 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
                 if on_fail:
                     print(f"    [HINT] {on_fail[:300]}")
                 failed_step = name
+                emit(i + 1, "failed", name)
                 break
+        emit(i + 1, "ok", name)
 
     return failed_step
 
@@ -421,7 +513,9 @@ def main():
         sys.exit(1)
 
     # Execute steps
-    failed = execute_steps(runbook, env, dry_run=args.dry_run, start_step=args.step)
+    total = len(runbook.get("steps") or [])
+    progress = Progress(runbook_ref(args.runbook, meta), total, args.dry_run)
+    failed = execute_steps(runbook, env, dry_run=args.dry_run, start_step=args.step, progress=progress)
 
     if failed:
         print(f"\n[FAILED] Runbook stopped at: {failed}")
@@ -434,7 +528,9 @@ def main():
     unverified = run_verification(runbook, env, dry_run=args.dry_run)
     if unverified:
         print(f"\n[FAILED] verification: {', '.join(unverified)}")
+        progress.emit(total, "failed", "verification")
         sys.exit(1)
+    progress.emit(total, "done")
     print("\n[SUCCESS] Runbook completed.")
     sys.exit(0)
 
