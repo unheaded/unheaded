@@ -125,3 +125,39 @@ qwen-coder-14b (120) are estimates: measure. Premise that did not hold: `/confir
 with Iron Gate Phase 3's `uhk_` keys). LICH-013 campaign file created; smoke-tested; known gap: allowlist and
 in-progress refusals answer 500, not ADR-060's 400/429. LIVE: `TestPGMemoryStore_Live` (needs `WELL_TEST_APP_DSN`),
 a live `/model` swap, `-memory-store pg` in the agentd unit (E4).
+
+### Coding gate (Steps 90-92, 109-110): PASS, no regression attributable to Phases 1-11
+
+Two 5-seed sweeps of `make coding-gate-ci` on qwen-7b (pin ok, fit ok, loaded through `switch-model.sh`), `cs serve`
+for vor: baseline at `1c87b996` (before any Champion merge, so before pkg/zhenrag) in a scratch worktree, then the
+merged tree (`bin/zhen-rag` at 28c0797c). Each sweep hit the 40-minute cap during seed 999, so both are graded on the
+same four seeds with the script's own grader:
+
+| seed | baseline PASS | merged PASS |
+|---|---|---|
+| 42 | 12 | 10 |
+| 137 | 12 | 11 |
+| 314 | 9 | 9 |
+| 271 | 10 | 10 |
+
+Baseline band [9, 12] (width 3: the WARN threshold is crossed by the baseline alone); merged band [9, 11]; no
+seed moves by more than 2; red flags 1 -> 0. Same GGUF, same vor fingerprint, yet the answer text differs even on
+seeds with equal counts: generation is not reproducible run to run on this setup, so per-seed differences are noise.
+The prompt bytes are proven identical to the pre-Phase-4 prompt by `pkg/zhenrag`'s goldens test. Gate note for next
+time: a 5-seed sweep takes about 50 minutes on west under load; use a 70-minute cap.
+
+### Step 148 live eval (local)
+
+`zhen-eval -backend local -model qwen-7b -family runbook-draft -limit 3`: 2/3 passed (wotan-restart and
+well-vacuum-report pass all three judges; akira-band-check: dry_run pass, check-runbooks fail, requirements pass).
+llama-server and `cs serve` stopped afterwards (nothing was serving before).
+
+### Phase 8 merged (a3176839)
+
+Scheduled jobs: `observe/service-health-sweep` every 6 h (Python had 30 m = 48 cards/day);
+`data/conversation-memory-maintenance` weekly, disabled (its steps use `sudo docker exec`, which the unit forbids).
+No draft is scheduled. Migration 037 (`zhen_agent_runs` mode `scheduled`) pending live with 030-036. `app_zhen` cannot
+insert `kanban_tasks`, so `-kanban-store=pg` reads `WELL_KANBAN_DSN` first: set `WELL_KANBAN_DSN` and `WELL_APP_ZHEN_DSN` at
+E4. New `-metrics-addr` (`[fd00:dead:beef::1]:20105`) + scrape job `zhen-agentd`; `ZhenSchedulerStalled` fires (warning,
+none) until E4, which is accurate. E4 prerequisite: `/var/zhen/projects/default` must hold `runbooks/`,
+`MANIFEST.sha256`, `scripts/run-runbook.py`. `zhen-claude review` refuses scheduled runs.

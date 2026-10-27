@@ -468,12 +468,12 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Coding gate after the prompt change (mandatory)
 
-- [ ] **Step 90** [TEST][B] ~15m: Coding gate, 5 seeds (memory: project_zhenai_coding_gate). Needs llama-server with qwen-7b: start it ONLY through the fit check.
+- [x] **Step 90** [TEST][B] ~15m: Coding gate, 5 seeds (memory: project_zhenai_coding_gate). Needs llama-server with qwen-7b: start it ONLY through the fit check.
   ```bash
   cd /home/govan/tmp/unheaded && scripts/switch-model.sh --status 2>&1 | tail -2; scripts/switch-model.sh qwen-7b 2>&1 | tail -3 && make coding-gate-ci 2>&1 | tail -15
   ```
-- [ ] **Step 91** [V] ~1m: Gate PASS at the recorded bar (the script prints PASS/FAIL per seed). If FAIL → the prompt text changed semantically in Step 86; diff `zhenrag.SystemPrompt(Chat)` against Step 81's `p_py.txt` and restore wording until identical; re-run. Max 2 attempts, then STUCK.
-- [ ] **Step 92** [D] ~5m: If `switch-model.sh` refuses (fit check rc=3) → `scripts/switch-model.sh --stop; sleep 5;` retry once (S21 gotcha). Never bypass the fit check.
+- [x] **Step 91** [V] ~1m: Gate PASS at the recorded bar (the script prints PASS/FAIL per seed). If FAIL → the prompt text changed semantically in Step 86; diff `zhenrag.SystemPrompt(Chat)` against Step 81's `p_py.txt` and restore wording until identical; re-run. Max 2 attempts, then STUCK.
+- [x] **Step 92** [D] ~5m: If `switch-model.sh` refuses (fit check rc=3) → `scripts/switch-model.sh --stop; sleep 5;` retry once (S21 gotcha). Never bypass the fit check.
 
 ### Runbook body hash before execute
 
@@ -520,11 +520,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
   cd /home/govan/tmp/unheaded && go test ./pkg/zhenrag/... ./pkg/champion/... ./pkg/agent/... ./cmd/zhen-rag/... ./cmd/zhen-agentd/... -race -count=1 2>&1 | tail -6
   ```
 - [x] **Step 108** [V] ~1m: Green after merge (Phase 1-3 and Phase 4 both touched `toolcall.go`; resolve by keeping the allowlist AND the moved regexp).
-- [ ] **Step 109** [TEST][B] ~15m: Coding gate once more on the merged tree (prompt bytes must be unchanged by the merge)
+- [x] **Step 109** [TEST][B] ~15m: Coding gate once more on the merged tree (prompt bytes must be unchanged by the merge)
   ```bash
   cd /home/govan/tmp/unheaded && make coding-gate-ci 2>&1 | tail -8
   ```
-- [ ] **Step 110** [V] ~1m: **PHASE 4 EXIT GATE** — Steps 88, 91, 96, 103, 108, 109 green. Commit `[PLAN S-CHAMPION-HARDENING] Steps 106-110: Phase 4 merged, coding gate green`.
+- [x] **Step 110** [V] ~1m: **PHASE 4 EXIT GATE** — Steps 88, 91, 96, 103, 108, 109 green. Commit `[PLAN S-CHAMPION-HARDENING] Steps 106-110: Phase 4 merged, coding gate green`.
 
 ---
 
@@ -639,7 +639,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   cd /home/govan/tmp/unheaded && PATH=~/.venv/zhen/bin:$PATH go test ./cmd/zhen-eval/... -race -count=1 2>&1 | tail -4
   ```
 - [x] **Step 147** [V] ~1m: PASS. If `check-runbooks.py` has no `--one` → add it in Step 145 (validate a single path, no baseline write).
-- [ ] **Step 148** [TEST][B] ~10m: Dry run of the eval on `runbook-draft` only, local model, 3 tasks, scratch output (NOT committed; results files lock bars)
+- [x] **Step 148** [TEST][B] ~10m: Dry run of the eval on `runbook-draft` only, local model, 3 tasks, scratch output (NOT committed; results files lock bars)
   ```bash
   cd /home/govan/tmp/unheaded && scripts/switch-model.sh --status | tail -1 && go run ./cmd/zhen-eval -family runbook-draft -limit 3 -out /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/eval-rbdraft-smoke.jsonl 2>&1 | tail -6
   ```
@@ -678,35 +678,35 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 2.5 h + E4 window
 **Agent**: Coordinator (E4 steps), Agent A (code)
 
-- [ ] **Step 159** [R] ~5m
+- [x] **Step 159** [R] ~5m
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'def (add_schedule|remove_schedule|load_schedules|run_job|heartbeat)' raft/zhen_scheduler.py && grep -nE 'SCHEDULE_FILE|schedules.json' raft/zhen_scheduler.py | head -3 && grep -nE 'overnight|worker' cmd/zhen-agentd/main.go | head -8 && ls db/migrations | grep -iE 'agent_runs|zhen' 
   ```
-- [ ] **Step 160** [DECIDE][DESIGN] ~4m: Fold or supervise
+- [x] **Step 160** [DECIDE][DESIGN] ~4m: Fold or supervise
   - RECOMMENDATION: fold into `zhen-agentd` as a `-scheduler` mode reading `configs/zhen-schedules.yaml` (replacing the JSON file), executing through `Champion.RunbookExecute` (so the manifest check, audit log and gate apply), recording each run as a `zhen_agent_runs` row with `mode: scheduled` (migration 032's table; in-memory store when the Well is down), creating one Kanban card per run through the Champion's `kanban_create` with `type: scheduled-run`. Rationale: a second Python daemon would need its own user, unit, Well role and audit path; agentd already has all four. Override ONLY if the Python scheduler must keep running on a host without the Go binary (none: both hosts run agentd).
-- [ ] **Step 161** [CODE][W] ~10m: Red tests in `cmd/zhen-agentd/scheduler_test.go`: schedule file parsed (cron-like `every: 1h|daily@03:00`), a due job executes via a fake Champion exactly once, a run row and a card are recorded, a failing job sets `last_error` and does not block the next job, heartbeat publishes `zhen.scheduler.heartbeat` every tick. Green: `cmd/zhen-agentd/scheduler.go` (stdlib `time` only; no cron library: a 60 s ticker + `next_due` computation; `-scheduler` flag + `-schedules` path).
-- [ ] **Step 162** [TEST][B] ~3m
+- [x] **Step 161** [CODE][W] ~10m: Red tests in `cmd/zhen-agentd/scheduler_test.go`: schedule file parsed (cron-like `every: 1h|daily@03:00`), a due job executes via a fake Champion exactly once, a run row and a card are recorded, a failing job sets `last_error` and does not block the next job, heartbeat publishes `zhen.scheduler.heartbeat` every tick. Green: `cmd/zhen-agentd/scheduler.go` (stdlib `time` only; no cron library: a 60 s ticker + `next_due` computation; `-scheduler` flag + `-schedules` path).
+- [x] **Step 162** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-agentd/... -race -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 163** [V] ~1m: PASS.
-- [ ] **Step 164** [W] ~5m: `configs/zhen-schedules.yaml` with today's jobs (read them from the JSON the Python scheduler used: `grep -n SCHEDULE_FILE raft/zhen_scheduler.py`; if the file is absent on west, start with `conversation-memory-maintenance` weekly and the heartbeat), each naming an approved runbook; `scripts/check-manifest-yaml.sh` must still pass.
-- [ ] **Step 165** [CODE][W] ~6m: Webapp: `raft/zhen_app.py:849-880` schedule commands call agentd `POST /api/v1/scheduler/{add,remove,list}` (loopback, same auth) instead of importing `zhen_scheduler`; the `pkill -f zhen_scheduler` line goes. Add the three endpoints to agentd (mutating add/remove go through the Champion gate as `schedule_update`, registered in `MutatingTools`). Test in `cmd/zhen-agentd` and a Python unit test with a mocked `requests`.
-- [ ] **Step 166** [TEST][B] ~3m
+- [x] **Step 163** [V] ~1m: PASS.
+- [x] **Step 164** [W] ~5m: `configs/zhen-schedules.yaml` with today's jobs (read them from the JSON the Python scheduler used: `grep -n SCHEDULE_FILE raft/zhen_scheduler.py`; if the file is absent on west, start with `conversation-memory-maintenance` weekly and the heartbeat), each naming an approved runbook; `scripts/check-manifest-yaml.sh` must still pass.
+- [x] **Step 165** [CODE][W] ~6m: Webapp: `raft/zhen_app.py:849-880` schedule commands call agentd `POST /api/v1/scheduler/{add,remove,list}` (loopback, same auth) instead of importing `zhen_scheduler`; the `pkill -f zhen_scheduler` line goes. Add the three endpoints to agentd (mutating add/remove go through the Champion gate as `schedule_update`, registered in `MutatingTools`). Test in `cmd/zhen-agentd` and a Python unit test with a mocked `requests`.
+- [x] **Step 166** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-agentd/... ./pkg/champion/... -race -count=1 2>&1 | tail -3 && ~/.venv/zhen/bin/python3 -m pytest raft/tests -q 2>&1 | tail -2
   ```
-- [ ] **Step 167** [W] ~4m: Heartbeat alert: `monitoring/prometheus/rules/zhen.yml` rule `ZhenSchedulerStalled` on `absent_over_time(zhen_scheduler_heartbeat_timestamp_seconds[15m])` (agentd exports the gauge); `monitoring/prometheus/rules/tests/zhen_test.yml` promtool case; `runbooks/observe/zhen-scheduler-stalled.yaml` (draft, Claude-authored, per Phase 6 policy).
-- [ ] **Step 168** [TEST][B] ~2m
+- [x] **Step 167** [W] ~4m: Heartbeat alert: `monitoring/prometheus/rules/zhen.yml` rule `ZhenSchedulerStalled` on `absent_over_time(zhen_scheduler_heartbeat_timestamp_seconds[15m])` (agentd exports the gauge); `monitoring/prometheus/rules/tests/zhen_test.yml` promtool case; `runbooks/observe/zhen-scheduler-stalled.yaml` (draft, Claude-authored, per Phase 6 policy).
+- [x] **Step 168** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && scripts/check-prometheus-rules.sh 2>&1 | tail -3 && scripts/check-runbooks.sh 2>&1 | tail -1
   ```
-- [ ] **Step 169** [W] ~3m: Retire the Python scheduler: `git rm raft/zhen_scheduler.py`; ADR-028 status → "Superseded by zhen-agentd -scheduler (S-CHAMPION-HARDENING Step 160)"; `wiki/Zhen-AI.md` scheduler section rewritten (unit, config file, how to add a job, where runs show up).
-- [ ] **Step 170** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 159-169: scheduler folded into zhen-agentd; Python scheduler retired`
+- [x] **Step 169** [W] ~3m: Retire the Python scheduler: `git rm raft/zhen_scheduler.py`; ADR-028 status → "Superseded by zhen-agentd -scheduler (S-CHAMPION-HARDENING Step 160)"; `wiki/Zhen-AI.md` scheduler section rewritten (unit, config file, how to add a job, where runs show up).
+- [x] **Step 170** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 159-169: scheduler folded into zhen-agentd; Python scheduler retired`
 
 ### Unit on west (E4)
 
-- [ ] **Step 171** [W] ~4m: `deploy/systemd/zhen-agentd.service` gains `-scheduler -schedules /etc/unheaded/zhen/schedules.yaml`; `deploy/systemd/zhen-agentd.env.example` documents `ZHEN_SCHEDULES`; `scripts/check-systemd-units.sh` and `scripts/check-unit-binaries.sh` pass.
+- [x] **Step 171** [W] ~4m: `deploy/systemd/zhen-agentd.service` gains `-scheduler -schedules /etc/unheaded/zhen/schedules.yaml`; `deploy/systemd/zhen-agentd.env.example` documents `ZHEN_SCHEDULES`; `scripts/check-systemd-units.sh` and `scripts/check-unit-binaries.sh` pass.
   ```bash
   cd /home/govan/tmp/unheaded && scripts/check-systemd-units.sh 2>&1 | tail -2 && scripts/check-unit-binaries.sh 2>&1 | tail -2
   ```
