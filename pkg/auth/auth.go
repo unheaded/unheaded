@@ -219,7 +219,13 @@ func (m *MultiAuthenticator) Authenticate(ctx context.Context, r *http.Request) 
 // %2e or %2F, starts with "/health/" but names another resource to any
 // router or file server that cleans or decodes the path after this check;
 // such a request goes through auth instead.
+//
+// A nil authMiddleware (SetupMiddleware with auth off) stays nil, so
+// WrapHandler passes the handler through instead of calling it.
 func SkipAuthPaths(authMiddleware func(http.Handler) http.Handler, skipPrefixes ...string) func(http.Handler) http.Handler {
+	if authMiddleware == nil {
+		return nil
+	}
 	return func(next http.Handler) http.Handler {
 		authed := authMiddleware(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

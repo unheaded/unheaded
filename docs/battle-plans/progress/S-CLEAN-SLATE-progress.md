@@ -136,6 +136,13 @@ Eighteen gates exit 0 (list in `3bb9d44b`); FuzzClientIP 4.8 M execs and the two
   chat answers 503.
 - Risk to measure (Step 155b): routing Zhen chat through zhen-agentd scored 7/14 vs 12/14 on the coding gate on
   2026-05-02; not re-measured since.
+- Found live at Step 153: Cuirass crash-looped in its default configuration (AUTH_ENABLED unset): `pkg/auth.SkipAuthPaths`
+  wrapped the nil middleware SetupMiddleware returns with auth off into one that called it. Fixed in pkg/auth (nil stays
+  nil). Hidden since 2ff3be29 because every window ran Cuirass with auth on.
+- Coordinator process lessons (S24): (1) `docker compose up --build` on a container stuck in a restart loop hung for
+  3.5 h at the recreate (the build itself finished in 45 s); stop the container first and cap every compose call with
+  `timeout`. (2) Never wait on an `until` loop with no deadline. (3) A background task that can block forever needs a
+  fallback check, not just a completion notification.
 - Coordinator process lesson: never judge a gate through `| tail -1` (it returns tail's exit code); 0c29126f went in
   with gitleaks red because of it, fixed in 801befcc.
 
