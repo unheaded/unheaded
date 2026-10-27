@@ -8,7 +8,7 @@ in messages to commits already rewritten in this run are replaced with
 their new abbreviated hashes. The branch is moved only if it still points
 at the old head (compare-and-swap); a backup ref keeps the old head.
 
-usage: resign-unpushed.py REPO BASE [--no-sign] [--committer-name NAME]
+usage: resign-unpushed.py REPO BASE [--no-sign] [--merges] [--committer-name NAME]
 
 Use when commits were made unsigned (gpg-agent timed out) and the key is
 now cached. BASE is the last pushed commit (e.g. origin/develop). Check
@@ -35,8 +35,11 @@ def git(*args, env=None, input=None):
 branch = git("symbolic-ref", "--short", "HEAD").strip()
 old_head = git("rev-parse", "HEAD").strip()
 olds = git("rev-list", "--reverse", "--topo-order", f"{base}..HEAD").split()
-if git("rev-list", "--merges", f"{base}..HEAD").strip():
-    sys.exit("merges in range; refusing")
+# Merges are recreated with their rewritten parents (the loop below takes
+# every parent); it still needs an explicit --merges so a range with merges
+# nobody expected is not rewritten by accident.
+if git("rev-list", "--merges", f"{base}..HEAD").strip() and "--merges" not in sys.argv:
+    sys.exit("merges in range; pass --merges to recreate them signed")
 
 mapping = {}  # old full sha -> new full sha
 hex8 = re.compile(r"\b[0-9a-f]{8}\b")
