@@ -265,6 +265,34 @@ Soul Chamber: /vault (read-write, LUKS2, Sophia per-incarnation key)
 | Bone Shell + Soul Chamber | Design + prototype | Production hardening | Multi-cloud volume management |
 | Brooks (block index) | In-memory index over BadgerDB | Persistent index, rebuild-on-corruption | Distributed index for Soul Split |
 
+## Amendments
+
+### 2026-10-27: Q4 for Kanban cards (S-WELL-SPRING Step 40, M-075)
+
+Q4's weekly 72-hour purge was never built: `kanban_tasks` rows are
+soft-deleted (`deleted_at`, `pkg/database/kanban_store.go` DeleteTask) and
+kept indefinitely, and a deleted card can still be restored (the store's
+restore clears `deleted_at`). Amended for `kanban_tasks`:
+
+- **Soft-deleted cards are purged by The Well's retention timer
+  (`unheaded-well-retention`, S-WELL-SPRING Phase 4) 90 days after
+  `deleted_at`.** There is no separate Kanban purge job: one purge mechanism,
+  one ledgered role (`retention_runner`), one place to read what was deleted
+  and when. 90 days is the retention policy's default operational class
+  (`docs/policy/retention-policy-v1-2026-05-06.md`); a restore stays possible
+  for that long, where 72 hours would have made it a race.
+- If the policy ratification (E-C) picks a different age for Kanban, that
+  age wins and this paragraph is amended again; the mechanism stays.
+- Archived cards (`archived_at`) are not deleted cards and are not purged.
+- `zhen_agent_runs.card_id` references `kanban_tasks (id)` without
+  `ON DELETE` (032): the purge must leave a card that any run still names
+  (or the run history must be retained first). Losing a run's record to a
+  card purge is not acceptable; the retention job's migration decides how.
+
+Q4's 72 hours still stands as written for the Phylactery vault design
+above; it does not apply to The Well's tables, whose ages come from the
+retention policy.
+
 ## Related
 
 - PHYLACTERY.md — Storage Layer Open Questions section

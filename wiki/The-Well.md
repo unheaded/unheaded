@@ -57,7 +57,9 @@ PUBLIC has no CONNECT or TEMP anywhere: a role reaches only the databases it is 
 ## Rules
 
 - **No DB = read-only mode.** Mutable UI is never allowed without persistence.
-- **Ledger only.** Schema changes are new migrations through `cmd/well-migrate`; no service creates tables at startup, no hand-run SQL files.
+- **Ledger only.** Schema changes are new migrations through `cmd/well-migrate`; no service creates tables at startup, no hand-run SQL files. Services check the ledger instead: `pkg/database.RequireMigrations` (kanban-app requires 003 and 007 and refuses to start against a Well that answers without them, rather than falling back to its local SQLite board; `app_kanban` reads `unheaded_app`'s ledger through migration 038). kanban-app's and timeguru's `CREATE TABLE IF NOT EXISTS` are their own local SQLite files, not the Well.
+- **Batches go through `scripts/well/batch-apply.sh`.** `--dry-run [--from NNN]` lists what is pending (MANIFEST minus ledgers) and changes nothing; without it the script backs up the whole cluster (`scripts/db-backup.sh` layout) into `/srv/backups/unheaded-well/pre-batch-<UTC>/` with `pending.tsv`, applies, and prints the ledger rows added. A batch that fails part-way: do not re-run; `scripts/well/batch-rollback.sh --yes <pre-batch-dir>` drops and restores only the databases the batch touched and drops roles it created (writes since the backup are lost). Rehearsal: `scripts/well/test-batch-apply.sh` (CI). Pending live as of 2026-10-27: 030-038.
+- **Unused indexes** (ERDA 5.3): `scripts/well/index-drops-after-2026-11-15.sh` prints `DROP INDEX CONCURRENTLY` drafts for indexes still at `idx_scan = 0`; it refuses before 2026-11-15 or on statistics younger than 28 days and never drops anything. The reviewed list becomes a `notx` migration.
 - **No credentials in the repo**, and every `kingdom_config` change states a reason (`well.change_reason`, 028).
 - **Backup before change:** `sudo systemctl start unheaded-well-backup.service`.
 
