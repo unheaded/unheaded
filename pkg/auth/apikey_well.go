@@ -57,7 +57,7 @@ type wellAPIKeys struct {
 	db *sql.DB
 }
 
-const apiKeyColumns = `id::text, key_hash, prefix, owner, role, created_at, expires_at, revoked_at, last_used_at`
+const apiKeyColumns = `id::text, key_hash, prefix, owner, role, created_at, expires_at, revoked_at, last_used_at` // #nosec G101 -- column names of api_keys (hashes only), not a credential
 
 type rowScanner interface {
 	Scan(dest ...any) error

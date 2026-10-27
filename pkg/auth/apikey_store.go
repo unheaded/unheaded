@@ -35,7 +35,7 @@ const (
 	// MaxAPIKeyLifetime caps how far ahead a key may expire.
 	MaxAPIKeyLifetime = 365 * 24 * time.Hour
 	// DefaultAPIKeyFile is the file store for hosts without the Well.
-	DefaultAPIKeyFile = "/etc/unheaded/auth/apikeys.jsonl"
+	DefaultAPIKeyFile = "/etc/unheaded/auth/apikeys.jsonl" // #nosec G101 -- a file path (the store holds hashes), not a credential
 
 	apiKeyBodyLen = 43 // base64url of 32 bytes, unpadded
 	// touchEvery bounds last_used_at writes to one per key per minute.

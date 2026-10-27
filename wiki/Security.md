@@ -157,7 +157,7 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | Dependency baseline | No third-party package (go.sum, Cargo.lock, requirements, package.json) enters unrecorded (ADR-096) | `scripts/check-dependency-baseline.sh` |
 | Image tags | No new floating image tag; the existing ones may only shrink (ADR-102) | `scripts/check-image-tags.sh` |
 | Unit binaries / accounts | Every systemd unit runs a binary the repo builds, as its own sysusers account | `scripts/check-unit-binaries.sh`, `scripts/check-systemd-units.sh` |
-| gitleaks (pinned binary, sha256) + shrink-only baseline | Secrets in the tracked tree | `scripts/check-gitleaks.sh`, `scripts/check-secrets-baseline.sh` |
+| gitleaks (pinned binary, sha256) + shrink-only baseline | Secrets in the tracked tree; default rules plus `.gitleaks.toml` rule `unheaded-api-key` for leaked `uhk_` API keys (ADR-103 §5) | `scripts/check-gitleaks.sh`, `scripts/check-secrets-baseline.sh` |
 | ruff, shellcheck, clippy | Python, shell and Rust lint (gating) | CI |
 | oxlint (pinned binary, sha256) | JavaScript lint (gating); replaced eslint, the only npm use (ADR-006) | `scripts/check-js-lint.sh` |
 | release freshness | Pinned tools (oxlint, gitleaks, syft, grype, cosign, helm, kubeconform; all in `scripts/lib/tool-pins.sh`) fail once a newer release is 7 days old; each is sha256-checked on every use (`scripts/lib/fetch-tool.sh`) | `scripts/check-tool-freshness.sh` |
