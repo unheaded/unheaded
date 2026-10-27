@@ -93,6 +93,22 @@ func (c *Client) PublishSigned(ctx context.Context, topic string, payload []byte
 	return gc.PublishSigned(ctx, topic, payload, signer)
 }
 
+// PublishWithSigner publishes payload to topic, signed by signer when the
+// topic takes only signed messages (wotansig.RequiresSignature), as Publish
+// otherwise. A signed topic with a nil signer is refused with
+// wotansig.ErrSignatureRequired and nothing is sent: a producer whose
+// signing key is not configured never publishes there unsigned
+// (S-IRON-GATE Phase 9).
+func (c *Client) PublishWithSigner(ctx context.Context, topic string, payload []byte, signer *wotansig.TopicSigner) error {
+	if !wotansig.RequiresSignature(topic) {
+		return c.Publish(ctx, topic, payload)
+	}
+	if signer == nil {
+		return wotansig.RefuseUnsigned(topic)
+	}
+	return c.PublishSigned(ctx, topic, payload, signer)
+}
+
 // VerifySignature re-verifies a signed message against the public keys the
 // caller trusts for its topic (ADR-105): ML-DSA-65, one of trusted, over
 // exactly this topic, sender, signing time and payload.

@@ -6,6 +6,7 @@ package wotanClient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
@@ -14,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"unheaded/pkg/wotansig"
 )
 
 // flakyWotan is an HTTP Wotan whose publish endpoint can be switched between
@@ -189,13 +192,18 @@ func TestFallback_ControlTopicsAreNotBuffered(t *testing.T) {
 	fw := newFlakyWotan(t)
 	c := fw.client(t)
 	ctx := context.Background()
-	for _, topic := range []string{"chaos.abort", "config.update", "deploy.started", "cuirass.chaos"} {
+	for _, topic := range []string{"chaos.abort", "config.update", "deploy.started", "cuirass.chaos", "deploy.progress"} {
 		if _, err := c.Subscribe(ctx, topic, "svc"); err != nil {
 			t.Fatal(err)
 		}
 	}
 	fw.down.Store(true)
-	for _, topic := range []string{"chaos.abort", "config.update", "deploy.started", "cuirass.chaos"} {
+	// config.* is a signed topic: an unsigned publish never leaves the
+	// client, so it is neither buffered nor counted as refused here.
+	if err := c.Publish(ctx, "config.update", []byte(`{"x":1}`)); !errors.Is(err, wotansig.ErrSignatureRequired) {
+		t.Errorf("unsigned config.update: %v, want ErrSignatureRequired", err)
+	}
+	for _, topic := range []string{"chaos.abort", "deploy.progress", "deploy.started", "cuirass.chaos"} {
 		err := c.Publish(ctx, topic, []byte(`{"x":1}`))
 		if err == nil {
 			t.Fatalf("publish on %s while Wotan is down returned nil", topic)

@@ -50,8 +50,30 @@ A `config.*` key verifies nothing under `drift.` and a drift key verifies
 nothing under `config.` (ADR-043 #4 key separation). The longest matching
 prefix decides. Wotan refuses to start on a broken entry (no trailing dot,
 wildcard, duplicate, a `config.` prefix, a key that is not a base64 ML-DSA-65
-public key, an unknown field). HTTP refuses every signed prefix. `logs.*`,
-`alerts.*` and the rest stay unsigned.
+public key, an unknown field, or the too-broad `alerts.`). HTTP refuses every
+signed prefix. A prefix also covers its stem: `alerts.critical.` signs the
+topic `alerts.critical` itself.
+
+### Signed families (S-IRON-GATE Phase 9, M-053)
+
+| Prefix | Producer | Key |
+|---|---|---|
+| `drift.` | `heimdall-daemon` | `--drift-sign-key`, one per node |
+| `audit.` | none yet | `AUDIT_SIGNING_KEY_FILE` |
+| `alerts.critical.` | none yet (every service subscribes) | (none defined) |
+| `system.health.consensus.`, `system.health.remediate.` | Akira | `HEALTH_SIGNING_KEY_FILE` |
+
+`configs/wotan.yaml` lists each with `keys: []`: enrolled per deployment, never
+in the checked-in copy. Producers never send these unsigned: every unsigned
+publish path in `pkg/wotan-client` refuses a topic under
+`wotansig.SignedTopicPrefixes` with `ErrSignatureRequired`, and
+`Client.PublishWithSigner` signs when a key is set. Without
+`HEALTH_SIGNING_KEY_FILE`, Akira publishes its reports but not consensus or
+remediation (`akira_signed_publish_refused_total`); the consensus is still on
+`GET /api/v1/status`. `system.health.reports` (every service votes there) and
+the rest of `alerts.*` and `logs.*` stay unsigned. Keys come from
+`unheaded-keygen -algo mldsa65 -owner <account> <name>`, which prints the
+base64 public key to enrol.
 
 ## Subscriber verification
 
@@ -77,9 +99,12 @@ alert to `drift.detected.<node_id>` (node ID normalized to `[a-z0-9-]`) as
 display name `heimdall`, signed with a key that must differ from the manifest
 keys (`--sign-key`, `--pubkey`). Body: `node_id, path, kind, expected_sha256,
 actual_sha256, detected_at, manifest_name, manifest_version`. Without
-`--wotan-grpc` it prints alerts only. Running it for real (a drift key per
-node, its public key in `signed_prefixes`, `heimdall` on the allowlist, a unit
-file) is open item E5 for Stevie.
+`--wotan-grpc` it prints alerts only. The unit is
+`deploy/systemd/unheaded-heimdall.service` (account `unheaded-heimdall`, uid
+16736, CAP_DAC_READ_SEARCH only) and the enrolment steps are
+`runbooks/security/heimdall-enrol-drift-key.yaml` (draft). Running it on west
+and east, and where each node's drift key is made, is S-IRON-GATE E2 for
+Stevie.
 
 ## Trusted keys
 
@@ -96,8 +121,8 @@ Blocks downgrade attacks. Testing covers explicit rejection of
 Sits on top of existing `pkg/crypto/pqc/ml_dsa.go` (`github.com/cloudflare/circl`
 v1.6.5 in `go.mod`; not vendored). Zero new external dependencies.
 
-`configs/wotan.yaml` ships `signing_keys: []` and `drift.` with `keys: []`,
-so out of the box every `config.*` and `drift.*` publish is refused.
+`configs/wotan.yaml` ships `signing_keys: []` and every signed prefix with
+`keys: []`, so out of the box every publish under them is refused.
 
 ---
 

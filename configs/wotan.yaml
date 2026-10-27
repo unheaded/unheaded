@@ -87,9 +87,32 @@ topics:
   # (S-QUANTUM-ARMOR E5): its public key goes in drift.'s keys, e.g.
   #   - prefix: "drift."
   #     keys: ["<base64 ML-DSA-65 public key of heimdall on east>"]
-  # Prefixes end in "."; the longest matching prefix decides.
+  # Prefixes end in "."; the longest matching prefix decides. A prefix also
+  # covers its stem: "alerts.critical." signs the topic alerts.critical.
+  #
+  # S-IRON-GATE Phase 9 (M-053): audit.*, Akira's two health outputs and
+  # alerts.critical are signed too. keys: [] means every publish there is
+  # refused: enrol per deployment (E2 pattern), never in this file's
+  # checked-in copy. Generate the key on the producer's host
+  # (unheaded-keygen -algo mldsa65 -owner <account> <name>), paste the
+  # base64 public key it prints into that prefix's keys, restart Wotan
+  # (runbooks/security/heimdall-enrol-drift-key.yaml shows the steps for
+  # drift.). Producers read their key from AUDIT_SIGNING_KEY_FILE /
+  # HEALTH_SIGNING_KEY_FILE (0400) and refuse to publish these topics
+  # without one, never sending them unsigned. alerts.* as a whole is not
+  # signed (unsigned service alerts live there); system.health.reports is
+  # not signed (every service votes there; its sender is the verified
+  # service token).
   signed_prefixes:
     - prefix: "drift."
+      keys: []
+    - prefix: "audit."                     # no first-party producer yet
+      keys: []
+    - prefix: "alerts.critical."           # every service subscribes; no first-party producer yet
+      keys: []
+    - prefix: "system.health.consensus."   # Akira's band changes (HEALTH_SIGNING_KEY_FILE)
+      keys: []
+    - prefix: "system.health.remediate."   # Akira's remediation suggestions (HEALTH_SIGNING_KEY_FILE)
       keys: []
 
 # Persistent store configuration (Wave 9)

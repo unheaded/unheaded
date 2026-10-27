@@ -11,7 +11,7 @@ func TestRequiresSignature_BuiltinPrefixes(t *testing.T) {
 		"config.baseline":        true,
 		"drift.detected.node-01": true,
 		"drift.":                 true,
-		"drift":                  false,
+		"drift":                  true, // a prefix covers its stem (wotansig.Covers)
 		"driftwood.x":            false,
 		"kenoma.drift.detected":  false,
 		"state.drift.detected":   false,

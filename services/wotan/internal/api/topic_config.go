@@ -178,7 +178,7 @@ func (c *TopicConfig) RequiresSignature(topic string) bool {
 		return false
 	}
 	for _, sp := range c.Topics.SignedPrefixes {
-		if sp.Prefix != "" && strings.HasPrefix(topic, sp.Prefix) {
+		if wotansig.Covers(sp.Prefix, topic) {
 			return true
 		}
 	}

@@ -45,6 +45,16 @@ Environment=UNHEADED_TLS_CERT=/etc/unheaded/tls/akira/akira.pem
 Environment=UNHEADED_TLS_KEY_FILE=/etc/unheaded/tls/akira/akira-key.pem
 Environment=UNHEADED_TLS_MTLS_ENABLED=false
 ReadOnlyPaths=-/etc/unheaded/tls/akira
+# Signed health topics (S-IRON-GATE Phase 9, M-053): system.health.consensus
+# and system.health.remediate take only ML-DSA-65 signed messages. Without a
+# key Akira does not publish them at all (akira_signed_publish_refused_total);
+# reports still go out. To sign, per host: `unheaded-keygen -algo mldsa65
+# -owner unheaded-akira akira-health` (root), enrol the public key it prints
+# under both prefixes in Wotan's signed_prefixes, then set in akira.env:
+#   HEALTH_SIGNING_KEY_FILE=/etc/unheaded/keys/akira-health.key
+# (0400 unheaded-akira; a named key that is unreadable or group/other
+# readable stops Akira at start). Signed publishes go over gRPC (:18001,
+# or --wotan-grpc in AKIRA_OPTS).
 
 User=unheaded-akira
 Group=unheaded-akira

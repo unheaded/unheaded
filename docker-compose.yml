@@ -1036,6 +1036,10 @@ services:
       # calls Akira's API, so no caller is allowed (a token is 403).
       AUTH_ENABLED: "true"
       AUTH_ALLOW_CALLERS: ""
+      # S-IRON-GATE Phase 9: system.health.consensus/.remediate are signed
+      # topics. No HEALTH_SIGNING_KEY_FILE here (configs/wotan.yaml enrols no
+      # key either), so Akira publishes its reports but not those two;
+      # GET /api/v1/status still serves the consensus.
     restart: unless-stopped
     read_only: true
     security_opt:

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"unheaded/pkg/wotansig"
 )
 
 // BuiltinPrefixes are always signed, whatever the config says (ADR-043 #2,
@@ -19,6 +21,15 @@ var BuiltinPrefixes = []string{"config.", "drift."}
 
 // maxPrefixLen bounds a configured prefix; topic names are short.
 const maxPrefixLen = 256
+
+// tooBroad are prefixes refused outright: each covers topics that carry
+// unsigned messages from producers with no key. alerts.* holds every
+// service's own alerts; only alerts.critical. is signed (S-IRON-GATE
+// Step 270 [DECIDE]: every service subscribes to it, so a forged critical
+// alert has the widest reach).
+var tooBroad = map[string]string{
+	"alerts.": "alerts.* carries unsigned service alerts; sign alerts.critical. instead",
+}
 
 // PrefixKeys trusts Keys to sign topics under Prefix.
 type PrefixKeys struct {
@@ -54,6 +65,8 @@ func ValidatePrefix(prefix string) error {
 		return fmt.Errorf("prefix %q contains whitespace or control characters", prefix)
 	case strings.HasPrefix(prefix, "config."):
 		return fmt.Errorf("prefix %q: config.* keys are topics.signing_keys", prefix)
+	case tooBroad[prefix] != "":
+		return fmt.Errorf("prefix %q is too broad: %s", prefix, tooBroad[prefix])
 	}
 	return nil
 }
@@ -96,18 +109,20 @@ func NewPolicy(configKeys [][]byte, entries ...PrefixKeys) (*Policy, error) {
 }
 
 // PrefixFor returns the signed prefix a topic falls under (longest match),
-// or "" when the topic is not signed.
+// or "" when the topic is not signed. A prefix covers the topics under it
+// and its own stem: "alerts.critical." covers the topic alerts.critical
+// (wotansig.Covers).
 func (p *Policy) PrefixFor(topic string) string {
 	if p == nil {
 		for _, b := range BuiltinPrefixes {
-			if strings.HasPrefix(topic, b) {
+			if wotansig.Covers(b, topic) {
 				return b
 			}
 		}
 		return ""
 	}
 	for _, prefix := range p.prefixes {
-		if strings.HasPrefix(topic, prefix) {
+		if wotansig.Covers(prefix, topic) {
 			return prefix
 		}
 	}

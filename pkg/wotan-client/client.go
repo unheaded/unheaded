@@ -591,6 +591,9 @@ func (c *Client) Publish(ctx context.Context, topic string, payload []byte) erro
 	if len(payload) == 0 {
 		return errors.New("payload cannot be empty")
 	}
+	if err := wotansig.RefuseUnsigned(topic); err != nil {
+		return err // never sent unsigned, never queued (S-IRON-GATE Phase 9)
+	}
 
 	c.mu.RLock()
 	sub, ok := c.subscribers[topic]
@@ -648,6 +651,9 @@ func (c *Client) Publish(ctx context.Context, topic string, payload []byte) erro
 // networkErr: transport/connectivity failures (safe to retry).
 // appErr: server-side rejections (403, 404, etc.) that should not be retried.
 func (c *Client) doPublish(ctx context.Context, topic, subscriberID string, payload []byte) (networkErr, appErr error) {
+	if err := wotansig.RefuseUnsigned(topic); err != nil {
+		return nil, err // every unsigned path ends here (fallback flush, dead letters)
+	}
 	body := map[string]string{
 		"subscriber_id": subscriberID,
 		"payload":       string(payload),

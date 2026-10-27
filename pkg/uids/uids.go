@@ -108,6 +108,9 @@ const (
 	// unit unheaded-auth.service (account unheaded-auth) and compose service
 	// "auth".
 	Auth = 16735
+	// Heimdall is cmd/heimdall-daemon, the drift monitor (ADR-043, ADR-105):
+	// host unit unheaded-heimdall.service only (account unheaded-heimdall).
+	Heimdall = 16736
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -212,6 +215,7 @@ var Registry = map[string]int{
 	"sophia-gateway":    SophiaGateway,
 	"anomaly":           Anomaly,
 	"unheaded-auth":     Auth,
+	"heimdall":          Heimdall,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

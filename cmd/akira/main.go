@@ -42,6 +42,7 @@ import (
 	"unheaded/pkg/ports"
 	utls "unheaded/pkg/tls"
 	wotanClient "unheaded/pkg/wotan-client"
+	"unheaded/pkg/wotansig"
 )
 
 // AkiraConfig is the YAML config file format.
@@ -192,6 +193,7 @@ func main() {
 	listenPort := flag.Int("port", ports.Akira, "HTTP API port for Akira status")
 	remediate := flag.Bool("remediate", false, "restart a service (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
 	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
+	wotanGRPC := flag.String("wotan-grpc", "", "Wotan gRPC address for the signed topics (consensus, remediate); default: the --wotan host on port 18001")
 	flag.Parse()
 	wotanClient.InitServiceIdentity("akira") // ADR-103 §6: every Wotan call carries akira's service token
 
@@ -226,9 +228,28 @@ func main() {
 	// subscribe to a topic before it can publish there; Akira used to call
 	// Publish without subscribing and discard the error, so it never
 	// published anything.
+	//
+	// system.health.consensus and system.health.remediate are signed topics
+	// (S-IRON-GATE Phase 9): with HEALTH_SIGNING_KEY_FILE they go out signed
+	// over gRPC, without it they are not published at all.
+	healthSigner, err := loadHealthSigner()
+	if err != nil {
+		log.Fatal().Err(err).Msg("health signing key: refusing to start")
+	}
+	if healthSigner == nil {
+		log.Warn().Str("env", wotansig.HealthKeyEnv).
+			Msg("no health signing key: consensus and remediation suggestions are NOT published to Wotan (reports still are)")
+	}
 	var wotan *wotanClient.Client
 	if *wotanAddr != "" {
-		c, err := wotanClient.NewClient(strings.TrimPrefix(*wotanAddr, "http://"))
+		httpAddr := strings.TrimPrefix(*wotanAddr, "http://")
+		var c *wotanClient.Client
+		var err error
+		if healthSigner != nil {
+			c, err = wotanClient.NewClientWithGRPC(httpAddr, wotanGRPCAddr(*wotanAddr, *wotanGRPC))
+		} else {
+			c, err = wotanClient.NewClient(httpAddr)
+		}
 		if err != nil {
 			log.Warn().Err(err).Str("addr", *wotanAddr).Msg("Wotan connection failed — running without publish")
 		} else {
@@ -245,17 +266,15 @@ func main() {
 			}
 		}
 	}
+	var wp *wotanPublisher
+	if wotan != nil {
+		wp = newWotanPublisher(wotan, healthSigner, metrics.DefaultRegistry)
+	}
 	publish := func(topic string, v interface{}) {
-		if wotan == nil {
+		if wp == nil {
 			return
 		}
-		payload, err := json.Marshal(v)
-		if err != nil {
-			return
-		}
-		if err := wotan.Publish(context.Background(), topic, payload); err != nil {
-			log.Warn().Err(err).Str("topic", topic).Msg("publish failed")
-		}
+		wp.publish(topic, v)
 	}
 
 	// Create Akira instance

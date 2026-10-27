@@ -17,6 +17,7 @@ import (
 
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
+	"unheaded/pkg/wotansig"
 )
 
 // Retry constants for PublishWithAck.
@@ -99,6 +100,9 @@ func (c *Client) PublishWithAck(ctx context.Context, topic string, data []byte) 
 	}
 	if len(data) == 0 {
 		return fmt.Errorf("payload cannot be empty")
+	}
+	if err := wotansig.RefuseUnsigned(topic); err != nil {
+		return err
 	}
 
 	c.mu.RLock()
