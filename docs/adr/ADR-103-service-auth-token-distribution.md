@@ -192,6 +192,34 @@ create|list|revoke` manages keys; gitleaks rule `unheaded-api-key`
 (`.gitleaks.toml`) catches a leaked key. Proof: `scripts/well/test-api-keys.sh
 --with-go` (CI job well-schema).
 
+## Browser login as built (S-IRON-GATE Phase 6)
+
+`pkg/bff`, used by dashboard-backend and kanban-app (each its own BFF: the
+cookie is per origin). `AUTH_ISSUER_URL` names the issuer; `POST
+/auth/login` forwards the password to the issuer's `/login` with `audience`
+= the service's own name (the issuer's `-audiences` lists it), verifies the
+returned token with `JWKSVerifier`, keeps it in a session store keyed by
+SHA-256 of the cookie, and sets `unheaded_session` (`HttpOnly; Secure;
+SameSite=Strict; Path=/`). Every request with the cookie re-verifies the
+stored token. CSRF: login, logout and cookie-authenticated writes need
+`X-Requested-With: unheaded` as well. `/auth/auth.js` is the one page
+script both backends serve. Sessions are in memory (`bff.Store` for a Well
+store later).
+
+Two deviations from the text above. The login is unheaded-auth's password
+`/login`, not an OIDC code flow, so another IdP needs that flow added
+first. Until internal TLS (S-IRON-GATE Phase 8) the compose stack runs
+`AUTH_BFF_DEV_PLAINTEXT=true`: no `Secure` on the cookie, and the JWKS
+fetched over plain http (`auth.WithPlainHTTPIssuer`), which is no weaker
+than the plaintext login it checks.
+
+`act`: `ServiceTokenMinter.Mint(target, auth.WithActor(sub))` signs the
+user into the service token as RFC 8693 `{"act":{"sub":...}}`; the
+receiver's identity carries it as `Extra["act"]` for audit only.
+`bff.AuthorizeOutgoing` sets it and `X-Unheaded-On-Behalf-Of` from a
+session-authenticated request. No dashboard route calls another service
+for a user yet.
+
 ## Measurements (S-IRON-GATE Step 63)
 
 Measured 2026-10-27 on west (AMD Ryzen 5 7600X, Go 1.27.3,

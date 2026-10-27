@@ -43,6 +43,7 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
 	"unheaded/pkg/auth"
+	"unheaded/pkg/bff"
 	"unheaded/pkg/compliance/well"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
@@ -101,6 +102,11 @@ type Config struct {
 	// ComplianceEvidence is the evidence file written by
 	// cmd/compliance-evidence. Missing = every control NOT_ASSESSED.
 	ComplianceEvidence string
+
+	// DevPlaintext (-dev-plaintext, or AUTH_BFF_DEV_PLAINTEXT=true) is for
+	// the compose stack before internal TLS: the login session cookie
+	// drops Secure and the issuer may be plain http (pkg/bff).
+	DevPlaintext bool
 }
 
 // DefaultConfig returns default server configuration
@@ -253,6 +259,10 @@ type Server struct {
 
 	// complianceMetrics is nil unless ComplianceRoot is set (ADR-098).
 	complianceMetrics *complianceMetrics
+	// compliance is the crosswalk source (nil without ComplianceRoot).
+	compliance *complianceSource
+	// bff is the browser login (nil unless auth is on with AUTH_ISSUER_URL).
+	bff *bff.BFF
 
 	// Host system metrics (Approach A: exposed on /metrics for Prometheus scrape)
 	hostCPU            *metrics.GaugeVec
@@ -540,14 +550,12 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	s.mux = http.NewServeMux()
 	s.setupRoutes()
 
-	// Auth middleware (activated via AUTH_ENABLED=true, skips /health /ready /metrics /ws)
-	authCfg := auth.LoadServiceAuthConfig("dashboard-backend")
-	httpHandler := capturePattern(s.mux)
-	if authMw := auth.SetupMiddleware(authCfg); authMw != nil {
-		// Also skip WebSocket endpoints from auth (upgrade needs special handling)
-		httpHandler = auth.SkipAuthPaths(auth.Middleware(
-			&auth.MultiAuthenticator{Authenticators: buildDashboardAuthenticators(authCfg)},
-		), "/health", "/ready", "/metrics", "/ws", securityTxtPath)(httpHandler)
+	// Auth (AUTH_ENABLED=true, ADR-103): browser login + session cookie,
+	// service tokens, API keys; see auth_bff.go. A configuration auth
+	// cannot use refuses to start rather than serve open.
+	httpHandler, err := s.wrapAuth(auth.LoadServiceAuthConfig("dashboard-backend"), capturePattern(s.mux))
+	if err != nil {
+		return nil, err
 	}
 	// Security headers on every response. No CSP: the dashboard SPA relies on
 	// inline styles/handlers that a strict default-src would break.
@@ -708,11 +716,17 @@ func (s *Server) setupRoutes() {
 			config: well.NewLazy(well.ConfigFromEnv(), 30*time.Second)}
 		cs.ops.Env = "WELL_OPS_PASSWORD (WELL_OPS_USER defaults to ops_reader)"
 		cs.config.Env = "WELL_CONFIG_PASSWORD (WELL_CONFIG_USER defaults to config_reader)"
+		// The profile switch writes as config_admin; without its password
+		// switching answers 503 and nothing else changes.
+		cs.admin = well.NewLazy(complianceAdminConfig(), 30*time.Second)
+		cs.admin.Env = "WELL_CONFIG_ADMIN_PASSWORD (WELL_CONFIG_ADMIN_USER defaults to config_admin)"
 	}
 	s.mux.HandleFunc("/api/v1/compliance/summary", cs.handleSummary)
 	s.mux.HandleFunc("/api/v1/compliance/frameworks/{id}", cs.handleFramework)
 	s.mux.HandleFunc("/api/v1/compliance/findings", cs.handleFindings)
 	s.mux.HandleFunc("/api/v1/compliance/profiles", cs.handleProfiles)
+	s.mux.HandleFunc(complianceProfileSwitchPath, cs.handleProfileSwitch)
+	s.compliance = cs
 	if cs != nil {
 		s.complianceMetrics = newComplianceMetrics(cs)
 		for _, c := range s.complianceMetrics.collectors() {
@@ -733,6 +747,10 @@ func (s *Server) setupRoutes() {
 
 	// RFC 9116 vulnerability-report contact (public; skipped by auth).
 	s.mux.HandleFunc(securityTxtPath, handleSecurityTxt)
+
+	// The login panel script (pkg/bff), served with auth on or off: with
+	// auth off it finds no /auth/me and shows nothing.
+	s.mux.HandleFunc("/auth/auth.js", bff.ServeAuthJS)
 
 	// Static file serving for dashboard UI
 	var staticFS http.FileSystem
@@ -2470,6 +2488,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.shutdownOnce.Do(func() {
 		s.log.Info().Msg("shutting down dashboard backend")
 		close(s.shutdown)
+		if s.bff != nil {
+			s.bff.Close()
+		}
 
 		// Close stream subscriptions
 		s.streamSubsMu.Lock()
@@ -3502,31 +3523,6 @@ func fetchURL(ctx context.Context, url string) (string, error) {
 		return "", err
 	}
 	return string(body), nil
-}
-
-// buildDashboardAuthenticators constructs authenticators from the auth config.
-func buildDashboardAuthenticators(cfg auth.ServiceAuthConfig) []auth.Authenticator {
-	var authenticators []auth.Authenticator
-	if len(cfg.JWTSigningKey) > 0 {
-		authenticators = append(authenticators, auth.NewJWTAuthenticator(auth.JWTConfig{
-			SigningKey: cfg.JWTSigningKey,
-			Issuer:     cfg.Issuer,
-			Audience:   cfg.Audience,
-		}))
-		authenticators = append(authenticators, auth.NewJWTAuthenticator(auth.JWTConfig{
-			SigningKey:   cfg.JWTSigningKey,
-			Issuer:       auth.ServiceTokenIssuer,
-			Audience:     cfg.ServiceName,
-			AllowedRoles: []string{auth.RoleService},
-		}))
-	}
-	if len(cfg.APIKeys) > 0 || cfg.APIKeyFile != "" {
-		apikeyCfg := auth.APIKeyConfig{Keys: cfg.APIKeys, KeyFile: cfg.APIKeyFile}
-		if a, err := auth.NewAPIKeyAuthenticator(apikeyCfg); err == nil {
-			authenticators = append(authenticators, a)
-		}
-	}
-	return authenticators
 }
 
 // persistHealthReports streams system.health.reports into The Well until

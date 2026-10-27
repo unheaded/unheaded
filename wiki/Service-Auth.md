@@ -37,9 +37,30 @@ Token: header `{"alg":"EdDSA","typ":"JWT","kid":...}`; claims `sub` (user), `iss
 
 ## How a service verifies
 
-Set `AUTH_OIDC_ISSUER_URL` to the issuer URL. `pkg/auth.JWKSVerifier` fetches discovery and the JWKS, caches the keys for 10 minutes, refetches once for an unknown kid, and checks `alg` = `EdDSA`, `iss`, `exp` and `aud` = the service's own name. A token for a service therefore needs that service in `-audiences` and the login's `audience` field; in practice the dashboard backend (the BFF, ADR-103 §4) logs users in with `audience: dashboard-backend` and calls other services with its own service token.
+Set `AUTH_OIDC_ISSUER_URL` to the issuer URL. `pkg/auth.JWKSVerifier` fetches discovery and the JWKS, caches the keys for 10 minutes, refetches once for an unknown kid, and checks `alg` = `EdDSA`, `iss`, `exp` and `aud` = the service's own name. A token for a service therefore needs that service in `-audiences` and the login's `audience` field; the browser-facing backends log users in with their own name as `audience` (below) and call other services with their own service tokens.
 
 The verifier fetches over https, or plain http to loopback only. The compose `auth` service runs plain HTTP on the data network, so no other container can verify its tokens until TLS is on every internal link (S-IRON-GATE Phase 8).
+
+## Browser login: the backend-for-frontend
+
+Browsers never hold a bearer token ([ADR-103](../docs/adr/ADR-103-service-auth-token-distribution.md) §4). dashboard-backend (20000) and kanban-app (20001) each run `pkg/bff` (cookies are per origin, so each page's own backend logs its users in):
+
+| | |
+|---|---|
+| Config | `AUTH_ENABLED=true` and `AUTH_ISSUER_URL` (compose: `http://auth:19020`; units: `https://%H:19020`). The issuer must list the service in `-audiences` (compose and unit list `unheaded,dashboard-backend,kanban-app`) |
+| `POST /auth/login` | `{"username","password"}` with `X-Requested-With: unheaded`. The backend posts it to the issuer's `/login` with `audience` = its own name, verifies the token against the JWKS, keeps it server-side, and sets `unheaded_session` (32 random bytes): `HttpOnly; Secure; SameSite=Strict; Path=/`, `Max-Age` = the token's life (15 min). The response is `{sub, roles, expires_at}`, never the token |
+| `GET /auth/me` | `{sub, roles, expires_at}` from the session, else 401 |
+| `POST /auth/logout` | With `X-Requested-With`; deletes the session and clears the cookie |
+| `GET /auth/auth.js` | The page script: login panel on a 401, who-am-I badge, `X-Requested-With` on every same-origin `fetch`. Served even with auth off (then `/auth/me` is 404 and nothing shows) |
+
+- **Every cookie request re-verifies** the stored token against the cached JWKS, so a session ends with its token, at logout, and when the issuer stops publishing the key that signed it. Expired sessions are evicted every minute. The store is in memory (sessions do not survive a restart) and keyed by SHA-256 of the cookie value; a Well-backed store can implement `bff.Store`.
+- **CSRF:** `SameSite=Strict`, plus a second guard: login, logout and every state-changing request that a session cookie authenticates need `X-Requested-With: unheaded` (403 without). Bearer-token callers are not affected.
+- **Login rate limit** in front of the issuer's lockout (which only sees the backend's address): 10 attempts a minute per client address and username, 60 per client address. A login always issues a new session id and drops a presented one.
+- **Roles:** reads take `admin`, `operator`, `observer`, `viewer` or `service`; writes take `admin`, `operator` or `service`; `guest` gets nothing. The dashboard needs a login for every `/api/` call and WebSocket (its pages, scripts and styles stay open); the board stays publicly readable and needs an operator login to write. The compliance profile switch (`POST /api/v1/compliance/profile`) takes `admin` or `operator` only and records the login's `sub` as the change's actor.
+- **WebSockets** authenticate by the cookie; on the dashboard a handshake from a foreign `Origin` is refused (403) before authentication.
+- **Calling other services for a user:** the backend uses its own service token and signs the user into it as the RFC 8693 `act` claim (`auth.WithActor`; `bff.AuthorizeOutgoing` also sets `X-Unheaded-On-Behalf-Of`). The receiver sees `Identity.Extra["act"]`; it grants nothing and is for audit records.
+- **Compose before TLS:** `AUTH_BFF_DEV_PLAINTEXT=true` (or dashboard-backend `-dev-plaintext`) drops `Secure` from the cookie and lets the backend reach the issuer over plain http on the data network. Nothing else changes; without it a plain-http issuer off loopback refuses to start.
+- The login speaks this issuer's `POST /login`. Another OIDC provider would need an authorization-code flow in `pkg/bff`, which is not built.
 
 ## Replacing it with another IdP
 

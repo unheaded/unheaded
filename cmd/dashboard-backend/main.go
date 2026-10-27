@@ -31,6 +31,9 @@
 //   - GET /api/v1/stats - Dashboard statistics
 //   - WS /ws - WebSocket for real-time updates
 //   - WS /ws/metrics - WebSocket for metrics streaming
+//   - POST /auth/login, GET /auth/me, POST /auth/logout - browser login
+//     (AUTH_ENABLED=true with AUTH_ISSUER_URL; pkg/bff, ADR-103 §4)
+//   - POST /api/v1/compliance/profile - bind a host to a profile (operator)
 package main
 
 import (
@@ -109,6 +112,9 @@ var (
 	// Compliance crosswalk (ADR-097)
 	complianceRoot     = flag.String("compliance-root", "", "Directory holding compliance/catalog/ (empty: /api/v1/compliance/* answer 503)")
 	complianceEvidence = flag.String("compliance-evidence", "", "Evidence file from cmd/compliance-evidence (default <compliance-root>/var/compliance/evidence.json)")
+
+	// Browser login (ADR-103 §4, pkg/bff): AUTH_ENABLED=true + AUTH_ISSUER_URL.
+	devPlaintext = flag.Bool("dev-plaintext", false, "compose before internal TLS only: login cookie without Secure, issuer over plain http (also AUTH_BFF_DEV_PLAINTEXT=true)")
 )
 
 func main() {
@@ -239,6 +245,7 @@ func main() {
 		VizDir:           *vizDir,
 		VMUrl:            *vmURL,
 		ComplianceRoot:   *complianceRoot,
+		DevPlaintext:     *devPlaintext,
 		ComplianceEvidence: func() string {
 			if *complianceEvidence != "" || *complianceRoot == "" {
 				return *complianceEvidence

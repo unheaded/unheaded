@@ -848,6 +848,13 @@ func (s *Server) originPermitted(origin string, r *http.Request) bool {
 	return strings.EqualFold(u.Host, r.Host)
 }
 
+// OriginPermitted is the handshake's Origin check on its own, for callers
+// that must refuse a foreign origin before anything else (the dashboard's
+// auth runs after it, ADR-103 §4).
+func (s *Server) OriginPermitted(r *http.Request) bool {
+	return s.originPermitted(r.Header.Get("Origin"), r)
+}
+
 // isOriginAllowed checks if the given origin is in the allowed list.
 // Denies by default when no origins are configured.
 func (s *Server) isOriginAllowed(origin string) bool {

@@ -72,16 +72,57 @@ func LoadServiceTokenMinter(name, keyFile string) (*ServiceTokenMinter, error) {
 // Name returns the service name tokens are minted for (their sub).
 func (m *ServiceTokenMinter) Name() string { return m.name }
 
+// MintOption adds to a minted token.
+type MintOption func(*mintOptions)
+
+type mintOptions struct{ actor string }
+
+// maxActorLen bounds the act claim's sub.
+const maxActorLen = 128
+
+// WithActor signs sub into the token as the RFC 8693 "act" claim: the user
+// this service calls for (a BFF on behalf of its logged-in user, ADR-103
+// §4). The receiver sees it as Identity.Extra["act"]; the token's own
+// subject and roles stay the calling service's.
+func WithActor(sub string) MintOption {
+	return func(o *mintOptions) { o.actor = sub }
+}
+
+func validActor(s string) bool {
+	if s == "" || len(s) > maxActorLen {
+		return false
+	}
+	for _, r := range s {
+		if r < 0x21 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
 // Mint returns a token for target, from the cache while it has more than
-// 30 s left.
-func (m *ServiceTokenMinter) Mint(target string) (string, error) {
+// 30 s left. Tokens with an actor are cached per (target, actor).
+func (m *ServiceTokenMinter) Mint(target string, opts ...MintOption) (string, error) {
 	if target == "" {
 		return "", errors.New("auth: Mint: empty target")
+	}
+	var o mintOptions
+	for _, f := range opts {
+		f(&o)
+	}
+	key := target
+	var act *Actor
+	if o.actor != "" {
+		if !validActor(o.actor) {
+			return "", fmt.Errorf("auth: Mint: actor must be 1-%d printable characters without spaces", maxActorLen)
+		}
+		key = target + "\x00" + o.actor
+		act = &Actor{Sub: o.actor}
 	}
 	now := m.clock()
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if c, ok := m.cache[target]; ok && now.Before(c.exp.Add(-serviceTokenRefresh)) {
+	if c, ok := m.cache[key]; ok && now.Before(c.exp.Add(-serviceTokenRefresh)) {
 		return c.token, nil
 	}
 	exp := now.Add(EdDSAServiceTokenTTL)
@@ -92,6 +133,7 @@ func (m *ServiceTokenMinter) Mint(target string) (string, error) {
 		Iat:   now.Unix(),
 		Exp:   exp.Unix(),
 		Roles: []string{RoleService},
+		Act:   act,
 	})
 	if err != nil {
 		return "", err
@@ -106,13 +148,13 @@ func (m *ServiceTokenMinter) Mint(target string) (string, error) {
 			m.cache = make(map[string]mintedToken)
 		}
 	}
-	m.cache[target] = mintedToken{token: tok, exp: exp}
+	m.cache[key] = mintedToken{token: tok, exp: exp}
 	return tok, nil
 }
 
 // AuthorizationHeader returns "Bearer <token>" for target.
-func (m *ServiceTokenMinter) AuthorizationHeader(target string) (string, error) {
-	tok, err := m.Mint(target)
+func (m *ServiceTokenMinter) AuthorizationHeader(target string, opts ...MintOption) (string, error) {
+	tok, err := m.Mint(target, opts...)
 	if err != nil {
 		return "", err
 	}

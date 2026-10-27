@@ -1123,7 +1123,16 @@ services:
       - /tmp:size=32M
       - /data:size=64M
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_dashboard-backend   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_dashboard-backend   # ADR-103
+      # S-IRON-GATE Phase 6: the browser's backend-for-frontend (pkg/bff).
+      # People log in at /auth/login against the issuer and hold only an
+      # HttpOnly session cookie; every /api/ call and WebSocket needs one
+      # (or a service token from AUTH_ALLOW_CALLERS). Plain http to the
+      # issuer and no Secure on the cookie until internal TLS (Phase 8).
+      AUTH_ENABLED: "true"
+      AUTH_ISSUER_URL: "http://auth:19020"
+      AUTH_BFF_DEV_PLAINTEXT: "true"
+      AUTH_ALLOW_CALLERS: "unheaded-cli"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       WOTAN_ADDR: "wotan:18000"
@@ -1164,6 +1173,8 @@ services:
     depends_on:
       wotan:
         condition: service_healthy
+      auth:
+        condition: service_healthy
     labels:
       kingdom.armor: "visor"
       kingdom.role: "dashboard"
@@ -1198,10 +1209,13 @@ services:
       - /tmp:size=32M
     environment:
       AUTH_KEY_FILE: /run/secrets/svc_key_kanban-app   # ADR-103; also mints its tokens for Timeguru
-      # S-IRON-GATE Phase 6: with auth on, reads stay open and writes need a
-      # token from these callers. AUTH_ENABLED stays off until the board has
-      # a login (BFF, plan Steps 211-216): the browser UI writes tasks with
-      # no credential, so turning it on now would make the board read-only.
+      # S-IRON-GATE Phase 6: reads stay open (The Meta Moment); a write needs
+      # an operator login on the board (pkg/bff: /auth/login against the
+      # issuer, HttpOnly session cookie) or a token from these callers.
+      # Plain http to the issuer, no Secure cookie, until Phase 8 TLS.
+      AUTH_ENABLED: "true"
+      AUTH_ISSUER_URL: "http://auth:19020"
+      AUTH_BFF_DEV_PLAINTEXT: "true"
       AUTH_ALLOW_CALLERS: "dashboard-backend,zhen-agentd,micromanager"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
@@ -1231,6 +1245,8 @@ services:
       timeguru:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      auth:
         condition: service_healthy
     labels:
       kingdom.armor: "meta-moment"
@@ -1327,7 +1343,7 @@ services:
       - ALL
     tmpfs:
       - /tmp:size=16M
-    command: ["-listen", ":19020", "-issuer-url", "http://auth:19020", "-key-file", "/run/secrets/svc_key_unheaded-auth", "-users-file", "/etc/unheaded/auth/users.json", "-dev-plaintext"]
+    command: ["-listen", ":19020", "-issuer-url", "http://auth:19020", "-key-file", "/run/secrets/svc_key_unheaded-auth", "-users-file", "/etc/unheaded/auth/users.json", "-audiences", "unheaded,dashboard-backend,kanban-app", "-dev-plaintext"]
     volumes:
       # Long form: a missing file is an error, not a directory Docker creates.
       - type: bind

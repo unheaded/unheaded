@@ -15,8 +15,8 @@ containers running, which is the mistake ADR-093 rule 4 names.
 | classification | meaning | count |
 |---|---|---|
 | CONTAINER | built into the container image | 14 |
-| SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 18 |
-| TOOL | invoked by a script, runbook or Makefile, not supervised | 28 |
+| SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 19 |
+| TOOL | invoked by a script, runbook or Makefile, not supervised | 27 |
 | ORPHAN | referenced by nothing outside its own directory | 23 |
 | **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **83** |
 
@@ -35,7 +35,7 @@ that keeping them stays a decision.
 | `arch/mbc/userspace/uptime` | ORPHAN |
 | `cmd/akira` | CONTAINER |
 | `cmd/alert-mailer` | TOOL |
-| `cmd/alert-policy` | TOOL |
+| `cmd/alert-policy` | SUPERVISED |
 | `cmd/anomaly` | SUPERVISED |
 | `cmd/cert-gen` | SUPERVISED |
 | `cmd/chaos-controller` | SUPERVISED |

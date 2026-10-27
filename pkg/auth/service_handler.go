@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 )
@@ -21,6 +22,10 @@ type ServiceRoutes struct {
 	OpenReads []string
 	// RBAC replaces DefaultServicePolicies(cfg.ServiceName) when set.
 	RBAC *RBACConfig
+	// Authenticators are tried before the configured ones (pkg/bff's
+	// session cookie, ADR-103 §4). With any set, auth on with nothing else
+	// configured is not ErrNoCredentials.
+	Authenticators []Authenticator
 }
 
 // writeMethods are what a write role guards wherever no policy is more
@@ -54,13 +59,19 @@ func NewServiceHandler(h http.Handler, cfg ServiceAuthConfig, routes ServiceRout
 // wrap their handler later: (nil, nil) with auth off, the middleware with
 // auth on, or the configuration error.
 func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Handler) http.Handler, error) {
-	authn, err := NewServiceMiddleware(cfg)
-	if err != nil {
-		return nil, err
-	}
-	if authn == nil {
+	if !cfg.Enabled {
 		return nil, nil
 	}
+	list := append([]Authenticator(nil), routes.Authenticators...)
+	a, err := NewServiceAuthenticator(cfg)
+	switch {
+	case err == nil:
+		list = append(list, a)
+	case errors.Is(err, ErrNoCredentials) && len(list) > 0:
+	default:
+		return nil, err
+	}
+	authn := SkipAuthPaths(Middleware(&MultiAuthenticator{Authenticators: list}), "/health", "/ready", "/metrics")
 	rbacCfg := DefaultServicePolicies(cfg.ServiceName)
 	if routes.RBAC != nil {
 		rbacCfg = *routes.RBAC

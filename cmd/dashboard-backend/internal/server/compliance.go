@@ -35,6 +35,10 @@ type complianceSource struct {
 	evidencePath string
 	ops          *well.Lazy // unheaded_ops as ops_reader
 	config       *well.Lazy // unheaded_config as config_reader
+	admin        *well.Lazy // unheaded_config as config_admin: the profile switch only
+
+	// writeStore replaces the config_admin store (tests).
+	writeStore func(ctx context.Context) (well.Store, error)
 
 	mu   sync.Mutex
 	last complianceDataSource

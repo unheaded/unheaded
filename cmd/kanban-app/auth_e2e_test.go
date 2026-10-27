@@ -37,6 +37,14 @@ func TestAuthE2E_KanbanApp(t *testing.T) {
 	if c := authtest.Code(h, http.MethodPost, "/api/v1/tasks", task("anon"), ""); c != http.StatusUnauthorized {
 		t.Errorf("POST /api/v1/tasks anonymous: %d, want 401", c)
 	}
+	// The Runbooks view's write (Champion Phase 12) sits behind the same gate;
+	// its list is a read like the board.
+	if c := authtest.Code(h, http.MethodPost, "/api/v1/tasks/from-runbook", `{"runbook":"observe/ci-red"}`, ""); c != http.StatusUnauthorized {
+		t.Errorf("POST /api/v1/tasks/from-runbook anonymous: %d, want 401", c)
+	}
+	if c := authtest.Code(h, http.MethodGet, "/api/v1/runbooks", "", ""); c == http.StatusUnauthorized || c == http.StatusForbidden {
+		t.Errorf("GET /api/v1/runbooks anonymous: %d, want a read that passes auth", c)
+	}
 	if c := authtest.Code(h, http.MethodDelete, "/api/v1/tasks/anon", "", ""); c != http.StatusUnauthorized {
 		t.Errorf("DELETE /api/v1/tasks/anon anonymous: %d, want 401", c)
 	}

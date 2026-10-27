@@ -11,10 +11,11 @@ import (
 	"unheaded/pkg/compliance/well"
 )
 
-// Control profiles, read-only (ADR-099 §5): which fixes each profile turns
-// on and which profile each host is bound to. Switching is not offered
-// here until the dashboard has logins and RBAC; today it is
-// `compliance-evidence profile set` (planned) or a signed commit.
+// Control profiles (ADR-099 §5): which fixes each profile turns on and
+// which profile each host is bound to (GET /api/v1/compliance/profiles),
+// and the switch (POST /api/v1/compliance/profile, in
+// compliance_profile_switch.go): an admin or operator login only, recorded
+// in The Well with who and why.
 
 type complianceFixView struct {
 	ID       string   `json:"id"`

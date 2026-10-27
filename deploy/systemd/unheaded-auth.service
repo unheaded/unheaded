@@ -26,7 +26,8 @@ ExecStart=/usr/local/bin/unheaded-auth \
     -listen :19020 \
     -issuer-url https://%H:19020 \
     -key-file /etc/unheaded/keys/unheaded-auth.key \
-    -users-file /etc/unheaded/auth/users.json
+    -users-file /etc/unheaded/auth/users.json \
+    -audiences unheaded,dashboard-backend,kanban-app
 WorkingDirectory=/var/lib/unheaded/auth
 Restart=on-failure
 RestartSec=5s
