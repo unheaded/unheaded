@@ -70,7 +70,7 @@ topics:
     - "wiki"
     - "zhenai"
     - "zhen-eval"
-    - "runbook-runner"       # scripts/run-runbook.py (Python; mints no token, so refused with auth on)
+    - "runbook-runner"       # scripts/run-runbook.py's display_name; with auth on it presents zhen-agentd's key (Champion runs) or unheaded-cli's (by hand)
 
   # ML-DSA-65 public keys (base64) trusted to sign config.* messages
   # (ADR-043 #2). config.* is published only over gRPC, signed by one of

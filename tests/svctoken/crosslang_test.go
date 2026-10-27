@@ -3,7 +3,8 @@
 
 // Package svctoken checks that the service tokens minted outside Go are the
 // tokens pkg/auth mints (ADR-103 §2): the Rust crate crates/svc-token (used
-// by cmd/trace-collector and cmd/ebpf-collector). Each test makes a
+// by cmd/trace-collector and cmd/ebpf-collector) and the Python module
+// scripts/svc_token.py (used by scripts/run-runbook.py). Each test makes a
 // key pair with auth.GenerateKeyPair at run time (no key is ever
 // committed), has the foreign minter sign a token with it, and requires
 // that token to be byte-identical to auth.SignEdDSA's for the same claims
@@ -149,4 +150,31 @@ func TestRustMinterMatchesPkgAuth(t *testing.T) {
 		t.Fatalf("cargo run mint: %v", err)
 	}
 	checkToken(t, strings.TrimSpace(string(out)), "trace-collector", "wotan", trustDir, priv, kid)
+}
+
+func TestPythonMinterMatchesPkgAuth(t *testing.T) {
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not installed")
+	}
+	// The minter needs the cryptography package (in the Zhen venv pins,
+	// sbom/python-requirements.txt, and Debian's python3-cryptography).
+	if err := exec.Command(py, "-I", "-c", "import cryptography.hazmat.primitives.asymmetric.ed25519").Run(); err != nil { // #nosec G204 -- fixed interpreter and code
+		t.Skip("python3 has no cryptography package")
+	}
+	root := repoRoot(t)
+	for _, sub := range []string{"zhen-agentd", "unheaded-cli"} {
+		keyFile, trustDir, priv, kid := keyPair(t, sub)
+		// #nosec G204 -- fixed interpreter and repo script; the other args are test values
+		out, err := exec.Command(py, "-I", filepath.Join(root, "scripts", "svc_token.py"),
+			"mint", keyFile, sub, "wotan", strconv.Itoa(iat)).Output()
+		if err != nil {
+			var ee *exec.ExitError
+			if errors.As(err, &ee) {
+				t.Fatalf("svc_token.py mint: %v\n%s", err, ee.Stderr)
+			}
+			t.Fatalf("svc_token.py mint: %v", err)
+		}
+		checkToken(t, strings.TrimSpace(string(out)), sub, "wotan", trustDir, priv, kid)
+	}
 }

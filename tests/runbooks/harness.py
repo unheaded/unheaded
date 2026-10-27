@@ -163,11 +163,12 @@ def git(repo, *args, env=None, check=True):
     return r.stdout.strip()
 
 
-def http(method, url, body=None, timeout=5):
+def http(method, url, body=None, timeout=5, headers=None):
     """(status, parsed JSON or text) without raising on 4xx/5xx."""
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, method=method,
-                                 headers={"Content-Type": "application/json"} if data else {})
+    hdrs = {"Content-Type": "application/json"} if data else {}
+    hdrs.update(headers or {})
+    req = urllib.request.Request(url, data=data, method=method, headers=hdrs)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310 - 127.0.0.1 throwaway
             raw = resp.read().decode()
@@ -182,10 +183,12 @@ def http(method, url, body=None, timeout=5):
 
 class Wotan:
     """A throwaway Wotan: its own binary, free ports, a temp topic config,
-    memory store. restart() keeps ports and config, like a unit restart."""
+    memory store. restart() keeps ports and config, like a unit restart.
+    env adds to its environment (e.g. AUTH_ENABLED and a trust dir)."""
 
-    def __init__(self, binary, workdir, auto_approve=("service",)):
+    def __init__(self, binary, workdir, auto_approve=("service",), env=None):
         self.binary = binary
+        self.env = dict(env or {})
         self.dir = Path(workdir)
         self.http_port = free_port()
         self.grpc_port = free_port()
@@ -211,7 +214,7 @@ class Wotan:
             [str(self.binary), "-http-port", str(self.http_port), "-grpc-port", str(self.grpc_port),
              "-topic-config", str(self.config), "-store-type", "memory", "-log-level", "info"],
             stdout=logf, stderr=subprocess.STDOUT, cwd=self.dir, start_new_session=True,
-            env={k: v for k, v in os.environ.items() if k != "WOTAN_TOPIC_CONFIG"})
+            env={**{k: v for k, v in os.environ.items() if k != "WOTAN_TOPIC_CONFIG"}, **self.env})
         logf.close()
         deadline = time.time() + timeout
         while time.time() < deadline:
