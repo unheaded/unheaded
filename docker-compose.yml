@@ -35,6 +35,16 @@ name: unheaded-dev
 #   with the overlay /48. Update /etc/docker/daemon.json:
 #     { "ipv6": true, "fixed-cidr-v6": "fd00:dead:beef:0:d::/80" }
 # =============================================================================
+# Container stdout for first-party services goes to the host journal (ADR-092
+# step 1, as amended 2026-10-27): Vector's journald source ships it with the
+# host's own units (unit = CONTAINER_NAME), and journald's SystemMaxUse /
+# RuntimeMaxUse (compliance fix journald-caps, in every host profile) is the
+# one cap. No Docker socket for Vector. Third-party images, and Vector
+# itself (it must not ingest its own output), keep json-file 3x10MB caps.
+x-logging-journald: &journald-logging
+  driver: journald
+  options: { tag: "{{.Name}}" }
+
 networks:
   # Control plane network — service discovery, config, health
   control:
@@ -625,11 +635,7 @@ services:
 
   # --- Wotan: Message Bus (Fae Chamber) ---
   wotan:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: wotan
@@ -688,11 +694,7 @@ services:
 
   # --- Timeguru: Timeline Service (Oracle's Antre) ---
   timeguru:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: timeguru
@@ -747,11 +749,7 @@ services:
 
   # --- Captain: Strategy Service (Commander's Quarters) ---
   captain:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: captain
@@ -796,11 +794,7 @@ services:
 
   # --- Architect: ADR Service (Sage's Lair) ---
   architect:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: architect
@@ -845,11 +839,7 @@ services:
 
   # --- Micromanager: Task Execution (War Room) ---
   micromanager:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     environment:
       MICROMANAGER_DATA_DIR: "/data"   # its state file; state was memory-only, lost on every restart
       # micromanager was the only service with no WOTAN_* env, so it ran in
@@ -901,9 +891,7 @@ services:
   # Detection only: no --remediate here (remediation would need the Docker
   # socket, and a failing service should stay visibly down while building).
   akira:
-    logging:
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: akira
@@ -943,11 +931,7 @@ services:
 
   # --- Monad: Unified State Management ---
   monad:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: monad
@@ -990,11 +974,7 @@ services:
 
   # --- Sophia: Knowledge Graph ---
   sophia:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: sophia
@@ -1037,11 +1017,7 @@ services:
 
   # --- Dashboard Backend: The Visor (Observability Dashboard) ---
   dashboard-backend:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: dashboard-backend
@@ -1111,11 +1087,7 @@ services:
 
   # --- Kanban App: The Meta Moment (Self-Hosting Proof) ---
   kanban-app:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: kanban-app
@@ -1173,11 +1145,7 @@ services:
 
   # --- Cuirass: Control Plane Daemon ---
   cuirass:
-    logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     build:
       context: .
       target: cuirass
@@ -1226,9 +1194,7 @@ services:
   # is not in the repo, and it refuses to start without one. A deploy
   # window starts it by name: docker compose up -d sword.
   sword:
-    logging:
-      driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
+    logging: *journald-logging
     profiles: ["deploy"]
     build:
       context: .

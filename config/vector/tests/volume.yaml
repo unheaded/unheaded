@@ -155,3 +155,37 @@ tests:
           level: info
     no_outputs_from:
       - journal_auth_failures
+
+  - name: a container line from the journald driver is counted under the container name
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "wotan listening on :18000"
+          host: west
+          _SYSTEMD_UNIT: docker.service
+          SYSLOG_IDENTIFIER: unheaded-wotan
+          CONTAINER_NAME: unheaded-wotan
+          CONTAINER_ID: 0123456789ab
+          CONTAINER_ID_FULL: 0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123
+          CONTAINER_LOG_ORDINAL: "7"
+          PRIORITY: "6"
+          _BOOT_ID: b1
+          __MONOTONIC_TIMESTAMP: "2"
+    outputs:
+      - extract_from: journal_volume
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.unit, "unheaded-wotan")
+              assert_eq!(.level, "info")
+              assert_eq!(.bytes, 25)
+      - extract_from: journal_rows
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.unit, "unheaded-wotan")
+              f = parse_json!(.fields)
+              assert_eq!(f.CONTAINER_ID, "0123456789ab")
+              assert!(!exists(f.CONTAINER_ID_FULL))
+              assert!(!exists(f.CONTAINER_LOG_ORDINAL))

@@ -339,8 +339,9 @@ provoke_compose_log_caps() {
 import re, sys
 p = sys.argv[1]
 s = open(p).read()
-# Drop the first service-level logging: block.
-s = re.sub(r'\n    logging:\n(?:      .*\n)+', '\n', s, count=1)
+# Drop the first service-level logging: block (a mapping, or an alias line
+# such as `logging: *journald-logging`).
+s = re.sub(r'\n    logging:.*\n(?:      .*\n)*', '\n', s, count=1)
 open(p, 'w').write(s)
 PROBE
 }

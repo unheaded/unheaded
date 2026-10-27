@@ -4,6 +4,16 @@
 #
 # ADR-092 gate: every compose service must declare its own log cap.
 #
+# Two ways to satisfy it:
+#   json-file   options.max-size set (and the cap is in the compose file)
+#   journald    the host journal is the cap, so the profile every host in
+#               compliance/hosts/*.yaml is bound to must apply the
+#               journald-caps fix (SystemMaxUse/RuntimeMaxUse,
+#               compliance/profiles/profiles.yaml); a host whose profile
+#               lacks it fails every journald service (ADR-092 step 1,
+#               amended 2026-10-27).
+# Any other driver fails.
+#
 # Deliberately reads the compose file, NOT the running containers. Inspecting
 # live containers passes on any host whose /etc/docker/daemon.json happens to
 # set a default — which is how this went unnoticed: the cap existed on one
@@ -12,6 +22,7 @@
 set -euo pipefail
 
 COMPOSE_FILE="${1:-docker-compose.yml}"
+COMPLIANCE_DIR="${COMPLIANCE_DIR:-$(cd "$(dirname "$0")/.." && pwd)/compliance}"
 
 if [[ ! -f "$COMPOSE_FILE" ]]; then
     echo "check-compose-log-caps: no such file: $COMPOSE_FILE" >&2
@@ -27,8 +38,8 @@ else
     RESOLVED="$(cat "$COMPOSE_FILE")"
 fi
 
-printf '%s' "$RESOLVED" | python3 -c '
-import sys, yaml
+printf '%s' "$RESOLVED" | COMPLIANCE_DIR="$COMPLIANCE_DIR" python3 -c '
+import glob, os, sys, yaml
 
 doc = yaml.safe_load(sys.stdin) or {}
 services = doc.get("services") or {}
@@ -36,14 +47,44 @@ if not services:
     print("check-compose-log-caps: no services found — refusing to pass vacuously")
     sys.exit(2)
 
+def journald_capped():
+    """Empty when the profile of every bound host applies journald-caps; else the reason."""
+    base = os.environ["COMPLIANCE_DIR"]
+    try:
+        profs = (yaml.safe_load(open(os.path.join(base, "profiles", "profiles.yaml"))) or {}).get("profiles") or []
+    except OSError as e:
+        return f"cannot read profiles: {e}"
+    fixes = {p.get("name"): (p.get("fixes") or []) for p in profs if isinstance(p, dict)}
+    hosts = sorted(glob.glob(os.path.join(base, "hosts", "*.yaml")))
+    if not hosts:
+        return "no hosts under compliance/hosts"
+    lacking = []
+    for h in hosts:
+        prof = (yaml.safe_load(open(h)) or {}).get("profile")
+        if "journald-caps" not in fixes.get(prof, []):
+            lacking.append(f"{os.path.basename(h)[:-5]} ({prof})")
+    if lacking:
+        return "host profile without journald-caps: " + ", ".join(lacking)
+    return ""
+
 missing = []
+journald_reason = None
 for name, spec in sorted(services.items()):
-    opts = ((spec or {}).get("logging") or {}).get("options") or {}
-    if not opts.get("max-size"):
+    logging = (spec or {}).get("logging") or {}
+    driver = logging.get("driver", "json-file")
+    opts = logging.get("options") or {}
+    if driver == "journald":
+        if journald_reason is None:
+            journald_reason = journald_capped()
+        if journald_reason:
+            missing.append(f"{name} (journald: {journald_reason})")
+    elif driver != "json-file":
+        missing.append(f"{name} (driver {driver!r}: only json-file with max-size, or journald)")
+    elif not opts.get("max-size"):
         missing.append(name)
 
 if missing:
-    print(f"[FAIL] {len(missing)} of {len(services)} services have no logging max-size (ADR-092):")
+    print(f"[FAIL] {len(missing)} of {len(services)} services have no log cap (ADR-092):")
     for name in missing:
         print(f"         - {name}")
     print("       add to each service:")
@@ -52,5 +93,5 @@ if missing:
     print("           options: { max-size: \"10m\", max-file: \"3\" }")
     sys.exit(1)
 
-print(f"[PASS] all {len(services)} services declare a logging max-size")
+print(f"[PASS] all {len(services)} services declare a log cap (json-file max-size, or journald under journald-caps)")
 '

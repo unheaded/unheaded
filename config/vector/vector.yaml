@@ -3,9 +3,11 @@
 # audit records) to ClickHouse unheaded_logs.logs (ADR-092 step 8; schema
 # and retention in config/clickhouse/schema/001-logs.sql).
 #
-# Container stdout does not ship: docker_logs needs the Docker socket,
-# which is root on the host (1e9b9eeb), and Vector never had it. The
-# json-file 3x10MB caps are the only copy (ADR-092 step 8, open).
+# Container stdout of first-party services ships too, without the Docker
+# socket (root on the host, 1e9b9eeb): docker-compose.yml logs them with
+# the journald driver, so their lines arrive here as journal entries
+# carrying CONTAINER_NAME, and unit is the container name (ADR-092 step 1,
+# amended 2026-10-27). Third-party containers keep json-file caps.
 api:
   enabled: true
   address: "0.0.0.0:8686"
@@ -49,6 +51,10 @@ transforms:
       if unit == "" || starts_with(unit, "user@") || starts_with(unit, "session-") || unit == "init.scope" {
         unit = string(.SYSLOG_IDENTIFIER) ?? string(."_COMM") ?? unit
       }
+      # Docker's journald driver: dockerd writes the entry, so _SYSTEMD_UNIT
+      # is docker.service; the container name says which service it was.
+      container = string(.CONTAINER_NAME) ?? ""
+      if container != "" { unit = container }
       if unit == "" { unit = "unknown" }
       message = string(.message) ?? encode_json(.message)
       # One journal entry, for ClickHouse's dedupe (Vector drops __CURSOR
@@ -61,6 +67,11 @@ transforms:
       rest = remove!(rest, ["timestamp"])
       rest = remove!(rest, ["host"])
       rest = remove!(rest, ["source_type"])
+      # Docker driver bookkeeping: per-line counters and the 64-hex id
+      # (CONTAINER_ID keeps the short one).
+      for_each(["CONTAINER_ID_FULL", "CONTAINER_LOG_EPOCH", "CONTAINER_LOG_ORDINAL", "CONTAINER_PARTIAL_ID", "CONTAINER_PARTIAL_ORDINAL", "CONTAINER_PARTIAL_LAST"]) -> |_i, k| {
+        rest = remove!(rest, [k])
+      }
       retention = if audit { "audit" } else { "operational" }
       . = {
         "timestamp": ts,
