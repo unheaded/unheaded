@@ -186,30 +186,14 @@ func main() {
 	}
 	mux.HandleFunc("/metrics", metricsHandler)
 
-	// Timeline endpoints (multiple formats: JSON, YAML, TOML, Markdown)
-	mux.HandleFunc("/timeline", handler.HandleGetTimelineWithFormat)
-	mux.HandleFunc("/api/v1/timeline", handler.HandleGetTimelineWithFormat)
+	registerAPIRoutes(mux, handler)
 
-	// Sync & import endpoints
-	mux.HandleFunc("/api/v1/timeline/sync", handler.HandleSync)
-	mux.HandleFunc("/api/v1/timeline/import", handler.HandleImport)
-
-	// Kanban tasks endpoint - transforms timeline data for kanban frontend
-	mux.HandleFunc("/api/v1/timeline/tasks", handler.HandleGetTasks)
-
-	// SSE stream endpoint - real-time timeline updates
-	mux.HandleFunc("/api/v1/timeline/stream", handler.HandleTimelineStream)
-
-	// Milestones endpoints
-	mux.HandleFunc("/milestones", handler.HandleGetMilestones)
-	mux.HandleFunc("/api/v1/milestones", handler.HandleGetMilestones)
-	mux.HandleFunc("/milestones/", handleMilestoneRoutes(handler))
-	mux.HandleFunc("/api/v1/milestones/", handleMilestoneRoutes(handler))
-
-	// Auth middleware (activated via AUTH_ENABLED=true)
-	authCfg := auth.LoadServiceAuthConfig("timeguru")
-	var srvHandler http.Handler = mux
-	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
+	// Auth (AUTH_ENABLED=true, ADR-103). A configuration auth cannot use
+	// stops the service here rather than serving it open.
+	srvHandler, err := wrapAuth(mux, auth.LoadServiceAuthConfig("timeguru"))
+	if err != nil {
+		log.Fatal().Err(err).Msg("auth: refusing to start (see ADR-103)")
+	}
 	srvHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("timeguru").Instrument(mux, srvHandler))
 
 	// HTTP server with defensive timeouts
@@ -425,6 +409,37 @@ func watchTimelineFile(ctx context.Context, filePath string, store *storage.Stor
 }
 
 // handleMilestoneRoutes creates a handler for /milestones/:id routes
+// registerAPIRoutes registers the timeline and milestone routes.
+func registerAPIRoutes(mux *http.ServeMux, handler *api.Handler) {
+	// Timeline endpoints (multiple formats: JSON, YAML, TOML, Markdown)
+	mux.HandleFunc("/timeline", handler.HandleGetTimelineWithFormat)
+	mux.HandleFunc("/api/v1/timeline", handler.HandleGetTimelineWithFormat)
+
+	// Sync & import endpoints
+	mux.HandleFunc("/api/v1/timeline/sync", handler.HandleSync)
+	mux.HandleFunc("/api/v1/timeline/import", handler.HandleImport)
+
+	// Kanban tasks endpoint - transforms timeline data for kanban frontend
+	mux.HandleFunc("/api/v1/timeline/tasks", handler.HandleGetTasks)
+
+	// SSE stream endpoint - real-time timeline updates
+	mux.HandleFunc("/api/v1/timeline/stream", handler.HandleTimelineStream)
+
+	// Milestones endpoints
+	mux.HandleFunc("/milestones", handler.HandleGetMilestones)
+	mux.HandleFunc("/api/v1/milestones", handler.HandleGetMilestones)
+	mux.HandleFunc("/milestones/", handleMilestoneRoutes(handler))
+	mux.HandleFunc("/api/v1/milestones/", handleMilestoneRoutes(handler))
+}
+
+// wrapAuth puts auth in front of the mux (S-IRON-GATE Phase 6): with
+// AUTH_ENABLED=true every route but /health, /ready and /metrics needs a
+// token from an AUTH_ALLOW_CALLERS caller (kanban-app reads the timeline,
+// micromanager and kanban-app may write), and a write needs a write role.
+func wrapAuth(h http.Handler, cfg auth.ServiceAuthConfig) (http.Handler, error) {
+	return auth.NewServiceHandler(h, cfg, auth.ServiceRoutes{})
+}
+
 func handleMilestoneRoutes(handler *api.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse URL path segments — never use filepath on URL paths (traversal risk)

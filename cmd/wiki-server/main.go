@@ -338,10 +338,13 @@ func setupMux(ws *WikiServer) *http.ServeMux {
 	return mux
 }
 
-// wrapAuth applies authentication middleware to the given handler.
-func wrapAuth(handler http.Handler) http.Handler {
-	authCfg := auth.LoadServiceAuthConfig("wiki-server")
-	return auth.WrapHandler(handler, auth.SetupMiddleware(authCfg))
+// wrapAuth applies auth from authCfg to the handler (S-IRON-GATE Phase 6).
+// Browsers read the wiki, so every read stays open; a write (there is no
+// write route) needs a token, and with no caller allowlisted every service
+// token gets 403 until a user login exists. An error means auth is on but
+// unusable, and the server must not start.
+func wrapAuth(handler http.Handler, authCfg auth.ServiceAuthConfig) (http.Handler, error) {
+	return auth.NewServiceHandler(handler, authCfg, auth.ServiceRoutes{OpenReads: []string{"/"}})
 }
 
 // buildHandler creates the full HTTP handler stack for the wiki server.
@@ -351,8 +354,12 @@ func buildHandler(wikiDir string) (http.Handler, error) {
 		return nil, err
 	}
 	mux := setupMux(ws)
+	authed, err := wrapAuth(mux, auth.LoadServiceAuthConfig("wiki-server"))
+	if err != nil {
+		return nil, fmt.Errorf("auth: %w (see ADR-103)", err)
+	}
 	// Outermost, so requests auth rejects are counted too.
-	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, wrapAuth(mux)), httputil.WithCSP(wikiCSP())), nil
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, authed), httputil.WithCSP(wikiCSP())), nil
 }
 
 // newServer creates an http.Server with standard timeouts.

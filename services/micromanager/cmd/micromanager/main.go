@@ -168,27 +168,18 @@ func main() {
 	// Health endpoints (transport-aware)
 	healthSrv.RegisterHTTP(mux)
 
-	// API endpoints
-	mux.HandleFunc("/api/v1/backlog", withMetrics("/api/v1/backlog", api.GetBacklog))
-	mux.HandleFunc("/api/v1/tasks", withMetrics("/api/v1/tasks", api.CreateTask))
-	mux.HandleFunc("/api/v1/sprint/status", withMetrics("/api/v1/sprint/status", api.GetSprintStatus))
-
-	// Dynamic task endpoints
-	mux.HandleFunc("/api/v1/tasks/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPut {
-			withMetrics("/api/v1/tasks/:id", api.UpdateTask)(w, r)
-		} else {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-		}
-	})
+	registerAPIRoutes(mux, api)
 
 	// Metrics endpoint
 	mux.Handle("/metrics", prom.Handler())
 
-	// Auth middleware (activated via AUTH_ENABLED=true)
-	authCfg := auth.LoadServiceAuthConfig("micromanager")
-	var httpHandler http.Handler = mux
-	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+	// Auth (AUTH_ENABLED=true, ADR-103). A configuration auth cannot use
+	// stops the service here rather than serving it open.
+	httpHandler, err := wrapAuth(mux, auth.LoadServiceAuthConfig("micromanager"))
+	if err != nil {
+		log.Error().Err(err).Msg("auth: refusing to start (see ADR-103)")
+		os.Exit(1)
+	}
 	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("micromanager").Instrument(mux, httpHandler))
 
 	// Server configuration
@@ -220,6 +211,31 @@ func main() {
 }
 
 // withMetrics wraps a handler with metrics collection
+// registerAPIRoutes registers the backlog, task and sprint routes.
+func registerAPIRoutes(mux *http.ServeMux, api *micromanager.API) {
+	// API endpoints
+	mux.HandleFunc("/api/v1/backlog", withMetrics("/api/v1/backlog", api.GetBacklog))
+	mux.HandleFunc("/api/v1/tasks", withMetrics("/api/v1/tasks", api.CreateTask))
+	mux.HandleFunc("/api/v1/sprint/status", withMetrics("/api/v1/sprint/status", api.GetSprintStatus))
+
+	// Dynamic task endpoints
+	mux.HandleFunc("/api/v1/tasks/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			withMetrics("/api/v1/tasks/:id", api.UpdateTask)(w, r)
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+}
+
+// wrapAuth puts auth in front of the mux (S-IRON-GATE Phase 6): with
+// AUTH_ENABLED=true every route but /health, /ready and /metrics needs a
+// token from an AUTH_ALLOW_CALLERS caller (captain, architect,
+// dashboard-backend), and a write needs a write role.
+func wrapAuth(h http.Handler, cfg auth.ServiceAuthConfig) (http.Handler, error) {
+	return auth.NewServiceHandler(h, cfg, auth.ServiceRoutes{})
+}
+
 func withMetrics(path string, h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

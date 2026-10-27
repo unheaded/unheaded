@@ -228,8 +228,18 @@ type DecideRequest struct {
 	Context  map[string]interface{} `json:"context,omitempty"`
 }
 
-// NewHTTPServer creates a new HTTP server for Sophia.
+// NewHTTPServer creates a new HTTP server for Sophia, with auth from the
+// environment (AUTH_ENABLED, ADR-103). An auth configuration that cannot be
+// used is an error, so the service refuses to start.
 func NewHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logger.Logger, addr string) (*HTTPServer, error) {
+	return newHTTPServer(service, wotan, log, addr, auth.LoadServiceAuthConfig("sophia"))
+}
+
+// newHTTPServer is NewHTTPServer with an explicit auth configuration. With
+// auth on (S-IRON-GATE Phase 6) every route but /health, /ready and
+// /metrics needs a token from an AUTH_ALLOW_CALLERS caller (unheaded-cli,
+// dashboard-backend), and a write needs a write role.
+func newHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logger.Logger, addr string, authCfg auth.ServiceAuthConfig) (*HTTPServer, error) {
 	if service == nil {
 		return nil, errors.New("service cannot be nil")
 	}
@@ -269,9 +279,13 @@ func NewHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logg
 	// Stats endpoint
 	mux.HandleFunc("/api/v1/stats", hs.statsHandler)
 
+	chain, err := hs.middlewareChain(mux, authCfg)
+	if err != nil {
+		return nil, fmt.Errorf("auth: %w (see ADR-103)", err)
+	}
 	hs.server = &http.Server{
 		Addr:           addr,
-		Handler:        httputil.SecurityHeaders(httputil.NewServiceMetrics("sophia").Instrument(mux, hs.middlewareChain(mux))),
+		Handler:        httputil.SecurityHeaders(httputil.NewServiceMetrics("sophia").Instrument(mux, chain)),
 		ReadTimeout:    15 * time.Second,
 		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
@@ -281,19 +295,21 @@ func NewHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logg
 	return hs, nil
 }
 
-// middlewareChain applies middleware to the handler.
-func (hs *HTTPServer) middlewareChain(handler http.Handler) http.Handler {
+// middlewareChain applies middleware to the handler, with auth from
+// authCfg; an error means auth is on but unusable.
+func (hs *HTTPServer) middlewareChain(handler http.Handler, authCfg auth.ServiceAuthConfig) (http.Handler, error) {
 	// Apply middleware in order: logging -> recovery -> auth -> max body -> cors
 	handler = hs.loggingMiddleware(handler)
 	handler = hs.recoveryMiddleware(handler)
 
-	// Auth middleware (activated via AUTH_ENABLED=true)
-	authCfg := auth.LoadServiceAuthConfig("sophia")
-	handler = auth.WrapHandler(handler, auth.SetupMiddleware(authCfg))
+	handler, err := auth.NewServiceHandler(handler, authCfg, auth.ServiceRoutes{})
+	if err != nil {
+		return nil, err
+	}
 
 	handler = http.MaxBytesHandler(handler, 10*1024*1024) // 10MB max
 	handler = hs.corsMiddleware(handler)
-	return handler
+	return handler, nil
 }
 
 // loggingMiddleware logs HTTP requests.

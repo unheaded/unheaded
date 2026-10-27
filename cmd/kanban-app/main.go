@@ -99,6 +99,10 @@ type Server struct {
 
 	// logPublisher, when set, contributes log-forwarding counters.
 	logPublisher *logagg.Publisher
+
+	// minter, when set, mints kanban-app's service tokens for the calls it
+	// makes (Timeguru's timeline, S-IRON-GATE Phase 6).
+	minter *auth.ServiceTokenMinter
 }
 
 // initMetrics registers every series this service publishes. Values are read
@@ -216,10 +220,12 @@ func NewServerWithTaskManager(cfg Config, tm *TaskManager, store TaskStore) *Ser
 	return s
 }
 
-// Start starts the HTTP server
-func (s *Server) Start() error {
+// buildHandler is the mux behind the middleware stack, with auth from
+// authCfg. With AUTH_ENABLED=true every read stays open (the board, its
+// static UI, SSE: CLAUDE.md, The Meta Moment), and a write needs a token
+// from an AUTH_ALLOW_CALLERS caller or an operator user token.
+func (s *Server) buildHandler(authCfg auth.ServiceAuthConfig) (http.Handler, error) {
 	mux := http.NewServeMux()
-
 	// API routes - tasks at canonical /api/v1/tasks
 	mux.HandleFunc("/api/v1/tasks", s.handleTasks)
 	mux.HandleFunc("/api/v1/tasks/", s.handleTaskByID)      // For /tasks/:id
@@ -253,9 +259,11 @@ func (s *Server) Start() error {
 	handler = requestSizeLimitMiddleware(1024 * 1024)(handler) // 1MB max request
 	handler = securityHeadersMiddleware(handler)               // Security headers
 
-	// Auth middleware (activated via AUTH_ENABLED=true, skips /health /ready /metrics)
-	authCfg := auth.LoadServiceAuthConfig("kanban-app")
-	handler = auth.WrapHandler(handler, auth.SetupMiddleware(authCfg))
+	// Auth (AUTH_ENABLED=true, ADR-103): reads open, writes need a token.
+	handler, err = auth.NewServiceHandler(handler, authCfg, auth.ServiceRoutes{OpenReads: []string{"/"}})
+	if err != nil {
+		return nil, err
+	}
 
 	handler = corsMiddleware(handler) // CORS
 
@@ -268,6 +276,16 @@ func (s *Server) Start() error {
 
 	// Outermost, so rate-limited and CORS-rejected requests are counted too.
 	handler = httputil.SecurityHeaders(httputil.NewServiceMetrics("kanban").Instrument(mux, handler))
+	return handler, nil
+}
+
+// Start starts the HTTP server. A configuration auth cannot use is an
+// error here, so the service exits instead of serving writes open.
+func (s *Server) Start() error {
+	handler, err := s.buildHandler(auth.LoadServiceAuthConfig("kanban-app"))
+	if err != nil {
+		return fmt.Errorf("auth: %w (see ADR-103)", err)
+	}
 
 	s.httpServer = &http.Server{
 		Addr:           ":" + s.config.Port,
@@ -318,8 +336,19 @@ func (s *Server) getTimelineManager() *TimelineManager {
 func (s *Server) fetchTimelineFromTimeguru() error {
 	url := fmt.Sprintf("http://%s/timeline", s.config.TimeGuruAddr)
 
+	req, err := http.NewRequestWithContext(s.ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("fetch timeline: %w", err)
+	}
+	if s.minter != nil {
+		authz, err := s.minter.AuthorizationHeader("timeguru")
+		if err != nil {
+			return fmt.Errorf("fetch timeline: service token: %w", err)
+		}
+		req.Header.Set("Authorization", authz)
+	}
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("fetch timeline: %w", err)
 	}
@@ -1614,6 +1643,15 @@ func main() {
 
 	// Wire transport health server into the kanban server
 	server.healthSrv = healthSrv
+
+	// kanban-app's own key mints the tokens its Timeguru calls carry
+	// (ADR-103), set before the pollers below start. Without a key the
+	// calls go anonymous, and a Timeguru with auth on answers 401.
+	if m, err := auth.LoadServiceAuthConfig("kanban-app").ServiceTokenMinter(); err != nil {
+		log.Warn().Err(err).Msg("no service key: calls to timeguru go without a token")
+	} else {
+		server.minter = m
+	}
 
 	// Start Timeguru HTTP polling ONLY in standalone mode.
 	// When Wotan integration is active, timeline updates arrive via

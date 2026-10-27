@@ -27,6 +27,11 @@ LimitNOFILE=4096
 # comes from `unheaded-keygen -owner unheaded-timeguru timeguru` (root, once per host).
 Environment=AUTH_KEY_FILE=/etc/unheaded/keys/timeguru.key
 Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+# S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
+# service token; kanban-app reads the timeline with its own, and it and
+# micromanager may write.
+Environment=AUTH_ENABLED=true
+Environment=AUTH_ALLOW_CALLERS=kanban-app,micromanager
 ReadOnlyPaths=-/etc/unheaded/trust.d
 
 User=unheaded-timeguru

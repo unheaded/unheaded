@@ -27,7 +27,7 @@ Sword runs deployments of a service into LXD, through [[Cuirass|Containers]]: ro
 | `SWORD_DATA_DIR` | unset: read-only, every deployment request answers 503 |
 | `VM_URL` | VictoriaMetrics for the SLO guard. Unset: no guard, so canary deployments are refused |
 | `SWORD_SLO_POLICY` | the alerting policy (`observability/alerting/policy.yaml`, default `/etc/unheaded/sword/policy.yaml`); unreadable with `VM_URL` set: Sword will not start |
-| `AUTH_ENABLED`, `AUTH_API_KEYS` | `pkg/auth`. Without `AUTH_ENABLED=true` every POST answers 403 |
+| `AUTH_ENABLED`, `AUTH_TRUST_DIR`, `AUTH_ALLOW_CALLERS`, `AUTH_API_KEYS` | `pkg/auth` (ADR-103). Without `AUTH_ENABLED=true` every POST answers 403. With it, `/api/v1/deployments` needs a service token from an allowlisted caller (`unheaded-cli`, `dashboard-backend`) or a key: writes take admin, operator or service, reads also observer. A configuration auth cannot use stops Sword at start |
 | `WOTAN_ADDR`, `WOTAN_GRPC_ADDR` | events on `deploy.started|progress|succeeded|failed|rolled_back` (best effort; Sword joins as `sword` before publishing) |
 
 ## API
@@ -42,7 +42,7 @@ Sword runs deployments of a service into LXD, through [[Cuirass|Containers]]: ro
 | `GET /ready` | 200 only when the data dir takes a write and Cuirass answers |
 | `GET /metrics` | `unheaded_http_*`, `sword_deployments_total{strategy,result}`, `sword_rollbacks_total{reason}` |
 
-API keys go in `X-API-Key`.
+API keys go in `X-API-Key`; service tokens in `Authorization: Bearer` (aud `sword`).
 
 ### Request body
 

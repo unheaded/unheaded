@@ -47,8 +47,18 @@ type HTTPRequest struct {
 	SizeBytes  int64
 }
 
-// NewHTTPServer creates a new HTTP server
+// NewHTTPServer creates a new HTTP server with auth from the environment
+// (AUTH_ENABLED, ADR-103). An auth configuration that cannot be used is an
+// error, so the service refuses to start instead of serving open.
 func NewHTTPServer(service *Service, addr string) (*HTTPServer, error) {
+	return newHTTPServer(service, addr, auth.LoadServiceAuthConfig("captain"))
+}
+
+// newHTTPServer is NewHTTPServer with an explicit auth configuration. With
+// auth on (S-IRON-GATE Phase 6) every route but /health, /ready and
+// /metrics needs a token from an AUTH_ALLOW_CALLERS caller (architect,
+// micromanager, dashboard-backend), and a write needs a write role.
+func newHTTPServer(service *Service, addr string, authCfg auth.ServiceAuthConfig) (*HTTPServer, error) {
 	if service == nil {
 		return nil, errors.New("service cannot be nil")
 	}
@@ -81,10 +91,10 @@ func NewHTTPServer(service *Service, addr string) (*HTTPServer, error) {
 	mux.HandleFunc("/api/v1/decisions", hs.decisionsHandler)
 	mux.HandleFunc("/api/v1/decisions/", hs.decisionDetailHandler)
 
-	// Auth middleware (activated via AUTH_ENABLED=true)
-	authCfg := auth.LoadServiceAuthConfig("captain")
-	var httpHandler http.Handler = mux
-	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+	httpHandler, err := auth.NewServiceHandler(mux, authCfg, auth.ServiceRoutes{})
+	if err != nil {
+		return nil, fmt.Errorf("auth: %w (see ADR-103)", err)
+	}
 	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("captain").Instrument(mux, httpHandler))
 
 	hs.server = &http.Server{

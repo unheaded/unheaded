@@ -57,10 +57,15 @@ func listenerAuth(cfg auth.ServiceAuthConfig, noAuth bool, host string) (func(ht
 	if !cfg.Enabled {
 		return nil, errNoAuthToken
 	}
-	// NewServiceMiddleware, not SetupMiddleware: a configuration it refuses
-	// (no credential, the retired AUTH_JWT_KEY, an unreadable key file or
-	// trust dir) stops the daemon instead of serving 401 to everyone.
-	mw, err := auth.NewServiceMiddleware(cfg)
+	// NewServiceChain (NewServiceMiddleware, then RBAC), not
+	// SetupMiddleware: a configuration it refuses (no credential, the
+	// retired AUTH_JWT_KEY, an unreadable key file or trust dir) stops the
+	// daemon instead of serving 401 to everyone. RBAC (S-IRON-GATE Phase 6)
+	// keeps a read-only identity, an observer uhk_ key, off the gate's
+	// writes (ask, confirm, tool exec, remember): those need admin,
+	// operator or service. /health, /ready, /metrics and the spec are open,
+	// so clients can learn how to authenticate.
+	mw, err := auth.NewServiceChain(cfg, auth.ServiceRoutes{OpenPaths: []string{"/api/v1/openapi.json"}})
 	if errors.Is(err, auth.ErrNoCredentials) {
 		return nil, errNoAuthToken
 	}
@@ -70,9 +75,7 @@ func listenerAuth(cfg auth.ServiceAuthConfig, noAuth bool, host string) (func(ht
 	if mw == nil { // unreachable while Enabled; kept so a change there fails closed
 		return nil, errNoAuthToken
 	}
-	// SetupMiddleware exempts /health, /ready, /metrics; the spec is
-	// public too, so clients can learn how to authenticate.
-	return auth.SkipAuthPaths(mw, "/api/v1/openapi.json"), nil
+	return mw, nil
 }
 
 // isLoopbackHost reports whether a -host value binds loopback only.

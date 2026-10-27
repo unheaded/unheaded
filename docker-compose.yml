@@ -738,7 +738,12 @@ services:
       - /tmp:size=32M,uid=16722,gid=16722
       - /data:size=64M,uid=16722,gid=16722
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_timeguru   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_timeguru   # ADR-103
+      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
+      # service token; kanban-app reads the timeline with its own, and it and
+      # micromanager may write.
+      AUTH_ENABLED: "true"
+      AUTH_ALLOW_CALLERS: "kanban-app,micromanager"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       PORT: "19000"
@@ -797,7 +802,11 @@ services:
     tmpfs:
       - /tmp:size=32M
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_captain   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_captain   # ADR-103
+      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
+      # service token from one of these callers (none calls the API today).
+      AUTH_ENABLED: "true"
+      AUTH_ALLOW_CALLERS: "architect,micromanager,dashboard-backend"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       HTTP_ADDR: "0.0.0.0:19002"
@@ -847,7 +856,11 @@ services:
     tmpfs:
       - /tmp:size=32M
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_architect   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_architect   # ADR-103
+      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
+      # service token from one of these callers (none calls the API today).
+      AUTH_ENABLED: "true"
+      AUTH_ALLOW_CALLERS: "captain,micromanager,dashboard-backend"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       ARCHITECT_DATA_DIR: "/data"   # its state file; state was memory-only, lost on every restart
@@ -883,7 +896,11 @@ services:
   micromanager:
     logging: *journald-logging
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_micromanager   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_micromanager   # ADR-103
+      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
+      # service token from one of these callers (none calls the API today).
+      AUTH_ENABLED: "true"
+      AUTH_ALLOW_CALLERS: "captain,architect,dashboard-backend"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       MICROMANAGER_DATA_DIR: "/data"   # its state file; state was memory-only, lost on every restart
@@ -1002,7 +1019,11 @@ services:
       - /tmp:size=32M
       - /data:size=64M
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_monad   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_monad   # ADR-103
+      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
+      # service token from one of these callers (none calls the API today).
+      AUTH_ENABLED: "true"
+      AUTH_ALLOW_CALLERS: "unheaded-cli,dashboard-backend"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       MONAD_PORT: "19004"
@@ -1051,7 +1072,11 @@ services:
       - /tmp:size=32M
       - /data:size=64M
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_sophia   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_sophia   # ADR-103
+      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
+      # service token from one of these callers (none calls the API today).
+      AUTH_ENABLED: "true"
+      AUTH_ALLOW_CALLERS: "unheaded-cli,dashboard-backend"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       SOPHIA_LISTEN_ADDR: ":19005"
@@ -1172,7 +1197,12 @@ services:
     tmpfs:
       - /tmp:size=32M
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_kanban-app   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_kanban-app   # ADR-103; also mints its tokens for Timeguru
+      # S-IRON-GATE Phase 6: with auth on, reads stay open and writes need a
+      # token from these callers. AUTH_ENABLED stays off until the board has
+      # a login (BFF, plan Steps 211-216): the browser UI writes tasks with
+      # no credential, so turning it on now would make the board read-only.
+      AUTH_ALLOW_CALLERS: "dashboard-backend,zhen-agentd,micromanager"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       PORT: "20001"
@@ -1350,11 +1380,15 @@ services:
       - path: /etc/unheaded/sword/sword.env
         required: false
     environment:
-      AUTH_KEY_FILE: /run/secrets/svc_key_sword   # ADR-103; AUTH_ENABLED is set per service in S-IRON-GATE Phases 5-7
+      AUTH_KEY_FILE: /run/secrets/svc_key_sword   # ADR-103; also mints its tokens for Cuirass
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       HTTP_ADDR: ":19011"
       AUTH_ENABLED: "true"
+      # S-IRON-GATE Phase 6: deployments need a service token from one of
+      # these callers (or an operator key); before this list was set, every
+      # service token got 403.
+      AUTH_ALLOW_CALLERS: "unheaded-cli,dashboard-backend"
       CUIRASS_URL: "http://cuirass:19006"
       SWORD_DATA_DIR: "/data"
       VM_URL: "http://victoria:8428"
