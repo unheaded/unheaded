@@ -175,7 +175,7 @@ none) until E4, which is accurate. E4 prerequisite: `/var/zhen/projects/default`
   sophia-eye. And zhen-agentd's 20105 collides with `SophiaEye = 20105`, which deploy/sophia-eye publishes on the host
   (`20105:8080`; gateway also `20107:20105`). Proposal: `ZhenVor = 20110`, `ZhenAgentd = 20111` (both free), change the
   ~20 callers' defaults (zhen-rag, zhen-agentd, zhen-agent, zhen-mcp, zhen-cli, raft, coding-gate scripts, Dockerfile,
-  unit, docs) in one commit, and run vor as `unheaded-vor` (uid 16736, Kingdom tier, hostOnly pin) with
+  unit, docs) in one commit, and run vor as `unheaded-vor` (the next free Kingdom-tier uid; 16736 went to unheaded-heimdall in S-IRON-GATE Phase 9; hostOnly pin) with
   `HOME=/var/lib/unheaded/vor` and a `git archive` export of the repo as its `unheaded` source (vor finds sources via
   `$HOME/.config/cs/sources/`; the repo lives under /home, which a hardened unit cannot read). Not done unattended:
   moving the ports breaks the manual `cs serve` + coding-gate workflow until the unit is installed.

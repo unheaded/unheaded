@@ -187,3 +187,23 @@ sha256), and every commit hash cited in the progress logs, OUTSTANDING and next.
 Commit messages in that range that cite earlier hashes from the same range still show the pre-rewrite values.
 Backups: `refs/backup/develop-before-host-agent-purge` (contains the binary: delete once satisfied) and
 `refs/backup/develop-before-resign`. Lesson: stage named files, never `git add -A <dir>` while untracked operator files exist.
+
+### Phase 9 code merged; E2 filed
+
+Signed prefixes: `drift.`, `audit.`, `alerts.critical.`, `system.health.consensus.`, `system.health.remediate.` (no
+`health.` topic exists; `system.health.reports` stays unsigned: every service votes there; a prefix also covers its bare
+name, so `alerts.critical` and a bare `drift` are signed). `alerts.` refused as too broad. No producer publishes
+`audit.*` or `alerts.critical` today; `zhen.audit.toolcalls` (opt-in, plain HTTP) stays unsigned. Every unsigned publish
+path in wotan-client refuses a signed topic; Akira signs consensus/remediate with `HEALTH_SIGNING_KEY_FILE` (without it
+it skips them, `akira_signed_publish_refused_total`). `pkg/wotansig` refuses group/other-readable keys.
+`unheaded-heimdall.service` (uid 16736, `--drift-sign-key`, manifest `/etc/unheaded/heimdall/mjolnir.yaml` root-owned,
+no PrivateTmp/PrivateDevices, BPF hooks off); `unheaded-keygen -algo mldsa65` (no -rotate: new key, new name);
+`runbooks/security/heimdall-enrol-drift-key.yaml` (draft; no `wotan-cli` exists, so the check is Wotan's accepted count).
+**Live change on deploy:** the new wotan.yaml refuses unsigned consensus/remediate, so without an enrolled Akira health
+key the dashboard loses the consensus band (Akira's `/api/v1/status` still serves it); east picks it up at the Phase
+14 deb upgrade (conffile).
+
+**E2 (Stevie):** (1) Generate each node's Heimdall drift key on that node (`sudo unheaded-keygen -algo mldsa65 -owner
+unheaded-heimdall heimdall-drift` on west and east, only the public half into Wotan's `/etc/unheaded/wotan.yaml`), or
+generate centrally and copy the seed? (2) Run the root-reading `unheaded-heimdall.service` (CAP_DAC_READ_SEARCH) on west
+and east? (3) Enrol an Akira health key (`akira-health`, `HEALTH_SIGNING_KEY_FILE`) on each host, same pattern?
