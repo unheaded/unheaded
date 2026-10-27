@@ -179,3 +179,16 @@ none) until E4, which is accurate. E4 prerequisite: `/var/zhen/projects/default`
   `HOME=/var/lib/unheaded/vor` and a `git archive` export of the repo as its `unheaded` source (vor finds sources via
   `$HOME/.config/cs/sources/`; the repo lives under /home, which a hardened unit cannot read). Not done unattended:
   moving the ports breaks the manual `cs serve` + coding-gate workflow until the unit is installed.
+
+### Phase 12 merged (314406df)
+
+Kanban: `GET /api/v1/runbooks` (from MANIFEST + front matter, `manifest_ok`), `POST /api/v1/tasks/from-runbook` (board
+store, runbook name in a fenced `runbook` block since kanban_tasks has no metadata column), `agent_run` block on
+`GET /api/v1/tasks/{id}` (branch, `route_summary->>'review_note'` path, `review_reason`, claimed/reviewed; there is no
+`review_note` or `finished_at` column). UI in `cmd/kanban-app/static/` (the embedded one; `kanban/` is an old scaffold).
+Step progress: `run-runbook.py` posts each step to Wotan `runbooks.progress` (opt-in `RUNBOOK_PROGRESS_WOTAN`; never
+changes the outcome); the Champion sets `RUNBOOK_REF`. Migration renumbered to 041 (app_kanban column grants on
+zhen_agent_runs). ADR-038 dormant. LIVE Step 227 after a kanban rebuild (and the E-A batch, which now runs through
+041): `curl -s 127.0.0.1:20001/api/v1/runbooks | jq '.runbooks|length'` (expect 90); restart Wotan for the
+`runbook-runner` auto_approve line; set `RUNBOOK_PROGRESS_WOTAN` in zhen-agentd's env. Pre-existing oddity: without
+Wotan and with Timeguru answering, `GET /api/v1/tasks` returns timeline cards and hides the store's cards.
