@@ -3,6 +3,26 @@ rule_files:
   - ../host.yml
 evaluation_interval: 1m
 tests:
+  # East stops answering at 5m; west never does. 2m of failed scrapes fire.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node_exporter",instance="[fd00:dead:beef::1]:9100"}'
+        values: '1x20'
+      - series: 'up{job="node_exporter",instance="[fd00:dead:beef::2]:9100"}'
+        values: '1x4 0x16'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: NodeExporterDown
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: NodeExporterDown
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, job: node_exporter, instance: "[fd00:dead:beef::2]:9100"}
+            exp_annotations:
+              summary: "Node exporter down on [fd00:dead:beef::2]:9100"
+              description: "Cannot scrape node_exporter from [fd00:dead:beef::2]:9100: the host is down, or for east the WireGuard overlay is"
+              runbook_url: "runbooks/network/network-diagnostics.yaml"
+
   # Disk thresholds and the 24h projection; a half-full disk stays quiet.
   - interval: 1m
     input_series:

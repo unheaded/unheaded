@@ -1,0 +1,82 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: trace-collector-down
+  description: The eBPF trace collector on a host stopped answering its metrics port (TraceCollectorDown)
+  owner: architect
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  M-084, S-WELL-SPRING Step 167. unheaded-trace-collector is a host unit on
+  west and east (cmd/trace-collector-go, deploy/systemd/unheaded-trace-collector.service):
+  it loads packet_marker, flow_tracker and latency_probe, reads their ring
+  buffers and publishes Anamnesis events to Wotan; /metrics is on 16671. When
+  it is down the dashboard's flow and latency views go empty while every
+  other service looks healthy. The alert is a ticket (daily digest).
+
+  Run the steps on the host the alert names (labels.host). The shell steps
+  only read; restarting is manual.
+
+parameters:
+  - name: HOST_ADDR
+    default: "[fd00:dead:beef::1]"
+    description: The collector's address as Prometheus scrapes it ([fd00:dead:beef::2] for east)
+
+steps:
+  - name: what-is-firing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=up{job="trace-collector"}' |
+        python3 -c 'import json,sys; [print(r["metric"]["host"], r["metric"]["instance"], "up" if r["value"][1] == "1" else "DOWN") for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Which collector Prometheus cannot scrape (run on west)"
+
+  - name: unit-status
+    action: shell
+    command: "systemctl status unheaded-trace-collector --no-pager"
+    description: "Is the unit running, restarting, or failed, and since when"
+
+  - name: unit-log
+    action: shell
+    command: "journalctl -u unheaded-trace-collector -n 50 --no-pager"
+    description: "The last 50 lines: a BPF load error, a missing interface, or Wotan refusing the publisher"
+
+  - name: metrics-port
+    action: shell
+    command: "curl -s -m 5 -o /dev/null -w '%{http_code}\\n' \"http://${HOST_ADDR}:16671/metrics\""
+    description: "200 means the collector answers and the scrape path (overlay, firewall) is what failed"
+
+  - name: bpf-programs-attached
+    action: shell
+    command: "sudo bpftool prog list | grep -c xdp"
+    description: "How many XDP programs are attached; 0 means the collector never loaded or was unloaded"
+
+  - name: ring-backlog
+    action: shell
+    command: "curl -s -m 5 \"http://${HOST_ADDR}:16671/metrics\" | grep -E '^(trace_collector_events_dropped_total|trace_collector_programs_loaded|flow_reader_active_flows)'"
+    description: "Dropped events, which programs are loaded, flows in the reader (only when the port answers)"
+
+  - name: restart-collector
+    action: manual
+    command: "sudo systemctl restart unheaded-trace-collector"
+    description: "MANUAL. Restart once the log shows why it stopped; it re-attaches its programs on start"
+
+verification:
+  - name: collector-up
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=min(up{job="trace-collector"})' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("min up:", v); sys.exit(v != "1")'
+
+rollback:
+  - name: stop-collector
+    action: manual
+    command: "sudo systemctl stop unheaded-trace-collector"
+    description: "MANUAL. If a restart loops or disturbs traffic, stop it: nothing is pinned (--map-pin-path=), so its programs detach when the process exits; the hosts run without tracing until it is fixed"

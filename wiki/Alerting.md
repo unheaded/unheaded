@@ -102,6 +102,17 @@ scripts/monitoring/maintenance.sh --end
 
 Alerts still fire and show; only mail stops. The duration is the work; each silence runs past it until the tiers can have cleared: pages +30m (the medium tier's short window), tickets +6h (the steady tier's). A silence that ended with the work mailed about the planned outage after it was over. `cmd/alert-policy`'s tests keep the tails in step with the tiers. `scripts/kingdom-shutdown.sh` silences 30m of work before it stops anything, and `kingdom-startup.sh` 15m of warm-up (both best effort).
 
+## Rules that cannot fire are deleted
+
+A rule on a metric nothing emits is a false sense of coverage. On 2026-10-27
+(S-WELL-SPRING Step 163) `monad.yml` (`MonadHbHDropRateHigh`, `BGPSessionDown`,
+`BFDFailoverTriggered`, `RoutingHealthDown`) and `loadbalancers.yml` (seven
+`HAProxy*`/`Nginx*` rules) were deleted: no binary emits the `unheaded_*`
+series and no job scrapes `haproxy_*`/`nginx_*` (checked live: zero series).
+`NodeExporterDown`, the one live rule among them, moved to `host.yml`. A
+deleted rule comes back with its producer and a promtool test; the load
+balancer rules return with an HAProxy/Nginx exporter.
+
 ## Dead-man's switch
 
 Two alerts watch the watchers (ADR-100 section 4):

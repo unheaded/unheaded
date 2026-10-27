@@ -10,6 +10,24 @@
 # receiver is `null` and none of this reaches anyone.
 
 groups:
+  # A host whose node_exporter does not answer: down, or (for east) the
+  # overlay is down, since west scrapes east over wg0. Moved here from
+  # monad.yml when that file's four rules on metrics nothing emits were
+  # deleted (S-WELL-SPRING Step 163); this was the one rule in it with data.
+  - name: host-up
+    interval: 1m
+    rules:
+      - alert: NodeExporterDown
+        expr: up{job="node_exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "Node exporter down on {{ $labels.instance }}"
+          description: "Cannot scrape node_exporter from {{ $labels.instance }}: the host is down, or for east the WireGuard overlay is"
+          runbook_url: "runbooks/network/network-diagnostics.yaml"
+
   - name: host-disk
     interval: 1m
     rules:

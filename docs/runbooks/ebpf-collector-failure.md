@@ -1,6 +1,6 @@
 # Runbook: eBPF Collector Failure
 
-> **Reference design for a Kubernetes/Vault deployment that is not running (decision 43 pending).** Live runbooks are `runbooks/**/*.yaml`.
+> **Reference design for a Kubernetes/Vault deployment that is not running (decision 43 pending).** Live runbooks are `runbooks/**/*.yaml`. On the hosts: `runbooks/observe/trace-collector-down.yaml` (TraceCollectorDown).
 
 ## Symptoms
 - EbpfCollectorDown alert fires

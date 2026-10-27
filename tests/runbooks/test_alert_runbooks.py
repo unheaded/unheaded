@@ -15,6 +15,8 @@ import harness
 
 RUNBOOKS = {
     "runbooks/observe/heartbeat-missing.yaml": ("HeartbeatMissing", "Watchdog"),
+    "runbooks/observe/trace-collector-down.yaml": ("TraceCollectorDown",),
+    "runbooks/observe/high-latency.yaml": ("TraceCollectorHighLatency",),
 }
 
 READ_ONLY = {

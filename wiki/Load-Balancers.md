@@ -32,7 +32,7 @@ Deployment methods:
 |--------|----------|-----------|
 | Metrics | HAProxy PROMEX + Nginx stub_status → Prometheus → VictoriaMetrics | `06_loadbalancers.json` |
 | Logs | JSON format → Promtail → Loki | Grafana Explore |
-| Alerts | 7 rules in `loadbalancers.yml` → AlertManager | PagerDuty/Slack (TBD) |
+| Alerts | None today: the 7 rules in `loadbalancers.yml` were deleted 2026-10-27 because nothing scraped `haproxy_*`/`nginx_*` (S-WELL-SPRING Step 163). They return, with promtool tests, when an exporter is scraped | Alertmanager |
 
 ## Interchangeable Alternatives
 

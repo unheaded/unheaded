@@ -55,6 +55,12 @@ promote:
       Dead-man's switch: a host that stops reporting stops every SLI on it
       too, so no SLO can burn for it. The only alert allowed to page on an
       absence. Fires only where alert-mailer runs with HEARTBEAT_HOSTS set.
+  - alert: TraceCollectorDown
+    urgency: ticket
+    reason: >-
+      No SLO covers the eBPF trace collector; when it dies the dashboard's
+      flow and latency views go empty while everything else stays healthy.
+      A ticket, not a page: nothing user-facing breaks.
 
 # Burn-rate tiers (Google SRE Workbook ch. 5, table 5-8). An alert fires
 # when both windows exceed burn x (1 - objective). page: false SLOs send the

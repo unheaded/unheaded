@@ -1,0 +1,66 @@
+# promtool test rules collector_test.yml (from this directory)
+rule_files:
+  - ../collector.yml
+evaluation_interval: 1m
+tests:
+  # East's collector stops answering at 5m; west never does. Five minutes
+  # of failed scrapes fire, four do not.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="trace-collector",instance="[fd00:dead:beef::1]:16671",host="west"}'
+        values: '1x20'
+      - series: 'up{job="trace-collector",instance="[fd00:dead:beef::2]:16671",host="east"}'
+        values: '1x4 0x16'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: TraceCollectorDown
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: TraceCollectorDown
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: trace-collector, instance: "[fd00:dead:beef::2]:16671", host: east}
+            exp_annotations:
+              summary: "Trace collector on east is not answering"
+              description: "[fd00:dead:beef::2]:16671 has failed every scrape for 5 minutes: no eBPF events reach Wotan from east"
+              runbook_url: "runbooks/observe/trace-collector-down.yaml"
+
+  # West's batches all land between 1s and 2.5s; east's under 5ms; a third
+  # collector publishes nothing. Only west fires, and only after 15m.
+  - interval: 1m
+    input_series:
+      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="w",host="west",le="0.005"}'
+        values: '0x40'
+      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="w",host="west",le="1"}'
+        values: '0x40'
+      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="w",host="west",le="2.5"}'
+        values: '0+10x40'
+      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="w",host="west",le="+Inf"}'
+        values: '0+10x40'
+      - series: 'trace_collector_batch_latency_seconds_count{job="trace-collector",instance="w",host="west"}'
+        values: '0+10x40'
+      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="e",host="east",le="0.005"}'
+        values: '0+10x40'
+      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="e",host="east",le="1"}'
+        values: '0+10x40'
+      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="e",host="east",le="2.5"}'
+        values: '0+10x40'
+      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="e",host="east",le="+Inf"}'
+        values: '0+10x40'
+      - series: 'trace_collector_batch_latency_seconds_count{job="trace-collector",instance="e",host="east"}'
+        values: '0+10x40'
+      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="i",host="idle",le="+Inf"}'
+        values: '0x40'
+      - series: 'trace_collector_batch_latency_seconds_count{job="trace-collector",instance="i",host="idle"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: TraceCollectorHighLatency
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: TraceCollectorHighLatency
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: trace-collector, instance: w, host: west}
+            exp_annotations:
+              summary: "Trace collector on west: batches take over 1s to reach Wotan"
+              description: "p99 batch publish latency 2.485s over 10m; Wotan is slow or the collector is backlogged"
+              runbook_url: "runbooks/observe/high-latency.yaml"

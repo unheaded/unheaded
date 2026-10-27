@@ -247,8 +247,8 @@ func (m *Mailer) Ticket(w Webhook) error {
 		if a.Status == "resolved" {
 			if _, open := m.st.Tickets[key]; open {
 				delete(m.st.Tickets, key)
-				m.st.Resolved = append(m.st.Resolved, fmt.Sprintf("%s (%s tier), open since %s",
-					name(a), a.Labels["tier"], a.StartsAt.In(m.cfg.Loc).Format("Jan 2 15:04")))
+				m.st.Resolved = append(m.st.Resolved, fmt.Sprintf("%s%s, open since %s",
+					name(a), tierNote(a), a.StartsAt.In(m.cfg.Loc).Format("Jan 2 15:04")))
 			}
 			continue
 		}
@@ -281,7 +281,7 @@ func (m *Mailer) Tick() error {
 	var b strings.Builder
 	subject := fmt.Sprintf("[digest] %d open", len(open))
 	if len(open) > 0 {
-		b.WriteString("Open (budget burning slowly; worth a look this week):\n\n")
+		b.WriteString("Open (worth a look this week):\n\n")
 		for _, a := range open {
 			writeAlert(&b, a)
 		}

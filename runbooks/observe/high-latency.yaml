@@ -1,0 +1,95 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: high-latency
+  description: Trace batches take over a second to reach Wotan (TraceCollectorHighLatency); bare-metal triage of a slow event path
+  owner: architect
+  estimated_duration: 20m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  M-084, S-WELL-SPRING Step 168. Replaces the Kubernetes-only
+  docs/runbooks/high-latency.md for the hosts that actually run (west, east,
+  no Kubernetes). The alert is recorded only (urgency none): it is a cause.
+  User-facing slowness shows first as an SLO burning (wotan, dashboard).
+
+  trace_collector_batch_latency_seconds is the time the collector takes to
+  publish one batch of Anamnesis events to Wotan. A p99 over 1 s for 15
+  minutes almost always means Wotan is slow (memory budget evictions, a
+  saturated host, a gRPC stream that fell back to HTTP polling), less often
+  that the collector itself is CPU-starved. The steps go from Wotan to the
+  collector to the host. All shell steps only read.
+
+  The load balancers (HAProxy/Nginx) have no latency alert: their rules were
+  deleted with loadbalancers.yml until an exporter is scraped.
+
+parameters:
+  - name: HOST_ADDR
+    default: "[fd00:dead:beef::1]"
+    description: The collector's address as Prometheus scrapes it ([fd00:dead:beef::2] for east)
+
+steps:
+  - name: latency-now
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=histogram_quantile(0.99, sum by (host, le) (rate(trace_collector_batch_latency_seconds_bucket[10m])))' |
+        python3 -c 'import json,sys; [print(r["metric"]["host"], "p99 %.3fs" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "p99 batch publish latency per host over the last 10 minutes (run on west)"
+
+  - name: wotan-slos
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname="ErrorBudgetBurn",alertstate="firing"}' |
+        python3 -c 'import json,sys; [print(r["metric"]["slo"], r["metric"]["tier"]) for r in json.load(sys.stdin)["data"]["result"]] or print("no SLO burning")'
+    description: "Is a user-facing SLO burning too? If wotan is, start with runbooks/wotan/oom-state-recovery.yaml"
+
+  - name: wotan-health
+    action: shell
+    command: "curl -s -m 5 http://127.0.0.1:18000/health"
+    description: "Wotan answers, and how (gRPC stream health is in the body)"
+
+  - name: wotan-memory
+    action: shell
+    command: "curl -s -m 5 http://127.0.0.1:18000/metrics | grep -E '^(unheaded_chat_room_buffers_footprint_bytes|unheaded_chat_room_buffer_total_evicted_total|go_memstats_heap_inuse_bytes)'"
+    description: "Wotan near its buffer budget evicts and slows; heap close to GOMEMLIMIT means GC pressure"
+
+  - name: collector-drops
+    action: shell
+    command: "curl -s -m 5 \"http://${HOST_ADDR}:16671/metrics\" | grep -E '^(trace_collector_events_dropped_total|trace_collector_batch_latency_seconds_count|process_cpu_seconds_total)'"
+    description: "Is the collector dropping events, still publishing, and how much CPU it has used"
+
+  - name: collector-log
+    action: shell
+    command: "journalctl -u unheaded-trace-collector -n 50 --no-pager"
+    description: "Publish errors, fallbacks to HTTP, rate limiting"
+
+  - name: host-load
+    action: shell
+    command: "cat /proc/loadavg"
+    description: "A load average well above the core count (12 west, 4 east) starves both processes"
+
+  - name: restart-collector
+    action: manual
+    command: "sudo systemctl restart unheaded-trace-collector"
+    description: "MANUAL. Only if Wotan is healthy and the collector alone is slow (a stuck stream); it reconnects on start"
+
+verification:
+  - name: latency-back-under-1s
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(ALERTS{alertname="TraceCollectorHighLatency",alertstate="firing"}) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("firing:", v); sys.exit(v != "0")'
+
+rollback:
+  - name: nothing-to-roll-back
+    action: manual
+    command: "echo 'Every shell step reads; a collector restart is safe to repeat.'"
+    description: "MANUAL. Nothing here changes state except the optional collector restart"
