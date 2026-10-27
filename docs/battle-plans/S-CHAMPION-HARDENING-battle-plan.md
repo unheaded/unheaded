@@ -934,29 +934,29 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 1 h
 **Agent**: Coordinator
 
-- [ ] **Step 237** [SECURITY][W] ~10m: Attack-surface table appended to `docs/security/S-CHAMPION-HARDENING-review.md`: rows for the trust allowlist (RT-06 closed), requester-bound tokens (RT-03), gc ticker (RT-04), write cap (RT-05), openat2 sandbox (T-05), dispatch truth (RT-09; `system_command` removed), audit fail-closed (RT-10), shared prompt + verbs (RT-07/08), runbook manifest, model pins (RT-15), scheduler endpoints (new mutating tool `schedule_update`), memory endpoints (new mutating tool `memory_write`), MCP in Go (same nine tools; stdio only), vor unit (loopback only, own user), kanban endpoints (`/api/v1/runbooks` read-only; `from-runbook` write through the store with auth middleware). For each: new listener? new privilege? new dependency? fuzz target touched?
-- [ ] **Step 238** [SECURITY][TEST][B] ~5m: Fuzz the three champion targets briefly
+- [x] **Step 237** [SECURITY][W] ~10m: Attack-surface table appended to `docs/security/S-CHAMPION-HARDENING-review.md`: rows for the trust allowlist (RT-06 closed), requester-bound tokens (RT-03), gc ticker (RT-04), write cap (RT-05), openat2 sandbox (T-05), dispatch truth (RT-09; `system_command` removed), audit fail-closed (RT-10), shared prompt + verbs (RT-07/08), runbook manifest, model pins (RT-15), scheduler endpoints (new mutating tool `schedule_update`), memory endpoints (new mutating tool `memory_write`), MCP in Go (same nine tools; stdio only), vor unit (loopback only, own user), kanban endpoints (`/api/v1/runbooks` read-only; `from-runbook` write through the store with auth middleware). For each: new listener? new privilege? new dependency? fuzz target touched?
+- [x] **Step 238** [SECURITY][TEST][B] ~5m: Fuzz the three champion targets briefly
   ```bash
   cd /home/govan/tmp/unheaded && for f in FuzzTrustLabel FuzzCanonicalCall; do go test ./pkg/champion/ -run '^$' -fuzz $f -fuzztime 45s 2>&1 | tail -1; done
   ```
-- [ ] **Step 239** [SECURITY][B] ~4m: Gates
+- [x] **Step 239** [SECURITY][B] ~4m: Gates
   ```bash
   cd /home/govan/tmp/unheaded && scripts/check-gitleaks.sh 2>&1 | tail -1 && scripts/check-gosec-ratchet.sh 2>&1 | tail -1 && scripts/check-dependency-baseline.sh 2>&1 | tail -1 && scripts/check-systemd-units.sh 2>&1 | tail -1 && scripts/check-unit-binaries.sh 2>&1 | tail -1 && scripts/check-runbooks.sh 2>&1 | tail -1 && scripts/check-prometheus-rules.sh 2>&1 | tail -1 && scripts/check-manifest-yaml.sh 2>&1 | tail -1 && scripts/check-python-syntax.sh 2>&1 | tail -1 && scripts/check-js-lint.sh 2>&1 | tail -1
   ```
-- [ ] **Step 240** [V] ~1m: Every gate PASS. If gosec grew: fix or `#nosec` with a leading justification (memory reference_gosec_nosec_directive).
-- [ ] **Step 241** [SECURITY][B] ~3m: SPDX on every new file
+- [x] **Step 240** [V] ~1m: Every gate PASS. If gosec grew: fix or `#nosec` with a leading justification (memory reference_gosec_nosec_directive).
+- [x] **Step 241** [SECURITY][B] ~3m: SPDX on every new file
   ```bash
   cd /home/govan/tmp/unheaded && for f in $(git diff --name-only --diff-filter=A a7fe3acd -- '*.go' '*.py' '*.sh' '*.yaml' '*.service'); do head -3 "$f" | grep -q 'SPDX-License-Identifier' || echo "MISSING SPDX: $f"; done; echo "spdx checked"
   ```
-- [ ] **Step 242** [COMPLIANCE][B] ~2m: No new module
+- [x] **Step 242** [COMPLIANCE][B] ~2m: No new module
   ```bash
   cd /home/govan/tmp/unheaded && git diff a7fe3acd -- go.mod | grep -E '^\+' | grep -vE '^\+\+\+' || echo "go.mod: no additions"
   ```
-- [ ] **Step 243** [TEST][B] ~8m: Full regression against the baseline
+- [x] **Step 243** [TEST][B] ~8m: Full regression against the baseline
   ```bash
   cd /home/govan/tmp/unheaded && go test ./... 2>&1 | grep -E '^(FAIL|---)' | tee -a docs/battle-plans/progress/S-CHAMPION-HARDENING-progress.md | tail -5; echo "regression recorded"
   ```
-- [ ] **Step 244** [V] ~1m: **PHASE 14 EXIT GATE** — zero new FAIL lines vs Step 5; Steps 240-242 clean. Commit `[PLAN S-CHAMPION-HARDENING] Steps 237-243: security review, gates green`.
+- [x] **Step 244** [V] ~1m: **PHASE 14 EXIT GATE** — zero new FAIL lines vs Step 5; Steps 240-242 clean. Commit `[PLAN S-CHAMPION-HARDENING] Steps 237-243: security review, gates green`.
 
 ---
 

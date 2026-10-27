@@ -203,3 +203,9 @@ it writes itself. So the plan's env names (`ZHEN_OVERNIGHT`, `ZHEN_ABORT_FILE`, 
 `scripts/zhen-morning-report.sh` (prints the newest/dated report the worker wrote). Found: the GPU lease default is
 per user (`$XDG_RUNTIME_DIR`), so a zhen-agentd unit and the operator's `switch-model.sh` would lock different files;
 the unit sets `GPU_LOCK=/run/unheaded/gpu.lock` and E2 asks for the shared group. 20 overnight/worker tests pass.
+
+### Phase 14 (coordinator): security review written, gates green
+
+`docs/security/S-CHAMPION-HARDENING-review.md`: attack-surface delta for every change, 10 gates exit 0, both fuzz
+targets 45 s clean, go.mod only the sqlite bump, full suite 232 ok / 0 FAIL. Open decisions listed there (MCP flags vs
+Step 86, branch-sandbox E3, shared UI principal).
