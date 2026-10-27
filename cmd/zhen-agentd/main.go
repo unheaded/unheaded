@@ -167,6 +167,9 @@ func main() {
 		fatal("kanban-store init: %v", err)
 	}
 	pool := newChampionPool(store, kStore)
+	gcCtx, stopGC := context.WithCancel(context.Background())
+	defer stopGC()
+	pool.gcCtx = gcCtx // RT-04: confirmation tokens are swept on a ticker
 
 	queue, closeQueue, err := buildConfirmQueue(context.Background(), *confirmQ)
 	if err != nil {
@@ -439,6 +442,10 @@ type championPool struct {
 	store  champion.ActionStore
 	kanban champion.KanbanStore // nil → kanban_* tool calls fail at dispatch
 	cache  map[string]*champion.Champion
+	// gcCtx, when set, starts each new Champion's confirmation-token GC
+	// (RT-04); it ends with the daemon.
+	gcCtx   context.Context
+	startGC func(context.Context, *champion.Champion) // tests replace it
 }
 
 func newChampionPool(store champion.ActionStore, kanban champion.KanbanStore) *championPool {
@@ -446,6 +453,9 @@ func newChampionPool(store champion.ActionStore, kanban champion.KanbanStore) *c
 		store:  store,
 		kanban: kanban,
 		cache:  make(map[string]*champion.Champion),
+		startGC: func(ctx context.Context, c *champion.Champion) {
+			c.StartConfirmGC(ctx, champion.DefaultConfirmGCInterval)
+		},
 	}
 }
 
@@ -464,6 +474,9 @@ func (p *championPool) get(root string) (*champion.Champion, error) {
 	}
 	if p.kanban != nil {
 		c = c.WithKanbanStore(p.kanban)
+	}
+	if p.gcCtx != nil && p.startGC != nil {
+		p.startGC(p.gcCtx, c)
 	}
 	p.cache[root] = c
 	return c, nil
@@ -560,6 +573,7 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		MaxTopicChars: defaultMaxChars,
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
+		Principal:     requestPrincipal(r), // RT-03: pending tokens bind to the caller
 	}
 	if !s.askTokens {
 		cfg.OnPending = s.askPending(champ, req.SessionID)
@@ -738,6 +752,7 @@ func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
 		MaxTopicChars: defaultMaxChars,
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
+		Principal:     requestPrincipal(r), // RT-03: pending tokens bind to the caller
 	}
 	if !s.askTokens {
 		cfg.OnPending = s.askPending(champ, req.SessionID)
@@ -860,7 +875,19 @@ func (s *server) handleConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, err := champ.ConfirmPendingToolCall(r.Context(), req.Token)
+	// RT-03: the token is bound to the principal that caused it; only an
+	// authenticated caller can be that principal.
+	principal := requestPrincipal(r)
+	if principal == anonymousPrincipal {
+		confirmTokensRedeemed.WithLabelValues("denied").Inc()
+		writeJSON(w, http.StatusForbidden, confirmResponse{
+			Status: "denied",
+			Reason: "confirmation requires an authenticated principal",
+		})
+		return
+	}
+
+	out, err := champ.ConfirmPendingToolCall(r.Context(), req.Token, principal)
 	if err != nil {
 		// Classify the error for metrics + machine-readable status.
 		status := classifyConfirmError(err)
@@ -890,6 +917,9 @@ func (s *server) handleConfirm(w http.ResponseWriter, r *http.Request) {
 func classifyConfirmError(err error) string {
 	if err == nil {
 		return "ok"
+	}
+	if errors.Is(err, champion.ErrConfirmerNotAllowed) {
+		return "denied"
 	}
 	msg := err.Error()
 	switch {

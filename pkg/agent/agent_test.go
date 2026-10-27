@@ -415,3 +415,88 @@ func TestRun_NoChampionRefusesToolCalls(t *testing.T) {
 		t.Errorf("expected 'no Champion bound' observation; got %q", res.Trace[0].Observation)
 	}
 }
+
+// runLocalWrite drives one write_file turn with the given retrieval and
+// returns the first turn (S-CHAMPION-HARDENING Step 38).
+func runLocalWrite(t *testing.T, refs []champion.Reference, contents []TopicContent) (Turn, string) {
+	t.Helper()
+	c, err := champion.New(champion.Config{ProjectRoot: t.TempDir()}, mockActionStore{})
+	if err != nil {
+		t.Fatalf("champion.New: %v", err)
+	}
+	target := filepath.Join(c.GetProjectRoot(), "out.txt")
+	llm := &mockLLM{responses: []string{
+		`{"thought":"apply it","tool_call":{"name":"write_file","args":{"path":"` + target + `","content":"hi"}}}`,
+		`{"thought":"done","answer":"done"}`,
+	}}
+	a := New(Config{MaxTurns: 4}, c, &mockRetriever{refs: refs, contents: contents}, llm)
+	res, err := a.Run(context.Background(), "write it")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return res.Trace[0], target
+}
+
+func localRef() champion.Reference {
+	return champion.Reference{Topic: "wotan-acl", Category: "wotan", SourceKind: "user-custom", SourceTrust: "local"}
+}
+
+func TestRun_LocalRefDigestStampedAndVerified(t *testing.T) {
+	r := localRef()
+	turn, target := runLocalWrite(t, []champion.Reference{r}, []TopicContent{{Ref: r, Content: "the text the model read"}})
+	if turn.Refused {
+		t.Fatalf("a local ref whose text was retrieved must stay trusted; observation %q", turn.Observation)
+	}
+	got := turn.ToolCall.Justification
+	if len(got) != 1 || got[0].SourceTrust != "local" || got[0].Digest != champion.ReferenceDigest("the text the model read") {
+		t.Fatalf("justification = %+v; want one local ref with the text's digest", got)
+	}
+	if _, err := os.Stat(target); err != nil {
+		t.Errorf("write should have run: %v", err)
+	}
+}
+
+func TestRun_LocalRefDigestMismatchDowngraded(t *testing.T) {
+	r := localRef()
+	r.Digest = champion.ReferenceDigest("what vor claimed")
+	turn, target := runLocalWrite(t, []champion.Reference{r}, []TopicContent{{Ref: r, Content: "what the model actually read"}})
+	if !turn.Refused || !turn.Pending {
+		t.Fatalf("a digest mismatch must refuse pending confirmation; turn %+v", turn)
+	}
+	if got := turn.ToolCall.Justification; len(got) != 1 || got[0].SourceTrust != "external" {
+		t.Fatalf("justification = %+v; want the ref downgraded to external", got)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("file must not be written")
+	}
+}
+
+func TestRun_LocalRefWithoutTextDowngraded(t *testing.T) {
+	turn, _ := runLocalWrite(t, []champion.Reference{localRef()}, nil)
+	if !turn.Refused || !turn.Pending {
+		t.Fatalf("a local ref with no retrieved text must refuse pending confirmation; turn %+v", turn)
+	}
+	if got := turn.ToolCall.Justification; len(got) != 1 || got[0].SourceTrust != "external" {
+		t.Fatalf("justification = %+v; want the ref downgraded to external", got)
+	}
+}
+
+func TestVerifyJustification_FakeLookup(t *testing.T) {
+	text := map[string]string{"a": "alpha"}
+	lookup := func(topic string) (string, bool) { s, ok := text[topic]; return s, ok }
+	in := []champion.Reference{
+		{Topic: "a", SourceTrust: "local", Digest: champion.ReferenceDigest("alpha")},
+		{Topic: "a", SourceTrust: "local", Digest: champion.ReferenceDigest("beta")},
+		{Topic: "b", SourceTrust: "canonical"},
+	}
+	out := verifyJustification(in, lookup)
+	want := []string{"local", "external", "canonical"}
+	for i, w := range want {
+		if out[i].SourceTrust != w {
+			t.Errorf("ref %d trust = %q; want %q", i, out[i].SourceTrust, w)
+		}
+	}
+	if in[1].SourceTrust != "local" {
+		t.Error("verifyJustification must not mutate its input")
+	}
+}

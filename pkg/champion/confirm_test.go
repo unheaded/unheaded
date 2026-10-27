@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -25,6 +26,7 @@ func untrustedWrite(t *testing.T, c *Champion) ToolCall {
 		},
 		Justification: []Reference{externalRef("evil", "lbl")},
 		EmittedBy:     "test",
+		Principal:     "ui:stevie",
 	}
 }
 
@@ -49,7 +51,7 @@ func TestConfirm_HappyPath(t *testing.T) {
 	}
 
 	// Confirm — should run the call.
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err != nil {
 		t.Fatalf("ConfirmPendingToolCall: %v", err)
 	}
@@ -73,11 +75,11 @@ func TestConfirm_TokenSingleUse(t *testing.T) {
 		t.Fatalf("issue: %v", err)
 	}
 	// First confirm consumes the token.
-	if _, err := c.ConfirmPendingToolCall(context.Background(), tok); err != nil {
+	if _, err := c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie"); err != nil {
 		t.Fatalf("first confirm: %v", err)
 	}
 	// Second confirm should fail.
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected error on token reuse")
 	}
@@ -93,7 +95,7 @@ func TestConfirm_UnknownToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issue: %v", err)
 	}
-	_, err = c.ConfirmPendingToolCall(context.Background(), "nope-not-a-real-token")
+	_, err = c.ConfirmPendingToolCall(context.Background(), "nope-not-a-real-token", "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -116,7 +118,7 @@ func TestConfirm_ExpiredToken(t *testing.T) {
 	c.confirmStore.entries[tok].ExpiresAt = time.Now().Add(-1 * time.Second)
 	c.confirmStore.mu.Unlock()
 
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected expired error")
 	}
@@ -138,12 +140,13 @@ func TestConfirm_DestructiveStillRefusedAfterConfirm(t *testing.T) {
 		},
 		Justification: []Reference{externalRef("evil", "lbl")},
 		EmittedBy:     "test",
+		Principal:     "ui:stevie",
 	}
 	tok, err := c.IssuePendingConfirmation(tc)
 	if err != nil {
 		t.Fatalf("issue: %v", err)
 	}
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected destructive refusal even after confirm")
 	}
@@ -166,12 +169,13 @@ func TestConfirm_PathStillEnforcedAfterConfirm(t *testing.T) {
 		},
 		Justification: []Reference{externalRef("evil", "lbl")},
 		EmittedBy:     "test",
+		Principal:     "ui:stevie",
 	}
 	tok, err := c.IssuePendingConfirmation(tc)
 	if err != nil {
 		t.Fatalf("issue: %v", err)
 	}
-	_, err = c.ConfirmPendingToolCall(context.Background(), tok)
+	_, err = c.ConfirmPendingToolCall(context.Background(), tok, "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected path-allowlist refusal even after confirm")
 	}
@@ -183,11 +187,99 @@ func TestConfirm_PathStillEnforcedAfterConfirm(t *testing.T) {
 func TestConfirm_NoStoreNoConfirm(t *testing.T) {
 	c, _ := newTestChampion(t)
 	// Have not called IssuePendingConfirmation yet → store is nil.
-	_, err := c.ConfirmPendingToolCall(context.Background(), "any-token")
+	_, err := c.ConfirmPendingToolCall(context.Background(), "any-token", "ui:stevie")
 	if err == nil {
 		t.Fatalf("expected error when store is nil")
 	}
 	if !strings.Contains(err.Error(), "no pending") {
 		t.Errorf("expected 'no pending', got %v", err)
+	}
+}
+
+// RT-04 (S-CHAMPION-HARDENING Step 49): expired tokens are collected on a
+// ticker, not only when the next token is issued.
+func TestConfirmStore_GCTicker(t *testing.T) {
+	s := newConfirmStore()
+	s.ttl = 10 * time.Millisecond
+	for i := 0; i < 3; i++ {
+		if _, err := s.IssuePending(ToolCall{Name: "write_file"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.StartGC(ctx, 5*time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		s.mu.Lock()
+		n := len(s.entries)
+		s.mu.Unlock()
+		if n == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d expired entries still held after 2 s", n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestChampion_StartConfirmGC(t *testing.T) {
+	c, _ := newTestChampion(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c.StartConfirmGC(ctx, 5*time.Millisecond)
+	c.confirms().ttl = 10 * time.Millisecond
+	if _, err := c.IssuePendingConfirmation(untrustedWrite(t, c)); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		s := c.confirms()
+		s.mu.Lock()
+		n := len(s.entries)
+		s.mu.Unlock()
+		if n == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the Champion's GC left %d expired entries", n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// Concurrent first issues on one Champion (agentd pools one per root)
+// must not race on the lazily created store or lose a token.
+func TestConfirm_ConcurrentFirstIssue(t *testing.T) {
+	c, _ := newTestChampion(t)
+	tc := untrustedWrite(t, c)
+	toks := make(chan string, 16)
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tok, err := c.IssuePendingConfirmation(tc)
+			if err == nil {
+				toks <- tok
+			}
+		}()
+	}
+	wg.Wait()
+	close(toks)
+	n := 0
+	for tok := range toks {
+		n++
+		s := c.confirms()
+		s.mu.Lock()
+		_, ok := s.entries[tok]
+		s.mu.Unlock()
+		if !ok {
+			t.Errorf("token %s lost", tok)
+		}
+	}
+	if n != 16 {
+		t.Errorf("%d of 16 issues succeeded", n)
 	}
 }

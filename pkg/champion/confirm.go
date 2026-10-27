@@ -8,10 +8,15 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 )
+
+// ErrConfirmerNotAllowed: the confirming principal may not confirm for
+// the principal that requested the call (RT-03, confirmerAllowed).
+var ErrConfirmerNotAllowed = errors.New("confirmation refused")
 
 // PendingConfirmTTL is how long a pending-confirmation token remains
 // valid after issuance. Per B2 design (eval/coding-gate/probe-2026-
@@ -33,10 +38,36 @@ type pendingEntry struct {
 type confirmStore struct {
 	mu      sync.Mutex
 	entries map[string]*pendingEntry
+	ttl     time.Duration // PendingConfirmTTL; tests shorten it
 }
 
 func newConfirmStore() *confirmStore {
-	return &confirmStore{entries: make(map[string]*pendingEntry)}
+	return &confirmStore{entries: make(map[string]*pendingEntry), ttl: PendingConfirmTTL}
+}
+
+// DefaultConfirmGCInterval is how often StartConfirmGC sweeps used and
+// expired tokens.
+const DefaultConfirmGCInterval = time.Minute
+
+// StartGC sweeps used and expired entries every interval until ctx ends
+// (RT-04: before this, entries were collected only when the next token
+// was issued, so an idle process held them indefinitely).
+func (s *confirmStore) StartGC(ctx context.Context, every time.Duration) {
+	if every <= 0 {
+		every = DefaultConfirmGCInterval
+	}
+	go func() {
+		t := time.NewTicker(every)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				s.gc()
+			}
+		}
+	}()
 }
 
 // IssuePending creates a new token bound to the given ToolCall. The
@@ -51,7 +82,7 @@ func (s *confirmStore) IssuePending(tc ToolCall) (string, error) {
 	s.entries[tok] = &pendingEntry{
 		Call:      tc,
 		IssuedAt:  now,
-		ExpiresAt: now.Add(PendingConfirmTTL),
+		ExpiresAt: now.Add(s.ttl),
 	}
 	s.mu.Unlock()
 	return tok, nil
@@ -59,9 +90,11 @@ func (s *confirmStore) IssuePending(tc ToolCall) (string, error) {
 
 // consume returns the bound ToolCall for a valid token and atomically
 // marks the token used. Returns error if the token is unknown, used,
-// or expired. Callers should treat any error as "do not execute" and
-// surface a fresh confirmation prompt.
-func (s *confirmStore) consume(token string) (ToolCall, error) {
+// or expired, or if approvedBy may not confirm for the principal that
+// requested the call (RT-03; that refusal leaves the token unused, so a
+// borrowed token cannot be burned by the borrower). Callers should treat
+// any error as "do not execute" and surface a fresh confirmation prompt.
+func (s *confirmStore) consume(token, approvedBy string) (ToolCall, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -77,6 +110,9 @@ func (s *confirmStore) consume(token string) (ToolCall, error) {
 		// against a token that briefly straddles the deadline).
 		e.Used = true
 		return ToolCall{}, fmt.Errorf("confirmation token expired")
+	}
+	if !confirmerAllowed(e.Call.Principal, approvedBy) {
+		return ToolCall{}, fmt.Errorf("%w: confirmer %q may not confirm a call requested by %q", ErrConfirmerNotAllowed, approvedBy, e.Call.Principal)
 	}
 	e.Used = true
 	return e.Call, nil
@@ -122,11 +158,35 @@ func freshToken() (string, error) {
 //
 // before showing the token to the human.
 func (c *Champion) IssuePendingConfirmation(tc ToolCall) (string, error) {
+	s := c.confirms()
+	s.gc()
+	return s.IssuePending(tc)
+}
+
+// confirms returns the token store, creating it on first use. Guarded:
+// agentd serves concurrent requests from one pooled Champion per root.
+func (c *Champion) confirms() *confirmStore {
+	c.confirmMu.Lock()
+	defer c.confirmMu.Unlock()
 	if c.confirmStore == nil {
 		c.confirmStore = newConfirmStore()
 	}
-	c.confirmStore.gc()
-	return c.confirmStore.IssuePending(tc)
+	return c.confirmStore
+}
+
+// existingConfirms returns the token store, or nil if no token was ever
+// issued and no GC started.
+func (c *Champion) existingConfirms() *confirmStore {
+	c.confirmMu.Lock()
+	defer c.confirmMu.Unlock()
+	return c.confirmStore
+}
+
+// StartConfirmGC sweeps used and expired confirmation tokens every
+// interval (DefaultConfirmGCInterval when <= 0) until ctx ends (RT-04).
+// zhen-agentd starts it for every pooled Champion with its root context.
+func (c *Champion) StartConfirmGC(ctx context.Context, every time.Duration) {
+	c.confirms().StartGC(ctx, every)
 }
 
 // ConfirmPendingToolCall redeems a token issued by
@@ -136,15 +196,23 @@ func (c *Champion) IssuePendingConfirmation(tc ToolCall) (string, error) {
 // and 3 (destructive-verb) are still enforced — the user can authorize
 // an untrusted source, but they cannot authorize destruction.
 //
+// approvedBy is the confirming principal; it must be allowed to confirm
+// for the principal the call was issued for (confirmerAllowed: the same
+// ui:/tty: principal, or QueuePrincipal; agent:* never).
+//
 // Returns the same shape as Dispatch (any output, error). On token
-// failure (unknown / used / expired) returns the token error and does
-// NOT execute the call.
-func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token string) (any, error) {
-	if c.confirmStore == nil {
+// failure (unknown / used / expired / wrong confirmer) returns the token
+// error and does NOT execute the call.
+func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token, approvedBy string) (any, error) {
+	s := c.existingConfirms()
+	if s == nil {
 		return nil, fmt.Errorf("no pending confirmations")
 	}
-	tc, err := c.confirmStore.consume(token)
+	tc, err := s.consume(token, approvedBy)
 	if err != nil {
+		if errors.Is(err, ErrConfirmerNotAllowed) {
+			_, _ = c.logAction(ctx, "confirm_refused_principal", "ToolCall token: "+err.Error(), approvedBy)
+		}
 		return nil, err
 	}
 
@@ -159,7 +227,7 @@ func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token string) (an
 	// this despite the warning."
 	_, _ = c.logAction(ctx, "tool_call_user_confirmed",
 		fmt.Sprintf("ToolCall: %s (user confirmed untrusted justification)", tc.Name),
-		"user")
+		approvedBy)
 
 	// Now route to underlying — bypass AcceptToolCall by using the
 	// same switch as Dispatch (we already cleared the relevant gates).

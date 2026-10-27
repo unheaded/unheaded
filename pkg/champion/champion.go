@@ -13,11 +13,18 @@ package champion
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // Action represents a logged Champion operation in The Well.
@@ -81,9 +88,11 @@ type Champion struct {
 	store         ActionStore
 	snapshotStore SnapshotStore
 	kanbanStore   KanbanStore
-	confirmStore  *confirmStore   // lazy-init via IssuePendingConfirmation
+	confirmMu     sync.Mutex
+	confirmStore  *confirmStore   // lazy-init via confirms(); guarded by confirmMu
 	runCheck      *RunCheckConfig // nil: run_check refused (runcheck.go)
 	branchSandbox *branchSandbox  // nil: off (branchsandbox.go)
+	beforeOpen    func()          // test hook: runs between validation and the open (Step 68)
 }
 
 // New creates a new Champion with the given configuration.
@@ -258,7 +267,26 @@ func realPath(abs string) (string, error) {
 	}
 }
 
-// logAction logs an action intent to The Well.
+// Audit-write failure policy (RT-10, S-CHAMPION-HARDENING Step 60
+// [DECIDE]): the action log is ADR-019's review surface, so a mutation
+// with no audit row does not run (logMutation → ErrAuditUnavailable);
+// reads and gate/confirm bookkeeping rows fail open. Every failed audit
+// write, either way, is counted and logged.
+
+// ErrAuditUnavailable: the action log could not record a mutation's
+// intent, so the mutation was refused and nothing changed.
+var ErrAuditUnavailable = errors.New("audit log unavailable; mutation refused")
+
+// auditWriteFailures counts action-store writes that failed, by stage:
+// "log" (the planned row) or "complete" (the status update).
+var auditWriteFailures = auto.NewCounterVec(prom.CounterOpts{
+	Name: "champion_audit_write_failures_total",
+	Help: "Champion action-log writes that failed, by stage (log, complete). A failed log row refuses a mutation.",
+}, []string{"stage"})
+
+// logAction logs an action intent to The Well. A store error is counted
+// and logged here; the caller decides whether it may proceed (reads and
+// bookkeeping rows do; mutations go through logMutation and do not).
 func (c *Champion) logAction(ctx context.Context, actionType, intent, triggeredBy string) (int64, error) {
 	if c.store == nil {
 		return 0, nil
@@ -271,13 +299,34 @@ func (c *Champion) logAction(ctx context.Context, actionType, intent, triggeredB
 		TriggeredBy: triggeredBy,
 		PlannedAt:   time.Now(),
 	}
-	return c.store.LogAction(ctx, action)
+	id, err := c.store.LogAction(ctx, action)
+	if err != nil {
+		auditWriteFailures.WithLabelValues("log").Inc()
+		log.Warn().Str("service", "champion").Str("action_type", actionType).Err(err).Msg("audit log write failed")
+	}
+	return id, err
 }
 
-// completeAction updates an action's status after execution.
+// logMutation is logAction for a state-changing operation: when the
+// planned row cannot be written, it returns ErrAuditUnavailable and the
+// caller must not mutate anything.
+func (c *Champion) logMutation(ctx context.Context, actionType, intent, triggeredBy string) (int64, error) {
+	id, err := c.logAction(ctx, actionType, intent, triggeredBy)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrAuditUnavailable, err)
+	}
+	return id, nil
+}
+
+// completeAction updates an action's status after execution. A failed
+// update is counted and logged; the operation already happened (or was
+// refused), so it is not undone.
 func (c *Champion) completeAction(ctx context.Context, id int64, status, result, errMsg string, elapsed time.Duration) {
 	if c.store == nil || id == 0 {
 		return
 	}
-	_ = c.store.UpdateAction(ctx, id, status, result, errMsg, int(elapsed.Milliseconds()))
+	if err := c.store.UpdateAction(ctx, id, status, result, errMsg, int(elapsed.Milliseconds())); err != nil {
+		auditWriteFailures.WithLabelValues("complete").Inc()
+		log.Warn().Str("service", "champion").Int64("action_id", id).Str("status", status).Err(err).Msg("audit log status update failed")
+	}
 }

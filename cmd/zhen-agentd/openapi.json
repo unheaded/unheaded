@@ -292,7 +292,7 @@
     "/api/v1/agent/confirm": {
       "post": {
         "summary": "Redeem a pending-confirmation token",
-        "description": "Re-runs a tool call that was refused with pending_confirmation=true. Rule 2 (untrusted justification) is suppressed; Rules 1 (path-allowlist) and 3 (destructive verb) still fire. Tokens are single-use, 5-minute TTL.",
+        "description": "Re-runs a tool call that was refused with pending_confirmation=true. Rule 2 (untrusted justification) is suppressed; Rules 1 (path-allowlist) and 3 (destructive verb) still fire. Tokens are single-use, 5-minute TTL, and bound to the authenticated principal whose request caused them: only that principal redeems one.",
         "security": [{"ApiKey": []}, {"BearerJWT": []}],
         "requestBody": {
           "required": true,
@@ -309,7 +309,7 @@
           },
           "401": {"description": "Auth required"},
           "403": {
-            "description": "Gate refused even after confirm (destructive verb / path outside allowlist)",
+            "description": "Gate refused even after confirm (destructive verb / path outside allowlist), the caller is not the principal the token was issued to, or the daemon runs without auth (no principal can confirm)",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ConfirmResponse"}}}
           },
           "429": {"description": "Rate limit exceeded"}

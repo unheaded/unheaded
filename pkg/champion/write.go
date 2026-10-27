@@ -6,10 +6,13 @@ package champion
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -20,12 +23,32 @@ type SnapshotStore interface {
 	GetSnapshot(ctx context.Context, actionID int64) (before string, after string, err error)
 }
 
+// MaxWriteBytes caps what one WriteFile or PatchFile (the patched
+// result) may put on disk (RT-05). The HTTP bodies are capped at 64 KiB;
+// this stops runaway generation from in-process callers (agent loop,
+// MCP, CLI) and keeps vendored fixtures writable. 1 MiB, the same bound
+// as MaxPendingCallBytes. S-CHAMPION-HARDENING Step 50 [DECIDE]; no
+// runbook calls write_file.
+const MaxWriteBytes = 1 << 20
+
+// ErrWriteTooLarge: the content is over MaxWriteBytes; nothing was written.
+var ErrWriteTooLarge = errors.New("write exceeds the size cap")
+
 // WriteFile writes content to a file within the sandbox.
 // Captures a snapshot of the file's previous state for revert.
 func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 	start := time.Now()
 
-	actionID, _ := c.logAction(ctx, "file.write", fmt.Sprintf("Write file: %s (%d bytes)", path, len(content)), "user")
+	actionID, auditErr := c.logMutation(ctx, "file.write", fmt.Sprintf("Write file: %s (%d bytes)", path, len(content)), "user")
+	if auditErr != nil {
+		return auditErr
+	}
+
+	if len(content) > MaxWriteBytes {
+		err := fmt.Errorf("%w: %d bytes, cap %d", ErrWriteTooLarge, len(content), MaxWriteBytes)
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return err
+	}
 
 	// Validate path
 	if err := c.validatePath(path); err != nil {
@@ -39,22 +62,17 @@ func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 		return fmt.Errorf("resolve path: %w", err)
 	}
 
-	// Snapshot: capture current state (if file exists)
+	// Snapshot: capture current state (if file exists). Read through
+	// the same in-kernel resolution as the write.
 	var before string
-	if data, err := os.ReadFile(absPath); err == nil { // #nosec G304 -- sandboxed path — validated by validatePath (no .., blocklist, allowed-prefix check)
-		before = string(data)
+	if data, err := c.readBeneath(absPath); err == nil {
+		before = data
 	}
 
-	// Write the file
-	dir := filepath.Dir(absPath)
-	if err := os.MkdirAll(dir, 0750); err != nil {
-		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
-		return fmt.Errorf("create directory: %w", err)
-	}
-
-	// path is gated by c.validatePath(path) at line 31 — sandbox enforces
-	// no `..`, denied-paths blocklist, and allowed-paths prefix-check.
-	if err := os.WriteFile(absPath, []byte(content), 0644); err != nil { // #nosec G703,G306 -- validated by c.validatePath; 0644 non-secret sandbox file
+	// Write the file: parents created and the file opened under the
+	// sandbox root fd with openat2 (safeopen_linux.go), so a symlink
+	// swapped in after validatePath cannot redirect it (T-05).
+	if err := c.writeBeneath(absPath, content, true); err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("write file: %w", err)
 	}
@@ -74,7 +92,10 @@ func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string) error {
 	start := time.Now()
 
-	actionID, _ := c.logAction(ctx, "file.patch", fmt.Sprintf("Patch file: %s", path), "user")
+	actionID, auditErr := c.logMutation(ctx, "file.patch", fmt.Sprintf("Patch file: %s", path), "user")
+	if auditErr != nil {
+		return auditErr
+	}
 
 	if err := c.validatePath(path); err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
@@ -87,23 +108,27 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 		return err
 	}
 
-	// Read current content
-	data, err := os.ReadFile(absPath) // #nosec G304 -- sandboxed path — validated by validatePath (no .., blocklist, allowed-prefix check)
+	// Read current content (resolved in-kernel beneath the sandbox root)
+	before, err := c.readBeneath(absPath)
 	if err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("read file: %w", err)
 	}
 
-	before := string(data)
 	after := replaceFirst(before, oldText, newText)
 
 	if before == after {
 		c.completeAction(ctx, actionID, "failed", "", "old_text not found in file", time.Since(start))
 		return fmt.Errorf("old_text not found in %s", absPath)
 	}
+	if len(after) > MaxWriteBytes {
+		err := fmt.Errorf("%w: patched file would be %d bytes, cap %d", ErrWriteTooLarge, len(after), MaxWriteBytes)
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return err
+	}
 
-	// path is gated by c.validatePath(path) at line 77 — same sandbox rules.
-	if err := os.WriteFile(absPath, []byte(after), 0644); err != nil { // #nosec G703,G306 -- validated by c.validatePath; 0644 non-secret sandbox file
+	// Same in-kernel resolution as WriteFile; the file must still exist.
+	if err := c.writeBeneath(absPath, after, false); err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("write patched file: %w", err)
 	}
@@ -118,11 +143,91 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 	return nil
 }
 
+// sandboxRel splits a validated absolute path into the allowed root that
+// contains it (the longest match) and the path relative to that root.
+func (c *Champion) sandboxRel(absPath string) (root, rel string, err error) {
+	for _, allowed := range c.config.AllowedPaths {
+		a, aerr := filepath.Abs(allowed)
+		if aerr != nil {
+			continue
+		}
+		prefix := strings.TrimSuffix(a, string(filepath.Separator)) + string(filepath.Separator)
+		if strings.HasPrefix(absPath, prefix) && len(a) > len(root) {
+			root, rel = a, absPath[len(prefix):]
+		}
+	}
+	if root == "" || rel == "" {
+		return "", "", fmt.Errorf("%s is not a file under a sandbox root", absPath)
+	}
+	return root, rel, nil
+}
+
+// readBeneath reads a validated path through openat2 under its sandbox
+// root (no symlink, no escape at the moment of the open).
+func (c *Champion) readBeneath(absPath string) (string, error) {
+	root, rel, err := c.sandboxRel(absPath)
+	if err != nil {
+		return "", err
+	}
+	rootFD, err := openRoot(root)
+	if err != nil {
+		return "", err
+	}
+	defer closeFD(rootFD)
+	f, err := openBeneath(rootFD, rel, os.O_RDONLY, 0)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// writeBeneath writes content to a validated path through openat2 under
+// its sandbox root, creating missing parent directories one component at
+// a time (create) or requiring the file to exist (!create).
+func (c *Champion) writeBeneath(absPath, content string, create bool) error {
+	root, rel, err := c.sandboxRel(absPath)
+	if err != nil {
+		return err
+	}
+	rootFD, err := openRoot(root)
+	if err != nil {
+		return err
+	}
+	defer closeFD(rootFD)
+	flags := os.O_WRONLY | os.O_TRUNC
+	if create {
+		if err := mkdirAllBeneath(rootFD, filepath.Dir(rel), 0o750); err != nil {
+			return fmt.Errorf("create directory: %w", err)
+		}
+		flags |= os.O_CREATE
+	}
+	if c.beforeOpen != nil {
+		c.beforeOpen()
+	}
+	f, err := openBeneath(rootFD, rel, flags, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.WriteString(content); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
 // RevertAction undoes a previous action by restoring the snapshot.
 func (c *Champion) RevertAction(ctx context.Context, actionID int64) error {
 	start := time.Now()
 
-	revertID, _ := c.logAction(ctx, "file.write", fmt.Sprintf("Revert action %d", actionID), "user")
+	revertID, auditErr := c.logMutation(ctx, "file.write", fmt.Sprintf("Revert action %d", actionID), "user")
+	if auditErr != nil {
+		return auditErr
+	}
 
 	if c.snapshotStore == nil {
 		c.completeAction(ctx, revertID, "failed", "", "no snapshot store configured", time.Since(start))
@@ -169,7 +274,10 @@ func (c *Champion) CreateKanbanTask(ctx context.Context, task *KanbanTask) error
 	start := time.Now()
 
 	paramsJSON, _ := json.Marshal(task)
-	actionID, _ := c.logAction(ctx, "kanban.create", fmt.Sprintf("Create task: %s", task.Title), "user")
+	actionID, auditErr := c.logMutation(ctx, "kanban.create", fmt.Sprintf("Create task: %s", task.Title), "user")
+	if auditErr != nil {
+		return auditErr
+	}
 
 	if c.kanbanStore == nil {
 		c.completeAction(ctx, actionID, "failed", "", "no kanban store configured", time.Since(start))
@@ -190,7 +298,10 @@ func (c *Champion) CreateKanbanTask(ctx context.Context, task *KanbanTask) error
 func (c *Champion) UpdateKanbanTask(ctx context.Context, id string, updates map[string]interface{}) error {
 	start := time.Now()
 
-	actionID, _ := c.logAction(ctx, "kanban.update", fmt.Sprintf("Update task: %s", id), "user")
+	actionID, auditErr := c.logMutation(ctx, "kanban.update", fmt.Sprintf("Update task: %s", id), "user")
+	if auditErr != nil {
+		return auditErr
+	}
 
 	if c.kanbanStore == nil {
 		c.completeAction(ctx, actionID, "failed", "", "no kanban store configured", time.Since(start))
@@ -267,7 +378,10 @@ type RunbookExecuteResult struct {
 func (c *Champion) RunbookExecute(ctx context.Context, name string, dryRun bool) (*RunbookExecuteResult, error) {
 	start := time.Now()
 	intent := fmt.Sprintf("Execute runbook: %s (dry-run=%v)", name, dryRun)
-	actionID, _ := c.logAction(ctx, "runbook.execute", intent, "user")
+	actionID, auditErr := c.logMutation(ctx, "runbook.execute", intent, "user")
+	if auditErr != nil {
+		return nil, auditErr
+	}
 
 	// Reject empty / suspicious names early.
 	if name == "" {
@@ -366,6 +480,99 @@ func (c *Champion) RunbookExecute(ctx context.Context, name string, dryRun bool)
 	c.completeAction(ctx, actionID, status, summary, "", elapsed)
 
 	return result, nil
+}
+
+// maxRunbookShowBytes caps runbook_show's output (the largest runbook is
+// well under it; a bigger file is refused rather than truncated).
+const maxRunbookShowBytes = 256 * 1024
+
+// runbookFile resolves a runbook name ("category/name", no extension) to
+// its file under <project_root>/runbooks, refusing names that escape the
+// tree, and symlinks that resolve outside it.
+func (c *Champion) runbookFile(name string) (string, error) {
+	if name == "" {
+		return "", errors.New("empty runbook name")
+	}
+	if strings.Contains(name, "..") || strings.HasPrefix(name, "/") || strings.ContainsAny(name, "\\\x00") {
+		return "", fmt.Errorf("runbook name %q escapes runbooks/ tree", name)
+	}
+	dir := filepath.Join(c.config.ProjectRoot, "runbooks")
+	p := filepath.Join(dir, name+".yaml")
+	rel, err := filepath.Rel(dir, p)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("runbook %q resolves outside runbooks/ tree", name)
+	}
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", fmt.Errorf("runbooks/: %w", err)
+	}
+	realP, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return "", fmt.Errorf("runbook not found: %w", err)
+	}
+	if !strings.HasPrefix(realP, realDir+string(filepath.Separator)) {
+		return "", fmt.Errorf("runbook %q resolves outside runbooks/ tree", name)
+	}
+	return realP, nil
+}
+
+// RunbookList returns every runbook's name ("category/name"), sorted:
+// the *.yaml files under <project_root>/runbooks. Read-only; logged.
+func (c *Champion) RunbookList(ctx context.Context) ([]string, error) {
+	start := time.Now()
+	actionID, _ := c.logAction(ctx, "runbook.list", "List runbooks", "user")
+	dir := filepath.Join(c.config.ProjectRoot, "runbooks")
+	var names []string
+	err := filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Type().IsRegular() && strings.HasSuffix(p, ".yaml") {
+			rel, rerr := filepath.Rel(dir, p)
+			if rerr != nil {
+				return rerr
+			}
+			names = append(names, filepath.ToSlash(strings.TrimSuffix(rel, ".yaml")))
+		}
+		return nil
+	})
+	if err != nil {
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return nil, fmt.Errorf("list runbooks: %w", err)
+	}
+	sort.Strings(names)
+	c.completeAction(ctx, actionID, "completed", fmt.Sprintf("Listed %d runbooks", len(names)), "", time.Since(start))
+	return names, nil
+}
+
+// RunbookShow returns one runbook's YAML text. The name is checked like
+// RunbookExecute's, and a symlink out of runbooks/ is refused.
+func (c *Champion) RunbookShow(ctx context.Context, name string) (string, error) {
+	start := time.Now()
+	actionID, _ := c.logAction(ctx, "runbook.show", "Show runbook: "+name, "user")
+	p, err := c.runbookFile(name)
+	if err != nil {
+		c.completeAction(ctx, actionID, "denied", summarizeArgs(map[string]any{"name": name}), err.Error(), time.Since(start))
+		return "", err
+	}
+	info, err := os.Stat(p)
+	if err != nil || !info.Mode().IsRegular() {
+		msg := fmt.Sprintf("runbook %q is not a regular file", name)
+		c.completeAction(ctx, actionID, "failed", "", msg, time.Since(start))
+		return "", errors.New(msg)
+	}
+	if info.Size() > maxRunbookShowBytes {
+		msg := fmt.Sprintf("runbook %q is %d bytes, over %d", name, info.Size(), maxRunbookShowBytes)
+		c.completeAction(ctx, actionID, "failed", "", msg, time.Since(start))
+		return "", errors.New(msg)
+	}
+	data, err := os.ReadFile(p) // #nosec G304 -- p is resolved by runbookFile inside <root>/runbooks
+	if err != nil {
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return "", fmt.Errorf("read runbook: %w", err)
+	}
+	c.completeAction(ctx, actionID, "completed", fmt.Sprintf("Showed %s (%d bytes)", name, len(data)), "", time.Since(start))
+	return string(data), nil
 }
 
 // replaceFirst replaces the first occurrence of old with new in s.

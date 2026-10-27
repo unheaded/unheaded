@@ -397,7 +397,7 @@ func TestRedTeam_TokenScoping_CrossProjectRedemptionFails(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
-	ts := httptest.NewServer(mux)
+	ts := httptest.NewServer(testAuth(mux))
 	t.Cleanup(ts.Close)
 
 	// 1. /ask under rootA → token issued.

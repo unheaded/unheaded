@@ -5,8 +5,10 @@ package champion
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -263,5 +265,44 @@ func TestNoKanbanStore(t *testing.T) {
 	err := c.CreateKanbanTask(context.Background(), &KanbanTask{})
 	if err == nil {
 		t.Fatal("expected error with no kanban store")
+	}
+}
+
+// RT-05 (S-CHAMPION-HARDENING Step 50): in-process writes are capped.
+func TestWriteFile_RejectsOversize(t *testing.T) {
+	dir := t.TempDir()
+	store := &mockStore{}
+	c, _ := New(Config{ProjectRoot: dir, AllowedPaths: []string{dir}}, store)
+	path := filepath.Join(dir, "big.txt")
+
+	err := c.WriteFile(context.Background(), path, strings.Repeat("a", MaxWriteBytes+1))
+	if !errors.Is(err, ErrWriteTooLarge) {
+		t.Fatalf("err = %v; want ErrWriteTooLarge", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("an oversize write landed on disk")
+	}
+	if len(store.actions) != 1 || store.actions[0].Status != "failed" {
+		t.Fatalf("actions = %+v; want one failed file.write", store.actions)
+	}
+	// Exactly the cap is allowed.
+	if err := c.WriteFile(context.Background(), path, strings.Repeat("a", MaxWriteBytes)); err != nil {
+		t.Fatalf("a write of exactly MaxWriteBytes: %v", err)
+	}
+}
+
+func TestPatchFile_RejectsOversizeResult(t *testing.T) {
+	dir := t.TempDir()
+	c, _ := New(Config{ProjectRoot: dir, AllowedPaths: []string{dir}}, &mockStore{})
+	path := filepath.Join(dir, "p.txt")
+	if err := os.WriteFile(path, []byte("X"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := c.PatchFile(context.Background(), path, "X", strings.Repeat("b", MaxWriteBytes+1))
+	if !errors.Is(err, ErrWriteTooLarge) {
+		t.Fatalf("err = %v; want ErrWriteTooLarge", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "X" {
+		t.Fatal("an oversize patch changed the file")
 	}
 }

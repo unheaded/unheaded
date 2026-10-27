@@ -133,7 +133,14 @@ func (t *TTYConfirmer) Confirm(ctx context.Context, req ConfirmRequest) ConfirmO
 	if timeout <= 0 {
 		timeout = champion.PendingConfirmTTL
 	}
-	p, err := t.Champion.PendingCallFor(champion.ToolCall{Name: req.Tool, Args: req.Args, EmittedBy: req.EmittedBy}, timeout)
+	by := t.ApprovedBy
+	if by == "" {
+		by = operatorName()
+	}
+	// The model acts for the human at this terminal: the call is bound
+	// to tty:<operator>, and only that principal confirms it (RT-03).
+	principal := "tty:" + by
+	p, err := t.Champion.PendingCallFor(champion.ToolCall{Name: req.Tool, Args: req.Args, EmittedBy: req.EmittedBy, Principal: principal}, timeout)
 	if err != nil {
 		return unconfirmable(err.Error())
 	}
@@ -152,11 +159,7 @@ func (t *TTYConfirmer) Confirm(ctx context.Context, req ConfirmRequest) ConfirmO
 		_, _ = io.WriteString(t.TTY, "denied.\n")
 		return ConfirmOutcome{Decision: "denied", Text: "denied by the human operator; do not retry this call", IsError: true, SHA256: p.SHA256}
 	}
-	by := t.ApprovedBy
-	if by == "" {
-		by = operatorName()
-	}
-	out, err := t.Champion.ConfirmCall(ctx, p, p.SHA256, by)
+	out, err := t.Champion.ConfirmCall(ctx, p, p.SHA256, principal)
 	if err != nil {
 		_, _ = io.WriteString(t.TTY, "approved, but the call failed: "+err.Error()+"\n")
 		return ConfirmOutcome{Decision: "failed", Text: "approved by the human operator, but the call failed: " + err.Error(), IsError: true, SHA256: p.SHA256}
@@ -242,7 +245,7 @@ func renderPrompt(c *champion.Champion, req ConfirmRequest, p champion.PendingCa
 func DescribeCall(c *champion.Champion, p champion.PendingCall) string {
 	var sb strings.Builder
 	if p.SHA256 == "" {
-		_, p.SHA256, _ = champion.CanonicalCall(p.Tool, p.Args, p.ProjectRoot)
+		_, p.SHA256, _ = champion.CanonicalCallFor(p.Tool, p.Args, p.ProjectRoot, p.Requester)
 	}
 	fmt.Fprintf(&sb, "tool:     %s (Champion)\n", p.Tool)
 	fmt.Fprintf(&sb, "sandbox:  %s\n", p.ProjectRoot)
@@ -423,6 +426,9 @@ func (q *QueueConfirmer) Confirm(ctx context.Context, req ConfirmRequest) Confir
 	if ttl <= 0 {
 		ttl = DefaultQueueTTL
 	}
+	// No requester is bound: the queue row has no column for one, and a
+	// requester-less call is confirmable only by champion.QueuePrincipal
+	// (`zhen-claude confirm approve`), never by a ui:/tty: principal.
 	p, err := q.Champion.PendingCallFor(champion.ToolCall{Name: req.Tool, Args: req.Args, EmittedBy: req.EmittedBy}, ttl)
 	if err != nil {
 		return unconfirmable(err.Error())

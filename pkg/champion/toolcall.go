@@ -23,9 +23,10 @@ import (
 // layer must not blindly execute model-emitted tool calls).
 type ToolCall struct {
 	// Name is the registered tool name: "read_file", "write_file",
-	// "patch_file", "kanban_create", "kanban_update", "kanban_delete",
-	// "kanban_list", "runbook_show", "runbook_execute", "corpus_search",
-	// "service_health", "system_command".
+	// "patch_file", "kanban_create", "kanban_update", "kanban_list",
+	// "runbook_list", "runbook_show", "runbook_execute", "run_check",
+	// "model_switch", or an MCP server's tool ("corpus_search",
+	// "service_health", ...). See MutatingTools and ReadOnlyTools.
 	Name string `json:"name"`
 
 	// Args is the tool-specific argument map. Keys depend on Name.
@@ -41,19 +42,35 @@ type ToolCall struct {
 	// for audit. Free-form string; e.g. "zhen-rag@<gguf-sha>" or
 	// "session-uid".
 	EmittedBy string `json:"emitted_by"`
+
+	// Principal is the authenticated caller the call acts for, set by
+	// the serving layer from its own authentication, never from model
+	// output or a request body: "ui:<subject>", "tty:<user>". A pending
+	// confirmation is bound to it (RT-03): only the same principal, or
+	// "queue:stevie", may confirm; "agent:<model>" never confirms.
+	Principal string `json:"principal,omitempty"`
 }
 
 // Reference mirrors the cs/vor B1-schema source-provenance fields.
 // Populated by the agent layer from vor's /api/topics or /api/search
 // JSON response.
+//
+// Chain contract (chain.go, S-CHAMPION-HARDENING Step 35): a Reference
+// with SourceTrust "local" MUST carry Topic (the vor topic id) and Digest
+// (lowercase hex SHA-256 of the retrieved text the model was given).
+// VerifyChain recomputes every Digest from the text the caller retrieved
+// for that topic; a reference that fails is not trustworthy and the agent
+// layer downgrades it to "external", so Rule 2 refuses the mutating call
+// for the right reason.
 type Reference struct {
 	Topic       string `json:"topic"`
 	Category    string `json:"category"`
 	SourceKind  string `json:"source_kind"`  // "embedded" | "user-custom" | "user-source"
-	SourceTrust string `json:"source_trust"` // "canonical" | "local" | "external"
+	SourceTrust string `json:"source_trust"` // "canonical" | "local" | "direct-user"; anything else is untrusted
 	SourcePath  string `json:"source_path,omitempty"`
 	SourceLabel string `json:"source_label,omitempty"`
 	Excerpt     string `json:"excerpt,omitempty"` // 200-char snippet for audit
+	Digest      string `json:"digest,omitempty"`  // sha256 (hex) of the retrieved text; required for "local"
 }
 
 // MutatingTools is the canonical list of tool names that modify state.
@@ -61,15 +78,19 @@ type Reference struct {
 //
 // CONSERVATIVE: an unknown tool name is treated as MUTATING (fail-closed).
 // New tools must register here explicitly.
+//
+// Every name here is dispatched (dispatch.go) or run by an MCP server
+// that gates through AcceptToolCall (RT-09). system_command, delete_file
+// and kanban_delete were listed but never implemented and were removed
+// (S-CHAMPION-HARDENING Step 53): an unlisted name is still mutating by
+// default here and refused as unknown by Dispatch. system_command must
+// not get an implementation; arbitrary shell needs its own ADR.
 var MutatingTools = map[string]bool{
 	"write_file":      true,
 	"patch_file":      true,
-	"delete_file":     true,
 	"kanban_create":   true,
 	"kanban_update":   true,
-	"kanban_delete":   true,
 	"runbook_execute": true,
-	"system_command":  true,
 	"model_switch":    true, // ADR-060: kills+respawns llama-server subprocess
 	// Lich MCP (S-LICH-AWAKENS, ADR-098): writes the findings register, so it
 	// is mutating and — with no retrieval justification from a model — always
@@ -134,11 +155,18 @@ func (tc *ToolCall) IsMutating() bool {
 	return true
 }
 
+// TrustedSourceLabels is the closed set of SourceTrust values a
+// justification may carry. Anything else, including case or whitespace
+// variants, is untrusted (RT-06: the old check compared only against
+// "external", so a typo passed).
+var TrustedSourceLabels = map[string]bool{"canonical": true, "local": true, "direct-user": true}
+
 // HasUntrustedJustification reports whether the justification chain
 // is untrusted from the gate's perspective. Returns true if either:
 //
-//   - Any reference has source_trust == "external" (user-symlinked
-//     source under ~/.config/cs/sources/ — possibly poisoned), OR
+//   - Any reference has a source_trust outside TrustedSourceLabels:
+//     "external" (user-symlinked source under ~/.config/cs/sources/ —
+//     possibly poisoned) or any other unlisted string, OR
 //
 //   - The chain is EMPTY and the tool is mutating. Empty justification
 //     on a mutating tool is treated as untrusted by default
@@ -173,7 +201,7 @@ func (tc *ToolCall) HasUntrustedJustification() bool {
 		return tc.IsMutating()
 	}
 	for _, r := range tc.Justification {
-		if r.SourceTrust == "external" {
+		if !TrustedSourceLabels[r.SourceTrust] {
 			return true
 		}
 	}
@@ -312,7 +340,7 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 func untrustedRefSummary(refs []Reference) string {
 	var parts []string
 	for _, r := range refs {
-		if r.SourceTrust != "external" {
+		if TrustedSourceLabels[r.SourceTrust] {
 			continue
 		}
 		label := r.SourceLabel

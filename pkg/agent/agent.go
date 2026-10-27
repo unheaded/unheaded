@@ -29,6 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"unheaded/pkg/champion"
 	"unheaded/pkg/zhenrag"
 )
@@ -59,6 +61,10 @@ type Config struct {
 	// issued, so none can reach whoever reads the trace (S-TWO-BRAINS
 	// Step 222: an /ask caller may be a model).
 	OnPending func(ctx context.Context, tc champion.ToolCall, reason string) (queueID string)
+	// Principal is the authenticated caller the run acts for ("ui:<x>"),
+	// set by the serving layer. Every tool call carries it, so a pending
+	// confirmation token is bound to it (RT-03).
+	Principal string
 }
 
 func (c *Config) defaulted() Config {
@@ -201,6 +207,10 @@ func (a *Agent) Stream(ctx context.Context, goal string, cb TurnCallback) (*Resu
 	if err != nil {
 		return nil, fmt.Errorf("seed retrieve: %w", err)
 	}
+	// The text each retrieval handed the model, by topic: what the vor
+	// chain verifier checks justification digests against.
+	retrieved := newRetrievedText()
+	refs = retrieved.add(refs, contents)
 
 	// 2. Build messages.
 	systemMsg := buildSystemPrompt(contents, a.cfg.MaxTopicChars)
@@ -269,13 +279,19 @@ func (a *Agent) Stream(ctx context.Context, goal string, cb TurnCallback) (*Resu
 			// agent originally retrieved." See A2-agent-adversarial.md
 			// for the threat model this addresses (empty seed +
 			// poisoned-content mention in the prompt itself).
-			justification := a.deriveJustification(ctx, out, refs)
+			justification := a.deriveJustification(ctx, out, refs, retrieved)
+			// vor chain verifier (S-CHAMPION-HARDENING Step 38): a
+			// reference whose digest does not match the text retrieved
+			// this run is downgraded to "external", so the gate refuses
+			// a mutating call pending confirmation instead of trusting it.
+			justification = verifyJustificationLogged(justification, retrieved.lookup)
 
 			tc := champion.ToolCall{
 				Name:          out.ToolCall.Name,
 				Args:          out.ToolCall.Args,
 				Justification: justification,
 				EmittedBy:     "zhen-agent",
+				Principal:     a.cfg.Principal,
 			}
 			t.ToolCall = &tc
 
@@ -375,7 +391,7 @@ func isNoOpToolName(name string) bool {
 // prompt that the seed-retriever doesn't match but the model's
 // emitted reasoning names by identifier. Per-token retrieval picks
 // up that identifier even when the seed missed it.
-func (a *Agent) deriveJustification(ctx context.Context, out modelOutput, seed []champion.Reference) []champion.Reference {
+func (a *Agent) deriveJustification(ctx context.Context, out modelOutput, seed []champion.Reference, retrieved *retrievedText) []champion.Reference {
 	if a.retriever == nil {
 		return seed
 	}
@@ -390,11 +406,11 @@ func (a *Agent) deriveJustification(ctx context.Context, out modelOutput, seed [
 
 	var perTurn []champion.Reference
 	for _, tok := range tokens {
-		refs, _, err := a.retriever.Retrieve(ctx, tok, a.cfg.RetrieveK)
+		refs, contents, err := a.retriever.Retrieve(ctx, tok, a.cfg.RetrieveK)
 		if err != nil {
 			continue
 		}
-		perTurn = mergeRefs(perTurn, refs)
+		perTurn = mergeRefs(perTurn, retrieved.add(refs, contents))
 	}
 	return mergeRefs(perTurn, seed)
 }
@@ -534,6 +550,90 @@ func mergeRefs(perTurn, seed []champion.Reference) []champion.Reference {
 		merged = append(merged, r)
 	}
 	return merged
+}
+
+// retrievedText records, per topic, the text a retrieval handed the
+// model during one run. A topic seen with two different texts is
+// ambiguous and looks up as absent, so a reference to it fails the
+// chain check (fail-closed).
+type retrievedText struct {
+	text      map[string]string
+	ambiguous map[string]bool
+}
+
+func newRetrievedText() *retrievedText {
+	return &retrievedText{text: map[string]string{}, ambiguous: map[string]bool{}}
+}
+
+// add records contents and returns a copy of refs in which every
+// reference without a Digest gets the digest of its paired content (the
+// text the model read). A reference with no paired content keeps an
+// empty Digest; for a "local" one that fails verification.
+func (r *retrievedText) add(refs []champion.Reference, contents []TopicContent) []champion.Reference {
+	byKey := make(map[string]string, len(contents))
+	for _, tc := range contents {
+		if prev, ok := r.text[tc.Ref.Topic]; ok && prev != tc.Content {
+			r.ambiguous[tc.Ref.Topic] = true
+		}
+		r.text[tc.Ref.Topic] = tc.Content
+		byKey[refKey(tc.Ref)] = tc.Content
+	}
+	out := make([]champion.Reference, len(refs))
+	copy(out, refs)
+	for i := range out {
+		if out[i].Digest != "" {
+			continue
+		}
+		if content, ok := byKey[refKey(out[i])]; ok {
+			out[i].Digest = champion.ReferenceDigest(content)
+		}
+	}
+	return out
+}
+
+func (r *retrievedText) lookup(topic string) (string, bool) {
+	if r.ambiguous[topic] {
+		return "", false
+	}
+	s, ok := r.text[topic]
+	return s, ok
+}
+
+func refKey(r champion.Reference) string {
+	return r.Topic + "|" + r.SourcePath + "|" + r.SourceLabel
+}
+
+// verifyJustification returns a copy of refs in which every reference
+// that fails champion.VerifyReference is downgraded to "external" (kept,
+// not dropped: the gate then refuses a mutating call for the right
+// reason and the audit row names the reference).
+func verifyJustification(refs []champion.Reference, lookup func(string) (string, bool)) []champion.Reference {
+	out, _ := verifyJustificationErrs(refs, lookup)
+	return out
+}
+
+func verifyJustificationErrs(refs []champion.Reference, lookup func(string) (string, bool)) ([]champion.Reference, []error) {
+	out := make([]champion.Reference, len(refs))
+	copy(out, refs)
+	var errs []error
+	for i := range out {
+		if err := champion.VerifyReference(out[i], lookup); err != nil {
+			out[i].SourceTrust = "external"
+			errs = append(errs, err)
+		}
+	}
+	return out, errs
+}
+
+// verifyJustificationLogged is verifyJustification plus one WARN line
+// per tool call naming every downgraded reference.
+func verifyJustificationLogged(refs []champion.Reference, lookup func(string) (string, bool)) []champion.Reference {
+	out, errs := verifyJustificationErrs(refs, lookup)
+	if len(errs) > 0 {
+		log.Warn().Str("service", "zhen-agent").Int("downgraded", len(errs)).
+			Err(errors.Join(errs...)).Msg("justification references failed the vor chain check; downgraded to external")
+	}
+	return out
 }
 
 // dispatch runs the tool call and returns the observation as a string.

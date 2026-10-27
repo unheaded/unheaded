@@ -442,3 +442,64 @@ func TestAcceptToolCall_AuditLoggedAlways(t *testing.T) {
 		}
 	}
 }
+
+func TestHasUntrustedJustification_ExactAllowlist(t *testing.T) {
+	bad := []string{"external", "External", "EXTERNAL", "externa\x00l", "ext", "", " canonical", "canonical ", "canonical\n", "Canonical", "direct_user", "directuser", "local;", "unknown"}
+	for _, s := range bad {
+		tc := ToolCall{Name: "write_file", Args: map[string]any{"path": "/x"}, Justification: []Reference{{SourceTrust: s}}}
+		if !tc.HasUntrustedJustification() {
+			t.Errorf("label %q must be untrusted", s)
+		}
+	}
+	for _, s := range []string{"canonical", "local", "direct-user"} {
+		tc := ToolCall{Name: "write_file", Args: map[string]any{"path": "/x"}, Justification: []Reference{{SourceTrust: s}}}
+		if tc.HasUntrustedJustification() {
+			t.Errorf("label %q must be trusted", s)
+		}
+	}
+	// one bad reference anywhere in the chain poisons the call
+	tc := ToolCall{Name: "write_file", Args: map[string]any{"path": "/x"}, Justification: []Reference{{SourceTrust: "canonical"}, {SourceTrust: "Canonical"}}}
+	if !tc.HasUntrustedJustification() {
+		t.Error("mixed chain must be untrusted")
+	}
+}
+
+func TestVerifyChain(t *testing.T) {
+	corpus := map[string]string{"wotan-acl": "Wotan topics need an ACL.", "go-errors": "wrap errors with %w"}
+	lookup := func(topic string) (string, bool) { s, ok := corpus[topic]; return s, ok }
+	good := Reference{Topic: "wotan-acl", SourceTrust: "local", Digest: ReferenceDigest(corpus["wotan-acl"])}
+
+	if err := VerifyChain([]Reference{good}, lookup); err != nil {
+		t.Fatalf("matching digest: %v", err)
+	}
+	// canonical refs without a digest need nothing; with one, it is checked.
+	if err := VerifyChain([]Reference{{Topic: "go-errors", SourceTrust: "canonical"}}, lookup); err != nil {
+		t.Fatalf("canonical without digest: %v", err)
+	}
+	if err := VerifyChain(nil, lookup); err != nil {
+		t.Fatalf("empty chain: %v", err)
+	}
+
+	bad := map[string]Reference{
+		"digest mismatch":           {Topic: "wotan-acl", SourceTrust: "local", Digest: ReferenceDigest("something else")},
+		"missing topic":             {SourceTrust: "local", Digest: good.Digest},
+		"missing digest":            {Topic: "wotan-acl", SourceTrust: "local"},
+		"unknown topic":             {Topic: "nope", SourceTrust: "local", Digest: good.Digest},
+		"malformed digest":          {Topic: "wotan-acl", SourceTrust: "local", Digest: "xyz"},
+		"uppercase digest":          {Topic: "wotan-acl", SourceTrust: "local", Digest: strings.ToUpper(good.Digest)},
+		"canonical digest mismatch": {Topic: "go-errors", SourceTrust: "canonical", Digest: good.Digest},
+	}
+	for name, r := range bad {
+		err := VerifyChain([]Reference{good, r}, lookup)
+		if err == nil {
+			t.Errorf("%s: want error", name)
+			continue
+		}
+		if VerifyReference(r, lookup) == nil {
+			t.Errorf("%s: VerifyReference must agree with VerifyChain", name)
+		}
+	}
+	if err := VerifyChain([]Reference{good}, nil); err == nil {
+		t.Error("nil lookup with a digest-bearing reference must error")
+	}
+}
