@@ -71,12 +71,12 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 |---|---|---|---|---|---|---|
 | M-060 | release.yml cosign + SLSA steps are `echo TODO`: keyless cosign sign-blob + slsa-github-generator; sign future tags | PLANS B-08; INT D-24; SEC SP-05, CG-15, RT-18 | .github/workflows/release.yml:91-100 | CLOSED 2026-10-27 S24 S-IRON-GATE Phase 12 (release.yml signs every file with keyless cosign + build provenance; verify-release.sh) | N | M |
 | M-061 | E4 / FND-018: production evidence build key (ML-DSA-65 seed, custody, `build.pubkey`, quarterly ceremony runbook); Sealed Cask rune signed with Gungnir, Go verifier, tar hardening | SEC FND-018, RT-18; ADR M-08, S-08 | docs/adr/ADR-043 #4 | P → code merged 2026-10-27 (signed Binding Rune, cask-verify, tar hardening, ceremony runbook); ceremony = Iron Gate E1; FND-018 open | Y: custody location | M |
-| M-062 | deb signing + reprepro publish + fix `unheaded-unheaded-daemon` name; apt repo on west, east `sources.list.d`, upgrade hook | ADR P-01, P-02 | scripts/build-all-debs.sh | P | Y: Jenkins vs GHA as live runner | M |
+| M-062 | deb signing + reprepro publish + fix `unheaded-unheaded-daemon` name; apt repo on west, east `sources.list.d`, upgrade hook | ADR P-01, P-02 | scripts/build-all-debs.sh | P → code merged 2026-10-27 (debs named right, every unit binary packaged, apt repo tooling); live = E3/E4 | Y: Jenkins vs GHA as live runner | M |
 | M-063 | release.yml builds all debs + eBPF objects; staging merge deploys to east | ADR P-03, P-04 | release.yml | P | N | M |
-| M-064 | CHANGELOG rebuilt from sprint summaries; cut v0.2.0-alpha; SBOM attached to release | INT D-25; SEC SP-05 | CHANGELOG.md | P | N | S |
+| M-064 | CHANGELOG rebuilt from sprint summaries; cut v0.2.0-alpha; SBOM attached to release | INT D-25; SEC SP-05 | CHANGELOG.md | CLOSED 2026-10-27 S24 (CHANGELOG true; v0.2.0-alpha section, untagged) | N | S |
 | M-065 | OpenSSF Scorecard + CodeQL (Go/JS/Py) workflows | SEC SP-06, SP-07 | .github/workflows | CLOSED 2026-10-27 S24 S-IRON-GATE Phase 12 (scorecard.yml + codeql.yml) | N | S |
 | M-066 | ADR-089 entry gate: scripted byte-size pin for `monad-cpu-ebpf --features ascend-linux` | ADR P-07 | security.yml | CLOSED 2026-10-27 S24 S-IRON-GATE Phase 12 (scripts/check-ebpf-size-pin.sh + pin file (host gate)) | N | S |
-| M-067 | Pin the 7 unversioned sophia-eye images; Dependabot docker ecosystem | ADR P-09 | docs/policy/image-tag-baseline.txt | P → Dependabot docker ecosystem with 7-day cooldown; the 7 sophia-eye pins remain | N | S |
+| M-067 | Pin the 7 unversioned sophia-eye images; Dependabot docker ecosystem | ADR P-09 | docs/policy/image-tag-baseline.txt | P → qdrant/TEI/open-webui pinned by digest 2026-10-27; vllm image does not exist (Stevie picks a replacement) | N | S |
 
 ### E06 — THE WELL AS SOURCE OF TRUTH + DATA HYGIENE  (tier d, size M, 8 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |

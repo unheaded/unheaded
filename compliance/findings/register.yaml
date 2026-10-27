@@ -439,6 +439,19 @@ findings:
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
 
+  - source: "host-probe:west:legacy-apt-repo-18888"
+    host: west
+    severity: medium
+    class: host
+    opened: 2026-10-27
+    exposure: west's old unsigned apt repo (/var/lib/apt-repo, codename noble) is served by nginx on 0.0.0.0:18888 with autoindex; /conf/distributions and /db/ answer 200 on the LAN address 192.168.69.184 (checked 2026-10-27). East does not use it.
+    lockout: none
+    step: 7
+    plan: >-
+      Retire it in the S-IRON-GATE E3 window: runbooks/deploy/apt-repo-publish.yaml removes the old site and installs
+      deploy/nginx/unheaded-apt.conf (127.0.0.1 and 192.168.13.2 only; only dists/, pool/ and the key served, everything
+      else 403) with the signed reprepro repo (scripts/apt-repo.sh). Host change, so not done unattended.
+
   - source: "gate-script:scripts/compliance/check-edge-tls.sh"
     severity: medium
     class: app

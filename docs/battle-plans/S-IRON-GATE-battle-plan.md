@@ -1107,42 +1107,42 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
 
 ### Packaging correctness
 
-- [ ] **Step 348** [W][CODE] ~10m: `scripts/build-all-debs.sh`: `pkg_name_for()` mapping `unheaded-daemon → unheaded-daemon` (not `unheaded-unheaded-daemon`), everything else `unheaded-<svc>`; `SERVICES` += `unheaded-auth unheaded-keygen heimdall-daemon sword chaos-controller anomaly kev-poller trace-collector-go` (every binary a unit under `deploy/systemd` references, per `scripts/check-unit-binaries.sh`); each deb ships `/usr/lib/sysusers.d/unheaded-<svc>.conf` (one line extracted from `deploy/sysusers.d/unheaded.conf`) and the unit from `deploy/systemd/`; `debian/control` gets one stanza per package (generate it from the same list so the two cannot drift; a test asserts `grep -c '^Package:' debian/control` equals `${#SERVICES[@]}`).
-- [ ] **Step 349** [TEST][B] ~6m
+- [x] **Step 348** [W][CODE] ~10m: `scripts/build-all-debs.sh`: `pkg_name_for()` mapping `unheaded-daemon → unheaded-daemon` (not `unheaded-unheaded-daemon`), everything else `unheaded-<svc>`; `SERVICES` += `unheaded-auth unheaded-keygen heimdall-daemon sword chaos-controller anomaly kev-poller trace-collector-go` (every binary a unit under `deploy/systemd` references, per `scripts/check-unit-binaries.sh`); each deb ships `/usr/lib/sysusers.d/unheaded-<svc>.conf` (one line extracted from `deploy/sysusers.d/unheaded.conf`) and the unit from `deploy/systemd/`; `debian/control` gets one stanza per package (generate it from the same list so the two cannot drift; a test asserts `grep -c '^Package:' debian/control` equals `${#SERVICES[@]}`).
+- [x] **Step 349** [TEST][B] ~6m
   ```bash
   cd /home/govan/tmp/unheaded && bash tests/deb/postinst_test.sh 2>&1 | tail -1 && DEB_OUTPUT_DIR=/tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/debs bash scripts/build-all-debs.sh 0.2.0~alpha+test 2>&1 | tail -4 && ls /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/debs/*.deb | sed 's#.*/##' | head -20
   ```
-- [ ] **Step 350** [V] ~1m: `unheaded-daemon_0.2.0~alpha+test_amd64.deb` present, no `unheaded-unheaded-*`, one deb per `SERVICES` entry.
-- [ ] **Step 351** [TEST][B] ~3m: Lintian-light: every deb has its unit, sysusers file and the keygen postinst hook
+- [x] **Step 350** [V] ~1m: `unheaded-daemon_0.2.0~alpha+test_amd64.deb` present, no `unheaded-unheaded-*`, one deb per `SERVICES` entry.
+- [x] **Step 351** [TEST][B] ~3m: Lintian-light: every deb has its unit, sysusers file and the keygen postinst hook
   ```bash
   cd /home/govan/tmp/unheaded && for d in /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/debs/*.deb; do n=$(basename $d); u=$(dpkg-deb -c $d | grep -c 'systemd/system/.*\.service$'); s=$(dpkg-deb -c $d | grep -c 'sysusers.d/'); k=$(dpkg-deb -I $d postinst 2>/dev/null | grep -c keygen); printf '%-50s unit=%s sysusers=%s keygen=%s\n' $n $u $s $k; done | awk '$2!="unit=1"||$3!="sysusers=1"||$4!="keygen=1"{bad++} END{print "bad:", bad+0}'
   ```
-- [ ] **Step 352** [V] ~1m: `bad: 0` (`unheaded-keygen` itself has no unit: exempt it in the awk or ship it inside each deb and drop the standalone package; [DECIDE] RECOMMENDATION: ship keygen inside every service deb at `/usr/local/bin/unheaded-keygen` (dpkg handles the shared file via `Replaces`/identical content? no: identical files in multiple debs conflict). Simpler: one `unheaded-common` deb with keygen + sysusers + trust.d dir that every service deb `Depends:` on. Do that.)
-- [ ] **Step 353** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 348-352: deb names fixed, unheaded-common, every unit's binary packaged`.
+- [x] **Step 352** [V] ~1m: `bad: 0` (`unheaded-keygen` itself has no unit: exempt it in the awk or ship it inside each deb and drop the standalone package; [DECIDE] RECOMMENDATION: ship keygen inside every service deb at `/usr/local/bin/unheaded-keygen` (dpkg handles the shared file via `Replaces`/identical content? no: identical files in multiple debs conflict). Simpler: one `unheaded-common` deb with keygen + sysusers + trust.d dir that every service deb `Depends:` on. Do that.)
+- [x] **Step 353** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 348-352: deb names fixed, unheaded-common, every unit's binary packaged`.
 
 ### Signing and the repo
 
-- [ ] **Step 354** [W] ~15m: `scripts/apt-repo.sh` (new): `init` creates `/srv/unheaded-apt/{conf,incoming}` with `conf/distributions` (`Codename: unheaded`, `Suite: stable`, `Architectures: amd64`, `Components: main`, `SignWith: <keyid>`), `include <deb...>` runs `reprepro -b /srv/unheaded-apt includedeb unheaded <debs>`, `serve` prints the nginx server block for 18888 (root `/srv/unheaded-apt`, autoindex off, `location /conf { deny all; }`, `location /db { deny all; }`), runs as `nginx` (sysuser exists). `deploy/nginx/unheaded-apt.conf` holds that block. A `tests/apt/apt_repo_test.sh` runs `init` + `include` against a temp dir with a throwaway GPG key (`gpg --batch --quick-gen-key` under a temp `GNUPGHOME`, as `tests/runbooks/test_branch_promotion.py` does) and checks `dists/unheaded/Release.gpg` exists and `apt-ftparchive`/`reprepro check` passes.
-- [ ] **Step 355** [B] ~3m
+- [x] **Step 354** [W] ~15m: `scripts/apt-repo.sh` (new): `init` creates `/srv/unheaded-apt/{conf,incoming}` with `conf/distributions` (`Codename: unheaded`, `Suite: stable`, `Architectures: amd64`, `Components: main`, `SignWith: <keyid>`), `include <deb...>` runs `reprepro -b /srv/unheaded-apt includedeb unheaded <debs>`, `serve` prints the nginx server block for 18888 (root `/srv/unheaded-apt`, autoindex off, `location /conf { deny all; }`, `location /db { deny all; }`), runs as `nginx` (sysuser exists). `deploy/nginx/unheaded-apt.conf` holds that block. A `tests/apt/apt_repo_test.sh` runs `init` + `include` against a temp dir with a throwaway GPG key (`gpg --batch --quick-gen-key` under a temp `GNUPGHOME`, as `tests/runbooks/test_branch_promotion.py` does) and checks `dists/unheaded/Release.gpg` exists and `apt-ftparchive`/`reprepro check` passes.
+- [x] **Step 355** [B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && which reprepro >/dev/null || echo "reprepro missing: sudo apt-get install -y reprepro (dev box; E3 for hosts)"; bash tests/apt/apt_repo_test.sh 2>&1 | tail -3
   ```
-- [ ] **Step 356** [V] ~1m: PASS (install reprepro locally if missing; it is a build-box tool, not a host change).
-- [ ] **Step 357** [W] ~10m: `scripts/build-all-debs.sh`: optional `DEB_SIGN_KEY=<keyid>` runs `dpkg-sig --sign builder -k $DEB_SIGN_KEY` (or `debsigs`) on each deb; the repo's `Release` signature (reprepro `SignWith`) is the primary trust anchor, per-deb signatures are belt-and-braces. `wiki/Releases.md` "apt repo" section: trust key install on a client (`/etc/apt/keyrings/unheaded.gpg` + `signed-by=` in `sources.list.d/unheaded.list`), never `apt-key`.
-- [ ] **Step 358** [W] ~8m: Runbook `runbooks/deploy/apt-repo-publish.yaml`: build debs on west from a tagged commit, `apt-repo.sh include`, verify `curl http://west:18888/dists/unheaded/Release` and signature, then on east `apt update && apt install unheaded-*` with the pinned version; rollback = `apt install unheaded-<svc>=<previous>`. `status: draft`.
-- [ ] **Step 359** [B] ~1m
+- [x] **Step 356** [V] ~1m: PASS (install reprepro locally if missing; it is a build-box tool, not a host change).
+- [x] **Step 357** [W] ~10m: `scripts/build-all-debs.sh`: optional `DEB_SIGN_KEY=<keyid>` runs `dpkg-sig --sign builder -k $DEB_SIGN_KEY` (or `debsigs`) on each deb; the repo's `Release` signature (reprepro `SignWith`) is the primary trust anchor, per-deb signatures are belt-and-braces. `wiki/Releases.md` "apt repo" section: trust key install on a client (`/etc/apt/keyrings/unheaded.gpg` + `signed-by=` in `sources.list.d/unheaded.list`), never `apt-key`.
+- [x] **Step 358** [W] ~8m: Runbook `runbooks/deploy/apt-repo-publish.yaml`: build debs on west from a tagged commit, `apt-repo.sh include`, verify `curl http://west:18888/dists/unheaded/Release` and signature, then on east `apt update && apt install unheaded-*` with the pinned version; rollback = `apt install unheaded-<svc>=<previous>`. `status: draft`.
+- [x] **Step 359** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-runbooks.sh 2>&1 | tail -1 && shellcheck -S warning scripts/apt-repo.sh scripts/build-all-debs.sh 2>&1 | tail -2
   ```
-- [ ] **Step 360** [V] ~1m: `0 new finding(s)`, no shellcheck warnings.
-- [ ] **Step 361** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 354-360: apt-repo.sh, reprepro test, deb signing option, publish runbook`.
-- [ ] **Step 362** [W] ~10m: `release.yml`: after debs are built, upload them as release assets; a separate manual-dispatch workflow `.github/workflows/apt-publish.yml` is NOT added (the repo lives on west, not GitHub; publishing is the runbook's job). `docs/adr/ADR-026`: status note "implemented S-IRON-GATE; repo on west, GHA builds, runbook publishes"; `docs/adr/ADR-085`: Phase 3 decided GHA (Step 11).
-- [ ] **Step 363** [W] ~10m: Pin the sophia-eye images (M-067): `deploy/sophia-eye/docker-compose.yml` `vllm/vllm-openai:latest-rocm` → the exact tag currently running on west (`docker image inspect` on west is [LIVE-RO]: `ssh west docker images --digests | grep vllm` or, if west is this box, `docker images --digests | grep -E 'vllm|qdrant|open-webui|text-embeddings'`), `qdrant/qdrant:latest` → exact version, `open-webui:main` → exact version, `text-embeddings-inference:cpu-1.5` → `cpu-1.5.x` exact; then `scripts/check-image-tags.sh --update` to shrink the baseline.
-- [ ] **Step 364** [B] ~1m
+- [x] **Step 360** [V] ~1m: `0 new finding(s)`, no shellcheck warnings.
+- [x] **Step 361** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 354-360: apt-repo.sh, reprepro test, deb signing option, publish runbook`.
+- [x] **Step 362** [W] ~10m: `release.yml`: after debs are built, upload them as release assets; a separate manual-dispatch workflow `.github/workflows/apt-publish.yml` is NOT added (the repo lives on west, not GitHub; publishing is the runbook's job). `docs/adr/ADR-026`: status note "implemented S-IRON-GATE; repo on west, GHA builds, runbook publishes"; `docs/adr/ADR-085`: Phase 3 decided GHA (Step 11).
+- [ ] **Step 363** [STUCK: vllm] [W] ~10m: Pin the sophia-eye images (M-067): `deploy/sophia-eye/docker-compose.yml` `vllm/vllm-openai:latest-rocm` → the exact tag currently running on west (`docker image inspect` on west is [LIVE-RO]: `ssh west docker images --digests | grep vllm` or, if west is this box, `docker images --digests | grep -E 'vllm|qdrant|open-webui|text-embeddings'`), `qdrant/qdrant:latest` → exact version, `open-webui:main` → exact version, `text-embeddings-inference:cpu-1.5` → `cpu-1.5.x` exact; then `scripts/check-image-tags.sh --update` to shrink the baseline.
+- [x] **Step 364** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-image-tags.sh 2>&1 | tail -1 && grep -c 'deploy/sophia-eye' docs/policy/image-tag-baseline.txt
   ```
-- [ ] **Step 365** [V] ~1m: `[PASS]`, `0`.
+- [x] **Step 365** [V] ~1m: `[PASS]`, `0`.
 - [ ] **Step 366** [ESCALATE][AFTER-E4] ~0m: **E4, apt-repo signing key.** Context: reprepro signs `Release` with a GPG key; the key must live on west under the `nginx`? no, under a dedicated `unheaded-apt` account (sysusers + uid 16738 `AptRepo`) with `GNUPGHOME=/var/lib/unheaded/apt/gnupg` 0700. Questions: (1) a new dedicated key (recommended: `unheaded-apt <stevie@bellis.tech>`, ed25519, 2-year expiry) or Stevie's existing signing key? (2) who may run `apt-repo.sh include`. Why Stevie's: a signing key under ADR-004's "approved exceptions" wording in ADR-026. Steps 367-368 are [AFTER-E4]; Steps 369-383 also need E3.
 - [ ] **Step 367** [AFTER-E4][W] ~3m: sysusers `unheaded-apt` + `pkg/uids` `AptRepo = 16738`; `apt-repo.sh` runs reprepro as that user via `runuser -u unheaded-apt --` when invoked as root.
 - [ ] **Step 368** [AFTER-E4][C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 362-367: ADR-026/085 notes, sophia-eye pins, apt-repo account`.

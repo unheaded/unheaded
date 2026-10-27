@@ -224,3 +224,27 @@ CASK; stages tracked files only (it used to copy ignored dev keys/certs into the
 with an auditd watch (as drafted), in a TPM-sealed file, or on an offline machine? (2) Who may run
 `yggdrasil-evidence cask sign`? (3) Publish `build.pubkey` as `compliance/keys/build.pubkey` by your GPG-signed commit,
 sha256 in SECURITY.md, never in GitHub secrets?
+
+### Phase 14 code merged (d4d971fe); E3/E4 questions; one STUCK
+
+`scripts/lib/deb-packages.sh` drives build-all-debs, `debian/control` (generated) and `debian/rules`: 24 debs (one per
+unit binary + `unheaded-keygen` as the common dependency + new `unheaded-configs`); `unheaded-daemon` replaces
+`unheaded-unheaded-daemon`; units ship under the repo's names (preinst records the old unit's state, postinst carries it
+over, postrm restores on failure); postinst never restarts a service whose TLS files are missing. Jenkinsfile calls
+build-all-debs. `scripts/apt-repo.sh` (init/include/list/check/serve), `deploy/nginx/unheaded-apt.conf`
+(127.0.0.1 + 192.168.13.2:18888), `tests/apt/apt_repo_test.sh` (in security.yml), `DEB_SIGN_KEY` -> SHA256SUMS +
+SHA256SUMS.gpg (dpkg-sig is gone from Debian), draft runbook `runbooks/deploy/apt-repo-publish.yaml`. qdrant,
+text-embeddings-inference, open-webui pinned by digest. CHANGELOG: Unreleased rebuilt as v0.2.0-alpha (untagged), the
+false v0.1.0 lines corrected. **STUCK Step 363:** `vllm/vllm-openai:latest-rocm` does not exist (404) and west has no
+such image. **Live finding (register entry added):** west serves an old unsigned repo on 0.0.0.0:18888 with autoindex;
+`/conf/distributions` and `/db/` answer 200 on 192.168.69.184. After the east upgrade (Step 376: read `unheaded-keygen`
+for the plan's common package), switch demo-start/demo-reset/kingdom-startup/rolling-upgrade and the prometheus.yml
+comment to the new unit names. Daemon rename edge case covered by the runbook's verify step.
+
+**E4 (Stevie):** a new dedicated apt key (recommended `unheaded-apt <stevie@bellis.tech>`, ed25519, 2-year expiry) or
+your existing key? In a dedicated `unheaded-apt` account (uid 16738, `GNUPGHOME=/var/lib/unheaded/apt/gnupg`, 0700)?
+Who may run `apt-repo.sh include`? Where is the fingerprint published for first fetch (plain HTTP)?
+**E3 (Stevie):** when to install reprepro + the nginx site on west, retire `/var/lib/apt-repo`, reload nginx; when to put
+TLS material and trust.d on east and run the east upgrade (unit renames, new unheaded-auth); then west.
+**vllm (Stevie):** `vllm/vllm-openai-rocm:<version>` (exists upstream) or `rocm/vllm` (west holds an old `latest`,
+`sha256:e7f02dd2...`)?
