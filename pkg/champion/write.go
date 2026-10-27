@@ -304,12 +304,22 @@ func (c *Champion) RunbookExecute(ctx context.Context, name string, dryRun bool)
 		return nil, fmt.Errorf("runbook not found: %w", err)
 	}
 
-	// Subprocess: scripts/run-runbook.py [--dry-run] <runbookPath>
+	// RT-08: manifest hash, destructive-command scan, and a private copy of
+	// the verified bytes for a live run (runbookmanifest.go).
+	execPath, cleanup, err := c.verifyRunbookForExec(runbookPath, rel, dryRun)
+	if err != nil {
+		c.completeAction(ctx, actionID, "denied",
+			summarizeArgs(map[string]any{"name": name}), err.Error(), time.Since(start))
+		return nil, fmt.Errorf("runbook %q: %w", name, err)
+	}
+	defer cleanup()
+
+	// Subprocess: scripts/run-runbook.py [--dry-run] <execPath>
 	args := []string{filepath.Join(c.config.ProjectRoot, "scripts", "run-runbook.py")}
 	if dryRun {
 		args = append(args, "--dry-run")
 	}
-	args = append(args, runbookPath)
+	args = append(args, execPath)
 
 	// Hard 10-minute cap on subprocess. Per `runbooks/` convention,
 	// no individual runbook should exceed 10 min; longer ones must
