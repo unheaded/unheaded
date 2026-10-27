@@ -207,3 +207,20 @@ key the dashboard loses the consensus band (Akira's `/api/v1/status` still serve
 unheaded-heimdall heimdall-drift` on west and east, only the public half into Wotan's `/etc/unheaded/wotan.yaml`), or
 generate centrally and copy the seed? (2) Run the root-reading `unheaded-heimdall.service` (CAP_DAC_READ_SEARCH) on west
 and east? (3) Enrol an Akira health key (`akira-health`, `HEALTH_SIGNING_KEY_FILE`) on each host, same pattern?
+
+### Phase 13 code merged; E1 filed
+
+`BINDING_RUNE.sig` = ML-DSA-65 JSON seal (purpose `sealed-cask-v1`, carries the key id) over `BINDING_RUNE.sha256`;
+a cask passes only with a trusted `build.pubkey` and an exact file set. Tar checks from headers before writing
+(one `sealed-cask-*` root, clean relative names, no links/devices, 2 GiB per file, 8 GiB total, no trailing bytes).
+`cmd/cask-verify`, `yggdrasil-evidence cask sign|verify` (`--pubkey` repeatable for rotation; `UNHEADED_BUILD_SIGN_AS`
+runs the signer as the custody account). `build-sealed-cask.sh` signs with `UNHEADED_BUILD_KEY`, else prints UNSIGNED
+CASK; stages tracked files only (it used to copy ignored dev keys/certs into the cask), binaries from build-binaries.sh.
+`verify-binding-rune.sh` hands off to cask-verify (`--insecure-sha-only` keeps the old check, bannered). CI job
+`sealed-cask-verify`. Ceremony runbook `runbooks/security/build-key-ceremony.yaml` (draft), uid `BuildKey = 16737`
+(`unheaded-buildkey`). Open: the age-encryption step writes its key to `secrets/cask.age.key` inside the repo
+(gitignored) - raise in Phase 15.
+**E1 (Stevie):** (1) Where does the ML-DSA-65 build seed live: on west under `unheaded-buildkey` (uid 16737) at 0400
+with an auditd watch (as drafted), in a TPM-sealed file, or on an offline machine? (2) Who may run
+`yggdrasil-evidence cask sign`? (3) Publish `build.pubkey` as `compliance/keys/build.pubkey` by your GPG-signed commit,
+sha256 in SECURITY.md, never in GitHub secrets?

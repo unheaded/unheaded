@@ -1061,40 +1061,40 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
 **Time**: 3 h (+ E1)
 **Agent**: Coordinator
 
-- [ ] **Step 329** [R] ~3m
+- [x] **Step 329** [R] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && sed -n '40,120p' scripts/build-sealed-cask.sh | grep -nE 'sha256|MANIFEST|tar ' | head -10 && cat scripts/verify-binding-rune.sh | grep -nE 'sha256|tar|verify' | head -10 && grep -nE 'func main|case "' cmd/yggdrasil-evidence/main.go | head -12
   ```
-- [ ] **Step 330** [W][CODE] ~15m: Tests `cmd/cask-verify/main_test.go` (new binary): given a cask tarball + `BINDING_RUNE.sha256` + `BINDING_RUNE.sig` (Gungnir detached evidence seal, purpose `sealed-cask/v1`) + `build.pubkey`, `verify` exits 0; a flipped byte in any listed file → 1; a missing `.sig` → 1 with `UNSIGNED CASK`; a tar member with `..` or an absolute path or a symlink escaping the root → 1 before extraction (hardening); the wrong public key → 1.
-- [ ] **Step 331** [TEST][B] ~1m: Red
+- [x] **Step 330** [W][CODE] ~15m: Tests `cmd/cask-verify/main_test.go` (new binary): given a cask tarball + `BINDING_RUNE.sha256` + `BINDING_RUNE.sig` (Gungnir detached evidence seal, purpose `sealed-cask/v1`) + `build.pubkey`, `verify` exits 0; a flipped byte in any listed file → 1; a missing `.sig` → 1 with `UNSIGNED CASK`; a tar member with `..` or an absolute path or a symlink escaping the root → 1 before extraction (hardening); the wrong public key → 1.
+- [x] **Step 331** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/cask-verify/ -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 332** [W][CODE] ~35m: `cmd/cask-verify/main.go` using `pkg/gungnir.VerifyEvidenceDetached` and a safe tar reader (`archive/tar`, reject `..`, absolute, symlink/hardlink targets outside root, size cap per member 2 GiB, total cap 8 GiB); `cmd/cask-sign` (or a `sign` subcommand of `cmd/yggdrasil-evidence`, [DECIDE] RECOMMENDATION: a `cask` subcommand pair inside `cmd/yggdrasil-evidence` to keep one evidence binary; override ONLY if the cask must ship without yggdrasil tooling) that signs `BINDING_RUNE.sha256` with the build key seed (`gungnir.LoadSeedFile`, 0400 enforced).
-- [ ] **Step 333** [TEST][B] ~2m
+- [x] **Step 332** [W][CODE] ~35m: `cmd/cask-verify/main.go` using `pkg/gungnir.VerifyEvidenceDetached` and a safe tar reader (`archive/tar`, reject `..`, absolute, symlink/hardlink targets outside root, size cap per member 2 GiB, total cap 8 GiB); `cmd/cask-sign` (or a `sign` subcommand of `cmd/yggdrasil-evidence`, [DECIDE] RECOMMENDATION: a `cask` subcommand pair inside `cmd/yggdrasil-evidence` to keep one evidence binary; override ONLY if the cask must ship without yggdrasil tooling) that signs `BINDING_RUNE.sha256` with the build key seed (`gungnir.LoadSeedFile`, 0400 enforced).
+- [x] **Step 333** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/yggdrasil-evidence/... ./cmd/cask-verify/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 334** [V] ~1m: `ok`.
-- [ ] **Step 335** [W] ~10m: `scripts/build-sealed-cask.sh`: after the manifest, if `UNHEADED_BUILD_KEY` is set, `yggdrasil-evidence cask sign --key "$UNHEADED_BUILD_KEY" --manifest BINDING_RUNE.sha256 --out BINDING_RUNE.sig`; otherwise print `UNSIGNED CASK (set UNHEADED_BUILD_KEY)` and still build (dev). `scripts/verify-binding-rune.sh`: delegate to `cask-verify` (keep the sha256-only path behind `--insecure-sha-only` with a loud banner). `STAGING` dir: `mktemp -d`, not `/tmp/sealed-cask-<ts>` (another user could pre-create it).
-- [ ] **Step 336** [TEST][B] ~4m: Round trip with a throwaway key
+- [x] **Step 334** [V] ~1m: `ok`.
+- [x] **Step 335** [W] ~10m: `scripts/build-sealed-cask.sh`: after the manifest, if `UNHEADED_BUILD_KEY` is set, `yggdrasil-evidence cask sign --key "$UNHEADED_BUILD_KEY" --manifest BINDING_RUNE.sha256 --out BINDING_RUNE.sig`; otherwise print `UNSIGNED CASK (set UNHEADED_BUILD_KEY)` and still build (dev). `scripts/verify-binding-rune.sh`: delegate to `cask-verify` (keep the sha256-only path behind `--insecure-sha-only` with a loud banner). `STAGING` dir: `mktemp -d`, not `/tmp/sealed-cask-<ts>` (another user could pre-create it).
+- [x] **Step 336** [TEST][B] ~4m: Round trip with a throwaway key
   ```bash
   cd /home/govan/tmp/unheaded && K=$(mktemp -d) && go run ./cmd/yggdrasil-evidence keygen --out $K/build.key --pubkey $K/build.pubkey 2>&1 | tail -1 && UNHEADED_BUILD_KEY=$K/build.key bash scripts/build-sealed-cask.sh --output $K/cask.tar.gz 2>&1 | tail -3 && go run ./cmd/cask-verify verify --cask $K/cask.tar.gz --pubkey $K/build.pubkey && echo VERIFIED && printf 'x' >> $K/cask.tar.gz && (go run ./cmd/cask-verify verify --cask $K/cask.tar.gz --pubkey $K/build.pubkey && echo BAD || echo "tamper refused"); rm -rf $K
   ```
-- [ ] **Step 337** [V] ~1m: `VERIFIED` then `tamper refused`. (If `yggdrasil-evidence` has no `keygen`, use its `pubkey` derivation from a 32-byte seed: `head -c 32 /dev/urandom > $K/build.key; chmod 0400 $K/build.key; go run ./cmd/yggdrasil-evidence pubkey --key $K/build.key > $K/build.pubkey`.)
-- [ ] **Step 338** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 329-337: signed Binding Rune, cask-verify with tar hardening`.
-- [ ] **Step 339** [W] ~15m: Runbook `runbooks/security/build-key-ceremony.yaml`: generate the ML-DSA-65 seed on the custody host (E1), 0400 under a dedicated account `unheaded-buildkey` (sysusers entry + uid `BuildKey = 16737`), derive and publish `build.pubkey` (commit it to `compliance/keys/build.pubkey` in the repo: public, and the repo IS the trusted channel because commits are GPG-signed by Stevie; record the sha256 in `SECURITY.md`), quarterly rotation with overlap (both pubkeys valid one quarter), revocation = remove the pubkey + re-sign the current release; `status: draft`. `scripts/check-runbooks.sh` passes.
-- [ ] **Step 340** [B] ~1m
+- [x] **Step 337** [V] ~1m: `VERIFIED` then `tamper refused`. (If `yggdrasil-evidence` has no `keygen`, use its `pubkey` derivation from a 32-byte seed: `head -c 32 /dev/urandom > $K/build.key; chmod 0400 $K/build.key; go run ./cmd/yggdrasil-evidence pubkey --key $K/build.key > $K/build.pubkey`.)
+- [x] **Step 338** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 329-337: signed Binding Rune, cask-verify with tar hardening`.
+- [x] **Step 339** [W] ~15m: Runbook `runbooks/security/build-key-ceremony.yaml`: generate the ML-DSA-65 seed on the custody host (E1), 0400 under a dedicated account `unheaded-buildkey` (sysusers entry + uid `BuildKey = 16737`), derive and publish `build.pubkey` (commit it to `compliance/keys/build.pubkey` in the repo: public, and the repo IS the trusted channel because commits are GPG-signed by Stevie; record the sha256 in `SECURITY.md`), quarterly rotation with overlap (both pubkeys valid one quarter), revocation = remove the pubkey + re-sign the current release; `status: draft`. `scripts/check-runbooks.sh` passes.
+- [x] **Step 340** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-runbooks.sh 2>&1 | tail -1 && go test ./pkg/uids/ -count=1 2>&1 | tail -1 && bash scripts/check-systemd-units.sh 2>&1 | tail -1
   ```
-- [ ] **Step 341** [V] ~1m: `0 new finding(s)`, `ok`, `[PASS]`.
-- [ ] **Step 342** [ESCALATE][AFTER-E1] ~0m: **E1, build-key custody.** Context: ceremony runbook, signer and verifier ready (Steps 329-341). Questions: (1) where the seed lives (west under `unheaded-buildkey` 0400 with auditd watch; a TPM-sealed file; an offline machine), (2) who may run `cask sign`, (3) publishing `build.pubkey` by signed commit as recommended. Why Stevie's: custody of the key that every release's trust reduces to. Steps 343-345 are [AFTER-E1].
+- [x] **Step 341** [V] ~1m: `0 new finding(s)`, `ok`, `[PASS]`.
+- [x] **Step 342** [ESCALATE] (filed 2026-10-27, progress log Phase 13, E1)[AFTER-E1] ~0m: **E1, build-key custody.** Context: ceremony runbook, signer and verifier ready (Steps 329-341). Questions: (1) where the seed lives (west under `unheaded-buildkey` 0400 with auditd watch; a TPM-sealed file; an offline machine), (2) who may run `cask sign`, (3) publishing `build.pubkey` by signed commit as recommended. Why Stevie's: custody of the key that every release's trust reduces to. Steps 343-345 are [AFTER-E1].
 - [ ] **Step 343** [AFTER-E1][LIVE-RW][S][BARE-METAL] ~10m: Run the ceremony on the custody host per the runbook; copy only `build.pubkey` back.
 - [ ] **Step 344** [AFTER-E1][W] ~3m: `compliance/keys/build.pubkey` committed; `SECURITY.md` records its sha256 and the ceremony date; `release.yml` gains an optional step: if the repository secret `UNHEADED_BUILD_KEY_B64` exists, decode it to `$RUNNER_TEMP` 0400, sign the cask and the checksums with it in addition to keyless cosign ([DECIDE] RECOMMENDATION: do NOT put the build key in GitHub secrets; sign casks on the custody host and attach; keyless cosign covers GitHub-built artefacts. Override ONLY if Stevie accepts GitHub as a key holder).
 - [ ] **Step 345** [AFTER-E1][TEST][B] ~5m: FND-018's verify: a real evidence pack signed with the real key verifies with the published pubkey (`nix/yggdrasil/scripts/yggdrasil-build-evidence-pack.sh` with `YGGDRASIL_BUILD_KEY` on the custody host; `yggdrasil-evidence verify --pubkey compliance/keys/build.pubkey <pack>`); record output in the progress file; register FND-018 closed.
-- [ ] **Step 346** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 339-345: build-key ceremony runbook + uid; E1 escalated (or closed)`.
-- [ ] **Step 347** [V]: **PHASE 13 EXIT GATE** — Steps 334, 337, 341 passed; tree clean. E1 open does not block. → Phase 14.
+- [x] **Step 346** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 339-345: build-key ceremony runbook + uid; E1 escalated (or closed)`.
+- [x] **Step 347** [V]: **PHASE 13 EXIT GATE** — Steps 334, 337, 341 passed; tree clean. E1 open does not block. → Phase 14.
 
 ---
 
