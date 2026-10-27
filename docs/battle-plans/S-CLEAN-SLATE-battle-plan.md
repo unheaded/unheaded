@@ -565,14 +565,14 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```
 - [x] **Step 150** [V] ~0.5m: shellcheck clean; dry-run prints the Phase 1b compose command.
 - [x] **Step 151** [DOC-UPDATE][W] ~3m: `wiki/Containers.md` bring-up recipe and `wiki/Chaos-Engineering.md:81` FND-024 bullet: "started by `kingdom-startup.sh` Phase 1b since S-CLEAN-SLATE; the register row closes when Step 154 verifies it live".
-- [ ] **Step 152** [ESCALATE] **E2** ~0m: Context: Steps 153-157, 164-166 and 155b change west (start stacks, run a chaos experiment, enable a user timer). Question: grant a west live window (date/time), same scope as S-REAL-STEEL E2. Why no recommendation: host-changing.
-- [ ] **Step 153** [AFTER-E2][LIVE-RW][BARE-METAL][S][B] ~5m: `cd /home/govan/tmp/unheaded && sudo bash scripts/kingdom-startup.sh --force --docker-only 2>&1 | tail -15`
-- [ ] **Step 154** [AFTER-E2][LIVE-RO][V] ~3m: `curl -s 'http://127.0.0.1:9090/api/v1/query?query=slo:error_ratio:5m' | jq '.data.result|length'` > 0 within 180 s of the stack starting; `sudo docker compose -f monitoring/docker-compose.yml ps --format '{{.Name}} {{.Status}}' | grep -c healthy` equals the service count.
+- [x] **Step 152** [ESCALATE] **E2** ~0m: Context: Steps 153-157, 164-166 and 155b change west (start stacks, run a chaos experiment, enable a user timer). Question: grant a west live window (date/time), same scope as S-REAL-STEEL E2. Why no recommendation: host-changing.
+- [x] **Step 153** [AFTER-E2][LIVE-RW][BARE-METAL][S][B] ~5m: `cd /home/govan/tmp/unheaded && sudo bash scripts/kingdom-startup.sh --force --docker-only 2>&1 | tail -15`
+- [x] **Step 154** [AFTER-E2][LIVE-RO][V] ~3m: `curl -s 'http://127.0.0.1:9090/api/v1/query?query=slo:error_ratio:5m' | jq '.data.result|length'` > 0 within 180 s of the stack starting; `sudo docker compose -f monitoring/docker-compose.yml ps --format '{{.Name}} {{.Status}}' | grep -c healthy` equals the service count.
 - [x] **Step 155** [AFTER-E2][LIVE-RW][S][B] ~5m: haproxy pair live once: `sudo docker compose -f docker/docker-compose.loadbalancers.yml up -d 2>&1 | tail -3 && sleep 5 && curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:21405/ ; curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:21404/` (stats ports from `pkg/ports`); then `sudo docker compose -f docker/docker-compose.loadbalancers.yml down`. Record both codes.
 - [ ] **Step 155b** [AFTER-E2][LIVE-RO][B] ~15m: If Step 123 deferred it: `bash scripts/switch-model.sh --check qwen-7b && bash scripts/switch-model.sh qwen-7b && bash scripts/coding-gate-probe.sh 2>&1 | tail -8`; record the gate result; `bash scripts/switch-model.sh --stop` if the model was not running before.
-- [ ] **Step 156** [AFTER-E2][LIVE-RW][B] ~3m: FND-005 mirror timer (user units, no sudo): `mkdir -p ~/.config/systemd/user && cp deploy/systemd/user/unheaded-git-mirror.{service,timer} ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now unheaded-git-mirror.timer && systemctl --user list-timers unheaded-git-mirror.timer --no-pager | head -3 && bash scripts/backup/test-git-mirror.sh 2>&1 | tail -3`
-- [ ] **Step 157** [AFTER-E2][AUDIT-UPDATE][W] ~5m: `compliance/findings/register.yaml` FND-024: add `resolved_on: <date>` + `evidence: S-CLEAN-SLATE Steps 153-154 (<n> series after <s> s)` in the row's existing format (read the FND-021/022 closed rows 06280b2d for the shape); FND-005 likewise with Step 156's timer listing. Regenerate the ADR-098 section in Phase 8.
-- [ ] **Step 158** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 147-157: kingdom-startup Phase 1b starts monitoring and waits for slo:error_ratio:5m (FND-024); git-mirror timer; wiki`.
+- [x] **Step 156** [AFTER-E2][LIVE-RW][B] ~3m: FND-005 mirror timer (user units, no sudo): `mkdir -p ~/.config/systemd/user && cp deploy/systemd/user/unheaded-git-mirror.{service,timer} ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now unheaded-git-mirror.timer && systemctl --user list-timers unheaded-git-mirror.timer --no-pager | head -3 && bash scripts/backup/test-git-mirror.sh 2>&1 | tail -3`
+- [x] **Step 157** [AFTER-E2][AUDIT-UPDATE][W] ~5m: `compliance/findings/register.yaml` FND-024: add `resolved_on: <date>` + `evidence: S-CLEAN-SLATE Steps 153-154 (<n> series after <s> s)` in the row's existing format (read the FND-021/022 closed rows 06280b2d for the shape); FND-005 likewise with Step 156's timer listing. Regenerate the ADR-098 section in Phase 8.
+- [x] **Step 158** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 147-157: kingdom-startup Phase 1b starts monitoring and waits for slo:error_ratio:5m (FND-024); git-mirror timer; wiki`.
 
 ### M-034 FND-023
 
@@ -581,11 +581,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - [x] **Step 161** [CODE] ~20m: `cmd/steel-echo/load.go`: per-target state `{addr, dead bool, deadSince}`; on `net.OpError`/connection refused/timeout mark dead and skip it in the round-robin; on each refresh, for a dead target that the list still reports healthy, `GET /health` once; success re-admits. Test `TestDiscover_DropsDeadTargetOnFirstError`: three `httptest.Server`s, close one mid-run, assert no further request reaches it and that the meter's availability over the next 100 requests is 1.0; `TestDiscover_ReadmitsAfterProbe`.
 - [x] **Step 162** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./cmd/steel-echo/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
 - [x] **Step 163** [V] ~0.5m: ok.
-- [ ] **Step 164** [AFTER-E2][LIVE-RW][BARE-METAL][S][B] ~20m: Re-run the Step 310 experiment exactly as `wiki/Chaos-Engineering.md` records it (three steel-echo replicas, 20 rps discover meter from the rebuilt `cmd/steel-echo`, `container_kill` on one replica, `CHAOS_DRY_RUN=false` only for the window), capture the meter's availability and MTTR lines.
-- [ ] **Step 165** [AFTER-E2][V] ~1m: availability ≥ 0.99 over the experiment window; MTTR within the FND-023 row's expectation (unchanged). Then `CHAOS_DRY_RUN=true` restored and the controller restarted (window off).
+- [x] **Step 164** [AFTER-E2][LIVE-RW][BARE-METAL][S][B] ~20m: Re-run the Step 310 experiment exactly as `wiki/Chaos-Engineering.md` records it (three steel-echo replicas, 20 rps discover meter from the rebuilt `cmd/steel-echo`, `container_kill` on one replica, `CHAOS_DRY_RUN=false` only for the window), capture the meter's availability and MTTR lines.
+- [x] **Step 165** [AFTER-E2][V] ~1m: availability ≥ 0.99 over the experiment window; MTTR within the FND-023 row's expectation (unchanged). Then `CHAOS_DRY_RUN=true` restored and the controller restarted (window off).
   - If < 0.99 → one [D] attempt: lower `-refresh` to 1 s and repeat; if still < 0.99, leave FND-023 open with the new numbers (not STUCK: the register row stays).
-- [ ] **Step 166** [AFTER-E2][AUDIT-UPDATE][W] ~3m: FND-023 row: `resolved_on` + evidence (Steps 164-165 numbers).
-- [ ] **Step 167** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 159-166: discover meter drops a dead replica on first error (FND-023)`.
+- [x] **Step 166** [AFTER-E2][AUDIT-UPDATE][W] ~3m: FND-023 row: `resolved_on` + evidence (Steps 164-165 numbers).
+- [x] **Step 167** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 159-166: discover meter drops a dead replica on first error (FND-023)`.
 
 ### M-041 east bundle
 

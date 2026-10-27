@@ -1593,46 +1593,4 @@ findings:
       ruff and pip-audit included. Closes when the next push's run finishes inside the limit; if it does not,
       raise timeout-minutes with the measured time
 
-  - id: FND-023
-    title: >-
-      Client-side routing follows the control plane's 30 s sync: when a steel-echo replica was killed (S-REAL-STEEL
-      Phase 11 Step 310), the discover-mode meter kept sending one third of its requests to the dead instance for
-      26 s until Cuirass's next sync restarted it; availability over the experiment window was 0.9343, the gate asked
-      for 0.99
-    verify: >-
-      a Phase 11 Step 310 re-run (container_kill on one of three steel-echo replicas, 20 rps discover meter) shows
-      availability >= 0.99 over the experiment window with the MTTR unchanged
-    severity: low
-    class: app
-    opened: 2026-10-26
-    exposure: >-
-      lab workload only; Cuirass's self-heal worked (MTTR 24.4 s kill -> start). Any real consumer behind a proxy with
-      its own health checks would see the same gap for its check interval. The LXD proxy device (one instance) is
-      unaffected
-    lockout: none
-    step: 311
-    plan: >-
-      either the meter (and any client that discovers through Cuirass) probes its targets between discover refreshes
-      and drops a target on the first connection error, or Cuirass publishes health transitions on Wotan so discover
-      can react in under a second; measure again
 
-  - id: FND-024
-    title: >-
-      The Kingdom SLO guard (Sword canary analysis, chaos-controller steady state) depends on slo:error_ratio:5m,
-      which only the monitoring compose stack's Prometheus records (monitoring/docker-compose.yml, remote_write to
-      the main Victoria); that stack is not part of the main stack or kingdom-startup.sh, had been down 27 h on
-      2026-10-26, and every canary and every chaos experiment was refused until it was started by hand
-    verify: >-
-      kingdom-startup.sh (or the main compose) brings up the Prometheus that evaluates rules/slo.yml, and after a
-      cold start `slo:error_ratio:5m` exists for every page: true SLO within 2 minutes
-    severity: low
-    class: service
-    opened: 2026-10-26
-    exposure: >-
-      fail-closed: nothing deploys or injects without the series, which is the right failure; the cost is a
-      window that cannot start until an operator notices the missing stack
-    lockout: none
-    step: 362
-    plan: >-
-      start monitoring/docker-compose.yml from kingdom-startup.sh after the main stack (or move Prometheus and
-      Alertmanager into docker-compose.yml); add the slo:error_ratio:5m presence check to the startup smoke test
