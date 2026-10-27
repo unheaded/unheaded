@@ -338,89 +338,89 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-030 admin API key
 
-- [ ] **Step 53** [R] ~2m: How the key is checked and which header carries it.
+- [x] **Step 53** [R] ~2m: How the key is checked and which header carries it.
   ```bash
   cd /home/govan/tmp/unheaded && sed -n '480,500p' services/wotan/internal/api/handlers.go && grep -n 'AdminAPIKey\|X-Admin\|Authorization' services/wotan/internal/api/*_test.go | head -8 && sed -n '410,425p' services/wotan/cmd/wotan/main.go
   ```
-- [ ] **Step 54** [DECIDE] ~1m: **Admin default.** RECOMMENDATION: `-admin` defaults to `false`; when `-admin` is set, `WOTAN_ADMIN_API_KEY` must be non-empty or Wotan exits 2 with "WOTAN_ADMIN_API_KEY unset: set it or drop -admin". The key is read from the environment only (never a flag: flags show in `ps`). Rationale: the endpoints have never worked (zero `SetAdminAPIKey` callers), so defaulting them off changes nothing live, and fail-loud beats a silent 401 forever. Override ONLY if a live caller of `/api/v1/admin/*` exists (`grep -rn 'api/v1/admin' --include=*.go --include=*.sh --include=*.py . | grep -v services/wotan` non-empty).
-- [ ] **Step 55** [CODE][W] ~10m: Add `services/wotan/cmd/wotan/admin_key_test.go` (package main): (a) `TestAdminKey_RequiredWhenAdminEnabled` builds the config with `AdminEnabled=true` and empty env → the startup validation function returns an error containing `WOTAN_ADMIN_API_KEY`; (b) `TestAdminKey_SetOnServer` with env set → `api.Server.AdminAPIKey` equals the env value; (c) in `services/wotan/internal/api/`, extend the existing admin handler test: request without the header → 401/403, with the header → 200. Factor the validation into `func adminKeyFromEnv(enabled bool) (string, error)` so (a)/(b) test it without starting listeners.
-- [ ] **Step 56** [TEST][B] ~1m: Red.
+- [x] **Step 54** [DECIDE] ~1m: **Admin default.** RECOMMENDATION: `-admin` defaults to `false`; when `-admin` is set, `WOTAN_ADMIN_API_KEY` must be non-empty or Wotan exits 2 with "WOTAN_ADMIN_API_KEY unset: set it or drop -admin". The key is read from the environment only (never a flag: flags show in `ps`). Rationale: the endpoints have never worked (zero `SetAdminAPIKey` callers), so defaulting them off changes nothing live, and fail-loud beats a silent 401 forever. Override ONLY if a live caller of `/api/v1/admin/*` exists (`grep -rn 'api/v1/admin' --include=*.go --include=*.sh --include=*.py . | grep -v services/wotan` non-empty).
+- [x] **Step 55** [CODE][W] ~10m: Add `services/wotan/cmd/wotan/admin_key_test.go` (package main): (a) `TestAdminKey_RequiredWhenAdminEnabled` builds the config with `AdminEnabled=true` and empty env → the startup validation function returns an error containing `WOTAN_ADMIN_API_KEY`; (b) `TestAdminKey_SetOnServer` with env set → `api.Server.AdminAPIKey` equals the env value; (c) in `services/wotan/internal/api/`, extend the existing admin handler test: request without the header → 401/403, with the header → 200. Factor the validation into `func adminKeyFromEnv(enabled bool) (string, error)` so (a)/(b) test it without starting listeners.
+- [x] **Step 56** [TEST][B] ~1m: Red.
   ```bash
   cd /home/govan/tmp/unheaded && go test ./services/wotan/cmd/wotan/ -run 'TestAdminKey' -count=1 2>&1 | tail -5
   ```
-- [ ] **Step 57** [CODE][W] ~10m: `services/wotan/cmd/wotan/main.go`: flag default `false` at `:418`; after `api.NewServer(...)`, `key, err := adminKeyFromEnv(config.AdminEnabled); if err != nil { log.Fatal().Err(err).Msg("admin endpoints") }; if key != "" { s.SetAdminAPIKey(key) }`. `handlers.go:489` keeps refusing on empty key (defence in depth).
-- [ ] **Step 58** [TEST][B] ~2m: Green + race.
+- [x] **Step 57** [CODE][W] ~10m: `services/wotan/cmd/wotan/main.go`: flag default `false` at `:418`; after `api.NewServer(...)`, `key, err := adminKeyFromEnv(config.AdminEnabled); if err != nil { log.Fatal().Err(err).Msg("admin endpoints") }; if key != "" { s.SetAdminAPIKey(key) }`. `handlers.go:489` keeps refusing on empty key (defence in depth).
+- [x] **Step 58** [TEST][B] ~2m: Green + race.
   ```bash
   cd /home/govan/tmp/unheaded && go test ./services/wotan/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)' | head -20
   ```
-- [ ] **Step 59** [W] ~5m: Wire the environment without putting a secret in the repo: `docker-compose.yml` wotan service gets `env_file: [/etc/unheaded/wotan/wotan.env]` marked `required: false` and `command:` gains `-admin` only in a commented example; `deploy/systemd/unheaded-wotan.service` gets `EnvironmentFile=-/etc/unheaded/wotan/wotan.env`; add `deploy/systemd/wotan.env.example` with `WOTAN_ADMIN_API_KEY=` (empty) and a comment; `wiki/Service-Wotan.md:50` row: "registered only with `--admin` and `WOTAN_ADMIN_API_KEY` set (default off since S-CLEAN-SLATE)".
-- [ ] **Step 60** [V] ~1m: `bash scripts/check-systemd-units.sh 2>&1 | tail -2` green; `bash scripts/check-gitleaks.sh 2>&1 | tail -1` PASS; `grep -c 'WOTAN_ADMIN_API_KEY=' deploy/systemd/wotan.env.example` is 1 and the value is empty; `sudo docker compose -f docker-compose.yml config -q && echo COMPOSE_OK`.
-- [ ] **Step 61** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 53-60: Wotan admin key read from WOTAN_ADMIN_API_KEY, -admin default off, fail-loud when enabled without a key`.
+- [x] **Step 59** [W] ~5m: Wire the environment without putting a secret in the repo: `docker-compose.yml` wotan service gets `env_file: [/etc/unheaded/wotan/wotan.env]` marked `required: false` and `command:` gains `-admin` only in a commented example; `deploy/systemd/unheaded-wotan.service` gets `EnvironmentFile=-/etc/unheaded/wotan/wotan.env`; add `deploy/systemd/wotan.env.example` with `WOTAN_ADMIN_API_KEY=` (empty) and a comment; `wiki/Service-Wotan.md:50` row: "registered only with `--admin` and `WOTAN_ADMIN_API_KEY` set (default off since S-CLEAN-SLATE)".
+- [x] **Step 60** [V] ~1m: `bash scripts/check-systemd-units.sh 2>&1 | tail -2` green; `bash scripts/check-gitleaks.sh 2>&1 | tail -1` PASS; `grep -c 'WOTAN_ADMIN_API_KEY=' deploy/systemd/wotan.env.example` is 1 and the value is empty; `sudo docker compose -f docker-compose.yml config -q && echo COMPOSE_OK`.
+- [x] **Step 61** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 53-60: Wotan admin key read from WOTAN_ADMIN_API_KEY, -admin default off, fail-loud when enabled without a key`.
 
 ### M-032 periodic gRPC re-probe
 
-- [ ] **Step 62** [R] ~2m: Existing probe tests and the fake health server they use.
+- [x] **Step 62** [R] ~2m: Existing probe tests and the fake health server they use.
   ```bash
   cd /home/govan/tmp/unheaded && grep -n 'ProbeGRPC\|grpc_health\|health.NewServer\|func Test' pkg/wotan-client/*_test.go | head -20 && sed -n '320,345p' pkg/wotan-client/client.go
   ```
-- [ ] **Step 63** [CODE][W] ~10m: `pkg/wotan-client/reprobe_test.go`: `TestReprobe_PromotesToGRPC` — construct the client with a gRPC address nobody listens on (transport HTTP after the failed startup probe), set `c.reprobeInterval = 20 * time.Millisecond` (unexported test hook), start a health server on that address, wait ≤2 s, assert `c.Transport() == TransportGRPC` and `/health`-style `StreamHealth().GRPCHealthy == true`; `TestReprobe_StopsOnClose` — `Close()` returns and the goroutine exits (use a `done` channel the goroutine closes).
-- [ ] **Step 64** [TEST][B] ~1m: Red.
+- [x] **Step 63** [CODE][W] ~10m: `pkg/wotan-client/reprobe_test.go`: `TestReprobe_PromotesToGRPC` — construct the client with a gRPC address nobody listens on (transport HTTP after the failed startup probe), set `c.reprobeInterval = 20 * time.Millisecond` (unexported test hook), start a health server on that address, wait ≤2 s, assert `c.Transport() == TransportGRPC` and `/health`-style `StreamHealth().GRPCHealthy == true`; `TestReprobe_StopsOnClose` — `Close()` returns and the goroutine exits (use a `done` channel the goroutine closes).
+- [x] **Step 64** [TEST][B] ~1m: Red.
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/wotan-client/ -run 'TestReprobe' -count=1 2>&1 | tail -5
   ```
-- [ ] **Step 65** [CODE][W] ~10m: `pkg/wotan-client/client.go`: fields `reprobeInterval time.Duration` (default 30 s), `reprobeStop chan struct{}`, `reprobeDone chan struct{}`; in `NewClientWithGRPC`, when the startup probe fails, `go c.reprobeLoop()`; the loop ticks, calls `ProbeGRPC()`, and on success sets `transport = TransportGRPC`, `grpcHealthy = true` under the mutex, logs once, and exits; `Close()` closes `reprobeStop` and waits on `reprobeDone` with a 1 s cap. Update the comment at `:290` to describe the loop instead of asking callers to do it.
-- [ ] **Step 66** [TEST][B] ~2m: Green + race on the client and on the two services that already use it.
+- [x] **Step 65** [CODE][W] ~10m: `pkg/wotan-client/client.go`: fields `reprobeInterval time.Duration` (default 30 s), `reprobeStop chan struct{}`, `reprobeDone chan struct{}`; in `NewClientWithGRPC`, when the startup probe fails, `go c.reprobeLoop()`; the loop ticks, calls `ProbeGRPC()`, and on success sets `transport = TransportGRPC`, `grpcHealthy = true` under the mutex, logs once, and exits; `Close()` closes `reprobeStop` and waits on `reprobeDone` with a 1 s cap. Update the comment at `:290` to describe the loop instead of asking callers to do it.
+- [x] **Step 66** [TEST][B] ~2m: Green + race on the client and on the two services that already use it.
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/wotan-client/... ./services/timeguru/... ./services/yaldabaoth/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)' | head
   ```
-- [ ] **Step 67** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 62-66: wotan-client re-probes gRPC every 30 s while degraded and promotes itself back`.
+- [x] **Step 67** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 62-66: wotan-client re-probes gRPC every 30 s while degraded and promotes itself back`.
 
 ### M-031 SubscribeWithRetry in every live service
 
-- [ ] **Step 68** [R] ~5m: Retry semantics and all seven sites.
+- [x] **Step 68** [R] ~5m: Retry semantics and all seven sites.
   ```bash
   cd /home/govan/tmp/unheaded && sed -n '1,60p' pkg/wotan-client/subscribe_retry.go && for f in services/micromanager/service.go services/monad/monad.go services/sophia/sophia.go services/gateway/gateway.go services/architect/core.go services/anomaly/anomaly.go services/loadbalancer/xdpsync.go; do echo "== $f"; grep -n -B6 'degraded mode' $f | grep -E 'if .*(nil|err)|Subscribe\(|degraded' | head -12; done
   ```
   Pattern to apply everywhere: the service constructs its Wotan client unconditionally; every subscribe becomes `SubscribeWithRetry(ctx, topic, name, handler)`; publish paths that drop events when the client is unhealthy keep the warn but no longer need a nil guard; the one-shot "subscriptions disabled" log lines go away. Each service gets a `TestLateWotan_<Service>` that starts the service against a fake Wotan that returns connection refused for the first N calls and succeeds after (reuse `pkg/wotan-client`'s test fake if exported; otherwise an `httptest.Server` whose handler flips on a counter), then asserts the subscription exists.
-- [ ] **Step 69** [CODE] ~20m: micromanager (`services/micromanager/service.go:50,107,147,187,224`): test red → implement → test green.
-- [ ] **Step 70** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/micromanager/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 71** [V] ~0.5m: ok; `grep -c 'subscriptions disabled\|listener disabled' services/micromanager/service.go` is 0.
-- [ ] **Step 72** [CODE] ~15m: monad (`services/monad/monad.go:333,641,685`), same recipe.
-- [ ] **Step 73** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/monad/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 74** [V] ~0.5m: ok; no one-shot lines left in monad.go.
-- [ ] **Step 75** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 68-74: micromanager and monad subscribe with retry (late Wotan test)`.
-- [ ] **Step 76** [CODE] ~15m: sophia (`services/sophia/sophia.go:274,895,913`).
-- [ ] **Step 77** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/sophia/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 78** [V] ~0.5m: ok; no one-shot lines left.
-- [ ] **Step 79** [CODE] ~10m: gateway (`services/gateway/gateway.go:370`).
-- [ ] **Step 80** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/gateway/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 81** [V] ~0.5m: ok.
-- [ ] **Step 82** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 76-81: sophia and gateway subscribe with retry`.
-- [ ] **Step 83** [CODE] ~15m: architect (`services/architect/core.go:254,268,303`).
-- [ ] **Step 84** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/architect/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 85** [V] ~0.5m: ok.
-- [ ] **Step 86** [CODE] ~15m: anomaly (`services/anomaly/anomaly.go:768,882`).
-- [ ] **Step 87** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/anomaly/... ./cmd/anomaly/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 88** [V] ~0.5m: ok.
-- [ ] **Step 89** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 83-88: architect and anomaly subscribe with retry`.
-- [ ] **Step 90** [CODE] ~15m: loadbalancer xdpsync (`services/loadbalancer/xdpsync.go:185,688`); keep the f9c59e4b join-before-publish order.
-- [ ] **Step 91** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/loadbalancer/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 92** [V] ~1m: ok; repo-wide: `grep -rn 'degraded mode' services/micromanager services/monad services/sophia services/gateway services/architect services/anomaly services/loadbalancer | grep -v _test | grep -c 'disabled'` is 0 (event-dropped warns on publish may remain).
+- [x] **Step 69** [CODE] ~20m: micromanager (`services/micromanager/service.go:50,107,147,187,224`): test red → implement → test green.
+- [x] **Step 70** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/micromanager/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 71** [V] ~0.5m: ok; `grep -c 'subscriptions disabled\|listener disabled' services/micromanager/service.go` is 0.
+- [x] **Step 72** [CODE] ~15m: monad (`services/monad/monad.go:333,641,685`), same recipe.
+- [x] **Step 73** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/monad/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 74** [V] ~0.5m: ok; no one-shot lines left in monad.go.
+- [x] **Step 75** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 68-74: micromanager and monad subscribe with retry (late Wotan test)`.
+- [x] **Step 76** [CODE] ~15m: sophia (`services/sophia/sophia.go:274,895,913`).
+- [x] **Step 77** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/sophia/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 78** [V] ~0.5m: ok; no one-shot lines left.
+- [x] **Step 79** [CODE] ~10m: gateway (`services/gateway/gateway.go:370`).
+- [x] **Step 80** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/gateway/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 81** [V] ~0.5m: ok.
+- [x] **Step 82** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 76-81: sophia and gateway subscribe with retry`.
+- [x] **Step 83** [CODE] ~15m: architect (`services/architect/core.go:254,268,303`).
+- [x] **Step 84** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/architect/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 85** [V] ~0.5m: ok.
+- [x] **Step 86** [CODE] ~15m: anomaly (`services/anomaly/anomaly.go:768,882`).
+- [x] **Step 87** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/anomaly/... ./cmd/anomaly/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 88** [V] ~0.5m: ok.
+- [x] **Step 89** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 83-88: architect and anomaly subscribe with retry`.
+- [x] **Step 90** [CODE] ~15m: loadbalancer xdpsync (`services/loadbalancer/xdpsync.go:185,688`); keep the f9c59e4b join-before-publish order.
+- [x] **Step 91** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/loadbalancer/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 92** [V] ~1m: ok; repo-wide: `grep -rn 'degraded mode' services/micromanager services/monad services/sophia services/gateway services/architect services/anomaly services/loadbalancer | grep -v _test | grep -c 'disabled'` is 0 (event-dropped warns on publish may remain).
 
 ### M-038 Wotan server leftovers
 
-- [ ] **Step 93** [R] ~3m: Rate limiter key, CORS, streams_active.
+- [x] **Step 93** [R] ~3m: Rate limiter key, CORS, streams_active.
   ```bash
   cd /home/govan/tmp/unheaded && grep -rn 'RemoteAddr\|Allow-Credentials\|Allow-Origin\|streams_active\|StreamsActive' services/wotan/internal --include=*.go | grep -v _test | head -12
   ```
-- [ ] **Step 94** [CODE] ~10m: Rate limiter keys on the client IP: `host, _, err := net.SplitHostPort(r.RemoteAddr)`; on error fall back to the raw string. Test: two requests from `1.2.3.4:1000` and `1.2.3.4:1001` share one bucket.
-- [ ] **Step 95** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/wotan/internal/middleware/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
-- [ ] **Step 96** [CODE] ~10m: CORS: when the configured allow-list is `*`, respond `Access-Control-Allow-Origin: *` and never `Allow-Credentials: true`; when it is a list, echo only a matching origin and allow credentials. Test both.
-- [ ] **Step 97** [TEST][B] ~2m: same command as Step 95.
-- [ ] **Step 98** [CODE] ~10m: `streams_active` (metrics/`/health`) counts topic streams as well as room streams; test increments on a topic stream open and decrements on close.
-- [ ] **Step 99** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go test ./services/wotan/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)' | head -20`
-- [ ] **Step 100** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 90-99: loadbalancer retry; Wotan rate limiter by IP, CORS credentials, streams_active topic streams`.
-- [ ] **Step 101** [V] ~5m: **PHASE 2 EXIT GATE** — `go build ./... && go test ./pkg/wotan-client/... ./services/wotan/... ./services/micromanager/... ./services/monad/... ./services/sophia/... ./services/gateway/... ./services/architect/... ./services/anomaly/... ./services/loadbalancer/... -race -count=1 2>&1 | grep -c '^ok'` equals the number of packages listed with tests; `grep -c '^FAIL'` is 0; Step 17's counters now read: callers 1, ticker ≥1, degraded "disabled" lines 0. If in a worktree: `git merge --no-ff clean-slate/code` into develop, then re-run `go build ./...`.
+- [x] **Step 94** [CODE] ~10m: Rate limiter keys on the client IP: `host, _, err := net.SplitHostPort(r.RemoteAddr)`; on error fall back to the raw string. Test: two requests from `1.2.3.4:1000` and `1.2.3.4:1001` share one bucket.
+- [x] **Step 95** [TEST][B] ~2m: `cd /home/govan/tmp/unheaded && go test ./services/wotan/internal/middleware/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)'`
+- [x] **Step 96** [CODE] ~10m: CORS: when the configured allow-list is `*`, respond `Access-Control-Allow-Origin: *` and never `Allow-Credentials: true`; when it is a list, echo only a matching origin and allow credentials. Test both.
+- [x] **Step 97** [TEST][B] ~2m: same command as Step 95.
+- [x] **Step 98** [CODE] ~10m: `streams_active` (metrics/`/health`) counts topic streams as well as room streams; test increments on a topic stream open and decrements on close.
+- [x] **Step 99** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go test ./services/wotan/... -race -count=1 2>&1 | grep -E '^(ok|FAIL|---)' | head -20`
+- [x] **Step 100** [C] ~1m: `[PLAN S-CLEAN-SLATE] Steps 90-99: loadbalancer retry; Wotan rate limiter by IP, CORS credentials, streams_active topic streams`.
+- [x] **Step 101** [V] ~5m: **PHASE 2 EXIT GATE** — `go build ./... && go test ./pkg/wotan-client/... ./services/wotan/... ./services/micromanager/... ./services/monad/... ./services/sophia/... ./services/gateway/... ./services/architect/... ./services/anomaly/... ./services/loadbalancer/... -race -count=1 2>&1 | grep -c '^ok'` equals the number of packages listed with tests; `grep -c '^FAIL'` is 0; Step 17's counters now read: callers 1, ticker ≥1, degraded "disabled" lines 0. If in a worktree: `git merge --no-ff clean-slate/code` into develop, then re-run `go build ./...`.
   - If pass → Phase 3.
   - If fail → DO NOT PROCEED. Debug within this phase.
 
