@@ -55,12 +55,20 @@ zhen-claude -route auto -family repo-task -worktree ~/.cache/unheaded/zhen-workt
     -run-check go-test -check-path ./pkg/x/... -effort low -p "$(cat TASK.md)"
 ```
 
-- `-worktree` must be an agent worktree (under `-agent-root`, default `~/.cache/unheaded/zhen-worktrees`) on a `zhen/<name>` branch: drafts are written there in branch-sandbox mode (ADR-019, Proposed amendment), never in the main checkout.
+- `-worktree` must be an agent worktree (under `-agent-root`, default `~/.cache/unheaded/zhen-worktrees`) on a `zhen/<name>` branch: drafts are written there in branch-sandbox mode (ADR-019 Level 2 amendment: Proposed, live in code, Stevie's accept/reject pending as S-CHAMPION-HARDENING E3), never in the main checkout.
 - `-run-check` names an allowlisted check from `configs/zhen-checks.yaml`; it runs in the sandbox (no network, home hidden, only the worktree and build caches writable). A draft may not change `check.sh`, `TASK.md` or `solution.patch`, and a check does not count if one of them changed.
 - `-route local` is the same loop with Claude switched off.
 - Output: one JSON line `{route, route_reason, local_attempts, escalated, check, cost_usd, stop}`. `stop` is `escalation_budget` (the per-task cap or the daily cap ran out), `not_escalated` (the failure kind is not in `escalate_on`) or `local_only`.
 
 `scripts/two-brains/run-fixture.sh --route auto --family repo-task --split holdout --limit 3` runs eval fixtures this way.
+
+## Family caps
+
+Each request of the Claude leg reserves its worst case (prompt estimate plus `max_tokens` at the routed model's rates; no refusal fallback runs on a routed leg) and is refused before the API call when that does not fit `min(max_claude_usd, what the daily cap has left)`. The first request is sized to about 70 % of the family cap; a later request of the tool loop goes out with the largest `max_tokens` that still fits, down to 1024, instead of ending the leg (`Config.MinMaxTokens`). Under 1024 tokens the leg stops with `stop: escalation_budget`.
+
+## Two routers
+
+`ThresholdRouter` (this page: per family, from the eval) and `AutoRouter` (the Lich drivers' weight classifier, ADR-053) both implement `claudebridge.Router` and stay separate (ADR-106 Q7). `ThresholdRouter.Route` maps a `family` hint to a weight: `claude_direct` is heavy, `local_only`/`local_first` minor, an unlisted family `ErrNoFamilyRoute`. `AutoRouter{Fallback: thresholdRouter}` asks it only for a task it cannot classify from its weight hint or the prompt; without a fallback such a task stays minor.
 
 ## route_reason values
 
