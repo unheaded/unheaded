@@ -81,10 +81,17 @@ func (e *RefusalError) Error() string {
 // Config configures a Bridge. Gate, Ledger and Prices are required: there
 // is no way to build a Bridge without a tool gate or a spend cap.
 type Config struct {
-	Model      string // default DefaultModel
-	Effort     string // low|medium|high|xhigh|max; default DefaultEffort
-	MaxTokens  int64  // per request; default DefaultMaxTokens
-	TaskBudget int64  // advisory token budget per request (beta); 0 = off, else >= MinTaskBudget
+	Model     string // default DefaultModel
+	Effort    string // low|medium|high|xhigh|max; default DefaultEffort
+	MaxTokens int64  // per request; default DefaultMaxTokens
+	// MinMaxTokens, when > 0, lets a request whose worst case at
+	// MaxTokens no longer fits what the Ledger has left go out with the
+	// largest max_tokens that does fit, down to MinMaxTokens; below that
+	// it is refused before sending. 0 (the default): never shrink, refuse.
+	// Routed Claude legs set it so a small family cap buys more than one
+	// request (S-CHAMPION-HARDENING Step 114, PLANS F-23).
+	MinMaxTokens int64
+	TaskBudget   int64 // advisory token budget per request (beta); 0 = off, else >= MinTaskBudget
 	// DisableFallbacks turns off the server-side refusal fallback
 	// (fallbacks: "default"), which is on by default.
 	DisableFallbacks   bool
@@ -162,6 +169,9 @@ func New(ctx context.Context, cfg Config) (*Bridge, error) {
 	}
 	if cfg.MaxTokens < 1 || cfg.MaxTokens > 128000 {
 		return nil, fmt.Errorf("claudebridge: max_tokens %d out of range 1..128000", cfg.MaxTokens)
+	}
+	if cfg.MinMaxTokens < 0 || cfg.MinMaxTokens > cfg.MaxTokens {
+		return nil, fmt.Errorf("claudebridge: min max_tokens %d out of range 0..%d", cfg.MinMaxTokens, cfg.MaxTokens)
 	}
 	if cfg.TaskBudget != 0 && cfg.TaskBudget < MinTaskBudget {
 		return nil, fmt.Errorf("claudebridge: task budget %d is below the API minimum %d", cfg.TaskBudget, MinTaskBudget)
@@ -347,22 +357,67 @@ func (b *Bridge) params(msgs []anthropic.BetaMessageParam) anthropic.BetaMessage
 
 // reservation is the worst-case cost of sending params: the input
 // estimated generously from the body size (about two bytes per token,
-// against roughly four for English text) at the table's highest input or
-// cache-write rate, plus max_tokens at the highest output rate; doubled
-// when a refusal fallback may run the request a second time.
+// against roughly four for English text) at the input or cache-write
+// rate, plus params' max_tokens at the output rate; doubled when a refusal
+// fallback may run the request a second time. Rates are the routed
+// model's when no fallback can hand the request to another model, else
+// the table's highest.
 func (b *Bridge) reservation(params anthropic.BetaMessageNewParams) (NanoUSD, error) {
+	estIn, err := promptEstimate(params)
+	if err != nil {
+		return 0, err
+	}
+	inRate, outRate, hops := b.requestRates()
+	return WorstCase(estIn, inRate, params.MaxTokens, outRate, hops), nil
+}
+
+// promptEstimate is the generous input-token estimate for params.
+func promptEstimate(params anthropic.BetaMessageNewParams) (int64, error) {
 	body, err := json.Marshal(params)
 	if err != nil {
 		return 0, fmt.Errorf("encode request: %w", err)
 	}
-	mx := b.cfg.Prices.Max()
-	inRate := max(mx.Input, mx.CacheWrite5m)
-	estIn := int64(len(body))/2 + 1
-	per := NanoUSD(estIn*inRate + b.cfg.MaxTokens*mx.Output)
-	if !b.cfg.DisableFallbacks {
-		per *= 2
+	return int64(len(body))/2 + 1, nil
+}
+
+// requestRates are the rates a request's worst case is priced at, and how
+// many times it may be billed.
+func (b *Bridge) requestRates() (inRate, outRate, hops int64) {
+	p := b.cfg.Prices.Max()
+	hops = 2
+	if b.cfg.DisableFallbacks {
+		// Only the routed model can serve (and bill) the request; a
+		// model missing from the table is priced at the maximum.
+		p, _ = b.cfg.Prices.Lookup(b.cfg.Model)
+		hops = 1
 	}
-	return per, nil
+	return max(p.Input, p.CacheWrite5m), p.Output, hops
+}
+
+// fitToLedger lowers params' max_tokens to what the ledger has left when
+// MinMaxTokens allows it and the worst case at the configured max_tokens
+// does not fit. It returns the (possibly unchanged) worst case. A
+// shrunken request never prices above what it found left: max_tokens only
+// gets shorter, so the body (and its prompt estimate) does not grow.
+func (b *Bridge) fitToLedger(params *anthropic.BetaMessageNewParams, need NanoUSD) (NanoUSD, error) {
+	if b.cfg.MinMaxTokens <= 0 {
+		return need, nil
+	}
+	left, err := b.cfg.Ledger.Remaining()
+	if err != nil || need <= left {
+		return need, nil // Reserve reports a ledger error itself
+	}
+	estIn, err := promptEstimate(*params)
+	if err != nil {
+		return 0, err
+	}
+	inRate, outRate, hops := b.requestRates()
+	n := FitMaxTokens(left, estIn, inRate, outRate, hops, params.MaxTokens, b.cfg.MinMaxTokens)
+	if n == 0 {
+		return need, nil // Reserve refuses with the full worst case
+	}
+	params.MaxTokens = n
+	return b.reservation(*params)
 }
 
 func (c *Conversation) loop(ctx context.Context) (*Reply, error) {
@@ -420,6 +475,9 @@ func (c *Conversation) request(ctx context.Context, iter int, reply *Reply) (*an
 
 	need, err := b.reservation(params)
 	if err != nil {
+		return nil, err
+	}
+	if need, err = b.fitToLedger(&params, need); err != nil {
 		return nil, err
 	}
 	rec.Reserved = need
