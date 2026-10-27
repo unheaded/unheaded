@@ -98,25 +98,18 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
-	// REST server
-	mux := http.NewServeMux()
-	registerRestRoutes(mux)
-
-	restHandler := chainMiddleware(mux,
-		loggingMiddleware,
-		authMiddleware,
-		rateLimitMiddleware,
-		recoveryMiddleware,
-	)
-
-	// Wrap with pkg/auth middleware (activated via AUTH_ENABLED=true env var).
-	// This layers on top of the legacy --api-key flag auth.
+	// REST server, with pkg/auth on top of the legacy --api-key check
+	// (AUTH_ENABLED=true, ADR-103). A configuration auth cannot use stops
+	// the service here rather than serving it open.
 	authCfg := auth.LoadServiceAuthConfig("protocol-api")
-	// Explicit interface type required: srvHandler is reassigned below to
-	// auth.WrapHandler's http.Handler return value, so the variable's
-	// static type cannot be the concrete restHandler type.
-	var srvHandler http.Handler = restHandler //nolint:staticcheck // QF1011 false-positive: interface type is required for the reassignment below
-	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
+	srvHandler, err := newRESTHandler(authCfg)
+	if err != nil {
+		log.Fatalf("auth: %v (see ADR-103)", err)
+	}
+	unaryAuth, err := grpcInterceptor(authCfg)
+	if err != nil {
+		log.Fatalf("auth (gRPC): %v (see ADR-103)", err)
+	}
 
 	restServer := &http.Server{
 		Addr:           restPort,
@@ -139,7 +132,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(grpcAuthInterceptor),
+		grpc.UnaryInterceptor(unaryAuth),
 	)
 
 	pb.RegisterMonadServiceServer(grpcServer, &monadServer{})
@@ -180,6 +173,41 @@ func main() {
 	}
 
 	log.Println("Shutdown complete")
+}
+
+// newRESTHandler is the REST mux behind the legacy middleware chain, with
+// pkg/auth outermost (S-IRON-GATE Phase 6): with auth on, every route but
+// /health needs a token from an AUTH_ALLOW_CALLERS caller (unheaded-cli),
+// and a write needs a write role. An error means auth is on but unusable.
+func newRESTHandler(cfg auth.ServiceAuthConfig) (http.Handler, error) {
+	mux := http.NewServeMux()
+	registerRestRoutes(mux)
+	restHandler := chainMiddleware(mux,
+		loggingMiddleware,
+		authMiddleware,
+		rateLimitMiddleware,
+		recoveryMiddleware,
+	)
+	return auth.NewServiceHandler(restHandler, cfg, auth.ServiceRoutes{})
+}
+
+// grpcInterceptor is the gRPC listener's unary interceptor: with auth on,
+// the caller's token in "authorization" metadata is verified like a REST
+// call's (same authenticator, same allowlist) before the legacy check.
+func grpcInterceptor(cfg auth.ServiceAuthConfig) (grpc.UnaryServerInterceptor, error) {
+	if !cfg.Enabled {
+		return grpcAuthInterceptor, nil
+	}
+	a, err := auth.NewServiceAuthenticator(cfg)
+	if err != nil {
+		return nil, err
+	}
+	verify := auth.GRPCUnaryInterceptor(a)
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		return verify(ctx, req, info, func(ctx context.Context, req interface{}) (interface{}, error) {
+			return grpcAuthInterceptor(ctx, req, info, handler)
+		})
+	}, nil
 }
 
 // Middleware chain
