@@ -58,7 +58,13 @@ F4 `pkg/config`, `pkg/testing`, `services/kenoma`.
   `integration_test.go`, which exercised only the deleted F2 packages.
 - G7 bare metal / Sabatons (6): Stevie's standing "parked".
 - G8 protocol reference code (17, `pkg/protocol/*`, `pkg/monad`): reference
-  code for frozen specs; deleting it is an RFC Editor decision.
+  code for frozen specs; deleting it is an RFC Editor decision. **Ruled
+  2026-10-27** in `docs/protocol/G8-REFERENCE-RULINGS.md`: reference, by ruling
+  (KEEP or KEEP-AFTER): `errors`, `tlv`, `pkg/monad`; wired in later phases:
+  `sophiasync`, `integrity` (HMAC); decided in Phases 4/5: `settings`,
+  `lifecycle`, `migration`; E3 delete rows: `amplification`, `dos`,
+  `intermediary`, `prefetch`, `flowtype`, `sequence`, `registry`. A
+  regeneration does not re-ask these.
 - G9 control planes waiting for their eBPF half (10): see the `unwired:` notes
   in the list. `services/anomaly` left the list on 2026-10-23 (`cmd/anomaly`).
 - F3 `pkg/pqc_policy`: parked for S-QUANTUM-ARMOR (ADR-105).

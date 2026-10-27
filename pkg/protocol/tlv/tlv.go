@@ -3,6 +3,11 @@
 
 // Package tlv provides Type-Length-Value encoding for Monad extensions.
 // Uses pkg/protocol/encoding for TLV wire format per RFC 9114 §7 and RFC 8200 §4.
+//
+// Reference implementation of foundation-00 §"TLV Type Registry (Extended)";
+// not linked into any binary. It becomes the conformance suite for that
+// section only once its type constants and ranges match the registry, which
+// they do not yet (docs/protocol/G8-REFERENCE-RULINGS.md, KEEP-AFTER).
 package tlv
 
 import (
