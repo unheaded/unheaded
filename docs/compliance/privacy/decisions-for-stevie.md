@@ -29,3 +29,18 @@ scripts/compliance/sign-attestation.sh security-policy-review
 scripts/compliance/sign-attestation.sh ir-plan-review
 scripts/compliance/sign-attestation.sh access-review
 ```
+
+
+## E-E (S-WELL-SPRING Step 275): enforcing mode and the open paperwork decisions
+
+Context: this file, `docs/compliance/risk-management-strategy.md` and `docs/compliance/enforcing-soak.md`.
+
+1. Q5: may enforcing mode refuse to START Unheaded services on an out-of-baseline host, or only refuse installs (the draft default, built as the package preinst gate)?
+2. MFA scope.
+3. External pentest timing.
+4. Host AV/IDS stance (D3 above).
+5. Counsel/DFIR retainer (D6).
+6. The three risk-appetite statements (D7).
+7. Flip prerequisite: `unheaded-baseline` runs unprivileged, so enforcing needs a root drop-in for `unheaded-baseline.service`, measured on east in the window first. Approve that drop-in per host?
+
+Why yours: availability vs integrity, spend, and legal posture. Until answered every mode file stays `audit`.

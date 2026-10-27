@@ -159,3 +159,17 @@ oldest row turns 90 days on 2027-01-16. **E-C (Stevie):** ratify `docs/policy/re
 LIVE 127-131 (role password file 0400, deb install + dry run, enable timer only after E-C). Not done: a
 `check-gates-can-fail.sh` entry for `test-retention.sh`. Connection budget 44/47; `app_auth`'s 40-connection limit is
 not in that table (pre-existing gap).
+
+### Phase 13 code merged (b3d4407a); E-E filed
+
+Parity: 104/104 subtests, 52 goldens of the retired `remediate.sh` output (`TestExecutorMatchesRetiredScript`);
+`remediate.sh` is a shim (prints the `unheaded-remediate` command, exit 2). New fixes rocm-log-perms, aide-install,
+apparmor-enforce (Xorg only); `unheaded-remediate check` and `-record-existing`. Bug fixed: undo reloaded a fix's service
+before restoring its files. The plan's `checks:` field already existed as `closes:`; the executor already lived in
+`pkg/compliance/executor`. Ansible: hand-written roles in `deploy/ansible/kingdom/` (the compliance tree is generated);
+ansible-core 2.21.5 + resolvelib admitted to the dependency baseline with reasons. Enforcing path behind a flapping
+breaker + preinst gate; every mode file stays audit. LICH-017: 7 cases, 0 bypasses. E-E filed in
+`docs/compliance/privacy/decisions-for-stevie.md`. LIVE 280-282: east then west debs, `-record-existing` for the 8 lab
+fixes (`-applied-by "remediate.sh (2026-10-13)"` for journald-caps and time-p2p), apply the new fixes; then sync the Well
+mirrors of fixes/profiles (`compliance-evidence well`). ADR-098 line 193 still names `scripts/host/remediate.sh`
+(generated file: regenerate after the register changes). Flaky dashboard eBPF broadcast test fixed (33f96fdc).
