@@ -13,16 +13,14 @@ import (
 // Collectors returns this publisher's counters as pkg/metrics collectors,
 // ready to hand to whichever registry the service actually serves.
 //
-// They are NOT registered in a package-level registry on purpose. Services
-// here do not share one: only wotan serves the Prometheus client registry,
-// the other nine build their own *metrics.Registry. A counter registered
-// globally by this package would be invisible in nine services out of ten —
-// the same "gate nothing reaches" shape as a migration nothing runs against.
-// So the publisher owns the numbers and the service owns the registry:
-//
-//	for _, c := range logPublisher.Collectors() {
-//	    registry.MustRegister(c)
-//	}
+// They are NOT registered in a package-level registry on purpose: most
+// services build and serve their own *metrics.Registry, and a counter
+// registered globally here would be invisible in them. The publisher owns
+// the numbers and the service owns the registry: RegisterCollectors(reg).
+// This is the only exposition path; the hand-rolled text writer that
+// monad, sophia, kanban-app, unheaded-daemon and timeguru appended after
+// their registry went in S-WELL-SPRING Step 188 (byte-identical output,
+// metrics_test.go).
 //
 // Read live; each call reflects the counter at scrape time.
 func (p *Publisher) Collectors() []metrics.Collector {
@@ -48,6 +46,36 @@ func (p *Publisher) Collectors() []metrics.Collector {
 	}
 }
 
+// RegisterCollectors registers Collectors() in reg, the registry the service
+// serves: all three or none, so a conflict never leaves a partial family
+// set. A nil reg (a server built as a struct literal) is a no-op.
+func (p *Publisher) RegisterCollectors(reg *metrics.Registry) error {
+	if reg == nil {
+		return nil
+	}
+	cs := p.Collectors()
+	for i, c := range cs {
+		if err := reg.Register(c); err != nil {
+			for _, done := range cs[:i] {
+				reg.Unregister(done)
+			}
+			return fmt.Errorf("logagg collectors for %q: %w", p.serviceName, err)
+		}
+	}
+	return nil
+}
+
+// UnregisterCollectors removes this publisher's counters from reg (a
+// service swapping publishers). A nil reg is a no-op.
+func (p *Publisher) UnregisterCollectors(reg *metrics.Registry) {
+	if reg == nil {
+		return
+	}
+	for _, c := range p.Collectors() {
+		reg.Unregister(c)
+	}
+}
+
 // publisherCounter exposes one atomic counter as a metrics.Collector.
 type publisherCounter struct {
 	name string
@@ -66,44 +94,6 @@ func (c *publisherCounter) Describe() *metrics.Desc {
 func (c *publisherCounter) Write(w io.Writer) error {
 	if _, err := fmt.Fprintf(w, "%s{service=%q} %d\n", c.name, c.svc, c.read()); err != nil {
 		return fmt.Errorf("write %s: %w", c.name, err)
-	}
-	return nil
-}
-
-// ============================================================================
-// THE OTHER CONVENTION IN THIS TREE
-// ============================================================================
-//
-// Two views over the same atomics:
-//
-//	pkg/metrics collectors -> Collectors()   (dashboard-backend, and every
-//	                                          service serving prom.Handler():
-//	                                          architect, micromanager,
-//	                                          trace-collector-go)
-//	hand-rolled exposition -> WriteMetrics()  (monad, sophia, kanban-app,
-//	                                          unheaded-daemon, timeguru)
-//
-// A third view, PrometheusCollector(), existed for services serving
-// client_golang's default registry. It went with ADR-094 step 4, when those
-// services moved to prom.Handler(). WriteMetrics goes when its users stop
-// hand-writing exposition.
-
-// WriteMetrics appends the counters in Prometheus text format, for services
-// that build their /metrics body by hand. Writes HELP and TYPE as well —
-// unlike the Collector path, nothing else emits them here.
-func (p *Publisher) WriteMetrics(w io.Writer) error {
-	for _, m := range []struct {
-		name, help string
-		read       func() uint64
-	}{
-		{"unheaded_logagg_entries_dropped_total", "Log entries discarded because the logagg publish queue was full", p.Dropped},
-		{"unheaded_logagg_entries_published_total", "Log entries successfully published to Wotan by logagg", p.Published},
-		{"unheaded_logagg_publish_errors_total", "logagg publish attempts the transport rejected", p.Failed},
-	} {
-		if _, err := fmt.Fprintf(w, "# HELP %s %s\n# TYPE %s counter\n%s{service=%q} %d\n",
-			m.name, m.help, m.name, m.name, p.serviceName, m.read()); err != nil {
-			return fmt.Errorf("write %s: %w", m.name, err)
-		}
 	}
 	return nil
 }

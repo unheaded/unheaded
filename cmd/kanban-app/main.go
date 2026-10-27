@@ -131,12 +131,24 @@ func (s *Server) initMetrics() {
 		}))
 }
 
-// SetLogPublisher attaches a logagg publisher whose counters are appended to
-// /metrics. Optional: nil leaves the exposition unchanged.
-func (s *Server) SetLogPublisher(p *logagg.Publisher) {
+// SetLogPublisher attaches a logagg publisher and registers its counters in
+// the registry /metrics serves, replacing a previous publisher's. Optional:
+// nil removes them.
+func (s *Server) SetLogPublisher(p *logagg.Publisher) error {
 	s.tasksMu.Lock()
 	defer s.tasksMu.Unlock()
+	if s.logPublisher != nil {
+		s.logPublisher.UnregisterCollectors(s.registry)
+		s.logPublisher = nil
+	}
+	if p == nil {
+		return nil
+	}
+	if err := p.RegisterCollectors(s.registry); err != nil {
+		return err
+	}
 	s.logPublisher = p
+	return nil
 }
 
 // NewServer creates a new kanban server with standalone timeline polling.
@@ -1284,14 +1296,8 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	// The default registry rides along: go_*, process_* and what linked
 	// libraries register at load (pkg/wotan-client) never reached this
 	// scrape before ADR-094 step 5. GatherAll skips a nil registry.
+	// The log publisher's counters are in s.registry (SetLogPublisher).
 	_ = metrics.GatherAll(w, s.registry, metrics.DefaultRegistry)
-
-	s.tasksMu.RLock()
-	lp := s.logPublisher
-	s.tasksMu.RUnlock()
-	if lp != nil {
-		_ = lp.WriteMetrics(w)
-	}
 }
 
 // handleTimeline returns the current timeline data
@@ -1638,7 +1644,9 @@ func main() {
 	}
 
 	// Every construction branch above converges here, so attach once.
-	server.SetLogPublisher(logPublisher)
+	if err := server.SetLogPublisher(logPublisher); err != nil {
+		log.Warn().Err(err).Msg("log forwarding counters not served on /metrics")
+	}
 
 	// Start server in goroutine
 	go func() {

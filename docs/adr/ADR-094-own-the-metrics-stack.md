@@ -341,7 +341,8 @@ by the migration itself.
 `pkg/logagg.PrometheusCollector()` goes in step 4: its only users are
 architect, micromanager and trace-collector-go, which all serve the default
 registry. `WriteMetrics()` goes when its five hand-written-exposition users
-are converted.
+are converted. (Done 2026-10-27, S-WELL-SPRING Step 188: all five register
+`Collectors()` in the registry they serve; `WriteMetrics` is deleted.)
 
 ### Step 4 — DONE (2026-09-24)
 

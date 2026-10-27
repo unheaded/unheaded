@@ -170,7 +170,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create HTTP server")
 	}
-	server.SetLogPublisher(logPublisher)
+	if err := server.SetLogPublisher(logPublisher); err != nil {
+		log.Warn().Err(err).Msg("log forwarding counters not served on /metrics")
+	}
 
 	// Start server
 	if err := server.Start(); err != nil {
@@ -371,12 +373,24 @@ type MetaInfo struct {
 	Timestamp  time.Time `json:"timestamp"`
 }
 
-// SetLogPublisher attaches a logagg publisher whose counters are appended to
-// /metrics. Optional: nil leaves the exposition unchanged.
-func (hs *HTTPServer) SetLogPublisher(p *logagg.Publisher) {
+// SetLogPublisher attaches a logagg publisher and registers its counters in
+// the registry /metrics serves, replacing a previous publisher's. Optional:
+// nil removes them.
+func (hs *HTTPServer) SetLogPublisher(p *logagg.Publisher) error {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
+	if hs.logPublisher != nil {
+		hs.logPublisher.UnregisterCollectors(hs.registry)
+		hs.logPublisher = nil
+	}
+	if p == nil {
+		return nil
+	}
+	if err := p.RegisterCollectors(hs.registry); err != nil {
+		return err
+	}
 	hs.logPublisher = p
+	return nil
 }
 
 // NewHTTPServer creates a new HTTP server for the Monad service
@@ -556,16 +570,8 @@ func (hs *HTTPServer) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	// libraries register at load (pkg/wotan-client) never reached this
 	// scrape before ADR-094 step 5. GatherAll also skips a nil registry,
 	// which the bare Gather call here did not.
+	// The log publisher's counters are in hs.registry (SetLogPublisher).
 	_ = metrics.GatherAll(w, hs.registry, metrics.DefaultRegistry)
-
-	// #nosec G104 -- response already committed; a write failure here means
-	// the client went away and nothing further can be sent.
-	hs.mu.RLock()
-	lp := hs.logPublisher
-	hs.mu.RUnlock()
-	if lp != nil {
-		_ = lp.WriteMetrics(w)
-	}
 }
 
 // operationsHandler handles POST /api/v1/operations - Execute an operation

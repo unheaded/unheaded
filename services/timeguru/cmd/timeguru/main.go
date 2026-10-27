@@ -178,23 +178,12 @@ func main() {
 	// /metrics did not exist on this service at all — it answered 404, while
 	// CLAUDE.md requires every component to publish metrics. Minimal
 	// exposition for now: log-forwarding health, so a service shedding logs
-	// is visible. Service-specific counters can join it here.
-	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		w.WriteHeader(http.StatusOK)
-		// #nosec G104 -- response already committed; a write failure here
-		// means the client went away and nothing further can be sent.
-		//
-		// The default registry carries go_*, process_* and what linked
-		// libraries register at load (pkg/wotan-client); none of it reached
-		// this scrape before ADR-094 step 5.
-		_ = metrics.GatherAll(w, metrics.DefaultRegistry)
-		_ = logPublisher.WriteMetrics(w)
-	})
+	// is visible. Service-specific counters can join its registry.
+	metricsHandler, err := newMetricsHandler(logPublisher)
+	if err != nil {
+		log.Fatal().Err(err).Msg("metrics registry")
+	}
+	mux.HandleFunc("/metrics", metricsHandler)
 
 	// Timeline endpoints (multiple formats: JSON, YAML, TOML, Markdown)
 	mux.HandleFunc("/timeline", handler.HandleGetTimelineWithFormat)
@@ -291,6 +280,24 @@ func main() {
 }
 
 // loadConfig loads configuration from environment variables with defensive defaults
+// newMetricsHandler serves a registry holding lp's counters together with
+// the default registry (go_*, process_* and what linked libraries register
+// at load, e.g. pkg/wotan-client). GET only.
+func newMetricsHandler(lp *logagg.Publisher) (http.HandlerFunc, error) {
+	reg := metrics.NewRegistry()
+	if err := lp.RegisterCollectors(reg); err != nil {
+		return nil, err
+	}
+	serve := metrics.HandlerFor(reg, metrics.DefaultRegistry)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		serve.ServeHTTP(w, r)
+	}, nil
+}
+
 func loadConfig() Config {
 	config := Config{
 		Port:          getEnv("PORT", defaultPort),
