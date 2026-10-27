@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"unheaded/services/wotan/internal/ringbuffer"
 )
 
 // Common errors returned by store implementations.
@@ -42,6 +44,12 @@ type Message struct {
 	RoomID    string    `json:"room_id"`
 	Content   string    `json:"content"`
 	Timestamp time.Time `json:"timestamp"`
+	// Signed is a signed topic message's signature (ADR-105), persisted
+	// with it so that a message read back from the WAL, or replicated from
+	// it to a standby, is still signed (FND-020). Nil for unsigned
+	// messages; omitted from the encoding then, so unsigned messages encode
+	// as before.
+	Signed *ringbuffer.Signature `json:"signed,omitempty"`
 }
 
 // Validate checks if the message has all required fields.

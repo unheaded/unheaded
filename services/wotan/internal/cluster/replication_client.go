@@ -5,6 +5,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 
 	pqtls "unheaded/pkg/tls"
 	"unheaded/pkg/transport/mtls"
+	"unheaded/services/wotan/internal/signing"
 	chatpb "unheaded/services/wotan/proto"
 )
 
@@ -32,9 +34,23 @@ type ReplicationClient struct {
 	lastAppliedSeq atomic.Uint64
 	entriesRecv    atomic.Uint64
 
-	// ApplyFunc is called for each received WAL entry.
-	// The standby wires this to write entries to its local store.
+	// policy decides which topics need a signature and which keys sign
+	// them (FND-020): every entry is checked by VerifyEntry before
+	// ApplyFunc sees it. Nil still refuses unsigned or unverifiable entries
+	// on the built-in signed prefixes (it trusts no key).
+	policy *signing.Policy
+
+	// ApplyFunc is called for each received WAL entry that passed
+	// VerifyEntry. The standby wires this to write entries to its local store.
 	ApplyFunc func(ctx context.Context, entry *chatpb.WALEntry) error
+}
+
+// SetSigningPolicy sets the policy replicated entries are verified against:
+// the same one this node enforces on publish (configs/wotan.yaml
+// topics.signing_keys and topics.signed_prefixes). Call it before
+// StartReplication.
+func (c *ReplicationClient) SetSigningPolicy(p *signing.Policy) {
+	c.policy = p
 }
 
 // NewReplicationClient creates a standby-side replication client.
@@ -116,8 +132,10 @@ func (c *ReplicationClient) StartReplication(ctx context.Context) error {
 			backoff = 1 * time.Second // Reset on success
 		}
 
-		// Request CatchUp from last applied sequence
-		sinceSeq := c.lastAppliedSeq.Load()
+		// Request CatchUp from the entry after the last one handled.
+		// since_seq is inclusive (wal.Scan) and WAL sequences start at 1;
+		// asking from the last handled seq re-delivered it every round.
+		sinceSeq := c.lastAppliedSeq.Load() + 1
 		stream, err := c.client.CatchUp(ctx, &chatpb.CatchUpRequest{
 			SinceSeq: sinceSeq,
 			NodeId:   c.nodeID,
@@ -147,16 +165,7 @@ func (c *ReplicationClient) StartReplication(ctx context.Context) error {
 				break
 			}
 
-			// Apply the entry
-			if c.ApplyFunc != nil {
-				if err := c.ApplyFunc(ctx, entry); err != nil {
-					log.Error().Err(err).Uint64("seq", entry.Sequence).Msg("replication: apply failed")
-					continue // Don't stop replication on apply error
-				}
-			}
-
-			c.lastAppliedSeq.Store(entry.Sequence)
-			c.entriesRecv.Add(1)
+			c.handleEntry(ctx, entry)
 		}
 
 		// Brief pause before reconnecting for more entries
@@ -166,6 +175,40 @@ func (c *ReplicationClient) StartReplication(ctx context.Context) error {
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
+}
+
+// handleEntry verifies one replicated entry and applies it. A rejected
+// entry is counted, logged with its topic and sequence, and skipped for
+// good: its signature will not verify on a retry, and re-requesting it would
+// count it again on every catch-up.
+func (c *ReplicationClient) handleEntry(ctx context.Context, entry *chatpb.WALEntry) {
+	if entry.Sequence <= c.lastAppliedSeq.Load() {
+		return // already handled (a primary that re-sends from an inclusive seq)
+	}
+	if err := VerifyEntry(c.policy, entry); err != nil {
+		reason, topic := RejectSignature, ""
+		var re *RejectError
+		if errors.As(err, &re) {
+			reason, topic = re.Reason, re.Topic
+		}
+		replicationRejected.WithLabelValues(reason).Inc()
+		log.Warn().Err(err).
+			Str("reason", reason).
+			Str("topic", topic).
+			Uint64("seq", entry.Sequence).
+			Str("peer_node", entry.NodeId).
+			Msg("replication: entry rejected, not applied")
+		c.lastAppliedSeq.Store(entry.Sequence)
+		return
+	}
+	if c.ApplyFunc != nil {
+		if err := c.ApplyFunc(ctx, entry); err != nil {
+			log.Error().Err(err).Uint64("seq", entry.Sequence).Msg("replication: apply failed")
+			return // Don't stop replication on apply error
+		}
+	}
+	c.lastAppliedSeq.Store(entry.Sequence)
+	c.entriesRecv.Add(1)
 }
 
 // Ping sends a health check to the primary.

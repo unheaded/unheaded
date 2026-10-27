@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"unheaded/pkg/wotansig"
 	"unheaded/services/wotan/internal/store"
 	chatpb "unheaded/services/wotan/proto"
 )
@@ -114,5 +115,33 @@ func TestPublishTopic_StoreErrorDoesNotFailThePublish(t *testing.T) {
 	case <-rs.got:
 	case <-time.After(2 * time.Second):
 		t.Fatal("the store was never asked")
+	}
+}
+
+// FND-020: a signed message is persisted with its signature. The WAL is what
+// cluster replication sends to a standby; a signature dropped here was a
+// signature no standby could ever receive.
+func TestPublishTopic_PersistsTheSignature(t *testing.T) {
+	f := newDriftFixture(t)
+	rs := newRecordingStore()
+	f.svc.Store = fullStore{recordingStore: rs}
+	req := signedReq(t, f.driftKey, "drift.host1", "heimdall-n1", `{"path":"/etc/x"}`)
+	if _, err := f.svc.PublishTopic(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-rs.got:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the signed publish never reached the store")
+	}
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	sg := rs.pushed[0].Signed
+	if sg == nil {
+		t.Fatal("stored a signed message without its signature")
+	}
+	got := wotansig.Signed{Signature: sg.Signature, PublicKey: sg.PublicKey, Algorithm: sg.Algorithm, SignedAtUnixMs: sg.SignedAtUnixMs}
+	if err := wotansig.VerifyEvent("drift.host1", sg.Sender, []byte(rs.pushed[0].Content), got, [][]byte{f.driftKey.PublicKey()}); err != nil {
+		t.Fatalf("stored signature does not verify: %v", err)
 	}
 }
