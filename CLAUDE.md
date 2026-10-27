@@ -1264,7 +1264,7 @@ if err != nil { log.Fatal(err) }                            // a bad auth config
 RBAC sits behind authentication: a write needs admin, operator or service (a service token carries service);
 an observer key can read but not write. `/health`, `/ready`, `/metrics` stay open. Identities are the key names,
 not compose service names (Cuirass is `unheaded-daemon`). Compliance evidence: `scripts/compliance/check-service-auth.sh`
-(remaining without auth 2026-10-27: akira, wotan). Browsers: dashboard-backend and kanban-app are BFFs (`pkg/bff`): they log the user in at the issuer (`AUTH_ISSUER_URL`; `AUTH_BFF_DEV_PLAINTEXT` for the compose dev issuer), keep the token server-side and give the browser an HttpOnly, Secure, SameSite=Strict session cookie; the dashboard needs a login for every read.
+(remaining without auth 2026-10-27: none; all 13 pass). Wotan clients call `wotanClient.InitServiceIdentity("<id>")` once in `main()`; Wotan verifies the token and `topics.auto_approve` lists verified identities, not display names. Browsers: dashboard-backend and kanban-app are BFFs (`pkg/bff`): they log the user in at the issuer (`AUTH_ISSUER_URL`; `AUTH_BFF_DEV_PLAINTEXT` for the compose dev issuer), keep the token server-side and give the browser an HttpOnly, Secure, SameSite=Strict session cookie; the dashboard needs a login for every read.
 
 **Best Practice**: Swap authenticators via environment variable or config file. Don't hardcode auth backend selection.
 

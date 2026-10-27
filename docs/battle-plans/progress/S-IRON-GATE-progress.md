@@ -109,3 +109,22 @@ ADR-099 §5's signed change record: the Well history row records who and why but
 check-service-auth: akira, wotan remain (Steps 209/222 should expect those two until Akira's step).
 **LIVE 202-205, 208-210, 215-216:** `make binaries && sudo scripts/gen-dev-keys.sh`, then recreate `auth` (now
 `-audiences unheaded,dashboard-backend,kanban-app`), `dashboard-backend`, `kanban-app` (kanban only after the E-A batch).
+
+### Phase 7 code merged (249298fb): all 13 first-party services on auth
+
+`wotanClient.InitServiceIdentity("<id>")` once per process covers healthreport/discovery/logagg clients; a missing key
+warns and runs without a token. Tokens go over plaintext gRPC with a one-time warning until Phase 8 (plan said
+TLS-only: Phase 8 must switch it). `auto_approve` = verified identities; old display names moved to
+`legacy_display_names` (count only with Wotan's auth off: keeps Appendix A3 rollback). Topic reads need a token; a
+publish under another identity's subscriber/sender id is refused; admin API needs role `admin` + the admin key, off by
+default. Akira: `GET /api/v1/status` stays open (runbooks curl it), empty allowlist. Wotan clients on its allowlist:
+akira, anomaly, architect, captain, chaos-controller, dashboard-backend, heimdall, kanban-app, kev-poller, micromanager,
+monad, perf-benchmark, sophia, sword, timeguru, trace-collector (Go), unheaded-baseline, unheaded-daemon, zhen-agentd,
+zhen-claude (gateway/shield authenticate but are not auto-approved; unheaded-cli listed, no caller).
+**Not converted, refused once Wotan's auth is on:** `scripts/run-runbook.py` (runbook-runner: Champion 12's step
+progress goes dark), the Rust `cmd/trace-collector` gRPC publisher and `cmd/ebpf-collector` HTTP publisher (eBPF flows!),
+`cmd/demo-trace-injector`, anonymous curls in `scripts/demo-start.sh`, `scripts/bare-metal/validate-cross-host.sh`,
+`runbooks/wotan/cluster-*`. The Rust collectors need a token before Wotan's auth goes live or the dashboard loses flows.
+perf-benchmark e2e reads the dashboard's `/api/v1/ebpf/events`, which needs a BFF login since Phase 6.
+LIVE 239-250: `make binaries && sudo scripts/gen-dev-keys.sh` first (Wotan refuses to start with auth on and nothing to
+verify against; every binary without a readable key loses Wotan). East needs keys for every service before a deb upgrade.

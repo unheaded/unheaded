@@ -770,37 +770,37 @@ For each `<svc>` in: zhen-agentd, protocol-api, kanban-app, timeguru, captain, a
 **Time**: 4 h
 **Agent**: Coordinator
 
-- [ ] **Step 223** [R] ~5m
+- [x] **Step 223** [R] ~5m
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'IsAutoApproved|displayName|display_name' services/wotan/internal/grpc/topic_service.go services/wotan/internal/api/topics.go | head -20 && grep -nE 'UnaryInterceptor|StreamInterceptor|grpc.NewServer' services/wotan/cmd/wotan/main.go | head && sed -n '70,120p' pkg/wotan-client/grpc_client.go
   ```
-- [ ] **Step 224** [W][CODE] ~15m: Tests `pkg/wotan-client/auth_test.go`: `NewClientWithGRPC` given `WithServiceToken(minter)` attaches `authorization: Bearer <token aud=wotan>` to every unary and stream call (a `bufconn` gRPC server asserts metadata) and to every HTTP request (`httptest` asserts header); without a minter, nothing is attached (compatibility while Wotan is still open); the token refreshes when the minter rotates.
-- [ ] **Step 225** [TEST][B] ~1m: Red
+- [x] **Step 224** [W][CODE] ~15m: Tests `pkg/wotan-client/auth_test.go`: `NewClientWithGRPC` given `WithServiceToken(minter)` attaches `authorization: Bearer <token aud=wotan>` to every unary and stream call (a `bufconn` gRPC server asserts metadata) and to every HTTP request (`httptest` asserts header); without a minter, nothing is attached (compatibility while Wotan is still open); the token refreshes when the minter rotates.
+- [x] **Step 225** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/wotan-client/ -run 'ServiceToken|Auth' -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 226** [V] ~1m: Red.
-- [ ] **Step 227** [W][CODE] ~30m: `pkg/wotan-client`: option `WithServiceToken(m *auth.ServiceTokenMinter)`; a `credentials.PerRPCCredentials` implementation (`RequireTransportSecurity()` returns `true` unless the client was built with `WithInsecureTransport()` for tests/localhost; this makes Phase 8 TLS the default path); HTTP control-plane requests set `Authorization`. Wire every service's Wotan client construction (grep `NewClientWithGRPC(` across cmd/ services/) to pass the minter from Phase 6.
-- [ ] **Step 228** [TEST][B] ~3m: Green
+- [x] **Step 226** [V] ~1m: Red.
+- [x] **Step 227** [W][CODE] ~30m: `pkg/wotan-client`: option `WithServiceToken(m *auth.ServiceTokenMinter)`; a `credentials.PerRPCCredentials` implementation (`RequireTransportSecurity()` returns `true` unless the client was built with `WithInsecureTransport()` for tests/localhost; this makes Phase 8 TLS the default path); HTTP control-plane requests set `Authorization`. Wire every service's Wotan client construction (grep `NewClientWithGRPC(` across cmd/ services/) to pass the minter from Phase 6.
+- [x] **Step 228** [TEST][B] ~3m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/wotan-client/... -race -count=1 2>&1 | tail -2 && go build ./... && echo BUILD_OK
   ```
-- [ ] **Step 229** [V] ~1m: `ok`, `BUILD_OK`.
-- [ ] **Step 230** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 223-229: wotan-client sends service tokens (gRPC metadata + HTTP)`.
-- [ ] **Step 231** [W][CODE] ~15m: Tests `services/wotan/internal/grpc/auth_test.go` + `services/wotan/internal/api/auth_test.go`: with `AUTH_ENABLED=true`, a publish/subscribe without a token → `codes.Unauthenticated` / HTTP 401; with a token whose `aud≠wotan` → refused; with a valid token, the verified `sub` becomes the member identity; `AutoApprover.IsAutoApproved(identity)` is consulted with the verified `sub` and `display_name` is ignored for approval (it stays as a label); `/health`, `/ready`, `/metrics`, `grpc.health.v1` open.
-- [ ] **Step 232** [TEST][B] ~1m: Red
+- [x] **Step 229** [V] ~1m: `ok`, `BUILD_OK`.
+- [x] **Step 230** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 223-229: wotan-client sends service tokens (gRPC metadata + HTTP)`.
+- [x] **Step 231** [W][CODE] ~15m: Tests `services/wotan/internal/grpc/auth_test.go` + `services/wotan/internal/api/auth_test.go`: with `AUTH_ENABLED=true`, a publish/subscribe without a token → `codes.Unauthenticated` / HTTP 401; with a token whose `aud≠wotan` → refused; with a valid token, the verified `sub` becomes the member identity; `AutoApprover.IsAutoApproved(identity)` is consulted with the verified `sub` and `display_name` is ignored for approval (it stays as a label); `/health`, `/ready`, `/metrics`, `grpc.health.v1` open.
+- [x] **Step 232** [TEST][B] ~1m: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./services/wotan/... -run 'Auth' -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 233** [V] ~1m: Red.
-- [ ] **Step 234** [W][CODE] ~45m: `services/wotan/cmd/wotan/main.go`: build the `auth` config with `LoadServiceAuthConfig("wotan")`; add `auth.GRPCUnaryInterceptor` / `GRPCStreamInterceptor` to `grpcOpts` (skip `grpc.health.v1`), and `auth.WrapHandler` already on the HTTP mux. `internal/grpc/topic_service.go`: read `auth.IdentityFromContext(ctx)`; change `AutoApprover` to `IsAutoApproved(identity *auth.Identity, displayName string) bool` where the api.TopicConfig implementation matches `identity.Subject` against `topics.auto_approve` and, when `identity == nil` (auth off), falls back to the old display-name behaviour with a one-time WARN log naming ADR-103. Same on the HTTP path in `internal/api/topics.go`. Member records store `sub`. `configs/wotan.yaml` `auto_approve`: rename entries to service names (`timeguru`, `loadbalancer`, … one per first-party service and `heimdall`, `chaos-controller`, `unheaded-cli`), and delete the catch-all `service` (every caller now has a name).
-- [ ] **Step 235** [TEST][B] ~3m: Green
+- [x] **Step 233** [V] ~1m: Red.
+- [x] **Step 234** [W][CODE] ~45m: `services/wotan/cmd/wotan/main.go`: build the `auth` config with `LoadServiceAuthConfig("wotan")`; add `auth.GRPCUnaryInterceptor` / `GRPCStreamInterceptor` to `grpcOpts` (skip `grpc.health.v1`), and `auth.WrapHandler` already on the HTTP mux. `internal/grpc/topic_service.go`: read `auth.IdentityFromContext(ctx)`; change `AutoApprover` to `IsAutoApproved(identity *auth.Identity, displayName string) bool` where the api.TopicConfig implementation matches `identity.Subject` against `topics.auto_approve` and, when `identity == nil` (auth off), falls back to the old display-name behaviour with a one-time WARN log naming ADR-103. Same on the HTTP path in `internal/api/topics.go`. Member records store `sub`. `configs/wotan.yaml` `auto_approve`: rename entries to service names (`timeguru`, `loadbalancer`, … one per first-party service and `heimdall`, `chaos-controller`, `unheaded-cli`), and delete the catch-all `service` (every caller now has a name).
+- [x] **Step 235** [TEST][B] ~3m: Green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./services/wotan/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 236** [V] ~1m: `ok`.
-- [ ] **Step 237** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 231-236: Wotan verifies service tokens; auto-approve keys on verified sub`.
-- [ ] **Step 238** [W] ~5m: compose `wotan`: `AUTH_ENABLED: "true"`, `AUTH_ALLOW_CALLERS` = every first-party service name + `heimdall,chaos-controller,unheaded-cli,kev-poller,huginn,anomaly,trace-collector`; unit `unheaded-wotan.service`: `Environment=AUTH_ENABLED=true` + the list; east's `wotan.yaml` note in Phase 14 (M-041 adds chaos-controller already).
+- [x] **Step 236** [V] ~1m: `ok`.
+- [x] **Step 237** [C]: **COMMIT CHECKPOINT** `[PLAN S-IRON-GATE] Steps 231-236: Wotan verifies service tokens; auto-approve keys on verified sub`.
+- [x] **Step 238** [W] ~5m: compose `wotan`: `AUTH_ENABLED: "true"`, `AUTH_ALLOW_CALLERS` = every first-party service name + `heimdall,chaos-controller,unheaded-cli,kev-poller,huginn,anomaly,trace-collector`; unit `unheaded-wotan.service`: `Environment=AUTH_ENABLED=true` + the list; east's `wotan.yaml` note in Phase 14 (M-041 adds chaos-controller already).
 - [ ] **Step 239** [BUILD][B] ~8m: Whole stack live (auth on everywhere)
   ```bash
   cd /home/govan/tmp/unheaded && docker compose up -d --build 2>&1 | tail -3 && sleep 25 && for s in wotan timeguru captain architect micromanager monad sophia dashboard-backend kanban-app cuirass akira; do printf '%-18s ' $s; docker compose logs --tail=200 $s 2>&1 | grep -ciE 'unauthenticated|401|403|permission denied'; done

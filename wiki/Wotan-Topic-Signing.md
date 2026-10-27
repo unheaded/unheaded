@@ -27,8 +27,10 @@ Sign the SHA-256 of `"wotan/topic-sig/v2" ‖ 0 ‖ topic ‖ 0 ‖ sender_id �
 Deterministic, includes sender to prevent identity spoofing.
 
 The sender is the publish request's `sender_id`, or, for a publisher that
-sent none (every gRPC client: it is authorized by `display_name` against
-`topics.auto_approve`), that display name (`"service"` when absent). A signed
+sent none, the identity Wotan verified from its EdDSA service token (ADR-103
+§6, S-IRON-GATE Phase 7: `topics.auto_approve` lists verified identities, and a
+publish under another identity's id is refused). With Wotan's auth off, the
+legacy `display_name` is used instead (`topics.legacy_display_names`). A signed
 event's `sender_id` is that same string.
 
 ## Topic Policy
