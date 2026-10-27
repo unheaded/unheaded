@@ -655,20 +655,20 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
 
 For each `<svc>` in: zhen-agentd, protocol-api, kanban-app, timeguru, captain, architect, micromanager, monad, sophia, sword, wiki-server:
 
-- [ ] **Step 179** [W][CODE] ~10m each: `cmd/<svc>` or `services/<svc>`: an `auth_e2e_test.go` modelled on Step 160 (unauth write 401; trusted+allowlisted token 200/non-auth error; untrusted kid 401; trusted-not-allowlisted 403; health/ready/metrics open). Writers per service: zhen-agentd ← unheaded-cli, dashboard-backend; protocol-api ← unheaded-cli; kanban-app ← dashboard-backend, zhen-agentd, micromanager; timeguru ← micromanager, kanban-app; captain/architect/micromanager ← each other + dashboard-backend; monad/sophia ← unheaded-cli, dashboard-backend; sword ← unheaded-cli, dashboard-backend; wiki-server ← none (reads only; writes 403 for everyone until a user token). Human JWKS tokens (role `operator`) also pass writes where the service is browser-facing (kanban-app, sword, cuirass).
-- [ ] **Step 180** [TEST][B] ~1m each: Red
+- [x] **Step 179** [W][CODE] ~10m each: `cmd/<svc>` or `services/<svc>`: an `auth_e2e_test.go` modelled on Step 160 (unauth write 401; trusted+allowlisted token 200/non-auth error; untrusted kid 401; trusted-not-allowlisted 403; health/ready/metrics open). Writers per service: zhen-agentd ← unheaded-cli, dashboard-backend; protocol-api ← unheaded-cli; kanban-app ← dashboard-backend, zhen-agentd, micromanager; timeguru ← micromanager, kanban-app; captain/architect/micromanager ← each other + dashboard-backend; monad/sophia ← unheaded-cli, dashboard-backend; sword ← unheaded-cli, dashboard-backend; wiki-server ← none (reads only; writes 403 for everyone until a user token). Human JWKS tokens (role `operator`) also pass writes where the service is browser-facing (kanban-app, sword, cuirass).
+- [x] **Step 180** [TEST][B] ~1m each: Red
   ```bash
   cd /home/govan/tmp/unheaded && go test ./<pkg-of-svc>/ -run 'AuthE2E' -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 181** [W][CODE] ~10m each: wire `LoadServiceAuthConfig("<svc>")` + RBAC default policies; where the service calls another service, inject `auth.ServiceTokenMinter` and set `Authorization` on outgoing requests (grep each service's HTTP client construction: `http.Client{` / `httputil.NewClient`).
-- [ ] **Step 182** [TEST][B] ~2m each: Green with `-race`
+- [x] **Step 181** [W][CODE] ~10m each: wire `LoadServiceAuthConfig("<svc>")` + RBAC default policies; where the service calls another service, inject `auth.ServiceTokenMinter` and set `Authorization` on outgoing requests (grep each service's HTTP client construction: `http.Client{` / `httputil.NewClient`).
+- [x] **Step 182** [TEST][B] ~2m each: Green with `-race`
   ```bash
   cd /home/govan/tmp/unheaded && go test ./<pkg-of-svc>/... -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 183** [W] ~3m each: compose `AUTH_ENABLED: "true"` + `AUTH_ALLOW_CALLERS`; systemd unit `Environment=AUTH_ENABLED=true` + allowlist.
-- [ ] **Step 184** [C] each: `[PLAN S-IRON-GATE] Step 179-184 (<svc>): auth on, writers allowlisted`.
+- [x] **Step 183** [W] ~3m each: compose `AUTH_ENABLED: "true"` + `AUTH_ALLOW_CALLERS`; systemd unit `Environment=AUTH_ENABLED=true` + allowlist.
+- [x] **Step 184** [C] each: `[PLAN S-IRON-GATE] Step 179-184 (<svc>): auth on, writers allowlisted`.
   - Steps 179-184 are repeated 11 times, once per service in the order listed; log each service's pass in the progress file as `179.<svc>` … `184.<svc>`. Time: ~30 min per service.
-- [ ] **Step 185** [V] ~2m: After every service
+- [x] **Step 185** [V] ~2m: After every service
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/compliance/check-service-auth.sh 2>&1 | tail -4
   ```

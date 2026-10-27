@@ -1244,19 +1244,27 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 
 **Location**: `pkg/auth/`
 
-All Unheaded services support pluggable authentication. Development default is **NoopAuthenticator**. Production uses **APIKeyAuthenticator** or **JWTAuthenticator**.
+ADR-103 (S-IRON-GATE, 2026-10-27). Services authenticate each other with **EdDSA service tokens**: each binary
+has its own Ed25519 key (`unheaded-keygen`, `/etc/unheaded/keys/<identity>.key`, compose secret
+`svc_key_<identity>`), mints 5-minute tokens per target (`auth.LoadServiceTokenMinter(...).AuthorizationHeader(aud)`),
+and a service accepts a token only if the caller's `.pub` is in `trust.d` (the file name binds `sub`) and the caller
+is in `AUTH_ALLOW_CALLERS` (else 403). Humans: `uhk_` API keys (hashed; memory, file or Well store,
+`unheaded-cli apikey`) and OIDC user tokens verified by JWKS (`AUTH_OIDC_ISSUER_URL`, capped at
+`AUTH_OIDC_MAX_LIFETIME`, default 1h); the built-in issuer is `cmd/unheaded-auth` (port 19020). HS256 is test-only.
 
-**Usage Pattern**:
+**Usage Pattern** (every service in S-IRON-GATE Phase 6):
 ```go
-authenticator := auth.NewAPIKeyAuthenticator(secretsManager)
-router.Use(auth.Middleware(authenticator))
+cfg := auth.LoadServiceAuthConfig("<identity>")           // AUTH_ENABLED, AUTH_TRUST_DIR, AUTH_KEY_FILE, AUTH_ALLOW_CALLERS, ...
+h, err := auth.NewServiceHandler(mux, cfg, auth.ServiceRoutes{ // or auth.NewServiceChain(cfg, routes) for a middleware
+	OpenReads: []string{"/api/v1/info"},                    // GET/HEAD without a token; OpenPaths for every method
+	RBAC:      nil,                                         // nil: DefaultServicePolicies(cfg.ServiceName)
+})
+if err != nil { log.Fatal(err) }                            // a bad auth config refuses to start
 ```
-
-**Available Authenticators**:
-- **NoopAuthenticator**: Allows all requests (development/testing)
-- **APIKeyAuthenticator**: Static API keys (staging/simple deployments)
-- **JWTAuthenticator**: Federated JWT tokens (production, OAuth 2.0 compatible)
-- **RBACAuthorizer**: Role-based access control on top of any authenticator
+RBAC sits behind authentication: a write needs admin, operator or service (a service token carries service);
+an observer key can read but not write. `/health`, `/ready`, `/metrics` stay open. Identities are the key names,
+not compose service names (Cuirass is `unheaded-daemon`). Compliance evidence: `scripts/compliance/check-service-auth.sh`
+(remaining without auth 2026-10-27: akira, dashboard-backend, kanban-app, wotan).
 
 **Best Practice**: Swap authenticators via environment variable or config file. Don't hardcode auth backend selection.
 

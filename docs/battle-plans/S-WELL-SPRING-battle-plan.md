@@ -196,7 +196,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Ledger-presence helper
 
-- [ ] **Step 19** [CODE][W] ~5m: Test first: `pkg/database/ledger_test.go`
+- [x] **Step 19** [CODE][W] ~5m: Test first: `pkg/database/ledger_test.go`
   ```go
   // RequireMigrations returns nil when every named file has a row in
   // well_schema_migrations, ErrMigrationMissing{File} otherwise. Test with
@@ -206,27 +206,27 @@ Copyright (c) 2024-2026 Stevie Bellis.
   // list -> nil; query error -> wrapped.
   ```
   Write the four cases against a `fakeQuerier` returning canned rows.
-- [ ] **Step 20** [TEST][B] ~1m: Expect FAIL (undefined symbols)
+- [x] **Step 20** [TEST][B] ~1m: Expect FAIL (undefined symbols)
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/database/ -run TestRequireMigrations -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 21** [V] ~1m: FAIL with `undefined: RequireMigrations` (red).
-- [ ] **Step 22** [CODE][W] ~8m: `pkg/database/ledger.go`: `type Querier interface{ QueryContext(ctx, q string, args ...any) (*sql.Rows, error) }`; `type ErrMigrationMissing struct{ File string }`; `func RequireMigrations(ctx context.Context, q Querier, files ...string) error` doing `SELECT filename FROM well_schema_migrations WHERE filename = ANY($1)` and diffing. Column name: confirm with `grep -n 'well_schema_migrations' db/migrations/*.sql | head -3` and use the real column.
-- [ ] **Step 23** [TEST][B] ~1m: Expect PASS
+- [x] **Step 21** [V] ~1m: FAIL with `undefined: RequireMigrations` (red).
+- [x] **Step 22** [CODE][W] ~8m: `pkg/database/ledger.go`: `type Querier interface{ QueryContext(ctx, q string, args ...any) (*sql.Rows, error) }`; `type ErrMigrationMissing struct{ File string }`; `func RequireMigrations(ctx context.Context, q Querier, files ...string) error` doing `SELECT filename FROM well_schema_migrations WHERE filename = ANY($1)` and diffing. Column name: confirm with `grep -n 'well_schema_migrations' db/migrations/*.sql | head -3` and use the real column.
+- [x] **Step 23** [TEST][B] ~1m: Expect PASS
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/database/ -run TestRequireMigrations -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 24** [V] ~1m: `ok` (green). If FAIL → Step 25.
-- [ ] **Step 25** [D] ~5m: Print the ledger DDL and fix the column: `grep -n -A6 'CREATE TABLE.*well_schema_migrations' db/migrations/*.sql`. Max 2 attempts, then STUCK.
-- [ ] **Step 26** [CODE][W] ~10m: kanban-app: replace the DDL at `cmd/kanban-app/store.go:121` with `database.RequireMigrations(ctx, db, "034_app_kanban_genesis.sql")` (the file that owns `kanban_tasks` today; confirm with `grep -ln 'kanban_tasks' db/migrations/*.sql`) and return a fatal, logged `ErrMigrationMissing` so the unit fails loud (ADR-101: the ledger is the truth). Keep the `tasks` DDL only in a `_test.go` fixture if tests used it.
-- [ ] **Step 27** [CODE][W] ~10m: timeguru: same at `services/timeguru/internal/storage/storage.go:83,94` for `timeline` and `milestone_history` (confirm owning migration with `grep -lnE 'timeline_milestones|milestone_history|CREATE TABLE timeline' db/migrations/*.sql`). If the table has NO migration yet, write `db/migrations/035_app_timeguru_tables.sql` (owner role per 025 pattern) and add the MANIFEST line `unheaded_app 035_app_timeguru_tables.sql`.
-- [ ] **Step 28** [TEST][B] ~3m: Package tests + docker migrate suite
+- [x] **Step 24** [V] ~1m: `ok` (green). If FAIL → Step 25.
+- [x] **Step 25** [D] ~5m: Print the ledger DDL and fix the column: `grep -n -A6 'CREATE TABLE.*well_schema_migrations' db/migrations/*.sql`. Max 2 attempts, then STUCK.
+- [x] **Step 26** [CODE][W] ~10m: kanban-app: replace the DDL at `cmd/kanban-app/store.go:121` with `database.RequireMigrations(ctx, db, "034_app_kanban_genesis.sql")` (the file that owns `kanban_tasks` today; confirm with `grep -ln 'kanban_tasks' db/migrations/*.sql`) and return a fatal, logged `ErrMigrationMissing` so the unit fails loud (ADR-101: the ledger is the truth). Keep the `tasks` DDL only in a `_test.go` fixture if tests used it.
+- [x] **Step 27** [CODE][W] ~10m: timeguru: same at `services/timeguru/internal/storage/storage.go:83,94` for `timeline` and `milestone_history` (confirm owning migration with `grep -lnE 'timeline_milestones|milestone_history|CREATE TABLE timeline' db/migrations/*.sql`). If the table has NO migration yet, write `db/migrations/035_app_timeguru_tables.sql` (owner role per 025 pattern) and add the MANIFEST line `unheaded_app 035_app_timeguru_tables.sql`.
+- [x] **Step 28** [TEST][B] ~3m: Package tests + docker migrate suite
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/kanban-app/... ./services/timeguru/... -race -count=1 2>&1 | tail -4 && bash scripts/well/test-migrate.sh 2>&1 | tail -5
   ```
-- [ ] **Step 29** [V] ~1m: both `ok`; test-migrate PASS (ledger sha256 of 035 recorded). If test-migrate fails on 035 → Step 30.
-- [ ] **Step 30** [D] ~5m: `bash scripts/check-well-migrations.sh 2>&1 | tail -8` (psql meta-commands, ordering, owner). Fix the file; a migration never applied anywhere may still be edited.
-- [ ] **Step 31** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 29** [V] ~1m: both `ok`; test-migrate PASS (ledger sha256 of 035 recorded). If test-migrate fails on 035 → Step 30.
+- [x] **Step 30** [D] ~5m: `bash scripts/check-well-migrations.sh 2>&1 | tail -8` (psql meta-commands, ordering, owner). Fix the file; a migration never applied anywhere may still be edited.
+- [x] **Step 31** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   cd /home/govan/tmp/unheaded && git add -A && git commit $GPGFLAG -m "[PLAN S-WELL-SPRING] Steps 19-30: ledger-presence helper; kanban-app and timeguru stop creating tables at startup
 
@@ -242,27 +242,27 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 
 ### The 030-034 batch, rehearsed
 
-- [ ] **Step 32** [B] ~3m: Fresh docker Well from init, then apply 030-038 as `well-migrate` would (the suites do this per file; this runs the whole batch once)
+- [x] **Step 32** [B] ~3m: Fresh docker Well from init, then apply 030-038 as `well-migrate` would (the suites do this per file; this runs the whole batch once)
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/well/test-migrate.sh 2>&1 | grep -E 'applied|PASS|FAIL' | tail -12
   ```
-- [ ] **Step 33** [V] ~1m: every file 030..035 `applied` once, ledger rows present, PASS.
-- [ ] **Step 34** [W] ~10m: `scripts/well/batch-apply.sh`: wraps `go run ./cmd/well-migrate -dir db/migrations -lock-timeout 5s -statement-timeout 5m` with: (1) refuse unless `WELL_MIGRATE_PASSWORD` set, (2) `pg_dump` of `unheaded_app` and `unheaded_ops` to `/srv/backups/unheaded-well/pre-batch-$(date -u +%Y%m%dT%H%M%SZ)/` first (same layout `scripts/well/test-backup-restore.sh` restores), (3) `--dry-run` flag that prints the pending files from the MANIFEST minus the ledger and exits, (4) prints the ledger diff after. Mode 0750, SPDX header.
-- [ ] **Step 35** [W] ~6m: `scripts/well/batch-rollback.sh`: given the pre-batch directory, restores both databases with `pg_restore --clean --if-exists` as the owner role (the drill script's path), then prints `well_schema_migrations` tail. Refuses if the directory lacks both dumps.
-- [ ] **Step 36** [TEST][W] ~8m: `scripts/well/test-batch-apply.sh`: docker Well at 029 → `batch-apply.sh --dry-run` lists 030-035 → apply → ledger has them → `batch-rollback.sh` → ledger back at 029 → apply again idempotent. Add it to the suite list that `scripts/ci-local.sh` or the Makefile runs (grep for `test-migrate.sh` and add beside it).
-- [ ] **Step 37** [TEST][B] ~4m
+- [x] **Step 33** [V] ~1m: every file 030..035 `applied` once, ledger rows present, PASS.
+- [x] **Step 34** [W] ~10m: `scripts/well/batch-apply.sh`: wraps `go run ./cmd/well-migrate -dir db/migrations -lock-timeout 5s -statement-timeout 5m` with: (1) refuse unless `WELL_MIGRATE_PASSWORD` set, (2) `pg_dump` of `unheaded_app` and `unheaded_ops` to `/srv/backups/unheaded-well/pre-batch-$(date -u +%Y%m%dT%H%M%SZ)/` first (same layout `scripts/well/test-backup-restore.sh` restores), (3) `--dry-run` flag that prints the pending files from the MANIFEST minus the ledger and exits, (4) prints the ledger diff after. Mode 0750, SPDX header.
+- [x] **Step 35** [W] ~6m: `scripts/well/batch-rollback.sh`: given the pre-batch directory, restores both databases with `pg_restore --clean --if-exists` as the owner role (the drill script's path), then prints `well_schema_migrations` tail. Refuses if the directory lacks both dumps.
+- [x] **Step 36** [TEST][W] ~8m: `scripts/well/test-batch-apply.sh`: docker Well at 029 → `batch-apply.sh --dry-run` lists 030-035 → apply → ledger has them → `batch-rollback.sh` → ledger back at 029 → apply again idempotent. Add it to the suite list that `scripts/ci-local.sh` or the Makefile runs (grep for `test-migrate.sh` and add beside it).
+- [x] **Step 37** [TEST][B] ~4m
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/well/test-batch-apply.sh 2>&1 | tail -6; bash -n scripts/well/batch-apply.sh scripts/well/batch-rollback.sh && echo "syntax ok"
   ```
-- [ ] **Step 38** [V] ~1m: PASS; `syntax ok`. If rollback leaves 030 rows → Step 39.
-- [ ] **Step 39** [D] ~5m: The ledger lives in the migrated database; `--clean` must drop and recreate `well_schema_migrations` too. Check `pg_restore -l` lists it; add `--no-owner` only if role mismatch, never `--superuser`.
-- [ ] **Step 40** [DECIDE][DESIGN][W] ~3m: **M-075 kanban_tasks soft-delete purge.** RECOMMENDATION: amend ADR-011 Q4 to "soft-deleted cards are purged by the retention timer after 90 days" and let Phase 4's retention job own it (no separate purge). Rationale: one purge mechanism; the retention policy already names a 90-day class. Override ONLY if the policy ratification (E-C) picks a different age. Write the amendment paragraph into `docs/adr/ADR-011*.md` under "Amendments".
-- [ ] **Step 41** [W] ~4m: `scripts/well/index-drops-after-2026-11-15.sh`: refuses to run before 2026-11-15 (`date -u +%s` check), runs `docs/battle-plans/well-health-2026-10-15/well_health.sql` (confirm the path with `ls docs/battle-plans/well-health-2026-10-15/`) against the Well, prints indexes still at `idx_scan = 0`, and emits `DROP INDEX CONCURRENTLY` statements to stdout only (never executes). M-076.
-- [ ] **Step 42** [B] ~1m
+- [x] **Step 38** [V] ~1m: PASS; `syntax ok`. If rollback leaves 030 rows → Step 39.
+- [x] **Step 39** [D] ~5m: The ledger lives in the migrated database; `--clean` must drop and recreate `well_schema_migrations` too. Check `pg_restore -l` lists it; add `--no-owner` only if role mismatch, never `--superuser`.
+- [x] **Step 40** [DECIDE][DESIGN][W] ~3m: **M-075 kanban_tasks soft-delete purge.** RECOMMENDATION: amend ADR-011 Q4 to "soft-deleted cards are purged by the retention timer after 90 days" and let Phase 4's retention job own it (no separate purge). Rationale: one purge mechanism; the retention policy already names a 90-day class. Override ONLY if the policy ratification (E-C) picks a different age. Write the amendment paragraph into `docs/adr/ADR-011*.md` under "Amendments".
+- [x] **Step 41** [W] ~4m: `scripts/well/index-drops-after-2026-11-15.sh`: refuses to run before 2026-11-15 (`date -u +%s` check), runs `docs/battle-plans/well-health-2026-10-15/well_health.sql` (confirm the path with `ls docs/battle-plans/well-health-2026-10-15/`) against the Well, prints indexes still at `idx_scan = 0`, and emits `DROP INDEX CONCURRENTLY` statements to stdout only (never executes). M-076.
+- [x] **Step 42** [B] ~1m
   ```bash
   cd /home/govan/tmp/unheaded && bash -n scripts/well/index-drops-after-2026-11-15.sh && bash scripts/well/index-drops-after-2026-11-15.sh 2>&1 | head -2
   ```
-- [ ] **Step 43** [V] ~1m: syntax ok; output is the "not before 2026-11-15" refusal. Record the follow-on in the progress file: run it in the first live window after 2026-11-15 and commit the DROP list as a 03x migration.
+- [x] **Step 43** [V] ~1m: syntax ok; output is the "not before 2026-11-15" refusal. Record the follow-on in the progress file: run it in the first live window after 2026-11-15 and commit the DROP list as a 03x migration.
 - [ ] **Step 44** [ESCALATE] **E-A** ~0m: Context: 030-034 are tested, `batch-apply.sh --dry-run` lists them plus 035 (and 036-038 from Phases 2-4 once written; this escalation covers the whole sprint's batch, applied once at the end of Phase 4 or in any window Stevie opens). Question: when is the window, and does the Well backup timer's last run (`systemctl list-timers unheaded-well-backup.timer`) count or do we run `batch-apply.sh`'s own dump? Why Stevie: live data, downtime for kanban/timeguru while they restart on the ledger check.
 - [ ] **Step 45** [AFTER-E-A][LIVE-RO][B] ~1m: Pre-batch dry run against the live Well
   ```bash

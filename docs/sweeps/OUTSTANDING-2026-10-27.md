@@ -58,7 +58,7 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 ### E04 — SERVICE AUTH + INTERNAL TLS  (tier d, size L, 7 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |
 |---|---|---|---|---|---|---|
-| M-050 | ADR-103 build: Ed25519 service JWTs, per-service 0400 keys + `trust.d`, `unheaded-keygen`, hashed `uhk_` API keys + gitleaks rule, OIDC/JWKS built-in issuer, BFF cookies; Cuirass first, Wotan last; closes `check-service-auth.sh` high | ADR T-01; SEC CG-12; PLANS D-10 | docs/adr/ADR-103 | P → keygen + packaging, uhk_ API keys + gitleaks rule, built-in issuer merged 2026-10-27 (b341e904, 362755e9; user-token lifetime cap fefac3e0); callers (Phase 6+) and live steps open | Y: Q1 issuer placement, Q2 lab IdP, Q3 Ed25519→ML-DSA, Q4 key store | L |
+| M-050 | ADR-103 build: Ed25519 service JWTs, per-service 0400 keys + `trust.d`, `unheaded-keygen`, hashed `uhk_` API keys + gitleaks rule, OIDC/JWKS built-in issuer, BFF cookies; Cuirass first, Wotan last; closes `check-service-auth.sh` high | ADR T-01; SEC CG-12; PLANS D-10 | docs/adr/ADR-103 | P → keygen + packaging, uhk_ API keys + gitleaks rule, built-in issuer merged 2026-10-27 (b341e904, 362755e9; user-token lifetime cap fefac3e0); per-service wave merged 8a0daa5e (4 services left: akira, dashboard BFF, kanban login, wotan); live steps open | Y: Q1 issuer placement, Q2 lab IdP, Q3 Ed25519→ML-DSA, Q4 key store | L |
 | M-051 | FND-017: Wotan + 11 services `-enable-tls` in compose/units with pkg/tls Strict profile; cert distribution via M-050 key layout; non-localhost REST refuses plaintext | ADR T-02; SEC FND-017; PLANS D-10/F-40; INT D-17 | docker-compose.yml:106-117 | P | N (after M-050) | M |
 | M-052 | Wotan auto-approve binds to token/cert identity, not self-reported `display_name`; plus per-topic publish ACLs (today any approved sender_id or allowlisted name may publish to any topic; from M-038, 2026-10-27) | PROTO WOT-06 | services/wotan/internal/grpc/topic_service.go:56-67 | NS | N | M |
 | M-053 | Wotan topic signing for `audit.`/`health.`/`alerts.critical` prefixes + drift keys (E5) | SEC CG-14, RT-20 | services/wotan/internal/signing/policy.go:18 | P | Y: E5 per-node key custody | M |
@@ -81,13 +81,13 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 ### E06 — THE WELL AS SOURCE OF TRUTH + DATA HYGIENE  (tier d, size M, 8 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |
 |---|---|---|---|---|---|---|
-| M-070 | ADR-106 Q1: live apply migrations 030-034 as one batch (unblocks `-confirm queue`, worker, kanban card branch/review_note) | ADR-106 Q1; PLANS F-22 | db/migrations/030-034 | NS | Y: apply window | S |
+| M-070 | ADR-106 Q1: live apply migrations 030-034 as one batch (unblocks `-confirm queue`, worker, kanban card branch/review_note) | ADR-106 Q1; PLANS F-22 | db/migrations/030-034 | P → batch 030-038 rehearsed (test-batch-apply.sh), dry-run + rollback scripted 2026-10-27; live apply = E-A | Y: apply window | S |
 | M-071 | E1 / FND-015: Well PG 16→18 with `ssl_groups` (runbook ready) | SEC FND-015; NEXT-5 E1 | runbooks/data/well-pg18-upgrade.yaml | NS | Y: E1 go (downtime) | M |
 | M-072 | Deploy history + chaos journal into the Well (today pkg/statefile); Sword + chaos-controller writers | PLANS F-08; ADR-099 | S-REAL-STEEL follow-on | NS | N | M |
-| M-073 | kanban-app + timeguru still `CREATE TABLE IF NOT EXISTS` at startup: ledger check that refuses on missing migration | ADR W-09 | cmd/kanban-app/store.go | P | N | S |
+| M-073 | kanban-app + timeguru still `CREATE TABLE IF NOT EXISTS` at startup: ledger check that refuses on missing migration | ADR W-09 | cmd/kanban-app/store.go | CLOSED 2026-10-27 S24 (no Well DDL at startup; the two CREATE TABLEs are local SQLite; kanban-app refuses an unmigrated Well) | N | S |
 | M-074 | Retention: ratify policy v1; archive-then-purge respecting append-only trigger; timers for service_health_*, zhen_conversations (DELETE grant); PII redaction before `_pg_log` | SEC DL-01, RT-12, RT-13, CG-04 | docs/policy/retention-policy-v1 | P | Y: ratify | M |
-| M-075 | kanban_tasks soft-delete purge (ADR-011 Q4) or amend Q4 | ADR X-02 | db/migrations | P | N | S |
-| M-076 | ERDA deferred-with-trigger: drop zero-scan indexes after 2026-11-15; NOT NULL/identity migration | PLANS B-25 | WELL-ERDA-AUDIT:240-255 | P | N | S |
+| M-075 | kanban_tasks soft-delete purge (ADR-011 Q4) or amend Q4 | ADR X-02 | db/migrations | CLOSED 2026-10-27 S24 (decided: 90 days, purged by the Phase 4 retention timer; ADR-011 Q4) | N | S |
+| M-076 | ERDA deferred-with-trigger: drop zero-scan indexes after 2026-11-15; NOT NULL/identity migration | PLANS B-25 | WELL-ERDA-AUDIT:240-255 | CLOSED 2026-10-27 S24 (date-gated script; run after 2026-11-15) | N | S |
 | M-077 | SLO definitions as data in the Well + `slo` evidence kind | ADR O-14 | ADR-100 Phase 2 | NS | N | M |
 
 ### E07 — OBSERVABILITY + SRE REMAINDER  (tier d, size M, 11 items)

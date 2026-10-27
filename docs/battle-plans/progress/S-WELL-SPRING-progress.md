@@ -98,3 +98,21 @@ proposed lab-accepted: needs Stevie. LICH id collision: ADR-064 pre-registered 0
 reserved for the baseline agent. LIVE 235-236 (E-D): deploy reporter builds on both hosts, read both topics, paste one
 consensus message into ADR-029; rollout also needs Vector restart (both hosts), Prometheus + Alertmanager reload.
 Expect one SSHLoginNewSource ticket digest of known operator addresses at first evaluation.
+
+### Phase 1 Steps 19-43 merged (b5aedf68)
+
+Premise corrections: kanban-app's and timeguru's `CREATE TABLE IF NOT EXISTS` create their own local SQLite files,
+not Well tables (ERDA 3.3 left them on purpose; Step 27 n/a, timeguru has no Well backend). The real gap: kanban-app
+silently fell back to SQLite when the Well answered but was unmigrated (split board); now `RequireMigrations` 003/007
+and a fatal exit; unset/unreachable Well still falls back for dev. New `038_app_ledger_read.sql` (superuser; app_kanban
+SELECT on the ledger). Rollback cannot be `pg_restore --clean` (leaves the batch's new tables; ledger is append-only and
+superuser-owned): batch-rollback drops and re-creates each touched database as the superuser and drops roles the batch
+created. `well_health.sql` does not exist; the index-drop script carries its own read-only query and refuses with
+index stats under 28 days old. Appendix C: this sprint's new migrations start at 039.
+Coordinator re-ran `scripts/well/test-batch-apply.sh`: all checks passed (dry run lists exactly 030-038, part-way
+failure + rollback, real batch, rollback, re-apply).
+**LIVE 44-50 (E-A):** do NOT redeploy kanban-app before the batch (without 038 it refuses to start). `batch-apply`
+backs up to `/srv/backups/unheaded-well/pre-batch-<UTC>/` via `db-backup.sh` as `well_backup` (needs write access, or set
+`WELL_BATCH_BACKUP_ROOT`). Follow-on: first live window after 2026-11-15, run `scripts/well/index-drops-after-2026-11-15.sh`,
+commit the reviewed DROP list as a `notx` migration per database. Retention (Phase 4): `zhen_agent_runs.card_id` references
+`kanban_tasks` with no ON DELETE; purging cards must not orphan run history.

@@ -76,3 +76,21 @@ dashboard-backend. check-service-auth: issuer exempt with reason; 10 services re
 the issuer and Akira). Live Cuirass on west runs from compose without auth today (writes refused); Sword is not
 running. LIVE 171-174: `sudo scripts/gen-dev-keys.sh` (after `make binaries`), then recreate cuirass + sword and run
 Steps 171-174.
+
+### Phase 6 per-service wave merged (8a0daa5e)
+
+`auth.NewServiceHandler` / `NewServiceChain` (bad config refuses start; RBAC behind auth; per-route open reads).
+Allowlists (identity = key name = aud): protocol-api <- unheaded-cli; kanban-app <- dashboard-backend, zhen-agentd,
+micromanager; timeguru <- kanban-app, micromanager; captain/architect/micromanager <- each other + dashboard-backend;
+monad, sophia, sword, zhen-agentd <- unheaded-cli, dashboard-backend; wiki-server <- none.
+AUTH_ENABLED on in compose+units for timeguru, captain, architect, micromanager, monad, sophia (+ sword, already on,
+now with an allowlist: before it every service token got 403); zhen-agentd unit; kanban-app left OFF (the browser UI
+writes with no credential: waits on board login, Steps 211-216); protocol-api and wiki-server have no compose/unit.
+Found: an observer key could ask/confirm/exec/remember on zhen-agentd (200) -> 403. Sword needs its own RBAC policy
+(default reserves `/api/v1/deploy*`, which also matches `/api/v1/deployments`, for admin/operator). protocol-api's gRPC
+(17101) now checks tokens too. `/etc/zhen-agentd.env` is read after the unit and can override. Legacy
+`services/timeguru/main.go` (never built) left on SetupMiddleware. check-service-auth: 4 remain (akira,
+dashboard-backend, kanban-app, wotan); Step 185's expected list should include akira and kanban-app until 216.
+**LIVE:** `make binaries && sudo scripts/gen-dev-keys.sh` FIRST (containers must own their key files); rebuild
+kanban-app together with timeguru (else the board loses its timeline); recreate timeguru, captain, architect,
+micromanager, monad, sophia, sword; probe anonymous write 401 and /health 200 each; update + restart zhen-agentd unit.
