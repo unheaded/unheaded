@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/httputil"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
@@ -54,8 +55,9 @@ type TopicMessage struct {
 // All other subscribers are created with status "pending" and must be
 // approved via the admin API (POST /api/v1/admin/approve).
 //
-// Security note: display_name is self-reported. When mTLS is enabled,
-// use verified client certificate CN for identity (see pkg/auth/mtls.go).
+// With auth on (ADR-103 §6) the verified service-token subject decides
+// approval and names the member; display_name is a label only. With auth
+// off the self-reported display_name decides.
 func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -95,14 +97,19 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	// made on first use. A new member per call, never reaped, left one
 	// behind for good each time a client restarted and subscribed again.
 	// Any other name gets a pending member per request, which expires.
+	identity := auth.IdentityFromContext(r.Context())
+	memberName := req.DisplayName
+	if identity != nil {
+		memberName = identity.Subject
+	}
 	var newMember *member.Member
 	var err error
 	status := "pending"
-	if s.TopicConfig != nil && s.TopicConfig.IsAutoApproved(req.DisplayName) {
-		newMember, err = s.MemberManager.EnsureApproved(topic, req.DisplayName, "topic-auto-approve")
+	if s.TopicConfig != nil && s.TopicConfig.IsAutoApproved(identity, req.DisplayName) {
+		newMember, err = s.MemberManager.EnsureApproved(topic, memberName, "topic-auto-approve")
 		status = "approved"
 	} else {
-		newMember, err = s.MemberManager.RequestJoin(topic, req.DisplayName, "", s.PendingApprovalTimeout)
+		newMember, err = s.MemberManager.RequestJoin(topic, memberName, "", s.PendingApprovalTimeout)
 	}
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
@@ -111,6 +118,7 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	if status == "pending" {
 		log.Info().
 			Str("topic", topic).
+			Str("member", memberName).
 			Str("display_name", req.DisplayName).
 			Msg("topic_subscriber_pending_approval")
 	}
@@ -184,6 +192,12 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "subscriber not approved")
 		return
 	}
+	// A subscriber_id is no secret (it is every message's sender_id): with
+	// auth on, a caller publishes only through its own members.
+	if !s.memberIsCaller(r, subscriberUUID) {
+		writeError(w, http.StatusForbidden, "subscriber belongs to another identity")
+		return
+	}
 
 	// Get or create the room for this topic
 	rm, err := s.RoomManager.GetOrCreate(topic, topic)
@@ -243,6 +257,18 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		"seq":        seq,
 		"timestamp":  msg.Timestamp,
 	})
+}
+
+// memberIsCaller reports whether the member belongs to the caller: true
+// with no verified identity (auth off), else the member's name must be the
+// identity's subject (SubscribeTopic names members by it).
+func (s *Server) memberIsCaller(r *http.Request, memberID uuid.UUID) bool {
+	identity := auth.IdentityFromContext(r.Context())
+	if identity == nil {
+		return true
+	}
+	m, err := s.MemberManager.Get(memberID)
+	return err == nil && m.Name == identity.Subject
 }
 
 // persistTimeout bounds one background store write for a published message.
@@ -441,6 +467,10 @@ func ringbufferToTopicMessage(msg *ringbuffer.Message, topic string) TopicMessag
 // Go 1.22+ ServeMux supports patterns, but for compat we do manual dispatch.
 func (s *Server) TopicRouter(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+	if s.RequireIdentity && auth.IdentityFromContext(r.Context()) == nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
 
 	// GET /api/v1/topics — list all topics
 	if path == "/api/v1/topics" || path == "/api/v1/topics/" {

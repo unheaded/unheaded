@@ -8,21 +8,33 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
+	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/wotansig"
 	"unheaded/services/wotan/internal/signing"
 )
 
 // TopicConfig holds topic-level configuration for Wotan.
 //
-// Security note: Auto-approval uses display_name which is self-reported.
-// When mTLS is enabled (pkg/auth), approval should be tied to verified
-// client certificates instead. See: pkg/auth/mtls.go for cert validation.
+// Auto-approval (S-IRON-GATE Phase 7, ADR-103 §6): with AUTH_ENABLED=true
+// the caller's verified service-token subject decides, matched against
+// auto_approve; the self-reported display_name is a label only. With auth
+// off, the display name decides, matched against auto_approve and
+// legacy_display_names.
 type TopicConfig struct {
 	Topics struct {
+		// AutoApprove lists the service identities (the sub of their
+		// EdDSA service tokens, the names their keys are filed under)
+		// whose subscriptions and publishes are approved at once.
 		AutoApprove []string `yaml:"auto_approve"`
+		// LegacyDisplayNames are self-reported display names approved
+		// only while auth is off (pre-Phase-7 clients, and the Appendix A3
+		// rollback). A verified identity never matches them.
+		LegacyDisplayNames []string `yaml:"legacy_display_names"`
 		// SigningKeys are the base64 ML-DSA-65 public keys trusted to sign
 		// config.* messages (ADR-043 #2). None: config.* is closed.
 		SigningKeys []string `yaml:"signing_keys"`
@@ -35,6 +47,8 @@ type TopicConfig struct {
 
 	// allowSet is built from AutoApprove for O(1) lookups
 	allowSet map[string]struct{}
+	// legacySet is built from LegacyDisplayNames.
+	legacySet map[string]struct{}
 }
 
 // LoadTopicConfig reads topic configuration from a YAML file.
@@ -59,30 +73,58 @@ func LoadTopicConfig(path string) (*TopicConfig, error) {
 		return nil, err
 	}
 
-	// Build lookup set
+	// Build lookup sets
 	cfg.allowSet = make(map[string]struct{}, len(cfg.Topics.AutoApprove))
 	for _, name := range cfg.Topics.AutoApprove {
 		cfg.allowSet[strings.ToLower(strings.TrimSpace(name))] = struct{}{}
+	}
+	cfg.legacySet = make(map[string]struct{}, len(cfg.Topics.LegacyDisplayNames))
+	for _, name := range cfg.Topics.LegacyDisplayNames {
+		cfg.legacySet[strings.ToLower(strings.TrimSpace(name))] = struct{}{}
 	}
 
 	return &cfg, nil
 }
 
-// IsAutoApproved returns true if the given display name is in the auto-approve
-// allowlist. Matching is case-insensitive. The wildcard "*" matches all names.
-func (c *TopicConfig) IsAutoApproved(displayName string) bool {
+// IsAutoApproved reports whether a caller is on the auto-approve
+// allowlist. With a verified identity (auth on) only its subject counts,
+// and only for an EdDSA service token: a user token or an API key named
+// like a service is not a service, and displayName is ignored. With no
+// identity (auth off) displayName is matched against auto_approve and
+// legacy_display_names, with a one-time warning: a self-reported name is
+// not authentication (ADR-103). Matching is case-insensitive; "*" in
+// auto_approve matches every name and every service identity.
+func (c *TopicConfig) IsAutoApproved(identity *auth.Identity, displayName string) bool {
 	if c == nil || c.allowSet == nil {
 		return false
 	}
+	if identity != nil {
+		if identity.Extra["auth_method"] != "eddsa" {
+			return false
+		}
+		if _, ok := c.allowSet["*"]; ok {
+			return true
+		}
+		_, ok := c.allowSet[strings.ToLower(strings.TrimSpace(identity.Subject))]
+		return ok
+	}
 
-	// Wildcard: approve everyone
+	displayNameWarn.Do(func() {
+		log.Warn().Msg("wotan auto-approve is matching self-reported display names: AUTH_ENABLED is off, so callers are not authenticated (ADR-103 §6, S-IRON-GATE Phase 7)")
+	})
 	if _, ok := c.allowSet["*"]; ok {
 		return true
 	}
-
-	_, ok := c.allowSet[strings.ToLower(strings.TrimSpace(displayName))]
+	name := strings.ToLower(strings.TrimSpace(displayName))
+	if _, ok := c.allowSet[name]; ok {
+		return true
+	}
+	_, ok := c.legacySet[name]
 	return ok
 }
+
+// displayNameWarn makes the auth-off fallback warn once per process.
+var displayNameWarn sync.Once
 
 // TrustedSigningKeys decodes topics.signing_keys. A key that is not valid
 // base64 is an error rather than skipped: a typo must not silently leave a

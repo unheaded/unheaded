@@ -239,12 +239,16 @@ func main() {
 	httpMux := setupHTTPRoutes(apiServer, config.AdminEnabled, m)
 	httpHandler := setupMiddleware(httpMux, rateLimiter, config.CORSOrigins)
 
-	// Auth middleware (activated via AUTH_ENABLED=true)
+	// Service auth (AUTH_ENABLED=true, ADR-103 §6): every HTTP request and
+	// gRPC call carries a service token from a caller in AUTH_ALLOW_CALLERS;
+	// auto-approve keys on the token's verified subject. A bad auth
+	// configuration refuses to start rather than serve open.
 	authCfg := auth.LoadServiceAuthConfig("wotan")
-	// Explicit interface type required: srvHandler is reassigned below to
-	// auth.WrapHandler's http.Handler return value.
-	var srvHandler http.Handler = httpHandler //nolint:staticcheck // QF1011 false-positive: interface type required for reassignment
-	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
+	srvHandler, grpcAuthOpts, err := wotanAuth(httpHandler, authCfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("auth configuration unusable (ADR-103)")
+	}
+	apiServer.RequireIdentity = authCfg.Enabled
 	srvHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("wotan").Instrument(httpMux, srvHandler))
 
 	httpServer := &http.Server{
@@ -306,6 +310,7 @@ func main() {
 	// approval gate simply by using gRPC (configs/wotan.yaml topics.auto_approve).
 	topicService.AutoApprove = topicCfg
 	topicService.Store = msgStore // gRPC publishes persist like HTTP ones (nil = memory-only)
+	topicService.RequireIdentity = authCfg.Enabled
 
 	// gRPC server hardening (CLAUDE.md baseline). Without these, a
 	// client can DoS the server via giant messages, abusive keepalive
@@ -327,6 +332,8 @@ func main() {
 			PermitWithoutStream: true,             // allow keepalive on idle streams
 		}),
 	}
+
+	grpcOpts = append(grpcOpts, grpcAuthOpts...)
 
 	var grpcServer *grpc.Server
 	if config.EnableTLS {
@@ -470,6 +477,30 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 		return config
 	}
 	return config
+}
+
+// wotanAuth wraps Wotan's HTTP handler with service auth and returns the
+// gRPC server options that do the same for every call (grpc.health.v1
+// exempt). With auth off it returns h and no options. Every route but
+// /health, /ready and /metrics needs a token, reads included: topics carry
+// every service's logs and health reports. RBAC: writes need a service
+// (or operator/admin) identity; /api/v1/admin/* needs admin on top of the
+// admin key.
+func wotanAuth(h http.Handler, cfg auth.ServiceAuthConfig) (http.Handler, []grpc.ServerOption, error) {
+	if !cfg.Enabled {
+		log.Warn().Msg("AUTH_ENABLED is off: Wotan takes calls from anyone, and auto-approve trusts self-reported display names (ADR-103 §6)")
+		return h, nil, nil
+	}
+	a, err := auth.NewServiceAuthenticator(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	wrapped, err := auth.NewServiceHandler(h, cfg, auth.ServiceRoutes{})
+	if err != nil {
+		return nil, nil, err
+	}
+	log.Info().Strs("allow_callers", cfg.AllowCallers).Msg("service auth on: HTTP and gRPC need a service token (aud=wotan)")
+	return wrapped, grpcservice.AuthServerOptions(a), nil
 }
 
 // setupHTTPRoutes configures HTTP endpoints

@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"unheaded/pkg/auth"
 	"unheaded/services/wotan/internal/logger"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
@@ -59,6 +60,12 @@ type TopicService struct {
 	// callers and tests keep working; cmd/wotan always wires it.
 	AutoApprove AutoApprover
 
+	// RequireIdentity: AUTH_ENABLED=true. Every call must carry the
+	// identity AuthServerOptions verified; one without it (an embedding
+	// without the interceptors) is Unauthenticated, never approved by
+	// display name.
+	RequireIdentity bool
+
 	// Store is the persistent message store the HTTP publish path also
 	// writes to (nil: memory-only, as in tests). Without it, gRPC-only
 	// publishers (signed config.* and drift.*) lived only in the ring buffer
@@ -75,15 +82,25 @@ const persistTimeout = 10 * time.Second
 // that supplies no name (services/wotan/internal/api/topics.go).
 const defaultPublisherDisplayName = "service"
 
-// AutoApprover reports whether a self-reported display name is on Wotan's
-// auto-approve allowlist. *api.TopicConfig satisfies it; declaring the
-// interface here keeps internal/grpc from importing internal/api.
+// AutoApprover reports whether a caller is on Wotan's auto-approve
+// allowlist. *api.TopicConfig satisfies it; declaring the interface here
+// keeps internal/grpc from importing internal/api.
 //
-// Security note: display_name is self-reported, exactly as on the HTTP path.
-// This is an allowlist, not authentication — real identity needs the mTLS
-// client certificate CN (pkg/auth/mtls.go).
+// identity is the caller auth verified (nil with auth off): when set, its
+// subject decides and displayName, which is self-reported, is a label
+// only (ADR-103 §6).
 type AutoApprover interface {
-	IsAutoApproved(displayName string) bool
+	IsAutoApproved(identity *auth.Identity, displayName string) bool
+}
+
+// callerIdentity returns the verified caller, or an Unauthenticated error
+// when the service requires one and the call has none.
+func (s *TopicService) callerIdentity(ctx context.Context) (*auth.Identity, error) {
+	id := auth.IdentityFromContext(ctx)
+	if id == nil && s.RequireIdentity {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+	return id, nil
 }
 
 // NewTopicService creates a new TopicService. signingKeys are the ML-DSA-65
@@ -156,10 +173,20 @@ func (s *TopicService) StreamTopics(
 	ctx, cancel := context.WithCancel(streamCtx)
 	defer cancel()
 
-	// Set default display name
+	identity, err := s.callerIdentity(streamCtx)
+	if err != nil {
+		return err
+	}
+
+	// Set default display name. With auth on the member is the verified
+	// subject; the display name is a label.
 	displayName := req.DisplayName
 	if displayName == "" {
 		displayName = "grpc-subscriber"
+	}
+	memberName := displayName
+	if identity != nil {
+		memberName = identity.Subject
 	}
 
 	// Create a temporary topic for the subscription (use a pattern-based name)
@@ -167,7 +194,7 @@ func (s *TopicService) StreamTopics(
 	subscriptionTopic := fmt.Sprintf("_topic_pattern_%s_%s", req.TopicPattern, uuid.New().String())
 
 	// Auto-create and approve subscriber member
-	newMember, err := s.memberManager.RequestJoin(subscriptionTopic, displayName, "", 24*time.Hour)
+	newMember, err := s.memberManager.RequestJoin(subscriptionTopic, memberName, "", 24*time.Hour)
 	if err != nil {
 		logger.FromContext(ctx).Warn().Err(err).Str("topic_pattern", req.TopicPattern).Msg("subscriber_refused")
 		return status.Error(codes.ResourceExhausted, err.Error())
@@ -188,6 +215,7 @@ func (s *TopicService) StreamTopics(
 	logger.FromContext(ctx).Info().
 		Str("member_id", memberID.String()).
 		Str("topic_pattern", req.TopicPattern).
+		Str("member", memberName).
 		Str("display_name", displayName).
 		Msg("topic_stream_started")
 
@@ -535,6 +563,11 @@ func (s *TopicService) PublishTopic(
 		return nil, status.Error(codes.InvalidArgument, "payload is required")
 	}
 
+	identity, err := s.callerIdentity(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Authorize the sender first (read-only checks; nothing is created yet).
 	var senderID uuid.UUID
 	var autoPublisher string // set when the caller sent no sender_id
@@ -558,16 +591,32 @@ func (s *TopicService) PublishTopic(
 				Msg("sender_not_approved")
 			return nil, status.Error(codes.PermissionDenied, "sender not approved")
 		}
+		// A sender_id is no secret (every subscriber sees it as a
+		// message's sender_id): with auth on, a caller publishes only
+		// through its own members, which carry its verified subject.
+		if identity != nil {
+			if m, err := s.memberManager.Get(senderID); err != nil || m.Name != identity.Subject {
+				logger.FromContext(ctx).Warn().
+					Str("topic", req.Topic).
+					Str("caller", identity.Subject).
+					Msg("sender_belongs_to_another_identity")
+				return nil, status.Error(codes.PermissionDenied, "sender belongs to another identity")
+			}
+		}
 	} else {
 		// No sender_id. Previously this branch created a member and approved it
 		// unconditionally, so the IsApproved check above was bypassed simply by
 		// omitting the field. Gate it on the same allowlist the HTTP path uses,
 		// with the same "service" default for an unnamed internal caller.
+		//
+		// With auth on, the verified subject is the publisher: it decides
+		// approval and names the member (and is the sender a signature must
+		// cover); display_name is a label only (ADR-103 §6).
 		displayName := req.Metadata["display_name"]
 		if displayName == "" {
 			displayName = defaultPublisherDisplayName
 		}
-		if s.AutoApprove != nil && !s.AutoApprove.IsAutoApproved(displayName) {
+		if s.AutoApprove != nil && !s.AutoApprove.IsAutoApproved(identity, displayName) {
 			logger.FromContext(ctx).Warn().
 				Str("topic", req.Topic).
 				Str("display_name", displayName).
@@ -576,6 +625,9 @@ func (s *TopicService) PublishTopic(
 		}
 
 		autoPublisher = displayName
+		if identity != nil {
+			autoPublisher = identity.Subject
+		}
 	}
 
 	// ADR-043 #2 / ADR-105: config.* and drift.* (and any configured signed

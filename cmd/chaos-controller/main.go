@@ -195,7 +195,7 @@ func build(c config, log *logger.Logger) (*yaldabaoth.Service, error) {
 		log.Warn().Msg("VM_URL is not set: no SLO guard, so every experiment is refused")
 	}
 	if c.wotanHTTP != "" {
-		wotanClient.InitServiceIdentity(serviceName) // ADR-103 §6: Wotan calls carry chaos-controller's service token
+		wotanClient.InitServiceIdentity("chaos-controller") // ADR-103 §6: Wotan calls carry chaos-controller's service token
 		var wc *wotanClient.Client
 		if c.wotanGRPC != "" {
 			wc, err = wotanClient.NewClientWithGRPC(c.wotanHTTP, c.wotanGRPC)

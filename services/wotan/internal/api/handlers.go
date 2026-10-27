@@ -33,6 +33,12 @@ type Server struct {
 	Store store.MessageStore
 
 	TopicConfig *TopicConfig // Auto-approval allowlist for topic subscribers
+
+	// RequireIdentity: AUTH_ENABLED=true. Every topic request must carry
+	// the identity auth.NewServiceHandler verified; one that reaches the
+	// handlers without it (an embedding without the middleware) is 401,
+	// never approved by display name.
+	RequireIdentity bool
 }
 
 // NewServer creates a new API server

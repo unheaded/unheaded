@@ -29,13 +29,13 @@ func TestLoadTopicConfig_ValidFile(t *testing.T) {
 	if len(cfg.Topics.AutoApprove) != 3 {
 		t.Fatalf("expected 3 auto-approve entries, got %d", len(cfg.Topics.AutoApprove))
 	}
-	if !cfg.IsAutoApproved("timeguru") {
+	if !cfg.IsAutoApproved(nil, "timeguru") {
 		t.Error("timeguru should be auto-approved")
 	}
-	if !cfg.IsAutoApproved("captain") {
+	if !cfg.IsAutoApproved(nil, "captain") {
 		t.Error("captain should be auto-approved")
 	}
-	if !cfg.IsAutoApproved("monad") {
+	if !cfg.IsAutoApproved(nil, "monad") {
 		t.Error("monad should be auto-approved")
 	}
 }
@@ -46,7 +46,7 @@ func TestLoadTopicConfig_MissingFile(t *testing.T) {
 		t.Fatalf("missing file should not error: %v", err)
 	}
 	// Default: deny all
-	if cfg.IsAutoApproved("timeguru") {
+	if cfg.IsAutoApproved(nil, "timeguru") {
 		t.Error("missing config should deny all auto-approvals")
 	}
 }
@@ -75,7 +75,7 @@ func TestLoadTopicConfig_EmptyFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.IsAutoApproved("anything") {
+	if cfg.IsAutoApproved(nil, "anything") {
 		t.Error("empty config should deny all")
 	}
 }
@@ -106,7 +106,7 @@ func TestIsAutoApproved_CaseInsensitive(t *testing.T) {
 		{"captain", false},
 	}
 	for _, tc := range cases {
-		if got := cfg.IsAutoApproved(tc.name); got != tc.want {
+		if got := cfg.IsAutoApproved(nil, tc.name); got != tc.want {
 			t.Errorf("IsAutoApproved(%q) = %v, want %v", tc.name, got, tc.want)
 		}
 	}
@@ -128,17 +128,17 @@ func TestIsAutoApproved_Wildcard(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !cfg.IsAutoApproved("anything-at-all") {
+	if !cfg.IsAutoApproved(nil, "anything-at-all") {
 		t.Error("wildcard should approve everything")
 	}
-	if !cfg.IsAutoApproved("unknown-service") {
+	if !cfg.IsAutoApproved(nil, "unknown-service") {
 		t.Error("wildcard should approve everything")
 	}
 }
 
 func TestIsAutoApproved_NilConfig(t *testing.T) {
 	var cfg *TopicConfig
-	if cfg.IsAutoApproved("test") {
+	if cfg.IsAutoApproved(nil, "test") {
 		t.Error("nil config should deny all")
 	}
 }
@@ -160,10 +160,10 @@ func TestIsAutoApproved_NotInList(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if cfg.IsAutoApproved("evil-service") {
+	if cfg.IsAutoApproved(nil, "evil-service") {
 		t.Error("unlisted service should not be auto-approved")
 	}
-	if cfg.IsAutoApproved("") {
+	if cfg.IsAutoApproved(nil, "") {
 		t.Error("empty name should not be auto-approved")
 	}
 }
@@ -184,10 +184,10 @@ func TestIsAutoApproved_WhitespaceHandling(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !cfg.IsAutoApproved("timeguru") {
+	if !cfg.IsAutoApproved(nil, "timeguru") {
 		t.Error("whitespace in config should be trimmed")
 	}
-	if !cfg.IsAutoApproved("  timeguru  ") {
+	if !cfg.IsAutoApproved(nil, "  timeguru  ") {
 		t.Error("whitespace in input should be trimmed")
 	}
 }
