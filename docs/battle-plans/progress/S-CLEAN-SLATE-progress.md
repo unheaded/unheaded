@@ -68,6 +68,11 @@ Claude worktrees, not `../unheaded-wt-*` (see amendments). Step 10's baseline: p
 | `d9c1980a` | 147-151 | kingdom-startup Phase 0a/1b (FND-024 code half) |
 | `7bbdd996` | 159-163 | discover meter ejects a dead replica (FND-023 code half) |
 | `cf26212f` | 53-101 (merge) | Phase 2 |
+| `325cce68` | — | found: gRPC PublishTopic never reached the store (signed drift/config events lost on restart); M-038 closed |
+| `57a3f3f0` | 253-255 | relicense script (header/footer only, content listed for review); MIT-KEEP empty on evidence; apply proven in a throwaway worktree (272 files, 0 non-licence lines) |
+| `b1e3a132` | 102-122, 124-146 (merge) | Phase 3 (Step 123 coding-gate re-run moved to 155b) |
+| `0c29126f` | — | found by Phase 3: Zhen UI `CORS(app)` let any origin read conversation history; removed with flask-cors; QUICKSTART placeholders |
+| `801befcc` | — | Phase 2's admin-key test fixture tripped gitleaks; built at run time |
 
 ### Open escalations (live halves)
 
@@ -84,6 +89,16 @@ Claude worktrees, not `../unheaded-wt-*` (see amendments). Step 10's baseline: p
 | E13 | granted; coordinator runs the relicense after every branch merges | 253-258 |
 
 ### Found on the way (not in the plan)
+- Go known failures are ZERO on develop after the Phase 3 merge (both inherited FAIL lines fixed).
+- Live prerequisites from Phase 3, apply with the next deploy (not before: old binaries may reject the new keys):
+  `probe_subnets: [10.10.20.0/24]` in `/etc/unheaded/chaos/allowlist.yaml` on west and east (west's bridge is
+  10.10.20.0/24, not the 10.10.10.0/24 CLAUDE.md says); Cuirass redeploy with `CUIRASS_PROBE_SUBNETS=10.10.20.0/24`
+  (`docker/compose.cuirass-lxd.yml`); `ZHEN_AGENTD_API_KEY` (or `ZHEN_AGENTD_NO_AUTH=1`) in the Zhen web UI env, else
+  chat answers 503.
+- Risk to measure (Step 155b): routing Zhen chat through zhen-agentd scored 7/14 vs 12/14 on the coding gate on
+  2026-05-02; not re-measured since.
+- Coordinator process lesson: never judge a gate through `| tail -1` (it returns tail's exit code); 0c29126f went in
+  with gitleaks red because of it, fixed in 801befcc.
 
 - `scripts/well/set-role-passwords.sh` put each password in docker's argv (fixed, with a
   PATH-shim test).
