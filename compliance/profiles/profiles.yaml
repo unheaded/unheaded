@@ -18,7 +18,11 @@ profiles:
       East since 2026-10-12 (Stevie, after the east security audit): the lab
       fixes plus CIS audit rules and the sshd settings that leave
       authentication alone (no X11 or agent forwarding, MaxAuthTries 4).
-    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis, auditd-rules, sshd-safe, time-p2p, journald-caps]
+      2026-10-27 (S-WELL-SPRING Step 270, ADR-098 steps 2-6): also the ROCm
+      log modes, AIDE with a weekly check, and AppArmor's complain-mode
+      profiles in enforce; applied in the E-D host window (east first),
+      after which west moves here too.
+    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis, auditd-rules, sshd-safe, time-p2p, journald-caps, rocm-log-perms, aide-install, apparmor-enforce]
   - name: cis-l1-server
     description: Every fix that serves a CIS Ubuntu 24.04 Level 1 Server recommendation.
     fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, sudo-cis, shell-tmout, sshd-safe]

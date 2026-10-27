@@ -1,0 +1,25 @@
+## files
+ drwxr-xr-x
+/etc drwxr-xr-x
+/etc/audit drwxr-xr-x
+/etc/audit/rules.d drwxr-xr-x
+/etc/cron.allow -rw-r----- 23108a0c5aecbb0c
+/etc/cron.d drwx------
+/etc/cron.daily drwx------
+/etc/cron.hourly drwx------
+/etc/cron.monthly drwx------
+/etc/cron.weekly drwx------
+/etc/crontab -rw------- 0e0a548721120881
+/etc/default drwxr-xr-x
+/etc/default/apport -rw-r--r-- 16f4affa3003cb1a
+/etc/group -rw-r--r-- ac57a98a74e2428e
+/etc/modprobe.d drwxr-xr-x
+/etc/profile.d drwxr-xr-x
+/etc/ssh drwxr-xr-x
+/etc/ssh/sshd_config -rw-r--r-- 1b9cb2b4f15012f1
+/etc/ssh/sshd_config.d drwxr-xr-x
+/etc/ssh/sshd_config.d/99-unheaded.conf -rw-r--r-- 33d846b74659721f
+/etc/sudoers.d drwxr-xr-x
+/etc/sysctl.d drwxr-xr-x
+## calls
+

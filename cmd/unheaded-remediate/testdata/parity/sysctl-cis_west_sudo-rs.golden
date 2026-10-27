@@ -1,0 +1,26 @@
+## files
+ drwxr-xr-x
+/etc drwxr-xr-x
+/etc/audit drwxr-xr-x
+/etc/audit/rules.d drwxr-xr-x
+/etc/cron.d drwxr-xr-x
+/etc/cron.daily drwxr-xr-x
+/etc/cron.deny -rw-r--r-- 4161b287516ae471
+/etc/cron.hourly drwxr-xr-x
+/etc/cron.monthly drwxr-xr-x
+/etc/cron.weekly drwxr-xr-x
+/etc/crontab -rw-r--r-- 0e0a548721120881
+/etc/default drwxr-xr-x
+/etc/default/apport -rw-r--r-- 16f4affa3003cb1a
+/etc/group -rw-r--r-- ac57a98a74e2428e
+/etc/modprobe.d drwxr-xr-x
+/etc/profile.d drwxr-xr-x
+/etc/ssh drwxr-xr-x
+/etc/ssh/sshd_config -rw-r--r-- 1b9cb2b4f15012f1
+/etc/ssh/sshd_config.d drwxr-xr-x
+/etc/ssh/sshd_config.d/99-unheaded.conf -rw-r--r-- 33d846b74659721f
+/etc/sudoers.d drwxr-xr-x
+/etc/sysctl.d drwxr-xr-x
+/etc/sysctl.d/60-unheaded-cis.conf -rw-r--r-- 73c863ca296f17b8
+## calls
+sysctl --system

@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Kingdom host roles, hand-written from the live units (M-107, S-WELL-SPRING
+# Step 271). Not generated: deploy/ansible/compliance/ is the rendered fix
+# model; this is how a host gets the Kingdom's own agents. CI runs
+# `ansible-playbook --syntax-check` on it; nothing in CI connects to a host.
+#
+#   ansible-playbook -i deploy/ansible/compliance/inventory.yml deploy/ansible/kingdom/site.yml \
+#     -e unheaded_repo=/home/govan/tmp/unheaded -e huginn_binary=/path/to/huginn --check --diff
+- name: Kingdom base (accounts, config directory)
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - kingdom-base
+
+- name: Huginn host metrics on every host
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - huginn
+
+- name: VictoriaMetrics on west
+  hosts: west
+  become: true
+  gather_facts: false
+  roles:
+    - victoria

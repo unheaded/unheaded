@@ -1,20 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-// unheaded-remediate applies fixes from the remediation model (ADR-099),
-// replacing scripts/host/remediate.sh with the same behaviour (proved by
-// scripts/host TestExecutorMatchesRemediateScript):
+// unheaded-remediate applies fixes from the remediation model (ADR-099). It
+// replaced scripts/host/remediate.sh on parity (S-WELL-SPRING Step 270):
+// TestExecutorMatchesRetiredScript holds it to what the script wrote.
 //
 //	unheaded-remediate list
+//	unheaded-remediate check <fix>         # is the fix in place? exit 0 yes, 3 no (no root needed for most fixes)
 //	unheaded-remediate plan  <fix>         # what would change (no root needed)
 //	unheaded-remediate apply <fix>         # as root, after Stevie's yes for this fix on this host
 //	unheaded-remediate undo  <backup-dir>  # restore what one apply changed
+//	unheaded-remediate -record-existing <fix> [-applied-by "remediate.sh (2026-10-01)"]
+//	                                       # journal a fix applied before the journal existed; changes nothing
 //	unheaded-remediate -snapshot east.snapshot.json apply <fix>  # only fixes the sealed snapshot carries
 //
 // The model file is read only if root owns it and it and its directory are
 // not group- or world-writable (ssh StrictModes): a fix runs as root, so
-// whoever can edit the model must already be root. Every apply and undo is
-// journaled in <state>/journal.jsonl.
+// whoever can edit the model must already be root. Every apply, undo and
+// recorded fix is journaled in <state>/journal.jsonl.
 package main
 
 import (
@@ -50,13 +53,21 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	commit := fl.String("model-commit", "", "git commit of the model, recorded in the journal")
 	snapPath := fl.String("snapshot", "", "sealed snapshot to act on instead of -model (only its fixes can be applied)")
 	pubPath := fl.String("pubkey", "/etc/unheaded/compliance/snapshot.pub", "ML-DSA-65 public key that must have sealed the snapshot")
+	recordExisting := fl.String("record-existing", "", "journal this fix as applied before the journal existed, if check finds it in place; changes nothing on the host")
+	appliedBy := fl.String("applied-by", "remediate.sh (2026-10-01)", "with -record-existing: what applied the fix, and when")
 	if err := fl.Parse(args); err != nil {
 		return 2
 	}
 	rest := fl.Args()
 	usage := func() int {
-		fmt.Fprintln(stderr, "usage: unheaded-remediate [flags] list | plan <fix> | apply <fix> | undo <backup-dir>")
+		fmt.Fprintln(stderr, "usage: unheaded-remediate [flags] list | check <fix> | plan <fix> | apply <fix> | undo <backup-dir> | -record-existing <fix>")
 		return 2
+	}
+	if *recordExisting != "" {
+		if len(rest) != 0 {
+			return usage()
+		}
+		rest = []string{"record-existing", *recordExisting}
 	}
 	if len(rest) == 0 {
 		return usage()
@@ -71,7 +82,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if allowNonRoot {
 		trustedUID = os.Geteuid()
 	}
-	writes := rest[0] == "apply" || rest[0] == "undo"
+	writes := rest[0] == "apply" || rest[0] == "undo" || rest[0] == "record-existing"
 	h := *host
 	if h == "" {
 		hn, err := os.Hostname()
@@ -126,7 +137,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintln(stdout, "undone:", rest[1])
 		return 0
-	case "plan", "apply":
+	case "plan", "apply", "check", "record-existing":
 		var fix *remediation.Fix
 		for i := range m.Fixes {
 			if m.Fixes[i].ID == rest[1] {
@@ -136,19 +147,37 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		if fix == nil {
 			return fail(fmt.Errorf("unknown fix %q (see: unheaded-remediate list)", rest[1]))
 		}
-		if rest[0] == "plan" {
+		switch rest[0] {
+		case "plan":
 			if err := x.Plan(ctx, *fix); err != nil {
 				return fail(err)
 			}
-			return 0
-		}
-		if _, err := x.Apply(ctx, *fix); err != nil {
-			return fail(err)
+		case "check":
+			devs, err := x.Check(ctx, *fix)
+			if err != nil {
+				return fail(err)
+			}
+			if len(devs) > 0 {
+				fmt.Fprintf(stdout, "%s on %s: not in place\n  %s\n", fix.ID, h, strings.Join(devs, "\n  "))
+				return exitDeviates
+			}
+			fmt.Fprintf(stdout, "%s on %s: in place\n", fix.ID, h)
+		case "record-existing":
+			if err := x.RecordExisting(ctx, *fix, *appliedBy); err != nil {
+				return fail(err)
+			}
+		default:
+			if _, err := x.Apply(ctx, *fix); err != nil {
+				return fail(err)
+			}
 		}
 		return 0
 	}
 	return usage()
 }
+
+// exitDeviates is check's answer "not in place", apart from 1 (an error).
+const exitDeviates = 3
 
 // loadSnapshot opens a sealed snapshot for host; its fixes are the model.
 func loadSnapshot(path, pubPath, host string) (*remediation.Model, error) {

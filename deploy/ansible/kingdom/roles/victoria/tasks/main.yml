@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# VictoriaMetrics on west: the `victoria` service of the root
+# docker-compose.yml (host port 8428, what huginn and Prometheus write to).
+# Compose owns the container; this role only asks for it to be up.
+- name: Compose file is there
+  ansible.builtin.stat:
+    path: "{{ unheaded_repo_on_host }}/docker-compose.yml"
+  register: victoria_compose
+
+- name: The checkout on the host has the compose file
+  ansible.builtin.assert:
+    that: [victoria_compose.stat.exists]
+    fail_msg: "no docker-compose.yml under {{ unheaded_repo_on_host }}"
+
+- name: VictoriaMetrics up
+  ansible.builtin.command:
+    argv: [docker, compose, -f, "{{ unheaded_repo_on_host }}/docker-compose.yml", up, -d, victoria]
+  register: victoria_up
+  changed_when: "'Started' in victoria_up.stderr or 'Created' in victoria_up.stderr"
+
+- name: VictoriaMetrics answers
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8428/-/healthy
+    status_code: 200
+  register: victoria_health
+  retries: 6
+  delay: 5
+  until: victoria_health.status == 200

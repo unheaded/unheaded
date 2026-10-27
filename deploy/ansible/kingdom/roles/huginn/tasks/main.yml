@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Huginn host metrics agent (ADR-084), as deploy/systemd/huginn.service
+# installs it by hand. The env file is root:root 0600 and is written only
+# when absent: it may hold huginn_reader's Well password (PGPASSWORD), which
+# never comes from this repository.
+- name: Huginn binary
+  ansible.builtin.copy:
+    src: "{{ huginn_binary }}"
+    dest: /usr/local/bin/huginn
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart huginn
+
+- name: Huginn unit
+  ansible.builtin.copy:
+    src: "{{ unheaded_repo }}/deploy/systemd/huginn.service"
+    dest: /etc/systemd/system/huginn.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart huginn
+
+- name: Huginn environment (only if the host has none)
+  ansible.builtin.copy:
+    content: |
+      # Written by the huginn role (deploy/ansible/kingdom). Edit on the host.
+      HUGINN_VM={{ huginn_vm }}
+    dest: /etc/huginn.env
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+
+- name: Huginn enabled and running
+  ansible.builtin.systemd_service:
+    name: huginn.service
+    enabled: true
+    state: started
+    daemon_reload: true

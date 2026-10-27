@@ -1,6 +1,6 @@
 # Generated from compliance/remediation/fixes.yaml (ADR-099) by
 # `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
-# profile lab-hardened: East since 2026-10-12 (Stevie, after the east security audit): the lab fixes plus CIS audit rules and the sshd settings that leave authentication alone (no X11 or agent forwarding, MaxAuthTries 4).
+# profile lab-hardened: East since 2026-10-12 (Stevie, after the east security audit): the lab fixes plus CIS audit rules and the sshd settings that leave authentication alone (no X11 or agent forwarding, MaxAuthTries 4). 2026-10-27 (S-WELL-SPRING Step 270, ADR-098 steps 2-6): also the ROCm log modes, AIDE with a weekly check, and AppArmor's complain-mode profiles in enforce; applied in the E-D host window (east first), after which west moves here too.
 - become: true
   gather_facts: false
   hosts: profile_lab_hardened
@@ -18,3 +18,6 @@
     - auditd-rules
     - journald-caps
     - time-p2p
+    - rocm-log-perms
+    - aide-install
+    - apparmor-enforce

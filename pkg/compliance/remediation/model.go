@@ -36,7 +36,9 @@ var KnownHosts = []string{"west", "east"}
 // Allowlists. A value outside them is rejected at load time, so no fix can
 // carry a command nobody reviewed into this table.
 var (
-	AllowedRun      = map[string]bool{"sysctl --system": true, "systemctl reload ssh.service": true, "augenrules --load": true, "systemctl restart systemd-journald.service": true, "systemctl restart chrony.service": true}
+	AllowedRun = map[string]bool{"sysctl --system": true, "systemctl reload ssh.service": true, "augenrules --load": true,
+		"systemctl restart systemd-journald.service": true, "systemctl restart chrony.service": true,
+		"systemctl daemon-reload": true, "aideinit -y -f": true}
 	AllowedValidate = map[string]bool{"visudo -c": true, "sshd -t": true, "auditd-never-halts": true}
 	AllowedPrecheck = map[string]bool{"visudo -cf": true}
 )
@@ -51,6 +53,8 @@ var (
 	pkgRe     = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]{0,99}$`)
 	keyRe     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]{0,63}$`)
 	accountRe = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
+	// An AppArmor profile is named by its file in /etc/apparmor.d.
+	profileRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,99}$`)
 	risks     = map[string]bool{"none": true, "low": true, "medium": true, "high": true}
 	facts     = map[string]bool{"sudo-rs": true}
 )
@@ -76,14 +80,32 @@ type Fix struct {
 
 // Action is exactly one of its fields.
 type Action struct {
-	File     *FileAction    `yaml:"file,omitempty" json:"file,omitempty"`
-	Setting  *SettingAction `yaml:"setting,omitempty" json:"setting,omitempty"`
-	Mode     *ModeAction    `yaml:"mode,omitempty" json:"mode,omitempty"`
-	Service  *ServiceAction `yaml:"service,omitempty" json:"service,omitempty"`
-	Package  *PackageAction `yaml:"package,omitempty" json:"package,omitempty"`
-	Absent   string         `yaml:"absent,omitempty" json:"absent,omitempty"`
-	Run      string         `yaml:"run,omitempty" json:"run,omitempty"`
-	Validate string         `yaml:"validate,omitempty" json:"validate,omitempty"`
+	File     *FileAction     `yaml:"file,omitempty" json:"file,omitempty"`
+	Setting  *SettingAction  `yaml:"setting,omitempty" json:"setting,omitempty"`
+	Mode     *ModeAction     `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Service  *ServiceAction  `yaml:"service,omitempty" json:"service,omitempty"`
+	Package  *PackageAction  `yaml:"package,omitempty" json:"package,omitempty"`
+	AppArmor *AppArmorAction `yaml:"apparmor,omitempty" json:"apparmor,omitempty"`
+	Absent   string          `yaml:"absent,omitempty" json:"absent,omitempty"`
+	Run      string          `yaml:"run,omitempty" json:"run,omitempty"`
+	Validate string          `yaml:"validate,omitempty" json:"validate,omitempty"`
+}
+
+// AppArmorAction puts profiles (files in /etc/apparmor.d) into enforce
+// mode, on Hosts only when given. A profile the operator disabled or forced
+// to complain (a link in disable/ or force-complain/) is refused, never
+// overridden.
+type AppArmorAction struct {
+	Enforce []string `yaml:"enforce" json:"enforce"`
+	Hosts   []string `yaml:"hosts,omitempty" json:"hosts,omitempty"`
+}
+
+// ProfilesFor returns the profiles the action enforces on host.
+func (a *AppArmorAction) ProfilesFor(host string) []string {
+	if len(a.Hosts) > 0 && !contains(a.Hosts, host) {
+		return nil
+	}
+	return a.Enforce
 }
 
 // FileAction writes a whole file. Content is Parts or a Generator.
@@ -131,8 +153,11 @@ type ServiceAction struct {
 }
 
 // PackageAction installs a package. Removal is never automatic (ADR-098).
+// NoRecommends keeps apt from pulling in what the package only recommends
+// (aide-common recommends a mail transport agent).
 type PackageAction struct {
-	Name string `yaml:"name" json:"name"`
+	Name         string `yaml:"name" json:"name"`
+	NoRecommends bool   `yaml:"no_recommends,omitempty" json:"no_recommends,omitempty"`
 }
 
 // Facts are what a host is, as far as content depends on it.
@@ -211,13 +236,13 @@ func (f *Fix) validate() error {
 func (a Action) validate() error {
 	n := 0
 	for _, set := range []bool{a.File != nil, a.Setting != nil, a.Mode != nil, a.Service != nil,
-		a.Package != nil, a.Absent != "", a.Run != "", a.Validate != ""} {
+		a.Package != nil, a.AppArmor != nil, a.Absent != "", a.Run != "", a.Validate != ""} {
 		if set {
 			n++
 		}
 	}
 	if n != 1 {
-		return invalid("an action is exactly one of file, setting, mode, service, package, absent, run, validate (has %d)", n)
+		return invalid("an action is exactly one of file, setting, mode, service, package, apparmor, absent, run, validate (has %d)", n)
 	}
 	switch {
 	case a.File != nil:
@@ -245,6 +270,8 @@ func (a Action) validate() error {
 		if !pkgRe.MatchString(a.Package.Name) {
 			return invalid("package %q", a.Package.Name)
 		}
+	case a.AppArmor != nil:
+		return a.AppArmor.validate()
 	case a.Absent != "":
 		return checkPath(a.Absent)
 	case a.Run != "":
@@ -263,6 +290,41 @@ func (a Action) validate() error {
 func checkPath(p string) error {
 	if !strings.HasPrefix(p, "/etc/") || path.Clean(p) != p || strings.Contains(p, "..") {
 		return invalid("path %q is not a clean absolute path under /etc", p)
+	}
+	return nil
+}
+
+// checkModePath admits what a mode action may tighten: paths under /etc,
+// and log files under /var/log (rocm-log-perms). Content is never written
+// outside /etc.
+func checkModePath(p string) error {
+	if strings.HasPrefix(p, "/var/log/") && path.Clean(p) == p && !strings.Contains(p, "..") {
+		return nil
+	}
+	if err := checkPath(p); err != nil {
+		return invalid("path %q is not a clean absolute path under /etc or /var/log", p)
+	}
+	return nil
+}
+
+func (aa *AppArmorAction) validate() error {
+	if len(aa.Enforce) == 0 {
+		return invalid("apparmor enforces no profile")
+	}
+	seen := map[string]bool{}
+	for _, p := range aa.Enforce {
+		if !profileRe.MatchString(p) {
+			return invalid("apparmor profile %q is not a file name in /etc/apparmor.d", p)
+		}
+		if seen[p] {
+			return invalid("apparmor profile %s listed twice", p)
+		}
+		seen[p] = true
+	}
+	for _, h := range aa.Hosts {
+		if !isKnownHost(h) {
+			return invalid("apparmor for unknown host %q", h)
+		}
 	}
 	return nil
 }
@@ -335,7 +397,7 @@ func (ma *ModeAction) validate() error {
 		return invalid("mode needs paths or a glob, not both")
 	}
 	for _, p := range ma.Paths {
-		if err := checkPath(p); err != nil {
+		if err := checkModePath(p); err != nil {
 			return err
 		}
 	}

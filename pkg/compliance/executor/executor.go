@@ -2,9 +2,9 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package executor applies fixes from the remediation model (ADR-099
-// phase 2) the way scripts/host/remediate.sh does: plan by default and
+// phase 2) as scripts/host/remediate.sh did before it was retired on parity: plan by default and
 // writing nothing; apply as root, backing up everything it touches and
-// recording an undo record that replays newest-first; any failed
+// recording an undo record that replays newest-first, reloads last; any failed
 // validation undoes the whole fix. It runs only the closed action set and
 // only allowlisted commands, as argv, never through a shell.
 //
@@ -48,9 +48,11 @@ var errRestoreFailed = errors.New("restore failed")
 // remediate.sh, so the test harness can substitute fakes.
 type Commands struct {
 	Sysctl, Systemctl, SSHD, Visudo, Apt, Sudo, Augenrules string
+	AAEnforce, AppArmorParser, DpkgQuery, Aideinit         string
 }
 
-// CommandsFromEnv reads SYSCTL, SYSTEMCTL, SSHD, VISUDO, APT, SUDO_BIN and AUGENRULES.
+// CommandsFromEnv reads SYSCTL, SYSTEMCTL, SSHD, VISUDO, APT, SUDO_BIN,
+// AUGENRULES, AA_ENFORCE, APPARMOR_PARSER, DPKG_QUERY and AIDEINIT.
 func CommandsFromEnv() Commands {
 	get := func(k, def string) string {
 		if v := os.Getenv(k); v != "" {
@@ -61,9 +63,15 @@ func CommandsFromEnv() Commands {
 	return Commands{
 		Sysctl: get("SYSCTL", "sysctl"), Systemctl: get("SYSTEMCTL", "systemctl"), SSHD: get("SSHD", "sshd"),
 		Visudo: get("VISUDO", "visudo"), Apt: get("APT", "apt-get"), Sudo: get("SUDO_BIN", "sudo"),
-		Augenrules: get("AUGENRULES", "augenrules"),
+		Augenrules: get("AUGENRULES", "augenrules"), AAEnforce: get("AA_ENFORCE", "aa-enforce"),
+		AppArmorParser: get("APPARMOR_PARSER", "apparmor_parser"), DpkgQuery: get("DPKG_QUERY", "dpkg-query"),
+		Aideinit: get("AIDEINIT", "aideinit"),
 	}
 }
+
+// notReplayed are run actions whose undo is nothing: aideinit builds a
+// database, and building it again on undo restores nothing.
+var notReplayed = map[string]bool{"aideinit -y -f": true}
 
 // argv maps an allowlisted run or validate string to its argv.
 func (c Commands) argv(s string) ([]string, error) {
@@ -82,6 +90,10 @@ func (c Commands) argv(s string) ([]string, error) {
 		return []string{c.Systemctl, "restart", "systemd-journald.service"}, nil
 	case "systemctl restart chrony.service":
 		return []string{c.Systemctl, "restart", "chrony.service"}, nil
+	case "systemctl daemon-reload":
+		return []string{c.Systemctl, "daemon-reload"}, nil
+	case "aideinit -y -f":
+		return []string{c.Aideinit, "-y", "-f"}, nil
 	}
 	return nil, fmt.Errorf("%w: %q is not an allowlisted command", ErrRefused, s)
 }
@@ -145,7 +157,10 @@ func (e *Executor) printf(format string, a ...any) { fmt.Fprintf(e.o.Out, format
 // --- undo record --------------------------------------------------------------
 
 type undoStep struct {
-	Op     string   `json:"op"` // restore, remove, rmdir, chmod, run
+	// restore, remove, rmdir, chmod, run, and reload: a fix's reload or
+	// restart, replayed after every other step so the restored files are
+	// what gets reloaded (records written before reload existed say run).
+	Op     string   `json:"op"`
 	Path   string   `json:"path,omitempty"`
 	Backup string   `json:"backup,omitempty"`
 	Mode   uint32   `json:"mode,omitempty"`
@@ -338,7 +353,11 @@ func (e *Executor) Plan(ctx context.Context, fix remediation.Fix) error {
 		case a.Service != nil:
 			e.printf("  would run: %s\n", strings.Join(e.serviceArgv(a.Service), "; "))
 		case a.Package != nil:
-			e.printf("  would run: %s install -y -q %s\n", e.o.Cmd.Apt, a.Package.Name)
+			e.printf("  would run: %s\n", strings.Join(e.aptInstall(a.Package), " "))
+		case a.AppArmor != nil:
+			for _, p := range a.AppArmor.ProfilesFor(e.o.Host) {
+				e.printf("  would run: %s /etc/apparmor.d/%s (if installed)\n", e.o.Cmd.AAEnforce, p)
+			}
 		case a.Run != "":
 			e.printf("  then: %s\n", a.Run)
 		case a.Validate != "":
@@ -360,7 +379,23 @@ func (e *Executor) modePaths(ma *remediation.ModeAction) []string {
 	return out
 }
 
+func (e *Executor) aptInstall(p *remediation.PackageAction) []string {
+	argv := []string{e.o.Cmd.Apt, "install", "-y", "-q"}
+	if p.NoRecommends {
+		argv = append(argv, "--no-install-recommends")
+	}
+	return append(argv, p.Name)
+}
+
+// enables reports a service action that turns a unit on (enable --now).
+func enables(s *remediation.ServiceAction) bool {
+	return s.Enabled != nil && *s.Enabled && s.Active != nil && *s.Active && s.Masked == nil
+}
+
 func (e *Executor) serviceArgv(s *remediation.ServiceAction) []string {
+	if enables(s) {
+		return []string{e.o.Cmd.Systemctl + " enable --now " + s.Name}
+	}
 	var out []string
 	if s.Enabled != nil && !*s.Enabled {
 		out = append(out, e.o.Cmd.Systemctl+" disable --now "+s.Name)
@@ -461,16 +496,21 @@ func (r *applyRun) apply(ctx context.Context, a remediation.Action) error {
 			return err
 		}
 		e.printf("  installing %s\n", a.Package.Name)
-		return runCmd(ctx, []string{e.o.Cmd.Apt, "install", "-y", "-q", a.Package.Name}, "DEBIAN_FRONTEND=noninteractive")
+		return runCmd(ctx, e.aptInstall(a.Package), "DEBIAN_FRONTEND=noninteractive")
+	case a.AppArmor != nil:
+		return r.applyAppArmor(ctx, a.AppArmor)
 	case a.Run != "":
 		argv, err := e.o.Cmd.argv(a.Run)
 		if err != nil {
 			return err
 		}
-		// Undo replays it after the files are restored (sysctl --system
+		// Undo replays it after every file is restored (sysctl --system
 		// reloads the restored values; a reload picks up restored config).
-		if err := r.record(undoStep{Op: "run", Argv: argv}); err != nil {
-			return err
+		// Recorded before it runs, so a run that fails is replayed too.
+		if !notReplayed[a.Run] {
+			if err := r.record(undoStep{Op: "reload", Argv: argv}); err != nil {
+				return err
+			}
 		}
 		return runCmd(ctx, argv)
 	case a.Validate != "":
@@ -640,12 +680,23 @@ func (r *applyRun) applyMode(ma *remediation.ModeAction) error {
 	return nil
 }
 
-// applyService supports what the model uses today (disable --now, mask)
-// and refuses anything else rather than guess at its undo.
+// applyService supports what the model uses (disable --now, mask; enable
+// --now, undone by disable --now) and refuses anything else rather than
+// guess at its undo.
 func (r *applyRun) applyService(ctx context.Context, s *remediation.ServiceAction) error {
 	e := r.e
+	if enables(s) {
+		if err := r.record(undoStep{Op: "run", Argv: []string{e.o.Cmd.Systemctl, "disable", "--now", s.Name}}); err != nil {
+			return err
+		}
+		if err := runCmd(ctx, []string{e.o.Cmd.Systemctl, "enable", "--now", s.Name}); err != nil {
+			return err
+		}
+		e.printf("  %s enabled and started\n", s.Name)
+		return nil
+	}
 	if s.Active != nil && *s.Active || s.Enabled != nil && *s.Enabled || s.Masked != nil && !*s.Masked {
-		return fmt.Errorf("%w: service %s: only disable/stop and mask are supported", ErrRefused, s.Name)
+		return fmt.Errorf("%w: service %s: only disable/stop, mask, and enable with start are supported", ErrRefused, s.Name)
 	}
 	if s.Enabled != nil || s.Active != nil {
 		if err := r.record(undoStep{Op: "run", Argv: []string{e.o.Cmd.Systemctl, "enable", "--now", s.Name}}); err != nil {
@@ -664,6 +715,41 @@ func (r *applyRun) applyService(ctx context.Context, s *remediation.ServiceActio
 		}
 	}
 	e.printf("  %s disabled and masked\n", s.Name)
+	return nil
+}
+
+// applyAppArmor puts each profile in enforce mode with aa-enforce, after
+// backing up its file (aa-enforce rewrites the flags). Undo restores the
+// file and reloads it. A profile not installed here is skipped; one the
+// operator disabled or forced to complain is refused.
+func (r *applyRun) applyAppArmor(ctx context.Context, aa *remediation.AppArmorAction) error {
+	e := r.e
+	for _, name := range aa.ProfilesFor(e.o.Host) {
+		p := "/etc/apparmor.d/" + name
+		if _, err := os.Lstat(e.path(p)); errors.Is(err, fs.ErrNotExist) {
+			e.printf("  %s: not installed here, nothing to enforce\n", p)
+			continue
+		} else if err != nil {
+			return err
+		}
+		for _, d := range []string{"disable", "force-complain"} {
+			if _, err := os.Lstat(e.path("/etc/apparmor.d/" + d + "/" + name)); err == nil {
+				return fmt.Errorf("%w: profile %s is in /etc/apparmor.d/%s (the operator's choice); not enforcing it", ErrRefused, name, d)
+			} else if !errors.Is(err, fs.ErrNotExist) {
+				return err
+			}
+		}
+		if err := r.backup(p); err != nil {
+			return err
+		}
+		if err := r.record(undoStep{Op: "reload", Argv: []string{e.o.Cmd.AppArmorParser, "-r", e.path(p)}}); err != nil {
+			return err
+		}
+		if err := runCmd(ctx, []string{e.o.Cmd.AAEnforce, e.path(p)}); err != nil {
+			return err
+		}
+		e.printf("  %s: enforce\n", name)
+	}
 	return nil
 }
 
@@ -723,10 +809,22 @@ func Undo(ctx context.Context, dir string, out io.Writer, allowNonRoot bool) err
 	return runUndo(ctx, steps, out, allowNonRoot)
 }
 
+// runUndo replays steps newest first, then the reloads in the order they
+// were recorded, so each reload reads the restored files.
 func runUndo(ctx context.Context, steps []undoStep, out io.Writer, allowNonRoot bool) error {
 	var errs []error
+	order := make([]undoStep, 0, len(steps))
 	for i := len(steps) - 1; i >= 0; i-- {
-		s := steps[i]
+		if steps[i].Op != "reload" {
+			order = append(order, steps[i])
+		}
+	}
+	for _, s := range steps {
+		if s.Op == "reload" {
+			order = append(order, s)
+		}
+	}
+	for _, s := range order {
 		var err error
 		switch s.Op {
 		case "restore":
@@ -748,7 +846,7 @@ func runUndo(ctx context.Context, steps []undoStep, out io.Writer, allowNonRoot 
 					err = cerr
 				}
 			}
-		case "run":
+		case "run", "reload":
 			err = runCmd(ctx, s.Argv)
 		default:
 			err = fmt.Errorf("unknown undo step %q", s.Op)

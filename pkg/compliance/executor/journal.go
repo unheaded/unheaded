@@ -67,13 +67,18 @@ func (e *Executor) checkJournal() error {
 
 // appendJournal seals and appends one entry, synced to disk.
 func (e *Executor) appendJournal(fixID, fixSHA, action, outcome, dir string) error {
+	return e.appendJournalEntry(remediation.JournalEntry{FixID: fixID, FixSHA256: fixSHA, Action: action,
+		Outcome: outcome, BackupDir: dir, Operator: e.o.Operator})
+}
+
+// appendJournalEntry fills in host, sequence, model commit and time, then
+// seals and appends the entry.
+func (e *Executor) appendJournalEntry(entry remediation.JournalEntry) error {
 	last, err := e.lastEntry()
 	if err != nil {
 		return err
 	}
-	entry := remediation.JournalEntry{Host: e.o.Host, Seq: 1, FixID: fixID, FixSHA256: fixSHA,
-		ModelCommit: e.o.ModelCommit, Action: action, Outcome: outcome, BackupDir: dir,
-		Operator: e.o.Operator, At: e.o.Now()}
+	entry.Host, entry.Seq, entry.ModelCommit, entry.At = e.o.Host, 1, e.o.ModelCommit, e.o.Now()
 	prev := remediation.GenesisHash
 	if last != nil {
 		entry.Seq, prev = last.Seq+1, last.Hash

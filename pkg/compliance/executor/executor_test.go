@@ -22,32 +22,39 @@ import (
 
 // Fake commands log "<name> <args>" to $FAKE_CALLS and fail when a file
 // named after them exists in $FAKE_FAIL_DIR.
+// A query (systemctl is-enabled, dpkg-query) prints the file
+// $FAKE_ANSWERS/<name>_<args with spaces and slashes as _> when it exists.
 const recorder = `#!/bin/sh
 echo "$(basename "$0") $*" >>"$FAKE_CALLS"
 [ -e "$FAKE_FAIL_DIR/$(basename "$0")" ] && exit 1
+key="$(basename "$0")_$(echo "$*" | tr ' /' '__')"
+[ -n "$FAKE_ANSWERS" ] && [ -f "$FAKE_ANSWERS/$key" ] && cat "$FAKE_ANSWERS/$key"
 exit 0
 `
 
 type env struct {
 	t                        *testing.T
 	root, state, calls, fail string
-	bin                      string
+	bin, answers             string
 }
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	dir := t.TempDir()
 	e := &env{t: t, root: filepath.Join(dir, "root"), state: filepath.Join(dir, "state"),
-		calls: filepath.Join(dir, "calls"), fail: filepath.Join(dir, "fail"), bin: filepath.Join(dir, "bin")}
-	for _, d := range []string{e.bin, e.fail, e.root + "/etc/sysctl.d", e.root + "/etc/modprobe.d", e.root + "/etc/profile.d",
+		calls: filepath.Join(dir, "calls"), fail: filepath.Join(dir, "fail"), bin: filepath.Join(dir, "bin"),
+		answers: filepath.Join(dir, "answers")}
+	for _, d := range []string{e.bin, e.fail, e.answers, e.root + "/etc/sysctl.d", e.root + "/etc/modprobe.d", e.root + "/etc/profile.d",
 		e.root + "/etc/ssh/sshd_config.d", e.root + "/etc/default", e.root + "/etc/cron.d", e.root + "/etc/cron.daily",
 		e.root + "/etc/cron.hourly", e.root + "/etc/cron.weekly", e.root + "/etc/cron.monthly", e.root + "/etc/sudoers.d",
-		e.root + "/etc/audit/rules.d"} {
+		e.root + "/etc/audit/rules.d", e.root + "/etc/apparmor.d", e.root + "/var/log/rocm_smi_lib",
+		e.root + "/sys/kernel/security/apparmor"} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, n := range []string{"sysctl", "systemctl", "sshd", "visudo", "apt-get", "augenrules"} {
+	for _, n := range []string{"sysctl", "systemctl", "sshd", "visudo", "apt-get", "augenrules",
+		"aa-enforce", "apparmor_parser", "dpkg-query", "aideinit"} {
 		if err := os.WriteFile(filepath.Join(e.bin, n), []byte(recorder), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -61,9 +68,22 @@ func newEnv(t *testing.T) *env {
 	e.write("/etc/ssh/sshd_config", "Include /etc/ssh/sshd_config.d/*.conf\n", 0o644)
 	e.write("/etc/ssh/sshd_config.d/99-unheaded.conf", "MaxAuthTries 3\n", 0o644)
 	e.write("/etc/cron.deny", "nobody\n", 0o644)
+	e.write("/etc/apparmor.d/Xorg", "profile Xorg /usr/lib/xorg/Xorg flags=(complain) {\n}\n", 0o644)
+	e.write("/var/log/rocm_smi_lib/ROCm-SMI-lib.log", "", 0o644)
+	e.write("/sys/kernel/security/apparmor/profiles", "Xorg (complain)\nlsb_release (enforce)\n", 0o644)
 	t.Setenv("FAKE_CALLS", e.calls)
 	t.Setenv("FAKE_FAIL_DIR", e.fail)
+	t.Setenv("FAKE_ANSWERS", e.answers)
 	return e
+}
+
+// answer makes the fake <bin> print out when called with args.
+func (e *env) answer(bin, args, out string) {
+	e.t.Helper()
+	key := bin + "_" + strings.NewReplacer(" ", "_", "/", "_").Replace(args)
+	if err := os.WriteFile(filepath.Join(e.answers, key), []byte(out+"\n"), 0o644); err != nil {
+		e.t.Fatal(err)
+	}
 }
 
 func (e *env) write(p, body string, mode os.FileMode) {
@@ -87,7 +107,8 @@ func (e *env) callLog() string { b, _ := os.ReadFile(e.calls); return string(b) 
 
 func (e *env) cmds() Commands {
 	j := func(n string) string { return filepath.Join(e.bin, n) }
-	return Commands{Sysctl: j("sysctl"), Systemctl: j("systemctl"), SSHD: j("sshd"), Visudo: j("visudo"), Apt: j("apt-get"), Sudo: j("sudo"), Augenrules: j("augenrules")}
+	return Commands{Sysctl: j("sysctl"), Systemctl: j("systemctl"), SSHD: j("sshd"), Visudo: j("visudo"), Apt: j("apt-get"), Sudo: j("sudo"), Augenrules: j("augenrules"),
+		AAEnforce: j("aa-enforce"), AppArmorParser: j("apparmor_parser"), DpkgQuery: j("dpkg-query"), Aideinit: j("aideinit")}
 }
 
 func (e *env) executor(host string) *Executor {
@@ -182,7 +203,8 @@ func TestApplyThenUndoRestoresEverything(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if e.snapshot() == before && f.ID != "apparmor-utils" && f.ID != "auditd" {
+				// Package installs and aa-enforce change files only on a real host.
+				if e.snapshot() == before && f.ID != "apparmor-utils" && f.ID != "auditd" && f.ID != "apparmor-enforce" {
 					t.Error("apply changed no file")
 				}
 				if err := Undo(context.Background(), dir, nil, true); err != nil {

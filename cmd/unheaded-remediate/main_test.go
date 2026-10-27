@@ -65,7 +65,7 @@ func TestListPlanApplyUndo(t *testing.T) {
 	model, root, state := setup(t)
 	flags := []string{"-model", model, "-root", root, "-state", state, "-host", "east"}
 	code, out, _ := cli(append(flags, "list")...)
-	if code != 0 || strings.Count(out, "\n") != 13 || !strings.Contains(out, "sshd-safe") {
+	if code != 0 || strings.Count(out, "\n") != 16 || !strings.Contains(out, "aide-install") {
 		t.Fatalf("list: %d\n%s", code, out)
 	}
 	if code, out, errs := cli(append(flags, "plan", "kmod-cis")...); code != 0 || !strings.Contains(out, "would write") {

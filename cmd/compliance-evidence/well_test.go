@@ -132,7 +132,7 @@ func TestSnapshotCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snap.Source != "yaml-fallback" || len(snap.Fixes) != 12 { // east: lab-hardened
+	if snap.Source != "yaml-fallback" || len(snap.Fixes) != 15 { // east: lab-hardened (12, plus the three Step 267 fixes)
 		t.Errorf("snapshot from %s with %d fixes", snap.Source, len(snap.Fixes))
 	}
 	if err := os.Chmod(seed, 0o644); err != nil {

@@ -527,6 +527,8 @@ pypi aiohttp
 pypi aiosignal
 pypi annotated-doc
 pypi annotated-types
+# 2026-10-27, S-WELL-SPRING Step 271 (ADR-096 section 2): ansible-core 2.21.5 (the Ansible project, on PyPI since 2020, GPL-3.0-or-later) for `ansible-playbook --syntax-check` of deploy/ansible/compliance in CI; never runs a play. The other new pins (jinja2, markupsafe, cryptography, cffi, pycparser) were already admitted.
+pypi ansible-core
 pypi anthropic
 pypi anyio
 pypi attrs
@@ -687,6 +689,8 @@ pypi referencing
 pypi regex
 pypi requests
 pypi requests-toolbelt
+# 2026-10-27, S-WELL-SPRING Step 271 (ADR-096 section 2): resolvelib, ansible-core's dependency resolver (Tzu-ping Chung, a pip maintainer; pip vendors it; ISC). CI venv only.
+pypi resolvelib
 pypi rich
 pypi rpds-py
 pypi ruff
