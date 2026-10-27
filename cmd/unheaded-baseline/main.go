@@ -11,9 +11,11 @@
 // enforcing is reported as a critical event and run as audit.
 //
 // Outputs: /var/lib/unheaded/baseline/report.json, one log line per
-// deviation (journald via the unit's stdout), and with -textfile-dir a
-// node-exporter textfile. Exit 0 when the checks ran (deviations are data),
-// 1 when the host could not be evaluated.
+// deviation (journald via the unit's stdout), with -textfile-dir a
+// node-exporter textfile, and with -wotan-addr (or $WOTAN_ADDR) one Wotan
+// message on compliance.deviation.<host> when there are deviations. Exit 0
+// when the checks ran (deviations are data; a failed publish is a WARN
+// line), 1 when the host could not be evaluated.
 //
 //	unheaded-baseline -root-facts /run/unheaded-baseline   # from the systemd timer, as unheaded-baseline
 //	unheaded-baseline -hostname east -textfile-dir /var/lib/node_exporter/textfile
@@ -55,6 +57,7 @@ type options struct {
 	configPath   string
 	stateDir     string
 	textfileDir  string
+	wotanAddr    string // Wotan HTTP host:port; "" = no publish
 	hostname     string
 	procSys      string
 	rootFacts    string // directory of root-only facts (unit ExecStartPre=+); "" = none
@@ -93,9 +96,11 @@ func main() {
 	flag.StringVar(&o.textfileDir, "textfile-dir", "", "node-exporter textfile directory (optional)")
 	flag.StringVar(&o.hostname, "hostname", "", "host name in the baseline (default: os.Hostname)")
 	flag.StringVar(&o.rootFacts, "root-facts", "", "directory holding aa-status.json and root-path, written as root before the agent runs")
+	flag.StringVar(&o.wotanAddr, "wotan-addr", "", "Wotan HTTP host:port; when set, deviations are published on compliance.deviation.<host> (default: $WOTAN_ADDR, empty = off)")
 	timeout := flag.Duration("timeout", 2*time.Minute, "give up after this long")
 	flag.Parse()
 	o.trustedUID = 0
+	o.wotanAddr = wotanAddrFrom(o.wotanAddr, os.Getenv)
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
@@ -189,8 +194,16 @@ func run(ctx context.Context, o options, logw io.Writer) (*report, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := writeAtomic(o.stateDir, "report.json", append(body, '\n')); err != nil {
+	body = append(body, '\n')
+	if err := writeAtomic(o.stateDir, "report.json", body); err != nil {
 		return nil, err
+	}
+	if o.wotanAddr != "" && rep.Deviations > 0 {
+		// report.json is the record; a Wotan that is down costs the bus
+		// one message, not the host its report.
+		if err := publishDeviations(ctx, o.wotanAddr, rep, body); err != nil {
+			logf(logw, "WARN wotan publish host=%s addr=%s: %v", host, o.wotanAddr, err)
+		}
 	}
 	if o.textfileDir != "" {
 		if err := writeAtomic(o.textfileDir, "unheaded_baseline.prom", textfile(rep)); err != nil {

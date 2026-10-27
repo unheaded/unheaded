@@ -38,6 +38,11 @@ Group=unheaded-baseline
 RuntimeDirectory=unheaded-baseline
 RuntimeDirectoryMode=0750
 ExecStartPre=+/bin/sh -c 'umask 027; d="$RUNTIME_DIRECTORY"; aa-status --json > "$d/aa-status.json" 2>/dev/null; sudo -n -Hiu root env 2>/dev/null | sed -n "s/^PATH=//p" > "$d/root-path"; chgrp unheaded-baseline "$d/aa-status.json" "$d/root-path"; exit 0'
+# Deviations go to Wotan (compliance.deviation.<host>) only when WOTAN_ADDR
+# is set. Hosts set it in the optional env file, never in this unit:
+#   echo 'WOTAN_ADDR=127.0.0.1:18000' | sudo tee /etc/unheaded/baseline.env
+#Environment=WOTAN_ADDR=127.0.0.1:18000
+EnvironmentFile=-/etc/unheaded/baseline.env
 ExecStart=/usr/local/bin/unheaded-baseline -root-facts /run/unheaded-baseline
 StateDirectory=unheaded/baseline
 StateDirectoryMode=0755
