@@ -27,7 +27,7 @@ if 'sentence_transformers' not in sys.modules:
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / 'raft' / 'scripts'))
 
-import zhen_rag  # noqa: E402
+import zhen_rag
 
 GOLDEN = REPO / 'pkg' / 'zhenrag' / 'testdata' / 'prompts'
 

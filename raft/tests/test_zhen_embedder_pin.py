@@ -24,7 +24,7 @@ if 'sentence_transformers' not in sys.modules:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
-import zhen_rag  # noqa: E402
+import zhen_rag
 
 
 @pytest.fixture

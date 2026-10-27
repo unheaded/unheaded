@@ -11,9 +11,8 @@ import os
 import re
 import subprocess
 
-import pytest
-
 import harness
+import pytest
 
 RUNBOOKS = {
     "runbooks/observe/heartbeat-missing.yaml": ("HeartbeatMissing", "Watchdog"),
@@ -105,7 +104,7 @@ class _API:
         payload = json.dumps(body).encode()
 
         class H(http.server.BaseHTTPRequestHandler):
-            def do_GET(self):  # noqa: N802 (http.server's name)
+            def do_GET(self):
                 self.send_response(code)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
