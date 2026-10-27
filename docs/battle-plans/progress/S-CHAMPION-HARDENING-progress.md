@@ -82,3 +82,17 @@ Step 114's "refused before the API call" was already true. **Branch-sandbox mode
 the code already behaves as if the ADR-019 L2 amendment were accepted; ADR-019 now says what rejecting changes.
 Steps 118-119 wait on E3. ADR-019 checklist closed by cross-reference except config template library and the
 no-human escalation path (E2).
+
+### Phase 7 merged
+
+The five `runbook-draft` tasks had no prompts (`ref: "blocked: Phase 8 harness"`); prompts, requirements and
+reference drafts were written before any result existed (`eval/two-brains/runbook-draft/<id>/`). Judge
+`runbook` (kept its registered name; contract is a dated amendment in `eval/two-brains/PREREG.md`): dry-run exit 0
+AND `check-runbooks.py --one` (new: one file, strict, draft required) AND requires/forbids regexes; per-check
+results in a new `judges` field. zhen-eval now refuses an unknown judge. `run-runbook.py` runs `verification:`
+after the steps; a failed verification exits 1 (no rollback), which the scheduler, MCP tool and web app read.
+`check-runbooks.py` now `bash -n`s verification commands. tests/runbooks 119 passed after merge.
+Step 148 (live eval on the local model) is LIVE for the coordinator: `zhen-eval -family runbook-draft -limit 3
+-out <scratch>` (the plan's `-families` flag does not exist; fixed in the plan text).
+Correction to the agent's note: `wotan/active-active-cutover.yaml` (TODO verification) is `status: stub`, not one
+of the E1 drafts.

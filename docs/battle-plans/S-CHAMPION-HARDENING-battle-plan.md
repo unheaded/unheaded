@@ -628,46 +628,46 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 2 h
 **Agent**: Agent A
 
-- [ ] **Step 143** [R] ~4m: How `check` judging works for `rb-author` and what `runbook-draft` tasks look like
+- [x] **Step 143** [R] ~4m: How `check` judging works for `rb-author` and what `runbook-draft` tasks look like
   ```bash
   cd /home/govan/tmp/unheaded && grep -n '"check"' cmd/zhen-eval/main.go | head && ls eval/champion-runbooks/fixtures | head -5 && cat eval/champion-runbooks/fixtures/$(ls eval/champion-runbooks/fixtures | head -1)/check.sh 2>/dev/null | head -20 && grep -c 'runbook-draft' eval/coding-gate/tasks.jsonl 2>/dev/null || grep -rl 'runbook-draft' eval | head -3
   ```
-- [ ] **Step 144** [DESIGN][W] ~5m: Judge contract in `cmd/zhen-eval/README.md` (or the file that documents judges): `runbook-draft` tasks carry `judge: "check"` with `check: "runbook-draft"`; the judge writes the model's YAML to a temp file, runs `scripts/run-runbook.py --dry-run <tmp>` (exit 0), `scripts/check-runbooks.py --one <tmp>` (0 new findings, strict because the draft must carry `metadata.status: draft`), and the task's own `requirements` grep list; all three must pass.
-- [ ] **Step 145** [CODE][W] ~8m: Red: in `cmd/zhen-eval/main_test.go` change the assertion at `:35` to `fam["runbook-draft"] == <count from Step 143>` and add `TestJudgeRunbookDraft_PassAndFail` with a passing and a failing YAML fixture under `cmd/zhen-eval/testdata/`. Green: remove the `continue` at `main.go:307`, implement `judgeRunbookDraft` calling the two scripts with `exec.CommandContext` (timeout 60 s, cwd repo root, `python3` from `ZHEN_EVAL_PYTHON` or PATH).
-- [ ] **Step 146** [TEST][B] ~3m
+- [x] **Step 144** [DESIGN][W] ~5m: Judge contract in `cmd/zhen-eval/README.md` (or the file that documents judges): `runbook-draft` tasks carry `judge: "check"` with `check: "runbook-draft"`; the judge writes the model's YAML to a temp file, runs `scripts/run-runbook.py --dry-run <tmp>` (exit 0), `scripts/check-runbooks.py --one <tmp>` (0 new findings, strict because the draft must carry `metadata.status: draft`), and the task's own `requirements` grep list; all three must pass.
+- [x] **Step 145** [CODE][W] ~8m: Red: in `cmd/zhen-eval/main_test.go` change the assertion at `:35` to `fam["runbook-draft"] == <count from Step 143>` and add `TestJudgeRunbookDraft_PassAndFail` with a passing and a failing YAML fixture under `cmd/zhen-eval/testdata/`. Green: remove the `continue` at `main.go:307`, implement `judgeRunbookDraft` calling the two scripts with `exec.CommandContext` (timeout 60 s, cwd repo root, `python3` from `ZHEN_EVAL_PYTHON` or PATH).
+- [x] **Step 146** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && PATH=~/.venv/zhen/bin:$PATH go test ./cmd/zhen-eval/... -race -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 147** [V] ~1m: PASS. If `check-runbooks.py` has no `--one` → add it in Step 145 (validate a single path, no baseline write).
+- [x] **Step 147** [V] ~1m: PASS. If `check-runbooks.py` has no `--one` → add it in Step 145 (validate a single path, no baseline write).
 - [ ] **Step 148** [TEST][B] ~10m: Dry run of the eval on `runbook-draft` only, local model, 3 tasks, scratch output (NOT committed; results files lock bars)
   ```bash
-  cd /home/govan/tmp/unheaded && scripts/switch-model.sh --status | tail -1 && go run ./cmd/zhen-eval -families runbook-draft -limit 3 -out /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/eval-rbdraft-smoke.jsonl 2>&1 | tail -6
+  cd /home/govan/tmp/unheaded && scripts/switch-model.sh --status | tail -1 && go run ./cmd/zhen-eval -family runbook-draft -limit 3 -out /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/eval-rbdraft-smoke.jsonl 2>&1 | tail -6
   ```
-- [ ] **Step 149** [V] ~1m: Three rows, each with a `verdict` and the three judge sub-results; no panic. If `-limit`/`-out` flags do not exist → use the flags the binary has (`go run ./cmd/zhen-eval -h`) and record them in Appendix C.
-- [ ] **Step 150** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 143-149: zhen-eval judges runbook-draft with the Phase 8 harness`
+- [x] **Step 149** [V] ~1m: Three rows, each with a `verdict` and the three judge sub-results; no panic. If `-limit`/`-out` flags do not exist → use the flags the binary has (`go run ./cmd/zhen-eval -h`) and record them in Appendix C.
+- [x] **Step 150** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 143-149: zhen-eval judges runbook-draft with the Phase 8 harness`
 
 ### run-runbook.py executes `verification:`
 
-- [ ] **Step 151** [R] ~3m
+- [x] **Step 151** [R] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && sed -n 150,215p scripts/run-runbook.py && grep -nE -A6 '^\s*verification:' runbooks/infra/west-startup-order.yaml | head -14
   ```
-- [ ] **Step 152** [CODE][W] ~8m: Red: `tests/runbooks/test_verification_section.py` (a fixture runbook whose `verification:` has one passing and one failing `check`; dry-run prints both as `(dry run)`; real run with a sandbox env exits non-zero naming the failing check; a runbook without the section is unchanged). Green: `run_verification(runbook, env, dry_run)` after `execute_steps`, same `check`/`description` shape as preconditions; summary line `verification: n/m passed`.
-- [ ] **Step 153** [TEST][B] ~2m
+- [x] **Step 152** [CODE][W] ~8m: Red: `tests/runbooks/test_verification_section.py` (a fixture runbook whose `verification:` has one passing and one failing `check`; dry-run prints both as `(dry run)`; real run with a sandbox env exits non-zero naming the failing check; a runbook without the section is unchanged). Green: `run_verification(runbook, env, dry_run)` after `execute_steps`, same `check`/`description` shape as preconditions; summary line `verification: n/m passed`.
+- [x] **Step 153** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && ~/.venv/zhen/bin/python3 -m pytest tests/runbooks/test_verification_section.py tests/runbooks/test_harness.py -q 2>&1 | tail -2
   ```
-- [ ] **Step 154** [B] ~3m: Dry-run the four runbooks that carry the section
+- [x] **Step 154** [B] ~3m: Dry-run the four runbooks that carry the section
   ```bash
   cd /home/govan/tmp/unheaded && for f in runbooks/wotan/active-active-cutover.yaml runbooks/network/air-gap-egress-validation.yaml runbooks/observe/slo-error-budget-burn.yaml runbooks/infra/west-startup-order.yaml; do ~/.venv/zhen/bin/python3 scripts/run-runbook.py --dry-run $f 2>&1 | grep -E 'verification:|Traceback' | tail -2; done
   ```
-- [ ] **Step 155** [V] ~1m: Four `verification: n/n (dry run)` lines, no traceback.
-- [ ] **Step 156** [TEST][B] ~3m: Whole runbook suite
+- [x] **Step 155** [V] ~1m: Four `verification: n/n (dry run)` lines, no traceback.
+- [x] **Step 156** [TEST][B] ~3m: Whole runbook suite
   ```bash
   cd /home/govan/tmp/unheaded && ~/.venv/zhen/bin/python3 -m pytest tests/runbooks -q -m "not live" 2>&1 | tail -2 && scripts/check-runbooks.sh 2>&1 | tail -1
   ```
-- [ ] **Step 157** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 151-156: run-runbook.py executes verification sections`
-- [ ] **Step 158** [V] ~1m: **PHASE 7 EXIT GATE** — Steps 147, 149, 155, 156 green.
+- [x] **Step 157** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 151-156: run-runbook.py executes verification sections`
+- [x] **Step 158** [V] ~1m: **PHASE 7 EXIT GATE** — Steps 147, 149, 155, 156 green.
 
 ---
 
