@@ -8,7 +8,7 @@ Only an SLO burning its error budget notifies anyone (ADR-100). Everything else 
 
 - **SLOs**: each has a name, an objective (99.5% or 99% over 28 days), whether it can page, and a `good` expression that is 1 when the service is fine this minute. A missing series counts as bad.
 - **mailer**: `mode` (`dry-run` or `send`), `max_per_day` (hard cap, 6), `digest_at` (09:00) and `timezone` (America/Chicago).
-- **page** timing, and **promote**: cause alerts that should notify anyway. Keep it empty; each entry needs a reason.
+- **page** timing, and **promote**: cause alerts that should notify anyway. Keep it short; each entry needs a reason. Today: `HeartbeatMissing` (page).
 
 After an edit: `go run ./cmd/alert-policy` regenerates `monitoring/prometheus/rules/slo.yml` and `monitoring/alertmanager/alertmanager.yml`. CI fails if they are stale, or if a hand-written rule is not `urgency: none`. Then restart Prometheus and Alertmanager: `cd monitoring && sudo docker compose up -d --force-recreate prometheus alertmanager alert-mailer`.
 
@@ -101,6 +101,42 @@ scripts/monitoring/maintenance.sh --end
 ```
 
 Alerts still fire and show; only mail stops. The duration is the work; each silence runs past it until the tiers can have cleared: pages +30m (the medium tier's short window), tickets +6h (the steady tier's). A silence that ended with the work mailed about the planned outage after it was over. `cmd/alert-policy`'s tests keep the tails in step with the tiers. `scripts/kingdom-shutdown.sh` silences 30m of work before it stops anything, and `kingdom-startup.sh` 15m of warm-up (both best effort).
+
+## Dead-man's switch
+
+Two alerts watch the watchers (ADR-100 section 4):
+
+- **`Watchdog`** is always firing, urgency `none`. It mails no one; it should
+  always be on Alertmanager's page. If it is missing, rule evaluation or
+  delivery is broken and every quiet alert is suspect.
+- **`HeartbeatMissing{host}`** pages when a watched host has not sent a
+  heartbeat for 10 minutes. East POSTs `http://192.168.13.2:19131/heartbeat/east`
+  every 2 minutes (`unheaded-heartbeat.timer`, token through `LoadCredential`);
+  alert-mailer records it on a heartbeat-only listener and exports
+  `unheaded_heartbeat_last_seen_timestamp_seconds`. West dying is not covered
+  until a receiver outside both hosts exists.
+
+Off until configured. To turn it on (the E-D host window):
+
+1. Generate a token once and give both hosts the same bytes:
+   west `ALERT_MAILER_SECRETS_DIR/heartbeat-token` (0400, uid 16710), east
+   `/etc/unheaded/heartbeat.token` (0400 root).
+2. `monitoring/.env` on west: `HEARTBEAT_HOSTS=east`,
+   `HEARTBEAT_LISTEN=192.168.13.2` (only while the P2P address exists at
+   boot: docker will not start a container whose published address is
+   missing). `docker compose up -d alert-mailer prometheus alertmanager`.
+3. East: install `scripts/monitoring/heartbeat.sh`, the sysusers line and
+   `deploy/systemd/unheaded-heartbeat.{service,timer}`; enable the timer.
+
+Runbook: `runbooks/observe/heartbeat-missing.yaml`.
+
+## Postmortems
+
+Blameless, in `docs/incidents/` from `docs/incidents/TEMPLATE.md`. Written
+for an outage of Wotan, the dashboard, The Well or Zhen over 1 h, a silent
+failure over a day, or a data-loss near miss; not for a page that cleared
+inside the hour (the default until Stevie decides, ADR-100 question 3). Every
+action item is an `M-###`, a finding, or "done: <commit>".
 
 ## When one arrives
 

@@ -90,9 +90,9 @@ Built side by side, each SRE artifact is also evidence. That is the overlapping-
 
 ### 5. Postmortems, toil and budget policy
 
-- **Blameless postmortems** in `docs/postmortems/YYYY-MM-DD-<slug>.md`, from a template: impact, timeline, root cause, what went well, action items.
-  - Each action item becomes a register finding or a Kanban card in The Well, so it cannot be dropped.
-  - The three incidents in Context are the first three postmortems.
+- **Blameless postmortems** in `docs/incidents/YYYY-MM-DD-<slug>.md`, from `docs/incidents/TEMPLATE.md`: summary, impact, timeline, detection, root cause, what went well, action items, threshold check.
+  - Each action item becomes a register finding, an `M-###` row or a Kanban card in The Well, so it cannot be dropped.
+  - The three incidents in Context are the first three postmortems, plus Wotan's silent OOM outage (2026-10-18): `2026-09-21-ci-clippy-red-on-develop.md`, `2026-09-30-well-auth-failure-burst.md`, `2026-09-30-well-exit-silent-outage.md`, `2026-10-18-wotan-oom-silent-outage.md` (written 2026-10-27, drafts).
 - **Error-budget policy:** when a service's budget is exhausted, reliability work on it outranks feature work until the budget recovers. This is Stevie's call for the lab, and the default is written down so the decision is visible.
 - **Toil** (manual, repetitive, automatable work, such as hand-applied remediation or re-signing commits) is noted when it happens. The remediation executor (ADR-099) and this ADR exist partly to retire it.
 
@@ -122,7 +122,7 @@ These answer the questions above:
 
 1. **Targets:** 99.5% over 28 days for what Stevie uses directly (Wotan, the dashboard, The Well); 99% for the rest. Tighten from data.
 2. **Budget policy:** not decided. Exhausted budgets show on Alertmanager/Grafana; nothing is frozen.
-3. **Postmortems:** not decided.
+3. **Postmortems:** not decided. Default until Stevie decides (S-WELL-SPRING Step 156, decision 23): a postmortem for any outage of a Stevie-facing service (Wotan, the dashboard, The Well, Zhen) longer than 1 h, any silent failure longer than a day, and any data-loss near miss; never for a single page that resolved inside the hour.
 
 ## Implementation (2026-10-20)
 
@@ -143,7 +143,7 @@ Changes from the text above:
 - **SLIs are time-based** ("good this minute"), not request ratios. Lab traffic is too thin for request ratios, and a dead service sends no requests, so its ratio would look fine.
 - **Every hand-written rule is `urgency: none`.** The rules still evaluate and show in Alertmanager and Grafana; they never notify. A cause alert can be promoted in the policy, with a reason.
 - **Alertmanager sends no mail itself.** alert-mailer does, so the cap and the digest hold no matter how Alertmanager groups.
-- **No Watchdog yet.** A dead-man's switch needs a receiver outside this host (a heartbeat service). Mailing one daily would be exactly the noise this ADR removes.
+- **No Watchdog yet.** A dead-man's switch needs a receiver outside this host (a heartbeat service). Mailing one daily would be exactly the noise this ADR removes. Built 2026-10-27 (S-WELL-SPRING Phase 6), see below.
 - **Log-volume deviation (Phase 3):** built 2026-10-25 for the journal, see below. `log-shipping` covers a host delivering nothing.
 
 ## Phase 3, 2026-10-25: log-volume deviation and auth-failure SLIs (journal)
@@ -172,6 +172,23 @@ Deploying is a Vector restart (`docker compose up -d vector`); nothing
 here restarts it.
 
 Live on west in `mode: dry-run` from 2026-10-20. All 7 SLIs good, nothing firing. Next: a week of outbox review, then the Gmail app password and `mode: send` (wiki/Alerting.md).
+
+## Watchdog and heartbeat, 2026-10-27 (S-WELL-SPRING Phase 6)
+
+Placement (decision 22 default, ADR-098 Q2): west and east watch each other;
+a receiver outside both hosts later. West dying is noticed by Stevie until
+then; that is the recorded gap.
+
+| Piece | Where |
+|---|---|
+| `Watchdog`: `vector(1)`, urgency none, always firing; missing from Alertmanager means the alerting path is broken | `monitoring/prometheus/rules/watchdog.yml`, `tests/watchdog_test.yml` |
+| Heartbeat receiver: `POST /heartbeat/{host}` with `X-Heartbeat-Token`, on its own listener (19131) so the other host cannot reach the webhooks or the outbox; gauge `unheaded_heartbeat_last_seen_timestamp_seconds{host}`; off unless `HEARTBEAT_HOSTS` is set | `cmd/alert-mailer/heartbeat.go`, compose `HEARTBEAT_*` |
+| `HeartbeatMissing` (10 min quiet): promoted to page in the policy, the only alert that pages on an absence | `monitoring/prometheus/rules/heartbeat.yml`, `policy.yaml` `promote:` |
+| East sender every 2 min as `unheaded-heartbeat` (uid 16711), token through `LoadCredential` | `deploy/systemd/unheaded-heartbeat.{service,timer}`, `scripts/monitoring/heartbeat.sh` |
+| Runbook | `runbooks/observe/heartbeat-missing.yaml` (draft) |
+
+Live after the E-D host window: token on both hosts, `HEARTBEAT_HOSTS=east`
+and `HEARTBEAT_LISTEN=192.168.13.2` in `monitoring/.env`, the east timer.
 
 ## Consequences
 
