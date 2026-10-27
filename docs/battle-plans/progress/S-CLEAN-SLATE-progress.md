@@ -41,6 +41,16 @@ changes, no shared-ledger edits, full test suite serialised behind one lock).
   LLAMA_PORT as an unanchored regex, so `--stop` could kill a process on a longer port;
   handed to the Phase 3 agent, which owns the script).
 
+### Phase 0 (Steps 1-24): done in the S24 grounding, before and while forging
+
+Branch develop at `a7fe3acd`+; tools present (go, jq, curl, python3, haproxy 3.0.12, docker,
+shellcheck, gpg; Step 5 not needed); GPG probe SIGN=yes (key cached by Stevie) so every [C] is
+signed (Step 7); `go build ./...` and `go mod tidy -diff` clean (Steps 8-9); the four CI reds
+reproduced locally and the live CI state read from the public API (Steps 12-15); code-site,
+haproxy and doc claims checked with the commands in the session (Steps 16-21; Step 17's ticker
+grep must target `pkg/wotan-client/reprobe.go` after Phase 2). Steps 22-23: parallel agents in
+Claude worktrees, not `../unheaded-wt-*` (see amendments). Step 10's baseline: per agent, above.
+
 ### Done (commit, steps)
 
 | Commit | Steps | What |

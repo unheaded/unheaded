@@ -152,77 +152,77 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Environment
 
-- [ ] **Step 1** [ENV][B] ~1m: Branch, HEAD, tree.
+- [x] **Step 1** [ENV][B] ~1m: Branch, HEAD, tree.
   ```bash
   cd /home/govan/tmp/unheaded && git rev-parse --abbrev-ref HEAD && git rev-parse --short HEAD && git status --short | wc -l
   ```
-- [ ] **Step 2** [V] ~0.5m: Branch is `develop`, HEAD is `a7fe3acd` or a descendant (`git merge-base --is-ancestor a7fe3acd HEAD && echo ok`), status count is 0 (the two untracked `cmd/host-agent/` and `host-agent` July binaries are the known exception; see next.md S21).
+- [x] **Step 2** [V] ~0.5m: Branch is `develop`, HEAD is `a7fe3acd` or a descendant (`git merge-base --is-ancestor a7fe3acd HEAD && echo ok`), status count is 0 (the two untracked `cmd/host-agent/` and `host-agent` July binaries are the known exception; see next.md S21).
   - If fail → STOP; this plan starts from a clean develop.
-- [ ] **Step 3** [ENV][B] ~1m: Tools present.
+- [x] **Step 3** [ENV][B] ~1m: Tools present.
   ```bash
   for t in go cargo jq curl python3 haproxy docker shellcheck gpg; do printf "%-10s %s\n" "$t" "$(command -v $t || echo MISSING)"; done; go version; haproxy -v 2>&1 | head -1
   ```
-- [ ] **Step 4** [V] ~0.5m: `go`, `jq`, `curl`, `python3`, `haproxy`, `docker`, `shellcheck`, `gpg` all present. `cargo` may be missing (not needed here).
+- [x] **Step 4** [V] ~0.5m: `go`, `jq`, `curl`, `python3`, `haproxy`, `docker`, `shellcheck`, `gpg` all present. `cargo` may be missing (not needed here).
   - If `shellcheck` missing → Step 5.
-- [ ] **Step 5** [D][B] ~2m: Install shellcheck from the pinned CI tooling, not apt.
+- [x] **Step 5** [D][B] ~2m: Install shellcheck from the pinned CI tooling, not apt.
   ```bash
   bash scripts/ci-install-tools.sh shellcheck 2>&1 | tail -3 || echo "see scripts/ci-install-tools.sh for the pinned recipe"
   ```
-- [ ] **Step 6** [ENV][B] ~0.5m: GPG probe (decides the commit flag for the whole plan).
+- [x] **Step 6** [ENV][B] ~0.5m: GPG probe (decides the commit flag for the whole plan).
   ```bash
   cd /home/govan/tmp/unheaded && tree=$(git rev-parse HEAD^{tree}); if timeout 20 git commit-tree -S -m probe "$tree" >/dev/null 2>&1; then echo SIGN=yes; else echo SIGN=no; fi
   ```
-- [ ] **Step 7** [DECIDE] ~0.5m: **Commit flag.** RECOMMENDATION: if Step 6 printed `SIGN=no`, every [C] in this plan uses `git commit --no-gpg-sign`; record `COMMIT_FLAG` in the progress file. Rationale: memory feedback_unsigned_commits_when_afk; Stevie re-signs with `scripts/resign-unpushed.py`. Override ONLY if Stevie cached the key mid-plan (re-run Step 6).
-- [ ] **Step 8** [ENV][BUILD][B] ~3m: Build + tidy.
+- [x] **Step 7** [DECIDE] ~0.5m: **Commit flag.** RECOMMENDATION: if Step 6 printed `SIGN=no`, every [C] in this plan uses `git commit --no-gpg-sign`; record `COMMIT_FLAG` in the progress file. Rationale: memory feedback_unsigned_commits_when_afk; Stevie re-signs with `scripts/resign-unpushed.py`. Override ONLY if Stevie cached the key mid-plan (re-run Step 6).
+- [x] **Step 8** [ENV][BUILD][B] ~3m: Build + tidy.
   ```bash
   cd /home/govan/tmp/unheaded && go build ./... && go mod tidy -diff && echo BUILD_TIDY_OK
   ```
-- [ ] **Step 9** [V] ~0.5m: `BUILD_TIDY_OK` printed, no diff lines.
+- [x] **Step 9** [V] ~0.5m: `BUILD_TIDY_OK` printed, no diff lines.
   - If fail → STOP; develop is not what the sweeps measured.
-- [ ] **Step 10** [ENV][TEST][B] ~20m: **KNOWN FAILURES BASELINE.**
+- [x] **Step 10** [ENV][TEST][B] ~20m: **KNOWN FAILURES BASELINE.**
   ```bash
   cd /home/govan/tmp/unheaded && mkdir -p docs/battle-plans/progress && go test ./... 2>&1 | tee /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/go-test-baseline.log | tail -5; grep -E '^(FAIL|---  FAIL|ok)' /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/go-test-baseline.log | grep -c '^ok'; grep -E '^FAIL' /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/go-test-baseline.log || echo "FAIL lines: none"
   ```
-- [ ] **Step 11** [W] ~2m: Create `docs/battle-plans/progress/S-CLEAN-SLATE-progress.md` with: date, HEAD, `COMMIT_FLAG`, the ok-count and the FAIL lines from Step 10 under `## KNOWN FAILURES BASELINE`, and an empty `## Steps` ledger. Every later [C] appends one line here.
+- [x] **Step 11** [W] ~2m: Create `docs/battle-plans/progress/S-CLEAN-SLATE-progress.md` with: date, HEAD, `COMMIT_FLAG`, the ok-count and the FAIL lines from Step 10 under `## KNOWN FAILURES BASELINE`, and an empty `## Steps` ledger. Every later [C] appends one line here.
 
 ### Hypothesis verification (one pair per SITUATION claim)
 
-- [ ] **Step 12** [PREFLIGHT][B] ~1m: CI reds reproduce locally.
+- [x] **Step 12** [PREFLIGHT][B] ~1m: CI reds reproduce locally.
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-dependency-baseline.sh 2>&1 | tail -6; echo "dep=$?"; bash scripts/check-tool-freshness.sh 2>&1 | grep -E 'STALE|exit' ; echo "tools=${PIPESTATUS[0]}"
   ```
 - [x] **Step 13** [V] ~0.5m: dependency check lists exactly fsnotify, kr/pty, gobreaker, x/term; tool freshness lists STALE syft and grype only.
   - If a different set → update SITUATION in this file (the sweeps are stale by a day), continue.
-- [ ] **Step 14** [PREFLIGHT][B] ~2m: Live CI state (public API, no auth).
+- [x] **Step 14** [PREFLIGHT][B] ~2m: Live CI state (public API, no auth).
   ```bash
   curl -s --max-time 20 "https://api.github.com/repos/unheaded/unheaded/actions/runs?branch=develop&per_page=12" | jq -r '.workflow_runs[] | [.name, .head_sha[0:8], .conclusion // .status] | @tsv' | column -t -s$'\t'
   ```
-- [ ] **Step 15** [V] ~0.5m: For the newest sha, Security Scan and Static Analysis are `failure`, the other four `success`. If develop has moved and a run is `in_progress`, wait and re-run Step 14 once.
-- [ ] **Step 16** [PREFLIGHT][B] ~1m: Code-site claims.
+- [x] **Step 15** [V] ~0.5m: For the newest sha, Security Scan and Static Analysis are `failure`, the other four `success`. If develop has moved and a run is `in_progress`, wait and re-run Step 14 once.
+- [x] **Step 16** [PREFLIGHT][B] ~1m: Code-site claims.
   ```bash
   cd /home/govan/tmp/unheaded && echo "SetAdminAPIKey callers: $(grep -rn 'SetAdminAPIKey(' --include=*.go . | grep -v 'func (s \*Server) SetAdminAPIKey' | grep -v _test | wc -l)"; echo "degraded sites (live services): $(grep -c 'degraded mode' services/micromanager/service.go services/monad/monad.go services/sophia/sophia.go services/gateway/gateway.go services/architect/core.go services/anomaly/anomaly.go services/loadbalancer/xdpsync.go | awk -F: '{s+=$2} END{print s}')"; echo "client ticker: $(grep -c 'NewTicker' pkg/wotan-client/client.go)"; echo "startup monitoring: $(grep -c 'monitoring/docker-compose.yml' scripts/kingdom-startup.sh)"; echo "cache-ram in switch-model: $(grep -c 'cache-ram' scripts/switch-model.sh)"; echo "proxy_via_agentd default: $(grep -n 'proxy_via_agentd=None' raft/scripts/zhen_rag.py | head -1)"; echo "changeme: $(grep -c 'changeme' scripts/setup-host.sh)"
   ```
-- [ ] **Step 17** [V] ~0.5m: callers 0; degraded sites 18; ticker 0; startup monitoring 0; cache-ram 0; `proxy_via_agentd=None` found; changeme 1.
+- [x] **Step 17** [V] ~0.5m: callers 0; degraded sites 18; ticker 0; startup monitoring 0; cache-ram 0; `proxy_via_agentd=None` found; changeme 1.
   - Any mismatch → that item may be partly done: read the site, adjust the phase's steps, note it in the progress file. Do not skip the item.
-- [ ] **Step 18** [PREFLIGHT][B] ~1m: haproxy configs still fail.
+- [x] **Step 18** [PREFLIGHT][B] ~1m: haproxy configs still fail.
   ```bash
   cd /home/govan/tmp/unheaded && for f in docker/haproxy/internal/haproxy.cfg docker/haproxy/edge/haproxy.cfg; do printf "%s: " $f; haproxy -c -f $f >/dev/null 2>&1 && echo OK || echo FAIL; done
   ```
-- [ ] **Step 19** [V] ~0.5m: both FAIL.
-- [ ] **Step 20** [PREFLIGHT][B] ~1m: Doc claims.
+- [x] **Step 19** [V] ~0.5m: both FAIL.
+- [x] **Step 20** [PREFLIGHT][B] ~1m: Doc claims.
   ```bash
   cd /home/govan/tmp/unheaded && sed -n '6p' references/timeline.md; grep -n '^\*Synced:' references/timeline.md | cut -c1-40; sed -n '3p' docs/adr/ADR-036-claude-distillation-training.md | cut -c1-60; find docs/internal -name '*.md' | wc -l; grep -c 'git push origin main' docs/workflow/AGENT-OPERATING-PROCEDURE.md; grep -c 'e2ePacketTrace' docs/PERFORMANCE-S77.md
   ```
-- [ ] **Step 21** [V] ~0.5m: LAST UPDATED 2026-10-13; Synced 2026-09-30; ADR-036 IN PROGRESS; 147 files; 1; ≥3.
+- [x] **Step 21** [V] ~0.5m: LAST UPDATED 2026-10-13; Synced 2026-09-30; ADR-036 IN PROGRESS; 147 files; 1; ≥3.
 
 ### Worktrees (optional parallelism)
 
-- [ ] **Step 22** [DECIDE] ~0.5m: **Parallel agents.** RECOMMENDATION: run Phases 2+3 in worktree `../unheaded-wt-code` (branch `clean-slate/code`) and Phase 6 in `../unheaded-wt-docs` (branch `clean-slate/docs`), merging into develop at each phase exit gate with `git merge --no-ff`. Rationale: disjoint file sets (Go/scripts vs docs/wiki). Override ONLY if running solo in one session: then execute phases in order on develop and skip Step 23.
-- [ ] **Step 23** [ENV][B] ~1m: Create the worktrees (only under Step 22's recommendation).
+- [x] **Step 22** [DECIDE] ~0.5m: **Parallel agents.** RECOMMENDATION: run Phases 2+3 in worktree `../unheaded-wt-code` (branch `clean-slate/code`) and Phase 6 in `../unheaded-wt-docs` (branch `clean-slate/docs`), merging into develop at each phase exit gate with `git merge --no-ff`. Rationale: disjoint file sets (Go/scripts vs docs/wiki). Override ONLY if running solo in one session: then execute phases in order on develop and skip Step 23.
+- [x] **Step 23** [ENV][B] ~1m: Create the worktrees (only under Step 22's recommendation).
   ```bash
   cd /home/govan/tmp/unheaded && git worktree add -b clean-slate/code ../unheaded-wt-code develop && git worktree add -b clean-slate/docs ../unheaded-wt-docs develop && git worktree list
   ```
-- [ ] **Step 24** [V] ~0.5m: **PHASE 0 EXIT GATE** — Steps 2, 4, 9, 13, 15, 17, 19, 21 passed; progress file exists with the baseline; `COMMIT_FLAG` recorded.
+- [x] **Step 24** [V] ~0.5m: **PHASE 0 EXIT GATE** — Steps 2, 4, 9, 13, 15, 17, 19, 21 passed; progress file exists with the baseline; `COMMIT_FLAG` recorded.
   - If pass → Phase 1.
   - If fail → DO NOT PROCEED. Fix the environment or correct SITUATION.
 
@@ -268,7 +268,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-003 runbook pytest: self-reporting + Python 3.12 reproduction
 
-- [ ] **Step 35** [W] ~3m: Edit `.github/workflows/static-analysis.yml` step "runbook dry-run tests (GATING)" (`:221-222`) to:
+- [x] **Step 35** [W] ~3m: Edit `.github/workflows/static-analysis.yml` step "runbook dry-run tests (GATING)" (`:221-222`) to:
   ```yaml
       - name: runbook dry-run tests (GATING)
         shell: bash
@@ -280,11 +280,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
           exit $rc
   ```
   Also add `pytest -rA` short-test-summary to the local wrapper: nothing else changes.
-- [ ] **Step 36** [B] ~1m: Workflow YAML still valid and the gate script that checks workflows is happy.
+- [x] **Step 36** [B] ~1m: Workflow YAML still valid and the gate script that checks workflows is happy.
   ```bash
   cd /home/govan/tmp/unheaded && python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/static-analysis.yml'))" && echo YAML_OK && bash scripts/check-actions-pinned.sh 2>&1 | tail -2
   ```
-- [ ] **Step 37** [V] ~0.5m: `YAML_OK`; actions-pinned check passes (no new `uses:`).
+- [x] **Step 37** [V] ~0.5m: `YAML_OK`; actions-pinned check passes (no new `uses:`).
 - [x] **Step 38** [B] ~6m: Reproduce the CI environment as closely as west can: Python 3.12 in a container, pinned requirements, no Go, no gpg (conftest skips those tests; a *fail* that is not a *skip* is the clue).
   ```bash
   cd /home/govan/tmp/unheaded && sudo docker run --rm -v "$PWD":/w -w /w python:3.12-slim bash -c 'pip install -q --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt && python3 -m pytest tests/runbooks -q -rA -m "not live" 2>&1 | tail -40'
