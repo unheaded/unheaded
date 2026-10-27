@@ -88,6 +88,7 @@ func buildAgentdAudit(ctx context.Context, wantWell, wantWotan bool) (*agentdAud
 		if addr == "" {
 			return nil, fmt.Errorf("-audit-wotan needs WOTAN_ADDR (Wotan's HTTP host:port)")
 		}
+		wotanClient.InitServiceIdentity("zhen-agentd") // ADR-103 §6: Wotan calls carry zhen-agentd's service token
 		c, err := wotanClient.NewClient(addr)
 		if err != nil {
 			return nil, fmt.Errorf("-audit-wotan: %w", err)

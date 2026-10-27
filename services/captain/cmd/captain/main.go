@@ -22,6 +22,7 @@ import (
 
 // main is the entry point for the captain service
 func main() {
+	wotanClient.InitServiceIdentity("captain") // ADR-103 §6: every Wotan call carries captain's service token
 	if err := run(); err != nil {
 		log.Fatalf("captain service failed: %v", err)
 	}

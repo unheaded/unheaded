@@ -49,6 +49,7 @@ func main() {
 	useMock := flag.Bool("mock-wotan", false, "Use mock Wotan client for testing")
 	dataDir := flag.String("data-dir", os.Getenv("ARCHITECT_DATA_DIR"), "State directory (services, nodes, decisions); empty = read-only")
 	flag.Parse()
+	wotanClient.InitServiceIdentity("architect") // ADR-103 §6: every Wotan call carries architect's service token
 
 	// Setup logging
 	zerolog.SetGlobalLevel(parseLogLevel(*logLevel))

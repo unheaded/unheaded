@@ -526,6 +526,7 @@ func main() {
 	configPath := flag.String("config", "", "Path to configuration file")
 	showVersion := flag.Bool("version", false, "Show version information")
 	flag.Parse()
+	wotanClient.InitServiceIdentity("unheaded-daemon") // ADR-103 §6: every Wotan call carries unheaded-daemon's service token
 
 	if *showVersion {
 		fmt.Printf("unheaded-daemon %s (commit: %s, built: %s)\n", version, gitCommit, buildTime)

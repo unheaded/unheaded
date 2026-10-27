@@ -32,6 +32,7 @@ import (
 
 	"unheaded/pkg/enkrateia"
 	"unheaded/pkg/gungnir"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // MjolnirManifest is the declarative baseline from references/baseline/mjolnir.yaml.
@@ -379,6 +380,7 @@ func main() {
 		metricsAddr   = flag.String("metrics-addr", defaultMetricsAddr, "serve GET /metrics here (drift publish counters, scan duration); empty disables")
 	)
 	flag.Parse()
+	wotanClient.InitServiceIdentity("heimdall") // ADR-103 §6: every Wotan call carries heimdall's service token
 	if *xdpMode != "generic" && *xdpMode != "native" {
 		fmt.Fprintf(os.Stderr, "--xdp-mode must be generic or native, got %q\n", *xdpMode)
 		os.Exit(2)

@@ -119,6 +119,7 @@ var (
 
 func main() {
 	flag.Parse()
+	wotanClient.InitServiceIdentity("dashboard-backend") // ADR-103 §6: every Wotan call carries dashboard-backend's service token
 
 	// Setup logging using Kingdom's native logger
 	logConfig := logger.DefaultConfig()

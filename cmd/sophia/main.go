@@ -839,6 +839,7 @@ func (hs *HTTPServer) getNextRequestID() int64 {
 
 func main() {
 	flag.Parse()
+	wotanClient.InitServiceIdentity("sophia") // ADR-103 §6: every Wotan call carries sophia's service token
 
 	// Override from environment
 	if addr := os.Getenv("SOPHIA_LISTEN_ADDR"); addr != "" {

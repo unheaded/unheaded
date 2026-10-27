@@ -61,6 +61,7 @@ type Config struct {
 }
 
 func main() {
+	wotanClient.InitServiceIdentity("timeguru") // ADR-103 §6: every Wotan call carries timeguru's service token
 	// Configure zerolog — structured JSON in prod, console for dev
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}).

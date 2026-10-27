@@ -1400,6 +1400,7 @@ func (s *Server) broadcastUpdate(eventType string, data interface{}) {
 }
 
 func main() {
+	wotanClient.InitServiceIdentity("kanban-app") // ADR-103 §6: every Wotan call carries kanban-app's service token
 	// Setup logging - use Kingdom's native logger
 	log = logger.NewWithConfig(logger.Config{
 		Level:         logger.InfoLevel,

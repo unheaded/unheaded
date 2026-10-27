@@ -250,6 +250,7 @@ func connectWotan(addr string) publisher {
 	if addr == "" {
 		return nil
 	}
+	wotanClient.InitServiceIdentity(serviceName) // ADR-103 §6: Wotan calls carry kev-poller's service token
 	c, err := wotanClient.NewClient(strings.TrimPrefix(addr, "http://"))
 	if err != nil {
 		log.Warn().Err(err).Str("addr", addr).Msg("Wotan unavailable; running without publishing")

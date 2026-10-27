@@ -108,6 +108,7 @@ func setupAudit(ctx context.Context, o *options, log *slog.Logger, source string
 		}
 	}
 	if o.auditWotan {
+		wotanClient.InitServiceIdentity("zhen-claude") // ADR-103 §6: Wotan calls carry zhen-claude's service token
 		c, err := wotanClient.NewClient(os.Getenv(envWotanAddr))
 		if err == nil {
 			a.closers = append(a.closers, func() { _ = c.Close() })

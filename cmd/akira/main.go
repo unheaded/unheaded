@@ -119,6 +119,7 @@ func main() {
 	remediate := flag.Bool("remediate", false, "restart a service (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
 	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
 	flag.Parse()
+	wotanClient.InitServiceIdentity("akira") // ADR-103 §6: every Wotan call carries akira's service token
 
 	// Logger
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)

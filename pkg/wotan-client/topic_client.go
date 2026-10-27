@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"unheaded/pkg/auth"
 	chatpb "unheaded/services/wotan/proto"
 )
 
@@ -41,6 +42,9 @@ type TopicStreamClient struct {
 
 	// tlsCreds, when set (WithTLS), secure the gRPC connection.
 	tlsCreds credentials.TransportCredentials
+
+	// tokenOpts: WithStreamServiceToken's identity (else the process's).
+	tokenOpts []ClientOption
 
 	// Options
 	grpcAddr   string
@@ -96,6 +100,15 @@ type TopicStreamOption func(*TopicStreamClient)
 func WithTLS(creds credentials.TransportCredentials) TopicStreamOption {
 	return func(c *TopicStreamClient) {
 		c.tlsCreds = creds
+	}
+}
+
+// WithStreamServiceToken makes the client present m's tokens (aud=wotan)
+// on every gRPC call instead of the process identity (SetServiceIdentity).
+// The HTTP fallback client carries its own (NewClient options).
+func WithStreamServiceToken(m *auth.ServiceTokenMinter) TopicStreamOption {
+	return func(c *TopicStreamClient) {
+		c.tokenOpts = append(c.tokenOpts, WithServiceToken(m))
 	}
 }
 
@@ -187,7 +200,8 @@ func NewTopicStreamClient(grpcAddr string, opts ...TopicStreamOption) (*TopicStr
 		creds = insecure.NewCredentials()
 	}
 
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(creds),
+		grpc.WithPerRPCCredentials(newTokenAuth(c.tokenOpts, isPlaintext(creds))))
 	if err != nil {
 		return nil, fmt.Errorf("dial gRPC server %s: %w", grpcAddr, err)
 	}
@@ -223,7 +237,8 @@ func NewTopicStreamClientWithTLS(grpcAddr string, creds credentials.TransportCre
 		opt(c)
 	}
 
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(creds),
+		grpc.WithPerRPCCredentials(newTokenAuth(c.tokenOpts, isPlaintext(creds))))
 	if err != nil {
 		return nil, fmt.Errorf("dial gRPC server %s: %w", grpcAddr, err)
 	}

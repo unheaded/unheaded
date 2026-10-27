@@ -71,6 +71,7 @@ var (
 
 func main() {
 	flag.Parse()
+	wotanClient.InitServiceIdentity("monad") // ADR-103 §6: every Wotan call carries monad's service token
 
 	// Allow environment variable override for port
 	if port := os.Getenv("MONAD_PORT"); port != "" {

@@ -101,6 +101,7 @@ func main() {
 	wotanAddr := flag.String("wotan", "", "Wotan HTTP address: publish anomaly.scores there (default: in-process intake)")
 	noCart := flag.Bool("no-cartridge", false, "run the service without the cartridge bridge")
 	flag.Parse()
+	wotanClient.InitServiceIdentity("anomaly") // ADR-103 §6: every Wotan call carries anomaly's service token
 
 	log := logger.New(os.Stderr)
 	var wc *wotanClient.Client
