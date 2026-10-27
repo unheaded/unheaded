@@ -30,7 +30,7 @@ OUTPUT_DIR="${DEB_OUTPUT_DIR:-${PROJECT_ROOT}/dist/debs}"
 mkdir -p "$OUTPUT_DIR"
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
-SERVICES=(wotan unheaded-daemon dashboard-backend kanban-app akira timeguru captain architect micromanager)
+SERVICES=(wotan unheaded-daemon dashboard-backend kanban-app akira timeguru captain architect micromanager unheaded-auth)
 
 echo "=============================================="
 echo "UNHEADED .DEB BUILD — v${VERSION}"
@@ -67,6 +67,7 @@ unit_for() {
     dashboard-backend) echo unheaded-dashboard.service ;;
     kanban-app) echo unheaded-kanban.service ;;
     unheaded-daemon) echo unheaded-daemon.service ;;
+    unheaded-auth) echo unheaded-auth.service ;;
     *) echo "unheaded-$1.service" ;;
     esac
 }

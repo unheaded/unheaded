@@ -33,6 +33,7 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 | `unheaded-kanban.service`       | 20001         |                                    |
 | `unheaded-daemon.service`       | 17000, 17001  | Control plane / drift detection    |
 | `unheaded-akira.service`        | 19100         | Health monitor                     |
+| `unheaded-auth.service`         | 19020         | Built-in OIDC issuer (ADR-103, `wiki/Service-Auth.md`); needs its key, a users file and TLS (`UNHEADED_TLS_*` in `/etc/unheaded/auth.env`), see the unit's header |
 | `unheaded-anomaly.service`      | 19018 (loopback) | Anomaly service + cartridge bridge (`cmd/anomaly`), consumes `anomaly.scores` from Wotan; no capabilities. Reads only the `CART_EVENTS` pin (bind-mounted; `upc-cartridgectl -events-group unheaded-anomaly up`) |
 | `unheaded-trace-collector.service` | 16670, 16671 | eBPF (XDP/TC/kprobes) → Wotan; CAP_BPF, CAP_PERFMON, CAP_NET_ADMIN only. Runs on west too, beside the compose stack |
 | `unheaded-wg-psk-rotate.{service,timer}` | — | **West only.** Weekly WireGuard PSK rotation with east (`scripts/wireguard/rotate-psk.sh --apply`, ADR-105). Shipped disabled; enabling it is ESCALATE E3 (`docs/security/pq-host-escalations.md`) |

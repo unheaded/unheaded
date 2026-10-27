@@ -21,6 +21,7 @@ var composeToRegistry = map[string]string{
 	"victoria":      "victoriametrics",
 	"vllm-deepseek": "vllm",
 	"kanban":        "kanban-app",
+	"auth":          "unheaded-auth",
 }
 
 var composeUserRe = regexp.MustCompile(`^(\d+):(\d+)$`)

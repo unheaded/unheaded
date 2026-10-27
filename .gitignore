@@ -311,3 +311,4 @@ db/migrations/init.sh
 # scripts/gen-dev-keys.sh). Private keys must never be tracked.
 configs/keys/
 configs/trust.d/dev/
+configs/auth/

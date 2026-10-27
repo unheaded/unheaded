@@ -135,6 +135,8 @@ secrets:
     file: ./configs/keys/dev/unheaded-daemon.key
   svc_key_sword:
     file: ./configs/keys/dev/sword.key
+  svc_key_unheaded-auth:
+    file: ./configs/keys/dev/unheaded-auth.key
 
 # =============================================================================
 # SERVICES
@@ -1285,6 +1287,59 @@ services:
     deploy:
       resources:
         limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # unheaded-auth, the built-in OIDC issuer (ADR-103 §3, S-IRON-GATE Phase 4):
+  # password login, 15-minute EdDSA tokens, JWKS. No host port: the
+  # dashboard BFF reaches it on the data network. Dev only: plain HTTP
+  # (-dev-plaintext) until TLS lands (Phase 8); services' JWKS verifiers
+  # accept plain http to loopback only, so nothing verifies its tokens over
+  # this network before then. The users file and key come from
+  # scripts/gen-dev-keys.sh (gitignored; run it with sudo so uid 16735 can
+  # read both). Reload users: docker compose kill -s HUP auth.
+  auth:
+    logging:
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
+    build:
+      context: .
+      target: unheaded-auth
+    container_name: unheaded-auth
+    user: "16735:16735"   # pkg/uids
+    secrets: [svc_key_unheaded-auth]   # ADR-103: the issuer's signing key (scripts/gen-dev-keys.sh)
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=16M
+    command: ["-listen", ":19020", "-issuer-url", "http://auth:19020", "-key-file", "/run/secrets/svc_key_unheaded-auth", "-users-file", "/etc/unheaded/auth/users.json", "-dev-plaintext"]
+    volumes:
+      # Long form: a missing file is an error, not a directory Docker creates.
+      - type: bind
+        source: ./configs/auth/dev-users.json
+        target: /etc/unheaded/auth/users.json
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - data
+    labels:
+      kingdom.component: "control-plane"
+      kingdom.role: "auth"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19020/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          # argon2id: 64 MiB per login, at most two at once.
           memory: 256M
           cpus: "0.5"
 
