@@ -491,6 +491,7 @@ func (p *championPool) get(root string) (*champion.Champion, error) {
 	if p.memory != nil {
 		c = c.WithMemoryStore(p.memory)
 	}
+	c = c.WithModelSwapObserver(observeModelSwap)
 	if p.gcCtx != nil && p.startGC != nil {
 		p.startGC(p.gcCtx, c)
 	}
