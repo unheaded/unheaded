@@ -934,12 +934,12 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
 **Time**: 2 h
 **Agent**: Agent [P:11,12]
 
-- [ ] **Step 286** [R] ~3m
+- [x] **Step 286** [R] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'exec|runbook|check' configs/akira-west.yaml | head -12 && grep -rnE 'type.*exec|ExecCheck|runCommand' cmd/akira/*.go pkg/health/*.go 2>/dev/null | grep -v _test | head -8
   ```
-- [ ] **Step 287** [DECIDE] ~2m: **Does Akira already support exec checks?** If Step 286 shows an exec check type → configure it. If not: RECOMMENDATION: add a minimal `exec` check type to Akira (command, timeout 30 s, non-zero = failing vote, output capped 4 KiB, runs as Akira's own uid, no shell: argv only). Rationale: ADR-034 Phase 7 names "Akira cert-expiry exec check"; one check type serves every runbook-shaped probe. Override ONLY if Akira is meant to stay HTTP-only (then the runbook runs from a systemd timer instead and publishes to `system.health.reports` itself).
-- [ ] **Step 288** [W][CODE] ~25m: Tests + implementation per Step 287 (red → green with `-race`): `pkg/health/exec_check_test.go` (exit 0 = ok, exit 1 = failing, timeout = failing, output cap, argv-only), config entry in `configs/akira-west.yaml` and `akira-east.yaml`:
+- [x] **Step 287** [DECIDE] ~2m: **Does Akira already support exec checks?** If Step 286 shows an exec check type → configure it. If not: RECOMMENDATION: add a minimal `exec` check type to Akira (command, timeout 30 s, non-zero = failing vote, output capped 4 KiB, runs as Akira's own uid, no shell: argv only). Rationale: ADR-034 Phase 7 names "Akira cert-expiry exec check"; one check type serves every runbook-shaped probe. Override ONLY if Akira is meant to stay HTTP-only (then the runbook runs from a systemd timer instead and publishes to `system.health.reports` itself).
+- [x] **Step 288** [W][CODE] ~25m: Tests + implementation per Step 287 (red → green with `-race`): `pkg/health/exec_check_test.go` (exit 0 = ok, exit 1 = failing, timeout = failing, output cap, argv-only), config entry in `configs/akira-west.yaml` and `akira-east.yaml`:
   ```yaml
   - name: cert-expiry
     type: exec
@@ -948,17 +948,17 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
     timeout: 30s
   ```
   (match the real runner path: `grep -rn 'run-runbook\|run_runbook' scripts runbooks | head -3`; if the runner is Python, argv is `["python3","-B","<runner>", ...]`.)
-- [ ] **Step 289** [TEST][B] ~2m
+- [x] **Step 289** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/health/... ./cmd/akira/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 290** [V] ~1m: `ok`.
-- [ ] **Step 291** [W][CODE] ~15m: `runbooks/pki/akira-cert-expiry-check.yaml`: point `PKI` at `/etc/unheaded/tls` (the Phase 8 layout) with `/var/lib/unheaded/pki` as fallback; thresholds unchanged; `tests/runbooks/test_akira_cert_expiry.py`: dry-run passes schema; a fixture cert with 20 % lifetime left makes the runbook's check step exit non-zero (use `openssl req -x509 -days 1` into a temp dir, then `faketime`-free: generate with `-not_before`/`-not_after` via `openssl x509 -days` and assert on the runbook's percentage math with a 1-day cert where remaining < 33 %).
-- [ ] **Step 292** [TEST][B] ~2m
+- [x] **Step 290** [V] ~1m: `ok`.
+- [x] **Step 291** [W][CODE] ~15m: `runbooks/pki/akira-cert-expiry-check.yaml`: point `PKI` at `/etc/unheaded/tls` (the Phase 8 layout) with `/var/lib/unheaded/pki` as fallback; thresholds unchanged; `tests/runbooks/test_akira_cert_expiry.py`: dry-run passes schema; a fixture cert with 20 % lifetime left makes the runbook's check step exit non-zero (use `openssl req -x509 -days 1` into a temp dir, then `faketime`-free: generate with `-not_before`/`-not_after` via `openssl x509 -days` and assert on the runbook's percentage math with a 1-day cert where remaining < 33 %).
+- [x] **Step 292** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && export PATH=$HOME/.venv/zhen/bin:$PATH; python3 -m pytest tests/runbooks/test_akira_cert_expiry.py -q 2>&1 | tail -2 && bash scripts/check-runbooks.sh 2>&1 | tail -1
   ```
-- [ ] **Step 293** [V] ~1m: tests pass, `0 new finding(s)`.
+- [x] **Step 293** [V] ~1m: tests pass, `0 new finding(s)`.
 - [ ] **Step 294** [TEST][B] ~6m: End-to-end rotation in compose: issue a 2-minute cert for `timeguru`, start the stack subset, watch Akira's exec check flip to failing, run `rotate-service-cert.yaml` (dry-run false) for timeguru, confirm the check returns to ok and timeguru's listener serves the new cert
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/gen-dev-certs.sh timeguru >/dev/null && openssl x509 -in configs/certs/dev/timeguru/timeguru.pem -noout -enddate && echo "(set CERT_VALIDITY=2m and regenerate timeguru; then:)" && CERT_VALIDITY=2m bash scripts/gen-dev-certs.sh timeguru >/dev/null && docker compose up -d --build wotan auth akira timeguru && sleep 90 && curl -s --cacert configs/certs/dev/ca.pem https://127.0.0.1:19100/api/v1/checks 2>/dev/null | grep -o '"cert-expiry"[^}]*' | head -1; bash scripts/gen-dev-certs.sh timeguru >/dev/null && docker compose restart timeguru && sleep 20 && curl -s --cacert configs/certs/dev/ca.pem https://127.0.0.1:19100/api/v1/checks 2>/dev/null | grep -o '"cert-expiry"[^}]*' | head -1; docker compose down 2>&1 | tail -1

@@ -164,3 +164,15 @@ Secure session cookie does not hold through traefik's plain-http `web` entrypoin
 `websecure`); host Prometheus jobs (wotan, unheaded-daemon, dashboard, zhen-agentd) need `scheme: https` + CA in the E3
 window; east debs must ship certs (Phase 14). The Rust ebpf-collector has no TLS, so it cannot reach a TLS Wotan
 (follow-up: rustls on aws-lc-rs for X25519MLKEM768). FND-017: closed in compose once 264-265 pass; hosts after E3.
+
+### Phase 10 merged (Steps 286-293)
+
+Akira `type: exec` targets (`argv`, `interval`, `timeout`, `env`); cert-expiry runbook hourly via
+`/usr/bin/python3 -B /opt/unheaded/scripts/run-runbook.py` (configs/akira-{west,east}.yaml); `unheaded-configs` deb
+ships the runner and depends on python3, python3-yaml, openssl; the compose akira image gains python3, bash, openssl
+(attack-surface note for Phase 15). Runbook reads `$UNHEADED_TLS_DIR` (default `/etc/unheaded/tls`), never opens keys,
+reports instead of rotating (the old auto-rotate called a runner flag that does not exist). Host perms for E3:
+`/etc/unheaded/tls/<id>/` listable by unheaded-akira (dirs 0755, certs 0644, keys 0640). West and east cert-expiry
+reports share one verdict. `runbooks/pki/rotate-service-cert.yaml` still targets the old layout (follow-up).
+LIVE Step 294: check `/api/v1/status` for "cert-expiry" (not `/api/v1/checks`); re-issue with
+`sudo CERT_VALIDITY=2m scripts/gen-dev-certs.sh timeguru`; expect an immediate failing vote (certs backdated 5 min).

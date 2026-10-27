@@ -62,7 +62,7 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 | M-051 | FND-017: Wotan + 11 services `-enable-tls` in compose/units with pkg/tls Strict profile; cert distribution via M-050 key layout; non-localhost REST refuses plaintext | ADR T-02; SEC FND-017; PLANS D-10/F-40; INT D-17 | docker-compose.yml:106-117 | P | N (after M-050) | M |
 | M-052 | Wotan auto-approve binds to token/cert identity, not self-reported `display_name`; plus per-topic publish ACLs (today any approved sender_id or allowlisted name may publish to any topic; from M-038, 2026-10-27) | PROTO WOT-06 | services/wotan/internal/grpc/topic_service.go:56-67 | P → code merged 2026-10-27 (249298fb: auto-approve on verified sub); live whole-stack run (Steps 239-250) pending | N | M |
 | M-053 | Wotan topic signing for `audit.`/`health.`/`alerts.critical` prefixes + drift keys (E5) | SEC CG-14, RT-20 | services/wotan/internal/signing/policy.go:18 | P | Y: E5 per-node key custody | M |
-| M-054 | Akira cert-expiry exec check + rotation test (ADR-034 Phases 7/8) | ADR T-03 | runbooks/pki/akira-cert-expiry-check.yaml | NS | N | M |
+| M-054 | Akira cert-expiry exec check + rotation test (ADR-034 Phases 7/8) | ADR T-03 | runbooks/pki/akira-cert-expiry-check.yaml | P → Akira exec check + cert-expiry runbook merged 2026-10-27; live rotation proof (Step 294) pending | N | M |
 | M-055 | Dashboard admin: login + RBAC `operator`, signed profile-switch POST to the Well | ADR T-04; PLANS B-30; INT B-3 | ADR-099 §5 | P → code merged 2026-10-27 (7b7ae15c: BFF login for dashboard and board); live proof pending | N (after M-050) | M |
 | M-056 | Security-headers middleware in pkg/httputil applied by every router | SEC SP-14 | pkg/httputil | NS | N | S |
 
