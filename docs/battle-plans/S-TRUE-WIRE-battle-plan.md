@@ -417,58 +417,58 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 
 ### Flag names (M-143)
 
-- [ ] **Step 101** [R][B] ~3m: Who uses the Kingdom names
+- [x] **Step 101** [R][B] ~3m: Who uses the Kingdom names
   ```bash
   cd /home/govan/tmp/unheaded && grep -rnE 'FlagK0|FlagK1|Kingdom(Normal|Priority|Experimental|Reserved)' --include=*.go pkg cmd services dashboard 2>/dev/null | grep -v 'core_maps.go' | head -12; grep -rn 'Kingdom Mode' pkg/protocol/bpfschema/*.go docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md | head -6
   ```
-- [ ] **Step 102** [DECIDE][SPEC] ~3m: **Rename to the spec, keep aliases one release.** RECOMMENDATION: `FlagCustom = 0x02`, `FlagReserved = 0x01` as the names; `FlagK1`/`FlagK0` become `Deprecated:` aliases; delete `KingdomNormal..KingdomReserved` unless Step 101 shows a caller (then alias + deprecate). The audit comment "Per IANA: 00=NORMAL…" is replaced by the foundation-06 Flags Bitfield row. Rationale: `pkg/monad/flags.go` and the Rust already use CUSTOM/RSVD; the Kingdom Mode registry in foundation-06 is a separate (parked, wire-unfreeze) concept and must not be confused with two live flag bits. Override ONLY if a caller writes Kingdom values into the wire (then that caller is a bug: stop and register a finding).
-- [ ] **Step 103** [CODE][W] ~10m: Red: extend `pkg/protocol/bpfschema/core_maps_test.go` with a test that asserts `FlagCustom == monad.FlagCustom` and `FlagReserved == monad.FlagReserved` (import `unheaded/pkg/monad`) and that `FlagK0 == FlagReserved` (alias). Run `go test ./pkg/protocol/bpfschema/ -run Flag -count=1 2>&1 | tail -3` → compile FAIL (names missing).
-- [ ] **Step 104** [CODE][W] ~10m: Green: rename + aliases + comment in `core_maps.go:78-90`; update callers from Step 101.
-- [ ] **Step 105** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go build ./... && go test ./pkg/protocol/bpfschema/ ./pkg/monad/ -race -count=1 2>&1 | tail -3`
-- [ ] **Step 106** [V] ~1m: `ok` twice; `go build` clean.
+- [x] **Step 102** [DECIDE][SPEC] ~3m: **Rename to the spec, keep aliases one release.** RECOMMENDATION: `FlagCustom = 0x02`, `FlagReserved = 0x01` as the names; `FlagK1`/`FlagK0` become `Deprecated:` aliases; delete `KingdomNormal..KingdomReserved` unless Step 101 shows a caller (then alias + deprecate). The audit comment "Per IANA: 00=NORMAL…" is replaced by the foundation-06 Flags Bitfield row. Rationale: `pkg/monad/flags.go` and the Rust already use CUSTOM/RSVD; the Kingdom Mode registry in foundation-06 is a separate (parked, wire-unfreeze) concept and must not be confused with two live flag bits. Override ONLY if a caller writes Kingdom values into the wire (then that caller is a bug: stop and register a finding).
+- [x] **Step 103** [CODE][W] ~10m: Red: extend `pkg/protocol/bpfschema/core_maps_test.go` with a test that asserts `FlagCustom == monad.FlagCustom` and `FlagReserved == monad.FlagReserved` (import `unheaded/pkg/monad`) and that `FlagK0 == FlagReserved` (alias). Run `go test ./pkg/protocol/bpfschema/ -run Flag -count=1 2>&1 | tail -3` → compile FAIL (names missing).
+- [x] **Step 104** [CODE][W] ~10m: Green: rename + aliases + comment in `core_maps.go:78-90`; update callers from Step 101.
+- [x] **Step 105** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go build ./... && go test ./pkg/protocol/bpfschema/ ./pkg/monad/ -race -count=1 2>&1 | tail -3`
+- [x] **Step 106** [V] ~1m: `ok` twice; `go build` clean.
 
 ### One CRC-16/CCITT (M-143)
 
-- [ ] **Step 107** [R][B] ~4m: Compare the four implementations byte for byte on a corpus
+- [x] **Step 107** [R][B] ~4m: Compare the four implementations byte for byte on a corpus
   ```bash
   cd /home/govan/tmp/unheaded && for f in pkg/protocol/encoding/encoding.go pkg/protocol/integrity/hmac.go pkg/ebpf/anamnesis.go pkg/cartridge/loader_linux.go; do echo "== $f"; grep -nE -A12 'func [cC][rR][cC]16' $f | grep -E 'poly|0x1021|0xFFFF|init|xor|^\s*[0-9]+-\s*return' | head -5; done; grep -rn 'crc16\|CRC16' --include=*.rs ebpf/monad-common/src/lib.rs | head -3
   ```
-- [ ] **Step 108** [DECIDE] ~3m: **`pkg/protocol/encoding.CRC16CCITT` is the one.** RECOMMENDATION: keep `encoding.CRC16CCITT` (it is the Monad checksum used by the wire codec and already tested against the Rust `verify_checksum`), make the other three thin wrappers that call it (or direct call-site replacements), add a cross-check test that feeds 1,000 random buffers plus the Monad golden vectors through all four entry points and the Rust-generated vectors in `ebpf/monad-common` test data. Rationale: one algorithm, one bug surface; `integrity` is a G8 reference package (Step 69) and must not own a live primitive. Override ONLY if Step 107 shows two different polynomials or init values in production use (then there are two checksums on the wire and that is a finding, not a refactor).
-- [ ] **Step 109** [CODE][W] ~10m: Red: `pkg/protocol/encoding/crc16_single_test.go` with the four-way equivalence over 1,000 random buffers (seeded) and the golden vectors from `pkg/protocol/encoding` existing tests; make it fail by asserting the three other symbols are gone (`go vet` cannot; use a `grep`-based test: read the three files and assert no `func CRC16CCITT(` / `func crc16CCITT(` definition remains). Run → FAIL.
-- [ ] **Step 110** [CODE][W] ~15m: Green: replace the three definitions with calls to `encoding.CRC16CCITT` (import cycles: `pkg/ebpf` → `pkg/protocol/encoding` is fine; `pkg/cartridge` → fine; `pkg/protocol/integrity` → fine); delete the duplicate bodies.
-- [ ] **Step 111** [TEST][B] ~4m: `cd /home/govan/tmp/unheaded && go build ./... && go test ./pkg/protocol/... ./pkg/ebpf/... ./pkg/cartridge/... -race -count=1 2>&1 | grep -E '^(FAIL|---)' || echo "all ok"`
-- [ ] **Step 112** [V] ~1m: `all ok`. The cartridge byte-identity (`cart` hashes) is covered by Step 16's numbers; Phase 5's Step 224 re-runs the harness.
-- [ ] **Step 113** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 101-113: bpfschema flag names follow foundation-06; one CRC-16/CCITT`.
+- [x] **Step 108** [DECIDE] ~3m: **`pkg/protocol/encoding.CRC16CCITT` is the one.** RECOMMENDATION: keep `encoding.CRC16CCITT` (it is the Monad checksum used by the wire codec and already tested against the Rust `verify_checksum`), make the other three thin wrappers that call it (or direct call-site replacements), add a cross-check test that feeds 1,000 random buffers plus the Monad golden vectors through all four entry points and the Rust-generated vectors in `ebpf/monad-common` test data. Rationale: one algorithm, one bug surface; `integrity` is a G8 reference package (Step 69) and must not own a live primitive. Override ONLY if Step 107 shows two different polynomials or init values in production use (then there are two checksums on the wire and that is a finding, not a refactor).
+- [x] **Step 109** [CODE][W] ~10m: Red: `pkg/protocol/encoding/crc16_single_test.go` with the four-way equivalence over 1,000 random buffers (seeded) and the golden vectors from `pkg/protocol/encoding` existing tests; make it fail by asserting the three other symbols are gone (`go vet` cannot; use a `grep`-based test: read the three files and assert no `func CRC16CCITT(` / `func crc16CCITT(` definition remains). Run → FAIL.
+- [x] **Step 110** [CODE][W] ~15m: Green: replace the three definitions with calls to `encoding.CRC16CCITT` (import cycles: `pkg/ebpf` → `pkg/protocol/encoding` is fine; `pkg/cartridge` → fine; `pkg/protocol/integrity` → fine); delete the duplicate bodies.
+- [x] **Step 111** [TEST][B] ~4m: `cd /home/govan/tmp/unheaded && go build ./... && go test ./pkg/protocol/... ./pkg/ebpf/... ./pkg/cartridge/... -race -count=1 2>&1 | grep -E '^(FAIL|---)' || echo "all ok"`
+- [x] **Step 112** [V] ~1m: `all ok`. The cartridge byte-identity (`cart` hashes) is covered by Step 16's numbers; Phase 5's Step 224 re-runs the harness.
+- [x] **Step 113** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 101-113: bpfschema flag names follow foundation-06; one CRC-16/CCITT`.
 
 ### Struct single source of truth (M-185)
 
-- [ ] **Step 114** [R][B] ~4m: What the parity test hardcodes and what Rust declares
+- [x] **Step 114** [R][B] ~4m: What the parity test hardcodes and what Rust declares
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'expected|:= [0-9]+|Sizeof|Offsetof' pkg/protocol/bpfschema/parity_test.go | head -20; grep -nE 'pub const MONAD_SIZE|pub const .*_SIZE|#\[repr\(C\)\]|pub struct (Monad|AnamnesisEvent|FlowKey|FlowState)\b' ebpf/monad-common/src/lib.rs | head -12; grep -rn 'unhd_' pkg/protocol/bpfschema/bpfschema.go | wc -l; grep -rhoE 'unhd_[a-z_]+' ebpf/*/src/*.rs | sort -u | wc -l
   ```
-- [ ] **Step 115** [DECIDE] ~4m: **Generate the Go expectations from the Rust source at test time.** RECOMMENDATION: a `go:generate`-free approach: the parity test opens `../../../ebpf/monad-common/src/lib.rs`, extracts `pub const *_SIZE: usize = N;` and each `#[repr(C)] pub struct X { … }` field list with a small parser, computes expected offsets by C layout rules for the primitive types used (u8/u16/u32/u64/[u8;N]), and compares with `unsafe.Sizeof`/`Offsetof` of the Go structs. Map names: the test also asserts every `MapXxx = "unhd_…"` constant in `bpfschema.go` appears in at least one `.rs` under `ebpf/*/src` (or is listed in a small `legacyMapNames` set with a reason), and vice-versa for every `#[map(name = "unhd_…")]`. Rationale: the Rust is the thing the verifier loads; Go must follow it, and a test that reads the Rust cannot drift. Override ONLY if the repo already has a generator for this (Step 114 would show a `//go:generate` or `tools/` entry; none was found 2026-10-27).
-- [ ] **Step 116** [CODE][W] ~35m: Red: `pkg/protocol/bpfschema/rust_source_test.go` with the parser + assertions; dead-name assertion for `unhd_*`. Run `go test ./pkg/protocol/bpfschema/ -run 'RustSource' -count=1 2>&1 | tail -6` → expect FAIL on the dead names (Step 114 count mismatch) and PASS on sizes.
-- [ ] **Step 117** [V] ~2m: Sizes/offsets PASS (if a size fails, the Go struct is wrong today: stop, record the finding, fix the Go struct, re-run); dead names FAIL with the list printed.
-- [ ] **Step 118** [CODE][W] ~10m: Green: remove each dead `unhd_*` constant that no Rust program declares and no Go code uses (`grep -rn <name> --include=*.go`); for names used by Go but absent from Rust, add them to `legacyMapNames` with the reason and a `Deprecated:` comment.
-- [ ] **Step 119** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go build ./... && go test ./pkg/protocol/bpfschema/ -race -count=1 2>&1 | tail -3`
-- [ ] **Step 120** [V] ~1m: `ok`.
-- [ ] **Step 121** [CODE][W] ~6m: Replace the hardcoded numbers in `parity_test.go` with references to the Rust-derived values (or delete the hardcoded tests now that `rust_source_test.go` covers them; keep one hardcoded `MONAD_SIZE == 20` sentinel so a parser bug cannot silently pass).
-- [ ] **Step 122** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go test ./pkg/protocol/bpfschema/ -race -count=1 -v 2>&1 | grep -E '^(--- |ok|FAIL)' | tail -12`
-- [ ] **Step 123** [V] ~1m: Every `--- PASS`; the sentinel present.
-- [ ] **Step 124** [DOC-UPDATE][W] ~5m: `pkg/protocol/bpfschema/doc.go` (create if absent): "Rust is the source of truth; `rust_source_test.go` enforces it; add a Go mirror only after the Rust struct exists."
+- [x] **Step 115** [DECIDE] ~4m: **Generate the Go expectations from the Rust source at test time.** RECOMMENDATION: a `go:generate`-free approach: the parity test opens `../../../ebpf/monad-common/src/lib.rs`, extracts `pub const *_SIZE: usize = N;` and each `#[repr(C)] pub struct X { … }` field list with a small parser, computes expected offsets by C layout rules for the primitive types used (u8/u16/u32/u64/[u8;N]), and compares with `unsafe.Sizeof`/`Offsetof` of the Go structs. Map names: the test also asserts every `MapXxx = "unhd_…"` constant in `bpfschema.go` appears in at least one `.rs` under `ebpf/*/src` (or is listed in a small `legacyMapNames` set with a reason), and vice-versa for every `#[map(name = "unhd_…")]`. Rationale: the Rust is the thing the verifier loads; Go must follow it, and a test that reads the Rust cannot drift. Override ONLY if the repo already has a generator for this (Step 114 would show a `//go:generate` or `tools/` entry; none was found 2026-10-27).
+- [x] **Step 116** [CODE][W] ~35m: Red: `pkg/protocol/bpfschema/rust_source_test.go` with the parser + assertions; dead-name assertion for `unhd_*`. Run `go test ./pkg/protocol/bpfschema/ -run 'RustSource' -count=1 2>&1 | tail -6` → expect FAIL on the dead names (Step 114 count mismatch) and PASS on sizes.
+- [x] **Step 117** [V] ~2m: Sizes/offsets PASS (if a size fails, the Go struct is wrong today: stop, record the finding, fix the Go struct, re-run); dead names FAIL with the list printed.
+- [x] **Step 118** [CODE][W] ~10m: Green: remove each dead `unhd_*` constant that no Rust program declares and no Go code uses (`grep -rn <name> --include=*.go`); for names used by Go but absent from Rust, add them to `legacyMapNames` with the reason and a `Deprecated:` comment.
+- [x] **Step 119** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go build ./... && go test ./pkg/protocol/bpfschema/ -race -count=1 2>&1 | tail -3`
+- [x] **Step 120** [V] ~1m: `ok`.
+- [x] **Step 121** [CODE][W] ~6m: Replace the hardcoded numbers in `parity_test.go` with references to the Rust-derived values (or delete the hardcoded tests now that `rust_source_test.go` covers them; keep one hardcoded `MONAD_SIZE == 20` sentinel so a parser bug cannot silently pass).
+- [x] **Step 122** [TEST][B] ~3m: `cd /home/govan/tmp/unheaded && go test ./pkg/protocol/bpfschema/ -race -count=1 -v 2>&1 | grep -E '^(--- |ok|FAIL)' | tail -12`
+- [x] **Step 123** [V] ~1m: Every `--- PASS`; the sentinel present.
+- [x] **Step 124** [DOC-UPDATE][W] ~5m: `pkg/protocol/bpfschema/doc.go` (create if absent): "Rust is the source of truth; `rust_source_test.go` enforces it; add a Go mirror only after the Rust struct exists."
 
 ### Phase 3 close
 
-- [ ] **Step 125** [TEST][B] ~8m: Whole-tree regression against the baseline
+- [x] **Step 125** [TEST][B] ~8m: Whole-tree regression against the baseline
   ```bash
   cd /home/govan/tmp/unheaded && go test ./... 2>&1 | grep -E '^(ok|FAIL|---)' | sort > /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/tw-p3.txt; diff <(grep '^FAIL' docs/battle-plans/progress/S-TRUE-WIRE-go-baseline.txt) <(grep '^FAIL' /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/tw-p3.txt) && echo "no new FAIL"
   ```
-- [ ] **Step 126** [V] ~1m: `no new FAIL`. New FAIL → Step 126a.
+- [x] **Step 126** [V] ~1m: `no new FAIL`. New FAIL → Step 126a.
 - [ ] **Step 126a** [D][B] ~5m: `go test <failing pkg> -run <Test> -v -count=1 2>&1 | tail -30`; the usual cause is a caller asserting an old flag name or a CRC symbol. Fix the caller, not the test. Two failures → STUCK, revert the offending step's file, continue.
-- [ ] **Step 127** [SECURITY][R] ~3m: Attack-surface note for Phase 11: Phase 3 changed no wire byte and no map; the CRC consolidation changes which function computes the Monad checksum in `pkg/ebpf/anamnesis.go` and `pkg/cartridge` (same algorithm, proven by Step 111). Write the row into the Phase 11 table draft in the progress file.
-- [ ] **Step 128** [V] ~2m: **PHASE 3 EXIT GATE** — Steps 106, 112, 120, 123, 126 passed; `grep -c 'func CRC16CCITT\|func crc16CCITT' $(git ls-files 'pkg/**/*.go')` is 1; no `Kingdom(Normal|Priority|Experimental|Reserved)` in `core_maps.go` unless aliased with a caller.
-- [ ] **Step 129** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 114-129: bpfschema parity derives from the Rust source; dead unhd_* names removed`.
-- [ ] **Step 130** [B] ~2m: Merge the `bpfschema` lane: `cd /home/govan/tmp/unheaded && git merge --no-ff sprint/true-wire-bpfschema -m "merge S-TRUE-WIRE Phase 3 (bpfschema hygiene)" 2>&1 | tail -2`
+- [x] **Step 127** [SECURITY][R] ~3m: Attack-surface note for Phase 11: Phase 3 changed no wire byte and no map; the CRC consolidation changes which function computes the Monad checksum in `pkg/ebpf/anamnesis.go` and `pkg/cartridge` (same algorithm, proven by Step 111). Write the row into the Phase 11 table draft in the progress file.
+- [x] **Step 128** [V] ~2m: **PHASE 3 EXIT GATE** — Steps 106, 112, 120, 123, 126 passed; `grep -c 'func CRC16CCITT\|func crc16CCITT' $(git ls-files 'pkg/**/*.go')` is 1; no `Kingdom(Normal|Priority|Experimental|Reserved)` in `core_maps.go` unless aliased with a caller.
+- [x] **Step 129** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 114-129: bpfschema parity derives from the Rust source; dead unhd_* names removed`.
+- [x] **Step 130** [B] ~2m: Merge the `bpfschema` lane: `cd /home/govan/tmp/unheaded && git merge --no-ff sprint/true-wire-bpfschema -m "merge S-TRUE-WIRE Phase 3 (bpfschema hygiene)" 2>&1 | tail -2`
 
 ---
 

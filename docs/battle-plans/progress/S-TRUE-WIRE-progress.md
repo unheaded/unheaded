@@ -35,3 +35,18 @@ develop in code, so Steps 300-304 are unblocked in code).
   pending 2, LICENSE line 2 `Copyright (c) 2024-2026 Stevie Bellis`, syft 1.55.0, grype 0.121.0.
 - Step 25 (worktrees): lanes run as isolated agent worktrees branched from `sprint/true-wire`; the coordinator merges
   each lane back into `sprint/true-wire`.
+
+## Phase 3 merged into sprint/true-wire (bpfschema hygiene)
+
+Flags: bits 1:0 are `FlagCustom` (0x02) / `FlagReserved` (0x01) per foundation-06; `FlagK1`/`FlagK0` deprecated aliases
+for one release; Kingdom constants deleted (no users). One CRC-16/CCITT (`encoding.CRC16CCITT`): copies in `pkg/ebpf`,
+`pkg/cartridge`, `pkg/protocol/integrity`, `cmd/protocol-api/monad.go` (not in the plan) and a fuzz test helper now call
+it; `crc16_single_test.go` fails on any second definition or stray `0x1021`. `rust_source_test.go` reads the Rust source
+at test time (7 struct sizes/offsets, map names, key/value sizes; mutation-tested). Real drift fixed on the Go side:
+`MbcCpuState` 128 -> 136 (144 with ascend-linux), packed `FlowMigrationTokenValue` 44 and `FlowCancelValue` 20 (Go and Rust
+comments both claimed 48/24), `ErrorCounterKey` 4 -> 8, `HopValidatorValue` 28 -> 32. No Rust map was ever `unhd_*`:
+Aya names maps after the static; the 12 constants with a Rust map now hold the real name, four map-name constants with no
+Rust map deleted. No wire byte, map or eBPF object changed. Follow-ons: Phase 1 can close RFC-ALIGNMENT-FINDINGS row 2
+(and note the duplicate `docs/RFC-ALIGNMENT-FINDINGS.md`); Phase 2 must update `TestActionValues`/`TestEventTypeConstants`;
+`pkg/ebpf/maploader` (parked, E3) still has old sizes and `unhd_*` names; `ebpf/flow-tracker` comments still say 48/24.
+M-143, M-185 resolved; sweep-internal D-11 resolved.
