@@ -1,4 +1,12 @@
 <!--
+
+> **CODE COMPLETE 2026-10-27 (S24, develop).** Phases 1-8 and 10-15 done in code; Phase 9 partial. Not SHIPPED:
+> the open steps are Stevie's escalations and live host steps. Open escalations: **E1** runbook approvals, **E2** first
+> unattended night, **E3** ADR-019 Level 2 amendment, **E4** west units (zhen-agentd with scheduler, unheaded-vor) plus
+> the vor/zhen-agentd port decision (Phase 9 progress note). STUCK: none. Packet:
+> `docs/battle-plans/progress/S-CHAMPION-HARDENING-approvals.md`; review: `docs/security/S-CHAMPION-HARDENING-review.md`.
+> Open steps (37): 2, 6, 10, 13, 14, 15, 16, 17, 18, 19, 22, 118, 119, 137, 138, 139, 140, 141, 142, 172, 173, 174, 175, 176, 179, 180, 181, 184, 185, 186, 187, 188, 189, 190, 205, 227, 252.
+
 SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis.
 -->
@@ -967,19 +975,19 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 1 h
 **Agent**: Coordinator (Librarian lens)
 
-- [ ] **Step 245** [DOC-UPDATE][W] ~8m: CLAUDE.md: the "Zhen MCP Server" paragraph (Go server, `cmd/zhen-mcp`, same nine tools, Python retired), the runbooks line (approval policy pointer), scheduler mention; `wiki/Zhen-Agents.md` (requester-bound confirmations, scheduler mode, overnight env block); `wiki/Zhen-AI.md` (already touched in Phases 4, 9); `wiki/Runbooks.md`; `wiki/Service-Isolation.md` (vor); `wiki/Port-Registry.md`.
-- [ ] **Step 246** [AUDIT-UPDATE][W] ~5m: `docs/sweeps/OUTSTANDING-2026-10-27.md` E09 rows M-120..M-132: status column → DONE with the step numbers, or the exact remainder (E1/E2/E3/E4 if still open); `docs/security/` red-team register rows RT-01..RT-16 that this sprint closed → "closed S-CHAMPION-HARDENING Step n".
-- [ ] **Step 247** [REGEN][B] ~3m: ADR-098 findings register section
+- [x] **Step 245** [DOC-UPDATE][W] ~8m: CLAUDE.md: the "Zhen MCP Server" paragraph (Go server, `cmd/zhen-mcp`, same nine tools, Python retired), the runbooks line (approval policy pointer), scheduler mention; `wiki/Zhen-Agents.md` (requester-bound confirmations, scheduler mode, overnight env block); `wiki/Zhen-AI.md` (already touched in Phases 4, 9); `wiki/Runbooks.md`; `wiki/Service-Isolation.md` (vor); `wiki/Port-Registry.md`.
+- [x] **Step 246** [AUDIT-UPDATE][W] ~5m: `docs/sweeps/OUTSTANDING-2026-10-27.md` E09 rows M-120..M-132: status column → DONE with the step numbers, or the exact remainder (E1/E2/E3/E4 if still open); `docs/security/` red-team register rows RT-01..RT-16 that this sprint closed → "closed S-CHAMPION-HARDENING Step n".
+- [x] **Step 247** [REGEN][B] ~3m: ADR-098 findings register section
   ```bash
   cd /home/govan/tmp/unheaded && go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md 2>&1 | tail -2 && git diff --stat docs/adr/ADR-098-findings-register-and-baseline-modes.md | tail -1
   ```
-- [ ] **Step 248** [DOC-UPDATE][W] ~5m: `references/timeline.md`: one dated entry under Age 3 ("S-CHAMPION-HARDENING: Champion tool path closed RT-03..RT-10, runbooks approved under a written policy, eval scores runbook-draft, scheduler/vor/MCP under units"), then regenerate mirrors
+- [x] **Step 248** [DOC-UPDATE][W] ~5m: `references/timeline.md`: one dated entry under Age 3 ("S-CHAMPION-HARDENING: Champion tool path closed RT-03..RT-10, runbooks approved under a written policy, eval scores runbook-draft, scheduler/vor/MCP under units"), then regenerate mirrors
   ```bash
   cd /home/govan/tmp/unheaded && go run ./services/timeguru/cmd/timeguru -sync-once 2>&1 | tail -2 || echo "use the timeguru sync path recorded in Appendix C"; git diff --stat references/timeline.* | tail -1 && scripts/check-timeline-freshness.sh 2>&1 | grep Status
   ```
-- [ ] **Step 249** [DOC-UPDATE][W] ~6m: ADR statuses touched: ADR-024 (amended), ADR-028 (superseded), ADR-038 (dormant), ADR-059 (Phase 2b/3 done), ADR-060 (tail done), ADR-106 (Q2/Q3/Q6/Q7 answered or open with E-ids), ADR-019 (amendment per E3); `docs/adr/ADR-INDEX.md` rows.
-- [ ] **Step 250** [W] ~6m: `~/tmp/next.md` handoff block at the top: what shipped, the four escalations and their state, the live state on west (units installed or not), the morning-report command, what S-TRUE-WIRE (Sprint 5) expects from here (nothing hard: the MCP transport in `pkg/mcpserver` is reusable by the Lich).
-- [ ] **Step 251** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 245-250: docs, registers, timeline, handoff` then the SHIPPED banner at the top of this file (date, commit range, STUCK list, open E-ids) in a final commit.
+- [x] **Step 249** [DOC-UPDATE][W] ~6m: ADR statuses touched: ADR-024 (amended), ADR-028 (superseded), ADR-038 (dormant), ADR-059 (Phase 2b/3 done), ADR-060 (tail done), ADR-106 (Q2/Q3/Q6/Q7 answered or open with E-ids), ADR-019 (amendment per E3); `docs/adr/ADR-INDEX.md` rows.
+- [x] **Step 250** [W] ~6m: `~/tmp/next.md` handoff block at the top: what shipped, the four escalations and their state, the live state on west (units installed or not), the morning-report command, what S-TRUE-WIRE (Sprint 5) expects from here (nothing hard: the MCP transport in `pkg/mcpserver` is reusable by the Lich).
+- [x] **Step 251** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 245-250: docs, registers, timeline, handoff` then the SHIPPED banner at the top of this file (date, commit range, STUCK list, open E-ids) in a final commit.
 - [ ] **Step 252** [V] ~1m: **PHASE 15 EXIT GATE / SPRINT DoD** — DoD-STD 1-8 hold for every phase; `git status --short` empty (ignoring the two untracked host-agent paths); Appendix D has no M-id without a step or an explicit deferral; this file carries the SHIPPED banner.
 
 ---

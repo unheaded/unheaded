@@ -16,7 +16,7 @@ Operational procedures. `runbooks/` holds YAML runbooks that Zhen's Champion can
 | `wotan/` | cluster-setup, cluster-failover, active-active-cutover, oom-state-recovery, pending-subscription-approval |
 | `doom/` | doom-rebuild, doom-ring-setup, doom-debug, doom-performance |
 
-79 runbooks. Lifecycle (`metadata.status` draft → approved, only Stevie approves), the checker `scripts/check-runbooks.sh` and its shrink-only baseline `runbooks/.check-baseline`: ADR-024 §6. The eleven S-TWO-BRAINS drafts each have a dry-run test in `tests/runbooks/`.
+91 runbooks. Lifecycle (`metadata.status` draft → approved, only Stevie approves, with an ISO `approved_at`), the checker `scripts/check-runbooks.sh` and its shrink-only baseline `runbooks/.check-baseline`: ADR-024 §6. Who authors and who approves: ADR-024 "Authorship and approval" (Claude authors, Zhen executes and may only draft, a local model authors for approval once the newest eval clears the bar); the drafts awaiting approval are listed in `docs/battle-plans/progress/S-CHAMPION-HARDENING-approvals.md` (E1). A live `runbook_execute` through the Champion needs the runbook's sha256 in `runbooks/MANIFEST.sha256`: run `scripts/runbook-manifest.sh --write` after any runbook edit (CI checks it). Each draft has a dry-run test in `tests/runbooks/`.
 
 `scripts/run-runbook.py` runs a runbook's `verification:` section after its steps succeed: each entry's `command` (or `check`) runs, `action: manual` entries are printed for the operator, and the run ends with `verification: n/m passed`; any failed check exits 1 (no rollback: every step succeeded). `--dry-run` lists the checks without running them. The checker `bash -n`s verification commands too.
 

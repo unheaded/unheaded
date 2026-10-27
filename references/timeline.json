@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "last_updated": "2026-10-27T17:37:43.500412994Z",
+  "last_updated": "2026-10-27T20:57:07.992862564Z",
   "status": "alpha",
   "phases": [
     {
@@ -85,6 +85,7 @@
         "phase-3-item-fe186009",
         "phase-3-item-93443574",
         "phase-3-item-d2e7371a",
+        "phase-3-item-0b1e2e4c",
         "phase-3-item-020526f9",
         "phase-3-item-ef2bf6a0",
         "phase-3-item-5d165ac5",
@@ -519,6 +520,13 @@
       "status": "completed",
       "progress": 100,
       "description": "**S-CLEAN-SLATE, Sprint 1 of the NEXT-7 ladder (2026-10-27, `develop`).** A sweep of all 755 docs found 144 planned-but-unbuilt items; seven battle plans forged, Sprint 1 executed the same day by four worktree agents and a coordinator. CI's red gates fixed (dependency baseline, tool pins, runbook tests on runners without `mcp`, meta-gate timeout 44 min measured); Go known failures 2 → 0. Live on west and east: alert mail sends (FND-001's relay), Well role passwords rotated with an argv leak fixed (FND-014 closed), WireGuard PSK rotated, east sshd hybrid-only, the ebtables stopgap (FND-011), kingdom-startup starts monitoring first (FND-024 closed, cold start 48 s), the discover meter ejects a dead replica (FND-023 closed, 0.9961), haproxy configs start, the Zhen chat path goes through zhen-agentd, east on new debs. Found and fixed on the way: Prometheus and Loki on every interface without auth, CORS on the Zhen UI, gRPC publishes never stored, Cuirass panicking with auth off, a README breaking the haproxy edge. 279 MIT headers relicensed to GPL-3.0-or-later; docs/internal archived. Open for Stevie: credential rotation, west sshd, the PSK timer's root key, GitHub settings, the EAR notice, promotion."
+    },
+    {
+      "id": "phase-3-item-0b1e2e4c",
+      "name": "Sprints 2-4 of the NEXT-7 ladder, code complete",
+      "status": "completed",
+      "progress": 100,
+      "description": "**Sprints 2-4 of the NEXT-7 ladder, code complete (2026-10-27, `develop`).** S-IRON-GATE Phases 1-7, 11, 12 and 5-8 code: Ed25519 service tokens and per-service keys (`unheaded-keygen`), hashed `uhk_` API keys, the built-in OIDC issuer `unheaded-auth`, auth with RBAC on all 13 first-party services, dashboard and board logins through a BFF (session cookie, tokens never in the browser), Wotan verifying tokens with auto-approve keyed on the verified identity, security headers on every router, signed releases with keyless cosign and provenance. S-CHAMPION-HARDENING Phases 1-14: the Champion tool path closed RT-03..RT-10 and T-05, one prompt and verb table, runbook manifest and model pins, the authorship policy written (runbook approvals E1), the eval scores runbook-draft, verification sections run, the scheduler inside zhen-agentd, a Go MCP server, zhen-cli memory and model commands, a Kanban Runbooks view; coding gate re-run with no regression. S-WELL-SPRING Phases 1-4 and 6-12: no startup DDL, the Well batch 030-043 rehearsed with dry run and rollback, deploy history and chaos journals and SLO definitions in the Well, a ratification-gated retention job, Watchdog and heartbeat, a runbook for every alert, heimdall metrics, journald logging for containers, perf harnesses, Akira reporters and detection rules, compliance paperwork drafted. Live steps wait on host windows and Stevie's escalations (key generation, the Well batch, E1-E4)."
     },
     {
       "id": "phase-3-item-020526f9",

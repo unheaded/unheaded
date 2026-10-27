@@ -204,8 +204,12 @@ Every [ESCALATE] still open:
 
 1. **Live apply of 030-034 as one batch** (Steps 59, 94, 205, 349, and 034's
    recorded no-op). Until then, `-confirm queue` and the worker cannot
-   run against the live Well.
+   run against the live Well. 2026-10-27: the batch is now 030-043, rehearsed
+   with dry run and rollback (`scripts/well/batch-apply.sh`,
+   `test-batch-apply.sh`); it is S-WELL-SPRING E-A.
 2. **First real unattended night** (Step 254): when, the cap, the env file.
+   2026-10-27: prepared (user units, kill-switch runbook, morning-report
+   script); filed as S-CHAMPION-HARDENING E2 with its questions.
 3. **Runbook approvals** (Step 337): the 11 drafts are `status: draft`.
    The authorship policy ("Claude authors, Zhen executes, Stevie approves;
    a local model authors only once it clears the eval bar") is written in
