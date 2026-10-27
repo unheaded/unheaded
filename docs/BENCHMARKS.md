@@ -93,7 +93,7 @@ From S76 Round Table (2026-03-05):
 | Sustained throughput | 1000 req/s | 1000 req/s (stable) | **Met exactly** |
 | Max throughput | — | 149K-256K req/s | **Production-grade** |
 | Cross-host latency | — | 0.5ms (WireGuard) | **Sub-millisecond** |
-| eBPF throughput | — | 920K pps (AF_XDP) | **Near line-rate** |
+| eBPF throughput | — | 920K pps was a Python `sendto` ceiling, not AF_XDP (docs/sweeps/outstanding-2026-10-27/sweep-internal.md D-6, M-090); AF_XDP throughput not measured | not measured |
 
 All performance targets met or exceeded. The system is production-ready on bare metal.
 

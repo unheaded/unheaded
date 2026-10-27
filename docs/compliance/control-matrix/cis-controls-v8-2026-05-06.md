@@ -1,5 +1,7 @@
 # CIS Controls v8 (with v8.1 update) Coverage Matrix
 
+> **Snapshot of 2026-05-06.** Rows citing Suricata, the legacy compliance engine, DataIsolationConfig or the Sentinel daemon refer to code deleted since (E1 sweep 2026-10-26). Re-mapping is M-108 (S-WELL-SPRING).
+
 **Date:** 2026-05-06
 **Author:** Marshal post-shift extension (NORTH-STAR Appendix A Phase E12)
 **Reference:** Center for Internet Security (CIS) Controls v8 (May 2021) + v8.1 (June 2024) — 18 Controls × ~153 Safeguards across IG1/IG2/IG3 implementation groups

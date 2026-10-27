@@ -2,7 +2,7 @@
 
 **Skill:** `unheaded-sentinel`
 **Role:** Network watchman, SOC analyst, blue team defender
-**Full Documentation:** `.skills/skills/unheaded-sentinel/SKILL.md`
+**Full Documentation:** `~/.claude/skills/unheaded-sentinel/SKILL.md`
 
 ---
 
@@ -117,7 +117,6 @@ When anomalies appear, Sentinel alerts. When attacks occur, Sentinel responds.
   - Privilege escalation detection
   - Failed authentication spray attacks
   - Malware signature matching
-- Suricata IDS integration
 - Alert escalation via Wotan pub/sub topics
 
 **Key Commands:**
@@ -224,7 +223,6 @@ External threat intelligence feeds integrate via MCP connectors:
 - **VirusTotal API** (optional) — Hash and domain reputation lookups
 - **AbuseIPDB** (optional) — IP reputation and abuse history
 - **Custom RSS/Webhooks** — Vendor-specific threat feeds
-- **Suricata IDS** — Network-level intrusion detection system
 - **Pi-hole API** — DNS monitoring and blocking API
 
 ---
@@ -333,12 +331,12 @@ The Daily Adversarial Loop is where the Kingdom's **antifragility** lives. It's 
 
 ## See Also
 
-- **Full Skill Documentation** — `.skills/skills/unheaded-sentinel/SKILL.md` — Complete reference with all domains, commands, and architectural details
-- **BlackMage Skill** — `.skills/skills/unheaded-blackmage/SKILL.md` — The red team attacker (partner in the Daily Adversarial Loop)
-- **MoatGhost Skill** — `.skills/skills/unheaded-moatghost/SKILL.md` — Compliance and audit (completing the Security Triad)
-- **Architect Skill** — `.skills/skills/unheaded-architect/SKILL.md` — Defensive hardening (acts on Sentinel findings)
-- **CVE Triage Workflow** — `.skills/skills/unheaded-sentinel/references/cve-triage-workflow.md` — Detailed patch management process
-- **Pi-hole Playbook** — `.skills/skills/unheaded-sentinel/references/pihole-playbook.md` — Step-by-step deployment guide
+- **Full Skill Documentation** — `~/.claude/skills/unheaded-sentinel/SKILL.md` — Complete reference with all domains, commands, and architectural details
+- **BlackMage Skill** — `~/.claude/skills/unheaded-blackmage/SKILL.md` — The red team attacker (partner in the Daily Adversarial Loop)
+- **MoatGhost Skill** — `~/.claude/skills/unheaded-moatghost/SKILL.md` — Compliance and audit (completing the Security Triad)
+- **Architect Skill** — `~/.claude/skills/unheaded-architect/SKILL.md` — Defensive hardening (acts on Sentinel findings)
+- **CVE Triage Workflow** — `~/.claude/skills/unheaded-sentinel/references/cve-triage-workflow.md` — Detailed patch management process
+- **Pi-hole Playbook** — `~/.claude/skills/unheaded-sentinel/references/pihole-playbook.md` — Step-by-step deployment guide
 
 ---
 

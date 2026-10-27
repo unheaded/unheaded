@@ -651,11 +651,11 @@ func TestTimelineAPI(t *testing.T) {
 **Browser → Gateway → Services → Wotan:**
 
 ```bash
-# Start all containers
-make containers-up
+# Start the compose stack
+make dev
 
 # Run E2E tests
-go test ./tests/e2e/... -tags=e2e
+make test-e2e   # go test -race ./tests/e2e/...
 
 # Tests should verify:
 # - HTTP/3 connection
@@ -687,30 +687,24 @@ make all
 ### Testing
 
 ```bash
-# Unit tests
+# Go + Rust tests
 make test
-
-# Integration tests
-make test-integration
 
 # E2E tests
 make test-e2e
 
-# All tests
-make test-all
+# Every target with its description
+make help
 ```
 
 ### Local Development
 
 ```bash
-# Start development environment
+# Start development environment (docker compose up -d)
 make dev
 
-# This starts:
-# - Wotan (docker)
-# - PostgreSQL (docker)
-# - Services (locally)
-# - Dashboard (http://localhost:8080)
+# Dashboard: http://localhost:20000
+# Kanban:    http://localhost:20001
 ```
 
 ### Deployment
@@ -826,7 +820,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - S59 Dashboard Polish: Design system, demo data, Kanban review column
 - S67 Wire Format Freeze: v0x01 locked, 12 IANA registries, IPR clear
 - S67-S69 Multi-agent swarm: Observability stack, Suricata IDS (removed 2026-10-22), alternate routing (81 files)
-- eBPF AF_XDP pipeline: 920K pps validated, Rust FFI + Go bridge
+- eBPF AF_XDP pipeline: Rust FFI + Go bridge. 920K pps was a Python `sendto` ceiling, not AF_XDP (M-090); AF_XDP throughput not measured
 - DOOM-on-Monad: Computational completeness proof
 - doom-runner (crates/doom-runner/): Aya-based Rust runtime replacing shell/Go loader chain
 - Zhen Layer 0 (crates/zhend/): Anti-fragile gossip knowledge substrate, PQ crypto, 161 tests green

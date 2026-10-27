@@ -1,5 +1,7 @@
 # Compliance Matrix Completeness Audit — 2026-05-06
 
+> **Snapshot of 2026-05-06.** Rows citing Suricata, the legacy compliance engine, DataIsolationConfig or the Sentinel daemon refer to code deleted since (E1 sweep 2026-10-26). Re-mapping is M-108 (S-WELL-SPRING).
+
 **Date:** 2026-05-06
 **Author:** Marshal post-shift extension (NORTH-STAR Appendix A Phase E completeness verification)
 **Purpose:** Audit every E1-E15 matrix for omissions per Stevie's directive *"audit and verify we omit nothing"*. Identify abbreviations, deferred enumerations, and explicit omissions. Provide a remediation map for any audit-readiness gap.
