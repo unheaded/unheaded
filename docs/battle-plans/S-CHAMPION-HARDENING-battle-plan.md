@@ -833,36 +833,36 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 2.5 h
 **Agent**: Agent E (worktree cli)
 
-- [ ] **Step 207** [R] ~4m
+- [x] **Step 207** [R] ~4m
   ```bash
   cd /home/govan/tmp/unheaded && sed -n 240,300p cmd/zhen-cli/main.go && grep -nE 'memories|/api/v1/memory|recall' cmd/zhen-agentd/main.go | head -6 && grep -nE 'case "|--status|--stop|--dry-run' scripts/switch-model.sh | head -12
   ```
-- [ ] **Step 208** [DECIDE][DESIGN] ~3m: Persistence path
+- [x] **Step 208** [DECIDE][DESIGN] ~3m: Persistence path
   - RECOMMENDATION: the CLI talks to agentd (`GET /api/v1/memory/recall?q=`, `POST /api/v1/memory/remember`), and agentd owns the Well access (it already has `WELL_APP_ZHEN_DSN`); the CLI gains no database driver. Rationale: ADR-059's objection was lib/pq in the CLI; agentd is the one process that should hold the DSN. Override ONLY if agentd is absent on a host that runs the CLI (then the CLI says so, as it does for `/health`).
-- [ ] **Step 209** [CODE][W] ~10m: Red tests (`cmd/zhen-agentd`): recall returns ranked rows from a fake store; remember writes one `zhen_memories` row through the Champion gate (`memory_write` registered mutating → confirmation unless `direct-user` from an authenticated UI/tty principal). Red tests (`cmd/zhen-cli`): `/recall x` prints rows with provenance; `/remember text` prints the stored id; `/confirm <tok>` posts to `/api/v1/agent/confirm` with the tty principal and prints the result; `/model` lists models from `switch-model.sh --json` and `/model <key>` goes through agentd's `model_switch` (never the script directly). Green in both binaries.
-- [ ] **Step 210** [CODE][W] ~5m: `scripts/switch-model.sh --json`: machine-readable status/list/decision (`{"active":…,"models":[…],"fit":{…}}`), no behaviour change otherwise; golden test `cmd/zhen-agentd/modelswap_json_test.go` parses a recorded sample (ADR-060:178 mitigation).
-- [ ] **Step 211** [TEST][B] ~3m
+- [x] **Step 209** [CODE][W] ~10m: Red tests (`cmd/zhen-agentd`): recall returns ranked rows from a fake store; remember writes one `zhen_memories` row through the Champion gate (`memory_write` registered mutating → confirmation unless `direct-user` from an authenticated UI/tty principal). Red tests (`cmd/zhen-cli`): `/recall x` prints rows with provenance; `/remember text` prints the stored id; `/confirm <tok>` posts to `/api/v1/agent/confirm` with the tty principal and prints the result; `/model` lists models from `switch-model.sh --json` and `/model <key>` goes through agentd's `model_switch` (never the script directly). Green in both binaries.
+- [x] **Step 210** [CODE][W] ~5m: `scripts/switch-model.sh --json`: machine-readable status/list/decision (`{"active":…,"models":[…],"fit":{…}}`), no behaviour change otherwise; golden test `cmd/zhen-agentd/modelswap_json_test.go` parses a recorded sample (ADR-060:178 mitigation).
+- [x] **Step 211** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-cli/... ./cmd/zhen-agentd/... ./pkg/champion/... -race -count=1 2>&1 | tail -4 && bash -n scripts/switch-model.sh && scripts/switch-model.sh --json --status | jq -e '.active' >/dev/null && echo "json ok"
   ```
-- [ ] **Step 212** [V] ~1m: PASS; `jq` parses.
-- [ ] **Step 213** [CODE][W] ~6m: Line editing without a new dependency: `golang.org/x/term` is gone from the build (Step M-001 shrank it); implement history + basic editing over `bufio` with ANSI arrows (left/right/up/down, home/end, backspace) in `cmd/zhen-cli/lineedit.go` with a table test; fall back to plain `bufio.Scanner` when stdin is not a TTY. API key: `ZHEN_API_KEY` env or `~/.config/unheaded/zhen-cli.conf` (0600, fail-loud if world-readable), sent as `Authorization: Bearer`.
-- [ ] **Step 214** [TEST][B] ~2m
+- [x] **Step 212** [V] ~1m: PASS; `jq` parses.
+- [x] **Step 213** [CODE][W] ~6m: Line editing without a new dependency: `golang.org/x/term` is gone from the build (Step M-001 shrank it); implement history + basic editing over `bufio` with ANSI arrows (left/right/up/down, home/end, backspace) in `cmd/zhen-cli/lineedit.go` with a table test; fall back to plain `bufio.Scanner` when stdin is not a TTY. API key: `ZHEN_API_KEY` env or `~/.config/unheaded/zhen-cli.conf` (0600, fail-loud if world-readable), sent as `Authorization: Bearer`.
+- [x] **Step 214** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-cli/... -race -count=1 2>&1 | tail -2 && go mod tidy -diff | head -3; echo "tidy checked"
   ```
-- [ ] **Step 215** [V] ~1m: PASS; `go mod tidy -diff` empty (no new module).
-- [ ] **Step 216** [CODE][W] ~6m: ADR-060 tail: agentd exports `zhen_model_swap_duration_seconds` histogram and `zhen_model_swap_failures_total`; `TestModelSwap_TimeoutRollsBack` (fake script that never opens the port → after 4x documented load time the previous model is restored, T19); `tomb/lich/LICH-013-model-selector/CAMPAIGN.md` gets the "how to run" block pointing at `cmd/zhen-agentd` model_switch with the fake script.
-- [ ] **Step 217** [TEST][B] ~3m
+- [x] **Step 215** [V] ~1m: PASS; `go mod tidy -diff` empty (no new module).
+- [x] **Step 216** [CODE][W] ~6m: ADR-060 tail: agentd exports `zhen_model_swap_duration_seconds` histogram and `zhen_model_swap_failures_total`; `TestModelSwap_TimeoutRollsBack` (fake script that never opens the port → after 4x documented load time the previous model is restored, T19); `tomb/lich/LICH-013-model-selector/CAMPAIGN.md` gets the "how to run" block pointing at `cmd/zhen-agentd` model_switch with the fake script.
+- [x] **Step 217** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-agentd/ -run 'ModelSwap' -race -count=1 2>&1 | tail -3 && go test ./pkg/champion/ -run 'Modelswap|ModelSwap' -race -count=1 2>&1 | tail -2
   ```
-- [ ] **Step 218** [B] ~2m: Merge
+- [x] **Step 218** [B] ~2m: Merge
   ```bash
   cd /home/govan/tmp/unheaded && git merge --no-ff sprint/champion-hardening-cli -m "merge Phase 11: zhen-cli 2b/3, switch-model --json, ADR-060 tail" && go build ./... && go test ./cmd/zhen-cli/... ./cmd/zhen-agentd/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 219** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 207-218: zhen-cli recall/remember/confirm/model, switch-model --json, swap metrics + rollback test`
-- [ ] **Step 220** [V] ~1m: **PHASE 11 EXIT GATE** — Steps 212, 215, 217, 218 green; ADR-059 Phase 2b/3 and ADR-060 tail items ticked in their ADRs ([DOC-UPDATE] one line each).
+- [x] **Step 219** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 207-218: zhen-cli recall/remember/confirm/model, switch-model --json, swap metrics + rollback test`
+- [x] **Step 220** [V] ~1m: **PHASE 11 EXIT GATE** — Steps 212, 215, 217, 218 green; ADR-059 Phase 2b/3 and ADR-060 tail items ticked in their ADRs ([DOC-UPDATE] one line each).
 
 ---
 

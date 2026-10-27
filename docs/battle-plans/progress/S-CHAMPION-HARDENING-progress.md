@@ -111,3 +111,17 @@ Python server: `..` in names, substring deny list (`secrets_manager.go`), a chec
 `credentials`/`.env` denies everything. `bin/zhen-mcp` built in the main checkout after merge (the live `zhen` MCP
 server needs it). The E1 runbook `security/mcp-write-exec-enablement.yaml` and its brief still describe the Python
 server; left untouched while it is in front of Stevie.
+
+### Phase 11 merged (7706d8bf)
+
+agentd: `GET /api/v1/memory/recall`, `POST /api/v1/memory/remember` (Postgres full-text, not embeddings), `GET /api/v1/models`,
+`-memory-store none|pg`; new mutating tool `memory_write` (authenticated caller = direct-user; `-no-auth` refused).
+Fixed: a confirmed `model_switch` failed as "unimplemented" in `dispatchUnderlying`. zhen-cli: `/recall /remember
+/confirm /model`, line editing + history; key from `ZHEN_API_KEY`/`ZHEN_AGENTD_API_KEY`/`~/.config/unheaded/zhen-cli.conf`
+(0600). `switch-model.sh --status/--json` (no GPU lease), swap rollback (4x load time + 60 s, own process group),
+`zhen_model_swap_duration_seconds`, `zhen_model_swap_failures_total`. `MODEL_LOAD_SECONDS` for deepseek (90) and
+qwen-coder-14b (120) are estimates: measure. Premise that did not hold: `/confirm` cannot send a tty principal
+(agentd derives `ui:<subject>`; one API key = shared `ui:apikey` with the web UI until per-owner keys, now possible
+with Iron Gate Phase 3's `uhk_` keys). LICH-013 campaign file created; smoke-tested; known gap: allowlist and
+in-progress refusals answer 500, not ADR-060's 400/429. LIVE: `TestPGMemoryStore_Live` (needs `WELL_TEST_APP_DSN`),
+a live `/model` swap, `-memory-store pg` in the agentd unit (E4).
