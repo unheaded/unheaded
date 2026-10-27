@@ -267,3 +267,13 @@ review note open); behind traefik the BFF/issuer lockouts become global (one sou
 https host; `secrets/cask.age.key` is generated inside the checkout; apt `Release` has no Valid-Until (freeze/replay);
 uid 16738 (`unheaded-apt`) waits on E4. Flake: `pkg/deploy/rollback TestManager_Rollback_DuplicateInProgress` (races an
 async rollback against a non-blocking mock; 20/20 alone).
+
+### Phase 16 (coordinator): docs, registers, handoff; E5 filed
+
+ADR-103 status: implemented in code, Stevie to accept. Register: FND-017/018/019 plan text records the code that landed
+and what closes them (live steps, E1, E2). Port-Registry and CLAUDE.md: 18888 apt repo; CLAUDE.md secrets paragraph names
+the key and cert generators. OUTSTANDING: M-051 (TLS) code done, M-056 closed, M-063 partial. Timeline: the combined
+Sprints 2-4 entry covers this sprint. Final regression 236 ok / 0 FAIL. Banner: CODE COMPLETE.
+**E5 (Stevie, record only):** `aws-lc-rs`/`aws-lc-sys` (WAF, zhend; S-QUANTUM-ARMOR) and `anthropic-sdk-go` (ADR-104;
+S-TWO-BRAINS) are in use without an ADR-004 row. Sign off both, with dates, in `docs/adr/ADR-004`? (`ring` returned to
+cmd/trace-collector's lock via `crates/svc-token` belongs on the same list.)

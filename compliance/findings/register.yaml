@@ -316,6 +316,7 @@ findings:
     plan: >-
       The ADR-034 / ADR-103 sprint (certificates, distribution, service auth). The code is ready: Wotan gRPC,
       wotan-client and pkg/transport/mtls are hybrid-only TLS 1.3 the day TLS is on (S-QUANTUM-ARMOR Phase 5)
+      Progress 2026-10-27 S-IRON-GATE Phase 8 code merged (Strict TLS 1.3 hybrid on every first-party listener and link, per-service dev certs, compose and units on TLS, no plaintext fallback); closes when Steps 264-265 pass in compose and on hosts after E3
     decision: when to turn TLS on for internal links (accepted as plaintext 2026-09-30 with the edge finding)
 
   - id: FND-018
@@ -334,6 +335,7 @@ findings:
     plan: >-
       E4: an ML-DSA-65 seed held under ADR-043 #4 custody (HSM/TPM/sealed, or strict ACL with an audit log),
       separate from the Heimdall and drift keys; publish build.pubkey; a quarterly rotation ceremony
+      Progress 2026-10-27 S-IRON-GATE Phase 13 code merged (ML-DSA-65 signed Binding Rune, cmd/cask-verify, hardened tar extraction, build-key ceremony runbook, uid 16737); custody is Iron Gate E1
     decision: E4, where the build key lives, who holds it, how build.pubkey is published
 
   - id: FND-019
@@ -352,6 +354,7 @@ findings:
     plan: >-
       E5 (plan Step 246; docs/battle-plans/progress/S-QUANTUM-ARMOR-drift-progress.md): enrol the keys, add heimdall
       to topics.auto_approve, ship and enable a Heimdall unit
+      Progress 2026-10-27 S-IRON-GATE Phase 9 code merged (unheaded-heimdall.service uid 16736, unheaded-keygen -algo mldsa65, enrol runbook, heimdall on auto_approve via verified identity); keys and running it are Iron Gate E2
     decision: E5, key custody per node and running a root-reading daemon on the hosts
 
   - id: FND-020

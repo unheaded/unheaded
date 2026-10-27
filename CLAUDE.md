@@ -498,7 +498,10 @@ networking.firewall = {
 
 ### Secrets Management
 
-**CREDENTIALS ARE NEVER STORED IN THIS REPO.** Not in code, not in manifests,
+**CREDENTIALS ARE NEVER STORED IN THIS REPO.** Service identities follow the same rule: keys are made on the host by
+`unheaded-keygen` (`/etc/unheaded/keys/<identity>.key`, 0400, owned by the service) or for dev by
+`sudo scripts/gen-dev-keys.sh` / `scripts/gen-dev-certs.sh` into gitignored `configs/keys/dev/` and `configs/certs/`.
+ Not in code, not in manifests,
 not in scripts, not in docs, not in test fixtures. This is absolute — a
 credential in the tree is a credential in git history, and history outlives
 every deletion.
@@ -1217,6 +1220,7 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | unheaded-auth | 19020 | HTTP(S) | Built-in OIDC issuer (ADR-103): login, JWKS, discovery; uid 16735 |
 | sword | 19011 | HTTP | Deploy service through Cuirass (was Canary's port; Canary folded into Sword), uid 16746 |
 | chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east |
+| apt repo | 18888 | HTTP | Signed apt repo (reprepro, nginx), 127.0.0.1 + 192.168.13.2 only |
 | heimdall-daemon /metrics | 19101 | HTTP | Drift detection metrics (loopback default, `-metrics-addr`) |
 | kev-poller | 19120 | HTTP | CISA KEV feed poller (ADR-055) |
 | alert-mailer | 19130 | HTTP | Alertmanager webhook to mail |
