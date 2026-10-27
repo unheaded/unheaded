@@ -95,25 +95,15 @@ func NewXDPSync(log *logger.Logger, wotan *wotanClient.Client) *XDPSync {
 // Start initialises Wotan subscriptions, starts the HTTP server, and begins
 // periodic health polling at 10-second intervals.
 func (x *XDPSync) Start(ctx context.Context) error {
-	// Subscribe to Wotan topics.
+	// Join Wotan topics.
 	if x.wotan != nil {
 		// lb.rebalance is joined too: the client publishes only on topics
 		// it has joined (rebuildTable publishes there). The name is the
 		// service's, which configs/wotan.yaml auto-approves.
-		topics := []string{
-			"lb.backends.update",
-			"lb.health.update",
-			"lb.rebalance",
-			"alerts.critical",
+		for _, topic := range []string{"lb.backends.update", "lb.health.update", "lb.rebalance"} {
+			x.join(ctx, topic)
 		}
-		for _, topic := range topics {
-			if _, err := x.wotan.Subscribe(ctx, topic, wotanDisplayName); err != nil {
-				x.log.Warn().Str("topic", topic).Err(err).Msg("failed to subscribe to topic")
-			} else {
-				x.log.Info().Str("topic", topic).Msg("subscribed to topic")
-			}
-		}
-		go x.listenForAlerts(ctx)
+		go x.listenForAlerts(ctx) // alerts.critical
 	} else {
 		x.log.Info().Msg("Wotan not configured, skipping subscriptions")
 	}
@@ -682,30 +672,31 @@ func (x *XDPSync) pollHealth() {
 	}
 }
 
-// listenForAlerts listens for critical alerts from Wotan.
+// join joins topic once now, so a Wotan that is up at start has the join
+// before the first publish (f9c59e4b: join lb.rebalance before publishing
+// on it), and when that fails keeps retrying in the background until ctx
+// ends (SubscribeWithRetry). A failed one-shot join used to stay failed for
+// the life of the process.
+func (x *XDPSync) join(ctx context.Context, topic string) {
+	sub, err := x.wotan.Subscribe(ctx, topic, wotanDisplayName)
+	if err == nil && sub.Status == "approved" {
+		x.log.Info().Str("topic", topic).Msg("joined wotan topic")
+		return
+	}
+	go func() {
+		if err := x.wotan.SubscribeWithRetry(ctx, topic, wotanDisplayName, nil); err == nil {
+			x.log.Info().Str("topic", topic).Msg("joined wotan topic")
+		}
+	}()
+}
+
+// listenForAlerts streams alerts.critical to handleCriticalAlert until ctx
+// ends, rejoining and reopening the stream whenever Wotan is away.
 func (x *XDPSync) listenForAlerts(ctx context.Context) {
 	if x.wotan == nil {
-		x.log.Warn().Msg("wotan unavailable - alert listener disabled (degraded mode)")
 		return
 	}
-
-	msgCh, err := x.wotan.StreamMessages(ctx, "alerts.critical")
-	if err != nil {
-		x.log.Warn().Err(err).Msg("failed to stream alerts.critical")
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok := <-msgCh:
-			if !ok {
-				return
-			}
-			x.handleCriticalAlert(msg)
-		}
-	}
+	_ = x.wotan.SubscribeWithRetry(ctx, "alerts.critical", wotanDisplayName, x.handleCriticalAlert)
 }
 
 // handleCriticalAlert processes a critical alert message.
