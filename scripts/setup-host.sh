@@ -215,11 +215,13 @@ setup_lxd() {
         return
     fi
 
-    # Initialize LXD with preseed
+    # Initialize LXD with preseed. No core.trust_password: the fallback value
+    # this file used to ship was public, and LXD 5.21 trusts clients by token
+    # instead; scripts/cuirass-lxd-trust.sh issues a restricted client
+    # certificate the token way (S-CLEAN-SLATE M-040).
     cat <<EOF | lxd init --preseed
 config:
   core.https_address: '[::]:8443'
-  core.trust_password: ${LXD_TRUST_PASSWORD:-changeme}
 networks:
 - name: lxdbr0
   type: bridge
