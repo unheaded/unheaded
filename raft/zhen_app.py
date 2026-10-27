@@ -30,10 +30,13 @@ Features (post-rewire):
 - File-read sandbox via /api/v1/champion/read
 - Skills + runbook listing
 """
+import hmac
+import html
 import io
 import json
 import logging
 import os
+import secrets
 import sys
 import time
 import uuid
@@ -47,7 +50,13 @@ from flask_cors import CORS
 # Add scripts dir to path for RAG import
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
 import zhen_highlight
-from zhen_rag import RAGPipeline
+from zhen_rag import (
+    AgentdGateUnavailable,
+    RAGPipeline,
+    agentd_auth_from_env,
+    agentd_headers,
+    proxy_via_agentd_from_env,
+)
 
 
 def _http_url_from_env(var: str, default: str) -> str:
@@ -72,7 +81,58 @@ def _http_url_from_env(var: str, default: str) -> str:
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'zhen-session-key-dev')  # override in production
+# No shipped default: a known key signs whatever a session cookie claims.
+# Nothing here uses Flask sessions today; a per-process random key keeps it so.
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
+
+# ---------------------------------------------------------------------------
+# CSRF interim (threat model T8; S-CLEAN-SLATE Step 120). The UI has no login,
+# so the ambient thing a cross-site page can ride is the operator's browser on
+# the LAN. GET / issues a per-session random token in a SameSite=Strict cookie;
+# the page echoes it in X-Zhen-CSRF on every state-changing request. A
+# cross-site page can neither read the cookie nor make the browser send it.
+# A request with neither Origin nor Sec-Fetch-Site did not come from a browser
+# (curl, zhen_mcp_server, eval scripts); it has no browser state to ride, so it
+# is not CSRF and is not asked for the token.
+# ---------------------------------------------------------------------------
+CSRF_COOKIE = 'zhen_csrf'
+CSRF_HEADER = 'X-Zhen-CSRF'
+_CSRF_SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
+
+
+@app.before_request
+def _csrf_guard():
+    if request.method in _CSRF_SAFE_METHODS:
+        return None
+    if not request.headers.get('Origin') and not request.headers.get('Sec-Fetch-Site'):
+        return None
+    cookie = request.cookies.get(CSRF_COOKIE, '')
+    sent = request.headers.get(CSRF_HEADER, '')
+    if cookie and sent and hmac.compare_digest(cookie, sent):
+        return None
+    return jsonify({'error': f'CSRF check failed: send the {CSRF_COOKIE} cookie value '
+                             f'in {CSRF_HEADER} (reload the page for a fresh one)'}), 403
+
+
+def _with_csrf_cookie(resp):
+    if not request.cookies.get(CSRF_COOKIE):
+        resp.set_cookie(CSRF_COOKIE, secrets.token_urlsafe(32),
+                        samesite='Strict', httponly=False, secure=request.is_secure,
+                        path='/')
+    return resp
+
+
+# zhen-agentd authentication for the UI's own calls into the gate (chat via
+# RAGPipeline, runbook execute, model switch, kanban create). See
+# zhen_rag.agentd_auth_from_env: ZHEN_AGENTD_API_KEY, or ZHEN_AGENTD_NO_AUTH=1
+# for a -no-auth loopback dev daemon; neither is a 503 on every gated call.
+AGENTD_API_KEY, AGENTD_AUTH_ERROR = agentd_auth_from_env()
+if AGENTD_AUTH_ERROR:
+    print(f"WARNING: gated endpoints will answer 503: {AGENTD_AUTH_ERROR}")
+
+
+def _agentd_headers():
+    return agentd_headers(AGENTD_API_KEY)
 
 # Initialize RAG pipeline.
 #
@@ -108,23 +168,13 @@ ZHEN_INFERENCE_URL = _http_url_from_env('ZHEN_INFERENCE_URL', 'http://localhost:
 ZHEN_AGENTD_URL = _http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20105')
 
 try:
-    # WAVE15 Phase 2 amended: chat path stays DIRECT to llama-server.
-    # Routing chat through cmd/zhen-agentd /api/v1/agent/ask regressed
-    # H0 (the agent's JSON-shaped tool-call prompt truncated chat-style
-    # answers — see eval/coding-gate/results-via-webui-phase2-2026-05-02
-    # final pre-rollback grades and the "Phase 2 amendment" note in
-    # docs/battle-plans/WAVE15-ZHENAI-REWIRE.md). The chat path's T6 was
-    # theoretical (LLM answers displayed, never executed) so the real
-    # T6 closure target is mutation paths — runbook_execute, etc. —
-    # which use the new /api/v1/tool/exec endpoint via Champion.Dispatch
-    # in zhen_app.py:execute_runbook (Phase 2b).
-    #
-    # Set ZHEN_PROXY_VIA_AGENTD=true to opt back into chat proxy for
-    # debugging; default is false. The proxy_via_agentd code path is
-    # KEPT for future experimentation (e.g., a chat-shape daemon
-    # endpoint, ADR-058+).
-    _proxy_env = os.environ.get('ZHEN_PROXY_VIA_AGENTD', 'false').strip().lower()
-    _proxy = _proxy_env in ('true', '1', 'yes', 'on')
+    # S-CLEAN-SLATE M-036 (threat model T6a): the chat path goes through
+    # cmd/zhen-agentd /api/v1/agent/ask, so a tool call the model emits meets
+    # pkg/champion's gate. WAVE15 Phase 2 had rolled this back to direct
+    # llama-server over answer shape (eval/coding-gate results-via-webui
+    # 2026-05-02); the coding gate is re-run through this path
+    # (S-CLEAN-SLATE Step 123/155b). No fall-back: agentd down is a 503.
+    # ZHEN_PROXY_VIA_AGENTD=0 is a debug escape only, never shipped.
     rag = RAGPipeline(
         index_dir, corpus_file,
         vor_url=VOR_URL,
@@ -135,7 +185,8 @@ try:
         # ZHEN_MODEL keeps the response.model field accurate for the UI/logs.
         # See scripts/switch-model.sh for the canonical model-swap path.
         model_name=os.environ.get('ZHEN_MODEL', 'qwen2.5-coder-7b-instruct'),
-        proxy_via_agentd=_proxy,
+        proxy_via_agentd=proxy_via_agentd_from_env(),
+        agentd_api_key=AGENTD_API_KEY,
     )
 except Exception as e:
     startup_error = str(e)
@@ -1059,8 +1110,12 @@ def query():
             live_ctx = identity_block + ('\n\n' + live_ctx if live_ctx else '')
 
         start = time.time()
-        result = rag.query(question, file_content=file_content, history=history,
-                          live_context=live_ctx)
+        try:
+            result = rag.query(question, file_content=file_content, history=history,
+                               live_context=live_ctx)
+        except AgentdGateUnavailable as gate_err:
+            # The gate is required: never answer around it.
+            return jsonify({'error': str(gate_err), 'gate': 'zhen-agentd'}), 503
         elapsed = time.time() - start
         elapsed_ms = int(elapsed * 1000)
 
@@ -1294,7 +1349,7 @@ def switch_model():
     req = _ur.Request(
         f'{agentd_url}/api/v1/tool/exec',
         data=req_body,
-        headers={'Content-Type': 'application/json'},
+        headers=_agentd_headers(),
         method='POST',
     )
     # 7-minute cap matches the daemon's 6-min subprocess limit + buffer
@@ -2201,7 +2256,7 @@ def execute_runbook(name):
     req = _ur.Request(
         f'{agentd_url}/api/v1/tool/exec',
         data=body,
-        headers={'Content-Type': 'application/json'},
+        headers=_agentd_headers(),
         method='POST',
     )
 
@@ -2379,8 +2434,9 @@ def view_source():
 @app.route('/view/source')
 def source_viewer_page():
     """HTML page that displays a source document. Opened in a new tab."""
-    source_path = request.args.get('path', '')
-    source_id = request.args.get('id', '')
+    # Escaped: a reflected <script> here would read the CSRF cookie.
+    source_path = html.escape(request.args.get('path', ''))
+    source_id = html.escape(request.args.get('id', ''))
     return f'''<!DOCTYPE html>
 <html>
 <head>
@@ -2452,7 +2508,60 @@ def highlight_css():
 
 @app.route('/')
 def index():
-    return app.send_static_file('index.html')
+    return _with_csrf_cookie(app.send_static_file('index.html'))
+
+
+@app.route('/api/v1/kanban/create', methods=['POST'])
+def kanban_create():
+    """Create a Kanban card through zhen-agentd's gate (tool kanban_create).
+
+    The page used to POST to the daemon's :20105 directly, which cannot carry
+    the daemon's API key (a browser must never hold it) or a justification.
+    The UI states the direct-user justification here, like runbook execute.
+    Body: {"task": {...}} (the kanban_create args.task object).
+    """
+    if AGENTD_AUTH_ERROR:
+        return jsonify({'status': 'error', 'error': AGENTD_AUTH_ERROR}), 503
+    data = request.get_json(silent=True)
+    task = data.get('task') if isinstance(data, dict) else None
+    if not isinstance(task, dict) or not task.get('id'):
+        return jsonify({'status': 'error', 'error': 'task object with an id required'}), 400
+
+    import urllib.error as _ue
+    import urllib.request as _ur
+    agentd_url = ZHEN_AGENTD_URL
+    payload = {
+        'tool':       'kanban_create',
+        'args':       {'task': task},
+        'session_id': f'zhen-ui-{int(time.time() * 1000)}',
+        'emitted_by': 'zhen-web-ui',
+        'justification': [{
+            'topic':        'user-clicked-kanban-create',
+            'category':     'user-action',
+            'source_kind':  'user-action',
+            'source_trust': 'direct-user',
+            'source_label': '/api/v1/kanban/create',
+        }],
+    }
+    req = _ur.Request(
+        f'{agentd_url}/api/v1/tool/exec',
+        data=json.dumps(payload).encode('utf-8'),
+        headers=_agentd_headers(),
+        method='POST',
+    )
+    try:
+        with _ur.urlopen(req, timeout=60) as resp:
+            return jsonify(json.loads(resp.read().decode('utf-8'))), resp.status
+    except _ue.HTTPError as e:
+        try:
+            return jsonify(json.loads(e.read().decode('utf-8'))), e.code
+        except Exception:
+            return jsonify({'status': 'error', 'reason': str(e)}), e.code or 502
+    except _ue.URLError as e:
+        return jsonify({
+            'status': 'error',
+            'error':  f'zhen-agentd unreachable at {agentd_url}: {e}',
+        }), 503
 
 
 if __name__ == '__main__':

@@ -35,9 +35,9 @@ Threats not closed today are **not** hidden in fine print. The whole point of th
 | **T3** | SSRF / open-redirect via source viewer | MEDIUM | ✅ CLOSED | commit `f9311d29` rewired `/api/v1/source` to vor topic API |
 | **T4** | Embedding-model integrity (poisoning) | LOW | 🟡 RESIDUAL | model pinned, no swap recipe |
 | **T5** | SSE long-poll DoS | LOW | ✅ CLOSED | rate-limit + per-IP token bucket |
-| **T6** | UI bypasses Champion (chat displays / mutations execute) | CRITICAL | 🟡 **SPLIT** — see entry below | commits `93e32ccd` (mutation), `f9311d29` (chat) |
+| **T6** | UI bypasses Champion (chat displays / mutations execute) | CRITICAL | ✅ CLOSED in code 2026-10-27 (S-CLEAN-SLATE M-036): chat via `/api/v1/agent/ask`, no direct fall-back; coding-gate re-run pending — see entry below | commits `93e32ccd` (mutation), `f9311d29` (chat) |
 | **T7** | Conversation history smuggles tool-call templates | MEDIUM | ✅ CLOSED | `_strip_tool_call_json` in `raft/scripts/zhen_rag.py` |
-| **T8** | CSRF on browser-served state-changing endpoints | MEDIUM | 🟠 OPEN — DOCUMENTED | inherited Python posture; future Go-port closes |
+| **T8** | CSRF on browser-served state-changing endpoints | MEDIUM | 🟡 INTERIM 2026-10-27: double-submit token (SameSite=Strict cookie + `X-Zhen-CSRF`) on browser POSTs | `raft/zhen_app.py:_csrf_guard`; Go port closes fully |
 | **T9** | SSE / WebSocket auth confusion (cookie vs bearer) | MEDIUM | 🟡 RESIDUAL | JWT bearer for daemon; cookie path for webui |
 | **T10** | Embedding-as-leakage (raw vectors logged or backed up) | LOW | ✅ CLOSED | embeddings never logged; PG bytea encrypted at rest in production |
 
@@ -61,9 +61,9 @@ Two distinct attack vectors live under this single threat ID. They have differen
 
 > **Vector:** the LLM emits text that LOOKS like a tool call. The UI receives that text, parses it (or a downstream client does), and dispatches it.
 
-**Status:** 🟠 OPEN — DOCUMENTED (theoretical-only on current surface)
+**Status (2026-10-27, S-CLEAN-SLATE M-036):** ✅ CLOSED in code. `RAGPipeline` proxies to `cmd/zhen-agentd /api/v1/agent/ask` by default (`ZHEN_PROXY_VIA_AGENTD=0` is a debug escape, never shipped); an unreachable, timing-out or credential-refusing daemon is a 503 "zhen-agentd not reachable; the gate is required" with no fall-back to llama-server; the UI authenticates with `ZHEN_AGENTD_API_KEY` (`X-API-Key`) or declares `ZHEN_AGENTD_NO_AUTH=1` for a `-no-auth` loopback dev daemon. Tests: `raft/tests/test_zhen_agentd_proxy.py`, `raft/tests/test_zhen_app_gate.py`. **Open:** the 2026-05-02 H0 regression below (7/14 vs 12/14 through `/ask`) has not been re-measured; the coding-gate re-run through this path is S-CLEAN-SLATE Step 123 / 155b.
 
-**Why not closed today:**
+**History (why it was left open until 2026-10-27):**
 
 1. The current chat surface (`raft/zhen_app.py:/api/v1/query`) **does not parse or dispatch** any tool-call shape from the LLM's response. The answer string is JSON-serialized in the HTTP body and rendered as text in the browser. There is no client-side or server-side code that executes anything from the model's output.
 2. WAVE15 Phase 2a attempted to route the chat path through `cmd/zhen-agentd /api/v1/agent/ask` (which DOES gate tool calls via `pkg/champion.Dispatch`). The result regressed the coding-gate (H0) score from 12 PASS / 14 to 7 PASS / 14 because the agent's JSON tool-call-shaped system prompt truncates chat-style answers to the user. **Evidence:** `eval/coding-gate/results-via-webui-phase2a-failed-2026-05-02.md` documents the failed attempt prompt-by-prompt. The H0 bar (set by `eval/coding-gate/baseline-direct-cmd-zhen-rag-2026-05-02.md`) is non-negotiable, so we ship Phase 2b instead.
@@ -201,7 +201,7 @@ Browser action
 
 ## T8 — CSRF on browser-served state-changing endpoints
 
-**Status:** 🟠 OPEN — DOCUMENTED
+**Status:** 🟡 INTERIM (2026-10-27, S-CLEAN-SLATE Step 120). `GET /` sets a per-session random `zhen_csrf` cookie (`SameSite=Strict`); `raft/static/index.html` echoes it in `X-Zhen-CSRF` on same-origin non-GET requests; `_csrf_guard` answers 403 to any browser request (one carrying `Origin` or `Sec-Fetch-Site`) without a matching header. Requests with neither header are not from a browser (curl, `zhen_mcp_server.py`, eval scripts) and are not checked: they carry no ambient browser state. `/view/source` now escapes its reflected parameters (a reflected script would read the cookie). Still open: `CORS(app)` allows any origin to READ GET responses (conversation history included); the Go port's HttpOnly/Secure session closes the rest.
 **Severity:** MEDIUM
 **Original vector:** `raft/zhen_app.py` uses `flask_cors.CORS(app)` with default settings, allowing any origin. State-changing endpoints (`POST /api/v1/runbooks/<n>/execute`, `POST /api/v1/remember`) accept cookies; a malicious site could issue a cross-origin POST that the browser attaches the user's cookie to.
 

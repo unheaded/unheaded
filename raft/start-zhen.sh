@@ -15,9 +15,12 @@
 # What this script DOES launch:
 #   • raft/zhen_app.py on :20103 (the Python web UI)
 #
-# Optional: also start cmd/zhen-agentd if -gated is passed. Without it,
-# /api/v1/runbooks/<n>/execute returns 503 "agentd unreachable" and the
-# UI degrades gracefully. Production posture should run the daemon.
+# Optional: also start cmd/zhen-agentd if -gated is passed. The chat path
+# goes through the daemon's gate (S-CLEAN-SLATE M-036), so without a daemon
+# on :20105 chat and mutations answer 503 "the gate is required". The UI
+# authenticates to it with ZHEN_AGENTD_API_KEY (X-API-Key, one of the
+# daemon's AUTH_API_KEYS), or ZHEN_AGENTD_NO_AUTH=1 for a -no-auth loopback
+# dev daemon; set one in the environment this script runs in.
 
 set -e
 
@@ -89,7 +92,7 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         echo "[2/3] zhen-agentd already running on :20105 — leaving alone"
     fi
 else
-    echo "[2/3] Skipping zhen-agentd (run with '-gated' to enable mutation gating)"
+    echo "[2/3] Skipping zhen-agentd: chat and mutations answer 503 until one runs on :20105 ('-gated' starts it)"
 fi
 
 # 3. Start the Python web UI.
@@ -106,6 +109,9 @@ else
     export ZHEN_AGENTD_URL="${ZHEN_AGENTD_URL:-http://localhost:20105}"
     export ZHEN_MODEL="${ZHEN_MODEL:-qwen2.5-coder-7b-instruct}"
     export VOR_URL="${VOR_URL:-http://localhost:9876}"
+    if [[ -z "${ZHEN_AGENTD_API_KEY:-}" && "${ZHEN_AGENTD_NO_AUTH:-}" != "1" ]]; then
+        echo "  ! ZHEN_AGENTD_API_KEY unset (and ZHEN_AGENTD_NO_AUTH!=1): gated chat and mutations will answer 503"
+    fi
 
     # The Well (PostgreSQL) — required for memory cache, conversation log,
     # and live-context kanban/audit/runbook intent injection. Without these,

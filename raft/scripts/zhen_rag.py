@@ -19,6 +19,7 @@ Memory recall semantics (T1 closure):
     as a side-channel ("matched_memory" field), but query() always
     runs the full RAG path.
 """
+import logging
 import os
 import re
 import time
@@ -31,8 +32,76 @@ from sentence_transformers import SentenceTransformer
 # Default URLs — match the live Go-stack backends.
 DEFAULT_VOR_URL = "http://localhost:9876"
 DEFAULT_INFERENCE_URL = "http://localhost:8081"
-DEFAULT_AGENTD_URL = "http://localhost:20105"   # Phase 2 hook; unused in Phase 1
+DEFAULT_AGENTD_URL = "http://localhost:20105"   # zhen-agentd: the chat path's gate
 DEFAULT_MODEL_NAME = "qwen2.5-coder-7b-instruct"
+
+log = logging.getLogger("zhen_rag")
+
+# The one message the UI shows when the gate is not there (S-CLEAN-SLATE
+# M-036): the chat path never falls back to llama-server around it.
+GATE_REQUIRED_MSG = "zhen-agentd not reachable; the gate is required"
+
+
+class AgentdGateUnavailable(RuntimeError):
+    """zhen-agentd cannot gate this request (down, timing out, refusing the
+    UI's credentials, or no credentials configured). zhen_app.py answers 503.
+    Never caught to fall back to the direct llama-server path."""
+
+
+def proxy_via_agentd_from_env(environ=None):
+    """ZHEN_PROXY_VIA_AGENTD: only an explicit false (0/false/no/off) turns
+    the gate off for the chat path (a debug escape, never shipped); unset or
+    any other value keeps it on."""
+    env = os.environ if environ is None else environ
+    val = env.get("ZHEN_PROXY_VIA_AGENTD", "1").strip().lower()
+    return val not in ("0", "false", "no", "off")
+
+
+def agentd_auth_from_env(environ=None):
+    """(api_key, error) for the UI's calls into zhen-agentd.
+
+    zhen-agentd refuses to serve unauthenticated unless it runs -no-auth on a
+    loopback listener; the UI must match it. ZHEN_AGENTD_API_KEY (one of the
+    daemon's AUTH_API_KEYS, sent as X-API-Key), or ZHEN_AGENTD_NO_AUTH=1 for
+    that dev daemon. Neither set is a configuration error, reported on every
+    gated request rather than guessed around.
+    """
+    env = os.environ if environ is None else environ
+    key = env.get("ZHEN_AGENTD_API_KEY", "").strip()
+    if key:
+        return key, None
+    if env.get("ZHEN_AGENTD_NO_AUTH", "").strip() == "1":
+        return "", None
+    return "", ("ZHEN_AGENTD_API_KEY is not set: the web UI cannot authenticate to "
+                "zhen-agentd (set it to one of the daemon's AUTH_API_KEYS, or "
+                "ZHEN_AGENTD_NO_AUTH=1 for a -no-auth loopback dev daemon)")
+
+
+def agentd_headers(api_key):
+    h = {"Content-Type": "application/json"}
+    if api_key:
+        h["X-API-Key"] = api_key
+    return h
+
+
+# Log "gate is required" once per outage, not once per question.
+_gate_down_logged = False
+
+
+def _log_gate_down(detail):
+    global _gate_down_logged
+    if not _gate_down_logged:
+        log.warning("%s (%s)", GATE_REQUIRED_MSG, detail)
+        _gate_down_logged = True
+
+
+def _gate_up():
+    global _gate_down_logged
+    _gate_down_logged = False
+
+
+def _reset_gate_log_for_test():
+    _gate_up()
 
 
 # Strip JSON tool-call payloads from prior assistant turns before
@@ -229,6 +298,7 @@ class RAGPipeline:
         model_name=DEFAULT_MODEL_NAME,
         max_topic_chars=10000,
         proxy_via_agentd=None,
+        agentd_api_key=None,
     ):
         """
         Backward-compatible constructor: zhen_app.py still calls
@@ -245,13 +315,15 @@ class RAGPipeline:
                             If True, generate() routes through
                             cmd/zhen-agentd /api/v1/agent/ask so every
                             LLM-emitted tool call traverses Champion's
-                            three-rule gate (T6 closure).
+                            three-rule gate (T6 closure); an unreachable
+                            or refusing daemon raises AgentdGateUnavailable.
                             If False, generate() POSTs directly to
-                            llama-server (no gate — Phase 1 mode).
-                            If None (default), reads env
-                            ZHEN_PROXY_VIA_AGENTD ("true"/"1" → True).
-                            Default behavior (env unset): direct.
-                            zhen_app.py turns it on explicitly.
+                            llama-server (no gate; debug only).
+                            If None (default), proxy_via_agentd_from_env():
+                            on unless ZHEN_PROXY_VIA_AGENTD is 0/false/no/off
+                            (S-CLEAN-SLATE M-036; it was off by default).
+            agentd_api_key: X-API-Key for zhen-agentd; None reads
+                            agentd_auth_from_env().
         """
         # Legacy args — accepted for API compat, intentionally unused.
         # (Kept here so zhen_app.py boots without modification today.)
@@ -273,10 +345,13 @@ class RAGPipeline:
         # Phase 2 proxy toggle. Reading env late lets zhen_app.py override
         # at construction time without setting environment globally.
         if proxy_via_agentd is None:
-            env_val = os.environ.get("ZHEN_PROXY_VIA_AGENTD", "").strip().lower()
-            self.proxy_via_agentd = env_val in ("true", "1", "yes", "on")
+            self.proxy_via_agentd = proxy_via_agentd_from_env()
         else:
             self.proxy_via_agentd = bool(proxy_via_agentd)
+        if agentd_api_key is None:
+            self.agentd_api_key, self.agentd_auth_error = agentd_auth_from_env()
+        else:
+            self.agentd_api_key, self.agentd_auth_error = agentd_api_key, None
 
         # Context window config — used by chunk truncation in generate().
         self.local_max_tokens = int(os.environ.get("ZHEN_LOCAL_MAX_TOKENS", "2048"))
@@ -292,7 +367,9 @@ class RAGPipeline:
 
         # Startup banner — pinned values for audit. Mirrors the format
         # of the Go agent's startup line.
-        proxy_status = "via-agentd (Champion gate, T6 closed)" if self.proxy_via_agentd else "direct-to-llama (no gate, Phase 1 mode)"
+        proxy_status = "via-agentd (Champion gate, T6 closed)" if self.proxy_via_agentd else "direct-to-llama (NO GATE: ZHEN_PROXY_VIA_AGENTD=0, debug only)"
+        if self.proxy_via_agentd and self.agentd_auth_error:
+            print(f"WARNING: chat will answer 503 until fixed: {self.agentd_auth_error}")
         print(
             f"RAG: vor={self.vor_url} inference={self.inference_url} "
             f"agentd={self.agentd_url} model={self.model_name} "
@@ -477,10 +554,12 @@ class RAGPipeline:
             context_chunks/file_content/history/system_prompt are
             ignored — the daemon owns that build-step.
 
-        When self.proxy_via_agentd is False (Phase 1 / fallback):
+        When self.proxy_via_agentd is False (ZHEN_PROXY_VIA_AGENTD=0, debug):
             POST llama-server /v1/chat/completions directly with refs
-            built from context_chunks. T6 stays open — no gate in the
-            chat path.
+            built from context_chunks. T6 open — no gate in the chat path.
+
+        Raises AgentdGateUnavailable when proxying and the daemon cannot
+        gate the request; there is no fall-back to the direct path.
         """
         if self.proxy_via_agentd:
             return self._generate_via_agentd(
@@ -681,6 +760,9 @@ class RAGPipeline:
             if preamble:
                 goal = "Prior conversation:\n" + "\n".join(preamble) + f"\n\nCurrent question: {query}"
 
+        if self.agentd_auth_error:
+            raise AgentdGateUnavailable(self.agentd_auth_error)
+
         try:
             response = requests.post(
                 f"{self.agentd_url}/api/v1/agent/ask",
@@ -692,35 +774,38 @@ class RAGPipeline:
                     "temperature":  temperature,
                     "seed":         seed,
                 },
+                headers=agentd_headers(self.agentd_api_key),
                 timeout=300,  # agent loops can do multi-turn (read → answer)
             )
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            # Fail closed: no silent bypass of the gate via llama-server.
+            _log_gate_down(f"{self.agentd_url}: {type(exc).__name__}")
+            raise AgentdGateUnavailable(
+                f"{GATE_REQUIRED_MSG} ({self.agentd_url})") from exc
+        except requests.RequestException as exc:
+            _log_gate_down(f"{self.agentd_url}: {exc}")
+            raise AgentdGateUnavailable(
+                f"{GATE_REQUIRED_MSG} ({self.agentd_url}: {exc})") from exc
+
+        if response.status_code in (401, 403):
+            _log_gate_down(f"{self.agentd_url} refused the UI: HTTP {response.status_code}")
+            raise AgentdGateUnavailable(
+                f"zhen-agentd refused the web UI (HTTP {response.status_code}): check "
+                "ZHEN_AGENTD_API_KEY against the daemon's AUTH_API_KEYS")
+        if response.status_code >= 500 or response.status_code == 429:
+            _log_gate_down(f"{self.agentd_url}: HTTP {response.status_code}")
+            raise AgentdGateUnavailable(
+                f"{GATE_REQUIRED_MSG} ({self.agentd_url}: HTTP {response.status_code})")
+        try:
             response.raise_for_status()
             body = response.json()
-        except requests.exceptions.ConnectionError:
-            # Daemon down. Fail-closed: return an error rather than
-            # silently bypassing the gate via direct llama-server call.
-            return {
-                "answer": (
-                    f"Error: zhen-agentd not reachable at {self.agentd_url}. "
-                    "WAVE15 Phase 2 ships with the proxy enabled by default; "
-                    "set ZHEN_PROXY_VIA_AGENTD=false to fall back to direct "
-                    "llama-server (T6 reopens — debug only)."
-                ),
-                "tokens_used": 0,
-                "model": f"{self.model_name}@agentd",
-            }
-        except requests.exceptions.Timeout:
-            return {
-                "answer": "Error: zhen-agentd timed out (300s)",
-                "tokens_used": 0,
-                "model": f"{self.model_name}@agentd",
-            }
         except (requests.RequestException, ValueError) as exc:
             return {
                 "answer": f"zhen-agentd error: {exc}",
                 "tokens_used": 0,
                 "model": f"{self.model_name}@agentd",
             }
+        _gate_up()
 
         answer = (body.get("answer") or "").strip()
         if not answer:
