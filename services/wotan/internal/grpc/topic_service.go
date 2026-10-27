@@ -22,6 +22,7 @@ import (
 	"unheaded/services/wotan/internal/ringbuffer"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/signing"
+	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/wotan"
 	chatpb "unheaded/services/wotan/proto"
 )
@@ -57,7 +58,18 @@ type TopicService struct {
 	// allowlist configured", which is treated as approve-all so that embedding
 	// callers and tests keep working; cmd/wotan always wires it.
 	AutoApprove AutoApprover
+
+	// Store is the persistent message store the HTTP publish path also
+	// writes to (nil: memory-only, as in tests). Without it, gRPC-only
+	// publishers (signed config.* and drift.*) lived only in the ring buffer
+	// and were gone after a restart. The store keeps no signature (FND-020),
+	// so a replayed signed message no longer verifies: it fails closed.
+	Store store.MessageStore
 }
+
+// persistTimeout bounds one background store write for a published
+// message (the HTTP path uses the same bound).
+const persistTimeout = 10 * time.Second
 
 // defaultPublisherDisplayName matches the HTTP path's default for a caller
 // that supplies no name (services/wotan/internal/api/topics.go).
@@ -652,6 +664,23 @@ func (s *TopicService) PublishTopic(
 		})
 	} else {
 		msg, overwritten = rm.SendMessage(senderID, string(req.Payload))
+	}
+
+	// Persist like the HTTP path: async, so the caller never waits on disk,
+	// and on a context of its own, because the RPC's is cancelled when this
+	// returns, before the write lands. A store error is logged, not returned:
+	// the message is already in the ring buffer and on its way out.
+	if s.Store != nil {
+		storeMsg := &store.Message{ID: msg.ID, CreatorID: msg.CreatorID, RoomID: msg.RoomID, Content: msg.Content, Timestamp: msg.Timestamp}
+		pctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), persistTimeout)
+		log := logger.FromContext(ctx)
+		topic := req.Topic
+		go func() {
+			defer cancel()
+			if _, _, err := s.Store.Push(pctx, storeMsg); err != nil {
+				log.Warn().Err(err).Str("topic", topic).Msg("failed to persist message to store")
+			}
+		}()
 	}
 
 	// Publish event through wotan pub/sub

@@ -305,6 +305,7 @@ func main() {
 	// Same allowlist the HTTP path applies, so a publisher cannot dodge the
 	// approval gate simply by using gRPC (configs/wotan.yaml topics.auto_approve).
 	topicService.AutoApprove = topicCfg
+	topicService.Store = msgStore // gRPC publishes persist like HTTP ones (nil = memory-only)
 
 	// gRPC server hardening (CLAUDE.md baseline). Without these, a
 	// client can DoS the server via giant messages, abusive keepalive
