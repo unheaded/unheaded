@@ -37,6 +37,12 @@ normative:
       Internet-Draft: draft-bellis-unheaded-sophia-dictionary-03
 
 informative:
+  UNHEADED-ADR108:
+    title: "ADR-108: MBC Cartridges"
+    author:
+      - ins: S. Bellis
+    date: 2026-10
+    target: "https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-108-mbc-cartridges.md"
   RFC8799:
 
 --- abstract
@@ -996,14 +1002,39 @@ Security considerations in this memo are aligned with:
 This memo does not request IANA registration of option types or protocol
 numbers; those are handled by [UNHEADED-FOUNDATION].
 
-Wotan topic naming uses informal convention (compute.*, sophia.*,
-anamnesis.*). If standardization is needed, IANA may create a registry:
+## Wotan Topic Namespace Registry
+
+IANA is requested to create a registry entitled "Wotan Topic Namespace".
+A topic name is a sequence of one or more segments separated by "."; a
+segment consists of the characters a-z, A-Z, 0-9, "-" and "_".  A
+registered name ending in ".*" reserves every name with exactly one
+further segment.
+
+The Designated Expert checks that a request names the producing
+component and every payload field, and SHOULD refuse a registration
+whose payload can carry packet payload octets or user data.
 
 ~~~~~
 Registry Name: Wotan Topic Namespace
-Policy: Expert Review
-Template: Topic Name, Component, Description, Reference
+Policy:        Expert Review
+Template:      Topic Name, Component, Description, Reference
+
+Initial entries:
+  Topic Name      Component         Description       Reference
+  --------------  ----------------  ----------------  ---------
+  compute.tty.*   UPC TTY           TTY output per    this doc
+                                    flow label
+  anomaly.scores  anomaly service   flow score:       [ADR-108]
+                                    flow_key, score
+                                    0-100, model_id
+  upc.cart.*      cartridge loader  cartridge loads,  [ADR-108]
+                                    events and faults
+                                    per slot
 ~~~~~
+
+Every payload on anomaly.scores and upc.cart.* carries flow metadata and
+a score or a cartridge event [UNHEADED-ADR108]; neither topic can carry
+packet payload.
 
 ## Wotan Error Origin Registry (NEW in draft-03)
 

@@ -9,7 +9,8 @@ DRAFTS = \
 	draft-bellis-unheaded-shim-00 \
 	draft-bellis-unheaded-pqc-authentication-00
 
-XML2RFC = xml2rfc
+# xml2rfc 3.x; on west it lives in ~/.local/bin.
+XML2RFC ?= $(or $(shell command -v xml2rfc 2>/dev/null),$(HOME)/.local/bin/xml2rfc)
 KRAMDOWN = $(HOME)/.local/share/gem/ruby/3.3.0/gems/kramdown-rfc2629-1.7.34/bin/kramdown-rfc2629
 
 TXT_FILES = $(addsuffix .txt,$(DRAFTS))
@@ -38,12 +39,20 @@ html: $(HTML_FILES)
 %.xml: %.md
 	$(KRAMDOWN) $< > $@ 2>$(basename $<)_kramdown_err.txt
 
+# Renders each draft to text (discarded) and fails on any xml2rfc error.
+# xml2rfc 3.x has no --check flag: the old target passed it, got "unrecognized
+# arguments" (no "Error:" in that message) and printed Clean for every draft
+# without validating anything. Warnings are counted, not fatal.
 validate:
-	@for d in $(DRAFTS); do \
+	@fail=0; for d in $(DRAFTS); do \
 		echo "=== Validating $$d ==="; \
-		$(XML2RFC) --check $$d.xml 2>&1 | grep -E "Error:|Warning:" || echo "  Clean"; \
+		out=$$($(XML2RFC) --text -o /dev/null $$d.xml 2>&1); rc=$$?; \
+		w=$$(printf '%s\n' "$$out" | grep -c 'Warning:'); \
+		if [ $$rc -ne 0 ] || printf '%s\n' "$$out" | grep -q 'Error:'; then \
+			printf '%s\n' "$$out" | grep -A3 'Error:'; echo "  FAIL (exit $$rc)"; fail=1; \
+		else echo "  Clean ($$w warnings)"; fi; \
 		echo ""; \
-	done
+	done; exit $$fail
 
 clean:
 	rm -f $(TXT_FILES) $(HTML_FILES)

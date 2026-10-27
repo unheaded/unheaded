@@ -397,14 +397,14 @@ pub fn code_step(c: u32) -> Step {
 
 /// Anamnesis trace records for a cartridge run (ADR-108 D-C5, S5 Phase 16):
 /// `EVENT_COMPUTED (0x01)` with the cartridge sub-kind `0x43` ('C',
-/// provisional, RFC Editor item 2). A traced run is one [`TraceHead`] (the
+/// CARTRIDGE_TRACE in foundation's EVENT_COMPUTED Sub-kinds registry). A traced run is one [`TraceHead`] (the
 /// state and every input the run can read), one [`TraceStep`] per executed
 /// instruction (pc, word, how it stopped, state hash after), and one
 /// [`TraceEnd`]. The inputs are header fields and a clock: no payload.
 pub mod trace {
     /// Anamnesis Event Type EVENT_COMPUTED.
     pub const EVENT_COMPUTED: u8 = 0x01;
-    /// Cartridge sub-kind (provisional).
+    /// Cartridge sub-kind (CARTRIDGE_TRACE, RFC Editor item 2).
     pub const SUBKIND: u8 = 0x43;
     /// [`super::TraceHead`].
     pub const REC_HEAD: u8 = 0;

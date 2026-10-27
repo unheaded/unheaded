@@ -54,6 +54,12 @@ normative:
   RFC9114:
 
 informative:
+  UNHEADED-ADR108:
+    title: "ADR-108: MBC Cartridges"
+    author:
+      - ins: S. Bellis
+    date: 2026-10
+    target: "https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-108-mbc-cartridges.md"
   RFC0768:
   RFC0791:
   RFC0792:
@@ -813,6 +819,7 @@ IPv6 Hop-by-Hop Option Type           IETF Review
 IPv6 Next Header Type                 Standards Action
 Sophia Dictionary Namespace           First Come First Served
 Anamnesis Event Types                 Specification Required
+Anamnesis EVENT_COMPUTED Sub-kinds    Specification Required
 Error Codes                           Specification Required
 TLV Type Allocations                  Specification Required
 PQC Algorithm Identifiers             Specification Required
@@ -1323,6 +1330,48 @@ Initial entries:
   EVENT_DIED (0x06)      Packet reached Shield (death)
   EVENT_KEY_OP (0x07)    PQC key lifecycle event
   EVENT_ANOMALY (0x08)   Integrity or version error
+~~~~
+
+### EVENT_COMPUTED Sub-kinds
+
+Some producers emit EVENT_COMPUTED records that are larger than the
+fixed 32-octet Anamnesis event record (timestamp, Event Type, hop
+identifier, flow label, Monad snapshot).  Such records are carried on a
+record stream separate from the 32-octet event ring.  Each record on
+such a stream begins with the Event Type octet (0x01, EVENT_COMPUTED)
+followed by a Sub-kind octet that names the record format; the rest of
+the record is defined by the Sub-kind's specification.
+
+A Sub-kind is meaningful only on such a stream.  A receiver MUST NOT
+interpret any octet of a 32-octet Anamnesis event record as a Sub-kind.
+A receiver that does not recognize a Sub-kind MUST treat the record as
+an opaque EVENT_COMPUTED record and MUST NOT discard the stream because
+of it.  Sub-kinded records carry header fields, counters and computed
+state only; a Sub-kind specification MUST NOT define a field that
+carries packet payload octets.
+
+Sub-kind 0x43 (ASCII 'C') is the cartridge trace record
+[UNHEADED-ADR108].  Its third octet is the record kind: 0x00 starts a
+traced cartridge run (the cartridge state and every input the run can
+read), 0x01 is one executed instruction (program counter, instruction
+word, stop code, state hash), and 0x02 ends the run.  These records stay
+on the host that produced them and are never placed on the wire.
+
+IANA is requested to create a registry entitled "Unheaded Anamnesis
+EVENT_COMPUTED Sub-kinds":
+
+~~~~
+Registry Name:  Unheaded Anamnesis EVENT_COMPUTED Sub-kinds
+Template:       Sub-kind (0x00-0xFF), Name, Description,
+                Specification Reference
+Policy:         Specification Required
+
+Initial entries:
+  0x00-0x42      Unassigned
+  0x43 ('C')     CARTRIDGE_TRACE  Cartridge trace record
+                 (run start, instruction step, run end)
+                 [ADR-108], this document
+  0x44-0xFF      Unassigned
 ~~~~
 
 ## Error Code Registry
