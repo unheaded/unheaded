@@ -241,6 +241,13 @@ func (s *Server) buildHandler(authCfg auth.ServiceAuthConfig) (http.Handler, err
 	mux.HandleFunc("/api/v1/timeline", s.handleTimeline)
 	mux.HandleFunc("/api/v1/timeline/cards", s.handleTimelineCards)
 
+	// Board login (pkg/bff): /auth/auth.js always, /auth/login|me|logout
+	// with auth on and AUTH_ISSUER_URL set (auth_bff.go).
+	authRoutes, err := s.kanbanAuthRoutes(mux, authCfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Static files - embedded in binary
 	staticFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -259,8 +266,9 @@ func (s *Server) buildHandler(authCfg auth.ServiceAuthConfig) (http.Handler, err
 	handler = requestSizeLimitMiddleware(1024 * 1024)(handler) // 1MB max request
 	handler = securityHeadersMiddleware(handler)               // Security headers
 
-	// Auth (AUTH_ENABLED=true, ADR-103): reads open, writes need a token.
-	handler, err = auth.NewServiceHandler(handler, authCfg, auth.ServiceRoutes{OpenReads: []string{"/"}})
+	// Auth (AUTH_ENABLED=true, ADR-103): reads open, writes need an operator
+	// session (board login) or a token.
+	handler, err = auth.NewServiceHandler(handler, authCfg, authRoutes)
 	if err != nil {
 		return nil, err
 	}
