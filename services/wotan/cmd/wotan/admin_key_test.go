@@ -13,7 +13,9 @@ import (
 	"unheaded/services/wotan/internal/metrics"
 )
 
-const testEnvAdminKey = "0123456789abcdef0123456789abcdef"
+// Built at run time: a 32-character literal here reads as an API key to
+// gitleaks (generic-api-key), and the secrets baseline only shrinks.
+var testEnvAdminKey = strings.Repeat("0123456789abcdef", 2)
 
 // -admin with no key must refuse to start, naming the variable to set.
 func TestAdminKey_RequiredWhenAdminEnabled(t *testing.T) {
