@@ -12,6 +12,26 @@ Akira checks every Kingdom service, publishes its reports to Wotan, tallies ever
 | Other voters | every service that calls `discovery.Start` reports its own `/health` every 30 s as reporter `<service>@<host>` (`pkg/healthreport`; host from `$KINGDOM_NODE`) |
 | Remediation | entering CRITICAL or PANIC publishes one `{service, host, band, pct, suggested, at}` suggestion to `system.health.remediate` and counts it in `akira_remediate_suggested_total{service}`; restarting stays off by default: `--remediate` restarts `unheaded-<name>` when two-thirds of reporters see it failing, at most 3 times per outage, then escalates |
 
+## Exec checks
+
+A target with `type: exec` runs a local command instead of an HTTP GET (S-IRON-GATE Phase 10). Exit 0 votes healthy; a non-zero exit, a timeout or a program that cannot start votes failing, and the report's error carries the exit and the output's tail.
+
+```yaml
+- name: cert-expiry
+  type: exec
+  argv: ["/usr/bin/python3", "-B", "/opt/unheaded/scripts/run-runbook.py", "/opt/unheaded/runbooks/pki/akira-cert-expiry-check.yaml"]
+  interval: 1h      # between runs each sweep re-votes the last result; empty = every sweep
+  timeout: 30s      # default and ceiling; kills the whole process group
+  env: {UNHEADED_TLS_DIR: /etc/unheaded/tls}   # optional
+```
+
+- argv only: `argv[0]` must be an absolute path, nothing goes through a shell or a PATH lookup.
+- Runs as Akira's own uid (`unheaded-akira`, 16731 in compose), stdin `/dev/null`, cwd `/`, environment `PATH`, `LANG` and the target's `env` only (Akira's key and auth settings are not passed on).
+- Keeps the last 4 KiB of stdout+stderr.
+- `--remediate` never restarts an exec target: it has no unit. At the threshold Akira logs that a human is needed.
+
+`cert-expiry` (`runbooks/pki/akira-cert-expiry-check.yaml`) is the first: it reads every certificate under `/etc/unheaded/tls/<identity>/` (fallback `/var/lib/unheaded/pki`) and fails at 50 % of lifetime left (WARN), 25 % (ERROR), 10 % or expired (exit 2); at 66 % it reports rotation due and passes. It is read-only: rotation is `runbooks/pki/rotate-service-cert.yaml` (dev: `scripts/gen-dev-certs.sh`). A directory Akira cannot list counts as failing, so certificate directories on hosts must be listable by `unheaded-akira` (certs 0644; keys stay 0640/0600). Hosts run it hourly (`configs/akira-{west,east}.yaml`; the runner ships in `unheaded-configs` at `/opt/unheaded/scripts/`); the compose stack runs it every sweep against each listener's certificate mounted read-only under `/etc/unheaded/tls-watch/`.
+
 ## Bands
 
 `failing_reporters / reporters x 100`, where each reporter's latest report from the last three sweeps counts as one vote:

@@ -12,3 +12,14 @@ targets:
   - {name: cuirass,      host: cuirass,           port: 19006}
   - {name: dashboard,    host: dashboard-backend, port: 20000}
   - {name: kanban,       host: kanban-app,        port: 20001}
+# S-IRON-GATE Phase 10 (ADR-034 Phase 7): cert expiry as an exec check, run on
+# every sweep here so a short-lived dev cert flips it within a minute (hosts
+# run it hourly). The image carries the runner and runbook
+# (Dockerfile, akira stage); docker-compose.yml mounts each service's
+# certificate (never a key) and the CA under /etc/unheaded/tls-watch/.
+  - name: cert-expiry
+    type: exec
+    argv: ["/usr/bin/python3", "-B", "/usr/share/unheaded/scripts/run-runbook.py", "/usr/share/unheaded/runbooks/pki/akira-cert-expiry-check.yaml"]
+    interval: 30s
+    timeout: 30s
+    env: {UNHEADED_TLS_DIR: /etc/unheaded/tls-watch}

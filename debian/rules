@@ -43,6 +43,11 @@ override_dh_auto_install:
 	install -d $(CURDIR)/debian/unheaded-configs/etc/unheaded
 	install -d $(CURDIR)/debian/unheaded-configs/opt/unheaded/runbooks
 	cp -r runbooks/* $(CURDIR)/debian/unheaded-configs/opt/unheaded/runbooks/
+	# The runbook runner: Akira's cert-expiry exec check runs
+	# /opt/unheaded/runbooks/pki/akira-cert-expiry-check.yaml through it
+	# (configs/akira-*.yaml, S-IRON-GATE Phase 10).
+	install -D -m 755 scripts/run-runbook.py $(CURDIR)/debian/unheaded-configs/opt/unheaded/scripts/run-runbook.py
+	install -D -m 644 scripts/svc_token.py $(CURDIR)/debian/unheaded-configs/opt/unheaded/scripts/svc_token.py
 
 override_dh_dwz:
 	# Skip dwz for Go binaries (not supported)

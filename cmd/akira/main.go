@@ -53,7 +53,41 @@ type AkiraConfig struct {
 		HealthPath string `yaml:"health_path"`
 		// Scheme: http or https; empty follows UNHEADED_TLS_ENABLED.
 		Scheme string `yaml:"scheme"`
+		// Type: http (default) or exec (S-IRON-GATE Phase 10). An exec
+		// target runs Argv (absolute argv[0], no shell) as Akira's uid every
+		// Interval (Go duration; empty = every sweep), killed after Timeout
+		// (default and ceiling 30s); exit 0 votes healthy. Env is added to a
+		// minimal environment; Akira's own is not passed on.
+		Type     string            `yaml:"type"`
+		Argv     []string          `yaml:"argv"`
+		Interval string            `yaml:"interval"`
+		Timeout  string            `yaml:"timeout"`
+		Env      map[string]string `yaml:"env"`
 	} `yaml:"targets"`
+}
+
+// parseDuration reads an optional Go duration ("" is 0).
+func parseDuration(field, v string) (time.Duration, error) {
+	if v == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return 0, fmt.Errorf("%s %q: %w", field, v, err)
+	}
+	return d, nil
+}
+
+// execTargetNames is the set of exec targets: they have no unit, so
+// --remediate never restarts them.
+func execTargetNames(targets []health.ServiceTarget) map[string]bool {
+	m := map[string]bool{}
+	for _, t := range targets {
+		if t.Exec != nil {
+			m[t.Name] = true
+		}
+	}
+	return m
 }
 
 func loadConfig(path string) ([]health.ServiceTarget, error) {
@@ -79,6 +113,35 @@ func loadConfig(path string) ([]health.ServiceTarget, error) {
 			return nil, fmt.Errorf("target %d: duplicate name %q", i+1, t.Name)
 		}
 		seen[t.Name] = true
+		switch t.Type {
+		case "", "http":
+			if len(t.Argv) > 0 || t.Interval != "" || t.Timeout != "" || len(t.Env) > 0 {
+				return nil, fmt.Errorf("target %q: argv, interval, timeout and env belong to type: exec", t.Name)
+			}
+		case "exec":
+			if t.Port != 0 || t.Host != "" || t.HealthPath != "" || t.Scheme != "" {
+				return nil, fmt.Errorf("target %q: an exec target has no host, port, health_path or scheme", t.Name)
+			}
+			interval, err := parseDuration("interval", t.Interval)
+			if err != nil {
+				return nil, fmt.Errorf("target %q: %w", t.Name, err)
+			}
+			timeout, err := parseDuration("timeout", t.Timeout)
+			if err != nil {
+				return nil, fmt.Errorf("target %q: %w", t.Name, err)
+			}
+			if timeout == 0 {
+				timeout = health.DefaultExecTimeout
+			}
+			ec := &health.ExecCheck{Argv: t.Argv, Interval: interval, Timeout: timeout, Env: t.Env}
+			if err := ec.Validate(); err != nil {
+				return nil, fmt.Errorf("target %q: %w", t.Name, err)
+			}
+			targets = append(targets, health.ServiceTarget{Name: t.Name, Exec: ec})
+			continue
+		default:
+			return nil, fmt.Errorf("target %q: type %q is not http or exec", t.Name, t.Type)
+		}
 		if t.Port < 1 || t.Port > 65535 {
 			return nil, fmt.Errorf("target %q: port %d is not 1-65535", t.Name, t.Port)
 		}
@@ -247,7 +310,18 @@ func main() {
 		}
 	})
 
+	noUnit := execTargetNames(targets)
 	akira.OnAlert(func(v health.Verdict) {
+		if noUnit[v.Service] {
+			// An exec check (cert-expiry) has no unit to restart: its own
+			// output, in the report's error, says what a human must do.
+			if restarts[v.Service] == 0 {
+				log.Error().Str("service", v.Service).Float64("failure_rate", v.FailureRate).
+					Msg("CONSENSUS THRESHOLD on an exec check — no unit to restart: needs a human")
+				restarts[v.Service] = -1 // logged for this outage
+			}
+			return
+		}
 		if !*remediate {
 			if restarts[v.Service] == 0 {
 				log.Error().Str("service", v.Service).Float64("failure_rate", v.FailureRate).
@@ -287,8 +361,12 @@ func main() {
 				status = "OK"
 				healthy++
 			}
-			fmt.Printf("  [%s] %s (:%d) %s %s\n",
-				status, r.Service, findPort(r.Service, targets),
+			where := fmt.Sprintf(":%d", findPort(r.Service, targets))
+			if noUnit[r.Service] {
+				where = "exec"
+			}
+			fmt.Printf("  [%s] %s (%s) %s %s\n",
+				status, r.Service, where,
 				r.Latency.Round(time.Millisecond), r.Error)
 		}
 		fmt.Printf("\n%d/%d healthy\n", healthy, len(reports))
