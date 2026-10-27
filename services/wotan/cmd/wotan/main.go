@@ -222,6 +222,9 @@ func main() {
 	apiServer := api.NewServer(roomManager, memberManager, messageWotan, config.PendingApprovalTimeout)
 	apiServer.TopicConfig = topicCfg
 	apiServer.Store = msgStore // Wire persistent store (nil = memory-only)
+	if err := configureAdmin(apiServer, config.AdminEnabled); err != nil {
+		log.Fatal().Err(err).Msg("admin endpoints")
+	}
 
 	// Setup rate limiter
 	rateLimiter := middleware.NewRateLimiter(
@@ -415,7 +418,7 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 	fs.IntVar(&config.BufferTotal, "buffer-bytes-total", 64<<20, "Budget for every room together, content plus per-message overhead; the oldest messages of the largest rooms are dropped past it (0 = none)")
 	fs.IntVar(&config.HTTPPort, "http-port", 18000, "HTTP REST API port")
 	fs.IntVar(&config.GRPCPort, "grpc-port", 18001, "gRPC streaming port")
-	fs.BoolVar(&config.AdminEnabled, "admin", true, "Enable admin endpoints")
+	fs.BoolVar(&config.AdminEnabled, "admin", false, "Enable admin endpoints (/api/v1/admin/*); requires "+adminKeyEnv+" in the environment")
 
 	// TLS flags
 	fs.BoolVar(&config.EnableTLS, "enable-tls", false, "Enable TLS 1.3")

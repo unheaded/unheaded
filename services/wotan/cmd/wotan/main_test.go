@@ -44,7 +44,7 @@ func TestParseFlags_Defaults(t *testing.T) {
 		{"BufferTotal", cfg.BufferTotal, 64 << 20},
 		{"HTTPPort", cfg.HTTPPort, 18000},
 		{"GRPCPort", cfg.GRPCPort, 18001},
-		{"AdminEnabled", cfg.AdminEnabled, true},
+		{"AdminEnabled", cfg.AdminEnabled, false},
 		{"EnableTLS", cfg.EnableTLS, false},
 		{"LogLevel", cfg.LogLevel, "info"},
 		{"RateLimit", cfg.RateLimit, 100.0},
@@ -72,7 +72,7 @@ func TestParseFlags_OverridesAllValues(t *testing.T) {
 		"-buffer-size=42",
 		"-http-port=9000",
 		"-grpc-port=9001",
-		"-admin=false",
+		"-admin=true",
 		"-enable-tls=true",
 		"-tls-cert=/etc/cert.pem",
 		"-tls-key=/etc/key.pem",
@@ -102,8 +102,8 @@ func TestParseFlags_OverridesAllValues(t *testing.T) {
 	if cfg.BufferSize != 42 || cfg.HTTPPort != 9000 || cfg.GRPCPort != 9001 {
 		t.Fatalf("server flags: %+v", cfg)
 	}
-	if cfg.AdminEnabled != false {
-		t.Errorf("AdminEnabled: got %v, want false", cfg.AdminEnabled)
+	if cfg.AdminEnabled != true {
+		t.Errorf("AdminEnabled: got %v, want true", cfg.AdminEnabled)
 	}
 	if !cfg.EnableTLS || cfg.TLSCertFile != "/etc/cert.pem" || cfg.TLSKeyFile != "/etc/key.pem" {
 		t.Errorf("tls flags: %+v", cfg)
