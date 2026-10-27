@@ -40,3 +40,25 @@ Since Phase 4 (`9c1c4e25`) a live `runbook_execute` refuses a runbook that is no
 | `runbooks/security/secrets-rotation.yaml` | Rotate API keys, database passwords, and service tokens | high | True | `-` |
 | `runbooks/security/security-audit.yaml` | CIS benchmark audit and Linux hardening verification | low | True | `-` |
 | `runbooks/security/ssh-hardening.yaml` | SSH hardening — key rotation, config lockdown, fail2ban | high | True | `-` |
+
+## E2: the first unattended night (ADR-106 Q2)
+
+Prepared 2026-10-27 (Phase 13). Nothing is enabled. What exists:
+`deploy/systemd/zhen-agentd-overnight.{service,timer}` (01:00, `-worker -overnight`, window 01:00-07:00,
+max 5 cards, `-claude fake`), the kill switch `runbooks/observe/zhen-overnight-abort.yaml` (draft),
+`scripts/zhen-morning-report.sh`. The worker's overnight tests pass (20).
+
+Questions:
+1. Which night?
+2. Claude leg: stay `fake` (no spend, changes nothing) or `live` with which daily cap (default $5; overnight's own ledger defaults to $3)?
+3. Which cards: today the worker takes Kanban cards owned by `zhen` with a ```zhen block. Any further filter?
+4. Well-recorded (needs the E-A batch 030-041 applied first, and `WELL_APP_ZHEN_DSN`, `WELL_KANBAN_DSN`) or memory-only (branches still land; runs are not recorded)?
+5. The shared GPU lease path (`GPU_LOCK`) for zhen-agentd and the operator's `switch-model.sh`: `/run/unheaded/gpu.lock` with a shared group?
+
+Why yours: it spends money and writes branches while nobody watches.
+
+## E3: ADR-019 Level 2 amendment (branch-sandbox writes)
+
+Filed by Phase 5 in `docs/adr/ADR-019-*.md` (status Proposed, with what accepting and rejecting each change).
+Note: branch-sandbox mode is already live with no off switch; rejecting it stops routed tasks with a check from
+applying drafts unattended.

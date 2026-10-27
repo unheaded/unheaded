@@ -906,24 +906,24 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 45 min + E2
 **Agent**: Coordinator
 
-- [ ] **Step 231** [R] ~4m
+- [x] **Step 231** [R] ~4m
   ```bash
   cd /home/govan/tmp/unheaded && grep -nE 'overnight|gpu-lease|mem-floor|daily-cap|cards?-filter|kill|ABORT' cmd/zhen-agentd/main.go | head -14 && grep -nE 'Step 254|unattended' docs/adr/ADR-106-two-brains-one-gate.md | head -4
   ```
-- [ ] **Step 232** [W] ~5m: `deploy/systemd/zhen-agentd.env.example` gains the overnight block (commented): `ZHEN_OVERNIGHT=1`, `ZHEN_CLAUDE_DAILY_CAP_USD=5`, `ZHEN_CARD_FILTER=label:zhen,status:ready`, `ZHEN_MEM_FLOOR_MB=…`, `ZHEN_ABORT_FILE=/run/unheaded/zhen/ABORT`; `runbooks/observe/zhen-overnight-abort.yaml` (draft) documents the kill switch (`touch` the abort file, `systemctl stop zhen-agentd`); `scripts/zhen-morning-report.sh` prints last night's `zhen_agent_runs` rows (via agentd `GET /api/v1/runs?since=`), spend, cards moved, branches to review.
+- [x] **Step 232** [W] ~5m: `deploy/systemd/zhen-agentd.env.example` gains the overnight block (commented): `ZHEN_OVERNIGHT=1`, `ZHEN_CLAUDE_DAILY_CAP_USD=5`, `ZHEN_CARD_FILTER=label:zhen,status:ready`, `ZHEN_MEM_FLOOR_MB=…`, `ZHEN_ABORT_FILE=/run/unheaded/zhen/ABORT`; `runbooks/observe/zhen-overnight-abort.yaml` (draft) documents the kill switch (`touch` the abort file, `systemctl stop zhen-agentd`); `scripts/zhen-morning-report.sh` prints last night's `zhen_agent_runs` rows (via agentd `GET /api/v1/runs?since=`), spend, cards moved, branches to review.
   ```bash
   cd /home/govan/tmp/unheaded && bash -n scripts/zhen-morning-report.sh && scripts/check-runbooks.sh 2>&1 | tail -1
   ```
-- [ ] **Step 233** [TEST][B] ~5m: Dry overnight for 2 minutes against the fake Champion/in-memory stores (no model, no Claude): the worker picks a fixture card, writes a branch in a temp worktree, records a run, respects the abort file.
+- [x] **Step 233** [TEST][B] ~5m: Dry overnight for 2 minutes against the fake Champion/in-memory stores (no model, no Claude): the worker picks a fixture card, writes a branch in a temp worktree, records a run, respects the abort file.
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-agentd/ -run 'Overnight|Worker' -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 234** [V] ~1m: PASS (these tests exist from S-TWO-BRAINS; if any is skipped for a missing Well, it stays skipped here: the live night is Stevie's call).
-- [ ] **Step 235** [ESCALATE] ~2m: **E2: the first unattended night**
+- [x] **Step 234** [V] ~1m: PASS (these tests exist from S-TWO-BRAINS; if any is skipped for a missing Well, it stays skipped here: the live night is Stevie's call).
+- [x] **Step 235** [ESCALATE] (filed 2026-10-27 in `progress/S-CHAMPION-HARDENING-approvals.md`, section E2) ~2m: **E2: the first unattended night**
   - Context: Step 232 env template; Phase 2 made confirmations requester-bound, Phase 8 made the scheduler part of the same unit, Phase 6 approvals decide which runbooks the night may execute.
   - Questions: which night; `-daily-cap-usd` (default 5); which cards (filter); whether migrations 030-034 are applied first (S-WELL-SPRING M-070) or the night runs memory-only (branches still land, runs are not recorded in the Well).
   - Why Stevie: it spends money and writes branches while nobody watches.
-- [ ] **Step 236** [V] ~1m: **PHASE 13 EXIT GATE** — Steps 232 checks and 234 green; E2 filed with the date. The night itself is executed by the on-call session following `runbooks/observe/zhen-overnight-abort.yaml` and reported with `scripts/zhen-morning-report.sh`; its result is appended to this file's progress ledger.
+- [x] **Step 236** [V] ~1m: **PHASE 13 EXIT GATE** — Steps 232 checks and 234 green; E2 filed with the date. The night itself is executed by the on-call session following `runbooks/observe/zhen-overnight-abort.yaml` and reported with `scripts/zhen-morning-report.sh`; its result is appended to this file's progress ledger.
 
 ---
 

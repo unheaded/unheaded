@@ -192,3 +192,14 @@ zhen_agent_runs). ADR-038 dormant. LIVE Step 227 after a kanban rebuild (and the
 041): `curl -s 127.0.0.1:20001/api/v1/runbooks | jq '.runbooks|length'` (expect 90); restart Wotan for the
 `runbook-runner` auto_approve line; set `RUNBOOK_PROGRESS_WOTAN` in zhen-agentd's env. Pre-existing oddity: without
 Wotan and with Timeguru answering, `GET /api/v1/tasks` returns timeline cards and hides the store's cards.
+
+### Phase 13 (coordinator): prepared, E2 filed
+
+The overnight worker already existed (S-TWO-BRAINS): `zhen-agentd -worker -overnight` with -window, -max-cards, its own
+ledger and cap, strict privacy, a memory floor that never counts swap, a -stop-file kill switch and a morning report
+it writes itself. So the plan's env names (`ZHEN_OVERNIGHT`, `ZHEN_ABORT_FILE`, `ZHEN_CARD_FILTER`) and an agentd
+`/api/v1/runs` report were not added; instead: `deploy/systemd/zhen-agentd-overnight.{service,timer}` (not enabled,
+`-claude fake`), env example overnight block, `runbooks/observe/zhen-overnight-abort.yaml` (draft, 5 tests), and
+`scripts/zhen-morning-report.sh` (prints the newest/dated report the worker wrote). Found: the GPU lease default is
+per user (`$XDG_RUNTIME_DIR`), so a zhen-agentd unit and the operator's `switch-model.sh` would lock different files;
+the unit sets `GPU_LOCK=/run/unheaded/gpu.lock` and E2 asks for the shared group. 20 overnight/worker tests pass.
