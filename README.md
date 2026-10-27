@@ -103,6 +103,9 @@ at `/.well-known/security.txt` (RFC 9116) by the dashboard backend.
 
 GPL-3.0-or-later. Protocol specs dual-licensed GPL-3.0-or-later / Apache-2.0.
 
+Export control: this repository publishes encryption source code (ECCN 5D002) under the
+EAR's publicly-available provisions; see the [export-control notice](docs/compliance/export-control-notice.md).
+
 ## Author
 
 Stevie Bellis — stevie@bellis.tech
