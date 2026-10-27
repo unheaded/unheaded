@@ -203,6 +203,10 @@ var Topics = []string{
 	"anamnesis.death",
 	"anamnesis.anomaly",
 	"anamnesis.chaos",
+	// cmd/perf-benchmark -scenario e2e-trace (M-089): a synthetic packet
+	// between RFC 2544 benchmark addresses, so the measured path is a real
+	// event's without publishing on ebpf.packet.events.
+	"bench.perf.packet",
 }
 
 // Start subscribes to eBPF topics and begins ingesting events.

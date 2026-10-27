@@ -1140,3 +1140,28 @@ func TestIngestor_EnvelopeTimeIsObservedTime(t *testing.T) {
 		t.Errorf("latency envelope time %v, want its wall-clock timestamp_ns %v", evs[0].Timestamp, wall)
 	}
 }
+
+// cmd/perf-benchmark's e2e-trace publishes its packet on bench.perf.packet
+// (never on ebpf.packet.events); the ingestor must consume it like any
+// packet so the measured path is the one a real event takes.
+func TestIngestor_BenchTopicIsAPacketTopic(t *testing.T) {
+	found := false
+	for _, tp := range Topics {
+		if tp == "bench.perf.packet" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("bench.perf.packet is not an ingestor topic")
+	}
+	ing := NewIngestor(DefaultIngestorConfig(), newMockWotanClient(), nil)
+	ing.dispatch("bench.perf.packet", `{"timestamp_ns":1,"trace_id":{"high":18446744073709551615,"low":7},"flow_key":{"src_addr":"198.18.0.1","dst_addr":"198.18.0.2","src_port":40000,"dst_port":9,"protocol":17},"packet_len":64,"action":"pass","direction":"ingress"}`)
+	events, _ := ing.EventsSince(0, 10)
+	if len(events) != 1 || events[0].Topic != "bench.perf.packet" || events[0].Type != "packet" {
+		t.Fatalf("events %+v", events)
+	}
+	pe, ok := events[0].Data.(*PacketEvent)
+	if !ok || pe.TraceID.High != 18446744073709551615 || pe.TraceID.Low != 7 {
+		t.Fatalf("data %#v", events[0].Data)
+	}
+}
