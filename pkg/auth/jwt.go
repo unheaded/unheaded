@@ -65,6 +65,15 @@ type JWTClaims struct {
 	// Custom claims
 	Roles []string          `json:"roles,omitempty"`
 	Extra map[string]string `json:"extra,omitempty"`
+
+	// Act names the user a service acts for (RFC 8693 "act"): a BFF's
+	// service token carries the logged-in user here (ADR-103 §4).
+	Act *Actor `json:"act,omitempty"`
+}
+
+// Actor is the RFC 8693 "act" claim: who the token's subject acts for.
+type Actor struct {
+	Sub string `json:"sub"`
 }
 
 // Validate checks that the claims are valid at the given time with clock skew tolerance.

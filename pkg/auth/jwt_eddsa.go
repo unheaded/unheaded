@@ -264,9 +264,15 @@ func (v *EdDSAVerifier) Authenticate(_ context.Context, r *http.Request) (*Ident
 	}
 	// Roles in a service token are asserted by the caller's own key, so
 	// they are not taken: a service is a service, whatever it claims.
+	extra := map[string]string{"auth_method": "eddsa", "kid": kid}
+	if claims.Act != nil && validActor(claims.Act.Sub) {
+		// Signed by the caller's own key: who the caller says it acts for,
+		// for audit records. It grants nothing.
+		extra["act"] = claims.Act.Sub
+	}
 	return &Identity{
 		Subject: claims.Sub,
 		Roles:   []string{RoleService},
-		Extra:   map[string]string{"auth_method": "eddsa", "kid": kid},
+		Extra:   extra,
 	}, nil
 }

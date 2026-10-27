@@ -19,6 +19,9 @@ const (
 	RoleObserver = "observer"
 	RoleService  = "service"
 	RoleGuest    = "guest"
+	// RoleViewer is ADR-103's read-only human role (unheaded-auth users):
+	// it reads under /api/v1/ like observer and never writes.
+	RoleViewer = "viewer"
 )
 
 // EndpointPolicy defines the auth requirements for a set of endpoints.
@@ -144,9 +147,9 @@ func DefaultServicePolicies(serviceName string) RBACConfig {
 			{PathPrefix: "/api/v1/", Methods: []string{"POST", "PUT", "DELETE", "PATCH"},
 				RequiredRoles: []string{RoleAdmin, RoleOperator, RoleService}},
 			{PathPrefix: "/api/v1/", Methods: []string{"GET"},
-				RequiredRoles: []string{RoleAdmin, RoleOperator, RoleObserver, RoleService}},
+				RequiredRoles: []string{RoleAdmin, RoleOperator, RoleObserver, RoleViewer, RoleService}},
 		},
-		DefaultPolicy: []string{RoleAdmin, RoleOperator, RoleObserver, RoleService},
+		DefaultPolicy: []string{RoleAdmin, RoleOperator, RoleObserver, RoleViewer, RoleService},
 	}
 }
 

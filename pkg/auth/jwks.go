@@ -52,6 +52,8 @@ type JWKSVerifier struct {
 	skew     time.Duration
 	maxLife  time.Duration
 	now      func() time.Time
+	// plainHTTP allows http to any host (WithPlainHTTPIssuer).
+	plainHTTP bool
 
 	fetchMu sync.Mutex // serialises fetches
 
@@ -66,11 +68,15 @@ type JWKSVerifier struct {
 // "iss" and the discovery base) with aud == audience. The issuer must be
 // https, or http on loopback only. A nil httpClient gets a 5 s timeout; a
 // TTL of 0 means 10 minutes.
-func NewJWKSVerifier(issuerURL, audience string, httpClient *http.Client, ttl time.Duration) (*JWKSVerifier, error) {
+func NewJWKSVerifier(issuerURL, audience string, httpClient *http.Client, ttl time.Duration, opts ...JWKSOption) (*JWKSVerifier, error) {
 	if audience == "" {
 		return nil, errors.New("auth: JWKS verifier needs an audience")
 	}
-	if err := checkFetchURL(issuerURL); err != nil {
+	v := &JWKSVerifier{}
+	for _, o := range opts {
+		o(v)
+	}
+	if err := v.checkURL(issuerURL); err != nil {
 		return nil, fmt.Errorf("auth: OIDC issuer: %w", err)
 	}
 	c := &http.Client{Timeout: jwksFetchTimeout}
@@ -83,20 +89,47 @@ func NewJWKSVerifier(issuerURL, audience string, httpClient *http.Client, ttl ti
 		if len(via) >= 3 {
 			return errors.New("too many redirects")
 		}
-		return checkFetchURL(req.URL.String())
+		return v.checkURL(req.URL.String())
 	}
 	if ttl <= 0 {
 		ttl = defaultJWKSTTL
 	}
-	return &JWKSVerifier{
-		issuer:   strings.TrimRight(issuerURL, "/"),
-		audience: audience,
-		client:   c,
-		ttl:      ttl,
-		skew:     5 * time.Second,
-		maxLife:  DefaultMaxUserTokenLifetime,
-		now:      time.Now,
-	}, nil
+	v.issuer = strings.TrimRight(issuerURL, "/")
+	v.audience = audience
+	v.client = c
+	v.ttl = ttl
+	v.skew = 5 * time.Second
+	v.maxLife = DefaultMaxUserTokenLifetime
+	v.now = time.Now
+	return v, nil
+}
+
+// JWKSOption changes how a JWKSVerifier is built.
+type JWKSOption func(*JWKSVerifier)
+
+// WithPlainHTTPIssuer lets the verifier fetch discovery and keys over plain
+// http from any host, not only loopback. It exists for one case: a
+// backend-for-frontend in the compose stack, whose issuer is
+// http://auth:19020 until internal TLS (S-IRON-GATE Phase 8). There the BFF
+// has just sent the password to that issuer over the same plaintext
+// network, so checking the returned token against keys fetched the same way
+// loses nothing. Never set it where the issuer is reachable over TLS.
+func WithPlainHTTPIssuer() JWKSOption {
+	return func(v *JWKSVerifier) { v.plainHTTP = true }
+}
+
+// checkURL is checkFetchURL, plus plain http to any host when the verifier
+// was built WithPlainHTTPIssuer.
+func (v *JWKSVerifier) checkURL(raw string) error {
+	err := checkFetchURL(raw)
+	if err == nil || !v.plainHTTP {
+		return err
+	}
+	u, perr := url.Parse(raw)
+	if perr != nil || u.Scheme != "http" || u.User != nil || u.Hostname() == "" {
+		return err
+	}
+	return nil
 }
 
 // DefaultMaxUserTokenLifetime bounds exp - now for a user token unless
@@ -291,7 +324,7 @@ func (v *JWKSVerifier) fetch(ctx context.Context) (map[string]ed25519.PublicKey,
 	if strings.TrimRight(disc.Issuer, "/") != v.issuer {
 		return nil, fmt.Errorf("discovery names issuer %q, configured %q", disc.Issuer, v.issuer)
 	}
-	if err := checkFetchURL(disc.JWKSURI); err != nil {
+	if err := v.checkURL(disc.JWKSURI); err != nil {
 		return nil, fmt.Errorf("jwks_uri: %w", err)
 	}
 	var set struct {

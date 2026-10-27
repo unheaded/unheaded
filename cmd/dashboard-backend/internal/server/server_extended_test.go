@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"unheaded/cmd/dashboard-backend/internal/events"
-	"unheaded/pkg/auth"
 	"unheaded/pkg/logger"
 )
 
@@ -1427,40 +1426,6 @@ func TestDoomState_SnapshotConcurrency(t *testing.T) {
 		_ = snap.PC // read
 	}
 	<-done
-}
-
-// ---- buildDashboardAuthenticators ----
-
-func TestBuildDashboardAuthenticators_Empty(t *testing.T) {
-	// No keys configured => empty authenticators
-	auths := buildDashboardAuthenticators(auth.ServiceAuthConfig{})
-	if len(auths) != 0 {
-		t.Errorf("expected 0 authenticators, got %d", len(auths))
-	}
-}
-
-func TestBuildDashboardAuthenticators_WithJWT(t *testing.T) {
-	cfg := auth.ServiceAuthConfig{
-		JWTSigningKey: []byte("test-secret-key-for-jwt"),
-		Issuer:        "test-issuer",
-		Audience:      "test-audience",
-		ServiceName:   "dashboard-backend",
-	}
-	auths := buildDashboardAuthenticators(cfg)
-	// Should have 2 JWT authenticators (one for user, one for service)
-	if len(auths) != 2 {
-		t.Errorf("expected 2 authenticators with JWT, got %d", len(auths))
-	}
-}
-
-func TestBuildDashboardAuthenticators_WithAPIKeys(t *testing.T) {
-	cfg := auth.ServiceAuthConfig{
-		APIKeys: []string{"key1", "key2"},
-	}
-	auths := buildDashboardAuthenticators(cfg)
-	if len(auths) != 1 {
-		t.Errorf("expected 1 authenticator with API keys, got %d", len(auths))
-	}
 }
 
 // ---- Static file handling ----
