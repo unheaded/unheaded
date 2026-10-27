@@ -2771,7 +2771,7 @@ data:
     -- need. 043 does unheaded_ops.
     --
     -- unheaded_app grants, per class:
-    --   zhen-conversations   DELETE, and SELECT of the age column only
+    --   zhen-conversations   DELETE, and SELECT of the key and age columns only
     --   zhen-captures        EXECUTE zhen_captures_purge() (033, the only
     --                        delete path; the age is 033's trigger, 180 days)
     --                        and SELECT of the three columns its dry-run count
@@ -2808,7 +2808,7 @@ data:
     DO $$
     BEGIN
         IF current_database() = 'unheaded_app' THEN
-            GRANT SELECT (created_at), DELETE ON zhen_conversations TO retention_runner;
+            GRANT SELECT (id, created_at), DELETE ON zhen_conversations TO retention_runner;
             GRANT SELECT (quarantined, promoted, purge_after) ON zhen_captures TO retention_runner;
             GRANT EXECUTE ON FUNCTION zhen_captures_purge() TO retention_runner;
             GRANT SELECT, DELETE ON kanban_tasks TO retention_runner;
