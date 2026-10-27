@@ -55,7 +55,8 @@ const (
 	TelemetryAgg = 19019
 
 	// Kingdom health (19100-19109)
-	Akira = 19100 // consensus health daemon (ADR-029)
+	Akira           = 19100 // consensus health daemon (ADR-029)
+	HeimdallMetrics = 19101 // heimdall-daemon /metrics (loopback by default; M-085)
 
 	// Threat-intel feeds (19120-19129; 19110 is loadbalancer xdpsync's)
 	KEVPoller = 19120 // CISA KEV catalog poller (ADR-055)

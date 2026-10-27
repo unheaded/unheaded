@@ -341,7 +341,8 @@ by the migration itself.
 `pkg/logagg.PrometheusCollector()` goes in step 4: its only users are
 architect, micromanager and trace-collector-go, which all serve the default
 registry. `WriteMetrics()` goes when its five hand-written-exposition users
-are converted.
+are converted. (Done 2026-10-27, S-WELL-SPRING Step 188: all five register
+`Collectors()` in the registry they serve; `WriteMetrics` is deleted.)
 
 ### Step 4 — DONE (2026-09-24)
 
@@ -370,7 +371,9 @@ covered by the identity-field check above, not a scrape. After the flip, only
   (`unheaded_pqc_active_keys 0` from micromanager is a false reading). The
   auto-registration was removed; the vars remain for whatever PQC code
   eventually updates them. Wire them up or delete them: that is a separate
-  decision.
+  decision. (Deleted 2026-10-27, S-WELL-SPRING Steps 191-192, together with
+  the four `unheaded_secrets_*` families `pkg/secrets` registered but no
+  binary served: none builds a `secrets.Manager`.)
 - **Bucket generators were not bit-identical.** `ExponentialBuckets` used
   `start*Pow(factor,i)` and `LinearBuckets` used `start+i*width`;
   client_golang accumulates. Under the old code, `0.1×3` gave 0.9 where

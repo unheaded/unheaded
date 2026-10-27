@@ -90,6 +90,10 @@ type Heimdall struct {
 	// debounce is the file-event coalescing delay (0 = 250 ms).
 	debounce time.Duration
 
+	// metrics holds the drift counters and the scan histogram /metrics
+	// serves; nil records nothing.
+	metrics *heimdallMetrics
+
 	// lastSeen is the hash each watched path had at the previous scan
 	// ("" = missing), so event-driven scans alert on changes only.
 	lastSeen map[string]string
@@ -163,6 +167,8 @@ func (h *Heimdall) scan(onlyChanged bool) {
 	if h.manifest == nil {
 		return
 	}
+	start := time.Now()
+	defer func() { h.metrics.observeScan(time.Since(start)) }()
 	if h.lastSeen == nil {
 		h.lastSeen = map[string]string{}
 	}
@@ -370,6 +376,7 @@ func main() {
 		xdpIface      = flag.String("xdp-iface", "", "attach the observe-only Gjallarhorn XDP program here (needs --bpf-dir)")
 		xdpMode       = flag.String("xdp-mode", "generic", "XDP attach mode: generic | native")
 		cluster       = flag.Uint("cluster", 1, "this node's Gjallarhorn cluster ID; reverify horns for other clusters are ignored")
+		metricsAddr   = flag.String("metrics-addr", defaultMetricsAddr, "serve GET /metrics here (drift publish counters, scan duration); empty disables")
 	)
 	flag.Parse()
 	if *xdpMode != "generic" && *xdpMode != "native" {
@@ -435,18 +442,36 @@ func main() {
 		manifest.Metadata.Name, manifest.Metadata.Version,
 		len(manifest.Spec.Files), len(manifest.Spec.Packages))
 
+	hm := newHeimdallMetrics()
 	h := &Heimdall{
 		nodeID:       *nodeID,
 		manifestPath: *manifestPath,
 		trust:        trust,
 		manifest:     manifest,
 		aggregator:   enkrateia.NewAggregator(1024),
+		metrics:      hm,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sink, err := setupDriftPublishing(ctx, *wotanGRPC, *driftSignKey, *signKey, trust.PubKey, *nodeID, *publishQueue)
+	bound, stopMetrics, err := startMetricsServer(*metricsAddr, hm)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "metrics listener %s: %v\n", *metricsAddr, err)
+		os.Exit(1)
+	}
+	if bound != "" {
+		fmt.Printf("Metrics on http://%s/metrics\n", bound)
+	} else {
+		fmt.Println("Metrics listener disabled (--metrics-addr empty)")
+	}
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer scancel()
+		_ = stopMetrics(sctx)
+	}()
+
+	sink, err := setupDriftPublishing(ctx, *wotanGRPC, *driftSignKey, *signKey, trust.PubKey, *nodeID, *publishQueue, hm)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "drift publishing: %v\n", err)
 		os.Exit(1)

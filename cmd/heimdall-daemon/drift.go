@@ -145,16 +145,21 @@ type driftSink struct {
 	dropped   *metrics.Counter
 }
 
-func newDriftSink(pub DriftPublisher, signer *wotansig.TopicSigner, topic string, size int) *driftSink {
+// newDriftSink counts into m's counters (the ones /metrics serves); a nil m
+// gets a private set, for tests that read the counters directly.
+func newDriftSink(pub DriftPublisher, signer *wotansig.TopicSigner, topic string, size int, m *heimdallMetrics) *driftSink {
 	if size < 1 {
 		size = 1
+	}
+	if m == nil {
+		m = newHeimdallMetrics()
 	}
 	return &driftSink{
 		pub: pub, signer: signer, topic: topic, size: size,
 		wake:      make(chan struct{}, 1),
-		published: metrics.NewCounter("heimdall_drift_published_total", "Drift events published to Wotan, signed.", nil),
-		failed:    metrics.NewCounter("heimdall_drift_publish_failed_total", "Drift events Wotan refused or that failed to reach it.", nil),
-		dropped:   metrics.NewCounter("heimdall_drift_publish_dropped_total", "Drift events dropped (oldest first) while the publish queue was full.", nil),
+		published: m.published,
+		failed:    m.failed,
+		dropped:   m.dropped,
 	}
 }
 
@@ -230,7 +235,7 @@ const maxPublishQueue = 1 << 16
 // is given. Without it drift goes to stdout only, and the startup line says
 // so. --wotan-grpc without --drift-sign-key is refused: Wotan takes only
 // signed drift.* events, so an unsigned publisher would fail every alert.
-func setupDriftPublishing(ctx context.Context, addr, keyPath, signKeyPath string, manifestPub *mldsa65.PublicKey, nodeID string, queue int) (*driftSink, error) {
+func setupDriftPublishing(ctx context.Context, addr, keyPath, signKeyPath string, manifestPub *mldsa65.PublicKey, nodeID string, queue int, m *heimdallMetrics) (*driftSink, error) {
 	switch {
 	case addr == "" && keyPath == "":
 		fmt.Println("Drift alerts are NOT published to Wotan (no --wotan-grpc): stdout only")
@@ -255,7 +260,7 @@ func setupDriftPublishing(ctx context.Context, addr, keyPath, signKeyPath string
 		return nil, fmt.Errorf("wotan: join %s: %w", topic, err)
 	}
 	fmt.Printf("Drift alerts published to %s via %s as %q, signed (ML-DSA-65)\n", topic, addr, heimdallSender)
-	return newDriftSink(gc, signer, topic, queue), nil
+	return newDriftSink(gc, signer, topic, queue, m), nil
 }
 
 // driftRecord turns an alert into the published record.

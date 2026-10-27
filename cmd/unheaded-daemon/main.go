@@ -139,9 +139,10 @@ type Daemon struct {
 	// text with fmt.Fprintf calls.
 	registry *metrics.Registry
 
-	// logPublisher, when set, contributes log-forwarding counters. Atomic
-	// because handleMetrics reads it while stateManager's lock is held.
-	logPublisher atomic.Pointer[logagg.Publisher]
+	// logPublisher, when set, has its log-forwarding counters registered in
+	// registry (SetLogPublisher); kept so a swap can unregister them.
+	logPublisherMu sync.Mutex
+	logPublisher   *logagg.Publisher
 
 	// chaosPublish sends a cuirass.chaos event; nil means publishToWotan.
 	chaosPublish func(ctx context.Context, payload []byte) error
@@ -577,7 +578,9 @@ func main() {
 
 	// Create daemon
 	daemon := NewDaemon(cfg, log, transportCfg, healthSrv)
-	daemon.logPublisher.Store(logPublisher)
+	if err := daemon.SetLogPublisher(logPublisher); err != nil {
+		log.Warn().Err(err).Msg("log forwarding counters not served on /metrics")
+	}
 	lxdClient, err := newLXDClient(cfg, log)
 	if err != nil {
 		log.Fatal().Err(err).Str("backend", cfg.LXDBackend).Msg("LXD client configuration")
@@ -1251,11 +1254,28 @@ func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	// The default registry rides along: go_*, process_* and what linked
 	// libraries register at load (pkg/wotan-client) never reached this
 	// scrape before ADR-094 step 5. GatherAll skips a nil registry.
+	// The log publisher's counters are in d.registry (SetLogPublisher).
 	_ = metrics.GatherAll(w, d.registry, metrics.DefaultRegistry)
+}
 
-	if lp := d.logPublisher.Load(); lp != nil {
-		_ = lp.WriteMetrics(w)
+// SetLogPublisher attaches a logagg publisher and registers its counters in
+// the registry /metrics serves, replacing a previous publisher's. Optional:
+// nil removes them.
+func (d *Daemon) SetLogPublisher(p *logagg.Publisher) error {
+	d.logPublisherMu.Lock()
+	defer d.logPublisherMu.Unlock()
+	if old := d.logPublisher; old != nil {
+		old.UnregisterCollectors(d.registry)
+		d.logPublisher = nil
 	}
+	if p == nil {
+		return nil
+	}
+	if err := p.RegisterCollectors(d.registry); err != nil {
+		return err
+	}
+	d.logPublisher = p
+	return nil
 }
 
 func (d *Daemon) handleInfo(w http.ResponseWriter, r *http.Request) {
