@@ -25,6 +25,17 @@ TimeoutStopSec=15s
 
 LimitNOFILE=4096
 
+# Service identity (ADR-103, deploy/systemd/README.md#keys-adr-103): the key
+# comes from `unheaded-keygen -owner unheaded-akira akira` (root, once per host);
+# Akira presents it to Wotan.
+Environment=AUTH_KEY_FILE=/etc/unheaded/keys/akira.key
+Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+# S-IRON-GATE Phase 6 recipe: every route but /health /ready /metrics and the
+# GET consensus read /api/v1/status needs a service token. No service calls
+# Akira's API, so no caller is allowed (a token is 403).
+Environment=AUTH_ENABLED=true
+ReadOnlyPaths=-/etc/unheaded/trust.d
+
 User=unheaded-akira
 Group=unheaded-akira
 StateDirectory=unheaded/akira
