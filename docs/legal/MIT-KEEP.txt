@@ -1,0 +1,11 @@
+# Files that stay MIT on purpose: one repository path or directory prefix per
+# line (a trailing / is optional). scripts/relicense-mit-to-gpl.sh never touches
+# them. Comments start with #.
+#
+# 2026-10-27 (S24): empty. Every tracked file with an MIT SPDX header was checked:
+# 163 name Stevie Bellis as the copyright holder, 119 name nobody, none names a
+# third party, and every commit touching them is Stevie's. The two FRR
+# Dockerfiles say "Based on FRR's own docker/ directory patterns": a pattern
+# followed, not text copied. Vendored code (llama.cpp/, doom/) is skipped by the
+# script itself, and crates/xv6-mbc/upstream/ (MIT, from MIT's xv6) carries no
+# SPDX header to rewrite.
