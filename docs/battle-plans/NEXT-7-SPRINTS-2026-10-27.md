@@ -55,6 +55,34 @@ Sprint 6 wants 5's verifier ratchet first. Sprint 7 waits for all of them.
   hand-written header and footer lines are stale (Sprint 1 fixes them).
 - Six branches `sprint/*` are fully merged into develop; nothing to merge.
 
+## Decisions taken 2026-10-27 (Stevie, Sprint 1)
+
+Every Sprint 1 decision (1-13 below) was answered on 2026-10-27, each on
+the recommended default. S-CLEAN-SLATE may run its gated chains; the plan's
+Escalations table carries the answers.
+
+| # | Decision | Answer |
+|---|---|---|
+| 1 | drift-detect on main | Delete the workflow |
+| 2 | "Gates can actually fail" timeout | Measure once, set timeout-minutes to measured + 20 % |
+| 3 | develop to staging promotion | After Sprint 1's CI is green, on Stevie's word (Step 288 stays an [ESCALATE]) |
+| 4 | Credential rotation | Stevie rotates during Sprint 1; the plan shrinks the baseline after |
+| 5 | FND-001 SMTP relay | Stevie places Gmail app-password env on west (/etc/unheaded/alertmailer); plan flips `mode send` |
+| 6 | FND-011 | Apply the ebtables modprobe stopgap on both hosts; west userns stays open until an LXD test |
+| 7 | E2 sshd hybrid-only | Go; east first with a fallback session, then west. E3 WireGuard PSK rotation + weekly timer: go |
+| 8 | EAR TSU notice | Plan drafts the notice and README line; Stevie sends the email; date recorded |
+| 9 | MIT to GPL relicense | Yes, mechanical pass with a reviewable list; files with a documented MIT reason skipped |
+| 10 | FND-024 | Start the monitoring stack from kingdom-startup.sh after the main stack, wait for `slo:error_ratio:5m` |
+| 11 | FND-023 | Client probe between refreshes, drop a backend on first probe failure; no new Wotan topic |
+| 12 | East deploy window | Any time, unattended OK; plan reports the before/after unit list |
+| 13 | CI runbook job log | Stevie pastes the failing lines from run 40426721063 |
+| + | GitHub admin (default branch develop, protect main, secret scanning + push protection) | Stevie flips all three; plan records and verifies push protection on a scratch branch |
+| + | FND-014 Well role rotation window | Any time, unattended OK; backup first, new passwords to .env on west only |
+
+Still Stevie's hands, in order: pull the CI job log; place the Gmail env on
+west; flip the three GitHub settings; rotate the baselined credentials; send
+the EAR email once the draft lands.
+
 ## Decisions for Stevie, by sprint
 
 Defaults are the sweeps' recommendations where one exists. A plan step

@@ -123,21 +123,23 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ## ESCALATIONS (table; each [ESCALATE] step below cites one)
 
-| E | Question for Stevie | Blocks |
-|---|---|---|
-| E1 | Pull the job log for Static Analysis run 40426721063, job "Runbooks (schema + dry-run tests)", step "runbook dry-run tests (GATING)" (needs GitHub auth; west has no `gh`). | Step 42 only |
-| E2 | West live window: start the monitoring stack from kingdom-startup, bring the haproxy pair up, enable the git-mirror user timer, re-run FND-023's Step 310 experiment. | Steps 153-157, 155b, 164-166 |
-| E3 | Deb deploy window on east and west (install the rebuilt debs, restart units, update huginn baseline). | Steps 173-174 |
-| E4 | Apply the FND-011 ebtables modprobe stopgap on both hosts (kmod-cis); keep west's unprivileged userns open for LXD until tested. | Steps 195-196 |
-| E5 | FND-001 SMTP relay: a Gmail account + app password, written to `/etc/unheaded/alert-mailer/smtp.env` on west by Stevie. | Steps 199-201 |
-| E6 | Rotate the baselined credentials (20 history fingerprints in `.gitleaksignore`; OPNsense API, Grafana, LXD trust, tokens). | Steps 204-205 |
-| E7 | FND-014 live Well window: role password rotation, `pg_stat_statements_reset()`, old PG logs. | Steps 207-208 |
-| E8 | E3 of Quantum Armor: first live WireGuard PSK `--apply` rotation on west, remove east's stale key, enable the weekly timer. | Steps 209-210 |
-| E9 | E2 of Quantum Armor: sshd hybrid-only KEX on east then west (lockout risk; `docs/security/pq-host-escalations.md`). | Steps 212-213 |
-| E10 | GitHub admin: secret scanning + push protection on; default branch `develop`; protect `main`. | Steps 214-215 |
-| E11 | Send the EAR 5D002 TSU notification email (BIS + NSA). | Steps 217-218 |
-| E12 | Promote `develop → staging` (1,062 commits), then `staging → main` + signed tag, on your word. | Step 288 (end) |
-| E13 | Relicense the ~290 non-Go files whose header still says MIT (and LICENSE line 1 "Steven Bellis") to GPL-3.0-or-later, except files deliberately MIT. | Steps 256-258 |
+> **Answered by Stevie 2026-10-27** (index "Decisions taken 2026-10-27"): every GRANTED chain below may run unattended; OPEN items wait on his hands. Step 288 (E12) stays a stop.
+
+| E | Question for Stevie | Blocks | Answer 2026-10-27 |
+|---|---|---| --- |
+| E1 | Pull the job log for Static Analysis run 40426721063, job "Runbooks (schema + dry-run tests)", step "runbook dry-run tests (GATING)" (needs GitHub auth; west has no `gh`). | Step 42 only | OPEN, Stevie pastes the failing lines from run 40426721063 |
+| E2 | West live window: start the monitoring stack from kingdom-startup, bring the haproxy pair up, enable the git-mirror user timer, re-run FND-023's Step 310 experiment. | Steps 153-157, 155b, 164-166 | GRANTED 2026-10-27: unattended west window OK; FND-024 via kingdom-startup.sh; FND-023 client probe |
+| E3 | Deb deploy window on east and west (install the rebuilt debs, restart units, update huginn baseline). | Steps 173-174 | GRANTED 2026-10-27: any time, unattended; report before/after unit list |
+| E4 | Apply the FND-011 ebtables modprobe stopgap on both hosts (kmod-cis); keep west's unprivileged userns open for LXD until tested. | Steps 195-196 | GRANTED 2026-10-27: stopgap on both hosts; west userns stays open until an LXD test |
+| E5 | FND-001 SMTP relay: a Gmail account + app password, written to `/etc/unheaded/alert-mailer/smtp.env` on west by Stevie. | Steps 199-201 | OPEN, Stevie writes the Gmail app-password env on west; then run |
+| E6 | Rotate the baselined credentials (20 history fingerprints in `.gitleaksignore`; OPNsense API, Grafana, LXD trust, tokens). | Steps 204-205 | IN PROGRESS, Stevie rotates during Sprint 1; shrink the baseline when he says done |
+| E7 | FND-014 live Well window: role password rotation, `pg_stat_statements_reset()`, old PG logs. | Steps 207-208 | GRANTED 2026-10-27: any time, unattended; backup first; new passwords to .env on west only |
+| E8 | E3 of Quantum Armor: first live WireGuard PSK `--apply` rotation on west, remove east's stale key, enable the weekly timer. | Steps 209-210 | GRANTED 2026-10-27: rotate, then enable the weekly timer on both hosts |
+| E9 | E2 of Quantum Armor: sshd hybrid-only KEX on east then west (lockout risk; `docs/security/pq-host-escalations.md`). | Steps 212-213 | GRANTED 2026-10-27: east first with a fallback session, then west |
+| E10 | GitHub admin: secret scanning + push protection on; default branch `develop`; protect `main`. | Steps 214-215 | OPEN, Stevie flips all three; record and verify push protection on a scratch branch |
+| E11 | Send the EAR 5D002 TSU notification email (BIS + NSA). | Steps 217-218 | OPEN, plan drafts (Step 216); Stevie sends; record the date |
+| E12 | Promote `develop → staging` (1,062 commits), then `staging → main` + signed tag, on your word. | Step 288 (end) | OPEN, only after Sprint 1 CI is green and on Stevie's word |
+| E13 | Relicense the ~290 non-Go files whose header still says MIT (and LICENSE line 1 "Steven Bellis") to GPL-3.0-or-later, except files deliberately MIT. | Steps 256-258 | GRANTED 2026-10-27: mechanical pass from the Step 255 list; skip files with a documented MIT reason |
 
 ---
 
