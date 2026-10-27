@@ -21,6 +21,9 @@ clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 log = "0.4"
 env_logger = "0.11"
+# Wotan service tokens (ADR-103 §6): EdDSA, the format Go's pkg/auth mints.
+# Path crate; its ring and base64 are versions already in this lockfile.
+unheaded-svc-token = { path = "../../../crates/svc-token" }
 
 [build-dependencies]
 tonic-build = "0.12"

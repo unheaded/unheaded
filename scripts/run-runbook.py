@@ -22,6 +22,7 @@ import json
 import os
 import re
 import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -29,6 +30,11 @@ import urllib.error
 import urllib.request
 
 import yaml
+
+# scripts/svc_token.py (Wotan service tokens); import it from this file's
+# directory even when run as `python3 -P` or from elsewhere.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import svc_token
 
 # Short hostname, compared against a step's `host:` (west, east).
 LOCAL_HOST = socket.gethostname().split(".")[0].lower()
@@ -158,8 +164,15 @@ def check_preconditions(runbook, env, dry_run):
 # Per-step progress on Wotan (S-CHAMPION-HARDENING Step 224): the Kanban
 # board shows `step k/n` for a running runbook. Opt-in: only when
 # RUNBOOK_PROGRESS_WOTAN names Wotan's HTTP address (host:port or a URL).
-# The publisher joins the topic as PROGRESS_PUBLISHER, which must be on
-# Wotan's topics.auto_approve list (configs/wotan.yaml); a join that is not
+# Every request carries an EdDSA service token for Wotan (ADR-103 §6,
+# scripts/svc_token.py), whose subject Wotan's AUTH_ALLOW_CALLERS and
+# topics.auto_approve must list (configs/wotan.yaml). The runner presents
+# the key it is given (progress_identity): under the Champion that is
+# zhen-agentd's own key (its unit sets AUTH_KEY_FILE), run by hand the
+# operator's CLI key. No key: one line on stderr and no token (a Wotan with
+# AUTH_ENABLED=true refuses the join, and progress turns off). The join's
+# display_name stays PROGRESS_PUBLISHER, a label only once auth is on (and
+# the name auto_approve matched before Phase 7). A join that is not
 # approved, an HTTP error or a timeout turns progress off for the rest of
 # the run with one line on stderr. Progress never changes a run's outcome.
 # Events carry the runbook ref, step number, total, step name and state:
@@ -168,6 +181,51 @@ PROGRESS_TOPIC = "runbooks.progress"
 PROGRESS_PUBLISHER = "runbook-runner"
 PROGRESS_TIMEOUT = 2
 RUNBOOK_REF_RE = re.compile(r"^[a-z0-9-]{1,64}/[a-z0-9-]{1,128}$")
+CLI_IDENTITY = "unheaded-cli"
+
+
+def progress_identity(env=None):
+    """(identity, key file) the runner presents to Wotan.
+
+    1. AUTH_KEY_FILE: that key, as RUNBOOK_PROGRESS_IDENTITY if set, else as
+       the name the file is filed under (<name>.key, or compose's secret
+       svc_key_<name>). zhen-agentd.service sets AUTH_KEY_FILE to its own
+       key, so a Champion run reports as zhen-agentd.
+    2. else RUNBOOK_PROGRESS_IDENTITY with /etc/unheaded/keys/<name>.key.
+    3. else the operator's CLI identity, unheaded-cli, from the CLI's key:
+       ~/.config/unheaded/cli.key, then /etc/unheaded/keys/unheaded-cli.key.
+    """
+    env = os.environ if env is None else env
+    explicit = env.get("RUNBOOK_PROGRESS_IDENTITY", "").strip()
+    key_file = env.get("AUTH_KEY_FILE", "").strip()
+    if key_file:
+        if explicit:
+            return explicit, key_file
+        name = os.path.basename(key_file)
+        name = name.removesuffix(".key")
+        name = name.removeprefix("svc_key_")
+        return name, key_file
+    if explicit:
+        return explicit, os.path.join(svc_token.DEFAULT_KEY_DIR, explicit + ".key")
+    candidates = [os.path.join(os.path.expanduser("~"), ".config", "unheaded", "cli.key"),
+                  os.path.join(svc_token.DEFAULT_KEY_DIR, CLI_IDENTITY + ".key")]
+    for c in candidates:
+        if os.path.exists(c):
+            return CLI_IDENTITY, c
+    return CLI_IDENTITY, candidates[-1]
+
+
+def load_progress_minter():
+    """The runner's minter, or None (after one line on stderr)."""
+    name, key_file = progress_identity()
+    try:
+        return svc_token.load(name, key_file)
+    except FileNotFoundError:
+        print(f"[progress] no service key at {key_file}: progress carries no token as {name!r}"
+              f" (a Wotan with AUTH_ENABLED=true refuses it; ADR-103)", file=sys.stderr)
+    except (OSError, svc_token.KeyFileError) as e:
+        print(f"[progress] service key unusable ({e}): progress carries no token as {name!r}", file=sys.stderr)
+    return None
 
 
 def runbook_ref(path, meta):
@@ -193,6 +251,7 @@ class Progress:
         self.ref, self.total, self.dry_run = ref, total, dry_run
         self.base = None
         self.subscriber = None
+        self.minter = None
         addr = os.environ.get("RUNBOOK_PROGRESS_WOTAN", "").strip()
         if not addr:
             return
@@ -202,24 +261,43 @@ class Progress:
         if not addr.startswith(("http://", "https://")):
             addr = "http://" + addr
         self.base = addr.rstrip("/") + "/api/v1/topics/" + PROGRESS_TOPIC
+        self.minter = load_progress_minter()
 
     def off(self, why):
         print(f"[progress] off: {why}", file=sys.stderr)
         self.base = None
 
     def post(self, suffix, body):
+        headers = {"Content-Type": "application/json"}
+        if self.minter is not None:
+            try:
+                headers["Authorization"] = self.minter.authorization(svc_token.WOTAN_AUDIENCE)
+            except svc_token.KeyFileError as e:
+                raise ValueError(f"service token: {e}") from None
         req = urllib.request.Request(self.base + suffix, data=json.dumps(body).encode(), method="POST",
-                                     headers={"Content-Type": "application/json"})
+                                     headers=headers)
         # The operator's own RUNBOOK_PROGRESS_WOTAN; http(s) only (prefixed above).
-        with urllib.request.urlopen(req, timeout=PROGRESS_TIMEOUT) as resp:  # nosec B310
+        with urllib.request.urlopen(req, timeout=PROGRESS_TIMEOUT, context=self.tls_context()) as resp:  # nosec B310
             return resp.status, json.loads(resp.read().decode() or "{}")
+
+    def tls_context(self):
+        """For an https:// Wotan (S-IRON-GATE Phase 8): TLS 1.3 only, the
+        server checked against UNHEADED_TLS_CA_CERT (pkg/tls's CA variable)
+        when set, else the system roots. OpenSSL 3.5+ offers the hybrid
+        X25519MLKEM768 group by default."""
+        if not self.base.startswith("https://"):
+            return None
+        ctx = ssl.create_default_context(cafile=os.environ.get("UNHEADED_TLS_CA_CERT") or None)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+        return ctx
 
     def join(self):
         status, body = self.post("/subscribe", {"display_name": PROGRESS_PUBLISHER})
         sub = body.get("subscriber") or {}
         if status != 201 or sub.get("status") != "approved" or not sub.get("subscriber_id"):
-            raise ValueError(f"join {PROGRESS_TOPIC} as {PROGRESS_PUBLISHER}: status {sub.get('status', status)!r}"
-                             f" (is {PROGRESS_PUBLISHER} on Wotan's topics.auto_approve?)")
+            who = self.minter.name if self.minter is not None else PROGRESS_PUBLISHER
+            raise ValueError(f"join {PROGRESS_TOPIC} as {who}: status {sub.get('status', status)!r}"
+                             f" (is {who} on Wotan's topics.auto_approve?)")
         self.subscriber = sub["subscriber_id"]
 
     def emit(self, step, state, name=""):

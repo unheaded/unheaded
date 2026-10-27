@@ -118,6 +118,7 @@ Use "unheaded <command> --help" for more information about a command.`,
 	root.AddCommand(NewGenerateCommand())
 	root.AddCommand(NewObserveCommand())
 	root.AddCommand(NewAPIKeyCommand())
+	root.AddCommand(NewTokenCommand())
 
 	return root
 }

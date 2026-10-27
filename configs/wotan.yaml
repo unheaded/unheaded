@@ -32,6 +32,7 @@ topics:
     - "captain"
     - "chaos-controller"     # chaos.* events and the chaos.abort path (ADR-107)
     - "dashboard-backend"
+    - "ebpf-collector"       # ebpf.packet.events / ebpf.latency.events (cmd/ebpf-collector, Rust; no unit or compose service yet)
     - "heimdall"             # drift.detected.<node> (signed; drift. keys decide what is taken)
     - "kanban-app"
     - "kev-poller"           # threats.cisa-kev.{updates,delta} (ADR-055)
@@ -69,7 +70,7 @@ topics:
     - "wiki"
     - "zhenai"
     - "zhen-eval"
-    - "runbook-runner"       # scripts/run-runbook.py (Python; mints no token, so refused with auth on)
+    - "runbook-runner"       # scripts/run-runbook.py's display_name; with auth on it presents zhen-agentd's key (Champion runs) or unheaded-cli's (by hand)
 
   # ML-DSA-65 public keys (base64) trusted to sign config.* messages
   # (ADR-043 #2). config.* is published only over gRPC, signed by one of

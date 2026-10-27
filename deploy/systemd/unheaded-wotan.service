@@ -34,7 +34,7 @@ Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 # S-IRON-GATE Phase 7 (ADR-103 §6): every call needs a service token for
 # aud=wotan from one of these identities; auto-approve keys on its sub.
 Environment=AUTH_ENABLED=true
-Environment=AUTH_ALLOW_CALLERS=akira,anomaly,architect,captain,chaos-controller,dashboard-backend,gateway,heimdall,kanban-app,kev-poller,micromanager,monad,perf-benchmark,shield,sophia,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,zhen-agentd,zhen-claude
+Environment=AUTH_ALLOW_CALLERS=akira,anomaly,architect,captain,chaos-controller,dashboard-backend,ebpf-collector,gateway,heimdall,kanban-app,kev-poller,micromanager,monad,perf-benchmark,shield,sophia,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,zhen-agentd,zhen-claude
 ReadOnlyPaths=-/etc/unheaded/trust.d
 
 User=unheaded-wotan

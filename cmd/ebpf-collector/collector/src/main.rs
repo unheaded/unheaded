@@ -6,8 +6,12 @@
 //! Loads compiled eBPF programs (XDP packet counter, kprobe TCP latency),
 //! reads events from ring buffers, converts to JSON matching the dashboard
 //! backend's types.go schema, and publishes to Wotan via gRPC (primary)
-//! or HTTP (fallback).
+//! or HTTP (fallback), every request with ebpf-collector's EdDSA service
+//! token (src/auth.rs, ADR-103 §6).
 
+mod auth;
+
+use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -20,6 +24,8 @@ use clap::Parser;
 use log::{error, info, warn};
 use tokio::signal;
 use tokio::sync::Notify;
+use tonic::service::interceptor::InterceptedService;
+use tonic::transport::{Channel, Endpoint};
 
 use ebpf_common::{
     LatencyEvent, PacketEvent, AF_INET, AF_INET6, FLOW_FLAG_EST, FLOW_FLAG_FIN_SEEN, FLOW_FLAG_OOO,
@@ -48,12 +54,12 @@ struct Args {
     #[arg(long, default_value = "")]
     iface: String,
 
-    /// Wotan HTTP address for fallback publishing
-    #[arg(long, default_value = "http://localhost:9080")]
+    /// Wotan HTTP address for fallback publishing (Wotan's HTTP port, 18000)
+    #[arg(long, default_value = "http://localhost:18000")]
     wotan_http: String,
 
-    /// Wotan gRPC address for primary publishing
-    #[arg(long, default_value = "http://localhost:9090")]
+    /// Wotan gRPC address for primary publishing (Wotan's gRPC port, 18001)
+    #[arg(long, default_value = "http://localhost:18001")]
     wotan_grpc: String,
 
     /// Path to compiled XDP program ELF
@@ -162,19 +168,41 @@ impl EventBuffer {
 // Wotan Publisher (gRPC primary, HTTP fallback)
 // ---------------------------------------------------------------------------
 
+/// The gRPC client: every call goes through WotanAuth, which adds the
+/// service token (ADR-103 §6).
+type WotanGrpc = TopicStreamClient<InterceptedService<Channel, auth::WotanAuth>>;
+
+/// The gRPC publish request. No sender_id (Wotan takes only a member UUID
+/// there): with auth on, Wotan approves the publish on the verified token
+/// subject (configs/wotan.yaml auto_approve); display_name is a label.
+fn grpc_publish_request(topic: &str, payload: Vec<u8>) -> TopicPublishRequest {
+    TopicPublishRequest {
+        topic: topic.to_string(),
+        sender_id: String::new(),
+        payload,
+        metadata: [("display_name".to_string(), auth::IDENTITY.to_string())].into(),
+    }
+}
+
 struct WotanPublisher {
     grpc_addr: String,
     http_addr: String,
-    grpc_client: tokio::sync::Mutex<Option<TopicStreamClient<tonic::transport::Channel>>>,
+    auth: auth::WotanAuth,
+    grpc_client: tokio::sync::Mutex<Option<WotanGrpc>>,
+    /// HTTP fallback: the approved subscriber id per topic, from
+    /// POST /api/v1/topics/<topic>/subscribe; publishes name it.
+    http_subscribers: std::sync::Mutex<HashMap<String, String>>,
     buffer: EventBuffer,
 }
 
 impl WotanPublisher {
-    fn new(grpc_addr: String, http_addr: String) -> Self {
+    fn new(grpc_addr: String, http_addr: String, auth: auth::WotanAuth) -> Self {
         Self {
             grpc_addr,
             http_addr,
+            auth,
             grpc_client: tokio::sync::Mutex::new(None),
+            http_subscribers: std::sync::Mutex::new(HashMap::new()),
             buffer: EventBuffer::new(1000),
         }
     }
@@ -184,10 +212,17 @@ impl WotanPublisher {
         if client.is_some() {
             return true;
         }
-        match TopicStreamClient::connect(self.grpc_addr.clone()).await {
-            Ok(c) => {
+        let channel = match Endpoint::from_shared(self.grpc_addr.clone()) {
+            Ok(e) => e.connect().await,
+            Err(e) => {
+                warn!("invalid Wotan gRPC address {}: {}", self.grpc_addr, e);
+                return false;
+            }
+        };
+        match channel {
+            Ok(ch) => {
                 info!("connected to Wotan gRPC at {}", self.grpc_addr);
-                *client = Some(c);
+                *client = Some(TopicStreamClient::with_interceptor(ch, self.auth.clone()));
                 true
             }
             Err(e) => {
@@ -202,12 +237,7 @@ impl WotanPublisher {
         {
             let mut client = self.grpc_client.lock().await;
             if let Some(ref mut c) = *client {
-                let req = tonic::Request::new(TopicPublishRequest {
-                    topic: topic.to_string(),
-                    sender_id: "ebpf-collector".to_string(),
-                    payload: payload.clone(),
-                    metadata: Default::default(),
-                });
+                let req = tonic::Request::new(grpc_publish_request(topic, payload.clone()));
                 match c.publish_topic(req).await {
                     Ok(_) => return,
                     Err(e) => {
@@ -222,21 +252,71 @@ impl WotanPublisher {
         self.publish_http_with_retry(topic, &payload).await;
     }
 
+    /// POST body to Wotan's HTTP API with the service token; the response
+    /// body on a 2xx.
+    fn http_post(&self, path: &str, body: &serde_json::Value) -> Result<String, String> {
+        let url = format!("{}{}", self.http_addr.trim_end_matches('/'), path);
+        let mut req = ureq::post(&url).header("Content-Type", "application/json");
+        if let Some(h) = self.auth.header().map_err(|e| e.to_string())? {
+            req = req.header("Authorization", &h);
+        }
+        let mut resp = req
+            .send(&serde_json::to_vec(body).map_err(|e| e.to_string())?[..])
+            .map_err(|e| e.to_string())?;
+        resp.body_mut().read_to_string().map_err(|e| e.to_string())
+    }
+
+    /// The approved subscriber id this collector publishes topic under,
+    /// joining the topic as ebpf-collector on first use.
+    fn http_subscriber(&self, topic: &str) -> Result<String, String> {
+        if let Some(id) = self.http_subscribers.lock().unwrap().get(topic) {
+            return Ok(id.clone());
+        }
+        let body = self.http_post(
+            &format!("/api/v1/topics/{topic}/subscribe"),
+            &serde_json::json!({ "display_name": auth::IDENTITY }),
+        )?;
+        let v: serde_json::Value =
+            serde_json::from_str(&body).map_err(|e| format!("subscribe response: {e}"))?;
+        let sub = &v["subscriber"];
+        let (Some(id), Some("approved")) = (sub["subscriber_id"].as_str(), sub["status"].as_str())
+        else {
+            return Err(format!(
+                "join {topic} as {}: status {} (is it on Wotan's auto_approve?)",
+                auth::IDENTITY,
+                sub["status"]
+            ));
+        };
+        self.http_subscribers
+            .lock()
+            .unwrap()
+            .insert(topic.to_string(), id.to_string());
+        Ok(id.to_string())
+    }
+
+    /// One HTTP publish: Wotan's {"subscriber_id", "payload"} body. A
+    /// refusal drops the subscriber id so the next attempt joins again
+    /// (Wotan restarted, or the member expired).
+    fn publish_http_once(&self, topic: &str, payload: &[u8]) -> Result<(), String> {
+        let id = self.http_subscriber(topic)?;
+        let body = serde_json::json!({
+            "subscriber_id": id,
+            "payload": String::from_utf8_lossy(payload),
+        });
+        self.http_post(&format!("/api/v1/topics/{topic}/publish"), &body)
+            .map(|_| ())
+            .inspect_err(|_| {
+                self.http_subscribers.lock().unwrap().remove(topic);
+            })
+    }
+
     async fn publish_http_with_retry(&self, topic: &str, payload: &[u8]) {
-        let url = format!(
-            "{}/api/v1/topics/{}/publish",
-            self.http_addr.trim_end_matches('/'),
-            topic
-        );
         let mut backoff = Duration::from_millis(100);
         let max_retries = 5;
 
         for attempt in 0..max_retries {
-            match ureq::post(&url)
-                .header("Content-Type", "application/json")
-                .send(payload)
-            {
-                Ok(_) => return,
+            match self.publish_http_once(topic, payload) {
+                Ok(()) => return,
                 Err(e) => {
                     if attempt < max_retries - 1 {
                         warn!(
@@ -541,9 +621,12 @@ async fn main() -> anyhow::Result<()> {
     info!("kprobe programs attached to tcp_sendmsg and tcp_recvmsg");
 
     // Setup publisher
+    // Service token for Wotan: AUTH_KEY_FILE, else
+    // /etc/unheaded/keys/ebpf-collector.key (missing: one warning, no token).
     let publisher = Arc::new(WotanPublisher::new(
         args.wotan_grpc.clone(),
         args.wotan_http.clone(),
+        auth::WotanAuth::load(),
     ));
     publisher.connect_grpc().await;
 
@@ -972,5 +1055,256 @@ mod tests {
         // Should return something (eth0 fallback if /proc not available)
         let iface = detect_default_iface();
         assert!(!iface.is_empty());
+    }
+
+    // --- Wotan service token (ADR-103 §6) ---------------------------------
+
+    use std::io::{BufRead, BufReader, Read as _, Write as _};
+    use wotan_proto::topic_stream_server::{TopicStream, TopicStreamServer};
+    use wotan_proto::{
+        TopicEvent, TopicPingRequest, TopicPongResponse, TopicPublishResponse, TopicStreamRequest,
+    };
+
+    fn test_auth() -> auth::WotanAuth {
+        // A seed made at run time, never a literal key.
+        let mut seed = [0u8; 32];
+        for (i, b) in seed.iter_mut().enumerate() {
+            *b = (i as u8).wrapping_mul(29).wrapping_add(3);
+        }
+        auth::WotanAuth::with_minter(svc_token::Minter::from_seed(auth::IDENTITY, &seed).unwrap())
+    }
+
+    /// Wotan's gRPC topic service, recording each publish and the
+    /// authorization metadata it came with.
+    /// A publish as the mock saw it: authorization metadata and request.
+    type SeenPublish = (Option<String>, TopicPublishRequest);
+
+    #[derive(Clone, Default)]
+    struct MockWotan {
+        seen: Arc<std::sync::Mutex<Vec<SeenPublish>>>,
+    }
+
+    #[tonic::async_trait]
+    impl TopicStream for MockWotan {
+        type StreamTopicsStream = std::pin::Pin<
+            Box<
+                dyn tonic::codegen::tokio_stream::Stream<Item = Result<TopicEvent, tonic::Status>>
+                    + Send,
+            >,
+        >;
+
+        async fn stream_topics(
+            &self,
+            _: tonic::Request<TopicStreamRequest>,
+        ) -> Result<tonic::Response<Self::StreamTopicsStream>, tonic::Status> {
+            Err(tonic::Status::unimplemented("mock"))
+        }
+
+        async fn publish_topic(
+            &self,
+            req: tonic::Request<TopicPublishRequest>,
+        ) -> Result<tonic::Response<TopicPublishResponse>, tonic::Status> {
+            let authz = req
+                .metadata()
+                .get("authorization")
+                .map(|v| v.to_str().unwrap().to_string());
+            self.seen.lock().unwrap().push((authz, req.into_inner()));
+            Ok(tonic::Response::new(TopicPublishResponse::default()))
+        }
+
+        async fn topic_ping(
+            &self,
+            _: tonic::Request<TopicPingRequest>,
+        ) -> Result<tonic::Response<TopicPongResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("mock"))
+        }
+    }
+
+    async fn grpc_publish_with(auth: auth::WotanAuth) -> Vec<SeenPublish> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let mock = MockWotan::default();
+        let seen = mock.seen.clone();
+        let incoming =
+            tonic::transport::server::TcpIncoming::from_listener(listener, true, None).unwrap();
+        let server = tokio::spawn(
+            tonic::transport::Server::builder()
+                .add_service(TopicStreamServer::new(mock))
+                .serve_with_incoming(incoming),
+        );
+        let p = WotanPublisher::new(format!("http://{addr}"), "http://127.0.0.1:1".into(), auth);
+        assert!(p.connect_grpc().await, "connect to mock Wotan");
+        p.publish("ebpf.packet.events", br#"{"x":1}"#.to_vec())
+            .await;
+        server.abort();
+        let got = seen.lock().unwrap().clone();
+        got
+    }
+
+    #[tokio::test]
+    async fn grpc_publish_carries_service_token_and_no_sender_id() {
+        let auth = test_auth();
+        let got = grpc_publish_with(auth.clone()).await;
+        assert_eq!(got.len(), 1, "one publish reached Wotan");
+        let (authz, req) = &got[0];
+        // The token the minter has cached for aud=wotan: sub=ebpf-collector.
+        assert_eq!(authz.as_deref(), auth.header().unwrap().as_deref());
+        assert!(authz.as_deref().unwrap().starts_with("Bearer ey"));
+        assert_eq!(req.topic, "ebpf.packet.events");
+        // Wotan takes only a member UUID as sender_id; an unnamed publish
+        // is approved on the token's subject.
+        assert_eq!(req.sender_id, "");
+        assert_eq!(
+            req.metadata.get("display_name").map(String::as_str),
+            Some("ebpf-collector")
+        );
+        assert_eq!(req.payload, br#"{"x":1}"#);
+    }
+
+    #[tokio::test]
+    async fn grpc_publish_without_key_sends_no_token() {
+        let got = grpc_publish_with(auth::WotanAuth::default()).await;
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].0, None);
+    }
+
+    /// One HTTP request as the mock saw it.
+    #[derive(Debug, Clone)]
+    struct SeenHttp {
+        line: String,
+        authorization: Option<String>,
+        body: String,
+    }
+
+    /// A minimal Wotan HTTP API: answers `n` connections (subscribe: an
+    /// approved member; publish: 201) and returns what it saw.
+    fn mock_wotan_http(n: usize) -> (String, std::thread::JoinHandle<Vec<SeenHttp>>) {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", l.local_addr().unwrap());
+        let h = std::thread::spawn(move || {
+            let mut seen = Vec::new();
+            for _ in 0..n {
+                let (stream, _) = l.accept().unwrap();
+                let mut r = BufReader::new(stream.try_clone().unwrap());
+                let mut line = String::new();
+                r.read_line(&mut line).unwrap();
+                let (mut len, mut authz) = (0usize, None);
+                loop {
+                    let mut h = String::new();
+                    r.read_line(&mut h).unwrap();
+                    let h = h.trim_end();
+                    if h.is_empty() {
+                        break;
+                    }
+                    let (k, v) = h.split_once(':').unwrap();
+                    match k.to_ascii_lowercase().as_str() {
+                        "content-length" => len = v.trim().parse().unwrap(),
+                        "authorization" => authz = Some(v.trim().to_string()),
+                        _ => {}
+                    }
+                }
+                let mut body = vec![0u8; len];
+                r.read_exact(&mut body).unwrap();
+                let reply = if line.contains("/subscribe ") {
+                    r#"{"subscriber":{"subscriber_id":"6f1c2b9e-0000-4000-8000-000000000001","status":"approved"}}"#
+                } else {
+                    "{}"
+                };
+                let mut w = stream;
+                write!(
+                    w,
+                    "HTTP/1.1 201 Created\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    reply.len(),
+                    reply
+                )
+                .unwrap();
+                seen.push(SeenHttp {
+                    line: line.trim_end().to_string(),
+                    authorization: authz,
+                    body: String::from_utf8(body).unwrap(),
+                });
+            }
+            seen
+        });
+        (base, h)
+    }
+
+    #[test]
+    fn http_fallback_joins_then_publishes_with_token() {
+        let (base, server) = mock_wotan_http(3);
+        let auth = test_auth();
+        let p = WotanPublisher::new("http://127.0.0.1:1".into(), base, auth.clone());
+        p.publish_http_once("ebpf.latency.events", br#"{"rtt":5}"#)
+            .unwrap();
+        // The subscriber id is reused: no second join.
+        p.publish_http_once("ebpf.latency.events", br#"{"rtt":6}"#)
+            .unwrap();
+        let seen = server.join().unwrap();
+        let want = auth.header().unwrap();
+        assert!(want.is_some());
+        for s in &seen {
+            assert_eq!(s.authorization, want, "{}", s.line);
+        }
+        assert!(seen[0]
+            .line
+            .starts_with("POST /api/v1/topics/ebpf.latency.events/subscribe "));
+        let join: serde_json::Value = serde_json::from_str(&seen[0].body).unwrap();
+        assert_eq!(join["display_name"], "ebpf-collector");
+        for (s, rtt) in seen[1..].iter().zip([5, 6]) {
+            assert!(s
+                .line
+                .starts_with("POST /api/v1/topics/ebpf.latency.events/publish "));
+            let b: serde_json::Value = serde_json::from_str(&s.body).unwrap();
+            assert_eq!(b["subscriber_id"], "6f1c2b9e-0000-4000-8000-000000000001");
+            assert_eq!(b["payload"], format!(r#"{{"rtt":{rtt}}}"#));
+        }
+    }
+
+    #[test]
+    fn http_fallback_without_key_sends_no_authorization() {
+        let (base, server) = mock_wotan_http(2);
+        let p = WotanPublisher::new(
+            "http://127.0.0.1:1".into(),
+            base,
+            auth::WotanAuth::default(),
+        );
+        p.publish_http_once("ebpf.packet.events", b"{}").unwrap();
+        let seen = server.join().unwrap();
+        assert!(seen.iter().all(|s| s.authorization.is_none()));
+    }
+
+    #[test]
+    fn http_join_not_approved_is_an_error() {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", l.local_addr().unwrap());
+        let h = std::thread::spawn(move || {
+            let (mut s, _) = l.accept().unwrap();
+            let mut buf = [0u8; 4096];
+            let _ = s.read(&mut buf).unwrap();
+            let reply = r#"{"subscriber":{"subscriber_id":"x","status":"pending"}}"#;
+            write!(
+                s,
+                "HTTP/1.1 201 Created\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                reply.len(),
+                reply
+            )
+            .unwrap();
+        });
+        let p = WotanPublisher::new("http://127.0.0.1:1".into(), base, test_auth());
+        let err = p
+            .publish_http_once("ebpf.packet.events", b"{}")
+            .unwrap_err();
+        h.join().unwrap();
+        assert!(
+            err.contains("pending") && err.contains("auto_approve"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn default_wotan_ports_are_wotans() {
+        let a = Args::parse_from(["ebpf-collector"]);
+        assert_eq!(a.wotan_http, "http://localhost:18000");
+        assert_eq!(a.wotan_grpc, "http://localhost:18001");
     }
 }

@@ -6,11 +6,13 @@ on:
     paths:
       - 'ebpf/**'
       - 'cmd/trace-collector/**'
+      - 'crates/svc-token/**'
   pull_request:
     branches: [main, develop, staging]
     paths:
       - 'ebpf/**'
       - 'cmd/trace-collector/**'
+      - 'crates/svc-token/**'
 
 jobs:
   trace-collector:
@@ -49,6 +51,12 @@ jobs:
       - name: Test
         working-directory: cmd/trace-collector
         run: cargo test
+
+      # The Wotan service-token crate trace-collector and ebpf-collector use
+      # (ADR-103 §6). Its Go cross-check is tests/svctoken (Go CI job).
+      - name: svc-token (clippy, format, test)
+        working-directory: crates/svc-token
+        run: cargo clippy --all-targets -- -D warnings && cargo fmt -- --check && cargo test
 
   ebpf-programs:
     name: eBPF Programs (Rust/Aya)

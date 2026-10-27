@@ -84,6 +84,25 @@ func callCuirass(method, target string, body, out any) error {
 	return callJSONAs(cuirassAudience, method, target, body, out)
 }
 
+// cliKeyFile is the CLI's key: AUTH_KEY_FILE, then
+// ~/.config/unheaded/cli.key, then the host key; "" when none exists.
+func cliKeyFile() string {
+	if f := os.Getenv("AUTH_KEY_FILE"); f != "" {
+		return f
+	}
+	var candidates []string
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(home, ".config", "unheaded", "cli.key"))
+	}
+	candidates = append(candidates, cliHostKeyFile)
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	return ""
+}
+
 // authorization picks the credential for a call to aud: UNHEADED_TOKEN
 // (a uhk_ API key or a token) when set; else, for a service audience, a
 // token minted from the CLI's key: AUTH_KEY_FILE, then
@@ -97,22 +116,9 @@ func authorization(aud string) (string, error) {
 	if aud == "" {
 		return "", nil
 	}
-	keyFile := os.Getenv("AUTH_KEY_FILE")
+	keyFile := cliKeyFile()
 	if keyFile == "" {
-		var candidates []string
-		if home, err := os.UserHomeDir(); err == nil {
-			candidates = append(candidates, filepath.Join(home, ".config", "unheaded", "cli.key"))
-		}
-		candidates = append(candidates, cliHostKeyFile)
-		for _, c := range candidates {
-			if _, err := os.Stat(c); err == nil {
-				keyFile = c
-				break
-			}
-		}
-		if keyFile == "" {
-			return "", nil
-		}
+		return "", nil
 	}
 	m, err := auth.LoadServiceTokenMinter(cliKeyName, keyFile)
 	if err != nil {

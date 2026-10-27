@@ -94,6 +94,48 @@ func wotanClientIdentities(t *testing.T) []string {
 	if len(names) < 15 {
 		t.Fatalf("found %d InitServiceIdentity calls (%v): the pattern no longer fits the code", len(names), names)
 	}
+	return append(names, rustWotanClientIdentities(t)...)
+}
+
+// rustWotanClientIdentities are the identities the Rust Wotan clients
+// present: `pub const IDENTITY: &str = "<name>";` in a cmd/ source file that
+// mints with crates/svc-token (cmd/trace-collector, cmd/ebpf-collector).
+func rustWotanClientIdentities(t *testing.T) []string {
+	t.Helper()
+	re := regexp.MustCompile(`pub const IDENTITY: &str = "([^"]+)";`)
+	var names []string
+	err := filepath.WalkDir(filepath.Join(repoRoot, "cmd"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == "target" || d.Name() == "node_modules") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".rs") {
+			return nil
+		}
+		src, err := os.ReadFile(path) // #nosec G304 -- repo source under test
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(string(src), "svc_token") {
+			return nil
+		}
+		for _, m := range re.FindAllStringSubmatch(string(src), -1) {
+			if !slices.Contains(names, m[1]) {
+				names = append(names, m[1])
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"trace-collector", "ebpf-collector"} {
+		if !slices.Contains(names, want) {
+			t.Fatalf("Rust Wotan identities %v lack %q: the pattern no longer fits the code", names, want)
+		}
+	}
 	return names
 }
 

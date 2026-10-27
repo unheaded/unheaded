@@ -62,6 +62,13 @@ fastrand = "2.0"
 tokio-tungstenite = "0.21"
 futures-util = "0.3"
 
+# Wotan service tokens (ADR-103 §6): EdDSA, the format Go's pkg/auth mints.
+# Path crate; its ring and base64 are versions already in this tree.
+unheaded-svc-token = { path = "../../crates/svc-token" }
+
+[dev-dependencies]
+base64 = "0.22"
+
 [build-dependencies]
 tonic-build = "0.12"
 
