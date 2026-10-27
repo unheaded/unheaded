@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# vector-east: ships east's journal to west's ClickHouse (ADR-092 step 8,
+# M-082). West runs Vector in compose; east has no compose stack.
+#
+# Install on EAST only (wiki/Log-Aggregation.md "East shipping" has the
+# pinned .deb and the steps; host window E-D):
+#   sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/ && sudo systemd-sysusers
+#   sudo install -d -m 0750 /etc/unheaded/vector
+#   sudo install -m 0644 config/vector/vector-east.yaml /etc/unheaded/vector/
+#   sudo install -m 0600 /dev/null /etc/unheaded/vector/vector-east.env   # then set CLICKHOUSE_PASSWORD=
+#   sudo cp deploy/systemd/vector-east.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now vector-east
+
+[Unit]
+Description=Vector — ship east's journal to west's ClickHouse
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-092-var-log-discipline-and-rotation.md
+After=network-online.target systemd-journald.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/unheaded/vector/vector-east.env
+ExecStartPre=/usr/bin/vector validate --no-environment /etc/unheaded/vector/vector-east.yaml
+ExecStart=/usr/bin/vector --config /etc/unheaded/vector/vector-east.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5s
+TimeoutStopSec=30s
+
+User=unheaded-vector
+Group=unheaded-vector
+# Reading the system journal needs the systemd-journal group.
+SupplementaryGroups=systemd-journal
+UMask=0077
+StateDirectory=vector
+StateDirectoryMode=0700
+
+# Sandbox (deploy/systemd/README.md#isolation). The user comes from
+# deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

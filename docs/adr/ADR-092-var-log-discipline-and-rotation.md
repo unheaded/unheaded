@@ -232,12 +232,12 @@ batches). This one is checkable:
 
 | step | state | where |
 |---|---|---|
-| 1. compose `logging:` caps | done | `0e956af8` |
+| 1. compose `logging:` caps | done; **amended 2026-10-27**: first-party services use the journald driver, capped by journald (`journald-caps`) | `0e956af8`, `e9ed9783` |
 | 3. call sites off `/tmp` | **done 2026-10-13**: 31 → 0 | `scripts/lib/logpath.sh`; ratchet at 0 in `docs/policy/tmp-log-baseline.txt` |
 | 6. `log-rotation.yaml` | **rewritten to verify** (2026-10-13): reads sizes, parses `unheaded-*` stanzas, fails on `copytruncate`, reports journald caps; installs nothing | `runbooks/observe/log-rotation.yaml` |
 | 2, 4 | **no subject yet** (checked 2026-10-13) | every deploy/systemd unit logs to journald (stdout); no deployed service opens its own log file. `unheaded-daemon`'s `AuditPath: /var/log/unheaded/audit.log` is a config field nothing reads, and `pkg/audit/storage`'s file backend (its own daily rotation) has no caller. Directories and stanzas land with the first service that owns a file handle, per the order above: a stanza for a path nothing writes is the ADR-091 shape |
 | 5 | open | CI check; today only the compose half exists (`check-compose-log-caps.sh`) |
-| 7 | partial | Huginn exports `/var/log` free space and per-directory sizes with alerts (`monitoring/prometheus/rules/host.yml`, 2026-10-13); journald capped at 1G/200M on both hosts 2026-10-13 (`journald-caps` fix; east 4.0G -> 973M, west 3.4G -> 971M, old journals archived first); separate `/var/log` filesystem open (west's `/var/log` shares `/dev/sdb` with `/var`) |
+| 7 | partial; the `journald-caps` fix is now also the cap for first-party container stdout (2026-10-27) | Huginn exports `/var/log` free space and per-directory sizes with alerts (`monitoring/prometheus/rules/host.yml`, 2026-10-13); journald capped at 1G/200M on both hosts 2026-10-13 (`journald-caps` fix; east 4.0G -> 973M, west 3.4G -> 971M, old journals archived first); separate `/var/log` filesystem open (west's `/var/log` shares `/dev/sdb` with `/var`) |
 | 8 | **west's journal shipping deployed** (4272fb6a; ClickHouse); container stdout and east pending (M-082) | see "Step 8, 2026-10-19" below |
 
 **Amendment (2026-10-13): processes an operator starts by hand.** Every
@@ -350,3 +350,21 @@ run as compose runs it: a `logger` line landed in the table and the sink's
 `vector_component_sent_events_total` counted it, read through host-gateway
 from a container; the port is not reachable on the LAN address. Fires only
 once the monitoring stack runs (FND-001).
+
+**Amendment (2026-10-27, S-WELL-SPRING Phase 9, decision 24): container stdout
+goes through the journal.** The twelve first-party services in
+`docker-compose.yml` log with `driver: journald` (`x-logging-journald`, tag
+`{{.Name}}`). Their lines reach the host journal, and Vector's existing
+`journald` source ships them with everything else; `unit` is the container
+name (`CONTAINER_NAME`), so `unheaded_log_lines_total{unit="unheaded-wotan"}`
+counts one service. No Docker socket and no socket proxy: the proxy would
+still hand Vector every container's environment. Step 1's cap for those
+services is now journald's `SystemMaxUse=1G` / `RuntimeMaxUse=200M`
+(step 7, the `journald-caps` fix, applied by every host profile in
+use); `scripts/check-compose-log-caps.sh` accepts journald only when the
+profile of every host in `compliance/hosts/` applies it, and still requires
+`max-size` for json-file. Third-party images (traefik, postgres, clickhouse,
+victoria, grafana, coredns, volume-init) and Vector itself keep json-file
+3x10MB; Vector must not ingest its own output. East: Vector as a host unit
+(`deploy/systemd/vector-east.service`, `config/vector/vector-east.yaml`),
+prepared, installed in a host window (E-D).

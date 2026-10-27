@@ -1,6 +1,6 @@
 # ADR-076: Single Source of Truth for the Live Topology Map
 
-**Status:** PROPOSED (planning)
+**Status:** PROPOSED (planning) — **re-scoped 2026-10-27** (see the amendment at the end)
 **Date:** 2026-06-02
 **Deciders:** Architect (4 minds), Muck
 **Tags:** observability, dashboard, wotan, victoriametrics, topology, read-plane, eBPF
@@ -292,3 +292,17 @@ the *identical* aggregate; Grafana reads the same VM store.
 - **Artifact:** `demos/unheaded-topology-enterprise.html` (the view being wired).
 
 *Add to `docs/adr/ADR-INDEX.md` on acceptance.*
+
+## Amendment (2026-10-27, S-WELL-SPRING Phase 9, decision 27): re-scoped, not built as specified
+
+This ADR predates Vector shipping the journal to ClickHouse (ADR-092 step 8)
+and ADR-094. Nothing consumes the planned fan-out. The topology map is
+re-scoped to one read endpoint and no new daemon:
+
+- **Topology = a ClickHouse view over Vector's rows plus `pkg/discovery`'s live
+  registry**, served by dashboard-backend at `GET /api/v1/topology`.
+- The dashboard's `stepSim` animation is demo-only and is not a data source.
+- If the SVG map is still wanted, `/viz/topology.html` over that endpoint is a
+  small follow-on, not part of this ADR.
+
+The Build & Wire Plan above is historical.

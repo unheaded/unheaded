@@ -36,3 +36,13 @@ HADOLINT_IMAGE_DIGEST="sha256:a1d49ae1a4e83c1dbad26b8c1ad7588c8bd1e04f4866b34ad3
 
 KUBECONFORM_VERSION="0.8.0"
 KUBECONFORM_SHA256="9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883" # kubeconform-linux-amd64.tar.gz
+
+# Vector on east as a host package (config/vector/vector-east.yaml). Same
+# version as west's compose image timberio/vector:<v>-debian, so both hosts
+# run the same VRL; bump the two together. apt.vector.dev (the project's
+# current repository) and the legacy packages.timber.io serve different bytes
+# for 0.43.1-1 (the apt copy is 862 bytes larger); this pins apt.vector.dev's.
+# Not in check-tool-freshness.sh's TOOLS: the compose image is not either.
+VECTOR_DEB_VERSION="0.43.1-1"
+VECTOR_DEB_URL="https://apt.vector.dev/pool/v/ve/vector_0.43.1-1_amd64.deb"
+VECTOR_DEB_SHA256="a8c01eeda385da9b8b5a09446fd01b615539713fd0e04bf9efd100b1a1c0b083"

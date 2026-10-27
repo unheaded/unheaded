@@ -11,6 +11,9 @@
 # the fixed sshd/sudo/PAM failure patterns match. Network off; the ClickHouse
 # password is a placeholder, nothing connects.
 #
+# config/vector/vector-east.yaml (east's host shipper) must validate too,
+# and its transforms block must equal vector.yaml's.
+#
 # Needs docker; without it this FAILS (exit 2), it never passes by skipping.
 set -uo pipefail
 
@@ -31,8 +34,20 @@ run() {
 rc=0
 run validate --no-environment /cfg/vector.yaml || rc=1
 run test /cfg/vector.yaml "${tests[@]/#//cfg/}" || rc=1
+# East's host shipper: validates, and counts lines exactly as west does
+# (its transforms block must equal vector.yaml's, so the unit tests above
+# cover both hosts).
+run validate --no-environment /cfg/vector-east.yaml || rc=1
+python3 - "$REPO_ROOT/config/vector/vector.yaml" "$REPO_ROOT/config/vector/vector-east.yaml" <<'PY' || rc=1
+import sys, yaml
+west, east = (yaml.safe_load(open(p))["transforms"] for p in sys.argv[1:3])
+if west != east:
+    diff = sorted(k for k in set(west) | set(east) if west.get(k) != east.get(k))
+    print(f"[FAIL] vector-east.yaml transforms differ from vector.yaml: {', '.join(diff)}", file=sys.stderr)
+    sys.exit(1)
+PY
 if [[ $rc -eq 0 ]]; then
-	echo "[PASS] vector.yaml validates and ${#tests[@]} test file(s) pass in ${IMAGE}"
+	echo "[PASS] vector.yaml and vector-east.yaml validate, transforms match, and ${#tests[@]} test file(s) pass in ${IMAGE}"
 else
 	echo "[FAIL] vector config ($IMAGE)" >&2
 fi

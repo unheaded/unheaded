@@ -289,9 +289,11 @@ inventory even though no file of theirs is in the repository:
 | Dependency | License | Why it is here | Where |
 |---|---|---|---|
 | [llama.cpp](https://github.com/ggml-org/llama.cpp) | MIT | `llama-server` on :8081 is Zhen's inference backend — `raft/start-zhen.sh` refuses to start without it | `llama.cpp/`, gitignored (`.gitignore:236`) |
+| [Vector](https://github.com/vectordotdev/vector) 0.43.1 | MPL-2.0 | East's journal shipper as a host package (`deploy/systemd/vector-east.service`); west runs the same version as the compose image `timberio/vector:0.43.1-debian` | `.deb` pinned by sha256 in `scripts/lib/tool-pins.sh` (`VECTOR_DEB_*`), installed on east only |
 
 MIT is GPL-3.0-compatible. llama.cpp runs as a **separate process** reached over
-HTTP; nothing links against it, so no GPL boundary question arises.
+HTTP; nothing links against it, so no GPL boundary question arises. Vector is
+MPL-2.0 and likewise a separate process fed by configuration only.
 
 ---
 

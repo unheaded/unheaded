@@ -1,0 +1,181 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# East's log shipper (ADR-092 step 8, M-082): east runs no compose stack, so
+# Vector runs there as a host unit (deploy/systemd/vector-east.service) and
+# ships east's journal to west's ClickHouse over the P2P link (west is
+# 192.168.13.2, east 192.168.13.1).
+#
+# The transforms block is a verbatim copy of config/vector/vector.yaml's;
+# scripts/test-vector-config.sh fails if the two differ, so both hosts count
+# and store lines the same way. Only sources, sinks and paths differ here.
+#
+# Needs, in the host window (E-D): ClickHouse on west listening on
+# 192.168.13.2:8123 as well as loopback, and reachable from east only
+# (nft); CLICKHOUSE_PASSWORD in /etc/unheaded/vector/vector-east.env (0600,
+# root; systemd reads it before dropping to unheaded-vector).
+api:
+  enabled: false
+
+# StateDirectory=vector in the unit; the disk buffer lives here too.
+data_dir: /var/lib/vector
+
+sources:
+  journal:
+    type: journald
+    journal_directory: /var/log/journal
+    current_boot_only: false
+    extra_args: ["--merge"]
+
+  vector_metrics:
+    type: internal_metrics
+
+transforms:
+  journal_rows:
+    type: remap
+    inputs:
+      - journal
+    source: |
+      prio = to_int(.PRIORITY) ?? 6
+      level = if prio <= 0 { "emerg" } else if prio == 1 { "alert" } else if prio == 2 { "crit" } else if prio == 3 { "err" } else if prio == 4 { "warning" } else if prio == 5 { "notice" } else if prio == 6 { "info" } else { "debug" }
+      facility = to_int(.SYSLOG_FACILITY) ?? -1
+      audit = facility == 4 || facility == 10 || ."_TRANSPORT" == "audit"
+      # The systemd unit names a service; for sudo, sshd sessions and
+      # systemd itself it is user@N.service, session-N.scope or init.scope,
+      # and the syslog identifier says more.
+      unit = string(."_SYSTEMD_UNIT") ?? ""
+      if unit == "" || starts_with(unit, "user@") || starts_with(unit, "session-") || unit == "init.scope" {
+        unit = string(.SYSLOG_IDENTIFIER) ?? string(."_COMM") ?? unit
+      }
+      # Docker's journald driver: dockerd writes the entry, so _SYSTEMD_UNIT
+      # is docker.service; the container name says which service it was.
+      container = string(.CONTAINER_NAME) ?? ""
+      if container != "" { unit = container }
+      if unit == "" { unit = "unknown" }
+      message = string(.message) ?? encode_json(.message)
+      # One journal entry, for ClickHouse's dedupe (Vector drops __CURSOR
+      # from events): boot, monotonic microseconds, and the message.
+      entry = (string(."_BOOT_ID") ?? "") + ":" + (string(."__MONOTONIC_TIMESTAMP") ?? "") + ":" + to_string(seahash(message))
+      ts = .timestamp
+      host = string(.host) ?? "unknown"
+      rest = .
+      rest = remove!(rest, ["message"])
+      rest = remove!(rest, ["timestamp"])
+      rest = remove!(rest, ["host"])
+      rest = remove!(rest, ["source_type"])
+      # Docker driver bookkeeping: per-line counters and the 64-hex id
+      # (CONTAINER_ID keeps the short one).
+      for_each(["CONTAINER_ID_FULL", "CONTAINER_LOG_EPOCH", "CONTAINER_LOG_ORDINAL", "CONTAINER_PARTIAL_ID", "CONTAINER_PARTIAL_ORDINAL", "CONTAINER_PARTIAL_LAST"]) -> |_i, k| {
+        rest = remove!(rest, [k])
+      }
+      retention = if audit { "audit" } else { "operational" }
+      . = {
+        "timestamp": ts,
+        "host": host,
+        "source": "journald",
+        "unit": unit,
+        "level": level,
+        "retention": retention,
+        "message": message,
+        "entry": entry,
+        "fields": encode_json(rest)
+      }
+
+  # Log-volume and auth-failure SLIs (ADR-100 Phase 3). Lines are counted,
+  # never stored for this: the metric carries host, unit, level and a fixed
+  # failure kind, not message text. Alerts: monitoring/prometheus/rules/logs.yml.
+  journal_volume:
+    type: remap
+    inputs:
+      - journal_rows
+    source: |
+      unit = string(.unit) ?? "unknown"
+      # Transient units (run-u123.service, docker-<64 hex>.scope) would add
+      # a series per instance; count them as one.
+      if starts_with(unit, "run-") || match(unit, r'[0-9a-f]{12,}') {
+        unit = "transient"
+      }
+      msg = string(.message) ?? ""
+      # Fixed patterns only; the message itself never leaves this transform.
+      auth = ""
+      if match(msg, r'^(Failed (password|publickey|keyboard-interactive/pam) for|Invalid user |Connection closed by invalid user )') {
+        auth = "ssh"
+      } else if match(msg, r'incorrect password attempts?') {
+        auth = "sudo"
+      } else if match(msg, r'^pam_unix\([^)]*:auth\): authentication failure') {
+        auth = "pam"
+      }
+      . = {
+        "host": string(.host) ?? "unknown",
+        "unit": unit,
+        "level": string(.level) ?? "info",
+        "bytes": strlen(msg),
+        "auth": auth
+      }
+
+  journal_volume_metrics:
+    type: log_to_metric
+    inputs:
+      - journal_volume
+    metrics:
+      - type: counter
+        field: unit
+        namespace: unheaded
+        name: log_lines_total
+        tags: {host: "{{host}}", unit: "{{unit}}", level: "{{level}}"}
+      - type: counter
+        field: bytes
+        increment_by_value: true
+        namespace: unheaded
+        name: log_bytes_total
+        tags: {host: "{{host}}", unit: "{{unit}}", level: "{{level}}"}
+
+  journal_auth_failures:
+    type: filter
+    inputs:
+      - journal_volume
+    condition: '.auth != ""'
+
+  journal_auth_metrics:
+    type: log_to_metric
+    inputs:
+      - journal_auth_failures
+    metrics:
+      - type: counter
+        field: auth
+        namespace: unheaded
+        name: auth_failures_total
+        tags: {host: "{{host}}", unit: "{{unit}}", kind: "{{auth}}"}
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs:
+      - journal_rows
+    endpoint: "http://192.168.13.2:8123"
+    database: "unheaded_logs"
+    table: "logs"
+    date_time_best_effort: true
+    auth:
+      strategy: "basic"
+      user: "unheaded"
+      password: "${CLICKHOUSE_PASSWORD}"   # EnvironmentFile; no default credential
+    batch:
+      max_events: 1000
+      timeout_secs: 5
+    # The P2P link or west can be down for a while: hold up to 256 MiB on
+    # disk instead of dropping, then apply backpressure to the journal
+    # source (the journal itself is the next buffer, capped by journald-caps).
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block
+
+  # Scraped from west over the P2P link (job vector-east): the same
+  # "stopped shipping" alerts as west. Bound to east's P2P address only.
+  prometheus:
+    type: prometheus_exporter
+    inputs:
+      - vector_metrics
+      - journal_volume_metrics
+      - journal_auth_metrics
+    address: "192.168.13.1:9598"
+    flush_period_secs: 86400

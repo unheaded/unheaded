@@ -1,6 +1,6 @@
 # ADR-086 — Muninn: Observability Fan-Out Pipeline
 
-**Status:** Planned
+**Status:** Superseded by Vector (ADR-092 step 8 and its 2026-10-27 amendment), 2026-10-27
 **Date:** 2026-07-24
 **Author:** Stevie Bellis
 **Deciders:** Stevie Bellis
@@ -201,3 +201,18 @@ block in huginn.yaml can be disabled and Muninn takes over.
 - `docs/adr/ADR-083` — terminology conventions
 - `runbooks/security/incident-response.yaml` — SIEM is a required control
 - `security_upc_linux_gain_vs_risk.md` — BlackMage/Sentinel isolation brief
+
+## Superseded (2026-10-27, S-WELL-SPRING Phase 9, decision 27)
+
+Muninn was never built. Vector (`config/vector/vector.yaml`, compose service
+`vector`) does each promised job:
+
+| Muninn promised | What does it now |
+|---|---|
+| Host logs fan-out | Vector `journald` source -> ClickHouse `unheaded_logs.logs` (west; east via `vector-east.service`) |
+| Container logs | compose `journald` driver -> the same source (ADR-092 amendment 2026-10-27) |
+| Metrics to VictoriaMetrics | Vector `prometheus_exporter` (log volume, auth failures, its own health) scraped by Prometheus/VictoriaMetrics |
+| SSH/TTY login history -> `ops.login_events` | `unheaded_auth_failures_total{kind}` counters plus the auth lines themselves in ClickHouse; no Postgres table |
+| YAML routing rules | Vector's own config, unit-tested by `scripts/test-vector-config.sh` |
+
+Huginn stays as specified (host metrics), separate from log shipping.
