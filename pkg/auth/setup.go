@@ -4,10 +4,38 @@
 package auth
 
 import (
+	"errors"
+	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/rs/zerolog/log"
+)
+
+// Auth modes (AUTH_MODE).
+const (
+	// ModeEdDSA is the default with AUTH_ENABLED=true: service tokens are
+	// EdDSA, verified against trust.d (ADR-103).
+	ModeEdDSA = "eddsa"
+	// ModeHS256Test is the pre-ADR-103 shared-key mode. It works only in
+	// tests (AllowHS256ForTests); a binary refuses it.
+	ModeHS256Test = "hs256-test"
+
+	// DefaultKeyDir holds each service's private key, <service>.key.
+	DefaultKeyDir = "/etc/unheaded/keys"
+	// DefaultTrustDir holds every service's public key, <service>.pub.
+	DefaultTrustDir = "/etc/unheaded/trust.d"
+)
+
+// Configuration errors from NewServiceMiddleware.
+var (
+	// ErrSharedKeyForbidden: AUTH_JWT_KEY (the shared HMAC key) is set with
+	// auth on. ADR-103 retired it; any holder could mint any token.
+	ErrSharedKeyForbidden = errors.New("auth: AUTH_JWT_KEY is forbidden with AUTH_ENABLED=true (ADR-103: the shared HMAC key is retired; use per-service Ed25519 keys and trust.d)")
+	// ErrNoCredentials: auth is on but nothing to verify a caller against.
+	ErrNoCredentials = errors.New("auth: AUTH_ENABLED=true but no trust directory, OIDC issuer or API key is configured")
 )
 
 // ServiceAuthConfig is the configuration for a service's auth setup.
@@ -36,16 +64,45 @@ type ServiceAuthConfig struct {
 
 	// Audience is the expected JWT audience.
 	Audience string
+
+	// Mode is AUTH_MODE: "" or ModeEdDSA, or ModeHS256Test (tests only).
+	Mode string
+
+	// KeyFile is this service's private key (AUTH_KEY_FILE, default
+	// /etc/unheaded/keys/<service>.key), used to mint its own tokens.
+	KeyFile string
+
+	// TrustDir is the directory of trusted service public keys
+	// (AUTH_TRUST_DIR, default /etc/unheaded/trust.d). Empty: no service
+	// tokens are accepted. A missing directory is tolerated (hosts before
+	// unheaded-keygen); a broken one is an error.
+	TrustDir string
+
+	// AllowCallers lists the services allowed to call this one
+	// (AUTH_ALLOW_CALLERS, comma-separated). Empty denies every service
+	// token (403).
+	AllowCallers []string
+
+	// OIDCIssuerURL is the issuer whose JWKS verifies user tokens
+	// (AUTH_OIDC_ISSUER_URL). Empty: no user tokens.
+	OIDCIssuerURL string
 }
 
 // LoadServiceAuthConfig loads auth configuration from environment variables.
 func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 	cfg := ServiceAuthConfig{
-		Enabled:     os.Getenv("AUTH_ENABLED") == "true",
-		ServiceName: serviceName,
-		Issuer:      getEnvDefault("AUTH_JWT_ISSUER", "https://auth.unheaded.dev"),
-		Audience:    getEnvDefault("AUTH_JWT_AUDIENCE", "unheaded-api"),
-		APIKeyFile:  os.Getenv("AUTH_API_KEY_FILE"),
+		Enabled:       os.Getenv("AUTH_ENABLED") == "true",
+		ServiceName:   serviceName,
+		Issuer:        getEnvDefault("AUTH_JWT_ISSUER", "https://auth.unheaded.dev"),
+		Audience:      getEnvDefault("AUTH_JWT_AUDIENCE", "unheaded-api"),
+		APIKeyFile:    os.Getenv("AUTH_API_KEY_FILE"),
+		Mode:          os.Getenv("AUTH_MODE"),
+		KeyFile:       getEnvDefault("AUTH_KEY_FILE", filepath.Join(DefaultKeyDir, serviceName+".key")),
+		TrustDir:      getEnvDefault("AUTH_TRUST_DIR", DefaultTrustDir),
+		OIDCIssuerURL: os.Getenv("AUTH_OIDC_ISSUER_URL"),
+	}
+	if callers := os.Getenv("AUTH_ALLOW_CALLERS"); callers != "" {
+		cfg.AllowCallers = splitNonEmpty(callers, ",")
 	}
 
 	if key := os.Getenv("AUTH_JWT_KEY"); key != "" {
@@ -62,70 +119,146 @@ func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 // SetupMiddleware creates an auth middleware from the config, or returns nil
 // if auth is disabled. Nil means "no auth middleware needed."
 //
-// Enabled never yields nil: with no usable JWT key or API key the middleware
-// refuses every request outside /health, /ready and /metrics. Returning nil
-// there would serve the service with no auth at all while its operator, and
-// callers keyed on Enabled (Cuirass opens its container write API), take it
-// as protected.
-//
-// When enabled, it creates a MultiAuthenticator that accepts:
-//   - JWT tokens (Authorization: Bearer <token>)
-//   - API keys (X-API-Key header)
-//   - Service tokens (Authorization: Bearer <service-token>)
+// Enabled never yields nil: with a configuration NewServiceMiddleware
+// refuses (no credentials, AUTH_JWT_KEY set, a broken trust dir or key
+// file) it logs the error and the middleware refuses every request outside
+// /health, /ready and /metrics. Returning nil there would serve the service
+// with no auth at all while its operator, and callers keyed on Enabled
+// (Cuirass opens its container write API), take it as protected. Callers
+// that can exit should use NewServiceMiddleware and refuse to start.
 //
 // Internal endpoints (/health, /ready, /metrics) are always skipped.
 func SetupMiddleware(cfg ServiceAuthConfig) func(http.Handler) http.Handler {
 	if !cfg.Enabled {
 		return nil
 	}
+	mw, err := NewServiceMiddleware(cfg)
+	if err != nil {
+		log.Error().Err(err).Str("service", cfg.ServiceName).
+			Msg("auth: refusing every request except /health /ready /metrics (see ADR-103)")
+		// An empty MultiAuthenticator refuses every request (401).
+		return SkipAuthPaths(Middleware(&MultiAuthenticator{}), "/health", "/ready", "/metrics")
+	}
+	return mw
+}
 
+// NewServiceMiddleware is SetupMiddleware for callers that refuse to start
+// on a bad configuration: it returns (nil, nil) with auth off, the
+// middleware with auth on, or an error (ErrSharedKeyForbidden,
+// ErrNoCredentials, or why a trust dir, OIDC issuer or API key file is
+// unusable). /health, /ready and /metrics are skipped.
+func NewServiceMiddleware(cfg ServiceAuthConfig) (func(http.Handler) http.Handler, error) {
+	if !cfg.Enabled {
+		return nil, nil
+	}
+	a, err := NewServiceAuthenticator(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return SkipAuthPaths(Middleware(a), "/health", "/ready", "/metrics"), nil
+}
+
+// NewServiceAuthenticator builds what an enabled service accepts. In
+// ModeEdDSA (the default): service tokens verified against TrustDir with
+// the AllowCallers allowlist, user tokens from OIDCIssuerURL's JWKS, and
+// API keys; AUTH_JWT_KEY is refused. In ModeHS256Test (tests only): the
+// pre-ADR-103 HS256 user and service tokens, and API keys.
+func NewServiceAuthenticator(cfg ServiceAuthConfig) (Authenticator, error) {
 	var authenticators []Authenticator
+	switch cfg.Mode {
+	case "", ModeEdDSA:
+		if len(cfg.JWTSigningKey) > 0 {
+			return nil, ErrSharedKeyForbidden
+		}
+		a, err := eddsaAuthenticators(cfg)
+		if err != nil {
+			return nil, err
+		}
+		authenticators = a
+	case ModeHS256Test:
+		if !hs256Allowed.Load() {
+			return nil, fmt.Errorf("auth: AUTH_MODE=%s is for tests only (ADR-103)", ModeHS256Test)
+		}
+		authenticators = hs256Authenticators(cfg)
+	default:
+		return nil, fmt.Errorf("auth: unknown AUTH_MODE %q (want %q)", cfg.Mode, ModeEdDSA)
+	}
 
-	// JWT authenticator
+	if len(cfg.APIKeys) > 0 || cfg.APIKeyFile != "" {
+		apiKeyAuth, err := NewAPIKeyAuthenticator(APIKeyConfig{Keys: cfg.APIKeys, KeyFile: cfg.APIKeyFile})
+		if err != nil {
+			return nil, fmt.Errorf("auth: API keys unusable: %w", err)
+		}
+		authenticators = append(authenticators, apiKeyAuth)
+	}
+	if len(authenticators) == 0 {
+		return nil, ErrNoCredentials
+	}
+	return &MultiAuthenticator{Authenticators: authenticators}, nil
+}
+
+func eddsaAuthenticators(cfg ServiceAuthConfig) ([]Authenticator, error) {
+	var out []Authenticator
+	if cfg.TrustDir != "" {
+		td, err := NewTrustDir(cfg.TrustDir)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			log.Warn().Str("service", cfg.ServiceName).Str("trust_dir", cfg.TrustDir).
+				Msg("auth: no trust directory; service tokens are not accepted (run unheaded-keygen)")
+		case err != nil:
+			return nil, err
+		default:
+			v, err := NewEdDSAVerifier(EdDSAVerifierConfig{
+				Trust:        td,
+				Issuer:       EdDSAServiceIssuer,
+				Audience:     cfg.ServiceName,
+				AllowCallers: cfg.AllowCallers,
+			})
+			if err != nil {
+				return nil, err
+			}
+			if len(cfg.AllowCallers) == 0 {
+				log.Warn().Str("service", cfg.ServiceName).
+					Msg("auth: AUTH_ALLOW_CALLERS is empty; every service token gets 403")
+			}
+			out = append(out, v)
+		}
+	}
+	if cfg.OIDCIssuerURL != "" {
+		v, err := NewJWKSVerifier(cfg.OIDCIssuerURL, cfg.ServiceName, nil, 0)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// hs256Authenticators is the pre-ADR-103 shared-key setup, kept for tests.
+func hs256Authenticators(cfg ServiceAuthConfig) []Authenticator {
+	var out []Authenticator
 	if len(cfg.JWTSigningKey) > 0 {
-		authenticators = append(authenticators, NewJWTAuthenticator(JWTConfig{
+		out = append(out, NewJWTAuthenticator(JWTConfig{
 			SigningKey: cfg.JWTSigningKey,
 			Issuer:     cfg.Issuer,
 			Audience:   cfg.Audience,
 		}))
-	}
-
-	// Service token authenticator (uses same signing key, different issuer)
-	if len(cfg.JWTSigningKey) > 0 && cfg.ServiceName != "" {
-		authenticators = append(authenticators, NewJWTAuthenticator(JWTConfig{
-			SigningKey:   cfg.JWTSigningKey,
-			Issuer:       ServiceTokenIssuer,
-			Audience:     cfg.ServiceName,
-			AllowedRoles: []string{RoleService},
-		}))
-	}
-
-	// API key authenticator
-	if len(cfg.APIKeys) > 0 || cfg.APIKeyFile != "" {
-		apikeyCfg := APIKeyConfig{
-			Keys:    cfg.APIKeys,
-			KeyFile: cfg.APIKeyFile,
-		}
-		apiKeyAuth, err := NewAPIKeyAuthenticator(apikeyCfg)
-		if err != nil {
-			log.Error().Err(err).Str("service", cfg.ServiceName).
-				Msg("auth: API keys unusable, API key authentication is off")
-		} else {
-			authenticators = append(authenticators, apiKeyAuth)
+		if cfg.ServiceName != "" {
+			out = append(out, NewJWTAuthenticator(JWTConfig{
+				SigningKey:   cfg.JWTSigningKey,
+				Issuer:       ServiceTokenIssuer,
+				Audience:     cfg.ServiceName,
+				AllowedRoles: []string{RoleService},
+			}))
 		}
 	}
+	return out
+}
 
-	if len(authenticators) == 0 {
-		// An empty MultiAuthenticator refuses every request (401).
-		log.Error().Str("service", cfg.ServiceName).
-			Msg("auth: AUTH_ENABLED=true but no AUTH_JWT_KEY or usable API key: refusing every request except /health /ready /metrics")
-	}
-
-	multi := &MultiAuthenticator{Authenticators: authenticators}
-	authMiddleware := Middleware(multi)
-
-	// Skip auth for health/ready/metrics
-	return SkipAuthPaths(authMiddleware, "/health", "/ready", "/metrics")
+// ServiceTokenMinter loads this service's key (KeyFile) for minting its own
+// tokens to the services it calls.
+func (c ServiceAuthConfig) ServiceTokenMinter() (*ServiceTokenMinter, error) {
+	return LoadServiceTokenMinter(c.ServiceName, c.KeyFile)
 }
 
 // WrapHandler applies the auth middleware to a handler if the middleware is non-nil.

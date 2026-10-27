@@ -74,7 +74,7 @@ func main() {
 		kanbanStore  = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; requires WELL_DSN env). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
 		rateRPS      = flag.Float64("rate-limit", defaultRateLimitRPS, "per-IP requests/sec (0 disables)")
 		rateBurst    = flag.Int("rate-burst", defaultRateBurst, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
-		noAuth       = flag.Bool("no-auth", false, "serve without authentication; only with a loopback -host and AUTH_ENABLED unset (dev). Without it, zhen-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or AUTH_JWT_KEY are set")
+		noAuth       = flag.Bool("no-auth", false, "serve without authentication; only with a loopback -host and AUTH_ENABLED unset (dev). Without it, zhen-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or a trust dir (AUTH_TRUST_DIR) is set")
 		auditWell    = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
 		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
 		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")

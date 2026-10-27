@@ -188,14 +188,18 @@ func Middleware(auth Authenticator) func(http.Handler) http.Handler {
 }
 
 // MultiAuthenticator tries multiple authenticators in order.
-// The first one that succeeds wins. If all fail, returns the last error.
+// The first one that succeeds wins. If all fail, it returns the most
+// specific error: rate limited (429) over forbidden (403) over the last
+// error. A caller whose credential verified but is not allowed (e.g.
+// ErrCallerNotAllowed) thus gets 403 even when a later authenticator, for
+// another credential type, only saw "no credential" (401).
 type MultiAuthenticator struct {
 	Authenticators []Authenticator
 }
 
 // Authenticate tries each authenticator in order.
 func (m *MultiAuthenticator) Authenticate(ctx context.Context, r *http.Request) (*Identity, error) {
-	var lastErr error
+	var lastErr, forbidden, limited error
 	for _, a := range m.Authenticators {
 		identity, err := a.Authenticate(ctx, r)
 		if err == nil && identity != nil {
@@ -204,9 +208,24 @@ func (m *MultiAuthenticator) Authenticate(ctx context.Context, r *http.Request) 
 		if err == nil {
 			err = ErrUnauthenticated
 		}
+		switch {
+		case errors.Is(err, ErrRateLimited):
+			if limited == nil {
+				limited = err
+			}
+		case errors.Is(err, ErrForbidden):
+			if forbidden == nil {
+				forbidden = err
+			}
+		}
 		lastErr = err
 	}
-	if lastErr != nil {
+	switch {
+	case limited != nil:
+		return nil, limited
+	case forbidden != nil:
+		return nil, forbidden
+	case lastErr != nil:
 		return nil, lastErr
 	}
 	return nil, ErrUnauthenticated

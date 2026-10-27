@@ -1710,6 +1710,162 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "pkg/auth/jwks.go:9:sig-import",
+      "name": "Ed25519 (crypto/ed25519)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "Ed25519",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/auth/jwks.go:9"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/auth/jwt_eddsa.go:8:sig-import",
+      "name": "Ed25519 (crypto/ed25519)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "Ed25519",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/auth/jwt_eddsa.go:8"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/auth/keys.go:7:sig-import",
+      "name": "Ed25519 (crypto/ed25519)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "Ed25519",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/auth/keys.go:7"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/auth/service_token_eddsa.go:7:sig-import",
+      "name": "Ed25519 (crypto/ed25519)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "Ed25519",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/auth/service_token_eddsa.go:7"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "pkg/compliance/snapshot/snapshot.go:19:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
