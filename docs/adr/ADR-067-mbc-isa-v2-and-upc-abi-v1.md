@@ -30,6 +30,9 @@ New MBC opcodes:
 ### Decision 2 — Memory-mapped CSR region
 
 Reserve RAM bytes `0x000_F000 - 0x000_F0FF` (256 bytes = 64 × 4-byte CSRs).
+**Superseded in part (2026-10-23 implementation note below; RFC Editor S5 item 4
+ruled 2026-10-27):** the region is `0xF000 + csr*4` for the full 12-bit index,
+`0xF000-0x12FFC`, as `draft-bellis-unheaded-mbc-isa-00` §"Control and Status Registers" states.
 
 Translator emits `CSRR* csr, rs1, rd` as a 2-instruction MBC sequence:
 - read: `LD rd, F000 + csr*4`
@@ -74,12 +77,15 @@ What the translator actually does, which differs from the text above in three pl
    image that uses one breaks the build rather than miscomputing at boot. Supporting
    them needs a spill (PUSH/POP) or XCHG sequence — a separate change.
 
-**Open RFC Editor items (review requested, not self-approved):**
-- `draft-bellis-unheaded-mbc-isa-00`: state the CSR byte-address range and the
-  read/write sequences above; the draft and this ADR still show `0xF000–0xF0FF`.
-- `draft-bellis-unheaded-mbc-isa-00` §IANA (KF10): opcodes 0x11–0x1B are listed as
-  RESERVED while 0x17/0x18/0x1A/0x1B are also assigned; MOVI is documented as
-  sign-extending `imm16` while both interpreters zero-extend it.
+**RFC Editor items (ruled 2026-10-27, S-TRUE-WIRE Steps 44-50):**
+- `draft-bellis-unheaded-mbc-isa-00` now has a "Control and Status Registers"
+  section: the `0xF000 + csr*4` map (`0xF000-0x12FFC`), the read/write/RMW
+  sequences, the transient-register rule and the fail-closed rejected forms above.
+- §IANA (KF10): the opcode table lists what every engine decodes (0x00 NOP,
+  0x17/0x18/0x1A/0x1B assigned, the five ISA v2 opcodes 0x3F/0x47-0x4A, unassigned
+  spans exact); MOVI is documented as zero-extending `imm16`, and MOV, MOVI and
+  LOAD_IMM32 as leaving the flags alone. The draft gained an "ISA v2 Instructions"
+  section for FENCE, MRET, SRET, LR.W, SC.W.
 
 ### Decision 3 — Single-CPU per UPC instance, SMP-aware ABI
 

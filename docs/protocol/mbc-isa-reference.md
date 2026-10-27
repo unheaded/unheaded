@@ -177,22 +177,32 @@ Syscall number is in `regs[0]` at time of SYSCALL execution.
 0x01-0x06  Arithmetic:     ADD SUB MUL DIV MOD NEG
 0x07-0x0D  Bitwise:        AND OR XOR NOT SHL SHR SAR
 0x0E-0x10  Register/CMP:   MOV MOVI CMP
-0x11-0x19  (reserved)
+0x11-0x16  (unassigned)
+0x17-0x18  Interrupt:      INT IRET
+0x19       (unassigned)
 0x1A-0x1B  Stack:          PUSH POP
 0x1C-0x1D  Extended imm:   LOAD_IMM32 ADDI
-0x1E-0x1F  (reserved)
+0x1E-0x1F  (unassigned)
 0x20-0x26  Branch:         JMP JZ JNZ JN JP JC JNC
 0x27-0x2A  Call/Ret:       CALL RET JMPR CALLR
-0x2B-0x2F  (reserved)
+0x2B-0x2F  (unassigned)
 0x30-0x35  Memory:         LD ST LDB STB LDH STH
-0x36-0x39  Reg shifts:     SHLR SHRR SARR MULH
-0x3A-0x3F  (reserved)
+0x36-0x3A  Reg shifts/mul: SHLR SHRR SARR MULH MULHU
+0x3B-0x3E  Atomic:         CLI STI XCHG CAS
+0x3F       ISA v2:         FENCE
 0x40       System:         SYSCALL
-0x41-0xFE  (reserved)
+0x41-0x46  (unassigned)
+0x47-0x4A  ISA v2:         MRET SRET LR.W SC.W
+0x4B-0xFD  (unassigned)
+0xFE       (reserved, never assigned)
 0xFF       System:         HALT
 ```
 
-Total defined opcodes: **43**
+Total defined opcodes: **56** (NOP, 50 base, 5 ISA v2). This map matches the
+MBC opcode registry in `draft-bellis-unheaded-mbc-isa-00` §IANA, corrected by
+RFC Editor S5 item 5 (KF10, 2026-10-27): the draft used to list 0x11-0x1B as
+reserved while assigning 0x17/0x18/0x1A/0x1B, and to document MOVI as
+sign-extending; every engine zero-extends (`regs[dst] = zero_extend(imm16)`).
 
 ---
 

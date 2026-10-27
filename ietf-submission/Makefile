@@ -36,7 +36,11 @@ html: $(HTML_FILES)
 %.html: %.xml
 	$(XML2RFC) --html $<
 
-%.xml: %.md
+# The .xml files are the submission sources and are maintained by hand (they
+# carry fixes the .md twins do not). Never let make regenerate them from the
+# .md: a newer .md mtime would silently overwrite the reviewed XML. kramdown
+# output goes beside them for comparison only: make <draft>.kramdown.xml
+%.kramdown.xml: %.md
 	$(KRAMDOWN) $< > $@ 2>$(basename $<)_kramdown_err.txt
 
 # Renders each draft to text (discarded) and fails on any xml2rfc error.
@@ -56,4 +60,4 @@ validate:
 
 clean:
 	rm -f $(TXT_FILES) $(HTML_FILES)
-	rm -f *_err.txt *_kramdown_err.txt
+	rm -f *_err.txt *_kramdown_err.txt *.kramdown.xml
