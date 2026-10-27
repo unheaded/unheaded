@@ -47,14 +47,17 @@ the redactor before it is written, then is cut at 64 KiB
 (`\n[truncated by zhencapture]` marks a cut).
 
 The patterns live in one file, `pkg/zhencapture/redact_patterns.json`, read by
-`pkg/zhencapture` (used by `cmd/zhen-claude` and `cmd/zhen-mcp`). A match
+`pkg/zhencapture` (used by `cmd/zhen-claude`, `cmd/zhen-mcp` and
+`cmd/well-retention`'s archive) and by `raft/zhen_redact.py` (the web UI's
+conversation writer, `_pg_log`). A match
 becomes `[REDACTED:<kind>]`, keeping a `password=` style prefix where the
 pattern has one. Kinds: `private_key` (PEM blocks, including an unterminated
 one), `anthropic_key`, `openai_key`, `aws_access_key`, `aws_secret`,
 `github_token`, `slack_token`, `jwt`, `bearer`, `url_password`
 (`scheme://user:PASSWORD@`), and `assignment` (`password=`, `secret:`,
 `api_key=`, `client_secret:`, `*_token=` and similar, values of four or more
-characters).
+characters), and `email` (an address with a dotted domain; `user@localhost`
+is kept).
 
 This is a filter for known shapes, not a guarantee. A secret in an unusual
 form gets through, which is why the directory rules above exist as well.

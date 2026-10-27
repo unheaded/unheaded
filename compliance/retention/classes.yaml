@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Well's retention classes, read by cmd/well-retention (S-WELL-SPRING
+# Phase 4, M-074). One source: docs/policy/retention-policy-v1-2026-05-06.md
+# §11 is the same table in prose; change both in one commit.
+#
+# A class names one table the job knows (cmd/well-retention/targets.go
+# holds the SQL; an unknown table is refused, nothing here is SQL) and one
+# action:
+#   purge            delete rows older than online_days
+#   purge-function   call the table's own purge function (zhen_captures:
+#                    033's zhen_captures_purge(); online_days must match the
+#                    age 033's trigger sets)
+#   archive-purge    copy each row, redacted, into retention_archive, then
+#                    delete it
+#   partition-check  never deletes: measures ERDA 5.4's trigger (1 M rows,
+#                    1 GB, or 90 days before the oldest row reaches
+#                    online_days) and records it
+# hold: true suspends a class's deletes (legal hold, policy §4.2).
+#
+# ratified: false means the job dry-runs only; a live run is refused until
+# Stevie ratifies the ages (E-C) and this says true.
+
+version: 1
+ratified: false
+
+classes:
+  - name: zhen-conversations
+    table: zhen_conversations
+    action: purge
+    online_days: 90
+
+  - name: zhen-captures
+    table: zhen_captures
+    action: purge-function
+    online_days: 180
+
+  - name: kanban-soft-deleted
+    table: kanban_tasks
+    action: archive-purge
+    online_days: 90
+
+  - name: retention-archive
+    table: retention_archive
+    action: purge
+    online_days: 365
+
+  - name: llm-requests
+    table: llm_requests
+    action: partition-check
+    online_days: 90
+
+  - name: service-health-transitions
+    table: service_health_transitions
+    action: partition-check
+    online_days: 90
+
+  - name: audit-events
+    table: audit_events
+    action: partition-check
+    online_days: 90
+
+  - name: compliance-findings-history
+    table: compliance_findings_history
+    action: partition-check
+    online_days: 365
+
+  - name: deploy-history
+    table: deploy_history_transitions
+    action: partition-check
+    online_days: 365
+
+  - name: chaos-journal
+    table: chaos_journal
+    action: partition-check
+    online_days: 365
+
+  - name: zhen-agent-runs
+    table: zhen_agent_runs
+    action: partition-check

@@ -557,6 +557,11 @@ jobs:
       - name: SLO definitions table and the alert-policy Well leg
         run: ./scripts/well/test-slo-definitions.sh
 
+      # S-WELL-SPRING Phase 4: retention_runner (042), retention_runs and
+      # retention_archive (043), and cmd/well-retention end to end.
+      - name: Retention job, its role and its records
+        run: ./scripts/well/test-retention.sh
+
       - name: Backup set and restore drill
         run: ./scripts/well/test-backup-restore.sh
 

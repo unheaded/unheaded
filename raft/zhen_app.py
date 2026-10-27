@@ -49,6 +49,7 @@ from flask import Flask, jsonify, request, send_file
 # Add scripts dir to path for RAG import
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
 import zhen_highlight
+import zhen_redact
 import zhen_scheduler_client
 from zhen_rag import (
     AgentdGateUnavailable,
@@ -269,11 +270,24 @@ def _check_memories_table():
 _check_memories_table()
 
 
+# Conversation text is operator-typed and can carry customer data or a
+# pasted secret (retention policy v1 §3.9, §11): every row passes the shared
+# redactor (pkg/zhencapture/redact_patterns.json) before it reaches the
+# Well. Without the rules nothing is persisted.
+try:
+    _REDACT = zhen_redact.load()
+except Exception as e:  # any failure means no rules: refuse to persist
+    _REDACT = None
+    log.warning(f"[zhen] redaction rules unavailable, conversations will not be persisted: {e}")
+
+
 def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output=0, elapsed_ms=0):
-    """Insert a conversation row. Silently skips if Postgres is unavailable."""
+    """Insert a conversation row, redacted. Skips if Postgres or the redaction rules are unavailable."""
     global pg_conn
-    if pg_conn is None:
+    if pg_conn is None or _REDACT is None:
         return
+    content, _ = zhen_redact.redact(content, _REDACT)
+    sources = zhen_redact.redact_json(sources, _REDACT)
     try:
         cur = pg_conn.cursor()
         cur.execute(

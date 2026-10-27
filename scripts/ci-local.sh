@@ -148,6 +148,14 @@ else
     skip_step "alert policy vs the live Well" "set WELL_DB and WELL_PASSWORD (ops_writer) on west"
 fi
 
+# 11b. Retention (S-WELL-SPRING Phase 4): migrations 042/043 and
+#      cmd/well-retention on a throwaway server; never the live Well.
+if command -v docker &>/dev/null && docker info &>/dev/null; then
+    run_step "retention job (throwaway Well)" scripts/well/test-retention.sh
+else
+    skip_step "retention job (throwaway Well)" "docker not available"
+fi
+
 # 12. Perf regression (west only, needs the running stack; M-089).
 #     Opt-in: it publishes to Wotan (bench.perf.packet only) and holds
 #     1000 req/s against -health for 60 s, so a casual run never loads the

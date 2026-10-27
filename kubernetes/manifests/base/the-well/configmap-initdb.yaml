@@ -106,6 +106,7 @@ data:
     set_password config_reader  CONFIG_READER_PASSWORD
     set_password huginn_reader  HUGINN_READER_PASSWORD
     set_password well_backup    WELL_BACKUP_PASSWORD
+    set_password retention_runner RETENTION_RUNNER_PASSWORD
 
     echo "=== The Well — Ready ==="
   MANIFEST: |
@@ -171,6 +172,9 @@ data:
     unheaded_ops     039_ops_deploy_chaos.sql
     unheaded_ops     040_ops_slo_definitions.sql
     unheaded_app     041_app_kanban_reads_agent_runs.sql
+    postgres         042_retention_runner.sql
+    unheaded_app     042_retention_runner.sql
+    unheaded_ops     043_ops_retention.sql
 
     # The pre-split single-database schema, superseded by 003/004/005: applying
     # it would put a fourth copy of kanban_tasks, timeline_milestones and
@@ -2750,3 +2754,161 @@ data:
 
     GRANT SELECT (id, card_id, claimed_at, status, mode, family, branch, head_commit, route_summary, review_reason, reviewed_at)
        ON zhen_agent_runs TO app_kanban;
+  042_retention_runner.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — retention_runner, the login role of the retention job
+    -- (S-WELL-SPRING Phase 4, M-074; retention policy v1 §11), cluster-level
+    -- and unheaded_app.
+    --
+    -- well-retention (cmd/well-retention, timer unheaded-well-retention) is
+    -- the only thing that deletes rows the retention policy ages out. It logs
+    -- in as retention_runner, its own role: no service's leaked password can
+    -- delete history, and retention_runner can delete from nothing but the
+    -- tables its classes own (compliance/retention/classes.yaml).
+    --
+    -- Applied twice (MANIFEST), like 007: in `postgres` it creates the role
+    -- and grants CONNECT; in unheaded_app it grants what the app-side classes
+    -- need. 043 does unheaded_ops.
+    --
+    -- unheaded_app grants, per class:
+    --   zhen-conversations   DELETE, and SELECT of the age column only
+    --   zhen-captures        EXECUTE zhen_captures_purge() (033, the only
+    --                        delete path; the age is 033's trigger, 180 days)
+    --                        and SELECT of the three columns its dry-run count
+    --                        reads; no DELETE: 033's trigger refuses one anyway
+    --   kanban-soft-deleted  SELECT, DELETE: the archive copies the whole row
+    --                        (redacted) before the purge deletes it
+    --   zhen-agent-runs      SELECT (card_id, claimed_at): a card any run names
+    --                        is held, never purged (032's foreign key would
+    --                        refuse it too), and the run table's age is
+    --                        measured; runs are never deleted
+    --
+    -- No password here: db/init.sh and scripts/well/set-role-passwords.sh set
+    -- it from RETENTION_RUNNER_PASSWORD. Connection limit 4: one job, one
+    -- connection per database.
+    --
+    -- Lock plan: a role, database grants and table grants (catalog updates,
+    -- instant); no table is rewritten. Rollback: a later numbered migration
+    -- revokes the grants and drops the role once 043's grants are revoked too.
+    -- Proof: scripts/well/test-retention.sh (throwaway server).
+
+    SET lock_timeout = '5s';
+
+    DO $$
+    BEGIN
+        IF current_database() = 'postgres' THEN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'retention_runner') THEN
+                CREATE ROLE retention_runner LOGIN CONNECTION LIMIT 4;
+            END IF;
+            GRANT CONNECT ON DATABASE unheaded_app TO retention_runner;
+            GRANT CONNECT ON DATABASE unheaded_ops TO retention_runner;
+        END IF;
+    END $$;
+
+    DO $$
+    BEGIN
+        IF current_database() = 'unheaded_app' THEN
+            GRANT SELECT (created_at), DELETE ON zhen_conversations TO retention_runner;
+            GRANT SELECT (quarantined, promoted, purge_after) ON zhen_captures TO retention_runner;
+            GRANT EXECUTE ON FUNCTION zhen_captures_purge() TO retention_runner;
+            GRANT SELECT, DELETE ON kanban_tasks TO retention_runner;
+            GRANT SELECT (card_id, claimed_at) ON zhen_agent_runs TO retention_runner;
+        END IF;
+    END $$;
+  043_ops_retention.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — what the retention job did, and what it archived
+    -- (S-WELL-SPRING Phase 4, M-074; retention policy v1 §11), unheaded_ops.
+    --
+    -- retention_runs     one row per class per run of well-retention, dry runs
+    --                    included: the cutoff, how many rows were eligible,
+    --                    deleted, archived and held, and for a partition check
+    --                    the ERDA 5.4 measurement (detail: rows, bytes, oldest,
+    --                    partition_by, due). A run is written once, when its
+    --                    class finishes; append-only by trigger like 015/039.
+    -- retention_archive  the copy a class with an archive keeps before it
+    --                    purges (kanban-soft-deleted today): the source row as
+    --                    JSON with every string redacted (pkg/zhencapture
+    --                    patterns) before it is written here. Its own class
+    --                    (retention-archive, 365 days) purges it. Never
+    --                    updated; nobody but the job reads it.
+    --
+    -- Partition checks read only the age column of each append-only table
+    -- (column SELECT below) plus pg_stat/pg_class sizes, which need no grant:
+    -- never a payload column.
+    --
+    -- Writer: retention_runner (042). retention_runs: SELECT, INSERT;
+    -- ops_reader reads it. retention_archive: SELECT, INSERT, DELETE for
+    -- retention_runner only. Owner: well_ops_owner.
+    --
+    -- Access paths: retention_runs by time for a person (`ORDER BY id DESC`;
+    -- tens of rows a week, no secondary index); retention_archive by age for
+    -- its own purge (retention_archive_archived_at_idx).
+    --
+    -- Lock plan: two new tables and column grants on existing tables (catalog
+    -- updates, instant). Rollback: a later numbered migration drops the
+    -- tables and revokes the grants. Proof: scripts/well/test-retention.sh
+    -- (throwaway server).
+
+    SET lock_timeout = '5s';
+
+    CREATE TABLE retention_runs (
+        id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        run_id         TEXT NOT NULL CHECK (run_id ~ '^[0-9a-f]{16}$'),
+        class          TEXT NOT NULL CHECK (class ~ '^[a-z][a-z0-9-]{0,47}$'),
+        action         TEXT NOT NULL
+            CHECK (action IN ('purge', 'purge-function', 'archive-purge', 'partition-check', 'held')),
+        dry_run        BOOLEAN NOT NULL,
+        host           TEXT NOT NULL CHECK (length(host) BETWEEN 1 AND 253),
+        started_at     TIMESTAMPTZ NOT NULL,
+        finished_at    TIMESTAMPTZ NOT NULL CHECK (finished_at >= started_at),
+        cutoff         TIMESTAMPTZ,
+        eligible       BIGINT NOT NULL DEFAULT 0 CHECK (eligible >= 0),
+        deleted        BIGINT NOT NULL DEFAULT 0 CHECK (deleted >= 0),
+        archived       BIGINT NOT NULL DEFAULT 0 CHECK (archived >= 0),
+        held           BIGINT NOT NULL DEFAULT 0 CHECK (held >= 0),
+        detail         JSONB NOT NULL DEFAULT '{}' CHECK (jsonb_typeof(detail) = 'object'),
+        error          TEXT NOT NULL DEFAULT '' CHECK (length(error) <= 512),
+        CHECK (NOT dry_run OR (deleted = 0 AND archived = 0)),
+        UNIQUE (run_id, class)
+    );
+
+    CREATE TABLE retention_archive (
+        id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        run_id         TEXT NOT NULL CHECK (run_id ~ '^[0-9a-f]{16}$'),
+        class          TEXT NOT NULL CHECK (class ~ '^[a-z][a-z0-9-]{0,47}$'),
+        source_db      TEXT NOT NULL CHECK (source_db IN ('unheaded_app', 'unheaded_ops')),
+        source_table   TEXT NOT NULL CHECK (source_table ~ '^[a-z][a-z0-9_]{0,62}$'),
+        source_key     TEXT NOT NULL CHECK (source_key <> '' AND length(source_key) <= 256),
+        row_data       JSONB NOT NULL CHECK (jsonb_typeof(row_data) = 'object'),
+        redactions     INTEGER NOT NULL DEFAULT 0 CHECK (redactions >= 0),
+        archived_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX retention_archive_archived_at_idx ON retention_archive (archived_at);
+
+    CREATE OR REPLACE TRIGGER trg_retention_runs_append_only
+        BEFORE UPDATE OR DELETE ON retention_runs
+        FOR EACH ROW EXECUTE FUNCTION well_append_only();
+    CREATE OR REPLACE TRIGGER trg_retention_runs_no_truncate
+        BEFORE TRUNCATE ON retention_runs
+        FOR EACH STATEMENT EXECUTE FUNCTION well_append_only();
+    -- The archive is purged row by row at its age, never edited or truncated.
+    CREATE OR REPLACE TRIGGER trg_retention_archive_no_update
+        BEFORE UPDATE ON retention_archive
+        FOR EACH ROW EXECUTE FUNCTION well_append_only();
+    CREATE OR REPLACE TRIGGER trg_retention_archive_no_truncate
+        BEFORE TRUNCATE ON retention_archive
+        FOR EACH STATEMENT EXECUTE FUNCTION well_append_only();
+
+    GRANT SELECT, INSERT ON retention_runs TO retention_runner;
+    GRANT SELECT ON retention_runs TO ops_reader;
+    GRANT SELECT, INSERT, DELETE ON retention_archive TO retention_runner;
+
+    -- Partition checks: the age column of each append-only table, nothing else.
+    GRANT SELECT (occurred_at) ON llm_requests TO retention_runner;
+    GRANT SELECT (transition_at) ON service_health_transitions TO retention_runner;
+    GRANT SELECT (occurred_at) ON audit_events TO retention_runner;
+    GRANT SELECT (changed_at) ON compliance_findings_history TO retention_runner;
+    GRANT SELECT (occurred_at) ON deploy_history_transitions TO retention_runner;
+    GRANT SELECT (created_at) ON chaos_journal TO retention_runner;
