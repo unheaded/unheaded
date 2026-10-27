@@ -4,8 +4,9 @@
 against a throwaway Wotan on free ports with a temp allowlist.
 
 Plan amendment (H12): the plan's test had the pending subscriber "appear in
-/api/v1/admin/pending", which cannot happen: Wotan never sets its admin key,
-so every admin call answers 401. The test pins that gap instead, detects the
+/api/v1/admin/pending". Wotan's admin API is off by default (S-CLEAN-SLATE:
+routes registered only with -admin and the admin key), so the call answers
+404. The test pins that instead, detects the
 pending member the way the runbook does (the subscribe answer, the log line,
 the unheaded_chat_members_pending gauge), then allowlists and restarts."""
 import time
@@ -48,7 +49,7 @@ def test_admin_api_is_not_the_path():
     text = (harness.REPO / RB).read_text()
     for s in harness.steps(harness.load(RB)):
         assert "/api/v1/admin/approve" not in (s.get("command") or ""), s["name"]
-    assert "401" in text  # the runbook says why
+    assert "404" in text  # the runbook says why
 
 
 def test_known_name_is_found_and_unknown_is_not():
@@ -62,11 +63,11 @@ def test_pending_then_allowlisted_after_restart(throwaway_wotan, tmp_path):
     rb = harness.load(RB)
     env = {"WOTAN_URL": w.url, "NAME": UNKNOWN, "TOPIC": TOPIC}
 
-    # pending, and the admin API cannot list it (H12)
+    # pending, and the admin API (off by default) cannot list it (H12)
     code, body = w.subscribe(TOPIC, UNKNOWN)
     assert code == 201 and body["subscriber"]["status"] == "pending"
     code, _ = harness.http("GET", w.url + "/api/v1/admin/pending")
-    assert code == 401
+    assert code == 404
     # detection the runbook uses: the log line and the gauge (the precondition)
     deadline = time.time() + 10
     while "topic_subscriber_pending_approval" not in w.log.read_text() and time.time() < deadline:

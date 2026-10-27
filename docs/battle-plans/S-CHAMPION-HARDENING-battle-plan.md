@@ -120,7 +120,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Branch and baseline
 
-- [ ] **Step 1** [ENV][B] ~1m: Confirm base and S-CLEAN-SLATE
+- [x] **Step 1** [ENV][B] ~1m: Confirm base and S-CLEAN-SLATE
   ```bash
   cd /home/govan/tmp/unheaded && git rev-parse --abbrev-ref HEAD && git log --oneline -1 && git merge-base --is-ancestor a7fe3acd HEAD && echo "base ok" && grep -c 'SHIPPED' docs/battle-plans/S-CLEAN-SLATE-battle-plan.md || echo "S-CLEAN-SLATE not shipped: STOP (prerequisite)"
   ```
@@ -128,15 +128,15 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && git status --short | grep -v '^?? cmd/host-agent/\|^?? host-agent$' | wc -l && git checkout -b sprint/champion-hardening
   ```
-- [ ] **Step 3** [ENV][B] ~1m: GPG probe (decides `-S` vs `--no-gpg-sign` for every [C])
+- [x] **Step 3** [ENV][B] ~1m: GPG probe (decides `-S` vs `--no-gpg-sign` for every [C])
   ```bash
   cd /home/govan/tmp/unheaded && if git commit-tree -S -m probe "$(git rev-parse HEAD^{tree})" >/dev/null 2>&1; then echo "SIGN=yes"; else echo "SIGN=no → use --no-gpg-sign"; fi
   ```
-- [ ] **Step 4** [BUILD][B] ~3m: Build baseline
+- [x] **Step 4** [BUILD][B] ~3m: Build baseline
   ```bash
   cd /home/govan/tmp/unheaded && go build ./... && echo BUILD_OK && go mod tidy -diff | head -3 && echo TIDY_CHECKED
   ```
-- [ ] **Step 5** [TEST][B] ~8m: KNOWN FAILURES BASELINE (record the tail into the progress file)
+- [x] **Step 5** [TEST][B] ~8m: KNOWN FAILURES BASELINE (record the tail into the progress file)
   ```bash
   cd /home/govan/tmp/unheaded && mkdir -p docs/battle-plans/progress && go test ./... 2>&1 | grep -E '^(FAIL|ok|---)' | grep -v '^ok' | tee -a docs/battle-plans/progress/S-CHAMPION-HARDENING-progress.md | tail -10; echo "baseline recorded"
   ```
@@ -145,24 +145,24 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Hypothesis checks (one per SITUATION bullet)
 
-- [ ] **Step 7** [PREFLIGHT][B] ~1m: Trust label is a single string compare
+- [x] **Step 7** [PREFLIGHT][B] ~1m: Trust label is a single string compare
   ```bash
   cd /home/govan/tmp/unheaded && grep -n 'SourceTrust == "external"' pkg/champion/toolcall.go && ! grep -n 'allowedTrust\|trustAllowlist' pkg/champion/toolcall.go && echo "H1 holds"
   ```
-- [ ] **Step 8** [PREFLIGHT][B] ~1m: Confirm tokens unbound, no gc ticker, no write cap, audit errors discarded
+- [x] **Step 8** [PREFLIGHT][B] ~1m: Confirm tokens unbound, no gc ticker, no write cap, audit errors discarded
   ```bash
   cd /home/govan/tmp/unheaded && grep -n 'approvedBy string' pkg/champion/confirmcall.go && ! grep -n 'NewTicker' pkg/champion/confirm.go && ! grep -nE 'MaxWriteBytes|maxWrite' pkg/champion/write.go && grep -n '_ = c.store.UpdateAction' pkg/champion/champion.go && grep -n 'actionID, _ := c.logAction' pkg/champion/write.go && echo "H2 holds"
   ```
-- [ ] **Step 9** [PREFLIGHT][B] ~1m: Listed-not-dispatched tools and the 20105 port question
+- [x] **Step 9** [PREFLIGHT][B] ~1m: Listed-not-dispatched tools and the 20105 port question
   ```bash
   cd /home/govan/tmp/unheaded && for t in runbook_show runbook_list system_command; do grep -q "case \"$t\"" pkg/champion/dispatch.go && echo "$t DISPATCHED" || echo "$t not dispatched"; done; grep -n '20105' pkg/ports/ports.go deploy/systemd/zhen-agentd.service
   ```
 - [ ] **Step 10** [V] ~1m: All three "not dispatched"; note whether `20105` appears in both files (a registry collision to fix in Step 182)
-- [ ] **Step 11** [PREFLIGHT][B] ~1m: Three prompt copies, two verb lists, no runbook hash, no GGUF sha
+- [x] **Step 11** [PREFLIGHT][B] ~1m: Three prompt copies, two verb lists, no runbook hash, no GGUF sha
   ```bash
   cd /home/govan/tmp/unheaded && grep -c 'CODE COMMENTS' pkg/agent/agent.go cmd/zhen-rag/main.go raft/scripts/zhen_rag.py && grep -n 'destructivePattern = ' pkg/champion/toolcall.go && grep -n 'DESTRUCTIVE-VERB FILTER' raft/scripts/zhen_rag.py && ! grep -n 'sha256' pkg/champion/write.go && ! grep -nE 'SHA256|sha256' scripts/switch-model.sh && echo "H3 holds"
   ```
-- [ ] **Step 12** [PREFLIGHT][B] ~1m: TOCTOU window and x/sys availability
+- [x] **Step 12** [PREFLIGHT][B] ~1m: TOCTOU window and x/sys availability
   ```bash
   cd /home/govan/tmp/unheaded && grep -n 'os.WriteFile(absPath' pkg/champion/write.go && ! grep -n 'Openat2\|RESOLVE_BENEATH' pkg/champion/write.go && grep -n 'golang.org/x/sys' go.mod && go doc golang.org/x/sys/unix.Openat2 | head -2
   ```
@@ -191,11 +191,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && for w in zhenrag claudebridge mcp cli; do git worktree add -b sprint/champion-hardening-$w ../unheaded-wt-$w sprint/champion-hardening 2>&1 | tail -1; done && git worktree list
   ```
-- [ ] **Step 20** [ENV][B] ~2m: Python venv for the runbook tests and the coding gate
+- [x] **Step 20** [ENV][B] ~2m: Python venv for the runbook tests and the coding gate
   ```bash
   cd /home/govan/tmp/unheaded && test -x ~/.venv/zhen/bin/python3 && ~/.venv/zhen/bin/python3 -m pytest --version && ~/.venv/zhen/bin/python3 -c 'import schedule, yaml; print("deps ok")'
   ```
-- [ ] **Step 21** [ENV][B] ~1m: Coding-gate prerequisites (used after every prompt change)
+- [x] **Step 21** [ENV][B] ~1m: Coding-gate prerequisites (used after every prompt change)
   ```bash
   cd /home/govan/tmp/unheaded && make -n coding-gate-ci | head -3 && ls scripts/coding-gate-ci.sh scripts/probe-sanitization-check.sh && ls eval/coding-gate | head -3
   ```
@@ -212,11 +212,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 1.5 h
 **Agent**: Agent A (pkg/champion), [SEQ] with Phases 2-3, [P:4] [P:5]
 
-- [ ] **Step 23** [R] ~2m: Read the current check and its tests
+- [x] **Step 23** [R] ~2m: Read the current check and its tests
   ```bash
   cd /home/govan/tmp/unheaded && sed -n 150,205p pkg/champion/toolcall.go && grep -n 'SourceTrust' pkg/champion/toolcall_test.go | head
   ```
-- [ ] **Step 24** [CODE][W] ~5m: Red test — table of labels that must be untrusted
+- [x] **Step 24** [CODE][W] ~5m: Red test — table of labels that must be untrusted
   Append to `pkg/champion/toolcall_test.go`:
   ```go
   func TestHasUntrustedJustification_ExactAllowlist(t *testing.T) {
@@ -240,12 +240,12 @@ Copyright (c) 2024-2026 Stevie Bellis.
   	}
   }
   ```
-- [ ] **Step 25** [TEST][B] ~1m: Expect FAIL
+- [x] **Step 25** [TEST][B] ~1m: Expect FAIL
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run TestHasUntrustedJustification_ExactAllowlist -count=1 2>&1 | tail -5
   ```
-- [ ] **Step 26** [V] ~1m: Test FAILS on at least `"External"` and `"ext"` (proves H1). If it passes → the fix already landed; mark Steps 27-28 done and continue.
-- [ ] **Step 27** [CODE][W] ~5m: Green — exact allowlist
+- [x] **Step 26** [V] ~1m: Test FAILS on at least `"External"` and `"ext"` (proves H1). If it passes → the fix already landed; mark Steps 27-28 done and continue.
+- [x] **Step 27** [CODE][W] ~5m: Green — exact allowlist
   In `pkg/champion/toolcall.go`, above `HasUntrustedJustification`, add:
   ```go
   // TrustedSourceLabels is the closed set of SourceTrust values a
@@ -263,12 +263,12 @@ Copyright (c) 2024-2026 Stevie Bellis.
   	}
   	return false
   ```
-- [ ] **Step 28** [TEST][B] ~2m: Expect PASS, then the whole package with race
+- [x] **Step 28** [TEST][B] ~2m: Expect PASS, then the whole package with race
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run TestHasUntrustedJustification -count=1 && go test ./pkg/champion/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 29** [V] ~1m: PASS; no other champion test regressed (a test that asserted a non-listed label was trusted must be fixed to use a listed one, and that change recorded in the progress file).
-- [ ] **Step 30** [CODE][W] ~5m: Fuzz target for the trust check
+- [x] **Step 29** [V] ~1m: PASS; no other champion test regressed (a test that asserted a non-listed label was trusted must be fixed to use a listed one, and that change recorded in the progress file).
+- [x] **Step 30** [CODE][W] ~5m: Fuzz target for the trust check
   Create `pkg/champion/trust_fuzz_test.go`:
   ```go
   package champion
@@ -291,31 +291,31 @@ Copyright (c) 2024-2026 Stevie Bellis.
   	})
   }
   ```
-- [ ] **Step 31** [TEST][B] ~2m: Fuzz 60 s
+- [x] **Step 31** [TEST][B] ~2m: Fuzz 60 s
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run '^$' -fuzz FuzzTrustLabel -fuzztime 60s 2>&1 | tail -3
   ```
-- [ ] **Step 32** [V] ~1m: No failing input. If one is found → it is a real bug in Step 27's map lookup (impossible by construction) or the seed corpus; fix, re-run.
-- [ ] **Step 33** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 23-32: exact trust-label allowlist + fuzz (RT-06)`
+- [x] **Step 32** [V] ~1m: No failing input. If one is found → it is a real bug in Step 27's map lookup (impossible by construction) or the seed corpus; fix, re-run.
+- [x] **Step 33** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 23-32: exact trust-label allowlist + fuzz (RT-06)`
 
 ### vor chain verifier
 
-- [ ] **Step 34** [R] ~3m: How a retrieval reference reaches `Justification` today
+- [x] **Step 34** [R] ~3m: How a retrieval reference reaches `Justification` today
   ```bash
   cd /home/govan/tmp/unheaded && grep -rn 'SourceTrust:' --include=*.go pkg cmd | grep -v _test | head -12 && grep -n 'func.*Reference' pkg/champion/toolcall.go | head
   ```
-- [ ] **Step 35** [DESIGN][W] ~5m: Record the verifier contract in `pkg/champion/toolcall.go` doc comment: a `Reference` with `SourceTrust: "local"` MUST carry `Topic` (the vor topic id) and `Digest` (sha256 of the retrieved text, hex); `VerifyChain(refs, lookup func(topic string) (text string, ok bool)) error` recomputes digests. Add the two fields to `Reference` if absent (check Step 34 output; `json:"topic"` already exists per toolexec.go:49).
-- [ ] **Step 36** [CODE][W] ~8m: Red test `TestVerifyChain` (digest mismatch → error; missing topic → error; ok → nil) appended to `pkg/champion/toolcall_test.go`; then green: implement `VerifyChain` in a new `pkg/champion/chain.go` (stdlib `crypto/sha256`, `encoding/hex`; no new deps).
-- [ ] **Step 37** [TEST][B] ~2m
+- [x] **Step 35** [DESIGN][W] ~5m: Record the verifier contract in `pkg/champion/toolcall.go` doc comment: a `Reference` with `SourceTrust: "local"` MUST carry `Topic` (the vor topic id) and `Digest` (sha256 of the retrieved text, hex); `VerifyChain(refs, lookup func(topic string) (text string, ok bool)) error` recomputes digests. Add the two fields to `Reference` if absent (check Step 34 output; `json:"topic"` already exists per toolexec.go:49).
+- [x] **Step 36** [CODE][W] ~8m: Red test `TestVerifyChain` (digest mismatch → error; missing topic → error; ok → nil) appended to `pkg/champion/toolcall_test.go`; then green: implement `VerifyChain` in a new `pkg/champion/chain.go` (stdlib `crypto/sha256`, `encoding/hex`; no new deps).
+- [x] **Step 37** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run 'TestVerifyChain' -count=1 -race 2>&1 | tail -3
   ```
-- [ ] **Step 38** [CODE][W] ~6m: Call `VerifyChain` from the agent loop where references are attached (`pkg/agent/agent.go`, the site found in Step 34) with a lookup that re-reads the vor result cached for the turn; on error, downgrade the reference to `SourceTrust: "external"` (not drop: the gate then refuses the mutating call for the right reason) and log once at WARN. Add a test in `pkg/agent` with a fake lookup.
-- [ ] **Step 39** [TEST][B] ~3m
+- [x] **Step 38** [CODE][W] ~6m: Call `VerifyChain` from the agent loop where references are attached (`pkg/agent/agent.go`, the site found in Step 34) with a lookup that re-reads the vor result cached for the turn; on error, downgrade the reference to `SourceTrust: "external"` (not drop: the gate then refuses the mutating call for the right reason) and log once at WARN. Add a test in `pkg/agent` with a fake lookup.
+- [x] **Step 39** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/agent/... ./pkg/champion/... -race -count=1 2>&1 | tail -4 && go vet ./pkg/agent/... ./pkg/champion/...
   ```
-- [ ] **Step 40** [V] ~1m: **PHASE 1 EXIT GATE** — Steps 29, 32, 37, 39 green; `gofmt -l pkg/champion pkg/agent` empty. Commit `[PLAN S-CHAMPION-HARDENING] Steps 34-40: vor chain verifier`.
+- [x] **Step 40** [V] ~1m: **PHASE 1 EXIT GATE** — Steps 29, 32, 37, 39 green; `gofmt -l pkg/champion pkg/agent` empty. Commit `[PLAN S-CHAMPION-HARDENING] Steps 34-40: vor chain verifier`.
 
 ---
 
@@ -328,71 +328,71 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Requester binding (RT-03)
 
-- [ ] **Step 41** [R] ~2m
+- [x] **Step 41** [R] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && sed -n 40,60p pkg/champion/confirmcall.go && sed -n 100,135p pkg/champion/confirmcall.go && grep -n 'EmittedBy' cmd/zhen-agentd/*.go pkg/claudebridge/confirm.go | grep -v _test | head
   ```
-- [ ] **Step 42** [CODE][W] ~6m: Red test in `pkg/champion/confirmcall_test.go`: a `PendingCall` issued with `EmittedBy: "agent:zhen-7b"` and requester `Principal: "ui:stevie"` is refused by `ConfirmCall` when `approvedBy` is a different principal class ("agent:…" may never confirm; "ui:…"/"tty:…"/"queue:stevie" may confirm only if it equals the recorded requester or is `queue:stevie`).
-- [ ] **Step 43** [CODE][W] ~8m: Green: add `Requester string` to `PendingCall` (set from a new `ToolCall.Principal` field populated by agentd from the authenticated caller, `direct-user` paths use `"ui:"+subject`), add `confirmerAllowed(requester, approvedBy string) bool`, enforce in `ConfirmCall` before `confirmedGate`. Include `Requester` in `CanonicalCall`'s hashed bytes so a token cannot be re-bound.
-- [ ] **Step 44** [TEST][B] ~2m
+- [x] **Step 42** [CODE][W] ~6m: Red test in `pkg/champion/confirmcall_test.go`: a `PendingCall` issued with `EmittedBy: "agent:zhen-7b"` and requester `Principal: "ui:stevie"` is refused by `ConfirmCall` when `approvedBy` is a different principal class ("agent:…" may never confirm; "ui:…"/"tty:…"/"queue:stevie" may confirm only if it equals the recorded requester or is `queue:stevie`).
+- [x] **Step 43** [CODE][W] ~8m: Green: add `Requester string` to `PendingCall` (set from a new `ToolCall.Principal` field populated by agentd from the authenticated caller, `direct-user` paths use `"ui:"+subject`), add `confirmerAllowed(requester, approvedBy string) bool`, enforce in `ConfirmCall` before `confirmedGate`. Include `Requester` in `CanonicalCall`'s hashed bytes so a token cannot be re-bound.
+- [x] **Step 44** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run 'Confirm' -race -count=1 2>&1 | tail -3 && go test ./pkg/champion/ -run '^$' -fuzz FuzzCanonicalCall -fuzztime 30s 2>&1 | tail -2
   ```
-- [ ] **Step 45** [V] ~1m: PASS and the existing canonical-call fuzz still passes (hash input changed; seeds may need `Requester`).
-- [ ] **Step 46** [CODE][W] ~6m: Plumb the principal in `cmd/zhen-agentd` (`/api/v1/agent/ask`, `/api/v1/tool/exec`, `/api/v1/agent/confirm`): principal = `"ui:"+auth subject` when AUTH_ENABLED, else `"ui:anonymous"` and the confirm endpoint refuses with 403 `confirmation requires an authenticated principal`. Test in `cmd/zhen-agentd/*_test.go` with the existing fake Champion.
-- [ ] **Step 47** [TEST][B] ~2m
+- [x] **Step 45** [V] ~1m: PASS and the existing canonical-call fuzz still passes (hash input changed; seeds may need `Requester`).
+- [x] **Step 46** [CODE][W] ~6m: Plumb the principal in `cmd/zhen-agentd` (`/api/v1/agent/ask`, `/api/v1/tool/exec`, `/api/v1/agent/confirm`): principal = `"ui:"+auth subject` when AUTH_ENABLED, else `"ui:anonymous"` and the confirm endpoint refuses with 403 `confirmation requires an authenticated principal`. Test in `cmd/zhen-agentd/*_test.go` with the existing fake Champion.
+- [x] **Step 47** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-agentd/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 48** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 41-47: confirm tokens bound to requester (RT-03)`
+- [x] **Step 48** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 41-47: confirm tokens bound to requester (RT-03)`
 
 ### GC ticker (RT-04) and write cap (RT-05)
 
-- [ ] **Step 49** [CODE][W] ~5m: Red: `TestConfirmStore_GCTicker` (issue 3 tokens with a 10 ms TTL, start the store with `StartGC(ctx, 5*time.Millisecond)`, after 50 ms `len(entries)==0`). Green: `StartGC` goroutine with `time.NewTicker`, stopped by ctx; `Champion.Run(ctx)` or constructor option starts it; agentd passes its root ctx.
-- [ ] **Step 50** [CODE][W] ~5m: Red: `TestWriteFile_RejectsOversize` (content of `MaxWriteBytes+1` → `ErrWriteTooLarge`, nothing written, action logged `failed`). Green: `const MaxWriteBytes = 1 << 20` (1 MiB, matches the largest file the agent is allowed to produce; [DECIDE] below), checked first in `WriteFile` and `PatchFile` (post-patch length).
+- [x] **Step 49** [CODE][W] ~5m: Red: `TestConfirmStore_GCTicker` (issue 3 tokens with a 10 ms TTL, start the store with `StartGC(ctx, 5*time.Millisecond)`, after 50 ms `len(entries)==0`). Green: `StartGC` goroutine with `time.NewTicker`, stopped by ctx; `Champion.Run(ctx)` or constructor option starts it; agentd passes its root ctx.
+- [x] **Step 50** [CODE][W] ~5m: Red: `TestWriteFile_RejectsOversize` (content of `MaxWriteBytes+1` → `ErrWriteTooLarge`, nothing written, action logged `failed`). Green: `const MaxWriteBytes = 1 << 20` (1 MiB, matches the largest file the agent is allowed to produce; [DECIDE] below), checked first in `WriteFile` and `PatchFile` (post-patch length).
   - [DECIDE] RECOMMENDATION: 1 MiB. Rationale: the HTTP cap is 64 KiB, so the in-process cap only needs to stop runaway generation; 1 MiB keeps vendored fixtures writable. Override ONLY if a runbook legitimately writes larger files (none does: `grep -rn write_file runbooks | wc -l`).
-- [ ] **Step 51** [TEST][B] ~2m
+- [x] **Step 51** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run 'GCTicker|Oversize' -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 52** [V] ~1m: PASS; `go test ./pkg/champion/... -race -count=1` still green.
+- [x] **Step 52** [V] ~1m: PASS; `go test ./pkg/champion/... -race -count=1` still green.
 
 ### Dispatch truth (RT-09)
 
-- [ ] **Step 53** [DECIDE][DESIGN] ~3m: `system_command`
+- [x] **Step 53** [DECIDE][DESIGN] ~3m: `system_command`
   - RECOMMENDATION: remove `system_command` from `MutatingTools` and from every tool list/prompt (`grep -rn system_command pkg cmd raft`); the dispatcher returns `GateError{Reason: "unknown tool"}` for it as for any unknown name (fail-closed already). Rationale: ADR-019 Rules 1-3 have no model for arbitrary shell; `run_check` (allowlisted checks) and `runbook_execute` (reviewed YAML) are the sanctioned paths. Override ONLY if Stevie wants a shell tool, which needs its own ADR.
-- [ ] **Step 54** [CODE][W] ~8m: Red: `TestDispatch_RunbookListShow` (list returns the 79 names from `runbooks/`, show returns one file's YAML text, both read-only, path escape refused as in `RunbookExecute`). Green: `dispatch.go` cases `runbook_list` and `runbook_show` calling new `Champion.RunbookList(ctx)` / `RunbookShow(ctx, name)` in `write.go` (reuse the `absRunbooks` escape check at `:281-298`).
-- [ ] **Step 55** [CODE][W] ~3m: Remove `system_command` per Step 53; add `TestToolLists_EveryListedToolDispatches`: for each name in `MutatingTools ∪ ReadOnlyTools` minus the MCP-only names (`file_read`, `corpus_search`, `service_health`, `local_llm`, `lich_*`), `Dispatch` with empty args must NOT return "unknown tool".
-- [ ] **Step 56** [TEST][B] ~2m
+- [x] **Step 54** [CODE][W] ~8m: Red: `TestDispatch_RunbookListShow` (list returns the 79 names from `runbooks/`, show returns one file's YAML text, both read-only, path escape refused as in `RunbookExecute`). Green: `dispatch.go` cases `runbook_list` and `runbook_show` calling new `Champion.RunbookList(ctx)` / `RunbookShow(ctx, name)` in `write.go` (reuse the `absRunbooks` escape check at `:281-298`).
+- [x] **Step 55** [CODE][W] ~3m: Remove `system_command` per Step 53; add `TestToolLists_EveryListedToolDispatches`: for each name in `MutatingTools ∪ ReadOnlyTools` minus the MCP-only names (`file_read`, `corpus_search`, `service_health`, `local_llm`, `lich_*`), `Dispatch` with empty args must NOT return "unknown tool".
+- [x] **Step 56** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run 'Dispatch|ToolLists' -race -count=1 2>&1 | tail -3 && grep -rn 'system_command' pkg cmd raft --include=*.go --include=*.py | grep -v _test | grep -v 'test_memory_poison' || echo "system_command gone from code"
   ```
-- [ ] **Step 57** [V] ~1m: PASS; `raft/tests/test_memory_poison.py:104` still uses `system_command` as a poison payload (that is correct: it must be refused as unknown). Run it:
+- [x] **Step 57** [V] ~1m: PASS; `raft/tests/test_memory_poison.py:104` still uses `system_command` as a poison payload (that is correct: it must be refused as unknown). Run it:
   ```bash
   cd /home/govan/tmp/unheaded && ~/.venv/zhen/bin/python3 -m pytest raft/tests/test_memory_poison.py -q 2>&1 | tail -2
   ```
-- [ ] **Step 58** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 49-57: gc ticker, write cap, runbook_list/show dispatched, system_command removed (RT-04/05/09)`
+- [x] **Step 58** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 49-57: gc ticker, write cap, runbook_list/show dispatched, system_command removed (RT-04/05/09)`
 
 ### Audit failures surfaced (RT-10)
 
-- [ ] **Step 59** [R] ~2m
+- [x] **Step 59** [R] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && sed -n 255,290p pkg/champion/champion.go && grep -n 'logAction(' pkg/champion/*.go | grep -v _test | grep -c '_ :='
   ```
-- [ ] **Step 60** [DECIDE][DESIGN] ~2m: Audit-write failure policy
+- [x] **Step 60** [DECIDE][DESIGN] ~2m: Audit-write failure policy
   - RECOMMENDATION: fail-closed for mutating tools (if `logAction` errors, the mutation does not run and the caller gets `ErrAuditUnavailable`), fail-open with a counter for read-only tools. Rationale: ADR-019 makes the action log the review surface; a write with no record is the thing the gate exists to prevent. Override ONLY if the pg store proves flaky in Phase 13's night (then add a bounded local spool, not fail-open).
-- [ ] **Step 61** [CODE][W] ~8m: Red: `TestWriteFile_AuditStoreDown` (a store whose `LogAction` errors → `WriteFile` returns `ErrAuditUnavailable`, file untouched) and `TestReadFile_AuditStoreDown` (read succeeds, `champion_audit_write_failures_total` increments). Green: replace every `actionID, _ := c.logAction` in mutating paths (`write.go`, `champion.go` kanban/runbook/model paths) with error handling; `completeAction` logs the error and increments the same counter; export the counter through the existing metrics registry (`grep -rn 'prometheus.NewCounter\|NewServiceMetrics' pkg/champion cmd/zhen-agentd` to find the pattern).
-- [ ] **Step 62** [TEST][B] ~2m
+- [x] **Step 61** [CODE][W] ~8m: Red: `TestWriteFile_AuditStoreDown` (a store whose `LogAction` errors → `WriteFile` returns `ErrAuditUnavailable`, file untouched) and `TestReadFile_AuditStoreDown` (read succeeds, `champion_audit_write_failures_total` increments). Green: replace every `actionID, _ := c.logAction` in mutating paths (`write.go`, `champion.go` kanban/runbook/model paths) with error handling; `completeAction` logs the error and increments the same counter; export the counter through the existing metrics registry (`grep -rn 'prometheus.NewCounter\|NewServiceMetrics' pkg/champion cmd/zhen-agentd` to find the pattern).
+- [x] **Step 62** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/... ./cmd/zhen-agentd/... -race -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 63** [V] ~1m: PASS.
-- [ ] **Step 64** [TEST][B] ~3m: Integration test still green
+- [x] **Step 63** [V] ~1m: PASS.
+- [x] **Step 64** [TEST][B] ~3m: Integration test still green
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run Integration -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 65** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 59-64: audit-write failures fail closed for mutations (RT-10)`
-- [ ] **Step 66** [V] ~1m: **PHASE 2 EXIT GATE** — Steps 45, 47, 52, 57, 63, 64 green; `go vet ./pkg/champion/... ./cmd/zhen-agentd/...` clean.
+- [x] **Step 65** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 59-64: audit-write failures fail closed for mutations (RT-10)`
+- [x] **Step 66** [V] ~1m: **PHASE 2 EXIT GATE** — Steps 45, 47, 52, 57, 63, 64 green; `go vet ./pkg/champion/... ./cmd/zhen-agentd/...` clean.
 
 ---
 
@@ -403,38 +403,38 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: 1.5 h
 **Agent**: Agent A
 
-- [ ] **Step 67** [R] ~2m
+- [x] **Step 67** [R] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && grep -n 'func (c \*Champion) validatePath' -A30 pkg/champion/champion.go | head -40 && go doc golang.org/x/sys/unix.OpenHow
   ```
-- [ ] **Step 68** [CODE][W] ~8m: Red: `TestWriteFile_SymlinkRaceRefused` in `pkg/champion/write_test.go`: sandbox root `t.TempDir()`, allowed path `root/a/b.txt`; after `validatePath` would pass, replace `root/a` with a symlink to another `t.TempDir()`; `WriteFile` must return an error containing `symlink` and the outside dir must stay empty. Use a test hook `c.beforeOpen func()` (unexported) to inject the swap between validation and open.
-- [ ] **Step 69** [TEST][B] ~1m: Expect FAIL (the write lands outside)
+- [x] **Step 68** [CODE][W] ~8m: Red: `TestWriteFile_SymlinkRaceRefused` in `pkg/champion/write_test.go`: sandbox root `t.TempDir()`, allowed path `root/a/b.txt`; after `validatePath` would pass, replace `root/a` with a symlink to another `t.TempDir()`; `WriteFile` must return an error containing `symlink` and the outside dir must stay empty. Use a test hook `c.beforeOpen func()` (unexported) to inject the swap between validation and open.
+- [x] **Step 69** [TEST][B] ~1m: Expect FAIL (the write lands outside)
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run TestWriteFile_SymlinkRaceRefused -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 70** [V] ~1m: FAILS (proves the window). If it passes → re-check the test injects after validation.
-- [ ] **Step 71** [CODE][W] ~10m: Green: new `pkg/champion/safeopen_linux.go` with `openBeneath(rootFD int, rel string, flags int, mode uint32) (*os.File, error)` using `unix.Openat2(rootFD, rel, &unix.OpenHow{Flags: flags|unix.O_CLOEXEC|unix.O_NOFOLLOW, Mode: mode, Resolve: unix.RESOLVE_BENEATH|unix.RESOLVE_NO_SYMLINKS|unix.RESOLVE_NO_MAGICLINKS})`; `Champion` holds an `O_PATH|O_DIRECTORY` fd of `config.ProjectRoot` opened once; `WriteFile`/`PatchFile`/`RevertAction` write through `openBeneath` + `f.Truncate(0)` + `f.Write`, creating parent dirs with `unix.Mkdirat` on the root fd. Keep `validatePath` (blocklist and prefix rules still apply). Build tag `linux`; a `safeopen_other.go` returns `errors.ErrUnsupported` so non-Linux builds compile.
-- [ ] **Step 72** [TEST][B] ~2m
+- [x] **Step 70** [V] ~1m: FAILS (proves the window). If it passes → re-check the test injects after validation.
+- [x] **Step 71** [CODE][W] ~10m: Green: new `pkg/champion/safeopen_linux.go` with `openBeneath(rootFD int, rel string, flags int, mode uint32) (*os.File, error)` using `unix.Openat2(rootFD, rel, &unix.OpenHow{Flags: flags|unix.O_CLOEXEC|unix.O_NOFOLLOW, Mode: mode, Resolve: unix.RESOLVE_BENEATH|unix.RESOLVE_NO_SYMLINKS|unix.RESOLVE_NO_MAGICLINKS})`; `Champion` holds an `O_PATH|O_DIRECTORY` fd of `config.ProjectRoot` opened once; `WriteFile`/`PatchFile`/`RevertAction` write through `openBeneath` + `f.Truncate(0)` + `f.Write`, creating parent dirs with `unix.Mkdirat` on the root fd. Keep `validatePath` (blocklist and prefix rules still apply). Build tag `linux`; a `safeopen_other.go` returns `errors.ErrUnsupported` so non-Linux builds compile.
+- [x] **Step 72** [TEST][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run 'WriteFile|PatchFile|Revert' -race -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 73** [V] ~1m: PASS incl. Step 68's test.
-- [ ] **Step 74** [D] ~5m: If `Openat2` returns `ENOSYS` (kernel < 5.6) in a test env → skip the race test with `t.Skip` on `ENOSYS` only; west and east run 6.17.
-- [ ] **Step 75** [TEST][B] ~2m: Branch-sandbox tests still pass (they write inside worktrees)
+- [x] **Step 73** [V] ~1m: PASS incl. Step 68's test.
+- [x] **Step 74** [D] ~5m: If `Openat2` returns `ENOSYS` (kernel < 5.6) in a test env → skip the race test with `t.Skip` on `ENOSYS` only; west and east run 6.17.
+- [x] **Step 75** [TEST][B] ~2m: Branch-sandbox tests still pass (they write inside worktrees)
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/ -run 'Branch' -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 76** [SECURITY][B] ~2m: gosec on the package (the `#nosec G304/G703` comments at write.go:44,57 must be updated to cite openat2)
+- [x] **Step 76** [SECURITY][B] ~2m: gosec on the package (the `#nosec G304/G703` comments at write.go:44,57 must be updated to cite openat2)
   ```bash
   cd /home/govan/tmp/unheaded && ./tools/gosec -quiet ./pkg/champion/... 2>&1 | tail -5 || scripts/check-gosec-ratchet.sh 2>&1 | tail -3
   ```
-- [ ] **Step 77** [V] ~1m: No new gosec finding; the ratchet file did not grow.
-- [ ] **Step 78** [TEST][B] ~3m: Full package + agentd
+- [x] **Step 77** [V] ~1m: No new gosec finding; the ratchet file did not grow.
+- [x] **Step 78** [TEST][B] ~3m: Full package + agentd
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/champion/... ./cmd/zhen-agentd/... -race -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 79** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 67-78: sandbox writes through openat2 RESOLVE_BENEATH (ADR T-05)`
-- [ ] **Step 80** [V] ~1m: **PHASE 3 EXIT GATE** — Steps 73, 77, 78 green.
+- [x] **Step 79** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 67-78: sandbox writes through openat2 RESOLVE_BENEATH (ADR T-05)`
+- [x] **Step 80** [V] ~1m: **PHASE 3 EXIT GATE** — Steps 73, 77, 78 green.
 
 ---
 
@@ -447,24 +447,24 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Shared prompt package
 
-- [ ] **Step 81** [R] ~5m: Diff the three prompt copies
+- [x] **Step 81** [R] ~5m: Diff the three prompt copies
   ```bash
   cd /home/govan/tmp/unheaded && sed -n 155,230p raft/scripts/zhen_rag.py > /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/p_py.txt && sed -n 730,800p pkg/agent/agent.go > /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/p_agent.txt && sed -n 255,320p cmd/zhen-rag/main.go > /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/p_rag.txt && wc -l /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/p_*.txt
   ```
-- [ ] **Step 82** [DESIGN][W] ~5m: `pkg/zhenrag/doc.go`: the package owns `SystemPrompt(mode Mode) string` (modes: `Chat`, `Agent` (adds the JSON tool-call shape), `Review`), `DestructivePattern *regexp.Regexp` (moved from champion), `DestructiveVerbsProse() string` (the human-readable list rendered from the same source slice so prompt and gate cannot drift), and `go:generate` that writes `raft/scripts/zhen_prompt_generated.py` with `DEFAULT_SYSTEM_PROMPT` and `DESTRUCTIVE_VERBS` as Python literals plus a header `# GENERATED by go run ./pkg/zhenrag/gen — do not edit`.
-- [ ] **Step 83** [CODE][W] ~10m: Red tests in `pkg/zhenrag/zhenrag_test.go`: `TestSystemPrompt_ContainsCodeCommentsRule`, `TestDestructiveProse_MatchesPattern` (every verb in the prose matches the regexp and vice versa for the listed seeds), `TestGenerated_PythonInSync` (runs the generator into a temp dir and compares to the committed `raft/scripts/zhen_prompt_generated.py`). Green: implement `pkg/zhenrag/{zhenrag.go,verbs.go,gen/main.go}`; move `destructivePattern` from `pkg/champion/toolcall.go:122` to `zhenrag.DestructivePattern` and make champion import it (champion keeps `containsDestructive`).
-- [ ] **Step 84** [BUILD][B] ~2m
+- [x] **Step 82** [DESIGN][W] ~5m: `pkg/zhenrag/doc.go`: the package owns `SystemPrompt(mode Mode) string` (modes: `Chat`, `Agent` (adds the JSON tool-call shape), `Review`), `DestructivePattern *regexp.Regexp` (moved from champion), `DestructiveVerbsProse() string` (the human-readable list rendered from the same source slice so prompt and gate cannot drift), and `go:generate` that writes `raft/scripts/zhen_prompt_generated.py` with `DEFAULT_SYSTEM_PROMPT` and `DESTRUCTIVE_VERBS` as Python literals plus a header `# GENERATED by go run ./pkg/zhenrag/gen — do not edit`.
+- [x] **Step 83** [CODE][W] ~10m: Red tests in `pkg/zhenrag/zhenrag_test.go`: `TestSystemPrompt_ContainsCodeCommentsRule`, `TestDestructiveProse_MatchesPattern` (every verb in the prose matches the regexp and vice versa for the listed seeds), `TestGenerated_PythonInSync` (runs the generator into a temp dir and compares to the committed `raft/scripts/zhen_prompt_generated.py`). Green: implement `pkg/zhenrag/{zhenrag.go,verbs.go,gen/main.go}`; move `destructivePattern` from `pkg/champion/toolcall.go:122` to `zhenrag.DestructivePattern` and make champion import it (champion keeps `containsDestructive`).
+- [x] **Step 84** [BUILD][B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && go generate ./pkg/zhenrag/... && go build ./... && go test ./pkg/zhenrag/... ./pkg/champion/... -race -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 85** [V] ~1m: PASS; `raft/scripts/zhen_prompt_generated.py` exists and is valid Python (`~/.venv/zhen/bin/python3 -c 'import ast,sys; ast.parse(open("raft/scripts/zhen_prompt_generated.py").read())'`).
-- [ ] **Step 86** [CODE][W] ~8m: Consumers: `pkg/agent/agent.go:746` region → `zhenrag.SystemPrompt(zhenrag.Agent)`; `cmd/zhen-rag/main.go:272` region → `zhenrag.SystemPrompt(zhenrag.Chat)`; `raft/scripts/zhen_rag.py:155` → `from zhen_prompt_generated import DEFAULT_SYSTEM_PROMPT, DESTRUCTIVE_VERBS` and the prose at `:200-215` rendered from `DESTRUCTIVE_VERBS`. Keep `TestCodeCommentExample_MatchesPython` (point it at the generated file). Add `TestPrompt_ByteIdentity_GoVsPython` in `cmd/zhen-rag/main_test.go` comparing `zhenrag.SystemPrompt(Chat)` to the Python literal parsed with a tiny reader.
-- [ ] **Step 87** [TEST][B] ~3m
+- [x] **Step 85** [V] ~1m: PASS; `raft/scripts/zhen_prompt_generated.py` exists and is valid Python (`~/.venv/zhen/bin/python3 -c 'import ast,sys; ast.parse(open("raft/scripts/zhen_prompt_generated.py").read())'`).
+- [x] **Step 86** [CODE][W] ~8m: Consumers: `pkg/agent/agent.go:746` region → `zhenrag.SystemPrompt(zhenrag.Agent)`; `cmd/zhen-rag/main.go:272` region → `zhenrag.SystemPrompt(zhenrag.Chat)`; `raft/scripts/zhen_rag.py:155` → `from zhen_prompt_generated import DEFAULT_SYSTEM_PROMPT, DESTRUCTIVE_VERBS` and the prose at `:200-215` rendered from `DESTRUCTIVE_VERBS`. Keep `TestCodeCommentExample_MatchesPython` (point it at the generated file). Add `TestPrompt_ByteIdentity_GoVsPython` in `cmd/zhen-rag/main_test.go` comparing `zhenrag.SystemPrompt(Chat)` to the Python literal parsed with a tiny reader.
+- [x] **Step 87** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/agent/... ./cmd/zhen-rag/... ./pkg/zhenrag/... -race -count=1 2>&1 | tail -4 && ~/.venv/zhen/bin/python3 -m pytest raft/tests/test_zhen_rag_retrieve.py raft/tests/test_memory_poison.py -q 2>&1 | tail -2
   ```
-- [ ] **Step 88** [V] ~1m: All green; exactly one `CODE COMMENTS` literal remains in Go (`grep -rn 'CODE COMMENTS' --include=*.go pkg cmd | grep -v _test | wc -l` = 1) and one in Python (the generated file).
-- [ ] **Step 89** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 81-88: pkg/zhenrag owns the prompt and the verb list; Python consumes the generated copy (RT-07/08)`
+- [x] **Step 88** [V] ~1m: All green; exactly one `CODE COMMENTS` literal remains in Go (`grep -rn 'CODE COMMENTS' --include=*.go pkg cmd | grep -v _test | wc -l` = 1) and one in Python (the generated file).
+- [x] **Step 89** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 81-88: pkg/zhenrag owns the prompt and the verb list; Python consumes the generated copy (RT-07/08)`
 
 ### Coding gate after the prompt change (mandatory)
 
@@ -477,49 +477,49 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Runbook body hash before execute
 
-- [ ] **Step 93** [DESIGN][W] ~4m: Contract: `runbooks/MANIFEST.sha256` (generated: `sha256sum runbooks/**/*.yaml`, sorted) is the approved set; `RunbookExecute` refuses a runbook whose sha256 is not in the manifest (`ErrRunbookUnapproved`) unless `dryRun` is true; `scripts/check-runbooks.sh` gains a manifest freshness check so CI fails when a runbook changes without the manifest.
-- [ ] **Step 94** [CODE][W] ~10m: Red: `TestRunbookExecute_HashMismatchRefused` + `TestRunbookExecute_DryRunIgnoresManifest`. Green: `pkg/champion/runbookmanifest.go` (`LoadManifest(dir)`, `Verify(path)`), wired into `RunbookExecute` before the subprocess; `scripts/runbook-manifest.sh` generates; `scripts/check-runbooks.sh` calls it with `--check`.
-- [ ] **Step 95** [B] ~2m
+- [x] **Step 93** [DESIGN][W] ~4m: Contract: `runbooks/MANIFEST.sha256` (generated: `sha256sum runbooks/**/*.yaml`, sorted) is the approved set; `RunbookExecute` refuses a runbook whose sha256 is not in the manifest (`ErrRunbookUnapproved`) unless `dryRun` is true; `scripts/check-runbooks.sh` gains a manifest freshness check so CI fails when a runbook changes without the manifest.
+- [x] **Step 94** [CODE][W] ~10m: Red: `TestRunbookExecute_HashMismatchRefused` + `TestRunbookExecute_DryRunIgnoresManifest`. Green: `pkg/champion/runbookmanifest.go` (`LoadManifest(dir)`, `Verify(path)`), wired into `RunbookExecute` before the subprocess; `scripts/runbook-manifest.sh` generates; `scripts/check-runbooks.sh` calls it with `--check`.
+- [x] **Step 95** [B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && scripts/runbook-manifest.sh --write && wc -l runbooks/MANIFEST.sha256 && go test ./pkg/champion/ -run 'RunbookExecute' -race -count=1 2>&1 | tail -3 && scripts/check-runbooks.sh 2>&1 | tail -2
   ```
-- [ ] **Step 96** [V] ~1m: 79 manifest lines; tests PASS; check-runbooks still `0 new finding(s)`.
-- [ ] **Step 97** [TEST][B] ~3m: The runbook pytest suite (uses `--dry-run`, must be unaffected)
+- [x] **Step 96** [V] ~1m: 79 manifest lines; tests PASS; check-runbooks still `0 new finding(s)`.
+- [x] **Step 97** [TEST][B] ~3m: The runbook pytest suite (uses `--dry-run`, must be unaffected)
   ```bash
   cd /home/govan/tmp/unheaded && ~/.venv/zhen/bin/python3 -m pytest tests/runbooks -q -m "not live" 2>&1 | tail -2
   ```
-- [ ] **Step 98** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 93-97: runbook manifest, hash-checked before execute`
+- [x] **Step 98** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 93-97: runbook manifest, hash-checked before execute`
 
 ### Model and embedder pins (RT-15)
 
-- [ ] **Step 99** [R] ~2m
+- [x] **Step 99** [R] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && sed -n 55,75p scripts/switch-model.sh && grep -nE 'MODEL_DIR|GGUF=' scripts/switch-model.sh | head -5 && grep -rnE 'embed|EMBED' raft/scripts/zhen_rag.py raft/start-zhen.sh | head -5
   ```
-- [ ] **Step 100** [LIVE-RO][B] ~3m: Hash the files on west (read-only)
+- [x] **Step 100** [LIVE-RO][B] ~3m: Hash the files on west (read-only)
   ```bash
   cd /home/govan/tmp/unheaded && d=$(grep -oE 'MODEL_DIR=.*' scripts/switch-model.sh | head -1 | cut -d= -f2- | tr -d '"'); d=$(eval echo $d); for f in $(grep -oE 'MODEL_FILE\[[a-z0-9-]+\]="[^"]+"' scripts/switch-model.sh | cut -d'"' -f2 | sort -u); do [ -f "$d/$f" ] && sha256sum "$d/$f" | cut -c1-16 | tr '\n' ' ' && echo " $f" || echo "MISSING $f"; done
   ```
-- [ ] **Step 101** [CODE][W] ~6m: `scripts/lib/model-pins.sh` with `MODEL_SHA256[<key>]=<hex>` for every present model (from Step 100) and `EMBEDDER_SHA256`; `switch-model.sh` sources it and refuses to start a model whose file hash differs (`[switch-model] sha256 mismatch for <key>: refusing`), with `--no-verify` for Stevie's local experiments (logged). `raft/scripts/zhen_rag.py` checks the embedder file hash at startup the same way (env `ZHEN_EMBEDDER_SHA256` from the same lib via `start-zhen.sh`).
-- [ ] **Step 102** [TEST][B] ~3m: Shell test with a fake model dir
+- [x] **Step 101** [CODE][W] ~6m: `scripts/lib/model-pins.sh` with `MODEL_SHA256[<key>]=<hex>` for every present model (from Step 100) and `EMBEDDER_SHA256`; `switch-model.sh` sources it and refuses to start a model whose file hash differs (`[switch-model] sha256 mismatch for <key>: refusing`), with `--no-verify` for Stevie's local experiments (logged). `raft/scripts/zhen_rag.py` checks the embedder file hash at startup the same way (env `ZHEN_EMBEDDER_SHA256` from the same lib via `start-zhen.sh`).
+- [x] **Step 102** [TEST][B] ~3m: Shell test with a fake model dir
   ```bash
   cd /home/govan/tmp/unheaded && bash -n scripts/switch-model.sh scripts/lib/model-pins.sh && shellcheck -S warning scripts/switch-model.sh scripts/lib/model-pins.sh 2>&1 | tail -3; tmp=$(mktemp -d) && echo bogus > $tmp/qwen2.5-coder-7b-instruct-q4_k_m.gguf && MODEL_DIR=$tmp scripts/switch-model.sh --dry-run qwen-7b 2>&1 | grep -q 'sha256 mismatch' && echo "mismatch refused"
   ```
-- [ ] **Step 103** [V] ~1m: "mismatch refused" printed; shellcheck clean. If `--dry-run` does not exist → add it in Step 101 (prints the decision, starts nothing).
-- [ ] **Step 104** [DOC-UPDATE][W] ~3m: `wiki/Zhen-AI.md` (models section): pins live in `scripts/lib/model-pins.sh`; adding a model = add file + hash; `--no-verify` is for experiments only.
-- [ ] **Step 105** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 99-104: GGUF and embedder sha256 pins verified at start (RT-15)`
+- [x] **Step 103** [V] ~1m: "mismatch refused" printed; shellcheck clean. If `--dry-run` does not exist → add it in Step 101 (prints the decision, starts nothing).
+- [x] **Step 104** [DOC-UPDATE][W] ~3m: `wiki/Zhen-AI.md` (models section): pins live in `scripts/lib/model-pins.sh`; adding a model = add file + hash; `--no-verify` is for experiments only.
+- [x] **Step 105** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 99-104: GGUF and embedder sha256 pins verified at start (RT-15)`
 
 ### Merge the worktree
 
-- [ ] **Step 106** [B] ~2m
+- [x] **Step 106** [B] ~2m
   ```bash
   cd /home/govan/tmp/unheaded && git merge --no-ff sprint/champion-hardening-zhenrag -m "merge Phase 4: pkg/zhenrag, runbook manifest, model pins" && go build ./... && echo MERGED
   ```
-- [ ] **Step 107** [TEST][B] ~5m
+- [x] **Step 107** [TEST][B] ~5m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/zhenrag/... ./pkg/champion/... ./pkg/agent/... ./cmd/zhen-rag/... ./cmd/zhen-agentd/... -race -count=1 2>&1 | tail -6
   ```
-- [ ] **Step 108** [V] ~1m: Green after merge (Phase 1-3 and Phase 4 both touched `toolcall.go`; resolve by keeping the allowlist AND the moved regexp).
+- [x] **Step 108** [V] ~1m: Green after merge (Phase 1-3 and Phase 4 both touched `toolcall.go`; resolve by keeping the allowlist AND the moved regexp).
 - [ ] **Step 109** [TEST][B] ~15m: Coding gate once more on the merged tree (prompt bytes must be unchanged by the merge)
   ```bash
   cd /home/govan/tmp/unheaded && make coding-gate-ci 2>&1 | tail -8

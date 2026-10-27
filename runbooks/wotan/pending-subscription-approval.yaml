@@ -17,8 +17,8 @@ notes: |
   runbook allowlists a known service display name in `topics.auto_approve`
   (configs/wotan.yaml and, on deb installs, /etc/unheaded/wotan.yaml), then
   restarts Wotan. It does not approve through the admin API: that API is
-  unusable today (known gap; every admin call answers 401 `admin
-  authentication not configured`).
+  off by default (the routes exist only with `-admin` and the admin key in
+  the environment; without them every /api/v1/admin/* call answers 404).
   Approve only known service names: an approved name can publish to any
   topic (open finding). A name that matches no code must NOT be approved.
 
