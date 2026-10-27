@@ -33,6 +33,7 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 | `unheaded-kanban.service`       | 20001         |                                    |
 | `unheaded-daemon.service`       | 17000, 17001  | Control plane / drift detection    |
 | `unheaded-akira.service`        | 19100         | Health monitor                     |
+| `unheaded-auth.service`         | 19020         | Built-in OIDC issuer (ADR-103, `wiki/Service-Auth.md`); needs its key, a users file and TLS (`UNHEADED_TLS_*` in `/etc/unheaded/auth.env`), see the unit's header |
 | `unheaded-anomaly.service`      | 19018 (loopback) | Anomaly service + cartridge bridge (`cmd/anomaly`), consumes `anomaly.scores` from Wotan; no capabilities. Reads only the `CART_EVENTS` pin (bind-mounted; `upc-cartridgectl -events-group unheaded-anomaly up`) |
 | `unheaded-trace-collector.service` | 16670, 16671 | eBPF (XDP/TC/kprobes) → Wotan; CAP_BPF, CAP_PERFMON, CAP_NET_ADMIN only. Runs on west too, beside the compose stack |
 | `unheaded-wg-psk-rotate.{service,timer}` | — | **West only.** Weekly WireGuard PSK rotation with east (`scripts/wireguard/rotate-psk.sh --apply`, ADR-105). Shipped disabled; enabling it is ESCALATE E3 (`docs/security/pq-host-escalations.md`) |
@@ -135,6 +136,35 @@ which ships these units and the matching sysusers line). East was purged and
 reinstalled at `0.1.0~alpha+<commit>` on 2026-10-21; the interim
 `10-isolation.conf` drop-ins (2026-10-18) were removed then, since the
 packaged units carry the same sandbox.
+
+## Keys (ADR-103)
+
+Each service holds its own Ed25519 key and every verifier reads the public
+halves from one trust directory. The units set `AUTH_KEY_FILE` and
+`AUTH_TRUST_DIR` (their defaults, written out for the reader) and
+`ReadOnlyPaths=-/etc/unheaded/trust.d`. Nothing is enforced until a service
+runs with `AUTH_ENABLED=true` (S-IRON-GATE Phases 5-7).
+
+Install, as root, once per service and host (`<identity>` is the name the
+binary passes to `auth.LoadServiceAuthConfig`, e.g. `dashboard-backend` for
+`unheaded-dashboard`, `unheaded-daemon` for Cuirass):
+
+```bash
+sudo unheaded-keygen -owner unheaded-<svc> <identity>
+#   /etc/unheaded/keys/<identity>.key     0400, owned by the service (dir 0711: no listing)
+#   /etc/unheaded/trust.d/<identity>.pub  0444, world-readable (public keys are not secrets)
+```
+
+The `.deb` postinst does this on first install (`scripts/lib/deb-maintscripts.sh`).
+An existing key is never overwritten.
+
+Rotation: `sudo unheaded-keygen -rotate <identity>` writes a new key (same
+owner) and keeps the old public half trusted as
+`trust.d/<identity>.<oldkid>.pub`; restart the service; after one token
+lifetime (15 minutes) `sudo unheaded-keygen -retire <oldkid> <identity>`.
+Removing a `.pub` from trust.d revokes that key. `unheaded-keygen -print-kid
+<identity>` prints the current kid. Copy each host's new `.pub` to the other
+host's trust.d for cross-host calls.
 
 ## Binary paths and unit names
 

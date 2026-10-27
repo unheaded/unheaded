@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
+#   sudo systemd-sysusers deploy/sysusers.d/unheaded.conf
+#   sudo unheaded-keygen -owner unheaded-auth unheaded-auth
+#   sudo install -d -m 0750 -o unheaded-auth -g unheaded-auth /etc/unheaded/auth
+#   sudo unheaded-auth user add <name> --roles operator
+#   sudo chown unheaded-auth:unheaded-auth /etc/unheaded/auth/users.json
+#   TLS material for UNHEADED_TLS_* in /etc/unheaded/auth.env (S-IRON-GATE Phase 8)
+#   sudo cp deploy/systemd/unheaded-auth.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start unheaded-auth    # manual only — NOT enabled on boot
+# Reload users after `user add|del`: sudo systemctl kill -s HUP unheaded-auth
+
+[Unit]
+Description=Unheaded auth — built-in OIDC issuer (ADR-103)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/wiki/Service-Auth.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# UNHEADED_TLS_ENABLED, UNHEADED_TLS_CERT, UNHEADED_TLS_KEY_FILE,
+# UNHEADED_TLS_CA_CERT. Without TLS only /health, /ready, /metrics answer.
+EnvironmentFile=-/etc/unheaded/auth.env
+ExecStart=/usr/local/bin/unheaded-auth \
+    -listen :19020 \
+    -issuer-url https://%H:19020 \
+    -key-file /etc/unheaded/keys/unheaded-auth.key \
+    -users-file /etc/unheaded/auth/users.json
+WorkingDirectory=/var/lib/unheaded/auth
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+
+LimitNOFILE=4096
+
+User=unheaded-auth
+Group=unheaded-auth
+StateDirectory=unheaded/auth
+StateDirectoryMode=0700
+UMask=0077
+ReadOnlyPaths=-/etc/unheaded/trust.d
+
+# Sandbox (deploy/systemd/README.md#isolation). The user comes from
+# deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

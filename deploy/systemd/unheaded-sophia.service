@@ -22,6 +22,12 @@ TimeoutStopSec=15s
 
 LimitNOFILE=4096
 
+# Service identity (ADR-103, deploy/systemd/README.md#keys-adr-103): the key
+# comes from `unheaded-keygen -owner unheaded-sophia sophia` (root, once per host).
+Environment=AUTH_KEY_FILE=/etc/unheaded/keys/sophia.key
+Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+ReadOnlyPaths=-/etc/unheaded/trust.d
+
 User=unheaded-sophia
 Group=unheaded-sophia
 StateDirectory=unheaded/sophia

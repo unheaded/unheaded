@@ -12,17 +12,31 @@
 #
 # Tested by scripts/test-deb-maintscripts.sh.
 
-# deb_postinst PKG: on configure, create the service's account from its
-# sysusers.d line, reload units, and restart the service if it was running
-# (an upgrade then runs the new binary; a stopped service stays stopped).
+# deb_postinst PKG [IDENTITY OWNER]: on configure, create the service's
+# account from its sysusers.d line; with IDENTITY, create the service's
+# Ed25519 key pair if it has none (ADR-103: `unheaded-keygen -owner OWNER
+# IDENTITY`, from the unheaded-keygen package every service package depends
+# on; an existing key is never touched, rotation is an operator step,
+# deploy/systemd/README.md#keys-adr-103); reload units, and restart the
+# service if it was running (an upgrade then runs the new binary; a stopped
+# service stays stopped).
 deb_postinst() {
+	local keygen=""
+	if [ -n "${2:-}" ]; then
+		keygen="	if [ ! -e \"\$KEYDIR/$2.key\" ]; then
+		\"\$KEYGEN\" -owner $3 $2
+	fi
+"
+	fi
 	cat <<SCRIPT
 #!/bin/sh
 set -e
+KEYGEN=/opt/unheaded/bin/unheaded-keygen
+KEYDIR=/etc/unheaded/keys
 case "\$1" in
 configure)
 	systemd-sysusers /usr/lib/sysusers.d/$1.conf
-	systemctl daemon-reload
+${keygen}	systemctl daemon-reload
 	systemctl try-restart $1.service || true
 	;;
 esac

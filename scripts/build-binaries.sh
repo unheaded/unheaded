@@ -45,6 +45,8 @@ sword               ./cmd/sword
 unheaded-baseline   ./cmd/unheaded-baseline
 zhen-agentd         ./cmd/zhen-agentd
 anomaly             ./cmd/anomaly
+unheaded-keygen     ./cmd/unheaded-keygen
+unheaded-auth       ./cmd/unheaded-auth
 "
 # Run by a unit but not built here: an upstream release binary.
 THIRD_PARTY="node_exporter"

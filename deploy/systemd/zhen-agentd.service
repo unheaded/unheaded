@@ -24,6 +24,12 @@ After=network-online.target postgresql.service
 
 [Service]
 Type=simple
+# Service identity (ADR-103, deploy/systemd/README.md#keys-adr-103): the key
+# comes from `unheaded-keygen -owner zhen-agentd zhen-agentd` (root, once per host).
+Environment=AUTH_KEY_FILE=/etc/unheaded/keys/zhen-agentd.key
+Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+ReadOnlyPaths=-/etc/unheaded/trust.d
+
 User=zhen-agentd
 Group=zhen-agentd
 UMask=0077

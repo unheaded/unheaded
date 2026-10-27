@@ -23,6 +23,12 @@ TimeoutStopSec=15s
 
 LimitNOFILE=4096
 
+# Service identity (ADR-103, deploy/systemd/README.md#keys-adr-103): the key
+# comes from `unheaded-keygen -owner unheaded-micromanager micromanager` (root, once per host).
+Environment=AUTH_KEY_FILE=/etc/unheaded/keys/micromanager.key
+Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+ReadOnlyPaths=-/etc/unheaded/trust.d
+
 User=unheaded-micromanager
 Group=unheaded-micromanager
 StateDirectory=unheaded/micromanager

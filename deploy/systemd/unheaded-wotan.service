@@ -27,6 +27,12 @@ TimeoutStopSec=20s
 
 LimitNOFILE=65536
 
+# Service identity (ADR-103, deploy/systemd/README.md#keys-adr-103): the key
+# comes from `unheaded-keygen -owner unheaded-wotan wotan` (root, once per host).
+Environment=AUTH_KEY_FILE=/etc/unheaded/keys/wotan.key
+Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+ReadOnlyPaths=-/etc/unheaded/trust.d
+
 User=unheaded-wotan
 Group=unheaded-wotan
 StateDirectory=unheaded/wotan

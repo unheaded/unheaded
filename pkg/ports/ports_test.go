@@ -55,6 +55,7 @@ func allPorts(t *testing.T) map[string]int {
 		"VersionSvc":   VersionSvc,
 		"Anomaly":      Anomaly,
 		"TelemetryAgg": TelemetryAgg,
+		"Auth":         Auth,
 		// Applications
 		"DashboardBackend": DashboardBackend,
 		"KanbanApp":        KanbanApp,

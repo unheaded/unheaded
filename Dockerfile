@@ -75,7 +75,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /build/bin/kev-poller ./cmd/kev-poller && \
     CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/sword ./cmd/sword
+    -o /build/bin/sword ./cmd/sword && \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -o /build/bin/unheaded-auth ./cmd/unheaded-auth
 
 # ============================================================================
 # RUNTIME BASE - what every service image starts from
@@ -402,6 +405,28 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:20001/health || exit 1"]
 
 ENTRYPOINT ["/app/kanban-app"]
+
+# ============================================================================
+# UNHEADED-AUTH - the built-in OIDC issuer (ADR-103)
+# ============================================================================
+FROM runtime AS unheaded-auth
+
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16735 unheaded-auth && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16735 -G unheaded-auth unheaded-auth
+
+WORKDIR /app
+
+COPY --from=builder /build/bin/unheaded-auth /app/unheaded-auth
+
+USER 16735:16735
+
+EXPOSE 19020
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["/bin/sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:19020/health || exit 1"]
+
+ENTRYPOINT ["/app/unheaded-auth"]
 
 # ============================================================================
 # DEFAULT: ALL-IN-ONE (for development)

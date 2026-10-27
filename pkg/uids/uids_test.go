@@ -121,6 +121,10 @@ var hostOnly = map[string]string{
 	// west: deploy/systemd/unheaded-heartbeat.service, unheaded-ci-status.service.
 	"heartbeat": "unheaded-heartbeat",
 	"ci-status": "unheaded-ci-status",
+	// The built-in issuer (ADR-103): deploy/systemd/unheaded-auth.service.
+	// It also runs as compose service "auth" with the same uid; listing it
+	// here keeps the sysusers pin checked.
+	"unheaded-auth": "unheaded-auth",
 }
 
 // composeOnly lists services that exist only in compose files (or as the
