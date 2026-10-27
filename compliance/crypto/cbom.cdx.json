@@ -392,6 +392,45 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "cmd/unheaded-auth/issuer.go:7:sig-import",
+      "name": "Ed25519 (crypto/ed25519)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "Ed25519",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/unheaded-auth/issuer.go:7"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "cmd/unheaded-daemon/lxd_rest.go:125:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
@@ -429,6 +468,45 @@
         {
           "name": "unheaded:source",
           "value": "cmd/unheaded-daemon/lxd_rest.go:125"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/unheaded-keygen/main.go:26:sig-import",
+      "name": "Ed25519 (crypto/ed25519)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "Ed25519",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/unheaded-keygen/main.go:26"
         }
       ]
     },
@@ -1404,7 +1482,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:133:proxy-image",
+      "bom-ref": "docker-compose.yml:155:proxy-image",
       "name": "Traefik edge (traefik:v3.3.7)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1439,13 +1517,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:133"
+          "value": "docker-compose.yml:155"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:318:postgres-image",
+      "bom-ref": "docker-compose.yml:340:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1485,7 +1563,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:318"
+          "value": "docker-compose.yml:340"
         }
       ]
     },
