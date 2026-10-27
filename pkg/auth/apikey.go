@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // APIKeyConfig configures the API key authenticator.
@@ -36,6 +38,13 @@ type APIKeyConfig struct {
 	// RateLimit configures per-key rate limiting.
 	// Zero = no rate limit.
 	RateLimitPerMinute int
+
+	// Store holds uhk_ keys (ADR-103 §5): owner, role and expiry per key,
+	// hashed at rest. A uhk_ key in HeaderName, or as an
+	// "Authorization: Bearer uhk_..." token, is checked against it. Keys
+	// and KeyFile (one shared role for every key, no expiry) are the
+	// deprecated path, kept beside a store for one release.
+	Store APIKeyStore
 }
 
 // APIKeyAuthenticator validates API keys from the X-API-Key header.
@@ -44,6 +53,7 @@ type APIKeyAuthenticator struct {
 	keys         [][]byte
 	headerName   string
 	defaultRoles []string
+	store        APIKeyStore
 
 	// Rate limiting
 	rateLimitPerMinute int
@@ -74,6 +84,7 @@ func NewAPIKeyAuthenticator(cfg APIKeyConfig) (*APIKeyAuthenticator, error) {
 		defaultRoles:       defaultRoles,
 		rateLimitPerMinute: cfg.RateLimitPerMinute,
 		rateCounters:       make(map[string]*rateCounter),
+		store:              cfg.Store,
 	}
 
 	// Load keys from config or file
@@ -89,8 +100,13 @@ func NewAPIKeyAuthenticator(cfg APIKeyConfig) (*APIKeyAuthenticator, error) {
 	}
 
 	if len(rawKeys) == 0 {
+		if a.store != nil {
+			return a, nil
+		}
 		return nil, fmt.Errorf("no API keys configured")
 	}
+	log.Warn().Int("keys", len(rawKeys)).
+		Msg("auth: plain API key list (AUTH_API_KEYS / AUTH_API_KEY_FILE) is deprecated; create uhk_ keys with `unheaded-cli apikey create` and set AUTH_APIKEY_STORE (ADR-103 §5)")
 
 	// Hash all keys (never store plaintext)
 	for _, key := range rawKeys {
@@ -100,33 +116,51 @@ func NewAPIKeyAuthenticator(cfg APIKeyConfig) (*APIKeyAuthenticator, error) {
 		a.keys = append(a.keys, hashKey(key))
 	}
 
-	if len(a.keys) == 0 {
+	if len(a.keys) == 0 && a.store == nil {
 		return nil, fmt.Errorf("no valid API keys after filtering")
 	}
 
 	return a, nil
 }
 
-// Authenticate validates the API key from the request header.
-func (a *APIKeyAuthenticator) Authenticate(_ context.Context, r *http.Request) (*Identity, error) {
+// Authenticate validates the API key from the request header, or a uhk_
+// key presented as a Bearer token when a store is configured.
+func (a *APIKeyAuthenticator) Authenticate(ctx context.Context, r *http.Request) (*Identity, error) {
 	key := r.Header.Get(a.headerName)
+	if key == "" && a.store != nil {
+		if bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && strings.HasPrefix(bearer, APIKeyPrefix) {
+			key = bearer
+		}
+	}
 	if key == "" {
 		return nil, ErrUnauthenticated
 	}
 
 	keyHash := hashKey(key)
-
-	// Check if key matches any of the configured keys
-	matched := false
-	for _, validHash := range a.keys {
-		if hmac.Equal(keyHash, validHash) {
-			matched = true
-			break
+	var identity *Identity
+	if a.store != nil && strings.HasPrefix(key, APIKeyPrefix) {
+		id, err := a.store.Authenticate(ctx, key)
+		if err != nil {
+			return nil, err
 		}
-	}
-
-	if !matched {
-		return nil, fmt.Errorf("%w: invalid API key", ErrUnauthenticated)
+		identity = id
+	} else {
+		// Check if key matches any of the configured keys
+		matched := false
+		for _, validHash := range a.keys {
+			if hmac.Equal(keyHash, validHash) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return nil, fmt.Errorf("%w: invalid API key", ErrUnauthenticated)
+		}
+		identity = &Identity{
+			Subject: "apikey",
+			Roles:   a.defaultRoles,
+			Extra:   map[string]string{"auth_method": "apikey"},
+		}
 	}
 
 	// Rate limiting check
@@ -137,11 +171,7 @@ func (a *APIKeyAuthenticator) Authenticate(_ context.Context, r *http.Request) (
 		}
 	}
 
-	return &Identity{
-		Subject: "apikey",
-		Roles:   a.defaultRoles,
-		Extra:   map[string]string{"auth_method": "apikey"},
-	}, nil
+	return identity, nil
 }
 
 // checkRateLimit returns true if the request is within rate limits.

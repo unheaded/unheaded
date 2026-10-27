@@ -96,6 +96,7 @@ func NewRootCommand() *Command {
   - Configuration: get, set, validate CLI settings and contexts
   - Generate: IaC artifact generation (Ansible, Terraform, K8s, etc.)
   - Observe: observability backend configuration
+  - API keys: create, list, revoke uhk_ keys for automation (ADR-103)
 
 Secrets and network commands, and container start/stop/exec and service
 deploy/restart/scale, fail: no Unheaded service provides them yet.
@@ -116,6 +117,7 @@ Use "unheaded <command> --help" for more information about a command.`,
 	root.AddCommand(NewCompletionCommand())
 	root.AddCommand(NewGenerateCommand())
 	root.AddCommand(NewObserveCommand())
+	root.AddCommand(NewAPIKeyCommand())
 
 	return root
 }

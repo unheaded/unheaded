@@ -200,7 +200,7 @@ jobs:
 
       - name: gitleaks (full history — reporting only, see PRE-PUBLIC-BLOCKERS.md)
         continue-on-error: true
-        run: /tmp/gitleaks git --no-banner --redact --exit-code 1 .
+        run: /tmp/gitleaks git --no-banner --redact --exit-code 1 --config .gitleaks.toml .
 
   # ============================================================================
   # Post-quantum key exchange (ADR-105)
@@ -539,6 +539,10 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: ./scripts/well/test-migrate.sh
+
+      # S-IRON-GATE Phase 3: api_keys (036) and pkg/auth's Well store.
+      - name: API keys table and the Well key store
+        run: ./scripts/well/test-api-keys.sh --with-go
 
       - name: Backup set and restore drill
         run: ./scripts/well/test-backup-restore.sh

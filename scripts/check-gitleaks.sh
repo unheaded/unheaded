@@ -14,7 +14,8 @@
 # checkout holds, and on a host it keeps untracked files such as the repo
 # .env out of the verdict (they are never committed; this gate is about what
 # is). .gitleaksignore (tracked, shrink-only via check-secrets-baseline.sh)
-# applies as usual.
+# applies as usual. Rules: gitleaks' defaults plus ours in .gitleaks.toml
+# (unheaded-api-key: uhk_ keys, ADR-103 §5).
 #
 #   scripts/check-gitleaks.sh
 set -euo pipefail
@@ -35,5 +36,5 @@ git ls-files -z | tar --null -T - -cf - | tar -xf - -C "$TREE"
 n="$(git ls-files | wc -l)"
 [[ "$n" -gt 0 ]] || { echo "[FAIL] no tracked files; refusing to pass vacuously" >&2; exit 2; }
 cd "$TREE"
-"$BIN" dir --no-banner --redact --exit-code 1 .
+"$BIN" dir --no-banner --redact --exit-code 1 --config "$REPO_ROOT/.gitleaks.toml" .
 echo "[PASS] gitleaks ${GITLEAKS_VERSION}: no new secrets in ${n} tracked files"

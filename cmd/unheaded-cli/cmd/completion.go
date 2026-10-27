@@ -84,11 +84,12 @@ _unheaded_completions() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="container service config secret network status version completion"
+    local commands="container service config secret network status version completion apikey"
     local container_commands="list create start stop delete exec inspect"
     local service_commands="list deploy status logs restart scale"
     local config_commands="get set list validate current-context use-context view init"
     local secret_commands="get set delete list rotate generate"
+    local apikey_commands="create list revoke"
     local network_commands="policy route inspect"
     local policy_commands="list create delete apply"
     local route_commands="list add delete"
@@ -112,6 +113,10 @@ _unheaded_completions() {
             ;;
         secret|secrets)
             COMPREPLY=($(compgen -W "${secret_commands}" -- "${cur}"))
+            return 0
+            ;;
+        apikey|apikeys)
+            COMPREPLY=($(compgen -W "${apikey_commands}" -- "${cur}"))
             return 0
             ;;
         network|net)
@@ -168,6 +173,7 @@ _unheaded() {
         'status:Show system status overview'
         'version:Show version information'
         'completion:Generate shell completion scripts'
+        'apikey:Create, list and revoke API keys'
     )
 
     container_commands=(
@@ -281,6 +287,10 @@ complete -c unheaded -f -n "__fish_use_subcommand" -a "container" -d "Manage con
 complete -c unheaded -f -n "__fish_use_subcommand" -a "service" -d "Manage services"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "config" -d "Manage CLI configuration"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "secret" -d "Manage secrets"
+complete -c unheaded -f -n "__fish_use_subcommand" -a "apikey" -d "Create, list and revoke API keys"
+complete -c unheaded -f -n "__fish_seen_subcommand_from apikey apikeys" -a "create" -d "Create a key and print it once"
+complete -c unheaded -f -n "__fish_seen_subcommand_from apikey apikeys" -a "list" -d "List keys"
+complete -c unheaded -f -n "__fish_seen_subcommand_from apikey apikeys" -a "revoke" -d "Revoke a key by prefix or id"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "network" -d "Manage network policies and routes"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "status" -d "Show system status overview"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "version" -d "Show version information"

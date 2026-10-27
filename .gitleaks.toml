@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# gitleaks configuration: the default rules plus Unheaded's own key formats.
+# scripts/check-gitleaks.sh passes it explicitly (--config); .gitleaksignore
+# still holds the shrink-only baseline (scripts/check-secrets-baseline.sh).
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "unheaded-api-key"
+description = "Unheaded uhk_ API key (ADR-103 §5)"
+regex = '''uhk_[A-Za-z0-9_-]{43}'''
+keywords = ["uhk_"]
