@@ -9,8 +9,7 @@
 #
 # Package: unheaded-well-retention (scripts/build-all-debs.sh) installs the
 # binary, this unit, its timer (not enabled) and the classes file as
-# /etc/unheaded/well/retention-classes.yaml. Then, on west:
-#   sudo install -d -m 0750 /etc/unheaded/well
+# /etc/unheaded/well/retention-classes.yaml (a conffile). Then, on west:
 #   sudo install -m 0400 -o root -g root /dev/null /etc/unheaded/well/retention.password
 #     and write RETENTION_RUNNER_PASSWORD (from the repo's .env) into it; the
 #     role gets the same value: RETENTION_RUNNER_PASSWORD=... scripts/well/set-role-passwords.sh

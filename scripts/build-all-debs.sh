@@ -38,7 +38,7 @@ echo "=============================================="
 
 echo "Building service binaries..."
 cd "$PROJECT_ROOT"
-"$PROJECT_ROOT/scripts/build-binaries.sh" --out "$BUILD_DIR" "${SERVICES[@]}" unheaded-keygen
+"$PROJECT_ROOT/scripts/build-binaries.sh" --out "$BUILD_DIR" "${SERVICES[@]}" unheaded-keygen well-retention
 
 # unheaded-keygen ships once, in its own package, and every service package
 # depends on it: the service postinst creates the service's key with it
@@ -61,6 +61,42 @@ EOF
 dpkg-deb --root-owner-group --build "$KG_DIR" 2>/dev/null
 echo "  Built: unheaded-keygen_${VERSION}.deb"
 
+# The Well's weekly retention job (S-WELL-SPRING Phase 4): a timer, not a
+# service, and no service key (it logs in to the Well as retention_runner
+# with a password credential). Its timer is installed, never enabled here:
+# Stevie enables it once the retention ages are ratified (E-C). The classes
+# file is a conffile, so a local edit (ratified: true, a legal hold)
+# survives upgrades.
+WR=unheaded-well-retention
+WR_DIR="${OUTPUT_DIR}/${WR}_${VERSION}"
+rm -rf "$WR_DIR"
+mkdir -p "$WR_DIR/DEBIAN" "$WR_DIR/opt/unheaded/bin" "$WR_DIR/etc/systemd/system" "$WR_DIR/usr/lib/sysusers.d"
+install -m 0755 "$BUILD_DIR/well-retention" "$WR_DIR/opt/unheaded/bin/well-retention"
+for ext in service timer; do
+    sed 's|/usr/local/bin/|/opt/unheaded/bin/|g' "$PROJECT_ROOT/deploy/systemd/${WR}.${ext}" >"$WR_DIR/etc/systemd/system/${WR}.${ext}"
+done
+install -D -m 0644 "$PROJECT_ROOT/compliance/retention/classes.yaml" "$WR_DIR/etc/unheaded/well/retention-classes.yaml"
+echo /etc/unheaded/well/retention-classes.yaml >"$WR_DIR/DEBIAN/conffiles"
+awk -v u="$WR" '$1 == "u" && $2 == u' "$PROJECT_ROOT/deploy/sysusers.d/unheaded.conf" >"$WR_DIR/usr/lib/sysusers.d/${WR}.conf"
+[ -s "$WR_DIR/usr/lib/sysusers.d/${WR}.conf" ] || { echo "  FAIL: $WR not in deploy/sysusers.d/unheaded.conf" >&2; exit 1; }
+cat > "$WR_DIR/DEBIAN/control" <<EOF
+Package: ${WR}
+Version: ${VERSION}
+Architecture: amd64
+Maintainer: Stevie Bellis <stevie@bellis.tech>
+Description: The Well's weekly retention job (well-retention)
+ Purges, archives and partition-checks The Well's tables per the
+ retention classes. Timer installed, not enabled.
+Depends: libc6
+Section: admin
+Priority: optional
+EOF
+deb_postinst "$WR" >"$WR_DIR/DEBIAN/postinst"
+deb_prerm "$WR" "${WR}.timer" "${WR}.service" >"$WR_DIR/DEBIAN/prerm"
+chmod 755 "$WR_DIR/DEBIAN/postinst" "$WR_DIR/DEBIAN/prerm"
+dpkg-deb --root-owner-group --build "$WR_DIR" 2>/dev/null
+echo "  Built: ${WR}_${VERSION}.deb"
+
 # deploy/systemd unit for each packaged binary
 unit_for() {
     case "$1" in
@@ -73,7 +109,7 @@ unit_for() {
 }
 
 # Build .deb for each service
-BUILT=1   # unheaded-keygen
+BUILT=2   # unheaded-keygen, unheaded-well-retention
 for svc in "${SERVICES[@]}"; do
     BIN="${BUILD_DIR}/${svc}"
 
