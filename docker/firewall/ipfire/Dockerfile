@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # IPFire 2.29 QEMU-in-Docker — runs IPFire Linux in KVM
 # Same QEMU pattern as OPNsense for consistency
 

@@ -1,6 +1,6 @@
 # Performance Baseline — S77
 
-**SPDX-License-Identifier: MIT**
+**SPDX-License-Identifier: GPL-3.0-or-later**
 **Sprint:** S77 Age 2 Acceleration, Phase 2
 **Date:** 2026-03-05
 

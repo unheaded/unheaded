@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # FRR Dockerfile — builds from ~/tmp/frr-master/ source
 # Based on FRR's own docker/ directory patterns
 

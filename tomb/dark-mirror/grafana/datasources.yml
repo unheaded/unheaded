@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Grafana datasource provisioning for the Dark Mirror
 # Auto-configures Prometheus and Loki as data sources on Grafana startup.
 

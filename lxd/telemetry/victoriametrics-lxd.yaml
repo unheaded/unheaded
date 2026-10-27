@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # VictoriaMetrics long-term metrics storage
 # Static IP: 10.20.1.51, Port: 8428
 # 90-day retention, 8GB memory, 50GB storage

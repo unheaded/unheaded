@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Setup telemetry stack on host-a (Forge)
 # Creates host directories, writes configs, launches containers
 

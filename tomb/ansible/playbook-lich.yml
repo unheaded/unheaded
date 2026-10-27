@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # tomb/ansible/playbook-lich.yml -- Deploy Lich adversary framework (Layer 2)
 #
@@ -63,7 +63,7 @@
       ansible.builtin.copy:
         content: |
           # {{ item.id }} -- {{ item.purpose }}
-          # SPDX-License-Identifier: MIT
+          # SPDX-License-Identifier: GPL-3.0-or-later
           campaign_id: "{{ item.id }}"
           purpose: "{{ item.purpose }}"
           status: "ready"

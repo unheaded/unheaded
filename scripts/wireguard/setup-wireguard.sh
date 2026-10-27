@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # setup-wireguard.sh — Deploy WireGuard IPv6 overlay between WEST and EAST
 # Phase 2: S77 Age 2 Acceleration — WireGuard IPv6 Overlay
 set -euo pipefail

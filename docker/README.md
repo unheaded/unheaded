@@ -1,6 +1,6 @@
 # Unheaded Kingdom — Docker Infrastructure
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 ## Overview
@@ -771,7 +771,7 @@ docker run -it --rm --entrypoint /bin/bash unheaded-monad:test
 
 ## License
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 
 Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 

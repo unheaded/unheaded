@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Host-B: The Outpost — Minimal Unheaded suite + IPFire firewall VM
 # nixos-rebuild switch to apply

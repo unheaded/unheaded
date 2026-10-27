@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Loki distributed log aggregation
 # Static IP: 10.20.1.52, Port: 3100
 # 4GB memory, 20GB storage, 90d retention

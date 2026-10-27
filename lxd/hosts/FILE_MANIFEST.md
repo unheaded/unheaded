@@ -367,7 +367,7 @@ ssh user@outpost "wg show wg0"
 
 All configuration files are licensed under MIT License:
 ```
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 ```
 

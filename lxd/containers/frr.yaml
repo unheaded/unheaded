@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # frr.yaml — FRR routing daemon container (host-a)
 # FRR handles BGP EVPN-VXLAN, IS-IS underlay
 

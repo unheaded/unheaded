@@ -1,6 +1,6 @@
 # Unheaded Kingdom — Quick Deployment Guide
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 
 ## Pre-Deployment Checklist
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # firewall-health-check.sh — Verify firewall + routing stack health
 # Run from either host to check both firewalls
 

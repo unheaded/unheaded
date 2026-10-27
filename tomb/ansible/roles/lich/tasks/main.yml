@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # roles/lich/tasks/main.yml -- Lich adversary framework role
 ---
 - name: "Ensure Lich directories exist"

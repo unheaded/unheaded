@@ -193,7 +193,7 @@ bird -v
 # Create /etc/bird/bird.conf on host-b (or copy from repository)
 
 cat > /etc/bird/bird.conf <<'BIRD_CONFIG'
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # BIRD Configuration for host-b (Outpost)
 # BGP EVPN overlay, no IS-IS underlay (simplified 2-node fabric)
 

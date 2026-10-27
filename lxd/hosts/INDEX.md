@@ -334,7 +334,7 @@ Edit `host-b/wireguard.conf` to change:
 All configuration files created for the Unheaded Kingdom project.
 
 ```
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 ```
 

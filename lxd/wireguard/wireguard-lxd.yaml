@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # WireGuard east-west gateway
 # Bridges host-a (fd00:dead:beef::1) to host-b (fd00:dead:beef::2)
 # On host-a: server (ListenPort: 51820)

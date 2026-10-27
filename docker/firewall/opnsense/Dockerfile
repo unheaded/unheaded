@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # OPNsense 26.1.2 QEMU-in-Docker — runs FreeBSD OPNsense in KVM inside a container
 # Requires: --device /dev/kvm, --privileged (for KVM + macvlan), NET_ADMIN cap

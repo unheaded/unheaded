@@ -268,7 +268,7 @@ View metrics at:
 LICENSE
 ================================================================================
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 
 All Unheaded Kingdom LXD infrastructure files are released under GPL-3.0-or-later (see LICENSE).
 

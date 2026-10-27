@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Stub hardware-configuration.nix for host-a (Forge)
 # Replace with `nixos-generate-config --show-hardware-config` output on real hardware
 { config, lib, pkgs, modulesPath, ... }:

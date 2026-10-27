@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # vLLM + ROCm container for DeepSeek-R1-7B on RX 7700 XT
 # 8 CPU cores, 16GB RAM, 80GB storage
 # Port: 20100

@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # check-gosec-ratchet.sh — enforce that the gosec exclusion list only SHRINKS.
 #
 # The gate in .github/workflows/security.yml suppresses gosec rules by name

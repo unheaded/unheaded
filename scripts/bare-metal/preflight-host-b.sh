@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # preflight-host-b.sh — HOST-B (THE OUTPOST) PREFLIGHT CHECK
 #
 # Purpose: Verify hardware and software prerequisites before boot sequence

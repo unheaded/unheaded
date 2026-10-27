@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # lxd/LAUNCH_EXAMPLES.sh
 # Example launch commands for all 25 Unheaded Kingdom microservices

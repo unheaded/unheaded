@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # import-ipfire.sh — Import IPFire 2.29 core199 into LXD as VM image
 #
 set -euo pipefail

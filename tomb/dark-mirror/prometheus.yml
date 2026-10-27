@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Prometheus configuration for the Dark Mirror — Tomb of Knowledge
 #
 # Scrapes all Unheaded Kingdom services at 192.168.13.1 across the Doom Range.

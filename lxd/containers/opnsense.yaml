@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # opnsense.yaml — OPNsense 26.1.2 VM definition for host-a (Forge)
 # Import image first: lxd/firewall/import-opnsense.sh
 # Launch: lxc launch opnsense-26.1.2 unheaded-opnsense --vm --profile unheaded-base --profile unheaded-firewall

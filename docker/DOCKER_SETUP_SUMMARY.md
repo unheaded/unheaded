@@ -285,7 +285,7 @@ This Docker infrastructure is production-ready:
 
 ## License
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 
 Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 

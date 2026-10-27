@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # opnsense-vm.nix — OPNsense 26.1.2 QEMU VM on host-a (Forge)
 # Deploy as WAN firewall with internal LAN bridge to unheaded services

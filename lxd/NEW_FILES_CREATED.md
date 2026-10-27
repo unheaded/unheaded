@@ -404,7 +404,7 @@ OpenAI-Compatible Response
 
 ## License
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 
 All Unheaded Kingdom LXD infrastructure files are released under the MIT License.
 

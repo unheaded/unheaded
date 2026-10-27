@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # setup-vtep.sh — Create VXLAN VTEPs for FRR EVPN on host-a
 # Run before frr.service starts
 set -euo pipefail

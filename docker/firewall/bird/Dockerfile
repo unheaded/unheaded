@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # BIRD Dockerfile — builds from ~/tmp/bird-master/ source
 # Multi-stage build for minimal final image
 

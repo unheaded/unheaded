@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # verdicts-record.sh — Record hypothesis verdicts after QA testing
 # Usage: ./verdicts-record.sh [--batch --h1 PASS --h1-value "measured: ..."]

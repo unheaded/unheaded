@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # roles/cerydwyn/tasks/main.yml -- Cerydwyn LLM role
 ---
 - name: "Ensure Cerydwyn directories exist"

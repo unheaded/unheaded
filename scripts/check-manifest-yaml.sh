@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # check-manifest-yaml.sh — every tracked YAML manifest must actually parse.
 #
 # deploy/k8s/monitoring/pleg-alerts.yaml sat in the tree unparseable: it used

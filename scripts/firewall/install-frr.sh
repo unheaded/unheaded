@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # install-frr.sh — Build and install FRR from ~/tmp/frr-master/
 # For: bare metal or NixOS non-declarative install
 

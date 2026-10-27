@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # setup-grimoire.sh — Grimoire deployment for the Tomb of Knowledge
 #
 # Installs the Grimoire knowledge base on the Tomb VM:

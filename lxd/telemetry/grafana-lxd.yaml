@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Grafana visualization and dashboarding
 # Static IP: 10.20.1.53, Port: 3000
 # Dark theme default, 2GB memory

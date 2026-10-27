@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # lxd/profiles/unheaded-gpu.yaml
 # GPU profile — AMD ROCm passthrough for vLLM on Host-A (RX 7700 XT, gfx1101)

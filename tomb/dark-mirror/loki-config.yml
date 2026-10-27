@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Loki configuration for the Dark Mirror — Tomb of Knowledge
 #
 # Single-binary mode suitable for the air-gapped Tomb VM.

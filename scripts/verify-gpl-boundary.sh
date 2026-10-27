@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # verify-gpl-boundary.sh - Scan project for GPL/AGPL license contamination
 # Part of Unheaded S77 Phase 3: SBOM + CI/CD Fortress
 set -euo pipefail

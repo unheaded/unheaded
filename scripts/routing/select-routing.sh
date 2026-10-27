@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Routing option selector — switches between BGP-EVPN, OSPFv3, IS-IS, MPLS
 # Usage: ./scripts/routing/select-routing.sh <bgp-evpn|ospf|isis|mpls>

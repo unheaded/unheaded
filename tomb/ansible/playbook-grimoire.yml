@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # tomb/ansible/playbook-grimoire.yml -- Deploy Grimoire knowledge base (Layer 3)
 #
@@ -75,7 +75,7 @@
       ansible.builtin.copy:
         content: |
           #!/usr/bin/env python3
-          # SPDX-License-Identifier: MIT
+          # SPDX-License-Identifier: GPL-3.0-or-later
           # grimoire-index.py -- Index all Grimoire documents into ChromaDB
           """
           Walks the Grimoire directory tree, chunks documents, embeds them

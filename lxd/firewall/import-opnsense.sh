@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # import-opnsense.sh — Import OPNsense 26.1.2 into LXD as VM image
 #
 # OPNsense serial-amd64 img is a raw FreeBSD disk image.

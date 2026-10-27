@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Setup vLLM/ROCm container on host-a
 # Creates model storage, launches container, installs dependencies
 

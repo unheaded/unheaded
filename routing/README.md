@@ -1,6 +1,6 @@
 # Unheaded Kingdom — Two-Host BGP EVPN-VXLAN Routing Fabric
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 
 ## Executive Summary
 

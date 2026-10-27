@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # install-bird.sh — Build and install BIRD from ~/tmp/bird-master/
 
 set -euo pipefail

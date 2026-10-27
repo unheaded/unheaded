@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # check-secrets-baseline.sh — the gitleaks baseline may only SHRINK.
 #
 # .gitleaksignore lists fingerprints of secret findings that predate the

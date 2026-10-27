@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # capture-baseline.sh — Capture system baseline before Unheaded deployment
 # Usage: sudo ./capture-baseline.sh [--host-role forge|outpost] [--output-dir DIR]

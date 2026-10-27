@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Unheaded Kingdom — LXD Operations Makefile
 # Manages 30+ containers across host-a (Forge) and host-b (Outpost)
 

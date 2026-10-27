@@ -256,7 +256,7 @@ KEY FEATURES
 COPYRIGHT & LICENSE
 ================================================================================
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 All files in this directory are distributed under GPL-3.0-or-later (see LICENSE).

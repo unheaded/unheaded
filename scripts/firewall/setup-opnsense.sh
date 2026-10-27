@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # setup-opnsense.sh — Post-boot OPNsense configuration
 # Runs AFTER OPNsense boots and completes initial setup wizard
 # Configures: interfaces, firewall rules, Monad HbH passthrough, FRR plugin

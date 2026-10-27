@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # tomb/provision.sh — Master provisioning script for the Tomb of Knowledge
 #
@@ -425,7 +425,7 @@ phase_deploy_lich() {
     # lich-runner.sh
     tomb_exec "cat > ${TOMB_STAGING}/lich-runner.sh << 'LICH_RUNNER_EOF'
 #!/bin/sh
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # lich-runner.sh -- Execute Lich campaigns
 set -eu
 TOMB_ROOT=\"/opt/tomb\"
@@ -517,7 +517,7 @@ LICH_RUNNER_EOF"
     # crash-triage.sh
     tomb_exec "cat > ${TOMB_STAGING}/crash-triage.sh << 'TRIAGE_EOF'
 #!/bin/sh
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # crash-triage.sh -- Categorize and analyze fuzzing crashes
 set -eu
 TOMB_ROOT=\"/opt/tomb\"
@@ -571,7 +571,7 @@ TRIAGE_EOF"
     # attack-preflight.sh
     tomb_exec "cat > ${TOMB_STAGING}/attack-preflight.sh << 'PREFLIGHT_EOF'
 #!/bin/sh
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # attack-preflight.sh -- Safety checks before campaign execution
 set -eu
 TOMB_ROOT=\"/opt/tomb\"
@@ -617,7 +617,7 @@ PREFLIGHT_EOF"
     # attack-report.sh
     tomb_exec "cat > ${TOMB_STAGING}/attack-report.sh << 'REPORT_EOF'
 #!/bin/sh
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # attack-report.sh -- Generate post-attack report
 set -eu
 TOMB_ROOT=\"/opt/tomb\"
@@ -757,7 +757,7 @@ phase_deploy_grimoire() {
     info "Deploying grimoire-search.sh..."
     tomb_exec "cat > ${TOMB_STAGING}/grimoire-search.sh << 'GSEARCH_EOF'
 #!/bin/sh
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # grimoire-search.sh -- Full-text search across Grimoire knowledge base
 set -eu
 TOMB_ROOT=\"/opt/tomb\"
@@ -835,7 +835,7 @@ GSEARCH_EOF"
     info "Deploying rag-query.py..."
     tomb_exec "cat > ${TOMB_STAGING}/rag-query.py << 'RAG_QUERY_EOF'
 #!/usr/bin/env python3
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # rag-query.py -- Retrieve documents from ChromaDB by semantic similarity
 \"\"\"
 RAG query interface for the Grimoire knowledge base.
@@ -1050,7 +1050,7 @@ OLLAMA_SVC_EOF"
     info "Deploying rag-cerydwyn.py..."
     tomb_exec "cat > ${TOMB_STAGING}/rag-cerydwyn.py << 'RAG_CERYDWYN_EOF'
 #!/usr/bin/env python3
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # rag-cerydwyn.py -- Full RAG+LLM pipeline (retrieve -> augment -> generate)
 \"\"\"
 The Cerydwyn: RAG-augmented LLM for security threat modeling.
@@ -1211,7 +1211,7 @@ RAG_CERYDWYN_EOF"
     info "Deploying cerydwyn-daemon.py..."
     tomb_exec "cat > ${TOMB_STAGING}/cerydwyn-daemon.py << 'DAEMON_EOF'
 #!/usr/bin/env python3
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # cerydwyn-daemon.py -- Background service for continuous threat monitoring
 \"\"\"
 Periodically queries the Cerydwyn with contextual prompts and writes
@@ -1423,7 +1423,7 @@ phase_deploy_dark_mirror() {
 
     info "Deploying Prometheus configuration..."
     tomb_exec "cat > ${TOMB_ROOT}/dark-mirror/prometheus/prometheus.yml << 'PROM_EOF'
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Tomb of Knowledge -- Dark Mirror Prometheus configuration
 # Monitors the Kingdom from an external (attacker) perspective.
 
@@ -1507,7 +1507,7 @@ PROM_EOF"
 
     info "Deploying Grafana configuration..."
     tomb_exec "cat > ${TOMB_ROOT}/dark-mirror/grafana/grafana.ini << 'GRAF_EOF'
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Tomb of Knowledge -- Grafana configuration
 
 [server]
@@ -1566,7 +1566,7 @@ DS_EOF"
 
     info "Deploying Loki configuration..."
     tomb_exec "cat > ${TOMB_ROOT}/dark-mirror/loki/loki.yml << 'LOKI_EOF'
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Tomb of Knowledge -- Loki log aggregation configuration
 
 auth_enabled: false
@@ -1614,7 +1614,7 @@ LOKI_EOF"
 
     info "Deploying alerting rules..."
     tomb_exec "cat > ${TOMB_ROOT}/dark-mirror/alerts/kingdom-alerts.yml << 'ALERTS_EOF'
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Tomb of Knowledge -- Dark Mirror alerting rules
 groups:
   - name: kingdom_health
@@ -1767,7 +1767,7 @@ phase_harden() {
     info "Configuring firewall (default deny, explicit allow)..."
     # Write firewall script via individual commands to avoid heredoc quoting issues
     tomb_root "printf '%s\n' '#!/bin/sh' > ${TOMB_STAGING}/tomb-firewall.sh"
-    tomb_root "printf '%s\n' '# SPDX-License-Identifier: MIT' >> ${TOMB_STAGING}/tomb-firewall.sh"
+    tomb_root "printf '%s\n' '# SPDX-License-Identifier: GPL-3.0-or-later' >> ${TOMB_STAGING}/tomb-firewall.sh"
     tomb_root "printf '%s\n' '# Tomb VM firewall rules -- default deny, explicit allow' >> ${TOMB_STAGING}/tomb-firewall.sh"
     tomb_root "printf '%s\n' 'set -eu' >> ${TOMB_STAGING}/tomb-firewall.sh"
     tomb_exec "cat >> ${TOMB_STAGING}/tomb-firewall.sh << 'FW_BODY'

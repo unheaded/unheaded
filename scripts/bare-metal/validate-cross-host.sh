@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # validate-cross-host.sh — CROSS-HOST FABRIC VALIDATION
 #
 # Purpose: Verify WireGuard tunnel, BGP peering, EVPN routes, and service mesh

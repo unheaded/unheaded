@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Fast Doom packet injector — raw AF_PACKET, minimal overhead.
 // Sends pre-built IPv6+HBH+Monad "CPU tick" packets at maximum speed.
 //

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # roles/grimoire/tasks/main.yml -- Grimoire knowledge base role
 ---
 - name: "Ensure Grimoire directories exist"

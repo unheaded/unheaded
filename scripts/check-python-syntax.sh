@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # check-python-syntax.sh — every tracked .py file must actually parse.
 #
 # GATING from day one, and the tree was NOT clean when this was written:

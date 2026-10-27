@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # verify-wireguard.sh — Verify WireGuard IPv6 overlay health and performance
 # Phase 2: S77 Age 2 Acceleration
 set -euo pipefail

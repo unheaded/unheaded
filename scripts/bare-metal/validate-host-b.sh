@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # validate-host-b.sh — HOST-B POST-BOOT VALIDATION
 #
 # Purpose: Verify all components are operational on Host-B (The Outpost)

@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # check-ruff.sh — gate the Python surface, ratcheted by rule ID.
 #
 # Baseline history:

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # ipfire.yaml — IPFire 2.29 VM for host-b (Outpost). GPL v2.
 
 name: unheaded-ipfire

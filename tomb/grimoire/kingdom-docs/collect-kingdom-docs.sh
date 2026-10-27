@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # collect-kingdom-docs.sh — Collect all relevant docs from the Unheaded repo
 #
 # Copies all .md files, architecture docs, security docs, protocol specs,

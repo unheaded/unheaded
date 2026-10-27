@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Prometheus telemetry aggregator for Unheaded Kingdom
 # Static IP: 10.20.1.50, Port: 9090
 

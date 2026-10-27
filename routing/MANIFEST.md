@@ -1,6 +1,6 @@
 # Unheaded Kingdom Routing Configuration — File Manifest
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: GPL-3.0-or-later
 
 ## Overview
 

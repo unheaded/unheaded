@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Promtail configuration for the Dark Mirror — Tomb of Knowledge
 #
 # Ships Tomb VM logs to Loki for centralized log aggregation.

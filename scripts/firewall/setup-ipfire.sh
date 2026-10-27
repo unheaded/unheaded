@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # setup-ipfire.sh — IPFire 2.29 post-boot configuration
 # Configures: network interfaces, firewall rules, Monad HbH, BIRD routing, pakfire packages
 

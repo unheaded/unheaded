@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # lxd/hosts/host-b/launch-minimal.sh
 # Launch 6 core Unheaded services + telemetry agents on host-b (Outpost)

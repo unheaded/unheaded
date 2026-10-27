@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # validate-host-a.sh — HOST-A POST-BOOT VALIDATION
 #
 # Purpose: Verify all components are operational after boot sequence

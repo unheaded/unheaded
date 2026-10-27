@@ -154,7 +154,7 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 | ID | Item | Sources | Doc | St | Stevie | Sz |
 |---|---|---|---|---|---|---|
 | M-160 | 71 of 232 first-party .rs files lack SPDX; ci spdx-check scans *.go only → backfill + extend | PLANS B-06; SEC SP-19 | scripts/check-spdx*.sh | P | N | S |
-| M-161 | ~290 non-Go files + LICENSE line 1 ("Steven Bellis") + 21 Go/Rust headers still MIT wording under GPL SPDX; RELEASE_CHECKLIST says MIT | next.md S13/S12; INT #6 | LICENSE; scripts/kingdom-shutdown.sh | NS | Y: relicense call | S |
+| M-161 | ~290 non-Go files + LICENSE line 1 ("Steven Bellis") + 21 Go/Rust headers still MIT wording under GPL SPDX; RELEASE_CHECKLIST says MIT | next.md S13/S12; INT #6 | LICENSE; scripts/kingdom-shutdown.sh | CLOSED 2026-10-27 S24 (279 files to GPL-3.0-or-later incl. templates that stamp generated files; LICENSE line already correct; 0 non-licence lines changed) | Y: relicense call | S |
 | M-162 | `gopkg.in/yaml.v3` archived, 35 prod files; `cilium/ebpf` 8 files unrecorded (GO-2026-6238 reachable); goldmark unrecorded; register thresholds | ADR W-02, W-05, S-10, W-04 | docs/adr/ADR-096 | NS | Y: thresholds; sign-offs | M |
 | M-163 | ADR-004 admissions: aws-lc-rs, anthropic-sdk-go (register dates) | NEXT-5 item 1 | docs/adr/ADR-004 | NS | Y: sign off | S |
 | M-164 | ADR-090 ledger: step 1 (vendored/generated → SKIPPED) never run; 2192 PENDING; Q1/Q2 open; 29 `#[ignore]` forge tests | ADR W-01, S-06; PLANS B-22 | docs/sweeps/TOTAL-SOURCE-SWEEP.tsv | P | Y: Q1/Q2/Q3 | L |

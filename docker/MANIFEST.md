@@ -168,7 +168,7 @@ All images include standard labels:
 ## Version Control
 
 All files include:
-- SPDX-License-Identifier: MIT
+- SPDX-License-Identifier: GPL-3.0-or-later
 - Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 - Proper header comments documenting purpose
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # ci-local.sh - Run the full CI pipeline locally
 # Part of Unheaded S77 Phase 3: SBOM + CI/CD Fortress
 set -euo pipefail

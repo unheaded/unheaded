@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # test-gpl-boundary-classifier.sh — unit tests for verify-gpl-boundary.sh's
 # SPDX expression classifier.
 #

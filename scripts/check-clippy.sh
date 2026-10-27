@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # check-clippy.sh — run clippy correctly across every Rust workspace in the tree.
 #
 # Two bugs in the previous inline CI loop, both invisible because the job was

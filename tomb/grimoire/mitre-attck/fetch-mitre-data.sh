@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # fetch-mitre-data.sh — Download MITRE ATT&CK Enterprise JSON data
 #
 # Run this on an internet-connected host. The output is saved locally

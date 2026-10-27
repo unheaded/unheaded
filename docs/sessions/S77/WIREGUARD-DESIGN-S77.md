@@ -1,6 +1,6 @@
 # WireGuard IPv6 Overlay Design — S77
 
-**SPDX-License-Identifier: MIT**
+**SPDX-License-Identifier: GPL-3.0-or-later**
 **Sprint:** S77 Age 2 Acceleration, Phase 2
 **Author:** Unheaded Team
 **Date:** 2026-03-05
