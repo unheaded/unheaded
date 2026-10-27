@@ -52,9 +52,15 @@ if [[ "${GPU_LEASE_HELD:-}" != exclusive ]]; then
     exec "$(dirname "${BASH_SOURCE[0]}")/lib/gpu-lease.sh" exclusive "${GPU_LEASE_TIMEOUT:-600}" -- "${BASH_SOURCE[0]}" "$@"
 fi
 
+# llama_cache_ram_mib: the --cache-ram a flag string asks for (default 8192).
+# shellcheck source=scripts/lib/llama-cache-ram.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/llama-cache-ram.sh"
+
 LLAMA_BIN="${LLAMA_BIN:-/home/govan/tmp/unheaded/llama.cpp/build/bin/llama-server}"
 LLAMA_HOST="${LLAMA_HOST:-127.0.0.1}"
 LLAMA_PORT="${LLAMA_PORT:-8081}"
+# A port, not a pattern: llama_pid matches it inside an awk regex.
+[[ "$LLAMA_PORT" =~ ^[0-9]{1,5}$ ]] || { echo "LLAMA_PORT must be a port number, got '$LLAMA_PORT'" >&2; exit 2; }
 LLAMA_THREADS="${LLAMA_THREADS:-6}"
 MODELS_DIR="${MODELS_DIR:-/var/zhen/models}"
 
@@ -74,16 +80,21 @@ MODEL_FILE[qwen-coder-14b]="Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
 # - deepseek-v2 has MLA attention; flash-attn unsupported on ROCm → can't
 #   quantize V cache, must keep parallel slots low to fit the 12 GB VRAM.
 # - qwen-7b is dense; comfortable at 16k ctx with 4 parallel slots.
+# Every entry states --cache-ram (MiB): llama-server's host-RAM prompt cache,
+# 8192 by default, which the fit check counts against MemAvailable. Left at
+# the default, a model that fit grew to 9.4 GiB RSS on this 14 GiB host
+# (S-CLEAN-SLATE M-037); scripts/lib/switchmodel_fit_test.go checks each
+# entry sets it.
 declare -A MODEL_FLAGS
-MODEL_FLAGS[qwen-7b]="--ctx-size 16384"
-MODEL_FLAGS[deepseek]="--ctx-size 4096 --parallel 1 --cache-type-k q8_0"
+MODEL_FLAGS[qwen-7b]="--ctx-size 16384 --cache-ram 2048"
+MODEL_FLAGS[deepseek]="--ctx-size 4096 --parallel 1 --cache-type-k q8_0 --cache-ram 1024"
 # deepseek-cpu: 27-layer model; first 20 expert layers go to system RAM
 # (~6 GB), remaining 7 layers + attention stay on GPU (~5 GB VRAM).
 # Speed expectation: 10-15 tok/s vs full-GPU 70 tok/s, but quality +.
-MODEL_FLAGS[deepseek-cpu]="--ctx-size 8192 --parallel 1 --cache-type-k q8_0 --n-cpu-moe 20"
+MODEL_FLAGS[deepseek-cpu]="--ctx-size 8192 --parallel 1 --cache-type-k q8_0 --n-cpu-moe 20 --cache-ram 1024"
 # qwen2.5-coder-14b (dense): partial GPU offload — first 30 of 48 layers on GPU,
 # remaining 18 + KV ride RAM. Estimated 5-6 GB VRAM + 4-5 GB RAM.
-MODEL_FLAGS[qwen-coder-14b]="--ctx-size 8192 --parallel 1 --n-gpu-layers 30"
+MODEL_FLAGS[qwen-coder-14b]="--ctx-size 8192 --parallel 1 --n-gpu-layers 30 --cache-ram 1024"
 
 # Friendly model name reported via OpenAI /v1/models. Cosmetic — clients
 # can read this back, but llama-server actually serves whatever GGUF is
@@ -94,10 +105,15 @@ MODEL_NAME[deepseek]="deepseek-coder-v2-lite-instruct"
 MODEL_NAME[deepseek-cpu]="deepseek-coder-v2-lite-cpu-moe"
 MODEL_NAME[qwen-coder-14b]="qwen2.5-coder-14b-instruct"
 
-# PID of the llama-server listening on LLAMA_PORT, or nothing.
+# PID of the llama-server listening on LLAMA_PORT, or nothing (exit 0 either
+# way: under set -e/pipefail a no-match must not end the script).
+# The port is matched exactly at the end of ss's local-address field
+# (127.0.0.1:8081, [::]:8081, *:8081). Unanchored, ":3901" also matched a
+# listener on ":39017", and --stop killed that unrelated process.
 llama_pid() {
-    ss -lntp 2>/dev/null | awk -v p=":${LLAMA_PORT}" '$4 ~ p {print $0}' \
-        | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2
+    { ss -lntp 2>/dev/null || true; } \
+        | awk -v p=":${LLAMA_PORT}\$" '$4 ~ p {print $0}' \
+        | { grep -oE 'pid=[0-9]+' || true; } | head -1 | cut -d= -f2
 }
 
 # Stop the llama-server on LLAMA_PORT and wait until the PROCESS has exited,
@@ -181,9 +197,11 @@ NAME="${MODEL_NAME[$KEY]}"
 # (not survivable). Fitting in swap is not fitting.
 #
 # The estimate is weights + FIT_MARGIN_PCT for KV cache, compute buffers and
-# llama.cpp's own overhead. It is an estimate, not a simulation — the real
-# KV cost depends on ctx-size and the architecture's head layout. If it is
-# wrong for a model you know fits, set ZHEN_SKIP_FIT_CHECK=1 to bypass.
+# llama.cpp's own overhead, plus the --cache-ram prompt cache, which always
+# lives in host RAM (full-GPU or not) and is counted at its cap. It is an
+# estimate, not a simulation — the real KV cost depends on ctx-size and the
+# architecture's head layout. If it is wrong for a model you know fits, set
+# ZHEN_SKIP_FIT_CHECK=1 to bypass.
 FIT_MARGIN_PCT="${FIT_MARGIN_PCT:-15}"
 # Leave this much VRAM/RAM unclaimed so the desktop and compositor survive.
 FIT_RESERVE_BYTES="${FIT_RESERVE_BYTES:-536870912}"  # 512 MiB
@@ -202,7 +220,14 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
     fi
 
     # MemAvailable, not MemFree: it accounts for reclaimable page cache.
-    RAM_AVAIL=$(( $(awk '/^MemAvailable:/ {print $2}' /proc/meminfo) * 1024 ))
+    # FIT_MEMINFO exists for the tests (a fixed meminfo), never for operators.
+    RAM_AVAIL=$(( $(awk '/^MemAvailable:/ {print $2}' "${FIT_MEMINFO:-/proc/meminfo}") * 1024 ))
+
+    if ! CACHE_RAM_MIB=$(llama_cache_ram_mib "$FLAGS"); then
+        echo "[switch-model] ✗ REFUSING to load '$KEY': its --cache-ram is unbounded; give it a MiB cap in MODEL_FLAGS." >&2
+        exit 3
+    fi
+    CACHE_RAM_BYTES=$(( CACHE_RAM_MIB * 1024 * 1024 ))
 
     # The check runs BEFORE the current server is stopped (so a refusal leaves
     # it running), which means free VRAM/RAM above are measured with the old
@@ -228,20 +253,31 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
     # Does this config keep every layer on the GPU? The launch line passes
     # --n-gpu-layers 999, but a per-model --n-gpu-layers or --n-cpu-moe in
     # FLAGS appears later on the command line and wins.
+    # The prompt cache is host RAM either way: on its own it must fit in RAM;
+    # with partial offload it also shares the VRAM+RAM budget with the
+    # weights that spill to RAM.
     if [[ "$FLAGS" == *"--n-cpu-moe"* || "$FLAGS" == *"--n-gpu-layers"* ]]; then
         OFFLOAD="partial"
         BUDGET=$(( VRAM_FREE + RAM_AVAIL - FIT_RESERVE_BYTES ))
+        NEED_TOTAL=$(( NEED_BYTES + CACHE_RAM_BYTES ))
     else
         OFFLOAD="full-gpu"
         BUDGET=$(( VRAM_FREE - FIT_RESERVE_BYTES ))
+        NEED_TOTAL=$NEED_BYTES
     fi
+    RAM_BUDGET=$(( RAM_AVAIL - FIT_RESERVE_BYTES ))
 
     hb() { numfmt --to=iec-i --suffix=B "$1" 2>/dev/null || echo "${1}B"; }
+    mib() { echo $(( $1 / 1048576 )); }
 
-    if (( BUDGET <= 0 || NEED_BYTES > BUDGET )); then
+    FIT_LINE="weights_mib=$(mib "$GGUF_BYTES") est_mib=$(mib "$NEED_BYTES") cache_ram_mib=$CACHE_RAM_MIB need_mib=$(mib "$NEED_TOTAL") budget_mib=$(mib "$BUDGET") ram_avail_mib=$(mib "$RAM_AVAIL") vram_free_mib=$(mib "$VRAM_FREE") offload=$OFFLOAD"
+
+    if (( BUDGET <= 0 || NEED_TOTAL > BUDGET || CACHE_RAM_BYTES > RAM_BUDGET )); then
         echo "[switch-model] ✗ REFUSING to load '$KEY' — it will not fit." >&2
+        echo "               $FIT_LINE verdict=refused" >&2
         echo "               weights:   $(hb "$GGUF_BYTES")" >&2
         echo "               estimated: $(hb "$NEED_BYTES")  (+${FIT_MARGIN_PCT}% KV/buffers)" >&2
+        echo "               cache-ram: $(hb "$CACHE_RAM_BYTES")  (llama-server prompt cache, host RAM; must fit $(hb "$RAM_BUDGET") RAM after reserve)" >&2
         echo "               offload:   $OFFLOAD" >&2
         echo "               free VRAM: $(hb "$VRAM_FREE")" >&2
         echo "               avail RAM: $(hb "$RAM_AVAIL")  (swap deliberately not counted)" >&2
@@ -256,7 +292,8 @@ if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
         exit 3
     fi
 
-    echo "[switch-model] fit ok: need $(hb "$NEED_BYTES") of $(hb "$BUDGET") ($OFFLOAD)"
+    echo "[switch-model] fit ok: need $(hb "$NEED_TOTAL") of $(hb "$BUDGET") ($OFFLOAD), cache-ram $(hb "$CACHE_RAM_BYTES") of $(hb "$RAM_BUDGET") RAM"
+    echo "[switch-model] $FIT_LINE verdict=fits"
     if [[ -n "$OLD_PID" ]]; then
         echo "[switch-model]   incl. $(hb "$RECLAIM_VRAM") VRAM + $(hb "$RECLAIM_RAM") RAM released by stopping pid $OLD_PID"
     fi

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -16,16 +17,17 @@ import (
 	"time"
 
 	"unheaded/pkg/metrics"
+	"unheaded/pkg/probenet"
 )
 
 // HTTP health probe for managed instances (S-REAL-STEEL Phase 4). LXD has no
 // health check, so without one an instance's health is "unknown" for ever and
 // the reconciler's restart-when-unhealthy rule never fires. A desired spec may
 // carry Health {Port, Path}; Cuirass then probes http://<instance IP>:<port><path>
-// each sync, where the IP is the one LXD reports for the instance. No field
-// of the spec names a host, the path is a plain path, redirects are not
-// followed, proxies from the environment are not used, and the body is
-// dropped after 4 KiB.
+// each sync, where the IP is the one LXD reports for the instance and must lie
+// inside Config.ProbeSubnets (the LXD bridge). No field of the spec names a
+// host, the path is a plain path, redirects are not followed, proxies from
+// the environment are not used, and the body is dropped after 4 KiB.
 
 // HealthSpec is an HTTP health check on the instance itself.
 type HealthSpec struct {
@@ -107,8 +109,10 @@ func (p *httpProber) Probe(ctx context.Context, ip string, port int, path string
 // probeAddress returns ip if it is an address an instance can legitimately
 // be probed at. A container chooses its own interface addresses, so one that
 // reports loopback, link-local, unspecified or multicast would aim the probe
-// at the host's own services: refused.
-func probeAddress(ip string) (string, error) {
+// at the host's own services, and one outside the bridge subnets at whatever
+// else the host can reach (the P2P peer, another interface): refused. No
+// subnets configured means the default bridge, never "anywhere".
+func probeAddress(ip string, subnets []netip.Prefix) (string, error) {
 	addr := net.ParseIP(ip)
 	switch {
 	case addr == nil:
@@ -117,7 +121,10 @@ func probeAddress(ip string) (string, error) {
 		addr.IsUnspecified(), addr.IsMulticast(), addr.IsInterfaceLocalMulticast():
 		return "", fmt.Errorf("address %s is not an instance address; not probing it", ip)
 	}
-	return addr.String(), nil
+	if len(subnets) == 0 {
+		subnets, _ = probenet.ParseCSV("")
+	}
+	return probenet.Allowed(subnets, ip)
 }
 
 // healthRecord is one instance's probe history.
@@ -161,7 +168,7 @@ func (d *Daemon) probeHealth(ctx context.Context) {
 			d.health[id] = rec
 		}
 		var err error
-		if ip, aerr := probeAddress(actual.IP); aerr != nil {
+		if ip, aerr := probeAddress(actual.IP, d.config.ProbeSubnets); aerr != nil {
 			err = aerr
 		} else {
 			pctx, cancel := context.WithTimeout(ctx, healthProbeTimeout)

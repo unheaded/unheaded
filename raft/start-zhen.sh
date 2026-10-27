@@ -15,9 +15,12 @@
 # What this script DOES launch:
 #   • raft/zhen_app.py on :20103 (the Python web UI)
 #
-# Optional: also start cmd/zhen-agentd if -gated is passed. Without it,
-# /api/v1/runbooks/<n>/execute returns 503 "agentd unreachable" and the
-# UI degrades gracefully. Production posture should run the daemon.
+# Optional: also start cmd/zhen-agentd if -gated is passed. The chat path
+# goes through the daemon's gate (S-CLEAN-SLATE M-036), so without a daemon
+# on :20105 chat and mutations answer 503 "the gate is required". The UI
+# authenticates to it with ZHEN_AGENTD_API_KEY (X-API-Key, one of the
+# daemon's AUTH_API_KEYS), or ZHEN_AGENTD_NO_AUTH=1 for a -no-auth loopback
+# dev daemon; set one in the environment this script runs in.
 
 set -e
 
@@ -66,7 +69,7 @@ echo "  ✓ vor :9876"
 #    pkg/champion's three-rule gate (T6b closed).
 GATED_FLAG="${1:-}"
 if [[ "$GATED_FLAG" == "-gated" ]]; then
-    if ! ss -lnt | grep -q ':20105'; then
+    if ! ss -lnt | awk '$4 ~ /:20105$/ {f=1} END {exit !f}'; then
         echo "[2/3] Starting cmd/zhen-agentd on :20105 (mutation gating)..."
         cd "$HOME/tmp/unheaded"
         AGENTD_LOG="$("$LOGPATH" zhen-agentd)"
@@ -105,11 +108,11 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         echo "[2/3] zhen-agentd already running on :20105 — leaving alone"
     fi
 else
-    echo "[2/3] Skipping zhen-agentd (run with '-gated' to enable mutation gating)"
+    echo "[2/3] Skipping zhen-agentd: chat and mutations answer 503 until one runs on :20105 ('-gated' starts it)"
 fi
 
 # 3. Start the Python web UI.
-if ss -lnt 2>/dev/null | grep -q ':20103'; then
+if ss -lnt 2>/dev/null | awk '$4 ~ /:20103$/ {f=1} END {exit !f}'; then
     echo "[3/3] Web UI already bound on :20103 — leaving alone (use 'pkill -f zhen_app.py' to restart)"
 else
     echo "[3/3] Starting Zhen Web UI on :20103..."
@@ -122,6 +125,9 @@ else
     export ZHEN_AGENTD_URL="${ZHEN_AGENTD_URL:-http://localhost:20105}"
     export ZHEN_MODEL="${ZHEN_MODEL:-qwen2.5-coder-7b-instruct}"
     export VOR_URL="${VOR_URL:-http://localhost:9876}"
+    if [[ -z "${ZHEN_AGENTD_API_KEY:-}" && "${ZHEN_AGENTD_NO_AUTH:-}" != "1" ]]; then
+        echo "  ! ZHEN_AGENTD_API_KEY unset (and ZHEN_AGENTD_NO_AUTH!=1): gated chat and mutations will answer 503"
+    fi
 
     # The Well (PostgreSQL) — required for memory cache, conversation log,
     # and live-context kanban/audit/runbook intent injection. Without these,
@@ -157,7 +163,7 @@ curl -s http://localhost:9876/api/health 2>/dev/null \
 curl -s http://localhost:20103/health 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Web UI:    {d[\"status\"]} (ready={d[\"rag_ready\"]}, well_connected={d[\"well_connected\"]})')" \
     2>/dev/null || echo "Web UI: NOT READY"
-if ss -lnt 2>/dev/null | grep -q ':20105'; then
+if ss -lnt 2>/dev/null | awk '$4 ~ /:20105$/ {f=1} END {exit !f}'; then
     curl -s http://localhost:20105/health 2>/dev/null \
         | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Daemon:    {d[\"status\"]} (mutation gating ON)')" \
         2>/dev/null || echo "Daemon: present but not responding"

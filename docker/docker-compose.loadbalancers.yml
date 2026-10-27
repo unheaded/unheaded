@@ -9,10 +9,11 @@
 # Each service: own uid (pkg/uids, 16747-16754), read-only root, cap_drop ALL,
 # no-new-privileges; all listeners are above 1024. Relative paths resolve from
 # the project directory, which is the repo root (the first -f file's).
-# KNOWN BROKEN (2026-10-20, not fixed here): both haproxy.cfg files fail
-# `haproxy -c` on 2.9 (module-path, missing /etc/haproxy/errors/*, log-format
-# fetches in TCP context), the edge's TLS bind needs /etc/haproxy/certs, and
-# nginx-gateway.conf proxies to a gateway service the stack does not run.
+# Both haproxy.cfg files are validated by scripts/check-haproxy-cfg.sh
+# (S-CLEAN-SLATE Step 109) under this image and the host binary. The edge's TLS
+# bind reads /etc/haproxy/certs, mounted from docker/haproxy/edge/certs/ (see
+# the README there; scripts/gen-haproxy-dev-cert.sh makes a dev cert). Still
+# open: nginx-gateway.conf proxies to a gateway service the stack does not run.
 #
 # USAGE:
 #   docker compose -f docker-compose.yml -f docker/docker-compose.loadbalancers.yml up -d
@@ -44,6 +45,7 @@ services:
       - "21404:21404"   # Metrics/healthcheck
     volumes:
       - ./docker/haproxy/edge/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./docker/haproxy/edge/certs:/etc/haproxy/certs:ro   # gitignored pems, never committed
     networks:
       - control
       - data

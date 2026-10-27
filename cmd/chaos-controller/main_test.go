@@ -29,8 +29,8 @@ func lab(t *testing.T) config {
 		case "/api/v1/info":
 			_, _ = w.Write([]byte(`{"lxd_project":"unheaded"}`))
 		case "/api/v1/state/actual":
-			_, _ = w.Write([]byte(`{"steel-echo-v2-0":{"status":"running","ip":"10.10.10.31","managed":true,"labels":{"chaos":"allowed"}},` +
-				`"pihole":{"status":"running","ip":"10.10.10.2","managed":false}}`))
+			_, _ = w.Write([]byte(`{"steel-echo-v2-0":{"status":"running","ip":"10.10.20.31","managed":true,"labels":{"chaos":"allowed"}},` +
+				`"pihole":{"status":"running","ip":"10.10.20.2","managed":false}}`))
 		default:
 			http.NotFound(w, r)
 		}

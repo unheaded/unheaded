@@ -162,6 +162,7 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | oxlint (pinned binary, sha256) | JavaScript lint (gating); replaced eslint, the only npm use (ADR-006) | `scripts/check-js-lint.sh` |
 | release freshness | Pinned tools (oxlint, gitleaks, syft, grype, helm, kubeconform; all in `scripts/lib/tool-pins.sh`) fail once a newer release is 7 days old; each is sha256-checked on every use (`scripts/lib/fetch-tool.sh`) | `scripts/check-tool-freshness.sh` |
 | Helm chart lockdown | Every rendered container: read-only root, no privilege escalation, drop ALL, not privileged; no host namespaces (default/dev/prod values) | `scripts/check-helm-security.sh` |
+| haproxy configs | Both haproxy configs pass `haproxy -c` under the compose-pinned image and the host binary, with a throwaway cert for the edge's TLS bind | `scripts/check-haproxy-cfg.sh` |
 | hadolint | Dockerfile lint: a Dockerfile it cannot parse fails; (rule, file) counts may only shrink | `scripts/check-hadolint.sh` |
 | bandit | Python security lint (reporting only) | CI |
 | syft | SBOM | CI |

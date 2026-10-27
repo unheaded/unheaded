@@ -57,6 +57,64 @@ func TestRunProbe_RealHTTPStatus(t *testing.T) {
 	}
 }
 
+// S-CLEAN-SLATE M-039: an allowlisted instance that reports an address
+// outside the allowlist's probe_subnets (west's lxdbr0, 10.10.20.0/24, in
+// configs/chaos/allowlist.yaml) is never probed; the probe fails with the
+// reason. The URL function is the test server's, so the subnet check must
+// sit before it.
+func TestRunProbe_ConfinedToProbeSubnets(t *testing.T) {
+	fx := newFixture(t)
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits++ }))
+	defer srv.Close()
+	probeTo(fx, srv)
+	exp := probeExp("steel-echo-v2-0")
+	for _, ip := range []string{"192.168.13.1", "10.10.21.31", "fe80::1", "fd00::31", "10.10.10.31"} {
+		fx.res.mu.Lock()
+		fx.res.inst["steel-echo-v2-0"].IP = ip
+		fx.res.mu.Unlock()
+		r := fx.s.runProbe(context.Background(), exp, Probe{Name: "h", Port: 8080, Path: "/health"})
+		if r.Success || !strings.Contains(r.Error, "probe subnets") {
+			t.Errorf("instance at %s: probe = %+v, want refused (probe subnets)", ip, r)
+		}
+	}
+	if hits != 0 {
+		t.Fatalf("%d request(s) made to out-of-subnet instances", hits)
+	}
+	fx.res.mu.Lock()
+	fx.res.inst["steel-echo-v2-0"].IP = "10.10.20.31"
+	fx.res.mu.Unlock()
+	if r := fx.s.runProbe(context.Background(), exp, Probe{Name: "h", Port: 8080, Path: "/health"}); !r.Success || hits != 1 {
+		t.Fatalf("in-subnet instance: probe = %+v, hits %d; want one passing probe", r, hits)
+	}
+}
+
+func TestAllowlist_ProbeSubnets(t *testing.T) {
+	base := "lxd: {project: unheaded, label: chaos=allowed}\nnetns: '^steel[0-9]+$'\npacket_interfaces: '^steel[0-9]+-h$'\n" +
+		"systemd: {host: east, units: [unheaded-timeguru.service]}\nlimits: {max_concurrent: 1, max_duration: 10m, max_loss_percent: 50, max_delay: 2s}\n"
+	a, err := ParseAllowlist([]byte(base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Absent: the default bridge, never "anywhere".
+	if _, err := a.ProbeAddress("10.10.10.9"); err != nil {
+		t.Errorf("default subnet refused 10.10.10.9: %v", err)
+	}
+	if _, err := a.ProbeAddress("10.10.20.9"); err == nil {
+		t.Error("default subnet accepted 10.10.20.9")
+	}
+	for _, bad := range []string{"[]", "['0.0.0.0/0']", "['10.0.0.0/8']", "['lxdbr0']", "['127.0.0.0/24']"} {
+		if _, err := ParseAllowlist([]byte(base + "probe_subnets: " + bad + "\n")); err == nil {
+			t.Errorf("probe_subnets %s accepted", bad)
+		}
+	}
+	if seed := testAllowlist(t); seed != nil {
+		if _, err := seed.ProbeAddress("10.10.20.128"); err != nil {
+			t.Errorf("the repo seed refuses west's lxdbr0: %v", err)
+		}
+	}
+}
+
 func TestRunProbe_RefusesNonAllowlistedTarget(t *testing.T) {
 	fx := newFixture(t)
 	hit := false

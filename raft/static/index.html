@@ -1228,6 +1228,27 @@
 
 <script>
 const API = '';  // Same origin
+
+// CSRF interim (threat model T8): echo the zhen_csrf cookie (SameSite=Strict,
+// set by GET /) in X-Zhen-CSRF on every same-origin state-changing request.
+// Never sent to another origin.
+(function () {
+    const realFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+        init = init || {};
+        const method = (init.method || 'GET').toUpperCase();
+        const url = new URL(typeof input === 'string' ? input : input.url, location.href);
+        if (method !== 'GET' && method !== 'HEAD' && url.origin === location.origin) {
+            const m = document.cookie.match(/(?:^|; )zhen_csrf=([^;]+)/);
+            if (m) {
+                const headers = new Headers(init.headers || {});
+                headers.set('X-Zhen-CSRF', decodeURIComponent(m[1]));
+                init = Object.assign({}, init, { headers: headers });
+            }
+        }
+        return realFetch(input, init);
+    };
+})();
 const msgs = document.getElementById('messages');
 const qInput = document.getElementById('q');
 const btn = document.getElementById('btn');
@@ -1574,18 +1595,16 @@ function renderActionButtons(actions) {
                         body: JSON.stringify(action.payload),
                     });
                 } else if (action.kind === 'kanban_create') {
-                    // POST to the daemon's /tool/exec directly with a
-                    // direct-user justification. Champion's gate enforces
-                    // the rules; pgKanbanStore writes the row.
+                    // Through the web app, which calls the daemon's
+                    // /tool/exec with its API key and a direct-user
+                    // justification. Champion's gate enforces the rules;
+                    // pgKanbanStore writes the row.
                     const taskId = 'task-zhen-' + Date.now();
-                    resp = await fetch('http://' + location.hostname + ':20105/api/v1/tool/exec', {
+                    resp = await fetch(API + '/api/v1/kanban/create', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
-                            tool: 'kanban_create',
-                            args: { task: { id: taskId, ...action.payload } },
-                            session_id: 'zhen-ui-' + Date.now(),
-                            emitted_by: 'zhen-web-ui',
+                            task: { id: taskId, ...action.payload },
                         }),
                     });
                 }

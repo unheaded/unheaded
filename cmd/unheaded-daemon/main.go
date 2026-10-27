@@ -28,6 +28,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"sort"
@@ -44,6 +45,7 @@ import (
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
+	"unheaded/pkg/probenet"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 
@@ -421,6 +423,12 @@ type Config struct {
 	// ProxyListenAddrs: lab addresses a proxy device may listen on besides
 	// 127.0.0.1 (CUIRASS_PROXY_LISTEN_ADDRS, comma separated IPs).
 	ProxyListenAddrs []string
+
+	// ProbeSubnets: the only subnets whose instance-reported addresses the
+	// health probe will contact (CUIRASS_PROBE_SUBNETS, comma separated
+	// CIDRs; default pkg/probenet.DefaultCIDR, setup-host.sh's lxdbr0).
+	// S-CLEAN-SLATE M-039.
+	ProbeSubnets []netip.Prefix
 }
 
 // StateManager manages desired vs actual state
@@ -1668,6 +1676,13 @@ func loadConfig(path string) *Config {
 		Chaos:            os.Getenv("CUIRASS_CHAOS") == "true",
 		ProxyListenAddrs: parseIPList(os.Getenv("CUIRASS_PROXY_LISTEN_ADDRS")),
 	}
+	subnets, err := probeSubnetsFromEnv(os.Getenv("CUIRASS_PROBE_SUBNETS"))
+	if err != nil {
+		// Fail loud: a bad list must not become "probe anything".
+		fmt.Fprintf(os.Stderr, "Error: CUIRASS_PROBE_SUBNETS: %v\n", err)
+		os.Exit(1)
+	}
+	cfg.ProbeSubnets = subnets
 
 	// Load from YAML file if path provided, overriding defaults
 	if path != "" {
@@ -1736,6 +1751,11 @@ func loadConfig(path string) *Config {
 	}
 
 	return cfg
+}
+
+// probeSubnetsFromEnv parses CUIRASS_PROBE_SUBNETS (empty: the default).
+func probeSubnetsFromEnv(v string) ([]netip.Prefix, error) {
+	return probenet.ParseCSV(v)
 }
 
 // parseIPList keeps the comma-separated entries that are specific IP

@@ -485,6 +485,8 @@ lint: ## Lint all code
 	@echo "Linting Rust code..."
 	cd $(EBPF_DIR) && cargo clippy
 	cd cmd/trace-collector && cargo clippy
+	@echo "Checking haproxy configs..."
+	scripts/check-haproxy-cfg.sh
 
 security: ## Run Go security audit (gosec)
 	@echo "Running security audit..."

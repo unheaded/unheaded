@@ -26,17 +26,17 @@ type fakeResolver struct {
 
 func newResolver() *fakeResolver {
 	return &fakeResolver{inst: map[string]*InstanceInfo{
-		"steel-echo-v2-0": {Name: "steel-echo-v2-0", Status: "running", IP: "10.10.10.31", Project: "unheaded", Managed: true,
+		"steel-echo-v2-0": {Name: "steel-echo-v2-0", Status: "running", IP: "10.10.20.31", Project: "unheaded", Managed: true,
 			Labels: map[string]string{"chaos": "allowed", "svc": "steel-echo"}},
-		"steel-echo-v2-1": {Name: "steel-echo-v2-1", Status: "running", IP: "10.10.10.32", Project: "unheaded", Managed: true,
+		"steel-echo-v2-1": {Name: "steel-echo-v2-1", Status: "running", IP: "10.10.20.32", Project: "unheaded", Managed: true,
 			Labels: map[string]string{"chaos": "allowed", "svc": "steel-echo"}},
-		"plain-0": {Name: "plain-0", Status: "running", IP: "10.10.10.33", Project: "unheaded", Managed: true},
-		"unmanaged-0": {Name: "unmanaged-0", Status: "running", IP: "10.10.10.34", Project: "unheaded",
+		"plain-0": {Name: "plain-0", Status: "running", IP: "10.10.20.33", Project: "unheaded", Managed: true},
+		"unmanaged-0": {Name: "unmanaged-0", Status: "running", IP: "10.10.20.34", Project: "unheaded",
 			Labels: map[string]string{"chaos": "allowed"}},
-		"other-project-0": {Name: "other-project-0", Status: "running", IP: "10.10.10.35", Project: "default", Managed: true,
+		"other-project-0": {Name: "other-project-0", Status: "running", IP: "10.10.20.35", Project: "default", Managed: true,
 			Labels: map[string]string{"chaos": "allowed"}},
 		// pihole as a misconfigured resolver might report it: still refused by name.
-		"pihole": {Name: "pihole", Status: "running", IP: "10.10.10.2", Project: "unheaded", Managed: true,
+		"pihole": {Name: "pihole", Status: "running", IP: "10.10.20.2", Project: "unheaded", Managed: true,
 			Labels: map[string]string{"chaos": "allowed"}},
 	}}
 }
