@@ -47,7 +47,7 @@ the redactor before it is written, then is cut at 64 KiB
 (`\n[truncated by zhencapture]` marks a cut).
 
 The patterns live in one file, `pkg/zhencapture/redact_patterns.json`, read by
-both writers (Go `pkg/zhencapture`, Python `raft/zhen_mcp_server.py`). A match
+`pkg/zhencapture` (used by `cmd/zhen-claude` and `cmd/zhen-mcp`). A match
 becomes `[REDACTED:<kind>]`, keeping a `password=` style prefix where the
 pattern has one. Kinds: `private_key` (PEM blocks, including an unterminated
 one), `anthropic_key`, `openai_key`, `aws_access_key`, `aws_secret`,
@@ -72,7 +72,7 @@ form gets through, which is why the directory rules above exist as well.
   "system": "system prompt sent to the model(s)",
   "prompt": "the user's prompt",
   "tool_calls": [
-    {"name": "file_read", "provider": "mcp:raft/zhen_mcp_server.py",
+    {"name": "file_read", "provider": "mcp:scripts/zhen-mcp.sh",
      "decision": "allowed", "input": {"path": "..."}, "output": "...", "is_error": false}
   ],
   "local":  {"model": "qwen2.5-coder-7b-instruct", "system": "local system prompt", "answer": "...",

@@ -44,7 +44,7 @@ Since WAVE15 (2026-05) retrieval is `vor` (`vor serve`, :9876), not the old FAIS
 | CLI | `cmd/zhen-cli` (ADR-059) |
 | Claude API bridge (`-route auto`: local model first, Claude on failure) | `cmd/zhen-claude`, `pkg/claudebridge` (ADR-104) |
 | Training capture (opt-in, redacted JSONL) | `pkg/zhencapture` ([format](../docs/architecture/zhen-capture.md)) |
-| MCP server for Claude Code | `raft/zhen_mcp_server.py`, registered in `.mcp.json` (server `zhen`, launched by `scripts/zhen-mcp.sh`) |
+| MCP server for Claude Code | `cmd/zhen-mcp` (every call through the Champion; stdio transport `pkg/mcpserver`, shared with `cmd/lich-mcp`), registered in `.mcp.json` (server `zhen`, launched by `scripts/zhen-mcp.sh`) |
 | Forge (training) | `crates/zhenai-forge/` (ADR-048 backend trait) |
 
 **On west today (2026-10-15):** none of these is running. Zhen is started on demand.
@@ -57,6 +57,18 @@ whether to trust project servers; after that the tools appear as
 `runbook_execute` stay hidden unless the server's environment sets
 `ZHEN_MCP_ALLOW_WRITE=1` / `ZHEN_MCP_ALLOW_EXEC=1`, which `.mcp.json` does not.
 
+Every tool runs through the Champion (`pkg/champion`): file and runbook tools
+through `Dispatch`, `corpus_search` (vor, `VOR_URL`, default
+`http://127.0.0.1:9876`), `service_health` and `local_llm` after
+`AcceptToolCall`. So the path allowlist (symlinks resolved, `.env`,
+`secrets`, `credentials`, keys denied) and the destructive-verb rule apply to
+every call, including a `local_llm` prompt. A flag is the operator's grant for
+that one server process: an enabled write carries a `direct-user` reference
+naming the flag, and still meets the write cap, `openat2` writes and, for a
+live `runbook_execute`, `runbooks/MANIFEST.sha256`. A refused or failed call is
+an `isError` result (`ACCESS DENIED: ...` for a gate refusal). The Champion's
+action rows and one line per call go to the server's stderr as JSON.
+
 `local_llm` lets Claude ask the local model directly: one chat completion from
 llama-server's OpenAI-compatible API (`ZHEN_LOCAL_LLM_URL`, default
 `http://127.0.0.1:8081`). It never starts or swaps a model; if nothing is
@@ -65,10 +77,13 @@ with `scripts/switch-model.sh <key>` (it runs the memory fit check). Set
 `ZHEN_CAPTURE_DIR` in the server's environment to record each call, redacted,
 for training ([format](../docs/architecture/zhen-capture.md)).
 
-`scripts/zhen-mcp.sh` picks the interpreter: `$ZHEN_MCP_PYTHON`, then
-`~/.venv/zhen/bin/python`, then `python3`. If none can import `mcp` it exits
-non-zero and says what it tried (`/mcp` in Claude Code shows the server as
-failed).
+`scripts/zhen-mcp.sh` runs `bin/zhen-mcp`; build it with
+`make build-zhen-mcp` (and again after pulling changes to it). Without the
+binary the script exits non-zero naming that target (`/mcp` in Claude Code
+shows the server as failed). `scripts/check-zhen-mcp.sh` runs the handshake
+Claude Code performs against a fresh build; CI runs it. The Python server
+(`raft/zhen_mcp_server.py`) was retired 2026-10-27 (S-CHAMPION-HARDENING
+Phase 10).
 
 ## Vision
 
