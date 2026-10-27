@@ -94,6 +94,11 @@ build-zhen-agentd: ## Build zhen-agentd (HTTP daemon variant of zhen-agent)
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/zhen-agentd && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-agentd
 
+build-zhen-mcp: ## Build zhen-mcp (Zhen's MCP server for Claude Code; scripts/zhen-mcp.sh runs it)
+	@echo "Building zhen-mcp..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/zhen-mcp && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-mcp
+
 zhen-agent-up: build-zhen-agent ## Build zhen-agent + verify prerequisites (vor, llama-server)
 	@./scripts/zhen-agent-preflight.sh
 

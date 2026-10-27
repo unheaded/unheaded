@@ -10,7 +10,7 @@ CSRF (threat model T8, interim until the Go port): a browser request
 (it carries Origin or Sec-Fetch-Site) that changes state must echo the
 per-session zhen_csrf cookie (SameSite=Strict) in X-Zhen-CSRF. A cross-site
 page cannot read that cookie, so it cannot forge the header. Requests with
-neither header are not from a browser (curl, zhen_mcp_server, eval scripts)
+neither header are not from a browser (curl, zhen-mcp, eval scripts)
 and carry no ambient browser state to ride, so they are not CSRF.
 """
 

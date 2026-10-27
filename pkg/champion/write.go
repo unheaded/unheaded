@@ -417,6 +417,13 @@ func (c *Champion) RunbookExecute(ctx context.Context, name string, dryRun bool)
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return nil, fmt.Errorf("runbook not found: %w", err)
 	}
+	// A symlink out of runbooks/ is refused, dry run included, the same
+	// check RunbookShow makes (S-CHAMPION-HARDENING Step 199).
+	if _, err := c.runbookFile(name); err != nil {
+		c.completeAction(ctx, actionID, "denied",
+			summarizeArgs(map[string]any{"name": name}), err.Error(), time.Since(start))
+		return nil, err
+	}
 
 	// RT-08: manifest hash, destructive-command scan, and a private copy of
 	// the verified bytes for a live run (runbookmanifest.go).

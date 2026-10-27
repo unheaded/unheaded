@@ -11,7 +11,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -29,20 +28,16 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/lichtools"
+	"unheaded/pkg/mcpserver"
 	"unheaded/pkg/zhentools"
 )
 
 const (
-	serverName            = "lich-mcp"
-	serverVersion         = "0.1.0"
-	latestProtocolVersion = "2025-11-25"
+	serverName    = "lich-mcp"
+	serverVersion = "0.1.0"
 	// maxMessageBytes bounds a single JSON-RPC line; a longer line ends the
 	// stream (it can no longer be trusted).
-	maxMessageBytes = 8 << 20
-	codeParseError  = -32700
-	codeInvalidReq  = -32600
-	codeMethodNF    = -32601
-	codeInvalidPar  = -32602
+	maxMessageBytes = mcpserver.DefaultMaxMessageBytes
 )
 
 func main() {
@@ -188,121 +183,44 @@ func newServer(cfgPath, projectRoot, emittedBy string, logger *slog.Logger) (*se
 	}, nil
 }
 
-// --- JSON-RPC wire shapes (server side) ---
+// --- MCP stdio transport (pkg/mcpserver) ---
 
-type rpcIn struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params"`
-}
-
-type rpcErr struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-type rpcOut struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id"`
-	Result  any             `json:"result,omitempty"`
-	Error   *rpcErr         `json:"error,omitempty"`
-}
-
-type contentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-type callToolResult struct {
-	Content []contentBlock `json:"content"`
-	IsError bool           `json:"isError"`
-}
-
-type callToolParams struct {
-	Name      string          `json:"name"`
-	Arguments json.RawMessage `json:"arguments"`
-}
+// The wire shapes live in pkg/mcpserver, shared with cmd/zhen-mcp.
+type (
+	callToolResult = mcpserver.CallToolResult
+	callToolParams = mcpserver.CallToolParams
+)
 
 // serve runs the newline-delimited JSON-RPC loop over r/w until EOF, a
 // too-large line, or ctx cancellation.
 func (s *server) serve(ctx context.Context, r io.Reader, w io.Writer) error {
-	br := bufio.NewReaderSize(r, 64<<10)
-	enc := json.NewEncoder(w)
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		line, err := readLine(br, maxMessageBytes)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil // clean shutdown: the client closed stdin
-			}
-			return err
-		}
-		if len(line) == 0 {
-			continue
-		}
-		var in rpcIn
-		if jerr := json.Unmarshal(line, &in); jerr != nil {
-			_ = enc.Encode(rpcOut{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: &rpcErr{Code: codeParseError, Message: "parse error"}})
-			continue
-		}
-		out, respond := s.handle(ctx, in)
-		if respond {
-			if werr := enc.Encode(out); werr != nil {
-				return werr
-			}
-		}
+	ms := &mcpserver.Server{
+		Name:            serverName,
+		Version:         serverVersion,
+		Instructions:    "Lich red-team tools, confined to this operator's own sandboxes and local harnesses. Scope is enforced server-side; findings are never auto-published.",
+		Handler:         lichHandler{s},
+		MaxMessageBytes: maxMessageBytes,
 	}
+	return ms.Serve(ctx, r, w)
 }
 
-// handle dispatches one request. respond is false for notifications (no id).
-func (s *server) handle(ctx context.Context, in rpcIn) (rpcOut, bool) {
-	isNotification := len(in.ID) == 0 || string(in.ID) == "null"
-	reply := func(result any, e *rpcErr) (rpcOut, bool) {
-		if isNotification {
-			return rpcOut{}, false
-		}
-		return rpcOut{JSONRPC: "2.0", ID: in.ID, Result: result, Error: e}, true
-	}
+// lichHandler adapts the server to mcpserver.Handler.
+type lichHandler struct{ s *server }
 
-	switch in.Method {
-	case "initialize":
-		return reply(map[string]any{
-			"protocolVersion": latestProtocolVersion,
-			"capabilities":    map[string]any{"tools": map[string]any{}},
-			"serverInfo":      map[string]any{"name": serverName, "version": serverVersion},
-			"instructions":    "Lich red-team tools, confined to this operator's own sandboxes and local harnesses. Scope is enforced server-side; findings are never auto-published.",
-		}, nil)
-	case "notifications/initialized", "notifications/cancelled":
-		return rpcOut{}, false
-	case "ping":
-		return reply(map[string]any{}, nil)
-	case "tools/list":
-		tools, err := s.provider.Tools(ctx)
-		if err != nil {
-			return reply(nil, &rpcErr{Code: codeInvalidReq, Message: "tools/list failed"})
-		}
-		wire := make([]map[string]any, 0, len(tools))
-		for _, t := range tools {
-			wire = append(wire, map[string]any{
-				"name":        t.Name,
-				"description": t.Description,
-				"inputSchema": t.InputSchema,
-			})
-		}
-		return reply(map[string]any{"tools": wire}, nil)
-	case "tools/call":
-		var p callToolParams
-		if err := json.Unmarshal(in.Params, &p); err != nil || p.Name == "" {
-			return reply(nil, &rpcErr{Code: codeInvalidPar, Message: "invalid tools/call params"})
-		}
-		res := s.callTool(ctx, p)
-		return reply(res, nil)
-	default:
-		return reply(nil, &rpcErr{Code: codeMethodNF, Message: "method not found"})
+func (h lichHandler) ListTools(ctx context.Context) ([]mcpserver.Tool, error) {
+	tools, err := h.s.provider.Tools(ctx)
+	if err != nil {
+		return nil, err
 	}
+	wire := make([]mcpserver.Tool, 0, len(tools))
+	for _, t := range tools {
+		wire = append(wire, mcpserver.Tool{Name: t.Name, Description: t.Description, InputSchema: t.InputSchema})
+	}
+	return wire, nil
+}
+
+func (h lichHandler) CallTool(ctx context.Context, p mcpserver.CallToolParams) mcpserver.CallToolResult {
+	return h.s.callTool(ctx, p)
 }
 
 // callTool runs one tool: scope pre-check (refuse off-allowlist BEFORE the
@@ -359,7 +277,7 @@ func (s *server) callTool(ctx context.Context, p callToolParams) callToolResult 
 		rec.Decision = "tool_error"
 	}
 	s.audit(ctx, rec, start)
-	return callToolResult{Content: []contentBlock{{Type: "text", Text: res.Text}}, IsError: res.IsError}
+	return callToolResult{Content: []mcpserver.ContentBlock{{Type: "text", Text: res.Text}}, IsError: res.IsError}
 }
 
 func (s *server) audit(ctx context.Context, rec claudebridge.ToolRecord, start time.Time) {
@@ -368,36 +286,7 @@ func (s *server) audit(ctx context.Context, rec claudebridge.ToolRecord, start t
 }
 
 func errResult(msg string) callToolResult {
-	return callToolResult{Content: []contentBlock{{Type: "text", Text: msg}}, IsError: true}
-}
-
-// readLine reads one newline-delimited message, bounded by max bytes.
-func readLine(br *bufio.Reader, max int) ([]byte, error) {
-	var buf []byte
-	for {
-		chunk, err := br.ReadSlice('\n')
-		buf = append(buf, chunk...)
-		if len(buf) > max {
-			return nil, fmt.Errorf("lich-mcp: message exceeds %d bytes; stream no longer trusted", max)
-		}
-		if errors.Is(err, bufio.ErrBufferFull) {
-			continue
-		}
-		if err != nil {
-			if len(buf) > 0 && errors.Is(err, io.EOF) {
-				return trimNL(buf), nil
-			}
-			return nil, err
-		}
-		return trimNL(buf), nil
-	}
-}
-
-func trimNL(b []byte) []byte {
-	for len(b) > 0 && (b[len(b)-1] == '\n' || b[len(b)-1] == '\r') {
-		b = b[:len(b)-1]
-	}
-	return b
+	return mcpserver.ErrorResult(msg)
 }
 
 // compile-time assertion that the provider satisfies the gate's Provider type.

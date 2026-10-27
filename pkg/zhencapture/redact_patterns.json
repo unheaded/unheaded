@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Shared by pkg/zhencapture (Go, RE2) and raft/zhen_mcp_server.py (Python re). Keep every pattern inside the common subset: no lookaround, no backreferences. Group 1, if present, is kept before the tag; group 2, if present, is kept after it. Order matters: earlier patterns run first.",
+  "note": "Read by pkg/zhencapture (Go, RE2); a Python reader (the retired Python MCP server was one) must see the same rules. Keep every pattern inside the RE2/Python re common subset: no lookaround, no backreferences. Group 1, if present, is kept before the tag; group 2, if present, is kept after it. Order matters: earlier patterns run first.",
   "patterns": [
     {"name": "private_key", "regex": "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----"},
     {"name": "private_key", "regex": "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\\s\\S]*"},

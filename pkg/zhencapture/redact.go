@@ -10,8 +10,9 @@ import (
 	"regexp"
 )
 
-// redactPatterns is shared with raft/zhen_mcp_server.py, which reads the
-// same file, so both writers redact the same things.
+// redactPatterns lives in a JSON file so a non-Go capture writer can read
+// the same rules (the retired Python MCP server did; cmd/zhen-mcp now uses
+// this package).
 //
 //go:embed redact_patterns.json
 var redactPatterns []byte

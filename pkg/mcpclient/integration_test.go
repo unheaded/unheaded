@@ -15,56 +15,38 @@ import (
 	"time"
 )
 
-// pythonWithMCP finds a Python that can import the mcp package. Set
-// MCPCLIENT_PYTHON to pin one; otherwise the Zhen venvs are tried, then
-// python3 on PATH (system Python usually lacks mcp).
-func pythonWithMCP(t *testing.T) string {
+// buildZhenMCP builds cmd/zhen-mcp into a temp dir and returns the binary.
+func buildZhenMCP(t *testing.T) string {
 	t.Helper()
-	var candidates []string
-	if p := os.Getenv("MCPCLIENT_PYTHON"); p != "" {
-		candidates = append(candidates, p)
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go toolchain not on PATH")
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates,
-			filepath.Join(home, ".venv", "zhen", "bin", "python"),
-			filepath.Join(home, ".venv", "zhen-rocm", "bin", "python"),
-		)
+	bin := filepath.Join(t.TempDir(), "zhen-mcp")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	// #nosec G204 -- test-only build of this repo's own command.
+	out, err := exec.CommandContext(ctx, goBin, "build", "-o", bin, "unheaded/cmd/zhen-mcp").CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build cmd/zhen-mcp: %v\n%s", err, out)
 	}
-	if p, err := exec.LookPath("python3"); err == nil {
-		candidates = append(candidates, p)
-	}
-	for _, p := range candidates {
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		// #nosec G204 -- test-only probe of a local interpreter path.
-		out, err := exec.CommandContext(ctx, p, "-I", "-c",
-			"import importlib.metadata as m, mcp.server.stdio; print(m.version('mcp'))").Output()
-		cancel()
-		if err == nil {
-			t.Logf("using %s (mcp %s)", p, strings.TrimSpace(string(out)))
-			return p
-		}
-	}
-	t.Skip("no Python with the mcp package; set MCPCLIENT_PYTHON or install raft/requirements.txt's mcp pin into a venv")
-	return ""
+	return bin
 }
 
-// TestRealZhenMCPServer drives raft/zhen_mcp_server.py. It calls only
-// read-only tools: runbook_list, service_health (probes local /health
-// ports), runbook_show with bad arguments (refused by schema validation
-// before the handler runs), local_llm against a port nothing listens on
-// (an isError result, not a hang), and a tool name that does not exist.
+// TestRealZhenMCPServer drives cmd/zhen-mcp (built for the test). It calls
+// only read-only tools: runbook_list, service_health (probes local /health
+// ports), runbook_show with bad arguments (refused before the Champion
+// runs it), local_llm against a port nothing listens on (an isError
+// result, not a hang), and a tool name that does not exist.
 func TestRealZhenMCPServer(t *testing.T) {
 	if testing.Short() {
-		t.Skip("spawns the real Python MCP server")
+		t.Skip("builds and spawns the real zhen-mcp server")
 	}
-	server, err := filepath.Abs(filepath.Join("..", "..", "raft", "zhen_mcp_server.py"))
+	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(server); err != nil {
-		t.Skipf("server script not found: %v", err)
-	}
-	python := pythonWithMCP(t)
+	server := buildZhenMCP(t)
 
 	// local_llm must find nothing listening; captures stay off.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -75,16 +57,15 @@ func TestRealZhenMCPServer(t *testing.T) {
 	_ = ln.Close()
 	var env []string
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, "ZHEN_LOCAL_LLM_") && !strings.HasPrefix(kv, "ZHEN_CAPTURE_DIR=") {
+		if !strings.HasPrefix(kv, "ZHEN_LOCAL_LLM_") && !strings.HasPrefix(kv, "ZHEN_CAPTURE_DIR=") && !strings.HasPrefix(kv, "ZHEN_MCP_PROJECT_ROOT=") {
 			env = append(env, kv)
 		}
 	}
-	env = append(env, "ZHEN_LOCAL_LLM_URL="+deadURL, "ZHEN_LOCAL_LLM_TIMEOUT=10")
+	env = append(env, "ZHEN_LOCAL_LLM_URL="+deadURL, "ZHEN_LOCAL_LLM_TIMEOUT=10", "ZHEN_MCP_PROJECT_ROOT="+root)
 
 	ctx := context.Background()
 	c, err := Start(ctx, Config{
-		Command:     python,
-		Args:        []string{"-I", server},
+		Command:     server,
 		Env:         env,
 		InitTimeout: 60 * time.Second,
 		CallTimeout: 60 * time.Second,
@@ -155,7 +136,7 @@ func TestRealZhenMCPServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runbook_show: %v", err)
 	}
-	if !res.IsError || !strings.Contains(res.Text, "'name' is a required property") {
+	if !res.IsError || !strings.Contains(res.Text, `missing required argument "name"`) {
 		t.Errorf("runbook_show without name = %+v", res)
 	}
 	t.Logf("runbook_show {}: %s (isError=%v)", res.Text, res.IsError)

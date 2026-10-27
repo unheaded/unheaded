@@ -6,7 +6,8 @@ The runbook's own tool-list checks start the real MCP server through
 `zhen-claude -dry-run` (no credential, nothing sent) with the write gate off
 and on; the answers must flip. The repo's .mcp.json must keep both gates off."""
 import json
-import subprocess
+import os
+import shutil
 
 import harness
 import pytest
@@ -25,16 +26,12 @@ def gated_checks():
     return out
 
 
-def mcp_importable():
-    # Runs at collection time (skipif): an interpreter that is not there, like
-    # ~/.venv/zhen on a CI runner, must mean "no", not a collection error.
-    for py in (str(harness.Path.home() / ".venv/zhen/bin/python"), "python3"):
-        try:
-            if subprocess.run([py, "-c", "import mcp"], capture_output=True, check=False).returncode == 0:
-                return True
-        except OSError:
-            continue
-    return False
+def zhen_mcp_built():
+    # Runs at collection time (skipif). scripts/zhen-mcp.sh runs bin/zhen-mcp
+    # (`make build-zhen-mcp`; the Python server was retired in
+    # S-CHAMPION-HARDENING Phase 10) and the checks use `go run`.
+    exe = harness.REPO / "bin" / "zhen-mcp"
+    return exe.is_file() and os.access(exe, os.X_OK) and shutil.which("go") is not None
 
 
 def test_dry_run_lists_every_step():
@@ -69,7 +66,7 @@ def test_preflight_guard_passes_on_this_repo():
         harness.run_step(rb, g, env={"REPO": str(harness.REPO)}, cwd=harness.REPO)
 
 
-@pytest.mark.skipif(not mcp_importable(), reason="the MCP server needs the mcp package (~/.venv/zhen)")
+@pytest.mark.skipif(not zhen_mcp_built(), reason="the MCP server needs bin/zhen-mcp (make build-zhen-mcp) and go")
 def test_tools_disabled_guard_passes_on_this_repo():
     # With both gates off in the launching shell, the server lists no mutating tool.
     rb = harness.load(RB)
@@ -78,7 +75,7 @@ def test_tools_disabled_guard_passes_on_this_repo():
                      cwd=harness.REPO, timeout=300)
 
 
-@pytest.mark.skipif(not mcp_importable(), reason="the MCP server needs the mcp package (~/.venv/zhen)")
+@pytest.mark.skipif(not zhen_mcp_built(), reason="the MCP server needs bin/zhen-mcp (make build-zhen-mcp) and go")
 def test_tool_list_checks_flip_with_the_gate():
     rb = harness.load(RB)
     checks = gated_checks()

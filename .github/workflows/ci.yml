@@ -67,6 +67,12 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # The stdio handshake Claude Code performs against Zhen's MCP server
+      # (.mcp.json -> scripts/zhen-mcp.sh -> cmd/zhen-mcp): read-only tool
+      # list, refusals are isError. No model, no network; a few seconds.
+      - name: Zhen MCP handshake
+        run: ./scripts/check-zhen-mcp.sh
+
       - name: Test with race detector and coverage
         run: |
           go test -race -count=1 -timeout 120s -coverprofile=coverage.out ./...
