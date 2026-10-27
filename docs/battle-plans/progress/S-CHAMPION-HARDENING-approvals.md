@@ -63,3 +63,17 @@ Why yours: it spends money and writes branches while nobody watches.
 Filed by Phase 5 in `docs/adr/ADR-019-*.md` (status Proposed, with what accepting and rejecting each change).
 Note: branch-sandbox mode is already live with no off switch; rejecting it stops routed tasks with a check from
 applying drafts unattended.
+
+## E4: west units (one host window)
+
+Install `zhen-agentd` as a system unit with the scheduler (`deploy/systemd/zhen-agentd.service`, Phase 8) and, once
+the port decision is made, `unheaded-vor` (Phase 9). Both are loopback-only, nologin users, hardened units.
+Prerequisites: `make binaries && sudo scripts/gen-dev-keys.sh` (agentd needs its key, AUTH_ENABLED is on); the E-A Well
+batch 030-043 (scheduled runs and memory need 037/041); `/etc/zhen-agentd.env` with `WELL_APP_ZHEN_DSN`,
+`WELL_KANBAN_DSN`, `ZHEN_METRICS_ADDR`, `RUNBOOK_PROGRESS_WOTAN`, and `-memory-store pg`; `/var/zhen/projects/default`
+holding `runbooks/`, `MANIFEST.sha256`, `scripts/run-runbook.py`.
+
+Questions:
+1. When, and should `zhen-agentd` start at boot?
+2. Ports: vor cannot register at 9876 (registry range 16666-26666) and zhen-agentd's 20105 collides with sophia-eye's
+   published 20105. Proposal: `ZhenVor = 20110`, `ZhenAgentd = 20111`, all callers' defaults changed in one commit.

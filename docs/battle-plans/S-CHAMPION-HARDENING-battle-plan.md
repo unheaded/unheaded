@@ -5,7 +5,7 @@
 > unattended night, **E3** ADR-019 Level 2 amendment, **E4** west units (zhen-agentd with scheduler, unheaded-vor) plus
 > the vor/zhen-agentd port decision (Phase 9 progress note). STUCK: none. Packet:
 > `docs/battle-plans/progress/S-CHAMPION-HARDENING-approvals.md`; review: `docs/security/S-CHAMPION-HARDENING-review.md`.
-> Open steps (37): 2, 6, 10, 13, 14, 15, 16, 17, 18, 19, 22, 118, 119, 137, 138, 139, 140, 141, 142, 172, 173, 174, 175, 176, 179, 180, 181, 184, 185, 186, 187, 188, 189, 190, 205, 227, 252.
+> Open steps (22): 118, 119, 137, 138, 139, 140, 141, 173, 174, 175, 179, 180, 181, 184, 185, 186, 187, 188, 189, 190, 227, 252.
 
 SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis.
@@ -132,7 +132,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && git rev-parse --abbrev-ref HEAD && git log --oneline -1 && git merge-base --is-ancestor a7fe3acd HEAD && echo "base ok" && grep -c 'SHIPPED' docs/battle-plans/S-CLEAN-SLATE-battle-plan.md || echo "S-CLEAN-SLATE not shipped: STOP (prerequisite)"
   ```
-- [ ] **Step 2** [ENV][B] ~1m: Create the sprint branch
+- [x] **Step 2** [ENV][B] ~1m: Create the sprint branch (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
   ```bash
   cd /home/govan/tmp/unheaded && git status --short | grep -v '^?? cmd/host-agent/\|^?? host-agent$' | wc -l && git checkout -b sprint/champion-hardening
   ```
@@ -148,7 +148,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && mkdir -p docs/battle-plans/progress && go test ./... 2>&1 | grep -E '^(FAIL|ok|---)' | grep -v '^ok' | tee -a docs/battle-plans/progress/S-CHAMPION-HARDENING-progress.md | tail -10; echo "baseline recorded"
   ```
-- [ ] **Step 6** [V] ~1m: Baseline is "no FAIL lines" or every FAIL is already listed in `docs/battle-plans/progress/S-CLEAN-SLATE-progress.md`
+- [x] **Step 6** [V] ~1m: Baseline is "no FAIL lines" or every FAIL is already listed in `docs/battle-plans/progress/S-CLEAN-SLATE-progress.md` (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
   - If a FAIL is new → STOP; it belongs to S-CLEAN-SLATE's regression, not here.
 
 ### Hypothesis checks (one per SITUATION bullet)
@@ -165,7 +165,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && for t in runbook_show runbook_list system_command; do grep -q "case \"$t\"" pkg/champion/dispatch.go && echo "$t DISPATCHED" || echo "$t not dispatched"; done; grep -n '20105' pkg/ports/ports.go deploy/systemd/zhen-agentd.service
   ```
-- [ ] **Step 10** [V] ~1m: All three "not dispatched"; note whether `20105` appears in both files (a registry collision to fix in Step 182)
+- [x] **Step 10** [V] ~1m: All three "not dispatched"; note whether `20105` appears in both files (a registry collision to fix in Step 182) (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
 - [x] **Step 11** [PREFLIGHT][B] ~1m: Three prompt copies, two verb lists, no runbook hash, no GGUF sha
   ```bash
   cd /home/govan/tmp/unheaded && grep -c 'CODE COMMENTS' pkg/agent/agent.go cmd/zhen-rag/main.go raft/scripts/zhen_rag.py && grep -n 'destructivePattern = ' pkg/champion/toolcall.go && grep -n 'DESTRUCTIVE-VERB FILTER' raft/scripts/zhen_rag.py && ! grep -n 'sha256' pkg/champion/write.go && ! grep -nE 'SHA256|sha256' scripts/switch-model.sh && echo "H3 holds"
@@ -174,28 +174,28 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && grep -n 'os.WriteFile(absPath' pkg/champion/write.go && ! grep -n 'Openat2\|RESOLVE_BENEATH' pkg/champion/write.go && grep -n 'golang.org/x/sys' go.mod && go doc golang.org/x/sys/unix.Openat2 | head -2
   ```
-- [ ] **Step 13** [PREFLIGHT][B] ~1m: Runbook status fields and the eval skip
+- [x] **Step 13** [PREFLIGHT][B] ~1m: Runbook status fields and the eval skip (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
   ```bash
   cd /home/govan/tmp/unheaded && grep -rlE '^\s+status: draft' runbooks --include=*.yaml | wc -l && grep -rhoE '^\s+(authored_by|approved_by):.*' runbooks --include=*.yaml | sort | uniq -c && grep -n 'runbook-draft: blocked' cmd/zhen-eval/main.go && grep -n 'fam\["runbook-draft"\] != 0' cmd/zhen-eval/main_test.go
   ```
-- [ ] **Step 14** [V] ~1m: 11 drafts, `authored_by: claude` x11, `approved_by: ""` x11, both eval lines present
-- [ ] **Step 15** [PREFLIGHT][B] ~1m: Scheduler, vor, MCP, CLI state
+- [x] **Step 14** [V] ~1m: 11 drafts, `authored_by: claude` x11, `approved_by: ""` x11, both eval lines present (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
+- [x] **Step 15** [PREFLIGHT][B] ~1m: Scheduler, vor, MCP, CLI state (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
   ```bash
   cd /home/govan/tmp/unheaded && grep -n "pkill', '-f', 'zhen_scheduler" raft/zhen_app.py && ! ls deploy/systemd/*vor* deploy/systemd/*scheduler* 2>/dev/null && grep -c 'zhen_mcp_server' scripts/zhen-mcp.sh && grep -n 'test_zhen_mcp_server' .github/workflows/raft-python.yml || echo "mcp test NOT in CI" && grep -n 'Phase 2b — requires DB plumbing' cmd/zhen-cli/main.go && grep -n -- '--json' scripts/switch-model.sh || echo "switch-model has no --json"
   ```
-- [ ] **Step 16** [PREFLIGHT][B] ~1m: run-runbook.py never executes `verification:`
+- [x] **Step 16** [PREFLIGHT][B] ~1m: run-runbook.py never executes `verification:` (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
   ```bash
   cd /home/govan/tmp/unheaded && grep -n '"verification"' scripts/run-runbook.py && ! grep -nE 'runbook\.get\("verification"|runbook\["verification"\]' scripts/run-runbook.py && grep -rlE '^\s*verification:' runbooks --include=*.yaml
   ```
-- [ ] **Step 17** [PREFLIGHT][LIVE-RO][B] ~2m: What is running on west right now (read-only)
+- [x] **Step 17** [PREFLIGHT][LIVE-RO][B] ~2m: What is running on west right now (read-only) (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
   ```bash
   systemctl is-active zhen-agentd 2>/dev/null || echo "zhen-agentd: not a unit here"; systemctl --user list-units --type=scope 2>/dev/null | grep -i vor || echo "vor: no user scope"; pgrep -af 'zhen_scheduler|zhen_app.py|llama-server' | cut -c1-120 || echo "none running"; curl -s --max-time 3 http://127.0.0.1:20105/health | head -c 200; echo
   ```
-- [ ] **Step 18** [V] ~1m: Every H1-H3 and the Step 13-16 checks hold. If any does NOT hold, the corresponding phase shrinks: strike its [CODE] steps in the progress file with "already landed in <commit>" and keep its [V] steps.
+- [x] **Step 18** [V] ~1m: Every H1-H3 and the Step 13-16 checks hold. If any does NOT hold, the corresponding phase shrinks: strike its [CODE] steps in the progress file with "already landed in <commit>" and keep its [V] steps. (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
 
 ### Worktrees and tooling
 
-- [ ] **Step 19** [ENV][B] ~2m: Worktrees for the parallel agents (Phases 4, 5, 10, 11)
+- [x] **Step 19** [ENV][B] ~2m: Worktrees for the parallel agents (Phases 4, 5, 10, 11) (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
   ```bash
   cd /home/govan/tmp/unheaded && for w in zhenrag claudebridge mcp cli; do git worktree add -b sprint/champion-hardening-$w ../unheaded-wt-$w sprint/champion-hardening 2>&1 | tail -1; done && git worktree list
   ```
@@ -207,7 +207,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && make -n coding-gate-ci | head -3 && ls scripts/coding-gate-ci.sh scripts/probe-sanitization-check.sh && ls eval/coding-gate | head -3
   ```
-- [ ] **Step 22** [V] ~1m: **PHASE 0 EXIT GATE** — Steps 6, 10, 14, 18 passed; worktrees listed; venv ok.
+- [x] **Step 22** [V] ~1m: **PHASE 0 EXIT GATE** — Steps 6, 10, 14, 18 passed; worktrees listed; venv ok. (superseded 2026-10-27: worktree agents on develop, each slice re-checked its own Phase 0 premises; see the progress log)
   - If pass → Phase 1. Commit: `git add -A docs/battle-plans/progress && git commit -m "[PLAN S-CHAMPION-HARDENING] Steps 1-22: preflight, baseline recorded"` (add `--no-gpg-sign` if Step 3 said SIGN=no; same for every [C] below).
   - If fail → fix within Phase 0; do not enter Phase 1.
 
@@ -625,7 +625,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```
 - [ ] **Step 140** [AFTER-E1][DOC-UPDATE][W] ~3m: `wiki/Runbooks.md`: the approval column and the policy pointer; `docs/adr/ADR-106-two-brains-one-gate.md` Q3 → answered (date).
 - [ ] **Step 141** [AFTER-E1][C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 137-140: <k> runbooks approved by Stevie (E1)`
-- [ ] **Step 142** [V] ~1m: **PHASE 6 EXIT GATE** — Steps 131, 134 green and E1 filed. The [AFTER-E1] steps may remain open; Phase 7 does not depend on them.
+- [x] **Step 142** [V] ~1m: **PHASE 6 EXIT GATE** — Steps 131, 134 green and E1 filed. The [AFTER-E1] steps may remain open; Phase 7 does not depend on them.
 
 ---
 
@@ -718,7 +718,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && scripts/check-systemd-units.sh 2>&1 | tail -2 && scripts/check-unit-binaries.sh 2>&1 | tail -2
   ```
-- [ ] **Step 172** [ESCALATE] ~2m: **E4: one west host window** to install `zhen-agentd` (with scheduler) and `unheaded-vor` units (Phase 9), run `systemd-sysusers`, restart agentd and the webapp. Context: both are loopback-only, nologin users, hardened units; the webapp restart follows the S21 recipe. Question: when, and is `zhen-agentd` to be enabled at boot? Why Stevie: host change on west.
+- [x] **Step 172** [ESCALATE] (filed 2026-10-27, approvals packet section E4) ~2m: **E4: one west host window** to install `zhen-agentd` (with scheduler) and `unheaded-vor` units (Phase 9), run `systemd-sysusers`, restart agentd and the webapp. Context: both are loopback-only, nologin users, hardened units; the webapp restart follows the S21 recipe. Question: when, and is `zhen-agentd` to be enabled at boot? Why Stevie: host change on west.
 - [ ] **Step 173** [AFTER-E4][LIVE-RW][S][BARE-METAL][B] ~5m
   ```bash
   cd /home/govan/tmp/unheaded && go build -o /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/zhen-agentd ./cmd/zhen-agentd && sudo install -m 0755 /tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad/zhen-agentd /usr/local/bin/zhen-agentd && sudo install -m 0644 deploy/systemd/zhen-agentd.service /etc/systemd/system/ && sudo install -d -o zhen-agentd -g zhen-agentd -m 0750 /etc/unheaded/zhen && sudo install -m 0640 -o root -g zhen-agentd configs/zhen-schedules.yaml /etc/unheaded/zhen/schedules.yaml && sudo systemctl daemon-reload && sudo systemctl restart zhen-agentd && sleep 2 && systemctl is-active zhen-agentd
@@ -729,7 +729,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```
   - `active`, health 200, heartbeat gauge present, no ERROR lines.
 - [ ] **Step 175** [AFTER-E4][D] ~5m: If the unit fails: `journalctl -u zhen-agentd -n 30`; the usual causes are the env file missing a DSN (then `-action-store=stderr` until S-WELL-SPRING) or `ReadWritePaths` not covering `/etc/unheaded/zhen`. Two attempts, then STUCK and `sudo systemctl revert zhen-agentd`.
-- [ ] **Step 176** [V] ~1m: **PHASE 8 EXIT GATE** — Steps 163, 166, 168 green; Step 171 gates pass; E4 filed. Commit `[PLAN S-CHAMPION-HARDENING] Steps 171-175: scheduler unit on west (E4)` when 173-174 are done.
+- [x] **Step 176** [V] ~1m: **PHASE 8 EXIT GATE** — Steps 163, 166, 168 green; Step 171 gates pass; E4 filed. Commit `[PLAN S-CHAMPION-HARDENING] Steps 171-175: scheduler unit on west (E4)` when 173-174 are done.
 
 ---
 
@@ -829,7 +829,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && go test ./cmd/zhen-mcp/... ./pkg/champion/... ./cmd/zhen-agentd/... -race -count=1 2>&1 | tail -4
   ```
-- [ ] **Step 205** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 191-204: Go MCP server through the Champion; denied calls are isError; MCP in CI`
+- [x] **Step 205** [C] ~1m: **COMMIT** `[PLAN S-CHAMPION-HARDENING] Steps 191-204: Go MCP server through the Champion; denied calls are isError; MCP in CI`
 - [x] **Step 206** [V] ~1m: **PHASE 10 EXIT GATE** — Steps 195, 198, 200, 202, 204 green.
 
 ---
