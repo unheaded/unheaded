@@ -43,6 +43,7 @@ kev-poller          ./cmd/kev-poller
 chaos-controller    ./cmd/chaos-controller
 sword               ./cmd/sword
 unheaded-baseline   ./cmd/unheaded-baseline
+heimdall-daemon     ./cmd/heimdall-daemon
 zhen-agentd         ./cmd/zhen-agentd
 anomaly             ./cmd/anomaly
 unheaded-keygen     ./cmd/unheaded-keygen

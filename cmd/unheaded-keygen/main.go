@@ -20,6 +20,13 @@
 // it there until -retire removes it (after one token lifetime, so tokens
 // already minted with the old key still verify). The private key is never
 // printed.
+//
+// -algo mldsa65 makes an ML-DSA-65 signing key instead (S-IRON-GATE Phase 9):
+// Heimdall's drift key and the signed-prefix keys (HEALTH_SIGNING_KEY_FILE,
+// AUDIT_SIGNING_KEY_FILE). <dir>/<name>.key is the 32-byte gungnir seed
+// (0400, -owner as above), <dir>/<name>.pub the packed public key (0444);
+// nothing goes in the trust directory. It prints the key id and the public
+// key in base64 for Wotan's topics.signed_prefixes.
 package main
 
 import (
@@ -61,9 +68,12 @@ const usageText = `Usage:
   unheaded-keygen -rotate [-owner U] <service>                   new key, old public half kept
   unheaded-keygen -retire <kid> <service>                        drop a rotated-out public key
   unheaded-keygen -print-kid <service>                           print the current key id
+  unheaded-keygen -algo mldsa65 [-dir D] [-owner U] <name>       ML-DSA-65 signing key (drift, signed topics)
+  unheaded-keygen -algo mldsa65 -print-kid <name>                print its key id and base64 public key
 
 <service> is the service's auth identity (the name it passes to
 auth.LoadServiceAuthConfig): wotan, unheaded-daemon, dashboard-backend, ...
+An mldsa65 <name> is the key's file name (heimdall-drift, akira-health).
 
 Flags:
 `
@@ -80,7 +90,13 @@ type options struct {
 	dir, trustDir, owner, retire string
 	rotate, printKid             bool
 	name                         string
+	algo                         string
 }
+
+const (
+	algoEd25519 = "ed25519"
+	algoMLDSA65 = "mldsa65"
+)
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -96,6 +112,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(&o.rotate, "rotate", false, "replace an existing key; keep its public half trusted until -retire")
 	fs.StringVar(&o.retire, "retire", "", "remove the rotated-out public key with this kid from the trust directory")
 	fs.BoolVar(&o.printKid, "print-kid", false, "print the current key id and exit")
+	fs.StringVar(&o.algo, "algo", algoEd25519, "ed25519 (service identity key) or mldsa65 (ML-DSA-65 signing key: drift, signed topics)")
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usageText)
 		fs.PrintDefaults()
@@ -142,6 +159,23 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "unheaded-keygen: -owner: %v\n", err)
 			return exitRefused
 		}
+	}
+
+	switch o.algo {
+	case algoEd25519:
+	case algoMLDSA65:
+		switch {
+		case o.printKid:
+			return printMLDSA(o, stdout, stderr)
+		case o.rotate || o.retire != "":
+			fmt.Fprintln(stderr, "unheaded-keygen: -algo mldsa65 has no -rotate/-retire: make a new key under a new name, enrol its public key beside the old one in Wotan's signed_prefixes, switch the producer, then remove the old key from the config")
+			return exitRefused
+		default:
+			return createMLDSA(o, uid, gid, stdout, stderr)
+		}
+	default:
+		fmt.Fprintf(stderr, "unheaded-keygen: -algo %q: want ed25519 or mldsa65\n", o.algo)
+		return exitRefused
 	}
 
 	switch {

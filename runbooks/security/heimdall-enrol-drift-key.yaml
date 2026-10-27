@@ -1,0 +1,153 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: heimdall-enrol-drift-key
+  description: Generate a node's Heimdall drift key, enrol its public half in Wotan, start Heimdall and prove a signed drift event lands
+  owner: architect
+  estimated_duration: 20m
+  risk: high
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_heimdall_enrol_drift_key.py
+
+notes: |
+  S-IRON-GATE Phase 9 (M-201, FND-019; ADR-043 #4, ADR-105). Heimdall
+  (cmd/heimdall-daemon, deploy/systemd/unheaded-heimdall.service) publishes
+  each drift alert to Wotan drift.detected.<node>, signed ML-DSA-65 with the
+  node's own drift key. Wotan takes drift.* only signed by a key listed under
+  the "drift." prefix of topics.signed_prefixes; with keys: [] (the checked-in
+  configs/wotan.yaml) every drift publish is refused, by design.
+
+  Waits on S-IRON-GATE E2 (Stevie): where the drift key is generated (on the
+  node, as here, or centrally and copied) and permission to run a root-reading
+  daemon on west and east. Until E2 is answered, do not run this.
+
+  The key is generated ON the node it signs for, owned by unheaded-heimdall,
+  0400; only its public half travels. It is never the manifest key (the
+  daemon refuses that, ADR-043 #4) and never committed: the public key goes
+  in the Wotan host's /etc/unheaded/wotan.yaml, not in the repo's copy.
+
+  Same pattern for the other signed prefixes (audit., alerts.critical.,
+  system.health.consensus., system.health.remediate.): unheaded-keygen
+  -algo mldsa65 -owner <account> <name> on the producer's host, enrol under
+  that prefix only, point the producer's AUDIT_SIGNING_KEY_FILE or
+  HEALTH_SIGNING_KEY_FILE at it.
+
+  Verification is Wotan's own: heimdall_drift_published_total counts the
+  publishes Wotan accepted, and Wotan accepts a drift event only after
+  verifying its signature against the enrolled key. No CLI re-verifies a
+  delivered event yet (pkg/wotan-client Message.VerifySignature is the
+  library half).
+
+parameters:
+  - name: NODE
+    default: "west"
+    description: the node the key signs for (west or east); run the node steps there
+  - name: WOTAN_CONFIG
+    default: "/etc/unheaded/wotan.yaml"
+    description: Wotan's topic config on the Wotan host (--topic-config)
+  - name: METRICS_URL
+    default: "http://127.0.0.1:19101/metrics"
+    description: heimdall-daemon's /metrics on the node (unit default)
+
+preconditions:
+  - check: "command -v unheaded-keygen >/dev/null || test -x /opt/unheaded/bin/unheaded-keygen"
+    description: unheaded-keygen is installed on the node (deb unheaded-keygen or scripts/build-binaries.sh)
+  - check: "getent passwd unheaded-heimdall >/dev/null"
+    description: the unheaded-heimdall account exists (deploy/sysusers.d/unheaded.conf, uid 16736)
+  - check: "test -f /etc/systemd/system/unheaded-heimdall.service || test -f /lib/systemd/system/unheaded-heimdall.service"
+    description: the unit is installed (deploy/systemd/unheaded-heimdall.service), not started
+
+steps:
+  - name: generate-drift-key
+    action: manual
+    irreversible: true
+    command: |
+      # On ${NODE}, as root. Refuses if /etc/unheaded/keys/heimdall-drift.key exists.
+      sudo unheaded-keygen -algo mldsa65 -owner unheaded-heimdall heimdall-drift
+      # Heimdall's Ed25519 Wotan identity, if the node has none yet:
+      sudo unheaded-keygen -owner unheaded-heimdall heimdall
+    description: "MANUAL (E2). Create the node's ML-DSA-65 drift key (0400 unheaded-heimdall). The seed never leaves the node."
+
+  - name: print-public-key
+    action: shell
+    host: ${NODE}
+    command: |
+      set -euo pipefail
+      KG=$(command -v unheaded-keygen || echo /opt/unheaded/bin/unheaded-keygen)
+      "$KG" -algo mldsa65 -print-kid heimdall-drift
+      stat -c '%a %U %n' /etc/unheaded/keys/heimdall-drift.pub
+    description: The key id and the base64 public key to enrol (reads the .pub only).
+
+  - name: enrol-in-wotan
+    action: manual
+    command: |
+      # On the Wotan host, edit ${WOTAN_CONFIG}: add the "public" base64 from
+      # print-public-key to the drift. prefix, one entry per node:
+      #   signed_prefixes:
+      #     - prefix: "drift."
+      #       keys: ["<base64 of ${NODE}'s heimdall-drift.pub>"]
+      # "heimdall" must stay on topics.auto_approve and on Wotan's
+      # AUTH_ALLOW_CALLERS (both already list it). Never commit the key to
+      # the repo's configs/wotan.yaml.
+      sudoedit ${WOTAN_CONFIG}
+    description: "MANUAL. Enrol the public key under drift. only (a key trusted for drift. signs nothing else)."
+
+  - name: restart-wotan
+    action: manual
+    command: |
+      sudo systemctl restart unheaded-wotan
+      # Wotan refuses to start on a malformed key; check it came back:
+      systemctl is-active unheaded-wotan
+    description: "MANUAL. Brief Wotan outage; every client reconnects."
+
+  - name: start-heimdall
+    action: manual
+    command: |
+      # Manifest and its seal first (root-owned): /etc/unheaded/heimdall/mjolnir.yaml(.seal)
+      # and the manifest public key /etc/unheaded/keys/heimdall-manifest.pub.
+      sudo systemctl start unheaded-heimdall
+      journalctl -u unheaded-heimdall -n 20 --no-pager
+    description: "MANUAL (E2). Start the root-reading daemon (CAP_DAC_READ_SEARCH). Not enabled on boot by this runbook."
+
+  - name: provoke-drift-in-a-scratch-copy
+    action: manual
+    command: |
+      # On ${NODE}. A second, short-lived Heimdall watches a scratch file it
+      # was told about, never a real manifest-listed file.
+      set -euo pipefail
+      D=$(mktemp -d) && chmod 0755 "$D"
+      echo baseline > "$D/canary" && chmod 0644 "$D/canary"
+      SUM=$(sha256sum "$D/canary" | cut -d' ' -f1)
+      printf 'apiVersion: mimir.unheaded.dev/v1alpha1\nkind: BaselineManifest\nmetadata:\n  name: drift-drill\n  version: 0.0.1\nspec:\n  files:\n    - path: %s\n      sha256: %s\n' "$D/canary" "$SUM" > "$D/manifest.yaml"
+      sudo -u unheaded-heimdall env AUTH_KEY_FILE=/etc/unheaded/keys/heimdall.key \
+        UNHEADED_TLS_ENABLED=true UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem \
+        /usr/local/bin/heimdall-daemon --manifest "$D/manifest.yaml" --allow-unsigned \
+        --drift-sign-key /etc/unheaded/keys/heimdall-drift.key --wotan-grpc 127.0.0.1:18001 \
+        --node-id "${NODE}-drill" --metrics-addr 127.0.0.1:19102 --scan-interval 2s &
+      PID=$!
+      sleep 5
+      echo drifted >> "$D/canary"
+      sleep 8
+      curl -s http://127.0.0.1:19102/metrics | grep -E '^heimdall_drift_(published|publish_failed)_total'
+      sudo kill "$PID"; rm -rf "$D"
+      # Pass: heimdall_drift_published_total >= 1 and publish_failed_total 0
+      # (Wotan verified the signature against the enrolled key and took
+      # drift.detected.${NODE}-drill).
+    description: "MANUAL. Drill: drift on a scratch copy reaches drift.detected.<node>-drill, accepted (signature verified) by Wotan."
+
+verification:
+  - name: heimdall-active-and-publishing
+    action: shell
+    host: ${NODE}
+    command: |
+      set -euo pipefail
+      systemctl is-active unheaded-heimdall
+      M=$(curl -s "$METRICS_URL")
+      grep -E '^heimdall_drift_(published|publish_failed|publish_dropped)_total' <<<"$M"
+      FAILED=$(awk '/^heimdall_drift_publish_failed_total/ {print $2}' <<<"$M")
+      test "${FAILED:-0}" = "0"
+    description: The unit runs and Wotan has refused none of its signed drift events.

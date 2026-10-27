@@ -127,6 +127,9 @@ var hostOnly = map[string]string{
 	// It also runs as compose service "auth" with the same uid; listing it
 	// here keeps the sysusers pin checked.
 	"unheaded-auth": "unheaded-auth",
+	// The drift monitor reads root-only files with CAP_DAC_READ_SEARCH on the
+	// host it watches: deploy/systemd/unheaded-heimdall.service (S-IRON-GATE 276).
+	"heimdall": "unheaded-heimdall",
 }
 
 // composeOnly lists services that exist only in compose files (or as the

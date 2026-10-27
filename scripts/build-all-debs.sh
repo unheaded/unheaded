@@ -30,7 +30,7 @@ OUTPUT_DIR="${DEB_OUTPUT_DIR:-${PROJECT_ROOT}/dist/debs}"
 mkdir -p "$OUTPUT_DIR"
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
-SERVICES=(wotan unheaded-daemon dashboard-backend kanban-app akira timeguru captain architect micromanager unheaded-auth)
+SERVICES=(wotan unheaded-daemon dashboard-backend kanban-app akira timeguru captain architect micromanager unheaded-auth heimdall-daemon)
 
 echo "=============================================="
 echo "UNHEADED .DEB BUILD — v${VERSION}"
@@ -104,7 +104,17 @@ unit_for() {
     kanban-app) echo unheaded-kanban.service ;;
     unheaded-daemon) echo unheaded-daemon.service ;;
     unheaded-auth) echo unheaded-auth.service ;;
+    heimdall-daemon) echo unheaded-heimdall.service ;;
     *) echo "unheaded-$1.service" ;;
+    esac
+}
+
+# The auth identity a binary runs as (the key its postinst creates): the
+# binary name, except where the code names itself otherwise.
+identity_for() {
+    case "$1" in
+    heimdall-daemon) echo heimdall ;;   # wotanClient.InitServiceIdentity("heimdall")
+    *) echo "$1" ;;
     esac
 }
 
@@ -154,7 +164,7 @@ EOF
     # install, the service's key owned by that account (identity = the binary
     # name, what it passes to auth.LoadServiceAuthConfig); prerm stops and
     # disables only on removal, never on upgrade.
-    deb_postinst "$PKG_NAME" "$svc" "$SVC_USER" >"$PKG_DIR/DEBIAN/postinst"
+    deb_postinst "$PKG_NAME" "$(identity_for "$svc")" "$SVC_USER" >"$PKG_DIR/DEBIAN/postinst"
     deb_prerm "$PKG_NAME" >"$PKG_DIR/DEBIAN/prerm"
     chmod 755 "$PKG_DIR/DEBIAN/postinst" "$PKG_DIR/DEBIAN/prerm"
     deb_conffiles "$svc" "$PKG_DIR" "$PROJECT_ROOT"

@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Heimdall drift monitor (cmd/heimdall-daemon; ADR-043, ADR-105, M-201).
+# Scans the files a sealed Mjölnir manifest lists and publishes each drift,
+# ML-DSA-65 signed, to Wotan drift.detected.<node>. Alerts only: it restores
+# nothing and writes nothing outside its state directory.
+#
+# Install (S-IRON-GATE E2: Stevie decides key custody and whether this runs
+# on west/east; runbooks/security/heimdall-enrol-drift-key.yaml has the steps):
+#   sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/ && sudo systemd-sysusers
+#   sudo install -m 0755 bin/heimdall-daemon /usr/local/bin/
+#   sudo install -d -m 0755 /etc/unheaded/heimdall
+#   sudo install -m 0644 <manifest> /etc/unheaded/heimdall/mjolnir.yaml     (+ mjolnir.yaml.seal)
+#   sudo install -m 0444 <manifest key>.pub /etc/unheaded/keys/heimdall-manifest.pub
+#   sudo unheaded-keygen -owner unheaded-heimdall heimdall                  (Ed25519 Wotan identity)
+#   sudo unheaded-keygen -algo mldsa65 -owner unheaded-heimdall heimdall-drift
+#   sudo cp deploy/systemd/unheaded-heimdall.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl start unheaded-heimdall   # manual; not enabled on boot
+#
+# The manifest and its seal are root-owned and read-only to this account, so
+# a compromised Heimdall cannot rewrite the baseline it checks against. The
+# drift key (heimdall-drift.key, 0400 unheaded-heimdall) is never the
+# manifest key (the daemon refuses it, ADR-043 #4).
+#
+# CAP_DAC_READ_SEARCH only: it reads root-only files the manifest lists, and
+# it can write nothing root owns. The BPF hooks (--bpf-dir, --xdp-iface) need
+# CAP_BPF and CAP_PERFMON and are off here; without them it polls every
+# --scan-interval. Turning them on is a separate decision.
+#
+# Mount namespacing is limited to what keeps every scanned path visible:
+# ProtectSystem=strict and ProtectHome=read-only leave /etc, /usr, /boot and
+# /home readable as they are on the host. No PrivateTmp or PrivateDevices:
+# inside a namespace it would check the namespace, not the host
+# (the unheaded-baseline.service lesson).
+
+[Unit]
+Description=Unheaded Heimdall drift monitor (alerts only)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/wiki/Mimirs-Law.md
+After=network-online.target unheaded-wotan.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=unheaded-heimdall
+Group=unheaded-heimdall
+# Optional host overrides (HEIMDALL_OPTS, e.g. --scan-interval 60s).
+EnvironmentFile=-/etc/unheaded/heimdall.env
+ExecStart=/usr/local/bin/heimdall-daemon \
+    --manifest /etc/unheaded/heimdall/mjolnir.yaml \
+    --pubkey /etc/unheaded/keys/heimdall-manifest.pub \
+    --drift-sign-key /etc/unheaded/keys/heimdall-drift.key \
+    --wotan-grpc 127.0.0.1:18001 \
+    --node-id %H \
+    $HEIMDALL_OPTS
+WorkingDirectory=/var/lib/unheaded/heimdall
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=15s
+
+# Wotan identity (ADR-103): heimdall's Ed25519 service key; Wotan's
+# AUTH_ALLOW_CALLERS and topics.auto_approve already list "heimdall".
+Environment=AUTH_KEY_FILE=/etc/unheaded/keys/heimdall.key
+Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
+# TLS (S-IRON-GATE Phase 8; deploy/systemd/README.md#tls): Wotan serves TLS
+# only, so Heimdall dials it with the Kingdom CA. Its /metrics listener is
+# loopback plain HTTP (127.0.0.1:19101), no certificate of its own.
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
+
+StateDirectory=unheaded/heimdall
+StateDirectoryMode=0700
+UMask=0077
+ReadOnlyPaths=/
+ReadWritePaths=/var/lib/unheaded/heimdall
+
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
