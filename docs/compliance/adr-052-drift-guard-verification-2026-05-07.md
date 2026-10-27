@@ -58,7 +58,7 @@ Rule 5.
 
 This script is the **infrastructure** drift detector (terragrunt plan across
 dev/staging/prod), not the timeline drift guard. It is wired into
-`.github/workflows/drift-detect.yml` as a nightly cron (`0 6 * * *`) and opens a
+`.github/workflows/drift-detect.yml` as a nightly cron (`0 6 * * *`; the workflow was removed 2026-10-27, never having deployed anything) and opens a
 GitHub issue on detected drift. Not in ADR-052's scope but worth noting it
 exists and runs.
 

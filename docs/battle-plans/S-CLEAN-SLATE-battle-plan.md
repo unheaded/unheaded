@@ -191,7 +191,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-dependency-baseline.sh 2>&1 | tail -6; echo "dep=$?"; bash scripts/check-tool-freshness.sh 2>&1 | grep -E 'STALE|exit' ; echo "tools=${PIPESTATUS[0]}"
   ```
-- [ ] **Step 13** [V] ~0.5m: dependency check lists exactly fsnotify, kr/pty, gobreaker, x/term; tool freshness lists STALE syft and grype only.
+- [x] **Step 13** [V] ~0.5m: dependency check lists exactly fsnotify, kr/pty, gobreaker, x/term; tool freshness lists STALE syft and grype only.
   - If a different set → update SITUATION in this file (the sweeps are stale by a day), continue.
 - [ ] **Step 14** [PREFLIGHT][B] ~2m: Live CI state (public API, no auth).
   ```bash
@@ -237,34 +237,34 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-001 dependency baseline
 
-- [ ] **Step 25** [B] ~0.5m: Shrink the baseline.
+- [x] **Step 25** [B] ~0.5m: Shrink the baseline.
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-dependency-baseline.sh --update 2>&1 | tail -8 && git diff --stat docs/policy/dependency-baseline.txt
   ```
-- [ ] **Step 26** [V] ~0.5m: Diff shows only removed lines (`git diff docs/policy/dependency-baseline.txt | grep -c '^+[^+]'` is 0) and exactly the 4 modules removed; then `bash scripts/check-dependency-baseline.sh` exits 0.
+- [x] **Step 26** [V] ~0.5m: Diff shows only removed lines (`git diff docs/policy/dependency-baseline.txt | grep -c '^+[^+]'` is 0) and exactly the 4 modules removed; then `bash scripts/check-dependency-baseline.sh` exits 0.
   - If `--update` prints `[REFUSED]` → a new module crept in: STOP, that is an ADR-004/096 admission question; raise it as a new escalation line in this file.
 
 ### M-002 tool pins
 
-- [ ] **Step 27** [B] ~2m: Fetch the upstream checksums for the two releases and extract the linux_amd64 tarball lines.
+- [x] **Step 27** [B] ~2m: Fetch the upstream checksums for the two releases and extract the linux_amd64 tarball lines.
   ```bash
   cd /home/govan/tmp/unheaded && S=/tmp/claude-1000/-home-govan-tmp/f267c16f-13e4-4b29-87ee-e434cae4bce1/scratchpad; curl -sSL --max-time 60 -o $S/syft_sums.txt https://github.com/anchore/syft/releases/download/v1.55.0/syft_1.55.0_checksums.txt && grep 'linux_amd64.tar.gz' $S/syft_sums.txt; curl -sSL --max-time 60 -o $S/grype_sums.txt https://github.com/anchore/grype/releases/download/v0.121.0/grype_0.121.0_checksums.txt && grep 'linux_amd64.tar.gz' $S/grype_sums.txt
   ```
-- [ ] **Step 28** [V] ~0.5m: One 64-hex line each. Cross-check by downloading each tarball and hashing it (`curl -sSL -o /tmp/x.tgz <release url> && sha256sum /tmp/x.tgz`); the hash must match the checksums file. Two independent sources agree before a pin changes.
+- [x] **Step 28** [V] ~0.5m: One 64-hex line each. Cross-check by downloading each tarball and hashing it (`curl -sSL -o /tmp/x.tgz <release url> && sha256sum /tmp/x.tgz`); the hash must match the checksums file. Two independent sources agree before a pin changes.
   - If 404 → the version string is wrong; re-read `check-tool-freshness.sh` output from Step 12 and retry once.
-- [ ] **Step 29** [W] ~1m: Edit `scripts/lib/tool-pins.sh`: `SYFT_VERSION="1.55.0"`, `SYFT_SHA256="<hash>"`, `GRYPE_VERSION="0.121.0"`, `GRYPE_SHA256="<hash>"`. Comment suffixes unchanged.
-- [ ] **Step 30** [B] ~1m: Freshness gate and the SBOM script that consumes the pins.
+- [x] **Step 29** [W] ~1m: Edit `scripts/lib/tool-pins.sh`: `SYFT_VERSION="1.55.0"`, `SYFT_SHA256="<hash>"`, `GRYPE_VERSION="0.121.0"`, `GRYPE_SHA256="<hash>"`. Comment suffixes unchanged.
+- [x] **Step 30** [B] ~1m: Freshness gate and the SBOM script that consumes the pins.
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/check-tool-freshness.sh 2>&1 | grep -E 'syft|grype|STALE'; echo "rc=${PIPESTATUS[0]}"; grep -ln 'SYFT_SHA256\|GRYPE_SHA256' scripts/*.sh scripts/lib/*.sh .github/workflows/*.yml | head
   ```
-- [ ] **Step 31** [V] ~0.5m: `[ok] syft 1.55.0`, `[ok] grype 0.121.0`, rc=0. Every consumer of the pins reads `scripts/lib/tool-pins.sh` (no second copy of the old hash anywhere: `grep -rn 'c069905b391cc4\|0a9ee97ef5ae2e' . --exclude-dir=.git` is empty).
-- [ ] **Step 32** [B] ~4m: Run the SBOM path that downloads the pinned tools, so the new hashes are proven, not just pasted.
+- [x] **Step 31** [V] ~0.5m: `[ok] syft 1.55.0`, `[ok] grype 0.121.0`, rc=0. Every consumer of the pins reads `scripts/lib/tool-pins.sh` (no second copy of the old hash anywhere: `grep -rn 'c069905b391cc4\|0a9ee97ef5ae2e' . --exclude-dir=.git` is empty).
+- [x] **Step 32** [B] ~4m: Run the SBOM path that downloads the pinned tools, so the new hashes are proven, not just pasted.
   ```bash
   cd /home/govan/tmp/unheaded && bash scripts/ci-install-tools.sh syft grype 2>&1 | tail -4 && syft version 2>/dev/null | head -2 && grype version 2>/dev/null | head -2
   ```
-- [ ] **Step 33** [V] ~0.5m: Both tools install with checksum verified and report 1.55.0 / 0.121.0.
+- [x] **Step 33** [V] ~0.5m: Both tools install with checksum verified and report 1.55.0 / 0.121.0.
   - If checksum mismatch → the checksums file and tarball disagree; STOP the pin (keep old), log STUCK on Step 29, continue (the job stays red for this one line; say so in the handoff).
-- [ ] **Step 34** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-CLEAN-SLATE] Steps 25-33: dependency baseline shrunk (4 modules), syft 1.55.0 + grype 0.121.0 pinned`.
+- [x] **Step 34** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-CLEAN-SLATE] Steps 25-33: dependency baseline shrunk (4 modules), syft 1.55.0 + grype 0.121.0 pinned`.
 
 ### M-003 runbook pytest: self-reporting + Python 3.12 reproduction
 
@@ -309,13 +309,13 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### M-005 nightly drift-detect
 
-- [ ] **Step 47** [DECIDE] ~1m: **drift-detect.yml.** RECOMMENDATION: delete the workflow. Rationale: it runs terragrunt against infrastructure nothing deploys (decision 1 default; 5/5 failures on main since 2026-10-22; terraform/opentofu is not in LIVE-PATHS). Override ONLY if `grep -rln 'terragrunt\|opentofu' deploy/ docs/LIVE-PATHS.md` shows a live consumer.
-- [ ] **Step 48** [B] ~1m: Remove it and every doc that advertises it.
+- [x] **Step 47** [DECIDE] ~1m: **drift-detect.yml.** RECOMMENDATION: delete the workflow. Rationale: it runs terragrunt against infrastructure nothing deploys (decision 1 default; 5/5 failures on main since 2026-10-22; terraform/opentofu is not in LIVE-PATHS). Override ONLY if `grep -rln 'terragrunt\|opentofu' deploy/ docs/LIVE-PATHS.md` shows a live consumer.
+- [x] **Step 48** [B] ~1m: Remove it and every doc that advertises it.
   ```bash
   cd /home/govan/tmp/unheaded && git rm -q .github/workflows/drift-detect.yml && grep -rln 'drift-detect\|Nightly Drift Detection' docs wiki README.md CLAUDE.md .github 2>/dev/null
   ```
-- [ ] **Step 49** [W] ~3m: In each file Step 48 listed, replace the drift-detect mention with one line: "Nightly Drift Detection removed 2026-10-27 (S-CLEAN-SLATE Step 48): terragrunt checked infrastructure that is not deployed; config drift is Heimdall's job (ADR-098 baseline agent)." Keep wiki pages consistent (`wiki/Security-Tooling.md` if present).
-- [ ] **Step 50** [V] ~0.5m: `grep -rn 'drift-detect.yml' . --exclude-dir=.git` returns only this plan and the master list.
+- [x] **Step 49** [W] ~3m: In each file Step 48 listed, replace the drift-detect mention with one line: "Nightly Drift Detection removed 2026-10-27 (S-CLEAN-SLATE Step 48): terragrunt checked infrastructure that is not deployed; config drift is Heimdall's job (ADR-098 baseline agent)." Keep wiki pages consistent (`wiki/Security-Tooling.md` if present).
+- [x] **Step 50** [V] ~0.5m: `grep -rn 'drift-detect.yml' . --exclude-dir=.git` returns only this plan and the master list.
 
 ### M-007 sqlite (date-gated) and M-006 register
 

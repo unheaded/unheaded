@@ -12,17 +12,17 @@
 # cross-checked against the release notes), never from a mirror.
 # shellcheck disable=SC2034  # read by the scripts that source this
 
-OXLINT_VERSION="1.88.0"
-OXLINT_SHA256="af29dc3ad2f6235590f114928c524649b2233cf27c9057e75ec16d0d7acf7d27" # oxlint-x86_64-unknown-linux-musl.tar.gz
+OXLINT_VERSION="1.89.0"
+OXLINT_SHA256="eaccbadd29973d37cedc95ec1f6e889fdae13c694e1cef4b6cbfcfe1c650e7b8" # oxlint-x86_64-unknown-linux-musl.tar.gz
 
 GITLEAKS_VERSION="8.30.1"
 GITLEAKS_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb" # gitleaks_<v>_linux_x64.tar.gz
 
-SYFT_VERSION="1.54.1"
-SYFT_SHA256="c069905b391cc4c20a5ba65ad5c10be2a7ba074f8ea6ad203e24d14e303dad47" # syft_<v>_linux_amd64.tar.gz
+SYFT_VERSION="1.55.0"
+SYFT_SHA256="bb65249542db5fedeeb4d3f9b018b75e7264dbfbbb10486f044581a92f90490d" # syft_<v>_linux_amd64.tar.gz
 
-GRYPE_VERSION="0.120.1"
-GRYPE_SHA256="0a9ee97ef5ae2ee953b0a80098105052e846cdbe319a57d808b519c33cd1343d" # grype_<v>_linux_amd64.tar.gz
+GRYPE_VERSION="0.121.0"
+GRYPE_SHA256="64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519" # grype_<v>_linux_amd64.tar.gz
 
 HELM_VERSION="4.3.1"
 HELM_SHA256="0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b" # helm-v<v>-linux-amd64.tar.gz (get.helm.sh, matches the release notes)

@@ -415,7 +415,6 @@ go github.com/davecgh/go-spew
 go github.com/dnaeon/go-vcr
 go github.com/dustin/go-humanize
 go github.com/felixge/httpsnoop
-go github.com/fsnotify/fsnotify
 go github.com/go-logr/logr
 go github.com/go-logr/stdr
 go github.com/go-quicktest/qt
@@ -438,7 +437,6 @@ go github.com/josharian/native
 go github.com/jsimonetti/rtnetlink/v2
 go github.com/kballard/go-shellquote
 go github.com/kr/pretty
-go github.com/kr/pty
 go github.com/kr/text
 go github.com/lib/pq
 go github.com/mattn/go-colorable
@@ -460,7 +458,6 @@ go github.com/santhosh-tekuri/jsonschema/v6
 go github.com/securego/gosec/v2
 go github.com/segmentio/asm
 go github.com/segmentio/encoding
-go github.com/sony/gobreaker
 go github.com/standard-webhooks/standard-webhooks/libraries
 go github.com/stretchr/objx
 go github.com/stretchr/testify
@@ -488,7 +485,6 @@ go golang.org/x/net
 go golang.org/x/oauth2
 go golang.org/x/sync
 go golang.org/x/sys
-go golang.org/x/term
 go golang.org/x/text
 go golang.org/x/time
 go golang.org/x/tools
