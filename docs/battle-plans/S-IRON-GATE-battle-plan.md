@@ -979,12 +979,12 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE" && git 
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/httputil/ -run 'SecurityHeaders' -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 298** [W][CODE] ~15m: `pkg/httputil/security_headers.go`; apply it in every first-party router next to the `NewServiceMetrics(...).Instrument` call (grep `Instrument(` across cmd/ services/; same 13 binaries + wiki-server + protocol-api + trace-collector-go + doom-bridge + chaos-controller). Dashboard and kanban: `WithCSP` allowing `'unsafe-inline'` for styles only if `scripts/check-js-lint.sh` / a quick page load proves inline scripts are not used; otherwise move inline scripts out (one small follow-on commit).
-- [ ] **Step 299** [TEST][B] ~3m
+- [x] **Step 298** [W][CODE] ~15m: `pkg/httputil/security_headers.go`; apply it in every first-party router next to the `NewServiceMetrics(...).Instrument` call (grep `Instrument(` across cmd/ services/; same 13 binaries + wiki-server + protocol-api + trace-collector-go + doom-bridge + chaos-controller). Dashboard and kanban: `WithCSP` allowing `'unsafe-inline'` for styles only if `scripts/check-js-lint.sh` / a quick page load proves inline scripts are not used; otherwise move inline scripts out (one small follow-on commit).
+- [x] **Step 299** [TEST][B] ~3m
   ```bash
   cd /home/govan/tmp/unheaded && go test ./pkg/httputil/... -race -count=1 2>&1 | tail -1 && go build ./... && echo BUILD_OK && grep -rl 'SecurityHeaders(' cmd services --include=*.go | grep -v _test | wc -l
   ```
-- [ ] **Step 300** [V] ~1m: `ok`, `BUILD_OK`, count ≥ 17.
+- [x] **Step 300** [V] ~1m: `ok`, `BUILD_OK`, count ≥ 17.
 - [ ] **Step 301** [TEST][B] ~4m: Live header check on three services
   ```bash
   cd /home/govan/tmp/unheaded && docker compose up -d --build wotan auth dashboard-backend kanban-app && sleep 15 && for p in 18000/health 20000/ 20001/; do echo "--- $p"; curl -sk -D - -o /dev/null https://127.0.0.1:$p | grep -iE 'x-content-type|x-frame|content-security|strict-transport|referrer' ; done; docker compose down 2>&1 | tail -1
