@@ -157,3 +157,10 @@ Read-only audit; no cluster bring-up, no kubectl execution, no remote calls. Sou
 - CLAUDE.md (security baseline + Sealed Cask + transport policy)
 
 No upstream CIS k8s-bench output, no live cluster scan. Those land in D2.
+
+## Review cadence
+
+Quarterly; owner Stevie. Cadence set 2026-10-27 (S-WELL-SPRING Phase 11,
+M-205); the first review under it is due by 2027-01-27. Last reviewed
+2026-10-27, S-WELL-SPRING Phase 11: cadence added only, contents not
+re-assessed in that pass. Changed since this model was written: nothing it models exists yet: no k3s, kubelet or microk8s on west or east (ADR-055 progress, 2026-10-19), so the model stays prospective.

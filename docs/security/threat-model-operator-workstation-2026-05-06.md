@@ -413,3 +413,10 @@ This document supersedes the silent acceptance of `single-operator GAP — docum
 - **Operator (Stevie):** R1, R2, R5 are within personal scope and can land in a single afternoon. R4, R6, R7, R8, R9 are runbook + habit work that takes longer to harden but starts immediately.
 
 The keystone is identified. The mitigations are enumerated. The next pass is execution, not documentation.
+
+## Review cadence
+
+Quarterly; owner Stevie. Cadence set 2026-10-27 (S-WELL-SPRING Phase 11,
+M-205); the first review under it is due by 2027-01-27. Last reviewed
+2026-10-27, S-WELL-SPRING Phase 11: cadence added only, contents not
+re-assessed in that pass. Changed since this model was written: nothing recorded against R1-R10 since 2026-05-06.

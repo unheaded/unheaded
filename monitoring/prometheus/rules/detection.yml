@@ -1,0 +1,82 @@
+# Prometheus alert rules - security detection (M-203, ADR-100)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2026 Stevie Bellis
+#
+# Detections for what has a producer today. Every series here is metadata:
+# counters Vector derives from the journal (config/vector/vector.yaml:
+# journal_ssh_metrics, journal_auth_metrics) and node_exporter's interface
+# byte counters. No message text, payload or user data reaches Prometheus.
+#
+#   SSHLoginNewSource        unheaded_ssh_accepted_total (Vector, sshd as root)
+#   SSHAuthFailureBurst      unheaded_auth_failures_total{kind="ssh"} (Vector)
+#   OutboundVolumeDeviation  node_network_transmit_bytes_total (node_exporter)
+#
+# All are urgency none (ADR-100); policy.yaml promotes SSHLoginNewSource to
+# a ticket. On the first evaluation after rollout every source already in
+# use is "new" once (Prometheus has no earlier samples of the series):
+# expect one ticket per operator source, then silence.
+#
+# UNTESTED, no rule: DGA domains, beaconing and DNS tunnelling (M-203). There
+# is no DNS query log source: pihole answers the LAN's queries from LXD
+# project `default` (invisible to Cuirass), and its FTL log is not shipped.
+# Needs: mount /var/log/pihole/pihole.log read-only into a Vector file
+# source, reduce each query to {client, qname length, label entropy bucket,
+# qtype} (never the name itself into a metric), then rules for a client's
+# NXDOMAIN rate, long high-entropy labels and periodic query intervals.
+# Tracked in docs/security/threat-register.md (DET-01).
+
+groups:
+  - name: detection
+    interval: 1m
+    rules:
+      # A login from an address that has not logged in to any host in the
+      # last 30 days (Prometheus keeps 30d). It fires for the first 10
+      # minutes of the new series, then the address is known. One series
+      # per (host, user, src, method): a known address on a new host or as
+      # a new user does not fire.
+      - alert: SSHLoginNewSource
+        expr: |
+          count by (host, user, src) (unheaded_ssh_accepted_total)
+            unless on (src)
+          count by (src) (max_over_time(unheaded_ssh_accepted_total[30d] offset 10m))
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "SSH login to {{ $labels.host }} as {{ $labels.user }} from {{ $labels.src }}, a source not seen in 30 days"
+          description: "If nobody expected this login, treat it as an incident (runbooks/security/incident-response.yaml)"
+          runbook_url: "runbooks/security/ssh-login-new-source.yaml"
+
+      # Guessing at sshd: more than 12 failures a minute for 5 minutes. A
+      # LAN-only sshd sees none; one mistyped key is a handful, not this.
+      - alert: SSHAuthFailureBurst
+        expr: sum by (host) (rate(unheaded_auth_failures_total{kind="ssh"}[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "More than 12 SSH authentication failures a minute on {{ $labels.host }} for 5 minutes"
+          description: "Password, publickey or invalid-user failures from sshd; the runbook lists the sources"
+          runbook_url: "runbooks/security/ssh-login-new-source.yaml"
+
+      # An uplink sending over three times its usual hourly rate (the median
+      # of the last 7 days of hourly rates), and at least 256 KiB/s averaged
+      # over the hour, so an idle interface waking up is not an exfiltration.
+      # Uplinks are the physical NICs (enp*, wlp*); bridges, veths and the
+      # WireGuard overlay are inside traffic.
+      - alert: OutboundVolumeDeviation
+        expr: |
+          (
+            rate(node_network_transmit_bytes_total{device=~"enp.*|wlp.*"}[1h])
+              > 3 * quantile_over_time(0.5, rate(node_network_transmit_bytes_total{device=~"enp.*|wlp.*"}[1h])[7d:1h])
+          )
+          and rate(node_network_transmit_bytes_total{device=~"enp.*|wlp.*"}[1h]) > 262144
+        for: 15m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $labels.device }} on {{ $labels.instance }} is sending over 3x its 7-day median hourly rate"
+          description: "Sustained for 15m and above 256 KiB/s over the hour; the runbook finds which process or container"
+          runbook_url: "runbooks/security/outbound-volume-deviation.yaml"

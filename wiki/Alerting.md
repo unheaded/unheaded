@@ -8,7 +8,7 @@ Only an SLO burning its error budget notifies anyone (ADR-100). Everything else 
 
 - **SLOs**: each has a name, an objective (99.5% or 99% over 28 days), whether it can page, and a `good` expression that is 1 when the service is fine this minute. A missing series counts as bad.
 - **mailer**: `mode` (`dry-run` or `send`), `max_per_day` (hard cap, 6), `digest_at` (09:00) and `timezone` (America/Chicago).
-- **page** timing, and **promote**: cause alerts that should notify anyway. Keep it short; each entry needs a reason. Today: `HeartbeatMissing` (page).
+- **page** timing, and **promote**: cause alerts that should notify anyway. Keep it short; each entry needs a reason. Today: `HeartbeatMissing` (page), `TraceCollectorDown` and `SSHLoginNewSource` (ticket).
 
 After an edit: `go run ./cmd/alert-policy` regenerates `monitoring/prometheus/rules/slo.yml` and `monitoring/alertmanager/alertmanager.yml`. CI fails if they are stale, or if a hand-written rule is not `urgency: none`. Then restart Prometheus and Alertmanager: `cd monitoring && sudo docker compose up -d --force-recreate prometheus alertmanager alert-mailer`.
 
@@ -20,7 +20,7 @@ Every alert carries `urgency`:
 |---|---|
 | `page` | Mailed within about 2 minutes. One mail per incident, plus one when everything is clear, plus a reminder after 12 h if it is still burning. |
 | `ticket` | Collected, then one digest mail at 09:00, only if something is open, resolved since the last digest, or held back by the cap. |
-| `none` | Nobody. All 40 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence and auth-failure bursts, compliance, Well backups, KEV, trace collector, Watchdog, …), except the two the policy promotes: `HeartbeatMissing` (page) and `TraceCollectorDown` (ticket). |
+| `none` | Nobody. All 44 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence, compliance, Well backups, KEV, trace collector, Watchdog, security detections in `detection.yml`: SSH login from a new source, SSH auth-failure bursts, outbound volume, …), except the three the policy promotes: `HeartbeatMissing` (page), `TraceCollectorDown` and `SSHLoginNewSource` (ticket). DGA, beaconing and DNS tunnelling have no rule: there is no DNS query log source yet (threat register DET-01). |
 
 `severity` (warning/critical) still describes how bad a cause is. It no longer decides who hears about it.
 

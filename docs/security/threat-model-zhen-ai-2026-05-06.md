@@ -605,3 +605,10 @@ Items prefixed **U** in the F8 / F12 outputs should explicitly mark the same unc
 
 *End of Zhen AI threat model — F3 closure.*
 *LOVE SERVE REMEMBER. Free to use. Free to share.*
+
+## Review cadence
+
+Quarterly; owner Stevie. Cadence set 2026-10-27 (S-WELL-SPRING Phase 11,
+M-205); the first review under it is due by 2027-01-27. Last reviewed
+2026-10-27, S-WELL-SPRING Phase 11: cadence added only, contents not
+re-assessed in that pass. Changed since this model was written: S-TWO-BRAINS (one gate for Zhen and Claude, privacy tiers T0-T2) and `pkg/zhenrag` (one system prompt and destructive-verb list) landed; the prompt-injection probes should be re-run against them.
