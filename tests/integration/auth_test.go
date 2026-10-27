@@ -64,12 +64,12 @@ func setupTestServer(t *testing.T) *httptest.Server {
 	// Build authenticators
 	jwtAuth := auth.NewJWTAuthenticator(auth.JWTConfig{
 		SigningKey: testSigningKey,
-		Issuer:    "https://auth.unheaded.dev",
-		Audience:  "unheaded-api",
+		Issuer:     "https://auth.unheaded.dev",
+		Audience:   "unheaded-api",
 	})
 
 	serviceTokenAuth := auth.NewJWTAuthenticator(auth.JWTConfig{
-		SigningKey:    testSigningKey,
+		SigningKey:   testSigningKey,
 		Issuer:       auth.ServiceTokenIssuer,
 		Audience:     "timeguru",
 		AllowedRoles: []string{auth.RoleService},
@@ -222,7 +222,7 @@ func TestIntegration_ServiceTokenReturns200(t *testing.T) {
 
 	// Generate a service token from dashboard-backend to timeguru
 	mgr, err := auth.NewServiceTokenManager(auth.ServiceTokenConfig{
-		SigningKey:   testSigningKey,
+		SigningKey:  testSigningKey,
 		ServiceName: "dashboard-backend",
 		TTL:         5 * time.Minute,
 	})
@@ -324,11 +324,11 @@ func TestIntegration_WrongAudienceJWTReturns403(t *testing.T) {
 	// - JWT auth: audience mismatch (ErrForbidden)
 	// - Service token auth: audience mismatch (ErrForbidden)
 	// - API key auth: no X-API-Key header (ErrUnauthenticated)
-	// MultiAuthenticator returns the LAST error (ErrUnauthenticated from API key auth)
-	// So this returns 401, not 403.
-	// This is expected behavior — the multi-auth cannot know which auth method was intended.
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("wrong audience JWT request: status = %d, want 401", resp.StatusCode)
+	// MultiAuthenticator returns the most specific failure (S-IRON-GATE
+	// Step 47): a verified token for the wrong audience is 403, even with an
+	// API-key authenticator after it.
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("wrong audience JWT request: status = %d, want 403", resp.StatusCode)
 	}
 }
 

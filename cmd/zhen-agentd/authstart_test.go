@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -38,15 +39,44 @@ func TestListenerAuth_RefusesWithoutToken(t *testing.T) {
 }
 
 func TestListenerAuth_AcceptsEachCredential(t *testing.T) {
+	keyFile := filepath.Join(t.TempDir(), "keys")
+	if err := os.WriteFile(keyFile, []byte("k-file\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trust := t.TempDir()
+	if _, err := auth.GenerateKeyPair(trust, "dashboard-backend"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(trust, "dashboard-backend.key")); err != nil {
+		t.Fatal(err)
+	}
 	for name, cfg := range map[string]auth.ServiceAuthConfig{
-		"api keys": {Enabled: true, APIKeys: []string{"k1"}},
-		"key file": {Enabled: true, APIKeyFile: "/nonexistent/keys"},
-		"jwt":      {Enabled: true, JWTSigningKey: []byte("0123456789abcdef0123456789abcdef")},
+		"api keys":  {Enabled: true, APIKeys: []string{"k1"}},
+		"key file":  {Enabled: true, APIKeyFile: keyFile},
+		"trust dir": {Enabled: true, ServiceName: "zhen-agentd", TrustDir: trust, AllowCallers: []string{"dashboard-backend"}},
 	} {
 		mw, err := listenerAuth(cfg, false, "0.0.0.0")
 		if err != nil || mw == nil {
 			t.Errorf("%s: refused: %v", name, err)
 		}
+	}
+}
+
+// ADR-103: a configuration pkg/auth refuses stops the daemon (exit 2)
+// rather than serving 401 to everyone.
+func TestListenerAuth_RefusesBrokenConfig(t *testing.T) {
+	for name, cfg := range map[string]auth.ServiceAuthConfig{
+		"shared jwt key":     {Enabled: true, APIKeys: []string{"k"}, JWTSigningKey: []byte("0123456789abcdef0123456789abcdef")},
+		"missing key file":   {Enabled: true, APIKeyFile: "/nonexistent/keys"},
+		"hs256-test outside": {Enabled: true, Mode: auth.ModeHS256Test, APIKeys: []string{"k"}},
+	} {
+		if mw, err := listenerAuth(cfg, false, "127.0.0.1"); err == nil || mw != nil {
+			t.Errorf("%s: started (err %v)", name, err)
+		}
+	}
+	_, err := listenerAuth(auth.ServiceAuthConfig{Enabled: true, JWTSigningKey: []byte("x")}, false, "127.0.0.1")
+	if !errors.Is(err, auth.ErrSharedKeyForbidden) {
+		t.Errorf("AUTH_JWT_KEY: err %v, want ErrSharedKeyForbidden", err)
 	}
 }
 

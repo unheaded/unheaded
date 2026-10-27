@@ -159,3 +159,34 @@ display-name list. That is a later step, not part of this ADR's first cut.
 3. **Post-quantum service tokens:** start with Ed25519 and switch to ML-DSA-65
    after measuring [recommended], or ML-DSA-65 from day one.
 4. **API-key store:** the Well [recommended where it runs], files elsewhere?
+
+## Measurements (S-IRON-GATE Step 63)
+
+Measured 2026-10-27 on west (AMD Ryzen 5 7600X, Go 1.27.3,
+`cloudflare/circl` `mldsa65`), `go test -bench -benchtime=1s -count=5`,
+with three other agents' test runs sharing the host. Medians:
+
+| | Ed25519 (EdDSA) | ML-DSA-65 |
+|---|---|---|
+| verify | 34.1 µs/op | 11.7 µs/op |
+| sign | 14.6 µs/op | 59-226 µs/op (rejection sampling varies) |
+| signature | 64 B (86 B base64url) | 3,309 B (4,412 B base64url) |
+| service token (`sub=dashboard-backend`, `aud=wotan`, roles) | 308 B | ~4,640 B |
+| `Authorization: Bearer …` header | 330 B | ~4,660 B |
+
+Verification cost does not argue against ML-DSA-65: on this CPU it
+verifies about three times faster than Ed25519. Signing happens once per
+target every 4.5 minutes (the minter's cache), so its cost does not matter
+either. The cost is size: about 4.3 KB more on every request, over half
+of one nginx default `large_client_header_buffers` buffer (8 KB), and
+every proxy hop's header limit would have to be checked before the flip.
+
+**Switch rule.** Flip service tokens to ML-DSA-65 when policy requires
+post-quantum signatures on internal requests, or when no hop on the path
+(haproxy, nginx sidecars, gRPC metadata) limits a single header below
+8 KB and the extra bytes per request are acceptable on the busiest link
+(Wotan gRPC). Today `alg` is the constant `AlgEdDSA` in
+`pkg/auth/jwt_eddsa.go`; the flip is a second signer/verifier pair keyed
+by `alg` (`ML-DSA-65`), with trust.d `.pub` files carrying the key type,
+and the verifier still accepting exactly one `alg` per key so the
+algorithm-confusion refusal holds.
