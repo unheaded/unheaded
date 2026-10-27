@@ -33,6 +33,8 @@ A Preferred listener guarantees a hybrid only to a client that offers one. Rust:
 | `scripts/check-pq-kex.sh` | a classical-only key-exchange config appears: `CurvePreferences` without a hybrid, a first-party TLS floor below 1.3, `tlsmlkem=0`, a `go` directive below 1.24, the rustls `ring` provider, Postgres below 18 serving TLS, an sshd `KexAlgorithms` with no hybrid | `docs/policy/pq-kex-baseline.txt`, shrink-only; a fixed line must be removed (`--update`) |
 | `scripts/check-crypto-inventory.sh` | `compliance/crypto/cbom.cdx.json` differs from a regeneration (`--schema` also validates CycloneDX 1.6) | none |
 
+There are no runtime PQ counters. The eight `unheaded_pqc_*` metrics in `pkg/metrics/pqc_metrics.go` were never set by any code path and were deleted 2026-10-27 (M-086): PQ key exchange is measured by these two gates, the CBOM and the probes below. A counter comes back the day code that does PQC work sets it.
+
 Both run in CI and the meta-gate proves each can fail. Explain one file: `go run ./cmd/crypto-inventory lint --explain <path>`. Paths given to the tool are repository-relative; it reads and writes nothing outside the repository.
 
 ## The inventory (CBOM)

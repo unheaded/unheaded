@@ -371,7 +371,9 @@ covered by the identity-field check above, not a scrape. After the flip, only
   (`unheaded_pqc_active_keys 0` from micromanager is a false reading). The
   auto-registration was removed; the vars remain for whatever PQC code
   eventually updates them. Wire them up or delete them: that is a separate
-  decision.
+  decision. (Deleted 2026-10-27, S-WELL-SPRING Steps 191-192, together with
+  the four `unheaded_secrets_*` families `pkg/secrets` registered but no
+  binary served: none builds a `secrets.Manager`.)
 - **Bucket generators were not bit-identical.** `ExponentialBuckets` used
   `start*Pow(factor,i)` and `LinearBuckets` used `start+i*width`;
   client_golang accumulates. Under the old code, `0.1×3` gave 0.9 where

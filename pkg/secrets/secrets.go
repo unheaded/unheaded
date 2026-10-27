@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"unheaded/pkg/logger"
-	"unheaded/pkg/metrics"
 )
 
 // Common errors for secret operations.
@@ -304,15 +303,6 @@ type Manager struct {
 	stopCh     chan struct{}
 }
 
-// Package-level metrics (registered once)
-var (
-	managerMetricsOnce sync.Once
-	secretsTotal       *metrics.GaugeVec
-	operationsTotal    *metrics.CounterVec
-	operationErrors    *metrics.CounterVec
-	operationLatency   *metrics.HistogramVec
-)
-
 // ManagerConfig configures the secrets manager.
 type ManagerConfig struct {
 	// Store is the secret storage backend.
@@ -348,42 +338,10 @@ func NewManager(config ManagerConfig) (*Manager, error) {
 		stopCh:     make(chan struct{}),
 	}
 
-	// Initialize metrics (only once per process)
-	managerMetricsOnce.Do(func() {
-		secretsTotal = metrics.NewGaugeVec(
-			"unheaded_secrets_total",
-			"Total number of secrets by type",
-			nil,
-			[]string{"type"},
-		)
-		_ = metrics.Register(secretsTotal)
-
-		operationsTotal = metrics.NewCounterVec(
-			"unheaded_secrets_operations_total",
-			"Total secret operations",
-			nil,
-			[]string{"operation", "path_prefix"},
-		)
-		_ = metrics.Register(operationsTotal)
-
-		operationErrors = metrics.NewCounterVec(
-			"unheaded_secrets_operation_errors_total",
-			"Total secret operation errors",
-			nil,
-			[]string{"operation", "error_type"},
-		)
-		_ = metrics.Register(operationErrors)
-
-		operationLatency = metrics.NewHistogramVec(
-			metrics.HistogramOpts{
-				Name:    "unheaded_secrets_operation_duration_seconds",
-				Help:    "Secret operation latency",
-				Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1},
-			},
-			[]string{"operation"},
-		)
-		_ = metrics.Register(operationLatency)
-	})
+	// No metrics: the four unheaded_secrets_* families registered here were
+	// served by no binary (none builds a Manager) and were deleted in
+	// S-WELL-SPRING Step 192 (M-086). Re-add them, in the registry the
+	// serving binary exposes, the day one does.
 
 	return m, nil
 }
@@ -397,11 +355,6 @@ func (m *Manager) RegisterGenerator(g DynamicSecretGenerator) {
 
 // Get retrieves a secret by path.
 func (m *Manager) Get(ctx context.Context, path string) (*Secret, error) {
-	start := time.Now()
-	defer func() {
-		operationLatency.WithLabels(metrics.Labels{"operation": "get"}).Observe(time.Since(start).Seconds())
-	}()
-
 	m.mu.RLock()
 	if m.closed {
 		m.mu.RUnlock()
@@ -409,24 +362,19 @@ func (m *Manager) Get(ctx context.Context, path string) (*Secret, error) {
 	}
 	m.mu.RUnlock()
 
-	operationsTotal.WithLabels(metrics.Labels{"operation": "get", "path_prefix": pathPrefix(path)}).Inc()
-
 	secret, err := m.store.Get(ctx, path)
 	if err != nil {
 		m.logAudit("get", path, false, err.Error(), nil)
-		operationErrors.WithLabels(metrics.Labels{"operation": "get", "error_type": errorType(err)}).Inc()
 		return nil, err
 	}
 
 	if secret.Revoked {
 		m.logAudit("get", path, false, ErrSecretRevoked.Error(), nil)
-		operationErrors.WithLabels(metrics.Labels{"operation": "get", "error_type": "revoked"}).Inc()
 		return nil, ErrSecretRevoked
 	}
 
 	if secret.IsExpired() {
 		m.logAudit("get", path, false, ErrSecretExpired.Error(), nil)
-		operationErrors.WithLabels(metrics.Labels{"operation": "get", "error_type": "expired"}).Inc()
 		return nil, ErrSecretExpired
 	}
 
@@ -436,19 +384,12 @@ func (m *Manager) Get(ctx context.Context, path string) (*Secret, error) {
 
 // Set stores a secret at the given path.
 func (m *Manager) Set(ctx context.Context, path string, secret *Secret) error {
-	start := time.Now()
-	defer func() {
-		operationLatency.WithLabels(metrics.Labels{"operation": "set"}).Observe(time.Since(start).Seconds())
-	}()
-
 	m.mu.RLock()
 	if m.closed {
 		m.mu.RUnlock()
 		return ErrStoreClosed
 	}
 	m.mu.RUnlock()
-
-	operationsTotal.WithLabels(metrics.Labels{"operation": "set", "path_prefix": pathPrefix(path)}).Inc()
 
 	// Ensure path is set
 	secret.Path = path
@@ -468,17 +409,14 @@ func (m *Manager) Set(ctx context.Context, path string, secret *Secret) error {
 		secret.Version = 1
 	} else {
 		m.logAudit("set", path, false, err.Error(), nil)
-		operationErrors.WithLabels(metrics.Labels{"operation": "set", "error_type": errorType(err)}).Inc()
 		return err
 	}
 
 	if err := m.store.Set(ctx, path, secret); err != nil {
 		m.logAudit("set", path, false, err.Error(), nil)
-		operationErrors.WithLabels(metrics.Labels{"operation": "set", "error_type": errorType(err)}).Inc()
 		return err
 	}
 
-	secretsTotal.WithLabels(metrics.Labels{"type": string(secret.Type)}).Inc()
 	m.logAudit("set", path, true, "", map[string]string{"version": fmt.Sprintf("%d", secret.Version)})
 
 	m.log.Info().
@@ -492,19 +430,12 @@ func (m *Manager) Set(ctx context.Context, path string, secret *Secret) error {
 
 // Delete removes a secret by path.
 func (m *Manager) Delete(ctx context.Context, path string) error {
-	start := time.Now()
-	defer func() {
-		operationLatency.WithLabels(metrics.Labels{"operation": "delete"}).Observe(time.Since(start).Seconds())
-	}()
-
 	m.mu.RLock()
 	if m.closed {
 		m.mu.RUnlock()
 		return ErrStoreClosed
 	}
 	m.mu.RUnlock()
-
-	operationsTotal.WithLabels(metrics.Labels{"operation": "delete", "path_prefix": pathPrefix(path)}).Inc()
 
 	// Revoke all leases for this secret
 	if m.leases != nil {
@@ -515,7 +446,6 @@ func (m *Manager) Delete(ctx context.Context, path string) error {
 
 	if err := m.store.Delete(ctx, path); err != nil {
 		m.logAudit("delete", path, false, err.Error(), nil)
-		operationErrors.WithLabels(metrics.Labels{"operation": "delete", "error_type": errorType(err)}).Inc()
 		return err
 	}
 
@@ -530,11 +460,6 @@ func (m *Manager) Delete(ctx context.Context, path string) error {
 
 // List returns all secret paths matching the prefix.
 func (m *Manager) List(ctx context.Context, prefix string) ([]string, error) {
-	start := time.Now()
-	defer func() {
-		operationLatency.WithLabels(metrics.Labels{"operation": "list"}).Observe(time.Since(start).Seconds())
-	}()
-
 	m.mu.RLock()
 	if m.closed {
 		m.mu.RUnlock()
@@ -542,12 +467,9 @@ func (m *Manager) List(ctx context.Context, prefix string) ([]string, error) {
 	}
 	m.mu.RUnlock()
 
-	operationsTotal.WithLabels(metrics.Labels{"operation": "list", "path_prefix": pathPrefix(prefix)}).Inc()
-
 	paths, err := m.store.List(ctx, prefix)
 	if err != nil {
 		m.logAudit("list", prefix, false, err.Error(), nil)
-		operationErrors.WithLabels(metrics.Labels{"operation": "list", "error_type": errorType(err)}).Inc()
 		return nil, err
 	}
 
@@ -564,12 +486,9 @@ func (m *Manager) Watch(ctx context.Context, path string) (<-chan *Secret, error
 	}
 	m.mu.RUnlock()
 
-	operationsTotal.WithLabels(metrics.Labels{"operation": "watch", "path_prefix": pathPrefix(path)}).Inc()
-
 	ch, err := m.store.Watch(ctx, path)
 	if err != nil {
 		m.logAudit("watch", path, false, err.Error(), nil)
-		operationErrors.WithLabels(metrics.Labels{"operation": "watch", "error_type": errorType(err)}).Inc()
 		return nil, err
 	}
 
@@ -579,11 +498,6 @@ func (m *Manager) Watch(ctx context.Context, path string) (<-chan *Secret, error
 
 // GenerateDynamic generates a dynamic secret.
 func (m *Manager) GenerateDynamic(ctx context.Context, path string, secretType SecretType, config map[string]interface{}) (*Secret, error) {
-	start := time.Now()
-	defer func() {
-		operationLatency.WithLabels(metrics.Labels{"operation": "generate"}).Observe(time.Since(start).Seconds())
-	}()
-
 	m.mu.RLock()
 	if m.closed {
 		m.mu.RUnlock()
@@ -596,12 +510,9 @@ func (m *Manager) GenerateDynamic(ctx context.Context, path string, secretType S
 		return nil, fmt.Errorf("no generator registered for secret type %s", secretType)
 	}
 
-	operationsTotal.WithLabels(metrics.Labels{"operation": "generate", "path_prefix": pathPrefix(path)}).Inc()
-
 	secret, err := generator.Generate(ctx, path, config)
 	if err != nil {
 		m.logAudit("generate", path, false, err.Error(), nil)
-		operationErrors.WithLabels(metrics.Labels{"operation": "generate", "error_type": errorType(err)}).Inc()
 		return nil, err
 	}
 
@@ -707,35 +618,4 @@ func GenerateRandomString(n int) (string, error) {
 // GenerateLeaseID generates a unique lease ID.
 func GenerateLeaseID() (string, error) {
 	return GenerateRandomString(32)
-}
-
-// pathPrefix extracts the first component of a path for metrics.
-func pathPrefix(path string) string {
-	if len(path) == 0 {
-		return "root"
-	}
-	for i, c := range path {
-		if c == '/' && i > 0 {
-			return path[:i]
-		}
-	}
-	return path
-}
-
-// errorType categorizes an error for metrics.
-func errorType(err error) string {
-	switch {
-	case errors.Is(err, ErrSecretNotFound):
-		return "not_found"
-	case errors.Is(err, ErrSecretExpired):
-		return "expired"
-	case errors.Is(err, ErrSecretRevoked):
-		return "revoked"
-	case errors.Is(err, ErrAccessDenied):
-		return "access_denied"
-	case errors.Is(err, ErrStoreClosed):
-		return "store_closed"
-	default:
-		return "internal"
-	}
 }
