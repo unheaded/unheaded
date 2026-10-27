@@ -1509,3 +1509,37 @@ controls:
       nist-csf-2: [PR.AA-05]
       soc2-security: [CC6.2, CC6.3]
       iso27001-2022: [A.5.18]
+
+  - id: UH-SLO-01
+    title: Service-level objectives are declared as data and their error budgets are measured
+    statement: >-
+      Every SLO in observability/alerting/policy.yaml (the reviewed source)
+      is a row in the Well's slo_definitions (`alert-policy -sync-well`;
+      `alert-policy -check` with WELL_DB set fails on any drift), and its
+      error budget over the SLO window is recorded continuously as
+      slo:error_budget_remaining. Each SLO is one evidence source: it passes
+      while budget remains, fails once the budget is spent, and is not
+      assessed when the series is missing.
+    rationale: >-
+      Continuous monitoring against defined objectives (CA-7) and system
+      monitoring of the services' availability (SI-4); 800-171 03.14.06
+      system monitoring; CSF DE.CM-01 networks and network services are
+      monitored; ISO A.8.16 monitoring activities; SOC 2 CC7.2 monitoring
+      system components for anomalies. A spent budget is a FAIL on purpose:
+      the objective was declared and not met.
+    freshness_days: 7
+    evidence:
+      - {kind: slo, ref: wotan}
+      - {kind: slo, ref: dashboard}
+      - {kind: slo, ref: well}
+      - {kind: slo, ref: well-backups}
+      - {kind: slo, ref: overlay}
+      - {kind: slo, ref: log-shipping}
+      - {kind: slo, ref: kev-feed}
+      - {kind: slo, ref: ci-develop}
+    mappings:
+      nist-800-53r5: [CA-7, SI-4]
+      nist-800-171r3: ["03.14.06"]
+      nist-csf-2: [DE.CM-01]
+      soc2-security: [CC7.2]
+      iso27001-2022: [A.8.16]

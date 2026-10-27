@@ -133,7 +133,22 @@ else
     skip_step "haproxy configs" "neither docker nor haproxy installed"
 fi
 
-# 11. Perf regression (west only, needs the running stack; M-089).
+# 11. SLOs as data (S-WELL-SPRING Phase 3): the Well suite on a throwaway
+#     server, then the drift leg against the live Well when WELL_DB is set
+#     (WELL_DB=unheaded_ops WELL_PASSWORD=<ops_writer's, from .env>; read
+#     only: -check never writes).
+if command -v docker &>/dev/null && docker info &>/dev/null; then
+    run_step "SLO definitions (throwaway Well)" scripts/well/test-slo-definitions.sh
+else
+    skip_step "SLO definitions (throwaway Well)" "docker not available"
+fi
+if [ -n "${WELL_DB:-}" ]; then
+    run_step "alert policy vs the live Well" go run ./cmd/alert-policy -check
+else
+    skip_step "alert policy vs the live Well" "set WELL_DB and WELL_PASSWORD (ops_writer) on west"
+fi
+
+# 12. Perf regression (west only, needs the running stack; M-089).
 #     Opt-in: it publishes to Wotan (bench.perf.packet only) and holds
 #     1000 req/s against -health for 60 s, so a casual run never loads the
 #     stack. container-start is not run here (it creates LXD instances).

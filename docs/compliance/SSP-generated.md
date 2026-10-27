@@ -2,7 +2,7 @@
 
 # System Security Plan
 
-Evaluated 2026-10-27 against `var/compliance/evidence.json`: 49 controls, 11 frameworks.
+Evaluated 2026-10-27 against `var/compliance/evidence.json`: 50 controls, 11 frameworks.
 
 - Risk management strategy (appetite, categorization, criticality): `compliance/policies/risk-management-strategy.md`.
 - Single-operator posture (accepted gaps, compensating controls): `compliance/policies/single-operator-posture.md`.
@@ -16,7 +16,7 @@ A mapping says a control's evidence supports part of a framework requirement. No
 |---|---|
 | passing | 22 |
 | stale | 0 |
-| not assessed | 3 |
+| not assessed | 4 |
 | failing | 24 |
 
 ## Controls
@@ -1504,6 +1504,36 @@ Mappings:
 - nist-csf-2: PR.AA-05
 - soc2-security: CC6.2, CC6.3
 
+### UH-SLO-01: Service-level objectives are declared as data and their error budgets are measured
+
+**Status:** NOT_ASSESSED, no evidence for 8 of 8 sources
+
+Every SLO in observability/alerting/policy.yaml (the reviewed source) is a row in the Well's slo_definitions (`alert-policy -sync-well`; `alert-policy -check` with WELL_DB set fails on any drift), and its error budget over the SLO window is recorded continuously as slo:error_budget_remaining. Each SLO is one evidence source: it passes while budget remains, fails once the budget is spent, and is not assessed when the series is missing.
+
+Rationale: Continuous monitoring against defined objectives (CA-7) and system monitoring of the services' availability (SI-4); 800-171 03.14.06 system monitoring; CSF DE.CM-01 networks and network services are monitored; ISO A.8.16 monitoring activities; SOC 2 CC7.2 monitoring system components for anomalies. A spent budget is a FAIL on purpose: the objective was declared and not met.
+
+Evidence:
+
+- `slo:wotan`: no record
+- `slo:dashboard`: no record
+- `slo:well`: no record
+- `slo:well-backups`: no record
+- `slo:overlay`: no record
+- `slo:log-shipping`: no record
+- `slo:kev-feed`: no record
+- `slo:ci-develop`: no record
+
+Mappings:
+
+- fedramp-high: CA-7, SI-4
+- fedramp-low: CA-7, SI-4
+- fedramp-moderate: CA-7, SI-4
+- iso27001-2022: A.8.16
+- nist-800-171r3: 03.14.06
+- nist-800-53r5: CA-7, SI-4
+- nist-csf-2: DE.CM-01
+- soc2-security: CC7.2
+
 ## SoA
 
 Statement of Applicability. Every framework in the catalog is in scope as a mapping target and counted against the publisher's full requirement list; an unmapped requirement is counted, never dropped. Requirement statuses: evidenced (every mapped control passes), failing (a mapped control fails), incomplete (mapped, none failing, some not assessed or stale), unmapped.
@@ -1514,10 +1544,10 @@ Statement of Applicability. Every framework in the catalog is in scope as a mapp
 | fedramp-low | FedRAMP Low Baseline | Rev 5 (legacy workbook) | 800-53 Rev 5 controls and enhancements in the baseline | 156 | 10 | 21 | 4 | 121 |
 | fedramp-moderate | FedRAMP Moderate Baseline | Rev 5 (legacy workbook) | 800-53 Rev 5 controls and enhancements in the baseline | 323 | 15 | 26 | 4 | 278 |
 | fedramp-high | FedRAMP High Baseline | Rev 5 (legacy workbook) | 800-53 Rev 5 controls and enhancements in the baseline | 410 | 16 | 26 | 4 | 364 |
-| soc2-security | SOC 2 Trust Services Criteria (Security) | 2017 TSC, 2022 points of focus | common criteria | 33 | 2 | 5 | 4 | 22 |
-| iso27001-2022 | ISO/IEC 27001 Annex A | 2022 | Annex A reference controls | 93 | 9 | 9 | 4 | 71 |
-| nist-csf-2 | NIST Cybersecurity Framework | 2.0 (OSCAL 1.2.0) | subcategories | 106 | 7 | 6 | 3 | 90 |
-| nist-800-171r3 | NIST SP 800-171 | Rev 3 (OSCAL 1.1.0) | security requirements | 97 | 7 | 16 | 4 | 70 |
+| soc2-security | SOC 2 Trust Services Criteria (Security) | 2017 TSC, 2022 points of focus | common criteria | 33 | 1 | 5 | 5 | 22 |
+| iso27001-2022 | ISO/IEC 27001 Annex A | 2022 | Annex A reference controls | 93 | 9 | 9 | 5 | 70 |
+| nist-csf-2 | NIST Cybersecurity Framework | 2.0 (OSCAL 1.2.0) | subcategories | 106 | 7 | 6 | 4 | 89 |
+| nist-800-171r3 | NIST SP 800-171 | Rev 3 (OSCAL 1.1.0) | security requirements | 97 | 7 | 16 | 5 | 69 |
 | nist-ssdf | NIST SP 800-218 (SSDF) | 1.1 (OSCAL 1.0.0) | practices | 19 | 7 | 1 | 0 | 11 |
 | cis-ubuntu2404 | CIS Ubuntu Linux 24.04 LTS Benchmark (Level 2 Server) | 1.0.0 | recommendations (Level 1 + Level 2 Server) | 312 | 138 | 70 | 0 | 104 |
 | cis-ubuntu2404-l1 | CIS Ubuntu Linux 24.04 LTS Benchmark (Level 1 Server) | 1.0.0 | recommendations (Level 1 Server) | 251 | 133 | 64 | 0 | 54 |

@@ -96,12 +96,12 @@ Built side by side, each SRE artifact is also evidence. That is the overlapping-
 - **Error-budget policy:** when a service's budget is exhausted, reliability work on it outranks feature work until the budget recovers. This is Stevie's call for the lab, and the default is written down so the decision is visible.
 - **Toil** (manual, repetitive, automatable work, such as hand-applied remediation or re-signing commits) is noted when it happens. The remediation executor (ADR-099) and this ADR exist partly to retire it.
 
-## Phases (none started)
+## Phases (status in the dated sections below)
 
 | Phase | Scope |
 |---|---|
 | 1 | Write the three postmortems above. Add the `runbook_url` gate and a runbook for each of the 22 existing rules. Add the Watchdog alert. |
-| 2 | SLO definition schema (Well table plus YAML fallback), a generator for burn-rate rules, a drift test, and the `slo` evidence kind. |
+| 2 | SLO definition schema (Well table plus YAML fallback), a generator for burn-rate rules, a drift test, and the `slo` evidence kind. Built 2026-10-27 (S-WELL-SPRING Phase 3, below). |
 | 3 | Log-volume SLI from the log pipeline. Spam and silence SLOs for postgres, dashboard-backend, kanban and wotan first. Auth-failure SLIs. |
 | 4 | Availability SLOs for The Well, Wotan, the dashboard, and CI on develop. |
 | 5 | Error-budget panel on the dashboard next to Compliance; budgets as register findings. |
@@ -208,3 +208,27 @@ counts as bad.
 - Operations and compliance stop being two backlogs. An SLO, an alert, a runbook and a postmortem are each an operational tool *and* a piece of audit evidence, mapped once in the crosswalk.
 - Failures like a database down for a day or CI red for ten days alert someone within the SLO window instead of being found by accident.
 - Cost: every service has to declare SLOs, and every alert needs a runbook and a firing test. That is deliberate friction against alerts nobody can act on.
+
+## SLOs as data, 2026-10-27 (S-WELL-SPRING Phase 3)
+
+`policy.yaml` stays the reviewable source: an objective changes by a reviewed
+commit. The Well holds the same definitions as rows, which is what the
+dashboard and the compliance evidence read.
+
+| Piece | Where |
+|---|---|
+| `slo_definitions` (objective as a fraction, `slo_window`, time-based SLI, urgency, runbook URL, the policy file's sha256) and an append-only `slo_definitions_history` written by trigger (old/new row, session user, `well.change_reason`) | `db/migrations/040_ops_slo_definitions.sql` (unheaded_ops; ops_writer writes, ops_reader reads) |
+| Store: `All`, `Sync` (one transaction: upsert, delete SLOs that left the YAML, refuse an empty set; a row changes only when its definition does) | `pkg/database/slo_store.go` |
+| `-sync-well` writes the policy into the Well; `-check` with `WELL_DB` set also fails on drift (`drift: slo wotan objective well=0.99 yaml=0.995`, rows missing either side) and fails closed when the Well cannot be read; without `WELL_DB` it is the YAML-only check CI runs | `cmd/alert-policy/well.go` |
+| Proof on a throwaway server (CI `well-schema` job; `scripts/ci-local.sh` adds the live drift leg when `WELL_DB` is set) | `scripts/well/test-slo-definitions.sh` |
+| Evidence kind `slo` (ref = SLO name): PASS while `slo:error_budget_remaining` > 0 in VictoriaMetrics (`VICTORIA_URL`, default `http://localhost:8428`), FAIL at or below 0, no record (NOT_ASSESSED) when the series is missing | `pkg/compliance/crosswalk/collect/slo.go`, `cmd/compliance-evidence` |
+| Control `UH-SLO-01`, one source per SLO (a test fails when the catalog and the policy name different SLOs) | `compliance/catalog/controls.yaml` |
+
+The policy now refuses an objective with more than two decimals (the Well
+stores numeric(6,4)). Live state: 040 waits for the E-A migration window;
+then `-sync-well` once and `-check` with `WELL_DB` set. Read on
+2026-10-27, UH-SLO-01 is FAIL: five of the seven measured budgets are spent
+(wotan, dashboard, well, well-backups, log-shipping); overlay and kev-feed
+pass; ci-develop has no series until its timer runs. Editing objectives from
+the dashboard admin with a signed change record (ADR-099 section 5) waits
+for S-IRON-GATE's board login; not built.

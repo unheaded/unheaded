@@ -138,6 +138,14 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 	}
 	fresh = append(fresh, recs...)
 
+	// SLO error budgets from VictoriaMetrics ($VICTORIA_URL, default
+	// localhost:8428). Down or unreachable: UH-SLO-01 stays NOT_ASSESSED.
+	slo := &collect.SLO{}
+	if recs, err = slo.Collect(ctx, sources); err != nil {
+		fmt.Fprintln(os.Stderr, "slo evidence unavailable:", err)
+	}
+	fresh = append(fresh, recs...)
+
 	sshd := &collect.HostSSHD{}
 	if recs, err = sshd.Collect(ctx, sources); err != nil {
 		return err

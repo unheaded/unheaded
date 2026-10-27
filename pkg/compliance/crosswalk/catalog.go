@@ -61,11 +61,18 @@ const (
 	// ran the repo's baseline in audit mode, and every verdict agrees with
 	// the central pull of the same run. A disagreement is the tamper alarm.
 	KindHostAgent = "host-agent"
+	// KindSLO: ref "<slo name>" from observability/alerting/policy.yaml (a
+	// row of the Well's slo_definitions): it passes while
+	// slo:error_budget_remaining for that SLO is above zero, fails at or
+	// below zero, and is not assessed when the series is absent.
+	KindSLO = "slo"
 )
 
 var (
 	hostJournalRefRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}:apply-journal$`)
 	hostAgentRefRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}:baseline-report$`)
+	// SLORefRe is an SLO name as cmd/alert-policy and db/migrations/040 accept it.
+	SLORefRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
 )
 
 var (
@@ -298,6 +305,10 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 			case KindHostAgent:
 				if !hostAgentRefRe.MatchString(s.Ref) {
 					return nil, invalid("control %q: %s ref %q is not <host>:baseline-report", ctl.ID, s.Kind, s.Ref)
+				}
+			case KindSLO:
+				if !SLORefRe.MatchString(s.Ref) {
+					return nil, invalid("control %q: %s ref %q is not an SLO name", ctl.ID, s.Kind, s.Ref)
 				}
 			default:
 				return nil, invalid("control %q: evidence kind %q", ctl.ID, s.Kind)

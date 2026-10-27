@@ -552,6 +552,11 @@ jobs:
       - name: API keys table and the Well key store
         run: ./scripts/well/test-api-keys.sh --with-go
 
+      # S-WELL-SPRING Phase 3: slo_definitions (040), alert-policy
+      # -sync-well and the -check drift leg against this throwaway Well.
+      - name: SLO definitions table and the alert-policy Well leg
+        run: ./scripts/well/test-slo-definitions.sh
+
       - name: Backup set and restore drill
         run: ./scripts/well/test-backup-restore.sh
 
@@ -602,7 +607,11 @@ jobs:
 
       # ADR-100: slo.yml and alertmanager.yml are generated from
       # observability/alerting/policy.yaml, and every hand-written rule is
-      # urgency none (only SLOs notify).
+      # urgency none (only SLOs notify). YAML only here: WELL_DB is unset, so
+      # the Well drift leg (slo_definitions vs the policy, S-WELL-SPRING
+      # Phase 3) is skipped. It is proved against a throwaway server in the
+      # well-schema job (test-slo-definitions.sh) and runs against the live
+      # Well on west from scripts/ci-local.sh when WELL_DB is set.
       - name: Alert policy generated files are current
         run: go run ./cmd/alert-policy --check
 

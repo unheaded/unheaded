@@ -63,6 +63,25 @@ An SLO with `page: false` sends every tier as a ticket. The rule tests in `monit
 - 15 minutes of it pages;
 - a vanished exporter counts as down.
 
+### The same SLOs in The Well
+
+`policy.yaml` is the source you edit and review. The Well holds a copy, one
+row per SLO in `unheaded_ops.slo_definitions` (migration 040), with every
+change kept in `slo_definitions_history`:
+
+```bash
+# after editing policy.yaml and regenerating:
+WELL_DB=unheaded_ops WELL_PASSWORD=<ops_writer> go run ./cmd/alert-policy -sync-well
+# any time; fails on drift, and fails if the Well cannot be read:
+WELL_DB=unheaded_ops WELL_PASSWORD=<ops_writer> go run ./cmd/alert-policy -check
+```
+
+Without `WELL_DB`, `-check` only checks the YAML and generated files (what
+CI runs). An objective may have at most two decimals in the policy.
+Compliance control `UH-SLO-01` reads each SLO's budget from VictoriaMetrics
+(`VICTORIA_URL`, default `http://localhost:8428`): PASS while budget is
+left, FAIL when spent, NOT_ASSESSED when the series is missing.
+
 ## The mailer
 
 `alert-mailer` (compose service in `monitoring/`, uid 16710, `127.0.0.1:19130`) is the only thing that sends alert mail. Alertmanager hands it pages and tickets by webhook and holds no credentials.
