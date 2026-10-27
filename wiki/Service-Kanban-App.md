@@ -8,6 +8,7 @@ The self-hosting proof of concept. Displays Unheaded development progress using 
 | Cards | The Well, `unheaded_app.kanban_tasks` as role `app_kanban` over TLS; a SQLite L1 cache serves reads. The binary carries no cards (see below) |
 | Live updates | Wotan streams; editing `references/timeline.md` updates the board with no restart (working in compose since 2026-09-21) |
 | Writes | need the database: without it, the board is read-only |
+| Login | Reading is public. Writing needs an operator login on the board (`/auth/login` against [unheaded-auth](Service-Auth), HttpOnly session cookie, `AUTH_ISSUER_URL`) or a service token from dashboard-backend, zhen-agentd or micromanager (`AUTH_ALLOW_CALLERS`) |
 
 ## API
 

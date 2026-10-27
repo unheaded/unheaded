@@ -9,6 +9,8 @@ Real-time metrics aggregation and WebSocket push for the dashboard UI. Bridges e
 | Live view | every viewer sees the same live events, one copy per message, no replay on connect |
 | Writes to The Well | `ops_writer`: Akira's health state (`service_health_current` / `_transitions`) |
 | Memory | `GOMEMLIMIT` set; ~210-235 MiB plateau after the 2026-09 OOM fixes |
+| Login | `AUTH_ENABLED=true` with `AUTH_ISSUER_URL`: people log in on the page (`/auth/login`, [unheaded-auth](Service-Auth)) and hold an HttpOnly session cookie. Every `/api/` call and WebSocket then needs a login (viewer reads, operator writes) or a service token (`AUTH_ALLOW_CALLERS=unheaded-cli`); the pages themselves stay open |
+| Compliance profile switch | `POST /api/v1/compliance/profile` `{host, profile, mode, reason}`: admin or operator login only, actor = the login; writes as `config_admin` (`WELL_CONFIG_ADMIN_PASSWORD`, not set in compose: 503 until it is) |
 
 ---
 
