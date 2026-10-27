@@ -6,6 +6,8 @@ package integrity
 import (
 	"net"
 	"testing"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 func TestDeriveFlowSecret(t *testing.T) {
@@ -310,7 +312,7 @@ func TestCRC16CCITT(t *testing.T) {
 	t.Run("KnownVector", func(t *testing.T) {
 		// Test with known CRC-16-CCITT values
 		data := []byte{0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39} // "123456789"
-		crc := CRC16CCITT(data)
+		crc := encoding.CRC16CCITT(data)
 		// CRC-16-CCITT for "123456789" should be 0x31C3
 		if crc != 0x31c3 {
 			t.Logf("CRC-16-CCITT computed: 0x%04x (expected 0x31c3 for standard vectors)", crc)
@@ -318,21 +320,21 @@ func TestCRC16CCITT(t *testing.T) {
 	})
 
 	t.Run("NilData", func(t *testing.T) {
-		crc := CRC16CCITT(nil)
+		crc := encoding.CRC16CCITT(nil)
 		if crc != 0xFFFF {
 			t.Errorf("CRC of nil should be 0xFFFF (initial value), got 0x%04x", crc)
 		}
 	})
 
 	t.Run("EmptyData", func(t *testing.T) {
-		crc := CRC16CCITT([]byte{})
+		crc := encoding.CRC16CCITT([]byte{})
 		if crc != 0xffff {
 			t.Logf("CRC of empty data: 0x%04x", crc)
 		}
 	})
 
 	t.Run("SingleByte", func(t *testing.T) {
-		crc := CRC16CCITT([]byte{0x41})
+		crc := encoding.CRC16CCITT([]byte{0x41})
 		if crc == 0 {
 			t.Errorf("CRC of non-empty data should not be 0")
 		}
@@ -340,8 +342,8 @@ func TestCRC16CCITT(t *testing.T) {
 
 	t.Run("Deterministic", func(t *testing.T) {
 		data := []byte("test data")
-		crc1 := CRC16CCITT(data)
-		crc2 := CRC16CCITT(data)
+		crc1 := encoding.CRC16CCITT(data)
+		crc2 := encoding.CRC16CCITT(data)
 		if crc1 != crc2 {
 			t.Errorf("CRC should be deterministic")
 		}
@@ -351,7 +353,7 @@ func TestCRC16CCITT(t *testing.T) {
 func TestVerifyCRC16CCITT(t *testing.T) {
 	t.Run("ValidCRC", func(t *testing.T) {
 		data := []byte("test data")
-		crc := CRC16CCITT(data)
+		crc := encoding.CRC16CCITT(data)
 		verified := VerifyCRC16CCITT(data, crc)
 		if !verified {
 			t.Errorf("valid CRC should verify")

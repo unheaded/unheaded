@@ -33,17 +33,15 @@ func TestStructSizes(t *testing.T) {
 		{"RingPathKey", unsafe.Sizeof(RingPathKey{}), 16},
 		{"RingPathValue", unsafe.Sizeof(RingPathValue{}), 8},
 
-		// Q5/Q6: Migration tokens.
-		{"MigrationTokenKey", unsafe.Sizeof(MigrationTokenKey{}), 20},
-		// MigrationTokenValue: 32 (Token) + 4 (IssuedAt) + 4 (ExpiresAt) + 16 (NewAddr) = 56 bytes.
-		{"MigrationTokenValue", unsafe.Sizeof(MigrationTokenValue{}), 56},
+		// Q5/Q6 migration tokens and H8 cancel flows use FlowKey and the
+		// flow-tracker values in core_maps.go (rust_source_test.go).
 
 		// H1: Sophia sync.
 		{"SophiaSyncKey", unsafe.Sizeof(SophiaSyncKey{}), 8},
 		{"SophiaSyncValue", unsafe.Sizeof(SophiaSyncValue{}), 24},
 
 		// H2: Error counters.
-		{"ErrorCounterKey", unsafe.Sizeof(ErrorCounterKey{}), 4},
+		{"ErrorCounterKey", unsafe.Sizeof(ErrorCounterKey{}), 8}, // u64 key in shield-ebpf
 		{"ErrorCounterValue", unsafe.Sizeof(ErrorCounterValue{}), 8},
 
 		// H3: TLV registry.
@@ -64,10 +62,6 @@ func TestStructSizes(t *testing.T) {
 		{"GoawayStateKey", unsafe.Sizeof(GoawayStateKey{}), 8},
 		{"GoawayStateValue", unsafe.Sizeof(GoawayStateValue{}), 16},
 
-		// H8: Cancel flows.
-		{"CancelFlowKey", unsafe.Sizeof(CancelFlowKey{}), 8},
-		{"CancelFlowValue", unsafe.Sizeof(CancelFlowValue{}), 8},
-
 		// H9: Prefetch hints.
 		{"PrefetchHintKey", unsafe.Sizeof(PrefetchHintKey{}), 8},
 		// PrefetchHintValue: 2+2+1+1+2+4+4+4 = 20 bytes (no inter-field padding needed).
@@ -75,8 +69,8 @@ func TestStructSizes(t *testing.T) {
 
 		// H10: Hop validators.
 		{"HopValidatorKey", unsafe.Sizeof(HopValidatorKey{}), 8},
-		// HopValidatorValue: 1+1+1+1+16+1+3+4 = 28 bytes (no inter-field padding needed).
-		{"HopValidatorValue", unsafe.Sizeof(HopValidatorValue{}), 28},
+		// HopValidatorValue: 1+1+1+1+16+1+3+4+4 = 32 bytes, the shield-ebpf [u8; 32] value.
+		{"HopValidatorValue", unsafe.Sizeof(HopValidatorValue{}), 32},
 
 		// H11: Authority.
 		{"AuthorityKey", unsafe.Sizeof(AuthorityKey{}), 8},
@@ -132,18 +126,14 @@ func TestMapNameConstants(t *testing.T) {
 	names := []string{
 		MapHMACKeys,
 		MapSeqCounters,
-		MapRingPath,
 		MapMigrationTokens,
 		MapRetryTokens,
-		MapSophiaSync,
 		MapErrorCounters,
-		MapTLVRegistry,
 		MapSettings,
 		MapDoSState,
 		MapFlowTypes,
 		MapGoawayState,
 		MapCancelFlows,
-		MapPrefetchHints,
 		MapHopValidators,
 		MapAuthority,
 	}
@@ -159,7 +149,7 @@ func TestMapNameConstants(t *testing.T) {
 		seen[name] = true
 	}
 
-	if len(seen) != 16 {
-		t.Errorf("expected 16 unique map names, got %d", len(seen))
+	if len(seen) != 12 {
+		t.Errorf("expected 12 unique map names, got %d", len(seen))
 	}
 }
