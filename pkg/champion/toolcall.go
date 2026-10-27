@@ -7,9 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
+
+	"unheaded/pkg/zhenrag"
 )
 
 // ToolCall is the envelope every agent-emitted tool invocation flows
@@ -114,29 +115,10 @@ var ReadOnlyTools = map[string]bool{
 
 // destructivePattern matches any of the destructive shell-verb forms
 // that, when appearing in any string-valued argument, trigger Rule 3
-// (destructive-verb refusal) regardless of source-trust. Mirrors the
-// list applied at the LLM layer in cmd/zhen-rag/main.go's system prompt.
-//
-// Word boundaries (\b) ensure "rebootstrap" doesn't match "reboot" and
-// "format-string" doesn't match "format". (?i) for case-insensitive.
-var destructivePattern = regexp.MustCompile(`(?i)` + strings.Join([]string{
-	`rm\s+-[rf]+\b`, // rm -rf, rm -f, rm -r
-	`rm\s+/`,        // rm / (rooted)
-	`\bdrop\s+table\b`,
-	`\bdrop\s+database\b`,
-	`\bmkfs(\.[a-z0-9]+)?\b`, // mkfs, mkfs.ext4, mkfs.xfs, ...
-	`\bdd\s+(if|of)=`,
-	`\bwipe\b`,
-	`\bshutdown\b`,
-	`\breboot\b`,
-	`\bkill\s+-9\b`,
-	`\btruncate\b`,
-	`\bunlink\b`,
-	`git\s+push\s+--force\b`,
-	`git\s+reset\s+--hard\b`,
-	`\bchmod\s+(-R\s+)?000\b`,
-	`>\s*/dev/sd[a-z]\b`, // > /dev/sda, /dev/sdb, ...
-}, "|"))
+// (destructive-verb refusal) regardless of source-trust. It is rendered
+// from pkg/zhenrag's verb table, the same table the chat and agent prompts
+// list their verbs from, so the gate and the prompts cannot drift.
+var destructivePattern = zhenrag.DestructivePattern
 
 // IsMutating reports whether the tool call would modify state. Returns
 // true for explicitly-mutating tools, false for explicitly-read-only

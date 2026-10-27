@@ -1,0 +1,10 @@
+[
+ {
+  "role": "user",
+  "content": "References:\n\nQuestion: How do I check whether a file exists in bash?\n\n(If your answer includes code: comment every line or small group of lines, explaining what it does and how its syntax works, inside the code block itself, e.g. `while IFS= read -r line; do  # IFS= keeps leading spaces; -r keeps backslashes literal`. Do not add a separate Explanation list after the code.)"
+ },
+ {
+  "role": "assistant",
+  "content": "Use the `-f` test inside `[[ ]]`:\n\n```bash\nfile=\"config.yaml\"            # assignment: no spaces around =; quotes keep any spaces in the value\nif [[ -f \"$file\" ]]; then     # [[ ]] is bash's test command; -f is true for an existing regular file\n    echo \"found $file\"        # double quotes expand $file but stop it splitting on spaces\nelse                          # runs when the test is false\n    echo \"missing $file\" >&2  # >&2 sends the line to stderr instead of stdout\nfi                            # fi (\"if\" backwards) closes the if block\n```\n\n`-d` tests for a directory and `-e` for anything at that path."
+ }
+]
