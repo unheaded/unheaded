@@ -11,7 +11,7 @@ From `pkg/ports/ports.go`:
 | Infrastructure | 16666-16999 | doom-bridge 16666, doom-go-injector 16667, trace-collector 16670 (HTTP) / 16671 (metrics) |
 | Control Plane | 17000-17999 | unheaded-daemon 17000 / 17001 (gRPC), CLI server 17010, protocol-api 17100 / 17101 (gRPC) |
 | Wotan | 18000-18099 | wotan 18000 (HTTP) / 18001 (gRPC) |
-| Core Services | 19000-19099 | timeguru 19000, architect 19001, captain 19002, micromanager 19003, monad 19004, sophia 19005, cuirass 19006, key-mgmt 19007, pqc-verifier 19008, shield 19009, firewall 19010, sword 19011 (was canary), chaos 19012, QoS 19013, backup-mgr 19014, compliance 19015, NFV 19016, version 19017, anomaly 19018, telemetry-agg 19019 |
+| Core Services | 19000-19099 | timeguru 19000, architect 19001, captain 19002, micromanager 19003, monad 19004, sophia 19005, cuirass 19006, key-mgmt 19007, pqc-verifier 19008, shield 19009, firewall 19010, sword 19011 (was canary), chaos 19012, QoS 19013, backup-mgr 19014, compliance 19015, NFV 19016, version 19017, anomaly 19018, telemetry-agg 19019, unheaded-auth 19020 ([[Service-Auth]]) |
 | Health | 19100 | akira |
 | Threat feeds | 19120 | kev-poller (ADR-055); 19110 is the loadbalancer's xdpsync |
 | Alerting | 19130 | alert-mailer (ADR-100), `127.0.0.1` in `monitoring/docker-compose.yml` |
