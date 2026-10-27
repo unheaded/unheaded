@@ -67,7 +67,7 @@ func TestEncodeDelta_Empty(t *testing.T) {
 	}
 }
 
-func TestComputeSignature(t *testing.T) {
+func TestDigest(t *testing.T) {
 	delta := &DictionaryDelta{
 		Version: 1,
 		Additions: []DictEntry{
@@ -76,50 +76,27 @@ func TestComputeSignature(t *testing.T) {
 		Removals: []uint32{5},
 	}
 
-	sig := computeSignature(delta)
-	if len(sig) != 32 { // SHA-256 = 32 bytes
-		t.Errorf("signature length = %d, want 32", len(sig))
+	d1 := delta.Digest()
+	if d1 != delta.Digest() {
+		t.Error("same delta should produce the same digest")
 	}
 
-	// Same delta should produce same signature
-	sig2 := computeSignature(delta)
-	if !bytesEqual(sig, sig2) {
-		t.Error("same delta should produce same signature")
-	}
-
-	// Different delta should produce different signature
 	delta2 := &DictionaryDelta{
 		Version: 2,
 		Additions: []DictEntry{
 			{Index: 0, Value: "different"},
 		},
 	}
-	sig3 := computeSignature(delta2)
-	if bytesEqual(sig, sig3) {
-		t.Error("different deltas should produce different signatures")
+	if d1 == delta2.Digest() {
+		t.Error("different deltas should produce different digests")
 	}
-}
 
-func TestBytesEqual(t *testing.T) {
-	a := []byte("hello")
-	b := []byte("hello")
-	c := []byte("world")
-	d := []byte("helloX")
-
-	if !bytesEqual(a, b) {
-		t.Error("identical bytes should be equal")
-	}
-	if bytesEqual(a, c) {
-		t.Error("different bytes should not be equal")
-	}
-	if bytesEqual(a, d) {
-		t.Error("different length bytes should not be equal")
-	}
-	if !bytesEqual(nil, nil) {
-		t.Error("nil bytes should be equal")
-	}
-	if !bytesEqual([]byte{}, []byte{}) {
-		t.Error("empty bytes should be equal")
+	// The old digest concatenated values without their lengths, so these
+	// two collided; the canonical form is length-prefixed.
+	a := &DictionaryDelta{Version: 1, Additions: []DictEntry{{Index: 0, Value: "ab"}, {Index: 1, Value: "c"}}}
+	b := &DictionaryDelta{Version: 1, Additions: []DictEntry{{Index: 0, Value: "a"}, {Index: 1, Value: "bc"}}}
+	if a.Digest() == b.Digest() {
+		t.Error("value boundaries are not part of the digest")
 	}
 }
 
