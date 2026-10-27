@@ -1,5 +1,7 @@
 # Next five sprints (2026-10-23)
 
+> All five sprints are done (2026-10-26). The follow-on ladder, forged from a full docs sweep, is [NEXT-7-SPRINTS-2026-10-27](NEXT-7-SPRINTS-2026-10-27.md); the open decisions below that were not answered on 2026-10-26 are carried there with new numbers.
+
 Brainstormed with Stevie on 2026-10-23 (Captain/Warmonger), then forged into
 full battle plans. Order: 1 → 2 → 3 → 4 → 5. Each plan has its own PREFLIGHT,
 gates and [ESCALATE] steps; the decisions below are the ones that need Stevie.
