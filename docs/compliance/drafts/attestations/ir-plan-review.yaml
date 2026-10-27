@@ -1,0 +1,14 @@
+# DRAFT, not evidence. Control UH-IR-01. Signed by Stevie only, with
+#   scripts/compliance/sign-attestation.sh ir-plan-review
+# which copies this to compliance/attestations/ with today's dates.
+# Read first: runbooks/security/ir-plan-v2-2026-10-27.md,
+# docs/incidents/tabletop-2026-10-27.md, compliance/policies/contingency-plan.md.
+statement: >-
+  The incident response plan v2 (runbooks/security/ir-plan-v2-2026-10-27.md)
+  and the contingency plan (compliance/policies/contingency-plan.md) were
+  reviewed against the 2026-10-27 tabletop (docs/incidents/tabletop-2026-10-27.md)
+  and are approved as the plans in force; the gaps the tabletop found are
+  tracked as its action items.
+attested_by: Stevie Bellis
+attested_at: SET-ON-SIGNING
+expires_at: SET-ON-SIGNING

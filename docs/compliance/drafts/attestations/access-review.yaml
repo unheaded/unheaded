@@ -1,0 +1,14 @@
+# DRAFT, not evidence. Control UH-AC-01 (freshness 90 days). Signed by
+# Stevie only, with
+#   scripts/compliance/sign-attestation.sh access-review
+# after walking the access list in README.md (this directory) on west and
+# east. Sign only once anything unneeded has been removed.
+statement: >-
+  Login accounts, SSH authorized keys, sudoers entries, the docker and
+  systemd-journal group members on west and east, the GitHub collaborators
+  and deploy keys of unheaded/unheaded, and the login roles of The Well were
+  reviewed; each one left in place has a named purpose and anything
+  unneeded was removed.
+attested_by: Stevie Bellis
+attested_at: SET-ON-SIGNING
+expires_at: SET-ON-SIGNING

@@ -10,6 +10,10 @@ metadata:
   cs_sources: [security/incident-response, security/forensics, security/log-analysis]
 
 notes: |
+  The plan this runbook serves: runbooks/security/ir-plan-v2-2026-10-27.md
+  (severity, who to call, evidence handling, notification). This file is the
+  capture and investigation tooling only.
+
   ORDER OF VOLATILITY: Capture most volatile data first.
   1. Registers/cache → 2. Memory → 3. Network state → 4. Processes → 5. Disk
   DO NOT reboot until evidence is captured.
@@ -51,6 +55,22 @@ steps:
       ps aux | awk '$1=="root" {print}' | head -20
       echo "=== Recently started processes ==="
       ps -eo pid,lstart,cmd --sort=-lstart | head -20
+
+  - name: export-shipped-logs
+    action: manual
+    command: |
+      # IR plan v2 section 6 step 3. Journal lines Vector shipped to ClickHouse
+      # for one host and time window, into the capture directory, hashed.
+      # Fill HOST, FROM, TO (UTC 'YYYY-MM-DD HH:MM:SS') and IR (the capture dir).
+      # The credentials are the container's own (compose env), read inside it.
+      HOST=<west|east>; FROM='<from>'; TO='<to>'; IR=<capture dir>
+      sudo docker exec unheaded-clickhouse sh -c \
+        'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --query "$0"' \
+        "SELECT * FROM unheaded_logs.logs FINAL WHERE host = '$HOST' AND timestamp BETWEEN '$FROM' AND '$TO' ORDER BY timestamp FORMAT JSONEachRow" \
+        > "$IR/clickhouse-$HOST.jsonl"
+      sha256sum "$IR/clickhouse-$HOST.jsonl" | tee -a "$IR/SHA256SUMS"
+    verify: "the file is non-empty and its hash is recorded in the incident file"
+    description: "MANUAL: copy shipped journal rows out before any containment changes the host"
 
   - name: block-suspicious-ip
     action: shell

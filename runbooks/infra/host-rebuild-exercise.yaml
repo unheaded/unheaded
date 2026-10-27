@@ -1,0 +1,152 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: host-rebuild-exercise
+  description: Rebuild east from git and the runbooks, timing each phase, to measure host RTO (contingency plan section 5)
+  owner: architect
+  estimated_duration: 6h
+  risk: high
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_host_rebuild_exercise.py
+
+notes: |
+  Contingency plan (compliance/policies/contingency-plan.md) section 5:
+  scheduled, not yet run. Needs a host window from Stevie (S-WELL-SPRING
+  E-D or later). Nothing here has been run.
+
+  Why east: the smaller blast radius. West keeps The Well, its backups,
+  the monitoring stack and the working copy; east holds two copies that a
+  wipe destroys (the Well offsite sets and the git mirror of unpushed
+  refs), so they are preserved on west first.
+
+  What it measures: wall-clock per phase (record-time steps write UTC
+  stamps to the exercise log). The totals replace "not measured" in the
+  contingency plan's objectives table.
+
+  Known before starting: scripts/east-bootstrap.sh still assumes NixOS and
+  fd00:dead:beef:: addresses; east runs Ubuntu 25.10. Expect the bootstrap
+  phase to be the slow one; every place the docs are wrong is a finding to
+  write down, not to fix mid-exercise.
+
+  Every step that changes east or west is action: manual. The runner prints
+  it and moves on; run them yourself, in order.
+
+parameters:
+  - name: LOG
+    description: "Exercise log on west, e.g. docs/gamedays/<date>-host-rebuild-east.md"
+    required: true
+
+steps:
+  - name: record-start
+    action: shell
+    host: west
+    command: |
+      set -euo pipefail
+      echo "| $(date -u +%FT%TZ) | start |" | tee -a "${LOG}"
+    description: "First UTC stamp in the exercise log"
+
+  - name: silence-alerts
+    action: manual
+    command: |
+      scripts/monitoring/maintenance.sh 6h "host rebuild exercise: east"
+    description: "Planned outage of east: HeartbeatMissing and the overlay SLO would otherwise mail"
+
+  - name: inventory-east
+    action: shell
+    host: east
+    command: |
+      set -euo pipefail
+      grep PRETTY /etc/os-release
+      uname -r
+      systemctl list-units --type=service --type=timer --no-legend --plain 'unheaded-*' 'vector*' | awk '{print $1, $3, $4}'
+      sudo ls -1 /etc/unheaded /etc/wireguard
+      sudo du -sh /var/backups/unheaded-well-west /home/govan/backups/unheaded.git 2>/dev/null || true
+    description: "Read-only: what east runs and holds, to compare after the rebuild (names only, no secret contents)"
+
+  - name: preserve-east-copies
+    action: manual
+    command: |
+      # Push every ref to GitHub first if possible (Stevie); otherwise keep the mirror.
+      DEST=/srv/backups/east-preserve-$(date -u +%F)
+      sudo mkdir -p "$DEST"
+      rsync -a govan@east:backups/unheaded.git "$DEST/"
+      sudo rsync -a --rsync-path='sudo rsync' govan@east:/var/backups/unheaded-well-west/ "$DEST/well-offsite/"
+      (cd "$DEST/well-offsite/sets" && for s in */*/; do (cd "$s" && sha256sum -c --quiet SHA256SUMS) || echo "BAD $s"; done)
+    verify: "no BAD line; the bare repo's refs match west's (scripts/backup/git-mirror.sh check after the rebuild)"
+    description: "East's Well offsite sets and git mirror survive the wipe"
+
+  - name: record-preserved
+    action: manual
+    command: echo "| $(date -u +%FT%TZ) | copies preserved |" >> ${LOG}
+
+  - name: reinstall-os
+    action: manual
+    command: |
+      Install Ubuntu (same release as before) on east from USB. Hostname east, user govan,
+      P2P address 192.168.13.1 to west 192.168.13.2. This wipes east.
+    irreversible: true
+    description: "MANUAL, destructive: the clock for host RTO starts here"
+
+  - name: record-os
+    action: manual
+    command: echo "| $(date -u +%FT%TZ) | OS installed |" >> ${LOG}
+
+  - name: bootstrap
+    action: manual
+    command: |
+      Follow runbooks/infra/host-bootstrap.yaml with HOSTNAME=east P2P_IP=192.168.13.1,
+      then runbooks/security/ssh-hardening.yaml (east is hybrid-PQ-only for sshd since 2026-10-27).
+      Note every step that does not match east as a finding in the log.
+    description: "Base host from the repository's runbooks"
+
+  - name: reissue-secrets
+    action: manual
+    command: |
+      WireGuard: scripts/wireguard/setup-wireguard.sh on east, new keys and PSK on both ends,
+        scripts/wireguard/verify-wireguard.sh.
+      Well offsite account well-backup-copy: deploy/east/sshd-well-offsite.conf, west's
+        /etc/unheaded/well-offsite/id_ed25519.pub (wiki/Well-Backups.md).
+      Heartbeat token, service keys (unheaded-keygen), vector-east env: issue new ones; never copy
+        old secrets back from the preserved copies.
+    description: "Secrets are re-issued, not restored (contingency plan section 1)"
+
+  - name: install-units
+    action: manual
+    command: |
+      scripts/build-all-debs.sh on west; install the bundle on east; then the east units the
+      inventory listed (heartbeat timer, offsite check, chaos, vector-east).
+    description: "Services from signed builds, not from the preserved copies"
+
+  - name: restore-copies
+    action: manual
+    command: |
+      DEST=/srv/backups/east-preserve-<date>
+      rsync -a "$DEST/unheaded.git" govan@east:backups/
+      Offsite sets: let the next unheaded-well-offsite run refill them, or copy the preserved
+      sets back into the well-backup-copy chroot and run unheaded-well-offsite-check on east.
+    description: "Put back what only east held"
+
+  - name: record-services
+    action: manual
+    command: echo "| $(date -u +%FT%TZ) | services back |" >> ${LOG}
+
+  - name: verify-from-west
+    action: shell
+    host: west
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=up{instance=~"192.168.13.1:.*"}' |
+        python3 -c 'import json,sys; [print(r["metric"]["job"], r["value"][1]) for r in json.load(sys.stdin)["data"]["result"]]'
+      ssh -o BatchMode=yes govan@east "systemctl list-units --type=service --type=timer --no-legend --plain 'unheaded-*' 'vector*'" | awk '{print $1, $3, $4}'
+    description: "Read-only: every east target up, every unit the inventory listed back"
+
+  - name: record-end
+    action: manual
+    command: |
+      echo "| $(date -u +%FT%TZ) | verified |" >> ${LOG}
+      Then: phase durations into compliance/policies/contingency-plan.md section 2 (east RTO),
+      the gaps found into the log's findings table, and remove the silence.

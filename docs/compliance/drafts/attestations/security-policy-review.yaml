@@ -1,0 +1,13 @@
+# DRAFT, not evidence. Control UH-POL-01. Signed by Stevie only, with
+#   scripts/compliance/sign-attestation.sh security-policy-review
+# which copies this to compliance/attestations/ with today's dates.
+# Read first: compliance/policies/information-security-policy.md,
+# compliance/policies/single-operator-posture.md.
+statement: >-
+  The information security policy (compliance/policies/information-security-policy.md)
+  and the single-operator posture (compliance/policies/single-operator-posture.md)
+  were read in full and are approved as the policy in force, including the
+  accepted gaps and their compensating controls.
+attested_by: Stevie Bellis
+attested_at: SET-ON-SIGNING
+expires_at: SET-ON-SIGNING
