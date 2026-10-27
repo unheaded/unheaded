@@ -233,30 +233,26 @@ func (s *Service) Start(ctx context.Context) error {
 		go s.inferenceLoop(ctx)
 	}
 
-	// Subscribe to Wotan topics
+	// Join Wotan topics in the background with retry (SubscribeWithRetry),
+	// so a Wotan that comes up after sophia is still joined. Start used to
+	// subscribe once and give up.
 	if s.wotan != nil {
-		// Subscribe to alerts.critical (required by CLAUDE.md)
-		if _, err := s.wotan.Subscribe(ctx, "alerts.critical", "sophia-service"); err != nil {
-			s.log.Warn().Err(err).Msg("failed to subscribe to alerts.critical")
-		} else {
-			s.log.Info().Msg("subscribed to alerts.critical")
-		}
-
-		// Subscribe to sophia.wisdom for own topic
-		if _, err := s.wotan.Subscribe(ctx, s.config.WotanTopic, "sophia-service"); err != nil {
-			s.log.Warn().Err(err).Msg("failed to subscribe to sophia.wisdom")
-		} else {
-			s.log.Info().Str("topic", s.config.WotanTopic).Msg("subscribed to topic")
-		}
-
-		// Start alert listener
-		go s.listenForAlerts(ctx)
-
-		// Subscribe to knowledge events
-		go s.subscribeToEvents(ctx)
+		go s.joinTopic(ctx, s.config.WotanTopic) // own topic, published on
+		go s.listenForAlerts(ctx)                // alerts.critical (required by CLAUDE.md)
+		go s.subscribeToEvents(ctx)              // knowledge.shared
 	}
 
 	return nil
+}
+
+// wotanName is the name sophia joins Wotan topics as.
+const wotanName = "sophia-service"
+
+// joinTopic joins topic with retry until Wotan approves or ctx ends.
+func (s *Service) joinTopic(ctx context.Context, topic string) {
+	if err := s.wotan.SubscribeWithRetry(ctx, topic, wotanName, nil); err == nil {
+		s.log.Info().Str("topic", topic).Msg("joined wotan topic")
+	}
 }
 
 // Stop gracefully shuts down the service.
@@ -268,30 +264,15 @@ func (s *Service) Stop() error {
 	return nil
 }
 
-// listenForAlerts listens for critical alerts from Wotan
+// listenForAlerts streams alerts.critical to handleCriticalAlert until ctx
+// ends, rejoining and reopening the stream whenever Wotan is away.
 func (s *Service) listenForAlerts(ctx context.Context) {
 	if s.wotan == nil {
-		s.log.Warn().Msg("wotan unavailable — alert listener disabled (degraded mode)")
 		return
 	}
-
-	msgCh, err := s.wotan.StreamMessages(ctx, "alerts.critical")
-	if err != nil {
-		s.log.Warn().Err(err).Msg("failed to stream alerts.critical")
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok := <-msgCh:
-			if !ok {
-				return
-			}
-			s.handleCriticalAlert(ctx, msg)
-		}
-	}
+	_ = s.wotan.SubscribeWithRetry(ctx, "alerts.critical", wotanName, func(msg *wotanClient.Message) {
+		s.handleCriticalAlert(ctx, msg)
+	})
 }
 
 // handleCriticalAlert processes critical alerts
@@ -889,21 +870,13 @@ func (s *Service) runInference(ctx context.Context) {
 	}
 }
 
-// subscribeToEvents listens for knowledge events.
+// subscribeToEvents joins knowledge.shared with retry. It only joins (no
+// handler consumes the topic yet), as before.
 func (s *Service) subscribeToEvents(ctx context.Context) {
 	if s.wotan == nil {
-		s.log.Warn().Msg("wotan unavailable — event subscription disabled (degraded mode)")
 		return
 	}
-
-	// Subscribe to knowledge sharing events
-	_, err := s.wotan.Subscribe(ctx, "knowledge.shared", "sophia-service")
-	if err != nil {
-		s.log.Warn().Err(err).Msg("Failed to subscribe to knowledge events")
-		return
-	}
-
-	s.log.Info().Msg("Subscribed to knowledge events")
+	s.joinTopic(ctx, "knowledge.shared")
 }
 
 // publishEvent sends an event to Wotan.
