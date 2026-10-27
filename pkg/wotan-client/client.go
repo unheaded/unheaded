@@ -178,6 +178,14 @@ type Client struct {
 	grpcHealthy bool           // last known gRPC health status
 	transportMu sync.RWMutex   // guards transport + grpcHealthy
 
+	// gRPC re-probe while degraded (reprobe.go), guarded by reprobeMu.
+	reprobeMu     sync.Mutex
+	reprobeOn     bool
+	reprobeClosed bool
+	reprobeStop   chan struct{} // closed by Close
+	reprobeDone   chan struct{} // closed when the current loop exits
+	reprobeEvery  time.Duration // 0 means defaultReprobeInterval
+
 	// Subscriber state (per-topic)
 	subscribers map[string]*Subscriber
 	mu          sync.RWMutex
@@ -287,8 +295,16 @@ func NewClientWithTLS(addr string, tlsConfig *http.Transport) (*Client, error) {
 //   - gRPC is probed at startup. If healthy → used exclusively for StreamMessages.
 //   - If gRPC probe fails → degrades to HTTP polling (circuit-breaker fallback).
 //   - HTTP REST is always used for control plane (Subscribe, Publish).
-//   - Call ProbeGRPC() periodically to re-check and promote back to gRPC.
+//   - While degraded (startup probe failed, or a stream tripped the circuit
+//     breaker) a background loop re-probes every 30 s and promotes back to
+//     gRPC once Wotan answers SERVING. Close stops it.
 func NewClientWithGRPC(httpAddr, grpcAddr string) (*Client, error) {
+	return newClientWithGRPC(httpAddr, grpcAddr, 0)
+}
+
+// newClientWithGRPC is NewClientWithGRPC with the re-probe interval as a
+// parameter (0 = defaultReprobeInterval); tests shorten it.
+func newClientWithGRPC(httpAddr, grpcAddr string, reprobeEvery time.Duration) (*Client, error) {
 	if httpAddr == "" {
 		return nil, errors.New("HTTP address cannot be empty")
 	}
@@ -305,6 +321,7 @@ func NewClientWithGRPC(httpAddr, grpcAddr string) (*Client, error) {
 		grpcHealthy:   false,
 		subscribers:   make(map[string]*Subscriber),
 		channels:      make(map[string]*safeChannel),
+		reprobeEvery:  reprobeEvery,
 	}
 
 	// Probe gRPC at startup — if healthy, promote to primary transport
@@ -312,8 +329,9 @@ func NewClientWithGRPC(httpAddr, grpcAddr string) (*Client, error) {
 		c.transport = TransportGRPC
 		c.grpcHealthy = true
 	} else {
-		// Probe failed — stay on HTTP in degraded mode, but log so operators know
-		log.Printf("[WARN] wotan_client: gRPC probe failed at startup, running in degraded HTTP mode (addr=%s, err=%v)", grpcAddr, err)
+		// Probe failed — stay on HTTP in degraded mode, but log so operators
+		// know. ProbeGRPC has started the re-probe loop.
+		log.Printf("[WARN] wotan_client: gRPC probe failed at startup, running in degraded HTTP mode, re-probing every %s (addr=%s, err=%v)", c.reprobeEveryOr(), grpcAddr, err)
 	}
 
 	return c, nil
@@ -324,8 +342,8 @@ const grpcProbeTimeout = 2 * time.Second
 
 // ProbeGRPC asks Wotan's grpc.health.v1 service whether it is SERVING and
 // updates the transport state: gRPC when it is, HTTP polling otherwise.
-// Anything but SERVING within 2 s is unhealthy. Callers can use this
-// periodically to re-promote gRPC after a circuit-breaker degradation.
+// Anything but SERVING within 2 s is unhealthy. A failure starts the
+// background re-probe loop (reprobe.go), so callers need not re-probe.
 //
 // It used to declare gRPC healthy as soon as the client object existed;
 // grpc.NewClient connects lazily, so that was true with nothing listening.
@@ -343,6 +361,7 @@ func (c *Client) ProbeGRPC() error {
 		c.grpcHealthy = false
 		c.transport = TransportHTTP
 		c.transportMu.Unlock()
+		c.ensureReprobe()
 		return fmt.Errorf("gRPC probe failed: %w", err)
 	}
 
@@ -391,12 +410,14 @@ func (c *Client) degradeToHTTP() {
 	if wasHealthy {
 		log.Printf("[WARN] wotan_client: gRPC unhealthy, degraded to HTTP polling (addr=%s)", c.grpcAddr)
 	}
+	c.ensureReprobe()
 }
 
 // Close closes the client and all subscriptions.
 // It is safe to call Close even if pollMessages has already closed some channels.
 func (c *Client) Close() error {
 	c.stopFlusher()
+	c.stopReprobe()
 
 	c.chanMu.Lock()
 	defer c.chanMu.Unlock()
