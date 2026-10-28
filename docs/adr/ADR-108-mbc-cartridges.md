@@ -362,6 +362,14 @@ model is trained on synthetic flows only. Differential and fuzz hooks for the Li
 rate-limiter (+193 ns, bar 150) and sampler (+216 ns, bar 120) misses are the documented cost of interpreted
 cartridges. Callback batching and DOT4 are not funded; a new MBC opcode needs its own ISA spec gate and sprint.
 Reopen only if "cartridges at line rate" is funded explicitly. #1(b) and #3 pass as above.
+Measured 2026-10-28: 8 steps per callback instead of 4 saves 12-14 % per packet (rate limiter +172 ns, sampler
++208 ns) and doubles the verified size (cart_tick 318,333); both still miss, so 4 stays.
+
+**Scorer: still synthetic (2026-10-28).** S-ASCEND-2 planned a retrain on real `steel-echo` flows with a time-split
+holdout (decision 47). No real flow capture exists to train on: the Real Steel game day kept one scenario pcap for a
+single enrolled flow, and the sampler's flows were not exported. The v1 scorer stays shipped as a demonstrator. A
+retrain needs a steel-echo window with the sampler's flow export on, then the held-out gate (AUC ≥ 0.80 on real
+flows, int8 agreement ≥ 99 %).
 
 ## RFC Editor items (ruled 2026-10-27, S-TRUE-WIRE Phase 1)
 

@@ -517,3 +517,16 @@ Doubling the batch saves 12-14 % per packet and doubles the verified size; both 
 **Live legs: the plan's compose path is not used.** Steps 247 and 251 start Wotan and Sophia from west's compose stack;
 this session does not run `docker compose up` on west (the running containers are the old ones; next.md's BEFORE
 warning), so the live legs run against scratch services in the lab namespaces instead.
+
+**Live legs (Steps 247-253): not done.** `cmd/anomaly` reads scores from the pinned cartridge interpreter's ring
+buffer, so `anomaly.scores` on a live Wotan needs the whole pipeline running (cartridge-ebpf pinned on bpffs, sampler +
+scorer loaded, traffic through an XDP interface), and the Sophia leg needs a Sophia. The compose path is excluded (see
+above); a scratch-service rig was not built this session. KF5 ("stack down") stays open.
+
+**Scorer retrain (Steps 254-262): STUCK on data (the plan's Step 259 fallback).** No real flow capture exists: the
+Real Steel game day kept one scenario pcap for flow 0x5EE1 (`docs/gamedays/2026-10-26-real-steel-1.md`), and no
+dataset or trainer scripts exist under `scripts/cartridge/`. Decision 255's default stands in intent; v1 stays shipped
+as a synthetic demonstrator. Recorded in ADR-108. Needs: a steel-echo window with the sampler's flow export on.
+
+Phase 9 exit: decisions 243/244 recorded, 245 measured and reverted, live legs and retrain not done; no compose
+service started; tree clean.
