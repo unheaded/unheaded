@@ -158,5 +158,13 @@ One interpreted instruction costs about 3-7 ns on west (4 steps per
 | sampler | 365 | +216 ns: fail (120) |
 | scorer | 232,450 flows/s | pass (100,000); XDP path unchanged |
 
-The two failures are interpreter cost, not cartridge logic. The scorer's
-model is trained on synthetic flows only.
+The two failures are interpreter cost, not cartridge logic; both gates were
+accepted on 2026-10-28 as that cost (ADR-108). Doubling the steps per callback
+to 8 saves 12-14 % per packet (+172 / +208 ns) and doubles the verified size,
+so 4 stays. The scorer's model is trained on synthetic flows only: no real flow
+capture exists yet to retrain it on.
+
+Weights travel between nodes with `upc-cartridgectl weights publish|fetch` on
+topic `upc.cart.weights.<model>`: the DATA section in a Gungnir-sealed envelope,
+checked (seal, model, length, sha) before anything is written. Demonstrated
+between two network namespaces, not across hosts (S-ASCEND-2 Phase 8).

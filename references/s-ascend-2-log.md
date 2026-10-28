@@ -591,5 +591,5 @@ committed). Carried from S-TRUE-WIRE: E1-E8 there, including its E2 merge gate, 
   **Steps 254-262 (scorer retrain)**: no real flow capture exists.
 - **Phase 10 (LICH-012 L12a/L12d, Enkrateia v2, semantic drift) and Phase 11 (naming, statuses, attended run)**: not
   run this session.
-- **Phase 13 Step 303**: wiki pages for Linux-on-UPC, UPC-Dream-Ladder and Mimirs-Law were updated during the
-  phases; `UPC-Cartridges.md` and the uid table page were not.
+- **Phase 13**: wiki ripple done (Linux-on-UPC, UPC-Dream-Ladder, Mimirs-Law, UPC-Cartridges, Systemd-Units); the
+  RFC requests file notes the `upc.cart.weights.<model>` sub-topic; ADR-INDEX unchanged (no ADR changed status).
