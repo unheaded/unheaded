@@ -158,29 +158,29 @@ unsigned), with the two attribution trailers.
 **Time**: ~1.5 h
 **Agent**: Coordinator
 
-- [ ] **Step 23** [R] ~10m: Read `adapters/utrap.c` (`usertrap`, `usertrapret`, `prepare_return`), `upstream/kernel/syscall.c` (`syscall`, `argraw`, the unknown-syscall branch), `adapters/uproc.c` (`myproc`, `mycpu`, `scheduler`) and the getpid-inject arm in main.rs. Note every value that could turn into -1.
-- [ ] **Step 24** [DESIGN][W] ~10m: `$LOG` §"-1 hypotheses", each falsifiable with one probe: **M1** `syscall()` reads a garbage a7 (unknown-syscall branch, a0 = -1); **M2** `sys_getpid` runs but `myproc()` is 0 or another row; **M3** the result is written to init's trapframe and `userret` restores the child's a0 from somewhere else; **M4** `usertrap` takes a non-syscall branch (scause not 8) and `setkilled`, and the child sees -1 from a later path.
-- [ ] **Step 25** [CODE] ~15m: Temporary kernel probe (reverted at Step 34): at `usertrap` entry, after `myproc()`, print fixed tokens through the console MMIO (`mmio_puts` + a hex helper if present: `grep -n 'mmio_puthex\|mmio_puts' crates/xv6-mbc/adapters/*.c | head`): `UT: p=` (p->pid), `tf=` (p->trapframe), `ss=` (r_sscratch()), `a7=` (p->trapframe->a7), `sc=` (r_scause()); in `syscall()` print `SC: num=` and the return. Guard it with `#ifdef UPC_STAGE2_PROBE` and build with that define only for the probe.
-- [ ] **Step 26** [BUILD][B] ~4m: `(cd "$UP" && make -f ../adapters/Makefile.mbc clean kernel CFLAGS_EXTRA=-DUPC_STAGE2_PROBE 2>&1 | tail -2)` (check the variable name the Makefile accepts: `grep -n 'CFLAGS' crates/xv6-mbc/adapters/Makefile.mbc | head`); rebuild userland + gates (a kernel clean wipes `target/`).
-- [ ] **Step 27** [V] ~1m: Kernel builds; the probe tokens are in the image (`strings -a "$K/xv6-mbc.data" | grep -c 'UT: p='` ≥ 1, or the .data dump shows them).
-- [ ] **Step 28** [TEST][B][S] ~4m: Flag ON (Step 11's sed), probe boot, save
+- [x] **Step 23** [R] ~10m: Read `adapters/utrap.c` (`usertrap`, `usertrapret`, `prepare_return`), `upstream/kernel/syscall.c` (`syscall`, `argraw`, the unknown-syscall branch), `adapters/uproc.c` (`myproc`, `mycpu`, `scheduler`) and the getpid-inject arm in main.rs. Note every value that could turn into -1.
+- [x] **Step 24** *(M1-M4 in the log)* [DESIGN][W] ~10m: `$LOG` §"-1 hypotheses", each falsifiable with one probe: **M1** `syscall()` reads a garbage a7 (unknown-syscall branch, a0 = -1); **M2** `sys_getpid` runs but `myproc()` is 0 or another row; **M3** the result is written to init's trapframe and `userret` restores the child's a0 from somewhere else; **M4** `usertrap` takes a non-syscall branch (scause not 8) and `setkilled`, and the child sees -1 from a later path.
+- [x] **Step 25** *(decimal, `;`-terminated: the tracer strip ate hex digits)* [CODE] ~15m: Temporary kernel probe (reverted at Step 34): at `usertrap` entry, after `myproc()`, print fixed tokens through the console MMIO (`mmio_puts` + a hex helper if present: `grep -n 'mmio_puthex\|mmio_puts' crates/xv6-mbc/adapters/*.c | head`): `UT: p=` (p->pid), `tf=` (p->trapframe), `ss=` (r_sscratch()), `a7=` (p->trapframe->a7), `sc=` (r_scause()); in `syscall()` print `SC: num=` and the return. Guard it with `#ifdef UPC_STAGE2_PROBE` and build with that define only for the probe.
+- [x] **Step 26** *(define added to Makefile.mbc for the probe build)* [BUILD][B] ~4m: `(cd "$UP" && make -f ../adapters/Makefile.mbc clean kernel CFLAGS_EXTRA=-DUPC_STAGE2_PROBE 2>&1 | tail -2)` (check the variable name the Makefile accepts: `grep -n 'CFLAGS' crates/xv6-mbc/adapters/Makefile.mbc | head`); rebuild userland + gates (a kernel clean wipes `target/`).
+- [x] **Step 27** [V] ~1m: Kernel builds; the probe tokens are in the image (`strings -a "$K/xv6-mbc.data" | grep -c 'UT: p='` ≥ 1, or the .data dump shows them).
+- [x] **Step 28** [TEST][B][S] ~4m: Flag ON (Step 11's sed), probe boot, save
   ```bash
   ub getpidfork > "$S7/p1-probe-on.txt"; grep -a 'ascii:' "$S7/p1-probe-on.txt" | sed -E 's/([0-9A-F]{4} )+//g' | tr '·' '\n' | grep -aE 'UT:|SC:|F: ' | head -20
   ```
-- [ ] **Step 29** [V] ~5m: Two `UT:` blocks: the parent's (p=1, tf = init's trapframe, a7 = 11) and the child's. Record the child's p, tf, ss, a7, sc. Exactly one of M1-M4 matches. None → Step 30.
-- [ ] **Step 30** [D] ~15m: Add a dump of the full child trapframe (a0, a7, epc) at `usertrapret` exit and of `sepc` at `uservec` entry (`csrr` into a saved slot). Re-run Step 28. Two attempts, then STUCK Steps 31-42 and record what was seen: Phase 2 can still decide on the design (it does not depend on which of M1-M4), but its exit gate needs the explanation.
-- [ ] **Step 31** [W] ~5m: `$LOG` §"-1 explained": the mechanism, the probe lines verbatim.
-- [ ] **Step 32** [B][S] ~3m: Same probe with the flag OFF (the child's getpid then stays in BPF): confirm no `UT:` for the child's getpid (the kernel is not entered) and the parent's tokens are unchanged.
-- [ ] **Step 33** [V] ~1m: As described. Otherwise the flag does not control what it claims: STOP, record, escalate.
-- [ ] **Step 34** [B] ~5m: Revert the probe completely: `git checkout -- crates/xv6-mbc/adapters/ crates/xv6-mbc/upstream/kernel/`; flag back OFF; rebuild kernel (no define), userland, gates, ascend object.
-- [ ] **Step 35** [V] ~1m: `git status --short crates/xv6-mbc ebpf | wc -l` → `0`; `sha256sum "$K/xv6-mbc.mbc"` equals Phase 0's.
-- [ ] **Step 36** [TEST][B][S] ~2m: `ub getpidfork | gf` → the Step 12 OFF lines.
-- [ ] **Step 37** [V] ~30s: Identical.
-- [ ] **Step 38** [R] ~10m: Read how the child reaches user mode after BPF fork: BPF copies the parent's registers into the child's PROC_TABLE row and sets the child's a0 = 0; nothing tells the kernel. Confirm no kernel hook runs on BPF fork (`grep -n 'SYS_FORK\|syscall_nr == 1 ' -A5 ebpf/monad-cpu-ebpf/src/main.rs | head -30`).
-- [ ] **Step 39** [W] ~5m: `$LOG` §"What rung 0 must change", in three lines: (1) the trapframe `uservec` saves into must be the running slot's; (2) `myproc()` must return the running slot's row; (3) the row must exist before the slot's first trap, or be created on it.
-- [ ] **Step 40** [C] ~1m: **COMMIT CHECKPOINT** (`docs(upc): [STAGE2 23-40] rung 0 research: the child's -1 explained`; `$LOG` only).
-- [ ] **Step 41** [V] ~30s: Tree clean except `$LOG` committed.
-- [ ] **Step 42** [V] ~1m: **PHASE 1 EXIT GATE**: §"-1 explained" names one mechanism with probe evidence (or the STUCK record), the tree is back to Phase 0 state.
+- [x] **Step 29** *(M1 + M2: init row and trapframe; a7 read as 3 from init's x17 spill)* [V] ~5m: Two `UT:` blocks: the parent's (p=1, tf = init's trapframe, a7 = 11) and the child's. Record the child's p, tf, ss, a7, sc. Exactly one of M1-M4 matches. None → Step 30.
+- [x] **Step 30** *(not needed)* [D] ~15m: Add a dump of the full child trapframe (a0, a7, epc) at `usertrapret` exit and of `sepc` at `uservec` entry (`csrr` into a saved slot). Re-run Step 28. Two attempts, then STUCK Steps 31-42 and record what was seen: Phase 2 can still decide on the design (it does not depend on which of M1-M4), but its exit gate needs the explanation.
+- [x] **Step 31** [W] ~5m: `$LOG` §"-1 explained": the mechanism, the probe lines verbatim.
+- [x] **Step 32** *(0 UT lines with the flag OFF)* [B][S] ~3m: Same probe with the flag OFF (the child's getpid then stays in BPF): confirm no `UT:` for the child's getpid (the kernel is not entered) and the parent's tokens are unchanged.
+- [x] **Step 33** [V] ~1m: As described. Otherwise the flag does not control what it claims: STOP, record, escalate.
+- [x] **Step 34** [B] ~5m: Revert the probe completely: `git checkout -- crates/xv6-mbc/adapters/ crates/xv6-mbc/upstream/kernel/`; flag back OFF; rebuild kernel (no define), userland, gates, ascend object.
+- [x] **Step 35** *(clean; kernel 4e39c82f)* [V] ~1m: `git status --short crates/xv6-mbc ebpf | wc -l` → `0`; `sha256sum "$K/xv6-mbc.mbc"` equals Phase 0's.
+- [x] **Step 36** [TEST][B][S] ~2m: `ub getpidfork | gf` → the Step 12 OFF lines.
+- [x] **Step 37** [V] ~30s: Identical.
+- [x] **Step 38** *(no kernel hook on BPF fork)* [R] ~10m: Read how the child reaches user mode after BPF fork: BPF copies the parent's registers into the child's PROC_TABLE row and sets the child's a0 = 0; nothing tells the kernel. Confirm no kernel hook runs on BPF fork (`grep -n 'SYS_FORK\|syscall_nr == 1 ' -A5 ebpf/monad-cpu-ebpf/src/main.rs | head -30`).
+- [x] **Step 39** *(four items; item 4 is the x16/x17 spill)* [W] ~5m: `$LOG` §"What rung 0 must change", in three lines: (1) the trapframe `uservec` saves into must be the running slot's; (2) `myproc()` must return the running slot's row; (3) the row must exist before the slot's first trap, or be created on it.
+- [x] **Step 40** [C] ~1m: **COMMIT CHECKPOINT** (`docs(upc): [STAGE2 23-40] rung 0 research: the child's -1 explained`; `$LOG` only).
+- [x] **Step 41** [V] ~30s: Tree clean except `$LOG` committed.
+- [x] **Step 42** [V] ~1m: **PHASE 1 EXIT GATE**: §"-1 explained" names one mechanism with probe evidence (or the STUCK record), the tree is back to Phase 0 state.
 
 ---
 

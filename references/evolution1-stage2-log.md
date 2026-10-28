@@ -31,3 +31,35 @@ Not completed this session; the tree is back to the Phase 0 state (probe reverte
   ADR-067), described in `docs/doom/UPC_BOOT_PROTOCOL_V2.md`, ADR-080's `BootProtocol` stub variant and bootctl's
   `--bootstub`. Removing it changes a frozen spec's two-stage boot, so it is a decision, not cleanup (S-ASCEND-2
   Steps 281-282 stay open).
+
+## Phase 1 (S26, Steps 23-42)
+
+**-1 hypotheses (Step 24).** M1 `syscall()` reads a wrong a7 and takes a handler other than getpid, or the
+unknown-syscall branch (a0 = -1). M2 `myproc()` returns a row other than the child's (init's), so the child's
+registers and result go through init's trapframe. M3 the result is written to a trapframe the child's return path
+does not restore from. M4 `usertrap` takes a non-syscall branch. Probe output uses decimal values terminated by `;`:
+the PC-tracer strip (`([0-9A-F]{4} )+`) ate digits of the first, unlogged probe's space-separated hex values, which is
+why init's pid read as 0 there.
+
+**-1 explained (Steps 28-31).** Probe (decimal, `;`-terminated) with the flag ON, `getpidfork`, 900,000 triggers:
+
+```
+UT:idx=0;pid=1;tf=8118272;ss=8118272;a7=11;sc=8;      parent getpid
+SC:num=11;fn;ret=01;
+UT:idx=0;pid=1;tf=8118272;ss=8118272;a7=3;sc=8;       child getpid
+SC:num=03;fn;ret=-01;
+```
+
+Both traps resolve `myproc()` to `proc[0]` (init) and save into init's trapframe (`sscratch` = `p->trapframe` =
+8118272). The child's trap reads `a7 = 3`, so the kernel runs `sys_wait` for init, which has no kernel children:
+-1. Why a7 is 3: x17 does not exist under ilp32e; the translator spills it to RAM byte `0x64004`
+(`crates/monad-mbc/src/translator.rs:23`). User code reaches that through its per-pid slice, but `uservec` runs in
+flat S-mode and its `sw a7, 84(a0)` reads physical `0x64004`, init's identity-mapped copy, which still holds 3 from
+the parent's preceding `wait()`. So M1 and M2 both hold, and the a7 read is the deciding detail. With the flag OFF
+the kernel is never entered (0 `UT:` lines). Probe reverted: tree clean, kernel `4e39c82f…`, baseline lines back.
+
+**What rung 0 must change (Step 39).** (1) `uservec` must save into the trapping slot's trapframe; (2) `myproc()`
+must return the trapping slot's row; (3) the row must exist on, or be created at, the slot's first trap; (4) the
+spilled registers (x16 at `0x64000`, x17 at `0x64004`) must be read from the trapping slot, not from physical
+memory: either BPF writes the slot's a7 (its `regs[1]`) and x16 (`regs[2]`) into the trapframe at injection, or
+`uservec` reads them through the slot's slice. Item 4 is new: ADR-109 must cover it.
