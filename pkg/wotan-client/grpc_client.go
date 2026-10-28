@@ -16,8 +16,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	pqtls "unheaded/pkg/tls"
+	"unheaded/pkg/wotanerr"
 	"unheaded/pkg/wotansig"
 	chatpb "unheaded/services/wotan/proto"
 )
@@ -193,9 +195,10 @@ func (gc *GRPCClient) Publish(ctx context.Context, topic string, payload []byte)
 	}
 	_ = sub // subscriber validated above for status check
 
-	_, err := gc.client.PublishTopic(ctx, req)
+	var trailer metadata.MD
+	_, err := gc.client.PublishTopic(ctx, req, grpc.Trailer(&trailer))
 	if err != nil {
-		return fmt.Errorf("publish topic: %w", err)
+		return fmt.Errorf("publish topic: %w", withTrailerCode(err, trailer))
 	}
 
 	return nil
@@ -482,6 +485,16 @@ func topicEventToMessage(event *chatpb.TopicEvent) *Message {
 		Deleted:   event.Type == chatpb.TopicEventType_TOPIC_MESSAGE_DELETED,
 		Signed:    eventSignature(event),
 	}
+}
+
+// withTrailerCode attaches the wotan-memory-03 structured code from a
+// call's x-wotan-error trailer to err (errors.As with a *wotanerr.Code);
+// err is returned unchanged when the trailer has none.
+func withTrailerCode(err error, trailer metadata.MD) error {
+	if code, ok := wotanerr.FromValues(trailer.Get(wotanerr.TrailerKey)); ok {
+		return wotanerr.Wrap(err, *code)
+	}
+	return err
 }
 
 // isTransientError determines if an error is transient and should trigger a retry

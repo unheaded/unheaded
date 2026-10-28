@@ -216,7 +216,7 @@ patterns and its `since_seq` works the same way.
 To allow a new service to auto-approve on Wotan topics:
 
 1. Add its `display_name` to `configs/wotan.yaml` under `topics.auto_approve`
-2. Restart Wotan (or send SIGHUP for hot-reload — future feature)
+2. Reload Wotan: `systemctl kill -s HUP unheaded-wotan` applies `auto_approve` and `legacy_display_names` without a restart (S-TRUE-WIRE Step 155); a change to `signing_keys` or `signed_prefixes` still needs a restart and the reload is refused
 3. The service can now subscribe and publish immediately
 
 ## Security Considerations
