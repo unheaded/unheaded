@@ -338,3 +338,165 @@ Phase 1).
 - [ ] **Step 84** [V] ~1m: **PHASE 3 EXIT GATE**: with the flag OFF, sweep 8/8 SAME, harness ALL GREEN and the count
   unchanged. The compat check repeats the RED lines. `p3-red.txt` is recorded. `GETPID_INJECT` is `false` in the tree.
   If any of this fails, do not proceed to Phase 4.
+
+---
+
+## PHASE 4: RUNG 0 BPF SIDE AND THE GATE (Steps 85-110)
+
+**Goal**: BPF implements ADR-109 D3, D6 and I7 behind consts, and the rung 0 gate passes, including the mutation
+check.
+**Prerequisite**: Phase 3 exit gate.
+**Time**: ~3-4 h
+**Agent**: Coordinator
+
+No host emulator models the injection arm (checked 2026-10-28: only `ebpf/monad-cpu-ebpf/src/main.rs` names
+`GETPID_INJECT`), so the probe-build lines are the tests. Step 86 writes their asserter before the BPF code exists.
+
+Helper:
+```bash
+rung() { sed -i "s/const UPC_RUNG0: bool = $1;/const UPC_RUNG0: bool = $2;/" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
+d6()   { sed -i "s/const UPC_D6_MISS_FAULT: bool = $1;/const UPC_D6_MISS_FAULT: bool = $2;/" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
+obj()  { (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1); }
+vcount() { ub getpidprobe UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' | tail -1; }
+```
+
+### Read, then write the asserter
+
+- [ ] **Step 85** [R] ~10m: Read, with current line numbers recorded in `$LOG`:
+  - the injection arm (`if GETPID_INJECT`, about `main.rs:2520`) down to its STVEC jump;
+  - the fork arm (`syscall_nr == 1`, about `:2193`) at the point where the child slot is known;
+  - `translate_address` (about `:3630`), both "return vaddr" sites;
+  - `scheduler_context_switch` (about `:3450`);
+  - how `mem_write_word` bounds an address.
+- [ ] **Step 86** [W] ~20m: `scripts/upc-rung0-assert.awk` reads `ugl` output and exits non-zero on any violation:
+  - every `UT:` line has `s` in 0..7, `pid == s + 1`, and `ss` equal to `base + 256*s`. The base is the `ss` of the
+    first `s=0` line, because `tf[0]` sits at the base.
+  - each s>0 has `rf=1` on its first `UT:` line after each `GL:`/`GM: fork-ret` line, and `rf=0` on any later line
+    before the next fork;
+  - `a7` is 11 on getpid traps and 22 on the injected-22 traps (Step 99);
+  - each `SP:pre` equals the following `SP:post`.
+
+  Print one summary line, `RUNG0-ASSERT pass N` or `RUNG0-ASSERT fail <reason>`.
+- [ ] **Step 87** [TEST][B] ~3m: Feed the asserter `"$S7/p3-compat.txt"`. It has no `UT:` lines, so it must print
+  `fail no UT lines`. Then feed it a hand-made line with `pid=1` for `s=1`: it must fail on pid. This proves the
+  asserter can fail.
+
+### BPF changes
+
+- [ ] **Step 88** [CODE] ~10m: `main.rs`, next to `GETPID_INJECT`: `const UPC_RUNG0: bool = false;` and
+  `const UPC_D6_MISS_FAULT: bool = false;`, each with a one-line ADR-109 comment.
+- [ ] **Step 89** [CODE] ~25m: `#[inline(always)] fn inject_strap(cpu: &MbcCpuState)`:
+  - `base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2)`; if 0, return;
+  - `s = cpu.current_pid as u32 & 7`;
+  - write the sscratch CSR word, `(0xF000 + 4*0x140) >> 2`, as `base + (s << 8)`;
+  - write `(base + UPC_ST_CUR_SLOT_OFF) >> 2` as `UPC_TAG_SLOT | s`;
+  - write `(base + UPC_ST_TRAP_A7_OFF) >> 2` as `UPC_TAG_A7 | (cpu.regs[1] & 0xFFFF)`.
+
+  Call it inside the `if GETPID_INJECT` arm, just before the STVEC jump, as `if UPC_RUNG0 { inject_strap(cpu); }`.
+  Copy the CSR word address from the existing `CSR_SSCRATCH` constant if there is one, not the literal.
+- [ ] **Step 90** [CODE] ~10m: Fork arm: `if UPC_RUNG0 { let b = mem_read_word(...BP_BYTE >> 2); if b != 0 { let w = (b + UPC_ST_FRESH_MASK_OFF) >> 2; mem_write_word(w, mem_read_word(w) | (1u32 << (child_pid & 7))); } }`.
+  Place it after the child slot is final.
+- [ ] **Step 91** [CODE] ~5m: I7: first line of `scheduler_context_switch`:
+  `if UPC_RUNG0 && cpu.priv_level != 3 { return; }`. Use the field's actual name from `MbcCpuState`.
+- [ ] **Step 92** [CODE] ~10m: D6: in `translate_address`, at both "return vaddr" miss sites:
+  `if UPC_D6_MISS_FAULT && cpu.priv_level == 3 && cpu.page_dir_base != 0 { return 0xFFFF_FFFC; }`. Doom builds without
+  `ascend-linux` must not change, so wrap the condition in `cfg!(feature = "ascend-linux")` as well.
+
+### Verified counts (I6 and the cost bar)
+
+- [ ] **Step 93** [BUILD][B][S] ~6m: Three objects, each counted:
+  ```bash
+  obj; vcount | tee "$S7/p4-v-off.txt"
+  rung false true; obj; vcount | tee "$S7/p4-v-rung.txt"
+  d6 false true; obj; vcount | tee "$S7/p4-v-rung-d6.txt"
+  d6 true false; rung true false; obj
+  ```
+  Then the Doom object: `cargo build --release -p monad-cpu-ebpf` (no feature), with the count from
+  `scripts/check-ebpf-insns.sh`.
+- [ ] **Step 94** [V] ~2m: All four counts meet their bar:
+  - OFF equals Step 60's count exactly (I6);
+  - RUNG0 is at most +2,000 over OFF;
+  - RUNG0 + D6 is at most 950,000;
+  - Doom is 758,199, unchanged.
+
+  Record all four in `$LOG`.
+  - Over +5,000 for RUNG0 → [DECIDE] take the ADR-109 fallback: `cur_slot` only, with an amendment, and re-plan
+    Steps 89-90. Between +2,000 and +5,000 → record it and continue.
+  - OFF differs → a const guard is missing; find the unguarded write.
+- [ ] **Step 95** [B] ~2m: `bash scripts/check-ebpf-insns.sh 2>&1 | tail -3` with the OFF object.
+- [ ] **Step 96** [V] ~30s: the ratchet passes, since the count is unchanged.
+- [ ] **Step 97** [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 85-96] ADR-109 BPF side behind UPC_RUNG0 and UPC_D6_MISS_FAULT (off); asserter`.
+
+### The gate
+
+- [ ] **Step 98** [TEST][B][S] ~10m: Flag and `UPC_RUNG0` on, normal kernel:
+  ```bash
+  flag false true; rung false true; obj
+  for p in getpidfork getpidloop getpidmulti; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p4-on.txt"
+  ```
+  Then, with the flag off for comparison: `diff <(grep -v '^==' "$S7/p4-on.txt" | grep -oE '(GL|GM): [^ ]*') <(grep -v '^==' "$S7/p3-off.txt" | grep -oE '(GL|GM): [^ ]*')`.
+  The getpidfork line is compared separately, against the Phase 0 lines.
+- [ ] **Step 99** [V] ~2m: Each probe prints its own Step 67 lines with the flag on, and getpidfork prints child-pid=2
+  and fork-ret=2.
+  - [D] A child is still `other` → check `UT:` exists in a probe build (Step 100). If there is no `UT:` line, BPF's
+    write did not land: dump `sscratch` and the table word in the probe print. Two attempts, then STUCK, recording
+    the lines.
+- [ ] **Step 100** [TEST][B][S] ~10m: The probe kernel, with `-DUPC_STAGE2_PROBE` added to `CFLAGS` in
+  `crates/xv6-mbc/adapters/Makefile.mbc` for this build only:
+  - `kbuild; gates`;
+  - `for p in getpidloop getpidmulti; do TRIG=1500000 ub $p | ugl; done | tee "$S7/p4-probe.txt" | awk -f scripts/upc-rung0-assert.awk`.
+
+  Also make the probe build inject 22: under `UPC_STAGE2_PROBE` only, `getpidmulti`'s children call `syscall22()`, a
+  `usys`-style stub, once before `pause`. BPF's inject arm must route 22 as it does 11. Where the arm tests
+  `syscall_nr == 11`, the probe object takes `11 | 22` behind a third const `UPC_PROBE_INJECT22` (default false). The
+  kernel prints `pid N ...: unknown sys call 22`.
+- [ ] **Step 101** [V] ~2m: `RUNG0-ASSERT pass` with N ≥ 9. Every `unknown sys call 22` line names pid 2, 3 or 4,
+  never 1. The `PG:` value is recorded in `$LOG`: non-zero means the init-pgd lead is real, so write it up as a
+  finding for whichever rung first maps above 8 MiB.
+- [ ] **Step 102** [TEST][B][S] ~20m: D6.
+  - Write `crates/xv6-mbc/upstream/user/hostile_pgd.c`:
+    - the child stores `0x5A5A5A5A` to VA `0x00F00000 + 4*1023` (the last PDE of slot 0's pgd) and to the table
+      address read from VA `0x160`;
+    - the child exits; init (identity map) reads both words and prints `HP: pgd=same|changed` and
+      `HP: tables=same|changed`.
+  - Run it with D6 off, then with D6 on: `d6 false true; obj`, then `d6 true false`.
+- [ ] **Step 103** [V] ~2m: D6 off prints `changed` for both, the hole is real and recorded. D6 on prints `same` for
+  both. With D6 on, `sweep | grep -c SAME` is 8.
+  - A golden changes with D6 on → [ESCALATE] D6 alone. Leave D6 off, record the golden diff in `$LOG`, and continue
+    the rung without it; the hostile check stays RED and is reported to Stevie. Every other part of the gate still
+    applies.
+- [ ] **Step 104** [TEST][B][S] ~30m: Mutation check, in the probe kernel. Four variants, one `-D` each in `CFLAGS`:
+  - `UPC_MUT_SHARED_TF`: `upc_slot_enter` uses `tf[0]` for every s;
+  - `UPC_MUT_NO_A7`: ignores `trap_a7`;
+  - `UPC_MUT_NO_REFRESH`: never refreshes;
+  - `UPC_MUT_RESTORE_A67`: `trampoline_mbc.S` restores a6/a7 again.
+
+  For each: `kbuild; gates; for p in getpidloop getpidmulti; do TRIG=1500000 ub $p | ugl; done | awk -f scripts/upc-rung0-assert.awk; echo "rc=$?"`.
+- [ ] **Step 105** [V] ~2m: All four print `RUNG0-ASSERT fail` with a reason that names the broken property. A variant
+  that passes means the gate is blind there: strengthen the asserter or the probe, re-run, and record what changed.
+  Afterwards rebuild the normal kernel (no `-D`) and check the Phase 3 hash.
+- [ ] **Step 106** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 98-105] rung 0 gate: probe asserts, injected 22, D6 hostile probe, mutation check`.
+
+### Corpus, both sides
+
+- [ ] **Step 107** [TEST][B][S] ~15m: Flags ON (`GETPID_INJECT`, `UPC_RUNG0`, and D6 if Step 103 kept it):
+  - `for p in gate2 gate_nway forkloop devprobe ut_exitwait ut_twochildren ut_forktest ut_reparent2; do echo "== $p"; TRIG=3000000 ub $p | gf | tail -3; done`;
+  - `sweep | grep -c SAME`;
+  - `UPC_GATE_RUNG0=1 bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|rung 0|ALL'`.
+
+  Then restore everything OFF: `flag true false; rung true false; d6 true false; obj`.
+- [ ] **Step 108** [V] ~2m: Every probe prints the same verdict as with the flags off (the Phase 0 and Phase 5
+  records). Sweep is 8. The harness is ALL GREEN with the rung 0 gates passing. With the flags back off, the count
+  equals Step 60's and `git diff --stat` shows the consts `false`.
+- [ ] **Step 109** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 107-108] rung 0 gate passed; consts off in tree`.
+  `$LOG` §Phase 4 records the counts, the `PG:` value, the D6 result and the four mutation results. ADR-109 gets
+  `Rung 0 gate passed <date>`; Accepted waits for Phase 7.
+- [ ] **Step 110** [V] ~1m: **PHASE 4 EXIT GATE**: the skeleton's rung 0 gate as amended:
+  - child pid equals `fork()`'s return;
+  - ON and OFF lines agree;
+  - `gate2`, `gate_nway` and forkloop pass;
+  - every reused slot refreshed exactly once;
+  - the asserter passes and all four mutants fail;
+  - D6 is GREEN, or escalated by itself.
+
+  Tree clean; the consts are `false`.
