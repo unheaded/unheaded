@@ -807,6 +807,58 @@ provoke_runbooks() {
     grep -q '^  risk: meta-gate-probe$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_check_perf_regression() {
+    # Contract (S-WELL-SPRING Phase 10, M-089): p99 may grow at most 20 % per
+    # scenario. Widen the allowance so the fixture's +50 % run passes.
+    local f="scripts/check-perf-regression.sh"
+    backup "${f}"
+    sed -i 's/^P99_GROWTH="1.20"$/P99_GROWTH="9.00"/' "${REPO_ROOT}/${f}"
+    grep -q '^P99_GROWTH="9.00"$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_zhen_mcp() {
+    # Contract (S-CHAMPION-HARDENING Step 201): without ZHEN_MCP_ALLOW_WRITE=1
+    # the server lists six read-only tools and file_write is refused. Turn
+    # the write tools on unconditionally.
+    local f="cmd/zhen-mcp/main.go"
+    backup "${f}"
+    sed -i 's/^\([[:space:]]*\)allowWrite:  getenv(envAllowWrite) == "1",$/\1allowWrite:  true,/' "${REPO_ROOT}/${f}"
+    grep -q '^[[:space:]]*allowWrite:  true,$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_batch_apply() {
+    # Contract (S-WELL-SPRING Phase 1, M-070): --from NNN refuses while an
+    # older file is still pending (the ledger disagrees with the repo).
+    # Make that branch unreachable.
+    local f="scripts/well/batch-apply.sh"
+    backup "${f}"
+    sed -i 's/^\tif \[\[ -n "\$older" \]\]; then$/\tif [[ -n "$older" ]] \&\& false; then/' "${REPO_ROOT}/${f}"
+    grep -q '^[[:space:]]*if \[\[ -n "\$older" \]\] && false; then$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_retention() {
+    # Contract (S-WELL-SPRING Phase 4, retention policy v1): retention_runner
+    # can read audit_events' timestamp and nothing else of it. Let it delete.
+    local f="db/migrations/043_ops_retention.sql"
+    backup "${f}"
+    sed -i 's/^GRANT SELECT (occurred_at) ON audit_events TO retention_runner;$/GRANT SELECT (occurred_at), DELETE ON audit_events TO retention_runner;/' "${REPO_ROOT}/${f}"
+    grep -q '^GRANT SELECT (occurred_at), DELETE ON audit_events TO retention_runner;$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_slo_definitions() {
+    # Contract (S-WELL-SPRING Phase 3, migration 040): an SLO objective is
+    # strictly between 0 and 1. Turn the CHECK into a no-op.
+    local f="db/migrations/040_ops_slo_definitions.sql"
+    backup "${f}"
+    sed -i 's/CHECK (objective > 0 AND objective < 1)/CHECK (true)/' "${REPO_ROOT}/${f}"
+    if grep -q 'objective > 0 AND objective < 1' "${REPO_ROOT}/${f}"; then echo "provocation anchor missing in ${f}" >&2; return 1; fi
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -862,6 +914,11 @@ check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's thresh
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
+test-check-perf-regression|provoke_check_perf_regression|fast|check-perf-regression.sh's p99 allowance widened from 20 % to 800 %, so the fixture's slow run passes
+check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZHEN_MCP_ALLOW_WRITE=1 (builds the server; needs go and jq)
+well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
+well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE on audit_events in 043 (needs docker)
+well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 
@@ -896,6 +953,12 @@ wireguard/rotate-psk|rotates the WireGuard PSK on west/east (dry run unless --ap
 well/test-converge-live-app|compares the live Well (or a restored set) with a fresh bootstrap; needs that Well, runbook verify step
 probe-tls-groups|prints the negotiated group for an endpoint; the Go handshake tests (pkg/tls/pqtest, ADR-105) are the gate
 zhen-mcp|launches the Zhen MCP server for Claude Code (.mcp.json, runbooks/security/mcp-write-exec-enablement.yaml); no verdict of its own
+backup/git-mirror|pushes every ref to the bare repo on east (FND-005; the timer); its check verdict and the no-prune contract are proven by backup/test-git-mirror
+check-perf-regression|compares perf/v1 reports with the committed baseline; needs reports from a running stack (ci-local CI_LOCAL_PERF=1), so its verdict is proven on fixtures by test-check-perf-regression
+ci-local|runs the CI pipeline's gates locally (Makefile ci-local, security.yml); every verdict belongs to the gate it calls
+gen-dev-certs|generates the gitignored dev CA and per-service TLS material (ADR-105, FND-017); no verdict of its own
+lib/deb-packages|the .deb package table sourced by build-all-debs (ADR-026); proven by test-deb-maintscripts and build-all-debs --control
+zhen-morning-report|prints the overnight worker's report (S-CHAMPION-HARDENING Phase 13); exit 1 means no report, not a verdict
 "
 
 # ---------------------------------------------------------------------------
@@ -913,6 +976,9 @@ doom-ring|reads a live ring buffer from a running instance
 verify-binding-rune|verifies a sealed-cask image that must be built first; its refusals (appended byte, unsigned cask, wrong build key) are proven by tests/sealed-cask/round_trip_test.sh (CI job sealed-cask-verify)
 yggdrasil-verify-anchor|verifies a Debian anchor image not present in the sandbox
 yggdrasil-verify-overlay|verifies a built overlay image not present in the sandbox
+east-bootstrap|bootstraps the EAST host over ssh (WireGuard, BGP, LXD services); needs both hosts
+wireguard/setup-wireguard|deploys the WireGuard IPv6 overlay on west and east over ssh with sudo; needs both hosts
+wireguard/verify-wireguard|checks the live overlay (handshakes, latency, routes) over ssh; needs both hosts
 "
 
 list_lookup() {
