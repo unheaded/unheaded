@@ -4,4 +4,4 @@
 #
 # Format: <elf>/<program>|<variant>  # reason
 #
-monad-cpu-ebpf/monad_cpu|ascend-linux  # 926,542 (92.7 % of 1M) since ASCEND-LINUX Gate D (2026-07): the xv6 interpreter with every ascend-linux handler in one program; over ADR-012's 90 % budget by design, under the kernel's 1M ceiling. Bisect growth with UPC_VERIFIER_STATS=1 (memory: never a second variable RAM_MAP offset in a loop)
+monad-cpu-ebpf/monad_cpu|ascend-linux  # 924,950 (92.5 % of 1M; 926,542 from ASCEND-LINUX Gate D 2026-07 until the S-ASCEND-2 scheduler fix; +181 instance-owner check; +1,124 pid = slot + 1, E1): the xv6 interpreter with every ascend-linux handler in one program; over ADR-012's 90 % budget by design, under the kernel's 1M ceiling. Bisect growth with UPC_VERIFIER_STATS=1 (memory: never a second variable RAM_MAP offset in a loop)

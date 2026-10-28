@@ -48,6 +48,7 @@
 
 mod fdtable;
 mod phase12;
+mod upc_facts;
 
 use aya_ebpf::{
     bindings::xdp_action,
@@ -128,6 +129,20 @@ static CPU_MAP: HashMap<u32, MbcCpuState> =
 /// Statistics counters.
 #[map]
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
+
+/// S-ASCEND-2 Phase 6 (M-225, the flow-label instance hijack): which flow may
+/// tick each instance. Index = instance (flow label & 0xFF). Value: bit 31 =
+/// BOUND, bits 0-11 = the per-boot nonce the owner puts in flow label bits
+/// 8-19. The loader writes it at boot; an unbound instance (0) is not checked,
+/// so loaders that do not bind (doom-runner today) behave as before. A tick
+/// for a bound instance with another nonce is dropped and counted
+/// (STAT_HIJACK_DROP). 12 bits is a tripwire, not authentication: a sender
+/// that can reach the XDP interface can try all 4096 values. The isolation is
+/// the upc0 namespace (scripts/upc-netns.sh); this makes a stray or replayed
+/// foreign tick visible instead of silently executed.
+#[map]
+static INSTANCE_OWNER: Array<u32> = Array::with_max_entries(256, 0);
+const OWNER_BOUND: u32 = 0x8000_0000;
 
 /// L1 cache: reserved for future use.
 /// Currently disabled because RAM_MAP is a BPF Array (O(1) direct indexing),
@@ -414,6 +429,7 @@ const GETPID_INJECT: bool = false;
 
 const STAT_TRIVIAL_SYSCALLS: u32 = 22; // Trivial FUZIX stub syscalls (Level 5c)
 const STAT_MODERATE_SYSCALLS: u32 = 23; // Moderate FUZIX syscalls (Level 5d: ioctl, signal, stat, pipe, etc.)
+const STAT_HIJACK_DROP: u32 = 30; // tick for a bound instance with the wrong nonce (S-ASCEND-2 Phase 6)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -645,6 +661,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     let vtf = u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
     let flow_label = vtf & 0x000F_FFFF;
     let instance = flow_label & 0xFF; // low 8 bits → 256 possible instances
+
+    // ── Instance ownership (S-ASCEND-2 Phase 6) ───────────────────────────────
+    if let Some(owner) = INSTANCE_OWNER.get(instance) {
+        let o = *owner;
+        if o & OWNER_BOUND != 0 && ((flow_label >> 8) & 0xFFF) != (o & 0xFFF) {
+            increment_stat(STAT_HIJACK_DROP);
+            return Ok(xdp_action::XDP_DROP);
+        }
+    }
 
     // ── Load CPU state ────────────────────────────────────────────────────────
     let cpu_ptr = match CPU_MAP.get_ptr_mut(&instance) {
@@ -2353,8 +2378,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         }
                     }
                     increment_stat(STAT_FORKS);
-                    // Parent's fork() return value: a0 = child_pid.
-                    cpu.regs[8] = child_pid;
+                    // Parent's fork() return value: the child's pid. S-ASCEND-2
+                    // E1 (option K, 2026-10-28): one numbering with the owned
+                    // kernel, init = 1, so a user-visible pid is slot + 1.
+                    cpu.regs[8] = child_pid + 1;
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 2 {
                 // ── xv6 SYS_exit (2) — RV32I ecall path (Phase 1.6) ──────────
@@ -2471,7 +2498,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         mem_write_word(translate_address(cpu, status_ptr) >> 2, 0);
                     }
                     increment_stat(STAT_WAITPIDS);
-                    cpu.regs[8] = child; // wait() returns the reaped child's pid
+                    cpu.regs[8] = child + 1; // wait() returns the reaped child's pid (slot + 1, E1 option K)
                 } else if any_child {
                     // Children exist but none have exited yet — run one.
                     cpu.pc = cpu.pc.wrapping_sub(1); // re-execute wait on resume
@@ -2531,9 +2558,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.reservation_address = 0xFFFF_FFFF;
                 } else {
                     // Baseline (retired when INJECT flips on): return the running
-                    // pid (a0) so a userland process can self-verify it runs AS
-                    // the pid whose per-pid slice it expects. 0 = init; 1.. kids.
-                    cpu.regs[8] = cpu.current_pid as u32;
+                    // pid. S-ASCEND-2 E1 (option K): pid = slot + 1, so init is
+                    // 1 here and in the owned kernel (xv6 allocpid starts at 1).
+                    cpu.regs[8] = cpu.current_pid as u32 + 1;
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 13 {
                 // ── xv6 SYS_pause (13) → cooperative YIELD (Gate 4, 2026-05-31) ─
@@ -3463,16 +3490,21 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     let mut next_pid = (old_pid + 1) % num;
     // Bounded search: try up to MAX_PROCESSES (8) candidates per Phase 1.3 ADR-075 D-1.
     let mut attempts = 0u32;
+    let mut found = false;
     while attempts < 8 {
         if next_pid < num && (skip_mask & (1 << next_pid)) == 0 {
+            found = true;
             break; // found a runnable process
         }
         next_pid = (next_pid + 1) % num;
         attempts += 1;
     }
 
-    // If all processes halted (or only self runnable), stay on current
-    if next_pid == old_pid {
+    // If all processes halted (or only self runnable), stay on current. The
+    // search ends wherever its last step landed, which may be a zombie: without
+    // `found`, an exiting init resumed a reaped child after its exit ecall
+    // (S-ASCEND-2 Phase 3; the gate_nway KF1 and "looped fork" symptoms).
+    if !found || next_pid == old_pid {
         return;
     }
 

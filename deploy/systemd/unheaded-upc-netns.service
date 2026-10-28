@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# unheaded-upc-netns: the network namespace upc-bootctl boots into
+# (S-ASCEND-2 Phase 5, Items 1-2). Creates netns upc0 with both ends of the
+# veth pair inside it (no link to the root namespace) and a forward-drop rule
+# there; see scripts/upc-netns.sh. The root namespace is not changed.
+#
+# Install (E6 window; root):
+#   sudo install -D -m 0755 scripts/upc-netns.sh /usr/local/libexec/unheaded/upc-netns.sh
+#   sudo cp deploy/systemd/unheaded-upc-netns.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-upc-netns
+# Undo: sudo systemctl disable --now unheaded-upc-netns (ExecStop removes upc0).
+
+[Unit]
+Description=Unheaded UPC network namespace (upc0, isolated veth pair)
+After=network-pre.target
+Before=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/unheaded/upc-netns.sh up
+ExecStop=/usr/local/libexec/unheaded/upc-netns.sh down
+
+# Root by necessity (netns add, veth, nft inside the new namespace); confine
+# what does not need a mount namespace. No ProtectSystem/ProtectHome/
+# PrivateTmp/PrivateDevices/ProtectKernel*/ProtectControlGroups: each gives
+# the unit a private mount namespace, `ip netns add` then bind-mounts
+# /run/netns/upc0 inside it, and the host sees a name with no namespace behind
+# it ("Peer netns reference is invalid"; measured 2026-10-28).
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_NET_ADMIN
+NoNewPrivileges=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

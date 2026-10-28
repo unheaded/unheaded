@@ -9,10 +9,11 @@
 #![allow(dead_code)] // Phase 2 lays the foundation; Phase 4-6 wire callers.
 
 use anyhow::{anyhow, bail, Context, Result};
-use aya::maps::{Array, HashMap as AyaHashMap};
+use aya::maps::{Array, HashMap as AyaHashMap, IterableMap, MapError};
 use aya::programs::Xdp;
 use aya::Ebpf;
 use std::fs;
+use std::os::fd::AsFd;
 use std::path::Path;
 
 /// CPU state for the MBC virtual machine — must match monad-common's
@@ -166,6 +167,9 @@ pub fn kbd_append_plan(head: u32, tail: u32, bytes: &[u8]) -> KbdAppendPlan {
     }
 }
 
+/// The maps frozen after the image load: the program only reads them.
+const IMAGE_MAPS: [&str; 2] = ["ROM_MAP", "RV2MBC_MAP"];
+
 /// BootRunner owns the eBPF object handle and the instance ID; methods
 /// populate maps + attach XDP + drain TTY + cleanup.
 pub struct BootRunner {
@@ -210,9 +214,9 @@ impl BootRunner {
     /// .rv2mbc bytes and surface it as a hex string. If `expected_sha`
     /// is Some, fail-fast when the computed hash mismatches —
     /// attacker-supplied `.rv2mbc` files would redirect every indirect
-    /// branch in the loaded image. The caller (typically the
-    /// `UPC_RV2MBC_SHA` env-var path in main.rs) decides whether to
-    /// enforce.
+    /// branch in the loaded image. Since S-ASCEND-2 Item 5 the kernel path
+    /// in main.rs always passes the hash `rv2mbc::check_all` verified, so
+    /// this is a second check over the same bytes.
     pub fn populate_rv2mbc(
         &mut self,
         bytes: &[u8],
@@ -600,6 +604,48 @@ impl BootRunner {
         Ok(())
     }
 
+    /// Freeze ROM_MAP and RV2MBC_MAP (`BPF_MAP_FREEZE`, S-ASCEND-2 Steps
+    /// 157-161). Called once through `upc_api::finalize`, after the boot's last
+    /// write to either and before `attach_xdp`; afterwards every userspace
+    /// update of either map fails EPERM.
+    pub fn freeze_image_maps(&mut self) -> Result<()> {
+        for name in IMAGE_MAPS {
+            let map: Array<_, u32> = Array::try_from(
+                self.ebpf
+                    .map(name)
+                    .with_context(|| format!("{name} not found"))?,
+            )?;
+            crate::freeze::freeze_map(map.map().fd().as_fd())
+                .with_context(|| format!("BPF_MAP_FREEZE {name}"))?;
+        }
+        tracing::info!("ROM_MAP + RV2MBC_MAP frozen");
+        Ok(())
+    }
+
+    /// `boot --freeze-check`: after the freeze, write slot 0 of each image map
+    /// back with its own value through the same handle and require EPERM. Prints
+    /// `freeze check: <MAP> update refused (EPERM)` per map; any other result
+    /// fails the boot. The value is unchanged even if the freeze had not run.
+    pub fn freeze_check(&mut self) -> Result<()> {
+        for name in IMAGE_MAPS {
+            let mut map: Array<_, u32> = Array::try_from(
+                self.ebpf
+                    .map_mut(name)
+                    .with_context(|| format!("{name} not found"))?,
+            )?;
+            let v = map.get(&0, 0).with_context(|| format!("{name}[0] read"))?;
+            let update = map.set(0, v, 0).map_err(|e| match e {
+                MapError::SyscallError(se) => se.io_error.raw_os_error(),
+                _ => None,
+            });
+            match crate::freeze::probe_verdict(name, update) {
+                Ok(line) => println!("{line}"),
+                Err(why) => bail!("{why}"),
+            }
+        }
+        Ok(())
+    }
+
     /// Load + attach the `monad_cpu` XDP program to `iface`.
     pub fn attach_xdp(&mut self, iface: &str) -> Result<()> {
         let prog: &mut Xdp = self
@@ -670,6 +716,24 @@ impl BootRunner {
         Ok(keys.iter().map(|k| stats.get(k, 0).unwrap_or(0)).collect())
     }
 
+    /// S-ASCEND-2 Phase 6: bind this instance to `nonce` in INSTANCE_OWNER, so
+    /// the program drops (and counts) ticks for it that carry another nonce.
+    pub fn bind_instance_owner(&mut self, nonce: u16) -> Result<()> {
+        let mut owner: Array<_, u32> = Array::try_from(
+            self.ebpf
+                .map_mut("INSTANCE_OWNER")
+                .context("INSTANCE_OWNER not found (object older than S-ASCEND-2 Phase 6?)")?,
+        )?;
+        owner
+            .set(
+                self.instance_id & 0xFF,
+                0x8000_0000 | (nonce as u32 & 0xFFF),
+                0,
+            )
+            .context("INSTANCE_OWNER set")?;
+        Ok(())
+    }
+
     /// Best-effort cleanup: remove this instance's CPU_MAP entry.
     /// SCREEN_MAP and KBD_MAP are arrays — caller can zero them via
     /// populate_ram() if desired (Phase 6 does this).
@@ -688,9 +752,9 @@ impl BootRunner {
 /// Route `BootRunner` through the shared image loader (Epic 1.2.3, ADR-080).
 /// `write_rom` delegates to the existing `populate_rom_at`; `write_rv2mbc` runs
 /// the same absolute-index `set(base + i, entry)` loop as `populate_rv2mbc`'s
-/// inner body, minus the SHA gate — the `.rv2mbc` integrity gate stays on the
-/// kernel path (which does not go through `upc_api::load`) since the userland
-/// programs this sink serves carry no `expected_rv2mbc_sha256`.
+/// inner body, minus the SHA gate: the entries it gets are relocated, so the
+/// gate runs earlier, in `rv2mbc::check_all`, over the program's `.rv2mbc`
+/// file bytes (S-ASCEND-2 Item 5).
 impl upc_api::ImageSink for BootRunner {
     type Error = anyhow::Error;
 
@@ -710,6 +774,12 @@ impl upc_api::ImageSink for BootRunner {
                 .with_context(|| format!("RV2MBC_MAP[{idx}] write"))?;
         }
         Ok(())
+    }
+
+    /// Freeze both image maps. boot_prepare calls it (via `upc_api::finalize`)
+    /// once, after the kernel, init and resident images are all written.
+    fn finalize(&mut self) -> Result<()> {
+        self.freeze_image_maps()
     }
 }
 

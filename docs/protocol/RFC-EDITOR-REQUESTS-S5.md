@@ -102,5 +102,10 @@ anomaly.scores  services/anomaly flow score {flow_key, score 0..100, model_id} A
 upc.cart.*      cartridge        events, loads, faults per slot                ADR-108
 ```
 
+Pending addition (S-ASCEND-2, 2026-10-28, for the RFC Editor desk): `upc.cart.weights.<model>`,
+a sealed copy of one cartridge's DATA section (`upc-cartridgectl weights publish|fetch`). The ruled
+description "events, loads, faults per slot" does not cover it; either widen the description or
+register the sub-topic.
+
 Every payload on these topics carries flow metadata and a score only (ADR-108 FIELD
 table); none can carry packet payload.

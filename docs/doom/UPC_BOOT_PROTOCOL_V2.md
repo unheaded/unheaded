@@ -140,7 +140,7 @@ struct BootParamsV2 {
 **Field semantics:**
 
 - **magic** (canonical hex `0x554E4844`; brand-spelled `'UNHD'` MSB-first; memory bytes are `D,H,N,U` per ADR-072): kernel reads first; if mismatch, kernel HALTs immediately (boot protocol violation).
-- **version** (2): kernel reads second; if mismatch, kernel can choose to refuse boot or fall back. uClinux + Linux 6.x require v2; xv6 (Phase 1) supports both.
+- **version** (2; 3 since S-ASCEND-2, §"v3"): kernel reads second; if mismatch, kernel can choose to refuse boot or fall back. uClinux + Linux 6.x require v2; xv6 (Phase 1) supports both.
 - **bss_start / bss_end**: stage 1 zeroes `[bss_start, bss_end)` byte range before jumping to kernel. v1 boots without this rely on pre-zeroed RAM, which fails on warm-boot. **Mandatory for Linux.**
 - **initrd2_addr**: 0 = no second ramdisk. Used when modules ship separately from rootfs (Linux convention).
 - **cmd_line_args_ptr**: 0 = use the inline boot_args at `boot_args_addr`. Non-zero = pointer to a struct with longer/structured args. Forward-compat for kernel command lines exceeding 512 B.
@@ -249,7 +249,34 @@ v1 BootParams readers MUST be updated:
 
 - **v1**: 48-byte structure. SHIPPED as part of Doom + L4. Stays usable for xv6 Phase 1 if Stevie wants the lighter spec.
 - **v2**: 256-byte structure with 5 new fields + 48 reserved. SHIPPED 2026-05-08 (this doc). Required for uClinux Phase 2+.
-- **v3**: hypothetical future, would shift `magic` semantics or change struct layout. Adding fields into the reserved[48] block is v2-compatible and does not require v3.
+- **v3**: the v2 layout with the kernel `.rv2mbc` SHA-256 in the first 32 reserved bytes (S-ASCEND-2, 2026-10-28; see below). The layout is unchanged; the version number tells a reader the hash is present.
+
+---
+
+## v3 (S-ASCEND-2)
+
+**Version field:** `3`. Offsets 0..64 are as in v2.
+
+| Bytes | Field | Contents |
+|---|---|---|
+| 64..96 | `rv2mbc_sha256[32]` | Raw SHA-256 (32 bytes, not hex) of the kernel's `.rv2mbc` file as loaded into RV2MBC_MAP |
+| 96..256 | `reserved[40]` | Zero |
+
+The hash covers the file's on-disk bytes, before the loader shifts entries to the kernel's RV-word base (0x8000). It is all zeros only when a dry run used `--allow-unverified-rv2mbc`; a live boot never writes zeros there.
+
+**Loader rule (ADR-075 §Security #1, default-on).** Every `.rv2mbc` a loader puts into RV2MBC_MAP is checked against an expected SHA-256 before the first map write, and before the eBPF object is opened: the xv6 kernel's, the `--userland` program's, each resident program's (`sh echo ls cat wc`) in `upc-bootctl`, and Doom's in `doom-runner`. The expected hash is, in order:
+
+1. `--rv2mbc-sha <hex>` (64 hex digits, any case), or the `UPC_RV2MBC_SHA` environment variable. Kernel (upc-bootctl) and the `--rv2mbc` file (doom-runner) only.
+2. The sidecar `<file>.rv2mbc.sha256` next to the file: the first whitespace-separated token, 64 lowercase hex digits (`sha256sum` output works).
+3. Otherwise the load is refused with `Rv2mbcShaRequired` and the path.
+
+A hash that does not match is refused with `Rv2mbcShaMismatch` and both hashes; a hash that is not 64 hex digits with `Rv2mbcShaMalformed`. A live `upc-bootctl` boot without a kernel `.rv2mbc` is refused with `Rv2mbcMissing`. The resolver is `upc_api::rv2mbc_sha` (shared by both loaders). The verified hash is carried in `GuestImage::expected_rv2mbc_sha256`.
+
+**Sidecars.** `crates/xv6-mbc/adapters/Makefile.mbc` (kernel) and the `Makefile.mbc-userland` pattern rule write `<name>.rv2mbc.sha256` next to each `.rv2mbc`; `clean` removes them. `doom/doom.rv2mbc.sha256` is committed next to `doom/doom.rv2mbc`. After a hand-edited `.rv2mbc`, regenerate with `sha256sum f.rv2mbc | cut -d' ' -f1 > f.rv2mbc.sha256`.
+
+**Lab hatch.** `--allow-unverified-rv2mbc` (upc-bootctl `boot`, doom-runner `run`) turns a missing hash into a warning and is accepted only with `--dry-run`. A live run with it is refused. It never excuses a mismatch.
+
+**Kernel side.** `start_mbc.c` (xv6) and `crates/upc-bootstub/src/start.c` accept version 2 or 3 for one release and print nothing new (a new TTY line would change the boot goldens). Neither reads the hash.
 
 ---
 

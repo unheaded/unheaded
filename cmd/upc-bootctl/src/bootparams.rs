@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! BootParams v2 encoder + memory-layout constants for UPC Boot Protocol v2.
-//! See `docs/doom/UPC_BOOT_PROTOCOL_V2.md` (frozen 2026-05-08 per ADR-067).
+//! BootParams encoder + memory-layout constants for UPC Boot Protocol v2.
+//! See `docs/doom/UPC_BOOT_PROTOCOL_V2.md` (frozen 2026-05-08 per ADR-067;
+//! §"v3 (S-ASCEND-2)" for the version-3 field).
 
 #![allow(dead_code)] // some constants reserved for Phase 2+ uClinux work
 
 /// Magic literal 'UNHD' as little-endian u32 (= 0x554E_4844).
 pub const BOOT_MAGIC: u32 = 0x554E_4844;
-/// BootParams structure version. v1=48B (Doom), v2=256B (xv6 + Linux).
-pub const BOOT_VERSION: u32 = 2;
+/// BootParams structure version. v1=48B (Doom), v2=256B (xv6 + Linux),
+/// v3 = v2 layout plus the kernel `.rv2mbc` SHA-256 at bytes 64..96.
+pub const BOOT_VERSION: u32 = 3;
 
 // ── Byte addresses (per UPC_BOOT_PROTOCOL_V2.md §"Memory Layout") ─────────
 pub const ADDR_IVT: u32 = 0x0000;
@@ -26,7 +28,9 @@ pub const SIZE_BOOTPARAMS: u32 = 256;
 pub const SIZE_CMDLINE_MAX: u32 = 512;
 pub const SIZE_CSR_REGION: u32 = 256; // 64 CSRs × 4 bytes
 
-/// BootParams v2 — exact 256-byte layout per spec.
+/// BootParams v2/v3 — exact 256-byte layout per spec. v3 (S-ASCEND-2) names
+/// the first 32 bytes of v2's `reserved` window `rv2mbc_sha256`; nothing else
+/// moves.
 ///
 /// Field order MUST match `crates/xv6-mbc/adapters/start_mbc.c::struct
 /// boot_params_v2`. The kernel reads from byte address 0x100; any drift
@@ -52,18 +56,26 @@ pub struct BootParamsV2 {
     pub initrd2_addr: u32,
     pub cmd_line_args_ptr: u32,
     pub boot_random_seed: u32,
+    // === v3: raw SHA-256 of the kernel .rv2mbc (byte offset 64..96) ===
+    pub rv2mbc_sha256: [u8; 32], // zeros only on the dry-run hatch
     // === forward-compat reservation ===
-    pub reserved: [u32; 48], // zero-filled
+    pub reserved: [u32; 40], // zero-filled (byte offset 96..256)
 }
 
 const _: () = assert!(std::mem::size_of::<BootParamsV2>() == 256);
+const _: () = assert!(std::mem::offset_of!(BootParamsV2, rv2mbc_sha256) == 64);
 
 impl BootParamsV2 {
     /// Construct BootParams for an xv6 first-boot. .bss is left at 0/0 —
     /// xv6's start_mbc.c does not consume the bss_start/end fields and
     /// xv6's main() runs before any .bss-dependent allocator. (Phase 1.1
     /// SHIP decision per `crates/xv6-mbc/TRANSLATOR_EXTENSIONS.md`.)
-    pub fn for_xv6(kernel_size_bytes: u32, ramdisk_size_bytes: u32) -> Self {
+    /// `rv2mbc_sha256` is the verified SHA-256 of the kernel `.rv2mbc`.
+    pub fn for_xv6(
+        kernel_size_bytes: u32,
+        ramdisk_size_bytes: u32,
+        rv2mbc_sha256: [u8; 32],
+    ) -> Self {
         Self {
             magic: BOOT_MAGIC,
             version: BOOT_VERSION,
@@ -81,13 +93,14 @@ impl BootParamsV2 {
             initrd2_addr: 0, // no second initramfs
             cmd_line_args_ptr: 0,
             boot_random_seed: 0, // entropy provision deferred to Phase 2
-            reserved: [0u32; 48],
+            rv2mbc_sha256,
+            reserved: [0u32; 40],
         }
     }
 
     /// Serialize to the 256-byte wire form expected at byte address 0x100.
     /// SAFETY: BootParamsV2 is `#[repr(C, packed)]`, exactly 256 bytes,
-    /// contains only u32/[u32;N] primitives — no padding, no pointers,
+    /// contains only u32/[u32;N]/[u8;32] primitives — no padding, no pointers,
     /// no Drop, fully POD.
     pub fn to_bytes(self) -> [u8; 256] {
         unsafe { std::mem::transmute_copy(&self) }
@@ -105,9 +118,9 @@ mod tests {
 
     #[test]
     fn for_xv6_sets_magic_version_addresses() {
-        let bp = BootParamsV2::for_xv6(46_884, 0);
+        let bp = BootParamsV2::for_xv6(46_884, 0, [0u8; 32]);
         assert_eq!({ bp.magic }, 0x554E_4844);
-        assert_eq!({ bp.version }, 2);
+        assert_eq!({ bp.version }, 3);
         assert_eq!({ bp.kernel_addr }, 0x10000);
         assert_eq!({ bp.kernel_size }, 46_884);
         assert_eq!({ bp.num_cpus }, 1);
@@ -117,7 +130,7 @@ mod tests {
 
     #[test]
     fn to_bytes_first_four_bytes_are_magic_le() {
-        let bp = BootParamsV2::for_xv6(0, 0);
+        let bp = BootParamsV2::for_xv6(0, 0, [0u8; 32]);
         let bytes = bp.to_bytes();
         // Intentional pin per ADR-072: canonical hex 0x554E4844 ('UNHD'
         // MSB-first) serializes as little-endian to D,H,N,U at increasing
@@ -128,12 +141,24 @@ mod tests {
 
     #[test]
     fn reserved_is_zeroed_for_forward_compat() {
-        let bp = BootParamsV2::for_xv6(123, 456);
+        let bp = BootParamsV2::for_xv6(123, 456, [0xAB; 32]);
         let bytes = bp.to_bytes();
-        // reserved[48] starts at offset 256-(48*4)=64
+        // v3: the rv2mbc SHA takes bytes 64..96; reserved[40] is 96..256.
         assert!(
-            bytes[64..256].iter().all(|&b| b == 0),
+            bytes[96..256].iter().all(|&b| b == 0),
             "reserved must be all zero for forward-compat"
         );
+    }
+
+    #[test]
+    fn v3_carries_the_raw_rv2mbc_sha_at_bytes_64_to_96() {
+        // S-ASCEND-2 Step 124 (5): version 3 and the raw kernel .rv2mbc
+        // SHA-256 in the first 32 bytes of the old reserved window.
+        let sha: [u8; 32] = core::array::from_fn(|i| i as u8 + 1);
+        let bytes = BootParamsV2::for_xv6(123, 456, sha).to_bytes();
+        assert_eq!(u32::from_le_bytes(bytes[4..8].try_into().unwrap()), 3);
+        assert_eq!(&bytes[64..96], &sha);
+        assert_eq!(u32::from_le_bytes(bytes[60..64].try_into().unwrap()), 0);
+        assert!(bytes[96..256].iter().all(|&b| b == 0));
     }
 }

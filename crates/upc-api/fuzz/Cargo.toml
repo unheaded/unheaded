@@ -1,0 +1,30 @@
+[package]
+name = "upc-api-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "GPL-3.0-or-later"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+upc-api = { path = ".." }
+
+# Keep this out of any parent workspace.
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "fuzz_object_facts"
+path = "fuzz_targets/fuzz_object_facts.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_slice_geometry"
+path = "fuzz_targets/fuzz_slice_geometry.rs"
+doc = false

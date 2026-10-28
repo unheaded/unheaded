@@ -21,3 +21,6 @@ byteorder = "1"
 # Workload and routes ROM_MAP/RV2MBC_MAP population through upc_api::load, the
 # same shared path upc-bootctl uses for xv6/ASCEND-LINUX guests.
 upc-api = { path = "../upc-api" }
+# S-ASCEND-2 Steps 157-161: bpf(BPF_MAP_FREEZE) on ROM_MAP / RV2MBC_MAP (aya 0.13
+# has no public freeze). Already in the tree through aya and tokio.
+libc = "0.2"

@@ -33,6 +33,8 @@
 //! | 5    | Boot protocol (none, or Boot Protocol v2 bootstub) | [`boot`] |
 //! | —    | The four bundled into one loadable guest | [`workload`] |
 //! | —    | Host-side registry of surfaces (ADR-080 §4) | [`registry`] |
+//! | —    | What the eBPF object declares about itself (I/O-time gates) | [`object`], [`surface_hash`] |
+//! | —    | `.rv2mbc` SHA-256 gate (flag → sidecar → refuse) | [`rv2mbc_sha`] |
 //!
 //! ## The intended payoff
 //!
@@ -76,15 +78,26 @@ pub mod boot;
 pub mod image;
 pub mod load;
 pub mod memory;
+pub mod object;
 pub mod registry;
+pub mod rv2mbc_sha;
+/// The canonical syscall-surface id (SHA-256 over the sorted number list).
+/// Documented here rather than with `//!` because
+/// `ebpf/monad-cpu-ebpf/build.rs` `include!`s the file, and an included file
+/// cannot carry inner attributes.
+pub mod surface_hash;
 pub mod syscall;
 pub mod workload;
 
 // Headline re-exports for ergonomics — the contract's public face.
 pub use boot::BootProtocol;
 pub use image::{GuestImage, MbcPc, RvWordAddr};
-pub use load::{load, ImageSink, LoadError};
-pub use memory::MemoryModel;
+pub use load::{finalize, load, write_image, ImageSink, LoadError};
+pub use memory::{MemRegion, MemoryModel, MmuLayout, SliceGeometry};
+pub use object::{ObjectFacts, ObjectFactsError};
 pub use registry::SurfaceRegistry;
 pub use syscall::{FeatureGate, SyscallDesc, SyscallSurface};
-pub use workload::{validate, MapCapacities, ValidationError, Workload};
+pub use workload::{
+    check_mmu, check_surface, validate, validate_against_object, MapCapacities, ValidationError,
+    Workload,
+};

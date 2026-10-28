@@ -106,7 +106,7 @@ The syscall fan-out landed as five gates, each with its own root-cause hunt (ses
 - **Gate A — console stdio.** `read(5)` blocks on an empty KBD ring instead of returning EOF; a scripted `--input` pre-fills the ring. sh reads its command line.
 - **Gate B — `exec` → `$` (ADR-077).** A feature-gated `MbcCpuState` ABI fork adds a per-process `rv2mbc_base` so each program's indirect branches resolve into its own disjoint RV2MBC region (init and sh both link at RV byte 0 and would otherwise collide at `RV2MBC_MAP[0]`). `exec("sh")` succeeds and sh emits `$`.
 - **Gate C — interactive sh.** `fork → exec → wait → prompt` lifecycle. Two root causes behind the post-`$` reboot: MRET added sh's *user* rv2mbc base to a *kernel* return target (fix: per-process base only at `priv==3`); and the user link defaulted sh's entry to `getcmd` not `main` (fix: `crt0_mbc.S` forces `_start` to RV byte 0). Plus parent-filtered `wait()` (fixes grandchild-reap).
-- **Gate D — FS reader ([ADR-078](../docs/adr/ADR-078-gate-d-fs-reader-and-exec-argv-abi.md)).** `open`/`read`/`fstat` walk `fs.img` inodes directly from RAM_MAP inside the eBPF CPU (pure `monad_common::fs_walk`, off-target tested), backed by per-fd `{inum, offset}` state. `exec` gains an argv frame (VA `0x600000`). The headline bug: xv6 `uint64` is 4 bytes under `-mabi=ilp32e`, so `struct stat` is 16 bytes with `size` at offset 12 — writing the RV64 24-byte layout smashed `ls`'s buffer (the "blank names + size 0" symptom).
+- **Gate D — FS reader ([ADR-078](../docs/adr/ADR-078-gate-d-fs-reader-and-exec-argv-abi.md)).** `open`/`read`/`fstat` walk `fs.img` inodes directly from RAM_MAP inside the eBPF CPU (pure `monad_common::fs_walk`, off-target tested), backed by per-fd `{inum, offset}` state. `exec` gains an argv frame (VA `0x600000`). The console opens by name (`open("console")`); fs.img holds no device inodes, and file writes and pipes come with the kernel-side syscalls of EVOLUTION-1 Stage 2. The headline bug: xv6 `uint64` is 4 bytes under `-mabi=ilp32e`, so `struct stat` is 16 bytes with `size` at offset 12 — writing the RV64 24-byte layout smashed `ls`'s buffer (the "blank names + size 0" symptom).
 - **Gate D.1 — `wc` + RET tagging ([ADR-079](../docs/adr/ADR-079-ret-address-tagging.md)).** `wc README` runaway root-caused to the RET handler's MBC-vs-RV magnitude floor (wc's ROM base crossed it). Fixed by tagging MBC return addresses with bit 31 at CALL/CALLR — which also unblocks Linux-scale images and, by construction, kills the historical Doom PC-corruption misparse.
 
 Since then: `read(5)` reads `>12 KiB` files via the single-indirect block; the code-store maps grew behind a `large-image` feature (option A for Linux-scale images); the whole thing is guarded by `scripts/upc-regression.sh` (load-tests both the xv6/ascend and Doom/non-ascend builds).
@@ -135,9 +135,17 @@ make -f ../adapters/Makefile.mbc clean kernel
 rm -f target/fs.img
 make -f ../adapters/Makefile.mbc-userland ramdisk
 
-# Boot. --userland pre-loads init.mbc into the user region.
+# Boot. --userland pre-loads init.mbc into the user region. A live boot needs
+# UPC_DEMO_MODE=1, passed inside sudo (sudo resets the environment); --dry-run does not.
+# bootctl runs inside netns upc0, which upc-netns.sh makes (both veth ends inside,
+# no link to the host); --create-netns is the old root-namespace setup.
+# On west since 2026-10-28 the unit path is the default: `sudo systemctl start
+# unheaded-upc-bootctl@xv6` boots /var/lib/unheaded/upc as unheaded-upc (no root),
+# with /etc/unheaded/upc/xv6.env; upc0 is kept by unheaded-upc-netns.service.
+# The sudo lines below are the lab shortcut.
 cd ../../../ebpf
-sudo /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
+sudo ../scripts/upc-netns.sh up
+sudo ip netns exec upc0 env UPC_DEMO_MODE=1 /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
   --kernel /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/xv6-mbc.mbc \
   --ramdisk /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/fs.img \
   --userland /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/init.mbc \
@@ -168,7 +176,7 @@ append typed bytes to the guest's 64-slot KBD ring (HEAD advanced live; the gues
 
 - **Mode B (host terminal):** keystrokes from stdin.
   ```bash
-  cd ~/tmp/unheaded/ebpf && sudo ../cmd/upc-bootctl/target/release/upc-bootctl console \
+  cd ~/tmp/unheaded/ebpf && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 ../cmd/upc-bootctl/target/release/upc-bootctl console \
     --instance 111 --stdin --kernel ../crates/xv6-mbc/upstream/target/xv6-mbc.mbc \
     --ramdisk ../crates/xv6-mbc/upstream/target/fs.img \
     --userland ../crates/xv6-mbc/upstream/target/init.mbc
@@ -179,7 +187,15 @@ append typed bytes to the guest's 64-slot KBD ring (HEAD advanced live; the gues
   keystrokes per instance (4096 B; overflow drops newest and counts
   `upc_tty_kbd_dropped_total` on `/metrics`); `console` pulls them from
   `GET /api/v1/kbd/drain`, which answers loopback callers only. CR (xterm's Enter) and LF
-  both end a line.
+  both end a line. Since S-ASCEND-2 a default boot runs inside netns `upc0`, which has no
+  link to the host, so `console` there cannot reach a bridge on the host's loopback: run
+  Mode A with `console --create-netns` (as root) until the bridge gets a path into `upc0`.
+
+**Attended end-to-end (browser), recipe for S-ASCEND-2 E5 (not run live yet):**
+1. `cd cmd/upc-tty-bridge && go run . --listen 127.0.0.1:26100`
+2. `cd ebpf && sudo UPC_DEMO_MODE=1 ../cmd/upc-bootctl/target/release/upc-bootctl console --create-netns --instance 111 --kernel ../crates/xv6-mbc/upstream/target/xv6-mbc.mbc --ramdisk ../crates/xv6-mbc/upstream/target/fs.img --userland ../crates/xv6-mbc/upstream/target/init.mbc`
+3. Open `http://127.0.0.1:26100/upc-console.html`, instance `111`, type `echo peace and love`, expect the echo.
+4. With the model already serving (`scripts/switch-model.sh qwen-7b`; never start a second one), `LICH_E2E=1 go test ./pkg/lichtools/ -run E2E -count=1`.
 
 Options: `--tick-batch N` (triggers per loop, default 50,000), `--debug-kbd` (prints
 KBD_HEAD/KBD_TAIL per batch). A 203-byte paste reaches the guest in order, at most 64

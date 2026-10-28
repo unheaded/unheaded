@@ -7,12 +7,12 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -49,11 +49,13 @@ var (
 // Config holds server configuration
 type Config struct {
 	// Server
-	BufferSize   int
-	BufferBytes  int
-	BufferTotal  int
-	MaxRooms     int
-	MaxMembers   int
+	BufferSize  int
+	BufferBytes int
+	BufferTotal int
+	MaxRooms    int
+	MaxMembers  int
+	// BindAddr is the address both listeners bind; "" means every interface.
+	BindAddr     string
 	HTTPPort     int
 	GRPCPort     int
 	AdminEnabled bool
@@ -257,7 +259,7 @@ func main() {
 	srvHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("wotan").Instrument(httpMux, srvHandler))
 
 	httpServer := &http.Server{
-		Addr:              fmt.Sprintf(":%d", config.HTTPPort),
+		Addr:              listenAddr(config.BindAddr, config.HTTPPort),
 		Handler:           srvHandler,
 		ReadTimeout:       config.ReadTimeout,
 		ReadHeaderTimeout: 5 * time.Second, // slowloris defense — header phase tighter than body
@@ -361,7 +363,7 @@ func main() {
 	healthServer.SetServingStatus("wotan", healthpb.HealthCheckResponse_SERVING)
 
 	go func() {
-		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GRPCPort))
+		lis, err := net.Listen("tcp", listenAddr(config.BindAddr, config.GRPCPort))
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed_to_listen_grpc_port")
 		}
@@ -420,6 +422,12 @@ func main() {
 // flag.CommandLine + os.Args[1:] from main() for the production path;
 // tests pass their own *flag.FlagSet so they don't pollute global state
 // and can exercise multiple flag combinations within one test process.
+// listenAddr joins a bind address and a port; an empty address means every
+// interface, and an IPv6 literal gets brackets.
+func listenAddr(bind string, port int) string {
+	return net.JoinHostPort(bind, strconv.Itoa(port))
+}
+
 func parseFlags(fs *flag.FlagSet, args []string) Config {
 	config := Config{}
 
@@ -429,6 +437,7 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 	fs.IntVar(&config.MaxMembers, "max-members", 100000, "Most members (subscribers and publishers) that may exist at once; past it new subscribes and new publishers are refused (0 = none). Approved members are never reaped")
 	fs.IntVar(&config.MaxRooms, "max-rooms", 10000, "Most rooms (topics) that may exist; publishing to a new topic past it is refused (0 = none). Rooms are never reaped, and any auto-approved publisher mints one by naming a topic")
 	fs.IntVar(&config.BufferTotal, "buffer-bytes-total", 64<<20, "Budget for every room together, content plus per-message overhead; the oldest messages of the largest rooms are dropped past it (0 = none)")
+	fs.StringVar(&config.BindAddr, "bind", "", "address the HTTP and gRPC listeners bind (default: every interface)")
 	fs.IntVar(&config.HTTPPort, "http-port", 18000, "HTTP REST API port")
 	fs.IntVar(&config.GRPCPort, "grpc-port", 18001, "gRPC streaming port")
 	fs.BoolVar(&config.AdminEnabled, "admin", false, "Enable admin endpoints (/api/v1/admin/*); requires "+adminKeyEnv+" in the environment")

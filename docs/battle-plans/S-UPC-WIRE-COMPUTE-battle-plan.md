@@ -57,7 +57,7 @@ export WEST_P2P_IF=enp16s0 EAST_P2P_IF=enp2s0
 export WOTAN_SCRATCH_HTTP=26601 WOTAN_SCRATCH_GRPC=26602   # scratch Wotan, user-app range; never the 18000/18001 stack
 mkdir -p "$S5"
 # xv6 boot helpers (from PHASE24-KERNEL-CORE.md, unchanged)
-boot()     { (cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+boot()     { sudo bash "$PROJECT_ROOT/scripts/upc-netns.sh" up >/dev/null && (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
              --userland "$K/init.mbc" --triggers 4000000 --instance 111 --input "$1" 2>&1); }
 tty_of()   { grep -a 'ascii:' <<<"$1"; }
 stats_of() { grep -aoE 'forks=[0-9]+|waitpid=[0-9]+|tty_r=[0-9]+' <<<"$1" | tr '\n' ' '; }
@@ -142,7 +142,7 @@ Record actual output in Step 12. Anything on this list failing again is not a sp
 
 | # | Known failure / gap | Source |
 |---|---|---|
-| KF1 | `gate_nway` → NWAY-FAIL | Phase 1.7 Gate C notes; regression harness does not gate it |
+| KF1 | `gate_nway` → NWAY-FAIL | Phase 1.7 Gate C notes; regression harness does not gate it. **Retired by S-ASCEND-2 Step 91** (f2bc1a56): the scheduler resumed a reaped zombie when nothing was runnable; isolation held. gate_nway is now a harness gate |
 | KF2 | `crates/heimdall-bpf` declares no `execve`/`gjallarhorn_xdp` programs (never written) | Cargo.toml comment |
 | KF3 | `services/anomaly`, `services/anamnesis` unreached by any binary | `docs/UNREACHED-GO-PACKAGES.md` |
 | KF4 | `tomb/lich/harnesses/lich_007_mbc_ebpf_test.go` is a simulation, not coverage | its own banner (ADR-062 audit) |
@@ -229,7 +229,7 @@ P0 ─► P1 ─► P2 ─► P3 ───────────────�
   - Note the Doom `.mbc` path and its sha in `$S5/p0-mbc-sha.txt` (needed by H-S5)
 - [x] **Step 12** [B] ~3m: KNOWN FAILURES BASELINE — record actuals
   ```bash
-  { echo "== gate_nway"; (cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  { echo "== gate_nway"; (cd "$EBPF" && sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
       --userland "$K/gate_nway.mbc" --triggers 800000 --instance 111 2>&1 | grep -aoE 'NWAY-(PASS|FAIL)' | head -1);
     echo "== go build"; (cd "$PROJECT_ROOT" && go build ./... 2>&1 | tail -3);
     echo "== heimdall-bpf"; (cd "$PROJECT_ROOT/crates/heimdall-bpf" && cargo build --release 2>&1 | tail -2); } \
@@ -502,7 +502,7 @@ MBC verification pattern passed (decode + 2 × 5-min fuzz) · spec gate recorded
   ```
 - [x] **Step 92** [B][S][TEST] ~3m: Run the probe with the flag ON
   ```bash
-  out="$(cd "$EBPF" && UPC_VERIFIER_STATS=1 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  out="$(cd "$EBPF" && sudo UPC_DEMO_MODE=1 UPC_VERIFIER_STATS=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
     --userland "$K/getpidprobe.mbc" --triggers 2000000 --instance 111 2>&1)"; printf '%s\n' "$out" > "$S5/p3-getpid-on.txt"
   grep -aoE 'GP: [a-z=0-9-]+|verified [0-9]+ insns' <<<"$out"
   ```
@@ -587,7 +587,7 @@ Round trip proven flag ON · decision recorded with numbers · 12/12 goldens ide
   ```
 - [x] **Step 123** [B][S][TEST] ~5m: Headless end-to-end with `--stdin`: type two commands after boot
   ```bash
-  (sleep 8; printf 'echo hello\n'; sleep 6; printf 'ls\n'; sleep 6) | (cd "$EBPF" && sudo timeout 40 "$BC" console --instance 111 --stdin \
+  (sleep 8; printf 'echo hello\n'; sleep 6; printf 'ls\n'; sleep 6) | (cd "$EBPF" && sudo UPC_DEMO_MODE=1 timeout 40 "$BC" console --instance 111 --stdin \
     --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" --userland "$K/init.mbc") 2>&1 | tee "$S5/p4-console-stdin.txt" | tail -20
   ```
 - [x] **Step 124** [V] ~1m: Output has `hello`, the `ls` listing (`README`, `cat`, …) and a `$` after each — typed after boot, not pre-filled
@@ -762,7 +762,7 @@ K1 evidence recorded · no new deps · XDP observe-only · `-race` green · thre
   ```
 - [ ] **Step 176** [DEFERRED: east escalation] [V] ~30s: East printed `Gjallarhorn: kind=BootstrapBroadcast cluster=1` → H-M1 TRUE (multicast works on the physical link; the April "N/A" was about the WG overlay)
   - False → record; run Steps 182–187 on a west veth pair; east column "not demonstrated"
-- [ ] **Step 177** [DEFERRED: east escalation] [ESCALATE][BARE-METAL] ~—: **Stevie approval** for (a) running heimdall-daemon as root on east from `/tmp` (no package, no unit) with XDP **generic** mode on `enp2s0`, observe-only XDP_PASS; (b) a scratch Wotan on west 26601/26602 bound to `192.168.13.2`. Context: `enp2s0` is east's only link (BGP + WireGuard ride it). Why no recommendation: east runs the debs and host actions there wait for Stevie. **Until approved: Steps 178–187 use a west netns seed; east column BLOCKED.**
+- [x] **Step 177** *(answered 2026-10-28 by S-ASCEND-2 E3: run across hosts with a node guard; references/s-ascend-2-log.md)* [DEFERRED: east escalation] [ESCALATE][BARE-METAL] ~—: **Stevie approval** for (a) running heimdall-daemon as root on east from `/tmp` (no package, no unit) with XDP **generic** mode on `enp2s0`, observe-only XDP_PASS; (b) a scratch Wotan on west 26601/26602 bound to `192.168.13.2`. Context: `enp2s0` is east's only link (BGP + WireGuard ride it). Why no recommendation: east runs the debs and host actions there wait for Stevie. **Until approved: Steps 178–187 use a west netns seed; east column BLOCKED.**
 - [ ] **Step 178** [DEFERRED: east escalation] [B] ~5m: Catalog dir + confirm daemon flags
   ```bash
   mkdir -p "$S5/catalog" && cp "$PROJECT_ROOT/references/baseline/mjolnir.example.yaml" "$S5/catalog/m.yaml" && "$S5/heimdall-daemon" --help 2>&1 | grep -E 'await-bootstrap|catalog|sign-key'
@@ -1510,7 +1510,7 @@ Fuzz targets clean (or findings logged) · three-engine oracle real (host + BPF,
 
 - [ ] **Step 433** [DEFERRED: east escalation] [R] ~10m: Read `services/wotan/internal/compute` (`BPFMapCache`, L2 store) and `services/wotan/internal/cluster` (replication client/server) — the DISTRIBUTED seam
 - [ ] **Step 434** [DEFERRED: east escalation] [DESIGN][W] ~20m: Split model (ADR appendix): the cartridge ROM + the control plane run on west; the scorer's DATA blob (weights) is published to a Wotan `compute`-namespace topic and fetched by east's `upc-cartridgectl` before it loads the scorer — "distributed memory" = the weights are authored once and served to both nodes. A ScoreJob produced on west can be scored on either node and the score reconciled. Keep it honest: this is distributed *data*, not a mid-execution memory fault across the wire
-- [ ] **Step 435** [DEFERRED: east escalation] [ESCALATE][BARE-METAL] ~—: **Stevie approval** for: running a scratch Wotan reachable from east over the P2P link, and running `upc-cartridgectl` + `cartridge-ebpf` as root on east from `/tmp`. Context: east runs the debs; this is a throwaway, removed at phase end. Why no recommendation: live host + a second node. **If not approved: run both "nodes" as two netns on west sharing one scratch Wotan; mark the result "cross-node demonstrated in netns, not across hosts."**
+- [x] **Step 435** *(answered 2026-10-28 by S-ASCEND-2 E3: run across hosts with a node guard; references/s-ascend-2-log.md)* [DEFERRED: east escalation] [ESCALATE][BARE-METAL] ~—: **Stevie approval** for: running a scratch Wotan reachable from east over the P2P link, and running `upc-cartridgectl` + `cartridge-ebpf` as root on east from `/tmp`. Context: east runs the debs; this is a throwaway, removed at phase end. Why no recommendation: live host + a second node. **If not approved: run both "nodes" as two netns on west sharing one scratch Wotan; mark the result "cross-node demonstrated in netns, not across hosts."**
 - [ ] **Step 436** [DEFERRED: east escalation] [B][S] ~10m: Scratch Wotan on west bound to `192.168.13.2`; publish the scorer DATA blob to a `compute.cart.weights.<model>` topic
 - [ ] **Step 437** [DEFERRED: east escalation] [V] ~1m: Blob published; `curl` the topic from west shows the sha matching the local `.cart` DATA
 - [ ] **Step 438** [DEFERRED: east escalation] [B][S][BARE-METAL] ~15m: On east (or netns B): `upc-cartridgectl` subscribes, fetches the DATA, verifies the DATA sha against the signed manifest, loads the scorer locally

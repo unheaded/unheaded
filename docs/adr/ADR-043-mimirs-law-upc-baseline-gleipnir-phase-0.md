@@ -1,6 +1,6 @@
 # ADR-043: Mímir's Law — OS Baseline Delivery, Drift Detection, and Self-Healing via UPC (Gleipnir Phase 0 PoC)
 
-## Status: PoC (2026-04-11; corrected 2026-10-27) — 11 of 13 phases shipped; Phases 9/11/13 wait on east as a node (S5 Step 177). Earlier runs: bare-metal Gjallarhorn unicast + drift detection + 100-packet stress + forgery rejection demonstrated on WEST↔EAST. Multicast bootstrap deferred (L2-only — not applicable on WG-overlay 2-node test setup).
+## Status: PoC (2026-04-11; corrected 2026-10-27; updated 2026-10-28) — Phases 9/11/13 re-run 2026-10-28 on two network namespaces on west, then **across hosts (west sender, east seed)** under S-ASCEND-2 E3: multicast bootstrap horns 7/7 in 8-15 ms, reverify and rate limiting as designed, 20/20 drifts within 260 ms, signed drift events on the west scratch Wotan, tampered and expired seals refused; XDP generic on east's only link with a dead-man guard armed (references/s-ascend-2-log.md, docs/battle-plans/S-ASCEND-2-EAST-NODE-plan.md).
 
 ## Phase 13 — Day-14 Gate Evaluation
 
@@ -29,7 +29,7 @@
 | Restore verification accuracy | 100% (1/1 on injection test) |
 | Data consistency | 100% (100/100 stress packets) |
 | Cascade failures | 0 |
-| Bootstrap flow demonstrated | PARTIAL — unicast yes, multicast L2-scoped (not applicable on 2-node WG overlay) |
+| Bootstrap flow demonstrated | ✓ unicast and multicast across WEST→EAST (2026-10-28; a real NIC filters an unjoined multicast group, so heimdall now joins ff02::1:abba on `--xdp-iface` itself, verified on east: 3/3 horns with no listener) |
 | Reminder flow demonstrated | ✓ injection caught on EAST |
 | LICH-012 zero exploitable | DEFERRED — campaign scaffold opened, full red team out of PoC scope |
 

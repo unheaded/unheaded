@@ -115,6 +115,9 @@ var hostOnly = map[string]string{
 	// Faults need CAP_NET_ADMIN (and CAP_BPF on west) on the host itself:
 	// S-REAL-STEEL Phase 10, deploy/systemd/unheaded-chaos-controller.service.
 	"chaos-controller": "unheaded-chaos",
+	// The UPC boot controller: CAP_BPF/NET_ADMIN/NET_RAW/PERFMON inside the
+	// upc0 namespace, S-ASCEND-2 Phase 5, unheaded-upc-bootctl@.service.
+	"upc-bootctl": "unheaded-upc",
 	// The anomaly service and its Wotan intake: deploy/systemd/unheaded-anomaly.service.
 	"anomaly": "unheaded-anomaly",
 	// The dead-man's switch sender on east and the CI status writer on

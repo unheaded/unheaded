@@ -6,7 +6,7 @@
 // `references/battle-plan-ascend-linux-2026-05-08.md`.
 //
 // Loads a translated MBC kernel image (xv6-mbc.mbc, uclinux-mbc.mbc, etc.),
-// validates it, prepares BootParams v2, and dispatches a boot trigger to
+// validates it, prepares BootParams v3, and dispatches a boot trigger to
 // the UPC instance.
 //
 // **Status**: skeleton with `validate` and `boot --dry-run` subcommands.
@@ -21,8 +21,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 
 mod bootparams;
+mod freeze;
+mod geometry;
 mod netns;
 mod runner;
+mod rv2mbc;
 mod tty_bridge;
 
 #[derive(Parser, Debug)]
@@ -107,6 +110,44 @@ enum Cmd {
         /// input exceeds the 64-slot ring (no silent truncation).
         #[arg(long)]
         input: Option<String>,
+
+        /// Test hook (S-ASCEND-2 Step 111): read UPC_SLICE_STRIDE and declare
+        /// that slice stride to the loader's geometry gate instead of the
+        /// shipped one. Prints a warning. The gate refuses any stride the
+        /// object does not ship, so this can only make the boot refuse.
+        #[arg(long)]
+        unsafe_geometry: bool,
+
+        /// Old setup (needs root): create `upc0` + the veth pair from the root
+        /// namespace and send triggers through `ip netns exec`. Default: run
+        /// inside the namespace `scripts/upc-netns.sh up` made.
+        #[arg(long)]
+        create_netns: bool,
+
+        /// Expected SHA-256 (64 hex digits) of the kernel's `.rv2mbc`. Else
+        /// `UPC_RV2MBC_SHA`, else the `<kernel>.rv2mbc.sha256` sidecar; with
+        /// none of them the boot is refused (S-ASCEND-2 Item 5). The userland
+        /// and resident programs always use their sidecars.
+        #[arg(long, value_name = "HEX")]
+        rv2mbc_sha: Option<String>,
+
+        /// Lab-only: continue when a `.rv2mbc` has no expected SHA-256 (prints
+        /// a warning). Accepted only with --dry-run; never excuses a mismatch.
+        #[arg(long)]
+        allow_unverified_rv2mbc: bool,
+
+        /// Test hook (S-ASCEND-2 Step 174): after the run, send N ticks with a
+        /// wrong nonce, then N with the owner's, and print how far each moved
+        /// the CPU and the hijack counter. The harness never sets it.
+        #[arg(long, value_name = "N")]
+        hijack_probe: Option<u32>,
+
+        /// Test hook (S-ASCEND-2 Step 162): after ROM_MAP and RV2MBC_MAP are
+        /// frozen, try one userspace update of each through the same handle and
+        /// require EPERM (`freeze check: <MAP> update refused (EPERM)`); any
+        /// other result fails the boot before attach.
+        #[arg(long)]
+        freeze_check: bool,
     },
 
     /// Boot a kernel and run it interactively (Mode A/B): TTY output streams
@@ -147,6 +188,18 @@ enum Cmd {
         /// Print KBD_HEAD / KBD_TAIL / pending bytes after every batch.
         #[arg(long)]
         debug_kbd: bool,
+
+        /// Test hook: honour UPC_SLICE_STRIDE (see `boot --unsafe-geometry`).
+        #[arg(long)]
+        unsafe_geometry: bool,
+
+        /// Old root-namespace setup (see `boot --create-netns`).
+        #[arg(long)]
+        create_netns: bool,
+
+        /// Expected SHA-256 of the kernel's `.rv2mbc` (see `boot --rv2mbc-sha`).
+        #[arg(long, value_name = "HEX")]
+        rv2mbc_sha: Option<String>,
     },
 }
 
@@ -197,12 +250,15 @@ fn relocate_rv2mbc_entry(entry: u32, rom_base: u32) -> u32 {
     entry.wrapping_add(rom_base)
 }
 
-/// The xv6 syscall surface (contract part 4, ADR-080). Numbers are xv6's
-/// `kernel/syscall.h`; the handlers are compiled into the `ascend-linux`
-/// interpreter build (a `cfg`-partitioned `if/else`, not runtime dispatch). This
-/// is the host-side allowlist `upc_api::validate` checks each userland Workload
-/// against before any map write.
-static XV6_SYSCALLS: [upc_api::SyscallDesc; 21] = [
+/// The xv6 syscall surface (contract part 4, ADR-080): exactly the ecall numbers
+/// the `ascend-linux` interpreter build has an arm for
+/// (`ebpf/monad-cpu-ebpf/surface.rs::SURFACE_ASCEND`). Numbers are xv6's
+/// `kernel/syscall.h` plus the UPC block-device calls 200/201
+/// (`monad_common::mbc_linux_syscalls`). xv6's pipe 4, kill 6, chdir 9, sbrk 12,
+/// uptime 14, unlink 18, link 19 and mkdir 20 are absent because the object has
+/// no arm for them (they fall through to "silently ignore"). Gate A refuses an
+/// object whose `UPC_SURFACE_ID` is not the id of this list.
+static XV6_SYSCALLS: [upc_api::SyscallDesc; 15] = [
     upc_api::SyscallDesc {
         number: 1,
         name: "fork",
@@ -216,16 +272,8 @@ static XV6_SYSCALLS: [upc_api::SyscallDesc; 21] = [
         name: "wait",
     },
     upc_api::SyscallDesc {
-        number: 4,
-        name: "pipe",
-    },
-    upc_api::SyscallDesc {
         number: 5,
         name: "read",
-    },
-    upc_api::SyscallDesc {
-        number: 6,
-        name: "kill",
     },
     upc_api::SyscallDesc {
         number: 7,
@@ -236,10 +284,6 @@ static XV6_SYSCALLS: [upc_api::SyscallDesc; 21] = [
         name: "fstat",
     },
     upc_api::SyscallDesc {
-        number: 9,
-        name: "chdir",
-    },
-    upc_api::SyscallDesc {
         number: 10,
         name: "dup",
     },
@@ -248,16 +292,8 @@ static XV6_SYSCALLS: [upc_api::SyscallDesc; 21] = [
         name: "getpid",
     },
     upc_api::SyscallDesc {
-        number: 12,
-        name: "sbrk",
-    },
-    upc_api::SyscallDesc {
         number: 13,
         name: "pause",
-    },
-    upc_api::SyscallDesc {
-        number: 14,
-        name: "uptime",
     },
     upc_api::SyscallDesc {
         number: 15,
@@ -272,20 +308,16 @@ static XV6_SYSCALLS: [upc_api::SyscallDesc; 21] = [
         name: "mknod",
     },
     upc_api::SyscallDesc {
-        number: 18,
-        name: "unlink",
-    },
-    upc_api::SyscallDesc {
-        number: 19,
-        name: "link",
-    },
-    upc_api::SyscallDesc {
-        number: 20,
-        name: "mkdir",
-    },
-    upc_api::SyscallDesc {
         number: 21,
         name: "close",
+    },
+    upc_api::SyscallDesc {
+        number: 200,
+        name: "read_block",
+    },
+    upc_api::SyscallDesc {
+        number: 201,
+        name: "write_block",
     },
 ];
 
@@ -313,9 +345,11 @@ fn xv6_map_capacities() -> upc_api::MapCapacities {
 /// Build a `Workload` for one xv6 userland program (init or a resident program):
 /// an already-relocated MBC image at `rom_start_slot`, its shifted `.rv2mbc`
 /// entries at `rv2mbc_word_base`, and the entry slot (for the `EntryOutOfRange`
-/// check). Memory model is per-pid MMU, boot is Direct (no bootstub), and the
-/// surface is the shared xv6 allowlist. `.rv2mbc` SHA gating is not carried here
-/// (userland programs ship none — the kernel path owns that gate).
+/// check). Memory model is per-pid MMU with `mmu` as its slice layout, boot is
+/// Direct (no bootstub), and the surface is the shared xv6 allowlist.
+/// `rv2mbc_sha256` is the hash `rv2mbc::check_all` verified over the program's
+/// `.rv2mbc` file before relocation.
+#[allow(clippy::too_many_arguments)]
 fn xv6_program_workload(
     name: &str,
     rom: Vec<u32>,
@@ -323,6 +357,8 @@ fn xv6_program_workload(
     rv2mbc: Vec<u32>,
     rv2mbc_word_base: u32,
     entry: u32,
+    mmu: &upc_api::MmuLayout,
+    rv2mbc_sha256: Option<String>,
 ) -> upc_api::Workload {
     upc_api::Workload {
         name: name.to_string(),
@@ -331,13 +367,40 @@ fn xv6_program_workload(
             rom_start_slot,
             rv2mbc,
             rv2mbc_word_base,
-            expected_rv2mbc_sha256: None,
+            expected_rv2mbc_sha256: rv2mbc_sha256,
             entry: upc_api::MbcPc(entry),
         },
         memory: upc_api::MemoryModel::PerPidMmu,
         surface: XV6_SURFACE,
         boot: upc_api::BootProtocol::Direct,
+        mmu: Some(mmu.clone()),
     }
+}
+
+/// Gates A and B on the object file, before it is opened: `aya` creates every
+/// map when it loads an object, so refusing here means a wrong object leaves
+/// no map, program or netns behind. The same checks run again inside every
+/// `upc_api::load`. Returns the facts for those calls.
+fn preflight_object(ebpf_obj: &Path, mmu: &upc_api::MmuLayout) -> Result<upc_api::ObjectFacts> {
+    let facts = upc_api::ObjectFacts::from_path(ebpf_obj)
+        .map_err(|e| anyhow!("refusing to load {}: {e}", ebpf_obj.display()))?;
+    upc_api::check_surface(&XV6_SURFACE, &facts)
+        .and_then(|()| {
+            upc_api::check_mmu(
+                upc_api::MemoryModel::PerPidMmu,
+                Some(mmu),
+                &xv6_map_capacities(),
+                &facts,
+            )
+        })
+        .map_err(|e| anyhow!("refusing to load {}: {e}", ebpf_obj.display()))?;
+    println!(
+        "  ✓ object gates: surface id {} (xv6, {} syscalls) and slice geometry match {}",
+        &upc_api::object::hex32(&facts.surface_id)[..16],
+        XV6_SYSCALLS.len(),
+        ebpf_obj.display()
+    );
+    Ok(facts)
 }
 
 /// Pre-translate a resident userland program (`sh`, `ls`, …) into a disjoint
@@ -349,7 +412,10 @@ fn xv6_program_workload(
 #[allow(clippy::too_many_arguments)]
 fn load_resident_program(
     runner: &mut runner::BootRunner,
+    facts: &upc_api::ObjectFacts,
+    mmu: &upc_api::MmuLayout,
     mbc_path: &Path,
+    rv: &rv2mbc::CheckedRv2mbc,
     name: &str,
     slot: u32,
     rom_base: u32,
@@ -387,13 +453,12 @@ fn load_resident_program(
 
     // rv2mbc: values shifted by rom_base (RV word → that program's ROM slot);
     // loaded at index base rv2mbc_base so each program owns a disjoint region.
-    let rv2mbc_path = mbc_path.with_extension("rv2mbc");
-    let rv =
-        std::fs::read(&rv2mbc_path).with_context(|| format!("read {}", rv2mbc_path.display()))?;
-    if !rv.len().is_multiple_of(4) {
-        bail!("{} not 4-byte aligned", rv2mbc_path.display());
+    // The bytes were read and SHA-checked by rv2mbc::check_all.
+    if !rv.bytes.len().is_multiple_of(4) {
+        bail!("{} not 4-byte aligned", rv.path.display());
     }
     let rv_entries: Vec<u32> = rv
+        .bytes
         .as_chunks::<4>()
         .0
         .iter()
@@ -404,9 +469,19 @@ fn load_resident_program(
     // validate the descriptor (image bounds, entry-in-ROM, every rv2mbc target
     // in ROM) then write both maps. entry = rom_base (user.ld links _start at
     // RV word 0 → ROM slot rom_base). Byte-identical to the prior
-    // populate_rom_at + populate_rv2mbc calls.
-    let workload = xv6_program_workload(name, words, rom_base, rv_entries, rv2mbc_base, rom_base);
-    upc_api::load(&workload, &xv6_map_capacities(), runner)
+    // populate_rom_at + populate_rv2mbc calls. write_image, not load: the
+    // freeze comes once, in boot_prepare, after the last image.
+    let workload = xv6_program_workload(
+        name,
+        words,
+        rom_base,
+        rv_entries,
+        rv2mbc_base,
+        rom_base,
+        mmu,
+        rv.sha_hex(),
+    );
+    upc_api::write_image(&workload, &xv6_map_capacities(), facts, runner)
         .map_err(|e| anyhow!("{name} image load: {e}"))?;
 
     // Stage .data flat for exec to re-copy into the running pid's slice.
@@ -443,6 +518,16 @@ fn load_resident_program(
 ///
 /// Errors with the byte-count in the message when the buffer length is not a
 /// multiple of 4 (an MBC instruction is always one 32-bit word).
+/// S-ASCEND-2 Item 4 (the 2026-05-13 isolation brief): a live boot attaches
+/// XDP and writes BPF maps, so it needs an explicit `UPC_DEMO_MODE=1`. Runs
+/// before anything touches BPF or a netns. A dry run never needs it.
+fn demo_gate(dry_run: bool, demo_mode: Option<&str>) -> Result<()> {
+    if dry_run || demo_mode == Some("1") {
+        return Ok(());
+    }
+    bail!("UPC_DEMO_MODE=1 required for a live boot; add --dry-run to inspect without loading")
+}
+
 fn check_image_alignment(bytes: &[u8]) -> Result<usize> {
     if !bytes.len().is_multiple_of(4) {
         bail!("kernel image not 4-byte aligned ({} bytes)", bytes.len());
@@ -488,6 +573,38 @@ fn cmd_validate(kernel: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// S-ASCEND-2 Step 174: prove the INSTANCE_OWNER check on the live object.
+fn hijack_probe_run(runner: &runner::BootRunner, instance: u8, n: u32) -> Result<()> {
+    // STATS keys: 1 = CPU ticks seen, 2 = instructions executed, 30 = hijack drops.
+    let read = |r: &runner::BootRunner| -> Result<[u64; 3]> {
+        let s = r.read_stats(&[1, 2, 30])?;
+        Ok([s[0], s[1], s[2]])
+    };
+    // sendto returns once a frame is queued; XDP runs later. Let the veth
+    // backlog drain before each read.
+    let settle = || std::thread::sleep(std::time::Duration::from_millis(500));
+    let owner = netns::nonce();
+    let wrong = (owner ^ 0x5A5) & 0xFFF;
+    let a = read(runner)?;
+    netns::trigger_flow(n, netns::flow_label_for(instance, wrong), false)?;
+    settle();
+    let b = read(runner)?;
+    netns::trigger_flow(n, netns::flow_label_for(instance, owner), false)?;
+    settle();
+    let c = read(runner)?;
+    println!(
+        "  hijack probe: {n} sent with nonce 0x{wrong:03X}: ticks +{}, insns +{}, hijack_drop +{}; \
+         {n} sent with the owner nonce 0x{owner:03X}: ticks +{}, insns +{}, hijack_drop +{}",
+        b[0] - a[0],
+        b[1] - a[1],
+        b[2] - a[2],
+        c[0] - b[0],
+        c[1] - b[1],
+        c[2] - b[2]
+    );
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 /// Load every image into the live BPF maps, set up the netns + XDP attach,
 /// and pre-fill `--input`. Shared by `boot` (fixed trigger budget) and
@@ -500,6 +617,8 @@ fn boot_prepare(
     userland: Option<&Path>,
     instance: u8,
     input: Option<&str>,
+    mmu: &upc_api::MmuLayout,
+    rv: &rv2mbc::Rv2mbcSet,
 ) -> Result<(runner::BootRunner, runner::MbcCpuState)> {
     // ── LIVE BOOT PATH (Phase 1.1 SHIP per battle-plan-phase11-ship-2026-05-10.md) ──
     let kernel_bytes =
@@ -512,7 +631,16 @@ fn boot_prepare(
         .map(|c| u32::from_le_bytes(*c))
         .collect();
 
-    let bp = bootparams::BootParamsV2::for_xv6(kernel_bytes.len() as u32, 0);
+    // BootParams v3 carries the kernel .rv2mbc SHA-256 that check_all verified.
+    // A live boot always has it: check_all refuses a missing kernel .rv2mbc,
+    // and the unverified hatch is dry-run only.
+    let kernel_rv = rv
+        .kernel
+        .as_ref()
+        .filter(|k| k.sha256.is_some())
+        .ok_or_else(|| anyhow!("kernel .rv2mbc not verified; refusing a live boot"))?;
+    let kernel_rv_sha = kernel_rv.sha256.unwrap_or_default();
+    let bp = bootparams::BootParamsV2::for_xv6(kernel_bytes.len() as u32, 0, kernel_rv_sha);
     let bp_bytes = bp.to_bytes();
 
     let ebpf_obj = std::env::var("MONAD_CPU_EBPF_OBJ")
@@ -525,6 +653,9 @@ fn boot_prepare(
             ebpf_obj.display()
         );
     }
+
+    // S-ASCEND-2 Steps 95-106: refuse a wrong object before aya creates a map.
+    let facts = preflight_object(&ebpf_obj, mmu)?;
 
     let mut runner = runner::BootRunner::open(&ebpf_obj, instance as u32)?;
 
@@ -625,49 +756,25 @@ fn boot_prepare(
     // 0x8000) per kernel-mbc.ld; the loader shifts entries by that base
     // so the BPF interpreter's absolute-RV-word lookups hit the right
     // slot. Phase 2 will pass a different base for the bootstub flow.
-    let rv2mbc_path = kernel.with_extension("rv2mbc");
+    //
+    // S-ASCEND-2 Item 5: the bytes were read and SHA-checked by
+    // rv2mbc::check_all before the object was opened; populate_rv2mbc hashes
+    // them again against that SHA before its first map write.
     let text_rv_word_base: u32 = 0x8000; // xv6 .text base = RV byte 0x20000
-                                         // Phase 1.3 ADR-075 §Security #1: if UPC_RV2MBC_SHA is set, the loader
-                                         // verifies the .rv2mbc bytes against this SHA-256 before any BPF map
-                                         // write. Build pipelines should always set this; dev loops can omit
-                                         // (the SHA is logged either way).
-    let expected_rv2mbc_sha = std::env::var("UPC_RV2MBC_SHA").ok();
-    if rv2mbc_path.exists() {
-        match std::fs::read(&rv2mbc_path) {
-            Ok(bytes) => match runner.populate_rv2mbc(
-                &bytes,
-                text_rv_word_base,
-                expected_rv2mbc_sha.as_deref(),
-            ) {
-                Ok(()) => println!(
-                    "  RV→MBC map: loaded {} ({} entries @ RV-word-base 0x{:04X}{})",
-                    rv2mbc_path.display(),
-                    bytes.len() / 4,
-                    text_rv_word_base,
-                    if expected_rv2mbc_sha.is_some() {
-                        " + SHA gate"
-                    } else {
-                        ""
-                    }
-                ),
-                Err(e) => {
-                    // Integrity gate failure is fail-fast: bail out so the boot
-                    // doesn't proceed with an untrusted translation table.
-                    bail!("rv2mbc load failed: {}", e);
-                }
-            },
-            Err(e) => println!(
-                "  ⚠ rv2mbc map at {} unreadable: {}",
-                rv2mbc_path.display(),
-                e
-            ),
-        }
-    } else {
-        println!(
-            "  ⚠ no rv2mbc map at {} — MRET/SRET/JALR/CALLR will fall through",
-            rv2mbc_path.display()
-        );
-    }
+    let kernel_rv_hex = kernel_rv.sha_hex();
+    runner
+        .populate_rv2mbc(
+            &kernel_rv.bytes,
+            text_rv_word_base,
+            kernel_rv_hex.as_deref(),
+        )
+        .map_err(|e| anyhow!("rv2mbc load failed: {e}"))?;
+    println!(
+        "  RV→MBC map: loaded {} ({} entries @ RV-word-base 0x{:04X} + SHA gate)",
+        kernel_rv.path.display(),
+        kernel_rv.bytes.len() / 4,
+        text_rv_word_base
+    );
 
     // Phase 1.5: load the userland MBC image into a dedicated ROM_MAP region
     // (USER_ROM_BASE = 0x4000) plus shifted RV2MBC entries (starting at slot 0)
@@ -713,18 +820,14 @@ fn boot_prepare(
         // lands on the right slot in the shared ROM_MAP. Loaded at RV-word-base 0
         // (userland links text at RV byte 0). A missing file yields an empty
         // table (a warning — SRET into user code would then fall through).
+        // The bytes were read and SHA-checked by rv2mbc::check_all.
         let user_rv2mbc_path = up.with_extension("rv2mbc");
-        let rv_entries: Vec<u32> = if user_rv2mbc_path.exists() {
-            let rv = std::fs::read(&user_rv2mbc_path).with_context(|| {
-                format!("userland rv2mbc read {} failed", user_rv2mbc_path.display())
-            })?;
-            if !rv.len().is_multiple_of(4) {
-                bail!(
-                    "userland rv2mbc {} not 4-byte aligned",
-                    user_rv2mbc_path.display()
-                );
+        let rv_entries: Vec<u32> = if let Some(urv) = rv.userland.as_ref() {
+            if !urv.bytes.len().is_multiple_of(4) {
+                bail!("userland rv2mbc {} not 4-byte aligned", urv.path.display());
             }
-            rv.as_chunks::<4>()
+            urv.bytes
+                .as_chunks::<4>()
                 .0
                 .iter()
                 .map(|c| relocate_rv2mbc_entry(u32::from_le_bytes(*c), USER_ROM_BASE))
@@ -742,10 +845,19 @@ fn boot_prepare(
         // validate the descriptor (image bounds, entry-in-ROM, every rv2mbc
         // target in ROM) then write both maps. entry = USER_ROM_BASE (user.ld
         // links _start at RV byte 0 → ROM slot USER_ROM_BASE). Byte-identical to
-        // the prior populate_rom_at + populate_rv2mbc calls.
-        let workload =
-            xv6_program_workload("init", words, USER_ROM_BASE, rv_entries, 0, USER_ROM_BASE);
-        upc_api::load(&workload, &xv6_map_capacities(), &mut runner)
+        // the prior populate_rom_at + populate_rv2mbc calls. write_image, not
+        // load: the resident programs follow, so the freeze comes after them.
+        let workload = xv6_program_workload(
+            "init",
+            words,
+            USER_ROM_BASE,
+            rv_entries,
+            0,
+            USER_ROM_BASE,
+            mmu,
+            rv.userland.as_ref().and_then(|u| u.sha_hex()),
+        );
+        upc_api::write_image(&workload, &xv6_map_capacities(), &facts, &mut runner)
             .map_err(|e| anyhow!("userland image load {}: {e}", up.display()))?;
 
         if patched_calls > 0 {
@@ -801,25 +913,28 @@ fn boot_prepare(
     // as siblings of --userland so the existing boot recipe is unchanged.
     if let Some(up) = userland {
         // Headline (Gate B) needs `sh`; ls/cat/echo/wc follow the same
-        // pattern for Gate C and slot in after sh's bases.
-        const PROGRAMS: &[&str] = &["sh", "echo", "ls", "cat", "wc"];
+        // pattern for Gate C and slot in after sh's bases. rv2mbc::check_all
+        // decided which are present and SHA-checked their .rv2mbc files.
         let dir = up.parent().unwrap_or_else(|| Path::new("."));
-        for (i, name) in PROGRAMS.iter().enumerate() {
-            let mbc = dir.join(format!("{name}.mbc"));
-            if !mbc.exists() {
+        for (i, name) in geometry::RESIDENT_PROGRAMS.iter().enumerate() {
+            let Some((mbc, prog_rv)) = rv.programs.get(i).and_then(Option::as_ref) else {
                 println!(
                     "  ⚠ resident program '{name}' not found at {} — skipping",
-                    mbc.display()
+                    dir.join(format!("{name}.mbc")).display()
                 );
                 continue;
-            }
+            };
             let slot = i as u32;
             let rom_base = 0x6000 + slot * 0x3000; // 12 Ki-word stride
             let rv2mbc_base = 0x1000 + slot * 0x1000; // < 0x8000 (kernel base)
-            let data_stage_va = 0x00C0_0000 + slot * 0x0004_0000; // pristine RAM
+            let data_stage_va =
+                geometry::RESIDENT_DATA_STAGE_BASE + slot * geometry::RESIDENT_DATA_STAGE_STRIDE; // pristine RAM
             load_resident_program(
                 &mut runner,
-                &mbc,
+                &facts,
+                mmu,
+                mbc,
+                prog_rv,
                 name,
                 slot,
                 rom_base,
@@ -834,7 +949,7 @@ fn boot_prepare(
     // 16 superpages × 4 MiB = identity-maps the low 64 MiB onto physical RAM.
     // The interpreter only translates user-mode accesses, so this is a no-op
     // transform that must NOT change the boot — proving the live MMU walk.
-    runner.populate_identity_pgd(0x00F0_0000, 16)?;
+    runner.populate_identity_pgd(geometry::XV6_PGD_BASE, 16)?;
     println!("  ✓ pid-0 identity pgd built at 0x00F00000 (16×4MiB superpages, MMU live)");
 
     // Initial CPU state: PC=0x4000 (word index of byte 0x10000), SP=0x03F00000,
@@ -861,8 +976,23 @@ fn boot_prepare(
         kernel_bytes.len()
     );
 
+    // S-ASCEND-2 Steps 157-161: freeze ROM_MAP and RV2MBC_MAP. Every write to
+    // either is above (kernel or bootstub + kernel, kernel .rv2mbc, init,
+    // resident programs), each after its SHA, surface and geometry gates; the
+    // program only reads them. A failed freeze fails the boot before attach.
+    upc_api::finalize(&mut runner).map_err(|e| anyhow!("{e}"))?;
+    println!("  ✓ ROM_MAP + RV2MBC_MAP frozen (BPF_MAP_FREEZE)");
+    if freeze::check_enabled() {
+        runner.freeze_check()?;
+    }
+
     // ── Phase 4: netns + XDP attach + trigger packet ──
-    let attach_iface = netns::setup_upc0()?;
+    let attach_iface = netns::prepare()?;
+    // S-ASCEND-2 Phase 6: bind the instance to a fresh nonce before any tick.
+    let nonce = netns::random_nonce()?;
+    runner.bind_instance_owner(nonce)?;
+    netns::set_nonce(nonce);
+    println!("  ✓ instance 0x{instance:02X} bound to flow nonce 0x{nonce:03X} (INSTANCE_OWNER)");
     // Attach XDP to veth inside upc0 namespace. aya's `attach` looks up
     // the iface by name in the calling process's namespace, so we run
     // the attach via `ip netns exec` semantically by... actually aya
@@ -874,11 +1004,11 @@ fn boot_prepare(
     // Alternative simpler path: skip namespace, just use the veth host-side.
     // For Phase 1.1 first boot, host-side attach is sufficient.
     println!("\n[netns ready; attempting XDP attach to {}]", attach_iface);
-    match runner.attach_xdp("veth-upc0") {
+    match runner.attach_xdp(attach_iface) {
         Ok(()) => println!("  ✓ XDP attached to veth-upc0"),
         Err(e) => {
             println!("  ✗ XDP attach failed: {}", e);
-            netns::teardown_upc0();
+            netns::finish();
             return Err(e);
         }
     }
@@ -907,8 +1037,29 @@ fn cmd_boot(
     instance: u8,
     dry_run: bool,
     input: Option<String>,
+    unsafe_geometry: bool,
+    rv2mbc_sha: Option<String>,
+    allow_unverified_rv2mbc: bool,
+    hijack_probe: Option<u32>,
 ) -> Result<()> {
+    demo_gate(dry_run, std::env::var("UPC_DEMO_MODE").ok().as_deref())?;
+    rv2mbc::hatch_gate(allow_unverified_rv2mbc, dry_run)?;
     cmd_validate(kernel.clone())?;
+    let mmu = geometry::xv6_mmu_layout(geometry::stride_override(
+        unsafe_geometry,
+        std::env::var("UPC_SLICE_STRIDE").ok().as_deref(),
+    )?);
+    // S-ASCEND-2 Item 5: every .rv2mbc is SHA-checked before the object opens.
+    println!("\n.rv2mbc SHA-256 gate:");
+    let rv = rv2mbc::check_all(
+        &kernel,
+        userland.as_deref(),
+        rv2mbc_sha
+            .or_else(|| std::env::var("UPC_RV2MBC_SHA").ok())
+            .as_deref(),
+        allow_unverified_rv2mbc,
+        dry_run,
+    )?;
 
     println!("\n=== BOOT DISPATCH (dry_run={}) ===", dry_run);
     println!("instance:      0x{:02X}", instance);
@@ -935,12 +1086,19 @@ fn cmd_boot(
     println!("  2. Zero IVT region (byte 0x0000-0x03FF)");
     println!("  3. Zero CSR region (byte 0x000_F000-0x000_F0FF)");
     println!("  4. Write default HLT trap handler at 0x0400");
-    println!("  5. Write BootParams v2 (256 bytes) at 0x0100");
+    println!(
+        "  5. Write BootParams v{} (256 bytes) at 0x0100",
+        bootparams::BOOT_VERSION
+    );
     println!(
         "     magic = 0x{:08X} (canonical 'UNHD' MSB-first; wire bytes 'DHNU' per ADR-072)",
         xv6_mbc::BOOT_MAGIC
     );
-    println!("     version = 2");
+    println!("     version = {}", bootparams::BOOT_VERSION);
+    match rv.kernel.as_ref().and_then(|k| k.sha_hex()) {
+        Some(h) => println!("     rv2mbc_sha256 = {h} (bytes 64..96)"),
+        None => println!("     rv2mbc_sha256 = zeros (unverified: dry run only)"),
+    }
     println!("     kernel_addr = 0x10000 (stage-1 stub)");
     println!("     bss_start / bss_end (read from kernel.elf .bss)");
     println!("     boot_random_seed = 32 bytes from getrandom(2)");
@@ -961,6 +1119,19 @@ fn cmd_boot(
     println!(" 10. Watch tty stream (compute.tty.{{instance}})");
 
     if dry_run {
+        // The object gates read the file only, so a dry run can show a refusal.
+        let ebpf_obj =
+            PathBuf::from(std::env::var("MONAD_CPU_EBPF_OBJ").unwrap_or_else(|_| {
+                "target/bpfel-unknown-none/release/monad-cpu-ebpf".to_string()
+            }));
+        if ebpf_obj.exists() {
+            preflight_object(&ebpf_obj, &mmu)?;
+        } else {
+            println!(
+                "  (object gates not run: no object at {})",
+                ebpf_obj.display()
+            );
+        }
         println!("\n✓ dry-run complete; no BPF maps touched");
         return Ok(());
     }
@@ -972,6 +1143,8 @@ fn cmd_boot(
         userland.as_deref(),
         instance,
         input.as_deref(),
+        &mmu,
+        &rv,
     )?;
 
     // Send Monad-format trigger packets via doom-tick.py. flow_label =
@@ -980,7 +1153,7 @@ fn cmd_boot(
         "\n[sending {} Monad trigger packets to advance the CPU (each = up to 16 insns)]",
         triggers
     );
-    netns::send_trigger(triggers, instance)?;
+    netns::trigger(triggers, instance, true)?;
     std::thread::sleep(std::time::Duration::from_millis(1500));
 
     // Read CPU state after trigger
@@ -1001,15 +1174,19 @@ fn cmd_boot(
     // Non-wrapping STATS dump (the TTY ring wraps; these counters don't).
     // Keys: 3=HALTED 7=SYSCALLS 8=ROM_FAULT 13=LINUX_SYS 14=TTY_WRITES
     // 15=CTX_SWITCH 16=FORKS 20=TTY_READS 21=WAITPIDS 23=MODERATE_SYS.
-    if let Ok(s) = runner.read_stats(&[3, 7, 8, 13, 14, 15, 16, 20, 21, 23, 25, 26, 27, 28, 29]) {
+    if let Ok(s) = runner.read_stats(&[3, 7, 8, 13, 14, 15, 16, 20, 21, 23, 25, 26, 27, 28, 29, 30])
+    {
         println!(
-            "  STATS: halted={} syscalls={} rom_fault={} lin_sys={} tty_w={} ctx_sw={} forks={} tty_r={} waitpid={} mod_sys={}",
-            s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9]
+            "  STATS: halted={} syscalls={} rom_fault={} lin_sys={} tty_w={} ctx_sw={} forks={} tty_r={} waitpid={} mod_sys={} hijack_drop={}",
+            s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[15]
         );
         println!(
             "  ROM-FAULT CTX: target=0x{:X} rv2mbc_base=0x{:X} cur_pid={} prev_pc=0x{:X} halt_reason=0x{:X}",
             s[10], s[11], s[12], s[13], s[14]
         );
+    }
+    if let Some(n) = hijack_probe {
+        hijack_probe_run(&runner, instance, n)?;
     }
     if cpu_after.pc != cpu_initial.pc || cpu_after.insn_count > 0 {
         println!("  ✓ FIRST HEARTBEAT — eBPF interpreter advanced the CPU");
@@ -1075,7 +1252,7 @@ fn cmd_boot(
 
     // Cleanup
     runner.cleanup()?;
-    netns::teardown_upc0();
+    netns::finish();
 
     Ok(())
 }
@@ -1089,6 +1266,8 @@ struct ConsoleOpts {
     stdin: bool,
     tick_batch: u32,
     debug_kbd: bool,
+    unsafe_geometry: bool,
+    rv2mbc_sha: Option<String>,
 }
 
 /// Set on SIGINT / SIGTERM so the console loop can tear down XDP + netns
@@ -1155,7 +1334,24 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
     if o.tick_batch == 0 {
         bail!("--tick-batch must be > 0");
     }
+    // console always attaches: there is no dry run.
+    demo_gate(false, std::env::var("UPC_DEMO_MODE").ok().as_deref())?;
     cmd_validate(o.kernel.clone())?;
+    let mmu = geometry::xv6_mmu_layout(geometry::stride_override(
+        o.unsafe_geometry,
+        std::env::var("UPC_SLICE_STRIDE").ok().as_deref(),
+    )?);
+    let explicit = o
+        .rv2mbc_sha
+        .clone()
+        .or_else(|| std::env::var("UPC_RV2MBC_SHA").ok());
+    let rv = rv2mbc::check_all(
+        &o.kernel,
+        o.userland.as_deref(),
+        explicit.as_deref(),
+        false,
+        false,
+    )?;
     let stop = install_stop_flag();
     let (mut runner, _cpu_initial) = boot_prepare(
         &o.kernel,
@@ -1164,6 +1360,8 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
         o.userland.as_deref(),
         o.instance,
         None,
+        &mmu,
+        &rv,
     )?;
     println!(
         "\n=== UPC CONSOLE (instance 0x{:02X}) — Ctrl-C to stop ===",
@@ -1172,7 +1370,7 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
     let result = console_loop(&mut runner, &o, &stop);
     // Same teardown as `boot`; dropping the runner detaches XDP.
     let _ = runner.cleanup();
-    netns::teardown_upc0();
+    netns::finish();
     drop(runner);
     println!("\n=== UPC CONSOLE closed ===");
     result
@@ -1193,7 +1391,7 @@ fn console_loop(runner: &mut runner::BootRunner, o: &ConsoleOpts, stop: &AtomicB
     let mut out = std::io::stdout();
 
     while !stop.load(Ordering::SeqCst) {
-        netns::send_trigger_quiet(o.tick_batch, o.instance)?;
+        netns::trigger(o.tick_batch, o.instance, false)?;
 
         // Output: guest TTY -> stdout (NULs from the 3-byte MMIO store dropped)
         // and -> the bridge for browser viewers.
@@ -1264,6 +1462,21 @@ fn console_loop(runner: &mut runner::BootRunner, o: &ConsoleOpts, stop: &AtomicB
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    run(cli).map_err(|e| {
+        // S-ASCEND-2 Step 135: say which privilege is missing instead of a bare
+        // EPERM from deep inside aya.
+        if format!("{e:#}").contains("Operation not permitted") {
+            e.context(
+                "need CAP_BPF + CAP_NET_ADMIN (+ CAP_NET_RAW for triggers): \
+                 run via unheaded-upc-bootctl@.service or sudo",
+            )
+        } else {
+            e
+        }
+    })
+}
+
+fn run(cli: Cli) -> Result<()> {
     match cli.cmd {
         Cmd::Validate { kernel } => cmd_validate(kernel),
         Cmd::Boot {
@@ -1276,9 +1489,31 @@ fn main() -> Result<()> {
             instance,
             dry_run,
             input,
-        } => cmd_boot(
-            kernel, bootstub, initramfs, ramdisk, userland, triggers, instance, dry_run, input,
-        ),
+            unsafe_geometry,
+            create_netns,
+            rv2mbc_sha,
+            allow_unverified_rv2mbc,
+            hijack_probe,
+            freeze_check,
+        } => {
+            netns::set_create_netns(create_netns);
+            freeze::set_check(freeze_check);
+            cmd_boot(
+                kernel,
+                bootstub,
+                initramfs,
+                ramdisk,
+                userland,
+                triggers,
+                instance,
+                dry_run,
+                input,
+                unsafe_geometry,
+                rv2mbc_sha,
+                allow_unverified_rv2mbc,
+                hijack_probe,
+            )
+        }
         Cmd::Console {
             kernel,
             bootstub,
@@ -1288,22 +1523,157 @@ fn main() -> Result<()> {
             stdin,
             tick_batch,
             debug_kbd,
-        } => cmd_console(ConsoleOpts {
-            kernel,
-            bootstub,
-            ramdisk,
-            userland,
-            instance,
-            stdin,
-            tick_batch,
-            debug_kbd,
-        }),
+            unsafe_geometry,
+            create_netns,
+            rv2mbc_sha,
+        } => {
+            netns::set_create_netns(create_netns);
+            cmd_console(ConsoleOpts {
+                kernel,
+                bootstub,
+                ramdisk,
+                userland,
+                instance,
+                stdin,
+                tick_batch,
+                debug_kbd,
+                unsafe_geometry,
+                rv2mbc_sha,
+            })
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod object_surface {
+        include!("../../../ebpf/monad-cpu-ebpf/surface.rs");
+    }
+
+    #[test]
+    fn demo_gate_allows_only_dry_run_or_exactly_1() {
+        assert!(demo_gate(true, None).is_ok());
+        assert!(demo_gate(true, Some("0")).is_ok());
+        assert!(demo_gate(false, Some("1")).is_ok());
+        for v in [None, Some(""), Some("0"), Some("true"), Some("1 ")] {
+            let e = demo_gate(false, v).unwrap_err().to_string();
+            assert!(
+                e.contains("UPC_DEMO_MODE=1 required for a live boot"),
+                "{v:?}: {e}"
+            );
+        }
+    }
+
+    fn xv6_numbers() -> Vec<u32> {
+        XV6_SYSCALLS.iter().map(|d| d.number).collect()
+    }
+
+    /// The facts the shipped ascend object carries (surface.rs + phase12.rs).
+    fn ascend_facts() -> upc_api::ObjectFacts {
+        upc_api::ObjectFacts {
+            surface_id: upc_api::surface_hash::surface_id(object_surface::SURFACE_ASCEND),
+            mmu_geometry: Some(geometry::xv6_slice_geometry(geometry::XV6_SLICE_STRIDE)),
+        }
+    }
+
+    // ── S-ASCEND-2 Step 106: the loader's descriptors pass the gates ──
+
+    #[test]
+    fn xv6_surface_is_the_ascend_object_surface() {
+        let mut declared = xv6_numbers();
+        declared.sort_unstable();
+        assert_eq!(declared, object_surface::SURFACE_ASCEND);
+        assert_eq!(
+            upc_api::check_surface(&XV6_SURFACE, &ascend_facts()),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn xv6_surface_refused_by_the_doom_object() {
+        let doom = upc_api::ObjectFacts {
+            surface_id: upc_api::surface_hash::surface_id(object_surface::SURFACE_DEFAULT),
+            mmu_geometry: ascend_facts().mmu_geometry,
+        };
+        assert!(matches!(
+            upc_api::check_surface(&XV6_SURFACE, &doom),
+            Err(upc_api::ValidationError::SurfaceObjectMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn shipped_xv6_geometry_passes_gate_b() {
+        let mmu = geometry::xv6_mmu_layout(None);
+        assert_eq!(
+            upc_api::check_mmu(
+                upc_api::MemoryModel::PerPidMmu,
+                Some(&mmu),
+                &xv6_map_capacities(),
+                &ascend_facts()
+            ),
+            Ok(())
+        );
+        // pids 1..=5 fit under the 56 MiB ceiling: [16, 56) MiB.
+        let slices = mmu.slices.admitted_slices();
+        assert_eq!(slices.len(), 5);
+        assert_eq!(slices[0], (1, 0x0100_0000, 0x0180_0000));
+        assert_eq!(slices[4], (5, 0x0300_0000, 0x0380_0000));
+    }
+
+    #[test]
+    fn narrow_stride_override_is_refused_with_slice_overlap() {
+        // 0x600000 = gate_nway.c's falsification stride (HIGH_BASE, 6 MiB);
+        // 0x400000 = the value S-ASCEND-2 Step 111 names.
+        for stride in [0x0060_0000u32, 0x0040_0000] {
+            let mmu = geometry::xv6_mmu_layout(Some(stride));
+            let err = upc_api::check_mmu(
+                upc_api::MemoryModel::PerPidMmu,
+                Some(&mmu),
+                &xv6_map_capacities(),
+                &ascend_facts(),
+            )
+            .unwrap_err();
+            assert!(
+                matches!(err, upc_api::ValidationError::SliceOverlap { pid: 1, .. }),
+                "stride 0x{stride:X}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn wide_stride_override_is_refused_as_not_shipped() {
+        let mmu = geometry::xv6_mmu_layout(Some(0x0100_0000));
+        assert!(matches!(
+            upc_api::check_mmu(
+                upc_api::MemoryModel::PerPidMmu,
+                Some(&mmu),
+                &xv6_map_capacities(),
+                &ascend_facts()
+            ),
+            Err(upc_api::ValidationError::SliceGeometryMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn stride_override_needs_the_flag_and_a_number() {
+        assert_eq!(geometry::stride_override(true, None).unwrap(), None);
+        assert_eq!(
+            geometry::stride_override(false, Some("0x400000")).unwrap(),
+            None
+        );
+        assert_eq!(
+            geometry::stride_override(true, Some("0x400000")).unwrap(),
+            Some(0x0040_0000)
+        );
+        assert_eq!(
+            geometry::stride_override(true, Some("6291456")).unwrap(),
+            Some(0x0060_0000)
+        );
+        assert!(geometry::stride_override(true, Some("six MiB")).is_err());
+        assert!(geometry::stride_override(true, Some("0x100000000")).is_err());
+    }
 
     #[test]
     fn alignment_4_bytes_is_one_instruction() {

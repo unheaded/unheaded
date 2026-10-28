@@ -2,6 +2,7 @@
 
 **Status**: ACCEPTED (describes the realized architecture; formalizes the contract going forward)
 **Date**: 2026-07-03
+**Amended**: 2026-10-28, §6 I/O-time gates (S-ASCEND-2 Steps 95-106); §7 image map freeze (Steps 157-168). Status unchanged.
 **Deciders**: Stevie (directive: "UPC runs both [Doom and Linux] as foundation for future
 experimental programmatic expansion; highest priority is maintaining playable Doom and no
 regressions to progress"); Fable 5 session
@@ -92,3 +93,112 @@ gate on a real load of *each* variant, not just `cargo build`.
 | Doom | Playable in-browser (bridge :16666) | DRAW_FRAME/GET_KEY/GET_TICKS/SLEEP | doom-runner, PC=0 |
 | xv6 | Phase 1 complete (sh + 5 cmds + FS) | RV32I ecall (fork/exec/wait/open/read/write/fstat/…) | upc-bootctl, PC=0x4000 |
 | uClinux/Linux | Phase 2, blocked on code-store decision | (will extend the ASCEND surface) | bootstub → S-mode MRET |
+
+## 6. I/O-time gates (S-ASCEND-2, amended 2026-10-28)
+
+`upc_api::validate` checks what the `Workload` descriptor alone can prove. Two checks need the
+eBPF object the loader is about to load. They live in `upc_api::validate_against_object(&Workload,
+&MapCapacities, &ObjectFacts)` (= `check_surface` + `check_mmu`), which `upc_api::load` runs after
+`validate` and before the first map write. Both loaders also run them on the object file before
+they open it (`preflight_object` in `cmd/upc-bootctl/src/main.rs` and `crates/doom-runner/src/main.rs`):
+aya creates every map when it loads an object, so a refusal there leaves no map, program, netns or
+ring behind. `upc-bootctl boot --dry-run` runs the same preflight, which needs no privileges.
+
+### 6.1 What the object declares
+
+`ebpf/monad-cpu-ebpf/src/upc_facts.rs` defines two `#[no_mangle] #[link_section = ".rodata.upc"]
+pub static`s. No BPF code path reads them. The `.text` and `xdp` sections are byte-identical with
+and without them, in both builds; aya turns `.rodata.upc` into one 52-byte read-only array map,
+created and frozen at load like `.rodata.cst*`.
+
+| Symbol | Type | Value |
+|---|---|---|
+| `UPC_SURFACE_ID` | `[u8; 32]` | `surface_id(numbers)` for the active feature set, emitted by `build.rs` |
+| `UPC_MMU_GEOMETRY` | `[u32; 5]` | `[phase12::USER_CHILD_SLICE, phase12::SLICE_STRIDE, USER_VA_CEILING, phase12::RAM_ISOLATION_CEILING, intr::MAX_PROCESSES]` |
+
+`upc_api::ObjectFacts::from_elf` reads both by symbol from `.rodata.upc` (ELF64 LE, every offset
+bounds-checked). An object without `UPC_SURFACE_ID` (built before this amendment) is refused.
+
+### 6.2 Gate A: surface vs loaded object
+
+`surface_id(numbers) = SHA-256("UPC-SURFACE-ID-v1\0" || le32(n) || le32(num_0..num_{n-1}))` over the
+sorted, deduplicated numbers (`crates/upc-api/src/surface_hash.rs`; `build.rs` `include!`s the same
+file, so the encoding cannot diverge). `ebpf/monad-cpu-ebpf/surface.rs` lists the numbers with a
+top-level arm in the `op::SYSCALL` dispatch of `src/main.rs`, per build:
+
+| Build | Numbers |
+|---|---|
+| default (Doom) | 1 DRAW_FRAME, 2 GET_KEY, 3 GET_TICKS, 4 SLEEP, 16 write, 200 READ_BLOCK, 201 WRITE_BLOCK |
+| `ascend-linux` (xv6) | 1 fork, 2 exit, 3 wait, 5 read, 7 exec, 8 fstat, 10 dup, 11 getpid, 13 pause, 15 open, 16 write, 17 mknod, 21 close, 200, 201 |
+
+The declared surface must equal the object's: `surface_id(declared) != UPC_SURFACE_ID` is
+`ValidationError::SurfaceObjectMismatch`, fail-closed. Equality, not subset: the descriptor is the
+documented surface of one build, and a hash can only be compared for equality.
+`cmd/upc-bootctl/tests/parity_surface.rs` parses the dispatch chain and fails when an arm is added or
+removed without `surface.rs`. The INT 0x80 Linux-compatible path (`vector == intr::VECTOR_SYSCALL`,
+default build only) is a second entry vector no shipped guest uses and is not part of either surface.
+
+Corrections made while wiring this:
+
+- §3 says the Doom build carries only DRAW_FRAME/GET_KEY/GET_TICKS/SLEEP. It also carries write
+  (16), READ_BLOCK (200), WRITE_BLOCK (201) on the ecall path, and the INT 0x80 path.
+- doom-runner declared Doom's numbers as 0-3, copied from `demos/doom/doomgeneric_unheaded.c`; the
+  object dispatches 1-4 (`monad_common::mbc_syscalls`). The descriptor now uses the object's
+  numbers. `demos/doom/doomgeneric_unheaded.c` still defines 0-3.
+- upc-bootctl declared all 21 xv6 syscalls; the object has no arm for pipe 4, kill 6, chdir 9,
+  sbrk 12, uptime 14, unlink 18, link 19, mkdir 20 (they fall through to "silently ignore"). The
+  descriptor now lists the 15 the object handles.
+
+### 6.3 Gate B: per-pid slice geometry
+
+A `MemoryModel::PerPidMmu` workload carries `mmu: Some(MmuLayout { slices: SliceGeometry, reserved:
+Vec<MemRegion> })`; a `Flat` one carries `None` (any other pairing is `MmuLayoutMismatch`).
+`SliceGeometry { base, stride, slice_len, ceiling, max_pids }` describes child pids only: pid 0 is
+identity-mapped over the kernel's low memory (ADR-074) and is not a slice. The slices checked are
+the ones fork() can create: pid `p` in `1..max_pids` with `base + (p-1)*stride + stride <= ceiling`
+(the capacity guard in the xv6 `SYS_fork` arm), each mapping `[base + (p-1)*stride, +slice_len)`.
+Checks, in order, on the declared geometry: `slice_len > 0` (`EmptySlice`); `1 <= max_pids <= 256`
+(`MaxPidsOutOfRange`; pids are `u8`); no slice arithmetic overflows `u32` (`SliceOutOfRange`; the core
+computes it wrapping); `stride >= slice_len` (`SliceOverlap` with the next pid); each slice ends
+inside `RAM_MAP` (`SliceOutOfRange`) and overlaps no reserved region (`SliceOverlap`). Then the
+declared geometry must equal `UPC_MMU_GEOMETRY` (`SliceGeometryMismatch`; absent:
+`ObjectGeometryMissing`), so what passed is what the interpreter ships.
+
+The xv6 layout (`cmd/upc-bootctl/src/geometry.rs`, pinned against the sources by
+`tests/parity_slice_constants.rs`):
+
+| Value | Constant | Source |
+|---|---|---|
+| base 0x0100_0000 (16 MiB) | `USER_CHILD_SLICE` | `ebpf/monad-cpu-ebpf/src/phase12.rs` |
+| stride 0x0080_0000 (8 MiB) | `SLICE_STRIDE` | `phase12.rs` |
+| slice_len 0x0080_0000 | `USER_VA_CEILING` (two 4 MiB superpage leaves) | `ebpf/monad-cpu-ebpf/src/main.rs` |
+| ceiling 0x0380_0000 (56 MiB) | `RAM_ISOLATION_CEILING` | `phase12.rs` |
+| max_pids 8 | `mbc_interrupts::MAX_PROCESSES`; `PROC_TABLE` `max_entries(8)` | `monad-common`; `main.rs` |
+| reserved [0, 0x0080_0000) | kernel, pid-0 identity slice, MMIO windows; `-DPHYSTOP=0x00800000UL` | `crates/xv6-mbc/adapters/Makefile.mbc` |
+| reserved [0x0080_0000, +4 MiB) | ramdisk; `mbc_block::RAMDISK_BASE_WORD`, `RAMDISK_SIZE` | `monad-common`; `boot --ramdisk` |
+| reserved [0x00C0_0000, +5 × 0x4_0000) | resident program `.data` staging | `cmd/upc-bootctl/src/geometry.rs` |
+| reserved [0x00F0_0000, +8 × 4 KiB) | per-pid pgds; `MBC_PER_PID_PGD_BASE`, `PER_PID_PGD_BASE` | `adapters/uvm.c`; `phase12.rs` |
+| reserved [0x0380_0000, 0x03F0_0000) | kernel boot stack (initial SP 0x03F0_0000) | `cmd/upc-bootctl/src/runner.rs` |
+
+Admitted slices are pids 1-5 at [16, 56) MiB. The owned kernel (`adapters/*.c`) computes no child
+slice; it only places page directories. Doom passes `mmu: None`.
+
+`upc-bootctl --unsafe-geometry` reads `UPC_SLICE_STRIDE` and declares that stride instead, with a
+warning; without the flag the variable is ignored with a warning. The object's stride is a
+compile-time constant, so a stride below 8 MiB is refused with `SliceOverlap` and any other
+non-shipped value with `SliceGeometryMismatch`: the hook can only make the loader refuse.
+
+## 7. Image map freeze (S-ASCEND-2 Steps 157-168, amended 2026-10-28)
+
+Load order: `.rv2mbc` SHA gate → object preflight (§6) → `validate` + `validate_against_object` →
+`ROM_MAP` / `RV2MBC_MAP` writes → `ImageSink::finalize` (freeze) → XDP attach. `finalize` freezes both
+maps with `bpf(BPF_MAP_FREEZE)` on the fd aya holds (aya 0.13 has no public freeze); afterwards every
+userspace update of either map fails `EPERM`. The program side is unaffected: `monad-cpu-ebpf` only
+reads the two maps. They are declared with flags 0, not `BPF_F_RDONLY_PROG`. `upc_api::load` is
+gates, writes, finalize, for a loader with one image (doom-runner). `upc_api::write_image` is the same
+without the freeze, for a loader that writes several: upc-bootctl writes the kernel (and bootstub) image
+and the kernel `.rv2mbc` directly, init and the resident programs through `write_image`, then calls
+`upc_api::finalize` once in `boot_prepare`, before `netns::prepare` and `attach_xdp`. A failed freeze
+(`LoadError::Finalize`) aborts the boot before attach. `upc-bootctl boot --freeze-check` writes slot 0
+of each map back with its own value after the freeze and fails the boot unless both writes return
+`EPERM`. The Go `pkg/ebpf/mapfreeze.go`, which described this sequence for a Go loader, is deleted.

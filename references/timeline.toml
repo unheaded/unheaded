@@ -1,5 +1,5 @@
 version = "1.0.0"
-last_updated = 2026-10-28T06:09:59.239667151Z
+last_updated = 2026-10-28T08:38:34.53747956Z
 status = "alpha"
 
 [[phases]]
@@ -25,7 +25,7 @@ status = "alpha"
   name = "The Public Release"
   status = "in_progress"
   progress = 70
-  milestones = ["phase-3-item-72c34b5c", "phase-3-item-bdfe9e00", "phase-3-item-4931fcc9", "phase-3-item-d7d4c5c5", "phase-3-item-48939660", "phase-3-item-94825f35", "phase-3-item-1fa528dd", "phase-3-item-cbb64e68", "phase-3-item-43e2e0fb", "phase-3-item-f5b861a3", "phase-3-item-8b3e9c19", "phase-3-item-fb93c3bc", "phase-3-item-8f5b95f8", "phase-3-item-a2bde631", "phase-3-item-d8ab4ecf", "phase-3-item-62948258", "phase-3-item-45075803", "phase-3-item-60a8be8b", "phase-3-item-4d568586", "phase-3-item-314d537a", "phase-3-item-6851c3db", "phase-3-item-4aff52af", "phase-3-item-0bfe874a", "phase-3-item-80bb19aa", "phase-3-item-139a9c74", "phase-3-item-61c57526", "phase-3-item-cc743cb8", "phase-3-item-5f617d86", "phase-3-item-2f9ac41f", "phase-3-item-96b15063", "phase-3-item-2c0c324b", "phase-3-item-ef190fca", "phase-3-item-efac221c", "phase-3-item-5503bd0f", "phase-3-item-4582ccf7", "phase-3-item-45d026e1", "phase-3-item-1dd61426", "phase-3-item-190fbe93", "phase-3-item-8e22cdf9", "phase-3-item-25e38793", "phase-3-item-d965599d", "phase-3-item-19de358f", "phase-3-item-4de9e8e6", "phase-3-item-b1d0e5c6", "phase-3-item-0048a83f", "phase-3-item-33cbc45e", "phase-3-item-779dd30b", "phase-3-item-593d30e6", "phase-3-item-4edd7ab2", "phase-3-item-f9e1a413", "phase-3-item-a97e4757", "phase-3-item-ee7c6e87", "phase-3-item-55b1241c", "phase-3-item-364cbed1", "phase-3-item-be0aff9c", "phase-3-item-fe186009", "phase-3-item-93443574", "phase-3-item-d2e7371a", "phase-3-item-0b1e2e4c", "phase-3-item-b1cec782", "phase-3-item-020526f9", "phase-3-item-ef2bf6a0", "phase-3-item-5d165ac5", "phase-3-item-3c586e23", "phase-3-item-bb2c9dfc", "phase-3-item-db8f98f1"]
+  milestones = ["phase-3-item-72c34b5c", "phase-3-item-bdfe9e00", "phase-3-item-4931fcc9", "phase-3-item-d7d4c5c5", "phase-3-item-48939660", "phase-3-item-94825f35", "phase-3-item-1fa528dd", "phase-3-item-cbb64e68", "phase-3-item-43e2e0fb", "phase-3-item-f5b861a3", "phase-3-item-8b3e9c19", "phase-3-item-fb93c3bc", "phase-3-item-8f5b95f8", "phase-3-item-a2bde631", "phase-3-item-d8ab4ecf", "phase-3-item-62948258", "phase-3-item-45075803", "phase-3-item-60a8be8b", "phase-3-item-4d568586", "phase-3-item-314d537a", "phase-3-item-6851c3db", "phase-3-item-4aff52af", "phase-3-item-0bfe874a", "phase-3-item-80bb19aa", "phase-3-item-139a9c74", "phase-3-item-61c57526", "phase-3-item-cc743cb8", "phase-3-item-5f617d86", "phase-3-item-2f9ac41f", "phase-3-item-96b15063", "phase-3-item-2c0c324b", "phase-3-item-ef190fca", "phase-3-item-efac221c", "phase-3-item-5503bd0f", "phase-3-item-4582ccf7", "phase-3-item-45d026e1", "phase-3-item-1dd61426", "phase-3-item-190fbe93", "phase-3-item-8e22cdf9", "phase-3-item-25e38793", "phase-3-item-d965599d", "phase-3-item-19de358f", "phase-3-item-4de9e8e6", "phase-3-item-b1d0e5c6", "phase-3-item-0048a83f", "phase-3-item-33cbc45e", "phase-3-item-779dd30b", "phase-3-item-593d30e6", "phase-3-item-4edd7ab2", "phase-3-item-f9e1a413", "phase-3-item-a97e4757", "phase-3-item-ee7c6e87", "phase-3-item-55b1241c", "phase-3-item-364cbed1", "phase-3-item-be0aff9c", "phase-3-item-fe186009", "phase-3-item-93443574", "phase-3-item-d2e7371a", "phase-3-item-0b1e2e4c", "phase-3-item-b1cec782", "phase-3-item-022c2187", "phase-3-item-020526f9", "phase-3-item-ef2bf6a0", "phase-3-item-5d165ac5", "phase-3-item-3c586e23", "phase-3-item-bb2c9dfc", "phase-3-item-db8f98f1"]
 
 [[phases]]
   id = "phase-4"
@@ -461,6 +461,13 @@ status = "alpha"
   description = "**S-TRUE-WIRE, Sprint 5 of the NEXT-7 ladder (2026-10-28, `sprint/true-wire`).** Flow-action and Anamnesis event-type wire values follow foundation-06 with legacy decoders per ring source (merge to develop waits on E2); the RFC Editor S5 queue cleared and two -00 drafts added; error-code registry symbols in Go and Rust, Shield counts real codes; Wotan structured errors and SIGHUP topic reload; WAL replication verifies stored signatures and halts on a rejected entry (FND-020 resolved); Sophia deltas ML-DSA-65 signed in observe mode; Shield's GOAWAY and PQC fast-path dead code removed, its HMAC/retry/hop checks still stubs (FND-025, E8: the plan put them where packets have no Monad); packet-marker extracts trace IDs from TCP/IPv4 options; ADR-012's verifier-instruction ratchet built on the kernel's counts; Rust SPDX, bandit gating, a trivy misconfig ratchet. Found on the way: the main CI workflow disabled since February (FND-027), 54 golangci-lint and 18 gosec findings, a dead submodule pointer failing OpenSSF Scorecard, the stress cannon sending invalid Monads. Open: E1-E8."
 
 [[milestones]]
+  id = "phase-3-item-022c2187"
+  name = "S-ASCEND-2, Sprint 6 of the NEXT-7 ladder"
+  status = "completed"
+  progress = 100
+  description = "**S-ASCEND-2, Sprint 6 of the NEXT-7 ladder (2026-10-28, `sprint/ascend-2`).** The UPC scheduler no longer resumes a reaped zombie when nothing is runnable (that was gate_nway's \"isolation failure\" and the \"looped fork\" bug); gate_nway, forkloop and devprobe are harness gates. The loader refuses a wrong-surface object or slice geometry; every `.rv2mbc` is SHA-checked (BootParams v3); ROM_MAP/RV2MBC_MAP are frozen after load; a live boot needs `UPC_DEMO_MODE=1`; bootctl runs inside an isolated `upc0` netns with four capabilities, seccomp and no exec (units not installed, E6); ticks are bound to a per-boot nonce; no shipped HMAC key default. Mímir Phases 9/11/13 and the DISTRIBUTED weights leg pass in a two-netns lab (across hosts waits on E3). Getpid flip stays off (E1: the kernel has no process for BPF-forked children); Stage 2 skeleton written (E2). Not done: LICH-015 full arm, Phase 10, Phase 11, the scorer retrain (no real flow capture)."
+
+[[milestones]]
   id = "phase-3-item-020526f9"
   name = "Resolved since this list was written:* Captain Track call"
   status = "completed"
@@ -538,4 +545,4 @@ status = "alpha"
   description = "Multi-tenant isolation hardening"
 
 [metadata]
-  overall_progress = "85%"
+  overall_progress = "86%"

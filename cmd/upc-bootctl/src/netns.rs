@@ -114,6 +114,254 @@ pub fn teardown_upc0() {
     tracing::info!("upc0 ns + veth pair torn down");
 }
 
+// ── S-ASCEND-2 Items 1-3: the namespace made by scripts/upc-netns.sh ──────
+//
+// `scripts/upc-netns.sh up` (or unheaded-upc-netns.service) creates `upc0`
+// with BOTH veth ends inside it, so nothing the guest emits reaches the root
+// namespace, and installs a forward-drop rule there as defence in depth.
+// bootctl runs inside `upc0` (`ip netns exec upc0 …`, or the unit's
+// NetworkNamespacePath=) and needs no `ip`, no netns creation and no execve:
+// it attaches XDP to `veth-upc0` and sends triggers out of `veth-upc0p` over
+// an AF_PACKET socket (CAP_BPF + CAP_NET_ADMIN + CAP_NET_RAW).
+
+static CREATE_NETNS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// `--create-netns`: the old root-namespace setup (bootctl runs `ip` and
+/// `ip netns exec upc0 python3 doom-tick.py`; needs root). Default off.
+pub fn set_create_netns(on: bool) {
+    CREATE_NETNS.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+fn create_mode() -> bool {
+    CREATE_NETNS.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+// S-ASCEND-2 Phase 6: the per-boot nonce in flow label bits 8-19. The loader
+// binds the instance to it (INSTANCE_OWNER) and every trigger carries it.
+static NONCE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+pub fn set_nonce(nonce: u16) {
+    NONCE.store(nonce as u32 & 0xFFF, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub fn nonce() -> u32 {
+    NONCE.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// The 20-bit flow label for `instance` under `nonce`: nonce in bits 8-19,
+/// instance in bits 0-7 (the eBPF program's `flow_label & 0xFF`).
+pub fn flow_label_for(instance: u8, nonce: u32) -> u32 {
+    ((nonce & 0xFFF) << 8) | instance as u32
+}
+
+/// A fresh 12-bit nonce from getrandom(2). Fails loudly rather than binding
+/// to a predictable value.
+pub fn random_nonce() -> Result<u16> {
+    let mut b = [0u8; 2];
+    // SAFETY: b is a valid 2-byte buffer for the duration of the call.
+    let n = unsafe { libc::getrandom(b.as_mut_ptr() as *mut libc::c_void, b.len(), 0) };
+    if n != 2 {
+        anyhow::bail!(
+            "getrandom for the instance nonce: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(u16::from_le_bytes(b) & 0xFFF)
+}
+
+/// Before XDP attach: create the old setup (`--create-netns`) or verify the
+/// namespace upc-netns.sh made. Returns the XDP attach interface.
+pub fn prepare() -> Result<&'static str> {
+    if create_mode() {
+        setup_upc0()?;
+        Ok(VETH_HOST)
+    } else {
+        ensure_present()
+    }
+}
+
+/// Send `count` triggers for `instance` with this boot's nonce, the way the
+/// current mode needs.
+pub fn trigger(count: u32, instance: u8, verbose: bool) -> Result<()> {
+    trigger_flow(count, flow_label_for(instance, nonce()), verbose)
+}
+
+/// Send `count` triggers with an explicit 20-bit flow label.
+pub fn trigger_flow(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
+    if create_mode() {
+        send_trigger_opts(count, flow_label, verbose)
+    } else {
+        send_trigger_native(count, flow_label, verbose)
+    }
+}
+
+/// After the run: tear down what `--create-netns` made. The shared namespace
+/// belongs to upc-netns.sh and stays.
+pub fn finish() {
+    if create_mode() {
+        teardown_upc0();
+    }
+}
+
+/// The interface index of `name` in the calling process's namespace, or 0.
+fn ifindex(name: &str) -> u32 {
+    let Ok(c) = std::ffi::CString::new(name) else {
+        return 0;
+    };
+    // SAFETY: c is a valid NUL-terminated string for the duration of the call.
+    unsafe { libc::if_nametoindex(c.as_ptr()) }
+}
+
+/// Verify the caller is inside the namespace upc-netns.sh made: both veth
+/// ends must be visible here. Returns the XDP attach interface.
+pub fn ensure_present() -> Result<&'static str> {
+    let host = ifindex(VETH_HOST);
+    let inside = ifindex(VETH_INSIDE);
+    if host == 0 || inside == 0 {
+        anyhow::bail!(
+            "{VETH_HOST}/{VETH_INSIDE} not found in this network namespace: run              `scripts/upc-netns.sh up` and start bootctl inside it              (`ip netns exec {NS_NAME} …` or unheaded-upc-bootctl@.service),              or pass --create-netns for the old root-namespace setup"
+        );
+    }
+    tracing::info!(host, inside, "upc0 namespace present");
+    Ok(VETH_HOST)
+}
+
+/// CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection): the Monad
+/// register checksum, as in scripts/doom-tick.py.
+fn crc16_ccitt_false(data: &[u8]) -> u16 {
+    let mut crc: u16 = 0xFFFF;
+    for &b in data {
+        crc ^= (b as u16) << 8;
+        for _ in 0..8 {
+            crc = if crc & 0x8000 != 0 {
+                (crc << 1) ^ 0x1021
+            } else {
+                crc << 1
+            };
+        }
+    }
+    crc
+}
+
+/// One trigger frame, byte for byte what `scripts/doom-tick.py` builds with
+/// its defaults: Ethernet (dst 02:42:ac:11:00:03, src 02:42:ac:11:00:02) +
+/// IPv6 (flow label, next header HBH, hop limit 255, fd00:3f:75::1 →
+/// fd00:dead::1) + a 28-byte HBH block carrying the 20-byte Monad register
+/// (version 1, services 0xFF, hop 1, trace id, flags CUSTOM, CRC-16).
+fn build_trigger_frame(flow_label: u32, trace_id: u32) -> Vec<u8> {
+    let mut monad = [0u8; 20];
+    monad[0] = 0x01;
+    monad[1] = 0xFF;
+    monad[2] = 0xFF;
+    monad[3] = 1;
+    monad[4..8].copy_from_slice(&trace_id.to_be_bytes());
+    monad[0x0B] = 0x02;
+    let crc = crc16_ccitt_false(&monad[..0x12]);
+    monad[0x12..].copy_from_slice(&crc.to_be_bytes());
+
+    let mut hbh = [0u8; 28];
+    hbh[0] = 59; // next header: no next header
+    hbh[1] = 2;
+    hbh[2] = 0x3E;
+    hbh[3] = 20;
+    hbh[4..24].copy_from_slice(&monad);
+
+    let mut f = Vec::with_capacity(14 + 40 + hbh.len());
+    f.extend_from_slice(&[0x02, 0x42, 0xac, 0x11, 0x00, 0x03]);
+    f.extend_from_slice(&[0x02, 0x42, 0xac, 0x11, 0x00, 0x02]);
+    f.extend_from_slice(&0x86DDu16.to_be_bytes());
+    f.extend_from_slice(&((6u32 << 28) | (flow_label & 0xFFFFF)).to_be_bytes());
+    f.extend_from_slice(&(hbh.len() as u16).to_be_bytes());
+    f.push(0); // next header: hop-by-hop
+    f.push(255);
+    f.extend_from_slice(&[
+        0xfd, 0x00, 0x00, 0x3f, 0x00, 0x75, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    ]);
+    f.extend_from_slice(&[0xfd, 0x00, 0xde, 0xad, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    f.extend_from_slice(&hbh);
+    f
+}
+
+/// Send `count` trigger frames out of `veth-upc0p` from inside `upc0`, over an
+/// AF_PACKET socket (CAP_NET_RAW). They arrive at `veth-upc0` ingress, where
+/// XDP is attached. Trace ids start at a per-run value and increment, as the
+/// script's did.
+pub fn send_trigger_native(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
+    let idx = ifindex(VETH_INSIDE);
+    if idx == 0 {
+        anyhow::bail!("{VETH_INSIDE} not found: is bootctl inside the {NS_NAME} namespace?");
+    }
+    // SAFETY: plain socket(2); the fd is closed below on every path.
+    let fd = unsafe {
+        libc::socket(
+            libc::AF_PACKET,
+            libc::SOCK_RAW,
+            (libc::ETH_P_IPV6 as u16).to_be() as i32,
+        )
+    };
+    if fd < 0 {
+        let e = std::io::Error::last_os_error();
+        anyhow::bail!(
+            "AF_PACKET socket: {e} (needs CAP_NET_RAW: run via unheaded-upc-bootctl@ or sudo)"
+        );
+    }
+    // SAFETY: sockaddr_ll is plain data; zeroed is a valid initial value.
+    let mut sll: libc::sockaddr_ll = unsafe { std::mem::zeroed() };
+    sll.sll_family = libc::AF_PACKET as u16;
+    sll.sll_protocol = (libc::ETH_P_IPV6 as u16).to_be();
+    sll.sll_ifindex = idx as i32;
+    sll.sll_halen = 6;
+    sll.sll_addr[..6].copy_from_slice(&[0x02, 0x42, 0xac, 0x11, 0x00, 0x03]);
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos() ^ (d.as_secs() as u32))
+        .unwrap_or(1)
+        ^ std::process::id();
+    let mut sent = 0u32;
+    let mut err: Option<std::io::Error> = None;
+    let mut stalls = 0u32;
+    let mut i = 0u32;
+    'frame: while i < count {
+        let frame = build_trigger_frame(flow_label, seed.wrapping_add(i).max(1));
+        // SAFETY: frame and sll outlive the call; lengths are their real sizes.
+        let n = unsafe {
+            libc::sendto(
+                fd,
+                frame.as_ptr() as *const libc::c_void,
+                frame.len(),
+                0,
+                &sll as *const libc::sockaddr_ll as *const libc::sockaddr,
+                std::mem::size_of::<libc::sockaddr_ll>() as libc::socklen_t,
+            )
+        };
+        if n < 0 {
+            let e = std::io::Error::last_os_error();
+            // The receiving veth's backlog is full: the XDP side is behind.
+            // Back off and resend this frame; give up after ~2 s without
+            // progress (a stalled consumer, not a slow one).
+            if e.raw_os_error() == Some(libc::ENOBUFS) && stalls < 20_000 {
+                stalls += 1;
+                std::thread::sleep(std::time::Duration::from_micros(100));
+                continue 'frame;
+            }
+            err = Some(e);
+            break;
+        }
+        stalls = 0;
+        sent += 1;
+        i += 1;
+    }
+    // SAFETY: fd is the socket opened above.
+    unsafe { libc::close(fd) };
+    if let Some(e) = err {
+        anyhow::bail!("trigger send failed after {sent} of {count} frames: {e}");
+    }
+    if verbose {
+        eprintln!("trigger: sent {sent} frames on {VETH_INSIDE} (flow label 0x{flow_label:X})");
+    }
+    Ok(())
+}
+
 /// Send `count` Monad-format trigger packets via scripts/doom-tick.py.
 /// This is the canonical UPC tick format: IPv6 + Hop-by-Hop + Monad
 /// register, with flow_label = instance ID. The eBPF program dispatches
@@ -121,17 +369,17 @@ pub fn teardown_upc0() {
 ///
 /// Plain ping6 would have flow_label=0 → no match in CPU_MAP → XDP_DROP.
 pub fn send_trigger(count: u32, instance: u8) -> Result<()> {
-    send_trigger_opts(count, instance, true)
+    send_trigger_opts(count, instance as u32, true)
 }
 
 /// `send_trigger` for the interactive console loop: prints only on failure,
 /// so a batch every second does not flood stderr.
 pub fn send_trigger_quiet(count: u32, instance: u8) -> Result<()> {
-    send_trigger_opts(count, instance, false)
+    send_trigger_opts(count, instance as u32, false)
 }
 
-fn send_trigger_opts(count: u32, instance: u8, verbose: bool) -> Result<()> {
-    let flow_label = format!("0x{:X}", instance);
+fn send_trigger_opts(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
+    let flow_label = format!("0x{:X}", flow_label & 0xFFFFF);
     let count_str = count.to_string();
     // Resolve absolute path so cwd (cargo subdir) doesn't matter.
     let script = std::env::var("UPC_DOOM_TICK").unwrap_or_else(|_| {
@@ -187,4 +435,56 @@ fn send_trigger_opts(count: u32, instance: u8, verbose: bool) -> Result<()> {
         eprintln!("doom-tick.py: {}", last);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hex(b: &[u8]) -> String {
+        b.iter().map(|x| format!("{x:02x}")).collect()
+    }
+
+    /// `scripts/doom-tick.py --dry-run --flow-label 0x6F --trace-id 0x12345678`
+    /// (and 0xDE / 0xFFFFFFFF): the native sender must put the same bytes on
+    /// the wire as the script it replaces.
+    #[test]
+    fn trigger_frame_matches_doom_tick_py() {
+        assert_eq!(
+            hex(&build_trigger_frame(0x6F, 0x1234_5678)),
+            "0242ac1100030242ac11000286dd6000006f001c00fffd00003f007500000000000000000001\
+             fd00dead0000000000000000000000013b023e1401ffff0112345678000000020000000000004a1f00000000"
+        );
+        assert_eq!(
+            hex(&build_trigger_frame(0xDE, 0xFFFF_FFFF)),
+            "0242ac1100030242ac11000286dd600000de001c00fffd00003f007500000000000000000001\
+             fd00dead0000000000000000000000013b023e1401ffff01ffffffff0000000200000000000091fa00000000"
+        );
+    }
+
+    #[test]
+    fn trigger_frame_masks_flow_label_to_20_bits() {
+        let f = build_trigger_frame(0xFFF_FFFFF, 1);
+        assert_eq!(&f[14..18], &[0x60, 0x0F, 0xFF, 0xFF]);
+    }
+
+    #[test]
+    fn flow_label_carries_nonce_and_instance() {
+        assert_eq!(flow_label_for(0x6F, 0xABC), 0xABC6F);
+        assert_eq!(flow_label_for(0xDE, 0x1FFF), 0xFFFDE); // nonce masked to 12 bits
+        assert_eq!(flow_label_for(0x6F, 0) & 0xFF, 0x6F);
+    }
+
+    #[test]
+    fn random_nonce_fits_12_bits() {
+        for _ in 0..64 {
+            assert!(random_nonce().unwrap() <= 0xFFF);
+        }
+    }
+
+    #[test]
+    fn crc16_ccitt_false_check_value() {
+        // The standard check value for CRC-16/CCITT-FALSE over "123456789".
+        assert_eq!(crc16_ccitt_false(b"123456789"), 0x29B1);
+    }
 }

@@ -7,8 +7,10 @@
 //! payoff"). This module names that population once: a loader builds a
 //! [`Workload`] (relocating its CALL immediates / shifting its `.rv2mbc` entries
 //! as it fills the [`GuestImage`]), then calls
-//! `load(&workload, &caps, &mut sink)`. Adding a guest becomes "declare a
-//! `Workload`," not "write a third bespoke map-population loop."
+//! `load(&workload, &caps, &facts, &mut sink)`, where `facts` is what the eBPF
+//! object it is loading into declares about itself ([`ObjectFacts`]). Adding a
+//! guest becomes "declare a `Workload`," not "write a third bespoke
+//! map-population loop."
 //!
 //! ## What load DOES and does NOT touch
 //!
@@ -24,16 +26,30 @@
 //!   PC is *validated* here (it must land inside the loaded ROM) but *set* by the
 //!   loader when it builds that state.
 //! - **The `.rv2mbc` SHA-256 integrity gate** — the [`GuestImage`] only carries
-//!   the expectation ([`expected_rv2mbc_sha256`](GuestImage::expected_rv2mbc_sha256));
-//!   this crate stays zero-dep, so the loader computes and enforces the hash over
-//!   the raw `.rv2mbc` bytes before it builds the descriptor.
+//!   the verified hash ([`expected_rv2mbc_sha256`](GuestImage::expected_rv2mbc_sha256)).
+//!   The gate runs over the raw `.rv2mbc` bytes before relocation, so the loader
+//!   enforces it with [`crate::rv2mbc_sha::read_verified`] before it builds the
+//!   descriptor.
 //!
 //! Keeping the seam at "raw ROM/RV2MBC writes" is what makes the refactor
 //! byte-identical: `load` drives exactly the `set(base + i, value)` sequence each
 //! loader emits today, proven by the characterization tests below.
+//!
+//! ## The freeze (S-ASCEND-2 Steps 157-161, ADR-080 §7)
+//!
+//! After the boot's last `ROM_MAP` / `RV2MBC_MAP` write, and after the gates,
+//! the loader calls [`ImageSink::finalize`] once; the aya sinks freeze both maps
+//! there (`BPF_MAP_FREEZE`), so every later userspace update fails `EPERM`. Then
+//! the loader attaches XDP. [`load`] is the single-image path (gates, writes,
+//! finalize: doom-runner). A loader that writes several images (upc-bootctl:
+//! kernel, init, resident programs) calls [`write_image`] per image and
+//! [`finalize`] once after the last write of the boot.
 
 use crate::image::GuestImage;
-use crate::workload::{validate, MapCapacities, ValidationError, Workload};
+use crate::object::ObjectFacts;
+use crate::workload::{
+    validate, validate_against_object, MapCapacities, ValidationError, Workload,
+};
 
 /// The BPF-map write surface [`load`] drives. Each loader implements it over its
 /// own map handles — `upc-bootctl`'s `BootRunner` (`populate_rom_at` and the
@@ -56,19 +72,29 @@ pub trait ImageSink {
     /// Write `entries` (MBC PCs) into `RV2MBC_MAP` at absolute indices
     /// `base + i`, in order.
     fn write_rv2mbc(&mut self, base: u32, entries: &[u32]) -> Result<(), Self::Error>;
+
+    /// Seal the image: called once, after the boot's last `ROM_MAP` /
+    /// `RV2MBC_MAP` write and before XDP attach. The aya sinks freeze both maps
+    /// (`BPF_MAP_FREEZE`); afterwards a userspace update of either fails
+    /// `EPERM`, while the program keeps reading them. An `Err` must abort the
+    /// boot before attach.
+    fn finalize(&mut self) -> Result<(), Self::Error>;
 }
 
 /// Why [`load`] refused or failed.
 #[derive(Debug, PartialEq, Eq)]
 pub enum LoadError<E> {
-    /// The workload failed its pre-load [`validate`] check. Validation runs
-    /// before the first write, so on this error every map is untouched
-    /// (fail-closed).
+    /// The workload failed its pre-load [`validate`] check or an I/O-time gate
+    /// ([`validate_against_object`]). Both run before the first write, so on
+    /// this error every map is untouched (fail-closed).
     Invalid(ValidationError),
     /// An [`ImageSink`] write failed. Wraps the loader's own error type. `ROM_MAP`
     /// may already have been written when the `RV2MBC_MAP` write fails — the
     /// caller aborts the boot rather than run a partially-loaded image.
     Sink(E),
+    /// [`ImageSink::finalize`] failed: the maps were written but not frozen.
+    /// The caller aborts the boot before attach.
+    Finalize(E),
 }
 
 impl<E: core::fmt::Display> core::fmt::Display for LoadError<E> {
@@ -76,6 +102,7 @@ impl<E: core::fmt::Display> core::fmt::Display for LoadError<E> {
         match self {
             LoadError::Invalid(e) => write!(f, "workload rejected before load: {e}"),
             LoadError::Sink(e) => write!(f, "map write failed during load: {e}"),
+            LoadError::Finalize(e) => write!(f, "ROM_MAP/RV2MBC_MAP freeze failed: {e}"),
         }
     }
 }
@@ -84,17 +111,20 @@ impl<E: std::error::Error + 'static> std::error::Error for LoadError<E> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             LoadError::Invalid(e) => Some(e),
-            LoadError::Sink(e) => Some(e),
+            LoadError::Sink(e) | LoadError::Finalize(e) => Some(e),
         }
     }
 }
 
-/// Validate `workload` against `caps`, then write its image (contract parts 1+2)
-/// through `sink`.
+/// Validate `workload` against `caps` and against the object's `facts`, write
+/// its image (contract parts 1+2) through `sink`, then [`finalize`] (freeze).
+/// For a boot with exactly one image; see [`write_image`] otherwise.
 ///
-/// Validation ([`validate`]) runs first, so a rejected workload leaves every map
-/// untouched (BlackMage: fail-closed before the first write — the descriptor is
-/// the single validation choke point). On success this drives, in order:
+/// Validation ([`validate`], then the I/O-time gates [`validate_against_object`]:
+/// surface vs `UPC_SURFACE_ID`, per-pid slice geometry) runs first, so a
+/// rejected workload leaves every map untouched (BlackMage: fail-closed before
+/// the first write — the descriptor is the single validation choke point). On
+/// success this drives, in order:
 ///
 /// - the ROM region at `ROM_MAP[rom_start_slot ..]`, then
 /// - the branch table at `RV2MBC_MAP[rv2mbc_word_base ..]`,
@@ -104,12 +134,30 @@ impl<E: std::error::Error + 'static> std::error::Error for LoadError<E> {
 /// `text_rv_word_base`). The `base + i` additions cannot overflow `u32`:
 /// `validate` already proved `rom_start_slot + rom.len()` and
 /// `rv2mbc_word_base + rv2mbc.len()` both fit within the (`u32`) map capacities.
+///
+/// A refused workload or a failed write is never frozen; a failed freeze is
+/// [`LoadError::Finalize`].
 pub fn load<S: ImageSink>(
     workload: &Workload,
     caps: &MapCapacities,
+    facts: &ObjectFacts,
+    sink: &mut S,
+) -> Result<(), LoadError<S::Error>> {
+    write_image(workload, caps, facts, sink)?;
+    finalize(sink)
+}
+
+/// [`load`] without the freeze: validate `workload`, then write its ROM region
+/// and branch table. For a loader that writes several images in one boot; it
+/// calls [`finalize`] once after the last write.
+pub fn write_image<S: ImageSink>(
+    workload: &Workload,
+    caps: &MapCapacities,
+    facts: &ObjectFacts,
     sink: &mut S,
 ) -> Result<(), LoadError<S::Error>> {
     validate(workload, caps).map_err(LoadError::Invalid)?;
+    validate_against_object(workload, caps, facts).map_err(LoadError::Invalid)?;
     let image: &GuestImage = &workload.image;
     sink.write_rom(image.rom_start_slot, &image.rom)
         .map_err(LoadError::Sink)?;
@@ -118,14 +166,29 @@ pub fn load<S: ImageSink>(
     Ok(())
 }
 
+/// Freeze the image maps through [`ImageSink::finalize`]. Call once, after the
+/// boot's last `ROM_MAP` / `RV2MBC_MAP` write and before XDP attach.
+pub fn finalize<S: ImageSink>(sink: &mut S) -> Result<(), LoadError<S::Error>> {
+    sink.finalize().map_err(LoadError::Finalize)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::boot::BootProtocol;
     use crate::image::MbcPc;
     use crate::memory::MemoryModel;
+    use crate::surface_hash::surface_id;
     use crate::syscall::{FeatureGate, SyscallDesc, SyscallSurface};
     use core::convert::Infallible;
+
+    /// The facts of an object built for exactly `DOOM_SURFACE` (flat memory).
+    fn facts() -> ObjectFacts {
+        ObjectFacts {
+            surface_id: surface_id(&[0, 1]),
+            mmu_geometry: None,
+        }
+    }
 
     const CAPS: MapCapacities = MapCapacities {
         rom_words: 0x10000,
@@ -141,6 +204,8 @@ mod tests {
     struct RecordingSink {
         rom: Vec<(u32, u32)>,
         rv2mbc: Vec<(u32, u32)>,
+        /// `Freeze` events, with the number of writes seen when each happened.
+        freezes: Vec<usize>,
     }
 
     impl ImageSink for RecordingSink {
@@ -155,6 +220,10 @@ mod tests {
             for (i, &e) in entries.iter().enumerate() {
                 self.rv2mbc.push((base + i as u32, e));
             }
+            Ok(())
+        }
+        fn finalize(&mut self) -> Result<(), Infallible> {
+            self.freezes.push(self.rom.len() + self.rv2mbc.len());
             Ok(())
         }
     }
@@ -197,6 +266,7 @@ mod tests {
                 syscalls: &DOOM_SURFACE,
             },
             boot: BootProtocol::Direct,
+            mmu: None,
         }
     }
 
@@ -205,9 +275,11 @@ mod tests {
         // doom-runner: rom_map.set(i, rom[i]) and rv2mbc_map.set(i, rv2mbc[i]).
         let w = workload(0, 0);
         let mut sink = RecordingSink::default();
-        load(&w, &CAPS, &mut sink).unwrap();
+        load(&w, &CAPS, &facts(), &mut sink).unwrap();
         assert_eq!(sink.rom, oracle(0, &w.image.rom));
         assert_eq!(sink.rv2mbc, oracle(0, &w.image.rv2mbc));
+        // One freeze, after all 4 + 5 writes.
+        assert_eq!(sink.freezes, vec![9]);
     }
 
     #[test]
@@ -216,7 +288,7 @@ mod tests {
         // loads rv2mbc at base 0x8000. Exercise independent, non-zero bases.
         let w = workload(0x4000, 0x8000);
         let mut sink = RecordingSink::default();
-        load(&w, &CAPS, &mut sink).unwrap();
+        load(&w, &CAPS, &facts(), &mut sink).unwrap();
         assert_eq!(sink.rom, oracle(0x4000, &w.image.rom));
         assert_eq!(sink.rv2mbc, oracle(0x8000, &w.image.rv2mbc));
     }
@@ -226,7 +298,7 @@ mod tests {
         // Order matters for a faithful oracle: both loaders write ROM first.
         let w = workload(0, 0);
         let mut sink = RecordingSink::default();
-        load(&w, &CAPS, &mut sink).unwrap();
+        load(&w, &CAPS, &facts(), &mut sink).unwrap();
         assert_eq!(sink.rom.len(), 4);
         assert_eq!(sink.rv2mbc.len(), 5);
     }
@@ -237,10 +309,11 @@ mod tests {
         let mut w = workload(0, 0);
         w.image.rom = vec![]; // -> EmptyRom
         let mut sink = RecordingSink::default();
-        let err = load(&w, &CAPS, &mut sink).unwrap_err();
+        let err = load(&w, &CAPS, &facts(), &mut sink).unwrap_err();
         assert_eq!(err, LoadError::Invalid(ValidationError::EmptyRom));
         assert!(sink.rom.is_empty());
         assert!(sink.rv2mbc.is_empty());
+        assert!(sink.freezes.is_empty());
     }
 
     #[test]
@@ -248,7 +321,7 @@ mod tests {
         let mut w = workload(0, 0);
         w.image.entry = MbcPc(9999); // past rom end -> EntryOutOfRange
         let mut sink = RecordingSink::default();
-        let err = load(&w, &CAPS, &mut sink).unwrap_err();
+        let err = load(&w, &CAPS, &facts(), &mut sink).unwrap_err();
         assert!(matches!(
             err,
             LoadError::Invalid(ValidationError::EntryOutOfRange { .. })
@@ -268,10 +341,13 @@ mod tests {
             fn write_rv2mbc(&mut self, _: u32, _: &[u32]) -> Result<(), &'static str> {
                 Ok(())
             }
+            fn finalize(&mut self) -> Result<(), &'static str> {
+                panic!("a failed write must not be frozen");
+            }
         }
         let w = workload(0, 0);
         let mut sink = FailingSink;
-        let err = load(&w, &CAPS, &mut sink).unwrap_err();
+        let err = load(&w, &CAPS, &facts(), &mut sink).unwrap_err();
         assert_eq!(err, LoadError::Sink("rom write blew up"));
     }
 }

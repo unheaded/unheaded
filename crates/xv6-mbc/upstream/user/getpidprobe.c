@@ -1,6 +1,6 @@
 // getpidprobe.c — EVOLUTION-1 Stage 1 (S1.2) getpid proof-of-life probe.
 //
-// Runs as the userland directly (like gate2.c — it is pid 0/init and exits,
+// Runs as the userland directly (like gate2.c — it is init (pid 1 since S-ASCEND-2 E1; BPF slot 0) and exits,
 // so the kernel restarts it; expect the lines below once per reboot):
 //   upc-bootctl boot ... --userland target/getpidprobe.mbc
 //

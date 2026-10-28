@@ -64,16 +64,24 @@ Scientist).*
       `upc_api::load(&Workload, &MapCapacities, &mut impl ImageSink)`; `load()` runs `validate()`
       fail-closed before touching a map. Byte-identical oracle = `RecordingSink` characterization
       tests; verifier budget unchanged (pure host-side refactor); live Doom 745 frames.
-- [~] **1.2.4** BlackMage's validation hooks — **descriptor-derivable checks DONE** in
-      `upc_api::validate` (image fits ROM_MAP, rv2mbc bounds + every branch target in-ROM, entry PC
-      in-image, surface allowlist non-empty/unambiguous, bootstub⇒ascend). **rv2mbc SHA integrity**
-      wired for the kernel image (loader-side, ADR-075 gate). REMAINS (named-but-deferred, the
-      shared loader's I/O-time gates, `workload.rs` doc): surface-vs-**loaded-object** feature check
-      + per-pid MMU **slice non-overlap** — both need a design pass (how the host learns the object's
-      surface / whether slice geometry is a `Workload` field).
-- [~] **1.2.5 GATE:** substance MET — both loaders construct a `Workload` and call the one validated
-      `load()`; upc-api characterization tests byte-identical; Doom + xv6 green in the regression
-      harness. Formal close waits on the 1.2.4 I/O-time gates. "Add a guest" is declarative today.
+- [x] **1.2.4** BlackMage's validation hooks — descriptor-derivable checks in `upc_api::validate`
+      (image fits ROM_MAP, rv2mbc bounds + every branch target in-ROM, entry PC in-image, surface
+      allowlist non-empty/unambiguous, bootstub⇒ascend); **rv2mbc SHA integrity** for the kernel
+      image (loader-side, ADR-075 gate); the two I/O-time gates in
+      `upc_api::validate_against_object`, run by `load()` and by both loaders on the object file
+      before they open it (S-ASCEND-2 Steps 95-106, ADR-080 §6): **surface vs loaded object**
+      (`UPC_SURFACE_ID` in the object's `.rodata.upc` vs the Workload's declared numbers) and
+      **per-pid slice geometry** (`Workload.mmu`; non-overlap, inside RAM_MAP, clear of reserved
+      regions, equal to the object's `UPC_MMU_GEOMETRY`). Host-side, 2026-10-28.
+- [x] **1.2.5 GATE:** formally closed 2026-10-28, S-ASCEND-2 Steps 95-116. Both loaders construct a
+      `Workload` and call the one validated `load()`; upc-api characterization tests byte-identical;
+      Doom + xv6 green in the regression harness with unchanged budgets; the 1.2.4 I/O-time gates are
+      in both loaders, and live the Doom object under the xv6 kernel is refused with
+      `SurfaceObjectMismatch` and a 6 MiB stride with `SliceOverlap`, nothing attached.
+- Note 2026-10-28: ADR-074 Gate 4 (`gate_nway`, three co-resident children) is green and gated in
+  `scripts/upc-regression.sh`, with the new looped-fork gate (`forkloop`). The old failure was the
+  scheduler resuming a reaped zombie when nothing was runnable (S-ASCEND-2 Phase 3), not a leak.
+      "Add a guest" is declarative today.
 
 ### Epic 1.3 — Extend xv6 OS-primitive coverage (FS stretch + syscalls)
 *Grows the substrate's primitives — every one is reusable by Unheaded Linux. Each is one bounded,
@@ -88,16 +96,31 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
       LESSON: a component *offset* carried in state and added to `base` cost +119K (blew 1M) —
       a second variable offset into RAM_MAP inside the name-compare loop defeats verifier
       state merging; advancing a0 keeps one scalar. mkfs grew one-level `dir/name` support;
-      harness gates `cat sub/NOTE` + `ls sub`. REMAINS: device inodes.
+      harness gates `cat sub/NOTE` + `ls sub`. Device inodes (S-ASCEND-2 Phase 7, 2026-10-28):
+      `open("console")` resolves by name in the BPF open path (the kernel's `sys_open` never
+      runs: open is serviced in BPF) and `devprobe` writes through the returned fd and a dup of
+      it, gated in the harness. No T_DEVICE inode exists in fs.img and mknod is a stub, so
+      on-disk device inodes move to EVOLUTION-1 Stage 2 rung 6 (devsw) with mknod.
 - [ ] **1.3.2** File **writes** (`write` to FD_INODE) + `>` redirection in sh — the first mutating
-      FS path (needs a block-alloc story; scope carefully vs verifier budget).
-- [ ] **1.3.3** Pipes (`|`) + a couple more shell builtins.
+      FS path (needs a block-alloc story; scope carefully vs verifier budget). **Route decided
+      2026-10-28 (decision 48 default, S-ASCEND-2 Step 182): kernel-side**, EVOLUTION-1 Stage 2
+      rung 6 (open/file read-write) and arrival `mkdir/unlink/link` (rung 8); see
+      `EVOLUTION-1-STAGE-2-skeleton.md`. Not in BPF (ascend at 92.4 %, ≥ +40K per feature).
+      Revisit only if E2 answers "(c) minimal" and `>` is wanted before Stage 2.
+- [ ] **1.3.3** Pipes (`|`) + a couple more shell builtins. **Route: kernel-side**, Stage 2
+      arrival `pipe` (rung 8), same decision.
 - [ ] **1.3.4 GATE (per item):** new capability works; regression sweep (1.1.3) green.
 - [~] **1.3.5** EVOLUTION-1 Stage 1 (getpid trap flip). S5 2026-10-23: S1.2 closed (translator
       CSR scratch aliasing fixed; `userret` restores from sscratch); the injected getpid round
       trip works, but the kernel answers pid 1 where BPF answers 0, so `GETPID_INJECT` stays
-      `false`. REMAINS: pid identity / proc[] reconciliation before the flag flips. Detail:
-      `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status.
+      `false`. REMAINS: pid identity / proc[] reconciliation before the flag flips:
+      `S-ASCEND-2-battle-plan.md` Phase 1 (Steps 27-52). Child probe run 2026-10-28: with the
+      flag ON a BPF-forked child's getpid returns -1 (the kernel has no process for it).
+      **E1 answered 2026-10-28: option K, one numbering with init = 1.** BPF now reports
+      pid = slot + 1 from getpid, fork and wait (probe: parent 1, child 2, fork 2, wait 2;
+      a harness gate; goldens unchanged). With the flag ON init agrees in both books, and the
+      child still reads -1: the flag stays OFF until rung 0 (1.6.3) gives the kernel a process
+      per BPF fork. Detail: `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status, §D1 reach re-read.
 
 ### Epic 1.4 — Code-store readiness (only when an image needs it)
 - [x] **1.4.1** Option A `large-image` feature (ROM_MAP 4×, RV2MBC 8×) — DONE + validated
@@ -131,6 +154,21 @@ untouched).
       deferred: needs east as a node, Stevie).
 - [ ] **1.5.7** ADR-108 → Accepted once RFC Editor items 1–3 are answered
       (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`).
+
+### Epic 1.6 — EVOLUTION-1 Stage 2 (skeleton: `EVOLUTION-1-STAGE-2-skeleton.md`; forge when E2 answered)
+The migration ladder: retire BPF syscall handlers into the owned kernel one rung at a time,
+plus the kernel-only arrivals. Reach: **pending E2** (S-ASCEND-2 Step 56; recommendation: push
+toward (a), stop at the first rung with freed insns < 0).
+- [x] **1.6.1** D1 reach re-read against the negative getpid delta (+5,409 July, -15,223
+      October, toolchain-attributed): `EVOLUTION-1-TRAP-FLIP.md` §D1 reach re-read (2026-10-28).
+- [x] **1.6.2** Skeleton: rungs 0-8, one gate per rung, usertests subset plan, no numbered
+      steps: `EVOLUTION-1-STAGE-2-skeleton.md` (2026-10-28).
+- [ ] **1.6.3** Rung 0, a kernel row per BPF fork, needed under either E2 answer (prerequisite
+      of every stateful rung and of the arrivals; also closes 1.3.5).
+- [~] **1.6.4** Forge the Stage 2 battle plan (own Warmonger session, four-lens panel). Draft started
+      2026-10-28: `EVOLUTION-1-STAGE-2-battle-plan.md`, Phases 0-2 (research and ADR-109 design for rung 0). E2
+      answered 2026-10-28: (a), push toward kernel-authoritative syscalls rung by rung with the
+      freed-instructions stop rule; rung 0 first.
 
 ---
 

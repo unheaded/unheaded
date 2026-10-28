@@ -2,6 +2,8 @@
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
+> **Superseded by [ADR-081](../adr/ADR-081-unheaded-linux-from-scratch.md) (2026-07-03):** the project builds its own minimal OS on the xv6 substrate instead of porting Linux, uClinux or FUZIX. Kept as history; current state in `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`.
+
 # MBC Linux Performance Analysis
 
 **Date**: 2026-03-15
