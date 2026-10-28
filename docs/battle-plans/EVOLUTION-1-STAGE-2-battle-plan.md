@@ -105,48 +105,48 @@ unsigned), with the two attribution trailers.
 **Time**: ~40 min
 **Agent**: Coordinator
 
-- [ ] **Step 1** [B] ~1m: Branch and scratch
+- [x] **Step 1** *(Phase 0, 2026-10-28; log §Phase 0)* [B] ~1m: Branch and scratch
   ```bash
   cd "$(git rev-parse --show-toplevel)" && git switch sprint/ascend-2 && git switch -c sprint/evolution1-stage2 && mkdir -p "$HOME/tmp/evolution1-stage2"
   ```
-- [ ] **Step 2** [B] ~1m: Source VARIABLES (above) in this and every new shell; `type ub gf kbuild ubuild sweep | grep -c function` → 5.
-- [ ] **Step 3** [V] ~30s: `5`. Fewer → the S5 helper block moved: `grep -n '^export PROJECT_ROOT' docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md`.
-- [ ] **Step 4** [W] ~3m: `$LOG` with a header, the HEAD and the date.
-- [ ] **Step 5** [B][S] ~3m: upc0 present (the unit owns it on west)
+- [x] **Step 2** [B] ~1m: Source VARIABLES (above) in this and every new shell; `type ub gf kbuild ubuild sweep | grep -c function` → 5.
+- [x] **Step 3** [V] ~30s: `5`. Fewer → the S5 helper block moved: `grep -n '^export PROJECT_ROOT' docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md`.
+- [x] **Step 4** [W] ~3m: `$LOG` with a header, the HEAD and the date.
+- [x] **Step 5** [B][S] ~3m: upc0 present (the unit owns it on west)
   ```bash
   systemctl is-active unheaded-upc-netns.service; sudo /usr/local/libexec/unheaded/upc-netns.sh status | head -4
   ```
-- [ ] **Step 6** [V] ~30s: `active`, both veths up. Not installed → `sudo bash "$PROJECT_ROOT/scripts/upc-netns.sh" up` for this session.
-- [ ] **Step 7** [BUILD][B] ~6m: Build everything the boots use
+- [x] **Step 6** [V] ~30s: `active`, both veths up. Not installed → `sudo bash "$PROJECT_ROOT/scripts/upc-netns.sh" up` for this session.
+- [x] **Step 7** [BUILD][B] ~6m: Build everything the boots use
   ```bash
   (cd crates/monad-mbc && cargo build --release 2>&1 | tail -1); kbuild >/dev/null 2>&1; (cd "$UP" && make -f ../adapters/Makefile.mbc-userland userland gates ramdisk 2>&1 | tail -1); (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1); (cd cmd/upc-bootctl && cargo build --release 2>&1 | tail -1); ls "$K"/*.rv2mbc.sha256 | wc -l
   ```
-- [ ] **Step 8** [V] ~30s: Builds finish; ≥ 12 sidecars.
-- [ ] **Step 9** [TEST][B][S] ~12m: Baselines
+- [x] **Step 8** [V] ~30s: Builds finish; ≥ 12 sidecars.
+- [x] **Step 9** [TEST][B][S] ~12m: Baselines
   ```bash
   bash scripts/upc-regression.sh > "$S7/p0-regression.log" 2>&1; echo rc=$?; grep -aE 'FAIL|verifier' "$S7/p0-regression.log"; sweep > "$S7/p0-sweep.txt" 2>&1; grep -c SAME "$S7/p0-sweep.txt"; go test ./... 2>&1 | grep -E '^(FAIL|--- FAIL)' > "$S7/p0-go-fail.txt"; wc -l < "$S7/p0-go-fail.txt"
   ```
-- [ ] **Step 10** [V] ~1m: rc=0, ascend 924,950 (± toolchain drift; record), Doom 758,199, 8/8 SAME, 0 Go failures. Anything else is the KNOWN FAILURES baseline: record it in `$LOG` and do not "fix" it in this sprint unless a rung needs it.
-- [ ] **Step 11** [TEST][B][S] ~3m: The probe, both flag states (the rung 0 target, measured before any change)
+- [x] **Step 10** [V] ~1m: rc=0, ascend 924,950 (± toolchain drift; record), Doom 758,199, 8/8 SAME, 0 Go failures. Anything else is the KNOWN FAILURES baseline: record it in `$LOG` and do not "fix" it in this sprint unless a rung needs it.
+- [x] **Step 11** [TEST][B][S] ~3m: The probe, both flag states (the rung 0 target, measured before any change)
   ```bash
   ub getpidfork | gf | tee "$S7/p0-gf-off.txt"
   sed -i 's/const GETPID_INJECT: bool = false;/const GETPID_INJECT: bool = true;/' "$EBPF/monad-cpu-ebpf/src/main.rs" && (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1) && ub getpidfork UPC_VERIFIER_STATS=1 | tee "$S7/p0-on-raw.txt" | gf | tee "$S7/p0-gf-on.txt"
   sed -i 's/const GETPID_INJECT: bool = true;/const GETPID_INJECT: bool = false;/' "$EBPF/monad-cpu-ebpf/src/main.rs" && (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1); git status --short ebpf/ | wc -l
   ```
-- [ ] **Step 12** [V] ~1m: OFF: `parent-pid=1 fork-ret=2 child-pid=2 wait-ret=2 parent-after-wait`. ON: the same except `child-pid=other`. `0` modified files under `ebpf/`. Different → the premise moved; record and re-read SITUATION before Phase 1.
+- [x] **Step 12** [V] ~1m: OFF: `parent-pid=1 fork-ret=2 child-pid=2 wait-ret=2 parent-after-wait`. ON: the same except `child-pid=other`. `0` modified files under `ebpf/`. Different → the premise moved; record and re-read SITUATION before Phase 1.
 
 ### Hypotheses (one [PREFLIGHT] per SITUATION row that a rung depends on)
 
-- [ ] **Step 13** [PREFLIGHT][R] ~3m: H1 `usertrapret` writes `sscratch` from `p->trapframe`: `grep -n 'w_sscratch' crates/xv6-mbc/adapters/utrap.c`.
-- [ ] **Step 14** [PREFLIGHT][R] ~3m: H2 `uservec` reads `sscratch` and saves 31 registers there: `sed -n 20,70p crates/xv6-mbc/adapters/trampoline_mbc.S`.
-- [ ] **Step 15** [PREFLIGHT][R] ~3m: H3 BPF never writes the `sscratch` CSR word: `grep -n '0x140' ebpf/monad-cpu-ebpf/src/main.rs` → none.
-- [ ] **Step 16** [PREFLIGHT][R] ~3m: H4 `scheduler_context_switch` saves and restores registers, PC, flags, SP, break, pgd and rv2mbc base, and nothing in the CSR window: `grep -n 'fn scheduler_context_switch' -A90 ebpf/monad-cpu-ebpf/src/main.rs | grep -n 'mem_write_word\|save_state\['`.
-- [ ] **Step 17** [PREFLIGHT][R] ~3m: H5 kernel S-mode is flat: `grep -n 'priv_level != 3' ebpf/monad-cpu-ebpf/src/main.rs`.
-- [ ] **Step 18** [PREFLIGHT][R] ~5m: H6 BPF `wait` and `status`: read the `syscall_nr == 3` arm; record whether `*status` is written (rung 7 needs it).
-- [ ] **Step 19** [PREFLIGHT][R] ~5m: H7 no timer interrupt reaches the ascend kernel: read main.rs ~700-730 and `adapters/utrap.c` `devintr`; record (rung 2 needs it).
-- [ ] **Step 20** [W] ~5m: `$LOG` §"Hypotheses": H1-H7 match / amended, with line numbers.
-- [ ] **Step 21** [C] ~1m: **COMMIT CHECKPOINT** (`docs(upc): [STAGE2 1-21] preflight, baselines, hypotheses`; only `$LOG`).
-- [ ] **Step 22** [V] ~1m: **PHASE 0 EXIT GATE**: Steps 10 and 12 as expected, H1-H7 recorded. Fail → stop and re-plan (the plan assumes them).
+- [x] **Step 13** [PREFLIGHT][R] ~3m: H1 `usertrapret` writes `sscratch` from `p->trapframe`: `grep -n 'w_sscratch' crates/xv6-mbc/adapters/utrap.c`.
+- [x] **Step 14** [PREFLIGHT][R] ~3m: H2 `uservec` reads `sscratch` and saves 31 registers there: `sed -n 20,70p crates/xv6-mbc/adapters/trampoline_mbc.S`.
+- [x] **Step 15** [PREFLIGHT][R] ~3m: H3 BPF never writes the `sscratch` CSR word: `grep -n '0x140' ebpf/monad-cpu-ebpf/src/main.rs` → none.
+- [x] **Step 16** [PREFLIGHT][R] ~3m: H4 `scheduler_context_switch` saves and restores registers, PC, flags, SP, break, pgd and rv2mbc base, and nothing in the CSR window: `grep -n 'fn scheduler_context_switch' -A90 ebpf/monad-cpu-ebpf/src/main.rs | grep -n 'mem_write_word\|save_state\['`.
+- [x] **Step 17** [PREFLIGHT][R] ~3m: H5 kernel S-mode is flat: `grep -n 'priv_level != 3' ebpf/monad-cpu-ebpf/src/main.rs`.
+- [x] **Step 18** [PREFLIGHT][R] ~5m: H6 BPF `wait` and `status`: read the `syscall_nr == 3` arm; record whether `*status` is written (rung 7 needs it).
+- [x] **Step 19** [PREFLIGHT][R] ~5m: H7 no timer interrupt reaches the ascend kernel: read main.rs ~700-730 and `adapters/utrap.c` `devintr`; record (rung 2 needs it).
+- [x] **Step 20** [W] ~5m: `$LOG` §"Hypotheses": H1-H7 match / amended, with line numbers.
+- [x] **Step 21** [C] ~1m: **COMMIT CHECKPOINT** (`docs(upc): [STAGE2 1-21] preflight, baselines, hypotheses`; only `$LOG`).
+- [x] **Step 22** [V] ~1m: **PHASE 0 EXIT GATE**: Steps 10 and 12 as expected, H1-H7 recorded. Fail → stop and re-plan (the plan assumes them).
 
 ---
 
@@ -284,7 +284,7 @@ Phase 1).
   when `UPC_GATE_RUNG0=1` (else `skip "rung 0 gates (UPC_GATE_RUNG0 unset)"`): `getpidfork` with child-pid equal to
   fork-ret; `getpidloop` with the Step 67 lines; `getpidmulti` with the Step 67 lines. The expected lines are absolute
   values, not "same as OFF".
-- [ ] **Step 71** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 61-70] getpidloop, getpidmulti probes; rung 0 gates (off by default)`.
+- [x] **Step 71** *(7fa72b0f)* [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 61-70] getpidloop, getpidmulti probes; rung 0 gates (off by default)`.
 
 ### Kernel changes (ADR-109 D1, D2, D4, D5)
 
@@ -436,7 +436,7 @@ vcount() { ub getpidfork UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' |
   - OFF differs → a const guard is missing; find the unguarded write.
 - [x] **Step 95** [B] ~2m: `bash scripts/check-ebpf-insns.sh 2>&1 | tail -3` with the OFF object.
 - [x] **Step 96** [V] ~30s: the ratchet passes, since the count is unchanged.
-- [ ] **Step 97** [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 85-96] ADR-109 BPF side behind UPC_RUNG0 and UPC_D6_MISS_FAULT (off); asserter`.
+- [x] **Step 97** *(3d8426a2)* [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 85-96] ADR-109 BPF side behind UPC_RUNG0 and UPC_D6_MISS_FAULT (off); asserter`.
 
 ### The gate
 
@@ -667,17 +667,17 @@ green, and the handoff is written.
   - the verified counts table (Phase 0 → Phase 5);
   - open leads: trigger halving, the init pgd, bootstub retirement, forktest's limit of 5.
 - [x] **Step 154** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 147-153] rungs 0-1 closed: ADR-109 Accepted, timeline, OUTSTANDING`.
-- [ ] **Step 155** [B][S] ~1m: Host clean: `sudo bpftool prog show | grep -ciE 'monad|cart|heimdall'`;
+- [x] **Step 155** [B][S] ~1m: Host clean: `sudo bpftool prog show | grep -ciE 'monad|cart|heimdall'`;
   `ip netns list`; `git status --short | wc -l`.
-- [ ] **Step 156** [V] ~30s: 0; `upc0` only; 0.
+- [x] **Step 156** *(0; upc0; 0)* [V] ~30s: 0; `upc0` only; 0.
   - [D] A leftover program → `sudo bash scripts/upc-netns.sh status` and detach through the boot tool's teardown,
     never by hand on `enp*`.
-- [ ] **Step 157** [W] ~10m: `~/tmp/next.md` START HERE: branch and tip; rungs 0-1 done; rung 2 forge is next (the
+- [x] **Step 157** [W] ~10m: `~/tmp/next.md` START HERE: branch and tip; rungs 0-1 done; rung 2 forge is next (the
   skeleton's rung 2 prerequisites); the open decisions for Stevie (bootstub, S-ASCEND-2 E5, D6 if escalated);
   budgets with the shipped flags.
-- [ ] **Step 158** [V] ~30s: `head -40 ~/tmp/next.md` names the tip commit that `git log --oneline -1` prints.
-- [ ] **Step 159** [C] ~1m: **FINAL COMMIT** (only if Step 157 changed tracked files; `next.md` is outside the repo).
-- [ ] **Step 160** [V] ~1m: **STAGE 2 RUNGS 0-1 EXIT GATE**:
+- [x] **Step 158** [V] ~30s: `head -40 ~/tmp/next.md` names the tip commit that `git log --oneline -1` prints.
+- [x] **Step 159** [C] ~1m: **FINAL COMMIT** (only if Step 157 changed tracked files; `next.md` is outside the repo).
+- [x] **Step 160** *(PASS except D6; not pushed)* [V] ~1m: **STAGE 2 RUNGS 0-1 EXIT GATE**:
   - child pid equals `fork()`'s return with the flags on in the tree;
   - the rung 0 asserter and mutation check pass in the harness;
   - getpid ON equals OFF for every probe;

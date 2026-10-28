@@ -155,8 +155,8 @@ step with its command, in two separate appends.
 - [x] **Step 36** [W] ~25m: Append Phase 4 to `$PLAN` (Steps 85-110): emulator tests first (RED), eBPF change, verifier count recorded (bar: ≤ +2,000 over 924,950, else Override from `$PLAN` Step 44), flag ON: `getpidfork`, `getpidloop`, `getpidmulti` all expected lines; `gate2`, `gate_nway`, forkloop, devprobe still green; sweep 8/8 with the flag OFF; `UPC_GATE_RUNG0` gates turned on; exit gate = rung 0 gate from the skeleton.
 - [x] **Step 37** *(48 → 74; gate text as amended)* [V] ~2m: Step count grew by 26; the rung 0 gate text matches the skeleton's (child pid equals `fork()`'s return; ON and OFF print the same lines; no leaked row across forkloop's three iterations).
 - [x] **Step 38** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 plan] Phase 4 forged (rung 0 BPF side and gate)`.
-- [ ] **Step 39** [B] ~1m: `grep -n '^## PHASE' "$PLAN"` lists Phases 0-4.
-- [ ] **Step 40** [V] ~30s: **PHASE 3 EXIT GATE**: Phases 3-4 committed, each with a gate; tree clean.
+- [x] **Step 39** [B] ~1m: `grep -n '^## PHASE' "$PLAN"` lists Phases 0-4.
+- [x] **Step 40** [V] ~30s: **PHASE 3 EXIT GATE**: Phases 3-4 committed, each with a gate; tree clean.
 
 ---
 
@@ -226,13 +226,13 @@ unchanged.
 **Time**: ~25 min
 **Agent**: Coordinator
 
-- [ ] **Step 65** [TEST][B][S] ~12m: Final regression on the final tree: `bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'`; `sweep | grep -c SAME`; `go test ./... 2>&1 | grep -c '^FAIL'`.
-- [ ] **Step 66** [V] ~1m: ALL GREEN, 8/8, 0; ascend ≤ 950,000 recorded in `$LOG` §Close with the flag state.
-- [ ] **Step 67** [B][S] ~1m: Host clean: `sudo bpftool prog show | grep -ciE 'monad|cart|heimdall'` → 0; `ip netns list` → `upc0` only; `git status --short | wc -l` → 0.
-- [ ] **Step 68** [W] ~10m: `~/tmp/next.md` START HERE rewritten: branch and tip, which `$PLAN` phases are executed vs forged vs unforged, STUCK records, the two open decisions for Stevie (bootstub; E5), the trigger-halving lead, budgets.
-- [ ] **Step 69** [W] ~5m: `$LOG` §Close: steps done here, commit count (`git log --oneline sprint/ascend-2..HEAD | wc -l`).
-- [ ] **Step 70** [C] ~1m: **FINAL COMMIT** `docs(upc): [S26] Stage 2 session close; handoff`.
-- [ ] **Step 71** [V] ~1m: **SESSION EXIT GATE**: tree clean, not pushed, `next.md` written, every phase here passed or STUCK-logged.
+- [x] **Step 65** *(plan Phase 7 Step 147)* [TEST][B][S] ~12m: Final regression on the final tree: `bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'`; `sweep | grep -c SAME`; `go test ./... 2>&1 | grep -c '^FAIL'`.
+- [x] **Step 66** *(913,408 with GETPID_INJECT + UPC_RUNG0 on)* [V] ~1m: ALL GREEN, 8/8, 0; ascend ≤ 950,000 recorded in `$LOG` §Close with the flag state.
+- [x] **Step 67** [B][S] ~1m: Host clean: `sudo bpftool prog show | grep -ciE 'monad|cart|heimdall'` → 0; `ip netns list` → `upc0` only; `git status --short | wc -l` → 0.
+- [x] **Step 68** [W] ~10m: `~/tmp/next.md` START HERE rewritten: branch and tip, which `$PLAN` phases are executed vs forged vs unforged, STUCK records, the two open decisions for Stevie (bootstub; E5), the trigger-halving lead, budgets.
+- [x] **Step 69** [W] ~5m: `$LOG` §Close: steps done here, commit count (`git log --oneline sprint/ascend-2..HEAD | wc -l`).
+- [x] **Step 70** [C] ~1m: **FINAL COMMIT** `docs(upc): [S26] Stage 2 session close; handoff`.
+- [x] **Step 71** *(plan Phases 3-7 also executed beyond this session plan's scope)* [V] ~1m: **SESSION EXIT GATE**: tree clean, not pushed, `next.md` written, every phase here passed or STUCK-logged.
 
 ---
 
