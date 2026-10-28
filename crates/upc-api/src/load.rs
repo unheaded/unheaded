@@ -7,8 +7,10 @@
 //! payoff"). This module names that population once: a loader builds a
 //! [`Workload`] (relocating its CALL immediates / shifting its `.rv2mbc` entries
 //! as it fills the [`GuestImage`]), then calls
-//! `load(&workload, &caps, &mut sink)`. Adding a guest becomes "declare a
-//! `Workload`," not "write a third bespoke map-population loop."
+//! `load(&workload, &caps, &facts, &mut sink)`, where `facts` is what the eBPF
+//! object it is loading into declares about itself ([`ObjectFacts`]). Adding a
+//! guest becomes "declare a `Workload`," not "write a third bespoke
+//! map-population loop."
 //!
 //! ## What load DOES and does NOT touch
 //!
@@ -33,7 +35,10 @@
 //! loader emits today, proven by the characterization tests below.
 
 use crate::image::GuestImage;
-use crate::workload::{validate, MapCapacities, ValidationError, Workload};
+use crate::object::ObjectFacts;
+use crate::workload::{
+    validate, validate_against_object, MapCapacities, ValidationError, Workload,
+};
 
 /// The BPF-map write surface [`load`] drives. Each loader implements it over its
 /// own map handles — `upc-bootctl`'s `BootRunner` (`populate_rom_at` and the
@@ -61,9 +66,9 @@ pub trait ImageSink {
 /// Why [`load`] refused or failed.
 #[derive(Debug, PartialEq, Eq)]
 pub enum LoadError<E> {
-    /// The workload failed its pre-load [`validate`] check. Validation runs
-    /// before the first write, so on this error every map is untouched
-    /// (fail-closed).
+    /// The workload failed its pre-load [`validate`] check or an I/O-time gate
+    /// ([`validate_against_object`]). Both run before the first write, so on
+    /// this error every map is untouched (fail-closed).
     Invalid(ValidationError),
     /// An [`ImageSink`] write failed. Wraps the loader's own error type. `ROM_MAP`
     /// may already have been written when the `RV2MBC_MAP` write fails — the
@@ -89,12 +94,14 @@ impl<E: std::error::Error + 'static> std::error::Error for LoadError<E> {
     }
 }
 
-/// Validate `workload` against `caps`, then write its image (contract parts 1+2)
-/// through `sink`.
+/// Validate `workload` against `caps` and against the object's `facts`, then
+/// write its image (contract parts 1+2) through `sink`.
 ///
-/// Validation ([`validate`]) runs first, so a rejected workload leaves every map
-/// untouched (BlackMage: fail-closed before the first write — the descriptor is
-/// the single validation choke point). On success this drives, in order:
+/// Validation ([`validate`], then the I/O-time gates [`validate_against_object`]:
+/// surface vs `UPC_SURFACE_ID`, per-pid slice geometry) runs first, so a
+/// rejected workload leaves every map untouched (BlackMage: fail-closed before
+/// the first write — the descriptor is the single validation choke point). On
+/// success this drives, in order:
 ///
 /// - the ROM region at `ROM_MAP[rom_start_slot ..]`, then
 /// - the branch table at `RV2MBC_MAP[rv2mbc_word_base ..]`,
@@ -107,9 +114,11 @@ impl<E: std::error::Error + 'static> std::error::Error for LoadError<E> {
 pub fn load<S: ImageSink>(
     workload: &Workload,
     caps: &MapCapacities,
+    facts: &ObjectFacts,
     sink: &mut S,
 ) -> Result<(), LoadError<S::Error>> {
     validate(workload, caps).map_err(LoadError::Invalid)?;
+    validate_against_object(workload, caps, facts).map_err(LoadError::Invalid)?;
     let image: &GuestImage = &workload.image;
     sink.write_rom(image.rom_start_slot, &image.rom)
         .map_err(LoadError::Sink)?;
@@ -124,8 +133,17 @@ mod tests {
     use crate::boot::BootProtocol;
     use crate::image::MbcPc;
     use crate::memory::MemoryModel;
+    use crate::surface_hash::surface_id;
     use crate::syscall::{FeatureGate, SyscallDesc, SyscallSurface};
     use core::convert::Infallible;
+
+    /// The facts of an object built for exactly `DOOM_SURFACE` (flat memory).
+    fn facts() -> ObjectFacts {
+        ObjectFacts {
+            surface_id: surface_id(&[0, 1]),
+            mmu_geometry: None,
+        }
+    }
 
     const CAPS: MapCapacities = MapCapacities {
         rom_words: 0x10000,
@@ -197,6 +215,7 @@ mod tests {
                 syscalls: &DOOM_SURFACE,
             },
             boot: BootProtocol::Direct,
+            mmu: None,
         }
     }
 
@@ -205,7 +224,7 @@ mod tests {
         // doom-runner: rom_map.set(i, rom[i]) and rv2mbc_map.set(i, rv2mbc[i]).
         let w = workload(0, 0);
         let mut sink = RecordingSink::default();
-        load(&w, &CAPS, &mut sink).unwrap();
+        load(&w, &CAPS, &facts(), &mut sink).unwrap();
         assert_eq!(sink.rom, oracle(0, &w.image.rom));
         assert_eq!(sink.rv2mbc, oracle(0, &w.image.rv2mbc));
     }
@@ -216,7 +235,7 @@ mod tests {
         // loads rv2mbc at base 0x8000. Exercise independent, non-zero bases.
         let w = workload(0x4000, 0x8000);
         let mut sink = RecordingSink::default();
-        load(&w, &CAPS, &mut sink).unwrap();
+        load(&w, &CAPS, &facts(), &mut sink).unwrap();
         assert_eq!(sink.rom, oracle(0x4000, &w.image.rom));
         assert_eq!(sink.rv2mbc, oracle(0x8000, &w.image.rv2mbc));
     }
@@ -226,7 +245,7 @@ mod tests {
         // Order matters for a faithful oracle: both loaders write ROM first.
         let w = workload(0, 0);
         let mut sink = RecordingSink::default();
-        load(&w, &CAPS, &mut sink).unwrap();
+        load(&w, &CAPS, &facts(), &mut sink).unwrap();
         assert_eq!(sink.rom.len(), 4);
         assert_eq!(sink.rv2mbc.len(), 5);
     }
@@ -237,7 +256,7 @@ mod tests {
         let mut w = workload(0, 0);
         w.image.rom = vec![]; // -> EmptyRom
         let mut sink = RecordingSink::default();
-        let err = load(&w, &CAPS, &mut sink).unwrap_err();
+        let err = load(&w, &CAPS, &facts(), &mut sink).unwrap_err();
         assert_eq!(err, LoadError::Invalid(ValidationError::EmptyRom));
         assert!(sink.rom.is_empty());
         assert!(sink.rv2mbc.is_empty());
@@ -248,7 +267,7 @@ mod tests {
         let mut w = workload(0, 0);
         w.image.entry = MbcPc(9999); // past rom end -> EntryOutOfRange
         let mut sink = RecordingSink::default();
-        let err = load(&w, &CAPS, &mut sink).unwrap_err();
+        let err = load(&w, &CAPS, &facts(), &mut sink).unwrap_err();
         assert!(matches!(
             err,
             LoadError::Invalid(ValidationError::EntryOutOfRange { .. })
@@ -271,7 +290,7 @@ mod tests {
         }
         let w = workload(0, 0);
         let mut sink = FailingSink;
-        let err = load(&w, &CAPS, &mut sink).unwrap_err();
+        let err = load(&w, &CAPS, &facts(), &mut sink).unwrap_err();
         assert_eq!(err, LoadError::Sink("rom write blew up"));
     }
 }

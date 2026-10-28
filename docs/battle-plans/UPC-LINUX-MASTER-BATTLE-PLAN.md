@@ -64,16 +64,20 @@ Scientist).*
       `upc_api::load(&Workload, &MapCapacities, &mut impl ImageSink)`; `load()` runs `validate()`
       fail-closed before touching a map. Byte-identical oracle = `RecordingSink` characterization
       tests; verifier budget unchanged (pure host-side refactor); live Doom 745 frames.
-- [~] **1.2.4** BlackMage's validation hooks — **descriptor-derivable checks DONE** in
-      `upc_api::validate` (image fits ROM_MAP, rv2mbc bounds + every branch target in-ROM, entry PC
-      in-image, surface allowlist non-empty/unambiguous, bootstub⇒ascend). **rv2mbc SHA integrity**
-      wired for the kernel image (loader-side, ADR-075 gate). REMAINS (named-but-deferred, the
-      shared loader's I/O-time gates, `workload.rs` doc): surface-vs-**loaded-object** feature check
-      + per-pid MMU **slice non-overlap** — both need a design pass (how the host learns the object's
-      surface / whether slice geometry is a `Workload` field).
+- [x] **1.2.4** BlackMage's validation hooks — descriptor-derivable checks in `upc_api::validate`
+      (image fits ROM_MAP, rv2mbc bounds + every branch target in-ROM, entry PC in-image, surface
+      allowlist non-empty/unambiguous, bootstub⇒ascend); **rv2mbc SHA integrity** for the kernel
+      image (loader-side, ADR-075 gate); the two I/O-time gates in
+      `upc_api::validate_against_object`, run by `load()` and by both loaders on the object file
+      before they open it (S-ASCEND-2 Steps 95-106, ADR-080 §6): **surface vs loaded object**
+      (`UPC_SURFACE_ID` in the object's `.rodata.upc` vs the Workload's declared numbers) and
+      **per-pid slice geometry** (`Workload.mmu`; non-overlap, inside RAM_MAP, clear of reserved
+      regions, equal to the object's `UPC_MMU_GEOMETRY`). Host-side, 2026-10-28.
 - [~] **1.2.5 GATE:** substance MET — both loaders construct a `Workload` and call the one validated
       `load()`; upc-api characterization tests byte-identical; Doom + xv6 green in the regression
-      harness. Formal close waits on the 1.2.4 I/O-time gates. "Add a guest" is declarative today.
+      harness; the 1.2.4 I/O-time gates are in both loaders. Formal close waits on S-ASCEND-2
+      Steps 107-112 (harness with unchanged budgets, and the two negative live gates refusing).
+      "Add a guest" is declarative today.
 
 ### Epic 1.3 — Extend xv6 OS-primitive coverage (FS stretch + syscalls)
 *Grows the substrate's primitives — every one is reusable by Unheaded Linux. Each is one bounded,
