@@ -832,6 +832,19 @@ provoke_ebpf_insns() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_trivy_misconfig() {
+    # Contract (S-TRUE-WIRE Step 366): no IaC misconfiguration lands
+    # unrecorded. Drop the first baseline row, so a finding the scan still
+    # reports is no longer listed.
+    local f="docs/policy/trivy-misconfig-baseline.tsv"
+    backup "${f}"
+    awk 'BEGIN{done=0} /^#/ || done {print; next} {done=1}' "${REPO_ROOT}/${f}" >"${BACKUP_DIR}/trivy.provoked"
+    cp "${BACKUP_DIR}/trivy.provoked" "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_check_perf_regression() {
     # Contract (S-WELL-SPRING Phase 10, M-089): p99 may grow at most 20 % per
     # scenario. Widen the allowance so the fixture's +50 % run passes.
@@ -956,6 +969,7 @@ well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE 
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
 check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo and west's kernel)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
+check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 
