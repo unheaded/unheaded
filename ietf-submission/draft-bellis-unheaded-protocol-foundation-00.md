@@ -1416,6 +1416,10 @@ Initial entries:
   0x2A (UNHEADED_METRIC_V1, optional, 52 bytes, this document)
 ~~~~
 
+Implementation status (2026-10-27): Ring Path Counter (0x01) is
+registered but not emitted by any implementation; no data-plane
+program parses TLVs beyond the Monad option.
+
 ## PQC Algorithm Registry
 
 ~~~~

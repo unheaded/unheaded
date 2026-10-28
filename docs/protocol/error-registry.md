@@ -268,18 +268,9 @@ Greasing values are reserved for testing and connection probing. Implementations
 
 ### Pattern-Based Greasing
 
-Additional greasing pattern: 0x1F * N + 0x1F (for N = 0, 1, 2, ...)
-
-- 0x1F (1F * 1 + 1F = 1F): Valid greasing code
-- 0x3E (1F * 2 + 1E... wait, pattern is 1F*N + 21): Actually 0x40 (1F * 2 + 1F = 40... let me recalculate)
-
-**Correct pattern:** For spacing greasing codes across 8-bit range:
-- 0x1F: Greasing value #0
-- 0x3E: (0x1F * 2) = reserved for future greasing #1
-- 0x5D: (0x1F * 3) = reserved for future greasing #2
-- 0x7C: (0x1F * 4) = reserved for future greasing #3
-
-(These are calculated as 0x1F, then incrementing by 0x1F: 0x1F, 0x3E, 0x5D, 0x7C)
+Further greasing values, if ever needed, step by 0x1F through the private-use range:
+0x3E, 0x5D, 0x7C (0x1F x 2, 3, 4). They are not allocated today; only 0x1F and 0xFF are
+greasing values.
 
 Usage: When probing for protocol support, test with both standard codes and greasing values. If peer accepts greasing value without error, it implements proper code handling.
 
@@ -304,14 +295,11 @@ Codes in range 0x20-0xFE are reserved for private/experimental use. Implementati
 
 ### Sending Error Codes
 
-1. **Set error_code in Monad header:**
-   ```
-   struct MonadHeader {
-     ...
-     error_code: u8,  ; 0x00 for success, other values for errors
-     ...
-   }
-   ```
+1. **Where the code travels:** the 20-octet Monad has no error-code field (wire format
+   v0x01 is frozen). Codes are carried in control messages and logs, and counted per code
+   by the data plane (Shield's `ERROR_COUNTERS` map, keyed by the code; S-TRUE-WIRE
+   Step 136). Reference symbols: Go `pkg/protocol/errors`, Rust
+   `monad_common::ErrorCode`; both are tested against the table in Section 1.
 
 2. **Choose appropriate code:**
    - Use most specific code (e.g., 0x05 for Wotan bounds check, not generic 0x0A)
@@ -332,10 +320,10 @@ Codes in range 0x20-0xFE are reserved for private/experimental use. Implementati
      return
    ```
 
-2. **Handle by level:**
-   - Flow level (0x01-0x05, 0x09): close flow, continue other flows
-   - Domain level (0x02, 0x03, 0x06, 0x07, 0x08, 0x0B, 0x0C): close connection
-   - System level (0x0A): restart may be needed
+2. **Handle by level** (the Level column of Section 1 is authoritative):
+   - Flow level (0x01, 0x03, 0x04, 0x05, 0x0A): close flow, continue other flows
+   - Domain level (0x02, 0x06, 0x07, 0x08, 0x0B, 0x0C): close connection
+   - System level (0x09): restart or resource reclamation may be needed
 
 3. **Metrics and monitoring:**
    - Track error code distribution: `errors_by_code[code]++`

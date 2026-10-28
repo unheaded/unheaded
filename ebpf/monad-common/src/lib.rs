@@ -245,6 +245,154 @@ impl EventType {
     }
 }
 
+// ── Protocol error codes ──────────────────────────────────────────────────────
+
+/// Unheaded Protocol Error Codes (foundation-06 §Error Code Registry,
+/// `docs/protocol/error-registry.md`). The 13 normative codes; 0x0D is
+/// reserved, 0x0E-0x1E unallocated, 0x1F/0xFF greasing, 0x20-0xFE private use,
+/// and none of those parse. The Go twin is `pkg/protocol/errors`; both are
+/// tested against the registry text.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ErrorCode {
+    /// NO_ERROR: no error.
+    NoError = 0x00,
+    /// CRC_VALIDATION_FAILED: Monad CRC-16/CCITT mismatch (Flow).
+    CrcValidationFailed = 0x01,
+    /// VERSION_NOT_SUPPORTED: Monad version is not 0x01 (Domain).
+    VersionNotSupported = 0x02,
+    /// FLOW_LABEL_INVALID: flow label out of range or unallocated (Flow).
+    FlowLabelInvalid = 0x03,
+    /// ARITHMETIC_OVERFLOW: exponent decoding or bytecode arithmetic overflow (Flow).
+    ArithmeticOverflow = 0x04,
+    /// WOTAN_BOUNDS_CHECK_FAILED: Wotan helper offset out of bounds (Flow).
+    WotanBoundsCheckFailed = 0x05,
+    /// MULTIPLE_HBH_HEADERS: more than one HbH header (Domain).
+    MultipleHbhHeaders = 0x06,
+    /// UNKNOWN_CRITICAL_TLV: unknown TLV with the critical bit set (Domain).
+    UnknownCriticalTlv = 0x07,
+    /// WAL_SEQNO_DISCONTINUITY: WAL sequence gap (Domain).
+    WalSeqnoDiscontinuity = 0x08,
+    /// INSUFFICIENT_BUFFER_SPACE: no room for the Monad or a table entry (System).
+    InsufficientBufferSpace = 0x09,
+    /// FLOW_STATE_CORRUPTION: Wotan flow state invalid (Flow).
+    FlowStateCorruption = 0x0A,
+    /// TLS_HANDSHAKE_FAILURE: TLS/QUIC handshake error (Domain).
+    TlsHandshakeFailure = 0x0B,
+    /// QUIC_VERSION_MISMATCH: QUIC version negotiation failed (Domain).
+    QuicVersionMismatch = 0x0C,
+}
+
+impl ErrorCode {
+    /// Parse from raw u8. `None` for reserved, unallocated, greasing and
+    /// private-use values.
+    #[inline]
+    pub const fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0x00 => Some(Self::NoError),
+            0x01 => Some(Self::CrcValidationFailed),
+            0x02 => Some(Self::VersionNotSupported),
+            0x03 => Some(Self::FlowLabelInvalid),
+            0x04 => Some(Self::ArithmeticOverflow),
+            0x05 => Some(Self::WotanBoundsCheckFailed),
+            0x06 => Some(Self::MultipleHbhHeaders),
+            0x07 => Some(Self::UnknownCriticalTlv),
+            0x08 => Some(Self::WalSeqnoDiscontinuity),
+            0x09 => Some(Self::InsufficientBufferSpace),
+            0x0A => Some(Self::FlowStateCorruption),
+            0x0B => Some(Self::TlsHandshakeFailure),
+            0x0C => Some(Self::QuicVersionMismatch),
+            _ => None,
+        }
+    }
+
+    /// The registry name (`CRC_VALIDATION_FAILED`, ...).
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::NoError => "NO_ERROR",
+            Self::CrcValidationFailed => "CRC_VALIDATION_FAILED",
+            Self::VersionNotSupported => "VERSION_NOT_SUPPORTED",
+            Self::FlowLabelInvalid => "FLOW_LABEL_INVALID",
+            Self::ArithmeticOverflow => "ARITHMETIC_OVERFLOW",
+            Self::WotanBoundsCheckFailed => "WOTAN_BOUNDS_CHECK_FAILED",
+            Self::MultipleHbhHeaders => "MULTIPLE_HBH_HEADERS",
+            Self::UnknownCriticalTlv => "UNKNOWN_CRITICAL_TLV",
+            Self::WalSeqnoDiscontinuity => "WAL_SEQNO_DISCONTINUITY",
+            Self::InsufficientBufferSpace => "INSUFFICIENT_BUFFER_SPACE",
+            Self::FlowStateCorruption => "FLOW_STATE_CORRUPTION",
+            Self::TlsHandshakeFailure => "TLS_HANDSHAKE_FAILURE",
+            Self::QuicVersionMismatch => "QUIC_VERSION_MISMATCH",
+        }
+    }
+}
+
+#[cfg(test)]
+mod error_code_registry_tests {
+    use super::ErrorCode;
+
+    /// docs/protocol/error-registry.md, read at compile time of the host test
+    /// only (the BPF build never sees it).
+    const REGISTRY_MD: &str = include_str!("../../../docs/protocol/error-registry.md");
+
+    /// Parse the single-code rows `| 0xNN | Level | NAME | ...` of Section 1.
+    fn registry_rows() -> std::vec::Vec<(u8, std::string::String)> {
+        let mut rows = std::vec::Vec::new();
+        let mut in_table = false;
+        for line in REGISTRY_MD.lines() {
+            if line.starts_with("### Error Code Table") {
+                in_table = true;
+                continue;
+            }
+            if in_table && line.starts_with("### ") {
+                break;
+            }
+            if !in_table {
+                continue;
+            }
+            let cols: std::vec::Vec<&str> = line.split('|').map(|c| c.trim()).collect();
+            if cols.len() < 5 {
+                continue;
+            }
+            let code = cols[1];
+            if code.len() != 4 || !code.starts_with("0x") {
+                continue; // header, separator or a range row
+            }
+            if let Ok(v) = u8::from_str_radix(&code[2..], 16) {
+                rows.push((v, cols[3].into()));
+            }
+        }
+        rows
+    }
+
+    #[test]
+    fn error_codes_match_registry() {
+        let rows = registry_rows();
+        assert_eq!(rows.len(), 16, "0x00-0x0D plus two greasing rows");
+        let mut standard = 0;
+        for (code, name) in &rows {
+            match ErrorCode::from_u8(*code) {
+                Some(ec) => {
+                    assert_eq!(ec as u8, *code);
+                    assert_eq!(ec.name(), name.as_str(), "code 0x{code:02x}");
+                    standard += 1;
+                }
+                None => assert!(
+                    *code > 0x0C,
+                    "registry code 0x{code:02x} ({name}) has no ErrorCode variant"
+                ),
+            }
+        }
+        assert_eq!(standard, 13, "the 13 normative codes 0x00-0x0C");
+    }
+
+    #[test]
+    fn non_standard_codes_do_not_parse() {
+        for v in 0x0Du8..=0xFF {
+            assert!(ErrorCode::from_u8(v).is_none(), "0x{v:02x}");
+        }
+    }
+}
+
 // ── Yaldabaoth chaos modes ────────────────────────────────────────────────────
 
 /// Chaos injection modes for the Yaldabaoth subsystem (TC egress hook).

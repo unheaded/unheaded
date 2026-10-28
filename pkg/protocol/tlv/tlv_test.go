@@ -5,54 +5,115 @@ package tlv
 
 import (
 	"bytes"
+	stderrors "errors"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"testing"
+
+	perrors "unheaded/pkg/protocol/errors"
 )
 
-func TestTLVTypeBoundaries(t *testing.T) {
-	testCases := []struct {
-		tlvType TLVType
-		isCore  bool
-		isNeg   bool
-		isPad   bool
-	}{
-		{0x00, true, false, false},
-		{0x01, true, false, false},
-		{0x0f, true, false, false},
-		{0x10, false, true, false},
-		{0x7f, false, true, false},
-		{0x80, false, false, true},
-		{0xff, false, false, true},
-	}
+var draftTLVEntry = regexp.MustCompile(`^\s+0x([0-9A-Fa-f]{2}) \(([^,]+), (optional|required), (\d+) bytes`)
+var draftTLVRange = regexp.MustCompile(`^Reserved Range: 0x([0-9A-Fa-f]{2})-0x([0-9A-Fa-f]{2}) \(([^)]+)\)`)
 
-	for _, tc := range testCases {
-		t.Run("Type_"+string(rune(tc.tlvType)), func(t *testing.T) {
-			if tc.tlvType.IsCore() != tc.isCore {
-				t.Errorf("IsCore() expected %v, got %v", tc.isCore, tc.tlvType.IsCore())
+// TestRegistryParity parses foundation-06 §"TLV Type Registry (Extended)" and
+// checks the initial entries and the reserved ranges against the constants.
+func TestRegistryParity(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "protocol",
+		"draft-bellis-unheaded-protocol-foundation-06.md"))
+	if err != nil {
+		t.Fatalf("read draft: %v", err)
+	}
+	in := false
+	entries, ranges := 0, 0
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, "## TLV Type Registry") {
+			in = true
+			continue
+		}
+		if in && strings.HasPrefix(line, "## ") {
+			break
+		}
+		if !in {
+			continue
+		}
+		if m := draftTLVEntry.FindStringSubmatch(line); m != nil {
+			v, _ := strconv.ParseUint(m[1], 16, 8)
+			size, _ := strconv.Atoi(m[4])
+			e, ok := Lookup(TLVType(v))
+			if !ok {
+				t.Errorf("registry entry 0x%02x (%s) has no constant", v, m[2])
+				continue
 			}
-			if tc.tlvType.IsNegotiated() != tc.isNeg {
-				t.Errorf("IsNegotiated() expected %v, got %v", tc.isNeg, tc.tlvType.IsNegotiated())
+			if e.Name != m[2] || e.Length != size || e.Required != (m[3] == "required") {
+				t.Errorf("0x%02x: Lookup = %+v, registry %s/%s/%d", v, e, m[2], m[3], size)
 			}
-			if tc.tlvType.IsPadding() != tc.isPad {
-				t.Errorf("IsPadding() expected %v, got %v", tc.isPad, tc.tlvType.IsPadding())
+			entries++
+		}
+		if m := draftTLVRange.FindStringSubmatch(line); m != nil {
+			lo, _ := strconv.ParseUint(m[1], 16, 8)
+			hi, _ := strconv.ParseUint(m[2], 16, 8)
+			for v := lo; v <= hi; v++ {
+				typ := TLVType(v)
+				if got := typ.Range().String(); got != m[3] {
+					t.Errorf("0x%02x Range() = %q, registry %q", v, got, m[3])
+				}
+				if typ.IsCritical() {
+					t.Errorf("0x%02x reported critical", v)
+				}
+				if crit := typ | CriticalBit; !crit.IsCritical() || crit.Range() != typ.Range() {
+					t.Errorf("0x%02x critical twin misclassified", uint8(crit))
+				}
 			}
-		})
+			ranges++
+		}
+	}
+	if entries != len(registered) {
+		t.Errorf("parsed %d registry entries, package registers %d", entries, len(registered))
+	}
+	if ranges != 4 {
+		t.Errorf("parsed %d reserved ranges, want 4", ranges)
 	}
 }
 
-func TestCoreTLVTypesExist(t *testing.T) {
-	coreTypes := []TLVType{
-		PRIORITY_HINT,
-		TRACE_SPAN_ID,
-		ERROR_CODE,
-		FLOW_SEQUENCE,
-		RING_PATH_COUNT,
-		HMAC_TAG,
+func TestRegisteredConstants(t *testing.T) {
+	if RingPathCounter != 0x01 || UnheadedMetricV1 != 0x2A || CriticalBit != 0x80 {
+		t.Fatalf("constants drifted: RPC=0x%02x METRIC=0x%02x C=0x%02x",
+			uint8(RingPathCounter), uint8(UnheadedMetricV1), uint8(CriticalBit))
 	}
+}
 
-	for _, tlvType := range coreTypes {
-		t.Run("CoreType_"+string(rune(tlvType)), func(t *testing.T) {
-			if !tlvType.IsCore() {
-				t.Errorf("expected core type, got non-core")
+func TestValidateRegistered(t *testing.T) {
+	cases := []struct {
+		name    string
+		tlv     TLV
+		wantErr bool
+		code    perrors.Code
+	}{
+		{"ring path counter ok", TLV{RingPathCounter, 4, make([]byte, 4)}, false, 0},
+		{"ring path counter short", TLV{RingPathCounter, 2, make([]byte, 2)}, true, perrors.UnknownCriticalTLV},
+		{"metric ok", TLV{UnheadedMetricV1, 52, make([]byte, 52)}, false, 0},
+		{"unknown non-critical skipped", TLV{0x33, 1, []byte{1}}, false, 0},
+		{"unknown critical refused", TLV{0x85, 1, []byte{1}}, true, perrors.UnknownCriticalTLV},
+		{"length mismatch", TLV{RingPathCounter, 4, make([]byte, 3)}, true, perrors.UnknownCriticalTLV},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateRegistered(tc.tlv)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if err == nil {
+				return
+			}
+			var pe *perrors.ProtocolError
+			if tc.tlv.Type.IsUnknownCritical() {
+				if !stderrors.As(err, &pe) || pe.Code() != tc.code {
+					t.Errorf("err = %v, want code %s", err, tc.code)
+				}
 			}
 		})
 	}
@@ -257,9 +318,9 @@ func TestSerializeInvalid(t *testing.T) {
 
 func TestRoundTrip(t *testing.T) {
 	originalBlock := TLVBlock{
-		{Type: PRIORITY_HINT, Length: 1, Value: []byte{0x05}},
-		{Type: TRACE_SPAN_ID, Length: 8, Value: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}},
-		{Type: ERROR_CODE, Length: 2, Value: []byte{0x00, 0x01}},
+		{Type: RingPathCounter, Length: 4, Value: []byte{0x00, 0x00, 0x00, 0x05}},
+		{Type: 0x02, Length: 8, Value: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}},
+		{Type: 0x03, Length: 2, Value: []byte{0x00, 0x01}},
 	}
 
 	// Serialize
@@ -293,33 +354,6 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-func TestGreasing(t *testing.T) {
-	// Greasing types should follow pattern 0x1F*N+0x21
-	greasingTypes := []TLVType{
-		0x21, // 0x1F*0 + 0x21
-		0x40, // 0x1F*1 + 0x21
-		0x5f, // 0x1F*2 + 0x21
-		0x7e, // 0x1F*3 + 0x21
-	}
-
-	for _, greasingType := range greasingTypes {
-		if greasingType.IsGreasing() {
-			t.Logf("Type 0x%02x correctly identified as greasing", greasingType)
-		} else {
-			// Note: IsGreasing() implementation may vary, this tests the concept
-			t.Logf("Type 0x%02x: greasing check result", greasingType)
-		}
-	}
-
-	// Non-greasing negotiated types
-	nonGreasing := []TLVType{0x10, 0x11, 0x12, 0x7f}
-	for _, tlvType := range nonGreasing {
-		if !tlvType.IsNegotiated() {
-			t.Errorf("expected negotiated type 0x%02x", tlvType)
-		}
-	}
-}
-
 func TestNewTLV(t *testing.T) {
 	t.Run("ValidTLV", func(t *testing.T) {
 		tlv, err := NewTLV(0x01, []byte("hello"))
@@ -349,38 +383,31 @@ func TestNewTLV(t *testing.T) {
 	})
 }
 
-func TestNewCoreTLV(t *testing.T) {
-	t.Run("ValidCoreTLV", func(t *testing.T) {
-		tlv, err := NewCoreTLV(PRIORITY_HINT, []byte{0x05})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if tlv == nil {
-			t.Fatal("got nil TLV")
-		}
-	})
-
-	t.Run("NonCoreTLV", func(t *testing.T) {
-		_, err := NewCoreTLV(0x20, []byte{0x05})
-		if err == nil {
-			t.Fatal("expected error for non-core type")
-		}
-	})
+func TestNewFoundationTLV(t *testing.T) {
+	if _, err := NewFoundationTLV(RingPathCounter, []byte{0, 0, 0, 5}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := NewFoundationTLV(RingPathCounter|CriticalBit, []byte{0, 0, 0, 5}); err != nil {
+		t.Fatalf("critical foundation type refused: %v", err)
+	}
+	if _, err := NewFoundationTLV(0x20, []byte{0x05}); err == nil {
+		t.Fatal("expected error for a Sophia-range type")
+	}
 }
 
 func TestFindTLV(t *testing.T) {
 	block := TLVBlock{
-		{Type: PRIORITY_HINT, Length: 1, Value: []byte{0x05}},
-		{Type: TRACE_SPAN_ID, Length: 8, Value: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}},
-		{Type: ERROR_CODE, Length: 2, Value: []byte{0x00, 0x01}},
+		{Type: RingPathCounter, Length: 4, Value: []byte{0x00, 0x00, 0x00, 0x05}},
+		{Type: 0x02, Length: 8, Value: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}},
+		{Type: 0x03, Length: 2, Value: []byte{0x00, 0x01}},
 	}
 
 	t.Run("FindExisting", func(t *testing.T) {
-		tlv := block.Find(TRACE_SPAN_ID)
+		tlv := block.Find(0x02)
 		if tlv == nil {
 			t.Fatal("failed to find existing TLV")
 		}
-		if tlv.Type != TRACE_SPAN_ID {
+		if tlv.Type != 0x02 {
 			t.Errorf("wrong TLV returned")
 		}
 	})

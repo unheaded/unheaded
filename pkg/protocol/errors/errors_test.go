@@ -4,362 +4,212 @@
 package errors
 
 import (
-	"errors"
+	"bufio"
+	stderrors "errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 )
 
-func TestAllCoreErrorCodesExist(t *testing.T) {
-	testCases := []ErrorCode{
-		UNHD_NO_ERROR,
-		UNHD_PROTOCOL_ERROR,
-		UNHD_INVALID_FRAME,
-		UNHD_FLOW_CONTROL_ERROR,
-		UNHD_SETTINGS_TIMEOUT,
-		UNHD_STREAM_CLOSED,
-		UNHD_FRAME_SIZE_ERROR,
-		UNHD_REFUSED_STREAM,
-		UNHD_CANCEL,
-		UNHD_COMPRESSION_ERROR,
-		UNHD_CONNECT_ERROR,
-		UNHD_ENHANCE_YOUR_CALM,
-		UNHD_INTERNAL_ERROR,
-	}
+// registryRow is one single-code row of the registry table.
+type registryRow struct {
+	code   uint8
+	level  string
+	name   string
+	action string
+}
 
-	for _, code := range testCases {
-		t.Run("Lookup_"+string(rune(code)), func(t *testing.T) {
-			info, err := Lookup(code)
-			if err != nil {
-				t.Fatalf("failed to lookup code 0x%04x: %v", code, err)
-			}
-			if info == nil {
-				t.Fatalf("got nil ErrorInfo for code 0x%04x", code)
-			}
-			if info.Code != code {
-				t.Errorf("expected code 0x%04x, got 0x%04x", code, info.Code)
-			}
-			if info.Description == "" {
-				t.Errorf("description is empty for code 0x%04x", code)
-			}
-		})
+var mdRow = regexp.MustCompile(`^\|\s*0x([0-9A-Fa-f]{2})\s*\|\s*([^|]+?)\s*\|\s*([A-Z0-9_]+)\s*\|\s*[^|]*\|\s*([^|]+?)\s*\|\s*$`)
+
+// readRegistryMD parses the single-code rows of Section 1's table in
+// docs/protocol/error-registry.md. Range rows (0x0E-0x1E) do not match.
+func readRegistryMD(t *testing.T) []registryRow {
+	t.Helper()
+	f, err := os.Open(filepath.Join("..", "..", "..", "docs", "protocol", "error-registry.md"))
+	if err != nil {
+		t.Fatalf("open registry: %v", err)
+	}
+	defer f.Close()
+	var rows []registryRow
+	inTable := false
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := sc.Text()
+		if strings.HasPrefix(line, "### Error Code Table") {
+			inTable = true
+			continue
+		}
+		if inTable && strings.HasPrefix(line, "### ") {
+			break
+		}
+		if !inTable {
+			continue
+		}
+		m := mdRow.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		v, err := strconv.ParseUint(m[1], 16, 8)
+		if err != nil {
+			t.Fatalf("bad code %q: %v", m[1], err)
+		}
+		rows = append(rows, registryRow{code: uint8(v), level: m[2], name: m[3], action: m[4]})
+	}
+	if err := sc.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return rows
+}
+
+var draftRow = regexp.MustCompile(`^\s+([A-Z0-9_]+) \(0x([0-9A-Fa-f]{2})\)`)
+
+// readDraftRegistry parses foundation-06 §Error Code Registry initial entries.
+func readDraftRegistry(t *testing.T) map[uint8]string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "protocol",
+		"draft-bellis-unheaded-protocol-foundation-06.md"))
+	if err != nil {
+		t.Fatalf("read draft: %v", err)
+	}
+	out := map[uint8]string{}
+	in := false
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, "## Error Code Registry") {
+			in = true
+			continue
+		}
+		if in && strings.HasPrefix(line, "## ") {
+			break
+		}
+		if !in {
+			continue
+		}
+		if m := draftRow.FindStringSubmatch(line); m != nil {
+			v, _ := strconv.ParseUint(m[2], 16, 8)
+			out[uint8(v)] = m[1]
+		}
+	}
+	return out
+}
+
+// TestRegistryParity: every single-code row of error-registry.md has a Go
+// constant with the same number, name and level, and the md agrees with
+// foundation-06 (which wins on conflict).
+func TestRegistryParity(t *testing.T) {
+	rows := readRegistryMD(t)
+	// 0x00-0x0D plus the two greasing values.
+	if len(rows) != 16 {
+		t.Fatalf("parsed %d single-code rows from error-registry.md, want 16", len(rows))
+	}
+	draft := readDraftRegistry(t)
+	if len(draft) != 14 {
+		t.Fatalf("parsed %d entries from foundation-06, want 14 (0x00-0x0D)", len(draft))
+	}
+	for _, r := range rows {
+		c := Code(r.code)
+		if want, ok := draft[r.code]; ok && want != r.name {
+			t.Errorf("0x%02x: error-registry.md says %s, foundation-06 says %s", r.code, r.name, want)
+		}
+		if got := c.String(); got != r.name {
+			t.Errorf("Code(0x%02x).String() = %q, registry %q", r.code, got, r.name)
+		}
+		if got := c.Level().String(); got != r.level {
+			t.Errorf("Code(0x%02x).Level() = %q, registry %q", r.code, got, r.level)
+		}
+		if info, ok := Lookup(c); r.code <= 0x0D && (!ok || info.RecommendedAction != r.action) {
+			t.Errorf("Lookup(0x%02x) action = %q (ok=%v), registry %q", r.code, info.RecommendedAction, ok, r.action)
+		}
+	}
+	for code := range draft {
+		if _, ok := Lookup(Code(code)); !ok {
+			t.Errorf("foundation-06 code 0x%02x has no Lookup entry", code)
+		}
 	}
 }
 
-func TestLookupUnknownCode(t *testing.T) {
-	unknownCode := ErrorCode(0x9999)
-	info, err := Lookup(unknownCode)
-	if err == nil {
-		t.Fatalf("expected error for unknown code, got nil")
-	}
-	if info != nil {
-		t.Fatalf("expected nil ErrorInfo for unknown code")
-	}
-}
-
-func TestErrorLevelClassification(t *testing.T) {
-	testCases := []struct {
-		code     ErrorCode
-		expected ErrorLevel
+// TestNamedConstants pins the exported symbols to the registry numbers so a
+// renumbering shows up as a compile or test failure, not a silent drift.
+func TestNamedConstants(t *testing.T) {
+	cases := []struct {
+		c    Code
+		want uint8
+		name string
 	}{
-		{UNHD_NO_ERROR, FlowLevel},
-		{UNHD_PROTOCOL_ERROR, SystemLevel},
-		{UNHD_INVALID_FRAME, DomainLevel},
-		{UNHD_FLOW_CONTROL_ERROR, DomainLevel},
-		{UNHD_SETTINGS_TIMEOUT, SystemLevel},
-		{UNHD_STREAM_CLOSED, FlowLevel},
-		{UNHD_FRAME_SIZE_ERROR, DomainLevel},
-		{UNHD_REFUSED_STREAM, FlowLevel},
-		{UNHD_CANCEL, FlowLevel},
-		{UNHD_COMPRESSION_ERROR, DomainLevel},
-		{UNHD_CONNECT_ERROR, SystemLevel},
-		{UNHD_ENHANCE_YOUR_CALM, SystemLevel},
-		{UNHD_INTERNAL_ERROR, SystemLevel},
+		{NoError, 0x00, "NO_ERROR"},
+		{CRCValidationFailed, 0x01, "CRC_VALIDATION_FAILED"},
+		{VersionNotSupported, 0x02, "VERSION_NOT_SUPPORTED"},
+		{FlowLabelInvalid, 0x03, "FLOW_LABEL_INVALID"},
+		{ArithmeticOverflow, 0x04, "ARITHMETIC_OVERFLOW"},
+		{WotanBoundsCheckFailed, 0x05, "WOTAN_BOUNDS_CHECK_FAILED"},
+		{MultipleHbHHeaders, 0x06, "MULTIPLE_HBH_HEADERS"},
+		{UnknownCriticalTLV, 0x07, "UNKNOWN_CRITICAL_TLV"},
+		{WALSeqnoDiscontinuity, 0x08, "WAL_SEQNO_DISCONTINUITY"},
+		{InsufficientBufferSpace, 0x09, "INSUFFICIENT_BUFFER_SPACE"},
+		{FlowStateCorruption, 0x0A, "FLOW_STATE_CORRUPTION"},
+		{TLSHandshakeFailure, 0x0B, "TLS_HANDSHAKE_FAILURE"},
+		{QUICVersionMismatch, 0x0C, "QUIC_VERSION_MISMATCH"},
+		{Reserved0D, 0x0D, "RESERVED"},
+		{Greasing0, 0x1F, "GREASING_0"},
+		{Greasing1, 0xFF, "GREASING_1"},
 	}
-
-	for _, tc := range testCases {
-		t.Run("Level_"+string(rune(tc.code)), func(t *testing.T) {
-			info, err := Lookup(tc.code)
-			if err != nil {
-				t.Fatalf("failed to lookup code: %v", err)
-			}
-			if info.Level != tc.expected {
-				t.Errorf("expected level %d, got %d", tc.expected, info.Level)
-			}
-		})
+	for _, tc := range cases {
+		if uint8(tc.c) != tc.want {
+			t.Errorf("%s = 0x%02x, want 0x%02x", tc.name, uint8(tc.c), tc.want)
+		}
+		if tc.c.String() != tc.name {
+			t.Errorf("0x%02x String() = %q, want %q", tc.want, tc.c.String(), tc.name)
+		}
 	}
 }
 
-func TestRetryableClassification(t *testing.T) {
-	testCases := []struct {
-		code      ErrorCode
-		retryable bool
-	}{
-		{UNHD_NO_ERROR, false},
-		{UNHD_PROTOCOL_ERROR, true},
-		{UNHD_INVALID_FRAME, false},
-		{UNHD_FLOW_CONTROL_ERROR, true},
-		{UNHD_SETTINGS_TIMEOUT, true},
-		{UNHD_STREAM_CLOSED, true},
-		{UNHD_FRAME_SIZE_ERROR, true},
-		{UNHD_REFUSED_STREAM, true},
-		{UNHD_CANCEL, true},
-		{UNHD_COMPRESSION_ERROR, false},
-		{UNHD_CONNECT_ERROR, true},
-		{UNHD_ENHANCE_YOUR_CALM, true},
-		{UNHD_INTERNAL_ERROR, true},
+func TestRangeClassification(t *testing.T) {
+	for v := 0; v <= 0xFF; v++ {
+		c := Code(v)
+		name := c.String()
+		switch {
+		case v <= 0x0D, v == 0x1F, v == 0xFF:
+			if strings.HasPrefix(name, "UNALLOCATED") || strings.HasPrefix(name, "PRIVATE_USE") {
+				t.Errorf("0x%02x classified as %s", v, name)
+			}
+		case v >= 0x0E && v <= 0x1E:
+			if name != fmt.Sprintf("UNALLOCATED(0x%02x)", v) {
+				t.Errorf("0x%02x = %s, want UNALLOCATED", v, name)
+			}
+			if c.IsStandard() {
+				t.Errorf("0x%02x IsStandard", v)
+			}
+		default:
+			if name != fmt.Sprintf("PRIVATE_USE(0x%02x)", v) {
+				t.Errorf("0x%02x = %s, want PRIVATE_USE", v, name)
+			}
+		}
 	}
-
-	for _, tc := range testCases {
-		t.Run("Retryable_"+string(rune(tc.code)), func(t *testing.T) {
-			info, err := Lookup(tc.code)
-			if err != nil {
-				t.Fatalf("failed to lookup code: %v", err)
-			}
-			if info.Retryable != tc.retryable {
-				t.Errorf("expected retryable %v, got %v", tc.retryable, info.Retryable)
-			}
-		})
+	if !Greasing0.IsGrease() || !Greasing1.IsGrease() || CRCValidationFailed.IsGrease() {
+		t.Error("IsGrease classification wrong")
+	}
+	if !QUICVersionMismatch.IsStandard() || Reserved0D.IsStandard() || !NoError.IsStandard() {
+		t.Error("IsStandard: 0x00-0x0C are standard, 0x0D is reserved")
 	}
 }
 
 func TestProtocolError(t *testing.T) {
-	t.Run("NewProtocolError", func(t *testing.T) {
-		pe := NewProtocolError(UNHD_PROTOCOL_ERROR, "test error")
-		if pe == nil {
-			t.Fatal("got nil ProtocolError")
-		}
-		if pe.Code() != UNHD_PROTOCOL_ERROR {
-			t.Errorf("expected code 0x%04x, got 0x%04x", UNHD_PROTOCOL_ERROR, pe.Code())
-		}
-		msg := pe.Error()
-		if msg == "" {
-			t.Fatal("error message is empty")
-		}
-		if !contains(msg, "test error") {
-			t.Errorf("error message should contain 'test error', got: %s", msg)
-		}
-	})
-
-	t.Run("NewProtocolErrorWithCause", func(t *testing.T) {
-		cause := errors.New("root cause")
-		pe := NewProtocolErrorWithCause(UNHD_FLOW_CONTROL_ERROR, "flow error", cause)
-		if pe == nil {
-			t.Fatal("got nil ProtocolError")
-		}
-		if pe.Code() != UNHD_FLOW_CONTROL_ERROR {
-			t.Errorf("expected code 0x%04x, got 0x%04x", UNHD_FLOW_CONTROL_ERROR, pe.Code())
-		}
-		if pe.Unwrap() != cause {
-			t.Errorf("unwrap should return original cause")
-		}
-		msg := pe.Error()
-		if !contains(msg, "root cause") {
-			t.Errorf("error message should contain cause, got: %s", msg)
-		}
-	})
-}
-
-func TestProtocolErrorInterface(t *testing.T) {
-	pe := NewProtocolError(UNHD_FRAME_SIZE_ERROR, "frame too large")
-	var _ error = pe
-}
-
-func TestIsRetryable(t *testing.T) {
-	t.Run("RetryableError", func(t *testing.T) {
-		pe := NewProtocolError(UNHD_FLOW_CONTROL_ERROR, "flow control")
-		if !pe.IsRetryable() {
-			t.Errorf("UNHD_FLOW_CONTROL_ERROR should be retryable")
-		}
-	})
-
-	t.Run("NonRetryableError", func(t *testing.T) {
-		pe := NewProtocolError(UNHD_INVALID_FRAME, "invalid")
-		if pe.IsRetryable() {
-			t.Errorf("UNHD_INVALID_FRAME should not be retryable")
-		}
-	})
-}
-
-func TestErrorLevel(t *testing.T) {
-	t.Run("FlowLevelError", func(t *testing.T) {
-		pe := NewProtocolError(UNHD_STREAM_CLOSED, "stream closed")
-		if pe.Level() != FlowLevel {
-			t.Errorf("expected FlowLevel, got %d", pe.Level())
-		}
-	})
-
-	t.Run("DomainLevelError", func(t *testing.T) {
-		pe := NewProtocolError(UNHD_INVALID_FRAME, "invalid frame")
-		if pe.Level() != DomainLevel {
-			t.Errorf("expected DomainLevel, got %d", pe.Level())
-		}
-	})
-
-	t.Run("SystemLevelError", func(t *testing.T) {
-		pe := NewProtocolError(UNHD_CONNECT_ERROR, "connect failed")
-		if pe.Level() != SystemLevel {
-			t.Errorf("expected SystemLevel, got %d", pe.Level())
-		}
-	})
-}
-
-func TestRegisterCustomCode(t *testing.T) {
-	customCode := ErrorCode(0x0050)
-	customInfo := &ErrorInfo{
-		Code:              customCode,
-		Level:             FlowLevel,
-		Description:       "Custom error",
-		RecommendedAction: "Take action",
-		Retryable:         true,
+	cause := stderrors.New("boom")
+	err := Wrap(CRCValidationFailed, "monad checksum", cause)
+	if got := err.Error(); got != "[Flow] 0x01 CRC_VALIDATION_FAILED: monad checksum: boom" {
+		t.Errorf("Error() = %q", got)
 	}
-
-	// Registry is frozen after init, so registration should fail
-	err := Register(customCode, customInfo)
-	if err == nil {
-		t.Fatalf("expected error due to frozen registry")
+	if !stderrors.Is(err, cause) {
+		t.Error("Unwrap lost the cause")
 	}
-
-	// The code should not be in the registry
-	_, lookupErr := Lookup(customCode)
-	if lookupErr == nil {
-		t.Fatalf("expected lookup error for unregistered code")
+	var pe *ProtocolError
+	if !stderrors.As(error(err), &pe) || pe.Code() != CRCValidationFailed {
+		t.Error("errors.As / Code() failed")
 	}
-}
-
-func TestRegisterNilInfo(t *testing.T) {
-	err := Register(ErrorCode(0x0050), nil)
-	if err == nil {
-		t.Fatal("expected error when registering nil info")
+	if got := New(Code(0x42), "vendor").Error(); got != "[N/A] 0x42 PRIVATE_USE(0x42): vendor" {
+		t.Errorf("private-use Error() = %q", got)
 	}
-}
-
-func TestRegisterOutOfRange(t *testing.T) {
-	outOfRangeCode := ErrorCode(0x1234)
-	info := &ErrorInfo{
-		Code:        outOfRangeCode,
-		Level:       SystemLevel,
-		Description: "Out of range",
-	}
-	err := Register(outOfRangeCode, info)
-	if err == nil {
-		t.Fatal("expected error for out-of-range code")
-	}
-}
-
-func TestRegisterCannotOverrideStandards(t *testing.T) {
-	// Try to register over a standards code (frozen, so should fail)
-	info := &ErrorInfo{
-		Code:        UNHD_PROTOCOL_ERROR,
-		Level:       SystemLevel,
-		Description: "Modified protocol error",
-	}
-	err := Register(UNHD_PROTOCOL_ERROR, info)
-	if err == nil {
-		t.Fatal("expected error when trying to override standards code (frozen registry)")
-	}
-}
-
-func TestLookupZeroReturnsNoError(t *testing.T) {
-	info, err := Lookup(ErrorCode(0))
-	if err != nil {
-		t.Fatalf("Lookup(0) should return UNHD_NO_ERROR, got error: %v", err)
-	}
-	if info.Code != UNHD_NO_ERROR {
-		t.Errorf("expected UNHD_NO_ERROR, got 0x%04x", info.Code)
-	}
-}
-
-// TestRegistryFreeze verifies that the registry is frozen after init,
-// preventing post-initialization registrations per RFC 9669 §7.3.
-func TestRegistryFreeze(t *testing.T) {
-	t.Run("RegistryIsFrozen", func(t *testing.T) {
-		if !codeRegistry.IsFrozen() {
-			t.Fatal("expected registry to be frozen after init")
-		}
-	})
-
-	t.Run("CannotRegisterAfterFreeze", func(t *testing.T) {
-		newCode := ErrorCode(0x0050)
-		info := &ErrorInfo{
-			Code:              newCode,
-			Level:             FlowLevel,
-			Description:       "Should fail",
-			RecommendedAction: "None",
-			Retryable:         false,
-		}
-
-		// Try to register after freeze - should fail
-		err := Register(newCode, info)
-		if err == nil {
-			t.Fatal("expected error when registering after freeze")
-		}
-
-		// Verify the error mentions the frozen registry
-		if !contains(err.Error(), "frozen") {
-			t.Errorf("error should mention 'frozen', got: %v", err)
-		}
-	})
-}
-
-// TestMustRegisterDuplicatePanics verifies that MustRegister panics when
-// attempting to register a duplicate key during initialization.
-func TestMustRegisterDuplicatePanics(t *testing.T) {
-	t.Run("MustRegisterDuplicateErrorMessage", func(t *testing.T) {
-		defer func() {
-			r := recover()
-			if r == nil {
-				t.Fatal("expected panic, but none occurred")
-			}
-
-			panicMsg, ok := r.(string)
-			if !ok {
-				t.Fatalf("expected string panic message, got %T", r)
-			}
-
-			if !contains(panicMsg, "MustRegister") {
-				t.Errorf("panic message should contain 'MustRegister', got: %s", panicMsg)
-			}
-
-			if !contains(panicMsg, "frozen") {
-				t.Errorf("panic message should contain 'frozen', got: %s", panicMsg)
-			}
-		}()
-
-		// This should panic because the registry is frozen
-		codeRegistry.MustRegister(ErrorCode(0x0099), &ErrorInfo{
-			Code:        ErrorCode(0x0099),
-			Level:       SystemLevel,
-			Description: "This should panic",
-		})
-	})
-}
-
-// TestRegistryFreezePreventsAllRegistrations verifies the comprehensive
-// freeze behavior, ensuring no mutations are allowed post-freeze.
-func TestRegistryFreezePreventsAllRegistrations(t *testing.T) {
-	// Verify all attempts to register fail consistently
-	testCodes := []ErrorCode{0x0100, 0x0101, 0x0102}
-
-	for _, code := range testCodes {
-		info := &ErrorInfo{
-			Code:              code,
-			Level:             SystemLevel,
-			Description:       "Test",
-			RecommendedAction: "None",
-			Retryable:         false,
-		}
-
-		err := Register(code, info)
-		if err == nil {
-			t.Errorf("expected error for code 0x%04x, got nil", code)
-		}
-	}
-}
-
-func contains(s, substr string) bool {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

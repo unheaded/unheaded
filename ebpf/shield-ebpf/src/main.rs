@@ -41,9 +41,9 @@ use aya_ebpf::{
     EbpfContext,
 };
 use monad_common::{
-    circuit_state, deploy_ring, flags, flow_action, redirect_action, AnamnesisEvent, EventType,
-    HopByHopHeader, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN,
-    MONAD_OPT_TYPE, MONAD_SIZE,
+    circuit_state, deploy_ring, flags, flow_action, redirect_action, AnamnesisEvent, ErrorCode,
+    EventType, HopByHopHeader, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE, MONAD_VERSION,
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -503,8 +503,10 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
     let flow_label = u32::from_be(vtf) & 0xFFFFF;
 
     // ── Verify Monad integrity ─────────────────────────────────────────────────
-    // Emit anomaly if checksum fails, but still strip the header.
-    if !monad.verify_checksum() && !monad.has_flag(flags::CUSTOM) {
+    // Emit anomaly if checksum fails, but still strip the header. Under CUSTOM
+    // the checksum octets carry exponent keys, so there is no CRC to check.
+    let crc_failed = !monad.has_flag(flags::CUSTOM) && !monad.verify_checksum();
+    if crc_failed {
         increment_stat(STAT_ANOMALIES);
         let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
         emit_anamnesis(now, EventType::Anomaly, 0, flow_label, &monad);
@@ -520,12 +522,18 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
         // Future: validate monotonicity of last_flow_id
     }
 
-    // ── Error counter update (RFC 9114 §8) ──────────────────────────────────────
-    // If Monad has anomaly flag or corruption, increment error counter
-    if !monad.verify_checksum() || monad.has_flag(flags::CHAOS) {
-        // Extract error code from Monad (simplified: use hop_count as proxy)
-        let error_code = monad.hop_count as u16;
-        let error_key = make_error_key(error_code);
+    // ── Error counter (foundation-06 §Error Code Registry) ──────────────────────
+    // Count by registry code. CHAOS-flagged packets are left out: the
+    // corruption is intentional and EVENT_CHAOS already records it.
+    let error_code = if monad.version != MONAD_VERSION {
+        ErrorCode::VersionNotSupported
+    } else if crc_failed {
+        ErrorCode::CrcValidationFailed
+    } else {
+        ErrorCode::NoError
+    };
+    if error_code != ErrorCode::NoError && !monad.has_flag(flags::CHAOS) {
+        let error_key = make_error_key(error_code as u16);
         if let Some(counter) = ERROR_COUNTERS.get_ptr_mut(&error_key) {
             // Increment count in the first 4 bytes
             let count_ptr = counter as *mut u32;
