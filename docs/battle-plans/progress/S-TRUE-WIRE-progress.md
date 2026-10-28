@@ -209,3 +209,30 @@ MIRROR 0x04, not the plan's guess); finished, tested and gated by the coordinato
   `shield_tc_insns_pre` **1113**. STATS keys 13-15 (TC entry/IPv6/HBH, three map ops per egress packet) behind
   `shield-ebpf` feature `debug-stats`: `shield_tc_insns_post_stats` **1005** (default), 1113 (debug-stats); XDP 1502
   both. Load gate VARIANTS += `shield-ebpf:debug-stats`: `[PASS] 36`.
+- Steps 206-210: GOAWAY removed per the Step 150 ruling: shield-ebpf `GOAWAY_STATE` map, `make_goaway_key` and the
+  no-op lookup; Go `bpfschema.MapGoawayState` / `GoawayStateKey` / `GoawayStateValue` (parity tests follow, 11 map
+  names); `pkg/ebpf/maploader.LoadGoawayState` (package unreached, E3 candidate); PATTERN_MATRIX, the interface map and
+  maploader docs marked. `shield_tc_insns_post_goaway` **976** (from 1005), XDP 1502; load gate `[PASS] 36`.
+
+### E8 (new, for Stevie or an Architect + BlackMage design pass): Shield check semantics
+
+Steps 183-205 and the AUTHORITY half of 207 are not started, on purpose. Step 193's design does not fit the program it
+targets:
+- `shield_xdp` is the boundary ingress. A packet that already carries a Monad is passed through untouched at its step 4;
+  for everything else the Monad and the flow label are created at steps 6-7. At the deferred block (step 4b, where the
+  plan inserts the `bpf_loop`) there is no flow id to key `HMAC_KEYS` (`flow_id << 48 | namespace << 32`) or
+  `HOP_VALIDATORS` on, and no Monad whose ENCRYPT flag could be tested. Only `RETRY_TOKENS` (flow id plus source address)
+  could be keyed from the Shadow packet, and only if "flow id" means the arriving IPv6 flow label, which nothing says.
+- `shield_tc` (egress) has a Monad, but its AUTHORITY lookup keys on `monad.qos_class` as a stand-in dictionary id
+  ("Simplified") to guard "Sophia field writes" that nothing performs at egress.
+- The writer (Steps 183-192) only matters once the checks exist; Step 183 also showed the plan's premises false: maps are
+  pinned at `/sys/fs/bpf/unheaded/shield-ebpf/<MAP>` by `cmd/ebpf-loader --pin-maps`, and `cmd/shield` is an HTTP WAF
+  daemon (ORPHAN in LIVE-PATHS, no auth on its rule API) unrelated to the eBPF object, so Step 184's own override applies:
+  the writer belongs in `cmd/ebpf-loader`, which also avoids giving CAP_BPF to an unauthenticated HTTP service. And
+  `bpfschema.HMACKeyKey` written as bytes does not produce Shield's u64 key; a writer must mirror Shield's key functions.
+- **Question:** (a) move the per-flow integrity checks to hop-ebpf, where Kingdom packets carry a Monad on every hop,
+  and keep Shield's ingress to the source blocklist and Monad stamping; or (b) define ingress keying from the Shadow
+  packet (IPv6 flow label + source address) and what "HMAC key present" means before a Monad exists; or (c) delete the
+  three maps and AUTHORITY from Shield until an ADR defines them. Recommendation: (a), with an ADR first; until then the
+  docs say STUBBED (true) and FND-025 stays open. Building Step 193 as written would add checks that cannot fail, the
+  defect FND-025 records.

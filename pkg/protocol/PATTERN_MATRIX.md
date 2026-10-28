@@ -31,7 +31,7 @@ that expose them to the eBPF data plane.
 | Q4  | RFC 9000  | §21.3   | amplification | (no Rust map) | HASH | Pending | Ring path counters, 3× amplification limit |
 | Q5  | RFC 9000  | §9      | migration  | `MIGRATION_TOKENS` | LRU_HASH | ✅ WIRED (Flow Tracker) | Flow migration validation tokens |
 | Q6  | RFC 9000  | §8.1.2  | migration  | `RETRY_TOKENS` | LRU_HASH | Pending | Shield retry tokens (HMAC-signed) |
-| Q8  | RFC 9000  | §10.2   | lifecycle  | `GOAWAY_STATE` | HASH | Pending | Stateless reset / GOAWAY tracking |
+| Q8  | RFC 9000  | §10.2   | lifecycle  | ~~`GOAWAY_STATE`~~ | HASH | Removed (S-TRUE-WIRE Step 207; lifecycle → E3 DELETE) | Stateless reset / GOAWAY tracking |
 | Q9  | RFC 9000  | §16     | encoding   | (shared) | — | — | Variable-length integer encoding |
 | H1  | RFC 9114  | §4.1    | sophiasync | (no Rust map) | HASH | Pending | Encoder/decoder ACK for dictionary sync |
 | H2  | RFC 9114  | §8      | errors     | `ERROR_COUNTERS` | PERCPU_ARRAY | Pending | Error code counters per type |
@@ -39,7 +39,7 @@ that expose them to the eBPF data plane.
 | H4  | RFC 9114  | §7.2.4  | settings   | `SETTINGS` | HASH | ✅ WIRED | Per-connection capability negotiation |
 | H5  | RFC 9114  | §10     | dos        | `DOS_STATE` | PERCPU_HASH | ✅ WIRED | Drop rate / backpressure tracking |
 | H6  | RFC 9114  | §6      | flowtype   | `FLOW_TYPES` | ARRAY | ✅ WIRED | Flow type classification (control/data/prefetch) |
-| H7  | RFC 9114  | §7.2.6  | lifecycle  | `GOAWAY_STATE` | HASH | Pending | GOAWAY monotonicity enforcement |
+| H7  | RFC 9114  | §7.2.6  | lifecycle  | ~~`GOAWAY_STATE`~~ | HASH | Removed (S-TRUE-WIRE Step 207; lifecycle → E3 DELETE) | GOAWAY monotonicity enforcement |
 | H8  | RFC 9114  | §4.1.1  | lifecycle  | `CANCEL_FLOWS` | LRU_HASH | ✅ WIRED (Flow Tracker) | Per-flow cancellation state |
 | H9  | RFC 7240  | §2      | prefetch   | (no Rust map) | LRU_HASH | Pending | Explicit prefetch hint tracking |
 | H10 | RFC 8200  | §4      | intermediary | `HOP_VALIDATORS` | HASH | Pending | Per-hop packet validation |
@@ -102,7 +102,7 @@ Consumes: `HMAC_KEYS`, (no Rust map), `RETRY_TOKENS`, `HOP_VALIDATORS`
 Pattern: Validate → Authenticate → Admit → Route
 
 ### Shield (TC Egress)
-Consumes: `GOAWAY_STATE`, `ERROR_COUNTERS`, `AUTHORITY`
+Consumes: `ERROR_COUNTERS`, `AUTHORITY` (`GOAWAY_STATE` removed, S-TRUE-WIRE Step 207)
 Pattern: Enforce → Strip → Emit → Log
 
 ### Shim (Per-Hop TC)

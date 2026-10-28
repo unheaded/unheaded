@@ -423,3 +423,5 @@ pkg/ebpf/maploader/
 **Phase**: 5 (Complete)
 **Status**: ✅ READY FOR INTEGRATION
 **Confidence**: High - The Kingdom magic flows through the maps
+
+> Removed 2026-10-28 (S-TRUE-WIRE Step 207): `LoadGoawayState` and the `GOAWAY_STATE` map it loaded. References to them above are history.

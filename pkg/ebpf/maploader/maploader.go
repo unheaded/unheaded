@@ -324,14 +324,6 @@ func (ml *MapLoader) LoadBlocklistAddr(key interface{}) error {
 	return ml.LoadMap(key, &value)
 }
 
-// LoadGoawayState loads a single GOAWAY state entry (H7/Q8 map).
-// Key: GoawayStateKey (8 bytes: ConnID uint32, padding [4]byte)
-// Value: GoawayStateValue (16 bytes)
-// Per RFC 9114 §7.2.6 for GOAWAY and stateless reset state.
-func (ml *MapLoader) LoadGoawayState(key interface{}, value interface{}) error {
-	return ml.LoadMap(key, value)
-}
-
 // LoadSeqCounter loads a single sequence counter entry (Q2 map).
 // Key: SeqCounterKey (8 bytes: Namespace uint32, padding [4]byte)
 // Value: SeqCounterValue (16 bytes: Current uint32, Highest uint32, Gaps uint32, Reordered uint32)

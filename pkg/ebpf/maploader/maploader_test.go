@@ -89,21 +89,6 @@ type TestErrorCounterValue struct {
 	LastSeenAt uint32
 }
 
-// TestGoawayStateKey matches pkg/protocol/bpfschema.GoawayStateKey
-type TestGoawayStateKey struct {
-	ConnID uint32
-	_      [4]byte
-}
-
-// TestGoawayStateValue matches pkg/protocol/bpfschema.GoawayStateValue
-type TestGoawayStateValue struct {
-	LastFlowID uint32
-	SentAt     uint32
-	Reason     uint16
-	Count      uint16
-	Flags      uint32
-}
-
 // TestSeqCounterKey matches pkg/protocol/bpfschema.SeqCounterKey
 type TestSeqCounterKey struct {
 	Namespace uint32
@@ -200,16 +185,6 @@ func TestSerializationRoundtrip(t *testing.T) {
 				LastSeenAt: 0x12345678,
 			},
 		},
-		{
-			name: "GoawayStateValue",
-			input: TestGoawayStateValue{
-				LastFlowID: 0x11223344,
-				SentAt:     0x55667788,
-				Reason:     0x0001,
-				Count:      0x0002,
-				Flags:      0x99AABBCC,
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -253,12 +228,6 @@ func TestSerializationRoundtrip(t *testing.T) {
 					t.Fatalf("deserialization failed: %v", err)
 				}
 				result = r
-			case TestGoawayStateValue:
-				var r TestGoawayStateValue
-				if err := binary.Read(buf, binary.BigEndian, &r); err != nil {
-					t.Fatalf("deserialization failed: %v", err)
-				}
-				result = r
 			}
 
 			// Compare
@@ -286,8 +255,6 @@ func TestStructSizes(t *testing.T) {
 		{"BlocklistKey", TestBlocklistKey{}, 8},
 		{"ErrorCounterKey", TestErrorCounterKey{}, 4},
 		{"ErrorCounterValue", TestErrorCounterValue{}, 8},
-		{"GoawayStateKey", TestGoawayStateKey{}, 8},
-		{"GoawayStateValue", TestGoawayStateValue{}, 16},
 		{"SeqCounterKey", TestSeqCounterKey{}, 8},
 		{"SeqCounterValue", TestSeqCounterValue{}, 16},
 	}

@@ -59,8 +59,6 @@ func TestStructSizes(t *testing.T) {
 		{"FlowTypeEntry", unsafe.Sizeof(FlowTypeEntry{}), 4},
 
 		// H7/Q8: GOAWAY state.
-		{"GoawayStateKey", unsafe.Sizeof(GoawayStateKey{}), 8},
-		{"GoawayStateValue", unsafe.Sizeof(GoawayStateValue{}), 16},
 
 		// H9: Prefetch hints.
 		{"PrefetchHintKey", unsafe.Sizeof(PrefetchHintKey{}), 8},
@@ -132,7 +130,6 @@ func TestMapNameConstants(t *testing.T) {
 		MapSettings,
 		MapDoSState,
 		MapFlowTypes,
-		MapGoawayState,
 		MapCancelFlows,
 		MapHopValidators,
 		MapAuthority,
@@ -149,7 +146,8 @@ func TestMapNameConstants(t *testing.T) {
 		seen[name] = true
 	}
 
-	if len(seen) != 12 {
-		t.Errorf("expected 12 unique map names, got %d", len(seen))
+	// 11: GOAWAY_STATE left with shield-ebpf's map (S-TRUE-WIRE Step 207).
+	if len(seen) != 11 {
+		t.Errorf("expected 11 unique map names, got %d", len(seen))
 	}
 }

@@ -438,7 +438,6 @@ var goMapNames = []struct {
 	{"MapSettings", MapSettings, reflect.TypeOf(SettingsKey{}), reflect.TypeOf(SettingsValue{})},
 	{"MapDoSState", MapDoSState, reflect.TypeOf(DoSStateKey{}), reflect.TypeOf(DoSStateValue{})},
 	{"MapFlowTypes", MapFlowTypes, nil, reflect.TypeOf(FlowTypeEntry{})},
-	{"MapGoawayState", MapGoawayState, reflect.TypeOf(GoawayStateKey{}), reflect.TypeOf(GoawayStateValue{})},
 	{"MapCancelFlows", MapCancelFlows, reflect.TypeOf(FlowKey{}), reflect.TypeOf(FlowCancelValue{})},
 	{"MapHopValidators", MapHopValidators, reflect.TypeOf(HopValidatorKey{}), reflect.TypeOf(HopValidatorValue{})},
 	{"MapAuthority", MapAuthority, reflect.TypeOf(AuthorityKey{}), reflect.TypeOf(AuthorityValue{})},

@@ -36,9 +36,6 @@ const (
 	// H6: Flow type classification table (hop-ebpf).
 	MapFlowTypes = "FLOW_TYPES"
 
-	// H7/Q8: GOAWAY and stateless reset state (shield-ebpf).
-	MapGoawayState = "GOAWAY_STATE"
-
 	// H8: Per-flow cancellation state (flow-tracker).
 	MapCancelFlows = "CANCEL_FLOWS"
 
@@ -203,24 +200,8 @@ type FlowTypeEntry struct {
 	_     [2]byte
 }
 
-// === H7/Q8: GOAWAY State (lifecycle package) ===
-
-// GoawayStateKey identifies a connection's GOAWAY state.
-// Size: 8 bytes. Map type: HASH.
-type GoawayStateKey struct {
-	ConnID uint32 // Connection identifier.
-	_      [4]byte
-}
-
-// GoawayStateValue tracks GOAWAY monotonicity.
-// Size: 16 bytes.
-type GoawayStateValue struct {
-	LastFlowID uint32 // Last-flow-ID from most recent GOAWAY.
-	SentAt     uint32 // Unix timestamp of GOAWAY send.
-	Reason     uint16 // Error code accompanying GOAWAY.
-	Count      uint16 // Number of GOAWAYs sent (for graceful shutdown).
-	Flags      uint32 // 0x01 = sent, 0x02 = received, 0x04 = draining.
-}
+// H7/Q8 (GOAWAY state) was removed with shield-ebpf's GOAWAY_STATE map
+// (S-TRUE-WIRE Step 207): no current draft defines GOAWAY on Kingdom streams.
 
 // === H8: Cancel Flows (lifecycle package) ===
 

@@ -123,12 +123,6 @@ static SHIELD_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(4, 0);
 
 // ── Shield TC (Egress) specific maps ──────────────────────────────────────────
 
-/// GOAWAY state enforcement (RFC 9114 §7.2.6).
-/// Key: conn_id (u32, u32 for alignment = u64)
-/// Value: last_flow_id (u32), sent_at (u32), reason (u16), count (u16), flags (u32)
-#[map]
-static GOAWAY_STATE: HashMap<u64, [u8; 16]> = HashMap::with_max_entries(4096, 0);
-
 /// Error code counters per type (RFC 9114 §8).
 /// Key: error code (u16, u16 reserved for alignment = u64)
 /// Value: count (u32), last_seen_at (u32)
@@ -519,15 +513,9 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
         emit_anamnesis(now, EventType::Anomaly, 0, flow_label, &monad);
     }
 
-    // ── GOAWAY monotonicity check (RFC 9114 §7.2.6) ────────────────────────────
-    // Extract connection ID from Monad scratch registers or flow label
-    let conn_id = flow_label >> 8; // Simplified: use high bits of flow label
-    let goaway_key = make_goaway_key(conn_id);
-    if let Some(_goaway_state) = unsafe { GOAWAY_STATE.get(&goaway_key) } {
-        // Check if we've already sent a GOAWAY on this connection
-        // Enforce that no more flows should be created
-        // Future: validate monotonicity of last_flow_id
-    }
+    // GOAWAY: no Kingdom stream sends one and no current draft defines it
+    // (foundation-06, wotan-memory-03); the map and its no-op lookup were
+    // removed (S-TRUE-WIRE Step 207, ruling Phase 4 Step 150).
 
     // ── Error counter (foundation-06 §Error Code Registry) ──────────────────────
     // Count by registry code. CHAOS-flagged packets are left out: the
@@ -861,12 +849,6 @@ fn emit_block_event(ip: &Ipv6Hdr, _src_key: u64) {
             entry.submit(0);
         }
     }
-}
-
-/// Encode a connection ID as a 64-bit map key for GOAWAY_STATE.
-#[inline(always)]
-fn make_goaway_key(conn_id: u32) -> u64 {
-    (conn_id as u64) << 32
 }
 
 /// Encode an error code as a 64-bit map key for ERROR_COUNTERS.

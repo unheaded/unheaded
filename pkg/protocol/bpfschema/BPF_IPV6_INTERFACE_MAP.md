@@ -39,7 +39,7 @@ it owns.
 | Emit DEATH event | Monad spec | §6.1 | pkg/ebpf/anamnesis | ANAMNESIS |
 | Strip HBH header (24B removal) | RFC 8200 | §4.2 | pkg/ebpf/loader | — |
 | Restore transport Next Header | RFC 8200 | §4 | pkg/ebpf/loader | — |
-| **GAP: No GOAWAY enforcement** | RFC 9114 | §7.2.6 | pkg/protocol/lifecycle | GOAWAY_STATE |
+| ~~GAP: No GOAWAY enforcement~~ (not a gap: no current draft defines GOAWAY on Kingdom streams; map removed S-TRUE-WIRE Step 207) | RFC 9114 | §7.2.6 | pkg/protocol/lifecycle | — |
 | **GAP: No error counter update** | RFC 9114 | §8 | pkg/protocol/errors | ERROR_COUNTERS |
 | **GAP: No authority check** | RFC 8200 | §4.2 | pkg/protocol/intermediary | AUTHORITY |
 
@@ -114,7 +114,7 @@ These maps have corresponding struct definitions in `pkg/protocol/bpfschema/`:
 | (new) SETTINGS | SettingsKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) DOS_STATE | DoSStateKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) FLOW_TYPES | FlowTypeEntry | Scaffolded | Wire to Hop XDP |
-| (new) GOAWAY_STATE | GoawayStateKey/Value | Scaffolded | Wire to Shield TC |
+| ~~GOAWAY_STATE~~ | — | Removed (S-TRUE-WIRE Step 207) | — |
 | (new) CANCEL_FLOWS | FlowCancelValue* | ✅ Wired | Flow Tracker (IPv4-based) |
 | (new) (no Rust map) | PrefetchHintKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) HOP_VALIDATORS | HopValidatorKey/Value | Scaffolded | Wire to Shield XDP |
@@ -197,7 +197,7 @@ HOP_VALIDATORS → Validate Monad fields per hop policy
 
 **Shield TC (add 3 map lookups):**
 ```
-GOAWAY_STATE    → Enforce GOAWAY monotonicity on egress
+(GOAWAY_STATE removed, S-TRUE-WIRE Step 207)
 ERROR_COUNTERS  → Increment error counters
 AUTHORITY       → Verify dictionary authority
 ```
