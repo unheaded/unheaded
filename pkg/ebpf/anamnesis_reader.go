@@ -23,6 +23,10 @@ type ReaderStats struct {
 	EventsDropped uint64 `json:"events_dropped"`
 	BytesRead     uint64 `json:"bytes_read"`
 	DecodeErrors  uint64 `json:"decode_errors"`
+	// LegacyDecodes counts records decoded with the pre-S-TRUE-WIRE event
+	// numbering (WithLegacyEventTypes); nonzero means an old object is
+	// still loaded on this source.
+	LegacyDecodes uint64 `json:"legacy_decodes"`
 }
 
 // AnamnesisReader decodes AnamnesisEvent records from a raw byte channel.
@@ -40,6 +44,7 @@ type AnamnesisReader struct {
 	bufSize   int
 	stats     ReaderStats
 	closeOnce sync.Once
+	legacy    bool
 }
 
 // NewAnamnesisReader creates a reader that decodes events from a raw byte channel.
@@ -53,6 +58,15 @@ func NewAnamnesisReader(raw <-chan []byte, bufSize int) *AnamnesisReader {
 		events:  make(chan *AnamnesisEvent, bufSize),
 		bufSize: bufSize,
 	}
+}
+
+// WithLegacyEventTypes makes the reader decode event types in the
+// pre-S-TRUE-WIRE numbering, for a ring buffer fed by an object built before
+// the renumber. The loader knows which object it loaded; the byte cannot say.
+// Call before Poll.
+func (r *AnamnesisReader) WithLegacyEventTypes() *AnamnesisReader {
+	r.legacy = true
+	return r
 }
 
 // Poll starts reading events and returns the decoded event channel.
@@ -70,6 +84,7 @@ func (r *AnamnesisReader) Stats() ReaderStats {
 		EventsDropped: atomic.LoadUint64(&r.stats.EventsDropped),
 		BytesRead:     atomic.LoadUint64(&r.stats.BytesRead),
 		DecodeErrors:  atomic.LoadUint64(&r.stats.DecodeErrors),
+		LegacyDecodes: atomic.LoadUint64(&r.stats.LegacyDecodes),
 	}
 }
 
@@ -86,10 +101,17 @@ func (r *AnamnesisReader) readLoop(ctx context.Context) {
 			}
 			atomic.AddUint64(&r.stats.BytesRead, uint64(len(data)))
 
-			ev, err := DecodeAnamnesisEvent(data)
+			decode := DecodeAnamnesisEvent
+			if r.legacy {
+				decode = DecodeAnamnesisEventLegacy
+			}
+			ev, err := decode(data)
 			if err != nil {
 				atomic.AddUint64(&r.stats.DecodeErrors, 1)
 				continue
+			}
+			if r.legacy {
+				atomic.AddUint64(&r.stats.LegacyDecodes, 1)
 			}
 
 			// Non-blocking send with backpressure

@@ -37,7 +37,7 @@ func TestAnamnesisReader_DecodesEvents(t *testing.T) {
 
 	// Send 5 events
 	for i := 0; i < 5; i++ {
-		buf := makeTestEvent(EventBirth, uint8(i), uint16(0x1000+i), uint64(i)*1000)
+		buf := makeTestEvent(EventBirth, uint8(i), uint16(0x1000+i), uint64(i+1)*1000)
 		rawCh <- buf[:]
 	}
 
@@ -118,7 +118,7 @@ func TestAnamnesisReader_Backpressure(t *testing.T) {
 
 	// Send many events
 	for i := 0; i < 20; i++ {
-		buf := makeTestEvent(EventBirth, uint8(i%256), 0x1000, uint64(i))
+		buf := makeTestEvent(EventBirth, uint8(i%256), 0x1000, uint64(i+1))
 		rawCh <- buf[:]
 	}
 
@@ -233,7 +233,7 @@ func TestAnamnesisReader_StatsAreAtomic(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		for i := 0; i < 500; i++ {
-			buf := makeTestEvent(EventBirth, uint8(i%256), 0x1000, uint64(i))
+			buf := makeTestEvent(EventBirth, uint8(i%256), 0x1000, uint64(i+1))
 			rawCh <- buf[:]
 		}
 		close(done)

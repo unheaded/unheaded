@@ -177,37 +177,67 @@ pub mod flags {
 
 // ── Anamnesis event types ─────────────────────────────────────────────────────
 
-/// Event type values emitted to per-CPU Anamnesis ring buffers.
+/// Event type values emitted to per-CPU Anamnesis ring buffers: the
+/// foundation-06 "Anamnesis Event Types" registry.
+///
+/// Objects built before S-TRUE-WIRE (Step 91, 2026-10-27) emitted
+/// `Birth = 0x01, Hop = 0x02, Death = 0x03` on the spec's COMPUTED, WOTAN_RD
+/// and WOTAN_WR codes; E4 (2026-10-26) had already moved CHAOS and ANOMALY.
+/// The spec wins: Shield ingress emits `Born`, hop programs `Computed` (a hop
+/// executes its Shim step), Shield egress `Died`. [`EventType::from_legacy_u8`]
+/// decodes the old numbering for one release.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum EventType {
-    /// Shield ingress inserted the Monad (packet birth).
-    Birth = 0x01,
-    /// Intermediate eBPF program processed the packet at a Kingdom hop.
+    /// `EVENT_BORN`: Shield ingress inserted the Monad (packet birth).
+    Born = 0x00,
+    /// `EVENT_COMPUTED`: a hop program executed its Shim step, Monad updated.
     #[default]
-    Hop = 0x02,
-    /// Shield egress stripped the Monad (packet death).
-    Death = 0x03,
-    /// Chaos injection subsystem (Yaldabaoth) modified the packet.
-    ///
-    /// `EVENT_CHAOS (0x04)` in the foundation-06 Anamnesis Event Type
-    /// registry (E4, 2026-10-26: the spec wins; the code moved).
+    Computed = 0x01,
+    /// `EVENT_WOTAN_RD`: Wotan memory read. No producer yet.
+    WotanRd = 0x02,
+    /// `EVENT_WOTAN_WR`: Wotan memory write. No producer yet.
+    WotanWr = 0x03,
+    /// `EVENT_CHAOS`: the chaos subsystem (Yaldabaoth) modified the packet.
     Chaos = 0x04,
-    /// Checksum failure, unknown Sophia key, or decode error.
-    ///
-    /// `EVENT_ANOMALY (0x08)` in the foundation-06 registry. 0x05-0x07 are
-    /// ROLLBACK, DIED and KEY_OP there and have no producer here yet.
+    /// `EVENT_ROLLBACK`: Monad rolled back. No producer yet.
+    Rollback = 0x05,
+    /// `EVENT_DIED`: Shield egress stripped the Monad (packet death).
+    Died = 0x06,
+    /// `EVENT_KEY_OP`: PQC key lifecycle event. No producer yet.
+    KeyOp = 0x07,
+    /// `EVENT_ANOMALY`: checksum failure, unknown Sophia key, decode error.
     Anomaly = 0x08,
 }
 
 impl EventType {
-    /// Parse from raw u8.  Returns `None` for unknown values.
+    /// Parse a foundation-06 event type.  Returns `None` for unregistered values.
     #[inline]
     pub const fn from_u8(v: u8) -> Option<Self> {
         match v {
-            0x01 => Some(Self::Birth),
-            0x02 => Some(Self::Hop),
-            0x03 => Some(Self::Death),
+            0x00 => Some(Self::Born),
+            0x01 => Some(Self::Computed),
+            0x02 => Some(Self::WotanRd),
+            0x03 => Some(Self::WotanWr),
+            0x04 => Some(Self::Chaos),
+            0x05 => Some(Self::Rollback),
+            0x06 => Some(Self::Died),
+            0x07 => Some(Self::KeyOp),
+            0x08 => Some(Self::Anomaly),
+            _ => None,
+        }
+    }
+
+    /// Parse an event type written by a pre-S-TRUE-WIRE object (Birth 0x01,
+    /// Hop 0x02, Death 0x03, Chaos 0x04, Anomaly 0x08). The two numberings
+    /// overlap, so the caller must know the producer is legacy. Removed one
+    /// release after S-TRUE-WIRE.
+    #[inline]
+    pub const fn from_legacy_u8(v: u8) -> Option<Self> {
+        match v {
+            0x01 => Some(Self::Born),
+            0x02 => Some(Self::Computed),
+            0x03 => Some(Self::Died),
             0x04 => Some(Self::Chaos),
             0x08 => Some(Self::Anomaly),
             _ => None,
@@ -247,18 +277,61 @@ pub mod circuit_state {
     pub const HALF_OPEN: u8 = 0x03;
 }
 
-/// Common values for the exponent-encoded Flow Action field.
+/// Values of the exponent-encoded Flow Action field: the foundation-06
+/// "Monad Flow Actions" registry.
+///
+/// Before S-TRUE-WIRE (Step 84, 2026-10-27) these were FORWARD 0x01, TRACE
+/// 0x02, SAMPLE 0x03, MIRROR 0x04, DROP 0x05; the spec wins (the E4 rule), so a
+/// zeroed Monad now reads as FORWARD. [`flow_action::from_legacy`] decodes the
+/// old numbering for one release.
 pub mod flow_action {
-    /// Forward the packet normally.
-    pub const FORWARD: u8 = 0x01;
-    /// Collect a full distributed trace for this packet.
-    pub const TRACE: u8 = 0x02;
-    /// Select this packet for statistical sampling.
-    pub const SAMPLE: u8 = 0x03;
-    /// Mirror the packet to an analysis interface.
+    /// FORWARD: forward the packet normally (the default).
+    pub const FORWARD: u8 = 0x00;
+    /// TRACE: full event logging to Anamnesis.
+    pub const TRACE: u8 = 0x01;
+    /// SAMPLE: probabilistic event logging.
+    pub const SAMPLE: u8 = 0x02;
+    /// DROP: discard the packet.
+    pub const DROP: u8 = 0x03;
+    /// MIRROR: clone to a monitoring interface.
     pub const MIRROR: u8 = 0x04;
-    /// Drop the packet at the next hop.
-    pub const DROP: u8 = 0x05;
+    /// RATE_LIMIT: apply the rate limiting policy.
+    pub const RATE_LIMIT: u8 = 0x05;
+    /// REDIRECT: redirect to an alternate destination.
+    pub const REDIRECT: u8 = 0x06;
+    /// INJECT: inject a synthetic packet.
+    pub const INJECT: u8 = 0x07;
+    /// KEY_ROTATE: PQC key rotation event.
+    pub const KEY_ROTATE: u8 = 0x10;
+    /// KEY_REVOKE: PQC key revocation event.
+    pub const KEY_REVOKE: u8 = 0x11;
+    /// KEY_DISTRIBUTE: PQC key distribution event.
+    pub const KEY_DISTRIBUTE: u8 = 0x12;
+    /// KEY_VERIFY: PQC key verification event.
+    pub const KEY_VERIFY: u8 = 0x13;
+    /// KEY_CHALLENGE: PQC challenge-response.
+    pub const KEY_CHALLENGE: u8 = 0x14;
+
+    /// True when `v` is a registered flow action (0x00-0x07, 0x10-0x14).
+    #[inline(always)]
+    pub const fn is_registered(v: u8) -> bool {
+        v <= INJECT || (v >= KEY_ROTATE && v <= KEY_CHALLENGE)
+    }
+
+    /// Map a flow-action byte written by a pre-S-TRUE-WIRE producer to its
+    /// foundation-06 value. The numberings overlap (legacy SAMPLE 0x03 is
+    /// spec DROP), so the caller must know the producer is legacy.
+    #[inline]
+    pub const fn from_legacy(v: u8) -> Option<u8> {
+        match v {
+            0x01 => Some(FORWARD),
+            0x02 => Some(TRACE),
+            0x03 => Some(SAMPLE),
+            0x04 => Some(MIRROR),
+            0x05 => Some(DROP),
+            _ => None,
+        }
+    }
 }
 
 /// Common values for the exponent-encoded Deployment Ring field.
@@ -2077,13 +2150,13 @@ mod tests {
         let m = Monad::new();
         let ev = AnamnesisEvent::new(
             1_000_000_000, // 1 second
-            EventType::Birth,
+            EventType::Born,
             42,
             0x0A3F7E, // flow label (20 bits)
             m,
         );
         assert_eq!(ev.timestamp_ns, 1_000_000_000);
-        assert_eq!(ev.event_type, EventType::Birth as u8);
+        assert_eq!(ev.event_type, EventType::Born as u8);
         assert_eq!(ev.hop_id, 42);
         // flow_label_lo should be low 16 bits of 0x0A3F7E = 0x3F7E
         assert_eq!(ev.flow_label_u16(), 0x3F7E);
@@ -2095,7 +2168,7 @@ mod tests {
         // flow_label_lo = 100 → 100 % 10 == 0 → sampled
         let ev = AnamnesisEvent {
             timestamp_ns: 0,
-            event_type: EventType::Hop as u8,
+            event_type: EventType::Computed as u8,
             hop_id: 0,
             flow_label_lo: 100u16.to_be_bytes(),
             monad: m,
@@ -2124,7 +2197,7 @@ mod tests {
         m.hop_count = 7;
         m.recompute_checksum();
 
-        let ev = AnamnesisEvent::new(999, EventType::Hop, 0, 0x1234, m);
+        let ev = AnamnesisEvent::new(999, EventType::Computed, 0, 0x1234, m);
         assert_eq!(ev.monad.src_service_id, 0x42);
         assert_eq!(ev.monad.hop_count, 7);
         assert!(ev.monad.verify_checksum());
@@ -2134,41 +2207,46 @@ mod tests {
 
     #[test]
     fn event_type_values_match_spec() {
-        assert_eq!(EventType::Birth as u8, 0x01);
-        assert_eq!(EventType::Hop as u8, 0x02);
-        assert_eq!(EventType::Death as u8, 0x03);
-        // foundation-06 Anamnesis Event Type registry (E4, 2026-10-26).
+        // foundation-06 Anamnesis Event Type registry (E4 2026-10-26 for
+        // CHAOS/ANOMALY, S-TRUE-WIRE Step 91 for the rest). The Go side
+        // checks the same values against the draft text
+        // (pkg/protocol/bpfschema/event_type_spec_test.go).
+        assert_eq!(EventType::Born as u8, 0x00);
+        assert_eq!(EventType::Computed as u8, 0x01);
+        assert_eq!(EventType::WotanRd as u8, 0x02);
+        assert_eq!(EventType::WotanWr as u8, 0x03);
         assert_eq!(EventType::Chaos as u8, 0x04);
+        assert_eq!(EventType::Rollback as u8, 0x05);
+        assert_eq!(EventType::Died as u8, 0x06);
+        assert_eq!(EventType::KeyOp as u8, 0x07);
         assert_eq!(EventType::Anomaly as u8, 0x08);
-        assert_eq!(EventType::from_u8(0x04), Some(EventType::Chaos));
-        assert_eq!(EventType::from_u8(0x08), Some(EventType::Anomaly));
-        for v in [0x00u8, 0x05, 0x06, 0x07, 0x09, 0xFF] {
-            assert_eq!(EventType::from_u8(v), None, "0x{v:02x} has no producer");
+        for v in [0x09u8, 0x10, 0x7F, 0xFF] {
+            assert_eq!(EventType::from_u8(v), None, "0x{v:02x} is unregistered");
         }
     }
 
     #[test]
     fn event_type_from_u8_roundtrip() {
-        for t in [
-            EventType::Birth,
-            EventType::Hop,
-            EventType::Death,
-            EventType::Chaos,
-            EventType::Anomaly,
-        ] {
+        for v in 0x00u8..=0x08 {
+            let t = EventType::from_u8(v).expect("0x00-0x08 are all registered");
+            assert_eq!(t as u8, v, "{t:?} must round-trip");
+        }
+    }
+
+    #[test]
+    fn event_type_legacy_decode() {
+        assert_eq!(EventType::from_legacy_u8(0x01), Some(EventType::Born));
+        assert_eq!(EventType::from_legacy_u8(0x02), Some(EventType::Computed));
+        assert_eq!(EventType::from_legacy_u8(0x03), Some(EventType::Died));
+        assert_eq!(EventType::from_legacy_u8(0x04), Some(EventType::Chaos));
+        assert_eq!(EventType::from_legacy_u8(0x08), Some(EventType::Anomaly));
+        for v in [0x00u8, 0x05, 0x06, 0x07, 0xFF] {
             assert_eq!(
-                EventType::from_u8(t as u8),
-                Some(t),
-                "{t:?} must round-trip"
+                EventType::from_legacy_u8(v),
+                None,
+                "legacy 0x{v:02x} never existed"
             );
         }
-        assert!(EventType::from_u8(0).is_none());
-        assert!(
-            EventType::from_u8(5).is_none(),
-            "EVENT_ROLLBACK has no producer"
-        );
-        assert!(EventType::from_u8(6).is_none());
-        assert!(EventType::from_u8(0xFF).is_none());
     }
 
     // ── ChaosMode ─────────────────────────────────────────────────────────
@@ -2199,19 +2277,35 @@ mod tests {
     }
 
     #[test]
-    fn flow_action_constants_are_distinct() {
-        let actions = [
-            flow_action::FORWARD,
-            flow_action::TRACE,
-            flow_action::SAMPLE,
-            flow_action::MIRROR,
-            flow_action::DROP,
-        ];
-        for i in 0..actions.len() {
-            for j in (i + 1)..actions.len() {
-                assert_ne!(actions[i], actions[j], "Flow actions must be distinct");
-            }
+    fn flow_action_values_match_spec() {
+        // foundation-06 Monad Flow Action registry (S-TRUE-WIRE Step 84); the
+        // Go side parses the draft text (flow_action_spec_test.go).
+        assert_eq!(flow_action::FORWARD, 0x00);
+        assert_eq!(flow_action::TRACE, 0x01);
+        assert_eq!(flow_action::SAMPLE, 0x02);
+        assert_eq!(flow_action::DROP, 0x03);
+        assert_eq!(flow_action::MIRROR, 0x04);
+        assert_eq!(Monad::new().flow_action, flow_action::FORWARD);
+    }
+
+    #[test]
+    fn flow_action_registered_and_legacy() {
+        for v in 0x00u8..=0x07 {
+            assert!(flow_action::is_registered(v), "0x{v:02x}");
         }
+        for v in 0x10u8..=0x14 {
+            assert!(flow_action::is_registered(v), "0x{v:02x}");
+        }
+        for v in [0x08u8, 0x0F, 0x15, 0xF0, 0xFF] {
+            assert!(!flow_action::is_registered(v), "0x{v:02x}");
+        }
+        assert_eq!(flow_action::from_legacy(0x01), Some(flow_action::FORWARD));
+        assert_eq!(flow_action::from_legacy(0x02), Some(flow_action::TRACE));
+        assert_eq!(flow_action::from_legacy(0x03), Some(flow_action::SAMPLE));
+        assert_eq!(flow_action::from_legacy(0x04), Some(flow_action::MIRROR));
+        assert_eq!(flow_action::from_legacy(0x05), Some(flow_action::DROP));
+        assert_eq!(flow_action::from_legacy(0x00), None);
+        assert_eq!(flow_action::from_legacy(0x06), None);
     }
 
     // ── MBC ISA ────────────────────────────────────────────────────────────

@@ -403,7 +403,7 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
                 let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
                 emit_anamnesis(
                     now,
-                    EventType::Birth,
+                    EventType::Born,
                     redirect_act,
                     flow_label,
                     &hbh_header.monad,
@@ -424,7 +424,7 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
     emit_anamnesis(
         now,
-        EventType::Birth,
+        EventType::Born,
         redirect_act,
         flow_label,
         &hbh_header.monad,
@@ -546,7 +546,7 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
 
     // ── Emit DEATH event ───────────────────────────────────────────────────────
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
-    emit_anamnesis(now, EventType::Death, 0, flow_label, &monad);
+    emit_anamnesis(now, EventType::Died, 0, flow_label, &monad);
     increment_stat(STAT_DEATHS);
 
     // ── Strip the 24-byte HBH header ──────────────────────────────────────────

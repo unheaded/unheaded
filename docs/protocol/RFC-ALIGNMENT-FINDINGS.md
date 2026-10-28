@@ -28,7 +28,7 @@
 | 1 | §5.2 | `hop_count` semantics: RFC=decrement/TTL, code=increment/counter | 2 |
 | 2 | §5.3 | Flag bits 0-1: Go uses FlagK0/K1 for Kingdom Mode; RFC reserves bit 0 (MUST be zero), bit 1=CUSTOM | 2 |
 | 3 | §10.1 | AnamnesisEvent: code=32B, RFC=64B (missing output_monad, wotan_addr/value) | 1 |
-| 4 | §10.2 | Event type codes: code uses compact 0x01-0x05, RFC uses sparse 0x00-0x08 | 2 |
+| 4 | §10.2 | Event type codes: code uses compact 0x01-0x05, RFC uses sparse 0x00-0x08 | 2. **Resolved S-TRUE-WIRE Step 91 (2026-10-28):** spec wins (E4 rule); Rust `EventType` and Go `pkg/ebpf`/`bpfschema` use 0x00-0x08; `DecodeAnamnesisEventLegacy` + `AnamnesisReader.WithLegacyEventTypes` read pre-sprint objects for one release; merge to develop waits on E2 |
 | 5 | N/A | FlowCancelValue: Go=24B (aligned), Rust=20B (packed) — BPF map r/w will corrupt | 1 |
 | 6 | §14 | Chaos modes: code 0x02=Delay vs RFC 0x02=VALUE_MUTATE (semantic mismatch) | 3 |
 
@@ -69,7 +69,7 @@
 | 2 | §5 | Flat HashMap vs two-level ARRAY_OF_MAPS — no atomic dict replacement | Critical |
 | 3 | §5.2 | SophiaEntry: code=32B, RFC BPF struct=80B (missing fingerprint, PQC fields) | Major |
 | 4 | §7 | Dict ID numbering: RFC 0x01=service_identity, code 0x01=qos_class | Major |
-| 5 | §7.2 | Flow action values off-by-one from RFC (Forward=0x01 vs RFC 0x00) | Major |
+| 5 | §7.2 | Flow action values off-by-one from RFC (Forward=0x01 vs RFC 0x00) | Major. **Resolved S-TRUE-WIRE Step 84 (2026-10-28):** FORWARD 0x00, TRACE 0x01, SAMPLE 0x02, DROP 0x03, MIRROR 0x04 (foundation-06 order) in `bpfschema` and `monad_common::flow_action`; `FlowActionLegacy`/`from_legacy` for one release; merge to develop waits on E2 |
 | 6 | §9 | Non-constant-time byte comparison; HMAC instead of ML-DSA-65 | Major |
 | 7 | §6 | Missing entry policy inverted (code silently passes vs RFC DROP+ANOMALY) | Significant |
 

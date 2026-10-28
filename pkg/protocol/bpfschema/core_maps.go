@@ -18,7 +18,10 @@
 
 package bpfschema
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"strconv"
+)
 
 // === MONAD REGISTER (20 bytes) ===
 // Per draft-bellis-unheaded-protocol-foundation-03 §3.
@@ -37,7 +40,7 @@ import "encoding/binary"
 //	0x02    DstServiceID    1B      Exponent-encoded (Sophia dict 0x03)
 //	0x03    HopCount        1B      Raw u8, incremented per hop, saturates at 255
 //	0x04    QoSClass        1B      Exponent-encoded (Sophia dict 0x01)
-//	0x05    FlowAction      1B      Exponent: 1=FORWARD, 2=TRACE, 3=SAMPLE, 4=MIRROR, 5=DROP
+//	0x05    FlowAction      1B      Exponent: 0=FORWARD, 1=TRACE, 2=SAMPLE, 3=DROP, 4=MIRROR (foundation-06)
 //	0x06    CircuitState    1B      Exponent: 1=CLOSED, 2=OPEN, 3=HALF_OPEN
 //	0x07    Flags           1B      Bitfield (bit 7=CHAOS, 6=CANARY, 5=TRACED, 4=ENCRYPT, 3=SAMPLED, 2=MIRROR, 1=CUSTOM, 0=RSVD)
 //	0x08    LatencyHint     2B      Big-endian u16 (upstream latency in microseconds)
@@ -96,14 +99,81 @@ const (
 	FlagK0 = FlagReserved
 )
 
-// Flow action values (FlowAction field, offset 0x05).
+// Flow action values (FlowAction field, offset 0x05): the foundation-06
+// "Monad Flow Actions" registry. Before S-TRUE-WIRE (Step 84, 2026-10-27) the
+// code used FORWARD 0x01, TRACE 0x02, SAMPLE 0x03, MIRROR 0x04, DROP 0x05;
+// the spec wins (the E4 rule) and FlowActionLegacy decodes the old numbering
+// for one release. An all-zero Monad now reads as FORWARD, the spec default.
 const (
-	ActionForward uint8 = 0x01
-	ActionTrace   uint8 = 0x02
-	ActionSample  uint8 = 0x03
-	ActionMirror  uint8 = 0x04
-	ActionDrop    uint8 = 0x05
+	ActionForward       uint8 = 0x00 // FORWARD: normal forwarding (default).
+	ActionTrace         uint8 = 0x01 // TRACE: full event logging to Anamnesis.
+	ActionSample        uint8 = 0x02 // SAMPLE: probabilistic event logging.
+	ActionDrop          uint8 = 0x03 // DROP: discard packet.
+	ActionMirror        uint8 = 0x04 // MIRROR: clone to monitoring interface.
+	ActionRateLimit     uint8 = 0x05 // RATE_LIMIT: apply rate limiting policy.
+	ActionRedirect      uint8 = 0x06 // REDIRECT: redirect to alternate destination.
+	ActionInject        uint8 = 0x07 // INJECT: inject synthetic packet.
+	ActionKeyRotate     uint8 = 0x10 // KEY_ROTATE: PQC key rotation event.
+	ActionKeyRevoke     uint8 = 0x11 // KEY_REVOKE: PQC key revocation event.
+	ActionKeyDistribute uint8 = 0x12 // KEY_DISTRIBUTE: PQC key distribution event.
+	ActionKeyVerify     uint8 = 0x13 // KEY_VERIFY: PQC key verification event.
+	ActionKeyChallenge  uint8 = 0x14 // KEY_CHALLENGE: PQC challenge-response.
 )
+
+// FlowActionLegacy maps a flow-action byte written by a pre-S-TRUE-WIRE
+// producer (FORWARD 0x01 .. DROP 0x05) to its foundation-06 value. ok is false
+// for bytes the old numbering never defined. The two numberings overlap
+// (legacy SAMPLE 0x03 is spec DROP), so the caller must know the producer is
+// legacy; the byte alone cannot say. Removed one release after S-TRUE-WIRE.
+func FlowActionLegacy(v uint8) (uint8, bool) {
+	switch v {
+	case 0x01:
+		return ActionForward, true
+	case 0x02:
+		return ActionTrace, true
+	case 0x03:
+		return ActionSample, true
+	case 0x04:
+		return ActionMirror, true
+	case 0x05:
+		return ActionDrop, true
+	}
+	return 0, false
+}
+
+// FlowActionName returns the lower-case foundation-06 registry name of a
+// flow-action value, or "unknown(N)".
+func FlowActionName(v uint8) string {
+	switch v {
+	case ActionForward:
+		return "forward"
+	case ActionTrace:
+		return "trace"
+	case ActionSample:
+		return "sample"
+	case ActionDrop:
+		return "drop"
+	case ActionMirror:
+		return "mirror"
+	case ActionRateLimit:
+		return "rate_limit"
+	case ActionRedirect:
+		return "redirect"
+	case ActionInject:
+		return "inject"
+	case ActionKeyRotate:
+		return "key_rotate"
+	case ActionKeyRevoke:
+		return "key_revoke"
+	case ActionKeyDistribute:
+		return "key_distribute"
+	case ActionKeyVerify:
+		return "key_verify"
+	case ActionKeyChallenge:
+		return "key_challenge"
+	}
+	return "unknown(" + strconv.Itoa(int(v)) + ")"
+}
 
 // Circuit state values (CircuitState field, offset 0x06).
 const (
@@ -125,7 +195,7 @@ const (
 //
 //	Offset  Field           Size    Description
 //	0x00    TimestampNs     8B      Kernel monotonic timestamp (bpf_ktime_get_ns, nanoseconds)
-//	0x08    EventType       1B      Event type: 0x01=Birth, 0x02=Hop, 0x03=Death, 0x04=Chaos, 0x08=Anomaly (foundation-06)
+//	0x08    EventType       1B      Event type: foundation-06 registry, 0x00=BORN .. 0x08=ANOMALY
 //	0x09    HopID           1B      Sophia-assigned hop identifier (from CONFIG[0] map)
 //	0x0A    FlowLabelLo     2B      Low 16 bits of IPv6 Flow Label (big-endian, trace correlation key)
 //	0x0C    Monad           20B     Complete 20-byte Monad snapshot at time of event
@@ -140,15 +210,54 @@ type AnamnesisEvent struct {
 // AnamnesisEventSize is the exact wire size. Tests verify this.
 const AnamnesisEventSize = 32
 
-// Event types for AnamnesisEvent.EventType.
+// Event types for AnamnesisEvent.EventType: the foundation-06 "Anamnesis
+// Event Types" registry. Before S-TRUE-WIRE (Step 91, 2026-10-27) the
+// programs emitted Birth 0x01, Hop 0x02, Death 0x03 on the spec's COMPUTED,
+// WOTAN_RD and WOTAN_WR codes; E4 (2026-10-26) had already moved CHAOS and
+// ANOMALY. EventTypeLegacy decodes the old numbering for one release.
 const (
-	EventBirth   uint8 = 0x01 // Shield XDP: Monad inserted at ingress.
-	EventHop     uint8 = 0x02 // Hop XDP: Per-hop processing completed.
-	EventDeath   uint8 = 0x03 // Shield TC: Monad stripped at egress.
-	EventChaos   uint8 = 0x04 // Yaldabaoth: Chaos injection applied (EVENT_CHAOS, foundation-06).
-	EventAnomaly uint8 = 0x08 // Any: CRC failure, decode error, etc. (EVENT_ANOMALY, foundation-06).
-	// 0x05-0x07 are EVENT_ROLLBACK, EVENT_DIED, EVENT_KEY_OP in the registry: no producer yet.
+	EventBorn     uint8 = 0x00 // EVENT_BORN: Shield XDP inserted the Monad at ingress.
+	EventComputed uint8 = 0x01 // EVENT_COMPUTED: a hop executed its Shim step, Monad updated.
+	EventWotanRd  uint8 = 0x02 // EVENT_WOTAN_RD: Wotan memory read (no producer yet).
+	EventWotanWr  uint8 = 0x03 // EVENT_WOTAN_WR: Wotan memory write (no producer yet).
+	EventChaos    uint8 = 0x04 // EVENT_CHAOS: Yaldabaoth chaos injection applied.
+	EventRollback uint8 = 0x05 // EVENT_ROLLBACK: Monad rolled back (no producer yet).
+	EventDied     uint8 = 0x06 // EVENT_DIED: Shield TC stripped the Monad at egress.
+	EventKeyOp    uint8 = 0x07 // EVENT_KEY_OP: PQC key lifecycle event (no producer yet).
+	EventAnomaly  uint8 = 0x08 // EVENT_ANOMALY: CRC failure, decode error, version error.
 )
+
+// Deprecated event-type names, kept for one release after S-TRUE-WIRE. They
+// carry the spec values of the events they always meant.
+const (
+	// Deprecated: use EventBorn.
+	EventBirth = EventBorn
+	// Deprecated: use EventComputed (a hop is a computed step).
+	EventHop = EventComputed
+	// Deprecated: use EventDied.
+	EventDeath = EventDied
+)
+
+// EventTypeLegacy maps an event-type byte from a pre-S-TRUE-WIRE object
+// (Birth 0x01, Hop 0x02, Death 0x03, Chaos 0x04, Anomaly 0x08) to its
+// foundation-06 value. ok is false for bytes the old objects never emitted.
+// The numberings overlap (legacy Birth 0x01 is spec COMPUTED), so the reader
+// must know which object produced the ring; the byte alone cannot say.
+func EventTypeLegacy(v uint8) (uint8, bool) {
+	switch v {
+	case 0x01:
+		return EventBorn, true
+	case 0x02:
+		return EventComputed, true
+	case 0x03:
+		return EventDied, true
+	case 0x04:
+		return EventChaos, true
+	case 0x08:
+		return EventAnomaly, true
+	}
+	return 0, false
+}
 
 // === EXISTING MAP SCHEMAS ===
 

@@ -1339,6 +1339,16 @@ Initial entries:
   EVENT_ANOMALY (0x08)   Integrity or version error
 ~~~~
 
+Implementation note (2026-10-28): implementations before S-TRUE-WIRE
+emitted 0x01, 0x02 and 0x03 for packet birth, hop and death, which this
+registry assigns to EVENT_COMPUTED, EVENT_WOTAN_RD and EVENT_WOTAN_WR.
+Because the two numberings overlap, a decoder cannot tell them apart
+from the Event Type octet alone.  A decoder SHOULD accept the older
+numbering for one release, selected per event source by the loader that
+knows which program version produced the stream, and SHOULD NOT guess
+from the octet.  An all-zero record decodes as EVENT_BORN; a decoder
+SHOULD reject a record whose timestamp is zero.
+
 ### EVENT_COMPUTED Sub-kinds
 
 Some producers emit EVENT_COMPUTED records that are larger than the

@@ -213,17 +213,14 @@ func TestMonadState_VerifyChecksum(t *testing.T) {
 // ── EventType tests ─────────────────────────────────────────────────────────
 
 func TestEventType_Valid(t *testing.T) {
-	for _, et := range []EventType{EventBirth, EventHop, EventDeath, EventAnomaly, EventChaos} {
-		if !et.Valid() {
-			t.Errorf("EventType(%d).Valid() = false, want true", et)
+	// Every foundation-06 value 0x00-0x08 is registered (S-TRUE-WIRE Step 91;
+	// anamnesis_spec_test.go checks each value).
+	for v := uint8(0); v <= 0x08; v++ {
+		if !EventType(v).Valid() {
+			t.Errorf("EventType(%d).Valid() = false, want true", v)
 		}
 	}
-	// foundation-06 registry values (E4, 2026-10-26).
-	if EventChaos != 0x04 || EventAnomaly != 0x08 {
-		t.Errorf("EventChaos=0x%02x EventAnomaly=0x%02x, want 0x04/0x08", uint8(EventChaos), uint8(EventAnomaly))
-	}
-	// 0x05-0x07 (ROLLBACK, DIED, KEY_OP) have no producer: invalid, not a hole to fall through.
-	for _, v := range []uint8{0, 5, 6, 7, 9, 0xFF} {
+	for _, v := range []uint8{9, 0x10, 0xFF} {
 		if EventType(v).Valid() {
 			t.Errorf("EventType(%d) should be invalid", v)
 		}
@@ -315,7 +312,7 @@ func TestDecodeAnamnesisEvent_WireLayout(t *testing.T) {
 	var buf [32]byte
 	// timestamp_ns = 0x0102030405060708 (LE)
 	binary.LittleEndian.PutUint64(buf[0:8], 0x0102030405060708)
-	buf[8] = 0x01  // event_type = Birth
+	buf[8] = 0x00  // event_type = BORN (foundation-06)
 	buf[9] = 0x2A  // hop_id = 42
 	buf[10] = 0x3F // flow_label_lo[0] (BE)
 	buf[11] = 0x7E // flow_label_lo[1] (BE)
@@ -362,7 +359,8 @@ func TestDecodeAnamnesisEvent_TooShort(t *testing.T) {
 
 func TestDecodeAnamnesisEvent_UnknownType(t *testing.T) {
 	var buf [32]byte
-	buf[8] = 0x00 // invalid event type
+	buf[0] = 1    // non-zero timestamp: the type check is what is tested
+	buf[8] = 0x09 // unregistered event type
 	_, err := DecodeAnamnesisEvent(buf[:])
 	if err == nil {
 		t.Fatal("expected error for unknown event type")
@@ -376,8 +374,9 @@ func TestDecodeAnamnesisEvent_UnknownType(t *testing.T) {
 }
 
 func TestDecodeAnamnesisEvent_AllEventTypes(t *testing.T) {
-	for _, et := range []EventType{EventBirth, EventHop, EventDeath, EventAnomaly, EventChaos} {
+	for _, et := range []EventType{EventBorn, EventComputed, EventDied, EventAnomaly, EventChaos} {
 		var buf [32]byte
+		buf[0] = 1 // non-zero timestamp
 		buf[8] = uint8(et)
 		ev, err := DecodeAnamnesisEvent(buf[:])
 		if err != nil {

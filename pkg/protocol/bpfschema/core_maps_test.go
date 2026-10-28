@@ -109,30 +109,27 @@ func TestMonadFlagConstants(t *testing.T) {
 }
 
 // TestEventTypeConstants verifies event types are unique and carry the
-// foundation-06 Anamnesis Event Type registry values (E4, 2026-10-26).
+// foundation-06 Anamnesis Event Type registry values (E4 2026-10-26 moved
+// CHAOS and ANOMALY; S-TRUE-WIRE Step 91 moved BORN, COMPUTED and DIED).
+// TestEventTypeValuesMatchSpec checks the same values against the draft text.
 func TestEventTypeConstants(t *testing.T) {
 	events := map[uint8]string{
-		EventBirth:   "BIRTH",
-		EventHop:     "HOP",
-		EventDeath:   "DEATH",
-		EventAnomaly: "ANOMALY",
-		EventChaos:   "CHAOS",
+		EventBorn:     "BORN",
+		EventComputed: "COMPUTED",
+		EventWotanRd:  "WOTAN_RD",
+		EventWotanWr:  "WOTAN_WR",
+		EventChaos:    "CHAOS",
+		EventRollback: "ROLLBACK",
+		EventDied:     "DIED",
+		EventKeyOp:    "KEY_OP",
+		EventAnomaly:  "ANOMALY",
 	}
-
-	if len(events) != 5 {
-		t.Errorf("expected 5 unique event types, got %d", len(events))
+	if len(events) != 9 {
+		t.Errorf("expected 9 unique event types, got %d", len(events))
 	}
-
-	want := map[string]uint8{"BIRTH": 0x01, "HOP": 0x02, "DEATH": 0x03, "CHAOS": 0x04, "ANOMALY": 0x08}
-	for name, v := range want {
-		if events[v] != name {
-			t.Errorf("event type 0x%02x = %q, want %q", v, events[v], name)
-		}
-	}
-	// Registry values with no producer must not be claimed by the schema.
-	for _, v := range []uint8{0x00, 0x05, 0x06, 0x07} {
-		if _, ok := events[v]; ok {
-			t.Errorf("event type 0x%02x (%s) has no producer and must stay unassigned", v, events[v])
+	for v := uint8(0x00); v <= 0x08; v++ {
+		if _, ok := events[v]; !ok {
+			t.Errorf("event type 0x%02x missing: the registry is dense 0x00-0x08", v)
 		}
 	}
 }
@@ -172,12 +169,14 @@ func TestFlagNamesFollowSpec(t *testing.T) {
 	}
 }
 
-// TestActionValues verifies flow action values.
+// TestActionValues verifies the base flow actions follow the foundation-06
+// registry order (FORWARD, TRACE, SAMPLE, DROP, MIRROR = 0x00..0x04; S-TRUE-WIRE
+// Step 84). TestFlowActionValuesMatchSpec checks every row against the draft.
 func TestActionValues(t *testing.T) {
-	actions := []uint8{ActionForward, ActionTrace, ActionSample, ActionMirror, ActionDrop}
+	actions := []uint8{ActionForward, ActionTrace, ActionSample, ActionDrop, ActionMirror}
 	for i, a := range actions {
-		if a != uint8(i+1) {
-			t.Errorf("Action[%d] = %d, want %d", i, a, i+1)
+		if a != uint8(i) {
+			t.Errorf("Action[%d] = %d, want %d", i, a, i)
 		}
 	}
 }
