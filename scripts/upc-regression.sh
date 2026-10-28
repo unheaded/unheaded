@@ -128,6 +128,17 @@ DV="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --ker
 grep -aq 'DEV: console-open-ok' <<<"$DV" && grep -aq 'DEV: console-dup-ok' <<<"$DV" \
   && pass "devprobe: console opens by name, write + dup" || fail "devprobe (console by name)"
 
+# S-ASCEND-2 E1 (option K, 2026-10-28): one pid numbering, init = 1. getpid in
+# the parent and the child, fork()'s return and wait()'s return must agree.
+PF="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  --userland "$K/getpidfork.mbc" --triggers 800000 --instance 111 2>&1 | grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g')"
+if grep -aq 'F: parent-pid=1' <<<"$PF" && grep -aq 'GF: child-pid=2' <<<"$PF" && grep -aq 'GF: fork-ret=2' <<<"$PF" \
+  && grep -aq 'GF: wait-ret=2' <<<"$PF" && grep -aq 'GF: parent-after-wait' <<<"$PF"; then
+  pass "getpidfork: init 1, child 2, fork and wait agree"
+else
+  fail "getpidfork (pid numbering, E1 option K)"
+fi
+
 # Track 2 Phase 2.1 (ADR-081): OUR init as PID 1. Same kernel + fs.img, only
 # the resident PID 1 program swapped to uinit.mbc. The token proves uinit ran;
 # 'hello' proves it forked+exec'd sh and a command completed through it.

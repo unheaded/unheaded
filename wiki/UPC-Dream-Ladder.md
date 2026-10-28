@@ -13,7 +13,7 @@ This page is the live status. The deep architecture is at [UPC Overview](UPC-Ove
 | **L3** Framebuffer | Scanline render, 320×200 output | Visual verify, ≥35 fps benchmark | ✅ shipped — [Doom on UPC](Doom-on-UPC) |
 | **L4** OS primitives | Syscalls, interrupts, scheduler, MMU | Unit tests, scheduling fairness, MMU isolation | ✅ shipped through L4f |
 | **L5** xv6 kernel | interactive shell + filesystem | `sh` runs `ls`/`cat`/`echo`/`wc`, prompt returns | ✅ **shipped (2026-07-03)** — Phase 1 COMPLETE, Gates A→D.1. Interactive `sh` (fork/exec/wait), in-BPF FS reader over `fs.img`, per-pid MMU; N-way concurrent isolation gated since 2026-10-28. [Linux on UPC](Linux-on-UPC) |
-| **L6** own OS | **Unheaded Linux** — own minimal OS from scratch (not vendored uClinux) | `sh` prompt on our kernel; scale to Yggdrasil golden image | ⏳ next ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)) — evolve from xv6, budget-gated. Ownership ladder done 2026-07-07 (kernel 100% Unheaded); EVOLUTION-1 Stage 1 measured 2026-07-19, getpid flip deferred (+5409 verifier insns) |
+| **L6** own OS | **Unheaded Linux** — own minimal OS from scratch (not vendored uClinux) | `sh` prompt on our kernel; scale to Yggdrasil golden image | ⏳ next ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)) — evolve from xv6, budget-gated. Ownership ladder done 2026-07-07 (kernel 100% Unheaded); EVOLUTION-1 Stage 1 measured 2026-07-19; pid numbering decided 2026-10-28 (init = 1 in both books); getpid flip waits on Stage 2 rung 0 (a kernel process per BPF fork) |
 
 ## Per-level detail
 

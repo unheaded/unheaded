@@ -1,6 +1,6 @@
 // devprobe.c — S-ASCEND-2 Phase 7 (Step 184): open the console by name.
 //
-// Runs as init (pid 0), with no fd open yet. Opens "console" read-write and
+// Runs as init (pid 1, BPF slot 0), with no fd open yet. Opens "console" read-write and
 // writes a token through the fd that open() returned (not a hard-wired 1),
 // then a second token through a dup of it. Fixed strings only.
 //

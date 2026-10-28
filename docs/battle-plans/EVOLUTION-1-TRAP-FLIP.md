@@ -108,9 +108,9 @@ converged independently on **(c)**.
   It is NOT sequenced ahead of the parallel Debian/Yggdrasil track (ADR-081 Q4),
   which stays Age-2-deferred.
 
-### D1 reach re-read (2026-10-28) — pending E2
+### D1 reach re-read (2026-10-28) — DECIDED (a), E2 2026-10-28
 
-**Status: pending E2** (S-ASCEND-2 Step 56; M-221, decision 45). Written because the rule
+**Status: DECIDED 2026-10-28 (Stevie, E2): (a), push toward kernel-authoritative syscalls, rung by rung, stopping at the first rung whose freed instructions are below zero.** (S-ASCEND-2 Step 56; M-221, decision 45.) Written because the rule
 above names the sign of the getpid delta as the input, and the sign has changed. The
 recommendation below is not a decision.
 

@@ -42,7 +42,7 @@
 //
 //   upc-bootctl boot ... --userland target/gate_nway.mbc
 //
-// gate_nway runs as init (pid 0) and exits; with every child reaped that is the
+// gate_nway runs as init (pid 1, BPF slot 0) and exits; with every child reaped that is the
 // last process exiting and the CPU halts, so the verdict block prints once.
 // Until S-ASCEND-2 Phase 3 the scheduler resumed a reaped child instead: init
 // fell through its exit into child(2)'s code and printed "NWAY-FAIL pid2" for
@@ -71,7 +71,7 @@ get32(unsigned va)
   return *(volatile unsigned *)va;
 }
 
-// One child. expect_pid ∈ {1,2,3} (= idx+1); me = this child's unique canary.
+// One child. label ∈ {1,2,3} (the Nth child; its pid is slot + 1 = label + 1); me = this child's unique canary.
 // Never returns (always exit()s). No loops → no looped-fork hazard.
 static void
 child(int label, unsigned me)
@@ -119,17 +119,17 @@ int
 main(void)
 {
   // Fork three children WITHOUT waiting between forks, so all are live at once
-  // (the lowest-free-pid allocator hands out pids 1,2,3 in order). Unrolled.
+  // (the lowest-free-slot allocator hands out slots 1,2,3 in order: pids 2,3,4). Unrolled.
   int p1 = fork();
-  if(p1 == 0) child(1, 0xA1A1A1A1u);   // pid 1 — never returns
+  if(p1 == 0) child(1, 0xA1A1A1A1u);   // slot 1, pid 2 — never returns
   if(p1 < 0)  printf("NWAY-FORK-FAIL\n");
 
   int p2 = fork();
-  if(p2 == 0) child(2, 0xB2B2B2B2u);   // pid 2
+  if(p2 == 0) child(2, 0xB2B2B2B2u);   // slot 2, pid 3
   if(p2 < 0)  printf("NWAY-FORK-FAIL\n");
 
   int p3 = fork();
-  if(p3 == 0) child(3, 0xC3C3C3C3u);   // pid 3
+  if(p3 == 0) child(3, 0xC3C3C3C3u);   // slot 3, pid 4
   if(p3 < 0)  printf("NWAY-FORK-FAIL\n");
 
   // Reap all. The kids are authoritative on isolation; this line is structural:

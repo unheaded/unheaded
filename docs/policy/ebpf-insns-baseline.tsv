@@ -16,7 +16,7 @@ latency-probe/tcp_recvmsg_exit	default	517	6.17.0-41-generic	2026-10-28
 latency-probe/tcp_sendmsg_enter	default	94	6.17.0-41-generic	2026-10-28
 latency-probe/tcp_sendmsg_exit	default	468	6.17.0-41-generic	2026-10-28
 maglev-ebpf/maglev_xdp	default	33085	6.17.0-41-generic	2026-10-28
-monad-cpu-ebpf/monad_cpu	ascend-linux	923826	6.17.0-41-generic	2026-10-28
+monad-cpu-ebpf/monad_cpu	ascend-linux	924950	6.17.0-41-generic	2026-10-28
 monad-cpu-ebpf/monad_cpu	default	758199	6.17.0-41-generic	2026-10-28
 nfv-ebpf/nfv_firewall	default	1863	6.17.0-41-generic	2026-10-28
 nfv-ebpf/nfv_lb_route	default	56958	6.17.0-41-generic	2026-10-28

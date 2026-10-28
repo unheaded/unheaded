@@ -145,7 +145,7 @@ forkloop: $T/forkloop.mbc
 devprobe: $T/devprobe.mbc
 # Every program the regression harness boots as the userland. Not part of
 # USERLAND_PROGS: those are copied into fs.img, and the `ls` golden lists it.
-GATE_PROGS = $T/uinit.mbc $T/gate2.mbc $T/gate_nway.mbc $T/forkloop.mbc $T/devprobe.mbc
+GATE_PROGS = $T/uinit.mbc $T/gate2.mbc $T/gate_nway.mbc $T/forkloop.mbc $T/devprobe.mbc $T/getpidfork.mbc
 gates: $(GATE_PROGS) $(call sidecars,$(GATE_PROGS))
 
 # Phase 1.2 Gate 4 — N-way CONCURRENT isolation falsification test (ADR-074

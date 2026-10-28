@@ -2378,8 +2378,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         }
                     }
                     increment_stat(STAT_FORKS);
-                    // Parent's fork() return value: a0 = child_pid.
-                    cpu.regs[8] = child_pid;
+                    // Parent's fork() return value: the child's pid. S-ASCEND-2
+                    // E1 (option K, 2026-10-28): one numbering with the owned
+                    // kernel, init = 1, so a user-visible pid is slot + 1.
+                    cpu.regs[8] = child_pid + 1;
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 2 {
                 // ── xv6 SYS_exit (2) — RV32I ecall path (Phase 1.6) ──────────
@@ -2496,7 +2498,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         mem_write_word(translate_address(cpu, status_ptr) >> 2, 0);
                     }
                     increment_stat(STAT_WAITPIDS);
-                    cpu.regs[8] = child; // wait() returns the reaped child's pid
+                    cpu.regs[8] = child + 1; // wait() returns the reaped child's pid (slot + 1, E1 option K)
                 } else if any_child {
                     // Children exist but none have exited yet — run one.
                     cpu.pc = cpu.pc.wrapping_sub(1); // re-execute wait on resume
@@ -2556,9 +2558,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.reservation_address = 0xFFFF_FFFF;
                 } else {
                     // Baseline (retired when INJECT flips on): return the running
-                    // pid (a0) so a userland process can self-verify it runs AS
-                    // the pid whose per-pid slice it expects. 0 = init; 1.. kids.
-                    cpu.regs[8] = cpu.current_pid as u32;
+                    // pid. S-ASCEND-2 E1 (option K): pid = slot + 1, so init is
+                    // 1 here and in the owned kernel (xv6 allocpid starts at 1).
+                    cpu.regs[8] = cpu.current_pid as u32 + 1;
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 13 {
                 // ── xv6 SYS_pause (13) → cooperative YIELD (Gate 4, 2026-05-31) ─

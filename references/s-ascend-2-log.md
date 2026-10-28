@@ -640,3 +640,25 @@ committed). Carried from S-TRUE-WIRE: E1-E8 there, including its E2 merge gate, 
   userdel unheaded-upc`.
 - The images in `/var/lib/unheaded/upc` are copies: after a kernel or userland rebuild, re-copy them with their
   sidecars, or the SHA gate refuses the boot.
+
+## E1 option K applied (Steps 44-52, 2026-10-28)
+
+- **Numbering.** BPF reports pid = slot + 1 at the three places a pid reaches user code: `getpid` (flag off), the
+  parent's `fork()` return and `wait()`'s return. No PROC_TABLE word was added: slot + 1 is a function, not a stored
+  field, so the table stays 22 words (deviation from the plan's "pid field"; pids reuse with slots, unlike xv6's
+  monotonic counter). The kernel already numbers init 1 (`nextpid = 1`), so the books agree on init.
+- **Test first.** `getpidfork` now also prints `fork-ret` and `wait-ret` and is a harness gate expecting parent 1,
+  child 2, fork 2, wait 2. Before: 0 / 1 / 1 / 1 (RED). After: 1 / 2 / 2 / 2.
+- **Flag ON (Step 45).** parent 1 (kernel), child `other` (-1), fork 2, wait 2. Step 46's "ON == OFF on all lines"
+  fails only on the child, for the known reason (the kernel has no process for a BPF-forked child). That is Stage 2
+  rung 0, so Steps 47-52 do not flip the flag: it stays OFF (the plan's exit (b) for this part).
+- **Goldens.** No golden prints a pid: sweep 8/8 SAME and the harness's other golden sets pass, so no recapture (the
+  plan expected one).
+- **Budget.** ascend 923,826 → **924,950** (+1,124); flag-ON build 910,133. Baseline and over-budget note updated.
+- West's installed object (`/var/lib/unheaded/upc/monad-cpu-ebpf`) refreshed to this build.
+- Comments that said "init (pid 0)" in gate2, gate_nway, devprobe, getpidfork and getpidprobe now say pid 1 (slot 0).
+
+## E2 (a) recorded (Steps 63-65)
+
+EVOLUTION-1 §D1 re-read and the Stage 2 skeleton say "DECIDED (a)"; master plan 1.6.4 notes it. The next UPC work
+is rung 0 (master plan 1.6.3) and forging the Stage 2 battle plan (1.6.4).

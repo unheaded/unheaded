@@ -115,9 +115,12 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
       trip works, but the kernel answers pid 1 where BPF answers 0, so `GETPID_INJECT` stays
       `false`. REMAINS: pid identity / proc[] reconciliation before the flag flips:
       `S-ASCEND-2-battle-plan.md` Phase 1 (Steps 27-52). Child probe run 2026-10-28: with the
-      flag ON a BPF-forked child's getpid returns -1 (the kernel has no process for it); E1
-      (pid numbering) open, flag OFF. Detail: `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status,
-      §D1 reach re-read.
+      flag ON a BPF-forked child's getpid returns -1 (the kernel has no process for it).
+      **E1 answered 2026-10-28: option K, one numbering with init = 1.** BPF now reports
+      pid = slot + 1 from getpid, fork and wait (probe: parent 1, child 2, fork 2, wait 2;
+      a harness gate; goldens unchanged). With the flag ON init agrees in both books, and the
+      child still reads -1: the flag stays OFF until rung 0 (1.6.3) gives the kernel a process
+      per BPF fork. Detail: `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status, §D1 reach re-read.
 
 ### Epic 1.4 — Code-store readiness (only when an image needs it)
 - [x] **1.4.1** Option A `large-image` feature (ROM_MAP 4×, RV2MBC 8×) — DONE + validated
@@ -162,8 +165,9 @@ toward (a), stop at the first rung with freed insns < 0).
       steps: `EVOLUTION-1-STAGE-2-skeleton.md` (2026-10-28).
 - [ ] **1.6.3** Rung 0, a kernel row per BPF fork, needed under either E2 answer (prerequisite
       of every stateful rung and of the arrivals; also closes 1.3.5).
-- [ ] **1.6.4** Forge the Stage 2 battle plan (own Warmonger session, four-lens panel) once E2
-      is answered.
+- [ ] **1.6.4** Forge the Stage 2 battle plan (own Warmonger session, four-lens panel). E2
+      answered 2026-10-28: (a), push toward kernel-authoritative syscalls rung by rung with the
+      freed-instructions stop rule; rung 0 first.
 
 ---
 

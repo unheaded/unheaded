@@ -6,7 +6,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 # EVOLUTION-1 Stage 2 — Migration Ladder (skeleton)
 
 **Date**: 2026-10-28
-**Status**: SKELETON, draft, **pending E2**. Phases, gates and prerequisites only.
+**Status**: SKELETON. **E2 decided 2026-10-28: (a)**, the full ladder, rung by rung with the stop rule. **E1 decided: option K** (init = 1; BPF reports slot + 1), so rung 0 gives the kernel a process per BPF fork under that numbering. Phases, gates and prerequisites only.
 **E2 answer**: *pending* (S-ASCEND-2 Step 56). Slot for Step 63: "DECIDED <date>: (a) push | (c) minimal".
 **Cites**: M-221 (decision 45); [EVOLUTION-1-TRAP-FLIP.md](EVOLUTION-1-TRAP-FLIP.md) §D1 reach re-read, §Stage 2, Appendix B (state-ownership matrix); [S-ASCEND-2-battle-plan.md](S-ASCEND-2-battle-plan.md) Phases 1-2; sprint log `references/s-ascend-2-log.md`.
 **Prerequisite**: S-ASCEND-2 Phase 1 (pid numbering decided by E1), Phase 3 (`gate_nway` 3x `NWAY-ok` and the forkloop gate, both in `scripts/upc-regression.sh`) and Phase 7 (device inodes; FS write route decided at Step 182) done. Pid reconciliation recorded. `gate_nway` green in the harness.
