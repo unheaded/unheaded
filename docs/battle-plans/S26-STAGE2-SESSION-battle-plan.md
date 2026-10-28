@@ -170,7 +170,7 @@ one-paragraph "forge when rung 1 is green" note each.
 **Time**: ~1.5 h
 **Agent**: Coordinator
 
-- [ ] **Step 41** [W] ~20m: Append Phase 5 (Steps 111-130): flip the const, OFF/ON verifier pair on one build recorded, `getpidprobe` + `getpidfork` identical lines, harness + sweep, `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 "CLOSED <date>", master plan 1.3.5 `[x]`, `wiki/UPC-Dream-Ladder.md` L5 row, CLAUDE.md one sentence; exit gate.
+- [x] **Step 41** [W] ~20m: Append Phase 5 (Steps 111-130): flip the const, OFF/ON verifier pair on one build recorded, `getpidprobe` + `getpidfork` identical lines, harness + sweep, `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 "CLOSED <date>", master plan 1.3.5 `[x]`, `wiki/UPC-Dream-Ladder.md` L5 row, CLAUDE.md one sentence; exit gate.
 - [ ] **Step 42** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 plan] Phase 5 forged (rung 1 flip)`.
 - [ ] **Step 43** [W] ~20m: Append Phase 6 (Steps 131-146): attack-surface table (new kernel reads of BPF-written words; a user program that forges `sscratch`-adjacent memory cannot, since the table is outside every slice: prove with a probe that reads the table VA and faults/returns 0), a hostile probe per new syscall path, `fuzz_mbc_execute` 300 s unchanged, repo gates; exit gate.
 - [ ] **Step 44** [W] ~15m: Append Phase 7 (Steps 147-160): `$LOG` close, timeline entry + mirrors (the timeguru syncer pattern from S-ASCEND-2 Step 306), OUTSTANDING M-220/M-221 rows, ADR-109 → Accepted if the rung 0 gate passed, `~/tmp/next.md`, final regression; exit gate = Stage 2 rungs 0-1 exit.
