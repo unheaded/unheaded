@@ -491,3 +491,16 @@ are deferred with D6: without D6 they would only confirm the open hole the ADR a
   - Two needless-range loops in `os_primitives_test.rs` and an unused binding in `fuzz_slice_geometry.rs`, both from
     S-ASCEND-2 commits. Fixed; os_primitives 69 pass.
 - `check-gates-can-fail` exits 2 on a dirty tree; it is re-run after the commit.
+- `check-gates-can-fail` (full run, 45 min limit): 53 gates "bite when provoked". **`verify-gpl-boundary` reported
+  PASSED WHILE VIOLATED** in this worktree, while a throwaway `develop` worktree in the scratchpad bit.
+  - Root cause: its `find` calls excluded `*/.claude/*` matched against absolute paths, so any checkout under a
+    `.claude/` directory (this worktree is in `.claude/worktrees/`) scanned nothing and passed.
+  - Fixed: the exclusion is `"${REPO_ROOT}/.claude/*"`. Plain run PASS; `--only verify-gpl-boundary` bites.
+  - The full run then stalled in `well/test-zhen-captures` (docker-backed) and hit the limit. That gate and the ones
+    after it were not checked this session.
+- **Step 144:** `go test ./...`: 0 FAIL. upc-bootctl cargo tests: all ok.
+
+**Phase 6 exit gate: PASS, with these not run:**
+- the D6 hostile probes (deferred with D6);
+- `fuzz_mbc_execute` (cargo-fuzz not installed);
+- the `check-gates-can-fail` tail after `well/test-zhen-captures`.

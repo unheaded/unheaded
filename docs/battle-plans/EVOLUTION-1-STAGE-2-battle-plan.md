@@ -627,9 +627,9 @@ the result is recorded.
 - [x] **Step 142** [B] ~5m: `cd "$PROJECT_ROOT" && bash scripts/check-ebpf-insns.sh && bash scripts/check-gates-can-fail.sh 2>&1 | tail -2 && bash scripts/check-gitleaks.sh 2>&1 | tail -1 && bash scripts/check-clippy.sh 2>&1 | tail -1`.
 - [x] **Step 143** *(clippy fixed to 0/0; gates-can-fail re-run on a clean tree)* [V] ~30s: Each script exits 0.
   - A script that needs a tool not on west → record SKIP with the tool's name, not a pass.
-- [ ] **Step 144** [TEST][B] ~5m: `go test ./... 2>&1 | grep -c '^FAIL'; (cd cmd/upc-bootctl && cargo test --release 2>&1 | grep 'test result' | sort | uniq -c)`.
-- [ ] **Step 145** [V] ~30s: 0 Go FAIL; every cargo `test result: ok`.
-- [ ] **Step 146** [C][V] ~1m: **COMMIT CHECKPOINT + PHASE 6 EXIT GATE**
+- [x] **Step 144** [TEST][B] ~5m: `go test ./... 2>&1 | grep -c '^FAIL'; (cd cmd/upc-bootctl && cargo test --release 2>&1 | grep 'test result' | sort | uniq -c)`.
+- [x] **Step 145** [V] ~30s: 0 Go FAIL; every cargo `test result: ok`.
+- [x] **Step 146** *(PASS with the not-run list in the log)* [C][V] ~1m: **COMMIT CHECKPOINT + PHASE 6 EXIT GATE**
   `docs(upc): [STAGE2 139-145] rung 0-1 security pass recorded`. The table is complete, the hostile probes are gated
   (or skipped with the escalation named), and the fuzz run and repo gates are clean.
 
