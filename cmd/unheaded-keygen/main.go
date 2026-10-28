@@ -265,7 +265,7 @@ func rotate(o options, uid, gid int, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(stderr, err)
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 	newKid, err := auth.GenerateKeyPair(tmp, o.name)
 	if err != nil {
 		return fail(stderr, err)
@@ -279,7 +279,11 @@ func rotate(o options, uid, gid int, stdout, stderr io.Writer) int {
 	// Trust first (old key stays trusted under its own file, new key under
 	// <service>.pub), then the key itself, so no moment exists where the
 	// service signs with a key no verifier holds.
-	oldPEM, err := pubPEM(oldPriv.Public().(ed25519.PublicKey))
+	oldPub, ok := oldPriv.Public().(ed25519.PublicKey)
+	if !ok {
+		return fail(stderr, fmt.Errorf("%s: key is not Ed25519", o.name))
+	}
+	oldPEM, err := pubPEM(oldPub)
 	if err != nil {
 		return fail(stderr, err)
 	}
@@ -465,7 +469,7 @@ func writeAtomic(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 	tmp := f.Name()
-	defer os.Remove(tmp)
+	defer func() { _ = os.Remove(tmp) }() // gone already after a successful rename
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
 		return err

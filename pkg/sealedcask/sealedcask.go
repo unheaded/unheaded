@@ -219,7 +219,7 @@ func scan(r io.Reader, lim Limits, sink fileSink) (*scanned, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrFormat, err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }() // a reader: nothing to flush
 	tr := tar.NewReader(gz)
 	s := &scanned{hashes: map[string][sha256.Size]byte{}}
 	seen := map[string]bool{}
@@ -473,7 +473,7 @@ func VerifyFile(file string, trusted []*mldsa65.PublicKey, lim Limits) (*Result,
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read-only
 	return Verify(f, trusted, lim)
 }
 
@@ -506,7 +506,7 @@ func ExtractFile(file, dest string, trusted []*mldsa65.PublicKey, lim Limits) (*
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read-only
 	if _, err := Verify(f, trusted, lim); err != nil {
 		return nil, err
 	}
@@ -533,7 +533,7 @@ func extractInto(r io.Reader, dest string, trusted []*mldsa65.PublicKey, lim Lim
 	if err != nil {
 		return nil, err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 	sink := func(name string, mode int64) (io.WriteCloser, error) {
 		if dir := path.Dir(name); dir != "." {
 			if err := root.MkdirAll(dir, 0o755); err != nil {

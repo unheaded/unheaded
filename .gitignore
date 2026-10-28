@@ -318,3 +318,8 @@ configs/certs/
 # Stray pre-rename Huginn binaries (cmd/host-agent moved to cmd/huginn 2026-10-25); never commit a built binary here
 /host-agent
 /cmd/host-agent/
+
+# Local doomgeneric checkout for the Doom scripts (scripts/doom/loader.sh, doom-smoke.sh). It was a
+# gitlink with no .gitmodules entry, pointing at a commit no public repo has; actions/checkout failed on
+# it ("No url found for submodule path"). CI fetches doomgeneric by pinned SHA (scripts/ci-fetch-doomgeneric.sh).
+/doom/doomgeneric/

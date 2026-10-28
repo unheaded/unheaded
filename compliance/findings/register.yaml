@@ -464,6 +464,27 @@ findings:
       keys file; the checks run in one bpf_loop in observe mode, enforce behind SHIELD_CONFIG; GOAWAY and authority
       follow the Phase 4 ruling (enforce or delete); docs corrected first, then again when true.
 
+  - id: FND-027
+    title: >-
+      The main CI workflow (.github/workflows/ci.yml: Go build and test, golangci-lint, Rust check, SPDX, licence
+      compliance and the CI Gate) is disabled in GitHub (state disabled_manually); its last run was 2026-02-20
+    verify: >-
+      api.github.com/repos/unheaded/unheaded/actions/workflows/ci.yml reports state active, and the latest push to
+      develop has a CI run whose CI Gate job passed
+    severity: medium
+    class: ci
+    opened: 2026-10-28
+    exposure: >-
+      eight months of develop, staging and main pushes ran no golangci-lint and no CI Gate; Static Analysis, Security
+      Scan and the other workflows covered parts of it. Enabled today it would fail: golangci-lint (version latest)
+      reports 60 issues, and the licence job used go-licenses @latest (pinned v1.6.0 in 9cd6cc05).
+    lockout: none
+    step: 1
+    plan: >-
+      Prerequisites done on develop 2026-10-28: golangci-lint v2.15.0 at 0 issues and pinned in ci.yml (ba25221f),
+      go-licenses pinned and passing (9cd6cc05). What remains is Stevie's: re-enable the workflow (Actions, CI,
+      Enable workflow) and check one green run. Enabling is a GitHub setting, so not done unattended.
+
   - id: FND-026
     title: West serves an old unsigned apt repo on 0.0.0.0:18888 with autoindex; its conf/ and db/ are readable on the LAN.
     verify: curl -s -o /dev/null -w '%{http_code}' http://<west LAN address>:18888/conf/distributions is not 200, and only the signed reprepro repo (deploy/nginx/unheaded-apt.conf) answers on 18888

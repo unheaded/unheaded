@@ -237,7 +237,11 @@ func (s *issuer) discovery(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *issuer) jwks(w http.ResponseWriter, _ *http.Request) {
-	pub := s.priv.Public().(ed25519.PublicKey)
+	pub, ok := s.priv.Public().(ed25519.PublicKey)
+	if !ok { // cannot happen for an ed25519.PrivateKey; refuse rather than serve nothing
+		http.Error(w, "signing key is not Ed25519", http.StatusInternalServerError)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"keys": []map[string]string{{
 		"kty": "OKP",
 		"crv": "Ed25519",

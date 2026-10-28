@@ -71,7 +71,7 @@ func adversarialInputs() []string {
 		`{"harness_id":"` + big + `"}`,
 		`{"summary":"` + big + `","severity":"high"}`,
 		`{"severity":"high","summary":"x","repro_hex":"not-hex-zz"}`,
-		`{"severity":"‮evil","summary":"x"}`,
+		"{\"severity\":\"\u202eevil\",\"summary\":\"x\"}", // U+202E RIGHT-TO-LEFT OVERRIDE, escaped
 		`{"nested":{"a":{"b":{"c":[1,2,3]}}}}`,
 		`{"harness_id":"ʟɪᴄʜ"}`, // homoglyphs
 		`{"__proto__":{"x":1},"harness_id":"001"}`,

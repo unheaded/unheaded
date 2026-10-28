@@ -140,7 +140,7 @@ func LoadPrivateKey(path string) (ed25519.PrivateKey, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("auth: open private key: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read-only
 	// Stat the open file, not the path, so the check is about what is read.
 	st, err := f.Stat()
 	if err != nil {
@@ -164,7 +164,11 @@ func LoadPrivateKey(path string) (ed25519.PrivateKey, string, error) {
 		return nil, "", fmt.Errorf("auth: %s has data after the key block", path)
 	}
 	priv := ed25519.NewKeyFromSeed(blk.Bytes)
-	return priv, KeyID(priv.Public().(ed25519.PublicKey)), nil
+	pub, ok := priv.Public().(ed25519.PublicKey)
+	if !ok {
+		return nil, "", errors.New("auth: private key is not Ed25519")
+	}
+	return priv, KeyID(pub), nil
 }
 
 // ParsePublicKeyPEM parses one PKIX "PUBLIC KEY" PEM block holding an
@@ -282,7 +286,7 @@ func readPubFile(path string) (ed25519.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read-only
 	st, err := f.Stat()
 	if err != nil {
 		return nil, err

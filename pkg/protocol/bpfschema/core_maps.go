@@ -462,7 +462,7 @@ type MbcCpuState struct {
 	Flags              uint8      // CPU flags: bit 0=Z, bit 1=N, bit 2=C.
 	Halted             uint8      // 1 if HALT instruction executed.
 	Stalled            uint8      // 1 if waiting for cache miss (D-003).
-	_pad               uint8      // Alignment padding.
+	_                  uint8      // Alignment padding.
 	SleepUntilNs       uint64     // bpf_ktime_get_ns() sleep target.
 	InsnCount          uint64     // Total instructions executed (for IPS stats).
 	CacheHits          uint64     // L1 cache hits.
@@ -470,19 +470,19 @@ type MbcCpuState struct {
 	InterruptPending   uint8      // Non-zero when interrupt waiting.
 	InterruptVector    uint8      // Vector number of pending interrupt.
 	InterruptsEnabled  uint8      // Non-zero when CPU accepts interrupts.
-	_pad2              uint8      // Alignment padding.
+	_                  uint8      // Alignment padding.
 	TickCounter        uint32     // Tick counter for timer interrupt generation.
 	ProgramBreak       uint32     // Heap end address for SYS_BRK (Level 4b).
 	ExitCode           uint32     // Exit code from SYS_EXIT (Level 4b).
 	CurrentPID         uint8      // Current process ID (0-3). Level 4c scheduler.
 	NumProcesses       uint8      // Number of active processes. Level 4c scheduler.
 	MmuEnabled         uint8      // MMU enabled (0=flat, 1=paging). Level 4d.
-	_pad3              uint8      // Alignment padding.
+	_                  uint8      // Alignment padding.
 	PageDirBase        uint32     // Page directory base address. Level 4d.
 	PrivLevel          uint8      // Privilege level: 0=M, 1=S, 3=U (ADR-067).
-	_pad4              uint8      // Alignment padding.
-	_pad5              uint8      // Alignment padding.
-	_pad6              uint8      // Alignment padding.
+	_                  uint8      // Alignment padding.
+	_                  uint8      // Alignment padding.
+	_                  uint8      // Alignment padding.
 	ReservationAddress uint32     // LR.W reservation address; 0xFFFFFFFF = none (ADR-067).
 }
 

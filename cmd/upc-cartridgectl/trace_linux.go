@@ -149,7 +149,7 @@ func cmdReplay(g *globals, args []string) error {
 		if err != nil {
 			return err
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 		img = filepath.Join(dir, sha+".cart")
 		if err := os.WriteFile(img, raw, 0o600); err != nil {
 			return err

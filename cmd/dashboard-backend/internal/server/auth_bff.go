@@ -111,7 +111,7 @@ func isUIRead(r *http.Request) bool {
 		return false
 	}
 	p := r.URL.Path
-	return !(p == "/api" || strings.HasPrefix(p, "/api/") || p == "/ws" || strings.HasPrefix(p, "/ws/"))
+	return p != "/api" && !strings.HasPrefix(p, "/api/") && p != "/ws" && !strings.HasPrefix(p, "/ws/")
 }
 
 func canonical(u *url.URL) bool {
