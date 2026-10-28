@@ -31,6 +31,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/enkrateia"
+	"unheaded/pkg/gjallarhorn"
 	"unheaded/pkg/gungnir"
 	wotanClient "unheaded/pkg/wotan-client"
 )
@@ -503,6 +504,16 @@ func main() {
 	} else if *xdpIface != "" {
 		fmt.Fprintln(os.Stderr, "--xdp-iface needs --bpf-dir")
 		os.Exit(2)
+	}
+	// A real NIC filters an unjoined multicast group before XDP sees it, so
+	// a seed that observes horns on --xdp-iface must hold the group itself.
+	if *xdpIface != "" {
+		if mc, err := joinHornGroup(*xdpIface); err != nil {
+			fmt.Fprintf(os.Stderr, "[HORN] %v: bootstrap horns may not reach the observer on a real NIC\n", err)
+		} else {
+			defer mc.Close()
+			fmt.Printf("[HORN] joined %s on %s\n", gjallarhorn.MulticastGroup, *xdpIface)
+		}
 	}
 	h.hornPolicy = newHornPolicy(uint32(*cluster), time.Now()) // #nosec G115 -- range-checked above
 

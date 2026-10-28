@@ -17,6 +17,13 @@ import (
 	"errors"
 )
 
+// MulticastGroup and Port are where BootstrapBroadcast horns go: the
+// link-local group every seed listens on, and the UDP port of every horn.
+const (
+	MulticastGroup = "ff02::1:abba"
+	Port           = 16901 // Doom Range infrastructure tier
+)
+
 const (
 	PacketSize = 20
 )

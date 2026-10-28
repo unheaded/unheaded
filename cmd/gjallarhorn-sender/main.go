@@ -24,8 +24,8 @@ import (
 const (
 	// Link-local IPv6 multicast group for Gjallarhorn bootstrap discovery.
 	// ff02::1:abba is in the "variable scope multicast" range
-	gjallarhornMcast = "ff02::1:abba"
-	gjallarhornPort  = 16901 // in the Doom Range infrastructure tier
+	gjallarhornMcast = gjallarhorn.MulticastGroup
+	gjallarhornPort  = gjallarhorn.Port
 )
 
 func main() {

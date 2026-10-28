@@ -29,7 +29,7 @@
 | Restore verification accuracy | 100% (1/1 on injection test) |
 | Data consistency | 100% (100/100 stress packets) |
 | Cascade failures | 0 |
-| Bootstrap flow demonstrated | ✓ unicast and multicast across WEST→EAST (2026-10-28; the seed must join ff02::1:abba, a real NIC filters an unjoined group) |
+| Bootstrap flow demonstrated | ✓ unicast and multicast across WEST→EAST (2026-10-28; a real NIC filters an unjoined multicast group, so heimdall now joins ff02::1:abba on `--xdp-iface` itself, verified on east: 3/3 horns with no listener) |
 | Reminder flow demonstrated | ✓ injection caught on EAST |
 | LICH-012 zero exploitable | DEFERRED — campaign scaffold opened, full red team out of PoC scope |
 

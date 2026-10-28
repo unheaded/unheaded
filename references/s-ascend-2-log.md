@@ -692,7 +692,10 @@ every stage (fail-after 5, 20 min leases, renewed); it never fired.
 1. **Multicast needs the group joined.** The first 7 horns never reached XDP on east: a real NIC filters frames for
    multicast groups nobody on the host joined, and veth interfaces do not. Heimdall only observes through XDP and joins
    nothing, so the bootstrap only arrived once `gjallarhorn-listener -multicast` ran on east. A deployed seed must join
-   `ff02::1:abba` (or heimdall should join it itself): recorded for Mímir, not changed in heimdall.
+   `ff02::1:abba`. **Fixed the same day:** with `--xdp-iface`, heimdall joins the group on that interface itself
+   (`cmd/heimdall-daemon/hornjoin.go`; the constants moved to `pkg/gjallarhorn`, shared with the sender). Lab: the
+   group appears in `ip -6 maddr` while heimdall runs and is gone after it exits. East (guarded, no listener): 3/3
+   multicast horns observed; east cleaned again.
 2. **Unicast needed a zoned link-local target.** The observer parses IPv6 only and east's `enp2s0` has only a
    link-local IPv6 address; the sender fell back to IPv4. `gjallarhorn-sender -target fe80::…%iface` now works
    (new `unicastAddr`, test-first; a zone is refused on non-link-local addresses).
