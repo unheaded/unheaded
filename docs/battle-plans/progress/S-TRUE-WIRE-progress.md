@@ -105,3 +105,35 @@ headed common/flow-tracker/packet-marker/latency-probe and ebpf-loader) while mo
 yaldabaoth, syscall-tracer say GPL-3.0-or-later, and zhend's manifest says GPL-3.0-only against or-later headers: which
 licence on each side (GPL-2.0-only for kernel-side programs, or GPL-3.0-or-later everywhere)? Keep the external
 doomgeneric module MIT?
+
+## Phase 8 follow-up: PR #2 review findings fixed (2026-10-28)
+
+`/code-review ultra` on PR #2 (`review/true-wire-ph8-base`..`review/true-wire-ph8`, the Phase 8 merge `88202527`)
+returned six findings, all rated nit, two of them latent integrity gaps. All six fixed in one commit on the sprint branch:
+1. PublishTopic refuses a non-UTF-8 payload on a signed topic (InvalidArgument): the stored Content is a string the JSON
+   encoding rewrites, and a standby verifies the stored copy, so the signature would never verify again
+   (`TestPublishTopic_SignedNonUTF8PayloadRefused`). Base64 storage remains the long-term fix if a signed producer ever
+   needs binary payloads; today's signed producers (Heimdall, Akira) send JSON.
+2. A rejected WAL entry halts replication instead of being skipped: `handleEntry` returns the `RejectError`,
+   `StartReplication` ends with it, `lastAppliedSeq` stays below the entry, `halted_at_seq` in Stats. A standby that
+   skipped would diverge from the primary with only a counter to show for it. **Open before cluster mode is wired
+   (main.go still refuses cluster mode):** records written before signatures were persisted, and records signed by a
+   retired key, now halt the first standby that replays them; a cutover sequence or a retired-but-trusted key set is
+   needed first (note in `cluster/signature.go`).
+3. A verified delta signed more than MaxSkew ago is applied and counted (`unheaded_sophia_delta_stale_total`), not
+   refused: the version check already stops replay, and refusing a late delta wedged a receiver that was offline for
+   longer than 5 minutes on the version before it (`TestApplyDelta_StaleSignatureAppliedAndCounted`). `ErrStaleDelta`
+   removed. **RFC desk (Phase 1 queue):** sophia-dictionary-03 Security Considerations 2 says "reject updates with
+   timestamps > 5 minutes in future/past"; proposed wording: replay protection is version monotonicity, the 5-minute
+   window is logged and counted, not a refusal.
+4. WALEntry fields 7-11 (the second copy of the signature) removed from `replication.proto`; the standby verifies
+   `store.Message.Signed` straight from the decoded data. No `RejectMismatch`, no primary-side JSON decode per entry,
+   ~5.2 KB of ML-DSA-65 material no longer travels twice. Fields were new in Phase 8, nothing shipped carried them.
+   `replication.pb.go` regenerated (protoc 3.21.12; chat/topic pb left as committed).
+5. `signing.go` wraps the verifier-construction error.
+6. The three delta-signature logs are structured (`sophia_delta_refused` with reason, `sophia_delta_unsigned_applied`,
+   `sophia_delta_stale_applied` with signed_at/now/max_skew) instead of Msgf.
+Verified: `go test -race` on `services/wotan/...`, `pkg/protocol/sophiasync`, `pkg/wotan-client/...` all ok; gofmt and
+vet clean. PR #2 CI's "Gates can actually fail" red is pre-existing (14 unclassified gate scripts on develop, fixed
+there in `4ec0f5c4`; the sprint branch inherits it at the E2 merge). GitHub refused the review's automatic PR comment
+("your account cannot comment on this pull request"); the findings are in the Round Table plan on develop.

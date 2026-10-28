@@ -22,8 +22,11 @@ import (
 
 // Dictionary delta signatures (M-149, sophia-dictionary-03 Security
 // Considerations 1 and 2): ML-DSA-65 over the delta's canonical bytes and
-// its signing time, by a key the receiver trusts, signed within MaxSkew of
-// the receiver's clock. It replaces a "signature" that was SHA-256 of the
+// its signing time, by a key the receiver trusts. A signing time more than
+// MaxSkew from the receiver's clock is counted and logged, not refused:
+// replay is stopped by the version check (a delta is applied only as the
+// next version), and refusing a late delta wedged the receiver on the
+// version before it. It replaces a "signature" that was SHA-256 of the
 // delta, which anyone could recompute; that digest survives as Digest, the
 // delta's identity, not its authentication.
 //
@@ -42,8 +45,12 @@ const DeltaAlgorithm = "ml-dsa-65"
 const deltaDomain = "sophia/delta-sig/v1"
 
 // MaxSkew is how far a delta's signing time may be from the receiver's
-// clock, either way (sophia-dictionary-03: "reject updates with timestamps
-// > 5 minutes in future/past").
+// clock, either way, before the delta counts as stale
+// (unheaded_sophia_delta_stale_total). sophia-dictionary-03 Security
+// Considerations 2 says "reject updates with timestamps > 5 minutes in
+// future/past"; the reference implementation applies them (see the package
+// comment) and the wording is with the RFC desk (S-TRUE-WIRE Phase 8
+// follow-up).
 const MaxSkew = 5 * time.Minute
 
 // Environment variables a service that distributes or applies deltas reads.
@@ -68,7 +75,6 @@ var (
 	ErrUntrustedKey     = errors.New("sophiasync: delta signed by a key that is not trusted")
 	ErrNoSigner         = errors.New("sophiasync: no delta-signing key")
 	ErrUnsignedDelta    = errors.New("sophiasync: unsigned delta refused (signatures required)")
-	ErrStaleDelta       = errors.New("sophiasync: delta signing time outside the accepted window")
 )
 
 var (
@@ -76,9 +82,19 @@ var (
 		Name: "unheaded_sophia_delta_unsigned_total",
 		Help: "Sophia dictionary deltas received without a signature (applied in observe mode, refused when signatures are required)",
 	})
+	// deltaStale counts verified deltas whose signing time was more than
+	// MaxSkew from the receiver's clock. They are applied: the next version
+	// is the next version, and a replayed delta cannot pass the version
+	// check, so refusing a late one only wedged the receiver on the version
+	// before it (PR #2 review). The count is the evidence for clock drift or
+	// a slow path between signer and receiver.
+	deltaStale = auto.NewCounter(prom.CounterOpts{
+		Name: "unheaded_sophia_delta_stale_total",
+		Help: "Signed Sophia dictionary deltas applied although signed more than MaxSkew from the receiver's clock",
+	})
 	deltaSignatureFailures = auto.NewCounter(prom.CounterOpts{
 		Name: "unheaded_sophia_delta_signature_failures_total",
-		Help: "Signed Sophia dictionary deltas refused: bad signature, untrusted key, wrong algorithm or stale signing time",
+		Help: "Signed Sophia dictionary deltas refused: bad signature, untrusted key or wrong algorithm",
 	})
 )
 
@@ -178,7 +194,7 @@ func Verify(d *DictionaryDelta, trusted [][]byte) error {
 	}
 	v, err := pqc.NewMLDSAVerifier(pqc.MLDSA65)
 	if err != nil {
-		return err
+		return fmt.Errorf("sophiasync: delta verifier: %w", err)
 	}
 	ok, err := v.Verify(signingDigest(d), d.Signature, d.PublicKey)
 	if err != nil || !ok {

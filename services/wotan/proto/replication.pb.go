@@ -27,28 +27,15 @@ const (
 
 // WALEntry represents a single WAL entry for replication.
 type WALEntry struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	Sequence  uint64                 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	Data      []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	Crc       uint32                 `protobuf:"varint,3,opt,name=crc,proto3" json:"crc,omitempty"`
-	NodeId    string                 `protobuf:"bytes,4,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	Timestamp *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Epoch     int64                  `protobuf:"varint,6,opt,name=epoch,proto3" json:"epoch,omitempty"`
-	// ML-DSA-65 signature of a signed topic message (config.*, drift.* and
-	// configured signed prefixes; ADR-043 #2, ADR-105), copied from the
-	// signature persisted with the message in data, so a signed message
-	// replicated to a standby is still signed (FND-020). The standby verifies
-	// them against its own trusted keys before applying the entry and rejects
-	// an entry on a signed topic that carries none. Empty on unsigned
-	// messages. sender_id is the sender the signature covers. Additive fields
-	// (proto3): an old peer ignores them.
-	Signature      []byte `protobuf:"bytes,7,opt,name=signature,proto3" json:"signature,omitempty"`
-	PublicKey      []byte `protobuf:"bytes,8,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	Algorithm      string `protobuf:"bytes,9,opt,name=algorithm,proto3" json:"algorithm,omitempty"`
-	SignedAtUnixMs int64  `protobuf:"varint,10,opt,name=signed_at_unix_ms,json=signedAtUnixMs,proto3" json:"signed_at_unix_ms,omitempty"`
-	SenderId       string `protobuf:"bytes,11,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sequence      uint64                 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	Crc           uint32                 `protobuf:"varint,3,opt,name=crc,proto3" json:"crc,omitempty"`
+	NodeId        string                 `protobuf:"bytes,4,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Epoch         int64                  `protobuf:"varint,6,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *WALEntry) Reset() {
@@ -121,41 +108,6 @@ func (x *WALEntry) GetEpoch() int64 {
 		return x.Epoch
 	}
 	return 0
-}
-
-func (x *WALEntry) GetSignature() []byte {
-	if x != nil {
-		return x.Signature
-	}
-	return nil
-}
-
-func (x *WALEntry) GetPublicKey() []byte {
-	if x != nil {
-		return x.PublicKey
-	}
-	return nil
-}
-
-func (x *WALEntry) GetAlgorithm() string {
-	if x != nil {
-		return x.Algorithm
-	}
-	return ""
-}
-
-func (x *WALEntry) GetSignedAtUnixMs() int64 {
-	if x != nil {
-		return x.SignedAtUnixMs
-	}
-	return 0
-}
-
-func (x *WALEntry) GetSenderId() string {
-	if x != nil {
-		return x.SenderId
-	}
-	return ""
 }
 
 // CatchUpRequest is sent by standby to request WAL entries.
@@ -507,21 +459,14 @@ var File_replication_proto protoreflect.FileDescriptor
 
 const file_replication_proto_rawDesc = "" +
 	"\n" +
-	"\x11replication.proto\x12\x05wotan\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd8\x02\n" +
+	"\x11replication.proto\x12\x05wotan\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb5\x01\n" +
 	"\bWALEntry\x12\x1a\n" +
 	"\bsequence\x18\x01 \x01(\x04R\bsequence\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\fR\x04data\x12\x10\n" +
 	"\x03crc\x18\x03 \x01(\rR\x03crc\x12\x17\n" +
 	"\anode_id\x18\x04 \x01(\tR\x06nodeId\x128\n" +
 	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x14\n" +
-	"\x05epoch\x18\x06 \x01(\x03R\x05epoch\x12\x1c\n" +
-	"\tsignature\x18\a \x01(\fR\tsignature\x12\x1d\n" +
-	"\n" +
-	"public_key\x18\b \x01(\fR\tpublicKey\x12\x1c\n" +
-	"\talgorithm\x18\t \x01(\tR\talgorithm\x12)\n" +
-	"\x11signed_at_unix_ms\x18\n" +
-	" \x01(\x03R\x0esignedAtUnixMs\x12\x1b\n" +
-	"\tsender_id\x18\v \x01(\tR\bsenderId\"\\\n" +
+	"\x05epoch\x18\x06 \x01(\x03R\x05epoch\"\\\n" +
 	"\x0eCatchUpRequest\x12\x1b\n" +
 	"\tsince_seq\x18\x01 \x01(\x04R\bsinceSeq\x12\x17\n" +
 	"\anode_id\x18\x02 \x01(\tR\x06nodeId\x12\x14\n" +

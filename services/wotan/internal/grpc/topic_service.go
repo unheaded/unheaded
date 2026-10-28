@@ -26,6 +26,7 @@ import (
 	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/wotan"
 	chatpb "unheaded/services/wotan/proto"
+	"unicode/utf8"
 )
 
 // TopicStreamsLabel is the room_id label under which open topic streams
@@ -664,6 +665,16 @@ func (s *TopicService) PublishTopic(
 				Str("topic", req.Topic).
 				Msg("signed_topic_verifier_unavailable")
 			return nil, status.Error(codes.PermissionDenied, "signature verification unavailable")
+		}
+		// The signature covers these bytes; the stored copy is a string
+		// that JSON encoding rewrites unless it is valid UTF-8, and a
+		// standby verifies the stored copy (FND-020). Refuse what could not
+		// survive storage intact.
+		if !utf8.Valid(req.Payload) {
+			logger.FromContext(ctx).Warn().
+				Str("topic", req.Topic).
+				Msg("signed_topic_payload_not_utf8")
+			return nil, status.Error(codes.InvalidArgument, prefix+"* payloads must be valid UTF-8: the signature is verified over the stored copy")
 		}
 		signed = &signing.Signed{
 			Signature: req.Signature, PublicKey: req.PublicKey, Algorithm: req.Algorithm, SignedAtUnixMs: req.SignedAtUnixMs,

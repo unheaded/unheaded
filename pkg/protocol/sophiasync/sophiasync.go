@@ -296,28 +296,45 @@ func (sm *SyncManager) ApplyDelta(delta *DictionaryDelta) error {
 	return nil
 }
 
-// checkSignature applies the delta signature policy. Callers hold sm.mu.
+// checkSignature applies the delta signature policy. Callers hold sm.mu,
+// and ApplyDelta has already required delta.Version == currentVersion+1,
+// which is what stops a replay: a delta is applied once, as the next
+// version, however old its signature is.
 func (sm *SyncManager) checkSignature(delta *DictionaryDelta) error {
 	if len(delta.Signature) == 0 {
 		deltaUnsigned.Inc()
 		if sm.requireSignature {
-			sm.logger.Warn().Msgf("Refused unsigned delta version %d (signatures required)", delta.Version)
+			sm.logger.Warn().
+				Uint64("version", uint64(delta.Version)).
+				Str("reason", "unsigned").
+				Msg("sophia_delta_refused")
 			return fmt.Errorf("delta version %d: %w", delta.Version, ErrUnsignedDelta)
 		}
-		sm.logger.Warn().Msgf("Applying unsigned delta version %d (observe mode: %s unset)", delta.Version, RequireSignatureEnv)
+		sm.logger.Warn().
+			Uint64("version", uint64(delta.Version)).
+			Str("mode", "observe").
+			Str("require_signature_env", RequireSignatureEnv).
+			Msg("sophia_delta_unsigned_applied")
 		return nil
 	}
-	err := Verify(delta, sm.trustedKeys)
-	if err == nil {
-		now := sm.now().UnixMilli()
-		if skew := MaxSkew.Milliseconds(); delta.SignedAtUnixMs < now-skew || delta.SignedAtUnixMs > now+skew {
-			err = ErrStaleDelta
-		}
-	}
-	if err != nil {
+	if err := Verify(delta, sm.trustedKeys); err != nil {
 		deltaSignatureFailures.Inc()
-		sm.logger.Warn().Msgf("Refused delta version %d: %v", delta.Version, err)
+		sm.logger.Warn().
+			Err(err).
+			Uint64("version", uint64(delta.Version)).
+			Str("reason", "signature").
+			Msg("sophia_delta_refused")
 		return fmt.Errorf("delta version %d signature: %w", delta.Version, err)
+	}
+	now := sm.now().UnixMilli()
+	if skew := MaxSkew.Milliseconds(); delta.SignedAtUnixMs < now-skew || delta.SignedAtUnixMs > now+skew {
+		deltaStale.Inc()
+		sm.logger.Warn().
+			Uint64("version", uint64(delta.Version)).
+			Int64("signed_at_unix_ms", delta.SignedAtUnixMs).
+			Int64("now_unix_ms", now).
+			Dur("max_skew", MaxSkew).
+			Msg("sophia_delta_stale_applied")
 	}
 	return nil
 }

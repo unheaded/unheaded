@@ -93,6 +93,35 @@ func TestPublishTopic_DriftKeysAreScoped(t *testing.T) {
 	}
 }
 
+// The signature is verified over the stored copy on a standby (FND-020),
+// and the stored copy is a string: a payload that is not valid UTF-8 would
+// be rewritten by the encoding and never verify again. It is refused at
+// publish, before the signature is even checked.
+func TestPublishTopic_SignedNonUTF8PayloadRefused(t *testing.T) {
+	f := newDriftFixture(t)
+	raw := []byte{0xff, 0xfe, 'x'}
+	sg, err := f.driftKey.Sign("drift.detected.n1", "heimdall-n1", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &chatpb.TopicPublishRequest{
+		Topic: "drift.detected.n1", Payload: raw, Metadata: map[string]string{"display_name": "heimdall-n1"},
+		Signature: sg.Signature, PublicKey: sg.PublicKey, Algorithm: sg.Algorithm, SignedAtUnixMs: sg.SignedAtUnixMs,
+	}
+	if _, err := f.svc.PublishTopic(context.Background(), req); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("signed drift.* with a non-UTF-8 payload: %v, want InvalidArgument", err)
+	}
+	if _, err := f.rooms.Get("drift.detected.n1"); err == nil {
+		t.Fatal("a refused publish created the room")
+	}
+	// An unsigned topic keeps taking any bytes.
+	if _, err := f.svc.PublishTopic(context.Background(), &chatpb.TopicPublishRequest{
+		Topic: "logs.n1", Payload: raw, Metadata: map[string]string{"display_name": "heimdall-n1"},
+	}); err != nil {
+		t.Fatalf("unsigned logs.* with a non-UTF-8 payload: %v, want nil", err)
+	}
+}
+
 func TestPublishTopic_DriftReplayRefused(t *testing.T) {
 	f := newDriftFixture(t)
 	req := signedReq(t, f.driftKey, "drift.detected.n1", "heimdall-n1", "x")

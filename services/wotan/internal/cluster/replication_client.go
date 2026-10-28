@@ -32,7 +32,10 @@ type ReplicationClient struct {
 	client chatpb.WotanReplicationClient
 
 	lastAppliedSeq atomic.Uint64
-	entriesRecv    atomic.Uint64
+	// haltedAtSeq is the sequence of the entry whose rejection ended
+	// replication (0: none).
+	haltedAtSeq atomic.Uint64
+	entriesRecv atomic.Uint64
 
 	// policy decides which topics need a signature and which keys sign
 	// them (FND-020): every entry is checked by VerifyEntry before
@@ -165,7 +168,10 @@ func (c *ReplicationClient) StartReplication(ctx context.Context) error {
 				break
 			}
 
-			c.handleEntry(ctx, entry)
+			if err := c.handleEntry(ctx, entry); err != nil {
+				c.disconnect()
+				return err
+			}
 		}
 
 		// Brief pause before reconnecting for more entries
@@ -178,12 +184,17 @@ func (c *ReplicationClient) StartReplication(ctx context.Context) error {
 }
 
 // handleEntry verifies one replicated entry and applies it. A rejected
-// entry is counted, logged with its topic and sequence, and skipped for
-// good: its signature will not verify on a retry, and re-requesting it would
-// count it again on every catch-up.
-func (c *ReplicationClient) handleEntry(ctx context.Context, entry *chatpb.WALEntry) {
+// entry halts replication: it is counted, logged with its topic and
+// sequence, and returned as the error StartReplication ends with, and
+// lastAppliedSeq stays below it. A standby that skipped it would advance
+// past a signed message it never stored and diverge from the primary with
+// only a counter to show for it; one that stops is behind, which is
+// visible, and resumes from the same entry once the policy or the WAL is
+// put right. An apply error (the local store) is logged and retried on the
+// next round, as before.
+func (c *ReplicationClient) handleEntry(ctx context.Context, entry *chatpb.WALEntry) error {
 	if entry.Sequence <= c.lastAppliedSeq.Load() {
-		return // already handled (a primary that re-sends from an inclusive seq)
+		return nil // already handled (a primary that re-sends from an inclusive seq)
 	}
 	if err := VerifyEntry(c.policy, entry); err != nil {
 		reason, topic := RejectSignature, ""
@@ -192,23 +203,24 @@ func (c *ReplicationClient) handleEntry(ctx context.Context, entry *chatpb.WALEn
 			reason, topic = re.Reason, re.Topic
 		}
 		replicationRejected.WithLabelValues(reason).Inc()
-		log.Warn().Err(err).
+		c.haltedAtSeq.Store(entry.Sequence)
+		log.Error().Err(err).
 			Str("reason", reason).
 			Str("topic", topic).
 			Uint64("seq", entry.Sequence).
 			Str("peer_node", entry.NodeId).
-			Msg("replication: entry rejected, not applied")
-		c.lastAppliedSeq.Store(entry.Sequence)
-		return
+			Msg("replication: entry rejected, replication halted")
+		return err
 	}
 	if c.ApplyFunc != nil {
 		if err := c.ApplyFunc(ctx, entry); err != nil {
 			log.Error().Err(err).Uint64("seq", entry.Sequence).Msg("replication: apply failed")
-			return // Don't stop replication on apply error
+			return nil // retried on the next round
 		}
 	}
 	c.lastAppliedSeq.Store(entry.Sequence)
 	c.entriesRecv.Add(1)
+	return nil
 }
 
 // Ping sends a health check to the primary.
@@ -247,6 +259,7 @@ func (c *ReplicationClient) Stats() map[string]interface{} {
 		"peer":             c.peerAddr,
 		"epoch":            c.epoch,
 		"last_applied_seq": c.lastAppliedSeq.Load(),
+		"halted_at_seq":    c.haltedAtSeq.Load(),
 		"entries_received": c.entriesRecv.Load(),
 		"connected":        c.client != nil,
 	}

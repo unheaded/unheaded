@@ -153,28 +153,39 @@ func TestReplication_SignedEntryKeepsItsSignatureAndVerifies(t *testing.T) {
 	if len(applied) != 1 {
 		t.Fatalf("applied %d entries, want 1", len(applied))
 	}
-	e := applied[0]
-	if len(e.Signature) == 0 || len(e.PublicKey) == 0 || e.Algorithm != wotansig.Algorithm || e.SignedAtUnixMs == 0 || e.SenderId != "heimdall-01" {
-		t.Fatalf("standby copy lost its signature: sig=%d key=%d alg=%q at=%d sender=%q",
-			len(e.Signature), len(e.PublicKey), e.Algorithm, e.SignedAtUnixMs, e.SenderId)
-	}
-	got, err := store.DecodeMessage(e.Data)
+	got, err := store.DecodeMessage(applied[0].Data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sg := wotansig.Signed{Signature: e.Signature, PublicKey: e.PublicKey, Algorithm: e.Algorithm, SignedAtUnixMs: e.SignedAtUnixMs}
-	if err := wotansig.VerifyEvent(got.RoomID, e.SenderId, []byte(got.Content), sg, [][]byte{key.PublicKey()}); err != nil {
-		t.Fatalf("standby copy does not verify: %v", err)
+	if got.Signed == nil || got.Signed.Sender != "heimdall-01" || got.Signed.Algorithm != wotansig.Algorithm {
+		t.Fatalf("standby copy lost its signature: %+v", got.Signed)
 	}
-	if got.Signed == nil || got.Signed.Sender != "heimdall-01" {
-		t.Fatalf("applied message carries no signature: %+v", got.Signed)
+	sg := wotansig.Signed{Signature: got.Signed.Signature, PublicKey: got.Signed.PublicKey, Algorithm: got.Signed.Algorithm, SignedAtUnixMs: got.Signed.SignedAtUnixMs}
+	if err := wotansig.VerifyEvent(got.RoomID, got.Signed.Sender, []byte(got.Content), sg, [][]byte{key.PublicKey()}); err != nil {
+		t.Fatalf("standby copy does not verify: %v", err)
 	}
 	if d := rejected("signature") - before; d != 0 {
 		t.Fatalf("rejected{signature} grew by %v, want 0", d)
 	}
 }
 
-func TestReplication_TamperedEntryIsRejectedAndCounted(t *testing.T) {
+// runUntilHalt runs the standby's replication loop until it returns on its
+// own, which a rejected entry makes it do, and returns that error.
+func (sb *standby) runUntilHalt(t *testing.T) error {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := sb.StartReplication(ctx)
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("replication did not halt within 10 s")
+	}
+	return err
+}
+
+// A rejected entry halts replication rather than being skipped: a standby
+// that advanced past a signed message it never stored would diverge from
+// the primary with only a counter to show for it (PR #2 review).
+func TestReplication_TamperedEntryHaltsReplicationAndIsCounted(t *testing.T) {
 	key := testKey(t)
 	tampered := signedMessage(t, key, "config.x", "heimdall-01", `{"baseline":"v1"}`)
 	tampered.Content = `{"baseline":"evil"}`
@@ -182,10 +193,22 @@ func TestReplication_TamperedEntryIsRejectedAndCounted(t *testing.T) {
 	sb := newStandby(t, primaryWith(t, tampered, good), key.PublicKey())
 	before := rejected("signature")
 
-	applied := sb.catchUp(t, 2)
+	err := sb.runUntilHalt(t)
 
-	if len(applied) != 1 || applied[0].Sequence != 2 {
-		t.Fatalf("applied %d entries, want only seq 2 (the unsigned logs.x one)", len(applied))
+	if !IsRejected(err, "signature") {
+		t.Fatalf("StartReplication = %v, want a signature rejection", err)
+	}
+	sb.mu.Lock()
+	n := len(sb.applied)
+	sb.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("applied %d entries after the rejected one, want 0 (replication halted at seq 1)", n)
+	}
+	if got := sb.lastAppliedSeq.Load(); got != 0 {
+		t.Fatalf("last applied seq = %d, want 0: the rejected entry must not be skipped", got)
+	}
+	if got := sb.Stats()["halted_at_seq"]; got != uint64(1) {
+		t.Fatalf("halted_at_seq = %v, want 1", got)
 	}
 	if d := rejected("signature") - before; d != 1 {
 		t.Fatalf("rejected{signature} grew by %v, want 1", d)
@@ -194,14 +217,9 @@ func TestReplication_TamperedEntryIsRejectedAndCounted(t *testing.T) {
 
 // The standby asks for the entries after the last one it handled. CatchUp's
 // since_seq is inclusive (wal.Scan), so asking from the last applied seq
-// re-delivered that entry on every 500 ms round: applied twice, and a
-// rejected one counted again each round.
+// re-delivered that entry on every 500 ms round: applied twice.
 func TestReplication_EachEntryHandledOnceAcrossRounds(t *testing.T) {
-	key := testKey(t)
-	tampered := signedMessage(t, key, "config.x", "s", "v1")
-	tampered.Content = "v2"
-	sb := newStandby(t, primaryWith(t, unsignedMessage("logs.x", "a"), tampered), key.PublicKey())
-	before := rejected("signature")
+	sb := newStandby(t, primaryWith(t, unsignedMessage("logs.x", "a")))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -216,8 +234,36 @@ func TestReplication_EachEntryHandledOnceAcrossRounds(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("applied %d entries over the rounds, want 1 (seq 1 once)", n)
 	}
-	if d := rejected("signature") - before; d != 1 {
-		t.Fatalf("rejected{signature} grew by %v over the rounds, want 1", d)
+}
+
+// Entries before the rejected one are applied; the rejected one is where
+// the standby stops, and a restart resumes from it.
+func TestReplication_HaltsAtTheRejectedEntryAndResumesThere(t *testing.T) {
+	key := testKey(t)
+	tampered := signedMessage(t, key, "config.x", "s", "v1")
+	tampered.Content = "v2"
+	sb := newStandby(t, primaryWith(t, unsignedMessage("logs.x", "a"), tampered), key.PublicKey())
+	before := rejected("signature")
+
+	if err := sb.runUntilHalt(t); !IsRejected(err, "signature") {
+		t.Fatalf("StartReplication = %v, want a signature rejection", err)
+	}
+	if got := sb.lastAppliedSeq.Load(); got != 1 {
+		t.Fatalf("last applied seq = %d, want 1", got)
+	}
+	// Nothing changed on either side: the restart halts on the same entry
+	// and counts it once more.
+	if err := sb.runUntilHalt(t); !IsRejected(err, "signature") {
+		t.Fatalf("second StartReplication = %v, want a signature rejection", err)
+	}
+	if d := rejected("signature") - before; d != 2 {
+		t.Fatalf("rejected{signature} grew by %v over two runs, want 2", d)
+	}
+	sb.mu.Lock()
+	n := len(sb.applied)
+	sb.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("applied %d entries over two runs, want 1 (seq 1 once)", n)
 	}
 }
 
@@ -258,24 +304,22 @@ func TestReplication_UnsignedEntryOnPlainTopicApplies(t *testing.T) {
 	if err := VerifyEntry(nil, e); err != nil {
 		t.Fatalf("VerifyEntry(unsigned logs.x) = %v, want nil", err)
 	}
-	if len(e.Signature) != 0 || e.Algorithm != "" || e.SenderId != "" {
-		t.Fatalf("unsigned entry grew signature fields: %+v", e)
-	}
 }
 
-// The signature fields must agree with the signature inside the entry's
-// data: the data is what the standby stores and later serves.
-func TestReplication_FieldsThatDisagreeWithDataAreRejected(t *testing.T) {
+// The signature inside the stored message is what is verified: one
+// transplanted from another signed message (a trusted key, other content)
+// does not cover this content and is refused.
+func TestReplication_TransplantedStoredSignatureIsRejected(t *testing.T) {
 	a, b := testKey(t), testKey(t)
-	e := walEntry(1, mustEncode(t, signedMessage(t, a, "config.x", "s", "v1")), "primary-1", 1)
-	other := signedMessage(t, b, "config.x", "s", "v1")
-	e.Signature, e.PublicKey, e.SignedAtUnixMs = other.Signed.Signature, other.Signed.PublicKey, other.Signed.SignedAtUnixMs
+	msg := signedMessage(t, a, "config.x", "s", "v1")
+	msg.Signed = signedMessage(t, b, "config.x", "s", "v2").Signed
 	p, err := signing.NewPolicy([][]byte{a.PublicKey(), b.PublicKey()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifyEntry(p, e); !IsRejected(err, "mismatch") {
-		t.Fatalf("VerifyEntry(fields from another signature) = %v, want a mismatch rejection", err)
+	e := walEntry(1, mustEncode(t, msg), "primary-1", 1)
+	if err := VerifyEntry(p, e); !IsRejected(err, "signature") {
+		t.Fatalf("VerifyEntry(transplanted signature) = %v, want a signature rejection", err)
 	}
 }
 

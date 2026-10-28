@@ -191,16 +191,41 @@ func TestApplyDelta_UnsignedRequireModeRejected(t *testing.T) {
 	}
 }
 
-// sophia-dictionary-03: reject updates signed more than 5 minutes from now.
-func TestApplyDelta_StaleSignatureRejected(t *testing.T) {
+// A verified delta signed more than MaxSkew ago is the next version all the
+// same: it is applied and counted as stale. Refusing it wedged a receiver
+// that was offline for longer than MaxSkew on the version before it, since
+// every later delta then failed the version check (PR #2 review).
+func TestApplyDelta_StaleSignatureAppliedAndCounted(t *testing.T) {
 	ds := newDeltaSigner(t)
 	sm := newSignedManager(t, true, ds.PublicKey())
-	d := testDelta(1)
-	if err := ds.SignAt(d, time.Now().Add(-10*time.Minute)); err != nil {
+	before := deltaStale.Value()
+	old := testDelta(1)
+	if err := ds.SignAt(old, time.Now().Add(-10*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	if err := sm.ApplyDelta(d); !errors.Is(err, ErrStaleDelta) {
-		t.Fatalf("ApplyDelta(10 min old) = %v, want ErrStaleDelta", err)
+	if err := sm.ApplyDelta(old); err != nil {
+		t.Fatalf("ApplyDelta(10 min old) = %v, want nil", err)
+	}
+	if d := deltaStale.Value() - before; d != 1 {
+		t.Fatalf("stale_total grew by %v, want 1", d)
+	}
+	// The receiver is not wedged: the next, fresh delta applies.
+	next := testDelta(2)
+	if err := ds.Sign(next); err != nil {
+		t.Fatal(err)
+	}
+	if err := sm.ApplyDelta(next); err != nil {
+		t.Fatalf("ApplyDelta(next) = %v, want nil", err)
+	}
+	if sm.CurrentVersion() != 2 {
+		t.Fatalf("version = %d, want 2", sm.CurrentVersion())
+	}
+	// Replaying the old delta is stopped by the version check, not the clock.
+	if err := sm.ApplyDelta(old); err == nil {
+		t.Fatal("ApplyDelta(replayed version 1) = nil, want a version error")
+	}
+	if d := deltaStale.Value() - before; d != 1 {
+		t.Fatalf("stale_total grew by %v over the replay, want 1", d)
 	}
 }
 
