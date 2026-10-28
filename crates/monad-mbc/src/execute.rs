@@ -1168,14 +1168,19 @@ impl Cpu {
         // MAX_PROCESSES.
         let skip_mask = self.halted_mask | self.suspended_mask;
         let mut next_pid = (old_pid + 1) % num;
+        let mut found = false;
         for _ in 0..8 {
             if next_pid < num && (skip_mask & (1 << next_pid)) == 0 {
+                found = true;
                 break;
             }
             next_pid = (next_pid + 1) % num;
         }
 
-        if next_pid == old_pid {
+        // Nothing runnable (S-ASCEND-2 Phase 3): the search ends wherever its
+        // last step landed, which may be a zombie. Stay on the current slot;
+        // the caller decides (SYS_EXIT halts).
+        if !found || next_pid == old_pid {
             return; // no other runnable process
         }
 

@@ -10,7 +10,7 @@
 #      compile-checked; doom-runner would have caught it. So this harness LOADS
 #      both variants through their real loaders.
 #   2. NO REGRESSION — Doom playable (loads), xv6 corpus green (ls/cat/echo/wc),
-#      gate2 ISOLATION-PASS.
+#      gate2 ISOLATION-PASS, gate_nway 3x NWAY-ok, forkloop 3 children.
 #
 # Prints all three verifier budgets. Exit 0 iff everything green (CI-gateable).
 #   3. (S5, ADR-108) the cartridge object cartridge-ebpf loads with each of
@@ -94,6 +94,20 @@ grep -aq 'omega' <<<"$MC" && pass "sh multi-command: prompt loop survives to sec
 G2="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/gate2.mbc" --triggers 800000 --instance 111 2>&1)"
 grep -aq 'ISOLATION-PASS' <<<"$G2" && pass "gate2 ISOLATION-PASS" || fail "gate2 ISOLATION-PASS"
+
+# S-ASCEND-2 Phase 3: N-way CONCURRENT isolation (ADR-074 Gate 4) and the
+# looped-fork gate. Both were "known failures" until the scheduler stopped
+# resuming a zombie when nothing was runnable; build them with
+# `make -f ../adapters/Makefile.mbc-userland gates` (a missing binary fails).
+NW="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  --userland "$K/gate_nway.mbc" --triggers 1500000 --instance 111 2>&1)"
+# Count tokens, not lines: the TTY dump is one "ascii:" line.
+[ "$(grep -aoE 'NWAY-ok pid[123]' <<<"$NW" | sort -u | grep -c .)" -eq 3 ] && ! grep -aq 'NWAY-FAIL' <<<"$NW" \
+  && pass "gate_nway 3x NWAY-ok, 0 FAIL" || fail "gate_nway (concurrent isolation)"
+FL="$(cd "$EBPF" && timeout 600 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  --userland "$K/forkloop.mbc" --triggers 1500000 --instance 111 2>&1)"
+[ "$(grep -aoE 'FL: child' <<<"$FL" | grep -c .)" -eq 3 ] && grep -aq 'FL: parent-done' <<<"$FL" \
+  && pass "forkloop: 3 children, parent done" || fail "forkloop (looped fork)"
 
 # Track 2 Phase 2.1 (ADR-081): OUR init as PID 1. Same kernel + fs.img, only
 # the resident PID 1 program swapped to uinit.mbc. The token proves uinit ran;

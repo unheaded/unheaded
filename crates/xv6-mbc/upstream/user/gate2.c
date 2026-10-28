@@ -13,8 +13,10 @@
 // Run as the userland directly:
 //   upc-bootctl boot ... --userland target/gate2.mbc
 //
-// gate2 is pid 0 and exits, so the kernel restarts it — expect the three
-// lines below to repeat once per reboot:
+// gate2 is pid 0 and exits; with every child reaped, init's exit is the last
+// process exiting and the CPU halts, so the three lines below print once.
+// (Until S-ASCEND-2 Phase 3 the scheduler resumed a reaped child instead and
+// the lines repeated; that was read as "the kernel restarts it".)
 //   C: inherited-ok
 //   C: clobbered-own-slice
 //   P: ISOLATION-PASS

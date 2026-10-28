@@ -585,6 +585,71 @@ fn scheduler_skips_halted_processes() {
     assert_eq!(cpu.state.regs[0], 0xCAFE, "should load pid 2's r0");
 }
 
+/// S-ASCEND-2 Phase 3: when no process is runnable (every slot halted or
+/// suspended, the current one included), the scheduler must stay put. The
+/// bounded search used to stop on whatever slot its 8th step landed on and
+/// load it, so an exiting init resumed a ZOMBIE child after its exit ecall.
+#[test]
+fn scheduler_stays_put_when_nothing_is_runnable() {
+    for num in 2u8..=8 {
+        let mut cpu = cpu_with_safe_sp();
+        cpu.state.num_processes = num;
+        cpu.state.current_pid = 0;
+        cpu.halted_mask = (1u32 << num) - 1; // every slot is a zombie
+        for pid in 1..num as usize {
+            cpu.proc_table[pid][0] = 0xD00D_0000 | pid as u32;
+            cpu.proc_table[pid][18] = 0x4000;
+        }
+        cpu.state.regs[0] = 0xBEEF;
+
+        cpu.scheduler_context_switch();
+
+        assert_eq!(
+            cpu.state.current_pid, 0,
+            "num={num}: must not switch to a zombie"
+        );
+        assert_eq!(
+            cpu.state.regs[0], 0xBEEF,
+            "num={num}: no zombie state loaded"
+        );
+    }
+}
+
+/// S-ASCEND-2 Phase 3: init exiting while its only children are reaped
+/// zombies is the last process exiting: the CPU halts (it used to resume a
+/// zombie, which ran the code after its own exit ecall).
+#[test]
+fn sys_exit_with_only_zombie_children_halts_cpu() {
+    for num in [2u8, 4] {
+        let mut cpu = cpu_with_safe_sp();
+        cpu.state.num_processes = num;
+        cpu.state.current_pid = 0;
+        cpu.halted_mask = ((1u32 << num) - 1) & !1; // children zombies, init live
+        for pid in 1..num as usize {
+            cpu.proc_table[pid][16] = 0; // a zombie resumed here would re-run the exit
+            cpu.proc_table[pid][18] = 0x4000;
+        }
+        let rom = vec![
+            enc(op::MOVI, 0, 0, lsys::SYS_EXIT as u16),
+            enc(op::MOVI, 1, 0, 3),
+            enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+            enc(op::HALT, 0, 0, 0),
+        ];
+        cpu.load_rom(&rom);
+        cpu.run(5).ok();
+
+        assert_eq!(
+            cpu.state.halted, 1,
+            "num={num}: CPU halts when init exits last"
+        );
+        assert_eq!(
+            cpu.state.current_pid, 0,
+            "num={num}: still init, no zombie resumed"
+        );
+        assert_eq!(cpu.state.exit_code, 3);
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 4. MMU
 // ═══════════════════════════════════════════════════════════════════════════════

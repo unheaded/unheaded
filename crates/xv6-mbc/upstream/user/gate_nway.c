@@ -28,12 +28,11 @@
 // A second pause() is added for margin (extra yields are harmless: memory is
 // stable once all canaries are written).
 //
-// FULLY UNROLLED — no `for` loop anywhere. A C `for`-loop wrapped around fork()
-// triggers a substrate bug where forked children re-enter the loop and re-fork
-// (a runaway fork-bomb: num_proc climbs to the table cap, every fork bails
-// -1). Unrolled fork/yield/verify sidesteps it; the isolation property is
-// independent of how the parent spawns its children. (See the session note —
-// the looped-fork translation bug is a separate Phase-3 substrate finding.)
+// FULLY UNROLLED. The unrolling was a workaround for a "looped-fork bug"
+// (children re-entering a for-loop around fork). S-ASCEND-2 Phase 3 found no
+// such bug: user/forkloop.c (fork + wait in a loop) passes, and the runaway
+// was a reaped child resumed by the scheduler. The unrolled shape is kept so
+// this gate's binary and history stay comparable.
 //
 // VERDICT is per-child (the xv6 wait() status path is stubbed, so the parent
 // cannot read child exit codes): each child prints exactly one authoritative
@@ -43,8 +42,11 @@
 //
 //   upc-bootctl boot ... --userland target/gate_nway.mbc
 //
-// gate_nway runs as init (pid 0) and exits, so the kernel restarts it — expect
-// the verdict block to repeat once per reboot.
+// gate_nway runs as init (pid 0) and exits; with every child reaped that is the
+// last process exiting and the CPU halts, so the verdict block prints once.
+// Until S-ASCEND-2 Phase 3 the scheduler resumed a reaped child instead: init
+// fell through its exit into child(2)'s code and printed "NWAY-FAIL pid2" for
+// ever, which was KF1 (the real verdicts had passed and scrolled out).
 
 #include "kernel/types.h"
 #include "kernel/stat.h"

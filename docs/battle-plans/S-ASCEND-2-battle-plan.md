@@ -315,49 +315,49 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Diagnose, do not guess
 
-- [ ] **Step 67** [R] ~10m: Read `user/gate_nway.c` fully (the stride falsification: HIGH_BASE = 6 MiB vs shipped stride 8 MiB; the pause()-based co-scheduling; unrolled forks) and the per-pid pgd code: `grep -n 'SLICE_STRIDE\|USER_CHILD_SLICE\|pid_phys_offset' crates/xv6-mbc/adapters/*.c ebpf/monad-cpu-ebpf/src/main.rs | head -20`.
-- [ ] **Step 68** [B] ~2m: Which child fails, and what it saw
+- [x] **Step 67** [R] ~10m: Read `user/gate_nway.c` fully (the stride falsification: HIGH_BASE = 6 MiB vs shipped stride 8 MiB; the pause()-based co-scheduling; unrolled forks) and the per-pid pgd code: `grep -n 'SLICE_STRIDE\|USER_CHILD_SLICE\|pid_phys_offset' crates/xv6-mbc/adapters/*.c ebpf/monad-cpu-ebpf/src/main.rs | head -20`.
+- [x] **Step 68** *(231 FAIL pid2, forks=3; real verdicts scrolled out)* [B] ~2m: Which child fails, and what it saw
   ```bash
   grep -aoE 'NWAY-(ok|FAIL)[^\n]{0,24}|canary[^\n]{0,40}|pid[0-9]' "$S6/p0-nway.txt" | head -20
   ```
-- [ ] **Step 69** [DESIGN][W] ~15m: `$LOG` §"gate_nway hypotheses", each falsifiable with one run: **Hn1** stride/slice geometry (a child's high band maps into a sibling's low band: a pgd bug, not a scheduler bug) → test by changing HIGH_BASE to 2 MiB in a copy (`gate_nway_h1.c`): if it passes, geometry is at fault; **Hn2** co-scheduling (pause() does not yield in the order the comment assumes, so verify runs before a sibling's write: a false FAIL) → test by adding a second pause() before verify; **Hn3** fork copies the parent's pgd slice base instead of allocating a fresh one for the 2nd/3rd child (the looped-fork bug's static cousin) → test by printing each child's `satp`/slice base via a fixed-string token per pid.
-- [ ] **Step 70** [W][BUILD][B] ~15m: Build the three probe variants (copies of gate_nway.c under `user/`, registered in `Makefile.mbc-userland`), run each, collect verdict lines
+- [x] **Step 69** *(Hn0 added: init's exit resumes a zombie; see log)* [DESIGN][W] ~15m: `$LOG` §"gate_nway hypotheses", each falsifiable with one run: **Hn1** stride/slice geometry (a child's high band maps into a sibling's low band: a pgd bug, not a scheduler bug) → test by changing HIGH_BASE to 2 MiB in a copy (`gate_nway_h1.c`): if it passes, geometry is at fault; **Hn2** co-scheduling (pause() does not yield in the order the comment assumes, so verify runs before a sibling's write: a false FAIL) → test by adding a second pause() before verify; **Hn3** fork copies the parent's pgd slice base instead of allocating a fresh one for the 2nd/3rd child (the looped-fork bug's static cousin) → test by printing each child's `satp`/slice base via a fixed-string token per pid.
+- [ ] **Step 70** *(not needed: one gate_nway_h0 run confirmed Hn0)* [W][BUILD][B] ~15m: Build the three probe variants (copies of gate_nway.c under `user/`, registered in `Makefile.mbc-userland`), run each, collect verdict lines
   ```bash
   for v in h1 h2 h3; do (cd "$UP" && make -f ../adapters/Makefile.mbc-userland "target/gate_nway_$v.mbc" 2>&1 | tail -1); (cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" --userland "$K/gate_nway_$v.mbc" --triggers 1500000 --instance 111 2>&1) > "$S6/p3-nway-$v.txt"; echo "== $v"; grep -aoE 'NWAY-(ok|FAIL)|SB: [0-9a-f]+' "$S6/p3-nway-$v.txt" | sort | uniq -c; done
   ```
-- [ ] **Step 71** [V] ~5m: Exactly one hypothesis is confirmed (h1 passes ⇒ Hn1; h2 passes ⇒ Hn2; h3 shows a repeated slice base ⇒ Hn3). Record in `$LOG`. None confirmed → Step 72. Two confirmed → the smaller fix first, re-test.
-- [ ] **Step 72** [D] ~30m: Run the failing gate on the host emulator with the same kernel to separate "BPF executor" from "kernel": `crates/monad-mbc` `mbc_emulate` with `--kernel $K/xv6-mbc.mbc --userland $K/gate_nway.mbc` (check `cargo run --release --bin mbc-emulate -- --help` for the exact flags first). Emulator passes and BPF fails ⇒ executor divergence (open a LICH-015 full-engine case, Step 240, and treat as Hn4: MMU translation in BPF). Both fail ⇒ kernel/pgd. Two attempts then STUCK Steps 73-80; keep Steps 81-94 (the forkloop gate and harness wiring are independent).
+- [x] **Step 71** *(Hn0 confirmed)* [V] ~5m: Exactly one hypothesis is confirmed (h1 passes ⇒ Hn1; h2 passes ⇒ Hn2; h3 shows a repeated slice base ⇒ Hn3). Record in `$LOG`. None confirmed → Step 72. Two confirmed → the smaller fix first, re-test.
+- [ ] **Step 72** *(not needed)* [D] ~30m: Run the failing gate on the host emulator with the same kernel to separate "BPF executor" from "kernel": `crates/monad-mbc` `mbc_emulate` with `--kernel $K/xv6-mbc.mbc --userland $K/gate_nway.mbc` (check `cargo run --release --bin mbc-emulate -- --help` for the exact flags first). Emulator passes and BPF fails ⇒ executor divergence (open a LICH-015 full-engine case, Step 240, and treat as Hn4: MMU translation in BPF). Both fail ⇒ kernel/pgd. Two attempts then STUCK Steps 73-80; keep Steps 81-94 (the forkloop gate and harness wiring are independent).
 
 ### Fix and prove
 
-- [ ] **Step 73** [CODE][W] ~45m: Test-first on the host emulator: a `crates/monad-mbc/tests/nway_isolation.rs` (or extend the existing boot test) that runs `gate_nway.mbc` and asserts 3× `NWAY-ok`, 0 `NWAY-FAIL` in the TTY capture; it FAILS now (if the emulator passes in Step 72, assert on the BPF path in Step 75 instead and keep this test as the regression lock).
-- [ ] **Step 74** [CODE] ~60m: The fix for the confirmed hypothesis, smallest possible: Hn1 → slice geometry constant/allocator in `uproc.c`/`uvm.c` (one constant or the per-pid base formula); Hn2 → gate program only (a scheduling-order comment fix is a doc, not a kernel change: then the gate was wrong, record it); Hn3 → `fork` path allocates a fresh slice (kernel) or BPF `SYS_FORK` slot→slice mapping (eBPF; record insns before/after). No speculative changes elsewhere.
-- [ ] **Step 75** [TEST][B][S] ~4m: gate_nway on BPF
+- [x] **Step 73** *(os_primitives_test.rs: two scheduler tests, RED then green)* [CODE][W] ~45m: Test-first on the host emulator: a `crates/monad-mbc/tests/nway_isolation.rs` (or extend the existing boot test) that runs `gate_nway.mbc` and asserts 3× `NWAY-ok`, 0 `NWAY-FAIL` in the TTY capture; it FAILS now (if the emulator passes in Step 72, assert on the BPF path in Step 75 instead and keep this test as the regression lock).
+- [x] **Step 74** *(scheduler `found` flag, eBPF + host emulator)* [CODE] ~60m: The fix for the confirmed hypothesis, smallest possible: Hn1 → slice geometry constant/allocator in `uproc.c`/`uvm.c` (one constant or the per-pid base formula); Hn2 → gate program only (a scheduling-order comment fix is a doc, not a kernel change: then the gate was wrong, record it); Hn3 → `fork` path allocates a fresh slice (kernel) or BPF `SYS_FORK` slot→slice mapping (eBPF; record insns before/after). No speculative changes elsewhere.
+- [x] **Step 75** *(3x ok, REAPED-ALL, halt; 923645)* [TEST][B][S] ~4m: gate_nway on BPF
   ```bash
   kbuild >/dev/null 2>&1; ubuild >/dev/null 2>&1; [ -n "$(git -C "$PROJECT_ROOT" status --short ebpf/)" ] && (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1); out="$(cd "$EBPF" && UPC_VERIFIER_STATS=1 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" --userland "$K/gate_nway.mbc" --triggers 1500000 --instance 111 2>&1)"; printf '%s\n' "$out" > "$S6/p3-nway-fixed.txt"; grep -aoE 'NWAY-(ok|FAIL)[^\n]{0,8}|verified [0-9]+ insns' <<<"$out" | sort | uniq -c
   ```
-- [ ] **Step 76** [V] ~1m: **NWAY GREEN** — 3× `NWAY-ok` (pid1, pid2, pid3), 0 `NWAY-FAIL`; if eBPF changed, insns ≤ 950,000 recorded. Fail → Step 77.
-- [ ] **Step 77** [D] ~25m: Re-run the three variants (Step 70) against the fixed tree; the pattern tells which assumption the fix missed. Two attempts then revert Step 74, STUCK Steps 78-80.
-- [ ] **Step 78** [TEST][B][S] ~6m: No regression: sweep + gate2 + the corpus
+- [x] **Step 76** [V] ~1m: **NWAY GREEN** — 3× `NWAY-ok` (pid1, pid2, pid3), 0 `NWAY-FAIL`; if eBPF changed, insns ≤ 950,000 recorded. Fail → Step 77.
+- [ ] **Step 77** *(not needed)* [D] ~25m: Re-run the three variants (Step 70) against the fixed tree; the pattern tells which assumption the fix missed. Two attempts then revert Step 74, STUCK Steps 78-80.
+- [x] **Step 78** [TEST][B][S] ~6m: No regression: sweep + gate2 + the corpus
   ```bash
   sweep | tee "$S6/p3-sweep.txt" | grep -c SAME; bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tee "$S6/p3-regression.log" | grep -aE 'FAIL|verifier'
   ```
-- [ ] **Step 79** [V] ~1m: 12/12 SAME (slice geometry changes must not alter TTY output; if they do, that is a finding, not a recapture), harness zero FAIL, Doom 761,580 unchanged, ascend insns recorded.
-- [ ] **Step 80** [C] ~1m: **COMMIT CHECKPOINT** (`fix(upc): [S-ASCEND-2 67-80] gate_nway green: <hypothesis>`; include the emulator test).
+- [x] **Step 79** *(8/8 SAME + harness; Doom 758321, -3259, shares the scheduler)* [V] ~1m: 12/12 SAME (slice geometry changes must not alter TTY output; if they do, that is a finding, not a recapture), harness zero FAIL, Doom 761,580 unchanged, ascend insns recorded.
+- [x] **Step 80** [C] ~1m: **COMMIT CHECKPOINT** (`fix(upc): [S-ASCEND-2 67-80] gate_nway green: <hypothesis>`; include the emulator test).
 
 ### The looped-fork gate
 
-- [ ] **Step 81** [W][CODE] ~15m: `user/forkloop.c`: `for (i = 0; i < 3; i++) { pid = fork(); if (pid == 0) { print "FL: child"; exit(0); } wait(0); }` then print `FL: parent-done`, fixed strings only (a `FL: child` per iteration; `FL: parent-done` once). This is exactly the shape `gate_nway.c`'s comment says fork-bombs.
-- [ ] **Step 82** [BUILD][TEST][B][S] ~4m: Build, run with a generous trigger budget and a hard cap, count
+- [x] **Step 81** *(parent spins, fixed strings)* [W][CODE] ~15m: `user/forkloop.c`: `for (i = 0; i < 3; i++) { pid = fork(); if (pid == 0) { print "FL: child"; exit(0); } wait(0); }` then print `FL: parent-done`, fixed strings only (a `FL: child` per iteration; `FL: parent-done` once). This is exactly the shape `gate_nway.c`'s comment says fork-bombs.
+- [x] **Step 82** [BUILD][TEST][B][S] ~4m: Build, run with a generous trigger budget and a hard cap, count
   ```bash
   (cd "$UP" && make -f ../adapters/Makefile.mbc-userland target/forkloop.mbc 2>&1 | tail -1); out="$(cd "$EBPF" && timeout 120 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" --userland "$K/forkloop.mbc" --triggers 1500000 --instance 111 2>&1)"; printf '%s\n' "$out" > "$S6/p3-forkloop.txt"; grep -aoE 'FL: [a-z-]+|fork.*fail|num_proc[^\n]{0,20}' <<<"$out" | sort | uniq -c
   ```
-- [ ] **Step 83** [V] ~1m: Reproduces the bug (expected: many `FL: child`, no `FL: parent-done`, or fork failures) **or** passes (3× `FL: child`, 1× `FL: parent-done`). Record. If it passes, the "substrate bug" was the Step 74 class and is already fixed: skip to Step 88.
-- [ ] **Step 84** [DESIGN][W] ~15m: `$LOG` §"forkloop diagnosis": by read, where does a child re-enter the loop? Candidates: (a) BPF `SYS_FORK` returns 0 in the parent and the child pid in the child (inverted); (b) the child's `pc`/`a0` after fork is the parent's pre-fork state (trapframe copy misses `a0`); (c) the translator's `fork` return path (`usys.S` ecall + `a0` check) mis-translates the branch. One run each: add `FL: a0=0/nonzero` tokens in both branches; the token pattern identifies (a)/(b).
-- [ ] **Step 85** [CODE] ~45m: Fix the identified cause, test-first in the host emulator (`crates/monad-mbc/tests/forkloop.rs` asserting 3 children + parent-done), then BPF/kernel. If eBPF changed: insns recorded.
-- [ ] **Step 86** [TEST][B][S] ~3m: Re-run Step 82 → 3× `FL: child`, 1× `FL: parent-done`.
-- [ ] **Step 87** [V] ~1m: Passes. Fail → one more diagnosis pass (two attempts), then STUCK Steps 88-89 only (forkloop stays a known failure, listed as KF2 with evidence); Steps 90-94 still wire gate_nway.
-- [ ] **Step 88** [CODE][W] ~10m: Harness gates: add to `scripts/upc-regression.sh` after the gate2 block
+- [x] **Step 83** *(passes: the looped-fork bug was the zombie resume; skip to 88)* [V] ~1m: Reproduces the bug (expected: many `FL: child`, no `FL: parent-done`, or fork failures) **or** passes (3× `FL: child`, 1× `FL: parent-done`). Record. If it passes, the "substrate bug" was the Step 74 class and is already fixed: skip to Step 88.
+- [ ] **Step 84** *(skipped per Step 83)* [DESIGN][W] ~15m: `$LOG` §"forkloop diagnosis": by read, where does a child re-enter the loop? Candidates: (a) BPF `SYS_FORK` returns 0 in the parent and the child pid in the child (inverted); (b) the child's `pc`/`a0` after fork is the parent's pre-fork state (trapframe copy misses `a0`); (c) the translator's `fork` return path (`usys.S` ecall + `a0` check) mis-translates the branch. One run each: add `FL: a0=0/nonzero` tokens in both branches; the token pattern identifies (a)/(b).
+- [ ] **Step 85** *(skipped per Step 83)* [CODE] ~45m: Fix the identified cause, test-first in the host emulator (`crates/monad-mbc/tests/forkloop.rs` asserting 3 children + parent-done), then BPF/kernel. If eBPF changed: insns recorded.
+- [ ] **Step 86** *(skipped per Step 83)* [TEST][B][S] ~3m: Re-run Step 82 → 3× `FL: child`, 1× `FL: parent-done`.
+- [ ] **Step 87** *(skipped per Step 83)* [V] ~1m: Passes. Fail → one more diagnosis pass (two attempts), then STUCK Steps 88-89 only (forkloop stays a known failure, listed as KF2 with evidence); Steps 90-94 still wire gate_nway.
+- [x] **Step 88** *(token count, not line count; see log)* [CODE][W] ~10m: Harness gates: add to `scripts/upc-regression.sh` after the gate2 block
   ```bash
   cd "$PROJECT_ROOT" && python3 - <<'PY'
   import re,io
@@ -377,12 +377,12 @@ Copyright (c) 2024-2026 Stevie Bellis.
   PY
   bash -n scripts/upc-regression.sh && echo SYNTAX-OK
   ```
-- [ ] **Step 89** [W] ~3m: Make sure `ubuild` (S5 helper) builds `gate_nway.mbc` and `forkloop.mbc` (both in `Makefile.mbc-userland`'s default target list: `grep -n 'gate_nway\|forkloop' crates/xv6-mbc/adapters/Makefile.mbc-userland`).
-- [ ] **Step 90** [TEST][B][S] ~8m: Harness end to end
+- [x] **Step 89** *(new `gates` target, not the fs.img list)* [W] ~3m: Make sure `ubuild` (S5 helper) builds `gate_nway.mbc` and `forkloop.mbc` (both in `Makefile.mbc-userland`'s default target list: `grep -n 'gate_nway\|forkloop' crates/xv6-mbc/adapters/Makefile.mbc-userland`).
+- [x] **Step 90** [TEST][B][S] ~8m: Harness end to end
   ```bash
   bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tee "$S6/p3-regression-final.log" | grep -aE 'PASS|FAIL|verifier'
   ```
-- [ ] **Step 91** [V] ~1m: Two new `PASS` lines, zero `FAIL` (or forkloop `FAIL` only if Step 87 went STUCK, in which case the forkloop gate is wrapped in `if [ "${UPC_GATE_FORKLOOP:-0}" = 1 ]` and KF2 recorded), budgets unchanged from Step 79.
+- [x] **Step 91** *(ALL GREEN)* [V] ~1m: Two new `PASS` lines, zero `FAIL` (or forkloop `FAIL` only if Step 87 went STUCK, in which case the forkloop gate is wrapped in `if [ "${UPC_GATE_FORKLOOP:-0}" = 1 ]` and KF2 recorded), budgets unchanged from Step 79.
 - [ ] **Step 92** [DOC-UPDATE][W] ~10m: `$LOG` KF table: KF1 retired (commit, evidence file); `UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.2 note "Gate 4 N-way green <date>"; `wiki/UPC-Dream-Ladder.md` L5 row mentions N-way isolation; `S-UPC-WIRE-COMPUTE-battle-plan.md:145` KF1 row gets "retired by S-ASCEND-2 Step 91".
 - [ ] **Step 93** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash

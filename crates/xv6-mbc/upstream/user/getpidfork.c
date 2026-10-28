@@ -3,11 +3,11 @@
 // EVOLUTION-1's "next probe". getpidprobe.c only ever asks as init; the
 // dual-books question is what a child sees. Run as the userland directly:
 //   upc-bootctl boot ... --userland target/getpidfork.mbc
-// It runs as pid 0/init, so it must never exit: init's exit(0) returns to
-// user code here instead of halting, and the parent's last line then repeats
-// for ever (that is what made the first runs look like the child running the
-// parent's tail). The parent spins after its last line, so each line prints
-// exactly once.
+// It runs as pid 0/init and spins after its last line instead of exiting.
+// Before the S-ASCEND-2 Phase 3 scheduler fix, init's exit resumed the reaped
+// child, which ran the parent's post-wait code (the first runs of this probe
+// showed exactly that); spinning keeps the output the same on both sides of
+// the fix.
 //
 // Observables (fixed strings only, gate2-style: the MBC userland varargs ABI
 // is not reliable, so the printed token IS the value):

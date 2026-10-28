@@ -143,3 +143,55 @@ Question to Stevie, unchanged from the plan, with this evidence: (1) kernel `p->
 EVOLUTION-1's direction is kernel authority and K removes the kernel's counter. New since the plan was written: the
 kernel has no process for a forked child, so under either answer the next step is giving the kernel a row per BPF
 fork. Until answered, Steps 44-51 are `[AFTER-E1]` skips and the flag stays OFF.
+
+## Phase 3: N-way isolation and the looped-fork gate (Steps 67-94, 2026-10-28)
+
+**Step 68.** Phase 0's gate_nway run: `forks=3 waitpid=3`, then `NWAY-FAIL pid2` 231 times with `cur_pid=0` and
+`halted=0`. The real children's verdicts are not in the 2208-byte ring at all.
+
+**Diagnosis (Hn0, not one of the plan's Hn1-Hn3).** The Phase 1 probe had already shown init's exit coming back to
+user code. gate_nway's disassembly shows where it goes: main's `jal exit` at 0x174 is followed directly by the
+`child(2, 0xB2B2B2B2)` block at 0x178, so a returning exit runs child 2's code as init, fails its canary checks in
+init's slice, and its own `exit(1)` returns again: the 231 lines. One run of a copy whose parent spins instead of
+exiting (`gate_nway_h0`, not committed) printed `NWAY-ok pid1/2/3` and `NWAY-PARENT-REAPED-ALL` once each. Isolation
+was never broken; Hn1-Hn3 (Steps 70-72) were not needed.
+
+**Root cause.** `scheduler_context_switch` (eBPF `main.rs` and the host emulator `crates/monad-mbc/src/execute.rs`,
+same code) searches at most 8 slots for one not in `halted_mask | suspended_mask`. When none is runnable the loop
+ends wherever its 8th step landed and only `next_pid == old_pid` was checked, so with 2 or 4 processes it stopped on
+a reaped zombie (slot 1) and loaded it. The xv6 exit handler then saw `current_pid != exiting_pid` and never halted
+(`halted=0` in every run). The resumed zombie continued after its own exit ecall: in getpidfork that was the
+parent's post-`wait` code (the first probe's "child runs the parent's tail"), in gate_nway it was init falling into
+child 2. Fix: the search records `found`; nothing found means stay put, and SYS_EXIT halts the CPU.
+
+**Tests first.** `os_primitives_test.rs`: `scheduler_stays_put_when_nothing_is_runnable` (num 2-8, every slot a
+zombie) and `sys_exit_with_only_zombie_children_halts_cpu` (num 2 and 4). Both FAILED on the old code, pass on the
+new; monad-mbc 269 lib + 69 primitives + the rest, 0 failed.
+
+**Results.**
+
+| Check | Before | After |
+|---|---|---|
+| gate_nway (unmodified, init exits) | 0 ok, 231 `NWAY-FAIL pid2` | 3x `NWAY-ok`, `REAPED-ALL`, CPU halts |
+| forkloop (new, 3 iterations of fork + wait) | 3 children + parent-done (parent spins) | same, in the harness |
+| ascend verified insns | 926542 | **923645** (-2897) |
+| Doom verified insns | 761580 | **758321** (-3259; Doom shares the scheduler) |
+| golden sweep | 8/8 SAME | 8/8 SAME |
+| upc-regression.sh | ALL GREEN | ALL GREEN, with gate_nway and forkloop |
+| check-ebpf-loads.sh | 36 PASS | 36 PASS; `check-ebpf-insns.sh --update` recorded both decreases |
+
+**Looped fork (Steps 81-87).** forkloop passes: 3 `FL: child`, 1 `FL: parent-done`. The "children re-enter the loop
+and re-fork" behaviour in gate_nway's header was the same zombie resumption (a reaped child continuing after its
+exit, inside the loop). Per Step 83 the fix steps 84-87 are skipped. gate_nway stays unrolled so its binary and
+history stay comparable; its header now says why.
+
+**Harness (Steps 88-91).** Two gates after gate2. Deviations from the plan's block: (1) the plan counted
+`grep -ac 'NWAY-ok'`, which counts lines, and the TTY dump is one `ascii:` line, so a passing run scored 1 and
+failed; the gate counts distinct `NWAY-ok pid[123]` tokens. (2) Step 89 asked for both programs in the default
+userland list; that list is copied into fs.img and the `ls` golden lists fs.img, so they are in a new `gates` make
+target (`uinit gate2 gate_nway forkloop`) instead, and a missing binary fails the gate.
+
+KF1 retired (evidence `p3-nway-fixed.txt`, `p3-regression-final.log`).
+
+Also corrected: gate2.c and gate_nway.c said init "exits, so the kernel restarts it" (it never did), and the
+over-budget note's 926,542.

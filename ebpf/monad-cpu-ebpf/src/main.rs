@@ -3463,16 +3463,21 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     let mut next_pid = (old_pid + 1) % num;
     // Bounded search: try up to MAX_PROCESSES (8) candidates per Phase 1.3 ADR-075 D-1.
     let mut attempts = 0u32;
+    let mut found = false;
     while attempts < 8 {
         if next_pid < num && (skip_mask & (1 << next_pid)) == 0 {
+            found = true;
             break; // found a runnable process
         }
         next_pid = (next_pid + 1) % num;
         attempts += 1;
     }
 
-    // If all processes halted (or only self runnable), stay on current
-    if next_pid == old_pid {
+    // If all processes halted (or only self runnable), stay on current. The
+    // search ends wherever its last step landed, which may be a zombie: without
+    // `found`, an exiting init resumed a reaped child after its exit ecall
+    // (S-ASCEND-2 Phase 3; the gate_nway KF1 and "looped fork" symptoms).
+    if !found || next_pid == old_pid {
         return;
     }
 
