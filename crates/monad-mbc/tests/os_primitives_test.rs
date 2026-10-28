@@ -596,9 +596,15 @@ fn scheduler_stays_put_when_nothing_is_runnable() {
         cpu.state.num_processes = num;
         cpu.state.current_pid = 0;
         cpu.halted_mask = (1u32 << num) - 1; // every slot is a zombie
-        for pid in 1..num as usize {
-            cpu.proc_table[pid][0] = 0xD00D_0000 | pid as u32;
-            cpu.proc_table[pid][18] = 0x4000;
+        for (pid, row) in cpu
+            .proc_table
+            .iter_mut()
+            .enumerate()
+            .take(num as usize)
+            .skip(1)
+        {
+            row[0] = 0xD00D_0000 | pid as u32;
+            row[18] = 0x4000;
         }
         cpu.state.regs[0] = 0xBEEF;
 
@@ -625,9 +631,9 @@ fn sys_exit_with_only_zombie_children_halts_cpu() {
         cpu.state.num_processes = num;
         cpu.state.current_pid = 0;
         cpu.halted_mask = ((1u32 << num) - 1) & !1; // children zombies, init live
-        for pid in 1..num as usize {
-            cpu.proc_table[pid][16] = 0; // a zombie resumed here would re-run the exit
-            cpu.proc_table[pid][18] = 0x4000;
+        for row in cpu.proc_table.iter_mut().take(num as usize).skip(1) {
+            row[16] = 0; // a zombie resumed here would re-run the exit
+            row[18] = 0x4000;
         }
         let rom = vec![
             enc(op::MOVI, 0, 0, lsys::SYS_EXIT as u16),

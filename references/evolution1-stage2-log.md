@@ -453,3 +453,41 @@ gates are always on since Phase 3).
 - `CLAUDE.md`: one sentence after the S-ASCEND-2 "stays false" sentence.
 
 Dated session blocks are left as written.
+
+## Phase 6: security pass on rungs 0-1 (Steps 131-146)
+
+**Step 131: attack surface of the values ADR-109 added.**
+
+| Value | Writer | Reader | Hostile value | Bound | Test |
+|---|---|---|---|---|---|
+| BootParams `0x160` (table base) | kernel `upc_slots_init` | BPF `inject_strap`, fork arm | init (identity map) can rewrite it | BPF: `RAM_MAP` bounds every access; 0 skips | parity test (address); a wild base only redirects BPF's three writes inside RAM, which init could already write directly |
+| `cur_slot` | BPF at injection | kernel `upc_slot_enter` | any word | tag check, `< 8`, `sscratch == &tf[s]`, then cleared | mutants SHARED_TF/NO_REFRESH fail the asserter; compat check (no tag → today's path) |
+| `trap_a7` | BPF at injection | kernel | any word | tag check; 16-bit value through `handler_for` (unknown → -1); cleared on read | injected 22 → "unknown sys call 22", returns -1; mutant NO_A7 fails |
+| `fresh_mask` | BPF at fork; kernel clears bit | kernel | any word | only bit s is read; a spurious bit only refreshes a row | asserter: refresh count = fork count |
+| `sscratch` (BPF-set) | BPF at injection | `uservec` | none from user code (CSR window is not user-mapped for children) | always `base + 256*s` when published | asserter `ss == tf`; `upc: sscratch` panic guard |
+| per-slot trapframes | `uservec`, kernel | kernel, `userret` | a child at VA ≥ 15 MiB reaches physical memory while D6 is off | D6 (off) | **deferred with D6** |
+| init's x17/x16 spill words | init's stubs | BPF (via shadow) | n/a: no longer written by a trap | D4 | I8 sentinel probe; mutant RESTORE_A67 fails |
+| `0xFFFF_FFFC` D6 sentinel | BPF (D6 on) | n/a | n/a | outside `RAM_MAP` | not enabled |
+
+**Step 132 (reachability, read-only).**
+- A child's pgd has BPF-written PDE 0 and 1 (its slice). Every other PDE is either not present or the one stale
+  xv6-format word the `PG:` probe found (PDE 1 of slot 1's pgd at boot), and fork overwrites that one.
+- So with D6 off, a child's VAs from 8 MiB up resolve to themselves physically. That is the pre-existing fall-through
+  ADR-109 records. It reaches the per-pid pgds at 15 MiB and, through them, everything else.
+- With D6 on, those VAs resolve to the sentinel.
+- Init's identity map over the low 64 MiB is unchanged: it is today's trust model.
+
+**Step 133.** Every row has a test except the trapframe/fall-through row. That row's hostile probes (Steps 134-138)
+are deferred with D6: without D6 they would only confirm the open hole the ADR already states.
+
+**Steps 140-143 (fuzz and repo gates).**
+- `fuzz_mbc_execute`: **SKIP, `cargo-fuzz` not installed** (`cargo +nightly fuzz` → "no such command"). The target
+  covers host monad-mbc, which this sprint did not change. Not a pass.
+- `check-ebpf-insns`: PASS. `check-gitleaks`: PASS.
+- `check-clippy` failed (5 warnings against a 0 baseline). All five are fixed; it is now 0/0:
+  - `boot_prepare` lost its `#[allow(clippy::too_many_arguments)]`, because `TTY_DRAIN_CHUNK` was inserted between
+    the attribute and the fn (the same slip as in `main.rs` earlier). The const is moved above.
+  - `UPC_ST_SIZE` was unused. It is now used by two compile-time layout asserts in `phase12.rs`.
+  - Two needless-range loops in `os_primitives_test.rs` and an unused binding in `fuzz_slice_geometry.rs`, both from
+    S-ASCEND-2 commits. Fixed; os_primitives 69 pass.
+- `check-gates-can-fail` exits 2 on a dirty tree; it is re-run after the commit.

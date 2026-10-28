@@ -94,6 +94,10 @@ pub const UPC_ST_SIZE: u32 = 0x0000_0810;
 pub const UPC_TAG_SLOT: u32 = 0x5107_0000;
 pub const UPC_TAG_A7: u32 = 0xA700_0000;
 pub const UPC_TAG_MASK: u32 = 0xFFFF_0000;
+// The table is the 8 trapframes followed by four words (upc_slots.h asserts
+// the same in C).
+const _: () = assert!(UPC_ST_SIZE == UPC_SLOTS * UPC_TF_STRIDE + 16);
+const _: () = assert!(UPC_ST_CUR_SLOT_OFF == UPC_SLOTS * UPC_TF_STRIDE);
 
 // ── Gate 4 isolation invariants (compile-time) ─────────────────────────────
 /// The stride must cover the two 4 MiB superpage leaves, or adjacent pids'

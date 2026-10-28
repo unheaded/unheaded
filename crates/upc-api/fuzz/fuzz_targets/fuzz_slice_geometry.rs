@@ -44,7 +44,7 @@ fuzz_target!(|data: &[u8]| {
     if check_mmu(MemoryModel::PerPidMmu, Some(&layout), &caps, &facts).is_ok() {
         let ram = caps.ram_words as u64 * 4;
         let s = g.admitted_slices();
-        for (i, &(_, start, end)) in s.iter().enumerate() {
+        for (i, &(_, _start, end)) in s.iter().enumerate() {
             assert!(end <= ram, "accepted slice past RAM_MAP");
             if let Some(&(_, next, _)) = s.get(i + 1) {
                 assert!(end <= next, "accepted overlapping slices");

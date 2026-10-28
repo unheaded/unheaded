@@ -605,16 +605,16 @@ fn hijack_probe_run(runner: &runner::BootRunner, instance: u8, n: u32) -> Result
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-/// Load every image into the live BPF maps, set up the netns + XDP attach,
-/// and pre-fill `--input`. Shared by `boot` (fixed trigger budget) and
-/// `console` (interactive loop). Returns the runner (owning the loaded eBPF
-/// object — dropping it detaches XDP) and the initial CPU state.
 /// Triggers sent between TTY drains in `boot`. A chunk loses output only if it
 /// prints more than the 4,096-byte ring, i.e. more than about 4 bytes per
 /// trigger (one trigger runs at most 256 MBC instructions).
 const TTY_DRAIN_CHUNK: u32 = 1_000;
 
+#[allow(clippy::too_many_arguments)]
+/// Load every image into the live BPF maps, set up the netns + XDP attach,
+/// and pre-fill `--input`. Shared by `boot` (fixed trigger budget) and
+/// `console` (interactive loop). Returns the runner (owning the loaded eBPF
+/// object — dropping it detaches XDP) and the initial CPU state.
 fn boot_prepare(
     kernel: &Path,
     bootstub: Option<&Path>,
