@@ -593,3 +593,18 @@ committed). Carried from S-TRUE-WIRE: E1-E8 there, including its E2 merge gate, 
   run this session.
 - **Phase 13**: wiki ripple done (Linux-on-UPC, UPC-Dream-Ladder, Mimirs-Law, UPC-Cartridges, Systemd-Units); the
   RFC requests file notes the `upc.cart.weights.<model>` sub-topic; ADR-INDEX unchanged (no ADR changed status).
+
+## Phase 11, doc parts (Steps 281-292, run after the close)
+
+- **Step 281 (bootstub): recommendation stands, not applied unattended.** Nothing builds `crates/upc-bootstub` as a
+  dependency, but `upc-bootctl --bootstub` and upc-api's stub boot protocol still name it, and Item 5 updated its
+  `start.c` to accept BootParams v3 this sprint. Retiring it means removing the flag, the protocol variant and the
+  crate together; left for an attended session (Steps 281-282 open).
+- **Step 283:** ADR-023 already said "Superseded by ADR-074"; ADR-081's naming item points at E4.
+- **Step 284 E4: filed** (is `unheadnix` the name? Lore and Stevie). Steps 285-286 wait on it.
+- **Step 287:** the Dream Ladder's L6 text already followed ADR-081; three `docs/doom/MBC_LINUX_*` docs gained a
+  "superseded by ADR-081" banner (the FUZIX, uClinux and road-to-Linux docs had one).
+- **Step 289:** attended-run recipe in `wiki/Linux-on-UPC.md`. **Finding:** a default boot now runs inside `upc0`,
+  which has no link to the host, so `console` cannot reach `upc-tty-bridge` on the host's loopback; Mode A uses
+  `--create-netns` until the bridge gets a path into `upc0` (for example a Unix socket bind-mounted into the unit).
+- **Step 290 E5: filed** (a ~20-minute attended window with the GPU); Step 291 waits on it.

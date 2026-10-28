@@ -183,7 +183,15 @@ append typed bytes to the guest's 64-slot KBD ring (HEAD advanced live; the gues
   keystrokes per instance (4096 B; overflow drops newest and counts
   `upc_tty_kbd_dropped_total` on `/metrics`); `console` pulls them from
   `GET /api/v1/kbd/drain`, which answers loopback callers only. CR (xterm's Enter) and LF
-  both end a line.
+  both end a line. Since S-ASCEND-2 a default boot runs inside netns `upc0`, which has no
+  link to the host, so `console` there cannot reach a bridge on the host's loopback: run
+  Mode A with `console --create-netns` (as root) until the bridge gets a path into `upc0`.
+
+**Attended end-to-end (browser), recipe for S-ASCEND-2 E5 (not run live yet):**
+1. `cd cmd/upc-tty-bridge && go run . --listen 127.0.0.1:26100`
+2. `cd ebpf && sudo UPC_DEMO_MODE=1 ../cmd/upc-bootctl/target/release/upc-bootctl console --create-netns --instance 111 --kernel ../crates/xv6-mbc/upstream/target/xv6-mbc.mbc --ramdisk ../crates/xv6-mbc/upstream/target/fs.img --userland ../crates/xv6-mbc/upstream/target/init.mbc`
+3. Open `http://127.0.0.1:26100/upc-console.html`, instance `111`, type `echo peace and love`, expect the echo.
+4. With the model already serving (`scripts/switch-model.sh qwen-7b`; never start a second one), `LICH_E2E=1 go test ./pkg/lichtools/ -run E2E -count=1`.
 
 Options: `--tick-batch N` (triggers per loop, default 50,000), `--debug-kbd` (prints
 KBD_HEAD/KBD_TAIL per batch). A 203-byte paste reaches the guest in order, at most 64
