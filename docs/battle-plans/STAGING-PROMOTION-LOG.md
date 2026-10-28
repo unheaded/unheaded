@@ -2110,3 +2110,46 @@ Only three Go binaries import `pkg/database` (`dashboard-backend`, `kanban-app`,
 data reconciliation — the 72 live kanban tasks are in the maintenance database, so
 moving the pointer without moving the rows empties the board. Keep the migration
 separate and reversible; do not fold it into a ladder batch.
+
+## Post-ladder: what is between `staging` and `develop` now, and how it gets reviewed (2026-10-28)
+
+Round Table `docs/battle-plans/ROUND-TABLE-2026-10-28-review-scope.md`. Since B9
+(`staging` = `1d248fb0`, 2026-09-24) `develop` has gained **1,342 commits** in a
+linear chain (`staging` is an ancestor of `develop`, so every batch below is
+still a fast-forward). `/ultrareview` refuses the whole (3,746 files) and
+refuses any range larger than 500 files / 8,000 lines, so the branch-vs-staging
+diff is not a review unit.
+
+**Review grain (decided 2026-10-28):** the coordinator's phase-merge commits.
+Each sprint phase landed as one merge that was built, raced and gated at merge
+time, and every one fits the tool. Recipe, in a clean tree:
+
+```
+git switch --detach <merge>
+/ultrareview <merge>^1        # first parent = develop just before the merge
+git switch develop
+```
+
+Findings are triaged in the sprint's progress log (fixed, or a FND with a
+reason). A batch leaves `develop` for `staging` when its security merges are
+reviewed; the rest of its merges ride along and are reviewed as the batch sits
+in `staging`, the same way B7-B9 found their bugs.
+
+### Batch map, post-ladder (contiguous ranges, ladder order)
+
+| # | range | commits | theme | review units |
+|---|---|---|---|---|
+| B10 | `1d248fb0..f96233cd^` | 1,062 | pre-NEXT-7 sprints: S-REAL-STEEL, S-TWO-BRAINS, S-QUANTUM-ARMOR, S-LICH-AWAKENS, S-UPC-WIRE-COMPUTE | sub-batch per sprint; 2,726 files as a whole, so split at sprint SHIPPED banners before promoting |
+| B11 | `f96233cd^..80416563` | 52 | S-CLEAN-SLATE (NEXT-7 Sprint 1) | 4 merges: `d2608a11` Ph5, `cf26212f` Ph2, `b1e3a132` Ph3, `80416563` Ph6 (437 files as a batch) |
+| B12 | `80416563..ccff9a63` | 228 | S-IRON-GATE, S-CHAMPION-HARDENING, S-WELL-SPRING (Sprints 2-4, interleaved by the coordinator) | ~34 merges; security order: `ed46d54f` IG Ph1, `19a968a9` IG Ph8, `701428ef` IG Ph7, `028f2e72` Wotan tokens, `96b81ad1` IG Ph9, `d28b58d3` IG Ph13, `7d35d4ad` + `9c1c4e25` CH Ph1-4, `0c547c46` + `e4603171` IG Ph6 |
+| B13 | `sprint/true-wire` (local, 20 commits) | 20 | S-TRUE-WIRE (Sprint 5) | not on `develop` until E2; review `88202527` Ph8 (WAL signatures) first; Ph1 `b8b2b8c2`, Ph3 `7a5932c8`, Ph9 `d37cda3d` |
+
+B10 is older than B11 and B12 and must go first for the fast-forward to hold.
+Its sprints each have a SHIPPED banner and a progress log listing their merges;
+cut B10 into B10a-e at those banners when the time comes.
+
+**Housekeeping done the same day:** the stray July `host-agent` binaries (the
+pre-rename Huginn build, `cmd/host-agent` became `cmd/huginn` on 2026-10-25)
+moved to `~/tmp/host-agent-july-binaries/` and both paths added to
+`.gitignore`; the two Sprint 5 agent worktrees committed as WIP on their own
+branches so `git worktree list` carries no uncommitted state.

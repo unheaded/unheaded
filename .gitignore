@@ -314,3 +314,7 @@ configs/trust.d/dev/
 configs/auth/
 # Dev TLS CA, certificates and keys (scripts/gen-dev-certs.sh, S-IRON-GATE Phase 8).
 configs/certs/
+
+# Stray pre-rename Huginn binaries (cmd/host-agent moved to cmd/huginn 2026-10-25); never commit a built binary here
+/host-agent
+/cmd/host-agent/
