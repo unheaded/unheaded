@@ -141,9 +141,11 @@ getpidprobe: $T/getpidprobe.mbc
 getpidfork: $T/getpidfork.mbc
 # S-ASCEND-2 Phase 3 looped-fork gate (a for-loop around fork + wait).
 forkloop: $T/forkloop.mbc
+# S-ASCEND-2 Phase 7: open("console") by name, write through that fd.
+devprobe: $T/devprobe.mbc
 # Every program the regression harness boots as the userland. Not part of
 # USERLAND_PROGS: those are copied into fs.img, and the `ls` golden lists it.
-GATE_PROGS = $T/uinit.mbc $T/gate2.mbc $T/gate_nway.mbc $T/forkloop.mbc
+GATE_PROGS = $T/uinit.mbc $T/gate2.mbc $T/gate_nway.mbc $T/forkloop.mbc $T/devprobe.mbc
 gates: $(GATE_PROGS) $(call sidecars,$(GATE_PROGS))
 
 # Phase 1.2 Gate 4 — N-way CONCURRENT isolation falsification test (ADR-074
@@ -204,9 +206,9 @@ clean:
 	rm -f $U/*.o $U/usys.S
 	rm -rf $T/init.* $T/uinit.* $T/sh.* $T/ls.* $T/cat.* $T/echo.* \
 	       $T/wc.* $T/ln.* $T/mkdir.* $T/kill.* $T/rm.* $T/grep.* \
-	       $T/gate2.* $T/gate_nway.* $T/getpidprobe.* $T/getpidfork.* $T/forkloop.* $T/fs.img $T/README $T/BIGFILE $T/sub
+	       $T/gate2.* $T/gate_nway.* $T/getpidprobe.* $T/getpidfork.* $T/forkloop.* $T/devprobe.* $T/fs.img $T/README $T/BIGFILE $T/sub
 
-.PHONY: clean init uinit sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway getpidprobe getpidfork forkloop gates userland ramdisk
+.PHONY: clean init uinit sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway getpidprobe getpidfork forkloop devprobe gates userland ramdisk
 
 # Keep .elf intermediates around for debugging.
 .SECONDARY: $T/init.elf $T/uinit.elf $T/sh.elf $T/ls.elf $T/cat.elf $T/echo.elf $T/wc.elf

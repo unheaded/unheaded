@@ -1,7 +1,7 @@
 #ifndef __ASSEMBLER__
 
 // which hart (core) is this?
-static inline uint64
+static inline uint32
 r_mhartid()
 {
   uint64 x;
@@ -16,7 +16,7 @@ r_mhartid()
 #define MSTATUS_MPP_S (1L << 11)
 #define MSTATUS_MPP_U (0L << 11)
 
-static inline uint64
+static inline uint32
 r_mstatus()
 {
   uint64 x;
@@ -25,7 +25,7 @@ r_mstatus()
 }
 
 static inline void 
-w_mstatus(uint64 x)
+w_mstatus(uint32 x)
 {
   asm volatile("csrw mstatus, %0" : : "r" (x));
 }
@@ -34,7 +34,7 @@ w_mstatus(uint64 x)
 // instruction address to which a return from
 // exception will go.
 static inline void 
-w_mepc(uint64 x)
+w_mepc(uint32 x)
 {
   asm volatile("csrw mepc, %0" : : "r" (x));
 }
@@ -47,7 +47,7 @@ w_mepc(uint64 x)
 #define SSTATUS_SIE (1L << 1)  // Supervisor Interrupt Enable
 #define SSTATUS_UIE (1L << 0)  // User Interrupt Enable
 
-static inline uint64
+static inline uint32
 r_sstatus()
 {
   uint64 x;
@@ -56,13 +56,13 @@ r_sstatus()
 }
 
 static inline void 
-w_sstatus(uint64 x)
+w_sstatus(uint32 x)
 {
   asm volatile("csrw sstatus, %0" : : "r" (x));
 }
 
 // Supervisor Interrupt Pending
-static inline uint64
+static inline uint32
 r_sip()
 {
   uint64 x;
@@ -71,7 +71,7 @@ r_sip()
 }
 
 static inline void 
-w_sip(uint64 x)
+w_sip(uint32 x)
 {
   asm volatile("csrw sip, %0" : : "r" (x));
 }
@@ -79,7 +79,7 @@ w_sip(uint64 x)
 // Supervisor Interrupt Enable
 #define SIE_SEIE (1L << 9) // external
 #define SIE_STIE (1L << 5) // timer
-static inline uint64
+static inline uint32
 r_sie()
 {
   uint64 x;
@@ -88,14 +88,14 @@ r_sie()
 }
 
 static inline void 
-w_sie(uint64 x)
+w_sie(uint32 x)
 {
   asm volatile("csrw sie, %0" : : "r" (x));
 }
 
 // Machine-mode Interrupt Enable
 #define MIE_STIE (1L << 5)  // supervisor timer
-static inline uint64
+static inline uint32
 r_mie()
 {
   uint64 x;
@@ -104,7 +104,7 @@ r_mie()
 }
 
 static inline void 
-w_mie(uint64 x)
+w_mie(uint32 x)
 {
   asm volatile("csrw mie, %0" : : "r" (x));
 }
@@ -113,12 +113,12 @@ w_mie(uint64 x)
 // instruction address to which a return from
 // exception will go.
 static inline void 
-w_sepc(uint64 x)
+w_sepc(uint32 x)
 {
   asm volatile("csrw sepc, %0" : : "r" (x));
 }
 
-static inline uint64
+static inline uint32
 r_sepc()
 {
   uint64 x;
@@ -131,12 +131,12 @@ r_sepc()
 // memory-mapped CSR store translates); uservec recovers it on the next trap
 // instead of `li a0, TRAPFRAME` (the high TRAPFRAME VA has no UPC translation).
 static inline void
-w_sscratch(uint64 x)
+w_sscratch(uint32 x)
 {
   asm volatile("csrw sscratch, %0" : : "r" (x));
 }
 
-static inline uint64
+static inline uint32
 r_sscratch()
 {
   uint64 x;
@@ -145,7 +145,7 @@ r_sscratch()
 }
 
 // Machine Exception Delegation
-static inline uint64
+static inline uint32
 r_medeleg()
 {
   uint64 x;
@@ -154,13 +154,13 @@ r_medeleg()
 }
 
 static inline void 
-w_medeleg(uint64 x)
+w_medeleg(uint32 x)
 {
   asm volatile("csrw medeleg, %0" : : "r" (x));
 }
 
 // Machine Interrupt Delegation
-static inline uint64
+static inline uint32
 r_mideleg()
 {
   uint64 x;
@@ -169,7 +169,7 @@ r_mideleg()
 }
 
 static inline void 
-w_mideleg(uint64 x)
+w_mideleg(uint32 x)
 {
   asm volatile("csrw mideleg, %0" : : "r" (x));
 }
@@ -177,12 +177,12 @@ w_mideleg(uint64 x)
 // Supervisor Trap-Vector Base Address
 // low two bits are mode.
 static inline void 
-w_stvec(uint64 x)
+w_stvec(uint32 x)
 {
   asm volatile("csrw stvec, %0" : : "r" (x));
 }
 
-static inline uint64
+static inline uint32
 r_stvec()
 {
   uint64 x;
@@ -191,7 +191,7 @@ r_stvec()
 }
 
 // Supervisor Timer Comparison Register
-static inline uint64
+static inline uint32
 r_stimecmp()
 {
   uint64 x;
@@ -201,14 +201,14 @@ r_stimecmp()
 }
 
 static inline void 
-w_stimecmp(uint64 x)
+w_stimecmp(uint32 x)
 {
   // asm volatile("csrw stimecmp, %0" : : "r" (x));
   asm volatile("csrw 0x14d, %0" : : "r" (x));
 }
 
 // Machine Environment Configuration Register
-static inline uint64
+static inline uint32
 r_menvcfg()
 {
   uint64 x;
@@ -218,7 +218,7 @@ r_menvcfg()
 }
 
 static inline void 
-w_menvcfg(uint64 x)
+w_menvcfg(uint32 x)
 {
   // asm volatile("csrw menvcfg, %0" : : "r" (x));
   asm volatile("csrw 0x30a, %0" : : "r" (x));
@@ -226,13 +226,13 @@ w_menvcfg(uint64 x)
 
 // Physical Memory Protection
 static inline void
-w_pmpcfg0(uint64 x)
+w_pmpcfg0(uint32 x)
 {
   asm volatile("csrw pmpcfg0, %0" : : "r" (x));
 }
 
 static inline void
-w_pmpaddr0(uint64 x)
+w_pmpaddr0(uint32 x)
 {
   asm volatile("csrw pmpaddr0, %0" : : "r" (x));
 }
@@ -245,12 +245,12 @@ w_pmpaddr0(uint64 x)
 // supervisor address translation and protection;
 // holds the address of the page table.
 static inline void 
-w_satp(uint64 x)
+w_satp(uint32 x)
 {
   asm volatile("csrw satp, %0" : : "r" (x));
 }
 
-static inline uint64
+static inline uint32
 r_satp()
 {
   uint64 x;
@@ -259,7 +259,7 @@ r_satp()
 }
 
 // Supervisor Trap Cause
-static inline uint64
+static inline uint32
 r_scause()
 {
   uint64 x;
@@ -268,7 +268,7 @@ r_scause()
 }
 
 // Supervisor Trap Value
-static inline uint64
+static inline uint32
 r_stval()
 {
   uint64 x;
@@ -278,12 +278,12 @@ r_stval()
 
 // Machine-mode Counter-Enable
 static inline void 
-w_mcounteren(uint64 x)
+w_mcounteren(uint32 x)
 {
   asm volatile("csrw mcounteren, %0" : : "r" (x));
 }
 
-static inline uint64
+static inline uint32
 r_mcounteren()
 {
   uint64 x;
@@ -292,7 +292,7 @@ r_mcounteren()
 }
 
 // machine-mode cycle counter
-static inline uint64
+static inline uint32
 r_time()
 {
   uint64 x;
@@ -322,7 +322,7 @@ intr_get()
   return (x & SSTATUS_SIE) != 0;
 }
 
-static inline uint64
+static inline uint32
 r_sp()
 {
   uint64 x;
@@ -332,7 +332,7 @@ r_sp()
 
 // read and write tp, the thread pointer, which xv6 uses to hold
 // this core's hartid (core number), the index into cpus[].
-static inline uint64
+static inline uint32
 r_tp()
 {
   uint64 x;
@@ -341,12 +341,12 @@ r_tp()
 }
 
 static inline void 
-w_tp(uint64 x)
+w_tp(uint32 x)
 {
   asm volatile("mv tp, %0" : : "r" (x));
 }
 
-static inline uint64
+static inline uint32
 r_ra()
 {
   uint64 x;
@@ -362,6 +362,8 @@ sfence_vma()
   asm volatile("sfence.vma zero, zero");
 }
 
+// Sv32 (ADR-074 Option A): a PTE is 4 bytes, and uint64 is 4 bytes on ilp32e
+// (types.h asserts it), so this is the right width despite the name.
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t; // 512 PTEs
 

@@ -96,10 +96,19 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
       LESSON: a component *offset* carried in state and added to `base` cost +119K (blew 1M) —
       a second variable offset into RAM_MAP inside the name-compare loop defeats verifier
       state merging; advancing a0 keeps one scalar. mkfs grew one-level `dir/name` support;
-      harness gates `cat sub/NOTE` + `ls sub`. REMAINS: device inodes.
+      harness gates `cat sub/NOTE` + `ls sub`. Device inodes (S-ASCEND-2 Phase 7, 2026-10-28):
+      `open("console")` resolves by name in the BPF open path (the kernel's `sys_open` never
+      runs: open is serviced in BPF) and `devprobe` writes through the returned fd and a dup of
+      it, gated in the harness. No T_DEVICE inode exists in fs.img and mknod is a stub, so
+      on-disk device inodes move to EVOLUTION-1 Stage 2 rung 6 (devsw) with mknod.
 - [ ] **1.3.2** File **writes** (`write` to FD_INODE) + `>` redirection in sh — the first mutating
-      FS path (needs a block-alloc story; scope carefully vs verifier budget).
-- [ ] **1.3.3** Pipes (`|`) + a couple more shell builtins.
+      FS path (needs a block-alloc story; scope carefully vs verifier budget). **Route decided
+      2026-10-28 (decision 48 default, S-ASCEND-2 Step 182): kernel-side**, EVOLUTION-1 Stage 2
+      rung 6 (open/file read-write) and arrival `mkdir/unlink/link` (rung 8); see
+      `EVOLUTION-1-STAGE-2-skeleton.md`. Not in BPF (ascend at 92.4 %, ≥ +40K per feature).
+      Revisit only if E2 answers "(c) minimal" and `>` is wanted before Stage 2.
+- [ ] **1.3.3** Pipes (`|`) + a couple more shell builtins. **Route: kernel-side**, Stage 2
+      arrival `pipe` (rung 8), same decision.
 - [ ] **1.3.4 GATE (per item):** new capability works; regression sweep (1.1.3) green.
 - [~] **1.3.5** EVOLUTION-1 Stage 1 (getpid trap flip). S5 2026-10-23: S1.2 closed (translator
       CSR scratch aliasing fixed; `userret` restores from sscratch); the injected getpid round

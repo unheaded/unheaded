@@ -125,8 +125,10 @@ until rung 6 lands.
 ### Rung 6 — open (fs_walk hand-off) and file read/write
 
 `readi`/`namex` become the read path; in-BPF `fs_walk` and `FD_INODE_MAP` retire; the
-kernel's `ofile` becomes the fd table. Device inodes (S-ASCEND-2 Phase 7) open through
-devsw.
+kernel's `ofile` becomes the fd table. Device inodes open through devsw: S-ASCEND-2 Phase 7
+found none on disk (the console is matched by name in BPF; mknod is a stub), so mknod and
+on-disk T_DEVICE inodes arrive here. FS writes and `>` (master plan 1.3.2) take this rung,
+per decision 48 (S-ASCEND-2 Step 182).
 
 - **Prerequisite**: rungs 0 and 5; Phase 7 done.
 - **Gate**: template; the four read-path goldens (README direct blocks, BIGFILE
@@ -151,7 +153,8 @@ re-anchors on the kernel's fork.
 ### Rung 8 — arrivals: sbrk, pipe, kill, mkdir, unlink, link, chdir, sleep
 
 Kernel paths exist (Phase 2.4 T3/T4) and were never BPF-implemented: these arrive, there is
-no handler to retire. Each arrival is its own gate.
+no handler to retire. Each arrival is its own gate. Pipes (master plan 1.3.3) arrive here,
+per decision 48 (S-ASCEND-2 Step 182).
 
 - **Prerequisite**: rung 0 (every arrival runs in a forked child). `sbrk`: memory authority
   (`growproc`, `vmfault`) against the per-pid pagetable. `mkdir`/`unlink`/`link`: FS writes

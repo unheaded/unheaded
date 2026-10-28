@@ -120,6 +120,14 @@ FL="$(cd "$EBPF" && timeout 600 sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC
 [ "$(grep -aoE 'FL: child' <<<"$FL" | grep -c .)" -eq 3 ] && grep -aq 'FL: parent-done' <<<"$FL" \
   && pass "forkloop: 3 children, parent done" || fail "forkloop (looped fork)"
 
+# S-ASCEND-2 Phase 7: open("console") by name and write through the returned fd
+# (and a dup of it). The Phase 1.4 PC tracer prints 4-hex-digit PCs between the
+# bytes of a write that follows an SRET; strip them before matching.
+DV="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  --userland "$K/devprobe.mbc" --triggers 1500000 --instance 111 2>&1 | grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g')"
+grep -aq 'DEV: console-open-ok' <<<"$DV" && grep -aq 'DEV: console-dup-ok' <<<"$DV" \
+  && pass "devprobe: console opens by name, write + dup" || fail "devprobe (console by name)"
+
 # Track 2 Phase 2.1 (ADR-081): OUR init as PID 1. Same kernel + fs.img, only
 # the resident PID 1 program swapped to uinit.mbc. The token proves uinit ran;
 # 'hello' proves it forked+exec'd sh and a command completed through it.

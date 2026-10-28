@@ -400,3 +400,29 @@ Security brief updated (Step 178).
 frozen (BPF_MAP_FREEZE)`, then `freeze check: ROM_MAP update refused (EPERM)` and the same for RV2MBC_MAP, then
 FIRST HEARTBEAT. `tests/freeze_live.rs` with `UPC_LIVE=1`: 1 passed. Harness ALL GREEN (923826 / 758199, unchanged by
 the freeze), sweep 8/8 SAME, nothing left attached. Phase 6 exit gate passed.
+
+## Phase 7: FS substrate (Steps 181-204, 2026-10-28)
+
+**Route (Steps 181-182).** Ascend is at 923,826 (92.4 %); the subdir walk cost +41K, a second variable offset +119K.
+FS writes + `>` and pipes go **kernel-side through EVOLUTION-1 Stage 2** (decision 48 default; E2 is open and only an
+answer of "(c) minimal" plus wanting `>` first would reopen it). Recorded in the master plan 1.3.2/1.3.3, the
+Stage 2 skeleton (rungs 6 and 8) and OUTSTANDING M-226.
+
+**Device inodes (Steps 183-190), smaller than planned.** H10's open question answered: `open` is serviced in BPF
+(syscall 15); the kernel's `sys_open` with its T_DEVICE branch never runs. The BPF handler already matches
+`"console"` by name and returns the console fd. `mkfs` writes no device inode and `mknod` is a stub returning 0, so
+fs.img holds no T_DEVICE inode at all: routing one in BPF would be code nothing can exercise, and adding one to
+fs.img changes the `ls` golden. Done instead: `user/devprobe.c` (as init, with no fd open: `open("console", O_RDWR)`,
+write a token through that fd, then through a dup of it) and a harness gate. Deferred to Stage 2 rung 6 (devsw) with
+mknod: on-disk device inodes. No eBPF change, no golden change. Step 185's host-emulator test was not written: the
+live harness gate runs the real BPF path. The Phase 1.4 PC tracer (100 PCs printed after every SRET) splits the bytes
+of a write that follows an SRET, so the gate strips `([0-9A-F]{4} )+` before matching; removing the tracer would
+change all 12 goldens, left for a recapture window.
+
+**ilp32e (Steps 191-196).** 21 `static inline uint64` CSR readers and 18 `(uint64 x)` writers in `riscv.h` are now
+`uint32`; `types.h` asserts `sizeof(uint64) == 4` with the reason (struct stat's layout, Phase 1.7), and `pde_t` /
+`pte_t` carry a comment (Sv32: 4-byte entries are right). `unsigned long` and `unsigned int` are both 4 bytes here,
+so a clean kernel rebuild (33 compiles) is **byte-identical** (`4e39c82f…`): the change is to what the names claim.
+
+Results: harness ALL GREEN with the devprobe gate, sweep 8/8 SAME, monad-mbc 393 and xv6-mbc 3 tests pass, budgets
+unchanged (923,826 / 758,199). M-226 done in part (writes, pipes, on-disk device inodes routed), M-227 done.
