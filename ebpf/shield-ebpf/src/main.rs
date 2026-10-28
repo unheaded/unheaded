@@ -269,7 +269,7 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     // ── 4b–4d. HMAC / Retry / HopValidator lookups ─────────────────────────────
     // Deferred to reduce verifier instruction count.  The HMAC_KEYS,
     // RETRY_TOKENS, and HOP_VALIDATORS maps exist but have no userspace
-    // writer yet (M-180); validation logic will be enabled once bpf_loop()
+    // writer yet (M-180, FND-025); validation logic will be enabled once bpf_loop()
     // is integrated (S-TRUE-WIRE).
 
     // ── 5. Save original transport protocol before stripping extension headers ─

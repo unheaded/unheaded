@@ -137,3 +137,70 @@ Verified: `go test -race` on `services/wotan/...`, `pkg/protocol/sophiasync`, `p
 vet clean. PR #2 CI's "Gates can actually fail" red is pre-existing (14 unclassified gate scripts on develop, fixed
 there in `4ec0f5c4`; the sprint branch inherits it at the E2 merge). GitHub refused the review's automatic PR comment
 ("your account cannot comment on this pull request"); the findings are in the Round Table plan on develop.
+
+## Phase 2 on sprint/true-wire (wire values; S25 coordinator, 2026-10-28 night)
+
+`0d7782ba`. Started by an S24 agent that was stopped mid-edit (its WIP verified the spec's real order: DROP 0x03,
+MIRROR 0x04, not the plan's guess); finished, tested and gated by the coordinator.
+- Step 79/87: only hop-ebpf reads the flow-action byte; no producer writes a non-default value. The only Go decoder of
+  Anamnesis bytes is `pkg/ebpf` (AnamnesisReader); the Rust trace-collector's EventType is a different enum. Nothing
+  persists either byte (the Well's `event_type` columns are audit-event strings), so no migration (Step 80/88 override
+  conditions not met).
+- Step 84/91: as the commit says. Go `pkg/ebpf` keeps the JSON names `birth`/`hop`/`death` (dashboard packet-flow.js
+  and Wotan topics read them) and accepts `born`/`computed`/`died` on input; legacy decode is per ring source
+  (`AnamnesisReader.WithLegacyEventTypes`, `LegacyDecodes` counter), never guessed from the byte; a zero-timestamp record
+  is refused (`ErrEventZeroTimestamp`) because an all-zero record now reads as BORN.
+- Step 86/93: `go test -race` on pkg/protocol, services/sophia, pkg/ebpf, cmd/trace-collector-go,
+  cmd/dashboard-backend: ok (one run of the dashboard flow-correlation e2e failed while the eBPF release build saturated
+  the CPU; 3x and -race 5x clean afterwards: load-sensitive, not this change). monad-common host tests run outside the
+  workspace (the ebpf workspace config forces build-std=core for the BPF target, which breaks `cargo test` there):
+  copy the crate with `docs/protocol/error-registry.md` at the same relative path, then `cargo +nightly test`: 121
+  (Phase 2) / 123 (Phase 4) passed.
+- Step 94/95: load gate `[PASS] 34`; `upc-regression.sh` ALL GREEN, ascend 926542, Doom 761580, cart_xdp 42743,
+  cart_tick 146897: identical to Step 16. A fresh worktree needs, before the regression: `cargo build --release` in
+  `crates/monad-mbc`, `cmd/upc-bootctl`, `crates/doom-runner`; in `crates/xv6-mbc/upstream`
+  `make -f ../adapters/Makefile.mbc clean kernel`, `make -f ../adapters/Makefile.mbc-userland ramdisk uinit gate2`
+  (uinit and gate2 are separate targets; without them gate2 and the two uinit checks FAIL).
+- Step 96: RFC-ALIGNMENT-FINDINGS foundation rows 4 (event types) and Sophia row 5 (flow actions) resolved;
+  foundation-06 §Anamnesis Event Type Registry implementation note (decoders SHOULD accept the old numbering per source
+  for one release, SHOULD NOT guess, SHOULD reject a zero timestamp).
+- Step 97 (E2): open. Step 98: the pre-sprint decoder (a7fe3acd) counts and drops spec BORN and DIED without panicking,
+  and misreads spec COMPUTED (0x01) as its old BIRTH: an old reader must not consume objects built after this phase.
+  That is why the legacy switch sits on the new reader, not the old.
+
+## Phase 4 on sprint/true-wire (S25 coordinator + one agent)
+
+- Steps 131-140 `bc3b7569` (S24 agent's WIP, rebased onto Phase 2 cleanly, verified): Go `pkg/protocol/errors` and Rust
+  `monad_common::ErrorCode` follow the registry, both with a parity test that reads `docs/protocol/error-registry.md`;
+  Shield counts VERSION_NOT_SUPPORTED / CRC_VALIDATION_FAILED, skips CHAOS-flagged packets, no CRC under CUSTOM; TLV types
+  follow foundation-06 (KEEP-AS-CONFORMANCE). Step 138: load gate `[PASS] 34`, UPC ALL GREEN, numbers unchanged.
+- Steps 142-163 (agent, merged `09670867`): `pkg/wotanerr` (wotan-memory-03 32-bit code; tests read both drafts'
+  tables); HTTP `X-Wotan-Error`, gRPC `x-wotan-error` trailer (not errdetails: that would make an indirect module
+  direct), typed in pkg/wotan-client; reviewed by the coordinator: codes only, no topic or payload. SIGHUP reload lives
+  on the shared `TopicConfig` (the plan put it on the topic service, which would have left HTTP on the old list): swaps
+  `auto_approve` / `legacy_display_names` under a lock, refuses missing/malformed files and any `signing_keys` /
+  `signed_prefixes` change (a new verifier would forget accepted signatures); only startup code reads the slices
+  directly. Step 158 ran Wotan inside `unshare -rn`: reloads_total 1 after HUP, failures_total 1 after a bad file.
+- **Step 150 ruling (for Phase 5 Step 207): `pkg/protocol/lifecycle` → E3 DELETE, and Shield's `GOAWAY_STATE` map and
+  dead lookup are removed in Phase 5, not implemented. `pkg/protocol/settings` → E3 DELETE, overriding the plan's KEEP:**
+  its premise ("foundation-06 names SETTINGS_* in its registries") is false (no SETTINGS in foundation-06). Recorded in
+  `docs/protocol/G8-REFERENCE-RULINGS.md`; reverse that row to keep settings.
+- Step 163 skipped (RFC desk, not live): WOT-09 (b) wotan-03 has no topic-signing text; (c) cross-spec drift. RFC desk
+  items from the agent: wotan-03's "Normative Error Code Cross-Reference" (UNHD_*, "Foundation 18.11") contradicts
+  foundation-06's registry; its bit-layout figure draws byte-wide columns its text does not describe (code follows the
+  text); stale section pointers (3.2→3.3, 3.5.1); a "foundation Section 10.3 Emergency Mode" that does not exist;
+  GOAWAY/SETTINGS only via the never-submitted draft-02. Finding only: Wotan does not enforce the draft's topic-name
+  grammar.
+- Phase 11 rows: `X-Wotan-Error` header/trailer carry the code only; SIGHUP handler from the same uid, unit unchanged,
+  signing changes refused; Shield error counter: no new map, same key shape.
+- Ledger edits for develop at merge time: OUTSTANDING WOT-07 done, WOT-09 (a) done, M-145 done; E3 table rows for
+  `pkg/protocol/lifecycle` and `pkg/protocol/settings`; CLAUDE.md one line on `pkg/wotanerr` and SIGHUP reload.
+
+## Phase 5 started (S25)
+
+- Steps 169-171: FND-025 registered on develop (`7955ef3d`; register and ADR-098 live there). Step 172: the archived
+  handoff and the Shield comment already said STUBBED / no writer (M-180, 2026-10-27); FND-025 added to both.
+- Premises found false before coding: Shield's maps are pinned by `cmd/ebpf-loader --pin-maps` at
+  `/sys/fs/bpf/unheaded/shield-ebpf/<MAP>`, not `/sys/fs/bpf/unhd_*` (Step 184); and Shield builds its HMAC/hop keys
+  as `flow_id << 48 | namespace << 32` (u64), which `bpfschema.HMACKeyKey` written as raw bytes does not produce, so the
+  writer mirrors Shield's key functions instead of the struct (Step 185).
