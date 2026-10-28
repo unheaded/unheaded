@@ -1693,4 +1693,34 @@ findings:
       ruff and pip-audit included. Closes when the next push's run finishes inside the limit; if it does not,
       raise timeout-minutes with the measured time
 
+  - source: "github-job:Security Scan (Daily + PR)/Go Security Scan (gosec)"
+    severity: low
+    class: ci
+    opened: 2026-10-28
+    exposure: none on a host; 18 gosec findings in code merged 2026-10-27 kept the security gate red, so a real finding would have been lost among them
+    lockout: none
+    step: 1
+    plan: >-
+      The S24 merges (S-IRON-GATE, S-WELL-SPRING, S-CHAMPION-HARDENING) were gated on build, -race and the
+      repo's own scripts, not gosec. All 18 reviewed in ce860d92: none a bug, each annotated with its current
+      rule ID (G704, G703, G124, G306, G706) and reason; gosec ./... 0 issues locally with the job's pinned
+      build. Closes on the next push's Security Scan run
+
+  - source: "slo:ci-develop"
+    severity: medium
+    class: ci
+    opened: 2026-10-28
+    exposure: >-
+      the CI-on-develop SLO has spent its error budget: the gosec job red since 2026-10-27, and the first pull
+      request (2026-10-28) ran four workflows that had never met a pull_request event (raft unit tier without
+      numpy, the Yggdrasil anchor check reading the wrong keys, HCL with ';' separators, the meta-gate's
+      unclassified scripts)
+    lockout: none
+    step: 7
+    plan: >-
+      Each cause fixed on develop 2026-10-28 (ce860d92, a9cf46f2, e78b4281, 8b064567, 4ec0f5c4). Terraform
+      plan stays red on pull requests that touch deploy/ until its dependencies get mock_outputs and a
+      cluster exists (Stevie's call). Re-read after a week of green pushes; if the budget is still spent,
+      open a postmortem. Not accepted: only Stevie accepts risk.
+
 
