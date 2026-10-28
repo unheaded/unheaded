@@ -30,6 +30,12 @@ message WALEntry {
   string node_id = 4;
   google.protobuf.Timestamp timestamp = 5;
   int64 epoch = 6;
+
+  // A signed topic message's ML-DSA-65 signature travels inside data, as
+  // store.Message.Signed (FND-020): the standby decodes data and verifies
+  // that signature against its own trusted keys before applying the entry.
+  // Nothing is copied beside it, so there is one signature to check and no
+  // second copy to disagree with.
 }
 
 // CatchUpRequest is sent by standby to request WAL entries.

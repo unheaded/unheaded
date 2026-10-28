@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """Process Stack Overflow / Stack Exchange Posts.xml into JSONL corpus chunks.
 
 Streaming XML parser (iterparse) — never loads the full file into memory.
@@ -12,10 +14,18 @@ Usage:
 import html
 import json
 import os
+import pyexpat
 import re
 import sys
 import time
-from xml.etree.ElementTree import iterparse
+from xml.etree.ElementTree import iterparse  # nosec B405 - streams the operator's local Stack Exchange dump; expat >= 2.4.1 checked
+
+# ElementTree resolves no external entities; expat >= 2.4.1 also caps entity
+# amplification ("billion laughs"). That is the control behind the B314/B405
+# nosec comments below (S-TRUE-WIRE Step 361; defusedxml would be a new
+# dependency under ADR-004). Refuse to parse with an older expat.
+if pyexpat.version_info < (2, 4, 1):
+    sys.exit(f"expat {pyexpat.EXPAT_VERSION} has no entity-amplification limit; need >= 2.4.1")
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -100,7 +110,7 @@ def process_posts(xml_path: str, output_path: str, source: str):
     print()
 
     with open(output_path, "w", encoding="utf-8") as out:
-        context = iterparse(xml_path, events=("end",))
+        context = iterparse(xml_path, events=("end",))  # nosec B314 - local multi-GB dump, streamed by design (no size cap); expat >= 2.4.1 checked
         for event, elem in context:
             if elem.tag != "row":
                 continue

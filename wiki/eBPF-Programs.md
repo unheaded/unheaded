@@ -52,10 +52,22 @@ Other services' traffic to Wotan is still traced: it is real Kingdom traffic.
 | `traces.correlated` | `forward`/`reverse {five_tuple {SrcIP,DstIP: [16]byte}, first_seen_ns, ...}`, `rtt_ns` | ktime |
 
 - **ktime** is `bpf_ktime_get_ns()`, CLOCK_MONOTONIC: ns since boot, not a date. Ages in the collector use `ktimeNow()` on the same clock; the dashboard's `observedAt` uses a timestamp only when it reads as recent wall time, else the arrival time.
-- **trace_id is all zeros** on every packet and flow: packet_marker's IP/TCP option extraction is disabled (verifier, `TODO(E1)`) and nothing writes `TRACE_INJECT`. The dashboard treats all zeros as no trace ID.
+- **trace_id**: packet_marker reads it from a TCP option (kind 253, 18 bytes) or, failing that, an IPv4 option (type 0x1F, 18 bytes), copying the option area onto the stack with `bpf_xdp_load_bytes` (S-TRUE-WIRE Step 217; it was disabled as `TODO(E1)` because the pointer walk could not be verified). Packets without either option, and every IPv6 packet (packet_marker is IPv4-only), still carry all zeros; nothing writes `TRACE_INJECT` yet. The dashboard treats all zeros as no trace ID.
 - **flow_key from flow_tracker is normalized** (both directions share one key, ordered by address then port), not client to server; `packets_out` counts src to dst. The dashboard's flow graph keys packets by their own direction, so one connection can appear under both orders.
 - **Correlated RTT** is first response minus first request of a 5-tuple pair, emitted once per pair. packet_marker sees ingress only, so a pair matches only where both directions arrive on the traced interface (loopback on east).
 - **Latency** is the time spent inside `tcp_sendmsg`/`tcp_recvmsg`/`tcp_connect` (kprobe to kretprobe), not a network RTT. latency-probe's `LATENCY_MAP` is keyed by (trace ID, pid & 0xffff, tid & 0xffff), with send, recv and connect merged under one key, so the collector cannot tell which operation a sample came from (it labels all `tcp_send`) and publishes no `flow_key` for it.
+
+## Verifier gates
+
+Three gates, all on west (they need root to load programs):
+
+| Gate | What it proves |
+|---|---|
+| `scripts/check-ebpf-loads.sh` | every program (and feature variant: `monad-cpu-ebpf[ascend-linux]`, `shield-ebpf[debug-stats]`) passes the kernel verifier; `docs/policy/ebpf-load-known-failing.txt` may only shrink (empty since 2026-09-25) |
+| `scripts/check-ebpf-insns.sh` | ADR-012's budget, with the kernel's own counts: no program grows more than 10 % over `docs/policy/ebpf-insns-baseline.tsv`, none exceeds 900,000 unless listed in `docs/policy/ebpf-insns-over-budget.txt` (ascend at 926,542, shrink-only); `--update` re-seeds after a reviewed change |
+| `scripts/upc-regression.sh` | the UPC corpus (xv6, Doom, cartridges) still boots, with its verifier numbers |
+
+The baseline is kernel-specific: on another kernel `check-ebpf-insns.sh` exits 2 (not comparable). CI loads every program and publishes its counts in the job summary for comparison, but the ratchet gates on west (`scripts/ci-local.sh`, `scripts/check-gates-can-fail.sh`). `cmd/ebpf-load-check` prints `<program> OK verified N insns`.
 
 ## Licensing
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # switch-model.sh — atomically swap the inference model.
 #
 # Stevie's directive (2026-05-04): "unheaded platform should be able to

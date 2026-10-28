@@ -147,8 +147,8 @@ type EventFilter struct {
 	Topics     []string    `json:"topics,omitempty"`
 	Severities []Severity  `json:"severities,omitempty"`
 	Sources    []string    `json:"sources,omitempty"`
-	Since      time.Time   `json:"since,omitempty"`
-	Until      time.Time   `json:"until,omitempty"`
+	Since      time.Time   `json:"since,omitzero"`
+	Until      time.Time   `json:"until,omitzero"`
 	Limit      int         `json:"limit,omitempty"`
 }
 
@@ -760,8 +760,8 @@ type EventSummary struct {
 	EventsByType map[string]int `json:"events_by_type"`
 	EventsBySev  map[string]int `json:"events_by_severity"`
 	RecentEvents []Event        `json:"recent_events,omitempty"`
-	OldestEvent  time.Time      `json:"oldest_event,omitempty"`
-	NewestEvent  time.Time      `json:"newest_event,omitempty"`
+	OldestEvent  time.Time      `json:"oldest_event,omitzero"`
+	NewestEvent  time.Time      `json:"newest_event,omitzero"`
 }
 
 // GetSummary returns an event summary

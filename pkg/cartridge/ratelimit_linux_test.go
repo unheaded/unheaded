@@ -23,12 +23,14 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 const rlMagic = 274_877_907 // ceil(2^35 / 125), see ratelimit.s
 
 func TestCRC16CCITT_KnownVector(t *testing.T) {
-	if got := crc16CCITT([]byte("123456789")); got != 0x29B1 {
+	if got := encoding.CRC16CCITT([]byte("123456789")); got != 0x29B1 {
 		t.Fatalf("crc = %#04x, want 0x29b1", got)
 	}
 }

@@ -7,7 +7,13 @@ license.workspace    = true
 repository.workspace = true
 authors.workspace    = true
 
+[features]
+default = []
+# debug-stats: the per-packet TC entry/IPv6/HBH counters (STATS keys 13-15).
+# Three map updates on every egress packet before the Monad is identified;
+# off in the production object (S-TRUE-WIRE Step 177, M-183).
+debug-stats = []
+
 [dependencies]
 aya-ebpf.workspace     = true
 monad-common.workspace = true
-pqc-common             = { path = "../pqc-common" }

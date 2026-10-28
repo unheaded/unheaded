@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # build-sealed-cask.sh — Build a deterministic, immutable Unheaded deployment image
 # ADR-010: Sealed Cask Deployment (Soul Vessel Model)
 #

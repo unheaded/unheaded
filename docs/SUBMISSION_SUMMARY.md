@@ -16,6 +16,8 @@
 | 4 | draft-bellis-unheaded-mbc-isa | -00 | Experimental | IETF kramdown-rfc (Markdown) | 2026-03-18 |
 | 5 | draft-bellis-unheaded-shim | -00 | Experimental | IETF kramdown-rfc (Markdown) | 2026-03-18 |
 | 6 | draft-bellis-unheaded-pqc-authentication | -00 | Experimental | IETF kramdown-rfc (Markdown) | 2026-03-19 |
+| 7 | draft-bellis-unheaded-anamnesis | -00 | Experimental | IETF kramdown-rfc (Markdown) | 2026-10-27 |
+| 8 | draft-bellis-unheaded-protocol-overview | -00 | Informational | IETF kramdown-rfc (Markdown) | 2026-10-27 |
 
 All specs use `ipr: trust200902` and `submissionType: independent` / `workgroup: Independent Submission`.
 
@@ -84,13 +86,22 @@ ietf-submission/draft-bellis-unheaded-wotan-memory-00.md
 ietf-submission/draft-bellis-unheaded-mbc-isa-00.md
 ietf-submission/draft-bellis-unheaded-shim-00.md
 ietf-submission/draft-bellis-unheaded-pqc-authentication-00.md
+ietf-submission/draft-bellis-unheaded-anamnesis-00.md
+ietf-submission/draft-bellis-unheaded-protocol-overview-00.md
 ```
+
+The `.xml` files are the upload sources and are maintained by hand: several carry fixes
+their `.md` twins do not, so `make` no longer regenerates them (`make <draft>.kramdown.xml`
+writes a comparison copy). `make validate` renders all eight and fails on any error.
+RFC Editor rulings of 2026-10-27 (S-TRUE-WIRE Phase 1) are recorded in
+`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`; items still open before upload are in
+`docs/protocol/RFC-EDITOR-REQUESTS-TW.md`.
 
 ---
 
 ## Next Steps (Manual Browser Tasks)
 
-1. **Datatracker Upload:** Submit all 6 specs via https://datatracker.ietf.org/submit/ (requires browser login)
+1. **Datatracker Upload:** Submit all 8 specs via https://datatracker.ietf.org/submit/ (requires browser login)
 2. **xml2rfc Validation:** Run each spec through the Datatracker's kramdown-rfc pipeline to confirm clean XML/TXT output
 3. **IPR Declaration:** File IPR disclosure at https://datatracker.ietf.org/ipr/ if not already on record
 4. **Mailing List:** Post submission announcement to independent-submission-stream mailing list

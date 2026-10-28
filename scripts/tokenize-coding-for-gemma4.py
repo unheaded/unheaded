@@ -139,8 +139,9 @@ def main() -> int:
     args = ap.parse_args()
 
     from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(
+    tok = AutoTokenizer.from_pretrained(  # nosec B615 - a local tokenizer directory; local_files_only never reaches the Hub
         args.tokenizer,
+        local_files_only=True,
         trust_remote_code=False,
     )
 

@@ -315,3 +315,5 @@ err := loader.LoadMap(key, value)
 **Package Status**: ✅ COMPLETE AND READY FOR INTEGRATION
 
 **The Whispering Void speaks clearly through every map in the Kingdom.**
+
+> Removed 2026-10-28 (S-TRUE-WIRE Step 207): `LoadGoawayState` and the `GOAWAY_STATE` map it loaded. References to them above are history.

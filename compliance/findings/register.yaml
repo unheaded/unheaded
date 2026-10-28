@@ -370,7 +370,11 @@ findings:
     exposure: no cluster replication runs today and nothing replicates drift; a subscriber that requires signatures refuses the unsigned copy (fails closed)
     lockout: none
     step: 7
-    plan: additive replication.proto fields (signature, public_key, algorithm, signed_at_unix_ms) copied onto the ring-buffer message, as TopicEvent field 12 was
+    plan: >-
+      Done on sprint/true-wire (S-TRUE-WIRE Phase 8 and the PR #2 review fix): the signature persisted with the
+      message (store.Message.Signed) travels inside the WAL record and the standby verifies it before applying; a
+      rejected entry halts replication. The first design's extra WALEntry fields were removed as a duplicate copy.
+    resolved: {on: 2026-10-28, evidence: "sprint/true-wire 2af5142b: services/wotan/internal/cluster signature tests (signed entry verifies on the standby, tampered entry halts and is counted, transplanted signature refused) and FuzzVerifyEntry 120 s clean; reaches develop with the E2 merge"}
 
   - source: "gate-script:scripts/compliance/check-service-auth.sh"
     severity: high

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """Phase 9 — RAFT QA Pair Generation from Ring 1 corpus.
 
 Generates question-answer pairs by sending corpus chunks to Mistral-7B,

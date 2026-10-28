@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """Ring 1 Corpus Preparation for Zhen RAG system.
 
 Walks the Unheaded source tree, splits files into ~512-token chunks,

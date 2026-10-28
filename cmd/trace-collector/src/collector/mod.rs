@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Collector module - high-level eBPF event collection.
 //!
 //! THE WHISPERING VOID's ears: listening to the kernel's whispers

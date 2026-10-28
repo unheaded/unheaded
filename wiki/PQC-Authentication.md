@@ -21,7 +21,7 @@ Post-Quantum Cryptography (PQC) authentication for the Unheaded Protocol, ensuri
 | `pkg/crypto/pqc/` | ML-DSA, ML-KEM, SLH-DSA, FN-DSA, HQC and a KEM tunnel on `github.com/cloudflare/circl` |
 | `services/wotan/internal/signing/` | ML-DSA-65 required on `config.*` topics, trusted keys only, replay window ([[Wotan Topic Signing|Wotan-Topic-Signing]]) |
 | `cmd/pqc-verifier` (`:19008`) | `POST /verify` (PQC-authenticated packet), `POST /verify/sovereign` (2-of-3 multi-sig) |
-| `ebpf/shield-ebpf` | Fast path: reads cached verification status from the `PQC_SIG_STATUS` map; eBPF does not verify signatures itself |
+| `ebpf/shield-ebpf` | Nothing. Layer-1 (XDP) verification is design only: the `PQC_SIG_STATUS` map and its fast-path check had no caller and no writer and were removed (S-TRUE-WIRE Step 233). The draft's Phases 1-3 carry an implementation-status note |
 | `services/sophia/kem_registry.go`, `pkg/pqc_policy/` | KEM algorithm registry and NIST-level policy |
 
 ## Specified, not built

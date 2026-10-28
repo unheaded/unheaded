@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"unheaded/pkg/auth"
 	"unheaded/pkg/wotansig"
@@ -321,8 +322,10 @@ func (c *TopicStreamClient) Publish(ctx context.Context, topic string, payload [
 		Metadata: publishMetadata(c.metadata, sub.DisplayName),
 	}
 
-	_, err := c.client.PublishTopic(ctx, req)
+	var trailer metadata.MD
+	_, err := c.client.PublishTopic(ctx, req, grpc.Trailer(&trailer))
 	if err != nil {
+		err = withTrailerCode(err, trailer)
 		c.recordFailure()
 		// Try HTTP fallback on gRPC failure. If that fails too, say why
 		// gRPC failed: the fallback's error alone hid it.

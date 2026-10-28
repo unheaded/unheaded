@@ -134,7 +134,7 @@ type ServiceHealth struct {
 	Status               Status        `json:"status"`
 	LastCheck            time.Time     `json:"last_check"`
 	LastHealthy          time.Time     `json:"last_healthy"`
-	LastUnhealthy        time.Time     `json:"last_unhealthy,omitempty"`
+	LastUnhealthy        time.Time     `json:"last_unhealthy,omitzero"`
 	Uptime               time.Duration `json:"uptime"`
 	UptimePercent        float64       `json:"uptime_percent"`
 	ConsecutiveSuccesses int           `json:"consecutive_successes"`

@@ -42,6 +42,33 @@ Dictionaries travel over Wotan on `sophia.dictionary.v{N}` as CBOR (RFC 8949), o
 
 Update: build new maps `_v{N+1}` → load every entry → swap the `sophia_dicts` pointers atomically → keep the old version for a 60 s grace period → delete. At least two versions are live at once, so no packet sees a half-written dictionary.
 
+### Delta signing (M-149)
+
+`pkg/protocol/sophiasync` signs a `DictionaryDelta` with ML-DSA-65
+(`Signer.Sign`, `Verify`): the signature covers the delta's canonical bytes
+(version, length-prefixed additions, removals), the algorithm and
+`signed_at_unix_ms`, under the domain `sophia/delta-sig/v1`. The delta carries
+`Signature`, `PublicKey`, `Algorithm` and `SignedAtUnixMs`; `Digest()`
+(SHA-256 of the canonical bytes) is its identity only. Until 2026-10-27 that
+digest was the "signature", which anyone could recompute.
+
+`SyncManager.ApplyDelta` refuses a signed delta whose key is not trusted
+(`SetSignaturePolicy`), whose signature fails, or whose signing time is more
+than 5 minutes from the local clock, and counts it in
+`unheaded_sophia_delta_signature_failures_total`. Unsigned deltas: observe
+mode by default (applied, counted in `unheaded_sophia_delta_unsigned_total`,
+logged); `SOPHIA_REQUIRE_DELTA_SIGNATURE=true` refuses them. The signing key
+follows the S-IRON-GATE layout: an ML-DSA-65 seed from
+`unheaded-keygen -algo mldsa65`, mode 0400, named by
+`SOPHIA_DELTA_SIGNING_KEY` (`SignerFromEnv`; unset = signing off, a named but
+unusable file is an error). When observe flips to enforce:
+`docs/security/severity-ladder.md`. `DecodeDelta` is the bounds-checked parser
+(fuzzed: `FuzzDeserialize`).
+
+No service distributes or applies deltas yet: `sophiasync` is a G8 reference
+package (`docs/UNREACHED-GO-PACKAGES.md`), and `services/sophia` does not import
+it. The service that adopts it reads both environment variables at startup.
+
 ## PQC and UPC extensions
 
 - `PQC_SIG_MAP` / `PQC_KEY_MAP`: signature and key lookup, rotation ([[PQC Authentication|PQC-Authentication]]).

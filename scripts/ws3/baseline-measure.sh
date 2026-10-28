@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # WS3 Phase 1: Baseline Measurement
 #
 # Verifies infrastructure, injects baseline packets (3000us steady-state),

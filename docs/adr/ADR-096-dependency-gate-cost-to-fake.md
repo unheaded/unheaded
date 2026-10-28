@@ -221,3 +221,24 @@ Surfaced while writing this; each is an entry, not work done here:
 3. **`yuin/goldmark`** and **`sony/gobreaker`**: effectively single-owner,
    with no approval record. Small enough to be candidates for a full read,
    or for replacement.
+
+### Register rows, 2026-10-28 (S-TRUE-WIRE Step 342)
+
+The ADR-095 supply-chain register has no file of its own yet; ADR-095 §6 says
+a vetted dependency lands in ADR-004's exceptions register, so these rows are
+drafted here and move there once Stevie signs them. Signals from the GitHub API
+(2026-10-28); importer counts are non-test `.go` files at the sprint branch,
+**before** E3's deletions (TRUE-WIRE-DECISIONS: of the files below, only
+`cmd/ebpf-exporter` is a DELETE default). The thresholds are §6's proposals until
+E5 fixes them.
+
+| dependency | owner / repo | release signals | importers | reachable vulns | candidates / cost to replace | status |
+|---|---|---|---|---|---|---|
+| `gopkg.in/yaml.v3` v3.0.1 | `go-yaml` org; repo created 2014-03-05; **archived** (last push 2025-04-01) | last tag v3.0.1, 2022-05-27: 4 years without a release, past §6's 18 months; archived, so no reports are answered | **40** production files (49 with tests) in `pkg`, `cmd`, `services` | govulncheck 2026-10-28: none | (a) `go.yaml.in/yaml/v3` from the `yaml` org (repo `yaml/go-yaml`, created 2025-04-25: under §4's 3-year minimum; v3.0.4 2025-06-29; its v4.0.0-rc.2 is already compiled in through `anthropic-sdk-go`); (b) `sigs.k8s.io/yaml` (`kubernetes-sigs` org, created 2018-11-01; v1.4.0 2023-10, v1.5.0 2025-06, v1.6.0 2025-07; wraps a forked go-yaml); (c) `goccy/go-yaml` (a **user** account, created 2019-10-09; v1.17-v1.19.2 2025-03 → 2026-01, monthly). Cost: 40 import sites, mostly `Unmarshal`/`NewDecoder` into config structs (41 of 61 calls), plus the `yaml.Node` tree API in 6 files (a successor must keep it: `go.yaml.in/yaml/v3` and `sigs.k8s.io/yaml/goyaml.v3` are forks of v3 with its API; `sigs.k8s.io/yaml`'s top level goes through JSON tags and `goccy/go-yaml` has its own AST); v3 → `go.yaml.in/yaml/v3` is an import-path change | threshold: E5 |
+| `github.com/cilium/ebpf` v0.22.0 | `cilium` org (CNCF project); created 2019-09-05 (fails ADR-004's date) | v0.17.3 2025-02 … v0.22.0 2026-06-29: a minor every 3-5 months; not archived | **8** production files: `cmd/trace-collector-go` (2), `cmd/heimdall-daemon`, `cmd/protocol-api`, `cmd/ebpf-exporter` (E3 DELETE default), `pkg/cartridge`, `services/loadbalancer` (E3 KEEP-PARKED), `services/yaldabaoth/packet` | **GO-2026-6238 no longer reported** (fixed in v0.22.0, bumped 2026-09-25); govulncheck 2026-10-28: none | own: `pkg/ebpf/` (ADR-004's replacement) would need map pinning, ringbuf readers, kprobe/XDP attach and BTF for these 8 files; record: an anchored signal (CNCF, imported by Cilium, Tetragon, Falco) | threshold: E5 |
+| `github.com/yuin/goldmark` v1.8.6 | user `yuin`; created 2019-04-26 | v1 line: v1.8.6 2026-09-03; a v2 line releases weekly (v2.1.4 … v2.1.9, 2026-09-18 → 10-25) | **1** production file: `cmd/wiki-server/main.go` (ORPHAN in LIVE-PATHS), plus its XSS test | govulncheck: none | renders the wiki's Markdown to HTML (untrusted input from the browser's view, hence the XSS test); a full read under §2 step 4 (single owner, no anchored signal recorded), or drop it with `cmd/wiki-server` if E3's successor table retires the orphan | threshold: E5 |
+| `github.com/lib/pq` v1.12.3 | `lib` volunteer org; created 2012-03-12 | v1.11.1 2026-01-29 … v1.12.3 2026-04-03; README says maintenance mode (ADR-004 audit finding 2) | **13** production files (`pkg/database`, `pkg/compliance/well`, `pkg/zhenagent`, Wotan's `pg_store`, `cmd/{huginn,well-migrate,zhen-agentd,zhen-claude,zhen-flywheel}`) | govulncheck: none | keep and record, or own a minimal PostgreSQL wire client (open since session 5) | threshold: E5 |
+
+Module-level govulncheck findings not called by our code (2026-10-28):
+GO-2026-6866 and GO-2026-6860 in `golang.org/x/net` v0.61.0 (fixed in v0.62.0),
+GO-2026-5932 in `golang.org/x/crypto` (`openpgp`, no fix).

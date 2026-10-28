@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"math/rand"
 	"testing"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 // ── MonadState tests ────────────────────────────────────────────────────────
@@ -145,23 +147,23 @@ func TestMonadState_Flags(t *testing.T) {
 
 func TestCRC16CCITT_StandardCheckValue(t *testing.T) {
 	// Canonical test vector for CRC-16/IBM-3740 (CCITT-FALSE)
-	crc := CRC16CCITT([]byte("123456789"))
+	crc := encoding.CRC16CCITT([]byte("123456789"))
 	if crc != 0x29B1 {
-		t.Errorf("CRC16CCITT(\"123456789\") = 0x%04x, want 0x29B1", crc)
+		t.Errorf("encoding.CRC16CCITT(\"123456789\") = 0x%04x, want 0x29B1", crc)
 	}
 }
 
 func TestCRC16CCITT_EmptyInput(t *testing.T) {
-	crc := CRC16CCITT([]byte{})
+	crc := encoding.CRC16CCITT([]byte{})
 	if crc != 0xFFFF {
-		t.Errorf("CRC16CCITT(\"\") = 0x%04x, want 0xFFFF", crc)
+		t.Errorf("encoding.CRC16CCITT(\"\") = 0x%04x, want 0xFFFF", crc)
 	}
 }
 
 func TestCRC16CCITT_SingleZeroByte(t *testing.T) {
-	crc := CRC16CCITT([]byte{0x00})
+	crc := encoding.CRC16CCITT([]byte{0x00})
 	if crc != 0xE1F0 {
-		t.Errorf("CRC16CCITT([0x00]) = 0x%04x, want 0xE1F0", crc)
+		t.Errorf("encoding.CRC16CCITT([0x00]) = 0x%04x, want 0xE1F0", crc)
 	}
 }
 
@@ -169,13 +171,13 @@ func TestCRC16CCITT_DetectsSingleBitFlip(t *testing.T) {
 	data := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
 		0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
 		0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12}
-	original := CRC16CCITT(data)
+	original := encoding.CRC16CCITT(data)
 
 	corrupted := make([]byte, len(data))
 	copy(corrupted, data)
 	corrupted[7] ^= 0x01
 
-	if CRC16CCITT(corrupted) == original {
+	if encoding.CRC16CCITT(corrupted) == original {
 		t.Error("CRC should detect single-bit flip")
 	}
 }
@@ -211,17 +213,14 @@ func TestMonadState_VerifyChecksum(t *testing.T) {
 // ── EventType tests ─────────────────────────────────────────────────────────
 
 func TestEventType_Valid(t *testing.T) {
-	for _, et := range []EventType{EventBirth, EventHop, EventDeath, EventAnomaly, EventChaos} {
-		if !et.Valid() {
-			t.Errorf("EventType(%d).Valid() = false, want true", et)
+	// Every foundation-06 value 0x00-0x08 is registered (S-TRUE-WIRE Step 91;
+	// anamnesis_spec_test.go checks each value).
+	for v := uint8(0); v <= 0x08; v++ {
+		if !EventType(v).Valid() {
+			t.Errorf("EventType(%d).Valid() = false, want true", v)
 		}
 	}
-	// foundation-06 registry values (E4, 2026-10-26).
-	if EventChaos != 0x04 || EventAnomaly != 0x08 {
-		t.Errorf("EventChaos=0x%02x EventAnomaly=0x%02x, want 0x04/0x08", uint8(EventChaos), uint8(EventAnomaly))
-	}
-	// 0x05-0x07 (ROLLBACK, DIED, KEY_OP) have no producer: invalid, not a hole to fall through.
-	for _, v := range []uint8{0, 5, 6, 7, 9, 0xFF} {
+	for _, v := range []uint8{9, 0x10, 0xFF} {
 		if EventType(v).Valid() {
 			t.Errorf("EventType(%d) should be invalid", v)
 		}
@@ -313,7 +312,7 @@ func TestDecodeAnamnesisEvent_WireLayout(t *testing.T) {
 	var buf [32]byte
 	// timestamp_ns = 0x0102030405060708 (LE)
 	binary.LittleEndian.PutUint64(buf[0:8], 0x0102030405060708)
-	buf[8] = 0x01  // event_type = Birth
+	buf[8] = 0x00  // event_type = BORN (foundation-06)
 	buf[9] = 0x2A  // hop_id = 42
 	buf[10] = 0x3F // flow_label_lo[0] (BE)
 	buf[11] = 0x7E // flow_label_lo[1] (BE)
@@ -360,7 +359,8 @@ func TestDecodeAnamnesisEvent_TooShort(t *testing.T) {
 
 func TestDecodeAnamnesisEvent_UnknownType(t *testing.T) {
 	var buf [32]byte
-	buf[8] = 0x00 // invalid event type
+	buf[0] = 1    // non-zero timestamp: the type check is what is tested
+	buf[8] = 0x09 // unregistered event type
 	_, err := DecodeAnamnesisEvent(buf[:])
 	if err == nil {
 		t.Fatal("expected error for unknown event type")
@@ -374,8 +374,9 @@ func TestDecodeAnamnesisEvent_UnknownType(t *testing.T) {
 }
 
 func TestDecodeAnamnesisEvent_AllEventTypes(t *testing.T) {
-	for _, et := range []EventType{EventBirth, EventHop, EventDeath, EventAnomaly, EventChaos} {
+	for _, et := range []EventType{EventBorn, EventComputed, EventDied, EventAnomaly, EventChaos} {
 		var buf [32]byte
+		buf[0] = 1 // non-zero timestamp
 		buf[8] = uint8(et)
 		ev, err := DecodeAnamnesisEvent(buf[:])
 		if err != nil {
@@ -533,12 +534,12 @@ func TestMonadState_MatchesRustLayout(t *testing.T) {
 
 func TestCRC16CCITT_MatchesRustCrcCcitt(t *testing.T) {
 	// Cross-validate with Rust test: crc_ccitt_single_zero_byte
-	if crc := CRC16CCITT([]byte{0x00}); crc != 0xE1F0 {
+	if crc := encoding.CRC16CCITT([]byte{0x00}); crc != 0xE1F0 {
 		t.Errorf("single zero byte CRC = 0x%04x, want 0xE1F0", crc)
 	}
 
 	// Cross-validate with Rust test: crc_ccitt_standard_check_value
-	if crc := CRC16CCITT([]byte("123456789")); crc != 0x29B1 {
+	if crc := encoding.CRC16CCITT([]byte("123456789")); crc != 0x29B1 {
 		t.Errorf("standard check value CRC = 0x%04x, want 0x29B1", crc)
 	}
 }

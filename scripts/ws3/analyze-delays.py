@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 """WS3 Phase 3: Analyze delay profiling results.
 
 Parses log files from delay-profile.sh and generates a summary table

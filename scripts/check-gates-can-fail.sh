@@ -808,6 +808,43 @@ provoke_runbooks() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_spdx() {
+    # Contract (S-TRUE-WIRE Phase 9): every tracked first-party .go/.rs file
+    # carries an SPDX header. Plant a tracked .rs file without one (in no
+    # module tree, so no build sees it).
+    local f="crates/upc-api/src/meta_gate_probe.rs"
+    backup "${f}"
+    printf 'pub fn meta_gate_probe() {}\n' > "${REPO_ROOT}/${f}"
+    git -C "${REPO_ROOT}" add -N "${f}" >/dev/null 2>&1  # gate reads git ls-files
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_ebpf_insns() {
+    # Contract (ADR-012, S-TRUE-WIRE Phase 7): no program's verified
+    # instruction count grows more than 10 % unreviewed. Cut shield-ebpf's
+    # baseline rows by 20 %, so today's counts read as 25 % growth.
+    local f="docs/policy/ebpf-insns-baseline.tsv"
+    backup "${f}"
+    awk -F'\t' 'BEGIN{OFS="\t"} NR>1 && $1 ~ /^shield-ebpf\// {$3=int($3*0.8)} {print}' "${REPO_ROOT}/${f}" >"${BACKUP_DIR}/insns.provoked"
+    cp "${BACKUP_DIR}/insns.provoked" "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_trivy_misconfig() {
+    # Contract (S-TRUE-WIRE Step 366): no IaC misconfiguration lands
+    # unrecorded. Drop the first baseline row, so a finding the scan still
+    # reports is no longer listed.
+    local f="docs/policy/trivy-misconfig-baseline.tsv"
+    backup "${f}"
+    awk 'BEGIN{done=0} /^#/ || done {print; next} {done=1}' "${REPO_ROOT}/${f}" >"${BACKUP_DIR}/trivy.provoked"
+    cp "${BACKUP_DIR}/trivy.provoked" "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_check_perf_regression() {
     # Contract (S-WELL-SPRING Phase 10, M-089): p99 may grow at most 20 % per
     # scenario. Widen the allowance so the fixture's +50 % run passes.
@@ -930,6 +967,9 @@ check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZH
 well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
 well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE on audit_events in 043 (needs docker)
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
+check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo and west's kernel)
+check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
+check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 
@@ -954,6 +994,7 @@ lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs, Jenk
 apt-repo|keeps the signed apt repo on west (runbooks/deploy/apt-repo-publish.yaml, Jenkinsfile); its refusals and signatures are proven by tests/apt/apt_repo_test.sh (security.yml)
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
 lib/fetch-tool|library sourced by ci-install-tools and the check-* scripts (download once, sha256 on every use); no verdict of its own
+lib/tool-pins|version, sha256 and digest pins sourced by lib/fetch-tool, the check-* scripts and security.yml's trivy step; no verdict of its own (check-tool-freshness is the gate on it)
 verify-release|verifies a published release by tag (needs the network and a real release); its pass/fail contract is proven offline by tests/release/verify_release_test.sh (CI job release-verify)
 well/make-tls|makes TLS material outside the repo; exercised by well/test-config, no verdict of its own
 db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); its refusals and the set it writes are proven by well/test-backup-restore

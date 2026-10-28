@@ -353,20 +353,40 @@ jobs:
       # IaC misconfiguration — was never enabled. Reports 522 findings
       # (2 CRITICAL / 36 HIGH / 81 MEDIUM / 403 LOW) across K8s manifests,
       # Helm templates and Dockerfiles, including root-running images
-      # (DS-0002) and default security contexts (KSV-0118). Non-gating for
-      # now while that backlog is worked; ratchet the severity down as
-      # categories close. Tracked in the remediation doc.
+      # (DS-0002) and default security contexts (KSV-0118). Those counts are
+      # from the first enablement; tracked in the remediation doc.
       # trivyignores is REQUIRED here: trivy does not auto-discover
       # .trivyignore.yaml in this mode. Verified — without the flag the file is
       # decorative and every documented exception is silently ignored.
+      #
+      # GATING since 2026-10-28 (S-TRUE-WIRE Step 364) through a shrink-only
+      # ratchet: the scan writes JSON and scripts/check-trivy-misconfig.sh
+      # compares every (rule, file) count with
+      # docs/policy/trivy-misconfig-baseline.tsv (364 failed checks at seed).
+      # A new finding, one more of a known one, or a fixed one still listed
+      # fails. The trivy version and the checks bundle come from
+      # scripts/lib/tool-pins.sh, the same pins the baseline was seeded with:
+      # without the bundle pin trivy fetches the newest checks every run.
+      - name: Trivy pins (scripts/lib/tool-pins.sh)
+        run: |
+          source scripts/lib/tool-pins.sh
+          echo "TRIVY_PIN=v${TRIVY_VERSION}" >> "$GITHUB_ENV"
+          echo "TRIVY_CHECKS_BUNDLE_REPOSITORY=${TRIVY_CHECKS_BUNDLE}" >> "$GITHUB_ENV"
+
       - name: Trivy IaC misconfiguration scan
         uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master, 2026-10-15
         with:
+          version: ${{ env.TRIVY_PIN }}
           scan-type: fs
           scan-ref: '.'
           scanners: misconfig
           trivyignores: .trivyignore.yaml
           exit-code: '0'
+          format: json
+          output: trivy-misconfig.json
+
+      - name: Trivy misconfig ratchet (GATING)
+        run: scripts/check-trivy-misconfig.sh trivy-misconfig.json
 
       - name: Upload Trivy results
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2

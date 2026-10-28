@@ -2,39 +2,66 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package tlv provides Type-Length-Value encoding for Monad extensions.
-// Uses pkg/protocol/encoding for TLV wire format per RFC 9114 §7 and RFC 8200 §4.
+// Uses pkg/protocol/encoding for the TLV wire format (RFC 8200 §4.2 option TLVs).
+//
+// Conformance reference for foundation-06 §"TLV Type Registry (Extended)"
+// (docs/protocol/G8-REFERENCE-RULINGS.md): the type constants, the four
+// reserved ranges and the critical bit match the registry, and
+// TestRegistryParity parses the draft at test time. Not linked into any binary;
+// no eBPF program parses TLVs beyond the Monad option, and Ring Path Counter
+// (0x01) is emitted by no implementation (S-TRUE-WIRE Step 139).
 package tlv
 
 import (
 	"fmt"
 
 	"unheaded/pkg/protocol/encoding"
+	perrors "unheaded/pkg/protocol/errors"
 )
 
 // TLVType represents the type identifier for a TLV element
 type TLVType uint8
 
-// TLV type ranges as specified by H3 finding
+// Registered types (foundation-06 §"TLV Type Registry (Extended)", initial entries).
 const (
-	// Core types
-	PRIORITY_HINT   TLVType = 0x01
-	TRACE_SPAN_ID   TLVType = 0x02
-	ERROR_CODE      TLVType = 0x03
-	FLOW_SEQUENCE   TLVType = 0x04
-	RING_PATH_COUNT TLVType = 0x05
-	HMAC_TAG        TLVType = 0x06
+	// RingPathCounter is optional, 4 bytes.
+	RingPathCounter TLVType = 0x01
+	// UnheadedMetricV1 is optional, 52 bytes (foundation-06 §UNHEADED_METRIC_V1).
+	UnheadedMetricV1 TLVType = 0x2A
 
-	// Type range boundaries
-	CoreMin       TLVType = 0x00
-	CoreMax       TLVType = 0x0f
-	NegotiatedMin TLVType = 0x10
-	NegotiatedMax TLVType = 0x7f
-	PaddingMin    TLVType = 0x80
-	PaddingMax    TLVType = 0xff
+	// CriticalBit set means a receiver that does not know the type MUST
+	// treat it as an error (UNKNOWN_CRITICAL_TLV, error code 0x07).
+	CriticalBit TLVType = 0x80
 
-	// Maximum TLVs per Monad
+	// MaxTLVsPerMonad is this implementation's limit, not a registry value.
 	MaxTLVsPerMonad = 4
 )
+
+// Range is a reserved block of the type space (the critical bit aside).
+type Range uint8
+
+// Reserved ranges: 0x00-0x1F, 0x20-0x3F, 0x40-0x5F, 0x60-0x7F, each mirrored
+// at 0x80-0xFF with the critical bit set.
+const (
+	RangeFoundation Range = iota
+	RangeSophia
+	RangeWotan
+	RangeFuture
+)
+
+// String returns the registry's name for the range.
+func (r Range) String() string {
+	switch r {
+	case RangeFoundation:
+		return "Monad Foundation"
+	case RangeSophia:
+		return "Sophia Dictionary"
+	case RangeWotan:
+		return "Wotan Memory"
+	default:
+		return "Future Extensions"
+	}
+}
 
 // TLV represents a Type-Length-Value element
 type TLV struct {
@@ -46,36 +73,58 @@ type TLV struct {
 // TLVBlock is a collection of TLV elements
 type TLVBlock []TLV
 
-// IsCore checks if a type is a core type
-func (t TLVType) IsCore() bool {
-	return t >= CoreMin && t <= CoreMax
+// Entry is one registered type.
+type Entry struct {
+	Name     string
+	Length   int // fixed value length in bytes
+	Required bool
 }
 
-// IsNegotiated checks if a type is a negotiated extension type
-func (t TLVType) IsNegotiated() bool {
-	return t >= NegotiatedMin && t <= NegotiatedMax
+var registered = map[TLVType]Entry{
+	RingPathCounter:  {Name: "Ring Path Counter", Length: 4},
+	UnheadedMetricV1: {Name: "UNHEADED_METRIC_V1", Length: 52},
 }
 
-// IsPadding checks if a type is a padding type
-func (t TLVType) IsPadding() bool {
-	return t >= PaddingMin && t <= PaddingMax
+// Lookup returns the registry entry for a type.
+func Lookup(t TLVType) (Entry, bool) {
+	e, ok := registered[t]
+	return e, ok
 }
 
-// IsGreasing checks if a type is a greasing type (reserved for version negotiation)
-// Greasing types follow pattern: 0x1F*N+0x21
-func (t TLVType) IsGreasing() bool {
-	if t < NegotiatedMin || t > NegotiatedMax {
-		return false
+// IsCritical reports whether the critical bit (0x80) is set.
+func (t TLVType) IsCritical() bool { return t&CriticalBit != 0 }
+
+// Range returns the reserved range the type falls in.
+func (t TLVType) Range() Range { return Range((t &^ CriticalBit) >> 5) }
+
+// IsFoundation reports whether the type is in the Monad Foundation range
+// (0x00-0x1F or its critical twin 0x80-0x9F).
+func (t TLVType) IsFoundation() bool { return t.Range() == RangeFoundation }
+
+// IsUnknownCritical reports whether a receiver must refuse the type.
+func (t TLVType) IsUnknownCritical() bool {
+	_, known := registered[t]
+	return !known && t.IsCritical()
+}
+
+// ValidateRegistered applies the registry to one TLV: a registered type must
+// carry its fixed length, an unknown critical type is UNKNOWN_CRITICAL_TLV,
+// and an unknown non-critical type is skipped (nil).
+func ValidateRegistered(tlv TLV) error {
+	if len(tlv.Value) != int(tlv.Length) {
+		return fmt.Errorf("TLV type 0x%02x: length mismatch (declared %d, actual %d)",
+			uint8(tlv.Type), tlv.Length, len(tlv.Value))
 	}
-	// Check if it matches pattern 0x1F*N+0x21
-	val := uint16(t)
-	if (val - 0x21) == 0 {
-		return true
+	if e, ok := registered[tlv.Type]; ok {
+		if int(tlv.Length) != e.Length {
+			return fmt.Errorf("TLV %s: length %d, registry says %d", e.Name, tlv.Length, e.Length)
+		}
+		return nil
 	}
-	if (val-0x21)%0x1f == 0 && (val-0x21)/0x1f < 4 {
-		return true
+	if tlv.Type.IsCritical() {
+		return perrors.New(perrors.UnknownCriticalTLV, fmt.Sprintf("TLV type 0x%02x", uint8(tlv.Type)))
 	}
-	return false
+	return nil
 }
 
 // Parse parses a byte slice into a TLVBlock with validation.
@@ -163,10 +212,10 @@ func NewTLV(tlvType TLVType, value []byte) (*TLV, error) {
 	}, nil
 }
 
-// NewCoreTLV creates a core TLV with validation
-func NewCoreTLV(tlvType TLVType, value []byte) (*TLV, error) {
-	if !tlvType.IsCore() {
-		return nil, fmt.Errorf("type 0x%02x is not a core type", tlvType)
+// NewFoundationTLV creates a TLV whose type is in the Monad Foundation range.
+func NewFoundationTLV(tlvType TLVType, value []byte) (*TLV, error) {
+	if !tlvType.IsFoundation() {
+		return nil, fmt.Errorf("type 0x%02x is not in the Monad Foundation range", uint8(tlvType))
 	}
 	return NewTLV(tlvType, value)
 }

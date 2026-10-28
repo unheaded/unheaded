@@ -51,7 +51,30 @@ Unheaded's own code.
 
 ## SPDX Identifier
 
-All Go source files carry: `SPDX-License-Identifier: GPL-3.0-or-later`
+Every first-party Go and Rust source file carries an SPDX header, checked in CI by
+`scripts/check-spdx.sh --langs go,rs --forbid MIT` (backfill: `scripts/spdx-backfill.sh`).
+The identifier is `GPL-3.0-or-later`, except `GPL-2.0-only` where a crate's manifest or its
+existing headers already said so: `ebpf/common`, `flow-tracker`, `packet-marker`,
+`latency-probe` (the `ebpf/` workspace licence), most `ebpf/*-ebpf` kernel programs,
+`ebpf/af-xdp`, `cmd/ebpf-loader`, `cmd/ebpf-load-check`. A backfilled header records the
+licence the crate already declares; it never changes one.
+
+## What Remains MIT
+
+First-party files that carried an MIT header were relicensed to GPL-3.0-or-later on
+2026-10-27 (decision 12, `scripts/relicense-mit-to-gpl.sh`, commit `4c15bc76`).
+`docs/legal/MIT-KEEP.txt`, the list of files that stay MIT on purpose, is empty. MIT
+remains only where the code is someone else's or lives outside this tree:
+
+| What | Why it stays MIT |
+|------|------------------|
+| `crates/xv6-mbc/upstream/` | Vendored xv6-riscv (MIT-PDOS); its `LICENSE` is kept verbatim |
+| `llama.cpp/` | Not in the repository (gitignored); a separate process |
+| MIT-licensed dependencies | Their authors' licence (`THIRD_PARTY.md`) |
+
+Two crate manifests still declare `license = "MIT"` although every file in them carries a
+GPL-3.0-or-later header: `cmd/trace-collector/Cargo.toml` and `crates/monad-mbc/Cargo.toml`.
+Changing a manifest's licence is the author's call (S-TRUE-WIRE E4).
 
 ## Questions
 

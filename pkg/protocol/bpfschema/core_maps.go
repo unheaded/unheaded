@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-// Package bpfschema — core_maps.go
-//
-// Defines BPF map key/value structs for the EXISTING eBPF programs
+// core_maps.go defines BPF map key/value structs for the EXISTING eBPF programs
 // (Shield, Hop, Yaldabaoth, Flow Tracker, Monad CPU, Latency Probe,
 // Packet Marker, Syscall Tracer).
 //
-// These structs MUST match the Rust definitions in:
+// These structs follow the Rust definitions (rust_source_test.go enforces
+// it) in:
 //   - ebpf/monad-common/src/lib.rs (Monad, AnamnesisEvent, CrcCcitt)
 //   - ebpf/shield-ebpf/src/main.rs (BLOCKLIST, RATE_TOKENS, STATS)
 //   - ebpf/hop-ebpf/src/main.rs (SOPHIA, CIRCUIT_ERRORS, CONFIG)
@@ -16,7 +15,13 @@
 //
 // Wire format per draft-bellis-unheaded-protocol-foundation-03 §3.
 // All multi-byte fields big-endian per RFC 8200.
+
 package bpfschema
+
+import (
+	"encoding/binary"
+	"strconv"
+)
 
 // === MONAD REGISTER (20 bytes) ===
 // Per draft-bellis-unheaded-protocol-foundation-03 §3.
@@ -35,7 +40,7 @@ package bpfschema
 //	0x02    DstServiceID    1B      Exponent-encoded (Sophia dict 0x03)
 //	0x03    HopCount        1B      Raw u8, incremented per hop, saturates at 255
 //	0x04    QoSClass        1B      Exponent-encoded (Sophia dict 0x01)
-//	0x05    FlowAction      1B      Exponent: 1=FORWARD, 2=TRACE, 3=SAMPLE, 4=MIRROR, 5=DROP
+//	0x05    FlowAction      1B      Exponent: 0=FORWARD, 1=TRACE, 2=SAMPLE, 3=DROP, 4=MIRROR (foundation-06)
 //	0x06    CircuitState    1B      Exponent: 1=CLOSED, 2=OPEN, 3=HALF_OPEN
 //	0x07    Flags           1B      Bitfield (bit 7=CHAOS, 6=CANARY, 5=TRACED, 4=ENCRYPT, 3=SAMPLED, 2=MIRROR, 1=CUSTOM, 0=RSVD)
 //	0x08    LatencyHint     2B      Big-endian u16 (upstream latency in microseconds)
@@ -69,35 +74,106 @@ type MonadRegister struct {
 // MonadRegisterSize is the exact wire size. Tests verify this.
 const MonadRegisterSize = 20
 
-// Monad flag bits (Flags field, offset 0x07).
+// Monad flag bits (Flags field, offset 0x07). Names and values follow the
+// foundation-06 Flags Bitfield registry (C Y T E S M CUSTOM RSVD), the same
+// names as pkg/monad and ebpf/monad-common flags. Bits 1:0 are two
+// independent flags, not a 2-bit field: the Kingdom Mode registry in
+// foundation-06 is a separate concept and is not carried here.
 const (
-	FlagChaos   uint8 = 0x80 // Bit 7: Chaos injection active.
-	FlagCanary  uint8 = 0x40 // Bit 6: Canary deployment marker.
-	FlagTraced  uint8 = 0x20 // Bit 5: Full trace enabled.
-	FlagEncrypt uint8 = 0x10 // Bit 4: Encryption requested.
-	FlagSampled uint8 = 0x08 // Bit 3: Sampled for observability.
-	FlagMirror  uint8 = 0x04 // Bit 2: Mirrored flow.
-	FlagK1      uint8 = 0x02 // Bit 1: Kingdom Mode bit 1.
-	FlagK0      uint8 = 0x01 // Bit 0: Kingdom Mode bit 0.
+	FlagChaos    uint8 = 0x80 // Bit 7: CHAOS, chaos injection active.
+	FlagCanary   uint8 = 0x40 // Bit 6: CANARY, canary deployment path.
+	FlagTraced   uint8 = 0x20 // Bit 5: TRACED, full trace enabled.
+	FlagEncrypt  uint8 = 0x10 // Bit 4: ENCRYPT, payload encrypted.
+	FlagSampled  uint8 = 0x08 // Bit 3: SAMPLED, statistically sampled.
+	FlagMirror   uint8 = 0x04 // Bit 2: MIRROR, mirror copy.
+	FlagCustom   uint8 = 0x02 // Bit 1: CUSTOM, scratch and checksum carry exponent-encoded values.
+	FlagReserved uint8 = 0x01 // Bit 0: RSVD, senders MUST set to zero.
 )
 
-// Kingdom Mode values (bits 1:0 of Flags).
-// Per IANA: 00=NORMAL, 01=PRIORITY, 10=EXPERIMENTAL, 11=RESERVED.
+// Deprecated aliases for the old "Kingdom Mode bit" names; removed after
+// one release (S-TRUE-WIRE Step 102).
 const (
-	KingdomNormal       uint8 = 0x00
-	KingdomPriority     uint8 = 0x01
-	KingdomExperimental uint8 = 0x02
-	KingdomReserved     uint8 = 0x03
+	// Deprecated: use FlagCustom.
+	FlagK1 = FlagCustom
+	// Deprecated: use FlagReserved.
+	FlagK0 = FlagReserved
 )
 
-// Flow action values (FlowAction field, offset 0x05).
+// Flow action values (FlowAction field, offset 0x05): the foundation-06
+// "Monad Flow Actions" registry. Before S-TRUE-WIRE (Step 84, 2026-10-27) the
+// code used FORWARD 0x01, TRACE 0x02, SAMPLE 0x03, MIRROR 0x04, DROP 0x05;
+// the spec wins (the E4 rule) and FlowActionLegacy decodes the old numbering
+// for one release. An all-zero Monad now reads as FORWARD, the spec default.
 const (
-	ActionForward uint8 = 0x01
-	ActionTrace   uint8 = 0x02
-	ActionSample  uint8 = 0x03
-	ActionMirror  uint8 = 0x04
-	ActionDrop    uint8 = 0x05
+	ActionForward       uint8 = 0x00 // FORWARD: normal forwarding (default).
+	ActionTrace         uint8 = 0x01 // TRACE: full event logging to Anamnesis.
+	ActionSample        uint8 = 0x02 // SAMPLE: probabilistic event logging.
+	ActionDrop          uint8 = 0x03 // DROP: discard packet.
+	ActionMirror        uint8 = 0x04 // MIRROR: clone to monitoring interface.
+	ActionRateLimit     uint8 = 0x05 // RATE_LIMIT: apply rate limiting policy.
+	ActionRedirect      uint8 = 0x06 // REDIRECT: redirect to alternate destination.
+	ActionInject        uint8 = 0x07 // INJECT: inject synthetic packet.
+	ActionKeyRotate     uint8 = 0x10 // KEY_ROTATE: PQC key rotation event.
+	ActionKeyRevoke     uint8 = 0x11 // KEY_REVOKE: PQC key revocation event.
+	ActionKeyDistribute uint8 = 0x12 // KEY_DISTRIBUTE: PQC key distribution event.
+	ActionKeyVerify     uint8 = 0x13 // KEY_VERIFY: PQC key verification event.
+	ActionKeyChallenge  uint8 = 0x14 // KEY_CHALLENGE: PQC challenge-response.
 )
+
+// FlowActionLegacy maps a flow-action byte written by a pre-S-TRUE-WIRE
+// producer (FORWARD 0x01 .. DROP 0x05) to its foundation-06 value. ok is false
+// for bytes the old numbering never defined. The two numberings overlap
+// (legacy SAMPLE 0x03 is spec DROP), so the caller must know the producer is
+// legacy; the byte alone cannot say. Removed one release after S-TRUE-WIRE.
+func FlowActionLegacy(v uint8) (uint8, bool) {
+	switch v {
+	case 0x01:
+		return ActionForward, true
+	case 0x02:
+		return ActionTrace, true
+	case 0x03:
+		return ActionSample, true
+	case 0x04:
+		return ActionMirror, true
+	case 0x05:
+		return ActionDrop, true
+	}
+	return 0, false
+}
+
+// FlowActionName returns the lower-case foundation-06 registry name of a
+// flow-action value, or "unknown(N)".
+func FlowActionName(v uint8) string {
+	switch v {
+	case ActionForward:
+		return "forward"
+	case ActionTrace:
+		return "trace"
+	case ActionSample:
+		return "sample"
+	case ActionDrop:
+		return "drop"
+	case ActionMirror:
+		return "mirror"
+	case ActionRateLimit:
+		return "rate_limit"
+	case ActionRedirect:
+		return "redirect"
+	case ActionInject:
+		return "inject"
+	case ActionKeyRotate:
+		return "key_rotate"
+	case ActionKeyRevoke:
+		return "key_revoke"
+	case ActionKeyDistribute:
+		return "key_distribute"
+	case ActionKeyVerify:
+		return "key_verify"
+	case ActionKeyChallenge:
+		return "key_challenge"
+	}
+	return "unknown(" + strconv.Itoa(int(v)) + ")"
+}
 
 // Circuit state values (CircuitState field, offset 0x06).
 const (
@@ -119,7 +195,7 @@ const (
 //
 //	Offset  Field           Size    Description
 //	0x00    TimestampNs     8B      Kernel monotonic timestamp (bpf_ktime_get_ns, nanoseconds)
-//	0x08    EventType       1B      Event type: 0x01=Birth, 0x02=Hop, 0x03=Death, 0x04=Chaos, 0x08=Anomaly (foundation-06)
+//	0x08    EventType       1B      Event type: foundation-06 registry, 0x00=BORN .. 0x08=ANOMALY
 //	0x09    HopID           1B      Sophia-assigned hop identifier (from CONFIG[0] map)
 //	0x0A    FlowLabelLo     2B      Low 16 bits of IPv6 Flow Label (big-endian, trace correlation key)
 //	0x0C    Monad           20B     Complete 20-byte Monad snapshot at time of event
@@ -134,15 +210,54 @@ type AnamnesisEvent struct {
 // AnamnesisEventSize is the exact wire size. Tests verify this.
 const AnamnesisEventSize = 32
 
-// Event types for AnamnesisEvent.EventType.
+// Event types for AnamnesisEvent.EventType: the foundation-06 "Anamnesis
+// Event Types" registry. Before S-TRUE-WIRE (Step 91, 2026-10-27) the
+// programs emitted Birth 0x01, Hop 0x02, Death 0x03 on the spec's COMPUTED,
+// WOTAN_RD and WOTAN_WR codes; E4 (2026-10-26) had already moved CHAOS and
+// ANOMALY. EventTypeLegacy decodes the old numbering for one release.
 const (
-	EventBirth   uint8 = 0x01 // Shield XDP: Monad inserted at ingress.
-	EventHop     uint8 = 0x02 // Hop XDP: Per-hop processing completed.
-	EventDeath   uint8 = 0x03 // Shield TC: Monad stripped at egress.
-	EventChaos   uint8 = 0x04 // Yaldabaoth: Chaos injection applied (EVENT_CHAOS, foundation-06).
-	EventAnomaly uint8 = 0x08 // Any: CRC failure, decode error, etc. (EVENT_ANOMALY, foundation-06).
-	// 0x05-0x07 are EVENT_ROLLBACK, EVENT_DIED, EVENT_KEY_OP in the registry: no producer yet.
+	EventBorn     uint8 = 0x00 // EVENT_BORN: Shield XDP inserted the Monad at ingress.
+	EventComputed uint8 = 0x01 // EVENT_COMPUTED: a hop executed its Shim step, Monad updated.
+	EventWotanRd  uint8 = 0x02 // EVENT_WOTAN_RD: Wotan memory read (no producer yet).
+	EventWotanWr  uint8 = 0x03 // EVENT_WOTAN_WR: Wotan memory write (no producer yet).
+	EventChaos    uint8 = 0x04 // EVENT_CHAOS: Yaldabaoth chaos injection applied.
+	EventRollback uint8 = 0x05 // EVENT_ROLLBACK: Monad rolled back (no producer yet).
+	EventDied     uint8 = 0x06 // EVENT_DIED: Shield TC stripped the Monad at egress.
+	EventKeyOp    uint8 = 0x07 // EVENT_KEY_OP: PQC key lifecycle event (no producer yet).
+	EventAnomaly  uint8 = 0x08 // EVENT_ANOMALY: CRC failure, decode error, version error.
 )
+
+// Deprecated event-type names, kept for one release after S-TRUE-WIRE. They
+// carry the spec values of the events they always meant.
+const (
+	// Deprecated: use EventBorn.
+	EventBirth = EventBorn
+	// Deprecated: use EventComputed (a hop is a computed step).
+	EventHop = EventComputed
+	// Deprecated: use EventDied.
+	EventDeath = EventDied
+)
+
+// EventTypeLegacy maps an event-type byte from a pre-S-TRUE-WIRE object
+// (Birth 0x01, Hop 0x02, Death 0x03, Chaos 0x04, Anomaly 0x08) to its
+// foundation-06 value. ok is false for bytes the old objects never emitted.
+// The numberings overlap (legacy Birth 0x01 is spec COMPUTED), so the reader
+// must know which object produced the ring; the byte alone cannot say.
+func EventTypeLegacy(v uint8) (uint8, bool) {
+	switch v {
+	case 0x01:
+		return EventBorn, true
+	case 0x02:
+		return EventComputed, true
+	case 0x03:
+		return EventDied, true
+	case 0x04:
+		return EventChaos, true
+	case 0x08:
+		return EventAnomaly, true
+	}
+	return 0, false
+}
 
 // === EXISTING MAP SCHEMAS ===
 
@@ -306,12 +421,14 @@ const (
 
 // === MONAD CPU MAPS (Doom-over-IPv6) ===
 
-// MbcCpuState is the 128-byte CPU state for the MBC virtual machine.
-// Matches monad-cpu-ebpf/src/main.rs MbcCpuState.
+// MbcCpuState is the 136-byte CPU state for the MBC virtual machine
+// (default features). Built with --features ascend-linux the Rust struct
+// appends rv2mbc_base and 4 pad bytes (MbcCpuStateAscendSize, 144); this Go
+// mirror carries the default layout.
 // Per Monad spec §12 (computational completeness PoC).
-// Rust source: ebpf/monad-cpu-ebpf/src/main.rs (monad_common::MbcCpuState)
+// Rust source: ebpf/monad-common/src/lib.rs MbcCpuState (ADR-067, ADR-077).
 //
-// Wire layout (128 bytes):
+// Wire layout (136 bytes):
 //
 //	Offset  Field           Size    Description
 //	0x00    Registers       64B     [16]u32 (r0-r15)
@@ -336,36 +453,46 @@ const (
 //	0x7A    MmuEnabled      1B      MMU enabled flag (Level 4d)
 //	0x7B    _pad3           1B      Alignment padding
 //	0x7C    PageDirBase     4B      Page directory base address (Level 4d)
+//	0x80    PrivLevel       1B      RV32 privilege: 0=M, 1=S, 3=U (ADR-067)
+//	0x81    _pad4.._pad6    3B      Alignment
+//	0x84    ReservationAddress 4B   LR.W reservation, 0xFFFFFFFF = none (ADR-067)
 type MbcCpuState struct {
-	Registers         [16]uint32 // r0-r15 general purpose registers (64 bytes).
-	PC                uint32     // Program counter.
-	Flags             uint8      // CPU flags: bit 0=Z, bit 1=N, bit 2=C.
-	Halted            uint8      // 1 if HALT instruction executed.
-	Stalled           uint8      // 1 if waiting for cache miss (D-003).
-	_pad              uint8      // Alignment padding.
-	SleepUntilNs      uint64     // bpf_ktime_get_ns() sleep target.
-	InsnCount         uint64     // Total instructions executed (for IPS stats).
-	CacheHits         uint64     // L1 cache hits.
-	CacheMisses       uint64     // L1 cache misses.
-	InterruptPending  uint8      // Non-zero when interrupt waiting.
-	InterruptVector   uint8      // Vector number of pending interrupt.
-	InterruptsEnabled uint8      // Non-zero when CPU accepts interrupts.
-	_pad2             uint8      // Alignment padding.
-	TickCounter       uint32     // Tick counter for timer interrupt generation.
-	ProgramBreak      uint32     // Heap end address for SYS_BRK (Level 4b).
-	ExitCode          uint32     // Exit code from SYS_EXIT (Level 4b).
-	CurrentPID        uint8      // Current process ID (0-3). Level 4c scheduler.
-	NumProcesses      uint8      // Number of active processes. Level 4c scheduler.
-	MmuEnabled        uint8      // MMU enabled (0=flat, 1=paging). Level 4d.
-	_pad3             uint8      // Alignment padding.
-	PageDirBase       uint32     // Page directory base address. Level 4d.
+	Registers          [16]uint32 // r0-r15 general purpose registers (64 bytes).
+	PC                 uint32     // Program counter.
+	Flags              uint8      // CPU flags: bit 0=Z, bit 1=N, bit 2=C.
+	Halted             uint8      // 1 if HALT instruction executed.
+	Stalled            uint8      // 1 if waiting for cache miss (D-003).
+	_                  uint8      // Alignment padding.
+	SleepUntilNs       uint64     // bpf_ktime_get_ns() sleep target.
+	InsnCount          uint64     // Total instructions executed (for IPS stats).
+	CacheHits          uint64     // L1 cache hits.
+	CacheMisses        uint64     // L1 cache misses.
+	InterruptPending   uint8      // Non-zero when interrupt waiting.
+	InterruptVector    uint8      // Vector number of pending interrupt.
+	InterruptsEnabled  uint8      // Non-zero when CPU accepts interrupts.
+	_                  uint8      // Alignment padding.
+	TickCounter        uint32     // Tick counter for timer interrupt generation.
+	ProgramBreak       uint32     // Heap end address for SYS_BRK (Level 4b).
+	ExitCode           uint32     // Exit code from SYS_EXIT (Level 4b).
+	CurrentPID         uint8      // Current process ID (0-3). Level 4c scheduler.
+	NumProcesses       uint8      // Number of active processes. Level 4c scheduler.
+	MmuEnabled         uint8      // MMU enabled (0=flat, 1=paging). Level 4d.
+	_                  uint8      // Alignment padding.
+	PageDirBase        uint32     // Page directory base address. Level 4d.
+	PrivLevel          uint8      // Privilege level: 0=M, 1=S, 3=U (ADR-067).
+	_                  uint8      // Alignment padding.
+	_                  uint8      // Alignment padding.
+	_                  uint8      // Alignment padding.
+	ReservationAddress uint32     // LR.W reservation address; 0xFFFFFFFF = none (ADR-067).
 }
 
-// MbcCpuStateSize is the exact wire size. Tests verify this.
-// 64 ([16]uint32) + 4 (PC) + 4 (Flags+Halted+Stalled+_pad) + 4*8 (four uint64)
-// + 4 (interrupt fields + _pad2) + 4 (TickCounter) + 4 (ProgramBreak) + 4 (ExitCode)
-// + 2 (CurrentPID + NumProcesses) + 1 (MmuEnabled) + 1 (_pad3) + 4 (PageDirBase) = 128.
-const MbcCpuStateSize = 128
+// MbcCpuStateSize is the exact wire size (default features); rust_source_test.go
+// derives it from the Rust struct. 128 bytes up to PageDirBase, then PrivLevel,
+// three pad bytes and ReservationAddress = 136.
+const MbcCpuStateSize = 136
+
+// MbcCpuStateAscendSize is the size with --features ascend-linux (rv2mbc_base + pad).
+const MbcCpuStateAscendSize = 144
 
 // CacheLineKey for Monad CPU L1_CACHE map.
 type CacheLineKey struct {
@@ -382,11 +509,15 @@ type CacheLineValue struct {
 
 // FlowMigrationTokenValue holds migration token state for Flow Tracker.
 // Key: FlowKey (same 5-tuple as FLOWS map, 16 bytes).
-// Value: migration token state (48 bytes).
+// Value: migration token state (44 bytes).
 // Map type: HashMap (LRU behavior via userspace TTL).
 // Per RFC 9000 §9 — Flow migration validation tokens.
 //
-// Wire layout (48 bytes):
+// The Rust struct is #[repr(C, packed)], so it is 44 bytes, not the 48 its
+// comment claims. ExpiryNs is a byte array so the Go struct has 4-byte
+// alignment and the same 44-byte size; use Expiry/SetExpiry.
+//
+// Wire layout (44 bytes):
 //
 //	Offset  Field           Size    Description
 //	0x00    Token           16B     128-bit migration token
@@ -396,50 +527,67 @@ type CacheLineValue struct {
 //	0x20    NewSrcPort      2B      New source port
 //	0x22    NewDstPort      2B      New destination port
 //	0x24    Flags           4B      Migration flags (bit 0: active)
-//	0x28    _pad            4B      Alignment padding
+//	0x28    _pad            4B      Padding
 type FlowMigrationTokenValue struct {
 	Token      [16]byte // 128-bit migration token
-	ExpiryNs   uint64   // Expiry timestamp (bpf_ktime_get_ns)
+	ExpiryNs   [8]byte  // Expiry timestamp (bpf_ktime_get_ns), host byte order; see Expiry.
 	NewSrcAddr uint32   // New source address after migration
 	NewDstAddr uint32   // New destination address after migration
 	NewSrcPort uint16   // New source port
 	NewDstPort uint16   // New destination port
 	Flags      uint32   // Migration flags (bit 0: active)
-	_          [4]byte  // Alignment padding to 48 bytes
+	_          [4]byte  // Padding (Rust _pad).
 }
 
-// FlowMigrationTokenValueSize is the exact wire size.
-const FlowMigrationTokenValueSize = 48 // 16+8+4+4+2+2+4+4
+// Expiry returns ExpiryNs as written by the eBPF program (host byte order).
+func (v *FlowMigrationTokenValue) Expiry() uint64 {
+	return binary.NativeEndian.Uint64(v.ExpiryNs[:])
+}
+
+// SetExpiry stores ns into ExpiryNs in host byte order.
+func (v *FlowMigrationTokenValue) SetExpiry(ns uint64) {
+	binary.NativeEndian.PutUint64(v.ExpiryNs[:], ns)
+}
+
+// FlowMigrationTokenValueSize is the exact wire size (packed).
+const FlowMigrationTokenValueSize = 44 // 16+8+4+4+2+2+4+4
 
 // FlowCancelValue holds cancellation state for Flow Tracker.
 // Key: FlowKey (same 5-tuple as FLOWS map, 16 bytes).
-// Value: cancellation state (24 bytes).
+// Value: cancellation state (20 bytes).
 // Map type: HashMap (LRU behavior via userspace TTL).
 // Per RFC 9114 §4.1.1 — Per-flow cancellation state.
 //
-// Wire layout (24 bytes):
-// Go alignment: uint64 field requires 8-byte alignment, so 4 bytes of
-// implicit padding are inserted after Reason (uint32). Rust #[repr(C, packed)]
-// has no such padding, placing TimestampNs at offset 0x04. The Go offsets are:
+// The Rust struct is #[repr(C, packed)]: TimestampNs sits at 0x04 with no
+// padding and the value is 20 bytes, not the 24 its comment claims.
+// TimestampNs is a byte array so the Go struct matches; use Timestamp.
+//
+// Wire layout (20 bytes):
 //
 //	Offset  Field           Size    Description
 //	0x00    Reason          4B      Cancellation reason code
-//	0x04    (padding)       4B      Go alignment for uint64
-//	0x08    TimestampNs     8B      When cancellation was requested
-//	0x10    Flags           4B      Bit 0: active, Bit 1: send-rst
-//	0x14    _pad            4B      Explicit padding
-//
-// Total: 4 + 4(implicit) + 8 + 4 + 4 = 24 bytes.
+//	0x04    TimestampNs     8B      When cancellation was requested (host byte order)
+//	0x0C    Flags           4B      Bit 0: active, Bit 1: send-rst
+//	0x10    _pad            4B      Padding
 type FlowCancelValue struct {
 	Reason      uint32  // Cancellation reason code
-	TimestampNs uint64  // When cancellation was requested
+	TimestampNs [8]byte // When cancellation was requested; see Timestamp.
 	Flags       uint32  // Bit 0: active, Bit 1: send-rst
-	_           [4]byte // Alignment padding to 24 bytes
+	_           [4]byte // Padding (Rust _pad).
 }
 
-// FlowCancelValueSize is the exact wire size.
-// 4 (Reason) + 4 (Go alignment padding) + 8 (TimestampNs) + 4 (Flags) + 4 (_pad) = 24.
-const FlowCancelValueSize = 24
+// Timestamp returns TimestampNs as written by the eBPF program (host byte order).
+func (v *FlowCancelValue) Timestamp() uint64 {
+	return binary.NativeEndian.Uint64(v.TimestampNs[:])
+}
+
+// SetTimestamp stores ns into TimestampNs in host byte order.
+func (v *FlowCancelValue) SetTimestamp(ns uint64) {
+	binary.NativeEndian.PutUint64(v.TimestampNs[:], ns)
+}
+
+// FlowCancelValueSize is the exact wire size (packed): 4 + 8 + 4 + 4 = 20.
+const FlowCancelValueSize = 20
 
 // === MAP CONFIGURATION CONSTANTS ===
 

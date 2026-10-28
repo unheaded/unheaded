@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"unheaded/pkg/wotansig"
 	chatpb "unheaded/services/wotan/proto"
 )
@@ -17,11 +19,11 @@ import (
 // these methods never fall back to HTTP and never queue a message for later:
 // a refused or failed signed publish is returned to the caller.
 
-// ErrSignedTopicNeedsGRPC: a client with no gRPC endpoint cannot publish to
+// ErrSignedTopicNeedsGRPC means a client with no gRPC endpoint cannot publish to
 // a signed topic.
 var ErrSignedTopicNeedsGRPC = errors.New("signed topics are published over gRPC only; this client is in HTTP-only mode")
 
-// ErrUnsignedMessage: VerifySignature on a message that carries no signature.
+// ErrUnsignedMessage is what VerifySignature returns for a message that carries no signature.
 var ErrUnsignedMessage = errors.New("message carries no signature")
 
 // PublishSigned publishes payload to topic signed by signer. The client must
@@ -62,8 +64,9 @@ func (gc *GRPCClient) PublishSigned(ctx context.Context, topic string, payload [
 		Algorithm:      sg.Algorithm,
 		SignedAtUnixMs: sg.SignedAtUnixMs,
 	}
-	if _, err := gc.client.PublishTopic(ctx, req); err != nil {
-		return fmt.Errorf("publish signed topic: %w", err)
+	var trailer metadata.MD
+	if _, err := gc.client.PublishTopic(ctx, req, grpc.Trailer(&trailer)); err != nil {
+		return fmt.Errorf("publish signed topic: %w", withTrailerCode(err, trailer))
 	}
 	return nil
 }

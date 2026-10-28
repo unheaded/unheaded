@@ -55,7 +55,7 @@ func (t Tier) String() string {
 	return fmt.Sprintf("T?%d", int(t))
 }
 
-// ErrWithheld: T2 text never leaves.
+// ErrWithheld means T2 text never leaves.
 var ErrWithheld = errors.New("withheld: user data")
 
 // Counts is the number of redactions per kind.

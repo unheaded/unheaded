@@ -53,7 +53,13 @@ fn main() {
             }
         };
         match result {
-            Ok(()) => println!("{name} OK"),
+            // The kernel's post-dead-code verified-instruction count (the
+            // number that races the 1M complexity ceiling), as upc-bootctl
+            // reads it. Callers parse field 2 (OK/FAIL); the count follows.
+            Ok(()) => match verified_insns(prog) {
+                Some(n) => println!("{name} OK verified {n} insns"),
+                None => println!("{name} OK"),
+            },
             Err(e) => println!("{name} FAIL {}", rejection(&e.to_string())),
         }
     }
@@ -61,6 +67,20 @@ fn main() {
         eprintln!("{path}: no programs");
         std::process::exit(2);
     }
+}
+
+/// The verified-instruction count of a loaded program (kernel >= 5.16).
+fn verified_insns(prog: &Program) -> Option<u32> {
+    let info = match prog {
+        Program::Xdp(p) => p.info(),
+        Program::SchedClassifier(p) => p.info(),
+        Program::KProbe(p) => p.info(),
+        Program::TracePoint(p) => p.info(),
+        Program::RawTracePoint(p) => p.info(),
+        Program::SocketFilter(p) => p.info(),
+        _ => return None,
+    };
+    info.ok()?.verified_instruction_count()
 }
 
 /// The line that says why the verifier rejected the program. The log starts

@@ -75,7 +75,7 @@ func main() {
 	g := &globals{}
 	fs := flag.NewFlagSet("upc-cartridgectl", flag.ExitOnError)
 	fs.StringVar(&g.registryDir, "registry-dir", "/var/lib/unheaded/cartridges", "file-backed registry: records + content-addressed images (0700)")
-	fs.StringVar(&g.sophiaURL, "sophia", "", "Sophia base URL: keep records in Sophia (namespace x-cartridge); SOPHIA_TOKEN = bearer token")
+	fs.StringVar(&g.sophiaURL, "sophia", "", "Sophia base URL: keep records in Sophia (namespace cartridge; x-cartridge records still read); SOPHIA_TOKEN = bearer token")
 	fs.StringVar(&g.pubKeyPath, "pubkey", "", "pinned ML-DSA-65 public key that cartridge seals must verify against")
 	fs.BoolVar(&g.lab, "lab", false, "accept UNSIGNED cartridges (lab only; marked lab=\"1\")")
 	fs.StringVar(&g.pinDir, "pin-dir", cartridge.DefaultPinDir, "bpffs directory of the pinned interpreter")

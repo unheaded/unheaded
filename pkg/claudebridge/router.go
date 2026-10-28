@@ -131,7 +131,7 @@ type FileBlock struct {
 	Content string
 }
 
-// ErrNoFileBlocks: an answer that should carry files carries none.
+// ErrNoFileBlocks means an answer that should carry files carries none.
 var ErrNoFileBlocks = errors.New("answer has no ```file:<path> blocks")
 
 var fileBlockRE = regexp.MustCompile("(?s)```file:([^\\n`]+)\\n(.*?)```")
@@ -181,7 +181,7 @@ type ThresholdRouter struct {
 	Auditor Auditor
 }
 
-// ErrNoFamilyRoute: ThresholdRouter.Route was given a task with no
+// ErrNoFamilyRoute means ThresholdRouter.Route was given a task with no
 // "family" hint, or a family the routing table does not list.
 var ErrNoFamilyRoute = errors.New("routing: no measured route for the task's family")
 

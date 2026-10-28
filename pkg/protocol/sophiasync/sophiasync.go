@@ -4,10 +4,10 @@
 package sophiasync
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -26,11 +26,19 @@ type DictEntry struct {
 }
 
 // DictionaryDelta represents changes to the Sophia dictionary state.
+//
+// Signature is an ML-DSA-65 signature (signing.go) by PublicKey over the
+// delta's canonical bytes, Algorithm and SignedAtUnixMs; all four are empty
+// on an unsigned delta. Until M-149 it held SHA-256 of the delta, which
+// authenticated nothing: that digest is Digest now.
 type DictionaryDelta struct {
-	Version   TableVersion
-	Additions []DictEntry
-	Removals  []uint32
-	Signature []byte
+	Version        TableVersion
+	Additions      []DictEntry
+	Removals       []uint32
+	Signature      []byte
+	PublicKey      []byte
+	Algorithm      string
+	SignedAtUnixMs int64
 }
 
 // CompressedDelta is a varint-encoded dictionary update.
@@ -90,6 +98,13 @@ type SyncManager struct {
 	currentVersion   TableVersion
 	logger           *logger.Logger
 	wotanClient      *wotanClient.Client
+
+	// Delta signatures (M-149): the keys trusted to sign deltas, and
+	// whether an unsigned delta is refused (true) or applied, counted and
+	// logged (false, observe mode: the default).
+	trustedKeys      [][]byte
+	requireSignature bool
+	now              func() time.Time
 }
 
 // NewEncoderStream creates a new encoder stream.
@@ -219,7 +234,22 @@ func NewSyncManager(client *wotanClient.Client, controlTopic string, log *logger
 		currentVersion:   0,
 		logger:           log,
 		wotanClient:      client,
+		now:              time.Now,
 	}, nil
+}
+
+// SetSignaturePolicy sets the public keys trusted to sign deltas and whether
+// unsigned deltas are refused (require) or applied in observe mode. With no
+// trusted keys every signed delta is refused (fail closed).
+func (sm *SyncManager) SetSignaturePolicy(trusted [][]byte, require bool) {
+	keys := make([][]byte, 0, len(trusted))
+	for _, k := range trusted {
+		keys = append(keys, bytes.Clone(k))
+	}
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.trustedKeys = keys
+	sm.requireSignature = require
 }
 
 // SetGracePeriod sets the grace period for old version retention.
@@ -250,12 +280,8 @@ func (sm *SyncManager) ApplyDelta(delta *DictionaryDelta) error {
 		return fmt.Errorf("invalid delta version: expected %d, got %d", sm.currentVersion+1, delta.Version)
 	}
 
-	// Validate signature
-	if len(delta.Signature) > 0 {
-		expectedSig := computeSignature(delta)
-		if !bytesEqual(expectedSig, delta.Signature) {
-			return fmt.Errorf("delta signature mismatch")
-		}
+	if err := sm.checkSignature(delta); err != nil {
+		return err
 	}
 
 	// Update current version
@@ -267,6 +293,49 @@ func (sm *SyncManager) ApplyDelta(delta *DictionaryDelta) error {
 	sm.logger.Info().Msgf("Applied delta version %d (additions: %d, removals: %d)",
 		delta.Version, len(delta.Additions), len(delta.Removals))
 
+	return nil
+}
+
+// checkSignature applies the delta signature policy. Callers hold sm.mu,
+// and ApplyDelta has already required delta.Version == currentVersion+1,
+// which is what stops a replay: a delta is applied once, as the next
+// version, however old its signature is.
+func (sm *SyncManager) checkSignature(delta *DictionaryDelta) error {
+	if len(delta.Signature) == 0 {
+		deltaUnsigned.Inc()
+		if sm.requireSignature {
+			sm.logger.Warn().
+				Uint64("version", uint64(delta.Version)).
+				Str("reason", "unsigned").
+				Msg("sophia_delta_refused")
+			return fmt.Errorf("delta version %d: %w", delta.Version, ErrUnsignedDelta)
+		}
+		sm.logger.Warn().
+			Uint64("version", uint64(delta.Version)).
+			Str("mode", "observe").
+			Str("require_signature_env", RequireSignatureEnv).
+			Msg("sophia_delta_unsigned_applied")
+		return nil
+	}
+	if err := Verify(delta, sm.trustedKeys); err != nil {
+		deltaSignatureFailures.Inc()
+		sm.logger.Warn().
+			Err(err).
+			Uint64("version", uint64(delta.Version)).
+			Str("reason", "signature").
+			Msg("sophia_delta_refused")
+		return fmt.Errorf("delta version %d signature: %w", delta.Version, err)
+	}
+	now := sm.now().UnixMilli()
+	if skew := MaxSkew.Milliseconds(); delta.SignedAtUnixMs < now-skew || delta.SignedAtUnixMs > now+skew {
+		deltaStale.Inc()
+		sm.logger.Warn().
+			Uint64("version", uint64(delta.Version)).
+			Int64("signed_at_unix_ms", delta.SignedAtUnixMs).
+			Int64("now_unix_ms", now).
+			Dur("max_skew", MaxSkew).
+			Msg("sophia_delta_stale_applied")
+	}
 	return nil
 }
 
@@ -383,85 +452,199 @@ func (sm *SyncManager) CurrentVersion() TableVersion {
 	return sm.currentVersion
 }
 
-// Helper functions
+// Wire encoding (all integers big-endian):
+//
+//	version u64 | n_add u32 | n_add x (index u32 | len u32 | value) |
+//	n_rem u32 | n_rem x index u32 |
+//	sig_len u32 | signature | key_len u32 | public_key |
+//	alg_len u8 | algorithm | signed_at_unix_ms i64
+//
+// The part before sig_len is Canonical. An unsigned delta has zero-length
+// signature, key and algorithm and signed_at 0.
+
+// Decoder limits: the input is hostile. A signature or key larger than any
+// ML-DSA parameter set's is refused before it is copied.
+const (
+	maxDeltaBytes   = 16 << 20
+	maxSignatureLen = 8192
+	maxPublicKeyLen = 4096
+)
 
 func encodeDelta(delta *DictionaryDelta) ([]byte, error) {
 	if delta == nil {
 		return nil, fmt.Errorf("delta cannot be nil")
 	}
-
-	buf := make([]byte, 0, 1024)
-
-	// Encode version
-	versionBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(versionBytes, uint64(delta.Version))
-	buf = append(buf, versionBytes...)
-
-	// Encode additions count
-	addCount := make([]byte, 4)
-	binary.BigEndian.PutUint32(addCount, uint32(len(delta.Additions))) // #nosec G115 -- bounded by the length of an already-allocated slice
-	buf = append(buf, addCount...)
-
-	// Encode additions
-	for _, entry := range delta.Additions {
-		indexBytes := make([]byte, 4)
-		binary.BigEndian.PutUint32(indexBytes, entry.Index)
-		buf = append(buf, indexBytes...)
-
-		lenBytes := make([]byte, 4)
-		binary.BigEndian.PutUint32(lenBytes, uint32(len(entry.Value))) // #nosec G115 -- bounded by the length of an already-allocated slice
-		buf = append(buf, lenBytes...)
-
-		buf = append(buf, []byte(entry.Value)...)
+	if len(delta.Algorithm) > 255 {
+		return nil, fmt.Errorf("algorithm name longer than 255 bytes")
 	}
-
-	// Encode removals count
-	remCount := make([]byte, 4)
-	binary.BigEndian.PutUint32(remCount, uint32(len(delta.Removals))) // #nosec G115 -- bounded by the length of an already-allocated slice
-	buf = append(buf, remCount...)
-
-	// Encode removals
-	for _, idx := range delta.Removals {
-		idxBytes := make([]byte, 4)
-		binary.BigEndian.PutUint32(idxBytes, idx)
-		buf = append(buf, idxBytes...)
-	}
-
-	// Encode signature length and signature
-	sigLen := make([]byte, 4)
-	binary.BigEndian.PutUint32(sigLen, uint32(len(delta.Signature))) // #nosec G115 -- bounded by the length of an already-allocated slice
-	buf = append(buf, sigLen...)
+	buf := appendBody(make([]byte, 0, 1024), delta)
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.Signature))) // #nosec G115 -- bounded by the length of an already-allocated slice
 	buf = append(buf, delta.Signature...)
-
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.PublicKey))) // #nosec G115 -- bounded by the length of an already-allocated slice
+	buf = append(buf, delta.PublicKey...)
+	buf = append(buf, byte(len(delta.Algorithm))) // #nosec G115 -- at most 255, refused above
+	buf = append(buf, delta.Algorithm...)
+	buf = binary.BigEndian.AppendUint64(buf, uint64(delta.SignedAtUnixMs)) // #nosec G115 -- two's-complement round trip, decoded as int64
 	return buf, nil
 }
 
-func computeSignature(delta *DictionaryDelta) []byte {
-	h := sha256.New()
-
-	// Hash version
-	versionBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(versionBytes, uint64(delta.Version))
-	h.Write(versionBytes)
-
-	// Hash additions
+// appendBody appends the canonical part of the encoding: version,
+// additions, removals.
+func appendBody(buf []byte, delta *DictionaryDelta) []byte {
+	buf = binary.BigEndian.AppendUint64(buf, uint64(delta.Version))
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.Additions))) // #nosec G115 -- bounded by the length of an already-allocated slice
 	for _, entry := range delta.Additions {
-		indexBytes := make([]byte, 4)
-		binary.BigEndian.PutUint32(indexBytes, entry.Index)
-		h.Write(indexBytes)
-		h.Write([]byte(entry.Value))
+		buf = binary.BigEndian.AppendUint32(buf, entry.Index)
+		buf = binary.BigEndian.AppendUint32(buf, uint32(len(entry.Value))) // #nosec G115 -- bounded by the length of an already-allocated slice
+		buf = append(buf, entry.Value...)
 	}
-
-	// Hash removals
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.Removals))) // #nosec G115 -- bounded by the length of an already-allocated slice
 	for _, idx := range delta.Removals {
-		idxBytes := make([]byte, 4)
-		binary.BigEndian.PutUint32(idxBytes, idx)
-		h.Write(idxBytes)
+		buf = binary.BigEndian.AppendUint32(buf, idx)
 	}
-
-	return h.Sum(nil)
+	return buf
 }
 
-func bytesEqual(a, b []byte) bool {
-	return subtle.ConstantTimeCompare(a, b) == 1
+var errTruncated = errors.New("sophiasync: delta truncated")
+
+// reader is a bounds-checked cursor over hostile bytes.
+type reader struct {
+	b   []byte
+	off int
+}
+
+func (r *reader) remaining() int { return len(r.b) - r.off }
+
+func (r *reader) take(n int) ([]byte, error) {
+	if n < 0 || n > r.remaining() {
+		return nil, errTruncated
+	}
+	out := r.b[r.off : r.off+n]
+	r.off += n
+	return out, nil
+}
+
+func (r *reader) u8() (uint8, error) {
+	b, err := r.take(1)
+	if err != nil {
+		return 0, err
+	}
+	return b[0], nil
+}
+
+func (r *reader) u32() (uint32, error) {
+	b, err := r.take(4)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint32(b), nil
+}
+
+func (r *reader) u64() (uint64, error) {
+	b, err := r.take(8)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(b), nil
+}
+
+// lenPrefixed reads a u32 length (at most limit) and that many bytes.
+func (r *reader) lenPrefixed(limit int) ([]byte, error) {
+	n, err := r.u32()
+	if err != nil {
+		return nil, err
+	}
+	if int64(n) > int64(limit) {
+		return nil, fmt.Errorf("sophiasync: length %d over the limit %d", n, limit)
+	}
+	return r.take(int(n))
+}
+
+// DecodeDelta parses a delta encoded by DistributeDelta. Every count and
+// length is checked against the bytes that remain before anything is
+// allocated, and trailing bytes are refused. It does not verify the
+// signature: that is Verify (or SyncManager.ApplyDelta).
+func DecodeDelta(b []byte) (*DictionaryDelta, error) {
+	if len(b) > maxDeltaBytes {
+		return nil, fmt.Errorf("sophiasync: delta of %d bytes over the %d limit", len(b), maxDeltaBytes)
+	}
+	r := &reader{b: b}
+	version, err := r.u64()
+	if err != nil {
+		return nil, err
+	}
+	d := &DictionaryDelta{Version: TableVersion(version)}
+
+	nAdd, err := r.u32()
+	if err != nil {
+		return nil, err
+	}
+	if int64(nAdd)*8 > int64(r.remaining()) { // each addition is at least 8 bytes
+		return nil, errTruncated
+	}
+	if nAdd > 0 {
+		d.Additions = make([]DictEntry, 0, nAdd)
+	}
+	for i := uint32(0); i < nAdd; i++ {
+		idx, err := r.u32()
+		if err != nil {
+			return nil, err
+		}
+		val, err := r.lenPrefixed(r.remaining())
+		if err != nil {
+			return nil, err
+		}
+		d.Additions = append(d.Additions, DictEntry{Index: idx, Value: string(val)})
+	}
+
+	nRem, err := r.u32()
+	if err != nil {
+		return nil, err
+	}
+	if int64(nRem)*4 > int64(r.remaining()) {
+		return nil, errTruncated
+	}
+	if nRem > 0 {
+		d.Removals = make([]uint32, 0, nRem)
+	}
+	for i := uint32(0); i < nRem; i++ {
+		idx, err := r.u32()
+		if err != nil {
+			return nil, err
+		}
+		d.Removals = append(d.Removals, idx)
+	}
+
+	sig, err := r.lenPrefixed(maxSignatureLen)
+	if err != nil {
+		return nil, err
+	}
+	key, err := r.lenPrefixed(maxPublicKeyLen)
+	if err != nil {
+		return nil, err
+	}
+	algLen, err := r.u8()
+	if err != nil {
+		return nil, err
+	}
+	alg, err := r.take(int(algLen))
+	if err != nil {
+		return nil, err
+	}
+	at, err := r.u64()
+	if err != nil {
+		return nil, err
+	}
+	if r.remaining() != 0 {
+		return nil, fmt.Errorf("sophiasync: %d trailing bytes after the delta", r.remaining())
+	}
+	if len(sig) > 0 {
+		d.Signature = bytes.Clone(sig)
+	}
+	if len(key) > 0 {
+		d.PublicKey = bytes.Clone(key)
+	}
+	d.Algorithm = string(alg)
+	d.SignedAtUnixMs = int64(at) // #nosec G115 -- two's-complement round trip of the encoder's uint64(int64)
+	return d, nil
 }

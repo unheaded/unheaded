@@ -245,9 +245,9 @@ verified := computer.Verify(monadHeader, tag)   // Returns bool
 #### Backward Compatibility: CRC-16-CCITT
 
 ```go
-// Polynomial: x^16 + x^12 + x^5 + 1
-crc := CRC16CCITT(data []byte) uint16
-verified := VerifyCRC16CCITT(data, expectedCRC uint16) bool
+// Polynomial: x^16 + x^12 + x^5 + 1. One implementation: encoding.CRC16CCITT.
+crc := encoding.CRC16CCITT(data []byte) uint16
+verified := integrity.VerifyCRC16CCITT(data, expectedCRC uint16) bool
 ```
 
 **Note**: CRC functions provided for backward compatibility only. New implementations should use HMAC.

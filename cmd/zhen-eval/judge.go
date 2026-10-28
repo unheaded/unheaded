@@ -97,7 +97,7 @@ type FileBlock struct {
 	Content string
 }
 
-// ErrNoFileBlocks: the answer carried no file block (a parse failure).
+// ErrNoFileBlocks means the answer carried no file block (a parse failure).
 var ErrNoFileBlocks = errors.New("answer has no ```file:<path> blocks")
 
 // parseFileBlocks extracts the file blocks of an answer.

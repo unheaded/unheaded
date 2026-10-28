@@ -328,7 +328,6 @@ version = "0.1.0"
 dependencies = [
  "aya-ebpf",
  "monad-common",
- "pqc-common",
 ]
 
 [[package]]

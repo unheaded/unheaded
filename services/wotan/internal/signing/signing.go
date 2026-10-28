@@ -121,6 +121,20 @@ func (tv *TopicVerifier) Verify(topic, senderID string, payload []byte, sg Signe
 	return nil
 }
 
+// VerifyStored checks a message Wotan accepted earlier and stored (its own
+// WAL, or a peer's replicated to it: FND-020): algorithm, a trusted key and
+// the signature over topic, sender, signing time and payload. It skips the
+// clock-skew window and the replay cache on purpose: a stored message is old
+// by design and a standby sees it again on every catch-up; freshness and
+// replay were checked once, when the primary accepted it. A nil verifier
+// trusts no key and refuses everything.
+func (tv *TopicVerifier) VerifyStored(topic, senderID string, payload []byte, sg Signed) error {
+	if tv == nil {
+		return ErrNoTrustedKeys
+	}
+	return wotansig.VerifyEvent(topic, senderID, payload, sg, tv.trusted)
+}
+
 // Accept records a verified signature as used, atomically: of two copies
 // of one message racing past Verify, only the first is accepted. Only
 // verified signatures reach it, so the cache is bounded by what trusted

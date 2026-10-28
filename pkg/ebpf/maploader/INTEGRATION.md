@@ -407,3 +407,5 @@ Expected improvement: 3-5× faster on large maps (10k+ entries).
 - **BPF Schema**: `pkg/protocol/bpfschema/bpfschema.go`
 - **Map Matrix**: `PATTERN_MATRIX.md` (in eBPF program docs)
 - **Concurrency**: Black Mage Concurrency Audit Checklist
+
+> Removed 2026-10-28 (S-TRUE-WIRE Step 207): `LoadGoawayState` and the `GOAWAY_STATE` map it loaded. References to them above are history.

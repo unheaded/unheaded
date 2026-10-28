@@ -46,11 +46,11 @@ import (
 // RunbookManifestFile is the manifest's name inside runbooks/.
 const RunbookManifestFile = "MANIFEST.sha256"
 
-// ErrRunbookUnapproved: the runbook's bytes are not the committed ones (no
+// ErrRunbookUnapproved means the runbook's bytes are not the committed ones (no
 // manifest, not listed, or a different sha256).
 var ErrRunbookUnapproved = errors.New("runbook does not match runbooks/" + RunbookManifestFile)
 
-// ErrRunbookDestructive: the runbook would execute a destructive command
+// ErrRunbookDestructive means the runbook would execute a destructive command
 // and is not approved.
 var ErrRunbookDestructive = errors.New("runbook executes a destructive command and is not approved")
 

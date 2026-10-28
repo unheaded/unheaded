@@ -201,15 +201,21 @@ jobs:
       # a token, key or nonce), B605 (one os.popen with a fixed literal pipeline,
       # no interpolation), B101 (none guards a security property).
       #
-      # Still NON-GATING, deliberately: what survives the skips is 43 findings
-      # in four groups that need a decision, not a fix — B310 (35), B615, B314,
-      # B104, B405. Flipping to gating before those are decided would only
-      # invite another blanket suppression.
-      - name: bandit
-        continue-on-error: true
+      # GATING since 2026-10-28 (S-TRUE-WIRE Steps 359-363; the disposition
+      # doc's "Applied" section has every site). B310 (urlopen, 35) is skipped
+      # by rule ID because every configured URL that reaches urlopen is
+      # scheme-checked where it enters (raft/zhen_app.py _http_url_from_env,
+      # tomb/cerydwyn _http_url; tests raft/tests/test_zhen_url_scheme.py and
+      # tests/scripts/test_cerydwyn_url_scheme.py fail if a guard goes). A new
+      # urlopen on an unguarded URL is a review item this skip no longer
+      # catches. eval/champion-runbooks/fixtures is excluded: 20 generated
+      # copies of build.py's validator, frozen by the eval's PREREG, whose
+      # only finding is B105 on the regex that detects inline secrets.
+      # Everything else is fixed or carries a per-site `# nosec <ID> - reason`.
+      - name: bandit (GATING)
         run: >
-          bandit -r . -x ./llama.cpp,./target,./node_modules
-          --skip B603,B607,B404,B311,B605,B101
+          bandit -r . -x ./llama.cpp,./target,./node_modules,./eval/champion-runbooks/fixtures
+          --skip B603,B607,B404,B311,B605,B101,B310
 
   # runbook/v1 (ADR-024): every runbook parses and follows the schema, ratcheted
   # by runbooks/.check-baseline (may only shrink), and every runbook test passes
@@ -238,6 +244,10 @@ jobs:
           python3 -m pytest tests/runbooks -q -rfE -m "not live" 2>&1 | tee runbooks-pytest.log || rc=$?
           { echo '### runbook dry-run tests'; echo '```'; grep -E '^(FAILED|ERROR|=+ .*(passed|failed|error).* =+$|E +)' runbooks-pytest.log | tail -60; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
+      - name: script unit tests (GATING)
+        # Scripts outside the runbooks with a contract worth pinning
+        # (stress-cannon's Monad layout and CRC, S-TRUE-WIRE Step 212).
+        run: python3 -m pytest tests/scripts -q -rfE
 
   javascript:
     name: JavaScript (oxlint)

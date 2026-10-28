@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Traffic pattern analysis -> knowledge geography.
 //!
 //! Observes which fragments are accessed together, building an implicit

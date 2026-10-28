@@ -41,9 +41,9 @@ use aya_ebpf::{
     EbpfContext,
 };
 use monad_common::{
-    circuit_state, deploy_ring, flags, flow_action, redirect_action, AnamnesisEvent, EventType,
-    HopByHopHeader, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN,
-    MONAD_OPT_TYPE, MONAD_SIZE,
+    circuit_state, deploy_ring, flags, flow_action, redirect_action, AnamnesisEvent, ErrorCode,
+    EventType, HopByHopHeader, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE, MONAD_VERSION,
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -123,12 +123,6 @@ static SHIELD_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(4, 0);
 
 // ── Shield TC (Egress) specific maps ──────────────────────────────────────────
 
-/// GOAWAY state enforcement (RFC 9114 §7.2.6).
-/// Key: conn_id (u32, u32 for alignment = u64)
-/// Value: last_flow_id (u32), sent_at (u32), reason (u16), count (u16), flags (u32)
-#[map]
-static GOAWAY_STATE: HashMap<u64, [u8; 16]> = HashMap::with_max_entries(4096, 0);
-
 /// Error code counters per type (RFC 9114 §8).
 /// Key: error code (u16, u16 reserved for alignment = u64)
 /// Value: count (u32), last_seen_at (u32)
@@ -159,8 +153,12 @@ const STAT_DST_OPT_DISCARD: u32 = 10;
 const STAT_DST_OPT_ICMP: u32 = 11;
 #[allow(dead_code)]
 const STAT_DST_OPT_ICMP_MCAST: u32 = 12;
+// Keys 13-15 exist only in a debug-stats build (S-TRUE-WIRE Step 177).
+#[cfg(feature = "debug-stats")]
 const STAT_TC_ENTRY: u32 = 13;
+#[cfg(feature = "debug-stats")]
 const STAT_TC_IPV6: u32 = 14;
+#[cfg(feature = "debug-stats")]
 const STAT_TC_HBH: u32 = 15;
 const STAT_REDIRECT_ATTEMPTS: u32 = 16;
 const STAT_REDIRECT_SUCCESS: u32 = 17;
@@ -269,7 +267,7 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     // ── 4b–4d. HMAC / Retry / HopValidator lookups ─────────────────────────────
     // Deferred to reduce verifier instruction count.  The HMAC_KEYS,
     // RETRY_TOKENS, and HOP_VALIDATORS maps exist but have no userspace
-    // writer yet (M-180); validation logic will be enabled once bpf_loop()
+    // writer yet (M-180, FND-025); validation logic will be enabled once bpf_loop()
     // is integrated (S-TRUE-WIRE).
 
     // ── 5. Save original transport protocol before stripping extension headers ─
@@ -403,7 +401,7 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
                 let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
                 emit_anamnesis(
                     now,
-                    EventType::Birth,
+                    EventType::Born,
                     redirect_act,
                     flow_label,
                     &hbh_header.monad,
@@ -424,7 +422,7 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
     emit_anamnesis(
         now,
-        EventType::Birth,
+        EventType::Born,
         redirect_act,
         flow_label,
         &hbh_header.monad,
@@ -457,6 +455,7 @@ pub fn shield_tc(mut ctx: TcContext) -> i32 {
 
 #[inline(always)]
 fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
+    #[cfg(feature = "debug-stats")]
     increment_stat(STAT_TC_ENTRY);
 
     // Load EtherType to check for IPv6.
@@ -464,6 +463,7 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
     if u16::from_be(eth_proto) != ETH_P_IPV6 {
         return Ok(TC_ACT_OK);
     }
+    #[cfg(feature = "debug-stats")]
     increment_stat(STAT_TC_IPV6);
 
     // Load IPv6 Next Header field (offset 14 + 6 = 20).
@@ -472,6 +472,7 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
         // Not a Kingdom packet (no HBH) — pass through.
         return Ok(TC_ACT_OK);
     }
+    #[cfg(feature = "debug-stats")]
     increment_stat(STAT_TC_HBH);
 
     // ── Read the HBH Options header ────────────────────────────────────────────
@@ -503,29 +504,31 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
     let flow_label = u32::from_be(vtf) & 0xFFFFF;
 
     // ── Verify Monad integrity ─────────────────────────────────────────────────
-    // Emit anomaly if checksum fails, but still strip the header.
-    if !monad.verify_checksum() && !monad.has_flag(flags::CUSTOM) {
+    // Emit anomaly if checksum fails, but still strip the header. Under CUSTOM
+    // the checksum octets carry exponent keys, so there is no CRC to check.
+    let crc_failed = !monad.has_flag(flags::CUSTOM) && !monad.verify_checksum();
+    if crc_failed {
         increment_stat(STAT_ANOMALIES);
         let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
         emit_anamnesis(now, EventType::Anomaly, 0, flow_label, &monad);
     }
 
-    // ── GOAWAY monotonicity check (RFC 9114 §7.2.6) ────────────────────────────
-    // Extract connection ID from Monad scratch registers or flow label
-    let conn_id = flow_label >> 8; // Simplified: use high bits of flow label
-    let goaway_key = make_goaway_key(conn_id);
-    if let Some(_goaway_state) = unsafe { GOAWAY_STATE.get(&goaway_key) } {
-        // Check if we've already sent a GOAWAY on this connection
-        // Enforce that no more flows should be created
-        // Future: validate monotonicity of last_flow_id
-    }
+    // GOAWAY: no Kingdom stream sends one and no current draft defines it
+    // (foundation-06, wotan-memory-03); the map and its no-op lookup were
+    // removed (S-TRUE-WIRE Step 207, ruling Phase 4 Step 150).
 
-    // ── Error counter update (RFC 9114 §8) ──────────────────────────────────────
-    // If Monad has anomaly flag or corruption, increment error counter
-    if !monad.verify_checksum() || monad.has_flag(flags::CHAOS) {
-        // Extract error code from Monad (simplified: use hop_count as proxy)
-        let error_code = monad.hop_count as u16;
-        let error_key = make_error_key(error_code);
+    // ── Error counter (foundation-06 §Error Code Registry) ──────────────────────
+    // Count by registry code. CHAOS-flagged packets are left out: the
+    // corruption is intentional and EVENT_CHAOS already records it.
+    let error_code = if monad.version != MONAD_VERSION {
+        ErrorCode::VersionNotSupported
+    } else if crc_failed {
+        ErrorCode::CrcValidationFailed
+    } else {
+        ErrorCode::NoError
+    };
+    if error_code != ErrorCode::NoError && !monad.has_flag(flags::CHAOS) {
+        let error_key = make_error_key(error_code as u16);
         if let Some(counter) = ERROR_COUNTERS.get_ptr_mut(&error_key) {
             // Increment count in the first 4 bytes
             let count_ptr = counter as *mut u32;
@@ -546,7 +549,7 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
 
     // ── Emit DEATH event ───────────────────────────────────────────────────────
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
-    emit_anamnesis(now, EventType::Death, 0, flow_label, &monad);
+    emit_anamnesis(now, EventType::Died, 0, flow_label, &monad);
     increment_stat(STAT_DEATHS);
 
     // ── Strip the 24-byte HBH header ──────────────────────────────────────────
@@ -848,12 +851,6 @@ fn emit_block_event(ip: &Ipv6Hdr, _src_key: u64) {
     }
 }
 
-/// Encode a connection ID as a 64-bit map key for GOAWAY_STATE.
-#[inline(always)]
-fn make_goaway_key(conn_id: u32) -> u64 {
-    (conn_id as u64) << 32
-}
-
 /// Encode an error code as a 64-bit map key for ERROR_COUNTERS.
 #[inline(always)]
 fn make_error_key(code: u16) -> u64 {
@@ -878,61 +875,11 @@ fn increment_stat(key: u32) {
     }
 }
 
-// ── PQC Authentication Fast-Path ─────────────────────────────────────────
-
-/// BPF map for cached PQC signature verification status.
-/// Key: SigRef (u32), Value: PqcSigStatusEntry
-#[map]
-static PQC_SIG_STATUS: HashMap<u32, pqc_common::PqcSigStatusEntry> =
-    HashMap::with_max_entries(65536, 0);
-
-/// Check if a packet has PQC authentication flags set.
-/// This is the fast-path check at XDP layer — if PQC flags are set,
-/// we look up the cached verification result instead of doing full crypto.
-///
-/// **NOT WIRED UP.** Nothing calls this, and nothing populates
-/// `PQC_SIG_STATUS` — so no packet is classified here, and in particular no
-/// packet is dropped for a signature already known to be invalid. Do not
-/// treat XDP-layer PQC enforcement as existing until both ends are built.
-/// Full write-up, including why it was not wired up unattended (verifier
-/// budget + the PESSIMISTIC/OPTIMISTIC drop decision), in
-/// `docs/security/shield-ebpf-pqc-fast-path-unwired-2026-08-03.md`.
-#[allow(dead_code)] // see the note above — deliberately visible, not silenced
-#[inline(always)]
-fn pqc_fast_path_check(flags: u8, sig_ref: u32) -> PqcFastPathResult {
-    // Check if PQC is active (S+CUSTOM flags)
-    if !pqc_common::is_pqc_active(flags) {
-        return PqcFastPathResult::NotPqc;
-    }
-
-    // Look up cached verification status
-    match unsafe { PQC_SIG_STATUS.get(&sig_ref) } {
-        Some(entry) => match entry.status {
-            pqc_common::PqcSigStatus::Valid => PqcFastPathResult::CachedValid,
-            pqc_common::PqcSigStatus::Invalid => PqcFastPathResult::CachedInvalid,
-            pqc_common::PqcSigStatus::Expired => PqcFastPathResult::CachedInvalid,
-            _ => PqcFastPathResult::NeedUserspace,
-        },
-        None => PqcFastPathResult::NeedUserspace,
-    }
-}
-
-/// Result of the PQC fast-path check at XDP layer.
-///
-/// Unused for the same reason as `pqc_fast_path_check` — see that note.
-#[allow(dead_code)]
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-enum PqcFastPathResult {
-    /// Packet does not have PQC flags — proceed normally
-    NotPqc = 0,
-    /// Cached verification passed — allow packet
-    CachedValid = 1,
-    /// Cached verification failed — drop packet (PESSIMISTIC) or warn (OPTIMISTIC)
-    CachedInvalid = 2,
-    /// No cached result — pass to userspace for full verification
-    NeedUserspace = 3,
-}
+// ── PQC authentication ──────────────────────────────────────────────────────
+// No XDP-layer PQC verification exists. The cached-status map and the
+// fast-path check had no caller and no writer and were removed
+// (S-TRUE-WIRE Step 233; history in
+// docs/security/shield-ebpf-pqc-fast-path-unwired-2026-08-03.md).
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {

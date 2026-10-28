@@ -25,6 +25,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 // ── Size constants ──────────────────────────────────────────────────────────
@@ -43,44 +45,84 @@ const MonadVersion = 0x01
 
 // ── Event types ─────────────────────────────────────────────────────────────
 
-// EventType identifies the kind of Anamnesis event.
+// EventType identifies the kind of Anamnesis event: the foundation-06
+// "Anamnesis Event Types" registry.
+//
+// Objects built before S-TRUE-WIRE (Step 91, 2026-10-28) emitted BIRTH 0x01,
+// HOP 0x02 and DEATH 0x03 on the codes the spec gives COMPUTED, WOTAN_RD and
+// WOTAN_WR (E4 had already moved CHAOS and ANOMALY). The spec wins: Shield
+// ingress emits BORN, hop programs COMPUTED, Shield egress DIED.
+// DecodeAnamnesisEventLegacy reads the old numbering for one release.
 type EventType uint8
 
 const (
-	EventBirth   EventType = 0x01 // Shield ingress inserted the Monad
-	EventHop     EventType = 0x02 // Intermediate BPF program processed packet
-	EventDeath   EventType = 0x03 // Shield egress stripped the Monad
-	EventChaos   EventType = 0x04 // Yaldabaoth chaos injection (EVENT_CHAOS, foundation-06)
-	EventAnomaly EventType = 0x08 // CRC failure, unknown Sophia key, decode error (EVENT_ANOMALY)
-	// 0x05-0x07 are EVENT_ROLLBACK, EVENT_DIED and EVENT_KEY_OP in the
-	// foundation-06 registry; nothing emits them yet, so they are invalid here.
+	EventBorn     EventType = 0x00 // EVENT_BORN: Shield ingress inserted the Monad
+	EventComputed EventType = 0x01 // EVENT_COMPUTED: a hop executed its Shim step
+	EventWotanRd  EventType = 0x02 // EVENT_WOTAN_RD: Wotan memory read (no producer yet)
+	EventWotanWr  EventType = 0x03 // EVENT_WOTAN_WR: Wotan memory write (no producer yet)
+	EventChaos    EventType = 0x04 // EVENT_CHAOS: Yaldabaoth chaos injection
+	EventRollback EventType = 0x05 // EVENT_ROLLBACK: Monad rolled back (no producer yet)
+	EventDied     EventType = 0x06 // EVENT_DIED: Shield egress stripped the Monad
+	EventKeyOp    EventType = 0x07 // EVENT_KEY_OP: PQC key lifecycle (no producer yet)
+	EventAnomaly  EventType = 0x08 // EVENT_ANOMALY: CRC failure, unknown Sophia key, decode error
 )
 
-// String returns the human-readable event type name.
+// Deprecated: the pre-S-TRUE-WIRE names, kept for one release. They now
+// carry the spec values.
+const (
+	EventBirth = EventBorn
+	EventHop   = EventComputed
+	EventDeath = EventDied
+)
+
+// String returns the event type's name. The names are an API (JSON, the
+// dashboard's packet-flow view, Wotan topics), so the three renumbered types
+// keep the names they had: birth, hop, death.
 func (e EventType) String() string {
 	switch e {
-	case EventBirth:
+	case EventBorn:
 		return "birth"
-	case EventHop:
+	case EventComputed:
 		return "hop"
-	case EventDeath:
-		return "death"
-	case EventAnomaly:
-		return "anomaly"
+	case EventWotanRd:
+		return "wotan_rd"
+	case EventWotanWr:
+		return "wotan_wr"
 	case EventChaos:
 		return "chaos"
+	case EventRollback:
+		return "rollback"
+	case EventDied:
+		return "death"
+	case EventKeyOp:
+		return "key_op"
+	case EventAnomaly:
+		return "anomaly"
 	default:
 		return fmt.Sprintf("unknown(%d)", uint8(e))
 	}
 }
 
-// Valid returns true if the event type is a known value.
+// Valid returns true if the event type is registered in foundation-06.
 func (e EventType) Valid() bool {
-	switch e {
-	case EventBirth, EventHop, EventDeath, EventAnomaly, EventChaos:
-		return true
+	return e <= EventAnomaly
+}
+
+// legacyEventType maps a pre-S-TRUE-WIRE event byte to its spec type.
+func legacyEventType(v uint8) (EventType, bool) {
+	switch v {
+	case 0x01:
+		return EventBorn, true
+	case 0x02:
+		return EventComputed, true
+	case 0x03:
+		return EventDied, true
+	case 0x04:
+		return EventChaos, true
+	case 0x08:
+		return EventAnomaly, true
 	}
-	return false
+	return 0, false
 }
 
 // MarshalJSON encodes the event type as a JSON string.
@@ -88,23 +130,32 @@ func (e EventType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(e.String())
 }
 
-// UnmarshalJSON decodes the event type from a JSON string.
+// UnmarshalJSON decodes the event type from a JSON string. It accepts the
+// names String writes and the spec spellings born, computed and died.
 func (e *EventType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
 	switch s {
-	case "birth":
-		*e = EventBirth
-	case "hop":
-		*e = EventHop
-	case "death":
-		*e = EventDeath
-	case "anomaly":
-		*e = EventAnomaly
+	case "birth", "born":
+		*e = EventBorn
+	case "hop", "computed":
+		*e = EventComputed
+	case "wotan_rd":
+		*e = EventWotanRd
+	case "wotan_wr":
+		*e = EventWotanWr
 	case "chaos":
 		*e = EventChaos
+	case "rollback":
+		*e = EventRollback
+	case "death", "died":
+		*e = EventDied
+	case "key_op":
+		*e = EventKeyOp
+	case "anomaly":
+		*e = EventAnomaly
 	default:
 		return fmt.Errorf("unknown event type: %q", s)
 	}
@@ -261,35 +312,19 @@ func (m *MonadState) ScratchR1() uint16 {
 // VerifyChecksum verifies the CRC-16/CCITT over Monad octets 0x00–0x11.
 func (m *MonadState) VerifyChecksum() bool {
 	b := m.Encode()
-	expected := CRC16CCITT(b[:MonadCRCDataLen])
+	expected := encoding.CRC16CCITT(b[:MonadCRCDataLen])
 	return expected == m.Checksum
 }
 
 // RecomputeChecksum recomputes and stores the CRC-16/CCITT checksum.
 func (m *MonadState) RecomputeChecksum() {
 	b := m.Encode()
-	m.Checksum = CRC16CCITT(b[:MonadCRCDataLen])
+	m.Checksum = encoding.CRC16CCITT(b[:MonadCRCDataLen])
 	// Re-encode checksum bytes are now correct since we update m.Checksum
 }
 
-// ── CRC-16/CCITT ────────────────────────────────────────────────────────────
-
-// CRC16CCITT computes CRC-16/CCITT (polynomial 0x1021, initial 0xFFFF).
-// No final XOR, no input/output reflection — CRC-16/IBM-3740 variant.
-func CRC16CCITT(data []byte) uint16 {
-	crc := uint16(0xFFFF)
-	for _, b := range data {
-		crc ^= uint16(b) << 8
-		for j := 0; j < 8; j++ {
-			if crc&0x8000 != 0 {
-				crc = (crc << 1) ^ 0x1021
-			} else {
-				crc <<= 1
-			}
-		}
-	}
-	return crc
-}
+// The Monad checksum is encoding.CRC16CCITT (CRC-16/CCITT-FALSE, poly 0x1021,
+// init 0xFFFF): one implementation for the whole tree (S-TRUE-WIRE Step 110).
 
 // ── Compute event type constants ─────────────────────────────────────────────
 // These must match the Rust side byte-for-byte.
@@ -379,18 +414,41 @@ type AnamnesisEvent struct {
 var (
 	ErrEventTooShort    = errors.New("anamnesis event too short")
 	ErrEventUnknownType = errors.New("unknown anamnesis event type")
+	// ErrEventZeroTimestamp: BORN is 0x00, so an all-zero record would read
+	// as a birth. bpf_ktime_get_ns is never 0 on a live kernel; a record
+	// without a timestamp is refused.
+	ErrEventZeroTimestamp = errors.New("anamnesis event has no timestamp")
 )
 
-// DecodeAnamnesisEvent decodes a 32-byte Anamnesis event from a byte slice.
+// DecodeAnamnesisEvent decodes a 32-byte Anamnesis event from a byte slice,
+// with event types in the foundation-06 numbering.
 // The timestamp is little-endian (native kernel byte order on arm64/x86_64).
 // The flow_label_lo and Monad fields are big-endian (network byte order).
 func DecodeAnamnesisEvent(b []byte) (*AnamnesisEvent, error) {
+	return decodeAnamnesisEvent(b, func(v uint8) (EventType, bool) {
+		et := EventType(v)
+		return et, et.Valid()
+	})
+}
+
+// DecodeAnamnesisEventLegacy decodes a record from an object built before
+// S-TRUE-WIRE (BIRTH 0x01, HOP 0x02, DEATH 0x03, CHAOS 0x04, ANOMALY 0x08).
+// The numberings overlap, so the caller must know the source is legacy; the
+// byte alone cannot say. Removed one release after S-TRUE-WIRE.
+func DecodeAnamnesisEventLegacy(b []byte) (*AnamnesisEvent, error) {
+	return decodeAnamnesisEvent(b, legacyEventType)
+}
+
+func decodeAnamnesisEvent(b []byte, typeOf func(uint8) (EventType, bool)) (*AnamnesisEvent, error) {
 	if len(b) < AnamnesisEventSize {
 		return nil, fmt.Errorf("%w: %d < %d", ErrEventTooShort, len(b), AnamnesisEventSize)
 	}
-
-	evType := EventType(b[8])
-	if !evType.Valid() {
+	ts := binary.LittleEndian.Uint64(b[0:8])
+	if ts == 0 {
+		return nil, ErrEventZeroTimestamp
+	}
+	evType, ok := typeOf(b[8])
+	if !ok {
 		return nil, fmt.Errorf("%w: %d", ErrEventUnknownType, b[8])
 	}
 
@@ -400,7 +458,7 @@ func DecodeAnamnesisEvent(b []byte) (*AnamnesisEvent, error) {
 	}
 
 	return &AnamnesisEvent{
-		TimestampNs: binary.LittleEndian.Uint64(b[0:8]),
+		TimestampNs: ts,
 		EventType:   evType,
 		HopID:       b[9],
 		FlowLabelLo: binary.BigEndian.Uint16(b[10:12]),

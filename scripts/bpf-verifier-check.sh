@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # BPF Verifier CI Gate — ADR-012
 # Checks: compilation, instruction budget, known issues
 # Exit 0 = all gates pass, Exit 1 = failure
@@ -114,22 +116,21 @@ echo "  Bound references: $BOUNDED"
 echo ""
 echo "=== Phase 4: Instruction count check ==="
 
-# Check monad-cpu-ebpf specifically (the complex one)
-MONAD_BPF="$CARGO_TARGET_DIR/bpfel-unknown-none/release/monad-cpu-ebpf"
-if [ -f "$MONAD_BPF" ]; then
-    SIZE=$(stat --format=%s "$MONAD_BPF" 2>/dev/null || echo "0")
-    # Rough estimate: BPF instructions are 8 bytes each
-    EST_INSNS=$((SIZE / 8))
-    echo "  monad-cpu-ebpf: ${SIZE} bytes (~${EST_INSNS} estimated instructions)"
-    if [ "$EST_INSNS" -gt "$BUDGET" ]; then
-        echo "  FAIL: Estimated instruction count ($EST_INSNS) exceeds budget ($BUDGET)"
-        FAILURES=$((FAILURES + 1))
-    else
-        PCT=$((EST_INSNS * 100 / BUDGET))
-        echo "  OK: ${PCT}% of budget used"
-    fi
+# The kernel's own count, not an estimate. Until S-TRUE-WIRE (Step 270) this
+# divided the object's byte size by eight, which cannot see what the verifier
+# walks. The verified-instruction numbers are measured at load time by
+# scripts/check-ebpf-loads.sh and held to a ratchet by
+# scripts/check-ebpf-insns.sh (needs root); this prints the committed
+# baseline so the static pass still shows where monad-cpu-ebpf stands.
+INSNS_BASELINE="$PROJECT_ROOT/docs/policy/ebpf-insns-baseline.tsv"
+if [ -f "$INSNS_BASELINE" ]; then
+    awk -F'\t' -v b="$BUDGET" 'NR>1 && $1 ~ /^monad-cpu-ebpf\// {
+        printf "  %s [%s]: verified insns (baseline %s, kernel %s): %d (%.1f %% of 1M, %.1f %% of the %d budget)\n", $1, $2, $5, $4, $3, $3 / 10000, $3 * 100 / b, b
+    }' "$INSNS_BASELINE"
+    echo "  Enforcement: scripts/check-ebpf-insns.sh (growth > 10 %, or over ${BUDGET} unless allowlisted)"
 else
-    echo "  SKIP: monad-cpu-ebpf binary not found (build may have failed)"
+    echo "  FAIL: $INSNS_BASELINE is missing"
+    FAILURES=$((FAILURES + 1))
 fi
 
 # ---- Note: this script compile-checks + static-analyzes only ----

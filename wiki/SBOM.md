@@ -27,7 +27,7 @@ The March 2026 audit counted 553 dependencies; that number included npm packages
 
 ## SPDX Headers
 
-Source files carry `SPDX-License-Identifier` headers; `ci.yml` (`spdx-check`) fails if a Go file lacks one.
+Source files carry `SPDX-License-Identifier` headers. `scripts/check-spdx.sh --langs go,rs --forbid MIT` (CI job `spdx-check`, Jenkins stage `SPDX Headers`) fails if a tracked Go or Rust file lacks one or declares MIT; `scripts/spdx-backfill.sh --apply` adds the two-line header (scope and identifier rule in `scripts/lib/spdx.sh`; vendored `llama.cpp/`, `doom/`, `crates/xv6-mbc/upstream/` are out of scope). Python and shell are reported (`--langs py,sh`) but not gated: 22 Doom scripts and 6 fixtures still lack a header. What remains MIT and why: `docs/legal/LICENSE-MIT.md`.
 
 ## Audit Process
 

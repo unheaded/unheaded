@@ -1,0 +1,7 @@
+# eBPF programs allowed above ADR-012's 900,000 verified-instruction budget,
+# per scripts/check-ebpf-insns.sh. This list may only SHRINK: a program that
+# drops to the budget or below must be taken off (the gate fails until it is).
+#
+# Format: <elf>/<program>|<variant>  # reason
+#
+monad-cpu-ebpf/monad_cpu|ascend-linux  # 926,542 (92.7 % of 1M) since ASCEND-LINUX Gate D (2026-07): the xv6 interpreter with every ascend-linux handler in one program; over ADR-012's 90 % budget by design, under the kernel's 1M ceiling. Bisect growth with UPC_VERIFIER_STATS=1 (memory: never a second variable RAM_MAP offset in a loop)

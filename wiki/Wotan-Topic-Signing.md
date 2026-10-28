@@ -92,6 +92,31 @@ Through `pkg/wotan-client`: `msg.VerifySignature(trusted)`. Publishers use
 clock and no replay cache: freshness and replay are Wotan's checks at publish
 time.
 
+## Replication keeps signatures (FND-020)
+
+A signed message is persisted with its signature (`store.Message.Signed`), so
+the WAL holds it. When a primary streams its WAL to a standby (`CatchUp`),
+each `WALEntry` carries `signature`, `public_key`, `algorithm`,
+`signed_at_unix_ms` and `sender_id` (fields 7-11, additive). The standby runs
+`cluster.VerifyEntry` before applying anything, against its own signing
+policy (the same `topics.signing_keys` / `signed_prefixes` it enforces on
+publish):
+
+- unsigned topic: applied as is;
+- signed topic, no signature: rejected, `reason="unsigned"` (an old primary
+  does not get to decide that a topic is unsigned);
+- untrusted key, wrong algorithm, bad signature: `reason="signature"`;
+- fields that differ from the signature stored in the entry's data:
+  `reason="mismatch"`; data that is not a stored message: `reason="decode"`.
+
+Rejections are counted in `unheaded_wotan_replication_rejected_total{reason}`,
+logged with topic and sequence, and skipped. The standby checks key and
+signature only (`TopicVerifier.VerifyStored`): no clock window and no replay
+cache, because a stored message is old by design and the primary checked
+freshness when it accepted it. Cluster mode itself still refuses to start
+(ADR-064), so this is proven in-process (`internal/cluster/signature_test.go`)
+and not yet live. The Postgres store keeps no signature (no column).
+
 ## Heimdall drift events
 
 `heimdall-daemon --wotan-grpc ADDR --drift-sign-key SEED` publishes each drift

@@ -112,7 +112,7 @@ type AgentRun struct {
 	HeadCommit   string
 }
 
-// ErrUnavailable: the source this read needs is not there (no ops DSN,
+// ErrUnavailable means the source this read needs is not there (no ops DSN,
 // or a table a later migration creates). The caller reports and skips.
 var ErrUnavailable = errors.New("source unavailable")
 

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # 05-cis-hardening.sh — Apply CIS Debian Linux 12 Benchmark Level 1 hardening.
 # Free to use. Free to share.
 set -euo pipefail

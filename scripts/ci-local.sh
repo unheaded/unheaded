@@ -156,6 +156,16 @@ else
     skip_step "retention job (throwaway Well)" "docker not available"
 fi
 
+# 11c. eBPF verifier-instruction ratchet (ADR-012; S-TRUE-WIRE Phase 7):
+#      loads every program (root) and compares the kernel's verified counts
+#      with docs/policy/ebpf-insns-baseline.tsv. Its baseline is west's
+#      kernel; elsewhere it exits 2 (not comparable), which fails this step.
+if [ "$(id -u)" -eq 0 ] || sudo -n true 2>/dev/null; then
+    run_step "eBPF verified-instruction ratchet" scripts/check-ebpf-insns.sh
+else
+    skip_step "eBPF verified-instruction ratchet" "needs root or passwordless sudo to load programs"
+fi
+
 # 12. Perf regression (west only, needs the running stack; M-089).
 #     Opt-in: it publishes to Wotan (bench.perf.packet only) and holds
 #     1000 req/s against -health for 60 s, so a casual run never loads the

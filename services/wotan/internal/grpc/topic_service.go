@@ -13,10 +13,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	grpclib "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"unheaded/pkg/auth"
+	"unheaded/pkg/wotanerr"
 	"unheaded/services/wotan/internal/logger"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
@@ -26,6 +29,7 @@ import (
 	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/wotan"
 	chatpb "unheaded/services/wotan/proto"
+	"unicode/utf8"
 )
 
 // TopicStreamsLabel is the room_id label under which open topic streams
@@ -544,6 +548,15 @@ func (s *TopicService) watchTopicsForPattern(
 	}
 }
 
+// codedError returns a gRPC status error and puts the wotan-memory-03
+// structured code on the call's x-wotan-error trailer (S-TRUE-WIRE Step
+// 145). Called without a server stream in ctx (a direct call in a test),
+// SetTrailer fails and only the status error is returned.
+func codedError(ctx context.Context, c codes.Code, wc wotanerr.Code, msg string) error {
+	_ = grpclib.SetTrailer(ctx, metadata.Pairs(wotanerr.TrailerKey, wc.Hex())) // #nosec G104 -- no stream means no trailer; the status error still carries the refusal
+	return status.Error(c, msg)
+}
+
 // PublishTopic implements the gRPC PublishTopic method.
 // Publishes a message to a topic and returns metadata including message ID and sequence number.
 func (s *TopicService) PublishTopic(
@@ -589,7 +602,7 @@ func (s *TopicService) PublishTopic(
 				Str("topic", req.Topic).
 				Str("sender_id", senderID.String()).
 				Msg("sender_not_approved")
-			return nil, status.Error(codes.PermissionDenied, "sender not approved")
+			return nil, codedError(ctx, codes.PermissionDenied, wotanerr.UnauthorizedPublish, "sender not approved")
 		}
 		// A sender_id is no secret (every subscriber sees it as a
 		// message's sender_id): with auth on, a caller publishes only
@@ -600,7 +613,7 @@ func (s *TopicService) PublishTopic(
 					Str("topic", req.Topic).
 					Str("caller", identity.Subject).
 					Msg("sender_belongs_to_another_identity")
-				return nil, status.Error(codes.PermissionDenied, "sender belongs to another identity")
+				return nil, codedError(ctx, codes.PermissionDenied, wotanerr.UnauthorizedPublish, "sender belongs to another identity")
 			}
 		}
 	} else {
@@ -621,7 +634,7 @@ func (s *TopicService) PublishTopic(
 				Str("topic", req.Topic).
 				Str("display_name", displayName).
 				Msg("publisher_not_auto_approved")
-			return nil, status.Error(codes.PermissionDenied, "publisher not approved")
+			return nil, codedError(ctx, codes.PermissionDenied, wotanerr.UnauthorizedPublish, "publisher not approved")
 		}
 
 		autoPublisher = displayName
@@ -653,7 +666,7 @@ func (s *TopicService) PublishTopic(
 			logger.FromContext(ctx).Warn().
 				Str("topic", req.Topic).
 				Msg("signed_topic_unsigned")
-			return nil, status.Error(codes.InvalidArgument, prefix+"* topics require ML-DSA-65 signature")
+			return nil, codedError(ctx, codes.InvalidArgument, wotanerr.SignatureRequired, prefix+"* topics require ML-DSA-65 signature")
 		}
 		// Fail closed. No verifier (no policy) refuses signed-prefix
 		// publishes, never waves them through unchecked.
@@ -663,7 +676,17 @@ func (s *TopicService) PublishTopic(
 			logger.FromContext(ctx).Error().
 				Str("topic", req.Topic).
 				Msg("signed_topic_verifier_unavailable")
-			return nil, status.Error(codes.PermissionDenied, "signature verification unavailable")
+			return nil, codedError(ctx, codes.PermissionDenied, wotanerr.SignatureUnverifiable, "signature verification unavailable")
+		}
+		// The signature covers these bytes; the stored copy is a string
+		// that JSON encoding rewrites unless it is valid UTF-8, and a
+		// standby verifies the stored copy (FND-020). Refuse what could not
+		// survive storage intact.
+		if !utf8.Valid(req.Payload) {
+			logger.FromContext(ctx).Warn().
+				Str("topic", req.Topic).
+				Msg("signed_topic_payload_not_utf8")
+			return nil, status.Error(codes.InvalidArgument, prefix+"* payloads must be valid UTF-8: the signature is verified over the stored copy")
 		}
 		signed = &signing.Signed{
 			Signature: req.Signature, PublicKey: req.PublicKey, Algorithm: req.Algorithm, SignedAtUnixMs: req.SignedAtUnixMs,
@@ -673,7 +696,7 @@ func (s *TopicService) PublishTopic(
 				Err(err).
 				Str("topic", req.Topic).
 				Msg("signed_topic_signature_invalid")
-			return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
+			return nil, codedError(ctx, codes.PermissionDenied, wotanerr.SignatureInvalid, "signature verification failed: "+err.Error())
 		}
 	}
 
@@ -691,7 +714,7 @@ func (s *TopicService) PublishTopic(
 	if signed != nil {
 		if err := verifier.Accept(*signed); err != nil {
 			logger.FromContext(ctx).Warn().Err(err).Str("topic", req.Topic).Msg("signed_topic_replay")
-			return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
+			return nil, codedError(ctx, codes.PermissionDenied, wotanerr.SignatureInvalid, "signature verification failed: "+err.Error())
 		}
 	}
 
@@ -723,7 +746,9 @@ func (s *TopicService) PublishTopic(
 	// returns, before the write lands. A store error is logged, not returned:
 	// the message is already in the ring buffer and on its way out.
 	if s.Store != nil {
-		storeMsg := &store.Message{ID: msg.ID, CreatorID: msg.CreatorID, RoomID: msg.RoomID, Content: msg.Content, Timestamp: msg.Timestamp}
+		// The signature is persisted with the message: replication sends
+		// the WAL, and a standby must receive it signed (FND-020).
+		storeMsg := &store.Message{ID: msg.ID, CreatorID: msg.CreatorID, RoomID: msg.RoomID, Content: msg.Content, Timestamp: msg.Timestamp, Signed: msg.Signed}
 		pctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), persistTimeout)
 		log := logger.FromContext(ctx)
 		topic := req.Topic

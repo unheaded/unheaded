@@ -37,6 +37,12 @@ normative:
       Internet-Draft: draft-bellis-unheaded-sophia-dictionary-03
 
 informative:
+  UNHEADED-ADR108:
+    title: "ADR-108: MBC Cartridges"
+    author:
+      - ins: S. Bellis
+    date: 2026-10
+    target: "https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-108-mbc-cartridges.md"
   RFC8799:
 
 --- abstract
@@ -218,6 +224,20 @@ Category    Name                Description
 Detail:
 : 8-bit error detail code. Bits 7-0. Interpretation depends on the
   category.
+
+Implementation (S-TRUE-WIRE Step 145, `pkg/wotanerr`): Wotan
+carries the 32-bit code at its API boundary only: an HTTP error
+response carries it in the X-Wotan-Error header and a gRPC error in the
+x-wotan-error trailer, each as "0x" followed by eight hexadecimal
+digits (for example, X-Wotan-Error: 0x44010001 is [ERROR, GRPC, ACCESS,
+0x01], an unauthorized topic publish). Bits 15-8 are sent as zero.
+Internal operations and WAL entries do not carry the code. The codes
+emitted are the unauthorized-publish row of the gRPC Streaming Errors
+table and,
+under origin WOTAN_TOPIC, ACCESS_CONTROL 0x01 (topic API publish
+refused), PROTOCOL 0x01 (unknown topic endpoint), INTEGRITY 0x01
+(signature required), INTEGRITY 0x02 (signature invalid) and
+CONFIGURATION 0x01 (no verifier for a signed prefix).
 
 ## Helper Return Code Mapping
 
@@ -996,14 +1016,39 @@ Security considerations in this memo are aligned with:
 This memo does not request IANA registration of option types or protocol
 numbers; those are handled by [UNHEADED-FOUNDATION].
 
-Wotan topic naming uses informal convention (compute.*, sophia.*,
-anamnesis.*). If standardization is needed, IANA may create a registry:
+## Wotan Topic Namespace Registry
+
+IANA is requested to create a registry entitled "Wotan Topic Namespace".
+A topic name is a sequence of one or more segments separated by "."; a
+segment consists of the characters a-z, A-Z, 0-9, "-" and "_".  A
+registered name ending in ".*" reserves every name with exactly one
+further segment.
+
+The Designated Expert checks that a request names the producing
+component and every payload field, and SHOULD refuse a registration
+whose payload can carry packet payload octets or user data.
 
 ~~~~~
 Registry Name: Wotan Topic Namespace
-Policy: Expert Review
-Template: Topic Name, Component, Description, Reference
+Policy:        Expert Review
+Template:      Topic Name, Component, Description, Reference
+
+Initial entries:
+  Topic Name      Component         Description       Reference
+  --------------  ----------------  ----------------  ---------
+  compute.tty.*   UPC TTY           TTY output per    this doc
+                                    flow label
+  anomaly.scores  anomaly service   flow score:       [ADR-108]
+                                    flow_key, score
+                                    0-100, model_id
+  upc.cart.*      cartridge loader  cartridge loads,  [ADR-108]
+                                    events and faults
+                                    per slot
 ~~~~~
+
+Every payload on anomaly.scores and upc.cart.* carries flow metadata and
+a score or a cartridge event [UNHEADED-ADR108]; neither topic can carry
+packet payload.
 
 ## Wotan Error Origin Registry (NEW in draft-03)
 

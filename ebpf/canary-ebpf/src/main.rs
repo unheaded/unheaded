@@ -247,7 +247,7 @@ fn try_canary_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     // ── Emit canary event ────────────────────────────────────────────────────
     let hop_id = cfg(CFG_HOP_ID) as u8;
     if m.has_flag(flags::TRACED) || m.has_flag(flags::CANARY) {
-        emit_event(EventType::Hop as u8, hop_id, flow_label, &m);
+        emit_event(EventType::Computed as u8, hop_id, flow_label, &m);
     }
 
     Ok(xdp_action::XDP_TX)

@@ -442,7 +442,7 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     let sampled = divisor == 0 || (flow_label % divisor) == 0;
 
     if m.has_flag(flags::TRACED) || m.has_flag(flags::SAMPLED) || sampled {
-        emit_event(EventType::Hop as u8, hop_id, flow_label, &m);
+        emit_event(EventType::Computed as u8, hop_id, flow_label, &m);
     }
 
     if should_drop {

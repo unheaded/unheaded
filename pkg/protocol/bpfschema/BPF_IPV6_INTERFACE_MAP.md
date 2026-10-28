@@ -27,9 +27,9 @@ it owns.
 | Emit BIRTH event | Monad spec | §6.1 | pkg/ebpf/anamnesis | ANAMNESIS |
 | Source blocklist check | — | — | (custom) | BLOCKLIST |
 | Rate limiting (token bucket) | RFC 9000 | §21.3 | pkg/protocol/amplification | RATE_TOKENS |
-| **GAP: No HMAC validation** | RFC 9000 | §8.1 | pkg/protocol/integrity | unhd_hmac_keys |
-| **GAP: No retry token check** | RFC 9000 | §8.1.2 | pkg/protocol/migration | unhd_retry_tokens |
-| **GAP: No hop validator** | RFC 8200 | §4 | pkg/protocol/intermediary | unhd_hop_validators |
+| **GAP: No HMAC validation** | RFC 9000 | §8.1 | pkg/protocol/integrity | HMAC_KEYS |
+| **GAP: No retry token check** | RFC 9000 | §8.1.2 | pkg/protocol/migration | RETRY_TOKENS |
+| **GAP: No hop validator** | RFC 8200 | §4 | pkg/protocol/intermediary | HOP_VALIDATORS |
 
 ### Shield TC (Egress Boundary)
 
@@ -39,9 +39,9 @@ it owns.
 | Emit DEATH event | Monad spec | §6.1 | pkg/ebpf/anamnesis | ANAMNESIS |
 | Strip HBH header (24B removal) | RFC 8200 | §4.2 | pkg/ebpf/loader | — |
 | Restore transport Next Header | RFC 8200 | §4 | pkg/ebpf/loader | — |
-| **GAP: No GOAWAY enforcement** | RFC 9114 | §7.2.6 | pkg/protocol/lifecycle | unhd_goaway_state |
-| **GAP: No error counter update** | RFC 9114 | §8 | pkg/protocol/errors | unhd_error_counters |
-| **GAP: No authority check** | RFC 8200 | §4.2 | pkg/protocol/intermediary | unhd_authority |
+| ~~GAP: No GOAWAY enforcement~~ (not a gap: no current draft defines GOAWAY on Kingdom streams; map removed S-TRUE-WIRE Step 207) | RFC 9114 | §7.2.6 | pkg/protocol/lifecycle | — |
+| **GAP: No error counter update** | RFC 9114 | §8 | pkg/protocol/errors | ERROR_COUNTERS |
+| **GAP: No authority check** | RFC 8200 | §4.2 | pkg/protocol/intermediary | AUTHORITY |
 
 ### Hop XDP (Per-Hop ALU)
 
@@ -79,8 +79,8 @@ it owns.
 | 5-tuple flow tracking | RFC 8200 | §3 (flow def) | (custom) | FLOWS |
 | TCP state machine | RFC 9293 | §3.3 | (custom) | FLOWS |
 | Trace ID correlation | Monad spec | §6 | pkg/ebpf/anamnesis | TRACE_ASSOC |
-| ✅ Flow migration token check | RFC 9000 | §9 | pkg/protocol/migration | unhd_migration_tokens |
-| ✅ Per-flow cancellation check | RFC 9114 | §4.1.1 | pkg/protocol/lifecycle | unhd_cancel_flows |
+| ✅ Flow migration token check | RFC 9000 | §9 | pkg/protocol/migration | MIGRATION_TOKENS |
+| ✅ Per-flow cancellation check | RFC 9114 | §4.1.1 | pkg/protocol/lifecycle | CANCEL_FLOWS |
 
 ### Monad CPU (Doom-over-IPv6)
 
@@ -103,22 +103,22 @@ These maps have corresponding struct definitions in `pkg/protocol/bpfschema/`:
 
 | Existing Map | bpfschema Struct | Status | Action |
 |-------------|------------------|--------|--------|
-| (new) unhd_hmac_keys | HMACKeyKey/Value | Scaffolded | Wire to Shield XDP |
-| (new) unhd_seq_counters | SeqCounterKey/Value | Scaffolded | Wire to Hop XDP |
-| (new) unhd_ring_path | RingPathKey/Value | Scaffolded | Wire to Shield XDP |
-| (new) unhd_migration_tokens | FlowMigrationTokenValue* | ✅ Wired | Flow Tracker (IPv4-based) |
-| (new) unhd_retry_tokens | MigrationTokenKey/Value | Scaffolded | Wire to Shield XDP (IPv6) |
-| (new) unhd_sophia_sync | SophiaSyncKey/Value | Scaffolded | Wire to Hop XDP |
-| (new) unhd_error_counters | ErrorCounterKey/Value | Scaffolded | Wire to Shield TC |
-| (new) unhd_tlv_registry | TLVHandlerEntry | Scaffolded | Wire to Shield XDP |
-| (new) unhd_settings | SettingsKey/Value | Scaffolded | Wire to Hop XDP |
-| (new) unhd_dos_state | DoSStateKey/Value | Scaffolded | Wire to Hop XDP |
-| (new) unhd_flow_types | FlowTypeEntry | Scaffolded | Wire to Hop XDP |
-| (new) unhd_goaway_state | GoawayStateKey/Value | Scaffolded | Wire to Shield TC |
-| (new) unhd_cancel_flows | FlowCancelValue* | ✅ Wired | Flow Tracker (IPv4-based) |
-| (new) unhd_prefetch_hints | PrefetchHintKey/Value | Scaffolded | Wire to Hop XDP |
-| (new) unhd_hop_validators | HopValidatorKey/Value | Scaffolded | Wire to Shield XDP |
-| (new) unhd_authority | AuthorityKey/Value | Scaffolded | Wire to Shield TC |
+| (new) HMAC_KEYS | HMACKeyKey/Value | Scaffolded | Wire to Shield XDP |
+| (new) SEQ_COUNTERS | SeqCounterKey/Value | Scaffolded | Wire to Hop XDP |
+| (new) (no Rust map) | RingPathKey/Value | Scaffolded | Wire to Shield XDP |
+| (new) MIGRATION_TOKENS | FlowMigrationTokenValue* | ✅ Wired | Flow Tracker (IPv4-based) |
+| (new) RETRY_TOKENS | MigrationTokenKey/Value | Scaffolded | Wire to Shield XDP (IPv6) |
+| (new) (no Rust map) | SophiaSyncKey/Value | Scaffolded | Wire to Hop XDP |
+| (new) ERROR_COUNTERS | ErrorCounterKey/Value | Scaffolded | Wire to Shield TC |
+| (new) (no Rust map) | TLVHandlerEntry | Scaffolded | Wire to Shield XDP |
+| (new) SETTINGS | SettingsKey/Value | Scaffolded | Wire to Hop XDP |
+| (new) DOS_STATE | DoSStateKey/Value | Scaffolded | Wire to Hop XDP |
+| (new) FLOW_TYPES | FlowTypeEntry | Scaffolded | Wire to Hop XDP |
+| ~~GOAWAY_STATE~~ | — | Removed (S-TRUE-WIRE Step 207) | — |
+| (new) CANCEL_FLOWS | FlowCancelValue* | ✅ Wired | Flow Tracker (IPv4-based) |
+| (new) (no Rust map) | PrefetchHintKey/Value | Scaffolded | Wire to Hop XDP |
+| (new) HOP_VALIDATORS | HopValidatorKey/Value | Scaffolded | Wire to Shield XDP |
+| (new) AUTHORITY | AuthorityKey/Value | Scaffolded | Wire to Shield TC |
 
 ### Maps Needing bpfschema Definitions (Existing eBPF Maps)
 
@@ -190,30 +190,30 @@ Per RFC 8200 §4, the following extension header processing rules MUST be implem
 
 **Shield XDP (add 3 map lookups):**
 ```
-unhd_hmac_keys    → Validate HMAC before admitting packet
-unhd_retry_tokens → Check retry token on initial flows
-unhd_hop_validators → Validate Monad fields per hop policy
+HMAC_KEYS    → Validate HMAC before admitting packet
+RETRY_TOKENS → Check retry token on initial flows
+HOP_VALIDATORS → Validate Monad fields per hop policy
 ```
 
 **Shield TC (add 3 map lookups):**
 ```
-unhd_goaway_state    → Enforce GOAWAY monotonicity on egress
-unhd_error_counters  → Increment error counters
-unhd_authority       → Verify dictionary authority
+(GOAWAY_STATE removed, S-TRUE-WIRE Step 207)
+ERROR_COUNTERS  → Increment error counters
+AUTHORITY       → Verify dictionary authority
 ```
 
 **Hop XDP (add 4 map lookups):**
 ```
-unhd_seq_counters → Update namespace sequence
-unhd_settings     → Check capability negotiation
-unhd_dos_state    → Report backpressure level
-unhd_flow_types   → Dispatch by flow type
+SEQ_COUNTERS → Update namespace sequence
+SETTINGS     → Check capability negotiation
+DOS_STATE    → Report backpressure level
+FLOW_TYPES   → Dispatch by flow type
 ```
 
 **Flow Tracker (add 2 map lookups):**
 ```
-unhd_migration_tokens → Validate migration
-unhd_cancel_flows     → Check cancellation state
+MIGRATION_TOKENS → Validate migration
+CANCEL_FLOWS     → Check cancellation state
 ```
 
 ---
@@ -280,8 +280,8 @@ Therefore, migration and cancellation state must use IPv4-based key/value pairs:
 
 | Map | Key | Value | Location |
 |-----|-----|-------|----------|
-| unhd_migration_tokens | FlowKey (IPv4, 16B) | FlowMigrationTokenValue (48B) | pkg/protocol/bpfschema/core_maps.go |
-| unhd_cancel_flows | FlowKey (IPv4, 16B) | FlowCancelValue (24B) | pkg/protocol/bpfschema/core_maps.go |
+| MIGRATION_TOKENS | FlowKey (IPv4, 16B) | FlowMigrationTokenValue (48B) | pkg/protocol/bpfschema/core_maps.go |
+| CANCEL_FLOWS | FlowKey (IPv4, 16B) | FlowCancelValue (24B) | pkg/protocol/bpfschema/core_maps.go |
 
 **Key Difference**: The IPv6-based `MigrationTokenKey` (bpfschema.go) uses FlowID+SrcAddr[16].
 The IPv4-based `FlowKey` (core_maps.go) uses SrcAddr[4]+DstAddr[4]+SrcPort+DstPort+Protocol.

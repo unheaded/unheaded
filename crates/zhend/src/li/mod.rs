@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! # Li (理) -- Emergent Pattern
 //!
 //! The pattern in jade. The grain in wood. The riverbed carved by water.

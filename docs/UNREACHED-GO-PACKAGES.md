@@ -58,9 +58,19 @@ F4 `pkg/config`, `pkg/testing`, `services/kenoma`.
   `integration_test.go`, which exercised only the deleted F2 packages.
 - G7 bare metal / Sabatons (6): Stevie's standing "parked".
 - G8 protocol reference code (17, `pkg/protocol/*`, `pkg/monad`): reference
-  code for frozen specs; deleting it is an RFC Editor decision.
+  code for frozen specs; deleting it is an RFC Editor decision. **Ruled
+  2026-10-27** in `docs/protocol/G8-REFERENCE-RULINGS.md`: reference, by ruling
+  (KEEP or KEEP-AFTER): `errors`, `tlv`, `pkg/monad`; wired in later phases:
+  `sophiasync`, `integrity` (HMAC); decided in Phases 4/5: `settings`,
+  `lifecycle`, `migration`; E3 delete rows: `amplification`, `dos`,
+  `intermediary`, `prefetch`, `flowtype`, `sequence`, `registry`. A
+  regeneration does not re-ask these.
 - G9 control planes waiting for their eBPF half (10): see the `unwired:` notes
   in the list. `services/anomaly` left the list on 2026-10-23 (`cmd/anomaly`).
+- **One decision table for G9, F5, F6, the G8 delete rows, `pkg/afxdp`,
+  `cmd/ebpf-exporter`, `cmd/pqc-verifier`, `pkg/waf`, `lxd/` and the host
+  stacks:** [docs/sweeps/TRUE-WIRE-DECISIONS.md](sweeps/TRUE-WIRE-DECISIONS.md)
+  (S-TRUE-WIRE E3, 2026-10-28, with a dry run of its defaults).
 - F3 `pkg/pqc_policy`: parked for S-QUANTUM-ARMOR (ADR-105).
 - F5 `internal/bpfmap`, `pkg/ebpf/maploader`: still parked. Phase 13 (Step 340)
   wrote the `CHAOS_TARGETS` loader on cilium/ebpf (already a dependency): these

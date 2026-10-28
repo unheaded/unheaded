@@ -3,291 +3,151 @@
 
 package errors
 
-import (
-	"fmt"
+import "fmt"
 
-	"unheaded/pkg/protocol/registry"
-)
+// Code is an Unheaded protocol error code (8 bits, foundation-06 registry).
+type Code uint8
 
-// ErrorCode represents a 16-bit error code in the Unheaded protocol
-type ErrorCode uint16
-
-// ErrorLevel indicates the scope of an error
-type ErrorLevel uint8
-
+// Registry values (foundation-06 §Error Code Registry).
 const (
-	// Error levels
-	FlowLevel   ErrorLevel = iota // Error specific to a flow
-	DomainLevel                   // Error affecting a domain or connection
-	SystemLevel                   // Error affecting the entire system
+	NoError                 Code = 0x00
+	CRCValidationFailed     Code = 0x01
+	VersionNotSupported     Code = 0x02
+	FlowLabelInvalid        Code = 0x03
+	ArithmeticOverflow      Code = 0x04
+	WotanBoundsCheckFailed  Code = 0x05
+	MultipleHbHHeaders      Code = 0x06
+	UnknownCriticalTLV      Code = 0x07
+	WALSeqnoDiscontinuity   Code = 0x08
+	InsufficientBufferSpace Code = 0x09
+	FlowStateCorruption     Code = 0x0A
+	TLSHandshakeFailure     Code = 0x0B
+	QUICVersionMismatch     Code = 0x0C
+	Reserved0D              Code = 0x0D
+
+	// Greasing values (error-registry.md Section 3): accept and ignore.
+	Greasing0 Code = 0x1F
+	Greasing1 Code = 0xFF
 )
 
-// Core error codes as specified by H2 finding
+// Allocation ranges.
 const (
-	UNHD_NO_ERROR           ErrorCode = 0x0000
-	UNHD_PROTOCOL_ERROR     ErrorCode = 0x0001
-	UNHD_INVALID_FRAME      ErrorCode = 0x0002
-	UNHD_FLOW_CONTROL_ERROR ErrorCode = 0x0003
-	UNHD_SETTINGS_TIMEOUT   ErrorCode = 0x0004
-	UNHD_STREAM_CLOSED      ErrorCode = 0x0005
-	UNHD_FRAME_SIZE_ERROR   ErrorCode = 0x0006
-	UNHD_REFUSED_STREAM     ErrorCode = 0x0007
-	UNHD_CANCEL             ErrorCode = 0x0008
-	UNHD_COMPRESSION_ERROR  ErrorCode = 0x0009
-	UNHD_CONNECT_ERROR      ErrorCode = 0x000a
-	UNHD_ENHANCE_YOUR_CALM  ErrorCode = 0x000b
-	UNHD_INTERNAL_ERROR     ErrorCode = 0x000c
+	UnallocatedMin Code = 0x0E
+	UnallocatedMax Code = 0x1E
+	PrivateUseMin  Code = 0x20
+	PrivateUseMax  Code = 0xFE
 )
 
-// IANA allocation ranges
+// Level is the scope an error affects (error-registry.md "Error Level Hierarchy").
+type Level uint8
+
+// Levels. LevelNone covers NO_ERROR, reserved, greasing and private-use codes.
 const (
-	StandardsMin  ErrorCode = 0x0000
-	StandardsMax  ErrorCode = 0x003f
-	ExtensionMin  ErrorCode = 0x0040
-	ExtensionMax  ErrorCode = 0x00ff
-	TestingPrefix ErrorCode = 0x1f00 // Testing range: 0x1F*N+0x21
+	LevelNone Level = iota
+	LevelFlow
+	LevelDomain
+	LevelSystem
 )
 
-// ErrorInfo contains metadata about an error code
-type ErrorInfo struct {
-	Code              ErrorCode
-	Level             ErrorLevel
-	Description       string
-	RecommendedAction string
-	Retryable         bool
-}
-
-// codeRegistry is the shared registry for error codes.
-// Uses a RangePolicy to enforce that StandardsRange (0x0000-0x003f) can only be
-// registered once during init, per RFC 8126 "Specification Required" policy.
-var codeRegistry = registry.New[ErrorCode, *ErrorInfo](
-	"Unheaded Error Codes",
-	errorCodePolicy,
-)
-
-// errorCodePolicy validates that error codes don't exceed the valid range
-// and rejects registration in the core standards range (0x0000-0x003f) if already registered.
-func errorCodePolicy(code ErrorCode) error {
-	if code > ExtensionMax {
-		return fmt.Errorf("registry: error code 0x%04x outside valid range [0x%04x-0x%04x]",
-			code, StandardsMin, ExtensionMax)
-	}
-	return nil
-}
-
-func init() {
-	// Register all core error codes
-	registerDefaults()
-	// Freeze the registry to prevent post-init modifications
-	codeRegistry.Freeze()
-}
-
-func registerDefaults() {
-	codes := []ErrorInfo{
-		{
-			Code:              UNHD_NO_ERROR,
-			Level:             FlowLevel,
-			Description:       "The connection is closing gracefully",
-			RecommendedAction: "No action required",
-			Retryable:         false,
-		},
-		{
-			Code:              UNHD_PROTOCOL_ERROR,
-			Level:             SystemLevel,
-			Description:       "An unspecified protocol error occurred",
-			RecommendedAction: "Close the connection and reconnect",
-			Retryable:         true,
-		},
-		{
-			Code:              UNHD_INVALID_FRAME,
-			Level:             DomainLevel,
-			Description:       "Received frame with invalid format or values",
-			RecommendedAction: "Reset the stream or connection",
-			Retryable:         false,
-		},
-		{
-			Code:              UNHD_FLOW_CONTROL_ERROR,
-			Level:             DomainLevel,
-			Description:       "Flow control window exceeded",
-			RecommendedAction: "Wait for window update or close connection",
-			Retryable:         true,
-		},
-		{
-			Code:              UNHD_SETTINGS_TIMEOUT,
-			Level:             SystemLevel,
-			Description:       "Settings handshake timed out",
-			RecommendedAction: "Reconnect with adjusted timeout",
-			Retryable:         true,
-		},
-		{
-			Code:              UNHD_STREAM_CLOSED,
-			Level:             FlowLevel,
-			Description:       "Stream has been closed",
-			RecommendedAction: "Create new stream",
-			Retryable:         true,
-		},
-		{
-			Code:              UNHD_FRAME_SIZE_ERROR,
-			Level:             DomainLevel,
-			Description:       "Frame size exceeds configured limits",
-			RecommendedAction: "Check payload size and retry with smaller data",
-			Retryable:         true,
-		},
-		{
-			Code:              UNHD_REFUSED_STREAM,
-			Level:             FlowLevel,
-			Description:       "Stream was refused before processing",
-			RecommendedAction: "Retry with new stream",
-			Retryable:         true,
-		},
-		{
-			Code:              UNHD_CANCEL,
-			Level:             FlowLevel,
-			Description:       "Stream was cancelled",
-			RecommendedAction: "Retry operation or create new stream",
-			Retryable:         true,
-		},
-		{
-			Code:              UNHD_COMPRESSION_ERROR,
-			Level:             DomainLevel,
-			Description:       "Compression or decompression failed",
-			RecommendedAction: "Reset connection compression context",
-			Retryable:         false,
-		},
-		{
-			Code:              UNHD_CONNECT_ERROR,
-			Level:             SystemLevel,
-			Description:       "Connection establishment failed",
-			RecommendedAction: "Attempt new connection",
-			Retryable:         true,
-		},
-		{
-			Code:              UNHD_ENHANCE_YOUR_CALM,
-			Level:             SystemLevel,
-			Description:       "Peer is sending excessive frames or operating abusively",
-			RecommendedAction: "Reduce frame rate or implement backoff",
-			Retryable:         true,
-		},
-		{
-			Code:              UNHD_INTERNAL_ERROR,
-			Level:             SystemLevel,
-			Description:       "Internal implementation error occurred",
-			RecommendedAction: "Report error and reconnect",
-			Retryable:         true,
-		},
-	}
-
-	for _, info := range codes {
-		infoCopy := info
-		codeRegistry.MustRegister(info.Code, &infoCopy)
-	}
-}
-
-// Lookup retrieves error information for a given code
-func Lookup(code ErrorCode) (*ErrorInfo, error) {
-	if code == 0 {
-		code = UNHD_NO_ERROR
-	}
-
-	info, exists := codeRegistry.Lookup(code)
-	if !exists {
-		return nil, fmt.Errorf("unknown error code: 0x%04x", code)
-	}
-
-	return info, nil
-}
-
-// Register adds a new error code in the registry if not already registered.
-// This will fail if the registry is frozen (after init).
-// For use in extension registrations (if registry is unfrozen).
-func Register(code ErrorCode, info *ErrorInfo) error {
-	if info == nil {
-		return fmt.Errorf("error info cannot be nil")
-	}
-
-	if info.Code == 0 {
-		info.Code = code
-	}
-
-	return codeRegistry.Register(code, info)
-}
-
-// ProtocolError implements the Go error interface with a Code() method
-type ProtocolError struct {
-	code    ErrorCode
-	message string
-	err     error
-}
-
-// NewProtocolError creates a new protocol error
-func NewProtocolError(code ErrorCode, message string) *ProtocolError {
-	return &ProtocolError{
-		code:    code,
-		message: message,
-	}
-}
-
-// NewProtocolErrorWithCause creates a new protocol error with an underlying cause
-func NewProtocolErrorWithCause(code ErrorCode, message string, err error) *ProtocolError {
-	return &ProtocolError{
-		code:    code,
-		message: message,
-		err:     err,
-	}
-}
-
-// Error implements the error interface
-func (pe *ProtocolError) Error() string {
-	info, err := Lookup(pe.code)
-	if err != nil {
-		return fmt.Sprintf("protocol error 0x%04x: %s", pe.code, pe.message)
-	}
-
-	msg := fmt.Sprintf("[%s] 0x%04x: %s - %s", levelString(info.Level), pe.code, info.Description, pe.message)
-	if pe.err != nil {
-		msg = fmt.Sprintf("%s (cause: %v)", msg, pe.err)
-	}
-	return msg
-}
-
-// Code returns the error code
-func (pe *ProtocolError) Code() ErrorCode {
-	return pe.code
-}
-
-// Unwrap returns the underlying error
-func (pe *ProtocolError) Unwrap() error {
-	return pe.err
-}
-
-// IsRetryable checks if the error is retryable based on the registry
-func (pe *ProtocolError) IsRetryable() bool {
-	info, err := Lookup(pe.code)
-	if err != nil {
-		return false
-	}
-	return info.Retryable
-}
-
-// Level returns the severity level of the error
-func (pe *ProtocolError) Level() ErrorLevel {
-	info, err := Lookup(pe.code)
-	if err != nil {
-		return SystemLevel
-	}
-	return info.Level
-}
-
-// levelString converts an ErrorLevel to a human-readable string
-func levelString(level ErrorLevel) string {
-	switch level {
-	case FlowLevel:
-		return "FLOW"
-	case DomainLevel:
-		return "DOMAIN"
-	case SystemLevel:
-		return "SYSTEM"
+// String returns the registry's spelling of the level.
+func (l Level) String() string {
+	switch l {
+	case LevelFlow:
+		return "Flow"
+	case LevelDomain:
+		return "Domain"
+	case LevelSystem:
+		return "System"
 	default:
-		return "UNKNOWN"
+		return "N/A"
 	}
 }
+
+// Info is one registry row.
+type Info struct {
+	Code              Code
+	Name              string
+	Level             Level
+	RecommendedAction string
+}
+
+// registry holds the single-code rows of error-registry.md Section 1.
+var registry = map[Code]Info{
+	NoError:                 {NoError, "NO_ERROR", LevelNone, "Continue processing"},
+	CRCValidationFailed:     {CRCValidationFailed, "CRC_VALIDATION_FAILED", LevelFlow, "Drop packet, log event, optionally alert operator"},
+	VersionNotSupported:     {VersionNotSupported, "VERSION_NOT_SUPPORTED", LevelDomain, "Drop packet, no response (silence is correct)"},
+	FlowLabelInvalid:        {FlowLabelInvalid, "FLOW_LABEL_INVALID", LevelFlow, "Drop packet, return error response (optional)"},
+	ArithmeticOverflow:      {ArithmeticOverflow, "ARITHMETIC_OVERFLOW", LevelFlow, "Reject operation, return error to program, do not crash"},
+	WotanBoundsCheckFailed:  {WotanBoundsCheckFailed, "WOTAN_BOUNDS_CHECK_FAILED", LevelFlow, "Return error from helper, do not access memory"},
+	MultipleHbHHeaders:      {MultipleHbHHeaders, "MULTIPLE_HBH_HEADERS", LevelDomain, "Drop packet immediately, no error response"},
+	UnknownCriticalTLV:      {UnknownCriticalTLV, "UNKNOWN_CRITICAL_TLV", LevelDomain, "Drop packet, return error code in response (optional)"},
+	WALSeqnoDiscontinuity:   {WALSeqnoDiscontinuity, "WAL_SEQNO_DISCONTINUITY", LevelDomain, "Log alert, replay from last known good seqno, may lose data"},
+	InsufficientBufferSpace: {InsufficientBufferSpace, "INSUFFICIENT_BUFFER_SPACE", LevelSystem, "Reject new entry, return error to client"},
+	FlowStateCorruption:     {FlowStateCorruption, "FLOW_STATE_CORRUPTION", LevelFlow, "Drop flow, close connection, log critical alert"},
+	TLSHandshakeFailure:     {TLSHandshakeFailure, "TLS_HANDSHAKE_FAILURE", LevelDomain, "Close connection, log error, do not retry immediately"},
+	QUICVersionMismatch:     {QUICVersionMismatch, "QUIC_VERSION_MISMATCH", LevelDomain, "Drop packet, close connection (HTTP/3 integration)"},
+	Reserved0D:              {Reserved0D, "RESERVED", LevelNone, "Do not use in current implementations"},
+	Greasing0:               {Greasing0, "GREASING_0", LevelNone, "Implementations MUST accept and ignore gracefully"},
+	Greasing1:               {Greasing1, "GREASING_1", LevelNone, "Implementations MUST accept and ignore gracefully"},
+}
+
+// Lookup returns the registry row for a single-code entry. Unallocated and
+// private-use codes have no row.
+func Lookup(c Code) (Info, bool) {
+	info, ok := registry[c]
+	return info, ok
+}
+
+// String returns the registry name, or UNALLOCATED(0xNN) / PRIVATE_USE(0xNN).
+func (c Code) String() string {
+	if info, ok := registry[c]; ok {
+		return info.Name
+	}
+	if c >= UnallocatedMin && c <= UnallocatedMax {
+		return fmt.Sprintf("UNALLOCATED(0x%02x)", uint8(c))
+	}
+	return fmt.Sprintf("PRIVATE_USE(0x%02x)", uint8(c))
+}
+
+// Level returns the registry level; LevelNone for codes without one.
+func (c Code) Level() Level {
+	return registry[c].Level
+}
+
+// IsStandard reports whether c is one of the 13 normative codes (0x00-0x0C).
+func (c Code) IsStandard() bool { return c <= QUICVersionMismatch }
+
+// IsGrease reports whether c is a greasing value; receivers ignore these.
+func (c Code) IsGrease() bool { return c == Greasing0 || c == Greasing1 }
+
+// ProtocolError carries a registry code with context.
+type ProtocolError struct {
+	code Code
+	msg  string
+	err  error
+}
+
+// New returns a ProtocolError for code with a message.
+func New(code Code, msg string) *ProtocolError {
+	return &ProtocolError{code: code, msg: msg}
+}
+
+// Wrap returns a ProtocolError for code that wraps cause.
+func Wrap(code Code, msg string, cause error) *ProtocolError {
+	return &ProtocolError{code: code, msg: msg, err: cause}
+}
+
+// Error formats as "[Level] 0xNN NAME: msg[: cause]".
+func (e *ProtocolError) Error() string {
+	s := fmt.Sprintf("[%s] 0x%02x %s: %s", e.code.Level(), uint8(e.code), e.code, e.msg)
+	if e.err != nil {
+		s += ": " + e.err.Error()
+	}
+	return s
+}
+
+// Code returns the registry code.
+func (e *ProtocolError) Code() Code { return e.code }
+
+// Unwrap returns the cause.
+func (e *ProtocolError) Unwrap() error { return e.err }

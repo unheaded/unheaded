@@ -143,7 +143,7 @@ type RunCheckResult struct {
 	DurationMS int64  `json:"duration_ms"`
 }
 
-// ErrRunCheckOff: run_check is not configured for this Champion.
+// ErrRunCheckOff means run_check is not configured for this Champion.
 var ErrRunCheckOff = errors.New("run_check is not enabled for this Champion")
 
 // worktreeOf checks that the Champion's root is an agent worktree: a real

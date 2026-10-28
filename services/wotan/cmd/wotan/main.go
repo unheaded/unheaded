@@ -217,6 +217,11 @@ func main() {
 		log.Warn().Str("config_path", topicConfigPath).
 			Msg("topic_config_allowlist_empty: no publisher or subscriber will be auto-approved")
 	}
+	// SIGHUP reloads the allowlists (S-TRUE-WIRE Step 155). Registered
+	// here, before any server starts: an unhandled SIGHUP ends the process.
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	go reloadTopicConfigOnHUP(runCtx, hup, topicCfg, topicConfigPath)
 
 	// Create API server
 	apiServer := api.NewServer(roomManager, memberManager, messageWotan, config.PendingApprovalTimeout)

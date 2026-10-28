@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Pilgrimage — deep retrieval from Jing strata.
 //!
 //! When De surfaces a fragment ID that exists only in L3 (Jing),

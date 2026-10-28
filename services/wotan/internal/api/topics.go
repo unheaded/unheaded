@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"unheaded/pkg/auth"
 	"unheaded/pkg/httputil"
+	"unheaded/pkg/wotanerr"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/ringbuffer"
@@ -162,7 +163,7 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.TopicConfig.RequiresSignature(topic) {
-		writeError(w, http.StatusForbidden, "signed topics (config.*, drift.*) are published over gRPC with an ML-DSA-65 signature")
+		writeCodedError(w, http.StatusForbidden, wotanerr.SignatureRequired, "signed topics (config.*, drift.*) are published over gRPC with an ML-DSA-65 signature")
 		return
 	}
 
@@ -189,13 +190,13 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 
 	// Verify subscriber is approved
 	if !s.MemberManager.IsApproved(subscriberUUID) {
-		writeError(w, http.StatusForbidden, "subscriber not approved")
+		writeCodedError(w, http.StatusForbidden, wotanerr.TopicAccessDenied, "subscriber not approved")
 		return
 	}
 	// A subscriber_id is no secret (it is every message's sender_id): with
 	// auth on, a caller publishes only through its own members.
 	if !s.memberIsCaller(r, subscriberUUID) {
-		writeError(w, http.StatusForbidden, "subscriber belongs to another identity")
+		writeCodedError(w, http.StatusForbidden, wotanerr.TopicAccessDenied, "subscriber belongs to another identity")
 		return
 	}
 
@@ -463,7 +464,7 @@ func ringbufferToTopicMessage(msg *ringbuffer.Message, topic string) TopicMessag
 	}
 }
 
-// topicRouter dispatches /api/v1/topics/* requests to the correct handler.
+// TopicRouter dispatches /api/v1/topics/* requests to the correct handler.
 // Go 1.22+ ServeMux supports patterns, but for compat we do manual dispatch.
 func (s *Server) TopicRouter(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
@@ -487,6 +488,6 @@ func (s *Server) TopicRouter(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(path, "/messages"):
 		s.GetTopicMessages(w, r)
 	default:
-		writeError(w, http.StatusNotFound, fmt.Sprintf("unknown topic endpoint: %s", path))
+		writeCodedError(w, http.StatusNotFound, wotanerr.UnknownTopicEndpoint, fmt.Sprintf("unknown topic endpoint: %s", path))
 	}
 }

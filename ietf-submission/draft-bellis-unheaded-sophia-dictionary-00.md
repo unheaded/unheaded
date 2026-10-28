@@ -1,7 +1,7 @@
 ---
 title: "Sophia Dictionary Format for the Unheaded Protocol"
 abbrev: "Sophia Dictionary Format"
-docname: draft-bellis-unheaded-sophia-dictionary-03
+docname: draft-bellis-unheaded-sophia-dictionary-00
 category: exp
 ipr: trust200902
 submissionType: independent
@@ -54,6 +54,12 @@ normative:
       Internet-Draft: draft-bellis-unheaded-wotan-memory-03
 
 informative:
+  UNHEADED-ADR108:
+    title: "ADR-108: MBC Cartridges"
+    author:
+      - ins: S. Bellis
+    date: 2026-10
+    target: "https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-108-mbc-cartridges.md"
   RFC0768:
   RFC0791:
   RFC0792:
@@ -786,11 +792,11 @@ metadata, and instruction class information.
 
 ## Opcode Dictionary Structure
 
-The opcode dictionary is a Sophia sub-dictionary (root key 0x10,
+The opcode dictionary is a Sophia sub-dictionary (root key 0x16,
 "code" category) that maps 8-bit opcodes to instruction metadata.
 
 ~~~~~
-Root entry 0x10 -> "code" -> sub-dict #16
+Root entry 0x16 -> "code" -> sub-dict #16
   Sub-dict #16[0x00] -> {name: "NOP", class: "control", cycles: 1}
   Sub-dict #16[0x01] -> {name: "ADD", class: "arithmetic", cycles: 1}
   Sub-dict #16[0x30] -> {name: "LD", class: "memory", cycles: 2}
@@ -873,8 +879,32 @@ Initial entries:
   0x12: observability (observability entry type)
   0x13: ids (IDS entry type)
   0x14: health (health entry type)
+  0x15: cartridge (COMPOSITE; MBC cartridge registry)
+  0x16: code (BRANCH; UPC opcode dictionary)
   0xFF: RESERVED (Yaldabaoth)
 ~~~~~
+
+### Cartridge and Opcode Dictionary Root Keys
+
+Root key 0x15 (category "cartridge", type COMPOSITE) holds the
+MBC cartridge registry [UNHEADED-ADR108].  Its nested sub-dictionary maps a
+cartridge name to a record with the fields sha256 (SHA-256 of the
+sealed cartridge image), manifest, seal_key_id, stage,
+surface_version, max_insn, and slot.  An entry locates a cartridge;
+it does not authorize one.  A loader MUST verify the cartridge seal
+over the exact image bytes it loads and MUST NOT load an image whose
+SHA-256 differs from the entry's sha256 field.  An implementation
+that keeps the registry outside a BPF map (for example, as knowledge
+entries in a Sophia service) SHOULD use the category name
+"cartridge" as its namespace.  The provisional namespace
+"x-cartridge", used before this assignment, MAY be accepted on read
+during migration and MUST NOT be written.
+
+Root key 0x16 (category "code", type BRANCH) holds the UPC opcode
+dictionary (see the UPC Opcode Dictionary section).  Earlier text of this document placed the
+opcode dictionary at root key 0x10, which the initial entries
+already assign to "routing"; 0x10 remains "routing", and the opcode
+dictionary takes the next value after the cartridge registry.
 
 ## Sophia Sub-Dictionary Type Registry (NEW in draft-03)
 
@@ -947,7 +977,7 @@ The following changes are made in draft-03:
 
 8. **UPC Opcode Dictionary (NEW)**: Added Sophia-driven instruction
    decode for the MBC ISA.  Defines opcode dictionary structure
-   (root key 0x10, "code" category), 10 instruction class types,
+   (root key 0x16, "code" category), 10 instruction class types,
    32-byte BPF map entry format, and Sophia-driven decode use cases
    (tracing, dynamic dispatch, profiling, validation).
 

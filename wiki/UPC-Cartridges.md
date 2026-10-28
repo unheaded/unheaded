@@ -51,8 +51,9 @@ upc-cartridgectl --pubkey LAB.pub swap pass --from 0 --to 1
 upc-cartridgectl down
 ```
 
-The registry is Sophia (`--sophia URL`, namespace `x-cartridge`,
-provisional) or a file-backed directory (`--registry-dir`, default
+The registry is Sophia (`--sophia URL`, category `cartridge`, root key
+`0x15`; records written before the assignment under `x-cartridge` are still
+read) or a file-backed directory (`--registry-dir`, default
 `/var/lib/unheaded/cartridges`). Every `load` verifies the seal and runs the
 validator on the exact bytes it then writes.
 

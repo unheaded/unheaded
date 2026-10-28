@@ -253,6 +253,20 @@ category.</t>
   </dd>
 </dl>
 
+<t>Implementation note: the reference implementation of Wotan
+carries the 32-bit code at its API boundary only: an HTTP error
+response carries it in the X-Wotan-Error header and a gRPC error in the
+x-wotan-error trailer, each as &quot;0x&quot; followed by eight hexadecimal
+digits (for example, X-Wotan-Error: 0x44010001 is [ERROR, GRPC, ACCESS,
+0x01], an unauthorized topic publish). Bits 15-8 are sent as zero.
+Internal operations and WAL entries do not carry the code. The codes
+emitted are the unauthorized-publish row of the gRPC Streaming Errors
+table and,
+under origin WOTAN_TOPIC, ACCESS_CONTROL 0x01 (topic API publish
+refused), PROTOCOL 0x01 (unknown topic endpoint), INTEGRITY 0x01
+(signature required), INTEGRITY 0x02 (signature invalid) and
+CONFIGURATION 0x01 (no verifier for a signed prefix).</t>
+
 </section>
 <section anchor="helper-return-code-mapping"><name>Helper Return Code Mapping</name>
 
@@ -1097,15 +1111,33 @@ decompression security, and BPF map access control.</t>
 <t>This memo does not request IANA registration of option types or protocol
 numbers; those are handled by <xref target="UNHEADED-FOUNDATION"></xref>.</t>
 
-<t>Wotan topic naming uses informal convention (compute.<em>, sophia.</em>,
-anamnesis.*). If standardization is needed, IANA may create a registry:</t>
+<section anchor="wotan-topic-namespace-registry"><name>Wotan Topic Namespace Registry</name>
+
+<t>IANA is requested to create a registry entitled "Wotan Topic Namespace".  A topic name is a sequence of one or more segments separated by "."; a segment consists of the characters a-z, A-Z, 0-9, "-" and "_".  A registered name ending in ".*" reserves every name with exactly one further segment.</t>
+
+<t>The Designated Expert checks that a request names the producing component and every payload field, and SHOULD refuse a registration whose payload can carry packet payload octets or user data.</t>
 
 <figure><artwork><![CDATA[
 Registry Name: Wotan Topic Namespace
-Policy: Expert Review
-Template: Topic Name, Component, Description, Reference
+Policy:        Expert Review
+Template:      Topic Name, Component, Description, Reference
+
+Initial entries:
+  Topic Name      Component         Description       Reference
+  --------------  ----------------  ----------------  ---------
+  compute.tty.*   UPC TTY           TTY output per    this doc
+                                    flow label
+  anomaly.scores  anomaly service   flow score:       [ADR-108]
+                                    flow_key, score
+                                    0-100, model_id
+  upc.cart.*      cartridge loader  cartridge loads,  [ADR-108]
+                                    events and faults
+                                    per slot
 ]]></artwork></figure>
 
+<t>Every payload on anomaly.scores and upc.cart.* carries flow metadata and a score or a cartridge event <xref target="UNHEADED-ADR108"></xref>; neither topic can carry packet payload.</t>
+
+</section>
 <section anchor="wotan-error-origin-registry-new-in-draft-03"><name>Wotan Error Origin Registry (NEW in draft-03)</name>
 
 <figure><artwork><![CDATA[
@@ -1114,7 +1146,7 @@ Template:       Origin Code (0x00-0x1F), Origin Name, Description,
                 Specification Reference
 Policy:         Specification Required
 
-Initial entries: See Section 3.2 (16 entries, codes 0x00-0x0C)
+Initial entries: See Section 3.2 (13 entries, codes 0x00-0x0C)
 ]]></artwork></figure>
 
 </section>
@@ -1204,6 +1236,16 @@ Email: stevie@bellis.tech</t>
     </references>
 
     <references title='Informative References' anchor="sec-informative-references">
+
+<reference anchor="UNHEADED-ADR108" target="https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-108-mbc-cartridges.md">
+  <front>
+    <title>ADR-108: MBC Cartridges</title>
+    <author initials="S." surname="Bellis">
+      <organization></organization>
+    </author>
+    <date year="2026" month="October"/>
+  </front>
+</reference>
 
 
 

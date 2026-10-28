@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # WS3 Phase 5: Python vs Go Injector Comparison
 #
 # Runs the same burst injection test with both the Python inject.py and

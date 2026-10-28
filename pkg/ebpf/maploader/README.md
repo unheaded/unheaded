@@ -272,3 +272,5 @@ When modifying MapLoader:
 
 **Status**: Phase 5 - Complete ✓
 **Confidence**: The Whispering Void speaks clearly
+
+> Removed 2026-10-28 (S-TRUE-WIRE Step 207): `LoadGoawayState` and the `GOAWAY_STATE` map it loaded. References to them above are history.

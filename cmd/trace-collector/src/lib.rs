@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! THE WHISPERING VOID - Library Root
 //!
 //! This crate provides the core functionality for eBPF event collection,

@@ -36,7 +36,7 @@ type HistoryEntry struct {
 	StartedAt time.Time `json:"started_at"`
 
 	// CompletedAt is when the deployment completed
-	CompletedAt time.Time `json:"completed_at,omitempty"`
+	CompletedAt time.Time `json:"completed_at,omitzero"`
 
 	// Duration is the deployment duration
 	Duration time.Duration `json:"duration,omitempty"`
@@ -395,10 +395,10 @@ type HistoryQuery struct {
 	ServiceName string `json:"service_name,omitempty"`
 
 	// StartTime filters entries after this time
-	StartTime time.Time `json:"start_time,omitempty"`
+	StartTime time.Time `json:"start_time,omitzero"`
 
 	// EndTime filters entries before this time
-	EndTime time.Time `json:"end_time,omitempty"`
+	EndTime time.Time `json:"end_time,omitzero"`
 
 	// State filters by state
 	State string `json:"state,omitempty"`

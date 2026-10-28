@@ -28,18 +28,24 @@ keyword:
  - XDP
 
 normative:
- - RFC2119
- - RFC8174
- - RFC8126
- - RFC8200
- - RFC9669: BPF Instruction Set Architecture (ISA)
+  RFC2119:
+  RFC8174:
+  RFC8126:
+  RFC8200:
+  RFC9669:
 
 informative:
- - RFC9000
+  RFC9000:
+  UNHEADED-ADR067:
+    title: "ADR-067: MBC ISA v2 and UPC ABI v1"
+    author:
+      - ins: S. Bellis
+    date: 2026-05
+    target: "https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-067-mbc-isa-v2-and-upc-abi-v1.md"
 
 --- abstract
 
-This document defines the MBC (Monad Bytecode) Instruction Set Architecture for the Unheaded Protocol Computer (UPC). MBC is a 48-opcode, 32-bit fixed-width instruction set designed for execution within eBPF XDP programs. It provides computational capabilities for distributed packet processing using the Monad wire format, enabling deterministic network packet classification and transformation at the network edge.
+This document defines the MBC (Monad Bytecode) Instruction Set Architecture for the Unheaded Protocol Computer (UPC). MBC is a 56-opcode, 32-bit fixed-width instruction set designed for execution within eBPF XDP programs. It provides computational capabilities for distributed packet processing using the Monad wire format, enabling deterministic network packet classification and transformation at the network edge.
 
 --- middle
 
@@ -87,7 +93,7 @@ The 32-bit instruction is laid out as follows:
 ```
 
 Opcode [31:24]
-: 8-bit opcode identifier, ranging from 0x00 to 0xFF. Opcodes 0x00 and 0xFE are reserved.
+: 8-bit opcode identifier, ranging from 0x00 to 0xFF. Opcode 0x00 is NOP; opcode 0xFE is reserved.
 
 Destination [23:20]
 : 4-bit register index (r0-r15) for the result of the operation, or flags register for compare operations.
@@ -96,7 +102,7 @@ Source [19:16]
 : 4-bit register index (r0-r15) for the first operand, or flags for conditional branches.
 
 Immediate [15:0]
-: 16-bit signed immediate value, used for offsets, constants, or as part of extended operands.
+: 16-bit immediate value, used for offsets, constants, or as part of extended operands. Each instruction defines whether it is sign-extended or zero-extended.
 
 All instructions are stored in little-endian byte order in memory. When an MBC program is loaded, the instruction stream MUST be byte-swapped from the storage format to the native CPU byte order before execution begins.
 
@@ -110,7 +116,7 @@ Arithmetic (ADD, SUB, MUL, DIV, MOD, NEG)
 : Destination (dst) and Source (src) both reference GPRs. Immediate field is unused (MUST be 0).
 
 Extended Immediate (LOAD_IMM32, ADDI)
-: Destination is GPR. Immediate is signed 16-bit value, sign-extended to 32 bits. Immediate field is the low 16 bits of the constant for LOAD_IMM32.
+: Destination is GPR. For ADDI the immediate is sign-extended to 32 bits. For LOAD_IMM32 the immediate becomes the upper 16 bits of dst.
 
 Memory Operations (LD, ST, LDB, STB, LDH, STH)
 : Destination is GPR (for loads) or ignored (for stores). Source is base address GPR. Immediate is signed byte/word offset.
@@ -197,7 +203,7 @@ Total size: 128 bytes. This structure is the working memory for each MBC executi
 
 # Instruction Set
 
-MBC provides 48 distinct opcodes, organized by functional category.
+MBC provides 56 distinct opcodes, organized by functional category: NOP (0x00), the 50 base opcodes, and the five ISA v2 opcodes (FENCE, MRET, SRET, LR.W, SC.W).
 
 ## Arithmetic Instructions
 
@@ -372,22 +378,22 @@ Opcode: 0x0E
 Encoding: [0x0E][dst:r0-r15][src:r0-r15][imm:unused]
 
 Operation: dst = src
-Flags: Z, N set
+Flags: unchanged
 ```
 
-Copies the value from src to dst. Flags are set based on the copied value.
+Copies the value from src to dst. Flags are not changed.
 
 ### MOVI - Move Immediate
 
 ```
 Opcode: 0x0F
-Encoding: [0x0F][dst:r0-r15][src:unused][imm:signed 16-bit]
+Encoding: [0x0F][dst:r0-r15][src:unused][imm:unsigned 16-bit]
 
-Operation: dst = sign_extend(imm)
-Flags: Z, N set
+Operation: dst = zero_extend(imm)
+Flags: unchanged
 ```
 
-Loads a sign-extended 16-bit immediate value into dst. The immediate is sign-extended to 32 bits before being stored in dst.
+Loads a 16-bit immediate value into dst. The immediate is zero-extended to 32 bits: the upper 16 bits of dst become zero, so MOVI r, 0xFFFF sets r to 0x0000FFFF, not 0xFFFFFFFF. Flags are not changed. A negative constant is loaded with MOVI followed by LOAD_IMM32, or with ADDI, which sign-extends. Earlier text of this document specified sign extension; every implementation zero-extends, and this document follows them.
 
 ## Comparison Instruction
 
@@ -409,13 +415,13 @@ Compares two values by computing dst - src and setting flags accordingly, withou
 
 ```
 Opcode: 0x1C
-Encoding: [0x1C][dst:r0-r15][upper:4-bit upper word][imm:16-bit lower word]
+Encoding: [0x1C][dst:r0-r15][src:unused][imm:upper 16 bits]
 
-Operation: dst = (upper << 16) | imm
-Flags: Z, N set
+Operation: dst = (imm << 16) | (dst & 0xFFFF)
+Flags: unchanged
 ```
 
-Loads a full 32-bit immediate into dst. The upper 4 bits come from the source field, the lower 16 bits from the immediate field. The middle 12 bits are zero-filled. This allows loading of arbitrary 20-bit immediates. For full 32-bit constants, two consecutive instructions are required.
+Replaces the upper 16 bits of dst with the immediate and keeps the lower 16 bits. A full 32-bit constant is loaded with two instructions: MOVI with the lower 16 bits (zero-extended), then LOAD_IMM32 with the upper 16 bits. Flags are not changed.
 
 ### ADDI - Add Immediate
 
@@ -833,6 +839,77 @@ Flags: None (execution halts)
 
 Terminates execution of the MBC program. The value in the dst register is returned as the exit code to the caller. This is used to signal completion or error conditions back to the eBPF XDP program.
 
+## ISA v2 Instructions
+
+ISA v2 [UNHEADED-ADR067] adds five opcodes so that RISC-V code (RV32I with the A extension and the privileged architecture) can be translated to MBC: a memory barrier, two privilege returns, and a load-reserved/store-conditional pair. An implementation of ISA v2 keeps, in addition to the registers of Section "Register Model", a privilege level (M = 0, S = 1, U = 3, the RISC-V codes) and a reservation address, and keeps RISC-V control and status registers in data memory (Section "Control and Status Registers"). An implementation that does not implement ISA v2 SHOULD reject a program containing these opcodes at load time: executing one as a no-op silently miscomputes.
+
+### FENCE - Memory Barrier
+
+```
+Opcode: 0x3F
+Encoding: [0x3F][dst:unused][src:unused][imm:unused]
+
+Operation: complete all earlier loads and stores
+           before any later load or store
+Flags: unchanged
+```
+
+Orders memory accesses. RISC-V FENCE and FENCE.I both translate to FENCE; MBC has no separate instruction cache. On an implementation with one CPU per instance, FENCE has no further effect.
+
+### MRET - Machine-Mode Return
+
+```
+Opcode: 0x47
+Encoding: [0x47][dst:unused][src:unused][imm:unused]
+
+Operation: priv = mstatus.MPP (bits 12:11)
+           pc = target(mepc); reservation cleared
+Flags: unchanged
+```
+
+Returns from a machine-mode trap. mepc is CSR 0x341 and mstatus is CSR 0x300. An implementation that runs translated code maps mepc, an address in the translated program, to the program counter of the MBC instruction translated from that address; if no MBC instruction corresponds to it, the CPU MUST halt rather than continue elsewhere. An implementation that runs MBC directly uses mepc / 4 as the word-indexed program counter.
+
+### SRET - Supervisor-Mode Return
+
+```
+Opcode: 0x48
+Encoding: [0x48][dst:unused][src:unused][imm:unused]
+
+Operation: priv = S if sstatus.SPP (bit 8) else U
+           pc = target(sepc); reservation cleared
+Flags: unchanged
+```
+
+Returns from a supervisor-mode trap to S-mode or U-mode. sepc is CSR 0x141 and sstatus is CSR 0x100. The target is formed as for MRET.
+
+### LR.W - Load-Reserved Word
+
+```
+Opcode: 0x49
+Encoding: [0x49][dst:r0-r15][src:r0-r15 (address)][imm:unused]
+
+Operation: dst = mem32[src]; reservation = src
+Flags: unchanged
+```
+
+Loads the 32-bit word at the byte address in src and records that address as reserved.
+
+### SC.W - Store-Conditional Word
+
+```
+Opcode: 0x4A
+Encoding: [0x4A][dst:r0-r15][src:r0-r15 (address)]
+          [imm[3:0]:value register]
+
+Operation: if reservation == src {
+             mem32[src] = r[imm[3:0]]; dst = 0
+           } else { dst = 1 }
+           reservation cleared
+Flags: unchanged
+```
+
+Stores the register named by the low four bits of the immediate to the word at the byte address in src if, and only if, that address is still reserved, and reports success (0) or failure (1) in dst. SC.W clears the reservation whether or not it stores. MRET and SRET also clear it, and an implementation MUST clear it when it switches the running process or enters an interrupt handler.
+
 # Memory Addressing
 
 MBC uses a single addressing mode: indexed addressing.
@@ -859,6 +936,14 @@ MBC address space is not directly visible to MBC programs. All memory access goe
 
 - 0x00000000 - 0x0FFFFFFF: Stack memory (provided by eBPF runtime, typically 512 bytes per context)
 - 0x10000000+: eBPF map memory (accessed via helper functions, validated by verifier)
+
+## Control and Status Registers
+
+ISA v2 implementations keep RISC-V control and status registers (CSRs) in data memory instead of adding CSR opcodes. CSR number csr, a 12-bit index (0x000-0xFFF), occupies the 32-bit word at byte address 0xF000 + csr * 4. The region therefore spans byte addresses 0xF000-0x12FFF; the last CSR word starts at 0x12FFC. An implementation MUST NOT place other data in this region. Examples: sstatus (0x100) is at 0xF400, sscratch (0x140) at 0xF500, satp (0x180) at 0xF600, mstatus (0x300) at 0xFC00, mepc (0x341) at 0xFD04, and mhartid (0xF14) at 0x12C50.
+
+A CSR access is an ordinary load or store. A read is LD rd, [0xF000 + csr*4]; a write is ST [0xF000 + csr*4], rs1; a read-modify-write (csrrw, csrrs, csrrc) is the LD, the operation, and the ST, in that order. A translator forms the address with MOVI, followed by LOAD_IMM32 when the address exceeds 0xFFFF.
+
+A translated CSR sequence MUST NOT write any register other than the instruction's destination and one register the translation reserves as a transient, and MUST restore the transient before the next translated instruction. A CSR read whose source is x0 (csrr) MUST NOT write the CSR. The sequence is not atomic, so an implementation that can deliver an interrupt between the MBC words of one translated instruction MUST NOT use a live register as the transient. A form the translator cannot express under these rules (for example CSRRS or CSRRC with a source other than x0, CSRRWI, or CSRRW whose destination and source map to the same MBC register) MUST be rejected at translation time rather than approximated [UNHEADED-ADR067].
 
 # BPF Verifier Compliance
 
@@ -951,7 +1036,7 @@ Vector 0x00 is reserved for division-by-zero exceptions. Additional vectors are 
 
 ## Opcode Whitelist
 
-Only the 48 defined opcodes are valid in MBC programs. Opcodes 0x00, 0xFE are reserved and MUST NOT be used. All other opcode values are undefined and will cause a trap if executed. An MBC loader MUST validate that all instructions in a program use only defined opcodes before loading.
+Only the 56 defined opcodes are valid in MBC programs. Opcode 0xFE is reserved and MUST NOT be used. All other opcode values are undefined and will cause a trap if executed. An MBC loader MUST validate that all instructions in a program use only defined opcodes before loading. Because 0x00 is NOP, an all-zero word is a valid instruction: zero-filled memory reached by a stray jump executes as NOPs rather than trapping, and it is the instruction limit, not the opcode check, that ends such a run.
 
 ## Division by Zero Behavior
 
@@ -963,7 +1048,7 @@ The stack pointer (r15) starts at a predetermined address (typically the end of 
 
 ## Privilege Model
 
-MBC has a flat privilege model with no distinction between user and kernel mode. All instructions execute at the same privilege level. The eBPF verifier is the trust boundary; any MBC program that passes verification is assumed safe to execute.
+The base ISA has a flat privilege model with no distinction between user and kernel mode. All instructions execute at the same privilege level. The eBPF verifier is the trust boundary; any MBC program that passes verification is assumed safe to execute. ISA v2 adds the M, S and U privilege levels used by translated RISC-V kernels: they separate a translated kernel from its own processes inside one UPC instance and are not a boundary between an MBC program and the host.
 
 # IANA Considerations
 
@@ -979,7 +1064,7 @@ Registration Procedure: Standards Action [RFC8126]
 
 Initial Assignments:
 
-- 0x00: RESERVED
+- 0x00: NOP - No Operation
 - 0x01: ADD - Addition
 - 0x02: SUB - Subtraction
 - 0x03: MUL - Multiply (low 32 bits)
@@ -994,17 +1079,17 @@ Initial Assignments:
 - 0x0C: SHR - Shift Right Logical (Immediate)
 - 0x0D: SAR - Shift Right Arithmetic (Immediate)
 - 0x0E: MOV - Move Register
-- 0x0F: MOVI - Move Immediate (16-bit sign-extended)
+- 0x0F: MOVI - Move Immediate (16-bit zero-extended)
 - 0x10: CMP - Compare
-- 0x11-0x1B: RESERVED
-- 0x1C: LOAD_IMM32 - Load 32-bit Immediate
-- 0x1D: ADDI - Add Immediate (16-bit sign-extended)
-- 0x1E-0x1F: RESERVED
+- 0x11-0x16: Unassigned
 - 0x17: INT - Trigger Interrupt
 - 0x18: IRET - Return from Interrupt
-- 0x19: RESERVED
+- 0x19: Unassigned
 - 0x1A: PUSH - Push to Stack
 - 0x1B: POP - Pop from Stack
+- 0x1C: LOAD_IMM32 - Load Upper 16 Bits (lower 16 kept)
+- 0x1D: ADDI - Add Immediate (16-bit sign-extended)
+- 0x1E-0x1F: Unassigned
 - 0x20: JMP - Unconditional Jump
 - 0x21: JZ - Jump if Zero
 - 0x22: JNZ - Jump if Not Zero
@@ -1016,7 +1101,7 @@ Initial Assignments:
 - 0x28: RET - Return from Subroutine
 - 0x29: JMPR - Jump Register
 - 0x2A: CALLR - Call Register
-- 0x2B-0x2F: RESERVED
+- 0x2B-0x2F: Unassigned
 - 0x30: LD - Load Word (32-bit)
 - 0x31: ST - Store Word (32-bit)
 - 0x32: LDB - Load Byte (8-bit)
@@ -1032,13 +1117,18 @@ Initial Assignments:
 - 0x3C: STI - Set Interrupt Enable
 - 0x3D: XCHG - Atomic Exchange
 - 0x3E: CAS - Compare and Swap
-- 0x3F: RESERVED
+- 0x3F: FENCE - Memory Barrier (ISA v2)
 - 0x40: SYSCALL - System Call
-- 0x41-0xFD: RESERVED for future standardization
-- 0xFE: RESERVED
+- 0x41-0x46: Unassigned
+- 0x47: MRET - Machine-Mode Return (ISA v2)
+- 0x48: SRET - Supervisor-Mode Return (ISA v2)
+- 0x49: LR.W - Load-Reserved Word (ISA v2)
+- 0x4A: SC.W - Store-Conditional Word (ISA v2)
+- 0x4B-0xFD: Unassigned
+- 0xFE: Reserved
 - 0xFF: HALT - Halt Execution
 
-Reserved ranges are allocated for future expansion. Any assignment of previously reserved opcodes requires standards action through the IETF.
+Unassigned values are available for assignment by Standards Action. 0xFE is Reserved and is not available for assignment. Earlier text of this document listed 0x11-0x1B as reserved while assigning 0x17, 0x18, 0x1A and 0x1B, and omitted NOP and the ISA v2 opcodes; the table above lists what every implementation decodes.
 
 # Security Considerations
 
@@ -1052,7 +1142,7 @@ The 256-instruction limit per eBPF program guarantees that no single MBC executi
 
 ## No Privilege Separation
 
-MBC has no user/kernel mode distinction. All MBC instructions execute at the same privilege level. This simplifies the ISA but means that any MBC code can access any memory location accessible to the eBPF program itself. Isolation between different tenants must be provided by the eBPF XDP program and kernel, not by MBC itself.
+The base ISA has no user/kernel mode distinction, and the ISA v2 privilege levels apply only inside one UPC instance. This simplifies the ISA but means that any MBC code can access any memory location accessible to the eBPF program itself. Isolation between different tenants must be provided by the eBPF XDP program and kernel, not by MBC itself.
 
 ## CAS Atomicity Limitations
 
@@ -1083,3 +1173,5 @@ Before executing an MBC program on a Monad-framed packet, the eBPF XDP program M
 # Informative References
 
 [RFC9000]
+
+[UNHEADED-ADR067]

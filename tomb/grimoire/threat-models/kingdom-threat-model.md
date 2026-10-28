@@ -14,7 +14,7 @@ The Unheaded Kingdom is a configuration management automation platform with the 
 
 - **10 microservices** communicating via Wotan message bus (gRPC primary, HTTP fallback)
 - **eBPF data plane** providing L2-L7 packet tracing
-- **Shield boundary** (edge XDP programs) enforcing protocol containment
+- **Shield boundary** (edge XDP programs) enforcing protocol containment. What it enforces today (2026-10-28): a source-address blocklist, Monad stamping at ingress and stripping at egress, and CRC/version error counting. Its HMAC-key, retry-token, hop-validator and authority checks are stubs (FND-025, S-TRUE-WIRE E8); its PQC fast path and GOAWAY map were removed as dead code
 - **Monad wire protocol** (20 bytes) embedded in IPv6 Hop-by-Hop extension headers
 - **Sophia dictionary system** providing exponent-encoded field semantics
 - **LXD/containerd/NixOS containers** with hardened seccomp profiles
@@ -288,7 +288,7 @@ Internet
 
 | Threat | Category | Target | Severity | Mitigation Status |
 |--------|----------|--------|----------|------------------|
-| Shield bypass (direct internal access) | Spoofing | Gateway | CRITICAL | Firewall rules, Shield XDP |
+| Shield bypass (direct internal access) | Spoofing | Gateway | CRITICAL | Firewall rules; Shield XDP blocklist only (per-flow integrity checks stubbed: FND-025, E8) |
 | Wotan message spoofing | Spoofing | Message bus | HIGH | Auth middleware (planned: mTLS) |
 | Service identity impersonation | Spoofing | Discovery | HIGH | Planned: PQ identity binding |
 | Monad register tampering | Tampering | Wire protocol | HIGH | CRC-16 integrity check |

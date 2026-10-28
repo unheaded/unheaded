@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"unheaded/pkg/httputil"
+	"unheaded/pkg/wotanerr"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/room"
@@ -176,7 +177,7 @@ func (s *Server) SendMessage(w http.ResponseWriter, r *http.Request) {
 	// A topic's room is its name: this path must not reach config.* rooms,
 	// which only take signed messages over gRPC.
 	if s.TopicConfig.RequiresSignature(req.RoomID) {
-		writeError(w, http.StatusForbidden, "signed topics (config.*, drift.*) are published over gRPC with an ML-DSA-65 signature")
+		writeCodedError(w, http.StatusForbidden, wotanerr.SignatureRequired, "signed topics (config.*, drift.*) are published over gRPC with an ML-DSA-65 signature")
 		return
 	}
 
@@ -228,7 +229,7 @@ func (s *Server) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	// Signed config.* messages are not deletable over HTTP: the triple
 	// check uses fields any reader of the room can see.
 	if s.TopicConfig.RequiresSignature(req.RoomID) {
-		writeError(w, http.StatusForbidden, "signed topic messages (config.*, drift.*) cannot be deleted over HTTP")
+		writeCodedError(w, http.StatusForbidden, wotanerr.SignatureRequired, "signed topic messages (config.*, drift.*) cannot be deleted over HTTP")
 		return
 	}
 
@@ -486,6 +487,14 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	httputil.WriteError(w, status, http.StatusText(status), message)
+}
+
+// writeCodedError is writeError plus the wotan-memory-03 structured code in
+// X-Wotan-Error (S-TRUE-WIRE Step 145). The code names the subsystem and
+// the reason only; the message stays as it was for existing clients.
+func writeCodedError(w http.ResponseWriter, status int, code wotanerr.Code, message string) {
+	wotanerr.SetHeader(w.Header(), code)
+	writeError(w, status, message)
 }
 
 // requireAdminAuth validates admin authentication for protected endpoints

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Hybrid Key Encapsulation Mechanism: ML-KEM-768 + X25519
 //!
 //! Belt-and-suspenders approach to key exchange. The shared secret is

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 # deploy-alpha.sh — Deploy Unheaded Alpha to LXD containers
 #
 # Usage: sudo ./scripts/deploy-alpha.sh [--teardown] [--skip-build]

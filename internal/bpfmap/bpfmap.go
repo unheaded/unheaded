@@ -300,7 +300,7 @@ func (m *Map) IsOpen() bool {
 	return m.fd >= 0
 }
 
-// Helper to format a 40-byte KBD value (32 bytes bitmap + 8 bytes sequence)
+// FormatKBDValue formats a 40-byte KBD value (32 bytes bitmap + 8 bytes sequence).
 func FormatKBDValue(bitmap [32]byte, sequence uint64) []byte {
 	value := make([]byte, 40)
 	copy(value[0:32], bitmap[:])
@@ -308,7 +308,7 @@ func FormatKBDValue(bitmap [32]byte, sequence uint64) []byte {
 	return value
 }
 
-// Helper to parse a 40-byte KBD value
+// ParseKBDValue parses a 40-byte KBD value.
 func ParseKBDValue(value []byte) ([32]byte, uint64, error) {
 	if len(value) != 40 {
 		return [32]byte{}, 0, fmt.Errorf("bpfmap: invalid KBD value length %d, want 40", len(value))
@@ -320,7 +320,7 @@ func ParseKBDValue(value []byte) ([32]byte, uint64, error) {
 	return bitmap, sequence, nil
 }
 
-// Helper to format a 200-byte CpuState value
+// FormatCpuState formats a 200-byte CpuState value:
 // regs[16] uint64, pc uint64, sp uint64, flags uint64, halted bool, _pad [7]byte, insn_count uint64, last_kbd_state [32]byte
 func FormatCpuState(regs [16]uint64, pc, sp, flags uint64, halted bool, instrCount uint64, kbdState [32]byte) []byte {
 	buf := new(bytes.Buffer)

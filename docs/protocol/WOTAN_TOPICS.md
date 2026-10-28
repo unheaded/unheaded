@@ -185,6 +185,8 @@ Topics use dot-separated hierarchical names:
 - `logs.timeguru.info` — Timeguru info-level logs
 - `system.discovery` — Service discovery events
 - `compliance.deviation.<host>` — Host baseline deviations from `cmd/unheaded-baseline` (display name `unheaded-baseline`, ADR-098): one message per run with deviations, `{host, mode, deviations:[{id, kind}], report_sha256, ts}`; metadata only, details stay in the host's `report.json`. Off unless the host sets `WOTAN_ADDR`.
+- `anomaly.scores` — flow scores into `services/anomaly` from the cartridge scorer bridge (`cmd/anomaly`, ADR-108): `{flow_key, score 0..100, model_id, source}`, strict JSON, at most 4096 bytes; flow metadata and a score only, never packet payload. Registered in the Wotan Topic Namespace (wotan-memory draft, RFC Editor S5 item 3).
+- `upc.cart.*` — MBC cartridge loads, events and faults, one segment per kind (ADR-108); same constraint: flow metadata and cartridge state, never packet payload. Registered with `anomaly.scores`; no producer publishes it yet.
 
 **Allowed characters:** `a-z`, `A-Z`, `0-9`, `.`, `-`, `_`, and `*`, `#` in patterns
 
@@ -214,7 +216,7 @@ patterns and its `since_seq` works the same way.
 To allow a new service to auto-approve on Wotan topics:
 
 1. Add its `display_name` to `configs/wotan.yaml` under `topics.auto_approve`
-2. Restart Wotan (or send SIGHUP for hot-reload — future feature)
+2. Reload Wotan: `systemctl kill -s HUP unheaded-wotan` applies `auto_approve` and `legacy_display_names` without a restart (S-TRUE-WIRE Step 155); a change to `signing_keys` or `signed_prefixes` still needs a restart and the reload is refused
 3. The service can now subscribe and publish immediately
 
 ## Security Considerations

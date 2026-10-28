@@ -85,10 +85,10 @@ type Secret struct {
 	UpdatedAt time.Time `json:"updated_at"`
 
 	// ExpiresAt is when the secret expires (zero means never).
-	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	ExpiresAt time.Time `json:"expires_at,omitzero"`
 
 	// RotatedAt is when the secret was last rotated.
-	RotatedAt time.Time `json:"rotated_at,omitempty"`
+	RotatedAt time.Time `json:"rotated_at,omitzero"`
 
 	// LeaseID is the lease identifier if this secret has a lease.
 	LeaseID string `json:"lease_id,omitempty"`

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Unheaded Kingdom - Flow Tracker TC Program
 //!
 //! THE WHISPERING VOID tracks all flows through the kingdom.

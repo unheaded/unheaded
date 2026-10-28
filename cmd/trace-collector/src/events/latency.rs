@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! Latency event parsing.
 //!
 //! Handles latency probe events from eBPF programs that measure

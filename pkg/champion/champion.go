@@ -40,7 +40,7 @@ type Action struct {
 	Error         string    `json:"error"`
 	TriggeredBy   string    `json:"triggered_by"`
 	PlannedAt     time.Time `json:"planned_at"`
-	CompletedAt   time.Time `json:"completed_at,omitempty"`
+	CompletedAt   time.Time `json:"completed_at,omitzero"`
 	ElapsedMs     int       `json:"elapsed_ms"`
 }
 
@@ -276,7 +276,7 @@ func realPath(abs string) (string, error) {
 // reads and gate/confirm bookkeeping rows fail open. Every failed audit
 // write, either way, is counted and logged.
 
-// ErrAuditUnavailable: the action log could not record a mutation's
+// ErrAuditUnavailable means the action log could not record a mutation's
 // intent, so the mutation was refused and nothing changed.
 var ErrAuditUnavailable = errors.New("audit log unavailable; mutation refused")
 

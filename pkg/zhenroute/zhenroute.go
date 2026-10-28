@@ -102,8 +102,8 @@ type Config struct {
 // protectedFixtureFiles may not change for a check to count.
 var protectedFixtureFiles = []string{"check.sh", "TASK.md", "solution.patch"}
 
-// IsFixtureTest: with check fixture-check, a fixture's test and validator
-// files are part of the check and protected like check.sh (a weakened
+// IsFixtureTest reports whether rel is a fixture's test or validator file. With
+// check fixture-check, those files are part of the check and protected like check.sh (a weakened
 // assertion passes the check).
 func IsFixtureTest(rel string) bool {
 	b := filepath.Base(rel)
@@ -212,7 +212,7 @@ func WorktreeFiles(ctx context.Context, root, dir string) (string, error) {
 	return sb.String(), nil
 }
 
-// ErrNotAgentWorktree: the worktree is not a zhen/<name> agent worktree.
+// ErrNotAgentWorktree means the worktree is not a zhen/<name> agent worktree.
 var ErrNotAgentWorktree = errors.New("not an agent worktree on a zhen/<name> branch")
 
 // Run routes one task. Errors are infrastructure failures (worktree,

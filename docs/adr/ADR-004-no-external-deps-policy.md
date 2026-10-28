@@ -207,6 +207,8 @@ Recorded in the commit that adds it to the root module, with its
 | New baseline lines (22) | `go.sum` checksum entries `go mod tidy` records for the tests of the SDK's packages: the AWS SDK v2 family and `smithy-go` (Bedrock), `golang.org/x/oauth2` and `cloud.google.com/go/auth/oauth2adapt` (Vertex), `modelcontextprotocol/go-sdk`, `google/jsonschema-go`, `segmentio/asm`, `segmentio/encoding`, `yosida95/uritemplate/v3`, `otelgrpc`. `go list -deps -test ./...` loads none of them: no binary or test in this repository compiles them. |
 | govulncheck | Clean for the new code paths; the one module-level finding (GO-2026-5932, `x/crypto/openpgp`, not called) predates this change. |
 
+**Sign-off:** Stevie Bellis, date: __________ (asked in S-TRUE-WIRE E5 question 5, Steps 343 and 353; until dated, the register row above reads "owner sign-off pending").
+
 ### Admission — `aws-lc-rs` 1.18.2 / `aws-lc-sys` 0.46.0 as rustls' crypto provider (2026-10-23, ADR-096 §2)
 
 S-QUANTUM-ARMOR Phase 7 (ADR-105). Recorded in the commits that switch
@@ -229,6 +231,8 @@ assessed*.
 | Build | `aws-lc-sys` compiles C with the `cc` crate (no cmake needed on Linux x86-64); built on west with the system gcc. The Rust CI jobs run on `ubuntu-latest`, which has a C compiler. |
 | Licence | `aws-lc-rs`: `ISC AND (Apache-2.0 OR ISC)`. `aws-lc-sys`: `ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)`. Its `aws-lc/LICENSE` places the OpenSSL- and SSLeay-derived code under Apache-2.0: no OpenSSL or SSLeay licence. All GPL-3.0 compatible; `scripts/verify-gpl-boundary.sh` passes. |
 | cargo audit | 0 vulnerabilities, 0 yanked in the four changed lockfiles (advisory DB of 2026-10-23). Pre-existing "unmaintained" warnings unchanged except that `cmd/trace-collector` loses `rustls-pemfile` (RUSTSEC-2025-0134). |
+
+**Sign-off:** Stevie Bellis, date: __________ (asked in S-TRUE-WIRE E5 question 5, Steps 343 and 353; until dated, the register row above reads "owner sign-off pending").
 
 ## Long-Term Replacement Strategy
 

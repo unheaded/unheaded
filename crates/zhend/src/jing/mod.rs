@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
 //! # Jing (經) — The Classics / Deep Archive
 //!
 //! L3 cold storage. Append-only log of ancient fragments.

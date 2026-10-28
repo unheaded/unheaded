@@ -17,7 +17,7 @@ import (
 	"unheaded/pkg/metrics/prom"
 )
 
-// Default message timeout.
+// DefaultMessageTimeout is the default message timeout.
 const DefaultMessageTimeout = 30 * time.Second
 
 // Prometheus metrics for message timeouts.
