@@ -142,7 +142,7 @@ Record actual output in Step 12. Anything on this list failing again is not a sp
 
 | # | Known failure / gap | Source |
 |---|---|---|
-| KF1 | `gate_nway` → NWAY-FAIL | Phase 1.7 Gate C notes; regression harness does not gate it |
+| KF1 | `gate_nway` → NWAY-FAIL | Phase 1.7 Gate C notes; regression harness does not gate it. **Retired by S-ASCEND-2 Step 91** (f2bc1a56): the scheduler resumed a reaped zombie when nothing was runnable; isolation held. gate_nway is now a harness gate |
 | KF2 | `crates/heimdall-bpf` declares no `execve`/`gjallarhorn_xdp` programs (never written) | Cargo.toml comment |
 | KF3 | `services/anomaly`, `services/anamnesis` unreached by any binary | `docs/UNREACHED-GO-PACKAGES.md` |
 | KF4 | `tomb/lich/harnesses/lich_007_mbc_ebpf_test.go` is a simulation, not coverage | its own banner (ADR-062 audit) |

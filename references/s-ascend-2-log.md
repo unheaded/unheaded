@@ -40,7 +40,7 @@ Started 2026-10-28 on 31346cbf (based on sprint/true-wire, not develop: the M-18
 
 | KF | What | At start |
 |---|---|---|
-| KF1 | `gate_nway` (3 processes, isolation) | **0 `NWAY-ok`, 231 `NWAY-FAIL pid2` markers** at 1.5M triggers: pid 2 fails, pids 0/1 print nothing ok (`p0-nway.txt`) |
+| KF1 | `gate_nway` (3 processes, isolation) | **0 `NWAY-ok`, 231 `NWAY-FAIL pid2` markers** at 1.5M triggers: pid 2 fails, pids 0/1 print nothing ok (`p0-nway.txt`). **Retired 2026-10-28 (f2bc1a56)**: not an isolation failure; init's exit resumed a reaped zombie (Phase 3) |
 
 Phase 0 exit gate: Steps 10 and 12 green; KF1 reproduced; H1-H15 match (H10 amended). → Phase 1.
 

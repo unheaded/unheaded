@@ -78,6 +78,9 @@ Scientist).*
       Doom + xv6 green in the regression harness with unchanged budgets; the 1.2.4 I/O-time gates are
       in both loaders, and live the Doom object under the xv6 kernel is refused with
       `SurfaceObjectMismatch` and a 6 MiB stride with `SliceOverlap`, nothing attached.
+- Note 2026-10-28: ADR-074 Gate 4 (`gate_nway`, three co-resident children) is green and gated in
+  `scripts/upc-regression.sh`, with the new looped-fork gate (`forkloop`). The old failure was the
+  scheduler resuming a reaped zombie when nothing was runnable (S-ASCEND-2 Phase 3), not a leak.
       "Add a guest" is declarative today.
 
 ### Epic 1.3 — Extend xv6 OS-primitive coverage (FS stretch + syscalls)

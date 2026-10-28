@@ -12,7 +12,7 @@ This page is the live status. The deep architecture is at [UPC Overview](UPC-Ove
 | **L2** Stamping | Monad HbH write, CRC-16 valid | Wire capture, checksum verify | ✅ shipped |
 | **L3** Framebuffer | Scanline render, 320×200 output | Visual verify, ≥35 fps benchmark | ✅ shipped — [Doom on UPC](Doom-on-UPC) |
 | **L4** OS primitives | Syscalls, interrupts, scheduler, MMU | Unit tests, scheduling fairness, MMU isolation | ✅ shipped through L4f |
-| **L5** xv6 kernel | interactive shell + filesystem | `sh` runs `ls`/`cat`/`echo`/`wc`, prompt returns | ✅ **shipped (2026-07-03)** — Phase 1 COMPLETE, Gates A→D.1. Interactive `sh` (fork/exec/wait), in-BPF FS reader over `fs.img`, per-pid MMU. [Linux on UPC](Linux-on-UPC) |
+| **L5** xv6 kernel | interactive shell + filesystem | `sh` runs `ls`/`cat`/`echo`/`wc`, prompt returns | ✅ **shipped (2026-07-03)** — Phase 1 COMPLETE, Gates A→D.1. Interactive `sh` (fork/exec/wait), in-BPF FS reader over `fs.img`, per-pid MMU; N-way concurrent isolation gated since 2026-10-28. [Linux on UPC](Linux-on-UPC) |
 | **L6** own OS | **Unheaded Linux** — own minimal OS from scratch (not vendored uClinux) | `sh` prompt on our kernel; scale to Yggdrasil golden image | ⏳ next ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)) — evolve from xv6, budget-gated. Ownership ladder done 2026-07-07 (kernel 100% Unheaded); EVOLUTION-1 Stage 1 measured 2026-07-19, getpid flip deferred (+5409 verifier insns) |
 
 ## Per-level detail
@@ -57,6 +57,8 @@ Gate: each sub-level has its own unit tests in `ebpf/monad-cpu-ebpf/` + integrat
 xv6-riscv vendored at `crates/xv6-mbc/upstream/` (MIT). MBC ISA gained five new opcodes (FENCE / MRET / SRET / LR.W / SC.W) gated behind `cfg!(feature = "ascend-linux")`.
 
 **Shipped:** a full interactive shell. The kernel boots end-to-end, the scheduler dispatches `init`, `init` forks + exec's `sh`, and `sh` reads a command line, forks + exec's the command, reaps its child, and returns a fresh `$` prompt. Backed by an in-BPF filesystem reader that walks `fs.img` inodes directly from RAM_MAP: `ls` lists the root dir with types/inums/sizes, `cat` prints real file contents (incl. `>12 KiB` files via single-indirect blocks), `echo`/`wc` run with argv, per-pid MMU isolation holds (Phase 1.7 Gates A→D.1; ADR-077/078/079).
+
+N-way concurrent isolation (`gate_nway`: three live children, each checking its own canaries) and a looped fork + wait (`forkloop`) are regression-harness gates since 2026-10-28. Both had looked broken because the scheduler resumed a reaped zombie when no process was runnable; with that fixed, an exiting init halts the CPU.
 
 Detail + full gate chronology: [Linux on UPC](Linux-on-UPC).
 

@@ -383,12 +383,12 @@ Copyright (c) 2024-2026 Stevie Bellis.
   bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tee "$S6/p3-regression-final.log" | grep -aE 'PASS|FAIL|verifier'
   ```
 - [x] **Step 91** *(ALL GREEN)* [V] ~1m: Two new `PASS` lines, zero `FAIL` (or forkloop `FAIL` only if Step 87 went STUCK, in which case the forkloop gate is wrapped in `if [ "${UPC_GATE_FORKLOOP:-0}" = 1 ]` and KF2 recorded), budgets unchanged from Step 79.
-- [ ] **Step 92** [DOC-UPDATE][W] ~10m: `$LOG` KF table: KF1 retired (commit, evidence file); `UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.2 note "Gate 4 N-way green <date>"; `wiki/UPC-Dream-Ladder.md` L5 row mentions N-way isolation; `S-UPC-WIRE-COMPUTE-battle-plan.md:145` KF1 row gets "retired by S-ASCEND-2 Step 91".
-- [ ] **Step 93** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 92** [DOC-UPDATE][W] ~10m: `$LOG` KF table: KF1 retired (commit, evidence file); `UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.2 note "Gate 4 N-way green <date>"; `wiki/UPC-Dream-Ladder.md` L5 row mentions N-way isolation; `S-UPC-WIRE-COMPUTE-battle-plan.md:145` KF1 row gets "retired by S-ASCEND-2 Step 91".
+- [x] **Step 93** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   cd "$PROJECT_ROOT" && git add scripts/upc-regression.sh crates/xv6-mbc crates/monad-mbc docs/battle-plans wiki/UPC-Dream-Ladder.md references/s-ascend-2-log.md && commitp -m "test(upc): [S-ASCEND-2 81-93] forkloop gate + gate_nway gated in the harness; KF1 retired"
   ```
-- [ ] **Step 94** [V] ~1m: **PHASE 3 EXIT GATE** — harness has both gates and is green; emulator regression tests committed; 12/12 SAME; budgets recorded; tree clean.
+- [x] **Step 94** *(harness has both gates and is green; emulator tests committed; 8/8 SAME + harness; budgets recorded)* [V] ~1m: **PHASE 3 EXIT GATE** — harness has both gates and is green; emulator regression tests committed; 12/12 SAME; budgets recorded; tree clean.
   - If pass → Phase 4 (and Phase 7 may now start). If fail → DO NOT PROCEED to Phase 7; Phases 4-6 may proceed.
 
 ---
