@@ -12,7 +12,7 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 
 ### E01 — CI GREEN ON DEVELOP, PROMOTION READY  (tier a, size S, 9 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |
-| M-248 | `check-gates-can-fail` full run stalls in `well/test-zhen-captures` (docker-backed) past 45 min; the gates after it were not exercised 2026-10-28 | `references/evolution1-stage2-log.md` Phase 6 | scripts/check-gates-can-fail.sh | OPEN | N | S |
+| M-248 | `check-gates-can-fail` full run exceeds 45 min (not a hang: `well/test-zhen-captures` bites in isolation). Coverage completed with `--only`; five clean-tree-red gates fixed (`326a6ae0`). Left INCONCLUSIVE on west: check-ruff and check-python-audit (tools not installed), check-tool-freshness (trivy-action pin `6abccf398f78` → `8f28faec2651`, re-pin in docker.yml and security.yml) | `references/evolution1-stage2-log.md` Phase 6 | scripts/check-gates-can-fail.sh | PARTIAL | Y: approve the trivy-action re-pin | S |
 |---|---|---|---|---|---|---|
 | M-001 | Dependency baseline lists 4 Go modules gone from the build (fsnotify, kr/pty, gobreaker, x/term): `check-dependency-baseline.sh --update` (shrink-only) | parent repro; SEC untriaged gitleaks job | docs/policy/dependency-baseline.txt | CLOSED 2026-10-27 S24 (baseline shrunk to 742) | N | S |
 | M-002 | `scripts/lib/tool-pins.sh`: syft 1.54.1→1.55.0, grype 0.120.1→0.121.0 + sha256 (the "Pinned tools" exit 2) | parent repro | scripts/lib/tool-pins.sh | CLOSED 2026-10-27 S24 (syft 1.55.0, grype 0.121.0, oxlint 1.89.0; hashes verified by download) | N | S |

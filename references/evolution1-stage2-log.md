@@ -632,3 +632,20 @@ The cause is the trigger frame layout:
 Now `cpu_ticks = triggers` (10,000/10,000; 50,000/50,000): twice the CPU work per trigger. `sweep12`: 12/12 SAME.
 Harness: ALL GREEN. Trigger budgets in the harness and plans are now twice as generous as they were measured; they
 are left as they are.
+
+**`check-gates-can-fail` coverage completed (M-248).** It was not a hang. In isolation `well/test-zhen-captures`
+bites in under 10 minutes; the full run simply takes longer than 45 minutes. The eight gates the full run never
+reached were each run with `--only`:
+- `wireguard/test-rotate-psk`: OK, it bites.
+- Five gates were INCONCLUSIVE because they already failed on a clean tree. All are fixed (`326a6ae0`) and now bite:
+  - `check-crypto-inventory`: the CBOM was stale since S-ASCEND-2.
+  - `check-unit-binaries`: the upc-bootctl unit runs a Rust binary; `build-binaries.sh` gains a `CARGO` list.
+  - `test-deb-maintscripts`: cargo-built binaries are not packaged.
+  - `well/test-zhen-confirm`: the integration test confirmed as `"stevie@test"`, where RT-03 requires
+    `champion.QueuePrincipal`.
+  - `well/test-zhen-captures` (above).
+- Still INCONCLUSIVE on west, for Stevie:
+  - `check-ruff` and `check-python-audit`: ruff and pip-audit are not installed here (CI pins them).
+  - `check-tool-freshness`: `aquasecurity/trivy-action@master` is pinned at `6abccf398f78`, and `8f28faec2651`
+    (2026-10-21) has been on master past the 7-day cooldown. Re-pinning (docker.yml, security.yml) is a dependency
+    approval.
