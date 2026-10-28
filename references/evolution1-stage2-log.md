@@ -131,3 +131,62 @@ Constants, header and parity test now match the revised layout:
 - `upc_slots.h`: `_Static_assert`s on stride, size and offsets. It compiles under ilp32e, and a wrong offset fails.
 - `phase12.rs`: the same constants.
 - Parity test: 2 pass. It also checks `struct trapframe` is 144 bytes and the stride is a power of two.
+
+**D4 correction (same day):** `uservec` keeps its a7 save. That save only reads the spill word, and the no-tag
+fallback (an old object with the flag on) depends on `tf->a7`. Only the a6 save and the a6/a7 restores in `userret`
+go. I8 is about writes, so it still holds.
+
+## Outlines for the plan's Phases 3-4 (S26 Steps 31, 35)
+
+**Phase 3: rung 0 kernel side, test first (plan Steps 59-84).**
+- *Preflight.* Record the OFF verified count (921,036) and the kernel hash.
+- *Probes:*
+  - `getpidloop.c`: three sequential fork → getpid → exit → wait. Slot 1 is reused, and each child must print
+    `GL: child-pid=2`.
+  - `getpidmulti.c`: three live children, each calling getpid, then `pause`, then getpid again, so traps from slots
+    1-3 interleave. The parent waits for all three.
+- Build the probes and record the flag-OFF lines (BPF answers) and the flag-ON lines with today's kernel (RED).
+- *Harness gates* behind `UPC_GATE_RUNG0=1`, skipped by default. Commit.
+- *Kernel:*
+  - `upc_slots.c`: tables in `.bss`, `upc_slots_init()`, `upc_slot_enter()`, added to `Makefile.mbc`.
+  - `umain.c` calls `upc_slots_init()` after `userinit()`.
+  - `usertrap` calls `upc_slot_enter()` first.
+  - `uproc.c`: `allocproc` skips rows 1-7; panic guards in `kexit`, `sched`, `sleep`, `freeproc`.
+  - `trampoline_mbc.S`: drop the a6 save and the a6/a7 restores.
+- *Probe-build prints* (`UPC_STAGE2_PROBE`):
+  - `UT:s;pid;ss;a7;rf` from `upc_slot_enter`;
+  - the spill words before and after each tagged trap (I8);
+  - a count of non-zero words in `0xF01000` at `upc_slots_init` (the init-pgd lead).
+- *Build and test:* `kbuild` (new hash recorded); parity test. With the flag OFF: sweep 8/8, harness green, the object
+  unchanged.
+- *Compat check (finding 6):* `GETPID_INJECT` on, `UPC_RUNG0` off, new kernel. No tag reaches the kernel, so the
+  Phase 1 RED lines must repeat exactly.
+- Restore the flags and commit. **Exit gate:** flag OFF green; compat check identical; probes RED with the flag on.
+
+**Phase 4: rung 0 BPF side and gate (plan Steps 85-110).**
+- *Read* the injection arm, the fork arm and `translate_address` at the current line numbers.
+- *Emulator tests first,* if the host emulator models the injection arm. Otherwise, the probe-build lines are the
+  tests.
+- *Consts,* both off by default:
+  - `UPC_RUNG0`: guards `inject_strap()` (base at `0x160`, skip if 0; `sscratch = base + (current_pid << 8)`; tagged
+    `cur_slot` and `trap_a7`), the fork arm's `fresh_mask |= 1 << child`, and the I7 early return.
+  - `UPC_D6_MISS_FAULT`: guards D6.
+- *Three verified counts:*
+  - both off: equal to 921,036 (I6);
+  - `UPC_RUNG0` on: the delta, bar ≤ +2,000, Override above +5,000;
+  - plus D6: its own delta.
+
+  The total must stay ≤ 950,000. Commit.
+- *Gate with the flag and `UPC_RUNG0` on:*
+  - `getpidfork` child-pid = fork-ret;
+  - `getpidloop` and `getpidmulti`;
+  - probe-build UT lines checked by an awk asserter;
+  - the probe build injects 22 as well, and the kernel's "unknown sys call 22" line carries pid s+1;
+  - I8 spill words unchanged.
+- *D6:* `hostile_pgd.c` (the child stores to VA `0xF00000` and to the table address; init checks both). RED with D6
+  off, GREEN with it on. If a golden changes with D6 on, keep D6 off and escalate D6 alone.
+- *Mutation check:* four `-D` kernel variants (shared trapframe, `trap_a7` ignored, no refresh, a6/a7 restored). The
+  gate must fail on each. Commit.
+- *Corpus:* flags OFF: sweep 8/8, harness green. Flags ON: `gate2`, `gate_nway`, forkloop, devprobe and the `ut_*`
+  probes. The harness gains a rung 0 stage (build the ON object, run the gates, rebuild the OFF object).
+- Commit. **Exit gate:** the skeleton's rung 0 gate as amended.

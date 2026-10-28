@@ -97,10 +97,11 @@ writes inside RAM but nowhere else.
 
 ### D4. The kernel takes a7 from `trap_a7`; userret stops touching x16/x17
 
-`upc_slot_enter()` (D5) sets `p->trapframe->a7` from `trap_a7` when the tag is present. `uservec` drops its a6/a7
-save, and `userret` drops its a6/a7 restore. Under RV32E the compiler never allocates x16 or x17. The `usys` stubs
+`upc_slot_enter()` (D5) sets `p->trapframe->a7` from `trap_a7` when the tag is present. `uservec` keeps its a7 save,
+a read of the spill word that the no-tag fallback still needs, and drops its a6 save. `userret` drops its a6 and a7
+restores. Under RV32E the compiler never allocates x16 or x17. The `usys` stubs
 load a7 before each `ecall`, and nothing after the call reads it. BPF's wait retry re-dispatches from `regs[1]`, not
-the spill. So a trap no longer reads or writes the spill words at physical `0x64000`/`0x64004` (init's copies), and r1
+the spill. So a trap no longer writes the spill words at physical `0x64000`/`0x64004` (init's copies), and r1
 and r2 keep their pre-trap values. No handler reads a6 (`argraw` stops at a5), so nothing carries it.
 
 ### D5. Rows are refreshed at trap entry; the kernel never schedules or frees them
@@ -180,7 +181,7 @@ keeps the 12 goldens SAME. If a golden changes, the change is recorded and D6 es
 - **BPF cost:** measured, not estimated. The bar is ≤ +2,000 verified instructions over the const-off count with D3,
   plus whatever D6 costs; D6 is measured separately. Above +5,000 for D3, the fallback is `cur_slot` only, with the
   generation derived in the kernel from a BPF exit count, which needs its own amendment.
-- `uservec` and `userret` lose four instructions (D4). They are adapter files (`trampoline_mbc.S`), not upstream xv6.
+- `uservec` loses one instruction and `userret` two (D4). They are adapter files (`trampoline_mbc.S`), not upstream xv6.
 - **Rollback:** the rung const off. The tables then have no writer, and the kernel takes today's path.
 - **Skeleton amendment:** rung 0's "exit and wait free the row" becomes "a reused slot refreshes its row on first
   trap". The kernel frees nothing before rung 7.

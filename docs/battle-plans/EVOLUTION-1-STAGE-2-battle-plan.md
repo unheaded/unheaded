@@ -208,3 +208,133 @@ its invariants listed as checks the gate will run.
 - [x] **Step 56** *(answered differently: children CAN reach low memory today through the page-walk fallthrough; D6 closes it)* [V] ~2m: The BlackMage finding about user access to the tables is answered: the tables sit in memory no user slice maps (user VA is translated into the per-pid slice; record why the table's physical address is unreachable from priv 3), or the plan adds a check.
 - [x] **Step 57** [C] ~1m: **COMMIT CHECKPOINT** (`docs(upc): [STAGE2 51-57] slot tables placed, parity test, review applied`).
 - [x] **Step 58** [V] ~1m: **PHASE 2 EXIT GATE**: ADR-109 committed with addresses, invariants I1-I6, cost estimate and review dispositions; the parity test exists and passes on the constants alone.
+
+---
+
+## PHASE 3: RUNG 0 KERNEL SIDE, TEST FIRST (Steps 59-84)
+
+**Goal**: The kernel implements ADR-109 D1, D2, D4 and D5, and nothing changes with the flag off.
+**Prerequisite**: Phase 2 exit gate; ADR-109 as revised (79ec42ef and later).
+**Time**: ~3 h
+**Agent**: Coordinator (live boots need sudo inside `upc0`)
+
+Helpers, in addition to VARIABLES:
+```bash
+flag() { sed -i "s/const GETPID_INJECT: bool = $1;/const GETPID_INJECT: bool = $2;/" "$EBPF/monad-cpu-ebpf/src/main.rs" \
+  && (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1); }
+ugl() { grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g' | grep -aoE '(GL|GM|UT|SC|SP|PG): [^ ]*'; }
+gates() { (cd "$UP" && make -f ../adapters/Makefile.mbc-userland userland gates ramdisk 2>&1 | tail -1); }
+```
+Probe values print in decimal and end in `;`, because the PC-tracer strip eats hex digits followed by a space (log,
+Phase 1).
+
+### Preflight
+
+- [ ] **Step 59** [B][S] ~3m: Baseline:
+  ```bash
+  git status --short | wc -l; sha256sum "$K/xv6-mbc.mbc" | cut -c1-16
+  ub getpidfork UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' | tail -1
+  ```
+- [ ] **Step 60** [V] ~30s: 0 changed files, hash `4e39c82f9ba56079`, ascend count 921,036 (the I6 reference count). A
+  different count → record it in `$LOG` as the reference and continue.
+
+### Probes (RED first)
+
+- [ ] **Step 61** [CODE][W] ~15m: `crates/xv6-mbc/upstream/user/getpidloop.c`, in the shape of `getpidfork.c` (fixed
+  strings in if-chains, spin at the end). Three iterations of fork → child prints `GL: child-pid=N` and exits →
+  parent prints `GL: fork-ret=N` and `GL: wait-ret=N`. Then `GL: done`. Under option K, with one child live at a time,
+  slot 1 is reused and every N is 2.
+- [ ] **Step 62** [CODE][W] ~20m: `crates/xv6-mbc/upstream/user/getpidmulti.c`.
+  - The parent forks three children before waiting.
+  - Child k prints `GM: cK-pid=N`, calls `pause(1)`, then prints `GM: cK-again=N` and exits. Traps from slots 1-3
+    then interleave.
+  - The parent prints `GM: fork-ret=N` for each fork, waits three times (`GM: wait-ret=N`), then prints `GM: done`.
+  - Expected: children are 2, 3 and 4, and `again` equals `pid` for each child.
+- [ ] **Step 63** [W] ~3m: Register both in `crates/xv6-mbc/adapters/Makefile.mbc-userland` (`GATE_PROGS`, `.PHONY`,
+  `clean`), as the `ut_*` probes are.
+- [ ] **Step 64** [BUILD][B] ~3m: `gates; ls "$K"/getpidloop.mbc "$K"/getpidmulti.mbc`.
+- [ ] **Step 65** [V] ~30s: both files exist; `strings "$K/getpidmulti.mbc.data" 2>/dev/null | grep -c 'GM:'` ≥ 5, or
+  the tokens are found with `grep -a 'GM:'` on the image.
+- [ ] **Step 66** [TEST][B][S] ~6m: Flag OFF, so BPF answers every getpid:
+  ```bash
+  for p in getpidloop getpidmulti; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p3-off.txt"
+  ```
+- [ ] **Step 67** [V] ~1m: `getpidloop` prints child-pid=2, fork-ret=2 and wait-ret=2 three times, then `done`.
+  `getpidmulti` prints three distinct child pids, with `again` equal to `pid` for each, and the wait-rets name the
+  same set.
+  - [D] `getpidmulti` stalls → raise `TRIG` to 3000000 (reparent2 needed 3M), then check `pause` is serviced in BPF:
+    `grep -n 'syscall_nr == 13\|SYS_PAUSE\|pause' "$EBPF/monad-cpu-ebpf/src/main.rs" | head`. Two attempts, then
+    replace `pause(1)` with a yield-free busy loop of 2000 iterations and record the change.
+- [ ] **Step 68** [TEST][B][S] ~6m: Flag ON, today's kernel. This is the RED record:
+  `flag false true; for p in getpidloop getpidmulti; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p3-red.txt"; flag true false`.
+- [ ] **Step 69** [V] ~1m: Every child's pid is wrong in `p3-red.txt` (`other`, the -1 from Phase 1). The parent's
+  lines match `p3-off.txt`.
+- [ ] **Step 70** [CODE][W] ~10m: Harness gates in `scripts/upc-regression.sh`, in the getpidfork gate's shape, run only
+  when `UPC_GATE_RUNG0=1` (else `skip "rung 0 gates (UPC_GATE_RUNG0 unset)"`): `getpidfork` with child-pid equal to
+  fork-ret; `getpidloop` with the Step 67 lines; `getpidmulti` with the Step 67 lines. The expected lines are absolute
+  values, not "same as OFF".
+- [ ] **Step 71** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 61-70] getpidloop, getpidmulti probes; rung 0 gates (off by default)`.
+
+### Kernel changes (ADR-109 D1, D2, D4, D5)
+
+- [ ] **Step 72** [CODE][W] ~30m: `crates/xv6-mbc/adapters/upc_slots.c`, included after `proc.h` and `upc_slots.h`:
+  - `static struct upc_slot_tables upc_st __attribute__((aligned(256)));`
+  - `upc_slots_init()` (D2):
+    - for each s: `kernel_sp = proc[s].kstack + PGSIZE`, `kernel_trap = (uint32)usertrap`, `kernel_hartid = 0`,
+      `kernel_satp` as `prepare_return` writes it;
+    - copy `*proc[0].trapframe` into `upc_st.tf[0].tf`, set `proc[0].trapframe = &upc_st.tf[0].tf`, `kfree` the old
+      page;
+    - `__sync_synchronize()`, then `*(volatile uint32 *)UPC_SLOT_TABLES_BP_BYTE = (uint32)&upc_st`.
+  - `upc_slot_enter()` (D5), as the ADR states it:
+    - read `cur_slot` and `trap_a7`, then write both as 0;
+    - no tag → return;
+    - `s >= UPC_SLOTS` → `panic("upc: cur_slot")`;
+    - `r_sscratch() != (uint32)&upc_st.tf[s].tf` → `panic("upc: sscratch")`;
+    - refresh when `fresh_mask & (1u << s)` or `proc[s].pid == 0` (rows 1-7 only; s = 0 is init's row and is never
+      refreshed);
+    - `mycpu()->proc = &proc[s]`;
+    - a7 from `trap_a7` when tagged.
+  - `int upc_is_slot_row(struct proc *p)`: true for rows 1-7.
+  - Add `$A/upc_slots.o` to `OBJS` in `crates/xv6-mbc/adapters/Makefile.mbc`.
+- [ ] **Step 73** [CODE][W] ~10m: Wire it in:
+  - `crates/xv6-mbc/adapters/umain.c`: `upc_slots_init();` right after `userinit();`, before `__sync_synchronize()`.
+  - `crates/xv6-mbc/adapters/utrap.c`: `upc_slot_enter();` as the first statement of `usertrap`, before `myproc()` is
+    read.
+  - `defs.h` prototypes, in the adapter-local header if there is one; otherwise at the end of `kernel/defs.h` under
+    an `// ADR-109` comment.
+- [ ] **Step 74** [CODE][W] ~15m: `crates/xv6-mbc/adapters/uproc.c` (D5 guards):
+  - `allocproc` starts its scan at row 0 for `userinit` only, and skips rows 1-7 after that. Simplest: skip
+    `p > &proc[0] && p < &proc[UPC_SLOTS]`.
+  - `kexit`, `sched`, `sleep`, `freeproc`: `if(upc_is_slot_row(p)) panic("upc: slot row");` at entry, with `p` the
+    process concerned.
+- [ ] **Step 75** [CODE][W] ~10m: `crates/xv6-mbc/adapters/trampoline_mbc.S` (D4): delete the a6 store in `uservec` and
+  the a6 and a7 loads in `userret`. Keep the a7 store in `uservec`. Write one comment line citing ADR-109 D4 where
+  they were.
+- [ ] **Step 76** [CODE][W] ~15m: Probe-build prints under `#ifdef UPC_STAGE2_PROBE` in `upc_slots.c`, decimal and
+  `;`-terminated:
+  - `UT:s=..;pid=..;ss=..;a7=..;rf=..;` on every tagged trap;
+  - `SP:pre=..;..;` with the words at `0x64000`/`0x64004` on entry to a tagged trap, and `SP:post=..;..;` in
+    `usertrapret` before `userret`;
+  - `PG:f01000-nonzero=..;`, the count of non-zero words in `0xF01000..0xF01FFC`, once in `upc_slots_init`.
+- [ ] **Step 77** [BUILD][B] ~4m: `kbuild 2>&1 | grep -E 'error|warning: unused' | head; gates; sha256sum "$K/xv6-mbc.mbc" | cut -c1-16 | tee "$S7/p3-khash.txt"; (cd "$PROJECT_ROOT/cmd/upc-bootctl" && cargo test --release --test parity_slot_tables 2>&1 | grep 'test result')`.
+- [ ] **Step 78** [V] ~1m: no errors; a new hash (expected, since the kernel changed); parity 2 passed. On a
+  `_Static_assert` failure, fix `upc_slots.h` and phase12 together, never one side.
+
+### Flag OFF: nothing moves
+
+- [ ] **Step 79** [TEST][B][S] ~12m: `sweep | grep -c SAME; bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'; ub getpidfork | gf | tr '\n' ' '`.
+- [ ] **Step 80** [V] ~1m: 8 SAME; ALL GREEN; the count equals Step 60's, because the object is unchanged; getpidfork
+  prints the Phase 0 lines.
+  - [D] A golden differs → it is a kernel-side TTY change. Diff the `.tty` files. A new boot line (for example a
+    `PG:` print leaking out of the probe build) moves behind `UPC_STAGE2_PROBE`. Two attempts, then STUCK.
+- [ ] **Step 81** [TEST][B][S] ~6m: Compat check (ADR-109 finding 6): flag ON with today's BPF (no `UPC_RUNG0` yet),
+  new kernel. No tag ever arrives, so the kernel must take today's path:
+  `flag false true; for p in getpidfork getpidloop getpidmulti; do TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done > "$S7/p3-compat.txt"; flag true false`.
+- [ ] **Step 82** [V] ~1m: `diff <(grep -v '^==' "$S7/p3-red.txt") <(sed -n '2,3p' "$S7/p3-compat.txt")` is empty
+  (`p3-red.txt` holds the getpidloop and getpidmulti lines; `p3-compat.txt` lines 2-3 are the same two probes) (the RED results repeat exactly). Init's getpid still works with the flag
+  on. A difference means the no-tag path is not today's path: re-read Step 72's early return.
+- [ ] **Step 83** [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 72-82] ADR-109 kernel side: slot tables, row refresh, guards, trampoline a6/a7`
+  (the record goes in `$LOG` §Phase 3: hash, counts, the `PG:` value).
+- [ ] **Step 84** [V] ~1m: **PHASE 3 EXIT GATE**: with the flag OFF, sweep 8/8 SAME, harness ALL GREEN and the count
+  unchanged. The compat check repeats the RED lines. `p3-red.txt` is recorded. `GETPID_INJECT` is `false` in the tree.
+  If any of this fails, do not proceed to Phase 4.
