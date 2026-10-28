@@ -481,9 +481,9 @@ findings:
     lockout: none
     step: 1
     plan: >-
-      Fix or baseline the 60 golangci-lint issues on develop first (S-TRUE-WIRE Step 373 measured them with v2.15.0;
-      pin that version in ci.yml), then Stevie re-enables the workflow (Actions, CI, Enable workflow) and checks one
-      green run. Enabling is a GitHub setting, so not done unattended.
+      Prerequisites done on develop 2026-10-28: golangci-lint v2.15.0 at 0 issues and pinned in ci.yml (ba25221f),
+      go-licenses pinned and passing (9cd6cc05). What remains is Stevie's: re-enable the workflow (Actions, CI,
+      Enable workflow) and check one green run. Enabling is a GitHub setting, so not done unattended.
 
   - id: FND-026
     title: West serves an old unsigned apt repo on 0.0.0.0:18888 with autoindex; its conf/ and db/ are readable on the LAN.
