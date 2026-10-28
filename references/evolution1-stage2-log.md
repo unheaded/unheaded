@@ -408,3 +408,22 @@ forkloop, devprobe, the `ut_*` probes, getpidfork/loop/multi). It also surfaced 
 back to `syscall_nr == 11`; `UPC_PROBE_INJECT22` now remaps 22 to 11 right after `syscall_nr` is read. The kernel
 reads the number from `trap_a7` (`regs[1]`), so it still gets 22. Re-verified: `RUNG0-ASSERT pass 6`, and
 "2 slot: unknown sys call 22" and "3 slot: unknown sys call 22" again. bootctl tests all pass.
+
+**Step 108 (after the fixes; one session).**
+
+| | flags OFF | `GETPID_INJECT` + `UPC_RUNG0` on |
+|---|---|---|
+| `sweep12` | 12/12 SAME | 12/12 SAME |
+| harness | ALL GREEN | ALL GREEN (getpidfork, getpidloop, getpidmulti PASS) |
+| ascend | 921,036 | 913,408 |
+| Doom | 758,199 | 758,199 (the I7 fix holds) |
+
+The consts were restored to `false` and the object rebuilt.
+
+**Phase 4 exit gate: PASS, except D6.**
+- The child's pid equals `fork()`'s return.
+- ON and OFF lines agree.
+- `gate2`, `gate_nway`, forkloop, devprobe and the `ut_*` probes pass with the flags on.
+- Every reused slot refreshes exactly once.
+- The asserter passes, and all four mutants fail.
+- D6 is deferred (Steps 102-103): it stays off, as a decision for Stevie.

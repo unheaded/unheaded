@@ -486,23 +486,23 @@ vcount() { ub getpidfork UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' |
 - [x] **Step 105** *(all four fail with the broken property named)* [V] ~2m: All four print `RUNG0-ASSERT fail` with a reason that names the broken property. A variant
   that passes means the gate is blind there: strengthen the asserter or the probe, re-run, and record what changed.
   Afterwards rebuild the normal kernel (no `-D`) and check the Phase 3 hash.
-- [ ] **Step 106** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 98-105] rung 0 gate: probe asserts, injected 22, D6 hostile probe, mutation check`.
+- [x] **Step 106** *(8c1b066d)* [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 98-105] rung 0 gate: probe asserts, injected 22, D6 hostile probe, mutation check`.
 
 ### Corpus, both sides
 
-- [ ] **Step 107** [TEST][B][S] ~15m: Flags ON (`GETPID_INJECT`, `UPC_RUNG0`, and D6 if Step 103 kept it):
+- [x] **Step 107** *(found: I7 not ascend-only, BIGFILE golden was a wrap tail, drain cost; fixed 04bdf3f0)* [TEST][B][S] ~15m: Flags ON (`GETPID_INJECT`, `UPC_RUNG0`, and D6 if Step 103 kept it):
   - `for p in gate2 gate_nway forkloop devprobe ut_exitwait ut_twochildren ut_forktest ut_reparent2; do echo "== $p"; TRIG=3000000 ub $p | gf | tail -3; done`;
   - `sweep12 | grep -c SAME`;
   - `UPC_GATE_RUNG0=1 bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|rung 0|ALL'`.
 
   Then restore everything OFF: `flag true false; rung true false; d6 true false; obj`.
-- [ ] **Step 108** [V] ~2m: Every probe prints the same verdict as with the flags off (the Phase 0 and Phase 5
+- [x] **Step 108** *(12/12 both sides; ALL GREEN both; Doom 758,199)* [V] ~2m: Every probe prints the same verdict as with the flags off (the Phase 0 and Phase 5
   records). `sweep12` is 12. The harness is ALL GREEN with the rung 0 gates passing. With the flags back off, the count
   equals Step 60's and `git diff --stat` shows the consts `false`.
-- [ ] **Step 109** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 107-108] rung 0 gate passed; consts off in tree`.
+- [x] **Step 109** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 107-108] rung 0 gate passed; consts off in tree`.
   `$LOG` §Phase 4 records the counts, the `PG:` value, the D6 result and the four mutation results. ADR-109 gets
   `Rung 0 gate passed <date>`; Accepted waits for Phase 7.
-- [ ] **Step 110** [V] ~1m: **PHASE 4 EXIT GATE**: the skeleton's rung 0 gate as amended:
+- [x] **Step 110** *(PASS except D6, deferred)* [V] ~1m: **PHASE 4 EXIT GATE**: the skeleton's rung 0 gate as amended:
   - child pid equals `fork()`'s return;
   - ON and OFF lines agree;
   - `gate2`, `gate_nway` and forkloop pass;

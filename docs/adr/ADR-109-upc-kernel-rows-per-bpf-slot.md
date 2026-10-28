@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-109: The owned kernel gets a process row per BPF slot
 
-**Status**: Proposed (2026-10-28; revised after the four-lens review the same day)
+**Status**: Proposed (2026-10-28; revised after the four-lens review the same day). Rung 0 gate passed 2026-10-28, D6 excepted; Accepted waits for rung 1 (plan Phase 7).
 **Context sprint**: EVOLUTION-1 Stage 2, rung 0 (`docs/battle-plans/EVOLUTION-1-STAGE-2-battle-plan.md`)
 **Relates to**: ADR-067 (MBC ISA v2, UPC ABI v1), ADR-074 (per-pid page directories), ADR-075 (process model),
 ADR-080 (programmatic API), EVOLUTION-1 (`docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md`)
@@ -206,6 +206,41 @@ keeps the 12 goldens SAME. If a golden changes, the change is recorded and D6 es
   in user mode, and the kernel reads them only in S-mode (I7). Neither can interleave with the other. The unexplained
   half-tick loss (`references/evolution1-stage2-log.md`, side findings) does not change this: lost ticks are lost
   whole.
+
+## Implementation notes (2026-10-28)
+
+The plan is `EVOLUTION-1-STAGE-2-battle-plan.md`, Phases 3-4. The log is `references/evolution1-stage2-log.md`.
+
+**Kernel** (`crates/xv6-mbc/adapters/upc_slots.c`):
+- the table base links at `0x114C00`;
+- the normal kernel hash is `3c63d4865a4b5dcf`;
+- flag off, all 12 goldens SAME.
+
+**BPF** (`ebpf/monad-cpu-ebpf/src/main.rs`): consts `UPC_RUNG0` and `UPC_D6_MISS_FAULT`, plus the probe-only
+`UPC_PROBE_INJECT22`.
+
+**Measured verified counts:**
+
+| Object | Verified |
+|---|---|
+| Flag off | 921,036 (unchanged, I6) |
+| Flag on | 909,353 |
+| + `UPC_RUNG0` | 913,408 (+4,055: over the +2,000 bar, under the +5,000 fallback) |
+| + D6 | 916,504 (+3,096) |
+
+**The gate:**
+- With the flag and `UPC_RUNG0` on, getpidfork, getpidloop and getpidmulti print the same lines as with the flag off.
+- The probe kernel's per-trap lines pass `scripts/upc-rung0-assert.awk`, and getpid's companion number (22) reaches
+  the kernel per slot.
+- Each of the four mutants fails the asserter: shared trapframe, `trap_a7` ignored, no refresh, a6/a7 restored.
+
+**D6 is implemented but not enabled.** Its hostile-child check was not built, so it stays off pending a decision. The
+fall-through hole described under Security notes is still open.
+
+**What the rung found:**
+- The I7 guard must be ascend-only; without that, Doom (never priv 3) would stop context-switching.
+- bootctl drained the 4 KiB TTY ring only at the end of a boot, which hid output past 4,096 bytes. One golden
+  (`cat BIGFILE`) had been a post-wrap tail; it was re-captured once the drain was fixed.
 
 ## Alternatives considered
 
