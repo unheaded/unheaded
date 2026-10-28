@@ -276,3 +276,13 @@ targets:
   incomparable (comment in the workflow). Gating on west: `scripts/ci-local.sh` step 11c and the meta-gate
   (`check-ebpf-insns`, slow). ADR-012 status and wiki/eBPF-Programs.md "Verifier gates" updated; MARSHAL-COOKBOOK has
   no gate count to change.
+- Steps 238-246, 257-258 (Phase 6 decision table; exit gate with E3 unanswered, as the plan allows): 68 packages
+  unreached. `docs/sweeps/TRUE-WIRE-DECISIONS.md`, 36 rows with evidence, default and consequence: G8 delete rows from
+  `docs/protocol/G8-REFERENCE-RULINGS.md` (amplification, dos, intermediary, prefetch, flowtype, sequence, registry,
+  lifecycle, settings; migration parked until E8), the six G9 control planes (their eBPF halves listed separately as
+  KEEP), keymgmt/loadbalancer/sabatons parked (sabatons: Stevie's standing "parked" beats the plan's DELETE),
+  pkg/afxdp (builds only under a tag nothing passes), bpfmap, maploader, ebpf-exporter, pqc-verifier, pqc-common
+  (parked), and ASK for cmd/shield (E8), pkg/waf, lxd/ (east-bootstrap.sh references its host-b templates), the host
+  stacks. Dry run of the defaults (Step 241): build, vet, go test 218 ok with no FAIL, tidy clean; the only outside file
+  that goes with them is LICH-006's lifecycle harness. Merging develop into the branch (`7dde4cbc`) was needed for the
+  meta-gate: the branch lacked develop's classification fix.

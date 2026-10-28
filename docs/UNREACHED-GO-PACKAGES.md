@@ -67,6 +67,10 @@ F4 `pkg/config`, `pkg/testing`, `services/kenoma`.
   regeneration does not re-ask these.
 - G9 control planes waiting for their eBPF half (10): see the `unwired:` notes
   in the list. `services/anomaly` left the list on 2026-10-23 (`cmd/anomaly`).
+- **One decision table for G9, F5, F6, the G8 delete rows, `pkg/afxdp`,
+  `cmd/ebpf-exporter`, `cmd/pqc-verifier`, `pkg/waf`, `lxd/` and the host
+  stacks:** [docs/sweeps/TRUE-WIRE-DECISIONS.md](sweeps/TRUE-WIRE-DECISIONS.md)
+  (S-TRUE-WIRE E3, 2026-10-28, with a dry run of its defaults).
 - F3 `pkg/pqc_policy`: parked for S-QUANTUM-ARMOR (ADR-105).
 - F5 `internal/bpfmap`, `pkg/ebpf/maploader`: still parked. Phase 13 (Step 340)
   wrote the `CHAOS_TARGETS` loader on cilium/ebpf (already a dependency): these
