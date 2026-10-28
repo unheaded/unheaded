@@ -31,6 +31,7 @@
 #define BOOT_PARAMS_ADDR  ((volatile struct boot_params_v2 *)0x00000100)
 #define BOOT_MAGIC        0x554E4844u  /* canonical hex per ADR-072 */
 #define BOOT_VERSION_V2   2u
+#define BOOT_VERSION_V3   3u  /* v2 + kernel .rv2mbc SHA-256 at bytes 64..96 */
 
 struct boot_params_v2 {
     uint32_t magic;
@@ -49,7 +50,8 @@ struct boot_params_v2 {
     uint32_t initrd2_addr;
     uint32_t cmd_line_args_ptr;
     uint32_t boot_random_seed;
-    uint32_t reserved[48];
+    uint8_t  rv2mbc_sha256[32];  /* v3; zero in v2 */
+    uint32_t reserved[40];
 };
 
 /* ── CSR memory-mapped region (ADR-067 Decision 2) ────────────────────── */
@@ -99,7 +101,8 @@ void start(void) {
         __asm__ volatile ("ebreak");
         while (1) {}
     }
-    if (bp->version != BOOT_VERSION_V2) {
+    uint32_t version = bp->version;
+    if (version != BOOT_VERSION_V2 && version != BOOT_VERSION_V3) {
         mmio_puts("BOOT FAIL: bad version\n");
         __asm__ volatile ("ebreak");
         while (1) {}

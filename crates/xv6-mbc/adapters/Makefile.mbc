@@ -154,12 +154,20 @@ kernel/kernel.elf: $(OBJS) $A/kernel-mbc.ld
 
 # Final translation: RV32I ELF → MBC bytecode.
 # rv32i-to-mbc lives in crates/monad-mbc/ (built separately).
+# The .rv2mbc.sha256 sidecar is what upc-bootctl checks the .rv2mbc against
+# before any map write (S-ASCEND-2 Item 5); without it a live boot refuses.
 target/xv6-mbc.mbc: kernel/kernel.elf
 	mkdir -p target
 	../../monad-mbc/target/release/rv32i-to-mbc kernel/kernel.elf -o target/xv6-mbc.mbc
+	set -e; h=$$(sha256sum target/xv6-mbc.rv2mbc); echo "$${h%% *}" > target/xv6-mbc.rv2mbc.sha256
 
-kernel: target/xv6-mbc.mbc
+# A tree built before the sidecar existed gets it without a retranslation.
+target/xv6-mbc.rv2mbc.sha256: target/xv6-mbc.mbc
+	set -e; h=$$(sha256sum target/xv6-mbc.rv2mbc); echo "$${h%% *}" > $@
 
+kernel: target/xv6-mbc.mbc target/xv6-mbc.rv2mbc.sha256
+
+# `rm -rf target` also removes the .rv2mbc.sha256 sidecar.
 clean:
 	rm -f $K/*.o $K/*.elf $K/*.asm $A/*.o
 	rm -rf target

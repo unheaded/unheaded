@@ -71,15 +71,17 @@ pub struct GuestImage {
     /// section starts at RV word 0x8000, so this is the shift the loader applies.
     pub rv2mbc_word_base: u32,
 
-    /// Optional integrity gate: the expected lowercase-hex SHA-256 of the
-    /// `.rv2mbc` artifact's on-disk bytes (a flat little-endian `u32` array, so
-    /// this equals the SHA-256 of `rv2mbc` re-serialized little-endian).
+    /// The lowercase-hex SHA-256 of the `.rv2mbc` artifact's on-disk bytes,
+    /// as verified by the loader. This is the hash of the file before any
+    /// relocation, so it is not the hash of [`rv2mbc`](Self::rv2mbc) when the
+    /// loader shifted the entries.
     ///
-    /// This is a **load-time** BlackMage hook (ADR-075 §Security #1): a tampered
-    /// `.rv2mbc` file redirects every indirect branch in the image, so when this
-    /// is `Some`, the shared loader passes it to the runner's `populate_rv2mbc`
-    /// as `expected_sha` and refuses to boot on mismatch. `upc-api` itself takes
-    /// no dependency on a hashing crate; it only carries the expectation.
+    /// A **load-time** BlackMage hook (ADR-075 §Security #1): a tampered
+    /// `.rv2mbc` file redirects every indirect branch in the image. Since
+    /// S-ASCEND-2 Item 5 both loaders verify every `.rv2mbc` with
+    /// [`crate::rv2mbc_sha::read_verified`] before the first map write, and set
+    /// this to `Some`. `None` means the file was not verified: no `.rv2mbc`
+    /// was loaded, or a dry run used `--allow-unverified-rv2mbc`.
     pub expected_rv2mbc_sha256: Option<String>,
 
     /// The entry MBC PC the loader sets on the CPU. Value is the loader's

@@ -26,9 +26,10 @@
 //!   PC is *validated* here (it must land inside the loaded ROM) but *set* by the
 //!   loader when it builds that state.
 //! - **The `.rv2mbc` SHA-256 integrity gate** — the [`GuestImage`] only carries
-//!   the expectation ([`expected_rv2mbc_sha256`](GuestImage::expected_rv2mbc_sha256));
-//!   this crate stays zero-dep, so the loader computes and enforces the hash over
-//!   the raw `.rv2mbc` bytes before it builds the descriptor.
+//!   the verified hash ([`expected_rv2mbc_sha256`](GuestImage::expected_rv2mbc_sha256)).
+//!   The gate runs over the raw `.rv2mbc` bytes before relocation, so the loader
+//!   enforces it with [`crate::rv2mbc_sha::read_verified`] before it builds the
+//!   descriptor.
 //!
 //! Keeping the seam at "raw ROM/RV2MBC writes" is what makes the refactor
 //! byte-identical: `load` drives exactly the `set(base + i, value)` sequence each
