@@ -124,18 +124,18 @@ paragraph does).
 **Time**: ~2 h
 **Agent**: Coordinator; one review agent at Step 26
 
-- [ ] **Step 19** [DECIDE] ~10m: `$PLAN` Steps 43-45 as written (per-slot trapframes published in `UPC_TF_TABLE`; BPF publishes `UPC_CUR_SLOT` and `UPC_SLOT_GEN[8]`; rows are `proc[0..7]`). Record each decision and whether its Override condition held.
-- [ ] **Step 20** [R] ~10m: `$PLAN` Step 51: a free, user-unreachable address for the three tables (8 + 1 + 8 words): read `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`, `crates/xv6-mbc/adapters/kernel-mbc.ld`, the CSR window (`0xF000-0xF0FF`), BootParams (`0x100`), and `phase12.rs` for the user slices. Candidate: `0xF100` (right after the CSR window, inside the reserved low page). Record the choice and why no user slice maps it.
-- [ ] **Step 21** [W] ~10m: `$PLAN` Step 46 (invariants) and Step 47 (cost estimate) in `$LOG`.
-- [ ] **Step 22** [W] ~25m: `docs/adr/ADR-109-upc-kernel-rows-per-bpf-slot.md` (Proposed) + the `ADR-INDEX.md` row (`$PLAN` Step 48). Bare technical style.
-- [ ] **Step 23** [B] ~2m: Link check (`$PLAN` Step 49).
-- [ ] **Step 24** [C] ~1m: **COMMIT CHECKPOINT** `docs(adr): [STAGE2 43-50] ADR-109 kernel rows per BPF slot (Proposed)`.
-- [ ] **Step 25** [CODE][W] ~15m: `$PLAN` Step 53: constants in `ebpf/monad-cpu-ebpf/src/phase12.rs` (`UPC_TF_TABLE_BYTE`, `UPC_CUR_SLOT_BYTE`, `UPC_SLOT_GEN_BYTE`) and `crates/xv6-mbc/adapters/upc_slots.h`; parity test `cmd/upc-bootctl/tests/parity_slot_tables.rs` (copy the shape of `tests/parity_slice_constants.rs`); `cd cmd/upc-bootctl && cargo test --release --test parity_slot_tables`.
-- [ ] **Step 26** [AGENT] ~20m: `$PLAN` Step 54, the four-lens review of ADR-109. Brief: read-only, own worktree, return findings as a list with severity; no edits. Include the BlackMage question explicitly: can user code at priv 3 reach the table address, and can a user program forge a generation.
-- [ ] **Step 27** [W] ~15m: Apply dispositions (`$PLAN` Step 55); record each in `$LOG`.
-- [ ] **Step 28** [V] ~2m: `$PLAN` Step 56: the user-reachability finding is answered in the ADR.
-- [ ] **Step 29** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 51-57] slot tables placed, parity test, review applied`; tick `$PLAN` Steps 43-58.
-- [ ] **Step 30** [V] ~1m: **PHASE 2 EXIT GATE** = `$PLAN` Step 58.
+- [x] **Step 19** *(D1-D5 in ADR-109; no Override held)* [DECIDE] ~10m: `$PLAN` Steps 43-45 as written (per-slot trapframes published in `UPC_TF_TABLE`; BPF publishes `UPC_CUR_SLOT` and `UPC_SLOT_GEN[8]`; rows are `proc[0..7]`). Record each decision and whether its Override condition held.
+- [x] **Step 20** *(0xF100 rejected: low page not provably free; tables in kernel .bss, address in BootParams reserved[0] at 0x160)* [R] ~10m: `$PLAN` Step 51: a free, user-unreachable address for the three tables (8 + 1 + 8 words): read `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`, `crates/xv6-mbc/adapters/kernel-mbc.ld`, the CSR window (`0xF000-0xF0FF`), BootParams (`0x100`), and `phase12.rs` for the user slices. Candidate: `0xF100` (right after the CSR window, inside the reserved low page). Record the choice and why no user slice maps it.
+- [x] **Step 21** [W] ~10m: `$PLAN` Step 46 (invariants) and Step 47 (cost estimate) in `$LOG`.
+- [x] **Step 22** *(19dd047c)* [W] ~25m: `docs/adr/ADR-109-upc-kernel-rows-per-bpf-slot.md` (Proposed) + the `ADR-INDEX.md` row (`$PLAN` Step 48). Bare technical style.
+- [x] **Step 23** [B] ~2m: Link check (`$PLAN` Step 49).
+- [x] **Step 24** *(19dd047c)* [C] ~1m: **COMMIT CHECKPOINT** `docs(adr): [STAGE2 43-50] ADR-109 kernel rows per BPF slot (Proposed)`.
+- [x] **Step 25** *(43d4d31f; struct offsets instead of three byte addresses)* [CODE][W] ~15m: `$PLAN` Step 53: constants in `ebpf/monad-cpu-ebpf/src/phase12.rs` (`UPC_TF_TABLE_BYTE`, `UPC_CUR_SLOT_BYTE`, `UPC_SLOT_GEN_BYTE`) and `crates/xv6-mbc/adapters/upc_slots.h`; parity test `cmd/upc-bootctl/tests/parity_slot_tables.rs` (copy the shape of `tests/parity_slice_constants.rs`); `cd cmd/upc-bootctl && cargo test --release --test parity_slot_tables`.
+- [x] **Step 26** *(15 findings, 3 blockers)* [AGENT] ~20m: `$PLAN` Step 54, the four-lens review of ADR-109. Brief: read-only, own worktree, return findings as a list with severity; no edits. Include the BlackMage question explicitly: can user code at priv 3 reach the table address, and can a user program forge a generation.
+- [x] **Step 27** [W] ~15m: Apply dispositions (`$PLAN` Step 55); record each in `$LOG`.
+- [x] **Step 28** *(D6 + qualified security note)* [V] ~2m: `$PLAN` Step 56: the user-reachability finding is answered in the ADR.
+- [x] **Step 29** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 51-57] slot tables placed, parity test, review applied`; tick `$PLAN` Steps 43-58.
+- [x] **Step 30** [V] ~1m: **PHASE 2 EXIT GATE** = `$PLAN` Step 58.
 
 ---
 

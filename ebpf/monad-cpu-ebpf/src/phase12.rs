@@ -86,11 +86,14 @@ pub const RAM_ISOLATION_CEILING: u32 = 0x0380_0000; // 56 MiB
 // cmd/upc-bootctl/tests/parity_slot_tables.rs).
 pub const UPC_SLOT_TABLES_BP_BYTE: u32 = 0x0000_0160;
 pub const UPC_SLOTS: u32 = 8;
-pub const UPC_ST_TF_OFF: u32 = 0x0000_0000;
-pub const UPC_ST_CUR_SLOT_OFF: u32 = 0x0000_0020;
-pub const UPC_ST_GEN_OFF: u32 = 0x0000_0024;
-pub const UPC_ST_TRAP_A7_OFF: u32 = 0x0000_0044;
-pub const UPC_ST_TRAP_A6_OFF: u32 = 0x0000_0048;
+pub const UPC_TF_STRIDE: u32 = 0x0000_0100; // slot s's trapframe at base + s * stride
+pub const UPC_ST_CUR_SLOT_OFF: u32 = 0x0000_0800; // UPC_TAG_SLOT | s, written at trap injection
+pub const UPC_ST_TRAP_A7_OFF: u32 = 0x0000_0804; // UPC_TAG_A7 | nr, written at trap injection
+pub const UPC_ST_FRESH_MASK_OFF: u32 = 0x0000_0808; // bit child set at fork
+pub const UPC_ST_SIZE: u32 = 0x0000_0810;
+pub const UPC_TAG_SLOT: u32 = 0x5107_0000;
+pub const UPC_TAG_A7: u32 = 0xA700_0000;
+pub const UPC_TAG_MASK: u32 = 0xFFFF_0000;
 
 // ── Gate 4 isolation invariants (compile-time) ─────────────────────────────
 /// The stride must cover the two 4 MiB superpage leaves, or adjacent pids'

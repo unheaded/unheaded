@@ -40,14 +40,17 @@ fn c_define(src: &str, name: &str) -> u32 {
     parse(l.split_whitespace().nth(2).unwrap())
 }
 
-const NAMES: [&str; 7] = [
+const NAMES: [&str; 10] = [
     "UPC_SLOT_TABLES_BP_BYTE",
     "UPC_SLOTS",
-    "UPC_ST_TF_OFF",
+    "UPC_TF_STRIDE",
     "UPC_ST_CUR_SLOT_OFF",
-    "UPC_ST_GEN_OFF",
     "UPC_ST_TRAP_A7_OFF",
-    "UPC_ST_TRAP_A6_OFF",
+    "UPC_ST_FRESH_MASK_OFF",
+    "UPC_ST_SIZE",
+    "UPC_TAG_SLOT",
+    "UPC_TAG_A7",
+    "UPC_TAG_MASK",
 ];
 
 #[test]
@@ -59,14 +62,43 @@ fn bpf_and_kernel_agree_on_the_slot_tables() {
     }
 }
 
+/// xv6's trapframe under ilp32e: 36 fields of 4 bytes (`uint64` is 4 bytes).
+fn trapframe_bytes() -> u32 {
+    let h = read("crates/xv6-mbc/upstream/kernel/proc.h");
+    let body = h
+        .split("struct trapframe {")
+        .nth(1)
+        .and_then(|b| b.split("};").next())
+        .expect("struct trapframe in proc.h");
+    let fields = body
+        .lines()
+        .filter(|l| l.contains("uint32 ") || l.contains("uint64 "))
+        .count() as u32;
+    4 * fields
+}
+
 #[test]
 fn layout_is_the_adr_layout() {
     let rs = read("ebpf/monad-cpu-ebpf/src/phase12.rs");
     let slots = rust_const(&rs, "UPC_SLOTS");
-    assert_eq!(rust_const(&rs, "UPC_ST_CUR_SLOT_OFF"), 4 * slots);
-    assert_eq!(rust_const(&rs, "UPC_ST_GEN_OFF"), 4 * slots + 4);
-    assert_eq!(rust_const(&rs, "UPC_ST_TRAP_A7_OFF"), 8 * slots + 4);
-    assert_eq!(rust_const(&rs, "UPC_ST_TRAP_A6_OFF"), 8 * slots + 8);
+    let stride = rust_const(&rs, "UPC_TF_STRIDE");
+    assert_eq!(trapframe_bytes(), 144, "struct trapframe changed size");
+    assert!(trapframe_bytes() <= stride);
+    assert!(
+        stride.is_power_of_two(),
+        "BPF computes base + (s << log2 stride)"
+    );
+    assert_eq!(rust_const(&rs, "UPC_ST_CUR_SLOT_OFF"), slots * stride);
+    assert_eq!(rust_const(&rs, "UPC_ST_TRAP_A7_OFF"), slots * stride + 4);
+    assert_eq!(rust_const(&rs, "UPC_ST_FRESH_MASK_OFF"), slots * stride + 8);
+    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 16);
+    let mask = rust_const(&rs, "UPC_TAG_MASK");
+    assert_eq!(rust_const(&rs, "UPC_TAG_SLOT") & !mask, 0);
+    assert_eq!(rust_const(&rs, "UPC_TAG_A7") & !mask, 0);
+    assert_ne!(
+        rust_const(&rs, "UPC_TAG_SLOT"),
+        rust_const(&rs, "UPC_TAG_A7")
+    );
     // BootParams v3 sits at 0x100; `reserved` starts at byte offset 96.
     assert_eq!(rust_const(&rs, "UPC_SLOT_TABLES_BP_BYTE"), 0x100 + 96);
 }

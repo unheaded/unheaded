@@ -93,3 +93,41 @@ window reaches `0xFD00`, TTY MMIO at `0xC001`, the layout docs disagree), so the
 kernel publishes their address in BootParams `reserved[0]` (byte `0x160`); 0 = not published, BPF does nothing.
 Invariants I1-I6 and the cost estimate are in the ADR. Security: children cannot reach low memory; init (slot 0) has a
 pre-existing identity map of the low 64 MiB and can reach everything, which the ADR records as today's trust model.
+
+### ADR-109 four-lens review and dispositions (Steps 54-56)
+
+A read-only review agent covered the Architect, Developer, Robustness and Scientist lenses and returned 15 findings.
+I checked findings 1, 3, 4 and 14 against the code before applying any of them:
+- 1: `uvmcreate` clears the page and is keyed by pid with a stale `MBC_MAX_PROCESSES 4`.
+- 3: `translate_address` returns the VA on a miss.
+- 4: `scheduler_context_switch` is `#[inline(always)]` at in-loop call sites.
+- 14: v3 uses bytes 64..96 for the hash, so `0x160` is free.
+
+The ADR was revised the same day.
+
+| # | Lens, severity | Finding | Disposition |
+|---|---|---|---|
+| 1 | Arch/Rob, blocker | D5 "pagetable per ADR-074" invites `uvmcreate`, which clears BPF's live pgd; pid/slot are off by one there; xv6 and BPF PTE formats differ | Applied. D5 assigns `0x00F00000 + s*4096` directly, as an opaque pointer that is never walked; the first rung that touches a user pointer owns translation. The init-row mismatch (`0xF01000` is slot 1's pgd) is recorded; rung 0 dumps it |
+| 2 | Arch, blocker | I4 is unenforced: `killed` → `kexit` → `sched` spins in S-mode; `freeproc` frees BPF's pgd | Applied. `allocproc` skips rows 1-7; `kexit`/`sched`/`sleep`/`freeproc` panic on a slot row; rung 0 never sets `killed`; how a kill reaches BPF belongs to rung 8 |
+| 3 | Rob/Sec, blocker | "Children cannot reach the tables" is false: a user page-walk miss falls through to physical memory | Applied as D6. A user-mode miss returns `0xFFFF_FFFC` (outside `RAM_MAP`). It needs its own measurement and a hostile-child probe, and escalates if a golden changes. The security note is qualified |
+| 4 | Arch/Dev, should-fix | D3's writes sit in the inlined context switch (in-loop variable offset) | Applied. One `inject_strap()` in the injection arm. Fixed 256-byte trapframe stride, so no table read; `cur_slot` is written at injection |
+| 5 | Dev, should-fix | D3 runs without the rung const, which breaks I6 and the OFF − ON count | Applied. D3 and the fork bit are behind the const; the OFF object equals the pre-ADR object |
+| 6 | Rob, should-fix | New kernel + old object: `trap_a7 = 0` breaks today's getpid | Applied. Tags `0x5107_0000`/`0xA700_0000`, cleared on read; no tag → today's path |
+| 7 | Rob, should-fix | Bound each BPF-written value; `trap_a6` is unread; a zero `sscratch` writes the IVT | Applied. Per-value bounds are in Security notes; `trap_a6` dropped; with the fixed stride, `sscratch` is `base + 256*s` and never 0 while published |
+| 8 | Dev, should-fix | D2 ordering: after `userinit`; `kernel_hartid` literal 0; init's trapframe | Applied. `upc_slots_init()` after `userinit()`; init's trapframe is copied into `tf[0]` |
+| 9 | Dev, should-fix | Do the a7 copy in C, and drop the a6/a7 save/restore in the trampoline | Applied (D4), plus invariant I8: the spill words are unchanged across a trap |
+| 10 | Arch, should-fix | ADR vs skeleton ("free the row"), no generation field, no rung 7 rule, stale fields unowned | Applied. `fresh_mask` replaces `gen[8]` (no spare `PROC_TABLE` word; an array index is a variable offset). Skeleton rung 0 amended; rung 7 forward rule and stale-field owners added |
+| 11 | Arch, should-fix | No invariant that BPF never switches in S-mode | Applied as I7. The timer switch is compiled out under `ascend-linux` today (`main.rs:708-727`); an early-return guard is added |
+| 12 | Sci, should-fix | The gate proves I2 only; shared trapframe, stale a7 and no refresh would all pass | Applied. Kernel probe asserts per trap, a second injected number (22), interleaved traps in `getpidmulti`, and a mutation check over four broken variants |
+| 13 | Dev, note | Test order | Adopted for Phases 3-4 of the plan |
+| 14 | Arch, note | D1 writes a frozen BootParams field, reversing its direction | Applied. `UPC_BOOT_PROTOCOL_V2.md` §v3 now has a row for `reserved[0]`; the version stays 3 (the spec allows reserved-word extensions) |
+| 15 | Rob, note | The no-race claim assumes one XDP invocation per instance | Stated in Security notes |
+
+**New lead (from 1):** BPF fork rewrites only PDE 0 and 1 of the child's page directory (`main.rs:2259-2266`). If
+`uvmfirst` wrote xv6-format entries into `0xF01000`, slot 1's children inherit those entries for VAs at 8 MiB and up.
+This is pre-existing. Rung 0 dumps the page after boot.
+
+Constants, header and parity test now match the revised layout:
+- `upc_slots.h`: `_Static_assert`s on stride, size and offsets. It compiles under ilp32e, and a wrong offset fails.
+- `phase12.rs`: the same constants.
+- Parity test: 2 pass. It also checks `struct trapframe` is 144 bytes and the stride is a power of two.
