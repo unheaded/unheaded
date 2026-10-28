@@ -10,11 +10,16 @@ if [ ! -f "$ANCHOR_FILE" ]; then
     exit 1
 fi
 
-CODENAME=$(grep -E '^\s*release_codename\s*=' "$ANCHOR_FILE" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
-VERSION=$(grep -E '^\s*release_version\s*=' "$ANCHOR_FILE" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
+# anchor.nix's keys are `codename` and `version` (not release_*: that
+# spelling never matched, so this script failed on every run until the
+# first PR touching nix/yggdrasil/ exercised it, 2026-10-28).
+CODENAME=$(grep -E '^\s*codename\s*=' "$ANCHOR_FILE" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
+VERSION_LINE=$(grep -E '^\s*version\s*=' "$ANCHOR_FILE" | head -1)
+VERSION=$(echo "$VERSION_LINE" | sed -nE 's/.*"([^"]+)".*/\1/p')
+YGG_VERSION=$(grep -E '^\s*yggdrasil_version\s*=' "$ANCHOR_FILE" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
 
 if [ -z "$CODENAME" ]; then
-    echo "FAIL: anchor.nix missing release_codename"
+    echo "FAIL: anchor.nix missing codename"
     exit 1
 fi
 
@@ -28,6 +33,15 @@ case "$CODENAME" in
         exit 1
         ;;
 esac
+
+# Before the first packer build the anchor is a scaffold: version is null
+# and yggdrasil_version ends in -scaffold. Both together are allowed; a
+# null version on a non-scaffold anchor is not.
+if [[ "$VERSION_LINE" =~ =[[:space:]]*null ]] && [[ "$YGG_VERSION" == *-scaffold ]]; then
+    echo "NOTE: anchor version unset (yggdrasil_version $YGG_VERSION): scaffold, no build yet"
+    echo "OK: Yggdrasil anchor verified — $CODENAME (scaffold)"
+    exit 0
+fi
 
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
     echo "FAIL: anchor version '$VERSION' not in N.N or N.N.N form"

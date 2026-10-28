@@ -859,6 +859,16 @@ provoke_well_slo_definitions() {
     if grep -q 'objective > 0 AND objective < 1' "${REPO_ROOT}/${f}"; then echo "provocation anchor missing in ${f}" >&2; return 1; fi
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_yggdrasil_anchor() {
+    # Contract (OS-FORK-DISCIPLINE §8): the anchor names a real Debian
+    # release. Name one that is not.
+    local f="nix/yggdrasil/anchor.nix"
+    backup "${f}"
+    sed -i 's/^  codename = "bookworm";$/  codename = "meta-gate-probe";/' "${REPO_ROOT}/${f}"
+    grep -q '^  codename = "meta-gate-probe";$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -914,6 +924,7 @@ check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's thresh
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
+yggdrasil-verify-anchor|provoke_yggdrasil_anchor|fast|anchor.nix's codename set to a name that is not a Debian release
 test-check-perf-regression|provoke_check_perf_regression|fast|check-perf-regression.sh's p99 allowance widened from 20 % to 800 %, so the fixture's slow run passes
 check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZHEN_MCP_ALLOW_WRITE=1 (builds the server; needs go and jq)
 well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
@@ -974,7 +985,6 @@ check-ebpf-size-pin|needs the build host's pinned Rust nightly (CI's floats: byt
 doom-smoke|drives BPF maps via bpftool under sudo
 doom-ring|reads a live ring buffer from a running instance
 verify-binding-rune|verifies a sealed-cask image that must be built first; its refusals (appended byte, unsigned cask, wrong build key) are proven by tests/sealed-cask/round_trip_test.sh (CI job sealed-cask-verify)
-yggdrasil-verify-anchor|verifies a Debian anchor image not present in the sandbox
 yggdrasil-verify-overlay|verifies a built overlay image not present in the sandbox
 east-bootstrap|bootstraps the EAST host over ssh (WireGuard, BGP, LXD services); needs both hosts
 wireguard/setup-wireguard|deploys the WireGuard IPv6 overlay on west and east over ssh with sudo; needs both hosts
