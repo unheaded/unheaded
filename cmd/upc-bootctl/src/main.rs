@@ -255,10 +255,10 @@ fn relocate_rv2mbc_entry(entry: u32, rom_base: u32) -> u32 {
 /// (`ebpf/monad-cpu-ebpf/surface.rs::SURFACE_ASCEND`). Numbers are xv6's
 /// `kernel/syscall.h` plus the UPC block-device calls 200/201
 /// (`monad_common::mbc_linux_syscalls`). xv6's pipe 4, kill 6, chdir 9, sbrk 12,
-/// uptime 14, unlink 18, link 19 and mkdir 20 are absent because the object has
+/// unlink 18, link 19 and mkdir 20 are absent because the object has
 /// no arm for them (they fall through to "silently ignore"). Gate A refuses an
 /// object whose `UPC_SURFACE_ID` is not the id of this list.
-static XV6_SYSCALLS: [upc_api::SyscallDesc; 15] = [
+static XV6_SYSCALLS: [upc_api::SyscallDesc; 16] = [
     upc_api::SyscallDesc {
         number: 1,
         name: "fork",
@@ -294,6 +294,10 @@ static XV6_SYSCALLS: [upc_api::SyscallDesc; 15] = [
     upc_api::SyscallDesc {
         number: 13,
         name: "pause",
+    },
+    upc_api::SyscallDesc {
+        number: 14,
+        name: "uptime", // ADR-110: routed to the owned kernel under UPC_RUNG2
     },
     upc_api::SyscallDesc {
         number: 15,

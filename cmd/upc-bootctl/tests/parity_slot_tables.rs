@@ -40,13 +40,14 @@ fn c_define(src: &str, name: &str) -> u32 {
     parse(l.split_whitespace().nth(2).unwrap())
 }
 
-const NAMES: [&str; 10] = [
+const NAMES: [&str; 11] = [
     "UPC_SLOT_TABLES_BP_BYTE",
     "UPC_SLOTS",
     "UPC_TF_STRIDE",
     "UPC_ST_CUR_SLOT_OFF",
     "UPC_ST_TRAP_A7_OFF",
     "UPC_ST_FRESH_MASK_OFF",
+    "UPC_ST_TICKS_OFF",
     "UPC_ST_SIZE",
     "UPC_TAG_SLOT",
     "UPC_TAG_A7",
@@ -91,6 +92,7 @@ fn layout_is_the_adr_layout() {
     assert_eq!(rust_const(&rs, "UPC_ST_CUR_SLOT_OFF"), slots * stride);
     assert_eq!(rust_const(&rs, "UPC_ST_TRAP_A7_OFF"), slots * stride + 4);
     assert_eq!(rust_const(&rs, "UPC_ST_FRESH_MASK_OFF"), slots * stride + 8);
+    assert_eq!(rust_const(&rs, "UPC_ST_TICKS_OFF"), slots * stride + 12);
     assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 16);
     let mask = rust_const(&rs, "UPC_TAG_MASK");
     assert_eq!(rust_const(&rs, "UPC_TAG_SLOT") & !mask, 0);

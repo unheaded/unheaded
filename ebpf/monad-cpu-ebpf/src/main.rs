@@ -441,6 +441,9 @@ const UPC_PROBE_INJECT22: bool = false;
 // wait and pause arms request a context switch and break; one call after the
 // execute loop performs it, instead of three inlined copies.
 const DEFERRED_SWITCH: bool = true;
+// ADR-110 (EVOLUTION-1 Stage 2 rung 2): uptime is injected into the owned
+// kernel, and inject_strap publishes the tick count the kernel's clock follows.
+const UPC_RUNG2: bool = false;
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
 const SWITCH_EXIT: u8 = 2; // halt if nothing else can run
@@ -2055,13 +2058,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // a0 (x10 → r8) = first arg / return value,
             // a1 (x11 → r9) = second arg / return value.
             let syscall_nr = cpu.regs[1];
-            // Probe builds only: route 22 down the getpid inject arm. The kernel
-            // reads the number from trap_a7 (regs[1]), so it still sees 22.
-            let syscall_nr = if UPC_PROBE_INJECT22 && syscall_nr == 22 {
-                11
-            } else {
-                syscall_nr
-            };
+            // Kernel-routed numbers share the getpid inject arm; the kernel reads
+            // the real number from trap_a7 (regs[1]).
+            let syscall_nr = kernel_routed_alias(syscall_nr);
             // NOTE: the Doom syscalls DRAW_FRAME(1)/GET_KEY(2)/GET_TICKS(3)/SLEEP(4)
             // collide numerically with xv6 fork(1)/exit(2)/wait(3). They are
             // mutually-exclusive workloads, so under `ascend-linux` the Doom
@@ -2614,6 +2613,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // 1 here and in the owned kernel (xv6 allocpid starts at 1).
                     cpu.regs[8] = cpu.current_pid as u32 + 1;
                 }
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 14 {
+                // ── xv6 SYS_uptime (14): with UPC_RUNG2 on it never gets here
+                // (remapped to the getpid inject arm above; ADR-110 T2). Off: no
+                // BPF answer, a0 is left as it was (unchanged behaviour).
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 13 {
                 // ── xv6 SYS_pause (13) → cooperative YIELD (Gate 4, 2026-05-31) ─
                 // ascend-only (xv6 scheduler yield; Doom never issues it).
@@ -3684,6 +3687,17 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 
 // ── MBC CPU flag helper ───────────────────────────────────────────────────────
 
+/// xv6 numbers serviced by the owned kernel through the getpid inject arm:
+/// uptime 14 under UPC_RUNG2 (ADR-110 T2), and 22 in probe builds only.
+#[inline(always)]
+fn kernel_routed_alias(n: u32) -> u32 {
+    match n {
+        14 if UPC_RUNG2 => 11,
+        22 if UPC_PROBE_INJECT22 => 11,
+        _ => n,
+    }
+}
+
 /// ADR-109 D6: where a U-mode page-walk miss resolves. Outside RAM_MAP, so
 /// mem_read_word returns 0 and mem_write_word drops the store.
 const D6_MISS_ADDR: u32 = 0xFFFF_FFFC;
@@ -3718,6 +3732,10 @@ fn inject_strap(cpu: &MbcCpuState) {
         (base + phase12::UPC_ST_TRAP_A7_OFF) >> 2,
         phase12::UPC_TAG_A7 | (cpu.regs[1] & !phase12::UPC_TAG_MASK),
     );
+    if UPC_RUNG2 {
+        mem_write_word((base + phase12::UPC_ST_TICKS_OFF) >> 2, cpu.tick_counter);
+        // ADR-110 T1
+    }
 }
 
 /// Update Z, N, C flags from an ALU result.

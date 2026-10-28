@@ -100,6 +100,14 @@ upc_slot_enter(void)
   if(r_sscratch() != (uint64)&upc_st.tf[s].tf)
     panic("upc: sscratch");
 
+  // ADR-110 T1: the kernel's clock follows BPF's tick count. It only moves
+  // forward (a hostile or stale value cannot rewind it); 0 when BPF does not
+  // publish it (UPC_RUNG2 off) leaves ticks as it was.
+  acquire(&tickslock);
+  if(upc_st.ticks > ticks)
+    ticks = upc_st.ticks;
+  release(&tickslock);
+
   struct proc *p = &proc[s];
   int rf = 0;
 #ifndef UPC_MUT_NO_REFRESH

@@ -90,6 +90,7 @@ pub const UPC_TF_STRIDE: u32 = 0x0000_0100; // slot s's trapframe at base + s * 
 pub const UPC_ST_CUR_SLOT_OFF: u32 = 0x0000_0800; // UPC_TAG_SLOT | s, written at trap injection
 pub const UPC_ST_TRAP_A7_OFF: u32 = 0x0000_0804; // UPC_TAG_A7 | nr, written at trap injection
 pub const UPC_ST_FRESH_MASK_OFF: u32 = 0x0000_0808; // bit child set at fork
+pub const UPC_ST_TICKS_OFF: u32 = 0x0000_080C; // tick count at the last injection (ADR-110)
 pub const UPC_ST_SIZE: u32 = 0x0000_0810;
 pub const UPC_TAG_SLOT: u32 = 0x5107_0000;
 pub const UPC_TAG_A7: u32 = 0xA700_0000;

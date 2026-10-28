@@ -14,6 +14,7 @@
 #define UPC_ST_CUR_SLOT_OFF     0x00000800 // UPC_TAG_SLOT | s, BPF at trap injection
 #define UPC_ST_TRAP_A7_OFF      0x00000804 // UPC_TAG_A7 | nr, BPF at trap injection
 #define UPC_ST_FRESH_MASK_OFF   0x00000808 // BPF sets bit child at fork; kernel clears on refresh
+#define UPC_ST_TICKS_OFF        0x0000080C // BPF tick count at the last injection (ADR-110)
 #define UPC_ST_SIZE             0x00000810
 #define UPC_TAG_SLOT            0x51070000
 #define UPC_TAG_A7              0xA7000000
@@ -29,7 +30,7 @@ struct upc_slot_tables {
   uint32 cur_slot;
   uint32 trap_a7;
   uint32 fresh_mask;
-  uint32 pad;
+  uint32 ticks;
 };
 
 struct proc;
@@ -42,5 +43,6 @@ _Static_assert(sizeof(struct upc_slot_tables) == UPC_ST_SIZE, "ADR-109 slot tabl
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, cur_slot) == UPC_ST_CUR_SLOT_OFF, "cur_slot offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, trap_a7) == UPC_ST_TRAP_A7_OFF, "trap_a7 offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, fresh_mask) == UPC_ST_FRESH_MASK_OFF, "fresh_mask offset");
+_Static_assert(__builtin_offsetof(struct upc_slot_tables, ticks) == UPC_ST_TICKS_OFF, "ticks offset");
 
 #endif

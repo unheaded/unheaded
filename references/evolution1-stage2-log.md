@@ -583,3 +583,32 @@ zero) makes this the deciding cost.
   - then 921,036 → 913,408 (rung 1) → 868,290 (this change).
 
   The baseline is updated, and the ratchet passes with 0 entries allowlisted.
+
+**Rung 2, built behind `UPC_RUNG2` (off), ADR-110 Proposed.**
+- **T1 (clock).** The slot table's spare word at +0x80C becomes `ticks`. `inject_strap()` writes `cpu.tick_counter`
+  there when `UPC_RUNG2` is on, and `upc_slot_enter()` raises the kernel's `ticks` to it under `tickslock`, never
+  lowering it. Kernel hash `8fb1319f8c000228`. With the const off, BPF never writes the word, and `ticks` stays 0 as
+  before.
+- **T2 (uptime arrives).**
+  - The new ascend arm `syscall_nr == 14` is a no-op with the const off.
+  - With it on, `kernel_routed_alias()` maps 14 to the getpid inject arm, and the kernel reads 14 from `trap_a7`.
+  - 14 is added to `SURFACE_ASCEND` (surface.rs) and to bootctl's declared `XV6_SYSCALLS`, so the surface id
+    changes.
+  - `parity_surface`'s parser now treats only the first `if` as the chain head.
+  - A first version (one shared post-chain injection, `inject_req`) cost +3,948 even with the const off. The alias
+    keeps the off object at exactly 868,290.
+- **T3:** `pause` stays a BPF yield.
+
+**Measured.**
+
+| `UPC_RUNG2` | verified | uptimeprobe |
+|---|---|---|
+| off | 868,290 (= before) | stale a0: `init-before=small init-after=zero init-moved=no ...` |
+| on | 872,276 (**+3,986**) | `init-before=large init-after=large init-moved=yes child-moved=yes child-mono=yes` |
+
+Both sides: 12/12 SAME, harness ALL GREEN, Doom 758,199. The new harness gate "uptime" runs when the const is on and
+is skipped, with a note, when it is off. Its expectation rejects the OFF output (`init-moved=no`).
+
+**Rung 2 frees −3,986 on its own.** By E2's literal rule (stop at the first rung whose freed instructions are below
+zero), the ladder stops here. Read cumulatively, it has freed 49,746 since rung 0 (921,036 → 872,276 with rung 2
+on). **Escalated to Stevie: which reading holds.** The const stays off until then.

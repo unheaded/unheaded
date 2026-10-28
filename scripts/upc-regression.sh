@@ -158,6 +158,19 @@ want_counts "$GM" "GM: c1-pid=2" 1 "GM: c2-pid=3" 1 "GM: c3-pid=4" 1 "GM: c1-aga
   "GM: wait-ret=4" 1 "GM: done" 1 && [ "$(wc -l <<<"$GM")" = 13 ] \
   && pass "getpidmulti: three live children 2, 3, 4, stable across pause" || fail "getpidmulti (live slots)"
 
+# EVOLUTION-1 Stage 2 rung 2 (ADR-110): with UPC_RUNG2 on, uptime is answered by
+# the owned kernel from BPF's tick count; it must rise in init and in a child,
+# and a child must not read below its parent. Off: uptime has no BPF arm.
+if grep -q 'const UPC_RUNG2: bool = true;' "$EBPF/monad-cpu-ebpf/src/main.rs"; then
+  UPL="$((cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+    --ramdisk "$K/fs.img" --userland "$K/uptimeprobe.mbc" --triggers 2000000 --instance 111 2>&1) | grep -a 'ascii:' \
+    | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'UP: [a-z-]+=[a-z]+')"
+  want_counts "$UPL" "UP: init-moved=yes" 1 "UP: child-moved=yes" 1 "UP: child-mono=yes" 1 "UP: init-before=large" 1 \
+    && pass "uptime: kernel clock rises in init and child, monotonic across them (ADR-110)" || fail "uptime (ADR-110)"
+else
+  note "uptime gate skipped: UPC_RUNG2 is off (ADR-110 waits on the stop-rule reading)"
+fi
+
 # S26: xv6 usertests bodies as probes (user/ut_*.c) against BPF fork/exit/wait.
 # forktest and reparent2 need wait() to return -1 once every child is reaped.
 for ut in exitwait:1500000:ok twochildren:1500000:ok forktest:1500000:ok reparent2:3000000:reaped-all; do
