@@ -153,12 +153,15 @@ ut_reparent2: $T/ut_reparent2.mbc
 getpidloop: $T/getpidloop.mbc
 getpidmulti: $T/getpidmulti.mbc
 getpidx: $T/getpidx.mbc
+# EVOLUTION-1 Stage 2 rung 2 research (uptime/pause).
+uptimeprobe: $T/uptimeprobe.mbc
 # Every program the regression harness boots as the userland. Not part of
 # USERLAND_PROGS: those are copied into fs.img, and the `ls` golden lists it.
 # The ut_* probes ride here to be built and sidecarred; scripts/upc-regression.sh gates them (S26).
 GATE_PROGS = $T/uinit.mbc $T/gate2.mbc $T/gate_nway.mbc $T/forkloop.mbc $T/devprobe.mbc $T/getpidfork.mbc \
              $T/ut_exitwait.mbc $T/ut_twochildren.mbc $T/ut_forktest.mbc $T/ut_reparent2.mbc \
-             $T/getpidloop.mbc $T/getpidmulti.mbc $T/getpidx.mbc
+             $T/getpidloop.mbc $T/getpidmulti.mbc $T/getpidx.mbc \
+             $T/uptimeprobe.mbc
 gates: $(GATE_PROGS) $(call sidecars,$(GATE_PROGS))
 
 # Phase 1.2 Gate 4 — N-way CONCURRENT isolation falsification test (ADR-074
@@ -221,10 +224,10 @@ clean:
 	       $T/wc.* $T/ln.* $T/mkdir.* $T/kill.* $T/rm.* $T/grep.* \
 	       $T/gate2.* $T/gate_nway.* $T/getpidprobe.* $T/getpidfork.* $T/forkloop.* $T/devprobe.* \
 	       $T/ut_exitwait.* $T/ut_twochildren.* $T/ut_forktest.* $T/ut_reparent2.* \
-	       $T/getpidloop.* $T/getpidmulti.* $T/getpidx.* \
+	       $T/getpidloop.* $T/getpidmulti.* $T/getpidx.* $T/uptimeprobe.* \
 	       $T/fs.img $T/README $T/BIGFILE $T/sub
 
-.PHONY: clean init uinit sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway getpidprobe getpidfork forkloop devprobe ut_exitwait ut_twochildren ut_forktest ut_reparent2 getpidloop getpidmulti getpidx gates userland ramdisk
+.PHONY: clean init uinit sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway getpidprobe getpidfork forkloop devprobe ut_exitwait ut_twochildren ut_forktest ut_reparent2 getpidloop getpidmulti getpidx uptimeprobe gates userland ramdisk
 
 # Keep .elf intermediates around for debugging.
 .SECONDARY: $T/init.elf $T/uinit.elf $T/sh.elf $T/ls.elf $T/cat.elf $T/echo.elf $T/wc.elf

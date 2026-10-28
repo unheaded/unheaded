@@ -225,7 +225,7 @@ flag() { sed -i "s/const GETPID_INJECT: bool = $1;/const GETPID_INJECT: bool = $
 # The TTY dump joins lines with a middle dot; split on it first. User probes print "XX: k=v", kernel probes "XX:k=v;".
 # Kernel printf bytes go out as char + two NULs, so decode the exact bytes from the hex: line and drop NULs.
 ugl() { grep -a '^  hex:' | sed 's/^  hex: *//' | xxd -r -p | tr -d '\000' | sed -E 's/([0-9A-F]{4} )+//g' \
-  | grep -aoE '(GL|GM|GF|GX|HP): [a-z0-9-]+(=[0-9a-z]+)?|(UT|SC|SP|PG):[^ "]*;'; }
+  | grep -aoE '(GL|GM|GF|GX|HP|UP): [a-z0-9-]+(=[0-9a-z]+)?|(UT|SC|SP|PG):[^ "]*;'; }
 gates() { (cd "$UP" && make -f ../adapters/Makefile.mbc-userland userland gates ramdisk 2>&1 | tail -1); }
 # The 12-golden corpus: the S5 sweep's 8 plus uinit_echo, nosuch, multi, blank (PHASE22-SH-REPLACE.md captures).
 sweep12() { sweep; local o; for spec in nosuch:$'nosuch\n' multi:$'echo alpha\necho omega\n' blank:$'\necho unbroken\n'; do

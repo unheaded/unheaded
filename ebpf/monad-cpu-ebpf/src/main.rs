@@ -437,6 +437,13 @@ const UPC_D6_MISS_FAULT: bool = false;
 // Probe builds only (EVOLUTION-1 Stage 2 plan Step 100): also inject xv6
 // syscall 22, which no handler has, to show a7 reaching the kernel per slot.
 const UPC_PROBE_INJECT22: bool = false;
+// EVOLUTION-1 Stage 2 rung 2 prerequisite (verifier budget): the ascend exit,
+// wait and pause arms request a context switch and break; one call after the
+// execute loop performs it, instead of three inlined copies.
+const DEFERRED_SWITCH: bool = true;
+const SWITCH_NONE: u8 = 0;
+const SWITCH_YIELD: u8 = 1; // wait retry, pause
+const SWITCH_EXIT: u8 = 2; // halt if nothing else can run
 
 const STAT_TRIVIAL_SYSCALLS: u32 = 22; // Trivial FUZIX stub syscalls (Level 5c)
 const STAT_MODERATE_SYSCALLS: u32 = 23; // Moderate FUZIX syscalls (Level 5d: ioctl, signal, stat, pipe, etc.)
@@ -741,6 +748,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     // ── Execute loop ──────────────────────────────────────────────────────────
     let mut prev_pc: u32 = cpu.pc; // Track last valid PC for post-mortem
     let mut i = 0usize;
+    let mut switch_req = SWITCH_NONE;
     while i < MAX_INSN_PER_TICK {
         if cpu.halted != 0 {
             break;
@@ -2442,6 +2450,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     }
                 }
                 if cpu.num_processes > 1 {
+                    if DEFERRED_SWITCH {
+                        switch_req = SWITCH_EXIT;
+                        break;
+                    }
                     scheduler_context_switch(cpu, flow_label, hop_id);
                     // If the scheduler couldn't move off the exiting pid (all
                     // others are zombies/suspended), there's nothing left to
@@ -2535,6 +2547,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // returning -1 (usertests forktest/reparent2, S26). Fork
                     // clears the reaped bit when it reuses the slot.
                     cpu.pc = cpu.pc.wrapping_sub(1); // re-execute wait on resume
+                    if DEFERRED_SWITCH {
+                        switch_req = SWITCH_YIELD;
+                        break;
+                    }
                     scheduler_context_switch(cpu, flow_label, hop_id);
                     break;
                 } else {
@@ -2623,12 +2639,19 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // process, scheduler_context_switch is a no-op and pause()
                 // simply returns 0.
                 cpu.regs[8] = 0;
-                let prev_pid = cpu.current_pid;
-                if cpu.num_processes > 1 {
-                    scheduler_context_switch(cpu, flow_label, hop_id);
-                }
-                if cpu.current_pid != prev_pid {
-                    break;
+                if DEFERRED_SWITCH {
+                    if cpu.num_processes > 1 {
+                        switch_req = SWITCH_YIELD;
+                        break;
+                    }
+                } else {
+                    let prev_pid = cpu.current_pid;
+                    if cpu.num_processes > 1 {
+                        scheduler_context_switch(cpu, flow_label, hop_id);
+                    }
+                    if cpu.current_pid != prev_pid {
+                        break;
+                    }
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 15 {
                 // ── xv6 SYS_open (15) — Gate D inode resolve + Epic 1.3.1
@@ -3341,6 +3364,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         i += 1;
         cpu.insn_count += 1;
         increment_stat(STAT_INSNS_EXECUTED);
+    }
+
+    // DEFERRED_SWITCH: the one context switch for the ascend exit/wait/pause
+    // arms. For an exit, the old pid left running means nothing else can run.
+    if DEFERRED_SWITCH && switch_req != SWITCH_NONE {
+        let from = cpu.current_pid;
+        scheduler_context_switch(cpu, flow_label, hop_id);
+        if switch_req == SWITCH_EXIT && cpu.current_pid == from {
+            cpu.halted = 1;
+            increment_stat(STAT_HALTED);
+        }
     }
 
     // Tail call chain moved to monad_cpu() entry point (required by kernel —

@@ -541,3 +541,45 @@ are deferred with D6: without D6 they would only confirm the open hole the ADR a
 - The init-pgd lead is closed (PDE 1 only, which fork rewrites).
 
 **Commits on this branch since `sprint/ascend-2`:** 29 (before this one).
+
+## Rung 2 research (uptime / pause), 2026-10-28 night
+
+**What `uptime` returns today** (`user/uptimeprobe.c`, shipped flags):
+
+```
+UP: init-before=small UP: init-after=zero UP: init-moved=yes UP: child-before=zero UP: child-after=zero UP: child-moved=no
+```
+
+BPF has no arm for 14, so it falls into "Unknown syscall: silently ignore", and `uptime()` returns whatever a0 held.
+init's "moved" is an artifact: `pause` had set a0 to 0. The syscall is effectively unimplemented; it arrives.
+
+**The kernel's `ticks` never moves.** With 14 routed to the kernel (temporary remap, not committed), every value is
+`zero`. `ticks` advances only in `clockintr`, through `devintr`, on a timer trap, and the BPF timer is compiled out
+under `ascend-linux`. **The skeleton's rung 2 prerequisite ("the timer interrupt reaches the kernel") fails today.**
+
+**The BPF `pause` arm costs 45,502 verified insns** (913,408 → 867,906 with the arm compiled out). Most of that is
+probably `scheduler_context_switch`, which is `#[inline(always)]` at seven call sites (tick start, three Doom arms,
+exit, wait, pause). Moving `pause` into the kernel frees that only if the context switch is not re-incurred
+elsewhere. Under I7, the kernel cannot switch BPF processes; BPF still has to yield, so a naive move puts the switch
+in another arm and frees about nothing. E2's stop rule (stop at the first rung whose freed instructions are below
+zero) makes this the deciding cost.
+
+**Experiments on the verifier budget.**
+- `scheduler_context_switch` as `#[inline(never)]` (a BPF static subprogram): **949,679, +36,271.** The verifier
+  re-walks a static subprogram at every call site, plus the call overhead. Reverted.
+- **Deferred switch (`DEFERRED_SWITCH`, on):** the ascend exit, wait and pause arms set `switch_req` and break, and
+  one `scheduler_context_switch` after the execute loop does the work. An exit that leaves the old pid running halts,
+  as the exit arm did.
+  - **868,290: −45,118** (913,408 before).
+  - Doom is unchanged at 758,199 (its arms keep their own calls).
+  - Behaviour: a `pause` with nothing else runnable now ends its tick early. Before, it carried on in the same tick.
+  - `sweep12`: 12/12 SAME. Harness: ALL GREEN (29 PASS).
+- `monad_cpu` is under 900,000 for the first time since ASCEND-LINUX Gate D, so it comes off
+  `docs/policy/ebpf-insns-over-budget.txt`. The removed entry's history:
+  - 926,542 from Gate D (2026-07);
+  - +181 instance-owner check;
+  - +1,124 pid = slot + 1;
+  - −3,914 wait ignores reaped children;
+  - then 921,036 → 913,408 (rung 1) → 868,290 (this change).
+
+  The baseline is updated, and the ratchet passes with 0 entries allowlisted.
