@@ -139,6 +139,19 @@ else
   fail "getpidfork (pid numbering, E1 option K)"
 fi
 
+# S26: xv6 usertests bodies as probes (user/ut_*.c) against BPF fork/exit/wait.
+# forktest and reparent2 need wait() to return -1 once every child is reaped.
+for ut in exitwait:1500000:ok twochildren:1500000:ok forktest:1500000:ok reparent2:3000000:reaped-all; do
+  n="${ut%%:*}" rest="${ut#*:}" t="${rest%%:*}" want="${rest#*:}"
+  UTO="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+    --userland "$K/ut_$n.mbc" --triggers "$t" --instance 111 2>&1 | grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g')"
+  if grep -aq "UT-$n: $want" <<<"$UTO" && ! grep -aq "UT-$n: fail" <<<"$UTO"; then
+    pass "usertests $n"
+  else
+    fail "usertests $n"
+  fi
+done
+
 # Track 2 Phase 2.1 (ADR-081): OUR init as PID 1. Same kernel + fs.img, only
 # the resident PID 1 program swapped to uinit.mbc. The token proves uinit ran;
 # 'hello' proves it forked+exec'd sh and a command completed through it.

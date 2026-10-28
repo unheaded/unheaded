@@ -63,3 +63,21 @@ must return the trapping slot's row; (3) the row must exist on, or be created at
 spilled registers (x16 at `0x64000`, x17 at `0x64004`) must be read from the trapping slot, not from physical
 memory: either BPF writes the slot's a7 (its `regs[1]`) and x16 (`regs[2]`) into the trapframe at injection, or
 `uservec` reads them through the slot's slice. Item 4 is new: ADR-109 must cover it.
+
+## S26 Phase 5: usertests probes, and a BPF wait bug they found
+
+`user/ut_exitwait.c`, `ut_twochildren.c`, `ut_forktest.c`, `ut_reparent2.c` (agent, merged `0432192f`), extracted
+from xv6 usertests with fixed-string verdicts; adaptations in each file header (exitwait drops the exit-status check
+because BPF wait writes 0; reparent2 runs its body in a child and reaps like init.c).
+
+First boots, flag OFF: exitwait and twochildren `ok`; forktest printed `forks=5` and hung; reparent2 printed `ok`
+and hung before `reaped-all`. Cause: BPF `wait` set "children exist" for every child whose `PARENT_OF` matched,
+reaped ones included, so once a process had reaped all its children `wait()` rescheduled for ever instead of
+returning -1 (xv6 init's reap-until-empty loop can never finish). Fix: collect a child mask in the scan and treat
+"no unreaped child" as no children. A first version that put the reaped test in the loop condition verified at
+963,613 (over 950,000); the mask form verifies at **921,036** (-3,914). All four probes pass and are harness gates;
+harness ALL GREEN, sweep 8/8, Doom 758,199 unchanged. forktest's fork limit is 5, not 7: only pids 1-5 get memory
+slices under fork's ceiling (S-ASCEND-2 Phase 4).
+
+Also fixed: `kernel/types.h`'s uint64-width assert (S-ASCEND-2 Phase 7) broke the host `mkfs` build on x86-64; it now
+applies only when `__riscv_xlen == 32` (`d8d5134f`); the kernel image is unchanged.

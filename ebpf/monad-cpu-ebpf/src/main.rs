@@ -2456,6 +2456,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 };
                 let mut found: i32 = -1;
                 let mut any_child = false;
+                let mut child_mask: u32 = 0;
                 // Stage 3: scan ALL pids and reap only DIRECT children
                 // (PARENT_OF[p] == me), skipping self — so init never reaps sh's
                 // child (grandchild-reap bug) and never reaps itself.
@@ -2468,6 +2469,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     };
                     if p != parent_pid && parent_of_p == parent_pid {
                         any_child = true;
+                        child_mask |= 1u32 << p;
                         if (halted >> p) & 1 != 0 && (reaped >> p) & 1 == 0 {
                             found = p as i32;
                             break;
@@ -2499,8 +2501,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     }
                     increment_stat(STAT_WAITPIDS);
                     cpu.regs[8] = child + 1; // wait() returns the reaped child's pid (slot + 1, E1 option K)
-                } else if any_child {
-                    // Children exist but none have exited yet — run one.
+                } else if any_child && child_mask & !reaped != 0 {
+                    // Unreaped children exist but none have exited yet — run
+                    // one. A reaped child is gone: counting it made wait()
+                    // block for ever once every child was reaped, instead of
+                    // returning -1 (usertests forktest/reparent2, S26). Fork
+                    // clears the reaped bit when it reuses the slot.
                     cpu.pc = cpu.pc.wrapping_sub(1); // re-execute wait on resume
                     scheduler_context_switch(cpu, flow_label, hop_id);
                     break;
