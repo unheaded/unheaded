@@ -670,6 +670,24 @@ impl BootRunner {
         Ok(keys.iter().map(|k| stats.get(k, 0).unwrap_or(0)).collect())
     }
 
+    /// S-ASCEND-2 Phase 6: bind this instance to `nonce` in INSTANCE_OWNER, so
+    /// the program drops (and counts) ticks for it that carry another nonce.
+    pub fn bind_instance_owner(&mut self, nonce: u16) -> Result<()> {
+        let mut owner: Array<_, u32> = Array::try_from(
+            self.ebpf
+                .map_mut("INSTANCE_OWNER")
+                .context("INSTANCE_OWNER not found (object older than S-ASCEND-2 Phase 6?)")?,
+        )?;
+        owner
+            .set(
+                self.instance_id & 0xFF,
+                0x8000_0000 | (nonce as u32 & 0xFFF),
+                0,
+            )
+            .context("INSTANCE_OWNER set")?;
+        Ok(())
+    }
+
     /// Best-effort cleanup: remove this instance's CPU_MAP entry.
     /// SCREEN_MAP and KBD_MAP are arrays — caller can zero them via
     /// populate_ram() if desired (Phase 6 does this).

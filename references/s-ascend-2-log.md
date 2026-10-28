@@ -348,3 +348,27 @@ Until answered Steps 149-154 are skipped; FND-028 stays open.
 
 Phase 5 exit gate (Step 156): Items 4 and 5 run in the harness; Items 1-3 proven inside upc0 (Steps 138, 141, 144);
 harness green, sweep 8/8 SAME, budgets unchanged (923645 / 758321). M-224 DONE in code; FND-028 open for the host.
+
+**HMAC default (Steps 169-171).** `cmd/doom load --hmac` and `wotan-ctl doom load --hmac` defaulted the key to a
+literal compiled into the binary. Now `internal/doom.ResolveHMACKey`: `--hmac-key`, else `UPC_HMAC_KEY`, else a loud
+error. Only `--hmac` needs a key; no script or unit runs it. 0 literals left in Go (`b993efbf`).
+
+**Instance ownership (Steps 172-178).** `INSTANCE_OWNER` (Array<u32>, 256): bit 31 BOUND, bits 0-11 the owner's
+nonce; checked right after the instance is derived, before CPU_MAP. bootctl draws the nonce with getrandom, binds
+before attach, puts it in flow-label bits 8-19 of every trigger, and prints `hijack_drop=` in its STATS line. Not an
+ABI change: a new map, MbcCpuState untouched. Test hook `boot --hijack-probe N` (harness never sets it):
+
+| Run (forkloop guest, spinning) | ticks seen | insns | hijack_drop |
+|---|---|---|---|
+| 20,000 sent, wrong nonce | 10,000 | 0 | 10,000 |
+| 20,000 sent, owner nonce | 10,000 | 160,000 | 0 |
+
+The first probe ran on a guest blocked in `read` and showed 0 instructions for owner ticks too: a blocked guest
+executes nothing, so the probe needs a busy guest. **Observation, not new:** only half the frames sent reach XDP as
+CPU ticks, on the native sender and on the old python path alike (same probe with `--create-netns`); each counted
+tick runs 16 instructions. Not investigated further; it halves trigger throughput everywhere and predates this sprint.
+
+Verified instructions: ascend 923,645 → **923,826** (+181), Doom 758,321 → **758,199** (−122); load gate 36 PASS,
+baseline updated. Harness ALL GREEN, sweep 8/8 SAME. doom-runner does not bind (Doom unchecked, as before): the plan's
+"doom-runner also writes the owner record" is not done, since Doom's injector would need the nonce too.
+Security brief updated (Step 178).

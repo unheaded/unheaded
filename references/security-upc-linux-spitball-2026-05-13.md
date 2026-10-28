@@ -76,6 +76,15 @@ For the WTF-demo phase, the FOUR ISOLATION ITEMS:
 
 - **BPF interpreter as oracle.** Every MBC instruction's behavior is observable via `CPU_MAP[instance]` reads — a precise side-channel on cache_hits, insn_count, halted state. **Spectre-class via deterministic interpreter** for cross-tenant inference if multiple UPC instances ever co-locate.
 - **Synthetic Monad packet plane.** The packet plane is the trigger surface — an attacker who reaches the host bridge can inject Monad packets that the XDP program parses. Buffer-overflow in `monad_parse_hbh` = pre-auth kernel access. Already on the Lich roadmap (LICH-001).
+  - **Flow-label instance hijack: MITIGATED 2026-10-28** (S-ASCEND-2 Phase 6, M-225). A tick's instance was
+    `flow_label & 0xFF` with no check of who sent it, so any sender on the link could drive any instance. Now
+    bootctl draws a 12-bit nonce per boot (getrandom), binds the instance to it in `INSTANCE_OWNER`, and sends every
+    tick with the nonce in flow-label bits 8-19; the program drops and counts (`STAT_HIJACK_DROP`, key 30) a tick for
+    a bound instance with another nonce. Live: 10,000 wrong-nonce ticks executed 0 instructions and counted 10,000
+    drops; 10,000 owner ticks executed 160,000. Cost +181 verified instructions (ascend 923,826). Residual, accepted
+    for the lab: 12 bits is a tripwire, not authentication (a sender that reaches `veth-upc0` can try all 4,096
+    values, and can replay a nonce it observes). What keeps senders away is the `upc0` namespace with no link to the
+    host (Phase 5). doom-runner does not bind its instance yet, so Doom is unchecked as before.
 - **RV2MBC map as influenceable lookup table.** See Q1.1. The map is essentially an attacker-influenced jump table for MRET/SRET/JALR/CALLR — game over if untrusted bytes ever load it.
 - **0x47 MRET / 0x48 SRET / 0x49 LR.W / 0x4A SC.W.** Brand-new opcodes added at commit `4c3ae33a`. Zero hours of public scrutiny. LR.W/SC.W especially — reservation tracking is famous for atomicity bugs (Linux had a 7-year MIPS LL/SC race). Fuzz LR.W → context switch → SC.W with priv-level changes interleaved. Tracked as ADR-075 §Security #3, Phase 1.3 IMPL Step 7.
 

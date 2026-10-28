@@ -134,6 +134,12 @@ enum Cmd {
         /// a warning). Accepted only with --dry-run; never excuses a mismatch.
         #[arg(long)]
         allow_unverified_rv2mbc: bool,
+
+        /// Test hook (S-ASCEND-2 Step 174): after the run, send N ticks with a
+        /// wrong nonce, then N with the owner's, and print how far each moved
+        /// the CPU and the hijack counter. The harness never sets it.
+        #[arg(long, value_name = "N")]
+        hijack_probe: Option<u32>,
     },
 
     /// Boot a kernel and run it interactively (Mode A/B): TTY output streams
@@ -558,6 +564,38 @@ fn cmd_validate(kernel: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// S-ASCEND-2 Step 174: prove the INSTANCE_OWNER check on the live object.
+fn hijack_probe_run(runner: &runner::BootRunner, instance: u8, n: u32) -> Result<()> {
+    // STATS keys: 1 = CPU ticks seen, 2 = instructions executed, 30 = hijack drops.
+    let read = |r: &runner::BootRunner| -> Result<[u64; 3]> {
+        let s = r.read_stats(&[1, 2, 30])?;
+        Ok([s[0], s[1], s[2]])
+    };
+    // sendto returns once a frame is queued; XDP runs later. Let the veth
+    // backlog drain before each read.
+    let settle = || std::thread::sleep(std::time::Duration::from_millis(500));
+    let owner = netns::nonce();
+    let wrong = (owner ^ 0x5A5) & 0xFFF;
+    let a = read(runner)?;
+    netns::trigger_flow(n, netns::flow_label_for(instance, wrong), false)?;
+    settle();
+    let b = read(runner)?;
+    netns::trigger_flow(n, netns::flow_label_for(instance, owner), false)?;
+    settle();
+    let c = read(runner)?;
+    println!(
+        "  hijack probe: {n} sent with nonce 0x{wrong:03X}: ticks +{}, insns +{}, hijack_drop +{}; \
+         {n} sent with the owner nonce 0x{owner:03X}: ticks +{}, insns +{}, hijack_drop +{}",
+        b[0] - a[0],
+        b[1] - a[1],
+        b[2] - a[2],
+        c[0] - b[0],
+        c[1] - b[1],
+        c[2] - b[2]
+    );
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 /// Load every image into the live BPF maps, set up the netns + XDP attach,
 /// and pre-fill `--input`. Shared by `boot` (fixed trigger budget) and
@@ -930,6 +968,11 @@ fn boot_prepare(
 
     // ── Phase 4: netns + XDP attach + trigger packet ──
     let attach_iface = netns::prepare()?;
+    // S-ASCEND-2 Phase 6: bind the instance to a fresh nonce before any tick.
+    let nonce = netns::random_nonce()?;
+    runner.bind_instance_owner(nonce)?;
+    netns::set_nonce(nonce);
+    println!("  ✓ instance 0x{instance:02X} bound to flow nonce 0x{nonce:03X} (INSTANCE_OWNER)");
     // Attach XDP to veth inside upc0 namespace. aya's `attach` looks up
     // the iface by name in the calling process's namespace, so we run
     // the attach via `ip netns exec` semantically by... actually aya
@@ -977,6 +1020,7 @@ fn cmd_boot(
     unsafe_geometry: bool,
     rv2mbc_sha: Option<String>,
     allow_unverified_rv2mbc: bool,
+    hijack_probe: Option<u32>,
 ) -> Result<()> {
     demo_gate(dry_run, std::env::var("UPC_DEMO_MODE").ok().as_deref())?;
     rv2mbc::hatch_gate(allow_unverified_rv2mbc, dry_run)?;
@@ -1110,15 +1154,19 @@ fn cmd_boot(
     // Non-wrapping STATS dump (the TTY ring wraps; these counters don't).
     // Keys: 3=HALTED 7=SYSCALLS 8=ROM_FAULT 13=LINUX_SYS 14=TTY_WRITES
     // 15=CTX_SWITCH 16=FORKS 20=TTY_READS 21=WAITPIDS 23=MODERATE_SYS.
-    if let Ok(s) = runner.read_stats(&[3, 7, 8, 13, 14, 15, 16, 20, 21, 23, 25, 26, 27, 28, 29]) {
+    if let Ok(s) = runner.read_stats(&[3, 7, 8, 13, 14, 15, 16, 20, 21, 23, 25, 26, 27, 28, 29, 30])
+    {
         println!(
-            "  STATS: halted={} syscalls={} rom_fault={} lin_sys={} tty_w={} ctx_sw={} forks={} tty_r={} waitpid={} mod_sys={}",
-            s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9]
+            "  STATS: halted={} syscalls={} rom_fault={} lin_sys={} tty_w={} ctx_sw={} forks={} tty_r={} waitpid={} mod_sys={} hijack_drop={}",
+            s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[15]
         );
         println!(
             "  ROM-FAULT CTX: target=0x{:X} rv2mbc_base=0x{:X} cur_pid={} prev_pc=0x{:X} halt_reason=0x{:X}",
             s[10], s[11], s[12], s[13], s[14]
         );
+    }
+    if let Some(n) = hijack_probe {
+        hijack_probe_run(&runner, instance, n)?;
     }
     if cpu_after.pc != cpu_initial.pc || cpu_after.insn_count > 0 {
         println!("  ✓ FIRST HEARTBEAT — eBPF interpreter advanced the CPU");
@@ -1425,6 +1473,7 @@ fn run(cli: Cli) -> Result<()> {
             create_netns,
             rv2mbc_sha,
             allow_unverified_rv2mbc,
+            hijack_probe,
         } => {
             netns::set_create_netns(create_netns);
             cmd_boot(
@@ -1440,6 +1489,7 @@ fn run(cli: Cli) -> Result<()> {
                 unsafe_geometry,
                 rv2mbc_sha,
                 allow_unverified_rv2mbc,
+                hijack_probe,
             )
         }
         Cmd::Console {

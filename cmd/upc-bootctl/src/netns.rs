@@ -136,6 +136,39 @@ fn create_mode() -> bool {
     CREATE_NETNS.load(std::sync::atomic::Ordering::SeqCst)
 }
 
+// S-ASCEND-2 Phase 6: the per-boot nonce in flow label bits 8-19. The loader
+// binds the instance to it (INSTANCE_OWNER) and every trigger carries it.
+static NONCE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+pub fn set_nonce(nonce: u16) {
+    NONCE.store(nonce as u32 & 0xFFF, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub fn nonce() -> u32 {
+    NONCE.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// The 20-bit flow label for `instance` under `nonce`: nonce in bits 8-19,
+/// instance in bits 0-7 (the eBPF program's `flow_label & 0xFF`).
+pub fn flow_label_for(instance: u8, nonce: u32) -> u32 {
+    ((nonce & 0xFFF) << 8) | instance as u32
+}
+
+/// A fresh 12-bit nonce from getrandom(2). Fails loudly rather than binding
+/// to a predictable value.
+pub fn random_nonce() -> Result<u16> {
+    let mut b = [0u8; 2];
+    // SAFETY: b is a valid 2-byte buffer for the duration of the call.
+    let n = unsafe { libc::getrandom(b.as_mut_ptr() as *mut libc::c_void, b.len(), 0) };
+    if n != 2 {
+        anyhow::bail!(
+            "getrandom for the instance nonce: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(u16::from_le_bytes(b) & 0xFFF)
+}
+
 /// Before XDP attach: create the old setup (`--create-netns`) or verify the
 /// namespace upc-netns.sh made. Returns the XDP attach interface.
 pub fn prepare() -> Result<&'static str> {
@@ -147,12 +180,18 @@ pub fn prepare() -> Result<&'static str> {
     }
 }
 
-/// Send `count` triggers the way the current mode needs.
+/// Send `count` triggers for `instance` with this boot's nonce, the way the
+/// current mode needs.
 pub fn trigger(count: u32, instance: u8, verbose: bool) -> Result<()> {
+    trigger_flow(count, flow_label_for(instance, nonce()), verbose)
+}
+
+/// Send `count` triggers with an explicit 20-bit flow label.
+pub fn trigger_flow(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
     if create_mode() {
-        send_trigger_opts(count, instance, verbose)
+        send_trigger_opts(count, flow_label, verbose)
     } else {
-        send_trigger_native(count, instance, verbose)
+        send_trigger_native(count, flow_label, verbose)
     }
 }
 
@@ -247,7 +286,7 @@ fn build_trigger_frame(flow_label: u32, trace_id: u32) -> Vec<u8> {
 /// AF_PACKET socket (CAP_NET_RAW). They arrive at `veth-upc0` ingress, where
 /// XDP is attached. Trace ids start at a per-run value and increment, as the
 /// script's did.
-pub fn send_trigger_native(count: u32, instance: u8, verbose: bool) -> Result<()> {
+pub fn send_trigger_native(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
     let idx = ifindex(VETH_INSIDE);
     if idx == 0 {
         anyhow::bail!("{VETH_INSIDE} not found: is bootctl inside the {NS_NAME} namespace?");
@@ -278,7 +317,6 @@ pub fn send_trigger_native(count: u32, instance: u8, verbose: bool) -> Result<()
         .map(|d| d.subsec_nanos() ^ (d.as_secs() as u32))
         .unwrap_or(1)
         ^ std::process::id();
-    let flow_label = instance as u32;
     let mut sent = 0u32;
     let mut err: Option<std::io::Error> = None;
     let mut stalls = 0u32;
@@ -331,17 +369,17 @@ pub fn send_trigger_native(count: u32, instance: u8, verbose: bool) -> Result<()
 ///
 /// Plain ping6 would have flow_label=0 → no match in CPU_MAP → XDP_DROP.
 pub fn send_trigger(count: u32, instance: u8) -> Result<()> {
-    send_trigger_opts(count, instance, true)
+    send_trigger_opts(count, instance as u32, true)
 }
 
 /// `send_trigger` for the interactive console loop: prints only on failure,
 /// so a batch every second does not flood stderr.
 pub fn send_trigger_quiet(count: u32, instance: u8) -> Result<()> {
-    send_trigger_opts(count, instance, false)
+    send_trigger_opts(count, instance as u32, false)
 }
 
-fn send_trigger_opts(count: u32, instance: u8, verbose: bool) -> Result<()> {
-    let flow_label = format!("0x{:X}", instance);
+fn send_trigger_opts(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
+    let flow_label = format!("0x{:X}", flow_label & 0xFFFFF);
     let count_str = count.to_string();
     // Resolve absolute path so cwd (cargo subdir) doesn't matter.
     let script = std::env::var("UPC_DOOM_TICK").unwrap_or_else(|_| {
@@ -428,6 +466,20 @@ mod tests {
     fn trigger_frame_masks_flow_label_to_20_bits() {
         let f = build_trigger_frame(0xFFF_FFFFF, 1);
         assert_eq!(&f[14..18], &[0x60, 0x0F, 0xFF, 0xFF]);
+    }
+
+    #[test]
+    fn flow_label_carries_nonce_and_instance() {
+        assert_eq!(flow_label_for(0x6F, 0xABC), 0xABC6F);
+        assert_eq!(flow_label_for(0xDE, 0x1FFF), 0xFFFDE); // nonce masked to 12 bits
+        assert_eq!(flow_label_for(0x6F, 0) & 0xFF, 0x6F);
+    }
+
+    #[test]
+    fn random_nonce_fits_12_bits() {
+        for _ in 0..64 {
+            assert!(random_nonce().unwrap() <= 0xFFF);
+        }
     }
 
     #[test]

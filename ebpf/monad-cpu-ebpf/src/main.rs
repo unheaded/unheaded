@@ -130,6 +130,20 @@ static CPU_MAP: HashMap<u32, MbcCpuState> =
 #[map]
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 
+/// S-ASCEND-2 Phase 6 (M-225, the flow-label instance hijack): which flow may
+/// tick each instance. Index = instance (flow label & 0xFF). Value: bit 31 =
+/// BOUND, bits 0-11 = the per-boot nonce the owner puts in flow label bits
+/// 8-19. The loader writes it at boot; an unbound instance (0) is not checked,
+/// so loaders that do not bind (doom-runner today) behave as before. A tick
+/// for a bound instance with another nonce is dropped and counted
+/// (STAT_HIJACK_DROP). 12 bits is a tripwire, not authentication: a sender
+/// that can reach the XDP interface can try all 4096 values. The isolation is
+/// the upc0 namespace (scripts/upc-netns.sh); this makes a stray or replayed
+/// foreign tick visible instead of silently executed.
+#[map]
+static INSTANCE_OWNER: Array<u32> = Array::with_max_entries(256, 0);
+const OWNER_BOUND: u32 = 0x8000_0000;
+
 /// L1 cache: reserved for future use.
 /// Currently disabled because RAM_MAP is a BPF Array (O(1) direct indexing),
 /// which is strictly faster than LruHashMap lookups (hash + LRU update).
@@ -415,6 +429,7 @@ const GETPID_INJECT: bool = false;
 
 const STAT_TRIVIAL_SYSCALLS: u32 = 22; // Trivial FUZIX stub syscalls (Level 5c)
 const STAT_MODERATE_SYSCALLS: u32 = 23; // Moderate FUZIX syscalls (Level 5d: ioctl, signal, stat, pipe, etc.)
+const STAT_HIJACK_DROP: u32 = 30; // tick for a bound instance with the wrong nonce (S-ASCEND-2 Phase 6)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -646,6 +661,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     let vtf = u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
     let flow_label = vtf & 0x000F_FFFF;
     let instance = flow_label & 0xFF; // low 8 bits → 256 possible instances
+
+    // ── Instance ownership (S-ASCEND-2 Phase 6) ───────────────────────────────
+    if let Some(owner) = INSTANCE_OWNER.get(instance) {
+        let o = *owner;
+        if o & OWNER_BOUND != 0 && ((flow_label >> 8) & 0xFFF) != (o & 0xFFF) {
+            increment_stat(STAT_HIJACK_DROP);
+            return Ok(xdp_action::XDP_DROP);
+        }
+    }
 
     // ── Load CPU state ────────────────────────────────────────────────────────
     let cpu_ptr = match CPU_MAP.get_ptr_mut(&instance) {
