@@ -1,0 +1,144 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: apt-repo-publish
+  description: Build the debs from a tagged commit, publish them to west's signed apt repo, install them on east
+  owner: architect
+  estimated_duration: 45m
+  risk: high
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/apt/apt_repo_test.sh
+notes: |
+  S-IRON-GATE Phase 14 (ADR-026). The repo is /srv/unheaded-apt on west,
+  kept by scripts/apt-repo.sh (reprepro, Codename unheaded) and served by
+  nginx on 127.0.0.1:18888 and 192.168.13.2:18888 (deploy/nginx/unheaded-apt.conf),
+  only dists/, pool/ and the public key. Its signed InRelease is the trust
+  anchor: east pins the key with signed-by=, never [trusted=yes].
+  Needs E4 (the signing key: which key, in which GNUPGHOME, who may run
+  include) before init-repo, and an E3 host window for everything that
+  changes west or east. The old unsigned repo (/var/lib/apt-repo, codename
+  noble, served on 0.0.0.0:18888 with /conf and /db readable) is replaced:
+  its nginx site goes when this one is enabled.
+  Before installing on a host, its TLS material (/etc/unheaded/tls/<identity>/,
+  deploy/systemd/README.md#tls) and trust.d must be in place: postinst does
+  not restart a service whose TLS files are missing, so a running service
+  keeps its old binary until they are. The upgrade renames three units on
+  east (unheaded-dashboard-backend -> unheaded-dashboard, unheaded-kanban-app
+  -> unheaded-kanban, unheaded-unheaded-daemon -> unheaded-daemon) and the
+  package unheaded-unheaded-daemon -> unheaded-daemon; the packages carry the
+  enabled/running state over, and verify-east checks it.
+parameters:
+  - name: REPO
+    default: "$HOME/tmp/unheaded"
+    description: The repository checkout on west
+  - name: TAG
+    default: "v0.2.0-alpha"
+    description: The release tag to build from (the checkout must be at it, clean)
+  - name: KEYID
+    default: ""
+    description: Fingerprint of the repo signing key (E4)
+  - name: GNUPGHOME
+    default: ""
+    description: The GNUPGHOME that holds that key (E4)
+  - name: APT_REPO_BASE
+    default: "/srv/unheaded-apt"
+    description: The repo directory on west
+  - name: PREVIOUS
+    default: ""
+    description: The version to roll back to (apt-cache policy shows what the repo holds)
+preconditions:
+  - check: "test -n \"${KEYID}\" && test -n \"${GNUPGHOME}\""
+    description: E4 answered (key fingerprint and its GNUPGHOME given)
+  - check: "test -z \"$(git -C \"${REPO}\" status --porcelain)\""
+    description: The checkout is clean
+  - check: "test \"$(git -C \"${REPO}\" describe --exact-match --tags HEAD)\" = \"${TAG}\""
+    description: The checkout is at the release tag
+  - check: "command -v reprepro && command -v nginx"
+    description: reprepro and nginx installed on west
+steps:
+  - name: build-debs
+    action: shell
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      v="${TAG#v}"
+      DEB_OUTPUT_DIR="dist/debs/${TAG}" DEB_SIGN_KEY="${KEYID}" GNUPGHOME="${GNUPGHOME}" scripts/build-all-debs.sh "${v/-/\~}"
+    timeout: 1200
+    description: Build every deb at the tag into dist/debs/<tag>/, with a signed SHA256SUMS
+    verify: "cd ${REPO}/dist/debs/${TAG} && GNUPGHOME=${GNUPGHOME} gpg --batch --verify SHA256SUMS.gpg SHA256SUMS && sha256sum -c --quiet SHA256SUMS"
+
+  - name: init-repo
+    action: shell
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      sudo GNUPGHOME="${GNUPGHOME}" APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh init --keyid "${KEYID}"
+      sudo install -m 0644 deploy/nginx/unheaded-apt.conf /etc/nginx/sites-enabled/unheaded-apt.conf
+      sudo rm -f /etc/nginx/sites-enabled/apt-repo
+      sudo nginx -t
+      sudo systemctl reload nginx
+    description: Initialise the repo (idempotent; refuses a key switch) and serve it
+    verify: "test \"$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18888/conf/distributions)\" = 403 && curl -fsS http://127.0.0.1:18888/unheaded-apt.gpg | gpg --show-keys --with-colons | grep -q \"${KEYID}\""
+
+  - name: publish
+    action: shell
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      sudo GNUPGHOME="${GNUPGHOME}" APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh include "dist/debs/${TAG}"/*.deb
+      APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh check
+    description: Include the debs (re-signs Release) and check the repo
+    verify: "curl -fsS http://127.0.0.1:18888/dists/unheaded/InRelease | head -n 1 | grep -q 'BEGIN PGP SIGNED MESSAGE' && curl -fsS http://127.0.0.1:18888/dists/unheaded/Release | grep -q '^Codename: unheaded$'"
+
+  - name: east-source
+    action: shell
+    host: east
+    command: |
+      set -euo pipefail
+      sudo install -d -m 0755 /etc/apt/keyrings
+      curl -fsS http://192.168.13.2:18888/unheaded-apt.gpg | sudo tee /etc/apt/keyrings/unheaded.gpg >/dev/null
+      gpg --show-keys --with-colons /etc/apt/keyrings/unheaded.gpg | grep -q "${KEYID}"
+      echo "deb [signed-by=/etc/apt/keyrings/unheaded.gpg] http://192.168.13.2:18888 unheaded main" | sudo tee /etc/apt/sources.list.d/unheaded.list >/dev/null
+      sudo apt-get update
+    description: Pin the repo key on east (fingerprint checked) and add the source
+    verify: "ssh govan@east 'apt-cache policy unheaded-wotan | grep -q 192.168.13.2:18888'"
+
+  - name: install-east
+    action: shell
+    host: east
+    command: |
+      set -euo pipefail
+      sudo apt-get install -y unheaded-keygen unheaded-configs unheaded-wotan unheaded-daemon \
+        unheaded-dashboard-backend unheaded-kanban-app unheaded-akira unheaded-timeguru \
+        unheaded-captain unheaded-architect unheaded-micromanager unheaded-auth
+    timeout: 900
+    description: Upgrade east's packages and add the issuer (new units are installed, not enabled)
+    on_fail: "Roll back (below); read the postinst warnings: a missing TLS file leaves its service on the old binary"
+
+  - name: verify-east
+    action: shell
+    host: east
+    command: |
+      set -euo pipefail
+      systemctl is-enabled unheaded-daemon unheaded-dashboard unheaded-kanban
+      systemctl list-units 'unheaded-*' --no-pager
+      curl -sk -o /dev/null -w 'wotan=%{http_code}\n' https://127.0.0.1:18000/health
+    description: The renamed units took over (enabled, running), every unit active, Wotan healthy over TLS
+    verify: "ssh govan@east 'systemctl is-active --quiet unheaded-wotan unheaded-daemon unheaded-dashboard unheaded-kanban && ! systemctl --failed --no-legend | grep -q unheaded-'"
+
+rollback:
+  - name: east-previous-version
+    action: shell
+    host: east
+    command: |
+      set -euo pipefail
+      test -n "${PREVIOUS}"
+      for p in $(dpkg-query -W -f '${Package}\n' 'unheaded-*'); do
+        sudo apt-get install -y --allow-downgrades "${p}=${PREVIOUS}"
+      done
+    description: Install the previous version of every unheaded package from the repo
+    when: "step.install-east.failed || step.verify-east.failed"

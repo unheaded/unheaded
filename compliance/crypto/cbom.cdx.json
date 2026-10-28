@@ -55,6 +55,49 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "cmd/cask-verify/main.go:30:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/cask-verify/main.go:30"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "cmd/ebpf-collector/Cargo.lock:0:rust-lock",
       "name": "rustls 0.23.46",
       "cryptoProperties": {
@@ -883,6 +926,49 @@
         {
           "name": "unheaded:source",
           "value": "cmd/waf/src/tls.rs:416"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/yggdrasil-evidence/cask.go:17:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/yggdrasil-evidence/cask.go:17"
         }
       ]
     },
@@ -2799,6 +2885,92 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "pkg/sealedcask/casktest/casktest.go:23:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/sealedcask/casktest/casktest.go:23"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/sealedcask/sealedcask.go:43:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/sealedcask/sealedcask.go:43"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "pkg/secrets/encryption/age.go:19:kex-import",
       "name": "X25519 (golang.org/x/crypto/curve25519)",
       "cryptoProperties": {
@@ -3441,7 +3613,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/wotan-client/grpc_client.go:66:tls-config",
+      "bom-ref": "pkg/wotan-client/grpc_client.go:68:tls-config",
       "name": "TLS config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -3481,7 +3653,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/wotan-client/grpc_client.go:66"
+          "value": "pkg/wotan-client/grpc_client.go:68"
         }
       ]
     },
@@ -4029,6 +4201,45 @@
         {
           "name": "unheaded:source",
           "value": "services/wotan/internal/signing/signing.go:14"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "tomb/lich/seeds/auth/gen/main.go:22:sig-import",
+      "name": "Ed25519 (crypto/ed25519)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "Ed25519",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "classical-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "tomb/lich/seeds/auth/gen/main.go:22"
         }
       ]
     },

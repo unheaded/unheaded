@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-103: Service auth: who holds which key, and how tokens reach callers
 
-**Status:** Proposed (design only; Stevie, 2026-10-22: "Yes, draft the ADR"). Nothing here is built yet.
+**Status:** Implemented in code, S-IRON-GATE 2026-10-27 (pkg/auth EdDSA service tokens + trust.d, unheaded-keygen, the built-in issuer unheaded-auth, BFF login for dashboard and board, hashed `uhk_` API keys, Wotan identity-bound auto-approve, TLS on every link); live rollout pending host windows; Q1-Q4 decided on the plan's recommendations; Stevie to accept. (Proposed 2026-10-22: "Yes, draft the ADR".)
 **Date:** 2026-10-23
 **Related:** finding `gate-script:scripts/compliance/check-service-auth.sh` (register step 7, high), ADR-083 (zero user data access / NIST 800-207 wording), ADR-097 (compliance crosswalk), `pkg/auth`, `pkg/uids` (one uid per service), `httputil.SameOriginOrAllowed` (WebSocket origin check, 2026-10-22).
 

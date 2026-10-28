@@ -1,56 +1,29 @@
 #!/usr/bin/make -f
-# debian/rules for Unheaded Kingdom packages
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# debian/rules: the source-package path builds through
+# scripts/build-all-debs.sh, the one packager (S-IRON-GATE Phase 14). Its
+# package table (scripts/lib/deb-packages.sh) also generates debian/control
+# (`scripts/build-all-debs.sh --control > debian/control`), and it writes the
+# units, sysusers lines and maintainer scripts, so nothing here repeats them
+# and no debhelper is involved.
+#
+#   dpkg-buildpackage -b -us -uc -d     # -d: Go from /usr/local/go, not golang-go
 
-export DH_VERBOSE = 1
-export GOPATH = $(CURDIR)/go
-export PATH := /usr/local/go/bin:$(PATH)
+VERSION := $(shell dpkg-parsechangelog -S Version)
+OUT := $(CURDIR)/debian/out
 
-%:
-	dh $@
+build build-arch build-indep:
+	@:
 
-override_dh_auto_build:
-	# Build Go binaries
-	go build -ldflags="-s -w" -o bin/wotan ./services/wotan/cmd/wotan/
-	go build -ldflags="-s -w" -o bin/unheaded-daemon ./cmd/unheaded-daemon/
-	go build -ldflags="-s -w" -o bin/dashboard-backend ./cmd/dashboard-backend/
-	go build -ldflags="-s -w" -o bin/kanban-app ./cmd/kanban-app/
-	go build -ldflags="-s -w" -o bin/unheaded-keygen ./cmd/unheaded-keygen/
+binary binary-arch binary-indep:
+	rm -rf $(OUT)
+	DEB_OUTPUT_DIR=$(OUT) ./scripts/build-all-debs.sh $(VERSION)
+	for d in $(OUT)/*.deb; do \
+		b=$$(basename $$d); mv $$d ../$$b; dpkg-distaddfile $$b admin optional; \
+	done
 
-override_dh_auto_test:
-	go test ./... -count=1 -timeout 5m
+clean:
+	rm -rf $(OUT) debian/files
 
-override_dh_auto_install:
-	# unheaded-wotan: binary, topic config, its own account and unit (what
-	# debian/unheaded-wotan.postinst expects), and the key tool (ADR-103)
-	install -D -m 755 bin/wotan $(CURDIR)/debian/unheaded-wotan/opt/unheaded/bin/wotan
-	install -D -m 755 bin/unheaded-keygen $(CURDIR)/debian/unheaded-wotan/opt/unheaded/bin/unheaded-keygen
-	install -D -m 644 configs/wotan.yaml $(CURDIR)/debian/unheaded-wotan/etc/unheaded/wotan.yaml
-	install -d $(CURDIR)/debian/unheaded-wotan/usr/lib/sysusers.d $(CURDIR)/debian/unheaded-wotan/etc/systemd/system
-	awk '$$1 == "u" && $$2 == "unheaded-wotan"' deploy/sysusers.d/unheaded.conf >$(CURDIR)/debian/unheaded-wotan/usr/lib/sysusers.d/unheaded-wotan.conf
-	sed 's|/usr/local/bin/|/opt/unheaded/bin/|g' deploy/systemd/unheaded-wotan.service >$(CURDIR)/debian/unheaded-wotan/etc/systemd/system/unheaded-wotan.service
-
-	# unheaded-daemon
-	install -D -m 755 bin/unheaded-daemon $(CURDIR)/debian/unheaded-daemon/opt/unheaded/bin/unheaded-daemon
-
-	# unheaded-dashboard
-	install -D -m 755 bin/dashboard-backend $(CURDIR)/debian/unheaded-dashboard/opt/unheaded/bin/dashboard-backend
-
-	# unheaded-kanban
-	install -D -m 755 bin/kanban-app $(CURDIR)/debian/unheaded-kanban/opt/unheaded/bin/kanban-app
-
-	# unheaded-configs (systemd units + default configs)
-	install -d $(CURDIR)/debian/unheaded-configs/etc/systemd/system
-	install -d $(CURDIR)/debian/unheaded-configs/etc/unheaded
-	install -d $(CURDIR)/debian/unheaded-configs/opt/unheaded/runbooks
-	cp -r runbooks/* $(CURDIR)/debian/unheaded-configs/opt/unheaded/runbooks/
-	# The runbook runner: Akira's cert-expiry exec check runs
-	# /opt/unheaded/runbooks/pki/akira-cert-expiry-check.yaml through it
-	# (configs/akira-*.yaml, S-IRON-GATE Phase 10).
-	install -D -m 755 scripts/run-runbook.py $(CURDIR)/debian/unheaded-configs/opt/unheaded/scripts/run-runbook.py
-	install -D -m 644 scripts/svc_token.py $(CURDIR)/debian/unheaded-configs/opt/unheaded/scripts/svc_token.py
-
-override_dh_dwz:
-	# Skip dwz for Go binaries (not supported)
-
-override_dh_strip:
-	# Go binaries are already stripped via -ldflags="-s -w"
+.PHONY: build build-arch build-indep binary binary-arch binary-indep clean

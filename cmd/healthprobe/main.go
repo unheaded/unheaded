@@ -69,12 +69,13 @@ func run(args []string, stderr io.Writer) int {
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
+	// #nosec G704 -- url is this container's own health endpoint: a port (127.0.0.1) or an http(s) URL from the healthcheck argv (target)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		fmt.Fprintln(stderr, "healthprobe:", err)
 		return 2
 	}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) // #nosec G704 -- see the request above
 	if err != nil {
 		fmt.Fprintln(stderr, "healthprobe:", err)
 		return 1

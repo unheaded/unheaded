@@ -205,7 +205,7 @@ findings:
   - id: FND-013
     title: >-
       PyTorch carries two published advisories: the pinned torch==2.10.0 (raft/requirements.txt,
-      sbom/python-requirements.txt) and, worse, the torch actually installed on west, 2.6.0 (+rocm6.1 system-wide,
+      sbom/python-pip-freeze.txt) and, worse, the torch actually installed on west, 2.6.0 (+rocm6.1 system-wide,
       +cpu in ~/tmp/gemma4-venv): CVE-2025-3000 (memory corruption in torch.jit.script, fixed in 2.13.0) and
       CVE-2026-4538 (deserialization in the pt2 loader, no fixed release)
     verify: scripts/check-python-audit.sh passes with docs/policy/python-audit-accepted.txt holding no torch line
@@ -218,7 +218,7 @@ findings:
     step: 3
     plan: >-
       Move the training environment and the pins to a current torch (2.14.1 on PyPI 2026-10-19) with the matching
-      ROCm wheel, run a short forge/RAFT training smoke on the GPU, then regenerate sbom/python-requirements.txt
+      ROCm wheel, run a short forge/RAFT training smoke on the GPU, then regenerate sbom/python-pip-freeze.txt
       from that environment rather than by hand. Until PYSEC-2026-139 has a fix, load only .pt2 files built here
     decision: when to take the GPU stack to a current torch (a ROCm upgrade and a training run, not a pin edit)
 
@@ -316,6 +316,7 @@ findings:
     plan: >-
       The ADR-034 / ADR-103 sprint (certificates, distribution, service auth). The code is ready: Wotan gRPC,
       wotan-client and pkg/transport/mtls are hybrid-only TLS 1.3 the day TLS is on (S-QUANTUM-ARMOR Phase 5)
+      Progress 2026-10-27 S-IRON-GATE Phase 8 code merged (Strict TLS 1.3 hybrid on every first-party listener and link, per-service dev certs, compose and units on TLS, no plaintext fallback); closes when Steps 264-265 pass in compose and on hosts after E3
     decision: when to turn TLS on for internal links (accepted as plaintext 2026-09-30 with the edge finding)
 
   - id: FND-018
@@ -334,6 +335,7 @@ findings:
     plan: >-
       E4: an ML-DSA-65 seed held under ADR-043 #4 custody (HSM/TPM/sealed, or strict ACL with an audit log),
       separate from the Heimdall and drift keys; publish build.pubkey; a quarterly rotation ceremony
+      Progress 2026-10-27 S-IRON-GATE Phase 13 code merged (ML-DSA-65 signed Binding Rune, cmd/cask-verify, hardened tar extraction, build-key ceremony runbook, uid 16737); custody is Iron Gate E1
     decision: E4, where the build key lives, who holds it, how build.pubkey is published
 
   - id: FND-019
@@ -352,6 +354,7 @@ findings:
     plan: >-
       E5 (plan Step 246; docs/battle-plans/progress/S-QUANTUM-ARMOR-drift-progress.md): enrol the keys, add heimdall
       to topics.auto_approve, ship and enable a Heimdall unit
+      Progress 2026-10-27 S-IRON-GATE Phase 9 code merged (unheaded-heimdall.service uid 16736, unheaded-keygen -algo mldsa65, enrol runbook, heimdall on auto_approve via verified identity); keys and running it are Iron Gate E2
     decision: E5, key custody per node and running a root-reading daemon on the hosts
 
   - id: FND-020
@@ -438,6 +441,43 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+
+  - id: FND-025
+    title: >-
+      Shield's HMAC-key, retry-token, hop-validator, GOAWAY and authority checks are stubs (lookups whose result is
+      discarded, or no lookup at all) while a handoff doc said WIRED
+    verify: >-
+      a lab-netns test with shield-ebpf attached counts checks_run and checks_failed for a flow with and without an
+      HMAC key written by cmd/shield, and the GOAWAY and authority lookups either enforce or are gone from the object
+    severity: medium
+    class: app
+    opened: 2026-10-28
+    exposure: >-
+      ebpf/shield-ebpf/src/main.rs (the deferred block at the HMAC_KEYS, RETRY_TOKENS and HOP_VALIDATORS maps, and the
+      GOAWAY_STATE and AUTHORITY lookups whose results are dropped) enforces nothing beyond the Monad CRC and version;
+      nothing writes the three key maps. docs/archive/internal-2026/battle-plans/S24-handoff-battle-orders.md called
+      them WIRED. Shield runs in no production path today.
+    lockout: none
+    step: 7
+    plan: >-
+      S-TRUE-WIRE Phase 5 (Steps 169-230, on sprint/true-wire): pkg/shieldmaps and cmd/shield write the maps from a host
+      keys file; the checks run in one bpf_loop in observe mode, enforce behind SHIELD_CONFIG; GOAWAY and authority
+      follow the Phase 4 ruling (enforce or delete); docs corrected first, then again when true.
+
+  - id: FND-026
+    title: West serves an old unsigned apt repo on 0.0.0.0:18888 with autoindex; its conf/ and db/ are readable on the LAN.
+    verify: curl -s -o /dev/null -w '%{http_code}' http://<west LAN address>:18888/conf/distributions is not 200, and only the signed reprepro repo (deploy/nginx/unheaded-apt.conf) answers on 18888
+    host: west
+    severity: medium
+    class: service
+    opened: 2026-10-27
+    exposure: west's old unsigned apt repo (/var/lib/apt-repo, codename noble) is served by nginx on 0.0.0.0:18888 with autoindex; /conf/distributions and /db/ answer 200 on the LAN address 192.168.69.184 (checked 2026-10-27). East does not use it.
+    lockout: none
+    step: 7
+    plan: >-
+      Retire it in the S-IRON-GATE E3 window: runbooks/deploy/apt-repo-publish.yaml removes the old site and installs
+      deploy/nginx/unheaded-apt.conf (127.0.0.1 and 192.168.13.2 only; only dists/, pool/ and the key served, everything
+      else 403) with the signed reprepro repo (scripts/apt-repo.sh). Host change, so not done unattended.
 
   - source: "gate-script:scripts/compliance/check-edge-tls.sh"
     severity: medium
@@ -1652,5 +1692,35 @@ findings:
       measured on west, was over 20 min); the rest of the full meta-gate passes locally with every gate biting,
       ruff and pip-audit included. Closes when the next push's run finishes inside the limit; if it does not,
       raise timeout-minutes with the measured time
+
+  - source: "github-job:Security Scan (Daily + PR)/Go Security Scan (gosec)"
+    severity: low
+    class: ci
+    opened: 2026-10-28
+    exposure: none on a host; 18 gosec findings in code merged 2026-10-27 kept the security gate red, so a real finding would have been lost among them
+    lockout: none
+    step: 1
+    plan: >-
+      The S24 merges (S-IRON-GATE, S-WELL-SPRING, S-CHAMPION-HARDENING) were gated on build, -race and the
+      repo's own scripts, not gosec. All 18 reviewed in ce860d92: none a bug, each annotated with its current
+      rule ID (G704, G703, G124, G306, G706) and reason; gosec ./... 0 issues locally with the job's pinned
+      build. Closes on the next push's Security Scan run
+
+  - source: "slo:ci-develop"
+    severity: medium
+    class: ci
+    opened: 2026-10-28
+    exposure: >-
+      the CI-on-develop SLO has spent its error budget: the gosec job red since 2026-10-27, and the first pull
+      request (2026-10-28) ran four workflows that had never met a pull_request event (raft unit tier without
+      numpy, the Yggdrasil anchor check reading the wrong keys, HCL with ';' separators, the meta-gate's
+      unclassified scripts)
+    lockout: none
+    step: 7
+    plan: >-
+      Each cause fixed on develop 2026-10-28 (ce860d92, a9cf46f2, e78b4281, 8b064567, 4ec0f5c4). Terraform
+      plan stays red on pull requests that touch deploy/ until its dependencies get mock_outputs and a
+      cluster exists (Stevie's call). Re-read after a week of green pushes; if the budget is still spent,
+      open a postmortem. Not accepted: only Stevie accepts risk.
 
 

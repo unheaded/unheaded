@@ -2,7 +2,7 @@
 # Manages: ServiceAccounts, ClusterRoles, ClusterRoleBindings, Vault K8s auth
 
 variable "armor_pieces" {
-  type = list(string)
+  type    = list(string)
   default = ["shield", "hauberk", "pauldrons", "sword", "cuirass", "helm-runtime", "gauntlets", "greaves", "vambraces", "gorget", "sabatons"]
 }
 

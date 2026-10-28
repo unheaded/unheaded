@@ -207,3 +207,73 @@ key the dashboard loses the consensus band (Akira's `/api/v1/status` still serve
 unheaded-heimdall heimdall-drift` on west and east, only the public half into Wotan's `/etc/unheaded/wotan.yaml`), or
 generate centrally and copy the seed? (2) Run the root-reading `unheaded-heimdall.service` (CAP_DAC_READ_SEARCH) on west
 and east? (3) Enrol an Akira health key (`akira-health`, `HEALTH_SIGNING_KEY_FILE`) on each host, same pattern?
+
+### Phase 13 code merged; E1 filed
+
+`BINDING_RUNE.sig` = ML-DSA-65 JSON seal (purpose `sealed-cask-v1`, carries the key id) over `BINDING_RUNE.sha256`;
+a cask passes only with a trusted `build.pubkey` and an exact file set. Tar checks from headers before writing
+(one `sealed-cask-*` root, clean relative names, no links/devices, 2 GiB per file, 8 GiB total, no trailing bytes).
+`cmd/cask-verify`, `yggdrasil-evidence cask sign|verify` (`--pubkey` repeatable for rotation; `UNHEADED_BUILD_SIGN_AS`
+runs the signer as the custody account). `build-sealed-cask.sh` signs with `UNHEADED_BUILD_KEY`, else prints UNSIGNED
+CASK; stages tracked files only (it used to copy ignored dev keys/certs into the cask), binaries from build-binaries.sh.
+`verify-binding-rune.sh` hands off to cask-verify (`--insecure-sha-only` keeps the old check, bannered). CI job
+`sealed-cask-verify`. Ceremony runbook `runbooks/security/build-key-ceremony.yaml` (draft), uid `BuildKey = 16737`
+(`unheaded-buildkey`). Open: the age-encryption step writes its key to `secrets/cask.age.key` inside the repo
+(gitignored) - raise in Phase 15.
+**E1 (Stevie):** (1) Where does the ML-DSA-65 build seed live: on west under `unheaded-buildkey` (uid 16737) at 0400
+with an auditd watch (as drafted), in a TPM-sealed file, or on an offline machine? (2) Who may run
+`yggdrasil-evidence cask sign`? (3) Publish `build.pubkey` as `compliance/keys/build.pubkey` by your GPG-signed commit,
+sha256 in SECURITY.md, never in GitHub secrets?
+
+### Phase 14 code merged (d4d971fe); E3/E4 questions; one STUCK
+
+`scripts/lib/deb-packages.sh` drives build-all-debs, `debian/control` (generated) and `debian/rules`: 24 debs (one per
+unit binary + `unheaded-keygen` as the common dependency + new `unheaded-configs`); `unheaded-daemon` replaces
+`unheaded-unheaded-daemon`; units ship under the repo's names (preinst records the old unit's state, postinst carries it
+over, postrm restores on failure); postinst never restarts a service whose TLS files are missing. Jenkinsfile calls
+build-all-debs. `scripts/apt-repo.sh` (init/include/list/check/serve), `deploy/nginx/unheaded-apt.conf`
+(127.0.0.1 + 192.168.13.2:18888), `tests/apt/apt_repo_test.sh` (in security.yml), `DEB_SIGN_KEY` -> SHA256SUMS +
+SHA256SUMS.gpg (dpkg-sig is gone from Debian), draft runbook `runbooks/deploy/apt-repo-publish.yaml`. qdrant,
+text-embeddings-inference, open-webui pinned by digest. CHANGELOG: Unreleased rebuilt as v0.2.0-alpha (untagged), the
+false v0.1.0 lines corrected. **STUCK Step 363:** `vllm/vllm-openai:latest-rocm` does not exist (404) and west has no
+such image. **Live finding (register FND-026):** west serves an old unsigned repo on 0.0.0.0:18888 with autoindex;
+`/conf/distributions` and `/db/` answer 200 on 192.168.69.184. After the east upgrade (Step 376: read `unheaded-keygen`
+for the plan's common package), switch demo-start/demo-reset/kingdom-startup/rolling-upgrade and the prometheus.yml
+comment to the new unit names. Daemon rename edge case covered by the runbook's verify step.
+
+**E4 (Stevie):** a new dedicated apt key (recommended `unheaded-apt <stevie@bellis.tech>`, ed25519, 2-year expiry) or
+your existing key? In a dedicated `unheaded-apt` account (uid 16738, `GNUPGHOME=/var/lib/unheaded/apt/gnupg`, 0700)?
+Who may run `apt-repo.sh include`? Where is the fingerprint published for first fetch (plain HTTP)?
+**E3 (Stevie):** when to install reprepro + the nginx site on west, retire `/var/lib/apt-repo`, reload nginx; when to put
+TLS material and trust.d on east and run the east upgrade (unit renames, new unheaded-auth); then west.
+**vllm (Stevie):** `vllm/vllm-openai-rocm:<version>` (exists upstream) or `rocm/vllm` (west holds an old `latest`,
+`sha256:e7f02dd2...`)?
+
+### Phase 15 merged: security review
+
+`docs/security/iron-gate-attack-surface.md` built from the code (listeners, key files, headers/cookies/tokens, workflows,
+host privilege; checked read-only against west: west still runs the pre-Iron-Gate stack, nothing on 19020, Wotan plain
+HTTP on 0.0.0.0:18000; compose ports bypass the nftables INPUT policy via Docker DNAT, so auth and TLS are the LAN
+boundary). 12 fuzz targets 90 s each, 0 crashers. go.mod unchanged since 1f44cc46; dependency baseline PASS; SPDX 0
+missing; govulncheck clean. Lich hand-off `tomb/lich/IRON-GATE-HOOKS.md`, seeds `tomb/lich/seeds/auth/` (5 JWKS docs;
+10 malformed tokens built at run time by `go run ./tomb/lich/seeds/auth/gen`, gitignored, because they trip gitleaks'
+jwt rule). Fixed during review: run-runbook.py sent its Wotan token over plain http to any host (now https or loopback
+only); deploy/systemd/README TLS dirs 0750 -> 0755 (keys stay 0640) so Akira's cert check can read certs. The coordinator
+fixed `TestRepoRegister` (red from the FND-026 entry's undeclared source; now an FND id with class service).
+Open items: `check-edge-tls` FAIL is accepted risk (until 2026-12-29); `check-ebpf-size-pin` gives 919,096 vs the
+918,840 pin from a worktree because the object embeds the checkout's absolute path (run it from the main checkout, or
+add `--remap-path-prefix` and re-pin); `crates/svc-token` brings `ring` back into cmd/trace-collector's lock (ADR-096
+review note open); behind traefik the BFF/issuer lockouts become global (one source address); `jwks_uri` may point at any
+https host; `secrets/cask.age.key` is generated inside the checkout; apt `Release` has no Valid-Until (freeze/replay);
+uid 16738 (`unheaded-apt`) waits on E4. Flake: `pkg/deploy/rollback TestManager_Rollback_DuplicateInProgress` (races an
+async rollback against a non-blocking mock; 20/20 alone).
+
+### Phase 16 (coordinator): docs, registers, handoff; E5 filed
+
+ADR-103 status: implemented in code, Stevie to accept. Register: FND-017/018/019 plan text records the code that landed
+and what closes them (live steps, E1, E2). Port-Registry and CLAUDE.md: 18888 apt repo; CLAUDE.md secrets paragraph names
+the key and cert generators. OUTSTANDING: M-051 (TLS) code done, M-056 closed, M-063 partial. Timeline: the combined
+Sprints 2-4 entry covers this sprint. Final regression 236 ok / 0 FAIL. Banner: CODE COMPLETE.
+**E5 (Stevie, record only):** `aws-lc-rs`/`aws-lc-sys` (WAF, zhend; S-QUANTUM-ARMOR) and `anthropic-sdk-go` (ADR-104;
+S-TWO-BRAINS) are in use without an ADR-004 row. Sign off both, with dates, in `docs/adr/ADR-004`? (`ring` returned to
+cmd/trace-collector's lock via `crates/svc-token` belongs on the same list.)

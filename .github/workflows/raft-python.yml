@@ -47,7 +47,9 @@ jobs:
         # tier (test_memory_poison.py), which we skip in this job.
         run: |
           python -m pip install --upgrade pip
-          pip install pytest==8.* flask==3.* flask-cors==4.* pyyaml==6.* pygments==2.* requests==2.*
+          # numpy: test_zhen_memory_provenance.py builds embeddings with it
+          # (added 2026-10-27); same pin as raft/requirements.txt.
+          pip install pytest==8.* flask==3.* flask-cors==4.* pyyaml==6.* pygments==2.* requests==2.* numpy==2.4.3
 
       - name: Run unit tier (offline, no DB, no embedder)
         run: |

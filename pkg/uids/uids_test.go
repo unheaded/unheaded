@@ -130,6 +130,10 @@ var hostOnly = map[string]string{
 	// The drift monitor reads root-only files with CAP_DAC_READ_SEARCH on the
 	// host it watches: deploy/systemd/unheaded-heimdall.service (S-IRON-GATE 276).
 	"heimdall": "unheaded-heimdall",
+	// No unit: the account owns the evidence build key (0400) on the custody
+	// host and runs `yggdrasil-evidence cask sign` (S-IRON-GATE 339, E1;
+	// runbooks/security/build-key-ceremony.yaml).
+	"buildkey": "unheaded-buildkey",
 }
 
 // composeOnly lists services that exist only in compose files (or as the

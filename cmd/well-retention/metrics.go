@@ -81,5 +81,6 @@ func writeMetrics(dir, text string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
+	// #nosec G703 -- dir is the operator's textfile-collector directory; the file name is a constant
 	return os.Rename(tmp.Name(), filepath.Join(dir, "well_retention.prom"))
 }

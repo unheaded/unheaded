@@ -6,7 +6,7 @@ variable "cluster_name" {
 }
 
 variable "namespaces" {
-  type = list(string)
+  type    = list(string)
   default = ["unheaded-armory", "unheaded-gnostic", "unheaded-court", "unheaded-presentation", "unheaded-ebpf"]
 }
 
@@ -22,12 +22,30 @@ resource "helm_release" "cilium" {
   namespace  = "kube-system"
   version    = "1.15.0"
 
-  set { name = "ipam.mode"; value = "kubernetes" }
-  set { name = "hubble.enabled"; value = tostring(var.hubble_enabled) }
-  set { name = "hubble.relay.enabled"; value = tostring(var.hubble_enabled) }
-  set { name = "hubble.ui.enabled"; value = tostring(var.hubble_enabled) }
-  set { name = "bpf.masquerade"; value = "true" }
-  set { name = "kubeProxyReplacement"; value = "true" }
+  set {
+    name  = "ipam.mode"
+    value = "kubernetes"
+  }
+  set {
+    name  = "hubble.enabled"
+    value = tostring(var.hubble_enabled)
+  }
+  set {
+    name  = "hubble.relay.enabled"
+    value = tostring(var.hubble_enabled)
+  }
+  set {
+    name  = "hubble.ui.enabled"
+    value = tostring(var.hubble_enabled)
+  }
+  set {
+    name  = "bpf.masquerade"
+    value = "true"
+  }
+  set {
+    name  = "kubeProxyReplacement"
+    value = "true"
+  }
 }
 
 output "cilium_release_name" {

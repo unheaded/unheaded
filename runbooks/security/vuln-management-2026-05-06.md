@@ -54,7 +54,7 @@ The kingdom executes step 1 well, step 2 partially, steps 3-6 informally. This r
 |------|-----|-------------|-------|
 | **GitHub Security Advisories — Go modules** | NVD lags GHSA by 1-30 days for Go ecosystem | `gh api /repos/<dep>/security-advisories` cron in security.yml; or Dependabot security updates on `go.mod` | Sentinel + CI |
 | **GitHub Security Advisories — Cargo crates** | Same lag for RustSec; GHSA covers some non-RustSec advisories | Dependabot on each Cargo.lock; or `gh api` cron | Sentinel + CI |
-| **GitHub Security Advisories — Python (raft/, Zhen stack)** | `pip-audit` covers PyPA advisory db; GHSA covers the rest | `pip-audit` job on `sbom/python-requirements.txt` | Sentinel + CI |
+| **GitHub Security Advisories — Python (raft/, Zhen stack)** | `pip-audit` covers PyPA advisory db; GHSA covers the rest | `pip-audit` job on `sbom/python-pip-freeze.txt` | Sentinel + CI |
 | **OSV.dev** (optional but recommended) | Federated vuln DB across ecosystems; covers GHSA + RustSec + PyPA + Go-vuln-db in one feed | `osv-scanner --recursive .` job | Sentinel + CI |
 | **Linux kernel advisories** (kernel.org / Ubuntu USN) | eBPF programs run on host kernel; verifier-bypass CVEs matter | RSS to Sentinel daily loop; LXD/EAST + WEST host kernel inventory | Sentinel |
 | **HAProxy + nginx security advisories** | Edge LB substrate, attack surface for SC-7 | Vendor RSS feeds via Sentinel | Sentinel |
@@ -78,7 +78,7 @@ Per scrutiny finding **S7**: scheduled CI is not operating CI. A feed that fails
 For every CVE landing in any feed, answer in order:
 
 1. **Is the affected component in the kingdom's dependency graph?**
-   Cross-reference: `sbom/SBOM.md` (553 deps as of 2026-03-15), `sbom/go-dependencies.json`, `sbom/rust-dependencies.json`, `sbom/python-requirements.txt`, and tonight's `docs/sbom/2026-05-06-sbom-delta.md` (lockfile fingerprints + delta vs. last full ScanCode scan).
+   Cross-reference: `sbom/SBOM.md` (553 deps as of 2026-03-15), `sbom/go-dependencies.json`, `sbom/rust-dependencies.json`, `sbom/python-pip-freeze.txt`, and tonight's `docs/sbom/2026-05-06-sbom-delta.md` (lockfile fingerprints + delta vs. last full ScanCode scan).
    Match on package name AND version range. If no — file as **N/A — not in dep graph**, log to monthly report, close.
    If yes — proceed.
 
@@ -253,27 +253,27 @@ git commit -m "fix(<workspace>): bump <crate> to <ver> (CVE)..."
 ### 4.3 Python deps (raft/, Zhen stack)
 
 ```bash
-cd ~/.venv/zhen   # or the venv tracking sbom/python-requirements.txt
+cd ~/.venv/zhen   # or the venv tracking sbom/python-pip-freeze.txt
 
 # 1. Pin the patched version
 pip install --upgrade <package>==<patched-version>
 
 # 2. Regenerate requirements
-pip freeze > sbom/python-requirements.txt
+pip freeze > sbom/python-pip-freeze.txt
 
 # 3. Re-run inference + RAG smoke tests
 python -m raft.zhen_app --self-check     # verify Zhen still loads
 # Run any existing integration tests; document pass/fail in the commit.
 
 # 4. Re-run pip-audit (once added to security.yml)
-pip-audit -r sbom/python-requirements.txt
+pip-audit -r sbom/python-pip-freeze.txt
 
 # 5. Commit
-git add sbom/python-requirements.txt
+git add sbom/python-pip-freeze.txt
 git commit -m "fix(zhen): bump <package> to <ver> (CVE)..."
 ```
 
-**Python pinning policy:** the kingdom currently pins exact versions in `sbom/python-requirements.txt`. Major-version bumps require a separate review (langchain/transformers regularly break APIs across minor versions).
+**Python pinning policy:** the kingdom currently pins exact versions in `sbom/python-pip-freeze.txt`. Major-version bumps require a separate review (langchain/transformers regularly break APIs across minor versions).
 
 ### 4.4 Container base images
 

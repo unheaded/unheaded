@@ -198,13 +198,16 @@ identity. Install, as root (`<unit>` as in `unheaded-<unit>.service`,
 ```bash
 sudo install -d -m 0755 /etc/unheaded/tls
 sudo install -m 0644 ca.pem /etc/unheaded/tls/ca.pem                  # client-only units
-sudo install -d -m 0750 -o root -g unheaded-<unit> /etc/unheaded/tls/<identity>
+sudo install -d -m 0755 /etc/unheaded/tls/<identity>   # listable: Akira's cert-expiry check reads every cert
 sudo install -m 0644 ca.pem /etc/unheaded/tls/<identity>/ca.pem
 sudo install -m 0644 svc.pem /etc/unheaded/tls/<identity>/<identity>.pem
 sudo install -m 0640 -o root -g unheaded-<unit> svc-key.pem /etc/unheaded/tls/<identity>/<identity>-key.pem
 ```
 
-Keys are `root:unheaded-<unit>` 0640, certificates 0644. Restarting a
+Keys are `root:unheaded-<unit>` 0640, certificates 0644, directories 0755 (the
+hourly `runbooks/pki/akira-cert-expiry-check.yaml`, run by Akira as
+`unheaded-akira`, lists every `<identity>/` and reads its certificate; it never
+opens a key). Restarting a
 unit picks up a new certificate. Turning TLS on is a host change: every
 unit that talks to Wotan must move in the same window (a plaintext client
 cannot reach a TLS port), and Prometheus jobs that scrape these units need
@@ -215,26 +218,46 @@ cannot reach a TLS port), and Prometheus jobs that scrape these units need
 The units here exec `/usr/local/bin/<name>`, for a hand install (copy the
 unit, put the binary there).
 
-The `.deb` packages do not use that path or these file names.
-`scripts/build-all-debs.sh` installs the binary at `/opt/unheaded/bin/<name>`
-and ships its own copy of the unit, with `/usr/local/bin/` rewritten to
-`/opt/unheaded/bin/`, as `/etc/systemd/system/<package>.service`. The unit
-name is the package name, `unheaded-<binary>`:
+The `.deb` packages (`scripts/build-all-debs.sh`, table in
+`scripts/lib/deb-packages.sh`) install the binary at
+`/opt/unheaded/bin/<name>` and ship these units under their own names in
+`/etc/systemd/system/`, with `/usr/local/bin/` rewritten to
+`/opt/unheaded/bin/`. Every unit here that runs a binary from
+`/usr/local/bin` has a package (`scripts/test-deb-maintscripts.sh` fails
+otherwise). The package is `unheaded-<binary>`, or the binary's own name
+when it already starts with `unheaded-`:
 
-| Repo unit | Unit installed by the deb |
+| Package | Unit |
 |---|---|
-| `unheaded-dashboard.service` | `unheaded-dashboard-backend.service` |
-| `unheaded-kanban.service` | `unheaded-kanban-app.service` |
-| `unheaded-daemon.service` | `unheaded-unheaded-daemon.service` |
-| `unheaded-<svc>.service` (wotan, timeguru, captain, architect, micromanager, akira) | same name |
+| `unheaded-daemon` (replaces `unheaded-unheaded-daemon`) | `unheaded-daemon.service` |
+| `unheaded-dashboard-backend` | `unheaded-dashboard.service` |
+| `unheaded-kanban-app` | `unheaded-kanban.service` |
+| `unheaded-heimdall-daemon` | `unheaded-heimdall.service` |
+| `unheaded-trace-collector-go` | `unheaded-trace-collector.service` (eBPF objects in `/usr/local/lib/unheaded/ebpf` are not packaged) |
+| `unheaded-huginn`, `unheaded-zhen-agentd` | `huginn.service`, `zhen-agentd.service` |
+| `unheaded-baseline` | `unheaded-baseline.service` + `.timer` + `.path` |
+| `unheaded-well-retention` | `unheaded-well-retention.service` + `.timer` |
+| `unheaded-<svc>` (wotan, akira, timeguru, captain, architect, micromanager, monad, sophia, auth, sword, chaos-controller, anomaly, kev-poller) | `unheaded-<svc>.service` |
+| `unheaded-keygen` | none: the key tool every key-holding package depends on |
+| `unheaded-configs` | none: runbooks + `run-runbook.py` under `/opt/unheaded` (Akira's cert-expiry check) |
 
-So on east (debs) start them as `unheaded-dashboard-backend`,
-`unheaded-kanban-app` and `unheaded-unheaded-daemon`
-(`runbooks/deploy/start-east-services.yaml`). Packages come from WEST's local
-APT repo (`apt install unheaded-<binary>`); see
-`runbooks/infra/apt-repo-server.yaml`. Units not packaged (monad, sophia,
-kev-poller, trace-collector, huginn, ...) are hand-installed and keep
-`/usr/local/bin`.
+Until 2026-10-27 the debs named the unit after the package
+(`unheaded-dashboard-backend.service`, `unheaded-kanban-app.service`,
+`unheaded-unheaded-daemon.service`, east's names from the 2026-10-21
+install). The new packages' preinst records whether that former unit was
+enabled and running, stops and disables it, and postinst enables and starts
+the new unit to match. When apt removes `unheaded-unheaded-daemon` before
+unpacking `unheaded-daemon`, the old package's own prerm has already
+disabled the unit and nothing is carried over: check with
+`systemctl is-enabled unheaded-daemon` and enable it by hand.
+
+A package never enables a unit on a fresh install, and postinst restarts a
+running service on upgrade only when the TLS files its unit names
+(`UNHEADED_TLS_CA_CERT`, `_CERT`, `_KEY_FILE`) exist: the services refuse
+to start without them, and a restart into that refusal would take a running
+service down. Install the TLS material first (see TLS above). Packages come
+from west's signed apt repository (`scripts/apt-repo.sh`,
+`runbooks/deploy/apt-repo-publish.yaml`).
 
 ## Logs
 

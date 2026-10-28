@@ -10,7 +10,11 @@
 # Outputs:
 #   sbom/go-dependencies.json     -- Go module SBOM (SPDX-2.3 compatible)
 #   sbom/rust-dependencies.json   -- Rust crate SBOM (SPDX-2.3 compatible)
-#   sbom/python-requirements.txt  -- Python package list (pip freeze)
+#   sbom/python-pip-freeze.txt  -- Python package list (pip freeze of the
+#       whole Zhen venv). Not named *requirements*.txt on purpose: GitHub's
+#       dependency graph read it as a manifest and raised Dependabot alerts
+#       for packages nothing installs from here (2026-10-28). The manifest
+#       is raft/requirements.txt.
 #   sbom/SBOM.md                  -- Human-readable master document
 
 set -euo pipefail
@@ -280,13 +284,13 @@ PYTHON_VENV="${PYTHON_VENV:-$HOME/.venv/zhen}"
 if [ -f "$PYTHON_VENV/bin/activate" ]; then
     # shellcheck disable=SC1091
     source "$PYTHON_VENV/bin/activate"
-    pip freeze > "$SBOM_DIR/python-requirements.txt" 2>/dev/null
-    PY_COUNT=$(wc -l < "$SBOM_DIR/python-requirements.txt")
+    pip freeze > "$SBOM_DIR/python-pip-freeze.txt" 2>/dev/null
+    PY_COUNT=$(wc -l < "$SBOM_DIR/python-pip-freeze.txt")
     echo "  Python: $PY_COUNT packages from $PYTHON_VENV"
     deactivate 2>/dev/null || true
 else
     echo "  Python: No virtualenv found at $PYTHON_VENV (skipped)"
-    echo "# No Python virtualenv found at generation time" > "$SBOM_DIR/python-requirements.txt"
+    echo "# No Python virtualenv found at generation time" > "$SBOM_DIR/python-pip-freeze.txt"
 fi
 
 # --------------------------------------------------------------------------
@@ -320,7 +324,7 @@ else:
 # Summary
 print(f"\n  Go:     {go['summary']['totalDependencies']} deps ({go['summary']['directDependencies']} direct)")
 print(f"  Rust:   {rust['summary']['totalExternalCrates']} external crates, {len(rust['summary']['workspaceCrates'])} workspace")
-py_count = sum(1 for l in open(f'{sbom_dir}/python-requirements.txt') if l.strip() and not l.startswith('#'))
+py_count = sum(1 for l in open(f'{sbom_dir}/python-pip-freeze.txt') if l.strip() and not l.startswith('#'))
 print(f"  Python: {py_count} packages")
 PYEOF
 
@@ -328,7 +332,7 @@ echo ""
 echo "Output files:"
 echo "  $SBOM_DIR/go-dependencies.json"
 echo "  $SBOM_DIR/rust-dependencies.json"
-echo "  $SBOM_DIR/python-requirements.txt"
+echo "  $SBOM_DIR/python-pip-freeze.txt"
 echo "  $SBOM_DIR/SBOM.md"
 echo ""
 echo "Done. Review sbom/SBOM.md for the full report."

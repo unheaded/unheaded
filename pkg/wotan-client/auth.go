@@ -68,7 +68,8 @@ func UseServiceIdentity(name string) (*auth.ServiceTokenMinter, error) {
 	}
 	m, err := auth.LoadServiceTokenMinter(name, keyFile)
 	if errors.Is(err, fs.ErrNotExist) {
-		log.Printf("[WARN] wotan_client: no service key at %s; Wotan calls carry no token as %q (a Wotan with AUTH_ENABLED=true refuses them; run unheaded-keygen %s, ADR-103)", keyFile, name, name)
+		// #nosec G706 -- the path comes from AUTH_KEY_FILE or the identity, and is printed with %q
+		log.Printf("[WARN] wotan_client: no service key at %q; Wotan calls carry no token as %q (a Wotan with AUTH_ENABLED=true refuses them; run unheaded-keygen %s, ADR-103)", keyFile, name, name)
 		return nil, nil
 	}
 	if err != nil {
@@ -206,7 +207,8 @@ func warnWithheld(peer string) {
 	if _, dup := withheldWarned.LoadOrStore(peer, true); dup {
 		return
 	}
-	log.Printf("[WARN] wotan_client: service token withheld on a plaintext link to %s: tokens travel only over TLS (set UNHEADED_TLS_ENABLED=true and UNHEADED_TLS_CA_CERT, S-IRON-GATE Phase 8); a Wotan with auth on answers 401", peer)
+	// #nosec G706 -- the peer is a configured Wotan address, printed with %q
+	log.Printf("[WARN] wotan_client: service token withheld on a plaintext link to %q: tokens travel only over TLS (set UNHEADED_TLS_ENABLED=true and UNHEADED_TLS_CA_CERT, S-IRON-GATE Phase 8); a Wotan with auth on answers 401", peer)
 }
 
 // targetIsLoopback reports whether a gRPC target ("host:port", optionally

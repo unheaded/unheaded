@@ -1,4 +1,7 @@
-variable "org_name" { type = string; default = "unheaded" }
+variable "org_name" {
+  type    = string
+  default = "unheaded"
+}
 
 resource "github_repository" "template_go_service" {
   name                   = "template-go-service"

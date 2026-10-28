@@ -583,6 +583,13 @@ jobs:
       - name: Package maintainer scripts keep services across upgrades
         run: ./scripts/test-deb-maintscripts.sh
 
+      # S-IRON-GATE Phase 14: the signed apt repo (scripts/apt-repo.sh) with a
+      # throwaway key: apt accepts it with the exported key, refuses any other.
+      - name: Signed apt repo accepts its key, refuses others
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq reprepro
+          ./tests/apt/apt_repo_test.sh
+
       # M-089: the perf baseline gate itself (fixtures; the live run is
       # west-only, scripts/ci-local.sh CI_LOCAL_PERF=1).
       - name: Perf regression gate passes faster, fails slower

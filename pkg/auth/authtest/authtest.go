@@ -40,10 +40,11 @@ func New(t testing.TB, service string, trusted ...string) *Fixture {
 		if _, err := auth.GenerateKeyPair(f.Keys, n); err != nil {
 			t.Fatal(err)
 		}
-		b, err := os.ReadFile(filepath.Join(f.Keys, n+".pub"))
+		b, err := os.ReadFile(filepath.Join(f.Keys, n+".pub")) // #nosec G304,G703 -- test fixture under t.TempDir
 		if err != nil {
 			t.Fatal(err)
 		}
+		// #nosec G306,G703 -- a public key in a test trust dir under t.TempDir; trust.d keys are world-readable by design
 		if err := os.WriteFile(filepath.Join(f.Trust, n+".pub"), b, 0o444); err != nil {
 			t.Fatal(err)
 		}

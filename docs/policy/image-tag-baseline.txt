@@ -1,9 +1,6 @@
 # Images not yet pinned to an exact version (ADR-102). This set may only SHRINK.
 # <file> <image>. Pin, then remove the line: scripts/check-image-tags.sh --update
 deploy/docker/zhen-agentd.Dockerfile gcr.io/distroless/static-debian12:nonroot
-deploy/sophia-eye/docker-compose.yml ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
-deploy/sophia-eye/docker-compose.yml ghcr.io/open-webui/open-webui:main
-deploy/sophia-eye/docker-compose.yml qdrant/qdrant:latest
 deploy/sophia-eye/docker-compose.yml vllm/vllm-openai:latest-rocm
 docker/base/Dockerfile.base debian:bookworm-slim
 docker/base/Dockerfile.base gcr.io/distroless/static-debian12:nonroot

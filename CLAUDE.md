@@ -498,7 +498,10 @@ networking.firewall = {
 
 ### Secrets Management
 
-**CREDENTIALS ARE NEVER STORED IN THIS REPO.** Not in code, not in manifests,
+**CREDENTIALS ARE NEVER STORED IN THIS REPO.** Service identities follow the same rule: keys are made on the host by
+`unheaded-keygen` (`/etc/unheaded/keys/<identity>.key`, 0400, owned by the service) or for dev by
+`sudo scripts/gen-dev-keys.sh` / `scripts/gen-dev-certs.sh` into gitignored `configs/keys/dev/` and `configs/certs/`.
+ Not in code, not in manifests,
 not in scripts, not in docs, not in test fixtures. This is absolute — a
 credential in the tree is a credential in git history, and history outlives
 every deletion.
@@ -814,7 +817,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - Zhen MCP Server (`cmd/zhen-mcp`, built by `make build-zhen-mcp`; stdio transport in `pkg/mcpserver`, shared with `cmd/lich-mcp`): 9 tools for Claude Code integration, every call through the Champion gate (S-CHAMPION-HARDENING Phase 10; the Python server is retired). Read-only, always on: corpus_search (queries vor directly), file_read, service_health, runbook_list, runbook_show, local_llm (one completion from the running llama-server at `ZHEN_LOCAL_LLM_URL`, default `http://127.0.0.1:8081`; isError when nothing listens; never starts or swaps a model; `ZHEN_CAPTURE_DIR` opts in to redacted training capture, docs/architecture/zhen-capture.md). Off unless the server env opts in: file_write, file_patch (`ZHEN_MCP_ALLOW_WRITE=1`), runbook_execute (`ZHEN_MCP_ALLOW_EXEC=1`; manifest-checked). Tests in `cmd/zhen-mcp`; CI handshake gate `scripts/check-zhen-mcp.sh`. Registered for Claude Code in the repo's `.mcp.json` as server `zhen` (read-only: no `ZHEN_MCP_ALLOW_*` set; approve it once at the `claude` prompt). It launches `scripts/zhen-mcp.sh`, which runs `bin/zhen-mcp` and fails loudly naming `make build-zhen-mcp` if the binary is missing
 - 90 Operational Runbooks (runbooks/): 9 categories (infra 19, security 17, observe 16, data 9, network 9, deploy 7, wotan 5, doom 4, pki 4); `scripts/check-runbooks.sh` with a shrink-only baseline, `metadata.status` draft → approved (Stevie only, with an ISO `approved_at`; authorship policy in ADR-024 "Authorship and approval"); live Champion execution needs the runbook in `runbooks/MANIFEST.sha256` (`scripts/runbook-manifest.sh --write` after any edit)
 - BPF CI Gate (scripts/bpf-verifier-check.sh): Instruction budget tracking, static analysis
-- Sealed Cask (scripts/build-sealed-cask.sh + verify-binding-rune.sh): Deterministic image builder with SHA256 integrity
+- Sealed Cask (scripts/build-sealed-cask.sh + verify-binding-rune.sh): Deterministic image builder with ML-DSA-65 signed Binding Rune (`cask-verify`; SHA256 manifest inside)
 - ROCm GPU acceleration: PyTorch 2.5.1+rocm6.2 for embedding (862 chunks/s), llama.cpp for inference (60 tok/s)
 - RAFT QA generation: ~2000 pairs from Mistral-7B for fine-tuning pipeline
 - Kanban Bugs: All 8 Three Crowns bugs fixed (ADR-020)
@@ -1217,6 +1220,7 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | unheaded-auth | 19020 | HTTP(S) | Built-in OIDC issuer (ADR-103): login, JWKS, discovery; uid 16735 |
 | sword | 19011 | HTTP | Deploy service through Cuirass (was Canary's port; Canary folded into Sword), uid 16746 |
 | chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east |
+| apt repo | 18888 | HTTP | Signed apt repo (reprepro, nginx), 127.0.0.1 + 192.168.13.2 only |
 | heimdall-daemon /metrics | 19101 | HTTP | Drift detection metrics (loopback default, `-metrics-addr`) |
 | kev-poller | 19120 | HTTP | CISA KEV feed poller (ADR-055) |
 | alert-mailer | 19130 | HTTP | Alertmanager webhook to mail |

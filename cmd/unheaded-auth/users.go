@@ -237,7 +237,7 @@ func parseUsers(raw []byte) (map[string]user, error) {
 // readPrivateFile reads a regular file that group and others cannot
 // access (0600 or 0400), capped at limit bytes.
 func readPrivateFile(path string, limit int64) ([]byte, error) {
-	f, err := os.Open(path) // #nosec G304 -- operator-configured path
+	f, err := os.Open(path) // #nosec G304,G703 -- operator-configured path
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +315,7 @@ func writeUsersFile(path string, uf usersFile) error {
 		_ = tmp.Close()
 		return err
 	}
-	if st, err := os.Stat(path); err == nil {
+	if st, err := os.Stat(path); err == nil { // #nosec G703 -- operator-configured users file
 		if sys, ok := st.Sys().(*syscall.Stat_t); ok && os.Geteuid() == 0 {
 			if err := tmp.Chown(int(sys.Uid), int(sys.Gid)); err != nil {
 				_ = tmp.Close()
@@ -334,5 +334,5 @@ func writeUsersFile(path string, uf usersFile) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(name, path)
+	return os.Rename(name, path) // #nosec G703 -- operator-configured users file; name is our CreateTemp beside it
 }

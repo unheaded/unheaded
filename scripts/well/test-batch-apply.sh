@@ -83,7 +83,8 @@ EXPECT="$(awk '$1 != "skip" && $2 ~ /^[0-9][0-9][0-9]_/ && substr($2, 1, 3) + 0 
 
 # 2. Guards and the dry run.
 rc=0; bash "$R/scripts/well/batch-apply.sh" --dry-run >"$TMP/out" 2>&1 || rc=$?
-((rc != 0)) && grep -q WELL_MIGRATE_PASSWORD "$TMP/out" && pass "refuses without WELL_MIGRATE_PASSWORD" || fail "ran without a password (rc $rc)"
+# The script's own guard, not well-migrate's "WELL_MIGRATE_PASSWORD is not set" further down.
+((rc != 0)) && grep -q "credentials are not stored in this repo" "$TMP/out" && pass "refuses without WELL_MIGRATE_PASSWORD" || fail "ran without a password (rc $rc)"
 run 0 "dry run" batch --dry-run
 got="$(sed -n 's/^  \([a-z_]*\)\t\(.*\)$/\1\t\2/p' "$TMP/out")"
 [[ "$got" == "$EXPECT" ]] && pass "dry run lists exactly the files after 029 ($(wc -l <<<"$EXPECT"))" ||

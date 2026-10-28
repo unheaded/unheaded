@@ -48,10 +48,16 @@ echo "[ok] generated alertmanager.yml loads in $AM_IMAGE"
 docker build -q -f "$REPO_ROOT/docker/alert-mailer/Dockerfile" -t "$MAILER_IMAGE" "$REPO_ROOT" >/dev/null
 
 mkdir -p "$T/am" "$T/mailer" "$T/prom/rules"
-sed -e 's/^\(      group_wait: \)2m$/\11s/' -e '0,/^      group_interval: 5m$/s//      group_interval: 2s/' \
+# Every route whose receiver is page gets the short timing, not only the first
+# one: the generator puts per-rule routes ahead of the urgency="page" catch-all
+# (2026-10-27), and a page route left at group_interval 5m holds the second
+# batch below past this test's wait.
+awk '/^    - receiver: /{rcv=$3} rcv=="page" && /^      group_wait: 2m$/{sub(/2m$/,"1s")} rcv=="page" && /^      group_interval: 5m$/{sub(/5m$/,"2s")} {print}' \
 	"$REPO_ROOT/monitoring/alertmanager/alertmanager.yml" >"$T/am/alertmanager.yml"
-{ grep -q 'group_wait: 1s' "$T/am/alertmanager.yml" && grep -q 'group_interval: 2s' "$T/am/alertmanager.yml"; } ||
-	fail "page timing anchors missing in alertmanager.yml"
+pages="$(grep -c '^    - receiver: page$' "$T/am/alertmanager.yml")"
+{ [[ "$pages" -ge 1 ]] && [[ "$(grep -c '^      group_wait: 1s$' "$T/am/alertmanager.yml")" -eq "$pages" ]] &&
+	[[ "$(grep -c '^      group_interval: 2s$' "$T/am/alertmanager.yml")" -eq "$pages" ]]; } ||
+	fail "page timing anchors missing in alertmanager.yml (want group_wait 2m and group_interval 5m on each of $pages page routes)"
 sed -e 's/^  mode: dry-run$/  mode: send/' -e 's/^  max_per_day: [0-9]*$/  max_per_day: 2/' \
 	"$REPO_ROOT/observability/alerting/policy.yaml" >"$T/mailer/policy.yaml"
 { grep -q '^  mode: send$' "$T/mailer/policy.yaml" && grep -q '^  max_per_day: 2$' "$T/mailer/policy.yaml"; } || fail "policy anchors missing"

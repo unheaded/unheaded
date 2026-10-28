@@ -1,10 +1,11 @@
-unheaded (1.0.0-1) noble; urgency=medium
+unheaded (0.2.0~alpha) unheaded; urgency=medium
 
-  * Initial .deb packaging for Unheaded Kingdom
-  * 34 services, 23 eBPF programs, 33 operational runbooks
-  * Zhenai Champion with MCP server and trust levels
-  * ADR sweep: all 27 ADRs resolved
-  * RAFT training pipeline for Mistral-7B fine-tuning
-  * Sealed cask deployment with binding rune verification
+  * Packages built by scripts/build-all-debs.sh from one table
+    (scripts/lib/deb-packages.sh): every binary a deploy/systemd unit runs,
+    plus unheaded-keygen and unheaded-configs.
+  * unheaded-daemon replaces unheaded-unheaded-daemon; units ship under the
+    repository's unit names; a renamed unit keeps its enabled and running
+    state across the upgrade.
+  * Published from the signed apt repository on west (scripts/apt-repo.sh).
 
- -- Stevie Bellis <stevie@bellis.tech>  Thu, 03 Apr 2026 16:00:00 +0000
+ -- Stevie Bellis <stevie@bellis.tech>  Tue, 27 Oct 2026 23:00:00 +0000
