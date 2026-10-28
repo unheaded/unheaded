@@ -170,6 +170,10 @@ bookkeeping problem, not an engineering one.
 2. Promotion to `staging` proceeds one sprint per batch with the per-merge reviews as evidence. Rationale: 1,342 commits cannot be reviewed as one diff and should not wait on a full sweep. Owner: Micromanager, Stevie promotes.
 3. Coordinator commits stage named paths only; no `git add -A` on directories. Rationale: the S24 binary sweep cost a filter-branch and a full re-sign. Owner: Marshal.
 
+#### Findings during execution (2026-10-28)
+- **ultrareview cannot bundle this repo locally** (178 MiB pack): "Repo is too large. Push a PR and use `/code-review ultra <PR#>`". Stevie pushed `review/true-wire-ph8-base` (`6d6d6aa3`) and `review/true-wire-ph8` (`88202527`) and opened **PR #2** (21 files, +1,699 -141). Every later review follows the same two-branch recipe.
+- **PR #2 check "Static Analysis / Gates can actually fail" is red, and it is pre-existing, not Phase 8.** Reproduced locally with the job's PR-mode command (`check-gates-can-fail.sh --quick`) in clean worktrees: at the PR head 7 gate scripts have no classification (`backup/git-mirror`, `check-perf-regression`, `check-zhen-mcp`, `ci-local`, `east-bootstrap`, `gen-dev-certs`, `test-check-perf-regression`); at `develop` the list is 14 (those plus `lib/deb-packages`, `well/test-batch-apply`, `well/test-retention`, `well/test-slo-definitions`, `wireguard/setup-wireguard`, `wireguard/verify-wireguard`, `zhen-morning-report`). The meta-gate exits 1 before running any gate, so **no gate has been proven to bite on develop since those scripts landed**. Each name needs exactly one of REGISTRY + provoke fn, NOT_A_GATE, or NEEDS_HARDWARE. Owner: Developer, on develop, as its own commit; true-wire inherits it at the E2 merge. Not a reason to hold the PR #2 review.
+
 #### Open Questions (Carry to Next Round Table)
 1. Keep or delete the July host-agent binaries? Stevie, before the next coordinator session.
 2. Merge or drop the two Sprint 5 WIP worktree branches (Phase 2 renumber, Phase 4 error registry)? Stevie, after E2.
