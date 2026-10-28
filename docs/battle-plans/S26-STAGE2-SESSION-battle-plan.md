@@ -175,11 +175,11 @@ one-paragraph "forge when rung 1 is green" note each.
 - [x] **Step 43** [W] ~20m: Append Phase 6 (Steps 131-146): attack-surface table (new kernel reads of BPF-written words; a user program that forges `sscratch`-adjacent memory cannot, since the table is outside every slice: prove with a probe that reads the table VA and faults/returns 0), a hostile probe per new syscall path, `fuzz_mbc_execute` 300 s unchanged, repo gates; exit gate.
 - [x] **Step 44** *(plus `sweep12`: the harness checks no goldens)* [W] ~15m: Append Phase 7 (Steps 147-160): `$LOG` close, timeline entry + mirrors (the timeguru syncer pattern from S-ASCEND-2 Step 306), OUTSTANDING M-220/M-221 rows, ADR-109 → Accepted if the rung 0 gate passed, `~/tmp/next.md`, final regression; exit gate = Stage 2 rungs 0-1 exit.
 - [x] **Step 45** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 plan] Phases 6-7 forged`.
-- [ ] **Step 46** [W] ~20m: Appendices: A emergency procedures (verifier over 950,000: the Override; a boot that halts at `uservec`: `ROM-FAULT CTX` reading; a probe that prints nothing: the PC tracer strip and `TRIG`; a kernel that panics at `upc_slots_init`: `kalloc` exhaustion under `PHYSTOP=0x800000`); B agent matrix + critical path (Phase 1 → 2 → 3 → 4 → 5 → 7; 6 parallel to 5); C quick reference (CSR window addresses, PROC_TABLE layout, the three slot tables, `ub`/`gf`/`flag`, the harness gate list).
-- [ ] **Step 47** [W] ~5m: Rungs 2-8: under each skeleton rung heading in `$PLAN`, one paragraph "forge when rung 1 is green; prerequisites and gate as in the skeleton", and the forge stamp.
-- [ ] **Step 48** [V] ~3m: `grep -c '^- \[ \] \*\*Step' "$PLAN"` ≥ 160; every phase has an exit gate (`grep -c 'EXIT GATE' "$PLAN"` ≥ 8); `$PLAN` header Status line changed from DRAFT to FORGED with the date.
-- [ ] **Step 49** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 plan] appendices; Stage 2 plan forged (rungs 0-1 in full)`.
-- [ ] **Step 50** [V] ~30s: **PHASE 4 EXIT GATE**: the plan is complete for rungs 0-1; master plan 1.6.4 `[x]` in the same commit.
+- [x] **Step 46** [W] ~20m: Appendices: A emergency procedures (verifier over 950,000: the Override; a boot that halts at `uservec`: `ROM-FAULT CTX` reading; a probe that prints nothing: the PC tracer strip and `TRIG`; a kernel that panics at `upc_slots_init`: `kalloc` exhaustion under `PHYSTOP=0x800000`); B agent matrix + critical path (Phase 1 → 2 → 3 → 4 → 5 → 7; 6 parallel to 5); C quick reference (CSR window addresses, PROC_TABLE layout, the three slot tables, `ub`/`gf`/`flag`, the harness gate list).
+- [x] **Step 47** *(no rung headings existed in the plan; one RUNGS 2-8 section added)* [W] ~5m: Rungs 2-8: under each skeleton rung heading in `$PLAN`, one paragraph "forge when rung 1 is green; prerequisites and gate as in the skeleton", and the forge stamp.
+- [x] **Step 48** *(160 steps, 8 exit gates, FORGED)* [V] ~3m: `grep -c '^- \[ \] \*\*Step' "$PLAN"` ≥ 160; every phase has an exit gate (`grep -c 'EXIT GATE' "$PLAN"` ≥ 8); `$PLAN` header Status line changed from DRAFT to FORGED with the date.
+- [x] **Step 49** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 plan] appendices; Stage 2 plan forged (rungs 0-1 in full)`.
+- [x] **Step 50** [V] ~30s: **PHASE 4 EXIT GATE**: the plan is complete for rungs 0-1; master plan 1.6.4 `[x]` in the same commit.
 
 ---
 

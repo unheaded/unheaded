@@ -165,8 +165,9 @@ toward (a), stop at the first rung with freed insns < 0).
       steps: `EVOLUTION-1-STAGE-2-skeleton.md` (2026-10-28).
 - [ ] **1.6.3** Rung 0, a kernel row per BPF fork, needed under either E2 answer (prerequisite
       of every stateful rung and of the arrivals; also closes 1.3.5).
-- [~] **1.6.4** Forge the Stage 2 battle plan (own Warmonger session, four-lens panel). Draft started
-      2026-10-28: `EVOLUTION-1-STAGE-2-battle-plan.md`, Phases 0-2 (research and ADR-109 design for rung 0). E2
+- [x] **1.6.4** Forge the Stage 2 battle plan (own Warmonger session, four-lens panel). Forged
+      2026-10-28: `EVOLUTION-1-STAGE-2-battle-plan.md`, Phases 0-7 (160 steps, rungs 0-1 in full; rungs 2-8 by forge
+      rule). Phases 0-2 executed: the child's -1 explained, ADR-109 written and revised after a four-lens review. E2
       answered 2026-10-28: (a), push toward kernel-authoritative syscalls rung by rung with the
       freed-instructions stop rule; rung 0 first.
 

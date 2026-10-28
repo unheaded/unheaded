@@ -6,7 +6,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 # EVOLUTION-1 STAGE 2 BATTLE PLAN: the migration ladder, rung 0 first
 
 **Date**: 2026-10-28
-**Status**: DRAFT. Phases 0-2 (preflight, rung 0 research, rung 0 design and ADR-109) are written. The later phases (rung 0 kernel and BPF changes and gate, rung 1 flip, rungs 2-8, usertests, security, docs) are not written yet; Phase 2 ends with the review that shapes them.
+**Status**: FORGED 2026-10-28 for rungs 0-1 (Phases 0-7, Steps 1-160; Phases 0-2 executed). Rungs 2-8 carry a forge rule, not steps. ADR-109 (revised after its review) is the design Phases 3-7 implement.
 **Sprint**: EVOLUTION-1 Stage 2 (master plan Epic 1.6, 1.6.3-1.6.4)
 **Forged from**: [EVOLUTION-1-STAGE-2-skeleton.md](EVOLUTION-1-STAGE-2-skeleton.md); decisions E1 = option K (one pid
 numbering, init = 1; BPF reports slot + 1) and E2 = (a) (push toward kernel-authoritative syscalls, rung by rung, with
@@ -682,3 +682,127 @@ green, and the handoff is written.
   - ascend ≤ 950,000;
   - ADR-109 Accepted (or Accepted except D6);
   - not pushed.
+
+---
+
+## RUNGS 2-8 (forge each when the one before it is green)
+
+Each rung is forged from its section of `docs/battle-plans/EVOLUTION-1-STAGE-2-skeleton.md`, which gives its
+prerequisites, gate and usertests subset. Every rung takes the shape of Phases 3-5:
+- probes first (RED recorded);
+- one guard const;
+- the measured OFF/ON pair;
+- the `sweep12` corpus and the harness;
+- the skeleton's rung gate template.
+
+ADR-109 settles what the kernel may assume about rows; a rung that needs more (a row field, a walk of a user page
+table, kernel-side blocking) amends ADR-109 or writes its own ADR first.
+
+- **Rung 2: uptime / pause.**
+  - Forge when rung 1 is green.
+  - First verify the unverified prerequisite: does `clockintr` advance `ticks`?
+  - `pause` blocks in the kernel, so it is the first rung bound by I7's rule: blocking hands back to BPF and
+    re-injects. Design that before code.
+- **Rung 3: write (console fds).** Forge when rung 1 is green. It is the first kernel read of a user pointer:
+  `copyin` against a BPF-format pgd, which ADR-109 D5 leaves to this rung.
+- **Rung 4: read (console fds).** Forge when rung 3 is green.
+- **Rung 5: fstat / dup / close.** Forge when rung 1 is green; its gate is run jointly with rung 6. `ofile` becomes a
+  live row field (D5's stale-field list).
+- **Rung 6: open and file read/write.** Forge when rung 5 is green. `cwd` and `ofile` move to the kernel row.
+- **Rung 7: fork / exec / wait.**
+  - Forge when rungs 5-6 are green.
+  - ADR-109's forward rule applies: slot s ↔ `proc[s]`, the kernel uses BPF's slot, and `allocpid` gives way to slot + 1.
+  - The `kexit`/`sched`/`freeproc` guards come out here, under a new ADR.
+- **Rung 8: arrivals (sbrk, pipe, kill, mkdir, unlink, link, chdir, sleep).**
+  - Forge when rung 7 is green.
+  - `kill` decides how a kill reaches BPF (ADR-109 D5).
+  - `sbrk` owns `sz`.
+
+---
+
+## APPENDIX A: EMERGENCY PROCEDURES
+
+**A1. Ascend verified count over 950,000.**
+1. `vcount` with every rung const off. If that is already over, the drift is the toolchain's, not the rung's: record
+   it and compare only pairs from one session (skeleton budget rules).
+2. Turn the consts on one at a time (`rung`, then `d6`) and find which one costs.
+3. `UPC_RUNG0` over +5,000 → ADR-109's fallback (`cur_slot` only). Re-plan Steps 89-90 and amend the ADR before any
+   code.
+4. A new variable `RAM_MAP` offset inside the instruction loop is the known +119K pattern. Bisect with
+   `UPC_VERIFIER_STATS=1` and keep every address a constant plus the one published base.
+
+**A2. A boot halts in `uservec` or right after a trap.**
+1. Read the `ROM-FAULT CTX` line: PC, priv, `sscratch`.
+2. `sscratch` 0 or wild → BPF wrote it before the table was published (base word 0 must skip), or the stride is
+   wrong. Run the parity test.
+3. `sscratch` right but `kernel_sp` 0 → D2's prefill missed that slot. `upc_slots_init` must run after `procinit`
+   and `userinit`.
+4. Flip the consts off. A clean boot puts the fault in this rung's code.
+
+**A3. A probe prints nothing.**
+1. The PC tracer strip: values must be decimal and `;`-terminated.
+2. `TRIG`: getpidmulti and the ut_* probes need 1.5M-3M.
+3. Is the token in the image (`grep -a 'GM:' "$K/getpidmulti.mbc"*`)?
+4. Was `gates` run after the edit?
+
+**A4. The kernel panics at `upc_slots_init` or at boot.**
+1. `kalloc` exhaustion under `PHYSTOP=0x800000`: 8 trapframes now live in `.bss`, so only init's old page is freed.
+   Check `.bss` still fits under the kernel's end (`riscv64-unknown-elf-size kernel/kernel.elf`).
+2. `panic: upc: slot row` → a slot row reached `kexit`, `sched`, `sleep` or `freeproc`. Find the caller in the
+   `usertrap` `killed` paths first.
+3. `panic: upc: cur_slot` or `upc: sscratch` → BPF wrote a slot or `sscratch` the kernel disagrees with. Print both
+   in the probe build.
+
+**A5. A golden moves.**
+1. Diff `.tty` and `.stats` separately.
+2. A TTY-only change is a print leaking out of the probe build.
+3. A stats change means the instruction stream changed. Expected only for the kernel image's own size; any boot's
+   step count moving otherwise is a real regression.
+4. Still unexplained after two attempts → flip the consts off, STUCK, record both diffs.
+
+**A6. The host looks wrong after a session.**
+1. `sudo bpftool prog show | grep -iE 'monad|cart|heimdall'`.
+2. `ip netns list`.
+3. `sudo bash scripts/upc-netns.sh status`.
+
+Leftover programs go through the boot tool's teardown or `scripts/upc-netns.sh down && up`, never by hand on `enp*`.
+
+## APPENDIX B: AGENT MATRIX AND CRITICAL PATH
+
+| Phase | Agent | Parallel with | Depends on | Time |
+|---|---|---|---|---|
+| 0 Preflight | Coordinator | — | — | 1 h |
+| 1 Research (-1) | Coordinator | — | 0 | 2 h |
+| 2 ADR-109 | Coordinator + one review agent | — | 1 | 2 h |
+| 3 Rung 0 kernel | Coordinator | — | 2 | 3 h |
+| 4 Rung 0 BPF + gate | Coordinator | — | 3 | 3-4 h |
+| 5 Rung 1 flip | Coordinator | 6 | 4 | 1.5 h |
+| 6 Security pass | Agent [P] for Steps 131-136, Coordinator for live probes | 5 | 4 | 2 h |
+| 7 Close | Solo | — | 5, 6 | 1 h |
+
+Critical path: 0 → 1 → 2 → 3 → 4 → 5 → 7 (about 14 h). Phase 6 runs beside Phase 5. Every live boot needs sudo
+inside `upc0`, so there is one coordinator; agents only read, review or write files in their own worktrees.
+
+## APPENDIX C: QUICK REFERENCE
+
+| Item | Value |
+|---|---|
+| BootParams | `0x100`, v3; hash at +64..96; `reserved[0]` = byte `0x160` = slot-table address (0 = unpublished) |
+| CSR window | word `0xF000 + 4*csr`; `sscratch` (0x140) at `0xF500`, `mscratch` at `0xFD00` |
+| Slot tables (ADR-109) | `tf[8]` at +0, stride 256 (trapframe 144 B); `cur_slot` +0x800 (`0x5107_0000\|s`); `trap_a7` +0x804 (`0xA700_0000\|nr`); `fresh_mask` +0x808; size 0x810 |
+| Per-slot pgd | `0x00F00000 + s*4096`; BPF format, 2-level, present at bit 11; fork writes PDE 0 and 1 only |
+| Child slice | `USER_CHILD_SLICE` 16 MiB + stride 8 MiB per slot; ceiling 56 MiB |
+| Spill words | x16 at `0x64000`, x17 at `0x64004` (physical in S-mode) |
+| PROC_TABLE | 8 slots × 22 words; [20] pgd, [21] rv2mbc base |
+| Pid numbering | option K: pid = slot + 1, init = 1 |
+| Consts (`main.rs`) | `GETPID_INJECT`, `UPC_RUNG0`, `UPC_D6_MISS_FAULT`, probe-only `UPC_PROBE_INJECT22` |
+| Helpers | `ub <prog> [ENV=..]`, `gf`, `ugl`, `flag a b`, `rung a b`, `d6 a b`, `obj`, `vcount`, `kbuild`, `gates`, `sweep`, `sweep12` |
+| Harness gates | getpidfork, gate2, gate_nway, forkloop, devprobe, ut_exitwait, ut_twochildren, ut_forktest, ut_reparent2 (3M); rung 0 gates behind `UPC_GATE_RUNG0=1` until Phase 5 |
+| Budgets | working limit 950,000 (ascend), ceiling 1,000,000; reference OFF 921,036; Doom 758,199 |
+| Probe tokens | `GF:` getpidfork, `GL:` getpidloop, `GM:` getpidmulti, `UT:`/`SP:`/`PG:` probe kernel, `HP:` hostile probes, `RUNG0-ASSERT` asserter |
+
+---
+
+*EVOLUTION-1 Stage 2 Battle Plan — Forged 2026-10-28*
+*8 phases, 160 steps for rungs 0-1, and a forge rule for rungs 2-8. The kernel gets one row per slot, and getpid
+comes home.*
