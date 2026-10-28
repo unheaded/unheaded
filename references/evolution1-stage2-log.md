@@ -361,3 +361,23 @@ PG:f01000-nonzero=1;first=1;val=2028545;
 - `RUNG0-ASSERT pass 6`.
 
 The asserter now counts `GX` fork lines as well.
+
+**Steps 102-103 (D6): deferred, not run.**
+- D6 is implemented behind `UPC_D6_MISS_FAULT` (off) and measured at +3,096 verified instructions with the flag on.
+- Its hostile-child validation probe was not built this session.
+- **D6 stays off in the tree and does not flip with rung 1.** It goes to Stevie as a decision: the fall-through hole
+  ADR-109's security notes describe is still open.
+- ADR-109's status will read "Accepted except D6".
+
+**Steps 104-105 (mutation check).** The four mutants each ran in their own probe kernel, with the flag and `UPC_RUNG0`
+on, over getpidloop and getpidmulti. Every mutant fails, and each reason names the property it broke:
+
+```
+UPC_MUT_SHARED_TF:   fail slot 1 row trapframe 1133568 is not sscratch 1133824
+UPC_MUT_NO_A7:       fail a7 3 on slot 1            (the stale spill value, Phase 1's mechanism)
+UPC_MUT_NO_REFRESH:  fail pid 0 for slot 1
+UPC_MUT_RESTORE_A67: fail init's x17 spill word holds a child's a7 (I8)
+```
+
+`UPC_MUT_RESTORE_A67` is an `#ifdef` in `trampoline_mbc.S` (`.S` files are built with `$(CC) $(CFLAGS)`). After the
+runs, the probe `-D` was reverted; the normal kernel hash is `3c63d4865a4b5dcf` (unchanged since Phase 3).

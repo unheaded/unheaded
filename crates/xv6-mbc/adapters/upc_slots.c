@@ -10,6 +10,7 @@
 //   UPC_MUT_SHARED_TF   every slot row uses tf[0]
 //   UPC_MUT_NO_A7       trap_a7 ignored
 //   UPC_MUT_NO_REFRESH  rows never refreshed
+//   UPC_MUT_RESTORE_A67 (trampoline_mbc.S) userret restores a6/a7 again
 #include "types.h"
 #include "param.h"
 #include "memlayout.h"

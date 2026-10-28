@@ -145,6 +145,10 @@ userret:
         # ADR-109 D4: no a6/a7 restore. Each would spill-store to physical
         # 0x64000/0x64004 (flat S-mode), which are init's x16/x17 words, and
         # overwrite r2/r1 after tp/gp. The usys stubs reload a7 before ecall.
+#ifdef UPC_MUT_RESTORE_A67
+        lw a6, 80(a0)            # mutant for the rung 0 gate (plan Step 104) only
+        lw a7, 84(a0)
+#endif
         # s2-s11 stripped per the save path above; the trapframe slots remain
         # reserved but are never restored to physical registers.
 
