@@ -643,30 +643,30 @@ green, and the handoff is written.
 **Time**: ~1 h
 **Agent**: Solo
 
-- [ ] **Step 147** [TEST][B][S] ~15m: Final regression on the final tree:
+- [x] **Step 147** [TEST][B][S] ~15m: Final regression on the final tree:
   - `bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'`;
   - `sweep12 | grep -c SAME`;
   - `go test ./... 2>&1 | grep -c '^FAIL'`;
   - `bash scripts/check-ebpf-insns.sh`.
-- [ ] **Step 148** [V] ~1m: ALL GREEN; 12; 0; the ratchet passes. Record the ascend and Doom counts with the shipped
+- [x] **Step 148** *(ALL GREEN; 12; 0; ratchet PASS; 913,408 / 758,199)* [V] ~1m: ALL GREEN; 12; 0; the ratchet passes. Record the ascend and Doom counts with the shipped
   flags in `$LOG` §Close.
-- [ ] **Step 149** [DOC-UPDATE][W] ~5m: ADR-109 `**Status**: Accepted (<date>; rung 0 gate <Phase 4 commit>, rung 1
+- [x] **Step 149** *(Accepted except D6)* [DOC-UPDATE][W] ~5m: ADR-109 `**Status**: Accepted (<date>; rung 0 gate <Phase 4 commit>, rung 1
   <Phase 5 commit>)`, and the `docs/adr/ADR-INDEX.md` row → **Accepted**. If D6 was escalated, the status says
   "Accepted except D6 (escalated <date>)".
-- [ ] **Step 150** [DOC-UPDATE][W] ~10m: `references/timeline.md`, one dated entry in the Age 3 list: "EVOLUTION-1
+- [x] **Step 150** *(phase-3-item-18a106dd; mirrors by hand, no sync flag)* [DOC-UPDATE][W] ~10m: `references/timeline.md`, one dated entry in the Age 3 list: "EVOLUTION-1
   Stage 2 rungs 0-1: kernel rows per BPF slot (ADR-109), getpid served by the owned kernel". Then the mirrors:
   `go run ./services/timeguru/cmd/timeguru -sync-once 2>&1 | tail -1` if that flag exists; otherwise edit
   json/yaml/toml in step with the md, as `f83c9cde` did (`git show --stat f83c9cde`).
-- [ ] **Step 151** [V] ~1m: `bash scripts/check-timeline-freshness.sh` → FRESH.
-- [ ] **Step 152** [DOC-UPDATE][W] ~10m: OUTSTANDING. In the newest `docs/sweeps/OUTSTANDING-*.md`, M-220 → DONE with
+- [x] **Step 151** [V] ~1m: `bash scripts/check-timeline-freshness.sh` → FRESH.
+- [x] **Step 152** *(M-220 DONE, M-221 PARTIAL, M-247, M-248)* [DOC-UPDATE][W] ~10m: OUTSTANDING. In the newest `docs/sweeps/OUTSTANDING-*.md`, M-220 → DONE with
   the Phase 5 commit, and M-221 → PARTIAL with "Stage 2 plan forged; rungs 0-1 done; rung 2 next". New rows: D6 if
   escalated; the `PG:` lead if it was non-zero; any Phase 6 finding. Cite each with its log section.
-- [ ] **Step 153** [W] ~10m: `$LOG` §Close:
+- [x] **Step 153** [W] ~10m: `$LOG` §Close:
   - every step done, STUCK or BLOCKED, by number;
   - commit count: `git log --oneline sprint/ascend-2..HEAD | wc -l`;
   - the verified counts table (Phase 0 → Phase 5);
   - open leads: trigger halving, the init pgd, bootstub retirement, forktest's limit of 5.
-- [ ] **Step 154** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 147-153] rungs 0-1 closed: ADR-109 Accepted, timeline, OUTSTANDING`.
+- [x] **Step 154** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 147-153] rungs 0-1 closed: ADR-109 Accepted, timeline, OUTSTANDING`.
 - [ ] **Step 155** [B][S] ~1m: Host clean: `sudo bpftool prog show | grep -ciE 'monad|cart|heimdall'`;
   `ip netns list`; `git status --short | wc -l`.
 - [ ] **Step 156** [V] ~30s: 0; `upc0` only; 0.

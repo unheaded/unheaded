@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-109: The owned kernel gets a process row per BPF slot
 
-**Status**: Proposed (2026-10-28; revised after the four-lens review the same day). Rung 0 gate passed 2026-10-28, D6 excepted; Accepted waits for rung 1 (plan Phase 7).
+**Status**: Accepted except D6 (2026-10-28). Revised after the four-lens review the same day; rung 0 gate `d4b75b73`, rung 1 `9c9face1`. D6 is implemented behind `UPC_D6_MISS_FAULT` (off) and waits on a decision (OUTSTANDING M-247).
 **Context sprint**: EVOLUTION-1 Stage 2, rung 0 (`docs/battle-plans/EVOLUTION-1-STAGE-2-battle-plan.md`)
 **Relates to**: ADR-067 (MBC ISA v2, UPC ABI v1), ADR-074 (per-pid page directories), ADR-075 (process model),
 ADR-080 (programmatic API), EVOLUTION-1 (`docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md`)

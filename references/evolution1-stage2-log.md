@@ -504,3 +504,40 @@ are deferred with D6: without D6 they would only confirm the open hole the ADR a
 - the D6 hostile probes (deferred with D6);
 - `fuzz_mbc_execute` (cargo-fuzz not installed);
 - the `check-gates-can-fail` tail after `well/test-zhen-captures`.
+
+## Close (Phase 7, Steps 147-160; S26 Phase 7)
+
+**Final regression on the final tree.** Flags shipped: `GETPID_INJECT` and `UPC_RUNG0` on; D6 and
+`UPC_PROBE_INJECT22` off.
+- Harness: ALL GREEN.
+- `sweep12`: 12/12 SAME.
+- Ratchet: PASS.
+- `go test ./...`: 0 FAIL (Phase 6).
+- **Ascend 913,408; Doom 758,199.**
+
+**Verified counts across the session (ascend object).**
+
+| Point | Count |
+|---|---|
+| Phase 0 / Step 60 (flag off, pre-ADR) | 921,036 |
+| Flag on, getpid alone (Phase 4) | 909,353 |
+| Flag + `UPC_RUNG0` (shipped) | 913,408 |
+| + D6 (not shipped) | 916,504 |
+
+**Docs.**
+- ADR-109 is Accepted except D6; the index and the status summary are updated.
+- Timeline entry `phase-3-item-18a106dd`, mirrored to JSON, YAML and TOML (all three agree; FRESH).
+- OUTSTANDING: M-220 DONE, M-221 PARTIAL (rung 2 next), M-247 (D6, Stevie) and M-248 (gates-can-fail stall) added.
+
+**Steps not done.**
+- 102-103 and 134-138 DEFERRED: the D6 hostile probes, with D6 off.
+- 140 SKIP: cargo-fuzz is not installed.
+- The `check-gates-can-fail` tail after `well/test-zhen-captures` was not exercised.
+
+**Open leads.**
+- Trigger halving (side findings).
+- Bootstub retirement (Stevie: Boot Protocol v2 is frozen).
+- forktest's fork limit is 5, not 7 (slice ceiling).
+- The init-pgd lead is closed (PDE 1 only, which fork rewrites).
+
+**Commits on this branch since `sprint/ascend-2`:** 29 (before this one).

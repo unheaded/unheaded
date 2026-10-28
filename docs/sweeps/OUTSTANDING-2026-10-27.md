@@ -10,8 +10,9 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 
 ## 1. Epics (priority order)
 
-### E01 — CI GREEN ON DEVELOP, PROMOTION READY  (tier a, size S, 8 items)
+### E01 — CI GREEN ON DEVELOP, PROMOTION READY  (tier a, size S, 9 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |
+| M-248 | `check-gates-can-fail` full run stalls in `well/test-zhen-captures` (docker-backed) past 45 min; the gates after it were not exercised 2026-10-28 | `references/evolution1-stage2-log.md` Phase 6 | scripts/check-gates-can-fail.sh | OPEN | N | S |
 |---|---|---|---|---|---|---|
 | M-001 | Dependency baseline lists 4 Go modules gone from the build (fsnotify, kr/pty, gobreaker, x/term): `check-dependency-baseline.sh --update` (shrink-only) | parent repro; SEC untriaged gitleaks job | docs/policy/dependency-baseline.txt | CLOSED 2026-10-27 S24 (baseline shrunk to 742) | N | S |
 | M-002 | `scripts/lib/tool-pins.sh`: syft 1.54.1→1.55.0, grype 0.120.1→0.121.0 + sha256 (the "Pinned tools" exit 2) | parent repro | scripts/lib/tool-pins.sh | CLOSED 2026-10-27 S24 (syft 1.55.0, grype 0.121.0, oxlint 1.89.0; hashes verified by download) | N | S |
@@ -187,11 +188,11 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 | M-204 | Multicast bootstrap `ff02::1:abba` never run end to end on L2 (east as node) | ADR M-07 | cmd/gjallarhorn-sender | DONE S-ASCEND-2 E3: multicast bootstrap across west→east, 7/7, 8-15 ms | Y: east | S |
 | M-205 | Threat-model review cadence lines; RT-32 CPU_MAP concurrent-write disposition; Tomb offensive campaigns registered in ADR-062 before host exposure | SEC RT-31, RT-32, RT-29 | docs/security/threat-model-* | CLOSED 2026-10-27 S24 (threat-model review cadence, ADR-055/062 amendments) | N | S |
 
-### E14 — UPC (NON-DOOM)  (tier e, size L, 12 items)
+### E14 — UPC (NON-DOOM)  (tier e, size L, 13 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |
 |---|---|---|---|---|---|---|
-| M-220 | getpid flip: `GETPID_INJECT=false` one const away; run the named probe (BPF-forked child calls getpid flag-ON); decide pid numbering; proc[] dual-books reconciliation | UPC DL-1, E-1, E-2, S-1 | ebpf/monad-cpu-ebpf/src/main.rs:413 | PARTIAL S-ASCEND-2 Phase 1: getpidfork probe + dual-books table (child getpid -1 with the flag on); flag stays off until E1 | Y: xv6 `p->pid` vs BPF slot | M |
-| M-221 | Verifier delta now NEGATIVE (ON 911,319 vs OFF 926,542); EVOLUTION-1's own rule says migration ladder self-funding → re-read D1 reach, then forge Stage 2 plan (sbrk/pipe/kill/mkdir/unlink/link/chdir/sleep arrive in-kernel) | UPC S-10, E-3 | EVOLUTION-1-TRAP-FLIP.md | PARTIAL S-ASCEND-2 Phase 2: D1 re-read + Stage 2 skeleton; reach waits on E2 | Y: re-read D1 | L |
+| M-220 | getpid flip: `GETPID_INJECT=false` one const away; run the named probe (BPF-forked child calls getpid flag-ON); decide pid numbering; proc[] dual-books reconciliation | UPC DL-1, E-1, E-2, S-1 | ebpf/monad-cpu-ebpf/src/main.rs:413 | DONE 2026-10-28: EVOLUTION-1 Stage 2 rungs 0-1 (ADR-109, `sprint/evolution1-stage2` 9c9face1): `GETPID_INJECT` and `UPC_RUNG0` on; every slot's getpid served by the owned kernel; numbering option K | N | M |
+| M-221 | Verifier delta now NEGATIVE (ON 911,319 vs OFF 926,542); EVOLUTION-1's own rule says migration ladder self-funding → re-read D1 reach, then forge Stage 2 plan (sbrk/pipe/kill/mkdir/unlink/link/chdir/sleep arrive in-kernel) | UPC S-10, E-3 | EVOLUTION-1-TRAP-FLIP.md | PARTIAL: Stage 2 plan forged (`EVOLUTION-1-STAGE-2-battle-plan.md`, 160 steps); rungs 0-1 done, freed 7,628; rung 2 (uptime/pause) next | Y: re-read D1 | L |
 | M-222 | `gate_nway` N-way concurrent isolation has never passed (KF1 since Gate A); gate2 sequential is the only isolation proof; forkbomb gate | UPC K-8; ADR U-06 | crates/xv6-mbc/upstream/user/gate_nway.c | DONE S-ASCEND-2 Phase 3: scheduler zombie-resume fixed; gate_nway + forkloop harness gates; KF1 retired | N | M |
 | M-223 | ADR-080 loader I/O-time gates (surface-vs-object feature check, per-pid MMU slice non-overlap) named in docs, not performed; closes Epic 1.2.5 | UPC K-1; ADR U-02 | crates/upc-api/src/workload.rs:178 | DONE S-ASCEND-2 Phase 4: surface-vs-object and slice-geometry gates in both loaders; 1.2.5 closed | N | M |
 | M-224 | Required-before-prod (brief 2026-05-13) 0/5: nft forward-drop on veth-upc0p; bootctl unprivileged + CAP_BPF/NET_ADMIN; seccomp; `UPC_DEMO_MODE` gate; RV2MBC SHA default-on + BootParams v3 | SEC RT-U1..U5; UPC K-11; INT D-12 | references/security-upc-linux-spitball-2026-05-13.md | DONE S-ASCEND-2 Steps 117-154 (5/5 in code; installed on west 2026-10-28 under E6; FND-028 resolved) | Y: E6 | M |
@@ -202,6 +203,7 @@ Priority order (Stevie 2026-10-27): (a) CI green + promotion readiness → (b) d
 | M-229 | Live legs never run: `anomaly.scores` over Wotan, Sophia registry backend; scorer trained on synthetic only (real labelled flows now exist via steel-echo); interpreter-cost gates #1(a)/#2 accept or fund (8 steps/callback, DOT4 ISA gate) | UPC W-4, W-5, W-6, S-4, S-5, S-6 | references/s5-upc-wire-log.md | PARTIAL S-ASCEND-2 Steps 243-246 (gates accepted, 8-step variant measured); live legs not run; scorer retrain blocked: no real flow capture | Y: DOT4 sprint?, gates accept?, scorer real data? | M |
 | M-230 | unheadnix naming ceremony (Q5) + find-replace "Unheaded Linux"; ADR-023 → Superseded-by-074; wiki L6 rung reconciled; `crates/upc-bootstub` delete or keep; Phase 2.5 L6 brief (pool-node image) when sequenced | UPC S-7, S-9, S-11, DL-2, DL-3 | docs/adr/ADR-081 | NS (S-ASCEND-2 Phase 11 not run this session; naming waits on E4) | Y: name + Lore; when L6 starts | S/L |
 | M-231 | Browser xterm end-to-end with live keyboard never run in a real browser; Lich Phase 5 live local-model e2e never run (`LICH_E2E=1`) | UPC K-16; PLANS F-60 | dashboard/upc-console.html | P (S-ASCEND-2 Phase 11 not run this session) | Y: one attended run | S |
+| M-247 | ADR-109 D6: a U-mode page-walk miss falls through to the physical address, so a BPF-forked child can reach physical memory above its slice (the per-pid pgds, then everything). Implemented behind `UPC_D6_MISS_FAULT` (off, +3,096 verified insns); hostile-child validation not built | ADR-109 Security notes; `references/evolution1-stage2-log.md` Phases 4, 6 | ebpf/monad-cpu-ebpf/src/main.rs (`d6_user_miss`) | OPEN | Y: enable D6 and how to validate it | M |
 
 ### E15 — DOOM  (tier f, LAST, size M, 7 items)
 | ID | Item | Sources | Doc | St | Stevie | Sz |

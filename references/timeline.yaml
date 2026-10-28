@@ -1,5 +1,5 @@
 version: 1.0.0
-last_updated: 2026-10-28T08:38:34.53747956Z
+last_updated: 2026-10-28T21:31:46.444736Z
 status: alpha
 phases:
   - id: phase-0
@@ -80,6 +80,7 @@ phases:
       - phase-3-item-0b1e2e4c
       - phase-3-item-b1cec782
       - phase-3-item-022c2187
+      - phase-3-item-18a106dd
       - phase-3-item-020526f9
       - phase-3-item-ef2bf6a0
       - phase-3-item-5d165ac5
@@ -406,6 +407,11 @@ milestones:
     status: completed
     progress: 100
     description: '**S-ASCEND-2, Sprint 6 of the NEXT-7 ladder (2026-10-28, `sprint/ascend-2`).** The UPC scheduler no longer resumes a reaped zombie when nothing is runnable (that was gate_nway''s "isolation failure" and the "looped fork" bug); gate_nway, forkloop and devprobe are harness gates. The loader refuses a wrong-surface object or slice geometry; every `.rv2mbc` is SHA-checked (BootParams v3); ROM_MAP/RV2MBC_MAP are frozen after load; a live boot needs `UPC_DEMO_MODE=1`; bootctl runs inside an isolated `upc0` netns with four capabilities, seccomp and no exec (units not installed, E6); ticks are bound to a per-boot nonce; no shipped HMAC key default. Mímir Phases 9/11/13 and the DISTRIBUTED weights leg pass in a two-netns lab (across hosts waits on E3). Getpid flip stays off (E1: the kernel has no process for BPF-forked children); Stage 2 skeleton written (E2). Not done: LICH-015 full arm, Phase 10, Phase 11, the scorer retrain (no real flow capture).'
+  - id: phase-3-item-18a106dd
+    name: 'EVOLUTION-1 Stage 2 rungs 0-1: a kernel row per BPF slot, getpid served by the owned kernel'
+    status: completed
+    progress: 100
+    description: '**EVOLUTION-1 Stage 2 rungs 0-1: a kernel row per BPF slot, getpid served by the owned kernel (2026-10-28, `sprint/evolution1-stage2`).** ADR-109 (Accepted except D6): the owned xv6 kernel keeps `proc[s]` for BPF slot s, BPF hands it the trapping slot and its a7 at trap injection, and per-slot trapframes replace the one that every child shared. `GETPID_INJECT` and `UPC_RUNG0` are on: getpid is answered by the kernel for init and every BPF-forked child (child pid = fork''s return), freeing 7,628 verified insns (921,036 → 913,408). Gate: probe asserts per trap plus a four-variant mutation check, 12/12 goldens, harness green. Found on the way: bootctl drained the 4 KiB TTY ring only at the end (one golden was a post-wrap tail), and verify-gpl-boundary scanned nothing in a checkout under `.claude/`. Not done: D6 (U-mode page-walk miss) stays off pending Stevie; Stage 2 rungs 2-8.'
   - id: phase-3-item-020526f9
     name: Resolved since this list was written:* Captain Track call
     status: completed
