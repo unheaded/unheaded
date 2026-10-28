@@ -240,3 +240,22 @@ KF1 retired (evidence `p3-nway-fixed.txt`, `p3-regression-final.log`).
 
 Also corrected: gate2.c and gate_nway.c said init "exits, so the kernel restarts it" (it never did), and the
 over-budget note's 926,542.
+
+## Phase 4: the loader's I/O-time gates (Steps 95-116, 2026-10-28)
+
+Host side (Steps 95-106, 113, 115) on `sprint/ascend-2-ph4` (37b01b8d, da9a6473), merged as 50c7b41d. The object
+now carries `UPC_SURFACE_ID` and `UPC_MMU_GEOMETRY` in `.rodata.upc`; `upc_api::load()` and an object check in both
+loaders compare them with the workload. 44 new tests. Plan corrections found on the way: both surface descriptors
+were wrong (Doom declared 0-3, the object handles 1-4, 16, 200, 201; upc-bootctl declared 21 xv6 syscalls, the object
+handles 15), only pids 1-5 fit slices under the 56 MiB fork ceiling, and Step 111's `0x400000` is 4 MiB, not 6.
+
+Live (Steps 107-112), after the Phase 3 merge:
+
+| Check | Result |
+|---|---|
+| harness | ALL GREEN; ascend 923645, Doom 758321 (equal to the Phase 3 values: the constant is data) |
+| Doom object under the xv6 kernel | `refusing to load …: SurfaceObjectMismatch`, 0 programs, 0 netns |
+| `UPC_SLICE_STRIDE=0x600000 --unsafe-geometry` | `SliceOverlap: pid 1 slice [0x1000000, 0x1800000) overlaps slice of pid 2 [0x1600000, 0x1E00000)`, 0 programs |
+| positive control (shipped object, no override) | boots, no refusal |
+
+Master plan 1.2.5 GATE closed. Evidence: `p4-regression.log`, `p4-neg-surface.txt`, `p4-neg-geometry.txt`.

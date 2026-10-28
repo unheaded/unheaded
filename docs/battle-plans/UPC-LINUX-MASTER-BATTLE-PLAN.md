@@ -73,10 +73,11 @@ Scientist).*
       (`UPC_SURFACE_ID` in the object's `.rodata.upc` vs the Workload's declared numbers) and
       **per-pid slice geometry** (`Workload.mmu`; non-overlap, inside RAM_MAP, clear of reserved
       regions, equal to the object's `UPC_MMU_GEOMETRY`). Host-side, 2026-10-28.
-- [~] **1.2.5 GATE:** substance MET — both loaders construct a `Workload` and call the one validated
-      `load()`; upc-api characterization tests byte-identical; Doom + xv6 green in the regression
-      harness; the 1.2.4 I/O-time gates are in both loaders. Formal close waits on S-ASCEND-2
-      Steps 107-112 (harness with unchanged budgets, and the two negative live gates refusing).
+- [x] **1.2.5 GATE:** formally closed 2026-10-28, S-ASCEND-2 Steps 95-116. Both loaders construct a
+      `Workload` and call the one validated `load()`; upc-api characterization tests byte-identical;
+      Doom + xv6 green in the regression harness with unchanged budgets; the 1.2.4 I/O-time gates are
+      in both loaders, and live the Doom object under the xv6 kernel is refused with
+      `SurfaceObjectMismatch` and a 6 MiB stride with `SliceOverlap`, nothing attached.
       "Add a guest" is declarative today.
 
 ### Epic 1.3 — Extend xv6 OS-primitive coverage (FS stretch + syscalls)
