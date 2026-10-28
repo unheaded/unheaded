@@ -686,7 +686,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### DISTRIBUTED leg: scorer weights over Wotan to the second "node"
 
-- [ ] **Step 221** [B][S] ~6m: Publish the scorer DATA blob to the scratch Wotan; fetch + verify + load in `upc1`
+- [x] **Step 221** *(no subcommand existed: [CODE] branch taken; `weights publish|fetch` in `cmd/upc-cartridgectl/weights.go`, 13 tests; Gungnir seal over a {model, data sha256, DATA} manifest; proved against a scratch Wotan in `unshare -rn` on 26601/26602, fetched bytes == `scorer.data.bin`)* [B][S] ~6m: Publish the scorer DATA blob to the scratch Wotan; fetch + verify + load in `upc1`
   ```bash
   cd "$PROJECT_ROOT" && go build -o "$S6/upc-cartridgectl" ./cmd/upc-cartridgectl && "$S6/upc-cartridgectl" --help 2>&1 | grep -E 'publish|fetch|weights|wotan' | head -4
   ```

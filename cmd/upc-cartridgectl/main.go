@@ -17,6 +17,9 @@
 //	upc-cartridgectl [global flags] bench [--repeat N] [--dport P]
 //	upc-cartridgectl [global flags] pump [--max N]
 //	upc-cartridgectl [global flags] serve [--metrics-addr 127.0.0.1:26610] [--xdp-iface IF]
+//	upc-cartridgectl weights publish --wotan URL --cart FILE.cart --sign-key SEED [--model NAME]
+//	upc-cartridgectl weights fetch --wotan URL --model NAME --pubkey PUB --out DIR
+//	                                                       DATA over Wotan, sealed (weights.go)
 //
 // Global flags: --registry-dir (default /var/lib/unheaded/cartridges),
 // --sophia URL (+ SOPHIA_TOKEN), --pubkey FILE, --lab, --pin-dir, --obj,

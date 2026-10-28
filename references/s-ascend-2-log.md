@@ -466,3 +466,23 @@ The plan's negatives "unknown sha" and "older manifest" do not apply: a horn is 
 only ask a node to re-check a manifest it already trusts, so the negatives that exist are the cluster, the rate
 limit and the seal checks above. Verdict: Phases 9/11/13 PASS in the netns topology; across hosts waits on E3.
 Teardown: no heimdall program, no lab namespace, no process left.
+
+**weights publish/fetch (Step 221, [CODE] branch, 2026-10-28).** `upc-cartridgectl` had no publish/fetch, so
+`weights publish|fetch` was added (`cmd/upc-cartridgectl/weights.go`). Publish decodes the `.cart` with
+`cartridge.DecodeImage` (embedded sha checked), takes the DATA section, and seals a JSON manifest
+`{v:1, model, data_sha256, data_words, image_sha256, data}` with Gungnir ML-DSA-65 (`SignFor`, default ttl 7 d, the
+same `GungnirSeal` JSON as a `.cart.seal`). The Wotan payload is `{type:"upc.cart.weights/v1", manifest:<base64 of
+the signed bytes>, seal}`, one message on `upc.cart.weights.<model>` (under `upc.cart.*`, RFC-EDITOR-REQUESTS-S5
+item 3). There was no DATA-only seal format to reuse: the loader's seal covers the whole image. Fetch walks the topic
+to its newest message and refuses, before writing anything, an empty topic, a non-envelope, a seal that fails
+(wrong key, tampered manifest, expired), a manifest for another model (a sealed envelope replayed onto another
+topic), a data length that is not whole words or over one slot, and a data sha that differs from the manifest's;
+then writes `<out>/<model>.data.bin` 0600 by rename and prints `seal verified` with the sha. The newest message is
+refused, not skipped, if it does not verify. Model names are `[a-z0-9][a-z0-9_-]{0,62}` (one topic segment, one
+file name). Wotan identity `upc-cartridgectl` (`InitServiceIdentity`; a Wotan must list it in
+`topics.auto_approve`, not added to `configs/wotan.yaml`). 13 tests (envelope good / tampered / wrong key / wrong
+model / sha mismatch / expired / garbage; httptest fake Wotan round trip, paging, refusals). Manual: scratch Wotan
+(auth off, `auto_approve: [upc-cartridgectl]`) in `unshare -rn` on 26601/26602, real `scorer.cart` from `cart build`:
+published data_sha256 `f175ee26…fa38b`, fetched bytes identical to `cartridges/scorer.data.bin` (`uniq | wc -l` = 1),
+mode 600; wrong key, empty topic and a junk newest message each exit 1 with nothing written. Steps 222-225 (netns,
+sudo) not run.

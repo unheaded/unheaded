@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
@@ -80,6 +82,23 @@ func Prepare(raw, sealJSON []byte, pub *mldsa65.PublicKey, lab bool, validate Va
 	}
 	p.Image = img
 	return p, nil
+}
+
+// readFileCapped reads at most maxBlob bytes of path.
+func readFileCapped(path string) ([]byte, error) {
+	f, err := os.Open(path) // #nosec G304 -- operator-supplied path
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, maxBlob+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) > maxBlob {
+		return nil, fmt.Errorf("%s: larger than %d bytes", path, maxBlob)
+	}
+	return b, nil
 }
 
 // cartValidator runs `cart validate -` with raw on stdin.
