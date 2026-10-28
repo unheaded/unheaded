@@ -2,8 +2,8 @@
 # S-TRUE-WIRE progress
 
 Plan: `docs/battle-plans/S-TRUE-WIRE-battle-plan.md`. Step ticks live in the plan; this file holds the session log,
-baselines and STUCK/ESCALATE markers. Branch `sprint/true-wire` (from develop); its merge into develop waits on E2
-(wire-value renumber confirmation, Step 404).
+baselines and STUCK/ESCALATE markers. Branch `sprint/true-wire` (from develop); merged into develop 2026-10-28
+(`a57c6d3c`) after E2 (wire-value renumber confirmation, Step 404) was decided: spec wins.
 
 Skip Protocol acknowledgment: "I will skip any step after 3x its estimate or 2 failed debug attempts, mark it [STUCK]
 with what I tried, commit known-good state first, continue with the next step that does not depend on it, and finish
@@ -164,7 +164,7 @@ MIRROR 0x04, not the plan's guess); finished, tested and gated by the coordinato
 - Step 96: RFC-ALIGNMENT-FINDINGS foundation rows 4 (event types) and Sophia row 5 (flow actions) resolved;
   foundation-06 §Anamnesis Event Type Registry implementation note (decoders SHOULD accept the old numbering per source
   for one release, SHOULD NOT guess, SHOULD reject a zero timestamp).
-- Step 97 (E2): open. Step 98: the pre-sprint decoder (a7fe3acd) counts and drops spec BORN and DIED without panicking,
+- Step 97 (E2): **decided 2026-10-28 by Stevie: spec wins.** `sprint/true-wire` merged into develop (`a57c6d3c`, signed, --no-ff). Step 98: the pre-sprint decoder (a7fe3acd) counts and drops spec BORN and DIED without panicking,
   and misreads spec COMPUTED (0x01) as its old BIRTH: an old reader must not consume objects built after this phase.
   That is why the legacy switch sits on the new reader, not the old.
 
@@ -352,7 +352,7 @@ targets:
   YAML regenerated from the Markdown by timeguru's sync package (a temporary main, not committed: running timeguru
   itself would bind 19000, which the live container holds); freshness FRESH. 402: next.md. 403: tree clean; no lab
   netns, veth, pinned map or attached Unheaded program left on west.
-- **Sprint state:** code complete on `sprint/true-wire`. Merge into develop waits on **E2**. Open: E1 (ADR-108), E2,
-  E3 (decision table), E4 (Cargo licence fields), E5 (eight supply-chain questions), E6 (datatracker), E7 (acceptance
+- **Sprint state:** code complete; **merged into develop 2026-10-28** (`a57c6d3c`) after E2 was decided (spec wins).
+  Open: E1 (ADR-108), E3 (decision table), E4 (Cargo licence fields), E5 (eight supply-chain questions), E6 (datatracker), E7 (acceptance
   diff), E8 (Shield check semantics; FND-025). Exit gates held open: Phase 5 (E8), Phase 10 (Steps 373 done on develop,
   376, 377), Phase 11 (FND-025).
