@@ -19,6 +19,8 @@ If unsloth is available, it will be preferred for faster training.
 """
 
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -36,6 +38,10 @@ LOG_DIR = TRAINING_DIR / "logs"
 # ============================================================================
 CONFIG = {
     "base_model": "mistralai/Mistral-7B-Instruct-v0.2",
+    # The Hub commit of the weights this pipeline was trained on (west's Hugging Face cache,
+    # refs/main, 2026-10-28). Pinned so a re-fetch gets the same weights (bandit B615,
+    # S-TRUE-WIRE Step 361); HF_REVISION overrides it for a deliberate move to new weights.
+    "base_model_revision": "63a8b081895390a26e140280378bc85ec8bce07a",
     "max_seq_length": 2048,
 
     # LoRA hyperparameters
@@ -168,6 +174,17 @@ def load_training_data():
     return train_dataset, eval_dataset
 
 
+def base_model_revision():
+    """The Hub commit to load: HF_REVISION if set, else CONFIG's pin.
+
+    Only a full 40-hex commit is accepted: a branch or tag name ("main", "v0.2") is mutable,
+    so it would fetch whatever the repository points at on the day (bandit B615)."""
+    rev = os.environ.get("HF_REVISION") or CONFIG["base_model_revision"]
+    if not re.fullmatch(r"[0-9a-f]{40}", rev):
+        sys.exit(f"HF_REVISION={rev!r} is not a 40-hex commit; branch and tag names are mutable")
+    return rev
+
+
 def setup_model_and_tokenizer(has_bnb: bool):
     """Load base model with 4-bit quantization and apply LoRA."""
     import torch
@@ -189,9 +206,13 @@ def setup_model_and_tokenizer(has_bnb: bool):
         print("  This will use significantly more VRAM and may OOM on 12GB.")
         bnb_config = None
 
+    revision = base_model_revision()
+    print(f"  revision: {revision}")
+
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
         CONFIG["base_model"],
+        revision=revision,
         trust_remote_code=True,
     )
     tokenizer.pad_token = tokenizer.eos_token
@@ -209,6 +230,7 @@ def setup_model_and_tokenizer(has_bnb: bool):
 
     model = AutoModelForCausalLM.from_pretrained(
         CONFIG["base_model"],
+        revision=revision,
         **model_kwargs,
     )
 

@@ -95,7 +95,7 @@ def read_lines(p: Path) -> list:
 def run(export: Path, sample: int, tokenizer_dir: str) -> int:
     self_test()
     from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(tokenizer_dir, trust_remote_code=False)
+    tok = AutoTokenizer.from_pretrained(tokenizer_dir, local_files_only=True, trust_remote_code=False)  # nosec B615 - a local tokenizer directory; local_files_only never reaches the Hub
     checked = 0
     for split in ("train", "holdout"):
         text = {}

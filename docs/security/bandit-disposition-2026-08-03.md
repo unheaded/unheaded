@@ -149,3 +149,26 @@ Drop `-ll`. Skip by rule ID with reasons, exactly as the gosec ratchet does:
 
 That leaves `B310`, `B104`, `B615`, `B314` and `B405` **reported and unskipped** — the
 four groups above that genuinely await a decision — which is the honest state to gate on.
+
+---
+
+## Applied S-TRUE-WIRE Steps 359-363 (2026-10-28): the job gates
+
+bandit 1.9.4 (the hash-locked `.github/ci-python` set) with the six skips above found
+**72**, not 43: the four groups grew (B615 4, B314 6, B405 3) and three rule IDs were new
+since August (B105 20, B103 1, B608 1). Per Appendix A.8 the new IDs were triaged per site
+before the gate flipped. With the configuration in `static-analysis.yml` the run is `{}`,
+so `continue-on-error` is gone.
+
+| Rule | Sites | What was done |
+|---|---|---|
+| `B310` urlopen | 35 | **Skipped by rule ID**, on a condition this change makes true. The `_http_url_from_env` guard covered only `raft/zhen_app.py` (22 sites) and its scheduler client (fed `ZHEN_AGENTD_URL` through it). The three `tomb/cerydwyn` scripts read `OLLAMA_URL` (and the daemon's `ollama_url` config key) with no check, so a `file://` value read a local file: each now refuses a non-http(s) URL where it enters. `scripts/compliance/import-frameworks.py` fetches only its fixed https constants; `raft/tests/test_memory_poison.py` talks to localhost. Tests that fail if a guard goes: `raft/tests/test_zhen_url_scheme.py`, `tests/scripts/test_cerydwyn_url_scheme.py`. Residual: a future `urlopen` on an unguarded URL is a review item the skip no longer reports. |
+| `B104` bind-all | 2 | `raft/zhen_app.py` binds `ZHEN_BIND_ADDR`, **127.0.0.1 when unset**, and exits on a value that is not an IP address (`bind_address()`, `raft/tests/test_zhen_bind_addr.py`); `raft/start-zhen.sh` exports it explicitly and prints it. This is an exposure change: the next start of the UI on west listens on loopback only unless `ZHEN_BIND_ADDR` is set (for example `10.10.20.1`, west's lxdbr0). Whether west sets it is S-TRUE-WIRE E5 item 7. The running process was not touched. `scripts/vault-to-runway.py`: `--host 0.0.0.0` is vLLM inside its container's network namespace; `# nosec B104` with that reason (its `-p` mapping publishes on every host interface, noted for review, unchanged). |
+| `B615` HF download | 4 | `raft/scripts/08_train_qlora.py` pins `mistralai/Mistral-7B-Instruct-v0.2` to commit `63a8b081895390a26e140280378bc85ec8bce07a` (west's Hugging Face cache `refs/main`, the weights this pipeline used) for both the tokenizer and the model (it also passes `trust_remote_code=True`, which makes the pin matter more); `HF_REVISION` overrides it and must be a 40-hex commit, never a branch or tag. `scripts/tokenize-coding-for-gemma4.py` and `scripts/two-brains/test_export_roundtrip.py` load a local tokenizer directory: now `local_files_only=True` plus `# nosec B615` with that reason. |
+| `B405`/`B314` XML | 9 | No `defusedxml` (a new dependency). ElementTree resolves no external entities, and expat 2.4.1+ caps entity amplification: each of the three scripts now exits on an older expat (west and CI have 2.7.1). `import-frameworks.py` parses `.xlsx` members of a fixed-URL, 64 MiB-capped download: each member is now refused when it inflates past the same cap (`xlsx_member`, `tests/scripts/test_import_frameworks_xlsx.py`). `raft/scripts/12_process_stackoverflow.py` and `14_extract_wikipedia.py` stream the operator's own multi-GB dumps by design, so a size cap would defeat them; their nosec says so. |
+| `B105` hardcoded password | 20 | All in `eval/champion-runbooks/fixtures/*/validate_runbook.py`: twenty generated copies of `build.py`'s validator, frozen by the eval's PREREG (`validate_runbook.py` "cannot be changed"). The flagged string is the `SECRET` regex that *detects* inline credentials. The directory is excluded with `-x`, as `scripts/check-ruff.sh` already excludes `eval/*/fixtures`. |
+| `B103` chmod | 1 | `eval/champion-runbooks/build.py`: the fixture's `check.sh` must be executable (0o755 in the eval tree). `# nosec B103` with that reason. |
+| `B608` SQL string | 1 | `scripts/kanban/render-genesis-sql.py` renders a migration file, not a query: each value is dollar-quoted with a sha256-derived tag the renderer checks does not occur in it. `# nosec B608` on the closing line of the template (bandit reads nosec anywhere in the string's line range). `scripts/check-kanban-genesis.sh` still matches. |
+
+The "Waiting on Stevie" table above is answered by this section except for B104 on west's
+deployment (E5 item 7). Any new rule ID is triaged here per site before it is skipped.

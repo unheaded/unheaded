@@ -23,9 +23,22 @@ import sys
 import time
 import traceback
 from datetime import datetime
+from urllib.parse import urlsplit
+
 
 # --- Configuration ---
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
+def _http_url(name, value):
+    """Return value if it is an http(s) URL; exit otherwise (bandit B310, S-TRUE-WIRE Step 361).
+
+    urllib.request.urlopen also opens file:// and ftp:// URLs, so a configured
+    service URL could turn a model call into a local file read. Checked once
+    here, where the value enters, like raft/zhen_app.py's _http_url_from_env."""
+    if urlsplit(value).scheme not in ("http", "https"):
+        sys.exit(f"{name} must be an http:// or https:// URL, got {value!r}")
+    return value
+
+
+OLLAMA_URL = _http_url("OLLAMA_URL", os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434"))
 CERYDWYN_MODEL = os.environ.get("CERYDWYN_MODEL", "cerydwyn-mistral")
 CERYDWYN_ROOT = os.environ.get("CERYDWYN_ROOT", "/opt/tomb/cerydwyn")
 GRIMOIRE_ROOT = os.environ.get("GRIMOIRE_ROOT", "/opt/tomb/grimoire")

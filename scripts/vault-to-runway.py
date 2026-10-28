@@ -373,7 +373,7 @@ def launch_vllm(model_name: str, dry_run: bool = False) -> bool:
         VLLM_IMAGE,
         "--model", f"/models/{model_name}",
         "--port", str(VLLM_PORT),
-        "--host", "0.0.0.0",
+        "--host", "0.0.0.0",  # nosec B104 - vLLM inside its container's own netns; host exposure is the -p mapping above
         "--dtype", "half",
         "--gpu-memory-utilization", "0.90",
         "--max-model-len", "8192",

@@ -29,10 +29,11 @@ import datetime
 import hashlib
 import io
 import json
+import pyexpat
 import re
 import sys
 import urllib.request
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405 - parses only the fixed-URL downloads below, size-capped; see xlsx_member
 import zipfile
 
 OSCAL = "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov"
@@ -42,6 +43,13 @@ FEDRAMP_XLSX = ("https://raw.githubusercontent.com/FedRAMP/docs-legacy/main/over
 CIS_UBUNTU2404 = ("https://raw.githubusercontent.com/ComplianceAsCode/content/"
                   "9fba127e4443de563bbcfbff61543ad0f8c054c6/controls/cis_ubuntu2404.yml")
 MAX_BYTES = 64 << 20
+
+# ElementTree resolves no external entities; expat >= 2.4.1 also caps entity
+# amplification ("billion laughs"). That is the control behind the B314/B405
+# nosec comments below (S-TRUE-WIRE Step 361; defusedxml would be a new
+# dependency under ADR-004). Refuse to parse with an older expat.
+if pyexpat.version_info < (2, 4, 1):
+    sys.exit(f"expat {pyexpat.EXPAT_VERSION} has no entity-amplification limit; need >= 2.4.1")
 
 
 def fetch(url):
@@ -114,6 +122,13 @@ def write(path, fw, requirements, provenance):
     print(f"{path}: {len(requirements)} requirements")
 
 
+def xlsx_member(z, name):
+    """Parse one XML member of a downloaded workbook, refusing one that inflates past MAX_BYTES."""
+    if z.getinfo(name).file_size > MAX_BYTES:
+        sys.exit(f"{name}: uncompressed size {z.getinfo(name).file_size} is over {MAX_BYTES} bytes")
+    return ET.fromstring(z.read(name))  # nosec B314 - fixed-URL download, member size-capped, expat >= 2.4.1 checked
+
+
 def xlsx_sheets(data):
     m_ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
     r_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -121,15 +136,15 @@ def xlsx_sheets(data):
     z = zipfile.ZipFile(io.BytesIO(data))
     strings = []
     if "xl/sharedStrings.xml" in z.namelist():
-        for si in ET.fromstring(z.read("xl/sharedStrings.xml")).findall("m:si", ns):
+        for si in xlsx_member(z, "xl/sharedStrings.xml").findall("m:si", ns):
             strings.append("".join(t.text or "" for t in si.iter(f"{{{m_ns}}}t")))
-    rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))}
+    rels = {r.get("Id"): r.get("Target") for r in xlsx_member(z, "xl/_rels/workbook.xml.rels")}
     out = {}
-    for s in ET.fromstring(z.read("xl/workbook.xml")).find("m:sheets", ns):
+    for s in xlsx_member(z, "xl/workbook.xml").find("m:sheets", ns):
         target = rels[s.get(f"{{{r_ns}}}id")]
         target = target if target.startswith("xl/") else "xl/" + target.lstrip("/")
         rows = []
-        for row in ET.fromstring(z.read(target)).iter(f"{{{m_ns}}}row"):
+        for row in xlsx_member(z, target).iter(f"{{{m_ns}}}row"):
             vals = {}
             for c in row.findall("m:c", ns):
                 col = re.match(r"[A-Z]+", c.get("r")).group(0)
