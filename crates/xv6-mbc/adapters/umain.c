@@ -21,6 +21,8 @@
 #include "riscv.h"
 #include "defs.h"
 
+void upc_slots_init(void); // ADR-109, upc_slots.c
+
 // Phase 1.4 init-loop bisection: direct MMIO write provided by adapters/start_mbc.c.
 // Each marker is one BPF map write — independent of console.c / printf.c / locks,
 // so it survives even if a spinlock or page-table breaks the printf path.
@@ -62,6 +64,7 @@ main()
     mmio_puts("after fileinit\n");
     /* virtio_disk_init(): handled by blk-ramdisk.c */ // emulated hard disk
     userinit();      // first user process
+    upc_slots_init(); // ADR-109: per-slot trapframes; publish the table
     mmio_puts("after userinit\n");
     __sync_synchronize();
     started = 1;

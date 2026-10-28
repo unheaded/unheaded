@@ -58,7 +58,8 @@ uservec:
         sw a3, 68(a0)
         sw a4, 72(a0)
         sw a5, 76(a0)
-        sw a6, 80(a0)
+        # ADR-109 D4: no a6 save (no handler reads a6). The a7 save stays: it reads
+        # the x17 spill word, and the no-tag fallback in upc_slot_enter uses it.
         sw a7, 84(a0)
         # s2-s11 stripped: MBC exposes only x0-x15, and Makefile.mbc CFLAGS pin
         # -ffixed-x18 ... -ffixed-x27 so user code never assigns to s2-s11.
@@ -141,8 +142,9 @@ userret:
         lw a3, 68(a0)
         lw a4, 72(a0)
         lw a5, 76(a0)
-        lw a6, 80(a0)
-        lw a7, 84(a0)
+        # ADR-109 D4: no a6/a7 restore. Each would spill-store to physical
+        # 0x64000/0x64004 (flat S-mode), which are init's x16/x17 words, and
+        # overwrite r2/r1 after tp/gp. The usys stubs reload a7 before ecall.
         # s2-s11 stripped per the save path above; the trapframe slots remain
         # reserved but are never restored to physical registers.
 

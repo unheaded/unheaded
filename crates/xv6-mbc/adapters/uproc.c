@@ -28,6 +28,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "upc_slots.h"
 
 // Phase 1.4 scheduler-halt bisection — see
 // references/phase14-session-2026-05-14-marshal-shift.md
@@ -154,6 +155,8 @@ allocproc(void)
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++) {
+    if(upc_is_slot_row(p))
+      continue; // ADR-109: rows 1-7 mirror BPF slots
     acquire(&p->lock);
     if(p->state == UNUSED) {
       goto found;
@@ -197,6 +200,8 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  if(upc_is_slot_row(p))
+    panic("upc: slot row"); // ADR-109 I4: BPF owns its lifetime
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
@@ -377,6 +382,9 @@ kexit(int status)
 {
   struct proc *p = myproc();
 
+  if(upc_is_slot_row(p))
+    panic("upc: slot row"); // ADR-109 I4
+
   if(p == initproc)
     panic("init exiting");
 
@@ -528,6 +536,9 @@ sched(void)
   int intena;
   struct proc *p = myproc();
 
+  if(upc_is_slot_row(p))
+    panic("upc: slot row"); // ADR-109 I4/I7: never the kernel scheduler
+
   if(!holding(&p->lock))
     panic("sched p->lock");
   if(mycpu()->noff != 1)
@@ -618,6 +629,9 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
+
+  if(upc_is_slot_row(p))
+    panic("upc: slot row"); // ADR-109 I7: blocking hands back to BPF
   
   // Must acquire p->lock in order to
   // change p->state and then call sched.

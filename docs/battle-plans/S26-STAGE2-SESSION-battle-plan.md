@@ -209,13 +209,13 @@ unchanged.
 **Agent**: Coordinator
 
 - [x] **Step 57** *(yes)* [DECIDE] ~2m: **Start Phase 3 of `$PLAN` now? RECOMMENDATION: yes if ≥ 2 h remain and Phases 1-4 here are committed; else stop at Phase 7.** Override ONLY if Phase 1 ended STUCK (the design would be built on an unexplained -1).
-- [ ] **Step 58** [B] ~60m: Execute `$PLAN` Steps 59-66 (probes, RED, harness gates behind `UPC_GATE_RUNG0=1`).
-- [ ] **Step 59** [C] ~1m: **COMMIT CHECKPOINT** (the `$PLAN` Step 66 commit).
-- [ ] **Step 60** [B] ~60m: Execute `$PLAN` Steps 67-78 (kernel changes, build, flag-OFF corpus).
-- [ ] **Step 61** [V] ~5m: Sweep 8/8 SAME with the flag OFF; harness green; `git status --short crates/xv6-mbc | wc -l` → only the intended files.
-- [ ] **Step 62** [C] ~1m: **COMMIT CHECKPOINT** (the `$PLAN` Phase 3 commit).
-- [ ] **Step 63** [B] ~20m: Execute the rest of `$PLAN` Phase 3 to its exit gate, or STUCK-log where it stops.
-- [ ] **Step 64** [V] ~1m: **PHASE 6 EXIT GATE** = `$PLAN` Phase 3 exit gate, or a STUCK record naming the step.
+- [x] **Step 58** *(7fa72b0f)* [B] ~60m: Execute `$PLAN` Steps 59-66 (probes, RED, harness gates behind `UPC_GATE_RUNG0=1`).
+- [x] **Step 59** [C] ~1m: **COMMIT CHECKPOINT** (the `$PLAN` Step 66 commit).
+- [x] **Step 60** [B] ~60m: Execute `$PLAN` Steps 67-78 (kernel changes, build, flag-OFF corpus).
+- [x] **Step 61** *(12/12; ALL GREEN)* [V] ~5m: Sweep 8/8 SAME with the flag OFF; harness green; `git status --short crates/xv6-mbc | wc -l` → only the intended files.
+- [x] **Step 62** [C] ~1m: **COMMIT CHECKPOINT** (the `$PLAN` Phase 3 commit).
+- [x] **Step 63** [B] ~20m: Execute the rest of `$PLAN` Phase 3 to its exit gate, or STUCK-log where it stops.
+- [x] **Step 64** *(plan Phase 3 exit gate passed)* [V] ~1m: **PHASE 6 EXIT GATE** = `$PLAN` Phase 3 exit gate, or a STUCK record naming the step.
 
 ---
 

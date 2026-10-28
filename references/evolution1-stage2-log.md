@@ -230,3 +230,42 @@ the parent's output too, not just the child's return. This is the pre-fix state 
 which ships with the flag off, and both gates pass there. They now cover BPF slot reuse and three live slots. With
 the flag on, they are the rung 0 gate. Each gate checks token counts and the total line count, not order. Proven both
 ways: PASS with the flag off, FAIL (both) with the flag on and today's kernel.
+
+**Steps 72-78 (kernel side).**
+- `crates/xv6-mbc/adapters/upc_slots.c` is new:
+  - `upc_st` sits in `.bss`, 256-byte aligned (`.bss` links near `0x108000`, physical).
+  - `upc_slots_init()` copies init's trapframe into `tf[0]`, `kfree`s the old page, prefills the four kernel fields for
+    all 8 slots, and only then publishes `&upc_st` at `0x160`.
+  - `upc_slot_enter()` and `upc_is_slot_row()` are as ADR-109 D5 states them.
+  - It also holds the probe-build prints and the three C mutants (`UPC_MUT_SHARED_TF`, `UPC_MUT_NO_A7`,
+    `UPC_MUT_NO_REFRESH`).
+- `upc_slots.o` goes at the end of `OBJS`, so no existing object moves.
+- The prototypes are in `upc_slots.h`; upstream `defs.h` is untouched.
+- Wiring:
+  - `umain.c` calls `upc_slots_init()` after `userinit()`;
+  - `usertrap` calls `upc_slot_enter()` before `myproc()`;
+  - `uproc.c`: `allocproc` skips rows 1-7, and `kexit`, `sched`, `sleep` and `freeproc` panic on a slot row;
+  - `trampoline_mbc.S`: the a6 save and the a6/a7 restores are gone; the a7 save stays.
+- The new kernel is `3c63d4865a4b5dcf` (47,568 bytes). The parity test passes.
+- The only warning is `riscv.h:241` (`SATP_SV39` shift), from the existing `MAKE_SATP` in `utrap.c`. It showed up only
+  because that file recompiled.
+
+**I8 probe redesigned.** An `SP:post` print from C would run before `userret`, which is the code that writes the
+spill word, so it would miss the write I8 is about. Instead, on each child trap the probe build prints physical
+`0x64004` (init's x17 spill word) and then plants a sentinel (24151) there. A later child trap must see the sentinel
+or a number from one of init's own stubs; 11 means `userret` wrote a child's a7 back.
+
+**Step 79 (flag OFF).**
+- `sweep12`: 12/12 SAME with the new kernel. Neither the PC tracer nor the stats moved: the trampoline lost three
+  instructions and nothing shifted that the goldens see.
+- getpidfork: the Phase 0 lines.
+- Harness: ALL GREEN, including the new getpidloop and getpidmulti gates. Ascend 921,036 (unchanged; the object did
+  not change); Doom 758,199.
+
+**Steps 81-82 (compat, finding 6).** Flag ON with today's BPF (no `UPC_RUNG0` yet) and the new kernel: no tag
+arrives. The getpidloop and getpidmulti lines are byte-identical to the Phase 3 RED record, and init's own getpid
+still answers 1 with the flag on (`GF: parent-pid=1`). So the no-tag path is today's path, even with D4's a6/a7
+changes.
+
+**Phase 3 exit gate: PASS.** Flag OFF: 12/12 SAME, harness ALL GREEN, count unchanged. The compat check repeats the
+RED lines. The RED record is `$S7/p3-red.txt`. `GETPID_INJECT` is `false` in the tree.

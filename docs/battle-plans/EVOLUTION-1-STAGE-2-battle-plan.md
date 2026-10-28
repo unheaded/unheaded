@@ -287,7 +287,7 @@ Phase 1).
 
 ### Kernel changes (ADR-109 D1, D2, D4, D5)
 
-- [ ] **Step 72** [CODE][W] ~30m: `crates/xv6-mbc/adapters/upc_slots.c`, included after `proc.h` and `upc_slots.h`:
+- [x] **Step 72** *(upc_slots.c; mutants included)* [CODE][W] ~30m: `crates/xv6-mbc/adapters/upc_slots.c`, included after `proc.h` and `upc_slots.h`:
   - `static struct upc_slot_tables upc_st __attribute__((aligned(256)));`
   - `upc_slots_init()` (D2):
     - for each s: `kernel_sp = proc[s].kstack + PGSIZE`, `kernel_trap = (uint32)usertrap`, `kernel_hartid = 0`,
@@ -306,46 +306,46 @@ Phase 1).
     - a7 from `trap_a7` when tagged.
   - `int upc_is_slot_row(struct proc *p)`: true for rows 1-7.
   - Add `$A/upc_slots.o` to `OBJS` in `crates/xv6-mbc/adapters/Makefile.mbc`.
-- [ ] **Step 73** [CODE][W] ~10m: Wire it in:
+- [x] **Step 73** *(prototypes in upc_slots.h; upstream defs.h untouched)* [CODE][W] ~10m: Wire it in:
   - `crates/xv6-mbc/adapters/umain.c`: `upc_slots_init();` right after `userinit();`, before `__sync_synchronize()`.
   - `crates/xv6-mbc/adapters/utrap.c`: `upc_slot_enter();` as the first statement of `usertrap`, before `myproc()` is
     read.
   - `defs.h` prototypes, in the adapter-local header if there is one; otherwise at the end of `kernel/defs.h` under
     an `// ADR-109` comment.
-- [ ] **Step 74** [CODE][W] ~15m: `crates/xv6-mbc/adapters/uproc.c` (D5 guards):
+- [x] **Step 74** [CODE][W] ~15m: `crates/xv6-mbc/adapters/uproc.c` (D5 guards):
   - `allocproc` starts its scan at row 0 for `userinit` only, and skips rows 1-7 after that. Simplest: skip
     `p > &proc[0] && p < &proc[UPC_SLOTS]`.
   - `kexit`, `sched`, `sleep`, `freeproc`: `if(upc_is_slot_row(p)) panic("upc: slot row");` at entry, with `p` the
     process concerned.
-- [ ] **Step 75** [CODE][W] ~10m: `crates/xv6-mbc/adapters/trampoline_mbc.S` (D4): delete the a6 store in `uservec` and
+- [x] **Step 75** [CODE][W] ~10m: `crates/xv6-mbc/adapters/trampoline_mbc.S` (D4): delete the a6 store in `uservec` and
   the a6 and a7 loads in `userret`. Keep the a7 store in `uservec`. Write one comment line citing ADR-109 D4 where
   they were.
-- [ ] **Step 76** [CODE][W] ~15m: Probe-build prints under `#ifdef UPC_STAGE2_PROBE` in `upc_slots.c`, decimal and
+- [x] **Step 76** *(I8 redesigned: sentinel in init's x17 word, see log; SP:post dropped)* [CODE][W] ~15m: Probe-build prints under `#ifdef UPC_STAGE2_PROBE` in `upc_slots.c`, decimal and
   `;`-terminated:
   - `UT:s=..;pid=..;ss=..;a7=..;rf=..;` on every tagged trap;
   - `SP:pre=..;..;` with the words at `0x64000`/`0x64004` on entry to a tagged trap, and `SP:post=..;..;` in
     `usertrapret` before `userret`;
   - `PG:f01000-nonzero=..;`, the count of non-zero words in `0xF01000..0xF01FFC`, once in `upc_slots_init`.
-- [ ] **Step 77** [BUILD][B] ~4m: `kbuild 2>&1 | grep -E 'error|warning: unused' | head; gates; sha256sum "$K/xv6-mbc.mbc" | cut -c1-16 | tee "$S7/p3-khash.txt"; (cd "$PROJECT_ROOT/cmd/upc-bootctl" && cargo test --release --test parity_slot_tables 2>&1 | grep 'test result')`.
-- [ ] **Step 78** [V] ~1m: no errors; a new hash (expected, since the kernel changed); parity 2 passed. On a
+- [x] **Step 77** *(3c63d4865a4b5dcf)* [BUILD][B] ~4m: `kbuild 2>&1 | grep -E 'error|warning: unused' | head; gates; sha256sum "$K/xv6-mbc.mbc" | cut -c1-16 | tee "$S7/p3-khash.txt"; (cd "$PROJECT_ROOT/cmd/upc-bootctl" && cargo test --release --test parity_slot_tables 2>&1 | grep 'test result')`.
+- [x] **Step 78** [V] ~1m: no errors; a new hash (expected, since the kernel changed); parity 2 passed. On a
   `_Static_assert` failure, fix `upc_slots.h` and phase12 together, never one side.
 
 ### Flag OFF: nothing moves
 
-- [ ] **Step 79** [TEST][B][S] ~12m: `sweep12 | grep -c SAME; bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'; ub getpidfork | gf | tr '\n' ' '`.
-- [ ] **Step 80** [V] ~1m: 12 SAME; ALL GREEN; the count equals Step 60's, because the object is unchanged; getpidfork
+- [x] **Step 79** [TEST][B][S] ~12m: `sweep12 | grep -c SAME; bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'; ub getpidfork | gf | tr '\n' ' '`.
+- [x] **Step 80** *(12/12 SAME via sweep12; 921,036)* [V] ~1m: 12 SAME; ALL GREEN; the count equals Step 60's, because the object is unchanged; getpidfork
   prints the Phase 0 lines.
   - [D] A golden differs → it is a kernel-side TTY change. Diff the `.tty` files. A new boot line (for example a
     `PG:` print leaking out of the probe build) moves behind `UPC_STAGE2_PROBE`. Two attempts, then STUCK.
-- [ ] **Step 81** [TEST][B][S] ~6m: Compat check (ADR-109 finding 6): flag ON with today's BPF (no `UPC_RUNG0` yet),
+- [x] **Step 81** [TEST][B][S] ~6m: Compat check (ADR-109 finding 6): flag ON with today's BPF (no `UPC_RUNG0` yet),
   new kernel. No tag ever arrives, so the kernel must take today's path:
   `flag false true; for p in getpidfork getpidloop getpidmulti; do TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done > "$S7/p3-compat.txt"; flag true false`.
-- [ ] **Step 82** [V] ~1m: `diff <(grep -v '^==' "$S7/p3-red.txt") <(sed -n '2,3p' "$S7/p3-compat.txt")` is empty
+- [x] **Step 82** *(IDENTICAL)* [V] ~1m: `diff <(grep -v '^==' "$S7/p3-red.txt") <(sed -n '2,3p' "$S7/p3-compat.txt")` is empty
   (`p3-red.txt` holds the getpidloop and getpidmulti lines; `p3-compat.txt` lines 2-3 are the same two probes) (the RED results repeat exactly). Init's getpid still works with the flag
   on. A difference means the no-tag path is not today's path: re-read Step 72's early return.
-- [ ] **Step 83** [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 72-82] ADR-109 kernel side: slot tables, row refresh, guards, trampoline a6/a7`
+- [x] **Step 83** [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 72-82] ADR-109 kernel side: slot tables, row refresh, guards, trampoline a6/a7`
   (the record goes in `$LOG` §Phase 3: hash, counts, the `PG:` value).
-- [ ] **Step 84** [V] ~1m: **PHASE 3 EXIT GATE**: with the flag OFF, 12/12 SAME (`sweep12`), harness ALL GREEN and the count
+- [x] **Step 84** [V] ~1m: **PHASE 3 EXIT GATE**: with the flag OFF, 12/12 SAME (`sweep12`), harness ALL GREEN and the count
   unchanged. The compat check repeats the RED lines. `p3-red.txt` is recorded. `GETPID_INJECT` is `false` in the tree.
   If any of this fails, do not proceed to Phase 4.
 

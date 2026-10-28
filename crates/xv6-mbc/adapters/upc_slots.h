@@ -32,6 +32,11 @@ struct upc_slot_tables {
   uint32 pad;
 };
 
+struct proc;
+void upc_slots_init(void);
+void upc_slot_enter(void);
+int  upc_is_slot_row(struct proc *p);
+
 _Static_assert(sizeof(struct upc_tf_slot) == UPC_TF_STRIDE, "ADR-109 trapframe stride");
 _Static_assert(sizeof(struct upc_slot_tables) == UPC_ST_SIZE, "ADR-109 slot tables size");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, cur_slot) == UPC_ST_CUR_SLOT_OFF, "cur_slot offset");

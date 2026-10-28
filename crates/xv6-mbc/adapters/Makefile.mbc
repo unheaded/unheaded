@@ -85,7 +85,8 @@ OBJS = \
   $A/usysfile.o \
   $A/kernelvec_mbc.o \
   $A/blk-ramdisk.o \
-  $A/libgcc_stubs.o
+  $A/libgcc_stubs.o \
+  $A/upc_slots.o
 # DROPPED from upstream OBJS:
 #   $K/start.o          → replaced by $A/start_mbc.o
 #   $K/uart.o           → replaced by $A/console-mmio.o
