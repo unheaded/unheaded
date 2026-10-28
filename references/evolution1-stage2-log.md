@@ -195,3 +195,38 @@ go. I8 is about writes, so it still holds.
 the 12. The plan's Phase 3 helpers now define `sweep12`: the 8, plus `nosuch`, `multi` and `blank` through `boot`,
 plus `uinit_echo` through `uinit.mbc`, all with the inputs `PHASE22-SH-REPLACE.md` captured. Run 2026-10-28 on
 79ec42ef+, flag off: 12/12 SAME.
+
+## Phase 3: rung 0 kernel side (Steps 59-84)
+
+**Steps 59-60 (preflight).** 0 changed files; kernel `4e39c82f9ba56079`; ascend 921,036 verified. That count is the I6
+reference.
+
+**Steps 61-67 (probes, flag OFF).** BPF answers both probes as expected:
+
+```
+getpidloop:  GL: fork-ret=2 GL: child-pid=2 GL: wait-ret=2  (x3)  GL: done
+getpidmulti: GM: fork-ret=2 fork-ret=3 fork-ret=4 c1-pid=2 c2-pid=3 c3-pid=4 c1-again=2 c2-again=3 c3-again=4
+             wait-ret=2 wait-ret=3 wait-ret=4 done
+```
+
+All three `-pid` lines print before any `-again` line, so traps from slots 1-3 do interleave across `pause`.
+
+**Steps 68-69 (RED, flag ON, today's kernel).**
+
+```
+getpidloop:  GL: fork-ret=2 GL: child-pid=other GL: wait-ret=2  (x3)  GL: done
+getpidmulti: GM: wait-ret=2 GM: wait-ret=3 GM: wait-ret=4 GM: done
+```
+
+In getpidmulti, the parent's three `fork-ret` lines are missing as well as every child line. Step 69 expected the
+parent's lines to survive, and in getpidmulti they don't. That fits the Phase 1 mechanism: the kernel runs, on init's
+behalf, whatever syscall init's x17 spill word last held. With three live children, that misdirected syscall disturbs
+the parent's output too, not just the child's return. This is the pre-fix state and is not chased further.
+
+**`ugl` fixed.** The TTY dump joins lines with a middle dot (U+00B7), so `ugl` splits on it first. The plan's
+`ugl` was corrected before use.
+
+**Step 70: gates always on, not behind `UPC_GATE_RUNG0` (deviation).** The harness boots the object in the tree,
+which ships with the flag off, and both gates pass there. They now cover BPF slot reuse and three live slots. With
+the flag on, they are the rung 0 gate. Each gate checks token counts and the total line count, not order. Proven both
+ways: PASS with the flag off, FAIL (both) with the flag on and today's kernel.

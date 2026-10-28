@@ -222,7 +222,9 @@ Helpers, in addition to VARIABLES:
 ```bash
 flag() { sed -i "s/const GETPID_INJECT: bool = $1;/const GETPID_INJECT: bool = $2;/" "$EBPF/monad-cpu-ebpf/src/main.rs" \
   && (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1); }
-ugl() { grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g' | grep -aoE '(GL|GM|UT|SC|SP|PG): [^ ]*'; }
+# The TTY dump joins lines with a middle dot; split on it first. User probes print "XX: k=v", kernel probes "XX:k=v;".
+ugl() { grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' \
+  | grep -aoE '(GL|GM|GF|HP): [a-z0-9-]+(=[0-9a-z]+)?|(UT|SC|SP|PG):[^ "]*'; }
 gates() { (cd "$UP" && make -f ../adapters/Makefile.mbc-userland userland gates ramdisk 2>&1 | tail -1); }
 # The 12-golden corpus: the S5 sweep's 8 plus uinit_echo, nosuch, multi, blank (PHASE22-SH-REPLACE.md captures).
 sweep12() { sweep; local o; for spec in nosuch:$'nosuch\n' multi:$'echo alpha\necho omega\n' blank:$'\necho unbroken\n'; do
@@ -238,46 +240,46 @@ Phase 1).
 
 ### Preflight
 
-- [ ] **Step 59** [B][S] ~3m: Baseline:
+- [x] **Step 59** [B][S] ~3m: Baseline:
   ```bash
   git status --short | wc -l; sha256sum "$K/xv6-mbc.mbc" | cut -c1-16
   ub getpidfork UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' | tail -1
   ```
-- [ ] **Step 60** [V] ~30s: 0 changed files, hash `4e39c82f9ba56079`, ascend count 921,036 (the I6 reference count). A
+- [x] **Step 60** *(921,036)* [V] ~30s: 0 changed files, hash `4e39c82f9ba56079`, ascend count 921,036 (the I6 reference count). A
   different count → record it in `$LOG` as the reference and continue.
 
 ### Probes (RED first)
 
-- [ ] **Step 61** [CODE][W] ~15m: `crates/xv6-mbc/upstream/user/getpidloop.c`, in the shape of `getpidfork.c` (fixed
+- [x] **Step 61** [CODE][W] ~15m: `crates/xv6-mbc/upstream/user/getpidloop.c`, in the shape of `getpidfork.c` (fixed
   strings in if-chains, spin at the end). Three iterations of fork → child prints `GL: child-pid=N` and exits →
   parent prints `GL: fork-ret=N` and `GL: wait-ret=N`. Then `GL: done`. Under option K, with one child live at a time,
   slot 1 is reused and every N is 2.
-- [ ] **Step 62** [CODE][W] ~20m: `crates/xv6-mbc/upstream/user/getpidmulti.c`.
+- [x] **Step 62** [CODE][W] ~20m: `crates/xv6-mbc/upstream/user/getpidmulti.c`.
   - The parent forks three children before waiting.
   - Child k prints `GM: cK-pid=N`, calls `pause(1)`, then prints `GM: cK-again=N` and exits. Traps from slots 1-3
     then interleave.
   - The parent prints `GM: fork-ret=N` for each fork, waits three times (`GM: wait-ret=N`), then prints `GM: done`.
   - Expected: children are 2, 3 and 4, and `again` equals `pid` for each child.
-- [ ] **Step 63** [W] ~3m: Register both in `crates/xv6-mbc/adapters/Makefile.mbc-userland` (`GATE_PROGS`, `.PHONY`,
+- [x] **Step 63** [W] ~3m: Register both in `crates/xv6-mbc/adapters/Makefile.mbc-userland` (`GATE_PROGS`, `.PHONY`,
   `clean`), as the `ut_*` probes are.
-- [ ] **Step 64** [BUILD][B] ~3m: `gates; ls "$K"/getpidloop.mbc "$K"/getpidmulti.mbc`.
-- [ ] **Step 65** [V] ~30s: both files exist; `strings "$K/getpidmulti.mbc.data" 2>/dev/null | grep -c 'GM:'` ≥ 5, or
+- [x] **Step 64** [BUILD][B] ~3m: `gates; ls "$K"/getpidloop.mbc "$K"/getpidmulti.mbc`.
+- [x] **Step 65** *(tokens in the `.data` sibling)* [V] ~30s: both files exist; `strings "$K/getpidmulti.mbc.data" 2>/dev/null | grep -c 'GM:'` ≥ 5, or
   the tokens are found with `grep -a 'GM:'` on the image.
-- [ ] **Step 66** [TEST][B][S] ~6m: Flag OFF, so BPF answers every getpid:
+- [x] **Step 66** [TEST][B][S] ~6m: Flag OFF, so BPF answers every getpid:
   ```bash
   for p in getpidloop getpidmulti; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p3-off.txt"
   ```
-- [ ] **Step 67** [V] ~1m: `getpidloop` prints child-pid=2, fork-ret=2 and wait-ret=2 three times, then `done`.
+- [x] **Step 67** [V] ~1m: `getpidloop` prints child-pid=2, fork-ret=2 and wait-ret=2 three times, then `done`.
   `getpidmulti` prints three distinct child pids, with `again` equal to `pid` for each, and the wait-rets name the
   same set.
   - [D] `getpidmulti` stalls → raise `TRIG` to 3000000 (reparent2 needed 3M), then check `pause` is serviced in BPF:
     `grep -n 'syscall_nr == 13\|SYS_PAUSE\|pause' "$EBPF/monad-cpu-ebpf/src/main.rs" | head`. Two attempts, then
     replace `pause(1)` with a yield-free busy loop of 2000 iterations and record the change.
-- [ ] **Step 68** [TEST][B][S] ~6m: Flag ON, today's kernel. This is the RED record:
+- [x] **Step 68** [TEST][B][S] ~6m: Flag ON, today's kernel. This is the RED record:
   `flag false true; for p in getpidloop getpidmulti; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p3-red.txt"; flag true false`.
-- [ ] **Step 69** [V] ~1m: Every child's pid is wrong in `p3-red.txt` (`other`, the -1 from Phase 1). The parent's
+- [x] **Step 69** *(getpidmulti also lost the parent's fork-ret lines; see log)* [V] ~1m: Every child's pid is wrong in `p3-red.txt` (`other`, the -1 from Phase 1). The parent's
   lines match `p3-off.txt`.
-- [ ] **Step 70** [CODE][W] ~10m: Harness gates in `scripts/upc-regression.sh`, in the getpidfork gate's shape, run only
+- [x] **Step 70** *(always on, not behind the env var: they pass on the shipped OFF object; proven to FAIL with the flag on)* [CODE][W] ~10m: Harness gates in `scripts/upc-regression.sh`, in the getpidfork gate's shape, run only
   when `UPC_GATE_RUNG0=1` (else `skip "rung 0 gates (UPC_GATE_RUNG0 unset)"`): `getpidfork` with child-pid equal to
   fork-ret; `getpidloop` with the Step 67 lines; `getpidmulti` with the Step 67 lines. The expected lines are absolute
   values, not "same as OFF".

@@ -139,6 +139,25 @@ else
   fail "getpidfork (pid numbering, E1 option K)"
 fi
 
+# EVOLUTION-1 Stage 2 rung 0 (ADR-109): slot reuse (getpidloop) and three live
+# slots (getpidmulti). Counts, not order: scheduling order may change once traps
+# reach the kernel. With GETPID_INJECT on these are the rung 0 gate.
+rung0_lines() { (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+  --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers 1500000 --instance 111 2>&1) | grep -a 'ascii:' \
+  | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE '(GL|GM): [a-z0-9-]+(=[0-9a-z]+)?'; }
+want_counts() { # $1 = lines, then "token count" pairs; every token must appear exactly count times
+  local l="$1" tok n; shift
+  while [ $# -gt 1 ]; do tok="$1" n="$2"; shift 2; [ "$(grep -cxF "$tok" <<<"$l")" = "$n" ] || return 1; done; }
+GL="$(rung0_lines getpidloop)"
+want_counts "$GL" "GL: child-pid=2" 3 "GL: fork-ret=2" 3 "GL: wait-ret=2" 3 "GL: done" 1 \
+  && [ "$(wc -l <<<"$GL")" = 10 ] \
+  && pass "getpidloop: slot 1 reused three times, child 2 each time" || fail "getpidloop (slot reuse)"
+GM="$(rung0_lines getpidmulti)"
+want_counts "$GM" "GM: c1-pid=2" 1 "GM: c2-pid=3" 1 "GM: c3-pid=4" 1 "GM: c1-again=2" 1 "GM: c2-again=3" 1 \
+  "GM: c3-again=4" 1 "GM: fork-ret=2" 1 "GM: fork-ret=3" 1 "GM: fork-ret=4" 1 "GM: wait-ret=2" 1 "GM: wait-ret=3" 1 \
+  "GM: wait-ret=4" 1 "GM: done" 1 && [ "$(wc -l <<<"$GM")" = 13 ] \
+  && pass "getpidmulti: three live children 2, 3, 4, stable across pause" || fail "getpidmulti (live slots)"
+
 # S26: xv6 usertests bodies as probes (user/ut_*.c) against BPF fork/exit/wait.
 # forktest and reparent2 need wait() to return -1 once every child is reaped.
 for ut in exitwait:1500000:ok twochildren:1500000:ok forktest:1500000:ok reparent2:3000000:reaped-all; do

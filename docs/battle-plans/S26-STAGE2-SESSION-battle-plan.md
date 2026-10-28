@@ -208,7 +208,7 @@ unchanged.
 **Time**: ~2.5 h
 **Agent**: Coordinator
 
-- [ ] **Step 57** [DECIDE] ~2m: **Start Phase 3 of `$PLAN` now? RECOMMENDATION: yes if ≥ 2 h remain and Phases 1-4 here are committed; else stop at Phase 7.** Override ONLY if Phase 1 ended STUCK (the design would be built on an unexplained -1).
+- [x] **Step 57** *(yes)* [DECIDE] ~2m: **Start Phase 3 of `$PLAN` now? RECOMMENDATION: yes if ≥ 2 h remain and Phases 1-4 here are committed; else stop at Phase 7.** Override ONLY if Phase 1 ended STUCK (the design would be built on an unexplained -1).
 - [ ] **Step 58** [B] ~60m: Execute `$PLAN` Steps 59-66 (probes, RED, harness gates behind `UPC_GATE_RUNG0=1`).
 - [ ] **Step 59** [C] ~1m: **COMMIT CHECKPOINT** (the `$PLAN` Step 66 commit).
 - [ ] **Step 60** [B] ~60m: Execute `$PLAN` Steps 67-78 (kernel changes, build, flag-OFF corpus).
