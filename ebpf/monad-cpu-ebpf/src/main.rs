@@ -434,6 +434,9 @@ const UPC_RUNG0: bool = false;
 // ADR-109 D6: a U-mode page-walk miss resolves outside RAM_MAP (loads 0, stores
 // dropped) instead of falling through to the physical address.
 const UPC_D6_MISS_FAULT: bool = false;
+// Probe builds only (EVOLUTION-1 Stage 2 plan Step 100): also inject xv6
+// syscall 22, which no handler has, to show a7 reaching the kernel per slot.
+const UPC_PROBE_INJECT22: bool = false;
 
 const STAT_TRIVIAL_SYSCALLS: u32 = 22; // Trivial FUZIX stub syscalls (Level 5c)
 const STAT_MODERATE_SYSCALLS: u32 = 23; // Moderate FUZIX syscalls (Level 5d: ioctl, signal, stat, pipe, etc.)
@@ -2531,7 +2534,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // No children — xv6 wait() returns -1.
                     cpu.regs[8] = (-1i32) as u32;
                 }
-            } else if cfg!(feature = "ascend-linux") && syscall_nr == 11 {
+            } else if cfg!(feature = "ascend-linux")
+                && (syscall_nr == 11 || (UPC_PROBE_INJECT22 && syscall_nr == 22))
+            {
                 // ── xv6 SYS_getpid (11) — RV32I ecall path (Gate 4) ──────────
                 // ascend-only (xv6 syscall; Doom never issues it).
                 if GETPID_INJECT {

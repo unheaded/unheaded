@@ -3,7 +3,7 @@
 # Input: probe-build lines, one token per line, as `ugl` prints them:
 #   UT:s=S;pid=P;ss=X;tf=T;a7=N;rf=R;   one per tagged trap (upc_slots.c)
 #   SP:x17=V;                           init's x17 spill word at a child trap
-#   GL: fork-ret=N / GM: fork-ret=N     the probes' fork returns
+#   GL:/GM:/GX: fork-ret=N              the probes' fork returns
 # Checks: pid == s + 1 (I2); tf == ss and ss - 256*s is one base for every line
 # (I1, per-slot trapframes); rf=1 on each slot's first trap and exactly once per
 # fork that produced the slot (I3); a7 in {11, 22} (D4); no SP value of 11 (I8).
@@ -29,7 +29,7 @@ function bad(why) { if (!failed) { failed = 1; reason = why } }
   next
 }
 /^SP:/ { v = field($0, "x17"); if (v == 11) bad("init's x17 spill word holds a child's a7 (I8)"); next }
-/^G[LM]: fork-ret=[0-9]+$/ { split($0, a, "="); forks[a[2] - 1]++; next }
+/^G[LMX]: fork-ret=[0-9]+$/ { split($0, a, "="); forks[a[2] - 1]++; next }
 END {
   if (n == 0) bad("no UT lines")
   for (k in forks) if (k > 0 && refresh[k] != forks[k]) bad("slot " k " refreshed " refresh[k] + 0 " times for " forks[k] " forks")

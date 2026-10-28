@@ -219,9 +219,10 @@ getpidmulti: GM: wait-ret=2 GM: wait-ret=3 GM: wait-ret=4 GM: done
 ```
 
 In getpidmulti, the parent's three `fork-ret` lines are missing as well as every child line. Step 69 expected the
-parent's lines to survive, and in getpidmulti they don't. That fits the Phase 1 mechanism: the kernel runs, on init's
-behalf, whatever syscall init's x17 spill word last held. With three live children, that misdirected syscall disturbs
-the parent's output too, not just the child's return. This is the pre-fix state and is not chased further.
+parent's lines to survive, and in getpidmulti they don't. **Corrected in Phase 4:** the lines were never lost by the program. `TTY_MAP` is a 4 KiB ring, and bootctl drained it
+once, at the end. With the flag on, every trap ends in an SRET, and the PC tracer prints after each SRET. That pushed
+getpidmulti's output past 4,096 bytes (4,193 once the drain was fixed), so only the tail survived. The earlier
+"misdirected syscall disturbs the parent" reading was wrong.
 
 **`ugl` fixed.** The TTY dump joins lines with a middle dot (U+00B7), so `ugl` splits on it first. The plan's
 `ugl` was corrected before use.
@@ -321,3 +322,42 @@ It is proven able to fail on every hand-made violation, each with its own reason
 - The shipping configuration (all on) is 916,504, which is 4,532 under the pre-ADR flag-off object: the ladder still
   pays for itself.
 - `check-ebpf-insns.sh`: PASS.
+
+**Step 98 (flag and `UPC_RUNG0` on, normal kernel `3c63d486`, unchanged).**
+- getpidfork: `parent-pid=1 fork-ret=2 child-pid=2 wait-ret=2`; the child's getpid is now answered by the kernel.
+- getpidloop: child-pid=2 three times.
+- getpidmulti showed only its last lines. That was the TTY ring wrapping, not a fault (correction above).
+
+**bootctl TTY drain (fix).** `upc-bootctl boot` now sends triggers in chunks of 1,000 (`TTY_DRAIN_CHUNK`) and drains
+`TTY_MAP` between chunks into one buffer. A chunk can still lose bytes if it prints more than about 4 bytes per
+trigger; this is recorded in the code comment. A boot that never wraps gets exactly the bytes the single end-of-run
+drain gave. A getpidmulti boot with the flag on takes 23.4 s.
+
+**Step 99:** getpidmulti with the flags on prints all 13 lines: children 2, 3, 4, stable across `pause`; fork-ret and
+wait-ret name the same set. PASS.
+
+**`ugl` decodes the hex line.** Kernel `printf` sends each byte as the char plus two NULs, and the `ascii:` rendering
+shows NULs as the same middle dot used for newlines. So `ugl` now decodes the `hex:` line, drops the NULs, strips the
+tracer and matches. The plan's helper was updated.
+
+**Steps 100-101 (probe kernel, `-DUPC_STAGE2_PROBE`).** `RUNG0-ASSERT pass 9` over getpidloop + getpidmulti:
+
+```
+UT:s=1;pid=2;ss=1133824;tf=1133824;a7=11;rf=1;   x4 (getpidloop 3, getpidmulti 1), rf=0 x1
+UT:s=2;pid=3;ss=1134080;tf=1134080;a7=11;rf=1;   then rf=0
+UT:s=3;pid=4;ss=1134336;tf=1134336;a7=11;rf=1;   then rf=0
+SP:x17=24151 x5 (sentinel intact), SP:x17=3 x4 (init's own wait stub)
+PG:f01000-nonzero=1;first=1;val=2028545;
+```
+
+- The table base is 0x114C00 (in `.bss`), and the trapframes sit 256 bytes apart.
+- **The init-pgd lead is closed.** The one stale word in slot 1's pgd is PDE 1 (0x1EF401, an xv6-format entry from
+  `uvmfirst`), and BPF fork rewrites PDE 0 and 1 before a child runs.
+
+**Injected 22.** `getpidx.c` and a probe-only const `UPC_PROBE_INJECT22`:
+- `a7=22` reaches the kernel from slots 1 and 2, right after their getpid (11);
+- the kernel prints `2 slot: unknown sys call 22` and `3 slot: unknown sys call 22`;
+- each child gets -1 and its next getpid is unchanged;
+- `RUNG0-ASSERT pass 6`.
+
+The asserter now counts `GX` fork lines as well.

@@ -223,8 +223,9 @@ Helpers, in addition to VARIABLES:
 flag() { sed -i "s/const GETPID_INJECT: bool = $1;/const GETPID_INJECT: bool = $2;/" "$EBPF/monad-cpu-ebpf/src/main.rs" \
   && (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1); }
 # The TTY dump joins lines with a middle dot; split on it first. User probes print "XX: k=v", kernel probes "XX:k=v;".
-ugl() { grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' \
-  | grep -aoE '(GL|GM|GF|HP): [a-z0-9-]+(=[0-9a-z]+)?|(UT|SC|SP|PG):[^ "]*'; }
+# Kernel printf bytes go out as char + two NULs, so decode the exact bytes from the hex: line and drop NULs.
+ugl() { grep -a '^  hex:' | sed 's/^  hex: *//' | xxd -r -p | tr -d '\000' | sed -E 's/([0-9A-F]{4} )+//g' \
+  | grep -aoE '(GL|GM|GF|GX|HP): [a-z0-9-]+(=[0-9a-z]+)?|(UT|SC|SP|PG):[^ "]*;'; }
 gates() { (cd "$UP" && make -f ../adapters/Makefile.mbc-userland userland gates ramdisk 2>&1 | tail -1); }
 # The 12-golden corpus: the S5 sweep's 8 plus uinit_echo, nosuch, multi, blank (PHASE22-SH-REPLACE.md captures).
 sweep12() { sweep; local o; for spec in nosuch:$'nosuch\n' multi:$'echo alpha\necho omega\n' blank:$'\necho unbroken\n'; do
@@ -439,19 +440,19 @@ vcount() { ub getpidfork UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' |
 
 ### The gate
 
-- [ ] **Step 98** [TEST][B][S] ~10m: Flag and `UPC_RUNG0` on, normal kernel:
+- [x] **Step 98** *(bootctl TTY ring drain fixed first: the wrap hid getpidmulti's lines)* [TEST][B][S] ~10m: Flag and `UPC_RUNG0` on, normal kernel:
   ```bash
   flag false true; rung false true; obj
   for p in getpidfork getpidloop getpidmulti; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p4-on.txt"
   ```
   Then, with the flag off for comparison: `diff <(grep -v '^==' "$S7/p4-on.txt" | grep -oE '(GL|GM): [^ ]*') <(grep -v '^==' "$S7/p3-off.txt" | grep -oE '(GL|GM): [^ ]*')`.
   The getpidfork line is compared separately, against the Phase 0 lines.
-- [ ] **Step 99** [V] ~2m: Each probe prints its own Step 67 lines with the flag on, and getpidfork prints child-pid=2
+- [x] **Step 99** [V] ~2m: Each probe prints its own Step 67 lines with the flag on, and getpidfork prints child-pid=2
   and fork-ret=2.
   - [D] A child is still `other` → check `UT:` exists in a probe build (Step 100). If there is no `UT:` line, BPF's
     write did not land: dump `sscratch` and the table word in the probe print. Two attempts, then STUCK, recording
     the lines.
-- [ ] **Step 100** [TEST][B][S] ~10m: The probe kernel, with `-DUPC_STAGE2_PROBE` added to `CFLAGS` in
+- [x] **Step 100** *(22 via getpidx.c, not getpidmulti; ugl decodes the hex line)* [TEST][B][S] ~10m: The probe kernel, with `-DUPC_STAGE2_PROBE` added to `CFLAGS` in
   `crates/xv6-mbc/adapters/Makefile.mbc` for this build only:
   - `kbuild; gates`;
   - `for p in getpidloop getpidmulti; do TRIG=1500000 ub $p | ugl; done | tee "$S7/p4-probe.txt" | awk -f scripts/upc-rung0-assert.awk`.
@@ -460,7 +461,7 @@ vcount() { ub getpidfork UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' |
   `usys`-style stub, once before `pause`. BPF's inject arm must route 22 as it does 11. Where the arm tests
   `syscall_nr == 11`, the probe object takes `11 | 22` behind a third const `UPC_PROBE_INJECT22` (default false). The
   kernel prints `pid N ...: unknown sys call 22`.
-- [ ] **Step 101** [V] ~2m: `RUNG0-ASSERT pass` with N ≥ 9. Every `unknown sys call 22` line names pid 2, 3 or 4,
+- [x] **Step 101** *(pass 9 and pass 6; PG lead closed: PDE 1 only)* [V] ~2m: `RUNG0-ASSERT pass` with N ≥ 9. Every `unknown sys call 22` line names pid 2, 3 or 4,
   never 1. The `PG:` value is recorded in `$LOG`: non-zero means the init-pgd lead is real, so write it up as a
   finding for whichever rung first maps above 8 MiB.
 - [ ] **Step 102** [TEST][B][S] ~20m: D6.

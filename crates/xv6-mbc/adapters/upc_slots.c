@@ -50,11 +50,14 @@ upc_slots_init(void)
   }
 
 #ifdef UPC_STAGE2_PROBE
-  int nz = 0;
+  int nz = 0, first = -1;
+  uint32 firstval = 0;
   for(uint32 a = UPC_PER_SLOT_PGD(1); a < UPC_PER_SLOT_PGD(2); a += 4)
-    if(*(volatile uint32 *)a != 0)
+    if(*(volatile uint32 *)a != 0){
+      if(first < 0){ first = (a - UPC_PER_SLOT_PGD(1)) / 4; firstval = *(volatile uint32 *)a; }
       nz++;
-  printf("PG:f01000-nonzero=%d;\n", nz);
+    }
+  printf("PG:f01000-nonzero=%d;first=%d;val=%d;\n", nz, first, (int)firstval);
 #endif
 
   __sync_synchronize();

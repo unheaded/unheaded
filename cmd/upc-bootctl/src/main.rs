@@ -610,6 +610,11 @@ fn hijack_probe_run(runner: &runner::BootRunner, instance: u8, n: u32) -> Result
 /// and pre-fill `--input`. Shared by `boot` (fixed trigger budget) and
 /// `console` (interactive loop). Returns the runner (owning the loaded eBPF
 /// object — dropping it detaches XDP) and the initial CPU state.
+/// Triggers sent between TTY drains in `boot`. A chunk loses output only if it
+/// prints more than the 4,096-byte ring, i.e. more than about 4 bytes per
+/// trigger (one trigger runs at most 256 MBC instructions).
+const TTY_DRAIN_CHUNK: u32 = 1_000;
+
 fn boot_prepare(
     kernel: &Path,
     bootstub: Option<&Path>,
@@ -1153,7 +1158,20 @@ fn cmd_boot(
         "\n[sending {} Monad trigger packets to advance the CPU (each = up to 16 insns)]",
         triggers
     );
-    netns::trigger(triggers, instance, true)?;
+    // TTY_MAP is a 4 KiB ring and was drained once at the end, so a boot that
+    // printed more lost its start (every injected trap adds PC-tracer bytes;
+    // EVOLUTION-1 Stage 2 rung 0). Drain between chunks instead. A boot whose
+    // output never wraps gets exactly the bytes the single drain gave.
+    let mut head_cursor = 0u32;
+    let mut tty_bytes = Vec::new();
+    let mut left = triggers;
+    while left > 0 {
+        let n = left.min(TTY_DRAIN_CHUNK);
+        netns::trigger(n, instance, false)?;
+        left -= n;
+        tty_bytes.extend(runner.read_tty(&mut head_cursor).unwrap_or_default());
+    }
+    eprintln!("trigger: sent {triggers} frames in chunks of {TTY_DRAIN_CHUNK}, TTY drained between chunks");
     std::thread::sleep(std::time::Duration::from_millis(1500));
 
     // Read CPU state after trigger
@@ -1194,9 +1212,8 @@ fn cmd_boot(
         println!("  ⚠ no PC advance — XDP may not have fired (debug needed)");
     }
 
-    // Drain TTY_MAP — did the kernel print the banner?
-    let mut head_cursor = 0u32;
-    let tty_bytes = runner.read_tty(&mut head_cursor).unwrap_or_default();
+    // Drain what the last chunk left in TTY_MAP — did the kernel print the banner?
+    tty_bytes.extend(runner.read_tty(&mut head_cursor).unwrap_or_default());
     if !tty_bytes.is_empty() {
         // Render as both readable string AND hex for diagnosability —
         // null bytes / non-ASCII can hide what really happened.
