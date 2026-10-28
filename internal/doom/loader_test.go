@@ -147,6 +147,9 @@ func TestROMSummary(t *testing.T) {
 }
 
 // TestROMHMAC tests HMAC-SHA256 computation and verification.
+// testHMACKey is a test fixture only; the commands have no default key.
+const testHMACKey = "test-only-hmac-key"
+
 func TestROMHMAC(t *testing.T) {
 	data := make([]byte, 8)
 	binary.LittleEndian.PutUint32(data[0:4], 0x01020304)
@@ -157,7 +160,7 @@ func TestROMHMAC(t *testing.T) {
 		t.Fatalf("ParseROM: %v", err)
 	}
 
-	key := []byte("unheaded-doom-secret")
+	key := []byte(testHMACKey)
 	mac := rom.HMAC(key)
 
 	if len(mac) != sha256.Size {

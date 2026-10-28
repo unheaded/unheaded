@@ -10,6 +10,8 @@ import (
 	"os"
 
 	"github.com/unheaded/doomgeneric/pkg/doom"
+
+	upcdoom "unheaded/internal/doom"
 )
 
 // newDoomCmd creates the doom subcommand group.
@@ -53,7 +55,7 @@ func newDoomLoadCmd() *Command {
 	flags.SetOutput(os.Stderr)
 	flags.BoolVar(&showStats, "stats", false, "Print instruction count and estimated runtime")
 	flags.BoolVar(&showHMAC, "hmac", false, "Print HMAC-SHA256 of ROM bytes")
-	flags.StringVar(&hmacKey, "hmac-key", "unheaded-doom-secret", "HMAC key (hex or ASCII)")
+	flags.StringVar(&hmacKey, "hmac-key", "", "HMAC key as raw bytes of the string; prefer UPC_HMAC_KEY (no default)")
 	flags.StringVar(&mapPinPath, "map-pin", "/sys/fs/bpf/unheaded/doom-ring/maps", "BPF map pin directory")
 
 	return &Command{
@@ -122,7 +124,10 @@ Examples:
 
 			// HMAC
 			if showHMAC {
-				keyBytes := []byte(hmacKey)
+				keyBytes, err := upcdoom.ResolveHMACKey(hmacKey)
+				if err != nil {
+					return err
+				}
 				mac := rom.HMAC(keyBytes)
 				fmt.Printf("\nHMAC-SHA256: %s\n", hex.EncodeToString(mac))
 			}

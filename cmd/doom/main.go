@@ -82,7 +82,7 @@ Use "doom <command> --help" for more information.`)
 func cmdLoad(args []string) error {
 	showStats := false
 	showHMAC := false
-	hmacKey := "unheaded-doom-secret"
+	hmacKey := "" // no default: --hmac-key or UPC_HMAC_KEY (doom.ResolveHMACKey)
 
 	// Simple flag parsing
 	var romPath string
@@ -130,7 +130,11 @@ func cmdLoad(args []string) error {
 	}
 
 	if showHMAC {
-		mac := rom.HMAC([]byte(hmacKey))
+		key, err := doom.ResolveHMACKey(hmacKey)
+		if err != nil {
+			return err
+		}
+		mac := rom.HMAC(key)
 		fmt.Printf("\nHMAC-SHA256: %s\n", hex.EncodeToString(mac))
 	}
 
