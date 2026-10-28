@@ -126,6 +126,18 @@ results="$(
     done
 )"
 
+# Verified-instruction counts for the ratchet (scripts/check-ebpf-insns.sh):
+# one "<elf>/<program>\t<variant>\t<insns>" line per loaded program, to
+# ${EBPF_INSNS_OUT} when it is set. Pass/fail here is unchanged.
+if [[ -n "${EBPF_INSNS_OUT:-}" ]]; then
+    printf '%s\n' "$results" | awk '
+        $2=="OK" && $3=="verified" && $5=="insns" {
+            split($1, a, "/"); elf=a[1]; prog=a[2]; variant="default"
+            if (match(elf, /\[.*\]$/)) { variant=substr(elf, RSTART+1, RLENGTH-2); elf=substr(elf, 1, RSTART-1) }
+            printf "%s/%s\t%s\t%s\n", elf, prog, variant, $4
+        }' | sort >"${EBPF_INSNS_OUT}"
+fi
+
 failing="$(printf '%s\n' "$results" | awk '$2=="FAIL" {print $1}' | sort -u)"
 loading="$(printf '%s\n' "$results" | awk '$2=="OK" {print $1}' | sort -u)"
 known="$(sed 's/#.*//' "$KNOWN" | awk 'NF {print $1}' | sort -u)"

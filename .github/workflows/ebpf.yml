@@ -113,4 +113,23 @@ jobs:
         run: uname -r
 
       - name: Load every eBPF program
+        env:
+          EBPF_INSNS_OUT: ${{ runner.temp }}/ebpf-insns.tsv
         run: ./scripts/check-ebpf-loads.sh
+
+      # Informational, not a gate. The verified-instruction ratchet
+      # (scripts/check-ebpf-insns.sh, ADR-012) compares against a baseline
+      # measured on west's kernel with bpf-linker 0.10.2; this runner has
+      # another kernel and installs bpf-linker unpinned, so its counts are
+      # not comparable and the ratchet would refuse (exit 2). It gates on
+      # west (scripts/ci-local.sh, check-gates-can-fail.sh). The runner's
+      # numbers go to the job summary, where a large drift is still visible.
+      - name: Verified instruction counts (informational)
+        if: always()
+        run: |
+          { echo "### Verified instructions on $(uname -r) (baseline: west, $(awk -F'\t' 'NR==2 {print $4}' docs/policy/ebpf-insns-baseline.tsv))"
+            echo '| program | variant | here | baseline |'; echo '|---|---|---|---|'
+            join -t $'\t' -a1 <(awk -F'\t' '{print $1 "|" $2 "\t" $3}' "${{ runner.temp }}/ebpf-insns.tsv" | sort) \
+              <(awk -F'\t' 'NR>1 {print $1 "|" $2 "\t" $3}' docs/policy/ebpf-insns-baseline.tsv | sort) |
+              awk -F'\t' '{split($1,k,"|"); printf "| %s | %s | %s | %s |\n", k[1], k[2], $2, ($3==""?"-":$3)}'
+          } >> "$GITHUB_STEP_SUMMARY"

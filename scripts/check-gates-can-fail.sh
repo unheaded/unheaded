@@ -818,6 +818,19 @@ provoke_spdx() {
     git -C "${REPO_ROOT}" add -N "${f}" >/dev/null 2>&1  # gate reads git ls-files
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_ebpf_insns() {
+    # Contract (ADR-012, S-TRUE-WIRE Phase 7): no program's verified
+    # instruction count grows more than 10 % unreviewed. Cut shield-ebpf's
+    # baseline rows by 20 %, so today's counts read as 25 % growth.
+    local f="docs/policy/ebpf-insns-baseline.tsv"
+    backup "${f}"
+    awk -F'\t' 'BEGIN{OFS="\t"} NR>1 && $1 ~ /^shield-ebpf\// {$3=int($3*0.8)} {print}' "${REPO_ROOT}/${f}" >"${BACKUP_DIR}/insns.provoked"
+    cp "${BACKUP_DIR}/insns.provoked" "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -873,6 +886,7 @@ check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's thresh
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
+check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo and west's kernel)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "

@@ -2,6 +2,8 @@
 
 ## Status: Accepted
 
+**Ratchet implemented (2026-10-28, S-TRUE-WIRE Steps 259-275):** the kernel's verified-instruction counts per program and variant are committed in `docs/policy/ebpf-insns-baseline.tsv` and held by `scripts/check-ebpf-insns.sh` (growth over 10 % fails; over 900,000 fails unless allowlisted in `docs/policy/ebpf-insns-over-budget.txt`, which may only shrink). ascend-linux `monad_cpu` is at 926,542 (92.7 % of 1M): over this ADR's 900K budget by design and allowlisted; Doom's default build is 761,580. `bpf-verifier-check.sh` no longer estimates bytes/8: it prints the baseline. The "~70K instructions" below was that estimate.
+
 **CI/CD gate implemented (2026-04-03):** `scripts/bpf-verifier-check.sh` — checks compilation, instruction budget (900K/1M), static analysis for BPF anti-patterns (unbounded loops, u128, floats, stack arrays). monad-cpu-ebpf measured at ~70K instructions (7% of budget). 3 pre-existing link failures in nfv-ebpf, qos-ebpf (u128 __multi3 — needs fix).
 
 ## Date: 2026-02-19

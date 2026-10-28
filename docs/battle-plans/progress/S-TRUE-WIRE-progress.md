@@ -264,3 +264,15 @@ targets:
   write-up marked resolved by removal, and an implementation-status note in the PQC draft (both copies and the XML;
   xml2rfc renders). INNOVATIONS.md and SPEC-VS-CODE-AUDIT.md already said "not implemented". This executes decision
   43's default on the branch; Stevie can still choose "wire OPTIMISTIC" (revert this commit).
+- Steps 259-277 (Phase 7, the verifier ratchet): `cmd/ebpf-load-check` already printed `OK verified N insns` (Step 174,
+  prog info). `check-ebpf-loads.sh` writes `<elf>/<program>\t<variant>\t<insns>` to `EBPF_INSNS_OUT`; new
+  `scripts/check-ebpf-insns.sh` (growth > 10 %, over 900,000 unless in `docs/policy/ebpf-insns-over-budget.txt`
+  (shrink-only, ascend 926,542 the one entry), membership both ways, refuses a baseline from another kernel with exit 2);
+  `docs/policy/ebpf-insns-baseline.tsv` seeded: 36 rows (ascend 926542, Doom 761580, cart_xdp 42743, cart_tick 146897,
+  packet_marker 5838, shield XDP 1502 / TC 976 / TC debug-stats 1084). Provoked: shield rows -20 % → FAIL +25 %;
+  allowlist emptied → FAIL ascend; a missing program → FAIL. `bpf-verifier-check.sh` prints the baseline instead of
+  bytes/8 (`SIZE / 8` gone; GATE PASSED). CI (`ebpf.yml`): the load gate writes the counts and a step publishes them
+  next to the baseline in the job summary; not gating, because GitHub's kernel and its unpinned bpf-linker make them
+  incomparable (comment in the workflow). Gating on west: `scripts/ci-local.sh` step 11c and the meta-gate
+  (`check-ebpf-insns`, slow). ADR-012 status and wiki/eBPF-Programs.md "Verifier gates" updated; MARSHAL-COOKBOOK has
+  no gate count to change.
