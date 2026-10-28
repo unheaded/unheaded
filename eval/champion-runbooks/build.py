@@ -864,7 +864,7 @@ def write_fixtures(items):
                     "# Solved when runbook.yaml passes the strict check and this task's requirements.\n"
                     "set -euo pipefail\ncd \"$(dirname \"$0\")\"\n"
                     f"python3 -B validate_runbook.py --require '{reqs}' runbook.yaml\n")
-        os.chmod(os.path.join(d, "check.sh"), 0o755)
+        os.chmod(os.path.join(d, "check.sh"), 0o755)  # nosec B103 - the fixture's check.sh must be executable; it lives in the eval tree, not a shared path
         with open(os.path.join(d, "validate_runbook.py"), "w", encoding="utf-8") as f:
             f.write(VALIDATOR)
         if broken is not None:

@@ -263,7 +263,7 @@ type MemFlushedEvent struct {
 	Timestamp    time.Time
 }
 
-// CacheMissEvent for D-006 (can be populated from Anamnesis ring buffer).
+// CacheMissEventD006 is a cache-miss event for D-006 (can be populated from the Anamnesis ring buffer).
 type CacheMissEventD006 struct {
 	FlowLabel uint32
 	LineAddr  uint32

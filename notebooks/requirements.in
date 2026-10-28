@@ -1,0 +1,19 @@
+# Direct dependencies of notebooks/, exact versions (S-TRUE-WIRE Step 374).
+# What requirements.txt's ranges resolved to on 2026-10-28 (uv, 7-day
+# cooldown, Python 3.12). Lock with: scripts/ci-python-lock.sh notebooks
+#
+# NOT LOCKED YET: the lock pulls in 114 packages, 81 of them absent from
+# docs/policy/dependency-baseline.txt (jupyter's tree is most of it). Each is
+# an ADR-096 admission a person makes; S-TRUE-WIRE E5 asks for it. Until then
+# requirements.txt keeps its ranges. pip-audit of the trial lock: 0 advisories.
+numpy==2.5.4
+pandas==3.0.6
+matplotlib==3.11.2
+seaborn==0.13.2
+plotly==7.1.0
+scipy==1.18.1
+prometheus-api-client==0.7.2
+psutil==7.2.2
+jupyter==1.1.1
+jupyterlab==4.6.4
+nbformat==5.11.1

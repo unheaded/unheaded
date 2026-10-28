@@ -32,6 +32,7 @@ import (
 )
 
 // ── LatencyKey ─────────────────────────────────────────────────────────────
+
 // LatencyKey mirrors the Rust LatencyKey struct from latency-probe/src/common.rs.
 // It identifies a flow by 5-tuple. Size: 16 + 16 + 2 + 2 + 1 + 3 = 40 bytes.
 type LatencyKey struct {
@@ -138,6 +139,7 @@ func latencyMapEvent(lk *LatencyKey, le *LatencyEntry, now time.Time) map[string
 }
 
 // ── LatencyEntry ───────────────────────────────────────────────────────────
+
 // LatencyEntry mirrors the Rust LatencyEntry struct from latency-probe/src/common.rs.
 // It holds aggregated RTT statistics for a single flow.
 // Size: 8 + 8 + 8 + 8 + 8 = 40 bytes.

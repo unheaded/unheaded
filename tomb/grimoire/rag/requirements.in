@@ -1,0 +1,25 @@
+# Direct dependencies of the Grimoire RAG pipeline, exact versions
+# (S-TRUE-WIRE Step 374): what requirements.txt's ranges resolved to on
+# 2026-10-28 (uv, 7-day cooldown, Python 3.12). Lock with:
+#   scripts/ci-python-lock.sh tomb/grimoire/rag
+#
+# NOT LOCKED YET, for two reasons that are S-TRUE-WIRE E5's to decide:
+# - the lock pulls in 127 packages, 101 absent from
+#   docs/policy/dependency-baseline.txt (ADR-096 admissions), 19 of them
+#   CUDA/NVIDIA wheels and triton that a CPU-only Tomb VM does not need
+#   (PyTorch's CPU index would drop them);
+# - the ranges' upper bounds hold three packages on versions with published
+#   advisories (pip-audit of the trial lock): chromadb 0.6.3 (PYSEC-2026-3813,
+#   -3814, -3815; the range is <1.0.0), sentence-transformers 2.7.0
+#   (PYSEC-2026-4164; <3.0.0), transformers 4.57.6 (PYSEC-2025-217,
+#   PYSEC-2026-2288, -2289, -2290, -3929, -4174; <5.0.0).
+# Until then requirements.txt keeps its ranges.
+chromadb==0.6.3
+sentence-transformers==2.7.0
+torch==2.14.1
+transformers==4.57.6
+tokenizers==0.22.2
+markdown==3.11.2
+beautifulsoup4==4.15.0
+tqdm==4.70.1
+pyyaml==6.0.3

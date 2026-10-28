@@ -79,7 +79,7 @@ type Rollback struct {
 	StartedAt time.Time `json:"started_at"`
 
 	// CompletedAt is when the rollback completed
-	CompletedAt time.Time `json:"completed_at,omitempty"`
+	CompletedAt time.Time `json:"completed_at,omitzero"`
 
 	// Duration is the rollback duration
 	Duration time.Duration `json:"duration,omitempty"`

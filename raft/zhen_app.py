@@ -35,6 +35,7 @@ Features (post-rewire):
 import hmac
 import html
 import io
+import ipaddress
 import json
 import logging
 import os
@@ -2599,8 +2600,24 @@ def kanban_create():
         }), 503
 
 
+def bind_address():
+    """The address the UI listens on: ZHEN_BIND_ADDR, loopback when unset or empty.
+
+    Binding beyond the host is an explicit choice (bandit B104, S-TRUE-WIRE Step 360): the
+    UI's CSRF defence is interim (threat model T8), so 0.0.0.0 is never the default. A value
+    that is not an IP address exits rather than guessing."""
+    raw = os.environ.get('ZHEN_BIND_ADDR', '')
+    if raw == '':
+        return '127.0.0.1'
+    try:
+        return str(ipaddress.ip_address(raw))
+    except ValueError:
+        sys.exit(f"ZHEN_BIND_ADDR={raw!r} is not an IP address (unset it for 127.0.0.1)")
+
+
 if __name__ == '__main__':
-    print("Zhen Web UI starting on port 20103...")
+    host = bind_address()
+    print(f"Zhen Web UI starting on {host}:20103...")
     print(f"RAG status: {'ready' if rag else 'NOT READY — ' + str(startup_error)}")
     print(f"Local context window: {rag.local_max_tokens if rag else 'N/A'} tokens")
-    app.run(host='0.0.0.0', port=20103, debug=False)
+    app.run(host=host, port=20103, debug=False)

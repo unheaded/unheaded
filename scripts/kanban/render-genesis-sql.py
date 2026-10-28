@@ -85,7 +85,7 @@ BEGIN
 {(","+chr(10)).join(rows)};
 END
 {outer};
-"""
+"""  # nosec B608 - renders a migration file, not a query: each value is dollar-quoted with a sha256-derived tag checked not to occur in it
 
 
 def main() -> int:

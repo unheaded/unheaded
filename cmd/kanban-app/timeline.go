@@ -48,8 +48,8 @@ type Phase struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Status      string    `json:"status"`
-	StartDate   time.Time `json:"start_date,omitempty"`
-	EndDate     time.Time `json:"end_date,omitempty"`
+	StartDate   time.Time `json:"start_date,omitzero"`
+	EndDate     time.Time `json:"end_date,omitzero"`
 	Progress    int       `json:"progress"`
 	Description string    `json:"description,omitempty"`
 	Milestones  []string  `json:"milestones,omitempty"`
@@ -60,7 +60,7 @@ type Milestone struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
 	Status       string    `json:"status"`
-	ETA          time.Time `json:"eta,omitempty"`
+	ETA          time.Time `json:"eta,omitzero"`
 	Progress     int       `json:"progress"`
 	Owner        string    `json:"owner,omitempty"`
 	Risk         string    `json:"risk,omitempty"`

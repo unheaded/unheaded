@@ -64,7 +64,7 @@ type Limits struct {
 	MaxManifest int64 // bytes of BINDING_RUNE.sha256
 }
 
-// DefaultLimits: 2 GiB per member, 8 GiB in all, 200,000 entries, a 16 MiB
+// DefaultLimits allows 2 GiB per member, 8 GiB in all, 200,000 entries, a 16 MiB
 // manifest (about 160,000 lines).
 var DefaultLimits = Limits{MaxMember: 2 << 30, MaxTotal: 8 << 30, MaxEntries: 200000, MaxManifest: 16 << 20}
 

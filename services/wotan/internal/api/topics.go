@@ -464,7 +464,7 @@ func ringbufferToTopicMessage(msg *ringbuffer.Message, topic string) TopicMessag
 	}
 }
 
-// topicRouter dispatches /api/v1/topics/* requests to the correct handler.
+// TopicRouter dispatches /api/v1/topics/* requests to the correct handler.
 // Go 1.22+ ServeMux supports patterns, but for compat we do manual dispatch.
 func (s *Server) TopicRouter(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path

@@ -406,7 +406,7 @@ func (s *anamnesisServer) GetStatistics() *EventStatistics {
 	return stats
 }
 
-// CreateEventFromFlow generates a FLOW_CREATE event
+// CreateFlowEvent generates a FLOW_CREATE event.
 func CreateFlowEvent(flowLabel uint32, kingdomMode string, sourceAddr, destAddr string) *pb.Event {
 	return &pb.Event{
 		Type:      pb.Event_EVENT_TYPE_FLOW_CREATE,

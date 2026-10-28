@@ -34,7 +34,7 @@ import (
 // code is printed on /dev/tty only; the queue id may appear (it
 // authorises nothing without Stevie's own login to the Well).
 
-// Topic for queued confirmations (id, tool and summary only).
+// TopicConfirmPending is the topic for queued confirmations (id, tool and summary only).
 const TopicConfirmPending = "zhen.confirm.pending"
 
 // MaxPendingPerService caps pending queue rows per source service

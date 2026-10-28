@@ -151,6 +151,10 @@ else
     fi
     export ZHEN_DB_HOST="${ZHEN_DB_HOST:-localhost}"
     export ZHEN_DB_PORT="${ZHEN_DB_PORT:-5432}"
+    # Listen address (bandit B104, S-TRUE-WIRE Step 360): loopback unless set. Reaching the
+    # UI from another host is an explicit choice, e.g. ZHEN_BIND_ADDR=10.10.20.1 (west's lxdbr0).
+    export ZHEN_BIND_ADDR="${ZHEN_BIND_ADDR:-127.0.0.1}"
+    echo "  web UI listen address: ${ZHEN_BIND_ADDR}:20103"
 
     WEBAPP_LOG="$("$LOGPATH" zhen zhen-webapp.log)"
     cd "$HOME/tmp/unheaded/raft"

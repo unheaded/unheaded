@@ -173,9 +173,9 @@ func (e *AuditEvent) VerifyHash() bool {
 // AuditQuery defines parameters for querying audit events.
 type AuditQuery struct {
 	// StartTime is the beginning of the time range.
-	StartTime time.Time `json:"start_time,omitempty"`
+	StartTime time.Time `json:"start_time,omitzero"`
 	// EndTime is the end of the time range.
-	EndTime time.Time `json:"end_time,omitempty"`
+	EndTime time.Time `json:"end_time,omitzero"`
 	// Types filters by event types.
 	Types []EventType `json:"types,omitempty"`
 	// Severities filters by severity levels.

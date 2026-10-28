@@ -307,12 +307,12 @@ func checkModePath(p string) error {
 	return nil
 }
 
-func (aa *AppArmorAction) validate() error {
-	if len(aa.Enforce) == 0 {
+func (a *AppArmorAction) validate() error {
+	if len(a.Enforce) == 0 {
 		return invalid("apparmor enforces no profile")
 	}
 	seen := map[string]bool{}
-	for _, p := range aa.Enforce {
+	for _, p := range a.Enforce {
 		if !profileRe.MatchString(p) {
 			return invalid("apparmor profile %q is not a file name in /etc/apparmor.d", p)
 		}
@@ -321,7 +321,7 @@ func (aa *AppArmorAction) validate() error {
 		}
 		seen[p] = true
 	}
-	for _, h := range aa.Hosts {
+	for _, h := range a.Hosts {
 		if !isKnownHost(h) {
 			return invalid("apparmor for unknown host %q", h)
 		}

@@ -15,7 +15,7 @@ const (
 	FlagReserved = 0x01 // Reserved
 )
 
-// PQC active flag combination: S+CUSTOM (SAMPLED and CUSTOM both set).
+// FlagPQCActive is the PQC active flag combination: S+CUSTOM (SAMPLED and CUSTOM both set).
 // When both flags are set, the scratch bytes carry the PQC value
 // and the checksum covers the PQC-extended pseudo-header.
 const FlagPQCActive = FlagSampled | FlagCustom // 0x0A

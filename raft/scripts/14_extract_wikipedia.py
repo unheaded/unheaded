@@ -13,11 +13,19 @@ Output: ~/tmp/unheaded/raft/corpus/wikipedia.jsonl
 
 import bz2
 import json
+import pyexpat
 import re
 import sys
 import time
 from pathlib import Path
-from xml.etree import ElementTree as ET
+from xml.etree import ElementTree as ET  # nosec B405 - streams the operator's local Wikipedia dump; expat >= 2.4.1 checked
+
+# ElementTree resolves no external entities; expat >= 2.4.1 also caps entity
+# amplification ("billion laughs"). That is the control behind the B314/B405
+# nosec comments below (S-TRUE-WIRE Step 361; defusedxml would be a new
+# dependency under ADR-004). Refuse to parse with an older expat.
+if pyexpat.version_info < (2, 4, 1):
+    sys.exit(f"expat {pyexpat.EXPAT_VERSION} has no entity-amplification limit; need >= 2.4.1")
 
 INPUT = Path("/mnt/hdd/zhen/wikipedia/enwiki-latest-pages-articles.xml.bz2")
 OUTPUT = Path.home() / "tmp" / "unheaded" / "raft" / "corpus" / "wikipedia.jsonl"
@@ -85,7 +93,7 @@ def main():
          open(OUTPUT, "w", encoding="utf-8") as out:
 
         # Stream parse — never loads full XML into memory
-        context = ET.iterparse(bz_in, events=("end",))
+        context = ET.iterparse(bz_in, events=("end",))  # nosec B314 - local multi-GB dump, streamed by design (no size cap); expat >= 2.4.1 checked
 
         for event, elem in context:
             if elem.tag == f"{ns}page":
