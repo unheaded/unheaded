@@ -273,3 +273,37 @@ func TestEmittedCodesDistinct(t *testing.T) {
 		t.Fatalf("only %d emitted codes", len(seen))
 	}
 }
+
+// S-TRUE-WIRE Step 162 (WOT-09 a): the IANA registries' entry counts and
+// ranges agree with the tables (and so with the code).
+func TestIANARegistryCountsMatchTables(t *testing.T) {
+	re := regexp.MustCompile(`\((\d+) entries, codes 0x([0-9A-F]{2})-0x([0-9A-F]{2})\)`)
+	for _, p := range draftPaths {
+		doc := readDraft(t, p)
+		for _, reg := range []struct {
+			heading string
+			defined func(v uint64) bool
+		}{
+			{"## Wotan Error Origin Registry (NEW in draft-03)", func(v uint64) bool { return Origin(v).Defined() }},
+			{"## Wotan Error Category Registry (NEW in draft-03)", func(v uint64) bool { return Category(v).Defined() }},
+		} {
+			m := re.FindStringSubmatch(section(t, doc, reg.heading))
+			if m == nil {
+				t.Fatalf("%s: %s has no entry count", p, reg.heading)
+			}
+			want, _ := strconv.Atoi(m[1])
+			lo, _ := strconv.ParseUint(m[2], 16, 8)
+			hi, _ := strconv.ParseUint(m[3], 16, 8)
+			n := 0
+			for v := lo; v <= hi; v++ {
+				if !reg.defined(v) {
+					t.Errorf("%s: %s lists 0x%02X, code does not define it", p, reg.heading, v)
+				}
+				n++
+			}
+			if n != want {
+				t.Errorf("%s: %s says %d entries, range holds %d", p, reg.heading, want, n)
+			}
+		}
+	}
+}
