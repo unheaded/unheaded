@@ -299,3 +299,33 @@ targets:
   stubs (FND-025, E8); its bypass row credited "Shield XDP" with more than the blocklist.
 - Step 398 (E7) prepared: `docs/adr/ACCEPTANCE-2026-10-28.diff` (ADRs 093, 094, 101, 104, 105, 106, 107: status line +
   index row each, `<DATE>` placeholder; `git apply --check` clean).
+
+## Phase 10 (agent lane, merged `5b68fb2f`)
+
+- 341-352 `9a209030`: ADR-096 register rows (yaml.v3, cilium/ebpf, goldmark, lib/pq; pre-E3 counts; "threshold: E5");
+  ADR-004 sign-off lines; `scripts/sweep-ledger-step1.py` (+tests): 8 rows PENDING→SKIPPED generated, 0 vendored; PENDING
+  2192→2184, total 2657 unchanged; 8 PENDING rows name files that no longer exist.
+- 359-363 `efb13142`: bandit found 72 (not 43; new B105, B103, B608), all triaged, run `{}`, job gating. B104:
+  `zhen_app.py` binds `ZHEN_BIND_ADDR`, default 127.0.0.1 (the UI is not running on west now; the next start is
+  loopback unless set). B310: the rule-wide skip assumed a scheme guard only zhen_app had; the three `tomb/cerydwyn`
+  scripts gained one (a `file://` OLLAMA_URL read local files). B615: Mistral pinned to `63a8b081`. XML: expat floor + an
+  xlsx member size cap. Four new test files (two in raft-python.yml).
+- 364-368 `11dabb8b`, `f16d71d0`: trivy already ran misconfig with nothing reading it; `scripts/check-trivy-misconfig.sh`
+  with a shrink-only (rule, file) baseline `docs/policy/trivy-misconfig-baseline.tsv` (364 failed checks, 312 pairs);
+  trivy 0.76.1 image and checks-bundle digests pinned in `scripts/lib/tool-pins.sh`; meta-gate bites. Hadolint already
+  digest-pinned.
+- 369-372 `bd36382f`: 18 `omitempty` time.Time fields → `omitzero` (zero times are now omitted from JSON; no browser
+  code reads them, Go decoders unchanged: reviewed by the coordinator); G115 exclude removed (gosec 0; it caught 4 G115
+  in Phase 8's sophiasync, fixed); ST1016/ST1020-22: 39 fixed, `cmd/doom-bridge` excluded by path.
+- STUCK: 373 (golangci-lint v2.15.0, CI's `latest`, 60 issues before and after, pre-existing; the installed 2.10.1
+  cannot read go1.27 export data); 375-376 (a hash lock adds 171 packages not in the dependency baseline, and
+  grimoire's caps hold chromadb / sentence-transformers / transformers on versions with 10 advisories); 377 (ScanCode
+  images return "denied"; pin the release tarball `scancode-toolkit-v32.5.0_py3.12-linux.tar.gz`); 378 blocked.
+- **E5 (Step 353):** (1) ADR-096 thresholds; (2) yaml.v3 keep or `go.yaml.in/yaml/v3` (keeps yaml.Node, 6 files);
+  (3) cilium/ebpf record or own; (4) lib/pq record or own; (5) sign off aws-lc-rs/aws-lc-sys and anthropic-sdk-go;
+  (6) ADR-090 Q1 vendored scope, Q2 docs/ in scope, Q3 the 29 `#[ignore]` forge tests; (7) Zhen bind on west: loopback
+  or `ZHEN_BIND_ADDR=10.10.20.1`; (8) admit the 171 transitive Python packages or trim (CPU torch index drops 19 wheels;
+  jupyter is most of notebooks), and lift grimoire's caps?
+- Agent's full suite: one FAIL, `pkg/trace` `TestTraceID_TimestampMS` (untouched; 50/50 with -race alone: a 10 ms window
+  under load). For develop: consider FND rows for the grimoire advisories and for golangci-lint (`ci.yml` `version:
+  latest`, 60 issues); `scripts/vault-to-runway.py -p` publishes vLLM on every interface (noted, not changed).
