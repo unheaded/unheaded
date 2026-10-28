@@ -57,7 +57,7 @@ export WEST_P2P_IF=enp16s0 EAST_P2P_IF=enp2s0
 export WOTAN_SCRATCH_HTTP=26601 WOTAN_SCRATCH_GRPC=26602   # scratch Wotan, user-app range; never the 18000/18001 stack
 mkdir -p "$S5"
 # xv6 boot helpers (from PHASE24-KERNEL-CORE.md, unchanged)
-boot()     { (cd "$EBPF" && sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+boot()     { sudo bash "$PROJECT_ROOT/scripts/upc-netns.sh" up >/dev/null && (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
              --userland "$K/init.mbc" --triggers 4000000 --instance 111 --input "$1" 2>&1); }
 tty_of()   { grep -a 'ascii:' <<<"$1"; }
 stats_of() { grep -aoE 'forks=[0-9]+|waitpid=[0-9]+|tty_r=[0-9]+' <<<"$1" | tr '\n' ' '; }

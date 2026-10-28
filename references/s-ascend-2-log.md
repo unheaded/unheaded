@@ -269,3 +269,39 @@ the plan's "export UPC_DEMO_MODE=1 near the top of the harness" does not work, b
 every caller passes it inside sudo (`sudo UPC_DEMO_MODE=1 "$BC" …`): the harness, the S5 helper block (`boot()`, also
 fixing its `UPC_VERIFIER_STATS=1 sudo` ordering), CLAUDE.md's boot recipe and wiki/Linux-on-UPC.md. Harness ALL GREEN,
 sweep 8/8 SAME; a boot without it prints the refusal and leaves 0 programs.
+
+**Items 1-3: namespace, unprivileged bootctl, seccomp (Steps 131-147).**
+
+*Design (Step 131), changed from the plan's after reading `netns.rs`.* bootctl attached XDP to `veth-upc0` in the
+root namespace and sent triggers from inside `upc0` with `ip netns exec upc0 python3 doom-tick.py`. Two plan
+assumptions did not hold: (1) the plan's rule `iifname "veth-upc0p" drop` in the root namespace can never match,
+because `veth-upc0p` is not in the root namespace (the host side is `veth-upc0`); (2) caps-only cannot work while
+triggers go through `ip netns exec` (setns needs CAP_SYS_ADMIN, and it is an execve). New layout:
+- `scripts/upc-netns.sh up|down|status` creates `upc0` with **both** veth ends inside it, the old addresses, and
+  `table inet unheaded_upc` (forward chain, iif/oif either veth, counter drop). No link to the root namespace exists,
+  so nothing the guest emits reaches the host; the rule is defence in depth. The root namespace is not touched.
+- bootctl runs inside `upc0` and by default only verifies both veths are visible (`ensure_present`), attaches XDP to
+  `veth-upc0` and sends triggers itself over AF_PACKET on `veth-upc0p` (`send_trigger_native`: byte-identical frames
+  to doom-tick.py, unit-tested against its `--dry-run` hex; retries ENOBUFS). `--create-netns` keeps the old path.
+- On EPERM/EACCES bootctl names the capabilities it needs.
+
+*Evidence.*
+
+| Check | Result |
+|---|---|
+| root boot inside upc0, native sender | `echo inside-ok` runs, 4,000,000 frames sent (first try hit ENOBUFS at 273,615: fixed with a retry) |
+| non-root (`govan`), caps only, NoNewPrivileges, in upc0 | `caps-ok` with CAP_BPF CAP_NET_ADMIN CAP_NET_RAW **CAP_PERFMON**; without PERFMON the verifier refuses the load (EACCES after 19,404 insns); dropping any one of the four fails |
+| forward-drop (forwarding enabled in upc0 for the test) | with the rule: counter 3, 3 packets out; without it: 192 transmissions (the 3 pings forwarded back and forth until hop limit). Forwarding restored to 0 |
+| seccomp `@system-service bpf` + `~@privileged` | killed: bpf(2) is in @privileged, so the deny removes it again |
+| seccomp `@system-service bpf` | `seccomp-ok` |
+| `~execve execveat` in SystemCallFilter | the service never starts: it also blocks ExecStart |
+| `NoExecPaths=/` + `ExecPaths=<bootctl> /usr/lib /lib /lib64` | `seccomp-ok`; `--create-netns` under it fails `ip netns add upc0: Permission denied` (exec blocked) |
+| oneshot unit's properties (transient) | first draft failed: PrivateTmp/ProtectSystem etc. give the unit a private mount namespace, so `/run/netns/upc0` existed on the host with no namespace behind it ("Peer netns reference is invalid"); mount-namespace properties removed, then good |
+| bootctl unit's full sandbox (transient; User=govan, ProtectHome=read-only to reach the dev images) | `unit-ok` |
+| harness with every boot inside upc0 | ALL GREEN (all 23 checks), 923645 / 758321; harness brings the namespace up and down |
+| sweep | 8/8 SAME |
+
+Deviations: Step 137 ran as `govan`, not `nobody` (`/home/govan` is 0750); the plan's Step 140 addresses
+(`fd00:upc::`) are not valid IPv6; uid **16791** (16790 is planned for unheaded-doom in S-DOOM-LAST).
+Units: `deploy/systemd/unheaded-upc-netns.service`, `unheaded-upc-bootctl@.service` (+ `demo.conf.example`),
+sysusers `unheaded-upc 16791`, `pkg/uids` `UPC`. Not installed (E6).

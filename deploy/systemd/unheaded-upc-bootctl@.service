@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# unheaded-upc-bootctl@<name>: one UPC boot, without root (S-ASCEND-2 Phase 5,
+# Items 2-3). Runs upc-bootctl as unheaded-upc inside the upc0 namespace that
+# unheaded-upc-netns.service creates, with the four capabilities the boot was
+# measured to need (2026-10-28, kernel 6.17):
+#   CAP_BPF       map create/update, program load
+#   CAP_PERFMON   the verifier's privileged pointer rules (without it the
+#                 monad_cpu load fails EACCES)
+#   CAP_NET_ADMIN XDP attach to veth-upc0
+#   CAP_NET_RAW   the AF_PACKET trigger socket on veth-upc0p
+# Dropping any one of them fails the boot. bootctl execs nothing on this path
+# (no `ip`, no python): exec is limited to its own binary and the libraries.
+#
+# The boot itself comes from /etc/unheaded/upc/<name>.env (0640
+# root:unheaded-upc), e.g. xv6.env:
+#   UPC_KERNEL=/var/lib/unheaded/upc/xv6-mbc.mbc
+#   UPC_RAMDISK=/var/lib/unheaded/upc/fs.img
+#   UPC_USERLAND=/var/lib/unheaded/upc/init.mbc
+#   UPC_TRIGGERS=4000000
+#   UPC_INSTANCE=111
+# Images (with their .rv2mbc, .data and .rv2mbc.sha256 sidecars) and the
+# monad-cpu-ebpf object live in /var/lib/unheaded/upc (0750 unheaded-upc).
+# A live boot needs UPC_DEMO_MODE=1: demo.conf.example is the drop-in that sets it.
+#
+# Install (E6 window; root), after unheaded-upc-netns.service:
+#   sudo install -m 0755 cmd/upc-bootctl/target/release/upc-bootctl /usr/local/bin/
+#   sudo cp deploy/systemd/unheaded-upc-bootctl@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload   (not enabled: start a boot by name)
+#   sudo systemctl start unheaded-upc-bootctl@xv6
+
+[Unit]
+Description=Unheaded UPC boot %i (upc-bootctl, unprivileged, in netns upc0)
+Requires=unheaded-upc-netns.service
+After=unheaded-upc-netns.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/unheaded/upc/%i.env
+WorkingDirectory=/var/lib/unheaded/upc
+Environment=MONAD_CPU_EBPF_OBJ=/var/lib/unheaded/upc/monad-cpu-ebpf
+ExecStart=/usr/local/bin/upc-bootctl boot --kernel ${UPC_KERNEL} --ramdisk ${UPC_RAMDISK} --userland ${UPC_USERLAND} --triggers ${UPC_TRIGGERS} --instance ${UPC_INSTANCE}
+TimeoutStartSec=15min
+
+User=unheaded-upc
+Group=unheaded-upc
+NetworkNamespacePath=/run/netns/upc0
+AmbientCapabilities=CAP_BPF CAP_PERFMON CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_BPF CAP_PERFMON CAP_NET_ADMIN CAP_NET_RAW
+UMask=0077
+
+# Sandbox (deploy/systemd/README.md#isolation).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadOnlyPaths=/var/lib/unheaded/upc
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+# bpf(2) is in @privileged, so the allow-list names it and nothing denies
+# @privileged afterwards (that would remove bpf again: measured).
+SystemCallFilter=@system-service bpf
+SystemCallErrorNumber=EPERM
+# No exec after start: `~execve` in SystemCallFilter would also block the
+# service's own ExecStart, so exec is limited by mount instead.
+NoExecPaths=/
+ExecPaths=/usr/local/bin/upc-bootctl /usr/lib /lib /lib64

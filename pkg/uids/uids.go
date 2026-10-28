@@ -168,6 +168,8 @@ const (
 	Qdrant     = 16787
 	Embeddings = 16788 // text-embeddings-inference
 	OpenWebUI  = 16789
+	// 16790 is planned for unheaded-doom (S-DOOM-LAST Step 31).
+	UPC = 16791 // upc-bootctl, host account unheaded-upc (S-ASCEND-2 Item 2)
 )
 
 // Third-party image UIDs. These are NOT ours to choose: each image ships data
@@ -247,6 +249,7 @@ var Registry = map[string]int{
 
 	"void-collector":    VoidCollector,
 	"vllm":              VLLM,
+	"upc-bootctl":       UPC,
 	"wireguard":         WireGuard,
 	"traefik":           Traefik,
 	"coredns":           CoreDNS,

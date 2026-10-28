@@ -39,3 +39,7 @@ tracing = "0.1"
 # of the RV→MBC translation map. Without this, an attacker-supplied
 # .rv2mbc could redirect every indirect branch in the loaded image.
 sha2 = "0.10"
+# S-ASCEND-2 Item 2: the trigger sender opens an AF_PACKET socket itself
+# (it used to exec `ip netns exec upc0 python3 doom-tick.py`, which needs
+# CAP_SYS_ADMIN and an execve). Already in the tree through aya and tokio.
+libc = "0.2"

@@ -1101,6 +1101,7 @@ dependencies = [
  "anyhow",
  "aya",
  "clap",
+ "libc",
  "monad-common",
  "reqwest",
  "serde",

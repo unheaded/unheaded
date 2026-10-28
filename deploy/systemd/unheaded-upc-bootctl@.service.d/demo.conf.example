@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copy to /etc/systemd/system/unheaded-upc-bootctl@.service.d/demo.conf to
+# allow live boots (upc-bootctl refuses one without UPC_DEMO_MODE=1).
+[Service]
+Environment=UPC_DEMO_MODE=1

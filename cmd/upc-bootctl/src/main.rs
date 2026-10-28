@@ -115,6 +115,12 @@ enum Cmd {
         /// object does not ship, so this can only make the boot refuse.
         #[arg(long)]
         unsafe_geometry: bool,
+
+        /// Old setup (needs root): create `upc0` + the veth pair from the root
+        /// namespace and send triggers through `ip netns exec`. Default: run
+        /// inside the namespace `scripts/upc-netns.sh up` made.
+        #[arg(long)]
+        create_netns: bool,
     },
 
     /// Boot a kernel and run it interactively (Mode A/B): TTY output streams
@@ -159,6 +165,10 @@ enum Cmd {
         /// Test hook: honour UPC_SLICE_STRIDE (see `boot --unsafe-geometry`).
         #[arg(long)]
         unsafe_geometry: bool,
+
+        /// Old root-namespace setup (see `boot --create-netns`).
+        #[arg(long)]
+        create_netns: bool,
     },
 }
 
@@ -915,7 +925,7 @@ fn boot_prepare(
     );
 
     // ── Phase 4: netns + XDP attach + trigger packet ──
-    let attach_iface = netns::setup_upc0()?;
+    let attach_iface = netns::prepare()?;
     // Attach XDP to veth inside upc0 namespace. aya's `attach` looks up
     // the iface by name in the calling process's namespace, so we run
     // the attach via `ip netns exec` semantically by... actually aya
@@ -927,11 +937,11 @@ fn boot_prepare(
     // Alternative simpler path: skip namespace, just use the veth host-side.
     // For Phase 1.1 first boot, host-side attach is sufficient.
     println!("\n[netns ready; attempting XDP attach to {}]", attach_iface);
-    match runner.attach_xdp("veth-upc0") {
+    match runner.attach_xdp(attach_iface) {
         Ok(()) => println!("  ✓ XDP attached to veth-upc0"),
         Err(e) => {
             println!("  ✗ XDP attach failed: {}", e);
-            netns::teardown_upc0();
+            netns::finish();
             return Err(e);
         }
     }
@@ -1053,7 +1063,7 @@ fn cmd_boot(
         "\n[sending {} Monad trigger packets to advance the CPU (each = up to 16 insns)]",
         triggers
     );
-    netns::send_trigger(triggers, instance)?;
+    netns::trigger(triggers, instance, true)?;
     std::thread::sleep(std::time::Duration::from_millis(1500));
 
     // Read CPU state after trigger
@@ -1148,7 +1158,7 @@ fn cmd_boot(
 
     // Cleanup
     runner.cleanup()?;
-    netns::teardown_upc0();
+    netns::finish();
 
     Ok(())
 }
@@ -1253,7 +1263,7 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
     let result = console_loop(&mut runner, &o, &stop);
     // Same teardown as `boot`; dropping the runner detaches XDP.
     let _ = runner.cleanup();
-    netns::teardown_upc0();
+    netns::finish();
     drop(runner);
     println!("\n=== UPC CONSOLE closed ===");
     result
@@ -1274,7 +1284,7 @@ fn console_loop(runner: &mut runner::BootRunner, o: &ConsoleOpts, stop: &AtomicB
     let mut out = std::io::stdout();
 
     while !stop.load(Ordering::SeqCst) {
-        netns::send_trigger_quiet(o.tick_batch, o.instance)?;
+        netns::trigger(o.tick_batch, o.instance, false)?;
 
         // Output: guest TTY -> stdout (NULs from the 3-byte MMIO store dropped)
         // and -> the bridge for browser viewers.
@@ -1345,6 +1355,21 @@ fn console_loop(runner: &mut runner::BootRunner, o: &ConsoleOpts, stop: &AtomicB
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    run(cli).map_err(|e| {
+        // S-ASCEND-2 Step 135: say which privilege is missing instead of a bare
+        // EPERM from deep inside aya.
+        if format!("{e:#}").contains("Operation not permitted") {
+            e.context(
+                "need CAP_BPF + CAP_NET_ADMIN (+ CAP_NET_RAW for triggers): \
+                 run via unheaded-upc-bootctl@.service or sudo",
+            )
+        } else {
+            e
+        }
+    })
+}
+
+fn run(cli: Cli) -> Result<()> {
     match cli.cmd {
         Cmd::Validate { kernel } => cmd_validate(kernel),
         Cmd::Boot {
@@ -1358,18 +1383,22 @@ fn main() -> Result<()> {
             dry_run,
             input,
             unsafe_geometry,
-        } => cmd_boot(
-            kernel,
-            bootstub,
-            initramfs,
-            ramdisk,
-            userland,
-            triggers,
-            instance,
-            dry_run,
-            input,
-            unsafe_geometry,
-        ),
+            create_netns,
+        } => {
+            netns::set_create_netns(create_netns);
+            cmd_boot(
+                kernel,
+                bootstub,
+                initramfs,
+                ramdisk,
+                userland,
+                triggers,
+                instance,
+                dry_run,
+                input,
+                unsafe_geometry,
+            )
+        }
         Cmd::Console {
             kernel,
             bootstub,
@@ -1380,17 +1409,21 @@ fn main() -> Result<()> {
             tick_batch,
             debug_kbd,
             unsafe_geometry,
-        } => cmd_console(ConsoleOpts {
-            kernel,
-            bootstub,
-            ramdisk,
-            userland,
-            instance,
-            stdin,
-            tick_batch,
-            debug_kbd,
-            unsafe_geometry,
-        }),
+            create_netns,
+        } => {
+            netns::set_create_netns(create_netns);
+            cmd_console(ConsoleOpts {
+                kernel,
+                bootstub,
+                ramdisk,
+                userland,
+                instance,
+                stdin,
+                tick_batch,
+                debug_kbd,
+                unsafe_geometry,
+            })
+        }
     }
 }
 
