@@ -190,3 +190,8 @@ go. I8 is about writes, so it still holds.
 - *Corpus:* flags OFF: sweep 8/8, harness green. Flags ON: `gate2`, `gate_nway`, forkloop, devprobe and the `ut_*`
   probes. The harness gains a rung 0 stage (build the ON object, run the gates, rebuild the OFF object).
 - Commit. **Exit gate:** the skeleton's rung 0 gate as amended.
+
+**12-golden corpus helper (S26, forging Phase 7).** The harness checks no goldens, and the S5 `sweep` covers 8 of
+the 12. The plan's Phase 3 helpers now define `sweep12`: the 8, plus `nosuch`, `multi` and `blank` through `boot`,
+plus `uinit_echo` through `uinit.mbc`, all with the inputs `PHASE22-SH-REPLACE.md` captured. Run 2026-10-28 on
+79ec42ef+, flag off: 12/12 SAME.

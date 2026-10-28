@@ -224,6 +224,14 @@ flag() { sed -i "s/const GETPID_INJECT: bool = $1;/const GETPID_INJECT: bool = $
   && (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1); }
 ugl() { grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g' | grep -aoE '(GL|GM|UT|SC|SP|PG): [^ ]*'; }
 gates() { (cd "$UP" && make -f ../adapters/Makefile.mbc-userland userland gates ramdisk 2>&1 | tail -1); }
+# The 12-golden corpus: the S5 sweep's 8 plus uinit_echo, nosuch, multi, blank (PHASE22-SH-REPLACE.md captures).
+sweep12() { sweep; local o; for spec in nosuch:$'nosuch\n' multi:$'echo alpha\necho omega\n' blank:$'\necho unbroken\n'; do
+    o="$(boot "${spec#*:}")"; diff -q <(tty_of "$o") "$GOLD/${spec%%:*}.tty" >/dev/null && diff -q <(stats_of "$o") "$GOLD/${spec%%:*}.stats" >/dev/null \
+      && echo "SAME ${spec%%:*}" || echo "DIFF ${spec%%:*}"; done
+  o="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+    --userland "$K/uinit.mbc" --triggers 4000000 --instance 111 --input $'echo hello\n' 2>&1)"
+  diff -q <(tty_of "$o") "$GOLD/uinit_echo.tty" >/dev/null && diff -q <(stats_of "$o") "$GOLD/uinit_echo.stats" >/dev/null \
+    && echo "SAME uinit_echo" || echo "DIFF uinit_echo"; }
 ```
 Probe values print in decimal and end in `;`, because the PC-tracer strip eats hex digits followed by a space (log,
 Phase 1).
@@ -322,8 +330,8 @@ Phase 1).
 
 ### Flag OFF: nothing moves
 
-- [ ] **Step 79** [TEST][B][S] ~12m: `sweep | grep -c SAME; bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'; ub getpidfork | gf | tr '\n' ' '`.
-- [ ] **Step 80** [V] ~1m: 8 SAME; ALL GREEN; the count equals Step 60's, because the object is unchanged; getpidfork
+- [ ] **Step 79** [TEST][B][S] ~12m: `sweep12 | grep -c SAME; bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'; ub getpidfork | gf | tr '\n' ' '`.
+- [ ] **Step 80** [V] ~1m: 12 SAME; ALL GREEN; the count equals Step 60's, because the object is unchanged; getpidfork
   prints the Phase 0 lines.
   - [D] A golden differs → it is a kernel-side TTY change. Diff the `.tty` files. A new boot line (for example a
     `PG:` print leaking out of the probe build) moves behind `UPC_STAGE2_PROBE`. Two attempts, then STUCK.
@@ -335,7 +343,7 @@ Phase 1).
   on. A difference means the no-tag path is not today's path: re-read Step 72's early return.
 - [ ] **Step 83** [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 72-82] ADR-109 kernel side: slot tables, row refresh, guards, trampoline a6/a7`
   (the record goes in `$LOG` §Phase 3: hash, counts, the `PG:` value).
-- [ ] **Step 84** [V] ~1m: **PHASE 3 EXIT GATE**: with the flag OFF, sweep 8/8 SAME, harness ALL GREEN and the count
+- [ ] **Step 84** [V] ~1m: **PHASE 3 EXIT GATE**: with the flag OFF, 12/12 SAME (`sweep12`), harness ALL GREEN and the count
   unchanged. The compat check repeats the RED lines. `p3-red.txt` is recorded. `GETPID_INJECT` is `false` in the tree.
   If any of this fails, do not proceed to Phase 4.
 
@@ -461,7 +469,7 @@ vcount() { ub getpidprobe UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' 
       `HP: tables=same|changed`.
   - Run it with D6 off, then with D6 on: `d6 false true; obj`, then `d6 true false`.
 - [ ] **Step 103** [V] ~2m: D6 off prints `changed` for both, the hole is real and recorded. D6 on prints `same` for
-  both. With D6 on, `sweep | grep -c SAME` is 8.
+  both. With D6 on, `sweep12 | grep -c SAME` is 12.
   - A golden changes with D6 on → [ESCALATE] D6 alone. Leave D6 off, record the golden diff in `$LOG`, and continue
     the rung without it; the hostile check stays RED and is reported to Stevie. Every other part of the gate still
     applies.
@@ -481,12 +489,12 @@ vcount() { ub getpidprobe UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' 
 
 - [ ] **Step 107** [TEST][B][S] ~15m: Flags ON (`GETPID_INJECT`, `UPC_RUNG0`, and D6 if Step 103 kept it):
   - `for p in gate2 gate_nway forkloop devprobe ut_exitwait ut_twochildren ut_forktest ut_reparent2; do echo "== $p"; TRIG=3000000 ub $p | gf | tail -3; done`;
-  - `sweep | grep -c SAME`;
+  - `sweep12 | grep -c SAME`;
   - `UPC_GATE_RUNG0=1 bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|rung 0|ALL'`.
 
   Then restore everything OFF: `flag true false; rung true false; d6 true false; obj`.
 - [ ] **Step 108** [V] ~2m: Every probe prints the same verdict as with the flags off (the Phase 0 and Phase 5
-  records). Sweep is 8. The harness is ALL GREEN with the rung 0 gates passing. With the flags back off, the count
+  records). `sweep12` is 12. The harness is ALL GREEN with the rung 0 gates passing. With the flags back off, the count
   equals Step 60's and `git diff --stat` shows the consts `false`.
 - [ ] **Step 109** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 107-108] rung 0 gate passed; consts off in tree`.
   `$LOG` §Phase 4 records the counts, the `PG:` value, the D6 result and the four mutation results. ADR-109 gets
@@ -530,8 +538,8 @@ The two consts flip together. `GETPID_INJECT` without `UPC_RUNG0` is the Phase 1
 - [ ] **Step 115** [TEST][B][S] ~6m: `for p in getpidprobe getpidfork getpidloop getpidmulti; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p5-on.txt"`.
 - [ ] **Step 116** [V] ~1m: The same lines as `p3-off.txt` and the Phase 0 getpidprobe/getpidfork lines. Init is 1;
   children are 2, 3, 4; fork-ret equals child-pid.
-- [ ] **Step 117** [TEST][B][S] ~12m: `sweep | grep -c SAME; UPC_GATE_RUNG0=1 bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'`.
-- [ ] **Step 118** [V] ~1m: 8 SAME, ALL GREEN.
+- [ ] **Step 117** [TEST][B][S] ~12m: `sweep12 | grep -c SAME; UPC_GATE_RUNG0=1 bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'`.
+- [ ] **Step 118** [V] ~1m: 12 SAME, ALL GREEN.
   - [D] A golden moves → the flip changed a boot TTY. Diff the `.tty`; a kernel print on getpid is the usual cause.
     Two attempts, then flip back and STUCK.
 - [ ] **Step 119** [B] ~3m: The harness's own expectations. If `scripts/upc-regression.sh` builds or asserts the
@@ -562,3 +570,115 @@ The two consts flip together. `GETPID_INJECT` without `UPC_RUNG0` is the Phase 1
 - [ ] **Step 130** [C][V] ~1m: **COMMIT CHECKPOINT + PHASE 5 EXIT GATE**
   `docs(upc): [STAGE2 124-129] EVOLUTION-1 Stage 1 closed`. The tree is clean, the flags are `true` in the tree, and
   Steps 116, 118 and 122 held.
+
+---
+
+## PHASE 6: SECURITY PASS ON RUNG 0-1 (Steps 131-146)
+
+**Goal**: Every new kernel read of a BPF-written word and every new BPF write is listed, bounded and attacked, and
+the result is recorded.
+**Prerequisite**: Phase 4 exit gate. It can run in parallel with Phase 5, in its own worktree, with no live flip.
+**Time**: ~2 h
+**Agent**: Agent [P] for Steps 131-136 (read-only review, its own worktree); Coordinator for the live probes.
+
+### Attack-surface table
+
+- [ ] **Step 131** [SECURITY][W] ~20m: `$LOG` §Phase 6 table, one row per value. Columns: value; writer; reader; what
+  a hostile writer can put there; bound; test that proves the bound. Rows:
+  - BootParams `0x160`: init can rewrite it; BPF is bounded only by `RAM_MAP`.
+  - `cur_slot`, `trap_a7`, `fresh_mask`.
+  - `sscratch` as BPF sets it.
+  - each slot's trapframe, which a child could reach before D6.
+  - The spill words `0x64000`/`0x64004`.
+  - D6's `0xFFFF_FFFC` sentinel.
+- [ ] **Step 132** [SECURITY][R] ~15m: Can any user VA at priv 3 reach the table after D6? Walk a child's pgd as BPF
+  builds it (`main.rs` fork arm: PDE 0 and 1 only). Every other PDE is either not present (D6 → sentinel) or a
+  leftover from the kernel. That leftover is the `PG:` lead: if `PG:` was non-zero, compute what those entries map and
+  record whether they reach low memory.
+- [ ] **Step 133** [V] ~2m: The table has a "test" cell filled for every row. A row without a test → a probe in Steps
+  135-138.
+
+### Hostile probes
+
+- [ ] **Step 134** [CODE][W] ~20m: `crates/xv6-mbc/upstream/user/hostile_slot.c`. A child writes `cur_slot`-shaped
+  values at the table's address as seen from its own VA space, reading `0x160` through the same address (D6 makes
+  both read 0). It then calls getpid. Expected: getpid still returns its own pid, and init's later getpid still
+  returns 1.
+- [ ] **Step 135** [CODE][W] ~15m: `hostile_tf.c`. A child stores into what would be slot 2's trapframe VA, as computed
+  from the base, then forks a sibling, and the sibling calls getpid. Expected: the sibling's pid is correct and its
+  registers are intact (it prints a known stack canary after the trap).
+- [ ] **Step 136** [TEST][B][S] ~10m: Build (`gates`), then boot each of `hostile_pgd`, `hostile_slot`, `hostile_tf`
+  with the shipped flags: `for p in hostile_pgd hostile_slot hostile_tf; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p6-hostile.txt"`.
+- [ ] **Step 137** [V] ~2m: All expected verdicts.
+  - A failure is a real finding: write it to `$LOG` with the lines, and add a row to the next OUTSTANDING sweep.
+  - If D6 was escalated (not shipped), `hostile_pgd` and `hostile_tf` are expected to fail. Record that as the
+    escalation's evidence, not as a new finding.
+- [ ] **Step 138** [W] ~5m: Register the three hostile probes as harness gates in `scripts/upc-regression.sh`, with
+  absolute verdicts (`HP: ... same`). If D6 is not shipped, register them as skips with the escalation named.
+- [ ] **Step 139** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 131-138] rung 0-1 attack surface and hostile probes`.
+
+### Fuzz and repo gates
+
+- [ ] **Step 140** [TEST][B] ~6m: `cd "$PROJECT_ROOT/crates/monad-mbc" && timeout 400 cargo +nightly fuzz run fuzz_mbc_execute -- -max_total_time=300 2>&1 | tail -3`.
+- [ ] **Step 141** [V] ~30s: The run ends with `Done` and no crash artifact (`ls fuzz/artifacts/fuzz_mbc_execute/ 2>/dev/null | wc -l` → 0 new files).
+- [ ] **Step 142** [B] ~5m: `cd "$PROJECT_ROOT" && bash scripts/check-ebpf-insns.sh && bash scripts/check-gates-can-fail.sh 2>&1 | tail -2 && bash scripts/check-gitleaks.sh 2>&1 | tail -1 && bash scripts/check-clippy.sh 2>&1 | tail -1`.
+- [ ] **Step 143** [V] ~30s: Each script exits 0.
+  - A script that needs a tool not on west → record SKIP with the tool's name, not a pass.
+- [ ] **Step 144** [TEST][B] ~5m: `go test ./... 2>&1 | grep -c '^FAIL'; (cd cmd/upc-bootctl && cargo test --release 2>&1 | grep 'test result' | sort | uniq -c)`.
+- [ ] **Step 145** [V] ~30s: 0 Go FAIL; every cargo `test result: ok`.
+- [ ] **Step 146** [C][V] ~1m: **COMMIT CHECKPOINT + PHASE 6 EXIT GATE**
+  `docs(upc): [STAGE2 139-145] rung 0-1 security pass recorded`. The table is complete, the hostile probes are gated
+  (or skipped with the escalation named), and the fuzz run and repo gates are clean.
+
+---
+
+## PHASE 7: CLOSE RUNGS 0-1 (Steps 147-160)
+
+**Goal**: The record is complete: the log, the timeline, OUTSTANDING and ADR-109's status. The final regression is
+green, and the handoff is written.
+**Prerequisite**: Phases 5 and 6 exit gates.
+**Time**: ~1 h
+**Agent**: Solo
+
+- [ ] **Step 147** [TEST][B][S] ~15m: Final regression on the final tree:
+  - `bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'`;
+  - `sweep12 | grep -c SAME`;
+  - `go test ./... 2>&1 | grep -c '^FAIL'`;
+  - `bash scripts/check-ebpf-insns.sh`.
+- [ ] **Step 148** [V] ~1m: ALL GREEN; 12; 0; the ratchet passes. Record the ascend and Doom counts with the shipped
+  flags in `$LOG` §Close.
+- [ ] **Step 149** [DOC-UPDATE][W] ~5m: ADR-109 `**Status**: Accepted (<date>; rung 0 gate <Phase 4 commit>, rung 1
+  <Phase 5 commit>)`, and the `docs/adr/ADR-INDEX.md` row → **Accepted**. If D6 was escalated, the status says
+  "Accepted except D6 (escalated <date>)".
+- [ ] **Step 150** [DOC-UPDATE][W] ~10m: `references/timeline.md`, one dated entry in the Age 3 list: "EVOLUTION-1
+  Stage 2 rungs 0-1: kernel rows per BPF slot (ADR-109), getpid served by the owned kernel". Then the mirrors:
+  `go run ./services/timeguru/cmd/timeguru -sync-once 2>&1 | tail -1` if that flag exists; otherwise edit
+  json/yaml/toml in step with the md, as `f83c9cde` did (`git show --stat f83c9cde`).
+- [ ] **Step 151** [V] ~1m: `bash scripts/check-timeline-freshness.sh` → FRESH.
+- [ ] **Step 152** [DOC-UPDATE][W] ~10m: OUTSTANDING. In the newest `docs/sweeps/OUTSTANDING-*.md`, M-220 → DONE with
+  the Phase 5 commit, and M-221 → PARTIAL with "Stage 2 plan forged; rungs 0-1 done; rung 2 next". New rows: D6 if
+  escalated; the `PG:` lead if it was non-zero; any Phase 6 finding. Cite each with its log section.
+- [ ] **Step 153** [W] ~10m: `$LOG` §Close:
+  - every step done, STUCK or BLOCKED, by number;
+  - commit count: `git log --oneline sprint/ascend-2..HEAD | wc -l`;
+  - the verified counts table (Phase 0 → Phase 5);
+  - open leads: trigger halving, the init pgd, bootstub retirement, forktest's limit of 5.
+- [ ] **Step 154** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 147-153] rungs 0-1 closed: ADR-109 Accepted, timeline, OUTSTANDING`.
+- [ ] **Step 155** [B][S] ~1m: Host clean: `sudo bpftool prog show | grep -ciE 'monad|cart|heimdall'`;
+  `ip netns list`; `git status --short | wc -l`.
+- [ ] **Step 156** [V] ~30s: 0; `upc0` only; 0.
+  - [D] A leftover program → `sudo bash scripts/upc-netns.sh status` and detach through the boot tool's teardown,
+    never by hand on `enp*`.
+- [ ] **Step 157** [W] ~10m: `~/tmp/next.md` START HERE: branch and tip; rungs 0-1 done; rung 2 forge is next (the
+  skeleton's rung 2 prerequisites); the open decisions for Stevie (bootstub, S-ASCEND-2 E5, D6 if escalated);
+  budgets with the shipped flags.
+- [ ] **Step 158** [V] ~30s: `head -40 ~/tmp/next.md` names the tip commit that `git log --oneline -1` prints.
+- [ ] **Step 159** [C] ~1m: **FINAL COMMIT** (only if Step 157 changed tracked files; `next.md` is outside the repo).
+- [ ] **Step 160** [V] ~1m: **STAGE 2 RUNGS 0-1 EXIT GATE**:
+  - child pid equals `fork()`'s return with the flags on in the tree;
+  - the rung 0 asserter and mutation check pass in the harness;
+  - getpid ON equals OFF for every probe;
+  - 12 goldens SAME (`sweep12`);
+  - ascend ≤ 950,000;
+  - ADR-109 Accepted (or Accepted except D6);
+  - not pushed.
