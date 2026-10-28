@@ -335,3 +335,16 @@ Deviations: Step 137 ran as `govan`, not `nobody` (`/home/govan` is 0750); the p
 (`fd00:upc::`) are not valid IPv6; uid **16791** (16790 is planned for unheaded-doom in S-DOOM-LAST).
 Units: `deploy/systemd/unheaded-upc-netns.service`, `unheaded-upc-bootctl@.service` (+ `demo.conf.example`),
 sysusers `unheaded-upc 16791`, `pkg/uids` `UPC`. Not installed (E6).
+
+## E6 (Step 148): filed
+
+West host window for UPC isolation, adjusted to what Phase 5 measured. Install on west (a) `deploy/sysusers.d/unheaded.conf`
+→ `/etc/sysusers.d/` + `systemd-sysusers` (adds `unheaded-upc`, uid 16791); (b) `scripts/upc-netns.sh` →
+`/usr/local/libexec/unheaded/` and `unheaded-upc-netns.service` enabled (creates netns `upc0` at boot; nothing in the
+root namespace changes, unlike the plan's host nft rule); (c) `unheaded-upc-bootctl@.service` installed, not enabled,
+with `/etc/unheaded/upc/xv6.env` and the images + sidecars + object in `/var/lib/unheaded/upc`. Recommendation: yes.
+Undo: `systemctl disable --now unheaded-upc-netns; rm /etc/systemd/system/unheaded-upc-*; userdel unheaded-upc`.
+Until answered Steps 149-154 are skipped; FND-028 stays open.
+
+Phase 5 exit gate (Step 156): Items 4 and 5 run in the harness; Items 1-3 proven inside upc0 (Steps 138, 141, 144);
+harness green, sweep 8/8 SAME, budgets unchanged (923645 / 758321). M-224 DONE in code; FND-028 open for the host.

@@ -489,6 +489,29 @@ findings:
       go-licenses pinned and passing (9cd6cc05). What remains is Stevie's: re-enable the workflow (Actions, CI,
       Enable workflow) and check one green run. Enabling is a GitHub setting, so not done unattended.
 
+  - id: FND-028
+    title: >-
+      upc-bootctl boots the UPC as root through sudo, with the guest's veth in the root namespace, no seccomp, no
+      demo gate and an optional .rv2mbc hash (the five required-before-prod items of the 2026-05-13 UPC brief)
+    verify: >-
+      on west, unheaded-upc-netns.service is active (netns upc0 holds both veth ends and table inet unheaded_upc),
+      and `systemctl start unheaded-upc-bootctl@xv6` boots as unheaded-upc with no EPERM
+    host: west
+    severity: low
+    class: service
+    opened: 2026-10-28
+    exposure: >-
+      lab only: boots run by hand or by the regression harness under passwordless sudo on west; the guest is the
+      project's own xv6 image. A guest packet could reach the host stack through veth-upc0 while it lived in the root
+      namespace.
+    lockout: none
+    step: 7
+    plan: >-
+      Code done on sprint/ascend-2 (S-ASCEND-2 Phase 5, Steps 117-147): UPC_DEMO_MODE gate; every .rv2mbc checked
+      against its SHA-256 and BootParams v3; netns upc0 with both veth ends inside and a forward-drop rule (proven
+      with a forwarding control); bootctl non-root with CAP_BPF, CAP_PERFMON, CAP_NET_ADMIN, CAP_NET_RAW, seccomp
+      @system-service plus bpf and no exec. What remains is the host install, E6 (Steps 148-152).
+
   - id: FND-026
     title: West serves an old unsigned apt repo on 0.0.0.0:18888 with autoindex; its conf/ and db/ are readable on the LAN.
     verify: curl -s -o /dev/null -w '%{http_code}' http://<west LAN address>:18888/conf/distributions is not 200, and only the signed reprepro repo (deploy/nginx/unheaded-apt.conf) answers on 18888
