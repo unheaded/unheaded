@@ -34,6 +34,16 @@
 //! Keeping the seam at "raw ROM/RV2MBC writes" is what makes the refactor
 //! byte-identical: `load` drives exactly the `set(base + i, value)` sequence each
 //! loader emits today, proven by the characterization tests below.
+//!
+//! ## The freeze (S-ASCEND-2 Steps 157-161, ADR-080 §7)
+//!
+//! After the boot's last `ROM_MAP` / `RV2MBC_MAP` write, and after the gates,
+//! the loader calls [`ImageSink::finalize`] once; the aya sinks freeze both maps
+//! there (`BPF_MAP_FREEZE`), so every later userspace update fails `EPERM`. Then
+//! the loader attaches XDP. [`load`] is the single-image path (gates, writes,
+//! finalize: doom-runner). A loader that writes several images (upc-bootctl:
+//! kernel, init, resident programs) calls [`write_image`] per image and
+//! [`finalize`] once after the last write of the boot.
 
 use crate::image::GuestImage;
 use crate::object::ObjectFacts;
@@ -62,6 +72,13 @@ pub trait ImageSink {
     /// Write `entries` (MBC PCs) into `RV2MBC_MAP` at absolute indices
     /// `base + i`, in order.
     fn write_rv2mbc(&mut self, base: u32, entries: &[u32]) -> Result<(), Self::Error>;
+
+    /// Seal the image: called once, after the boot's last `ROM_MAP` /
+    /// `RV2MBC_MAP` write and before XDP attach. The aya sinks freeze both maps
+    /// (`BPF_MAP_FREEZE`); afterwards a userspace update of either fails
+    /// `EPERM`, while the program keeps reading them. An `Err` must abort the
+    /// boot before attach.
+    fn finalize(&mut self) -> Result<(), Self::Error>;
 }
 
 /// Why [`load`] refused or failed.
@@ -75,6 +92,9 @@ pub enum LoadError<E> {
     /// may already have been written when the `RV2MBC_MAP` write fails — the
     /// caller aborts the boot rather than run a partially-loaded image.
     Sink(E),
+    /// [`ImageSink::finalize`] failed: the maps were written but not frozen.
+    /// The caller aborts the boot before attach.
+    Finalize(E),
 }
 
 impl<E: core::fmt::Display> core::fmt::Display for LoadError<E> {
@@ -82,6 +102,7 @@ impl<E: core::fmt::Display> core::fmt::Display for LoadError<E> {
         match self {
             LoadError::Invalid(e) => write!(f, "workload rejected before load: {e}"),
             LoadError::Sink(e) => write!(f, "map write failed during load: {e}"),
+            LoadError::Finalize(e) => write!(f, "ROM_MAP/RV2MBC_MAP freeze failed: {e}"),
         }
     }
 }
@@ -90,13 +111,14 @@ impl<E: std::error::Error + 'static> std::error::Error for LoadError<E> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             LoadError::Invalid(e) => Some(e),
-            LoadError::Sink(e) => Some(e),
+            LoadError::Sink(e) | LoadError::Finalize(e) => Some(e),
         }
     }
 }
 
-/// Validate `workload` against `caps` and against the object's `facts`, then
-/// write its image (contract parts 1+2) through `sink`.
+/// Validate `workload` against `caps` and against the object's `facts`, write
+/// its image (contract parts 1+2) through `sink`, then [`finalize`] (freeze).
+/// For a boot with exactly one image; see [`write_image`] otherwise.
 ///
 /// Validation ([`validate`], then the I/O-time gates [`validate_against_object`]:
 /// surface vs `UPC_SURFACE_ID`, per-pid slice geometry) runs first, so a
@@ -112,7 +134,23 @@ impl<E: std::error::Error + 'static> std::error::Error for LoadError<E> {
 /// `text_rv_word_base`). The `base + i` additions cannot overflow `u32`:
 /// `validate` already proved `rom_start_slot + rom.len()` and
 /// `rv2mbc_word_base + rv2mbc.len()` both fit within the (`u32`) map capacities.
+///
+/// A refused workload or a failed write is never frozen; a failed freeze is
+/// [`LoadError::Finalize`].
 pub fn load<S: ImageSink>(
+    workload: &Workload,
+    caps: &MapCapacities,
+    facts: &ObjectFacts,
+    sink: &mut S,
+) -> Result<(), LoadError<S::Error>> {
+    write_image(workload, caps, facts, sink)?;
+    finalize(sink)
+}
+
+/// [`load`] without the freeze: validate `workload`, then write its ROM region
+/// and branch table. For a loader that writes several images in one boot; it
+/// calls [`finalize`] once after the last write.
+pub fn write_image<S: ImageSink>(
     workload: &Workload,
     caps: &MapCapacities,
     facts: &ObjectFacts,
@@ -126,6 +164,12 @@ pub fn load<S: ImageSink>(
     sink.write_rv2mbc(image.rv2mbc_word_base, &image.rv2mbc)
         .map_err(LoadError::Sink)?;
     Ok(())
+}
+
+/// Freeze the image maps through [`ImageSink::finalize`]. Call once, after the
+/// boot's last `ROM_MAP` / `RV2MBC_MAP` write and before XDP attach.
+pub fn finalize<S: ImageSink>(sink: &mut S) -> Result<(), LoadError<S::Error>> {
+    sink.finalize().map_err(LoadError::Finalize)
 }
 
 #[cfg(test)]
@@ -160,6 +204,8 @@ mod tests {
     struct RecordingSink {
         rom: Vec<(u32, u32)>,
         rv2mbc: Vec<(u32, u32)>,
+        /// `Freeze` events, with the number of writes seen when each happened.
+        freezes: Vec<usize>,
     }
 
     impl ImageSink for RecordingSink {
@@ -174,6 +220,10 @@ mod tests {
             for (i, &e) in entries.iter().enumerate() {
                 self.rv2mbc.push((base + i as u32, e));
             }
+            Ok(())
+        }
+        fn finalize(&mut self) -> Result<(), Infallible> {
+            self.freezes.push(self.rom.len() + self.rv2mbc.len());
             Ok(())
         }
     }
@@ -228,6 +278,8 @@ mod tests {
         load(&w, &CAPS, &facts(), &mut sink).unwrap();
         assert_eq!(sink.rom, oracle(0, &w.image.rom));
         assert_eq!(sink.rv2mbc, oracle(0, &w.image.rv2mbc));
+        // One freeze, after all 4 + 5 writes.
+        assert_eq!(sink.freezes, vec![9]);
     }
 
     #[test]
@@ -261,6 +313,7 @@ mod tests {
         assert_eq!(err, LoadError::Invalid(ValidationError::EmptyRom));
         assert!(sink.rom.is_empty());
         assert!(sink.rv2mbc.is_empty());
+        assert!(sink.freezes.is_empty());
     }
 
     #[test]
@@ -287,6 +340,9 @@ mod tests {
             }
             fn write_rv2mbc(&mut self, _: u32, _: &[u32]) -> Result<(), &'static str> {
                 Ok(())
+            }
+            fn finalize(&mut self) -> Result<(), &'static str> {
+                panic!("a failed write must not be frozen");
             }
         }
         let w = workload(0, 0);

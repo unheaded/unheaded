@@ -26,17 +26,19 @@
 //! ```
 
 pub mod bridge;
+pub mod freeze;
 pub mod loader;
 pub mod memory;
 pub mod ring;
 pub mod tail_calls;
 
+use std::os::fd::AsFd;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::{bail, Context, Result};
-use aya::maps::{Array, HashMap as AyaHashMap, ProgramArray};
+use aya::maps::{Array, HashMap as AyaHashMap, IterableMap, ProgramArray};
 use aya::programs::Xdp;
 use aya::Ebpf;
 use clap::{Parser, Subcommand};
@@ -247,7 +249,8 @@ fn preflight_object(ebpf_obj: &std::path::Path) -> Result<upc_api::ObjectFacts> 
 /// An [`upc_api::ImageSink`] over the live Aya eBPF object. `write_rom` /
 /// `write_rv2mbc` open their map once and run the same `set(base + i, value)`
 /// loop doom-runner used inline, so routing through `upc_api::load` writes
-/// byte-identical `ROM_MAP` / `RV2MBC_MAP` contents.
+/// byte-identical `ROM_MAP` / `RV2MBC_MAP` contents. `finalize` freezes both
+/// (`BPF_MAP_FREEZE`, S-ASCEND-2 Steps 157-161) once `load` has written them.
 struct EbpfImageSink<'a> {
     ebpf: &'a mut Ebpf,
 }
@@ -281,6 +284,19 @@ impl upc_api::ImageSink for EbpfImageSink<'_> {
             rv2mbc_map
                 .set(idx, val, 0)
                 .with_context(|| format!("RV2MBC_MAP write failed at index {idx}"))?;
+        }
+        Ok(())
+    }
+
+    fn finalize(&mut self) -> Result<()> {
+        for name in ["ROM_MAP", "RV2MBC_MAP"] {
+            let map: Array<_, u32> = Array::try_from(
+                self.ebpf
+                    .map(name)
+                    .with_context(|| format!("{name} not found in eBPF program"))?,
+            )?;
+            freeze::freeze_map(map.map().fd().as_fd())
+                .with_context(|| format!("BPF_MAP_FREEZE {name}"))?;
         }
         Ok(())
     }
@@ -674,7 +690,9 @@ async fn cmd_run(
     // 5a + 5c: ROM_MAP + RV2MBC_MAP via the shared image loader (Epic 1.2.3,
     // ADR-080). Build Doom's Workload and route both map writes through
     // upc_api::load: validate() (image bounds, entry-in-ROM, every rv2mbc target
-    // in ROM) then the same set(i, value) loops doom-runner ran inline. A missing
+    // in ROM) then the same set(i, value) loops doom-runner ran inline, then
+    // freezes both maps (EbpfImageSink::finalize): Doom writes no other image,
+    // so this is the last ROM_MAP / RV2MBC_MAP write. A missing
     // .rv2mbc yields an empty table (already warned above) — no writes, matching
     // the prior `if let Some` skip. RAM_MAP (5b) and CPU_MAP (5d) stay Doom-
     // specific and are populated below.
@@ -687,7 +705,7 @@ async fn cmd_run(
         upc_api::load(&workload, &doom_map_capacities(), &facts, &mut sink)
             .map_err(|e| anyhow::anyhow!("doom image load: {e}"))?;
         info!(
-            "ROM_MAP + RV2MBC_MAP: {n_rom} + {n_rv} entries written in {:.1}s (upc_api::load)",
+            "ROM_MAP + RV2MBC_MAP: {n_rom} + {n_rv} entries written and frozen in {:.1}s (upc_api::load)",
             t.elapsed().as_secs_f64()
         );
     }
