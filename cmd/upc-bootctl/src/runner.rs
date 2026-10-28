@@ -210,9 +210,9 @@ impl BootRunner {
     /// .rv2mbc bytes and surface it as a hex string. If `expected_sha`
     /// is Some, fail-fast when the computed hash mismatches —
     /// attacker-supplied `.rv2mbc` files would redirect every indirect
-    /// branch in the loaded image. The caller (typically the
-    /// `UPC_RV2MBC_SHA` env-var path in main.rs) decides whether to
-    /// enforce.
+    /// branch in the loaded image. Since S-ASCEND-2 Item 5 the kernel path
+    /// in main.rs always passes the hash `rv2mbc::check_all` verified, so
+    /// this is a second check over the same bytes.
     pub fn populate_rv2mbc(
         &mut self,
         bytes: &[u8],
@@ -688,9 +688,9 @@ impl BootRunner {
 /// Route `BootRunner` through the shared image loader (Epic 1.2.3, ADR-080).
 /// `write_rom` delegates to the existing `populate_rom_at`; `write_rv2mbc` runs
 /// the same absolute-index `set(base + i, entry)` loop as `populate_rv2mbc`'s
-/// inner body, minus the SHA gate — the `.rv2mbc` integrity gate stays on the
-/// kernel path (which does not go through `upc_api::load`) since the userland
-/// programs this sink serves carry no `expected_rv2mbc_sha256`.
+/// inner body, minus the SHA gate: the entries it gets are relocated, so the
+/// gate runs earlier, in `rv2mbc::check_all`, over the program's `.rv2mbc`
+/// file bytes (S-ASCEND-2 Item 5).
 impl upc_api::ImageSink for BootRunner {
     type Error = anyhow::Error;
 

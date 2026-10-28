@@ -34,6 +34,7 @@
 //! | —    | The four bundled into one loadable guest | [`workload`] |
 //! | —    | Host-side registry of surfaces (ADR-080 §4) | [`registry`] |
 //! | —    | What the eBPF object declares about itself (I/O-time gates) | [`object`], [`surface_hash`] |
+//! | —    | `.rv2mbc` SHA-256 gate (flag → sidecar → refuse) | [`rv2mbc_sha`] |
 //!
 //! ## The intended payoff
 //!
@@ -79,6 +80,7 @@ pub mod load;
 pub mod memory;
 pub mod object;
 pub mod registry;
+pub mod rv2mbc_sha;
 /// The canonical syscall-surface id (SHA-256 over the sorted number list).
 /// Documented here rather than with `//!` because
 /// `ebpf/monad-cpu-ebpf/build.rs` `include!`s the file, and an included file

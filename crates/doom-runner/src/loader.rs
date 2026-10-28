@@ -209,8 +209,13 @@ pub fn load_mbc_rom(mbc_path: &Path) -> Result<Vec<u32>> {
 pub fn load_rv2mbc(rv2mbc_path: &Path) -> Result<Vec<u32>> {
     let bytes = std::fs::read(rv2mbc_path)
         .with_context(|| format!("failed to read rv2mbc: {}", rv2mbc_path.display()))?;
+    parse_rv2mbc(&bytes, rv2mbc_path)
+}
 
-    if bytes.len() % 4 != 0 {
+/// Parse `.rv2mbc` bytes already read from `rv2mbc_path` (and SHA-checked by
+/// the caller, S-ASCEND-2 Item 5) into the RV2MBC_MAP table.
+pub fn parse_rv2mbc(bytes: &[u8], rv2mbc_path: &Path) -> Result<Vec<u32>> {
+    if !bytes.len().is_multiple_of(4) {
         bail!("rv2mbc file size ({}) is not a multiple of 4", bytes.len());
     }
 
@@ -224,7 +229,7 @@ pub fn load_rv2mbc(rv2mbc_path: &Path) -> Result<Vec<u32>> {
     }
 
     let mut table = Vec::with_capacity(count);
-    let mut cursor = std::io::Cursor::new(&bytes);
+    let mut cursor = std::io::Cursor::new(bytes);
     for _ in 0..count {
         table.push(cursor.read_u32::<LittleEndian>()?);
     }

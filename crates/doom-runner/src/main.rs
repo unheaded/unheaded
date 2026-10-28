@@ -15,6 +15,9 @@
 //! sudo doom-runner run --doom-mbc doom/doom.mbc --doom-elf doom/doom.elf \
 //!     --rv2mbc doom/doom.rv2mbc --wad doom1.wad --hops 2
 //!
+//! # `doom/doom.rv2mbc` is checked against `doom/doom.rv2mbc.sha256` (or
+//! # --rv2mbc-sha) before the ring or any map exists; --dry-run stops there.
+//!
 //! # Just set up the network ring
 //! sudo doom-runner ring setup
 //!
@@ -152,8 +155,13 @@ fn doom_map_capacities() -> upc_api::MapCapacities {
 /// Build Doom's `Workload`: the MBC image at ROM slot 0, its `.rv2mbc` table at
 /// index 0, entry PC 0 (Doom enters at the first ROM slot), flat memory, direct
 /// boot. RAM (WAD + ELF data) and the initial CPU state are populated separately
-/// — they are outside contract parts 1+2.
-fn doom_workload(rom: Vec<u32>, rv2mbc: Vec<u32>) -> upc_api::Workload {
+/// — they are outside contract parts 1+2. `rv2mbc_sha256` is the hash
+/// [`checked_doom_rv2mbc`] verified.
+fn doom_workload(
+    rom: Vec<u32>,
+    rv2mbc: Vec<u32>,
+    rv2mbc_sha256: Option<String>,
+) -> upc_api::Workload {
     upc_api::Workload {
         name: "doom".to_string(),
         image: upc_api::GuestImage {
@@ -161,7 +169,7 @@ fn doom_workload(rom: Vec<u32>, rv2mbc: Vec<u32>) -> upc_api::Workload {
             rom_start_slot: 0,
             rv2mbc,
             rv2mbc_word_base: 0,
-            expected_rv2mbc_sha256: None,
+            expected_rv2mbc_sha256: rv2mbc_sha256,
             entry: upc_api::MbcPc(0),
         },
         memory: upc_api::MemoryModel::Flat,
@@ -169,6 +177,52 @@ fn doom_workload(rom: Vec<u32>, rv2mbc: Vec<u32>) -> upc_api::Workload {
         boot: upc_api::BootProtocol::Direct,
         mmu: None,
     }
+}
+
+/// Doom's `.rv2mbc`, read once and SHA-checked (S-ASCEND-2 Item 5).
+#[derive(Debug)]
+struct DoomRv2mbc {
+    entries: Vec<u32>,
+    /// The verified SHA-256 (hex). `None` only under the dry-run hatch.
+    sha256: Option<String>,
+}
+
+/// `--allow-unverified-rv2mbc` is a lab-only hatch: accepted with `--dry-run`,
+/// refused on a live run.
+fn hatch_gate(allow_unverified: bool, dry_run: bool) -> Result<()> {
+    if allow_unverified && !dry_run {
+        bail!(
+            "--allow-unverified-rv2mbc is accepted only with --dry-run; a live run \
+             verifies doom.rv2mbc (commit or regenerate doom/doom.rv2mbc.sha256)"
+        );
+    }
+    Ok(())
+}
+
+/// Read `path` once and check it with the shared resolver (`explicit`, else
+/// `<path>.sha256`, else refuse) before anything writes RV2MBC_MAP. Under the
+/// hatch a missing hash is a warning; a mismatch is refused either way. No
+/// `--rv2mbc` loads nothing (indirect jumps then do not work, as before).
+fn checked_doom_rv2mbc(
+    path: Option<&std::path::Path>,
+    explicit: Option<&str>,
+    allow_unverified: bool,
+) -> Result<Option<DoomRv2mbc>> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let (bytes, sha256) = match upc_api::rv2mbc_sha::read_verified(path, explicit) {
+        Ok(v) => (v.bytes, Some(upc_api::object::hex32(&v.sha256))),
+        Err(e @ upc_api::rv2mbc_sha::Rv2mbcShaError::Required { .. }) if allow_unverified => {
+            warn!("--allow-unverified-rv2mbc: {e}; continuing unverified (dry run)");
+            let bytes = std::fs::read(path)
+                .with_context(|| format!("failed to read rv2mbc: {}", path.display()))?;
+            (bytes, None)
+        }
+        Err(e) => bail!("refusing to load: {e}"),
+    };
+    let entries = loader::parse_rv2mbc(&bytes, path)?;
+    Ok(Some(DoomRv2mbc { entries, sha256 }))
 }
 
 /// Gate A (and Gate B, which a flat guest passes) on the object file before
@@ -298,6 +352,21 @@ enum Commands {
         /// Skip bridge server (headless mode).
         #[arg(long)]
         headless: bool,
+
+        /// Expected SHA-256 (64 hex digits) of the `--rv2mbc` file. Else its
+        /// `<file>.sha256` sidecar; with neither the run is refused.
+        #[arg(long, value_name = "HEX")]
+        rv2mbc_sha: Option<String>,
+
+        /// Lab-only: continue when the `.rv2mbc` has no expected SHA-256
+        /// (warning). Accepted only with --dry-run; never excuses a mismatch.
+        #[arg(long)]
+        allow_unverified_rv2mbc: bool,
+
+        /// Check the layout, the object gates and the `.rv2mbc` SHA, then
+        /// exit: no ring, no eBPF load, no map write.
+        #[arg(long)]
+        dry_run: bool,
     },
 
     /// Network ring management.
@@ -361,6 +430,9 @@ async fn main() -> Result<()> {
             bridge_addr,
             skip_ring,
             headless,
+            rv2mbc_sha,
+            allow_unverified_rv2mbc,
+            dry_run,
         } => {
             cmd_run(
                 doom_mbc,
@@ -373,6 +445,9 @@ async fn main() -> Result<()> {
                 bridge_addr,
                 skip_ring,
                 headless,
+                rv2mbc_sha,
+                allow_unverified_rv2mbc,
+                dry_run,
             )
             .await
         }
@@ -397,20 +472,57 @@ async fn cmd_run(
     bridge_addr: String,
     skip_ring: bool,
     headless: bool,
+    rv2mbc_sha: Option<String>,
+    allow_unverified_rv2mbc: bool,
+    dry_run: bool,
 ) -> Result<()> {
     info!("doom-runner: Aya-based full pipeline (no pins, no mismatches)");
     let t0 = Instant::now();
+    hatch_gate(allow_unverified_rv2mbc, dry_run)?;
 
     // Step 0: Validate memory layout
     memory::validate_layout().context("memory layout validation failed")?;
     info!("memory layout validated");
 
     // Step 0b: the object's surface must be Doom's (S-ASCEND-2 Steps 95-106).
-    let facts = preflight_object(&ebpf_obj)?;
-    info!(
-        "object gates passed: {} carries Doom's surface",
-        ebpf_obj.display()
-    );
+    // A dry run without an object skips it (the gates read the file only).
+    let facts = if dry_run && !ebpf_obj.exists() {
+        info!(
+            "dry run: object gates not run: no object at {}",
+            ebpf_obj.display()
+        );
+        None
+    } else {
+        let facts = preflight_object(&ebpf_obj)?;
+        info!(
+            "object gates passed: {} carries Doom's surface",
+            ebpf_obj.display()
+        );
+        Some(facts)
+    };
+
+    // Step 0c: the .rv2mbc SHA-256 gate (S-ASCEND-2 Item 5), before the ring or
+    // any map exists. These bytes are the ones written to RV2MBC_MAP below.
+    let rv2mbc_checked = checked_doom_rv2mbc(
+        rv2mbc_path.as_deref(),
+        rv2mbc_sha.as_deref(),
+        allow_unverified_rv2mbc,
+    )?;
+    match &rv2mbc_checked {
+        Some(DoomRv2mbc {
+            entries,
+            sha256: Some(h),
+        }) => info!("RV2MBC: {} entries, sha256 {h} verified", entries.len()),
+        Some(DoomRv2mbc { entries, .. }) => {
+            warn!("RV2MBC: {} entries UNVERIFIED (dry run)", entries.len())
+        }
+        None => warn!("no rv2mbc file provided — indirect jumps will not work"),
+    }
+    if dry_run {
+        println!("dry-run complete: no ring, no eBPF load, no map write");
+        return Ok(());
+    }
+    let facts = facts.context("object facts missing on a live run")?;
 
     // Step 1: Set up network ring (namespaces + veth pairs)
     if !skip_ring {
@@ -540,13 +652,9 @@ async fn cmd_run(
         rom.len() as f64 * 4.0 / 1024.0
     );
 
-    let rv2mbc_data = if let Some(ref path) = rv2mbc_path {
-        let data = loader::load_rv2mbc(path).context("failed to load rv2mbc")?;
-        info!("RV2MBC: {} entries", data.len());
-        Some(data)
-    } else {
-        warn!("no rv2mbc file provided — indirect jumps will not work");
-        None
+    let (rv2mbc_data, rv2mbc_sha256) = match rv2mbc_checked {
+        Some(r) => (Some(r.entries), r.sha256),
+        None => (None, None),
     };
 
     let wad_data = loader::load_wad(&wad_path).context("failed to load WAD")?;
@@ -570,7 +678,7 @@ async fn cmd_run(
     // .rv2mbc yields an empty table (already warned above) — no writes, matching
     // the prior `if let Some` skip. RAM_MAP (5b) and CPU_MAP (5d) stay Doom-
     // specific and are populated below.
-    let workload = doom_workload(rom, rv2mbc_data.unwrap_or_default());
+    let workload = doom_workload(rom, rv2mbc_data.unwrap_or_default(), rv2mbc_sha256);
     {
         let t = Instant::now();
         let n_rom = workload.image.rom.len();
@@ -977,7 +1085,7 @@ mod upc_gate_tests {
 
     #[test]
     fn doom_workload_is_flat_and_passes_gate_b() {
-        let w = doom_workload(vec![0x2700_0000], vec![0]);
+        let w = doom_workload(vec![0x2700_0000], vec![0], None);
         assert_eq!(w.mmu, None);
         assert_eq!(
             upc_api::validate_against_object(
@@ -987,5 +1095,115 @@ mod upc_gate_tests {
             ),
             Ok(())
         );
+    }
+}
+
+#[cfg(test)]
+mod rv2mbc_gate_tests {
+    //! S-ASCEND-2 Item 5: the Doom `.rv2mbc` is checked against its SHA-256
+    //! (explicit `--rv2mbc-sha`, else `doom.rv2mbc.sha256`) before any map write.
+    use super::*;
+    use std::path::{Path, PathBuf};
+
+    const RV: &[u8] = &[0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00];
+    const WRONG: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+
+    fn good_hex() -> String {
+        upc_api::object::hex32(&upc_api::surface_hash::sha256(RV))
+    }
+
+    fn fixture(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("doom-rv2mbc-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let rv = dir.join("doom.rv2mbc");
+        std::fs::write(&rv, RV).unwrap();
+        rv
+    }
+
+    fn sidecar(rv: &Path, text: &str) {
+        std::fs::write(upc_api::rv2mbc_sha::sidecar_path(rv), text).unwrap();
+    }
+
+    fn cleanup(rv: &Path) {
+        std::fs::remove_dir_all(rv.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn no_sidecar_is_refused() {
+        let rv = fixture("required");
+        let err = checked_doom_rv2mbc(Some(&rv), None, false).unwrap_err();
+        assert!(err.to_string().contains("Rv2mbcShaRequired"), "{err:#}");
+        cleanup(&rv);
+    }
+
+    #[test]
+    fn correct_sidecar_loads_the_entries() {
+        let rv = fixture("ok");
+        sidecar(&rv, &format!("{}  doom.rv2mbc\n", good_hex()));
+        let got = checked_doom_rv2mbc(Some(&rv), None, false)
+            .unwrap()
+            .unwrap();
+        assert_eq!(got.entries, vec![0, 1]);
+        assert_eq!(got.sha256.as_deref(), Some(good_hex().as_str()));
+        cleanup(&rv);
+    }
+
+    #[test]
+    fn explicit_sha_wins() {
+        let rv = fixture("explicit");
+        sidecar(&rv, WRONG);
+        assert!(checked_doom_rv2mbc(Some(&rv), Some(&good_hex()), false).is_ok());
+        cleanup(&rv);
+    }
+
+    #[test]
+    fn mismatch_is_refused_even_with_the_hatch() {
+        let rv = fixture("mismatch");
+        sidecar(&rv, WRONG);
+        let err = checked_doom_rv2mbc(Some(&rv), None, true).unwrap_err();
+        assert!(err.to_string().contains("Rv2mbcShaMismatch"), "{err:#}");
+        cleanup(&rv);
+    }
+
+    #[test]
+    fn hatch_loads_unverified_without_a_hash() {
+        let rv = fixture("hatch");
+        let got = checked_doom_rv2mbc(Some(&rv), None, true).unwrap().unwrap();
+        assert_eq!(got.entries, vec![0, 1]);
+        assert_eq!(got.sha256, None);
+        cleanup(&rv);
+    }
+
+    #[test]
+    fn no_rv2mbc_flag_loads_nothing() {
+        assert!(checked_doom_rv2mbc(None, None, false).unwrap().is_none());
+    }
+
+    #[test]
+    fn hatch_is_dry_run_only() {
+        assert!(hatch_gate(false, false).is_ok());
+        assert!(hatch_gate(true, true).is_ok());
+        let err = hatch_gate(true, false).unwrap_err().to_string();
+        assert!(
+            err.contains("--allow-unverified-rv2mbc is accepted only with --dry-run"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn verified_hash_reaches_the_workload() {
+        let w = doom_workload(vec![0x2700_0000], vec![0], Some(good_hex()));
+        assert_eq!(w.image.expected_rv2mbc_sha256, Some(good_hex()));
+    }
+
+    /// The committed `doom/doom.rv2mbc.sha256` must match `doom/doom.rv2mbc`.
+    #[test]
+    fn committed_doom_sidecar_matches() {
+        let rv = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../doom/doom.rv2mbc");
+        let got = checked_doom_rv2mbc(Some(&rv), None, false)
+            .expect("doom/doom.rv2mbc verifies against its committed sidecar")
+            .unwrap();
+        assert!(!got.entries.is_empty());
     }
 }

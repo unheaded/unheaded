@@ -36,11 +36,14 @@
 // the symbol resolvable by the linker. 4 KB per CPU, NCPU CPUs.
 __attribute__((aligned(16))) char stack0[4096 * NCPU];
 
-// ── BootParams v2 layout (at byte address 0x100) ───────────────────────────
-// See docs/doom/UPC_BOOT_PROTOCOL_V2.md.
+// ── BootParams v2/v3 layout (at byte address 0x100) ────────────────────────
+// See docs/doom/UPC_BOOT_PROTOCOL_V2.md. v3 (S-ASCEND-2) = the v2 layout with
+// the loader-verified kernel .rv2mbc SHA-256 in bytes 64..96. Both versions
+// are accepted for one release; the kernel does not read the hash.
 #define BOOT_PARAMS_ADDR  0x100
 #define BOOT_MAGIC        0x554E4844u  // 'UNHD'
 #define BOOT_VERSION_V2   2
+#define BOOT_VERSION_V3   3
 
 struct boot_params_v2 {
     uint32 magic;
@@ -59,7 +62,8 @@ struct boot_params_v2 {
     uint32 initrd2_addr;
     uint32 cmd_line_args_ptr;
     uint32 boot_random_seed;
-    uint32 reserved[48];
+    uint8  rv2mbc_sha256[32];  // v3; zero in v2
+    uint32 reserved[40];
 };
 
 // ── Memory-mapped CSR region (ADR-067 Decision 2) ─────────────────────────
@@ -134,7 +138,8 @@ start(void)
         __asm__ volatile ("ebreak"); /* translator emits MBC HALT for ebreak */
         while (1) {}
     }
-    if (bp->version != BOOT_VERSION_V2) {
+    uint32 version = bp->version;
+    if (version != BOOT_VERSION_V2 && version != BOOT_VERSION_V3) {
         mmio_puts("BOOT FAIL: bad version\n");
         __asm__ volatile ("ebreak"); /* translator emits MBC HALT for ebreak */
         while (1) {}

@@ -6,7 +6,7 @@
 // `references/battle-plan-ascend-linux-2026-05-08.md`.
 //
 // Loads a translated MBC kernel image (xv6-mbc.mbc, uclinux-mbc.mbc, etc.),
-// validates it, prepares BootParams v2, and dispatches a boot trigger to
+// validates it, prepares BootParams v3, and dispatches a boot trigger to
 // the UPC instance.
 //
 // **Status**: skeleton with `validate` and `boot --dry-run` subcommands.
@@ -24,6 +24,7 @@ mod bootparams;
 mod geometry;
 mod netns;
 mod runner;
+mod rv2mbc;
 mod tty_bridge;
 
 #[derive(Parser, Debug)]
@@ -121,6 +122,18 @@ enum Cmd {
         /// inside the namespace `scripts/upc-netns.sh up` made.
         #[arg(long)]
         create_netns: bool,
+
+        /// Expected SHA-256 (64 hex digits) of the kernel's `.rv2mbc`. Else
+        /// `UPC_RV2MBC_SHA`, else the `<kernel>.rv2mbc.sha256` sidecar; with
+        /// none of them the boot is refused (S-ASCEND-2 Item 5). The userland
+        /// and resident programs always use their sidecars.
+        #[arg(long, value_name = "HEX")]
+        rv2mbc_sha: Option<String>,
+
+        /// Lab-only: continue when a `.rv2mbc` has no expected SHA-256 (prints
+        /// a warning). Accepted only with --dry-run; never excuses a mismatch.
+        #[arg(long)]
+        allow_unverified_rv2mbc: bool,
     },
 
     /// Boot a kernel and run it interactively (Mode A/B): TTY output streams
@@ -169,6 +182,10 @@ enum Cmd {
         /// Old root-namespace setup (see `boot --create-netns`).
         #[arg(long)]
         create_netns: bool,
+
+        /// Expected SHA-256 of the kernel's `.rv2mbc` (see `boot --rv2mbc-sha`).
+        #[arg(long, value_name = "HEX")]
+        rv2mbc_sha: Option<String>,
     },
 }
 
@@ -315,9 +332,10 @@ fn xv6_map_capacities() -> upc_api::MapCapacities {
 /// an already-relocated MBC image at `rom_start_slot`, its shifted `.rv2mbc`
 /// entries at `rv2mbc_word_base`, and the entry slot (for the `EntryOutOfRange`
 /// check). Memory model is per-pid MMU with `mmu` as its slice layout, boot is
-/// Direct (no bootstub), and the surface is the shared xv6 allowlist. `.rv2mbc`
-/// SHA gating is not carried here (userland programs ship none — the kernel path
-/// owns that gate).
+/// Direct (no bootstub), and the surface is the shared xv6 allowlist.
+/// `rv2mbc_sha256` is the hash `rv2mbc::check_all` verified over the program's
+/// `.rv2mbc` file before relocation.
+#[allow(clippy::too_many_arguments)]
 fn xv6_program_workload(
     name: &str,
     rom: Vec<u32>,
@@ -326,6 +344,7 @@ fn xv6_program_workload(
     rv2mbc_word_base: u32,
     entry: u32,
     mmu: &upc_api::MmuLayout,
+    rv2mbc_sha256: Option<String>,
 ) -> upc_api::Workload {
     upc_api::Workload {
         name: name.to_string(),
@@ -334,7 +353,7 @@ fn xv6_program_workload(
             rom_start_slot,
             rv2mbc,
             rv2mbc_word_base,
-            expected_rv2mbc_sha256: None,
+            expected_rv2mbc_sha256: rv2mbc_sha256,
             entry: upc_api::MbcPc(entry),
         },
         memory: upc_api::MemoryModel::PerPidMmu,
@@ -382,6 +401,7 @@ fn load_resident_program(
     facts: &upc_api::ObjectFacts,
     mmu: &upc_api::MmuLayout,
     mbc_path: &Path,
+    rv: &rv2mbc::CheckedRv2mbc,
     name: &str,
     slot: u32,
     rom_base: u32,
@@ -419,13 +439,12 @@ fn load_resident_program(
 
     // rv2mbc: values shifted by rom_base (RV word → that program's ROM slot);
     // loaded at index base rv2mbc_base so each program owns a disjoint region.
-    let rv2mbc_path = mbc_path.with_extension("rv2mbc");
-    let rv =
-        std::fs::read(&rv2mbc_path).with_context(|| format!("read {}", rv2mbc_path.display()))?;
-    if !rv.len().is_multiple_of(4) {
-        bail!("{} not 4-byte aligned", rv2mbc_path.display());
+    // The bytes were read and SHA-checked by rv2mbc::check_all.
+    if !rv.bytes.len().is_multiple_of(4) {
+        bail!("{} not 4-byte aligned", rv.path.display());
     }
     let rv_entries: Vec<u32> = rv
+        .bytes
         .as_chunks::<4>()
         .0
         .iter()
@@ -445,6 +464,7 @@ fn load_resident_program(
         rv2mbc_base,
         rom_base,
         mmu,
+        rv.sha_hex(),
     );
     upc_api::load(&workload, &xv6_map_capacities(), facts, runner)
         .map_err(|e| anyhow!("{name} image load: {e}"))?;
@@ -551,6 +571,7 @@ fn boot_prepare(
     instance: u8,
     input: Option<&str>,
     mmu: &upc_api::MmuLayout,
+    rv: &rv2mbc::Rv2mbcSet,
 ) -> Result<(runner::BootRunner, runner::MbcCpuState)> {
     // ── LIVE BOOT PATH (Phase 1.1 SHIP per battle-plan-phase11-ship-2026-05-10.md) ──
     let kernel_bytes =
@@ -563,7 +584,16 @@ fn boot_prepare(
         .map(|c| u32::from_le_bytes(*c))
         .collect();
 
-    let bp = bootparams::BootParamsV2::for_xv6(kernel_bytes.len() as u32, 0);
+    // BootParams v3 carries the kernel .rv2mbc SHA-256 that check_all verified.
+    // A live boot always has it: check_all refuses a missing kernel .rv2mbc,
+    // and the unverified hatch is dry-run only.
+    let kernel_rv = rv
+        .kernel
+        .as_ref()
+        .filter(|k| k.sha256.is_some())
+        .ok_or_else(|| anyhow!("kernel .rv2mbc not verified; refusing a live boot"))?;
+    let kernel_rv_sha = kernel_rv.sha256.unwrap_or_default();
+    let bp = bootparams::BootParamsV2::for_xv6(kernel_bytes.len() as u32, 0, kernel_rv_sha);
     let bp_bytes = bp.to_bytes();
 
     let ebpf_obj = std::env::var("MONAD_CPU_EBPF_OBJ")
@@ -679,49 +709,25 @@ fn boot_prepare(
     // 0x8000) per kernel-mbc.ld; the loader shifts entries by that base
     // so the BPF interpreter's absolute-RV-word lookups hit the right
     // slot. Phase 2 will pass a different base for the bootstub flow.
-    let rv2mbc_path = kernel.with_extension("rv2mbc");
+    //
+    // S-ASCEND-2 Item 5: the bytes were read and SHA-checked by
+    // rv2mbc::check_all before the object was opened; populate_rv2mbc hashes
+    // them again against that SHA before its first map write.
     let text_rv_word_base: u32 = 0x8000; // xv6 .text base = RV byte 0x20000
-                                         // Phase 1.3 ADR-075 §Security #1: if UPC_RV2MBC_SHA is set, the loader
-                                         // verifies the .rv2mbc bytes against this SHA-256 before any BPF map
-                                         // write. Build pipelines should always set this; dev loops can omit
-                                         // (the SHA is logged either way).
-    let expected_rv2mbc_sha = std::env::var("UPC_RV2MBC_SHA").ok();
-    if rv2mbc_path.exists() {
-        match std::fs::read(&rv2mbc_path) {
-            Ok(bytes) => match runner.populate_rv2mbc(
-                &bytes,
-                text_rv_word_base,
-                expected_rv2mbc_sha.as_deref(),
-            ) {
-                Ok(()) => println!(
-                    "  RV→MBC map: loaded {} ({} entries @ RV-word-base 0x{:04X}{})",
-                    rv2mbc_path.display(),
-                    bytes.len() / 4,
-                    text_rv_word_base,
-                    if expected_rv2mbc_sha.is_some() {
-                        " + SHA gate"
-                    } else {
-                        ""
-                    }
-                ),
-                Err(e) => {
-                    // Integrity gate failure is fail-fast: bail out so the boot
-                    // doesn't proceed with an untrusted translation table.
-                    bail!("rv2mbc load failed: {}", e);
-                }
-            },
-            Err(e) => println!(
-                "  ⚠ rv2mbc map at {} unreadable: {}",
-                rv2mbc_path.display(),
-                e
-            ),
-        }
-    } else {
-        println!(
-            "  ⚠ no rv2mbc map at {} — MRET/SRET/JALR/CALLR will fall through",
-            rv2mbc_path.display()
-        );
-    }
+    let kernel_rv_hex = kernel_rv.sha_hex();
+    runner
+        .populate_rv2mbc(
+            &kernel_rv.bytes,
+            text_rv_word_base,
+            kernel_rv_hex.as_deref(),
+        )
+        .map_err(|e| anyhow!("rv2mbc load failed: {e}"))?;
+    println!(
+        "  RV→MBC map: loaded {} ({} entries @ RV-word-base 0x{:04X} + SHA gate)",
+        kernel_rv.path.display(),
+        kernel_rv.bytes.len() / 4,
+        text_rv_word_base
+    );
 
     // Phase 1.5: load the userland MBC image into a dedicated ROM_MAP region
     // (USER_ROM_BASE = 0x4000) plus shifted RV2MBC entries (starting at slot 0)
@@ -767,18 +773,14 @@ fn boot_prepare(
         // lands on the right slot in the shared ROM_MAP. Loaded at RV-word-base 0
         // (userland links text at RV byte 0). A missing file yields an empty
         // table (a warning — SRET into user code would then fall through).
+        // The bytes were read and SHA-checked by rv2mbc::check_all.
         let user_rv2mbc_path = up.with_extension("rv2mbc");
-        let rv_entries: Vec<u32> = if user_rv2mbc_path.exists() {
-            let rv = std::fs::read(&user_rv2mbc_path).with_context(|| {
-                format!("userland rv2mbc read {} failed", user_rv2mbc_path.display())
-            })?;
-            if !rv.len().is_multiple_of(4) {
-                bail!(
-                    "userland rv2mbc {} not 4-byte aligned",
-                    user_rv2mbc_path.display()
-                );
+        let rv_entries: Vec<u32> = if let Some(urv) = rv.userland.as_ref() {
+            if !urv.bytes.len().is_multiple_of(4) {
+                bail!("userland rv2mbc {} not 4-byte aligned", urv.path.display());
             }
-            rv.as_chunks::<4>()
+            urv.bytes
+                .as_chunks::<4>()
                 .0
                 .iter()
                 .map(|c| relocate_rv2mbc_entry(u32::from_le_bytes(*c), USER_ROM_BASE))
@@ -805,6 +807,7 @@ fn boot_prepare(
             0,
             USER_ROM_BASE,
             mmu,
+            rv.userland.as_ref().and_then(|u| u.sha_hex()),
         );
         upc_api::load(&workload, &xv6_map_capacities(), &facts, &mut runner)
             .map_err(|e| anyhow!("userland image load {}: {e}", up.display()))?;
@@ -862,17 +865,17 @@ fn boot_prepare(
     // as siblings of --userland so the existing boot recipe is unchanged.
     if let Some(up) = userland {
         // Headline (Gate B) needs `sh`; ls/cat/echo/wc follow the same
-        // pattern for Gate C and slot in after sh's bases.
+        // pattern for Gate C and slot in after sh's bases. rv2mbc::check_all
+        // decided which are present and SHA-checked their .rv2mbc files.
         let dir = up.parent().unwrap_or_else(|| Path::new("."));
         for (i, name) in geometry::RESIDENT_PROGRAMS.iter().enumerate() {
-            let mbc = dir.join(format!("{name}.mbc"));
-            if !mbc.exists() {
+            let Some((mbc, prog_rv)) = rv.programs.get(i).and_then(Option::as_ref) else {
                 println!(
                     "  ⚠ resident program '{name}' not found at {} — skipping",
-                    mbc.display()
+                    dir.join(format!("{name}.mbc")).display()
                 );
                 continue;
-            }
+            };
             let slot = i as u32;
             let rom_base = 0x6000 + slot * 0x3000; // 12 Ki-word stride
             let rv2mbc_base = 0x1000 + slot * 0x1000; // < 0x8000 (kernel base)
@@ -882,7 +885,8 @@ fn boot_prepare(
                 &mut runner,
                 &facts,
                 mmu,
-                &mbc,
+                mbc,
+                prog_rv,
                 name,
                 slot,
                 rom_base,
@@ -971,13 +975,27 @@ fn cmd_boot(
     dry_run: bool,
     input: Option<String>,
     unsafe_geometry: bool,
+    rv2mbc_sha: Option<String>,
+    allow_unverified_rv2mbc: bool,
 ) -> Result<()> {
     demo_gate(dry_run, std::env::var("UPC_DEMO_MODE").ok().as_deref())?;
+    rv2mbc::hatch_gate(allow_unverified_rv2mbc, dry_run)?;
     cmd_validate(kernel.clone())?;
     let mmu = geometry::xv6_mmu_layout(geometry::stride_override(
         unsafe_geometry,
         std::env::var("UPC_SLICE_STRIDE").ok().as_deref(),
     )?);
+    // S-ASCEND-2 Item 5: every .rv2mbc is SHA-checked before the object opens.
+    println!("\n.rv2mbc SHA-256 gate:");
+    let rv = rv2mbc::check_all(
+        &kernel,
+        userland.as_deref(),
+        rv2mbc_sha
+            .or_else(|| std::env::var("UPC_RV2MBC_SHA").ok())
+            .as_deref(),
+        allow_unverified_rv2mbc,
+        dry_run,
+    )?;
 
     println!("\n=== BOOT DISPATCH (dry_run={}) ===", dry_run);
     println!("instance:      0x{:02X}", instance);
@@ -1004,12 +1022,19 @@ fn cmd_boot(
     println!("  2. Zero IVT region (byte 0x0000-0x03FF)");
     println!("  3. Zero CSR region (byte 0x000_F000-0x000_F0FF)");
     println!("  4. Write default HLT trap handler at 0x0400");
-    println!("  5. Write BootParams v2 (256 bytes) at 0x0100");
+    println!(
+        "  5. Write BootParams v{} (256 bytes) at 0x0100",
+        bootparams::BOOT_VERSION
+    );
     println!(
         "     magic = 0x{:08X} (canonical 'UNHD' MSB-first; wire bytes 'DHNU' per ADR-072)",
         xv6_mbc::BOOT_MAGIC
     );
-    println!("     version = 2");
+    println!("     version = {}", bootparams::BOOT_VERSION);
+    match rv.kernel.as_ref().and_then(|k| k.sha_hex()) {
+        Some(h) => println!("     rv2mbc_sha256 = {h} (bytes 64..96)"),
+        None => println!("     rv2mbc_sha256 = zeros (unverified: dry run only)"),
+    }
     println!("     kernel_addr = 0x10000 (stage-1 stub)");
     println!("     bss_start / bss_end (read from kernel.elf .bss)");
     println!("     boot_random_seed = 32 bytes from getrandom(2)");
@@ -1055,6 +1080,7 @@ fn cmd_boot(
         instance,
         input.as_deref(),
         &mmu,
+        &rv,
     )?;
 
     // Send Monad-format trigger packets via doom-tick.py. flow_label =
@@ -1173,6 +1199,7 @@ struct ConsoleOpts {
     tick_batch: u32,
     debug_kbd: bool,
     unsafe_geometry: bool,
+    rv2mbc_sha: Option<String>,
 }
 
 /// Set on SIGINT / SIGTERM so the console loop can tear down XDP + netns
@@ -1246,6 +1273,17 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
         o.unsafe_geometry,
         std::env::var("UPC_SLICE_STRIDE").ok().as_deref(),
     )?);
+    let explicit = o
+        .rv2mbc_sha
+        .clone()
+        .or_else(|| std::env::var("UPC_RV2MBC_SHA").ok());
+    let rv = rv2mbc::check_all(
+        &o.kernel,
+        o.userland.as_deref(),
+        explicit.as_deref(),
+        false,
+        false,
+    )?;
     let stop = install_stop_flag();
     let (mut runner, _cpu_initial) = boot_prepare(
         &o.kernel,
@@ -1255,6 +1293,7 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
         o.instance,
         None,
         &mmu,
+        &rv,
     )?;
     println!(
         "\n=== UPC CONSOLE (instance 0x{:02X}) — Ctrl-C to stop ===",
@@ -1384,6 +1423,8 @@ fn run(cli: Cli) -> Result<()> {
             input,
             unsafe_geometry,
             create_netns,
+            rv2mbc_sha,
+            allow_unverified_rv2mbc,
         } => {
             netns::set_create_netns(create_netns);
             cmd_boot(
@@ -1397,6 +1438,8 @@ fn run(cli: Cli) -> Result<()> {
                 dry_run,
                 input,
                 unsafe_geometry,
+                rv2mbc_sha,
+                allow_unverified_rv2mbc,
             )
         }
         Cmd::Console {
@@ -1410,6 +1453,7 @@ fn run(cli: Cli) -> Result<()> {
             debug_kbd,
             unsafe_geometry,
             create_netns,
+            rv2mbc_sha,
         } => {
             netns::set_create_netns(create_netns);
             cmd_console(ConsoleOpts {
@@ -1422,6 +1466,7 @@ fn run(cli: Cli) -> Result<()> {
                 tick_batch,
                 debug_kbd,
                 unsafe_geometry,
+                rv2mbc_sha,
             })
         }
     }

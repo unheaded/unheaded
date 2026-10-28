@@ -35,7 +35,7 @@
 //!
 //! At PC=0x4000 the bootstub takes over:
 //!
-//! 1. Verify BootParams magic (`0x554E4844` per ADR-072) + version (`2`).
+//! 1. Verify BootParams magic (`0x554E4844` per ADR-072) + version (`2` or `3`).
 //! 2. Zero `[bss_start, bss_end)` byte range from BootParamsV2.
 //! 3. Optionally CPIO-unpack initramfs into RAM_MAP at the addresses
 //!    the kernel's `populate_rootfs()` will read from. (Phase 2.4

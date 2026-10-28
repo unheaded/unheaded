@@ -270,6 +270,36 @@ every caller passes it inside sudo (`sudo UPC_DEMO_MODE=1 "$BC" …`): the harne
 fixing its `UPC_VERIFIER_STATS=1 sudo` ordering), CLAUDE.md's boot recipe and wiki/Linux-on-UPC.md. Harness ALL GREEN,
 sweep 8/8 SAME; a boot without it prints the refusal and leaves 0 programs.
 
+**Item 5, the `.rv2mbc` SHA gate default-on and BootParams v3 (Steps 122-127, host side).** One resolver,
+`upc_api::rv2mbc_sha` (SHA-256 from Phase 4's `surface_hash::sha256`, no new crate): explicit value → sibling
+`<file>.rv2mbc.sha256` (first token, 64 lowercase hex) → refuse `Rv2mbcShaRequired`; a wrong hash is
+`Rv2mbcShaMismatch` with both hashes. upc-bootctl checks the kernel's, the `--userland` program's and every resident
+program's `.rv2mbc` (`src/rv2mbc.rs`, `check_all`) before the eBPF object is opened, and writes the bytes it hashed;
+`--rv2mbc-sha` (else `UPC_RV2MBC_SHA`) applies to the kernel only. doom-runner checks `--rv2mbc` before the ring or any
+map. `expected_rv2mbc_sha256` is `Some` on every verified path. BootParams v3: `BOOT_VERSION = 3`, raw kernel `.rv2mbc`
+SHA-256 at bytes 64..96 (`reserved[48]` → `rv2mbc_sha256[32]` + `reserved[40]`, offset asserted at compile time).
+`--allow-unverified-rv2mbc` (bootctl `boot`, doom-runner `run`) only turns a missing hash into a warning, only with
+`--dry-run`, and never excuses a mismatch. Tests first: `cmd/upc-bootctl/tests/rv2mbc_sha.rs` (18; RED 16 failed, the
+2 positive controls passed), `crates/upc-api/tests/rv2mbc_sha.rs` (10) + 2 unit, bootparams v3 unit test, doom-runner
+9 (RED: did not compile). Green: upc-api 62, upc-bootctl 76, doom-runner 44, monad-mbc 393; clippy clean.
+Kernel `xv6-mbc.mbc` `f5bf200353fa42d5…` (at `9f22d092`) → `4e39c82f9ba56079…`: `start_mbc.c` accepts version 2 or
+3 (a source change, so byte identity breaks by design; it prints nothing new). The kernel `.rv2mbc` follows
+(`c02e16c0…` → `dd370941…`). The Makefiles write `<name>.rv2mbc.sha256` in the translate recipe and by a standalone
+rule (`kernel`, `userland`, `gates`, `ramdisk` depend on it), so an already-built tree gets sidecars without a
+retranslation; `clean` removes them (the userland clean must not glob `$T/*.sha256`: the kernel's sidecar lives there).
+`doom/doom.rv2mbc.sha256` = `e7ab7b67bd2ea306…`, equal to a fresh translation of `doom/doom.elf` (force-added: `/doom`
+is gitignored). Dry runs with the real images pass for init, gate2, gate_nway, forkloop and uinit; a one-byte change
+to the kernel `.rv2mbc` is refused `Rv2mbcShaMismatch`. Deviations: (a) the plan's Step 123 hatch rule ("refused when
+`UPC_DEMO_MODE=1` with a network attach") and TTY version log are replaced by the dry-run-only hatch and no new TTY
+output; (b) upc-api had no mismatch path to reuse; (c) a live boot without a kernel `.rv2mbc` is now refused
+(`Rv2mbcMissing`; it used to warn), since v3 has no zeros on the live path; (d) `crates/upc-bootstub/src/start.c`
+also accepts 2|3, because `--bootstub` boots write the same BootParams; (e) doom-runner gained `--dry-run` (the hatch
+needs one). Steps 128-129 (harness, sweep) are Stevie's after the merge.
+**Item 5 live (Steps 128-129), after merging it with Items 1-3.** Kernel rebuilt (`xv6-mbc.mbc` `4e39c82f…`, the
+v2|v3 accept), 11 sidecars written by the Makefiles. Harness ALL GREEN (923645 / 758321), sweep 8/8 SAME. Live
+negative: a kernel `.rv2mbc` with one byte changed is refused (`Rv2mbcShaMismatch`, expected `dd370941…`), 0 programs
+attached. Evidence `p5-regression-sha.log`, `p5-sweep-sha.txt`, `p5-neg-rv2mbc.txt`.
+
 **Items 1-3: namespace, unprivileged bootctl, seccomp (Steps 131-147).**
 
 *Design (Step 131), changed from the plan's after reading `netns.rs`.* bootctl attached XDP to `veth-upc0` in the
