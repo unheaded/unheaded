@@ -203,9 +203,13 @@ expect "preinst: a refused install stops nothing" \
 rm -rf "${T:?}/migrate/"*
 
 # The package table (scripts/lib/deb-packages.sh).
-unit_bins() { # every /usr/local/bin binary a unit runs, minus third-party ones
+unit_bins() { # every /usr/local/bin binary a unit runs, minus third-party and cargo-built ones
+	# Cargo-built binaries (build-binaries.sh CARGO, e.g. upc-bootctl) are not
+	# packaged as .debs; their unit names the install command.
+	local cargo
+	cargo="$(awk '/^CARGO="/{f=1;next} f&&/^"/{f=0} f&&NF==2{print $1}' "$REPO_ROOT/scripts/build-binaries.sh")"
 	sed -n 's|^ExecStart=-\{0,1\}/usr/local/bin/\([A-Za-z0-9._-]*\).*|\1|p' \
-		"$REPO_ROOT"/deploy/systemd/*.service | grep -vxF node_exporter | sort -u
+		"$REPO_ROOT"/deploy/systemd/*.service | grep -vxF node_exporter | grep -vxF -e "${cargo:-/}" | sort -u
 }
 expect "every unit's binary is packaged, and nothing else" \
 	"$(printf '%s\n' "${DEB_SERVICES[@]}" | sort -u)" "$(unit_bins)"

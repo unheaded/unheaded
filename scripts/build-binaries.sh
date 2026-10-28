@@ -52,12 +52,19 @@ well-retention      ./cmd/well-retention
 "
 # Run by a unit but not built here: an upstream release binary.
 THIRD_PARTY="node_exporter"
+# Run by a unit, built by cargo from its own crate (not by this script; the
+# unit names the install command).
+# binary            crate
+CARGO="
+upc-bootctl         cmd/upc-bootctl
+"
 
 pkg_of() { awk -v n="$1" 'NF == 2 && $1 == n { print $2 }' <<<"$MAP"; }
 names() { awk 'NF == 2 { print $1 }' <<<"$MAP"; }
+crate_of() { awk -v n="$1" 'NF == 2 && $1 == n { print $2 }' <<<"$CARGO"; }
 
 check_units() {
-	local unit bin rc=0 n=0 name pkg dir
+	local unit bin rc=0 n=0 name pkg dir crate
 	# A binary is named after the directory it is built from (ADR-084): the
 	# live-path inventory (scripts/live-path-inventory.sh) and every reader
 	# find a unit's source by that name. huginn built from cmd/host-agent (until 2026-10-25) made
@@ -77,6 +84,8 @@ check_units() {
 			n=$((n + 1))
 			[[ -n "$(pkg_of "$bin")" ]] && continue
 			[[ " $THIRD_PARTY " == *" $bin "* ]] && continue
+			crate="$(crate_of "$bin")"
+			[[ -n "$crate" && -f "$REPO_ROOT/$crate/Cargo.toml" ]] && continue
 			echo "[FAIL] ${unit#"$REPO_ROOT"/} runs /usr/local/bin/$bin, which scripts/build-binaries.sh does not build" >&2
 			rc=1
 		done < <(sed -n 's|^ExecStart=-\{0,1\}/usr/local/bin/\([A-Za-z0-9._-]*\).*|\1|p' "$unit")
@@ -85,7 +94,7 @@ check_units() {
 		echo "[FAIL] no ExecStart=/usr/local/bin/... found under ${UNITS_DIR#"$REPO_ROOT"/}; refusing to pass vacuously" >&2
 		return 1
 	fi
-	[[ $rc -eq 0 ]] && echo "[PASS] ${n} unit ExecStart binaries, each built here or named third-party"
+	[[ $rc -eq 0 ]] && echo "[PASS] ${n} unit ExecStart binaries, each built here, by cargo (CARGO), or named third-party"
 	return "$rc"
 }
 

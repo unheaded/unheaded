@@ -641,7 +641,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/upc-cartridgectl/prepare.go:15:sig-import",
+      "bom-ref": "cmd/upc-cartridgectl/prepare.go:17:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -678,7 +678,50 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/upc-cartridgectl/prepare.go:15"
+          "value": "cmd/upc-cartridgectl/prepare.go:17"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/upc-cartridgectl/weights.go:53:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/upc-cartridgectl/weights.go:53"
         }
       ]
     },
