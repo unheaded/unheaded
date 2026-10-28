@@ -426,3 +426,19 @@ so a clean kernel rebuild (33 compiles) is **byte-identical** (`4e39c82f…`): t
 
 Results: harness ALL GREEN with the devprobe gate, sweep 8/8 SAME, monad-mbc 393 and xv6-mbc 3 tests pass, budgets
 unchanged (923,826 / 758,199). M-226 done in part (writes, pipes, on-disk device inodes routed), M-227 done.
+
+## Phase 8: Mímir and the distributed leg (Steps 205-242, 2026-10-28)
+
+**E3 (Step 205): filed, unchanged from the plan.** (1) approve S5 Step 177 (heimdall-daemon as root from /tmp on east,
+XDP generic on `enp2s0`, observe-only; scratch Wotan on west bound to 192.168.13.2)? (2) approve S5 Step 435 (scratch
+Wotan reachable from east; `upc-cartridgectl` + `cartridge-ebpf` as root on east from /tmp, removed at phase end)?
+(3) or drop Phase 18 for good? No recommendation: east's host actions are Stevie's. Until answered, the two-netns
+fallback runs and Steps 233-238 are skipped.
+
+**Topology deviation.** The plan's fallback bridge `br-upc` lives in the root namespace; this session changes nothing
+there, so the bridge and the scratch Wotan live in a third namespace (`lab-hub`), with the two nodes in `lab-a` and
+`lab-b` (`scripts/lab-two-node.sh`). `upc0` keeps its Phase 5 layout. Heimdall has no "await bootstrap / seed
+operational" flow (Step 212's premise): a BootstrapBroadcast is classified and logged by the XDP observer's policy and a
+ReverifyUnicast re-verifies the manifest and scans, so Phase 9 here measures horn delivery and classification.
+
+**LICH-015 full-engine arm (Steps 226-232): not done this session.**
