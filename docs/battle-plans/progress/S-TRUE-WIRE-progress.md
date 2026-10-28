@@ -343,3 +343,16 @@ targets:
   from a dead `doom/doomgeneric` gitlink (develop `24ac1382`).
 - 392: zero-user-data sentences in the table. 394: FND-020 resolved with evidence on the branch (the ADR-098 report now
   says "remove from the register"); FND-025 open. 395 held open by E8.
+
+## Phase 12 (docs, registers, handoff) and sprint close (2026-10-28)
+
+- 397: CLAUDE.md gains the S-TRUE-WIRE paragraph; wiki pages were updated per change in their phases (eBPF-Programs,
+  PQC-Authentication, Service-Wotan); wiki/Home.md has no sprint-progress line. 398 (E7) prepared. 399: every
+  Appendix D M-id has its closing status, mirrored in OUTSTANDING-2026-10-27.md. 400-401: timeline entry; JSON, TOML,
+  YAML regenerated from the Markdown by timeguru's sync package (a temporary main, not committed: running timeguru
+  itself would bind 19000, which the live container holds); freshness FRESH. 402: next.md. 403: tree clean; no lab
+  netns, veth, pinned map or attached Unheaded program left on west.
+- **Sprint state:** code complete on `sprint/true-wire`. Merge into develop waits on **E2**. Open: E1 (ADR-108), E2,
+  E3 (decision table), E4 (Cargo licence fields), E5 (eight supply-chain questions), E6 (datatracker), E7 (acceptance
+  diff), E8 (Shield check semantics; FND-025). Exit gates held open: Phase 5 (E8), Phase 10 (Steps 373 done on develop,
+  376, 377), Phase 11 (FND-025).

@@ -985,14 +985,14 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 **Time**: 2 h
 **Agent**: Coordinator (Librarian role for the ripple)
 
-- [ ] **Step 397** [DOC-UPDATE][W] ~30m: Ripple (Librarian's eight layers): `CLAUDE.md` (the "Age 2 Remaining Epics" lines "Foundation spec draft-06 (IANA integration)", "Wotan draft-03 (error code taxonomy)" → done with step refs; the S67 paragraph's "Monad Flow Actions (13 entries)" stays; add one S-TRUE-WIRE paragraph in the house format: what, where, numbers); `wiki/Home.md` Recent Progress line; `wiki/Service-Shield.md`, `wiki/Service-Wotan.md` (reload, error header), `wiki/Service-Sophia.md` (signing), `wiki/BPF-Verifier-Gates.md` (insns ratchet), `wiki/Port-Registry.md` (shield uid), `wiki/Security-Tooling.md` (bandit gating, trivy misconfig, spdx langs, new gates); `docs/adr/ADR-INDEX.md` statuses (ADR-012 note, ADR-108 line, ADR-036 untouched here: Librarian epic); `docs/protocol/RFC-ALIGNMENT-FINDINGS.md` already closed rows; `docs/UNREACHED-GO-PACKAGES.md` regenerated (Step 252 if E3 answered, else a note); `docs/MARSHAL-COOKBOOK.md` gate count (+3: insns, spdx, trivy-misconfig).
+- [x] **Step 397** *(CLAUDE.md S-TRUE-WIRE paragraph; wiki pages per change were done in their phases; wiki/Home.md has no sprint-progress line to change)* [DOC-UPDATE][W] ~30m: Ripple (Librarian's eight layers): `CLAUDE.md` (the "Age 2 Remaining Epics" lines "Foundation spec draft-06 (IANA integration)", "Wotan draft-03 (error code taxonomy)" → done with step refs; the S67 paragraph's "Monad Flow Actions (13 entries)" stays; add one S-TRUE-WIRE paragraph in the house format: what, where, numbers); `wiki/Home.md` Recent Progress line; `wiki/Service-Shield.md`, `wiki/Service-Wotan.md` (reload, error header), `wiki/Service-Sophia.md` (signing), `wiki/BPF-Verifier-Gates.md` (insns ratchet), `wiki/Port-Registry.md` (shield uid), `wiki/Security-Tooling.md` (bandit gating, trivy misconfig, spdx langs, new gates); `docs/adr/ADR-INDEX.md` statuses (ADR-012 note, ADR-108 line, ADR-036 untouched here: Librarian epic); `docs/protocol/RFC-ALIGNMENT-FINDINGS.md` already closed rows; `docs/UNREACHED-GO-PACKAGES.md` regenerated (Step 252 if E3 answered, else a note); `docs/MARSHAL-COOKBOOK.md` gate count (+3: insns, spdx, trivy-misconfig).
 - [ ] **Step 398** *(diff prepared: docs/adr/ACCEPTANCE-2026-10-28.diff, 7 status lines + 7 index rows, `git apply --check` clean)* [ESCALATE] ~3m: **E7 — Formal ADR acceptances.** Context: ADRs 093, 094, 101, 104, 105, 106, 107 are built and running (the master list M-148 cites each); ADR-108 waits on E1. Question: accept them (status line + ADR-INDEX) in one commit? Why Stevie: acceptance is the owner's act; the plan prepares the diff (`docs/adr/ACCEPTANCE-2026-MM-DD.diff` with every status line change) so the answer is one word.
-- [ ] **Step 399** [AUDIT-UPDATE][W] ~15m: `docs/sweeps/OUTSTANDING-2026-10-27.md`: every M-id in Appendix D gets a status suffix in its row (`DONE S-TRUE-WIRE Step n` / `PARTIAL: …` / `AFTER-E<n>` / `deferred to S-<other>`); §6 counts updated.
-- [ ] **Step 400** [DOC-UPDATE][W] ~10m: `references/timeline.md`: one Age 3 entry dated the day of the Phase 11 gate ("S-TRUE-WIRE: flow-action and event-type wire values follow foundation-06; RFC Editor S5 queue cleared; Shield checks real (observe); ADR-012 insn ratchet; Rust SPDX; FND-020/025 mitigated; E1-E7 open/answered"), then the mirrors: `cd /home/govan/tmp/unheaded && grep -nE 'sync|mirror' services/timeguru/cmd/timeguru/main.go | head -3` and run the timeguru sync (or `make`-less: `go run ./services/timeguru/cmd/timeguru -sync-once` if that flag exists; the S22 commit f83c9cde shows the four files that must change together); `scripts/check-timeline-freshness.sh | tail -2`.
-- [ ] **Step 401** [V] ~1m: FRESH; `git status --short references/ | wc -l` is 4 (md + json + yaml + toml).
-- [ ] **Step 402** [DOC-UPDATE][W] ~15m: `~/tmp/next.md`: a new top section "S-TRUE-WIRE (date): state, what shipped (step refs), the seven escalations with one line each and what each unblocks, live state (no BPF attached, no netns, no scratch Wotan: verify with `sudo bpftool prog list | grep -c unhd`, `ip netns list | wc -l`), bring-up notes (shield keys file path, observe→enforce rule, SIGHUP commands), and the next sprint pointer (S-ASCEND-2 per the index)".
-- [ ] **Step 403** [V] ~2m: **PHASE 12 EXIT GATE** — `git status --short | grep -v host-agent | wc -l` is 0 after the commit; `scripts/check-timeline-freshness.sh` FRESH; Appendix D has no M-id without a status; the escalations table at the top of this file shows each E's state.
-- [ ] **Step 404** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 397-404: docs, registers, timeline, handoff; sprint close` — then merge `sprint/true-wire` into `develop` with `--no-ff` ONLY after E2 is answered "spec wins" (Step 97); until then the branch stays, and next.md says so.
+- [x] **Step 399** [AUDIT-UPDATE][W] ~15m: `docs/sweeps/OUTSTANDING-2026-10-27.md`: every M-id in Appendix D gets a status suffix in its row (`DONE S-TRUE-WIRE Step n` / `PARTIAL: …` / `AFTER-E<n>` / `deferred to S-<other>`); §6 counts updated.
+- [x] **Step 400** [DOC-UPDATE][W] ~10m: `references/timeline.md`: one Age 3 entry dated the day of the Phase 11 gate ("S-TRUE-WIRE: flow-action and event-type wire values follow foundation-06; RFC Editor S5 queue cleared; Shield checks real (observe); ADR-012 insn ratchet; Rust SPDX; FND-020/025 mitigated; E1-E7 open/answered"), then the mirrors: `cd /home/govan/tmp/unheaded && grep -nE 'sync|mirror' services/timeguru/cmd/timeguru/main.go | head -3` and run the timeguru sync (or `make`-less: `go run ./services/timeguru/cmd/timeguru -sync-once` if that flag exists; the S22 commit f83c9cde shows the four files that must change together); `scripts/check-timeline-freshness.sh | tail -2`.
+- [x] **Step 401** [V] ~1m: FRESH; `git status --short references/ | wc -l` is 4 (md + json + yaml + toml).
+- [x] **Step 402** [DOC-UPDATE][W] ~15m: `~/tmp/next.md`: a new top section "S-TRUE-WIRE (date): state, what shipped (step refs), the seven escalations with one line each and what each unblocks, live state (no BPF attached, no netns, no scratch Wotan: verify with `sudo bpftool prog list | grep -c unhd`, `ip netns list | wc -l`), bring-up notes (shield keys file path, observe→enforce rule, SIGHUP commands), and the next sprint pointer (S-ASCEND-2 per the index)".
+- [x] **Step 403** [V] ~2m: **PHASE 12 EXIT GATE** — `git status --short | grep -v host-agent | wc -l` is 0 after the commit; `scripts/check-timeline-freshness.sh` FRESH; Appendix D has no M-id without a status; the escalations table at the top of this file shows each E's state.
+- [x] **Step 404** *(checkpoint made; the merge into develop waits on E2, as the step says)* [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 397-404: docs, registers, timeline, handoff; sprint close` — then merge `sprint/true-wire` into `develop` with `--no-ff` ONLY after E2 is answered "spec wins" (Step 97); until then the branch stays, and next.md says so.
 
 ---
 
@@ -1073,37 +1073,37 @@ Signing: `git commit-tree -S` probe in Step 6; `--no-gpg-sign` when it fails; `s
 
 ## APPENDIX D: COVERAGE (master-list id → steps)
 
-| M-id | Steps | Status at forge |
+| M-id | Steps | Status at close (2026-10-28) |
 |---|---|---|
-| M-140 flow-action values | 79-86, 96-98 | planned ([DECIDE] spec wins + E2 confirm) |
-| M-141 Anamnesis event types | 87-98 | planned ([DECIDE] spec wins + E2 confirm) |
-| M-142 RFC Editor items 1-5 → ADR-108 | 29-58 | planned (E1 acceptance) |
-| M-143 FlagK0/K1 → CUSTOM/RSVD; one CRC16 | 101-113 | planned |
-| M-144 error-code registry symbols; TLV/Ring Path ruling | 131-141 | planned |
-| M-145 Wotan-03 error type; GOAWAY/SETTINGS; SIGHUP reload; wotan-04 checks | 142-163, 206-210 | planned |
-| M-146 G8 reference package rulings | 68-73, 150-152, 239 | planned (deletes via E3) |
-| M-147 Anamnesis-00 stub, Protocol Overview I-D, datatracker | 59-67, 76 | planned (E6 upload) |
-| M-148 formal ADR acceptances | 398 | E7 |
-| M-149 Sophia ML-DSA-65 delta signing; mandatory rollout; severity ladder | 293-305 | planned (300-304 after S-IRON-GATE) |
-| M-160 Rust SPDX + CI | 315-327 | planned |
-| M-161 MIT→GPL relicense; LICENSE "Steven" | 328-339 | planned (E4); LICENSE line already fixed (verified 2026-10-27) |
-| M-162 yaml.v3 / cilium-ebpf / goldmark register rows; thresholds | 341-342, 353-356 | planned (E5) |
-| M-163 ADR-004 admissions | 343, 353-354 | E5 |
-| M-164 ADR-090 ledger step 1; Q1-Q3 | 346-351, 353-357 | planned (E5) |
-| M-165 bandit groups; trivy IaC ratchet; hadolint pin | 359-368 | planned; hadolint pin already done (Step 367 verifies) |
-| M-166 omitempty / G115 / ST10xx | 369-373 | planned |
-| M-167 Python hash pins | 374-376 | planned |
-| M-168 delete words (waf, lxd, host stacks, bpfmap, maploader, ebpf-exporter) | 238-256 | E3 |
-| M-169 ScanCode re-run; THIRD_PARTY OR elections; fair-use notice | 377-378 | planned |
-| M-180 Shield HMAC/retry/hop checks via bpf_loop; writer; finding; docs | 169-173, 183-205, 228 | planned |
-| M-181 PQC_SIG_STATUS | 231-237 | planned ([DECIDE] delete) |
-| M-182 packet-marker trace-ID extraction | 215-223 | planned |
-| M-183 debug TC stats; stress cannon CRC | 177-182, 211-214 | planned |
-| M-184 ADR-012 insn ratchet | 259-282 | planned |
-| M-185 BPF struct single source of truth | 114-124 | planned |
-| M-186 G9 control planes | 238-256 | E3 ([DECIDE] default delete, keymgmt/loadbalancer parked) |
-| M-187 AF_XDP retire Decision 5 | 239, 248, 255 | E3 ([DECIDE] retire) |
-| M-188 FND-020 replication signatures | 283-292 | planned |
+| M-140 flow-action values | 79-86, 96-98 | DONE S-TRUE-WIRE Step 84 (on sprint/true-wire; merge AFTER-E2) |
+| M-141 Anamnesis event types | 87-98 | DONE Step 91 (merge AFTER-E2) |
+| M-142 RFC Editor items 1-5 → ADR-108 | 29-58 | DONE Steps 29-50; ADR-108 acceptance AFTER-E1 |
+| M-143 FlagK0/K1 → CUSTOM/RSVD; one CRC16 | 101-113 | DONE Steps 101-113 |
+| M-144 error-code registry symbols; TLV/Ring Path ruling | 131-141 | DONE Steps 131-140 |
+| M-145 Wotan-03 error type; GOAWAY/SETTINGS; SIGHUP reload; wotan-04 checks | 142-163, 206-210 | DONE Steps 142-163 (wotanerr, SIGHUP reload); GOAWAY removed Step 207 |
+| M-146 G8 reference package rulings | 68-73, 150-152, 239 | DONE rulings (Steps 68-73, 150); deletions AFTER-E3 |
+| M-147 Anamnesis-00 stub, Protocol Overview I-D, datatracker | 59-67, 76 | DONE drafts (Steps 59-67); datatracker upload AFTER-E6 |
+| M-148 formal ADR acceptances | 398 | AFTER-E7 (diff prepared: docs/adr/ACCEPTANCE-2026-10-28.diff) |
+| M-149 Sophia ML-DSA-65 delta signing; mandatory rollout; severity ladder | 293-305 | PARTIAL: signing in observe mode (Steps 293-305); mandatory rollout deferred to S-IRON-GATE key distribution |
+| M-160 Rust SPDX + CI | 315-327 | DONE Steps 315-327 |
+| M-161 MIT→GPL relicense; LICENSE "Steven" | 328-339 | DONE (S24 relicense) + Phase 9 headers; Cargo licence fields AFTER-E4 |
+| M-162 yaml.v3 / cilium-ebpf / goldmark register rows; thresholds | 341-342, 353-356 | PARTIAL: register rows drafted (Step 342); thresholds AFTER-E5 |
+| M-163 ADR-004 admissions | 343, 353-354 | AFTER-E5 (sign-off lines added, Step 343) |
+| M-164 ADR-090 ledger step 1; Q1-Q3 | 346-351, 353-357 | PARTIAL: ledger step 1 run (8 SKIPPED); Q1-Q3 AFTER-E5 |
+| M-165 bandit groups; trivy IaC ratchet; hadolint pin | 359-368 | DONE Steps 359-368 (bandit gating, trivy misconfig ratchet) |
+| M-166 omitempty / G115 / ST10xx | 369-373 | DONE Steps 369-372 (+ golangci-lint 0, pinned) |
+| M-167 Python hash pins | 374-376 | PARTIAL: direct pins drafted; hash lock AFTER-E5 item 8 |
+| M-168 delete words (waf, lxd, host stacks, bpfmap, maploader, ebpf-exporter) | 238-256 | AFTER-E3 (table docs/sweeps/TRUE-WIRE-DECISIONS.md, dry run clean) |
+| M-169 ScanCode re-run; THIRD_PARTY OR elections; fair-use notice | 377-378 | STUCK Step 377: ScanCode image pull denied; pin the release tarball |
+| M-180 Shield HMAC/retry/hop checks via bpf_loop; writer; finding; docs | 169-173, 183-205, 228 | PARTIAL: FND-025 registered, docs true; checks AFTER-E8 |
+| M-181 PQC_SIG_STATUS | 231-237 | DONE Step 233 (decision 43 default; revert restores) |
+| M-182 packet-marker trace-ID extraction | 215-223 | DONE Steps 215-223 (lab 70/70) |
+| M-183 debug TC stats; stress cannon CRC | 177-182, 211-214 | DONE Steps 177-182, 211-214 |
+| M-184 ADR-012 insn ratchet | 259-282 | DONE Steps 259-277 (check-ebpf-insns.sh) |
+| M-185 BPF struct single source of truth | 114-124 | DONE Steps 114-124 |
+| M-186 G9 control planes | 238-256 | AFTER-E3 |
+| M-187 AF_XDP retire Decision 5 | 239, 248, 255 | AFTER-E3 |
+| M-188 FND-020 replication signatures | 283-292 | DONE Phase 8 + 2af5142b (FND-020 resolved with evidence) |
 | Decisions 33-42 | 80, 88, 58/97, 232, 239/247, 353 | [DECIDE] with defaults; E1-E5 where the owner must act |
 
 Deferred to other sprints, by name: Wotan `display_name` identity binding (M-052) and the Sophia signer's key distribution → S-IRON-GATE; east-side anything → S-ASCEND-2; Doom → S-DOOM-LAST; the Librarian doc-hygiene list (§5 of the master) → S-CLEAN-SLATE's doc phase, except the items this plan's own changes make true (Steps 96, 172, 228, 234, 276, 397).

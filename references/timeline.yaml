@@ -1,5 +1,5 @@
 version: 1.0.0
-last_updated: 2026-10-27T20:57:07.992862564Z
+last_updated: 2026-10-28T06:09:59.239667151Z
 status: alpha
 phases:
   - id: phase-0
@@ -78,6 +78,7 @@ phases:
       - phase-3-item-93443574
       - phase-3-item-d2e7371a
       - phase-3-item-0b1e2e4c
+      - phase-3-item-b1cec782
       - phase-3-item-020526f9
       - phase-3-item-ef2bf6a0
       - phase-3-item-5d165ac5
@@ -394,6 +395,11 @@ milestones:
     status: completed
     progress: 100
     description: '**Sprints 2-4 of the NEXT-7 ladder, code complete (2026-10-27, `develop`).** S-IRON-GATE Phases 1-7, 11, 12 and 5-8 code: Ed25519 service tokens and per-service keys (`unheaded-keygen`), hashed `uhk_` API keys, the built-in OIDC issuer `unheaded-auth`, auth with RBAC on all 13 first-party services, dashboard and board logins through a BFF (session cookie, tokens never in the browser), Wotan verifying tokens with auto-approve keyed on the verified identity, security headers on every router, signed releases with keyless cosign and provenance. S-CHAMPION-HARDENING Phases 1-14: the Champion tool path closed RT-03..RT-10 and T-05, one prompt and verb table, runbook manifest and model pins, the authorship policy written (runbook approvals E1), the eval scores runbook-draft, verification sections run, the scheduler inside zhen-agentd, a Go MCP server, zhen-cli memory and model commands, a Kanban Runbooks view; coding gate re-run with no regression. S-WELL-SPRING Phases 1-4 and 6-12: no startup DDL, the Well batch 030-043 rehearsed with dry run and rollback, deploy history and chaos journals and SLO definitions in the Well, a ratification-gated retention job, Watchdog and heartbeat, a runbook for every alert, heimdall metrics, journald logging for containers, perf harnesses, Akira reporters and detection rules, compliance paperwork drafted. Live steps wait on host windows and Stevie''s escalations (key generation, the Well batch, E1-E4).'
+  - id: phase-3-item-b1cec782
+    name: S-TRUE-WIRE, Sprint 5 of the NEXT-7 ladder
+    status: completed
+    progress: 100
+    description: '**S-TRUE-WIRE, Sprint 5 of the NEXT-7 ladder (2026-10-28, `sprint/true-wire`).** Flow-action and Anamnesis event-type wire values follow foundation-06 with legacy decoders per ring source (merge to develop waits on E2); the RFC Editor S5 queue cleared and two -00 drafts added; error-code registry symbols in Go and Rust, Shield counts real codes; Wotan structured errors and SIGHUP topic reload; WAL replication verifies stored signatures and halts on a rejected entry (FND-020 resolved); Sophia deltas ML-DSA-65 signed in observe mode; Shield''s GOAWAY and PQC fast-path dead code removed, its HMAC/retry/hop checks still stubs (FND-025, E8: the plan put them where packets have no Monad); packet-marker extracts trace IDs from TCP/IPv4 options; ADR-012''s verifier-instruction ratchet built on the kernel''s counts; Rust SPDX, bandit gating, a trivy misconfig ratchet. Found on the way: the main CI workflow disabled since February (FND-027), 54 golangci-lint and 18 gosec findings, a dead submodule pointer failing OpenSSF Scorecard, the stress cannon sending invalid Monads. Open: E1-E8.'
   - id: phase-3-item-020526f9
     name: Resolved since this list was written:* Captain Track call
     status: completed
