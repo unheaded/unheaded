@@ -528,7 +528,8 @@ findings:
       Code done on sprint/ascend-2 (S-ASCEND-2 Phase 5, Steps 117-147): UPC_DEMO_MODE gate; every .rv2mbc checked
       against its SHA-256 and BootParams v3; netns upc0 with both veth ends inside and a forward-drop rule (proven
       with a forwarding control); bootctl non-root with CAP_BPF, CAP_PERFMON, CAP_NET_ADMIN, CAP_NET_RAW, seccomp
-      @system-service plus bpf and no exec. What remains is the host install, E6 (Steps 148-152).
+      @system-service plus bpf and no exec. Installed on west 2026-10-28 under E6 (Steps 149-152).
+    resolved: {on: 2026-10-28, evidence: "west: unheaded-upc-netns.service active (upc0, both veths, table inet unheaded_upc); systemctl start unheaded-upc-bootctl@xv6 ran as unheaded-upc (uid 16791), result success, journal: xv6 booting, maps frozen, FIRST HEARTBEAT, no EPERM; references/s-ascend-2-log.md E6"}
 
   - id: FND-026
     title: West serves an old unsigned apt repo on 0.0.0.0:18888 with autoindex; its conf/ and db/ are readable on the LAN.

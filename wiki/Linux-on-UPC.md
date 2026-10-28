@@ -139,6 +139,10 @@ make -f ../adapters/Makefile.mbc-userland ramdisk
 # UPC_DEMO_MODE=1, passed inside sudo (sudo resets the environment); --dry-run does not.
 # bootctl runs inside netns upc0, which upc-netns.sh makes (both veth ends inside,
 # no link to the host); --create-netns is the old root-namespace setup.
+# On west since 2026-10-28 the unit path is the default: `sudo systemctl start
+# unheaded-upc-bootctl@xv6` boots /var/lib/unheaded/upc as unheaded-upc (no root),
+# with /etc/unheaded/upc/xv6.env; upc0 is kept by unheaded-upc-netns.service.
+# The sudo lines below are the lab shortcut.
 cd ../../../ebpf
 sudo ../scripts/upc-netns.sh up
 sudo ip netns exec upc0 env UPC_DEMO_MODE=1 /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \

@@ -620,3 +620,23 @@ committed). Carried from S-TRUE-WIRE: E1-E8 there, including its E2 merge gate, 
   community can settle on one if the project gains traction. Steps 285-286 are closed as not needed.
 - **E5: deferred** (no time now). The recipe stays in `wiki/Linux-on-UPC.md`.
 - **E6: not answered yet.** Still open; the units stay committed and not installed.
+
+## E6 installed on west (Steps 149-154, 2026-10-28)
+
+- Account: `/etc/sysusers.d/unheaded-upc.conf` with only the `unheaded-upc` line (uid/gid 16791), applied with
+  `systemd-sysusers` on that file. The repo's full `unheaded.conf` differs from the installed one by 7 more accounts
+  (vector, heartbeat, ci-status, well-retention, auth, heimdall, buildkey), which E6 did not cover, so it was not
+  copied over.
+- `upc-netns.sh` → `/usr/local/libexec/unheaded/`; `unheaded-upc-netns.service` enabled and active: `upc0` with both
+  veths and `table inet unheaded_upc`; the root namespace gained no interface.
+- `/usr/local/bin/upc-bootctl`; `unheaded-upc-bootctl@.service` + `demo.conf` drop-in (not enabled);
+  `/etc/unheaded/upc/xv6.env` (0640 root:unheaded-upc); `/var/lib/unheaded/upc` (0750 unheaded-upc): kernel, fs.img,
+  init/sh/ls/cat/echo/wc with their `.rv2mbc`, `.data` and `.rv2mbc.sha256`, and the ascend object.
+- `systemctl start unheaded-upc-bootctl@xv6`: process user `unheaded-upc`, result `success`; journal: `xv6 booting`,
+  nonce bound, ROM/RV2MBC frozen, FIRST HEARTBEAT, no EPERM; 0 programs attached afterwards.
+- Undo: `systemctl disable --now unheaded-upc-netns; rm /etc/systemd/system/unheaded-upc-*;
+  rm -r /etc/systemd/system/unheaded-upc-bootctl@.service.d /etc/unheaded/upc /var/lib/unheaded/upc;
+  rm /usr/local/bin/upc-bootctl /usr/local/libexec/unheaded/upc-netns.sh /etc/sysusers.d/unheaded-upc.conf;
+  userdel unheaded-upc`.
+- The images in `/var/lib/unheaded/upc` are copies: after a kernel or userland rebuild, re-copy them with their
+  sidecars, or the SHA gate refuses the boot.
