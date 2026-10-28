@@ -68,7 +68,7 @@ chain-of-custody for compliance), a different, owned upstream.
    K8s-container density, many nodes), and as substrate for the full BGP mesh vision. Age 2
    Yggdrasil first-artifacts still gate the Debian-anchor pipeline; the UPC track proceeds
    independently under EVOLUTION-1 / Track 1.
-5. **Naming** — **RESOLVED 2026-07-17 (Stevie): working name `unheadnix`, ceremony deferred** (queued as S-ASCEND-2 E4, 2026-10-28).
+5. **Naming** — **RESOLVED 2026-07-17 (Stevie): working name `unheadnix`, ceremony deferred.** S-ASCEND-2 E4 answered 2026-10-28: no rename and no ceremony; "Unheaded Linux", "unheadnix" (short form) and "uhl" (abbreviation) all stand, and the community can settle on one if the project gains traction.
    Unlikely to be adopted outside this project, so the ceremony is low-priority; `unheadnix` (one
    word, a nod to "unheaded") is the leaning pick precisely because a single token makes a future
    find-and-replace trivial if the name changes. Not urgent to formalize; Lore's blessing +

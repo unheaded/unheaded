@@ -608,3 +608,15 @@ committed). Carried from S-TRUE-WIRE: E1-E8 there, including its E2 merge gate, 
   which has no link to the host, so `console` cannot reach `upc-tty-bridge` on the host's loopback; Mode A uses
   `--create-netns` until the bridge gets a path into `upc0` (for example a Unix socket bind-mounted into the unit).
 - **Step 290 E5: filed** (a ~20-minute attended window with the GPU); Step 291 waits on it.
+
+## Answers (Stevie, 2026-10-28)
+
+- **E1: option K** (kernel numbering, init = 1). Steps 44-51 proceed.
+- **E2: (a)**, push toward kernel-authoritative syscalls, rung by rung with the freed-instructions stop rule.
+- **E3: scaffold, observe, research and plan first; expand to east with caution, with an auto-remediation path if
+  something goes wrong.** Read-only observation of east and a written plan come first; nothing is attached on east
+  until the plan and its safety net are reviewed.
+- **E4: no rename.** "Unheaded Linux", "unheadnix" (the shorter form) and "uhl" (abbreviation) all stand; the
+  community can settle on one if the project gains traction. Steps 285-286 are closed as not needed.
+- **E5: deferred** (no time now). The recipe stays in `wiki/Linux-on-UPC.md`.
+- **E6: not answered yet.** Still open; the units stay committed and not installed.
