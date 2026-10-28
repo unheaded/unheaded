@@ -612,3 +612,23 @@ is skipped, with a note, when it is off. Its expectation rejects the OFF output 
 **Rung 2 frees −3,986 on its own.** By E2's literal rule (stop at the first rung whose freed instructions are below
 zero), the ladder stops here. Read cumulatively, it has freed 49,746 since rung 0 (921,036 → 872,276 with rung 2
 on). **Escalated to Stevie: which reading holds.** The const stays off until then.
+
+**Trigger halving: found and fixed (the side-findings lead).** A new bootctl STATS line,
+`TICKS: triggers= pkts= cpu_ticks= tick_counter=`, shows every frame reaching `monad_cpu` and exactly half passing the
+Monad checks (5,000 of 10,000; 25,000 of 50,000).
+
+The cause is the trigger frame layout:
+- bootctl's native sender (copied from `scripts/doom-tick.py`) wrote the trace id at register bytes 0x04-0x07, over
+  `qos_class`, `flow_action`, `circuit_state` and `flags`.
+- It put CUSTOM at 0x0B, which is `mesh_flags` in the frozen v0x01 layout (`Monad::from_bytes`, flags at 0x07).
+- So a frame ticked only when its trace id had bit 1 set, which is half of consecutive ids. Some ticks also carried
+  CHAOS/CANARY/TRACED/... (trace id 0xFFFFFFFF sets every flag).
+- Fixed in bootctl (`build_trigger_frame`), `scripts/doom-tick.py` and its byte-identical twin `scripts/doom/tick.py`:
+  flags = CUSTOM at 0x07, and the trace id moves to `scratch` (0x0E-0x11).
+- The Go Doom injector already had flags at 0x07.
+- The pinned-bytes test `trigger_frame_matches_doom_tick_py` takes its new expected bytes from the fixed script's
+  `--dry-run`.
+
+Now `cpu_ticks = triggers` (10,000/10,000; 50,000/50,000): twice the CPU work per trigger. `sweep12`: 12/12 SAME.
+Harness: ALL GREEN. Trigger budgets in the harness and plans are now twice as generous as they were measured; they
+are left as they are.

@@ -265,15 +265,18 @@ fn crc16_ccitt_false(data: &[u8]) -> u16 {
 /// its defaults: Ethernet (dst 02:42:ac:11:00:03, src 02:42:ac:11:00:02) +
 /// IPv6 (flow label, next header HBH, hop limit 255, fd00:3f:75::1 →
 /// fd00:dead::1) + a 28-byte HBH block carrying the 20-byte Monad register
-/// (version 1, services 0xFF, hop 1, trace id, flags CUSTOM, CRC-16).
+/// (version 1, services 0xFF, hop 1, flags CUSTOM, trace id in scratch, CRC-16).
 fn build_trigger_frame(flow_label: u32, trace_id: u32) -> Vec<u8> {
     let mut monad = [0u8; 20];
     monad[0] = 0x01;
     monad[1] = 0xFF;
     monad[2] = 0xFF;
     monad[3] = 1;
-    monad[4..8].copy_from_slice(&trace_id.to_be_bytes());
-    monad[0x0B] = 0x02;
+    // Wire format v0x01 (Monad::from_bytes): flags at 0x07, scratch 0x0E-0x11.
+    // The trace id used to sit at 0x04-0x07, over the flags byte, with CUSTOM
+    // at 0x0B (mesh_flags): only ids with bit 1 set were ticks (half of all).
+    monad[0x07] = 0x02; // flags: CUSTOM (CPU tick)
+    monad[0x0E..0x12].copy_from_slice(&trace_id.to_be_bytes());
     let crc = crc16_ccitt_false(&monad[..0x12]);
     monad[0x12..].copy_from_slice(&crc.to_be_bytes());
 
@@ -488,12 +491,12 @@ mod tests {
         assert_eq!(
             hex(&build_trigger_frame(0x6F, 0x1234_5678)),
             "0242ac1100030242ac11000286dd6000006f001c00fffd00003f007500000000000000000001\
-             fd00dead0000000000000000000000013b023e1401ffff0112345678000000020000000000004a1f00000000"
+             fd00dead0000000000000000000000013b023e1401ffff010000000200000000000012345678c81500000000"
         );
         assert_eq!(
             hex(&build_trigger_frame(0xDE, 0xFFFF_FFFF)),
             "0242ac1100030242ac11000286dd600000de001c00fffd00003f007500000000000000000001\
-             fd00dead0000000000000000000000013b023e1401ffff01ffffffff0000000200000000000091fa00000000"
+             fd00dead0000000000000000000000013b023e1401ffff0100000002000000000000ffffffffe5f600000000"
         );
     }
 

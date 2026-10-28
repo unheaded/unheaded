@@ -1203,6 +1203,14 @@ fn cmd_boot(
             s[10], s[11], s[12], s[13], s[14]
         );
     }
+    // Frames seen by monad_cpu (STAT 0), frames that passed the Monad checks
+    // (STAT 1), and this instance's tick counter: where triggers go missing.
+    if let Ok(t) = runner.read_stats(&[0, 1]) {
+        println!(
+            "  TICKS: triggers={} pkts={} cpu_ticks={} tick_counter={}",
+            triggers, t[0], t[1], cpu_after.tick_counter
+        );
+    }
     if let Some(n) = hijack_probe {
         hijack_probe_run(&runner, instance, n)?;
     }
