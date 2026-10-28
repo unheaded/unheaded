@@ -489,6 +489,24 @@ findings:
       go-licenses pinned and passing (9cd6cc05). What remains is Stevie's: re-enable the workflow (Actions, CI,
       Enable workflow) and check one green run. Enabling is a GitHub setting, so not done unattended.
 
+  - id: FND-029
+    title: >-
+      A UPC CPU tick selected its instance by the low byte of the flow label with no check of the sender, so any
+      sender on the link could drive any booted instance
+    verify: >-
+      `upc-bootctl boot --hijack-probe N` on a busy guest: ticks with a wrong nonce execute 0 instructions and each
+      increments stat 30; ticks with the owner nonce run
+    severity: low
+    class: app
+    opened: 2026-10-28
+    exposure: lab only; the guest's link is inside netns upc0 since S-ASCEND-2 Phase 5
+    lockout: none
+    step: 7
+    plan: >-
+      INSTANCE_OWNER binds each booted instance to a per-boot 12-bit nonce in flow-label bits 8-19 (S-ASCEND-2 Phase 6).
+      Residual, accepted for the lab: 12 bits is a tripwire, not authentication, and an observed nonce can be replayed.
+    resolved: {on: 2026-10-28, evidence: "sprint/ascend-2 53d76ffe: live probe, 10,000 wrong-nonce ticks executed 0 instructions and counted 10,000 drops; references/s-ascend-2-log.md Phase 6"}
+
   - id: FND-028
     title: >-
       upc-bootctl boots the UPC as root through sudo, with the guest's veth in the root namespace, no seccomp, no

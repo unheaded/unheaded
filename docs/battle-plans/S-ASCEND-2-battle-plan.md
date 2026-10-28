@@ -871,28 +871,28 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Time**: ~1.5 h
 **Agent**: Coordinator
 
-- [ ] **Step 293** [SECURITY][W] ~20m: Attack-surface table in `$LOG` §"Phase 12 review" (one row per change): `INSTANCE_OWNER_MAP` + nonce (new map, new compare; residual replay noted); `UPC_SURFACE_ID` reader (new ELF parsing in the loader → fuzz target); `SliceGeometry` validation (new arithmetic → property test for overflow); BootParams v3 SHA window (new bytes the kernel reads); `upc-netns.sh` (root script: shellcheck, no user input besides `up|down|status|up2|down2`); `unheaded-upc-bootctl@` unit (caps, seccomp filter text); `weights publish|fetch` (new Wotan consumer: seal verified before any write; path traversal in `--out`); `scorer-dataset.py` (reads captures with `-I`); Enkrateia proposals (new topic, no mutation); `drift.restore_proposal.*` auto-approve entry; `UPC_HMAC_KEY` env (fail-loud); the retired Go `mapfreeze.go` and `upc-bootstub` (surface removed).
-- [ ] **Step 294** [SECURITY][CODE][W] ~25m: Fuzz targets where bytes are parsed: `crates/upc-api/fuzz/fuzz_object_facts.rs` (arbitrary ELF bytes → never panics, returns `Err` or a 32-byte id) and `fuzz_slice_geometry.rs` (arbitrary `SliceGeometry` + capacities → no overflow panic); register both in `tomb/lich/UPC-CARTRIDGE-HOOKS.md`'s sibling table (or a new `tomb/lich/UPC-LOADER-HOOKS.md`).
-- [ ] **Step 295** [TEST][B] ~12m: Run them bounded
+- [x] **Step 293** [SECURITY][W] ~20m: Attack-surface table in `$LOG` §"Phase 12 review" (one row per change): `INSTANCE_OWNER_MAP` + nonce (new map, new compare; residual replay noted); `UPC_SURFACE_ID` reader (new ELF parsing in the loader → fuzz target); `SliceGeometry` validation (new arithmetic → property test for overflow); BootParams v3 SHA window (new bytes the kernel reads); `upc-netns.sh` (root script: shellcheck, no user input besides `up|down|status|up2|down2`); `unheaded-upc-bootctl@` unit (caps, seccomp filter text); `weights publish|fetch` (new Wotan consumer: seal verified before any write; path traversal in `--out`); `scorer-dataset.py` (reads captures with `-I`); Enkrateia proposals (new topic, no mutation); `drift.restore_proposal.*` auto-approve entry; `UPC_HMAC_KEY` env (fail-loud); the retired Go `mapfreeze.go` and `upc-bootstub` (surface removed).
+- [x] **Step 294** *(crates/upc-api/fuzz; run with scripts/lich-cargo-fuzz.sh, cargo-fuzz is not installed)* [SECURITY][CODE][W] ~25m: Fuzz targets where bytes are parsed: `crates/upc-api/fuzz/fuzz_object_facts.rs` (arbitrary ELF bytes → never panics, returns `Err` or a 32-byte id) and `fuzz_slice_geometry.rs` (arbitrary `SliceGeometry` + capacities → no overflow panic); register both in `tomb/lich/UPC-CARTRIDGE-HOOKS.md`'s sibling table (or a new `tomb/lich/UPC-LOADER-HOOKS.md`).
+- [x] **Step 295** [TEST][B] ~12m: Run them bounded
   ```bash
   cd "$PROJECT_ROOT/crates/upc-api" && timeout 400 cargo +nightly fuzz run fuzz_object_facts -- -max_total_time=180 2>&1 | tail -2; timeout 400 cargo +nightly fuzz run fuzz_slice_geometry -- -max_total_time=180 2>&1 | tail -2
   ```
-- [ ] **Step 296** [V] ~1m: No crashes. A crash → fix (it is a loader panic on hostile bytes: real finding, `FND-` row), re-run.
-- [ ] **Step 297** [COMPLIANCE][B] ~6m: Repo gates
+- [x] **Step 296** *(51.7M + 38.4M execs, no crash)* [V] ~1m: No crashes. A crash → fix (it is a loader panic on hostile bytes: real finding, `FND-` row), re-run.
+- [x] **Step 297** [COMPLIANCE][B] ~6m: Repo gates
   ```bash
   cd "$PROJECT_ROOT" && bash scripts/check-gitleaks.sh 2>&1 | tail -1; bash scripts/check-gosec-ratchet.sh 2>&1 | tail -2; bash scripts/check-dependency-baseline.sh 2>&1 | tail -2; bash scripts/check-systemd-units.sh 2>&1 | tail -2; make license-check 2>&1 | tail -2; bash scripts/check-runbooks.sh 2>&1 | tail -1; bash scripts/check-python-syntax.sh 2>&1 | tail -1; go mod tidy -diff | wc -l; (cd crates/upc-api && cargo tree --depth 1 2>/dev/null | grep -cE '^[a-z]' )
   ```
-- [ ] **Step 298** [V] ~2m: All PASS; `go mod tidy -diff` → `0`; no new crate at depth 1 in `upc-api` beyond what Phase 4 recorded (`object`/`goblin` if added: Barrister/ADR-004 note in `$LOG` + `docs/adr/ADR-004` admission line — a new Rust crate is an admission, record it).
-- [ ] **Step 299** [TEST][B] ~15m: Full test sweep for the KNOWN FAILURES BASELINE comparison
+- [x] **Step 298** *(all PASS; tidy empty; only libfuzzer-sys added, in the fuzz crate)* [V] ~2m: All PASS; `go mod tidy -diff` → `0`; no new crate at depth 1 in `upc-api` beyond what Phase 4 recorded (`object`/`goblin` if added: Barrister/ADR-004 note in `$LOG` + `docs/adr/ADR-004` admission line — a new Rust crate is an admission, record it).
+- [x] **Step 299** [TEST][B] ~15m: Full test sweep for the KNOWN FAILURES BASELINE comparison
   ```bash
   cd "$PROJECT_ROOT" && go test ./... 2>&1 | grep -E '^(FAIL|---)' | grep -v '^ok' > "$S6/p12-go-fail.txt"; diff <(sort "$S6/p0-go-fail.txt") <(sort "$S6/p12-go-fail.txt") | grep '^>' | head; for c in crates/upc-api cmd/upc-bootctl crates/monad-mbc crates/xv6-mbc crates/upc-cartridge crates/doom-runner; do (cd "$c" && cargo test --release 2>&1 | grep -E 'test result' | tail -1 | sed "s#^#$c: #"); done
   ```
-- [ ] **Step 300** [V] ~1m: Zero `>` lines (no NEW Go failures vs Phase 0); every Rust crate `0 failed`.
-- [ ] **Step 301** [SECURITY][W] ~10m: Register rows: `UPC-ISO-01` (Phase 5), `UPC-HIJACK-01` mitigated (Phase 6), any LICH-015 full-arm finding, any fuzz crash → `compliance/findings/register.yaml` with evidence paths; regenerate the ADR-098 section
+- [x] **Step 300** *(0 new Go failures; 6 Rust crates 0 failed)* [V] ~1m: Zero `>` lines (no NEW Go failures vs Phase 0); every Rust crate `0 failed`.
+- [x] **Step 301** *(FND-028 open, FND-029 resolved)* [SECURITY][W] ~10m: Register rows: `UPC-ISO-01` (Phase 5), `UPC-HIJACK-01` mitigated (Phase 6), any LICH-015 full-arm finding, any fuzz crash → `compliance/findings/register.yaml` with evidence paths; regenerate the ADR-098 section
   ```bash
   cd "$PROJECT_ROOT" && go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md 2>&1 | tail -2 && git diff --stat docs/adr/ADR-098-findings-register-and-baseline-modes.md | tail -1
   ```
-- [ ] **Step 302** [V][C] ~2m: **PHASE 12 EXIT GATE** — table complete; fuzz clean; gates green; baseline comparison zero new; register regenerated; committed (`chore(security): [S-ASCEND-2 293-302] attack-surface review, loader fuzz targets, register rows`).
+- [x] **Step 302** [V][C] ~2m: **PHASE 12 EXIT GATE** — table complete; fuzz clean; gates green; baseline comparison zero new; register regenerated; committed (`chore(security): [S-ASCEND-2 293-302] attack-surface review, loader fuzz targets, register rows`).
   - If pass → Phase 13. If fail → DO NOT PROCEED; fix within the phase.
 
 ---

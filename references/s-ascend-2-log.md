@@ -530,3 +530,32 @@ as a synthetic demonstrator. Recorded in ADR-108. Needs: a steel-echo window wit
 
 Phase 9 exit: decisions 243/244 recorded, 245 measured and reverted, live legs and retrain not done; no compose
 service started; tree clean.
+
+## Phase 12: security and compliance review (Steps 293-302, 2026-10-28)
+
+**Attack-surface changes this sprint (Step 293).**
+
+| Change | Surface | Control / evidence |
+|---|---|---|
+| Scheduler `found` flag (eBPF + emulator) | none new; removes a zombie-resume path | 2 emulator tests; gate_nway, forkloop gates |
+| `UPC_DEMO_MODE` gate | refuses live boots | `tests/demo_mode.rs` (5) |
+| `.rv2mbc` SHA resolver + sidecars, BootParams v3 | new file and hex parsing; 32 new bytes the kernel reads | `tests/rv2mbc_sha.rs` (18), upc-api tests; live tamper refused |
+| `UPC_SURFACE_ID` / `UPC_MMU_GEOMETRY` ELF reader | new ELF parsing in the loader | `fuzz_object_facts` 180 s, 51.7M execs, no crash |
+| Slice geometry gate | new arithmetic on declared values | `fuzz_slice_geometry` 180 s, 38.4M execs, no crash; asserts accepted slices are in RAM and disjoint |
+| `scripts/upc-netns.sh`, `scripts/lab-two-node.sh` | root scripts; arguments `up|down|status` only | shellcheck clean; the root namespace is never changed |
+| Native AF_PACKET trigger sender | raw socket (CAP_NET_RAW) on `veth-upc0p` only | frame unit-tested against doom-tick.py; inside upc0 |
+| `unheaded-upc-bootctl@` / `-netns` units, uid 16791 | 4 capabilities; seccomp `@system-service bpf`; exec limited | measured minimal; check-systemd-units PASS; not installed (E6) |
+| ROM/RV2MBC freeze | removes userspace writes after load | live EPERM; `freeze_live` test |
+| HMAC key resolver | removes a shipped default key | 3 tests; 0 literals in Go |
+| `INSTANCE_OWNER` + nonce | new map and compare per tick | live probe; residual (12-bit tripwire, replay) in the security brief |
+| `weights publish|fetch` | new Wotan consumer and producer | seal, model, length and sha checked before any write; 13 tests; residual: replay of an older valid envelope |
+| `devprobe`, riscv.h types | none new | harness gate; kernel byte-identical |
+
+**Gates (Step 297).** gitleaks (no new secrets, 6,157 files), gosec ratchet, dependency baseline (596), systemd units
+(46), runbooks (94), python syntax (162), `make license-check`: all PASS; `go mod tidy -diff` empty. The new fuzz crate
+`crates/upc-api/fuzz` adds `libfuzzer-sys` only (as `crates/monad-mbc/fuzz` already does).
+
+**Tests (Step 299).** `go test ./...`: 0 FAIL lines (Phase 0: 0). Rust: upc-api 71, upc-bootctl 88, monad-mbc 393,
+xv6-mbc 3, upc-cartridge 40, doom-runner 46; 0 failed.
+
+**Register (Step 301).** FND-028 (UPC isolation) open until E6; FND-029 (flow-label instance hijack) resolved.
