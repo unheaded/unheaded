@@ -211,6 +211,7 @@ func TestBFF_WebSocketNeedsTheCookieAfterTheOriginCheck(t *testing.T) {
 		if resp == nil {
 			t.Fatalf("dial: %v", err)
 		}
+		_ = resp.Body.Close()
 		return resp.StatusCode
 	}
 	good := ts.URL

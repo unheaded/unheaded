@@ -86,12 +86,12 @@ func (b *LinuxBackend) Attach(iface, pinDir string) error {
 	if err != nil {
 		return err
 	}
-	defer prog.Close()
+	defer func() { _ = prog.Close() }()
 	l, err := link.AttachTCX(link.TCXOptions{Interface: ifi.Index, Program: prog, Attach: ebpf.AttachTCXEgress})
 	if err != nil {
 		return err
 	}
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 	return l.Pin(filepath.Join(pinDir, PinLink))
 }
 
@@ -112,7 +112,7 @@ func (b *LinuxBackend) WriteTargets(pinDir string, targets map[uint32]uint64) er
 	if err != nil {
 		return err
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	for k, v := range targets {
 		if err := m.Put(k, v); err != nil {
 			return fmt.Errorf("key %#x: %w", k, err)
@@ -127,7 +127,7 @@ func (b *LinuxBackend) WriteConfig(pinDir string, key uint32, val uint64) error 
 	if err != nil {
 		return err
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	return m.Put(key, val)
 }
 
@@ -137,7 +137,7 @@ func (b *LinuxBackend) ReadStats(pinDir string) (map[uint32]uint64, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	out := map[uint32]uint64{}
 	var k uint32
 	var v uint64
@@ -168,7 +168,7 @@ func (b *LinuxBackend) DeleteTargets(pinDir string, keys []uint32) error {
 	if err != nil {
 		return err
 	}
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	var errs []error
 	for _, k := range keys {
 		if err := m.Delete(k); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {

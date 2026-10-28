@@ -183,11 +183,11 @@ func (r *runner) inTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) e
 		return err
 	}
 	if err := r.setTimeout(ctx, tx); err != nil {
-		tx.Rollback() // #nosec G104 -- the timeout error is the one returned
+		_ = tx.Rollback() // the timeout error is the one returned
 		return err
 	}
 	if err := fn(tx); err != nil {
-		tx.Rollback() // #nosec G104 -- fn's error is the one returned
+		_ = tx.Rollback() // fn's error is the one returned
 		return err
 	}
 	return tx.Commit()
@@ -239,14 +239,14 @@ func (r *runner) archivePurge(ctx context.Context, db *sql.DB, c Class, tg targe
 		}
 		batch, err := r.deleteBatch(ctx, tx, tg, cut)
 		if err != nil {
-			tx.Rollback() // #nosec G104 -- the batch error is the one returned
+			_ = tx.Rollback() // the batch error is the one returned
 			return fmt.Errorf("archive batch after %d rows: %w", res.Deleted, err)
 		}
 		if len(batch) == 0 {
 			return tx.Rollback()
 		}
 		if err := r.insertArchive(ctx, c, tg, batch); err != nil {
-			tx.Rollback() // #nosec G104 -- the archive error is the one returned; nothing was deleted
+			_ = tx.Rollback() // the archive error is the one returned; nothing was deleted
 			return fmt.Errorf("archive copy (nothing deleted): %w", err)
 		}
 		if err := tx.Commit(); err != nil {

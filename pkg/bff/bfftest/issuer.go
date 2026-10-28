@@ -64,7 +64,12 @@ func NewIssuerTLS(t testing.TB, cfg *tls.Config, audiences ...string) *Issuer {
 	})
 	mux.HandleFunc("GET /jwks.json", func(w http.ResponseWriter, _ *http.Request) {
 		is.mu.Lock()
-		pub := is.priv.Public().(ed25519.PublicKey)
+		pub, ok := is.priv.Public().(ed25519.PublicKey)
+		if !ok {
+			is.mu.Unlock()
+			http.Error(w, "signing key is not Ed25519", http.StatusInternalServerError)
+			return
+		}
 		kid := is.kid
 		is.mu.Unlock()
 		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{

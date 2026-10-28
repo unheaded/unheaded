@@ -172,7 +172,7 @@ func (cc *cuirassClient) startOnce(ctx context.Context, id, image string, poll, 
 func (cc *cuirassClient) deleteAndWait(ctx context.Context, id string, poll time.Duration) error {
 	err := cc.do(ctx, http.MethodDelete, "/api/v1/containers/"+url.PathEscape(id), nil, nil)
 	var se *statusError
-	if err != nil && !(errors.As(err, &se) && se.code == http.StatusNotFound) {
+	if err != nil && (!errors.As(err, &se) || se.code != http.StatusNotFound) {
 		return err
 	}
 	for {

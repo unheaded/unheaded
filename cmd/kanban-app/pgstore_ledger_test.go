@@ -20,7 +20,6 @@ import (
 type fakeWell struct {
 	ledger    []string
 	ledgerErr error
-	closed    bool
 }
 
 var (

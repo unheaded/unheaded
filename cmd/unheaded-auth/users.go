@@ -310,7 +310,7 @@ func writeUsersFile(path string, uf usersFile) error {
 		return err
 	}
 	name := tmp.Name()
-	defer os.Remove(name)
+	defer func() { _ = os.Remove(name) }() // #nosec G703 -- our CreateTemp beside the configured users file; gone after a successful rename
 	if err := tmp.Chmod(0o600); err != nil {
 		_ = tmp.Close()
 		return err

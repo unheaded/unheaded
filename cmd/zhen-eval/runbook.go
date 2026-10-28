@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -201,8 +202,12 @@ func judgeRunbookDraft(ctx context.Context, task *runbookTask, work, answer stri
 		return RunbookResult{Detail: "check_error: " + err.Error()}
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
+	// The name comes from the eval's task file: one path element, or nothing is written.
+	if n := task.req.Name; n == "" || n != filepath.Base(n) || n == "." || n == ".." {
+		return RunbookResult{Detail: "check_error: task name " + strconv.Quote(task.req.Name) + " is not a single file name"}
+	}
 	path := filepath.Join(dir, task.req.Name+".yaml")
-	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil { // #nosec G703 -- a fresh MkdirTemp dir and a name checked to be one path element above
 		return RunbookResult{Detail: "check_error: " + err.Error()}
 	}
 

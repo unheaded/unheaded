@@ -124,7 +124,11 @@ func importFileJournal(dir string, store JournalStore, log *logger.Logger) error
 			return fmt.Errorf("chaos journal: moving %s into the Well: %w", e.ID, err)
 		}
 	}
-	if err := f.(*fileJournalStore).save(nil); err != nil {
+	fs, ok := f.(*fileJournalStore)
+	if !ok {
+		return fmt.Errorf("chaos journal: %T is not the file journal; %s left as it is", f, journalFileName)
+	}
+	if err := fs.save(nil); err != nil {
 		return fmt.Errorf("chaos journal: %d entries are in the Well, but %s could not be emptied: %w", len(entries), journalFileName, err)
 	}
 	if log != nil {

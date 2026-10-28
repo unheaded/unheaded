@@ -189,7 +189,7 @@ func replaceFile(path string, data []byte) error {
 		return err
 	}
 	name := tmp.Name()
-	defer os.Remove(name) // #nosec G104 -- already gone after a successful rename
+	defer func() { _ = os.Remove(name) }() // already gone after a successful rename
 	if err := tmp.Chmod(0o600); err != nil {
 		_ = tmp.Close()
 		return err

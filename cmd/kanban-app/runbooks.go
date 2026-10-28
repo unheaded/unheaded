@@ -644,6 +644,9 @@ func (s *Server) writeTaskDetail(w http.ResponseWriter, r *http.Request, t *Task
 
 // insertTask writes a new card through the TaskManager or the store,
 // refusing a duplicate id; the status code goes with the error.
+// errInternal is the body for a 500 from insertTask; the cause is logged, not sent.
+var errInternal = errors.New("internal server error")
+
 func (s *Server) insertTask(ctx context.Context, task *Task) (int, error) {
 	if s.taskManager != nil {
 		if err := s.taskManager.CreateTask(ctx, task); err != nil {
@@ -655,7 +658,7 @@ func (s *Server) insertTask(ctx context.Context, task *Task) (int, error) {
 			case errors.Is(err, ErrInvalidTask):
 				return http.StatusBadRequest, err
 			}
-			return http.StatusInternalServerError, errors.New("Internal server error")
+			return http.StatusInternalServerError, errInternal
 		}
 		return 0, nil
 	}
@@ -667,14 +670,14 @@ func (s *Server) insertTask(ctx context.Context, task *Task) (int, error) {
 		existing, err := s.store.GetTask(task.ID)
 		if err != nil && !errors.Is(err, ErrStoreNotFound) {
 			log.Error().Err(err).Str("task_id", task.ID).Msg("task store read failed")
-			return http.StatusInternalServerError, errors.New("Internal server error")
+			return http.StatusInternalServerError, errInternal
 		}
 		if existing != nil {
 			return http.StatusConflict, errors.New("task already exists")
 		}
 		if err := s.store.SaveTask(task); err != nil {
 			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to save task to store")
-			return http.StatusInternalServerError, errors.New("Internal server error")
+			return http.StatusInternalServerError, errInternal
 		}
 		return 0, nil
 	}

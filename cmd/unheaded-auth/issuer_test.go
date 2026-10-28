@@ -124,7 +124,14 @@ func serve(t *testing.T, f *fixture, mod func(*issuerConfig)) (*httptest.Server,
 	return ts, iss
 }
 
-func getJSON(t *testing.T, url string, out any) *http.Response {
+// reply is what the tests read from a response; the body is consumed and
+// closed inside the helpers, so no caller holds one open.
+type reply struct {
+	StatusCode int
+	Header     http.Header
+}
+
+func getJSON(t *testing.T, url string, out any) reply {
 	t.Helper()
 	resp, err := http.Get(url) // #nosec G107 -- test server URL
 	if err != nil {
@@ -136,10 +143,10 @@ func getJSON(t *testing.T, url string, out any) *http.Response {
 			t.Fatalf("decode %s: %v", url, err)
 		}
 	}
-	return resp
+	return reply{resp.StatusCode, resp.Header}
 }
 
-func login(t *testing.T, ts *httptest.Server, body string) (*http.Response, map[string]any) {
+func login(t *testing.T, ts *httptest.Server, body string) (reply, map[string]any) {
 	t.Helper()
 	resp, err := http.Post(ts.URL+"/login", "application/json", strings.NewReader(body)) // #nosec G107 -- test server URL
 	if err != nil {
@@ -148,7 +155,7 @@ func login(t *testing.T, ts *httptest.Server, body string) (*http.Response, map[
 	defer resp.Body.Close()
 	var out map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&out)
-	return resp, out
+	return reply{resp.StatusCode, resp.Header}, out
 }
 
 func TestDiscovery(t *testing.T) {

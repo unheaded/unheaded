@@ -100,6 +100,3 @@ func beneathError(rel string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", rel, err)
 }
-
-// isNotExist reports a missing file from openBeneath.
-func isNotExist(err error) bool { return errors.Is(err, unix.ENOENT) }

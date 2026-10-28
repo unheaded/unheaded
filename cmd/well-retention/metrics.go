@@ -69,7 +69,7 @@ func writeMetrics(dir, text string) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name()) // #nosec G104 -- best effort: after the rename the temp name no longer exists
+	defer func() { _ = os.Remove(tmp.Name()) }() // #nosec G703 -- our CreateTemp in the textfile dir; best effort, gone after the rename
 	if _, err := tmp.WriteString(text); err != nil {
 		tmp.Close() // #nosec G104 -- the write error is the one returned
 		return err
