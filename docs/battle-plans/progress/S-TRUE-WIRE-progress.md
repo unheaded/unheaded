@@ -286,3 +286,16 @@ targets:
   stacks. Dry run of the defaults (Step 241): build, vet, go test 218 ok with no FAIL, tidy clean; the only outside file
   that goes with them is LICH-006's lifecycle harness. Merging develop into the branch (`7dde4cbc`) was needed for the
   meta-gate: the branch lacked develop's classification fix.
+- Steps 386-389 (fuzz and lint): new targets `pkg/wotanerr` FuzzDecode / FuzzParseHex / FuzzParseBracket (accepted codes
+  survive their own encoding), `pkg/ebpf` FuzzDecodeAnamnesisEventLegacy (no zero timestamp; agrees with the spec decoder
+  on every field but the type), `services/wotan/internal/cluster` FuzzVerifyEntry (no panic; never accepts a signed-topic
+  entry with no trusted key); with sophiasync FuzzDeserialize, 120 s each: all clean. `FlowActionLegacy` and the error
+  lookup are total functions over a byte: exhaustive tests instead of fuzzing (bpfschema new; errors already loops all
+  256). `pkg/shieldmaps` does not exist (E8). Rust: `cargo clippy -D warnings` on the ebpf workspace caught one
+  manual_range_contains in tonight's packet-marker code (fixed `ec8836b8`, +15 insns, baseline updated, lab 70/70);
+  Lich `fuzz_cart_image` (21.0M execs) and `fuzz_cart_differential` (189k) 120 s each, no crash.
+- Step 393: no Shield/data-plane threat model exists (premise false); `tomb/grimoire/threat-models/kingdom-threat-model.md`
+  now says what Shield enforces (blocklist, Monad stamp/strip, CRC/version counting) and that its per-flow checks are
+  stubs (FND-025, E8); its bypass row credited "Shield XDP" with more than the blocklist.
+- Step 398 (E7) prepared: `docs/adr/ACCEPTANCE-2026-10-28.diff` (ADRs 093, 094, 101, 104, 105, 106, 107: status line +
+  index row each, `<DATE>` placeholder; `git apply --check` clean).
