@@ -421,16 +421,16 @@ const STAT_TTY_READS: u32 = 20; // TTY read operations (SYS_READ from fd 0) (Lev
 const STAT_WAITPIDS: u32 = 21; // SYS_WAITPID calls (Level 5b)
                                // EVOLUTION-1 S1.1 guard flag. When true, xv6 getpid (11) is serviced by the
                                // OWNED kernel via a real injected ecall trap (uservec → usertrap → syscall() →
-                               // sys_getpid → usertrapret → SRET) instead of the in-BPF one-liner. Default OFF
-                               // keeps the baseline green (getpid is not in the boot corpus); flip to true to
-                               // exercise the entry half and measure the verifier delta + observed pid.
-                               // Rollback = this one flag. See references/evolution1-stage1-2026-07-19.md.
-const GETPID_INJECT: bool = false;
+                               // sys_getpid → usertrapret → SRET) instead of the in-BPF one-liner. ON since
+                               // 2026-10-28 (EVOLUTION-1 Stage 2 rung 1), together with UPC_RUNG0: a BPF-forked
+                               // child's trap needs its own kernel row (ADR-109). Rollback = both flags off.
+                               // See references/evolution1-stage1-2026-07-19.md, references/evolution1-stage2-log.md.
+const GETPID_INJECT: bool = true;
 // ADR-109 (EVOLUTION-1 Stage 2 rung 0): kernel rows per BPF slot. On: at trap
 // injection BPF points sscratch at the slot's trapframe and writes the tagged
 // slot and a7 into the kernel's slot table; fork marks the child slot fresh;
 // no context switch outside U-mode (I7). Off: this object is the pre-ADR one.
-const UPC_RUNG0: bool = false;
+const UPC_RUNG0: bool = true;
 // ADR-109 D6: a U-mode page-walk miss resolves outside RAM_MAP (loads 0, stores
 // dropped) instead of falling through to the physical address.
 const UPC_D6_MISS_FAULT: bool = false;
