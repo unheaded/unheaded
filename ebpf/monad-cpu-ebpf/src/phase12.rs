@@ -79,6 +79,19 @@ pub const SLICE_STRIDE: u32 = 0x0080_0000; // 8 MiB (two 4 MiB superpages)
 /// 1..=5 and leaves 8 MiB headroom below RAM_MAP's 64 MiB top.
 pub const RAM_ISOLATION_CEILING: u32 = 0x0380_0000; // 56 MiB
 
+// ── ADR-109 (EVOLUTION-1 Stage 2 rung 0): kernel slot tables ─────────────────
+// The kernel publishes the physical address of its `struct upc_slot_tables`
+// in BootParams `reserved[0]`; 0 means not published and BPF does nothing.
+// Mirrored in crates/xv6-mbc/adapters/upc_slots.h (parity test:
+// cmd/upc-bootctl/tests/parity_slot_tables.rs).
+pub const UPC_SLOT_TABLES_BP_BYTE: u32 = 0x0000_0160;
+pub const UPC_SLOTS: u32 = 8;
+pub const UPC_ST_TF_OFF: u32 = 0x0000_0000;
+pub const UPC_ST_CUR_SLOT_OFF: u32 = 0x0000_0020;
+pub const UPC_ST_GEN_OFF: u32 = 0x0000_0024;
+pub const UPC_ST_TRAP_A7_OFF: u32 = 0x0000_0044;
+pub const UPC_ST_TRAP_A6_OFF: u32 = 0x0000_0048;
+
 // ── Gate 4 isolation invariants (compile-time) ─────────────────────────────
 /// The stride must cover the two 4 MiB superpage leaves, or adjacent pids'
 /// slices overlap physically (the leak gate_nway.c exists to catch).

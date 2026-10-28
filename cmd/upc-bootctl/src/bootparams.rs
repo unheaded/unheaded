@@ -59,7 +59,7 @@ pub struct BootParamsV2 {
     // === v3: raw SHA-256 of the kernel .rv2mbc (byte offset 64..96) ===
     pub rv2mbc_sha256: [u8; 32], // zeros only on the dry-run hatch
     // === forward-compat reservation ===
-    pub reserved: [u32; 40], // zero-filled (byte offset 96..256)
+    pub reserved: [u32; 40], // zero-filled (byte offset 96..256); reserved[0] (byte 0x160): ADR-109 slot-table address, written by the kernel, 0 from the loader
 }
 
 const _: () = assert!(std::mem::size_of::<BootParamsV2>() == 256);
