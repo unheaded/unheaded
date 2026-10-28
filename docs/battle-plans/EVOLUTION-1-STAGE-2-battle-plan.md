@@ -367,18 +367,18 @@ Helper:
 rung() { sed -i "s/const UPC_RUNG0: bool = $1;/const UPC_RUNG0: bool = $2;/" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
 d6()   { sed -i "s/const UPC_D6_MISS_FAULT: bool = $1;/const UPC_D6_MISS_FAULT: bool = $2;/" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
 obj()  { (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1); }
-vcount() { ub getpidprobe UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' | tail -1; }
+vcount() { ub getpidfork UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' | tail -1; }
 ```
 
 ### Read, then write the asserter
 
-- [ ] **Step 85** [R] ~10m: Read, with current line numbers recorded in `$LOG`:
+- [x] **Step 85** [R] ~10m: Read, with current line numbers recorded in `$LOG`:
   - the injection arm (`if GETPID_INJECT`, about `main.rs:2520`) down to its STVEC jump;
   - the fork arm (`syscall_nr == 1`, about `:2193`) at the point where the child slot is known;
   - `translate_address` (about `:3630`), both "return vaddr" sites;
   - `scheduler_context_switch` (about `:3450`);
   - how `mem_write_word` bounds an address.
-- [ ] **Step 86** [W] ~20m: `scripts/upc-rung0-assert.awk` reads `ugl` output and exits non-zero on any violation:
+- [x] **Step 86** *(tf= field added: SHARED_TF was invisible to ss alone)* [W] ~20m: `scripts/upc-rung0-assert.awk` reads `ugl` output and exits non-zero on any violation:
   - every `UT:` line has `s` in 0..7, `pid == s + 1`, and `ss` equal to `base + 256*s`. The base is the `ss` of the
     first `s=0` line, because `tf[0]` sits at the base.
   - each s>0 has `rf=1` on its first `UT:` line after each `GL:`/`GM: fork-ret` line, and `rf=0` on any later line
@@ -387,15 +387,15 @@ vcount() { ub getpidprobe UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' 
   - each `SP:pre` equals the following `SP:post`.
 
   Print one summary line, `RUNG0-ASSERT pass N` or `RUNG0-ASSERT fail <reason>`.
-- [ ] **Step 87** [TEST][B] ~3m: Feed the asserter `"$S7/p3-compat.txt"`. It has no `UT:` lines, so it must print
+- [x] **Step 87** [TEST][B] ~3m: Feed the asserter `"$S7/p3-compat.txt"`. It has no `UT:` lines, so it must print
   `fail no UT lines`. Then feed it a hand-made line with `pid=1` for `s=1`: it must fail on pid. This proves the
   asserter can fail.
 
 ### BPF changes
 
-- [ ] **Step 88** [CODE] ~10m: `main.rs`, next to `GETPID_INJECT`: `const UPC_RUNG0: bool = false;` and
+- [x] **Step 88** [CODE] ~10m: `main.rs`, next to `GETPID_INJECT`: `const UPC_RUNG0: bool = false;` and
   `const UPC_D6_MISS_FAULT: bool = false;`, each with a one-line ADR-109 comment.
-- [ ] **Step 89** [CODE] ~25m: `#[inline(always)] fn inject_strap(cpu: &MbcCpuState)`:
+- [x] **Step 89** [CODE] ~25m: `#[inline(always)] fn inject_strap(cpu: &MbcCpuState)`:
   - `base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2)`; if 0, return;
   - `s = cpu.current_pid as u32 & 7`;
   - write the sscratch CSR word, `(0xF000 + 4*0x140) >> 2`, as `base + (s << 8)`;
@@ -404,17 +404,17 @@ vcount() { ub getpidprobe UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' 
 
   Call it inside the `if GETPID_INJECT` arm, just before the STVEC jump, as `if UPC_RUNG0 { inject_strap(cpu); }`.
   Copy the CSR word address from the existing `CSR_SSCRATCH` constant if there is one, not the literal.
-- [ ] **Step 90** [CODE] ~10m: Fork arm: `if UPC_RUNG0 { let b = mem_read_word(...BP_BYTE >> 2); if b != 0 { let w = (b + UPC_ST_FRESH_MASK_OFF) >> 2; mem_write_word(w, mem_read_word(w) | (1u32 << (child_pid & 7))); } }`.
+- [x] **Step 90** [CODE] ~10m: Fork arm: `if UPC_RUNG0 { let b = mem_read_word(...BP_BYTE >> 2); if b != 0 { let w = (b + UPC_ST_FRESH_MASK_OFF) >> 2; mem_write_word(w, mem_read_word(w) | (1u32 << (child_pid & 7))); } }`.
   Place it after the child slot is final.
-- [ ] **Step 91** [CODE] ~5m: I7: first line of `scheduler_context_switch`:
+- [x] **Step 91** [CODE] ~5m: I7: first line of `scheduler_context_switch`:
   `if UPC_RUNG0 && cpu.priv_level != 3 { return; }`. Use the field's actual name from `MbcCpuState`.
-- [ ] **Step 92** [CODE] ~10m: D6: in `translate_address`, at both "return vaddr" miss sites:
+- [x] **Step 92** [CODE] ~10m: D6: in `translate_address`, at both "return vaddr" miss sites:
   `if UPC_D6_MISS_FAULT && cpu.priv_level == 3 && cpu.page_dir_base != 0 { return 0xFFFF_FFFC; }`. Doom builds without
   `ascend-linux` must not change, so wrap the condition in `cfg!(feature = "ascend-linux")` as well.
 
 ### Verified counts (I6 and the cost bar)
 
-- [ ] **Step 93** [BUILD][B][S] ~6m: Three objects, each counted:
+- [x] **Step 93** *(flag-on pair added; vcount boots getpidfork, getpidprobe is not built)* [BUILD][B][S] ~6m: Three objects, each counted:
   ```bash
   obj; vcount | tee "$S7/p4-v-off.txt"
   rung false true; obj; vcount | tee "$S7/p4-v-rung.txt"
@@ -423,7 +423,7 @@ vcount() { ub getpidprobe UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' 
   ```
   Then the Doom object: `cargo build --release -p monad-cpu-ebpf` (no feature), with the count from
   `scripts/check-ebpf-insns.sh`.
-- [ ] **Step 94** [V] ~2m: All four counts meet their bar:
+- [x] **Step 94** *(RUNG0 +4,055 with the flag on: recorded, continue)* [V] ~2m: All four counts meet their bar:
   - OFF equals Step 60's count exactly (I6);
   - RUNG0 is at most +2,000 over OFF;
   - RUNG0 + D6 is at most 950,000;
@@ -433,8 +433,8 @@ vcount() { ub getpidprobe UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' 
   - Over +5,000 for RUNG0 → [DECIDE] take the ADR-109 fallback: `cur_slot` only, with an amendment, and re-plan
     Steps 89-90. Between +2,000 and +5,000 → record it and continue.
   - OFF differs → a const guard is missing; find the unguarded write.
-- [ ] **Step 95** [B] ~2m: `bash scripts/check-ebpf-insns.sh 2>&1 | tail -3` with the OFF object.
-- [ ] **Step 96** [V] ~30s: the ratchet passes, since the count is unchanged.
+- [x] **Step 95** [B] ~2m: `bash scripts/check-ebpf-insns.sh 2>&1 | tail -3` with the OFF object.
+- [x] **Step 96** [V] ~30s: the ratchet passes, since the count is unchanged.
 - [ ] **Step 97** [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 85-96] ADR-109 BPF side behind UPC_RUNG0 and UPC_D6_MISS_FAULT (off); asserter`.
 
 ### The gate

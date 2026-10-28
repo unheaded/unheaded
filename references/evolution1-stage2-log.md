@@ -269,3 +269,55 @@ changes.
 
 **Phase 3 exit gate: PASS.** Flag OFF: 12/12 SAME, harness ALL GREEN, count unchanged. The compat check repeats the
 RED lines. The RED record is `$S7/p3-red.txt`. `GETPID_INJECT` is `false` in the tree.
+
+## Phase 4: rung 0 BPF side and the gate (Steps 85-110)
+
+**Step 85 (read).** Current line numbers:
+- injection arm: `if GETPID_INJECT` at about `main.rs:2525`;
+- fork arm: `syscall_nr == 1` at `:2193`; the child slot is final at `:2226-2232`, and the slot revive (`SCHED_STATE`
+  3/4) is at about `:2355`;
+- `translate_address` miss sites: PDE at about `:3712`, PTE at about `:3736`;
+- `scheduler_context_switch`: about `:3500`.
+
+`mem_write_word` drops a store outside `RAM_MAP`. No host emulator models the injection arm.
+
+**Steps 86-87 (asserter).** `scripts/upc-rung0-assert.awk`. Init never traps in getpidloop/getpidmulti, so there is no
+`s=0` line; the base is derived as `ss - 256*s` and must be equal on every line. As planned, the asserter could not
+catch `UPC_MUT_SHARED_TF`: BPF still sets `sscratch = tf[s]`, so `ss` looks right while the row's trapframe is `tf[0]`.
+So the UT line now prints `tf=` (the row's trapframe), and the asserter requires `tf == ss`.
+
+It is proven able to fail on every hand-made violation, each with its own reason:
+- no UT lines;
+- wrong pid;
+- no refresh;
+- shared trapframe;
+- stale a7;
+- 11 in the I8 word.
+
+**Steps 88-92 (BPF).**
+- Consts `UPC_RUNG0` and `UPC_D6_MISS_FAULT`, both off.
+- `inject_strap()` is called after the sstatus write in the injection arm.
+- The fork arm sets bit `child & 7` in `fresh_mask` after the slot revive.
+- I7: the first line of `scheduler_context_switch` returns early when `priv_level != 3`.
+- `d6_user_miss()` is checked at both miss sites; it is ascend-only and U-mode with a pgd only.
+- A placement slip (the helpers went between `translate_address`'s `#[inline(always)]` and its `fn`) was a compile
+  error, fixed by moving the block above that doc comment.
+
+**Steps 93-96 (verified counts, one session, rustc and host kernel as in Phase 0).**
+
+| `GETPID_INJECT` | `UPC_RUNG0` | D6 | verified |
+|---|---|---|---|
+| off | off | off | **921,036** (= the Step 60 reference: I6 holds) |
+| off | on | off | 922,754 (+1,718: the fork bit and the I7 guard; the inject arm is compiled out) |
+| off | on | on | 925,342 (+2,588 for D6) |
+| on | off | off | 909,353 |
+| on | on | off | 913,408 (**+4,055** over inject alone) |
+| on | on | on | 916,504 (+3,096 for D6) |
+
+- The plan's Step 93 counted only flag-off objects. With the flag off, the injection arm is compiled out, so the
+  rung's real cost is the flag-on pair; that pair is recorded here as well.
+- `UPC_RUNG0` costs +4,055, over the +2,000 bar and under the +5,000 Override. Per Step 94 it is recorded and the
+  plan continues.
+- The shipping configuration (all on) is 916,504, which is 4,532 under the pre-ADR flag-off object: the ladder still
+  pays for itself.
+- `check-ebpf-insns.sh`: PASS.

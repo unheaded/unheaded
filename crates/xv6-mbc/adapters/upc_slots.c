@@ -126,8 +126,8 @@ upc_slot_enter(void)
 #endif
 
 #ifdef UPC_STAGE2_PROBE
-  printf("UT:s=%d;pid=%d;ss=%d;a7=%d;rf=%d;\n", (int)s, p->pid, (int)r_sscratch(),
-         (int)p->trapframe->a7, rf);
+  printf("UT:s=%d;pid=%d;ss=%d;tf=%d;a7=%d;rf=%d;\n", (int)s, p->pid, (int)r_sscratch(),
+         (int)p->trapframe, (int)p->trapframe->a7, rf);
   upc_probe_spill(s);
 #endif
   (void)rf;

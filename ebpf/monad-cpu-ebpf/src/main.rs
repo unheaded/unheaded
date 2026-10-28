@@ -426,6 +426,14 @@ const STAT_WAITPIDS: u32 = 21; // SYS_WAITPID calls (Level 5b)
                                // exercise the entry half and measure the verifier delta + observed pid.
                                // Rollback = this one flag. See references/evolution1-stage1-2026-07-19.md.
 const GETPID_INJECT: bool = false;
+// ADR-109 (EVOLUTION-1 Stage 2 rung 0): kernel rows per BPF slot. On: at trap
+// injection BPF points sscratch at the slot's trapframe and writes the tagged
+// slot and a7 into the kernel's slot table; fork marks the child slot fresh;
+// no context switch outside U-mode (I7). Off: this object is the pre-ADR one.
+const UPC_RUNG0: bool = false;
+// ADR-109 D6: a U-mode page-walk miss resolves outside RAM_MAP (loads 0, stores
+// dropped) instead of falling through to the physical address.
+const UPC_D6_MISS_FAULT: bool = false;
 
 const STAT_TRIVIAL_SYSCALLS: u32 = 22; // Trivial FUZIX stub syscalls (Level 5c)
 const STAT_MODERATE_SYSCALLS: u32 = 23; // Moderate FUZIX syscalls (Level 5d: ioctl, signal, stat, pipe, etc.)
@@ -2362,6 +2370,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             *p &= !(1u32 << child_pid);
                         }
                     }
+                    // ADR-109 D3: the kernel refreshes this slot's row on its
+                    // first trap (fresh_mask bit), whether or not the slot is new.
+                    if UPC_RUNG0 {
+                        let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
+                        if base != 0 {
+                            let w = (base + phase12::UPC_ST_FRESH_MASK_OFF) >> 2;
+                            mem_write_word(w, mem_read_word(w) | (1u32 << (child_pid & 7)));
+                        }
+                    }
                     if child_pid + 1 > cpu.num_processes as u32 {
                         cpu.num_processes = (child_pid + 1) as u8;
                     }
@@ -2536,6 +2553,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     let new_sstatus =
                         (sstatus & !(1u32 << 8) & !(1u32 << 5) & !(1u32 << 1)) | (sie << 5);
                     mem_write_word((0xF000 + 0x100 * 4) >> 2, new_sstatus);
+                    if UPC_RUNG0 {
+                        inject_strap(cpu);
+                    }
                     // Enter supervisor mode BEFORE the RV2MBC lookup so the
                     // kernel base (0) is used for STVEC, not the user base.
                     cpu.priv_level = 1;
@@ -3448,6 +3468,10 @@ fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
 /// All loops bounded to MAX_PROCESSES (8 since Phase 1.3 ADR-075 D-1) for BPF verifier.
 #[inline(always)]
 fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) {
+    // ADR-109 I7: never switch while the owned kernel is running (S-mode).
+    if UPC_RUNG0 && cpu.priv_level != 3 {
+        return;
+    }
     let old_pid = cpu.current_pid as u32;
     let num = cpu.num_processes as u32;
 
@@ -3616,6 +3640,42 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 
 // ── MBC CPU flag helper ───────────────────────────────────────────────────────
 
+/// ADR-109 D6: where a U-mode page-walk miss resolves. Outside RAM_MAP, so
+/// mem_read_word returns 0 and mem_write_word drops the store.
+const D6_MISS_ADDR: u32 = 0xFFFF_FFFC;
+
+#[inline(always)]
+fn d6_user_miss(cpu: &MbcCpuState) -> bool {
+    cfg!(feature = "ascend-linux")
+        && UPC_D6_MISS_FAULT
+        && cpu.priv_level == 3
+        && cpu.page_dir_base != 0
+}
+
+/// ADR-109 D3: at trap injection, point sscratch at the running slot's
+/// trapframe (base + 256*slot) and hand the kernel the tagged slot and a7.
+/// Nothing happens until the kernel has published the table (0x160 != 0).
+#[inline(always)]
+fn inject_strap(cpu: &MbcCpuState) {
+    let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
+    if base == 0 {
+        return;
+    }
+    let slot = cpu.current_pid as u32 & (phase12::UPC_SLOTS - 1);
+    mem_write_word(
+        (0xF000 + 0x140 * 4) >> 2,
+        base + slot * phase12::UPC_TF_STRIDE,
+    ); // SSCRATCH
+    mem_write_word(
+        (base + phase12::UPC_ST_CUR_SLOT_OFF) >> 2,
+        phase12::UPC_TAG_SLOT | slot,
+    );
+    mem_write_word(
+        (base + phase12::UPC_ST_TRAP_A7_OFF) >> 2,
+        phase12::UPC_TAG_A7 | (cpu.regs[1] & !phase12::UPC_TAG_MASK),
+    );
+}
+
 /// Update Z, N, C flags from an ALU result.
 #[inline(always)]
 /// Translate a virtual address to a physical address using two-level page tables
@@ -3659,6 +3719,9 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     let pd_word_addr = (cpu.page_dir_base >> 2) + pde_idx;
     let pde = mem_read_word(pd_word_addr);
     if (pde & mmu::PTE_PRESENT) == 0 {
+        if d6_user_miss(cpu) {
+            return D6_MISS_ADDR;
+        }
         return vaddr; // Page fault — return unmapped (handle gracefully)
     }
 
@@ -3682,6 +3745,9 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     let pt_word_addr = (pt_base >> 2) + pte_idx;
     let pte = mem_read_word(pt_word_addr);
     if (pte & mmu::PTE_PRESENT) == 0 {
+        if d6_user_miss(cpu) {
+            return D6_MISS_ADDR;
+        }
         return vaddr; // Page fault
     }
 
