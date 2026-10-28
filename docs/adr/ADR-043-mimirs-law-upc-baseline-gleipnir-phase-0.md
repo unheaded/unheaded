@@ -1,6 +1,6 @@
 # ADR-043: Mímir's Law — OS Baseline Delivery, Drift Detection, and Self-Healing via UPC (Gleipnir Phase 0 PoC)
 
-## Status: PoC (2026-04-11; corrected 2026-10-27) — 11 of 13 phases shipped; Phases 9/11/13 wait on east as a node (S5 Step 177). Earlier runs: bare-metal Gjallarhorn unicast + drift detection + 100-packet stress + forgery rejection demonstrated on WEST↔EAST. Multicast bootstrap deferred (L2-only — not applicable on WG-overlay 2-node test setup).
+## Status: PoC (2026-04-11; corrected 2026-10-27; updated 2026-10-28) — 11 of 13 phases shipped on hardware; Phases 9/11/13 re-run 2026-10-28 on two network namespaces on one bridge on west, not across hosts (S-ASCEND-2 Phase 8: multicast bootstrap horns classified in 10-18 ms, 20/20 drifts within 264 ms, signed drift events, tampered and expired seals refused; references/s-ascend-2-log.md). Across hosts still waits on east as a node (S-ASCEND-2 E3). Earlier runs: bare-metal Gjallarhorn unicast + drift detection + 100-packet stress + forgery rejection demonstrated on WEST↔EAST. Multicast bootstrap deferred (L2-only — not applicable on WG-overlay 2-node test setup).
 
 ## Phase 13 — Day-14 Gate Evaluation
 
@@ -29,7 +29,7 @@
 | Restore verification accuracy | 100% (1/1 on injection test) |
 | Data consistency | 100% (100/100 stress packets) |
 | Cascade failures | 0 |
-| Bootstrap flow demonstrated | PARTIAL — unicast yes, multicast L2-scoped (not applicable on 2-node WG overlay) |
+| Bootstrap flow demonstrated | PARTIAL — unicast yes on WEST↔EAST; multicast yes on a two-netns bridge on west (2026-10-28, not across hosts) |
 | Reminder flow demonstrated | ✓ injection caught on EAST |
 | LICH-012 zero exploitable | DEFERRED — campaign scaffold opened, full red team out of PoC scope |
 

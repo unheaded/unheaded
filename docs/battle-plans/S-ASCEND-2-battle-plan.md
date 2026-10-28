@@ -682,7 +682,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - [x] **Step 217** *(20/20, ≤ 264 ms, 0 false alerts, flood 87 rate-limited, daemon alive)* [V] ~1m: **K3** — 20/20 drifts caught (≤ 1 s each, from the seed log timestamps), 0 false alerts on untouched files, 100 bad horns refused, daemon still running (count `1`), zero restarts.
 - [x] **Step 218** [B] ~3m: Phase 13 pass-criteria table (K1 hooks verifier-accepted — from S5 Step 145 counts, unchanged unless heimdall-bpf changed; K2 Step 213; K3 Step 217; K4 hard conditions: alerts-only, no restore path, signed drift events on the scratch Wotan `curl -s "http://[fd00:upc::1]:26601/api/v1/topics/drift.detected.seed-netns1/messages?limit=1" | head -c 200`).
 - [x] **Step 219** *(signed: unsigned publish 403)* [V] ~1m: Drift event retrieved from Wotan with a signature field; table complete; verdict recorded ("Phases 9/11/13 PASS in netns topology" or the honest failure).
-- [ ] **Step 220** [C] ~1m: **COMMIT CHECKPOINT** (`test(mimir): [S-ASCEND-2 206-220] Phases 9/11/13 re-run on a two-netns west fallback; configs/wotan-lab.yaml`).
+- [x] **Step 220** *(c3b4cade)* [C] ~1m: **COMMIT CHECKPOINT** (`test(mimir): [S-ASCEND-2 206-220] Phases 9/11/13 re-run on a two-netns west fallback; configs/wotan-lab.yaml`).
 
 ### DISTRIBUTED leg: scorer weights over Wotan to the second "node"
 
