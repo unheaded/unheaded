@@ -510,8 +510,13 @@ sbom: ## Generate SBOM in multiple formats (CycloneDX, SPDX, module list, audit)
 
 license-check: ## Check Go and Rust dependencies for permitted licenses
 	@echo "Checking Go licenses..."
-	@which go-licenses > /dev/null || (echo "Installing go-licenses..." && go install github.com/google/go-licenses@latest)
-	go-licenses check ./... --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC
+	@# go-licenses must see the toolchain go.mod selects (go1.27.x), not a GOROOT
+	@# from the shell profile: a mismatch reports every stdlib package as "does
+	@# not have module info". Same version and reviewed ignores as ci.yml.
+	@GR="$$(go env GOROOT)"; GOROOT="$$GR" PATH="$$GR/bin:$$PATH" GOTOOLCHAIN=local \
+		go run github.com/google/go-licenses@v1.6.0 check ./... \
+		--allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC \
+		--ignore unheaded --ignore github.com/unheaded/doomgeneric --ignore modernc.org/mathutil
 	@echo "✓ Go license check passed"
 	@if [ -d "ebpf" ] && [ -f "ebpf/Cargo.toml" ]; then \
 		echo "Checking Rust licenses (ebpf)..."; \

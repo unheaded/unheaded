@@ -118,7 +118,7 @@ jobs:
 
       - name: Check Go licenses
         run: |
-          go install github.com/google/go-licenses@latest
+          go install github.com/google/go-licenses@v1.6.0  # pinned: @latest moves under the gate
           # Ignored, each checked by hand (2026-09-30):
           #   unheaded: this module (GPL-3.0); the allow-list is for dependencies.
           #   github.com/unheaded/doomgeneric: first-party, SPDX MIT in every

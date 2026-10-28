@@ -203,7 +203,7 @@ jobs:
       #   modernc.org/mathutil: BSD-3-Clause the classifier does not match.
       - name: License check
         run: |
-          go install github.com/google/go-licenses@latest
+          go install github.com/google/go-licenses@v1.6.0  # pinned: @latest moves under the gate
           go-licenses check ./... \
             --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC \
             --ignore unheaded \
