@@ -495,3 +495,25 @@ the same image sha (`ed8dd3b0…`); `cart tick --jobs` over the same 200 fixed-s
 (400 lines, 0 diff). Step 223's `cart score --data` does not exist; `cart tick` stands in. Caution: one byte changed at
 DATA offset 40 changed none of the 200 scores, so equal scores alone are weak evidence; the equal DATA and image hashes
 carry it. Seal-key reuse: the lab seal key signed both the manifest and the weights (lab only). Teardown clean.
+
+## Phase 9: cartridge live legs and the scorer (Steps 243-266, 2026-10-28)
+
+**Decisions 243-244: defaults taken.** Gates #1(a) and #2 accepted as the documented interpreter cost; no ISA sprint
+(recorded in ADR-108 §Status at S5 close).
+
+**Step 245: 8 steps per callback, measured and reverted** (`STEPS_PER_CB` in `ebpf/cartridge-ebpf`; CPU 2 pinned;
+`p9-bench-{4,8}.txt`):
+
+| | 4 (shipped) | 8 |
+|---|---|---|
+| rate limiter over b0_pass_v6 | +197 ns | +172 ns |
+| sampler over b0_pass_tcp | +226 ns | +208 ns |
+| scorer | 227,842 flows/s | 264,550 flows/s |
+| cart_xdp / cart_tick verified insns | 42,743 / 146,897 | 85,049 / 318,333 |
+
+Doubling the batch saves 12-14 % per packet and doubles the verified size; both gates still miss (bars 150 and
+120 ns). Supports the decision. Reverted: `ebpf/` matches HEAD (Step 246).
+
+**Live legs: the plan's compose path is not used.** Steps 247 and 251 start Wotan and Sophia from west's compose stack;
+this session does not run `docker compose up` on west (the running containers are the old ones; next.md's BEFORE
+warning), so the live legs run against scratch services in the lab namespaces instead.
