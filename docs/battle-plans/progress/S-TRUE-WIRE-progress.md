@@ -257,3 +257,10 @@ targets:
 - Steps 224-227 (Phase 5 close): load gate `[PASS] 36`; UPC ALL GREEN 926542/761580/42743/146897 (Step 16 numbers);
   `make test-ebpf-compat` passed; whole-tree go test 235 ok, no new FAIL. Steps 228/229 held open by E8 (FND-025 stays
   open; the docs already say STUBBED, which is true).
+- Steps 231-237 (PQC_SIG_STATUS): removed from shield-ebpf with `pqc_fast_path_check` and the result enum; shield no
+  longer depends on `ebpf/pqc-common`, which loses its status enum and map entry (8 host tests pass in an
+  out-of-workspace copy; nothing consumes the crate now: listed for E3). Shield XDP 1502 / TC 976 unchanged; load gate
+  `[PASS] 36`; no PQC_SIG_STATUS in any .rs or .go. Docs: wiki/PQC-Authentication.md row, the 2026-08-03 security
+  write-up marked resolved by removal, and an implementation-status note in the PQC draft (both copies and the XML;
+  xml2rfc renders). INNOVATIONS.md and SPEC-VS-CODE-AUDIT.md already said "not implemented". This executes decision
+  43's default on the branch; Stevie can still choose "wire OPTIMISTIC" (revert this commit).

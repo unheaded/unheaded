@@ -17,4 +17,3 @@ debug-stats = []
 [dependencies]
 aya-ebpf.workspace     = true
 monad-common.workspace = true
-pqc-common             = { path = "../pqc-common" }

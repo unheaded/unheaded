@@ -875,61 +875,11 @@ fn increment_stat(key: u32) {
     }
 }
 
-// ── PQC Authentication Fast-Path ─────────────────────────────────────────
-
-/// BPF map for cached PQC signature verification status.
-/// Key: SigRef (u32), Value: PqcSigStatusEntry
-#[map]
-static PQC_SIG_STATUS: HashMap<u32, pqc_common::PqcSigStatusEntry> =
-    HashMap::with_max_entries(65536, 0);
-
-/// Check if a packet has PQC authentication flags set.
-/// This is the fast-path check at XDP layer — if PQC flags are set,
-/// we look up the cached verification result instead of doing full crypto.
-///
-/// **NOT WIRED UP.** Nothing calls this, and nothing populates
-/// `PQC_SIG_STATUS` — so no packet is classified here, and in particular no
-/// packet is dropped for a signature already known to be invalid. Do not
-/// treat XDP-layer PQC enforcement as existing until both ends are built.
-/// Full write-up, including why it was not wired up unattended (verifier
-/// budget + the PESSIMISTIC/OPTIMISTIC drop decision), in
-/// `docs/security/shield-ebpf-pqc-fast-path-unwired-2026-08-03.md`.
-#[allow(dead_code)] // see the note above — deliberately visible, not silenced
-#[inline(always)]
-fn pqc_fast_path_check(flags: u8, sig_ref: u32) -> PqcFastPathResult {
-    // Check if PQC is active (S+CUSTOM flags)
-    if !pqc_common::is_pqc_active(flags) {
-        return PqcFastPathResult::NotPqc;
-    }
-
-    // Look up cached verification status
-    match unsafe { PQC_SIG_STATUS.get(&sig_ref) } {
-        Some(entry) => match entry.status {
-            pqc_common::PqcSigStatus::Valid => PqcFastPathResult::CachedValid,
-            pqc_common::PqcSigStatus::Invalid => PqcFastPathResult::CachedInvalid,
-            pqc_common::PqcSigStatus::Expired => PqcFastPathResult::CachedInvalid,
-            _ => PqcFastPathResult::NeedUserspace,
-        },
-        None => PqcFastPathResult::NeedUserspace,
-    }
-}
-
-/// Result of the PQC fast-path check at XDP layer.
-///
-/// Unused for the same reason as `pqc_fast_path_check` — see that note.
-#[allow(dead_code)]
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-enum PqcFastPathResult {
-    /// Packet does not have PQC flags — proceed normally
-    NotPqc = 0,
-    /// Cached verification passed — allow packet
-    CachedValid = 1,
-    /// Cached verification failed — drop packet (PESSIMISTIC) or warn (OPTIMISTIC)
-    CachedInvalid = 2,
-    /// No cached result — pass to userspace for full verification
-    NeedUserspace = 3,
-}
+// ── PQC authentication ──────────────────────────────────────────────────────
+// No XDP-layer PQC verification exists. The cached-status map and the
+// fast-path check had no caller and no writer and were removed
+// (S-TRUE-WIRE Step 233; history in
+// docs/security/shield-ebpf-pqc-fast-path-unwired-2026-08-03.md).
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {

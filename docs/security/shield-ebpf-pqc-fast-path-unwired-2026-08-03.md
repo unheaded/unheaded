@@ -3,7 +3,7 @@
 **Component:** `ebpf/shield-ebpf` (THE SHIELD, XDP data plane)
 **Severity:** Medium — a declared enforcement path that never executes
 **Found by:** clippy `dead_code`, while working the warning ratchet down from 348
-**Status:** NOT fixed — needs a decision, see below
+**Status:** Resolved 2026-10-28 by removal (S-TRUE-WIRE Steps 231-237, NEXT-7 decision 43's default "delete until keymgmt is un-parked", applied on `sprint/true-wire` before Stevie's answer; reversible until that branch merges). The map, the check and the result enum are gone; nothing claims XDP-layer PQC. The history below stands.
 
 ## What is there
 

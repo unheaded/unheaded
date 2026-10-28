@@ -56,21 +56,9 @@ const _: () = {
     let _ = [(); core::mem::size_of::<PqcValue>() - PQC_VALUE_SIZE];
 };
 
-/// PQC signature verification status stored in BPF map
-#[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PqcSigStatus {
-    /// Not yet verified
-    Pending = 0x00,
-    /// Verification passed
-    Valid = 0x01,
-    /// Verification failed
-    Invalid = 0x02,
-    /// Key expired or revoked
-    Expired = 0x03,
-    /// Algorithm not supported
-    Unsupported = 0x04,
-}
+// The cached-verification status enum and map entry were removed with
+// shield-ebpf's status map, which nothing read or wrote (S-TRUE-WIRE Step 233,
+// NEXT-7 decision 43's default).
 
 /// Compliance tier (2-bit Kingdom Mode K1|K0)
 #[repr(u8)]
@@ -125,31 +113,6 @@ impl PqcValue {
     }
 }
 
-/// BPF map entry for cached signature verification status
-#[repr(C, packed)]
-#[derive(Clone, Copy)]
-pub struct PqcSigStatusEntry {
-    /// Verification status
-    pub status: PqcSigStatus,
-    /// Algorithm used
-    pub algo_id: u8,
-    /// Compliance tier
-    pub tier: ComplianceTier,
-    /// Padding for alignment
-    pub _pad: u8,
-    /// Timestamp of last verification (unix seconds, truncated to u32)
-    pub verified_at: u32,
-}
-
-/// Size of PqcSigStatusEntry in bytes
-pub const PQC_SIG_STATUS_ENTRY_SIZE: usize = 8;
-
-// Compile-time layout assertion for PqcSigStatusEntry.
-const _: () = {
-    let _ = [(); PQC_SIG_STATUS_ENTRY_SIZE - core::mem::size_of::<PqcSigStatusEntry>()];
-    let _ = [(); core::mem::size_of::<PqcSigStatusEntry>() - PQC_SIG_STATUS_ENTRY_SIZE];
-};
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,14 +121,6 @@ mod tests {
     fn pqc_value_size() {
         assert_eq!(core::mem::size_of::<PqcValue>(), PQC_VALUE_SIZE);
         assert_eq!(PQC_VALUE_SIZE, 12);
-    }
-
-    #[test]
-    fn pqc_sig_status_entry_size() {
-        assert_eq!(
-            core::mem::size_of::<PqcSigStatusEntry>(),
-            PQC_SIG_STATUS_ENTRY_SIZE
-        );
     }
 
     #[test]
@@ -221,15 +176,6 @@ mod tests {
         assert_eq!(ComplianceTier::Standard as u8, 0x01);
         assert_eq!(ComplianceTier::Enhanced as u8, 0x02);
         assert_eq!(ComplianceTier::Sovereign as u8, 0x03);
-    }
-
-    #[test]
-    fn sig_status_values() {
-        assert_eq!(PqcSigStatus::Pending as u8, 0x00);
-        assert_eq!(PqcSigStatus::Valid as u8, 0x01);
-        assert_eq!(PqcSigStatus::Invalid as u8, 0x02);
-        assert_eq!(PqcSigStatus::Expired as u8, 0x03);
-        assert_eq!(PqcSigStatus::Unsupported as u8, 0x04);
     }
 
     #[test]

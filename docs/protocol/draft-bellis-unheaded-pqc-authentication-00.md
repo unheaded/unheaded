@@ -251,6 +251,16 @@
       Wotan per-flow PQC state (Section 11).  Internal kingdom
       traffic proceeds without PQC wire overhead.
 
+   Implementation status (2026-10-28): Phases 1-3 are not
+   implemented.  The reference Shield (ebpf/shield-ebpf) never read
+   SigRef or KeyRef; its cached-result map and fast-path check had no
+   caller and no writer and were removed (S-TRUE-WIRE Step 233).  No
+   wire-level PQC verification exists until a key-management control
+   plane is built.  Note also that this section's model, in which
+   packets reach Shield ingress carrying a Monad that Shield verifies
+   and strips, differs from the reference Shield, which creates the
+   Monad at ingress and strips it at egress.
+
    Phase 4 - Application-Level Policy (Layer 2, OPTIONAL):
 
       After Shield ingress strips Monad headers and forwards the
