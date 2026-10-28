@@ -108,6 +108,84 @@ converged independently on **(c)**.
   It is NOT sequenced ahead of the parallel Debian/Yggdrasil track (ADR-081 Q4),
   which stays Age-2-deferred.
 
+### D1 reach re-read (2026-10-28) — pending E2
+
+**Status: pending E2** (S-ASCEND-2 Step 56; M-221, decision 45). Written because the rule
+above names the sign of the getpid delta as the input, and the sign has changed. The
+recommendation below is not a decision.
+
+**The rule as written (2026-07-17).** "The sign of the getpid verifier-delta tunes the
+reach: net-negative → the migration ladder is self-funding (push toward (a));
+net-zero/positive → keep (c) minimal, migrate only where authenticity demands."
+
+**The two measurements.** Ascend object, `UPC_VERIFIER_STATS=1`, verified insns.
+
+| Measured | Build | flag OFF | flag ON | ON − OFF |
+|---|---|---|---|---|
+| 2026-07-19, Stage 1 S1.1 (`references/evolution1-stage1-2026-07-19.md`) | July nightly + bpf-linker, July host kernel | 900,031 | 905,440 | **+5,409** |
+| 2026-10-23 S5 Step 97, re-measured 2026-10-28 S-ASCEND-2 Step 37 | October nightly + bpf-linker, host kernel 6.17.0-41 | 926,542 | 911,319 | **−15,223** |
+
+- **Attribution: toolchain and kernel verifier, not source.** `monad-cpu-ebpf` logic is
+  unchanged since `8de08368` (the Stage 1 commit) apart from `233b6451` (clippy
+  annotation, no rewrite); see `references/s5-upc-wire-log.md` §Phase 0. The OFF build
+  moved +26,511 and the delta moved 20,632 with no logic change.
+- **The delta is not the handler's size.** The retired in-BPF getpid handler is one
+  line. A −15,223 swing is how the verifier's path exploration changed with the
+  injection block present, not insns the handler held. Verifier counts are not
+  additive per handler, and the sign of one pair does not predict the next pair.
+- **Headroom today.** OFF: 73,458 below 1,000,000, 23,458 below the 950,000 working
+  bar. ON: 88,681 and 38,681.
+- **Cycle cost** (not budget): one getpid round trip through the kernel costs +1,348
+  MBC instructions (S5 Step 101). The verifier delta says nothing about this.
+
+**What "self-funding" means concretely.** A rung retires one BPF handler behind a
+guard const (the `GETPID_INJECT` shape) and routes its syscall number into the
+injection block that Stage 1 already pays for. The rung is self-funding when
+OFF − ON ≥ 0 for that rung's guard, measured as a pair on one toolchain and one host
+kernel in one session. Freed insns are measured per rung, never estimated from
+handler size. An arrival (a syscall BPF never implemented) has no handler to retire;
+its cost is the added dispatch, recorded the same way.
+
+**Scientist caveat, restated.** getpid is the cheapest, stateless syscall. A negative
+getpid delta proves that the trap path's fixed cost fits the budget today. It proves
+nothing about the cost of fork/exec/wait, the FS-metadata bundle, or migrating state
+out of BPF maps. The rule is therefore applied per rung, not once from getpid.
+
+**New evidence (S-ASCEND-2 Phase 1, 2026-10-28).** The named next probe ran
+(`user/getpidfork.c`, log `references/s-ascend-2-log.md` §Phase 1). With the flag ON,
+init's getpid returns 1 and a BPF-forked child's getpid returns **−1**; `fork()`
+returns 1 in the parent under both states. The owned kernel's `proc[]` holds only
+init: user `fork()` is serviced in BPF, and only `userinit` calls `allocproc`. The
+dual-books row of Appendix B is not only a numbering mismatch: the kernel has no row
+at all for any process but init. Where the −1 originates was not isolated.
+
+Consequence for reach: sh is a BPF-forked child of init, and every program it runs is
+a child of sh. Any syscall routed into the kernel from those processes runs against a
+process the kernel does not have. A kernel row per BPF fork is therefore a
+prerequisite of every stateful rung (write onward) and of the arrivals, not only of
+the fork/exec/wait hand-off, and it is needed under either E2 answer. Two levels:
+
+- **Shadow row** (Stage 2 rung 0): on each BPF `SYS_FORK` the kernel gets a
+  `struct proc` for the child (pid per E1, trapframe and pagetable matching the
+  PROC_TABLE slot), the injected trap resolves `myproc()` to the trapping slot's row,
+  and exit/wait free it. BPF stays authoritative over scheduling and lifetime. This
+  also closes Stage 1: the flag cannot default ON while a child's getpid is −1.
+- **Hand-off** (the fork/exec/wait rung): `proc[]` becomes the authority; PROC_TABLE
+  derives from it or retires.
+
+**Recommendation (Computermancer + Scientist, pending E2).** Push toward (a) in
+Stage 2 ordering, cheapest-state-first per the ladder below, with three conditions:
+1. Shadow rows per BPF fork land first (rung 0), before any stateful rung.
+2. Each rung is gated on corpus 12/12 SAME, harness ALL GREEN, freed insns ≥ 0
+   (ON/OFF pair, same toolchain), and its cycle cost recorded.
+3. A rung with freed insns < 0 stops the push there: that rung and the later
+   migration rungs stay in BPF unless authenticity requires them, which is (c) for
+   the remainder. Arrivals stay kernel-only under both answers.
+
+The skeleton is `EVOLUTION-1-STAGE-2-skeleton.md`. Note for E2: D1 (c) as decided on
+2026-07-17 already places getpid/pause/yield and the FS-metadata bundle in the kernel.
+The plan's "(c) minimal" (arrivals only) is narrower than that decision.
+
 ## Gate ladder (each stage independently shippable + reversible)
 
 ### Stage 0 — no eBPF, no unfreeze needed (~1 session)
@@ -155,6 +233,9 @@ Phase 3): trap path DONE; flag stays OFF.**
   one const. Turning it on needs a pid-identity decision first (kernel numbering vs BPF
   slots, i.e. proc[] reconciliation — out of S5 scope). Next probe: a child process that
   calls getpid with the flag ON.
+- **Child probe run (S-ASCEND-2, 2026-10-28)**: with the flag ON the child's getpid
+  returns −1, not 1: the kernel has no process for a BPF-forked child. See §D1 reach
+  re-read.
 
 ### Stage 2 — MIGRATION LADDER (big; needs D1=(a)/(c), own battle plan)
 Retire BPF handlers one at a time, cheapest-state-first (getpid → uptime/
@@ -164,6 +245,8 @@ exist since T3/T4, were never BPF-implemented — these ARRIVE rather than
 migrate)). Each retirement: corpus green + freed-verifier-insns recorded.
 usertests subset gates enter here, growing with each arrival. Full Warmonger
 plan + four-lens panel at kickoff; do NOT forge steps now.
+Skeleton (phases, gates, prerequisites; no steps): [EVOLUTION-1-STAGE-2-skeleton.md](EVOLUTION-1-STAGE-2-skeleton.md)
+(2026-10-28, pending E2).
 
 ## Non-goals of this brief
 Renaming (Q5 ceremony is Stevie's, pre-requisite to nothing here); Phase 2.5

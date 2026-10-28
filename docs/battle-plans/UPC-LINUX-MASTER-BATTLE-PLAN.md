@@ -96,8 +96,11 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
 - [~] **1.3.5** EVOLUTION-1 Stage 1 (getpid trap flip). S5 2026-10-23: S1.2 closed (translator
       CSR scratch aliasing fixed; `userret` restores from sscratch); the injected getpid round
       trip works, but the kernel answers pid 1 where BPF answers 0, so `GETPID_INJECT` stays
-      `false`. REMAINS: pid identity / proc[] reconciliation before the flag flips. Detail:
-      `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status.
+      `false`. REMAINS: pid identity / proc[] reconciliation before the flag flips:
+      `S-ASCEND-2-battle-plan.md` Phase 1 (Steps 27-52). Child probe run 2026-10-28: with the
+      flag ON a BPF-forked child's getpid returns -1 (the kernel has no process for it); E1
+      (pid numbering) open, flag OFF. Detail: `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status,
+      §D1 reach re-read.
 
 ### Epic 1.4 — Code-store readiness (only when an image needs it)
 - [x] **1.4.1** Option A `large-image` feature (ROM_MAP 4×, RV2MBC 8×) — DONE + validated
@@ -131,6 +134,19 @@ untouched).
       deferred: needs east as a node, Stevie).
 - [ ] **1.5.7** ADR-108 → Accepted once RFC Editor items 1–3 are answered
       (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`).
+
+### Epic 1.6 — EVOLUTION-1 Stage 2 (skeleton: `EVOLUTION-1-STAGE-2-skeleton.md`; forge when E2 answered)
+The migration ladder: retire BPF syscall handlers into the owned kernel one rung at a time,
+plus the kernel-only arrivals. Reach: **pending E2** (S-ASCEND-2 Step 56; recommendation: push
+toward (a), stop at the first rung with freed insns < 0).
+- [x] **1.6.1** D1 reach re-read against the negative getpid delta (+5,409 July, -15,223
+      October, toolchain-attributed): `EVOLUTION-1-TRAP-FLIP.md` §D1 reach re-read (2026-10-28).
+- [x] **1.6.2** Skeleton: rungs 0-8, one gate per rung, usertests subset plan, no numbered
+      steps: `EVOLUTION-1-STAGE-2-skeleton.md` (2026-10-28).
+- [ ] **1.6.3** Rung 0, a kernel row per BPF fork, needed under either E2 answer (prerequisite
+      of every stateful rung and of the arrivals; also closes 1.3.5).
+- [ ] **1.6.4** Forge the Stage 2 battle plan (own Warmonger session, four-lens panel) once E2
+      is answered.
 
 ---
 
