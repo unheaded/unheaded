@@ -924,7 +924,7 @@ check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's thresh
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
-yggdrasil-verify-anchor|provoke_yggdrasil_anchor|fast|anchor.nix's codename set to a name that is not a Debian release
+nix/yggdrasil/scripts/yggdrasil-verify-anchor|provoke_yggdrasil_anchor|fast|anchor.nix's codename set to a name that is not a Debian release
 test-check-perf-regression|provoke_check_perf_regression|fast|check-perf-regression.sh's p99 allowance widened from 20 % to 800 %, so the fixture's slow run passes
 check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZHEN_MCP_ALLOW_WRITE=1 (builds the server; needs go and jq)
 well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
@@ -1076,7 +1076,10 @@ fi
 # Run each gate: must PASS clean, then must FAIL when provoked.
 # ---------------------------------------------------------------------------
 for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort); do
+    # A registry name is scripts/<name>.sh, or a repo path without .sh for
+    # a gate that lives elsewhere (nix/yggdrasil/scripts/...).
     gate="scripts/${name}.sh"
+    [ -f "${gate}" ] || gate="${name}.sh"
     [ -f "${gate}" ] || continue
     [ -n "${ONLY}" ] && [ "${name}" != "${ONLY}" ] && continue
     entry="$(registry_lookup "${name}")"

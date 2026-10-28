@@ -2,8 +2,14 @@
 # Manages: Prometheus stack, Grafana dashboards, OTel collector, Alertmanager config
 
 variable "environment" { type = string }
-variable "retention_days" { type = number; default = 7 }
-variable "grafana_admin_password" { type = string; sensitive = true }
+variable "retention_days" {
+  type    = number
+  default = 7
+}
+variable "grafana_admin_password" {
+  type      = string
+  sensitive = true
+}
 
 resource "helm_release" "prometheus" {
   name       = "prometheus"
@@ -12,8 +18,14 @@ resource "helm_release" "prometheus" {
   namespace  = "unheaded-system"
   version    = "56.0.0"
 
-  set { name = "prometheus.prometheusSpec.retention"; value = "${var.retention_days}d" }
-  set { name = "grafana.adminPassword"; value = var.grafana_admin_password }
+  set {
+    name  = "prometheus.prometheusSpec.retention"
+    value = "${var.retention_days}d"
+  }
+  set {
+    name  = "grafana.adminPassword"
+    value = var.grafana_admin_password
+  }
 }
 
 resource "helm_release" "otel" {
@@ -22,5 +34,8 @@ resource "helm_release" "otel" {
   chart      = "opentelemetry-collector"
   namespace  = "unheaded-system"
 
-  set { name = "mode"; value = "deployment" }
+  set {
+    name  = "mode"
+    value = "deployment"
+  }
 }
