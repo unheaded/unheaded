@@ -23,7 +23,7 @@ nfv-ebpf/nfv_lb_route	default	56958	6.17.0-41-generic	2026-10-28
 nfv-ebpf/nfv_nat	default	1753	6.17.0-41-generic	2026-10-28
 nfv-ebpf/nfv_rate_limiter	default	1750	6.17.0-41-generic	2026-10-28
 nfv-ebpf/nfv_xdp	default	25180	6.17.0-41-generic	2026-10-28
-packet-marker/packet_marker	default	5838	6.17.0-41-generic	2026-10-28
+packet-marker/packet_marker	default	5853	6.17.0-41-generic	2026-10-28
 qos-ebpf/qos_xdp	default	55684	6.17.0-41-generic	2026-10-28
 shield-ebpf/shield_tc	debug-stats	1084	6.17.0-41-generic	2026-10-28
 shield-ebpf/shield_tc	default	976	6.17.0-41-generic	2026-10-28

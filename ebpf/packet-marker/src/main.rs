@@ -306,7 +306,7 @@ const MAX_OPTIONS: usize = 40;
 /// cannot hold packet pointers either.
 #[inline(always)]
 fn extract_trace_option(ctx: &XdpContext, off: usize, len: usize, kind: u8) -> Option<TraceId> {
-    if len < 2 || len > MAX_OPTIONS {
+    if !(2..=MAX_OPTIONS).contains(&len) {
         return None;
     }
     let mut buf = [0u8; MAX_OPTIONS];
