@@ -84,12 +84,12 @@ flag() { sed -i "s/const GETPID_INJECT: bool = $1;/const GETPID_INJECT: bool = $
 **Time**: ~10 min
 **Agent**: Coordinator
 
-- [ ] **Step 1** [R] ~5m: Read `~/tmp/next.md` START HERE, `$LOG`, and `$PLAN` Phases 1-2 (Steps 23-58).
-- [ ] **Step 2** [B] ~1m: Source VARIABLES; `git status --short | wc -l` → 0; `git log --oneline -1`.
-- [ ] **Step 3** [B][S] ~1m: `systemctl is-active unheaded-upc-netns.service; sudo /usr/local/libexec/unheaded/upc-netns.sh status | head -3`.
-- [ ] **Step 4** [V] ~30s: `active`, `upc0` present, both veths up. Else `sudo bash scripts/upc-netns.sh up`.
-- [ ] **Step 5** [TEST][B][S] ~3m: `ub getpidfork | gf | tr '\n' ' '` → `F: parent-pid=1 F: fork-ret=2 F: child-pid=2 F: wait-ret=2 parent-after-wait`; `grep -n 'const GETPID_INJECT' "$EBPF/monad-cpu-ebpf/src/main.rs"` → `false`.
-- [ ] **Step 6** [V] ~30s: **PHASE 0 EXIT GATE**: Steps 2-5 as stated. Different → read the Stage 2 log's Phase 0 and find what moved before continuing.
+- [x] **Step 1** [R] ~5m: Read `~/tmp/next.md` START HERE, `$LOG`, and `$PLAN` Phases 1-2 (Steps 23-58).
+- [x] **Step 2** [B] ~1m: Source VARIABLES; `git status --short | wc -l` → 0; `git log --oneline -1`.
+- [x] **Step 3** [B][S] ~1m: `systemctl is-active unheaded-upc-netns.service; sudo /usr/local/libexec/unheaded/upc-netns.sh status | head -3`.
+- [x] **Step 4** [V] ~30s: `active`, `upc0` present, both veths up. Else `sudo bash scripts/upc-netns.sh up`.
+- [x] **Step 5** [TEST][B][S] ~3m: `ub getpidfork | gf | tr '\n' ' '` → `F: parent-pid=1 F: fork-ret=2 F: child-pid=2 F: wait-ret=2 parent-after-wait`; `grep -n 'const GETPID_INJECT' "$EBPF/monad-cpu-ebpf/src/main.rs"` → `false`.
+- [x] **Step 6** [V] ~30s: **PHASE 0 EXIT GATE**: Steps 2-5 as stated. Different → read the Stage 2 log's Phase 0 and find what moved before continuing.
 
 ---
 
@@ -100,18 +100,18 @@ flag() { sed -i "s/const GETPID_INJECT: bool = $1;/const GETPID_INJECT: bool = $
 **Time**: ~1.5 h
 **Agent**: Coordinator
 
-- [ ] **Step 7** [R][W] ~15m: `$PLAN` Steps 23-24: read the trap path, write §"-1 hypotheses" M1-M4 in `$LOG`.
-- [ ] **Step 8** [CODE] ~15m: `$PLAN` Step 25, the probe, with one addition: print `p->pid` through a decimal helper as well as hex (the first run's `pid=0000` for init, whose pid is 1, suggests the hex helper or the field read was wrong; settle that first). Keep every added line under `#ifdef UPC_STAGE2_PROBE`; pass `-DUPC_STAGE2_PROBE` by editing `CFLAGS` in `crates/xv6-mbc/adapters/Makefile.mbc` for the probe build only.
-- [ ] **Step 9** [B] ~5m: `$PLAN` Steps 26-27: probe kernel built (`kbuild`), userland + gates rebuilt (`make -f ../adapters/Makefile.mbc-userland userland gates ramdisk`), tokens present in the image.
-- [ ] **Step 10** [TEST][B][S] ~5m: `flag false true`; `TRIG=900000 ub getpidfork > "$S7/p1-probe-on.txt"`; extract `UT:`, `SC:` and `F:` lines in order (`$PLAN` Step 28).
-- [ ] **Step 11** [V] ~5m: `$PLAN` Step 29: exactly one of M1-M4 fits. Expected from the first run: M2 variant, both traps resolve `myproc()` to `proc[0]` and share init's trapframe; the child's `SC: num=03` (not 11) says the child's a7 was read from the wrong trapframe, so the kernel ran `sys_wait`-shaped logic for a getpid, returning -1. Confirm or refute with the decimal pid print and the `tf=`/`ss=` values. Does not fit → Step 12.
-- [ ] **Step 12** [D] ~15m: `$PLAN` Step 30 (trapframe dump at `usertrapret`, `sepc` at `uservec`). Two attempts, then STUCK Steps 13-14 and record what was seen.
-- [ ] **Step 13** [W] ~5m: `$LOG` §"-1 explained" (`$PLAN` Step 31), probe lines verbatim.
-- [ ] **Step 14** [TEST][B][S] ~4m: `flag true false`; probe boot again (`$PLAN` Steps 32-33): no `UT:` for the child's getpid, parent tokens unchanged.
-- [ ] **Step 15** [B] ~5m: Revert (`$PLAN` Step 34): `git checkout -- crates/xv6-mbc/adapters/ crates/xv6-mbc/upstream/kernel/ ebpf/monad-cpu-ebpf/src/main.rs`; `kbuild`; userland + gates + ramdisk; ascend object.
-- [ ] **Step 16** [V] ~1m: `git status --short crates/xv6-mbc ebpf | wc -l` → 0; `sha256sum "$K/xv6-mbc.mbc" | cut -c1-16` → `4e39c82f9ba56079`; `ub getpidfork | gf` → the Step 5 lines.
-- [ ] **Step 17** [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 23-41] rung 0 research: the child's -1 explained` (`$LOG` only). Tick `$PLAN` Steps 23-42 as `- [x]` with one-line notes in the same commit.
-- [ ] **Step 18** [V] ~1m: **PHASE 1 EXIT GATE**: §"-1 explained" names one mechanism with evidence (or a STUCK record with what was seen); tree clean.
+- [x] **Step 7** [R][W] ~15m: `$PLAN` Steps 23-24: read the trap path, write §"-1 hypotheses" M1-M4 in `$LOG`.
+- [x] **Step 8** *(decimal `;` probe; the tracer strip had eaten hex digits)* [CODE] ~15m: `$PLAN` Step 25, the probe, with one addition: print `p->pid` through a decimal helper as well as hex (the first run's `pid=0000` for init, whose pid is 1, suggests the hex helper or the field read was wrong; settle that first). Keep every added line under `#ifdef UPC_STAGE2_PROBE`; pass `-DUPC_STAGE2_PROBE` by editing `CFLAGS` in `crates/xv6-mbc/adapters/Makefile.mbc` for the probe build only.
+- [x] **Step 9** [B] ~5m: `$PLAN` Steps 26-27: probe kernel built (`kbuild`), userland + gates rebuilt (`make -f ../adapters/Makefile.mbc-userland userland gates ramdisk`), tokens present in the image.
+- [x] **Step 10** [TEST][B][S] ~5m: `flag false true`; `TRIG=900000 ub getpidfork > "$S7/p1-probe-on.txt"`; extract `UT:`, `SC:` and `F:` lines in order (`$PLAN` Step 28).
+- [x] **Step 11** *(M1 + M2; a7 read from init's x17 spill at 0x64004)* [V] ~5m: `$PLAN` Step 29: exactly one of M1-M4 fits. Expected from the first run: M2 variant, both traps resolve `myproc()` to `proc[0]` and share init's trapframe; the child's `SC: num=03` (not 11) says the child's a7 was read from the wrong trapframe, so the kernel ran `sys_wait`-shaped logic for a getpid, returning -1. Confirm or refute with the decimal pid print and the `tf=`/`ss=` values. Does not fit → Step 12.
+- [x] **Step 12** *(not needed)* [D] ~15m: `$PLAN` Step 30 (trapframe dump at `usertrapret`, `sepc` at `uservec`). Two attempts, then STUCK Steps 13-14 and record what was seen.
+- [x] **Step 13** [W] ~5m: `$LOG` §"-1 explained" (`$PLAN` Step 31), probe lines verbatim.
+- [x] **Step 14** [TEST][B][S] ~4m: `flag true false`; probe boot again (`$PLAN` Steps 32-33): no `UT:` for the child's getpid, parent tokens unchanged.
+- [x] **Step 15** [B] ~5m: Revert (`$PLAN` Step 34): `git checkout -- crates/xv6-mbc/adapters/ crates/xv6-mbc/upstream/kernel/ ebpf/monad-cpu-ebpf/src/main.rs`; `kbuild`; userland + gates + ramdisk; ascend object.
+- [x] **Step 16** [V] ~1m: `git status --short crates/xv6-mbc ebpf | wc -l` → 0; `sha256sum "$K/xv6-mbc.mbc" | cut -c1-16` → `4e39c82f9ba56079`; `ub getpidfork | gf` → the Step 5 lines.
+- [x] **Step 17** *(1d78799b)* [C] ~1m: **COMMIT CHECKPOINT** `docs(upc): [STAGE2 23-41] rung 0 research: the child's -1 explained` (`$LOG` only). Tick `$PLAN` Steps 23-42 as `- [x]` with one-line notes in the same commit.
+- [x] **Step 18** [V] ~1m: **PHASE 1 EXIT GATE**: §"-1 explained" names one mechanism with evidence (or a STUCK record with what was seen); tree clean.
 
 ---
 
@@ -191,12 +191,12 @@ as gate2-style probes, built and registered, not yet gated (their syscalls are n
 **Time**: ~1 h agent time
 **Agent**: one agent, own worktree, no sudo
 
-- [ ] **Step 51** [AGENT] ~45m: Brief: create worktree from `sprint/evolution1-stage2`; read `crates/xv6-mbc/upstream/user/usertests.c` and extract `exitwait`, `twochildren`, `forktest`, `reparent2` into `user/ut_<name>.c` with fixed-string verdicts (`UT-<name>: ok` / `UT-<name>: fail`), each spinning at the end (init never exits); register in `Makefile.mbc-userland` (`GATE_PROGS`, `.PHONY`, `clean`); build them; do not add harness gates; commit signed with the trailers; report which tests needed `sbrk` or an exit status and were skipped.
-- [ ] **Step 52** [V] ~5m: The agent's branch builds the probes (`ls "$K"/ut_*.mbc` after `make … gates` in its worktree) and its report lists skipped tests with reasons.
-- [ ] **Step 53** [B] ~3m: Merge the agent branch into `sprint/evolution1-stage2` (`git merge -S --no-ff`); rebuild gates in the main worktree.
-- [ ] **Step 54** [TEST][B][S] ~6m: Boot each `ut_*` probe once with the flag OFF: `for p in exitwait twochildren forktest reparent2; do echo "== $p"; TRIG=1500000 ub ut_$p | gf; done`. Record which pass today on BPF (they run against BPF fork/wait).
-- [ ] **Step 55** [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2] usertests probes exitwait, twochildren, forktest, reparent2 (not gated)`.
-- [ ] **Step 56** [V] ~1m: **PHASE 5 EXIT GATE**: probes committed and built; results recorded in `$LOG`.
+- [x] **Step 51** *(a7fd6250)* [AGENT] ~45m: Brief: create worktree from `sprint/evolution1-stage2`; read `crates/xv6-mbc/upstream/user/usertests.c` and extract `exitwait`, `twochildren`, `forktest`, `reparent2` into `user/ut_<name>.c` with fixed-string verdicts (`UT-<name>: ok` / `UT-<name>: fail`), each spinning at the end (init never exits); register in `Makefile.mbc-userland` (`GATE_PROGS`, `.PHONY`, `clean`); build them; do not add harness gates; commit signed with the trailers; report which tests needed `sbrk` or an exit status and were skipped.
+- [x] **Step 52** [V] ~5m: The agent's branch builds the probes (`ls "$K"/ut_*.mbc` after `make … gates` in its worktree) and its report lists skipped tests with reasons.
+- [x] **Step 53** *(0432192f)* [B] ~3m: Merge the agent branch into `sprint/evolution1-stage2` (`git merge -S --no-ff`); rebuild gates in the main worktree.
+- [x] **Step 54** *(exitwait, twochildren ok; forktest and reparent2 hung: BPF wait bug, fixed 3f64b2f4, now gated)* [TEST][B][S] ~6m: Boot each `ut_*` probe once with the flag OFF: `for p in exitwait twochildren forktest reparent2; do echo "== $p"; TRIG=1500000 ub ut_$p | gf; done`. Record which pass today on BPF (they run against BPF fork/wait).
+- [x] **Step 55** *(3f64b2f4: probes gated after the fix)* [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2] usertests probes exitwait, twochildren, forktest, reparent2 (not gated)`.
+- [x] **Step 56** [V] ~1m: **PHASE 5 EXIT GATE**: probes committed and built; results recorded in `$LOG`.
 
 ---
 
