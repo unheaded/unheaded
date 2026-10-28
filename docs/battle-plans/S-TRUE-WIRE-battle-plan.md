@@ -564,26 +564,26 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 
 ### Measure before touching (the verifier budget is the constraint)
 
-- [ ] **Step 174** [TEST][S][BARE-METAL][B] ~6m: Shield's verified instruction count today, both programs (XDP ingress, TC egress)
+- [x] **Step 174** [TEST][S][BARE-METAL][B] ~6m: Shield's verified instruction count today, both programs (XDP ingress, TC egress)
   ```bash
   cd /home/govan/tmp/unheaded/ebpf && cargo build --release -p shield-ebpf 2>&1 | tail -1 && cd .. && ls cmd/ebpf-load-check/src && (cd cmd/ebpf-load-check && cargo build --release 2>&1 | tail -1) && sudo cmd/ebpf-load-check/target/release/ebpf-load-check ebpf/target/bpfel-unknown-none/release/shield-ebpf 2>&1 | grep -aE 'verified|processed|OK|FAIL' | head -6
   ```
   (If `ebpf-load-check` takes different arguments, read `cmd/ebpf-load-check/src/main.rs` `--help` first; the goal is the kernel's `processed N insns` line per program.)
-- [ ] **Step 175** [V] ~2m: Two numbers recorded in the progress file as `shield_xdp_insns_pre`, `shield_tc_insns_pre`. If the tool prints no insn line → Step 175a.
-- [ ] **Step 175a** [D][S][B] ~5m: `sudo bpftool prog load ebpf/target/bpfel-unknown-none/release/shield-ebpf /sys/fs/bpf/tw-shield-probe type xdp 2>&1 | grep -E 'processed|verification' ; sudo rm -f /sys/fs/bpf/tw-shield-probe` — bpftool prints the verifier summary on load with `-d`. Record the numbers.
-- [ ] **Step 176** [R][B] ~6m: The pattern to copy
+- [x] **Step 175** [V] ~2m: Two numbers recorded in the progress file as `shield_xdp_insns_pre`, `shield_tc_insns_pre`. If the tool prints no insn line → Step 175a.
+- [x] **Step 175a** *(not needed: ebpf-load-check now prints the count)* [D][S][B] ~5m: `sudo bpftool prog load ebpf/target/bpfel-unknown-none/release/shield-ebpf /sys/fs/bpf/tw-shield-probe type xdp 2>&1 | grep -E 'processed|verification' ; sudo rm -f /sys/fs/bpf/tw-shield-probe` — bpftool prints the verifier summary on load with `-d`. Record the numbers.
+- [x] **Step 176** [R][B] ~6m: The pattern to copy
   ```bash
   cd /home/govan/tmp/unheaded && sed -n '276,300p;370,400p;440,470p;525,545p' ebpf/cartridge-ebpf/src/main.rs
   ```
 
 ### Debug counters out of production (M-183) — do the subtraction before the addition
 
-- [ ] **Step 177** [CODE][W] ~12m: Gate `STAT_TC_ENTRY`, `STAT_TC_IPV6`, `STAT_TC_HBH` (and any `STAT_*` that fires on every packet before the Monad is identified) behind a Cargo feature `debug-stats` in `ebpf/shield-ebpf/Cargo.toml` (`[features] debug-stats = []`), `#[cfg(feature = "debug-stats")]` on the three `increment_stat` calls at `main.rs:460,467,476`. Keep `STAT_ANOMALIES`, `STAT_DEATHS`, births: those are the protocol's own counters.
-- [ ] **Step 178** [BUILD][B] ~3m: `cd /home/govan/tmp/unheaded/ebpf && cargo build --release -p shield-ebpf 2>&1 | tail -1 && cargo build --release -p shield-ebpf --features debug-stats 2>&1 | tail -1`
-- [ ] **Step 179** [TEST][S][B] ~4m: Re-measure the default object (Step 174 command); record `shield_tc_insns_post_stats`.
-- [ ] **Step 180** [V] ~1m: TC insns decreased (three map ops gone); XDP unchanged. Any increase → the cfg is on the wrong lines.
-- [ ] **Step 181** [W] ~4m: `scripts/check-ebpf-loads.sh` `VARIANTS` gains `shield-ebpf:debug-stats` so both variants stay load-tested (ADR-080 rule: every feature variant is a different program).
-- [ ] **Step 182** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 174-182: shield debug TC stats behind a feature; pre-change insn numbers recorded`.
+- [x] **Step 177** [CODE][W] ~12m: Gate `STAT_TC_ENTRY`, `STAT_TC_IPV6`, `STAT_TC_HBH` (and any `STAT_*` that fires on every packet before the Monad is identified) behind a Cargo feature `debug-stats` in `ebpf/shield-ebpf/Cargo.toml` (`[features] debug-stats = []`), `#[cfg(feature = "debug-stats")]` on the three `increment_stat` calls at `main.rs:460,467,476`. Keep `STAT_ANOMALIES`, `STAT_DEATHS`, births: those are the protocol's own counters.
+- [x] **Step 178** [BUILD][B] ~3m: `cd /home/govan/tmp/unheaded/ebpf && cargo build --release -p shield-ebpf 2>&1 | tail -1 && cargo build --release -p shield-ebpf --features debug-stats 2>&1 | tail -1`
+- [x] **Step 179** [TEST][S][B] ~4m: Re-measure the default object (Step 174 command); record `shield_tc_insns_post_stats`.
+- [x] **Step 180** [V] ~1m: TC insns decreased (three map ops gone); XDP unchanged. Any increase → the cfg is on the wrong lines.
+- [x] **Step 181** [W] ~4m: `scripts/check-ebpf-loads.sh` `VARIANTS` gains `shield-ebpf:debug-stats` so both variants stay load-tested (ADR-080 rule: every feature variant is a different program).
+- [x] **Step 182** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 174-182: shield debug TC stats behind a feature; pre-change insn numbers recorded`.
 
 ### The userspace writer (nothing populates the maps today)
 

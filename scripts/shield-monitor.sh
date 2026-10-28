@@ -26,9 +26,9 @@ declare -A STAT_NAMES=(
     [10]="DST_OPT_DISCARD"
     [11]="DST_OPT_ICMP"
     [12]="DST_OPT_ICMP_MCAST"
-    [13]="TC_ENTRY"
-    [14]="TC_IPV6"
-    [15]="TC_HBH"
+    [13]="TC_ENTRY (debug-stats build only)"
+    [14]="TC_IPV6 (debug-stats build only)"
+    [15]="TC_HBH (debug-stats build only)"
 )
 
 # Previous values for rate calculation

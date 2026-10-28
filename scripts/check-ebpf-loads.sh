@@ -44,7 +44,7 @@ LOADER_DIR="${REPO_ROOT}/cmd/ebpf-load-check"
 # Feature variants loaded in addition to each package's default build.
 # monad-cpu-ebpf ascend-linux is the variant xv6 boots; ADR-080 requires each
 # variant be load-tested, because they are different programs to the verifier.
-VARIANTS="monad-cpu-ebpf:ascend-linux"
+VARIANTS="monad-cpu-ebpf:ascend-linux shield-ebpf:debug-stats"
 
 if [[ "${EUID}" -eq 0 ]]; then
     SUDO=()

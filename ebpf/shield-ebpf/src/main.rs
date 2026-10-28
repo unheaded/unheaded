@@ -159,8 +159,12 @@ const STAT_DST_OPT_DISCARD: u32 = 10;
 const STAT_DST_OPT_ICMP: u32 = 11;
 #[allow(dead_code)]
 const STAT_DST_OPT_ICMP_MCAST: u32 = 12;
+// Keys 13-15 exist only in a debug-stats build (S-TRUE-WIRE Step 177).
+#[cfg(feature = "debug-stats")]
 const STAT_TC_ENTRY: u32 = 13;
+#[cfg(feature = "debug-stats")]
 const STAT_TC_IPV6: u32 = 14;
+#[cfg(feature = "debug-stats")]
 const STAT_TC_HBH: u32 = 15;
 const STAT_REDIRECT_ATTEMPTS: u32 = 16;
 const STAT_REDIRECT_SUCCESS: u32 = 17;
@@ -457,6 +461,7 @@ pub fn shield_tc(mut ctx: TcContext) -> i32 {
 
 #[inline(always)]
 fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
+    #[cfg(feature = "debug-stats")]
     increment_stat(STAT_TC_ENTRY);
 
     // Load EtherType to check for IPv6.
@@ -464,6 +469,7 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
     if u16::from_be(eth_proto) != ETH_P_IPV6 {
         return Ok(TC_ACT_OK);
     }
+    #[cfg(feature = "debug-stats")]
     increment_stat(STAT_TC_IPV6);
 
     // Load IPv6 Next Header field (offset 14 + 6 = 20).
@@ -472,6 +478,7 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
         // Not a Kingdom packet (no HBH) — pass through.
         return Ok(TC_ACT_OK);
     }
+    #[cfg(feature = "debug-stats")]
     increment_stat(STAT_TC_HBH);
 
     // ── Read the HBH Options header ────────────────────────────────────────────

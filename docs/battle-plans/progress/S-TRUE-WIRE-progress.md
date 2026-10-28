@@ -204,3 +204,8 @@ MIRROR 0x04, not the plan's guess); finished, tested and gated by the coordinato
   `/sys/fs/bpf/unheaded/shield-ebpf/<MAP>`, not `/sys/fs/bpf/unhd_*` (Step 184); and Shield builds its HMAC/hop keys
   as `flow_id << 48 | namespace << 32` (u64), which `bpfschema.HMACKeyKey` written as raw bytes does not produce, so the
   writer mirrors Shield's key functions instead of the struct (Step 185).
+- Steps 174-182: `cmd/ebpf-load-check` prints `<prog> OK verified N insns` (the kernel's verified-instruction count via
+  prog info, as upc-bootctl reads it; the load gate parses field 2, unchanged). `shield_xdp_insns_pre` **1502**,
+  `shield_tc_insns_pre` **1113**. STATS keys 13-15 (TC entry/IPv6/HBH, three map ops per egress packet) behind
+  `shield-ebpf` feature `debug-stats`: `shield_tc_insns_post_stats` **1005** (default), 1113 (debug-stats); XDP 1502
+  both. Load gate VARIANTS += `shield-ebpf:debug-stats`: `[PASS] 36`.
