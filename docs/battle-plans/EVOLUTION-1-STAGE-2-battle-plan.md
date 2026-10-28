@@ -527,50 +527,50 @@ The two consts flip together. `GETPID_INJECT` without `UPC_RUNG0` is the Phase 1
 
 ### The measured pair
 
-- [ ] **Step 111** [B][S] ~2m: `git status --short | wc -l; grep -nE 'const (GETPID_INJECT|UPC_RUNG0|UPC_D6_MISS_FAULT)' "$EBPF/monad-cpu-ebpf/src/main.rs"`.
-- [ ] **Step 112** [V] ~30s: 0 changed files; all three consts `false`.
-- [ ] **Step 113** [BUILD][B][S] ~6m: One session, one toolchain, both objects:
+- [x] **Step 111** [B][S] ~2m: `git status --short | wc -l; grep -nE 'const (GETPID_INJECT|UPC_RUNG0|UPC_D6_MISS_FAULT)' "$EBPF/monad-cpu-ebpf/src/main.rs"`.
+- [x] **Step 112** [V] ~30s: 0 changed files; all three consts `false`.
+- [x] **Step 113** *(pair measured in Phase 4, same session)* [BUILD][B][S] ~6m: One session, one toolchain, both objects:
   - `obj; vcount | tee "$S7/p5-v-off.txt"`;
   - `flag false true; rung false true` (and `d6 false true` if Phase 4 kept D6), then `obj; vcount | tee "$S7/p5-v-on.txt"`.
-- [ ] **Step 114** [V] ~1m: Freed insns = OFF − ON, recorded in `$LOG` §Phase 5 with the toolchain and host kernel
+- [x] **Step 114** *(freed 7,628)* [V] ~1m: Freed insns = OFF − ON, recorded in `$LOG` §Phase 5 with the toolchain and host kernel
   (`rustc -V`, `uname -r`). The ON count must be ≤ 950,000. A negative "freed" is possible, because rung 0 adds work
   while the getpid arm is compiled out. Record it as it is; the skeleton's −15,223 was getpid alone.
 
 ### Behaviour, with the flags on in the tree
 
-- [ ] **Step 115** [TEST][B][S] ~6m: `for p in getpidprobe getpidfork getpidloop getpidmulti; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p5-on.txt"`.
-- [ ] **Step 116** [V] ~1m: The same lines as `p3-off.txt` and the Phase 0 getpidprobe/getpidfork lines. Init is 1;
+- [x] **Step 115** *(getpidprobe not built; the other three)* [TEST][B][S] ~6m: `for p in getpidprobe getpidfork getpidloop getpidmulti; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p5-on.txt"`.
+- [x] **Step 116** [V] ~1m: The same lines as `p3-off.txt` and the Phase 0 getpidprobe/getpidfork lines. Init is 1;
   children are 2, 3, 4; fork-ret equals child-pid.
-- [ ] **Step 117** [TEST][B][S] ~12m: `sweep12 | grep -c SAME; UPC_GATE_RUNG0=1 bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'`.
-- [ ] **Step 118** [V] ~1m: 12 SAME, ALL GREEN.
+- [x] **Step 117** [TEST][B][S] ~12m: `sweep12 | grep -c SAME; UPC_GATE_RUNG0=1 bash scripts/upc-regression.sh 2>&1 | grep -aE 'FAIL|verifier|ALL'`.
+- [x] **Step 118** *(12/12, ALL GREEN)* [V] ~1m: 12 SAME, ALL GREEN.
   - [D] A golden moves → the flip changed a boot TTY. Diff the `.tty`; a kernel print on getpid is the usual cause.
     Two attempts, then flip back and STUCK.
-- [ ] **Step 119** [B] ~3m: The harness's own expectations. If `scripts/upc-regression.sh` builds or asserts the
+- [x] **Step 119** *(no count assertion; no UPC_GATE_RUNG0 to default)* [B] ~3m: The harness's own expectations. If `scripts/upc-regression.sh` builds or asserts the
   flag-OFF count, update its expected value to the ON object, and make `UPC_GATE_RUNG0` default to 1 now that the
   rung is the default.
-- [ ] **Step 120** [V] ~30s: `bash scripts/upc-regression.sh 2>&1 | grep -aE 'rung 0|ALL'` shows the rung 0 gates
+- [x] **Step 120** *(moot: rung 0 gates always on)* [V] ~30s: `bash scripts/upc-regression.sh 2>&1 | grep -aE 'rung 0|ALL'` shows the rung 0 gates
   running without the env var.
-- [ ] **Step 121** [B] ~2m: The ratchet: `bash scripts/check-ebpf-insns.sh --update --from "$S7/p5-v-on.txt"`, using
+- [x] **Step 121** *(--update, no --from)* [B] ~2m: The ratchet: `bash scripts/check-ebpf-insns.sh --update --from "$S7/p5-v-on.txt"`, using
   the form the script accepts (see its `--help`), then `git diff --stat scripts/ ebpf/`.
-- [ ] **Step 122** [V] ~30s: The ratchet file shows the ON count; Doom unchanged.
-- [ ] **Step 123** [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 111-122] rung 1: getpid served by the owned kernel for every slot (GETPID_INJECT, UPC_RUNG0 on)`,
+- [x] **Step 122** [V] ~30s: The ratchet file shows the ON count; Doom unchanged.
+- [x] **Step 123** [C] ~1m: **COMMIT CHECKPOINT** `feat(upc): [STAGE2 111-122] rung 1: getpid served by the owned kernel for every slot (GETPID_INJECT, UPC_RUNG0 on)`,
   with the freed-insns figure in the body.
 
 ### Close Stage 1 in the docs
 
-- [ ] **Step 124** [DOC-UPDATE][W] ~5m: `docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status line:
+- [x] **Step 124** [DOC-UPDATE][W] ~5m: `docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status line:
   "CLOSED <date>: numbering option K, `GETPID_INJECT` and `UPC_RUNG0` on, freed <N> (OFF <a>, ON <b>, <toolchain>)".
-- [ ] **Step 125** [DOC-UPDATE][W] ~3m: `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md` 1.3.5 `[~]` → `[x]`, with
+- [x] **Step 125** [DOC-UPDATE][W] ~3m: `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md` 1.3.5 `[~]` → `[x]`, with
   one line naming this plan's Phase 5.
-- [ ] **Step 126** [DOC-UPDATE][W] ~5m: `wiki/UPC-Dream-Ladder.md` L5 row: add "getpid served by the owned kernel for
+- [x] **Step 126** *(L6 row: the Stage 1 clause lives there)* [DOC-UPDATE][W] ~5m: `wiki/UPC-Dream-Ladder.md` L5 row: add "getpid served by the owned kernel for
   every process (ADR-109, <date>)". Bare technical wording.
-- [ ] **Step 127** [DOC-UPDATE][W] ~3m: `CLAUDE.md`, one sentence in the S5/ASCEND-LINUX block where `GETPID_INJECT`
+- [x] **Step 127** [DOC-UPDATE][W] ~3m: `CLAUDE.md`, one sentence in the S5/ASCEND-LINUX block where `GETPID_INJECT`
   is described. It is no longer `false`: say it and `UPC_RUNG0` are on since <date>, and that rows per BPF slot are
   ADR-109.
-- [ ] **Step 128** [B] ~1m: `grep -rn 'GETPID_INJECT.*false\|GETPID_INJECT` stays' CLAUDE.md wiki/ docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md | head`.
-- [ ] **Step 129** [V] ~30s: no stale "stays false" claims are left in current-status text. Historical session logs are
+- [x] **Step 128** [B] ~1m: `grep -rn 'GETPID_INJECT.*false\|GETPID_INJECT` stays' CLAUDE.md wiki/ docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md | head`.
+- [x] **Step 129** [V] ~30s: no stale "stays false" claims are left in current-status text. Historical session logs are
   left as written.
-- [ ] **Step 130** [C][V] ~1m: **COMMIT CHECKPOINT + PHASE 5 EXIT GATE**
+- [x] **Step 130** [C][V] ~1m: **COMMIT CHECKPOINT + PHASE 5 EXIT GATE**
   `docs(upc): [STAGE2 124-129] EVOLUTION-1 Stage 1 closed`. The tree is clean, the flags are `true` in the tree, and
   Steps 116, 118 and 122 held.
 

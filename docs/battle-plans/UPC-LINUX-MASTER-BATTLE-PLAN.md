@@ -110,7 +110,9 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
 - [ ] **1.3.3** Pipes (`|`) + a couple more shell builtins. **Route: kernel-side**, Stage 2
       arrival `pipe` (rung 8), same decision.
 - [ ] **1.3.4 GATE (per item):** new capability works; regression sweep (1.1.3) green.
-- [~] **1.3.5** EVOLUTION-1 Stage 1 (getpid trap flip). S5 2026-10-23: S1.2 closed (translator
+- [x] **1.3.5** EVOLUTION-1 Stage 1 (getpid trap flip). **CLOSED 2026-10-28** (`EVOLUTION-1-STAGE-2-battle-plan.md`
+      Phase 5): `GETPID_INJECT` and `UPC_RUNG0` on; every slot's getpid is answered by the owned kernel (ADR-109);
+      freed 7,628 verified insns (921,036 → 913,408). History: S5 2026-10-23: S1.2 closed (translator
       CSR scratch aliasing fixed; `userret` restores from sscratch); the injected getpid round
       trip works, but the kernel answers pid 1 where BPF answers 0, so `GETPID_INJECT` stays
       `false`. REMAINS: pid identity / proc[] reconciliation before the flag flips:

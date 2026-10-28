@@ -427,3 +427,29 @@ The consts were restored to `false` and the object rebuilt.
 - Every reused slot refreshes exactly once.
 - The asserter passes, and all four mutants fail.
 - D6 is deferred (Steps 102-103): it stays off, as a decision for Stevie.
+
+## Phase 5: rung 1, the getpid flip (Steps 111-130)
+
+**Measured pair (one session; rustc 1.101.0-nightly 5c543b0b8 2026-09-29; host kernel 6.17.0-41-generic).**
+- Flag OFF 921,036; `GETPID_INJECT` + `UPC_RUNG0` ON 913,408. **Freed 7,628.**
+- For comparison, getpid alone frees 11,683 (921,036 − 909,353); rung 0 costs 4,055 of that.
+- D6 stays off.
+
+**Flipped in the tree.** `GETPID_INJECT = true` and `UPC_RUNG0 = true`; the const comment is updated.
+- getpidfork, getpidloop and getpidmulti print their flag-OFF lines.
+- `sweep12`: 12/12 SAME.
+- Harness: ALL GREEN; ascend 913,408, Doom 758,199.
+- Ratchet: `docs/policy/ebpf-insns-baseline.tsv` `monad_cpu` 921,036 → 913,408; the check passes. `monad_cpu` stays
+  on the over-900,000 allowlist.
+
+The harness has no expected-count assertion and no `UPC_GATE_RUNG0` variable (Steps 119-120 are moot: the rung 0
+gates are always on since Phase 3).
+
+**Docs (Steps 124-129).**
+- `EVOLUTION-1-TRAP-FLIP.md`: "Stage 1 CLOSED 2026-10-28".
+- Master plan 1.3.5 `[x]`.
+- `wiki/UPC-Dream-Ladder.md`: the L6 row's Stage 1 clause now says the kernel serves getpid for every process. The
+  plan named the L5 row, but the clause lives in L6.
+- `CLAUDE.md`: one sentence after the S-ASCEND-2 "stays false" sentence.
+
+Dated session blocks are left as written.
