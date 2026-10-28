@@ -2047,6 +2047,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // a0 (x10 → r8) = first arg / return value,
             // a1 (x11 → r9) = second arg / return value.
             let syscall_nr = cpu.regs[1];
+            // Probe builds only: route 22 down the getpid inject arm. The kernel
+            // reads the number from trap_a7 (regs[1]), so it still sees 22.
+            let syscall_nr = if UPC_PROBE_INJECT22 && syscall_nr == 22 {
+                11
+            } else {
+                syscall_nr
+            };
             // NOTE: the Doom syscalls DRAW_FRAME(1)/GET_KEY(2)/GET_TICKS(3)/SLEEP(4)
             // collide numerically with xv6 fork(1)/exit(2)/wait(3). They are
             // mutually-exclusive workloads, so under `ascend-linux` the Doom
@@ -2534,9 +2541,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // No children — xv6 wait() returns -1.
                     cpu.regs[8] = (-1i32) as u32;
                 }
-            } else if cfg!(feature = "ascend-linux")
-                && (syscall_nr == 11 || (UPC_PROBE_INJECT22 && syscall_nr == 22))
-            {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 11 {
                 // ── xv6 SYS_getpid (11) — RV32I ecall path (Gate 4) ──────────
                 // ascend-only (xv6 syscall; Doom never issues it).
                 if GETPID_INJECT {
@@ -3474,7 +3479,7 @@ fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
 #[inline(always)]
 fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) {
     // ADR-109 I7: never switch while the owned kernel is running (S-mode).
-    if UPC_RUNG0 && cpu.priv_level != 3 {
+    if cfg!(feature = "ascend-linux") && UPC_RUNG0 && cpu.priv_level != 3 {
         return;
     }
     let old_pid = cpu.current_pid as u32;

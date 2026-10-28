@@ -381,3 +381,30 @@ UPC_MUT_RESTORE_A67: fail init's x17 spill word holds a child's a7 (I8)
 
 `UPC_MUT_RESTORE_A67` is an `#ifdef` in `trampoline_mbc.S` (`.S` files are built with `$(CC) $(CFLAGS)`). After the
 runs, the probe `-D` was reverted; the normal kernel hash is `3c63d4865a4b5dcf` (unchanged since Phase 3).
+
+**Step 107 (flags on: `GETPID_INJECT` + `UPC_RUNG0`, D6 off).** The harness was ALL GREEN (29 PASS: gate2, gate_nway,
+forkloop, devprobe, the `ut_*` probes, getpidfork/loop/multi). It also surfaced three problems:
+
+1. **Doom count moved to 759,416 (from 758,199).** The I7 guard in `scheduler_context_switch` was not gated to
+   `ascend-linux`. With `UPC_RUNG0` on, Doom would have stopped context-switching, since Doom never runs at priv 3.
+   Fixed: `cfg!(feature = "ascend-linux") && UPC_RUNG0 && ...`. The other two `UPC_RUNG0` sites are inside
+   ascend-only arms. Phase 5's harness run re-measures Doom with `UPC_RUNG0` on.
+2. **`cat_BIGFILE` golden: DIFF.** This came from the bootctl drain fix, not the flags. The golden was itself a
+   post-wrap tail:
+   - the full capture is 15,596 bytes;
+   - the old golden is exactly its last 3,308 bytes (15,596 mod 4,096), with the stats equal;
+   - all 14,570 bytes of `BIGFILE` appear verbatim in the new capture.
+
+   So the old golden checked only the file's last 3.3 KB. **It was re-captured** from a flags-off boot into
+   `~/tmp/golden/cat_BIGFILE.{tty,full}`; the old files are kept as `*.pre-drain`, and the stats are unchanged.
+   `sweep12` is then 12/12 SAME with the flags off.
+3. **The drain made a 4M-trigger boot 58.5 s instead of 9.8 s.** Each 1,000-trigger chunk opened and closed an
+   AF_PACKET socket, and the close waits for an RCU grace period (about 12 ms). Fixed with
+   `netns::trigger_with(count, instance, every, on_every)`: one socket, and a callback every 1,000 frames that
+   drains `TTY_MAP`. `send_trigger_native` keeps its signature. A boot is back to 9.75 s with the full BIGFILE
+   capture. The `--create-netns` script path drains only at the end, as before.
+
+**`parity_surface.rs` caught the probe arm.** Its parser wants one `syscall_nr ==` per dispatch arm. The getpid arm is
+back to `syscall_nr == 11`; `UPC_PROBE_INJECT22` now remaps 22 to 11 right after `syscall_nr` is read. The kernel
+reads the number from `trap_a7` (`regs[1]`), so it still gets 22. Re-verified: `RUNG0-ASSERT pass 6`, and
+"2 slot: unknown sys call 22" and "3 slot: unknown sys call 22" again. bootctl tests all pass.

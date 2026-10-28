@@ -1164,14 +1164,10 @@ fn cmd_boot(
     // output never wraps gets exactly the bytes the single drain gave.
     let mut head_cursor = 0u32;
     let mut tty_bytes = Vec::new();
-    let mut left = triggers;
-    while left > 0 {
-        let n = left.min(TTY_DRAIN_CHUNK);
-        netns::trigger(n, instance, false)?;
-        left -= n;
+    netns::trigger_with(triggers, instance, TTY_DRAIN_CHUNK, &mut || {
         tty_bytes.extend(runner.read_tty(&mut head_cursor).unwrap_or_default());
-    }
-    eprintln!("trigger: sent {triggers} frames in chunks of {TTY_DRAIN_CHUNK}, TTY drained between chunks");
+    })?;
+    eprintln!("trigger: sent {triggers} frames, TTY drained every {TTY_DRAIN_CHUNK}");
     std::thread::sleep(std::time::Duration::from_millis(1500));
 
     // Read CPU state after trigger

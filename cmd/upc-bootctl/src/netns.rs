@@ -187,6 +187,24 @@ pub fn trigger(count: u32, instance: u8, verbose: bool) -> Result<()> {
 }
 
 /// Send `count` triggers with an explicit 20-bit flow label.
+/// Like `trigger`, but calls `on_every` after each `every` frames on the one
+/// socket, so the caller can drain TTY_MAP while the CPU runs. With
+/// `--create-netns` (the script path) `on_every` is not called; the caller's
+/// final drain is all it gets.
+pub fn trigger_with(
+    count: u32,
+    instance: u8,
+    every: u32,
+    on_every: &mut dyn FnMut(),
+) -> Result<()> {
+    let flow_label = flow_label_for(instance, nonce());
+    if create_mode() {
+        send_trigger_opts(count, flow_label, false)
+    } else {
+        send_trigger_native_with(count, flow_label, false, every, on_every)
+    }
+}
+
 pub fn trigger_flow(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
     if create_mode() {
         send_trigger_opts(count, flow_label, verbose)
@@ -287,6 +305,20 @@ fn build_trigger_frame(flow_label: u32, trace_id: u32) -> Vec<u8> {
 /// XDP is attached. Trace ids start at a per-run value and increment, as the
 /// script's did.
 pub fn send_trigger_native(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
+    send_trigger_native_with(count, flow_label, verbose, 0, &mut || {})
+}
+
+/// `send_trigger_native` with a callback after every `every` frames (0: never).
+/// One socket for the whole run: closing an AF_PACKET socket waits for an RCU
+/// grace period (~12 ms here), so a socket per chunk made a 4M-trigger boot 6x
+/// slower.
+fn send_trigger_native_with(
+    count: u32,
+    flow_label: u32,
+    verbose: bool,
+    every: u32,
+    on_every: &mut dyn FnMut(),
+) -> Result<()> {
     let idx = ifindex(VETH_INSIDE);
     if idx == 0 {
         anyhow::bail!("{VETH_INSIDE} not found: is bootctl inside the {NS_NAME} namespace?");
@@ -350,6 +382,9 @@ pub fn send_trigger_native(count: u32, flow_label: u32, verbose: bool) -> Result
         stalls = 0;
         sent += 1;
         i += 1;
+        if every != 0 && i.is_multiple_of(every) {
+            on_every();
+        }
     }
     // SAFETY: fd is the socket opened above.
     unsafe { libc::close(fd) };
