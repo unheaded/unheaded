@@ -36,23 +36,53 @@ MONAD_OPT_TYPE = 0x3E  # From monad-common: MONAD_OPT_TYPE (action=00, change-en
 FLAG_TRACED  = 0x20  # T bit
 FLAG_SAMPLED = 0x08  # S bit
 FLAG_CHAOS   = 0x80  # C bit
+FLAG_CUSTOM  = 0x02  # scratch/checksum octets carry exponent keys (never set here)
+FLOW_ACTION_FORWARD = 0x00   # foundation-06 Monad Flow Actions
+CIRCUIT_CLOSED      = 0x01
+DEPLOY_PRODUCTION   = 0x01
 
 # HBH header: 2 (fixed) + 2 (TLV header) + 20 (Monad) = 24 bytes = 3 * 8
 # HdrExtLen = 3 - 1 = 2
 HBH_TOTAL_LEN = 24
 
 
-def build_monad_register(flow_id=0x0001, flags=FLAG_TRACED | FLAG_SAMPLED,
-                         src_svc=0x01, dst_svc=0x02, hop_count=0,
-                         ttl=64, seq=0, trace_id=0):
-    """Build a 20-byte Monad register file."""
-    return struct.pack(
-        ">BBBB HBB I Q",
-        MONAD_VERSION, src_svc, dst_svc, flags,
-        flow_id, hop_count, ttl,
-        seq,
-        trace_id,
+def crc16_ccitt(data):
+    """CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection, no final XOR),
+    as monad_common::CrcCcitt and pkg/protocol/encoding compute it."""
+    crc = 0xFFFF
+    for byte in data:
+        crc ^= byte << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
+    return crc
+
+
+def build_monad_register(flags=FLAG_TRACED | FLAG_SAMPLED, src_svc=0x01, dst_svc=0x02,
+                         hop_count=0, seq=0, bad_crc=False):
+    """Build a 20-byte Monad register file, v0x01 layout (pkg/protocol/bpfschema
+    MonadRegister, foundation-06):
+
+      0x00 version  0x01 src svc  0x02 dst svc  0x03 hop count  0x04 QoS
+      0x05 flow action  0x06 circuit state  0x07 flags  0x08 latency hint (BE u16)
+      0x0A deploy ring  0x0B mesh flags  0x0C/0x0D src/dst prefix low
+      0x0E-0x11 scratch (seq, BE u32)  0x12 checksum (BE CRC-16/CCITT over 0x00-0x11)
+
+    bad_crc=True flips the checksum, for the negative test (Shield counts an
+    anomaly). Until 2026-10-28 this packed its own layout with no checksum, so
+    every packet was an anomaly by construction (S-TRUE-WIRE Step 212).
+    """
+    body = struct.pack(
+        ">BBBBBBBB H BBBB I",
+        MONAD_VERSION, src_svc, dst_svc, hop_count & 0xFF, 0,
+        FLOW_ACTION_FORWARD, CIRCUIT_CLOSED, flags & ~FLAG_CUSTOM & 0xFF,
+        0,
+        DEPLOY_PRODUCTION, 0, 0, 0,
+        seq & 0xFFFFFFFF,
     )
+    crc = crc16_ccitt(body)
+    if bad_crc:
+        crc ^= 0xFFFF
+    return body + struct.pack(">H", crc)
 
 
 def build_hbh_option(monad_bytes):
@@ -140,16 +170,16 @@ class StressMetrics:
             print(f"  Avg throughput: {self.total_bytes*8/elapsed/1_000_000:.1f} Mbps")
 
 
-def create_monad_socket(src_addr, dst_addr, dst_port, flow_id=1, seq=0):
-    """Create a UDP6 socket with Monad HBH options set."""
+def create_monad_socket(src_addr, dst_addr, dst_port, flow_id=1, seq=0, bad_crc=False):
+    """Create a UDP6 socket with Monad HBH options set. flow_id is kept for
+    callers; the IPv6 flow label, not the Monad, carries a flow."""
     s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4 * 1024 * 1024)
 
     monad = build_monad_register(
-        flow_id=flow_id,
         flags=FLAG_TRACED | FLAG_SAMPLED,
         seq=seq,
-        trace_id=seq,
+        bad_crc=bad_crc,
     )
     hbh = build_hbh_option(monad)
     s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_HOPOPTS, hbh)
@@ -158,13 +188,12 @@ def create_monad_socket(src_addr, dst_addr, dst_port, flow_id=1, seq=0):
     return s
 
 
-def update_monad_on_socket(sock, seq, flow_id=1):
+def update_monad_on_socket(sock, seq, flow_id=1, bad_crc=False):
     """Update the Monad HBH option with new sequence number."""
     monad = build_monad_register(
-        flow_id=flow_id,
         flags=FLAG_TRACED | FLAG_SAMPLED,
         seq=seq,
-        trace_id=seq,
+        bad_crc=bad_crc,
     )
     hbh = build_hbh_option(monad)
     sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_HOPOPTS, hbh)
@@ -186,10 +215,9 @@ def worker_thread(thread_id, args, metrics, stop_event):
 
     if monad_mode:
         monad = build_monad_register(
-            flow_id=thread_id + 1,
             flags=FLAG_TRACED | FLAG_SAMPLED,
             seq=0,
-            trace_id=thread_id,
+            bad_crc=args.bad_crc,
         )
         hbh = build_hbh_option(monad)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_HOPOPTS, hbh)
@@ -236,7 +264,7 @@ def worker_thread(thread_id, args, metrics, stop_event):
 
         # Update Monad seq periodically (setsockopt is expensive)
         if monad_mode and update_interval > 0 and seq % update_interval == 0:
-            update_monad_on_socket(sock, seq, flow_id=thread_id + 1)
+            update_monad_on_socket(sock, seq, flow_id=thread_id + 1, bad_crc=args.bad_crc)
 
         # Rate limiting
         if current_rate > 0:
@@ -381,6 +409,8 @@ def main():
                         help="Ramp mode starting rate (pps)")
     parser.add_argument("--ramp-interval", type=float, default=10.0,
                         help="Seconds between ramp doublings")
+    parser.add_argument("--bad-crc", action="store_true",
+                        help="Send Monads with a wrong checksum (negative test: Shield counts anomalies)")
     parser.add_argument("--update-seq", type=int, default=1000,
                         help="Update Monad sequence every N packets (0=never, setsockopt is slow)")
     args = parser.parse_args()

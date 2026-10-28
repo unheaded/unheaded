@@ -238,6 +238,10 @@ jobs:
           python3 -m pytest tests/runbooks -q -rfE -m "not live" 2>&1 | tee runbooks-pytest.log || rc=$?
           { echo '### runbook dry-run tests'; echo '```'; grep -E '^(FAILED|ERROR|=+ .*(passed|failed|error).* =+$|E +)' runbooks-pytest.log | tail -60; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
+      - name: script unit tests (GATING)
+        # Scripts outside the runbooks with a contract worth pinning
+        # (stress-cannon's Monad layout and CRC, S-TRUE-WIRE Step 212).
+        run: python3 -m pytest tests/scripts -q -rfE
 
   javascript:
     name: JavaScript (oxlint)

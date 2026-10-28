@@ -634,10 +634,10 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 
 ### Stress cannon CRC (M-183)
 
-- [ ] **Step 211** [R][B] ~3m: `cd /home/govan/tmp/unheaded && grep -rnE 'cannon|stress' scripts/*.sh tools/ cmd/ 2>/dev/null | grep -iE 'monad|crc|checksum' | head -6; ls scripts | grep -iE 'cannon|stress|flood'`
-- [ ] **Step 212** [CODE][W] ~15m: The sender computes the Monad CRC with `encoding.CRC16CCITT` (Go) or `monad_common` (Rust) before send; add a `-bad-crc` flag for the negative test; a unit test asserts a generated packet verifies.
-- [ ] **Step 213** [TEST][B] ~3m: `go test ./<cannon pkg>/ -count=1 | tail -1` (path from Step 211).
-- [ ] **Step 214** [V] ~1m: ok. Now `STAT_ANOMALIES` under the cannon measures real anomalies, not the cannon's own garbage.
+- [x] **Step 211** [R][B] ~3m: `cd /home/govan/tmp/unheaded && grep -rnE 'cannon|stress' scripts/*.sh tools/ cmd/ 2>/dev/null | grep -iE 'monad|crc|checksum' | head -6; ls scripts | grep -iE 'cannon|stress|flood'`
+- [x] **Step 212** [CODE][W] ~15m: The sender computes the Monad CRC with `encoding.CRC16CCITT` (Go) or `monad_common` (Rust) before send; add a `-bad-crc` flag for the negative test; a unit test asserts a generated packet verifies.
+- [x] **Step 213** [TEST][B] ~3m: `go test ./<cannon pkg>/ -count=1 | tail -1` (path from Step 211).
+- [x] **Step 214** [V] ~1m: ok. Now `STAT_ANOMALIES` under the cannon measures real anomalies, not the cannon's own garbage.
 
 ### packet-marker trace-ID extraction (M-182)
 

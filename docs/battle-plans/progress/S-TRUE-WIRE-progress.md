@@ -236,3 +236,8 @@ targets:
   three maps and AUTHORITY from Shield until an ADR defines them. Recommendation: (a), with an ADR first; until then the
   docs say STUBBED (true) and FND-025 stays open. Building Step 193 as written would add checks that cannot fail, the
   defect FND-025 records.
+- Steps 211-214: the cannon is `scripts/stress-cannon.py` (Python, not Go). It packed its own 20-byte layout (flags at
+  the hop-count offset, made-up flow-id/TTL/seq/trace fields, no checksum): every packet an anomaly. Now the v0x01
+  layout with CRC-16/CCITT-FALSE over 0x00-0x11 big-endian at 0x12, seq in the scratch registers, CUSTOM never set,
+  flow action FORWARD; `--bad-crc` for the negative test. `tests/scripts/test_stress_cannon.py` (5 tests, independent
+  CRC reference, check value 0x29B1) runs in Static Analysis "script unit tests (GATING)".
