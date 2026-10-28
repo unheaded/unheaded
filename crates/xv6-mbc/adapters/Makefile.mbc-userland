@@ -126,6 +126,11 @@ grep:  $T/grep.mbc
 # Phase 1.2 Gate 2 isolation proof (ADR-074) — run as the userland directly:
 #   upc-bootctl boot ... --userland target/gate2.mbc
 gate2: $T/gate2.mbc
+# EVOLUTION-1 getpid probes (built by the %.elf pattern rule; named here so
+# they are findable): init calls getpid; a forked child calls getpid
+# (S-ASCEND-2 Phase 1). Run as the userland directly.
+getpidprobe: $T/getpidprobe.mbc
+getpidfork: $T/getpidfork.mbc
 
 # Phase 1.2 Gate 4 — N-way CONCURRENT isolation falsification test (ADR-074
 # scoped) — run as the userland directly:
@@ -183,9 +188,9 @@ clean:
 	rm -f $U/*.o $U/usys.S
 	rm -rf $T/init.* $T/uinit.* $T/sh.* $T/ls.* $T/cat.* $T/echo.* \
 	       $T/wc.* $T/ln.* $T/mkdir.* $T/kill.* $T/rm.* $T/grep.* \
-	       $T/gate2.* $T/gate_nway.* $T/fs.img $T/README $T/BIGFILE $T/sub
+	       $T/gate2.* $T/gate_nway.* $T/getpidprobe.* $T/getpidfork.* $T/fs.img $T/README $T/BIGFILE $T/sub
 
-.PHONY: clean init uinit sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway userland ramdisk
+.PHONY: clean init uinit sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway getpidprobe getpidfork userland ramdisk
 
 # Keep .elf intermediates around for debugging.
 .SECONDARY: $T/init.elf $T/uinit.elf $T/sh.elf $T/ls.elf $T/cat.elf $T/echo.elf $T/wc.elf

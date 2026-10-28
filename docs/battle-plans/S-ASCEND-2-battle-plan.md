@@ -212,37 +212,37 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### The named probe: a forked child calls getpid
 
-- [ ] **Step 27** [W][CODE] ~15m: `crates/xv6-mbc/upstream/user/getpidfork.c` — gate2-style fixed-string probe: parent prints `GF: parent-pid=N` (N∈{0,1,2,other} via if-chain), forks ONCE (no loop: the looped-fork bug), child prints `GF: child-pid=N` then `exit(0)`, parent `wait`s and prints `GF: parent-after-wait`. Header comment: purpose (EVOLUTION-1 "next probe"), observables, and that both flag states must print the same lines except the pid values only the kernel path can reveal.
-- [ ] **Step 28** [W] ~3m: Register it in `crates/xv6-mbc/adapters/Makefile.mbc-userland` next to `getpidprobe` (same recipe shape; check how `getpidprobe.mbc` is listed first: `grep -n getpidprobe ../adapters/Makefile.mbc-userland`).
-- [ ] **Step 29** [BUILD][B] ~3m: Build the probe, flag OFF object (as built)
+- [x] **Step 27** *(probe parent spins at the end: init's exit returns to user code, see log)* [W][CODE] ~15m: `crates/xv6-mbc/upstream/user/getpidfork.c` — gate2-style fixed-string probe: parent prints `GF: parent-pid=N` (N∈{0,1,2,other} via if-chain), forks ONCE (no loop: the looped-fork bug), child prints `GF: child-pid=N` then `exit(0)`, parent `wait`s and prints `GF: parent-after-wait`. Header comment: purpose (EVOLUTION-1 "next probe"), observables, and that both flag states must print the same lines except the pid values only the kernel path can reveal.
+- [x] **Step 28** *(phony targets `getpidprobe` and `getpidfork`)* [W] ~3m: Register it in `crates/xv6-mbc/adapters/Makefile.mbc-userland` next to `getpidprobe` (same recipe shape; check how `getpidprobe.mbc` is listed first: `grep -n getpidprobe ../adapters/Makefile.mbc-userland`).
+- [x] **Step 29** [BUILD][B] ~3m: Build the probe, flag OFF object (as built)
   ```bash
   (cd "$UP" && make -f ../adapters/Makefile.mbc-userland target/getpidfork.mbc 2>&1 | tail -2); ls -la "$K/getpidfork.mbc"; grep -n 'const GETPID_INJECT' "$EBPF/monad-cpu-ebpf/src/main.rs"
   ```
-- [ ] **Step 30** [TEST][B][S] ~3m: Control run, flag OFF
+- [x] **Step 30** *(800k triggers, sudo-side UPC_VERIFIER_STATS; see log deviations)* [TEST][B][S] ~3m: Control run, flag OFF
   ```bash
   out="$(cd "$EBPF" && UPC_VERIFIER_STATS=1 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" --userland "$K/getpidfork.mbc" --triggers 2500000 --instance 111 2>&1)"; printf '%s\n' "$out" > "$S6/p1-fork-off.txt"; grep -aoE 'GF: [a-z=0-9-]+|verified [0-9]+ insns|DEAD' <<<"$out"
   ```
-- [ ] **Step 31** [V] ~1m: Prints `GF: parent-pid=0`, `GF: child-pid=1` (BPF slot numbering: init slot 0, first child slot 1), `GF: parent-after-wait`, no `DEAD`. A different child slot is fine if consistent; record. Missing `parent-after-wait` → Step 32.
-- [ ] **Step 32** [D] ~15m: The probe itself is wrong, not the kernel: compare with `gate2.c`'s fork/wait shape (it works in the harness); check `wait()` is the xv6 `wait(int*)` signature in `user/user.h`; rebuild. Two attempts then STUCK (Phase 1 cannot proceed without a working probe; Phases 2-4 do not depend on it).
-- [ ] **Step 33** [BUILD][B] ~3m: Flip the flag ON for the experiment (temporary), rebuild ascend
+- [x] **Step 31** *(0 / 1 / after-wait)* [V] ~1m: Prints `GF: parent-pid=0`, `GF: child-pid=1` (BPF slot numbering: init slot 0, first child slot 1), `GF: parent-after-wait`, no `DEAD`. A different child slot is fine if consistent; record. Missing `parent-after-wait` → Step 32.
+- [x] **Step 32** *(two attempts: the doubling was init's exit returning, not the probe's fork; probe spins)* [D] ~15m: The probe itself is wrong, not the kernel: compare with `gate2.c`'s fork/wait shape (it works in the harness); check `wait()` is the xv6 `wait(int*)` signature in `user/user.h`; rebuild. Two attempts then STUCK (Phase 1 cannot proceed without a working probe; Phases 2-4 do not depend on it).
+- [x] **Step 33** [BUILD][B] ~3m: Flip the flag ON for the experiment (temporary), rebuild ascend
   ```bash
   sed -i 's/const GETPID_INJECT: bool = false;/const GETPID_INJECT: bool = true;/' "$EBPF/monad-cpu-ebpf/src/main.rs" && (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1)
   ```
-- [ ] **Step 34** [TEST][B][S] ~3m: Probe run, flag ON
+- [x] **Step 34** *(parent 1, child -1, after-wait)* [TEST][B][S] ~3m: Probe run, flag ON
   ```bash
   out="$(cd "$EBPF" && UPC_VERIFIER_STATS=1 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" --userland "$K/getpidfork.mbc" --triggers 2500000 --instance 111 2>&1)"; printf '%s\n' "$out" > "$S6/p1-fork-on.txt"; grep -aoE 'GF: [a-z=0-9-]+|verified [0-9]+ insns|DEAD' <<<"$out"
   ```
-- [ ] **Step 35** [V] ~2m: **DUAL-BOOKS OBSERVED OR REFUTED** — record the four `GF:` lines ON vs OFF side by side in `$LOG`. Expected by read: ON prints `parent-pid=1` and `child-pid=1` (the child enters the kernel with `cpu->proc` = init, so the kernel answers init's pid). Any outcome is informative; what matters is the table. No `parent-after-wait` with the flag ON → Step 36.
-- [ ] **Step 36** [D] ~20m: The injected trap broke fork/wait interplay: dump CPU state at the DEAD/halt (`--trace`-style dump in bootctl), check `sepc`/`sscratch` after the child's SRET (the S1.2 class of bug: CSR temp aliasing in the translator, see ADR-067 Decision 2 note). Two attempts then record, restore the flag (Step 38) and STUCK Steps 46-52.
-- [ ] **Step 37** [B] ~1m: Verifier delta ON vs OFF on this toolchain (feeds Phase 2)
+- [x] **Step 35** *(table in log: the kernel has no process for the child, getpid -1)* [V] ~2m: **DUAL-BOOKS OBSERVED OR REFUTED** — record the four `GF:` lines ON vs OFF side by side in `$LOG`. Expected by read: ON prints `parent-pid=1` and `child-pid=1` (the child enters the kernel with `cpu->proc` = init, so the kernel answers init's pid). Any outcome is informative; what matters is the table. No `parent-after-wait` with the flag ON → Step 36.
+- [x] **Step 36** *(not needed: parent-after-wait printed with the flag ON)* [D] ~20m: The injected trap broke fork/wait interplay: dump CPU state at the DEAD/halt (`--trace`-style dump in bootctl), check `sepc`/`sscratch` after the child's SRET (the S1.2 class of bug: CSR temp aliasing in the translator, see ADR-067 Decision 2 note). Two attempts then record, restore the flag (Step 38) and STUCK Steps 46-52.
+- [x] **Step 37** *(ON 911319, OFF 926542, delta -15223)* [B] ~1m: Verifier delta ON vs OFF on this toolchain (feeds Phase 2)
   ```bash
   on="$(grep -aoE 'verified [0-9]+ insns' "$S6/p1-fork-on.txt" | grep -oE '[0-9]+')"; off="$(grep -aoE 'ascend verifier: verified [0-9]+' "$S6/p0-regression.log" | grep -oE '[0-9]+$')"; echo "ON=$on OFF=$off DELTA=$((on-off))" | tee -a "$LOG"
   ```
-- [ ] **Step 38** [B] ~3m: Restore the flag OFF (the default until E1), rebuild, confirm byte-identical object vs Phase 0
+- [x] **Step 38** *(byte-identical)* [B] ~3m: Restore the flag OFF (the default until E1), rebuild, confirm byte-identical object vs Phase 0
   ```bash
   sed -i 's/const GETPID_INJECT: bool = true;/const GETPID_INJECT: bool = false;/' "$EBPF/monad-cpu-ebpf/src/main.rs" && (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1) && git -C "$PROJECT_ROOT" status --short ebpf/ | wc -l
   ```
-- [ ] **Step 39** [V] ~30s: `0` modified files under `ebpf/`. Non-zero → `git diff ebpf/` and revert anything but the probe files.
+- [x] **Step 39** *(0)* [V] ~30s: `0` modified files under `ebpf/`. Non-zero → `git diff ebpf/` and revert anything but the probe files.
 - [ ] **Step 40** [C] ~1m: **COMMIT CHECKPOINT** (probe + Makefile line + log; flag unchanged)
   ```bash
   cd "$PROJECT_ROOT" && git add crates/xv6-mbc/upstream/user/getpidfork.c crates/xv6-mbc/adapters/Makefile.mbc-userland references/s-ascend-2-log.md && commitp -m "test(upc): [S-ASCEND-2 27-40] getpidfork probe: forked child calls getpid under both GETPID_INJECT states"
