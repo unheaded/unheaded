@@ -143,3 +143,42 @@ Question to Stevie, unchanged from the plan, with this evidence: (1) kernel `p->
 EVOLUTION-1's direction is kernel authority and K removes the kernel's counter. New since the plan was written: the
 kernel has no process for a forked child, so under either answer the next step is giving the kernel a row per BPF
 fork. Until answered, Steps 44-51 are `[AFTER-E1]` skips and the flag stays OFF.
+
+## Phase 2: D1 reach re-read (Steps 53-62, 2026-10-28)
+
+**Step 54.** The plan's `grep 'ON=.*DELTA='` finds nothing: Step 37's numbers were written to this log as
+the Phase 1 table, not as an `ON= OFF= DELTA=` line. Values used: July OFF 900,031, ON 905,440, delta +5,409
+(`references/evolution1-stage1-2026-07-19.md`); today OFF 926,542, ON 911,319, delta -15,223. Headroom: OFF
+73,458 below 1M and 23,458 below the 950,000 bar; ON 88,681 and 38,681.
+
+**Attribution.** `monad-cpu-ebpf` logic is unchanged since `8de08368` except `233b6451` (clippy annotation),
+per `references/s5-upc-wire-log.md` Phase 0. The delta moved 20,632 and the OFF build 26,511 with no logic
+change: toolchain and host-kernel verifier. The retired getpid handler is one line, so the delta is a change
+in verifier path exploration, not the handler's size. Per-rung freed insns must be measured as ON/OFF pairs on
+one build.
+
+**Step 55.** `EVOLUTION-1-TRAP-FLIP.md` §"D1 reach re-read (2026-10-28) — pending E2". Recommendation: push
+toward (a) in ladder order, gated per rung on corpus 12/12 SAME, harness green, freed insns >= 0 and cycle
+cost recorded; stop at the first rung with freed insns < 0. The child-getpid result is in the re-read: the
+kernel needs a row per BPF fork before any stateful rung and before the arrivals, under either E2 answer.
+
+**Step 57.** `docs/battle-plans/EVOLUTION-1-STAGE-2-skeleton.md`: rungs 0-8 (rung 0 = kernel row per BPF fork,
+added in front of EVOLUTION-1's ladder), one gate per rung, usertests subset plan, open questions. Found while
+writing it: `pause` (13) is xv6's sleep(ticks) and BPF services it as a yield, so EVOLUTION-1's "sleep"
+arrival and its "pause" rung are the same syscall number; `uptime` (14) is not BPF-implemented; rungs 3/4
+(write, read) can only move console fds, because file fds live in `FD_INODE_MAP` until open migrates and D1
+requires the FS-metadata bundle to move as one unit. `usertests.c` is not built today; its runner needs
+`wait` exit status and `countfree()` needs `sbrk`.
+
+## E2 (Step 56): filed
+
+Question to Stevie: given the negative getpid delta (-15,223 today vs +5,409 in July, toolchain-attributed)
+and the child-getpid result (-1 with the flag ON: the kernel has no process for a BPF-forked child), do we
+**(a)** push toward kernel-authoritative syscalls (Stage 2 runs the full ladder rung by rung, each rung gated
+on freed insns >= 0, with a kernel row per BPF fork as rung 0), or **(c)** keep the reach minimal (migrate only
+where authenticity demands: the `sbrk`, `pipe`, `kill` arrivals, nothing else)? Sub-question: if (c), does
+"minimal" also drop the FS-metadata bundle and getpid/pause/yield that D1 (c) placed in the kernel on
+2026-07-17? Recommendation (Computermancer + Scientist): (a), with the per-rung stop rule. New since the plan
+was written: rung 0 (a kernel row per BPF fork) is needed under either answer, because every arrival also runs
+in a forked child. Until answered, Steps 63-65 are `[AFTER-E2]` skips; the skeleton and the re-read say
+"pending E2".
