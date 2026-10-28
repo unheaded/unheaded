@@ -236,6 +236,10 @@ targets:
   three maps and AUTHORITY from Shield until an ADR defines them. Recommendation: (a), with an ADR first; until then the
   docs say STUBBED (true) and FND-025 stays open. Building Step 193 as written would add checks that cannot fail, the
   defect FND-025 records.
+- E8 addendum (found at Step 234): the PQC draft's §4 has the opposite model of the reference Shield. There, packets
+  reach Shield ingress *carrying* a Monad (SigRef/KeyRef in its value field), Shield verifies and strips it at ingress,
+  and the kingdom runs without it; in the code, Shield ingress *creates* the Monad and egress strips it. An E8 answer
+  should say which model Shield follows: it decides where every one of the deferred checks can live.
 - Steps 211-214: the cannon is `scripts/stress-cannon.py` (Python, not Go). It packed its own 20-byte layout (flags at
   the hop-count offset, made-up flow-id/TTL/seq/trace fields, no checksum): every packet an anomaly. Now the v0x01
   layout with CRC-16/CCITT-FALSE over 0x00-0x11 big-endian at 0x12, seq in the scratch registers, CUSTOM never set,
@@ -250,3 +254,6 @@ targets:
   with the IP option → `trace_extracted = 70`, tcp 100, udp 20; netns, veth and loader gone afterwards. The collector
   check (Step 221's curl) was not run: no collector in the lab, the counter alone per the step. packet_marker stays
   IPv4-only; nothing writes TRACE_INJECT. wiki/eBPF-Programs.md and next.md corrected.
+- Steps 224-227 (Phase 5 close): load gate `[PASS] 36`; UPC ALL GREEN 926542/761580/42743/146897 (Step 16 numbers);
+  `make test-ebpf-compat` passed; whole-tree go test 235 ok, no new FAIL. Steps 228/229 held open by E8 (FND-025 stays
+  open; the docs already say STUBBED, which is true).

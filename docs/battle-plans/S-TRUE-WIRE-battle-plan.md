@@ -653,13 +653,13 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 
 ### Phase 5 close
 
-- [ ] **Step 224** [TEST][S][BARE-METAL][B] ~10m: `cd /home/govan/tmp/unheaded && scripts/check-ebpf-loads.sh 2>&1 | tail -3 && scripts/upc-regression.sh 2>&1 | grep -aE 'ALL GREEN|FAIL|verified [0-9]+ insns|SAME|DIFF' | head -8 && make test-ebpf-compat 2>&1 | tail -1`
-- [ ] **Step 225** [V] ~2m: `[PASS]`, `ALL GREEN`, ascend/Doom numbers equal Step 16, `12/12 SAME`, compat passed.
-- [ ] **Step 226** [TEST][B] ~8m: Go regression vs baseline (`tw-p5.txt`).
-- [ ] **Step 227** [V] ~1m: `no new FAIL`.
-- [ ] **Step 228** [DOC-UPDATE][W] ~8m: Now it is true: `S24-handoff-battle-orders.md` → "WIRED (S-TRUE-WIRE Step 194, observe mode)"; `main.rs` comment → the design file; `wiki/Service-Shield.md` (create if absent) with: the three maps, the keys file, observe vs enforce, the counters, the insn numbers before/after (from the progress file), and "debug stats are a build feature". FND-025 → `Mitigated` in `register.yaml` with the step numbers; regenerate ADR-098 (Step 170 command).
-- [ ] **Step 229** [V] ~2m: **PHASE 5 EXIT GATE** — Steps 171, 180, 188, 191, 198 (or its STUCK), 200, 202, 204, 209, 214, 219 (or STUCK), 221, 225, 227 passed; FND-025 Mitigated; every doc that said WIRED now says what the code does.
-- [ ] **Step 230** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 224-230: Phase 5 exit gate, Shield docs tell the truth, FND-025 mitigated`.
+- [x] **Step 224** [TEST][S][BARE-METAL][B] ~10m: `cd /home/govan/tmp/unheaded && scripts/check-ebpf-loads.sh 2>&1 | tail -3 && scripts/upc-regression.sh 2>&1 | grep -aE 'ALL GREEN|FAIL|verified [0-9]+ insns|SAME|DIFF' | head -8 && make test-ebpf-compat 2>&1 | tail -1`
+- [x] **Step 225** [V] ~2m: `[PASS]`, `ALL GREEN`, ascend/Doom numbers equal Step 16, `12/12 SAME`, compat passed.
+- [x] **Step 226** [TEST][B] ~8m: Go regression vs baseline (`tw-p5.txt`).
+- [x] **Step 227** [V] ~1m: `no new FAIL`.
+- [ ] **Step 228** *(partial 2026-10-28: the docs say what the code does, STUBBED; FND-025 stays open until E8)* [DOC-UPDATE][W] ~8m: Now it is true: `S24-handoff-battle-orders.md` → "WIRED (S-TRUE-WIRE Step 194, observe mode)"; `main.rs` comment → the design file; `wiki/Service-Shield.md` (create if absent) with: the three maps, the keys file, observe vs enforce, the counters, the insn numbers before/after (from the progress file), and "debug stats are a build feature". FND-025 → `Mitigated` in `register.yaml` with the step numbers; regenerate ADR-098 (Step 170 command).
+- [ ] **Step 229** *(held open by E8: Steps 188-202 not built; every other listed gate passed)* [V] ~2m: **PHASE 5 EXIT GATE** — Steps 171, 180, 188, 191, 198 (or its STUCK), 200, 202, 204, 209, 214, 219 (or STUCK), 221, 225, 227 passed; FND-025 Mitigated; every doc that said WIRED now says what the code does.
+- [x] **Step 230** *(checkpoint made with the exit gate held open)* [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 224-230: Phase 5 exit gate, Shield docs tell the truth, FND-025 mitigated`.
 
 ---
 
