@@ -134,13 +134,7 @@ bookkeeping problem, not an engineering one.
 #### Immediate Actions (Next 24-48 Hours)
 - [x] Stray binaries moved to `~/tmp/host-agent-july-binaries/` (sha256 bad1395f… and 829ee397…), `cmd/host-agent/` removed. Done 2026-10-28 on Stevie's go.
 - [x] `/host-agent` and `/cmd/host-agent/` added to `.gitignore`. Done 2026-10-28.
-- [ ] Review true-wire Phase 8 (in a clean tree):
-  ```
-  git switch --detach 88202527
-  /ultrareview 88202527^1
-  git switch develop
-  ```
-  Owner: BlackMage triages, Developer fixes on `sprint/true-wire`.
+- [x] True-wire Phase 8 reviewed as PR #2 (ultra, 6 findings), all six fixed on `sprint/true-wire` in `2af5142b`. Done 2026-10-28.
 - [x] Both worktrees committed as WIP on their own branches (`8443a7bf` Phase 4, and Phase 2 with the rustfmt hook bypassed), unsigned, not built. Done 2026-10-28. Drop or merge after E2.
 
 #### This Sprint (Next 7 Days)
@@ -173,6 +167,10 @@ bookkeeping problem, not an engineering one.
 #### Findings during execution (2026-10-28)
 - **ultrareview cannot bundle this repo locally** (178 MiB pack): "Repo is too large. Push a PR and use `/code-review ultra <PR#>`". Stevie pushed `review/true-wire-ph8-base` (`6d6d6aa3`) and `review/true-wire-ph8` (`88202527`) and opened **PR #2** (21 files, +1,699 -141). Every later review follows the same two-branch recipe.
 - **PR #2 check "Static Analysis / Gates can actually fail" is red, and it is pre-existing, not Phase 8.** Reproduced locally with the job's PR-mode command (`check-gates-can-fail.sh --quick`) in clean worktrees: at the PR head 7 gate scripts have no classification (`backup/git-mirror`, `check-perf-regression`, `check-zhen-mcp`, `ci-local`, `east-bootstrap`, `gen-dev-certs`, `test-check-perf-regression`); at `develop` the list is 14 (those plus `lib/deb-packages`, `well/test-batch-apply`, `well/test-retention`, `well/test-slo-definitions`, `wireguard/setup-wireguard`, `wireguard/verify-wireguard`, `zhen-morning-report`). The meta-gate exits 1 before running any gate, so **no gate has been proven to bite on develop since those scripts landed**. Each name needs exactly one of REGISTRY + provoke fn, NOT_A_GATE, or NEEDS_HARDWARE. Owner: Developer, on develop, as its own commit; true-wire inherits it at the E2 merge. Not a reason to hold the PR #2 review.
+
+- **Recipe that works** (ultrareview refuses this repo locally, 178 MiB pack): push the merge's first parent and the merge as two branches, open a PR between them on GitHub, run `/code-review ultra <PR#>`. Every security merge in the list fits the limits (largest: `19a968a9`, 71 files; `ed46d54f`, 3,272 lines).
+- **PR #2 was the repository's first pull request**, so four workflows ran on a `pull_request` event for the first time. Fixed on develop: Yggdrasil anchor verify read the wrong keys (`e78b4281`), four `.tf` modules used `;` inside blocks (`8b064567`), the raft unit tier never installed numpy (`a9cf46f2`). Still red by design: Terraform plan (no `mock_outputs`, needs a cluster).
+- **Dependabot**: dependency graph enabled and default branch switched to develop; alerts went 115 → 7; the three patched modules bumped (`a46f8e41`); the pip-freeze inventory renamed so it stops reading as a manifest (`790c0ded`, baseline `499185b9`).
 
 #### Open Questions (Carry to Next Round Table)
 1. Keep or delete the July host-agent binaries? Stevie, before the next coordinator session.
