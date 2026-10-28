@@ -2040,9 +2040,9 @@ pkg/zhenroute/zhenroute.go	PENDING
 pkg/zhenroute/zhenroute_test.go	PENDING			
 pkg/zhentools/zhentools.go	PENDING			
 proto/ebpf_telemetry.proto	PENDING			
-proto/unheaded/v1/protocol.pb.go	PENDING			
+proto/unheaded/v1/protocol.pb.go	SKIPPED			generated
 proto/unheaded/v1/protocol.proto	PENDING			
-proto/unheaded/v1/protocol_grpc.pb.go	PENDING			
+proto/unheaded/v1/protocol_grpc.pb.go	SKIPPED			generated
 raft/scripts/01_prepare_corpus.py	PENDING			
 raft/scripts/02_embeddings.py	PENDING			
 raft/scripts/04_integration_tests.py	PENDING			
@@ -2557,16 +2557,16 @@ services/wotan/internal/topicpattern/pattern_test.go	PENDING
 services/wotan/internal/wotan/wotan.go	PENDING			
 services/wotan/internal/wotan/wotan_drop_test.go	PENDING			
 services/wotan/internal/wotan/wotan_test.go	PENDING			
-services/wotan/proto/chat.pb.go	PENDING			
+services/wotan/proto/chat.pb.go	SKIPPED			generated
 services/wotan/proto/chat.proto	PENDING			
-services/wotan/proto/chat_grpc.pb.go	PENDING			
+services/wotan/proto/chat_grpc.pb.go	SKIPPED			generated
 services/wotan/proto/generate.sh	PENDING			
-services/wotan/proto/replication.pb.go	PENDING			
+services/wotan/proto/replication.pb.go	SKIPPED			generated
 services/wotan/proto/replication.proto	PENDING			
-services/wotan/proto/replication_grpc.pb.go	PENDING			
-services/wotan/proto/topic.pb.go	PENDING			
+services/wotan/proto/replication_grpc.pb.go	SKIPPED			generated
+services/wotan/proto/topic.pb.go	SKIPPED			generated
 services/wotan/proto/topic.proto	PENDING			
-services/wotan/proto/topic_grpc.pb.go	PENDING			
+services/wotan/proto/topic_grpc.pb.go	SKIPPED			generated
 services/yaldabaoth/abort.go	PENDING			
 services/yaldabaoth/allowlist.go	PENDING			
 services/yaldabaoth/allowlist_test.go	PENDING			
