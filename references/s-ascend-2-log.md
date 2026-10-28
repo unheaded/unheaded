@@ -486,3 +486,12 @@ model / sha mismatch / expired / garbage; httptest fake Wotan round trip, paging
 published data_sha256 `f175ee26…fa38b`, fetched bytes identical to `cartridges/scorer.data.bin` (`uniq | wc -l` = 1),
 mode 600; wrong key, empty topic and a junk newest message each exit 1 with nothing written. Steps 222-225 (netns,
 sudo) not run.
+
+**DISTRIBUTED leg (Steps 222-225).** DISTRIBUTED scorer weights: cross-node demonstrated in netns, not across hosts.
+Lab Wotan in lab-hub; `weights publish` from lab-a (`.cart` built with `cart build` from `cartridges/scorer.s` +
+`scorer.data.bin`: the `.cart` is not in the repo), `weights fetch` in lab-b: `seal verified (ml-dsa-65, key
+8c67a26796eac091)`, `data_sha256=f175ee26…`, equal to the repo's `scorer.data.bin`. A cart rebuilt from node B's DATA has
+the same image sha (`ed8dd3b0…`); `cart tick --jobs` over the same 200 fixed-seed jobs gives identical output on both
+(400 lines, 0 diff). Step 223's `cart score --data` does not exist; `cart tick` stands in. Caution: one byte changed at
+DATA offset 40 changed none of the 200 scores, so equal scores alone are weak evidence; the equal DATA and image hashes
+carry it. Seal-key reuse: the lab seal key signed both the manifest and the weights (lab only). Teardown clean.

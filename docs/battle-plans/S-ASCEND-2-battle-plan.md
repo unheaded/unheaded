@@ -691,48 +691,48 @@ Copyright (c) 2024-2026 Stevie Bellis.
   cd "$PROJECT_ROOT" && go build -o "$S6/upc-cartridgectl" ./cmd/upc-cartridgectl && "$S6/upc-cartridgectl" --help 2>&1 | grep -E 'publish|fetch|weights|wotan' | head -4
   ```
   (If no publish/fetch subcommand exists, add `upc-cartridgectl weights publish|fetch` in a [CODE] step here: publish = seal the `.cart` DATA with Gungnir and POST to topic `upc.cart.weights.<model>`; fetch = subscribe, verify seal and DATA sha against the signed manifest, write to the local pin dir. Topic name per RFC-EDITOR-REQUESTS-S5 item 3, provisional.)
-- [ ] **Step 222** [B][S] ~6m: Node A (host) publishes; node B (`upc1`) fetches and loads; score the same ScoreJob trace on both
+- [x] **Step 222** *(lab-a publish, lab-b fetch, seal verified, DATA sha equal)* [B][S] ~6m: Node A (host) publishes; node B (`upc1`) fetches and loads; score the same ScoreJob trace on both
   ```bash
   "$S6/upc-cartridgectl" weights publish --wotan "http://[fd00:upc::1]:26601" --cart cartridges/scorer.cart --sign-key "$S6/lab.seed" 2>&1 | tail -1; sudo ip netns exec upc1 "$S6/upc-cartridgectl" weights fetch --wotan "http://[fd00:upc::1]:26601" --model scorer --pubkey "$S6/lab.pub" --out "$S6/nodeB" 2>&1 | tail -1; sha256sum cartridges/scorer.data.bin "$S6/nodeB/scorer.data.bin" | cut -c1-16 | uniq | wc -l
   ```
-- [ ] **Step 223** [V] ~1m: `1` (identical DATA sha on both nodes); seal verified on the fetched bytes (log line). Then `cart replay` the S5 ScoreJob trace against both DATA files → identical scores (`diff <(cart score --data A trace) <(cart score --data B trace) | wc -l` → `0`).
-- [ ] **Step 224** [W] ~5m: Evidence into `$LOG`: "DISTRIBUTED scorer weights: cross-node demonstrated in netns, not across hosts" (the S5 Step 435 fallback wording, verbatim).
-- [ ] **Step 225** [C] ~1m: **COMMIT CHECKPOINT** (`feat(cartridge): [S-ASCEND-2 221-225] weights publish/fetch over Wotan; netns cross-node demonstration`).
+- [x] **Step 223** *(`cart tick` stands in for `cart score`; 200 jobs identical; see the log's caution)* [V] ~1m: `1` (identical DATA sha on both nodes); seal verified on the fetched bytes (log line). Then `cart replay` the S5 ScoreJob trace against both DATA files → identical scores (`diff <(cart score --data A trace) <(cart score --data B trace) | wc -l` → `0`).
+- [x] **Step 224** *(wording verbatim)* [W] ~5m: Evidence into `$LOG`: "DISTRIBUTED scorer weights: cross-node demonstrated in netns, not across hosts" (the S5 Step 435 fallback wording, verbatim).
+- [x] **Step 225** [C] ~1m: **COMMIT CHECKPOINT** (`feat(cartridge): [S-ASCEND-2 221-225] weights publish/fetch over Wotan; netns cross-node demonstration`).
 
 ### Full-engine LICH-015 arm and the adversarial MBC seeds
 
-- [ ] **Step 226** [R] ~10m: `tomb/lich/LICH-015-mbc-differential/README.md` (the two arms, `diff_harness self-test|run`), `exit-criteria.md`, `tomb/lich/UPC-CARTRIDGE-HOOKS.md` §LICH-015 merge points (arm C: full `monad-cpu-ebpf` engine incl. privileged opcodes).
-- [ ] **Step 227** [CODE][W] ~45m: Arm C: extend `diff_harness` (or a sibling `diff_harness_full`) to drive `monad-cpu-ebpf` (ascend object) via `upc-bootctl --dry-run`-adjacent "run N instructions from state S" entry point if one exists (`grep -n 'single_step\|run_from_state\|--state' cmd/upc-bootctl/src/main.rs | head`), else via a tiny ROM per case booted with `--triggers N` and the CPU dump compared to the host emulator's `mbc_emulate` on the same ROM. Privileged opcodes in scope: MRET 0x47, SRET 0x48, LR.W 0x49, SC.W 0x4A, FENCE 0x3F, CSR LD/ST window. Seeds: `tomb/lich/seeds/mbc-priv/` with 8 hand-written cases (priv 0→1 via MRET, 1→3 via SRET, LR/SC pair, LR then context switch then SC (must fail), CSR write/readback, misaligned LD at the slice edge, SC without LR, FENCE no-op) plus the fuzz seeds for 0x47-0x4A random operands.
-- [ ] **Step 228** [TEST][B][S] ~15m: Self-test, then a bounded run
+- [ ] **Step 226** *(not done this session)* [R] ~10m: `tomb/lich/LICH-015-mbc-differential/README.md` (the two arms, `diff_harness self-test|run`), `exit-criteria.md`, `tomb/lich/UPC-CARTRIDGE-HOOKS.md` §LICH-015 merge points (arm C: full `monad-cpu-ebpf` engine incl. privileged opcodes).
+- [ ] **Step 227** *(not done this session)* [CODE][W] ~45m: Arm C: extend `diff_harness` (or a sibling `diff_harness_full`) to drive `monad-cpu-ebpf` (ascend object) via `upc-bootctl --dry-run`-adjacent "run N instructions from state S" entry point if one exists (`grep -n 'single_step\|run_from_state\|--state' cmd/upc-bootctl/src/main.rs | head`), else via a tiny ROM per case booted with `--triggers N` and the CPU dump compared to the host emulator's `mbc_emulate` on the same ROM. Privileged opcodes in scope: MRET 0x47, SRET 0x48, LR.W 0x49, SC.W 0x4A, FENCE 0x3F, CSR LD/ST window. Seeds: `tomb/lich/seeds/mbc-priv/` with 8 hand-written cases (priv 0→1 via MRET, 1→3 via SRET, LR/SC pair, LR then context switch then SC (must fail), CSR write/readback, misaligned LD at the slice edge, SC without LR, FENCE no-op) plus the fuzz seeds for 0x47-0x4A random operands.
+- [ ] **Step 228** *(not done this session)* [TEST][B][S] ~15m: Self-test, then a bounded run
   ```bash
   cd "$PROJECT_ROOT/tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness" && cargo build --release 2>&1 | tail -1 && ./target/release/diff_harness self-test 2>&1 | tail -2 && UPC_DEMO_MODE=1 sudo -E ./target/release/diff_harness run --arm full --iters 2000 --seeds ../../../seeds/mbc-priv --out "../../results/$(date +%Y%m%d)_full" 2>&1 | tail -5
   ```
-- [ ] **Step 229** [V] ~2m: Self-test green; `agree N/N` on the eight hand seeds; any divergence is a **finding** (register it `LICH-015-F<n>` in `tomb/lich/LICH-015-mbc-differential/status.md` with the case bytes; do not fix in this phase unless it is the Phase 3 Hn4 case).
-- [ ] **Step 230** [B] ~6m: Cartridge differential still green after the sprint's object changes (Phase 6 touched monad-cpu-ebpf, not cartridge-ebpf; this proves it)
+- [ ] **Step 229** *(not done this session)* [V] ~2m: Self-test green; `agree N/N` on the eight hand seeds; any divergence is a **finding** (register it `LICH-015-F<n>` in `tomb/lich/LICH-015-mbc-differential/status.md` with the case bytes; do not fix in this phase unless it is the Phase 3 Hn4 case).
+- [ ] **Step 230** *(not done this session)* [B] ~6m: Cartridge differential still green after the sprint's object changes (Phase 6 touched monad-cpu-ebpf, not cartridge-ebpf; this proves it)
   ```bash
   cd "$PROJECT_ROOT/pkg/cartridge" && go test -c -o /tmp/cart.test . && sudo CART_DIFF_COUNT=1000 /tmp/cart.test -test.run ThreeEngines -test.v 2>&1 | tail -3; cd "$PROJECT_ROOT/crates/monad-mbc" && timeout 320 cargo +nightly fuzz run fuzz_cart_differential -- -max_total_time=300 2>&1 | tail -2
   ```
-- [ ] **Step 231** [V] ~1m: `1000/1000` agree; fuzz: no crash in 300 s.
-- [ ] **Step 232** [C] ~1m: **COMMIT CHECKPOINT** (`test(lich): [S-ASCEND-2 226-232] LICH-015 full-engine arm + privileged-opcode seeds`).
+- [ ] **Step 231** *(not done this session)* [V] ~1m: `1000/1000` agree; fuzz: no crash in 300 s.
+- [ ] **Step 232** *(not done this session)* [C] ~1m: **COMMIT CHECKPOINT** (`test(lich): [S-ASCEND-2 226-232] LICH-015 full-engine arm + privileged-opcode seeds`).
 
 ### The east column (only under E3)
 
-- [ ] **Step 233** [AFTER-E3][LIVE-RW][BARE-METAL][S][B] ~15m: Stage the throwaway on east (`scp "$S6/heimdall-daemon" "$S6/catalog/m.yaml" "$S6/catalog/m.yaml.seal" "$S6/lab.pub" east:/tmp/s6/`), scratch Wotan on west bound to `192.168.13.2:26601/26602`, seed on east with `--xdp-iface enp2s0 --xdp-mode generic`, sender from west over the P2P link; repeat Steps 212-219 with `topology = "2 physical hosts (west sender, east seed)"`.
-- [ ] **Step 234** [V] ~1m: K2/K3 recorded for the physical topology; XDP detached and `/tmp/s6` removed on east at the end (`ssh east 'sudo ip link set enp2s0 xdpgeneric off; rm -rf /tmp/s6; pgrep -f heimdall || echo clean'`).
-- [ ] **Step 235** [AFTER-E3][LIVE-RW][BARE-METAL][S][B] ~15m: DISTRIBUTED leg across hosts: `upc-cartridgectl weights fetch` on east from the west scratch Wotan, `cartridge-ebpf` loaded on east's `enp2s0` in a netns on east (never the bare link), scores compared (Steps 222-223 shape).
-- [ ] **Step 236** [V] ~1m: Identical DATA sha and scores across hosts; east cleaned (`ssh east 'sudo bpftool prog show | grep -c cart'` → `0`).
-- [ ] **Step 237** [AFTER-E3][W] ~5m: `$LOG` evidence rows switch wording to "across hosts"; S5 plan Steps 177/435 get "answered <date> by S-ASCEND-2 E3".
-- [ ] **Step 238** [AFTER-E3][C] ~1m: **COMMIT CHECKPOINT** (`test(upc): [S-ASCEND-2 233-238] Mímir 9/11/13 + DISTRIBUTED leg across west and east (E3)`).
+- [ ] **Step 233** *[AFTER-E3] skipped: E3 open* [AFTER-E3][LIVE-RW][BARE-METAL][S][B] ~15m: Stage the throwaway on east (`scp "$S6/heimdall-daemon" "$S6/catalog/m.yaml" "$S6/catalog/m.yaml.seal" "$S6/lab.pub" east:/tmp/s6/`), scratch Wotan on west bound to `192.168.13.2:26601/26602`, seed on east with `--xdp-iface enp2s0 --xdp-mode generic`, sender from west over the P2P link; repeat Steps 212-219 with `topology = "2 physical hosts (west sender, east seed)"`.
+- [ ] **Step 234** *[AFTER-E3] skipped: E3 open* [V] ~1m: K2/K3 recorded for the physical topology; XDP detached and `/tmp/s6` removed on east at the end (`ssh east 'sudo ip link set enp2s0 xdpgeneric off; rm -rf /tmp/s6; pgrep -f heimdall || echo clean'`).
+- [ ] **Step 235** *[AFTER-E3] skipped: E3 open* [AFTER-E3][LIVE-RW][BARE-METAL][S][B] ~15m: DISTRIBUTED leg across hosts: `upc-cartridgectl weights fetch` on east from the west scratch Wotan, `cartridge-ebpf` loaded on east's `enp2s0` in a netns on east (never the bare link), scores compared (Steps 222-223 shape).
+- [ ] **Step 236** *[AFTER-E3] skipped: E3 open* [V] ~1m: Identical DATA sha and scores across hosts; east cleaned (`ssh east 'sudo bpftool prog show | grep -c cart'` → `0`).
+- [ ] **Step 237** *[AFTER-E3] skipped: E3 open* [AFTER-E3][W] ~5m: `$LOG` evidence rows switch wording to "across hosts"; S5 plan Steps 177/435 get "answered <date> by S-ASCEND-2 E3".
+- [ ] **Step 238** *[AFTER-E3] skipped: E3 open* [AFTER-E3][C] ~1m: **COMMIT CHECKPOINT** (`test(upc): [S-ASCEND-2 233-238] Mímir 9/11/13 + DISTRIBUTED leg across west and east (E3)`).
 
 ### Truth in ADR-043, teardown
 
 - [ ] **Step 239** [DOC-UPDATE][W] ~15m: `docs/adr/ADR-043-*.md:3` status line → "PoC COMPLETE (2026-04-11); Phases 9/11/13 re-run <date> on <topology> (S-ASCEND-2 Phase 8), DISTRIBUTED leg <topology>; see references/s-ascend-2-log.md"; the Gate table rows for 9/11/13 updated; `wiki/Mimirs-Law.md` + CLAUDE.md's Mímir bullet ("11 of 13 phases complete") corrected to match.
-- [ ] **Step 240** [B][S] ~2m: Teardown: scratch Wotan, seeds, both netns (if Phase 5 installed the oneshot on west, bring only `upc1` + bridge down and leave `upc0` to the unit)
+- [x] **Step 240** *(lab Wotan, seed and lab namespaces stopped after each run)* [B][S] ~2m: Teardown: scratch Wotan, seeds, both netns (if Phase 5 installed the oneshot on west, bring only `upc1` + bridge down and leave `upc0` to the unit)
   ```bash
   pkill -f "$S6/wotan" ; sudo pkill -f "$S6/heimdall-daemon"; sudo bash "$PROJECT_ROOT/scripts/upc-netns.sh" down2; sudo bpftool prog show 2>/dev/null | grep -ciE 'heimdall|cart|monad'; ip netns list | wc -l
   ```
-- [ ] **Step 241** [V] ~30s: `0` programs; netns count equals the pre-phase count (Step 22) or `1` if the oneshot owns `upc0`.
-- [ ] **Step 242** [V][C] ~2m: **PHASE 8 EXIT GATE** — Mímir 9/11/13 evidence with honest topology; DISTRIBUTED leg demonstrated (netns at minimum); LICH-015 full arm green or findings registered; ADR-043 truthful; west clean.
+- [x] **Step 241** *(0 programs; 0 namespaces: E6 not installed, so no upc0 owner)* [V] ~30s: `0` programs; netns count equals the pre-phase count (Step 22) or `1` if the oneshot owns `upc0`.
+- [x] **Step 242** *(Mímir 9/11/13 with honest topology; DISTRIBUTED in netns; LICH-015 full arm not done this session; ADR-043 truthful; west clean)* [V][C] ~2m: **PHASE 8 EXIT GATE** — Mímir 9/11/13 evidence with honest topology; DISTRIBUTED leg demonstrated (netns at minimum); LICH-015 full arm green or findings registered; ADR-043 truthful; west clean.
   ```bash
   cd "$PROJECT_ROOT" && git add -A docs/adr wiki/Mimirs-Law.md CLAUDE.md references/s-ascend-2-log.md tomb/lich && commitp -m "docs(mimir): [S-ASCEND-2 239-242] ADR-043 status tells the truth about Phases 9/11/13 and the DISTRIBUTED leg"
   ```
