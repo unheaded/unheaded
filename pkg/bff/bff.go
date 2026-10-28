@@ -411,6 +411,7 @@ func (b *BFF) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "sessions_unavailable"})
 		return
 	}
+	// #nosec G124 -- HttpOnly and SameSite=Strict always; Secure unless AUTH_BFF_DEV_PLAINTEXT, the documented mode for a stack without TLS (ADR-103)
 	http.SetCookie(w, &http.Cookie{
 		Name:     b.cfg.CookieName,
 		Value:    sid,
@@ -568,6 +569,7 @@ func (b *BFF) logout(w http.ResponseWriter, r *http.Request) {
 		_ = b.store.Delete(r.Context(), key)
 		log.Info().Str("service", b.cfg.ServiceName).Str("user", s.Subject).Msg("bff: logout")
 	}
+	// #nosec G124 -- HttpOnly and SameSite=Strict always; Secure unless AUTH_BFF_DEV_PLAINTEXT, the documented mode for a stack without TLS (ADR-103)
 	http.SetCookie(w, &http.Cookie{
 		Name: b.cfg.CookieName, Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: !b.cfg.DevPlaintext, SameSite: http.SameSiteStrictMode,

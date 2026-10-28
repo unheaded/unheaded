@@ -201,6 +201,7 @@ func (c *Champion) verifyRunbookForExec(runbookPath, relName string, dryRun bool
 	}
 	cleanup := func() { _ = os.RemoveAll(dir) }
 	copyPath := filepath.Join(dir, filepath.Base(runbookPath))
+	// #nosec G703 -- dir is a fresh MkdirTemp; runbookPath was read as a regular file above, so its base is a single file name
 	if err := os.WriteFile(copyPath, body, 0o600); err != nil {
 		cleanup()
 		return "", noop, err

@@ -382,12 +382,13 @@ func parseJWKS(raw []json.RawMessage) (map[string]ed25519.PublicKey, error) {
 func (v *JWKSVerifier) getJSON(ctx context.Context, u string, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, jwksFetchTimeout)
 	defer cancel()
+	// #nosec G704 -- u is the configured issuer's discovery URL or the jwks_uri it names; both pass checkURL (https, or http to loopback) before this is called
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := v.client.Do(req) // #nosec G107 -- issuer URL from configuration, scheme/host checked by checkFetchURL
+	resp, err := v.client.Do(req) // #nosec G107,G704 -- issuer URL from configuration, scheme/host checked by checkURL
 	if err != nil {
 		return err
 	}

@@ -60,7 +60,7 @@ type fileAPIKeys struct {
 // Permissions are checked on every call, not only on a change: a chmod
 // does not change size or mtime.
 func (f *fileAPIKeys) refreshLocked() error {
-	st, err := os.Lstat(f.path)
+	st, err := os.Lstat(f.path) // #nosec G703 -- operator-configured store path; type, owner and mode are checked below
 	if errors.Is(err, fs.ErrNotExist) {
 		f.recs, f.stamp, f.loaded = nil, fileStamp{}, true
 		return nil
@@ -78,7 +78,7 @@ func (f *fileAPIKeys) refreshLocked() error {
 	if f.loaded && stamp == f.stamp {
 		return nil
 	}
-	data, err := os.ReadFile(f.path)
+	data, err := os.ReadFile(f.path) // #nosec G304,G703 -- operator-configured store path, checked by the Lstat above
 	if err != nil {
 		return fmt.Errorf("auth: API key store: %w", err)
 	}
