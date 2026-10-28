@@ -241,3 +241,12 @@ targets:
   layout with CRC-16/CCITT-FALSE over 0x00-0x11 big-endian at 0x12, seq in the scratch registers, CUSTOM never set,
   flow action FORWARD; `--bad-crc` for the negative test. `tests/scripts/test_stress_cannon.py` (5 tests, independent
   CRC reference, check value 0x29B1) runs in Static Analysis "script unit tests (GATING)".
+- Steps 215-223: packet-marker trace-ID extraction. Calling the existing pointer-walk extractors (they already had the
+  `black_box(options_end)` bound) is still rejected: `R2 offset is outside of the packet`. Step 216's bpf_loop design
+  does not help (a callback cannot hold packet pointers). Instead `extract_trace_option` copies the at-most-40-byte option
+  area onto the stack with `bpf_xdp_load_bytes` and parses it with bounded indices (TCP kind 253 first, then IPv4 type
+  0x1F). `packet_marker_insns_post` **5838** (from 1195); load gate PASS. Lab netns (own namespace `twlab`, veth
+  `twlab0/1`, cmd/ebpf-loader on the root side, synthetic packets only): 50 SYN with the TCP option, 50 without, 20 UDP
+  with the IP option → `trace_extracted = 70`, tcp 100, udp 20; netns, veth and loader gone afterwards. The collector
+  check (Step 221's curl) was not run: no collector in the lab, the counter alone per the step. packet_marker stays
+  IPv4-only; nothing writes TRACE_INJECT. wiki/eBPF-Programs.md and next.md corrected.

@@ -189,13 +189,22 @@ fn try_packet_marker(ctx: &XdpContext) -> Result<u32, ()> {
             flow_key.src_port = tcp.source;
             flow_key.dst_port = tcp.dest;
 
-            // TODO(E1): TCP option trace ID extraction disabled — the BPF
-            // verifier rejects the variable-length option parsing loop because
-            // LLVM eliminates packet bounds checks it can prove redundant.
-            // Re-enable when aya-ebpf supports BPF subprograms (#[inline(never)])
-            // or when we upgrade to an aya-ebpf version with BTF map support.
-            let _tcp_hdr_len = (((u16::from_be(tcp.doff_flags) >> 12) & 0x0F) as usize) * 4;
-            let _ = _tcp_hdr_len;
+            // TCP option trace ID (kind 253), copied onto the stack and
+            // parsed there (extract_trace_option; S-TRUE-WIRE Step 217, was
+            // TODO(E1)).
+            let tcp_hdr_len = (((u16::from_be(tcp.doff_flags) >> 12) & 0x0F) as usize) * 4;
+            if tcp_hdr_len > TCP_MIN_HLEN {
+                let off = transport_start - data + TCP_MIN_HLEN;
+                if let Some(t) = extract_trace_option(
+                    ctx,
+                    off,
+                    tcp_hdr_len - TCP_MIN_HLEN,
+                    TCP_TRACE_OPTION_KIND,
+                ) {
+                    trace_id = t;
+                    increment_stat(STAT_TRACE_EXTRACTED);
+                }
+            }
         }
         IPPROTO_UDP => {
             increment_stat(STAT_PACKETS_UDP);
@@ -213,9 +222,17 @@ fn try_packet_marker(ctx: &XdpContext) -> Result<u32, ()> {
         }
     }
 
-    // TODO(E1): IP option trace ID extraction also disabled — same
-    // verifier issue as TCP options. See comment above.
-    let _ = ip_hdr_len;
+    // IP option trace ID, when the TCP options carried none (S-TRUE-WIRE
+    // Step 217; was TODO(E1)).
+    if trace_id.is_zero() && ip_hdr_len > IPV4_MIN_HLEN {
+        let off = ETH_HLEN + IPV4_MIN_HLEN;
+        if let Some(t) =
+            extract_trace_option(ctx, off, ip_hdr_len - IPV4_MIN_HLEN, TRACE_OPTION_TYPE)
+        {
+            trace_id = t;
+            increment_stat(STAT_TRACE_EXTRACTED);
+        }
+    }
 
     // Check if we have a trace ID to inject for this flow
     if let Some(inject_trace) = unsafe { TRACE_INJECT.get(&flow_key) } {
@@ -272,145 +289,73 @@ fn try_packet_marker(ctx: &XdpContext) -> Result<u32, ()> {
     Ok(xdp_action::XDP_PASS)
 }
 
-/// Extract trace ID from IP options.
-///
-/// Same black_box(options_end) pattern as TCP option parsing — see comment there.
-#[allow(dead_code)]
-#[inline(always)]
-fn extract_ip_trace_id(ip_start: usize, ip_hdr_len: usize, data_end: usize) -> Option<TraceId> {
-    let options_start = ip_start + IPV4_MIN_HLEN;
-    let options_end = ip_start + ip_hdr_len;
+/// Experimental TCP option kind carrying the trace ID (RFC 6994 range).
+const TCP_TRACE_OPTION_KIND: u8 = 253;
 
-    if options_end > data_end {
+/// IPv4 and TCP both cap their option area at 40 bytes.
+const MAX_OPTIONS: usize = 40;
+
+/// Find the trace-ID option (`kind`, 18 bytes: kind, len, 16-byte ID) in the
+/// IPv4 or TCP option area of `len` bytes at packet offset `off`.
+///
+/// The option bytes are copied onto the stack with bpf_xdp_load_bytes and
+/// parsed there with bounded indices. Walking them through packet pointers
+/// (the previous code, disabled as TODO(E1)) cannot be verified: LLVM folds
+/// away the per-iteration data_end checks the verifier needs ("offset is
+/// outside of the packet", S-TRUE-WIRE Step 217), and a bpf_loop callback
+/// cannot hold packet pointers either.
+#[inline(always)]
+fn extract_trace_option(ctx: &XdpContext, off: usize, len: usize, kind: u8) -> Option<TraceId> {
+    if len < 2 || len > MAX_OPTIONS {
         return None;
     }
-
-    let options_end = core::hint::black_box(options_end);
-
-    let mut offset = options_start;
-
-    // Parse IP options — bounded to 10 iterations to keep verifier
-    // state space manageable (max 40 bytes / min 2 bytes per option = 20,
-    // but 10 suffices for finding our 18-byte trace option).
-    for _ in 0..10 {
-        if offset >= options_end {
-            break;
-        }
-
-        if offset + 1 > data_end {
-            break;
-        }
-
-        let opt_type = unsafe { core::ptr::read_volatile(offset as *const u8) };
-
-        // End of options
-        if opt_type == 0 {
-            break;
-        }
-
-        // NOP option
-        if opt_type == 1 {
-            offset += 1;
-            continue;
-        }
-
-        // Multi-byte option
-        if offset + 2 > data_end {
-            break;
-        }
-
-        let opt_len = unsafe { core::ptr::read_volatile((offset + 1) as *const u8) } as usize;
-        if opt_len < 2 || offset + opt_len > data_end {
-            break;
-        }
-
-        // Check for our trace option (same pattern as TCP — see comment there)
-        if opt_type == TRACE_OPTION_TYPE && offset + 18 <= data_end {
-            let trace_data = unsafe { core::slice::from_raw_parts((offset + 2) as *const u8, 16) };
-            let mut bytes = [0u8; 16];
-            bytes.copy_from_slice(trace_data);
-            return Some(TraceId::from_bytes(bytes));
-        }
-
-        offset += opt_len;
+    let mut buf = [0u8; MAX_OPTIONS];
+    let ret = unsafe {
+        aya_ebpf::helpers::gen::bpf_xdp_load_bytes(
+            ctx.ctx,
+            off as u32,
+            buf.as_mut_ptr() as *mut aya_ebpf::cty::c_void,
+            len as u32,
+        )
+    };
+    if ret != 0 {
+        return None;
     }
-
-    None
+    find_trace_option(&buf, len, kind)
 }
 
-/// Extract trace ID from TCP options.
-///
-/// CRITICAL BPF VERIFIER NOTE:
-/// `black_box(options_end)` after the data_end check severs LLVM's
-/// knowledge that `options_end <= data_end`. Without this, LLVM proves
-/// `offset < options_end <= data_end` and eliminates the per-iteration
-/// data_end checks that the BPF verifier requires before packet reads.
-#[allow(dead_code)]
+/// Parse an option area copied onto the stack. At most 10 options are
+/// examined (40 bytes, and every real stack sends far fewer).
 #[inline(always)]
-fn extract_tcp_trace_id(tcp_start: usize, tcp_hdr_len: usize, data_end: usize) -> Option<TraceId> {
-    let options_start = tcp_start + TCP_MIN_HLEN;
-    let options_end = tcp_start + tcp_hdr_len;
-
-    if options_end > data_end {
-        return None;
-    }
-
-    // Make options_end opaque to LLVM so it can't prove
-    // options_end <= data_end and eliminate loop data_end checks.
-    let options_end = core::hint::black_box(options_end);
-
-    let mut offset = options_start;
-
-    // Parse TCP options — bounded to 10 iterations to keep verifier
-    // state space manageable (max 40 bytes / min 2 bytes per option = 20,
-    // but 10 suffices for finding our 18-byte trace option).
+fn find_trace_option(buf: &[u8; MAX_OPTIONS], n: usize, kind: u8) -> Option<TraceId> {
+    let mut i: usize = 0;
     for _ in 0..10 {
-        if offset >= options_end {
+        if i >= n {
             break;
         }
-
-        if offset + 1 > data_end {
-            break;
+        let k = *buf.get(i)?;
+        if k == 0 {
+            break; // end of options
         }
-
-        let opt_kind = unsafe { core::ptr::read_volatile(offset as *const u8) };
-
-        // End of options
-        if opt_kind == 0 {
-            break;
-        }
-
-        // NOP option
-        if opt_kind == 1 {
-            offset += 1;
+        if k == 1 {
+            i += 1; // NOP
             continue;
         }
-
-        // Multi-byte option: need to read length byte
-        if offset + 2 > data_end {
+        let l = *buf.get(i + 1)? as usize;
+        if l < 2 || i + l > n {
             break;
         }
-
-        let opt_len = unsafe { core::ptr::read_volatile((offset + 1) as *const u8) } as usize;
-        if opt_len < 2 || offset + opt_len > data_end {
-            break;
-        }
-
-        // Check for experimental trace option (kind 253, 18+ bytes).
-        // NOTE: We intentionally do NOT check `opt_len >= 18` here because
-        // LLVM would use it with `offset + opt_len <= data_end` to prove
-        // `offset + 18 <= data_end`, eliminating the bounds check the BPF
-        // verifier requires. The data_end check alone ensures memory safety.
-        if opt_kind == 253 && offset + 18 <= data_end {
-            let trace_data = unsafe { core::slice::from_raw_parts((offset + 2) as *const u8, 16) };
+        if k == kind && l >= 18 {
             let mut bytes = [0u8; 16];
-            bytes.copy_from_slice(trace_data);
+            let mut j = 0;
+            while j < 16 {
+                bytes[j] = *buf.get(i + 2 + j)?;
+                j += 1;
+            }
             return Some(TraceId::from_bytes(bytes));
         }
-
-        offset += opt_len;
+        i += l;
     }
-
     None
 }
 
