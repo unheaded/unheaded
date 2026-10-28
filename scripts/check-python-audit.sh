@@ -34,7 +34,10 @@ while IFS= read -r f; do
 	if ! grep -vE '^[[:space:]]*(#|$|-)' "$f" | grep -qvE '^[A-Za-z0-9_.-]+(\[[^]]*\])?==[^=[:space:]]+'; then
 		files+=("$f")
 	fi
-done < <(git ls-files '*requirements*.txt')
+done < <(git ls-files '*requirements*.txt' 'sbom/python-pip-freeze.txt')
+# sbom/python-pip-freeze.txt is the Zhen venv as installed (pip freeze); it
+# is named so GitHub's dependency graph does not read it as a manifest, and
+# listed here by name so pip-audit still covers what the venv really runs.
 [[ ${#files[@]} -gt 0 ]] || { echo "[FAIL] no fully pinned requirements file found; refusing to pass vacuously" >&2; exit 2; }
 
 found=""
