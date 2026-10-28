@@ -1295,7 +1295,7 @@ not compose service names (Cuirass is `unheaded-daemon`). Compliance evidence: `
 
 **Remaining for a full L5 (shell prompt visible):** SYS_fork / SYS_exec / SYS_wait / SYS_open / SYS_close handlers. init.c's outer loop is `printf("init: starting sh\n"); fork(); ...; exec("sh", argv); wait(...);`. Each is one BPF handler.
 
-**Build gotcha:** always `cargo build --release -p monad-cpu-ebpf --features ascend-linux`. Without the feature, MRET/SRET/LR.W/SC.W/FENCE silently NOP and the kernel fails to escape `start_mbc.c` with `BOOT FAIL: MRET fall-through`.
+**Build gotcha:** always `cargo build --release -p monad-cpu-ebpf --features ascend-linux`. Without the feature, MRET/SRET/LR.W/SC.W/FENCE silently NOP and the kernel fails to escape `start_mbc.c` with `BOOT FAIL: MRET fall-through`. Since S-ASCEND-2 (ADR-080 §6) `upc-bootctl` refuses that object before loading it, with `SurfaceObjectMismatch`.
 
 **Boot recipe:**
 ```bash
