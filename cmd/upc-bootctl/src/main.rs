@@ -255,10 +255,10 @@ fn relocate_rv2mbc_entry(entry: u32, rom_base: u32) -> u32 {
 /// (`ebpf/monad-cpu-ebpf/surface.rs::SURFACE_ASCEND`). Numbers are xv6's
 /// `kernel/syscall.h` plus the UPC block-device calls 200/201
 /// (`monad_common::mbc_linux_syscalls`). xv6's pipe 4, kill 6, chdir 9, sbrk 12,
-/// uptime 14, unlink 18, link 19 and mkdir 20 are absent because the object has
+/// unlink 18, link 19 and mkdir 20 are absent because the object has
 /// no arm for them (they fall through to "silently ignore"). Gate A refuses an
 /// object whose `UPC_SURFACE_ID` is not the id of this list.
-static XV6_SYSCALLS: [upc_api::SyscallDesc; 15] = [
+static XV6_SYSCALLS: [upc_api::SyscallDesc; 16] = [
     upc_api::SyscallDesc {
         number: 1,
         name: "fork",
@@ -294,6 +294,10 @@ static XV6_SYSCALLS: [upc_api::SyscallDesc; 15] = [
     upc_api::SyscallDesc {
         number: 13,
         name: "pause",
+    },
+    upc_api::SyscallDesc {
+        number: 14,
+        name: "uptime", // ADR-110: routed to the owned kernel under UPC_RUNG2
     },
     upc_api::SyscallDesc {
         number: 15,
@@ -604,6 +608,11 @@ fn hijack_probe_run(runner: &runner::BootRunner, instance: u8, n: u32) -> Result
     );
     Ok(())
 }
+
+/// Triggers sent between TTY drains in `boot`. A chunk loses output only if it
+/// prints more than the 4,096-byte ring, i.e. more than about 4 bytes per
+/// trigger (one trigger runs at most 256 MBC instructions).
+const TTY_DRAIN_CHUNK: u32 = 1_000;
 
 #[allow(clippy::too_many_arguments)]
 /// Load every image into the live BPF maps, set up the netns + XDP attach,
@@ -1153,7 +1162,16 @@ fn cmd_boot(
         "\n[sending {} Monad trigger packets to advance the CPU (each = up to 16 insns)]",
         triggers
     );
-    netns::trigger(triggers, instance, true)?;
+    // TTY_MAP is a 4 KiB ring and was drained once at the end, so a boot that
+    // printed more lost its start (every injected trap adds PC-tracer bytes;
+    // EVOLUTION-1 Stage 2 rung 0). Drain between chunks instead. A boot whose
+    // output never wraps gets exactly the bytes the single drain gave.
+    let mut head_cursor = 0u32;
+    let mut tty_bytes = Vec::new();
+    netns::trigger_with(triggers, instance, TTY_DRAIN_CHUNK, &mut || {
+        tty_bytes.extend(runner.read_tty(&mut head_cursor).unwrap_or_default());
+    })?;
+    eprintln!("trigger: sent {triggers} frames, TTY drained every {TTY_DRAIN_CHUNK}");
     std::thread::sleep(std::time::Duration::from_millis(1500));
 
     // Read CPU state after trigger
@@ -1185,6 +1203,14 @@ fn cmd_boot(
             s[10], s[11], s[12], s[13], s[14]
         );
     }
+    // Frames seen by monad_cpu (STAT 0), frames that passed the Monad checks
+    // (STAT 1), and this instance's tick counter: where triggers go missing.
+    if let Ok(t) = runner.read_stats(&[0, 1]) {
+        println!(
+            "  TICKS: triggers={} pkts={} cpu_ticks={} tick_counter={}",
+            triggers, t[0], t[1], cpu_after.tick_counter
+        );
+    }
     if let Some(n) = hijack_probe {
         hijack_probe_run(&runner, instance, n)?;
     }
@@ -1194,9 +1220,8 @@ fn cmd_boot(
         println!("  ⚠ no PC advance — XDP may not have fired (debug needed)");
     }
 
-    // Drain TTY_MAP — did the kernel print the banner?
-    let mut head_cursor = 0u32;
-    let tty_bytes = runner.read_tty(&mut head_cursor).unwrap_or_default();
+    // Drain what the last chunk left in TTY_MAP — did the kernel print the banner?
+    tty_bytes.extend(runner.read_tty(&mut head_cursor).unwrap_or_default());
     if !tty_bytes.is_empty() {
         // Render as both readable string AND hex for diagnosability —
         // null bytes / non-ASCII can hide what really happened.

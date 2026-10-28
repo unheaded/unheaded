@@ -21,6 +21,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "upc_slots.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -62,6 +63,7 @@ usertrap(void)
   // since we're now in the kernel.
   w_stvec((uint64)kernelvec);  //DOC: kernelvec
 
+  upc_slot_enter();  // ADR-109 D5: the trapping slot's row becomes myproc()
   struct proc *p = myproc();
   
   // save user program counter.

@@ -187,6 +187,24 @@ pub fn trigger(count: u32, instance: u8, verbose: bool) -> Result<()> {
 }
 
 /// Send `count` triggers with an explicit 20-bit flow label.
+/// Like `trigger`, but calls `on_every` after each `every` frames on the one
+/// socket, so the caller can drain TTY_MAP while the CPU runs. With
+/// `--create-netns` (the script path) `on_every` is not called; the caller's
+/// final drain is all it gets.
+pub fn trigger_with(
+    count: u32,
+    instance: u8,
+    every: u32,
+    on_every: &mut dyn FnMut(),
+) -> Result<()> {
+    let flow_label = flow_label_for(instance, nonce());
+    if create_mode() {
+        send_trigger_opts(count, flow_label, false)
+    } else {
+        send_trigger_native_with(count, flow_label, false, every, on_every)
+    }
+}
+
 pub fn trigger_flow(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
     if create_mode() {
         send_trigger_opts(count, flow_label, verbose)
@@ -247,15 +265,18 @@ fn crc16_ccitt_false(data: &[u8]) -> u16 {
 /// its defaults: Ethernet (dst 02:42:ac:11:00:03, src 02:42:ac:11:00:02) +
 /// IPv6 (flow label, next header HBH, hop limit 255, fd00:3f:75::1 →
 /// fd00:dead::1) + a 28-byte HBH block carrying the 20-byte Monad register
-/// (version 1, services 0xFF, hop 1, trace id, flags CUSTOM, CRC-16).
+/// (version 1, services 0xFF, hop 1, flags CUSTOM, trace id in scratch, CRC-16).
 fn build_trigger_frame(flow_label: u32, trace_id: u32) -> Vec<u8> {
     let mut monad = [0u8; 20];
     monad[0] = 0x01;
     monad[1] = 0xFF;
     monad[2] = 0xFF;
     monad[3] = 1;
-    monad[4..8].copy_from_slice(&trace_id.to_be_bytes());
-    monad[0x0B] = 0x02;
+    // Wire format v0x01 (Monad::from_bytes): flags at 0x07, scratch 0x0E-0x11.
+    // The trace id used to sit at 0x04-0x07, over the flags byte, with CUSTOM
+    // at 0x0B (mesh_flags): only ids with bit 1 set were ticks (half of all).
+    monad[0x07] = 0x02; // flags: CUSTOM (CPU tick)
+    monad[0x0E..0x12].copy_from_slice(&trace_id.to_be_bytes());
     let crc = crc16_ccitt_false(&monad[..0x12]);
     monad[0x12..].copy_from_slice(&crc.to_be_bytes());
 
@@ -287,6 +308,20 @@ fn build_trigger_frame(flow_label: u32, trace_id: u32) -> Vec<u8> {
 /// XDP is attached. Trace ids start at a per-run value and increment, as the
 /// script's did.
 pub fn send_trigger_native(count: u32, flow_label: u32, verbose: bool) -> Result<()> {
+    send_trigger_native_with(count, flow_label, verbose, 0, &mut || {})
+}
+
+/// `send_trigger_native` with a callback after every `every` frames (0: never).
+/// One socket for the whole run: closing an AF_PACKET socket waits for an RCU
+/// grace period (~12 ms here), so a socket per chunk made a 4M-trigger boot 6x
+/// slower.
+fn send_trigger_native_with(
+    count: u32,
+    flow_label: u32,
+    verbose: bool,
+    every: u32,
+    on_every: &mut dyn FnMut(),
+) -> Result<()> {
     let idx = ifindex(VETH_INSIDE);
     if idx == 0 {
         anyhow::bail!("{VETH_INSIDE} not found: is bootctl inside the {NS_NAME} namespace?");
@@ -350,6 +385,9 @@ pub fn send_trigger_native(count: u32, flow_label: u32, verbose: bool) -> Result
         stalls = 0;
         sent += 1;
         i += 1;
+        if every != 0 && i.is_multiple_of(every) {
+            on_every();
+        }
     }
     // SAFETY: fd is the socket opened above.
     unsafe { libc::close(fd) };
@@ -453,12 +491,12 @@ mod tests {
         assert_eq!(
             hex(&build_trigger_frame(0x6F, 0x1234_5678)),
             "0242ac1100030242ac11000286dd6000006f001c00fffd00003f007500000000000000000001\
-             fd00dead0000000000000000000000013b023e1401ffff0112345678000000020000000000004a1f00000000"
+             fd00dead0000000000000000000000013b023e1401ffff010000000200000000000012345678c81500000000"
         );
         assert_eq!(
             hex(&build_trigger_frame(0xDE, 0xFFFF_FFFF)),
             "0242ac1100030242ac11000286dd600000de001c00fffd00003f007500000000000000000001\
-             fd00dead0000000000000000000000013b023e1401ffff01ffffffff0000000200000000000091fa00000000"
+             fd00dead0000000000000000000000013b023e1401ffff0100000002000000000000ffffffffe5f600000000"
         );
     }
 

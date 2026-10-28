@@ -68,7 +68,9 @@ func TestWellConfirmQueue_RoundTrip(t *testing.T) {
 	if err := q.Decide(ctx, r.ID, "approved", "stevie@test"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := champ.ConfirmCall(ctx, champion.PendingCall{Tool: r.Tool, Args: stored, ProjectRoot: r.ProjectRoot, ExpiresAt: r.ExpiresAt}, r.CallSHA256, "stevie@test"); err != nil {
+	// Confirm as `zhen-claude confirm approve` does: the queue principal is the
+	// only one that may confirm a call with no recorded requester (RT-03).
+	if _, err := champ.ConfirmCall(ctx, champion.PendingCall{Tool: r.Tool, Args: stored, ProjectRoot: r.ProjectRoot, ExpiresAt: r.ExpiresAt}, r.CallSHA256, champion.QueuePrincipal); err != nil {
 		t.Fatal(err)
 	}
 	if err := q.Finish(ctx, r.ID, "executed"); err != nil {

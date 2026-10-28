@@ -12,6 +12,10 @@ typedef unsigned long uint64;
 // (the Phase 1.7 Gate D lesson: size at offset 12), so the typedef stays and
 // this assert makes the width explicit. CSR helpers in riscv.h use uint32.
 // See S-ASCEND-2 Phase 7.
+// Target build only: the host tool mkfs/mkfs.c includes this header on x86-64,
+// where unsigned long is 8 bytes.
+#if defined(__riscv) && __riscv_xlen == 32
 _Static_assert(sizeof(uint64) == 4, "ilp32e: uint64 is 4 bytes here on purpose");
+#endif
 
 typedef uint64 pde_t; // Sv32 page-directory entry: 4 bytes

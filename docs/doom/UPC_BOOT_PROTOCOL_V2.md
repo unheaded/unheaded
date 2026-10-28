@@ -260,7 +260,8 @@ v1 BootParams readers MUST be updated:
 | Bytes | Field | Contents |
 |---|---|---|
 | 64..96 | `rv2mbc_sha256[32]` | Raw SHA-256 (32 bytes, not hex) of the kernel's `.rv2mbc` file as loaded into RV2MBC_MAP |
-| 96..256 | `reserved[40]` | Zero |
+| 96..100 | `reserved[0]` | Slot-table address (ADR-109). The loader writes 0; the xv6 kernel writes the physical address of its `struct upc_slot_tables` in `upc_slots_init()`. 0 means not published |
+| 100..256 | `reserved[1..40]` | Zero |
 
 The hash covers the file's on-disk bytes, before the loader shifts entries to the kernel's RV-word base (0x8000). It is all zeros only when a dry run used `--allow-unverified-rv2mbc`; a live boot never writes zeros there.
 
@@ -275,6 +276,8 @@ A hash that does not match is refused with `Rv2mbcShaMismatch` and both hashes; 
 **Sidecars.** `crates/xv6-mbc/adapters/Makefile.mbc` (kernel) and the `Makefile.mbc-userland` pattern rule write `<name>.rv2mbc.sha256` next to each `.rv2mbc`; `clean` removes them. `doom/doom.rv2mbc.sha256` is committed next to `doom/doom.rv2mbc`. After a hand-edited `.rv2mbc`, regenerate with `sha256sum f.rv2mbc | cut -d' ' -f1 > f.rv2mbc.sha256`.
 
 **Lab hatch.** `--allow-unverified-rv2mbc` (upc-bootctl `boot`, doom-runner `run`) turns a missing hash into a warning and is accepted only with `--dry-run`. A live run with it is refused. It never excuses a mismatch.
+
+**Kernel-written word (ADR-109).** `reserved[0]` is the first BootParams word a kernel writes rather than reads. The version stays 3: a reader that does not know the field sees 0 from the loader, or an address it ignores. BPF treats the word as untrusted (init can rewrite it) and relies on `RAM_MAP` bounds.
 
 **Kernel side.** `start_mbc.c` (xv6) and `crates/upc-bootstub/src/start.c` accept version 2 or 3 for one release and print nothing new (a new TTY line would change the boot goldens). Neither reads the hash.
 

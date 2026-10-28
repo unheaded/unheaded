@@ -56,13 +56,16 @@ EVOLUTION-1's order (cheapest state first), with rung 0 added in front.
 
 On each BPF `SYS_FORK` the kernel gets a `struct proc` for the child: pid per E1, trapframe
 and pagetable matching the PROC_TABLE slot (ADR-074 per-pid pgd). The injected trap
-resolves `myproc()` to the trapping slot's row. Exit and wait free the row. BPF stays
+resolves `myproc()` to the trapping slot's row. A reused slot refreshes its row on its first
+trap (amended by ADR-109: the kernel frees nothing before rung 7). BPF stays
 authoritative over scheduling and lifetime.
 
 - **Prerequisite**: E1 answered; the source of the −1 isolated (S-ASCEND-2 Step 47 dump).
 - **Gate**: `getpidfork` with the flag ON prints a child pid equal to `fork()`'s return in
   the parent (numbering per E1); ON and OFF print the same `GF:` lines; `gate2`, `gate_nway`
-  and forkloop still pass; forkloop's three iterations leave no leaked row.
+  and forkloop still pass; forkloop's three iterations each refresh the row once (no stale
+  row). ON and OFF lines agreeing is necessary, not sufficient: the kernel probe asserts
+  (ADR-109 Consequences) and the mutation check must pass too.
 - **usertests subset**: none (no stateful kernel syscall yet).
 - **Also closes**: Stage 1. `GETPID_INJECT` can default ON only after this gate.
 

@@ -79,10 +79,16 @@ fn dispatch_arms() -> Vec<(Gate, u32)> {
             continue;
         }
         let t = line.trim_start();
-        let cond = match t
-            .strip_prefix("} else if ")
-            .or_else(|| t.strip_prefix("if "))
-        {
+        // The chain's first `if` is its head; after that only `} else if`
+        // continues it. A later `if` at this indentation is a new statement
+        // (e.g. the shared kernel-trap injection after the chain, ADR-110).
+        let cond = match t.strip_prefix("} else if ").or_else(|| {
+            if arms.is_empty() {
+                t.strip_prefix("if ")
+            } else {
+                None
+            }
+        }) {
             Some(c) => c,
             None => continue,
         };

@@ -209,6 +209,12 @@ injection block vs one retired handler); 16-gate harness ALL GREEN; Doom
 untouched (737,087 exact). Rollback = one guard flag. This falsifies the
 entry-half question for real, at minimum blast radius.
 
+**Stage 1 CLOSED 2026-10-28** (`EVOLUTION-1-STAGE-2-battle-plan.md` Phases 3-5, ADR-109).
+- Numbering is option K. `GETPID_INJECT` and `UPC_RUNG0` are on, and the owned kernel answers getpid for init and
+  every BPF-forked child.
+- Freed 7,628 verified insns: flag OFF 921,036, ON 913,408 (rustc 1.101.0-nightly 2026-09-29, kernel 6.17.0-41).
+- D6 (U-mode page-walk miss) is not enabled.
+
 **Stage 1 status (S5, 2026-10-23 — `docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md`
 Phase 3): trap path DONE; flag stays OFF.**
 - **S1.2 root cause** was the translator, not the kernel: its CSR arm used r13 (= a5) as an

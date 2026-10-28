@@ -421,11 +421,32 @@ const STAT_TTY_READS: u32 = 20; // TTY read operations (SYS_READ from fd 0) (Lev
 const STAT_WAITPIDS: u32 = 21; // SYS_WAITPID calls (Level 5b)
                                // EVOLUTION-1 S1.1 guard flag. When true, xv6 getpid (11) is serviced by the
                                // OWNED kernel via a real injected ecall trap (uservec → usertrap → syscall() →
-                               // sys_getpid → usertrapret → SRET) instead of the in-BPF one-liner. Default OFF
-                               // keeps the baseline green (getpid is not in the boot corpus); flip to true to
-                               // exercise the entry half and measure the verifier delta + observed pid.
-                               // Rollback = this one flag. See references/evolution1-stage1-2026-07-19.md.
-const GETPID_INJECT: bool = false;
+                               // sys_getpid → usertrapret → SRET) instead of the in-BPF one-liner. ON since
+                               // 2026-10-28 (EVOLUTION-1 Stage 2 rung 1), together with UPC_RUNG0: a BPF-forked
+                               // child's trap needs its own kernel row (ADR-109). Rollback = both flags off.
+                               // See references/evolution1-stage1-2026-07-19.md, references/evolution1-stage2-log.md.
+const GETPID_INJECT: bool = true;
+// ADR-109 (EVOLUTION-1 Stage 2 rung 0): kernel rows per BPF slot. On: at trap
+// injection BPF points sscratch at the slot's trapframe and writes the tagged
+// slot and a7 into the kernel's slot table; fork marks the child slot fresh;
+// no context switch outside U-mode (I7). Off: this object is the pre-ADR one.
+const UPC_RUNG0: bool = true;
+// ADR-109 D6: a U-mode page-walk miss resolves outside RAM_MAP (loads 0, stores
+// dropped) instead of falling through to the physical address.
+const UPC_D6_MISS_FAULT: bool = false;
+// Probe builds only (EVOLUTION-1 Stage 2 plan Step 100): also inject xv6
+// syscall 22, which no handler has, to show a7 reaching the kernel per slot.
+const UPC_PROBE_INJECT22: bool = false;
+// EVOLUTION-1 Stage 2 rung 2 prerequisite (verifier budget): the ascend exit,
+// wait and pause arms request a context switch and break; one call after the
+// execute loop performs it, instead of three inlined copies.
+const DEFERRED_SWITCH: bool = true;
+// ADR-110 (EVOLUTION-1 Stage 2 rung 2): uptime is injected into the owned
+// kernel, and inject_strap publishes the tick count the kernel's clock follows.
+const UPC_RUNG2: bool = false;
+const SWITCH_NONE: u8 = 0;
+const SWITCH_YIELD: u8 = 1; // wait retry, pause
+const SWITCH_EXIT: u8 = 2; // halt if nothing else can run
 
 const STAT_TRIVIAL_SYSCALLS: u32 = 22; // Trivial FUZIX stub syscalls (Level 5c)
 const STAT_MODERATE_SYSCALLS: u32 = 23; // Moderate FUZIX syscalls (Level 5d: ioctl, signal, stat, pipe, etc.)
@@ -730,6 +751,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     // ── Execute loop ──────────────────────────────────────────────────────────
     let mut prev_pc: u32 = cpu.pc; // Track last valid PC for post-mortem
     let mut i = 0usize;
+    let mut switch_req = SWITCH_NONE;
     while i < MAX_INSN_PER_TICK {
         if cpu.halted != 0 {
             break;
@@ -2036,6 +2058,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // a0 (x10 → r8) = first arg / return value,
             // a1 (x11 → r9) = second arg / return value.
             let syscall_nr = cpu.regs[1];
+            // Kernel-routed numbers share the getpid inject arm; the kernel reads
+            // the real number from trap_a7 (regs[1]).
+            let syscall_nr = kernel_routed_alias(syscall_nr);
             // NOTE: the Doom syscalls DRAW_FRAME(1)/GET_KEY(2)/GET_TICKS(3)/SLEEP(4)
             // collide numerically with xv6 fork(1)/exit(2)/wait(3). They are
             // mutually-exclusive workloads, so under `ascend-linux` the Doom
@@ -2362,6 +2387,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             *p &= !(1u32 << child_pid);
                         }
                     }
+                    // ADR-109 D3: the kernel refreshes this slot's row on its
+                    // first trap (fresh_mask bit), whether or not the slot is new.
+                    if UPC_RUNG0 {
+                        let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
+                        if base != 0 {
+                            let w = (base + phase12::UPC_ST_FRESH_MASK_OFF) >> 2;
+                            mem_write_word(w, mem_read_word(w) | (1u32 << (child_pid & 7)));
+                        }
+                    }
                     if child_pid + 1 > cpu.num_processes as u32 {
                         cpu.num_processes = (child_pid + 1) as u8;
                     }
@@ -2415,6 +2449,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     }
                 }
                 if cpu.num_processes > 1 {
+                    if DEFERRED_SWITCH {
+                        switch_req = SWITCH_EXIT;
+                        break;
+                    }
                     scheduler_context_switch(cpu, flow_label, hop_id);
                     // If the scheduler couldn't move off the exiting pid (all
                     // others are zombies/suspended), there's nothing left to
@@ -2456,6 +2494,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 };
                 let mut found: i32 = -1;
                 let mut any_child = false;
+                let mut child_mask: u32 = 0;
                 // Stage 3: scan ALL pids and reap only DIRECT children
                 // (PARENT_OF[p] == me), skipping self — so init never reaps sh's
                 // child (grandchild-reap bug) and never reaps itself.
@@ -2468,6 +2507,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     };
                     if p != parent_pid && parent_of_p == parent_pid {
                         any_child = true;
+                        child_mask |= 1u32 << p;
                         if (halted >> p) & 1 != 0 && (reaped >> p) & 1 == 0 {
                             found = p as i32;
                             break;
@@ -2499,9 +2539,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     }
                     increment_stat(STAT_WAITPIDS);
                     cpu.regs[8] = child + 1; // wait() returns the reaped child's pid (slot + 1, E1 option K)
-                } else if any_child {
-                    // Children exist but none have exited yet — run one.
+                } else if any_child && child_mask & !reaped != 0 {
+                    // Unreaped children exist but none have exited yet — run
+                    // one. A reaped child is gone: counting it made wait()
+                    // block for ever once every child was reaped, instead of
+                    // returning -1 (usertests forktest/reparent2, S26). Fork
+                    // clears the reaped bit when it reuses the slot.
                     cpu.pc = cpu.pc.wrapping_sub(1); // re-execute wait on resume
+                    if DEFERRED_SWITCH {
+                        switch_req = SWITCH_YIELD;
+                        break;
+                    }
                     scheduler_context_switch(cpu, flow_label, hop_id);
                     break;
                 } else {
@@ -2530,6 +2578,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     let new_sstatus =
                         (sstatus & !(1u32 << 8) & !(1u32 << 5) & !(1u32 << 1)) | (sie << 5);
                     mem_write_word((0xF000 + 0x100 * 4) >> 2, new_sstatus);
+                    if UPC_RUNG0 {
+                        inject_strap(cpu);
+                    }
                     // Enter supervisor mode BEFORE the RV2MBC lookup so the
                     // kernel base (0) is used for STVEC, not the user base.
                     cpu.priv_level = 1;
@@ -2562,6 +2613,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // 1 here and in the owned kernel (xv6 allocpid starts at 1).
                     cpu.regs[8] = cpu.current_pid as u32 + 1;
                 }
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 14 {
+                // ── xv6 SYS_uptime (14): with UPC_RUNG2 on it never gets here
+                // (remapped to the getpid inject arm above; ADR-110 T2). Off: no
+                // BPF answer, a0 is left as it was (unchanged behaviour).
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 13 {
                 // ── xv6 SYS_pause (13) → cooperative YIELD (Gate 4, 2026-05-31) ─
                 // ascend-only (xv6 scheduler yield; Doom never issues it).
@@ -2587,12 +2642,19 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // process, scheduler_context_switch is a no-op and pause()
                 // simply returns 0.
                 cpu.regs[8] = 0;
-                let prev_pid = cpu.current_pid;
-                if cpu.num_processes > 1 {
-                    scheduler_context_switch(cpu, flow_label, hop_id);
-                }
-                if cpu.current_pid != prev_pid {
-                    break;
+                if DEFERRED_SWITCH {
+                    if cpu.num_processes > 1 {
+                        switch_req = SWITCH_YIELD;
+                        break;
+                    }
+                } else {
+                    let prev_pid = cpu.current_pid;
+                    if cpu.num_processes > 1 {
+                        scheduler_context_switch(cpu, flow_label, hop_id);
+                    }
+                    if cpu.current_pid != prev_pid {
+                        break;
+                    }
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 15 {
                 // ── xv6 SYS_open (15) — Gate D inode resolve + Epic 1.3.1
@@ -3307,6 +3369,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         increment_stat(STAT_INSNS_EXECUTED);
     }
 
+    // DEFERRED_SWITCH: the one context switch for the ascend exit/wait/pause
+    // arms. For an exit, the old pid left running means nothing else can run.
+    if DEFERRED_SWITCH && switch_req != SWITCH_NONE {
+        let from = cpu.current_pid;
+        scheduler_context_switch(cpu, flow_label, hop_id);
+        if switch_req == SWITCH_EXIT && cpu.current_pid == from {
+            cpu.halted = 1;
+            increment_stat(STAT_HALTED);
+        }
+    }
+
     // Tail call chain moved to monad_cpu() entry point (required by kernel —
     // tail_call not allowed in subprogs without BTF).
 
@@ -3442,6 +3515,10 @@ fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
 /// All loops bounded to MAX_PROCESSES (8 since Phase 1.3 ADR-075 D-1) for BPF verifier.
 #[inline(always)]
 fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) {
+    // ADR-109 I7: never switch while the owned kernel is running (S-mode).
+    if cfg!(feature = "ascend-linux") && UPC_RUNG0 && cpu.priv_level != 3 {
+        return;
+    }
     let old_pid = cpu.current_pid as u32;
     let num = cpu.num_processes as u32;
 
@@ -3610,6 +3687,57 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 
 // ── MBC CPU flag helper ───────────────────────────────────────────────────────
 
+/// xv6 numbers serviced by the owned kernel through the getpid inject arm:
+/// uptime 14 under UPC_RUNG2 (ADR-110 T2), and 22 in probe builds only.
+#[inline(always)]
+fn kernel_routed_alias(n: u32) -> u32 {
+    match n {
+        14 if UPC_RUNG2 => 11,
+        22 if UPC_PROBE_INJECT22 => 11,
+        _ => n,
+    }
+}
+
+/// ADR-109 D6: where a U-mode page-walk miss resolves. Outside RAM_MAP, so
+/// mem_read_word returns 0 and mem_write_word drops the store.
+const D6_MISS_ADDR: u32 = 0xFFFF_FFFC;
+
+#[inline(always)]
+fn d6_user_miss(cpu: &MbcCpuState) -> bool {
+    cfg!(feature = "ascend-linux")
+        && UPC_D6_MISS_FAULT
+        && cpu.priv_level == 3
+        && cpu.page_dir_base != 0
+}
+
+/// ADR-109 D3: at trap injection, point sscratch at the running slot's
+/// trapframe (base + 256*slot) and hand the kernel the tagged slot and a7.
+/// Nothing happens until the kernel has published the table (0x160 != 0).
+#[inline(always)]
+fn inject_strap(cpu: &MbcCpuState) {
+    let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
+    if base == 0 {
+        return;
+    }
+    let slot = cpu.current_pid as u32 & (phase12::UPC_SLOTS - 1);
+    mem_write_word(
+        (0xF000 + 0x140 * 4) >> 2,
+        base + slot * phase12::UPC_TF_STRIDE,
+    ); // SSCRATCH
+    mem_write_word(
+        (base + phase12::UPC_ST_CUR_SLOT_OFF) >> 2,
+        phase12::UPC_TAG_SLOT | slot,
+    );
+    mem_write_word(
+        (base + phase12::UPC_ST_TRAP_A7_OFF) >> 2,
+        phase12::UPC_TAG_A7 | (cpu.regs[1] & !phase12::UPC_TAG_MASK),
+    );
+    if UPC_RUNG2 {
+        mem_write_word((base + phase12::UPC_ST_TICKS_OFF) >> 2, cpu.tick_counter);
+        // ADR-110 T1
+    }
+}
+
 /// Update Z, N, C flags from an ALU result.
 #[inline(always)]
 /// Translate a virtual address to a physical address using two-level page tables
@@ -3653,6 +3781,9 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     let pd_word_addr = (cpu.page_dir_base >> 2) + pde_idx;
     let pde = mem_read_word(pd_word_addr);
     if (pde & mmu::PTE_PRESENT) == 0 {
+        if d6_user_miss(cpu) {
+            return D6_MISS_ADDR;
+        }
         return vaddr; // Page fault — return unmapped (handle gracefully)
     }
 
@@ -3676,6 +3807,9 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     let pt_word_addr = (pt_base >> 2) + pte_idx;
     let pte = mem_read_word(pt_word_addr);
     if (pte & mmu::PTE_PRESENT) == 0 {
+        if d6_user_miss(cpu) {
+            return D6_MISS_ADDR;
+        }
         return vaddr; // Page fault
     }
 

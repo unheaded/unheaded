@@ -11,22 +11,28 @@ Packet Structure:
   - Hop-by-Hop extension (next=ICMPv6, opt_type=0x3E, 20-byte Monad register)
   - Monad register (20 bytes with CRC-16/CCITT-FALSE checksum)
 
-Monad Register Layout (20 bytes):
+Monad Register Layout (20 bytes, wire format v0x01, frozen; Monad::from_bytes
+in ebpf/monad-common/src/lib.rs):
   Offset  Field
   0x00    version (0x01)
   0x01    src_service_id
   0x02    dst_service_id
   0x03    hop_count
-  0x04-07 trace_id (u32 big-endian)
-  0x08    qos_class
-  0x09    flow_action
-  0x0A    circuit_state
-  0x0B    flags (0x02 = CUSTOM for CPU tick)
-  0x0C-0D latency_budget_us (u16 big-endian)
-  0x0E    deployment_ring
-  0x0F    mesh_flags
-  0x10-11 reserved (zero)
+  0x04    qos_class
+  0x05    flow_action
+  0x06    circuit_state
+  0x07    flags (0x02 = CUSTOM for CPU tick)
+  0x08-09 latency_hint (u16 big-endian)
+  0x0A    deploy_ring
+  0x0B    mesh_flags
+  0x0C    src_prefix_lo
+  0x0D    dst_prefix_lo
+  0x0E-11 scratch: the trace id (u32 big-endian)
   0x12-13 checksum (CRC-16/CCITT over bytes 0x00-0x11)
+
+Before 2026-10-28 this script wrote the trace id at 0x04-07, over the flags byte,
+and CUSTOM at 0x0B (mesh_flags): only trace ids with bit 1 set were CPU ticks
+(exactly half), and some ticks also carried CHAOS/CANARY/TRACED/... flags.
 
 References:
   - doom-ring.sh inline packet injection (lines 471-532)
@@ -158,15 +164,15 @@ class DoomPacket:
         register[0x01] = self.src_service_id
         register[0x02] = self.dst_service_id
         register[0x03] = self.hop_count
-        register[0x04:0x08] = struct.pack(">I", self.trace_id)
-        register[0x08] = self.qos_class
-        register[0x09] = self.flow_action
-        register[0x0A] = self.circuit_state
-        register[0x0B] = self.MONAD_FLAGS_CUSTOM
-        register[0x0C:0x0E] = struct.pack(">H", self.latency_budget_us)
-        register[0x0E] = self.deployment_ring
-        register[0x0F] = self.mesh_flags
-        register[0x10:0x12] = b"\x00\x00"
+        register[0x04] = self.qos_class
+        register[0x05] = self.flow_action
+        register[0x06] = self.circuit_state
+        register[0x07] = self.MONAD_FLAGS_CUSTOM
+        register[0x08:0x0A] = struct.pack(">H", self.latency_budget_us)
+        register[0x0A] = self.deployment_ring
+        register[0x0B] = self.mesh_flags
+        register[0x0C:0x0E] = b"\x00\x00"  # src/dst prefix low bytes
+        register[0x0E:0x12] = struct.pack(">I", self.trace_id)  # scratch
 
         # Compute CRC-16 over bytes 0x00-0x11 (18 bytes)
         crc_data = bytes(register[0x00:0x12])

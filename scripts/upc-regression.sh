@@ -139,6 +139,51 @@ else
   fail "getpidfork (pid numbering, E1 option K)"
 fi
 
+# EVOLUTION-1 Stage 2 rung 0 (ADR-109): slot reuse (getpidloop) and three live
+# slots (getpidmulti). Counts, not order: scheduling order may change once traps
+# reach the kernel. With GETPID_INJECT on these are the rung 0 gate.
+rung0_lines() { (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+  --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers 1500000 --instance 111 2>&1) | grep -a 'ascii:' \
+  | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE '(GL|GM): [a-z0-9-]+(=[0-9a-z]+)?'; }
+want_counts() { # $1 = lines, then "token count" pairs; every token must appear exactly count times
+  local l="$1" tok n; shift
+  while [ $# -gt 1 ]; do tok="$1" n="$2"; shift 2; [ "$(grep -cxF "$tok" <<<"$l")" = "$n" ] || return 1; done; }
+GL="$(rung0_lines getpidloop)"
+want_counts "$GL" "GL: child-pid=2" 3 "GL: fork-ret=2" 3 "GL: wait-ret=2" 3 "GL: done" 1 \
+  && [ "$(wc -l <<<"$GL")" = 10 ] \
+  && pass "getpidloop: slot 1 reused three times, child 2 each time" || fail "getpidloop (slot reuse)"
+GM="$(rung0_lines getpidmulti)"
+want_counts "$GM" "GM: c1-pid=2" 1 "GM: c2-pid=3" 1 "GM: c3-pid=4" 1 "GM: c1-again=2" 1 "GM: c2-again=3" 1 \
+  "GM: c3-again=4" 1 "GM: fork-ret=2" 1 "GM: fork-ret=3" 1 "GM: fork-ret=4" 1 "GM: wait-ret=2" 1 "GM: wait-ret=3" 1 \
+  "GM: wait-ret=4" 1 "GM: done" 1 && [ "$(wc -l <<<"$GM")" = 13 ] \
+  && pass "getpidmulti: three live children 2, 3, 4, stable across pause" || fail "getpidmulti (live slots)"
+
+# EVOLUTION-1 Stage 2 rung 2 (ADR-110): with UPC_RUNG2 on, uptime is answered by
+# the owned kernel from BPF's tick count; it must rise in init and in a child,
+# and a child must not read below its parent. Off: uptime has no BPF arm.
+if grep -q 'const UPC_RUNG2: bool = true;' "$EBPF/monad-cpu-ebpf/src/main.rs"; then
+  UPL="$((cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+    --ramdisk "$K/fs.img" --userland "$K/uptimeprobe.mbc" --triggers 2000000 --instance 111 2>&1) | grep -a 'ascii:' \
+    | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'UP: [a-z-]+=[a-z]+')"
+  want_counts "$UPL" "UP: init-moved=yes" 1 "UP: child-moved=yes" 1 "UP: child-mono=yes" 1 "UP: init-before=large" 1 \
+    && pass "uptime: kernel clock rises in init and child, monotonic across them (ADR-110)" || fail "uptime (ADR-110)"
+else
+  note "uptime gate skipped: UPC_RUNG2 is off (ADR-110 waits on the stop-rule reading)"
+fi
+
+# S26: xv6 usertests bodies as probes (user/ut_*.c) against BPF fork/exit/wait.
+# forktest and reparent2 need wait() to return -1 once every child is reaped.
+for ut in exitwait:1500000:ok twochildren:1500000:ok forktest:1500000:ok reparent2:3000000:reaped-all; do
+  n="${ut%%:*}" rest="${ut#*:}" t="${rest%%:*}" want="${rest#*:}"
+  UTO="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+    --userland "$K/ut_$n.mbc" --triggers "$t" --instance 111 2>&1 | grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g')"
+  if grep -aq "UT-$n: $want" <<<"$UTO" && ! grep -aq "UT-$n: fail" <<<"$UTO"; then
+    pass "usertests $n"
+  else
+    fail "usertests $n"
+  fi
+done
+
 # Track 2 Phase 2.1 (ADR-081): OUR init as PID 1. Same kernel + fs.img, only
 # the resident PID 1 program swapped to uinit.mbc. The token proves uinit ran;
 # 'hello' proves it forked+exec'd sh and a command completed through it.
