@@ -259,3 +259,13 @@ Live (Steps 107-112), after the Phase 3 merge:
 | positive control (shipped object, no override) | boots, no refusal |
 
 Master plan 1.2.5 GATE closed. Evidence: `p4-regression.log`, `p4-neg-surface.txt`, `p4-neg-geometry.txt`.
+
+## Phase 5: required-before-prod (Steps 117-156, 2026-10-28)
+
+**Item 4, the demo gate (Steps 117-121).** `upc-bootctl boot` and `console` refuse a live run unless
+`UPC_DEMO_MODE=1`; `--dry-run` never needs it. The check runs before the kernel file is read, so nothing touches BPF
+or a netns. Tests: `cmd/upc-bootctl/tests/demo_mode.rs` (5; 3 failed before the change) and a unit test. Deviation:
+the plan's "export UPC_DEMO_MODE=1 near the top of the harness" does not work, because sudo resets the environment;
+every caller passes it inside sudo (`sudo UPC_DEMO_MODE=1 "$BC" …`): the harness, the S5 helper block (`boot()`, also
+fixing its `UPC_VERIFIER_STATS=1 sudo` ordering), CLAUDE.md's boot recipe and wiki/Linux-on-UPC.md. Harness ALL GREEN,
+sweep 8/8 SAME; a boot without it prints the refusal and leaves 0 programs.

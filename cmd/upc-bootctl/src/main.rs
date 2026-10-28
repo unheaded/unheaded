@@ -473,6 +473,16 @@ fn load_resident_program(
 ///
 /// Errors with the byte-count in the message when the buffer length is not a
 /// multiple of 4 (an MBC instruction is always one 32-bit word).
+/// S-ASCEND-2 Item 4 (the 2026-05-13 isolation brief): a live boot attaches
+/// XDP and writes BPF maps, so it needs an explicit `UPC_DEMO_MODE=1`. Runs
+/// before anything touches BPF or a netns. A dry run never needs it.
+fn demo_gate(dry_run: bool, demo_mode: Option<&str>) -> Result<()> {
+    if dry_run || demo_mode == Some("1") {
+        return Ok(());
+    }
+    bail!("UPC_DEMO_MODE=1 required for a live boot; add --dry-run to inspect without loading")
+}
+
 fn check_image_alignment(bytes: &[u8]) -> Result<usize> {
     if !bytes.len().is_multiple_of(4) {
         bail!("kernel image not 4-byte aligned ({} bytes)", bytes.len());
@@ -952,6 +962,7 @@ fn cmd_boot(
     input: Option<String>,
     unsafe_geometry: bool,
 ) -> Result<()> {
+    demo_gate(dry_run, std::env::var("UPC_DEMO_MODE").ok().as_deref())?;
     cmd_validate(kernel.clone())?;
     let mmu = geometry::xv6_mmu_layout(geometry::stride_override(
         unsafe_geometry,
@@ -1218,6 +1229,8 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
     if o.tick_batch == 0 {
         bail!("--tick-batch must be > 0");
     }
+    // console always attaches: there is no dry run.
+    demo_gate(false, std::env::var("UPC_DEMO_MODE").ok().as_deref())?;
     cmd_validate(o.kernel.clone())?;
     let mmu = geometry::xv6_mmu_layout(geometry::stride_override(
         o.unsafe_geometry,
@@ -1387,6 +1400,20 @@ mod tests {
 
     mod object_surface {
         include!("../../../ebpf/monad-cpu-ebpf/surface.rs");
+    }
+
+    #[test]
+    fn demo_gate_allows_only_dry_run_or_exactly_1() {
+        assert!(demo_gate(true, None).is_ok());
+        assert!(demo_gate(true, Some("0")).is_ok());
+        assert!(demo_gate(false, Some("1")).is_ok());
+        for v in [None, Some(""), Some("0"), Some("true"), Some("1 ")] {
+            let e = demo_gate(false, v).unwrap_err().to_string();
+            assert!(
+                e.contains("UPC_DEMO_MODE=1 required for a live boot"),
+                "{v:?}: {e}"
+            );
+        }
     }
 
     fn xv6_numbers() -> Vec<u32> {

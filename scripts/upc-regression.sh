@@ -16,7 +16,9 @@
 #   3. (S5, ADR-108) the cartridge object cartridge-ebpf loads with each of
 #      cart_xdp / cart_tick <= 500,000 processed insns, and its root-gated
 #      pkg/cartridge tests pass.
-# Requires passwordless sudo (netns + XDP). Rebuilds the ascend object at the
+# Requires passwordless sudo (netns + XDP). Every live boot passes
+# UPC_DEMO_MODE=1 inside sudo (sudo resets the environment; upc-bootctl refuses
+# a live boot without it, S-ASCEND-2 Item 4). Rebuilds the ascend object at the
 # end so the on-disk object matches the xv6/Linux dev default.
 set -uo pipefail
 
@@ -48,7 +50,7 @@ trap cleanup EXIT
 # Run an xv6 command and assert the boot output contains a token.
 xv6_expect() { # $1=input line  $2=grep token  $3=label
   local out
-  out="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  out="$(cd "$EBPF" && sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
     --userland "$K/init.mbc" --triggers 4000000 --instance 111 \
     --input "$1"$'\n' 2>&1)"
   if grep -aq "$2" <<<"$out"; then pass "xv6: $3"; else fail "xv6: $3 (missing '$2')"; fi
@@ -61,7 +63,7 @@ echo "[1/3] ascend build (xv6 corpus)"
 ( cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 ) \
   | grep -qE "error" && { fail "ascend build"; }
 
-VBUD="$(cd "$EBPF" && sudo UPC_VERIFIER_STATS=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+VBUD="$(cd "$EBPF" && sudo UPC_DEMO_MODE=1 UPC_VERIFIER_STATS=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/init.mbc" --triggers 3000 --instance 111 --input $'echo\n' 2>&1 \
   | grep -aoE 'verified [0-9]+ insns \([0-9.]+% of 1M ceiling\)')"
 [ -n "$VBUD" ] && note "ascend verifier: $VBUD" || note "ascend verifier: (unreported)"
@@ -83,7 +85,7 @@ xv6_expect 'wc README'    '5 49 283 README'        'wc README'
 # commands), not any particular implementation.
 xv6_expect 'nosuch'       'exec nosuch failed'     'sh reports exec failure (unknown command)'
 xv6_expect $'\necho unbroken' 'unbroken'           'sh skips blank line, loop survives'
-MC="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+MC="$(cd "$EBPF" && sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/init.mbc" --triggers 4000000 --instance 111 \
   --input $'echo alpha\necho omega\n' 2>&1)"
 grep -aq 'alpha' <<<"$MC" && pass "sh multi-command: first command runs" \
@@ -91,7 +93,7 @@ grep -aq 'alpha' <<<"$MC" && pass "sh multi-command: first command runs" \
 grep -aq 'omega' <<<"$MC" && pass "sh multi-command: prompt loop survives to second" \
   || fail "sh multi-command: prompt loop survives to second (missing 'omega')"
 
-G2="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+G2="$(cd "$EBPF" && sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/gate2.mbc" --triggers 800000 --instance 111 2>&1)"
 grep -aq 'ISOLATION-PASS' <<<"$G2" && pass "gate2 ISOLATION-PASS" || fail "gate2 ISOLATION-PASS"
 
@@ -99,12 +101,12 @@ grep -aq 'ISOLATION-PASS' <<<"$G2" && pass "gate2 ISOLATION-PASS" || fail "gate2
 # looped-fork gate. Both were "known failures" until the scheduler stopped
 # resuming a zombie when nothing was runnable; build them with
 # `make -f ../adapters/Makefile.mbc-userland gates` (a missing binary fails).
-NW="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+NW="$(cd "$EBPF" && sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/gate_nway.mbc" --triggers 1500000 --instance 111 2>&1)"
 # Count tokens, not lines: the TTY dump is one "ascii:" line.
 [ "$(grep -aoE 'NWAY-ok pid[123]' <<<"$NW" | sort -u | grep -c .)" -eq 3 ] && ! grep -aq 'NWAY-FAIL' <<<"$NW" \
   && pass "gate_nway 3x NWAY-ok, 0 FAIL" || fail "gate_nway (concurrent isolation)"
-FL="$(cd "$EBPF" && timeout 600 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+FL="$(cd "$EBPF" && timeout 600 sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/forkloop.mbc" --triggers 1500000 --instance 111 2>&1)"
 [ "$(grep -aoE 'FL: child' <<<"$FL" | grep -c .)" -eq 3 ] && grep -aq 'FL: parent-done' <<<"$FL" \
   && pass "forkloop: 3 children, parent done" || fail "forkloop (looped fork)"
@@ -112,7 +114,7 @@ FL="$(cd "$EBPF" && timeout 600 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramd
 # Track 2 Phase 2.1 (ADR-081): OUR init as PID 1. Same kernel + fs.img, only
 # the resident PID 1 program swapped to uinit.mbc. The token proves uinit ran;
 # 'hello' proves it forked+exec'd sh and a command completed through it.
-UI="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+UI="$(cd "$EBPF" && sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/uinit.mbc" --triggers 4000000 --instance 111 \
   --input $'echo hello\n' 2>&1)"
 grep -aq '0xP1D1-0UR5' <<<"$UI" && pass "uinit banner (own PID 1)" \

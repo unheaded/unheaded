@@ -57,7 +57,7 @@ export WEST_P2P_IF=enp16s0 EAST_P2P_IF=enp2s0
 export WOTAN_SCRATCH_HTTP=26601 WOTAN_SCRATCH_GRPC=26602   # scratch Wotan, user-app range; never the 18000/18001 stack
 mkdir -p "$S5"
 # xv6 boot helpers (from PHASE24-KERNEL-CORE.md, unchanged)
-boot()     { (cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+boot()     { (cd "$EBPF" && sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
              --userland "$K/init.mbc" --triggers 4000000 --instance 111 --input "$1" 2>&1); }
 tty_of()   { grep -a 'ascii:' <<<"$1"; }
 stats_of() { grep -aoE 'forks=[0-9]+|waitpid=[0-9]+|tty_r=[0-9]+' <<<"$1" | tr '\n' ' '; }
@@ -229,7 +229,7 @@ P0 ─► P1 ─► P2 ─► P3 ───────────────�
   - Note the Doom `.mbc` path and its sha in `$S5/p0-mbc-sha.txt` (needed by H-S5)
 - [x] **Step 12** [B] ~3m: KNOWN FAILURES BASELINE — record actuals
   ```bash
-  { echo "== gate_nway"; (cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  { echo "== gate_nway"; (cd "$EBPF" && sudo UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
       --userland "$K/gate_nway.mbc" --triggers 800000 --instance 111 2>&1 | grep -aoE 'NWAY-(PASS|FAIL)' | head -1);
     echo "== go build"; (cd "$PROJECT_ROOT" && go build ./... 2>&1 | tail -3);
     echo "== heimdall-bpf"; (cd "$PROJECT_ROOT/crates/heimdall-bpf" && cargo build --release 2>&1 | tail -2); } \
@@ -502,7 +502,7 @@ MBC verification pattern passed (decode + 2 × 5-min fuzz) · spec gate recorded
   ```
 - [x] **Step 92** [B][S][TEST] ~3m: Run the probe with the flag ON
   ```bash
-  out="$(cd "$EBPF" && UPC_VERIFIER_STATS=1 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  out="$(cd "$EBPF" && sudo UPC_DEMO_MODE=1 UPC_VERIFIER_STATS=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
     --userland "$K/getpidprobe.mbc" --triggers 2000000 --instance 111 2>&1)"; printf '%s\n' "$out" > "$S5/p3-getpid-on.txt"
   grep -aoE 'GP: [a-z=0-9-]+|verified [0-9]+ insns' <<<"$out"
   ```
@@ -587,7 +587,7 @@ Round trip proven flag ON · decision recorded with numbers · 12/12 goldens ide
   ```
 - [x] **Step 123** [B][S][TEST] ~5m: Headless end-to-end with `--stdin`: type two commands after boot
   ```bash
-  (sleep 8; printf 'echo hello\n'; sleep 6; printf 'ls\n'; sleep 6) | (cd "$EBPF" && sudo timeout 40 "$BC" console --instance 111 --stdin \
+  (sleep 8; printf 'echo hello\n'; sleep 6; printf 'ls\n'; sleep 6) | (cd "$EBPF" && sudo UPC_DEMO_MODE=1 timeout 40 "$BC" console --instance 111 --stdin \
     --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" --userland "$K/init.mbc") 2>&1 | tee "$S5/p4-console-stdin.txt" | tail -20
   ```
 - [x] **Step 124** [V] ~1m: Output has `hello`, the `ls` listing (`README`, `cat`, …) and a `$` after each — typed after boot, not pre-filled

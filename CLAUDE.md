@@ -1301,7 +1301,7 @@ not compose service names (Cuirass is `unheaded-daemon`). Compliance evidence: `
 ```bash
 cd ~/tmp/unheaded/ebpf && cargo build --release -p monad-cpu-ebpf --features ascend-linux
 cd ../crates/xv6-mbc/upstream && make -f ../adapters/Makefile.mbc clean kernel && rm -f target/fs.img && make -f ../adapters/Makefile.mbc-userland ramdisk
-cd ../../../ebpf && sudo /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
+cd ../../../ebpf && sudo UPC_DEMO_MODE=1 /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
   --kernel /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/xv6-mbc.mbc \
   --ramdisk /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/fs.img \
   --userland /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/init.mbc \

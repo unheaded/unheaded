@@ -135,9 +135,10 @@ make -f ../adapters/Makefile.mbc clean kernel
 rm -f target/fs.img
 make -f ../adapters/Makefile.mbc-userland ramdisk
 
-# Boot. --userland pre-loads init.mbc into the user region.
+# Boot. --userland pre-loads init.mbc into the user region. A live boot needs
+# UPC_DEMO_MODE=1, passed inside sudo (sudo resets the environment); --dry-run does not.
 cd ../../../ebpf
-sudo /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
+sudo UPC_DEMO_MODE=1 /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
   --kernel /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/xv6-mbc.mbc \
   --ramdisk /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/fs.img \
   --userland /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/init.mbc \
@@ -168,7 +169,7 @@ append typed bytes to the guest's 64-slot KBD ring (HEAD advanced live; the gues
 
 - **Mode B (host terminal):** keystrokes from stdin.
   ```bash
-  cd ~/tmp/unheaded/ebpf && sudo ../cmd/upc-bootctl/target/release/upc-bootctl console \
+  cd ~/tmp/unheaded/ebpf && sudo UPC_DEMO_MODE=1 ../cmd/upc-bootctl/target/release/upc-bootctl console \
     --instance 111 --stdin --kernel ../crates/xv6-mbc/upstream/target/xv6-mbc.mbc \
     --ramdisk ../crates/xv6-mbc/upstream/target/fs.img \
     --userland ../crates/xv6-mbc/upstream/target/init.mbc
