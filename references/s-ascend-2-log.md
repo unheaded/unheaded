@@ -87,3 +87,59 @@ ring). `UPC_VERIFIER_STATS=1 sudo …` as the plan writes it never prints a coun
 
 **Step 38.** Flag restored OFF; the ascend object is byte-identical to the Phase 0 build
 (sha256 `30b4ceb3…7fb2`); 0 modified files under `ebpf/`.
+
+## Pid reconciliation design (Steps 41-42)
+
+**The two books (Step 41).**
+- *BPF.* `SYS_FORK` takes the next free `PROC_TABLE` slot; the slot index IS the pid (init = 0, first child = 1).
+  `PROC_TABLE` is `Array<[u32; 22]>`, 8 entries: r0-r15, PC (16), flags (17), SP copy (18), program break (19),
+  pgd (20, ADR-074), rv2mbc base (21). **No free u32**: storing a pid means growing the value to 23 words (every
+  PROC_TABLE reader and the Go/host mirrors) or reusing slot 18 if the SP copy proves redundant (not checked here).
+  `PARENT_OF`, `SCHED_STATE` halted/reaped masks and `wait()`'s return value are all slot-indexed.
+- *Kernel.* `adapters/uproc.c` is stock xv6: `nextpid = 1`, `allocproc` sets `p->pid = allocpid()` (a counter), and
+  `sys_getpid` returns `myproc()->pid`. Only `userinit` ever calls `allocproc` at runtime: user `fork()` is serviced
+  in BPF, so the kernel's `proc[]` holds init and nothing else.
+
+That is why the child sees -1 with the flag ON: the kernel book has no row for it. Where exactly the -1 comes from
+(which trapframe `uservec` saved into, what `myproc()` returned) was not isolated: no kernel message was printed and
+no halt occurred. Step 47's dump applies once E1 picks a direction.
+
+**Option K: kernel numbering wins (init = 1).**
+- BPF `SYS_FORK` writes `pid = slot + 1` into the child's PROC_TABLE row; BPF getpid/wait/`fork()` return answer
+  from that field; the kernel's `allocpid` counter is replaced by a read of the same field (one source of truth).
+- Not enough by itself: the kernel also needs a `struct proc` for every BPF-forked child (or `myproc()` must be
+  derived from the current slot), otherwise the injected trap still lands on init's row. That is the larger half of
+  the work and is the same direction as EVOLUTION-1 Stage 2 (kernel authority over process state).
+- BPF cost: one store in fork, one load in getpid/wait, plus the PROC_TABLE row growth if slot 18 cannot be reused.
+  Not measured; the flag-ON build is already 15,223 instructions *under* flag OFF, so the budget is not the
+  constraint (ascend 926,542 of the 950,000 bar).
+- Observable change: every pid a userland program prints shifts by one (init 1, children 2, 3, …).
+
+**Option S: slot numbering wins (init = 0).**
+- The kernel's `allocpid` returns the BPF slot through the PROC_TABLE MMIO window; `sys_getpid` answers the slot.
+- No BPF change. It still needs the kernel to have a `struct proc` per BPF-forked child to answer for the child at
+  all, so it does not avoid K's larger half; it only avoids the off-by-one.
+- No observable pid change: the goldens and the gate comments that say "init (pid 0)" stay true.
+
+**Who depends on init = 0 (Step 42 grep).** `user/gate2.c` and `user/gate_nway.c` say "runs as init (pid 0)" in
+their headers. `gate_nway` labels its children 1, 2, 3 by fork order and says the property is pid-agnostic (it does
+not assert `getpid()`). `user/uinit.c` uses only fork's return value. None of them compares a pid to a constant, so
+either option leaves the gates' logic intact; option K changes their header comments and any golden line that
+prints a pid.
+
+**Caveat (Scientist).** getpid is one syscall and a biased estimator of "the kernel owns the process": it decides
+which numbering is the identity, not what migrating fork/exit/wait into the kernel costs. The -1 result says the
+real gap is the kernel having no process at all for a BPF-forked child, under either numbering.
+
+**Found on the way, for Phase 3.** `gate2.c` and `gate_nway.c` both say init "exits, so the kernel restarts it".
+The getpidfork runs show that is not what happens: init's `exit` returns to user code, with no new fork
+(`forks=1` stays 1). `gate_nway`'s repeating verdict block, and possibly KF1's `NWAY-FAIL pid2` count, should be
+read with that in mind before any isolation fix.
+
+## E1 (Step 43): filed
+
+Question to Stevie, unchanged from the plan, with this evidence: (1) kernel `p->pid` (init = 1) or BPF slot
+(init = 0)? (2) if kernel, option K as above? Recommendation (Computermancer): kernel numbering, option K, because
+EVOLUTION-1's direction is kernel authority and K removes the kernel's counter. New since the plan was written: the
+kernel has no process for a forked child, so under either answer the next step is giving the kernel a row per BPF
+fork. Until answered, Steps 44-51 are `[AFTER-E1]` skips and the flag stays OFF.
