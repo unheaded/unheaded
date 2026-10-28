@@ -26,7 +26,19 @@ import (
 	"unheaded/pkg/cartridge"
 	"unheaded/pkg/gungnir"
 	"unheaded/pkg/ports"
+	wotanClient "unheaded/pkg/wotan-client"
 )
+
+const commandsUsage = `usage: upc-cartridgectl [global flags] COMMAND
+commands:
+  up | down | list | stats
+  sign --key SEED [--ttl D] FILE.cart
+  register NAME FILE.cart | load NAME --slot N | unload --slot N | swap NAME --from A --to B
+  bench [--repeat N] [--dport P] | pump [--max N] | serve [--metrics-addr ADDR] [--xdp-iface IF]
+  record --out FILE [--every N] [--duration D] | replay FILE --slot N [--image F] [--run K] [--to N] [--watch X]
+  weights publish --wotan URL --cart FILE.cart --sign-key SEED [--model NAME] [--ttl D]
+  weights fetch   --wotan URL --model NAME --pubkey PUB --out DIR
+global flags:`
 
 type globals struct {
 	registryDir, sophiaURL, pubKeyPath, pinDir, obj, cartBin, eventsGroup string
@@ -50,22 +62,6 @@ func (g *globals) prepare(raw, seal []byte) (*Prepared, error) {
 	return p, err
 }
 
-func readFileCapped(path string) ([]byte, error) {
-	f, err := os.Open(path) // #nosec G304 -- operator-supplied path
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	b, err := io.ReadAll(io.LimitReader(f, maxBlob+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(b) > maxBlob {
-		return nil, fmt.Errorf("%s: larger than %d bytes", path, maxBlob)
-	}
-	return b, nil
-}
-
 func fatal(format string, a ...any) {
 	fmt.Fprintf(os.Stderr, "upc-cartridgectl: "+format+"\n", a...)
 	os.Exit(1)
@@ -82,6 +78,10 @@ func main() {
 	fs.StringVar(&g.obj, "obj", "ebpf/target/bpfel-unknown-none/release/cartridge-ebpf", "cartridge-ebpf object (for up)")
 	fs.StringVar(&g.eventsGroup, "events-group", "", "up: make the CART_EVENTS pin readable by this group (cmd/anomaly's bridge); other pins stay root 0600")
 	fs.StringVar(&g.cartBin, "cart", "crates/upc-cartridge/target/release/cart", "the cart CLI (validator)")
+	fs.Usage = func() {
+		fmt.Fprintln(fs.Output(), commandsUsage)
+		fs.PrintDefaults()
+	}
 	_ = fs.Parse(os.Args[1:])
 	args := fs.Args()
 	if len(args) == 0 {
@@ -125,6 +125,12 @@ func main() {
 		err = cmdRecord(g, args[1:])
 	case "replay":
 		err = cmdReplay(g, args[1:])
+	case "weights":
+		// ADR-103 §6: a key at /etc/unheaded/keys/upc-cartridgectl.key (or
+		// AUTH_KEY_FILE) makes every Wotan call carry a service token; with
+		// none it warns and goes on (a lab Wotan with auth off takes it).
+		wotanClient.InitServiceIdentity(weightsIdentity)
+		err = cmdWeights(context.Background(), args[1:], g.pub, os.Stdout)
 	default:
 		err = fmt.Errorf("unknown command %q", args[0])
 	}
