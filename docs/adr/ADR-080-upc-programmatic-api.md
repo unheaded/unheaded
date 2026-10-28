@@ -2,7 +2,7 @@
 
 **Status**: ACCEPTED (describes the realized architecture; formalizes the contract going forward)
 **Date**: 2026-07-03
-**Amended**: 2026-10-28, §6 I/O-time gates (S-ASCEND-2 Steps 95-106). Status unchanged.
+**Amended**: 2026-10-28, §6 I/O-time gates (S-ASCEND-2 Steps 95-106); §7 image map freeze (Steps 157-168). Status unchanged.
 **Deciders**: Stevie (directive: "UPC runs both [Doom and Linux] as foundation for future
 experimental programmatic expansion; highest priority is maintaining playable Doom and no
 regressions to progress"); Fable 5 session
@@ -188,3 +188,17 @@ warning; without the flag the variable is ignored with a warning. The object's s
 compile-time constant, so a stride below 8 MiB is refused with `SliceOverlap` and any other
 non-shipped value with `SliceGeometryMismatch`: the hook can only make the loader refuse.
 
+## 7. Image map freeze (S-ASCEND-2 Steps 157-168, amended 2026-10-28)
+
+Load order: `.rv2mbc` SHA gate → object preflight (§6) → `validate` + `validate_against_object` →
+`ROM_MAP` / `RV2MBC_MAP` writes → `ImageSink::finalize` (freeze) → XDP attach. `finalize` freezes both
+maps with `bpf(BPF_MAP_FREEZE)` on the fd aya holds (aya 0.13 has no public freeze); afterwards every
+userspace update of either map fails `EPERM`. The program side is unaffected: `monad-cpu-ebpf` only
+reads the two maps. They are declared with flags 0, not `BPF_F_RDONLY_PROG`. `upc_api::load` is
+gates, writes, finalize, for a loader with one image (doom-runner). `upc_api::write_image` is the same
+without the freeze, for a loader that writes several: upc-bootctl writes the kernel (and bootstub) image
+and the kernel `.rv2mbc` directly, init and the resident programs through `write_image`, then calls
+`upc_api::finalize` once in `boot_prepare`, before `netns::prepare` and `attach_xdp`. A failed freeze
+(`LoadError::Finalize`) aborts the boot before attach. `upc-bootctl boot --freeze-check` writes slot 0
+of each map back with its own value after the freeze and fails the boot unless both writes return
+`EPERM`. The Go `pkg/ebpf/mapfreeze.go`, which described this sequence for a Go loader, is deleted.

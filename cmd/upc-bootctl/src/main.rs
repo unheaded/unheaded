@@ -21,6 +21,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 
 mod bootparams;
+mod freeze;
 mod geometry;
 mod netns;
 mod runner;
@@ -140,6 +141,13 @@ enum Cmd {
         /// the CPU and the hijack counter. The harness never sets it.
         #[arg(long, value_name = "N")]
         hijack_probe: Option<u32>,
+
+        /// Test hook (S-ASCEND-2 Step 162): after ROM_MAP and RV2MBC_MAP are
+        /// frozen, try one userspace update of each through the same handle and
+        /// require EPERM (`freeze check: <MAP> update refused (EPERM)`); any
+        /// other result fails the boot before attach.
+        #[arg(long)]
+        freeze_check: bool,
     },
 
     /// Boot a kernel and run it interactively (Mode A/B): TTY output streams
@@ -461,7 +469,8 @@ fn load_resident_program(
     // validate the descriptor (image bounds, entry-in-ROM, every rv2mbc target
     // in ROM) then write both maps. entry = rom_base (user.ld links _start at
     // RV word 0 → ROM slot rom_base). Byte-identical to the prior
-    // populate_rom_at + populate_rv2mbc calls.
+    // populate_rom_at + populate_rv2mbc calls. write_image, not load: the
+    // freeze comes once, in boot_prepare, after the last image.
     let workload = xv6_program_workload(
         name,
         words,
@@ -472,7 +481,7 @@ fn load_resident_program(
         mmu,
         rv.sha_hex(),
     );
-    upc_api::load(&workload, &xv6_map_capacities(), facts, runner)
+    upc_api::write_image(&workload, &xv6_map_capacities(), facts, runner)
         .map_err(|e| anyhow!("{name} image load: {e}"))?;
 
     // Stage .data flat for exec to re-copy into the running pid's slice.
@@ -836,7 +845,8 @@ fn boot_prepare(
         // validate the descriptor (image bounds, entry-in-ROM, every rv2mbc
         // target in ROM) then write both maps. entry = USER_ROM_BASE (user.ld
         // links _start at RV byte 0 → ROM slot USER_ROM_BASE). Byte-identical to
-        // the prior populate_rom_at + populate_rv2mbc calls.
+        // the prior populate_rom_at + populate_rv2mbc calls. write_image, not
+        // load: the resident programs follow, so the freeze comes after them.
         let workload = xv6_program_workload(
             "init",
             words,
@@ -847,7 +857,7 @@ fn boot_prepare(
             mmu,
             rv.userland.as_ref().and_then(|u| u.sha_hex()),
         );
-        upc_api::load(&workload, &xv6_map_capacities(), &facts, &mut runner)
+        upc_api::write_image(&workload, &xv6_map_capacities(), &facts, &mut runner)
             .map_err(|e| anyhow!("userland image load {}: {e}", up.display()))?;
 
         if patched_calls > 0 {
@@ -965,6 +975,16 @@ fn boot_prepare(
         mbc_words.len(),
         kernel_bytes.len()
     );
+
+    // S-ASCEND-2 Steps 157-161: freeze ROM_MAP and RV2MBC_MAP. Every write to
+    // either is above (kernel or bootstub + kernel, kernel .rv2mbc, init,
+    // resident programs), each after its SHA, surface and geometry gates; the
+    // program only reads them. A failed freeze fails the boot before attach.
+    upc_api::finalize(&mut runner).map_err(|e| anyhow!("{e}"))?;
+    println!("  ✓ ROM_MAP + RV2MBC_MAP frozen (BPF_MAP_FREEZE)");
+    if freeze::check_enabled() {
+        runner.freeze_check()?;
+    }
 
     // ── Phase 4: netns + XDP attach + trigger packet ──
     let attach_iface = netns::prepare()?;
@@ -1474,8 +1494,10 @@ fn run(cli: Cli) -> Result<()> {
             rv2mbc_sha,
             allow_unverified_rv2mbc,
             hijack_probe,
+            freeze_check,
         } => {
             netns::set_create_netns(create_netns);
+            freeze::set_check(freeze_check);
             cmd_boot(
                 kernel,
                 bootstub,

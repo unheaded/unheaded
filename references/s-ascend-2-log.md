@@ -349,6 +349,29 @@ Until answered Steps 149-154 are skipped; FND-028 stays open.
 Phase 5 exit gate (Step 156): Items 4 and 5 run in the harness; Items 1-3 proven inside upc0 (Steps 138, 141, 144);
 harness green, sweep 8/8 SAME, budgets unchanged (923645 / 758321). M-224 DONE in code; FND-028 open for the host.
 
+## Phase 6
+
+**Freeze (Steps 157-161, 166-168; host side on `sprint/ascend-2-freeze`).** Freeze sequence: `.rv2mbc` SHA gate →
+object preflight → `validate` + `validate_against_object` → ROM_MAP / RV2MBC_MAP writes → `ImageSink::finalize`
+(`bpf(BPF_MAP_FREEZE)` on both maps) → XDP attach. aya 0.13.1 has no public freeze (`MapData::finalize` is
+`pub(crate)` and freezes `.rodata` maps only), so both loaders call bpf(2) through `libc::syscall` on the fd aya
+holds (`cmd/upc-bootctl/src/freeze.rs`, `crates/doom-runner/src/freeze.rs`; libc was already in both lockfiles).
+`upc_api::load` = gates, writes, finalize (doom-runner, one image). bootctl writes the kernel (and bootstub) image
+and the kernel `.rv2mbc` outside `upc_api`, then init and the resident programs, so its two `load` calls became
+`upc_api::write_image` and one `upc_api::finalize(&mut runner)` sits in `boot_prepare` after the last of them,
+before `netns::prepare` and `attach_xdp`; a failed freeze is `LoadError::Finalize` and the boot stops before attach.
+The program never writes either map (`ROM_MAP.get`, `RV2MBC_MAP.get` only) and declares both with flags 0: no
+`BPF_F_RDONLY_PROG` (adding it is an eBPF change, not made here). Tests first: `crates/upc-api/tests/freeze.rs` (9;
+RED: did not compile), `cmd/upc-bootctl/tests/freeze_order.rs` (2, source order write < freeze < attach; RED: 2
+failed), `freeze_live.rs` (`#[ignore]`, `UPC_LIVE=1`). Green: upc-api 71, upc-bootctl 86 + 1 ignored, doom-runner 46;
+clippy clean. Deviations: (a) the plan's `bpftool map update pinned` probe cannot work, since neither loader pins a
+map and a dry boot touches none; `boot --freeze-check` instead writes slot 0 of each map back with its own value after
+the freeze and fails the boot unless both return EPERM (`freeze check: <MAP> update refused (EPERM)`); `--keep-pins`
+not added; (b) Step 166's override applied: `cmd/trace-collector-go` and `cmd/dashboard-backend` import `pkg/ebpf`, so
+only `mapfreeze.go` + its test are deleted (it also claimed a freeze blocks program-side writes; it does not); no
+unreached-list tool exists; (c) doom-runner loads the program but attaches no XDP itself; its freeze precedes
+`verify_maps`. ADR-080 §7. Steps 162-165 (live EPERM, harness) are Stevie's after the merge.
+
 **HMAC default (Steps 169-171).** `cmd/doom load --hmac` and `wotan-ctl doom load --hmac` defaulted the key to a
 literal compiled into the binary. Now `internal/doom.ResolveHMACKey`: `--hmac-key`, else `UPC_HMAC_KEY`, else a loud
 error. Only `--hmac` needs a key; no script or unit runs it. 0 literals left in Go (`b993efbf`).
@@ -372,3 +395,8 @@ Verified instructions: ascend 923,645 → **923,826** (+181), Doom 758,321 → *
 baseline updated. Harness ALL GREEN, sweep 8/8 SAME. doom-runner does not bind (Doom unchecked, as before): the plan's
 "doom-runner also writes the owner record" is not done, since Doom's injector would need the nonce too.
 Security brief updated (Step 178).
+
+**Freeze live (Steps 162-165), after merging it with the hijack work.** `boot --freeze-check`: `ROM_MAP + RV2MBC_MAP
+frozen (BPF_MAP_FREEZE)`, then `freeze check: ROM_MAP update refused (EPERM)` and the same for RV2MBC_MAP, then
+FIRST HEARTBEAT. `tests/freeze_live.rs` with `UPC_LIVE=1`: 1 passed. Harness ALL GREEN (923826 / 758199, unchanged by
+the freeze), sweep 8/8 SAME, nothing left attached. Phase 6 exit gate passed.

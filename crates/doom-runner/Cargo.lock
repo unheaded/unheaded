@@ -334,6 +334,7 @@ dependencies = [
  "clap",
  "futures-util",
  "goblin",
+ "libc",
  "tokio",
  "tokio-tungstenite",
  "tracing",

@@ -164,6 +164,7 @@ fn facts_for(syscalls: &[SyscallDesc]) -> ObjectFacts {
 struct RecordingSink {
     rom: Vec<(u32, u32)>,
     rv2mbc: Vec<(u32, u32)>,
+    frozen: bool,
 }
 
 impl ImageSink for RecordingSink {
@@ -178,6 +179,10 @@ impl ImageSink for RecordingSink {
         for (i, &e) in entries.iter().enumerate() {
             self.rv2mbc.push((base + i as u32, e));
         }
+        Ok(())
+    }
+    fn finalize(&mut self) -> Result<(), Infallible> {
+        self.frozen = true;
         Ok(())
     }
 }
@@ -430,6 +435,7 @@ fn load_with_matching_facts_writes_the_inline_sequence() {
     load(&d, &CAPS, &facts_for(&DOOMISH), &mut sink).unwrap();
     assert_eq!(sink.rom, oracle(0, &d.image.rom));
     assert_eq!(sink.rv2mbc, oracle(0, &d.image.rv2mbc));
+    assert!(sink.frozen);
 }
 
 #[test]
@@ -441,7 +447,7 @@ fn load_refused_by_either_gate_writes_nothing() {
         err,
         LoadError::Invalid(ValidationError::SurfaceObjectMismatch { .. })
     ));
-    assert!(sink.rom.is_empty() && sink.rv2mbc.is_empty());
+    assert!(sink.rom.is_empty() && sink.rv2mbc.is_empty() && !sink.frozen);
 
     let mut w = kernel_workload(&KERNELISH);
     w.mmu.as_mut().unwrap().slices.stride = 4 * MIB;
@@ -451,7 +457,7 @@ fn load_refused_by_either_gate_writes_nothing() {
         err,
         LoadError::Invalid(ValidationError::SliceOverlap { .. })
     ));
-    assert!(sink.rom.is_empty() && sink.rv2mbc.is_empty());
+    assert!(sink.rom.is_empty() && sink.rv2mbc.is_empty() && !sink.frozen);
 }
 
 // ── The surface id itself ────────────────────────────────────────────────────

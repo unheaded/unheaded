@@ -92,7 +92,7 @@ pub mod workload;
 // Headline re-exports for ergonomics — the contract's public face.
 pub use boot::BootProtocol;
 pub use image::{GuestImage, MbcPc, RvWordAddr};
-pub use load::{load, ImageSink, LoadError};
+pub use load::{finalize, load, write_image, ImageSink, LoadError};
 pub use memory::{MemRegion, MemoryModel, MmuLayout, SliceGeometry};
 pub use object::{ObjectFacts, ObjectFactsError};
 pub use registry::SurfaceRegistry;
