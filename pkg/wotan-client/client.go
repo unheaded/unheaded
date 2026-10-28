@@ -21,6 +21,7 @@ import (
 
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
+	"unheaded/pkg/wotanerr"
 	"unheaded/pkg/wotansig"
 )
 
@@ -978,8 +979,19 @@ func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeCha
 	}
 }
 
-// parseError extracts error details from response
+// parseError extracts error details from response. A Wotan that sends the
+// wotan-memory-03 structured code (X-Wotan-Error) has it attached: callers
+// reach it with errors.As(err, &code) where code is a *wotanerr.Code, and
+// errors.Is still matches the sentinel the body mapped to.
 func (c *Client) parseError(resp *http.Response) error {
+	err := c.parseErrorBody(resp)
+	if code, ok := wotanerr.FromHeader(resp.Header); ok {
+		return wotanerr.Wrap(err, *code)
+	}
+	return err
+}
+
+func (c *Client) parseErrorBody(resp *http.Response) error {
 	body, _ := io.ReadAll(resp.Body)
 
 	var errResp struct {

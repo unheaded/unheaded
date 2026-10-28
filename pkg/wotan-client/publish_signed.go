@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"unheaded/pkg/wotansig"
 	chatpb "unheaded/services/wotan/proto"
 )
@@ -62,8 +64,9 @@ func (gc *GRPCClient) PublishSigned(ctx context.Context, topic string, payload [
 		Algorithm:      sg.Algorithm,
 		SignedAtUnixMs: sg.SignedAtUnixMs,
 	}
-	if _, err := gc.client.PublishTopic(ctx, req); err != nil {
-		return fmt.Errorf("publish signed topic: %w", err)
+	var trailer metadata.MD
+	if _, err := gc.client.PublishTopic(ctx, req, grpc.Trailer(&trailer)); err != nil {
+		return fmt.Errorf("publish signed topic: %w", withTrailerCode(err, trailer))
 	}
 	return nil
 }

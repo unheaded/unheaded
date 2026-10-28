@@ -225,6 +225,20 @@ Detail:
 : 8-bit error detail code. Bits 7-0. Interpretation depends on the
   category.
 
+Implementation (S-TRUE-WIRE Step 145, `pkg/wotanerr`): Wotan
+carries the 32-bit code at its API boundary only: an HTTP error
+response carries it in the X-Wotan-Error header and a gRPC error in the
+x-wotan-error trailer, each as "0x" followed by eight hexadecimal
+digits (for example, X-Wotan-Error: 0x44010001 is [ERROR, GRPC, ACCESS,
+0x01], an unauthorized topic publish). Bits 15-8 are sent as zero.
+Internal operations and WAL entries do not carry the code. The codes
+emitted are the unauthorized-publish row of the gRPC Streaming Errors
+table and,
+under origin WOTAN_TOPIC, ACCESS_CONTROL 0x01 (topic API publish
+refused), PROTOCOL 0x01 (unknown topic endpoint), INTEGRITY 0x01
+(signature required), INTEGRITY 0x02 (signature invalid) and
+CONFIGURATION 0x01 (no verifier for a signed prefix).
+
 ## Helper Return Code Mapping
 
 BPF helper functions continue to return standard errno codes for
