@@ -8,7 +8,7 @@ Dependency tracking, license compliance and supply-chain scanning for Unheaded. 
 |-----------|----------|------------------|
 | Go modules | `go.mod` (list: `sbom/go-dependencies.json`, `LICENSES/sbom-go-modules.txt`) | MIT, Apache-2.0, BSD-3-Clause |
 | Rust crates | `ebpf/`, `crates/*/Cargo.toml` (`sbom/rust-dependencies.json`) | MIT, Apache-2.0 |
-| Python | `sbom/python-requirements.txt` (Zhen / RAFT tooling) | mixed permissive |
+| Python | `sbom/python-pip-freeze.txt` (Zhen / RAFT tooling) | mixed permissive |
 | System (libbpf, etc.) | — | LGPL-2.1, GPL-2.0 |
 
 There is no npm in the repo: the front ends are vanilla JS (ADR-006) and JS lint is oxlint.

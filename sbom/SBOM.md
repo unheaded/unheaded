@@ -118,7 +118,7 @@ unheaded-common, version-ebpf, xdp-redirect, yaldabaoth-ebpf
 ## Python Dependencies (108 packages)
 
 **Source:** `pip freeze` from `~/.venv/zhen/` virtual environment
-**Detail file:** `sbom/python-requirements.txt`
+**Detail file:** `sbom/python-pip-freeze.txt`
 
 ### Purpose
 

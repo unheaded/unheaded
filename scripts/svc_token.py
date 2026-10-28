@@ -12,7 +12,7 @@ pkg/auth mints (ADR-103 §2, §6), for scripts that call Wotan (run-runbook.py).
   unheaded-keygen writes it, refused when group or others can access it
 
 Ed25519 comes from the `cryptography` package (pinned in the Zhen venv,
-sbom/python-requirements.txt; Debian's python3-cryptography on the hosts).
+sbom/python-pip-freeze.txt; Debian's python3-cryptography on the hosts).
 It is imported only when a key is loaded, so a script that never mints
 never needs it. tests/svctoken/crosslang_test.go runs `mint` below and
 checks the token against pkg/auth.
