@@ -662,3 +662,15 @@ committed). Carried from S-TRUE-WIRE: E1-E8 there, including its E2 merge gate, 
 
 EVOLUTION-1 §D1 re-read and the Stage 2 skeleton say "DECIDED (a)"; master plan 1.6.4 notes it. The next UPC work
 is rung 0 (master plan 1.6.3) and forging the Stage 2 battle plan (1.6.4).
+
+## E3: observe, research, plan, safety net (2026-10-28)
+
+Plan: `docs/battle-plans/S-ASCEND-2-EAST-NODE-plan.md` (stages S0-S4, each starts on Stevie's go). Done:
+read-only observation of east (sole live link `enp2s0`, default route via west, `wg0` over it; no XDP; bpftool;
+passwordless sudo; chaos-controller active); `scripts/node-guard.sh`, a dead-man switch run as a transient systemd unit
+(peer-loss or lease expiry → kill lab processes, unpin, detach XDP by netlink and by link, verify), tested in the lab
+(link cut: remediated after 3 misses, ~8 s; lease expiry; disarm leaves work alone) and self-tested on east with a
+20 s lease and nothing attached (no misses, no-op remediation, removed after). The first lab run showed netlink cannot
+detach aya's link-based XDP, so killing the owner comes first. Wotan gained `-bind` (default unchanged), so a scratch
+Wotan can listen on 192.168.13.2 only (checked: both listeners on the given address). The Gjallarhorn XDP program
+returns XDP_PASS on every path. Open question in the plan: out-of-band access to east.

@@ -431,3 +431,24 @@ func TestUpdateCountGauges(t *testing.T) {
 		t.Errorf("members_pending = %v, want 1", got)
 	}
 }
+
+// S-ASCEND-2 E3: a scratch Wotan for the east node must listen on the P2P
+// address only, not on every interface. -bind defaults to "" (all, as before).
+func TestParseFlags_Bind(t *testing.T) {
+	if cfg := parseFlags(newTestFlagSet(), nil); cfg.BindAddr != "" {
+		t.Fatalf("default BindAddr = %q, want empty (all interfaces)", cfg.BindAddr)
+	}
+	cfg := parseFlags(newTestFlagSet(), []string{"-bind=192.168.13.2", "-http-port=26601", "-grpc-port=26602"})
+	if cfg.BindAddr != "192.168.13.2" {
+		t.Fatalf("BindAddr = %q", cfg.BindAddr)
+	}
+	if got := listenAddr(cfg.BindAddr, cfg.HTTPPort); got != "192.168.13.2:26601" {
+		t.Fatalf("http listen = %q", got)
+	}
+	if got := listenAddr("fd00:1ab::1", 26602); got != "[fd00:1ab::1]:26602" {
+		t.Fatalf("v6 listen = %q", got)
+	}
+	if got := listenAddr("", 18000); got != ":18000" {
+		t.Fatalf("all-interfaces listen = %q", got)
+	}
+}
