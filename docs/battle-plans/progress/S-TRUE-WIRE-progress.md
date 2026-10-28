@@ -329,3 +329,17 @@ targets:
 - Agent's full suite: one FAIL, `pkg/trace` `TestTraceID_TimestampMS` (untouched; 50/50 with -race alone: a 10 ms window
   under load). For develop: consider FND rows for the grimoire advisories and for golangci-lint (`ci.yml` `version:
   latest`, 60 issues); `scripts/vault-to-runway.py -p` publishes vLLM on every interface (noted, not changed).
+
+## Phase 11 (security and compliance review)
+
+- 382-383: gitleaks, secrets baseline, gosec ratchet, dependency baseline, SPDX, systemd units, runbooks, crypto inventory,
+  PQ KEX: nine PASS. 384-385: load gate 36 PASS, insns ratchet PASS, UPC ALL GREEN 926542/761580. 390-391: tidy 0,
+  tools fresh; `make license-check` failed on west (shell GOROOT 1.24 vs the go1.27.3 toolchain: every stdlib package
+  "has no module info"; pre-existing), fixed on develop `9cd6cc05` and merged (`a3a7f8cf`): passes. Whole-tree go test
+  237 ok, no FAIL.
+- Found while closing: the main CI workflow is disabled in GitHub since 2026-02-20 (FND-027 on develop); golangci-lint
+  v2.15.0 had 54 issues on develop and 6 more on the branch: all fixed (develop `ba25221f`; the branch's six unused
+  padding names in `bpfschema.MbcCpuState` became `_`), linter pinned in ci.yml. OpenSSF Scorecard failed on every run
+  from a dead `doom/doomgeneric` gitlink (develop `24ac1382`).
+- 392: zero-user-data sentences in the table. 394: FND-020 resolved with evidence on the branch (the ADR-098 report now
+  says "remove from the register"); FND-025 open. 395 held open by E8.
