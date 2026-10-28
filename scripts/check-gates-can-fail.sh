@@ -994,6 +994,7 @@ lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs, Jenk
 apt-repo|keeps the signed apt repo on west (runbooks/deploy/apt-repo-publish.yaml, Jenkinsfile); its refusals and signatures are proven by tests/apt/apt_repo_test.sh (security.yml)
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
 lib/fetch-tool|library sourced by ci-install-tools and the check-* scripts (download once, sha256 on every use); no verdict of its own
+lib/tool-pins|version, sha256 and digest pins sourced by lib/fetch-tool, the check-* scripts and security.yml's trivy step; no verdict of its own (check-tool-freshness is the gate on it)
 verify-release|verifies a published release by tag (needs the network and a real release); its pass/fail contract is proven offline by tests/release/verify_release_test.sh (CI job release-verify)
 well/make-tls|makes TLS material outside the repo; exercised by well/test-config, no verdict of its own
 db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); its refusals and the set it writes are proven by well/test-backup-restore
