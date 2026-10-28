@@ -120,82 +120,82 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Environment and helpers
 
-- [ ] **Step 1** [ENV][B] ~2m: Branch, worktree, sprint scratch dir, sprint log
+- [x] **Step 1** *(branch cut from sprint/true-wire 31346cbf in the built worktree, not develop: the M-184 ratchet lives there; rebase if E2 reverts)* [ENV][B] ~2m: Branch, worktree, sprint scratch dir, sprint log
   ```bash
   cd ~/tmp/unheaded && git checkout develop && git pull --ff-only 2>/dev/null; git checkout -b sprint/ascend-2 && mkdir -p "$HOME/tmp/s-ascend-2" && \
   printf '# S-ASCEND-2 sprint log\n\nStarted 2026-%s on %s\n\n## Baselines\n' "$(date +%m-%d)" "$(git rev-parse --short HEAD)" > references/s-ascend-2-log.md && git status --short | head -3
   ```
-- [ ] **Step 2** [ENV][B] ~1m: Source the S5 helpers (`PROJECT_ROOT`, `EBPF`, `UP`, `K`, `BC`, `DR`, `kbuild`, `ubuild`, `sweep`, `commitp`) and add this sprint's names. Put this in every new shell.
+- [x] **Step 2** [ENV][B] ~1m: Source the S5 helpers (`PROJECT_ROOT`, `EBPF`, `UP`, `K`, `BC`, `DR`, `kbuild`, `ubuild`, `sweep`, `commitp`) and add this sprint's names. Put this in every new shell.
   ```bash
   cd "$(git rev-parse --show-toplevel)" && source <(sed -n '/^export PROJECT_ROOT/,/^commitp/p' docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md) && \
   export S6="$HOME/tmp/s-ascend-2" GOLD="$HOME/tmp/golden" LOG="$PROJECT_ROOT/references/s-ascend-2-log.md" && type kbuild ubuild sweep commitp | grep -c 'is a function'
   ```
-- [ ] **Step 3** [V] ~30s: Prints `4`. Missing → the S5 plan's Phase 0 block moved: `grep -n '^export PROJECT_ROOT' docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md` and fix the `sed` range; two attempts then STOP (every later step uses these names).
-- [ ] **Step 4** [ENV][B] ~2m: Toolchain presence
+- [x] **Step 3** [V] ~30s: Prints `4`. Missing → the S5 plan's Phase 0 block moved: `grep -n '^export PROJECT_ROOT' docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md` and fix the `sed` range; two attempts then STOP (every later step uses these names).
+- [x] **Step 4** [ENV][B] ~2m: Toolchain presence
   ```bash
   for t in riscv64-unknown-elf-gcc cargo rustup bpftool ip nft jq python3 go sudo; do command -v "$t" >/dev/null && echo "$t: OK" || echo "$t: MISSING"; done; rustup target list --installed | grep -c bpfel-unknown-none; go version; test -d "$GOLD" && ls "$GOLD" | wc -l || echo "GOLD MISSING"
   ```
-- [ ] **Step 5** [V] ~30s: No `MISSING`, bpfel target count ≥ 1, `$GOLD` holds 12 goldens. `GOLD MISSING` → recapture per `references/phase24-t1-2026-07-07.md` §"Golden recapture" from this HEAD before anything else (the goldens are the equivalence oracle; without them no kernel step may proceed).
-- [ ] **Step 6** [ENV][B] ~1m: Signing probe (sets the commit flag for the whole sprint)
+- [x] **Step 5** [V] ~30s: No `MISSING`, bpfel target count ≥ 1, `$GOLD` holds 12 goldens. `GOLD MISSING` → recapture per `references/phase24-t1-2026-07-07.md` §"Golden recapture" from this HEAD before anything else (the goldens are the equivalence oracle; without them no kernel step may proceed).
+- [x] **Step 6** [ENV][B] ~1m: Signing probe (sets the commit flag for the whole sprint)
   ```bash
   cd "$PROJECT_ROOT" && if git commit-tree -S -m probe "$(git rev-parse HEAD^{tree})" >/dev/null 2>&1; then echo "GPG: signing works"; else echo "GPG: not cached -> commitp uses --no-gpg-sign"; fi
   ```
 
 ### Known failures baseline
 
-- [ ] **Step 7** [BUILD][B] ~3m: Go and Rust build baselines
+- [x] **Step 7** [BUILD][B] ~3m: Go and Rust build baselines
   ```bash
   cd "$PROJECT_ROOT" && go build ./... && echo GO-BUILD-OK && go mod tidy -diff | head -3 && (cd crates/monad-mbc && cargo build --release 2>&1 | tail -1) && (cd cmd/upc-bootctl && cargo build --release 2>&1 | tail -1) && (cd crates/doom-runner && cargo build --release 2>&1 | tail -1)
   ```
-- [ ] **Step 8** [TEST][B] ~12m: Go test baseline into the log (the KNOWN FAILURES BASELINE)
+- [x] **Step 8** [TEST][B] ~12m: Go test baseline into the log (the KNOWN FAILURES BASELINE)
   ```bash
   cd "$PROJECT_ROOT" && go test ./... 2>&1 | grep -E '^(FAIL|ok|---)' | grep -v '^ok' | tee "$S6/p0-go-fail.txt" | tail -10; printf '\n- go test failures at start: %s lines (file p0-go-fail.txt)\n' "$(wc -l < "$S6/p0-go-fail.txt")" >> "$LOG"
   ```
-- [ ] **Step 9** [BUILD][B][S] ~6m: Kernel + userland build, full golden sweep
+- [x] **Step 9** [BUILD][B][S] ~6m: Kernel + userland build, full golden sweep
   ```bash
   kbuild >/dev/null 2>&1; ubuild >/dev/null 2>&1; sweep | tee "$S6/p0-sweep.txt" | grep -cE 'SAME'
   ```
-- [ ] **Step 10** [V] ~30s: Prints `12` (12/12 SAME). Fewer → the tree is not the golden tree: `git status --short` must be empty and `git log -1` must be at/after `a7fe3acd`; otherwise STOP.
-- [ ] **Step 11** [TEST][B][S] ~8m: Regression harness with budgets
+- [x] **Step 10** *(8/8 SAME: the S5 sweep checks 8 golden sets; blank/multi/nosuch/uinit_echo are checked by upc-regression.sh, which passed)* [V] ~30s: Prints `12` (12/12 SAME). Fewer → the tree is not the golden tree: `git status --short` must be empty and `git log -1` must be at/after `a7fe3acd`; otherwise STOP.
+- [x] **Step 11** [TEST][B][S] ~8m: Regression harness with budgets
   ```bash
   bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tee "$S6/p0-regression.log" | grep -aE 'PASS|FAIL|verifier'
   ```
-- [ ] **Step 12** [V] ~1m: Zero `FAIL`; `ascend verifier: verified 926542 insns`; `Doom verifier: verified 761580 insns`; cartridge gates under 500,000. Record all three in `$LOG` under Baselines. Different numbers but all PASS → record the new baseline with the toolchain versions (`rustc -V`, `cargo -V`) and continue; any FAIL → STOP (S-CLEAN-SLATE's gate was supposed to leave this green).
-- [ ] **Step 13** [TEST][B][S] ~3m: KF1 reproduced (gate_nway)
+- [x] **Step 12** [V] ~1m: Zero `FAIL`; `ascend verifier: verified 926542 insns`; `Doom verifier: verified 761580 insns`; cartridge gates under 500,000. Record all three in `$LOG` under Baselines. Different numbers but all PASS → record the new baseline with the toolchain versions (`rustc -V`, `cargo -V`) and continue; any FAIL → STOP (S-CLEAN-SLATE's gate was supposed to leave this green).
+- [x] **Step 13** [TEST][B][S] ~3m: KF1 reproduced (gate_nway)
   ```bash
   (cd "$UP" && make -f ../adapters/Makefile.mbc-userland target/gate_nway.mbc 2>&1 | tail -1); out="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" --userland "$K/gate_nway.mbc" --triggers 1500000 --instance 111 2>&1)"; printf '%s\n' "$out" > "$S6/p0-nway.txt"; grep -aoE 'NWAY-(ok|FAIL)[^\n]{0,8}' <<<"$out" | sort | uniq -c
   ```
-- [ ] **Step 14** [V] ~30s: At least one `NWAY-FAIL` (KF1 stands) — record the exact counts (`ok` per pid, `FAIL` count) in `$LOG`. If 3× `NWAY-ok` and 0 FAIL: KF1 has silently healed; record it, mark Steps 67-80 as "verify only" and keep the harness-gating steps 85-94.
+- [x] **Step 14** [V] ~30s: At least one `NWAY-FAIL` (KF1 stands) — record the exact counts (`ok` per pid, `FAIL` count) in `$LOG`. If 3× `NWAY-ok` and 0 FAIL: KF1 has silently healed; record it, mark Steps 67-80 as "verify only" and keep the harness-gating steps 85-94.
 
 ### Hypotheses (one [PREFLIGHT] per SITUATION claim)
 
-- [ ] **Step 15** [PREFLIGHT][B] ~1m: H1 flag + probe; H2 loader gates clause; H3 freeze callers; H4 HMAC literal; H5 SHA gate env-only
+- [x] **Step 15** [PREFLIGHT][B] ~1m: H1 flag + probe; H2 loader gates clause; H3 freeze callers; H4 HMAC literal; H5 SHA gate env-only
   ```bash
   cd "$PROJECT_ROOT" && grep -n 'const GETPID_INJECT' ebpf/monad-cpu-ebpf/src/main.rs; ls crates/xv6-mbc/upstream/user/getpidprobe.c; grep -n 'named in the docs but not performed' crates/upc-api/src/workload.rs; grep -rn 'NewLoadSequence(' --include=*.go . | grep -vc _test; grep -rn 'unheaded-doom-secret' --include=*.go cmd | wc -l; grep -n 'UPC_RV2MBC_SHA' cmd/upc-bootctl/src/main.rs | head -2; grep -n 'BOOT_VERSION' cmd/upc-bootctl/src/bootparams.rs | head -1
   ```
-- [ ] **Step 16** [V] ~30s: H1 `= false` + probe exists; H2 clause present; H3 non-test callers `0`; H4 `2`; H5 env-gated line present; `BOOT_VERSION: u32 = 2`. Any mismatch → that SITUATION line is stale: re-read the code path, amend SITUATION and the affected steps before continuing (Marshal: plan follows reality).
-- [ ] **Step 17** [PREFLIGHT][B] ~1m: H6 bootctl creates netns itself (needs root); H7 no seccomp/demo gate; H8 flow-label instance unvalidated; H9 no upc sysuser/unit/nft rule
+- [x] **Step 16** [V] ~30s: H1 `= false` + probe exists; H2 clause present; H3 non-test callers `0`; H4 `2`; H5 env-gated line present; `BOOT_VERSION: u32 = 2`. Any mismatch → that SITUATION line is stale: re-read the code path, amend SITUATION and the affected steps before continuing (Marshal: plan follows reality).
+- [x] **Step 17** [PREFLIGHT][B] ~1m: H6 bootctl creates netns itself (needs root); H7 no seccomp/demo gate; H8 flow-label instance unvalidated; H9 no upc sysuser/unit/nft rule
   ```bash
   cd "$PROJECT_ROOT" && grep -nE '"netns", "add"|Command::new\("ip"\)' cmd/upc-bootctl/src/netns.rs | head -3; grep -rnE 'UPC_DEMO_MODE|seccomp|SystemCallFilter' cmd/upc-bootctl deploy/systemd 2>/dev/null | wc -l; sed -n '644,650p' ebpf/monad-cpu-ebpf/src/main.rs | grep -n 'flow_label & 0xFF'; grep -c 'unheaded-upc' deploy/sysusers.d/unheaded.conf; ls deploy/systemd | grep -c upc; grep -rn 'veth-upc0p' deploy/nftables scripts/host 2>/dev/null | wc -l
   ```
-- [ ] **Step 18** [V] ~30s: netns lines present; `0` seccomp/demo hits; `flow_label & 0xFF` present; `0` sysuser, `0` units, `0` nft hits. Mismatch → amend as in Step 16.
-- [ ] **Step 19** [PREFLIGHT][B] ~1m: H10 T_DEVICE unhandled; H11 riscv.h uint64 helpers; H12 ADR-043 claim; H13 "Unheaded Linux" count; H14 bootstub crate present
+- [x] **Step 18** [V] ~30s: netns lines present; `0` seccomp/demo hits; `flow_label & 0xFF` present; `0` sysuser, `0` units, `0` nft hits. Mismatch → amend as in Step 16.
+- [x] **Step 19** [PREFLIGHT][B] ~1m: H10 T_DEVICE unhandled; H11 riscv.h uint64 helpers; H12 ADR-043 claim; H13 "Unheaded Linux" count; H14 bootstub crate present
   ```bash
   cd "$PROJECT_ROOT" && grep -rn 'T_DEVICE' crates/xv6-mbc/adapters/*.c ebpf/monad-cpu-ebpf/src/main.rs | grep -vi 'define' | wc -l; grep -c 'static inline uint64' crates/xv6-mbc/upstream/kernel/riscv.h; grep -n 'typedef unsigned long uint64' crates/xv6-mbc/upstream/kernel/types.h; grep -c '13 phases shipped' docs/adr/ADR-043*.md; grep -rl 'Unheaded Linux' docs wiki CLAUDE.md README.md | wc -l; ls crates/upc-bootstub/Cargo.toml
   ```
-- [ ] **Step 20** [V] ~30s: T_DEVICE handled `0` (or only in a define); uint64 helper count ≥ 10; typedef present; ADR-043 `1`; "Unheaded Linux" `13`±2; bootstub present. Mismatch → amend.
-- [ ] **Step 21** [PREFLIGHT][LIVE-RO][B] ~2m: East reachability and west UPC leftovers (read-only)
+- [x] **Step 20** *(H10 amended: usysfile.c handles T_DEVICE in sys_open; the BPF open path does not)* [V] ~30s: T_DEVICE handled `0` (or only in a define); uint64 helper count ≥ 10; typedef present; ADR-043 `1`; "Unheaded Linux" `13`±2; bootstub present. Mismatch → amend.
+- [x] **Step 21** [PREFLIGHT][LIVE-RO][B] ~2m: East reachability and west UPC leftovers (read-only)
   ```bash
   ssh -o ConnectTimeout=5 east 'hostname; uptime -p; ip -br link show enp2s0' 2>&1 | head -3; sudo bpftool prog show 2>/dev/null | grep -ciE 'monad|cart|heimdall' ; ip netns list | grep -c upc0; sudo nft list ruleset 2>/dev/null | grep -c veth-upc0p
   ```
-- [ ] **Step 22** [V] ~30s: Record east up/down in `$LOG` (E3 context). West: `0` UPC programs attached, `0` or `1` `upc0` netns (the harness tears down; `1` means a leftover: `sudo ip netns del upc0` after confirming no bootctl runs), `0` nft hits.
-- [ ] **Step 23** [PREFLIGHT][B] ~2m: Cartridge live-leg surfaces exist (H15)
+- [x] **Step 22** [V] ~30s: Record east up/down in `$LOG` (E3 context). West: `0` UPC programs attached, `0` or `1` `upc0` netns (the harness tears down; `1` means a leftover: `sudo ip netns del upc0` after confirming no bootctl runs), `0` nft hits.
+- [x] **Step 23** [PREFLIGHT][B] ~2m: Cartridge live-leg surfaces exist (H15)
   ```bash
   cd "$PROJECT_ROOT" && go run ./cmd/anomaly --help 2>&1 | grep -E '^\s+-wotan' | head -1; go run ./cmd/upc-cartridgectl --help 2>&1 | grep -E 'sophia' | head -2; ls cartridges/scorer.model.json cartridges/scorer.data.bin; ls cmd/steel-echo/load.go
   ```
-- [ ] **Step 24** [V] ~30s: `-wotan` and `--sophia` flags present; scorer files and `steel-echo` present. Missing → the master list's M-229 premise is wrong; amend and re-scope Phase 9.
-- [ ] **Step 25** [W] ~5m: Write the Baselines + Hypotheses table into `$LOG` (budgets, KF1 counts, H1-H15 verdicts, east state, GPG state) and the KF table: `KF1 gate_nway NWAY-FAIL`.
-- [ ] **Step 26** [V][C] ~2m: **PHASE 0 EXIT GATE** — Steps 10, 12 green; KF1 reproduced or recorded healed; H1-H15 all match or SITUATION amended; log committed.
+- [x] **Step 24** [V] ~30s: `-wotan` and `--sophia` flags present; scorer files and `steel-echo` present. Missing → the master list's M-229 premise is wrong; amend and re-scope Phase 9.
+- [x] **Step 25** [W] ~5m: Write the Baselines + Hypotheses table into `$LOG` (budgets, KF1 counts, H1-H15 verdicts, east state, GPG state) and the KF table: `KF1 gate_nway NWAY-FAIL`.
+- [x] **Step 26** [V][C] ~2m: **PHASE 0 EXIT GATE** — Steps 10, 12 green; KF1 reproduced or recorded healed; H1-H15 all match or SITUATION amended; log committed.
   ```bash
   cd "$PROJECT_ROOT" && git add references/s-ascend-2-log.md docs/battle-plans/S-ASCEND-2-battle-plan.md && commitp -m "docs(upc): [S-ASCEND-2 1-26] preflight baseline, hypotheses, KF table"
   ```
