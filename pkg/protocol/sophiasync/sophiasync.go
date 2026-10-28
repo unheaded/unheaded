@@ -482,7 +482,7 @@ func encodeDelta(delta *DictionaryDelta) ([]byte, error) {
 	buf = append(buf, delta.Signature...)
 	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.PublicKey))) // #nosec G115 -- bounded by the length of an already-allocated slice
 	buf = append(buf, delta.PublicKey...)
-	buf = append(buf, byte(len(delta.Algorithm)))
+	buf = append(buf, byte(len(delta.Algorithm))) // #nosec G115 -- at most 255, refused above
 	buf = append(buf, delta.Algorithm...)
 	buf = binary.BigEndian.AppendUint64(buf, uint64(delta.SignedAtUnixMs)) // #nosec G115 -- two's-complement round trip, decoded as int64
 	return buf, nil
@@ -554,7 +554,7 @@ func (r *reader) lenPrefixed(limit int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if uint64(n) > uint64(limit) {
+	if int64(n) > int64(limit) {
 		return nil, fmt.Errorf("sophiasync: length %d over the limit %d", n, limit)
 	}
 	return r.take(int(n))
@@ -579,7 +579,7 @@ func DecodeDelta(b []byte) (*DictionaryDelta, error) {
 	if err != nil {
 		return nil, err
 	}
-	if uint64(nAdd)*8 > uint64(r.remaining()) { // each addition is at least 8 bytes
+	if int64(nAdd)*8 > int64(r.remaining()) { // each addition is at least 8 bytes
 		return nil, errTruncated
 	}
 	if nAdd > 0 {
@@ -601,7 +601,7 @@ func DecodeDelta(b []byte) (*DictionaryDelta, error) {
 	if err != nil {
 		return nil, err
 	}
-	if uint64(nRem)*4 > uint64(r.remaining()) {
+	if int64(nRem)*4 > int64(r.remaining()) {
 		return nil, errTruncated
 	}
 	if nRem > 0 {

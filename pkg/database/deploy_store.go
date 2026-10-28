@@ -14,10 +14,10 @@ import (
 	"github.com/lib/pq"
 )
 
-// ErrNotFound: no row with that id.
+// ErrNotFound means no row has that id.
 var ErrNotFound = errors.New("not found")
 
-// ErrDuplicate: a row with that id already exists. The deploy and chaos
+// ErrDuplicate means a row with that id already exists. The deploy and chaos
 // tables are append-only, so a second write of the same id is refused,
 // never merged.
 var ErrDuplicate = errors.New("already recorded")

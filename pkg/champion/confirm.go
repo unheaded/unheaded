@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// ErrConfirmerNotAllowed: the confirming principal may not confirm for
+// ErrConfirmerNotAllowed means the confirming principal may not confirm for
 // the principal that requested the call (RT-03, confirmerAllowed).
 var ErrConfirmerNotAllowed = errors.New("confirmation refused")
 

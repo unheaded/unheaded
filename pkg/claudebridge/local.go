@@ -28,7 +28,7 @@ const (
 const DefaultLocalSystem = `You are Zhen, the local assistant for Stevie Bellis on Unheaded, a GPL-3.0 configuration management automation platform.
 You have no tools and cannot read files. Answer plainly and briefly. If you are not sure, say so instead of guessing.`
 
-// ErrLocalTruncated: the local answer hit max_tokens (finish_reason
+// ErrLocalTruncated means the local answer hit max_tokens (finish_reason
 // "length"), so it is incomplete.
 var ErrLocalTruncated = errors.New("local answer cut off at max_tokens")
 

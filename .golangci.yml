@@ -82,10 +82,10 @@ linters:
         - "all"
         - "-ST1000"  # Package comments — handle in Age 2 docs pass
         - "-ST1003"  # Naming conventions — defer to style pass
-        - "-ST1016"  # Method receiver names — style preference
-        - "-ST1020"  # Comment style — docs pass
-        - "-ST1021"  # Comment style — docs pass
-        - "-ST1022"  # Comment style — docs pass
+        # ST1016 (receiver names) and ST1020-ST1022 (doc comments name what
+        # they document) are enforced since 2026-10-28 (S-TRUE-WIRE Step 371):
+        # 39 findings, under the plan's 50 threshold, so fixed rather than
+        # ratcheted. One remains excluded by path below (cmd/doom-bridge).
 
     gosec:
       # Exclude rules that conflict with our architecture
@@ -96,13 +96,11 @@ linters:
                 # — false positive on Config.Password type fields
                 # (legitimate naming for credentials struct in
                 # pkg/database/config.go and similar).
-        - G115  # Integer overflow conversion (int -> uint32, etc.) —
-                # heuristic produces ~410 false positives on protocol-field
-                # marshalling, ELF/CPIO header writes, and len()→uint
-                # idioms. Real overflow risks are caught by govet `unusedwrite`
-                # and bounds checks at protocol boundaries. Re-enable in Age 4
-                # if/when we add per-conversion `//nosec G115 -- justification`
-                # comments at the protocol marshal sites.
+        # G115 (integer overflow conversion) is no longer excluded
+        # (S-TRUE-WIRE Step 371). security.yml's standalone gosec, which runs
+        # every rule with no exclusions, already held it at 0: each site is
+        # fixed or carries a leading `// #nosec G115 -- reason`. A new
+        # conversion needs the same.
         - G404  # Weak random number generator — math/rand is intentionally
                 # used for load-balancer algorithms (round-robin jitter) and
                 # service-discovery TTL randomization, where crypto/rand would
@@ -165,6 +163,15 @@ linters:
         linters:
           - gosec
         text: "G201:"
+
+      # cmd/doom-bridge/bpf.go's type-alias comment (ST1021) is the one
+      # doc-comment finding left when ST1020-ST1022 were enabled
+      # (S-TRUE-WIRE Step 371): Doom work is the lowest-priority track and
+      # was out of that change's scope. Fix the comment and drop this rule
+      # the next time cmd/doom-bridge is touched.
+      - path: cmd/doom-bridge/
+        linters: [staticcheck]
+        text: "ST1021:"
 
       # cmd/lich-security is the offensive-security campaign runner —
       # the WHOLE POINT of these campaigns is to test broken/insecure

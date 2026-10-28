@@ -31,7 +31,7 @@ type SnapshotStore interface {
 // runbook calls write_file.
 const MaxWriteBytes = 1 << 20
 
-// ErrWriteTooLarge: the content is over MaxWriteBytes; nothing was written.
+// ErrWriteTooLarge means the content is over MaxWriteBytes; nothing was written.
 var ErrWriteTooLarge = errors.New("write exceeds the size cap")
 
 // WriteFile writes content to a file within the sandbox.

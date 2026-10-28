@@ -247,7 +247,7 @@ type InstanceInfo struct {
 	HostVeth string // host-side veth of the bridged NIC (Phase 11 netem)
 }
 
-// ErrInstanceNotFound: Cuirass reports no such instance.
+// ErrInstanceNotFound means Cuirass reports no such instance.
 var ErrInstanceNotFound = errors.New("no such instance")
 
 // Resolver looks LXD instances up (Cuirass, resolver.go).

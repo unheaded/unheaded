@@ -17,6 +17,7 @@ import (
 )
 
 // ── TraceEntry ──────────────────────────────────────────────────────────────
+
 // TraceEntry matches the BPF TRACE_MAP entry layout written by packet_marker.
 // Size: 16 + 8 + 16 + 16 + 2 + 2 + 1 + 1 + 2 + 1 + 3 = 68 bytes.
 type TraceEntry struct {
@@ -121,6 +122,7 @@ func (te *TraceEntry) FiveTuple() FiveTuple {
 }
 
 // ── StatsEntry ──────────────────────────────────────────────────────────────
+
 // StatsEntry matches the BPF STATS map layout from packet_marker.
 type StatsEntry struct {
 	PacketsTotal  uint64 // Total packets seen
@@ -148,6 +150,7 @@ func DecodeStatsEntry(b []byte) (*StatsEntry, error) {
 }
 
 // ── FiveTuple ───────────────────────────────────────────────────────────────
+
 // FiveTuple is a connection identifier used as a map key for flow correlation.
 type FiveTuple struct {
 	SrcIP    [16]byte

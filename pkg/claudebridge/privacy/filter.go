@@ -60,7 +60,7 @@ type Outcome struct {
 	Mode               Mode
 }
 
-// ErrStrictWithheld: strict mode withholds every T1 result.
+// ErrStrictWithheld means strict mode withholds every T1 result.
 var ErrStrictWithheld = errors.New("withheld: kingdom ops data (privacy mode strict)")
 
 func (f *Filter) mode() Mode {

@@ -13,7 +13,7 @@ import (
 // HybridStoreType for the factory.
 const HybridStoreType StoreType = "hybrid"
 
-// HybridStore combines WAL (speed) + PostgreSQL (durability).
+// NewHybridStore returns a store that combines WAL (speed) + PostgreSQL (durability).
 // Writes go to WAL first (fast), then async flush to PG.
 // Reads check WAL hot cache first, fall back to PG.
 // This is the recommended production configuration.

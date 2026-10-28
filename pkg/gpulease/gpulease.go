@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-// ErrTimeout: the lease was not granted in time.
+// ErrTimeout means the lease was not granted in time.
 var ErrTimeout = errors.New("gpu lease: not granted in time (the GPU is held by a model swap or a training run)")
 
 // DefaultPath is $GPU_LOCK, else $XDG_RUNTIME_DIR/unheaded/gpu.lock, else
