@@ -643,45 +643,45 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### Escalate first, prepare the fallback regardless
 
-- [ ] **Step 205** [ESCALATE] ~—: **E3 — east as a node.** Context: S5 Steps 177 and 435 (quoted in Appendix C), east state from Step 22. Questions: (1) approve Step 177: heimdall-daemon as root from `/tmp` on east, XDP **generic** on `enp2s0` (east's only link; observe-only `XDP_PASS`), scratch Wotan on west bound to `192.168.13.2`? (2) approve Step 435: scratch Wotan reachable from east over the P2P link, `upc-cartridgectl` + `cartridge-ebpf` as root on east from `/tmp`, removed at phase end? (3) or drop Phase 18 for good (card Epic 1.5.6)? Why no recommendation: east runs the debs; host actions there are Stevie's. **Until answered: Steps 206-232 run the two-netns fallback; Steps 233-238 are the east column.**
-- [ ] **Step 206** [W][CODE] ~20m: `scripts/upc-netns.sh` grows `up2` / `down2`: a second netns `upc1` with `veth-upc1`/`veth-upc1p`, both inner veths on one host bridge `br-upc` so link-local multicast crosses between them (`ip link add br-upc type bridge`, enslave the host ends, `ip link set br-upc up`); the forward-drop rule covers `veth-upc1p` too. Idempotent; `status` prints both.
-- [ ] **Step 207** [TEST][B][S] ~3m: Bring both up; multicast crosses the bridge
+- [x] **Step 205** *(filed, log §Phase 8)* [ESCALATE] ~—: **E3 — east as a node.** Context: S5 Steps 177 and 435 (quoted in Appendix C), east state from Step 22. Questions: (1) approve Step 177: heimdall-daemon as root from `/tmp` on east, XDP **generic** on `enp2s0` (east's only link; observe-only `XDP_PASS`), scratch Wotan on west bound to `192.168.13.2`? (2) approve Step 435: scratch Wotan reachable from east over the P2P link, `upc-cartridgectl` + `cartridge-ebpf` as root on east from `/tmp`, removed at phase end? (3) or drop Phase 18 for good (card Epic 1.5.6)? Why no recommendation: east runs the debs; host actions there are Stevie's. **Until answered: Steps 206-232 run the two-netns fallback; Steps 233-238 are the east column.**
+- [x] **Step 206** *(separate `scripts/lab-two-node.sh`: bridge in a lab-hub netns, root namespace untouched)* [W][CODE] ~20m: `scripts/upc-netns.sh` grows `up2` / `down2`: a second netns `upc1` with `veth-upc1`/`veth-upc1p`, both inner veths on one host bridge `br-upc` so link-local multicast crosses between them (`ip link add br-upc type bridge`, enslave the host ends, `ip link set br-upc up`); the forward-drop rule covers `veth-upc1p` too. Idempotent; `status` prints both.
+- [x] **Step 207** [TEST][B][S] ~3m: Bring both up; multicast crosses the bridge
   ```bash
   sudo bash "$PROJECT_ROOT/scripts/upc-netns.sh" up2 && sudo ip netns exec upc1 ping -6 -c 2 -W 1 -I veth-upc1p ff02::1 2>&1 | grep -oE '[0-9]+ received' | head -1; sudo ip netns exec upc0 ip -6 maddr show dev veth-upc0p | grep -c 'ff02::1'
   ```
-- [ ] **Step 208** [V] ~30s: `≥1 received` (the other netns answers all-nodes multicast); maddr lists `ff02::1`. `0 received` → bridge multicast snooping: `sudo ip link set br-upc type bridge mcast_snooping 0`, retry; two attempts then STUCK the multicast steps (209-214) and run bootstrap over unicast with the topology note.
+- [x] **Step 208** *(ping ff02::1 from lab-a: 2 received)* [V] ~30s: `≥1 received` (the other netns answers all-nodes multicast); maddr lists `ff02::1`. `0 received` → bridge multicast snooping: `sudo ip link set br-upc type bridge mcast_snooping 0`, retry; two attempts then STUCK the multicast steps (209-214) and run bootstrap over unicast with the topology note.
 
 ### Mímir Phase 9: bootstrap over multicast (M-204)
 
-- [ ] **Step 209** [B] ~5m: Build the pieces; lab key (0600, under `$S6`, never in the repo); seal the example manifest; scratch Wotan with a lab topic config
+- [x] **Step 209** *(lab keys via unheaded-keygen -algo mldsa65 in ~/tmp/s-ascend-2/p8)* [B] ~5m: Build the pieces; lab key (0600, under `$S6`, never in the repo); seal the example manifest; scratch Wotan with a lab topic config
   ```bash
   cd "$PROJECT_ROOT" && go build -o "$S6/heimdall-daemon" ./cmd/heimdall-daemon && go build -o "$S6/gjallarhorn-sender" ./cmd/gjallarhorn-sender && go build -o "$S6/gjallarhorn-listener" ./cmd/gjallarhorn-listener && go build -o "$S6/wotan" ./services/wotan/cmd/wotan 2>/dev/null || go build -o "$S6/wotan" ./cmd/wotan; mkdir -p "$S6/catalog" && cp references/baseline/mjolnir.example.yaml "$S6/catalog/m.yaml" && "$S6/heimdall-daemon" --help 2>&1 | grep -cE 'await-bootstrap|sign-key|xdp-iface'
   ```
-- [ ] **Step 210** [V] ~30s: Three binaries built; help lists the flags (count ≥ 2; `await-bootstrap` may be named differently: `grep -n 'await' cmd/heimdall-daemon/main.go | head -2` and use that name below).
-- [ ] **Step 211** [B][S] ~10m: Seal + seed in `upc1`, sender in `upc0`, scratch Wotan on the host side of the bridge (loopback is not reachable from a netns: bind it to `br-upc`'s address `fd00:upc::1`)
+- [x] **Step 210** *(no await-bootstrap flag exists; see log)* [V] ~30s: Three binaries built; help lists the flags (count ≥ 2; `await-bootstrap` may be named differently: `grep -n 'await' cmd/heimdall-daemon/main.go | head -2` and use that name below).
+- [x] **Step 211** *(Wotan in lab-hub on [fd00:1ab::1]:26601/26602; lab config in scratch, not committed)* [B][S] ~10m: Seal + seed in `upc1`, sender in `upc0`, scratch Wotan on the host side of the bridge (loopback is not reachable from a netns: bind it to `br-upc`'s address `fd00:upc::1`)
   ```bash
   "$S6/heimdall-daemon" --manifest "$S6/catalog/m.yaml" --sign-key "$S6/lab.seed" --sign-ttl 2h 2>&1 | tail -1; ls -la "$S6/catalog/m.yaml.seal"; (cd "$S6" && WOTAN_TOPIC_CONFIG="$PROJECT_ROOT/configs/wotan-lab.yaml" nohup ./wotan --http "[fd00:upc::1]:26601" --grpc "[fd00:upc::1]:26602" >"$S6/wotan.log" 2>&1 &) ; sleep 2; curl -s "http://[fd00:upc::1]:26601/health" | head -c 80; echo
   ```
   (Check `configs/` for a lab topic config that auto-approves `heimdall`/`gjallarhorn`; if none, write `configs/wotan-lab.yaml` from the existing `wotan.yaml` with `topics.auto_approve` extended, and commit it as a lab config with no secrets.)
-- [ ] **Step 212** [B][S] ~10m: Seed awaits bootstrap in `upc1` (XDP generic on `veth-upc1p`); sender emits the horn from `upc0`; time to "seed operational" ×7
+- [x] **Step 212** *(horn send-to-classified timing, not 'seed operational')* [B][S] ~10m: Seed awaits bootstrap in `upc1` (XDP generic on `veth-upc1p`); sender emits the horn from `upc0`; time to "seed operational" ×7
   ```bash
   sudo ip netns exec upc1 env HOME="$S6" "$S6/heimdall-daemon" --manifest "$S6/catalog/m.yaml" --pubkey "$S6/lab.pub" --bpf-dir "$PROJECT_ROOT/crates/heimdall-bpf/target/bpfel-unknown-none/release" --xdp-iface veth-upc1p --xdp-mode generic --wotan-grpc "[fd00:upc::1]:26602" --node-id seed-netns1 >"$S6/seed.log" 2>&1 & sleep 3
   for i in $(seq 1 7); do t0=$(date +%s%N); sudo ip netns exec upc0 "$S6/gjallarhorn-sender" --iface veth-upc0p --manifest-sha "$(sha256sum "$S6/catalog/m.yaml" | cut -c1-64)" >/dev/null 2>&1; until grep -q 'bootstrap.*complete\|operational' "$S6/seed.log"; do sleep 0.2; [ $(( ($(date +%s%N)-t0)/1000000000 )) -gt 60 ] && break; done; echo "run $i: $(( ($(date +%s%N)-t0)/1000000 )) ms"; done | tee "$S6/p8-bootstrap-times.txt"
   ```
   (Flag names from `--help` in Step 210; the seed's log token from `grep -n 'operational\|bootstrap' cmd/heimdall-daemon/main.go | head -3`. Reset the seed's bootstrap state between runs if it only bootstraps once: restart the daemon inside the loop.)
-- [ ] **Step 213** [V] ~1m: **K2** — p95 of the 7 runs < 10 s (pass), 10-15 s warn, p99 > 30 s FAIL recorded. Record p50/p95/p99 in `$LOG` with topology "2 netns on one host bridge, not across hosts".
-- [ ] **Step 214** [B][SECURITY][S] ~5m: Negatives: unknown sha, sealed-but-older manifest, wrong cluster → each refused, seed keeps waiting (`grep -c 'refus' "$S6/seed.log"` rises by 3), no state change.
-- [ ] **Step 215** [V] ~30s: Three refusals logged; `grep -c 'complete\|operational' "$S6/seed.log"` unchanged by the negatives.
+- [x] **Step 213** *(p50 11 ms, max 18 ms)* [V] ~1m: **K2** — p95 of the 7 runs < 10 s (pass), 10-15 s warn, p99 > 30 s FAIL recorded. Record p50/p95/p99 in `$LOG` with topology "2 netns on one host bridge, not across hosts".
+- [x] **Step 214** *(cluster, rate limit, tampered and expired seals; sha/age negatives do not apply)* [B][SECURITY][S] ~5m: Negatives: unknown sha, sealed-but-older manifest, wrong cluster → each refused, seed keeps waiting (`grep -c 'refus' "$S6/seed.log"` rises by 3), no state change.
+- [x] **Step 215** [V] ~30s: Three refusals logged; `grep -c 'complete\|operational' "$S6/seed.log"` unchanged by the negatives.
 
 ### Mímir Phase 11: stress + invalid seals; Phase 13: gate re-eval
 
-- [ ] **Step 216** [B][S] ~10m: Stress: 20 drift events (touch 20 catalogued files inside `upc1`'s view, or use the daemon's `--scan-interval 2s` with a scratch dir named in the manifest) + 2 invalid seals mid-run; 100 horn packets at 10/s
+- [x] **Step 216** *(two rounds of 10 files)* [B][S] ~10m: Stress: 20 drift events (touch 20 catalogued files inside `upc1`'s view, or use the daemon's `--scan-interval 2s` with a scratch dir named in the manifest) + 2 invalid seals mid-run; 100 horn packets at 10/s
   ```bash
   for i in $(seq 1 20); do echo "drift-$i" | sudo tee -a "$S6/scratch/f$i" >/dev/null; sleep 0.3; done; for i in $(seq 1 100); do sudo ip netns exec upc0 "$S6/gjallarhorn-sender" --iface veth-upc0p --manifest-sha "$(printf '%064d' "$i")" >/dev/null 2>&1; sleep 0.1; done; grep -c 'drift' "$S6/seed.log"; grep -c 'refus' "$S6/seed.log"; pgrep -f heimdall-daemon | wc -l
   ```
-- [ ] **Step 217** [V] ~1m: **K3** — 20/20 drifts caught (≤ 1 s each, from the seed log timestamps), 0 false alerts on untouched files, 100 bad horns refused, daemon still running (count `1`), zero restarts.
-- [ ] **Step 218** [B] ~3m: Phase 13 pass-criteria table (K1 hooks verifier-accepted — from S5 Step 145 counts, unchanged unless heimdall-bpf changed; K2 Step 213; K3 Step 217; K4 hard conditions: alerts-only, no restore path, signed drift events on the scratch Wotan `curl -s "http://[fd00:upc::1]:26601/api/v1/topics/drift.detected.seed-netns1/messages?limit=1" | head -c 200`).
-- [ ] **Step 219** [V] ~1m: Drift event retrieved from Wotan with a signature field; table complete; verdict recorded ("Phases 9/11/13 PASS in netns topology" or the honest failure).
+- [x] **Step 217** *(20/20, ≤ 264 ms, 0 false alerts, flood 87 rate-limited, daemon alive)* [V] ~1m: **K3** — 20/20 drifts caught (≤ 1 s each, from the seed log timestamps), 0 false alerts on untouched files, 100 bad horns refused, daemon still running (count `1`), zero restarts.
+- [x] **Step 218** [B] ~3m: Phase 13 pass-criteria table (K1 hooks verifier-accepted — from S5 Step 145 counts, unchanged unless heimdall-bpf changed; K2 Step 213; K3 Step 217; K4 hard conditions: alerts-only, no restore path, signed drift events on the scratch Wotan `curl -s "http://[fd00:upc::1]:26601/api/v1/topics/drift.detected.seed-netns1/messages?limit=1" | head -c 200`).
+- [x] **Step 219** *(signed: unsigned publish 403)* [V] ~1m: Drift event retrieved from Wotan with a signature field; table complete; verdict recorded ("Phases 9/11/13 PASS in netns topology" or the honest failure).
 - [ ] **Step 220** [C] ~1m: **COMMIT CHECKPOINT** (`test(mimir): [S-ASCEND-2 206-220] Phases 9/11/13 re-run on a two-netns west fallback; configs/wotan-lab.yaml`).
 
 ### DISTRIBUTED leg: scorer weights over Wotan to the second "node"

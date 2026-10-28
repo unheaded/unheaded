@@ -442,3 +442,27 @@ operational" flow (Step 212's premise): a BootstrapBroadcast is classified and l
 ReverifyUnicast re-verifies the manifest and scans, so Phase 9 here measures horn delivery and classification.
 
 **LICH-015 full-engine arm (Steps 226-232): not done this session.**
+
+**Mímir Phases 9, 11, 13 re-run (Steps 206-219), topology "2 netns on one bridge, not across hosts".**
+`scripts/lab-two-node.sh` (lab-a, lab-b, bridge + scratch Wotan in lab-hub). Lab keys and the lab Wotan config live in
+`~/tmp/s-ascend-2/p8/` only; the lab manifest covers 20 scratch files. heimdall ran in lab-b with
+`AUTH_KEY_FILE` pointed at a missing file, so west's real `/etc/unheaded/keys/heimdall.key` was never read (the lab
+Wotan runs with auth off). Hooks loaded: vfs_write 20, execve 21, Gjallarhorn XDP 292 verified instructions.
+
+| Check | Result |
+|---|---|
+| K2: BootstrapBroadcast multicast lab-a → lab-b, 7 runs, send to classified | 18, 11, 11, 10, 10, 11, 10 ms (p50 11 ms, max 18 ms; bar 10 s) |
+| reverify, this cluster | `action=reverify`, "re-verified manifest and scanned" |
+| reverify, cluster 2 | `action=other-cluster` |
+| 100 reverifies at ~10/s | 13 reverify, 87 rate-limited (1/s, burst 3); daemon alive |
+| tampered manifest at startup | refused: `gungnir: payload hash mismatch`, exit 1 |
+| expired seal (1 s TTL) at startup | refused: `gungnir: seal expired`, exit 1 |
+| K3: drift, f1-f10 changed together | alerts on exactly f1-f10, none on f11-f20 |
+| K3: drift, f11-f20 one at a time | 30-264 ms each (all ≤ 1 s) |
+| K4: alerts only | no restore; alerts repeat each scan while the drift stays |
+| K4: signed drift events | 90 messages on `drift.detected.seed-netns-b`, all published over gRPC; an unsigned HTTP publish to the same topic gets 403 `SignatureRequired` |
+
+The plan's negatives "unknown sha" and "older manifest" do not apply: a horn is unauthenticated by design and can
+only ask a node to re-check a manifest it already trusts, so the negatives that exist are the cluster, the rate
+limit and the seal checks above. Verdict: Phases 9/11/13 PASS in the netns topology; across hosts waits on E3.
+Teardown: no heimdall program, no lab namespace, no process left.
