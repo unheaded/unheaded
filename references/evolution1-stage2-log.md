@@ -81,3 +81,15 @@ slices under fork's ceiling (S-ASCEND-2 Phase 4).
 
 Also fixed: `kernel/types.h`'s uint64-width assert (S-ASCEND-2 Phase 7) broke the host `mkfs` build on x86-64; it now
 applies only when `__riscv_xlen == 32` (`d8d5134f`); the kernel image is unchanged.
+
+## Phase 2: ADR-109 (Steps 43-50)
+
+`docs/adr/ADR-109-upc-kernel-rows-per-bpf-slot.md` (Proposed). Decisions: Step 43 per-slot trapframes, BPF points
+`sscratch` at the running slot's (no Override). Step 44 BPF publishes `cur_slot` and `gen[8]`, rows refreshed lazily at
+trap entry (Override threshold +5,000 recorded). Step 45 rows are `proc[0..7]`. **Amendment from Phase 1:** a fourth
+decision, D4, carries the trapping slot's x17/x16 at injection (`trap_a7`/`trap_a6`) because `uservec` reads them
+from physical spill addresses. **Step 51 address choice changed:** no fixed low-page address is provably free (the CSR
+window reaches `0xFD00`, TTY MMIO at `0xC001`, the layout docs disagree), so the tables live in kernel `.bss` and the
+kernel publishes their address in BootParams `reserved[0]` (byte `0x160`); 0 = not published, BPF does nothing.
+Invariants I1-I6 and the cost estimate are in the ADR. Security: children cannot reach low memory; init (slot 0) has a
+pre-existing identity map of the low 64 MiB and can reach everything, which the ADR records as today's trust model.
