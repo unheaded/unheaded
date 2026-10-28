@@ -88,26 +88,42 @@ unsafe impl aya::Pod for MbcCpuState {}
 
 const _: () = assert!(std::mem::size_of::<MbcCpuState>() == 136);
 
-/// Doom's syscall surface (contract part 4, ADR-080). Numbers per the MBC
-/// syscall ABI documented in `demos/doom/doomgeneric_unheaded.c`. `feature_gate`
-/// is `Default` — the non-ascend interpreter build Doom always runs on. This is a
-/// host-side descriptor only; the handlers are compiled into the interpreter.
-static DOOM_SYSCALLS: [upc_api::SyscallDesc; 4] = [
+/// Doom's syscall surface (contract part 4, ADR-080): exactly the ecall numbers
+/// the default (non-ascend) interpreter build has an arm for
+/// (`ebpf/monad-cpu-ebpf/surface.rs::SURFACE_DEFAULT`): DRAW_FRAME..SLEEP are
+/// `monad_common::mbc_syscalls` 1..4, write 16 and READ_BLOCK/WRITE_BLOCK
+/// 200/201 are compiled into both builds. (This list used 0..3 until
+/// S-ASCEND-2, copied from `demos/doom/doomgeneric_unheaded.c`, which still
+/// defines them that way.) Gate A refuses an object whose `UPC_SURFACE_ID` is
+/// not the id of this list. Host-side descriptor only.
+static DOOM_SYSCALLS: [upc_api::SyscallDesc; 7] = [
     upc_api::SyscallDesc {
-        number: 0,
+        number: 1,
         name: "DRAW_FRAME",
     },
     upc_api::SyscallDesc {
-        number: 1,
+        number: 2,
         name: "GET_KEY",
     },
     upc_api::SyscallDesc {
-        number: 2,
+        number: 3,
         name: "GET_TICKS",
     },
     upc_api::SyscallDesc {
-        number: 3,
+        number: 4,
         name: "SLEEP",
+    },
+    upc_api::SyscallDesc {
+        number: 16,
+        name: "write",
+    },
+    upc_api::SyscallDesc {
+        number: 200,
+        name: "read_block",
+    },
+    upc_api::SyscallDesc {
+        number: 201,
+        name: "write_block",
     },
 ];
 
@@ -151,7 +167,27 @@ fn doom_workload(rom: Vec<u32>, rv2mbc: Vec<u32>) -> upc_api::Workload {
         memory: upc_api::MemoryModel::Flat,
         surface: DOOM_SURFACE,
         boot: upc_api::BootProtocol::Direct,
+        mmu: None,
     }
+}
+
+/// Gate A (and Gate B, which a flat guest passes) on the object file before
+/// the ring is built or aya creates a map: the ascend object under Doom is
+/// refused here. `upc_api::load` runs both again before its first write.
+fn preflight_object(ebpf_obj: &std::path::Path) -> Result<upc_api::ObjectFacts> {
+    let facts = upc_api::ObjectFacts::from_path(ebpf_obj)
+        .map_err(|e| anyhow::anyhow!("refusing to load {}: {e}", ebpf_obj.display()))?;
+    upc_api::check_surface(&DOOM_SURFACE, &facts)
+        .and_then(|()| {
+            upc_api::check_mmu(
+                upc_api::MemoryModel::Flat,
+                None,
+                &doom_map_capacities(),
+                &facts,
+            )
+        })
+        .map_err(|e| anyhow::anyhow!("refusing to load {}: {e}", ebpf_obj.display()))?;
+    Ok(facts)
 }
 
 /// An [`upc_api::ImageSink`] over the live Aya eBPF object. `write_rom` /
@@ -369,6 +405,13 @@ async fn cmd_run(
     memory::validate_layout().context("memory layout validation failed")?;
     info!("memory layout validated");
 
+    // Step 0b: the object's surface must be Doom's (S-ASCEND-2 Steps 95-106).
+    let facts = preflight_object(&ebpf_obj)?;
+    info!(
+        "object gates passed: {} carries Doom's surface",
+        ebpf_obj.display()
+    );
+
     // Step 1: Set up network ring (namespaces + veth pairs)
     if !skip_ring {
         let ring_config = ring::RingConfig {
@@ -533,7 +576,7 @@ async fn cmd_run(
         let n_rom = workload.image.rom.len();
         let n_rv = workload.image.rv2mbc.len();
         let mut sink = EbpfImageSink { ebpf: &mut ebpf };
-        upc_api::load(&workload, &doom_map_capacities(), &mut sink)
+        upc_api::load(&workload, &doom_map_capacities(), &facts, &mut sink)
             .map_err(|e| anyhow::anyhow!("doom image load: {e}"))?;
         info!(
             "ROM_MAP + RV2MBC_MAP: {n_rom} + {n_rv} entries written in {:.1}s (upc_api::load)",
@@ -895,5 +938,54 @@ fn cmd_layout() -> Result<()> {
             error!("Layout validation: FAIL -- {e}");
             Err(e.into())
         }
+    }
+}
+
+#[cfg(test)]
+mod upc_gate_tests {
+    use super::*;
+
+    mod object_surface {
+        include!("../../../ebpf/monad-cpu-ebpf/surface.rs");
+    }
+
+    fn facts(numbers: &[u32]) -> upc_api::ObjectFacts {
+        upc_api::ObjectFacts {
+            surface_id: upc_api::surface_hash::surface_id(numbers),
+            mmu_geometry: None,
+        }
+    }
+
+    #[test]
+    fn doom_surface_is_the_default_object_surface() {
+        let mut declared: Vec<u32> = DOOM_SYSCALLS.iter().map(|d| d.number).collect();
+        declared.sort_unstable();
+        assert_eq!(declared, object_surface::SURFACE_DEFAULT);
+        assert_eq!(
+            upc_api::check_surface(&DOOM_SURFACE, &facts(object_surface::SURFACE_DEFAULT)),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn doom_refused_by_the_ascend_object() {
+        assert!(matches!(
+            upc_api::check_surface(&DOOM_SURFACE, &facts(object_surface::SURFACE_ASCEND)),
+            Err(upc_api::ValidationError::SurfaceObjectMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn doom_workload_is_flat_and_passes_gate_b() {
+        let w = doom_workload(vec![0x2700_0000], vec![0]);
+        assert_eq!(w.mmu, None);
+        assert_eq!(
+            upc_api::validate_against_object(
+                &w,
+                &doom_map_capacities(),
+                &facts(object_surface::SURFACE_DEFAULT)
+            ),
+            Ok(())
+        );
     }
 }

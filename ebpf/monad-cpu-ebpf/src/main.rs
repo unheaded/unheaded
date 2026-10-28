@@ -48,6 +48,7 @@
 
 mod fdtable;
 mod phase12;
+mod upc_facts;
 
 use aya_ebpf::{
     bindings::xdp_action,
