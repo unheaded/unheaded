@@ -170,6 +170,12 @@ arrival and its "pause" rung are the same syscall number; `uptime` (14) is not B
 requires the FS-metadata bundle to move as one unit. `usertests.c` is not built today; its runner needs
 `wait` exit status and `countfree()` needs `sbrk`.
 
+**Step 60.** `0f31757c` (signed).
+
+**Steps 61-62.** Link check on the re-read, the skeleton and the master plan: 0 BROKEN.
+
+Phase 2 exit gate (Step 66): the pending-E2 branch holds. Steps 63-65 are `[AFTER-E2]` skips. -> Phase 3.
+
 ## E2 (Step 56): filed
 
 Question to Stevie: given the negative getpid delta (-15,223 today vs +5,409 in July, toolchain-attributed)

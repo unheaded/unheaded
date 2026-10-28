@@ -289,19 +289,19 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - [x] **Step 57** *(rungs 0-8, rung 0 added in front; 9 gates; usertests table)* [DESIGN][W] ~40m: `docs/battle-plans/EVOLUTION-1-STAGE-2-skeleton.md`: header block (Prerequisite: S-ASCEND-2 Phases 1, 3, 7 done; pid reconciliation; `gate_nway` green), the rung ladder as phases in EVOLUTION-1's order (getpid ✓ → uptime/pause → write → read → fstat/dup/close → open (fs_walk hand-off) → fork/exec/wait (PROC_TABLE hand-off) → arrivals sbrk/pipe/kill/mkdir/unlink/link/chdir/sleep), one exit gate per rung ("corpus 12/12 SAME, harness green, freed insns recorded, usertests subset N green"), the `usertests` subset plan (which of the 3,248 lines become gates when), the four-lens panel requirement at kickoff, and an explicit "NO NUMBERED STEPS HERE — forge at kickoff" banner. Cite M-221.
 - [x] **Step 58** *(0 `**Step` lines, 9 rungs / 9 gates, E2 slot in header)* [V] ~2m: Skeleton has no `**Step` lines (`grep -c '\*\*Step' docs/battle-plans/EVOLUTION-1-STAGE-2-skeleton.md` → `0`), has one gate per rung, cites the E2 answer slot.
 - [x] **Step 59** *(Epic 1.6 (1.6.1-1.6.4); 1.3.5 REMAINS points at Phase 1 Steps 27-52)* [W] ~10m: `UPC-LINUX-MASTER-BATTLE-PLAN.md`: add Epic 1.6 "EVOLUTION-1 Stage 2 (skeleton: EVOLUTION-1-STAGE-2-skeleton.md; forge when E2 answered)"; update 1.3.5's REMAINS clause to point at Phase 1 of this plan.
-- [ ] **Step 60** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 60** *(0f31757c, signed; the battle plan and the log staged too)* [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   cd "$PROJECT_ROOT" && git add docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md docs/battle-plans/EVOLUTION-1-STAGE-2-skeleton.md docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md && commitp -m "docs(upc): [S-ASCEND-2 53-60] EVOLUTION-1 D1 reach re-read against the negative delta; Stage 2 skeleton"
   ```
-- [ ] **Step 61** [B] ~1m: Doc link check on touched pages
+- [x] **Step 61** *(also run on the master plan: 0 BROKEN)* [B] ~1m: Doc link check on touched pages
   ```bash
   cd "$PROJECT_ROOT" && for f in docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md docs/battle-plans/EVOLUTION-1-STAGE-2-skeleton.md; do grep -oE '\]\([^)#]+' "$f" | sed 's/](//' | grep -vE '^https?:' | while read -r p; do test -e "docs/battle-plans/$p" || test -e "$p" || echo "BROKEN $f -> $p"; done; done | head
   ```
-- [ ] **Step 62** [V] ~30s: No `BROKEN` lines.
-- [ ] **Step 63** [AFTER-E2][W] ~10m: Record E2's answer in the skeleton header and in EVOLUTION-1 §D1 re-read ("DECIDED <date>: …"); if (c) minimal, trim the ladder to the arrivals and mark the migration rungs "not planned".
-- [ ] **Step 64** [AFTER-E2][W] ~5m: `UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.6 line reflects the decided reach.
-- [ ] **Step 65** [AFTER-E2][C] ~1m: **COMMIT CHECKPOINT** (`docs(upc): [S-ASCEND-2 63-65] E2 recorded`).
-- [ ] **Step 66** [V] ~1m: **PHASE 2 EXIT GATE** — re-read section exists with both measurements; skeleton committed with zero numbered steps; master plan points at it; E2 either recorded or the section says "pending E2".
+- [x] **Step 62** *(0 BROKEN)* [V] ~30s: No `BROKEN` lines.
+- [ ] **Step 63** *[AFTER-E2] skipped: E2 open* [AFTER-E2][W] ~10m: Record E2's answer in the skeleton header and in EVOLUTION-1 §D1 re-read ("DECIDED <date>: …"); if (c) minimal, trim the ladder to the arrivals and mark the migration rungs "not planned".
+- [ ] **Step 64** *[AFTER-E2] skipped: E2 open* [AFTER-E2][W] ~5m: `UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.6 line reflects the decided reach.
+- [ ] **Step 65** *[AFTER-E2] skipped: E2 open* [AFTER-E2][C] ~1m: **COMMIT CHECKPOINT** (`docs(upc): [S-ASCEND-2 63-65] E2 recorded`).
+- [x] **Step 66** *(pending-E2 branch: re-read has both measurements and says pending E2; skeleton committed, 0 numbered steps; Epic 1.6 points at it)* [V] ~1m: **PHASE 2 EXIT GATE** — re-read section exists with both measurements; skeleton committed with zero numbered steps; master plan points at it; E2 either recorded or the section says "pending E2".
   - If pass → Phase 3. If fail → fix within the phase (docs only; nothing downstream blocks on it except the Stage 2 session itself).
 
 ---
