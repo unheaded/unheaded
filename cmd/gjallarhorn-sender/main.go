@@ -73,22 +73,11 @@ func main() {
 		if *target == "" {
 			fatal("--target required for unicast")
 		}
-		ips, err := net.LookupIP(*target)
-		if err != nil || len(ips) == 0 {
-			fatal("lookup %s: %v", *target, err)
+		a, err := unicastAddr(*target)
+		if err != nil {
+			fatal("%v", err)
 		}
-		// Prefer IPv6 if available, else IPv4
-		var chosen net.IP
-		for _, ip := range ips {
-			if ip.To4() == nil {
-				chosen = ip
-				break
-			}
-		}
-		if chosen == nil {
-			chosen = ips[0]
-		}
-		addr = &net.UDPAddr{IP: chosen, Port: gjallarhornPort}
+		addr = a
 	}
 
 	conn, err := net.DialUDP("udp", nil, addr)
@@ -102,6 +91,34 @@ func main() {
 		fatal("write: %v", err)
 	}
 	fmt.Printf("Sent %d bytes to %s\n", n, addr)
+}
+
+// unicastAddr resolves a reverify target. An IPv6 literal may carry a zone
+// (fe80::…%iface), which a link-local-only link needs; a zone on any other
+// address is refused. Hostnames prefer an IPv6 address, else the first one.
+func unicastAddr(target string) (*net.UDPAddr, error) {
+	host, zone, _ := strings.Cut(target, "%")
+	if ip := net.ParseIP(host); ip != nil {
+		if zone != "" && !ip.IsLinkLocalUnicast() {
+			return nil, fmt.Errorf("zone %q on %s: only link-local addresses take a zone", zone, host)
+		}
+		return &net.UDPAddr{IP: ip, Port: gjallarhornPort, Zone: zone}, nil
+	}
+	if zone != "" {
+		return nil, fmt.Errorf("zone %q on hostname %s", zone, host)
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil || len(ips) == 0 {
+		return nil, fmt.Errorf("lookup %s: %v", host, err)
+	}
+	chosen := ips[0]
+	for _, ip := range ips {
+		if ip.To4() == nil {
+			chosen = ip
+			break
+		}
+	}
+	return &net.UDPAddr{IP: chosen, Port: gjallarhornPort}, nil
 }
 
 // parseHexErr is the pure-function variant of parseHex — returns (value, error)

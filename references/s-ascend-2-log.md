@@ -674,3 +674,27 @@ passwordless sudo; chaos-controller active); `scripts/node-guard.sh`, a dead-man
 detach aya's link-based XDP, so killing the owner comes first. Wotan gained `-bind` (default unchanged), so a scratch
 Wotan can listen on 192.168.13.2 only (checked: both listeners on the given address). The Gjallarhorn XDP program
 returns XDP_PASS on every path. Open question in the plan: out-of-band access to east.
+
+## E3 across hosts (S0-S4, 2026-10-28)
+
+Run after Stevie confirmed physical access to east and said to churn unattended. The guard stayed armed on east for
+every stage (fail-after 5, 20 min leases, renewed); it never fired.
+
+| Stage | Result |
+|---|---|
+| S0 stage | fresh lab keys (east-seal, east-drift, in `~/tmp/s-ascend-2/p8e` and `/tmp/s6` only), manifest over 20 east scratch files sealed 6 h; 29 files identical by sha256 on both ends |
+| S1 heimdall, kprobes only | seal verified; f1-f10 changed together → alerts on exactly those; f11-f20 one at a time, 78-260 ms each; 66 signed drift events on the west scratch Wotan (`-bind 192.168.13.2`, listeners on that address only); unsigned publish 403; tampered manifest and 1 s expired seal refused at startup |
+| S2 XDP generic on `enp2s0` | attached (prog id 31907); 2-minute watch: every ping, SSH session and guard check fine; 7/7 multicast bootstrap horns, 8.4-15.2 ms send-to-classified across two chrony clocks; reverify 14 (incl. 13 from the flood), other-cluster 1, rate-limited 87 of 100; heimdall stopped, no XDP left |
+| S3 weights | published on west, fetched on east: seal verified, DATA sha `f175ee26…` equal to the repo; cart rebuilt on east has image sha `ed8dd3b0…` (same); 200-job `cart tick` output identical on both (0 diff lines) |
+| S4 teardown | east: `/tmp/s6*` removed, 0 lab processes, 0 transient units, no XDP, none of our programs; chaos-controller still active. West: scratch Wotan stopped, its listeners gone |
+
+**Findings on hardware the lab could not show.**
+1. **Multicast needs the group joined.** The first 7 horns never reached XDP on east: a real NIC filters frames for
+   multicast groups nobody on the host joined, and veth interfaces do not. Heimdall only observes through XDP and joins
+   nothing, so the bootstrap only arrived once `gjallarhorn-listener -multicast` ran on east. A deployed seed must join
+   `ff02::1:abba` (or heimdall should join it itself): recorded for Mímir, not changed in heimdall.
+2. **Unicast needed a zoned link-local target.** The observer parses IPv6 only and east's `enp2s0` has only a
+   link-local IPv6 address; the sender fell back to IPv4. `gjallarhorn-sender -target fe80::…%iface` now works
+   (new `unicastAddr`, test-first; a zone is refused on non-link-local addresses).
+3. My first teardown missed the scratch Wotan (started as `./wotan`; the kill pattern used the full path); stopped by
+   pid after checking its command line and working directory.

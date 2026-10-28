@@ -1,9 +1,6 @@
 # S-ASCEND-2 E3: east as a node, with a safety net
 
-**Status**: PLAN (2026-10-28). Answer to E3: "scaffold/observe, research, plan; want to expand, just use caution;
-maybe build an auto-remediation method if something goes wrong." Done so far: read-only observation of east, the
-safety net built and tested (lab and a no-op self-test on east), Wotan `-bind`. **Nothing has been attached on
-east.** Each live stage below starts only on Stevie's go (one go can cover all of them).
+**Status**: DONE 2026-10-28 (S0-S4 run; S3's optional on-east cartridge-ebpf load not run). Answer to E3: "scaffold/observe, research, plan; want to expand, just use caution; maybe build an auto-remediation method if something goes wrong", then physical access confirmed and "churn unattended". Results in `references/s-ascend-2-log.md` §"E3 across hosts". East left as found.
 
 Covers the cross-host column of S-ASCEND-2 Phase 8 (Steps 233-238): Mímir Phases 9/11/13 and the DISTRIBUTED
 weights leg, which passed between two network namespaces on west (`references/s-ascend-2-log.md` Phase 8).
@@ -22,8 +19,10 @@ weights leg, which passed between two network namespaces on west (`references/s-
 ## Risks
 
 1. **`enp2s0` is east's only live link.** A program on it that drops traffic, or a kernel fault in XDP generic mode,
-   cuts east off from west, the WireGuard overlay and the internet. Recovery would then need a console. *Open
-   question for Stevie: is there out-of-band access to east (physical keyboard, KVM, a second link)?*
+   cuts east off from west, the WireGuard overlay and the internet. Recovery would then need a console.
+   **Answered 2026-10-28: yes, physical.** East sits in Stevie's office next to west; a keyboard and monitor can be
+   attached in the worst case. Stages run with the guard armed; if east goes dark while nobody is in the office it
+   stays down until someone is.
 2. Heimdall's `vfs_write` and `execve` kprobes see the whole host (observe-only; small programs, 20 and 21
    verified instructions).
 3. Lab binaries run as root from `/tmp`.

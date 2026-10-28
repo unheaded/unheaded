@@ -167,4 +167,4 @@ capture exists yet to retrain it on.
 Weights travel between nodes with `upc-cartridgectl weights publish|fetch` on
 topic `upc.cart.weights.<model>`: the DATA section in a Gungnir-sealed envelope,
 checked (seal, model, length, sha) before anything is written. Demonstrated
-between two network namespaces, not across hosts (S-ASCEND-2 Phase 8).
+between two network namespaces and across hosts, west to east (S-ASCEND-2 Phase 8 and E3).

@@ -100,3 +100,25 @@ func TestGjallarhornPort_InDoomRange(t *testing.T) {
 		t.Errorf("gjallarhornPort %d outside Doom Range (16666-26666)", gjallarhornPort)
 	}
 }
+
+// S-ASCEND-2 E3: east's P2P interface has only a link-local IPv6 address, and
+// the Gjallarhorn observer parses IPv6 only, so a unicast reverify must be
+// able to target fe80::…%iface.
+func TestUnicastAddr(t *testing.T) {
+	a, err := unicastAddr("fe80::7ae3:b5ff:fec4:8ea3%enp16s0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Zone != "enp16s0" || a.Port != gjallarhornPort || a.IP.To4() != nil || !a.IP.IsLinkLocalUnicast() {
+		t.Fatalf("zoned link-local: %+v", a)
+	}
+	if a, err := unicastAddr("fd00:1ab::b"); err != nil || a.Zone != "" || a.IP.String() != "fd00:1ab::b" {
+		t.Fatalf("ULA literal: %+v %v", a, err)
+	}
+	if a, err := unicastAddr("192.168.13.1"); err != nil || a.IP.To4() == nil {
+		t.Fatalf("IPv4 literal: %+v %v", a, err)
+	}
+	if _, err := unicastAddr("fd00:1ab::b%enp16s0"); err == nil {
+		t.Fatal("a zone on a non-link-local address must be refused")
+	}
+}

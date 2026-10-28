@@ -717,12 +717,12 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ### The east column (only under E3)
 
-- [ ] **Step 233** *[AFTER-E3] skipped: E3 open* [AFTER-E3][LIVE-RW][BARE-METAL][S][B] ~15m: Stage the throwaway on east (`scp "$S6/heimdall-daemon" "$S6/catalog/m.yaml" "$S6/catalog/m.yaml.seal" "$S6/lab.pub" east:/tmp/s6/`), scratch Wotan on west bound to `192.168.13.2:26601/26602`, seed on east with `--xdp-iface enp2s0 --xdp-mode generic`, sender from west over the P2P link; repeat Steps 212-219 with `topology = "2 physical hosts (west sender, east seed)"`.
-- [ ] **Step 234** *[AFTER-E3] skipped: E3 open* [V] ~1m: K2/K3 recorded for the physical topology; XDP detached and `/tmp/s6` removed on east at the end (`ssh east 'sudo ip link set enp2s0 xdpgeneric off; rm -rf /tmp/s6; pgrep -f heimdall || echo clean'`).
-- [ ] **Step 235** *[AFTER-E3] skipped: E3 open* [AFTER-E3][LIVE-RW][BARE-METAL][S][B] ~15m: DISTRIBUTED leg across hosts: `upc-cartridgectl weights fetch` on east from the west scratch Wotan, `cartridge-ebpf` loaded on east's `enp2s0` in a netns on east (never the bare link), scores compared (Steps 222-223 shape).
-- [ ] **Step 236** *[AFTER-E3] skipped: E3 open* [V] ~1m: Identical DATA sha and scores across hosts; east cleaned (`ssh east 'sudo bpftool prog show | grep -c cart'` → `0`).
-- [ ] **Step 237** *[AFTER-E3] skipped: E3 open* [AFTER-E3][W] ~5m: `$LOG` evidence rows switch wording to "across hosts"; S5 plan Steps 177/435 get "answered <date> by S-ASCEND-2 E3".
-- [ ] **Step 238** *[AFTER-E3] skipped: E3 open* [AFTER-E3][C] ~1m: **COMMIT CHECKPOINT** (`test(upc): [S-ASCEND-2 233-238] Mímir 9/11/13 + DISTRIBUTED leg across west and east (E3)`).
+- [x] **Step 233** *(east seed, west sender; guard armed)* [AFTER-E3][LIVE-RW][BARE-METAL][S][B] ~15m: Stage the throwaway on east (`scp "$S6/heimdall-daemon" "$S6/catalog/m.yaml" "$S6/catalog/m.yaml.seal" "$S6/lab.pub" east:/tmp/s6/`), scratch Wotan on west bound to `192.168.13.2:26601/26602`, seed on east with `--xdp-iface enp2s0 --xdp-mode generic`, sender from west over the P2P link; repeat Steps 212-219 with `topology = "2 physical hosts (west sender, east seed)"`.
+- [x] **Step 234** *(K2 7/7 8-15 ms, K3 20/20 ≤ 260 ms; east cleaned)* [V] ~1m: K2/K3 recorded for the physical topology; XDP detached and `/tmp/s6` removed on east at the end (`ssh east 'sudo ip link set enp2s0 xdpgeneric off; rm -rf /tmp/s6; pgrep -f heimdall || echo clean'`).
+- [x] **Step 235** *(weights fetch on east; cartridge-ebpf on east not loaded, optional)* [AFTER-E3][LIVE-RW][BARE-METAL][S][B] ~15m: DISTRIBUTED leg across hosts: `upc-cartridgectl weights fetch` on east from the west scratch Wotan, `cartridge-ebpf` loaded on east's `enp2s0` in a netns on east (never the bare link), scores compared (Steps 222-223 shape).
+- [x] **Step 236** *(DATA sha, image sha and 200 scores equal)* [V] ~1m: Identical DATA sha and scores across hosts; east cleaned (`ssh east 'sudo bpftool prog show | grep -c cart'` → `0`).
+- [x] **Step 237** *(wording switched; S5 Steps 177/435 marked answered)* [AFTER-E3][W] ~5m: `$LOG` evidence rows switch wording to "across hosts"; S5 plan Steps 177/435 get "answered <date> by S-ASCEND-2 E3".
+- [x] **Step 238** [AFTER-E3][C] ~1m: **COMMIT CHECKPOINT** (`test(upc): [S-ASCEND-2 233-238] Mímir 9/11/13 + DISTRIBUTED leg across west and east (E3)`).
 
 ### Truth in ADR-043, teardown
 

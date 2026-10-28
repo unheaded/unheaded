@@ -5,7 +5,7 @@ self-healing — the dogfood spike for the Gleipnir convergence component
 named in [ADR-69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md). Implements ADR-043's Two-Plane Architecture: Wotan
 steady-state plane + Gjallarhorn discrete UPC trigger plane.
 
-> **Status**: PoC 2026-04-11 (corrected 2026-10-27) — 11 of 13 phases shipped on hardware; Phases 9/11/13 re-run 2026-10-28 on two network namespaces on one bridge (not across hosts); across hosts waits on east as a node (S-ASCEND-2 E3). Merged to `main`. Bare-metal validated on WEST↔EAST WireGuard overlay.
+> **Status**: PoC 2026-04-11 (corrected 2026-10-27) — 11 of 13 phases shipped on hardware; Phases 9/11/13 re-run 2026-10-28 on two network namespaces, then across hosts (west sender, east seed) under S-ASCEND-2 E3. Merged to `main`. Bare-metal validated on WEST↔EAST WireGuard overlay.
 
 ## The Naming
 
