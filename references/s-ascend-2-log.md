@@ -559,3 +559,37 @@ service started; tree clean.
 xv6-mbc 3, upc-cartridge 40, doom-runner 46; 0 failed.
 
 **Register (Step 301).** FND-028 (UPC isolation) open until E6; FND-029 (flow-label instance hijack) resolved.
+
+## Close (2026-10-28)
+
+| Budget | Phase 0 | Close |
+|---|---|---|
+| ascend monad_cpu | 926,542 | 923,826 |
+| Doom monad_cpu | 761,580 | 758,199 |
+| cart_xdp / cart_tick | 42,743 / 146,897 | 42,743 / 146,897 |
+
+Final regression on the final tree: harness ALL GREEN (now with gate_nway, forkloop and devprobe), sweep 8/8 SAME plus
+the harness's other golden sets, 0 programs attached, 0 network namespaces. West is as Step 22 found it: nothing
+installed (E6 open). Commits since the merge base with develop: 82 (includes S-TRUE-WIRE, which this branch was cut
+from).
+
+| KF | At start | At close |
+|---|---|---|
+| KF1 gate_nway | 0 ok, 231 FAIL pid2 | retired (scheduler zombie-resume fix) |
+
+**Escalations at close.** E1 pid numbering: open (flag off). E2 Stage 2 reach: open (skeleton marked pending). E3 east
+as a node: open (two-netns fallback ran). E4 naming, E5 attended run: Phase 11 not run. E6 west install: open (units
+committed). Carried from S-TRUE-WIRE: E1-E8 there, including its E2 merge gate, which this branch inherits.
+
+### STUCK / not done
+
+- **Phase 1 Steps 44-51**: wait on E1.
+- **Phase 2 Steps 63-65**: wait on E2.
+- **Phase 5 Steps 149-154**: wait on E6.
+- **Phase 8 Steps 226-232 (LICH-015 full-engine arm)**: not done this session. Steps 233-238 wait on E3.
+- **Phase 9 Steps 247-253 (live legs)**: need the live cartridge pipeline; west's compose stack is not started.
+  **Steps 254-262 (scorer retrain)**: no real flow capture exists.
+- **Phase 10 (LICH-012 L12a/L12d, Enkrateia v2, semantic drift) and Phase 11 (naming, statuses, attended run)**: not
+  run this session.
+- **Phase 13 Step 303**: wiki pages for Linux-on-UPC, UPC-Dream-Ladder and Mimirs-Law were updated during the
+  phases; `UPC-Cartridges.md` and the uid table page were not.
