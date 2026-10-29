@@ -1,4 +1,4 @@
-.TH HUGINN 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.TH HUGINN 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
 .SH NAME
 huginn \- Huginn: report bare\-metal host metrics (CPU, memory, disks, network, processes) to the dashboard and VictoriaMetrics (ADR\-084).
 .SH SYNOPSIS
@@ -19,6 +19,9 @@ collection/push interval override
 .TP
 .B \-\-listen \fISTRING\fR
 listen address override
+.TP
+.B \-\-pprof \fIADDR\fR
+serve net/http/pprof on this loopback ADDR (e.g. 127.0.0.1:6060); off when empty
 .TP
 .B \-\-vm \fISTRING\fR
 VictoriaMetrics URL override (empty string = no override)

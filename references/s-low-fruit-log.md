@@ -42,3 +42,11 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 - Step 58: the plan's pipeline finds 3; a wider search (decode after `os.ReadFile`, error returned bare) finds 5. Wrapped `%s: %w` with the path: akira `loadConfig`, unheaded-cli `~/.unheaded/config.yaml`, huginn `loadConfig`, timeguru `loadTimeline`. crypto-inventory's `parseCargoDeps` takes bytes (its caller has the path) — left.
 - Step 61: `akira --config /tmp/bad.yaml` → `error="/tmp/bad.yaml: yaml: line 1: did not find expected node content"`; huginn → `huginn: config load error: /tmp/bad.yaml: yaml: line 1: …`. (Running the huginn binary for this tried to bind :9110 and failed because the installed huginn holds it; nothing changed.)
 - Step 62: `cmd/huginn/config_test.go` (two broken files → error names path + line; missing file stays optional). Tests green.
+
+## Phase 4 — pprof + profiles (Steps 38-44, 48; 45-47 Go leg done, BPF leg pending)
+
+- Deviation from Step 40 (recorded): pprof runs on **its own loopback listener** (`httputil.StartPprof`, refuses any non-loopback address with exit 2), not on a "metrics mux", because akira and wotan serve /metrics on their service port. MoatGhost's conditions hold: off by default, loopback only, raw profiles never committed.
+- `--pprof ADDR` on akira, huginn, heimdall-daemon, upc-tty-bridge, doom-bridge; `PPROF_ADDR` on wotan and dashboard-backend (dashboard's hand-rolled listener now uses StartPprof, so it gained the loopback check). Tests: index served, loopback table, wildcard refused, second bind fails.
+- `scripts/flamegraph.sh ADDR BINARY [SECONDS] [--top]`, `scripts/bpf-profile.sh [PROG] [SECONDS]`, `make build-profile` (symbols), `.gitignore` `var/pprof/` + `*.pb.gz`, `wiki/Profiling.md` (sidebar + Observability-Backends link).
+- Step 45 Go leg: `./bin/akira --pprof 127.0.0.1:29660 --port 29661` → index served; `flamegraph.sh … 5 --top` wrote `var/pprof/akira-*.pb.gz` (ignored by git) and pprof read it (idle akira: 0 samples). `akira --pprof 0.0.0.0:6060` → refused, rc=2. **BPF leg pending** (needs a UPC boot; next attended or UPC session).
+- gen-man caught the new flag in 5 pages; regenerated.

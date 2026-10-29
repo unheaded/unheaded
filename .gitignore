@@ -323,3 +323,7 @@ configs/certs/
 # gitlink with no .gitmodules entry, pointing at a commit no public repo has; actions/checkout failed on
 # it ("No url found for submodule path"). CI fetches doomgeneric by pinned SHA (scripts/ci-fetch-doomgeneric.sh).
 /doom/doomgeneric/
+
+# Raw pprof profiles can hold in-memory secrets (S-LOW-FRUIT Phase 4)
+var/pprof/
+*.pb.gz

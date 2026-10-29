@@ -161,6 +161,7 @@
 - [[Containers]]
 - [[IaC Backends|IaC-Backends]]
 - [[Observability|Observability-Backends]]
+- [[Profiling]]
 - [[eBPF Programs|eBPF-Programs]]
 - [[Service Breakout|Service-Breakout-Strategy]]
 - [[Fae Chamber Contracts|Fae-Chamber-Contracts]]

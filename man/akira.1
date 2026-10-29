@@ -1,4 +1,4 @@
-.TH AKIRA 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.TH AKIRA 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
 .SH NAME
 akira \- Kingdom health daemon: polls every service, publishes votes to Wotan and decides the health band by consensus (ADR\-029).
 .SH SYNOPSIS
@@ -19,6 +19,9 @@ Run single health sweep and exit
 .TP
 .B \-\-port \fIN\fR
 HTTP API port for Akira status (default 19100)
+.TP
+.B \-\-pprof \fIADDR\fR
+serve net/http/pprof on this loopback ADDR (e.g. 127.0.0.1:6060); off when empty
 .TP
 .B \-\-remediate
 restart a service (systemctl restart unheaded\-<name>) when two\-thirds of reporters see it failing; off by default

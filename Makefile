@@ -38,6 +38,9 @@ build: build-daemon build-services ## Build all Go binaries
 man: ## Regenerate man/NAME.1 for every binary from its --man (pkg/cmdline.Man)
 	scripts/gen-man.sh --write
 
+build-profile: ## Build every Go binary under cmd/ into bin/ WITH symbols, for scripts/flamegraph.sh
+	go build $(GO_BUILD_FLAGS) -ldflags "-X unheaded/pkg/cmdline.Version=$(VERSION)" -o $(BINARY_DIR)/ ./cmd/...
+
 build-all: ## Build every Go binary under cmd/ into bin/ (one version ldflag, ADR-111)
 	go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o $(BINARY_DIR)/ ./cmd/...
 	scripts/check-version-flag.sh --bin-dir $(BINARY_DIR)

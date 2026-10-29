@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/httputil"
 )
 
 // ── output shapes ────────────────────────────────────────────────────────
@@ -391,11 +392,17 @@ func main() {
 	flagListen := flag.String("listen", "", "listen address override")
 	flagVM := flag.String("vm", "", "VictoriaMetrics URL override (empty string = no override)")
 	flagInterval := flag.Duration("interval", 0, "collection/push interval override")
+	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "huginn",
 		Purpose:  "Huginn: report bare-metal host metrics (CPU, memory, disks, network, processes) to the dashboard and VictoriaMetrics (ADR-084).",
 		Examples: []string{"huginn", "huginn --config /etc/huginn.yaml"},
 	})
+	if *pprofAddr != "" {
+		if err := httputil.StartPprof(*pprofAddr); err != nil {
+			cmdline.Fail(cmdline.Spec{Name: "huginn"}, "%v", err)
+		}
+	}
 
 	cfg, err := loadConfig(*configPath)
 	if err != nil {

@@ -1,4 +1,4 @@
-.TH UPC\-TTY\-BRIDGE 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.TH UPC\-TTY\-BRIDGE 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
 .SH NAME
 upc\-tty\-bridge \- Bridge UPC TTY byte streams to browser terminals over WebSocket (ASCEND\-LINUX Mode A).
 .SH SYNOPSIS
@@ -13,6 +13,9 @@ listen address (host:port); loopback by default (default 127.0.0.1:26100)
 .TP
 .B \-\-port \fIN\fR
 deprecated: listen on 127.0.0.1:<port> (use \-\-listen)
+.TP
+.B \-\-pprof \fIADDR\fR
+serve net/http/pprof on this loopback ADDR (e.g. 127.0.0.1:6060); off when empty
 .TP
 .B \-h, \-\-help
 display this help and exit

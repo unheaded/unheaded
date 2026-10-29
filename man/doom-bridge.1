@@ -1,4 +1,4 @@
-.TH DOOM\-BRIDGE 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.TH DOOM\-BRIDGE 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
 .SH NAME
 doom\-bridge \- Fenrir's Eye: read the Doom framebuffer and CPU state from pinned eBPF maps and stream frames to browsers over WebSocket.
 .SH SYNOPSIS
@@ -16,6 +16,9 @@ BPF map pin directory (default /sys/fs/bpf/unheaded/doom\-ring/maps)
 .TP
 .B \-\-port \fIN\fR
 WebSocket server port (default 16666)
+.TP
+.B \-\-pprof \fIADDR\fR
+serve net/http/pprof on this loopback ADDR (e.g. 127.0.0.1:6060); off when empty
 .TP
 .B \-\-static \fISTRING\fR
 Static files directory (default: demos/doom/ relative to binary or CWD)

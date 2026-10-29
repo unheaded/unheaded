@@ -1,4 +1,4 @@
-.TH HEIMDALL\-DAEMON 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.TH HEIMDALL\-DAEMON 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
 .SH NAME
 heimdall\-daemon \- Heimdall: watch this host for drift from the Mjölnir baseline and publish signed drift events; alerts only, never restores (ADR\-043).
 .SH SYNOPSIS
@@ -28,6 +28,9 @@ serve GET /metrics here (drift publish counters, scan duration); empty disables 
 .TP
 .B \-\-node\-id \fISTRING\fR
 Node identifier (defaults to hostname)
+.TP
+.B \-\-pprof \fIADDR\fR
+serve net/http/pprof on this loopback ADDR (e.g. 127.0.0.1:6060); off when empty
 .TP
 .B \-\-pubkey \fISTRING\fR
 ML\-DSA\-65 public key file: verify <manifest>.seal before trusting the manifest
