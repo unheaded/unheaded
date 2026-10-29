@@ -36,6 +36,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/health"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
@@ -194,7 +195,11 @@ func main() {
 	remediate := flag.Bool("remediate", false, "restart a service (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
 	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
 	wotanGRPC := flag.String("wotan-grpc", "", "Wotan gRPC address for the signed topics (consensus, remediate); default: the --wotan host on port 18001")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "akira",
+		Purpose:  "Kingdom health daemon: polls every service, publishes votes to Wotan and decides the health band by consensus (ADR-029).",
+		Examples: []string{"akira", "akira --once", "akira --config /etc/unheaded/akira.yaml"},
+	})
 	wotanClient.InitServiceIdentity("akira") // ADR-103 §6: every Wotan call carries akira's service token
 
 	// Logger

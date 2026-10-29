@@ -46,6 +46,7 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/champion/pgstore"
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/vorquery"
@@ -87,7 +88,11 @@ func main() {
 	)
 	var wf workerFlags
 	registerWorkerFlags(flag.CommandLine, &wf)
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "zhen-agentd",
+		Purpose:  "Serve the Zhenai agent runtime over HTTP for multi-request use.",
+		Examples: []string{"zhen-agentd", "zhen-agentd --port 26300 --project-root ."},
+	})
 	if wf.overnight {
 		set := map[string]bool{}
 		flag.Visit(func(f *flag.Flag) { set[f.Name] = true })

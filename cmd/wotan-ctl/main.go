@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/logger"
 )
 
@@ -108,7 +109,7 @@ func (c *Command) executeInternal(ctx *Context, args []string) error {
 	}
 
 	// Check for version at root level
-	if len(args) > 0 && args[0] == "version" && c.RunFunc == nil {
+	if len(args) > 0 && (args[0] == "version" || args[0] == "--version" || args[0] == "-V") && c.RunFunc == nil {
 		fmt.Printf("wotan-ctl %s (commit: %s, built: %s)\n", Version, Commit, BuildTime)
 		return nil
 	}
@@ -132,12 +133,12 @@ func (c *Command) executeInternal(ctx *Context, args []string) error {
 	}
 
 	if strings.HasPrefix(args[0], "-") {
-		fmt.Fprintf(os.Stderr, "Error: unknown flag %s\n", args[0])
+		fmt.Fprintf(os.Stderr, "wotan-ctl: unrecognized option '%s'\n", args[0])
 	} else {
-		fmt.Fprintf(os.Stderr, "Error: unknown command %s\n", args[0])
+		fmt.Fprintf(os.Stderr, "wotan-ctl: unknown command '%s'\n", args[0])
 	}
-	c.printHelp()
-	os.Exit(1)
+	fmt.Fprintln(os.Stderr, "Try 'wotan-ctl --help' for more information.")
+	os.Exit(2)
 	return nil
 }
 
@@ -171,7 +172,7 @@ func (c *Command) printHelp() {
 func main() {
 	root := NewRootCommand()
 	if err := root.Execute(os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "wotan-ctl: %s\n", cmdline.Translate(err, os.Args[1:]))
 		os.Exit(1)
 	}
 }

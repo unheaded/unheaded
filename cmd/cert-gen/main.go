@@ -49,6 +49,7 @@ import (
 	"strings"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	unheadedtls "unheaded/pkg/tls"
 )
 
@@ -98,7 +99,11 @@ func main() {
 	flag.DurationVar(&o.ttl, "ttl", 24*time.Hour, "Certificate TTL")
 	flag.StringVar(&o.layout, "layout", "flat", "flat (<out>/<svc>.pem) or per-service (<out>/<svc>/<svc>.pem + ca.pem)")
 	flag.BoolVar(&o.reuseCA, "reuse-ca", false, "keep an existing <out>/ca.pem + ca-key.pem instead of making a new CA")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "cert-gen",
+		Purpose:  "Generate TLS certificates for the Unheaded service mesh.",
+		Examples: []string{"cert-gen -out /etc/unheaded/certs"},
+	})
 	if err := generate(o, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

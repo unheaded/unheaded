@@ -42,6 +42,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
@@ -119,12 +120,16 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "report" {
 		os.Exit(runReport(os.Args[2:], os.Stdout))
 	}
+	if len(os.Args) == 2 && cmdline.IsVersionArg(os.Args[1]) {
+		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "kev-poller"})
+		return
+	}
 	cfg, err := parseFlags(os.Args[1:])
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return
 		}
-		log.Fatal().Err(err).Msg("bad flags")
+		os.Exit(cmdline.ReportUsageError(os.Stderr, cmdline.Spec{Name: "kev-poller"}, "%s", cmdline.Translate(err, os.Args[1:])))
 	}
 	fetcher, err := kev.NewFetcher(cfg.url, cfg.timeout, false)
 	if err != nil {

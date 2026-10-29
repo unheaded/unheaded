@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/gjallarhorn"
 )
 
@@ -23,7 +24,11 @@ func main() {
 		iface     = flag.String("iface", "eth0", "interface for multicast")
 		listenIP  = flag.String("listen", "::", "listen address (unicast)")
 	)
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "gjallarhorn-listener",
+		Purpose:  "Receive UPC trigger packets (Gjallarhorn) and print them; Mímir's Law phase 9 validation tool.",
+		Examples: []string{"gjallarhorn-listener --iface eth0"},
+	})
 
 	var conn *net.UDPConn
 	var err error

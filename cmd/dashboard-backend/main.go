@@ -58,6 +58,7 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/logagg"
@@ -118,7 +119,11 @@ var (
 )
 
 func main() {
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "dashboard-backend",
+		Purpose:  "Serve the Kingdom dashboard API and WebSocket feed.",
+		Examples: []string{"dashboard-backend", "dashboard-backend --listen :20000 --services-file services.yaml"},
+	})
 	wotanClient.InitServiceIdentity("dashboard-backend") // ADR-103 §6: every Wotan call carries dashboard-backend's service token
 
 	// Setup logging using Kingdom's native logger

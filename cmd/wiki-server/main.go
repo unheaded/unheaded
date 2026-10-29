@@ -53,6 +53,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
 )
@@ -378,7 +379,11 @@ func newServer(port int, handler http.Handler) *http.Server {
 func main() {
 	port := flag.Int("port", 20002, "HTTP server port")
 	wikiDir := flag.String("wiki-dir", "./wiki", "Path to wiki markdown directory")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "wiki-server",
+		Purpose:  "Serve the Kingdom wiki as rendered HTML.",
+		Examples: []string{"wiki-server", "wiki-server --port 20002 --wiki-dir ./wiki"},
+	})
 
 	logf("INFO", "starting wiki-server",
 		"version", serviceVersion,

@@ -252,8 +252,15 @@ func TestUsage(t *testing.T) {
 		}
 	}
 	r := runKeygen(t, "-h")
-	if r.code != 0 || !strings.Contains(r.stderr, "Exit status") {
-		t.Errorf("-h: exit %d, stderr lacks the exit-status table", r.code)
+	if r.code != 0 || !strings.Contains(r.stdout, "Exit status") || r.stderr != "" {
+		t.Errorf("-h: exit %d, stdout lacks the exit-status table or stderr is not empty (%q)", r.code, r.stderr)
+	}
+	r = runKeygen(t, "-no-such-flag", "x")
+	if r.code != 2 || !strings.Contains(r.stderr, "unrecognized option '-no-such-flag'") || !strings.Contains(r.stderr, "Try 'unheaded-keygen --help'") {
+		t.Errorf("bad flag: exit %d, stderr %q", r.code, r.stderr)
+	}
+	if strings.Contains(r.stderr, "Usage:") {
+		t.Errorf("bad flag must not dump the usage text: %q", r.stderr)
 	}
 }
 

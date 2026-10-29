@@ -31,6 +31,7 @@ import (
 	"strings"
 	"syscall"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/compliance/executor"
 	"unheaded/pkg/compliance/remediation"
 	"unheaded/pkg/compliance/snapshot"
@@ -45,7 +46,16 @@ func main() {
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fl := flag.NewFlagSet("unheaded-remediate", flag.ContinueOnError)
-	fl.SetOutput(stderr)
+	fl.SetOutput(io.Discard)
+	spec := cmdline.Spec{
+		Name:     "unheaded-remediate",
+		Purpose:  "Remediation as code (ADR-099): list, check, plan, apply and undo fixes from the model or a sealed snapshot.",
+		Operands: "list | check <fix> | plan <fix> | apply <fix> | undo <backup-dir>",
+	}
+	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
+		cmdline.PrintVersion(stdout, spec)
+		return 0
+	}
 	modelPath := fl.String("model", "/usr/share/unheaded/remediation/fixes.yaml", "fix model (root-owned when run as root)")
 	host := fl.String("host", "", "host the content is for (default: short hostname)")
 	root := fl.String("root", "", "filesystem root (tests)")
@@ -56,11 +66,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	recordExisting := fl.String("record-existing", "", "journal this fix as applied before the journal existed, if check finds it in place; changes nothing on the host")
 	appliedBy := fl.String("applied-by", "remediate.sh (2026-10-01)", "with -record-existing: what applied the fix, and when")
 	if err := fl.Parse(args); err != nil {
-		return 2
+		return cmdline.HandleParseError(err, fl, spec, args, stdout, stderr)
 	}
 	rest := fl.Args()
 	usage := func() int {
 		fmt.Fprintln(stderr, "usage: unheaded-remediate [flags] list | check <fix> | plan <fix> | apply <fix> | undo <backup-dir> | -record-existing <fix>")
+		fmt.Fprintln(stderr, "Try 'unheaded-remediate --help' for more information.")
 		return 2
 	}
 	if *recordExisting != "" {

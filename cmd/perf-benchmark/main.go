@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"unheaded/pkg/benchmark"
+	"unheaded/pkg/cmdline"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -67,7 +68,11 @@ var (
 )
 
 func main() {
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "perf-benchmark",
+		Purpose:  "Run the Unheaded performance benchmark suite or one named scenario.",
+		Examples: []string{"perf-benchmark", "perf-benchmark -scenario e2e -output results.json"},
+	})
 	wotanClient.InitServiceIdentity("perf-benchmark") // ADR-103 §6: every Wotan call carries perf-benchmark's service token
 
 	if *scenario != "" {

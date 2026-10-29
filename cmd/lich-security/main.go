@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"unheaded/cmd/lich-security/campaigns"
+	"unheaded/pkg/cmdline"
 )
 
 func main() {
@@ -37,7 +38,11 @@ func main() {
 	wotanAddr := flag.String("wotan", "localhost:18001", "Wotan gRPC address")
 	dashboardAddr := flag.String("dashboard", "http://localhost:20000", "Dashboard base URL")
 	timeout := flag.Duration("timeout", 5*time.Minute, "Campaign timeout")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "lich-security",
+		Purpose:  "Run the Lich offensive security campaigns (D1-D6) against the Unheaded service stack.",
+		Examples: []string{"lich-security --campaign D3", "lich-security --gateway http://127.0.0.1:21000 --report report.json"},
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()

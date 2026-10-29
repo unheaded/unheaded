@@ -40,6 +40,7 @@ import (
 
 	_ "github.com/lib/pq"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/database"
 	"unheaded/pkg/database/migrate"
 )
@@ -53,16 +54,26 @@ func main() {
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fl := flag.NewFlagSet("well-migrate", flag.ContinueOnError)
-	fl.SetOutput(stderr)
+	fl.SetOutput(io.Discard)
+	spec := cmdline.Spec{
+		Name:     "well-migrate",
+		Purpose:  "Apply the Well's SQL migrations from the manifest, with a ledger (ADR-101).",
+		Operands: "check | status | apply [-db D] [-yes] | baseline [-db D] -through FILE -yes",
+	}
+	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
+		cmdline.PrintVersion(stdout, spec)
+		return 0
+	}
 	dir := fl.String("dir", "db/migrations", "migrations directory (holds MANIFEST and LEDGER.sql)")
 	lockTimeout := fl.Duration("lock-timeout", 5*time.Second, "lock wait limit inside each migration")
 	stmtTimeout := fl.Duration("statement-timeout", 5*time.Minute, "limit per statement")
 	usage := func() int {
 		fmt.Fprintln(stderr, "usage: well-migrate [-dir D] [-lock-timeout T] [-statement-timeout T] check | status | apply [-db D] [-yes] | baseline [-db D] -through FILE -yes")
+		fmt.Fprintln(stderr, "Try 'well-migrate --help' for more information.")
 		return 2
 	}
 	if err := fl.Parse(args); err != nil {
-		return 2
+		return cmdline.HandleParseError(err, fl, spec, args, stdout, stderr)
 	}
 	rest := fl.Args()
 	if len(rest) == 0 {

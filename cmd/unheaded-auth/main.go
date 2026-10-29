@@ -35,6 +35,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/ports"
 	utls "unheaded/pkg/tls"
 )
@@ -49,6 +50,10 @@ func main() {
 }
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
+		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "unheaded-auth"})
+		return 0
+	}
 	if len(args) > 0 && args[0] == "user" {
 		return runUser(args[1:], stdin, stdout, stderr)
 	}
@@ -57,22 +62,23 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 func runServer(args []string, stderr io.Writer) int {
 	fs := flag.NewFlagSet("unheaded-auth", flag.ContinueOnError)
-	fs.SetOutput(stderr)
+	fs.SetOutput(io.Discard)
 	listen := fs.String("listen", fmt.Sprintf(":%d", ports.Auth), "listen address")
 	issuerURL := fs.String("issuer-url", "", "external issuer URL: the tokens' iss and the discovery base (required)")
 	keyFile := fs.String("key-file", defaultKeyFile, "issuer Ed25519 key (unheaded-keygen unheaded-auth), 0400")
 	usersFile := fs.String("users-file", defaultUsersFile, "users file (unheaded-auth user add), 0600")
 	audiences := fs.String("audiences", defaultAudience, "comma-separated audiences a login may ask for; the first is the default")
 	devPlaintext := fs.Bool("dev-plaintext", false, "serve login, JWKS and discovery over plain HTTP (development only)")
+	authSpec := cmdline.Spec{
+		Name:     "unheaded-auth",
+		Purpose:  "Serve the Kingdom's login, JWKS and OIDC discovery endpoints; `unheaded-auth user` manages the users file.",
+		Commands: []cmdline.Command{{Name: "user add|list|del", Purpose: "manage users (see unheaded-auth user --help)"}},
+	}
 	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
+		return cmdline.HandleParseError(err, fs, authSpec, args, os.Stdout, stderr)
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintf(stderr, "unheaded-auth: unexpected argument %q\n", fs.Arg(0))
-		return 2
+		return cmdline.ReportUsageError(stderr, authSpec, "extra operand '%s'", fs.Arg(0))
 	}
 
 	log.Logger = zerolog.New(stderr).With().Timestamp().Str("service", serviceName).Logger()

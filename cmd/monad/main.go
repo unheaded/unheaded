@@ -43,6 +43,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -71,7 +72,11 @@ var (
 )
 
 func main() {
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "monad",
+		Purpose:  "Serve the Monad HTTP API.",
+		Examples: []string{"monad", "monad --listen :19004"},
+	})
 	wotanClient.InitServiceIdentity("monad") // ADR-103 §6: every Wotan call carries monad's service token
 
 	// Allow environment variable override for port

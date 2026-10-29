@@ -29,6 +29,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"unheaded/pkg/cmdline"
 )
 
 // version is set at build time; each image (v1..v4) is one build.
@@ -39,6 +41,10 @@ func main() {
 	cmd := "serve"
 	if len(args) > 0 && (args[0] == "serve" || args[0] == "load" || args[0] == "monad-send" || args[0] == "monad-count") {
 		cmd, args = args[0], args[1:]
+	}
+	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
+		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "steel-echo", Version: version})
+		return
 	}
 	var err error
 	switch cmd {
@@ -52,7 +58,7 @@ func main() {
 		err = runMonadCount(args)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "steel-echo %s: %v\n", cmd, err)
+		fmt.Fprintf(os.Stderr, "steel-echo %s: %s\n", cmd, cmdline.Translate(err, args))
 		os.Exit(1)
 	}
 }

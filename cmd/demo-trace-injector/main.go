@@ -17,6 +17,7 @@ import (
 	"math/rand"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	wotan "unheaded/pkg/wotan-client"
 )
 
@@ -108,6 +109,11 @@ var latOps = []struct {
 func newTID() traceID { return traceID{High: rand.Uint64(), Low: rand.Uint64()} } // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 
 func main() {
+	cmdline.Parse(cmdline.Spec{
+		Name:    "demo-trace-injector",
+		Purpose: "Publish synthetic eBPF trace events to the Wotan topics the dashboard ingests, for demos.",
+		Details: "Publishes as the unheaded-cli identity; key from AUTH_KEY_FILE or /etc/unheaded/keys/unheaded-cli.key.",
+	})
 	// An operator's demo tool, so it presents the operator's CLI identity
 	// (ADR-103 §6): unheaded-cli, already on Wotan's AUTH_ALLOW_CALLERS and
 	// auto_approve. Key: AUTH_KEY_FILE (e.g. ~/.config/unheaded/cli.key),

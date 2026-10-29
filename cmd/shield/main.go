@@ -36,6 +36,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -48,7 +49,11 @@ func main() {
 		wotanAddr   = flag.String("wotan-grpc", "127.0.0.1:18001", "Wotan gRPC address")
 		shutTimeout = flag.Duration("shutdown-timeout", 10*time.Second, "graceful shutdown deadline")
 	)
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "shield",
+		Purpose:  "Run Shield, the Kingdom's WAF / Zero-Trust gateway daemon.",
+		Examples: []string{"shield", "shield --port 19007"},
+	})
 	wotanClient.InitServiceIdentity("shield") // ADR-103 §6: every Wotan call carries shield's service token
 
 	if env := os.Getenv("SHIELD_PORT"); env != "" {

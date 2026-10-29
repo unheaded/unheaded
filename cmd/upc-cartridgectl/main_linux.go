@@ -24,6 +24,7 @@ import (
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 
 	"unheaded/pkg/cartridge"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/gungnir"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -82,7 +83,11 @@ func main() {
 		fmt.Fprintln(fs.Output(), commandsUsage)
 		fs.PrintDefaults()
 	}
-	_ = fs.Parse(os.Args[1:])
+	if len(os.Args) == 2 && cmdline.IsVersionArg(os.Args[1]) {
+		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "upc-cartridgectl"})
+		os.Exit(0)
+	}
+	_ = fs.Parse(os.Args[1:]) // ExitOnError: -h and bad options exit here with fs.Usage
 	args := fs.Args()
 	if len(args) == 0 {
 		fs.Usage()
@@ -132,7 +137,7 @@ func main() {
 		wotanClient.InitServiceIdentity(weightsIdentity)
 		err = cmdWeights(context.Background(), args[1:], g.pub, os.Stdout)
 	default:
-		err = fmt.Errorf("unknown command %q", args[0])
+		os.Exit(cmdline.ReportUnknownCommand(os.Stderr, cmdline.Spec{Name: "upc-cartridgectl"}, args[0]))
 	}
 	var ee *exitError
 	if errors.As(err, &ee) {

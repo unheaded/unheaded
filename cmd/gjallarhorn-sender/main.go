@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/gjallarhorn"
 )
 
@@ -37,7 +38,11 @@ func main() {
 		target      = flag.String("target", "", "unicast target host (reverify)")
 		iface       = flag.String("iface", "", "network interface for multicast")
 	)
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "gjallarhorn-sender",
+		Purpose:  "Emit UPC trigger packets (Gjallarhorn) for Mímir's Law.",
+		Examples: []string{"gjallarhorn-sender --kind bootstrap --cluster 1 --manifest 0xCAFE --multicast"},
+	})
 
 	var kind gjallarhorn.TriggerKind
 	switch *kindFlag {

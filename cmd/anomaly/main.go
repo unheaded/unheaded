@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"unheaded/pkg/cartridge"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -100,7 +101,11 @@ func main() {
 	pinDir := flag.String("pin-dir", cartridge.DefaultPinDir, "bpffs directory of the pinned cartridge interpreter")
 	wotanAddr := flag.String("wotan", "", "Wotan HTTP address: publish anomaly.scores there (default: in-process intake)")
 	noCart := flag.Bool("no-cartridge", false, "run the service without the cartridge bridge")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "anomaly",
+		Purpose:  "Run the Anomaly Detection service and bridge MBC cartridge scores into it (ADR-108).",
+		Examples: []string{"anomaly", "anomaly --listen :19018 --pin-dir /sys/fs/bpf/unheaded"},
+	})
 	wotanClient.InitServiceIdentity("anomaly") // ADR-103 §6: every Wotan call carries anomaly's service token
 
 	log := logger.New(os.Stderr)

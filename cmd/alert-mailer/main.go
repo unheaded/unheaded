@@ -41,6 +41,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
@@ -104,7 +105,12 @@ func main() {
 	policy := flag.String("policy", "/etc/alert-mailer/policy.yaml", "observability/alerting/policy.yaml")
 	stateDir := flag.String("state-dir", "/var/lib/alert-mailer", "where state.json lives (cap, tickets, outbox)")
 	hbAddr := flag.String("heartbeat-addr", ":"+strconv.Itoa(ports.AlertMailerHeartbeat), "heartbeat listen address (used only when HEARTBEAT_HOSTS is set)")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "alert-mailer",
+		Purpose:  "Send alert mail for Alertmanager page and ticket routes; the only mailer in the Kingdom (ADR-100).",
+		Examples: []string{"alert-mailer --policy observability/alerting/policy.yaml"},
+		Details:  "Relay settings come from the environment: SMTP_SMARTHOST, SMTP_USERNAME, SMTP_PASSWORD.",
+	})
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 	log.Logger = log.With().Str("service", "alert-mailer").Logger()
 

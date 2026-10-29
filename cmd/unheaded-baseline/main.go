@@ -44,6 +44,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/crosswalk/collect"
 	"unheaded/pkg/compliance/remediation"
@@ -133,7 +134,11 @@ func main() {
 	// the only production value. LICH-017 runs the binary unprivileged.
 	flag.IntVar(&o.trustedUID, "trusted-uid", 0, "uid that must own the baseline and the snapshot (root; tests)")
 	timeout := flag.Duration("timeout", 2*time.Minute, "give up after this long")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "unheaded-baseline",
+		Purpose:  "Evaluate this host against the shipped baseline and report every deviation (ADR-098).",
+		Examples: []string{"unheaded-baseline", "unheaded-baseline --baseline /etc/unheaded/baseline.yaml --snapshot"},
+	})
 	wotanClient.InitServiceIdentity("unheaded-baseline") // ADR-103 §6: every Wotan call carries unheaded-baseline's service token
 	o.wotanAddr = wotanAddrFrom(o.wotanAddr, os.Getenv)
 

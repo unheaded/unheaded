@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/crosswalk/collect"
 )
@@ -91,7 +92,24 @@ func main() {
 	branch := flag.String("branch", "develop", "branch whose CI runs are evidence")
 	keep := flag.Int("keep", 50, "records kept per source")
 	skipGates := flag.Bool("skip-gates", false, "do not run gate scripts")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:    "compliance-evidence",
+		Purpose: "Collect compliance evidence (gates, CI runs, host facts) into the evidence file; subcommands render findings, SSPs, snapshots and Ansible.",
+		Commands: []cmdline.Command{
+			{Name: "findings", Purpose: "findings register from the catalog"},
+			{Name: "ssp", Purpose: "system security plan"},
+			{Name: "snapshot", Purpose: "sealed baseline snapshot"},
+			{Name: "ansible", Purpose: "render Ansible from the catalog"},
+			{Name: "profile", Purpose: "control profiles in the Well"},
+			{Name: "well", Purpose: "sync the catalog into the Well"},
+			{Name: "baseline", Purpose: "host baseline"},
+		},
+		Operands: "[COMMAND]",
+		MaxArgs:  1,
+	})
+	if flag.NArg() > 0 {
+		cmdline.UnknownCommand(cmdline.Spec{Name: "compliance-evidence"}, flag.Arg(0))
+	}
 
 	if err := run(*repoDir, *out, *ghRepo, *branch, *keep, *skipGates); err != nil {
 		fmt.Fprintln(os.Stderr, "compliance-evidence:", err)

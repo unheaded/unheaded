@@ -14,9 +14,14 @@ import (
 	"os"
 
 	bpf "unheaded/internal/bpf"
+	"unheaded/pkg/cmdline"
 )
 
 func main() {
+	cmdline.Parse(cmdline.Spec{
+		Name:    "test_batch",
+		Purpose: "Scratch tool: batch-read the Doom screen BPF map and print timings.",
+	})
 	screenMap, err := bpf.OpenMap("/sys/fs/bpf/unheaded/doom-ring/maps/SCREEN_MAP")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "OpenMap: %v\n", err)

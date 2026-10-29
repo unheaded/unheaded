@@ -45,6 +45,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/database"
 	"unheaded/pkg/deploy/cuirassdriver"
 	"unheaded/pkg/discovery"
@@ -224,6 +225,11 @@ func handler(s *sword.Service, authCfg auth.ServiceAuthConfig) (http.Handler, er
 }
 
 func main() {
+	cmdline.Parse(cmdline.Spec{
+		Name:    "sword",
+		Purpose: "Sword: the Kingdom's deploy service — rolling, blue-green, canary and recreate deployments into LXD through Cuirass, under the Kingdom SLO guard.",
+		Details: "Configured by environment: WOTAN_ADDR, WOTAN_GRPC_ADDR, CUIRASS_API_KEY, AUTH_KEY_FILE, KINGDOM_NODE, SWORD_DATA_DIR, WELL_DB, VM_URL.",
+	})
 	wotanClient.InitServiceIdentity("sword") // ADR-103 §6: every Wotan call carries sword's service token
 	log := zerolog.New(os.Stderr).With().Timestamp().Str("service", serviceName).Logger()
 	c, err := loadConfig(os.Getenv)

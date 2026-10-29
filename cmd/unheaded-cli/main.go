@@ -36,7 +36,7 @@ func main() {
 	// Create and execute root command
 	root := cmd.NewRootCommand()
 	if err := root.Execute(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "unheaded: %v\n", err)
 		os.Exit(1)
 	}
 }

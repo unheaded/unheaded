@@ -28,6 +28,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"unheaded/pkg/cmdline"
 )
 
 // ── output shapes ────────────────────────────────────────────────────────
@@ -389,7 +391,11 @@ func main() {
 	flagListen := flag.String("listen", "", "listen address override")
 	flagVM := flag.String("vm", "", "VictoriaMetrics URL override (empty string = no override)")
 	flagInterval := flag.Duration("interval", 0, "collection/push interval override")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "huginn",
+		Purpose:  "Huginn: report bare-metal host metrics (CPU, memory, disks, network, processes) to the dashboard and VictoriaMetrics (ADR-084).",
+		Examples: []string{"huginn", "huginn --config /etc/huginn.yaml"},
+	})
 
 	cfg, err := loadConfig(*configPath)
 	if err != nil {

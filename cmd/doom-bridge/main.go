@@ -39,6 +39,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 )
 
@@ -132,7 +133,11 @@ func main() {
 	mapPath := flag.String("map-path", "/sys/fs/bpf/unheaded/doom-ring/maps", "BPF map pin directory")
 	dryRun := flag.Bool("dry-run", false, "Run without BPF maps (serve fake gradient data)")
 	staticDir := flag.String("static", "", "Static files directory (default: demos/doom/ relative to binary or CWD)")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "doom-bridge",
+		Purpose:  "Fenrir's Eye: read the Doom framebuffer and CPU state from pinned eBPF maps and stream frames to browsers over WebSocket.",
+		Examples: []string{"doom-bridge --port 16666", "doom-bridge --dry-run"},
+	})
 
 	// Resolve static directory
 	static := *staticDir

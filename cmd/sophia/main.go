@@ -43,6 +43,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -845,7 +846,11 @@ func (hs *HTTPServer) getNextRequestID() int64 {
 // ============================================================================
 
 func main() {
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "sophia",
+		Purpose:  "Serve the Sophia dictionary HTTP API.",
+		Examples: []string{"sophia", "sophia --listen :19005"},
+	})
 	wotanClient.InitServiceIdentity("sophia") // ADR-103 §6: every Wotan call carries sophia's service token
 
 	// Override from environment

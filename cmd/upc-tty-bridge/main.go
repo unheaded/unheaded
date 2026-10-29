@@ -31,6 +31,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 )
 
@@ -224,7 +225,11 @@ func main() {
 	listen := flag.String("listen", fmt.Sprintf("127.0.0.1:%d", defaultPort),
 		"listen address (host:port); loopback by default")
 	port := flag.Int("port", 0, "deprecated: listen on 127.0.0.1:<port> (use --listen)")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "upc-tty-bridge",
+		Purpose:  "Bridge UPC TTY byte streams to browser terminals over WebSocket (ASCEND-LINUX Mode A).",
+		Examples: []string{"upc-tty-bridge --port 26100"},
+	})
 	addr := *listen
 	if *port != 0 {
 		addr = fmt.Sprintf("127.0.0.1:%d", *port)

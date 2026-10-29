@@ -13,8 +13,16 @@
 
 package main
 
-import "log"
+import (
+	"log"
+
+	"unheaded/pkg/cmdline"
+)
 
 func main() {
+	cmdline.Parse(cmdline.Spec{
+		Name:    "unheaded",
+		Purpose: "Liveness stub for the Unheaded module; the operator CLI is unheaded-cli (the Gauntlets).",
+	})
 	log.Println("✅ unheaded is alive")
 }

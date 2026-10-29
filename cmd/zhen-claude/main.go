@@ -47,6 +47,7 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/claudebridge/privacy"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/mcpclient"
 	"unheaded/pkg/zhencapture"
 	"unheaded/pkg/zhentools"
@@ -238,6 +239,10 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 }
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
+		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "zhen-claude"})
+		return 0
+	}
 	if len(args) > 0 && args[0] == "confirm" {
 		return runConfirmCmd(args[1:], stdout, stderr)
 	}
@@ -249,8 +254,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
-		_, _ = fmt.Fprintln(stderr, "zhen-claude:", err)
-		return 2
+		return cmdline.ReportUsageError(stderr, cmdline.Spec{Name: "zhen-claude"}, "%s", cmdline.Translate(err, args))
 	}
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(o.logLevel)); err != nil {
