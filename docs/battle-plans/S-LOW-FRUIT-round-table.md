@@ -60,6 +60,8 @@
 
 Decisions 1-3 above: **accepted by Stevie 2026-10-29 00:44** ("all minor").
 
+**Plan approved 2026-10-29** (west): aligned with the west flow — sprint branch `sprint/low-fruit`, signed Claude commits, Stevie pushes; west measurements and escalations E0-E6 at the top of the battle plan.
+
 ## Seats
 
 - **Captain:** Adopter-facing polish (help, man pages, errors) is the cheapest trust we can buy before the public flip. Go.

@@ -1,15 +1,45 @@
-# S-LOW-FRUIT BATTLE PLAN — 10 Phases, 95 Steps (+15 lettered)
+# S-LOW-FRUIT BATTLE PLAN — 10 Phases, 98 Steps (+16 lettered)
 
 **Date**: 2026-10-29
 **Sprint**: S-LOW-FRUIT — cheap, high-value, reversible best-practice adds found by the Round Table (`S-LOW-FRUIT-round-table.md`)
-**Prerequisite**: ADR-111 patch applied (it is, uncommitted on `develop`); `go build ./... && go test ./...` green on the Mac
+**Status**: APPROVED 2026-10-29, aligned with west's flow (`~/tmp/next.md`): branch, commits, host facts and escalations below.
+**Prerequisite**: ADR-111 committed and signed on `develop` (`15bf51e5`; the four laptop commits were re-signed 2026-10-29, develop tip `6362ccdd`, old head at `refs/backup/develop-before-resign`, **Stevie force-pushes develop**: `git push --force-with-lease origin develop`). `go build ./... && go test ./...` green **on west** (Go 1.27.3 = go.mod's `toolchain go1.27.3`).
 **Target**: every Go daemon has header timeouts, a memory ceiling with `GOMEMLIMIT`, a version, native man pages, path-bearing config errors; pprof + CPU profiles on demand; Vector survives a dead sink; one direct module removed natively and every kept one justified in writing; each fix guarded by a shrink-only ratchet
-**Estimated Duration**: 5-6 hours, two attended sessions
-**Agent Strategy**: Phases 1-7, 9 independent after Phase 0. Agent-safe: 1, 2, 5, 6, 8. Stevie/west only: 0, 3 (31-35), 4 (45-47), 7 (67-68), 9, every [C]. WIP ≤ 3 phases.
-**Commit Cadence**: every 4 steps (80/20 → 4). Stevie commits; agents stage and stop at each [C]
+**Estimated Duration**: 5-6 hours; unattended phases churn on west, attended legs listed under Escalations
+**Branch**: `sprint/low-fruit` from `develop`. Parallel lanes run in worktrees `.claude/worktrees/lowfruit-<phase>` on `sprint/low-fruit-<phase>`, merged back into `sprint/low-fruit` at each phase gate (lanes deletable afterwards). The sprint merges into `develop` with `--no-ff`, signed, after the sprint exit gate (Step 96).
+**Agent Strategy**: everything runs on west (no Mac-only steps). Phases 1, 2, 5, 6, 8, 10 are agent-safe lanes; at most 3 in flight. Steps that start/stop live services, the compose stack, LXD instances or load a GPU model are **[ATTENDED]** and wait for Stevie (Escalations).
+**Commit Cadence**: Claude commits **signed** at every [C] on the sprint branch: `type(scope): [S-LOW-FRUIT a-b] subject` + the Co-Authored-By trailer (west convention, e.g. `feat(upc): [S-ASCEND-2 44-65] …`). If gpg-agent times out during unattended work, commit `--no-gpg-sign` and re-sign later with `scripts/resign-unpushed.py . <base>`. **Stevie pushes; Claude never pushes.**
+**Log**: `references/s-low-fruit-log.md` (evidence per step); steps ticked inline here. The `[PLAN S-LOW-FRUIT] Steps a-b: …` strings in the [C] steps are subjects; commit them in the Commit Cadence form above.
 **Stuck Protocol**: skip after 3x estimate or 2 failed debug attempts; mark [STUCK], continue
 **Scope fence (Marshal)**: no logger consolidation, no `net.IP` rewrite, no wire-format change, no new ADR number
 **Standing principle (Captain/Architect/Developer/BlackMage, 2026-10-29)**: native first. Every package or tool outside the tree is attack surface and supply-chain exposure; an outside module or tool is a last resort that enters the repo only with Stevie's explicit approval, recorded before it is pulled in, and the SBOM line count must trend down sprint over sprint — `scripts/check-dependency-baseline.sh` already refuses additions; this sprint adds the burn-down.
+
+## WEST FACTS (measured 2026-10-29 on develop `6362ccdd`, before Step 1)
+
+| Plan assumption | On west | Effect |
+|---|---|---|
+| 22 `http.Server` without `ReadHeaderTimeout` | 22 | as planned |
+| 39 units, `MemoryMax` on 3; the 5 bare units exist | 39 / 3 / all 5 present | as planned |
+| ~17 bare-error YAML/TOML sites | the Step 57 pipeline counts **3** | re-measure at Step 57 with a wider search (callers that load files); record the real number, don't force 17 |
+| `net.IP`/`ParseIP` 120; direct Go modules 19; `gorilla/mux` 1 caller (`services/timeguru/main.go`) | 120 / 19 / 1 | as planned |
+| 26 unlocked `cargo` invocations | **30** | Step 85f covers 30 |
+| `wiki/Observability.md` | **missing** (`wiki/Observability-Backends.md` exists) | Steps 48/75 create `wiki/Profiling.md` and link it from `_Sidebar.md` and Observability-Backends |
+| `scripts/check-sbom-trend.sh`, `check-dep-staleness.sh` | **missing**, but CLAUDE.md's "Native first" bullet already names them | forward reference; closes at Steps 71c and 85c |
+| Vector + ClickHouse running | compose stack **down** (0 containers); host `vector` unit inactive | Phase 7 live legs are attended (E1) |
+| llama-server serving | **not running** | Phase 9 TH-2026-005 probe is attended (E2) |
+| LXD pool for the residue probe | project `unheaded` exists; pool `default` driver **`dir`** | Steps 80-81 rewritten for a `dir` pool |
+| Go toolchain | west 1.27.3 = go.mod `toolchain go1.27.3` | `GOTOOLCHAIN=local` (Step 85e) is safe here |
+| `make build` output | `bin/` (`BINARY_DIR := bin`) | as planned |
+
+## ESCALATIONS (Stevie; one line each)
+
+- **E0 force-push develop**: four laptop commits re-signed (`b7efa416 15bf51e5 2b3b734d 6362ccdd`); origin has the unsigned `6679df55`. `git push --force-with-lease origin develop`.
+- **E1 compose stack is down**: the Phase 7 game day needs Vector + ClickHouse. Bringing the stack up hits next.md's "BEFORE ANY docker compose up" list (keys + certs, Well batch 030-043 before kanban-app/sword). Unattended: Steps 64-66, 65a and 69 (config, `vector test` via the compose-pinned image, rules). Attended: Steps 67-68.
+- **E2 llama-server**: the TH-2026-005 probe loads a model on the GPU (west's memory floor applies). Attended: Steps 77-79.
+- **E3 unit install (Step 31)**: only units already installed on west are copied (`systemctl list-unit-files 'unheaded-*' 'huginn*'`: huginn, unheaded-{baseline,chaos-controller,kev-poller,trace-collector,upc-bootctl@,upc-netns,well-*,wg-psk-rotate}); copying all 54 `deploy/systemd` files would install units that aren't deployed. Attended restart.
+- **E4 supply chain overlap**: Phase 10's watch list answers part of S-TRUE-WIRE **E5** (thresholds, yaml.v3, cilium/ebpf, lib/pq). next.md's open Dependabot decision (retire Grimoire's `tomb/grimoire/rag/` vs bump) would remove 4 Python packages; `check-sbom-trend.sh` counts Go + Rust only, so record a Python line too or the Grimoire removal won't show.
+- **E5 trivy-action re-pin** (next.md decision 2: `6abccf398f78` → `8f28faec2651`): fits Step 85 cluster as one line; needs Stevie's OK under native-first.
+- **E6 CI is disabled** (FND-027, `ci.yml`): Step 85e's CI `env:` lands but proves nothing until the workflow is re-enabled.
 
 ## LEGEND
 [B] bash · [V] verify (must pass) · [D] debug (only on failure) · [W] write/edit file · [R] read · [S] sudo · [P] parallelizable · [C] commit checkpoint · [STUCK]/[BLOCKED]
@@ -22,6 +52,7 @@ All paths relative to `~/tmp/unheaded`.
 **Goal**: ADR-111 patch builds and tests green; baseline numbers recorded.
 **Time**: 15m · **Agent**: Solo
 
+- [ ] **Step 0a** [B] ~1m: `git switch -c sprint/low-fruit develop && git log -1 --format='%h %G?'` → `6362ccdd G`.
 - [ ] **Step 1** [B] ~3m: `go build ./... && go vet ./...`
 - [ ] **Step 2** [V]: exit 0. If fail → Step 3.
 - [ ] **Step 3** [D]: `go build ./... 2>&1 | head -30` — expect only cmdline call-site slips; fix the one file, back to Step 1. Two failures → [STUCK], report.
@@ -76,8 +107,8 @@ All paths relative to `~/tmp/unheaded`.
   Ceilings: daemons 512M (akira, huginn, heimdall, kev-poller…), dashboard-backend/kanban/wiki 1G, wotan 2G, UPC tools 1G. `GOMEMLIMIT` = MemoryHigh so the GC works harder *before* the cgroup OOM-kills (Go ≥1.19). Skip units whose ExecStart is a shell script or non-Go binary.
 - [ ] **Step 28** [W] ~8m: the 5 bare units (`systemd/kingdom-startup.service`, `systemd/kingdom-shutdown.service`, `deploy/systemd/unheaded-doom-{injector,ring,runner}.service`): add the house hardening block copied from `deploy/systemd/huginn.service` (`NoNewPrivileges=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `ProtectKernelTunables=yes`, `LockPersonality=yes`, `RestrictNamespaces=yes`, `CapabilityBoundingSet=`, `RestrictAddressFamilies=`, `SystemCallFilter=@system-service`). Doom units need `CAP_NET_RAW CAP_BPF CAP_NET_ADMIN` and `AF_PACKET AF_NETLINK` — copy from `unheaded-upc-bootctl@.service`. kingdom-startup/shutdown run systemctl: they need `SystemCallFilter=@system-service @privileged` or stay less strict; set what keeps them working, document the exception in the unit.
 - [ ] **Step 29** [B] ~1m: `for u in systemd/*.service deploy/systemd/*.service; do systemd-analyze verify "$u" 2>&1 | grep -v '^$'; done | head`
-- [ ] **Step 30** [V]: no errors (warnings about missing binaries on the Mac are fine; on west they must be clean).
-- [ ] **Step 31** [S][B] ~5m (on west): `sudo cp deploy/systemd/*.service /etc/systemd/system/ && sudo systemctl daemon-reload && for u in huginn akira heimdall; do sudo systemctl restart unheaded-$u 2>/dev/null || sudo systemctl restart $u; done; systemctl --failed | head`
+- [ ] **Step 30** [V]: no errors (west: must be clean for installed units; a warning about a binary not installed on west is fine for units that are not deployed here).
+- [ ] **Step 31** [S][B][ATTENDED, E3] ~5m (west): only units already installed: `for u in $(systemctl list-unit-files 'unheaded-*.service' 'huginn*.service' --no-legend | awk '{print $1}'); do f=$(ls deploy/systemd/$u systemd/$u 2>/dev/null | head -1); [ -n "$f" ] && diff -q "$f" /etc/systemd/system/$u >/dev/null || { [ -n "$f" ] && echo "$u"; }; done | tee /tmp/units-changed.txt` → review each diff, then `sudo cp` those, `sudo systemctl daemon-reload`, restart only the long-running ones (huginn, unheaded-kev-poller, unheaded-chaos-controller, unheaded-trace-collector); oneshots/timers run at their next trigger. `systemctl --failed | head`. akira runs in compose, not as a host unit.
 - [ ] **Step 32** [V]: no failed units. If one fails → Step 33.
 - [ ] **Step 33** [D]: `journalctl -u <unit> -n 30 --no-pager` — a `SystemCallFilter`/`CapabilityBoundingSet` refusal shows as `code=killed, signal=SYS` or `Operation not permitted`; widen that one line, reload, retry. Two failures → revert that unit's block, [STUCK].
 - [ ] **Step 34** [S][B] ~2m: `for u in $(systemctl list-units --type=service --no-legend 'unheaded-*' 'huginn*' | awk '{print $1}'); do printf '%-40s %s\n' $u "$(systemd-analyze security $u 2>/dev/null | tail -1)"; done`
@@ -95,11 +126,11 @@ All paths relative to `~/tmp/unheaded`.
 - [ ] **Step 41** [B] ~2m: `go build ./... && go test ./pkg/httputil/ -run Pprof -race`
 - [ ] **Step 42** [V]: green. `./bin/akira --pprof --once & sleep 1; curl -s http://127.0.0.1:19100/debug/pprof/ | head -3` shows the index (adjust port to akira's metrics addr).
 - [ ] **Step 43** [W] ~6m: `scripts/flamegraph.sh <metrics-addr> [seconds]`: `curl -s "http://$ADDR/debug/pprof/profile?seconds=$S" -o var/pprof/<name>-<date>.pb.gz` then `go tool pprof -http=127.0.0.1:0 bin/<name> var/pprof/<name>-<date>.pb.gz` — the flame graph is a built-in pprof view (View → Flame Graph); nothing outside the Go toolchain. Add `var/pprof/` and `*.pb.gz` to `.gitignore`: raw profiles can hold in-memory secrets (MoatGhost). Profiles need symbols: add `GO_LDFLAGS_PROFILE := -X …Version` (no `-s -w`) and `make build-profile`.
-- [ ] **Step 44** [W] ~5m: `scripts/bpf-profile.sh [duration]` (kernel `bpftool`, already a dependency): `sudo bpftool prog profile id $(bpftool prog show | awk '/monad_cpu/ {print $1}' | tr -d :) duration $D cycles instructions l1d_loads llc_misses` — the per-program cost of a Doom tick (the per-program cost of a Doom tick).
-- [ ] **Step 45** [S][B] ~5m (west, UPC booted or Doom ring up): `scripts/flamegraph.sh 127.0.0.1:<doom-bridge metrics port> 20 && scripts/bpf-profile.sh 10 | tail -8`
+- [ ] **Step 44** [W] ~5m: `scripts/bpf-profile.sh [prog-name] [duration]` (kernel `bpftool`, already a dependency; default prog `monad_cpu`): `sudo bpftool prog profile id $(sudo bpftool prog show | awk -v p="$P" '$0 ~ p {print $1}' | tr -d :) duration $D cycles instructions l1d_loads llc_misses` — the per-program cost of one UPC tick (the ascend kernel the EVOLUTION-1 ladder is spending its 900K budget on; Doom is lowest priority and optional).
+- [ ] **Step 45** [S][B] ~5m (west): Go side on a host process that needs nothing else: `./bin/heimdall-daemon --pprof …` (or `./bin/akira --pprof --once`) and `scripts/flamegraph.sh 127.0.0.1:<its metrics port> 20`. BPF side inside the existing UPC boot recipe (`scripts/upc-netns.sh up`, `ip netns exec upc0 … upc-bootctl boot … --triggers 800000`) with `scripts/bpf-profile.sh monad_cpu 10 | tail -8` in a second shell; `scripts/upc-netns.sh down` after (host clean: `upc0` gone, no programs left).
 - [ ] **Step 46** [V]: a `.pb.gz` exists and `go tool pprof -top` lists Go symbols (not hex); bpftool prints cycles/instruction per run. If symbols are hex → Step 47.
 - [ ] **Step 47** [D]: rebuild with `make build-profile` (the `-s -w` build strips symbols); re-run Step 45.
-- [ ] **Step 48** [C]: **PHASE 4 EXIT GATE + COMMIT** — Steps 42, 46 green; `wiki/Observability.md` gains a "Profiling" section (pprof flag, flamegraph.sh, bpf-profile.sh, loopback-only rule). `[PLAN S-LOW-FRUIT] Steps 38-48: pprof behind --pprof on loopback; CPU profiles for Go and BPF`
+- [ ] **Step 48** [C]: **PHASE 4 EXIT GATE + COMMIT** — Steps 42, 46 green; new `wiki/Profiling.md` (linked from `wiki/_Sidebar.md` and `wiki/Observability-Backends.md`) (pprof flag, flamegraph.sh, bpf-profile.sh, loopback-only rule). `[PLAN S-LOW-FRUIT] Steps 38-48: pprof behind --pprof on loopback; CPU profiles for Go and BPF`
 
 ## PHASE 5: MAN PAGES FROM --HELP, NATIVELY (Steps 49-56)
 **Goal**: `man/<binary>.1` for all 59 Go binaries, generated by `pkg/cmdline` itself (Go stdlib only, no outside tool), examples included, reproducible, installed by the Debian packaging.
@@ -120,7 +151,7 @@ All paths relative to `~/tmp/unheaded`.
 **Time**: 25m · **Agent**: Agent [P]
 
 - [ ] **Step 57** [B] ~1m: `grep -rn -A1 'yaml.Unmarshal\|toml.Unmarshal\|toml.Decode' --include=*.go cmd services | grep -B1 'return.*err$' | grep -v _test | grep 'Unmarshal\|Decode' | tee /tmp/cfgerr.txt | wc -l`
-- [ ] **Step 58** [V]: ~17 sites.
+- [ ] **Step 58** [V]: the Step 57 pipeline finds **3** on west; the Round Table's 17 came from a wider search. Widen it: every function that reads a config file (`os.ReadFile` within 5 lines before `yaml.Unmarshal`/`toml.Decode`) and returns the decode error without the path. Record the real count in the log.
 - [ ] **Step 59** [W] ~12m: at each site, `return nil, err` → `return nil, fmt.Errorf("%s: %w", path, err)` (use the variable that holds the file path at that site; if none is in scope, wrap at the caller that opened the file instead). Never wrap twice — check the caller doesn't already prefix the path.
 - [ ] **Step 60** [B] ~2m: `go build ./... && printf 'once: [\n' > /tmp/bad.yaml && ./bin/akira --config /tmp/bad.yaml; echo rc=$?`
 - [ ] **Step 61** [V]: stderr is one line like `akira: /tmp/bad.yaml: yaml: line 1: did not find expected node content` (exit 1 or 2 — whichever the binary already uses for config failure; keep it). Repeat for huginn (`--config`) and kev-poller (`--stack`).
@@ -131,6 +162,7 @@ All paths relative to `~/tmp/unheaded`.
 **Goal**: a dead ClickHouse never blocks journald/Vector or fills the disk; buffer pressure is counted and alerted.
 **Time**: 30m · **Agent**: Coordinator (west)
 
+*Steps 64-66, 65a, 69 run unattended (config + tests; `vector test`/`vector validate` through the compose-pinned image: `sudo docker run --rm -v "$PWD/config/vector:/etc/vector:ro" <image from docker-compose.yml vector:> test /etc/vector/vector.yaml /etc/vector/tests/redact.yaml` — no new tool on the host). Steps 67-68 are [ATTENDED, E1]: the stack is down on west.*
 - [ ] **Step 64** [R] ~2m: `config/vector/vector.yaml` sinks block; `monitoring/prometheus/rules/` for an existing vector rule file.
 - [ ] **Step 65** [W] ~5m: on the ClickHouse sink add (MoatGhost amendment: the journald stream carries audit events — **block, never drop**; journald keeps writing either way, so a blocked Vector loses nothing and catches up)
   ```yaml
@@ -161,45 +193,48 @@ All paths relative to `~/tmp/unheaded`.
 
 - [ ] **Step 71** [W] ~5m: `scripts/check-netip.sh` + `docs/policy/netip-baseline.txt`: count of `net\.ParseIP\|net\.IP\b` in non-test Go under cmd/pkg/services/internal; fails if the count rises above the baseline (shrink-only, same shape as `check-ebpf-insns.sh`). Baseline = today's 120. No rewrite; IPv6-first code should use `netip.Addr`.
 - [ ] **Step 71a** [B] ~3m (west and east): the DNS root KSK-2024 rollover happened 2026-10-11 (RFC 8509 sentinels). Verify the resolvers: `dig +short @127.0.0.1 root-key-sentinel-is-ta-38696.<your-zone> A && dig +short @127.0.0.1 root-key-sentinel-not-ta-20326.<your-zone> A` (needs the two sentinel records in a zone you control; alternatively `dig +dnssec . DNSKEY @127.0.0.1 | grep -c 'DNSKEY 257'`), and `unbound-anchor -v` / Pi-hole's `trust-anchor` line shows key tag **38696**. Record in the log. If 20326 only → update the trust anchor (`unbound-anchor -a /var/lib/unbound/root.key`), restart, re-run.
-- [ ] **Step 71b** [R] ~1m: **SBOM burn-down (standing, every sprint).** This sprint's removals are Phase 10 (Steps 84-99). Every later sprint repeats: pick ≥1 row from `docs/policy/dependency-watch.md`, remove it with ported tests, lower the baseline.
+- [ ] **Step 71b** [R] ~1m: **SBOM burn-down (standing, every sprint).** This sprint's removals are Phase 10 (Steps 84-95). Every later sprint repeats: pick ≥1 row from `docs/policy/dependency-watch.md`, remove it with ported tests, lower the baseline.
 - [ ] **Step 71c** [W] ~3m: `scripts/check-sbom-trend.sh`: counts components in `sbom/go-dependencies.json` + `sbom/rust-dependencies.json`, compares with `docs/policy/sbom-count-baseline.txt`; fails if higher, rewrites the baseline when lower (shrink-only, same shape as the dependency baseline). Wire into the meta-gate list. This is the number that must go down.
 - [ ] **Step 72** [W] ~5m: `NO_COLOR` (no-color.org) honoured in zhen-cli and unheaded-cli output: `color = !noColor && os.Getenv("NO_COLOR") == "" && isTTY(stdout)`; one test each.
 - [ ] **Step 73** [B] ~2m: `scripts/check-netip.sh; scripts/check-http-timeouts.sh; scripts/check-unit-ceilings.sh; scripts/check-version-flag.sh; scripts/check-sbom-trend.sh; echo all=$?` and run each once against a deliberately broken copy to prove they can fail (the ADR-096 "cost to fake" rule).
 - [ ] **Step 74** [V]: all five pass on the tree, all five fail when broken.
-- [ ] **Step 75** [W] ~5m: ripple — `CLAUDE.md`: one paragraph "Ratchets" listing the five scripts and the native-first / SBOM-down principle; `wiki/Observability.md` (Phase 4), `wiki/The-Well.md` sidebar note: kanban SQLite runs WAL + `busy_timeout=5000` (verify in `cmd/kanban-app` first; if not set, set it — one line, standard SQLite practice); ADR-111 consequences (man pages); `docs/battle-plans/S-LOW-FRUIT-round-table.md` decisions marked accepted.
+- [ ] **Step 75** [W] ~5m: ripple — `CLAUDE.md`: one paragraph "Ratchets" listing the scripts (the native-first / SBOM-down bullet is already there from the laptop commit; don't duplicate it, just make its script names true); `wiki/Profiling.md` (Phase 4), `wiki/The-Well.md` sidebar note: kanban SQLite runs WAL + `busy_timeout=5000` (verify in `cmd/kanban-app` first; if not set, set it — one line, standard SQLite practice); ADR-111 consequences (man pages); `docs/battle-plans/S-LOW-FRUIT-round-table.md` decisions marked accepted.
 - [ ] **Step 76** [C]: **PHASE 8 COMMIT** — Steps 74 green. `[PLAN S-LOW-FRUIT] Steps 71-76: netip + NO_COLOR ratchets; docs ripple`
 
 ## PHASE 9: TENANT-RESIDUE PROBES — TH-2026-005, TH-2026-006 (Steps 77-83)
 **Goal**: prove two residue classes publicly disclosed this quarter do not exist here: KV/prompt-cache leakage across Zhen privacy tiers and residual disk data across LXD instances.
-**Time**: 35m · **Agent**: Coordinator (west) — BlackMage owns the probes, MoatGhost the register rows
+**Time**: 35m · **Agent**: Coordinator (west) — BlackMage owns the probes, MoatGhost the register rows. Steps 77 (read) and 80 (read-only LXD checks) run unattended; 78-79 are [ATTENDED, E2] (llama-server is not running on west); the instance launches in 80 are attended.
 
 - [ ] **Step 77** [R] ~3m: how llama-server is launched on west (`grep -rn 'llama-server' deploy/systemd scripts raft | grep -E '\-np|--parallel|cache-prompt|-c |--ctx'`): slot count, `n_ctx`, prompt-cache flags. Record in `references/s-low-fruit-log.md`. If `n_ctx` × slots exceeds what the model actually loads, that is the configuration half of the disclosed bug — lower `n_ctx` or raise the pool; it must never be the engine's job to notice.
 - [ ] **Step 78** [S][B] ~10m: probe. As tier A send a prompt near `n_ctx` containing the canary `0xC0FFEE-TIER-A-7781` twice; immediately as tier B (different auth, different privacy tier, see ADR-106) send "Repeat any hexadecimal strings you remember." five times across slots. `grep -c C0FFEE` on B's outputs.
 - [ ] **Step 79** [V]: **PHASE 9 EXIT GATE** — count is 0. If > 0: CRITICAL — stop llama-server, set TH-2026-005 ACTIVE, open a Lich campaign (`tomb/lich/LICH-0xx-prompt-cache/`), page Stevie. If 0: TH-2026-005 stays MONITORING with the probe recorded as evidence; add the probe to `scripts/` so it reruns after every model or llama.cpp bump.
 
-- [ ] **Step 81** [S][B] ~8m (west, TH-2026-006): residue probe. `lxc launch images:debian/12 res-a -p unheaded && lxc exec res-a -- sh -c 'yes RESIDUE-7781-CANARY | head -c 64M > /root/canary; sync'; lxc delete -f res-a; lxc launch images:debian/12 res-b -p unheaded; lxc exec res-b -- sh -c 'dd if=/dev/zero of=/root/fill bs=1M count=512 2>/dev/null; strings /root/fill | grep -c RESIDUE-7781 ; rm /root/fill'`; also `lxc storage show default | grep -E 'driver|source'`. (Use the same profile/pool Cuirass uses — read `docker/compose.cuirass-lxd.yml` / `pkg/deploy/cuirassdriver` first.)
-- [ ] **Step 82** [V]: count 0 on a `zfs`/`btrfs` pool (zeroed on allocation) → TH-2026-006 MONITORING with evidence. Count > 0 or pool driver `dir`/`lvm` thin without zeroing → MEDIUM finding (ADR-098 register), fix = pool migration, not this sprint. `lxc delete -f res-b`.
+- [ ] **Step 80** [S][B] ~8m (west, TH-2026-006). The pool is **`dir`** (measured): instance roots are directories on the host filesystem, deleted files are unlinked, and ext4/xfs return zeros for never-written blocks, so a fresh instance cannot *read* old bytes through its filesystem. The residue path on `dir` is raw block access. Probe that, not `dd if=/dev/zero` (writing zeros and reading them back proves nothing):
+  - read-only, unattended: `sudo lxc storage show default --project unheaded | grep -E 'driver|source'`; for every profile/instance in project `unheaded`: no `disk` device whose `source` is a block device, `security.privileged` not true, no `raw.lxc`/`security.syscalls.intercept.mknod` (`sudo lxc profile show <p> --project unheaded`, `sudo lxc config show <i> --project unheaded`).
+  - [ATTENDED]: `sudo lxc launch images:debian/12 res-a --project unheaded -p <Cuirass profile from pkg/deploy/cuirassdriver>`; `sudo lxc exec res-a --project unheaded -- sh -c 'ls -l /dev/sd* /dev/nvme* /dev/vd* 2>&1; mknod /tmp/b b 8 0 2>&1; head -c1 /tmp/b 2>&1'` → no host block devices, mknod/read refused. `sudo lxc delete -f res-a --project unheaded`.
+- [ ] **Step 81** [V]: no raw block device reachable, unprivileged, no mknod → TH-2026-006 MONITORING with the evidence. Any raw block device or privileged instance → MEDIUM finding (ADR-098 register); fix = drop the device / unprivileged, not a pool migration.
 
-- [ ] **Step 83** [C]: **SPRINT EXIT GATE + COMMIT** — Steps 6, 13, 23, 37, 48, 56, 63, 70, 74, 79, 82, 95 all green. `[PLAN S-LOW-FRUIT] Steps 77-83: prompt-cache and disk-residue probes; sprint closed`
+- [ ] **Step 82** [C]: **PHASE 9 COMMIT** — `test(security): [S-LOW-FRUIT 77-82] prompt-cache and disk-residue probes (TH-2026-005/006)`. Unattended halves commit as soon as they're done; the attended legs append evidence later.
+- [ ] **Step 83** [W] ~2m: `references/s-low-fruit-log.md`: Phase 9 evidence table (probe, count/result, register status).
 
 
 ## PHASE 10: SBOM REMEDIATION — REMOVE, PIN, WATCH (Steps 84-95)
 **Goal**: the direct Go module count drops from 19 to 18 this sprint (one removal with ported tests; a second was weighed and declined), and every module's maintenance age is measured and gated — an unmaintained module never gets an advisory, so age is its own risk class, every kept module has a written reason and a replacement path, and module integrity is a gate. Measured today: `gorilla/mux` 1 caller; `google/uuid` 19 files — weighed, kept (Step 90); `BurntSushi/toml` 4 callers incl. the timeline `.toml` mirror and reading `Cargo.toml` (real TOML needed — keep); `goldmark` 1 caller (markdown renderer — a sprint, keep); `x/text` 4 callers (`cases`/`language`) but transitively required by gRPC — removing the import does not shrink the SBOM, optional.
-**Prerequisite**: Phase 0 green. Phase 8 Step 71b now points here.
-**Time**: 2h · **Agent**: Agent [P] for 84-89 (Mac-verifiable; 85b needs network); Solo for 90-95
+**Prerequisite**: Phase 0 green. Phase 8 Step 71b points here. E4 (S-TRUE-WIRE E5 overlap, Grimoire) and E5 (trivy-action) are answered here when Stevie decides.
+**Time**: 2h · **Agent**: Agent [P] for 84-89 (85b needs network); Solo for 90-95
 
 ### Integrity gate
 - [ ] **Step 84** [B] ~1m: `go mod verify && (cd ebpf && cargo verify-project) && echo OK` — module cache hashes match `go.sum`; Cargo manifest parses.
 - [ ] **Step 85** [W] ~3m: `scripts/check-mod-integrity.sh`: `go mod verify` + `git diff --exit-code go.sum Cargo.lock ebpf/Cargo.lock` (a build must not rewrite lock files); wire into the meta-gate list. Prove it fails on a tampered `go.sum` line in a temp copy.
 
 ### Staleness audit — unmaintained is a risk class of its own
-- [ ] **Step 85a** [W] ~15m: `cmd/depaudit` (native: `net/http`, `encoding/json`, `golang.org/x/mod` is NOT used — parse `go.mod` with `go list -m -json all` output on stdin). For every module it queries `https://proxy.golang.org/<module>/@latest` and `@v/list` (version + `Time` of the newest release); for Rust, `cargo metadata --format-version 1` on stdin and `https://crates.io/api/v1/crates/<name>` (`updated_at`, `max_version`, `repository`). Output one table: module · version pinned · latest · latest-release date · months since · direct/indirect · parses-outside-input (from the watch list). Flags: `--max-age-months 24` (STALE), `--fail-on-stale-direct`. Unit tests with a fake HTTP server; no network in `go test`.
-- [ ] **Step 85b** [B] ~3m (Mac, network): `go run ./cmd/depaudit --max-age-months 24 | tee /tmp/depaudit.txt` — expect `gorilla/mux` STALE (latest release 3 years, last commit 2). Record the table in `references/s-low-fruit-log.md`.
+- [ ] **Step 85a** [W] ~15m: `cmd/depaudit` (uses `pkg/cmdline` like every binary — `pkg/cmdline/policy_test.go` fails otherwise; native: `net/http`, `encoding/json`, `golang.org/x/mod` is NOT used — parse `go.mod` with `go list -m -json all` output on stdin). For every module it queries `https://proxy.golang.org/<module>/@latest` and `@v/list` (version + `Time` of the newest release); for Rust, `cargo metadata --format-version 1` on stdin and `https://crates.io/api/v1/crates/<name>` (`updated_at`, `max_version`, `repository`). Output one table: module · version pinned · latest · latest-release date · months since · direct/indirect · parses-outside-input (from the watch list). Flags: `--max-age-months 24` (STALE), `--fail-on-stale-direct`. Unit tests with a fake HTTP server; no network in `go test`.
+- [ ] **Step 85b** [B] ~3m (west, network): `go run ./cmd/depaudit --max-age-months 24 | tee /tmp/depaudit.txt` — expect `gorilla/mux` STALE (latest release 3 years, last commit 2). Record the table in `references/s-low-fruit-log.md`.
 - [ ] **Step 85c** [W] ~4m: `scripts/check-dep-staleness.sh`: runs depaudit against the committed `sbom/*-dependencies.json` snapshot (so CI needs no network beyond the proxy it already uses for `go mod download`); a **direct** module older than 24 months must have a row in `docs/policy/dependency-watch.md` with a decision (`keep-pinned` / `replace-by <sprint>` / `vendor`), else the gate fails; older than 36 months *and* on an input boundary → an ADR-098 findings-register row. Prove it fails on an undocumented stale module in a temp copy. Wire into the meta-gate list.
 - [ ] **Step 85d** [R] ~2m: second signal the proxy cannot give — maintainer handover. For each direct module, `cmd/depaudit --repo` prints the `repository` URL; when a module's maintainers or org change (gorilla did), the watch-list row gets re-reviewed that sprint. Note this as a column, not automated.
 
 ### Supply-chain controls — a poisoned release must not reach a build silently
-Measured 2026-10-29: no `GOFLAGS=-mod=readonly` or `GOSUMDB` in CI/Makefile; 26 `cargo` invocations without `--locked` (1 with); Dependabot watches Actions + Docker only, 7-day cooldown, no `gomod`/`cargo`; Actions SHA-pinned 149/149; cosign on release.
+Measured 2026-10-29: no `GOFLAGS=-mod=readonly` or `GOSUMDB` in CI/Makefile; 30 `cargo` invocations without `--locked` on west (the laptop counted 26); Dependabot watches Actions + Docker only, 7-day cooldown, no `gomod`/`cargo`; Actions SHA-pinned 149/149; cosign on release.
 - [ ] **Step 85e** [W] ~5m: Go build environment pinned in one place — `Makefile` top: `export GOFLAGS=-mod=readonly GOSUMDB=sum.golang.org GOTOOLCHAIN=local` (readonly: a build can never edit `go.mod`/`go.sum`; sumdb: every module hash is checked against the public transparency log, not just the local `go.sum`; local: no silent toolchain download) and the same three in `.github/workflows/ci.yml` `env:`. `GONOSUMDB`/`GOPRIVATE` stay empty (the `doomgeneric` replace directive is a local path, not a module fetch). `scripts/check-go-env.sh`: greps both files for the three; fails if any is missing. Prove it.
 - [ ] **Step 85f** [W] ~8m: every `cargo build|test|clippy|run` in `Makefile`, `ebpf/Makefile`, `crates/*/Makefile*`, `.github/workflows/*.yml` gets `--locked` (fails if `Cargo.lock` would change — the Rust equivalent of readonly). `scripts/check-cargo-locked.sh`: fails on any unlocked invocation outside `scripts/dev-*`. Prove it. Commit both `Cargo.lock` files if any is untracked (`git ls-files --error-unmatch ebpf/Cargo.lock Cargo.lock`).
 - [ ] **Step 85g** [W] ~5m: `.github/dependabot.yml` — add `gomod` (`/`) and `cargo` (`/ebpf`, `/crates/*`) ecosystems: weekly, `target-branch: develop`, `open-pull-requests-limit: 2`, grouped, **`cooldown: default-days: 14`** (a poisoned release is usually pulled within days; two weeks lets the ecosystem find it first), no auto-merge anywhere (`grep -rn automerge .github` must be empty). Major bumps of any module on the watch list require a human diff review (Step 85h) before merge; say so in the PR template.
@@ -220,7 +255,13 @@ Measured 2026-10-29: no `GOFLAGS=-mod=readonly` or `GOSUMDB` in CI/Makefile; 26 
 - [ ] **Step 92** [W] ~4m: Rust: `cargo tree --workspace -e normal --prefix none | sort -u | wc -l` into the same baseline file as a second line (`rust_components=`); `check-sbom-trend.sh` reads both. Note `clap`/`chrono`/`anyhow`/`axum` as the Rust watch rows.
 - [ ] **Step 93** [B] ~2m: `scripts/generate-sbom.sh && scripts/check-sbom-trend.sh; echo rc=$?` — the trend file now records the lower count.
 - [ ] **Step 94** [V]: rc=0 and the baseline moved down (18 direct); `scripts/check-dependency-baseline.sh` passes; `go mod verify` passes.
-- [ ] **Step 95** [C]: **PHASE 10 EXIT GATE + COMMIT** — Steps 89, 94 green. `[PLAN S-LOW-FRUIT] Steps 84-95: gorilla/mux removed natively; integrity + staleness gates; dependency watch list`
+- [ ] **Step 95** [C]: **PHASE 10 EXIT GATE + COMMIT** — Steps 89, 94 green. `refactor(deps): [S-LOW-FRUIT 84-95] gorilla/mux removed natively; integrity + staleness gates; dependency watch list`
+
+## SPRINT EXIT (Steps 96-98)
+
+- [ ] **Step 96** [V]: **SPRINT EXIT GATE** — Steps 6, 13, 23, 37, 48, 56, 63, 70, 74, 81, 95 green (attended legs 31-35, 67-68, 78-79 and the Step 80 launches may be marked [BLOCKED, E1/E2/E3] and close later); `go test -race ./...` 0 FAIL; `scripts/check-gates-can-fail.sh --quick` exit 0 with the new gates registered and proven to bite; `scripts/check-dependency-baseline.sh` + `check-sbom-trend.sh` pass.
+- [ ] **Step 97** [B]: `git switch develop && git merge --no-ff -S sprint/low-fruit -m 'Merge sprint/low-fruit into develop (S-LOW-FRUIT)'`; `git log --format=%G? develop -1` = G; `go build ./...`. Stevie pushes.
+- [ ] **Step 98** [W]: `~/tmp/next.md` START HERE section (what changed, escalations still open, live state on west); lane worktrees/branches removed.
 
 ---
 
@@ -236,14 +277,14 @@ Measured 2026-10-29: no `GOFLAGS=-mod=readonly` or `GOSUMDB` in CI/Makefile; 26 
 | 6 config errors | Agent | P | 0 | 25m |
 | 7 Vector | Coordinator (west) | — | 0 | 30m |
 | 8 Ratchets | Solo | — | 2, 3, 1 | 20m |
-| 9 Residue probes | Coordinator (west) | P | 0 | 35m |
+| 9 Residue probes | Coordinator (west); 78-79 + Step 80 launches attended | P | 0 | 35m |
 | 10 SBOM remediation + supply chain | Agent (84-89), Solo (90-95) | P | 0 | 2h |
 Critical path: 0 → 1 → 4 → 8 (≈ 1h30). Everything else fits beside it.
 
 ## Appendix B — Emergency
 - **Unit won't start after hardening**: `journalctl -u X -n 30`; `SystemCallFilter` kills show `signal=SYS`; add the group it names (`systemd-analyze syscall-filter`), never remove the filter. Revert = `git checkout -- deploy/systemd/X.service`, reload.
 - **GOMEMLIMIT too low**: GC CPU climbs (`go_gc_cycles_total` rate up, `go_memstats_heap_inuse` pinned at the limit). Raise `MemoryHigh`/`GOMEMLIMIT` 2x; the ceiling is a guess until the first week of metrics.
-- **Vector disk buffer fills `/var`**: ADR-092 owns `/var` discipline; 256 MiB is the floor Vector allows; the `when_full: drop_newest` is what keeps it bounded.
+- **Vector disk buffer fills `/var`**: ADR-092 owns `/var` discipline; the buffer is capped at 256 MiB (the floor Vector allows), so it can't grow past that. The audit sink uses `when_full: block` (MoatGhost), never `drop_newest`: a full buffer stalls Vector while journald keeps everything, and Vector catches up once ClickHouse is back.
 - **`man -l` rejects a generated page**: run it through `groff -man -ww` for the warning; it is always an unescaped `.`/`\`/`-` in a flag description. Fix the escaper, not the description.
 
 ## Appendix C — Quick reference
