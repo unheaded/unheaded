@@ -552,6 +552,12 @@ One name, two things. Across domains. Against the oldest anti-pattern in the lor
 
 Mad Maria does not usually comment on paperwork. She did on this one. *"A name that points two ways is a crossroads. You know who lives at crossroads."*
 
+Two more small things, the same night, because small things travel together.
+
+The Gauntlets learned manners. Fifty-nine binaries had answered `--help` fifty-nine ways — half of them with the raw dump a Go program makes when nobody has thought about it, ten of them not at all. A typo got you the error *and* the whole dump, every time, as if you had asked. Now every one of them answers the way the old Unix tools do: a usage line, one sentence saying what the thing is, the options, examples; a version on one line; and a mistake gets one line and *Try 'akira --help' for more information.* — nothing else. The man pages will come from the same place the help does, so they cannot drift. It is not a feature. It is the difference between a tool someone built and a tool someone *finished*.
+
+And the Kingdom wrote down a thing it had always half-believed: foreign steel is a last resort. Every module from outside the tree is code the Kingdom runs but did not write, with a release channel it does not control and, sometimes, a maintainer who walked away two years ago — and a widely used, lightly tended module is exactly the one worth taking over. So: native first. Stdlib, then our own, then a vendored copy with its licence on record, and only then something from outside — with the Crown's approval written down *before* it is pulled in. The bill of materials became the attack-surface list, counted, aged, and allowed only to shrink. The first thing to leave was a router nobody had touched in two years. The first thing weighed and kept was a tiny, well-kept module that would have cost more to rewrite than it could ever cost to keep. Native-first means *don't add*, not *rewrite the well-kept*. Mad Maria approved of the distinction. *"A wall you built badly is still a wall you have to live behind."*
+
 ---
 
 ## The Hour Before Dawn
@@ -572,10 +578,33 @@ Muck had added to the timeline, in handwriting that was his but looked a little 
 
 ---
 
+## A Storm Approaches
+
+The map, as the Cartographer draws it tonight: eight levels from the Crown to the Moat; seventeen pieces of armor on a knight who has no head and wants none; nine hollows beneath, where the deep things run; two houses on real metal with a watchman on the bridge between them; a Royal Court of nineteen voices that mostly agree and are loudest when they do not. Three Ages closed. The fourth — *the Public Release* — open on the table with its edges weighted down.
+
+The Timeguru, who does not round numbers, says what remains before the gate: a model that must be retrained once the flywheel has three hundred lessons across three families; the bill of materials regenerated and every licence read again; a README that tells a stranger the truth in the first screen; a latency gate under fifty milliseconds that the Scientist has sworn to try to falsify; and a door — the only door — through which someone who is not Muck can walk in. Behind those, a hundred and forty-six decisions with a letter and a number, waiting on one person. Rung two of the owned kernel, a clock made of someone else's heartbeat. Rungs three through eight after it. A sprint of low fruit, approved tonight, that fixes what everyone agrees is wrong and nobody had time for.
+
+That is the weather report. Here is the storm.
+
+The Kingdom has lived its whole life behind a gate that was closed. Every packet that walked the Pattern was a packet Muck sent. Yaldabaoth's hands, real as they now are, are *our* hands. The Lich attacks from inside the walls. Even the ravens fly over ground we own. The storm is not an enemy. The storm is the gate opening — and everything on the other side of it, all of Shadow, walking in at once: packets with no Monad and packets with forged ones; people who read the spec more carefully than the people who wrote it; a module somewhere upstream whose maintainer sold their keys; the ordinary, patient, uninterested entropy that the old stories called Brand and the compliance frameworks call *risk*. Nothing the Kingdom has built was built for a quiet life. It was built for this. It has simply never been tested by it.
+
+Mad Maria has been quiet for most of the autumn. Tonight she spoke from the corner, and the dogs lifted their heads.
+
+*"You have armored the knight for a year. You have given him a nervous system, a memory, a conscience with a code the model cannot read, a demiurge on a leash, and ravens. You have named everything twice and some things three times. You have counted every piece of foreign steel. Good. Now listen. The storm does not care what you named it. It will find the joint you forgot — there is always one — and it will not announce itself, and it will not be the thing you drilled for. That is not a reason to keep the gate shut. A knight who never leaves the hall is a statue. Open it when the Timeguru says the five things are done and not an hour before, and when the first wrong packet comes through, you will discover that the ring buffers were the whole point: not to stop the storm, but to remember exactly what it did. The network remembers. That is the only armor that has ever worked."*
+
+She blew out the candle. For the first time in the story, she blew out the candle.
+
+*The horizon, if you were standing at the Shield and looking east past EAST, past the WireGuard tunnel and the seed node and the sentinel watching the root keys: a line of weather, low and wide, not fast. Everything in the Kingdom that can be counted has been counted. Everything that can be named has a name. The dogs are asleep. The ravens are home. The gate is still closed. Somewhere upstream, a commit lands that nobody will read.*
+
+*A storm approaches. Let it.*
+
+---
+
 Written in the Kingdom, February 18, 2026
 Updated in the Kingdom, February 22, 2026 — by candlelight
 Extended in the Kingdom, March 19, 2026 — at dawn, with fresh coffee and the certainty of things that were always waiting to be named
 Extended again in the Kingdom, October 28, 2026 — late, after the horn was heard on the far shore, with the ravens home and the dogs asleep
+Closed, for now, in the Kingdom, October 29, 2026 — before dawn, with the candle out and a line of weather in the east
 
 For Muck, the one who asked "what's our Pattern?" — and then ran Doom on it.
 

@@ -1,6 +1,6 @@
 # The First Packet
 
-*A story from the Unheaded Kingdom* (~17,500 words, written 2026-02-18; extended 2026-03-19 and 2026-10-28).
+*A story from the Unheaded Kingdom* (~18,500 words, written 2026-02-18; extended 2026-03-19, 2026-10-28 and 2026-10-29).
 
 The project's founding story: Muck, at a terminal with the dogs and King Gizzard's *Nonagon Infinity* looping in the next room, finds the twenty bytes that become the Monad, while Mad Maria, the witch at the crossroads, watches. It ties the protocol to its three naming pillars: Zelazny's *Chronicles of Amber* (the Pattern and its Shadows), Gnostic cosmology (Pleroma, Kenoma, the Demiurge), and the medieval armory (the Knight's empty armor). Naming detail: [[Lore Index|Lore-Index]], [[Gnostic Architecture|Gnostic-Architecture]].
 
@@ -28,10 +28,11 @@ The project's founding story: Muck, at a terminal with the dogs and King Gizzard
 | The Horn Across the Water | Gjallarhorn sounds west → east on bare metal | Mímir's Law phases 9/11/13 on two hosts ([[Mímir's Law|Mimirs-Law]]) |
 | The Cartridges | Small signed programs in the bloodstream; two gates fail honestly | MBC cartridges (ADR-108), ADR-090 no fake success ([[UPC Cartridges|UPC-Cartridges]]) |
 | The Rungs | Waking the owned kernel; a row per slot; a clock from borrowed ticks | EVOLUTION-1 Stage 2 (ADR-109/110), `upc0`, `INSTANCE_OWNER` ([[Linux on UPC|Linux-on-UPC]]) |
-| The Spear Has One Owner | gungnir / mjolnir aliases withdrawn | One name, one thing ([[Lore Index|Lore-Index]]) |
+| The Spear Has One Owner | gungnir / mjolnir aliases withdrawn; the Gauntlets learn manners; foreign steel is a last resort | One name, one thing; ADR-111 (`pkg/cmdline`); native-first + shrinking SBOM ([[Lore Index|Lore-Index]]) |
+| A Storm Approaches | The map tonight; what remains before the gate; the gate itself is the storm; Mad Maria blows out the candle | Age 3 remaining items, 146 open decisions, EVOLUTION-1 rungs 2-8, S-LOW-FRUIT ([[Timeline]]) |
 | The Hour Before Dawn | | Where the Kingdom stands |
 
-The Hour Before Dawn stands where it stood in March; the colophon now carries three dates. Dedications close the story, including to Erik Baar (who gave Stevie the *Chronicles*) and Terry Pratchett.
+The Hour Before Dawn stands where it stood in March; A Storm Approaches follows it; the colophon carries four dates. Dedications close the story, including to Erik Baar (who gave Stevie the *Chronicles*) and Terry Pratchett.
 
 > *"Every Kingdom starts with someone who opens the gate. Every Doom starts with someone who inlines the strlen. Every circle closes when the witch decides it's time."*
 
