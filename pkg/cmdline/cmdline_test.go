@@ -482,3 +482,29 @@ func TestReportHelpers(t *testing.T) {
 	ReportUnknownCommand(nil, Spec{}, "x")
 	PrintVersion(nil, Spec{})
 }
+
+func TestParseFlags_ExitErrorCarriesCode(t *testing.T) {
+	cases := []struct {
+		args []string
+		code int
+		out  bool // something on stdout
+	}{
+		{[]string{"--help"}, 0, true},
+		{[]string{"--man"}, 0, true},
+		{[]string{"--bogus"}, ExitUsage, false},
+	}
+	for _, c := range cases {
+		var o, e bytes.Buffer
+		err := ParseFlags(newSet(t), spec(), c.args, &o, &e)
+		var ex *ExitError
+		if !errors.As(err, &ex) || ex.Code != c.code {
+			t.Fatalf("%v: err=%v, want ExitError{%d}", c.args, err, c.code)
+		}
+		if (o.Len() > 0) != c.out || strings.Contains(e.String(), "Usage of") {
+			t.Errorf("%v: out=%q err=%q", c.args, o.String(), e.String())
+		}
+	}
+	if err := ParseFlags(newSet(t), spec(), []string{"--once"}, io.Discard, io.Discard); err != nil {
+		t.Errorf("--once: %v, want nil", err)
+	}
+}

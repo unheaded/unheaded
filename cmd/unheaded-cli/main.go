@@ -16,6 +16,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -44,6 +45,10 @@ func main() {
 	root := cmd.NewRootCommand()
 	if err := root.Execute(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "unheaded: %v\n", err)
+		var ue *cmd.UsageError
+		if errors.As(err, &ue) {
+			os.Exit(cmdline.ExitUsage)
+		}
 		os.Exit(1)
 	}
 }

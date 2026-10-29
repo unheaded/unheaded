@@ -20,12 +20,12 @@ import (
 
 func TestParseFlagsInterval(t *testing.T) {
 	for _, bad := range []string{"1m", "14m59s", "25h", "soon"} {
-		if _, err := parseFlags([]string{"--interval", bad}); err == nil {
+		if _, err := parseFlags([]string{"--interval", bad}, io.Discard, io.Discard); err == nil {
 			t.Errorf("--interval %s accepted", bad)
 		}
 	}
 	for _, good := range []string{"15m", "1h", "6h", "24h"} {
-		c, err := parseFlags([]string{"--interval", good, "--node", "n"})
+		c, err := parseFlags([]string{"--interval", good, "--node", "n"}, io.Discard, io.Discard)
 		if err != nil {
 			t.Errorf("--interval %s: %v", good, err)
 		}
@@ -34,7 +34,7 @@ func TestParseFlagsInterval(t *testing.T) {
 		}
 	}
 	t.Setenv("KEV_PULL_INTERVAL", "6h")
-	if c, err := parseFlags(nil); err != nil || c.interval != 6*time.Hour {
+	if c, err := parseFlags(nil, io.Discard, io.Discard); err != nil || c.interval != 6*time.Hour {
 		t.Fatalf("env interval: %v %v", c.interval, err)
 	}
 }

@@ -133,6 +133,12 @@ func (c *Command) AddCommand(sub *Command) {
 	}
 }
 
+// UsageError is a command-line mistake (bad option, unknown command); main
+// exits with cmdline.ExitUsage for it, and 1 for any other error.
+type UsageError struct{ msg string }
+
+func (e *UsageError) Error() string { return e.msg }
+
 // Execute runs the command with the given arguments.
 func (c *Command) Execute(args []string) error {
 	// Create context
@@ -170,7 +176,7 @@ func (c *Command) Execute(args []string) error {
 
 	// Parse global flags from the beginning of args
 	if err := globalFlags.Parse(args); err != nil {
-		return fmt.Errorf("%s\nTry 'unheaded --help' for more information.", cmdline.Translate(err, args))
+		return &UsageError{fmt.Sprintf("%s\nTry 'unheaded --help' for more information.", cmdline.Translate(err, args))}
 	}
 
 	if showHelp {
@@ -204,7 +210,7 @@ func (c *Command) Execute(args []string) error {
 	subName := args[0]
 	sub, ok := c.SubCommands[subName]
 	if !ok {
-		return fmt.Errorf("unknown command '%s'\nTry 'unheaded --help' for more information.", subName)
+		return &UsageError{fmt.Sprintf("unknown command '%s'\nTry 'unheaded --help' for more information.", subName)}
 	}
 
 	// Execute subcommand
@@ -229,7 +235,7 @@ func (c *Command) executeWithContext(ctx *Context, args []string) error {
 		subName := args[0]
 		sub, ok := c.SubCommands[subName]
 		if !ok {
-			return fmt.Errorf("unknown command '%s'\nTry 'unheaded %s --help' for more information.", subName, c.Name)
+			return &UsageError{fmt.Sprintf("unknown command '%s'\nTry 'unheaded %s --help' for more information.", subName, c.Name)}
 		}
 		return sub.executeWithContext(ctx, args[1:])
 	}

@@ -1,0 +1,33 @@
+.TH STEEL\-ECHO 1 "2026-10-29" "unheaded 86590d34" "Unheaded Kingdom"
+.SH NAME
+steel\-echo \- The S\-REAL\-STEEL game\-day workload: a tiny HTTP service to deploy and break, plus a client\-side load generator.
+.SH SYNOPSIS
+.B steel\-echo
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+The S\-REAL\-STEEL game\-day workload: a tiny HTTP service to deploy and break, plus a client\-side load generator.
+.SH COMMANDS
+.TP
+.B serve
+serve /health, /version, / and /metrics (the default)
+.TP
+.B load
+measure availability from the client side (see steel\-echo load \-\-help)
+.TP
+.B monad\-send
+send Monad\-bearing IPv6 frames on a lab veth
+.TP
+.B monad\-count
+count Monad frames per flow label on a lab veth
+.SH OPTIONS
+.TP
+.B \-\-addr \fISTRING\fR
+listen address (default :8080)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH SEE ALSO
+.BR unheaded (1)

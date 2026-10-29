@@ -942,6 +942,18 @@ provoke_version_flag() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_usage_errors() {
+    # Contract (ADR-111): an unknown option gets one line, the --help hint
+    # and exit 2, never the flag package's "Usage of" dump. Let ParseSet's
+    # flag set print to stderr again, so every binary built on it dumps.
+    local f="pkg/cmdline/cmdline.go"
+    backup "${f}"
+    sed -i 's/^\tfs\.SetOutput(io\.Discard)$/\tfs.SetOutput(stderr)/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_trivy_misconfig() {
     # Contract (S-TRUE-WIRE Step 366): no IaC misconfiguration lands
     # unrecorded. Drop the first baseline row, so a finding the scan still
@@ -1090,6 +1102,7 @@ gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet
 check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
 check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds all 59; needs go)
+check-usage-errors|provoke_usage_errors|fast|cmdline.ParseSet lets the flag package print to stderr again, so a bad option dumps raw usage (builds all; needs go)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 

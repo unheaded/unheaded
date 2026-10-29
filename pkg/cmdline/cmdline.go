@@ -543,6 +543,22 @@ func HandleParseError(err error, fs *flag.FlagSet, spec Spec, args []string, std
 	return failTo(stderr, spec, "%s", Translate(err, args))
 }
 
+// ExitError is what ParseFlags returns when the program should stop: the
+// help, version, man page or usage error is already printed, and Code is
+// the exit status.
+type ExitError struct{ Code int }
+
+func (e *ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
+
+// ParseFlags is ParseSet for parse functions that return an error: nil
+// means carry on, and an *ExitError means exit with its Code.
+func ParseFlags(fs *flag.FlagSet, spec Spec, args []string, stdout, stderr io.Writer) error {
+	if code, exit := ParseSet(fs, spec, args, stdout, stderr); exit {
+		return &ExitError{Code: code}
+	}
+	return nil
+}
+
 // ReportUsageError writes "NAME: MESSAGE" and the --help hint to w and
 // returns ExitUsage, for mistakes the flag package cannot see.
 func ReportUsageError(w io.Writer, spec Spec, format string, a ...any) int {

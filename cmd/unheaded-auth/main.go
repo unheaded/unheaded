@@ -62,7 +62,6 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 func runServer(args []string, stderr io.Writer) int {
 	fs := flag.NewFlagSet("unheaded-auth", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	listen := fs.String("listen", fmt.Sprintf(":%d", ports.Auth), "listen address")
 	issuerURL := fs.String("issuer-url", "", "external issuer URL: the tokens' iss and the discovery base (required)")
 	keyFile := fs.String("key-file", defaultKeyFile, "issuer Ed25519 key (unheaded-keygen unheaded-auth), 0400")
@@ -74,11 +73,8 @@ func runServer(args []string, stderr io.Writer) int {
 		Purpose:  "Serve the Kingdom's login, JWKS and OIDC discovery endpoints; `unheaded-auth user` manages the users file.",
 		Commands: []cmdline.Command{{Name: "user add|list|del", Purpose: "manage users (see unheaded-auth user --help)"}},
 	}
-	if err := fs.Parse(args); err != nil {
-		return cmdline.HandleParseError(err, fs, authSpec, args, os.Stdout, stderr)
-	}
-	if fs.NArg() != 0 {
-		return cmdline.ReportUsageError(stderr, authSpec, "extra operand '%s'", fs.Arg(0))
+	if code, exit := cmdline.ParseSet(fs, authSpec, args, os.Stdout, stderr); exit {
+		return code
 	}
 
 	log.Logger = zerolog.New(stderr).With().Timestamp().Str("service", serviceName).Logger()

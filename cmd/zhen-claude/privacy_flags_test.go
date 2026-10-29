@@ -11,7 +11,7 @@ import (
 )
 
 func TestPrivacyFlag_DefaultsAndValidation(t *testing.T) {
-	o, err := parseFlags(baseArgs(t), io.Discard)
+	o, err := parseFlags(baseArgs(t), io.Discard, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}

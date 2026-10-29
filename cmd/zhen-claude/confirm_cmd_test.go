@@ -238,7 +238,7 @@ func TestConfirmTTY_NoTerminalExits2(t *testing.T) {
 }
 
 func TestConfirmDefault_IsDeny(t *testing.T) {
-	o, err := parseFlags(baseArgs(t), io.Discard)
+	o, err := parseFlags(baseArgs(t), io.Discard, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}

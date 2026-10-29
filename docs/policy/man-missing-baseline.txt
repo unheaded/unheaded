@@ -8,17 +8,8 @@ crypto-inventory
 doom
 doom-cpu-dump
 doom-loader
-kev-poller
-steel-echo
-unheaded-auth
 unheaded-cli
 unheaded-keygen
-unheaded-remediate
-upc-cartridgectl
-well-migrate
-well-retention
 wotan-ctl
 yggdrasil-evidence
-zhen-claude
-zhen-eval
 zhen-flywheel

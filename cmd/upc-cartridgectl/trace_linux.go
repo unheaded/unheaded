@@ -30,7 +30,7 @@ func cmdRecord(g *globals, args []string) error {
 	out := fs.String("out", "", "trace file to write (0600)")
 	every := fs.Uint64("every", 1, "trace one run in N (per CPU)")
 	dur := fs.Duration("duration", 5*time.Second, "how long to record")
-	_ = fs.Parse(args)
+	parseSub(fs, args)
 	if *out == "" || *every == 0 {
 		return errors.New("usage: record --out FILE [--every N] [--duration D]")
 	}
@@ -115,7 +115,7 @@ func cmdReplay(g *globals, args []string) error {
 	to := fs.String("to", "", "print the state at step N")
 	watch := fs.String("watch", "", "follow rN or mem[ADDR]")
 	steps := fs.Bool("steps", false, "print every step")
-	_ = fs.Parse(args[1:])
+	parseSubAfterName(fs, args)
 	if err := checkSlot(*slot); err != nil {
 		return err
 	}

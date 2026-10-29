@@ -52,6 +52,7 @@ build-profile: ## Build every Go binary under cmd/ into bin/ WITH symbols, for s
 build-all: ## Build every Go binary under cmd/ into bin/ (one version ldflag, ADR-111)
 	go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o $(BINARY_DIR)/ ./cmd/...
 	scripts/check-version-flag.sh --bin-dir $(BINARY_DIR)
+	scripts/check-usage-errors.sh --bin-dir $(BINARY_DIR)
 	@echo "✓ All binaries built"
 
 # ADR-085 Phase 1: the binaries deploy/systemd runs, from one map

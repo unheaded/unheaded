@@ -30,16 +30,34 @@ import (
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
-const commandsUsage = `usage: upc-cartridgectl [global flags] COMMAND
-commands:
-  up | down | list | stats
-  sign --key SEED [--ttl D] FILE.cart
-  register NAME FILE.cart | load NAME --slot N | unload --slot N | swap NAME --from A --to B
-  bench [--repeat N] [--dport P] | pump [--max N] | serve [--metrics-addr ADDR] [--xdp-iface IF]
-  record --out FILE [--every N] [--duration D] | replay FILE --slot N [--image F] [--run K] [--to N] [--watch X]
-  weights publish --wotan URL --cart FILE.cart --sign-key SEED [--model NAME] [--ttl D]
-  weights fetch   --wotan URL --model NAME --pubkey PUB --out DIR
-global flags:`
+var cartSpec = cmdline.Spec{
+	Name:     "upc-cartridgectl",
+	Purpose:  "Register, sign, load and swap UPC cartridges on the pinned cartridge interpreter.",
+	Operands: "COMMAND [ARG]...",
+	MinArgs:  1,
+	MaxArgs:  cmdline.Unlimited,
+	Commands: []cmdline.Command{
+		{Name: "up | down | list | stats", Purpose: "pin or unpin the interpreter; list slots; print counters"},
+		{Name: "sign --key SEED [--ttl D] FILE.cart", Purpose: "seal a cartridge with ML-DSA-65"},
+		{Name: "register NAME FILE.cart", Purpose: "add a cartridge to the registry"},
+		{Name: "load NAME --slot N | unload --slot N", Purpose: "load or unload a slot"},
+		{Name: "swap NAME --from A --to B", Purpose: "swap a running cartridge between slots"},
+		{Name: "bench [--repeat N] [--dport P] | pump [--max N]", Purpose: "measure; drain events"},
+		{Name: "serve [--metrics-addr ADDR] [--xdp-iface IF]", Purpose: "serve metrics"},
+		{Name: "record --out FILE [--every N] [--duration D]", Purpose: "record a trace"},
+		{Name: "replay FILE --slot N [--image F] [--run K] [--to N] [--watch X]", Purpose: "replay a trace"},
+		{Name: "weights publish | weights fetch", Purpose: "publish or fetch sealed weights over Wotan (see weights --help)"},
+	},
+}
+
+// parseSub parses a subcommand's flags with the house help and error
+// shape, and exits on --help, --man or a usage error.
+func parseSub(fs *flag.FlagSet, args []string) {
+	spec := cmdline.Spec{Name: "upc-cartridgectl " + fs.Name(), MaxArgs: cmdline.Unlimited}
+	if code, exit := cmdline.ParseSet(fs, spec, args, os.Stdout, os.Stderr); exit {
+		os.Exit(code)
+	}
+}
 
 type globals struct {
 	registryDir, sophiaURL, pubKeyPath, pinDir, obj, cartBin, eventsGroup string
@@ -68,6 +86,15 @@ func fatal(format string, a ...any) {
 	os.Exit(1)
 }
 
+// parseSubAfterName is parseSub for a command whose NAME comes before its
+// flags (load NAME --slot N): a leading -h or --help is help, not a NAME.
+func parseSubAfterName(fs *flag.FlagSet, args []string) {
+	if len(args) > 0 && strings.HasPrefix(args[0], "-") && cmdline.IsHelpArg(args[0]) {
+		parseSub(fs, args[:1])
+	}
+	parseSub(fs, args[1:])
+}
+
 func main() {
 	g := &globals{}
 	fs := flag.NewFlagSet("upc-cartridgectl", flag.ExitOnError)
@@ -79,20 +106,14 @@ func main() {
 	fs.StringVar(&g.obj, "obj", "ebpf/target/bpfel-unknown-none/release/cartridge-ebpf", "cartridge-ebpf object (for up)")
 	fs.StringVar(&g.eventsGroup, "events-group", "", "up: make the CART_EVENTS pin readable by this group (cmd/anomaly's bridge); other pins stay root 0600")
 	fs.StringVar(&g.cartBin, "cart", "crates/upc-cartridge/target/release/cart", "the cart CLI (validator)")
-	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), commandsUsage)
-		fs.PrintDefaults()
-	}
 	if len(os.Args) == 2 && cmdline.IsVersionArg(os.Args[1]) {
 		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "upc-cartridgectl"})
 		os.Exit(0)
 	}
-	_ = fs.Parse(os.Args[1:]) // ExitOnError: -h and bad options exit here with fs.Usage
-	args := fs.Args()
-	if len(args) == 0 {
-		fs.Usage()
-		os.Exit(2)
+	if code, exit := cmdline.ParseSet(fs, cartSpec, os.Args[1:], os.Stdout, os.Stderr); exit {
+		os.Exit(code)
 	}
+	args := fs.Args()
 	if g.pubKeyPath != "" {
 		pub, err := gungnir.LoadPublicKeyFile(g.pubKeyPath)
 		if err != nil {
@@ -137,7 +158,7 @@ func main() {
 		wotanClient.InitServiceIdentity(weightsIdentity)
 		err = cmdWeights(context.Background(), args[1:], g.pub, os.Stdout)
 	default:
-		os.Exit(cmdline.ReportUnknownCommand(os.Stderr, cmdline.Spec{Name: "upc-cartridgectl"}, args[0]))
+		os.Exit(cmdline.ReportUnknownCommand(os.Stderr, cartSpec, args[0]))
 	}
 	var ee *exitError
 	if errors.As(err, &ee) {
@@ -188,7 +209,7 @@ func cmdSign(args []string) error {
 	fs := flag.NewFlagSet("sign", flag.ExitOnError)
 	key := fs.String("key", "", "ML-DSA-65 private key seed (0600)")
 	ttl := fs.Duration("ttl", 7*24*time.Hour, "seal lifetime (<= 31 days)")
-	_ = fs.Parse(args)
+	parseSub(fs, args)
 	if *key == "" || fs.NArg() != 1 {
 		return errors.New("usage: sign --key SEED [--ttl D] FILE.cart")
 	}
@@ -308,7 +329,7 @@ func cmdLoad(g *globals, args []string) error {
 	}
 	fs := flag.NewFlagSet("load", flag.ExitOnError)
 	slot := slotFlag(fs, "slot")
-	_ = fs.Parse(args[1:])
+	parseSubAfterName(fs, args)
 	if err := checkSlot(*slot); err != nil {
 		return err
 	}
@@ -336,7 +357,7 @@ func cmdLoad(g *globals, args []string) error {
 func cmdUnload(g *globals, args []string) error {
 	fs := flag.NewFlagSet("unload", flag.ExitOnError)
 	slot := slotFlag(fs, "slot")
-	_ = fs.Parse(args)
+	parseSub(fs, args)
 	if err := checkSlot(*slot); err != nil {
 		return err
 	}
@@ -371,7 +392,7 @@ func cmdSwap(g *globals, args []string) error {
 	}
 	fs := flag.NewFlagSet("swap", flag.ExitOnError)
 	from, to := slotFlag(fs, "from"), slotFlag(fs, "to")
-	_ = fs.Parse(args[1:])
+	parseSubAfterName(fs, args)
 	if err := checkSlot(*from); err != nil {
 		return err
 	}
@@ -469,7 +490,7 @@ func cmdBench(g *globals, args []string) error {
 	repeat := fs.Int("repeat", 1_000_000, "test_run repeats")
 	dport := fs.Uint("dport", 53, "UDP destination port of the test frame")
 	size := fs.Int("size", 128, "frame length")
-	_ = fs.Parse(args)
+	parseSub(fs, args)
 	c, err := cartridge.Open(g.pinDir)
 	if err != nil {
 		return err
@@ -489,7 +510,7 @@ func cmdBench(g *globals, args []string) error {
 func cmdPump(g *globals, args []string) error {
 	fs := flag.NewFlagSet("pump", flag.ExitOnError)
 	maxCalls := fs.Int("max", 100_000, "cart_tick calls at most")
-	_ = fs.Parse(args)
+	parseSub(fs, args)
 	c, err := cartridge.Open(g.pinDir)
 	if err != nil {
 		return err
@@ -524,7 +545,7 @@ func cmdServe(g *globals, args []string) error {
 	addr := fs.String("metrics-addr", "127.0.0.1:"+strconv.Itoa(ports.UPCCartridgeMetrics), "metrics/health listen address (loopback by default)")
 	iface := fs.String("xdp-iface", "", "attach cart_xdp here while serving (the link is gone when this exits)")
 	mode := fs.String("xdp-mode", "generic", "generic | native")
-	_ = fs.Parse(args)
+	parseSub(fs, args)
 	if !isLoopbackAddr(*addr) {
 		fmt.Fprintf(os.Stderr, "WARNING: metrics on non-loopback %s\n", *addr)
 	}

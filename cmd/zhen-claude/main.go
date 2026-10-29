@@ -116,10 +116,18 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
-func parseFlags(args []string, stderr io.Writer) (*options, error) {
+var claudeSpec = cmdline.Spec{
+	Name:    "zhen-claude",
+	Purpose: "ZhenAI's bridge to the Claude API (ADR-104): a one-shot prompt or a REPL, every tool call through the Champion gate.",
+	Commands: []cmdline.Command{
+		{Name: "confirm", Purpose: "list, approve or deny queued writes (see zhen-claude confirm --help)"},
+		{Name: "review", Purpose: "review drafts in an agent worktree (see zhen-claude review --help)"},
+	},
+}
+
+func parseFlags(args []string, stdout, stderr io.Writer) (*options, error) {
 	o := &options{}
 	fs := flag.NewFlagSet("zhen-claude", flag.ContinueOnError)
-	fs.SetOutput(stderr)
 	fs.StringVar(&o.prompt, "p", "", "one-shot prompt (default: read stdin, unless -repl)")
 	fs.BoolVar(&o.repl, "repl", false, "interactive conversation; one line per turn, /quit to leave")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "print the request that would be sent and exit; needs no credentials, sends nothing")
@@ -160,7 +168,7 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	fs.StringVar(&o.checksPath, "checks", "configs/zhen-checks.yaml", "the run_check allowlist")
 	fs.StringVar(&o.agentRoot, "agent-root", defaultAgentRoot(), "agent worktrees live under here (env ZHEN_AGENT_WT_ROOT)")
 	fs.StringVar(&o.configPath, "config", "", "config file (default $XDG_CONFIG_HOME/unheaded/zhen-claude.conf; a missing default is fine)")
-	if err := fs.Parse(args); err != nil {
+	if err := cmdline.ParseFlags(fs, claudeSpec, args, stdout, stderr); err != nil {
 		return nil, err
 	}
 	set := map[string]bool{}
@@ -249,12 +257,13 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "review" {
 		return runReviewCmd(args[1:], stdout, stderr)
 	}
-	o, err := parseFlags(args, stderr)
+	o, err := parseFlags(args, stdout, stderr)
 	if err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
+		var ex *cmdline.ExitError
+		if errors.As(err, &ex) {
+			return ex.Code
 		}
-		return cmdline.ReportUsageError(stderr, cmdline.Spec{Name: "zhen-claude"}, "%s", cmdline.Translate(err, args))
+		return cmdline.ReportUsageError(stderr, claudeSpec, "%s", err)
 	}
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(o.logLevel)); err != nil {

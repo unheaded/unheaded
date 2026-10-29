@@ -73,7 +73,13 @@ type config struct {
 	once     bool
 }
 
-func parseFlags(args []string) (config, error) {
+var kevSpec = cmdline.Spec{
+	Name:     "kev-poller",
+	Purpose:  "Keep the CISA Known Exploited Vulnerabilities catalog current on this host (ADR-055).",
+	Commands: []cmdline.Command{{Name: "report", Purpose: "print a threat-register refresh entry from the stored catalog (see kev-poller report --help)"}},
+}
+
+func parseFlags(args []string, stdout, stderr io.Writer) (config, error) {
 	var c config
 	fs := flag.NewFlagSet(serviceName, flag.ContinueOnError)
 	fs.StringVar(&c.url, "url", envOr("KEV_FEED_URL", kev.DefaultURL), "catalog URL (https only)")
@@ -86,7 +92,7 @@ func parseFlags(args []string) (config, error) {
 	fs.StringVar(&c.node, "node", "", "node identifier (default: hostname)")
 	fs.StringVar(&c.stack, "stack", os.Getenv("KEV_STACK"), "stack file (config/kev-poller/stack.yaml): tag entries the Kingdom runs")
 	fs.BoolVar(&c.once, "once", false, "pull once, print a summary, exit (non-zero on failure)")
-	if err := fs.Parse(args); err != nil {
+	if err := cmdline.ParseFlags(fs, kevSpec, args, stdout, stderr); err != nil {
 		return c, err
 	}
 	d, err := time.ParseDuration(*interval)
@@ -124,12 +130,13 @@ func main() {
 		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "kev-poller"})
 		return
 	}
-	cfg, err := parseFlags(os.Args[1:])
+	cfg, err := parseFlags(os.Args[1:], os.Stdout, os.Stderr)
 	if err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return
+		var ex *cmdline.ExitError
+		if errors.As(err, &ex) {
+			os.Exit(ex.Code)
 		}
-		os.Exit(cmdline.ReportUsageError(os.Stderr, cmdline.Spec{Name: "kev-poller"}, "%s", cmdline.Translate(err, os.Args[1:])))
+		os.Exit(cmdline.ReportUsageError(os.Stderr, kevSpec, "%s", err))
 	}
 	fetcher, err := kev.NewFetcher(cfg.url, cfg.timeout, false)
 	if err != nil {
@@ -492,8 +499,9 @@ func runReport(args []string, w io.Writer) int {
 	stateDir := fs.String("state-dir", envOr("KEV_OUTPUT_PATH", "/var/lib/unheaded/threat-feeds/cisa-kev"), "where latest.json is")
 	stackPath := fs.String("stack", envOr("KEV_STACK", "config/kev-poller/stack.yaml"), "stack file; empty to skip matching")
 	recent := fs.Int("recent", 15, "how many other new entries to list")
+	fs.SetOutput(io.Discard)
 	if err := fs.Parse(args); err != nil {
-		return 2
+		return cmdline.HandleParseError(err, fs, cmdline.Spec{Name: "kev-poller report", Purpose: "Print a threat-register refresh entry (markdown) from the stored catalog; does not pull."}, args, w, os.Stderr)
 	}
 	if _, err := time.Parse("2006-01-02", *since); err != nil {
 		fmt.Fprintln(os.Stderr, "kev-poller report: --since YYYY-MM-DD is required")

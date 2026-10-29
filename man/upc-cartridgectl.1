@@ -1,0 +1,73 @@
+.TH UPC\-CARTRIDGECTL 1 "2026-10-29" "unheaded 86590d34" "Unheaded Kingdom"
+.SH NAME
+upc\-cartridgectl \- Register, sign, load and swap UPC cartridges on the pinned cartridge interpreter.
+.SH SYNOPSIS
+.B upc\-cartridgectl
+[\fIOPTION\fR]...
+COMMAND [ARG]...
+.SH DESCRIPTION
+Register, sign, load and swap UPC cartridges on the pinned cartridge interpreter.
+.SH COMMANDS
+.TP
+.B up | down | list | stats
+pin or unpin the interpreter; list slots; print counters
+.TP
+.B sign \-\-key SEED [\-\-ttl D] FILE.cart
+seal a cartridge with ML\-DSA\-65
+.TP
+.B register NAME FILE.cart
+add a cartridge to the registry
+.TP
+.B load NAME \-\-slot N | unload \-\-slot N
+load or unload a slot
+.TP
+.B swap NAME \-\-from A \-\-to B
+swap a running cartridge between slots
+.TP
+.B bench [\-\-repeat N] [\-\-dport P] | pump [\-\-max N]
+measure; drain events
+.TP
+.B serve [\-\-metrics\-addr ADDR] [\-\-xdp\-iface IF]
+serve metrics
+.TP
+.B record \-\-out FILE [\-\-every N] [\-\-duration D]
+record a trace
+.TP
+.B replay FILE \-\-slot N [\-\-image F] [\-\-run K] [\-\-to N] [\-\-watch X]
+replay a trace
+.TP
+.B weights publish | weights fetch
+publish or fetch sealed weights over Wotan (see weights \-\-help)
+.SH OPTIONS
+.TP
+.B \-\-cart \fISTRING\fR
+the cart CLI (validator) (default crates/upc\-cartridge/target/release/cart)
+.TP
+.B \-\-events\-group \fISTRING\fR
+up: make the CART_EVENTS pin readable by this group (cmd/anomaly's bridge); other pins stay root 0600
+.TP
+.B \-\-lab
+accept UNSIGNED cartridges (lab only; marked lab="1")
+.TP
+.B \-\-obj \fISTRING\fR
+cartridge\-ebpf object (for up) (default ebpf/target/bpfel\-unknown\-none/release/cartridge\-ebpf)
+.TP
+.B \-\-pin\-dir \fISTRING\fR
+bpffs directory of the pinned interpreter (default /sys/fs/bpf/unheaded/cart)
+.TP
+.B \-\-pubkey \fISTRING\fR
+pinned ML\-DSA\-65 public key that cartridge seals must verify against
+.TP
+.B \-\-registry\-dir \fISTRING\fR
+file\-backed registry: records + content\-addressed images (0700) (default /var/lib/unheaded/cartridges)
+.TP
+.B \-\-sophia \fISTRING\fR
+Sophia base URL: keep records in Sophia (namespace cartridge; x\-cartridge records still read); SOPHIA_TOKEN = bearer token
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH SEE ALSO
+.BR unheaded (1)
