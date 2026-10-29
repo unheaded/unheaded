@@ -404,6 +404,14 @@ func TestVersionString(t *testing.T) {
 	if (Spec{}).VersionString() == "" {
 		t.Error("never empty")
 	}
+	// A main whose own version variable still holds its "dev" default
+	// must not hide the link-time cmdline.Version.
+	old := Version
+	defer func() { Version = old }()
+	Version = "v1.2.3"
+	if got := (Spec{Version: "dev"}).VersionString(); got != "v1.2.3" {
+		t.Errorf("Spec.Version \"dev\" should fall through to cmdline.Version, got %q", got)
+	}
 }
 
 func TestHandleParseError(t *testing.T) {

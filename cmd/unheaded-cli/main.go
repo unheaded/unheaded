@@ -20,6 +20,7 @@ import (
 	"os"
 
 	"unheaded/cmd/unheaded-cli/cmd"
+	"unheaded/pkg/cmdline"
 )
 
 // Version information - set at build time
@@ -30,6 +31,12 @@ var (
 )
 
 func main() {
+	// --version answers in the ADR-111 shape before the command tree runs.
+	if len(os.Args) == 2 && cmdline.IsVersionArg(os.Args[1]) {
+		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "unheaded", Version: Version})
+		return
+	}
+
 	// Set version info for commands
 	cmd.SetVersionInfo(Version, Commit, BuildTime)
 

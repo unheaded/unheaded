@@ -239,7 +239,9 @@ func (s Spec) withDefaults() Spec {
 }
 
 func (s Spec) version() string {
-	if s.Version != "" {
+	// "dev" is the placeholder many mains default their own version
+	// variable to; it means "not set at link time", not a version.
+	if s.Version != "" && s.Version != "dev" {
 		return s.Version
 	}
 	if Version != "" {

@@ -12,9 +12,12 @@ BINARY_DIR := bin
 EBPF_DIR := ebpf
 NIX_DIR := nix
 
+# Version (read from git or default); every binary prints it for --version (ADR-111)
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+
 # Go build flags
 GO_BUILD_FLAGS := -v -trimpath
-GO_LDFLAGS := -s -w
+GO_LDFLAGS := -s -w -X unheaded/pkg/cmdline.Version=$(VERSION)
 
 # Rust/eBPF build flags
 CARGO_BUILD_FLAGS := --release
@@ -22,8 +25,6 @@ CARGO_BUILD_FLAGS := --release
 # Container registry (change for production)
 CONTAINER_REGISTRY := ghcr.io/unheaded
 
-# Version (read from git or default)
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
 all: build ebpf ## Build everything
 
@@ -33,6 +34,10 @@ help: ## Show this help
 ##@ Build
 
 build: build-daemon build-services ## Build all Go binaries
+
+build-all: ## Build every Go binary under cmd/ into bin/ (one version ldflag, ADR-111)
+	go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o $(BINARY_DIR)/ ./cmd/...
+	scripts/check-version-flag.sh --bin-dir $(BINARY_DIR)
 	@echo "✓ All binaries built"
 
 # ADR-085 Phase 1: the binaries deploy/systemd runs, from one map
