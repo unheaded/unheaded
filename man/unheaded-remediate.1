@@ -1,0 +1,45 @@
+.TH UNHEADED\-REMEDIATE 1 "2026-10-29" "unheaded 86590d34" "Unheaded Kingdom"
+.SH NAME
+unheaded\-remediate \- Remediation as code (ADR\-099): list, check, plan, apply and undo fixes from the model or a sealed snapshot.
+.SH SYNOPSIS
+.B unheaded\-remediate
+[\fIOPTION\fR]...
+list | check <fix> | plan <fix> | apply <fix> | undo <backup\-dir>
+.SH DESCRIPTION
+Remediation as code (ADR\-099): list, check, plan, apply and undo fixes from the model or a sealed snapshot.
+.SH OPTIONS
+.TP
+.B \-\-applied\-by \fISTRING\fR
+with \-record\-existing: what applied the fix, and when (default "remediate.sh (2026\-10\-01)")
+.TP
+.B \-\-host \fISTRING\fR
+host the content is for (default: short hostname)
+.TP
+.B \-\-model \fISTRING\fR
+fix model (root\-owned when run as root) (default /usr/share/unheaded/remediation/fixes.yaml)
+.TP
+.B \-\-model\-commit \fISTRING\fR
+git commit of the model, recorded in the journal
+.TP
+.B \-\-pubkey \fISTRING\fR
+ML\-DSA\-65 public key that must have sealed the snapshot (default /etc/unheaded/compliance/snapshot.pub)
+.TP
+.B \-\-record\-existing \fISTRING\fR
+journal this fix as applied before the journal existed, if check finds it in place; changes nothing on the host
+.TP
+.B \-\-root \fISTRING\fR
+filesystem root (tests)
+.TP
+.B \-\-snapshot \fISTRING\fR
+sealed snapshot to act on instead of \-model (only its fixes can be applied)
+.TP
+.B \-\-state \fISTRING\fR
+backups and journal (default /var/lib/unheaded/remediate)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH SEE ALSO
+.BR unheaded (1)

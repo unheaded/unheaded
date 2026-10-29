@@ -1,0 +1,40 @@
+.TH HUGINN 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+huginn \- Huginn: report bare\-metal host metrics (CPU, memory, disks, network, processes) to the dashboard and VictoriaMetrics (ADR\-084).
+.SH SYNOPSIS
+.B huginn
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Huginn: report bare\-metal host metrics (CPU, memory, disks, network, processes) to the dashboard and VictoriaMetrics (ADR\-084).
+.SH OPTIONS
+.TP
+.B \-\-config \fISTRING\fR
+path to YAML config file (optional) (default /etc/huginn.yaml)
+.TP
+.B \-\-host \fISTRING\fR
+host label override (default: hostname or config)
+.TP
+.B \-\-interval \fIDURATION\fR
+collection/push interval override
+.TP
+.B \-\-listen \fISTRING\fR
+listen address override
+.TP
+.B \-\-pprof \fIADDR\fR
+serve net/http/pprof on this loopback ADDR (e.g. 127.0.0.1:6060); off when empty
+.TP
+.B \-\-vm \fISTRING\fR
+VictoriaMetrics URL override (empty string = no override)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+huginn
+huginn \-\-config /etc/huginn.yaml
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

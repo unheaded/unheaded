@@ -52,6 +52,8 @@ unheaded observe dashboard --service timeguru               # Grafana dashboard 
 
 All supported backends are open source (Apache-2.0, MIT, GPL, or similar). Unheaded's adapter code is GPL-3.0-or-later. See [LICENSES/THIRD_PARTY.md](../LICENSES/THIRD_PARTY.md) for attribution.
 
+Profiling a running service (pprof, flame graphs, BPF counters): [[Profiling]].
+
 ---
 
 > **Source:** [CLAUDE.md](../CLAUDE.md) · [references/timeline.md](../references/timeline.md)

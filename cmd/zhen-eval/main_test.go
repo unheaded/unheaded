@@ -274,7 +274,7 @@ func TestFlags(t *testing.T) {
 			t.Errorf("%v: exit %d", args, code)
 		}
 	}
-	o, err := parseFlags([]string{"-out", "x", "-backend", "claude"}, io.Discard)
+	o, err := parseFlags([]string{"-out", "x", "-backend", "claude"}, io.Discard, io.Discard)
 	if err != nil || o.model != "claude-opus-5-5" || o.effort != "low" {
 		t.Errorf("%+v %v", o, err)
 	}

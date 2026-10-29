@@ -12,6 +12,12 @@ Wants=network-online.target
 Requires=unheaded-wotan.service
 
 [Service]
+# Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
+# works harder before the cgroup throttles or OOM-kills.
+MemoryMax=512M
+MemoryHigh=460M
+TasksMax=512
+Environment=GOMEMLIMIT=460MiB
 Type=simple
 EnvironmentFile=-/etc/unheaded/micromanager.env
 Environment=MICROMANAGER_DATA_DIR=/var/lib/unheaded/micromanager

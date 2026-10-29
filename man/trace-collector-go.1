@@ -1,0 +1,79 @@
+.TH TRACE\-COLLECTOR\-GO 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+trace\-collector\-go \- Collect BPF trace events from the Kingdom's ring buffers and publish them to Wotan.
+.SH SYNOPSIS
+.B trace\-collector\-go
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Collect BPF trace events from the Kingdom's ring buffers and publish them to Wotan.
+.SH OPTIONS
+.TP
+.B \-\-allow\-untrusted\-ebpf\-obj\-dir
+Development only: as root, load BPF objects from paths a non\-root user can write (e.g. a user\-owned ebpf/target). Off, such objects are refused
+.TP
+.B \-\-batch\-size \fIN\fR
+Publish batch size (default 100)
+.TP
+.B \-\-batch\-timeout \fIDURATION\fR
+Publish batch timeout (default 50ms)
+.TP
+.B \-\-buf\-size \fIN\fR
+Event channel buffer size (default 8192)
+.TP
+.B \-\-ebpf\-obj\-dir \fISTRING\fR
+Directory containing compiled BPF ELF objects (default: ebpf/target/bpfel\-unknown\-none/release)
+.TP
+.B \-\-enable\-flow\-tracker
+Enable flow_tracker TC program (default true)
+.TP
+.B \-\-enable\-latency\-probe
+Enable latency_probe tracepoint program (default true)
+.TP
+.B \-\-enable\-packet\-marker
+Enable packet_marker XDP program (default true)
+.TP
+.B \-\-http\-addr \fISTRING\fR
+HTTP address for health/metrics (default :16670)
+.TP
+.B \-\-interface \fISTRING\fR
+Network interface to attach BPF programs (default lo)
+.TP
+.B \-\-log\-json
+Use JSON log format
+.TP
+.B \-\-map\-pin\-path \fISTRING\fR
+BPF map pin path (default /sys/fs/bpf/unheaded/)
+.TP
+.B \-\-max\-rate \fIN\fR
+Max events/sec (0 = unlimited) (default 10000)
+.TP
+.B \-\-metrics\-addr \fISTRING\fR
+Prometheus metrics address (unified mode) (default :16671)
+.TP
+.B \-\-read\-interval \fIDURATION\fR
+Map read interval (default 100ms)
+.TP
+.B \-\-ring\-path \fISTRING\fR
+BPF ring buffer pin path (default /sys/fs/bpf/unheaded/anamnesis_events)
+.TP
+.B \-\-unified
+Run in unified mode (load all BPF programs)
+.TP
+.B \-\-wotan\-addr \fISTRING\fR
+Wotan gRPC address (default localhost:18001)
+.TP
+.B \-\-wotan\-http\-addr \fISTRING\fR
+Wotan HTTP address (fallback) (default localhost:18000)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+trace\-collector\-go
+trace\-collector\-go \-\-interface eth0 \-\-wotan\-addr localhost:18001
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

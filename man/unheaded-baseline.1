@@ -1,0 +1,61 @@
+.TH UNHEADED\-BASELINE 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+unheaded\-baseline \- Evaluate this host against the shipped baseline and report every deviation (ADR\-098).
+.SH SYNOPSIS
+.B unheaded\-baseline
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Evaluate this host against the shipped baseline and report every deviation (ADR\-098).
+.SH OPTIONS
+.TP
+.B \-\-baseline \fISTRING\fR
+baseline file (root\-owned) (default /usr/share/unheaded/baseline/baseline.yaml)
+.TP
+.B \-\-config \fISTRING\fR
+mode file: mode=audit|enforcing (default /etc/unheaded/baseline.conf)
+.TP
+.B \-\-hostname \fISTRING\fR
+host name in the baseline (default: os.Hostname)
+.TP
+.B \-\-proc\-sys \fISTRING\fR
+sysctl tree to read (default /proc/sys; tests)
+.TP
+.B \-\-pubkey \fISTRING\fR
+ML\-DSA\-65 public key that must have sealed the snapshot (default /etc/unheaded/compliance/snapshot.pub)
+.TP
+.B \-\-remediate\-state \fISTRING\fR
+the remediation executor's backups and journal (enforcing) (default /var/lib/unheaded/remediate)
+.TP
+.B \-\-root\-facts \fISTRING\fR
+directory holding aa\-status.json and root\-path, written as root before the agent runs
+.TP
+.B \-\-snapshot \fISTRING\fR
+sealed snapshot of this host's fixes (maps deviations to fixes; enforcing needs it) (default /etc/unheaded/compliance/snapshot.json)
+.TP
+.B \-\-state\-dir \fISTRING\fR
+where report.json is written (default /var/lib/unheaded/baseline)
+.TP
+.B \-\-textfile\-dir \fISTRING\fR
+node\-exporter textfile directory (optional)
+.TP
+.B \-\-timeout \fIDURATION\fR
+give up after this long (default 2m0s)
+.TP
+.B \-\-trusted\-uid \fIN\fR
+uid that must own the baseline and the snapshot (root; tests)
+.TP
+.B \-\-wotan\-addr \fISTRING\fR
+Wotan HTTP host:port; when set, deviations are published on compliance.deviation.<host> (default: $WOTAN_ADDR, empty = off)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+unheaded\-baseline
+unheaded\-baseline \-\-baseline /etc/unheaded/baseline.yaml \-\-snapshot
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

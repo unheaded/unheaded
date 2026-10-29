@@ -186,12 +186,13 @@ func main() {
 
 	// Server configuration
 	srv := &http.Server{
-		Addr:           ":" + *port,
-		Handler:        httpHandler,
-		ReadTimeout:    *readTimeout,
-		WriteTimeout:   *writeTimeout,
-		IdleTimeout:    *idleTimeout,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              ":" + *port,
+		Handler:           httpHandler,
+		ReadTimeout:       *readTimeout,
+		WriteTimeout:      *writeTimeout,
+		IdleTimeout:       *idleTimeout,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): never a silent

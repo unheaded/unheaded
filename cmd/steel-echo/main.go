@@ -27,6 +27,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -35,6 +36,25 @@ import (
 
 // version is set at build time; each image (v1..v4) is one build.
 var version = "dev"
+
+// subSpec is the help, version and man shape for one subcommand; serve is
+// the default, so it carries the program name and the command list.
+func subSpec(cmd string) cmdline.Spec {
+	if cmd == "serve" {
+		return cmdline.Spec{
+			Name:    "steel-echo",
+			Purpose: "The S-REAL-STEEL game-day workload: a tiny HTTP service to deploy and break, plus a client-side load generator.",
+			Commands: []cmdline.Command{
+				{Name: "serve", Purpose: "serve /health, /version, / and /metrics (the default)"},
+				{Name: "load", Purpose: "measure availability from the client side (see steel-echo load --help)"},
+				{Name: "monad-send", Purpose: "send Monad-bearing IPv6 frames on a lab veth"},
+				{Name: "monad-count", Purpose: "count Monad frames per flow label on a lab veth"},
+			},
+			Version: version,
+		}
+	}
+	return cmdline.Spec{Name: "steel-echo " + cmd, Version: version}
+}
 
 func main() {
 	args := os.Args[1:]
@@ -57,8 +77,12 @@ func main() {
 	case "monad-count":
 		err = runMonadCount(args)
 	}
+	var ex *cmdline.ExitError
+	if errors.As(err, &ex) {
+		os.Exit(ex.Code)
+	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "steel-echo %s: %s\n", cmd, cmdline.Translate(err, args))
+		fmt.Fprintf(os.Stderr, "steel-echo %s: %s\n", cmd, err)
 		os.Exit(1)
 	}
 }

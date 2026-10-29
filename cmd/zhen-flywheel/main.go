@@ -43,7 +43,26 @@ const usage = `usage: zhen-flywheel <ingest|label|export|scan|quarantine|import-
   WELL_OPS_DSN       unheaded_ops (optional; label reads llm_requests escalations from it)
 `
 
+var manSpec = cmdline.Spec{
+	Name:     "zhen-flywheel",
+	Purpose:  "Turn training captures into labelled, filtered, held-out training data (wiki/Zhen-Training-Data.md).",
+	Operands: "COMMAND [OPTION]...",
+	Commands: []cmdline.Command{
+		{Name: "ingest [-dir DIR]", Purpose: "capture files to the Well (strict, re-scanned, deduped)"},
+		{Name: "label", Purpose: "outcomes to labels (checks, escalations, reviews, judges, edits)"},
+		{Name: "export -out DIR", Purpose: "the Well to SFT, preference and tool-trace files, split and tokenized"},
+		{Name: "scan DIR", Purpose: "secret/PII re-scan of an export (exit 1 on any finding)"},
+		{Name: "quarantine CAPTURE-ID", Purpose: "mark one capture for the purge"},
+		{Name: "import-eval -results FILE -answers-dir DIR", Purpose: "kept eval answers to capture files"},
+	},
+	Details: "WELL_APP_ZHEN_DSN (unheaded_app as app_zhen) is required by ingest, label, export and quarantine; WELL_OPS_DSN (unheaded_ops) is optional for label. Neither has a default: credentials are never in the repository.\nClaude-authored text never leaves export unless -include-claude-text (or ZHEN_FLYWHEEL_INCLUDE_CLAUDE_TEXT=1) is given.",
+}
+
 func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && cmdline.IsManArg(args[0]) {
+		cmdline.Man(stdout, nil, manSpec)
+		return 0
+	}
 	if len(args) == 0 {
 		_, _ = io.WriteString(stderr, usage)
 		return 2

@@ -16,10 +16,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"unheaded/cmd/unheaded-cli/cmd"
+	"unheaded/pkg/cmdline"
 )
 
 // Version information - set at build time
@@ -30,6 +32,12 @@ var (
 )
 
 func main() {
+	// --version answers in the ADR-111 shape before the command tree runs.
+	if len(os.Args) == 2 && cmdline.IsVersionArg(os.Args[1]) {
+		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "unheaded", Version: Version})
+		return
+	}
+
 	// Set version info for commands
 	cmd.SetVersionInfo(Version, Commit, BuildTime)
 
@@ -37,6 +45,10 @@ func main() {
 	root := cmd.NewRootCommand()
 	if err := root.Execute(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "unheaded: %v\n", err)
+		var ue *cmd.UsageError
+		if errors.As(err, &ue) {
+			os.Exit(cmdline.ExitUsage)
+		}
 		os.Exit(1)
 	}
 }

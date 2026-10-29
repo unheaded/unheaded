@@ -244,10 +244,11 @@ func main() {
 	mux.HandleFunc("/metrics", checker.metricsHandler)
 
 	server := &http.Server{
-		Addr:         addr,
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              addr,
+		Handler:           mux,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
 	}
 
 	// Channel for graceful shutdown

@@ -201,11 +201,12 @@ func (s *Service) Start(ctx context.Context) error {
 		addr = ports.DefaultAddr(ports.Anomaly)
 	}
 	s.httpServer = &http.Server{
-		Addr:           addr,
-		Handler:        mux,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              addr,
+		Handler:           mux,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	go func() {

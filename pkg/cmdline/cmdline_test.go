@@ -404,6 +404,14 @@ func TestVersionString(t *testing.T) {
 	if (Spec{}).VersionString() == "" {
 		t.Error("never empty")
 	}
+	// A main whose own version variable still holds its "dev" default
+	// must not hide the link-time cmdline.Version.
+	old := Version
+	defer func() { Version = old }()
+	Version = "v1.2.3"
+	if got := (Spec{Version: "dev"}).VersionString(); got != "v1.2.3" {
+		t.Errorf("Spec.Version \"dev\" should fall through to cmdline.Version, got %q", got)
+	}
 }
 
 func TestHandleParseError(t *testing.T) {
@@ -473,4 +481,38 @@ func TestReportHelpers(t *testing.T) {
 	ReportUsageError(nil, Spec{}, "x")
 	ReportUnknownCommand(nil, Spec{}, "x")
 	PrintVersion(nil, Spec{})
+}
+
+func TestParseFlags_ExitErrorCarriesCode(t *testing.T) {
+	cases := []struct {
+		args []string
+		code int
+		out  bool // something on stdout
+	}{
+		{[]string{"--help"}, 0, true},
+		{[]string{"--man"}, 0, true},
+		{[]string{"--bogus"}, ExitUsage, false},
+	}
+	for _, c := range cases {
+		var o, e bytes.Buffer
+		err := ParseFlags(newSet(t), spec(), c.args, &o, &e)
+		var ex *ExitError
+		if !errors.As(err, &ex) || ex.Code != c.code {
+			t.Fatalf("%v: err=%v, want ExitError{%d}", c.args, err, c.code)
+		}
+		if (o.Len() > 0) != c.out || strings.Contains(e.String(), "Usage of") {
+			t.Errorf("%v: out=%q err=%q", c.args, o.String(), e.String())
+		}
+	}
+	if err := ParseFlags(newSet(t), spec(), []string{"--once"}, io.Discard, io.Discard); err != nil {
+		t.Errorf("--once: %v, want nil", err)
+	}
+}
+
+func TestIsManArg(t *testing.T) {
+	for arg, want := range map[string]bool{"--man": true, "-man": true, "man": false, "--manual": false, "-m": false} {
+		if got := IsManArg(arg); got != want {
+			t.Errorf("IsManArg(%q) = %v, want %v", arg, got, want)
+		}
+	}
 }

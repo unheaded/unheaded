@@ -1,0 +1,39 @@
+.TH UNHEADED\-AUTH 1 "2026-10-29" "unheaded 86590d34" "Unheaded Kingdom"
+.SH NAME
+unheaded\-auth \- Serve the Kingdom's login, JWKS and OIDC discovery endpoints; `unheaded\-auth user` manages the users file.
+.SH SYNOPSIS
+.B unheaded\-auth
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Serve the Kingdom's login, JWKS and OIDC discovery endpoints; `unheaded\-auth user` manages the users file.
+.SH COMMANDS
+.TP
+.B user add|list|del
+manage users (see unheaded\-auth user \-\-help)
+.SH OPTIONS
+.TP
+.B \-\-audiences \fISTRING\fR
+comma\-separated audiences a login may ask for; the first is the default (default unheaded)
+.TP
+.B \-\-dev\-plaintext
+serve login, JWKS and discovery over plain HTTP (development only)
+.TP
+.B \-\-issuer\-url \fISTRING\fR
+external issuer URL: the tokens' iss and the discovery base (required)
+.TP
+.B \-\-key\-file \fISTRING\fR
+issuer Ed25519 key (unheaded\-keygen unheaded\-auth), 0400 (default /etc/unheaded/keys/unheaded\-auth.key)
+.TP
+.B \-\-listen \fISTRING\fR
+listen address (default :19020)
+.TP
+.B \-\-users\-file \fISTRING\fR
+users file (unheaded\-auth user add), 0600 (default /etc/unheaded/auth/users.json)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH SEE ALSO
+.BR unheaded (1)

@@ -1,0 +1,34 @@
+.TH ANOMALY 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+anomaly \- Run the Anomaly Detection service and bridge MBC cartridge scores into it (ADR\-108).
+.SH SYNOPSIS
+.B anomaly
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Run the Anomaly Detection service and bridge MBC cartridge scores into it (ADR\-108).
+.SH OPTIONS
+.TP
+.B \-\-listen \fISTRING\fR
+HTTP listen address (loopback by default) (default 127.0.0.1:19018)
+.TP
+.B \-\-no\-cartridge
+run the service without the cartridge bridge
+.TP
+.B \-\-pin\-dir \fISTRING\fR
+bpffs directory of the pinned cartridge interpreter (default /sys/fs/bpf/unheaded/cart)
+.TP
+.B \-\-wotan \fISTRING\fR
+Wotan HTTP address: publish anomaly.scores there (default: in\-process intake)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+anomaly
+anomaly \-\-listen :19018 \-\-pin\-dir /sys/fs/bpf/unheaded
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

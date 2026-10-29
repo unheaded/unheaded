@@ -99,7 +99,6 @@ func password(get func(string) string) (string, error) {
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fl := flag.NewFlagSet("well-retention", flag.ContinueOnError)
-	fl.SetOutput(io.Discard)
 	spec := cmdline.Spec{Name: "well-retention", Purpose: "Delete or archive Well rows past their retention class; -dry-run only counts."}
 	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
 		cmdline.PrintVersion(stdout, spec)
@@ -111,11 +110,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	batch := fl.Int("batch", 1000, "rows per delete transaction (1..100000)")
 	stmtTimeout := fl.Duration("statement-timeout", 5*time.Minute, "limit per statement")
 	metricsDir := fl.String("metrics-dir", os.Getenv("WELL_METRICS_DIR"), "write well_retention.prom here (node_exporter textfile); empty: none")
-	if err := fl.Parse(args); err != nil {
-		return cmdline.HandleParseError(err, fl, spec, args, stdout, stderr)
-	}
-	if fl.NArg() != 0 {
-		return cmdline.ReportUsageError(stderr, spec, "extra operand '%s'", fl.Arg(0))
+	if code, exit := cmdline.ParseSet(fl, spec, args, stdout, stderr); exit {
+		return code
 	}
 	if *batch < 1 || *batch > 100000 {
 		fmt.Fprintln(stderr, "well-retention: -batch must be 1..100000")

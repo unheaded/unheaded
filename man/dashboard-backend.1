@@ -1,0 +1,73 @@
+.TH DASHBOARD\-BACKEND 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+dashboard\-backend \- Serve the Kingdom dashboard API and WebSocket feed.
+.SH SYNOPSIS
+.B dashboard\-backend
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Serve the Kingdom dashboard API and WebSocket feed.
+.SH OPTIONS
+.TP
+.B \-\-compliance\-evidence \fISTRING\fR
+Evidence file from cmd/compliance\-evidence (default <compliance\-root>/var/compliance/evidence.json)
+.TP
+.B \-\-compliance\-root \fISTRING\fR
+Directory holding compliance/catalog/ (empty: /api/v1/compliance/* answer 503)
+.TP
+.B \-\-debug
+Enable debug logging
+.TP
+.B \-\-dev\-plaintext
+compose before internal TLS only: login cookie without Secure, issuer over plain http (also AUTH_BFF_DEV_PLAINTEXT=true)
+.TP
+.B \-\-health\-interval \fIDURATION\fR
+Health check interval (default 15s)
+.TP
+.B \-\-health\-timeout \fIDURATION\fR
+Health check timeout (default 5s)
+.TP
+.B \-\-json
+Output logs in JSON format
+.TP
+.B \-\-listen \fISTRING\fR
+HTTP listen address (default :20000)
+.TP
+.B \-\-max\-connections \fIN\fR
+Maximum WebSocket connections (default 100)
+.TP
+.B \-\-scrape\-interval \fIDURATION\fR
+Metrics scrape interval (default 15s)
+.TP
+.B \-\-scrape\-timeout \fIDURATION\fR
+Metrics scrape timeout (default 10s)
+.TP
+.B \-\-services\-file \fISTRING\fR
+Path to services endpoint file (name=host:port per line)
+.TP
+.B \-\-viz\-dir \fISTRING\fR
+Path to advanced visualizations directory (dashboard/), served under /viz/
+.TP
+.B \-\-vm\-url \fISTRING\fR
+VictoriaMetrics base URL for direct metric push (e.g. http://localhost:8428)
+.TP
+.B \-\-wotan \fISTRING\fR
+Wotan HTTP address (host:port); default WOTAN_ADDR, then localhost:18000
+.TP
+.B \-\-wotan\-grpc\-addr \fISTRING\fR
+Wotan gRPC address for TopicStream (enables real eBPF events)
+.TP
+.B \-\-ws\-allowed\-origins \fISTRING\fR
+Comma\-separated WebSocket allowed origins (empty=localhost only)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+dashboard\-backend
+dashboard\-backend \-\-listen :20000 \-\-services\-file services.yaml
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

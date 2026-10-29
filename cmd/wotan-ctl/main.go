@@ -110,7 +110,7 @@ func (c *Command) executeInternal(ctx *Context, args []string) error {
 
 	// Check for version at root level
 	if len(args) > 0 && (args[0] == "version" || args[0] == "--version" || args[0] == "-V") && c.RunFunc == nil {
-		fmt.Printf("wotan-ctl %s (commit: %s, built: %s)\n", Version, Commit, BuildTime)
+		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "wotan-ctl", Version: Version})
 		return nil
 	}
 

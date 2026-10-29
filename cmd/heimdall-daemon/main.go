@@ -34,6 +34,7 @@ import (
 	"unheaded/pkg/enkrateia"
 	"unheaded/pkg/gjallarhorn"
 	"unheaded/pkg/gungnir"
+	"unheaded/pkg/httputil"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -381,11 +382,17 @@ func main() {
 		cluster       = flag.Uint("cluster", 1, "this node's Gjallarhorn cluster ID; reverify horns for other clusters are ignored")
 		metricsAddr   = flag.String("metrics-addr", defaultMetricsAddr, "serve GET /metrics here (drift publish counters, scan duration); empty disables")
 	)
+	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "heimdall-daemon",
 		Purpose:  "Heimdall: watch this host for drift from the Mjölnir baseline and publish signed drift events; alerts only, never restores (ADR-043).",
 		Examples: []string{"heimdall-daemon --manifest /etc/unheaded/mjolnir.manifest.json --pubkey /etc/unheaded/keys/mimir.pub", "heimdall-daemon --xdp-iface eth0 --drift-sign-key /etc/unheaded/keys/drift.key"},
 	})
+	if *pprofAddr != "" {
+		if err := httputil.StartPprof(*pprofAddr); err != nil {
+			cmdline.Fail(cmdline.Spec{Name: "heimdall-daemon"}, "%v", err)
+		}
+	}
 	wotanClient.InitServiceIdentity("heimdall") // ADR-103 §6: every Wotan call carries heimdall's service token
 	if *xdpMode != "generic" && *xdpMode != "native" {
 		fmt.Fprintf(os.Stderr, "--xdp-mode must be generic or native, got %q\n", *xdpMode)

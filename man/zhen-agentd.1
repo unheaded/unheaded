@@ -1,0 +1,139 @@
+.TH ZHEN\-AGENTD 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
+.SH SYNOPSIS
+.B zhen\-agentd
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Serve the Zhenai agent runtime over HTTP for multi\-request use.
+.SH OPTIONS
+.TP
+.B \-\-action\-store \fISTRING\fR
+audit\-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env) (default stderr)
+.TP
+.B \-\-agent\-root \fISTRING\fR
+with \-worker: agent worktrees live here, outside the project root (env ZHEN_AGENT_WT_ROOT) (default /home/govan/.cache/unheaded/zhen\-worktrees)
+.TP
+.B \-\-allowed\-roots \fISTRING\fR
+comma\-separated list of project roots requests may target; defaults to just \-project\-root
+.TP
+.B \-\-ask\-tokens
+legacy: return pending\-confirmation tokens in /api/v1/agent/ask traces. Only for a listener no model can reach; by default /ask queues (\-confirm\-queue) or denies such writes and returns no token
+.TP
+.B \-\-audit\-well
+record one llm_requests row per llama\-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)
+.TP
+.B \-\-audit\-wotan
+also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)
+.TP
+.B \-\-base \fISTRING\fR
+with \-worker: local branch new zhen/<card> branches start from (default develop)
+.TP
+.B \-\-checks \fISTRING\fR
+with \-worker: the run_check allowlist (default configs/zhen\-checks.yaml)
+.TP
+.B \-\-claude \fISTRING\fR
+with \-worker: the Claude leg: fake (no network call, changes nothing) or live (Claude API within \-daily\-cap\-usd; credentials from the environment) (default fake)
+.TP
+.B \-\-claude\-model \fISTRING\fR
+with \-worker \-claude live: Claude model ID (default claude\-opus\-5\-5)
+.TP
+.B \-\-confirm\-queue \fIzhen\-claude confirm\fR
+queue agent\-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with zhen\-claude confirm
+.TP
+.B \-\-daily\-cap\-usd \fINUM\fR
+with \-worker \-claude live: hard spend cap per UTC day of \-ledger (default 5)
+.TP
+.B \-\-effort \fISTRING\fR
+with \-worker \-claude live: effort (default low)
+.TP
+.B \-\-gpu\-lock \fISTRING\fR
+GPU lease file shared with scripts/switch\-model.sh and forge\-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; "" = no lease (default /run/user/1000/unheaded/gpu.lock)
+.TP
+.B \-\-host \fISTRING\fR
+HTTP listen host (use 0.0.0.0 for non\-loopback) (default 127.0.0.1)
+.TP
+.B \-\-kanban\-store \fISTRING\fR
+kanban\-task backend for kanban_create / kanban_update tool calls: memory (in\-process, dev) | pg (production via The Well; DSN from WELL_KANBAN_DSN, else WELL_DSN). Without this, kanban_* tool calls pass the gate but fail at dispatch. (default memory)
+.TP
+.B \-\-ledger \fISTRING\fR
+with \-worker \-claude live: spend ledger (default zhen\-claude's)
+.TP
+.B \-\-local\-model \fISTRING\fR
+with \-worker: local model name when the family names none (default local)
+.TP
+.B \-\-max\-cards \fIN\fR
+with \-overnight: cards tried per night (default 5)
+.TP
+.B \-\-memory\-store \fISTRING\fR
+memory backend for /api/v1/memory/recall and /remember (zhen\-cli /recall, /remember): none (503) | pg (unheaded_app.zhen_memories, DSN from env WELL_APP_ZHEN_DSN) (default none)
+.TP
+.B \-\-metrics\-addr \fISTRING\fR
+also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20105'; the API stays on \-host
+.TP
+.B \-\-no\-auth
+serve without authentication; only with a loopback \-host and AUTH_ENABLED unset (dev). Without it, zhen\-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or a trust dir (AUTH_TRUST_DIR) is set
+.TP
+.B \-\-once
+with \-worker: work at most one card, print the result as JSON and exit (no HTTP listener)
+.TP
+.B \-\-overnight
+run the worker unattended inside \-window, then exit: its own ledger and cap (default $STATE/zhen\-claude/spend\-overnight.json, $3), \-max\-cards, a memory floor that never counts swap (ZHEN_MEM_FLOOR_BYTES may raise it), the \-stop\-file, strict privacy; writes a morning report to \-report\-dir
+.TP
+.B \-\-poll \fIDURATION\fR
+with \-worker: time between polls for an eligible card (default 1m0s)
+.TP
+.B \-\-port \fIN\fR
+HTTP listen port (default 20105)
+.TP
+.B \-\-privacy \fISTRING\fR
+with \-worker: privacy tier of the Claude leg: standard or strict (default standard)
+.TP
+.B \-\-project\-root \fISTRING\fR
+default Champion sandbox root used when a request omits project_root (default: cwd)
+.TP
+.B \-\-rate\-burst \fIN\fR
+per\-IP rate\-limit burst capacity (only used when \-rate\-limit > 0) (default 10)
+.TP
+.B \-\-rate\-limit \fINUM\fR
+per\-IP requests/sec (0 disables) (default 5)
+.TP
+.B \-\-report\-dir \fISTRING\fR
+with \-overnight: morning reports (<date>.md, 0600) (default /home/govan/.local/state/unheaded/zhen\-reports)
+.TP
+.B \-\-review\-dir \fISTRING\fR
+with \-worker: review notes (one Markdown file per run, 0600) (default /home/govan/.local/state/unheaded/zhen\-reviews)
+.TP
+.B \-\-routing \fISTRING\fR
+with \-worker: routing table (scripts/two\-brains/thresholds.py) (default configs/zhen\-routing.yaml)
+.TP
+.B \-\-scheduler
+run approved runbooks on the schedule in \-schedules: one Kanban card and one zhen_agent_runs row (mode scheduled; DSN from env WELL_APP_ZHEN_DSN, in memory without it) per run, every call through the Champion gate; heartbeat gauge zhen_scheduler_heartbeat_timestamp_seconds (replaces raft/zhen_scheduler.py, ADR\-028)
+.TP
+.B \-\-schedules \fISTRING\fR
+with \-scheduler: the schedule file (env ZHEN_SCHEDULES); read\-only to the daemon (default configs/zhen\-schedules.yaml)
+.TP
+.B \-\-schedules\-state \fISTRING\fR
+with \-scheduler: where run\-time schedule changes (POST /api/v1/scheduler/add|remove|pause) persist (env ZHEN_SCHEDULES_STATE); empty keeps them until restart
+.TP
+.B \-\-stop\-file \fISTRING\fR
+with \-overnight: when this file exists the night stops (a card in flight finishes its check and commits nothing) (default /home/govan/.local/state/unheaded/zhen\-agentd.stop)
+.TP
+.B \-\-window \fISTRING\fR
+with \-overnight: local\-time window HH:MM\-HH:MM (may cross midnight) (default 01:00\-07:00)
+.TP
+.B \-\-worker
+work eligible Kanban cards from the Well (owner zhen, a `zhen block) into local zhen/<card> branches for review; never pushes (DSN from env WELL_APP_ZHEN_DSN)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+zhen\-agentd
+zhen\-agentd \-\-port 26300 \-\-project\-root .
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

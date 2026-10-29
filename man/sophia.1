@@ -1,0 +1,34 @@
+.TH SOPHIA 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+sophia \- Serve the Sophia dictionary HTTP API.
+.SH SYNOPSIS
+.B sophia
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Serve the Sophia dictionary HTTP API.
+.SH OPTIONS
+.TP
+.B \-\-debug
+Enable debug logging
+.TP
+.B \-\-json
+Output logs in JSON format
+.TP
+.B \-\-listen \fISTRING\fR
+HTTP listen address (default :19005)
+.TP
+.B \-\-wotan \fISTRING\fR
+Wotan HTTP address (host:port); default WOTAN_ADDR, then localhost:18000
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+sophia
+sophia \-\-listen :19005
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

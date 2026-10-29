@@ -1,0 +1,58 @@
+.TH COMPLIANCE\-EVIDENCE 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+compliance\-evidence \- Collect compliance evidence (gates, CI runs, host facts) into the evidence file; subcommands render findings, SSPs, snapshots and Ansible.
+.SH SYNOPSIS
+.B compliance\-evidence
+[\fIOPTION\fR]...
+[COMMAND]
+.SH DESCRIPTION
+Collect compliance evidence (gates, CI runs, host facts) into the evidence file; subcommands render findings, SSPs, snapshots and Ansible.
+.SH COMMANDS
+.TP
+.B findings
+findings register from the catalog
+.TP
+.B ssp
+system security plan
+.TP
+.B snapshot
+sealed baseline snapshot
+.TP
+.B ansible
+render Ansible from the catalog
+.TP
+.B profile
+control profiles in the Well
+.TP
+.B well
+sync the catalog into the Well
+.TP
+.B baseline
+host baseline
+.SH OPTIONS
+.TP
+.B \-\-branch \fISTRING\fR
+branch whose CI runs are evidence (default develop)
+.TP
+.B \-\-github\-repo \fISTRING\fR
+owner/name for GitHub Actions evidence (default unheaded/unheaded)
+.TP
+.B \-\-keep \fIN\fR
+records kept per source (default 50)
+.TP
+.B \-\-out \fISTRING\fR
+evidence file to merge into (default var/compliance/evidence.json)
+.TP
+.B \-\-repo\-dir \fISTRING\fR
+repository root (catalog, git, scripts/) (default .)
+.TP
+.B \-\-skip\-gates
+do not run gate scripts
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH SEE ALSO
+.BR unheaded (1)

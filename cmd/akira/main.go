@@ -99,7 +99,7 @@ func loadConfig(path string) ([]health.ServiceTarget, error) {
 	}
 	var cfg AkiraConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	targets := make([]health.ServiceTarget, 0, len(cfg.Targets))
 	seen := make(map[string]bool, len(cfg.Targets))
@@ -195,11 +195,17 @@ func main() {
 	remediate := flag.Bool("remediate", false, "restart a service (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
 	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
 	wotanGRPC := flag.String("wotan-grpc", "", "Wotan gRPC address for the signed topics (consensus, remediate); default: the --wotan host on port 18001")
+	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "akira",
 		Purpose:  "Kingdom health daemon: polls every service, publishes votes to Wotan and decides the health band by consensus (ADR-029).",
 		Examples: []string{"akira", "akira --once", "akira --config /etc/unheaded/akira.yaml"},
 	})
+	if *pprofAddr != "" {
+		if err := httputil.StartPprof(*pprofAddr); err != nil {
+			cmdline.Fail(cmdline.Spec{Name: "akira"}, "%v", err)
+		}
+	}
 	wotanClient.InitServiceIdentity("akira") // ADR-103 §6: every Wotan call carries akira's service token
 
 	// Logger

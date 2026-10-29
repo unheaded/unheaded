@@ -121,6 +121,10 @@ func ParseSet(fs *flag.FlagSet, spec Spec, args []string, stdout, stderr io.Writ
 	if fs.Lookup("V") == nil {
 		fs.BoolVar(&showVersionShort, "V", false, "output version information and exit")
 	}
+	var showMan bool
+	if fs.Lookup("man") == nil {
+		fs.BoolVar(&showMan, "man", false, "print the man page (roff) and exit")
+	}
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -132,6 +136,10 @@ func ParseSet(fs *flag.FlagSet, spec Spec, args []string, stdout, stderr io.Writ
 
 	if boolFlagSet(fs, "help") || boolFlagSet(fs, "h") {
 		Usage(stdout, fs, spec)
+		return 0, true
+	}
+	if showMan {
+		Man(stdout, fs, spec)
 		return 0, true
 	}
 	if showVersion || showVersionShort || boolFlagSet(fs, "version") || boolFlagSet(fs, "V") {
@@ -202,8 +210,7 @@ func Usage(w io.Writer, fs *flag.FlagSet, spec Spec) {
 	fmt.Fprintln(w, "Options:")
 	if fs != nil {
 		fs.VisitAll(func(f *flag.Flag) {
-			switch f.Name {
-			case "help", "h", "version", "V":
+			if hiddenFlag(f.Name) {
 				return
 			}
 			printFlag(w, f)
@@ -239,7 +246,9 @@ func (s Spec) withDefaults() Spec {
 }
 
 func (s Spec) version() string {
-	if s.Version != "" {
+	// "dev" is the placeholder many mains default their own version
+	// variable to; it means "not set at link time", not a version.
+	if s.Version != "" && s.Version != "dev" {
 		return s.Version
 	}
 	if Version != "" {
@@ -367,7 +376,7 @@ func countUserFlags(fs *flag.FlagSet) int {
 	n := 0
 	fs.VisitAll(func(f *flag.Flag) {
 		switch f.Name {
-		case "version", "V":
+		case "version", "V", "man":
 		default:
 			n++
 		}
@@ -381,8 +390,16 @@ const (
 )
 
 func printFlag(w io.Writer, f *flag.Flag) {
+	left, desc := flagRow(f)
+	printOption(w, left, desc)
+}
+
+// flagRow is one option as --help and the man page both show it: the
+// option with its placeholder, and the description with any non-zero
+// default appended. Sharing it keeps the two from drifting.
+func flagRow(f *flag.Flag) (left, desc string) {
 	name, usage := flag.UnquoteUsage(f)
-	left := "--" + f.Name
+	left = "--" + f.Name
 	if len(f.Name) == 1 {
 		left = "-" + f.Name
 	}
@@ -396,7 +413,17 @@ func printFlag(w io.Writer, f *flag.Flag) {
 		}
 		usage += fmt.Sprintf(" (default %s)", def)
 	}
-	printOption(w, left, usage)
+	return left, usage
+}
+
+// hiddenFlag reports flags that every binary gets from ParseSet and that
+// --help lists by hand (help, version) or not at all (man).
+func hiddenFlag(name string) bool {
+	switch name {
+	case "help", "h", "version", "V", "man":
+		return true
+	}
+	return false
 }
 
 // printOption prints one option row: left column padded to optColumn, the
@@ -516,6 +543,22 @@ func HandleParseError(err error, fs *flag.FlagSet, spec Spec, args []string, std
 	return failTo(stderr, spec, "%s", Translate(err, args))
 }
 
+// ExitError is what ParseFlags returns when the program should stop: the
+// help, version, man page or usage error is already printed, and Code is
+// the exit status.
+type ExitError struct{ Code int }
+
+func (e *ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
+
+// ParseFlags is ParseSet for parse functions that return an error: nil
+// means carry on, and an *ExitError means exit with its Code.
+func ParseFlags(fs *flag.FlagSet, spec Spec, args []string, stdout, stderr io.Writer) error {
+	if code, exit := ParseSet(fs, spec, args, stdout, stderr); exit {
+		return &ExitError{Code: code}
+	}
+	return nil
+}
+
 // ReportUsageError writes "NAME: MESSAGE" and the --help hint to w and
 // returns ExitUsage, for mistakes the flag package cannot see.
 func ReportUsageError(w io.Writer, spec Spec, format string, a ...any) int {
@@ -547,6 +590,12 @@ func PrintVersion(w io.Writer, spec Spec) {
 // version, for dispatchers that switch on args[0].
 func IsVersionArg(arg string) bool {
 	return arg == "--version" || arg == "-version" || arg == "-V"
+}
+
+// IsManArg reports whether a single leading argument asks for the man
+// page, for dispatchers that switch on args[0] (render it with Man).
+func IsManArg(arg string) bool {
+	return arg == "--man" || arg == "-man"
 }
 
 // IsHelpArg reports whether a single leading argument asks for help, for

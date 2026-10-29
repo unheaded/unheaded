@@ -1,0 +1,51 @@
+.TH UNHEADED\-KEYGEN 1 "2026-10-29" "unheaded 6b26b19a" "Unheaded Kingdom"
+.SH NAME
+unheaded\-keygen \- Create, rotate and retire service identity keys (Ed25519) and ML\-DSA\-65 signing keys.
+.SH SYNOPSIS
+.B unheaded\-keygen
+[\fIOPTION\fR]...
+SERVICE
+.SH DESCRIPTION
+Create, rotate and retire service identity keys (Ed25519) and ML\-DSA\-65 signing keys.
+SERVICE is the service's auth identity (the name it passes to auth.LoadServiceAuthConfig). An mldsa65 NAME is the key's file name (heimdall\-drift, akira\-health).
+.SH OPTIONS
+.TP
+.B \-\-algo \fISTRING\fR
+ed25519 (service identity key) or mldsa65 (ML\-DSA\-65 signing key: drift, signed topics) (default ed25519)
+.TP
+.B \-\-dir \fISTRING\fR
+directory for <service>.key and <service>.pub (default /etc/unheaded/keys)
+.TP
+.B \-\-owner \fISTRING\fR
+chown the private key to this user name or uid[:gid] (root only)
+.TP
+.B \-\-print\-kid
+print the current key id and exit
+.TP
+.B \-\-retire \fISTRING\fR
+remove the rotated\-out public key with this kid from the trust directory
+.TP
+.B \-\-rotate
+replace an existing key; keep its public half trusted until \-retire
+.TP
+.B \-\-trust\-dir \fISTRING\fR
+trust directory every verifier reads (default /etc/unheaded/trust.d)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXIT STATUS
+Exit codes: 0 done; 1 I/O or key file error; 2 usage error or refused (key exists, nothing to rotate, unknown or current kid, \-owner without root).
+.SH EXAMPLES
+.EX
+unheaded\-keygen [\-dir D] [\-trust\-dir T] [\-owner U] SERVICE    create a key pair
+unheaded\-keygen \-rotate [\-owner U] SERVICE                    new key, old public half kept
+unheaded\-keygen \-retire KID SERVICE                           drop a rotated\-out public key
+unheaded\-keygen \-print\-kid SERVICE                            print the current key id
+unheaded\-keygen \-algo mldsa65 [\-dir D] [\-owner U] NAME        ML\-DSA\-65 signing key
+unheaded\-keygen \-algo mldsa65 \-print\-kid NAME                 print its key id and public key
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

@@ -177,12 +177,13 @@ func (s *Service) Start(ctx context.Context) error {
 	s.registerRoutes(mux)
 
 	s.httpServer = &http.Server{
-		Addr:           ports.DefaultAddr(ports.BackupMgr),
-		Handler:        mux,
-		ReadTimeout:    30 * time.Second,
-		WriteTimeout:   30 * time.Second,
-		IdleTimeout:    120 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              ports.DefaultAddr(ports.BackupMgr),
+		Handler:           mux,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	go func() {

@@ -36,6 +36,8 @@ TimeoutStopSec=15s
 
 LimitNOFILE=1024
 MemoryMax=128M
+MemoryHigh=115M
+Environment=GOMEMLIMIT=115MiB
 
 User=unheaded-kev-poller
 Group=unheaded-kev-poller

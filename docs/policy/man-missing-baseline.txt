@@ -1,0 +1,9 @@
+# Binaries that do not answer --man yet (S-LOW-FRUIT Phase 5).
+# Shrink-only: scripts/gen-man.sh fails on a new binary missing from the
+# pages AND on a listed binary that now answers (remove it here).
+# Dispatchers answer --man with cmdline.IsManArg + cmdline.Man and a top-level
+# Spec; what is left is the Doom tools (wotan-ctl among them).
+doom
+doom-cpu-dump
+doom-loader
+wotan-ctl

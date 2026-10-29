@@ -53,8 +53,26 @@ Paths given to --out, --cbom and --baseline are relative to the repository
 root (or absolute inside it); the tool reads and writes nothing outside it.
 `
 
+var manSpec = cmdline.Spec{
+	Name:     "crypto-inventory",
+	Purpose:  "Build and check the Kingdom's cryptographic bill of materials (CBOM).\nPaths given to --out, --cbom and --baseline are relative to the repository root (or absolute inside it); the tool reads and writes nothing outside it.",
+	Operands: "COMMAND [OPTION]...",
+	Commands: []cmdline.Command{
+		{Name: "scan", Purpose: "regenerate the CBOM (--out PATH, default stdout)"},
+		{Name: "check", Purpose: "exit 1 when the checked-in CBOM differs from a regeneration"},
+		{Name: "summary", Purpose: "count components by pq-status"},
+		{Name: "collect-host", Purpose: "write one host's read-only crypto facts (--host, --local | --ssh, --out)"},
+		{Name: "lint", Purpose: "exit 1 on classical-only key exchange not in the shrink-only baseline (--baseline FILE, --update refuses additions, --print, --explain PATH)"},
+	},
+	Details: "Exit codes: 0 ok, 1 finding, 2 usage or error.",
+}
+
 // run dispatches a subcommand; exit codes: 0 ok, 1 finding, 2 usage/error.
 func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && cmdline.IsManArg(args[0]) {
+		cmdline.Man(stdout, nil, manSpec)
+		return 0
+	}
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
 		return 2

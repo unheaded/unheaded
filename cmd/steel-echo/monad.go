@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/monadpkt"
 )
 
@@ -92,7 +94,7 @@ func parseSendFlags(args []string) (sendConfig, error) {
 	fs.UintVar(&c.srcSvc, "src-svc", 1, "Monad src_service_id (0..255)")
 	fs.UintVar(&c.dstSvc, "dst-svc", 2, "Monad dst_service_id (0..255)")
 	fs.IntVar(&c.size, "size", monadpkt.HeaderLen, "frame length in bytes (86..1500)")
-	if err := fs.Parse(args); err != nil {
+	if err := cmdline.ParseFlags(fs, subSpec("monad-send"), args, os.Stdout, os.Stderr); err != nil {
 		return c, err
 	}
 	if fs.NArg() != 0 {
@@ -187,7 +189,7 @@ func parseCountFlags(args []string) (countConfig, error) {
 	fs.SetOutput(io.Discard)
 	fs.StringVar(&c.iface, "iface", "", "lab interface to read frames from (steel0-n)")
 	fs.IntVar(&c.seconds, "seconds", 30, "how long to count (1..3600)")
-	if err := fs.Parse(args); err != nil {
+	if err := cmdline.ParseFlags(fs, subSpec("monad-count"), args, os.Stdout, os.Stderr); err != nil {
 		return c, err
 	}
 	if fs.NArg() != 0 {

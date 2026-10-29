@@ -455,12 +455,13 @@ func newHTTPServer(service *monad.Service, log *logger.Logger, addr string, auth
 	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("monad").Instrument(mux, httpHandler))
 
 	hs.server = &http.Server{
-		Addr:           addr,
-		Handler:        httpHandler,
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              addr,
+		Handler:           httpHandler,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is an
 	// error, never a plaintext listener.

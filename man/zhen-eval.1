@@ -1,0 +1,89 @@
+.TH ZHEN\-EVAL 1 "2026-10-29" "unheaded 86590d34" "Unheaded Kingdom"
+.SH NAME
+zhen\-eval \- Run the two\-brains eval: the same tasks on the local model or on Claude, judged mechanically.
+.SH SYNOPSIS
+.B zhen\-eval
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Run the two\-brains eval: the same tasks on the local model or on Claude, judged mechanically.
+.SH OPTIONS
+.TP
+.B \-\-answers\-dir \fISTRING\fR
+also keep each answer as <dir>/<backend>\-<task>.txt (outside the repo)
+.TP
+.B \-\-backend \fISTRING\fR
+local (llama\-server) or claude (default local)
+.TP
+.B \-\-claude\-max\-tokens \fIN\fR
+Claude max_tokens for key tasks (thinking counts) (default 4096)
+.TP
+.B \-\-claude\-repo\-max\-tokens \fIN\fR
+Claude max_tokens for repo tasks (default 8192)
+.TP
+.B \-\-daily\-cap\-usd \fINUM\fR
+hard Claude spend cap for the UTC day (default 3)
+.TP
+.B \-\-effort \fISTRING\fR
+Claude effort (default low)
+.TP
+.B \-\-family \fISTRING\fR
+comma\-separated families (default: every scored family)
+.TP
+.B \-\-keys \fISTRING\fR
+pre\-registered keys (default eval/two\-brains/keys.jsonl)
+.TP
+.B \-\-ledger \fISTRING\fR
+spend ledger (default: zhen\-claude's)
+.TP
+.B \-\-limit \fIN\fR
+stop after this many tasks (0 = all)
+.TP
+.B \-\-local\-max\-tokens \fIN\fR
+local max_tokens for key tasks (default 1024)
+.TP
+.B \-\-local\-repo\-max\-tokens \fIN\fR
+local max_tokens for repo tasks (default 2048)
+.TP
+.B \-\-local\-timeout \fIDURATION\fR
+per local attempt; slower counts as a failed attempt (PREREG) (default 2m0s)
+.TP
+.B \-\-local\-url \fISTRING\fR
+llama\-server URL (default http://127.0.0.1:8081)
+.TP
+.B \-\-model \fISTRING\fR
+model name (local: the label recorded and sent; claude: model id, default claude\-opus\-5\-5)
+.TP
+.B \-\-out \fISTRING\fR
+results JSONL (appended)
+.TP
+.B \-\-prompts \fISTRING\fR
+coding\-gate prompts (default eval/coding\-gate/prompts.jsonl)
+.TP
+.B \-\-repo\-attempts \fIN\fR
+local attempts for repo\-task (the second sees the check output; PREREG) (default 2)
+.TP
+.B \-\-root \fISTRING\fR
+repository root (fixture refs are relative to it) (default .)
+.TP
+.B \-\-seed \fIN\fR
+local seed (temperature is 0) (default 42)
+.TP
+.B \-\-skip\-done
+skip tasks already in \-out for this backend and model
+.TP
+.B \-\-split \fISTRING\fR
+tune, holdout or all (default all)
+.TP
+.B \-\-tasks \fISTRING\fR
+tasks with their split (default eval/two\-brains/split.jsonl)
+.TP
+.B \-\-work\-dir \fISTRING\fR
+where fixture copies are made (default: a temp dir)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH SEE ALSO
+.BR unheaded (1)

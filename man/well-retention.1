@@ -1,0 +1,35 @@
+.TH WELL\-RETENTION 1 "2026-10-29" "unheaded 86590d34" "Unheaded Kingdom"
+.SH NAME
+well\-retention \- Delete or archive Well rows past their retention class; \-dry\-run only counts.
+.SH SYNOPSIS
+.B well\-retention
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Delete or archive Well rows past their retention class; \-dry\-run only counts.
+.SH OPTIONS
+.TP
+.B \-\-batch \fIN\fR
+rows per delete transaction (1..100000) (default 1000)
+.TP
+.B \-\-class \fISTRING\fR
+run this class only
+.TP
+.B \-\-classes \fISTRING\fR
+retention classes (compliance/retention/classes.yaml) (default /etc/unheaded/well/retention\-classes.yaml)
+.TP
+.B \-\-dry\-run
+count what each class would do; delete nothing
+.TP
+.B \-\-metrics\-dir \fISTRING\fR
+write well_retention.prom here (node_exporter textfile); empty: none
+.TP
+.B \-\-statement\-timeout \fIDURATION\fR
+limit per statement (default 5m0s)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH SEE ALSO
+.BR unheaded (1)

@@ -25,6 +25,12 @@ After=network-online.target postgresql.service
 # Optionally: After=cs-vor.service llama-server.service
 
 [Service]
+# Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
+# works harder before the cgroup throttles or OOM-kills.
+MemoryMax=512M
+MemoryHigh=460M
+TasksMax=512
+Environment=GOMEMLIMIT=460MiB
 Type=simple
 # Service identity (ADR-103, deploy/systemd/README.md#keys-adr-103): the key
 # comes from `unheaded-keygen -owner zhen-agentd zhen-agentd` (root, once per host).

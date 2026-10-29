@@ -1,0 +1,37 @@
+.TH PROTOCOL\-API 1 "2026-10-29" "unheaded 0.1.0" "Unheaded Kingdom"
+.SH NAME
+protocol\-api \- Serve the Unheaded Protocol API over HTTP and gRPC, backed by mock data or pinned BPF maps.
+.SH SYNOPSIS
+.B protocol\-api
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Serve the Unheaded Protocol API over HTTP and gRPC, backed by mock data or pinned BPF maps.
+.SH OPTIONS
+.TP
+.B \-\-api\-key \fISTRING\fR
+API key for authentication (empty = disabled)
+.TP
+.B \-\-bpf\-maps \fISTRING\fR
+Path to pinned BPF maps (default /sys/fs/bpf/unheaded)
+.TP
+.B \-\-log
+Enable request logging (default true)
+.TP
+.B \-\-mock
+Alias for \-\-mode=mock (deprecated)
+.TP
+.B \-\-mode \fISTRING\fR
+Backend mode: mock (in\-memory) or bpf (pinned maps) (default mock)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+protocol\-api \-\-mode mock
+protocol\-api \-\-mode bpf \-\-bpf\-maps /sys/fs/bpf/unheaded
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

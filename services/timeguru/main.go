@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,7 +18,6 @@ import (
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
 
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
@@ -74,12 +74,7 @@ func main() {
 	}
 
 	// Start HTTP server (REST API)
-	router := mux.NewRouter()
-	router.HandleFunc("/health", healthHandler).Methods("GET")
-	router.HandleFunc("/ready", readyHandler).Methods("GET")
-	router.HandleFunc("/metrics", metricsHandler).Methods("GET")
-	router.HandleFunc("/api/v1/timeline", timelineHandler).Methods("GET")
-	router.HandleFunc("/timeline", timelineHandler).Methods("GET")
+	router := newRouter()
 
 	// Auth middleware (activated via AUTH_ENABLED=true)
 	authCfg := auth.LoadServiceAuthConfig("timeguru")
@@ -87,12 +82,13 @@ func main() {
 	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
 
 	httpServer := &http.Server{
-		Addr:           listenAddress,
-		Handler:        srvHandler,
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              listenAddress,
+		Handler:           srvHandler,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 
 	go func() {
@@ -138,7 +134,10 @@ func loadTimeline(path string) error {
 	if err != nil {
 		return err
 	}
-	return yaml.Unmarshal(data, &timeline)
+	if err := yaml.Unmarshal(data, &timeline); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return nil
 }
 
 func streamTimelineUpdates(ctx context.Context, client *wotanClient.Client) {
@@ -186,4 +185,17 @@ func updateTimeline(data []byte) {
 	}
 	timeline = newTimeline
 	log.Info().Msg("timeline updated")
+}
+
+// newRouter is timeguru's routes on the standard ServeMux (Go 1.22
+// method patterns; gorilla/mux removed, S-LOW-FRUIT Phase 10). A wrong
+// method gets 405 with an Allow header from the mux itself.
+func newRouter() *http.ServeMux {
+	m := http.NewServeMux()
+	m.HandleFunc("GET /health", healthHandler)
+	m.HandleFunc("GET /ready", readyHandler)
+	m.HandleFunc("GET /metrics", metricsHandler)
+	m.HandleFunc("GET /api/v1/timeline", timelineHandler)
+	m.HandleFunc("GET /timeline", timelineHandler)
+	return m
 }

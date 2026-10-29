@@ -86,6 +86,15 @@ build_deb() {
     echo "  Built: $(basename "$deb") ($(du -h "$deb" | awk '{print $1}'))"
 }
 
+# install_man NAME PKGDIR: ship man/NAME.1 (scripts/gen-man.sh) when it exists,
+# gzipped without a timestamp so the package stays reproducible.
+install_man() {
+    local src="$PROJECT_ROOT/man/$1.1"
+    [[ -f "$src" ]] || return 0
+    install -d "$2/usr/share/man/man1"
+    gzip -9n -c "$src" >"$2/usr/share/man/man1/$1.1.gz"
+}
+
 # unheaded-keygen ships once, in its own package, and every package that
 # creates a key depends on it: its postinst creates the service's key with
 # it (ADR-103). One file in several packages would make dpkg refuse the
@@ -93,6 +102,7 @@ build_deb() {
 P="$STAGE/unheaded-keygen"
 mkdir -p "$P/DEBIAN"
 install -D -m 0755 "$BIN_DIR/unheaded-keygen" "$P/opt/unheaded/bin/unheaded-keygen"
+install_man unheaded-keygen "$P"
 control unheaded-keygen amd64 libc6 "Unheaded service key tool (ADR-103)" \
     "Creates, rotates and retires each service's Ed25519 key pair." >"$P/DEBIAN/control"
 build_deb unheaded-keygen amd64
@@ -120,6 +130,7 @@ for svc in "${DEB_SERVICES[@]}"; do
     mkdir -p "$P/DEBIAN" "$P/etc/systemd/system" "$P/usr/lib/sysusers.d"
 
     install -D -m 0755 "$BIN_DIR/$svc" "$P/opt/unheaded/bin/$svc"
+    install_man "$svc" "$P"
 
     # The repo's units (own account, sandbox) under their repo names, binary
     # path moved to where the package puts it.

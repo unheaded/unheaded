@@ -11,6 +11,12 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+# Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
+# works harder before the cgroup throttles or OOM-kills.
+MemoryMax=2048M
+MemoryHigh=1843M
+TasksMax=512
+Environment=GOMEMLIMIT=1843MiB
 Type=simple
 EnvironmentFile=-/etc/unheaded/wotan.env
 # WOTAN_ADMIN_API_KEY (deploy/systemd/wotan.env.example). Admin endpoints stay

@@ -832,6 +832,128 @@ provoke_ebpf_insns() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_dep_staleness() {
+    # Contract (S-LOW-FRUIT Phase 10): a direct module >36 months old names
+    # its findings-register entry. Drop FND-030 from yaml.v3's watch row.
+    local f="docs/policy/dependency-watch.md"
+    backup "${f}"
+    sed -i 's/ · FND-030\*\*/**/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_go_env() {
+    # Contract (S-LOW-FRUIT Phase 10): builds pin GOSUMDB. Drop the export from the Makefile.
+    local f="Makefile"
+    backup "${f}"
+    sed -i '/^export GOSUMDB/d' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_mod_integrity() {
+    # Contract (S-LOW-FRUIT Phase 10): lock files are as committed. Change one go.sum hash in the working tree.
+    local f="go.sum"
+    backup "${f}"
+    sed -i '1s/h1:./h1:A/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_cargo_locked() {
+    # Contract (S-LOW-FRUIT Phase 10): every cargo build is --locked. Drop --locked from CARGO_BUILD_FLAGS.
+    local f="Makefile"
+    backup "${f}"
+    sed -i 's/^CARGO_BUILD_FLAGS := --release --locked/CARGO_BUILD_FLAGS := --release/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_netip() {
+    # Contract (S-LOW-FRUIT Phase 8): the net.IP count never rises. Lower the
+    # baseline by one, so today's count reads as one new use.
+    local f="docs/policy/netip-baseline.txt"
+    backup "${f}"
+    awk '/^[0-9]+$/ {print $1 - 1; next} {print}' "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" >"${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_sbom_trend() {
+    # Contract (native first, S-LOW-FRUIT Phase 8): the third-party count
+    # never rises. Lower go_components by one, so today's modules read as one
+    # added.
+    local f="docs/policy/sbom-count-baseline.txt"
+    backup "${f}"
+    awk -F= '$1 == "go_components" {print $1 "=" $2 - 1; next} {print}' "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" >"${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_gen_man() {
+    # Contract (S-LOW-FRUIT Phase 5): every binary answers --man unless the
+    # shrink-only baseline lists it. Hide --man from cmdline.ParseSet, so
+    # every page-producing binary stops answering.
+    local f="pkg/cmdline/cmdline.go"
+    backup "${f}"
+    sed -i 's/if fs.Lookup("man") == nil {/if false {/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_ceilings() {
+    # Contract (S-LOW-FRUIT Phase 3): every unit running one of our Go
+    # binaries sets MemoryMax and GOMEMLIMIT. Drop GOMEMLIMIT from Wotan's.
+    local f="deploy/systemd/unheaded-wotan.service"
+    backup "${f}"
+    sed -i '/^Environment=GOMEMLIMIT=/d' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_http_timeouts() {
+    # Contract (S-LOW-FRUIT Phase 2): every http.Server sets
+    # ReadHeaderTimeout. Delete the field from timeguru's server.
+    local f="services/timeguru/main.go"
+    backup "${f}"
+    sed -i '/ReadHeaderTimeout:/d' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_version_flag() {
+    # Contract (ADR-111, S-LOW-FRUIT Phase 1): every binary answers
+    # --version as "NAME (unheaded) VERSION". Drop "(unheaded)" from
+    # cmdline.PrintVersion, so all 59 rebuilt binaries print the wrong shape.
+    local f="pkg/cmdline/cmdline.go"
+    backup "${f}"
+    sed -i 's/"%s (unheaded) %s\\n"/"%s %s\\n"/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_usage_errors() {
+    # Contract (ADR-111): an unknown option gets one line, the --help hint
+    # and exit 2, never the flag package's "Usage of" dump. Let ParseSet's
+    # flag set print to stderr again, so every binary built on it dumps.
+    local f="pkg/cmdline/cmdline.go"
+    backup "${f}"
+    sed -i 's/^\tfs\.SetOutput(io\.Discard)$/\tfs.SetOutput(stderr)/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_trivy_misconfig() {
     # Contract (S-TRUE-WIRE Step 366): no IaC misconfiguration lands
     # unrecorded. Drop the first baseline row, so a finding the scan still
@@ -970,6 +1092,17 @@ well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,
 check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo and west's kernel)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
+check-dep-staleness|provoke_dep_staleness|fast|FND-030 dropped from yaml.v3's row in dependency-watch.md, so a 53-month-old module on an input boundary has no register entry (needs the module proxy)
+check-go-env|provoke_go_env|fast|export GOSUMDB removed from the Makefile
+check-mod-integrity|provoke_mod_integrity|fast|one go.sum hash changed in the working tree (runs go mod verify)
+check-cargo-locked|provoke_cargo_locked|fast|--locked dropped from the Makefile's CARGO_BUILD_FLAGS
+check-netip|provoke_netip|fast|the net.IP baseline lowered by one, so today's count reads as a new use
+check-sbom-trend|provoke_sbom_trend|fast|go_components baseline lowered by one, so today's modules read as one added (needs go)
+gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet, so no binary answers it (builds all 59; needs go)
+check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
+check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
+check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds all 59; needs go)
+check-usage-errors|provoke_usage_errors|fast|cmdline.ParseSet lets the flag package print to stderr again, so a bad option dumps raw usage (builds all; needs go)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 

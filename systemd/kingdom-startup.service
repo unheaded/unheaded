@@ -14,5 +14,19 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/opt/unheaded/bin/kingdom-startup.sh --force --docker-only
 
+# Hardening (S-LOW-FRUIT Phase 3), partial on purpose: the script runs docker
+# compose as root, so no ProtectHome/PrivateDevices/RestrictNamespaces/
+# CapabilityBoundingSet/SystemCallFilter here.
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+
 [Install]
 WantedBy=multi-user.target

@@ -43,8 +43,6 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
-	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -61,6 +59,7 @@ import (
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
@@ -307,26 +306,18 @@ func main() {
 	discovery.Start(ctx, transportCfg, "dashboard-backend", ports.PortOf(*listenAddr, ports.DashboardBackend))
 	healthreport.StartService(ctx, transportCfg, "dashboard-backend", healthreport.HealthURL(*listenAddr, ports.PortOf(*listenAddr, ports.DashboardBackend))) // ADR-029: a vote on Akira's ballot
 
-	// Profiling. Off unless PPROF_ADDR is set, and meant for a loopback address
-	// inside the container (`docker exec ... wget -O- http://127.0.0.1:6060/
-	// debug/pprof/heap`). Added 2026-09-21 when the backend was found
-	// OOM-killing itself under the demo injector with no way to see why: the
+	// Profiling. Off unless PPROF_ADDR is set, and it must be a loopback address
+	// (anything else is refused): reach it inside the container with
+	// `docker exec ... wget -O- http://127.0.0.1:6060/debug/pprof/heap`.
+	// Added 2026-09-21 when the backend was found OOM-killing itself under the demo injector with no way to see why: the
 	// only heap evidence available was a SIGQUIT dump, which kills the process.
 	// net/http/pprof is NOT registered on the main mux, so nothing is exposed on
 	// :20000.
 	if addr := os.Getenv("PPROF_ADDR"); addr != "" {
-		pmux := http.NewServeMux()
-		pmux.HandleFunc("/debug/pprof/", pprof.Index)
-		pmux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		pmux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		pmux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		go func() {
-			psrv := &http.Server{Addr: addr, Handler: pmux, ReadHeaderTimeout: 5 * time.Second}
-			log.Warn().Str("addr", addr).Msg("pprof listener enabled — not for production")
-			if err := psrv.ListenAndServe(); err != nil {
-				log.Error().Err(err).Msg("pprof listener exited")
-			}
-		}()
+		if err := httputil.StartPprof(addr); err != nil {
+			log.Fatal().Err(err).Msg("pprof listener")
+		}
+		log.Warn().Str("addr", addr).Msg("pprof listener enabled — not for production")
 	}
 
 	if err := srv.Start(ctx); err != nil {

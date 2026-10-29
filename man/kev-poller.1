@@ -1,0 +1,51 @@
+.TH KEV\-POLLER 1 "2026-10-29" "unheaded 86590d34" "Unheaded Kingdom"
+.SH NAME
+kev\-poller \- Keep the CISA Known Exploited Vulnerabilities catalog current on this host (ADR\-055).
+.SH SYNOPSIS
+.B kev\-poller
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Keep the CISA Known Exploited Vulnerabilities catalog current on this host (ADR\-055).
+.SH COMMANDS
+.TP
+.B report
+print a threat\-register refresh entry from the stored catalog (see kev\-poller report \-\-help)
+.SH OPTIONS
+.TP
+.B \-\-interval \fISTRING\fR
+time between pulls, 15m..24h (default 1h)
+.TP
+.B \-\-keep \fIDURATION\fR
+delete snapshots older than this (the newest is always kept) (default 720h0m0s)
+.TP
+.B \-\-node \fISTRING\fR
+node identifier (default: hostname)
+.TP
+.B \-\-once
+pull once, print a summary, exit (non\-zero on failure)
+.TP
+.B \-\-port \fIN\fR
+HTTP port for /health, /ready, /metrics, /api/v1/kev (default 19120)
+.TP
+.B \-\-stack \fISTRING\fR
+stack file (config/kev\-poller/stack.yaml): tag entries the Kingdom runs
+.TP
+.B \-\-state\-dir \fISTRING\fR
+where latest.json, state.json and snapshots/ live (default /var/lib/unheaded/threat\-feeds/cisa\-kev)
+.TP
+.B \-\-timeout \fIDURATION\fR
+per\-pull HTTP timeout (default 1m0s)
+.TP
+.B \-\-url \fISTRING\fR
+catalog URL (https only) (default https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json)
+.TP
+.B \-\-wotan \fISTRING\fR
+Wotan HTTP address; empty disables publishing (default localhost:18000)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH SEE ALSO
+.BR unheaded (1)

@@ -133,11 +133,17 @@ func main() {
 	mapPath := flag.String("map-path", "/sys/fs/bpf/unheaded/doom-ring/maps", "BPF map pin directory")
 	dryRun := flag.Bool("dry-run", false, "Run without BPF maps (serve fake gradient data)")
 	staticDir := flag.String("static", "", "Static files directory (default: demos/doom/ relative to binary or CWD)")
+	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "doom-bridge",
 		Purpose:  "Fenrir's Eye: read the Doom framebuffer and CPU state from pinned eBPF maps and stream frames to browsers over WebSocket.",
 		Examples: []string{"doom-bridge --port 16666", "doom-bridge --dry-run"},
 	})
+	if *pprofAddr != "" {
+		if err := httputil.StartPprof(*pprofAddr); err != nil {
+			cmdline.Fail(cmdline.Spec{Name: "doom-bridge"}, "%v", err)
+		}
+	}
 
 	// Resolve static directory
 	static := *staticDir
@@ -197,11 +203,12 @@ func main() {
 	httpHandler := auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
 
 	server := &http.Server{
-		Addr:           fmt.Sprintf(":%d", b.port),
-		Handler:        httpHandler,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   0,       // Disabled: WebSocket connections are long-lived
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              fmt.Sprintf(":%d", b.port),
+		Handler:           httpHandler,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      0,       // Disabled: WebSocket connections are long-lived
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 
 	// Start polling loops

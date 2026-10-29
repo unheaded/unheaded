@@ -25,6 +25,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"unheaded/pkg/cmdline"
 )
 
 // The load generator is the game day's client-side meter: it sends a fixed
@@ -96,7 +98,7 @@ func parseLoadFlags(args []string) (loadConfig, error) {
 	fs.DurationVar(&c.timeout, "timeout", 2*time.Second, "per-request timeout")
 	fs.DurationVar(&c.refresh, "refresh", 2*time.Second, "discover refresh period")
 	fs.StringVar(&c.out, "out", "", "CSV file (default stdout)")
-	if err := fs.Parse(args); err != nil {
+	if err := cmdline.ParseFlags(fs, subSpec("load"), args, os.Stdout, os.Stderr); err != nil {
 		return c, err
 	}
 	switch {

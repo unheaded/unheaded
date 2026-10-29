@@ -1,0 +1,27 @@
+.TH WELL\-MIGRATE 1 "2026-10-29" "unheaded 86590d34" "Unheaded Kingdom"
+.SH NAME
+well\-migrate \- Apply the Well's SQL migrations from the manifest, with a ledger (ADR\-101).
+.SH SYNOPSIS
+.B well\-migrate
+[\fIOPTION\fR]...
+check | status | apply [\-db D] [\-yes] | baseline [\-db D] \-through FILE \-yes
+.SH DESCRIPTION
+Apply the Well's SQL migrations from the manifest, with a ledger (ADR\-101).
+.SH OPTIONS
+.TP
+.B \-\-dir \fISTRING\fR
+migrations directory (holds MANIFEST and LEDGER.sql) (default db/migrations)
+.TP
+.B \-\-lock\-timeout \fIDURATION\fR
+lock wait limit inside each migration (default 5s)
+.TP
+.B \-\-statement\-timeout \fIDURATION\fR
+limit per statement (default 5m0s)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH SEE ALSO
+.BR unheaded (1)

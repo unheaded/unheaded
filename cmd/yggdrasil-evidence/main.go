@@ -46,7 +46,31 @@ func main() {
 }
 
 // run is main without os.Exit, so every subcommand is testable in-process.
+var manSpec = cmdline.Spec{
+	Name:     "yggdrasil-evidence",
+	Purpose:  "Validate, sign and verify Yggdrasil signed-manifest evidence packs.\nThe full spec is nix/yggdrasil/evidence-pack/README.md; operator runbooks are in nix/yggdrasil/evidence-pack/runbooks/.",
+	Operands: "SUBCOMMAND [OPTION]...",
+	Commands: []cmdline.Command{
+		{Name: "validate", Purpose: "validate manifest.yaml against the schema"},
+		{Name: "sign", Purpose: "sign manifest.yaml, image.iso.sha256 or a custody entry (ML-DSA-65 build key)"},
+		{Name: "pubkey", Purpose: "derive build.pubkey from the build key seed (generates nothing)"},
+		{Name: "verify", Purpose: "full evidence-pack verification (signature, ISO, gates)"},
+		{Name: "verify-signature", Purpose: "check the manifest signature only"},
+		{Name: "verify-iso", Purpose: "check the ISO hash against the manifest only"},
+		{Name: "verify-gates", Purpose: "check the CI gates from the manifest only"},
+		{Name: "verify-custody", Purpose: "check the chain-of-custody log only"},
+		{Name: "diff", Purpose: "diff two evidence packs"},
+		{Name: "cask sign", Purpose: "seal a Sealed Cask's BINDING_RUNE.sha256 with the build key"},
+		{Name: "cask verify", Purpose: "verify a Sealed Cask (also: the standalone cask-verify)"},
+	},
+	Details: "Exit codes: 0 ok, 1 verification failed, 2 usage or unreadable input.",
+}
+
 func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && cmdline.IsManArg(args[0]) {
+		cmdline.Man(stdout, nil, manSpec)
+		return 0
+	}
 	if len(args) < 1 {
 		usage(stderr)
 		return exitUsage

@@ -1,0 +1,47 @@
+.TH AKIRA 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+akira \- Kingdom health daemon: polls every service, publishes votes to Wotan and decides the health band by consensus (ADR\-029).
+.SH SYNOPSIS
+.B akira
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Kingdom health daemon: polls every service, publishes votes to Wotan and decides the health band by consensus (ADR\-029).
+.SH OPTIONS
+.TP
+.B \-\-config \fISTRING\fR
+Path to config YAML (optional)
+.TP
+.B \-\-node \fISTRING\fR
+Node identifier (default: hostname)
+.TP
+.B \-\-once
+Run single health sweep and exit
+.TP
+.B \-\-port \fIN\fR
+HTTP API port for Akira status (default 19100)
+.TP
+.B \-\-pprof \fIADDR\fR
+serve net/http/pprof on this loopback ADDR (e.g. 127.0.0.1:6060); off when empty
+.TP
+.B \-\-remediate
+restart a service (systemctl restart unheaded\-<name>) when two\-thirds of reporters see it failing; off by default
+.TP
+.B \-\-wotan \fISTRING\fR
+Wotan HTTP address for publishing health reports (default http://localhost:18000)
+.TP
+.B \-\-wotan\-grpc \fISTRING\fR
+Wotan gRPC address for the signed topics (consensus, remediate); default: the \-\-wotan host on port 18001
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+akira
+akira \-\-once
+akira \-\-config /etc/unheaded/akira.yaml
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

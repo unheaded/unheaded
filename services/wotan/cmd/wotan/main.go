@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -104,6 +105,15 @@ func main() {
 	// Tests construct their own FlagSet via parseFlagsFromSet so they
 	// don't pollute global state.
 	config := parseFlags(flag.CommandLine, os.Args[1:])
+
+	// Profiling: off unless PPROF_ADDR names a loopback address (S-LOW-FRUIT
+	// Phase 4; same switch as dashboard-backend).
+	if addr := os.Getenv("PPROF_ADDR"); addr != "" {
+		if err := httputil.StartPprof(addr); err != nil {
+			fmt.Fprintf(os.Stderr, "wotan: %v\n", err)
+			os.Exit(2)
+		}
+	}
 
 	// Initialize structured logging
 	logger.Initialize(logger.Config{

@@ -127,7 +127,6 @@ All Go dependencies use permissive licenses compatible with GPL-3.0.
 | github.com/BurntSushi/toml | v1.6.0 | MIT | TOML configuration parsing | https://github.com/BurntSushi/toml |
 | github.com/fsnotify/fsnotify | v1.7.0 | BSD-3-Clause | File system event monitoring | https://github.com/fsnotify/fsnotify |
 | github.com/google/uuid | v1.6.0 | BSD-3-Clause | UUID generation | https://github.com/google/uuid |
-| github.com/gorilla/mux | v1.8.1 | BSD-3-Clause | HTTP request routing | https://github.com/gorilla/mux |
 | github.com/gorilla/websocket | v1.5.3 | BSD-2-Clause | WebSocket protocol support | https://github.com/gorilla/websocket |
 | github.com/prometheus/client_golang | v1.18.0 | Apache-2.0 | Prometheus metrics instrumentation | https://github.com/prometheus/client_golang |
 | github.com/rs/zerolog | v1.31.0 | MIT | Structured JSON logging | https://github.com/rs/zerolog |

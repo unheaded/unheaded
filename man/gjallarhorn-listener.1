@@ -1,0 +1,33 @@
+.TH GJALLARHORN\-LISTENER 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+gjallarhorn\-listener \- Receive UPC trigger packets (Gjallarhorn) and print them; Mímir's Law phase 9 validation tool.
+.SH SYNOPSIS
+.B gjallarhorn\-listener
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Receive UPC trigger packets (Gjallarhorn) and print them; Mímir's Law phase 9 validation tool.
+.SH OPTIONS
+.TP
+.B \-\-iface \fISTRING\fR
+interface for multicast (default eth0)
+.TP
+.B \-\-listen \fISTRING\fR
+listen address (unicast) (default ::)
+.TP
+.B \-\-mcast\-addr \fISTRING\fR
+multicast group (default ff02::1:abba)
+.TP
+.B \-\-multicast
+join link\-local multicast group
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+gjallarhorn\-listener \-\-iface eth0
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

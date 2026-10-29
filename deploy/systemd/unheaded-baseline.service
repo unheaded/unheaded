@@ -32,6 +32,12 @@ Description=Unheaded host baseline agent (audit mode, ADR-098)
 Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-098-findings-register-and-baseline-modes.md
 
 [Service]
+# Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
+# works harder before the cgroup throttles or OOM-kills.
+MemoryMax=512M
+MemoryHigh=460M
+TasksMax=512
+Environment=GOMEMLIMIT=460MiB
 Type=oneshot
 User=unheaded-baseline
 Group=unheaded-baseline

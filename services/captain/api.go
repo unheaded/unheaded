@@ -99,12 +99,13 @@ func newHTTPServer(service *Service, addr string, authCfg auth.ServiceAuthConfig
 	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("captain").Instrument(mux, httpHandler))
 
 	hs.server = &http.Server{
-		Addr:           addr,
-		Handler:        http.MaxBytesHandler(httpHandler, 10*1024*1024), // 10MB max
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              addr,
+		Handler:           http.MaxBytesHandler(httpHandler, 10*1024*1024), // 10MB max
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is an
 	// error, never a plaintext listener.

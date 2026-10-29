@@ -159,10 +159,11 @@ func (s *Service) Start(ctx context.Context) error {
 	s.listener = ln
 
 	s.server = &http.Server{
-		Handler:        mux,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+		ReadHeaderTimeout: 10 * time.Second,
+		Handler:           mux,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	s.log.Info().Str("addr", addr).Int("port", ports.QoS).Msg("qos service starting")

@@ -1,0 +1,33 @@
+.TH EBPF\-EXPORTER 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+ebpf\-exporter \- Export Shield and Monad eBPF ring buffers and maps as Prometheus metrics.
+.SH SYNOPSIS
+.B ebpf\-exporter
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Export Shield and Monad eBPF ring buffers and maps as Prometheus metrics.
+.SH OPTIONS
+.TP
+.B \-\-bpf\-path \fISTRING\fR
+BPF object files directory (default /opt/unheaded/ebpf)
+.TP
+.B \-\-interval \fIDURATION\fR
+BPF map polling interval (default 1s)
+.TP
+.B \-\-log\-level \fISTRING\fR
+Log level: debug|info|warn|error (default info)
+.TP
+.B \-\-port \fIN\fR
+HTTP metrics port (default 9435)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+ebpf\-exporter \-\-port 9435 \-\-bpf\-path /sys/fs/bpf/unheaded
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

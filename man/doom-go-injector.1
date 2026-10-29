@@ -1,0 +1,60 @@
+.TH DOOM\-GO\-INJECTOR 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+doom\-go\-injector \- Inject Monad hop\-by\-hop packets into the Doom\-over\-IPv6 compute ring over AF_PACKET.
+.SH SYNOPSIS
+.B doom\-go\-injector
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Inject Monad hop\-by\-hop packets into the Doom\-over\-IPv6 compute ring over AF_PACKET.
+.SH OPTIONS
+.TP
+.B \-\-batch \fIN\fR
+Packets per burst (burst mode only) (default 100)
+.TP
+.B \-\-burst\-sleep \fIN\fR
+Drain pause between bursts in microseconds (burst mode) (default 50)
+.TP
+.B \-\-config \fISTRING\fR
+Path to TOML config file (e.g. configs/doom.toml)
+.TP
+.B \-\-count \fIN\fR
+Number of packets to inject (0 = infinite, run until Ctrl+C) (default 1000)
+.TP
+.B \-\-delay \fIN\fR
+Inter\-packet delay in microseconds (steady mode only) (default 3000)
+.TP
+.B \-\-dst\-mac \fISTRING\fR
+Destination MAC address (default 02:42:ac:11:00:03)
+.TP
+.B \-\-flow\-label \fIN\fR
+IPv6 flow label (identifies Doom instance) (default 222)
+.TP
+.B \-\-iface \fISTRING\fR
+Network interface to inject on (default veth01)
+.TP
+.B \-\-mode \fISTRING\fR
+Injection mode: steady, burst, fast, sendmmsg (default burst)
+.TP
+.B \-\-rate \fIN\fR
+Injection rate in Hz (overrides \-\-delay, sets mode to steady)
+.TP
+.B \-\-report\-every \fIN\fR
+Log progress every N packets (default 10000)
+.TP
+.B \-\-src\-mac \fISTRING\fR
+Source MAC address (default 02:42:ac:11:00:02)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+Needs CAP_NET_RAW inside the monad network namespace.
+.SH EXAMPLES
+.EX
+sudo ip netns exec monad0 doom\-go\-injector \-\-config configs/doom.toml
+doom\-go\-injector \-\-rate 1000
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

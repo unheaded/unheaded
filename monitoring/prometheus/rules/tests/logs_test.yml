@@ -181,3 +181,35 @@ tests:
               summary: "30 ssh authentication failures in 10m on west"
               description: "journalctl --since -15min -g 'Failed|Invalid user|incorrect password|authentication failure' on west"
               runbook_url: "runbooks/security/incident-response.yaml"
+
+  # S-LOW-FRUIT Phase 7: the buffer climbs past 80 % of 256 MiB at 20m and
+  # stays: warning 10m later. One discarded row fires the critical at once.
+  - interval: 1m
+    input_series:
+      - series: 'vector_buffer_byte_size{instance="west",job="vector",component_id="clickhouse"}'
+        values: '0+10000000x20 230000000x30'
+      - series: 'vector_buffer_discarded_events_total{instance="west",job="vector",component_id="clickhouse"}'
+        values: '0x40 1x10'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: VectorBufferFilling
+        exp_alerts: []
+      - eval_time: 32m
+        alertname: VectorBufferFilling
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, instance: west}
+            exp_annotations:
+              summary: "Vector's ClickHouse buffer on west is over 80 % full"
+              description: "The sink is slow or down; at 100 % Vector stops reading the journal (journald keeps it). Check clickhouse."
+              runbook_url: "runbooks/observe/log-pipeline.yaml"
+      - eval_time: 39m
+        alertname: VectorSinkDroppingEvents
+        exp_alerts: []
+      - eval_time: 42m
+        alertname: VectorSinkDroppingEvents
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, instance: west}
+            exp_annotations:
+              summary: "Vector on west discarded journal rows bound for ClickHouse"
+              description: "The audit sink is configured to block, never drop; a discard means its buffer config changed. Check config/vector."
+              runbook_url: "runbooks/observe/log-pipeline.yaml"

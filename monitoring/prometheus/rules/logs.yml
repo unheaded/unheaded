@@ -35,6 +35,31 @@ groups:
           description: "{{ $value }} sink errors in 15m; Vector retries, so rows may be late rather than lost"
           runbook_url: "runbooks/observe/log-pipeline.yaml"
 
+      # S-LOW-FRUIT Phase 7: the ClickHouse sink buffers up to 256 MiB on
+      # disk and blocks when full (audit rows are never dropped), so a full
+      # buffer means the journal is waiting, not lost.
+      - alert: VectorBufferFilling
+        expr: max by (instance) (vector_buffer_byte_size{job="vector",component_id="clickhouse"}) / 268435488 > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Vector's ClickHouse buffer on {{ $labels.instance }} is over 80 % full"
+          description: "The sink is slow or down; at 100 % Vector stops reading the journal (journald keeps it). Check clickhouse."
+          runbook_url: "runbooks/observe/log-pipeline.yaml"
+
+      - alert: VectorSinkDroppingEvents
+        expr: sum by (instance) (increase(vector_buffer_discarded_events_total{job="vector",component_id="clickhouse"}[5m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "Vector on {{ $labels.instance }} discarded journal rows bound for ClickHouse"
+          description: "The audit sink is configured to block, never drop; a discard means its buffer config changed. Check config/vector."
+          runbook_url: "runbooks/observe/log-pipeline.yaml"
+
       - alert: VectorDown
         expr: up{job="vector"} == 0
         for: 10m

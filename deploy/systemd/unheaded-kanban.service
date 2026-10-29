@@ -12,6 +12,12 @@ Wants=network-online.target
 Requires=unheaded-wotan.service
 
 [Service]
+# Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
+# works harder before the cgroup throttles or OOM-kills.
+MemoryMax=1024M
+MemoryHigh=921M
+TasksMax=512
+Environment=GOMEMLIMIT=921MiB
 Type=simple
 Environment=PORT=20001
 EnvironmentFile=-/etc/unheaded/kanban.env

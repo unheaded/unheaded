@@ -10,6 +10,14 @@ permissions:
   contents: read
   security-events: write
 
+# Builds may not edit go.mod/go.sum, every module hash is checked against the
+# public checksum database, and the toolchain is exactly go.mod's toolchain line
+# (S-LOW-FRUIT Phase 10; the Makefile exports the same three).
+env:
+  GOFLAGS: -mod=readonly
+  GOSUMDB: sum.golang.org
+  GOTOOLCHAIN: go1.27.3
+
 jobs:
   go-build:
     name: Go Build & Test
@@ -154,13 +162,13 @@ jobs:
         run: cargo check --manifest-path crates/monad-mbc/Cargo.toml
 
       - name: Clippy
-        run: cargo clippy --manifest-path crates/monad-mbc/Cargo.toml -- -D warnings
+        run: cargo clippy --locked --manifest-path crates/monad-mbc/Cargo.toml -- -D warnings
 
       - name: Format check
         run: cargo fmt --manifest-path crates/monad-mbc/Cargo.toml -- --check
 
       - name: Test
-        run: cargo test --manifest-path crates/monad-mbc/Cargo.toml
+        run: cargo test --locked --manifest-path crates/monad-mbc/Cargo.toml
 
   spdx-check:
     name: SPDX License Headers

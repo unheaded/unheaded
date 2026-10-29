@@ -70,7 +70,7 @@ jobs:
 
       - name: Build
         working-directory: ebpf
-        run: cargo build --release --target=bpfel-unknown-none
+        run: cargo build --locked --release --target=bpfel-unknown-none
 
       - name: Collect objects
         run: |

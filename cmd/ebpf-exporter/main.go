@@ -373,10 +373,11 @@ func main() {
 	})
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", *flagPort),
-		Handler:      mux,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		Addr:              fmt.Sprintf(":%d", *flagPort),
+		Handler:           mux,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
 	}
 
 	go func() {

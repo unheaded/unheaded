@@ -46,11 +46,11 @@ func main() {
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fl := flag.NewFlagSet("unheaded-remediate", flag.ContinueOnError)
-	fl.SetOutput(io.Discard)
 	spec := cmdline.Spec{
 		Name:     "unheaded-remediate",
 		Purpose:  "Remediation as code (ADR-099): list, check, plan, apply and undo fixes from the model or a sealed snapshot.",
 		Operands: "list | check <fix> | plan <fix> | apply <fix> | undo <backup-dir>",
+		MaxArgs:  cmdline.Unlimited,
 	}
 	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
 		cmdline.PrintVersion(stdout, spec)
@@ -65,8 +65,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	pubPath := fl.String("pubkey", "/etc/unheaded/compliance/snapshot.pub", "ML-DSA-65 public key that must have sealed the snapshot")
 	recordExisting := fl.String("record-existing", "", "journal this fix as applied before the journal existed, if check finds it in place; changes nothing on the host")
 	appliedBy := fl.String("applied-by", "remediate.sh (2026-10-01)", "with -record-existing: what applied the fix, and when")
-	if err := fl.Parse(args); err != nil {
-		return cmdline.HandleParseError(err, fl, spec, args, stdout, stderr)
+	if code, exit := cmdline.ParseSet(fl, spec, args, stdout, stderr); exit {
+		return code
 	}
 	rest := fl.Args()
 	usage := func() int {

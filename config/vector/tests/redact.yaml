@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Unit tests for redact_secrets in ../vector.yaml (S-LOW-FRUIT Phase 7).
+# Run: scripts/test-vector-config.sh
+tests:
+  - name: API keys, bearer tokens and passwords are masked, the rest kept
+    inputs:
+      - insert_at: redact_secrets
+        type: log
+        log_fields:
+          message: "auth failed key=uhk_abcdefghijklmnop123 Authorization: Bearer eyJhbGciOi.x.y PGPASSWORD=hunter2 user=govan"
+    outputs:
+      - extract_from: redact_secrets
+        conditions:
+          - type: vrl
+            source: |
+              m = string!(.message)
+              assert!(!contains(m, "abcdefghijklmnop123"))
+              assert!(!contains(m, "hunter2"))
+              assert!(!contains(m, "eyJhbGciOi"))
+              assert!(contains(m, "uhk_[REDACTED]"))
+              assert!(contains(m, "PGPASSWORD=[REDACTED]"))
+              assert!(contains(m, "user=govan"))
+
+  - name: a message without secrets passes unchanged
+    inputs:
+      - insert_at: redact_secrets
+        type: log
+        log_fields:
+          message: "Started unheaded-wotan.service"
+    outputs:
+      - extract_from: redact_secrets
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.message, "Started unheaded-wotan.service")

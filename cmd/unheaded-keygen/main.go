@@ -128,6 +128,24 @@ func run(args []string, stdout, stderr io.Writer) int {
 		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "unheaded-keygen"})
 		return exitOK
 	}
+	if len(args) == 1 && cmdline.IsManArg(args[0]) {
+		cmdline.Man(stdout, fs, cmdline.Spec{
+			Name: "unheaded-keygen",
+			Purpose: "Create, rotate and retire service identity keys (Ed25519) and ML-DSA-65 signing keys.\n" +
+				"SERVICE is the service's auth identity (the name it passes to auth.LoadServiceAuthConfig). An mldsa65 NAME is the key's file name (heimdall-drift, akira-health).",
+			Operands: "SERVICE",
+			Examples: []string{
+				"unheaded-keygen [-dir D] [-trust-dir T] [-owner U] SERVICE    create a key pair",
+				"unheaded-keygen -rotate [-owner U] SERVICE                    new key, old public half kept",
+				"unheaded-keygen -retire KID SERVICE                           drop a rotated-out public key",
+				"unheaded-keygen -print-kid SERVICE                            print the current key id",
+				"unheaded-keygen -algo mldsa65 [-dir D] [-owner U] NAME        ML-DSA-65 signing key",
+				"unheaded-keygen -algo mldsa65 -print-kid NAME                 print its key id and public key",
+			},
+			Details: "Exit codes: 0 done; 1 I/O or key file error; 2 usage error or refused (key exists, nothing to rotate, unknown or current kid, -owner without root).",
+		})
+		return exitOK
+	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			printUsage(stdout)

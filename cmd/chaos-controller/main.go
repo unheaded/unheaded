@@ -522,6 +522,9 @@ func main() {
 		case cmdline.IsVersionArg(os.Args[1]):
 			cmdline.PrintVersion(os.Stdout, spec)
 			os.Exit(0)
+		case cmdline.IsManArg(os.Args[1]):
+			cmdline.Man(os.Stdout, nil, spec)
+			os.Exit(0)
 		default:
 			cmdline.UnknownCommand(spec, os.Args[1])
 		}

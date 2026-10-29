@@ -131,10 +131,11 @@ func (x *XDPSync) Start(ctx context.Context) error {
 	x.listener = ln
 
 	x.server = &http.Server{
-		Handler:        mux,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+		ReadHeaderTimeout: 10 * time.Second,
+		Handler:           mux,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	x.log.Info().Str("addr", ln.Addr().String()).Msg("xdpsync service starting")

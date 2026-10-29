@@ -199,11 +199,27 @@ transforms:
         name: ssh_accepted_total
         tags: {host: "{{host}}", user: "{{user}}", src: "{{src}}", method: "{{method}}"}
 
+  # Secrets that a process printed to the journal (an uhk_ API key, a
+  # bearer token, a PGPASSWORD) are masked before the row leaves the host
+  # (S-LOW-FRUIT Phase 7). Tests: tests/redact.yaml. A doubled dollar sign is
+  # a literal one (Vector interpolates environment variables in this file).
+  redact_secrets:
+    type: remap
+    inputs:
+      - journal_rows
+    source: |
+      if is_string(.message) {
+        m = string!(.message)
+        m = replace(m, r'uhk_[A-Za-z0-9]{16,}', "uhk_[REDACTED]")
+        m = replace(m, r'(?i)\b(bearer|token|password|pgpassword)([=: ]+)\S+', "$$1$$2[REDACTED]")
+        .message = m
+      }
+
 sinks:
   clickhouse:
     type: clickhouse
     inputs:
-      - journal_rows
+      - redact_secrets
     endpoint: "http://clickhouse:8123"
     database: "unheaded_logs"
     table: "logs"
@@ -212,6 +228,18 @@ sinks:
       strategy: "basic"
       user: "unheaded"
       password: "${CLICKHOUSE_PASSWORD}"   # from compose; no default credential
+    # A dead ClickHouse must not lose audit rows or fill the disk
+    # (S-LOW-FRUIT Phase 7, MoatGhost: block, never drop, on the audit
+    # stream). The disk buffer holds 256 MiB (Vector's floor); when it is
+    # full Vector stops reading the journal, journald keeps everything, and
+    # Vector catches up once the sink is back. Alerts: rules/logs.yml.
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block
+    request:
+      timeout_secs: 10
+      retry_max_duration_secs: 60
 
   # Scraped by monitoring/prometheus as job vector. compose publishes it on
   # the docker0 gateway only (host.docker.internal), not on the LAN.

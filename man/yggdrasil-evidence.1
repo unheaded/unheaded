@@ -1,0 +1,54 @@
+.TH YGGDRASIL\-EVIDENCE 1 "2026-10-29" "unheaded 6b26b19a" "Unheaded Kingdom"
+.SH NAME
+yggdrasil\-evidence \- Validate, sign and verify Yggdrasil signed\-manifest evidence packs.
+.SH SYNOPSIS
+.B yggdrasil\-evidence
+SUBCOMMAND [OPTION]...
+.SH DESCRIPTION
+Validate, sign and verify Yggdrasil signed\-manifest evidence packs.
+The full spec is nix/yggdrasil/evidence\-pack/README.md; operator runbooks are in nix/yggdrasil/evidence\-pack/runbooks/.
+.SH COMMANDS
+.TP
+.B validate
+validate manifest.yaml against the schema
+.TP
+.B sign
+sign manifest.yaml, image.iso.sha256 or a custody entry (ML\-DSA\-65 build key)
+.TP
+.B pubkey
+derive build.pubkey from the build key seed (generates nothing)
+.TP
+.B verify
+full evidence\-pack verification (signature, ISO, gates)
+.TP
+.B verify\-signature
+check the manifest signature only
+.TP
+.B verify\-iso
+check the ISO hash against the manifest only
+.TP
+.B verify\-gates
+check the CI gates from the manifest only
+.TP
+.B verify\-custody
+check the chain\-of\-custody log only
+.TP
+.B diff
+diff two evidence packs
+.TP
+.B cask sign
+seal a Sealed Cask's BINDING_RUNE.sha256 with the build key
+.TP
+.B cask verify
+verify a Sealed Cask (also: the standalone cask\-verify)
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXIT STATUS
+Exit codes: 0 ok, 1 verification failed, 2 usage or unreadable input.
+.SH SEE ALSO
+.BR unheaded (1)

@@ -1,0 +1,34 @@
+.TH ALERT\-POLICY 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+alert\-policy \- Render observability/alerting/policy.yaml into Prometheus SLO rules and Alertmanager routing, and check hand\-written rules (ADR\-100).
+.SH SYNOPSIS
+.B alert\-policy
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Render observability/alerting/policy.yaml into Prometheus SLO rules and Alertmanager routing, and check hand\-written rules (ADR\-100).
+.SH OPTIONS
+.TP
+.B \-\-check
+fail if the generated files are stale or the policy is invalid
+.TP
+.B \-\-root \fISTRING\fR
+repository root (default .)
+.TP
+.B \-\-runbooks
+only check that every alert's runbook_url names a file in the repo
+.TP
+.B \-\-sync\-well
+write the policy's SLOs into the Well's slo_definitions (needs WELL_DB and WELL_PASSWORD)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+alert\-policy \-check
+alert\-policy \-sync\-well
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

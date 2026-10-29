@@ -125,10 +125,14 @@ type options struct {
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
-func parseFlags(args []string, stderr io.Writer) (*options, error) {
+var evalSpec = cmdline.Spec{
+	Name:    "zhen-eval",
+	Purpose: "Run the two-brains eval: the same tasks on the local model or on Claude, judged mechanically.",
+}
+
+func parseFlags(args []string, stdout, stderr io.Writer) (*options, error) {
 	o := &options{}
 	fs := flag.NewFlagSet("zhen-eval", flag.ContinueOnError)
-	fs.SetOutput(stderr)
 	fs.StringVar(&o.backend, "backend", "local", "local (llama-server) or claude")
 	fs.StringVar(&o.model, "model", "", "model name (local: the label recorded and sent; claude: model id, default claude-opus-5-5)")
 	fs.StringVar(&o.effort, "effort", "low", "Claude effort")
@@ -153,7 +157,7 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	fs.IntVar(&o.seed, "seed", 42, "local seed (temperature is 0)")
 	fs.IntVar(&o.limit, "limit", 0, "stop after this many tasks (0 = all)")
 	fs.IntVar(&o.localAttempts, "repo-attempts", 2, "local attempts for repo-task (the second sees the check output; PREREG)")
-	if err := fs.Parse(args); err != nil {
+	if err := cmdline.ParseFlags(fs, evalSpec, args, stdout, stderr); err != nil {
 		return nil, err
 	}
 	switch o.backend {
@@ -184,12 +188,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "zhen-eval"})
 		return 0
 	}
-	o, err := parseFlags(args, stderr)
+	o, err := parseFlags(args, stdout, stderr)
 	if err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
+		var ex *cmdline.ExitError
+		if errors.As(err, &ex) {
+			return ex.Code
 		}
-		return cmdline.ReportUsageError(stderr, cmdline.Spec{Name: "zhen-eval"}, "%s", cmdline.Translate(err, args))
+		return cmdline.ReportUsageError(stderr, evalSpec, "%s", err)
 	}
 	log := slog.New(slog.NewJSONHandler(stderr, nil)).With("service", "zhen-eval")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

@@ -56,7 +56,7 @@ $(OUT)/upc-bootstub.elf: $(OUT)/start.o $(A)bootstub.ld | $(OUT)
 $(OUT)/upc-bootstub.mbc: $(OUT)/upc-bootstub.elf
 	@if [ ! -x "$(RV2MBC)" ]; then \
 	  echo "Error: rv32i-to-mbc not found at $(RV2MBC)."; \
-	  echo "Build it first: (cd ../monad-mbc && cargo build --release --bin rv32i-to-mbc)"; \
+	  echo "Build it first: (cd ../monad-mbc && cargo build --release --locked --bin rv32i-to-mbc)"; \
 	  exit 1; \
 	fi
 	$(RV2MBC) $< -o $@

@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
 )
@@ -183,7 +184,7 @@ func serve(ctx context.Context, addr string, s *server) error {
 func runServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := fs.String("addr", ":8080", "listen address")
-	if err := fs.Parse(args); err != nil {
+	if err := cmdline.ParseFlags(fs, subSpec("serve"), args, os.Stdout, os.Stderr); err != nil {
 		return err
 	}
 	k, err := parseKnobs(os.Getenv)

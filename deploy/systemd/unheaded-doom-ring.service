@@ -34,5 +34,18 @@ ExecStop=/home/govan/tmp/unheaded/scripts/doom-ring.sh teardown
 TimeoutStartSec=30
 TimeoutStopSec=15
 
+# Hardening (S-LOW-FRUIT Phase 3), partial on purpose: creates netns and
+# veths as root from /home (lab paths). Lab-only unit.
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+
 [Install]
 WantedBy=multi-user.target

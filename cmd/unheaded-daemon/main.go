@@ -678,12 +678,13 @@ func (d *Daemon) Start() error {
 	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("cuirass").Instrument(mux, httpHandler))
 
 	d.httpServer = &http.Server{
-		Addr:           d.config.HTTPAddr,
-		Handler:        httpHandler,
-		ReadTimeout:    30 * time.Second,
-		WriteTimeout:   30 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              d.config.HTTPAddr,
+		Handler:           httpHandler,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is a
 	// startup failure, never a plaintext listener.

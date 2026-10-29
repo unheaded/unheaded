@@ -54,11 +54,11 @@ func main() {
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fl := flag.NewFlagSet("well-migrate", flag.ContinueOnError)
-	fl.SetOutput(io.Discard)
 	spec := cmdline.Spec{
 		Name:     "well-migrate",
 		Purpose:  "Apply the Well's SQL migrations from the manifest, with a ledger (ADR-101).",
 		Operands: "check | status | apply [-db D] [-yes] | baseline [-db D] -through FILE -yes",
+		MaxArgs:  cmdline.Unlimited,
 	}
 	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
 		cmdline.PrintVersion(stdout, spec)
@@ -72,8 +72,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "Try 'well-migrate --help' for more information.")
 		return 2
 	}
-	if err := fl.Parse(args); err != nil {
-		return cmdline.HandleParseError(err, fl, spec, args, stdout, stderr)
+	if code, exit := cmdline.ParseSet(fl, spec, args, stdout, stderr); exit {
+		return code
 	}
 	rest := fl.Args()
 	if len(rest) == 0 {

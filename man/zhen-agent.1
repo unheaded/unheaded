@@ -1,0 +1,49 @@
+.TH ZHEN\-AGENT 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.SH NAME
+zhen\-agent \- Run one Zhenai agent goal from the terminal through the Champion gate.
+.SH SYNOPSIS
+.B zhen\-agent
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Run one Zhenai agent goal from the terminal through the Champion gate.
+.SH OPTIONS
+.TP
+.B \-k \fIN\fR
+number of top\-K topics for seed retrieval (default 5)
+.TP
+.B \-\-max\-tokens \fIN\fR
+llama\-server max_tokens per turn (default 600)
+.TP
+.B \-\-max\-topic\-chars \fIN\fR
+per\-topic content cap (default 10000)
+.TP
+.B \-\-max\-turns \fIN\fR
+agent loop budget (default 8)
+.TP
+.B \-\-project\-root \fISTRING\fR
+Champion sandbox root (default: cwd)
+.TP
+.B \-q \fISTRING\fR
+user goal (otherwise reads from stdin)
+.TP
+.B \-\-seed \fIN\fR
+llama\-server seed (nonzero pins sampling)
+.TP
+.B \-\-show\-trace
+print per\-turn trace to stderr
+.TP
+.B \-\-temperature \fINUM\fR
+sampling temperature (default 0.4)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+zhen\-agent \-q 'list open kanban cards'
+zhen\-agent \-q 'summarise the drift events' \-show\-trace
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

@@ -1,0 +1,26 @@
+.TH CASK\-VERIFY 1 "2026-10-29" "unheaded 6b26b19a" "Unheaded Kingdom"
+.SH NAME
+cask\-verify \- Verify (and safely extract) a signed Sealed Cask against trusted build keys.
+.SH SYNOPSIS
+.B cask\-verify
+verify|extract \-\-cask FILE \-\-pubkey KEY [\-\-pubkey OLD] [\-\-dest DIR]
+.SH DESCRIPTION
+Verify (and safely extract) a signed Sealed Cask against trusted build keys.
+.SH COMMANDS
+.TP
+.B verify \-\-cask FILE \-\-pubkey KEY
+check the cask's seal; more \-\-pubkey for keys still trusted
+.TP
+.B extract \-\-cask FILE \-\-pubkey KEY \-\-dest DIR
+verify, then extract into a new directory
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXIT STATUS
+Exit codes: 0 verified, 1 refused, 2 usage or unreadable key.
+.SH SEE ALSO
+.BR unheaded (1)
