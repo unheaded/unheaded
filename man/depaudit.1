@@ -1,0 +1,37 @@
+.TH DEPAUDIT 1 "2026-10-29" "unheaded d9253c0c" "Unheaded Kingdom"
+.SH NAME
+depaudit \- Report the latest\-release age of every Go module dependency, from `go list \-m \-json all` on stdin.
+.SH SYNOPSIS
+.B depaudit
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Report the latest\-release age of every Go module dependency, from `go list \-m \-json all` on stdin.
+.SH OPTIONS
+.TP
+.B \-\-all
+report indirect modules too (default: direct only)
+.TP
+.B \-\-fail\-on\-stale\-direct
+exit 1 when a direct module is STALE
+.TP
+.B \-\-max\-age\-months \fIN\fR
+a module whose latest release is older than N months is STALE (default 24)
+.TP
+.B \-\-proxy \fIURL\fR
+module proxy base URL (default https://proxy.golang.org)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXIT STATUS
+Exit codes: 0 report printed, 1 a direct module is STALE (with \-\-fail\-on\-stale\-direct)
+or a proxy lookup failed, 2 usage error.
+.SH EXAMPLES
+.EX
+go list \-m \-json all | depaudit
+go list \-m \-json all | depaudit \-\-max\-age\-months 36 \-\-fail\-on\-stale\-direct
+.EE
+.SH SEE ALSO
+.BR unheaded (1)
