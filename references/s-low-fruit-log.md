@@ -99,3 +99,14 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 - `scripts/check-dep-staleness.sh`: each STALE direct module needs a watch-list row with a decision; past 36 months the row must name an FND. yaml.v3 → **FND-030** added to `compliance/findings/register.yaml` (low, package, step 2; plan: switch to the maintained `go.yaml.in/yaml/v3`). Registered (`provoke_dep_staleness`).
 - Step 85d (maintainer handover): kept as a column in the watch list ("handover" on yaml.v3), not automated.
 - journald retention (Phase 7 note): oldest entry 2026-10-19 20:25 → ~10 days at the 1G cap, above the 7-day floor.
+
+## Phase 9 — unattended halves (Steps 77, 80 read-only)
+
+- Step 77: no llama-server launch with `-np`/`--parallel`/`-c` in `deploy/`, `systemd/`, compose or `scripts/` (only `raft/scripts/19_context_benchmark.py` varies `-c`). It is started by the model selector (ADR-060) / vor at run time, and isn't running now: read the live flags (`pgrep -a llama-server`) at the attended probe (E2).
+- Step 80, read-only half (project `unheaded`): pool `default` driver `dir` (`/var/snap/lxd/common/lxd/storage-pools/default`); profile `default` has only `root` (pool disk) and `eth0` (lxdbr0); instances steel-echo-v2-{0,1,2}: `security.privileged` unset (unprivileged), no `raw.lxc`/mknod intercept, no `/dev/*` disk source. So no raw block path from a guest is configured. The launch + mknod probe stays attended.
+
+## Sprint exit evidence (Step 96, partial)
+
+- `go test -race ./...`: 0 FAIL (1m31s).
+- `check-gates-can-fail.sh --quick`: every gate added this sprint bites. Exit 1 only from five INCONCLUSIVE gates "already failing on a clean tree": check-ruff and check-python-audit (ruff/pip-audit not installed on west; CI pins them), check-tool-freshness (trivy-action re-pin, E5), live-path-inventory (cmd/depaudit was new → regenerated `12cf0bba`, now PASS), check-gitleaks (2 hits inside the old merged-lane worktree `.claude/worktrees/agent-ab408f40bb5e80160`: copies of baselined test strings under a different path; listed removable in next.md; not deleted unasked).
+- Not merged into develop: E0 (force-push of the re-signed develop) comes first, and E1-E3 legs are open.
