@@ -58,3 +58,8 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 - Step 71c (deviation recorded): counts are taken **live** from lock data, not `sbom/*.json` (those are dated 2026-03-15, stale): go 150 (`go list -m all`), rust 484 (distinct name@version over tracked Cargo.lock, testdata excluded), python 77 (distinct names over tracked `*requirements*.txt`) → `docs/policy/sbom-count-baseline.txt`. `scripts/check-sbom-trend.sh` fails on growth. Python counted so Grimoire's retirement (E4) shows.
 - Step 72: zhen-cli honours `NO_COLOR` (`useColor`, table test). unheaded-cli already did (`output/color.go`; it treats an empty `NO_COLOR` as set, stricter than no-color.org; left).
 - Both ratchets registered (`provoke_netip`, `provoke_sbom_trend`).
+
+## Phase 10 — removal 1: gorilla/mux (Steps 86-89, 93-94)
+
+- timeguru's five GET routes moved to `http.NewServeMux` method patterns (`newRouter()`); `services/timeguru/router_test.go`: POST → 405 + Allow on every route, GET routes to the right pattern, `/health/extra` → 404 (exact match as before). HEAD now answers on GET routes (ServeMux default; gorilla gave 405).
+- `go mod tidy`: only `github.com/gorilla/mux` left go.mod/go.sum. Direct modules 19 → 18. `check-dependency-baseline.sh --update` (595 packages), `check-sbom-trend.sh --update` go 150 → 149; THIRD_PARTY.md and sbom/SBOM.md rows removed.

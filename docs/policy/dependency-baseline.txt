@@ -429,7 +429,6 @@ go github.com/googleapis/enterprise-certificate-proxy
 go github.com/googleapis/gax-go/v2
 go github.com/gookit/assert
 go github.com/gookit/color
-go github.com/gorilla/mux
 go github.com/gorilla/websocket
 go github.com/hashicorp/golang-lru/v2
 go github.com/invopop/jsonschema

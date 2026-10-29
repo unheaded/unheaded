@@ -47,7 +47,6 @@
 | github.com/cloudflare/circl | v1.6.3 | BSD-3-Clause |
 | github.com/fsnotify/fsnotify | v1.7.0 | BSD-3-Clause |
 | github.com/google/uuid | v1.6.0 | BSD-3-Clause |
-| github.com/gorilla/mux | v1.8.1 | BSD-3-Clause |
 | github.com/gorilla/websocket | v1.5.3 | BSD-2-Clause |
 | github.com/lib/pq | v1.10.9 | MIT |
 | github.com/prometheus/client_golang | v1.18.0 | Apache-2.0 |
