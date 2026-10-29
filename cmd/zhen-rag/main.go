@@ -41,6 +41,7 @@ import (
 	"strings"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/vorquery"
 	"unheaded/pkg/zhenrag"
 )
@@ -137,7 +138,11 @@ func main() {
 		seed          = flag.Int("seed", 0, "llama-server seed; nonzero pins sampling for reproducibility (combine with -temperature 0 for greedy determinism)")
 		sysPromptFile = flag.String("system-prompt-file", "", "path to a file containing the system prompt; '' = built-in default; '-' = no system message at all (probe baseline)")
 	)
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "zhen-rag",
+		Purpose:  "RAG glue between vor (cs cheatsheet API) and a local llama-server.",
+		Examples: []string{"zhen-rag -q 'how do I rotate the WireGuard PSK?'"},
+	})
 
 	vorURL := envOr("VOR_URL", defaultVorURL)
 	llamaURL := envOr("LLAMA_URL", defaultLlamaURL)

@@ -35,6 +35,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/metrics/prom"
 )
@@ -315,7 +316,11 @@ func errorClass(err error) string {
 // ── main ──────────────────────────────────────────────────────────────────
 
 func main() {
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "ebpf-exporter",
+		Purpose:  "Export Shield and Monad eBPF ring buffers and maps as Prometheus metrics.",
+		Examples: []string{"ebpf-exporter --port 9435 --bpf-path /sys/fs/bpf/unheaded"},
+	})
 
 	// Logger
 	level := slog.LevelInfo

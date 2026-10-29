@@ -29,6 +29,7 @@ import (
 
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/gungnir"
 	"unheaded/pkg/sealedcask"
 )
@@ -56,10 +57,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "-h", "--help", "help":
 		usage(stdout)
 		return exitOK
+	case "--version", "-version", "-V":
+		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "cask-verify"})
+		return exitOK
 	default:
-		fmt.Fprintf(stderr, "cask-verify: unknown subcommand %q\n", args[0])
-		usage(stderr)
-		return exitUsage
+		return cmdline.ReportUsageError(stderr, cmdline.Spec{Name: "cask-verify"}, "unknown subcommand '%s'", args[0])
 	}
 }
 
@@ -85,13 +87,13 @@ func cmdVerify(args []string, extract bool, stdout, stderr io.Writer) int {
 		name = "extract"
 	}
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	fs.SetOutput(stderr)
+	fs.SetOutput(io.Discard)
 	cask := fs.String("cask", "", "the cask tarball")
 	dest := fs.String("dest", "", "extract: directory to create (must not exist)")
 	var keys pubkeys
 	fs.Var(&keys, "pubkey", "trusted ML-DSA-65 build public key (repeatable)")
 	if err := fs.Parse(args); err != nil {
-		return exitUsage
+		return cmdline.HandleParseError(err, fs, cmdline.Spec{Name: "cask-verify " + name, Purpose: "Verify (or extract) a Sealed Cask against trusted build keys.", Details: "Exit codes: 0 verified, 1 refused, 2 usage or unreadable key."}, args, stdout, stderr)
 	}
 	if fs.NArg() != 0 || *cask == "" || len(keys) == 0 || extract != (*dest != "") {
 		fmt.Fprintf(stderr, "%s: --cask and --pubkey are required", name)

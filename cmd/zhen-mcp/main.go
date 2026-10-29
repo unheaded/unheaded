@@ -44,7 +44,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -60,6 +59,7 @@ import (
 	"time"
 
 	"unheaded/pkg/champion"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/mcpserver"
 	"unheaded/pkg/ports"
@@ -413,14 +413,12 @@ func clip(s string, n int) string {
 }
 
 func main() {
-	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), "usage: zhen-mcp   (MCP over stdio; configured by environment, see the package doc)")
-	}
-	flag.Parse()
-	if flag.NArg() > 0 {
-		flag.Usage()
-		os.Exit(2)
-	}
+	cmdline.Parse(cmdline.Spec{
+		Name:     "zhen-mcp",
+		Purpose:  "Serve the Kingdom tools to Claude Code over MCP stdio, every call through the Champion gate.",
+		Examples: []string{"zhen-mcp"},
+		Details:  "Configured by environment only; see the package doc.",
+	})
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	cfg, err := configFromEnv(os.Getenv)
 	if err != nil {

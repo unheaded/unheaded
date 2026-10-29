@@ -35,6 +35,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"golang.org/x/sys/unix"
+
+	"unheaded/pkg/cmdline"
 )
 
 // injectorConfig holds TOML configuration from the [injector] section.
@@ -398,7 +400,12 @@ func main() {
 	configFile := flag.String("config", "", "Path to TOML config file (e.g. configs/doom.toml)")
 	reportEvery := flag.Int("report-every", 10000, "Log progress every N packets")
 
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "doom-go-injector",
+		Purpose:  "Inject Monad hop-by-hop packets into the Doom-over-IPv6 compute ring over AF_PACKET.",
+		Examples: []string{"sudo ip netns exec monad0 doom-go-injector --config configs/doom.toml", "doom-go-injector --rate 1000"},
+		Details:  "Needs CAP_NET_RAW inside the monad network namespace.",
+	})
 
 	// Load TOML config if --config is provided. Config values act as defaults;
 	// any flag explicitly set on the command line takes precedence.

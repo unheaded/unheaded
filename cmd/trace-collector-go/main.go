@@ -46,6 +46,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/healthreport"
@@ -1138,7 +1139,11 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 // ── Main ────────────────────────────────────────────────────────────────
 
 func main() {
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "trace-collector-go",
+		Purpose:  "Collect BPF trace events from the Kingdom's ring buffers and publish them to Wotan.",
+		Examples: []string{"trace-collector-go", "trace-collector-go --interface eth0 --wotan-addr localhost:18001"},
+	})
 	wotanClient.InitServiceIdentity("trace-collector") // ADR-103 §6: every Wotan call carries trace-collector's service token
 
 	// Configure logging

@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"unheaded/internal/doom"
+	"unheaded/pkg/cmdline"
 )
 
 func main() {
@@ -47,14 +48,12 @@ func main() {
 		err = cmdReset(remaining)
 	case "inject-tick":
 		err = cmdInjectTick(remaining)
-	case "version":
-		fmt.Println("doom (Doom-over-IPv6 CLI) dev")
+	case "version", "--version", "-V":
+		fmt.Printf("doom (unheaded) %s\n", cmdline.Spec{}.VersionString())
 	case "-h", "--help", "help":
 		printUsage()
 	default:
-		fmt.Fprintf(os.Stderr, "Error: unknown command %q\n\n", cmd)
-		printUsage()
-		os.Exit(1)
+		cmdline.UnknownCommand(cmdline.Spec{Name: "doom"}, cmd)
 	}
 
 	if err != nil {
@@ -74,7 +73,7 @@ Commands:
   input <bitmap>     Inject keyboard input (hex bitmap)
   reset              Reset CPU to default state
   inject-tick        Inject compute tick (roadmap: v0.2)
-  version            Print version
+  version            Print version (also --version)
 
 Use "doom <command> --help" for more information.`)
 }

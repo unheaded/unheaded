@@ -51,6 +51,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -505,6 +506,25 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "packet-chaos" {
 		os.Exit(packetChaosMain(os.Args[2:]))
+	}
+	if len(os.Args) > 1 {
+		spec := cmdline.Spec{
+			Name:     "chaos-controller",
+			Purpose:  "Yaldabaoth: run the Kingdom's chaos engine inside its safety envelope (ADR-107); with no command, serve.",
+			Commands: []cmdline.Command{{Name: "revert-all", Purpose: "undo every journaled fault"}, {Name: "render-polkit", Purpose: "print the polkit rule for systemd stop/kill"}, {Name: "packet-chaos", Purpose: "packet fault lab (see packet-chaos --help)"}},
+			Operands: "[COMMAND]",
+			Details:  "Configured by environment and /etc/unheaded/chaos/allowlist.yaml.",
+		}
+		switch {
+		case cmdline.IsHelpArg(os.Args[1]):
+			cmdline.Usage(os.Stdout, nil, spec)
+			os.Exit(0)
+		case cmdline.IsVersionArg(os.Args[1]):
+			cmdline.PrintVersion(os.Stdout, spec)
+			os.Exit(0)
+		default:
+			cmdline.UnknownCommand(spec, os.Args[1])
+		}
 	}
 	log := logger.New(os.Stderr)
 	s, err := build(c, log)

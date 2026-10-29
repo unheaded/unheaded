@@ -16,6 +16,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"unheaded/cmd/unheaded-cli/output"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/logger"
 )
 
@@ -169,7 +170,7 @@ func (c *Command) Execute(args []string) error {
 
 	// Parse global flags from the beginning of args
 	if err := globalFlags.Parse(args); err != nil {
-		return err
+		return fmt.Errorf("%s\nTry 'unheaded --help' for more information.", cmdline.Translate(err, args))
 	}
 
 	if showHelp {
@@ -203,7 +204,7 @@ func (c *Command) Execute(args []string) error {
 	subName := args[0]
 	sub, ok := c.SubCommands[subName]
 	if !ok {
-		return fmt.Errorf("unknown command: %s\nRun 'unheaded --help' for usage", subName)
+		return fmt.Errorf("unknown command '%s'\nTry 'unheaded --help' for more information.", subName)
 	}
 
 	// Execute subcommand
@@ -228,7 +229,7 @@ func (c *Command) executeWithContext(ctx *Context, args []string) error {
 		subName := args[0]
 		sub, ok := c.SubCommands[subName]
 		if !ok {
-			return fmt.Errorf("unknown subcommand: %s\nRun 'unheaded %s --help' for usage", subName, c.Name)
+			return fmt.Errorf("unknown command '%s'\nTry 'unheaded %s --help' for more information.", subName, c.Name)
 		}
 		return sub.executeWithContext(ctx, args[1:])
 	}

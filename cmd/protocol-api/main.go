@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/ports"
 	pb "unheaded/proto/unheaded/v1"
 )
@@ -38,11 +39,10 @@ const (
 )
 
 var (
-	mode         = flag.String("mode", "mock", "Backend mode: mock (in-memory) or bpf (pinned maps)")
-	apiKey       = flag.String("api-key", "", "API key for authentication (empty = disabled)")
-	bpfMapsPath  = flag.String("bpf-maps", "/sys/fs/bpf/unheaded", "Path to pinned BPF maps")
-	logRequests  = flag.Bool("log", true, "Enable request logging")
-	version_flag = flag.Bool("version", false, "Print version and exit")
+	mode        = flag.String("mode", "mock", "Backend mode: mock (in-memory) or bpf (pinned maps)")
+	apiKey      = flag.String("api-key", "", "API key for authentication (empty = disabled)")
+	bpfMapsPath = flag.String("bpf-maps", "/sys/fs/bpf/unheaded", "Path to pinned BPF maps")
+	logRequests = flag.Bool("log", true, "Enable request logging")
 	// Deprecated: use --mode=mock instead. Kept for backwards compatibility.
 	mockMode = flag.Bool("mock", false, "Alias for --mode=mock (deprecated)")
 )
@@ -67,12 +67,12 @@ type HealthResponse struct {
 }
 
 func main() {
-	flag.Parse()
-
-	if *version_flag {
-		fmt.Printf("Unheaded Protocol API v%s\n", version)
-		os.Exit(0)
-	}
+	cmdline.Parse(cmdline.Spec{
+		Name:     "protocol-api",
+		Purpose:  "Serve the Unheaded Protocol API over HTTP and gRPC, backed by mock data or pinned BPF maps.",
+		Examples: []string{"protocol-api --mode mock", "protocol-api --mode bpf --bpf-maps /sys/fs/bpf/unheaded"},
+		Version:  version,
+	})
 
 	// Resolve backend mode: --mock flag (deprecated) overrides --mode.
 	resolvedMode := *mode

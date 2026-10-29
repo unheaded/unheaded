@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/ports"
 )
 
@@ -456,7 +457,11 @@ func main() {
 	check := flag.Bool("check", false, "fail if the generated files are stale or the policy is invalid")
 	runbooks := flag.Bool("runbooks", false, "only check that every alert's runbook_url names a file in the repo")
 	syncWellFlag := flag.Bool("sync-well", false, "write the policy's SLOs into the Well's slo_definitions (needs WELL_DB and WELL_PASSWORD)")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "alert-policy",
+		Purpose:  "Render observability/alerting/policy.yaml into Prometheus SLO rules and Alertmanager routing, and check hand-written rules (ADR-100).",
+		Examples: []string{"alert-policy -check", "alert-policy -sync-well"},
+	})
 	if *runbooks {
 		errs := checkRunbookURLs(*root)
 		for _, e := range errs {

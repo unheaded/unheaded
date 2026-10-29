@@ -45,6 +45,7 @@ import (
 	"syscall"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 )
 
 const (
@@ -104,7 +105,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("unheaded-keygen", flag.ContinueOnError)
-	fs.SetOutput(stderr)
+	fs.SetOutput(io.Discard)
 	var o options
 	fs.StringVar(&o.dir, "dir", auth.DefaultKeyDir, "directory for <service>.key and <service>.pub")
 	fs.StringVar(&o.trustDir, "trust-dir", auth.DefaultTrustDir, "trust directory every verifier reads")
@@ -113,19 +114,30 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&o.retire, "retire", "", "remove the rotated-out public key with this kid from the trust directory")
 	fs.BoolVar(&o.printKid, "print-kid", false, "print the current key id and exit")
 	fs.StringVar(&o.algo, "algo", algoEd25519, "ed25519 (service identity key) or mldsa65 (ML-DSA-65 signing key: drift, signed topics)")
-	fs.Usage = func() {
-		fmt.Fprint(stderr, usageText)
+	// The flag package prints nothing itself (output discarded, no-op
+	// Usage); help goes to stdout on -h, usage errors to stderr in one line.
+	fs.Usage = func() {}
+	printUsage := func(w io.Writer) {
+		fmt.Fprint(w, usageText)
+		fs.SetOutput(w)
 		fs.PrintDefaults()
-		fmt.Fprint(stderr, exitText)
+		fs.SetOutput(io.Discard)
+		fmt.Fprint(w, exitText)
+	}
+	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
+		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "unheaded-keygen"})
+		return exitOK
 	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
+			printUsage(stdout)
 			return exitOK
 		}
-		return exitRefused
+		return cmdline.ReportUsageError(stderr, cmdline.Spec{Name: "unheaded-keygen"}, "%s", cmdline.Translate(err, args))
 	}
 	if fs.NArg() != 1 {
-		fs.Usage()
+		printUsage(stderr)
+		fmt.Fprintln(stderr, "Try 'unheaded-keygen --help' for more information.")
 		return exitRefused
 	}
 	o.name = fs.Arg(0)

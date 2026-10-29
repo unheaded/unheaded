@@ -31,6 +31,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"unheaded/pkg/cmdline"
 )
 
 const (
@@ -74,10 +76,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "-h", "--help", "help":
 		usage(stdout)
 		return exitOK
+	case "--version", "-version", "-V":
+		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "yggdrasil-evidence"})
+		return exitOK
 	default:
-		fmt.Fprintf(stderr, "yggdrasil-evidence: unknown subcommand %q\n", args[0])
-		usage(stderr)
-		return exitUsage
+		return cmdline.ReportUsageError(stderr, cmdline.Spec{Name: "yggdrasil-evidence"}, "unknown subcommand '%s'", args[0])
 	}
 }
 

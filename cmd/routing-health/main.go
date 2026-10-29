@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"unheaded/pkg/cmdline"
 )
 
 // HealthResponse is the response for the /health endpoint
@@ -225,6 +227,11 @@ func (c *Checker) metricsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	cmdline.Parse(cmdline.Spec{
+		Name:    "routing-health",
+		Purpose: "Serve routing-plane health (BGP/overlay checks) over HTTP.",
+		Details: "Configured by environment: ROUTING_HEALTH_ADDR.",
+	})
 	checker := DefaultChecker()
 	addr := os.Getenv("ROUTING_HEALTH_ADDR")
 	if addr == "" {

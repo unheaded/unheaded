@@ -26,6 +26,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"unheaded/pkg/cmdline"
 )
 
 const (
@@ -100,9 +102,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, usage)
 		return 0
+	case "--version", "-version", "-V":
+		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "crypto-inventory"})
+		return 0
 	default:
-		fmt.Fprintf(stderr, "unknown command %q\n%s", cmd, usage)
-		return 2
+		return cmdline.ReportUnknownCommand(stderr, cmdline.Spec{Name: "crypto-inventory"}, cmd)
 	}
 }
 

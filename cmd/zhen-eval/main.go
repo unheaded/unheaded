@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/localllm"
 )
 
@@ -179,13 +180,16 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
+		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "zhen-eval"})
+		return 0
+	}
 	o, err := parseFlags(args, stderr)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
-		_, _ = fmt.Fprintln(stderr, "zhen-eval:", err)
-		return 2
+		return cmdline.ReportUsageError(stderr, cmdline.Spec{Name: "zhen-eval"}, "%s", cmdline.Translate(err, args))
 	}
 	log := slog.New(slog.NewJSONHandler(stderr, nil)).With("service", "zhen-eval")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

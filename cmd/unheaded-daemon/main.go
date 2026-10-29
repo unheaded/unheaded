@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -525,14 +526,13 @@ type ReconcileAction struct {
 func main() {
 	// Parse flags
 	configPath := flag.String("config", "", "Path to configuration file")
-	showVersion := flag.Bool("version", false, "Show version information")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "unheaded-daemon",
+		Purpose:  "Run the Cuirass: the Unheaded control plane and reconciliation engine.",
+		Examples: []string{"unheaded-daemon", "unheaded-daemon --config /etc/unheaded/daemon.yaml"},
+		Version:  version + " (commit: " + gitCommit + ", built: " + buildTime + ")",
+	})
 	wotanClient.InitServiceIdentity("unheaded-daemon") // ADR-103 §6: every Wotan call carries unheaded-daemon's service token
-
-	if *showVersion {
-		fmt.Printf("unheaded-daemon %s (commit: %s, built: %s)\n", version, gitCommit, buildTime)
-		os.Exit(0)
-	}
 
 	// Print banner
 	fmt.Print(banner)

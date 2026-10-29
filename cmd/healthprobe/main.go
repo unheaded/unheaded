@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	utls "unheaded/pkg/tls"
 )
 
@@ -52,13 +54,23 @@ func target(arg string) (string, error) {
 }
 
 func run(args []string, stderr io.Writer) int {
-	if len(args) != 1 {
-		fmt.Fprintln(stderr, "usage: healthprobe <port|url>")
-		return 2
+	spec := cmdline.Spec{
+		Name:     "healthprobe",
+		Purpose:  "Probe a Kingdom service's /health endpoint by port or URL; exit 0 when healthy.",
+		Operands: "<port|url>",
+		MinArgs:  1,
+		MaxArgs:  1,
+		Examples: []string{"healthprobe 19100", "healthprobe https://127.0.0.1:19006/health"},
+		Details:  "Exit codes: 0 healthy, 1 unhealthy or unreachable, 2 usage.",
 	}
-	url, err := target(args[0])
+	fs := flag.NewFlagSet("healthprobe", flag.ContinueOnError)
+	if code, exit := cmdline.ParseSet(fs, spec, args, os.Stdout, stderr); exit {
+		return code
+	}
+	url, err := target(fs.Arg(0))
 	if err != nil {
 		fmt.Fprintln(stderr, "healthprobe:", err)
+		fmt.Fprintln(stderr, "Try 'healthprobe --help' for more information.")
 		return 2
 	}
 	client, err := utls.ClientFromEnv(4 * time.Second)

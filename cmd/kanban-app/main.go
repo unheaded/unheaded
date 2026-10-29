@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
@@ -1412,6 +1413,11 @@ func (s *Server) broadcastUpdate(eventType string, data interface{}) {
 }
 
 func main() {
+	cmdline.Parse(cmdline.Spec{
+		Name:    "kanban-app",
+		Purpose: "Serve the Kingdom Kanban board (the Crest) and its API.",
+		Details: "Configured by environment: PORT, TIMEGURU_ADDR, WOTAN_ADDR, WOTAN_GRPC_ADDR.",
+	})
 	wotanClient.InitServiceIdentity("kanban-app") // ADR-103 §6: every Wotan call carries kanban-app's service token
 	// Setup logging - use Kingdom's native logger
 	log = logger.NewWithConfig(logger.Config{

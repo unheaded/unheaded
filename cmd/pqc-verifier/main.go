@@ -22,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/policy"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/wotan"
@@ -29,6 +30,11 @@ import (
 )
 
 func main() {
+	cmdline.Parse(cmdline.Spec{
+		Name:    "pqc-verifier",
+		Purpose: "Standalone post-quantum signature verification service (Doom Range port 19008).",
+		Details: "Configured by environment: PQC_VERIFIER_PORT, PQC_POLICY_FILE, PQC_DEFAULT_TIER, PQC_AUTH_ENABLED, PQC_LOG_LEVEL.",
+	})
 	if err := run(os.Stdout, os.Args); err != nil {
 		fmt.Fprintf(os.Stderr, "pqc-verifier: %v\n", err)
 		os.Exit(1)

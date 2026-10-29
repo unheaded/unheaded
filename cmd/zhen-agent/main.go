@@ -33,6 +33,7 @@ import (
 
 	"unheaded/pkg/agent"
 	"unheaded/pkg/champion"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/vorquery"
 )
@@ -60,7 +61,11 @@ func main() {
 		projectRoot = flag.String("project-root", "", "Champion sandbox root (default: cwd)")
 		showTrace   = flag.Bool("show-trace", false, "print per-turn trace to stderr")
 	)
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "zhen-agent",
+		Purpose:  "Run one Zhenai agent goal from the terminal through the Champion gate.",
+		Examples: []string{"zhen-agent -q 'list open kanban cards'", "zhen-agent -q 'summarise the drift events' -show-trace"},
+	})
 
 	vorURL := envOr("VOR_URL", defaultVorURL)
 	llamaURL := envOr("LLAMA_URL", defaultLlamaURL)

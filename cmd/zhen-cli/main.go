@@ -52,6 +52,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/vorquery"
 	"unheaded/pkg/zhenrag"
 )
@@ -184,7 +185,12 @@ func main() {
 		oneShot   = flag.String("q", "", "one-shot question; print answer and exit (same as piping)")
 		noColor   = flag.Bool("no-color", false, "disable ANSI colour even on a tty")
 	)
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "zhen-cli",
+		Purpose:  "Interactive terminal REPL for Zhenai: vor retrieval plus llama-server inference (ADR-059).",
+		Examples: []string{"zhen-cli", "zhen-cli -q 'what port does Akira use?'", "echo 'question' | zhen-cli"},
+		Details:  "Backends come from the environment: VOR_URL, LLAMA_URL, ZHEN_AGENTD_URL, RAG_MODEL.",
+	})
 
 	s := &session{
 		histLimit: *histLimit,

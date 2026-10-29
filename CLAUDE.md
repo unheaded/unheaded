@@ -545,6 +545,8 @@ it was used.
 
 **Required metrics for all services:**
 
+**Command-line shape (ADR-111, `pkg/cmdline`).** Every program under `cmd/` calls `cmdline.Parse(cmdline.Spec{Name, Purpose, Examples, ...})` instead of `flag.Parse()` (subcommand tools use `cmdline.HandleParseError` / `ReportUnknownCommand` / `PrintVersion`). Result, coreutils-style: `--help` on stdout with a usage line, one sentence, options and examples; `--version` → `NAME (unheaded) VERSION` (`-X unheaded/pkg/cmdline.Version=...`); any mistake → one line on stderr + `Try 'NAME --help' for more information.`, exit 2, never the usage dump. A Spec with no `Operands` accepts none. `pkg/cmdline/policy_test.go` fails on a new binary that skips this.
+
 HTTP metrics come from the shared middleware, not per-service vectors: `m := httputil.NewServiceMetrics("timeguru")` then `m.Instrument(mux, handler)` (`pkg/httputil/middleware.go`). It registers `unheaded_http_requests_total{method,path,status}` and `unheaded_http_request_duration_seconds{method,path}`; `service` is a const label set by the shared middleware, and `path` is the ServeMux pattern, never the raw URL. Service-specific metrics follow the same naming:
 
 ```go

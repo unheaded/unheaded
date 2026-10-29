@@ -32,6 +32,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+
+	"unheaded/pkg/cmdline"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
@@ -66,9 +68,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "-h", "--help", "help":
 		_, _ = io.WriteString(stdout, usage)
 		return 0
+	case "--version", "-version", "-V":
+		cmdline.PrintVersion(stdout, cmdline.Spec{Name: "zhen-flywheel"})
+		return 0
 	default:
-		_, _ = fmt.Fprintf(stderr, "zhen-flywheel: unknown command %q\n%s", args[0], usage)
-		return 2
+		return cmdline.ReportUnknownCommand(stderr, cmdline.Spec{Name: "zhen-flywheel"}, args[0])
 	}
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "zhen-flywheel %s: %v\n", args[0], err)

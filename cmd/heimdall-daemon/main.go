@@ -30,6 +30,7 @@ import (
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/enkrateia"
 	"unheaded/pkg/gjallarhorn"
 	"unheaded/pkg/gungnir"
@@ -380,7 +381,11 @@ func main() {
 		cluster       = flag.Uint("cluster", 1, "this node's Gjallarhorn cluster ID; reverify horns for other clusters are ignored")
 		metricsAddr   = flag.String("metrics-addr", defaultMetricsAddr, "serve GET /metrics here (drift publish counters, scan duration); empty disables")
 	)
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "heimdall-daemon",
+		Purpose:  "Heimdall: watch this host for drift from the Mjölnir baseline and publish signed drift events; alerts only, never restores (ADR-043).",
+		Examples: []string{"heimdall-daemon --manifest /etc/unheaded/mjolnir.manifest.json --pubkey /etc/unheaded/keys/mimir.pub", "heimdall-daemon --xdp-iface eth0 --drift-sign-key /etc/unheaded/keys/drift.key"},
+	})
 	wotanClient.InitServiceIdentity("heimdall") // ADR-103 §6: every Wotan call carries heimdall's service token
 	if *xdpMode != "generic" && *xdpMode != "native" {
 		fmt.Fprintf(os.Stderr, "--xdp-mode must be generic or native, got %q\n", *xdpMode)

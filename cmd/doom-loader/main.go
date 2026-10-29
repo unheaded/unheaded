@@ -25,6 +25,7 @@ import (
 	"strconv"
 
 	"unheaded/internal/bpf"
+	"unheaded/pkg/cmdline"
 )
 
 const (
@@ -41,7 +42,7 @@ const (
 func main() {
 	if len(os.Args) < 2 {
 		usage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	cmd := os.Args[1]
@@ -62,10 +63,11 @@ func main() {
 	case "help", "-h", "--help":
 		usage()
 		os.Exit(0)
+	case "version", "--version", "-V":
+		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "doom-loader"})
+		os.Exit(0)
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n", cmd)
-		usage()
-		os.Exit(1)
+		cmdline.UnknownCommand(cmdline.Spec{Name: "doom-loader"}, cmd)
 	}
 
 	if err != nil {

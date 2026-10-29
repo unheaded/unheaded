@@ -27,6 +27,7 @@ import (
 
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/lichtools"
 	"unheaded/pkg/mcpserver"
 	"unheaded/pkg/zhentools"
@@ -56,7 +57,17 @@ func main() {
 	cfgPath := flag.String("config", "configs/lich-mcp.yaml", "path to the Lich MCP server policy (scope, limits, kill switch)")
 	root := flag.String("project-root", "", "checkout root; defaults to $PWD")
 	emittedBy := flag.String("emitted-by", "lich-mcp/stdio", "audit identity for the caller driving these tools")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{
+		Name:     "lich-mcp",
+		Purpose:  "Serve the Lich red-team tools over MCP stdio behind the Champion gate, confined to local sandboxes.",
+		Commands: []cmdline.Command{{Name: "confirm", Purpose: "out-of-band approval CLI for gated tool calls"}, {Name: "drive", Purpose: "drive the server from Claude"}},
+		Operands: "[COMMAND]",
+		MaxArgs:  1,
+		Examples: []string{"lich-mcp --config configs/lich-mcp.yaml", "lich-mcp confirm --help", "lich-mcp drive --help"},
+	})
+	if flag.NArg() > 0 {
+		cmdline.UnknownCommand(cmdline.Spec{Name: "lich-mcp"}, flag.Arg(0))
+	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
