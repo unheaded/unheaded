@@ -194,7 +194,7 @@ func main() {
 
 	s := &session{
 		histLimit: *histLimit,
-		color:     !*noColor && isTTY(os.Stdout),
+		color:     useColor(*noColor, os.Getenv("NO_COLOR"), isTTY(os.Stdout)),
 		k:         *k,
 		maxTokens: *maxTokens,
 		maxChars:  *maxChars,
@@ -797,4 +797,10 @@ func (s *session) errf(format string, args ...any) {
 func fatal(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "zhen-cli: "+format+"\n", args...)
 	os.Exit(1)
+}
+
+// useColor follows no-color.org: NO_COLOR set to anything non-empty turns
+// colour off, as does --no-color or output that is not a terminal.
+func useColor(noColorFlag bool, noColorEnv string, tty bool) bool {
+	return !noColorFlag && noColorEnv == "" && tty
 }

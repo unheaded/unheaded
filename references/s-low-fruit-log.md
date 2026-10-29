@@ -50,3 +50,11 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 - `scripts/flamegraph.sh ADDR BINARY [SECONDS] [--top]`, `scripts/bpf-profile.sh [PROG] [SECONDS]`, `make build-profile` (symbols), `.gitignore` `var/pprof/` + `*.pb.gz`, `wiki/Profiling.md` (sidebar + Observability-Backends link).
 - Step 45 Go leg: `./bin/akira --pprof 127.0.0.1:29660 --port 29661` → index served; `flamegraph.sh … 5 --top` wrote `var/pprof/akira-*.pb.gz` (ignored by git) and pprof read it (idle akira: 0 samples). `akira --pprof 0.0.0.0:6060` → refused, rc=2. **BPF leg pending** (needs a UPC boot; next attended or UPC session).
 - gen-man caught the new flag in 5 pages; regenerated.
+
+## Phase 8 — ratchets (Steps 71, 71a, 71c, 72; 73-75 after Phase 10)
+
+- Step 71: `scripts/check-netip.sh` + `docs/policy/netip-baseline.txt` = 120 (shrink-only, `--update` lowers). It caught this sprint's own `net.ParseIP` in `pkg/httputil/pprof.go` → rewritten with `netip.ParseAddr(...).Unmap().IsLoopback()`.
+- Step 71a: root zone serves KSKs 20326 and **38696** (`dig . DNSKEY +multi`); the resolver on 127.0.0.1 validates (`dnssec-failed.org` → SERVFAIL) but strips AD for isc.org, and its trust anchor file isn't on the host (the resolver is Pi-hole, in LXD). Checking that the anchor holds 38696 = attended (Pi-hole container).
+- Step 71c (deviation recorded): counts are taken **live** from lock data, not `sbom/*.json` (those are dated 2026-03-15, stale): go 150 (`go list -m all`), rust 484 (distinct name@version over tracked Cargo.lock, testdata excluded), python 77 (distinct names over tracked `*requirements*.txt`) → `docs/policy/sbom-count-baseline.txt`. `scripts/check-sbom-trend.sh` fails on growth. Python counted so Grimoire's retirement (E4) shows.
+- Step 72: zhen-cli honours `NO_COLOR` (`useColor`, table test). unheaded-cli already did (`output/color.go`; it treats an empty `NO_COLOR` as set, stricter than no-color.org; left).
+- Both ratchets registered (`provoke_netip`, `provoke_sbom_trend`).

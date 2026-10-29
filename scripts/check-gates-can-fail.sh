@@ -832,6 +832,29 @@ provoke_ebpf_insns() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_netip() {
+    # Contract (S-LOW-FRUIT Phase 8): the net.IP count never rises. Lower the
+    # baseline by one, so today's count reads as one new use.
+    local f="docs/policy/netip-baseline.txt"
+    backup "${f}"
+    awk '/^[0-9]+$/ {print $1 - 1; next} {print}' "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" >"${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_sbom_trend() {
+    # Contract (native first, S-LOW-FRUIT Phase 8): the third-party count
+    # never rises. Lower go_components by one, so today's modules read as one
+    # added.
+    local f="docs/policy/sbom-count-baseline.txt"
+    backup "${f}"
+    awk -F= '$1 == "go_components" {print $1 "=" $2 - 1; next} {print}' "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" >"${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_gen_man() {
     # Contract (S-LOW-FRUIT Phase 5): every binary answers --man unless the
     # shrink-only baseline lists it. Hide --man from cmdline.ParseSet, so
@@ -1016,6 +1039,8 @@ well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,
 check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo and west's kernel)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
+check-netip|provoke_netip|fast|the net.IP baseline lowered by one, so today's count reads as a new use
+check-sbom-trend|provoke_sbom_trend|fast|go_components baseline lowered by one, so today's modules read as one added (needs go)
 gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet, so no binary answers it (builds all 59; needs go)
 check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server

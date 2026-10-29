@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/netip"
 	"time"
 )
 
@@ -34,7 +35,7 @@ func CheckLoopback(addr string) error {
 	if host == "localhost" {
 		return nil
 	}
-	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+	if ip, err := netip.ParseAddr(host); err == nil && ip.Unmap().IsLoopback() {
 		return nil
 	}
 	return fmt.Errorf("pprof address %q is not loopback (use 127.0.0.1:PORT or [::1]:PORT)", addr)
