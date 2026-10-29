@@ -79,3 +79,8 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 - Steps 90-91: `docs/policy/dependency-watch.md`, release dates from proxy.golang.org: **yaml.v3 53 months, upstream archived (handover)** → proposed replace with the maintained `go.yaml.in/yaml/v3`; uuid 33 (keep, Step 90 reason); gorilla/websocket 28 on an input boundary (keep, re-check at 36). x/time = next removal. Decisions marked "proposed" for Stevie (E4).
 - Step 92: Rust/Python counts live in `sbom-count-baseline.txt` since Phase 8.
 - Steps 85a-85d (`cmd/depaudit`, staleness gate) not built this run.
+
+## Phase 8 — Steps 73-75
+
+- Step 73-74: all nine new gates pass on the tree (version-flag 59, http-timeouts 47, unit-ceilings 22, netip 120, sbom-trend go 149 / rust 484 / python 77, go-env, mod-integrity 26 locks, cargo-locked 31, gen-man 39); each was proven to fail with `check-gates-can-fail.sh --only` when it landed.
+- Step 75: CLAUDE.md "Native first" bullet made true (check-dep-staleness.sh is named as not built yet) + a Ratchets bullet. kanban-app already sets `journal_mode=WAL` and `busy_timeout=5000` (`cmd/kanban-app/store.go`). ADR-111 Consequences has the man-page line (Phase 5); wiki/Profiling.md (Phase 4).
