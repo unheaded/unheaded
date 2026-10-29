@@ -60,7 +60,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master, 2026-10-15
+        uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master, 2026-10-21 (trivy v0.76.1)
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/wotan:${{ github.sha }}
           format: sarif
@@ -116,7 +116,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master, 2026-10-15
+        uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master, 2026-10-21 (trivy v0.76.1)
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/kanban:${{ github.sha }}
           format: sarif
