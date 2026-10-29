@@ -28,7 +28,7 @@
 | Vector + ClickHouse running | compose stack **down** (0 containers); host `vector` unit inactive | Phase 7 live legs are attended (E1) |
 | llama-server serving | **not running** | Phase 9 TH-2026-005 probe is attended (E2) |
 | LXD pool for the residue probe | project `unheaded` exists; pool `default` driver **`dir`** | Steps 80-81 rewritten for a `dir` pool |
-| Go toolchain | west 1.27.3 = go.mod `toolchain go1.27.3` | `GOTOOLCHAIN=local` (Step 85e) is safe here |
+| Go toolchain | installed go **1.24.0**; go.mod's `toolchain go1.27.3` is auto-switched (corrected during Step 85e) | Step 85e pins `GOTOOLCHAIN=go1.27.3`, not `local` (local breaks the build here) |
 | `make build` output | `bin/` (`BINARY_DIR := bin`) | as planned |
 
 ## ESCALATIONS (Stevie; one line each)

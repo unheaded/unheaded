@@ -16,11 +16,12 @@ NIX_DIR := nix
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
 # Go build environment (S-LOW-FRUIT Phase 10): builds never edit go.mod/go.sum,
-# module hashes are checked against sum.golang.org, and the toolchain is the
-# one installed (go.mod pins it). CI sets the same three.
+# module hashes are checked against sum.golang.org, and the toolchain is exactly
+# go.mod's toolchain line (fetched and checksum-verified if the installed go is
+# older; never a different one). CI sets the same three.
 export GOFLAGS := -mod=readonly
 export GOSUMDB := sum.golang.org
-export GOTOOLCHAIN := local
+export GOTOOLCHAIN := go1.27.3
 
 # Go build flags
 GO_BUILD_FLAGS := -v -trimpath

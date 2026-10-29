@@ -11,12 +11,12 @@ permissions:
   security-events: write
 
 # Builds may not edit go.mod/go.sum, every module hash is checked against the
-# public checksum database, and no toolchain is downloaded behind our back
+# public checksum database, and the toolchain is exactly go.mod's toolchain line
 # (S-LOW-FRUIT Phase 10; the Makefile exports the same three).
 env:
   GOFLAGS: -mod=readonly
   GOSUMDB: sum.golang.org
-  GOTOOLCHAIN: local
+  GOTOOLCHAIN: go1.27.3
 
 jobs:
   go-build:
