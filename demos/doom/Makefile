@@ -80,7 +80,7 @@ ALL_OBJS = $(SUPPORT_OBJS) $(MBC_OBJS) $(IDDOOM_OBJS)
 all: doom.mbc
 
 translator:
-	cd ../../crates/monad-mbc && cargo build --release --bin rv32i-to-mbc
+	cd ../../crates/monad-mbc && cargo build --release --locked --bin rv32i-to-mbc
 
 doom.elf: $(ALL_OBJS)
 	@echo "[Link] $@"

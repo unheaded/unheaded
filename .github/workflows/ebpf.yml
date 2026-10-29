@@ -42,7 +42,7 @@ jobs:
 
       - name: Clippy
         working-directory: cmd/trace-collector
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --locked -- -D warnings
 
       - name: Format check
         working-directory: cmd/trace-collector
@@ -50,13 +50,13 @@ jobs:
 
       - name: Test
         working-directory: cmd/trace-collector
-        run: cargo test
+        run: cargo test --locked
 
       # The Wotan service-token crate trace-collector and ebpf-collector use
       # (ADR-103 §6). Its Go cross-check is tests/svctoken (Go CI job).
       - name: svc-token (clippy, format, test)
         working-directory: crates/svc-token
-        run: cargo clippy --all-targets -- -D warnings && cargo fmt -- --check && cargo test
+        run: cargo clippy --locked --all-targets -- -D warnings && cargo fmt -- --check && cargo test --locked
 
   ebpf-programs:
     name: eBPF Programs (Rust/Aya)

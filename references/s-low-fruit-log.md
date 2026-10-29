@@ -63,3 +63,11 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 
 - timeguru's five GET routes moved to `http.NewServeMux` method patterns (`newRouter()`); `services/timeguru/router_test.go`: POST → 405 + Allow on every route, GET routes to the right pattern, `/health/extra` → 404 (exact match as before). HEAD now answers on GET routes (ServeMux default; gorilla gave 405).
 - `go mod tidy`: only `github.com/gorilla/mux` left go.mod/go.sum. Direct modules 19 → 18. `check-dependency-baseline.sh --update` (595 packages), `check-sbom-trend.sh --update` go 150 → 149; THIRD_PARTY.md and sbom/SBOM.md rows removed.
+
+## Phase 10 — supply-chain controls (Steps 84-85, 85e, 85f, 85i)
+
+- Step 84: `go mod verify` → all modules verified; `cargo metadata --locked` ok for upc-bootctl, waf, trace-collector, ebpf, monad-mbc, svc-token, xv6-mbc, zhend, doom-runner, af-xdp (every lock current).
+- Step 85: `scripts/check-mod-integrity.sh` (go mod verify + go.mod/go.sum/26 tracked Cargo.lock as committed).
+- Step 85e: Makefile `export GOFLAGS := -mod=readonly`, `GOSUMDB := sum.golang.org`, `GOTOOLCHAIN := local`; same three in `ci.yml` `env:`. `scripts/check-go-env.sh` (also refuses GONOSUMDB/GOPRIVATE/-mod=mod). setup-go installs from `go-version-file: go.mod`; GOTOOLCHAIN=local only stops downloads, and the `go 1.26.0` line stays satisfiable. `make build-all` green under it.
+- Step 85f: `--locked` on 31 cargo invocations (30 measured + the doom/bootstub Makefiles' rv32i-to-mbc builds the gate found); `CARGO_BUILD_FLAGS := --release --locked`. Proven before the edit: `cargo build --release --locked -Z build-std=core -p monad-cpu-ebpf --features ascend-linux` and `cargo test --locked` (monad-mbc) work. `scripts/check-cargo-locked.sh`.
+- All three registered (`provoke_go_env`, `provoke_mod_integrity`, `provoke_cargo_locked`). E6: CI is disabled, so the ci.yml env proves nothing until it's re-enabled.

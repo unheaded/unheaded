@@ -832,6 +832,36 @@ provoke_ebpf_insns() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_go_env() {
+    # Contract (S-LOW-FRUIT Phase 10): builds pin GOSUMDB. Drop the export from the Makefile.
+    local f="Makefile"
+    backup "${f}"
+    sed -i '/^export GOSUMDB/d' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_mod_integrity() {
+    # Contract (S-LOW-FRUIT Phase 10): lock files are as committed. Change one go.sum hash in the working tree.
+    local f="go.sum"
+    backup "${f}"
+    sed -i '1s/h1:./h1:A/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_cargo_locked() {
+    # Contract (S-LOW-FRUIT Phase 10): every cargo build is --locked. Drop --locked from CARGO_BUILD_FLAGS.
+    local f="Makefile"
+    backup "${f}"
+    sed -i 's/^CARGO_BUILD_FLAGS := --release --locked/CARGO_BUILD_FLAGS := --release/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_netip() {
     # Contract (S-LOW-FRUIT Phase 8): the net.IP count never rises. Lower the
     # baseline by one, so today's count reads as one new use.
@@ -1039,6 +1069,9 @@ well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,
 check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo and west's kernel)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
+check-go-env|provoke_go_env|fast|export GOSUMDB removed from the Makefile
+check-mod-integrity|provoke_mod_integrity|fast|one go.sum hash changed in the working tree (runs go mod verify)
+check-cargo-locked|provoke_cargo_locked|fast|--locked dropped from the Makefile's CARGO_BUILD_FLAGS
 check-netip|provoke_netip|fast|the net.IP baseline lowered by one, so today's count reads as a new use
 check-sbom-trend|provoke_sbom_trend|fast|go_components baseline lowered by one, so today's modules read as one added (needs go)
 gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet, so no binary answers it (builds all 59; needs go)

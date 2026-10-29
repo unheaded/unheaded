@@ -15,12 +15,19 @@ NIX_DIR := nix
 # Version (read from git or default); every binary prints it for --version (ADR-111)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
+# Go build environment (S-LOW-FRUIT Phase 10): builds never edit go.mod/go.sum,
+# module hashes are checked against sum.golang.org, and the toolchain is the
+# one installed (go.mod pins it). CI sets the same three.
+export GOFLAGS := -mod=readonly
+export GOSUMDB := sum.golang.org
+export GOTOOLCHAIN := local
+
 # Go build flags
 GO_BUILD_FLAGS := -v -trimpath
 GO_LDFLAGS := -s -w -X unheaded/pkg/cmdline.Version=$(VERSION)
 
 # Rust/eBPF build flags
-CARGO_BUILD_FLAGS := --release
+CARGO_BUILD_FLAGS := --release --locked
 
 # Container registry (change for production)
 CONTAINER_REGISTRY := ghcr.io/unheaded
@@ -253,35 +260,35 @@ test-rust-ebpf-common: ## Run host-runnable tests in ebpf/{common,monad-common,p
 	@# collides with std on host.
 	@for crate in common monad-common pqc-common af-xdp-common; do \
 		echo "  $$crate:"; \
-		CARGO_TARGET_DIR=$(EBPF_HOST_TARGET_DIR) cargo test --quiet --manifest-path ebpf/$$crate/Cargo.toml || exit 1; \
+		CARGO_TARGET_DIR=$(EBPF_HOST_TARGET_DIR) cargo test --locked --quiet --manifest-path ebpf/$$crate/Cargo.toml || exit 1; \
 	done
 
 test-rust-svc-token: ## Run svc-token tests (EdDSA service tokens for the Rust Wotan clients, ADR-103)
-	cd crates/svc-token && cargo test
+	cd crates/svc-token && cargo test --locked
 
 test-rust-trace-collector: ## Run trace-collector tests
-	cd cmd/trace-collector && cargo test
+	cd cmd/trace-collector && cargo test --locked
 
 test-rust-upc-bootctl: ## Run upc-bootctl tests (ASCEND-LINUX)
-	cd cmd/upc-bootctl && cargo test
+	cd cmd/upc-bootctl && cargo test --locked
 
 test-rust-monad-mbc: ## Run monad-mbc tests (CPU/translator)
-	cd crates/monad-mbc && cargo test
+	cd crates/monad-mbc && cargo test --locked
 
 test-rust-xv6-mbc: ## Run xv6-mbc tests (ASCEND-LINUX kernel adapter)
-	cd crates/xv6-mbc && cargo test
+	cd crates/xv6-mbc && cargo test --locked
 
 test-rust-zhend: ## Run zhend tests (Layer 0 anti-fragile gossip substrate)
-	cd crates/zhend && cargo test --lib
+	cd crates/zhend && cargo test --locked --lib
 
 test-rust-doom-runner: ## Run doom-runner tests (Aya BPF runtime for Doom-on-Monad)
-	cd crates/doom-runner && cargo test
+	cd crates/doom-runner && cargo test --locked
 
 test-rust-ebpf-af-xdp: ## Run ebpf/af-xdp tests (excluded crate with own host config)
-	cd ebpf/af-xdp && cargo test
+	cd ebpf/af-xdp && cargo test --locked
 
 test-rust-shield: ## Run shield (cmd/waf) WAF rule-engine tests
-	cd cmd/waf && cargo test
+	cd cmd/waf && cargo test --locked
 
 test-e2e: ## Run E2E integration tests (auth, pipeline, security, message delivery)
 	@echo "Running E2E integration tests..."
@@ -502,8 +509,8 @@ lint: ## Lint all code
 	@echo "Linting Go code..."
 	golangci-lint run ./...
 	@echo "Linting Rust code..."
-	cd $(EBPF_DIR) && cargo clippy
-	cd cmd/trace-collector && cargo clippy
+	cd $(EBPF_DIR) && cargo clippy --locked
+	cd cmd/trace-collector && cargo clippy --locked
 	@echo "Checking haproxy configs..."
 	scripts/check-haproxy-cfg.sh
 
