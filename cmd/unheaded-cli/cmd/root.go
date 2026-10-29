@@ -139,6 +139,44 @@ type UsageError struct{ msg string }
 
 func (e *UsageError) Error() string { return e.msg }
 
+// globalFlagSet defines the root's global flags on ctx, with defaults from
+// config. -h and --help set *showHelp.
+func globalFlagSet(ctx *Context, config *Config, showHelp *bool) *flag.FlagSet {
+	fs := flag.NewFlagSet("global", flag.ContinueOnError)
+	fs.SetOutput(io.Discard) // Suppress default error output
+	fs.BoolVar(showHelp, "help", false, "Show help")
+	fs.BoolVar(showHelp, "h", false, "Show help (short)")
+	fs.StringVar(&ctx.OutputFormat, "output", config.Defaults.OutputFormat, "Output format: table, json, yaml, wide")
+	fs.StringVar(&ctx.OutputFormat, "o", config.Defaults.OutputFormat, "Output format (short)")
+	fs.BoolVar(&ctx.Verbose, "verbose", false, "Enable verbose output")
+	fs.BoolVar(&ctx.Verbose, "v", false, "Enable verbose output (short)")
+	fs.BoolVar(&ctx.Quiet, "quiet", false, "Suppress non-essential output")
+	fs.BoolVar(&ctx.Quiet, "q", false, "Suppress non-essential output (short)")
+	fs.BoolVar(&ctx.NoColor, "no-color", false, "Disable color output")
+	fs.StringVar(&ctx.Context, "context", config.CurrentContext, "Context to use")
+	return fs
+}
+
+// manSpec is the man page shape of the root: the long text and each
+// subcommand once (aliases share their command's entry).
+func (c *Command) manSpec() cmdline.Spec {
+	spec := cmdline.Spec{
+		Name:     "unheaded-cli",
+		Purpose:  strings.TrimSpace(c.Long),
+		Operands: "COMMAND [ARG]...",
+	}
+	seen := map[*Command]bool{}
+	for _, sub := range c.SubCommands {
+		if seen[sub] {
+			continue
+		}
+		seen[sub] = true
+		spec.Commands = append(spec.Commands, cmdline.Command{Name: sub.Name, Purpose: sub.Short})
+	}
+	sort.Slice(spec.Commands, func(i, j int) bool { return spec.Commands[i].Name < spec.Commands[j].Name })
+	return spec
+}
+
 // Execute runs the command with the given arguments.
 func (c *Command) Execute(args []string) error {
 	// Create context
@@ -154,25 +192,22 @@ func (c *Command) Execute(args []string) error {
 	}
 	ctx.Config = config
 
+	// --man renders from the defaults, not this user's config file, so the
+	// generated page is the same on every host.
+	if len(args) == 1 && cmdline.IsManArg(args[0]) {
+		var showHelp bool
+		cmdline.Man(os.Stdout, globalFlagSet(&Context{}, DefaultConfig(), &showHelp), c.manSpec())
+		return nil
+	}
+
 	// Check for help flag at the root level (no subcommand)
 	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h" || args[0] == "help") {
 		return c.showHelp(ctx)
 	}
 
 	// Setup global flags
-	globalFlags := flag.NewFlagSet("global", flag.ContinueOnError)
-	globalFlags.SetOutput(io.Discard) // Suppress default error output
 	var showHelp bool
-	globalFlags.BoolVar(&showHelp, "help", false, "Show help")
-	globalFlags.BoolVar(&showHelp, "h", false, "Show help (short)")
-	globalFlags.StringVar(&ctx.OutputFormat, "output", config.Defaults.OutputFormat, "Output format: table, json, yaml, wide")
-	globalFlags.StringVar(&ctx.OutputFormat, "o", config.Defaults.OutputFormat, "Output format (short)")
-	globalFlags.BoolVar(&ctx.Verbose, "verbose", false, "Enable verbose output")
-	globalFlags.BoolVar(&ctx.Verbose, "v", false, "Enable verbose output (short)")
-	globalFlags.BoolVar(&ctx.Quiet, "quiet", false, "Suppress non-essential output")
-	globalFlags.BoolVar(&ctx.Quiet, "q", false, "Suppress non-essential output (short)")
-	globalFlags.BoolVar(&ctx.NoColor, "no-color", false, "Disable color output")
-	globalFlags.StringVar(&ctx.Context, "context", config.CurrentContext, "Context to use")
+	globalFlags := globalFlagSet(ctx, config, &showHelp)
 
 	// Parse global flags from the beginning of args
 	if err := globalFlags.Parse(args); err != nil {
@@ -244,7 +279,7 @@ func (c *Command) executeWithContext(ctx *Context, args []string) error {
 	if c.Flags != nil {
 		c.Flags.SetOutput(io.Discard)
 		if err := c.Flags.Parse(args); err != nil {
-			return err
+			return &UsageError{fmt.Sprintf("%s\nTry '%s --help' for more information.", cmdline.Translate(err, args), c.fullPath())}
 		}
 		args = c.Flags.Args()
 	}

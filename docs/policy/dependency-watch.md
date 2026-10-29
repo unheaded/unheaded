@@ -25,7 +25,7 @@ Release dates are from `proxy.golang.org/<module>/@latest`, retrieved 2026-10-29
 | golang.org/x/crypto | v0.58.0 | v0.58.0 (2026-10-09) | 0 | crypto | Go team | none | keep |
 | golang.org/x/sys | v0.49.0 | v0.49.0 (2026-10-06) | 0 | kernel | Go team | none | keep |
 | golang.org/x/text | v0.43.0 | v0.43.0 (2026-10-09) | 0 | none | 4 callers (`cases`/`language`); transitively required by gRPC anyway | drop the direct import when touched; SBOM doesn't shrink | keep (transitive) |
-| golang.org/x/time | v0.16.0 | v0.16.0 (2026-08-19) | 2 | none | rate limiting | own token bucket ≈ 60 lines, 3 construction sites | **replace-by next sprint** (the next removal) |
+| golang.org/x/time | v0.16.0 | v0.16.0 (2026-08-19) | 2 | none | rate limiting (wotan, protocol-api, zhen-agentd: `NewLimiter`, `Allow`, `Tokens`) | own token bucket ≈ 60 lines, 3 sites; but anthropic-sdk-go's go.mod requires it too, so `go list -m all` (the SBOM count) keeps it until that module goes. Our code is its only importer: removal shrinks the build, not the SBOM | proposed: keep (Go team; the rewrite would sit on DoS-protection paths for no SBOM gain); revisit with anthropic-sdk-go's replace-by |
 | google.golang.org/grpc | v1.84.0 | v1.85.0 (2026-10-27) | 0 | network protocol | Wotan transport | none | keep |
 | google.golang.org/protobuf | v1.36.12 | v1.36.12 (2026-08-10) | 2 | wire decoding | gRPC messages | none | keep |
 | modernc.org/sqlite | v1.61.0 | v1.61.0 (2026-10-21) | 0 | parses SQLite files | kanban fallback store, pure Go (no cgo) | none | keep |
