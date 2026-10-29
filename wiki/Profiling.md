@@ -32,4 +32,6 @@ sudo scripts/bpf-profile.sh monad_cpu 10    # cycles, instructions, l1d_loads, l
 
 The program has to be loaded, for example inside the UPC boot recipe (`scripts/upc-netns.sh up`, then `upc-bootctl boot` in `upc0`). Some counters are missing inside VMs.
 
+A bpftool built without clang has no `prog profile` (west's doesn't). The script then reports the kernel's run statistics for the window instead (`kernel.bpf_stats_enabled`): runs, run time, ns per run. On west, 2026-10-29: `monad_cpu` 0.39 µs per tick over an 800,000-tick xv6 boot.
+
 See also: [[Observability-Backends]].
