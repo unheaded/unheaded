@@ -1,0 +1,36 @@
+.TH CERT\-GEN 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+cert\-gen \- Generate TLS certificates for the Unheaded service mesh.
+.SH SYNOPSIS
+.B cert\-gen
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Generate TLS certificates for the Unheaded service mesh.
+.SH OPTIONS
+.TP
+.B \-\-layout \fISTRING\fR
+flat (<out>/<svc>.pem) or per\-service (<out>/<svc>/<svc>.pem + ca.pem) (default flat)
+.TP
+.B \-\-out \fISTRING\fR
+Output directory for certificates (default ./certs)
+.TP
+.B \-\-reuse\-ca
+keep an existing <out>/ca.pem + ca\-key.pem instead of making a new CA
+.TP
+.B \-\-services \fISTRING\fR
+Comma\-separated service names (default: all)
+.TP
+.B \-\-ttl \fIDURATION\fR
+Certificate TTL (default 24h0m0s)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+cert\-gen \-out /etc/unheaded/certs
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

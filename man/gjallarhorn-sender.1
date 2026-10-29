@@ -1,0 +1,39 @@
+.TH GJALLARHORN\-SENDER 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+gjallarhorn\-sender \- Emit UPC trigger packets (Gjallarhorn) for Mímir's Law.
+.SH SYNOPSIS
+.B gjallarhorn\-sender
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Emit UPC trigger packets (Gjallarhorn) for Mímir's Law.
+.SH OPTIONS
+.TP
+.B \-\-cluster \fIN\fR
+cluster ID (default 1)
+.TP
+.B \-\-iface \fISTRING\fR
+network interface for multicast
+.TP
+.B \-\-kind \fISTRING\fR
+bootstrap | reverify (default bootstrap)
+.TP
+.B \-\-manifest \fISTRING\fR
+Mjölnir manifest pointer (hex) (default 0xCAFEBABE)
+.TP
+.B \-\-multicast
+multicast to local segment (bootstrap)
+.TP
+.B \-\-target \fISTRING\fR
+unicast target host (reverify)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+gjallarhorn\-sender \-\-kind bootstrap \-\-cluster 1 \-\-manifest 0xCAFE \-\-multicast
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

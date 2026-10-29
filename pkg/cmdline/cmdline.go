@@ -121,6 +121,10 @@ func ParseSet(fs *flag.FlagSet, spec Spec, args []string, stdout, stderr io.Writ
 	if fs.Lookup("V") == nil {
 		fs.BoolVar(&showVersionShort, "V", false, "output version information and exit")
 	}
+	var showMan bool
+	if fs.Lookup("man") == nil {
+		fs.BoolVar(&showMan, "man", false, "print the man page (roff) and exit")
+	}
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -132,6 +136,10 @@ func ParseSet(fs *flag.FlagSet, spec Spec, args []string, stdout, stderr io.Writ
 
 	if boolFlagSet(fs, "help") || boolFlagSet(fs, "h") {
 		Usage(stdout, fs, spec)
+		return 0, true
+	}
+	if showMan {
+		Man(stdout, fs, spec)
 		return 0, true
 	}
 	if showVersion || showVersionShort || boolFlagSet(fs, "version") || boolFlagSet(fs, "V") {
@@ -202,8 +210,7 @@ func Usage(w io.Writer, fs *flag.FlagSet, spec Spec) {
 	fmt.Fprintln(w, "Options:")
 	if fs != nil {
 		fs.VisitAll(func(f *flag.Flag) {
-			switch f.Name {
-			case "help", "h", "version", "V":
+			if hiddenFlag(f.Name) {
 				return
 			}
 			printFlag(w, f)
@@ -369,7 +376,7 @@ func countUserFlags(fs *flag.FlagSet) int {
 	n := 0
 	fs.VisitAll(func(f *flag.Flag) {
 		switch f.Name {
-		case "version", "V":
+		case "version", "V", "man":
 		default:
 			n++
 		}
@@ -383,8 +390,16 @@ const (
 )
 
 func printFlag(w io.Writer, f *flag.Flag) {
+	left, desc := flagRow(f)
+	printOption(w, left, desc)
+}
+
+// flagRow is one option as --help and the man page both show it: the
+// option with its placeholder, and the description with any non-zero
+// default appended. Sharing it keeps the two from drifting.
+func flagRow(f *flag.Flag) (left, desc string) {
 	name, usage := flag.UnquoteUsage(f)
-	left := "--" + f.Name
+	left = "--" + f.Name
 	if len(f.Name) == 1 {
 		left = "-" + f.Name
 	}
@@ -398,7 +413,17 @@ func printFlag(w io.Writer, f *flag.Flag) {
 		}
 		usage += fmt.Sprintf(" (default %s)", def)
 	}
-	printOption(w, left, usage)
+	return left, usage
+}
+
+// hiddenFlag reports flags that every binary gets from ParseSet and that
+// --help lists by hand (help, version) or not at all (man).
+func hiddenFlag(name string) bool {
+	switch name {
+	case "help", "h", "version", "V", "man":
+		return true
+	}
+	return false
 }
 
 // printOption prints one option row: left column padded to optColumn, the

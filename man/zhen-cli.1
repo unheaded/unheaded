@@ -1,0 +1,46 @@
+.TH ZHEN\-CLI 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+zhen\-cli \- Interactive terminal REPL for Zhenai: vor retrieval plus llama\-server inference (ADR\-059).
+.SH SYNOPSIS
+.B zhen\-cli
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Interactive terminal REPL for Zhenai: vor retrieval plus llama\-server inference (ADR\-059).
+.SH OPTIONS
+.TP
+.B \-\-history \fIN\fR
+user/assistant turn pairs kept in LLM context (default 6)
+.TP
+.B \-k \fIN\fR
+top\-K topics to retrieve per turn (default 5)
+.TP
+.B \-\-max\-tokens \fIN\fR
+llama\-server max_tokens (default 800)
+.TP
+.B \-\-max\-topic\-chars \fIN\fR
+per\-topic content cap (default 10000)
+.TP
+.B \-\-no\-color
+disable ANSI colour even on a tty
+.TP
+.B \-q \fISTRING\fR
+one\-shot question; print answer and exit (same as piping)
+.TP
+.B \-\-temperature \fINUM\fR
+sampling temperature (default 0.4)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+Backends come from the environment: VOR_URL, LLAMA_URL, ZHEN_AGENTD_URL, RAG_MODEL.
+.SH EXAMPLES
+.EX
+zhen\-cli
+zhen\-cli \-q 'what port does Akira use?'
+echo 'question' | zhen\-cli
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

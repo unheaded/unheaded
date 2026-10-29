@@ -1,0 +1,67 @@
+.TH HEIMDALL\-DAEMON 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+heimdall\-daemon \- Heimdall: watch this host for drift from the Mjölnir baseline and publish signed drift events; alerts only, never restores (ADR\-043).
+.SH SYNOPSIS
+.B heimdall\-daemon
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Heimdall: watch this host for drift from the Mjölnir baseline and publish signed drift events; alerts only, never restores (ADR\-043).
+.SH OPTIONS
+.TP
+.B \-\-allow\-unsigned
+load a manifest without verifying a seal (lab runs only)
+.TP
+.B \-\-bpf\-dir \fISTRING\fR
+directory with the heimdall\-bpf objects: attach vfs_write/execve hooks (event\-driven scans); needs CAP_BPF
+.TP
+.B \-\-cluster \fIN\fR
+this node's Gjallarhorn cluster ID; reverify horns for other clusters are ignored (default 1)
+.TP
+.B \-\-drift\-sign\-key \fISTRING\fR
+ML\-DSA\-65 seed (0600) that signs drift events; must not be the \-\-sign\-key or \-\-pubkey key
+.TP
+.B \-\-manifest \fISTRING\fR
+Path to Mjölnir manifest (default references/baseline/mjolnir.example.yaml)
+.TP
+.B \-\-metrics\-addr \fISTRING\fR
+serve GET /metrics here (drift publish counters, scan duration); empty disables (default 127.0.0.1:19101)
+.TP
+.B \-\-node\-id \fISTRING\fR
+Node identifier (defaults to hostname)
+.TP
+.B \-\-pubkey \fISTRING\fR
+ML\-DSA\-65 public key file: verify <manifest>.seal before trusting the manifest
+.TP
+.B \-\-publish\-queue \fIN\fR
+drift events held for Wotan before the oldest is dropped (default 256)
+.TP
+.B \-\-scan\-interval \fIDURATION\fR
+Baseline scan interval (default 30s)
+.TP
+.B \-\-sign\-key \fISTRING\fR
+sign \-\-manifest with this private key seed, write <manifest>.seal, exit
+.TP
+.B \-\-sign\-ttl \fIDURATION\fR
+how long a seal written by \-\-sign\-key stays valid (default 720h0m0s)
+.TP
+.B \-\-wotan\-grpc \fISTRING\fR
+Wotan gRPC address: publish each drift alert to drift.detected.<node\-id>, signed (UNHEADED_GRPC_TLS=1 for TLS)
+.TP
+.B \-\-xdp\-iface \fISTRING\fR
+attach the observe\-only Gjallarhorn XDP program here (needs \-\-bpf\-dir)
+.TP
+.B \-\-xdp\-mode \fISTRING\fR
+XDP attach mode: generic | native (default generic)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+heimdall\-daemon \-\-manifest /etc/unheaded/mjolnir.manifest.json \-\-pubkey /etc/unheaded/keys/mimir.pub
+heimdall\-daemon \-\-xdp\-iface eth0 \-\-drift\-sign\-key /etc/unheaded/keys/drift.key
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

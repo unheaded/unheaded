@@ -1,0 +1,45 @@
+.TH ZHEN\-RAG 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+zhen\-rag \- RAG glue between vor (cs cheatsheet API) and a local llama\-server.
+.SH SYNOPSIS
+.B zhen\-rag
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+RAG glue between vor (cs cheatsheet API) and a local llama\-server.
+.SH OPTIONS
+.TP
+.B \-k \fIN\fR
+number of top\-K topics to retrieve full content for (default 5)
+.TP
+.B \-\-max\-tokens \fIN\fR
+llama\-server max_tokens for the response (default 800)
+.TP
+.B \-\-max\-topic\-chars \fIN\fR
+per\-topic content cap; oversized topics are truncated to fit the context window (default 10000)
+.TP
+.B \-q \fISTRING\fR
+question (otherwise reads from stdin)
+.TP
+.B \-\-seed \fIN\fR
+llama\-server seed; nonzero pins sampling for reproducibility (combine with \-temperature 0 for greedy determinism)
+.TP
+.B \-\-show\-context
+print retrieved references before the answer
+.TP
+.B \-\-system\-prompt\-file \fISTRING\fR
+path to a file containing the system prompt; '' = built\-in default; '\-' = no system message at all (probe baseline)
+.TP
+.B \-\-temperature \fINUM\fR
+sampling temperature (0.0 = greedy) (default 0.4)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+zhen\-rag \-q 'how do I rotate the WireGuard PSK?'
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

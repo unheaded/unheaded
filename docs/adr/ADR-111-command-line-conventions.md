@@ -60,6 +60,11 @@ never the usage dump (`chown -?` is the reference transcript).
 
 ## Consequences
 
+- Man pages are generated natively by `pkg/cmdline.Man` from the same Spec and
+  flags as `--help` (hidden `--man`); `make man` writes `man/NAME.1`,
+  `scripts/gen-man.sh` checks them, and the .debs ship them gzipped
+  (S-LOW-FRUIT Phase 5). Binaries that dispatch on `args[0]` or bypass
+  `ParseSet` are listed in `docs/policy/man-missing-baseline.txt` (shrink-only).
 - `-h` now writes to **stdout** (it wrote to stderr before). One test
   (`cmd/unheaded-keygen`) was updated for this; scripts that captured
   `--help` from stderr need the same change.

@@ -1,0 +1,40 @@
+.TH LICH\-MCP 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+lich\-mcp \- Serve the Lich red\-team tools over MCP stdio behind the Champion gate, confined to local sandboxes.
+.SH SYNOPSIS
+.B lich\-mcp
+[\fIOPTION\fR]...
+[COMMAND]
+.SH DESCRIPTION
+Serve the Lich red\-team tools over MCP stdio behind the Champion gate, confined to local sandboxes.
+.SH COMMANDS
+.TP
+.B confirm
+out\-of\-band approval CLI for gated tool calls
+.TP
+.B drive
+drive the server from Claude
+.SH OPTIONS
+.TP
+.B \-\-config \fISTRING\fR
+path to the Lich MCP server policy (scope, limits, kill switch) (default configs/lich\-mcp.yaml)
+.TP
+.B \-\-emitted\-by \fISTRING\fR
+audit identity for the caller driving these tools (default lich\-mcp/stdio)
+.TP
+.B \-\-project\-root \fISTRING\fR
+checkout root; defaults to $PWD
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+lich\-mcp \-\-config configs/lich\-mcp.yaml
+lich\-mcp confirm \-\-help
+lich\-mcp drive \-\-help
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

@@ -1,0 +1,25 @@
+.TH UNHEADED\-DAEMON 1 "2026-10-29" "unheaded 0.1.0-alpha (commit: dev, built: unknown)" "Unheaded Kingdom"
+.SH NAME
+unheaded\-daemon \- Run the Cuirass: the Unheaded control plane and reconciliation engine.
+.SH SYNOPSIS
+.B unheaded\-daemon
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Run the Cuirass: the Unheaded control plane and reconciliation engine.
+.SH OPTIONS
+.TP
+.B \-\-config \fISTRING\fR
+Path to configuration file
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+unheaded\-daemon
+unheaded\-daemon \-\-config /etc/unheaded/daemon.yaml
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

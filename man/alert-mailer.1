@@ -1,0 +1,35 @@
+.TH ALERT\-MAILER 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+alert\-mailer \- Send alert mail for Alertmanager page and ticket routes; the only mailer in the Kingdom (ADR\-100).
+.SH SYNOPSIS
+.B alert\-mailer
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Send alert mail for Alertmanager page and ticket routes; the only mailer in the Kingdom (ADR\-100).
+.SH OPTIONS
+.TP
+.B \-\-addr \fISTRING\fR
+listen address (default :19130)
+.TP
+.B \-\-heartbeat\-addr \fISTRING\fR
+heartbeat listen address (used only when HEARTBEAT_HOSTS is set) (default :19131)
+.TP
+.B \-\-policy \fISTRING\fR
+observability/alerting/policy.yaml (default /etc/alert\-mailer/policy.yaml)
+.TP
+.B \-\-state\-dir \fISTRING\fR
+where state.json lives (cap, tickets, outbox) (default /var/lib/alert\-mailer)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+Relay settings come from the environment: SMTP_SMARTHOST, SMTP_USERNAME, SMTP_PASSWORD.
+.SH EXAMPLES
+.EX
+alert\-mailer \-\-policy observability/alerting/policy.yaml
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

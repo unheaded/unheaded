@@ -29,3 +29,10 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 - Step 30: `systemd-analyze verify` on all 39: no errors beyond binaries not installed on west.
 - Step 36: `scripts/check-unit-ceilings.sh` OK (22 Go units). Registered (`provoke_unit_ceilings`).
 - **Steps 31-35 BLOCKED (E3, attended):** installed on west and now different from the repo: huginn, unheaded-baseline, unheaded-chaos-controller, unheaded-kev-poller, unheaded-trace-collector (and unchanged ones). Install + restart + `systemd-analyze security` table wait for Stevie.
+
+## Phase 5 — native man pages
+
+- `pkg/cmdline/man.go`: `Man(w, fs, spec)` → roff (.TH with SOURCE_DATE_EPOCH, NAME, SYNOPSIS, DESCRIPTION, COMMANDS, OPTIONS, EXIT STATUS or NOTES, EXAMPLES, SEE ALSO). `--help` and the page share `flagRow`. Hidden `--man` in `ParseSet` (not in `--help`, not counted for `[OPTION]...`). Tests: sections, bare spec, details → NOTES, hostile text (leading `.`/`'`, `\`, `-`), `--man` via ParseSet. `go test -race ./pkg/cmdline` ok; `groff -man -ww` no warnings on akira's page.
+- 39 of 59 binaries answer `--man` → `man/*.1` (`make man`). 20 don't (subcommand dispatchers, or mains not on ParseSet): `docs/policy/man-missing-baseline.txt`, shrink-only. `scripts/gen-man.sh` checks by default (ignores the .TH line, which moves with each commit), `--write` regenerates; registered (`provoke_gen_man`).
+- `.deb`s install `man/NAME.1` gzipped (`gzip -9n`) via `install_man` in `build-all-debs.sh`.
+- **Finding (ADR-111 gap, not fixed here):** kev-poller, steel-echo, upc-cartridgectl, zhen-claude and zhen-eval answer an unknown option with Go's raw `flag provided but not defined` + full usage dump instead of one line + hint. `pkg/cmdline/policy_test.go` doesn't catch them. Candidate for the man-baseline burn-down.

@@ -1,0 +1,91 @@
+.TH PERF\-BENCHMARK 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+perf\-benchmark \- Run the Unheaded performance benchmark suite or one named scenario.
+.SH SYNOPSIS
+.B perf\-benchmark
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Run the Unheaded performance benchmark suite or one named scenario.
+.SH OPTIONS
+.TP
+.B \-\-allow\-lxd
+container\-start: allow creating and deleting LXD instances through Cuirass (host window only)
+.TP
+.B \-\-commit \fISTRING\fR
+report commit (default: build info, then git rev\-parse HEAD)
+.TP
+.B \-\-concurrency \fIN\fR
+http\-load: workers (default 64)
+.TP
+.B \-\-cs\-image \fISTRING\fR
+container\-start: image to start (default steel\-echo\-v1)
+.TP
+.B \-\-cs\-timeout \fIDURATION\fR
+container\-start: longest wait for one instance to turn healthy (default 2m0s)
+.TP
+.B \-\-cuirass \fISTRING\fR
+container\-start: Cuirass base URL (key in CUIRASS_API_KEY) (default http://127.0.0.1:19006)
+.TP
+.B \-\-curl \fISTRING\fR
+http3: curl binary (default curl)
+.TP
+.B \-\-dashboard \fISTRING\fR
+e2e\-trace: dashboard\-backend base URL (default http://localhost:20000)
+.TP
+.B \-\-duration \fIDURATION\fR
+http\-load: how long to hold the rate (default 1m0s)
+.TP
+.B \-\-e2e\-timeout \fIDURATION\fR
+e2e\-trace: longest wait for one event (default 5s)
+.TP
+.B \-\-e2e\-topic \fISTRING\fR
+e2e\-trace: Wotan topic the bench packet is published on (dashboard\-backend ingests it) (default bench.perf.packet)
+.TP
+.B \-\-east\-p2p \fISTRING\fR
+EAST P2P IPv4 address (default 192.168.13.1)
+.TP
+.B \-\-east\-wg \fISTRING\fR
+EAST WireGuard IPv6 address (default fd00:dead:beef::1)
+.TP
+.B \-\-health \fISTRING\fR
+Health endpoint URL (default http://localhost:19000/health)
+.TP
+.B \-\-http3\-insecure
+http3: skip TLS verification (self\-signed gateway)
+.TP
+.B \-\-http3\-url \fISTRING\fR
+http3: URL fetched over HTTP/3 (default https://localhost:21443/health)
+.TP
+.B \-\-iterations \fIN\fR
+Number of iterations per test (default 50)
+.TP
+.B \-\-output \fISTRING\fR
+JSON output file (default benchmark\-results.json)
+.TP
+.B \-\-poll \fIDURATION\fR
+e2e\-trace/container\-start: re\-read interval while waiting (default 5ms)
+.TP
+.B \-\-rate \fIN\fR
+http\-load: requests per second (default 1000)
+.TP
+.B \-\-scenario \fISTRING\fR
+Comma\-separated scenarios: e2e\-trace, container\-start, http\-load, http3, all (empty: the original suite)
+.TP
+.B \-\-wotan \fISTRING\fR
+Wotan HTTP endpoint (default http://localhost:18000)
+.TP
+.B \-\-wotan\-name \fISTRING\fR
+e2e\-trace: Wotan display name (must be in topics.auto_approve) (default perf\-benchmark)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+perf\-benchmark
+perf\-benchmark \-scenario e2e \-output results.json
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

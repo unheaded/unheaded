@@ -1,0 +1,31 @@
+.TH SHIELD 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+shield \- Run Shield, the Kingdom's WAF / Zero\-Trust gateway daemon.
+.SH SYNOPSIS
+.B shield
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Run Shield, the Kingdom's WAF / Zero\-Trust gateway daemon.
+.SH OPTIONS
+.TP
+.B \-\-port \fIN\fR
+HTTP port to bind (default 19009)
+.TP
+.B \-\-shutdown\-timeout \fIDURATION\fR
+graceful shutdown deadline (default 10s)
+.TP
+.B \-\-wotan\-grpc \fISTRING\fR
+Wotan gRPC address (default 127.0.0.1:18001)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXAMPLES
+.EX
+shield
+shield \-\-port 19007
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

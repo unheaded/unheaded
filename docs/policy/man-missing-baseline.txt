@@ -1,0 +1,24 @@
+# Binaries that do not answer --man yet (S-LOW-FRUIT Phase 5).
+# Shrink-only: scripts/gen-man.sh fails on a new binary missing from the
+# pages AND on a listed binary that now answers (remove it here).
+# Dispatchers (subcommand on args[0]) and mains that bypass cmdline.ParseSet.
+cask-verify
+chaos-controller
+crypto-inventory
+doom
+doom-cpu-dump
+doom-loader
+kev-poller
+steel-echo
+unheaded-auth
+unheaded-cli
+unheaded-keygen
+unheaded-remediate
+upc-cartridgectl
+well-migrate
+well-retention
+wotan-ctl
+yggdrasil-evidence
+zhen-claude
+zhen-eval
+zhen-flywheel

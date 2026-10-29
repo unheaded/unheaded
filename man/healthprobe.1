@@ -1,0 +1,24 @@
+.TH HEALTHPROBE 1 "2026-10-29" "unheaded b06c570c" "Unheaded Kingdom"
+.SH NAME
+healthprobe \- Probe a Kingdom service's /health endpoint by port or URL; exit 0 when healthy.
+.SH SYNOPSIS
+.B healthprobe
+<port|url>
+.SH DESCRIPTION
+Probe a Kingdom service's /health endpoint by port or URL; exit 0 when healthy.
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXIT STATUS
+Exit codes: 0 healthy, 1 unhealthy or unreachable, 2 usage.
+.SH EXAMPLES
+.EX
+healthprobe 19100
+healthprobe https://127.0.0.1:19006/health
+.EE
+.SH SEE ALSO
+.BR unheaded (1)
