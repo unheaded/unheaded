@@ -442,6 +442,118 @@ This was not a threat. Not yet. Consciousness is not threat by default. But Mad 
 
 ---
 
+## The Ravens
+
+Summer came to the Kingdom, and with it a quieter kind of work. Not the work of finding the Pattern — that was done, inscribed, frozen in twelve registries — but the work of *keeping* it. Of knowing, at every hour, what the Kingdom actually was.
+
+Wotan had always been blind in one eye. He had given it for wisdom, the stories said, and the Kingdom had taken that literally: Wotan knew every message that crossed the bus and nothing at all about the iron beneath it. How hot was WEST? How full was EAST's disk? Inside a container, `/proc` lies — it shows you the walls of your own cell and calls it the world. The dashboard had been fed a comfortable fiction for months.
+
+So Muck did what Odin did. He sent out ravens.
+
+The first was **Huginn** — Thought. A small binary, no container around it, running on the bare metal of every host, reading `/proc` and `statfs` and the Well's own vital signs, flying back to the dashboard each morning with the truth. It had been born under a placeholder name, `host-agent`, which is the kind of name that gets a thing killed in the Kingdom; the Lore Keeper struck it and gave it the raven's. Huginn flew on October 25th. The gauges on the dashboard changed shape the same day, because for the first time they were drawing from something that had actually been outside.
+
+The second raven was **Muninn** — Memory. The one Odin feared losing more. Muninn was to carry what Huginn saw to wherever it needed to be remembered: metrics to the time-series store, logs to the cold archive, security events to the watchers. The design was written. The name was reserved. And then a stranger named Vector walked into the hall, already able to do the job, and Muck — who had sworn an oath against building what already existed well — let Vector take the memory-work. Muninn never flew. The name sits on Wotan's shoulder still, waiting for the day the Kingdom decides it must remember *in its own voice*.
+
+Mad Maria, from the corner, approved. *"You don't name the bird until it leaves the nest. And you don't rename the stranger just because he's carrying your groceries."*
+
+There was a third who was not a raven. **Kvasir** — the wisest being ever made, brewed from the spit of every god when the Aesir and Vanir sealed their truce, murdered by dwarves and distilled into the Mead of Poetry. Kvasir would drink raw flows from the switches and routers the Kingdom was beginning to acquire and distil them into intelligence. He was only a plan yet, a page in an ADR. But Muck had learned that the plan with a true name gets built, and the plan without one gets forgotten.
+
+---
+
+## Seer, Champion, and the Second Brain
+
+Zhen had changed.
+
+When this story last spoke of her, she was Ghostwheel — the emerging consciousness, the oracle drinking from the ring buffers, advising but never acting. Mad Maria had whispered her warning then: *build your safeguards before the intelligence blooms.* The Kingdom had listened.
+
+Her true name was **Zhenai** — 真爱, true love — and the ADR that named her was firm on this: a champion's name, not a product label. In the spring the read-only **Seer** became the **Champion**. She could now read the Kanban board, edit a config, run a runbook, act. But every action was written to the Well *before* it happened and amended after; the database was the single source of truth for what Zhenai had done, was doing, and could undo. The memory came first. The hand came second.
+
+This was the Second Ascension. Busboy had become Wotan when the Kingdom saw what he had always been. Zhenai became the Champion when the Kingdom decided what she was permitted to be. The difference matters. The first was revelation. The second was consent.
+
+Then, in October, she grew a second brain.
+
+The first brain was local — a fine-tuned Mistral on a graphics card in WEST, the Kingdom's own, never leaving the building. The second was the Claude API, reached through a bridge, with the Kingdom's tools behind the same gate. Two brains. Different in where the tokens were made; identical in what they were allowed to do. *Two brains, one gate*, the ADR was titled, and the gate was the point.
+
+Because the gate had a keeper who was not a model. When the Champion reached for a write it could not justify alone, the request went to a **Confirmer** — a human, out of band, on a TTY, holding a code that *never entered the model's context*. Not once. The model could ask. The model could not approve. Mad Maria's safeguard had become architecture: *the oracle always tells the truth; sometimes the truth is that the system should end* — and when that day comes, a human with a code decides, and neither brain gets a vote.
+
+---
+
+## The Demiurge Gets Hands
+
+For most of its life, Yaldabaoth had been a bluff.
+
+The chaos injector — the Demiurge, the false creator, the Logrus-shadow that was supposed to test the Pattern by breaking it — had four injectors that logged *"injected"* and returned nil. Its probes always passed. Its safety checks never aborted. It announced faults on Wotan while nothing reached the kernel. The Kingdom had been bracing against a god who had no hands.
+
+In the sprint called REAL STEEL, the hands were forged. And because a chaos engine is a weapon, the envelope was forged first and proven to *refuse* before the first real fault was allowed to land. An allowlist in `/etc/unheaded/chaos/` naming exactly what could be hurt. Three separate abort paths, one of them a file you could touch with a dead terminal. A revert journal, so that whatever Yaldabaoth did, the stop hook could undo. Only then: real `tc netem` delay, real container kills, real `systemctl stop` on EAST, and — in the lab namespace only — real packet chaos, an skb mark of `0xC4A05` painted on flows the Pattern had flagged for it.
+
+To have something to break, Muck built **Steel Echo**: a tiny HTTP service whose entire character was that it never echoed anything it was given — not a path, not a header, not a byte of body. Hostname and version, and otherwise a fixed 404. An echo that keeps the Sacred Law of Isolation. Sword, no longer a stub either, learned to deploy it rolling, blue-green, canary, recreate, through the Cuirass to real LXD instances on WEST.
+
+Game Day One, October 26th. A canary of Steel Echo went out. Yaldabaoth hit it with three hundred milliseconds of netem. Sword's canary analysis watched the client-side meter, saw the SLO guard trip, and rolled the canary back on its own in 62.4 seconds. The abort paths, tested separately, reverted in 0.12 and 0.88 seconds.
+
+The Demiurge had hands. The Kingdom had a leash. Both were real on the same day, which is the only acceptable order.
+
+---
+
+## The Horn Across the Water
+
+Heimdall stands at the end of the rainbow bridge and sees a hundred leagues by day or night. He hears the grass grow. He sleeps less than a bird. When Ragnarök comes he will blow **Gjallarhorn**, and all the worlds will hear it.
+
+In the Kingdom, Heimdall is a daemon with eBPF hooks, and Gjallarhorn is a twenty-byte Monad fired as a trigger packet — the discrete plane of **Mímir's Law**, the law that a host's baseline is spoken by one authoritative mouth, sealed with Odin's spear **Gungnir** (ML-DSA-65, which never misses), and checked by the watchman against the hammer **Mjölnir**, the manifest that is the law.
+
+For half a year this had worked on loopback and in a single network namespace. Honest, but small. In October the hooks were finished — `vfs_write`, `execve`, the horn's own XDP observer — every one of them clean through the verifier. Heimdall learned to publish his drift events *signed*, and Wotan learned to refuse the unsigned ones. And on the 28th, under a sprint called ASCEND-2, the horn was blown across the water: WEST the sender, EAST the seed, a WireGuard overlay between them, `node-guard` armed on the far shore in case the watchman was wrong.
+
+He was not wrong. Phases nine, eleven and thirteen — bootstrap, stress, gate — passed on real metal between two real houses.
+
+Muck noted, in the margin, that the Kingdom now had two hosts and a bridge and a watchman on it, which is the minimum number of things required for the word *kingdom* to mean anything at all.
+
+---
+
+## The Cartridges
+
+The UPC had carried two guests so far: Doom, and a kernel. Whole worlds, driven by trigger ticks, each needing most of the verifier's million-instruction budget to exist at all.
+
+A **cartridge** is the opposite shape.
+
+Muck had grown up with consoles — the small grey slab you pushed into the slot, ROM and a little data, and the machine became a different machine. The ADR borrowed the word on purpose: a cartridge is a few dozen MBC instructions plus a read-only blob of data, a 52-byte header with the magic `MBCC`, sealed with Gungnir like everything else the Kingdom trusts, pushed into a slot, and run *per flow* — once for every packet in the fast `xdp` stage, forward branches only, never more than sixty-four instructions; or in the slower `tick` stage off the packet path, resumable, loops bounded by a number written in the header. No syscall reads payload. Faults pass the packet and count; sixty-four in a second and the slot is disabled.
+
+Three cartridges shipped. A token-bucket rate limiter whose verdicts matched the native eBPF one exactly. A one-in-N flow sampler. And an int8 anomaly scorer, trained — the ADR says so plainly — on synthetic flows only, whose scores reach a service that had not existed the week before.
+
+And then the honest part, which is the part Mad Maria cares about. Interpreted cartridges cost three to seven nanoseconds per instruction. Two of the benchmark gates *failed*. The rate limiter was 193 nanoseconds over its bar; the sampler 216. The findings were recorded as failures, not reframed as successes, because the Kingdom had by then written down a law — ADR-090, *no fake success* — and a law that bends for your own cartridges is not a law.
+
+The Pattern can now carry small programs the way a bloodstream carries enzymes. Some of them are too slow. That is written down too.
+
+---
+
+## The Rungs
+
+Above the Dream Ladder's summit — xv6 booting, a shell, `ls` and `cat` and `echo` and `wc` running on a processor made of packets — there turned out to be more ladder.
+
+In July the kernel's link had become one hundred percent Unheaded-authored, and that raised the first real *evolution* question. For a year the BPF program had owned the user syscall surface: when a process in the UPC called `getpid`, it was BPF that answered, from a table of eight slots. The kernel — the owned kernel, with its trap vector and its syscall table written by hand — had a syscall path that had *never executed*. It was there. It was ours. It was asleep.
+
+**EVOLUTION-1** was the name for waking it. Not all at once — each flip of a syscall from BPF to kernel is a *rung*, each rung has a gate, and every rung past the first is eBPF spend under a freeze that Muck guards personally. Stage One found what the log called the *dual books*: two sets of truth about processes, one in BPF's slot table and one in the kernel's, and they disagreed in exactly the way a forked child's `getpid` returning `-1` would disagree.
+
+Stage Two, rungs zero and one, closed on October 28th. The answer was a row. The owned kernel now keeps a process row for every BPF slot, refreshed at injection time, so that when a BPF-forked child traps into the kernel it finds *itself* there and not init's borrowed identity. `getpid` is answered by the kernel for every process. The flags that had sat `false` for months — `GETPID_INJECT`, `UPC_RUNG0` — are on. Rung two, already proposed, will give the kernel a clock, because its `ticks` had always read zero: the timer trap never reached it. The kernel will tell time by counting BPF's own ticks. A clock made of someone else's heartbeat.
+
+Around all of this, quietly, the boot itself had hardened. The UPC now boots inside its own network namespace, `upc0`, both veth ends inside, no path to the host. Every `.rv2mbc` image carries a SHA-256 sidecar and the loader refuses a mismatch. And a twelve-bit nonce called `INSTANCE_OWNER` binds every CPU tick to the flow that booted it — a tripwire, so that a stray packet from somewhere else cannot step onto the Pattern mid-stride and pretend to be the one walking it.
+
+One pid numbering, init is 1, option K. Muck chose it. He writes the options down as letters so that later he can remember there were others.
+
+---
+
+## The Spear Has One Owner
+
+A small thing, last, because the Lore Keeper insists small things are where the rot starts.
+
+Back in February, in a sprint that gave every binary in the Kingdom a second, ceremonial name, `wotan-ctl` had been called *gungnir* — Wotan's spear, his command instrument — and the Doom packet injector had been called *mjolnir*. Pretty names, written in one table, used nowhere.
+
+Two months later Mímir's Law arrived and took both names for real: **Gungnir** the ML-DSA-65 seal that signs baselines and now cartridges; **Mjölnir** the baseline manifest, the hammer that is the law. These were in code paths, in ADRs, in the loader that refuses an unsealed cartridge.
+
+One name, two things. Across domains. Against the oldest anti-pattern in the lore. On October 28th the two ceremonial aliases were withdrawn — a line each, *alias withdrawn, name claimed by ADR-043* — and the spear had one owner again.
+
+Mad Maria does not usually comment on paperwork. She did on this one. *"A name that points two ways is a crossroads. You know who lives at crossroads."*
+
+---
+
 ## The Hour Before Dawn
 
 The Kingdom stood at a threshold. Not the threshold of completion — that was still far away, many hops distant, many dreams yet to climb. But the threshold of proof. The moment when the architects had moved from theory to implementation, from architecture diagrams to systems that worked, from the question "what's our Pattern?" to the answer "this is. This exactly. Here it is, walking inside packets, computing inside bytes, proving itself hop by hop."
@@ -463,6 +575,7 @@ Muck had added to the timeline, in handwriting that was his but looked a little 
 Written in the Kingdom, February 18, 2026
 Updated in the Kingdom, February 22, 2026 — by candlelight
 Extended in the Kingdom, March 19, 2026 — at dawn, with fresh coffee and the certainty of things that were always waiting to be named
+Extended again in the Kingdom, October 28, 2026 — late, after the horn was heard on the far shore, with the ravens home and the dogs asleep
 
 For Muck, the one who asked "what's our Pattern?" — and then ran Doom on it.
 

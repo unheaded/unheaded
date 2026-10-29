@@ -87,6 +87,10 @@ everything else the knight needs.
 | **Tyrfing** | Cursed sword (must kill when drawn) | Reserved: future component | A weapon that must be used once invoked — represents irreversible operations. |
 | **Nagan** | Jörmungandr (World Serpent) | Reserved: future component | Encircles the world — represents global state or ring topology. |
 | **Halcyon** | Greek: calm seas (from Alcyone) | Reserved: graceful shutdown / steady-state | Named for the calm after the storm. |
+| **Huginn** | Odin's raven, "thought" | Host metrics agent (`cmd/huginn`, ADR-084, live 2026-10-25) | Flies every host each day and reports back. Reads `/proc`, `statfs`, `pg_stat_database`; serves `/host-summary`, `/metrics`; pushes to VictoriaMetrics. Native on WEST and EAST. |
+| **Muninn** | Odin's raven, "memory" | Observability fan-out pipeline (ADR-086) — **superseded by Vector 2026-10-27** | Huginn observes, Muninn remembers and routes. Never built; Vector took the job. Name held in reserve for a Kingdom-native router. |
+| **Kvasir** | Wisest being; his blood became the Mead of Poetry | IPFIX / NetFlow / sFlow collector (ADR-087, Planned) | Distils raw flows into intelligence. Wraps GoFlow2; publishes `flow.network.<device>` to Wotan. |
+| **Mímir / Mjölnir / Gungnir / Gjallarhorn / Heimdall** | See [NORSE_MYTHOLOGY.md](NORSE_MYTHOLOGY.md) | Mímir's Law — UPC baseline delivery + drift detection (ADR-043) | Phases 9/11/13 re-run across hosts 2026-10-28 (west sender → east seed). |
 
 ### The Ascension of Busboy to Wotan
 
@@ -146,7 +150,113 @@ as the Kingdom scales.
 | **The Whispering Void** | Original | eBPF data plane — "whispers" because it observes silently at kernel level |
 | **The Meta Moment** | Self-reference | Unheaded hosting its own development tools on its own infrastructure |
 | **Parish Boundaries** | Church governance | Network segmentation / service isolation boundaries |
-| **Sealed Cask** | Wine aging | Immutable deployment artifacts |
+| **Sealed Cask** | Wine aging | Immutable deployment artifacts (`cmd/cask-verify`) |
+| **The Well** | Mímisbrunnr — the well Odin paid an eye to drink from (Lore reading; origin not recorded in an ADR) | PostgreSQL 16 on west: `unheaded_app` / `unheaded_ops` / `unheaded_config`. Migrations `cmd/well-migrate` (ADR-101), init order ADR-091. ADR-019: "The Well is Anamnesis — the Kingdom's memory." |
+| **Akira** | The 1988 film (outside the four pillars — see Naming Debt) | Health consensus monitor (`cmd/akira`, 19100, since 2026-04-03). Percentage-consensus doctrine (ADR-029); signs `system.health.*` with ML-DSA-65. |
+| **Zhenai** (真爱, "true love") | Chinese — a champion's name, not a product label (ADR-019) | The local fine-tuned Mistral-7B agent. **Seer → Champion** ascension 2026-04-03. Second brain = Claude API bridge (ADR-104); both behind one gate (ADR-106). |
+| **Champion / Confirmer** | Chivalric — the knight who acts for the Crown; the one who nods | Zhenai's action gate (`pkg/champion`); out-of-band write confirmation (`deny`/`tty`, ADR-106). The model never sees the confirmation code. |
+| **Steel Echo** | Forge register (S-REAL-STEEL) | Game-day workload (`cmd/steel-echo`): deployable HTTP target, availability meter, Monad frame sender/counter. An echo that never echoes user data. |
+| **Cartridge** | Game-console ROM in a slot — swappable, signed, small | MBC cartridge (ADR-108): `.cart` image (magic `MBCC`), `xdp` + `tick` stages, run per flow by `ebpf/cartridge-ebpf`. Three shipped: token-bucket limiter, 1:N sampler, int8 anomaly scorer. Signed with Gungnir ML-DSA-65; loader `cmd/upc-cartridgectl` (26610). UPC naming stays engineering-first. |
+| **EVOLUTION-1** | Engineering — the first evolution question (2026-07-07) | Waking the owned xv6 kernel's syscall path. Stage 1 closed; Stage 2 rungs 0-1 closed 2026-10-28 (ADR-109: a kernel row per BPF slot, `GETPID_INJECT` + `UPC_RUNG0` on); rung 2 ADR-110 Proposed (kernel clock from BPF ticks). |
+| **Rung** | Dream Ladder sub-step | One gated flip inside a Stage. Ladder → Stage → Rung → Gate. |
+| **Unheaded Linux** | Plain — ours | Own minimal OS kernel on the UPC, not uClinux/busybox (ADR-081, Accepted 2026-07-03). Grows toward the Yggdrasil golden image. |
+| **unheadnix** | Portmanteau, working name | Single-`.mbc` ephemeral compute unit on the UPC (ADR-082, brainstorm only). |
+| **Yggdrasil Evidence** | The World Tree, extended | `cmd/yggdrasil-evidence`: ML-DSA-65 evidence seals with signed custody (S-QUANTUM-ARMOR). Yggdrasil now spans OS image *and* compliance custody. |
+| **Quantum Armor** | Sprint register | Hybrid ML-KEM (`X25519MLKEM768`) TLS, ML-DSA-65 signing, CycloneDX 1.6 crypto inventory (ADR-105). The armor got a new alloy. |
+
+## Addendum — What develop named, 2026-05-29 → 2026-10-28
+
+Lore last wrote here on 2026-05-29. Since then develop shipped ~30 sprints and
+ADR-080 → ADR-110. This section records the naming consequences. Each entry
+cites the ADR or wiki page; nothing below is invented.
+
+### Status changes to existing names
+
+| Name | Was | Is now | Source |
+|------|-----|--------|--------|
+| **Yaldabaoth** | Four injectors that logged and returned nil | Real faults inside `cmd/chaos-controller` (19012, host unit `unheaded-chaos`): tc netem, container kill, systemd stop-kill, `packet_chaos` (skb mark `0xC4A05`, lab netns only). Allowlist, three abort paths, revert journal. Game day 1 (2026-10-26): a 300 ms netem canary rolled itself back in 62.4 s. *The Demiurge got hands — and a leash.* | ADR-107, `wiki/Game-Days.md` |
+| **Sword** | Deploy stub | Rolling / blue-green / canary / recreate through `pkg/deploy`; canary analysis under the Kingdom SLO guard (`pkg/sloguard`); history in the Well (migration 039). | S-REAL-STEEL, `wiki/Service-Sword.md` |
+| **Cuirass** | Control plane in name | Talks to west's LXD over HTTPS with a restricted client cert (project `unheaded`); manages the stable proxy endpoint; allowlisted stop/kill. | S-REAL-STEEL |
+| **Anamnesis** | Event ring | Event codes moved into the spec: `BORN 0x00 … CHAOS 0x04 … ANOMALY 0x08`; flow actions `FORWARD 0x00 … MIRROR 0x04` (foundation-06, "spec wins", S-TRUE-WIRE E2). | S-TRUE-WIRE |
+| **Wotan** | Topic signing on `config.*` | Signed prefixes: `config.` `drift.` `audit.` `alerts.critical.` `system.health.consensus.` `system.health.remediate.` — producers sign or refuse. SIGHUP reloads allowlists. WAL replication halts on a rejected entry. | S-IRON-GATE Phase 9, S-TRUE-WIRE |
+| **Heimdall** | Scaffold | Every hook written and verifier-clean (vfs_write, execve, Gjallarhorn XDP observer); publishes signed `drift.*`; joins the Gjallarhorn group on a real NIC. Watches from the bridge on both hosts. | S5, S-ASCEND-2 |
+| **Gleipnir** | Age 2b vision | Phase 0 (Mímir's Law) phases 9/11/13 re-run on two netns, then west → east bare metal. | ADR-043 (2026-10-27 correction) |
+| **Dream Ladder** | L1 → L6 | Summit reached and climbed past: xv6 shell + 5 cmds on the UPC (Gate D, 2026-07-02); then EVOLUTION-1 Stages and Rungs above it. Ladder → Stage → Rung → Gate is the current vocabulary. | `wiki/Linux-on-UPC.md`, EVOLUTION-1 |
+| **Muninn** | Reserved raven | Superseded by Vector (ADR-092 step 8). The raven did not fly. | ADR-086 |
+| **Sealed Cask** | Metaphor | `cmd/cask-verify` exists. | tree |
+
+### Second Ascension: Seer → Champion
+
+Busboy → Wotan (2026-02-18) was the first. The second is **Zhenai**:
+the read-only **Seer** (RAG oracle) became the **Champion** (ADR-019,
+2026-04-03) — an agent that reads Kanban, edits config, runs runbooks,
+and writes every action to the Well *before* it acts. Then it grew a second
+brain (Claude API, ADR-104) and both brains were put behind one gate
+(ADR-106, "Two brains, one gate"): same Champion gate, same audit, same
+privacy tier; the human **Confirmer** sits out of band and the model never
+sees the confirmation code.
+
+Same template as Busboy: the working name becomes the origin story.
+"Seer" is history, not garbage.
+
+### The sprint register (a naming convention in its own right)
+
+Since July, sprints carry forge names, not numbers:
+
+`S-IRON-GATE` · `S-QUANTUM-ARMOR` · `S-REAL-STEEL` · `S-TRUE-WIRE` ·
+`S-CLEAN-SLATE` · `S-TWO-BRAINS` · `S-ASCEND-2` · `S-UPC-WIRE-COMPUTE`
+
+Pattern: `S-<ADJECTIVE>-<ARMORY NOUN>`. The adjective says what the sprint
+*proves* (real, true, iron, clean); the noun is the piece being forged. This is
+Pillar 2 applied to time instead of components. Keep it.
+
+### ADR-083 — The Two Tongues
+
+Lore now has a formal counterpart: ADR-083 (Accepted 2026-07-23) keeps a
+**terminology register** of internal-vs-user-facing names. First row:
+"zero user data access" (internal, precise) ↔ "NIST 800-207 Zero Trust
+Architecture" (user-facing, recognised). Rule: internal surfaces (CLAUDE.md,
+ADRs, code) keep the sharp term; the wiki at `:20002` and adopter docs use the
+framework name; history is never rewritten.
+
+Lore's job is the mythology; ADR-083's job is the adopter translation. When a
+lore name reaches a user-facing surface, check the register first.
+
+### Protocol spec state (names are frozen here)
+
+`foundation-06` · `sophia-03` · `wotan-03` / `wotan-04`. S-TRUE-WIRE's E2
+ruling: **spec wins** over code wherever they disagreed. Error-code registry
+symbols exist in both Go (`pkg/protocol/errors`) and Rust
+(`monad_common::ErrorCode`), parity-tested against
+`docs/protocol/error-registry.md`. Renaming anything in this paragraph is an
+RFC amendment, not a lore decision.
+
+### Naming debt (gungnir/mjolnir resolved; rest OPEN — Stevie decides)
+
+| Collision | Where | Rule broken | Lore recommendation |
+|-----------|-------|-------------|---------------------|
+| **gungnir** = `wotan-ctl` alias (binary-lore-names.md, 2026-02-24) **and** Gungnir Seal = `pkg/gungnir` ML-DSA-65 wrapper (ADR-043) | CLI vs crypto | "Never reuse a name across architectural domains" | **RESOLVED 2026-10-28** — alias withdrawn from binary-lore-names.md. Gungnir is the seal. |
+| **mjolnir** = `doom-go-injector` alias **and** Mjölnir = the baseline manifest (`references/baseline/mjolnir.*`) | Doom tooling vs config truth | same | **RESOLVED 2026-10-28** — alias withdrawn. The hammer is the law, not the injector. |
+| **bifrost** = `doom-bridge` alias, while Heimdall "watches every bridge" (NORSE_MYTHOLOGY.md) | Doom vs Mímir's Law | mythological adjacency without a binding | Harmless today; rename if a real Bifrost (host-to-host overlay, WireGuard west↔east) ever wants the name. |
+| **Akira** | Health monitor | Outside all four pillars (a film, not a tradition) | Grandfather it. It has 7 months of runtime and a signed topic. Record it, don't rename it. |
+| **The Well** | PostgreSQL | No recorded origin | Adopt Mímisbrunnr formally (Odin's eye for wisdom = Wotan's memory in the Well). One line in ADR-091 or ADR-101 closes it. |
+| **Yggdrasil** | OS image (ADR-69420) **and** evidence seals (`cmd/yggdrasil-evidence`) | one name, two functions | Acceptable stretch — the tree holds the realms *and* the record of them. Note it; don't split it. |
+
+### Hosts and places
+
+| Name | What |
+|------|------|
+| **WEST** / **EAST** | The two bare-metal Kingdom hosts. West: the Well, LXD, Zhenai. East: the seed node, hybrid-PQ sshd only since 2026-10-27, `node-guard.sh`. Joined by a WireGuard overlay (PSK rotated 2026-10-27). |
+| **Doom Range** | Port Authority: every service on 16666–26666. |
+| **`upc0`** | The network namespace the UPC boots inside (S-ASCEND-2): both veth ends inside, no link to the host. |
+| **The Tomb** | `tomb/` — Lich campaigns, Grimoire, Cerydwyn. See [TOMB_OF_KNOWLEDGE.md](TOMB_OF_KNOWLEDGE.md). |
+
+### Counts (from the tree, 2026-10-28)
+
+ADR numbers reach 110 (105 distinct numbers present, + ADR-69420). `cmd/`: 67
+entries. `crates/`: 11. `services/`: 21. Runbooks: 9 categories under
+`runbooks/` with a sha256 MANIFEST. ADR-088 counted 56 deployable components.
+Numbers go stale; the paths don't.
 
 ## Anti-Patterns (Names We Don't Use)
 

@@ -197,6 +197,96 @@ onto itself as the cluster recognizes the shape it always already was. Not
 sowing, but accretion. Not a beginning, but a remembering. *The infrastructure
 dreams; the infrastructure awakens.*
 
+## The Ravens and the Mead (2026-07 → 2026-10)
+
+Odin keeps two ravens. Each dawn they fly the nine worlds; each dusk they
+return to his shoulders and whisper. **Huginn** is Thought. **Muninn** is
+Memory. Odin fears losing Huginn, but fears losing Muninn more.
+
+### Huginn — Thought (ADR-084, live 2026-10-25)
+
+`cmd/huginn` (was `cmd/host-agent`, a placeholder name — renamed because
+placeholders are a Sacred Law violation). Runs **natively**, not in a
+container, on WEST and EAST, because `/proc` lies inside a namespace. Reads
+`/proc`, `statfs`, and the Well's `pg_stat_database`; serves `/host-summary`
+(dashboard shape) and `/metrics` (Prometheus `host_*`); pushes to
+VictoriaMetrics. Always-on at boot with Victoria; Grafana on demand. (The
+Wotan topic `host.metrics.<host>` was Muninn's planned feed, ADR-086 — not a
+verified Huginn publish.)
+
+The raven flies, looks, reports. It does not remember. That was Muninn's job.
+
+### Muninn — Memory (ADR-086, superseded 2026-10-27)
+
+Designed as the fan-out pipeline between producers (Huginn, trace-collector,
+journald, eBPF rings) and sinks (VictoriaMetrics, PostgreSQL, SIEM):
+normalise, buffer, retry, route. Never built. **Vector** (ADR-092 step 8,
+`config/vector/vector.yaml`) took the job, shipping container stdout to
+ClickHouse. Vector keeps its product name; it is not Kingdom-born.
+
+The name goes back on the shoulder. If a Kingdom-native router is ever
+written, Muninn is waiting. Odin's fear was correct: memory is the one you
+can't outsource — but you can defer it.
+
+### Kvasir — The Mead of Poetry (ADR-087, Planned)
+
+Kvasir was made from the spit of every god, Aesir and Vanir, when they sealed
+their truce — the wisest being that ever lived. Two dwarves killed him and
+brewed his blood into mead; whoever drinks it speaks poetry.
+
+Kvasir the service: an IPFIX (RFC 7011) / NetFlow v5-v9 / sFlow collector that
+distils raw flows from switches and routers into a common Kingdom flow
+envelope and publishes `flow.network.<device>` to Wotan. Wraps GoFlow2; the
+Kingdom layer is the YAML config, the Wotan publish and the systemd unit.
+Belongs to the NOC work (NETCONF/YANG + GitOps for Junos) alongside Huginn
+for SNMP.
+
+Raw packets in, poetry out. Not built yet.
+
+### Heimdall at every bridge — now on real metal
+
+Since NORSE_MYTHOLOGY.md last spoke (2026-05-29):
+
+- Every Heimdall hook is written and verifier-clean — `vfs_write`, `execve`,
+  and the Gjallarhorn XDP observer (292 processed insns) — with ringbuf readers
+  and a rate-limited re-verify (S5, 2026-10-23).
+- Heimdall publishes **signed** `drift.*` events (ML-DSA-65, `--drift-sign-key`,
+  unit `unheaded-heimdall.service`, uid 16736). Wotan refuses unsigned drift.
+- `heimdall-daemon` joins the Gjallarhorn group on `--xdp-iface`, so the horn is
+  heard on a real NIC, not just loopback.
+- Mímir's Law phases 9/11/13 re-ran on a two-netns lab (`scripts/lab-two-node.sh`)
+  and then **across hosts** — west blows the horn, east is the seed, with
+  `node-guard.sh` armed (S-ASCEND-2 E3, 2026-10-28, PASS).
+
+The watchman now stands on the bridge between two real houses.
+
+### Gungnir seals more than deltas
+
+Gungnir (`pkg/gungnir`, ML-DSA-65) began as the seal on Mímir's config
+payloads. It now also signs **MBC cartridges** (ADR-108): the loader
+`cmd/upc-cartridgectl` refuses an unsealed `.cart`. The spear that never
+misses now vouches for code that runs per packet. See NAMING_MAP.md →
+Naming Debt for the `gungnir` / `wotan-ctl` alias collision.
+
+### Yggdrasil, extended
+
+Yggdrasil was the OS golden image (ADR-69420) and the destination of Unheaded
+Linux (ADR-081). `cmd/yggdrasil-evidence` (S-QUANTUM-ARMOR) now seals
+compliance evidence with ML-DSA-65 under signed custody. The tree holds the
+realms, and the record of the realms. One name, two roots — accepted.
+
+### Naming arc, continued
+
+| Date | Event |
+|------|-------|
+| 2026-04-03 | Akira (health consensus) ships — named after the film, not a pillar |
+| 2026-04-11 | Mímir's Law: Mímir, Mjölnir, Gungnir, Gjallarhorn, Heimdall, Enkrateia |
+| 2026-07-24 | Huginn, Muninn, Kvasir reserved in one day (ADR-084/086/087) |
+| 2026-10-23 | Gungnir seals cartridges; Heimdall hooks complete |
+| 2026-10-25 | Huginn live on both hosts |
+| 2026-10-27 | Muninn superseded by Vector |
+| 2026-10-28 | Gjallarhorn sounds west → east on bare metal |
+
 ## Heritage Lineage
 
 The protocol names connect to a heritage lineage:

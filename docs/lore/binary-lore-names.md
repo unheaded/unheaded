@@ -15,12 +15,12 @@ Functional names are retained as aliases for discoverability. Lore names are the
 | 1 | dashboard-backend | **visor** | Medieval Armory | The visor that reveals the battlefield — the knight's window to all data | 20000 |
 | 2 | trace-collector-go | **vambraces** | Medieval Armory | Arm guards that sense and record every blow — eBPF event collector | 16670/16671 |
 | 3 | wotan (via services/) | **wotan** | Norse/Gnostic | The All-Father of memory — message bus and state persistence | 18000/18001 |
-| 4 | wotan-ctl | **gungnir** | Norse | Wotan's spear — his command-line instrument | CLI |
+| 4 | wotan-ctl | *(none — alias withdrawn 2026-10-28; "Gungnir" is the ML-DSA-65 seal, `pkg/gungnir/`, ADR-043)* | — | Wotan's CLI | CLI |
 | 5 | unheaded-daemon | **aegis** | Greek/Medieval | The divine shield — control plane daemon, reconciliation engine | 17000/17001 |
 | 6 | kanban-app | **herald** | Medieval | The herald who announces and tracks tasks — the Meta Moment | 20001 |
 | 7 | doom-bridge | **bifrost** | Norse | The rainbow bridge between realms — Doom to Kingdom data bridge | 16666 |
 | 8 | doom | **ragnarok** | Norse | The twilight of the gods — Doom game engine runner | CLI |
-| 9 | doom-go-injector | **mjolnir** | Norse | Thor's hammer — packet injection tool for the Doom ring | CLI |
+| 9 | doom-go-injector | *(none — alias withdrawn 2026-10-28; "Mjölnir" is the baseline manifest, `references/baseline/mjolnir.*`, ADR-043)* | — | Packet injection tool for the Doom ring | CLI |
 | 10 | monad | **monad** | Gnostic | The divine spark — unified state management | 19004 |
 | 11 | sophia | **sophia** | Gnostic | Divine wisdom — knowledge graph and BPF map state | 19005 |
 | 12 | unheaded | **unheaded** | Core | The headless king — main entry point | CLI |
