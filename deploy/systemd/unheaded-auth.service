@@ -18,6 +18,12 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+# Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
+# works harder before the cgroup throttles or OOM-kills.
+MemoryMax=512M
+MemoryHigh=460M
+TasksMax=512
+Environment=GOMEMLIMIT=460MiB
 Type=simple
 # Site overrides. TLS is set below (S-IRON-GATE Phase 8); without it only
 # /health, /ready, /metrics would answer.

@@ -33,6 +33,12 @@ After=network-online.target unheaded-well-backup.service
 Wants=network-online.target
 
 [Service]
+# Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
+# works harder before the cgroup throttles or OOM-kills.
+MemoryMax=512M
+MemoryHigh=460M
+TasksMax=512
+Environment=GOMEMLIMIT=460MiB
 Type=oneshot
 Environment=WELL_HOST=127.0.0.1
 Environment=WELL_PORT=5432

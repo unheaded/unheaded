@@ -38,5 +38,18 @@ RestartSec=5s
 TimeoutStartSec=60
 TimeoutStopSec=10
 
+# Hardening (S-LOW-FRUIT Phase 3), partial on purpose: loads BPF and
+# attaches XDP as root from /home (lab paths). Lab-only unit.
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+
 [Install]
 WantedBy=unheaded-doom.target

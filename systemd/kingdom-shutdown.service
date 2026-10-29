@@ -15,5 +15,18 @@ RemainAfterExit=yes
 ExecStart=/bin/true
 ExecStop=/opt/unheaded/bin/kingdom-shutdown.sh --force
 
+# Hardening (S-LOW-FRUIT Phase 3), partial on purpose: the stop script tears
+# down docker compose as root (see kingdom-startup.service).
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+
 [Install]
 WantedBy=multi-user.target

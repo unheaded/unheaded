@@ -40,5 +40,19 @@ RestartSec=3s
 TimeoutStartSec=20
 TimeoutStopSec=5
 
+# Hardening (S-LOW-FRUIT Phase 3), partial on purpose: runs as root from
+# /home (lab paths), enters netns monad0 (setns), so no ProtectHome,
+# RestrictNamespaces or CapabilityBoundingSet. Lab-only unit.
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+
 [Install]
 WantedBy=unheaded-doom.target

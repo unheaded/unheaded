@@ -37,6 +37,8 @@ TimeoutStopSec=15s
 
 LimitNOFILE=1024
 MemoryMax=128M
+MemoryHigh=115M
+Environment=GOMEMLIMIT=115MiB
 
 # Service identity (ADR-103, deploy/systemd/README.md#keys-adr-103): the key
 # comes from `unheaded-keygen -owner unheaded-sword sword` (root, once per host).
