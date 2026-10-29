@@ -286,12 +286,13 @@ func newHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logg
 		return nil, fmt.Errorf("auth: %w (see ADR-103)", err)
 	}
 	hs.server = &http.Server{
-		Addr:           addr,
-		Handler:        httputil.SecurityHeaders(httputil.NewServiceMetrics("sophia").Instrument(mux, chain)),
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              addr,
+		Handler:           httputil.SecurityHeaders(httputil.NewServiceMetrics("sophia").Instrument(mux, chain)),
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is an
 	// error, never a plaintext listener.

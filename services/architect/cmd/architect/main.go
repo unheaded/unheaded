@@ -176,12 +176,13 @@ func main() {
 
 	// HTTP server
 	server := &http.Server{
-		Addr:           *addr,
-		Handler:        httpHandler,
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              *addr,
+		Handler:           httpHandler,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): never a silent

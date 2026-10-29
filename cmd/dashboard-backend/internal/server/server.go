@@ -567,12 +567,13 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	httpHandler = httputil.SecurityHeaders(httputil.NewServiceMetrics("dashboard").Instrument(s.mux, httpHandler), httputil.WithCSP(dashboardCSP))
 
 	s.httpServer = &http.Server{
-		Addr:           config.ListenAddr,
-		Handler:        httpHandler,
-		ReadTimeout:    config.ReadTimeout,
-		WriteTimeout:   config.WriteTimeout,
-		IdleTimeout:    5 * config.ReadTimeout,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              config.ListenAddr,
+		Handler:           httpHandler,
+		ReadTimeout:       config.ReadTimeout,
+		WriteTimeout:      config.WriteTimeout,
+		IdleTimeout:       5 * config.ReadTimeout,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is an
 	// error, never a plaintext listener.

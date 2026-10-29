@@ -87,12 +87,13 @@ func main() {
 	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
 
 	httpServer := &http.Server{
-		Addr:           listenAddress,
-		Handler:        srvHandler,
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              listenAddress,
+		Handler:           srvHandler,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 
 	go func() {

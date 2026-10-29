@@ -265,12 +265,13 @@ func (g *Gateway) Start(ctx context.Context) error {
 
 	// Create HTTP server
 	g.httpServer = &http.Server{
-		Addr:           fmt.Sprintf(":%d", g.cfg.Server.HTTPPort),
-		Handler:        mux,
-		ReadTimeout:    g.cfg.Server.ReadTimeout,
-		WriteTimeout:   g.cfg.Server.WriteTimeout,
-		IdleTimeout:    g.cfg.Server.IdleTimeout,
-		MaxHeaderBytes: g.cfg.Server.MaxHeaderBytes,
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              fmt.Sprintf(":%d", g.cfg.Server.HTTPPort),
+		Handler:           mux,
+		ReadTimeout:       g.cfg.Server.ReadTimeout,
+		WriteTimeout:      g.cfg.Server.WriteTimeout,
+		IdleTimeout:       g.cfg.Server.IdleTimeout,
+		MaxHeaderBytes:    g.cfg.Server.MaxHeaderBytes,
 	}
 
 	// Start health checker

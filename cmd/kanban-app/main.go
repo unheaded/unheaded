@@ -305,12 +305,13 @@ func (s *Server) Start() error {
 	}
 
 	s.httpServer = &http.Server{
-		Addr:           ":" + s.config.Port,
-		Handler:        handler,
-		ReadTimeout:    s.config.ReadTimeout,
-		WriteTimeout:   s.config.WriteTimeout,
-		IdleTimeout:    5 * s.config.ReadTimeout,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              ":" + s.config.Port,
+		Handler:           handler,
+		ReadTimeout:       s.config.ReadTimeout,
+		WriteTimeout:      s.config.WriteTimeout,
+		IdleTimeout:       5 * s.config.ReadTimeout,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is an
 	// error, never a plaintext listener.

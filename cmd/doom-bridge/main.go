@@ -197,11 +197,12 @@ func main() {
 	httpHandler := auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
 
 	server := &http.Server{
-		Addr:           fmt.Sprintf(":%d", b.port),
-		Handler:        httpHandler,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   0,       // Disabled: WebSocket connections are long-lived
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              fmt.Sprintf(":%d", b.port),
+		Handler:           httpHandler,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      0,       // Disabled: WebSocket connections are long-lived
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 
 	// Start polling loops
