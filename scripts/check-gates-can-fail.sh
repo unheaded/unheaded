@@ -832,6 +832,17 @@ provoke_ebpf_insns() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_dep_staleness() {
+    # Contract (S-LOW-FRUIT Phase 10): a direct module >36 months old names
+    # its findings-register entry. Drop FND-030 from yaml.v3's watch row.
+    local f="docs/policy/dependency-watch.md"
+    backup "${f}"
+    sed -i 's/ · FND-030\*\*/**/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_go_env() {
     # Contract (S-LOW-FRUIT Phase 10): builds pin GOSUMDB. Drop the export from the Makefile.
     local f="Makefile"
@@ -1069,6 +1080,7 @@ well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,
 check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo and west's kernel)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
+check-dep-staleness|provoke_dep_staleness|fast|FND-030 dropped from yaml.v3's row in dependency-watch.md, so a 53-month-old module on an input boundary has no register entry (needs the module proxy)
 check-go-env|provoke_go_env|fast|export GOSUMDB removed from the Makefile
 check-mod-integrity|provoke_mod_integrity|fast|one go.sum hash changed in the working tree (runs go mod verify)
 check-cargo-locked|provoke_cargo_locked|fast|--locked dropped from the Makefile's CARGO_BUILD_FLAGS

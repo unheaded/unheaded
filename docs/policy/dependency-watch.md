@@ -12,7 +12,7 @@ Release dates are from `proxy.golang.org/<module>/@latest`, retrieved 2026-10-29
 
 | Module | Pinned | Latest (date) | Months | Boundary | Why it stays | Native path, cost | Decision |
 |---|---|---|---|---|---|---|---|
-| gopkg.in/yaml.v3 | v3.0.1 | v3.0.1 (2022-05-27) | **53 · STALE · handover** | parses config files (operator input) | ~40 callers; YAML is the config format | upstream repo archived; maintained continuation `go.yaml.in/yaml/v3` (YAML org): a path swap + `dep-diff.sh` read, ~1 h | **proposed: replace-by next sprint** (switch to the maintained module path) |
+| gopkg.in/yaml.v3 | v3.0.1 | v3.0.1 (2022-05-27) | **53 · STALE · handover · FND-030** | parses config files (operator input) | ~40 callers; YAML is the config format | upstream repo archived; maintained continuation `go.yaml.in/yaml/v3` (YAML org): a path swap + `dep-diff.sh` read, ~1 h | **proposed: replace-by next sprint** (switch to the maintained module path) |
 | github.com/google/uuid | v1.6.0 | v1.6.0 (2024-01-23) | **33 · STALE** | parses UUID strings | 19 files; zero deps, Google-maintained, govulncheck-covered; finished, not dead | own 16-byte type with text/SQL marshalling: crypto-adjacent code of ours | proposed: keep-pinned (Step 90: a rewrite adds risk, doesn't remove it) |
 | github.com/gorilla/websocket | v1.5.3 | v1.5.3 (2024-06-14) | **28 · STALE** | parses WebSocket frames from browsers | 3 callers (dashboard live tail, doom-bridge, upc-tty-bridge) | stdlib has no WebSocket; own RFC 6455 framing ≈ 400 lines + fuzzing | proposed: keep-pinned, re-check at 36 months (input boundary → finding then) |
 | github.com/BurntSushi/toml | v1.6.0 | v1.6.0 (2025-12-18) | 10 | parses Cargo.toml + the timeline .toml mirror | real TOML needed | own TOML subset parser: not worth it | keep-pinned |
@@ -33,7 +33,7 @@ Release dates are from `proxy.golang.org/<module>/@latest`, retrieved 2026-10-29
 
 ## Rust — watch rows
 
-`clap`, `chrono`, `anyhow`, `axum` (host tools, not the BPF objects). Counted in `docs/policy/sbom-count-baseline.txt` (`rust_components`); release-age data comes with `cmd/depaudit` (S-LOW-FRUIT Step 85a, not built yet).
+`clap`, `chrono`, `anyhow`, `axum` (host tools, not the BPF objects). Counted in `docs/policy/sbom-count-baseline.txt` (`rust_components`); `cmd/depaudit` covers Go modules today (`go list -m -json all | go run ./cmd/depaudit`); crates.io release ages for Rust are not wired yet.
 
 ## Python
 

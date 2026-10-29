@@ -92,3 +92,10 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 - Step 66: `VectorBufferFilling` (>80 % for 10m) and `VectorSinkDroppingEvents` (any discard) in `rules/logs.yml`, urgency none, runbook log-pipeline; promtool tests in `rules/tests/logs_test.yml`. `check-prometheus-rules.sh`: 12 files parse, 12 tests pass. Step 69: `alert-policy -check` PASS.
 - journald on west: `SystemMaxUse=1G`, 1007.7M used (at the cap). Whether that covers 7 days depends on volume; the oldest entry is in the line above this table's run. ADR-092 owns it.
 - Steps 67-68 (stop ClickHouse, watch the buffer drain): **BLOCKED, E1** — the compose stack is down on west.
+
+## Phase 10 — depaudit + staleness gate (Steps 85a-85c; 85d as a column)
+
+- `cmd/depaudit` (stdlib + pkg/cmdline): reads `go list -m -json all`, asks `proxy.golang.org/<escaped>/@latest`, prints module · pinned · latest · released · months · direct/indirect · STALE. Skips main and local-path replaces. Tests with a fake proxy (no network in `go test`): stream decode, direct-only/--all, lookup errors reported, case escaping, 404 and empty answers. Live: 3 STALE direct modules (uuid 33, gorilla/websocket 28, yaml.v3 53), matching the watch list. Rust (crates.io) not wired.
+- `scripts/check-dep-staleness.sh`: each STALE direct module needs a watch-list row with a decision; past 36 months the row must name an FND. yaml.v3 → **FND-030** added to `compliance/findings/register.yaml` (low, package, step 2; plan: switch to the maintained `go.yaml.in/yaml/v3`). Registered (`provoke_dep_staleness`).
+- Step 85d (maintainer handover): kept as a column in the watch list ("handover" on yaml.v3), not automated.
+- journald retention (Phase 7 note): oldest entry 2026-10-19 20:25 → ~10 days at the 1G cap, above the 7-day floor.

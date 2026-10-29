@@ -489,6 +489,26 @@ findings:
       go-licenses pinned and passing (9cd6cc05). What remains is Stevie's: re-enable the workflow (Actions, CI,
       Enable workflow) and check one green run. Enabling is a GitHub setting, so not done unattended.
 
+  - id: FND-030
+    title: >-
+      gopkg.in/yaml.v3, a direct dependency that parses every YAML config file, has had no release since
+      2022-05-27 (53 months) and its upstream repository is archived
+    verify: >-
+      `go list -m -json all | go run ./cmd/depaudit --max-age-months 36` lists no direct module on an input boundary
+      as STALE, and docs/policy/dependency-watch.md records the replacement
+    severity: low
+    class: package
+    opened: 2026-10-29
+    exposure: >-
+      the parsed input is operator-supplied config (not network input), and v3.0.1 has no open advisory; the risk is
+      that a future advisory would have no fixed release (unmaintained code never gets one)
+    lockout: none
+    step: 2
+    plan: >-
+      Swap the import path to the maintained continuation (go.yaml.in/yaml/v3, YAML organisation) in the next
+      sprint: one mechanical change across ~40 callers, the module diff read with scripts/dep-diff.sh first.
+      Found by cmd/depaudit (S-LOW-FRUIT Phase 10); rule: >36 months on an input boundary is a register row.
+
   - id: FND-029
     title: >-
       A UPC CPU tick selected its instance by the low byte of the flow label with no check of the sender, so any
