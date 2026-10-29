@@ -106,6 +106,7 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 
 - Step 77: no llama-server launch with `-np`/`--parallel`/`-c` in `deploy/`, `systemd/`, compose or `scripts/` (only `raft/scripts/19_context_benchmark.py` varies `-c`). It is started by the model selector (ADR-060) / vor at run time, and isn't running now: read the live flags (`pgrep -a llama-server`) at the attended probe (E2).
 - Step 80, read-only half (project `unheaded`): pool `default` driver `dir` (`/var/snap/lxd/common/lxd/storage-pools/default`); profile `default` has only `root` (pool disk) and `eth0` (lxdbr0); instances steel-echo-v2-{0,1,2}: `security.privileged` unset (unprivileged), no `raw.lxc`/mknod intercept, no `/dev/*` disk source. So no raw block path from a guest is configured. The launch + mknod probe stays attended.
+- Step 80, attended half (2026-10-29, Stevie present): `lxc launch steel-echo-v1 res-a --project unheaded -p default` (the profile Cuirass uses; local Alpine 3.22 image, no download). Inside: no `/dev/sd*`, `/dev/nvme*`, `/dev/vd*`, `/dev/dm-*`, `/dev/loop*`; `mknod /tmp/b b 259 0` and `mknod /tmp/c b 8 0` both `Operation not permitted`; `uid_map` `0 1000000 1000000000` (root in the guest is host uid 1000000); `security.privileged` unset. `lxc delete -f res-a`; project back to the 3 steel-echo instances. **Step 81: TH-2026-006 stays MONITORING** with this as evidence; no finding.
 
 ## Sprint exit evidence (Step 96, partial)
 
