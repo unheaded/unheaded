@@ -592,6 +592,12 @@ func IsVersionArg(arg string) bool {
 	return arg == "--version" || arg == "-version" || arg == "-V"
 }
 
+// IsManArg reports whether a single leading argument asks for the man
+// page, for dispatchers that switch on args[0] (render it with Man).
+func IsManArg(arg string) bool {
+	return arg == "--man" || arg == "-man"
+}
+
 // IsHelpArg reports whether a single leading argument asks for help, for
 // dispatchers that switch on args[0].
 func IsHelpArg(arg string) bool {

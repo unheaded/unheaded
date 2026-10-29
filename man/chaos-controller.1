@@ -1,0 +1,29 @@
+.TH CHAOS\-CONTROLLER 1 "2026-10-29" "unheaded 6b26b19a" "Unheaded Kingdom"
+.SH NAME
+chaos\-controller \- Yaldabaoth: run the Kingdom's chaos engine inside its safety envelope (ADR\-107); with no command, serve.
+.SH SYNOPSIS
+.B chaos\-controller
+[COMMAND]
+.SH DESCRIPTION
+Yaldabaoth: run the Kingdom's chaos engine inside its safety envelope (ADR\-107); with no command, serve.
+.SH COMMANDS
+.TP
+.B revert\-all
+undo every journaled fault
+.TP
+.B render\-polkit
+print the polkit rule for systemd stop/kill
+.TP
+.B packet\-chaos
+packet fault lab (see packet\-chaos \-\-help)
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+Configured by environment and /etc/unheaded/chaos/allowlist.yaml.
+.SH SEE ALSO
+.BR unheaded (1)

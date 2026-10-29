@@ -1,0 +1,36 @@
+.TH CRYPTO\-INVENTORY 1 "2026-10-29" "unheaded 6b26b19a" "Unheaded Kingdom"
+.SH NAME
+crypto\-inventory \- Build and check the Kingdom's cryptographic bill of materials (CBOM).
+.SH SYNOPSIS
+.B crypto\-inventory
+COMMAND [OPTION]...
+.SH DESCRIPTION
+Build and check the Kingdom's cryptographic bill of materials (CBOM).
+Paths given to \-\-out, \-\-cbom and \-\-baseline are relative to the repository root (or absolute inside it); the tool reads and writes nothing outside it.
+.SH COMMANDS
+.TP
+.B scan
+regenerate the CBOM (\-\-out PATH, default stdout)
+.TP
+.B check
+exit 1 when the checked\-in CBOM differs from a regeneration
+.TP
+.B summary
+count components by pq\-status
+.TP
+.B collect\-host
+write one host's read\-only crypto facts (\-\-host, \-\-local | \-\-ssh, \-\-out)
+.TP
+.B lint
+exit 1 on classical\-only key exchange not in the shrink\-only baseline (\-\-baseline FILE, \-\-update refuses additions, \-\-print, \-\-explain PATH)
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXIT STATUS
+Exit codes: 0 ok, 1 finding, 2 usage or error.
+.SH SEE ALSO
+.BR unheaded (1)

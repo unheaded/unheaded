@@ -44,7 +44,22 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
+var manSpec = cmdline.Spec{
+	Name:     "cask-verify",
+	Purpose:  "Verify (and safely extract) a signed Sealed Cask against trusted build keys.",
+	Operands: "verify|extract --cask FILE --pubkey KEY [--pubkey OLD] [--dest DIR]",
+	Commands: []cmdline.Command{
+		{Name: "verify --cask FILE --pubkey KEY", Purpose: "check the cask's seal; more --pubkey for keys still trusted"},
+		{Name: "extract --cask FILE --pubkey KEY --dest DIR", Purpose: "verify, then extract into a new directory"},
+	},
+	Details: "Exit codes: 0 verified, 1 refused, 2 usage or unreadable key.",
+}
+
 func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && cmdline.IsManArg(args[0]) {
+		cmdline.Man(stdout, nil, manSpec)
+		return exitOK
+	}
 	if len(args) < 1 {
 		usage(stderr)
 		return exitUsage

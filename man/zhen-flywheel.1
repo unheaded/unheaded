@@ -1,0 +1,39 @@
+.TH ZHEN\-FLYWHEEL 1 "2026-10-29" "unheaded 6b26b19a" "Unheaded Kingdom"
+.SH NAME
+zhen\-flywheel \- Turn training captures into labelled, filtered, held\-out training data (wiki/Zhen\-Training\-Data.md).
+.SH SYNOPSIS
+.B zhen\-flywheel
+COMMAND [OPTION]...
+.SH DESCRIPTION
+Turn training captures into labelled, filtered, held\-out training data (wiki/Zhen\-Training\-Data.md).
+.SH COMMANDS
+.TP
+.B ingest [\-dir DIR]
+capture files to the Well (strict, re\-scanned, deduped)
+.TP
+.B label
+outcomes to labels (checks, escalations, reviews, judges, edits)
+.TP
+.B export \-out DIR
+the Well to SFT, preference and tool\-trace files, split and tokenized
+.TP
+.B scan DIR
+secret/PII re\-scan of an export (exit 1 on any finding)
+.TP
+.B quarantine CAPTURE\-ID
+mark one capture for the purge
+.TP
+.B import\-eval \-results FILE \-answers\-dir DIR
+kept eval answers to capture files
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+WELL_APP_ZHEN_DSN (unheaded_app as app_zhen) is required by ingest, label, export and quarantine; WELL_OPS_DSN (unheaded_ops) is optional for label. Neither has a default: credentials are never in the repository.
+Claude\-authored text never leaves export unless \-include\-claude\-text (or ZHEN_FLYWHEEL_INCLUDE_CLAUDE_TEXT=1) is given.
+.SH SEE ALSO
+.BR unheaded (1)

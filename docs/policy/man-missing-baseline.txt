@@ -1,15 +1,10 @@
 # Binaries that do not answer --man yet (S-LOW-FRUIT Phase 5).
 # Shrink-only: scripts/gen-man.sh fails on a new binary missing from the
 # pages AND on a listed binary that now answers (remove it here).
-# Dispatchers (subcommand on args[0]) and mains that bypass cmdline.ParseSet.
-cask-verify
-chaos-controller
-crypto-inventory
+# Dispatchers answer --man with cmdline.IsManArg + cmdline.Man and a top-level
+# Spec; what is left is the Doom tools and unheaded-cli's own command tree.
 doom
 doom-cpu-dump
 doom-loader
 unheaded-cli
-unheaded-keygen
 wotan-ctl
-yggdrasil-evidence
-zhen-flywheel

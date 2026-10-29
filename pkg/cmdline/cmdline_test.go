@@ -508,3 +508,11 @@ func TestParseFlags_ExitErrorCarriesCode(t *testing.T) {
 		t.Errorf("--once: %v, want nil", err)
 	}
 }
+
+func TestIsManArg(t *testing.T) {
+	for arg, want := range map[string]bool{"--man": true, "-man": true, "man": false, "--manual": false, "-m": false} {
+		if got := IsManArg(arg); got != want {
+			t.Errorf("IsManArg(%q) = %v, want %v", arg, got, want)
+		}
+	}
+}
