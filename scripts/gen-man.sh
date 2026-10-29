@@ -62,6 +62,15 @@ if (( check )); then
 	echo "OK: man/ matches ${pages} binaries"
 	exit 0
 fi
-rm -rf man
-cp -r "$tmp/man" man
-echo "OK: ${pages} man pages in man/ (${#missing_ok[@]} binaries still listed in ${baseline})"
+# Write only pages whose body changed, so the .TH date and version don't
+# churn every page on every regeneration.
+mkdir -p man
+written=0
+for f in "$tmp"/man/*.1; do
+	n=$(basename "$f")
+	if [[ ! -f man/$n ]] || ! cmp -s <(sed 1d "$f") <(sed 1d "man/$n"); then
+		cp "$f" "man/$n"; written=$((written + 1))
+	fi
+done
+for f in man/*.1; do [[ -f $tmp/man/$(basename "$f") ]] || { rm -f "$f"; written=$((written + 1)); }; done
+echo "OK: ${pages} man pages in man/, ${written} written (${#missing_ok[@]} binaries still listed in ${baseline})"
