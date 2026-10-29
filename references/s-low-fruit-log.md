@@ -84,3 +84,11 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 
 - Step 73-74: all nine new gates pass on the tree (version-flag 59, http-timeouts 47, unit-ceilings 22, netip 120, sbom-trend go 149 / rust 484 / python 77, go-env, mod-integrity 26 locks, cargo-locked 31, gen-man 39); each was proven to fail with `check-gates-can-fail.sh --only` when it landed.
 - Step 75: CLAUDE.md "Native first" bullet made true (check-dep-staleness.sh is named as not built yet) + a Ratchets bullet. kanban-app already sets `journal_mode=WAL` and `busy_timeout=5000` (`cmd/kanban-app/store.go`). ADR-111 Consequences has the man-page line (Phase 5); wiki/Profiling.md (Phase 4).
+
+## Phase 7 — Vector (Steps 64-66, 65a, 69 done; 67-68 [BLOCKED, E1])
+
+- Step 65: west's ClickHouse sink had **no buffer** (east's already had disk/256 MiB/block). Added `buffer: disk, 268435488, when_full: block` + `request: timeout 10 s, retry 60 s` (MoatGhost: the audit stream blocks, never drops).
+- Step 65a: `redact_secrets` remap between `journal_rows` and the sink, on west **and** east (the parity check in `scripts/test-vector-config.sh` requires equal transforms): masks `uhk_…` keys and `bearer|token|password|pgpassword` values. VRL gotchas met: `$$` for a literal `$`, and even a `${VAR}` inside a YAML comment is interpolated. `config/vector/tests/redact.yaml` (2 tests) + all existing tests pass under the compose-pinned `timberio/vector:0.43.1-debian`.
+- Step 66: `VectorBufferFilling` (>80 % for 10m) and `VectorSinkDroppingEvents` (any discard) in `rules/logs.yml`, urgency none, runbook log-pipeline; promtool tests in `rules/tests/logs_test.yml`. `check-prometheus-rules.sh`: 12 files parse, 12 tests pass. Step 69: `alert-policy -check` PASS.
+- journald on west: `SystemMaxUse=1G`, 1007.7M used (at the cap). Whether that covers 7 days depends on volume; the oldest entry is in the line above this table's run. ADR-092 owns it.
+- Steps 67-68 (stop ClickHouse, watch the buffer drain): **BLOCKED, E1** — the compose stack is down on west.

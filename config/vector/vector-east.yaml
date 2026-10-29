@@ -193,11 +193,27 @@ transforms:
         name: ssh_accepted_total
         tags: {host: "{{host}}", user: "{{user}}", src: "{{src}}", method: "{{method}}"}
 
+  # Secrets that a process printed to the journal (an uhk_ API key, a
+  # bearer token, a PGPASSWORD) are masked before the row leaves the host
+  # (S-LOW-FRUIT Phase 7). Tests: tests/redact.yaml. A doubled dollar sign is
+  # a literal one (Vector interpolates environment variables in this file).
+  redact_secrets:
+    type: remap
+    inputs:
+      - journal_rows
+    source: |
+      if is_string(.message) {
+        m = string!(.message)
+        m = replace(m, r'uhk_[A-Za-z0-9]{16,}', "uhk_[REDACTED]")
+        m = replace(m, r'(?i)\b(bearer|token|password|pgpassword)([=: ]+)\S+', "$$1$$2[REDACTED]")
+        .message = m
+      }
+
 sinks:
   clickhouse:
     type: clickhouse
     inputs:
-      - journal_rows
+      - redact_secrets
     endpoint: "http://192.168.13.2:8123"
     database: "unheaded_logs"
     table: "logs"
