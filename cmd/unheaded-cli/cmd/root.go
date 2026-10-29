@@ -368,7 +368,7 @@ func LoadConfig() (*Config, error) {
 
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", configPath, err)
 	}
 
 	return &config, nil

@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -139,7 +140,10 @@ func loadTimeline(path string) error {
 	if err != nil {
 		return err
 	}
-	return yaml.Unmarshal(data, &timeline)
+	if err := yaml.Unmarshal(data, &timeline); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return nil
 }
 
 func streamTimelineUpdates(ctx context.Context, client *wotanClient.Client) {

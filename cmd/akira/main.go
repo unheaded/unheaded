@@ -99,7 +99,7 @@ func loadConfig(path string) ([]health.ServiceTarget, error) {
 	}
 	var cfg AkiraConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	targets := make([]health.ServiceTarget, 0, len(cfg.Targets))
 	seen := make(map[string]bool, len(cfg.Targets))
