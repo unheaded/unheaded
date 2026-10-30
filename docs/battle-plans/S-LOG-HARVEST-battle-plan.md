@@ -39,6 +39,7 @@ This plan builds on what already exists. It doesn't reinvent it.
 | Pi-hole: `pihole.log` (DNS queries), `FTL.log`, `webserver.log`, container journal | west (LXD `pihole`, 10.10.20.252) | files inside the container; container journal | **Never** |
 | all east units (Unheaded services, bird, huginn …) | east | journal | **Never**: shipper not installed |
 | router / AP (192.168.69.129), other LAN devices | LAN | their own buffers | **Never**: there is no receiver |
+| DNS of LAN devices and east | LAN, east | nowhere: they stopped using Pi-hole on 2026-08-22, and east uses public resolvers (IOC sweep F-P6) | **Never**: needs Stevie's DNS decision (part of D7) |
 
 ## Decisions for Stevie (Phase 0 blocks on these)
 
@@ -514,7 +515,7 @@ This plan builds on what already exists. It doesn't reinvent it.
 **Agent**: Stevie plus Coordinator.
 
 - [ ] **Step 179** [STEVIE] ~10m: Name every device from Phase 1 Step 19: the default gateway/AP 192.168.69.129, the east–west link, switches, the NAS, printers. For each one: the model, whether it does remote syslog, and its transport (udp/tcp/TLS).
-- [ ] **Step 180** [W] ~5m: Rename `device:<ip>` entries in sources.yaml to `device:<name>`, with `match: <ip>`. Mark the ones that can't send syslog `excluded: no remote syslog (<model>)`. The Pi-hole DNS view is their only log, so say so in the reason.
+- [ ] **Step 180** [W] ~5m: Rename `device:<ip>` entries in sources.yaml to `device:<name>`, with `match: <ip>`. Mark the ones that can't send syslog `excluded: no remote syslog (<model>)`. **Caveat (IOC sweep 2026-10-30, F-P6):** since 2026-08-22 the only Pi-hole client is west, and east resolves via 1.1.1.1/8.8.8.8 directly. So a device that can't send syslog has *no* log at all unless Stevie points LAN DHCP DNS (and east) back at Pi-hole. Record that choice in the reason.
 - [ ] **Step 181** [C] ~1m: Commit.
 - [ ] **Step 182** [W] ~3m: Add the LAN listener to the unit's `ExecStart`: `--listen udp://<west LAN IP>:514`, plus TCP if the devices support it. Bind the LAN address only.
 - [ ] **Step 183** [STEVIE][S] ~5m: Firewall: allow 514 on west **only from the named device IPs**, through the host profile. Stevie applies it.
