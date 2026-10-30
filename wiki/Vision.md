@@ -4,6 +4,10 @@
 
 Unheaded is a configuration management automation platform delivering production-ready infrastructure for web applications. You bring the application; Unheaded provides the control plane, observability, service mesh, and security baseline.
 
+## Who It Is For
+
+Small shops and vibe coders: people shipping an app (often AI-written) who won't build security themselves. Unheaded keeps their app from serving malware, running an attacker's code, or becoming a jump box: secure with zero configuration, no security code in their app, fails closed, plain language, small hardware. See [VISION.md](../VISION.md#who-it-is-for).
+
 ## Core Capabilities
 
 - eBPF-based observability with packet-level tracing from L2 to L7

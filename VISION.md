@@ -22,6 +22,30 @@ The outcome:
 
 Infrastructure is armor. The application doesn't need to know it's there. But security teams can audit every packet. DevOps teams can swap backends without touching code.
 
+## Who It Is For
+
+Stevie, 2026-10-30: *"aimed at mom and pop shops and vibe coders to adhere to secure best practices so their application doesnt spread malware, etc or allow for RCE and jump box for threat actors."*
+
+The adopter is not a security team. It is:
+- **the small shop** running its own site;
+- **the vibe coder** shipping an app an AI assistant wrote.
+
+Neither will write authentication, input validation, egress control or audit logging correctly, and neither should have to.
+
+Unheaded's job is to make sure their app cannot:
+- serve malware to visitors;
+- run an attacker's code (RCE);
+- become a threat actor's jump box into everything else on the network.
+
+That holds even when the app itself gets all of this wrong. The test for every capability, from the Captain's chair:
+1. **Secure with zero configuration.** The safe setting is the default, never an option to find.
+2. **No security code in the adopter's app.** Protection sits in front of and around the app (gate, firewall, egress allowlist, limits), not in a library they must wire in. ADR-114 applies this to login.
+3. **Fails closed.** A misconfiguration blocks traffic; it never opens it.
+4. **Plain language.** A shop owner can read what Unheaded did for them and why.
+5. **Fits small hardware.** It runs on one modest machine, not a cluster.
+
+The enterprise compliance work (ADR-097/098) still serves this adopter: a small shop that takes card payments faces PCI-DSS like anyone else. They get the evidence for free instead of paying an auditor to assemble it.
+
 ## The Technical Bet
 
 eBPF is the inflection point. IPv6 extension headers are the medium. gRPC is the language. The protocol IS the moat.
