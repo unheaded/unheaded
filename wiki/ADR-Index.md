@@ -1,13 +1,13 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-10-30 (111 entries)
+**Last synced from canonical:** 2026-10-30 (112 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
 | Accepted | 51 |
-| Proposed | 23 |
+| Proposed | 24 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -15,7 +15,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | PoC / Research | 3 |
 | Superseded / Deprecated | 4 |
 | Acknowledged | 1 |
-| **Total** | **111** |
+| **Total** | **112** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -130,6 +130,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [112](../docs/adr/ADR-112-plan-freeze-and-pitch-intake.md) | Plan freeze: no new battle plans; every pitch from Stevie becomes a parked `Proposed` ADR until the freeze lifts | **Accepted** | 2026-10-30 |
 | [113](../docs/adr/ADR-113-third-party-verdicts-service.md) | Third-party verdicts as a Kingdom service (name TBD): Well schema + service account, API key or user for every call, audited; ports the claude.ai verdicts artifact on-box | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 | [114](../docs/adr/ADR-114-user-authentication-for-every-web-page.md) | User authentication for every web page, one login for all (recommended: central IdP + one gate in front of every page + signed per-app passport + pushed revocation, after Google IAP/BeyondCorp, Netflix Passport, Microsoft CAE); BFF/gate/OIDC code flow per page type; outside-library decision per need (recommendation: zero new modules; WebAuthn native-minimal vs go-webauthn open) | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
+| [115](../docs/adr/ADR-115-smallest-install-for-a-shop-owner.md) | The smallest install a shop owner can run ("Unheaded Shop", name TBD): an aid, not a promise; preflight keeps a badly configured app offline; gate, firewall, egress allowlist, sandbox, change detection, updates, backups, plain report; one binary + one deb | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 
 ---
 

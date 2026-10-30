@@ -6,7 +6,7 @@ Unheaded is a configuration management automation platform delivering production
 
 ## Who It Is For
 
-Small shops and vibe coders: people shipping an app (often AI-written) who won't build security themselves. Unheaded keeps their app from serving malware, running an attacker's code, or becoming a jump box: secure with zero configuration, no security code in their app, fails closed, plain language, small hardware. See [VISION.md](../VISION.md#who-it-is-for).
+Small shops and vibe coders: people shipping an app (often AI-written) who won't build security themselves. Unheaded is an aid, not a promise: it applies secure best practice around their app by default, so it is much harder for that app to serve malware, run an attacker's code, or become a jump box. Tests: secure with zero configuration, no security code in their app, fails closed (a badly configured app does not run), plain language (including what it does not cover), small hardware. See [VISION.md](../VISION.md#who-it-is-for).
 
 ## Core Capabilities
 
