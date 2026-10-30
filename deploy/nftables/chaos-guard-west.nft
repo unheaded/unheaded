@@ -1,0 +1,26 @@
+#!/usr/sbin/nft -f
+# SPDX-License-Identifier: GPL-3.0-or-later
+# west: chaos-controller (19012) reachable only from loopback and east (P2P, wg0).
+# Stopgap until the default-deny ruleset (west.nft, ADR-098 step 6) is applied.
+# Its own table, so nft-apply-confirm.sh and the inet unheaded table never
+# touch it. Loaded at boot by deploy/systemd/unheaded-chaos-guard.service
+# from /etc/unheaded/nftables/chaos-guard.nft. Applied 2026-10-30 (Stevie).
+# The forward chain stops the LAN and LXD containers reaching east's
+# chaos-controller through west (LXD masquerades them as 192.168.13.2).
+
+table inet unheaded_chaos_guard
+delete table inet unheaded_chaos_guard
+
+table inet unheaded_chaos_guard {
+	chain input {
+		type filter hook input priority filter - 5; policy accept;
+		tcp dport 19012 iif "lo" accept
+		tcp dport 19012 iifname "enp16s0" ip saddr 192.168.13.1 accept comment "east"
+		tcp dport 19012 iifname "wg0" accept comment "overlay, only peer is east"
+		tcp dport 19012 counter drop comment "chaos-controller: nobody else"
+	}
+	chain forward {
+		type filter hook forward priority filter - 5; policy accept;
+		oifname { "enp16s0", "wg0" } tcp dport 19012 counter drop comment "LAN/containers to east's chaos-controller"
+	}
+}

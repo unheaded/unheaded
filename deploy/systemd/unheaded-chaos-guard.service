@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Loads the chaos-controller guard table `inet unheaded_chaos_guard` at boot
+# (stopgap for ADR-098 step 6). Source: deploy/nftables/chaos-guard-<host>.nft,
+# installed as /etc/unheaded/nftables/chaos-guard.nft (root 0644).
+# Install (with Stevie's yes, per host; users first: deploy/sysusers.d/unheaded.conf):
+#   sudo cp deploy/systemd/unheaded-chaos-guard.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-chaos-guard.service
+#
+# Runs as unheaded-nft with CAP_NET_ADMIN only; systemd hands the file to nft
+# on stdin. Ordered before chaos-controller so the port is never open at boot.
+
+[Unit]
+Description=Unheaded chaos-controller guard (inet unheaded_chaos_guard)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-098-findings-register-and-baseline-modes.md
+DefaultDependencies=no
+Before=network-pre.target unheaded-chaos-controller.service
+Wants=network-pre.target
+After=local-fs.target systemd-sysusers.service
+ConditionPathExists=/etc/unheaded/nftables/chaos-guard.nft
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+StandardInput=file:/etc/unheaded/nftables/chaos-guard.nft
+ExecStart=/usr/sbin/nft -f /dev/stdin
+ExecStop=-/usr/sbin/nft delete table inet unheaded_chaos_guard
+
+User=unheaded-nft
+Group=unheaded-nft
+UMask=0077
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=sysinit.target
