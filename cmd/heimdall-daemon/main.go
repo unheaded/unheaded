@@ -398,7 +398,6 @@ func main() {
 			cmdline.Fail(cmdline.Spec{Name: "heimdall-daemon"}, "%v", err)
 		}
 	}
-	wotanClient.InitServiceIdentity("heimdall") // ADR-103 §6: every Wotan call carries heimdall's service token
 	if *xdpMode != "generic" && *xdpMode != "native" {
 		fmt.Fprintf(os.Stderr, "--xdp-mode must be generic or native, got %q\n", *xdpMode)
 		os.Exit(2)
@@ -425,6 +424,9 @@ func main() {
 		fmt.Printf("wrote %s\n", SealPath(*manifestPath))
 		return
 	}
+	// Only a daemon run talks to Wotan; a --sign-key run never opens the
+	// service key.
+	wotanClient.InitServiceIdentity("heimdall") // ADR-103 §6: every Wotan call carries heimdall's service token
 
 	if *nodeID == "" {
 		hostname, _ := os.Hostname()
