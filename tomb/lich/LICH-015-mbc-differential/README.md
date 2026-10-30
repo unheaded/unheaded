@@ -80,6 +80,8 @@ Opcodes **outside** that allowlist cannot be driven through arm B in-process —
   code and is **not** filed against it. Disposition: hand to the UPC sprint
   (ADR-067/080) + Computermancer to decide whether to complete the reference
   interpreter's MULHU arm (a fix to the emulator, not the ISA).
+- **2026-10-30: MULHU CONVERGED.** The reference interpreter now has the MULHU arm;
+  `mulhu-probe` reports both arms at 0x0b00ea4e. Re-run: 550,000 programs, 0 divergences (`status.md`).
 
 ## Disposition rule (ADR-062)
 
