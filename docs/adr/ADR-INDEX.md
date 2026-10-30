@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-10-26
-**Total:** 107 entries (ADR-001 to ADR-110, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Last updated:** 2026-10-30
+**Total:** 109 entries (ADR-001 to ADR-112, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -20,8 +20,8 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 
 | Status | Count |
 |--------|-------|
-| Accepted | 50 |
-| Proposed | 20 |
+| Accepted | 51 |
+| Proposed | 21 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -165,3 +165,5 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [108](ADR-108-mbc-cartridges.md) | MBC cartridges: small signed MBC network functions run per flow by `ebpf/cartridge-ebpf` (own object and verifier budget; monad-cpu-ebpf untouched), shared `no_std` step in `monad_common::cart`, XDP stage (forward-only, <=64 insns) + tick stage (<=256 per call, loop_bound), faults fail open with a per-slot breaker, Sophia registry (provisional `x-cartridge`), Cartridge ABI v0; three cartridges (rate limiter == qos-ebpf, sampler, int8 scorer → services/anomaly), bit-exact replay, three-engine differential for the Lich; benchmark gates #1(a)/#2 fail on interpreter cost; RFC Editor items open | Proposed | 2026-10-23 |
 | [109](ADR-109-upc-kernel-rows-per-bpf-slot.md) | The owned kernel gets a process row per BPF slot: per-slot trapframes in kernel `.bss`, the trapping slot and its a7 written by BPF at trap injection, a fork-set refresh mask, user page-walk misses closed (EVOLUTION-1 Stage 2 rung 0) | **Accepted** (except D6) | 2026-10-28 |
 | [110](ADR-110-upc-kernel-time-from-bpf-ticks.md) | The owned kernel's clock comes from BPF's tick count (published at trap injection); uptime arrives in the kernel; pause stays a BPF yield (EVOLUTION-1 Stage 2 rung 2) | **Proposed** | 2026-10-28 |
+| [111](ADR-111-command-line-conventions.md) | Command-line conventions: every binary answers `--help`, `--version` and a mistake the same way (`pkg/cmdline`) | **Proposed** | 2026-10-28 |
+| [112](ADR-112-plan-freeze-and-pitch-intake.md) | Plan freeze: no new battle plans; every pitch from Stevie becomes a parked `Proposed` ADR until the freeze lifts | **Accepted** | 2026-10-30 |

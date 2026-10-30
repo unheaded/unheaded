@@ -186,7 +186,7 @@ Nothing to report.
 - [ ] Shim: no change.
 
 #### Decisions Proposed at This Round Table (Stevie decides)
-1. Consolidation week: no new plans until the stack is up and staging has moved once. Rationale: delivery is flat while code output is high.
+1. **DECIDED 2026-10-30 (Stevie): plan freeze, ADR-112.** No new plans; every pitch becomes a parked `Proposed` ADR. Rationale: delivery is flat while code output is high.
 2. "Done" means running live with alerts, not code complete.
 3. Unattended churn may only work items that don't add escalations.
 
