@@ -121,3 +121,20 @@ the next boot failed with "Cannot open network namespace upc0". Restored with `s
 `scripts/upc-netns.sh down` now refuses while that unit is active (`UPC_NETNS_FORCE=1` overrides); the unit's own
 ExecStop runs while it is deactivating and still works (restart checked on west; installed copy updated, old one at
 `/usr/local/libexec/unheaded/upc-netns.sh.bak-2026-10-30`).
+
+**Step 34-35 (2026-10-30, read-only, units as installed on west).** `systemd-analyze security` exposure:
+
+| Unit | State | Exposure |
+|---|---|---|
+| huginn | active | 1.5 OK |
+| unheaded-chaos-controller | active | 1.5 OK |
+| unheaded-kev-poller | active | 1.2 OK |
+| unheaded-trace-collector | active | 1.8 OK |
+| unheaded-baseline | inactive (path/timer) | 3.8 OK |
+| unheaded-well-drill | inactive (timer) | 2.1 OK |
+| unheaded-well-offsite | inactive | 2.4 OK |
+| unheaded-well-backup | **failed** (Well down, E1) | 2.3 OK |
+| unheaded-wg-psk-rotate | timer disabled (FND-016) | 2.6 OK |
+| unheaded-upc-netns | active | 6.3 MEDIUM: root by necessity (netns add, veth, nft); no mount-namespace sandboxing possible (unit comment) |
+
+Every Go unit is at or below 4.0. The installed set is still the pre-E3 one (Steps 31-33 stay attended).
