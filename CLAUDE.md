@@ -951,7 +951,7 @@ Deliverables:
 **Essential reading:**
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Complete architecture
 - [THE_META_MOMENT.md](docs/THE_META_MOMENT.md) - Self-hosting philosophy
-- [SYSTEM_DIAGRAM.md](docs/SYSTEM_DIAGRAM.md) - Visual overview
+- [SYSTEM_DIAGRAM.md](docs/architecture/SYSTEM_DIAGRAM.md) - Visual overview
 - [timeline.md](references/timeline.md) - Living roadmap
 
 **External:**

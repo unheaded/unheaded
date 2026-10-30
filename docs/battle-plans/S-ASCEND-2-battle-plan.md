@@ -909,11 +909,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - [x] **Step 305** *(no ADR status changed, index left; RFC requests: weights sub-topic noted; drift.restore_proposal not created, Phase 10 not run)* [DOC-UPDATE][W] ~10m: ADR statuses touched this sprint re-checked in `docs/adr/ADR-INDEX.md` (023, 043, 080 amended, 081 note, 108 limitations); `docs/protocol/RFC-EDITOR-REQUESTS-S5.md` gets rows 6-7 (provisional topics `upc.cart.weights.*`, `drift.restore_proposal.*`) for S-TRUE-WIRE's RFC Editor desk.
 - [x] **Step 306** *(entry + mirrors via the timeguru syncer; FRESH)* [DOC-UPDATE][W] ~10m: `references/timeline.md` one dated entry (Age 3 list) + mirrors regenerated the way S22 did it (`git show --stat f83c9cde` shows the four files; the timeguru syncer: `go run ./services/timeguru/cmd/timeguru -sync-once 2>&1 | tail -1` if that flag exists, else edit json/yaml/toml in step with the md as f83c9cde did); `scripts/check-timeline-freshness.sh` → FRESH.
 - [x] **Step 307** *(9 rows)* [AUDIT-UPDATE][W] ~10m: `docs/sweeps/OUTSTANDING-2026-10-27.md`: every E14 and E13 M-row this sprint touched gets a status + step pointer (M-220..M-231, M-202, M-204); decisions 44-49 marked answered or open with the E-id.
-- [ ] **Step 308** [B] ~3m: Link check over every doc touched this sprint
+- [x] **Step 308** *(2026-10-30, over docs touched since 10-27: 1 real break, CLAUDE.md → docs/SYSTEM_DIAGRAM.md moved to docs/architecture/ in a01ad8e9, fixed; the rest are wiki links without .md (pages exist) and shell text in code spans)* [B] ~3m: Link check over every doc touched this sprint
   ```bash
   cd "$PROJECT_ROOT" && for f in $(git diff --name-only "$(git merge-base develop HEAD)" -- '*.md'); do grep -oE '\]\(([^)#]+)' "$f" | sed 's/](//' | grep -vE '^https?:|^mailto:' | while read -r p; do d="$(dirname "$f")"; test -e "$d/$p" || test -e "$p" || echo "BROKEN $f -> $p"; done; done | sort -u | head -20
   ```
-- [ ] **Step 309** [V] ~1m: No `BROKEN` lines (wiki `[[Page]]` links are not checked here; `scripts/check-wiki-links.sh` if present: run it).
+- [x] **Step 309** *(no real BROKEN left; no check-wiki-links.sh exists)* [V] ~1m: No `BROKEN` lines (wiki `[[Page]]` links are not checked here; `scripts/check-wiki-links.sh` if present: run it).
 - [x] **Step 310** [TEST][B][S] ~10m: **FINAL REGRESSION** — the harness, the sweep, the budgets, one last time on the final tree
   ```bash
   bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tee "$S6/p13-regression-final.log" | grep -aE 'PASS|FAIL|verifier'; sweep | grep -c SAME; sudo bpftool prog show 2>/dev/null | grep -ciE 'monad|cart|heimdall'; ip netns list | wc -l
