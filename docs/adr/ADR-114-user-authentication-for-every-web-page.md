@@ -208,9 +208,61 @@ ADR-103's "the cookie is per origin" does not hold for ports.
 - [OWASP OAuth 2.0 Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/OAuth2_Cheat_Sheet.html)
 - Cookie prefixes and port scope: RFC 6265 §8.5 (ports), [cookie attributes reference](https://specification.website/spec/security/cookie-attributes.md)
 
+## Addendum 2 (Stevie, 2026-10-30): how Google, Netflix and Microsoft do it
+
+> check FAANG methods for doing this, netflix, google, etc if you can find any write ups or blogs
+
+Public write-ups found (retrieved 2026-10-30). Meta, Amazon and Apple have published little on internal web single sign-on, and none turned up.
+
+| Who | What they published | The pattern |
+|---|---|---|
+| **Google: BeyondCorp Access Proxy** (Spear, Cittadini, Saltonstall, *;login:* 2016; with *Design to Deployment*, Osborn et al. 2016) | Every employee HTTP service moved behind one Access Proxy, "the only mechanism that allowed employees to access internal HTTP services". It shares one ACL evaluator (Access Control Engine) with the SSH gateway. "A common logging point for all requests allowed us to perform forensic analysis more effectively." Access depends on user **and device** state, not network location. | Central enforcement point, every request authorized, one log |
+| **Google Cloud IAP** (product docs: signed headers) | The proxy authenticates the user, then sends the app a signed JWT in `x-goog-iap-jwt-assertion`: ES256; `aud` = that one backend; `iss`, `exp`/`iat` with 30 s skew; `sub` as the stable user id. Apps must verify it because the signed header gives "secondary security in case someone bypasses IAP", e.g. a disabled proxy or a misconfigured firewall. | Proxy holds the session; apps get a short, per-app, signed identity assertion and verify it |
+| **Google: Device Bound Session Credentials** (Google blog, 2026-04-09; W3C WebAppSec) | Session cookies bound to a key in the TPM or Secure Enclave. The server issues **short-lived** cookies only after the browser proves it holds that key, so a stolen cookie expires quickly. Public in Chrome 146 on Windows; macOS next. An open W3C design, with Microsoft. A site adds a registration and a refresh endpoint. | Cookie-theft resistance without a library |
+| **Netflix: edge authentication and "Passport"** (Casella, Nelson, Singh, Netflix Tech Blog 2021; QCon talk "User & Device Identity for Microservices @ Netflix Scale") | Authentication moved to the edge (Zuul) and centralized services owned by one team. The edge turns whatever token the client sent into **Passport**, an integrity-protected, token-agnostic identity object carrying user and device information. Downstream services consume Passport and never see client tokens. Stated benefits: simpler services, token handling done by specialists, better auditability. (The blog itself returned 403; this is from its abstract and the talk and slide summaries.) | One internal identity format, minted at the edge |
+| **Microsoft: Continuous Access Evaluation** (Entra; OpenID **CAEP** on the Shared Signals Framework, carried as Security Event Tokens, RFC 8417) | Sessions are revoked in near real time on events: account disabled or deleted, password change, location change, user-risk increase. CAEP defines a `session-revoked` event. With CAE, access tokens can live longer because revocation no longer waits for expiry. | Push revocation events instead of waiting for timeouts |
+| **BuzzFeed `sso`** (open source, BuzzFeed Infrastructure) | An auth proxy in front of internal services using "double OAuth2": the proxy is an OAuth client of BuzzFeed's own `sso-auth`, which is a client of Google. | Proxy as the RP of a central IdP |
+
+### What the big operators converge on, mapped to the Kingdom
+
+1. **One enforcement front end that holds the session** (BeyondCorp AP, IAP, Netflix edge, BuzzFeed proxy). The Kingdom equivalent is the N8 gate, extended to front *every* page, ours included. This is option B's single enforcement point without B's single origin: each app can keep its own host name and its own `__Host-` cookie, issued by the gate.
+2. **One central identity provider behind that front end** (option A): unheaded-auth. The gate is one RP, so single sign-on and single logout happen once, at the gate.
+3. **Apps receive a signed, short-lived, per-app identity assertion, never the user's cookie or token**: an "Unheaded passport" in Netflix and IAP terms.
+   - The Kingdom already has the machinery: EdDSA JWTs with `aud`, verified by `pkg/auth`, and the RFC 8693 `act` claim (ADR-103).
+   - The passport would be minted by the gate per request (or cached per `sid` for under a minute). Claims: `sub`, `roles`, `sid`, `auth_time`, `amr` (password / totp / passkey), `aud` = that app.
+   - Like IAP, every app still verifies it, so a bypassed or misconfigured gate fails closed.
+4. **Every request authorized, one log** (BeyondCorp). The gate is the natural single audit point for ADR-113 R8's verbose debug trail, and the apps' own logs carry `sid`/`sub` from the passport.
+5. **Revocation is pushed, not polled** (CAE/CAEP).
+   - The Kingdom already has signed Wotan topics. `audit.auth.session-revoked` (shaped like a CAEP event) drops sessions at the gate within seconds of logout, user disable, password reset or MFA reset.
+   - OIDC back-channel logout stays the path for OIDC-capable third-party UIs.
+6. **Bind the session to the device** (DBSC, BeyondCorp device trust): later, and optional.
+   - Short-lived gate cookies plus DBSC refresh where the browser supports it (ES256 proof checking is stdlib).
+   - For `admin`, optionally require a client certificate from an enrolled device. The LXD API already works this way.
+
+### Revised recommendation (springboard)
+
+**Option D = A + B: central IdP + one gate in front of every page + per-app signed passport + pushed revocation.** It is what Google's IAP and Netflix's edge do, at Kingdom scale:
+- **Fewer moving parts per app:** each first-party service only verifies a passport, which `pkg/auth` already knows how to do, instead of each running a full OIDC RP. A BFF stays only where an app needs server-side tokens of its own.
+- **One place for single sign-on and logout:** login, MFA, step-up, revocation and audit all happen in one front end and one issuer.
+- **Same isolation:** no shared cookie, per-app host names, and per-app `aud`.
+- **Still zero new libraries:** reverse proxy (stdlib), JWT (first-party), Wotan events (exists).
+- **The cost:** the gate becomes a critical component and needs high availability (a gate on each of west and east, sessions in the Well). Everything depends on the firewall making the gate the only path, which is ADR-098 step 6 again.
+
+### Sources (addendum 2)
+
+- [BeyondCorp: The Access Proxy (Google Research)](https://research.google/pubs/beyondcorp-the-access-proxy/)
+- [BeyondCorp: Design to Deployment at Google (USENIX ;login:)](https://www.usenix.net/system/files/login/articles/login_spring16_06_osborn.pdf)
+- [Google Cloud IAP: securing your app with signed headers](https://docs.cloud.google.com/iap/docs/signed-headers-howto)
+- [Google: protecting cookies with Device Bound Session Credentials](https://blog.google/security/protecting-cookies-with-device-bound-session-credentials/)
+- [Android Authority: DBSC generally available](https://androidauthority.com/chrome-browser-dbsc-3672363/)
+- Netflix Tech Blog: Edge Authentication and Token-Agnostic Identity Propagation (netflixtechblog.com/edge-authentication-and-token-agnostic-identity-propagation-514e47e0b602, 403 to the fetcher). Summaries: [QCon SF: User & Device Identity for Microservices @ Netflix Scale](https://archive.qconsf.com/node/150487), [Netflix AIM slides](https://www.slideshare.net/slideshow/netflix-aim-engineering-manager/200530305)
+- [OpenID CAEP 1.0](https://openid.net/specs/openid-caep-1_0-03.html)
+- [Microsoft: Continuous Access Evaluation GA](https://techcommunity.microsoft.com/blog/identity/continuous-access-evaluation-in-azure-ad-is-now-generally-available/2464398)
+- [BuzzFeed sso (GitHub)](https://github.com/buzzfeed/sso)
+
 ## Open questions for the brainstorm
 
-0. **Single sign-on model: A (IdP session + per-app sessions, recommended), B (one gateway origin), or B now and A later?** Also: one host name per app through haproxy, and AAL2 as the lab default?
+0. **Single sign-on model: D (central IdP + one gate in front of every page + signed per-app passport + pushed revocation; Claude's revised recommendation), A (IdP session + a full OIDC RP in every app), B (one gateway origin), or a staged path B → D?** Also: one host name per app through haproxy; AAL2 as the lab default; DBSC and device certificates for `admin` later?
 1. **N4: native-minimal WebAuthn, the `go-webauthn` library, or TOTP only for now?** This is the main library decision.
 2. Keep argon2id from `x/crypto` (N1), or move to stdlib PBKDF2 to shed the module? Claude recommends keeping it. x/crypto also supplies other things we use, so shedding it would not drop the module anyway.
 3. Should the issuer grow an OIDC code flow (N7), or is Grafana's own login acceptable behind the gate (N8)? The second means two passwords for Grafana.
