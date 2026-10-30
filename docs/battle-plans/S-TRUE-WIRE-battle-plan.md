@@ -747,11 +747,11 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
 - [x] **Step 275** [V] ~1m: shellcheck clean (or only pre-existing style codes), `yaml ok`.
 - [x] **Step 276** [DOC-UPDATE][W] ~8m: ADR-012: Status line gains "Ratchet implemented S-TRUE-WIRE (Steps 259-275): `docs/policy/ebpf-insns-baseline.tsv` + `scripts/check-ebpf-insns.sh`; ascend 926,542 is over the 900K budget by design and allowlisted in `ebpf-insns-over-budget.txt`"; `wiki/BPF-Verifier-Gates.md` (or the page that documents `check-ebpf-loads.sh`) gets the new gate; `docs/MARSHAL-COOKBOOK.md` gate count.
 - [x] **Step 277** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 259-277: verified-insn baseline + growth ratchet (ADR-012 promise kept)`.
-- [ ] **Step 278** [TEST][S][B] ~8m: The whole eBPF gate chain, as the meta-gate runs it: `cd /home/govan/tmp/unheaded && scripts/check-ebpf-loads.sh 2>&1 | tail -1 && scripts/check-ebpf-insns.sh 2>&1 | tail -1 && scripts/bpf-verifier-check.sh 2>&1 | tail -1 && scripts/upc-regression.sh 2>&1 | grep -aE 'ALL GREEN|FAIL' | head -2`
-- [ ] **Step 279** [V] ~1m: Four green lines.
-- [ ] **Step 280** [SECURITY][W] ~2m: Phase 11 row: new gate scripts (read-only, root for load only), no new dependency.
-- [ ] **Step 281** [V] ~2m: **PHASE 7 EXIT GATE** — Steps 263, 267, 269, 272, 275, 279 passed; baseline committed; `check-gates-can-fail.sh` knows the new gate.
-- [ ] **Step 282** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 278-282: Phase 7 exit gate`.
+- [x] **Step 278** *(2026-10-30 on develop+churn: loads 36 PASS, insns 36 within 10 %, verifier-check PASSED (2 warnings), UPC ALL GREEN)* [TEST][S][B] ~8m: The whole eBPF gate chain, as the meta-gate runs it: `cd /home/govan/tmp/unheaded && scripts/check-ebpf-loads.sh 2>&1 | tail -1 && scripts/check-ebpf-insns.sh 2>&1 | tail -1 && scripts/bpf-verifier-check.sh 2>&1 | tail -1 && scripts/upc-regression.sh 2>&1 | grep -aE 'ALL GREEN|FAIL' | head -2`
+- [x] **Step 279** *(four green)* [V] ~1m: Four green lines.
+- [x] **Step 280** *(progress log Phase 11 lists both gates; no new dependency)* [SECURITY][W] ~2m: Phase 11 row: new gate scripts (read-only, root for load only), no new dependency.
+- [x] **Step 281** *(263/267/269/272/275 ticked, 279 green, baseline committed, both gates in check-gates-can-fail.sh)* [V] ~2m: **PHASE 7 EXIT GATE** — Steps 263, 267, 269, 272, 275, 279 passed; baseline committed; `check-gates-can-fail.sh` knows the new gate.
+- [x] **Step 282** *(churn/2026-10-30)* [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 278-282: Phase 7 exit gate`.
 
 ---
 
