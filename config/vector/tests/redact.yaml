@@ -8,14 +8,14 @@ tests:
       - insert_at: redact_secrets
         type: log
         log_fields:
-          message: "auth failed key=uhk_abcdefghijklmnop123 Authorization: Bearer eyJhbGciOi.x.y PGPASSWORD=hunter2 user=govan"
+          message: "auth failed key=uhk_xxxxxxxxxxxxxxxxxxx Authorization: Bearer eyJhbGciOi.x.y PGPASSWORD=hunter2 user=govan"
     outputs:
       - extract_from: redact_secrets
         conditions:
           - type: vrl
             source: |
               m = string!(.message)
-              assert!(!contains(m, "abcdefghijklmnop123"))
+              assert!(!contains(m, "xxxxxxxxxxxxxxxx"))
               assert!(!contains(m, "hunter2"))
               assert!(!contains(m, "eyJhbGciOi"))
               assert!(contains(m, "uhk_[REDACTED]"))
