@@ -58,3 +58,17 @@ groups:
           summary: "heimdall-daemon on {{ $labels.instance }} cannot publish drift events to Wotan"
           description: "Drift alerts are printed locally but not published, signed, to drift.detected.<node>; Wotan down or the drift key not enrolled"
           runbook_url: "runbooks/infra/heimdall-drift-publish-failing.yaml"
+
+      # LICH-012 L12d (2026-10-30): a hook's ringbuf filled (vfs_write,
+      # execve) or the daemon fell behind (reader). Drift is still caught by
+      # the next full poll; event-driven detection was blind for a while.
+      - alert: HeimdallHookEventsLost
+        expr: increase(heimdall_hook_events_lost_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "heimdall-daemon on {{ $labels.instance }} lost {{ $labels.hook }} hook events"
+          description: "{{ $value | humanize }} events lost in 15m; file changes in that window are only seen by the next full scan"
+          runbook_url: "runbooks/infra/heimdall-hook-events-lost.yaml"
