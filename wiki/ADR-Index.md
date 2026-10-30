@@ -1,13 +1,13 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-10-30 (109 entries)
+**Last synced from canonical:** 2026-10-30 (110 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
 | Accepted | 51 |
-| Proposed | 21 |
+| Proposed | 22 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -15,7 +15,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | PoC / Research | 3 |
 | Superseded / Deprecated | 4 |
 | Acknowledged | 1 |
-| **Total** | **109** |
+| **Total** | **110** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -128,6 +128,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [110](../docs/adr/ADR-110-upc-kernel-time-from-bpf-ticks.md) | The owned kernel's clock comes from BPF's tick count (published at trap injection); uptime arrives in the kernel; pause stays a BPF yield (EVOLUTION-1 Stage 2 rung 2) | **Proposed** | 2026-10-28 |
 | [111](../docs/adr/ADR-111-command-line-conventions.md) | Command-line conventions: every binary answers `--help`, `--version` and a mistake the same way (`pkg/cmdline`) | **Proposed** | 2026-10-28 |
 | [112](../docs/adr/ADR-112-plan-freeze-and-pitch-intake.md) | Plan freeze: no new battle plans; every pitch from Stevie becomes a parked `Proposed` ADR until the freeze lifts | **Accepted** | 2026-10-30 |
+| [113](../docs/adr/ADR-113-third-party-verdicts-service.md) | Third-party verdicts as a Kingdom service (name TBD): Well schema + service account, API key or user for every call, audited; ports the claude.ai verdicts artifact on-box | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 
 ---
 
