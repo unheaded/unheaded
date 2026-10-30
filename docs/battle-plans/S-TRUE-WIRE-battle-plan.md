@@ -776,7 +776,7 @@ Claude-Session: https://claude.ai/code/session_01TzL3TuPhKAVVHnD9jzuabE"
   ```
   Then start both with the flags shown, publish via `curl -s -X POST http://127.0.0.1:28000/api/v1/topics/config.test/publish …` using `cmd/wotan-publish`-style signing if a CLI exists (`ls cmd | grep -i wotan`), else the Go test from Step 285 is the witness and this step records "live leg: in-process only".
 - [x] **Step 290** [V] ~1m: Standby copy carries the signature; `rejected_total 0`.
-- [ ] **Step 291** [AUDIT-UPDATE][W] ~4m: FND-020 → `Mitigated` in `compliance/findings/register.yaml` with Steps 285-290; regenerate ADR-098 (Step 170 command).
+- [x] **Step 291** *(FND-020 already `resolved` 2026-10-28 in the register. ADR-098 regen NOT committed 2026-10-30: in the main checkout it reads local evidence (13 open/479 never observed on 10-28 vs 156 open/3 never observed now), so the generated section depends on the machine; for Stevie: which evidence set the ADR should reflect)* [AUDIT-UPDATE][W] ~4m: FND-020 → `Mitigated` in `compliance/findings/register.yaml` with Steps 285-290; regenerate ADR-098 (Step 170 command).
 - [x] **Step 292** [C] ~1m: **COMMIT CHECKPOINT** `[PLAN S-TRUE-WIRE] Steps 283-292: WAL replication carries and verifies ML-DSA-65 signatures (FND-020)`.
 
 ### Sophia dictionary signing (M-149)
