@@ -29,7 +29,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | PoC / Research | 3 |
 | Superseded / Deprecated | 4 |
 | Acknowledged | 1 |
-| **Total** | **107** |
+| **Total** | **109** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict

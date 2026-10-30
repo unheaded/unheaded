@@ -87,6 +87,7 @@ Recent:
 - [[LICH Fuzzing Campaigns|LICH-Campaigns]]
 - [[Dark Grimoire|Dark-Grimoire]]
 - [[SBOM]]
+- [[Releases]] — tag-driven release workflow: govulncheck, binaries, debs, signatures
 - [[Compliance Paperwork|Compliance-Paperwork]] — policy, posture, IR plan v2, contingency plan, SSP, privacy pack, attestation drafts for signing
 
 ## Services
@@ -202,6 +203,7 @@ Full record: [[Timeline]] (`references/timeline.md`).
 - [[Rust Components|Rust-Components]]
 - [[Demo Script|Demo-Script]]
 - [[Bug Kill Chain|Bug-Kill-Chain]]
+- [[Profiling]] — pprof on a loopback-only listener, BPF hardware counters (S-LOW-FRUIT)
 - [[Benchmarks]] — perf-benchmark scenarios (packet to browser, container start, HTTP load, HTTP/3) and the regression gate
 - [[Performance]] — Doom engine performance (historical)
 

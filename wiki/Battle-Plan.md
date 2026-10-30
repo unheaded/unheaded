@@ -2,7 +2,26 @@
 
 Index of the execution plans in `docs/battle-plans/`, newest first, with where each stands. Plans are written by the Warmonger and run under the Marshal; each one is a numbered checklist with verification gates. Roadmap: [[Timeline]]. Session history: [[Sessions|Session-Index]].
 
-## Current (2026-10-16)
+## Current (2026-10-30): plan freeze
+
+**No new battle plans while [ADR-112](../docs/adr/ADR-112-plan-freeze-and-pitch-intake.md) holds** (Stevie, 2026-10-30): every new pitch becomes a parked `Proposed` ADR. Existing plans continue in the decision-queue order of the Round Table below.
+
+| Plan | What | Status |
+|------|------|--------|
+| [ROUND-TABLE-2026-10-30](../docs/battle-plans/ROUND-TABLE-2026-10-30-state-direction-drift.md) | State, direction and drift: code ahead of delivery (stack down, develop 1,498 commits past staging) | Decision 1 taken: plan freeze (ADR-112); others open |
+| [NEXT-7-SPRINTS-2026-10-27](../docs/battle-plans/NEXT-7-SPRINTS-2026-10-27.md) | Index of the seven sprints below | Sprints 1-4 code complete; 5-6 in progress; 7 last |
+| [S-CLEAN-SLATE](../docs/battle-plans/S-CLEAN-SLATE-battle-plan.md) | Sprint 1: CI green, live-service bugs, repo hygiene | Shipped 2026-10-27 |
+| [S-IRON-GATE](../docs/battle-plans/S-IRON-GATE-battle-plan.md) | Sprint 2: service auth (ADR-103), TLS everywhere, signed releases + apt repo | Code complete; 72 steps open (attended / Stevie) |
+| [S-WELL-SPRING](../docs/battle-plans/S-WELL-SPRING-battle-plan.md) | Sprint 3: the Well as source of truth, SRE remainder, compliance paperwork | Code complete; 70 steps open |
+| [S-CHAMPION-HARDENING](../docs/battle-plans/S-CHAMPION-HARDENING-battle-plan.md) | Sprint 4: tool-call path, runbook approvals, eval, Zhen units | Code complete; 22 steps open (E1-E4) |
+| [S-TRUE-WIRE](../docs/battle-plans/S-TRUE-WIRE-battle-plan.md) | Sprint 5: spec-vs-code rulings, Shield truth, supply chain | 353 done, 58 open |
+| [S-ASCEND-2](../docs/battle-plans/S-ASCEND-2-battle-plan.md) | Sprint 6: getpid flip, N-way isolation, loader gates, east as a node ([[Linux-on-UPC]]) | 270 done, 44 open |
+| [S-DOOM-LAST](../docs/battle-plans/S-DOOM-LAST-battle-plan.md) | Sprint 7: Doom docs, units off root, provenance, one banding pass | Not started (runs last) |
+| [S-LOW-FRUIT](../docs/battle-plans/S-LOW-FRUIT-battle-plan.md) | Low-hanging fruit: version flag, timeouts, unit ceilings, man pages, 10 ratchets | Merged 2026-10-29 |
+| [S-LOG-HARVEST](../docs/battle-plans/S-LOG-HARVEST-battle-plan.md) | Every device, service and application log shipped and proven | Forged 2026-10-30, not started: waits on stack-up and decisions D1-D7 |
+| [ROUND-TABLE-2026-10-28](../docs/battle-plans/ROUND-TABLE-2026-10-28-review-scope.md) | Review at phase-merge grain, never branch grain | Standing guidance |
+
+## Mid-October (2026-10-16 snapshot)
 
 | Plan | What | Status |
 |------|------|--------|

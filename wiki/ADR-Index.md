@@ -1,13 +1,13 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-10-23 (105 entries)
+**Last synced from canonical:** 2026-10-30 (109 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
-| Accepted | 48 |
-| Proposed | 20 |
+| Accepted | 51 |
+| Proposed | 21 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -15,6 +15,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | PoC / Research | 3 |
 | Superseded / Deprecated | 4 |
 | Acknowledged | 1 |
+| **Total** | **109** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -123,6 +124,10 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [106](../docs/adr/ADR-106-two-brains-one-gate.md) | Two brains, one gate: out-of-band confirmation (`deny`/`tty`/`queue`, the code never in model context), `zhen/*` branch-sandbox writes, privacy tiers T0/T1/T2, routing from a pre-registered hold-out eval, `run_check` sandbox, Kanban claims, one GPU lease and overnight guards, the flywheel with Claude text excluded by default | Proposed | 2026-10-23 |
 | [107](../docs/adr/ADR-107-chaos-safety-envelope.md) | Chaos safety envelope: one engine (`yaldabaoth.Service` in chaos-controller, no built-in injectors, dry run by default), a blast-radius allowlist file (resolved targets only, hard denies, limits), three abort paths (HTTP, Wotan `chaos.abort`, `/run/unheaded/chaos/ABORT`), a revert journal written before every fault (TTL, start replay, `revert-all` in ExecStopPost, removed only when verified) and an ADR-100 steady state (real probes plus the Kingdom fast-burn guard) | **Proposed** (Stevie to accept; decision 29); unit installed west+east 2026-10-26; game day 1 proved the envelope live 2026-10-26: netem, container kill, systemd stop/kill on east, packet chaos, abort in 0.12 s / 0.88 s, crash revert 0.12 s, zero residue | 2026-10-23 |
 | [108](../docs/adr/ADR-108-mbc-cartridges.md) | MBC cartridges: small signed MBC network functions run per flow by `ebpf/cartridge-ebpf` (own object and verifier budget; monad-cpu-ebpf untouched), shared `no_std` step in `monad_common::cart`, XDP stage (forward-only, <=64 insns) + tick stage (<=256 per call, loop_bound), faults fail open with a per-slot breaker, Sophia registry (provisional `x-cartridge`), Cartridge ABI v0; three cartridges (rate limiter == qos-ebpf, sampler, int8 scorer → services/anomaly), bit-exact replay, three-engine differential for the Lich; benchmark gates #1(a)/#2 fail on interpreter cost; RFC Editor items open | Proposed | 2026-10-23 |
+| [109](../docs/adr/ADR-109-upc-kernel-rows-per-bpf-slot.md) | The owned kernel gets a process row per BPF slot: per-slot trapframes in kernel `.bss`, the trapping slot and its a7 written by BPF at trap injection, a fork-set refresh mask, user page-walk misses closed (EVOLUTION-1 Stage 2 rung 0) | **Accepted** (except D6) | 2026-10-28 |
+| [110](../docs/adr/ADR-110-upc-kernel-time-from-bpf-ticks.md) | The owned kernel's clock comes from BPF's tick count (published at trap injection); uptime arrives in the kernel; pause stays a BPF yield (EVOLUTION-1 Stage 2 rung 2) | **Proposed** | 2026-10-28 |
+| [111](../docs/adr/ADR-111-command-line-conventions.md) | Command-line conventions: every binary answers `--help`, `--version` and a mistake the same way (`pkg/cmdline`) | **Proposed** | 2026-10-28 |
+| [112](../docs/adr/ADR-112-plan-freeze-and-pitch-intake.md) | Plan freeze: no new battle plans; every pitch from Stevie becomes a parked `Proposed` ADR until the freeze lifts | **Accepted** | 2026-10-30 |
 
 ---
 

@@ -48,6 +48,8 @@ LOVE SERVE REMEMBER. PEACE AND LOVE. Free to use. Free to share. <3
   2026-09-24.
 - **`main`**: promoted from `staging` by Stevie only.
 
+**Plan freeze (ADR-112, 2026-10-30):** no new battle plans until Stevie lifts it; every new pitch from him becomes a parked `Proposed` ADR (`docs/adr/`, plus an `ADR-INDEX.md` row), with no plan, branch or code. Existing plans continue in the order of the decision queue at the top of `~/tmp/next.md`.
+
 Before reading history, diffing, or saying something is "not done", check
 `develop` (and `staging`): a feature missing from `main` is usually there.
 CI runs on push to all three.
@@ -1224,7 +1226,7 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | cuirass | 19006 | HTTP | Control Plane Service |
 | unheaded-auth | 19020 | HTTP(S) | Built-in OIDC issuer (ADR-103): login, JWKS, discovery; uid 16735 |
 | sword | 19011 | HTTP | Deploy service through Cuirass (was Canary's port; Canary folded into Sword), uid 16746 |
-| chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east |
+| chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east; reachable only from loopback and the peer host (`unheaded-chaos-guard.service`, `deploy/nftables/chaos-guard-*.nft`) |
 | apt repo | 18888 | HTTP | Signed apt repo (reprepro, nginx), 127.0.0.1 + 192.168.13.2 only |
 | heimdall-daemon /metrics | 19101 | HTTP | Drift detection metrics (loopback default, `-metrics-addr`) |
 | kev-poller | 19120 | HTTP | CISA KEV feed poller (ADR-055) |
