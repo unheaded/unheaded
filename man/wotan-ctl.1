@@ -1,0 +1,41 @@
+.TH WOTAN\-CTL 1 "2026-10-29" "unheaded 648a2501" "Unheaded Kingdom"
+.SH NAME
+wotan\-ctl \- Load MBC bytecode, memory images and boot state into the Wotan BPF compute engine.
+.SH SYNOPSIS
+.B wotan\-ctl
+COMMAND [OPTION]...
+.SH DESCRIPTION
+Load MBC bytecode, memory images and boot state into the Wotan BPF compute engine.
+.SH COMMANDS
+.TP
+.B boot
+Load and boot a UPC kernel image
+.TP
+.B doom
+Doom\-over\-IPv6 compute engine management
+.TP
+.B load\-mem
+Load binary data into Wotan's L2 ring buffer (RAM)
+.TP
+.B load\-rom
+Load MBC bytecode into BPF rom_map
+.TP
+.B mkfs
+Format a UNFS ramdisk filesystem
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+Run "wotan\-ctl COMMAND \-\-help" for a command's options. BPF maps are read from /sys/fs/bpf.
+.SH EXAMPLES
+.EX
+wotan\-ctl load\-rom \-file prog.mbc         load bytecode into rom_map
+wotan\-ctl boot \-\-help                     UPC boot options
+wotan\-ctl doom status                     Doom\-over\-IPv6 state
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

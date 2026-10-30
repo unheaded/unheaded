@@ -108,6 +108,12 @@ func (c *Command) executeInternal(ctx *Context, args []string) error {
 		return nil
 	}
 
+	// Root-level manual page (scripts/gen-man.sh)
+	if len(args) == 1 && cmdline.IsManArg(args[0]) && c.RunFunc == nil {
+		c.printMan()
+		return nil
+	}
+
 	// Check for version at root level
 	if len(args) > 0 && (args[0] == "version" || args[0] == "--version" || args[0] == "-V") && c.RunFunc == nil {
 		cmdline.PrintVersion(os.Stdout, cmdline.Spec{Name: "wotan-ctl", Version: Version})
@@ -167,6 +173,32 @@ func (c *Command) printHelp() {
 	}
 
 	fmt.Printf("Use \"%s <command> --help\" for more information about a command.\n", c.Name)
+}
+
+// printMan writes the root command's man page from its subcommand table.
+func (c *Command) printMan() {
+	names := make([]string, 0, len(c.SubCommands))
+	for name := range c.SubCommands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	cmds := make([]cmdline.Command, 0, len(names))
+	for _, name := range names {
+		cmds = append(cmds, cmdline.Command{Name: name, Purpose: c.SubCommands[name].Short})
+	}
+	cmdline.Man(os.Stdout, flag.NewFlagSet(c.Name, flag.ContinueOnError), cmdline.Spec{
+		Name:     c.Name,
+		Purpose:  "Load MBC bytecode, memory images and boot state into the Wotan BPF compute engine.",
+		Operands: "COMMAND [OPTION]...",
+		Commands: cmds,
+		Examples: []string{
+			"wotan-ctl load-rom -file prog.mbc         load bytecode into rom_map",
+			"wotan-ctl boot --help                     UPC boot options",
+			"wotan-ctl doom status                     Doom-over-IPv6 state",
+		},
+		Details: `Run "wotan-ctl COMMAND --help" for a command's options. BPF maps are read from /sys/fs/bpf.`,
+		Version: Version,
+	})
 }
 
 func main() {
