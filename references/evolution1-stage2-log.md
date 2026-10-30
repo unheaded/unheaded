@@ -680,3 +680,21 @@ trapframe at the table address from BootParams `0x160`; after `wait()` init read
 - `upc0` was gone on west (the unit is `active (exited)` since 10-28 but the namespace had been removed); brought back
   with `sudo scripts/upc-netns.sh up`. Left up, as the unit intends.
 - Not built: `hostile_slot.c` and `hostile_tf.c` (Steps 134-135).
+
+**Steps 134-138 (same day).** `hostile_slot.c` (child forges `cur_slot` = slot 5 and `trap_a7` = getpid at the table
+address it reads from VA `0x160`, then calls getpid) and `hostile_tf.c` (child fills slot 2's trapframe at that
+address with junk, then forks; the grandchild in slot 2 calls getpid with a canary in `s1`). Each booted with D6 off
+and on (`~/tmp/evolution1-stage2/p6-hostile.txt`):
+
+| Probe | D6 off | D6 on |
+|---|---|---|
+| hostile_pgd | `pgd=changed` (hole) | `pgd=same` |
+| hostile_slot | `child-tbase=same child-pid=2 init-pid=1` | same |
+| hostile_tf | `child-pid=2 gc-pid=3 gc-canary=ok` | same |
+
+- `child-tbase=same`: fork copied init's low memory into the child's slice, so the child reads the real table address
+  but its stores at that VA land in its own copy. These two probes therefore show that the direct route is closed in
+  both modes; the only route to the real table found so far is through another slot's pgd, which `hostile_pgd`
+  covers and D6 closes.
+- No mutation check was run for the two new probes (no build where the child's VA reaches the real table).
+- All three registered in `scripts/upc-regression.sh`; D6 off: ALL GREEN (`p6-harness-d6off.txt`).

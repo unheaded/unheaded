@@ -187,6 +187,17 @@ else
   fail "hostile_pgd (D6 off: the probe no longer reaches the hole)"
 fi
 
+# Stage 2 Steps 134-135: a child forges cur_slot/trap_a7 at the table address it
+# sees, or scribbles over slot 2's trapframe there, then a getpid (its own, or a
+# grandchild's in slot 2) must still be right. Both hold with D6 off or on.
+hs_lines() { (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+  --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers 2000000 --instance 111 2>&1) | grep -a 'ascii:' \
+  | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'H[ST]: [a-z-]+=?[a-z0-9]*'; }
+want_counts "$(hs_lines hostile_slot)" "HS: child-pid=2" 1 "HS: init-pid=1" 1 "HS: done" 1 \
+  && pass "hostile_slot: forged cur_slot/trap_a7 leave getpid right" || fail "hostile_slot (forged handoff words)"
+want_counts "$(hs_lines hostile_tf)" "HT: child-pid=2" 1 "HT: gc-pid=3" 1 "HT: gc-canary=ok" 1 "HT: done" 1 \
+  && pass "hostile_tf: scribbled slot 2 trapframe, grandchild pid and s1 intact" || fail "hostile_tf (sibling trapframe)"
+
 # S26: xv6 usertests bodies as probes (user/ut_*.c) against BPF fork/exit/wait.
 # forktest and reparent2 need wait() to return -1 once every child is reaped.
 for ut in exitwait:1500000:ok twochildren:1500000:ok forktest:1500000:ok reparent2:3000000:reaped-all; do
