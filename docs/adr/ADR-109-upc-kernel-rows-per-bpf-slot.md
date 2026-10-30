@@ -234,8 +234,11 @@ The plan is `EVOLUTION-1-STAGE-2-battle-plan.md`, Phases 3-4. The log is `refere
   the kernel per slot.
 - Each of the four mutants fails the asserter: shared trapframe, `trap_a7` ignored, no refresh, a6/a7 restored.
 
-**D6 is implemented but not enabled.** Its hostile-child check was not built, so it stays off pending a decision. The
-fall-through hole described under Security notes is still open.
+**D6 is implemented but not enabled.** It stays off pending a decision; the fall-through hole described under
+Security notes is still open. Its hostile-child check exists since 2026-10-30 (`user/hostile_pgd.c`, harness gate):
+with D6 off a child writes slot 0's pgd; with D6 on the store is dropped, the 12 goldens stay SAME and the harness is
+green, at +3,140 verified instructions (871,430). Evidence: `references/evolution1-stage2-log.md` §"D6 hostile-child
+probe".
 
 **What the rung found:**
 - The I7 guard must be ascend-only; without that, Doom (never priv 3) would stop context-switching.

@@ -464,14 +464,14 @@ vcount() { ub getpidfork UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' |
 - [x] **Step 101** *(pass 9 and pass 6; PG lead closed: PDE 1 only)* [V] ~2m: `RUNG0-ASSERT pass` with N ≥ 9. Every `unknown sys call 22` line names pid 2, 3 or 4,
   never 1. The `PG:` value is recorded in `$LOG`: non-zero means the init-pgd lead is real, so write it up as a
   finding for whichever rung first maps above 8 MiB.
-- [ ] **Step 102** [DEFERRED] *(D6 hostile probe not built this session; D6 stays off, to Stevie)* [TEST][B][S] ~20m: D6.
+- [x] **Step 102** *(2026-10-30: built; D6 off pgd=changed, on pgd=same; tables same both ways, see log; D6 stays off, to Stevie)* [TEST][B][S] ~20m: D6.
   - Write `crates/xv6-mbc/upstream/user/hostile_pgd.c`:
     - the child stores `0x5A5A5A5A` to VA `0x00F00000 + 4*1023` (the last PDE of slot 0's pgd) and to the table
       address read from VA `0x160`;
     - the child exits; init (identity map) reads both words and prints `HP: pgd=same|changed` and
       `HP: tables=same|changed`.
   - Run it with D6 off, then with D6 on: `d6 false true; obj`, then `d6 true false`.
-- [ ] **Step 103** [DEFERRED] *(see Step 102)* [V] ~2m: D6 off prints `changed` for both, the hole is real and recorded. D6 on prints `same` for
+- [x] **Step 103** *(2026-10-30: D6 on 12/12 SAME, harness ALL GREEN, +3,140 insns; tables row differs from the plan, log)* [V] ~2m: D6 off prints `changed` for both, the hole is real and recorded. D6 on prints `same` for
   both. With D6 on, `sweep12 | grep -c SAME` is 12.
   - A golden changes with D6 on → [ESCALATE] D6 alone. Leave D6 off, record the golden diff in `$LOG`, and continue
     the rung without it; the hostile check stays RED and is reported to Stevie. Every other part of the gate still

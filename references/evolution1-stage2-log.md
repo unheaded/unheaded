@@ -649,3 +649,34 @@ reached were each run with `--only`:
   - `check-tool-freshness`: `aquasecurity/trivy-action@master` is pinned at `6abccf398f78`, and `8f28faec2651`
     (2026-10-21) has been on master past the 7-day cooldown. Re-pinning (docker.yml, security.yml) is a dependency
     approval.
+
+## D6 hostile-child probe (Steps 102-103, M-247), 2026-10-30, unattended churn
+
+Built on branch `churn/2026-10-30`. The tree keeps `UPC_D6_MISS_FAULT = false`; enabling it is Stevie's call.
+
+**Probe** `crates/xv6-mbc/upstream/user/hostile_pgd.c` (run as the userland, so it is init with the identity map). A
+forked child stores `0x5A5A5A5A` to VA `0x00F00FFC` (last PDE of slot 0's pgd, 15 MiB up) and to a word in slot 7's
+trapframe at the table address from BootParams `0x160`; after `wait()` init reads both physically, prints
+`HP: pgd=` and `HP: tables=` same/changed, and restores them.
+
+| Run (`--triggers 1500000`) | Result | Verified insns |
+|---|---|---|
+| D6 off | `tbase=low child=stored pgd=changed tables=same done` | 868,290 |
+| D6 on | `tbase=low child=stored pgd=same tables=same done` | 871,430 (+3,140) |
+
+- **The hole is real:** with D6 off a child wrote slot 0's page directory. From there it can map any physical page.
+- **D6 closes it:** the same store is dropped with D6 on.
+- **`tables=same` both ways, and why it differs from the plan:** Step 103 expected `changed` for the tables with D6
+  off. The table (`upc_st`) is in kernel .bss at `0x114c00` (`nm kernel/kernel.elf`), below 8 MiB, so the child's
+  store at that VA goes through its own PDE 0 into its own slice and never reaches the table directly. The way to
+  the tables with D6 off is through the pgds (row 1), not this VA.
+- With D6 on: `sweep12` **12/12 SAME** (`~/tmp/evolution1-stage2/d6-on-sweep12.txt`), harness **ALL GREEN**
+  (`d6-on-harness.txt`, `d6-on-harness2.txt`). No golden changed, so the plan's escalate-on-golden-change branch did
+  not trigger.
+- **Harness gate** (`scripts/upc-regression.sh`, after the uptime gate), flag-aware: D6 on → must print `pgd=same
+  tables=same`; D6 off → prints a note naming M-247, and fails only if the child's pgd store stops landing (then the
+  probe would prove nothing once D6 is on). Both branches run: D6 off ALL GREEN with the note
+  (`d6-off-harness.txt`), D6 on ALL GREEN with the PASS.
+- `upc0` was gone on west (the unit is `active (exited)` since 10-28 but the namespace had been removed); brought back
+  with `sudo scripts/upc-netns.sh up`. Left up, as the unit intends.
+- Not built: `hostile_slot.c` and `hostile_tf.c` (Steps 134-135).
