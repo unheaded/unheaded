@@ -193,5 +193,5 @@ func printReport(w io.Writer, rows []row, maxAge int) {
 		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%s\t%s\n", r.Path, r.Pinned, r.Latest, r.Released.Format("2006-01-02"), r.Months, kind, status)
 	}
-	tw.Flush()
+	_ = tw.Flush() // stdout; nothing useful to do if it fails
 }
