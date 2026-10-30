@@ -188,12 +188,15 @@ append typed bytes to the guest's 64-slot KBD ring (HEAD advanced live; the gues
   `upc_tty_kbd_dropped_total` on `/metrics`); `console` pulls them from
   `GET /api/v1/kbd/drain`, which answers loopback callers only. CR (xterm's Enter) and LF
   both end a line. Since S-ASCEND-2 a default boot runs inside netns `upc0`, which has no
-  link to the host, so `console` there cannot reach a bridge on the host's loopback: run
-  Mode A with `console --create-netns` (as root) until the bridge gets a path into `upc0`.
+  link to the host, so `console` there cannot reach a bridge on the host's loopback. Since
+  2026-10-30 the bridge also listens on a unix socket (`--listen-unix PATH`, mode 0660,
+  health/ingest/drain only), and bootctl uses it when `UPC_TTY_BRIDGE_SOCKET=PATH` is set
+  (pass it inside `sudo ip netns exec upc0 env ...`): a socket file reaches across network
+  namespaces. Without it, `console --create-netns` (as root) still works.
 
 **Attended end-to-end (browser), recipe for S-ASCEND-2 E5 (not run live yet):**
-1. `cd cmd/upc-tty-bridge && go run . --listen 127.0.0.1:26100`
-2. `cd ebpf && sudo UPC_DEMO_MODE=1 ../cmd/upc-bootctl/target/release/upc-bootctl console --create-netns --instance 111 --kernel ../crates/xv6-mbc/upstream/target/xv6-mbc.mbc --ramdisk ../crates/xv6-mbc/upstream/target/fs.img --userland ../crates/xv6-mbc/upstream/target/init.mbc`
+1. `cd cmd/upc-tty-bridge && go run . --listen 127.0.0.1:26100 --listen-unix /tmp/upc-tty.sock`
+2. `cd ebpf && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 UPC_TTY_BRIDGE_SOCKET=/tmp/upc-tty.sock ../cmd/upc-bootctl/target/release/upc-bootctl console --instance 111 --kernel ../crates/xv6-mbc/upstream/target/xv6-mbc.mbc --ramdisk ../crates/xv6-mbc/upstream/target/fs.img --userland ../crates/xv6-mbc/upstream/target/init.mbc`
 3. Open `http://127.0.0.1:26100/upc-console.html`, instance `111`, type `echo peace and love`, expect the echo.
 4. With the model already serving (`scripts/switch-model.sh qwen-7b`; never start a second one), `LICH_E2E=1 go test ./pkg/lichtools/ -run E2E -count=1`.
 
