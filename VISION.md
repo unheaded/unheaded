@@ -26,11 +26,13 @@ Infrastructure is armor. The application doesn't need to know it's there. But se
 
 Stevie, 2026-10-30: *"aimed at mom and pop shops and vibe coders to adhere to secure best practices so their application doesnt spread malware, etc or allow for RCE and jump box for threat actors."*
 
-The adopter is not a security team. It is:
+The first adopter in mind is not a security team. It is:
 - **the small shop** running its own site;
 - **the vibe coder** shipping an app an AI assistant wrote.
 
-Neither is likely to write authentication, input validation, egress control or audit logging correctly on their own.
+Security and infrastructure teams remain users too (Stevie, 2026-10-30: "unheaded could still be used by security and infra teams"). They get the same defaults and can see, tune and extend every control.
+
+The first two are not likely to write authentication, input validation, egress control or audit logging correctly on their own.
 
 Unheaded is an **aid, not a promise** (Stevie, 2026-10-30: "not a promise just an aid"). It applies secure best practice around their app by default, so it is much harder for that app to:
 - serve malware to visitors;
@@ -44,7 +46,12 @@ No tool can guarantee that for an app it did not write. Unheaded makes the safe 
 4. **Plain language.** A shop owner can read what Unheaded did for them, why, and what it does not cover.
 5. **Fits small hardware.** It runs on one modest machine, not a cluster.
 
-The enterprise compliance work (ADR-097/098) still serves this adopter: a small shop that takes card payments faces PCI-DSS like anyone else. They get the evidence for free instead of paying an auditor to assemble it.
+**Out of the box, every compliance control is on.** Stevie, 2026-10-30: *"out of the box running it with all compliance controlls enabled should harden an application's hosting (can't stop application vulnerbility)"*.
+- The default install runs the full control set from the compliance catalog (ADR-097/098): host hardening, firewall, egress, audit, updates, backups, access control. The adopter does not have to turn them on.
+- Their scope is **the hosting**: the machine, the network around the app, and what the app is allowed to do and reach.
+- They do **not** fix vulnerabilities in the application's own code. They make one harder to reach, contain what an exploited app can do, and record what happened. The plain-language report says so.
+
+The same compliance work serves the small shop directly: a shop that takes card payments faces PCI-DSS like anyone else. It gets the hosting evidence for free instead of paying an auditor to assemble it.
 
 ## The Technical Bet
 

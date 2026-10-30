@@ -35,6 +35,8 @@ Stevie: *"review and expand on that last statement/note and roll into an ADR"*. 
 
 Every user-facing word in this install follows that rule. It does not say "protected" or "can't be hacked". It says what was checked, what was turned on, and what remains the owner's job.
 
+**Scope (Stevie, 2026-10-30):** out of the box, with all compliance controls enabled, Unheaded hardens the application's **hosting**. It "can't stop application vulnerability": it makes a flaw harder to reach, limits what an exploited app can do, and records it. Security and infra teams remain users of the same install. The Shop install is therefore the full compliance control set on a small machine, not a reduced one. What it sheds is the Kingdom's development and research stack (R1).
+
 **Who:** the mom-and-pop shop and the vibe coder (VISION.md):
 - one app, often AI-written;
 - one machine or one small VPS;
