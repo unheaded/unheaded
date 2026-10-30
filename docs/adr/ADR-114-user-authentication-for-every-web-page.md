@@ -115,8 +115,102 @@ The 2026-10-29 policy: no new third-party library, tool, application or code wit
    - passkeys (after the N4 decision);
    - the Zhen UI behind the gate.
 
+## Addendum (Stevie, 2026-10-30): one login applies to every application
+
+> auth to one application should apply to all - research best practice for acomplishing this and roll into ADR for future brainstorming
+
+### What current best practice says (sources below, retrieved 2026-10-30)
+
+1. **Browser apps keep tokens on a backend.**
+   - RFC 10017, *OAuth 2.0 for Browser-Based Applications* (BCP 212, August 2026; it was draft-ietf-oauth-browser-based-apps), puts the Backend-for-Frontend pattern first. The browser holds only a session cookie, and the backend is a confidential OAuth client.
+   - `pkg/bff` already does this.
+2. **Use the authorization code flow with PKCE S256 everywhere, even for confidential clients.**
+   - RFC 9700, *OAuth 2.0 Security Best Current Practice* (January 2025), deprecates the implicit grant and `plain` PKCE.
+   - Refresh tokens must be sender-constrained or rotated, and a reused refresh token revokes its whole family.
+3. **Single sign-on comes from the identity provider's session, not a shared cookie.**
+   - The user authenticates once at the IdP, and the IdP's own first-party cookie remembers that.
+   - Each application is an OIDC relying party with **its own** session. When it has none, it sends the browser to the IdP with a **top-level redirect**. The IdP sees its session and returns a code at once, with no prompt.
+   - The older iframe tricks (`prompt=none` in a hidden iframe, OIDC Session Management's check-session iframe) depend on third-party cookies. Browsers now block those, so they should not be relied on.
+4. **Sessions are independent, and logout has to be propagated deliberately.**
+   - NIST SP 800-63B-4 §5.2: "the termination of the subscriber's sessions at an IdP and RP are independent of each other", and "the RP SHALL be authoritative as to whether the reauthentication requirements have been met."
+   - The OpenID standards for logout: RP-Initiated Logout (the user logs out at one app, which sends them to the IdP's end-session endpoint) and **Back-Channel Logout** (the IdP calls each RP's logout URI server-to-server with a signed logout token).
+   - Back-channel is the reliable path. Front-Channel Logout runs in hidden iframes, needs the RP's cookies, and fails under third-party-cookie blocking, so it is best-effort at most.
+5. **Lifetimes (NIST SP 800-63B-4, AAL section, final).**
+
+   | Level | Overall reauthentication | Inactivity |
+   |---|---|---|
+   | AAL1 | SHOULD ≤ 30 days | MAY |
+   | AAL2 | SHOULD ≤ 24 h | SHOULD ≤ 1 h |
+   | AAL3 | SHALL ≤ 12 h | SHOULD ≤ 15 min |
+
+   - "When either timeout expires, the session SHALL be terminated."
+   - Cookie expiry "SHALL NOT be relied upon to enforce session timeouts". The server enforces them.
+   - Bearer session secrets "SHOULD NOT be persistent".
+   - "Remember my browser" SHALL NOT stand in for authentication.
+6. **Cookie scope.**
+   - A `__Host-` cookie is Secure, `Path=/` and has no `Domain`, so it is pinned to one host, and sibling subdomains cannot set or shadow it.
+   - A shared parent-domain cookie (`Domain=.lab`) is the anti-pattern for single sign-on. Every subdomain receives it and can overwrite it (cookie tossing), so one weak app compromises all of them.
+   - **Cookies ignore ports** (RFC 6265 §8.5): apps on the same host but different ports share one cookie jar.
+
+### What this means for the Kingdom: three ways to do it
+
+| | A. IdP session + per-app sessions (OIDC single sign-on) | B. One gateway origin | C. Shared parent-domain cookie |
+|---|---|---|---|
+| How | unheaded-auth keeps the single sign-on session (its own first-party cookie). Every first-party page (dashboard, kanban, wiki, verdicts) and every OIDC-capable UI (Grafana, Open WebUI) is an RP with its own `__Host-` session. Missing session → top-level redirect → instant code. Logout → issuer end-session → back-channel logout to every RP. | Every page sits behind one host name and the N8 gate, routed by path (`/kanban`, `/grafana`, `/pihole`). One session cookie. | One session cookie with `Domain=` the lab's parent domain, read by every app |
+| Standards fit | RFC 10017, RFC 9700, OIDC Core + Back-Channel Logout, NIST 800-63B-4 | Common, but outside the OIDC model | Contrary to them |
+| Isolation between apps | Strong: one app's flaw does not hand over another app's session | Weak: all apps share one origin. Script injected into any app runs as the whole lab (an HttpOnly cookie does not stop same-origin calls) | None |
+| Single logout | Back-channel to each RP (each app keeps a revocable server-side session) | Trivial (one cookie) | Trivial |
+| Third-party UIs | OIDC-capable ones join directly. The rest sit behind the N8 gate, which is itself one RP. | All behind the gate. Each must work under a sub-path (several don't). | Most can't read our cookie |
+| Cost | Most work: the N7 code flow, back-channel logout, a session store per RP | Least work | — |
+| Claude's recommendation | **Yes** | Acceptable only as a stopgap | **No** |
+
+### The recommendation in detail (springboard)
+
+1. **unheaded-auth is the one place a user authenticates.**
+   - It holds the single sign-on session: a `__Host-` cookie on the issuer's origin, stored in the Well, with idle and absolute limits.
+   - It runs the N7 code flow (PKCE S256) and adds an end-session endpoint and back-channel logout delivery.
+2. **Every app is an RP, all through one client in `pkg/bff`.**
+   - The BFF in `pkg/bff` grows the RP side of the code flow, so dashboard, kanban, wiki, the verdicts page and the N8 gate share one code path.
+   - Each gets its own cookie name with the `__Host-` prefix, and its own Well-backed session table, revocable by `sid`.
+3. **Back-channel logout receiver** (`POST /auth/backchannel-logout`) in `pkg/bff`. It:
+   - verifies the issuer-signed logout token (EdDSA; `events` claim; `sid`/`sub`; `jti` replay guard);
+   - deletes the matching sessions.
+
+   The issuer reaches the RPs over the internal TLS network, never through the browser.
+4. **Lifetimes: aim for AAL2** (password + TOTP or passkey).
+   - Issuer session: overall ≤ 24 h, inactivity ≤ 1 h.
+   - App sessions: never outlive the issuer session. Each refresh re-checks with the issuer (a short-lived access token, renewed silently by a top-level redirect while the issuer session lives).
+   - Admin actions, such as a verdict write (ADR-113), need fresh authentication (`max_age` / `auth_time` ≤ 15 min), the AAL3 inactivity rule applied to sensitive actions.
+5. **Same host, different ports.** The lab serves dashboard 20000 and kanban 20001 on one host, so per-app *names* matter as much as the prefix. The longer-term fix is one host name per app through haproxy (`dashboard.lab`, `kanban.lab`, `auth.lab`), which also makes `__Host-` meaningful.
+6. **Everything is logged and audited** under the ADR-113 R8 rules:
+   - logins, single sign-on issuances (which RP, `sid`), logouts and each back-channel delivery with its result, session expiry, and step-up events;
+   - all of it to `ops.login_events` plus Wotan `audit.auth.*`.
+7. **Libraries: still zero new.**
+   - The code flow, PKCE, logout tokens and session stores are the same JWS/EdDSA and stdlib `net/http` work as N2, N5 and N7.
+   - This addendum changes none of N1–N11.
+
+### Found while researching: the dashboard and kanban sessions collide today
+
+`pkg/bff` uses one cookie name, `unheaded_session` (`DefaultCookieName`), and neither dashboard-backend nor kanban-app overrides `CookieName`. They run on the same host on ports 20000 and 20001. Cookies are not separated by port, so:
+- logging in to one replaces the other's cookie, which logs the user out of the other;
+- each backend receives the other's session id. That id is a bearer secret for the other app, so a compromised kanban-app could replay it against the dashboard.
+
+ADR-103's "the cookie is per origin" does not hold for ports.
+
+- **Small fix:** a distinct `__Host-` name per app, e.g. `__Host-unheaded_dashboard`, `__Host-unheaded_kanban`. The compose stack is down, so this is not live exposure. Under ADR-112 it waits for Stevie's word.
+
+### Sources (retrieved 2026-10-30)
+
+- [RFC 10017 / BCP 212: OAuth 2.0 for Browser-Based Applications](https://www.rfc-editor.org/info/rfc10017) ([datatracker](https://datatracker.ietf.org/doc/draft-ietf-oauth-browser-based-apps/))
+- [RFC 9700: OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/rfc9700/)
+- [NIST SP 800-63B-4, Authenticator Assurance Levels](https://pages.nist.gov/800-63-4/sp800-63b/aal) and [Session Management](https://pages.nist.gov/800-63-4/sp800-63b/session)
+- [OpenID Connect Back-Channel Logout 1.0](https://openid.net/specs/openid-connect-backchannel-1_0.xml)
+- [OWASP OAuth 2.0 Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/OAuth2_Cheat_Sheet.html)
+- Cookie prefixes and port scope: RFC 6265 §8.5 (ports), [cookie attributes reference](https://specification.website/spec/security/cookie-attributes.md)
+
 ## Open questions for the brainstorm
 
+0. **Single sign-on model: A (IdP session + per-app sessions, recommended), B (one gateway origin), or B now and A later?** Also: one host name per app through haproxy, and AAL2 as the lab default?
 1. **N4: native-minimal WebAuthn, the `go-webauthn` library, or TOTP only for now?** This is the main library decision.
 2. Keep argon2id from `x/crypto` (N1), or move to stdlib PBKDF2 to shed the module? Claude recommends keeping it. x/crypto also supplies other things we use, so shedding it would not drop the module anyway.
 3. Should the issuer grow an OIDC code flow (N7), or is Grafana's own login acceptable behind the gate (N8)? The second means two passwords for Grafana.
