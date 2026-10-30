@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-10-30
-**Total:** 110 entries (ADR-001 to ADR-113, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Total:** 111 entries (ADR-001 to ADR-114, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -21,7 +21,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | Status | Count |
 |--------|-------|
 | Accepted | 51 |
-| Proposed | 22 |
+| Proposed | 23 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -29,7 +29,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | PoC / Research | 3 |
 | Superseded / Deprecated | 4 |
 | Acknowledged | 1 |
-| **Total** | **110** |
+| **Total** | **111** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -168,3 +168,4 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [111](ADR-111-command-line-conventions.md) | Command-line conventions: every binary answers `--help`, `--version` and a mistake the same way (`pkg/cmdline`) | **Proposed** | 2026-10-28 |
 | [112](ADR-112-plan-freeze-and-pitch-intake.md) | Plan freeze: no new battle plans; every pitch from Stevie becomes a parked `Proposed` ADR until the freeze lifts | **Accepted** | 2026-10-30 |
 | [113](ADR-113-third-party-verdicts-service.md) | Third-party verdicts as a Kingdom service (name TBD): Well schema + service account, API key or user for every call, audited; ports the claude.ai verdicts artifact on-box | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
+| [114](ADR-114-user-authentication-for-every-web-page.md) | User authentication for every web page: BFF/gate/OIDC code flow per page type; outside-library decision per need (recommendation: zero new modules; WebAuthn native-minimal vs go-webauthn open) | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
