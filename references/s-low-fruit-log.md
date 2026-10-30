@@ -114,3 +114,10 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 - `go test -race ./...`: 0 FAIL (1m31s).
 - `check-gates-can-fail.sh --quick`: every gate added this sprint bites. Exit 1 only from five INCONCLUSIVE gates "already failing on a clean tree": check-ruff and check-python-audit (ruff/pip-audit not installed on west; CI pins them), check-tool-freshness (trivy-action re-pin, E5), live-path-inventory (cmd/depaudit was new → regenerated `12cf0bba`, now PASS), check-gitleaks (2 hits inside the old merged-lane worktree `.claude/worktrees/agent-ab408f40bb5e80160`: copies of baselined test strings under a different path; listed removable in next.md; not deleted unasked).
 - Not merged into develop: E0 (force-push of the re-signed develop) comes first, and E1-E3 legs are open.
+
+**Correction (2026-10-30).** Step 45's cleanup (`upc-netns.sh down`, as the plan said) removed `upc0` while
+`unheaded-upc-netns.service` (installed 2026-10-28, E6) owned it, so the unit stayed "active" with no namespace and
+the next boot failed with "Cannot open network namespace upc0". Restored with `systemctl restart unheaded-upc-netns`.
+`scripts/upc-netns.sh down` now refuses while that unit is active (`UPC_NETNS_FORCE=1` overrides); the unit's own
+ExecStop runs while it is deactivating and still works (restart checked on west; installed copy updated, old one at
+`/usr/local/libexec/unheaded/upc-netns.sh.bak-2026-10-30`).

@@ -19,6 +19,7 @@
 #
 # Usage: upc-netns.sh up|down|status    (needs root; idempotent)
 # Exit: 0 ok; 1 failure; 2 usage. `status` exits 1 when anything is missing.
+# `down` refuses while unheaded-upc-netns.service is active (it owns upc0).
 set -euo pipefail
 
 NS="${UPC_NETNS:-upc0}"
@@ -59,6 +60,15 @@ up() {
 }
 
 down() {
+    # While unheaded-upc-netns.service is active it owns upc0; removing the
+    # namespace by hand leaves the unit "active" with nothing behind it (found
+    # 2026-10-30). Its own ExecStop runs while the unit is deactivating, so it
+    # passes this check.
+    if [[ $NS == upc0 && ${UPC_NETNS_FORCE:-0} != 1 ]] \
+        && systemctl is-active --quiet unheaded-upc-netns.service 2>/dev/null; then
+        echo "down: unheaded-upc-netns.service owns $NS; use systemctl stop unheaded-upc-netns (or UPC_NETNS_FORCE=1)" >&2
+        exit 1
+    fi
     if ns_exists; then
         ip netns del "$NS"
         echo "down: netns $NS removed (its interfaces and rules go with it)"
