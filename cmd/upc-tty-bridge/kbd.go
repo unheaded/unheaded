@@ -116,13 +116,14 @@ func isLoopbackRemote(remote string) bool {
 
 // handleKbdDrain: GET /api/v1/kbd/drain?instance=N&max=K → JSON array of up
 // to K queued byte values (same number-array shape as /api/v1/tty/ingest).
-// 405 on non-GET, 403 for non-loopback callers.
+// 405 on non-GET, 403 for callers neither on loopback nor on the
+// --listen-unix socket.
 func (h *Hub) handleKbdDrain(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "GET only", http.StatusMethodNotAllowed)
 		return
 	}
-	if !isLoopbackRemote(r.RemoteAddr) {
+	if !isLoopbackRemote(r.RemoteAddr) && !fromUnixSocket(r) {
 		http.Error(w, "loopback only", http.StatusForbidden)
 		return
 	}

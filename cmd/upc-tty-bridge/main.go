@@ -225,11 +225,12 @@ func main() {
 	listen := flag.String("listen", fmt.Sprintf("127.0.0.1:%d", defaultPort),
 		"listen address (host:port); loopback by default")
 	port := flag.Int("port", 0, "deprecated: listen on 127.0.0.1:<port> (use --listen)")
+	listenUnixPath := flag.String("listen-unix", "", "also serve ingest and drain on this unix socket `PATH` (mode 0660), for upc-bootctl inside a netns; off when empty")
 	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "upc-tty-bridge",
 		Purpose:  "Bridge UPC TTY byte streams to browser terminals over WebSocket (ASCEND-LINUX Mode A).",
-		Examples: []string{"upc-tty-bridge --port 26100"},
+		Examples: []string{"upc-tty-bridge --port 26100", "upc-tty-bridge --listen-unix /run/unheaded/upc-tty.sock   then UPC_TTY_BRIDGE_SOCKET=/run/unheaded/upc-tty.sock for upc-bootctl"},
 	})
 	if *pprofAddr != "" {
 		if err := httputil.StartPprof(*pprofAddr); err != nil {
@@ -266,13 +267,33 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	// Graceful shutdown on SIGINT/SIGTERM.
+	var usrv *http.Server
+	if *listenUnixPath != "" {
+		ul, err := listenUnix(*listenUnixPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[upc-tty-bridge] --listen-unix: %v\n", err)
+			os.Exit(1)
+		}
+		usrv = &http.Server{Handler: unixMux(hub), ReadHeaderTimeout: 10 * time.Second}
+		fmt.Fprintf(os.Stderr, "[upc-tty-bridge] ingest/drain also on unix:%s\n", *listenUnixPath)
+		go func() {
+			if err := usrv.Serve(ul); err != nil && err != http.ErrServerClosed {
+				fmt.Fprintf(os.Stderr, "[upc-tty-bridge] unix server error: %v\n", err)
+			}
+		}()
+	}
+
+	// Graceful shutdown on SIGINT/SIGTERM. Closing the unix listener removes
+	// its socket file.
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sig
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
+		if usrv != nil {
+			_ = usrv.Shutdown(shutdownCtx)
+		}
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 

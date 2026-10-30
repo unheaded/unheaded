@@ -115,7 +115,6 @@ cargo fs2
 cargo fs_extra
 cargo futures-channel
 cargo futures-core
-cargo futures-io
 cargo futures-macro
 cargo futures-sink
 cargo futures-task
@@ -157,7 +156,6 @@ cargo idna_adapter
 cargo indexmap
 cargo inout
 cargo instant
-cargo ipnet
 cargo is-terminal
 cargo is_terminal_polyfill
 cargo itertools
@@ -246,7 +244,6 @@ cargo redox_syscall
 cargo regex
 cargo regex-automata
 cargo regex-syntax
-cargo reqwest
 cargo ring
 cargo rustc-hash
 cargo rustc_version
@@ -307,7 +304,6 @@ cargo toml_write
 cargo tonic
 cargo tonic-build
 cargo tower
-cargo tower-http
 cargo tower-layer
 cargo tower-service
 cargo tracing
@@ -340,7 +336,6 @@ cargo want
 cargo wasi
 cargo wasip2
 cargo wasm-bindgen
-cargo wasm-bindgen-futures
 cargo wasm-bindgen-macro
 cargo wasm-bindgen-macro-support
 cargo wasm-bindgen-shared
