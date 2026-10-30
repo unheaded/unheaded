@@ -223,7 +223,7 @@ This plan builds on what already exists. It doesn't reinvent it.
 - [ ] **Step 52** [B] ~2m: Check the workflow YAML with the repo's existing workflow lint, if there is one (`grep -rn actionlint scripts/ .github/`); otherwise `python3 -I -c` parse it.
 - [ ] **Step 53** [V] ~1m: It parses, and the step sits next to the existing log-caps step.
 - [ ] **Step 54** [W] ~5m: Add to `man`/docs: a `docs/policy/log-sources.md` stub (what the file is, how to add a source, the status values). Run `gen-man` only if a command was added (none here).
-- [ ] **Step 55** [B] ~2m: `gofmt -l pkg/logsources; go vet ./pkg/logsources/...; ~/go/bin/gosec ./pkg/logsources/... 2>&1 | tail -3`
+- [ ] **Step 55** [B] ~2m: `gofmt -l pkg/logsources; go vet ./pkg/logsources/...; ./scripts/check-gosec-ratchet.sh 2>&1 | tail -3` (never `~/go/bin/gosec`: it checks nothing on Go 1.27)
 - [ ] **Step 56** [V] ~1m: Clean.
 - [ ] **Step 57** [V] ~1m: **PHASE 2 EXIT GATE.** The gate is green on the tree, red on all three provokes, registered with the meta-gate and wired into CI.
 - [ ] **Step 58** [C] ~1m: Commit `[PLAN S-LOG-HARVEST] Steps 35-58: static coverage gate`.
