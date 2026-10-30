@@ -91,6 +91,10 @@ type Heimdall struct {
 	hornPolicy *hornPolicy
 	// hornCounters reads the XDP observer's counters for log lines.
 	hornCounters func() map[string]uint64
+	// hookLost reads the hooks' cumulative lost-event counters (lost.go);
+	// lostPrev is what the previous scan saw.
+	hookLost func() map[string]uint64
+	lostPrev map[string]uint64
 	// debounce is the file-event coalescing delay (0 = 250 ms).
 	debounce time.Duration
 
@@ -291,6 +295,7 @@ func (h *Heimdall) Run(ctx context.Context, scanInterval time.Duration) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
+			h.reportLost(logf)
 			if err := h.Reload(); err != nil {
 				return fmt.Errorf("manifest no longer trusted, stopping: %w", err)
 			}
@@ -504,10 +509,13 @@ func main() {
 			defer hooks.Close()
 			h.hookEvents = hooks.Events()
 			h.hornCounters = hooks.HornCounters
+			h.hookLost = hooks.Lost
 			for name, n := range hooks.Verifier {
 				fmt.Printf("[BPF] %s loaded, verifier processed %d insns\n", name, n)
 			}
 			defer func() {
+				l := hooks.Lost()
+				fmt.Printf("[BPF] lost events at exit: vfs_write=%d execve=%d reader=%d\n", l["vfs_write"], l["execve"], l["reader"])
 				c := hooks.HornCounters()
 				fmt.Printf("[BPF] xdp counters at exit: seen=%d valid=%d bad_magic=%d bad_kind=%d bad_len=%d bad_reserved=%d rb_full=%d\n",
 					c["seen"], c["valid"], c["bad_magic"], c["bad_kind"], c["bad_len"], c["bad_reserved"], c["rb_full"])

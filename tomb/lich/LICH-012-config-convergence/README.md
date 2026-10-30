@@ -2,7 +2,7 @@
 
 **Target**: Mímir's Law / Gleipnir Phase 0 PoC (ADR-043)
 **Branch**: `spike/mimirs-law`
-**Status**: OPEN: L12a, L12b, L12c, L12e worked (results below); L12d not run
+**Status**: OPEN: L12a-L12e worked (results below; L12a key storage and L12d run 2026-10-30)
 **Lead**: BlackMage
 **Opened**: 2026-04-11
 
@@ -68,7 +68,10 @@ produce either an exploit (finding) or a signed "no exploit" certification.
 | L12b | Forge, unsign, replay or re-topic a `drift.detected.<node_id>` event (signed drift.*, ADR-105, 2026-10-23) | **FINDING, fixed**: `drift.*` took any publisher's unsigned message, and Wotan dropped every signature after checking it, so no subscriber could tell a real drift alert from a forged one. Now `drift.*` is signed by its own prefix-scoped keys (`topics.signed_prefixes`, shipped with none = closed), a `config.*` key cannot sign `drift.*` and the drift key cannot sign `config.*`, HTTP refuses it, and events carry signature + `signed_at_unix_ms` for subscriber re-verification. Refused, in tests: attacker key; attacker signature with the trusted key attached; unsigned; config key on drift; replayed bytes; the same signature moved to `config.*`, to another node's topic or to another allowlisted name; re-dated. Tests: `TestLICH012_L12b_ForgedDriftRefused`, `TestLICH012_L12b_ReplayedDriftRefused`, `TestDriftE2E_SubscriberReverifies` (`services/wotan/internal/grpc/drift_e2e_test.go`) | S-QUANTUM-ARMOR Phase 12 |
 | L12c | enkrateia writes the filesystem | No exploit; the test that claimed to prove it could not fail ("no assertion needed"). Now an import allowlist read from the package source fails on any `os`/`syscall`/`exec`/net import | this commit |
 | L12c | TOCTOU detection → alert | Not applicable while alerts-only (ADR-043 #1): nothing acts on the alert | — |
-| L12d | heimdall-bpf verifier bombs, ringbuf overflow, map poisoning | Not run (needs sudo and a live attach) | — |
+| L12d | Ringbuf overflow (drop drift events) | **FINDING, fixed (2026-10-30, west, live attach)**: with the daemon stopped (SIGSTOP) and 20,000 writes, `vfs_write`/`execve` dropped events when their 64 KiB ringbuf filled and counted nothing, so a write flood blinded the hooks silently. Both programs now count drops in a per-CPU `LOST` map; each scan logs the delta per hook and serves `heimdall_hook_events_lost_total{hook}` (also `reader`: records the daemon itself dropped). Re-run: `vfs_write: 17987`, `reader: 188` logged and served; the daemon kept running; the next poll still hashes every watched file, so only event-driven timing is lost. Test `TestReportLost_LogsAndCountsDeltasOnly` | churn/2026-10-30 |
+| L12d | Map poisoning by an unprivileged user | No exploit: `bpftool map update id <LOST>` as the login user → `Operation not permitted` (`kernel.unprivileged_bpf_disabled = 2`). Root can write any map; that is the root trust boundary | — |
+| L12d | Verifier complexity bombs | Not applicable to a loaded object: the objects are fixed at build time (31 and 32 processed insns) and the verifier runs once at load | — |
+| L12d | XDP bypass by fragmentation | Not run: the Gjallarhorn observer reads only unfragmented 20-byte UDP payloads (`bad_len` otherwise); a fragmented horn is counted, not decoded | — |
 | L12e | Forge a trigger | **By design, no exploit today**: triggers are unauthenticated (ADR-043), and nothing acts on one: `cmd/gjallarhorn-listener` prints, `ManifestPtr` resolves nowhere yet. heimdall-daemon verifies the manifest's seal on every scan (c1a0f22d), so a forged pointer can only name a manifest that must still carry a valid seal. The consumer that resolves `ManifestPtr` must verify before acting and rate-limit triggers | — |
 | L12e | Malformed / ambiguous triggers | **FINDING, fixed**: `Unmarshal` accepted any length >= 20 and ignored the reserved bytes, so different datagrams meant the same trigger. Now exactly 20 bytes, reserved zero; `FuzzUnmarshal` requires every accepted datagram to re-marshal byte-identically (10M execs clean) | this commit |
 | L12e | Integer overflow in `cluster_id` / `manifest_ptr` | No exploit: fixed-width big-endian reads of a length-checked buffer | — |

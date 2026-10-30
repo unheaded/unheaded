@@ -6,7 +6,7 @@
 
 use aya_ebpf::{
     macros::{kprobe, map},
-    maps::RingBuf,
+    maps::{PerCpuArray, RingBuf},
     programs::ProbeContext,
 };
 
@@ -20,6 +20,11 @@ pub struct DriftEvent {
 
 #[map]
 static EVENTS: RingBuf = RingBuf::with_byte_size(64 * 1024, 0);
+
+/// Events dropped because EVENTS was full (slot 0, per CPU); the daemon
+/// logs and counts them (LICH-012 L12d).
+#[map]
+static LOST: PerCpuArray<u64> = PerCpuArray::with_max_entries(1, 0);
 
 #[kprobe]
 pub fn heimdall_vfs_write(ctx: ProbeContext) -> u32 {
@@ -37,6 +42,8 @@ fn try_vfs_write(_ctx: ProbeContext) -> Result<(), i64> {
             event_type: 0,
         });
         entry.submit(0);
+    } else if let Some(n) = LOST.get_ptr_mut(0) {
+        unsafe { *n += 1 };
     }
     Ok(())
 }
