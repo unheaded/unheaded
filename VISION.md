@@ -22,6 +22,37 @@ The outcome:
 
 Infrastructure is armor. The application doesn't need to know it's there. But security teams can audit every packet. DevOps teams can swap backends without touching code.
 
+## Who It Is For
+
+Stevie, 2026-10-30: *"aimed at mom and pop shops and vibe coders to adhere to secure best practices so their application doesnt spread malware, etc or allow for RCE and jump box for threat actors."*
+
+The first adopter in mind is not a security team. It is:
+- **the small shop** running its own site;
+- **the vibe coder** shipping an app an AI assistant wrote.
+
+Security and infrastructure teams remain users too (Stevie, 2026-10-30: "unheaded could still be used by security and infra teams"). They get the same defaults and can see, tune and extend every control.
+
+The first two are not likely to write authentication, input validation, egress control or audit logging correctly on their own.
+
+Unheaded is an **aid, not a promise** (Stevie, 2026-10-30: "not a promise just an aid"). It applies secure best practice around their app by default, so it is much harder for that app to:
+- serve malware to visitors;
+- run an attacker's code (RCE);
+- become a threat actor's jump box into everything else on the network.
+
+No tool can guarantee that for an app it did not write. Unheaded makes the safe path the default one and says plainly what it did and did not cover. The test for every capability, from the Captain's chair:
+1. **Secure with zero configuration.** The safe setting is the default, never an option to find.
+2. **No security code in the adopter's app.** Protection sits in front of and around the app (gate, firewall, egress allowlist, limits), not in a library they must wire in. ADR-114 applies this to login.
+3. **Fails closed, and a badly configured app does not run.** Stevie, 2026-10-30: "their app shouldn't work if they configure it poorly". A misconfiguration blocks traffic; it never opens it. Unheaded checks the app's setup before it goes live and refuses to serve it until the problem is fixed, naming the problem in plain words.
+4. **Plain language.** A shop owner can read what Unheaded did for them, why, and what it does not cover.
+5. **Fits small hardware.** It runs on one modest machine, not a cluster.
+
+**Out of the box, every compliance control is on.** Stevie, 2026-10-30: *"out of the box running it with all compliance controlls enabled should harden an application's hosting (can't stop application vulnerbility)"*.
+- The default install runs the full control set from the compliance catalog (ADR-097/098): host hardening, firewall, egress, audit, updates, backups, access control. The adopter does not have to turn them on.
+- Their scope is **the hosting**: the machine, the network around the app, and what the app is allowed to do and reach.
+- They do **not** fix vulnerabilities in the application's own code. They make one harder to reach, contain what an exploited app can do, and record what happened. The plain-language report says so.
+
+The same compliance work serves the small shop directly: a shop that takes card payments faces PCI-DSS like anyone else. It gets the hosting evidence for free instead of paying an auditor to assemble it.
+
 ## The Technical Bet
 
 eBPF is the inflection point. IPv6 extension headers are the medium. gRPC is the language. The protocol IS the moat.

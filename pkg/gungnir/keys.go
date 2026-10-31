@@ -8,7 +8,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"syscall"
 	"time"
 
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
@@ -50,25 +52,41 @@ func (s *Signer) SignFor(payload []byte, ttl time.Duration) (*GungnirSeal, error
 }
 
 // LoadSeedFile reads a private key seed file (32 bytes), refusing one that
-// group or others can read.
+// group or others can read and anything but a regular file. The checks run on
+// the open file, not the path, so the bytes read are the bytes checked (no
+// swap between stat and read), and a FIFO at the path cannot block the open
+// (LICH-012 L12a, 2026-10-30).
 func LoadSeedFile(path string) (*mldsa65.PrivateKey, error) {
-	fi, err := os.Stat(path)
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0) // #nosec G304 -- operator-named key file, checked below
 	if err != nil {
 		return nil, err
+	}
+	defer func() { _ = f.Close() }() // read-only
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("gungnir: %s is not a regular file", path)
 	}
 	if fi.Mode().Perm()&0o077 != 0 {
 		return nil, fmt.Errorf("%w: %s is %v", ErrKeyFilePerms, path, fi.Mode().Perm())
 	}
-	b, err := os.ReadFile(path) // #nosec G304 -- operator-named key file, permissions checked above
+	b, err := io.ReadAll(io.LimitReader(f, mldsa65.SeedSize+1))
 	if err != nil {
 		return nil, err
 	}
+	defer clear(b)
 	if len(b) != mldsa65.SeedSize {
+		if len(b) > mldsa65.SeedSize {
+			return nil, fmt.Errorf("gungnir: %s is larger than a %d-byte seed", path, mldsa65.SeedSize)
+		}
 		return nil, fmt.Errorf("gungnir: %s is %d bytes, want a %d-byte seed", path, len(b), mldsa65.SeedSize)
 	}
 	var seed [mldsa65.SeedSize]byte
 	copy(seed[:], b)
 	_, priv := mldsa65.NewKeyFromSeed(&seed)
+	clear(seed[:])
 	return priv, nil
 }
 

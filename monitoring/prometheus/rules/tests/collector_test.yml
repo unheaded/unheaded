@@ -83,3 +83,23 @@ tests:
               summary: "heimdall-daemon on [fd00:dead:beef::2]:19101 cannot publish drift events to Wotan"
               description: "Drift alerts are printed locally but not published, signed, to drift.detected.<node>; Wotan down or the drift key not enrolled"
               runbook_url: "runbooks/infra/heimdall-drift-publish-failing.yaml"
+  # Lost hook events (L12d): a burst of 1200 at 10m fires after 5m of
+  # increase > 0; a flat counter never fires.
+  - interval: 1m
+    input_series:
+      - series: 'heimdall_hook_events_lost_total{instance="[fd00:dead:beef::1]:19101",job="heimdall",host="west",hook="vfs_write"}'
+        values: '0x10 1200x30'
+      - series: 'heimdall_hook_events_lost_total{instance="[fd00:dead:beef::1]:19101",job="heimdall",host="west",hook="execve"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: HeimdallHookEventsLost
+        exp_alerts: []
+      - eval_time: 17m
+        alertname: HeimdallHookEventsLost
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, instance: "[fd00:dead:beef::1]:19101", job: heimdall, host: west, hook: vfs_write}
+            exp_annotations:
+              summary: "heimdall-daemon on [fd00:dead:beef::1]:19101 lost vfs_write hook events"
+              description: "1.2k events lost in 15m; file changes in that window are only seen by the next full scan"
+              runbook_url: "runbooks/infra/heimdall-hook-events-lost.yaml"

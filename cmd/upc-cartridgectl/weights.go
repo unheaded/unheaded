@@ -284,15 +284,15 @@ func writeWeights(dir, model string, data []byte) (string, error) {
 	tmp := f.Name()
 	defer os.Remove(tmp) // a no-op after the rename
 	if err := f.Chmod(0o600); err != nil {
-		f.Close()
+		_ = f.Close() // the first error is the one returned
 		return "", err
 	}
 	if _, err := f.Write(data); err != nil {
-		f.Close()
+		_ = f.Close() // the first error is the one returned
 		return "", err
 	}
 	if err := f.Sync(); err != nil {
-		f.Close()
+		_ = f.Close() // the first error is the one returned
 		return "", err
 	}
 	if err := f.Close(); err != nil {

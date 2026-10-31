@@ -464,14 +464,14 @@ vcount() { ub getpidfork UPC_VERIFIER_STATS=1 | grep -aiE 'verified|processed' |
 - [x] **Step 101** *(pass 9 and pass 6; PG lead closed: PDE 1 only)* [V] ~2m: `RUNG0-ASSERT pass` with N ≥ 9. Every `unknown sys call 22` line names pid 2, 3 or 4,
   never 1. The `PG:` value is recorded in `$LOG`: non-zero means the init-pgd lead is real, so write it up as a
   finding for whichever rung first maps above 8 MiB.
-- [ ] **Step 102** [DEFERRED] *(D6 hostile probe not built this session; D6 stays off, to Stevie)* [TEST][B][S] ~20m: D6.
+- [x] **Step 102** *(2026-10-30: built; D6 off pgd=changed, on pgd=same; tables same both ways, see log; D6 stays off, to Stevie)* [TEST][B][S] ~20m: D6.
   - Write `crates/xv6-mbc/upstream/user/hostile_pgd.c`:
     - the child stores `0x5A5A5A5A` to VA `0x00F00000 + 4*1023` (the last PDE of slot 0's pgd) and to the table
       address read from VA `0x160`;
     - the child exits; init (identity map) reads both words and prints `HP: pgd=same|changed` and
       `HP: tables=same|changed`.
   - Run it with D6 off, then with D6 on: `d6 false true; obj`, then `d6 true false`.
-- [ ] **Step 103** [DEFERRED] *(see Step 102)* [V] ~2m: D6 off prints `changed` for both, the hole is real and recorded. D6 on prints `same` for
+- [x] **Step 103** *(2026-10-30: D6 on 12/12 SAME, harness ALL GREEN, +3,140 insns; tables row differs from the plan, log)* [V] ~2m: D6 off prints `changed` for both, the hole is real and recorded. D6 on prints `same` for
   both. With D6 on, `sweep12 | grep -c SAME` is 12.
   - A golden changes with D6 on → [ESCALATE] D6 alone. Leave D6 off, record the golden diff in `$LOG`, and continue
     the rung without it; the hostile check stays RED and is reported to Stevie. Every other part of the gate still
@@ -603,22 +603,22 @@ the result is recorded.
 
 ### Hostile probes
 
-- [ ] **Step 134** [DEFERRED] *(with D6)* [CODE][W] ~20m: `crates/xv6-mbc/upstream/user/hostile_slot.c`. A child writes `cur_slot`-shaped
+- [x] **Step 134** *(2026-10-30: child-pid=2, init-pid=1, D6 off and on)* [CODE][W] ~20m: `crates/xv6-mbc/upstream/user/hostile_slot.c`. A child writes `cur_slot`-shaped
   values at the table's address as seen from its own VA space, reading `0x160` through the same address (D6 makes
   both read 0). It then calls getpid. Expected: getpid still returns its own pid, and init's later getpid still
   returns 1.
-- [ ] **Step 135** [DEFERRED] *(with D6)* [CODE][W] ~15m: `hostile_tf.c`. A child stores into what would be slot 2's trapframe VA, as computed
+- [x] **Step 135** *(2026-10-30: gc-pid=3, canary ok, D6 off and on)* [CODE][W] ~15m: `hostile_tf.c`. A child stores into what would be slot 2's trapframe VA, as computed
   from the base, then forks a sibling, and the sibling calls getpid. Expected: the sibling's pid is correct and its
   registers are intact (it prints a known stack canary after the trap).
-- [ ] **Step 136** [DEFERRED] *(with D6)* [TEST][B][S] ~10m: Build (`gates`), then boot each of `hostile_pgd`, `hostile_slot`, `hostile_tf`
+- [x] **Step 136** *(2026-10-30: `~/tmp/evolution1-stage2/p6-hostile.txt`, both D6 states)* [TEST][B][S] ~10m: Build (`gates`), then boot each of `hostile_pgd`, `hostile_slot`, `hostile_tf`
   with the shipped flags: `for p in hostile_pgd hostile_slot hostile_tf; do echo "== $p"; TRIG=1500000 ub $p | ugl | tr '\n' ' '; echo; done | tee "$S7/p6-hostile.txt"`.
-- [ ] **Step 137** [DEFERRED] *(with D6)* [V] ~2m: All expected verdicts.
+- [x] **Step 137** *(hostile_pgd fails with D6 off = the escalation's evidence; the other two pass both ways)* [V] ~2m: All expected verdicts.
   - A failure is a real finding: write it to `$LOG` with the lines, and add a row to the next OUTSTANDING sweep.
   - If D6 was escalated (not shipped), `hostile_pgd` and `hostile_tf` are expected to fail. Record that as the
     escalation's evidence, not as a new finding.
-- [ ] **Step 138** [DEFERRED] *(with D6)* [W] ~5m: Register the three hostile probes as harness gates in `scripts/upc-regression.sh`, with
+- [x] **Step 138** *(registered; hostile_pgd is flag-aware: note with D6 off, absolute with it on)* [W] ~5m: Register the three hostile probes as harness gates in `scripts/upc-regression.sh`, with
   absolute verdicts (`HP: ... same`). If D6 is not shipped, register them as skips with the escalation named.
-- [x] **Step 139** *(no hostile probes to register: deferred with D6)* [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 131-138] rung 0-1 attack surface and hostile probes`.
+- [x] **Step 139** *(2026-10-30, branch churn/2026-10-30)* [C] ~1m: **COMMIT CHECKPOINT** `test(upc): [STAGE2 131-138] rung 0-1 attack surface and hostile probes`.
 
 ### Fuzz and repo gates
 

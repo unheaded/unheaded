@@ -45,10 +45,12 @@ type bpfHooks struct {
 	links     []link.Link
 	readers   []*ringbuf.Reader
 	hornStats *ciliumebpf.Map
-	events    chan hookEvent
-	wg        sync.WaitGroup
-	dropped   atomic.Uint64
-	bad       atomic.Uint64
+	// lost is each file hook's LOST map (events its full ringbuf dropped).
+	lost    map[string]*ciliumebpf.Map
+	events  chan hookEvent
+	wg      sync.WaitGroup
+	dropped atomic.Uint64
+	bad     atomic.Uint64
 	// Verifier is processed-insn counts per program (K1 evidence).
 	Verifier map[string]int
 }
@@ -84,7 +86,7 @@ func loadObject(path string) (*ciliumebpf.Collection, map[string]int, error) {
 // loadHooks loads and attaches what it can. Each failure is returned and
 // the rest still loads: the daemon keeps polling without any of it.
 func loadHooks(cfg HookConfig) (*bpfHooks, []error) {
-	h := &bpfHooks{events: make(chan hookEvent, 1024), Verifier: map[string]int{}}
+	h := &bpfHooks{events: make(chan hookEvent, 1024), Verifier: map[string]int{}, lost: map[string]*ciliumebpf.Map{}}
 	var errs []error
 
 	attach := func(obj string, do func(*ciliumebpf.Collection) (link.Link, error), rbName string, horn bool) {
@@ -114,6 +116,8 @@ func loadHooks(cfg HookConfig) (*bpfHooks, []error) {
 		h.readers = append(h.readers, rd)
 		if horn {
 			h.hornStats = coll.Maps["HORN_STATS"]
+		} else if m := coll.Maps["LOST"]; m != nil {
+			h.lost[lostName(obj)] = m
 		}
 		h.wg.Add(1)
 		go h.read(rd, horn)
@@ -181,6 +185,40 @@ func (h *bpfHooks) read(rd *ringbuf.Reader, horn bool) {
 
 // Events is the merged stream of decoded hook records.
 func (h *bpfHooks) Events() <-chan hookEvent { return h.events }
+
+// lostName is the hook label for an object ("heimdall-vfs-write" -> "vfs_write").
+func lostName(obj string) string {
+	switch obj {
+	case objVFSWrite:
+		return "vfs_write"
+	case objExecve:
+		return "execve"
+	}
+	return obj
+}
+
+// Lost returns cumulative lost events: per file hook, the per-CPU LOST
+// counters summed (kernel drops on a full ringbuf), and "reader" for decoded
+// records a slow daemon dropped.
+func (h *bpfHooks) Lost() map[string]uint64 {
+	out := map[string]uint64{}
+	if h == nil {
+		return out
+	}
+	for name, m := range h.lost {
+		var per []uint64
+		if err := m.Lookup(uint32(0), &per); err != nil {
+			continue
+		}
+		var sum uint64
+		for _, v := range per {
+			sum += v
+		}
+		out[name] = sum
+	}
+	out["reader"] = h.dropped.Load()
+	return out
+}
 
 // HornCounters sums the per-CPU XDP observer counters.
 func (h *bpfHooks) HornCounters() map[string]uint64 {

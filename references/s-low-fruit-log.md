@@ -114,3 +114,27 @@ Plan: `docs/battle-plans/S-LOW-FRUIT-battle-plan.md` (approved `dcf331fd`). Bran
 - `go test -race ./...`: 0 FAIL (1m31s).
 - `check-gates-can-fail.sh --quick`: every gate added this sprint bites. Exit 1 only from five INCONCLUSIVE gates "already failing on a clean tree": check-ruff and check-python-audit (ruff/pip-audit not installed on west; CI pins them), check-tool-freshness (trivy-action re-pin, E5), live-path-inventory (cmd/depaudit was new → regenerated `12cf0bba`, now PASS), check-gitleaks (2 hits inside the old merged-lane worktree `.claude/worktrees/agent-ab408f40bb5e80160`: copies of baselined test strings under a different path; listed removable in next.md; not deleted unasked).
 - Not merged into develop: E0 (force-push of the re-signed develop) comes first, and E1-E3 legs are open.
+
+**Correction (2026-10-30).** Step 45's cleanup (`upc-netns.sh down`, as the plan said) removed `upc0` while
+`unheaded-upc-netns.service` (installed 2026-10-28, E6) owned it, so the unit stayed "active" with no namespace and
+the next boot failed with "Cannot open network namespace upc0". Restored with `systemctl restart unheaded-upc-netns`.
+`scripts/upc-netns.sh down` now refuses while that unit is active (`UPC_NETNS_FORCE=1` overrides); the unit's own
+ExecStop runs while it is deactivating and still works (restart checked on west; installed copy updated, old one at
+`/usr/local/libexec/unheaded/upc-netns.sh.bak-2026-10-30`).
+
+**Step 34-35 (2026-10-30, read-only, units as installed on west).** `systemd-analyze security` exposure:
+
+| Unit | State | Exposure |
+|---|---|---|
+| huginn | active | 1.5 OK |
+| unheaded-chaos-controller | active | 1.5 OK |
+| unheaded-kev-poller | active | 1.2 OK |
+| unheaded-trace-collector | active | 1.8 OK |
+| unheaded-baseline | inactive (path/timer) | 3.8 OK |
+| unheaded-well-drill | inactive (timer) | 2.1 OK |
+| unheaded-well-offsite | inactive | 2.4 OK |
+| unheaded-well-backup | **failed** (Well down, E1) | 2.3 OK |
+| unheaded-wg-psk-rotate | timer disabled (FND-016) | 2.6 OK |
+| unheaded-upc-netns | active | 6.3 MEDIUM: root by necessity (netns add, veth, nft); no mount-namespace sandboxing possible (unit comment) |
+
+Every Go unit is at or below 4.0. The installed set is still the pre-E3 one (Steps 31-33 stay attended).

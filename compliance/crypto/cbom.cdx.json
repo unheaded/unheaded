@@ -2842,7 +2842,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/gungnir/keys.go:14:sig-import",
+      "bom-ref": "pkg/gungnir/keys.go:16:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -2879,7 +2879,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/gungnir/keys.go:14"
+          "value": "pkg/gungnir/keys.go:16"
         }
       ]
     },

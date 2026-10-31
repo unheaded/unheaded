@@ -282,7 +282,7 @@ Items that have tests passing but are NOT yet real implementations:
   - Container IP: 10.10.20.252 (DHCP from lxdbr0 10.10.20.0/24)
   - Fixed dns.mode=none by setting static /etc/resolv.conf before install
   - Custom DNS: 26 local records loaded via pihole-FTL --config dns.hosts (v6 API, NOT custom.list)
-  - Web admin: http://10.10.20.252/admin/ (password: unheaded)
+  - Web admin: http://10.10.20.252/admin/
   - Blocklist: 92,277 domains from StevenBlack/hosts
   - NEXT: F2
 

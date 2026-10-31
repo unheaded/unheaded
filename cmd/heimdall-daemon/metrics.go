@@ -32,6 +32,7 @@ type heimdallMetrics struct {
 	published    *metrics.Counter
 	failed       *metrics.Counter
 	dropped      *metrics.Counter
+	lost         *metrics.CounterVec
 	scanDuration *metrics.Histogram
 }
 
@@ -41,6 +42,8 @@ func newHeimdallMetrics() *heimdallMetrics {
 		published: metrics.NewCounter("heimdall_drift_published_total", "Drift events published to Wotan, signed.", nil),
 		failed:    metrics.NewCounter("heimdall_drift_publish_failed_total", "Drift events Wotan refused or that failed to reach it.", nil),
 		dropped:   metrics.NewCounter("heimdall_drift_publish_dropped_total", "Drift events dropped (oldest first) while the publish queue was full.", nil),
+		lost: metrics.NewCounterVec("heimdall_hook_events_lost_total",
+			"BPF hook events lost: the hook's ringbuf was full (vfs_write, execve) or the daemon fell behind (reader).", nil, []string{"hook"}),
 		scanDuration: metrics.NewHistogram(metrics.HistogramOpts{
 			Name:    "heimdall_scan_duration_seconds",
 			Help:    "Time one baseline scan took (hash every manifest file, compare).",
@@ -50,6 +53,7 @@ func newHeimdallMetrics() *heimdallMetrics {
 	m.reg.MustRegister(m.published)
 	m.reg.MustRegister(m.failed)
 	m.reg.MustRegister(m.dropped)
+	m.reg.MustRegister(m.lost)
 	m.reg.MustRegister(m.scanDuration)
 	return m
 }

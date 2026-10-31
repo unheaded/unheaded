@@ -15,7 +15,7 @@
 use aya_ebpf::{
     helpers::{bpf_get_current_pid_tgid, bpf_ktime_get_ns},
     macros::{map, raw_tracepoint},
-    maps::RingBuf,
+    maps::{PerCpuArray, RingBuf},
     programs::RawTracePointContext,
 };
 
@@ -34,6 +34,11 @@ pub struct DriftEvent {
 #[map]
 static EVENTS: RingBuf = RingBuf::with_byte_size(64 * 1024, 0);
 
+/// Events dropped because EVENTS was full (slot 0, per CPU); the daemon
+/// logs and counts them (LICH-012 L12d).
+#[map]
+static LOST: PerCpuArray<u64> = PerCpuArray::with_max_entries(1, 0);
+
 #[raw_tracepoint(tracepoint = "sched_process_exec")]
 pub fn heimdall_execve(_ctx: RawTracePointContext) -> i32 {
     if let Some(mut entry) = EVENTS.reserve::<DriftEvent>(0) {
@@ -46,6 +51,8 @@ pub fn heimdall_execve(_ctx: RawTracePointContext) -> i32 {
             (*ev).pad1 = 0;
         }
         entry.submit(0);
+    } else if let Some(n) = LOST.get_ptr_mut(0) {
+        unsafe { *n += 1 };
     }
     0
 }

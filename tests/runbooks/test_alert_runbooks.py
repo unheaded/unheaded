@@ -24,6 +24,9 @@ RUNBOOKS = {
     "runbooks/security/ssh-login-new-source.yaml": ("SSHLoginNewSource", "SSHAuthFailureBurst"),
     "runbooks/security/outbound-volume-deviation.yaml": ("OutboundVolumeDeviation",),
     "runbooks/observe/zhen-scheduler-stalled.yaml": ("ZhenSchedulerStalled",),
+    # heimdall-daemon /metrics (M-085) and lost hook events (LICH-012 L12d).
+    "runbooks/infra/heimdall-drift-publish-failing.yaml": ("HeimdallDriftPublishFailing",),
+    "runbooks/infra/heimdall-hook-events-lost.yaml": ("HeimdallHookEventsLost",),
     # The ci-develop SLO's own runbook (policy.yaml runbook:), no hand rule.
     "runbooks/observe/ci-red.yaml": (),
 }

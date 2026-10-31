@@ -48,6 +48,8 @@ LOVE SERVE REMEMBER. PEACE AND LOVE. Free to use. Free to share. <3
   2026-09-24.
 - **`main`**: promoted from `staging` by Stevie only.
 
+**Plan freeze (ADR-112, 2026-10-30):** no new battle plans until Stevie lifts it; every new pitch from him becomes a parked `Proposed` ADR (`docs/adr/`, plus an `ADR-INDEX.md` row), with no plan, branch or code. Existing plans continue in the order of the decision queue at the top of `~/tmp/next.md`.
+
 Before reading history, diffing, or saying something is "not done", check
 `develop` (and `staging`): a feature missing from `main` is usually there.
 CI runs on push to all three.
@@ -817,7 +819,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - ADR Sweep (2026-04-03): All 27 ADRs resolved (19 accepted, 4 deferred, 1 in-progress, 1 pipe dream)
 - Zhen Champion (pkg/champion/): Trust Level 1+2, sandboxed file R/W, Kanban CRUD, action logging, snapshots (18 tests)
 - Zhen MCP Server (`cmd/zhen-mcp`, built by `make build-zhen-mcp`; stdio transport in `pkg/mcpserver`, shared with `cmd/lich-mcp`): 9 tools for Claude Code integration, every call through the Champion gate (S-CHAMPION-HARDENING Phase 10; the Python server is retired). Read-only, always on: corpus_search (queries vor directly), file_read, service_health, runbook_list, runbook_show, local_llm (one completion from the running llama-server at `ZHEN_LOCAL_LLM_URL`, default `http://127.0.0.1:8081`; isError when nothing listens; never starts or swaps a model; `ZHEN_CAPTURE_DIR` opts in to redacted training capture, docs/architecture/zhen-capture.md). Off unless the server env opts in: file_write, file_patch (`ZHEN_MCP_ALLOW_WRITE=1`), runbook_execute (`ZHEN_MCP_ALLOW_EXEC=1`; manifest-checked). Tests in `cmd/zhen-mcp`; CI handshake gate `scripts/check-zhen-mcp.sh`. Registered for Claude Code in the repo's `.mcp.json` as server `zhen` (read-only: no `ZHEN_MCP_ALLOW_*` set; approve it once at the `claude` prompt). It launches `scripts/zhen-mcp.sh`, which runs `bin/zhen-mcp` and fails loudly naming `make build-zhen-mcp` if the binary is missing
-- 90 Operational Runbooks (runbooks/): 9 categories (infra 19, security 17, observe 16, data 9, network 9, deploy 7, wotan 5, doom 4, pki 4); `scripts/check-runbooks.sh` with a shrink-only baseline, `metadata.status` draft → approved (Stevie only, with an ISO `approved_at`; authorship policy in ADR-024 "Authorship and approval"); live Champion execution needs the runbook in `runbooks/MANIFEST.sha256` (`scripts/runbook-manifest.sh --write` after any edit)
+- 95 Operational Runbooks (runbooks/): 9 categories (infra 20, security 19, observe 17, data 9, network 9, deploy 8, wotan 5, doom 4, pki 4); `scripts/check-runbooks.sh` with a shrink-only baseline, `metadata.status` draft → approved (Stevie only, with an ISO `approved_at`; authorship policy in ADR-024 "Authorship and approval"); live Champion execution needs the runbook in `runbooks/MANIFEST.sha256` (`scripts/runbook-manifest.sh --write` after any edit)
 - BPF CI Gate (scripts/bpf-verifier-check.sh): Instruction budget tracking, static analysis
 - Sealed Cask (scripts/build-sealed-cask.sh + verify-binding-rune.sh): Deterministic image builder with ML-DSA-65 signed Binding Rune (`cask-verify`; SHA256 manifest inside)
 - ROCm GPU acceleration: PyTorch 2.5.1+rocm6.2 for embedding (862 chunks/s), llama.cpp for inference (60 tok/s)
@@ -951,7 +953,7 @@ Deliverables:
 **Essential reading:**
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Complete architecture
 - [THE_META_MOMENT.md](docs/THE_META_MOMENT.md) - Self-hosting philosophy
-- [SYSTEM_DIAGRAM.md](docs/SYSTEM_DIAGRAM.md) - Visual overview
+- [SYSTEM_DIAGRAM.md](docs/architecture/SYSTEM_DIAGRAM.md) - Visual overview
 - [timeline.md](references/timeline.md) - Living roadmap
 
 **External:**
@@ -1224,7 +1226,7 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | cuirass | 19006 | HTTP | Control Plane Service |
 | unheaded-auth | 19020 | HTTP(S) | Built-in OIDC issuer (ADR-103): login, JWKS, discovery; uid 16735 |
 | sword | 19011 | HTTP | Deploy service through Cuirass (was Canary's port; Canary folded into Sword), uid 16746 |
-| chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east |
+| chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east; reachable only from loopback and the peer host (`unheaded-chaos-guard.service`, `deploy/nftables/chaos-guard-*.nft`) |
 | apt repo | 18888 | HTTP | Signed apt repo (reprepro, nginx), 127.0.0.1 + 192.168.13.2 only |
 | heimdall-daemon /metrics | 19101 | HTTP | Drift detection metrics (loopback default, `-metrics-addr`) |
 | kev-poller | 19120 | HTTP | CISA KEV feed poller (ADR-055) |

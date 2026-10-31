@@ -1,6 +1,6 @@
 # ADR-022: Migrate Pi-hole from Docker to LXD Container
 
-**Status:** IMPLEMENTED — Pi-hole runs as an LXD instance in project `default` on west (S-REAL-STEEL: Cuirass's `unheaded` project cannot see it). Runbook: runbooks/network/dns-pihole-lxd.yaml. DNSSEC after the migration not re-verified. Corrected 2026-10-27.
+**Status:** IMPLEMENTED — Pi-hole runs as an LXD instance in project `default` on west (S-REAL-STEEL: Cuirass's `unheaded` project cannot see it). Runbook: runbooks/network/dns-pihole-lxd.yaml. DNSSEC validation enabled 2026-10-29 (`dns.dnssec = true`). LAN devices and east have not used Pi-hole since 2026-08-22 (router-side change; `docs/security/ioc-sweep-2026-10-30.md`). Corrected 2026-10-30.
 **Date:** 2026-03-29
 **Author:** Stevie
 **Deciders:** Captain, Architect
@@ -17,7 +17,7 @@ all dnsmasq processes before Pi-hole can bind port 53.
 ### Current State (WEST)
 
 - Pi-hole: Docker container, `network_mode: host`, image `pihole/pihole:latest`
-- Web admin: `https://192.168.69.184:8053/admin` (password: unheaded)
+- Web admin: `https://192.168.69.184:8053/admin`
 - Upstream DNS: 8.8.8.8, 1.1.1.3, 8.8.4.4
 - Volumes: `./etc-pihole`, `./etc-dnsmasq.d`, `./custom.list`
 - Conflict: LXD dnsmasq on lxcbr0 (10.0.3.1:53) and lxdbr0 (10.10.10.1:53)
@@ -72,4 +72,4 @@ To unblock Pi-hole in Docker, the following were disabled at boot:
 
 - Pi-hole is GPL-2.0+ — compatible with Kingdom licensing
 - No PII stored (DNS logs are local, not forwarded)
-- DNSSEC: currently disabled, should be enabled post-migration
+- DNSSEC: enabled 2026-10-29 (validated: dnssec-failed.org → SERVFAIL, isc.org → `ad`). Upstreams are plain DNS: 1.1.1.3, 8.8.8.8, 8.8.4.4, 1.0.0.1, 1.1.1.1 and four IPv6 (unreachable), unchanged since 2026-08-22

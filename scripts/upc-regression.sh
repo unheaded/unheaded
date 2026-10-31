@@ -162,7 +162,7 @@ want_counts "$GM" "GM: c1-pid=2" 1 "GM: c2-pid=3" 1 "GM: c3-pid=4" 1 "GM: c1-aga
 # the owned kernel from BPF's tick count; it must rise in init and in a child,
 # and a child must not read below its parent. Off: uptime has no BPF arm.
 if grep -q 'const UPC_RUNG2: bool = true;' "$EBPF/monad-cpu-ebpf/src/main.rs"; then
-  UPL="$((cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+  UPL="$( (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
     --ramdisk "$K/fs.img" --userland "$K/uptimeprobe.mbc" --triggers 2000000 --instance 111 2>&1) | grep -a 'ascii:' \
     | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'UP: [a-z-]+=[a-z]+')"
   want_counts "$UPL" "UP: init-moved=yes" 1 "UP: child-moved=yes" 1 "UP: child-mono=yes" 1 "UP: init-before=large" 1 \
@@ -170,6 +170,33 @@ if grep -q 'const UPC_RUNG2: bool = true;' "$EBPF/monad-cpu-ebpf/src/main.rs"; t
 else
   note "uptime gate skipped: UPC_RUNG2 is off (ADR-110 waits on the stop-rule reading)"
 fi
+
+# ADR-109 D6 (M-247): a child stores to slot 0's pgd (15 MiB up, a page-walk
+# miss) and into the slot tables. With UPC_D6_MISS_FAULT on, neither word may
+# change. Off, the pgd store lands (the open hole); if it stops landing, the
+# probe no longer reaches the hole and proves nothing when D6 is turned on.
+HPL="$( (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+  --ramdisk "$K/fs.img" --userland "$K/hostile_pgd.mbc" --triggers 1500000 --instance 111 2>&1) | grep -a 'ascii:' \
+  | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'HP: [a-z-]+=?[a-z]*')"
+if grep -q 'const UPC_D6_MISS_FAULT: bool = true;' "$EBPF/monad-cpu-ebpf/src/main.rs"; then
+  want_counts "$HPL" "HP: child=stored" 1 "HP: pgd=same" 1 "HP: tables=same" 1 "HP: done" 1 \
+    && pass "hostile_pgd: a child's stores outside its slice are dropped (D6)" || fail "hostile_pgd (D6 on)"
+elif want_counts "$HPL" "HP: child=stored" 1 "HP: pgd=changed" 1 "HP: done" 1; then
+  note "hostile_pgd: D6 is off, a child wrote slot 0's pgd (M-247 open)"
+else
+  fail "hostile_pgd (D6 off: the probe no longer reaches the hole)"
+fi
+
+# Stage 2 Steps 134-135: a child forges cur_slot/trap_a7 at the table address it
+# sees, or scribbles over slot 2's trapframe there, then a getpid (its own, or a
+# grandchild's in slot 2) must still be right. Both hold with D6 off or on.
+hs_lines() { (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+  --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers 2000000 --instance 111 2>&1) | grep -a 'ascii:' \
+  | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'H[ST]: [a-z-]+=?[a-z0-9]*'; }
+want_counts "$(hs_lines hostile_slot)" "HS: child-pid=2" 1 "HS: init-pid=1" 1 "HS: done" 1 \
+  && pass "hostile_slot: forged cur_slot/trap_a7 leave getpid right" || fail "hostile_slot (forged handoff words)"
+want_counts "$(hs_lines hostile_tf)" "HT: child-pid=2" 1 "HT: gc-pid=3" 1 "HT: gc-canary=ok" 1 "HT: done" 1 \
+  && pass "hostile_tf: scribbled slot 2 trapframe, grandchild pid and s1 intact" || fail "hostile_tf (sibling trapframe)"
 
 # S26: xv6 usertests bodies as probes (user/ut_*.c) against BPF fork/exit/wait.
 # forktest and reparent2 need wait() to return -1 once every child is reaped.

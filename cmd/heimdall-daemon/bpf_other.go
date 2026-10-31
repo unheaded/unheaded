@@ -15,4 +15,5 @@ func loadHooks(HookConfig) (*bpfHooks, []error) {
 
 func (h *bpfHooks) Events() <-chan hookEvent        { return nil }
 func (h *bpfHooks) HornCounters() map[string]uint64 { return map[string]uint64{} }
+func (h *bpfHooks) Lost() map[string]uint64         { return map[string]uint64{} }
 func (h *bpfHooks) Close()                          {}

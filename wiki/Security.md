@@ -28,6 +28,8 @@ networking.firewall = {
 };
 ```
 
+**Hosts today (2026-10-30): not default deny.** On west and east the input policy is ACCEPT in every layer. Finding `firewall-inbound-deny` (high, both hosts, `compliance/findings/register.yaml`) is open. The rulesets are `deploy/nftables/{west,east}.nft`, applied with `scripts/host/nft-apply-confirm.sh` (rollback armed first), attended only. Their forward-path gap (LXD containers reach east as west) is fixed before apply. Only the chaos-controller is guarded so far ([[Chaos Engineering|Chaos-Engineering]]). The read-only IOC sweep of Pi-hole, west and east found no indicators of compromise and recorded 12 exposure items: [ioc-sweep-2026-10-30](../docs/security/ioc-sweep-2026-10-30.md).
+
 ### Service Isolation
 
 One service, one account (2026-10-18): every service runs as its own system

@@ -649,3 +649,52 @@ reached were each run with `--only`:
   - `check-tool-freshness`: `aquasecurity/trivy-action@master` is pinned at `6abccf398f78`, and `8f28faec2651`
     (2026-10-21) has been on master past the 7-day cooldown. Re-pinning (docker.yml, security.yml) is a dependency
     approval.
+
+## D6 hostile-child probe (Steps 102-103, M-247), 2026-10-30, unattended churn
+
+Built on branch `churn/2026-10-30`. The tree keeps `UPC_D6_MISS_FAULT = false`; enabling it is Stevie's call.
+
+**Probe** `crates/xv6-mbc/upstream/user/hostile_pgd.c` (run as the userland, so it is init with the identity map). A
+forked child stores `0x5A5A5A5A` to VA `0x00F00FFC` (last PDE of slot 0's pgd, 15 MiB up) and to a word in slot 7's
+trapframe at the table address from BootParams `0x160`; after `wait()` init reads both physically, prints
+`HP: pgd=` and `HP: tables=` same/changed, and restores them.
+
+| Run (`--triggers 1500000`) | Result | Verified insns |
+|---|---|---|
+| D6 off | `tbase=low child=stored pgd=changed tables=same done` | 868,290 |
+| D6 on | `tbase=low child=stored pgd=same tables=same done` | 871,430 (+3,140) |
+
+- **The hole is real:** with D6 off a child wrote slot 0's page directory. From there it can map any physical page.
+- **D6 closes it:** the same store is dropped with D6 on.
+- **`tables=same` both ways, and why it differs from the plan:** Step 103 expected `changed` for the tables with D6
+  off. The table (`upc_st`) is in kernel .bss at `0x114c00` (`nm kernel/kernel.elf`), below 8 MiB, so the child's
+  store at that VA goes through its own PDE 0 into its own slice and never reaches the table directly. The way to
+  the tables with D6 off is through the pgds (row 1), not this VA.
+- With D6 on: `sweep12` **12/12 SAME** (`~/tmp/evolution1-stage2/d6-on-sweep12.txt`), harness **ALL GREEN**
+  (`d6-on-harness.txt`, `d6-on-harness2.txt`). No golden changed, so the plan's escalate-on-golden-change branch did
+  not trigger.
+- **Harness gate** (`scripts/upc-regression.sh`, after the uptime gate), flag-aware: D6 on → must print `pgd=same
+  tables=same`; D6 off → prints a note naming M-247, and fails only if the child's pgd store stops landing (then the
+  probe would prove nothing once D6 is on). Both branches run: D6 off ALL GREEN with the note
+  (`d6-off-harness.txt`), D6 on ALL GREEN with the PASS.
+- `upc0` was gone on west (the unit is `active (exited)` since 10-28 but the namespace had been removed); brought back
+  with `sudo scripts/upc-netns.sh up`. Left up, as the unit intends.
+- Not built: `hostile_slot.c` and `hostile_tf.c` (Steps 134-135).
+
+**Steps 134-138 (same day).** `hostile_slot.c` (child forges `cur_slot` = slot 5 and `trap_a7` = getpid at the table
+address it reads from VA `0x160`, then calls getpid) and `hostile_tf.c` (child fills slot 2's trapframe at that
+address with junk, then forks; the grandchild in slot 2 calls getpid with a canary in `s1`). Each booted with D6 off
+and on (`~/tmp/evolution1-stage2/p6-hostile.txt`):
+
+| Probe | D6 off | D6 on |
+|---|---|---|
+| hostile_pgd | `pgd=changed` (hole) | `pgd=same` |
+| hostile_slot | `child-tbase=same child-pid=2 init-pid=1` | same |
+| hostile_tf | `child-pid=2 gc-pid=3 gc-canary=ok` | same |
+
+- `child-tbase=same`: fork copied init's low memory into the child's slice, so the child reads the real table address
+  but its stores at that VA land in its own copy. These two probes therefore show that the direct route is closed in
+  both modes; the only route to the real table found so far is through another slot's pgd, which `hostile_pgd`
+  covers and D6 closes.
+- No mutation check was run for the two new probes (no build where the child's VA reaches the real table).
+- All three registered in `scripts/upc-regression.sh`; D6 off: ALL GREEN (`p6-harness-d6off.txt`).

@@ -1,0 +1,55 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: heimdall-hook-events-lost
+  description: heimdall-daemon lost BPF hook events (HeimdallHookEventsLost)
+  owner: architect
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+
+notes: |
+  ADR-043, LICH-012 L12d. heimdall-daemon's vfs_write and execve hooks write
+  each event into a 64 KiB ringbuf; when it is full the kernel side drops the
+  event and counts it (LOST map), and when the daemon cannot keep up it drops
+  decoded records (hook="reader"). heimdall_hook_events_lost_total{hook}
+  carries both. Drift DETECTION still works: every scan hashes every watched
+  file, so a change made during the blind window is reported by the next
+  scan (-scan-interval, default 30s). What is lost is the event-driven,
+  sub-second detection.
+
+  Usual causes, most likely first: a burst of writes on the host (package
+  upgrade, log storm, backup); the daemon stopped or starved of CPU; a
+  deliberate write flood to hide a change in the noise. The last is why a
+  burst is worth a look: compare the window with the drift alerts around it.
+
+  This runbook only reads.
+
+parameters:
+  - name: METRICS_URL
+    default: "http://127.0.0.1:19101/metrics"
+    description: heimdall-daemon's -metrics-addr on the node that alerted
+
+steps:
+  - name: which-node
+    action: shell
+    command: |
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=increase(heimdall_hook_events_lost_total[15m]) > 0' |
+        python3 -c 'import json,sys; [print(r["metric"].get("host", r["metric"]["instance"]), r["metric"].get("hook"), r["value"][1]) for r in json.load(sys.stdin)["data"]["result"]]'
+
+  - name: heimdall-counters
+    action: shell
+    command: |
+      curl -s "$METRICS_URL" | grep -E '^heimdall_(hook_events_lost_total|drift_|scan_duration_seconds_count)'
+
+  - name: daemon-log
+    action: shell
+    command: |
+      journalctl -u unheaded-heimdall --since -30min --no-pager | grep -E '\[BPF\]|\[ALERT\]' | tail -40
+
+  - name: next-step
+    action: manual
+    command: |
+      A known burst (upgrade, backup) with no drift alert after the next scan: nothing to do.
+      A drift alert inside or right after the window: treat it as drift (runbooks/security/).
+      Repeated losses with no burst: the daemon is starved; check its unit's CPU and memory.
