@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-10-30
-**Total:** 112 entries (ADR-001 to ADR-115, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Last updated:** 2026-10-31
+**Total:** 113 entries (ADR-001 to ADR-116, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -21,7 +21,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | Status | Count |
 |--------|-------|
 | Accepted | 51 |
-| Proposed | 24 |
+| Proposed | 25 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -29,7 +29,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | PoC / Research | 3 |
 | Superseded / Deprecated | 4 |
 | Acknowledged | 1 |
-| **Total** | **112** |
+| **Total** | **113** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -170,3 +170,4 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [113](ADR-113-third-party-verdicts-service.md) | Third-party verdicts as a Kingdom service (name TBD): Well schema + service account, API key or user for every call, audited; ports the claude.ai verdicts artifact on-box; an SBOM (CycloneDX components + services + formulation) kept accurate by one source of truth, a completeness gate and daily project + environment checks | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 | [114](ADR-114-user-authentication-for-every-web-page.md) | User authentication for every web page, one login for all (recommended: central IdP + one gate in front of every page + signed per-app passport + pushed revocation, after Google IAP/BeyondCorp, Netflix Passport, Microsoft CAE); BFF/gate/OIDC code flow per page type; outside-library decision per need (recommendation: zero new modules; WebAuthn native-minimal vs go-webauthn open) | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 | [115](ADR-115-smallest-install-for-a-shop-owner.md) | The smallest install a shop owner can run ("Unheaded Shop", name TBD): an aid, not a promise; preflight keeps a badly configured app offline; gate, firewall, egress allowlist, sandbox, change detection, updates, backups, plain report; one binary + one deb | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
+| [116](ADR-116-monitor-the-monitors.md) | Monitor the monitors: every expected signal has a stated expectation and its absence is an alert; expectations registry + CI gate, out-of-stack wardens with mutual heartbeats, proven alert delivery, volume-drop and artifact-freshness checks (high emphasis) | **Proposed** (pitch, parked under ADR-112) | 2026-10-31 |
