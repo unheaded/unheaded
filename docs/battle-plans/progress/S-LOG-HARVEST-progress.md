@@ -29,6 +29,16 @@ Related decisions recorded the same day: ADR-116 (Q1-Q6), ADR-114 (Q0-Q7), ADR-1
 | Date | Steps | Note |
 |---|---|---|
 | 2026-11-03 | 2, 11 | Decisions recorded (above); this file created. Unattended churn, `churn/2026-11-03`. |
+| 2026-11-03 | 13-34 | Phase 1 source inventory: `config/logging/sources.yaml` written from the live hosts (Steps 13-19 outputs in this file's gap map below), unique ids, parses with the CI YAML reader, retention classes from retention-policy-v1 (audit / operational), privacy note in the file header. |
+
+## Gap map (burn-down)
+
+Sources by status on 2026-11-03 (Phase 1): **170 entries**: shipped 0, gap 58, blocked 41, excluded 71.
+`blocked:FND-001` = Vector is built and configured on west but the stack is down; `blocked:D7` = LAN devices; `gap` = no path at all (east until vector-east, files on both hosts, json-file containers until Phase 4, Pi-hole until Phase 6).
+
+Inventory facts (Steps 13-19, 2026-11-03): west runs 40 services, east 37; files written in the last 7 days outside the journal: west 14 (audit, auth, dmesg, fail2ban, frr, haproxy, kern, nginx x4, syslog, ubuntu-advantage, unattended-upgrades), east 5; haproxy and frr log to syslog (journal) and rsyslog also writes file copies; `systemd-journald-audit.socket` disabled on both (D6: file source); compose: 12 first-party services on journald, 9 third-party on json-file (D5); Pi-hole has pihole.log + FTL.log (webserver.log absent), rsyslog active in the container; LXD runs only `pihole`; LAN neighbours seen from west: router .129, laptop .132, unnamed .148 (D7). east naming drift: the deploy files `unheaded-daemon`, `unheaded-dashboard`, `unheaded-kanban` are installed on east as `unheaded-unheaded-daemon`, `unheaded-dashboard-backend`, `unheaded-kanban-app`.
+
+Privacy (Step 28): the Pi-hole query log names every LAN client and every domain it looks up; the nginx access logs carry client IPs. Personal data under retention-policy-v1; they ship to ClickHouse on west (loopback, one database user) and nowhere else.
 
 ## Stuck
 

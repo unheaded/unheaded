@@ -1,0 +1,1615 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Every log source that should exist, with how to prove it ships (S-LOG-HARVEST
+# Phase 1, inventory taken 2026-11-03 on west, east and the Pi-hole container).
+# The static gate (pkg/logsources) fails CI when a unit, compose service or host
+# has no entry here; docs/policy/log-sources.md explains the fields.
+#
+# kind:      journal-unit | journal-container | file | lxd-file | lxd-journal | syslog-device
+# match:     unit name, container name, path, or sender IP
+# retention: audit | operational (docs/policy/retention-policy-v1-2026-05-06.md: audit logs 90 d
+#            online + 1 y archive; operational 90 d; the Pi-hole query DB keeps 91 d itself)
+# status:    shipped | gap | blocked:<D#|FND-#> | excluded:<reason>
+# canary:    logger | http-get | dns-query | none: <reason>
+#
+# Privacy (Step 28): pihole/pihole-log and lan/dns-queries name every LAN client
+# and every domain it looks up; the nginx access logs carry client IPs. Both are
+# personal data under the retention policy. They ship to ClickHouse on west
+# (loopback only, one database user) and nowhere else.
+#
+# Stale lxdbr0 neighbours 10.10.20.66/.128/.234 (2026-10-30 IOC sweep: leases of
+# deleted containers) are not sources.
+
+schema: unheaded.logging.sources/v1
+
+sources:
+  - id: west/kernel
+    host: west
+    kind: journal-unit
+    match: kernel
+    retention: audit
+    max_silence: 24h
+    canary: "none: the kernel ring is not provoked on purpose"
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/ssh
+    host: west
+    kind: journal-unit
+    match: ssh.service
+    retention: audit
+    max_silence: 7d
+    canary: "none: logins are human events; the window is the expectation"
+    owner: sentinel
+    status: "blocked:FND-001"
+  - id: west/auditd
+    host: west
+    kind: journal-unit
+    match: auditd.service
+    retention: audit
+    max_silence: 24h
+    canary: "none: auditd's own journal lines are start/stop only; its records are west/audit-log"
+    owner: moatghost
+    status: "blocked:FND-001"
+  - id: west/docker
+    host: west
+    kind: journal-unit
+    match: docker.service
+    retention: operational
+    max_silence: 24h
+    canary: "none: daemon lines follow container lifecycle"
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/containerd
+    host: west
+    kind: journal-unit
+    match: containerd.service
+    retention: operational
+    max_silence: 24h
+    canary: "none: follows docker"
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/snap.lxd.daemon
+    host: west
+    kind: journal-unit
+    match: snap.lxd.daemon.service
+    retention: operational
+    max_silence: 24h
+    canary: "none: follows LXD lifecycle"
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/haproxy
+    host: west
+    kind: journal-unit
+    match: haproxy.service
+    retention: audit
+    max_silence: 6h
+    canary: http-get
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/frr
+    host: west
+    kind: journal-unit
+    match: frr.service
+    retention: operational
+    max_silence: 24h
+    canary: "none: BGP/BFD events; neighbour flaps would show"
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/lldpd
+    host: west
+    kind: journal-unit
+    match: lldpd.service
+    retention: operational
+    max_silence: 7d
+    canary: "none: neighbour changes only"
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/chrony
+    host: west
+    kind: journal-unit
+    match: chrony.service
+    retention: operational
+    max_silence: 7d
+    canary: "none: sync events only; clock drift alerts come from node_exporter"
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/huginn
+    host: west
+    kind: journal-unit
+    match: huginn.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/node-exporter
+    host: west
+    kind: journal-unit
+    match: node-exporter.service
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/fail2ban
+    host: west
+    kind: journal-unit
+    match: fail2ban.service
+    retention: audit
+    max_silence: 7d
+    canary: "none: its actions are in west/fail2ban-log"
+    owner: sentinel
+    status: "blocked:FND-001"
+  - id: west/unheaded-chaos-controller
+    host: west
+    kind: journal-unit
+    match: unheaded-chaos-controller.service
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/unheaded-kev-poller
+    host: west
+    kind: journal-unit
+    match: unheaded-kev-poller.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: sentinel
+    status: "blocked:FND-001"
+  - id: west/unheaded-trace-collector
+    host: west
+    kind: journal-unit
+    match: unheaded-trace-collector.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/nginx
+    host: west
+    kind: journal-unit
+    match: nginx.service
+    retention: operational
+    max_silence: 24h
+    canary: "none: nginx writes its files, journal has start/stop"
+    owner: architect
+    status: "blocked:FND-001"
+  - id: west/audit-log
+    host: west
+    kind: file
+    match: /var/log/audit/audit.log
+    retention: audit
+    max_silence: 24h
+    canary: logger
+    owner: moatghost
+    status: gap
+    note: "D6: file source, auditd log_group = adm; systemd-journald-audit.socket stays disabled"
+  - id: west/nginx-access
+    host: west
+    kind: file
+    match: /var/log/nginx/access.log
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: architect
+    status: gap
+  - id: west/nginx-error
+    host: west
+    kind: file
+    match: /var/log/nginx/error.log
+    retention: operational
+    max_silence: 7d
+    canary: "none: errors are not provoked"
+    owner: architect
+    status: gap
+  - id: west/nginx-apt-access
+    host: west
+    kind: file
+    match: /var/log/nginx/unheaded-apt.access.log
+    retention: audit
+    max_silence: 7d
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "apt repo vhost (2026-11-03); who installs what"
+  - id: west/nginx-apt-error
+    host: west
+    kind: file
+    match: /var/log/nginx/unheaded-apt.error.log
+    retention: operational
+    max_silence: 30d
+    canary: "none: errors are not provoked"
+    owner: architect
+    status: gap
+  - id: west/fail2ban-log
+    host: west
+    kind: file
+    match: /var/log/fail2ban.log
+    retention: audit
+    max_silence: 7d
+    canary: "none: bans are attacker-driven"
+    owner: sentinel
+    status: gap
+  - id: west/dpkg
+    host: west
+    kind: file
+    match: /var/log/dpkg.log
+    retention: audit
+    max_silence: 30d
+    canary: "none: package changes are operator events"
+    owner: moatghost
+    status: gap
+  - id: west/apt-history
+    host: west
+    kind: file
+    match: /var/log/apt/history.log
+    retention: audit
+    max_silence: 30d
+    canary: "none: see west/dpkg"
+    owner: moatghost
+    status: gap
+  - id: west/unattended-upgrades
+    host: west
+    kind: file
+    match: /var/log/unattended-upgrades/unattended-upgrades.log
+    retention: audit
+    max_silence: 48h
+    canary: "none: runs daily; silence over 48h is the alert"
+    owner: moatghost
+    status: gap
+  - id: west/file-frr-frr
+    host: west
+    kind: file
+    match: /var/log/frr/frr.log
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:frr also logs to syslog (frr.conf: log syslog informational); the journal is the source"
+  - id: west/file-haproxy
+    host: west
+    kind: file
+    match: /var/log/haproxy.log
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:rsyslog copy of haproxy's /dev/log stream; the journal is the source"
+  - id: west/file-auth
+    host: west
+    kind: file
+    match: /var/log/auth.log
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:rsyslog copy of the journal"
+  - id: west/file-syslog
+    host: west
+    kind: file
+    match: /var/log/syslog
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:rsyslog copy of the journal"
+  - id: west/file-kern
+    host: west
+    kind: file
+    match: /var/log/kern.log
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:rsyslog copy of the journal"
+  - id: west/file-dmesg
+    host: west
+    kind: file
+    match: /var/log/dmesg
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:boot ring snapshot; the journal keeps the kernel stream"
+  - id: west/file-ubuntu-advantage
+    host: west
+    kind: file
+    match: /var/log/ubuntu-advantage.log
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:Ubuntu Pro client status; the apt entries carry the same facts"
+  - id: west/compose-akira
+    host: west
+    kind: journal-container
+    match: unheaded-akira
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-architect
+    host: west
+    kind: journal-container
+    match: unheaded-architect
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-auth
+    host: west
+    kind: journal-container
+    match: unheaded-auth
+    retention: audit
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-captain
+    host: west
+    kind: journal-container
+    match: unheaded-captain
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-cuirass
+    host: west
+    kind: journal-container
+    match: unheaded-cuirass
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-dashboard-backend
+    host: west
+    kind: journal-container
+    match: unheaded-dashboard-backend
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-kanban-app
+    host: west
+    kind: journal-container
+    match: unheaded-kanban-app
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-micromanager
+    host: west
+    kind: journal-container
+    match: unheaded-micromanager
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-monad
+    host: west
+    kind: journal-container
+    match: unheaded-monad
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-sophia
+    host: west
+    kind: journal-container
+    match: unheaded-sophia
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-timeguru
+    host: west
+    kind: journal-container
+    match: unheaded-timeguru
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-wotan
+    host: west
+    kind: journal-container
+    match: unheaded-wotan
+    retention: audit
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
+  - id: west/compose-clickhouse
+    host: west
+    kind: journal-container
+    match: unheaded-clickhouse
+    retention: operational
+    max_silence: 24h
+    canary: "none: init or storage; lifecycle lines only"
+    owner: architect
+    status: gap
+    note: "D5: move from json-file to the journald driver (Phase 4)"
+  - id: west/compose-clickhouse-schema
+    host: west
+    kind: journal-container
+    match: unheaded-clickhouse-schema
+    retention: operational
+    max_silence: 24h
+    canary: "none: init or storage; lifecycle lines only"
+    owner: architect
+    status: gap
+    note: "D5: move from json-file to the journald driver (Phase 4)"
+  - id: west/compose-coredns
+    host: west
+    kind: journal-container
+    match: unheaded-coredns
+    retention: operational
+    max_silence: 24h
+    canary: "none: init or storage; lifecycle lines only"
+    owner: architect
+    status: gap
+    note: "D5: move from json-file to the journald driver (Phase 4)"
+  - id: west/compose-grafana
+    host: west
+    kind: journal-container
+    match: unheaded-grafana
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "D5: move from json-file to the journald driver (Phase 4)"
+  - id: west/compose-postgres
+    host: west
+    kind: journal-container
+    match: unheaded-postgres
+    retention: operational
+    max_silence: 24h
+    canary: "none: init or storage; lifecycle lines only"
+    owner: architect
+    status: gap
+    note: "D5: move from json-file to the journald driver (Phase 4)"
+  - id: west/compose-traefik
+    host: west
+    kind: journal-container
+    match: unheaded-traefik
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "D5: move from json-file to the journald driver (Phase 4)"
+  - id: west/compose-victoria
+    host: west
+    kind: journal-container
+    match: unheaded-victoria
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "D5: move from json-file to the journald driver (Phase 4)"
+  - id: west/compose-volume-init
+    host: west
+    kind: journal-container
+    match: unheaded-volume-init
+    retention: operational
+    max_silence: 24h
+    canary: "none: init or storage; lifecycle lines only"
+    owner: architect
+    status: gap
+    note: "D5: move from json-file to the journald driver (Phase 4)"
+  - id: west/compose-vector
+    host: west
+    kind: journal-container
+    match: unheaded-vector
+    retention: operational
+    max_silence: 6h
+    canary: "none: the shipper; its health is vector_* metrics"
+    owner: architect
+    status: "excluded:the shipper's own stdout stays on json-file (D5); its health is metrics, not logs"
+  - id: west/monitoring-prometheus
+    host: west
+    kind: journal-container
+    match: unheaded-monitoring-prometheus
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+  - id: west/monitoring-grafana
+    host: west
+    kind: journal-container
+    match: unheaded-monitoring-grafana
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+  - id: west/monitoring-loki
+    host: west
+    kind: journal-container
+    match: unheaded-monitoring-loki
+    retention: operational
+    max_silence: 24h
+    canary: "none: storage; lifecycle lines only"
+    owner: architect
+    status: gap
+    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+  - id: west/monitoring-victoriametrics
+    host: west
+    kind: journal-container
+    match: unheaded-monitoring-victoriametrics
+    retention: operational
+    max_silence: 24h
+    canary: "none: storage; lifecycle lines only"
+    owner: architect
+    status: gap
+    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+  - id: west/monitoring-alertmanager
+    host: west
+    kind: journal-container
+    match: unheaded-monitoring-alertmanager
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+  - id: west/monitoring-alert-mailer
+    host: west
+    kind: journal-container
+    match: unheaded-monitoring-alert-mailer
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+  - id: west/monitoring-volume-init
+    host: west
+    kind: journal-container
+    match: unheaded-monitoring-volume-init
+    retention: operational
+    max_silence: 24h
+    canary: "none: storage; lifecycle lines only"
+    owner: architect
+    status: gap
+    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+  - id: pihole/pihole-log
+    host: pihole
+    kind: lxd-file
+    match: /var/log/pihole/pihole.log
+    retention: operational
+    max_silence: 1h
+    canary: dns-query
+    owner: sentinel
+    status: gap
+    note: "D3: rsyslog imfile -> relay at 10.10.20.1 (Phase 6). PERSONAL DATA: every LAN client and every name it looks up"
+  - id: pihole/ftl-log
+    host: pihole
+    kind: lxd-file
+    match: /var/log/pihole/FTL.log
+    retention: operational
+    max_silence: 24h
+    canary: "none: FTL events"
+    owner: sentinel
+    status: gap
+    note: "D3 (Phase 6)"
+  - id: pihole/webserver-log
+    host: pihole
+    kind: lxd-file
+    match: /var/log/pihole/webserver.log
+    retention: audit
+    max_silence: 7d
+    canary: http-get
+    owner: sentinel
+    status: gap
+    note: "D3 (Phase 6); file absent on 2026-11-03 (no web request since the v6.8 update); admin UI access = audit"
+  - id: pihole/journal
+    host: pihole
+    kind: lxd-journal
+    match: pihole
+    retention: operational
+    max_silence: 24h
+    canary: "none: container journal; unit lifecycle"
+    owner: sentinel
+    status: gap
+    note: "D3 (Phase 6): rsyslog imjournal -> relay"
+  - id: lan/dns-queries
+    host: pihole
+    kind: lxd-file
+    match: /var/log/pihole/pihole.log
+    retention: operational
+    max_silence: 1h
+    canary: dns-query
+    owner: sentinel
+    status: "blocked:D7"
+    note: "LAN devices stopped using Pi-hole on 2026-08-22 (router DHCP DNS); Stevie's hand: router DHCP DNS -> 192.168.69.184. Until then this row sees west's own queries only"
+  - id: east/kernel
+    host: east
+    kind: journal-unit
+    match: kernel
+    retention: audit
+    max_silence: 24h
+    canary: "none: kernel ring"
+    owner: architect
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/ssh
+    host: east
+    kind: journal-unit
+    match: ssh.service
+    retention: audit
+    max_silence: 7d
+    canary: "none: logins are human events"
+    owner: sentinel
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/auditd
+    host: east
+    kind: journal-unit
+    match: auditd.service
+    retention: audit
+    max_silence: 24h
+    canary: "none: records are east/audit-log"
+    owner: moatghost
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/bird
+    host: east
+    kind: journal-unit
+    match: bird.service
+    retention: operational
+    max_silence: 24h
+    canary: "none: BGP events"
+    owner: architect
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/lldpd
+    host: east
+    kind: journal-unit
+    match: lldpd.service
+    retention: operational
+    max_silence: 7d
+    canary: "none: neighbour changes only"
+    owner: architect
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/chrony
+    host: east
+    kind: journal-unit
+    match: chrony.service
+    retention: operational
+    max_silence: 7d
+    canary: "none: sync events only"
+    owner: architect
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/huginn
+    host: east
+    kind: journal-unit
+    match: huginn.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/node-exporter
+    host: east
+    kind: journal-unit
+    match: node-exporter.service
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-akira
+    host: east
+    kind: journal-unit
+    match: unheaded-akira.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-architect
+    host: east
+    kind: journal-unit
+    match: unheaded-architect.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-captain
+    host: east
+    kind: journal-unit
+    match: unheaded-captain.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-chaos-controller
+    host: east
+    kind: journal-unit
+    match: unheaded-chaos-controller.service
+    retention: operational
+    max_silence: 24h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-dashboard-backend
+    host: east
+    kind: journal-unit
+    match: unheaded-dashboard-backend.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-kanban-app
+    host: east
+    kind: journal-unit
+    match: unheaded-kanban-app.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-kev-poller
+    host: east
+    kind: journal-unit
+    match: unheaded-kev-poller.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: sentinel
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-micromanager
+    host: east
+    kind: journal-unit
+    match: unheaded-micromanager.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-trace-collector
+    host: east
+    kind: journal-unit
+    match: unheaded-trace-collector.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-unheaded-daemon
+    host: east
+    kind: journal-unit
+    match: unheaded-unheaded-daemon.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/unheaded-heartbeat
+    host: east
+    kind: journal-unit
+    match: unheaded-heartbeat.service
+    retention: operational
+    max_silence: 10m
+    canary: "none: the heartbeat itself is the canary (west alerts HeartbeatMissing after 10 min)"
+    owner: architect
+    status: gap
+    note: "D4: ships once vector-east is installed (Step 170)"
+  - id: east/audit-log
+    host: east
+    kind: file
+    match: /var/log/audit/audit.log
+    retention: audit
+    max_silence: 24h
+    canary: logger
+    owner: moatghost
+    status: gap
+    note: "D6, via vector-east"
+  - id: east/dpkg
+    host: east
+    kind: file
+    match: /var/log/dpkg.log
+    retention: audit
+    max_silence: 30d
+    canary: "none: operator events"
+    owner: moatghost
+    status: gap
+  - id: east/apt-history
+    host: east
+    kind: file
+    match: /var/log/apt/history.log
+    retention: audit
+    max_silence: 30d
+    canary: "none: see east/dpkg"
+    owner: moatghost
+    status: gap
+  - id: east/unattended-upgrades
+    host: east
+    kind: file
+    match: /var/log/unattended-upgrades/unattended-upgrades.log
+    retention: audit
+    max_silence: 48h
+    canary: "none: runs daily"
+    owner: moatghost
+    status: gap
+  - id: east/file-auth
+    host: east
+    kind: file
+    match: /var/log/auth.log
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:rsyslog copy of the journal"
+  - id: east/file-syslog
+    host: east
+    kind: file
+    match: /var/log/syslog
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:rsyslog copy of the journal"
+  - id: east/file-apt-eipp
+    host: east
+    kind: file
+    match: /var/log/apt/eipp.log.xz
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:apt solver dump, not a log"
+  - id: west/platform-ModemManager
+    host: west
+    kind: journal-unit
+    match: ModemManager.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-cron
+    host: west
+    kind: journal-unit
+    match: cron.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-dbus
+    host: west
+    kind: journal-unit
+    match: dbus.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-fwupd
+    host: west
+    kind: journal-unit
+    match: fwupd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-getty@tty1
+    host: west
+    kind: journal-unit
+    match: getty@tty1.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-lxc-monitord
+    host: west
+    kind: journal-unit
+    match: lxc-monitord.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-lxcfs
+    host: west
+    kind: journal-unit
+    match: lxcfs.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-multipathd
+    host: west
+    kind: journal-unit
+    match: multipathd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-netplan-wpa-wlp17s0
+    host: west
+    kind: journal-unit
+    match: netplan-wpa-wlp17s0.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-networkd-dispatcher
+    host: west
+    kind: journal-unit
+    match: networkd-dispatcher.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-polkit
+    host: west
+    kind: journal-unit
+    match: polkit.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-rsyslog
+    host: west
+    kind: journal-unit
+    match: rsyslog.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:writes the /var/log copies of the journal; not a source"
+  - id: west/platform-smartmontools
+    host: west
+    kind: journal-unit
+    match: smartmontools.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-snapd
+    host: west
+    kind: journal-unit
+    match: snapd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-systemd-journald
+    host: west
+    kind: journal-unit
+    match: systemd-journald.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-systemd-logind
+    host: west
+    kind: journal-unit
+    match: systemd-logind.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-systemd-networkd
+    host: west
+    kind: journal-unit
+    match: systemd-networkd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-systemd-resolved
+    host: west
+    kind: journal-unit
+    match: systemd-resolved.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-systemd-udevd
+    host: west
+    kind: journal-unit
+    match: systemd-udevd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-udisks2
+    host: west
+    kind: journal-unit
+    match: udisks2.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-unattended-upgrades
+    host: west
+    kind: journal-unit
+    match: unattended-upgrades.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:the unit only runs the job; its log file is the source (see <host>/unattended-upgrades)"
+  - id: west/platform-upower
+    host: west
+    kind: journal-unit
+    match: upower.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-user@1000
+    host: west
+    kind: journal-unit
+    match: user@1000.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/platform-wpa_supplicant
+    host: west
+    kind: journal-unit
+    match: wpa_supplicant.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-ModemManager
+    host: east
+    kind: journal-unit
+    match: ModemManager.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-cron
+    host: east
+    kind: journal-unit
+    match: cron.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-dbus
+    host: east
+    kind: journal-unit
+    match: dbus.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-fwupd
+    host: east
+    kind: journal-unit
+    match: fwupd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-getty@tty1
+    host: east
+    kind: journal-unit
+    match: getty@tty1.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-multipathd
+    host: east
+    kind: journal-unit
+    match: multipathd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-networkd-dispatcher
+    host: east
+    kind: journal-unit
+    match: networkd-dispatcher.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-polkit
+    host: east
+    kind: journal-unit
+    match: polkit.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-rsyslog
+    host: east
+    kind: journal-unit
+    match: rsyslog.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:writes the /var/log copies of the journal; not a source"
+  - id: east/platform-snapd
+    host: east
+    kind: journal-unit
+    match: snapd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-systemd-journald
+    host: east
+    kind: journal-unit
+    match: systemd-journald.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-systemd-logind
+    host: east
+    kind: journal-unit
+    match: systemd-logind.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-systemd-networkd
+    host: east
+    kind: journal-unit
+    match: systemd-networkd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-systemd-resolved
+    host: east
+    kind: journal-unit
+    match: systemd-resolved.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-systemd-udevd
+    host: east
+    kind: journal-unit
+    match: systemd-udevd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-udisks2
+    host: east
+    kind: journal-unit
+    match: udisks2.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-unattended-upgrades
+    host: east
+    kind: journal-unit
+    match: unattended-upgrades.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:the unit only runs the job; its log file is the source (see <host>/unattended-upgrades)"
+  - id: east/platform-upower
+    host: east
+    kind: journal-unit
+    match: upower.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-user@1000
+    host: east
+    kind: journal-unit
+    match: user@1000.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: east/platform-wpa_supplicant
+    host: east
+    kind: journal-unit
+    match: wpa_supplicant.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: device:192.168.69.129
+    host: device:192.168.69.129
+    kind: syslog-device
+    match: 192.168.69.129
+    retention: audit
+    max_silence: 24h
+    canary: "none: device decides"
+    owner: sentinel
+    status: "blocked:D7"
+    note: "router / access point (70:58:a4:9b:a9:50); Stevie names the model and whether it can send syslog"
+  - id: device:192.168.69.148
+    host: device:192.168.69.148
+    kind: syslog-device
+    match: 192.168.69.148
+    retention: operational
+    max_silence: 24h
+    canary: "none: device decides"
+    owner: sentinel
+    status: "blocked:D7"
+    note: "unnamed LAN device (64:69:4e:1a:0f:cf); Stevie names it"
+  - id: device:192.168.69.132
+    host: device:192.168.69.132
+    kind: syslog-device
+    match: 192.168.69.132
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: sentinel
+    status: "excluded:Stevie's laptop; a workstation, not a log source"
+  - id: west/unheaded-baseline
+    host: west
+    kind: journal-unit
+    match: unheaded-baseline.service
+    retention: audit
+    max_silence: 26h
+    canary: "none: daily job; silence over 26h is the alert"
+    owner: architect
+    status: "blocked:FND-001"
+    note: "timer + path unit; compliance baseline run"
+  - id: west/unheaded-chaos-guard
+    host: west
+    kind: journal-unit
+    match: unheaded-chaos-guard.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: oneshot at boot"
+    owner: architect
+    status: "blocked:FND-001"
+    note: "boot-time nft load; one line per boot"
+  - id: west/unheaded-upc-netns
+    host: west
+    kind: journal-unit
+    match: unheaded-upc-netns.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: oneshot at boot"
+    owner: architect
+    status: "blocked:FND-001"
+    note: "creates netns upc0 at boot"
+  - id: west/unheaded-upc-bootctl@
+    host: west
+    kind: journal-unit
+    match: unheaded-upc-bootctl@.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: on demand"
+    owner: architect
+    status: "blocked:FND-001"
+    note: "template; UPC boots on demand"
+  - id: west/unheaded-well-backup
+    host: west
+    kind: journal-unit
+    match: unheaded-well-backup.service
+    retention: audit
+    max_silence: 26h
+    canary: "none: daily timer; failure state is the alert (failed on 2026-11-01)"
+    owner: architect
+    status: "blocked:FND-001"
+    note: "timer; ERDA 1.4"
+  - id: west/unheaded-well-drill
+    host: west
+    kind: journal-unit
+    match: unheaded-well-drill.service
+    retention: audit
+    max_silence: 8d
+    canary: "none: weekly timer"
+    owner: architect
+    status: "blocked:FND-001"
+    note: "timer"
+  - id: west/unheaded-well-offsite
+    host: west
+    kind: journal-unit
+    match: unheaded-well-offsite.service
+    retention: audit
+    max_silence: 26h
+    canary: "none: daily timer"
+    owner: architect
+    status: "blocked:FND-001"
+    note: "timer"
+  - id: west/unheaded-wg-psk-rotate
+    host: west
+    kind: journal-unit
+    match: unheaded-wg-psk-rotate.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: timer disabled on west"
+    owner: architect
+    status: "blocked:FND-001"
+    note: "timer disabled 2026-11-03; unit present"
+  - id: west/unheaded-nft
+    host: west
+    kind: journal-unit
+    match: unheaded-nft.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: oneshot at boot"
+    owner: architect
+    status: gap
+    note: "unit file exists; not installed on west yet (firewall apply is attended)"
+  - id: east/unheaded-baseline
+    host: east
+    kind: journal-unit
+    match: unheaded-baseline.service
+    retention: audit
+    max_silence: 26h
+    canary: "none: daily job"
+    owner: architect
+    status: gap
+    note: "timer + path; D4"
+  - id: east/unheaded-chaos-guard
+    host: east
+    kind: journal-unit
+    match: unheaded-chaos-guard.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: oneshot at boot"
+    owner: architect
+    status: gap
+    note: "D4"
+  - id: east/unheaded-timeguru
+    host: east
+    kind: journal-unit
+    match: unheaded-timeguru.service
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "enabled on east, not running on 2026-11-03; D4"
+  - id: east/unheaded-wotan
+    host: east
+    kind: journal-unit
+    match: unheaded-wotan.service
+    retention: audit
+    max_silence: 6h
+    canary: http-get
+    owner: architect
+    status: gap
+    note: "enabled on east, not running on 2026-11-03; D4"
+  - id: east/unheaded-well-offsite-check
+    host: east
+    kind: journal-unit
+    match: unheaded-well-offsite-check.service
+    retention: audit
+    max_silence: 26h
+    canary: "none: daily timer"
+    owner: architect
+    status: gap
+    note: "timer; D4"
+  - id: east/vector-east
+    host: east
+    kind: journal-unit
+    match: vector-east.service
+    retention: operational
+    max_silence: 6h
+    canary: "none: the shipper; its health is vector_* metrics"
+    owner: architect
+    status: gap
+    note: "D4 Step 170: not installed yet"
+  - id: unit/unheaded-anomaly
+    host: west
+    kind: journal-unit
+    match: unheaded-anomaly.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
+  - id: unit/unheaded-auth
+    host: west
+    kind: journal-unit
+    match: unheaded-auth.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:runs in compose on west (west/compose-auth); the host unit is not installed"
+  - id: unit/unheaded-ci-status
+    host: west
+    kind: journal-unit
+    match: unheaded-ci-status.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
+  - id: unit/unheaded-daemon
+    host: west
+    kind: journal-unit
+    match: unheaded-daemon.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:installed on east as unheaded-unheaded-daemon.service (see east/unheaded-unheaded-daemon); deploy name differs"
+  - id: unit/unheaded-dashboard
+    host: west
+    kind: journal-unit
+    match: unheaded-dashboard.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:installed on east as unheaded-dashboard-backend.service (see east/unheaded-dashboard-backend); deploy name differs"
+  - id: unit/unheaded-kanban
+    host: west
+    kind: journal-unit
+    match: unheaded-kanban.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:installed on east as unheaded-kanban-app.service (see east/unheaded-kanban-app); deploy name differs"
+  - id: unit/unheaded-doom-injector
+    host: west
+    kind: journal-unit
+    match: unheaded-doom-injector.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:Doom demo; lowest priority, not installed"
+  - id: unit/unheaded-doom-ring
+    host: west
+    kind: journal-unit
+    match: unheaded-doom-ring.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:Doom demo; lowest priority, not installed"
+  - id: unit/unheaded-doom-runner
+    host: west
+    kind: journal-unit
+    match: unheaded-doom-runner.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:Doom demo; lowest priority, not installed"
+  - id: unit/unheaded-heimdall
+    host: west
+    kind: journal-unit
+    match: unheaded-heimdall.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
+  - id: unit/unheaded-monad
+    host: west
+    kind: journal-unit
+    match: unheaded-monad.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:runs in compose on west (west/compose-monad); the host unit is not installed"
+  - id: unit/unheaded-sophia
+    host: west
+    kind: journal-unit
+    match: unheaded-sophia.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:runs in compose on west (west/compose-sophia); the host unit is not installed"
+  - id: unit/unheaded-sword
+    host: west
+    kind: journal-unit
+    match: unheaded-sword.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:runs in compose on west (west/compose-sword); the host unit is not installed"
+  - id: unit/unheaded-well-retention
+    host: west
+    kind: journal-unit
+    match: unheaded-well-retention.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
+  - id: unit/zhen-agentd
+    host: west
+    kind: journal-unit
+    match: zhen-agentd.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
+  - id: west/compose-sword
+    host: west
+    kind: journal-container
+    match: unheaded-sword
+    retention: operational
+    max_silence: 6h
+    canary: http-get
+    owner: developer
+    status: "blocked:FND-001"
