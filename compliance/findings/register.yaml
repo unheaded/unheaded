@@ -134,7 +134,7 @@ findings:
   - id: FND-009
     title: >-
       22 services in the compose files other than docker-compose.yml are not least-privilege (was 75 on 2026-10-18):
-      the firewall VMs (opnsense, frr, ipfire, bird: privileged or root), shield and unheaded-daemon in
+      the routing containers (frr, bird: privileged or root; the opnsense and ipfire VM images were removed 2026-11-03), shield and unheaded-daemon in
       host-a (the D11 host-network decision), WireGuard twice (root by necessity, bounded), and 13 host-a services
       whose images exist nowhere in the repo
     verify: docs/security/compose-hardening-baseline-alt.txt is empty and scripts/check-compose-hardening.sh passes
@@ -149,9 +149,9 @@ findings:
       services): own pkg/uids number, read_only + measured tmpfs, cap_drop ALL, no-new-privileges, volume-init chown;
       promtail off the Docker socket everywhere (journal/var/log via the adm group); each stack that can run was run on
       west. Left: WireGuard needs root (EPERM otherwise, measured), so it stays listed with cap_drop ALL + NET_ADMIN and
-      the four s6 init caps, read-only; the firewall VMs need a decision on whether they stay containers at all; host-a's
+      the four s6 init caps, read-only; the opnsense/ipfire firewall VMs are gone (Stevie, 2026-11-03), frr/bird stay listed; host-a's
       shield/unheaded-daemon wait on D11; the 13 imageless host-a services get uids only if D11 keeps the stack
-    decision: whether the firewall VMs stay containers, and D11 (host-a network mode; keep or retire the per-host stacks)
+    decision: D11 (host-a network mode; keep or retire the per-host stacks); the firewall-VM question closed 2026-11-03 (removed)
 
   - id: FND-010
     title: >-

@@ -304,11 +304,11 @@ Everything outside Unheaded that the repo pulls in, calls, bundles or carries, w
 
 | Item | Version / tag | Where | Notes | Verdict |
 |---|---|---|---|---|
-| OPNsense | 26.1.2 (VM image) | `docker/firewall/opnsense/`, `lxd/containers/opnsense.yaml` | QEMU VM in a container; image path `~/tmp/opnsense/` does not exist on west | |
-| IPFire | 2.29 core199 (VM image) | `docker/firewall/ipfire/`, `lxd/containers/ipfire.yaml` | QEMU VM in a container; image path `~/tmp/ipfire/` does not exist on west | |
+| OPNsense | 26.1.2 (VM image) | **removed 2026-11-03** (was `docker/firewall/opnsense/`, `lxd/containers/opnsense.yaml`, `nixos/modules/opnsense-vm.nix`) | QEMU VM in a container; image path `~/tmp/opnsense/` does not exist on west | |
+| IPFire | 2.29 core199 (VM image) | **removed 2026-11-03** (was `docker/firewall/ipfire/`, `lxd/containers/ipfire.yaml`, `nixos/modules/ipfire-vm.nix`) | QEMU VM in a container; image path `~/tmp/ipfire/` does not exist on west | |
 | FRR | source build | `docker/firewall/frr/`, `lxd/containers/frr.yaml`, `frr-ospf.yaml` | builds from `~/tmp/frr-master`, which does not exist on west | |
 | BIRD | source build | `docker/firewall/bird/`, `lxd/containers/bird.yaml` | builds from `~/tmp/bird-master`, which does not exist on west | |
-| QEMU (qemu-kvm, qemu-system-x86, qemu-utils) | apt, unpinned | `docker/firewall/opnsense/`, `docker/firewall/ipfire/` | | |
+| QEMU (qemu-kvm, qemu-system-x86, qemu-utils) | apt, unpinned | **removed 2026-11-03** with the two appliance images | | |
 
 **Python dates.** "First added" for Python packages is the commit that wrote the name into a requirements file. The code imported most of them earlier. For example, the raft stack (faiss, langchain-text-splitters, peft, trl, datasets, torch, transformers) was first imported in `062f4ede` on 2026-03-15, and chromadb and sentence-transformers in `26515122` on 2026-03-01. No import was found anywhere in history for certifi, jsonschema, ansible-core, beautifulsoup4, nbformat, plotly, prometheus-api-client, psutil, seaborn or tokenizers.
 
