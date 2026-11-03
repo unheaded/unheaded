@@ -30,6 +30,7 @@ Related decisions recorded the same day: ADR-116 (Q1-Q6), ADR-114 (Q0-Q7), ADR-1
 |---|---|---|
 | 2026-11-03 | 2, 11 | Decisions recorded (above); this file created. Unattended churn, `churn/2026-11-03`. |
 | 2026-11-03 | 13-34 | Phase 1 source inventory: `config/logging/sources.yaml` written from the live hosts (Steps 13-19 outputs in this file's gap map below), unique ids, parses with the CI YAML reader, retention classes from retention-policy-v1 (audit / operational), privacy note in the file header. |
+| 2026-11-03 | 35-58 | Phase 2 static coverage gate: `pkg/logsources` (Load/Validate, six tests), `scripts/check-log-sources.sh`, meta-gate provocation `check-log-sources` (a unit file with no row), CI step in security.yml next to the log-caps gate, `docs/policy/log-sources.md`. Provoked red three ways (stray unit, stray compose service, duplicate id), each naming the culprit; gosec ratchet green; no new module (yaml.v3 was already direct). |
 
 ## Gap map (burn-down)
 

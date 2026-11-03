@@ -347,6 +347,15 @@ PROBE
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_log_sources() {
+    # Contract (S-LOG-HARVEST Phase 2): every deploy/systemd/*.service has a
+    # row in config/logging/sources.yaml. Drop in a unit file nothing lists.
+    local f="deploy/systemd/unheaded-zzz-probe.service"
+    backup "${f}"
+    printf '[Service]\nExecStart=/bin/true\n' > "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_haproxy_cfg() {
     # Contract (S-CLEAN-SLATE M-035): both haproxy configs pass `haproxy -c`.
     # Restore the original bug: the internal config logging X-Trace-Id with
@@ -1039,6 +1048,7 @@ check-clippy|provoke_clippy|slow|a clippy violation in crates/upc-api
 bpf-verifier-check|provoke_bpf_verifier_check|slow|an undefined symbol in ebpf/flow-tracker
 verify-gpl-boundary|provoke_verify_gpl_boundary|fast|an AGPL license on a non-first-party Cargo.toml
 check-compose-log-caps|provoke_compose_log_caps|fast|a compose service with its logging block stripped
+check-log-sources|provoke_log_sources|fast|a systemd unit file with no row in config/logging/sources.yaml
 check-haproxy-cfg|provoke_haproxy_cfg|slow|req.hdr(X-Trace-Id) restored in the internal haproxy config's log-format (needs docker)
 check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with read_only removed
 check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
