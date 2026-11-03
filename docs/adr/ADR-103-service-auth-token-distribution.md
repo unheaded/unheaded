@@ -207,7 +207,7 @@ cookie is per origin). `AUTH_ISSUER_URL` names the issuer; `POST
 /auth/login` forwards the password to the issuer's `/login` with `audience`
 = the service's own name (the issuer's `-audiences` lists it), verifies the
 returned token with `JWKSVerifier`, keeps it in a session store keyed by
-SHA-256 of the cookie, and sets `unheaded_session` (`HttpOnly; Secure;
+SHA-256 of the cookie, and sets the per-app session cookie `__Host-unheaded_session_<service>` (since 2026-11-03; `HttpOnly; Secure;
 SameSite=Strict; Path=/`). Every request with the cookie re-verifies the
 stored token. CSRF: login, logout and cookie-authenticated writes need
 `X-Requested-With: unheaded` as well. `/auth/auth.js` is the one page

@@ -56,7 +56,7 @@ func TestAuthBFF_KanbanBoardLogin(t *testing.T) {
 			t.Fatalf("login %s: %d %s", user, rec.Code, rec.Body)
 		}
 		for _, c := range rec.Result().Cookies() {
-			if c.Name == bff.DefaultCookieName {
+			if c.Name == bff.CookieNameFor("kanban-app", false) {
 				if !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteStrictMode {
 					t.Fatalf("cookie attributes: %+v", c)
 				}

@@ -77,7 +77,7 @@ Browsers never hold a bearer token ([ADR-103](../docs/adr/ADR-103-service-auth-t
 | | |
 |---|---|
 | Config | `AUTH_ENABLED=true` and `AUTH_ISSUER_URL` (compose: `http://auth:19020`; units: `https://%H:19020`). The issuer must list the service in `-audiences` (compose and unit list `unheaded,dashboard-backend,kanban-app`) |
-| `POST /auth/login` | `{"username","password"}` with `X-Requested-With: unheaded`. The backend posts it to the issuer's `/login` with `audience` = its own name, verifies the token against the JWKS, keeps it server-side, and sets `unheaded_session` (32 random bytes): `HttpOnly; Secure; SameSite=Strict; Path=/`, `Max-Age` = the token's life (15 min). The response is `{sub, roles, expires_at}`, never the token |
+| `POST /auth/login` | `{"username","password"}` with `X-Requested-With: unheaded`. The backend posts it to the issuer's `/login` with `audience` = its own name, verifies the token against the JWKS, keeps it server-side, and sets the session cookie (per app: `__Host-unheaded_session_<service>`, `unheaded_session_<service>` under `AUTH_BFF_DEV_PLAINTEXT`; 32 random bytes): `HttpOnly; Secure; SameSite=Strict; Path=/`, `Max-Age` = the token's life (15 min). The response is `{sub, roles, expires_at}`, never the token |
 | `GET /auth/me` | `{sub, roles, expires_at}` from the session, else 401 |
 | `POST /auth/logout` | With `X-Requested-With`; deletes the session and clears the cookie |
 | `GET /auth/auth.js` | The page script: login panel on a 401, who-am-I badge, `X-Requested-With` on every same-origin `fetch`. Served even with auth off (then `/auth/me` is 404 and nothing shows) |
