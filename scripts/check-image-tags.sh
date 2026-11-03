@@ -10,7 +10,7 @@
 # (nginx:1.25.5-alpine, v3.3.7, 24.12.6.70) or an Alpine release line
 # (alpine:3.24, as ADR-102 pins it), or a PostgreSQL major.minor
 # (postgres:16.15-alpine: its versions have two parts). Floating means latest, a missing tag,
-# a major or minor only (haproxy:2.9-alpine, busybox:1.36), or a branch
+# a major or minor only (haproxy:2.9-alpine, postgres:16), or a branch
 # name (open-webui:main). Images this repo builds (unheaded-*, ${VERSION},
 # :dev) and Helm templates are out of scope; so is lxd/, whose ubuntu:24.04
 # are LXD image aliases, not OCI tags.

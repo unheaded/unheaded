@@ -1,12 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 
-# The edge (HAProxy ingress controller / Ingress) may reach the gateway and the
-# published apps; the gateway may fan out to the core services. The HAProxy
-# ingress controller runs in its own `haproxy-controller` namespace (see
-# base/haproxy-ingress/), so it is allowed in via namespaceSelector — the
-# in-namespace `kingdom.role: edge` selector is retained for the legacy
-# loadbalancers/haproxy-edge while it coexists.
+# The edge (loadbalancers/haproxy-edge, `kingdom.role: edge`) may reach the
+# gateway and the published apps; the gateway may fan out to the core
+# services. The HAProxy Kubernetes Ingress Controller and the Ingress object
+# were removed 2026-11-03 (Stevie); there is no cross-namespace edge.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -20,9 +18,6 @@ spec:
     - Ingress
   ingress:
     - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: haproxy-controller
         - podSelector:
             matchLabels:
               kingdom.role: edge

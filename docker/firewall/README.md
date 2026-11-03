@@ -1,5 +1,7 @@
 # Firewall Tier: OPNsense + IPFire with FRR + BIRD Routing
 
+> **2026-11-03 (Stevie):** the OPNsense and IPFire QEMU-in-Docker images (`docker/firewall/opnsense/`, `docker/firewall/ipfire/`) were removed, with their accepted-risk `.trivyignore` entries (DS-0002, DS-0004). The `frr/` and `bird/` directories stay. The text below describes the design as it was.
+
 This directory contains Docker configurations for the network firewall and routing tier that sits at the WAN boundary, handling all ingress/egress traffic for the Unheaded cluster.
 
 ## Architecture Overview

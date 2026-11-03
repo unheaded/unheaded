@@ -38,22 +38,8 @@ misconfigurations:
       user internally after start (bird:153 / frr via --enable-user). Runtime
       capability scoping is the applicable control, not image-level USER.
 
-  # ipfire and opnsense are full firewall appliance images that manage
-  # interfaces, netfilter and their own service supervision. They have no
-  # privilege-dropping story today and genuinely run as root.
-  #
-  # NOT a false positive — a real accepted risk, and the weakest entry in this
-  # file. Tracked in docs/security/findings-remediation-2026-07-29.md; these
-  # should either gain a dedicated user or be confined by runtime capability
-  # scoping before anything outside the lab depends on them.
-  - id: DS-0002
-    paths:
-      - "docker/firewall/ipfire/Dockerfile"
-      - "docker/firewall/opnsense/Dockerfile"
-    statement: >-
-      Firewall appliance image with no privilege-dropping path today. ACCEPTED
-      RISK, not a false positive — needs a dedicated user or runtime capability
-      confinement before production exposure.
+  # The ipfire and opnsense appliance images (DS-0002, DS-0004 accepted
+  # risks) were removed 2026-11-03 (Stevie); their entries went with them.
 
   # ── Host access that is inherent to the workload ──────────────────────────
   #
@@ -167,7 +153,6 @@ misconfigurations:
   - id: KSV-01010
     paths:
       - "kubernetes/manifests/base/config/configmap-shared.yaml"
-      - "kubernetes/manifests/base/haproxy-ingress/configmap.yaml"
     statement: >-
       Values are an MTU (1380) and a port (21443). trivy matched the key names,
       not sensitive content.
@@ -221,13 +206,4 @@ misconfigurations:
     statement: >-
       Kustomize patch; base sets seccompProfile: RuntimeDefault.
 
-  # SSH into a firewall appliance image is how these are administered. Same
-  # ACCEPTED RISK as their DS-0002 entry above, not a false positive.
-  - id: DS-0004
-    paths:
-      - "docker/firewall/ipfire/Dockerfile"
-      - "docker/firewall/opnsense/Dockerfile"
-    statement: >-
-      Firewall appliance management interface. ACCEPTED RISK, tracked with the
-      DS-0002 entry for the same images.
 

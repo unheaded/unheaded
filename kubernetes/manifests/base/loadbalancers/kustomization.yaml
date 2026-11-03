@@ -8,7 +8,6 @@ resources:
   - haproxy-edge.yaml
   - haproxy-internal-config.yaml
   - haproxy-internal.yaml
-  - ingress.yaml
 labels:
   - pairs:
       kingdom.tier: edge
