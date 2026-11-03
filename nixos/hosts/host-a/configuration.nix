@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
-# Host-A: The Forge — Full Unheaded stack + vLLM/ROCm + OPNsense firewall VM
+# Host-A: The Forge — Full Unheaded stack + vLLM/ROCm (OPNsense firewall VM removed 2026-11-03)
 # nixos-rebuild switch to apply
 { config, pkgs, lib, ... }:
 
@@ -9,7 +9,6 @@
     ./hardware-configuration.nix
     ../../modules/unheaded-base.nix
     ../../modules/firewall-bridge.nix
-    ../../modules/opnsense-vm.nix
     ../../modules/telemetry.nix
     ../../modules/observability.nix
     ../../modules/wireguard.nix
@@ -107,18 +106,9 @@
     ipv6Prefix = "fd00:dead:beef:1::/64";
   };
 
-  # ── OPNsense VM (Forge firewall) ──────────────────────────────────────────
-  services.unheaded.opnsense = {
-    enable = true;
-    vcpus = 4;
-    memoryMiB = 4096;
-    wanMacvlan = "wan-macvlan";
-    lanBridge = "br-unheaded";
-  };
-
-  # NOTE: All service containers on this host must use 10.20.0.1 as default gateway
-  # and place their interfaces on br-unheaded bridge. The OPNsense VM handles
-  # all WAN-facing firewall policy and NAT.
+  # The OPNsense firewall VM (services.unheaded.opnsense, modules/opnsense-vm.nix)
+  # was removed 2026-11-03 (Stevie). WAN policy and NAT are the host's own
+  # nftables ruleset (deploy/nftables/, ADR-098 step 6).
 
   # ── Boot / Kernel ────────────────────────────────────────────────────────────
   boot = {

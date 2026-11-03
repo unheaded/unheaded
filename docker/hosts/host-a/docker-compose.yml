@@ -3,9 +3,9 @@
 #
 # host-a ("The Forge") — Docker deployment
 #
-# STATUS: THIS STACK HAS NEVER BEEN ABLE TO START. Use the LXD path instead —
-# lxd/containers/ and lxd/profiles/unheaded-firewall.yaml are complete and are
-# the deployment route that actually works for this tier.
+# STATUS: THIS STACK HAS NEVER BEEN ABLE TO START. The LXD firewall-VM path
+# (lxd/containers/, lxd/profiles/unheaded-firewall.yaml) was removed 2026-11-03;
+# this file stays as the record of the host design.
 #
 # Two blockers, both present since this file was created (695d0ba4, 2026-02-26):
 #

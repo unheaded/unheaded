@@ -27,7 +27,7 @@ spec:
     # could satisfy the policy. ghcr.io/unheaded follows the GitHub org and is
     # the registry we actually own.
     #
-    # Unqualified official images (busybox, postgres, haproxy) are listed WITH
+    # Unqualified official images (postgres, haproxy) are listed WITH
     # their colon so "haproxy:" cannot also admit a "haproxy-evil/..." repo.
     # Fully qualifying them as docker.io/library/* is the better fix and is
     # tracked separately; it changes the manifests, not just this policy.
@@ -38,7 +38,6 @@ spec:
 
     # Docker Hub official images
     - "docker.io/library/"
-    - "busybox:"
     - "postgres:"
     - "haproxy:"
 

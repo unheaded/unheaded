@@ -1,5 +1,7 @@
 # Unheaded Kingdom Routing Configuration — Quick Index
 
+> **2026-11-03 (Stevie):** the OPNsense and IPFire VM/image definitions are gone from the repo (`docker/firewall/`, `lxd/`). FRR and BIRD configuration here is unchanged; on the lab hosts FRR runs natively.
+
 **Base directory**: `/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/`
 
 ## Start Here

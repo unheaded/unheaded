@@ -207,7 +207,7 @@ kubectl get nodes -o wide        # workers Ready
    Doom-Range NodePorts. Apply it as a STANDALONE kustomization (it lives in its own
    `haproxy-controller` namespace, so it is NOT part of the `unheaded` base):
    ```bash
-   kubectl apply -k manifests/base/haproxy-ingress     # ns haproxy-controller, NodePort 21080/21443/21404
+   # haproxy-ingress removed 2026-11-03 (Stevie); loadbalancers/haproxy-edge is the edge
    kubectl -n haproxy-controller rollout status deploy/haproxy-kubernetes-ingress
    ```
    External entry becomes `https://<any-node-ip>:21443`. (This supersedes the
@@ -305,7 +305,7 @@ kubectl -n unheaded run deny-test --rm -it --image=busybox:1.36 --restart=Never 
 | **StorageClass** | cluster default (PVCs are `ReadWriteOnce`) | Ensure a default SC exists (local-path, EBS, Ceph, etc.). |
 | **CNI** | none assumed | Install Calico or Cilium **before** the network policies, or default-deny is a no-op. |
 | **GPU nodes** | none | For `gpu-vllm`: label a node `amd.com/gpu=true`, install the AMD device plugin, stage models at `/mnt/models`. |
-| **Edge type** | ✅ RESOLVED — **HAProxy Kubernetes Ingress Controller** (`base/haproxy-ingress/`, ns `haproxy-controller`, NodePort 21080/21443/21404). | It IS the ingress controller for `loadbalancers/ingress.yaml` — converges edge + Ingress, no 21443 collision. The standalone `loadbalancers/haproxy-edge` is now legacy (keep only if you want a non-ingress L4/L7 edge). Optional: convert the controller to a DaemonSet+hostPort for an every-node edge. |
+| **Edge type** | **`loadbalancers/haproxy-edge`** (L4/L7). The HAProxy Kubernetes Ingress Controller and `loadbalancers/ingress.yaml` were removed 2026-11-03 (Stevie: no k8s ingress). | One edge definition; no Ingress objects. |
 | **Secrets** | placeholders in `config/secret-shared.yaml` | Replace with SOPS/age, Sealed Secrets, External Secrets, or Vault. Never commit real values. |
 
 ---

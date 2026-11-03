@@ -290,6 +290,21 @@ Public write-ups found (retrieved 2026-10-30). Meta, Amazon and Apple have publi
 6. Does the gate (N8) belong in `unheaded-auth`, the dashboard BFF, or its own small service?
 7. Should the Zhen Flask UI be retired rather than gated (N10)?
 
+## Decisions 2026-11-03 (Stevie, rapid-fire sitting)
+
+All open questions are closed. Status stays Proposed and parked under ADR-112 until the freeze lifts; nothing is built on these yet.
+
+0. **SSO model: D.** Central IdP + one gate in front of every page + signed per-app passport + Wotan session-revoked events.
+1. **TOTP only first**; passkeys later. No `go-webauthn`.
+2. **Keep argon2id** (`x/crypto`).
+3. **Grafana keeps its own login behind the gate**; `auth.proxy` only once the gate is the sole route to it.
+4. **MFA for every user.**
+5. **Idle 30 min / absolute 12 h.**
+6. **The gate lives in `unheaded-auth`.**
+7. **Retire the Zhen Flask UI** (`raft/zhen_app.py`); the dashboard's Zhen chat is the UI.
+
+Small fix approved the same day under the freeze: per-app `__Host-` cookie names (dashboard and kanban collide today on `unheaded_session`).
+
 ## Decision
 
 None yet. Parked under ADR-112.

@@ -53,4 +53,35 @@ table inet unheaded {
 		limit rate 5/minute log prefix "unheaded-drop: " level info
 		counter
 	}
+
+	# Forward (2026-11-03): west routes for its containers (lxdbr0, docker0,
+	# br-*) and for east (enp16s0 -> wlp17s0, masqueraded). Containers leave
+	# the P2P link and the overlay masqueraded as west's own address, so
+	# east's input chain ("iifname enp2s0 ip saddr 192.168.13.2 accept")
+	# cannot tell a container from the host. This chain is where that
+	# distinction lives: containers reach east only for scrapes and the
+	# service port range; ssh, BGP, BFD, WireGuard and the apt repo stay
+	# host-to-host. Policy accept, so Docker's and LXD's own forward rules
+	# (LAN, internet, container-to-container) keep working; the LAN already
+	# cannot start connections to east (iptables FORWARD, replies only).
+	# east's chaos-controller (19012) is dropped earlier by chaos-guard.
+	chain forward {
+		type filter hook forward priority filter; policy accept;
+
+		ct state established,related accept
+		ct state invalid drop
+
+		iifname "lxdbr0" oifname { "enp16s0", "wg0" } jump container_to_east
+		iifname "docker0" oifname { "enp16s0", "wg0" } jump container_to_east
+		iifname "br-*" oifname { "enp16s0", "wg0" } jump container_to_east
+
+		# ADR-014: TCP over the overlay never fragments inside WireGuard.
+		oifname "wg0" tcp flags syn tcp option maxseg size set rt mtu
+	}
+
+	chain container_to_east {
+		tcp dport { 9100, 9110, 16666-26666 } accept comment "node_exporter, huginn, services"
+		limit rate 5/minute log prefix "unheaded-fwd-drop: " level info
+		counter drop comment "containers are masqueraded as west; nothing else reaches east as the host"
+	}
 }

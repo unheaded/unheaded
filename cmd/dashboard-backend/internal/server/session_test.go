@@ -86,14 +86,14 @@ func (e *bffEnv) login(t *testing.T, user string, roles ...string) *http.Cookie 
 		t.Fatalf("login %s: %d %s", user, rec.Code, rec.Body)
 	}
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == bff.DefaultCookieName {
+		if c.Name == bff.CookieNameFor("dashboard-backend", false) {
 			if !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteStrictMode || c.Path != "/" {
 				t.Fatalf("session cookie attributes: %+v", c)
 			}
 			return c
 		}
 	}
-	t.Fatalf("login set no %s cookie", bff.DefaultCookieName)
+	t.Fatalf("login set no %s cookie", bff.CookieNameFor("dashboard-backend", false))
 	return nil
 }
 

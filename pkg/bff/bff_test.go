@@ -101,13 +101,35 @@ func loginBody(user, pw string) string {
 
 func sessionCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	t.Helper()
+	secure, plain := bff.CookieNameFor(svc, false), bff.CookieNameFor(svc, true)
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == bff.DefaultCookieName {
+		if c.Name == secure || c.Name == plain {
 			return c
 		}
 	}
-	t.Fatalf("no %s cookie in %v", bff.DefaultCookieName, rec.Header().Values("Set-Cookie"))
+	t.Fatalf("no %s cookie in %v", secure, rec.Header().Values("Set-Cookie"))
 	return nil
+}
+
+func TestCookieNameFor_PerAppAndHostPrefixed(t *testing.T) {
+	if got := bff.CookieNameFor("kanban-app", false); got != "__Host-unheaded_session_kanban_app" {
+		t.Fatalf("secure name: %q", got)
+	}
+	if got := bff.CookieNameFor("kanban-app", true); got != "unheaded_session_kanban_app" {
+		t.Fatalf("plaintext name: %q", got)
+	}
+	if bff.CookieNameFor("dashboard-backend", false) == bff.CookieNameFor("kanban-app", false) {
+		t.Fatal("two apps share a cookie name")
+	}
+	a := newApp(t, nil)
+	if a.b.CookieName() != bff.CookieNameFor(svc, false) {
+		t.Fatalf("BFF cookie name %q", a.b.CookieName())
+	}
+	pw := a.is.AddUser(t, "u1", "operator")
+	c := sessionCookie(t, a.do(http.MethodPost, "/auth/login", loginBody("u1", pw), withXRW()))
+	if !strings.HasPrefix(c.Name, "__Host-") || !c.Secure || c.Path != "/" || c.Domain != "" {
+		t.Fatalf("__Host- cookie must be Secure, Path=/, no Domain: %+v", c)
+	}
 }
 
 func (a *app) login(user string, roles ...string) *http.Cookie {
@@ -314,11 +336,11 @@ func TestSessionAuthorizesWritesByRole(t *testing.T) {
 	if c := a.do(http.MethodGet, "/api/v1/thing", "", withCookie(viewer)).Code; c != http.StatusOK {
 		t.Fatalf("viewer session read: %d, want 200", c)
 	}
-	bogus := &http.Cookie{Name: bff.DefaultCookieName, Value: "not-a-session"}
+	bogus := &http.Cookie{Name: a.b.CookieName(), Value: "not-a-session"}
 	if c := a.do(http.MethodGet, "/api/v1/thing", "", withCookie(bogus)).Code; c != http.StatusUnauthorized {
 		t.Fatalf("made-up cookie: %d, want 401", c)
 	}
-	forged := &http.Cookie{Name: bff.DefaultCookieName, Value: base64.RawURLEncoding.EncodeToString(make([]byte, 32))}
+	forged := &http.Cookie{Name: a.b.CookieName(), Value: base64.RawURLEncoding.EncodeToString(make([]byte, 32))}
 	if c := a.do(http.MethodGet, "/api/v1/thing", "", withCookie(forged)).Code; c != http.StatusUnauthorized {
 		t.Fatalf("well-formed unknown cookie: %d, want 401", c)
 	}

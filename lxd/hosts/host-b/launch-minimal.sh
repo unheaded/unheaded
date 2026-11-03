@@ -200,36 +200,7 @@ echo ""
 # ============================================================
 # PHASE 0: INGRESS/EGRESS FIREWALL + ROUTING (must be first)
 # ============================================================
-log_info "Phase 0: Importing firewall VM images..."
-bash "$(dirname "$0")/../../firewall/import-ipfire.sh" 2>/dev/null || log_warn "IPFire image import failed or already imported"
-
-log_info "Phase 0: Launching IPFire VM (ingress/egress firewall)..."
-if lxc list "unheaded-ipfire" 2>/dev/null | grep -q "unheaded-ipfire"; then
-    log_warn "unheaded-ipfire already exists, skipping launch"
-    LAUNCHED_OK+=("ipfire")
-else
-    if lxc launch ipfire-2.29-core199 unheaded-ipfire \
-        --vm \
-        --profile unheaded-firewall \
-        --config limits.cpu=2 \
-        --config limits.memory=2GB \
-        --config boot.autostart.priority=200 2>/dev/null; then
-        log_success "IPFire VM launched"
-        LAUNCHED_OK+=("ipfire")
-    else
-        log_error "IPFire VM launch failed"
-        LAUNCHED_FAIL+=("ipfire")
-    fi
-fi
-
-log_info "Phase 0: Waiting for IPFire to initialize (90s)..."
-sleep 90
-if lxc info unheaded-ipfire 2>/dev/null | grep -E "Status|Name"; then
-    log_success "IPFire is running"
-else
-    log_warn "IPFire status check failed (may still be initializing)"
-fi
-
+# IPFire firewall VM: removed 2026-11-03 (Stevie); the routing daemon runs on its own.
 log_info "Phase 0: Launching BIRD routing container..."
 launch_container_ebpf "bird" 1 256
 log_success "Ingress/egress tier ready. Proceeding to core services..."
@@ -284,7 +255,6 @@ if [[ ${#LAUNCHED_FAIL[@]} -eq 0 ]]; then
     log_success "All core services launched successfully on host-b!"
     echo ""
     echo "Configuration notes:"
-    echo "  - IPFire is running as a VM with firewall/IDS capabilities"
     echo "  - BIRD is handling dynamic routing (BGP) for host-b"
     echo "  - Prometheus is in agent mode with remote_write to host-a"
     echo "  - Logs are shipped to host-a Loki via Promtail"

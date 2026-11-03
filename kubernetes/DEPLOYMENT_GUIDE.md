@@ -161,6 +161,6 @@ kubectl -n unheaded exec -it deploy/dashboard-backend -- wget -qO- http://wotan:
 - [ ] Real secrets in place (SOPS/Sealed/External/Vault)
 - [ ] Default StorageClass present
 - [ ] NetworkPolicy-enforcing CNI installed **before** applying policies
-- [x] Edge: **HAProxy Kubernetes Ingress Controller** (`base/haproxy-ingress/`) — apply standalone; provide a TLS Secret for a real cert (built-in self-signed otherwise)
+- [x] Edge: `loadbalancers/haproxy-edge` (the HAProxy Kubernetes Ingress Controller was removed 2026-11-03)
 - [ ] (optional) GPU node labelled + AMD device plugin for `gpu-vllm`
 - [ ] (optional) WireGuard keys provided as `wireguard-config` Secret

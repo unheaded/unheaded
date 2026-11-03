@@ -1,5 +1,7 @@
 # LXD Firewall VMs & Routing Daemons
 
+> **2026-11-03 (Stevie):** the OPNsense and IPFire VM definitions, their import scripts, the `unheaded-firewall` profile and the WAN bridge were removed. The lab's firewall is the host nftables ruleset (ADR-098 step 6) and Heimdall; FRR runs natively on west and east (`routing/`). Only the FRR and BIRD container notes below remain.
+
 This directory contains configurations for deploying OPNsense and IPFire as LXD VMs, along with FRR and BIRD routing daemons as containers.
 
 ## Why LXD VMs for Firewalls?

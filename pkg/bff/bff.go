@@ -51,8 +51,10 @@ import (
 )
 
 const (
-	// DefaultCookieName is the session cookie.
-	DefaultCookieName = "unheaded_session"
+	// cookieNameBase prefixes every session cookie name; CookieNameFor adds
+	// the service, so two apps on one host never read each other's session
+	// (cookies ignore ports; dashboard-backend and kanban-app share a host).
+	cookieNameBase = "unheaded_session_"
 	// HeaderRequestedWith must be RequestedWithValue on login, logout and
 	// every state-changing request a session cookie authenticates.
 	HeaderRequestedWith = "X-Requested-With"
@@ -87,7 +89,7 @@ type Config struct {
 	ServiceName string
 	// IssuerURL is the OIDC issuer (AUTH_ISSUER_URL). Empty: no BFF.
 	IssuerURL string
-	// CookieName defaults to DefaultCookieName.
+	// CookieName defaults to CookieNameFor(ServiceName, DevPlaintext).
 	CookieName string
 	// DevPlaintext (AUTH_BFF_DEV_PLAINTEXT=true) is for the compose stack
 	// before internal TLS: the cookie drops Secure, and the issuer may be
@@ -102,6 +104,22 @@ type Config struct {
 	// Now defaults to time.Now.
 	Now func() time.Time
 }
+
+// CookieNameFor is the session cookie name for a service: one per app, and
+// with the __Host- prefix outside DevPlaintext, so a browser accepts it only
+// as Secure, Path=/ and without a Domain (RFC 6265bis). Under DevPlaintext
+// the cookie is not Secure, and a __Host- name would be rejected, so the
+// prefix is dropped there.
+func CookieNameFor(serviceName string, devPlaintext bool) string {
+	n := cookieNameBase + strings.ReplaceAll(serviceName, "-", "_")
+	if devPlaintext {
+		return n
+	}
+	return "__Host-" + n
+}
+
+// CookieName is the session cookie name this BFF sets and reads.
+func (b *BFF) CookieName() string { return b.cfg.CookieName }
 
 // ConfigFromEnv reads AUTH_ISSUER_URL and AUTH_BFF_DEV_PLAINTEXT.
 func ConfigFromEnv(serviceName string) Config {
@@ -146,7 +164,7 @@ func New(cfg Config) (*BFF, error) {
 		return nil, errors.New("bff: no issuer URL (AUTH_ISSUER_URL)")
 	}
 	if cfg.CookieName == "" {
-		cfg.CookieName = DefaultCookieName
+		cfg.CookieName = CookieNameFor(cfg.ServiceName, cfg.DevPlaintext)
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now

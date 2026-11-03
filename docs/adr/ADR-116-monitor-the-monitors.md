@@ -159,6 +159,17 @@ The warden, the registry, the gates and the canary are first-party (stdlib Go, s
 5. Should the warden absorb S-LOG-HARVEST's logcov prober and ADR-113's daily collectors (one host agent), or stay separate small units?
 6. Install east's heartbeat sender now (it is committed but inactive)? A small change, but under ADR-112 it waits for Stevie's word.
 
+## Decisions 2026-11-03 (Stevie, rapid-fire sitting)
+
+Status stays Proposed and parked under ADR-112; these answers close the open questions so the work can be sequenced when the freeze lifts.
+
+1. **Out-of-band last resort: all three.** Native (east mails directly) + a CI job that expects a daily signed report + an outside check-in service. The outside service is a third party and goes through the third-party sitting first.
+2. **Host units** for alert-mailer and the heartbeat receiver, out of the compose stack, so the receiver outlives the stack.
+3. **Email + phone push** for the absence alerts that page. Self-hosted push first; a third-party push service only via the sitting.
+4. **Accept the default windows**, tune per signal.
+5. **Separate small units.** The warden watches; logcov and the collectors keep their own timers and uids. Developer readout given at the sitting: none of warden, logcov or the collectors exist as code yet; what exists is alert-mailer, the `unheaded-heartbeat` timer (inactive on east), huginn, healthprobe, unheaded-baseline and unheaded-remediate.
+6. **Install east's heartbeat sender: yes** (`deploy/systemd/unheaded-heartbeat.{service,timer}`).
+
 ## Decision
 
 None yet. Parked under ADR-112, marked high emphasis.

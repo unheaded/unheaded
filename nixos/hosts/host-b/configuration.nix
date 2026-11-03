@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
-# Host-B: The Outpost — Minimal Unheaded suite + IPFire firewall VM
+# Host-B: The Outpost — Minimal Unheaded suite (IPFire firewall VM removed 2026-11-03)
 # nixos-rebuild switch to apply
 { config, pkgs, lib, ... }:
 
@@ -9,7 +9,6 @@
     ./hardware-configuration.nix
     ../../modules/unheaded-base.nix
     ../../modules/firewall-bridge.nix
-    ../../modules/ipfire-vm.nix
     ../../modules/telemetry.nix
     ../../modules/observability.nix
     ../../modules/wireguard.nix
@@ -72,22 +71,9 @@
     ipv6Prefix = "fd00:dead:beef:1::/64";
   };
 
-  # ── IPFire VM (Outpost firewall) ──────────────────────────────────────────
-  services.unheaded.ipfire = {
-    enable = true;
-    vcpus = 2;
-    memoryMiB = 2048;
-    wanMacvlan = "wan-macvlan";
-    lanBridge = "br-unheaded";
-  };
-
-  # NOTE: All service containers on this host must use 10.20.0.1 as default gateway
-  # and place their interfaces on br-unheaded bridge. The IPFire VM handles
-  # all WAN-facing firewall policy and NAT.
-  # 
-  # IPFire boots to installer on first run. Connect via serial console:
-  #   virsh console unheaded-ipfire
-  # Complete the setup wizard, configure WAN (DHCP) and LAN (10.20.0.1/16).
+  # The IPFire firewall VM (services.unheaded.ipfire, modules/ipfire-vm.nix)
+  # was removed 2026-11-03 (Stevie). WAN policy and NAT are the host's own
+  # nftables ruleset (deploy/nftables/, ADR-098 step 6).
 
   # ── Boot / Kernel ────────────────────────────────────────────────────────────
   boot = {
