@@ -18,6 +18,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - ADR-107 (chaos)
 - third-party policy of 2026-10-29
 
+**Names used in this ADR (added 2026-11-03; Stevie had not met them):** the three install sizes are rungs of one ladder, the same packages in larger sets. **Shop** is this ADR: one app, one machine, the full compliance control set, no development stack. **Studio** adds metrics, a dashboard and several apps. **Kingdom** is today's full stack on west and east, including the Monad protocol and the research work. See R5.
+
 ## The pitch
 
 Captain, 2026-10-30, after Stevie's audience note: *"the Kingdom today is 36 containers plus a protocol stack; what's the smallest install a shop owner could actually run?"*
@@ -173,6 +175,15 @@ The floor needs **no new third party**: ACME from `x/crypto`, nftables and syste
 5. Upload malware scanning: none, first-party signatures only, or a third-party scanner (third-party sitting)?
 6. The name. "Unheaded Shop" is a placeholder; Lore decides.
 7. Converging the duplicated stores (two Grafanas, three metrics stores, two log stores). Its own ADR, but it affects Studio's size.
+
+## Decisions 2026-11-03 (Stevie, rapid-fire sitting)
+
+Status stays Proposed and parked under ADR-112.
+
+- **Q2 preflight strictness:** hard failures block; heuristic findings may be acknowledged, and every acknowledgement is recorded and audited.
+- **Q6 name:** Lore, later.
+- **Q7 store convergence:** yes, write it as its own ADR → ADR-117 (parked, Proposed).
+- **Q1, Q3, Q4, Q5:** deferred with the batch (not answered; do not re-ask before the freeze lifts).
 
 ## Decision
 
