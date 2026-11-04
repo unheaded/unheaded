@@ -3631,20 +3631,11 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     // Phase 1.2 (ADR-074 Decision 2026-05-12): invoke the chosen-option
     // context-switch hook. With `--features phase12-option-a` this calls
     // `phase12_option_a_on_context_switch`; default build calls the no-op.
-    // Hook receives the *new* pid and may further mutate cpu (e.g. ASID
-    // for Option B). The save+load above already established the basic
-    // Option-A state; the hook is the extension point.
+    // Hook receives the *new* pid. The save+load above already established
+    // the basic Option-A state; the hook is the extension point.
     #[cfg(feature = "phase12-option-a")]
     phase12::phase12_option_a_on_context_switch(cpu, next_pid as u8);
-    #[cfg(feature = "phase12-option-b")]
-    phase12::phase12_option_b_on_context_switch(cpu, next_pid as u8);
-    #[cfg(feature = "phase12-option-c")]
-    phase12::phase12_option_c_on_context_switch(cpu, next_pid as u8);
-    #[cfg(not(any(
-        feature = "phase12-option-a",
-        feature = "phase12-option-b",
-        feature = "phase12-option-c"
-    )))]
+    #[cfg(not(feature = "phase12-option-a"))]
     phase12::phase12_noop_on_context_switch(cpu, next_pid as u8);
 
     // 4. Update current_pid
