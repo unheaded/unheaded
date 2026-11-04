@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
+	"os"
 	"testing"
 )
 
@@ -623,6 +624,91 @@ func TestSLHDSASignVerifyRoundTrip(t *testing.T) {
 	}
 	if valid {
 		t.Error("Verify returned true for corrupted signature")
+	}
+}
+
+// TestSLHDSAAllParameterSets signs, verifies and refuses tampering through
+// VerifySignature. CI runs go test -race -timeout 120s, and the s sets under
+// -race would blow that, so by default it runs one set per hash; PQC_SLOW=1
+// runs all twelve.
+func TestSLHDSAAllParameterSets(t *testing.T) {
+	// sibling is the same size in the other hash: its key and signature fit
+	// the size checks, so only the hash can refuse them.
+	sets := []struct {
+		ps, sibling ParameterSet
+		slow        bool
+	}{
+		{SLHDSA_SHA2_128s, SLHDSA_SHAKE_128s, true},
+		{SLHDSA_SHA2_128f, SLHDSA_SHAKE_128f, false},
+		{SLHDSA_SHA2_192s, SLHDSA_SHAKE_192s, true},
+		{SLHDSA_SHA2_192f, SLHDSA_SHAKE_192f, true},
+		{SLHDSA_SHA2_256s, SLHDSA_SHAKE_256s, true},
+		{SLHDSA_SHA2_256f, SLHDSA_SHAKE_256f, true},
+		{SLHDSA_SHAKE_128s, SLHDSA_SHA2_128s, true},
+		{SLHDSA_SHAKE_128f, SLHDSA_SHA2_128f, false},
+		{SLHDSA_SHAKE_192s, SLHDSA_SHA2_192s, true},
+		{SLHDSA_SHAKE_192f, SLHDSA_SHA2_192f, true},
+		{SLHDSA_SHAKE_256s, SLHDSA_SHA2_256s, true},
+		{SLHDSA_SHAKE_256f, SLHDSA_SHA2_256f, true},
+	}
+	if len(sets) != len(slhdsaParamToID) {
+		t.Fatalf("test covers %d sets, the table holds %d", len(sets), len(slhdsaParamToID))
+	}
+	runSlow := os.Getenv("PQC_SLOW") == "1"
+
+	for _, tt := range sets {
+		name, sigSize, pkSize, skSize, ok := SLHDSAParamInfo(tt.ps)
+		if !ok {
+			t.Fatalf("SLHDSAParamInfo(%#02x) not found", uint8(tt.ps))
+		}
+		t.Run(name, func(t *testing.T) {
+			if tt.slow && !runSlow {
+				t.Skip("set PQC_SLOW=1 to run all twelve sets")
+			}
+			kp, signer, err := GenerateSLHDSAKeyPair(tt.ps)
+			if err != nil {
+				t.Fatalf("GenerateSLHDSAKeyPair: %v", err)
+			}
+			if len(kp.PublicKey) != pkSize || len(kp.SecretKey) != skSize {
+				t.Fatalf("key sizes pk %d sk %d, want pk %d sk %d",
+					len(kp.PublicKey), len(kp.SecretKey), pkSize, skSize)
+			}
+
+			message := []byte("every parameter set, signed and refused")
+			sig, err := signer.Sign(message)
+			if err != nil {
+				t.Fatalf("Sign: %v", err)
+			}
+			if len(sig) != sigSize {
+				t.Fatalf("signature size %d, want %d", len(sig), sigSize)
+			}
+
+			valid, err := VerifySignature(AlgoSLHDSA, tt.ps, message, sig, kp.PublicKey)
+			if err != nil {
+				t.Fatalf("VerifySignature: %v", err)
+			}
+			if !valid {
+				t.Fatal("VerifySignature = false for a valid signature")
+			}
+
+			tampered := append([]byte(nil), message...)
+			tampered[0] ^= 0x01
+			valid, err = VerifySignature(AlgoSLHDSA, tt.ps, tampered, sig, kp.PublicKey)
+			if err != nil {
+				t.Fatalf("VerifySignature(tampered): %v", err)
+			}
+			if valid {
+				t.Error("VerifySignature = true for a tampered message")
+			}
+
+			valid, err = VerifySignature(AlgoSLHDSA, tt.sibling, message, sig, kp.PublicKey)
+			if err != nil {
+				t.Fatalf("VerifySignature(sibling set): %v", err)
+			}
+			if valid {
+				t.Error("VerifySignature = true under the other hash's set")
+			}
+		})
 	}
 }
 
