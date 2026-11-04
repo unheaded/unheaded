@@ -743,7 +743,6 @@ func (s *Server) setupRoutes() {
 
 	// Service config management endpoints (S47)
 	s.mux.HandleFunc("/api/v1/services/config/", s.handleServiceConfig)
-	s.mux.HandleFunc("/api/v1/services/restart/", s.handleServiceRestart)
 	s.mux.HandleFunc("/api/v1/infrastructure", s.handleInfrastructure)
 	s.mux.HandleFunc("/api/v1/infrastructure/containers", s.handleInfraContainers)
 
@@ -2657,19 +2656,6 @@ func (s *Server) handleServiceConfig(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
-}
-
-// handleServiceRestart handles POST /api/v1/services/restart/{name}
-// Stub: in production this would signal the daemon to restart the service.
-func (s *Server) handleServiceRestart(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	// This answered 202 "restart signal sent to daemon", status "queued",
-	// and sent nothing anywhere. The dashboard is a view; restarts are
-	// Akira's (--remediate) or the operator's.
-	http.Error(w, "not implemented: the dashboard does not restart services (Akira --remediate, or systemctl / docker compose restart)", http.StatusNotImplemented)
 }
 
 // handleInfrastructure handles GET /api/v1/infrastructure

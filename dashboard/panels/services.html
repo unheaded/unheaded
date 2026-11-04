@@ -210,9 +210,6 @@
         <button class="btn btn-secondary btn-xs" data-action="view-logs" title="View service logs">
           View Logs
         </button>
-        <button class="btn btn-secondary btn-xs" data-action="restart" title="Restart service">
-          Restart
-        </button>
       </div>
     </div>
   </div>
@@ -1166,9 +1163,6 @@
         case 'view-logs':
           navigateToLogs(serviceName);
           break;
-        case 'restart':
-          restartService(serviceName);
-          break;
       }
     }
 
@@ -1273,35 +1267,6 @@
 
     function navigateToLogs(serviceName) {
       window.location.href = '/logs?service=' + encodeURIComponent(serviceName);
-    }
-
-    // -- Restart: confirm then POST to restart endpoint ----------
-
-    function restartService(serviceName) {
-      if (!confirm('Restart service "' + serviceName + '"?\n\nThis will interrupt any in-flight requests.')) {
-        return;
-      }
-
-      showToast('Restarting ' + serviceName + '...', 'success');
-
-      fetch(SERVICES_ENDPOINT + '/restart/' + encodeURIComponent(serviceName), {
-        method: 'POST'
-      })
-        .then(function(response) {
-          if (!response.ok) {
-            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-          }
-          return response.text();
-        })
-        .then(function() {
-          showToast('Service "' + serviceName + '" restart initiated.', 'success');
-          // Refresh the services list after a brief delay to let the restart take effect
-          setTimeout(loadServices, 2000);
-        })
-        .catch(function(err) {
-          console.error('Failed to restart ' + serviceName + ':', err);
-          showToast('Failed to restart "' + serviceName + '": ' + err.message, 'error');
-        });
     }
 
     // ============================================================
