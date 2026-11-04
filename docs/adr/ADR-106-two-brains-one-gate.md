@@ -244,3 +244,7 @@ From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 ## Decisions 2026-11-04 (decision pack, round 3)
 
 - Q5 (DP-608): the LoRA window opens when the trigger fires (at least 300 SFT examples across 3 families), `answer_start` fix first. Corpora (DP-705): see the pack; no run uses repo text until Anthropic's reply is on file.
+
+## Clarification 2026-11-04 (Stevie, DP-705)
+
+Routing and training are separate. Local-first with failover of harder asks to Claude is the design and continues. Using Claude's answers as training data waits for Anthropic's written verification; until it is on file the capture flag stays off and no forge or LoRA run uses captures or repo text.
