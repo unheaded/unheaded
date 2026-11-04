@@ -35,8 +35,14 @@ pass() { printf '  \033[32mPASS\033[0m  %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=1; }
 note() { printf '        %s\n' "$1"; }
 
+# Stop doom-runner by its recorded pid (series rule 14). The launcher prints the
+# pid into LOG: root cannot open a user-owned file in sticky /tmp
+# (fs.protected_regular=2), but it inherits this already-open stdout. Truncating
+# LOG afterwards means a second call can never kill a reused pid.
+doom_stop() { local p; p="$(grep -aoE -m1 '^doom-runner-pid [0-9]+$' "$LOG" | cut -d' ' -f2)"; [ -n "$p" ] && sudo kill -9 "$p"; : > "$LOG"; }
+
 cleanup() {
-  { sudo pkill -9 -f "doom-runner run"; sudo pkill -9 -f doom-go-injector; } >/dev/null 2>&1
+  doom_stop >/dev/null 2>&1
   sudo "$DR" ring teardown --hops 2 >/dev/null 2>&1
   rm -f "$LOG"
   # The namespace this run brought up (scripts/upc-netns.sh); a host that runs
@@ -232,12 +238,12 @@ echo "[2/3] non-ascend build (Doom load)"
   | grep -qE "error" && { fail "non-ascend build"; }
 
 if [ -f "$WAD" ]; then
-  { sudo pkill -9 -f "doom-runner run"; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
+  { doom_stop; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
   # setsid detaches doom-runner into its own session so SIGKILL'ing it later
   # produces no job-control noise in this shell.
   # shellcheck disable=SC2024  # the redirect is deliberately unprivileged: LOG is a
   # user-owned mktemp file, and keeping it user-owned is what we want.
-  ( cd "$ROOT" && sudo UPC_VERIFIER_STATS=1 setsid "$DR" run --doom-mbc doom/doom.mbc \
+  ( cd "$ROOT" && sudo UPC_VERIFIER_STATS=1 setsid sh -c 'echo "doom-runner-pid $$"; exec "$@"' sh "$DR" run --doom-mbc doom/doom.mbc \
     --doom-elf doom/doom.elf --rv2mbc doom/doom.rv2mbc --wad "$WAD" --hops 2 >"$LOG" 2>&1 & ) 2>/dev/null
   for _ in $(seq 1 20); do
     grep -aqE "pipeline complete|too large|Argument list too long" "$LOG" && break
@@ -248,7 +254,7 @@ if [ -f "$WAD" ]; then
   if grep -aq "pipeline complete" "$LOG"; then pass "Doom object loads (< 1M verifier ceiling)"
   elif grep -aqE "too large|Argument list too long" "$LOG"; then fail "Doom object OVER 1M ceiling"
   else fail "Doom load inconclusive (see harness log)"; fi
-  { sudo pkill -9 -f "doom-runner run"; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
+  { doom_stop; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
   wait 2>/dev/null
 else
   note "Doom: SKIPPED — WAD not found at $WAD (set DOOM_WAD=...)"
