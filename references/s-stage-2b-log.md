@@ -19,3 +19,5 @@ This section sits above the Ledger because `ledger` appends to the end of the fi
 |---|---|---|---|---|---|
 | rung 2 uptime (DP-717) | 868290 | 872276 | +3986 | 48760 | rung2-after |
 net since rung 0: 48760
+
+Step 52, probes built (7 .mbc present). sh.mbc and ls.mbc sha256 prefixes: 1c161377c8b23196 d2ade4a5942a3cdb
