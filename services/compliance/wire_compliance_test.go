@@ -146,13 +146,28 @@ func TestComplianceScore(t *testing.T) {
 		}
 	})
 
-	t.Run("empty service has 100% score", func(t *testing.T) {
+	t.Run("empty service reports no data, not 100%", func(t *testing.T) {
 		svc := newTestService(t)
+		if !svc.GetScore().NoData {
+			t.Error("NoData = false before any aggregation, want true")
+		}
 		svc.aggregateViolations(context.Background())
 		score := svc.GetScore()
 
-		if score.ScorePct != 100.0 {
-			t.Errorf("ScorePct = %.2f, want 100.0 for empty service", score.ScorePct)
+		if !score.NoData {
+			t.Error("NoData = false for an empty service, want true")
+		}
+		if score.ScorePct != 0 || score.AuditCompleteness != 0 {
+			t.Errorf("ScorePct = %.2f, AuditCompleteness = %.2f, want 0 and 0", score.ScorePct, score.AuditCompleteness)
+		}
+	})
+
+	t.Run("first evaluated packet clears no data", func(t *testing.T) {
+		svc := newTestService(t)
+		svc.RecordAllowed()
+		svc.aggregateViolations(context.Background())
+		if svc.GetScore().NoData {
+			t.Error("NoData = true after a packet, want false")
 		}
 	})
 }
@@ -546,4 +561,29 @@ func TestHTTPHealthAndReady(t *testing.T) {
 			t.Errorf("GET /metrics status = %d, want 200", rec.Code)
 		}
 	})
+}
+
+// The lists trim; the score must not. 300 blocked of 1,000 is 70 % whatever
+// MaxViolations is, and audit completeness counts records, not list length.
+func TestScoreSurvivesTrimming(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxViolations, cfg.MaxAuditEntries = 100, 100
+	svc := NewService(logger.New(io.Discard), nil, cfg)
+	for i := 0; i < 700; i++ {
+		svc.RecordAllowed()
+	}
+	for i := 0; i < 300; i++ {
+		svc.RecordViolation(Violation{Timestamp: time.Now(), ViolationType: ViolationPolicy, ActionTaken: ActionBlock})
+	}
+	svc.aggregateViolations(context.Background())
+	score := svc.GetScore()
+	if score.Blocked != 300 || score.Violations != 300 || score.ScorePct != 70.0 {
+		t.Fatalf("score = %+v, want 300 blocked, 300 violations, 70%%", score)
+	}
+	if score.AuditCompleteness != 0.3 {
+		t.Fatalf("AuditCompleteness = %.4f, want 0.3", score.AuditCompleteness)
+	}
+	if n := len(svc.ListViolations()); n != 100 {
+		t.Fatalf("violations kept = %d, want 100", n)
+	}
 }

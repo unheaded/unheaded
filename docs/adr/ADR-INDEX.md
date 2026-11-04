@@ -181,3 +181,11 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [124](ADR-124-native-syslog-relay.md) | Native syslog relay `cmd/syslog-relay`: RFC 5424/3164 over UDP and TCP into the journal's native protocol, so Vector ships it; `sources.yaml` allowlist, per-sender token bucket, capped frames, control bytes escaped; own nologin account, one capability | **Proposed** (D2 answered native 2026-11-03; carried by S-LOG-HARVEST Phase 5) | 2026-11-04 |
 | [125](ADR-125-hop-checks.md) | Hop checks: validators, HMAC-key presence and retry state move from Shield ingress to hop-ebpf; key presence only, the Monad carries no tag | **Proposed** | 2026-11-04 |
 | [126](ADR-126-private-hbh-option-registry.md) | Private Hop-by-Hop option registry: 0x3E is the Monad's and Zhen's today, length alone separates them; Zhen reserved at 0x1E | **Proposed** (parked) | 2026-11-04 |
+| [127](ADR-127-fold-compliance.md) | Fold wire compliance into compliance-evidence behind --serve; not unheaded-baseline (oneshot, reads /etc/shadow); no data is not 100 % | **Proposed** (parked) | 2026-11-04 |
+| [128](ADR-128-fold-firewall.md) | Fold firewall into Cuirass as intent only; Cuirass has no CAP_BPF and runs once: the node writer question (Go writer recommended) | **Proposed** (parked) | 2026-11-04 |
+| [129](ADR-129-fold-qos.md) | Fold QoS into Cuirass without its 10 Hz publisher | **Proposed** (parked) | 2026-11-04 |
+| [130](ADR-130-fold-nfv.md) | Fold NFV: where is a question: Cuirass has no CAP_BPF, cartridges are a different mechanism; prog_fd over HTTP goes | **Proposed** (parked) | 2026-11-04 |
+| [131](ADR-131-fold-failover.md) | Fold failover into Cuirass as the actuator; deciding stays with Akira | **Proposed** (parked) | 2026-11-04 |
+| [132](ADR-132-fold-loadbalancer.md) | Fold the load balancer into Cuirass; the map write goes to the node writer | **Proposed** (parked) | 2026-11-04 |
+| [133](ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
+| [134](ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |

@@ -104,6 +104,10 @@ Deleted: `pkg/protocol/{amplification,dos,intermediary,prefetch,lifecycle,settin
 `cmd/pqc-verifier` (TRUE-WIRE L5). The other TRUE-WIRE rows and who carries them are in
 [sweeps/TRUE-WIRE-DECISIONS.md](sweeps/TRUE-WIRE-DECISIONS.md), "Applied 2026-11-04".
 
+## DP-203 (2026-11-04, S-G9-FOLD)
+
+The G9 planes are not deleted (TRUE-WIRE C1-C6 defaults do not apply). `services/compliance` is reached by `cmd/compliance-evidence wire`, off unless `--serve` (ADR-127). The other seven stay on this list until Stevie has read ADR-128 to ADR-134.
+
 ## The list
 
 - `cmd/dashboard-backend/jstest` (G6)
@@ -132,7 +136,6 @@ Deleted: `pkg/protocol/{amplification,dos,intermediary,prefetch,lifecycle,settin
 - `pkg/wotan-client/mock` (G6)
 - `scripts/host` (G6)
 - `scripts/lib` (G6)
-- `services/compliance` (G9; unwired: control plane for ebpf/compliance-ebpf)
 - `services/firewall` (G9; unwired: control plane for ebpf/firewall-ebpf)
 - `services/keymgmt` (G9; unwired: control plane for shield-ebpf PQC key maps)
 - `services/keymgmt/handler` (G9; with `services/keymgmt`)

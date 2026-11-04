@@ -351,6 +351,7 @@ var structParity = []struct {
 	{reflect.TypeOf(FlowState{}), "common/src/lib.rs", "FlowState"},
 	{reflect.TypeOf(FlowMigrationTokenValue{}), "flow-tracker/src/main.rs", "MigrationTokenValue"},
 	{reflect.TypeOf(FlowCancelValue{}), "flow-tracker/src/main.rs", "CancelFlowValue"},
+	{reflect.TypeOf(ComplianceAuditRecord{}), "compliance-ebpf/src/main.rs", "AuditRecord"},
 	{reflect.TypeOf(LatencyTraceKey{}), "latency-probe/src/common.rs", "LatencyTraceKey"},
 	{reflect.TypeOf(LatencyEntry{}), "latency-probe/src/common.rs", "LatencyEntry"},
 	{reflect.TypeOf(HopValidatorValue{}), "hop-ebpf/src/main.rs", "HopValidator"},
