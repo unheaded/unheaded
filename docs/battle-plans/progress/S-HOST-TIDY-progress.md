@@ -96,3 +96,4 @@
 - Steps 104-108: Phase 13, checked: THE CHECK, west. Containers run as their own uids and read repo files through bind mounts,.
 - Step 109: fresh key login (`ControlPath=none`) matched Expect: `0007`, `0027`, `SUDO_OK`. `sudo` umask measured `0027` (was `0022` before Step 107), so it matches what was reasoned; S-E1-LIVE keyring step keeps `install -m 0644`.
 - Steps 109-110: East login.defs and profile.d set. West not changed: 66 repo bind mounts read by service uids.
+- Step 111 exit gate: PASSED, `1`, `0`. DP-25 row 25.8 done on east; west stays `0002`, finding open, see For Stevie. Hold session left up, no undo timer armed. DP-711 stays open (Phase 5).
