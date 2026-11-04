@@ -12,6 +12,8 @@
 - Plan text, Steps 60 and 62: both are worded for success (Step 62 says the netplan yaml and live link are set), so neither was run as written after Step 59 failed. One [STUCK] commit stands in for them.
 - DP-708 retry: the resolver fix worked, but Step 59's first check failed as written, so Phase 6 is [STUCK] again and rolled back; east is on `1.1.1.1 8.8.8.8`. With Pi-hole set alone first, `Current DNS Server` moved to `10.10.20.252` and stayed there after the full list went on, so the first run's cause is confirmed. The miss: `resolvectl query` prints the A and AAAA answers in varying order, and `head -1` read `::` where Expect says `0.0.0.0`. Measured before rollback: A `0.0.0.0` and AAAA `::`, through the stub and direct from Pi-hole; a later full query printed `0.0.0.0` first. A rerun could have passed on ordering alone, so it was neither rerun nor waived. Decide: change that check to `resolvectl query -t A o401343.ingest.us.sentry.io`, or accept `::` as well, then rerun Steps 57-63.
 - Plan text, Step 58, if the change is kept: after Pi-hole is set alone, `resolvectl status` shows no `Current DNS Server` line until a lookup happens. The step needs one lookup before that check (`resolvectl query archive.ubuntu.com`).
+- East after DP-12: `apt-get -s autoremove` now offers 106 packages (among them `jq`, `tmux`, `htop`, `fwupd`, `open-vm-tools`), so a hand-run `apt autoremove` would take them. None is on Step 66's reachability list, and no `Unattended-Upgrade::Remove*` key is set on east. Left in place, as the plan says.
+- Plan text, Step 67: it labels the commit and evidence line `Steps 63-67`, but Phase 7 is Steps 64-68 and Step 63 belongs to Phase 6. Run as written.
 
 ## Evidence
 
@@ -29,3 +31,4 @@
 - Step 59 [STUCK]: got `o401343.ingest.us.sentry.io: ::` (Expect `0.0.0.0 ...`). The other five matched: `archive.ubuntu.com: 91.189.91.82`, apt errors `0`, `Current DNS Server: 10.10.20.252`, chrony `1`, `FRESH_KEY_LOGIN_OK`.
 - Rollback run and checked: `/etc/netplan/01-enp2s0.yaml` matches the backup (`cmp`), `DNS=1.1.1.1`, `DNS=8.8.8.8`, `Link 2 (enp2s0): 1.1.1.1 8.8.8.8`, `Current DNS Server: 1.1.1.1`, stub kept, names resolve, chrony `1`, fresh key login and hold session up.
 - Step 63 exit gate: FAILED, `Link 2 (enp2s0): 1.1.1.1 8.8.8.8`. Steps 60 and 62 not run as written; this commit stands in for them. Phase 7 accepts this [STUCK].
+- Steps 63-67: lxd-installer and the ubuntu-server metapackage removed; no autoremove run; gid 101 kept.
