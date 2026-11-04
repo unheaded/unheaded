@@ -115,3 +115,4 @@
 - Rule 16: `147 open` against the `154 open` baseline, a fall of 7 from 8 GONE, and the plan closed 9 with 2 opened (Step 119's record). The findings table before and after the edit differs only by the eight `remove from the register` lines; the header reads `147 open` both ways, `77 accepted`.
 - Step 123 sentence read under ruling 4, each claim checked without sudo or ssh against this file, the collector's newest records, `compliance/remediation/fixes.yaml`, west's local files and S-E1-LIVE Step 161. Nothing false found, used as written. It names neither `steel-echo` nor the journal rows, so DP-711 and row 25.1 do not touch it. Its `East answers password` means sshd offers it; the password itself is still your one-time test.
 - Steps 118-122: Phase 16, checked: Remove from the register only the rows whose probe now passes..
+- Steps 123-124: Collector run; passing rows removed; wiki/Security.md carries the host facts.

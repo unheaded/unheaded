@@ -85,25 +85,6 @@ findings:
       West has no authorized keys for govan, so keyboard-interactive (PAM password) is the only remote login today. Add Stevie's public key to
       ~govan/.ssh/authorized_keys, prove a key login, then KbdInteractiveAuthentication no. Stevie has physical access (2026-09-30)
 
-  - source: "host-sshd:east:permitrootlogin=no"
-    severity: medium
-    class: sshd
-    opened: 2026-09-30
-    exposure: root by key (without-password)
-    lockout: low
-    step: 5
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: root has no authorized keys on east (checked 2026-09-30), so nothing logs in as root by key; PermitRootLogin no
-
-  - source: "host-sshd:west:permitrootlogin=no"
-    severity: medium
-    class: sshd
-    opened: 2026-09-30
-    lockout: low
-    step: 5
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: root has no authorized keys on west (checked 2026-09-30); scripts/bare-metal/validate-cross-host.sh ssh's as root and cannot work today anyway; PermitRootLogin no
-
   # --- step 6: firewall default deny (highest lockout risk) -----------------
   - source: "host-probe:east:firewall-inbound-deny"
     severity: high
@@ -638,24 +619,6 @@ findings:
     plan: first find out whether anything uses ssh -L/-R/-A to east; if so, accept (Level 1 does not require it)
 
   # --- CIS 1.1.1.x kernel modules and 5.1.1 sshd_config modes (2026-09-30) ----
-
-  - source: "host-probe:west:kmod-usb-storage-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install usb-storage /bin/false` and `blacklist usb-storage` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-    decision: does anyone plug USB storage into west (Stevie has physical access); if so, accept on that host
-
-  - source: "host-probe:east:kmod-usb-storage-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install usb-storage /bin/false` and `blacklist usb-storage` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-    decision: does anyone plug USB storage into east (Stevie has physical access); if so, accept on that host
 
   - source: "host-probe:west:perm-sshd-config"
     severity: low
@@ -1591,19 +1554,6 @@ findings:
 
   # --- ADR-099 phase 5: applied fixes recorded in the host journal (2026-10-01)
 
-  - source: "host-journal:west:apply-journal"
-    severity: low
-    class: app
-    opened: 2026-10-01
-    lockout: none
-    step: 2
-    plan: >-
-      The eight lab fixes were applied 2026-10-01 by remediate.sh, which kept backups but no journal.
-      Run `sudo unheaded-remediate plan <fix>` for each (read-only; expect "already as wanted"),
-      then apply each through unheaded-remediate so the journal records it (no file changes when
-      already applied). COMPLIANCE-WELL steps 81 and 93
-    decision: running unheaded-remediate on the host (plan, then apply of fixes already in place)
-
   - source: "host-journal:east:apply-journal"
     severity: low
     class: app
@@ -1643,26 +1593,6 @@ findings:
 
   # --- CIS 5.2.7, 5.4.2.4-6, 5.4.3.3, 7.2.9-10: UH-ACCT-02 (2026-10-13) ---------
 
-  - source: "host-probe:west:su-restricted"
-    severity: low
-    class: account
-    opened: 2026-10-13
-    lockout: high
-    step: 5
-    plan: >-
-      groupadd sugroup (no members); in /etc/pam.d/su: auth required pam_wheel.so use_uid group=sugroup.
-      Root via sudo is unaffected; su to another user then needs root. Keep a root shell open, test su from a second session
-    decision: whether su is used at all on the lab hosts (Stevie 2026-10-01 kept SSH and password settings as they are; su was not part of that)
-
-  - source: "host-probe:east:su-restricted"
-    severity: low
-    class: account
-    opened: 2026-10-13
-    lockout: high
-    step: 5
-    plan: same as west
-    decision: as west
-
   - source: "host-probe:west:default-umask"
     severity: low
     class: shell
@@ -1674,15 +1604,6 @@ findings:
       check the dev workflows that share files between govan and the service users (docker bind mounts, ~/tmp/unheaded
       read by services) before applying
     decision: umask 027 for interactive users on a dev host
-
-  - source: "host-probe:east:default-umask"
-    severity: low
-    class: shell
-    opened: 2026-10-13
-    lockout: none
-    step: 4
-    plan: same as west; east has fewer shared-file workflows
-    decision: as west
 
   - source: "host-probe:west:dot-files"
     severity: low
