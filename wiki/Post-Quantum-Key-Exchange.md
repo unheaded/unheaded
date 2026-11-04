@@ -68,3 +68,7 @@ Controls `UH-PQC-01` (inventory current), `UH-PQC-02` (first-party KEX hybrid), 
 ---
 
 > **Source:** [ADR-105](../docs/adr/ADR-105-pq-hybrid-key-exchange-and-crypto-inventory.md) · [SECURITY.md](../SECURITY.md) · [S-QUANTUM-ARMOR plan](../docs/battle-plans/S-QUANTUM-ARMOR-battle-plan.md)
+
+## The bar
+
+Where this stands against iMessage PQ3, Signal PQXDH and SPQR and the Microsoft and HKMA roadmaps, with every gap: [ADR-105](https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-105-pq-hybrid-key-exchange-and-crypto-inventory.md), "The bar and the gap".
