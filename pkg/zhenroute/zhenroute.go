@@ -30,6 +30,7 @@ import (
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/claudebridge/privacy"
 	"unheaded/pkg/sandbox"
+	"unheaded/pkg/zhencapture"
 )
 
 // Task is one unit of routed work.
@@ -227,6 +228,14 @@ func Run(ctx context.Context, cfg Config, t Task) (claudebridge.RouteOutcome, er
 	}
 	if t.CheckPath == "" {
 		t.CheckPath = "."
+	}
+	// ADR-104 Q4: every routed path, not only -route auto's CLI leg. The
+	// agentd worker and overnight runs come through here.
+	if !t.LocalOnly {
+		if _, hits := zhencapture.Redact(t.Prompt); hits > 0 {
+			log.Warn("route", "family", t.Family, "refused", "redaction_match", "redaction_hits", hits)
+			t.LocalOnly = true
+		}
 	}
 	routing := *cfg.Routing
 	fr := routing.For(t.Family)

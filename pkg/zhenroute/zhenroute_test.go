@@ -150,3 +150,16 @@ func TestFitMaxTokens(t *testing.T) {
 		}
 	}
 }
+
+func TestRun_RedactionMatchNeverCallsClaude(t *testing.T) {
+	called := false
+	leg := func(context.Context, ClaudeInput) (claudebridge.ClaudeResult, error) {
+		called = true
+		return claudebridge.ClaudeResult{}, nil
+	}
+	out, err := Run(context.Background(), Config{Routing: routing(), Claude: leg, LocalURL: llama(t, "local answer")},
+		Task{Family: "docs", Prompt: "why does password=hunter2hunter2 fail"})
+	if err != nil || called || out.Route != claudebridge.RouteLocalOnly {
+		t.Errorf("out %+v err %v called %v", out, err, called)
+	}
+}

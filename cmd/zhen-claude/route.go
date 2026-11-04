@@ -92,6 +92,16 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 		log.Warn("route_decision", append(attrs, "escalated", false, "decision", "none", "cancelled", true)...)
 		return 1
 	}
+	// ADR-104 Q4: nothing that looks like a secret leaves the host. The
+	// prompt is never logged; only the count is.
+	if _, hits := zhencapture.Redact(prompt); hits > 0 {
+		rec.Route = zhencapture.RouteLocal
+		rec.LatencyMS = time.Since(t0).Milliseconds()
+		log.Warn("route_decision", append(attrs, "escalated", false, "decision", "none", "refused", "redaction_match", "redaction_hits", hits, "total_latency_ms", rec.LatencyMS)...)
+		_, _ = fmt.Fprintf(stderr, "zhen-claude: local answer not accepted (%s); the prompt matches a redaction pattern, so it stays on this host\n", why)
+		writeCapture(capw, rec, log)
+		return 1
+	}
 	if o.localOnly {
 		rec.Route = zhencapture.RouteLocal
 		rec.LatencyMS = time.Since(t0).Milliseconds()
