@@ -22,6 +22,9 @@
 - Plan text, Step 41: it labels the evidence line and commit `Steps 37-41`, but Phase 4 is Steps 38-42 and Step 37 is Phase 3's exit gate. Run as written. Step 39's `tail -1` shows the tool's `undo:` line, not a line saying applied; it was read with Step 40's `in place` check, and `pipefail` was added to see the real exit code (rc=0 on both hosts).
 - DP-708 done on the third try, under two coordinator rulings (Evidence has both). Plan text, if the rulings are kept: Step 58 needs the Pi-hole-alone set and one lookup before its command, and Step 59's first check needs `-t A`. With `-t A`, `resolvectl query` prints `name IN A 0.0.0.0 -- link: enp2s0`, not the `name: 0.0.0.0 ...` shape in Step 59's Expect; the address matched, so it was read as a pass under ruling 2.
 - Phase 8's Step 69 stop above is closed: Phase 2 moved the runbook off `root@east`, Step 69 then read `0`, and Phase 8 ran from Step 69 to Step 76. Phases 9, 11's east half and 13 no longer wait on it. East now takes password logins with fail2ban not yet in place (Phase 9). Your one-time password test from west is still open.
+- Phase 9's jail cannot ban anything east sees today: all 2,986 source lines in east's journal since 2026-10-26 are 192.168.13.2, and that network is ignored. So the password login Phase 8 brought back has no rate limit for attempts arriving through west. This is the plan's stated trade-off, not a fault: banning west would close east's only door. The Phase 8 line above about fail2ban not yet being in place is closed.
+- Plan text, Step 80: it labels the evidence line and commit `Steps 76-80`, but Phase 9 is Steps 77-85 and Step 76 is Phase 8's exit gate. Run as written.
+- Plan text, Step 83: `banip` leaves an empty `inet f2b-table` on east after the unban, and Step 78's Rollback already removes it. Nothing needed.
 
 ## Evidence
 
@@ -58,3 +61,7 @@
 - Step 76 exit gate: PASSED, `well-backup-copy` is `passwordauthentication no`, `authenticationmethods publickey`. Supersedes the Step 69 [STUCK] lines above. DP-11 first half and DP-15 done on east.
 - Steps 76-80: Phase 9, checked: LOCKOUT GATE 1  the ignore list, the match and the ports are what was written..
 - Steps 81-84: fail2ban 1.1.0-8 on east. journalmatch sshd-session, ignoreip proven by a provoked failure from west, banip/unbanip proven on 203.0.113.9.
+- Phase 9 read-only checks before Step 77: `/etc/fail2ban` absent, simulation one `Inst`, journal sources all 192.168.13.2. The exact jail text parsed offline on west with `fail2ban-client -d` as the normal user, `jail.local` left out: jail `journalmatch` wins over the filter's.
+- Steps 77-79: Step 77 `15`. Step 78 matched Expect (`active`, `pong`). Step 79: `127.0.0.0/8`, `192.168.13.0/30`, `fd00:dead:beef::/48`, `fe80::/10`, `::1`; `_SYSTEMD_UNIT=ssh.service + _COMM=sshd-session`; `22,7375`; `3600`.
+- Steps 81-83: Step 81 `Permission denied (publickey,password,keyboard-interactive).`, ignore count `1`, `Currently banned: 0`, `FRESH_KEY_LOGIN_OK`. Step 82 not needed. Step 83 `1`, `Currently banned: 0`, address gone from the set after unban. `unheaded_chaos_guard` table still there.
+- Step 85 exit gate: PASSED, `enabled`, `FRESH_KEY_LOGIN_OK`. dpkg shows only `fail2ban` installed in this phase. DP-11 second half done on east. Hold session left up, no undo timer armed.
