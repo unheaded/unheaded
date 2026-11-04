@@ -1,0 +1,8 @@
+# a comment
+Sentence_Transformers==6.2.0
+ruff==0.17.3 \
+    --hash=sha256:00 \
+    --hash=sha256:11
+uvicorn[standard]==0.40.0 ; python_version >= "3.11"
+chromadb>=1.5.9,<2.0.0
+-r other.txt
