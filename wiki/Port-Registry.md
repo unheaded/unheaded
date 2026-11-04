@@ -35,6 +35,8 @@ Outside the Doom Range (infrastructure on standard ports):
 | Grafana | 3001 | all |
 | ClickHouse | 8123 / 9000 | `127.0.0.1` |
 | Vector metrics | 9598 | `172.17.0.1` (override `VECTOR_METRICS_BIND`) |
+| syslog-relay (ADR-124) | 514 udp and tcp | `10.10.20.1`, LAN after D7; no wildcard; not installed |
+| syslog-relay metrics | 9599 | `127.0.0.1` and `[fd00:dead:beef::1]` |
 | CoreDNS | 5353 | all (override `COREDNS_PORT`) |
 | Traefik edge | 80 / 443 / 50051 | all (override `TRAEFIK_HTTP_PORT`, `TRAEFIK_HTTPS_PORT`, `TRAEFIK_GRPC_PORT`) |
 | Prometheus (monitoring stack) | 9090 | all (`monitoring/docker-compose.yml`) |

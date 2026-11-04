@@ -137,6 +137,8 @@ var hostOnly = map[string]string{
 	// host and runs `yggdrasil-evidence cask sign` (S-IRON-GATE 339, E1;
 	// runbooks/security/build-key-ceremony.yaml).
 	"buildkey": "unheaded-buildkey",
+	// The syslog receiver: deploy/systemd/unheaded-syslog-relay.service (ADR-124).
+	"syslog-relay": "unheaded-syslog-relay",
 	// The retrieval corpus server: deploy/systemd/unheaded-vor.service (DP-712).
 	"vor": "unheaded-vor",
 }
