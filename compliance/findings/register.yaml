@@ -61,7 +61,7 @@ findings:
     exposure: LAN and P2P link only (assumed)
     lockout: high
     step: 5
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
+    accepted: {reason: "DP-11, Stevie 2026-11-03: there is no laptop key, so east keeps password login beside keys, with fail2ban and a key preferred", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: prove key login for govan from west in a second session, keep a session open, then disable; sshd -t before reload
 
   - source: "host-sshd:east:kbdinteractiveauthentication=no"
@@ -71,7 +71,7 @@ findings:
     exposure: with PAM this is password login by another name
     lockout: high
     step: 5
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
+    accepted: {reason: "DP-11, Stevie 2026-11-03: there is no laptop key, so east keeps password login beside keys, with fail2ban and a key preferred", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: KbdInteractiveAuthentication no, in the same change as PasswordAuthentication no
 
   - source: "host-sshd:west:kbdinteractiveauthentication=no"
@@ -683,6 +683,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
 
   - source: "host-probe:east:mount-home-nosuid"
@@ -691,6 +692,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
 
   - source: "host-probe:east:mount-home-separate"
@@ -699,8 +701,8 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 7
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "Level 2: its own filesystem. east has no free disk space or LVM: accept, or shrink /var"
-    decision: "accept Level 2 filesystem separations on east (no free space, no LVM)"
 
   - source: "host-probe:east:mount-tmp-noexec"
     severity: low
@@ -716,6 +718,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
 
   - source: "host-probe:east:mount-var-log-audit-noexec"
@@ -724,6 +727,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
 
   - source: "host-probe:east:mount-var-log-audit-nosuid"
@@ -732,6 +736,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
 
   - source: "host-probe:east:mount-var-log-audit-separate"
@@ -740,8 +745,8 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 7
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "Level 2: its own filesystem. east has no free disk space or LVM: accept, or shrink /var. /var/log/audit exists only once auditd is installed (step 3)"
-    decision: "accept Level 2 filesystem separations on east (no free space, no LVM)"
 
   - source: "host-probe:east:mount-var-log-nodev"
     severity: low
@@ -749,6 +754,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
 
   - source: "host-probe:east:mount-var-log-noexec"
@@ -757,6 +763,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
 
   - source: "host-probe:east:mount-var-log-nosuid"
@@ -765,6 +772,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
 
   - source: "host-probe:east:mount-var-log-separate"
@@ -773,8 +781,8 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 7
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "Level 2: its own filesystem. east has no free disk space or LVM: accept, or shrink /var"
-    decision: "accept Level 2 filesystem separations on east (no free space, no LVM)"
 
   - source: "host-probe:east:mount-var-nodev"
     severity: low
@@ -800,6 +808,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
 
   - source: "host-probe:east:mount-var-tmp-noexec"
@@ -808,6 +817,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
 
   - source: "host-probe:east:mount-var-tmp-nosuid"
@@ -816,6 +826,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
 
   - source: "host-probe:east:mount-var-tmp-separate"
@@ -824,8 +835,8 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 7
+    accepted: {reason: "DP-25 row 25.11, Stevie 2026-11-04: CIS L2 separate mounts need a partition and east has no unallocated disk (sda is all /var, sdb is /boot/efi and /); options on these mounts come with the separate filesystems", compensating: "east is reachable only through west and runs no user workloads", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "Level 2: a real filesystem for /var/tmp. east has no free disk space or LVM: accept, or shrink /var"
-    decision: "accept Level 2 filesystem separations on east (no free space, no LVM)"
 
   - source: "host-probe:west:mount-dev-shm-noexec"
     severity: low
@@ -1042,8 +1053,8 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 7
+    accepted: {reason: "DP-25 row 25.10, Stevie 2026-11-04: these are Ubuntu's flags=(unconfined) profiles, which only grant user namespaces to named programs; moving them changes those programs", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "The unconfined profiles are Ubuntu's flags=(unconfined) profiles that grant user namespaces to specific programs (browsers, container tools); moving them to enforce or complain changes those programs' behaviour. Review the list (aa-status), then accept with that reason or move individual profiles to complain"
-    decision: "accept Ubuntu's unconfined userns profiles against CIS 1.3.1.3, or move them to complain one by one"
 
   - source: "host-probe:west:grub-password"
     severity: low
@@ -1070,8 +1081,8 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 7
+    accepted: {reason: "DP-25 row 25.10, Stevie 2026-11-04: these are Ubuntu's flags=(unconfined) profiles, which only grant user namespaces to named programs; moving them changes those programs", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-11-04, until: 2027-02-02}
     plan: "The unconfined profiles are Ubuntu's flags=(unconfined) profiles that grant user namespaces to specific programs (browsers, container tools); moving them to enforce or complain changes those programs' behaviour. Review the list (aa-status), then accept with that reason or move individual profiles to complain"
-    decision: "accept Ubuntu's unconfined userns profiles against CIS 1.3.1.3, or move them to complain one by one"
 
   - source: "host-probe:east:grub-password"
     severity: low
