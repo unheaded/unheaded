@@ -60,3 +60,34 @@ copies.
   and subdirectory path walks remain out of scope (single root-dir walk, H-FS4 caps).
 - Known issue → Gate D.1: `wc README` runaway (see session log; wc was unreachable
   before argv existed, so no baseline was lost).
+
+## 5. Syscall number registry (DP-413, 2026-11-04)
+
+One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS` carry the same numbers; `parity_surface` holds them to the dispatch. A number with no row answers `-ENOSYS` (DP-503). Rungs move rows from BPF to kernel; a number is never reused.
+
+| Number | Name | Served by | Note |
+|---|---|---|---|
+| 1 | fork | BPF | |
+| 2 | exit | BPF | |
+| 3 | wait | BPF | status written as 0 until rung 7 |
+| 4 | pipe | none yet | |
+| 5 | read | BPF | |
+| 6 | kill | none yet | |
+| 7 | exec | BPF | |
+| 8 | fstat | BPF | |
+| 9 | chdir | none yet | |
+| 10 | dup | BPF | |
+| 11 | getpid | kernel | ADR-109 |
+| 12 | sbrk | none yet | |
+| 13 | pause | BPF | yields until the sleep rung, then waits n ticks |
+| 14 | uptime | kernel | ADR-110 |
+| 15 | open | BPF | |
+| 16 | write | BPF | |
+| 17 | mknod | BPF | stub |
+| 18 | unlink | none yet | |
+| 19 | link | none yet | |
+| 20 | mkdir | none yet | |
+| 21 | close | BPF | |
+| 22 | reserved | probe builds | `UPC_PROBE_INJECT22` |
+| 23 | yield | BPF | DP-413; a stub in `user/uyield.h`, not `usys.pl`, so corpus binaries keep their size |
+| 200, 201 | read block, write block | BPF | kernel-only, `monad_common::mbc_linux_syscalls` |
