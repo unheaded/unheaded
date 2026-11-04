@@ -39,6 +39,9 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 11. **Haiku and Sonnet phases leave nothing to infer.** Each step names the exact file and the exact text to find and to write, shows the full command and its expected output, and says what to do on any other output. For code, give the function signature, the test to write first with its assertions, and the expected red and green results. No "update as needed", "similar to", or "etc.".
 12. **Stop lines.** A Haiku or Sonnet agent that meets anything the plan did not predict does not improvise: it marks the step `[STUCK]`, records the output, and moves to the next independent step.
 
+13. **Dangerous scripts stay with Opus (Stevie, 2026-11-04).** Haiku and Sonnet never write or edit a script or command that runs as root, deletes outside a worktree, rewrites git history, or touches sshd, PAM, sudoers, firewalls, resolvers, keys, credentials, `/etc/shadow` or a live host. Those phases are `**Model**: Opus`, or wait for Claude in an attended session. If a cheaper agent finds it needs one, it stops at that step and marks `[STUCK]`.
+14. **Process hygiene.** Never `pkill -f`: it matches the caller's own shell. Stop a process by its recorded pid. Rehearsals run as the normal user; anything that needs root is a named step, not a side effect, and forgers and reviewers run nothing as root.
+
 ## Reserved numbers and known collisions
 
 ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
