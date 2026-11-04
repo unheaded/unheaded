@@ -49,7 +49,7 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 
 ## Reserved numbers and known collisions
 
-FND-031 is S-WIRE-HONEST's and FND-032 is S-SUPPLY-FIRST's (ChromaDB); check the other plan before opening a new id. ADR-121 is S-CLEAN-CUT's parked WAF idea, ADR-122 S-ZHEN-POLISH's parked embed service. ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. S-STAGE-2B starts at 135. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
+Migrations: 044, 045, 046 are S-ZHEN-POLISH's, 047 is held for the `zhen_actions.status` fix if Stevie takes it, 048 is S-E1-LIVE's log events. FND-031 is S-WIRE-HONEST's and FND-032 is S-SUPPLY-FIRST's (ChromaDB); check the other plan before opening a new id. ADR-121 is S-CLEAN-CUT's parked WAF idea, ADR-122 S-ZHEN-POLISH's parked embed service. ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. S-STAGE-2B starts at 135. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
 
 ## Order
 
