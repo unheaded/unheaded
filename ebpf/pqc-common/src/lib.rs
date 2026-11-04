@@ -17,8 +17,7 @@ pub enum AlgoId {
     SlhDsa = 0x01,
     /// FIPS 204 - ML-DSA (Lattice signature)
     MlDsa = 0x02,
-    /// FIPS 206 - FN-DSA (Lattice signature, userspace-only)
-    FnDsa = 0x03,
+    // 0x03 was FN-DSA, withdrawn 2026-11-04 (DP-411). The value stays burned.
     /// FIPS 203 - ML-KEM (Lattice KEM)
     MlKem = 0x04,
     /// FIPS 207 - HQC (Code-based KEM)
@@ -165,7 +164,6 @@ mod tests {
     fn algo_id_values() {
         assert_eq!(AlgoId::SlhDsa as u8, 0x01);
         assert_eq!(AlgoId::MlDsa as u8, 0x02);
-        assert_eq!(AlgoId::FnDsa as u8, 0x03);
         assert_eq!(AlgoId::MlKem as u8, 0x04);
         assert_eq!(AlgoId::Hqc as u8, 0x05);
     }

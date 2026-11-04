@@ -24,7 +24,6 @@ func TestRegistryLookupAllAlgorithms(t *testing.T) {
 	}{
 		{AlgoSLHDSA, "SLH-DSA", "FIPS 205", "signature", "hash-based", true, true},
 		{AlgoMLDSA, "ML-DSA", "FIPS 204", "signature", "lattice", true, true},
-		{AlgoFNDSA, "FN-DSA", "FIPS 206", "signature", "lattice", false, false},
 		{AlgoMLKEM, "ML-KEM", "FIPS 203", "kem", "lattice", true, true},
 		{AlgoHQC, "HQC", "FIPS 207", "kem", "code-based", true, false},
 	}
@@ -66,12 +65,13 @@ func TestRegistryLookupUnknown(t *testing.T) {
 
 func TestAllAlgorithms(t *testing.T) {
 	algos := AllAlgorithms()
-	if len(algos) != 5 {
-		t.Fatalf("AllAlgorithms() returned %d entries, want 5", len(algos))
+	if len(algos) != 4 {
+		t.Fatalf("AllAlgorithms() returned %d entries, want 4", len(algos))
 	}
 	// Verify ordering by AlgoID.
+	wantIDs := []AlgoID{AlgoSLHDSA, AlgoMLDSA, AlgoMLKEM, AlgoHQC}
 	for i, algo := range algos {
-		expectedID := AlgoID(i + 1)
+		expectedID := wantIDs[i]
 		if algo.ID != expectedID {
 			t.Errorf("AllAlgorithms()[%d].ID = %#x, want %#x", i, algo.ID, expectedID)
 		}
@@ -85,7 +85,6 @@ func TestAlgoIDString(t *testing.T) {
 	}{
 		{AlgoSLHDSA, "SLH-DSA"},
 		{AlgoMLDSA, "ML-DSA"},
-		{AlgoFNDSA, "FN-DSA"},
 		{AlgoMLKEM, "ML-KEM"},
 		{AlgoHQC, "HQC"},
 		{0xFF, "unknown"},
@@ -683,53 +682,6 @@ func TestSLHDSAParamInfo(t *testing.T) {
 	}
 }
 
-func TestFNDSAStubReturnsNotAvailable(t *testing.T) {
-	signer := &FNDSASigner{}
-	_, err := signer.Sign([]byte("test"))
-	if !errors.Is(err, ErrAlgorithmNotAvailable) {
-		t.Errorf("FNDSASigner.Sign err = %v, want ErrAlgorithmNotAvailable", err)
-	}
-	if pk := signer.PublicKey(); pk != nil {
-		t.Errorf("FNDSASigner.PublicKey() = %v, want nil", pk)
-	}
-	if id := signer.AlgoID(); id != AlgoFNDSA {
-		t.Errorf("FNDSASigner.AlgoID() = %#x, want %#x", id, AlgoFNDSA)
-	}
-
-	_, err = NewFNDSAVerifier(FNDSA512)
-	if !errors.Is(err, ErrAlgorithmNotAvailable) {
-		t.Errorf("NewFNDSAVerifier err = %v, want ErrAlgorithmNotAvailable", err)
-	}
-
-	// Direct verifier still returns not available.
-	verifier := &FNDSAVerifier{}
-	_, err = verifier.Verify([]byte("msg"), []byte("sig"), []byte("pk"))
-	if !errors.Is(err, ErrAlgorithmNotAvailable) {
-		t.Errorf("FNDSAVerifier.Verify err = %v, want ErrAlgorithmNotAvailable", err)
-	}
-	if id := verifier.AlgoID(); id != AlgoFNDSA {
-		t.Errorf("FNDSAVerifier.AlgoID() = %#x, want %#x", id, AlgoFNDSA)
-	}
-
-	_, _, err = GenerateFNDSAKeyPair(FNDSA512)
-	if !errors.Is(err, ErrAlgorithmNotAvailable) {
-		t.Errorf("GenerateFNDSAKeyPair err = %v, want ErrAlgorithmNotAvailable", err)
-	}
-}
-
-func TestFNDSAParamInfo(t *testing.T) {
-	name, sigSize, pkSize, skSize, ok := FNDSAParamInfo(FNDSA512)
-	if !ok {
-		t.Fatal("FNDSAParamInfo(FNDSA512) not found")
-	}
-	if name != "FN-DSA-512" {
-		t.Errorf("name = %q, want FN-DSA-512", name)
-	}
-	if sigSize <= 0 || pkSize <= 0 || skSize <= 0 {
-		t.Errorf("sizes should be > 0: sig=%d pk=%d sk=%d", sigSize, pkSize, skSize)
-	}
-}
-
 func TestHQCStubReturnsNotAvailable(t *testing.T) {
 	encap := &HQCEncapsulator{}
 	_, _, err := encap.Encapsulate([]byte("pk"))
@@ -761,14 +713,12 @@ func TestSignerInterface(t *testing.T) {
 	// Verify all signer types implement the Signer interface.
 	var _ Signer = &MLDSASigner{}
 	var _ Signer = &SLHDSASigner{}
-	var _ Signer = &FNDSASigner{}
 }
 
 func TestVerifierInterface(t *testing.T) {
 	// Verify all verifier types implement the Verifier interface.
 	var _ Verifier = &MLDSAVerifier{}
 	var _ Verifier = &SLHDSAVerifier{}
-	var _ Verifier = &FNDSAVerifier{}
 }
 
 func TestKEMEncapsulatorInterface(t *testing.T) {
@@ -781,18 +731,6 @@ func TestKEMDecapsulatorInterface(t *testing.T) {
 	// Verify all decapsulator types implement the KEMDecapsulator interface.
 	var _ KEMDecapsulator = &MLKEMDecapsulator{}
 	var _ KEMDecapsulator = &HQCDecapsulator{}
-}
-
-// --- FN-DSA BPF Safety Tests ---
-
-func TestFNDSANotBPFSafe(t *testing.T) {
-	info, ok := Registry(AlgoFNDSA)
-	if !ok {
-		t.Fatal("FN-DSA not found in registry")
-	}
-	if info.BPFSafe {
-		t.Error("FN-DSA should NOT be BPF-safe (requires floating point)")
-	}
 }
 
 // --- KeyPair Structure Tests ---

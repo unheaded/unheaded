@@ -48,7 +48,7 @@ func VerifySigBinding(binding [32]byte, flowID []byte, epoch uint32, signature [
 
 // AlgoConfusionGuard prevents algorithm family changes mid-flow.
 // Once a flow establishes its algorithm (e.g., ML-DSA), any attempt to
-// switch to a different algorithm (e.g., FN-DSA) on the same flow is
+// switch to a different algorithm (e.g., SLH-DSA) on the same flow is
 // rejected. This prevents downgrade attacks where an attacker forces
 // a weaker algorithm after initial negotiation.
 type AlgoConfusionGuard struct {

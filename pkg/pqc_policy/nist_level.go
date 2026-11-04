@@ -40,7 +40,6 @@ func (n NISTSecurityLevel) String() string {
 const (
 	algoSLHDSA uint8 = 0x01
 	algoMLDSA  uint8 = 0x02
-	algoFNDSA  uint8 = 0x03
 	algoMLKEM  uint8 = 0x04
 	algoHQC    uint8 = 0x05
 )
@@ -74,14 +73,6 @@ func NISTLevel(algoID, paramSet uint8) NISTSecurityLevel {
 		case paramSet2:
 			return NISTLevel3
 		case paramSet3:
-			return NISTLevel5
-		}
-	case algoFNDSA:
-		// FN-DSA-512 → Level 1, FN-DSA-1024 → Level 5.
-		switch paramSet {
-		case paramSet1:
-			return NISTLevel1
-		case paramSet2:
 			return NISTLevel5
 		}
 	case algoMLKEM:
