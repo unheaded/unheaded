@@ -6,8 +6,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	pb "unheaded/proto/unheaded/v1"
 )
@@ -208,14 +212,30 @@ func (s *sophiaServer) listMock(req *pb.DictionaryListRequest) (*pb.DictionaryLi
 	}, nil
 }
 
-// listBPF reads dictionaries from BPF pinned maps
+// listBPF lists the dictionaries in hop-ebpf's pinned SOPHIA map, by id.
 func (s *sophiaServer) listBPF(req *pb.DictionaryListRequest) (*pb.DictionaryListResponse, error) {
-	// In a real implementation, this would:
-	// 1. Open the pinned BPF map at /sys/fs/bpf/unheaded/sophia/maps/SOPHIA_MAP
-	// 2. Iterate through all keys (dictionary IDs)
-	// 3. Deserialize the DictionaryEntry values from BPF
-	// 4. Return paginated results
-	return nil, errBPFNotImplemented("sophia list")
+	dicts, err := sophiaDictionaries(globalBackend)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "sophia list: %v", err)
+	}
+	all := make([]*pb.Dictionary, 0, len(dicts))
+	for _, d := range dicts {
+		all = append(all, d)
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Id < all[j].Id })
+
+	limit, offset := int(req.Limit), int(req.Offset)
+	if limit <= 0 {
+		limit = 100
+	}
+	if offset < 0 || offset > len(all) {
+		offset = len(all)
+	}
+	end := min(offset+limit, len(all))
+	return &pb.DictionaryListResponse{
+		Dictionaries: all[offset:end],
+		Total:        int32(len(all)), // #nosec G115 -- at most 256 dictionary ids
+	}, nil
 }
 
 // Get retrieves a specific dictionary by ID with all its entries
@@ -246,14 +266,20 @@ func (s *sophiaServer) getMock(req *pb.DictionaryGetRequest) (*pb.DictionaryGetR
 	}, nil
 }
 
-// getBPF retrieves a dictionary from BPF pinned maps
+// getBPF returns one dictionary from hop-ebpf's pinned SOPHIA map.
 func (s *sophiaServer) getBPF(req *pb.DictionaryGetRequest) (*pb.DictionaryGetResponse, error) {
-	// In a real implementation, this would:
-	// 1. Open the pinned BPF map
-	// 2. Lookup the dictionary by ID
-	// 3. Deserialize the value
-	// 4. Return with found=true/false
-	return nil, errBPFNotImplemented("sophia get")
+	dicts, err := sophiaDictionaries(globalBackend)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "sophia get: %v", err)
+	}
+	d, ok := dicts[req.DictionaryId]
+	if !ok {
+		return &pb.DictionaryGetResponse{
+			Found:        false,
+			ErrorMessage: fmt.Sprintf("Dictionary %d not found", req.DictionaryId),
+		}, nil
+	}
+	return &pb.DictionaryGetResponse{Dictionary: d, Found: true}, nil
 }
 
 // UpdateDictionary updates an entry in a dictionary (for development/testing)
