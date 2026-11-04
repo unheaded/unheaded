@@ -8,6 +8,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 - DP-302 cap headroom confirmed: one worst case is reserved before send; default cap 5 USD, max_tokens 16000.
 
+- Phase 6 (Steps 53-68) done: redaction matches stay local (runAuto and zhenroute); zhen-claude check go|json|cite shipped. TestCaptureEscalatedTurn changed per Step 57.
+
 ## Measurements
 
 ## Stuck
