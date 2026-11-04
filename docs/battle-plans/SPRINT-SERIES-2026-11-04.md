@@ -13,7 +13,7 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 | S-CLEAN-CUT | unattended | A | DP-401, 205 (verify Doom first), 209, 210, 306, 307, 407, 409, 402 Q3, 410, 706, 709, 713 (repo side), 308 corpus flags |
 | S-MOVE-OUT | unattended, local only | A, after S-CLEAN-CUT | DP-305 Doom to `unheaded-doom`, DP-17 k8s to `unheaded-k8s`; DP-314 |
 | S-SUPPLY-FIRST | unattended | B | DP-722, 719, 415, 405, 08, 721 stage 1 |
-| S-ZHEN-POLISH | unattended | C | DP-216, 302, 308 GGUF, 309, 311, 312, 712 (code and units, not install), 608 prerequisite `answer_start` |
+| S-ZHEN-POLISH | unattended | C | DP-216, 302, 308 GGUF, 309, 311, 312, 712 (code and units, not install), 608 prerequisite `answer_start`, ADR-120 estimated energy |
 | S-WIRE-HONEST | unattended | D | DP-211, 408, 411, 412, 716, 715 |
 | S-G9-FOLD | unattended, ADRs first | D, after S-WIRE-HONEST | DP-203: one parked ADR per fold, compliance first |
 | S-STAGE-2B | unattended, serial | E | DP-213, 413, 414, 501, 502, 503, 717, 206 prep |
