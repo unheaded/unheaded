@@ -2,23 +2,22 @@
 // Copyright (c) 2024-2026 Stevie Bellis.
 //! Shared types for the latency-probe BPF program.
 //!
-//! These types define the LATENCY_MAP layout: a per-flow RTT statistics
-//! map keyed by 5-tuple (LatencyKey) with aggregated min/max/avg RTT
-//! values (LatencyEntry). Go userspace mirrors these byte-for-byte.
+//! These types define the LATENCY_MAP layout: per-thread RTT statistics
+//! keyed by trace id, pid and tid (LatencyTraceKey) with aggregated
+//! min/max/avg RTT values (LatencyEntry). A kprobe on tcp_sendmsg has no
+//! 5-tuple to key on. pkg/protocol/bpfschema mirrors these byte-for-byte.
 
-/// Key for LATENCY_MAP — identifies a flow by 5-tuple.
+/// Key for LATENCY_MAP — one thread's samples under one trace id.
 ///
-/// IPs are stored as IPv6 (IPv4 addresses use ::ffff:a.b.c.d mapping).
-/// Size: 16 + 16 + 2 + 2 + 1 + 3 = 40 bytes.
+/// trace_id is the socket's TraceId in big-endian bytes (zero when no socket
+/// trace is associated); pid and tid are the full kernel ids.
+/// Size: 16 + 4 + 4 = 24 bytes.
 #[repr(C)]
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
-pub struct LatencyKey {
-    pub src_ip: [u8; 16],
-    pub dst_ip: [u8; 16],
-    pub src_port: u16,
-    pub dst_port: u16,
-    pub protocol: u8,
-    pub _pad: [u8; 3],
+pub struct LatencyTraceKey {
+    pub trace_id: [u8; 16],
+    pub pid: u32,
+    pub tid: u32,
 }
 
 /// Value for LATENCY_MAP — aggregated RTT statistics per flow.
@@ -36,9 +35,9 @@ pub struct LatencyEntry {
     pub last_update_ns: u64, // ktime_get_ns() of last update
 }
 
-/// Size of LatencyKey in bytes.
+/// Size of LatencyTraceKey in bytes.
 #[allow(dead_code)]
-pub const LATENCY_KEY_SIZE: usize = 40;
+pub const LATENCY_TRACE_KEY_SIZE: usize = 24;
 
 /// Size of LatencyEntry in bytes.
 #[allow(dead_code)]
@@ -54,9 +53,9 @@ mod tests {
     #[test]
     fn test_latency_key_size() {
         assert_eq!(
-            core::mem::size_of::<LatencyKey>(),
-            LATENCY_KEY_SIZE,
-            "LatencyKey size mismatch"
+            core::mem::size_of::<LatencyTraceKey>(),
+            LATENCY_TRACE_KEY_SIZE,
+            "LatencyTraceKey size mismatch"
         );
     }
 
@@ -71,12 +70,10 @@ mod tests {
 
     #[test]
     fn test_latency_key_default() {
-        let key = LatencyKey::default();
-        assert_eq!(key.src_ip, [0u8; 16]);
-        assert_eq!(key.dst_ip, [0u8; 16]);
-        assert_eq!(key.src_port, 0);
-        assert_eq!(key.dst_port, 0);
-        assert_eq!(key.protocol, 0);
+        let key = LatencyTraceKey::default();
+        assert_eq!(key.trace_id, [0u8; 16]);
+        assert_eq!(key.pid, 0);
+        assert_eq!(key.tid, 0);
     }
 
     #[test]
