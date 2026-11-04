@@ -18,13 +18,12 @@ Two authentication mechanisms are planned:
 - Claims: `sub` (subject), `roles` (authorization), `exp` (expiry, required: a token without it is refused)
 - Library: `golang-jwt/jwt` (not yet added to go.mod)
 
-### 2. mTLS (Inter-Service Communication)
+### 2. Service tokens (Inter-Service Communication)
 
-- Used by: All service-to-service calls within the Kingdom
-- Flow: Client presents certificate during TLS handshake
-- Validation: Certificate chain against Kingdom CA, CN/SAN matching
-- Identity: CN = service name (e.g. `timeguru`, `captain`)
-- Certificate management: Short-lived certs via SOPS + age, auto-rotation
+- Used by: All service-to-service calls within the Kingdom (ADR-103)
+- Flow: each binary mints a 5-minute EdDSA token per target; TLS 1.3 carries it
+- Validation: the caller's `.pub` in `trust.d`, the caller in `AUTH_ALLOW_CALLERS`
+- Identity: `sub` = key name (e.g. `timeguru`, `captain`)
 
 ### Common Interface
 
@@ -41,9 +40,6 @@ type Authenticator interface {
 ```go
 // Example: protect all API routes with JWT
 mux.Handle("/api/v1/", auth.Middleware(jwtValidator)(apiHandler))
-
-// Example: protect inter-service routes with mTLS
-mux.Handle("/internal/", auth.Middleware(mtlsValidator)(internalHandler))
 ```
 
 ### Identity Propagation
@@ -60,7 +56,7 @@ if identity != nil && identity.HasRole("admin") {
 ## Implementation Roadmap
 
 1. **Alpha (current):** Stub implementations, interfaces defined
-2. **Beta:** JWT validation with JWKS, mTLS with auto-generated certs
+2. **Beta:** JWT validation with JWKS
 3. **GA:** Full RBAC, token rotation, CRL/OCSP, audit logging
 
 ## Files
