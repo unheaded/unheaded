@@ -17,6 +17,7 @@
 //	go run ./cmd/compliance-evidence profile export     # The Well -> YAML fallback
 //	go run ./cmd/compliance-evidence ansible            # render deploy/ansible/compliance/
 //	go run ./cmd/compliance-evidence snapshot -host east -key SEED -out east.snapshot.json
+//	go run ./cmd/compliance-evidence wire --serve     # wire compliance plane, off by default (ADR-127)
 package main
 
 import (
@@ -37,6 +38,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "wire" {
+		os.Exit(runWire(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "findings" {
 		if err := runFindings(os.Args[2:], os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "compliance-evidence findings:", err)
@@ -103,6 +107,7 @@ func main() {
 			{Name: "profile", Purpose: "control profiles in the Well"},
 			{Name: "well", Purpose: "sync the catalog into the Well"},
 			{Name: "baseline", Purpose: "host baseline"},
+			{Name: "wire", Purpose: "wire compliance plane, off unless --serve (ADR-127)"},
 		},
 		Operands: "[COMMAND]",
 		MaxArgs:  1,
