@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -480,3 +481,50 @@ func TestConfirmationEvents(t *testing.T) {
 }
 
 func discardLog() *slog.Logger { return slog.New(slog.NewJSONHandler(io.Discard, nil)) }
+func TestRequestRow_LocalCarriesEnergy(t *testing.T) {
+	j := 40.5
+	row := requestRow("zhen-agentd", BackendLocal, RequestRecord{Model: "m", EnergyJoules: &j, EnergyMethod: "gpu_sampled"}, time.Now())
+	if row.EnergyJoulesEst == nil || *row.EnergyJoulesEst != 40.5 || row.EnergyMethod != "gpu_sampled" {
+		t.Fatalf("%+v", row)
+	}
+}
+
+// ADR-120: no invented number. A Claude row is NULL whatever a caller sets.
+func TestRequestRow_ClaudeStaysNull(t *testing.T) {
+	j := 1.0
+	for _, rec := range []RequestRecord{{Model: "m"}, {Model: "m", EnergyJoules: &j, EnergyMethod: "gpu_sampled"}} {
+		row := requestRow("zhen-claude", "claude", rec, time.Now())
+		if row.EnergyJoulesEst != nil || row.EnergyMethod != "" {
+			t.Fatalf("%+v", row)
+		}
+	}
+}
+
+func TestRequestRow_RefusesABadEstimate(t *testing.T) {
+	for _, v := range []float64{math.NaN(), math.Inf(1), -1} {
+		j := v
+		row := requestRow("zhen-agentd", BackendLocal, RequestRecord{Model: "m", EnergyJoules: &j, EnergyMethod: "gpu_sampled"}, time.Now())
+		if row.EnergyJoulesEst != nil || row.EnergyMethod != "" {
+			t.Fatalf("%v: %+v", v, row)
+		}
+	}
+	ok := 1.0
+	row := requestRow("zhen-agentd", BackendLocal, RequestRecord{Model: "m", EnergyJoules: &ok}, time.Now())
+	if row.EnergyJoulesEst != nil {
+		t.Fatalf("a figure without a method: %+v", row)
+	}
+}
+
+// An unmigrated Well has no energy columns: the sink must keep writing rows.
+func TestSQLRequestSink_StatementFollowsTheSchema(t *testing.T) {
+	j := 1.5
+	row := LLMRequestRow{EnergyJoulesEst: &j, EnergyMethod: "gpu_sampled"}
+	q, args := SQLRequestSink{Energy: true}.statement(row)
+	if q != insertLLMRequestSQL || len(args) != 22 || !strings.Contains(q, "energy_joules_est, energy_method") || !strings.Contains(q, "$22") {
+		t.Fatalf("with 044: %d args: %s", len(args), q)
+	}
+	q, args = SQLRequestSink{}.statement(row)
+	if q != insertLLMRequestSQL030 || len(args) != 20 || strings.Contains(q, "energy") || strings.Contains(q, "$21") {
+		t.Fatalf("without 044: %d args: %s", len(args), q)
+	}
+}
