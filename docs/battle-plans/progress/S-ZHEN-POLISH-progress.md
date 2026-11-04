@@ -16,6 +16,10 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ## Measurements
 
+- Phase 13, source shard into scratch at 318f74a4: 1769 files, 27886 chunks, 146513 calls. First run 2.72 s, peak 280276 KB. Second run (parsed=0) 0.47 s, peak 327388 KB, which is the higher of the two: under the 400000 KB line for MemoryMax=512M. Index 86M on disk, two slots of 45014723 bytes.
+
+- Phase 13 (Steps 132-138) done: zhen-codeindex (busy exits 0, Refresh error exits 1, stray operand exits 2), post-commit and post-merge hook, test-post-commit.sh four [PASS]. Step 135 [D] not needed: second run parsed=0. Mutants: dropping the branch check fails T2, dropping the post-merge link fails T4, dropping the launch fails T1 and T4. T3 cannot fail on the hook's exit status, since git ignores a post-commit hook's status; it proves only that the commit survives a missing binary. gofmt, go vet, go test -race (pkg/codeindex, pkg/cmdline), shellcheck and check-gosec-ratchet.sh clean. man/zhen-codeindex.1 line 1 carries a +dirty stamp from Step 133's plain build; gen-man.sh's check skips line 1, and gen-man.sh itself was not run. Nothing installed: no make install-hooks, no write to /var/zhen.
+
 ## Stuck
 
 - Steps 29-38 (Phase 4, commit 702b083b): Step 37 [D] [STUCK]. Its trigger holds: the redirected man/zhen-agentd.1 header carries the build stamp (`unheaded v0.0.0-...+dirty`, 2026-11-04), so it differs from gen-man output. The prescribed `scripts/gen-man.sh --write` regenerates every man page in the tree, which is outside the named files, so it was not run. Coordinator to decide.

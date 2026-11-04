@@ -119,6 +119,11 @@ build-zhen-mcp: ## Build zhen-mcp (Zhen's MCP server for Claude Code; scripts/zh
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/zhen-mcp && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-mcp
 
+build-zhen-codeindex: ## Build zhen-codeindex (Zhen's source shard, refreshed by scripts/git-hooks/post-commit)
+	@echo "Building zhen-codeindex..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/zhen-codeindex && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-codeindex
+
 zhen-agent-up: build-zhen-agent ## Build zhen-agent + verify prerequisites (vor, llama-server)
 	@./scripts/zhen-agent-preflight.sh
 
@@ -494,11 +499,14 @@ release: clean all test ## Build release artifacts
 install-hooks: ## Install git pre-commit hook (gofmt + go vet on staged changes)
 	@mkdir -p .git/hooks
 	@ln -sf ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
-	@chmod +x scripts/git-hooks/pre-commit
-	@echo "[hooks] pre-commit installed"
+	@ln -sf ../../scripts/git-hooks/post-commit .git/hooks/post-commit
+	@ln -sf ../../scripts/git-hooks/post-commit .git/hooks/post-merge
+	@chmod +x scripts/git-hooks/pre-commit scripts/git-hooks/post-commit
+	@echo "[hooks] pre-commit, post-commit, post-merge installed"
 
 test-hooks: ## Self-test the pre-commit hook (drift/clean/empty cases)
 	@bash scripts/git-hooks/test-pre-commit.sh
+	@bash scripts/git-hooks/test-post-commit.sh
 
 fmt: ## Format all code
 	@echo "Formatting Go code..."
