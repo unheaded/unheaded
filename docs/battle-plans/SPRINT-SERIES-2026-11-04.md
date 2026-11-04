@@ -33,6 +33,12 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 8. **Stuck.** Skip Protocol: 3x the estimate or two failed debug attempts, mark `[STUCK]`, commit, move on. Questions go to the plan's progress file under "For Stevie", oldest first; never stop to ask.
 9. **Handoff.** Each plan keeps `docs/battle-plans/progress/<PLAN>-progress.md`; the coordinator folds it into `~/tmp/next.md`.
 
+## Detail standard (Stevie, 2026-11-04: detailed enough that Sonnet can run the well-defined items)
+
+10. **Every phase carries a model tag.** `**Model**: Sonnet` when the steps are mechanical and every decision is already made; `**Model**: Opus` when a step needs judgement (eBPF verifier work, protocol, concurrency, security-sensitive logic, design calls). Default to Sonnet only if an agent with no project context could finish the phase from the plan alone.
+11. **Sonnet phases leave nothing to infer.** Each step names the exact file and the exact text to find and to write, shows the full command and its expected output, and says what to do on any other output. For code, give the function signature, the test to write first with its assertions, and the expected red and green results. No "update as needed", "similar to", or "etc.".
+12. **Stop lines.** A Sonnet agent that meets anything the plan did not predict does not improvise: it marks the step `[STUCK]`, records the output, and moves to the next independent step.
+
 ## Order
 
 Wave 1, in parallel: S-CLEAN-CUT, S-SUPPLY-FIRST, S-ZHEN-POLISH, S-WIRE-HONEST (three builders at once; S-STAGE-2B takes a slot when one frees). Wave 2: S-MOVE-OUT, S-G9-FOLD, S-LOG-HARVEST Phase 5. S-HOST-TIDY runs from the coordinator between merges.
