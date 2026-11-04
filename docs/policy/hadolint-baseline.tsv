@@ -2,8 +2,6 @@
 # Counts may only go down. Regenerate with --update after a fix.
 DL3008	docker/base/Dockerfile.base	1
 DL3008	docker/firewall/frr/Dockerfile	2
-DL3008	docker/firewall/ipfire/Dockerfile	1
-DL3008	docker/firewall/opnsense/Dockerfile	1
 DL3008	docker/routing/ospf/Dockerfile	2
 DL3008	docker/services/anamnesis/Dockerfile	1
 DL3008	docker/services/architect/Dockerfile	1
@@ -29,9 +27,7 @@ DL3008	docker/services/timeguru/Dockerfile	1
 DL3008	docker/services/trace-collector/Dockerfile	1
 DL3008	docker/services/unheaded-daemon/Dockerfile	1
 DL3008	docker/services/wotan/Dockerfile	1
-DL3008	docker/vllm-rocm/Dockerfile	1
 DL3008	routing/frr/Dockerfile	2
-DL3013	docker/vllm-rocm/Dockerfile	2
 DL3018	Dockerfile	3
 DL3018	deploy/docker/zhen-agentd.Dockerfile	1
 DL3018	deploy/sophia-eye/sophia-gateway/Dockerfile	1
@@ -41,8 +37,6 @@ DL3025	deploy/sophia-eye/sophia-gateway/Dockerfile	1
 DL3025	docker/firewall/bird/Dockerfile	1
 DL3025	docker/firewall/frr/Dockerfile	1
 DL3025	docker/routing/ospf/Dockerfile	1
-DL3025	docker/vllm-rocm/Dockerfile	1
-DL3059	docker/vllm-rocm/Dockerfile	2
 DL3066	deploy/docker/zhen-agentd.Dockerfile	1
 DL3066	docker/base/Dockerfile.base	1
 DL3066	docker/services/anamnesis/Dockerfile	1
@@ -65,9 +59,7 @@ DL3066	docker/services/sophia/Dockerfile	1
 DL3066	docker/services/timeguru/Dockerfile	1
 DL3066	docker/services/trace-collector/Dockerfile	1
 DL3066	docker/services/wotan/Dockerfile	1
-DL3066	docker/vllm-rocm/Dockerfile	1
 SC2046	docker/firewall/bird/Dockerfile	1
 SC2046	docker/firewall/frr/Dockerfile	1
 SC2046	routing/bird/Dockerfile	1
 SC2046	routing/frr/Dockerfile	1
-SC2086	docker/vllm-rocm/Dockerfile	1

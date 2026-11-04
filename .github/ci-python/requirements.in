@@ -7,9 +7,9 @@ ansible-core==2.21.5
 bandit==1.9.4
 jsonschema==4.26.0
 pip-audit==2.10.1
-pytest==9.1.1
+pytest==9.2.0
 pyyaml==6.0.3
-ruff==0.17.1
+ruff==0.17.3
 yamllint==1.38.0
 
 # Security fixes newer than the 7-day cooldown, one line each:

@@ -20,7 +20,7 @@ mod common;
 use aya_ebpf::{
     bindings::xdp_action,
     macros::{map, xdp},
-    maps::{HashMap, RingBuf, XskMap},
+    maps::{HashMap, RingBuf},
     programs::XdpContext,
 };
 use unheaded_common::{
@@ -46,18 +46,6 @@ static PACKET_EVENTS: RingBuf = RingBuf::with_byte_size(RING_BUFFER_SIZE, 0);
 #[map]
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(16, 0);
 
-// ── AF_XDP Maps ─────────────────────────────────────────────────────────────
-
-/// XSKMAP — maps queue IDs to AF_XDP socket file descriptors.
-/// Trace-marked packets are redirected here for zero-copy delivery.
-#[map]
-static MARKER_XSKS: XskMap = XskMap::with_max_entries(64, 0);
-
-/// Packet-marker AF_XDP configuration.  Key 0 holds the runtime toggle.
-/// Bit 1: AF_XDP redirect enabled for trace-marked packets.
-#[map]
-static MARKER_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(4, 0);
-
 // Stats keys
 const STAT_PACKETS_TOTAL: u32 = 0;
 const STAT_PACKETS_IPV4: u32 = 1;
@@ -68,11 +56,6 @@ const STAT_TRACE_EXTRACTED: u32 = 4;
 const STAT_TRACE_INJECTED: u32 = 5;
 const STAT_EVENTS_SENT: u32 = 6;
 const STAT_EVENTS_DROPPED: u32 = 7;
-const STAT_AFXDP_REDIRECT: u32 = 8;
-const STAT_AFXDP_FALLBACK: u32 = 9;
-
-/// MARKER_CONFIG key for AF_XDP enable toggle.
-const PACKET_MARKER_AF_XDP_ENABLE: u32 = 0;
 
 /// Ethernet header structure.
 #[repr(C, packed)]
@@ -245,38 +228,7 @@ fn try_packet_marker(ctx: &XdpContext) -> Result<u32, ()> {
     // Update flow state
     update_flow_state(&flow_key, &trace_id);
 
-    // ── AF_XDP selective redirect ──────────────────────────────────────────
-    // If AF_XDP is enabled and this packet has a trace ID, redirect to the
-    // AF_XDP socket for zero-copy delivery to userspace trace-collector.
-    // Unmarked packets fall through to the standard kernel stack.
-    let af_xdp_enabled = match unsafe { MARKER_CONFIG.get(&PACKET_MARKER_AF_XDP_ENABLE) } {
-        Some(val) => (*val & 1) != 0,
-        None => false,
-    };
-
-    if af_xdp_enabled && !trace_id.is_zero() {
-        let queue_id = unsafe { (*ctx.ctx).rx_queue_index };
-        match MARKER_XSKS.redirect(queue_id, 0) {
-            Ok(action) => {
-                increment_stat(STAT_AFXDP_REDIRECT);
-                let packet_len = (data_end - data) as u32;
-                send_packet_event(
-                    &flow_key,
-                    &trace_id,
-                    packet_len,
-                    PacketAction::Redirect,
-                    Direction::Ingress,
-                );
-                return Ok(action);
-            }
-            Err(_) => {
-                // No socket bound — fall through to kernel stack
-                increment_stat(STAT_AFXDP_FALLBACK);
-            }
-        }
-    }
-
-    // Send packet event to userspace (standard path)
+    // Send packet event to userspace
     let packet_len = (data_end - data) as u32;
     send_packet_event(
         &flow_key,

@@ -361,17 +361,17 @@ func TestRun_PerTurnJustificationCatchesNonSeedExternal(t *testing.T) {
 	}
 }
 
-func TestRun_PerTurnRetrievalFailureFallsBackToSeed(t *testing.T) {
-	// If per-turn retrieval errors, the agent falls back to seed refs.
-	// Verifies graceful degradation.
+func TestRun_PerTurnRetrievalFailureHoldsTheWrite(t *testing.T) {
+	// What the per-turn check could not look up reaches the gate as an
+	// Unavailable reference: a canonical seed does not carry the write.
 	c, err := champion.New(champion.Config{ProjectRoot: t.TempDir()}, mockActionStore{})
 	if err != nil {
 		t.Fatalf("champion.New: %v", err)
 	}
 	retriever := &queryAwareRetriever{
 		bySubstring: map[string]queryHit{
-			// Per-turn query (contains "write_file") errors.
-			"write_file": {err: errors.New("retrieval down")},
+			// The per-turn query, the one token in the thought, errors.
+			"wave14-fix": {err: errors.New("retrieval down")},
 		},
 		fallback: queryHit{
 			// Seed query gets canonical refs.
@@ -381,7 +381,7 @@ func TestRun_PerTurnRetrievalFailureFallsBackToSeed(t *testing.T) {
 	}
 	target := filepath.Join(c.GetProjectRoot(), "out.txt")
 	llm := &mockLLM{responses: []string{
-		`{"thought":"writing","tool_call":{"name":"write_file","args":{"path":"` + target + `","content":"hi"}}}`,
+		`{"thought":"apply wave14-fix","tool_call":{"name":"write_file","args":{"path":"` + target + `","content":"hi"}}}`,
 		`{"thought":"done","answer":"ok"}`,
 	}}
 	a := New(Config{MaxTurns: 4}, c, retriever, llm)
@@ -389,14 +389,33 @@ func TestRun_PerTurnRetrievalFailureFallsBackToSeed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	// Tool call should have been ALLOWED (seed has canonical refs;
-	// per-turn errored, falls back to seed).
-	if res.Trace[0].Refused {
-		t.Errorf("trace[0] should NOT be Refused (seed canonical fallback)")
+	if !res.Trace[0].Refused {
+		t.Errorf("trace[0] should be Refused: the check could not look up wave14-fix")
 	}
-	// File should exist.
-	if _, err := os.Stat(target); err != nil {
-		t.Errorf("file should exist; stat=%v", err)
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("file should not exist; stat=%v", err)
+	}
+	var held bool
+	for _, r := range res.Trace[0].ToolCall.Justification {
+		held = held || r == champion.Unavailable("wave14-fix")
+	}
+	if !held {
+		t.Errorf("justification %+v names no unavailable lookup", res.Trace[0].ToolCall.Justification)
+	}
+}
+
+func TestMergeRefs_TrustedRefCannotAbsorbAnUntrustedOne(t *testing.T) {
+	trusted := champion.Reference{Topic: "t", SourcePath: "p", SourceLabel: "l", SourceTrust: "canonical"}
+	untrusted := trusted
+	untrusted.SourceTrust = "external"
+	for _, got := range [][]champion.Reference{
+		mergeRefs([]champion.Reference{trusted, untrusted}, nil),
+		mergeRefs(nil, []champion.Reference{trusted, untrusted}),
+		mergeRefs([]champion.Reference{trusted}, []champion.Reference{untrusted}),
+	} {
+		if len(got) != 2 {
+			t.Errorf("merged %+v", got)
+		}
 	}
 }
 

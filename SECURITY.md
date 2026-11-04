@@ -161,9 +161,9 @@ recorded today stays confidential if either half holds. Two profiles in
 | Profile | Groups | Used where | A classical-only peer |
 |---|---|---|---|
 | Strict | `X25519MLKEM768`, `SecP256r1MLKEM768`, `SecP384r1MLKEM1024` only | both ends are ours: Wotan gRPC and wotan-client, `pkg/transport/mtls` | handshake fails |
-| Preferred | Go's default (hybrids first, classical fallback) | servers third-party clients reach: Wotan HTTP and `/metrics`, the dashboard, load-balancer frontends, the WAF, zhend QUIC | gets X25519 |
+| Preferred | Go's default (hybrids first, classical fallback) | servers third-party clients reach: Wotan HTTP and `/metrics`, the dashboard, load-balancer frontends, zhend QUIC (never spawned) | gets X25519 |
 
-Rust TLS (the WAF, zhend QUIC) uses rustls on the `aws-lc-rs` provider, which
+Rust TLS (zhend QUIC, compiled and never spawned) uses rustls on the `aws-lc-rs` provider, which
 offers `X25519MLKEM768` first; the `ring` provider (no ML-KEM) is gone.
 Third-party outbound clients (SMTP relays, the CISA KEV feed, Splunk HEC,
 load-balancer health checks to user backends) keep a TLS 1.2 floor: their

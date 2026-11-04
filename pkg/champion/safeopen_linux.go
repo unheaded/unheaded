@@ -55,6 +55,18 @@ func openBeneath(rootFD int, rel string, flags int, mode uint32) (*os.File, erro
 	return os.NewFile(uintptr(fd), rel), nil
 }
 
+// unlinkBeneath removes name, one path component, from the directory
+// rootFD holds. unlinkat does not follow a final symlink.
+func unlinkBeneath(rootFD int, name string) error {
+	if name == "" || name == "." || name == ".." || strings.ContainsRune(name, filepath.Separator) {
+		return fmt.Errorf("refusing to unlink %q", name)
+	}
+	if err := unix.Unlinkat(rootFD, name, 0); err != nil {
+		return beneathError(name, err)
+	}
+	return nil
+}
+
 // mkdirAllBeneath creates every missing directory of relDir under rootFD
 // one component at a time: each existing component is opened with the
 // same resolve rules (a symlink refuses), each missing one is created

@@ -70,7 +70,6 @@ OPNSENSE_CPUS=4
 
 ### Start Services
 ```bash
-cd docker/hosts/host-a
 docker-compose up -d opnsense frr
 ```
 
@@ -222,7 +221,7 @@ environment:
 
 ## Related Files
 
-- `docker-compose.yml`: Service definitions in host-a/host-b
+- The per-host compose stacks were retired 2026-11-04 (DP-218); these two images have no stack today.
 - `.env.example`: Environment variable templates
 - `routing/frr/`: FRR routing daemon
 - `routing/bird/`: BIRD routing daemon

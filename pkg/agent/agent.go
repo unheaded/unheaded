@@ -101,6 +101,7 @@ type Retriever interface {
 type TopicContent struct {
 	Ref     champion.Reference
 	Content string
+	Score   float64 // the backend's own scale; see pkg/retrieval
 }
 
 // LLM produces a turn given a messages list. Implementations wrap an
@@ -381,11 +382,11 @@ func isNoOpToolName(name string) bool {
 //     enough to surface a poisoned source named in the thought,
 //     bounded so we don't fan out per turn.
 //  3. Merge per-turn refs with seed refs (per-turn first; dedupe by
-//     Topic+SourcePath+SourceLabel).
+//     Topic+SourcePath+SourceLabel+SourceTrust).
 //
-// On retrieval failure for a token, that token's refs are skipped —
-// other tokens still contribute. The fail-closed rule in
-// HasUntrustedJustification handles the all-empty case.
+// On retrieval failure for a token, that token adds a
+// champion.Unavailable reference, so what the check could not look up
+// holds a mutating call at the gate; other tokens still contribute.
 //
 // Threat model (per A2-agent-adversarial.md): an attacker crafts a
 // prompt that the seed-retriever doesn't match but the model's
@@ -408,6 +409,7 @@ func (a *Agent) deriveJustification(ctx context.Context, out modelOutput, seed [
 	for _, tok := range tokens {
 		refs, contents, err := a.retriever.Retrieve(ctx, tok, a.cfg.RetrieveK)
 		if err != nil {
+			perTurn = mergeRefs(perTurn, []champion.Reference{champion.Unavailable(tok)})
 			continue
 		}
 		perTurn = mergeRefs(perTurn, retrieved.add(refs, contents))
@@ -527,14 +529,15 @@ func isInterestingToken(t string) bool {
 }
 
 // mergeRefs returns the union of two ref lists, per-turn-first,
-// deduped by (Topic, SourcePath, SourceLabel). Topic alone isn't
-// sufficient because two different sources can have the same topic
-// name (e.g., user-symlinked vs embedded with the same filename).
+// deduped by (Topic, SourcePath, SourceLabel, SourceTrust). Topic alone
+// isn't sufficient because two different sources can have the same
+// topic name (e.g., user-symlinked vs embedded with the same filename),
+// and without SourceTrust a trusted ref absorbs an untrusted one.
 func mergeRefs(perTurn, seed []champion.Reference) []champion.Reference {
 	seen := make(map[string]struct{}, len(perTurn)+len(seed))
 	merged := make([]champion.Reference, 0, len(perTurn)+len(seed))
 	for _, r := range perTurn {
-		key := r.Topic + "|" + r.SourcePath + "|" + r.SourceLabel
+		key := r.Topic + "|" + r.SourcePath + "|" + r.SourceLabel + "|" + r.SourceTrust
 		if _, dup := seen[key]; dup {
 			continue
 		}
@@ -542,7 +545,7 @@ func mergeRefs(perTurn, seed []champion.Reference) []champion.Reference {
 		merged = append(merged, r)
 	}
 	for _, r := range seed {
-		key := r.Topic + "|" + r.SourcePath + "|" + r.SourceLabel
+		key := r.Topic + "|" + r.SourcePath + "|" + r.SourceLabel + "|" + r.SourceTrust
 		if _, dup := seen[key]; dup {
 			continue
 		}

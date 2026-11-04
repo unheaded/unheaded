@@ -17,12 +17,12 @@
 #      if vor is the older pre-B1 build)
 #
 # Env (defaults match cmd/zhen-agent):
-#   VOR_URL    (http://127.0.0.1:9876)
+#   VOR_URL    (http://127.0.0.1:20110)
 #   LLAMA_URL  (http://127.0.0.1:8081)
 
 set -euo pipefail
 
-VOR_URL="${VOR_URL:-http://127.0.0.1:9876}"
+VOR_URL="${VOR_URL:-http://127.0.0.1:20110}"
 LLAMA_URL="${LLAMA_URL:-http://127.0.0.1:8081}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -415,7 +415,7 @@ stage-packages: ## Show instructions for staging air-gapped packages
 	@echo "    cp -r ~/.ollama/models/ $(PACKAGES_DIR)/cerydwyn/models/"
 	@echo ""
 	@echo "    # RAG dependencies"
-	@echo "    pip download -d $(PACKAGES_DIR)/grimoire/rag-deps/ chromadb sentence-transformers"
+	@echo "    pip download -d $(PACKAGES_DIR)/grimoire/rag-deps/ chromadb==1.5.9 sentence-transformers==6.2.0"
 	@echo ""
 	@echo "    # MITRE ATT&CK"
 	@echo "    git clone https://github.com/mitre/cti.git $(PACKAGES_DIR)/grimoire/mitre-attck/"

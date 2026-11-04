@@ -5,7 +5,7 @@
 //! Uses proptest to feed random byte vectors to codec::decode().
 //! ALL INPUTS HOSTILE — the codec must handle anything gracefully.
 //!
-//! GPL-3.0-only
+//! GPL-3.0-or-later
 
 use proptest::prelude::*;
 use zhend::pu::codec;

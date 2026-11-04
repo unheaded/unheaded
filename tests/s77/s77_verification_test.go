@@ -69,14 +69,6 @@ func fileContains(t *testing.T, path string, substrings ...string) {
 func TestPhase1_BugFixes(t *testing.T) {
 	root := projectRoot(t)
 
-	t.Run("Bug17_XFF_Spoofing", func(t *testing.T) {
-		fileExists(t, filepath.Join(root, "pkg/waf/rules/engine.go"))
-		fileContains(t, filepath.Join(root, "pkg/waf/rules/engine.go"), "extractSecureClientIP")
-		fileExists(t, filepath.Join(root, "pkg/waf/rules/clientip_test.go"))
-		fileContains(t, filepath.Join(root, "pkg/waf/rules/clientip_test.go"), "TestExtractSecureClientIP")
-		fileExists(t, filepath.Join(root, "pkg/waf/detection/bot_test.go"))
-	})
-
 	t.Run("Bug19_Wotan_Degradation", func(t *testing.T) {
 		fileContains(t, filepath.Join(root, "pkg/wotan-client/client.go"), "degraded")
 	})
@@ -297,7 +289,6 @@ func TestS77_AllDeliverables(t *testing.T) {
 
 	deliverables := []string{
 		// Phase 1
-		"pkg/waf/rules/clientip_test.go",
 		"docs/P1-BUG-FIXES-S77.md",
 		// Phase 2
 		"scripts/wireguard/setup-wireguard.sh",

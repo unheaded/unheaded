@@ -16,7 +16,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -trimpath -buildvcs=false \
     -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildDate=${BUILD_DATE} -X main.Commit=${COMMIT} -extldflags '-static'" \
-    -o /out/trace-collector ./cmd/trace-collector
+    -o /out/trace-collector ./cmd/trace-collector-go
 
 FROM debian:bookworm-slim AS certs
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 FROM gcr.io/distroless/static-debian12:nonroot
 LABEL org.opencontainers.image.title="unheaded-trace-collector" \
       org.opencontainers.image.description="Trace collector Jaeger-compatible service" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="GPL-3.0-or-later"
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /out/trace-collector /usr/local/bin/trace-collector
 USER nonroot:nonroot

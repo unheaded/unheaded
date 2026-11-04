@@ -724,4 +724,4 @@ When deploying new firewall or replacing existing:
 **Document Version**: 1.0  
 **Last Updated**: 2026-02-26  
 **Maintained By**: Unheaded Development Team  
-**License**: MIT
+**License**: GPL-3.0-or-later

@@ -6,7 +6,8 @@
 # All settings below should be passed as ExecStart flags in systemd service.
 #
 # Unheaded Kingdom infrastructure
-# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 
 # YAML representation of VictoriaMetrics single-node configuration
 # (for documentation purposes)

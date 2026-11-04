@@ -115,6 +115,9 @@ const (
 	// seed, 0400) on the custody host and signs Sealed Casks and evidence
 	// packs with it (S-IRON-GATE Phase 13, FND-018). No service runs as it.
 	BuildKey = 16737
+	// Vor is the retrieval corpus server (DP-712): host unit
+	// unheaded-vor.service only (account unheaded-vor).
+	Vor = 16738
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -163,8 +166,8 @@ const (
 	WireGuard = 16783
 	Traefik   = 16784
 	CoreDNS   = 16785
-	// deploy/sophia-eye: the second vLLM server, and the RAG stack around it.
-	QwenCoder  = 16786
+	// 16786 retired: qwen-coder, removed 2026-11-04 (DP-713). Not reused.
+	// deploy/sophia-eye: the RAG stack.
 	Qdrant     = 16787
 	Embeddings = 16788 // text-embeddings-inference
 	OpenWebUI  = 16789
@@ -223,6 +226,7 @@ var Registry = map[string]int{
 	"unheaded-auth":     Auth,
 	"heimdall":          Heimdall,
 	"buildkey":          BuildKey,
+	"vor":               Vor,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,
@@ -253,7 +257,6 @@ var Registry = map[string]int{
 	"wireguard":         WireGuard,
 	"traefik":           Traefik,
 	"coredns":           CoreDNS,
-	"qwen-coder":        QwenCoder,
 	"qdrant":            Qdrant,
 	"embeddings":        Embeddings,
 	"open-webui":        OpenWebUI,

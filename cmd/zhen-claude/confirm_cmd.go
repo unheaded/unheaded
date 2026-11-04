@@ -26,6 +26,14 @@ import (
 
 const envAppZhenDSN = "WELL_APP_ZHEN_DSN"
 
+// envTaughtDir names the zhen-taught directory for approving a teach_write
+// row. Only this command reads it: no daemon has a taught dir.
+const envTaughtDir = "ZHEN_TAUGHT_DIR"
+
+// confirmCmdTimeout bounds one subcommand. It outlasts the wait for a typed
+// code, with a minute left for the Well once the code is in.
+const confirmCmdTimeout = champion.PendingConfirmTTL + time.Minute
+
 // confirmStore is the queue as the subcommand uses it.
 type confirmStore interface {
 	List(ctx context.Context, limit int) ([]claudebridge.QueuedCall, error)
@@ -106,7 +114,7 @@ func runConfirmCmd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), confirmCmdTimeout)
 	defer cancel()
 	store, closeStore, err := openConfirmStore(ctx)
 	defer closeStore()
@@ -235,11 +243,30 @@ func confirmApprove(ctx context.Context, store confirmStore, id string, allowed 
 	if err != nil || sum != r.CallSHA256 {
 		return refuse("the stored call no longer matches its hash")
 	}
-	champ, err := champion.New(champion.Config{ProjectRoot: root, SessionID: "confirm-" + id}, nil)
+	taught := strings.TrimSpace(os.Getenv(envTaughtDir))
+	if champion.QueueOnlyTools[p.Tool] && taught == "" {
+		return refuse("%s is not set; the row stays pending", envTaughtDir)
+	}
+	champ, err := approveChampion(root, id, taught)
 	if err != nil {
 		return refuse("%v", err)
 	}
-	_, _ = io.WriteString(stdout, claudebridge.DescribeCall(champ, p))
+	if champion.QueueOnlyTools[p.Tool] {
+		// Stevie reads the whole text and types a code on the terminal
+		// before anything is decided. A pipe or an unattended run has no
+		// terminal, so the row stays pending.
+		tty, err := openTTY()
+		if err != nil {
+			return refuse("approving %s needs a terminal; the row stays pending: %v", p.Tool, err)
+		}
+		defer tty.Close()
+		_, _ = io.WriteString(tty, claudebridge.DescribeCall(champ, p))
+		if err := claudebridge.TypedApproval(ctx, tty, champion.PendingConfirmTTL); err != nil {
+			return refuse("not approved, the row stays pending: %v", err)
+		}
+	} else {
+		_, _ = io.WriteString(stdout, claudebridge.DescribeCall(champ, p))
+	}
 	by := confirmedBy()
 	if err := store.Decide(ctx, id, "approved", by); err != nil {
 		return refuse("%v", err)
@@ -263,6 +290,17 @@ func confirmApprove(ctx context.Context, store confirmStore, id string, allowed 
 	}
 	_, _ = fmt.Fprintln(stdout, msg)
 	return 0
+}
+
+// approveChampion is the Champion an approval runs in: the row's root
+// alone. This runs as Stevie, so the default /var/zhen/ would let a row do
+// what the daemon's own unit forbids.
+func approveChampion(root, id, taught string) (*champion.Champion, error) {
+	champ, err := champion.New(champion.Config{ProjectRoot: root, AllowedPaths: []string{root}, SessionID: "confirm-" + id}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return champ.WithTaughtDir(taught), nil
 }
 
 func oneLine(s string) string {

@@ -8,7 +8,7 @@ tests:
   # and for 15m after; past 15m stale and the 1m hold, it fires.
   - interval: 1m
     input_series:
-      - series: 'zhen_scheduler_heartbeat_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20105"}'
+      - series: 'zhen_scheduler_heartbeat_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111"}'
         values: '0+60x30 1800x30'
     alert_rule_test:
       - eval_time: 20m
@@ -20,7 +20,7 @@ tests:
       - eval_time: 48m
         alertname: ZhenSchedulerStalled
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, job: zhen-agentd, instance: "[fd00:dead:beef::1]:20105"}
+          - exp_labels: {severity: warning, urgency: none, job: zhen-agentd, instance: "[fd00:dead:beef::1]:20111"}
             exp_annotations:
               summary: "Zhen's scheduler has not ticked for over 15 minutes"
               description: "No zhen_scheduler_heartbeat_timestamp_seconds from zhen-agentd, or its last tick is stale: scheduled runbooks are not running (zhen-agentd down, started without -scheduler, or its ticker stuck)"
@@ -30,7 +30,7 @@ tests:
   # appears. It fires once the 1m hold passes.
   - interval: 1m
     input_series:
-      - series: 'up{job="zhen-agentd",instance="[fd00:dead:beef::1]:20105"}'
+      - series: 'up{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111"}'
         values: '1x30'
     alert_rule_test:
       - eval_time: 0m
@@ -50,7 +50,7 @@ tests:
   # 15m without a sample it is absent and fires. A restart clears it.
   - interval: 1m
     input_series:
-      - series: 'zhen_scheduler_heartbeat_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20105"}'
+      - series: 'zhen_scheduler_heartbeat_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111"}'
         values: '0+60x10 _x20 1860+60x10'
     alert_rule_test:
       - eval_time: 20m

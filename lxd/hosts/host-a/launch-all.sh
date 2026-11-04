@@ -247,14 +247,13 @@ push_and_start_service "lich"
 sleep 2
 
 # Phase 10: Telemetry stack
-log_info "Phase 10: Launching telemetry (prometheus, victoriametrics, loki, grafana, ebpf-exporter)..."
+log_info "Phase 10: Launching telemetry (prometheus, victoriametrics, loki, grafana)..."
 launch_container "prometheus" 2 512
 launch_container "victoriametrics" 2 512
 launch_container "loki" 2 512
 launch_container "grafana" 1 256
-launch_container "ebpf-exporter" 1 256
 
-for svc in prometheus victoriametrics loki grafana ebpf-exporter; do
+for svc in prometheus victoriametrics loki grafana; do
     push_and_start_service "${svc}"
 done
 sleep 2

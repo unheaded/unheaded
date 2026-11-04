@@ -8,7 +8,6 @@
 //   - JWT validation (HMAC-SHA256) for external API clients
 //   - API key validation for programmatic access
 //   - Service-to-service tokens for inter-service communication
-//   - mTLS certificate verification (stub — planned for Beta)
 //
 // All share the common Authenticator interface so callers don't need to know
 // which backend is active.
@@ -28,7 +27,6 @@ var (
 	ErrUnauthenticated = errors.New("auth: unauthenticated")
 	ErrForbidden       = errors.New("auth: forbidden")
 	ErrTokenExpired    = errors.New("auth: token expired")
-	ErrInvalidCert     = errors.New("auth: invalid client certificate")
 	ErrRateLimited     = errors.New("auth: rate limited")
 )
 
@@ -101,59 +99,6 @@ func (j *JWTValidator) Authenticate(_ context.Context, r *http.Request) (*Identi
 	// Token extraction successful; validation is deferred to a real implementation.
 	// Deny all JWT requests by default (safe default).
 	return nil, ErrUnauthenticated
-}
-
-// MTLSValidator validates client certificates presented during TLS handshake.
-// Extracts the Common Name and SANs from verified peer certificates to build
-// an Identity with the "service" role.
-type MTLSValidator struct {
-	// ServiceName is the expected CN or SAN of the calling service (optional filter).
-	ServiceName string
-}
-
-// Authenticate validates the client certificate from the TLS connection state.
-//
-// Only a certificate that crypto/tls verified against the server's ClientCAs
-// counts (VerifiedChains). PeerCertificates alone is whatever the client
-// sent: with ClientAuth RequestClientCert or RequireAnyClientCert it is
-// filled without verification, so a self-signed certificate could claim
-// any service name.
-func (m *MTLSValidator) Authenticate(_ context.Context, r *http.Request) (*Identity, error) {
-	if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 || len(r.TLS.VerifiedChains[0]) == 0 {
-		return nil, ErrInvalidCert
-	}
-
-	peer := r.TLS.VerifiedChains[0][0]
-	cn := peer.Subject.CommonName
-	if cn == "" {
-		return nil, ErrInvalidCert
-	}
-
-	// If ServiceName is set, verify it matches (CN or SAN).
-	if m.ServiceName != "" {
-		matched := false
-		if cn == m.ServiceName || strings.HasPrefix(cn, m.ServiceName+".") {
-			matched = true
-		}
-		for _, san := range peer.DNSNames {
-			if san == m.ServiceName || strings.HasPrefix(san, m.ServiceName+".") {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return nil, ErrForbidden
-		}
-	}
-
-	return &Identity{
-		Subject: cn,
-		Roles:   []string{"service"},
-		Extra: map[string]string{
-			"auth_method": "mtls",
-			"cert_cn":     cn,
-		},
-	}, nil
 }
 
 // Middleware returns an HTTP middleware that authenticates requests using the

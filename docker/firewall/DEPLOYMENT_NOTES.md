@@ -22,14 +22,12 @@ docker/firewall/
 ### Updated Host Configurations
 
 #### Host-A (Forge)
-- `docker/hosts/host-a/docker-compose.yml`
   - Added `opnsense` service (QEMU 4096MB, 4 CPU)
   - Added `frr` service (BGP AS 65001)
   - Added `wan` macvlan network
   - Added firewall volumes: `opnsense-images`, `opnsense-data`, `frr-data`, `frr-run`
   - All existing services unchanged, inherit 10.20.0.1 gateway
 
-- `docker/hosts/host-a/.env.example`
   - `WAN_INTERFACE`: Physical NIC (default: eno1)
   - `WAN_SUBNET`, `WAN_GATEWAY`: Upstream network
   - `OPNSENSE_WAN_IP`: macvlan IP (default: 192.168.1.2)
@@ -38,14 +36,12 @@ docker/firewall/
   - `FRR_CONF`, `FRR_BGP_AS`, `FRR_ROUTER_ID`: FRR configuration
 
 #### Host-B (Outpost)
-- `docker/hosts/host-b/docker-compose.yml`
   - Added `ipfire` service (QEMU 2048MB, 2 CPU)
   - Added `bird` service (BGP AS 65002)
   - Added `wan` macvlan network
   - Added firewall volumes: `ipfire-images`, `ipfire-data`, `bird-data`, `bird-run`
   - All existing services unchanged, inherit 10.20.0.1 gateway
 
-- `docker/hosts/host-b/.env.example`
   - `WAN_INTERFACE`: Physical NIC (default: eno1)
   - `WAN_SUBNET`, `WAN_GATEWAY`: Upstream network
   - `IPFIRE_WAN_IP`: macvlan IP (default: 192.168.1.3)
@@ -137,7 +133,6 @@ Both firewalls (OPNsense & IPFire) are full OS images that require:
 ### Configuration
 1. Copy `.env.example` to `.env` in each host directory:
    ```bash
-   cd docker/hosts/host-a
    cp .env.example .env
    # Edit WAN_INTERFACE, WAN_SUBNET, etc.
    ```
@@ -151,7 +146,6 @@ Both firewalls (OPNsense & IPFire) are full OS images that require:
 ### First Boot
 1. **Build images**:
    ```bash
-   cd docker/hosts/host-a
    docker-compose build opnsense frr
    cd ../host-b
    docker-compose build ipfire bird
@@ -159,7 +153,6 @@ Both firewalls (OPNsense & IPFire) are full OS images that require:
 
 2. **Start firewalls**:
    ```bash
-   cd docker/hosts/host-a
    docker-compose up -d opnsense
    ```
    

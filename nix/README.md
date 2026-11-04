@@ -387,7 +387,7 @@ curl http://10.10.10.10:18000/health
 
 ## License
 
-MIT - See [LICENSE](/LICENSE)
+GPL-3.0-or-later - See [LICENSE](/LICENSE)
 
 ## Contributors
 

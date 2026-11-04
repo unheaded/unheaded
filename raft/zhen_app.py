@@ -7,7 +7,7 @@ Port: 20103 (zhen-ui in Doom Range)
 
 WAVE15 REWIRE (2026-05-02): backends retargeted from Mistral-7B / FAISS
 to qwen-coder-7b / vor. The 1.76M-vector FAISS pipeline is retired;
-retrieval flows through vor (cs serve at :9876). Inference is the same
+retrieval flows through vor (cs serve at :20110). Inference is the same
 llama-server qwen-coder-7b binary the Go agent uses (:8081). Conversation
 memory still persists to The Well (zhen_memories + zhen_conversations).
 
@@ -24,7 +24,7 @@ Auxiliary roadmap:    docs/adr/ADR-056-pgvector-auxiliary-corpus-sharding.md
 
 Features (post-rewire):
 - Local inference via llama.cpp at :8081 (qwen-coder-7b q4_k_m, ROCm GPU)
-- Retrieval via vor at :9876 (1847+ Unheaded sheets, source-trust labeled)
+- Retrieval via vor at :20110 (1847+ Unheaded sheets, source-trust labeled)
 - Conversation memory in zhen_memories (cosine recall, display-only)
 - Conversation history in zhen_conversations (full-text + semantic)
 - Runbook execution via /api/v1/runbooks/<name>/execute (Phase 2: gates
@@ -144,7 +144,7 @@ def _agentd_headers():
 #
 # WAVE15 REWIRE: index_dir / corpus_file are vestigial — RAGPipeline accepts
 # them as legacy positional args and ignores them. Retrieval is via vor on
-# :9876; inference is qwen-coder via llama-server on :8081. Both URLs are
+# :20110; inference is qwen-coder via llama-server on :8081. Both URLs are
 # overridable via env (VOR_URL, ZHEN_INFERENCE_URL); defaults match the
 # Go-stack production deployment.
 index_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'
@@ -169,9 +169,9 @@ startup_error = None
 #
 # Deliberately not inside a try: a bad scheme in configuration should stop the
 # process, not degrade it.
-VOR_URL = _http_url_from_env('VOR_URL', 'http://localhost:9876')
+VOR_URL = _http_url_from_env('VOR_URL', 'http://localhost:20110')
 ZHEN_INFERENCE_URL = _http_url_from_env('ZHEN_INFERENCE_URL', 'http://localhost:8081')
-ZHEN_AGENTD_URL = _http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20105')
+ZHEN_AGENTD_URL = _http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20111')
 
 try:
     # S-CLEAN-SLATE M-036 (threat model T6a): the chat path goes through
@@ -1402,7 +1402,7 @@ def switch_model():
         return jsonify({
             'status': 'error',
             'error':  f'zhen-agentd unreachable at {agentd_url}: {e}',
-            'note':   'Start the daemon with `bin/zhen-agentd -port 20105` (and WELL_DSN env).',
+            'note':   'Start the daemon with `bin/zhen-agentd -port 20111` (and WELL_DSN env).',
         }), 503
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)}), 500
@@ -2012,12 +2012,11 @@ def teach():
     """Submit text for Zhen to learn — DEPRECATED post-WAVE15 rewire.
 
     Pre-rewire this appended chunks to the live FAISS index + ring_all.jsonl.
-    With vor as the retrieval substrate, "teaching" means writing a markdown
-    file under ~/.config/cs/sources/<source>/ which cs picks up on its next
-    index sweep — that's a different workflow than this endpoint exposes.
+    Teaching now goes through zhen-cli `/teach <title> | <text>`: zhen-agentd
+    queues a teach_write, and `zhen-claude confirm approve` is the only writer
+    of /var/zhen/projects/zhen-taught (DP-309). This web UI has no route to it.
 
-    Returning HTTP 410 (Gone) so callers know to migrate. A future change can
-    wire this to ~/.config/cs/sources/zhen-taught/ and re-enable.
+    Returning HTTP 410 (Gone) so callers know to migrate.
     """
     return jsonify({
         'status': 'deprecated',
@@ -2315,7 +2314,7 @@ def execute_runbook(name):
             'name':   name,
             'status': 'error',
             'error':  f'zhen-agentd unreachable at {agentd_url}: {e}',
-            'note':   'WAVE15 Phase 2b requires the daemon. Start it with `bin/zhen-agentd -port 20105`.',
+            'note':   'WAVE15 Phase 2b requires the daemon. Start it with `bin/zhen-agentd -port 20111`.',
         }), 503
     except Exception as e:
         return jsonify({'name': name, 'status': 'error', 'error': str(e)}), 500
@@ -2551,7 +2550,7 @@ def index():
 def kanban_create():
     """Create a Kanban card through zhen-agentd's gate (tool kanban_create).
 
-    The page used to POST to the daemon's :20105 directly, which cannot carry
+    The page used to POST to the daemon's :20111 directly, which cannot carry
     the daemon's API key (a browser must never hold it) or a justification.
     The UI states the direct-user justification here, like runbook execute.
     Body: {"task": {...}} (the kanban_create args.task object).

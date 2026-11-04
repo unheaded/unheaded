@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"regexp"
 	"sync"
 	"sync/atomic"
@@ -130,6 +131,9 @@ type LLMRequestRow struct {
 	Redactions      int       `json:"redactions"`
 	Sent            bool      `json:"sent"`
 	Error           string    `json:"error"`
+	// ADR-120. Nil and "" mean no estimate; NULL in the Well, never 0.
+	EnergyJoulesEst *float64 `json:"energy_joules_est"`
+	EnergyMethod    string   `json:"energy_method"`
 }
 
 // RequestSink stores llm_requests rows.
@@ -138,20 +142,51 @@ type RequestSink interface {
 }
 
 // SQLRequestSink writes llm_requests through database/sql as ops_writer.
-type SQLRequestSink struct{ DB *sql.DB }
+type SQLRequestSink struct {
+	DB *sql.DB
+	// Energy says the Well has migration 044 (LLMRequestsHasEnergy).
+	Energy bool
+}
 
 // InsertLLMRequest implements RequestSink.
+// insertLLMRequestSQL030 is the row as migration 030 defines it. A Well
+// without 044 takes this one; estimates are dropped, rows are not.
+const insertLLMRequestSQL030 = `INSERT INTO llm_requests (occurred_at, source_service, backend, model_requested, model_served,
+	conversation_id, iteration, task_family, route_reason, stop_reason, input_tokens, output_tokens,
+	cache_read, cache_write, cost_nano_usd, reserved_nano_usd, duration_ms, redactions, sent, error)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`
+
+// insertLLMRequestSQL adds migration 044's energy columns.
+const insertLLMRequestSQL = `INSERT INTO llm_requests (occurred_at, source_service, backend, model_requested, model_served,
+	conversation_id, iteration, task_family, route_reason, stop_reason, input_tokens, output_tokens,
+	cache_read, cache_write, cost_nano_usd, reserved_nano_usd, duration_ms, redactions, sent, error,
+	energy_joules_est, energy_method)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`
+
+// LLMRequestsHasEnergy reports whether migration 044 has run. A failed
+// probe means no: the 030 statement is the safe one.
+func LLMRequestsHasEnergy(ctx context.Context, db *sql.DB) bool {
+	_, err := db.ExecContext(ctx, "SELECT energy_method FROM llm_requests LIMIT 0")
+	return err == nil
+}
+
+// statement picks the INSERT for this Well's schema.
+func (s SQLRequestSink) statement(r LLMRequestRow) (string, []any) {
+	args := []any{r.OccurredAt, r.SourceService, r.Backend, r.ModelRequested, r.ModelServed,
+		r.ConversationID, r.Iteration, r.TaskFamily, r.RouteReason, r.StopReason, r.InputTokens, r.OutputTokens,
+		r.CacheRead, r.CacheWrite, r.CostNanoUSD, r.ReservedNanoUSD, r.DurationMS, r.Redactions, r.Sent, r.Error}
+	if !s.Energy {
+		return insertLLMRequestSQL030, args
+	}
+	return insertLLMRequestSQL, append(args, r.EnergyJoulesEst, r.EnergyMethod)
+}
+
 func (s SQLRequestSink) InsertLLMRequest(ctx context.Context, r LLMRequestRow) error {
 	if s.DB == nil {
 		return errors.New("claudebridge: SQLRequestSink has no database")
 	}
-	const q = `INSERT INTO llm_requests (occurred_at, source_service, backend, model_requested, model_served,
-		conversation_id, iteration, task_family, route_reason, stop_reason, input_tokens, output_tokens,
-		cache_read, cache_write, cost_nano_usd, reserved_nano_usd, duration_ms, redactions, sent, error)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`
-	_, err := s.DB.ExecContext(ctx, q, r.OccurredAt, r.SourceService, r.Backend, r.ModelRequested, r.ModelServed,
-		r.ConversationID, r.Iteration, r.TaskFamily, r.RouteReason, r.StopReason, r.InputTokens, r.OutputTokens,
-		r.CacheRead, r.CacheWrite, r.CostNanoUSD, r.ReservedNanoUSD, r.DurationMS, r.Redactions, r.Sent, r.Error)
+	q, args := s.statement(r)
+	_, err := s.DB.ExecContext(ctx, q, args...)
 	return err
 }
 
@@ -358,7 +393,10 @@ func requestRow(source, backend string, r RequestRecord, now time.Time) LLMReque
 	if !routeReasons[route] {
 		route = ""
 	}
+	joules, method := energyFields(backend, r)
 	return LLMRequestRow{
+		EnergyJoulesEst: joules,
+		EnergyMethod:    method,
 		OccurredAt:      now.Add(-r.Duration).UTC().Truncate(time.Microsecond),
 		SourceService:   source,
 		Backend:         backend,
@@ -380,6 +418,17 @@ func requestRow(source, backend string, r RequestRecord, now time.Time) LLMReque
 		Sent:            r.Sent,
 		Error:           truncateUTF8Plain(r.Err, maxAuditReasonBytes),
 	}
+}
+
+// energyFields keeps a usable local estimate. Claude has no figure this
+// project relies on (ADR-120), and a figure and its method come together,
+// as llm_requests_energy_shape requires.
+func energyFields(backend string, r RequestRecord) (*float64, string) {
+	j := r.EnergyJoules
+	if backend != BackendLocal || j == nil || r.EnergyMethod == "" || math.IsNaN(*j) || math.IsInf(*j, 0) || *j < 0 {
+		return nil, ""
+	}
+	return j, r.EnergyMethod
 }
 
 // actorID is how audit_events names a model: claude-api/<model> or

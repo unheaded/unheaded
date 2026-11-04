@@ -67,7 +67,7 @@ steps:
   - name: schedule-list
     action: manual
     command: |
-      curl -s -H "X-API-Key: $ZHEN_AGENTD_API_KEY" http://127.0.0.1:20105/api/v1/scheduler/list | python3 -m json.tool
+      curl -s -H "X-API-Key: $ZHEN_AGENTD_API_KEY" http://127.0.0.1:20111/api/v1/scheduler/list | python3 -m json.tool
     description: "MANUAL (needs an agentd API key). last_tick, running (a job in flight), paused, each job's next_due and last error. 503 means the daemon runs without -scheduler"
 
   - name: restart-agentd

@@ -1,5 +1,7 @@
 # ADR-074 — ASCEND-LINUX Phase 1.2: Page-Table Mapping Model
 
+> **2026-11-04 (DP-409):** the `phase12-option-b` and `phase12-option-c` features and their stubs were deleted; the measurement commands below name them as history.
+
 **Status**: **Accepted** — Option A + Allocator A1; pair-call landed (`8528d45b`), Phase 1.2 IMPL closed 2026-05-13 (`b9572c26`), closure report at `references/phase12-impl-complete-2026-05-13.md`
 **Date**: 2026-05-11 (drafted post-Marshal extended-churn shift)
 **Deciders pending**: Stevie + unheaded-architect + unheaded-computermancer + unheaded-blackmage + unheaded-developer

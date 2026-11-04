@@ -20,6 +20,7 @@ From `pkg/ports/ports.go`:
 | Packages | 18888 | signed apt repo (reprepro) behind the `nginx` sysuser, `deploy/nginx/unheaded-apt.conf`: 127.0.0.1 and 192.168.13.2 only (S-IRON-GATE Phase 14; installs in E3) |
 | Applications | 20000-20099 | dashboard-backend 20000, kanban-app 20001, wiki-server 20002 |
 | AI | 20100-20106 | vLLM DeepSeek 20100, vLLM Qwen 20101, Qdrant 20102, BGE-M3 20104, Sophia-Eye 20105, AI web UI 20106 |
+| Zhen | 20110-20111 | vor 20110, zhen-agentd 20111 (20107 and 20108 are sophia-eye) |
 | Gateway | 21000-21443 | gateway HTTP 21000, HTTPS 21443 (in compose, Traefik's dashboard is on `127.0.0.1:21000`) |
 | Tools | 22000 | cert-gen |
 | User Apps | 26000-26666 | reserved; UPC tty bridge 26100, upc-cartridgectl metrics 26610 (ADR-108) |

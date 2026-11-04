@@ -322,7 +322,7 @@ marked-trace persistent sink: same as §3.4.
 
 **Enforcement.** Mark-and-persist policy: trace-collector emits to PG sink
 when `mark=security|audit|alert`; otherwise discard at eviction. **TO BE
-BUILT** — currently `cmd/trace-collector` writes to Wotan but does not
+BUILT** — currently `cmd/trace-collector-go` writes to Wotan but does not
 durably persist marked subsets.
 
 **Strict-mode override.** EU-mode adopter must filter packet metadata for

@@ -68,6 +68,10 @@ import (
 // Only direct callers (the web UI, emitted_by "direct" or a UI name) get
 // a pending_token for /api/v1/agent/confirm.
 //
+// A champion.QueueOnlyTools call (teach_write) goes to the queue whoever
+// asked, zhen-cli's direct-user included, with no token ever; without the
+// queue it is denied. zhen-agentd never runs one: it has no taught dir.
+//
 // Note: this endpoint does NOT auto-redeem its own pending tokens.
 // If Champion's gate refuses with rule-2, the response carries the
 // pending_token and the web UI should surface the consent UX before
@@ -87,6 +91,7 @@ type toolExecResponse struct {
 	Reason       string `json:"reason,omitempty"`
 	PendingToken string `json:"pending_token,omitempty"`
 	QueueID      string `json:"queue_id,omitempty"`
+	ProjectRoot  string `json:"project_root,omitempty"` // on queued: the root `confirm approve` must allow
 	SessionID    string `json:"session_id,omitempty"`
 }
 
@@ -219,7 +224,7 @@ func (s *server) dispatchAndRespond(w http.ResponseWriter, r *http.Request, cham
 	// Classify the error: gate refusal vs underlying tool failure.
 	var ge *champion.GateError
 	if errors.As(dispatchErr, &ge) {
-		if ge.PendingConfirmation() && isAgentLoop(emittedBy) {
+		if ge.PendingConfirmation() && (isAgentLoop(emittedBy) || champion.QueueOnlyTools[tc.Name]) {
 			s.queueAgentCall(w, r, champ, tc, session, ge)
 			return
 		}
@@ -281,7 +286,7 @@ func (s *server) queueAgentCall(w http.ResponseWriter, r *http.Request, champ *c
 		writeJSON(w, http.StatusForbidden, toolExecResponse{Status: "denied", Reason: out.Text, SessionID: session})
 		return
 	}
-	writeJSON(w, http.StatusAccepted, toolExecResponse{Status: "queued", QueueID: out.QueueID, Reason: out.Text, SessionID: session})
+	writeJSON(w, http.StatusAccepted, toolExecResponse{Status: "queued", QueueID: out.QueueID, ProjectRoot: champ.GetProjectRoot(), Reason: out.Text, SessionID: session})
 }
 
 // enqueue puts a model's refused-pending call in the Well's queue

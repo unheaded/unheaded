@@ -46,10 +46,10 @@ def sent(monkeypatch):
 
 
 def test_add_is_a_gated_post_with_a_direct_user_justification(sent):
-    code, body = sc.call('http://127.0.0.1:20105', {'X-API-Key': 'k'}, 'add', {'name': 'service-health-sweep', 'every': '6h'})
+    code, body = sc.call('http://127.0.0.1:20111', {'X-API-Key': 'k'}, 'add', {'name': 'service-health-sweep', 'every': '6h'})
     assert code == 200 and body['result']['runbook'] == 'observe/service-health-sweep'
     req = sent[0]
-    assert req.full_url == 'http://127.0.0.1:20105/api/v1/scheduler/add'
+    assert req.full_url == 'http://127.0.0.1:20111/api/v1/scheduler/add'
     assert req.get_method() == 'POST'
     assert req.headers.get('X-api-key') == 'k'
     payload = json.loads(req.data)
@@ -59,20 +59,20 @@ def test_add_is_a_gated_post_with_a_direct_user_justification(sent):
 
 
 def test_list_is_a_get_without_a_body(sent):
-    sc.call('http://127.0.0.1:20105', {}, 'list')
+    sc.call('http://127.0.0.1:20111', {}, 'list')
     assert sent[0].get_method() == 'GET' and sent[0].data is None
     assert sent[0].full_url.endswith('/api/v1/scheduler/list')
 
 
 def test_emergency_stop_pauses(sent):
-    sc.call('http://127.0.0.1:20105', {}, 'pause', {'paused': True})
+    sc.call('http://127.0.0.1:20111', {}, 'pause', {'paused': True})
     assert json.loads(sent[0].data)['paused'] is True
     assert sent[0].full_url.endswith('/api/v1/scheduler/pause')
 
 
 def test_unknown_op_is_refused():
     with pytest.raises(ValueError):
-        sc.call('http://127.0.0.1:20105', {}, 'exec', {})
+        sc.call('http://127.0.0.1:20111', {}, 'exec', {})
 
 
 def test_daemon_refusal_and_absence(monkeypatch):
@@ -80,14 +80,14 @@ def test_daemon_refusal_and_absence(monkeypatch):
         raise urllib.error.HTTPError(req.full_url, 500, 'x', {}, io.BytesIO(b'{"status":"error","reason":"runbook x: status \\"draft\\""}'))
 
     monkeypatch.setattr(sc.urllib.request, 'urlopen', refused)
-    code, body = sc.call('http://127.0.0.1:20105', {}, 'add', {'name': 'x', 'every': '1h'})
+    code, body = sc.call('http://127.0.0.1:20111', {}, 'add', {'name': 'x', 'every': '1h'})
     assert code == 500 and 'draft' in sc.reason(body)
 
     def down(req, timeout=None):
         raise urllib.error.URLError('connection refused')
 
     monkeypatch.setattr(sc.urllib.request, 'urlopen', down)
-    code, body = sc.call('http://127.0.0.1:20105', {}, 'list')
+    code, body = sc.call('http://127.0.0.1:20111', {}, 'list')
     assert code == 503 and 'unreachable' in sc.reason(body)
 
 

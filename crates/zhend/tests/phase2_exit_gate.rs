@@ -15,7 +15,7 @@
 //! quadratic). The property tested is tier-agnostic survival, not scale.
 //! The sustained ingest benchmark separately validates >10K frags/sec.
 //!
-//! GPL-3.0-only
+//! GPL-3.0-or-later
 
 use tempfile::TempDir;
 use zhend::pu::fragment::{Fragment, FragmentId};

@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
 import zhen_rag
 
-AGENTD = 'http://agentd.test:20105'
+AGENTD = 'http://agentd.test:20111'
 LLAMA = 'http://llama.test:8081'
 
 

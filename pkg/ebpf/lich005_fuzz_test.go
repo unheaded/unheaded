@@ -29,7 +29,7 @@ import (
 
 // realBPFObjects returns the compiled BPF programs, smallest first, or none.
 func realBPFObjects(t testing.TB, max int) [][]byte {
-	return namedBPFObjects(max, "xdp-redirect", "compliance-ebpf", "syscall-tracer", "packet-marker", "failover-ebpf")
+	return namedBPFObjects(max, "compliance-ebpf", "syscall-tracer", "packet-marker", "failover-ebpf")
 }
 
 // btfBPFObjects returns the compiled programs that carry a .BTF section: only

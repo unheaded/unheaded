@@ -106,3 +106,21 @@ func TestRustlsVersionAtLeast(t *testing.T) {
 		}
 	}
 }
+
+// zhend is single-node gRPC-only (DP-209): quic.rs compiles and never runs, so
+// the inventory must not read as a live listener.
+func TestApplyNotSpawned(t *testing.T) {
+	a := Asset{Path: "crates/zhend/src/api/quic.rs", Detail: "aws-lc-rs provider"}
+	applyNotSpawned(&a)
+	if a.LinkState != linkNotSpawned {
+		t.Errorf("quic.rs link state = %q, want %q", a.LinkState, linkNotSpawned)
+	}
+	if !strings.Contains(a.Detail, "never spawns") {
+		t.Errorf("detail = %q, want the reason", a.Detail)
+	}
+	b := Asset{Path: "crates/zhend/src/main.rs", Detail: "aws-lc-rs provider"}
+	applyNotSpawned(&b)
+	if b.LinkState != "" || b.Detail != "aws-lc-rs provider" {
+		t.Errorf("a live file changed: %+v", b)
+	}
+}

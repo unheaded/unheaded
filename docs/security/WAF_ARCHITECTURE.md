@@ -1,5 +1,7 @@
 # WAF Architecture: Two-Tier Go Reference + Rust Acceleration
 
+> **History (2026-11-04).** `pkg/waf` and the Rust `cmd/waf` described here were deleted by S-CLEAN-CUT (DP-401, round 4). A future WAF is parked as ADR-121.
+
 ## Overview
 
 THE SHIELD WAF uses a two-tier architecture strategy:

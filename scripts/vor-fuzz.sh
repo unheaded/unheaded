@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-VOR_URL="${VOR_URL:-http://127.0.0.1:9876}"
+VOR_URL="${VOR_URL:-http://127.0.0.1:20110}"
 OUT="${OUT:-/tmp/vor-fuzz-results.csv}"
 
 echo "input,http,body_first120" > "$OUT"

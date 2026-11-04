@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && useradd -u 10001 -g unheaded -s /sbin/nologin -r unheaded
 LABEL org.opencontainers.image.title="unheaded-daemon" \
       org.opencontainers.image.description="Unheaded system daemon with eBPF capabilities" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="GPL-3.0-or-later"
 COPY --from=builder /out/unheaded-daemon /usr/local/bin/unheaded-daemon
 USER 10001:10001
 ENTRYPOINT ["/usr/local/bin/unheaded-daemon"]

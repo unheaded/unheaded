@@ -130,9 +130,9 @@ findings:
       services): own pkg/uids number, read_only + measured tmpfs, cap_drop ALL, no-new-privileges, volume-init chown;
       promtail off the Docker socket everywhere (journal/var/log via the adm group); each stack that can run was run on
       west. Left: WireGuard needs root (EPERM otherwise, measured), so it stays listed with cap_drop ALL + NET_ADMIN and
-      the four s6 init caps, read-only; the opnsense/ipfire firewall VMs are gone (Stevie, 2026-11-03), frr/bird stay listed; host-a's
-      shield/unheaded-daemon wait on D11; the 13 imageless host-a services get uids only if D11 keeps the stack
-    decision: D11 (host-a network mode; keep or retire the per-host stacks); the firewall-VM question closed 2026-11-03 (removed)
+      the four s6 init caps, read-only; the opnsense/ipfire firewall VMs are gone (Stevie, 2026-11-03), frr/bird stay listed; the
+      per-host stacks were retired 2026-11-04 (DP-218, S-CLEAN-CUT), which closes D11 and leaves the two routing containers
+    decision: D11 closed 2026-11-04 (per-host stacks retired); the firewall-VM question closed 2026-11-03 (removed)
 
   - id: FND-010
     title: >-
@@ -489,6 +489,23 @@ findings:
       Swap the import path to the maintained continuation (go.yaml.in/yaml/v3, YAML organisation) in the next
       sprint: one mechanical change across ~40 callers, the module diff read with scripts/dep-diff.sh first.
       Found by cmd/depaudit (S-LOW-FRUIT Phase 10); rule: >36 months on an input boundary is a register row.
+
+  - id: FND-032
+    title: >-
+      No ChromaDB release is free of PYSEC-2026-311, -3813, -3814 and -3815 (last_affected 1.5.9); Grimoire pins
+      1.5.9, and check-python-audit does not audit its requirements.txt because other lines there are ranges
+    verify: every requirement in tomb/grimoire/rag/requirements.txt is an exact pin and scripts/check-python-audit.sh passes
+    severity: low
+    class: package
+    opened: 2026-11-04
+    exposure: >-
+      none on west or east: Grimoire runs only on a provisioned air-gapped Tomb VM, through the embedded
+      PersistentClient; all four advisories need a Chroma HTTP server or its RBAC provider
+    lockout: none
+    step: 3
+    plan: >-
+      Stevie's call (S-SUPPLY-FIRST For Stevie 1): pin the remaining ranges with four accepted lines, take a fixed
+      release when one ships, or replace ChromaDB in Grimoire.
 
   - id: FND-029
     title: >-

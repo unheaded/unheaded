@@ -17,7 +17,8 @@
 #   6. an approval after expires_at is refused;
 #   7. at most 20 pending rows per source_service.
 #   8. pkg/claudebridge's queue store (build tag wellint) against the same
-#      server as app_zhen (WELL_TEST_APP_DSN).
+#      server as app_zhen (WELL_TEST_APP_DSN), and a teach_write row from the
+#      queue through zhen-claude confirm approve to a file.
 #
 #   scripts/well/test-zhen-confirm.sh [--sql-only] [image]   # default postgres:16.15-alpine
 #
@@ -115,6 +116,7 @@ refused "owner TRUNCATE" own "TRUNCATE zhen_pending_confirmations"
 
 # 5. CHECKs.
 refused "tool runbook_execute" zh "$(row 0000000000000005 runbook_execute)"
+ok "tool teach_write (046)" zh "$(row 0000000000000009 teach_write)"
 refused "id not 16 hex" zh "$(row 'XYZ')"
 refused "relative project root" zh "$(row 0000000000000006 | sed "s|'/home/x/repo'|'repo'|")"
 
@@ -138,6 +140,11 @@ if ((GO)); then
 		pass "go test -tags wellint ./pkg/claudebridge -run WellConfirm"
 	else
 		fail "go queue-store test"; tail -25 "$TMP/go.out" | sed 's/^/    /'
+	fi
+	if (cd "$R" && go test -count=1 -tags wellint ./cmd/zhen-claude/ -run TestAdv_QueueRoundTrip -v >"$TMP/go2.out" 2>&1); then
+		pass "go test -tags wellint ./cmd/zhen-claude -run TestAdv_QueueRoundTrip"
+	else
+		fail "teach queue round trip"; tail -25 "$TMP/go2.out" | sed 's/^/    /'
 	fi
 	unset WELL_TEST_APP_DSN
 fi

@@ -72,10 +72,8 @@ F4 `pkg/config`, `pkg/testing`, `services/kenoma`.
   stacks:** [docs/sweeps/TRUE-WIRE-DECISIONS.md](sweeps/TRUE-WIRE-DECISIONS.md)
   (S-TRUE-WIRE E3, 2026-10-28, with a dry run of its defaults).
 - F3 `pkg/pqc_policy`: parked for S-QUANTUM-ARMOR (ADR-105).
-- F5 `internal/bpfmap`, `pkg/ebpf/maploader`: still parked. Phase 13 (Step 340)
-  wrote the `CHAOS_TARGETS` loader on cilium/ebpf (already a dependency): these
-  two wrap bpf(2) map ops on an fd and can neither load an object nor attach a
-  TCX link.
+- F5 `internal/bpfmap`, `pkg/ebpf/maploader`: deleted 2026-11-04 (DP-401.4).
+  `pkg/afxdp` and `cmd/ebpf-exporter` went the same day (DP-205, DP-401.5).
 - F6 `services/loadbalancer`: control plane for `ebpf/maglev-ebpf`; Phase 2
   Step 92 fixes its Wotan join name.
 - F7 `services/wotan/internal/compute`, `dashboard/js/doom-viewport.js`:
@@ -93,10 +91,7 @@ F4 `pkg/config`, `pkg/testing`, `services/kenoma`.
 - `pkg/trace`: the live-pipeline e2e cases use it as their trace-ID fixture
   (`String`, `FlowLabelHint`); only two cases exercise it alone. Deleting it
   means rewriting those cases.
-- `pkg/waf/*` (7, G10e): deleted, then restored under Step 62: `tests/s77`
-  (G6 KEEP) asserts `pkg/waf/rules/engine.go`, `clientip_test.go` and
-  `detection/bot_test.go` exist (`TestPhase1_BugFixes/Bug17_XFF_Spoofing`,
-  `TestS77_AllDeliverables`). Needs Stevie's word on amending that kept test.
+- `pkg/waf/*` (7, G10e): deleted 2026-11-04 with `tests/s77` amended (DP-401.1).
 
 New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 (S-QUANTUM-ARMOR test helper) and `pkg/deploy/cuirassdriver/cuirasstest`
@@ -106,7 +101,6 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 
 - `cmd/dashboard-backend/jstest` (G6)
 - `deploy/nftables` (G6)
-- `internal/bpfmap` (F5, parked; Phase 13 used cilium/ebpf)
 - `nix/tests` (G6)
 - `pkg/baremetal` (G7)
 - `pkg/baremetal/image` (G7)
@@ -114,7 +108,6 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 - `pkg/baremetal/ipmi` (G7)
 - `pkg/baremetal/pxe` (G7)
 - `pkg/deploy/cuirassdriver/cuirasstest` (test helper, by design)
-- `pkg/ebpf/maploader` (F5, parked; Phase 13 used cilium/ebpf)
 - `pkg/metrics/metricstest` (G6)
 - `pkg/monad` (G8)
 - `pkg/pqc_policy` (F3, S-QUANTUM-ARMOR)
@@ -133,18 +126,11 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 - `pkg/protocol/settings` (G8)
 - `pkg/protocol/sophiasync` (G8)
 - `pkg/protocol/tlv` (G8)
-- `pkg/secrets/encryption` (FLAGGED: imported by `pkg/secrets/store`)
-- `pkg/secrets/store` (FLAGGED: the live Manager tests are built on it)
+- `pkg/secrets/encryption` (kept, DP-709: imported by `pkg/secrets/store`)
+- `pkg/secrets/store` (kept, DP-709: the live Manager tests are built on it)
 - `pkg/tls/pqtest` (test helper, by design)
-- `pkg/trace` (FLAGGED: e2e trace-ID fixture)
+- `pkg/trace` (kept, DP-709: e2e trace-ID fixture)
 - `pkg/uids` (F8, keep)
-- `pkg/waf` (FLAGGED: `tests/s77` asserts its files)
-- `pkg/waf/detection` (FLAGGED, with `pkg/waf`)
-- `pkg/waf/inspection` (FLAGGED, with `pkg/waf`)
-- `pkg/waf/ip` (FLAGGED, with `pkg/waf`)
-- `pkg/waf/ratelimit` (FLAGGED, with `pkg/waf`)
-- `pkg/waf/response` (FLAGGED, with `pkg/waf`)
-- `pkg/waf/rules` (FLAGGED, with `pkg/waf`)
 - `pkg/wotan-client/mock` (G6)
 - `scripts/host` (G6)
 - `scripts/lib` (G6)

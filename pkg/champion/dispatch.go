@@ -174,6 +174,11 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 		}
 		return c.RememberMemory(ctx, m)
 
+	case teachTool:
+		// Unreachable: Rule 2 holds it whatever the justification. It runs
+		// only from a queue approval, through dispatchUnderlying.
+		return nil, fmt.Errorf("%w: %s", ErrQueueOnly, tc.Name)
+
 	default:
 		// Unknown / unimplemented tool: fail closed even though the gate
 		// didn't reject — the gate's IsMutating() defaults unknown to
@@ -192,6 +197,7 @@ var dispatchable = map[string]bool{
 	"kanban_create": true, "kanban_update": true, "kanban_list": true,
 	"runbook_list": true, "runbook_show": true, "runbook_execute": true,
 	"run_check": true, "model_switch": true, "memory_write": true, "schedule_update": true,
+	teachTool: true,
 }
 
 // GateError wraps a ToolCallDecision when AcceptToolCall returns a

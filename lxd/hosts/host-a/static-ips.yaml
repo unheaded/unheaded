@@ -128,10 +128,6 @@ containers:
     ipv6: "fd00:dead:beef:1::119"
     port: 50067
 
-  ebpf-exporter:
-    ipv4: "10.20.1.26"
-    ipv6: "fd00:dead:beef:1::11a"
-    port: 9435
 
   prometheus:
     ipv4: "10.20.1.50"

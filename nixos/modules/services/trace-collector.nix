@@ -34,7 +34,7 @@ in {
         Type = "simple";
         User = "unheaded";
         Group = "unheaded";
-        ExecStart = "/opt/unheaded/bin/trace-collector";
+        ExecStart = "/opt/unheaded/bin/trace-collector-go";
         Restart = "on-failure";
         RestartSec = "5s";
         

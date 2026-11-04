@@ -21,10 +21,8 @@ is_first_party_cargo() {
         cmd/ebpf-collector/Cargo.toml|cmd/ebpf-collector/*/Cargo.toml) return 0 ;;
         cmd/ebpf-loader/Cargo.toml) return 0 ;;
         cmd/ebpf-load-check/Cargo.toml) return 0 ;;  # verifier load gate (check-ebpf-loads.sh)
-        cmd/trace-collector/Cargo.toml) return 0 ;;
         # ASCEND-LINUX boot tooling per references/battle-plan-ascend-linux-2026-05-08.md
         cmd/upc-bootctl/Cargo.toml) return 0 ;;
-        cmd/waf/Cargo.toml) return 0 ;;
         # Lich campaign harnesses (tomb/lich/LICH-*/harnesses/*), e.g. LICH-015
         tomb/lich/LICH-*/harnesses/*/Cargo.toml) return 0 ;;
     esac

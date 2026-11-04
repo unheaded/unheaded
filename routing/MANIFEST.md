@@ -520,5 +520,5 @@ tar czf bird-backup-$(date +%Y%m%d).tar.gz /etc/bird/
 ---
 
 **Last Updated**: 2026-02-26  
-**License**: MIT  
+**License**: GPL-3.0-or-later  
 **Maintained by**: Unheaded Kingdom team

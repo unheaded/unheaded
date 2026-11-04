@@ -190,3 +190,11 @@ func TestFitMaxTokens(t *testing.T) {
 		t.Errorf("WorstCase = %d", w)
 	}
 }
+
+// The invariant above is stated for zhen-claude's defaults. If the default
+// moves, this fails and the headroom must be re-argued (DP-302).
+func TestFamilyCap_DefaultStaysPinned(t *testing.T) {
+	if DefaultMaxTokens != 16000 {
+		t.Fatalf("DefaultMaxTokens = %d: re-check TestFamilyCap_LeavesWorstCaseHeadroom", DefaultMaxTokens)
+	}
+}

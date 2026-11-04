@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -260,4 +261,21 @@ func TestConsoleRefusesForeignOrigin(t *testing.T) {
 		t.Fatalf("same Origin refused: %v", err)
 	}
 	_ = conn.Close()
+}
+
+// The bridge is push-ingest: upc-bootctl POSTs bytes. It used to report
+// "skeleton" and inject a fake line every five seconds (DP-307).
+func TestHealthReportsPushIngest(t *testing.T) {
+	rec := httptest.NewRecorder()
+	handleHealth(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+	var got map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("health body: %v", err)
+	}
+	if got["mode"] != "push-ingest" {
+		t.Errorf("mode = %v, want push-ingest", got["mode"])
+	}
+	if got["version"] != "0.1.0" {
+		t.Errorf("version = %v, want 0.1.0", got["version"])
+	}
 }

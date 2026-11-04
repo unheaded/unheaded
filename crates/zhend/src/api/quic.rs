@@ -27,7 +27,7 @@
 //! - 1 = Bad Request
 //! - 2 = Internal Error
 //!
-//! GPL-3.0-only
+//! GPL-3.0-or-later
 
 use std::sync::Arc;
 use std::time::Instant;

@@ -9,7 +9,7 @@ Zhen is Unheaded's AI-assisted development system. It combines retrieval-augment
 │              Zhen Pipeline              │
 ├─────────────┬───────────┬───────────────┤
 │  Question   │   vor     │  llama.cpp    │
-│  shaping    │  :9876    │  :8081        │
+│  shaping    │  :20110    │  :8081        │
 ├─────────────┼───────────┼───────────────┤
 │ pkg/vorquery│ ~2.3k md  │  model from   │
 │ zhen_rag.py │  topics   │  the selector │
@@ -18,7 +18,7 @@ Zhen is Unheaded's AI-assisted development system. It combines retrieval-augment
 
 ## RAG Pipeline
 
-Since WAVE15 (2026-05) retrieval is `vor` (`vor serve`, :9876), not the old FAISS index: Unheaded's markdown (docs, ADRs, wiki) plus vor's own cheatsheets, each labelled with a source trust.
+Since WAVE15 (2026-05) retrieval is `vor` (`vor serve`, :20110), not the old FAISS index: Unheaded's markdown (docs, ADRs, wiki) plus vor's own cheatsheets, each labelled with a source trust.
 
 - **Question shaping** (`raft/scripts/zhen_rag.py` for the web UI; `pkg/vorquery` for zhen-rag, zhen-agent, zhen-agentd, zhen-cli; a test keeps them identical): question words are dropped before the search, and topics whose *name* carries every query term (`Service-Wotan` for "what is wotan") are interleaved with vor's hits. Agent-worktree copies (`.claude/worktrees/`) are skipped.
 - **Fetch:** the top 5 unique topics, by exact name (`/api/topics/<name>`; vor 2044c0f fixed mixed-case names resolving to a different topic).
@@ -59,7 +59,7 @@ whether to trust project servers; after that the tools appear as
 
 Every tool runs through the Champion (`pkg/champion`): file and runbook tools
 through `Dispatch`, `corpus_search` (vor, `VOR_URL`, default
-`http://127.0.0.1:9876`), `service_health` and `local_llm` after
+`http://127.0.0.1:20110`), `service_health` and `local_llm` after
 `AcceptToolCall`. So the path allowlist (symlinks resolved, `.env`,
 `secrets`, `credentials`, keys denied) and the destructive-verb rule apply to
 every call, including a `local_llm` prompt. A flag is the operator's grant for
@@ -85,6 +85,20 @@ Claude Code performs against a fresh build; CI runs it. The Python server
 (`raft/zhen_mcp_server.py`) was retired 2026-10-27 (S-CHAMPION-HARDENING
 Phase 10).
 
+## Source shard
+
+`zhen-codeindex` keeps one flat index of committed source in `/var/zhen/code-index`: `index-a.json`, `index-b.json` and `CURRENT`, which names the live slot. Go is chunked with `go/parser` and has a call graph; Rust and Python have definitions only. Search is by word; there are no embeddings. Doom, Lich and Grimoire paths are not indexed. `make build-zhen-codeindex install-hooks` turns on refresh: `scripts/git-hooks/post-commit`, also linked as post-merge, runs it in the background when `develop` moves.
+
+zhen-agentd reads the shard with `-code-index` and queries vor and the shard together, each bounded by `-retrieve-deadline` (2 s). Each backend gets its share of `k`, the rest go by trust then score, and an untrusted reference past `k` stays in the justification chain with no text, so Rule 2 always sees it. MCP tools `code_definition` and `code_callers` read the same index. Calls are matched by name, with no type resolution.
+
+A hand-started vor needs its port: `cs serve 20110`. The unit gets its corpus from `scripts/vor-export-source.sh` (tracked files only, run as the repo's owner) and reads it once at startup, so a new export or new taught text needs a vor restart.
+
+`zhen-cli` shows `[memory hit: 0.06]` above an answer (`--no-memory-recall` hides it); the number is Postgres `ts_rank`, not a similarity. It saves the session to `zhen_conversations` on exit (`--no-persist`), redacted, once migration 045 is applied.
+
+`/teach <title> | <text>` queues a file for `/var/zhen/projects/zhen-taught` and prints a row id. Nothing is written until Stevie runs `zhen-claude confirm -allowed-roots <root> approve <id>` at a terminal: it shows the whole title and text, then asks for a one-time code. That command needs `ZHEN_TAUGHT_DIR`, is the only writer, and runs as him. zhen-agentd has no route to the directory, and no model-driven process can write `zhen-taught`, `code-index` or `vor-source`. A secret-shaped or invisible text is refused before it is queued, and taught text stays `external`. It needs migration 046 and a vor restart to be served.
+
+Rule 2 fails closed. A retrieval source that does not answer adds an `unavailable` reference, so while vor is down or restarting, reads and answers continue and every mutating agent call is held.
+
 ## Scheduler
 
 Zhen runs approved runbooks on a schedule from inside `zhen-agentd`
@@ -96,9 +110,9 @@ scheduler (`raft/zhen_scheduler.py`, ADR-028) was retired 2026-10-27
 **Unit.** `deploy/systemd/zhen-agentd.service` runs
 `-scheduler -schedules /etc/unheaded/zhen/schedules.yaml
 -schedules-state /var/lib/zhen-agentd/schedules-state.json`; `-metrics-addr`
-(env `ZHEN_METRICS_ADDR`, west: `[fd00:dead:beef::1]:20105`) serves `/metrics`
+(env `ZHEN_METRICS_ADDR`, west: `[fd00:dead:beef::1]:20111`) serves `/metrics`
 alone on the WireGuard address for Prometheus (job `zhen-agentd`); the API
-stays on `127.0.0.1:20105`.
+stays on `127.0.0.1:20111`.
 
 **Config.** `configs/zhen-schedules.yaml`, installed as
 `/etc/unheaded/zhen/schedules.yaml` (`root:zhen-agentd`, 0640; the daemon never
