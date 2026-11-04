@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-108: MBC cartridges — small signed network functions run per flow by a UPC interpreter
 
-**Status:** Proposed (RFC Editor items 1-5 ruled in S-TRUE-WIRE Steps 29-50, 2026-10-27; acceptance is Stevie's, E1).
+**Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed (RFC Editor items 1-5 ruled in S-TRUE-WIRE Steps 29-50, 2026-10-27; acceptance is Stevie's, E1).
 **Date:** 2026-10-23
 **Sprint:** S5 S-UPC-WIRE-COMPUTE, Part 2 (`docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md`, Phases 9–19).
 **Related:** ADR-080 (UPC programmatic API: cartridges are its third client, after Doom and xv6), ADR-067 (MBC ISA v2; no opcode is added here), ADR-043 (Gungnir ML-DSA-65 seals), ADR-105 (`pkg/wotansig` signing), ADR-062 (Lich process), ADR-004 (no new external deps).
@@ -383,3 +383,9 @@ their own stream (`CART_TRACE`), never inside the 32-octet event record;
 which wotan-memory now requests rather than leaves optional. No Monad byte and
 no MBC opcode changed. The code moved to `cartridge` (S-TRUE-WIRE Steps 33-35,
 `x-cartridge` read as an alias); what is left is acceptance (E1).
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Accepted (DP-603). Interpreter-cost gates #1(a)/#2 accepted as interpreter cost; the scorer is retrained on steel-echo flows; no DOT4 sprint (DP-504).

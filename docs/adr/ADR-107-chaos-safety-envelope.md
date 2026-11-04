@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-107: Chaos safety envelope (one engine, allowlist, abort, revert journal, SLO steady state)
 
-**Status:** Proposed (Stevie to accept). Chaos unit installed on west and east 2026-10-26 (`unheaded-chaos`, uid 16763); acceptance pending (decision 29).
+**Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed (Stevie to accept). Chaos unit installed on west and east 2026-10-26 (`unheaded-chaos`, uid 16763); acceptance pending (decision 29).
 **Date:** 2026-10-23
 **Sprint:** S-REAL-STEEL Phase 10 (`docs/battle-plans/S-REAL-STEEL-battle-plan.md`, decisions D-16..D-20).
 **Related:** ADR-090 (no fake success), ADR-100 (SLOs, burn tiers, missing counts as bad), ADR-098 (findings register), ADR-029 (Akira consensus), ADR-106 (number taken on `sprint/upc-wire-compute`).
@@ -109,3 +109,9 @@ are refused. (Corrected 2026-10-27; this said written-not-installed.)
 - `max_concurrent: 1`: experiments run one at a time, GameDay stages too.
 - The older src/dst fault rules name no allowlisted target and are refused;
   packet faults will target lab interfaces (Phase 13).
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Accepted as built (DP-603).

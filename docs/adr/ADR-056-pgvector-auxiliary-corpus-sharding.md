@@ -211,3 +211,9 @@ Activation steps (sketch — not battle-plan-grade):
 - `eval/coding-gate/baseline-direct-cmd-zhen-rag-2026-05-02.md` — current H0 bar; auxiliary shards must not regress this.
 - `raft/scripts/zhen_rag.py` (legacy) — the FAISS pipeline this ADR's pgvector pattern subsumes architecturally.
 - ADR-057 — first concrete instance (Unheaded source files).
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1 no cross-shard reranker until a measured quality gap (DP-313). Q2 refresh-on-commit for the source shard, snapshots for dumps. Q3 a 2 s per-backend deadline, configurable. Q4 the embedding service is a Go service calling llama-server's embeddings endpoint; the Python sidecar retires at parity (DP-216).

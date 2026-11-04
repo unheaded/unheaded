@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-097 — Compliance crosswalk: common controls, publisher denominators, evidence that can fail
 
-**Status:** Proposed
+**Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed
 **Date:** 2026-09-30
 **Related:** ADR-093 (a gate is not a gate until it has failed), ADR-062
 (LICH), ADR-083 (terminology: user-facing "NIST 800-207 Zero Trust"),

@@ -141,3 +141,9 @@ Optional dependencies:
 - Application threat model — particularly T6 ("UI bypasses Champion"): the CLI's mutation paths inherit T6b closure by routing through the same endpoint. `docs/security/application-threat-model.md`
 - Conversation persistence: `db/migrations/010_zhen_conversations.sql`
 - Stevie's directive: 2026-05-02, captured verbatim in the "Triggered by" header.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1 tab completion for slash commands, stdlib-only. Q2 one `[memory hit: 0.94]` line above the answer, `--no-memory-recall` to hide. Q3 persist sessions to `zhen_conversations` by default with `--no-persist` (DP-311).

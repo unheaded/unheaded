@@ -41,7 +41,7 @@ Every user-facing word in this install follows that rule. It does not say "prote
 
 **Who:** the mom-and-pop shop and the vibe coder (VISION.md):
 - one app, often AI-written;
-- one machine or one small VPS;
+- one machine or one small VPS (the floor; the platform itself runs on as many hosts as wanted, as few as one);
 - no security staff;
 - little patience for configuration.
 
@@ -188,3 +188,9 @@ Status stays Proposed and parked under ADR-112.
 ## Decision
 
 None yet. Parked under ADR-112.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1, Q3, Q4, Q5 stay deferred (DP-310). Wording (Stevie, 2026-11-04): Shop is the floor rung, not the shape of the platform; Unheaded runs on as many hosts as wanted and as few as one. Kubernetes is a lab component in its own repository, not a product target (DP-17).

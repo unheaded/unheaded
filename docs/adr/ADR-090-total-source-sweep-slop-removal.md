@@ -239,3 +239,9 @@ first three worth anything.
 3. **The 28 `#[ignore]`d `zhenai-forge` tests** — restore (needs the right Gemma-4 GGUF
    re-acquired) or delete? Currently they are neither running nor removed, which is the
    worst of both.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1 vendored code (`llama.cpp/`, `crates/xv6-mbc/upstream/`) stays skipped. Q2 `docs/` gets its own Librarian sweep after the freeze. Q3 the 28 ignored zhenai-forge tests are deleted (DP-402). Delete words confirmed: `pkg/waf`, `lxd/containers/*.yaml`, `docker/hosts/host-a` and `host-b`, `internal/bpfmap` + `pkg/ebpf/maploader`, `cmd/ebpf-exporter`, the Rust `cmd/trace-collector` (DP-401, DP-210).

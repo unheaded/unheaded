@@ -234,3 +234,9 @@ Every [ESCALATE] still open:
    unclassifiable task with a `family` hint takes that family's measured
    route. Folding them would couple the Lich's weight classes to the
    eval's per-family bars; revisit only if a third router appears.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1 migrations 030-043 apply inside the E1 window. Q2 the first unattended night is the first night after E1 is live with alerts: fake Claude leg first, live $3 the second night, zhen-owned cards with a zhen block only, `-audit-well` on. Q3 runbooks are approved case by case as each is first needed. Q4 the Claude-text flag stays off. Q5 the LoRA window is DP-608, still open. Q6 the ADR-019 Level 2 amendment is accepted; cap headroom stays one worst case. Accept the ADR at E1 (DP-301..303, DP-603, DP-605).

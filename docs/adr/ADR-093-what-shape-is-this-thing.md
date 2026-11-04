@@ -196,3 +196,9 @@ into "nobody knows what these are."
 The question was asked in four words and deserves a four-word answer, so:
 **a protocol with faucets.** Everything above is the evidence for that
 sentence and the consequences of taking it seriously.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1 compute (the UPC) is the research track that feeds the platform, not a first-class faucet; CLAUDE.md says so. Three uses noted for later: a swarm of honeypots, a monitoring aid, and UPC/UHL as the engine for state enforcement, IaC and compliance (DP-506).

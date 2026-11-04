@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-099: Remediation as code, with control profiles that switch fixes on and off
 
-**Status:** Proposed
+**Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed
 **Date:** 2026-10-01
 **Amended 2026-10-01 (same day):** state lives in **The Well**, YAML is the seed and fallback. Stevie: *"They should exist in the well"*; *"yaml is ok as fallback but db config is ideal long term"*. Profiles, host bindings, the apply journal, findings triage and evidence are Well tables; fix definitions, the catalog and frameworks stay repo-authored (they run as root or are pinned by tests) and are mirrored into The Well by sha256; hosts act only on a Gungnir-sealed snapshot, never a live row; The Well stays on loopback and the collector pulls host journals over SSH. The decision table and the execution order are in `docs/battle-plans/COMPLIANCE-WELL-BATTLE-PLAN.md`. Where this ADR says "`compliance/profiles/<name>.yaml`" or "`compliance/hosts/<host>.yaml`", read: the Well table, seeded from and falling back to that file.
 **Related:** ADR-100 (SRE alongside compliance), ADR-097 (crosswalk: controls and evidence), ADR-098 (findings register; audit and enforcing modes), `pkg/iac` (one desired-state model, interchangeable IaC renderers).
@@ -202,3 +202,9 @@ packet-chaos`: each fault's revert recipe before it lands, then a `reverted` row
   a 7-day soak it measures itself, behind a flapping breaker (no third apply of one fix inside 24 h) and the packages'
   `preinst` gate. Every mode file stays `audit`; the flip, its root drop-in and Q5 are Stevie's (E-E).
   `docs/compliance/enforcing-soak.md`; red team LICH-017.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Accepted as built. Enforcing refuses installs only (DP-10); the first host flips after the 7-day soak and the four ADR-098 conditions; the lab fixes get their journal (DP-25.1).

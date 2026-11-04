@@ -272,3 +272,9 @@ conventional values and may need tuning once real entries have been reviewed.
 The Rust complexity measurement is outstanding. Whether `crates/zhend`'s 340
 crates can be vetted per crate, or need a per-workspace decision instead,
 is left to its register entry.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1 Dependabot for the `github-actions` ecosystem with a 14-day cooldown. Q2 golangci-lint thresholds stay; `crates/zhend` is vetted per workspace. Q3 ADR-004's commercial wording is amended to the community-first doctrine (DP-405).

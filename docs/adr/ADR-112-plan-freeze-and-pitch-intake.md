@@ -48,3 +48,9 @@ Every new plan adds escalations for Stevie, and his attention is the bottleneck.
 - Execution time goes to making existing work run, get reviewed and get promoted.
 - The ADR index grows by `Proposed` entries. That is cheap, and it is searchable, which `next.md` is not.
 - Risk: a long freeze turns pitches stale. Each parked ADR records the commit it was grounded on, so it can be re-checked when it is picked up.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Stevie, 2026-11-04: once the decision pack is answered, the work rolls into a series of warmonger battle plans. That instruction lifts this freeze for exactly the plans that roll from `docs/battle-plans/DECISION-PACK-2026-11-03.md`; pitch intake as parked ADRs continues.

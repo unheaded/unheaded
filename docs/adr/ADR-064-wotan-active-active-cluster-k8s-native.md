@@ -1,6 +1,6 @@
 # ADR-064 — Wotan Active/Active Cluster (3-node minimum, K8s-native, broadcast replication)
 
-**Status:** Proposed (architecture spec; phased implementation begins on Stevie's go-ahead)
+**Status:** Superseded by ADR-035 (Stevie, 2026-11-03, decision pack DP-214): active/passive with Akira failover is the two-host design; a third node reopens this. Previously: Proposed (architecture spec; phased implementation begins on Stevie's go-ahead)
 **Date:** 2026-05-05
 **Deciders:** Stevie Bellis + unheaded-architect (system shape) + unheaded-developer (impl) + unheaded-blackmage (split-brain / Byzantine threat model) + unheaded-marshal (phase-gate enforcement)
 **Supersedes:** ADR-035 — Wotan Active-Passive Redundancy (Accepted, Phases 0-2 complete; superseded but the WAL-replication code from Phase 1 stays as-is, repurposed)
@@ -349,3 +349,9 @@ The active-passive design (ADR-035) was the right call when there were exactly t
 - `pkg/storage/wal/` — WAL primitive; unchanged
 - `helm/unheaded/templates/wotan.yaml` — migrates Deployment → StatefulSet in Phase 3
 - Stevie's directive (verbatim, 2026-05-05): *"active/active with anycast/broadcast - events, alerting, upc, service to service communication, etc all work via wotan - it must always be up and redundant ( min 3 node cluser - hop on k8 bandwagon )"*
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Superseded by ADR-035: active/passive Wotan with Akira failover is the two-host design; a third node reopens active/active. No raft module enters the tree (DP-214).

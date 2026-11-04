@@ -204,3 +204,9 @@ Activation steps (sketch — not battle-plan-grade; full plan in a future `docs/
 - `pkg/champion/toolcall.go` — the gate that auxiliary chunks must continue to satisfy via correct `source_trust` labels.
 - Tree-sitter — https://tree-sitter.github.io/ (note: external doc, not a runtime dependency on internet — the grammars vendor as static libraries).
 - `BAAI/bge-code-v1` — proposed embedding model. Card: https://huggingface.co/BAAI/bge-code-v1.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1 call-graph queries are separate tools (`code_callers`, `code_definition`); cosine retrieval stays simple. Q3 stay flat until the corpus demands sharding. Q4 exclude all Doom code from the index now; Doom moves to its own repository (DP-305, DP-314).

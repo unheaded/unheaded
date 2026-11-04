@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-105: Hybrid ML-KEM key exchange on every link we own, a crypto inventory, and signed evidence
 
-**Status:** Proposed (Stevie to accept).
+**Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed (Stevie to accept).
 **Date:** 2026-10-23
 **Sprint:** S-QUANTUM-ARMOR (`docs/battle-plans/S-QUANTUM-ARMOR-battle-plan.md`).
 **Related:** ADR-004 (no new external deps), ADR-034 (gRPC mTLS default), ADR-043 (Mímir's Law hard conditions), ADR-097 (compliance crosswalk; evidence must be able to fail; honesty rules), ADR-098 (findings register; shrink-only baselines), ADR-099 (hosts act only on Gungnir-sealed snapshots), ADR-102 (exact image tags; Well upgrades after a restore drill), ADR-103 (service auth).
@@ -378,3 +378,9 @@ The sprint prepares these and stops; each needs Stevie (plan Appendix B.2):
 
 Also for Stevie, not blocking: accept this ADR, and sign off the `aws-lc-rs` /
 `aws-lc-sys` admission recorded in ADR-004 (owner sign-off pending).
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Accepted. The bar (Stevie, 2026-11-03): at or above iMessage PQ3, Signal PQXDH/SPQR and the Microsoft/HKMA roadmaps: hybrid post-quantum key establishment everywhere, post-quantum signatures, a phased roadmap. E1 PG 18 in a separate window after E1 is stable a week. E2 west hybrid-only, attended, after a verified client test; the .135/.137 clients named first. E3 the weekly PSK timer enabled with a command-scoped root-on-west key on east. E4 custody: Stevie's two existing YubiKeys unlock the build-key seed at ceremonies (seed encrypted at rest, decrypted only with a token present); daemon keys (Heimdall drift, Wotan topic signing, apt repo) live on the hosts under dedicated accounts, rotated quarterly, public halves published. E5 Heimdall keys under that rule. `aws-lc-rs`/`aws-lc-sys` admitted (sitting records it). Registry: SLH-DSA implemented via circl, FN-DSA dropped (floating point, never in BPF), HQC stays reserved (DP-03..06, DP-411).

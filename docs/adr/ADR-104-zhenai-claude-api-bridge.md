@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-104: ZhenAI → Claude API bridge
 
-**Status:** Proposed (built on `develop`; run against the live API since 2026-10-23, S-TWO-BRAINS Step 27)
+**Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed (built on `develop`; run against the live API since 2026-10-23, S-TWO-BRAINS Step 27)
 **Date:** 2026-10-23
 **Supersedes:** ADR-017's "Claude API SCRAPPED (2026-04-03)". Stevie, 2026-10-23: "let's have agents work on mcp to Claude api".
 **Related:** ADR-017 (hybrid inference), ADR-019 / ADR-037 (Champion), ADR-031 (hybrid model handoff), ADR-053 (HEAVY → Claude, MINOR → local), ADR-106 (two brains, one gate), ADR-096 (dependency gate), ADR-004 (exceptions register), `eval/coding-gate/probe-2026-05-02/B2-design-champion-tool-call-gate.md` (the B2 gate), `pkg/zhentools`, `pkg/mcpclient`.
@@ -338,3 +338,9 @@ through the bridge leave the Kingdom.
 7. **`-check` conventions**: whether to ship a few standard checks (Go
    snippet compiles, JSON parses, answer cites a file that exists), or
    leave it to the operator.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1 the SDK is admitted with an exit note (replace with a stdlib client in a later sprint); recorded at the third-party sitting. Q2 defaults stay (`-daily-cap-usd 5`, `max_tokens 16000`). Q3 task budget off until measured. Q4 `-route auto` refuses to escalate any prompt the capture-redaction patterns would have matched. Q5 three standard `-check` commands ship (DP-312).

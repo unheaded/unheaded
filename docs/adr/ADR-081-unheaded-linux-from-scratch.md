@@ -191,3 +191,9 @@ chain-of-custody for compliance), a different, owned upstream.
   Full record in `docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md` §[DECIDED 2026-07-17]. No code this
   cycle — next handoff points directly at EVOLUTION-1 Stage 1 (S1.0 sscratch fix → S1.1 guarded
   injection → S1.2 getpid probe).
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Q1 C through the proven RV32I to MBC pipeline; Rust only for isolated safety-critical pieces later. Q2 moot: the kernel is 100 % Unheaded-authored since Phase 2.4. Q3 a minimal own ABI first, a Linux-ABI subset only where a program needs it; EVOLUTION-1 D1 is re-read as (a), the Stage 2 rungs land in-kernel (DP-215, DP-501). The bootstub is done for xv6-class kernels; no Linux image is ever staged (DP-212).

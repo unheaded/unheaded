@@ -46,3 +46,9 @@ Recommendation: **B**, with HAProxy fronting 53/tcp and 853 if those are wanted,
 ## Decision
 
 None yet. Parked under ADR-112.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Idea only (Stevie: "maybe not", "just adr as idea"). Q1-Q6 are DP-208, still open.

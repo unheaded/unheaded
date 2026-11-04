@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed — fully implemented 2026-09-25 (Tier 1 and Tier 2 done; client_golang removed from go.mod). Acceptance is the owner's call.
+**Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed — fully implemented 2026-09-25 (Tier 1 and Tier 2 done; client_golang removed from go.mod). Acceptance is the owner's call.
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.

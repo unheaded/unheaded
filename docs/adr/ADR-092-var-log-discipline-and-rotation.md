@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-092 — Every service logs to `/var/log/unheaded/<service>/`, with its own rotation budget
 
-**Status:** Proposed
+**Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed
 **Date:** 2026-09-22
 **Supersedes:** nothing.
 **Related:** ADR-084 (Huginn host metrics), ADR-086 (Muninn observability fan-out),

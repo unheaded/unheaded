@@ -64,3 +64,9 @@ Studio (ADR-115) is then "Shop + VictoriaMetrics + Grafana + ClickHouse", three 
 ## Decision
 
 None yet. Parked under ADR-112.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- E1 brings both compose stacks up exactly as pinned; this convergence is its own sprint later (DP-19). Q1-Q5 are DP-207, still open.

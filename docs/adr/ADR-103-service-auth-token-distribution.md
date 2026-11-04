@@ -258,3 +258,9 @@ post-quantum signatures on internal requests, or when no hop on the path
 by `alg` (`ML-DSA-65`), with trust.d `.pub` files carrying the key type,
 and the verifier still accepting exactly one `alg` per key so the
 algorithm-confusion refusal holds.
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Accept at E1, after the AUTH_ENABLED rollout proves the issuer and the BFFs live (DP-603). The mTLS authenticator's fate is DP-410, still open.

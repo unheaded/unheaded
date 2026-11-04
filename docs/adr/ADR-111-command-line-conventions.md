@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-111: Command-line conventions — every binary answers `--help`, `--version` and a mistake the same way
 
-**Status:** Proposed (Stevie to accept).
+**Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed (Stevie to accept).
 **Date:** 2026-10-28
 **Related:** ADR-083 (terminology register), ADR-090 (no fake success), ADR-093 (what shape is this thing), the Gauntlets Law (every CLI command has an API).
 
@@ -88,3 +88,9 @@ never the usage dump (`chown -?` is the reference transcript).
 go build ./... && go vet ./... && go test -race ./pkg/cmdline/ ./cmd/...
 for b in bin/*; do "$b" --help >/dev/null; "$b" --version; "$b" --no-such-flag; done
 ```
+
+## Decisions 2026-11-03 (decision pack, round 2)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
+
+- Accepted. The six Rust binaries adopt `clap` (already in the tree) for `--help`, `--version` and error manners (DP-406).
