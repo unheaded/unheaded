@@ -111,7 +111,7 @@ services:
     restart: unless-stopped
 
   promtail:
-    image: grafana/promtail:2.9.0
+    image: grafana/promtail:2.9.17
     container_name: unheaded-promtail
     user: "16704:16704"
     read_only: true
