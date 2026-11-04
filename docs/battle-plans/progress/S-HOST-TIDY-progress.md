@@ -82,3 +82,4 @@
 - Steps 92-96: Step 92 matched Expect. East timer armed 17:11:12 UTC, stopped 17:11:21 UTC; west armed 17:11:21 UTC, stopped 17:11:23 UTC; neither fired, the undo service never started on either host. Step 93 and Step 95 lines 6 and 7 as Expect, `sugroup` empty (gid 965 east, 963 west). Step 94 `SUDO_OK`, `root`, `nobody`, `FRESH_LOGIN_SUDO_OK`. Step 96 `SUDO_OK`, `root`, `nobody`, `inactive`. `/etc/pam.d/su` differs from the backup by the one added line on both hosts, mode still `644 root:root`.
 - Steps 91-97: Phase 11, checked: west sudo, su to root and nobody after pam_wheel; undo timer stopped before this commit.
 - Steps 98-98: sugroup empty on both, pam_wheel after pam_rootok; sudo, sudo su and fresh login proven.
+- Step 99 exit gate: PASSED, `1`, `1`. DP-25 row 25.9 done on west and east. Hold session left up, no undo timer armed. The `su-restricted` probe in Phase 15 is what proves the rule itself. DP-711 stays open (Phase 5).
