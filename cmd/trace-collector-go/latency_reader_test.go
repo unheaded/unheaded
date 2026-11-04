@@ -6,28 +6,15 @@ package main
 import (
 	"context"
 	"encoding/binary"
-	"net"
+	"strings"
 	"testing"
 	"time"
 )
 
 // ── Helper: create a latency key with known values ──────────────────────────
 
-func makeLatencyKey(srcIP, dstIP net.IP, srcPort, dstPort uint16, proto uint8) *LatencyKey {
-	lk := &LatencyKey{
-		SrcPort:  srcPort,
-		DstPort:  dstPort,
-		Protocol: proto,
-	}
-	src16 := srcIP.To16()
-	dst16 := dstIP.To16()
-	if src16 != nil {
-		copy(lk.SrcIP[:], src16)
-	}
-	if dst16 != nil {
-		copy(lk.DstIP[:], dst16)
-	}
-	return lk
+func makeLatencyKey(pid, tid uint32) *LatencyTraceKey {
+	return &LatencyTraceKey{PID: pid, TID: tid}
 }
 
 // ── Helper: create a latency entry with known values ────────────────────────
@@ -42,88 +29,33 @@ func makeLatencyEntry(rttNS, minRTT, maxRTT, samples, lastUpdate uint64) *Latenc
 	}
 }
 
-// ── LatencyKey encode/decode roundtrip ──────────────────────────────────────
+// ── LatencyTraceKey encode/decode roundtrip ─────────────────────────────────
 
-func TestLatencyKey_EncodeDecodeRoundtrip(t *testing.T) {
-	original := makeLatencyKey(
-		net.ParseIP("10.10.10.1"),
-		net.ParseIP("10.10.10.2"),
-		8080, 443, 6,
-	)
+func TestLatencyTraceKey_EncodeDecodeRoundtrip(t *testing.T) {
+	original := &LatencyTraceKey{PID: 4194303, TID: 4194301}
+	original.TraceID[0], original.TraceID[15] = 0xAB, 0xCD
 
 	encoded := original.Encode()
-	decoded, err := DecodeLatencyKey(encoded[:])
+	decoded, err := DecodeLatencyTraceKey(encoded[:])
 	if err != nil {
-		t.Fatalf("DecodeLatencyKey: %v", err)
+		t.Fatalf("DecodeLatencyTraceKey: %v", err)
 	}
-
-	if decoded.SrcIP != original.SrcIP {
-		t.Error("SrcIP mismatch")
-	}
-	if decoded.DstIP != original.DstIP {
-		t.Error("DstIP mismatch")
-	}
-	if decoded.SrcPort != original.SrcPort {
-		t.Errorf("SrcPort = %d, want %d", decoded.SrcPort, original.SrcPort)
-	}
-	if decoded.DstPort != original.DstPort {
-		t.Errorf("DstPort = %d, want %d", decoded.DstPort, original.DstPort)
-	}
-	if decoded.Protocol != original.Protocol {
-		t.Errorf("Protocol = %d, want %d", decoded.Protocol, original.Protocol)
+	if *decoded != *original {
+		t.Errorf("decoded = %+v, want %+v", decoded, original)
 	}
 }
 
-func TestDecodeLatencyKey_TooShort(t *testing.T) {
-	_, err := DecodeLatencyKey(make([]byte, 10))
-	if err == nil {
-		t.Error("expected error for short input")
-	}
-}
-
-func TestLatencyKey_SrcIPAddr(t *testing.T) {
-	lk := makeLatencyKey(
-		net.ParseIP("192.168.1.1"),
-		net.ParseIP("192.168.1.2"),
-		1234, 5678, 6,
-	)
-	srcIP := lk.SrcIPAddr()
-	if srcIP == nil {
-		t.Fatal("SrcIPAddr returned nil")
-	}
-	// IPv4-mapped IPv6
-	expected := net.ParseIP("192.168.1.1").To16()
-	if !srcIP.Equal(expected) {
-		t.Errorf("SrcIPAddr = %s, want %s", srcIP, expected)
-	}
-}
-
-func TestLatencyKey_ProtocolName(t *testing.T) {
-	tests := []struct {
-		proto uint8
-		want  string
-	}{
-		{6, "TCP"},
-		{17, "UDP"},
-		{99, "proto(99)"},
-	}
-	for _, tt := range tests {
-		lk := &LatencyKey{Protocol: tt.proto}
-		if got := lk.ProtocolName(); got != tt.want {
-			t.Errorf("ProtocolName(%d) = %q, want %q", tt.proto, got, tt.want)
+func TestDecodeLatencyTraceKey_WrongSizeRefused(t *testing.T) {
+	for _, n := range []int{0, 10, 23, 25, 40} {
+		if _, err := DecodeLatencyTraceKey(make([]byte, n)); err == nil {
+			t.Errorf("DecodeLatencyTraceKey accepted %d bytes", n)
 		}
 	}
 }
 
-func TestLatencyKey_String(t *testing.T) {
-	lk := makeLatencyKey(
-		net.ParseIP("10.0.0.1"),
-		net.ParseIP("10.0.0.2"),
-		8080, 443, 6,
-	)
-	s := lk.String()
-	if s == "" {
-		t.Error("String() returned empty")
+func TestLatencyTraceKey_String(t *testing.T) {
+	if s := makeLatencyKey(7, 8).String(); !strings.Contains(s, "pid=7 tid=8") {
+		t.Errorf("String() = %q", s)
 	}
 }
 
@@ -243,11 +175,7 @@ func TestLatencyReader_PollOnce(t *testing.T) {
 	loader := NewMockBPFLoader()
 
 	// Insert a latency entry into the flow map (used as LATENCY_MAP proxy)
-	lk := makeLatencyKey(
-		net.ParseIP("10.10.10.1"),
-		net.ParseIP("10.10.10.2"),
-		8080, 443, 6,
-	)
+	lk := makeLatencyKey(uint32(8080), uint32(443))
 	le := makeLatencyEntry(5_000_000, 1_000_000, 10_000_000, 5, 999999)
 	keyBytes := lk.Encode()
 	entryBytes := le.Encode()
@@ -292,11 +220,7 @@ func TestLatencyReader_MultipleEntries(t *testing.T) {
 	loader := NewMockBPFLoader()
 
 	for i := 0; i < 5; i++ {
-		lk := makeLatencyKey(
-			net.ParseIP("10.10.10.1"),
-			net.ParseIP("10.10.10.2"),
-			uint16(8080+i), 443, 6,
-		)
+		lk := makeLatencyKey(uint32(uint16(8080+i)), uint32(443))
 		le := makeLatencyEntry(uint64((i+1)*1_000_000), 500_000, uint64((i+1)*2_000_000), uint64(i+1), 999)
 		keyBytes := lk.Encode()
 		entryBytes := le.Encode()
@@ -337,11 +261,7 @@ func TestLatencyReader_BadEntry(t *testing.T) {
 	loader := NewMockBPFLoader()
 
 	// Insert a valid key with too-short entry
-	lk := makeLatencyKey(
-		net.ParseIP("10.10.10.1"),
-		net.ParseIP("10.10.10.2"),
-		8080, 443, 6,
-	)
+	lk := makeLatencyKey(uint32(8080), uint32(443))
 	keyBytes := lk.Encode()
 	loader.latencyMap.Insert(keyBytes[:], []byte("short"))
 
@@ -359,11 +279,7 @@ func TestLatencyReader_BadEntry(t *testing.T) {
 func TestLatencyReader_SampleChannel(t *testing.T) {
 	loader := NewMockBPFLoader()
 
-	lk := makeLatencyKey(
-		net.ParseIP("192.168.1.1"),
-		net.ParseIP("192.168.1.2"),
-		12345, 80, 6,
-	)
+	lk := makeLatencyKey(uint32(12345), uint32(80))
 	le := makeLatencyEntry(3_000_000, 1_000_000, 5_000_000, 3, 888)
 	keyBytes := lk.Encode()
 	entryBytes := le.Encode()
@@ -376,11 +292,11 @@ func TestLatencyReader_SampleChannel(t *testing.T) {
 
 	select {
 	case sample := <-reader.Samples():
-		if sample.Key.SrcPort != 12345 {
-			t.Errorf("sample Key.SrcPort = %d, want 12345", sample.Key.SrcPort)
+		if sample.Key.PID != 12345 {
+			t.Errorf("sample Key.PID = %d, want 12345", sample.Key.PID)
 		}
-		if sample.Key.DstPort != 80 {
-			t.Errorf("sample Key.DstPort = %d, want 80", sample.Key.DstPort)
+		if sample.Key.TID != 80 {
+			t.Errorf("sample Key.TID = %d, want 80", sample.Key.TID)
 		}
 		if sample.Entry.RTTNS != 3_000_000 {
 			t.Errorf("sample Entry.RTTNS = %d, want 3000000", sample.Entry.RTTNS)
@@ -396,11 +312,7 @@ func TestLatencyReader_SampleChannel(t *testing.T) {
 func TestLatencyReader_DeleteAfterRead(t *testing.T) {
 	loader := NewMockBPFLoader()
 
-	lk := makeLatencyKey(
-		net.ParseIP("10.0.0.1"),
-		net.ParseIP("10.0.0.2"),
-		80, 80, 6,
-	)
+	lk := makeLatencyKey(uint32(80), uint32(80))
 	le := makeLatencyEntry(1_000_000, 1_000_000, 1_000_000, 1, 999)
 	keyBytes := lk.Encode()
 	entryBytes := le.Encode()
@@ -422,11 +334,7 @@ func TestLatencyReader_DeleteAfterRead(t *testing.T) {
 func TestLatencyReader_NoDeleteWhenDisabled(t *testing.T) {
 	loader := NewMockBPFLoader()
 
-	lk := makeLatencyKey(
-		net.ParseIP("10.0.0.1"),
-		net.ParseIP("10.0.0.2"),
-		80, 80, 6,
-	)
+	lk := makeLatencyKey(uint32(80), uint32(80))
 	le := makeLatencyEntry(1_000_000, 1_000_000, 1_000_000, 1, 999)
 	keyBytes := lk.Encode()
 	entryBytes := le.Encode()
@@ -452,11 +360,7 @@ func TestLatencyReader_PrometheusHistogramUpdated(t *testing.T) {
 
 	// Insert entries with known RTTs
 	for i := 0; i < 10; i++ {
-		lk := makeLatencyKey(
-			net.ParseIP("10.10.10.1"),
-			net.ParseIP("10.10.10.2"),
-			uint16(1000+i), 443, 6,
-		)
+		lk := makeLatencyKey(uint32(uint16(1000+i)), uint32(443))
 		rttNS := uint64((i + 1) * 1_000_000) // 1ms, 2ms, ..., 10ms
 		le := makeLatencyEntry(rttNS, rttNS, rttNS, 1, uint64(i))
 		keyBytes := lk.Encode()
@@ -512,43 +416,20 @@ func TestDecodeLatencyEntry_RawBytes(t *testing.T) {
 	}
 }
 
-// ── DecodeLatencyKey raw decode from BPF bytes ──────────────────────────────
+// ── DecodeLatencyTraceKey raw decode from BPF bytes ─────────────────────────
 
-func TestDecodeLatencyKey_RawBytes(t *testing.T) {
-	var b [LatencyKeySize]byte
-	// Set IPv4-mapped-IPv6 for 10.0.0.1
-	b[10] = 0xff
-	b[11] = 0xff
-	b[12] = 10
-	b[13] = 0
-	b[14] = 0
-	b[15] = 1
-	// Set IPv4-mapped-IPv6 for 10.0.0.2
-	b[26] = 0xff
-	b[27] = 0xff
-	b[28] = 10
-	b[29] = 0
-	b[30] = 0
-	b[31] = 2
-	// Ports (little-endian)
-	binary.LittleEndian.PutUint16(b[32:34], 8080)
-	binary.LittleEndian.PutUint16(b[34:36], 443)
-	// Protocol
-	b[36] = 6
+func TestDecodeLatencyTraceKey_RawBytes(t *testing.T) {
+	var b [LatencyTraceKeySize]byte
+	b[0], b[15] = 0xAB, 0xCD
+	binary.LittleEndian.PutUint32(b[16:20], 4194303)
+	binary.LittleEndian.PutUint32(b[20:24], 4194301)
 
-	lk, err := DecodeLatencyKey(b[:])
+	lk, err := DecodeLatencyTraceKey(b[:])
 	if err != nil {
-		t.Fatalf("DecodeLatencyKey: %v", err)
+		t.Fatalf("DecodeLatencyTraceKey: %v", err)
 	}
-
-	if lk.SrcPort != 8080 {
-		t.Errorf("SrcPort = %d, want 8080", lk.SrcPort)
-	}
-	if lk.DstPort != 443 {
-		t.Errorf("DstPort = %d, want 443", lk.DstPort)
-	}
-	if lk.Protocol != 6 {
-		t.Errorf("Protocol = %d, want 6", lk.Protocol)
+	if lk.PID != 4194303 || lk.TID != 4194301 || lk.TraceID[0] != 0xAB || lk.TraceID[15] != 0xCD {
+		t.Errorf("key = %+v", lk)
 	}
 }
 
@@ -557,11 +438,7 @@ func TestDecodeLatencyKey_RawBytes(t *testing.T) {
 func TestLatencyReader_PublishesValidJSON(t *testing.T) {
 	loader := NewMockBPFLoader()
 
-	lk := makeLatencyKey(
-		net.ParseIP("10.10.10.1"),
-		net.ParseIP("10.10.10.2"),
-		8080, 443, 6,
-	)
+	lk := makeLatencyKey(uint32(8080), uint32(443))
 	le := makeLatencyEntry(5_000_000, 1_000_000, 10_000_000, 5, 999999)
 	keyBytes := lk.Encode()
 	entryBytes := le.Encode()

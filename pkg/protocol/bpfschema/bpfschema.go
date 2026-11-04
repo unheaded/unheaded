@@ -42,6 +42,9 @@ const (
 	// H10: Per-hop packet validators (shield-ebpf).
 	MapHopValidators = "HOP_VALIDATORS"
 
+	// Per-thread RTT statistics keyed by trace id, pid, tid (latency-probe).
+	MapLatency = "LATENCY_MAP"
+
 	// H11: Dictionary authority enforcement (shield-ebpf).
 	MapAuthority = "AUTHORITY"
 )

@@ -351,6 +351,8 @@ var structParity = []struct {
 	{reflect.TypeOf(FlowState{}), "common/src/lib.rs", "FlowState"},
 	{reflect.TypeOf(FlowMigrationTokenValue{}), "flow-tracker/src/main.rs", "MigrationTokenValue"},
 	{reflect.TypeOf(FlowCancelValue{}), "flow-tracker/src/main.rs", "CancelFlowValue"},
+	{reflect.TypeOf(LatencyTraceKey{}), "latency-probe/src/common.rs", "LatencyTraceKey"},
+	{reflect.TypeOf(LatencyEntry{}), "latency-probe/src/common.rs", "LatencyEntry"},
 }
 
 // TestRustSourceStructParity compares size and every non-padding field
@@ -434,6 +436,7 @@ var goMapNames = []struct {
 	{"MapSeqCounters", MapSeqCounters, reflect.TypeOf(SeqCounterKey{}), reflect.TypeOf(SeqCounterValue{})},
 	{"MapMigrationTokens", MapMigrationTokens, reflect.TypeOf(FlowKey{}), reflect.TypeOf(FlowMigrationTokenValue{})},
 	{"MapRetryTokens", MapRetryTokens, nil, nil},
+	{"MapLatency", MapLatency, reflect.TypeOf(LatencyTraceKey{}), reflect.TypeOf(LatencyEntry{})},
 	{"MapErrorCounters", MapErrorCounters, reflect.TypeOf(ErrorCounterKey{}), reflect.TypeOf(ErrorCounterValue{})},
 	{"MapSettings", MapSettings, reflect.TypeOf(SettingsKey{}), reflect.TypeOf(SettingsValue{})},
 	{"MapDoSState", MapDoSState, reflect.TypeOf(DoSStateKey{}), reflect.TypeOf(DoSStateValue{})},
