@@ -65,3 +65,4 @@
 - Steps 77-79: Step 77 `15`. Step 78 matched Expect (`active`, `pong`). Step 79: `127.0.0.0/8`, `192.168.13.0/30`, `fd00:dead:beef::/48`, `fe80::/10`, `::1`; `_SYSTEMD_UNIT=ssh.service + _COMM=sshd-session`; `22,7375`; `3600`.
 - Steps 81-83: Step 81 `Permission denied (publickey,password,keyboard-interactive).`, ignore count `1`, `Currently banned: 0`, `FRESH_KEY_LOGIN_OK`. Step 82 not needed. Step 83 `1`, `Currently banned: 0`, address gone from the set after unban. `unheaded_chaos_guard` table still there.
 - Step 85 exit gate: PASSED, `enabled`, `FRESH_KEY_LOGIN_OK`. dpkg shows only `fail2ban` installed in this phase. DP-11 second half done on east. Hold session left up, no undo timer armed.
+- Steps 42-46: Phase 5, checked: Gone, and its neighbour is not..
