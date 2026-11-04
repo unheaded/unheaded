@@ -255,10 +255,10 @@ fn relocate_rv2mbc_entry(entry: u32, rom_base: u32) -> u32 {
 /// (`ebpf/monad-cpu-ebpf/surface.rs::SURFACE_ASCEND`). Numbers are xv6's
 /// `kernel/syscall.h` plus the UPC block-device calls 200/201
 /// (`monad_common::mbc_linux_syscalls`). xv6's pipe 4, chdir 9,
-/// unlink 18, link 19 and mkdir 20 are absent because the object has
+/// unlink 18 and link 19 are absent because the object has
 /// no arm for them (they answer -ENOSYS, DP-503). Gate A refuses an
 /// object whose `UPC_SURFACE_ID` is not the id of this list.
-static XV6_SYSCALLS: [upc_api::SyscallDesc; 19] = [
+static XV6_SYSCALLS: [upc_api::SyscallDesc; 20] = [
     upc_api::SyscallDesc {
         number: 1,
         name: "fork",
@@ -318,6 +318,10 @@ static XV6_SYSCALLS: [upc_api::SyscallDesc; 19] = [
     upc_api::SyscallDesc {
         number: 17,
         name: "mknod",
+    },
+    upc_api::SyscallDesc {
+        number: 20,
+        name: "mkdir", // DP-502: routed to the owned kernel under UPC_RUNG_MKDIR
     },
     upc_api::SyscallDesc {
         number: 21,
