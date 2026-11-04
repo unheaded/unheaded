@@ -6,6 +6,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ## Log
 
+- Phase 11 (Steps 119-124) done: [memory hit: <score>] line (hidden by --no-memory-recall) and session saving on exit (hidden by --no-persist) in cmd/zhen-cli/session.go. RED was `s.memoryRecall undefined`; GREEN `ok` under -race, gofmt and vet clean, help shows both flags (2). man/zhen-cli.1 line 1 carries the +dirty build stamp from the plain build, as in Phase 4. Not done: the `saved` slice has no mutex (Step 123 asks for one only if -race fails, and it did not); the signal goroutine's persistSession could in theory overlap a chatTurn append, for Stevie to judge.
+
 - Phase 10 (Steps 113-118) done, commit 4245f5c3: migrations 044 and 045 rehearsed on throwaway Postgres as the normal user, no sudo, no pull. `test-zhen-conversations.sh` ends `all checks passed`; `test-llm-requests.sh --sql-only` has seven energy `[PASS]` lines and `all checks passed`; no `[FAIL]`.
   One change from Step 114 as written: the generated script kept the template's `PORT=` line, unused here, so `shellcheck -S warning` (the gating step in static-analysis.yml) failed on SC2034. The line is deleted and both rehearsals re-ran green. Not asked for, no tree change: through `WELL_MIGRATIONS_DIR` on a scratch copy with the 044 and 045 CHECKs turned into `CHECK (true)`, both scripts failed as they should (unknown client, and all four energy refusals).
 
