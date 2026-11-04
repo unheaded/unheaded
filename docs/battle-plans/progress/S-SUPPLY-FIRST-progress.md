@@ -80,3 +80,28 @@ Plan: `docs/battle-plans/S-SUPPLY-FIRST-battle-plan.md`.
 - Three bumps raise the raw finding count and were taken anyway: coredns 2/58 to 2/66, loki 3.0.1 3/62 to 4/83, loki 2.9.17 3/63 to 4/74. Each removes real findings and satisfies Step 65. The rises look like scanner visibility, not regressions: old Loki sits on end-of-life Alpine 3.18.5 with OpenSSL 3.1.4, and coredns 1.12.0 reports no module version so its own CVEs never matched. That reading is an inference, not a test. If you would rather have a net-count rule, revert those two images. The new Loki bases do show 2 CRITICAL (CVE-2026-31789, `libcrypto3`/`libssl3`).
 - coredns needs a minor move too: nine CVEs against it are fixed only in 1.14.x.
 - Six images run on Alpine releases past end of life (nginx, haproxy, traefik, victoria-metrics, grafana, loki 3.0.x), so their counts probably understate.
+
+## Phase 14 (Steps 109-123, Opus)
+
+- Step 109: every lane committed work that passed its own [V] steps. Open items going in: Phase 6 Step 67's hadolint half only. No `unsigned.txt`: no unsigned commit in this plan.
+- Step 111: 8 lane merges, signed, no conflict. The likely sites (`wiki/Security.md`, Dockerfile labels, `monitoring/docker-compose.yml`) auto-merged.
+- Step 112: develop at `59a712e2` conflicted in `docs/LIVE-PATHS.md` only. Rule 15's generated-file exception applied: regenerated with `scripts/live-path-inventory.sh --report`, not hand-merged, `[PASS]` after. So this one merge ran by hand instead of through `safe-merge.sh`, which aborts on any conflict. `deploy/sophia-eye/docker-compose.yml` merged clean and keeps `prom/prometheus:v3.15.1`, so Phase 6's predicted conflict did not happen.
+- Develop moved once during the phase: `42d11e2f` (ADR-123, docs only, one file), merged clean as `99636d7b`. Steps 114-117 below ran after that merge.
+- Step 113: nothing printed. All seven residue paths are gone, no FND collision.
+- Step 114: CBOM regenerated with no change; `check-crypto-inventory` and `check-pq-kex` pass.
+- Phase 6 Step 67 hadolint half: CLEARED. `[PASS] hadolint: 34 Dockerfiles parsed, no (rule, file) above its baseline (63 pairs)`. `check-image-tags` passes too.
+- Step 115, read this one: the FIRST full `go test -race` run did not meet the bar. `TestFileStore_WatchDelete` in `pkg/secrets/store` failed on a data race (output kept in this entry's For Stevie row). It is not this plan's: neither this branch nor develop changes `pkg/secrets`, and it reproduces without this plan's bumps (see For Stevie). The second full run, on the final tree, printed `SAME`; gofmt and vet clean, gosec ratchet rc=0. `SAME` here means the race did not fire on that run, not that it is gone.
+- Step 116, the final vulnerable list, on the final tree:
+  - Go: `No vulnerabilities found.`
+  - Rust: `TOTAL locks=21 failing=0` (was 24; S-CLEAN-CUT deleted the `cmd/trace-collector`, `cmd/waf` and `ebpf/af-xdp` locks).
+  - Python: `[PASS] 3 pinned requirements files; 2 known vulnerabilities, all accepted with a reason`, the two torch ids PYSEC-2025-194 and PYSEC-2026-139 (FND-013). ChromaDB's four ids stay outside this gate under FND-032, For Stevie 1.
+  - Tool freshness: STALE count 0.
+  - vulnmatch fixture: `672 components, 4 records, 0 findings (0 in KEV), 16 not an exact pin`.
+- Step 117: `sbom/go-dependencies.json` changed on two rows only (`golang.org/x/crypto`, `golang.org/x/net` v0.62.0), because S-CLEAN-CUT regenerated it today in `f3cd77ac`. `rust-dependencies.json` unchanged. Pip freeze kept.
+- Image record for Phase 6: `docs/security/image-scan-2026-11-04.md`.
+
+## For Stevie (Phase 14, continues the list above)
+
+- Real race, not from this plan, left unfixed: `pkg/secrets/store/file.go`. `notifyWatchers` takes the channel slice under `RLock`, then sends after releasing it, while `Close` and `removeWatcher` close those channels. Besides failing `-race`, this can panic with send on closed channel in a running service. `TestFileStore_WatchDelete` failed 2 of 30 on the merged tree, 1 of 60 at `08fa9b8a` (pre-plan Go code), 1 of 60 on develop at `42d11e2f`. Any `-race` CI job can flake on it. Not fixed here because `pkg/secrets` is outside this plan's files and Step 115's fix clause covers only failures this plan caused. Fixing it means deciding who owns closing a watcher channel, so it wants its own change with a test.
+- `scripts/generate-sbom.sh` lists `sbom/SBOM.md` as an output but never writes it, so that file still reads 2026-03-15 with 99 Go modules while the JSON holds 149. Step 117 expected a diff there; there is none. Left as is.
+- Superseded by develop, no action: the URGENT open-webui KEV row above (`f11da98d`, on your word, pin now `sha256:975e3965...`) and the wireguard entry in the unmeasured-images row (`3295d8da`). The other four images in that row are still unmeasured.
