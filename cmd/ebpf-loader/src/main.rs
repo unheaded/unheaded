@@ -564,6 +564,11 @@ fn load_hop(cli: &Cli) -> Result<Ebpf> {
             .with_context(|| format!("Failed to create {}", hop_pin_dir.display()))?;
 
         for (map_name, map) in ebpf.maps_mut() {
+            // .rodata.cst8 and the like are the object's constants, not state,
+            // and bpffs refuses a dot in a name (EPERM).
+            if map_name.starts_with('.') {
+                continue;
+            }
             let pin = hop_pin_dir.join(map_name);
             map.pin(&pin)
                 .with_context(|| format!("Failed to pin map {} at {}", map_name, pin.display()))?;

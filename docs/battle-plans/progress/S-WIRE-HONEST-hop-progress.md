@@ -39,6 +39,31 @@
 - Seven mutants of `bpfschema.go`, restored by checksum: retry value to 56 bytes, `IssuedAt`/`ExpiresAt` swapped, `CreatedAt`/`ExpiresAt` swapped, `Flags` u16, `MaxHopCount` u16, key fields swapped, `SrcLow48` widened. All killed; the last by compile failure in the test, not by an assertion.
 - Other gates on this tree: `gofmt -l` empty, `go vet` clean, `go build ./...` clean, `go test -race` ok on bpfschema, `tests/hopchecks`, `pkg/ebpf/...`, `check-gosec-ratchet.sh` PASS.
 - Step 105 committed. Phase 13 exit gate: `ok`. Step 101 stays [STUCK] on its count, item 2 below; this phase changed no eBPF.
+- Phase 14 started on `81055a64`. `pkg/ebpf.PinnedMap` is here: lane `api` merged at `9006b70e`.
+- Step 106 choices the plan left open:
+  - `Load` is a method, `(*File).Load()`. It refuses a symlink, and it reads mode and size from the open file.
+  - The rules file gives `ttl`, not `expires_at`: `Apply` takes only a boot clock, and ADR-125 says the writer converts. `created_at` is now; `expires_at` is now plus `ttl`; no `ttl` is 0, never. Re-running `apply` renews an entry.
+  - `allowed_dict_ids` is not a field, so `KnownFields` refuses it: a file must not be able to ask for a rule hop-ebpf does not evaluate.
+  - Beyond the plan, `Parse` refuses a second YAML document, an empty file, a relative `key_file`, an upside-down version range, a part-second `ttl`, a source that is not IPv6 or has a zone, and two entries with one map key, because the second would silently replace the first. For `retry`, two sources sharing their low 48 bits count as one key.
+  - `Apply` encodes everything before the first write, so a refusal writes nothing. It writes keys, then retry entries, then validators: in enforce mode a rule landing before its key drops traffic. A map failure stops the walk, and `Applied` says what landed.
+  - The key is held behind a closure. The first version held a `*[32]byte`, and `TestKeyBytesAreInNoDump` caught `%s` printing it: fmt follows a pointer on a bad verb, even in an unexported field.
+  - ADR-125 says "0400 files"; Step 106 says 0400 or 0600. The step is what ran.
+- Files the plan's commit lists leave out, all added by name: `pkg/hoprules/boottime_{linux,stub,linux_test}.go`, because `unheaded-cli` builds for darwin and windows today and `CLOCK_BOOTTIME` is Linux-only; `cmd/unheaded-cli/cmd/hop_test.go`; `man/unheaded-cli.1`, because `scripts/gen-man.sh` fails on a stale page. Only that page was regenerated, keeping its old `.TH` line, which the gate ignores.
+- Step 108, two differences from `load_shield`, both logged in the function's comment:
+  - No `trace_events` link. Step 116's teardown has no entry for one, and hop's ring is not Shield's.
+  - A pin that cannot be made is an error, not a warning. `hop rules apply` writes through these pins, so a stale pin from an earlier load would take rules the running object never reads. Lab run 3 below shows the refusal.
+- Step 109: `ok` lines, `Finished`, `0`.
+- Step 110: `validator`, `hmacKey` and `retry` now go through `hoprules.Apply`, with the lab as the `MapWriter`, and `boottimeIn` is gone. Expired cases set the writer's clock to zero with a one-second `ttl`, which lands on `expires_at` 1, the value they used before. No case or expected result changed.
+- Steps 111-112: built; fourteen PASS and all eleven `TestHopCheckEdges`, under the shared eBPF lock.
+- Because that was green first time, ten mutants of `pkg/hoprules/hoprules.go` were run against the root test binary, under the lock, restored by checksum: retry key byte order, retry flow dropped, HMAC namespace dropped, validator namespace dropped, HMAC and retry times swapped, retry flag dropped, `require_hmac` dropped, `max_hop_count` dropped, `version_max` dropped. All ten killed.
+- Other gates before Step 113: `gofmt -l` empty, `go vet` clean, `go test -race` ok on `pkg/hoprules`, `cmd/unheaded-cli/...`, `tests/hopchecks`, `pkg/protocol/bpfschema`; darwin and windows builds of `unheaded-cli` clean; `check-gosec-ratchet.sh` PASS; `rustfmt --check` and `clippy` clean on `cmd/ebpf-loader`. `gen-man.sh` fails on this tree only on `man/pqc-verifier.1`; see "For Stevie" item 7.
+- Step 113 committed `ce2e15ec`.
+- Step 115 lab run 1 failed: `Failed to pin map .rodata.cst8 ... Operation not permitted`, and the loader exited. bpffs refuses a dot in a name. `load_shield` only warns, so it never showed; making the pin fatal here is what exposed it. Step 116's list has no such map, so `load_hop` now skips names starting with `.`. Teardown ran clean. This fix is in Step 117's commit, which is why `cmd/ebpf-loader/src/main.rs` is on that list too.
+- Step 115 lab run 2 passed, as written. The plan's `head -3` stops at the `value:` line, so run 3 used `head -9` to read the values back.
+- Step 115 lab run 3: `applied 1 validators, 1 HMAC keys, 0 retry entries`. `HOP_VALIDATORS` was `Found 0 elements` before and `Found 1 element` after: key all zero, value byte 3 is `01` (`require_hmac`). `HMAC_KEYS`, `Found 1 element`: key all zero, 32 zero key bytes, `created_at` `d8 0e 02 00` = 134,872 s against `/proc/uptime` 134,873, `expires_at` 0. `wh0` showed `xdpgeneric` in run 2. A second loader on `wh1` with those pins present exited 1 on `File exists`.
+- Step 116: `0`, `0` after every run. Afterwards no `wh0` or `wh1`, no `ebpf-loader` process, `lab.key` and `lab-rules.yaml` gone, and the listing of `/sys/fs/bpf/unheaded` had the same checksum before and after. Steps 115-116 ran in one script under one hold of the eBPF lock, so the teardown ran whatever the read-back said. The script also waits for the pid file, because a map can be seen before the rest are pinned.
+- `sudo kill` leaves `$P/loader.pid` behind, owned by root: `ctrlc` catches SIGINT only, so SIGTERM ends the loader before its cleanup. XDP detaches regardless. Removed by hand.
+- Phase 14 exit gate: read-back shows the written entries; no netns or pin left. Step 101 stays [STUCK] on its count, item 2 below; nothing here touched eBPF.
 
 ## For Stevie
 
@@ -47,3 +72,8 @@
 3. Step 99 is still to do, after lane `lat` merges. When it runs, `pkg/protocol/bpfschema/BPF_IPV6_INTERFACE_MAP.md` line 121 also names AUTHORITY ("Wire to Shield TC"); the plan's file list leaves that row out, so it stays stale unless you want it added.
 4. Phase 13 ran `lane_merge.sh lat`, which Phase 10's exit gate gave to lane `lat`; nothing else had run it. Reason and checks are in the log. If lanes should only ever merge themselves, say so; nothing here depends on it being undone.
 5. Adds to item 3: lines 106 and 120 of `BPF_IPV6_INTERFACE_MAP.md` also say "Wire to Shield XDP" for `HMAC_KEYS` and `HOP_VALIDATORS`, and line 110 gives `RETRY_TOKENS` the removed `MigrationTokenKey/Value`, not `RetryTokenKey/Value`. Step 99 is done, so line 121's AUTHORITY row now names a map that does not exist. No plan file list covers this document, so all of it is left.
+6. Nothing writes CONFIG 0 or CONFIG 4. `hop rules apply` writes rules, and mode stays 0, so they do nothing until someone sets the mode by hand with `bpftool`. That was the plan's scope; a `hop mode` command would be new scope, so say if you want one.
+7. `scripts/gen-man.sh` fails on the sprint branch: `extra: man/pqc-verifier.1`. Step 28's L5 deletion took `cmd/pqc-verifier` and left its man page. That file belongs to lane `tw`'s list, not this phase, so it is left. Delete it before the merge, or the gate stays red.
+8. `hop rules apply` only adds or replaces. Taking a rule out of the file does not take it out of the map; nothing removes an entry short of reloading the object.
+9. `load_shield` still has the stale-pin hazard `load_hop` refuses: `map ... already pinned` is an info line, and any other pin failure is a warning. Shield's maps are read, not written by rules, so it matters less. Left as it is.
+10. `unheaded hop` is not in the hand-kept bash, zsh and fish completion lists (`token` is not either), and no wiki page names it yet. No plan step covers either.
