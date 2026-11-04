@@ -66,6 +66,8 @@ func allPorts(t *testing.T) map[string]int {
 		"Qdrant":       Qdrant,
 		"BGEM3":        BGEM3,
 		"SophiaEye":    SophiaEye,
+		"ZhenVor":      ZhenVor,
+		"ZhenAgentd":   ZhenAgentd,
 		"AIWebUI":      AIWebUI,
 		// Gateway
 		"GatewayHTTP":  GatewayHTTP,
@@ -164,5 +166,13 @@ func TestPortOf(t *testing.T) {
 		if got := PortOf(addr, 17000); got != want {
 			t.Errorf("PortOf(%q) = %d, want %d", addr, got, want)
 		}
+	}
+}
+
+// DP-712: 20105 stays SophiaEye; 20107 and 20108 are published by
+// deploy/sophia-eye; Zhen's own ports start at 20110.
+func TestZhenPorts(t *testing.T) {
+	if ZhenVor != 20110 || ZhenAgentd != 20111 {
+		t.Fatalf("got %d %d", ZhenVor, ZhenAgentd)
 	}
 }
