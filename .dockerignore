@@ -1,6 +1,5 @@
 # Rust build artifacts (largest dirs)
 ebpf/target/
-cmd/trace-collector/target/
 
 # Git history
 .git/
