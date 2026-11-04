@@ -23,6 +23,8 @@
 // (list from agentd's /api/v1/models, swap through model_switch), and line
 // editing with history (lineedit.go), Tab completion of slash commands.
 //
+// S-ZHEN-POLISH: [memory hit] line and session saving (session.go).
+//
 // Auth: ZHEN_API_KEY (or the older ZHEN_AGENTD_API_KEY), else api_key in
 // ~/.config/unheaded/zhen-cli.conf (mode 0600, refused otherwise), sent to
 // zhen-agentd as Authorization: Bearer and X-API-Key.
@@ -49,6 +51,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -168,6 +171,12 @@ type session struct {
 	agentdKey string // API key for zhen-agentd (loadAPIKey); "" = none
 	model     string
 
+	memoryRecall bool
+	persist      bool
+	sessionID    string
+	saved        []savedTurn
+	saveOnce     sync.Once
+
 	out    io.Writer // nil: os.Stdout
 	errOut io.Writer // nil: os.Stderr
 
@@ -184,6 +193,8 @@ func main() {
 		maxChars  = flag.Int("max-topic-chars", defaultMaxTopicChars, "per-topic content cap")
 		oneShot   = flag.String("q", "", "one-shot question; print answer and exit (same as piping)")
 		noColor   = flag.Bool("no-color", false, "disable ANSI colour even on a tty")
+		noRecall  = flag.Bool("no-memory-recall", false, "do not show the [memory hit] line")
+		noPersist = flag.Bool("no-persist", false, "do not save this session to zhen_conversations on exit")
 	)
 	cmdline.Parse(cmdline.Spec{
 		Name:     "zhen-cli",
@@ -204,6 +215,10 @@ func main() {
 		agentdURL: envOr("ZHEN_AGENTD_URL", defaultAgentdURL),
 		model:     envOr("RAG_MODEL", defaultModel),
 		client:    &http.Client{Timeout: httpTimeout},
+
+		memoryRecall: !*noRecall,
+		persist:      !*noPersist,
+		sessionID:    newSessionID(),
 	}
 	key, err := loadAPIKey(os.Getenv, defaultConfPath())
 	if err != nil {
@@ -242,6 +257,7 @@ func main() {
 		restoreTerminal()
 		fmt.Fprintln(os.Stderr)
 		s.dim("zhen-cli: signal received, exiting.")
+		s.persistSession()
 		os.Exit(0)
 	}()
 
@@ -251,6 +267,7 @@ func main() {
 		if err != nil {
 			fmt.Fprintln(os.Stderr)
 			s.dim("zhen-cli: goodbye.")
+			s.persistSession()
 			return
 		}
 		line := strings.TrimSpace(raw)
@@ -259,6 +276,7 @@ func main() {
 		}
 		if strings.HasPrefix(line, "/") {
 			if s.handleSlash(line) {
+				s.persistSession()
 				return
 			}
 			continue
@@ -509,6 +527,7 @@ func (s *session) printHelp() {
 	fmt.Fprintln(s.w(), "  /confirm <token>          run a call the gate held for confirmation")
 	fmt.Fprintln(s.w(), "  /model                    list models (* = serving now)")
 	fmt.Fprintln(s.w(), "  /model <key>              swap llama-server to <key> (45 s to minutes; rolls back on timeout)")
+	fmt.Fprintln(s.w(), "  sessions are saved to the Well on exit unless --no-persist")
 	fmt.Fprintln(s.w())
 	fmt.Fprintln(s.w(), "  any other line           → question to Zhen (RAG: vor → qwen-coder)")
 	fmt.Fprintln(s.w())
@@ -554,6 +573,7 @@ func (s *session) answerOne(q string) {
 // calls the LLM with the running history, prints the answer, appends
 // to history.
 func (s *session) chatTurn(q string) {
+	s.memoryHint(q)
 	start := time.Now()
 	answer, refs, err := s.askLLM(q)
 	if err != nil {
@@ -578,6 +598,8 @@ func (s *session) chatTurn(q string) {
 	if max := s.histLimit * 2; len(s.history) > max {
 		s.history = s.history[len(s.history)-max:]
 	}
+	s.logTurn("user", q, nil, 0)
+	s.logTurn("assistant", answer, refs, int(time.Since(start).Milliseconds()))
 }
 
 // askLLM runs the full retrieve → format → inference cycle and returns
