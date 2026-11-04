@@ -57,13 +57,44 @@
     - F3 low: the plane subscribes as `compliance-service`, which is not in `configs/wotan.yaml`. Its four subscriptions would sit in `pending_approval`, the 2026-10-20 bug. `TestShippedAllowlistCoversDeployedSubscribers` does not walk `cmd/compliance-evidence` or `services/compliance`, so it stays green.
     - F4 low: `no_data` is only in the score JSON. `/metrics` `compliance_score_pct 0` and `Stats()` `compliance_score` drop it, so an empty plane reads as a 0 % score unless the reader also checks the packet total. It errs to alarm, not comfort.
 
+- Phase 9, second run (Steps 72-78), 2026-11-04, Opus, on the coordinator's ruling of option (b) for For Stevie 6.
+  - Ruling applied first, commit 1479bdf7 (signed), TDD. RED: `TestRunWire_NoWotanFlag` (`runWire(--wotan) = 0, want 2`), `TestPackageHasNoWotanClient` (`wire.go imports the Wotan client`), `TestPublishEventNilWotan_NoPerRecordLog` (1000 records logged 153000 bytes). GREEN: all three, with `services/wotan/cmd/wotan` `ok`.
+    - `wire` lost the flag, the client, the identity call and the `wotanAddr` option. `serveWire` passes `nil`. docker-compose.yml, every unit and configs/wotan.yaml are unchanged (`0` on the Step 50 check and on `configs/wotan.yaml`).
+    - `compliance-service`'s four subscriptions are not reachable from `wire`. `s.wotan` is set only in `NewService`; the one production caller passes `nil`; `Subscribe`, `StreamMessages` and `listenForAlerts` all sit behind `s.wotan != nil`; `cmd/compliance-evidence` no longer imports the client, and a test holds that. Live, `wire --serve` for 2 s on loopback logged `Wotan not configured, skipping subscriptions` and no subscribe line.
+    - `publishEvent` with no client counts the drop and logs nothing. `compliance_wotan_drops_total` still shows it, and `StartBackground` says once that Wotan is not configured.
+    - ADR-127 records it under Decision and Not done here.
+    - Man page: `gen-man.sh --write` wrote 0. It lists `wire` as a subcommand and never named the flag.
+    - Appendix D, corrected here because the plan file is not edited: `compliance-evidence wire` flags are `--serve` (default off), `--listen` (default `127.0.0.1:19015`), `--audit-ring`. There is no `--wotan`.
+  - Step 72 merged develop `259a244a` (merge 84d171ea, signed). No conflict. ADR rows are in number order in both indexes.
+  - Step 73 **passed**: `go build ./...` rc 0, `go test -race` rc 0, 60 packages `ok`, gate printed `0`.
+  - Rechecked on that tree, because the code moved after Phase 6: gofmt `0`, vet ok; Step 58's five `PASS`; Steps 49-52 `0 0 0 0`; running units 3; 19015 listeners 0; `docs/LIVE-PATHS.md` unchanged; `go list -deps` 421, the same as before the ruling; `wire`, `wire --help`, an operand and a non-loopback `--listen` as Step 30, and `--wotan` now rc 2.
+  - `check-gates-can-fail.sh --quick` rc 1, none of it this sprint's: `check-netip` FAIL, `check-zhen-mcp` ERROR, `test-deb-maintscripts` INCONCLUSIVE. Each gives the same result with `--only` on a throwaway clone of develop `259a244a`, since deleted. The other fast gates bit. The SLOW gates were not run: no eBPF, compose or unit changed here, and the root ring test (Step 46) was not rerun.
+  - `check-trivy-misconfig` rc 1 on both trees: the same 13 lines, 0 new. No `--update`.
+  - Step 74 MoatGhost, second pass, below.
+  - Step 75 this entry. Unsigned commits: none so far.
+  - Step 76 deviation: the plan's subject says "Steps 65-76: exit gates green", which is not true: Steps 65-71 were never run, and the meta-gate is red on develop too. The commit says that instead.
+  - Steps 77 and 78 run after this commit. Their results go in the report to the coordinator; an `UNSIGNED` merge would be added here.
+  - Step 74 second pass. Held up: `wire` without `--serve` does nothing (message, rc 0, 19015 `0`); `no_data` is set at construction, and an empty plane reads 0, never 100; `cmd/compliance-evidence/wire*.go` and `services/compliance` have `0` write calls and `0` evidence paths, and `compliance/` and `pkg/compliance` moved `0` files, so the wiki's "adds nothing to the evidence file" stands.
+    - F1 closed: the flag whose help implied violations leave the host is gone.
+    - F3 closed for `wire`: the subscriptions are unreachable. It comes back with any future client, so it stays with item 10 below.
+    - F2 and F4 stand: For Stevie 2 and 8.
+    - F5 low: the `services/compliance` package comment says it "provides wire-level policy enforcement" and is "ensuring" communication adheres. The plane enforces nothing; it scores what a ring reports. A comment, not a user-facing claim.
+    - F6 low: `compliance_wotan_drops_total`'s help says "unavailable Wotan". Under `wire` there is no client by design, so it climbs once per blocked packet and reads like a fault. No alert or dashboard reads it today.
+    - F7 low: `no_data` is only recomputed on the 10-second tick, so after the first record the score can read `no_data: true` beside non-zero packet counts for up to one window. It errs towards claiming less.
+
 ## For Stevie
 
 1. `compliance-evidence` now builds 421 packages, up from the 414 in the plan's list (item 8 there). `pkg/ebpf` is the extra 7.
 2. Audit completeness cannot fail once the ring feeds it: every ingested record adds to both the audit count and the packet total, so the ratio is always 1. The honest denominator is `STAT_PACKETS_TOTAL` in the program's STATS map, and a failed ring reservation counts nowhere (`STAT_EVENTS_DROPPED` is unused). Not changed: `services/compliance` scoring and `compliance-ebpf` are outside Phase 5.
-3. `--audit-ring` without `--wotan` logs one "event dropped" warning per blocked record through `publishEvent`: unbounded at wire speed. Not changed.
+3. Closed by the coordinator's ruling: with no Wotan client `publishEvent` counts the drop and logs nothing.
 4. If the ring consumer fails (a missing pin, say), `serveWire` prints one stderr line and keeps serving `no_data`. Honest, but quiet; the goroutine is also not joined at shutdown. `wire.go` is outside Phase 5's files.
-5. `docs/adr/ADR-INDEX.md` has no row for ADR-123, though the file exists, and its Total line still says 113. Both came from develop, not this plan.
-6. **Merge blocked: pick one for Step 73.** (a) Allow the identity: add `compliance-evidence` to the two `AUTH_ALLOW_CALLERS` lists and `auto_approve`. Rehearsed green, but it needs your waiver of the fence and Step 50, and it allows an identity that has no account yet. (b) Take `--wotan` out of `wire` until it has its own nologin account (ADR-127), so violations stay local. Not rehearsed; it stays inside the fence but changes Phase 3's flags and Appendix D. Recommendation: (b), the smaller surface, since nothing on the default path uses it and no test in `wire_test.go` or `wire_ring_linux_test.go` mentions Wotan. Then rerun Steps 73 to 78.
-7. Decide `compliance-service` with item 6 (Step 74 F3): under (a) it wants an `auto_approve` entry too; (b) removes the question.
+5. The ADR-123 row came in from develop. `docs/adr/ADR-INDEX.md`'s Total line and its status table still say 113, with ADRs up to 134 on disk. Not from this plan.
+6. Closed: the coordinator ruled (b) on your authority to chain, and Step 73 passes. The options as written, for the record: **Merge blocked: pick one for Step 73.** (a) Allow the identity: add `compliance-evidence` to the two `AUTH_ALLOW_CALLERS` lists and `auto_approve`. Rehearsed green, but it needs your waiver of the fence and Step 50, and it allows an identity that has no account yet. (b) Take `--wotan` out of `wire` until it has its own nologin account (ADR-127), so violations stay local. Not rehearsed; it stays inside the fence but changes Phase 3's flags and Appendix D. Recommendation: (b), the smaller surface, since nothing on the default path uses it and no test in `wire_test.go` or `wire_ring_linux_test.go` mentions Wotan. Then rerun Steps 73 to 78.
+7. Closed with item 6: `compliance-service` is unreachable from `wire`.
 8. `no_data` on `/metrics` and `Stats()` (Step 74 F4). `services/compliance` scoring is otherwise done; a one-line gauge, not added here.
+9. `wire` has no `--wotan` and presents no Wotan identity until it has its own nologin account (ADR-127). Until then violations stay on the host, and the plan's Appendix D is stale on that flag.
+10. When `wire` gets that account, it needs three things together: `AUTH_ALLOW_CALLERS` in compose and the unit, `auto_approve`, and `compliance-service` (or a new name) approved for its four subscriptions. `TestShippedAllowlistCoversDeployedSubscribers` does not walk `cmd/compliance-evidence` or `services/compliance`, so add them when that happens.
+11. `compliance_wotan_drops_total`'s help text (Step 74 F6) and the package comment's "enforcement" (F5). Both small, not changed here.
+12. `no_data` lags the first record by up to one aggregation window (Step 74 F7).
+13. `wiki/ADR-Index.md` has no rows for ADR-127 to ADR-134: Phase 1 named only `docs/adr/ADR-INDEX.md`. Not added here.
+14. `check-gates-can-fail.sh --quick` is red on develop `259a244a` as well as here: `check-netip` passes while violated, `check-zhen-mcp`'s provocation will not apply, and `test-deb-maintscripts` already fails on a clean tree. Not this sprint's, and not diagnosed.
