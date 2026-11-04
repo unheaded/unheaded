@@ -21,6 +21,11 @@
   - Beyond the plan's text, inside its files: `ConsumePinnedRing` sleeps 1 ms when poll says ready and nothing was taken (poll is level-triggered, so a reserved record would spin it); the refused-record log is bounded to the first and every 4096th, with a total at exit.
   - `compliance-evidence` dependency count is now 421, not the plan's 414: `pkg/ebpf` adds 7.
   - Also run, not asked by Phase 5: `go test -race` on `cmd/compliance-evidence`, `services/compliance`, `pkg/protocol/bpfschema`, and `check-gosec-ratchet.sh`: all pass.
+- Phase 6 (Steps 49-60), 2026-11-04, Sonnet. Default off:
+  - Step 49 callers of `wire`/`wire --serve` in deploy, docker, compose, nix, scripts, runbooks, Makefile: 0
+  - Step 50 deploy/docker/compose/nix files changed: 0
+  - Step 51 other destinations touched: 0
+  - Step 52 compliance/ and pkg/compliance changed: 0
 
 ## For Stevie
 
