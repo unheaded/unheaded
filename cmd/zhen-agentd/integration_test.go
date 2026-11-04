@@ -17,9 +17,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"unheaded/pkg/agent"
 	"unheaded/pkg/champion"
+	"unheaded/pkg/codeindex"
 	"unheaded/pkg/metrics/prom"
 )
 
@@ -720,3 +722,111 @@ func TestIntegration_Ask_PoolReusesChampionAcrossRequests(t *testing.T) {
 // legacyAskTokens is -ask-tokens: /ask traces carry pending tokens again
 // (the web UI consent path these tests exercise; off by default).
 func legacyAskTokens(s *server) { s.askTokens = true }
+
+// --- federated retrieval (S-ZHEN-POLISH Phase 16) ---
+
+func retrievalSeries(backend, outcome string) string {
+	return `zhen_agentd_retrieval_backend_total{backend="` + backend + `",outcome="` + outcome + `"}`
+}
+
+func codeIndexFixture(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "code-index")
+	ix := &codeindex.Index{Chunks: []codeindex.Chunk{{ID: "pkg/a/a.go::Unlock", Path: "pkg/a/a.go", Language: "go", Kind: "func", Symbol: "Unlock", Content: "func Unlock() {}"}}}
+	if err := codeindex.Save(dir, ix); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func wantCodeHitAndUnavailableVor(t *testing.T, refs []champion.Reference, contents []agent.TopicContent) {
+	t.Helper()
+	if len(refs) != 2 || refs[0].Topic != "pkg/a/a.go::Unlock" || refs[0].SourceTrust != "local" || refs[1] != champion.Unavailable("vor") {
+		t.Fatalf("refs %+v", refs)
+	}
+	if len(contents) != 1 || contents[0].Content != "func Unlock() {}" {
+		t.Fatalf("contents %+v", contents)
+	}
+}
+
+// A vor slower than the default deadline: the shard answers in time, the
+// silence reaches the gate, the metric says which is which.
+func TestRetrieve_SlowVorHitsTheDeadline(t *testing.T) {
+	vor := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-time.After(3 * time.Second):
+		case <-r.Context().Done():
+		}
+	}))
+	defer vor.Close()
+	timeouts := metricValue(t, retrievalSeries("vor", "timeout"))
+	oks := metricValue(t, retrievalSeries("code", "ok"))
+
+	t0 := time.Now()
+	refs, contents, err := newRetriever(vor.Client(), vor.URL, codeIndexFixture(t), 2*time.Second).Retrieve(context.Background(), "unlock", 5)
+	if d := time.Since(t0); d > 2500*time.Millisecond {
+		t.Fatalf("held %v", d)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCodeHitAndUnavailableVor(t, refs, contents)
+	if got := metricValue(t, retrievalSeries("vor", "timeout")); got != timeouts+1 {
+		t.Fatalf("vor timeout %v, was %v", got, timeouts)
+	}
+	if got := metricValue(t, retrievalSeries("code", "ok")); got != oks+1 {
+		t.Fatalf("code ok %v, was %v", got, oks)
+	}
+}
+
+func TestRetrieve_DeadVor(t *testing.T) {
+	dead := httptest.NewServer(http.NotFoundHandler())
+	url, client := dead.URL, dead.Client()
+	dead.Close()
+	errs := metricValue(t, retrievalSeries("vor", "error"))
+
+	refs, contents, err := newRetriever(client, url, codeIndexFixture(t), 2*time.Second).Retrieve(context.Background(), "unlock", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCodeHitAndUnavailableVor(t, refs, contents)
+	if got := metricValue(t, retrievalSeries("vor", "error")); got != errs+1 {
+		t.Fatalf("vor error %v, was %v", got, errs)
+	}
+
+	if refs, _, err := newRetriever(client, url, "", 2*time.Second).Retrieve(context.Background(), "unlock", 5); err == nil {
+		t.Fatalf("vor alone, dead: refs %+v, no error", refs)
+	}
+}
+
+// vor has no similarity: its Score is 1/(rank+1), and the first hit scores 1.
+// An external hit past k stays, without text and without a score.
+func TestRetrieve_VorScoreIsRankAndItsTailHasNoText(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/search", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]string{
+			{"topic": "one", "category": "c", "source_trust": "canonical"},
+			{"topic": "two", "category": "c", "source_trust": "canonical"},
+			{"topic": "three", "category": "c", "source_trust": "external"},
+		})
+	})
+	mux.HandleFunc("/api/topics", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("[]")) })
+	for _, name := range []string{"one", "two"} {
+		mux.HandleFunc("/api/topics/"+name, func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]string{"name": name, "category": "c", "content": "x", "source_trust": "canonical"})
+		})
+	}
+	vor := httptest.NewServer(mux)
+	defer vor.Close()
+
+	refs, contents, err := newRetriever(vor.Client(), vor.URL, "", 2*time.Second).Retrieve(context.Background(), "q", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contents) != 2 || contents[0].Score != 1 || contents[1].Score != 0.5 {
+		t.Fatalf("contents %+v", contents)
+	}
+	if len(refs) != 3 || refs[2].Topic != "three" || refs[2].SourceTrust != "external" {
+		t.Fatalf("refs %+v", refs)
+	}
+}

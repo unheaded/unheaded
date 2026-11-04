@@ -1,4 +1,4 @@
-.TH ZHEN\-AGENTD 1 "2026-11-04" "unheaded v0.0.0-20261104150438-43bea5e1d215+dirty" "Unheaded Kingdom"
+.TH ZHEN\-AGENTD 1 "2026-11-04" "unheaded v0.0.0-20261104154528-fd2f60039d0a+dirty" "Unheaded Kingdom"
 .SH NAME
 zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH SYNOPSIS
@@ -37,6 +37,9 @@ with \-worker: the Claude leg: fake (no network call, changes nothing) or live (
 .TP
 .B \-\-claude\-model \fISTRING\fR
 with \-worker \-claude live: Claude model ID (default claude\-opus\-5\-5)
+.TP
+.B \-\-code\-index \fISTRING\fR
+source shard written by zhen\-codeindex, searched beside vor (env ZHEN_CODE_INDEX_DIR; empty: vor alone)
 .TP
 .B \-\-confirm\-queue \fIzhen\-claude confirm\fR
 queue agent\-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with zhen\-claude confirm
@@ -100,6 +103,9 @@ per\-IP requests/sec (0 disables) (default 5)
 .TP
 .B \-\-report\-dir \fISTRING\fR
 with \-overnight: morning reports (<date>.md, 0600) (default /home/govan/.local/state/unheaded/zhen\-reports)
+.TP
+.B \-\-retrieve\-deadline \fIDURATION\fR
+how long each retrieval waits for each backend; a backend past it is skipped, reads and answers go on, and its silence holds every mutating call (0: no deadline) (default 2s)
 .TP
 .B \-\-review\-dir \fISTRING\fR
 with \-worker: review notes (one Markdown file per run, 0600) (default /home/govan/.local/state/unheaded/zhen\-reviews)

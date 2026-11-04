@@ -182,6 +182,7 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 	}
 
 	seen := make(map[string]struct{})
+	fetched := make(map[string]string) // Name|Category to the trust vor answered with
 	var refs []champion.Reference
 	var contents []agent.TopicContent
 	for _, name := range order {
@@ -194,6 +195,7 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 			fmt.Fprintf(os.Stderr, "zhen-agent: skip topic %q: %v\n", name, err)
 			continue
 		}
+		fetched[t.Name+"|"+t.Category] = t.SourceTrust
 		ref := champion.Reference{
 			Topic:       t.Name,
 			Category:    t.Category,
@@ -210,6 +212,23 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 		if len(refs) >= k {
 			break
 		}
+	}
+	// Every untrusted hit reaches the gate, without text, whether it fell past
+	// k, its fetch failed, or a same-named sheet answered for it.
+	for _, h := range hits {
+		key := h.Topic + "|" + h.Category
+		if champion.TrustedSourceLabels[h.SourceTrust] {
+			continue
+		}
+		if trust, ok := fetched[key]; ok && trust == h.SourceTrust {
+			continue
+		}
+		fetched[key] = h.SourceTrust
+		refs = append(refs, champion.Reference{
+			Topic: h.Topic, Category: h.Category,
+			SourceKind: h.SourceKind, SourceTrust: h.SourceTrust,
+			SourcePath: h.SourcePath, SourceLabel: h.SourceLabel,
+		})
 	}
 	return refs, contents, nil
 }

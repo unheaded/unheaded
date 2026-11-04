@@ -46,9 +46,11 @@ import (
 	"unheaded/pkg/champion/pgstore"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/codeindex"
 	"unheaded/pkg/energy"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
+	"unheaded/pkg/retrieval"
 	"unheaded/pkg/vorquery"
 )
 
@@ -67,24 +69,26 @@ const (
 
 func main() {
 	var (
-		port         = flag.Int("port", defaultPort, "HTTP listen port")
-		host         = flag.String("host", "127.0.0.1", "HTTP listen host (use 0.0.0.0 for non-loopback)")
-		projectRoot  = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
-		allowedRoots = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
-		actionStore  = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
-		kanbanStore  = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; DSN from WELL_KANBAN_DSN, else WELL_DSN). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
-		rateRPS      = flag.Float64("rate-limit", defaultRateLimitRPS, "per-IP requests/sec (0 disables)")
-		rateBurst    = flag.Int("rate-burst", defaultRateBurst, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
-		noAuth       = flag.Bool("no-auth", false, "serve without authentication; only with a loopback -host and AUTH_ENABLED unset (dev). Without it, zhen-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or a trust dir (AUTH_TRUST_DIR) is set")
-		auditWell    = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
-		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
-		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
-		memoryStore  = flag.String("memory-store", "none", "memory backend for /api/v1/memory/recall and /remember (zhen-cli /recall, /remember): none (503) | pg (unheaded_app.zhen_memories, DSN from env WELL_APP_ZHEN_DSN)")
-		askTokens    = flag.Bool("ask-tokens", false, "legacy: return pending-confirmation tokens in /api/v1/agent/ask traces. Only for a listener no model can reach; by default /ask queues (-confirm-queue) or denies such writes and returns no token")
-		schedOn      = flag.Bool("scheduler", false, "run approved runbooks on the schedule in -schedules: one Kanban card and one zhen_agent_runs row (mode scheduled; DSN from env WELL_APP_ZHEN_DSN, in memory without it) per run, every call through the Champion gate; heartbeat gauge zhen_scheduler_heartbeat_timestamp_seconds (replaces raft/zhen_scheduler.py, ADR-028)")
-		schedFile    = flag.String("schedules", envOr("ZHEN_SCHEDULES", "configs/zhen-schedules.yaml"), "with -scheduler: the schedule file (env ZHEN_SCHEDULES); read-only to the daemon")
-		schedState   = flag.String("schedules-state", os.Getenv("ZHEN_SCHEDULES_STATE"), "with -scheduler: where run-time schedule changes (POST /api/v1/scheduler/add|remove|pause) persist (env ZHEN_SCHEDULES_STATE); empty keeps them until restart")
-		metricsAddr  = flag.String("metrics-addr", os.Getenv("ZHEN_METRICS_ADDR"), "also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20111'; the API stays on -host")
+		port             = flag.Int("port", defaultPort, "HTTP listen port")
+		host             = flag.String("host", "127.0.0.1", "HTTP listen host (use 0.0.0.0 for non-loopback)")
+		projectRoot      = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
+		allowedRoots     = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
+		actionStore      = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
+		kanbanStore      = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; DSN from WELL_KANBAN_DSN, else WELL_DSN). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
+		rateRPS          = flag.Float64("rate-limit", defaultRateLimitRPS, "per-IP requests/sec (0 disables)")
+		rateBurst        = flag.Int("rate-burst", defaultRateBurst, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
+		noAuth           = flag.Bool("no-auth", false, "serve without authentication; only with a loopback -host and AUTH_ENABLED unset (dev). Without it, zhen-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or a trust dir (AUTH_TRUST_DIR) is set")
+		auditWell        = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
+		confirmQ         = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
+		auditWotan       = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
+		memoryStore      = flag.String("memory-store", "none", "memory backend for /api/v1/memory/recall and /remember (zhen-cli /recall, /remember): none (503) | pg (unheaded_app.zhen_memories, DSN from env WELL_APP_ZHEN_DSN)")
+		askTokens        = flag.Bool("ask-tokens", false, "legacy: return pending-confirmation tokens in /api/v1/agent/ask traces. Only for a listener no model can reach; by default /ask queues (-confirm-queue) or denies such writes and returns no token")
+		schedOn          = flag.Bool("scheduler", false, "run approved runbooks on the schedule in -schedules: one Kanban card and one zhen_agent_runs row (mode scheduled; DSN from env WELL_APP_ZHEN_DSN, in memory without it) per run, every call through the Champion gate; heartbeat gauge zhen_scheduler_heartbeat_timestamp_seconds (replaces raft/zhen_scheduler.py, ADR-028)")
+		schedFile        = flag.String("schedules", envOr("ZHEN_SCHEDULES", "configs/zhen-schedules.yaml"), "with -scheduler: the schedule file (env ZHEN_SCHEDULES); read-only to the daemon")
+		schedState       = flag.String("schedules-state", os.Getenv("ZHEN_SCHEDULES_STATE"), "with -scheduler: where run-time schedule changes (POST /api/v1/scheduler/add|remove|pause) persist (env ZHEN_SCHEDULES_STATE); empty keeps them until restart")
+		retrieveDeadline = flag.Duration("retrieve-deadline", 2*time.Second, "how long each retrieval waits for each backend; a backend past it is skipped, reads and answers go on, and its silence holds every mutating call (0: no deadline)")
+		codeIndex        = flag.String("code-index", os.Getenv("ZHEN_CODE_INDEX_DIR"), "source shard written by zhen-codeindex, searched beside vor (env ZHEN_CODE_INDEX_DIR; empty: vor alone)")
+		metricsAddr      = flag.String("metrics-addr", os.Getenv("ZHEN_METRICS_ADDR"), "also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20111'; the API stays on -host")
 	)
 	var wf workerFlags
 	registerWorkerFlags(flag.CommandLine, &wf)
@@ -248,7 +252,7 @@ func main() {
 		pool:          pool,
 		defaultRoot:   rootAbs,
 		allowed:       allowed,
-		retriever:     &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars, index: vorquery.NewIndex(httpClient, vorURL)},
+		retriever:     newRetriever(httpClient, vorURL, *codeIndex, *retrieveDeadline),
 		llm:           &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor, gpuLock: wf.gpuLock, energy: energy.Discover()},
 		vorURL:        vorURL,
 		llamaURL:      llamaURL,
@@ -1174,6 +1178,20 @@ type vorRetriever struct {
 	index    *vorquery.Index // topic names, for vorquery's name matching
 }
 
+// newRetriever federates vor with the source shard when codeIndex is set.
+func newRetriever(client *http.Client, vorURL, codeIndex string, deadline time.Duration) *retrieval.Federated {
+	backends := []retrieval.Backend{&vorRetriever{client: client, baseURL: vorURL, maxChars: defaultMaxChars, index: vorquery.NewIndex(client, vorURL)}}
+	if codeIndex != "" {
+		backends = append(backends, retrieval.NewCodeBackend(codeindex.NewStore(codeIndex)))
+	}
+	return retrieval.New(backends, deadline, func(backend, outcome string) {
+		retrievalBackendTotal.WithLabelValues(backend, outcome).Inc()
+	})
+}
+
+// Name labels the backend in pkg/retrieval.
+func (r *vorRetriever) Name() string { return "vor" }
+
 func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]champion.Reference, []agent.TopicContent, error) {
 	terms := vorquery.SearchTerms(query)
 	q := strings.Join(terms, " ")
@@ -1207,6 +1225,7 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 	}
 
 	seen := make(map[string]struct{})
+	fetched := make(map[string]string) // Name|Category to the trust vor answered with
 	var refs []champion.Reference
 	var contents []agent.TopicContent
 	for _, name := range order {
@@ -1218,16 +1237,36 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 		if err != nil {
 			continue
 		}
+		fetched[t.Name+"|"+t.Category] = t.SourceTrust
 		ref := champion.Reference{
 			Topic: t.Name, Category: t.Category,
 			SourceKind: t.SourceKind, SourceTrust: t.SourceTrust,
 			SourcePath: t.SourcePath, SourceLabel: t.SourceLabel,
 		}
+		// vor has no similarity: rank is all there is. Read before the append.
+		score := 1 / float64(len(refs)+1)
 		refs = append(refs, ref)
-		contents = append(contents, agent.TopicContent{Ref: ref, Content: clipContent(t.Content, r.maxChars)})
+		contents = append(contents, agent.TopicContent{Ref: ref, Content: clipContent(t.Content, r.maxChars), Score: score})
 		if len(refs) >= k {
 			break
 		}
+	}
+	// Every untrusted hit reaches the gate, without text, whether it fell past
+	// k, its fetch failed, or a same-named sheet answered for it.
+	for _, h := range hits {
+		key := h.Topic + "|" + h.Category
+		if champion.TrustedSourceLabels[h.SourceTrust] {
+			continue
+		}
+		if trust, ok := fetched[key]; ok && trust == h.SourceTrust {
+			continue
+		}
+		fetched[key] = h.SourceTrust
+		refs = append(refs, champion.Reference{
+			Topic: h.Topic, Category: h.Category,
+			SourceKind: h.SourceKind, SourceTrust: h.SourceTrust,
+			SourcePath: h.SourcePath, SourceLabel: h.SourceLabel,
+		})
 	}
 	return refs, contents, nil
 }
