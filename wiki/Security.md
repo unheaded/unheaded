@@ -173,7 +173,7 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | OpenSSF Scorecard | Supply-chain posture score, published, uploaded as code scanning | `.github/workflows/scorecard.yml` |
 | CodeQL | Go, JavaScript and Python analysis on push/PR to develop, staging, main | `.github/workflows/codeql.yml` |
 | eBPF size pin | ADR-089 promotion gate: `monad-cpu-ebpf --features ascend-linux` keeps its pinned byte size (per toolchain); run on the build host | `scripts/check-ebpf-size-pin.sh`, `docs/policy/ebpf-size-pins.txt` |
-| Dependabot | Grouped weekly PRs for actions, base images and Go modules, each after a 7-day cooldown | `.github/dependabot.yml` |
+| Dependabot | Grouped weekly PRs for actions, base images, Go modules and Rust crates; base images wait 7 days, the rest 14; nothing auto-merges | `.github/dependabot.yml` |
 | Go fuzz targets | Every package with Fuzz functions, 10 s each, on every security run | `.github/workflows/security.yml` (lich-fuzz) |
 | LICH campaigns | Fuzz / red team (ADR-062); LICH-005 fuzzes `.bpf.o` through the real loader into `bpf(2)` | `tomb/lich/`, `crates/*/fuzz/` |
 | Fuzz targets | MBC interpreter fuzzing | `crates/monad-mbc/fuzz/` |
