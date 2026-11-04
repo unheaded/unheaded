@@ -7,7 +7,7 @@
 //
 //	validators:
 //	  - hop: 0                 # CONFIG key 0 on that hop
-//	    namespace: 0           # the Monad's deploy_ring
+//	    namespace: 1           # the Monad's deploy_ring; Shield stamps 1, PRODUCTION
 //	    version_min: 1         # both 0: no version rule
 //	    version_max: 1
 //	    max_hop_count: 8       # 0: no cap
@@ -16,7 +16,7 @@
 //	    require_retry: false
 //	hmac_keys:
 //	  - flow: 0x2211           # src_service_id | dst_service_id << 8
-//	    namespace: 0
+//	    namespace: 1
 //	    key_file: /etc/unheaded/hop/a.key
 //	    ttl: 24h               # absent: never expires
 //	retry:
@@ -29,7 +29,10 @@
 // key: this proves nothing about where a packet came from (ADR-125, FND-031).
 //
 // Writing rules does not turn them on: CONFIG key 4 does, and nothing here
-// touches it.
+// touches it. Shield leaves both service ids at 0, so every Shield-born packet
+// is flow 0, namespace 1: in enforce mode, a require_hmac or require_retry
+// validator on that namespace drops them all once flow 0's entry is missing or
+// has expired (FND-035).
 package hoprules
 
 import (
@@ -38,6 +41,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"net/netip"
 	"os"
@@ -230,7 +234,13 @@ func (f *File) Load() error {
 func readKey(path string) (func() [KeySize]byte, error) {
 	link, err := os.Lstat(path)
 	if err != nil {
-		return nil, err
+		// Nothing is at path, so it may be a pasted key and not a path: base64
+		// can start with a slash, and validate only refuses a relative one.
+		var pe *fs.PathError
+		if errors.As(err, &pe) {
+			err = pe.Err
+		}
+		return nil, fmt.Errorf("key_file: %w", err)
 	}
 	if !link.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s is not a regular file", path)

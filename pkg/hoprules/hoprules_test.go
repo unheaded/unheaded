@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -226,6 +227,39 @@ func TestLoad_RefusesWhatIsNotARegularFile(t *testing.T) {
 				t.Fatal("loaded")
 			}
 		})
+	}
+}
+
+// A base64 key can start with a slash, so a key pasted over key_file passes
+// validate as an absolute path. Nothing is there, and that error must not
+// repeat it. The second holds a slash further in: ENOTDIR's path is no safer.
+func TestLoad_MissingKeyFileIsNotEchoed(t *testing.T) {
+	file := keyFile(t, testKey(), 0o400)
+	for name, p := range map[string]string{
+		"not there": "/ZmFrZS1wYXN0ZWQta2V5LWJ5dGVz",
+		"not a dir": file + "/ZmFrZS1wYXN0ZWQta2V5LWJ5dGVz",
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := &File{HMACKeys: []HMACKey{{KeyFile: p}}}
+			err := f.Load()
+			if err == nil {
+				t.Fatal("loaded")
+			}
+			if strings.Contains(err.Error(), "ZmFrZS1wYXN0ZWQta2V5LWJ5dGVz") {
+				t.Fatalf("err repeats key_file: %v", err)
+			}
+			if !strings.Contains(err.Error(), "hmac_keys[0]") {
+				t.Fatalf("err = %v, want the entry named", err)
+			}
+		})
+	}
+}
+
+// Dropping the path must not drop the cause.
+func TestLoad_MissingKeyFileKeepsTheCause(t *testing.T) {
+	f := &File{HMACKeys: []HMACKey{{KeyFile: "/nonexistent/hop.key"}}}
+	if err := f.Load(); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("err = %v, want fs.ErrNotExist", err)
 	}
 }
 
