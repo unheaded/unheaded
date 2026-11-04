@@ -2012,12 +2012,11 @@ def teach():
     """Submit text for Zhen to learn — DEPRECATED post-WAVE15 rewire.
 
     Pre-rewire this appended chunks to the live FAISS index + ring_all.jsonl.
-    With vor as the retrieval substrate, "teaching" means writing a markdown
-    file under ~/.config/cs/sources/<source>/ which cs picks up on its next
-    index sweep — that's a different workflow than this endpoint exposes.
+    Teaching now goes through zhen-cli `/teach <title> | <text>`: zhen-agentd
+    queues a teach_write, and `zhen-claude confirm approve` is the only writer
+    of /var/zhen/projects/zhen-taught (DP-309). This web UI has no route to it.
 
-    Returning HTTP 410 (Gone) so callers know to migrate. A future change can
-    wire this to ~/.config/cs/sources/zhen-taught/ and re-enable.
+    Returning HTTP 410 (Gone) so callers know to migrate.
     """
     return jsonify({
         'status': 'deprecated',

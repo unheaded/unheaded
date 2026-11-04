@@ -282,7 +282,7 @@ func newLineReader(in, out *os.File) func(string) (string, error) {
 // /q /? /h are left out: a completion should end on the real name.
 var slashCommands = []string{
 	"/clear", "/confirm", "/exit", "/health", "/help", "/history", "/model",
-	"/quit", "/recall", "/remember", "/runbook", "/source",
+	"/quit", "/recall", "/remember", "/runbook", "/source", "/teach",
 }
 
 // completeSlash returns the slash commands beginning with prefix.

@@ -331,3 +331,44 @@ func TestPersist_FailureIsOneLineNotFatal(t *testing.T) {
 		t.Fatalf("output %q", out.String())
 	}
 }
+
+func TestTeach_QueuedPrintsTheRowAndHowToApprove(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){
+		"/api/v1/tool/exec": func(capturedReq) (int, any) {
+			return http.StatusAccepted, map[string]any{"status": "queued", "queue_id": "0123456789abcdef", "project_root": "/var/zhen/projects/default"}
+		},
+	})
+	s, out := stubSession(a.srv.URL)
+	s.handleSlash("/teach Port map | vor is on 20110 | agentd on 20111")
+	if len(a.reqs) != 1 {
+		t.Fatalf("requests: %+v", a.reqs)
+	}
+	args, _ := a.reqs[0].Body["args"].(map[string]any)
+	if a.reqs[0].Body["tool"] != "teach_write" || args["title"] != "Port map" || args["text"] != "vor is on 20110 | agentd on 20111" {
+		t.Errorf("request: %+v", a.reqs[0].Body)
+	}
+	for _, want := range []string{
+		"row 0123456789abcdef",
+		"zhen-claude confirm -allowed-roots /var/zhen/projects/default approve 0123456789abcdef",
+		"vor restart",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("missing %q in %s", want, out.String())
+		}
+	}
+}
+
+func TestTeach_UsageSendsNothing(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){})
+	s, out := stubSession(a.srv.URL)
+	for _, line := range []string{"/teach", "/teach no bar here", "/teach | text only", "/teach title only |"} {
+		out.Reset()
+		s.handleSlash(line)
+		if !strings.Contains(out.String(), "/teach <title> | <text>") {
+			t.Errorf("%q: %s", line, out.String())
+		}
+	}
+	if len(a.reqs) != 0 {
+		t.Errorf("requests: %+v", a.reqs)
+	}
+}

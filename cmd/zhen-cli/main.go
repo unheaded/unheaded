@@ -152,6 +152,8 @@ type toolExecResponse struct {
 	Result       any    `json:"result,omitempty"`
 	Reason       string `json:"reason,omitempty"`
 	PendingToken string `json:"pending_token,omitempty"`
+	QueueID      string `json:"queue_id,omitempty"`
+	ProjectRoot  string `json:"project_root,omitempty"`
 	SessionID    string `json:"session_id,omitempty"`
 }
 
@@ -341,6 +343,8 @@ func (s *session) handleSlash(line string) bool {
 		s.handleConfirm(parts[1:])
 	case "/model":
 		s.handleModel(parts[1:])
+	case "/teach":
+		s.handleTeach(strings.TrimSpace(strings.TrimPrefix(line, parts[0])))
 	default:
 		s.warn("unknown command: " + cmd + "  (try /help)")
 	}
@@ -425,6 +429,24 @@ func (s *session) handleSource(args []string) {
 	fmt.Fprintln(s.w(), clipContent(t.Content, s.maxChars))
 }
 
+// handleTeach: /teach <title> | <text> queues a teach_write through
+// zhen-agentd. The first | ends the title. Nothing is written here: it
+// runs only when Stevie approves the row at a terminal.
+func (s *session) handleTeach(rest string) {
+	title, text, ok := strings.Cut(rest, "|")
+	title, text = strings.TrimSpace(title), strings.TrimSpace(text)
+	if !ok || title == "" || text == "" {
+		s.warn("/teach <title> | <text>")
+		return
+	}
+	resp, err := s.toolExec("teach_write", map[string]any{"title": title, "text": text})
+	if err != nil {
+		s.errf("/teach: %v", err)
+		return
+	}
+	s.printToolExecResponse("teach_write", resp)
+}
+
 // printToolExecResponse renders a toolExecResponse with severity
 // based on status.
 func (s *session) printToolExecResponse(tool string, resp *toolExecResponse) {
@@ -449,6 +471,12 @@ func (s *session) printToolExecResponse(tool string, resp *toolExecResponse) {
 		if resp.PendingToken != "" {
 			s.dim("  pending_token: " + resp.PendingToken)
 			s.dim("  to run it: /confirm " + resp.PendingToken)
+		}
+	case "queued":
+		s.ok(fmt.Sprintf("%s: queued as row %s; nothing runs until it is approved.", tool, resp.QueueID))
+		s.dim(fmt.Sprintf("  to approve it, at a terminal: zhen-claude confirm -allowed-roots %s approve %s", resp.ProjectRoot, resp.QueueID))
+		if tool == "teach_write" {
+			s.dim("  once approved, a vor restart serves it")
 		}
 	case "denied":
 		s.errf("%s: denied — %s", tool, resp.Reason)
@@ -525,6 +553,7 @@ func (s *session) printHelp() {
 	fmt.Fprintln(s.w(), "  /recall <text>            remembered answers matching text, with who stored them")
 	fmt.Fprintln(s.w(), "  /remember [text]          store text as a note, or with no text the last exchange")
 	fmt.Fprintln(s.w(), "  /confirm <token>          run a call the gate held for confirmation")
+	fmt.Fprintln(s.w(), "  /teach <title> | <text>   queue text for the corpus; Stevie approves it at a terminal")
 	fmt.Fprintln(s.w(), "  /model                    list models (* = serving now)")
 	fmt.Fprintln(s.w(), "  /model <key>              swap llama-server to <key> (45 s to minutes; rolls back on timeout)")
 	fmt.Fprintln(s.w(), "  sessions are saved to the Well on exit unless --no-persist")

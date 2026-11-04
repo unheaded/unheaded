@@ -65,6 +65,7 @@ unheaded_app     042_retention_runner.sql
 unheaded_ops     043_ops_retention.sql
 unheaded_ops     044_ops_llm_requests_energy.sql
 unheaded_app     045_app_zhen_conversations_client.sql
+unheaded_app     046_app_zhen_confirm_teach_write.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and

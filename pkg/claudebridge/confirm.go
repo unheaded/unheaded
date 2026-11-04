@@ -172,6 +172,30 @@ func (t *TTYConfirmer) Confirm(ctx context.Context, req ConfirmRequest) ConfirmO
 	return ConfirmOutcome{Decision: "approved", Text: text, SHA256: p.SHA256}
 }
 
+// ErrCodeMismatch means the code typed was not the one shown.
+var ErrCodeMismatch = errors.New("the code did not match")
+
+// TypedApproval prints a one-time code on the terminal and reads it back. The
+// code goes to tty only: a process without a controlling terminal, which is
+// every unattended run, cannot pass.
+func TypedApproval(ctx context.Context, tty io.ReadWriter, timeout time.Duration) error {
+	code, err := approvalCode()
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(tty, "type %s to approve, anything else leaves it pending: ", code); err != nil {
+		return err
+	}
+	line, err := readLine(ctx, tty, timeout)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(line) != code {
+		return ErrCodeMismatch
+	}
+	return nil
+}
+
 // codeAlphabet leaves out look-alikes (0/o, 1/l/i).
 const codeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
 
@@ -262,6 +286,27 @@ func DescribeCall(c *champion.Champion, p champion.PendingCall) string {
 	}
 	if d := proposedDiff(c, p); d != "" {
 		sb.WriteString(d)
+	}
+	sb.WriteString(fullText(p))
+	return sb.String()
+}
+
+// fullText shows the whole title and text of a QueueOnlyTools call: such a
+// call has no diff, and the approver must read all of what enters the
+// corpus. Redact changes nothing in a row the tool body would accept, so
+// it only keeps a hand-written row's secret off the screen.
+func fullText(p champion.PendingCall) string {
+	if !champion.QueueOnlyTools[p.Tool] {
+		return ""
+	}
+	title, _ := p.Args["title"].(string)
+	text, _ := p.Args["text"].(string)
+	title, _ = zhencapture.Redact(title)
+	text, _ = zhencapture.Redact(text)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "full title: %s\nfull text:\n", safeLine(title))
+	for _, line := range strings.Split(text, "\n") {
+		sb.WriteString("  " + safeLine(line) + "\n")
 	}
 	return sb.String()
 }
@@ -490,6 +535,10 @@ func callSummary(p champion.PendingCall) string {
 			title, _ = t["title"].(string)
 		}
 		s = "kanban_create " + title
+	case "teach_write":
+		title, _ := p.Args["title"].(string)
+		text, _ := p.Args["text"].(string)
+		s = fmt.Sprintf("teach_write %s (%d bytes)", title, len(text))
 	default:
 		s = p.Tool
 	}

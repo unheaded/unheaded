@@ -865,8 +865,8 @@ class RAGPipeline:
     # markdown file under ~/.config/cs/sources/<source>/ which cs picks
     # up on its next index sweep.
     #
-    # Phase 1 stubs this with a clear message. A future change can wire
-    # it to write under ~/.config/cs/sources/zhen-taught/.
+    # This stays a stub: teaching goes through zhen-cli /teach and the
+    # confirmation queue (teach_write, DP-309), never through this process.
     # ------------------------------------------------------------------
 
     def add_to_corpus(self, text, source="user"):

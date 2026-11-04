@@ -485,6 +485,25 @@ func TestTeach_FileToolsRefusedInTaughtDir(t *testing.T) {
 	}
 }
 
+// A directory reached by no symlink, under a name no default denies.
+func TestTeach_PlainTaughtDirDenied(t *testing.T) {
+	base := t.TempDir()
+	taught := filepath.Join(base, "lessons")
+	if err := os.Mkdir(taught, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	c, err := New(Config{ProjectRoot: base}, &mockStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.validatePath(filepath.Join(taught, "x.md")); err != nil {
+		t.Fatalf("before WithTaughtDir: %v", err)
+	}
+	if err := c.WithTaughtDir(taught).validatePath(filepath.Join(taught, "x.md")); err == nil {
+		t.Fatal("validatePath allows the taught dir")
+	}
+}
+
 func TestTeach_DefaultChampionDeniesTheCorpusStores(t *testing.T) {
 	c, err := New(Config{ProjectRoot: t.TempDir()}, &mockStore{})
 	if err != nil {

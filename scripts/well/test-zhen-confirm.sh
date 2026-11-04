@@ -115,6 +115,7 @@ refused "owner TRUNCATE" own "TRUNCATE zhen_pending_confirmations"
 
 # 5. CHECKs.
 refused "tool runbook_execute" zh "$(row 0000000000000005 runbook_execute)"
+ok "tool teach_write (046)" zh "$(row 0000000000000009 teach_write)"
 refused "id not 16 hex" zh "$(row 'XYZ')"
 refused "relative project root" zh "$(row 0000000000000006 | sed "s|'/home/x/repo'|'repo'|")"
 
