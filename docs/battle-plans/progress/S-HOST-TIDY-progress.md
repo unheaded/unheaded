@@ -36,3 +36,4 @@
 - Steps 63-67: lxd-installer and the ubuntu-server metapackage removed; no autoremove run; gid 101 kept.
 - Step 69 [STUCK]: `Master running (pid=3290473)`, journal from `2026-10-26`, root logins `0`, `NO_ROOT_KEYS`, `root@` count `1` (Expect `0`): the restore runbook, line 56. Steps 70-76 not run; undo timer never armed.
 - East unchanged, checked: `/etc/ssh/sshd_config.d` matches the backup (`diff -r`), `unheaded-tidy-sshd-undo.timer` inactive, `sshd -T` still `port 22`, `permitrootlogin without-password`, `passwordauthentication no`, `kbdinteractiveauthentication no`. Hold session left up.
+- Steps 19-23: Phase 2, checked: DP-15: the restore runbook stops needing root on east. It is in the manifest, so regenerat.
