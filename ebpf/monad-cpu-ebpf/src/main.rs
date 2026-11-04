@@ -449,6 +449,10 @@ const UPC_RUNG2: bool = true;
 // brk_in; the SRET arm reads the kernel's reply on a return to U-mode, clears
 // it and acts. Off: nothing reads reply. Rollback = this const off.
 const UPC_REPLY: bool = false;
+// ADR-135 D2-D5 (the sbrk rung): sbrk is injected into the owned kernel, which
+// answers from the heap window and moves the break through the reply channel.
+// Needs UPC_REPLY. Rollback = this const off.
+const UPC_RUNG_SBRK: bool = false;
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
 const SWITCH_EXIT: u8 = 2; // halt if nothing else can run
@@ -2633,6 +2637,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // 1 here and in the owned kernel (xv6 allocpid starts at 1).
                     cpu.regs[8] = cpu.current_pid as u32 + 1;
                 }
+            } else if cfg!(feature = "ascend-linux") && UPC_RUNG_SBRK && syscall_nr == 12 {
+                // ── xv6 SYS_sbrk (12): with UPC_RUNG_SBRK on it never gets here
+                // (kernel_routed_alias sends it to the inject arm, ADR-135). The
+                // arm keeps parity_surface true. The const in the test folds the
+                // arm away when off, so 12 reaches the chain's tail and answers
+                // the same -ENOSYS, and the off object stays the previous one: a
+                // live compare here moved the verifier count by -1,330 (Step 134).
+                cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 14 {
                 // ── xv6 SYS_uptime (14): with UPC_RUNG2 on it never gets here
                 // (remapped to the getpid inject arm above; ADR-110 T2). Off: no
@@ -3718,10 +3730,12 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 // ── MBC CPU flag helper ───────────────────────────────────────────────────────
 
 /// xv6 numbers serviced by the owned kernel through the getpid inject arm:
-/// uptime 14 under UPC_RUNG2 (ADR-110 T2), and 22 in probe builds only.
+/// uptime 14 under UPC_RUNG2 (ADR-110 T2), sbrk 12 under UPC_RUNG_SBRK (ADR-135),
+/// and 22 in probe builds only.
 #[inline(always)]
 fn kernel_routed_alias(n: u32) -> u32 {
     match n {
+        12 if cfg!(feature = "ascend-linux") && UPC_RUNG_SBRK => 11,
         14 if UPC_RUNG2 => 11,
         22 if UPC_PROBE_INJECT22 => 11,
         _ => n,

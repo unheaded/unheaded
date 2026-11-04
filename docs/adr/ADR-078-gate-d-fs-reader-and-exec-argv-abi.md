@@ -78,7 +78,7 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 9 | chdir | none yet | |
 | 10 | dup | BPF | |
 | 11 | getpid | kernel | ADR-109 |
-| 12 | sbrk | none yet | |
+| 12 | sbrk | kernel | heap window, ADR-135 |
 | 13 | pause | BPF | yields until the sleep rung, then waits n ticks |
 | 14 | uptime | kernel | ADR-110 |
 | 15 | open | BPF | |

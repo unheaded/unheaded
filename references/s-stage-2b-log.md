@@ -107,3 +107,5 @@ Step 141 says to extend `sbrkprobe` only if the review found more. R-F3 and R-F4
 Step 122: `$offv` 870,702, no before gate needed (no code diff against `last-green`).
 
 Step 130 [DECIDE], where the reply is read. In the SRET arm: 880,266, +9,564, over the +3,000 bar. After the loop, beside `DEFERRED_SWITCH`, with a `reply_req` local and a `break` in the arm: 873,001, +2,299. The post-loop form stands, and `$rv` is 873,001. It costs one short tick per return to U-mode: the `break` skips the arm's `i += 1`, so an SRET to U-mode is not counted in `insn_count`.
+
+Step 134, off-equal. The arm as Step 132 words it (`cfg!(...) && syscall_nr == 12`) failed this check: 869,372, -1,330. The `||` form on the arm for 14 measured the same, and the alias row alone 870,702, so the live compare is what moves the count. The landed arm is `cfg!(...) && UPC_RUNG_SBRK && syscall_nr == 12`: the const folds it away when off, 12 reaches the chain's tail and answers the same -ENOSYS, and the off object is 870,702 again. `parity_surface` reads this form unchanged. Later rungs will meet the same compare.
