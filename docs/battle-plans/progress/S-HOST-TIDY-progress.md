@@ -20,6 +20,7 @@
 - Plan text, Step 23: it labels the evidence line and commit `Steps 19-23`, but Phase 2 is Steps 20-28 and Step 19 is Phase 1's exit gate. Run as written. That commit holds only the progress line; the Step 20-22 edits went in with Step 27, as the plan's staging list says.
 - Plan text, Step 32: it labels the evidence line and commit `Steps 28-32`, but Phase 3 is Steps 29-37 and Step 28 is Phase 2's exit gate. Run as written.
 - Plan text, Step 41: it labels the evidence line and commit `Steps 37-41`, but Phase 4 is Steps 38-42 and Step 37 is Phase 3's exit gate. Run as written. Step 39's `tail -1` shows the tool's `undo:` line, not a line saying applied; it was read with Step 40's `in place` check, and `pipefail` was added to see the real exit code (rc=0 on both hosts).
+- DP-708 done on the third try, under two coordinator rulings (Evidence has both). Plan text, if the rulings are kept: Step 58 needs the Pi-hole-alone set and one lookup before its command, and Step 59's first check needs `-t A`. With `-t A`, `resolvectl query` prints `name IN A 0.0.0.0 -- link: enp2s0`, not the `name: 0.0.0.0 ...` shape in Step 59's Expect; the address matched, so it was read as a pass under ruling 2.
 
 ## Evidence
 
@@ -45,3 +46,7 @@
 - Steps 28-32: Phase 3, checked: Install on east..
 - Steps 33-36: unheaded-remediate on west and east; west caps 4G/500M; east already 1G/200M; ROCm logs already 0640.
 - Steps 37-41: usb-storage install /bin/false on west and east; no USB disks; input devices unaffected.
+- Phase 6 third try, Steps 56-63, under two coordinator rulings. Ruling 1, Step 58: first `sudo resolvectl dns enp2s0 10.10.20.252`, one `resolvectl query archive.ubuntu.com`, confirm `Current DNS Server: 10.10.20.252`, then the step's own command. No resolved restart, no `netplan apply`. Ruling 2, Step 59's first check: `resolvectl query -t A o401343.ingest.us.sentry.io 2>&1 | head -1`, expected text stays `0.0.0.0`; every other check as written.
+- Step 56 passed (`1`, `blocked=0`). Step 57 matched Expect; the only diff from the backup is line 11, mode still `600 root:root`. Step 58 ruling: `Current DNS Server: 10.10.20.252` with Pi-hole alone. Step 58 own command matched Expect: `Link 2 (enp2s0): 10.10.20.252 1.1.1.1 8.8.8.8`, `/run/systemd/resolve/stub-resolv.conf`, `nameserver 127.0.0.53`.
+- Step 59 passed: `o401343.ingest.us.sentry.io IN A 0.0.0.0`, `archive.ubuntu.com: 2a06:bc80:0:1000::18`, apt errors `0`, `Current DNS Server: 10.10.20.252`, chrony `1`, `FRESH_KEY_LOGIN_OK`.
+- Steps 56-60: Phase 6, checked: AFTER  the stub reaches Pi-hole, names resolve, the login path is untouched..
