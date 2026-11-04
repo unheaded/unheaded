@@ -93,7 +93,9 @@ func (c *Champion) BranchSandbox() string {
 	return c.branchSandbox.branch
 }
 
-// branchSandboxAllows reports whether the mode answers Rule 2 for tc. It
+// branchSandboxAllows reports whether the mode answers Rule 2 for tc. Only
+// a path inside the worktree qualifies: Stevie's review of the branch is
+// what stands in for confirmation, and it shows nothing outside. It
 // re-checks the branch on every call (a branch switch turns it off) and
 // refuses any path under .git (hooks there would run on Stevie's review).
 func (c *Champion) branchSandboxAllows(tc ToolCall) (string, bool) {
@@ -103,6 +105,14 @@ func (c *Champion) branchSandboxAllows(tc ToolCall) (string, bool) {
 	}
 	path, ok := tc.Args["path"].(string)
 	if !ok || path == "" {
+		return "", false
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", false
+	}
+	root, err := filepath.Abs(c.config.ProjectRoot)
+	if err != nil || !strings.HasPrefix(abs, root+string(filepath.Separator)) {
 		return "", false
 	}
 	for _, part := range strings.Split(filepath.ToSlash(filepath.Clean(path)), "/") {

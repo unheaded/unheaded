@@ -108,6 +108,7 @@ func Args(cfg Config, argv []string) ([]string, error) {
 		"--user", "--wait", "--pipe", "--quiet", "--collect",
 		"-p", "PrivateNetwork=yes",
 		"-p", "ProtectHome=tmpfs",
+		"-p", "ProtectSystem=strict",
 		"-p", "PrivateTmp=yes",
 		"-p", "NoNewPrivileges=yes",
 		"-p", "MemoryMax=" + mem,

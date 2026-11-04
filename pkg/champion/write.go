@@ -220,6 +220,42 @@ func (c *Champion) writeBeneath(absPath, content string, create bool) error {
 	return f.Close()
 }
 
+// writeNewBeneath creates name, one path component, in dir: nothing that
+// exists is opened, symlink or not, and a failed write leaves no file. The
+// mode is set with fchmod after the write, so the umask cannot change it;
+// the group is the directory's when that is setgid.
+func (c *Champion) writeNewBeneath(dir, name, content string) error {
+	rootFD, err := openRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer closeFD(rootFD)
+	if c.beforeOpen != nil {
+		c.beforeOpen()
+	}
+	f, err := openBeneath(rootFD, name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o640)
+	if err != nil {
+		return err
+	}
+	if c.afterCreate != nil {
+		c.afterCreate(f)
+	}
+	_, err = f.WriteString(content)
+	if err == nil {
+		err = f.Chmod(0o640)
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		if uerr := unlinkBeneath(rootFD, name); uerr != nil {
+			return errors.Join(err, uerr)
+		}
+		return err
+	}
+	return nil
+}
+
 // RevertAction undoes a previous action by restoring the snapshot.
 func (c *Champion) RevertAction(ctx context.Context, actionID int64) error {
 	start := time.Now()

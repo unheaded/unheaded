@@ -359,7 +359,9 @@ func worktreeChampion(ctx context.Context, cfg Config, t Task, log *slog.Logger)
 	if err != nil {
 		return "", nil, err
 	}
-	champ, err := champion.New(champion.Config{ProjectRoot: root}, nil)
+	// The worktree alone: the default also allows /var/zhen/, and a model
+	// works here with no confirmation.
+	champ, err := champion.New(champion.Config{ProjectRoot: root, AllowedPaths: []string{root}}, nil)
 	if err != nil {
 		return "", nil, err
 	}
