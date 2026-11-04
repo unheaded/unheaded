@@ -19,7 +19,7 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 | S-STAGE-2B | unattended, serial | E | DP-213, 413, 414, 501, 502, 503, 717, 206 prep |
 | S-LOG-HARVEST Phase 5 | unattended, existing plan | C, after S-ZHEN-POLISH | native syslog relay, Steps 105-140 |
 | S-HOST-TIDY | unattended, live hosts, reversible only | coordinator | DP-09, 11 (password + fail2ban, not the port), 12, 15 (`PermitRootLogin no`), 25 (safe rows), 708, 711, 723 follow-up |
-| S-E1-LIVE | ATTENDED | Stevie present | E1 stack up, DP-23, 605, 603 (103, 106), 22, 04, 15 keys, 11 port, 06 ceremony, 14, 03 later, 710, 303, 505, 701, 602, 604, 606, 07 |
+| S-E1-LIVE | ATTENDED | Stevie present | E1 stack up, DP-23, 605, 603 (103, 106), 22, 04, 15 keys, 11 port, 06 ceremony, 14, 03 later, 206, 710, 303, 505, 701, 602, 604, 606, 07 |
 
 ## Rules every plan and every agent follows
 
@@ -42,9 +42,11 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 13. **Dangerous scripts stay with Opus (Stevie, 2026-11-04).** Haiku and Sonnet never write or edit a script or command that runs as root, deletes outside a worktree, rewrites git history, or touches sshd, PAM, sudoers, firewalls, resolvers, keys, credentials, `/etc/shadow` or a live host. Those phases are `**Model**: Opus`, or wait for Claude in an attended session. If a cheaper agent finds it needs one, it stops at that step and marks `[STUCK]`.
 14. **Process hygiene.** Never `pkill -f`: it matches the caller's own shell. Stop a process by its recorded pid. Rehearsals run as the normal user; anything that needs root is a named step, not a side effect, and forgers and reviewers run nothing as root.
 
+15. **Merging.** Before a plan merges: merge develop into the sprint worktree, rebuild, and run the plan's closing gate on that tree; a conflict is `[STUCK]`, no merge. The merge itself never leaves the main checkout half-done: `git merge --no-ff -S <branch> -m '...' || { git merge --abort; git merge --no-ff --no-gpg-sign <branch> -m '...'; }`, and an unsigned merge is recorded in the progress file. Three-dot diffs (`develop...HEAD`) when asking what a branch changed. Every `[S]` step is Opus.
+
 ## Reserved numbers and known collisions
 
-ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
+ADR-121 is S-CLEAN-CUT's parked WAF idea. ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. S-STAGE-2B starts at 135. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
 
 ## Order
 
