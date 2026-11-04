@@ -1686,6 +1686,39 @@ pub mod mbc_linux_syscalls {
     pub const SYS_ENABLE_MMU: u32 = 251;
     /// Custom: flush all TLB entries (invalidate software TLB) (Level 4d).
     pub const SYS_FLUSH_TLB: u32 = 252;
+
+    /// DP-503: the FUZIX calls that fabricate a result instead of doing the
+    /// work. They answer only under `fuzix-permissive`; other builds return
+    /// `-ENOSYS`. SYS_SIGNAL (a real table), SYS_TIME, SYS_BRK and the block
+    /// calls do real work and are not in the set.
+    pub const fn is_permissive(n: u32) -> bool {
+        matches!(
+            n,
+            SYS_OPEN
+                | SYS_CLOSE
+                | SYS_GETUID
+                | SYS_GETGID
+                | SYS_GETEUID
+                | SYS_GETEGID
+                | SYS_SETUID
+                | SYS_SETGID
+                | SYS_DUP
+                | SYS_DUP2
+                | SYS_KILL
+                | SYS_STAT
+                | SYS_FSTAT
+                | SYS_LSEEK
+                | SYS_GETPPID
+                | SYS_UMASK
+                | SYS_SYNC
+                | SYS_TIMES
+                | SYS_IOCTL
+                | SYS_PIPE
+                | SYS_FCNTL
+                | SYS_ACCESS
+                | SYS_CHDIR
+        )
+    }
 }
 
 /// Block device emulation constants (Level 4e — ramdisk).

@@ -709,7 +709,12 @@ impl Cpu {
                     // ── INT 0x80: Linux-compatible syscall dispatch (Level 4b) ──
                     // Convention: r0 = syscall number, r1-r3 = args.
                     let syscall_nr = self.state.regs[0];
-                    if syscall_nr == lsys::SYS_EXIT {
+                    // DP-503: without `fuzix-permissive` the fabricated set answers
+                    // -ENOSYS. `cfg!` stays the left operand so the permissive
+                    // build pays nothing.
+                    if !cfg!(feature = "fuzix-permissive") && lsys::is_permissive(syscall_nr) {
+                        self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                    } else if syscall_nr == lsys::SYS_EXIT {
                         // Phase 1.3 ADR-075 D-5: ZOMBIE the exiting slot (keep
                         // it in the table until parent reaps), set halted_mask
                         // bit, broad-wake any vfork-suspended parent, then
