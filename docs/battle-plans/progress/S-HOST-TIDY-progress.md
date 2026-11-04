@@ -18,6 +18,7 @@
 - Plan text, Step 75: it labels the evidence line and commit `Steps 68-75`, but Phase 8 is Steps 69-76 and Step 68 is Phase 7's exit gate.
 - `journald-caps-west` sits in the `all` profile (`all: true` takes every fix, so `profile-all.yml` lists it) with no host guard. Nothing runs that profile today and Phase 3 applies the fix by id, but a future `all` run on east would write 4G/500M there, against DP-09 (east stays at 1G/200M). `lab` and `lab-hardened` do not list it. Decide: exclude it from `all`, or add a per-host guard, or accept it.
 - Plan text, Step 23: it labels the evidence line and commit `Steps 19-23`, but Phase 2 is Steps 20-28 and Step 19 is Phase 1's exit gate. Run as written. That commit holds only the progress line; the Step 20-22 edits went in with Step 27, as the plan's staging list says.
+- Plan text, Step 32: it labels the evidence line and commit `Steps 28-32`, but Phase 3 is Steps 29-37 and Step 28 is Phase 2's exit gate. Run as written.
 
 ## Evidence
 
@@ -41,3 +42,4 @@
 - Steps 19-23: Phase 2, checked: DP-15: the restore runbook stops needing root on east. It is in the manifest, so regenerat.
 - Steps 24-27: Two fixes added; parity goldens unchanged; restore runbook off root@east; tests green.
 - Steps 28-32: Phase 3, checked: Install on east..
+- Steps 33-36: unheaded-remediate on west and east; west caps 4G/500M; east already 1G/200M; ROCm logs already 0640.
