@@ -14,6 +14,11 @@
   - An entry is expired from the second `expires_at` names: live means `now_s < expires_at`.
 - Step 90: `hop_xdp_insns_post` = 171672 (`hop_xdp OK verified 171672 insns`, kernel 6.17.0-41-generic).
 - Step 91 budget gate: under 900,000; +17,837, +11.59 % over 153,835, inside the 25 % line (192,293). Step 93 not needed. It is over the ratchet's 169,218, so `check-ebpf-insns.sh` fails on this count until Step 119 patches the row; no self-approval here.
+- Steps 93, 94: not needed. The first build loaded, and the count sits inside the 25 % line.
+- Steps 95-96 GREEN: all fourteen PASS on the first run, and all eleven `TestHopCheckEdges`, run under the shared eBPF lock.
+- Because the first run was green, eight mutants of `run_checks` were built outside the tree and run against the test binary. All eight were killed: expiry ignored, namespace hard-coded in the validator key, namespace hard-coded in the HMAC key, cap off by one, observe drops, service pair swapped, retry source truncated, ANOMALY removed. `main.rs` was restored each time; `git status` clean afterwards.
+- Other gates on this tree: `gofmt -l` empty, `go vet` clean, `go test -race ./tests/hopchecks/` ok (skips unprivileged), `go test ./pkg/protocol/bpfschema/` ok with both Shield and hop declaring the three maps, `check-gosec-ratchet.sh` PASS, `rustfmt --check` clean.
+- Phase 11 exit gate: fourteen PASS; `hop_xdp_insns_post` 171672 recorded; mode 0 is cases 1 and 12, both PASS with 0/0/0.
 
 ## For Stevie
 
