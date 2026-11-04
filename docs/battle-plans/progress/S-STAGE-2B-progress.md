@@ -19,4 +19,6 @@ DP-206 (approved, already run once under guard): the attended list is Appendix D
 1. (plan-time) Rung order differs from the pack: sbrk, kill, mkdir, unlink, link, sleep, fd table, chdir, pipe. pipe and chdir cannot be honest before the kernel fd table. Veto if you want otherwise.
 2. (plan-time) Heap: 192 KiB per process in VA [0x10000, 0x40000), and init (slot 0) gets none. A bigger heap needs a third fork-copy band.
 3. (plan-time) `cargo-fuzz` is not installed on west, so `fuzz_mbc_execute` records SKIP. Installing it is a third-party question.
+- ascend baseline row now 872276 (net vs 921036: 48760)
+- Phase 2 departures, both small: Step 23 printed 2, not 0, because Phase 0's harness edit landed after the p0 gate recorded HEAD, so gate rung2-before ran as the step says (12/12, rc=0, 868290, Doom 758199). Step 34's cmt list omits $PROG, but insrow writes to it, so $PROG was added to that commit or Step 35's clean-tree check could not pass. Phases that run insrow later need the same addition.
 

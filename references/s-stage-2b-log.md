@@ -17,3 +17,5 @@ This section sits above the Ledger because `ledger` appends to the end of the fi
 
 | Rung | OFF | ON | delta | net vs 921,036 | gate |
 |---|---|---|---|---|---|
+| rung 2 uptime (DP-717) | 868290 | 872276 | +3986 | 48760 | rung2-after |
+net since rung 0: 48760

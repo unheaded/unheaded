@@ -443,7 +443,8 @@ const UPC_PROBE_INJECT22: bool = false;
 const DEFERRED_SWITCH: bool = true;
 // ADR-110 (EVOLUTION-1 Stage 2 rung 2): uptime is injected into the owned
 // kernel, and inject_strap publishes the tick count the kernel's clock follows.
-const UPC_RUNG2: bool = false;
+// On since 2026-11-04 (DP-717). Rollback = this const off.
+const UPC_RUNG2: bool = true;
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
 const SWITCH_EXIT: u8 = 2; // halt if nothing else can run

@@ -174,7 +174,7 @@ if grep -q 'const UPC_RUNG2: bool = true;' "$EBPF/monad-cpu-ebpf/src/main.rs"; t
   want_counts "$UPL" "UP: init-moved=yes" 1 "UP: child-moved=yes" 1 "UP: child-mono=yes" 1 "UP: init-before=large" 1 \
     && pass "uptime: kernel clock rises in init and child, monotonic across them (ADR-110)" || fail "uptime (ADR-110)"
 else
-  note "uptime gate skipped: UPC_RUNG2 is off (ADR-110 waits on the stop-rule reading)"
+  note "uptime gate skipped: UPC_RUNG2 is off (rollback build)"
 fi
 
 # ADR-109 D6 (M-247): a child stores to slot 0's pgd (15 MiB up, a page-walk
