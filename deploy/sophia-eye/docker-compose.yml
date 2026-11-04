@@ -146,9 +146,9 @@ services:
         max-file: "3"
 
   open-webui:
-    # open-webui publishes main as a branch build; this is the one west holds
-    # (2026-10-27): revision 91ea4e3421d1, built 2026-10-16.
-    image: ghcr.io/open-webui/open-webui:main@sha256:4860ba005ae8f19f08d1e12b0868855b7b339ea0dad9927f196820fc0de04575
+    # open-webui publishes main as a branch build. Pinned 2026-11-04 to clear
+    # CVE-2026-111497 (brotli, CISA KEV): revision c38885a1a737, built 2026-11-03.
+    image: ghcr.io/open-webui/open-webui:main@sha256:975e3965dcf5832804d2f77e167920794757027c5a2046917d42023d75fac431
     container_name: sophia-webui
     hostname: open-webui
     restart: unless-stopped
