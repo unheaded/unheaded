@@ -855,7 +855,7 @@ EOF
 ```bash
 cd /home/govan/tmp/wt/s-supply-first-images && ./scripts/check-image-tags.sh 2>&1 | tail -5; ./scripts/check-hadolint.sh 2>&1 | tail -1
 ```
-  `check-image-tags.sh` already exits 1 on develop, so expect exactly these three stale rows under one `[FAIL]` line, and fail only on anything else: `docker/firewall/ipfire/Dockerfile ubuntu:24.04`, `docker/firewall/opnsense/Dockerfile ubuntu:24.04`, `kubernetes/manifests/base/haproxy-ingress/controller.yaml haproxytech/kubernetes-ingress:3.1`. Do not run `--update` (rule 17): S-CLEAN-CUT Step 130 owns that cleanup. `check-hadolint.sh` must pass. Any other failure → revert that image's edit, record why under "For Stevie".
+  `check-image-tags.sh` already exits 1 on develop, so expect exactly these three stale rows under one `[FAIL]` line, and fail only on anything else: `docker/firewall/ipfire/Dockerfile ubuntu:24.04`, `docker/firewall/opnsense/Dockerfile ubuntu:24.04`, `kubernetes/manifests/base/haproxy-ingress/controller.yaml haproxytech/kubernetes-ingress:3.1`. Do not run `--update` (rule 17): S-CLEAN-CUT Step 118 owns that cleanup. `check-hadolint.sh` must pass. Any other failure → revert that image's edit, record why under "For Stevie".
 
 - [ ] **Step 68** [C] ~2m: **PHASE 6 EXIT GATE + ONE COMMIT FOR IMAGES**. Write the summary table from Step 64 into `docs/security/image-scan-2026-11-04.md` (SPDX header, date, tool and DB version, table, what moved, what waits). Commit that file and any changed Dockerfiles or compose files, by name, with `/var/tmp/s-supply-first/ci.sh '[PLAN S-SUPPLY-FIRST] Steps 63-68: images measured; patch-level bumps' <files>`. The gate: every image scanned or its failure recorded, `git status --short | wc -l` prints `0`.
 
@@ -1463,7 +1463,7 @@ cd /home/govan/tmp/wt/s-supply-first && /var/tmp/s-supply-first/ci.sh '[PLAN S-S
 ```bash
 cd /home/govan/tmp/wt/s-supply-first && git status --short | wc -l && PATH=/var/tmp/s-supply-first/civenv2/bin:$PATH GOMAXPROCS=4 TMPDIR=/var/tmp/s-supply-first/tmp GOTMPDIR=/var/tmp/s-supply-first/tmp timeout 3500 ./scripts/check-gates-can-fail.sh --quick 2>&1 | tail -4
 ```
-  Bar: `0`, then `PASS: N gate(s) proven to fail when violated`. `--quick` skips every gate marked `slow` (24 today, among them `check-clippy`, `bpf-verifier-check`, `check-hadolint`, `check-trivy-misconfig`, `check-ebpf-insns` and the Well suites), so a pass here says nothing about those; run `--only <gate>` for any this plan touched, and write that limit in the progress file. An INCONCLUSIVE gate is one already failing on a clean tree: `check-image-tags` stays so until S-CLEAN-CUT Step 130 lands. Fix any other, or say which and why in the progress file.
+  Bar: `0`, then `PASS: N gate(s) proven to fail when violated`. `--quick` skips every gate marked `slow` (24 today, among them `check-clippy`, `bpf-verifier-check`, `check-hadolint`, `check-trivy-misconfig`, `check-ebpf-insns` and the Well suites), so a pass here says nothing about those; run `--only <gate>` for any this plan touched, and write that limit in the progress file. An INCONCLUSIVE gate is one already failing on a clean tree: `check-image-tags` stays so until S-CLEAN-CUT Step 118 lands. Fix any other, or say which and why in the progress file.
 
 - [ ] **Step 121** [B] ~2m: merge into develop (rule 15). Stevie pushes; Claude never does. Run this only if the develop checkout is on `develop` with a clean index; otherwise leave the branch ready and tell the coordinator.
 ```bash
