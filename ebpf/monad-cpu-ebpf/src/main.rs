@@ -445,6 +445,10 @@ const DEFERRED_SWITCH: bool = true;
 // kernel, and inject_strap publishes the tick count the kernel's clock follows.
 // On since 2026-11-04 (DP-717). Rollback = this const off.
 const UPC_RUNG2: bool = true;
+// ADR-135 D1 (the kernel's reply channel): inject_strap publishes the break as
+// brk_in; the SRET arm reads the kernel's reply on a return to U-mode, clears
+// it and acts. Off: nothing reads reply. Rollback = this const off.
+const UPC_REPLY: bool = false;
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
 const SWITCH_EXIT: u8 = 2; // halt if nothing else can run
@@ -753,6 +757,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     let mut prev_pc: u32 = cpu.pc; // Track last valid PC for post-mortem
     let mut i = 0usize;
     let mut switch_req = SWITCH_NONE;
+    let mut reply_req = false;
     while i < MAX_INSN_PER_TICK {
         if cpu.halted != 0 {
             break;
@@ -1432,6 +1437,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 }
             };
             cpu.reservation_address = 0xFFFF_FFFF;
+            if cfg!(feature = "ascend-linux") && UPC_REPLY && spp == 0 {
+                reply_req = true; // read after the loop: ADR-135 Consequences
+                break;
+            }
         } else if cfg!(feature = "ascend-linux") && opc == op::LR_W {
             // Load-Reserved Word: rd = RAM[rs1]; reserve rs1.
             let addr = cpu.regs[s];
@@ -3382,6 +3391,23 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         increment_stat(STAT_INSNS_EXECUTED);
     }
 
+    // ADR-135 D1: the kernel's reply, on a return to U-mode. Here and not in the
+    // SRET arm because variable RAM offsets inside the loop cost the verifier
+    // (Step 130 measured both); the price is one short tick per trap return.
+    if cfg!(feature = "ascend-linux") && UPC_REPLY && reply_req {
+        let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
+        if base != 0 {
+            let w = (base + phase12::UPC_ST_REPLY_OFF) >> 2;
+            let r = mem_read_word(w);
+            if (r & phase12::UPC_TAG_MASK) == phase12::UPC_TAG_REPLY {
+                mem_write_word(w, 0);
+                if r & phase12::UPC_REPLY_SET_BRK != 0 {
+                    cpu.program_break = mem_read_word((base + phase12::UPC_ST_REPLY_ARG_OFF) >> 2);
+                }
+            }
+        }
+    }
+
     // DEFERRED_SWITCH: the one context switch for the ascend exit/wait/pause
     // arms. For an exit, the old pid left running means nothing else can run.
     if DEFERRED_SWITCH && switch_req != SWITCH_NONE {
@@ -3739,6 +3765,10 @@ fn inject_strap(cpu: &MbcCpuState) {
     if UPC_RUNG2 {
         mem_write_word((base + phase12::UPC_ST_TICKS_OFF) >> 2, cpu.tick_counter);
         // ADR-110 T1
+    }
+    if UPC_REPLY {
+        mem_write_word((base + phase12::UPC_ST_BRK_IN_OFF) >> 2, cpu.program_break);
+        // ADR-135 D3
     }
 }
 

@@ -101,3 +101,9 @@ The self-review's answers change on three of the four questions; only the retry 
 Step 120 [DECIDE]: no finding is a blocker against D1. R-F1 and R-F2 name D1's channel, but neither stops it: forging needs a hole that is already total with ADR-109 D6 off, which stays off, and every value BPF takes is bounded. Nothing else blocks a rung: every fix left open is pre-existing or forward, and the design's rungs do not depend on it. So the rungs proceed as designed.
 
 Step 141 says to extend `sbrkprobe` only if the review found more. R-F3 and R-F4 are more, but neither gets a fix in this plan and D5 is not a confidentiality control, so a probe would only document an open hole. No extension.
+
+## Phase 11, sbrk rung
+
+Step 122: `$offv` 870,702, no before gate needed (no code diff against `last-green`).
+
+Step 130 [DECIDE], where the reply is read. In the SRET arm: 880,266, +9,564, over the +3,000 bar. After the loop, beside `DEFERRED_SWITCH`, with a `reply_req` local and a `break` in the arm: 873,001, +2,299. The post-loop form stands, and `$rv` is 873,001. It costs one short tick per return to U-mode: the `break` skips the arm's `i += 1`, so an SRET to U-mode is not counted in `insn_count`.
