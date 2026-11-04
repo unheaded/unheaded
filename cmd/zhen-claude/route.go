@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/energy"
 	"unheaded/pkg/zhencapture"
 )
 
@@ -34,7 +35,9 @@ const (
 func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.Writer, log *slog.Logger, capw *zhencapture.Writer, tools *toolCollector, aud *auditSetup) int {
 	t0 := time.Now()
 	local := &claudebridge.LocalLLM{BaseURL: o.localURL, Model: o.localModel, MaxTokens: o.localMaxTokens, Timeout: o.localTimeout}
+	run := energy.Discover().Start(ctx)
 	ans, lerr := local.Complete(ctx, claudebridge.DefaultLocalSystem, prompt)
+	est := run.Stop()
 	localDur := time.Since(t0)
 
 	// One id for the local leg's llm_requests row and the capture; an
@@ -74,7 +77,7 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 		}
 	}
 	attrs = append(attrs, "local_ok", lerr == nil, "why", why)
-	auditLocalLeg(ctx, aud, o, rec.ConversationID, rec.Local, localDur, lerr)
+	auditLocalLeg(ctx, aud, o, rec.ConversationID, rec.Local, localDur, lerr, est)
 	if rec.Local.Error != "" {
 		attrs = append(attrs, "local_error", rec.Local.Error)
 	}
@@ -278,7 +281,7 @@ func escalationReason(why string) string {
 
 // auditLocalLeg records the local model's request like any other: one
 // llm_requests row (backend local, cost 0), no text.
-func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, conversation string, leg *zhencapture.Leg, d time.Duration, lerr error) {
+func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, conversation string, leg *zhencapture.Leg, d time.Duration, lerr error, est energy.Estimate) {
 	if aud == nil || aud.auditor == nil || leg == nil {
 		return
 	}
@@ -289,6 +292,7 @@ func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, conversatio
 	r := claudebridge.RequestRecord{
 		Conversation: conversation, Model: leg.Model, ServedBy: leg.Model, StopReason: leg.StopReason,
 		Duration: d, Sent: true, Backend: claudebridge.BackendLocal, RouteReason: reason,
+		EnergyJoules: est.Joules, EnergyMethod: est.Method,
 	}
 	if lerr != nil {
 		r.Err = lerr.Error()

@@ -12,7 +12,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"unheaded/pkg/energy"
 	"unheaded/pkg/gpulease"
 )
 
@@ -304,5 +306,15 @@ func TestRouter_GPUBusyNeverEscalates(t *testing.T) {
 	out, err := f.router(testRouting(), true).Run(context.Background(), "parse-only", "x")
 	if !errors.Is(err, gpulease.ErrTimeout) || out.Stop != "gpu_busy" || len(f.claudeCalls) != 0 {
 		t.Errorf("out %+v err %v claude calls %d", out, err, len(f.claudeCalls))
+	}
+}
+func TestAuditLocalCarriesTheEstimate(t *testing.T) {
+	j := 12.5
+	a := &recordingAuditor{}
+	r := &ThresholdRouter{Auditor: a}
+	r.auditLocal(context.Background(), "docs", "local_first", LocalAnswer{Model: "m"}, nil, time.Second, energy.Estimate{Joules: &j, Method: energy.MethodGPUSampled})
+	got := a.reqs[len(a.reqs)-1]
+	if got.EnergyJoules == nil || *got.EnergyJoules != 12.5 || got.EnergyMethod != energy.MethodGPUSampled {
+		t.Fatalf("%+v", got)
 	}
 }

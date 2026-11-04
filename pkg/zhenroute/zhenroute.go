@@ -29,6 +29,7 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/claudebridge/privacy"
+	"unheaded/pkg/energy"
 	"unheaded/pkg/sandbox"
 	"unheaded/pkg/zhencapture"
 )
@@ -86,6 +87,8 @@ type Config struct {
 	GPULock      string
 	LeaseTimeout time.Duration
 
+	// Energy samples GPU power around local legs (ADR-120); nil is off.
+	Energy *energy.Sampler
 	// Claude is the Claude leg (nil: no Claude, as for LocalOnly).
 	Claude ClaudeLeg
 	// Privacy redacts check output before it enters any prompt and filters
@@ -306,6 +309,7 @@ func Run(ctx context.Context, cfg Config, t Task) (claudebridge.RouteOutcome, er
 		},
 		Redact:  redact,
 		Auditor: cfg.Auditor,
+		Energy:  cfg.Energy,
 	}
 	if root != "" {
 		r.Apply = func(ctx context.Context, answer string) error {

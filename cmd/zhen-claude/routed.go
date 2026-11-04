@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/energy"
 	"unheaded/pkg/sandbox"
 	"unheaded/pkg/zhencapture"
 	"unheaded/pkg/zhenroute"
@@ -81,6 +82,7 @@ func runRouted(ctx context.Context, o *options, prompt string, stdout, stderr io
 	}
 	filter, ferr := buildPrivacy(o, root)
 	rc := zhenroute.Config{
+		Energy:  energy.Discover(),
 		Routing: cfg, ChecksPath: o.checksPath,
 		LocalURL: o.localURL, LocalModel: o.localModel, LocalMaxTokens: o.localMaxTokens, LocalTimeout: o.localTimeout,
 		Privacy: filter, PrivacyErr: ferr, Auditor: aud.auditor, SandboxRun: routedSandboxRun, Log: log,

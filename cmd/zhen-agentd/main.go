@@ -46,6 +46,7 @@ import (
 	"unheaded/pkg/champion/pgstore"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/energy"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/vorquery"
@@ -240,7 +241,7 @@ func main() {
 		defaultRoot: rootAbs,
 		allowed:     allowed,
 		retriever:   &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars, index: vorquery.NewIndex(httpClient, vorURL)},
-		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor, gpuLock: wf.gpuLock},
+		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor, gpuLock: wf.gpuLock, energy: energy.Discover()},
 		vorURL:      vorURL,
 		llamaURL:    llamaURL,
 		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
@@ -1268,6 +1269,7 @@ type llamaLLM struct {
 	baseURL string
 	model   string
 	audit   claudebridge.Auditor // nil: not audited
+	energy  *energy.Sampler      // nil: no estimate (ADR-120)
 	gpuLock string               // shared GPU lease per call ("" = none)
 }
 
@@ -1275,9 +1277,12 @@ type llamaLLM struct {
 // request (tokens, duration, outcome; never the text).
 func (l *llamaLLM) Complete(ctx context.Context, msgs []agent.Message, maxTokens int, temp float64, seed int) (string, error) {
 	t0 := time.Now()
+	run := l.energy.Start(ctx)
 	text, u, err := l.complete(ctx, msgs, maxTokens, temp, seed)
+	est := run.Stop()
 	if l.audit != nil {
 		rec := claudebridge.RequestRecord{
+			EnergyJoules: est.Joules, EnergyMethod: est.Method,
 			Conversation: runIDFrom(ctx), Model: l.model, ServedBy: u.Model, StopReason: u.FinishReason,
 			InputTokens: u.PromptTokens, OutputTokens: u.CompletionTokens,
 			Duration: time.Since(t0), Sent: true, Backend: claudebridge.BackendLocal,

@@ -20,6 +20,7 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/claudebridge/privacy"
+	"unheaded/pkg/energy"
 	"unheaded/pkg/gpulease"
 	"unheaded/pkg/zhenagent"
 	"unheaded/pkg/zhenroute"
@@ -215,6 +216,7 @@ func buildWorker(ctx context.Context, wf workerFlags, root, llamaURL, mode strin
 	}
 	filter, ferr := buildPrivacyFilter(wf.privacyMode, llamaURL, wf.localModel, wf.gpuLock)
 	rc := zhenroute.Config{
+		Energy:  energy.Discover(),
 		Routing: routing, ChecksPath: wf.checks, LocalURL: llamaURL, LocalModel: wf.localModel,
 		LocalMaxTokens: 4096, LocalTimeout: 10 * time.Minute, Privacy: filter, PrivacyErr: ferr, Auditor: aud.auditor, Log: log,
 		GPULock: wf.gpuLock, LeaseTimeout: 30 * time.Second,
