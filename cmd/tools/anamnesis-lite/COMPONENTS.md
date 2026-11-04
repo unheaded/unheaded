@@ -6,7 +6,6 @@
 |---|---|
 | `cmd/trace-collector-go/main.go` | Go BPF-trace collector; reads ring-buffer events, decodes Monad markers, publishes to Wotan or stdout |
 | `cmd/ebpf-collector/` | Rust trace-collector variant (aya-based, richer kernel-side semantics) |
-| `cmd/ebpf-exporter/main.go` | Prometheus exporter for BPF map metrics |
 | `cmd/dashboard-backend/` | aggregated metrics + WebSocket streaming UI backend |
 
 ## Library packages
@@ -14,7 +13,6 @@
 | Path | Purpose |
 |---|---|
 | `services/anamnesis/anamnesis.go` | event-history service (deleted 2026-10-26, S-REAL-STEEL E1 G10g: no binary imported it) |
-| `pkg/ebpf/maploader/` | BPF map management library |
 | `pkg/ebpf/loader.go` | BPF program loader (Go) |
 
 ## eBPF programs (Rust, via Aya)

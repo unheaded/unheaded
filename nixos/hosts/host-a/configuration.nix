@@ -12,8 +12,6 @@
     ../../modules/telemetry.nix
     ../../modules/observability.nix
     ../../modules/wireguard.nix
-    ../../modules/vllm-rocm.nix
-    ../../modules/ebpf-exporter.nix
     ../../modules/frr.nix
     ../../modules/services/monad.nix
     ../../modules/services/sophia.nix
@@ -81,7 +79,6 @@
         8428    # VictoriaMetrics
         3100    # Loki
         9100    # node_exporter
-        9435    # ebpf-exporter
         50051   # gRPC (monad)
         50052   # gRPC (sophia)
         50053   # gRPC (wotan)

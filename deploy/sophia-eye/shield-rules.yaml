@@ -20,52 +20,6 @@ rules:
   # INGRESS RULES - Allow only inference requests from Unheaded fabric
   # ============================================================================
 
-  - id: allow-inference-deepseek-ingress
-    name: "Allow inference requests to DeepSeek-R1 model"
-    description: "vLLM DeepSeek-R1 7B inference endpoint"
-    direction: ingress
-    source:
-      - network: unheaded-fabric  # VXLAN 172.16.0.0/12
-        allow-all-hosts: true
-    destination:
-      port: 20100
-      protocol: tcp
-    action: ALLOW
-    trace: true
-    trace-labels:
-      model: "deepseek-r1-7b"
-      service: "sophia-eye"
-      endpoint-type: "inference"
-    rate-limit:
-      enabled: true
-      requests-per-second: 100
-      burst: 200
-    timeout: 120s
-    priority: 100
-
-  - id: allow-inference-qwen-ingress
-    name: "Allow inference requests to Qwen coder model"
-    description: "vLLM Qwen 2.5 Coder 7B inference endpoint"
-    direction: ingress
-    source:
-      - network: unheaded-fabric
-        allow-all-hosts: true
-    destination:
-      port: 20101
-      protocol: tcp
-    action: ALLOW
-    trace: true
-    trace-labels:
-      model: "qwen2.5-coder-7b"
-      service: "sophia-eye"
-      endpoint-type: "inference"
-    rate-limit:
-      enabled: true
-      requests-per-second: 80
-      burst: 160
-    timeout: 120s
-    priority: 100
-
   - id: allow-sophia-gateway-ingress
     name: "Allow requests to Sophia's Eye gateway"
     description: "Main gateway endpoint for Protocol API integration"
@@ -147,13 +101,11 @@ rules:
 
   - id: allow-qdrant-http-internal
     name: "Allow internal Qdrant HTTP access"
-    description: "vLLM and gateway services query vector database"
+    description: "Gateway and embeddings services query vector database"
     direction: ingress
     source:
       - container-network: sophia-eye
         allow-services:
-          - vllm-deepseek
-          - vllm-qwen
           - sophia-gateway
           - embeddings-bge
     destination:
@@ -171,8 +123,6 @@ rules:
     source:
       - container-network: sophia-eye
         allow-services:
-          - vllm-deepseek
-          - vllm-qwen
           - sophia-gateway
     destination:
       port: 20103
@@ -193,25 +143,6 @@ rules:
           - open-webui
     destination:
       port: 20104
-      protocol: tcp
-    action: ALLOW
-    trace: false
-    timeout: 10s
-    priority: 101
-
-  - id: allow-vllm-internal-communication
-    name: "Allow vLLM internal worker communication"
-    description: "vLLM distributed inference worker coordination"
-    direction: ingress
-    source:
-      - container-network: sophia-eye
-        allow-services:
-          - vllm-deepseek
-          - vllm-qwen
-    destination:
-      port-range:
-        min: 8000
-        max: 8010
       protocol: tcp
     action: ALLOW
     trace: false
@@ -510,8 +441,6 @@ policy-groups:
   inference-service:
     description: "Common rules for inference endpoints"
     rules:
-      - allow-inference-deepseek-ingress
-      - allow-inference-qwen-ingress
       - allow-sophia-gateway-ingress
 
   internal-services:

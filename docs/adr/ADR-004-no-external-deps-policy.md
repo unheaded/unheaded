@@ -1,5 +1,7 @@
 # ADR-004: No-External-Dependencies Policy (Self-Hosted Everything)
 
+> **2026-11-04 (DP-401, round 4):** `cmd/waf` was deleted. `aws-lc-rs` and `aws-lc-sys` stay admitted for `crates/zhend` alone, which uses them directly.
+
 ## Status: Accepted — admission gate amended by [ADR-096](ADR-096-dependency-gate-cost-to-fake.md) (proposed 2026-09-24)
 
 ## Date: 2026-01-26
@@ -106,7 +108,7 @@ Dependencies from established organizations, approved by owner on a case-by-case
 | `cloudflare/circl` | Cloudflare | PQ cryptography: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205). Scope widened to record actual use, audit 2026-09-24 | 2026-03-15 |
 | `lib/pq` | Go community (widely used) | Pure Go PostgreSQL driver | 2026-03-15 |
 | `github.com/anthropics/anthropic-sdk-go` | Anthropic | Official Claude API client for `pkg/claudebridge` (ADR-104). MIT. Review below | 2026-10-23, **owner sign-off pending** |
-| `aws-lc-rs` (+ `aws-lc-sys`), Rust | AWS (`aws` org) | rustls' crypto provider in `cmd/waf` and `crates/zhend`: the only rustls provider with hybrid ML-KEM key exchange (ADR-105). Replaces `ring` there. Review below | 2026-10-23, **owner sign-off pending** |
+| `aws-lc-rs` (+ `aws-lc-sys`), Rust | AWS (`aws` org) | rustls' crypto provider in `crates/zhend` (`cmd/waf` deleted 2026-11-04): the only rustls provider with hybrid ML-KEM key exchange (ADR-105). Replaces `ring` there. Review below | 2026-10-23, **owner sign-off pending** |
 
 **Approval process:** New exceptions require owner sign-off. Target: Kanban board approval workflow (see ADR-025).
 

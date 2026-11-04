@@ -24,8 +24,6 @@ nixos/
     ├── unheaded-base.nix    # Shared baseline (security, nix, cgroups)
     ├── telemetry.nix        # Prometheus + VictoriaMetrics + Loki + Grafana
     ├── wireguard.nix        # WireGuard east-west + IPv6 /48 addressing
-    ├── vllm-rocm.nix        # vLLM + ROCm (Host-A only)
-    ├── ebpf-exporter.nix    # eBPF → Prometheus bridge
     └── services/            # One .nix per Unheaded service
         ├── monad.nix
         ├── sophia.nix
@@ -47,7 +45,7 @@ nixos/
 - All hosts import `unheaded-base.nix` → security hardening, nix config, cgroup v2
 - All hosts import `telemetry.nix` → node_exporter, Prometheus remote_write to Host-A
 - All hosts import `wireguard.nix` → WireGuard wg0 interface
-- Host-A only: `vllm-rocm.nix`, `ebpf-exporter.nix`, full service suite
+- Host-A only: full service suite
 - Host-B only: minimal service subset (monad, wotan, anamnesis, shield, unheaded-daemon, service-discovery)
 
 ## Environment Variables (set in each service's systemd unit)

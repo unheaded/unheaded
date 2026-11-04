@@ -19,7 +19,7 @@ BUILD_ARGS := \
   --build-arg COMMIT=$(COMMIT) \
   --build-arg BUILD_DATE=$(BUILD_DATE)
 
-.PHONY: all build build-svc build-vllm push pull up-forge up-outpost down logs clean preflight status help
+.PHONY: all build build-svc push pull logs clean preflight status help
 
 ## Default target — show help
 all: help
@@ -56,16 +56,6 @@ build-svc:
 	  ../
 	@echo "✓ Service $(SERVICE) built successfully"
 
-## Build vLLM/ROCm image
-build-vllm:
-	@echo "→ Building vLLM/ROCm image ($(VERSION))..."
-	docker build $(BUILD_ARGS) \
-	  -t unheaded-vllm-rocm:$(VERSION) \
-	  -t unheaded-vllm-rocm:latest \
-	  -f vllm-rocm/Dockerfile \
-	  vllm-rocm/
-	@echo "✓ vLLM/ROCm image built successfully"
-
 ## Push all images to registry
 push:
 	@echo "→ Pushing $(words $(SERVICES)) service images to $(REGISTRY)..."
@@ -77,13 +67,6 @@ push:
 	done
 	@echo "✓ All images pushed to $(REGISTRY)"
 
-## Push vLLM/ROCm image
-push-vllm:
-	@echo "→ Pushing vLLM/ROCm image to $(REGISTRY)..."
-	docker tag unheaded-vllm-rocm:$(VERSION) $(REGISTRY)/vllm-rocm:$(VERSION)
-	docker push $(REGISTRY)/vllm-rocm:$(VERSION)
-	@echo "✓ vLLM/ROCm image pushed"
-
 ## Pull all images from registry
 pull:
 	@echo "→ Pulling $(words $(SERVICES)) service images from $(REGISTRY)..."
@@ -94,35 +77,6 @@ pull:
 	  docker tag unheaded-$$svc:$(VERSION) unheaded-$$svc:latest; \
 	done
 	@echo "✓ All images pulled"
-
-## Start Host-A (Forge) — full stack with all services
-up-forge:
-	@echo "→ Starting Forge (host-a)..."
-	@if [ ! -d "hosts/host-a" ]; then \
-	  echo "✗ hosts/host-a not found"; \
-	  exit 1; \
-	fi
-	cd hosts/host-a && docker compose up -d
-	@echo "✓ Forge (host-a) is running"
-	@echo "  Use 'make status' to check service health"
-
-## Start Host-B (Outpost) — minimal suite for edge compute
-up-outpost:
-	@echo "→ Starting Outpost (host-b)..."
-	@if [ ! -d "hosts/host-b" ]; then \
-	  echo "✗ hosts/host-b not found"; \
-	  exit 1; \
-	fi
-	cd hosts/host-b && docker compose up -d
-	@echo "✓ Outpost (host-b) is running"
-	@echo "  Use 'make status' to check service health"
-
-## Stop all services (host-a and host-b)
-down:
-	@echo "→ Stopping all services..."
-	@cd hosts/host-a && docker compose down 2>/dev/null || true
-	@cd hosts/host-b && docker compose down 2>/dev/null || true
-	@echo "✓ All services stopped"
 
 ## Tail logs for a service: make logs SERVICE=monad
 logs:
@@ -168,7 +122,6 @@ clean:
 	  for svc in $(SERVICES); do \
 	    docker rmi unheaded-$$svc:$(VERSION) unheaded-$$svc:latest 2>/dev/null || true; \
 	  done; \
-	  docker rmi unheaded-vllm-rocm:$(VERSION) unheaded-vllm-rocm:latest 2>/dev/null || true; \
 	  echo "✓ Cleanup complete"; \
 	else \
 	  echo "✗ Cleanup cancelled"; \
@@ -187,10 +140,6 @@ help:
 	@echo "Examples:"
 	@echo "  make build                    # Build all 25 services"
 	@echo "  make build-svc SERVICE=monad  # Build single service"
-	@echo "  make build-vllm               # Build vLLM/ROCm image"
-	@echo "  make up-forge                 # Start host-a (full stack)"
-	@echo "  make up-outpost               # Start host-b (minimal)"
 	@echo "  make logs SERVICE=monad       # Follow logs for service"
-	@echo "  make down                     # Stop all services"
 	@echo "  make status                   # Show running containers"
 	@echo ""

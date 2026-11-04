@@ -99,7 +99,7 @@ func wotanClientIdentities(t *testing.T) []string {
 
 // rustWotanClientIdentities are the identities the Rust Wotan clients
 // present: `pub const IDENTITY: &str = "<name>";` in a cmd/ source file that
-// mints with crates/svc-token (cmd/trace-collector, cmd/ebpf-collector).
+// mints with crates/svc-token (cmd/ebpf-collector).
 func rustWotanClientIdentities(t *testing.T) []string {
 	t.Helper()
 	re := regexp.MustCompile(`pub const IDENTITY: &str = "([^"]+)";`)
@@ -131,7 +131,7 @@ func rustWotanClientIdentities(t *testing.T) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"trace-collector", "ebpf-collector"} {
+	for _, want := range []string{"ebpf-collector"} {
 		if !slices.Contains(names, want) {
 			t.Fatalf("Rust Wotan identities %v lack %q: the pattern no longer fits the code", names, want)
 		}

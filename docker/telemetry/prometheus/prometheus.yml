@@ -31,11 +31,6 @@ scrape_configs:
     static_configs:
       - targets: ['host.docker.internal:9100']  # node-exporter is on the host network
 
-  # eBPF exporter
-  - job_name: ebpf-exporter
-    static_configs:
-      - targets: ['host.docker.internal:9435']
-
   # Prometheus self-scrape
   - job_name: prometheus
     static_configs:

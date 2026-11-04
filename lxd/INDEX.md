@@ -54,7 +54,6 @@ lxd/
 ├── storage/
 │   └── unheaded-ssd.yaml        ← ZFS storage pool
 │
-├── containers/                  ← (Pre-existing)
 ├── hosts/                       ← (Pre-existing)
 └── ...
 ```

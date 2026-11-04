@@ -149,9 +149,9 @@ findings:
       services): own pkg/uids number, read_only + measured tmpfs, cap_drop ALL, no-new-privileges, volume-init chown;
       promtail off the Docker socket everywhere (journal/var/log via the adm group); each stack that can run was run on
       west. Left: WireGuard needs root (EPERM otherwise, measured), so it stays listed with cap_drop ALL + NET_ADMIN and
-      the four s6 init caps, read-only; the opnsense/ipfire firewall VMs are gone (Stevie, 2026-11-03), frr/bird stay listed; host-a's
-      shield/unheaded-daemon wait on D11; the 13 imageless host-a services get uids only if D11 keeps the stack
-    decision: D11 (host-a network mode; keep or retire the per-host stacks); the firewall-VM question closed 2026-11-03 (removed)
+      the four s6 init caps, read-only; the opnsense/ipfire firewall VMs are gone (Stevie, 2026-11-03), frr/bird stay listed; the
+      per-host stacks were retired 2026-11-04 (DP-218, S-CLEAN-CUT), which closes D11 and leaves the two routing containers
+    decision: D11 closed 2026-11-04 (per-host stacks retired); the firewall-VM question closed 2026-11-03 (removed)
 
   - id: FND-010
     title: >-

@@ -29,23 +29,12 @@ func TestStructSizes(t *testing.T) {
 		{"SeqCounterKey", unsafe.Sizeof(SeqCounterKey{}), 8},
 		{"SeqCounterValue", unsafe.Sizeof(SeqCounterValue{}), 16},
 
-		// Q4: Ring path.
-		{"RingPathKey", unsafe.Sizeof(RingPathKey{}), 16},
-		{"RingPathValue", unsafe.Sizeof(RingPathValue{}), 8},
-
 		// Q5/Q6 migration tokens and H8 cancel flows use FlowKey and the
 		// flow-tracker values in core_maps.go (rust_source_test.go).
-
-		// H1: Sophia sync.
-		{"SophiaSyncKey", unsafe.Sizeof(SophiaSyncKey{}), 8},
-		{"SophiaSyncValue", unsafe.Sizeof(SophiaSyncValue{}), 24},
 
 		// H2: Error counters.
 		{"ErrorCounterKey", unsafe.Sizeof(ErrorCounterKey{}), 8}, // u64 key in shield-ebpf
 		{"ErrorCounterValue", unsafe.Sizeof(ErrorCounterValue{}), 8},
-
-		// H3: TLV registry.
-		{"TLVHandlerEntry", unsafe.Sizeof(TLVHandlerEntry{}), 8},
 
 		// H4/H12: Settings.
 		{"SettingsKey", unsafe.Sizeof(SettingsKey{}), 8},
@@ -59,11 +48,6 @@ func TestStructSizes(t *testing.T) {
 		{"FlowTypeEntry", unsafe.Sizeof(FlowTypeEntry{}), 4},
 
 		// H7/Q8: GOAWAY state.
-
-		// H9: Prefetch hints.
-		{"PrefetchHintKey", unsafe.Sizeof(PrefetchHintKey{}), 8},
-		// PrefetchHintValue: 2+2+1+1+2+4+4+4 = 20 bytes (no inter-field padding needed).
-		{"PrefetchHintValue", unsafe.Sizeof(PrefetchHintValue{}), 20},
 
 		// H10: Hop validators.
 		{"HopValidatorKey", unsafe.Sizeof(HopValidatorKey{}), 8},

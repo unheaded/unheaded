@@ -5,7 +5,7 @@
 # vault-to-runway.py — MAD SCIENTIST MODEL TIERING
 #
 # Smart tiering between 2TB HDD (Vault) and 1TB NVMe (Runway).
-# Auto-purges oldest models when NVMe gets full. Auto-launches vLLM.
+# Auto-purges oldest models when NVMe gets full.
 #
 # Architecture:
 #   Vault  (HDD /mnt/hdd/models)  = Permanent archive, every model ever
@@ -15,11 +15,10 @@
 #   1. Check NVMe capacity → purge LRU models if > threshold
 #   2. rsync model from Vault → Runway (differential, resumable)
 #   3. Touch atime on active model (LRU tracking)
-#   4. Optionally auto-launch vLLM with the model
 #
 # Usage:
-#   ./vault-to-runway.py <model-name> [--launch] [--purge-only] [--list]
-#   ./vault-to-runway.py deepseek-r1-7b --launch
+#   ./vault-to-runway.py <model-name> [--purge-only] [--list]
+#   ./vault-to-runway.py deepseek-r1-7b
 #   ./vault-to-runway.py --list
 #   ./vault-to-runway.py --purge-only
 #
@@ -27,8 +26,6 @@
 #   VAULT_PATH     (default: /mnt/hdd/models)
 #   RUNWAY_PATH    (default: /opt/unheaded/active-model)
 #   THRESHOLD_PCT  (default: 85)
-#   VLLM_PORT      (default: 20100)
-#   VLLM_IMAGE     (default: rocm/vllm:latest)
 # ═══════════════════════════════════════════════════════════════════════════
 
 import argparse
@@ -36,8 +33,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
-import time
 from datetime import UTC, datetime
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -46,18 +41,7 @@ from datetime import UTC, datetime
 VAULT_PATH = os.environ.get("VAULT_PATH", "/mnt/hdd/models")
 RUNWAY_PATH = os.environ.get("RUNWAY_PATH", "/opt/unheaded/active-model")
 THRESHOLD_PCT = float(os.environ.get("THRESHOLD_PCT", "85"))
-VLLM_PORT = int(os.environ.get("VLLM_PORT", "20100"))
-VLLM_IMAGE = os.environ.get("VLLM_IMAGE", "rocm/vllm:latest")
-VLLM_CONTAINER = "unheaded-vllm"
 STATE_FILE = os.path.join(RUNWAY_PATH, ".runway-state.json")
-
-# GPU config for RX 7700 XT (gfx1101)
-GPU_ENV = {
-    "HSA_OVERRIDE_GFX_VERSION": "11.0.1",
-    "PYTORCH_ROCM_ARCH": "gfx1101",
-    "HIP_VISIBLE_DEVICES": "0",
-    "VLLM_USE_AITER": "1",
-}
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -98,14 +82,14 @@ def phase(msg):
 # STATE TRACKING (persist model access times across reboots)
 # ─────────────────────────────────────────────────────────────────────────
 def load_state() -> dict:
-    """Load runway state (model access times, sizes, launch history)."""
+    """Load runway state (model access times, sizes)."""
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, "r") as f:
                 return json.load(f)
         except (OSError, json.JSONDecodeError):
-            return {"models": {}, "launches": []}
-    return {"models": {}, "launches": []}
+            return {"models": {}}
+    return {"models": {}}
 
 
 def save_state(state: dict):
@@ -318,127 +302,6 @@ def transfer_model(model_name: str, dry_run: bool = False) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# vLLM AUTO-LAUNCH
-# ─────────────────────────────────────────────────────────────────────────
-def stop_vllm():
-    """Stop existing vLLM container if running."""
-    try:
-        result = subprocess.run(
-            ["docker", "inspect", VLLM_CONTAINER],
-            capture_output=True, text=True, check=False,
-        )
-        if result.returncode == 0:
-            info(f"Stopping existing vLLM container: {VLLM_CONTAINER}")
-            subprocess.run(["docker", "stop", VLLM_CONTAINER], capture_output=True, check=False)
-            subprocess.run(["docker", "rm", VLLM_CONTAINER], capture_output=True, check=False)
-    except FileNotFoundError:
-        err("Docker not found!")
-
-
-def launch_vllm(model_name: str, dry_run: bool = False) -> bool:
-    """Launch vLLM inference server with the specified model."""
-    runway_dir = os.path.join(RUNWAY_PATH, model_name)
-
-    if not os.path.exists(runway_dir):
-        err(f"Model not on runway: {runway_dir}")
-        return False
-
-    phase(f"LAUNCHING vLLM: {model_name} on port {VLLM_PORT}")
-
-    # Build docker run command
-    cmd = [
-        "docker", "run", "-d",
-        "--name", VLLM_CONTAINER,
-        "--restart", "unless-stopped",
-        "--device=/dev/kfd", "--device=/dev/dri",
-        "--group-add", "video", "--group-add", "render",
-        "--shm-size=4g",
-    ]
-
-    # GPU environment
-    for key, val in GPU_ENV.items():
-        cmd.extend(["-e", f"{key}={val}"])
-
-    # Mount runway as /models (read-only)
-    cmd.extend(["-v", f"{RUNWAY_PATH}:/models:ro"])
-
-    # Port
-    cmd.extend(["-p", f"{VLLM_PORT}:{VLLM_PORT}"])
-
-    # Network
-    cmd.extend(["--network", "unheaded_unheaded"])
-
-    # Image + args
-    cmd.extend([
-        VLLM_IMAGE,
-        "--model", f"/models/{model_name}",
-        "--port", str(VLLM_PORT),
-        "--host", "0.0.0.0",  # nosec B104 - vLLM inside its container's own netns; host exposure is the -p mapping above
-        "--dtype", "half",
-        "--gpu-memory-utilization", "0.90",
-        "--max-model-len", "8192",
-        "--tensor-parallel-size", "1",
-    ])
-
-    if dry_run:
-        info(f"[DRY-RUN] Would run: {' '.join(cmd)}")
-        return True
-
-    # Stop existing
-    stop_vllm()
-
-    info("Starting vLLM container...")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        container_id = result.stdout.strip()[:12]
-        ok(f"vLLM started: container {container_id}")
-
-        # Record launch
-        state = load_state()
-        state["launches"].append({
-            "model": model_name,
-            "timestamp": datetime.now(UTC).isoformat(),
-            "port": VLLM_PORT,
-            "container": container_id,
-        })
-        # Keep last 50 launches
-        state["launches"] = state["launches"][-50:]
-        save_state(state)
-
-        print(f"\n{C.GREEN}{C.BOLD}vLLM is starting up...{C.NC}")
-        print(f"  Health:   curl http://localhost:{VLLM_PORT}/health")
-        print(f"  Models:   curl http://localhost:{VLLM_PORT}/v1/models")
-        print(f"  Chat:     curl http://localhost:{VLLM_PORT}/v1/chat/completions")
-        print(f"  Logs:     docker logs -f {VLLM_CONTAINER}")
-        print(f"  Stop:     docker stop {VLLM_CONTAINER}")
-        print()
-
-        # Wait for health
-        info("Waiting for vLLM health check (up to 120s)...")
-        for i in range(24):
-            time.sleep(5)
-            try:
-                health = subprocess.run(
-                    ["curl", "-sf", f"http://localhost:{VLLM_PORT}/health"],
-                    capture_output=True, text=True, timeout=5, check=False,
-                )
-                if health.returncode == 0:
-                    ok(f"vLLM healthy after {(i+1)*5}s!")
-                    return True
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                pass
-            sys.stdout.write(f"\r  Waiting... {(i+1)*5}s")
-            sys.stdout.flush()
-
-        warn("vLLM didn't respond within 120s — check: docker logs -f unheaded-vllm")
-        return True  # Container is running, just slow to load
-
-    except subprocess.CalledProcessError as e:
-        err(f"Docker run failed: {e.stderr}")
-        return False
-
-
-# ─────────────────────────────────────────────────────────────────────────
 # DISPLAY
 # ─────────────────────────────────────────────────────────────────────────
 def display_status():
@@ -472,30 +335,6 @@ def display_status():
     else:
         info(f"Runway clear ({RUNWAY_PATH})")
 
-    # vLLM status
-    phase("vLLM STATUS")
-    try:
-        result = subprocess.run(
-            ["docker", "inspect", "--format", "{{.State.Status}}", VLLM_CONTAINER],
-            capture_output=True, text=True, check=False,
-        )
-        if result.returncode == 0:
-            status = result.stdout.strip()
-            ok(f"Container: {VLLM_CONTAINER} — {status}")
-            if status == "running":
-                health = subprocess.run(
-                    ["curl", "-sf", f"http://localhost:{VLLM_PORT}/health"],
-                    capture_output=True, text=True, timeout=5, check=False,
-                )
-                if health.returncode == 0:
-                    ok(f"API healthy on port {VLLM_PORT}")
-                else:
-                    warn(f"API not responding on port {VLLM_PORT}")
-        else:
-            info("No vLLM container running")
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        info("Docker not available or timeout")
-
 
 # ─────────────────────────────────────────────────────────────────────────
 # MAIN
@@ -513,26 +352,21 @@ def main():
         epilog="""
 Examples:
   %(prog)s deepseek-r1-7b                  # Transfer model to NVMe
-  %(prog)s deepseek-r1-7b --launch         # Transfer + auto-launch vLLM
   %(prog)s --list                           # Show vault + runway status
   %(prog)s --purge-only                     # Free NVMe space (LRU eviction)
-  %(prog)s mistral-7b --dry-run --launch    # Preview what would happen
+  %(prog)s mistral-7b --dry-run             # Preview what would happen
 
 Environment:
   VAULT_PATH     HDD model archive    (default: /mnt/hdd/models)
   RUNWAY_PATH    NVMe active slot     (default: /opt/unheaded/active-model)
   THRESHOLD_PCT  Auto-purge threshold (default: 85)
-  VLLM_PORT      Inference port       (default: 20100)
-  VLLM_IMAGE     Docker image         (default: rocm/vllm:latest)
         """,
     )
     parser.add_argument("model", nargs="?", help="Model name to transfer to runway")
-    parser.add_argument("--launch", action="store_true", help="Auto-launch vLLM after transfer")
     parser.add_argument("--list", action="store_true", help="Show vault + runway status")
     parser.add_argument("--purge-only", action="store_true", help="Only purge LRU models from runway")
     parser.add_argument("--dry-run", action="store_true", help="Preview actions without executing")
     parser.add_argument("--threshold", type=float, default=THRESHOLD_PCT, help="Purge threshold %%")
-    parser.add_argument("--stop", action="store_true", help="Stop vLLM container")
 
     args = parser.parse_args()
 
@@ -553,11 +387,6 @@ Environment:
         display_status()
         return
 
-    if args.stop:
-        stop_vllm()
-        ok("vLLM stopped")
-        return
-
     if args.purge_only:
         ensure_runway_capacity(dry_run=args.dry_run)
         return
@@ -568,13 +397,8 @@ Environment:
         return
 
     # Transfer
-    success = transfer_model(args.model, dry_run=args.dry_run)
-
-    # Launch vLLM if requested
-    if success and args.launch:
-        launch_vllm(args.model, dry_run=args.dry_run)
-    elif success and not args.launch:
-        info(f"Model ready. Launch with: {sys.argv[0]} {args.model} --launch")
+    if transfer_model(args.model, dry_run=args.dry_run):
+        info(f"Model ready: {os.path.join(RUNWAY_PATH, args.model)}")
 
 
 if __name__ == "__main__":

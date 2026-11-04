@@ -1,5 +1,7 @@
 # Unheaded Kingdom — LXD Infrastructure
 
+> **2026-11-04 (S-CLEAN-CUT, DP-401):** the per-service definitions in `lxd/containers/` were deleted; Cuirass (`cmd/unheaded-daemon`) manages instances. Pi-hole runs from its own runbook. This file stays as the record.
+
 Comprehensive Linux Container (LXD) deployment for the Unheaded Kingdom distributed system. Manages 30+ containerized services across two hosts (Forge and Outpost) with telemetry, east-west encryption, and GPU acceleration.
 
 **Status:** Production-ready
@@ -31,7 +33,6 @@ Comprehensive Linux Container (LXD) deployment for the Unheaded Kingdom distribu
 - **CPU:** 16+ cores (recommended)
 - **RAM:** 64GB+ for all 30 containers
 - **Storage:** 500GB+ SSD (LXD pool)
-- **GPU:** (Optional) AMD Radeon RX 7700 XT or compatible for vLLM
 
 ### Software
 
@@ -80,8 +81,6 @@ make launch-all
 # 6. Launch telemetry stack (optional)
 make launch-telemetry
 
-# 7. Launch vLLM/ROCm (optional, requires GPU)
-make launch-vllm
 
 # Check status
 make status
@@ -124,9 +123,6 @@ lxd/
 │   ├── wg0-server.conf.template      # Server config (host-a)
 │   └── wg0-client.conf.template      # Client config (host-b)
 │
-├── vllm-rocm/                        # LLM inference
-│   ├── vllm-lxd.yaml                 # DeepSeek-R1 container
-│   └── setup-vllm.sh                 # Launch script
 │
 └── services/                         # Service container definitions
     ├── wotan/                        # DNS/proxy
@@ -157,7 +153,6 @@ lxd/
 - Fast container startup (3-5s vs 30-60s NixOS)
 - System container model (less overhead than Docker)
 - Native IPv6 support for WireGuard
-- GPU passthrough for ROCm/vLLM
 - Minimal resource overhead (1GB base vs 2-5GB NixOS)
 
 ---
@@ -253,7 +248,6 @@ config:
         |-- WireGuard (10.20.1.100)     |-- WireGuard (10.20.2.100)
         |   IPv6: fd00:dead:beef::1     |   IPv6: fd00:dead:beef::2
         |                               |
-        |-- vLLM/ROCm (10.20.1.99)      |
         |   DeepSeek-R1-7B              |
         |                               |
         +----------- IPv6 Tunnel -------+
@@ -271,7 +265,6 @@ config:
 - 10.20.1.1 — LXD bridge gateway
 - 10.20.1.10-34 — 25 service containers
 - 10.20.1.50-53 — Telemetry stack
-- 10.20.1.99 — vLLM/ROCm
 - 10.20.1.100 — WireGuard server
 
 **10.20.2.0/24** — Host-b service network
@@ -294,7 +287,6 @@ config:
 | Services | 25 | 50 | 50GB | 250GB | Full deployment |
 | Services (minimal) | 6 | 12 | 12GB | 60GB | Host-b only |
 | Telemetry | 4 | 8 | 14GB | 95GB | Prometheus, VM, Loki, Grafana |
-| Inference | 1 | 8 | 16GB | 80GB | vLLM/ROCm (GPU) |
 | **TOTAL (host-a)** | **30** | **58** | **64GB** | **425GB** | With GPU container |
 | **TOTAL (host-b)** | **6** | **12** | **12GB** | **60GB** | Core services only |
 
@@ -317,7 +309,6 @@ config:
 - Grafana: 2 CPUs, 2GB RAM, 15GB storage
 
 **Inference (1 container)**
-- vLLM/ROCm: 8 CPUs, 16GB RAM, 80GB storage, GPU
 
 ### Network Bandwidth
 
@@ -325,7 +316,6 @@ config:
 - Inter-container (LXD bridge): 10Gbps (native)
 - Host-a to Host-b (WireGuard): 1-5Gbps (IPv6 tunnel)
 - Service to Telemetry: 100Mbps aggregate
-- vLLM requests: 10-100Mbps (model dependent)
 
 ---
 
@@ -453,7 +443,6 @@ lxc exec unheaded-wireguard -- journalctl -u wireguard -n 50
 
 ### GPU Not Detected
 
-**Symptoms:** vLLM container can't access GPU
 
 **Diagnosis:**
 ```bash
@@ -462,17 +451,14 @@ lspci | grep -i amd
 rocm-smi
 
 # Check container GPU access
-lxc exec unheaded-vllm-deepseek -- rocm-smi
 
 # Check device permissions
-lxc exec unheaded-vllm-deepseek -- ls -la /dev/kfd /dev/dri/
 ```
 
 **Solutions:**
 - Verify GPU profile is applied: `lxc profile show unheaded-gpu`
 - Check host ROCm installation: `which rocm-smi`
 - Verify /dev/kfd exists on host: `ls /dev/kfd`
-- Check container logs: `lxc exec unheaded-vllm-deepseek -- journalctl -u vllm -n 50`
 
 ### Storage Issues
 
@@ -549,8 +535,6 @@ lxc config set unheaded-victoriametrics limits.memory 16GB
 # Increase CPU allocation
 lxc config set unheaded-wotan limits.cpu 4
 
-# Reduce vLLM batch size
-lxc config set unheaded-vllm-deepseek environment.VLLM_MAX_NUM_BATCHED_TOKENS 4096
 ```
 
 **Monitor performance**

@@ -287,6 +287,24 @@ func manifestLine(data []byte, name string) int {
 
 // crateProviderStatus classifies the process-default provider of a crate
 // from its direct rustls features.
+// notSpawned names first-party files whose crypto compiles into a binary that
+// never starts it, with the reason. A row stays true of the file and stops
+// claiming a live listener.
+var notSpawned = map[string]string{
+	"crates/zhend/src/api/quic.rs": "zhend's main never spawns the QUIC server; zhend is single-node gRPC-only (DP-209)",
+	"crates/zhend/Cargo.toml":      "zhend's main never spawns the QUIC server; zhend is single-node gRPC-only (DP-209)",
+}
+
+// applyNotSpawned marks an asset whose file is in notSpawned.
+func applyNotSpawned(a *Asset) {
+	why, ok := notSpawned[a.Path]
+	if !ok {
+		return
+	}
+	a.LinkState = linkNotSpawned
+	a.Detail += "; " + why
+}
+
 func crateProviderStatus(c *crate, rustlsVer string) (string, string) {
 	d, ok := c.deps["rustls"]
 	if !ok {
@@ -346,6 +364,7 @@ func scanCrate(t *Tree, c *crate, rustlsVer string) ([]Asset, error) {
 	add := func(a Asset) {
 		a.Scanner = "rust"
 		a.Owner = ownerFirstParty
+		applyNotSpawned(&a)
 		if a.LinkState == "" {
 			a.LinkState = linkEnabled
 		}

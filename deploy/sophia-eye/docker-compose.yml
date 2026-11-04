@@ -14,8 +14,6 @@ services:
     security_opt:
       - no-new-privileges:true
     volumes:
-      - vllm-cache:/volumes/vllm-cache
-      - qwen-cache:/volumes/qwen-cache
       - /fast/qdrant:/volumes/qdrant-storage
       - qdrant-snapshots:/volumes/qdrant-snapshots
       - webui-data:/volumes/webui-data
@@ -26,176 +24,11 @@ services:
       - -ec
       - |
         own() { [ "$$(stat -c %u:%g "$$2")" = "$$1" ] || chown -R "$$1" "$$2"; }
-        own 16781:16781 /volumes/vllm-cache
-        own 16786:16786 /volumes/qwen-cache
         own 16787:16787 /volumes/qdrant-storage
         own 16787:16787 /volumes/qdrant-snapshots
         own 16789:16789 /volumes/webui-data
         own 16789:16789 /volumes/webui-uploads
         own 16700:16700 /volumes/prometheus
-
-  vllm:
-    # Not pinned: Docker Hub has no vllm/vllm-openai:latest-rocm (404,
-    # 2026-10-27) and west holds no such image, so this cannot pull. Which
-    # image replaces it is open (S-IRON-GATE Step 363, M-067).
-    image: vllm/vllm-openai:latest-rocm
-    container_name: sophia-vllm-deepseek
-    hostname: vllm
-    restart: unless-stopped
-    user: "16781:16781"
-    group_add:
-      # host render and video gids (pkg/uids HostGroupRender/Video): /dev/kfd
-      # and renderD* are root:render 0660, so the GPU needs the group, not root
-      - "992"
-      - "44"
-    read_only: true
-    cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
-    tmpfs:
-      - /tmp:size=4g
-
-    volumes:
-      - /data/models:/models:ro
-      # HOME (HF modules for --trust-remote-code, triton/flashinfer JIT)
-      - vllm-cache:/cache
-
-    environment:
-      HOME: /cache
-      VLLM_WORKER_MULTIPROC_METHOD: spawn
-      HIP_VISIBLE_DEVICES: "0"
-      ROCR_VISIBLE_DEVICES: "0"
-      TORCH_ALLOW_TF32: "1"
-      VLLM_ATTENTION_BACKEND: flashinfer
-      TZ: UTC
-
-    ports:
-      - "20100:8000"
-
-    networks:
-      - sophia-eye
-      - unheaded-fabric
-
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: amdgpu
-              count: 1
-              capabilities: [gpu]
-        limits:
-          cpus: '4'
-          memory: 12G
-
-    depends_on:
-      volume-init:
-        condition: service_completed_successfully
-
-    command: >
-      --model /models/deepseek-r1-7b
-      --host 0.0.0.0
-      --port 8000
-      --max-model-len 32768
-      --gpu-memory-utilization 0.85
-      --max-num-seqs 256
-      --enable-prefix-caching
-      --trust-remote-code
-      --dtype float16
-
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "3"
-
-  qwen-coder:
-    # Not pinned: Docker Hub has no vllm/vllm-openai:latest-rocm (404,
-    # 2026-10-27) and west holds no such image, so this cannot pull. Which
-    # image replaces it is open (S-IRON-GATE Step 363, M-067).
-    image: vllm/vllm-openai:latest-rocm
-    container_name: sophia-vllm-qwen
-    hostname: qwen-coder
-    restart: unless-stopped
-    user: "16786:16786"
-    group_add:
-      # host render and video gids (pkg/uids HostGroupRender/Video): /dev/kfd
-      # and renderD* are root:render 0660, so the GPU needs the group, not root
-      - "992"
-      - "44"
-    read_only: true
-    cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
-    tmpfs:
-      - /tmp:size=4g
-
-    volumes:
-      - /data/models:/models:ro
-      - qwen-cache:/cache
-
-    environment:
-      HOME: /cache
-      VLLM_WORKER_MULTIPROC_METHOD: spawn
-      HIP_VISIBLE_DEVICES: "0"
-      ROCR_VISIBLE_DEVICES: "0"
-      TORCH_ALLOW_TF32: "1"
-      VLLM_ATTENTION_BACKEND: flashinfer
-      TZ: UTC
-
-    ports:
-      - "20101:8000"
-
-    networks:
-      - sophia-eye
-      - unheaded-fabric
-
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: amdgpu
-              count: 1
-              capabilities: [gpu]
-        limits:
-          cpus: '2'
-          memory: 6G
-
-    command: >
-      --model /models/qwen2.5-coder-7b
-      --host 0.0.0.0
-      --port 8000
-      --max-model-len 16384
-      --gpu-memory-utilization 0.80
-      --max-num-seqs 128
-      --enable-prefix-caching
-      --trust-remote-code
-      --dtype float16
-
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-    depends_on:
-      volume-init:
-        condition: service_completed_successfully
-      vllm:
-        condition: service_healthy
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "3"
 
   qdrant:
     # The image west holds (docker images --digests, 2026-10-27): v1.19.2.
@@ -313,9 +146,9 @@ services:
         max-file: "3"
 
   open-webui:
-    # open-webui publishes main as a branch build; this is the one west holds
-    # (2026-10-27): revision 91ea4e3421d1, built 2026-10-16.
-    image: ghcr.io/open-webui/open-webui:main@sha256:4860ba005ae8f19f08d1e12b0868855b7b339ea0dad9927f196820fc0de04575
+    # open-webui publishes main as a branch build. Pinned 2026-11-04 to clear
+    # CVE-2026-111497 (brotli, CISA KEV): revision c38885a1a737, built 2026-11-03.
+    image: ghcr.io/open-webui/open-webui:main@sha256:975e3965dcf5832804d2f77e167920794757027c5a2046917d42023d75fac431
     container_name: sophia-webui
     hostname: open-webui
     restart: unless-stopped
@@ -327,6 +160,11 @@ services:
     tmpfs:
       - /tmp
       - /home/openwebui:uid=16789,gid=16789
+
+    # llama-server runs on the host, outside this stack. Inside a container
+    # 127.0.0.1 is the container: LLAMA_SERVER_URL names host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     volumes:
       - webui-data:/app/backend/data
@@ -340,7 +178,7 @@ services:
       HOME: /home/openwebui
       # The image copies its static files at start; its own dir is read-only.
       STATIC_DIR: /app/backend/data/static
-      OPENAI_API_BASE_URL: "http://vllm:8000/v1"
+      OPENAI_API_BASE_URL: "${LLAMA_SERVER_URL:?set LLAMA_SERVER_URL to the llama-server base URL}/v1"
       OPENAI_API_KEY: "unheaded-local"
       WEBUI_SECRET_KEY_FILE: /run/secrets/webui_secret_key
       WEBUI_AUTH: "true"
@@ -385,8 +223,6 @@ services:
     depends_on:
       volume-init:
         condition: service_completed_successfully
-      vllm:
-        condition: service_healthy
       qdrant:
         condition: service_started
       embeddings:
@@ -413,11 +249,18 @@ services:
     security_opt:
       - no-new-privileges:true
 
+    # llama-server runs on the host, outside this stack. Inside a container
+    # 127.0.0.1 is the container: LLAMA_SERVER_URL names host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     environment:
       UNHEADED_PROTOCOL_API: "http://bare-metal:17100"
       WOTAN_ENDPOINT: "bare-metal:18001"
-      VLLM_ENDPOINT: "http://vllm:8000"
-      QWEN_ENDPOINT: "http://qwen-coder:8000"
+      # Both names reach the one llama-server; sophia-gateway reads them, and
+      # renaming them is ADR-117's sprint.
+      VLLM_ENDPOINT: "${LLAMA_SERVER_URL:?set LLAMA_SERVER_URL to the llama-server base URL}"
+      QWEN_ENDPOINT: "${LLAMA_SERVER_URL:?set LLAMA_SERVER_URL to the llama-server base URL}"
       QDRANT_ENDPOINT: "http://qdrant:6333"
       EMBEDDINGS_ENDPOINT: "http://embeddings:8080"
       SOPHIA_SERVICE_NAME: "sophia-eye"
@@ -448,10 +291,6 @@ services:
       start_period: 20s
 
     depends_on:
-      vllm:
-        condition: service_healthy
-      qwen-coder:
-        condition: service_healthy
       qdrant:
         condition: service_started
       embeddings:
@@ -528,10 +367,6 @@ secrets:
     file: ${WEBUI_SECRET_KEY_FILE:?set WEBUI_SECRET_KEY_FILE to a file holding the Open WebUI secret key - credentials are not stored in this repo}
 
 volumes:
-  vllm-cache:
-    driver: local
-  qwen-cache:
-    driver: local
   qdrant-snapshots:
     driver: local
   webui-data:

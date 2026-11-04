@@ -48,7 +48,6 @@ P1 INFRASTRUCTURE:
 18. LXD full deployment wiring
 
 P1 CODE DEBT (50+ source TODOs):
-19. pkg/waf/ — 30+ items marked "TODO: Rust rebuild"
 20. Real LXD client (not stub) — cmd/unheaded-daemon/internal/lxd/
 21. Real eBPF loader (not stub) — cmd/unheaded-daemon/internal/ebpf/
 22. JWT validation in pkg/auth/
