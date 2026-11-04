@@ -111,7 +111,6 @@ func NewPQCVerifier() *PQCVerifier {
 		allowedAlgos: map[uint8]bool{
 			0x01: true, // SLH-DSA
 			0x02: true, // ML-DSA
-			0x03: true, // FN-DSA
 		},
 	}
 }

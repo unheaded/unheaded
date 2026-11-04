@@ -97,6 +97,13 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 (S-QUANTUM-ARMOR test helper) and `pkg/deploy/cuirassdriver/cuirasstest`
 (Sword test helper).
 
+## Applied 2026-11-04 (DP-715, S-WIRE-HONEST)
+
+Deleted: `pkg/protocol/{amplification,dos,intermediary,prefetch,lifecycle,settings,flowtype,sequence,registry}`,
+`tomb/lich/harnesses/lich_006_real_lifecycle_test.go` (LICH-006's harness; its only target went) and
+`cmd/pqc-verifier` (TRUE-WIRE L5). The other TRUE-WIRE rows and who carries them are in
+[sweeps/TRUE-WIRE-DECISIONS.md](sweeps/TRUE-WIRE-DECISIONS.md), "Applied 2026-11-04".
+
 ## The list
 
 - `cmd/dashboard-backend/jstest` (G6)
@@ -111,19 +118,10 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 - `pkg/metrics/metricstest` (G6)
 - `pkg/monad` (G8)
 - `pkg/pqc_policy` (F3, S-QUANTUM-ARMOR)
-- `pkg/protocol/amplification` (G8)
-- `pkg/protocol/dos` (G8)
 - `pkg/protocol/errors` (G8)
-- `pkg/protocol/flowtype` (G8)
 - `pkg/protocol/fuzz` (G6)
 - `pkg/protocol/integrity` (G8)
-- `pkg/protocol/intermediary` (G8)
-- `pkg/protocol/lifecycle` (G8)
 - `pkg/protocol/migration` (G8)
-- `pkg/protocol/prefetch` (G8)
-- `pkg/protocol/registry` (G8)
-- `pkg/protocol/sequence` (G8)
-- `pkg/protocol/settings` (G8)
 - `pkg/protocol/sophiasync` (G8)
 - `pkg/protocol/tlv` (G8)
 - `pkg/secrets/encryption` (kept, DP-709: imported by `pkg/secrets/store`)

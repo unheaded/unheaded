@@ -24,7 +24,7 @@ use aya_ebpf::{
     maps::{HashMap, RingBuf},
     programs::{ProbeContext, RetProbeContext},
 };
-use common::{LatencyEntry, LatencyKey, MAX_LATENCY_MAP_ENTRIES};
+use common::{LatencyEntry, LatencyTraceKey, MAX_LATENCY_MAP_ENTRIES};
 use unheaded_common::{
     LatencyEvent, LatencyOperation, TraceId, MAX_LATENCY_ENTRIES, RING_BUFFER_SIZE,
 };
@@ -62,11 +62,11 @@ static SOCK_TRACE: HashMap<u64, TraceId> = HashMap::with_max_entries(MAX_LATENCY
 #[map]
 static LATENCY_EVENTS: RingBuf = RingBuf::with_byte_size(RING_BUFFER_SIZE, 0);
 
-/// Per-flow RTT statistics map.
-/// Key: LatencyKey (5-tuple), Value: LatencyEntry (min/max/latest/samples).
+/// Per-thread RTT statistics map.
+/// Key: LatencyTraceKey (trace id, pid, tid), Value: LatencyEntry (min/max/latest/samples).
 /// Read by Go userspace LatencyReader to publish to Wotan and expose as Prometheus histogram.
 #[map]
-static LATENCY_MAP: HashMap<LatencyKey, LatencyEntry> =
+static LATENCY_MAP: HashMap<LatencyTraceKey, LatencyEntry> =
     HashMap::with_max_entries(MAX_LATENCY_MAP_ENTRIES, 0);
 
 /// Statistics counters.
@@ -331,18 +331,11 @@ fn send_latency_event(
         increment_stat(STAT_EVENTS_DROPPED);
     }
 
-    // Update per-flow RTT statistics in LATENCY_MAP.
-    // We use trace_id bytes as a proxy for the 5-tuple key since the kprobe
-    // context does not directly provide IP/port info. The key is constructed
-    // from trace_id high/low split into src_ip/dst_ip placeholders, with
-    // pid as src_port and tid as dst_port, protocol=6 (TCP).
-    let map_key = LatencyKey {
-        src_ip: trace_id.to_bytes(),
-        dst_ip: [0u8; 16],
-        src_port: pid as u16,
-        dst_port: tid as u16,
-        protocol: 6, // TCP
-        _pad: [0; 3],
+    // Update per-thread RTT statistics in LATENCY_MAP.
+    let map_key = LatencyTraceKey {
+        trace_id: trace_id.to_bytes(),
+        pid,
+        tid,
     };
 
     // Read existing entry or create new one.

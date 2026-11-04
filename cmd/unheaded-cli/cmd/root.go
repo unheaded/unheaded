@@ -98,6 +98,7 @@ func NewRootCommand() *Command {
   - Generate: IaC artifact generation (Ansible, Terraform, K8s, etc.)
   - Observe: observability backend configuration
   - API keys: create, list, revoke uhk_ keys for automation (ADR-103)
+  - Hop rules: write hop-ebpf's validators, keys and retry state (ADR-125)
 
 Secrets and network commands, and container start/stop/exec and service
 deploy/restart/scale, fail: no Unheaded service provides them yet.
@@ -120,6 +121,7 @@ Use "unheaded <command> --help" for more information about a command.`,
 	root.AddCommand(NewObserveCommand())
 	root.AddCommand(NewAPIKeyCommand())
 	root.AddCommand(NewTokenCommand())
+	root.AddCommand(NewHopCommand())
 
 	return root
 }

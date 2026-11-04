@@ -304,9 +304,8 @@ func TestCaptureEscalatedTurn(t *testing.T) {
 	withClaude(t, claude)
 	local := newFakeLocal(t, "local draft", "stop")
 	dir := filepath.Join(t.TempDir(), "cap")
-	secret := "password=" + strings.Repeat("s", 12)
 	var out, errb bytes.Buffer
-	code := run(autoArgs(t, local.srv.URL, "-capture", dir, "-check", "false", "-p", "fix my "+secret), strings.NewReader(""), &out, &errb)
+	code := run(autoArgs(t, local.srv.URL, "-capture", dir, "-check", "false", "-p", "fix my code"), strings.NewReader(""), &out, &errb)
 	if code != 0 {
 		t.Fatalf("exit %d %s", code, errb.String())
 	}
@@ -318,8 +317,8 @@ func TestCaptureEscalatedTurn(t *testing.T) {
 	if r["schema"] != "zhen-capture/v1" || r["route"] != "escalated" || r["accepted_by"] != "claude" || r["final"] != "claude answer" {
 		t.Errorf("record = %v", r)
 	}
-	if strings.Contains(r["prompt"].(string), "ssssssss") || r["redactions"] != float64(1) {
-		t.Errorf("prompt not redacted: %v (%v)", r["prompt"], r["redactions"])
+	if r["prompt"] != "fix my code" {
+		t.Errorf("prompt = %v", r["prompt"])
 	}
 	l, c, chk := r["local"].(map[string]any), r["claude"].(map[string]any), r["check"].(map[string]any)
 	if l["answer"] != "local draft" || l["model"] != "qwen-test" || l["system"] == nil || c["model"] != "claude-opus-5-5" || c["answer"] != "claude answer" || chk["exit"] != float64(1) || chk["accepted"] != false {
@@ -525,5 +524,76 @@ func TestConfigErrors(t *testing.T) {
 	var out, errb bytes.Buffer
 	if code := run(append(baseArgs(t), "-config", filepath.Join(t.TempDir(), "missing.conf"), "-p", "x"), strings.NewReader(""), &out, &errb); code != 2 {
 		t.Errorf("missing -config file: exit %d", code)
+	}
+}
+
+func TestAutoNeverEscalatesARedactionMatch(t *testing.T) {
+	claude := newFakeClaude(t, "from claude")
+	withClaude(t, claude)
+	var out, errb bytes.Buffer
+	args := append(append(baseArgs(t), "-tools", "none"), "-route", "auto", "-local-url", deadURL(t), "-p", "why does password=hunter2hunter2 fail")
+	if code := run(args, strings.NewReader(""), &out, &errb); code != 1 {
+		t.Fatalf("exit %d %s", code, errb.String())
+	}
+	d := logLine(t, errb.String(), "route_decision")
+	if d["escalated"] != false || d["decision"] != "none" || d["refused"] != "redaction_match" {
+		t.Errorf("route_decision = %v", d)
+	}
+	if strings.Contains(errb.String(), "hunter2") {
+		t.Error("the prompt reached the log")
+	}
+	if !strings.Contains(errb.String(), "matches a redaction pattern") {
+		t.Errorf("stderr %s", errb.String())
+	}
+	if claude.count() != 0 {
+		t.Fatalf("Claude called %d times", claude.count())
+	}
+}
+
+func TestAutoStillAnswersARedactionMatchLocally(t *testing.T) {
+	claude := newFakeClaude(t, "from claude")
+	withClaude(t, claude)
+	good := newFakeLocal(t, "local answer", "stop")
+	var out, errb bytes.Buffer
+	args := append(append(baseArgs(t), "-tools", "none"), "-route", "auto", "-local-url", good.srv.URL, "-p", "why does password=hunter2hunter2 fail")
+	if code := run(args, strings.NewReader(""), &out, &errb); code != 0 {
+		t.Fatalf("exit %d %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "local answer") || claude.count() != 0 {
+		t.Errorf("out %q claude %d", out.String(), claude.count())
+	}
+}
+
+func TestTaskBudgetStaysOff(t *testing.T) {
+	o, err := parseFlags([]string{"-p", "x"}, io.Discard, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.taskBudget != 0 {
+		t.Fatalf("task budget default %d, want 0 until measured (DP-312)", o.taskBudget)
+	}
+}
+
+func TestCaptureSecretPromptStaysLocalAndRedacted(t *testing.T) {
+	claude := newFakeClaude(t, "claude answer")
+	withClaude(t, claude)
+	local := newFakeLocal(t, "local draft", "stop")
+	dir := filepath.Join(t.TempDir(), "cap")
+	secret := "password=" + strings.Repeat("s", 12)
+	var out, errb bytes.Buffer
+	code := run(autoArgs(t, local.srv.URL, "-capture", dir, "-check", "false", "-p", "fix my "+secret), strings.NewReader(""), &out, &errb)
+	if code != 1 {
+		t.Fatalf("exit %d %s", code, errb.String())
+	}
+	recs := readCapture(t, dir)
+	if len(recs) != 1 {
+		t.Fatalf("records = %d", len(recs))
+	}
+	r := recs[0]
+	if r["route"] != "local" || strings.Contains(r["prompt"].(string), "ssssssss") || r["redactions"] != float64(1) {
+		t.Errorf("record = %v", r)
+	}
+	if claude.count() != 0 {
+		t.Fatalf("Claude called %d times", claude.count())
 	}
 }

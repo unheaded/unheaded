@@ -42,7 +42,7 @@ func TestWellIntegration_OneTurnTwoToolCalls(t *testing.T) {
 		t.Fatal(err)
 	}
 	wa, err := NewWellAuditor(WellAuditorConfig{Source: "zhen-claude", Backend: BackendClaude,
-		Requests: SQLRequestSink{DB: db}, Events: events})
+		Requests: SQLRequestSink{DB: db, Energy: LLMRequestsHasEnergy(context.Background(), db)}, Events: events})
 	if err != nil {
 		t.Fatal(err)
 	}

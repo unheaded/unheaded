@@ -25,13 +25,13 @@ import (
 // ---------------------------------------------------------------------------
 
 type signedPacket struct {
-	Pkt       *shield.PQCPacketInfo
-	Sig       []byte
-	PubKey    []byte
-	SigRef    uint32
-	KeyRef    uint16
-	HashPfx   [4]byte
-	PhBytes   []byte // the exact bytes that were signed
+	Pkt     *shield.PQCPacketInfo
+	Sig     []byte
+	PubKey  []byte
+	SigRef  uint32
+	KeyRef  uint16
+	HashPfx [4]byte
+	PhBytes []byte // the exact bytes that were signed
 }
 
 // makeSignedPacket follows the correct PQC protocol flow:
@@ -282,10 +282,10 @@ func TestFullLifecycle(t *testing.T) {
 
 func TestAllTiersCrossAlgorithm(t *testing.T) {
 	type algoCase struct {
-		name    string
-		algoID  uint8
-		ps      pqc.ParameterSet
-		genKey  bool // true if real key generation is available
+		name   string
+		algoID uint8
+		ps     pqc.ParameterSet
+		genKey bool // true if real key generation is available
 	}
 
 	algos := []algoCase{
@@ -401,29 +401,6 @@ func TestStubAlgorithmsReturnNotAvailable(t *testing.T) {
 		}
 		if !valid {
 			t.Fatal("SLH-DSA signature should be valid")
-		}
-	})
-
-	t.Run("FN-DSA/keygen", func(t *testing.T) {
-		_, _, err := pqc.GenerateFNDSAKeyPair(pqc.FNDSA512)
-		if !errors.Is(err, pqc.ErrAlgorithmNotAvailable) {
-			t.Fatalf("expected ErrAlgorithmNotAvailable, got: %v", err)
-		}
-	})
-
-	t.Run("FN-DSA/sign", func(t *testing.T) {
-		s := &pqc.FNDSASigner{}
-		_, err := s.Sign([]byte("test"))
-		if !errors.Is(err, pqc.ErrAlgorithmNotAvailable) {
-			t.Fatalf("expected ErrAlgorithmNotAvailable, got: %v", err)
-		}
-	})
-
-	t.Run("FN-DSA/verify", func(t *testing.T) {
-		v := &pqc.FNDSAVerifier{}
-		_, err := v.Verify([]byte("msg"), []byte("sig"), []byte("pk"))
-		if !errors.Is(err, pqc.ErrAlgorithmNotAvailable) {
-			t.Fatalf("expected ErrAlgorithmNotAvailable, got: %v", err)
 		}
 	})
 
@@ -1039,9 +1016,9 @@ func TestSovereignMultiSig(t *testing.T) {
 
 	sov := &shield.SovereignSig{
 		Sigs: [3]shield.SovereignSigSlot{
-			{SigRef: sigRefSLH, AlgoID: uint8(pqc.AlgoSLHDSA)},   // Will fail (stub)
-			{SigRef: sigRef44, AlgoID: uint8(pqc.AlgoMLDSA)},      // Will pass
-			{SigRef: sigRef65, AlgoID: uint8(pqc.AlgoMLDSA)},      // Will pass
+			{SigRef: sigRefSLH, AlgoID: uint8(pqc.AlgoSLHDSA)}, // Will fail (stub)
+			{SigRef: sigRef44, AlgoID: uint8(pqc.AlgoMLDSA)},   // Will pass
+			{SigRef: sigRef65, AlgoID: uint8(pqc.AlgoMLDSA)},   // Will pass
 		},
 	}
 
@@ -1268,10 +1245,10 @@ func TestKEMTunnelLifecycle(t *testing.T) {
 
 func TestTierMatrixAllAlgos(t *testing.T) {
 	type testCase struct {
-		name    string
-		algoID  uint8
-		ps      pqc.ParameterSet
-		genKey  bool
+		name   string
+		algoID uint8
+		ps     pqc.ParameterSet
+		genKey bool
 	}
 
 	algos := []testCase{
@@ -1725,10 +1702,6 @@ func realCryptoVerify(algoID uint8, message, signature, pubKey []byte) (bool, er
 			return false, err
 		}
 		return slhVerifier.Verify(message, signature, pubKey)
-
-	case pqc.AlgoFNDSA:
-		v := &pqc.FNDSAVerifier{}
-		return v.Verify(message, signature, pubKey)
 
 	default:
 		return false, pqc.ErrAlgorithmNotAvailable

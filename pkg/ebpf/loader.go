@@ -1177,7 +1177,7 @@ func bpfMapLookupElem(mapFD int, key, value unsafe.Pointer) error {
 
 	_, err := bpfSyscall(BPF_MAP_LOOKUP_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
-		return fmt.Errorf("%w: map_lookup: %v", ErrSyscallFailed, err)
+		return fmt.Errorf("%w: map_lookup: %w", ErrSyscallFailed, err)
 	}
 
 	return nil
@@ -1209,7 +1209,7 @@ func bpfMapDeleteElem(mapFD int, key unsafe.Pointer) error {
 
 	_, err := bpfSyscall(BPF_MAP_DELETE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
-		return fmt.Errorf("%w: map_delete: %v", ErrSyscallFailed, err)
+		return fmt.Errorf("%w: map_delete: %w", ErrSyscallFailed, err)
 	}
 
 	return nil

@@ -210,3 +210,7 @@ Activation steps (sketch — not battle-plan-grade; full plan in a future `docs/
 From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 
 - Q1 call-graph queries are separate tools (`code_callers`, `code_definition`); cosine retrieval stays simple. Q3 stay flat until the corpus demands sharding. Q4 exclude all Doom code from the index now; Doom moves to its own repository (DP-305, DP-314).
+
+## Built differently, S-ZHEN-POLISH 2026-11-04
+
+No tree-sitter, pgvector, bge-code-v1 or embeddings: third party, or parked in ADR-122. `pkg/codeindex` chunks Go with `go/parser` (call graph included) and matches Rust and Python definitions by line; JS, SQL and YAML are out; search is by word. Refresh is `git ls-tree` by blob on post-commit and post-merge. `code_callers` and `code_definition` are MCP tools. Doom, Lich and Grimoire paths are excluded. Status stays Proposed.

@@ -21,7 +21,9 @@
 // Well's DSN; this binary has no database driver).
 // Phase 3 (2026-10-27, Steps 209/213): /confirm <token>, /model [key]
 // (list from agentd's /api/v1/models, swap through model_switch), and line
-// editing with history (lineedit.go). Tab completion is not done.
+// editing with history (lineedit.go), Tab completion of slash commands.
+//
+// S-ZHEN-POLISH: [memory hit] line and session saving (session.go).
 //
 // Auth: ZHEN_API_KEY (or the older ZHEN_AGENTD_API_KEY), else api_key in
 // ~/.config/unheaded/zhen-cli.conf (mode 0600, refused otherwise), sent to
@@ -49,6 +51,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -58,9 +61,9 @@ import (
 )
 
 const (
-	defaultVorURL        = "http://127.0.0.1:9876"
+	defaultVorURL        = "http://127.0.0.1:20110"
 	defaultLlamaURL      = "http://127.0.0.1:8081"
-	defaultAgentdURL     = "http://127.0.0.1:20105"
+	defaultAgentdURL     = "http://127.0.0.1:20111"
 	defaultModel         = "qwen2.5-coder-7b-instruct"
 	defaultK             = 5
 	defaultMaxTokens     = 800
@@ -149,6 +152,8 @@ type toolExecResponse struct {
 	Result       any    `json:"result,omitempty"`
 	Reason       string `json:"reason,omitempty"`
 	PendingToken string `json:"pending_token,omitempty"`
+	QueueID      string `json:"queue_id,omitempty"`
+	ProjectRoot  string `json:"project_root,omitempty"`
 	SessionID    string `json:"session_id,omitempty"`
 }
 
@@ -168,6 +173,12 @@ type session struct {
 	agentdKey string // API key for zhen-agentd (loadAPIKey); "" = none
 	model     string
 
+	memoryRecall bool
+	persist      bool
+	sessionID    string
+	saved        []savedTurn
+	saveOnce     sync.Once
+
 	out    io.Writer // nil: os.Stdout
 	errOut io.Writer // nil: os.Stderr
 
@@ -184,6 +195,8 @@ func main() {
 		maxChars  = flag.Int("max-topic-chars", defaultMaxTopicChars, "per-topic content cap")
 		oneShot   = flag.String("q", "", "one-shot question; print answer and exit (same as piping)")
 		noColor   = flag.Bool("no-color", false, "disable ANSI colour even on a tty")
+		noRecall  = flag.Bool("no-memory-recall", false, "do not show the [memory hit] line")
+		noPersist = flag.Bool("no-persist", false, "do not save this session to zhen_conversations on exit")
 	)
 	cmdline.Parse(cmdline.Spec{
 		Name:     "zhen-cli",
@@ -204,6 +217,10 @@ func main() {
 		agentdURL: envOr("ZHEN_AGENTD_URL", defaultAgentdURL),
 		model:     envOr("RAG_MODEL", defaultModel),
 		client:    &http.Client{Timeout: httpTimeout},
+
+		memoryRecall: !*noRecall,
+		persist:      !*noPersist,
+		sessionID:    newSessionID(),
 	}
 	key, err := loadAPIKey(os.Getenv, defaultConfPath())
 	if err != nil {
@@ -242,6 +259,7 @@ func main() {
 		restoreTerminal()
 		fmt.Fprintln(os.Stderr)
 		s.dim("zhen-cli: signal received, exiting.")
+		s.persistSession()
 		os.Exit(0)
 	}()
 
@@ -251,6 +269,7 @@ func main() {
 		if err != nil {
 			fmt.Fprintln(os.Stderr)
 			s.dim("zhen-cli: goodbye.")
+			s.persistSession()
 			return
 		}
 		line := strings.TrimSpace(raw)
@@ -259,6 +278,7 @@ func main() {
 		}
 		if strings.HasPrefix(line, "/") {
 			if s.handleSlash(line) {
+				s.persistSession()
 				return
 			}
 			continue
@@ -323,6 +343,8 @@ func (s *session) handleSlash(line string) bool {
 		s.handleConfirm(parts[1:])
 	case "/model":
 		s.handleModel(parts[1:])
+	case "/teach":
+		s.handleTeach(strings.TrimSpace(strings.TrimPrefix(line, parts[0])))
 	default:
 		s.warn("unknown command: " + cmd + "  (try /help)")
 	}
@@ -407,6 +429,24 @@ func (s *session) handleSource(args []string) {
 	fmt.Fprintln(s.w(), clipContent(t.Content, s.maxChars))
 }
 
+// handleTeach: /teach <title> | <text> queues a teach_write through
+// zhen-agentd. The first | ends the title. Nothing is written here: it
+// runs only when Stevie approves the row at a terminal.
+func (s *session) handleTeach(rest string) {
+	title, text, ok := strings.Cut(rest, "|")
+	title, text = strings.TrimSpace(title), strings.TrimSpace(text)
+	if !ok || title == "" || text == "" {
+		s.warn("/teach <title> | <text>")
+		return
+	}
+	resp, err := s.toolExec("teach_write", map[string]any{"title": title, "text": text})
+	if err != nil {
+		s.errf("/teach: %v", err)
+		return
+	}
+	s.printToolExecResponse("teach_write", resp)
+}
+
 // printToolExecResponse renders a toolExecResponse with severity
 // based on status.
 func (s *session) printToolExecResponse(tool string, resp *toolExecResponse) {
@@ -431,6 +471,12 @@ func (s *session) printToolExecResponse(tool string, resp *toolExecResponse) {
 		if resp.PendingToken != "" {
 			s.dim("  pending_token: " + resp.PendingToken)
 			s.dim("  to run it: /confirm " + resp.PendingToken)
+		}
+	case "queued":
+		s.ok(fmt.Sprintf("%s: queued as row %s; nothing runs until it is approved.", tool, resp.QueueID))
+		s.dim(fmt.Sprintf("  to approve it, at a terminal: zhen-claude confirm -allowed-roots %s approve %s", resp.ProjectRoot, resp.QueueID))
+		if tool == "teach_write" {
+			s.dim("  once approved, a vor restart serves it")
 		}
 	case "denied":
 		s.errf("%s: denied — %s", tool, resp.Reason)
@@ -507,8 +553,10 @@ func (s *session) printHelp() {
 	fmt.Fprintln(s.w(), "  /recall <text>            remembered answers matching text, with who stored them")
 	fmt.Fprintln(s.w(), "  /remember [text]          store text as a note, or with no text the last exchange")
 	fmt.Fprintln(s.w(), "  /confirm <token>          run a call the gate held for confirmation")
+	fmt.Fprintln(s.w(), "  /teach <title> | <text>   queue text for the corpus; Stevie approves it at a terminal")
 	fmt.Fprintln(s.w(), "  /model                    list models (* = serving now)")
 	fmt.Fprintln(s.w(), "  /model <key>              swap llama-server to <key> (45 s to minutes; rolls back on timeout)")
+	fmt.Fprintln(s.w(), "  sessions are saved to the Well on exit unless --no-persist")
 	fmt.Fprintln(s.w())
 	fmt.Fprintln(s.w(), "  any other line           → question to Zhen (RAG: vor → qwen-coder)")
 	fmt.Fprintln(s.w())
@@ -554,6 +602,7 @@ func (s *session) answerOne(q string) {
 // calls the LLM with the running history, prints the answer, appends
 // to history.
 func (s *session) chatTurn(q string) {
+	s.memoryHint(q)
 	start := time.Now()
 	answer, refs, err := s.askLLM(q)
 	if err != nil {
@@ -578,6 +627,8 @@ func (s *session) chatTurn(q string) {
 	if max := s.histLimit * 2; len(s.history) > max {
 		s.history = s.history[len(s.history)-max:]
 	}
+	s.logTurn("user", q, nil, 0)
+	s.logTurn("assistant", answer, refs, int(time.Since(start).Milliseconds()))
 }
 
 // askLLM runs the full retrieve → format → inference cycle and returns

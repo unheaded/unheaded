@@ -20,3 +20,5 @@ func closeFD(int) {}
 func openBeneath(int, string, int, uint32) (*os.File, error) { return nil, errors.ErrUnsupported }
 
 func mkdirAllBeneath(int, string, uint32) error { return errors.ErrUnsupported }
+
+func unlinkBeneath(int, string) error { return errors.ErrUnsupported }

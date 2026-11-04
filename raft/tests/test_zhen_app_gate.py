@@ -185,7 +185,7 @@ def test_agentd_kanban_create_without_auth_config_is_503(client, monkeypatch):
 
 def test_agentd_page_no_longer_posts_to_the_daemon_directly():
     html = (RAFT / 'static' / 'index.html').read_text()
-    assert ':20105/api/v1/tool/exec' not in html
+    assert ':20111/api/v1/tool/exec' not in html
 
 
 # ── CORS (found 2026-10-27, S-CLEAN-SLATE Phase 3) ──────────────────────

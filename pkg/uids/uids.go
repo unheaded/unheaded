@@ -115,6 +115,12 @@ const (
 	// seed, 0400) on the custody host and signs Sealed Casks and evidence
 	// packs with it (S-IRON-GATE Phase 13, FND-018). No service runs as it.
 	BuildKey = 16737
+	// Vor is the retrieval corpus server (DP-712): host unit
+	// unheaded-vor.service only (account unheaded-vor).
+	Vor = 16738
+	// SyslogRelay is cmd/syslog-relay (ADR-124): host unit
+	// unheaded-syslog-relay.service only (account unheaded-syslog-relay).
+	SyslogRelay = 16739
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -223,6 +229,8 @@ var Registry = map[string]int{
 	"unheaded-auth":     Auth,
 	"heimdall":          Heimdall,
 	"buildkey":          BuildKey,
+	"vor":               Vor,
+	"syslog-relay":      SyslogRelay,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

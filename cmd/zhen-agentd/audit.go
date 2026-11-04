@@ -125,9 +125,13 @@ func agentdWellAuditor(ctx context.Context, dsn string, a *agentdAudit) (*claude
 	if err != nil {
 		return nil, err
 	}
+	energy := claudebridge.LLMRequestsHasEnergy(pctx, db)
+	if !energy {
+		fmt.Fprintln(os.Stderr, "zhen-agentd: llm_requests has no energy columns until migration 044 is applied; estimates are dropped")
+	}
 	return claudebridge.NewWellAuditor(claudebridge.WellAuditorConfig{
 		Source: "zhen-agentd", Backend: claudebridge.BackendLocal,
-		Requests: claudebridge.SQLRequestSink{DB: db}, Events: events,
+		Requests: claudebridge.SQLRequestSink{DB: db, Energy: energy}, Events: events,
 	})
 }
 

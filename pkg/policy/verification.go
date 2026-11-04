@@ -67,7 +67,6 @@ func (t ComplianceTier) String() string {
 const (
 	AlgoSLHDSA uint8 = 0x01
 	AlgoMLDSA  uint8 = 0x02
-	AlgoFNDSA  uint8 = 0x03
 	AlgoMLKEM  uint8 = 0x04
 	AlgoHQC    uint8 = 0x05
 )
@@ -93,7 +92,7 @@ func DefaultPolicyForTier(tier ComplianceTier) *TierPolicy {
 		return &TierPolicy{
 			Tier:         TierNone,
 			Mode:         ModeOptimistic,
-			AllowedAlgos: []uint8{AlgoSLHDSA, AlgoMLDSA, AlgoFNDSA},
+			AllowedAlgos: []uint8{AlgoSLHDSA, AlgoMLDSA},
 			MaxSigAge:    24 * time.Hour,
 			GracePeriod:  60 * time.Second,
 		}
@@ -122,12 +121,12 @@ func DefaultPolicyForTier(tier ComplianceTier) *TierPolicy {
 			Tier:             TierSovereign,
 			Mode:             ModePessimistic,
 			RequiredAlgos:    []uint8{AlgoSLHDSA, AlgoMLDSA},
-			AllowedAlgos:     []uint8{AlgoSLHDSA, AlgoMLDSA, AlgoFNDSA},
+			AllowedAlgos:     []uint8{AlgoSLHDSA, AlgoMLDSA},
 			MinTrustTier:     TierSovereign,
 			MaxSigAge:        15 * time.Minute,
 			GracePeriod:      60 * time.Second,
 			RequireMultiSig:  true,
-			MinMultiSigCount: 2, // 2-of-3
+			MinMultiSigCount: 2, // both of SLH-DSA and ML-DSA: FN-DSA is withdrawn (DP-411)
 			DistinctFamilies: true,
 		}
 	default:

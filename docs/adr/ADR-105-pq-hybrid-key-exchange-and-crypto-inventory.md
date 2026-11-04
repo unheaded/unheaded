@@ -386,3 +386,52 @@ Also for Stevie, not blocking: accept this ADR, and sign off the `aws-lc-rs` /
 From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 
 - Accepted. The bar (Stevie, 2026-11-03): at or above iMessage PQ3, Signal PQXDH/SPQR and the Microsoft/HKMA roadmaps: hybrid post-quantum key establishment everywhere, post-quantum signatures, a phased roadmap. E1 PG 18 in a separate window after E1 is stable a week. E2 west hybrid-only, attended, after a verified client test; the .135/.137 clients named first. E3 the weekly PSK timer enabled with a command-scoped root-on-west key on east. E4 custody: Stevie's two existing YubiKeys unlock the build-key seed at ceremonies (seed encrypted at rest, decrypted only with a token present); daemon keys (Heimdall drift, Wotan topic signing, apt repo) live on the hosts under dedicated accounts, rotated quarterly, public halves published. E5 Heimdall keys under that rule. `aws-lc-rs`/`aws-lc-sys` admitted (sitting records it). Registry: SLH-DSA implemented via circl, FN-DSA dropped (floating point, never in BPF), HQC stays reserved (DP-03..06, DP-411).
+
+## The bar and the gap (2026-11-04, DP-411)
+
+**The bar (Stevie, 2026-11-03):** at or above iMessage PQ3, Signal PQXDH and SPQR, and the Microsoft and HKMA roadmaps: hybrid post-quantum key establishment everywhere, post-quantum signatures, phased.
+
+What each one is, from its publisher, read 2026-11-04:
+
+| Reference | What it does | Source |
+|---|---|---|
+| iMessage PQ3 | Hybrid start: Kyber-1024 with P-256 ECDH. Ongoing: a Kyber-768 ratchet about every 50 messages, at least every 7 days. Authentication stays classical (ECDSA P-256, key in the Secure Enclave). | security.apple.com/blog/imessage-pq3 |
+| Signal PQXDH | Hybrid start: X25519 with Kyber-1024. Authentication stays classical. | signal.org/docs/specifications/pqxdh |
+| Signal SPQR | An ML-KEM-768 ratchet beside the Double Ratchet, keys mixed through a KDF ("Triple Ratchet"), with graceful downgrade for older clients. | signal.org/blog/spqr |
+| Microsoft Quantum Safe Program | Inventory first. Moved on 2026-06-30: critical products and services to PQC by 2029 (was early adoption 2029, transition 2033). | microsoft.com/en-us/security/blog, 2026-06-30 |
+| HKMA Quantum Preparedness Index | First issue 2026-07-27: Awareness, Planning, Pilots, Practical Preparedness; sector score 2.3 of 10, target 10 by 2030. | hkma.gov.hk press release 20260727-3 |
+
+Note: PQ3 and Signal authenticate classically, so "PQ signatures" is above those two and is Stevie's addition. The Microsoft and HKMA dates are after the 2026-11-03 bar was written; they are the current ones.
+
+**The tree, measured on develop 2026-11-04:**
+
+| # | Axis | Bar | Tree today | Verdict |
+|---|---|---|---|---|
+| PQ-1 | Inventory, gates | Microsoft and HKMA start here | CBOM `compliance/crypto/cbom.cdx.json`, `check-crypto-inventory.sh`, `check-pq-kex.sh`, a shrink-only baseline | **At or above** |
+| PQ-2 | Signatures on config, drift, health, audit, evidence, seals | PQ3 and Signal: classical | ML-DSA-65: Wotan signed prefixes, Gungnir, evidence, cartridges, Binding Rune | **Above** PQ3 and Signal, in code; drift and evidence keys wait on custody (DP-06) |
+| PQ-3 | Hybrid KEX on links we own, in code | Hybrid everywhere | `pkg/tls` Strict and Preferred, rustls aws-lc-rs | **At**, in code |
+| PQ-4 | Hybrid KEX live | Everywhere | The stack is down; compose Wotan and edge Traefik run plaintext until E1 (DP-23) | **Below** until E1 |
+| PQ-5 | The Well | Hybrid | PG 16: P-256 only | **Below**; PG 18 in its own window (DP-03) |
+| PQ-6 | SSH | Hybrid | East hybrid-only; west accepts classical KEX | **Below** on west; attended (DP-04) |
+| PQ-7 | WireGuard | Hybrid KEM | Classical Noise plus a PSK, rotated by hand once; weekly timer off. No KEM in the path; the PSK protects only while fresh and only if carried over a hybrid channel | **Below**; timer in DP-05; a real hybrid needs the third-party sitting |
+| PQ-8 | Strength at establishment | PQ3 and PQXDH start at Kyber-1024 | Strict prefers X25519MLKEM768; SecP384r1MLKEM1024 is third | **Below** at session start for long-lived secrets |
+| PQ-9 | Ongoing PQ rekey | PQ3: every 50 messages or 7 days. SPQR: continuous | **None.** TLS 1.3 KeyUpdate is symmetric; no `MaxConnectionAge` anywhere, so a Wotan stream keeps one KEX for its process lifetime. `pkg/crypto/pqc` KEM tunnel epochs are reached by no binary | **Below; the largest gap** |
+| PQ-10 | Service authentication | "PQ signatures" | Ed25519 tokens; DP-201's switch rule has not fired. EdDSA OIDC, classical TLS certificates, GPG commits | **Below** the bar, at PQ3 and Signal |
+| PQ-11 | Package and build signing | "PQ signatures" | Apt repo unsigned (DP-14); build key seed waits on custody (DP-06) | **Below** |
+| PQ-12 | SLH-DSA | "PQ signatures" | Implemented on circl v1.6.5, all 12 parameter sets after S-WIRE-HONEST; **no production caller** | Available, not used |
+| PQ-13 | Key storage | PQ3: Secure Enclave | 0400 files under dedicated accounts; YubiKey ceremony planned (DP-06) | **Below** for daemon keys |
+| PQ-14 | Published analysis | Apple and Signal each published formal analysis | None | **Below** |
+| PQ-15 | Third-party links | n/a | SMTP and KEV keep a TLS 1.2 floor; the far end decides | Accepted, hybrid-opportunistic |
+| PQ-16 | Wire layer | n/a | Monad PQC is design only (ADR-119, parked) though the drafts describe it | Honest in the docs; not built |
+
+**Summary.** Above the bar on signed state and inventory. At it, in code, for first-party TLS. Below it on coverage (PQ-4 to PQ-7), on start strength (PQ-8), on ongoing rekey (PQ-9) and on authentication of live sessions (PQ-10, PQ-11).
+
+**Phased roadmap. Dates are a proposal for Stevie; only R1's contents are already decided.**
+
+| Phase | When | Closes |
+|---|---|---|
+| R1 | E1 and the windows after it | PQ-4, PQ-5, PQ-6, PQ-7 timer, PQ-2 keys, PQ-11 apt key |
+| R2 | 2027 H1 | PQ-9: a connection-age cap on Wotan gRPC and first-party streams, so each link re-runs a hybrid KEX on a cadence no worse than PQ3's 7 days; PQ-8: decide ML-KEM-1024 for Strict |
+| R3 | 2027 H2 | PQ-10: dual-publish service tokens, then flip (DP-201 A); hybrid signatures on `audit.` and `alerts.critical`; SLH-DSA co-signature on the build key (PQ-12) |
+| R4 | 2028 | PQ-10 certificates and SSH host keys as Go and OpenSSH ship them; PQ-7 hybrid tunnel; PQ-13 |
+| R5 | by end of 2029 | Inventory shows no classical-only critical link (Microsoft's date); a self-score on the HKMA's four dimensions before 2030; PQ-14 |

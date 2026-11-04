@@ -46,3 +46,7 @@ These are estimates: sampling misses short spikes, wall power is higher than the
 ## Decision
 
 Build as above in S-ZHEN-POLISH; the migration applies live at E1 with the rest of the batch.
+
+## Built, S-ZHEN-POLISH 2026-11-04
+
+Migration 044, `pkg/energy`, three local request sites; writers fall back to 030's columns on a Well without 044. Q1: the idle baseline is one read at request start: no added latency, but a request straight after another inherits its tail and undercounts. Q2: embeddings are not recorded; the Python embedder writes no row. A model served on CPU reads near zero under `gpu_sampled`. `llm_requests_energy_shape` ties a figure to a method, so unknown cannot be stored as 0. The reporting view is not built: it needs the routing evals beside it.

@@ -213,3 +213,69 @@ tests:
               summary: "Vector on west discarded journal rows bound for ClickHouse"
               description: "The audit sink is configured to block, never drop; a discard means its buffer config changed. Check config/vector."
               runbook_url: "runbooks/observe/log-pipeline.yaml"
+
+  # The relay stops answering at 31m: quiet at 40m, firing after for: 10m.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="[fd00:dead:beef::1]:9599",job="syslog-relay",host="west"}'
+        values: '1x30 0x30'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: SyslogRelayDown
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: SyslogRelayDown
+        exp_alerts: []
+      - eval_time: 42m
+        alertname: SyslogRelayDown
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, instance: "[fd00:dead:beef::1]:9599", job: syslog-relay, host: west}
+            exp_annotations:
+              summary: "The syslog relay on west is not answering /metrics"
+              description: "Pi-hole and device logs are not reaching the journal; systemctl status unheaded-syslog-relay"
+              runbook_url: "runbooks/observe/syslog-relay.yaml"
+
+  # Rate drops start at 20m; journal drops never do. Each reason fires alone,
+  # and a burst that ended stops firing once it leaves the 15m window.
+  - interval: 1m
+    input_series:
+      - series: 'syslog_relay_dropped_total{instance="w",job="syslog-relay",host="west",reason="rate"}'
+        values: '0x20 10+10x9 100x60'
+      - series: 'syslog_relay_dropped_total{instance="w",job="syslog-relay",host="west",reason="journal"}'
+        values: '0x90'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SyslogRelayDropping
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: SyslogRelayDropping
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, reason: rate}
+            exp_annotations:
+              summary: "The syslog relay on west dropped 100 messages in 15m (rate)"
+              description: "curl -s 127.0.0.1:9599/metrics | grep dropped on west; rate is usually a device in a loop"
+              runbook_url: "runbooks/observe/syslog-relay.yaml"
+      - eval_time: 60m
+        alertname: SyslogRelayDropping
+        exp_alerts: []
+
+  # An unknown sender from 20m: a warning, and quiet again after it stops.
+  - interval: 1m
+    input_series:
+      - series: 'syslog_relay_unknown_sender_total{instance="w",job="syslog-relay",host="west"}'
+        values: '0x20 7+7x4 35x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SyslogUnknownSender
+        exp_alerts: []
+      - eval_time: 27m
+        alertname: SyslogUnknownSender
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west}
+            exp_annotations:
+              summary: "The syslog relay on west refused 35 messages from senders not in sources.yaml in 15m"
+              description: "A new device, or something probing 514. Nothing from it was kept: add its row if it is yours"
+              runbook_url: "runbooks/observe/syslog-relay.yaml"
+      - eval_time: 60m
+        alertname: SyslogUnknownSender
+        exp_alerts: []

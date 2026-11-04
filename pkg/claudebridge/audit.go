@@ -37,6 +37,11 @@ type RequestRecord struct {
 	TaskFamily  string // eval/routing family, e.g. "repo-task"
 	RouteReason string // llm_requests.route_reason
 	Redactions  int    // values the privacy tier redacted from this request
+
+	// ADR-120: estimated energy of a local request. Nil means no estimate;
+	// a Claude record stays nil.
+	EnergyJoules *float64
+	EnergyMethod string // llm_requests.energy_method; "" with no estimate
 }
 
 // ToolRecord summarises one tool call. The input is recorded by size and

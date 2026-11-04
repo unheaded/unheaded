@@ -24,7 +24,7 @@ PROBE_NAME="${PROBE_NAME:-default}"
 PROBE_SEED="${PROBE_SEED:-42}"
 PROBE_SYSTEM="${PROBE_SYSTEM:-}"
 PROBE_OUT="${PROBE_OUT:-eval/coding-gate/probe-2026-05-02/${PROBE_NAME}.md}"
-VOR_URL="${VOR_URL:-http://127.0.0.1:9876}"
+VOR_URL="${VOR_URL:-http://127.0.0.1:20110}"
 LLAMA_URL="${LLAMA_URL:-http://127.0.0.1:8081}"
 
 PROMPTS="eval/coding-gate/prompts.jsonl"

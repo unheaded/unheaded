@@ -213,7 +213,7 @@ func TestSovereignMap(t *testing.T) {
 		Slots: [3]SovereignSlot{
 			{SigRef: 10, AlgoID: 0x01, Status: 1}, // SLH-DSA valid
 			{SigRef: 20, AlgoID: 0x02, Status: 1}, // ML-DSA valid
-			{SigRef: 30, AlgoID: 0x03, Status: 0}, // FN-DSA pending
+			{SigRef: 30, AlgoID: 0x03, Status: 0}, // withdrawn id, pending
 		},
 	}
 
@@ -262,7 +262,7 @@ func TestSovereignConsensusSameFamily(t *testing.T) {
 		SigRef: 2,
 		Slots: [3]SovereignSlot{
 			{SigRef: 10, AlgoID: 0x02, Status: 1}, // ML-DSA: valid
-			{SigRef: 20, AlgoID: 0x03, Status: 1}, // FN-DSA: valid (same family!)
+			{SigRef: 20, AlgoID: 0x03, Status: 1}, // withdrawn id: valid (same family!)
 			{SigRef: 30, AlgoID: 0x01, Status: 2}, // SLH-DSA: invalid
 		},
 	}

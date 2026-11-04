@@ -1843,7 +1843,7 @@ func TestFullMiddlewareChain(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BPF mode: not implemented, and says so (it used to serve the mock data)
+// BPF mode: what has no map behind it says so (it used to serve the mock data)
 // ---------------------------------------------------------------------------
 
 func TestBPFModeIsUnimplemented(t *testing.T) {
@@ -1853,7 +1853,6 @@ func TestBPFModeIsUnimplemented(t *testing.T) {
 	ctx := context.Background()
 
 	ws := &wotanServer{mockStorage: make(map[uint32]*pb.MemorySlot)}
-	ss := &sophiaServer{mockDictionaries: initializeMockDictionaries()}
 	fs := &flowServer{mockFlows: make(map[uint32]*pb.FlowState)}
 	as := &anamnesisServer{mockEventLog: make([]*pb.Event, 0), subscribers: make([]chan *pb.Event, 0)}
 
@@ -1863,10 +1862,7 @@ func TestBPFModeIsUnimplemented(t *testing.T) {
 			_, err := ws.Write(ctx, &pb.WriteRequest{FlowLabel: 42, StateData: make([]byte, 32)})
 			return err
 		},
-		"sophia list": func() error { _, err := ss.List(ctx, &pb.DictionaryListRequest{Limit: 100}); return err },
-		"sophia get":  func() error { _, err := ss.Get(ctx, &pb.DictionaryGetRequest{DictionaryId: 1}); return err },
-		"flow list":   func() error { _, err := fs.List(ctx, nil); return err },
-		"flow get":    func() error { _, err := fs.GetState(ctx, &pb.ReadRequest{FlowLabel: 42}); return err },
+		"flow get": func() error { _, err := fs.GetState(ctx, &pb.ReadRequest{FlowLabel: 42}); return err },
 		"flow inject": func() error {
 			_, err := fs.Inject(ctx, &pb.InjectRequest{FlowLabel: 42, Payload: []byte("x")})
 			return err

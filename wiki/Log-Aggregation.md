@@ -45,7 +45,7 @@ east: host journal → Vector (host unit vector-east) → west's ClickHouse over
 ```
 
 - **Compose driver**: the twelve first-party services log with `driver: journald` (anchor `x-logging-journald` in `docker-compose.yml`). Vector labels each line `unit = CONTAINER_NAME`, e.g. `unheaded_log_lines_total{unit="unheaded-wotan"}`. Third-party images and Vector itself keep json-file 3x10MB.
-- **Cap**: journald `SystemMaxUse=1G`, `RuntimeMaxUse=200M` (compliance fix `journald-caps`). `scripts/check-compose-log-caps.sh` accepts journald only while every host's profile applies that fix.
+- **Cap**: journald `SystemMaxUse=1G`, `RuntimeMaxUse=200M` (compliance fix `journald-caps`), raised on west to 4G/500M (`journald-caps-west`, DP-09). `scripts/check-compose-log-caps.sh` accepts journald only while every host's profile applies that fix.
 - **Tests**: `scripts/test-vector-config.sh` validates both configs, runs `config/vector/tests/`, and fails if `vector-east.yaml`'s transforms differ from `vector.yaml`'s.
 - **Decision record**: ADR-092 (amended 2026-10-27). ADR-086 Muninn is superseded by Vector; ADR-076's topology map is re-scoped to one dashboard-backend endpoint.
 

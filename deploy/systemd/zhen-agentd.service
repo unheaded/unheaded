@@ -22,13 +22,14 @@ Description=Zhen Agent Daemon (Phase D-A — ReAct loop + Champion gate)
 Documentation=https://github.com/unheaded/unheaded/tree/main/cmd/zhen-agentd
 Wants=network-online.target
 After=network-online.target postgresql.service
-# Optionally: After=cs-vor.service llama-server.service
+After=unheaded-vor.service
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
 # works harder before the cgroup throttles or OOM-kills.
 MemoryMax=512M
 MemoryHigh=460M
+MemorySwapMax=0
 TasksMax=512
 Environment=GOMEMLIMIT=460MiB
 Type=simple
@@ -59,8 +60,10 @@ EnvironmentFile=-/etc/zhen-agentd.env
 # Default flags. Override per-host via /etc/zhen-agentd.env or by
 # editing this unit's ExecStart.
 ExecStart=/usr/local/bin/zhen-agentd \
-    -port 20105 \
+    -port 20111 \
     -host 127.0.0.1 \
+    -memory-store pg \
+    -confirm-queue \
     -project-root /var/zhen/projects/default \
     -action-store=pg \
     -kanban-store=pg \
@@ -107,7 +110,7 @@ RemoveIPC=yes
 # 127.0.0.1 listener + The Well over TCP.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
-# Capabilities: zhen-agentd binds an unprivileged port (20105) and does
+# Capabilities: zhen-agentd binds an unprivileged port (20111) and does
 # not need any capabilities. CAP_NET_BIND_SERVICE only required if you
 # move the listen port below 1024.
 CapabilityBoundingSet=
@@ -116,7 +119,7 @@ AmbientCapabilities=
 # Filesystem access — must include the project roots from -allowed-roots.
 # Default assumes /var/zhen/projects/ is the parent of all tenant roots.
 ReadWritePaths=/var/zhen/projects
-ReadOnlyPaths=/var/zhen/models /etc/zhen-agentd.env /etc/unheaded/zhen
+ReadOnlyPaths=/var/zhen/models /etc/zhen-agentd.env /etc/unheaded/zhen -/var/zhen/code-index
 
 # Seccomp — block privileged syscalls.
 SystemCallArchitectures=native

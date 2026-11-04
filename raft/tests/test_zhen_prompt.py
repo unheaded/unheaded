@@ -57,7 +57,7 @@ def sent(monkeypatch):
 
     monkeypatch.setattr(zhen_rag.requests, 'post', post)
     pipe = zhen_rag.RAGPipeline(inference_url='http://llama.test:8081',
-                                agentd_url='http://agentd.test:20105',
+                                agentd_url='http://agentd.test:20111',
                                 proxy_via_agentd=False)
     chunks = [{'trust': 'external', 'label': 'src', 'category': 'lang',
                'id': 'bash', 'content': 'body'}]

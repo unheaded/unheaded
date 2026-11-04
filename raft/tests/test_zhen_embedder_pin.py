@@ -42,7 +42,7 @@ def weights(tmp_path, monkeypatch):
 
 def _pipe():
     return zhen_rag.RAGPipeline(inference_url='http://llama.test:8081',
-                                agentd_url='http://agentd.test:20105')
+                                agentd_url='http://agentd.test:20111')
 
 
 def test_verify_embedder_pin_accepts_match_and_case(weights):

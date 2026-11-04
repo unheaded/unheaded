@@ -8,7 +8,7 @@
 # Builds the server into a temp dir (bin/ is left alone), sends initialize,
 # tools/list and two calls that must be refused, and fails unless:
 #   - initialize answers with the requested protocol revision,
-#   - tools/list shows exactly the six read-only tools (no ZHEN_MCP_ALLOW_*),
+#   - tools/list shows exactly the eight read-only tools (no ZHEN_MCP_ALLOW_*),
 #   - file_read of /etc/shadow is an isError result (ACCESS DENIED),
 #   - file_write is an isError result (disabled without the flag).
 # No model, no network, no port; a few seconds. Needs go and jq.
@@ -54,8 +54,8 @@ check() { # check <description> <jq filter that must print true>
 }
 check "four replies (the notification gets none)" 'length == 4'
 check "initialize echoes 2025-06-18" '.[] | select(.id == 1) | .result.protocolVersion == "2025-06-18"'
-check "tools/list = the six read-only tools" \
-    '[.[] | select(.id == 2) | .result.tools[].name] | sort == ["corpus_search","file_read","local_llm","runbook_list","runbook_show","service_health"]'
+check "tools/list = the eight read-only tools" \
+    '[.[] | select(.id == 2) | .result.tools[].name] | sort == ["code_callers","code_definition","corpus_search","file_read","local_llm","runbook_list","runbook_show","service_health"]'
 check "file_read /etc/shadow is isError ACCESS DENIED" \
     '.[] | select(.id == 3) | .result.isError == true and (.result.content[0].text | startswith("ACCESS DENIED"))'
 check "file_write without the flag is isError" \
