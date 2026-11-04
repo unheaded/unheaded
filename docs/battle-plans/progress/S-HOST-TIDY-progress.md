@@ -40,3 +40,4 @@
 - East unchanged, checked: `/etc/ssh/sshd_config.d` matches the backup (`diff -r`), `unheaded-tidy-sshd-undo.timer` inactive, `sshd -T` still `port 22`, `permitrootlogin without-password`, `passwordauthentication no`, `kbdinteractiveauthentication no`. Hold session left up.
 - Steps 19-23: Phase 2, checked: DP-15: the restore runbook stops needing root on east. It is in the manifest, so regenerat.
 - Steps 24-27: Two fixes added; parity goldens unchanged; restore runbook off root@east; tests green.
+- Steps 28-32: Phase 3, checked: Install on east..
