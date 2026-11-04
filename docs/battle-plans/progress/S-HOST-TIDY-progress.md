@@ -28,6 +28,7 @@
 - DP-711 not done, Phase 5 [STUCK] at Step 47; the three `steel-echo-v2` instances are running as before. All three `lxc export` calls failed with `Project "unheaded" doesn't allow for backup creation`. The project is `restricted: "true"`, set on purpose by `scripts/cuirass-lxd-trust.sh`, and it has no `restricted.backups` key. Nothing was deleted, and the restriction was not touched, because the plan does not name it and it is part of Cuirass's confinement. Decide, neither tested: (a) `lxc project set unheaded restricted.backups allow` for a rerun of Steps 47-48, then `lxc project unset unheaded restricted.backups`; or (b) drop the export and delete them, since the image stays in the store and Cuirass recreates from it, at the cost of anything local to these instances. DP-713 and the DP-723 check are done; only DP-711 is open.
 - Plan text, Step 47: `lxc export ... | tail -1` hides lxc's exit code, so the script's rc was `0` with all three exports failed. Only the output lines and the final count `0` showed it. Step 47 also has no check that the project allows backups; `lxc project get unheaded restricted.backups` before the stop would catch this with the instances still up.
 - Plan text, Step 46: it labels the evidence line and commit `Steps 42-46`, but Phase 5 is Steps 43-51 and Step 42 is Phase 4's exit gate. Run as written.
+- Plan text, Step 90: it labels the evidence line and commit `Steps 85-90`, but Phase 10 is Steps 86-91 and Step 85 is Phase 9's exit gate. Run as written.
 
 ## Evidence
 
@@ -74,3 +75,5 @@
 - Rollback run and checked: all three started (rc 0), `RUNNING`, `:26601` listening, HTTP `200` through the proxy, Pi-hole `RUNNING`. No exports exist; `~/tmp/host-tidy-2026-11-04` is left empty, mode 0700.
 - Step 48 not run: it depends on the exports. Step 49 run on its own and matched Expect: `RUNNING`, `steel-echo-v2`, `0.0.0.0` x3. DP-723 confirmed. Step 50 not run as written, because its text says the instances were deleted; this commit stands in for it.
 - Step 51 exit gate: FAILED, `0`, `3` (Expect `0`, `0`). Image gone; instances not deleted.
+- Steps 86-89: Step 86 journal from `2026-10-23`, root logins `0`, `govan@localhost: Permission denied (publickey,keyboard-interactive).` Added read-only: `_COMM=sshd-session` also shows `0` for root, `33` accepted in all. Timer armed 17:10:09 UTC, stopped 17:10:15 UTC, never fired. Step 88 matched Expect in order. Step 89 `inactive`, `2`. KEX and port unchanged.
+- Steps 85-90: West 05-unheaded-permitroot.conf in place; methods unchanged; port 7375 listening.
