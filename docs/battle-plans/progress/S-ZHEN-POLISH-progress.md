@@ -12,6 +12,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 - Phase 4 (Steps 29-38) done, commit 702b083b (signed): 9876 and 20105 greps return 0 outside the excluded paths; gofmt clean; go test ok for zhen-mcp, zhen-cli, zhen-rag, zhen-agent; openapi.json parses; pytest 14 passed (url_scheme, scheduler_client).
 
+- Phase 5 (Steps 39-52) done, commits 00e21478 and 48251cb2 (both signed): account unheaded-vor uid 16738; deploy/systemd/unheaded-vor.service new, zhen-agentd.service amended; scripts/vor-export-source.sh (clean, rc=2, rc=2 as written; a second export over its own marker also replaces cleanly); runbooks, start-zhen.sh and the scrape on 20110/20111 with a fresh manifest; log row added. check-systemd-units, check-unit-ceilings, check-unit-binaries, check-log-sources, runbook-manifest --check, pkg/logsources and pkg/uids pass on the committed tree. The gates glob the filesystem, so they covered the new unit. systemd-analyze verify is clean on it; exposure 1.1 (vor), 1.2 (agentd). Not run: promtool is not on west, so rules/tests/zhen_test.yml (instance label port only) was not executed here; the units were not run as their real accounts (no install, S-HOST-TIDY).
+
 ## Measurements
 
 ## Stuck
@@ -29,3 +31,4 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - **E8 `zhen_actions.status` (found by the review, pre-existing).** `db/migrations/009_zhen_actions.sql` allows five values at VARCHAR(20), while the gate writes `accepted` and `denied_*`, up to 30 characters, so those `UpdateAction` calls fail on a real Well; the code only logs a warning, and the row stays `planned`. Fix: one migration, `ALTER COLUMN status TYPE VARCHAR(40)`, dropping `zhen_actions_status_check` and adding it back `NOT VALID` with `accepted` and `status LIKE 'denied\_%'`, then `VALIDATE`. Small, but not in this plan's scope: say if you want it folded in as 047, which the series holds for it.
 - **E9 `call` bodies stay unredacted.** Only `teach_write` is checked before it is queued. Other rows in `zhen_pending_confirmations` keep their full `call` until 031's seven-day blanking migration exists; nobody has written it. Say when you want it.
 - **E10 agentd's own in-root rows.** `confirm approve` runs as you, and `/var/zhen/projects/default` is 0700 zhen-agentd, so a queued write inside it fails on approval. Approval now stays in its row's root, so rows outside it fail too. Decide whether agentd's in-root writes should be approvable at all, or whether a daemon-side executor should run them.
+- **Phase 5: `wiki/Systemd-Units.md` has no `unheaded-vor.service` row.** It lists `zhen-agentd.service`, and no step in this plan adds vor's (series rule 7, ops facts in the wiki). `wiki/**` is L-DOC-B's lane, so Phase 5 left it. Say if Phase 18 should carry the row.
