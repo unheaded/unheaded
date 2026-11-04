@@ -155,3 +155,9 @@ Architecture: amd64
 Depends: libc6
 Description: The Well: retention classes (purge, archive, partition check)
  Binary well-retention, unit unheaded-well-retention.service.
+
+Package: unheaded-syslog-relay
+Architecture: amd64
+Depends: libc6
+Description: Unheaded syslog relay: syslog in, journal out
+ Binary syslog-relay, unit unheaded-syslog-relay.service.
