@@ -57,3 +57,4 @@
 - Steps 69-74 rerun: Step 69 `Master running (pid=3290473)`, journal from `2026-10-26`, root logins `0`, `NO_ROOT_KEYS`, `root@` count `0`. Timer armed 17:03:39 UTC, stopped 17:03:50 UTC, never fired. Step 71 matched Expect in order, KEX unchanged, port 22. Step 73: `FRESH_KEY_LOGIN_OK`, `Permission denied (publickey,password,keyboard-interactive).`, hold session up. Step 74: `inactive`, the five expected files, `600` on `05-unheaded-permitroot.conf`.
 - Step 76 exit gate: PASSED, `well-backup-copy` is `passwordauthentication no`, `authenticationmethods publickey`. Supersedes the Step 69 [STUCK] lines above. DP-11 first half and DP-15 done on east.
 - Steps 76-80: Phase 9, checked: LOCKOUT GATE 1  the ignore list, the match and the ports are what was written..
+- Steps 81-84: fail2ban 1.1.0-8 on east. journalmatch sshd-session, ignoreip proven by a provoked failure from west, banip/unbanip proven on 203.0.113.9.
