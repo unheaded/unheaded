@@ -616,3 +616,25 @@ const (
 	StatsMaxEntries               = 32
 	ConfigMaxEntries              = 16
 )
+
+// === latency-probe (DP-408) ===
+
+// LatencyTraceKey mirrors ebpf/latency-probe/src/common.rs LatencyTraceKey:
+// one thread's samples under one socket trace id.
+type LatencyTraceKey struct {
+	TraceID [16]byte // Socket trace id, big-endian high then low; zero when none.
+	PID     uint32   // Full kernel pid (tgid).
+	TID     uint32   // Full kernel tid.
+}
+
+// LatencyTraceKeySize is the exact wire size.
+const LatencyTraceKeySize = 24
+
+// LatencyEntry mirrors ebpf/latency-probe/src/common.rs LatencyEntry.
+type LatencyEntry struct {
+	RTTNs        uint64 // Most recent RTT sample.
+	MinRTTNs     uint64 // Minimum observed RTT.
+	MaxRTTNs     uint64 // Maximum observed RTT.
+	Samples      uint64 // Number of samples.
+	LastUpdateNs uint64 // bpf_ktime_get_ns of the last update.
+}

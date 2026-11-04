@@ -44,3 +44,5 @@ E3 table rows to add (Step 247): `pkg/protocol/{amplification,dos,intermediary,p
 plus `lifecycle` and `settings` (Phase 4 Step 150), and `migration` and `integrity` (HMAC half) if Phase 5 does not keep them.
 
 RFC Editor follow-up from Step 150: wotan-memory-03 (and its IETF twin) cites a SETTINGS exchange and GOAWAY frames only through origins 0x06/0x07, three gRPC error rows and "See draft-02 Section 10.2"; draft-02 is superseded and was never submitted, so the -00 submission references frames it does not define. Either restore the two definitions in a -01 or drop the origins, rows and pointer.
+
+Applied 2026-11-04 (DP-715, S-WIRE-HONEST): the E3 delete rows above and `lifecycle`, `settings` are gone. `migration` stays parked (RETRY_TOKENS moved to hop-ebpf without a wire token). `integrity`'s HMAC half stays unwired: the Monad has no tag field (`docs/protocol/RFC-EDITOR-REQUESTS-WH.md` item 7).

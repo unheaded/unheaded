@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	pb "unheaded/proto/unheaded/v1"
 )
@@ -63,18 +65,22 @@ func (s *flowServer) listMock() (*pb.FlowListResponse, error) {
 	}, nil
 }
 
-// listBPF returns flows from BPF maps
+// listBPF lists flows from flow-tracker's pinned FLOWS map.
 func (s *flowServer) listBPF() (*pb.FlowListResponse, error) {
-	// In a real implementation, this would:
-	// 1. Open the pinned BPF map for flows
-	// 2. Iterate through all entries
-	// 3. Return paginated results
-	return nil, errBPFNotImplemented("flow list")
+	flows, err := flowsFromMap(globalBackend)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "flow list: %v", err)
+	}
+	return &pb.FlowListResponse{
+		Flows: flows,
+		Total: int32(len(flows)), // #nosec G115 -- bounded by the length of an already-allocated slice
+	}, nil
 }
 
 // GetState retrieves the state of a specific flow
 func (s *flowServer) GetState(ctx context.Context, req *pb.ReadRequest) (*pb.FlowState, error) {
 	if !globalMockMode {
+		// FLOWS is keyed by 5-tuple and holds no flow label to look up.
 		return nil, errBPFNotImplemented("flow get")
 	}
 	s.mu.RLock()
@@ -155,10 +161,7 @@ func (s *flowServer) injectMock(req *pb.InjectRequest) (*pb.InjectResponse, erro
 
 // injectBPF injects a packet in BPF mode
 func (s *flowServer) injectBPF(req *pb.InjectRequest) (*pb.InjectResponse, error) {
-	// In a real implementation, this would:
-	// 1. Create or lookup the flow in BPF maps
-	// 2. Queue the packet for transmission
-	// 3. Return packet ID and injection timestamp
+	// No map queues packets for transmission; injecting is not a map read.
 	return nil, errBPFNotImplemented("flow inject")
 }
 

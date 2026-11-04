@@ -139,6 +139,8 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [121](../docs/adr/ADR-121-a-future-waf.md) | A future WAF: idea only, lowest priority | Proposed (parked) | 2026-11-04 |
 | [122](../docs/adr/ADR-122-go-embed-service.md) | Go embedding path on llama-server, parked: the Python embedder stays; measured limits on file | Proposed (parked) | 2026-11-04 |
 | [124](../docs/adr/ADR-124-native-syslog-relay.md) | Native syslog relay `cmd/syslog-relay`: RFC 5424/3164 over UDP and TCP into the journal's native protocol, so Vector ships it; `sources.yaml` allowlist, per-sender token bucket, capped frames, control bytes escaped | **Proposed** (D2 answered native 2026-11-03; carried by S-LOG-HARVEST Phase 5) | 2026-11-04 |
+| [125](../docs/adr/ADR-125-hop-checks.md) | Hop checks: validators, HMAC-key presence and retry state move from Shield ingress to hop-ebpf; key presence only, the Monad carries no tag | **Proposed** | 2026-11-04 |
+| [126](../docs/adr/ADR-126-private-hbh-option-registry.md) | Private Hop-by-Hop option registry: 0x3E is the Monad's and Zhen's today, length alone separates them; Zhen reserved at 0x1E | **Proposed** (parked) | 2026-11-04 |
 
 ---
 

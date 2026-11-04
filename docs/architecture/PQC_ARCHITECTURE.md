@@ -4,6 +4,8 @@
 
 > **"Quantum-resistant authentication from packet zero."**
 
+> Status 2026-11-04: `cmd/pqc-verifier` is deleted (DP-715, TRUE-WIRE L5); sections naming it describe the design ADR-119 parks. FN-DSA is withdrawn (DP-411).
+
 Unheaded's PQC subsystem provides post-quantum cryptographic authentication for all intra-Kingdom traffic. Every packet carries a 12-byte PQC value in the **Monad** wire format, referencing signatures and keys stored in **Sophia** BPF maps. The **Shield** verification engine validates packets through a 7-point pipeline, while the **Wotan** message bus propagates verification state and audit events.
 
 ---
@@ -42,11 +44,11 @@ Five NIST-standardized algorithms are registered in `pkg/crypto/pqc/registry.go`
 
 | AlgoID | Name | FIPS | Type | Family | BPF-Safe | Available |
 |--------|------|------|------|--------|----------|-----------|
-| `0x01` | SLH-DSA | FIPS 205 | Signature | Hash-based | Yes | Stub |
+| `0x01` | SLH-DSA | FIPS 205 | Signature | Hash-based | Yes | **Full** (circl) |
 | `0x02` | ML-DSA | FIPS 204 | Signature | Lattice | Yes | **Full** (circl) |
-| `0x03` | FN-DSA | FIPS 206 | Signature | Lattice | No (FPU) | Stub |
+| `0x03` | withdrawn (was FN-DSA) | none | none | none | No | Burned, never reassigned (DP-411) |
 | `0x04` | ML-KEM | FIPS 203 | KEM | Lattice | Yes | **Full** (circl) |
-| `0x05` | HQC | FIPS 207 | KEM | Code-based | Yes | Stub |
+| `0x05` | HQC | FIPS 207 | KEM | Code-based | Yes | Reserved (circl has no HQC) |
 
 ### NIST Security Level Mapping
 
@@ -56,7 +58,6 @@ Each algorithm/parameter-set combination maps to a NIST security level (`pkg/pqc
 |-----------|-----------|-----------|-----------|
 | SLH-DSA | Level 1 | Level 3 | Level 5 |
 | ML-DSA | Level 2 (ML-DSA-44) | Level 3 (ML-DSA-65) | Level 5 (ML-DSA-87) |
-| FN-DSA | Level 1 (FN-DSA-512) | Level 5 (FN-DSA-1024) | — |
 | ML-KEM | Level 1 (ML-KEM-512) | Level 3 (ML-KEM-768) | Level 5 (ML-KEM-1024) |
 | HQC | Level 1 (HQC-128) | Level 3 (HQC-192) | — |
 
@@ -69,7 +70,7 @@ Sovereign tier requires signatures from **distinct** families to prevent single-
 | Family | Algorithms | Basis |
 |--------|-----------|-------|
 | Hash-based | SLH-DSA | Hash function security (SHA-2/SHAKE) |
-| Lattice | ML-DSA, FN-DSA, ML-KEM | Module-LWE/NTRU lattice hardness |
+| Lattice | ML-DSA, ML-KEM | Module-LWE lattice hardness |
 | Code-based | HQC | Syndrome decoding of random linear codes |
 
 ---
@@ -348,7 +349,7 @@ policies:
     require_pqc: true
   - service_id: 200
     service_name: "internal-tool"
-    allowed_algos: [1, 2, 3]     # SLH-DSA, ML-DSA, FN-DSA
+    allowed_algos: [1, 2]        # SLH-DSA, ML-DSA
     min_nist_level: 1            # AES-128 equivalent minimum
     max_key_age_sec: 86400       # 24 hours
     require_pqc: false

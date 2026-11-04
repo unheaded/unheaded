@@ -15,8 +15,8 @@ package pqc
 //   - HQC-128: NIST security level 1 (pk ~2249 bytes, ct ~4481 bytes)
 //   - HQC-192: NIST security level 3 (pk ~4522 bytes, ct ~6882 bytes)
 //
-// Status: ROADMAP (Q3 2026). As of circl v1.6.3, cloudflare/circl does not
-// provide an HQC implementation. The circl kem/ directory contains: frodo, hybrid,
+// Status: ROADMAP (Q3 2026). cloudflare/circl does not provide an HQC
+// implementation. The circl kem/ directory contains: frodo, hybrid,
 // kyber, mlkem, schemes, sike, xwing. No hqc package exists.
 //
 // Alternative Go libraries considered:
@@ -104,8 +104,7 @@ func (d *HQCDecapsulator) AlgoID() AlgoID {
 	return AlgoHQC
 }
 
-// GenerateHQCKeyPair returns ErrAlgorithmNotAvailable. HQC is not yet
-// available in any Go library as of circl v1.6.3.
+// GenerateHQCKeyPair returns ErrAlgorithmNotAvailable: circl has no HQC.
 func GenerateHQCKeyPair(params ParameterSet) (*KeyPair, error) {
 	return nil, ErrAlgorithmNotAvailable
 }
