@@ -11,7 +11,7 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 | Plan | Mode | Lane | Answers it carries |
 |---|---|---|---|
 | S-CLEAN-CUT | unattended | A | DP-401 with `cmd/waf`, 205 (verify Doom first), 209, 210, 306, 307, 407, 409, 410, 709, 713 (repo side) |
-| S-MOVE-OUT | unattended, local only | A, after S-CLEAN-CUT and S-STAGE-2B | DP-305 Doom to `unheaded-doom`, DP-17 k8s to `unheaded-k8s`, the forge to `unheaded-forge` (round 4); DP-314 |
+| S-MOVE-OUT | unattended, local only | A, after S-CLEAN-CUT, S-STAGE-2B and S-SUPPLY-FIRST | DP-305 Doom to `unheaded-doom`, DP-17 k8s to `unheaded-k8s`, the forge and `zhen-flywheel` to `unheaded-forge` (rounds 4, 5); DP-314 |
 | S-SUPPLY-FIRST | unattended | B | DP-722, 719, 415, 405, 08, 721 stage 1 |
 | S-ZHEN-POLISH | unattended | C | DP-216 revised (code index, no swap), 302, 309, 311, 312, 712 (two units, code only), ADR-120 estimated energy |
 | S-WIRE-HONEST | unattended | D | DP-211, 408, 411, 412, 716, 715 |

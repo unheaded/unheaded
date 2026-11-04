@@ -1453,7 +1453,7 @@ First compute the facts every step uses: `keep LANDED "$(grep -oE '^const UPC_RU
 
 **A9. Merge conflict on the baseline or timeline.** `ebpf-insns-baseline.tsv`: take develop's rows and this branch's `monad-cpu-ebpf/monad_cpu ascend-linux` row only. If another lane changed that object (S-WIRE-HONEST touches `hop-ebpf`, not this one), re-measure. Timeline: keep both entries, regenerate the mirrors. `Cargo.lock` conflicts: `[STUCK]`.
 
-**A10. S-MOVE-OUT lands first.** The harness's Doom variant calls `crates/doom-runner`, and `gate` is green only on `verified 758199 insns`. If a merge of `develop` removes it, S-MOVE-OUT owns that harness edit; a harness that no longer prints the count is `[STUCK]` at the gate, with the coordinator. `doom/doom.mbc`, `.rv2mbc` and `.sha256` stay as the fixture (DP-305). Spend nothing here on keeping Doom builds beyond `fuzix-permissive`.
+**A10. S-STAGE-2B lands first; S-MOVE-OUT follows it.** The harness's Doom variant calls `crates/doom-runner`, and `gate` is green only on `verified 758199 insns`. If a merge of `develop` removes it, S-MOVE-OUT owns that harness edit; a harness that no longer prints the count is `[STUCK]` at the gate, with the coordinator. `doom/doom.mbc`, `.rv2mbc` and `.sha256` stay as the fixture (DP-305). Spend nothing here on keeping Doom builds beyond `fuzix-permissive`.
 
 ## APPENDIX B: AGENT MATRIX AND CRITICAL PATH
 
