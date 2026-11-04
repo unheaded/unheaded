@@ -61,6 +61,8 @@ assigned in the tree and were removed on 2026-10-27.
 | `Qdrant` | 20102 | AI Model Stack — Sophia's Eye (20100-20199) |  |
 | `BGEM3` | 20104 | AI Model Stack — Sophia's Eye (20100-20199) |  |
 | `SophiaEye` | 20105 | AI Model Stack — Sophia's Eye (20100-20199) |  |
+| `ZhenVor` | 20110 | Zhen (20110-20119) | loopback |
+| `ZhenAgentd` | 20111 | Zhen (20110-20119) | loopback |
 | `AIWebUI` | 20106 | AI Model Stack — Sophia's Eye (20100-20199) |  |
 | `GatewayHTTP` | 21000 | Gateway (21000-21443) |  |
 | `GatewayHTTPS` | 21443 | Gateway (21000-21443) |  |
