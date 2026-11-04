@@ -34,6 +34,8 @@
 - `aide-install` on east is not in place, none applied, row stays open: `package aide: "", want installed`; `/etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf: missing`; `dailyaidecheck.timer: is-enabled "not-found", want enabled=true`; `dailyaidecheck.timer: is-active "inactive", want active=true`. The tool refused it on the `-applied-by` length; this is from `check`. Step 101 credits it to the S-WELL-SPRING host window, but the package is not on east.
 - `apparmor-enforce` on east is not in place, none applied, row stays open: `apparmor profile Xorg: "complain", want enforce`. Same route as `aide-install`.
 - Plan text, Step 103: it labels the evidence line and commit `Steps 99-103`, but Phase 12 is Steps 100-104 and Step 99 is Phase 11's exit gate. Run as written.
+- 25.8: west stays 0002, the check failed (66 repo bind mounts read by service uids); finding host-probe:west:default-umask stays open; S-E1-LIVE Evening 17 asks for accept or a bind-mount change.
+- Plan text, Step 108: it labels the evidence line and commit `Steps 104-108`, but Phase 13 is Steps 105-111 and Step 104 is Phase 12's exit gate. Run as written.
 
 ## Evidence
 
@@ -90,3 +92,5 @@
 - Steps 100-102: journal at `686c7da8`, model on both hosts matches the worktree (`sha256` `28590a2a...`). West recorded 10: `sysctl-cis`, `apport-off`, `kmod-cis`, `cron-perms`, `banner-cis`, `apparmor-utils`, `auditd`, `sudo-cis`, `journald-caps`, `time-p2p`. East recorded 12: those ten plus `auditd-rules` and `sshd-safe`. Step 100 [STUCK] for `rocm-log-perms`; Step 101 [STUCK] for `rocm-log-perms`, `aide-install`, `apparmor-enforce`: `fix refused: -applied-by must be 1-30 printable characters`. Step 102 `10`, `12`, equal to what was recorded. Journals now 12 lines on west, 13 on east. None of the four was applied. DP-711 stays open (Phase 5).
 - Steps 99-103: Backfilled journal rows on west and east; fixes not in place listed under For Stevie, none applied.
 - Step 104 exit gate: PASSED, `0`. The gate reads west only; added read-only on east: `find /etc -newermt` the first backfilled row, `0`. Row 25.1 part done: west 10 of 11, east 12 of 15; four calls refused on `-applied-by` length, see For Stevie. Hold session left up, no undo timer armed. DP-711 stays open (Phase 5).
+- Step 105: `60`, `6`, `20`, `664 monitoring/prometheus/prometheus.yml`, matched Expect. Step 106: west not changed, For Stevie line added. Step 107: `193:UMASK 027`; added read-only: `/etc/profile.d/05-unheaded-umask.sh` is `644 root:root`, two lines; `/etc/login.defs` differs from the backup by that one line, mode `644`. Added read-only before the change: east's only accounts with a shell are `root` and `govan`; `well-backup-copy` is nologin and its `internal-sftp -u 0077` sets its own umask.
+- Steps 104-108: Phase 13, checked: THE CHECK, west. Containers run as their own uids and read repo files through bind mounts,.
