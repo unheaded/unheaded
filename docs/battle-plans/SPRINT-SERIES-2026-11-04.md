@@ -44,9 +44,12 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 
 15. **Merging.** Before a plan merges: merge develop into the sprint worktree, rebuild, and run the plan's closing gate on that tree; a conflict is `[STUCK]`, no merge. The merge itself never leaves the main checkout half-done: `git merge --no-ff -S <branch> -m '...' || { git merge --abort; git merge --no-ff --no-gpg-sign <branch> -m '...'; }`, and an unsigned merge is recorded in the progress file. Three-dot diffs (`develop...HEAD`) when asking what a branch changed. Every `[S]` step is Opus.
 
+16. **Findings table.** `compliance-evidence findings` in a worktree must pass `-evidence /home/govan/tmp/unheaded/var/compliance/evidence.json`: the file is gitignored, a missing file is not an error, and the table silently collapses. Assert the header's open count did not fall by more than the plan closed.
+17. **Ratchets.** Never run a baseline `--update` that rewrites unrelated rows; patch only the row the plan changed, and put the numbers under "For Stevie".
+
 ## Reserved numbers and known collisions
 
-ADR-121 is S-CLEAN-CUT's parked WAF idea. ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. S-STAGE-2B starts at 135. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
+FND-031 is S-WIRE-HONEST's and FND-032 is S-SUPPLY-FIRST's (ChromaDB); check the other plan before opening a new id. ADR-121 is S-CLEAN-CUT's parked WAF idea. ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. S-STAGE-2B starts at 135. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
 
 ## Order
 
