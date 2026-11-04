@@ -1,6 +1,8 @@
 # Sophia's Eye: The Head of Unheaded - AI Model Stack Architecture
 
 > **Design never built (corrected 2026-10-27).** No vLLM, DeepSeek-R1 or Qdrant service runs; the 20100-20106 ports in `pkg/ports` are reservations. Live inference is the shared `llama-server` on `127.0.0.1:8081` (llama.cpp, models from `scripts/switch-model.sh`, ADR-060); training is the Gemma-4 forge (ADR-048/049/050). See docs/architecture/ZHEN_ARCHITECTURE.md.
+>
+> **vLLM is parked (DP-713, 2026-11-04).** llama-server is the one serving path on the GPU lease. vLLM needs a better GPU than west has: a used card in a small lab server would bring it back, and that is the condition for reopening this. No record shows it ever served on west. The repo pieces (`lxd/vllm-rocm`, `docker/vllm-rocm`, `nixos/modules/vllm-rocm.nix`, the two sophia-eye services) are in git history at `d6ad43e2`.
 
 ## Overview
 
