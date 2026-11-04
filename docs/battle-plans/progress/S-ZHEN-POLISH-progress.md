@@ -6,6 +6,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ## Log
 
+- Phase 8 (Steps 75-101) done, commits c6ada563, b80a47b5, 5bf2cbcb, 5a13be92 (signed): pkg/energy (hwmon sampling, trapezoids, 40 J fixture), migration 044, writers work on either schema, estimate wired at the three local sites plus the two zhenroute.Config literals (routed.go, worker_main.go). Tests, gofmt, vet (wellint tag), well-migrate check and the three Well checks pass. The live sensor count was 1. Not run: the migration on a server (Phase 10).
+
 - Phase 7 (Steps 69-74) done: Tab completes slash commands in the line editor. RED was `undefined: completeSlash`; GREEN `ok` under -race, gofmt clean, TestSlashCommandsMatchDispatch passes.
 
 - DP-302 cap headroom confirmed: one worst case is reserved before send; default cap 5 USD, max_tokens 16000.
