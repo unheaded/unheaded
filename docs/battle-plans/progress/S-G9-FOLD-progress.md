@@ -32,6 +32,13 @@
   - Step 58 PASS check-http-timeouts, check-gosec-ratchet, check-dependency-baseline, check-sbom-trend, gen-man; tree clean after
   - Exit gate passed.
 
+- Phase 7 (Steps 61-64), 2026-11-04, Haiku. Docs only.
+  - Step 61 `g9_docs.py: all edits applied` (UNREACHED-GO-PACKAGES.md, wiki/Compliance-Paperwork.md).
+  - Step 62 `live-path-inventory.sh --report` exit 0; `docs/LIVE-PATHS.md` regenerated with no change (`git diff --stat` empty).
+  - Step 63 `1` then `1`, as expected.
+  - Step 64 commit 735b5839 (signed).
+  - Exit gate passed.
+
 ## For Stevie
 
 1. `compliance-evidence` now builds 421 packages, up from the 414 in the plan's list (item 8 there). `pkg/ebpf` is the extra 7.
