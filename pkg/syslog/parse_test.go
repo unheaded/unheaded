@@ -128,6 +128,17 @@ func TestParse3164(t *testing.T) {
 	}
 }
 
+// "anF" is inside the month table but is not a month.
+func TestBSDTimestampMonthMustBeAMonth(t *testing.T) {
+	m, err := Parse([]byte("<13>anF 11 22:14:15 host tag: body"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Timestamp != "" || m.Text != "anF 11 22:14:15 host tag: body" {
+		t.Errorf("got %+v", m)
+	}
+}
+
 func TestPRIBounds(t *testing.T) {
 	for _, in := range []string{"<0>x", "<191>x"} {
 		if _, err := Parse([]byte(in)); err != nil {

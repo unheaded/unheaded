@@ -328,7 +328,10 @@ func isBSDTimestamp(b []byte) bool {
 	if len(b) < bsdTimestampLen || (len(b) > bsdTimestampLen && b[bsdTimestampLen] != ' ') {
 		return false
 	}
-	if !strings.Contains("JanFebMarAprMayJunJulAugSepOctNovDec", string(b[:3])) || b[3] != ' ' || b[6] != ' ' {
+	if i := strings.Index("JanFebMarAprMayJunJulAugSepOctNovDec", string(b[:3])); i < 0 || i%3 != 0 {
+		return false
+	}
+	if b[3] != ' ' || b[6] != ' ' {
 		return false
 	}
 	digit := func(i int) bool { return b[i] >= '0' && b[i] <= '9' }
@@ -364,7 +367,7 @@ func escape(r rune, raw []byte) string {
 		return fmt.Sprintf(`\x%02x`, raw[0])
 	case r < 0x20 || r == 0x7f:
 		return fmt.Sprintf(`\x%02x`, r)
-	case r >= 0x80 && r <= 0x9f, r == ' ', r == ' ', unicode.Is(unicode.Cf, r):
+	case r >= 0x80 && r <= 0x9f, r == 0x2028, r == 0x2029, unicode.Is(unicode.Cf, r):
 		if r > 0xffff {
 			return fmt.Sprintf(`\U%08x`, r)
 		}
