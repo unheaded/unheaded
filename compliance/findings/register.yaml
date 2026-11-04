@@ -509,6 +509,23 @@ findings:
       sprint: one mechanical change across ~40 callers, the module diff read with scripts/dep-diff.sh first.
       Found by cmd/depaudit (S-LOW-FRUIT Phase 10); rule: >36 months on an input boundary is a register row.
 
+  - id: FND-032
+    title: >-
+      No ChromaDB release is free of PYSEC-2026-311, -3813, -3814 and -3815 (last_affected 1.5.9); Grimoire pins
+      1.5.9, and check-python-audit does not audit its requirements.txt because other lines there are ranges
+    verify: every requirement in tomb/grimoire/rag/requirements.txt is an exact pin and scripts/check-python-audit.sh passes
+    severity: low
+    class: package
+    opened: 2026-11-04
+    exposure: >-
+      none on west or east: Grimoire runs only on a provisioned air-gapped Tomb VM, through the embedded
+      PersistentClient; all four advisories need a Chroma HTTP server or its RBAC provider
+    lockout: none
+    step: 3
+    plan: >-
+      Stevie's call (S-SUPPLY-FIRST For Stevie 1): pin the remaining ranges with four accepted lines, take a fixed
+      release when one ships, or replace ChromaDB in Grimoire.
+
   - id: FND-029
     title: >-
       A UPC CPU tick selected its instance by the low byte of the flow label with no check of the sender, so any
