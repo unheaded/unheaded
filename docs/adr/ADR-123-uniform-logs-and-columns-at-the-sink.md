@@ -82,6 +82,8 @@ Stevie, 2026-11-04: "we must monitor this log sink is working. Services should s
 
 1. **Hello.** Every service we write logs one `info` line on a fixed interval, with `event: "hello"` added to the contract. It takes the real path: stdout, journald, Vector, ClickHouse. A row in the table proves the whole pipe works, which a metrics scrape cannot.
 2. **A sink watcher.** A small service, on its own nologin account, with a read-only SQL user: `SELECT` on `unheaded_logs.logs` and nothing else, credentials in the environment and never in the repo. On a timer it compares the newest hello per unit with the expected list.
+
+   Stevie, 2026-11-04: "This should be a config file/arg configurable interval so it can be tuned as needed/desired - allows cutting down on db access and reads and noise". The check interval lives in the watcher's config file and a flag overrides it (ADR-111 conventions). The hello interval and allowed misses are settings too, and every service reads its hello interval the same way. Longer intervals mean fewer reads and less noise, but slower detection: the worst case is about the check interval plus the allowed gap. The watcher logs the values it loaded at start, and refuses a zero or negative interval, because a watcher that never checks must not look healthy.
 3. **It watches the database too.** It checks that it can connect, that a query returns in a stated time, and that the newest row of any kind is fresh. A failed connection or query is an alarm, never a pass (ADR-100: missing is bad).
 4. **What a gap means.** One unit quiet: that service. Every unit on a host quiet: the host or its shipper. Every unit everywhere quiet: Vector or ClickHouse. The alert says which.
 5. **The alert path stays out of the sink.** It posts straight to alert-mailer, as east's heartbeat does on 19131, so a dead ClickHouse or Prometheus cannot silence it.
@@ -98,7 +100,7 @@ Stevie, 2026-11-04: "we must monitor this log sink is working. Services should s
 5. Which third-party formats first? Suggested order: nginx, Postgres, haproxy, Pi-hole.
 6. Should a CLI's human output follow the contract? Suggested answer: no, only long-running services. ADR-111 governs CLIs.
 7. Is the sink watcher its own binary, or a job inside ADR-116's warden? Suggested answer: inside the warden if that gets built, because ADR-115 wants fewer binaries; Stevie's note allows either.
-8. Hello interval and allowed misses: suggested 5 minutes and 3 missed before an alert. Should it page or only warn at first?
+8. Default values, all tunable: suggested a 5-minute hello, a 5-minute check and 3 misses before an alert. Should it page or only warn at first?
 9. Should the same watcher check the Well, with a read-only Postgres role? The note says "the db", and the Well's health matters more.
 10. Where does the expected list live: `config/logging/sources.yaml`, or ADR-116's `config/monitoring/expectations.yaml`? One list, not two.
 11. Timers and one-shot jobs do not run on an interval of their own. Do they send hello per run, or stay on `max_silence`?
