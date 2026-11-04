@@ -36,6 +36,15 @@
 - Gates on this tree: `gofmt -l` empty, `go vet` clean, `go test -race` ok on `pkg/hoprules`, `cmd/unheaded-cli/...`, `tests/hopchecks` (skips unprivileged), `go test` ok on `cmd/compliance-evidence`, `pkg/compliance/...`; darwin and windows builds of `unheaded-cli` clean; `check-gosec-ratchet.sh` PASS.
 - Phase 16 exit gate: passed. This read leaves no open high finding: its three findings are low, and two stay open.
 
+- Phase 17 started on `865ec715`, develop at `7a5f9206`. It stopped at Step 129. **Nothing merged to develop.**
+- Step 128: the literal check printed nothing (rc 1), so this is a deviation, not a pass. `sprint/s-clean-cut` is `b836ee8e`, one commit past its merge: "Step 127: merged to develop, recorded", one line in `S-CLEAN-CUT-progress.md`. Its merge `59a712e2` (second parent `5a79791d`) is on develop, `bpfschema.go` is the same on both, and the coordinator's note says S-CLEAN-CUT is in. Prerequisite held; the check is a false negative. `sprint/s-clean-cut` not touched.
+- Step 129 [STUCK]: `git merge --no-ff -S --no-edit develop` conflicted in four files; `git merge --abort`, tree clean at `865ec715`. Hunks saved to `$P/p17/step129-conflicts.diff`. `docs/adr/ADR-INDEX.md` (keep both, number order) and `docs/LIVE-PATHS.md` (regenerate) are rule 15's exceptions. `pkg/protocol/bpfschema/bpfschema.go` and `bpfschema_test.go` are not, so the step stops. See "For Stevie" item 11.
+- Step 131 ruling, independent of the merge: `git rm man/pqc-verifier.1`, committed `494646de`. `gen-man.sh` rc 0, "man/ matches 56 binaries", tree clean after. This closes item 10 below. It is one gate on the unmerged tree, not Step 131.
+- Steps 130, 131, 132 [BLOCKED] on Step 129: they gate the merged tree. Not run.
+- Steps 133, 134 read on the unmerged tree, information only: `0` and `0`. Running units `3`, same as Phase 0. Both need reading again after the merge.
+- Step 135 not closed; this entry stands in for it. Phases 0-16 passed, with Step 101's count and FND-033 and FND-035's fixes left open by ruling. `hop_xdp` before 153,835, after 171,672. Lane files: `S-WIRE-HONEST-{api,bar,hop,lat,pq,tw}-progress.md`. Unsigned commits: none of the 48 on the branch at `494646de`.
+- Step 137 not run. Phase 17 exit gate: not met.
+
 ## Spec compliance gate (Step 13)
 
 | Change | Wire version | Change type | Touches a Monad byte? | Backward compatible | IANA impact | RFC desk review |
@@ -73,3 +82,6 @@ running units: 3
 8. `HMAC_KEYS` holds 32 key bytes that hop-ebpf never reads, and the lab read them back with `bpftool`. No finding, since only root reaches them, but they could stay out of the map until a tag exists.
 9. If a tag ever makes the key matter, `readKey` should also check the owner: today a 0600 file of any uid, a symlinked parent and a hard link are all accepted. Two smaller notes for the same day: the rules file's own mode is unchecked, and failed checks emit ANOMALY with no rate limit, as the bad-CRC path already did.
 10. `man/pqc-verifier.1` is still in this tree (hop lane item 7), so Step 131's `gen-man` fails until it is deleted. Not this phase's file.
+11. Step 129's conflict, your ruling or the coordinator's: `4c6fbb8e` (S-CLEAN-CUT, DP-407) deleted `SophiaSync*`; this sprint added `RetryTokenKey` and `RetryTokenValue` beside it for `pkg/hoprules`. Neither plan foresaw the two sitting in one hunk. Candidate: keep `RetryToken*`, drop `SophiaSync*`, in both files. Tried in the merge state and discarded by the abort: gofmt clean, `go test -race` ok on `pkg/protocol/bpfschema` and `pkg/hoprules`. Only those two packages ran, so it is a candidate, not a closing gate. Rule 15 lists no exception for this file; a one-line word lets Opus resolve it and rerun from Step 129.
+12. Step 128's check goes false once a plan commits to its branch after merging, as S-CLEAN-CUT's Step 127 record did. Testing the merge's second parent, or the diff from develop, would not trip on that.
+13. Step 101 stays open by ruling: `shield_tc` 980 against the plan's 976, `debug-stats` 1,088 against 1,084. `check-ebpf-insns` allows it and no baseline row changes. Hop lane item 2 has the measurement.
