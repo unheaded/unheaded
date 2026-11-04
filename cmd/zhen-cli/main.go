@@ -21,7 +21,7 @@
 // Well's DSN; this binary has no database driver).
 // Phase 3 (2026-10-27, Steps 209/213): /confirm <token>, /model [key]
 // (list from agentd's /api/v1/models, swap through model_switch), and line
-// editing with history (lineedit.go). Tab completion is not done.
+// editing with history (lineedit.go), Tab completion of slash commands.
 //
 // Auth: ZHEN_API_KEY (or the older ZHEN_AGENTD_API_KEY), else api_key in
 // ~/.config/unheaded/zhen-cli.conf (mode 0600, refused otherwise), sent to

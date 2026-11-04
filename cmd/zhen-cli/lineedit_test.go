@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -101,5 +102,72 @@ func TestLineReader_PlainFallback(t *testing.T) {
 	_, err3 := read("> ")
 	if l1 != "a b" || l2 != "c" || err1 != nil || err2 != nil || !errors.Is(err3, io.EOF) {
 		t.Fatalf("got %q %v, %q %v, %v", l1, err1, l2, err2, err3)
+	}
+}
+
+func TestLineEditor_TabCompletion(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"unique", "/cl\t\r", "/clear "},
+		{"unique after a shared stem", "/rem\t\r", "/remember "},
+		{"unique by its third letter", "/rec\t\r", "/recall "},
+		{"ambiguous with nothing to add", "/r\t\r", "/r"},
+		{"no match", "/zz\t\r", "/zz"},
+		{"not a slash command", "ab\t\r", "ab"},
+		{"cursor not at the end", "/cl\x1b[D\t\r", "/cl"},
+		{"after a space", "/runbook li\t\r", "/runbook li"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			e := &lineEditor{in: bufio.NewReader(strings.NewReader(tc.in)), out: &out, maxHistory: 100, complete: completeSlash}
+			got, err := e.readLine("> ")
+			if err != nil || got != tc.want {
+				t.Fatalf("got %q err %v, want %q", got, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestLineEditor_TabListsAmbiguous(t *testing.T) {
+	var out bytes.Buffer
+	e := &lineEditor{in: bufio.NewReader(strings.NewReader("/h\t\r")), out: &out, maxHistory: 100, complete: completeSlash}
+	if _, err := e.readLine("> "); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "/health  /help  /history") {
+		t.Fatalf("output %q", out.String())
+	}
+}
+
+func TestLineEditor_TabExtendsToCommonPrefix(t *testing.T) {
+	var out bytes.Buffer
+	stub := func(string) []string { return []string{"/abcd1", "/abcd2"} }
+	e := &lineEditor{in: bufio.NewReader(strings.NewReader("/a\t\r")), out: &out, maxHistory: 100, complete: stub}
+	if got, _ := e.readLine("> "); got != "/abcd" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestLineEditor_TabWithoutCompleterIsIgnored(t *testing.T) {
+	var out bytes.Buffer
+	e := &lineEditor{in: bufio.NewReader(strings.NewReader("/cl\t\r")), out: &out, maxHistory: 100}
+	if got, _ := e.readLine("> "); got != "/cl" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// Every command handleSlash answers is completable, and nothing else.
+func TestSlashCommandsMatchDispatch(t *testing.T) {
+	var out, errb bytes.Buffer
+	s := &session{out: &out, errOut: &errb, client: http.DefaultClient, agentdURL: "http://127.0.0.1:1"}
+	for _, c := range slashCommands {
+		if c == "/exit" || c == "/quit" {
+			continue
+		}
+		errb.Reset()
+		s.handleSlash(c)
+		if strings.Contains(out.String()+errb.String(), "unknown command") {
+			t.Errorf("%s is listed but handleSlash does not know it", c)
+		}
 	}
 }
