@@ -16,7 +16,7 @@ A Preferred listener guarantees a hybrid only to a client that offers one. Rust:
 | Wotan gRPC, wotan-client | Strict |
 | `pkg/transport/mtls` | Strict |
 | Wotan HTTP and `/metrics`, dashboard | Preferred |
-| WAF (`cmd/waf`), zhend QUIC (`crates/zhend`) | Preferred (rustls, aws-lc-rs) |
+| zhend QUIC (`crates/zhend`), compiled and never spawned | Preferred (rustls, aws-lc-rs) |
 | SMTP relays, CISA KEV, Splunk HEC, LB health checks to user backends | TLS 1.2 floor: the far end chooses |
 
 ## Adding a TLS site

@@ -2,8 +2,6 @@
 # Counts may only go down. Regenerate with --update after a fix; never add a row by hand.
 DS-0026	deploy/docker/zhen-agentd.Dockerfile	1
 DS-0026	docker/base/Dockerfile.base	1
-DS-0026	docker/firewall/ipfire/Dockerfile	1
-DS-0026	docker/firewall/opnsense/Dockerfile	1
 DS-0026	docker/services/anamnesis/Dockerfile	1
 DS-0026	docker/services/architect/Dockerfile	1
 DS-0026	docker/services/blackmage/Dockerfile	1

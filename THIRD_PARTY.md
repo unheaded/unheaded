@@ -108,7 +108,6 @@ All code outside the `doom/` directory is **original Unheaded work** licensed un
 | `cmd/doom-go-injector/` | Go tool: injects keyboard input and tick events into DOOM via BPF maps | GPL-3.0-or-later |
 | `cmd/doom/` | Go DOOM orchestrator/launcher | GPL-3.0-or-later |
 | `internal/bpf/` | Go BPF wrappers for loading and interacting with BPF programs and maps | GPL-3.0-or-later |
-| `internal/bpfmap/` | Go BPF map abstraction layer for reading/writing DOOM VM state | GPL-3.0-or-later |
 | `dashboard/doom.html` | HTML page for DOOM live viewport in dashboard | GPL-3.0-or-later |
 | `dashboard/js/doom-viewport.js` | JavaScript WebSocket client rendering DOOM frames in canvas | GPL-3.0-or-later |
 | `scripts/doom-*.{sh,py}` | Shell and Python helper scripts for DOOM development and testing | GPL-3.0-or-later |
@@ -168,14 +167,14 @@ All Go dependencies use permissive licenses compatible with GPL-3.0.
 
 ## Rust Dependencies
 
-The following Rust crates are used in the Unheaded Kingdom's eBPF components, trace-collector, and MBC translator.
+The following Rust crates are used in the Unheaded Kingdom's eBPF components and MBC translator.
 
 ### Core Async & eBPF Framework
 
 | Crate | Version | License | Purpose | URL |
 |-------|---------|---------|---------|-----|
-| tokio | Latest | MIT | Async runtime for trace-collector | https://github.com/tokio-rs/tokio |
-| tonic | Latest | MIT | gRPC framework for trace-collector → Wotan | https://github.com/hyperium/tonic |
+| tokio | Latest | MIT | Async runtime | https://github.com/tokio-rs/tokio |
+| tonic | Latest | MIT | gRPC framework for zhend | https://github.com/hyperium/tonic |
 | aya | Latest | MIT / Apache-2.0 | eBPF framework for Rust (programs + userspace) | https://github.com/aya-rs/aya |
 | aya-ebpf | Latest | MIT / Apache-2.0 | eBPF in-kernel code library | https://github.com/aya-rs/aya |
 
@@ -191,7 +190,7 @@ The following Rust crates are used in the Unheaded Kingdom's eBPF components, tr
 
 | Crate | Version | License | Purpose |
 |-------|---------|---------|---------|
-| rustls | Latest | MIT / Apache-2.0 / ISC | Pure-Rust TLS for shield/WAF |
+| rustls | Latest | MIT / Apache-2.0 / ISC | Pure-Rust TLS for zhend |
 | rustls-pemfile | Latest | MIT / Apache-2.0 | TLS certificate loading |
 
 ### Utilities
@@ -206,7 +205,7 @@ The following Rust crates are used in the Unheaded Kingdom's eBPF components, tr
 | tracing / tracing-subscriber | Latest | MIT | Structured diagnostics |
 | prometheus (Rust) | Latest | Apache-2.0 | Prometheus metrics (Rust variant) |
 
-**Total Rust dependency count:** ~28 direct crates across trace-collector, monad-mbc, shield/WAF, and ebpf-loader binaries.
+**Total Rust dependency count:** ~28 direct crates across monad-mbc and ebpf-loader binaries.
 
 ---
 

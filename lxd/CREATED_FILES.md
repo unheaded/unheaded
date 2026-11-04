@@ -144,7 +144,6 @@ lxd/
 │   └── unheaded-bridge.yaml          # LXD bridge definition
 ├── storage/
 │   └── unheaded-ssd.yaml             # ZFS pool definition
-├── containers/                        # (Pre-existing)
 │   ├── shield.yaml
 │   ├── unheaded-daemon.yaml
 │   └── [other service definitions]
@@ -270,7 +269,6 @@ All YAML files include:
 ## Notes for Integration
 
 ### With Existing Files
-- `containers/*.yaml` — Service-specific overrides (pre-existing, not modified)
 - `hosts/host-a/` — Host initialization scripts (pre-existing)
 - `hosts/host-b/` — WireGuard bridging setup (pre-existing)
 

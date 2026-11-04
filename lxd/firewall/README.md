@@ -313,8 +313,6 @@ This allows OPNsense to speak BGP natively without a separate container.
 - Image import scripts: `lxd/firewall/import-*.sh`
 - Network config: `lxd/networks/wan-bridge.yaml`
 - Firewall profile: `lxd/profiles/unheaded-firewall.yaml`
-- VM definitions: `lxd/containers/opnsense.yaml`, `ipfire.yaml`
-- Routing containers: `lxd/containers/frr.yaml`, `bird.yaml`
 - Launch scripts: `lxd/hosts/host-a/launch-all.sh`, `host-b/launch-minimal.sh`
 
 ## License

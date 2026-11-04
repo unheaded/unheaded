@@ -43,7 +43,6 @@ sudo reboot                                 # AMD GPU driver needs reboot
 | Tool | Purpose | Install | Check |
 |------|---------|---------|-------|
 | ROCm | AMD GPU compute | `amdgpu-install --usecase=rocm` | `rocminfo` |
-| vLLM | LLM inference | `docker pull rocm/vllm:latest` | `vllm-health` |
 | Ollama | Quick local LLMs | `curl -fsSL https://ollama.com/install.sh \| sh` | `ollama --version` |
 | hf_transfer | Fast model DL | `pip install hf_transfer` | — |
 | huggingface-cli | Model hub | `pip install huggingface-hub` | `huggingface-cli --help` |
@@ -80,9 +79,6 @@ go test ./services/captain/... -v
 
 # With coverage
 go test -cover ./services/architect/...
-
-# Benchmarks
-go test -bench=. -benchmem ./pkg/waf/...
 ```
 
 ---
@@ -408,10 +404,6 @@ sudo ./scripts/deploy-alpha.sh
 
 # 4. Load eBPF programs (packet tracing)
 sudo ./scripts/load-ebpf.sh
-
-# 5. (Option A only) Start LLM inference
-unheaded-download-model deepseek-ai/DeepSeek-R1-Distill-Qwen-7B deepseek-r1-7b --activate
-unheaded-vllm-start /models/deepseek-r1-7b
 ```
 
 **Network topology** (NixOS definitions in `nix/containers/`; `deploy-alpha.sh`
@@ -444,7 +436,6 @@ uses its own IPs and ports, listed in `SERVICES` at the top of the script):
 ### P1 — Important
 - Dashboard UI polish (responsive layout, Kingdom theming)
 - Security hardening: flip `strictEgress = true` in NixOS container defs
-- Review `pkg/waf/response/response.go:237` XSS fix
 
 ### P2 — Post-Alpha
 - Load testing harness (target: 1000 req/s)

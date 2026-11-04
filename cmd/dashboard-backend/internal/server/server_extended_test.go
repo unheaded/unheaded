@@ -946,30 +946,6 @@ func TestHandleServiceConfig_MethodNotAllowed(t *testing.T) {
 	}
 }
 
-// ---- Service Restart Endpoint ----
-
-func TestHandleServiceRestart_MethodNotAllowed(t *testing.T) {
-	srv := newTestServer(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/services/restart/test", nil)
-	w := httptest.NewRecorder()
-	srv.handleServiceRestart(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status = %d, want 405", w.Code)
-	}
-}
-
-// Restart answered 202 "queued" and did nothing; it now says so.
-func TestHandleServiceRestart_NotImplemented(t *testing.T) {
-	srv := newStartedTestServer(t)
-	for _, path := range []string{"/api/v1/services/restart/", "/api/v1/services/restart/wotan", "/api/v1/services/restart/nonexistent"} {
-		w := httptest.NewRecorder()
-		srv.handleServiceRestart(w, httptest.NewRequest(http.MethodPost, path, nil))
-		if w.Code != http.StatusNotImplemented {
-			t.Errorf("POST %s: %d, want 501", path, w.Code)
-		}
-	}
-}
-
 // Config PUT replaced an in-memory copy nobody read and said "config_updated".
 func TestHandleServiceConfig_PutIsRefused(t *testing.T) {
 	srv := newTestServer(t)

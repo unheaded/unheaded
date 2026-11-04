@@ -5,6 +5,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-105: Hybrid ML-KEM key exchange on every link we own, a crypto inventory, and signed evidence
 
+> **2026-11-04 (DP-401, round 4):** `cmd/waf` was deleted, so H6, H18 and the `cmd/waf` half of decision 3 are history. `crates/zhend` stays on rustls with aws-lc-rs, compiled and never spawned (DP-209); the Rust provider decision holds for it.
+
 **Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed (Stevie to accept).
 **Date:** 2026-10-23
 **Sprint:** S-QUANTUM-ARMOR (`docs/battle-plans/S-QUANTUM-ARMOR-battle-plan.md`).

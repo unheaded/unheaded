@@ -105,18 +105,14 @@ These maps have corresponding struct definitions in `pkg/protocol/bpfschema/`:
 |-------------|------------------|--------|--------|
 | (new) HMAC_KEYS | HMACKeyKey/Value | Scaffolded | Wire to Shield XDP |
 | (new) SEQ_COUNTERS | SeqCounterKey/Value | Scaffolded | Wire to Hop XDP |
-| (new) (no Rust map) | RingPathKey/Value | Scaffolded | Wire to Shield XDP |
 | (new) MIGRATION_TOKENS | FlowMigrationTokenValue* | ✅ Wired | Flow Tracker (IPv4-based) |
 | (new) RETRY_TOKENS | MigrationTokenKey/Value | Scaffolded | Wire to Shield XDP (IPv6) |
-| (new) (no Rust map) | SophiaSyncKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) ERROR_COUNTERS | ErrorCounterKey/Value | Scaffolded | Wire to Shield TC |
-| (new) (no Rust map) | TLVHandlerEntry | Scaffolded | Wire to Shield XDP |
 | (new) SETTINGS | SettingsKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) DOS_STATE | DoSStateKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) FLOW_TYPES | FlowTypeEntry | Scaffolded | Wire to Hop XDP |
 | ~~GOAWAY_STATE~~ | — | Removed (S-TRUE-WIRE Step 207) | — |
 | (new) CANCEL_FLOWS | FlowCancelValue* | ✅ Wired | Flow Tracker (IPv4-based) |
-| (new) (no Rust map) | PrefetchHintKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) HOP_VALIDATORS | HopValidatorKey/Value | Scaffolded | Wire to Shield XDP |
 | (new) AUTHORITY | AuthorityKey/Value | Scaffolded | Wire to Shield TC |
 
@@ -258,7 +254,6 @@ These are the structs that need IDENTICAL memory layouts in both Rust (eBPF) and
 1. Add `MonadRegister` and `AnamnesisEvent` to bpfschema
 2. Add `BlocklistKey`, `RateTokenKey`, `StatsEntry`, `ConfigEntry`
 3. Add `SophiaMapKey/Value`, `CircuitErrorKey/Value`
-4. Create `pkg/ebpf/maploader/` that uses bpfschema structs to populate maps
 
 ### Phase 2: Protocol Map Wiring (New Maps → eBPF Programs)
 5. Define Rust-side structs matching bpfschema for Q1/Q2/Q4/Q5/Q6

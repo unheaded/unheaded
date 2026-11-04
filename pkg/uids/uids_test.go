@@ -159,7 +159,6 @@ var composeOnly = map[string]bool{
 	"nginx-wotan":       true,
 	"open-webui":        true,
 	"qdrant":            true,
-	"qwen-coder":        true,
 	"sophia-gateway":    true,
 	"coredns":           true,
 	"postgres":          true,
