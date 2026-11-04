@@ -467,6 +467,29 @@ findings:
       S-TRUE-WIRE Phase 5 (Steps 169-230, on sprint/true-wire): pkg/shieldmaps and cmd/shield write the maps from a host
       keys file; the checks run in one bpf_loop in observe mode, enforce behind SHIELD_CONFIG; GOAWAY and authority
       follow the Phase 4 ruling (enforce or delete); docs corrected first, then again when true.
+      S-WIRE-HONEST 2026-11-04: moved to hop-ebpf, ADR-125; evidence cd408110: tests/hopchecks fourteen cases,
+      shield-ebpf no longer holds the maps, AUTHORITY gone, hop_xdp 171672 verified insns; closure awaits Stevie's
+      ruling on the verify text.
+
+  - id: FND-031
+    title: >-
+      No per-packet integrity on the Monad: hop checks test key presence, not a tag
+    verify: >-
+      RFC item 7 is ruled and either a tag exists or the draft drops the option
+    severity: low
+    class: app
+    opened: 2026-11-04
+    exposure: >-
+      Monad v0x01 has no tag field, foundation-06's optional HMAC field is undefined and eBPF has no HMAC helper, so
+      hop-ebpf's require_hmac can only say that a live key exists for the service pair and deploy ring (ADR-125, "What
+      this is not"); it proves nothing about the packet. Nothing loads hop-ebpf in production and its checks default
+      to off (CONFIG key 4 = 0), so no path relies on this check today.
+    lockout: none
+    step: 7
+    plan: >-
+      RFC item 7 in docs/protocol/RFC-EDITOR-REQUESTS-WH.md waits for the resubmission sitting (DP-606); it recommends
+      dropping option (b), which leaves (a) ESP and (c) ML-DSA at Shield boundaries. Opened by S-WIRE-HONEST as what
+      FND-025's move leaves behind (ADR-125).
 
   - id: FND-027
     title: >-

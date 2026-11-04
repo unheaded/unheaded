@@ -13,6 +13,7 @@
 //!   - latency-probe:  kprobe/kretprobe on TCP functions for latency measurement
 //!   - syscall-tracer: raw tracepoints on sys_enter/sys_exit
 //!   - monad-cpu:      XDP Monad CPU for Doom-over-IPv6 (MBC execution engine)
+//!   - hop-ebpf:       XDP per-hop Monad processing; only with --only hop-ebpf
 
 use std::path::PathBuf;
 
@@ -111,6 +112,7 @@ fn main() -> Result<()> {
             "syscall-tracer" => load_syscall_tracer(&cli),
             "monad-cpu" => load_monad_cpu(&cli),
             "shield-ebpf" => load_shield(&cli),
+            "hop-ebpf" => load_hop(&cli),
             other => {
                 warn!("Unknown program: {}, skipping", other);
                 continue;
@@ -495,6 +497,82 @@ fn load_shield(cli: &Cli) -> Result<Ebpf> {
             } else {
                 info!("  symlinked trace_events → {}", anamnesis_src.display());
             }
+        }
+    }
+
+    Ok(ebpf)
+}
+
+// ---------------------------------------------------------------------------
+// hop-ebpf: XDP
+// ---------------------------------------------------------------------------
+
+/// Outside the default program set: `--only hop-ebpf` is the one way in. Pin
+/// handling follows load_shield's, with two differences. There is no
+/// trace_events link, which stays Shield's. And a pin that cannot be made is
+/// an error: `unheaded hop rules apply` writes through these pins, so a stale
+/// one left by an earlier load would take rules this object never reads.
+fn load_hop(cli: &Cli) -> Result<Ebpf> {
+    let path = cli.obj_dir.join("hop-ebpf");
+    info!("Loading hop-ebpf from {}", path.display());
+
+    let mut ebpf = if let Some(ref pin_path) = cli.map_pin_path {
+        let hop_pin = pin_path.join("hop-ebpf");
+        std::fs::create_dir_all(&hop_pin)
+            .with_context(|| format!("Failed to create {}", hop_pin.display()))?;
+        EbpfLoader::new()
+            .map_pin_path(&hop_pin)
+            .load_file(&path)
+            .context("Failed to parse hop-ebpf ELF with map pinning")?
+    } else {
+        Ebpf::load_file(&path).context("Failed to parse hop-ebpf ELF")?
+    };
+
+    let xdp: &mut Xdp = ebpf
+        .program_mut("hop_xdp")
+        .context("program 'hop_xdp' not found in hop-ebpf ELF")?
+        .try_into()?;
+
+    xdp.load().context("Failed to load hop_xdp into kernel")?;
+
+    let flags = if cli.xdp_skb_mode {
+        XdpFlags::SKB_MODE
+    } else {
+        XdpFlags::default()
+    };
+
+    xdp.attach(&cli.interface, flags)
+        .with_context(|| format!("Failed to attach hop_xdp XDP to {}", cli.interface))?;
+
+    let mode = if cli.xdp_skb_mode {
+        "SKB/generic"
+    } else {
+        "native"
+    };
+    info!(
+        "  hop_xdp attached to {} (XDP, mode={})",
+        cli.interface, mode
+    );
+
+    if cli.pin_maps || cli.map_pin_path.is_some() {
+        let pin_base = cli
+            .map_pin_path
+            .as_deref()
+            .unwrap_or(std::path::Path::new("/sys/fs/bpf/unheaded"));
+        let hop_pin_dir = pin_base.join("hop-ebpf");
+        std::fs::create_dir_all(&hop_pin_dir)
+            .with_context(|| format!("Failed to create {}", hop_pin_dir.display()))?;
+
+        for (map_name, map) in ebpf.maps_mut() {
+            // .rodata.cst8 and the like are the object's constants, not state,
+            // and bpffs refuses a dot in a name (EPERM).
+            if map_name.starts_with('.') {
+                continue;
+            }
+            let pin = hop_pin_dir.join(map_name);
+            map.pin(&pin)
+                .with_context(|| format!("Failed to pin map {} at {}", map_name, pin.display()))?;
+            info!("  pinned map {} → {}", map_name, pin.display());
         }
     }
 

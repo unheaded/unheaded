@@ -4,6 +4,7 @@
 package bpfschema
 
 import (
+	"bytes"
 	"encoding/binary"
 	"testing"
 	"unsafe"
@@ -36,6 +37,10 @@ func TestStructSizes(t *testing.T) {
 		// Q5/Q6 migration tokens and H8 cancel flows use FlowKey and the
 		// flow-tracker values in core_maps.go (rust_source_test.go).
 
+		// Q6: Retry tokens.
+		{"RetryTokenKey", unsafe.Sizeof(RetryTokenKey{}), 8},
+		{"RetryTokenValue", unsafe.Sizeof(RetryTokenValue{}), 48},
+
 		// H1: Sophia sync.
 		{"SophiaSyncKey", unsafe.Sizeof(SophiaSyncKey{}), 8},
 		{"SophiaSyncValue", unsafe.Sizeof(SophiaSyncValue{}), 24},
@@ -67,12 +72,8 @@ func TestStructSizes(t *testing.T) {
 
 		// H10: Hop validators.
 		{"HopValidatorKey", unsafe.Sizeof(HopValidatorKey{}), 8},
-		// HopValidatorValue: 1+1+1+1+16+1+3+4+4 = 32 bytes, the shield-ebpf [u8; 32] value.
+		// HopValidatorValue: 1+1+1+1+16+1+3+4+4 = 32 bytes, hop-ebpf's HopValidator.
 		{"HopValidatorValue", unsafe.Sizeof(HopValidatorValue{}), 32},
-
-		// H11: Authority.
-		{"AuthorityKey", unsafe.Sizeof(AuthorityKey{}), 8},
-		{"AuthorityValue", unsafe.Sizeof(AuthorityValue{}), 24},
 	}
 
 	for _, tt := range tests {
@@ -119,6 +120,32 @@ func TestBinaryEncoding_HMACKeyValue(t *testing.T) {
 	}
 }
 
+// TestRetryTokenKeyBytes pins RetryTokenKey to hop-ebpf's make_retry_key:
+// flow_id | src_low48 << 16 as a little-endian u64, src_low48 being the last
+// six source address bytes read big-endian. The Rust parser sees only the
+// map's u64, so the size check cannot catch a change of byte order.
+func TestRetryTokenKeyBytes(t *testing.T) {
+	tests := []struct {
+		name string
+		key  RetryTokenKey
+		want uint64
+	}{
+		{"fd00::1", RetryTokenKey{FlowID: 0xABCD, SrcLow48: [6]byte{0x01}}, 0x0000_0000_0001_ABCD},
+		{"::a0b:c0d:e0f", RetryTokenKey{FlowID: 0x0102, SrcLow48: [6]byte{0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A}}, 0x0A0B_0C0D_0E0F_0102},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := binary.Write(&buf, binary.LittleEndian, tt.key); err != nil {
+				t.Fatal(err)
+			}
+			if got := binary.LittleEndian.Uint64(buf.Bytes()); got != tt.want {
+				t.Errorf("key = %#016x, want %#016x", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestMapNameConstants verifies map name constants are non-empty and unique.
 func TestMapNameConstants(t *testing.T) {
 	names := []string{
@@ -132,7 +159,6 @@ func TestMapNameConstants(t *testing.T) {
 		MapFlowTypes,
 		MapCancelFlows,
 		MapHopValidators,
-		MapAuthority,
 	}
 
 	seen := make(map[string]bool)
@@ -146,8 +172,9 @@ func TestMapNameConstants(t *testing.T) {
 		seen[name] = true
 	}
 
-	// 11: GOAWAY_STATE left with shield-ebpf's map (S-TRUE-WIRE Step 207).
-	if len(seen) != 11 {
-		t.Errorf("expected 11 unique map names, got %d", len(seen))
+	// 10: GOAWAY_STATE left with shield-ebpf's map (S-TRUE-WIRE Step 207),
+	// AUTHORITY with its discarded lookup (S-WIRE-HONEST Step 98).
+	if len(seen) != 10 {
+		t.Errorf("expected 10 unique map names, got %d", len(seen))
 	}
 }
