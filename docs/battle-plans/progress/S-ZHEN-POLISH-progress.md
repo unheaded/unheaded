@@ -10,9 +10,13 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 - Phase 6 (Steps 53-68) done: redaction matches stay local (runAuto and zhenroute); zhen-claude check go|json|cite shipped. TestCaptureEscalatedTurn changed per Step 57.
 
+- Phase 4 (Steps 29-38) done, commit 702b083b (signed): 9876 and 20105 greps return 0 outside the excluded paths; gofmt clean; go test ok for zhen-mcp, zhen-cli, zhen-rag, zhen-agent; openapi.json parses; pytest 14 passed (url_scheme, scheduler_client).
+
 ## Measurements
 
 ## Stuck
+
+- Steps 29-38 (Phase 4, commit 702b083b): Step 37 [D] [STUCK]. Its trigger holds: the redirected man/zhen-agentd.1 header carries the build stamp (`unheaded v0.0.0-...+dirty`, 2026-11-04), so it differs from gen-man output. The prescribed `scripts/gen-man.sh --write` regenerates every man page in the tree, which is outside the named files, so it was not run. Coordinator to decide.
 
 ## For Stevie
 - **E1 file-backed shard.** ADR-056/057 need pgvector and tree-sitter; the 10-29 rule forbids them here. The shard is lexical and file-backed. A Well-backed or embedded one is a third-party sitting item.
