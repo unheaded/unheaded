@@ -281,11 +281,15 @@ func TestTraceID_TimestampMS(t *testing.T) {
 	after := time.Now().UnixMilli()
 
 	ts := id.TimestampMS()
-	// Allow 10ms tolerance for clock skew between uuid library and time.Now()
+	// Allow 10ms tolerance for clock skew between uuid library and time.Now().
 	tolerance := int64(10)
-	if ts < before-tolerance || ts > after+tolerance {
-		t.Errorf("TimestampMS() = %d, want between %d and %d (tolerance %dms)",
-			ts, before-tolerance, after+tolerance, tolerance)
+	// The upper bound is wider on purpose: google/uuid keeps v7 values strictly
+	// increasing (getV7Time), so a burst of IDs earlier in the process runs the
+	// embedded timestamp ahead of the wall clock. It can never run behind.
+	runAhead := int64(30_000)
+	if ts < before-tolerance || ts > after+runAhead {
+		t.Errorf("TimestampMS() = %d, want between %d and %d",
+			ts, before-tolerance, after+runAhead)
 	}
 }
 
