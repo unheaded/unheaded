@@ -63,7 +63,7 @@ services:
         own 16710:16710 /volumes/alert-mailer
 
   prometheus:
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.1
     container_name: unheaded-prometheus
     restart: unless-stopped
     user: "16700:16700"
@@ -147,7 +147,7 @@ services:
       - no-new-privileges:true
 
   loki:
-    image: grafana/loki:3.0.0
+    image: grafana/loki:3.0.1
     container_name: unheaded-loki
     restart: unless-stopped
     user: "16702:16702"

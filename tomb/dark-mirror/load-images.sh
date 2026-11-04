@@ -23,8 +23,8 @@ set -euo pipefail
 IMAGES=(
     "prom/prometheus:v2.50.1"
     "grafana/grafana:10.3.3"
-    "grafana/loki:2.9.4"
-    "grafana/promtail:2.9.4"
+    "grafana/loki:2.9.17"
+    "grafana/promtail:2.9.17"
 )
 
 MODE=""
