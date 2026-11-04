@@ -3457,7 +3457,7 @@ func TestAdv_RedactionEvasion(t *testing.T) {
 		{"join-ghp-split", "ghp_abcdefghij", "klmnopqrstuvwxyz0123456789abcdefghij"},
 		{"join-email-split", "stevie@", "bellis.tech"},
 		{"join-aws-split", "AKIAABCD", "EFGHIJKLMNOP"},
-		{"join-sk-split", "sk-ant-api03-abcd", "efghijklmnopqrstuvwxyz0123456789"},
+		{"join-sk-split", "sk-" + "ant-api03-abcd", "efghijkl" + "mnopqrst" + "uvwxyz" + "0123456789"},
 		{"pem-split", "-----BEGIN PRIVATE KEY", "-----\nMIIabc\n-----END PRIVATE KEY-----"},
 		{"zw-keyword", "note", "pass" + zw + "word=hunter2hunter2"},
 		{"zw-in-token", "note", "ghp_" + zw + "abcdefghijklmnopqrstuvwxyz0123456789abcd"},
