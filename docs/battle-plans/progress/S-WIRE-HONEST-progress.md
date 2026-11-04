@@ -20,6 +20,8 @@
 - Step 13: spec compliance gate recorded below. Every row reads "No" in the Monad column; no lane is closed.
 - Step 14: wire source diff against the merge base with develop: `0`.
 
+- Phase 2 Steps 16-19: ADR-125 and ADR-126 copied from the payloads; `index_rows_wire.py` printed `index rows added after: | [120](ADR-120-estimated-ener` (rc 0). Step 18: `2` and `2`. Committed `787a471f` (signed). Phase 2 exit gate: both ADRs on `sprint/s-wire-honest`; lanes not started here.
+
 ## Spec compliance gate (Step 13)
 
 | Change | Wire version | Change type | Touches a Monad byte? | Backward compatible | IANA impact | RFC desk review |
