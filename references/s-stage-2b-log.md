@@ -21,3 +21,5 @@ This section sits above the Ledger because `ledger` appends to the end of the fi
 net since rung 0: 48760
 
 Step 52, probes built (7 .mbc present). sh.mbc and ls.mbc sha256 prefixes: 1c161377c8b23196 d2ade4a5942a3cdb
+
+Step 57, gate probes: same=12 diff=0 rc=0, ascend 872276 (equal to Stop A), Doom 758199, 7 rung gates skipped behind their consts.

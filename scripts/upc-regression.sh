@@ -177,6 +177,32 @@ else
   note "uptime gate skipped: UPC_RUNG2 is off (rollback build)"
 fi
 
+# S-STAGE-2B rungs: each gate runs when its const is on; off, it is a note.
+rung_on() { grep -q "^const $1: bool = true;" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
+probe_lines() { # $1 program, $2 triggers, $3 token prefix
+  (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+    --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers "$2" --instance 111 2>&1) | grep -a 'ascii:' \
+    | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE "$3: [a-z0-9-]+(=[a-z0-9]+)?"; }
+rung_gate() { # $1 const, $2 program, $3 triggers, $4 prefix, $5 how many =yes lines
+  if ! rung_on "$1"; then note "$2 gate skipped: $1 is off"; return; fi
+  local l; l="$(probe_lines "$2" "$3" "$4")"
+  if [ "$(grep -c '=yes$' <<<"$l")" = "$5" ] && ! grep -q '=no$' <<<"$l" && grep -qx "$4: done" <<<"$l"; then
+    pass "$2: $5 checks ($1)"; else fail "$2 ($1)"; note "$(tr '\n' ' ' <<<"$l")"; fi; }
+rung_gate UPC_RUNG_SBRK sbrkprobe 4000000 SB 13
+rung_gate UPC_RUNG_KILL killprobe 3000000 KL 12
+rung_gate UPC_RUNG_MKDIR mkprobe 4000000 MK 7
+rung_gate UPC_RUNG_UNLINK rmprobe 4000000 RM 8
+rung_gate UPC_RUNG_LINK lnprobe 4000000 LN 9
+rung_gate UPC_RUNG_MKDIR hostile_ptr 3000000 HU 5
+if rung_on UPC_RUNG_SLEEP; then
+  SLL="$(probe_lines sleepprobe 3000000 SL)"
+  if [ "$(grep -c '=yes$' <<<"$SLL")" = 4 ] && ! grep -q '=no$' <<<"$SLL" \
+    && [ "$(grep -n 'parent-ran' <<<"$SLL" | cut -d: -f1)" -lt "$(grep -n 'child-woke' <<<"$SLL" | cut -d: -f1)" ]; then
+    pass "sleepprobe: pause(n) waits, a sibling runs meanwhile (UPC_RUNG_SLEEP)"; else fail "sleepprobe (UPC_RUNG_SLEEP)"; fi
+else
+  note "sleepprobe gate skipped: UPC_RUNG_SLEEP is off"
+fi
+
 # ADR-109 D6 (M-247): a child stores to slot 0's pgd (15 MiB up, a page-walk
 # miss) and into the slot tables. With UPC_D6_MISS_FAULT on, neither word may
 # change. Off, the pgd store lands (the open hole); if it stops landing, the
