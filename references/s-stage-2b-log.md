@@ -69,3 +69,35 @@ Answers to the brief's four questions:
 Checked and sound, no change: `UPC_ST_SIZE` and offsets against `upc_slots.h`; `pc_map` holds every RV word, so `epc - 4` resolves (Step 208's check, read from the translator, not booted); r1 keeps a7 through `sw gp`/`lw gp`; `SWITCH_YIELD` after SRET meets the I7 guard, since SRET sets priv first; no fixed user word sits in the window (spill is at 0x64000); `program_break` under `ascend-linux` is read only by fork and the context switch. All of this is from reading the tree; nothing was built or booted in Phase 10.
 
 No blocker against D1, so Step 120's [DECIDE] does not arise.
+
+## Phase 10, independent review of ADR-135 (Step 119 closed)
+
+Step 119 is now satisfied. The workflow ran the independent read-only review at `4cc7577e`, nothing built or booted, and handed the findings to Steps 120-121. Its ids carry `R-` below because its F numbers overlap the self-review's F1-F11 above. Each finding was re-read in the tree before its disposition, and this phase built and booted nothing.
+
+The self-review's answers change on three of the four questions; only the retry answer stands:
+
+- Can a child forge the reply word? Yes with D6 off, by three routes, not the one recorded above (R-F2). With D6 on, the log's flat "no" above is withdrawn: no store reaches `.bss`, but `MRET` and `SRET` are unchecked, so a child can leave U-mode (R-F1). No route is proven to place a chosen reply and keep control, so that is a boundary that does not hold, not a demonstrated forgery.
+- Does a retry double-apply anything? No. Unchanged. D7's four rules are convention, so each later handler has to be read on its own (R-F8 is one that could lose a reply).
+- Can a heap byte leak between processes? Yes, in more cases than recorded above: dead to next with a hostile live child (R-F3), parent to exec'd program (R-F4), and by the unbounded path reads, D6 on or off (R-F5).
+- What breaks if a kill lands during a fork copy? Nothing today: it cannot land. I9 holds, and the preemption failure is wider than recorded above (R-F6).
+
+| Id | Severity | Against | Finding | Disposition | Re-read in |
+|---|---|---|---|---|---|
+| R-F1 | High, pre-existing | Security notes | `MRET` and `SRET` have no privilege check, so ADR-109 D6 does not confine a child | Accepted; claim restated. Fix (reject at priv 3) open, For Stevie; it must pair with any D6 flip | `main.rs` MRET/SRET arms, `rv2mbc_branch_base`, RET tag path; `start_mbc.c` |
+| R-F2 | Medium | D1, Security notes | The wipe has three bypasses, and the note understated what a forger gets; "exactly one flag" is not enforced | Fixed in text: D1 and Security notes; "at most one flag", stated as unenforced. No code: the `sret` route closes with R-F1 | Step 128 block; `trampoline_mbc.S`, `utrap.c` |
+| R-F3 | Low | Security notes | "Fork overwrites the whole low band" is false with D6 off | Fixed in text. Tagged-cursor fix open, For Stevie | fork arm; `total_copy` = 0x14000 words |
+| R-F4 | Low, pre-existing | Security notes | Exec does not scrub; the ADR's list omitted it | Fixed in text: fourth bullet | exec arm copy loop |
+| R-F5 | Low to Medium, pre-existing | Security notes | `open` and `exec` read user paths with no bound, D6 on or off | Fixed in text. `user_phys` routing open, For Stevie; verifier cost unmeasured | `path_phys` in both arms, `user_phys` |
+| R-F6 | Low, forward | D8 I9 | I9's failure description is incomplete and nothing enforces it | Fixed in text, Step 156's stale note included. Tripwire open, For Stevie | scan comment, timer `cfg`; line 739 is the one setter |
+| R-F7 | Low | D3, D6 | `vmfault` is reached; slot 0 is refused for its whole first page | Fixed in text | `uvm.c` copyin, copyout, copyinstr, vmfault |
+| R-F8 | Low to Medium, plan conflict | D1 | D14's bare tag in `prepare_return` can wipe a reply, and Step 124 clears `upc_active` first | Fixed as a D1 rule: the mark goes in `upc_slot_leave()`, only if `reply` is 0. Plan text unchanged, For Stevie | Steps 124, 220 |
+| R-F9 | Low | Security notes | The hostile probes never reach the real table | Recorded for Phase 21. Correction to the review: the plan has such a step, 258, which says stores land in the child's own slice, so it has this gap | `upc_st` at 0x114C00 in `kernel.elf`; `hostile_slot.c`, `hostile_tf.c`, `hostile_pgd.c` |
+| R-S1 | Suspected | Security notes | `main`'s prologue after `mret` gives a chosen-address write | Open, not booted. Rides with R-F1 | not provable by reading |
+| R-S2 | Suspected | Security notes | R-F5 as a byte oracle | Open, leak rate unmeasured. Rides with R-F5 | unbounded read confirmed, rate not |
+| R-S3 | Suspected | D6 | First-page refusal only matters for a kernel-routed pointer from slot 0 | Checked: real, unreached today. `init.elf` `.rodata` ends 0xF59, but init passes none, and `mkprobe`, `rmprobe`, `lnprobe`, `hostile_ptr` make those calls from a forked child. Stated in D6 | section tables; probe sources |
+| R-S4 | Suspected | Security notes | `LR_W`, `SC_W`, `XCHG`, `CAS` skip `translate_address` | Translator emits none, confirmed by grep. Stated in Security notes. Opcode scan open, For Stevie | `main.rs` arms; `translator.rs`; `rv2mbc.rs` |
+| R-NC | Not checked by the review | D5, Security notes | Whether exec zeroes a new image's `.bss` | Checked by reading: it does not (sidecar is `ALLOC PROGBITS` only, exec arm has no zeroing pass, `crt0_mbc.S` calls `main`). D5 narrowed to a forked child. For Stevie | `rv32i_to_mbc.rs`, exec arm, `crt0_mbc.S`, `umalloc.c` |
+
+Step 120 [DECIDE]: no finding is a blocker against D1. R-F1 and R-F2 name D1's channel, but neither stops it: forging needs a hole that is already total with ADR-109 D6 off, which stays off, and every value BPF takes is bounded. Nothing else blocks a rung: every fix left open is pre-existing or forward, and the design's rungs do not depend on it. So the rungs proceed as designed.
+
+Step 141 says to extend `sbrkprobe` only if the review found more. R-F3 and R-F4 are more, but neither gets a fix in this plan and D5 is not a confidentiality control, so a probe would only document an open hole. No extension.
