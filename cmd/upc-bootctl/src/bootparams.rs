@@ -28,6 +28,14 @@ pub const SIZE_BOOTPARAMS: u32 = 256;
 pub const SIZE_CMDLINE_MAX: u32 = 512;
 pub const SIZE_CSR_REGION: u32 = 256; // 64 CSRs × 4 bytes
 
+// ── RV text base (DP-414) ─────────────────────────────────────────────────
+/// RV word index of xv6 `.text`: RV byte 0x20000 per kernel-mbc.ld. The one
+/// source for the loader's RV2MBC base and for the BootParams word below.
+pub const XV6_TEXT_RV_WORD_BASE: u32 = 0x8000;
+/// The `reserved` word that carries the RV text base: byte 0x164. `start_mbc.c`
+/// refuses a non-zero value that differs from `_kernel_text >> 2`.
+pub const RV_TEXT_BASE_RESERVED_IDX: usize = 1;
+
 /// BootParams v2/v3 — exact 256-byte layout per spec. v3 (S-ASCEND-2) names
 /// the first 32 bytes of v2's `reserved` window `rv2mbc_sha256`; nothing else
 /// moves.
@@ -59,6 +67,8 @@ pub struct BootParamsV2 {
     // === v3: raw SHA-256 of the kernel .rv2mbc (byte offset 64..96) ===
     pub rv2mbc_sha256: [u8; 32], // zeros only on the dry-run hatch
     // === forward-compat reservation ===
+    // reserved[1] (byte 0x164): RV text word base, written by the loader
+    // (DP-414). Every word past it stays zero.
     pub reserved: [u32; 40], // zero-filled (byte offset 96..256); reserved[0] (byte 0x160): ADR-109 slot-table address, written by the kernel, 0 from the loader (UPC_BOOT_PROTOCOL_V2.md §v3)
 }
 
@@ -76,6 +86,8 @@ impl BootParamsV2 {
         ramdisk_size_bytes: u32,
         rv2mbc_sha256: [u8; 32],
     ) -> Self {
+        let mut reserved = [0u32; 40];
+        reserved[RV_TEXT_BASE_RESERVED_IDX] = XV6_TEXT_RV_WORD_BASE;
         Self {
             magic: BOOT_MAGIC,
             version: BOOT_VERSION,
@@ -94,7 +106,7 @@ impl BootParamsV2 {
             cmd_line_args_ptr: 0,
             boot_random_seed: 0, // entropy provision deferred to Phase 2
             rv2mbc_sha256,
-            reserved: [0u32; 40],
+            reserved,
         }
     }
 
@@ -144,9 +156,26 @@ mod tests {
         let bp = BootParamsV2::for_xv6(123, 456, [0xAB; 32]);
         let bytes = bp.to_bytes();
         // v3: the rv2mbc SHA takes bytes 64..96; reserved[40] is 96..256.
+        // reserved[0] is the kernel's, reserved[1] the RV text base.
         assert!(
-            bytes[96..256].iter().all(|&b| b == 0),
-            "reserved must be all zero for forward-compat"
+            bytes[96..100].iter().all(|&b| b == 0),
+            "reserved[0] is 0 from the loader"
+        );
+        assert!(
+            bytes[104..256].iter().all(|&b| b == 0),
+            "reserved past the RV text base must be all zero for forward-compat"
+        );
+    }
+
+    #[test]
+    fn for_xv6_carries_the_rv_text_base_in_reserved_1() {
+        // DP-414: byte 0x164 of RAM, offset 100 of the structure.
+        let bp = BootParamsV2::for_xv6(123, 456, [0xAB; 32]);
+        assert_eq!({ bp.reserved }[RV_TEXT_BASE_RESERVED_IDX], 0x8000);
+        let bytes = bp.to_bytes();
+        assert_eq!(
+            u32::from_le_bytes(bytes[100..104].try_into().unwrap()),
+            XV6_TEXT_RV_WORD_BASE
         );
     }
 
@@ -159,6 +188,7 @@ mod tests {
         assert_eq!(u32::from_le_bytes(bytes[4..8].try_into().unwrap()), 3);
         assert_eq!(&bytes[64..96], &sha);
         assert_eq!(u32::from_le_bytes(bytes[60..64].try_into().unwrap()), 0);
-        assert!(bytes[96..256].iter().all(|&b| b == 0));
+        assert!(bytes[96..100].iter().all(|&b| b == 0));
+        assert!(bytes[104..256].iter().all(|&b| b == 0));
     }
 }

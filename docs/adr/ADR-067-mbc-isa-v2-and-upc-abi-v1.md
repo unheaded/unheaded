@@ -240,3 +240,4 @@ This ADR satisfies ADR-052 Rule 3: *no Cargo.toml or ABI edit without an in-tree
 
 - DP-212: the bootstub is done for xv6-class kernels; the DIY tiny kernel (ADR-081) is the rung, not a vendored Linux. No multi-map code store is planned until our own kernel outgrows the map.
 - DP-718: `crates/upc-bootstub` is kept as stage 1 of Boot Protocol v2. This ADR is not amended.
+- DP-414: the loader stages only the translator's `.data` sidecar; the RV text word base travels in BootParams `reserved[1]`, a compatible use of the reserved tail. Version stays 3.

@@ -261,7 +261,8 @@ v1 BootParams readers MUST be updated:
 |---|---|---|
 | 64..96 | `rv2mbc_sha256[32]` | Raw SHA-256 (32 bytes, not hex) of the kernel's `.rv2mbc` file as loaded into RV2MBC_MAP |
 | 96..100 | `reserved[0]` | Slot-table address (ADR-109). The loader writes 0; the xv6 kernel writes the physical address of its `struct upc_slot_tables` in `upc_slots_init()`. 0 means not published |
-| 100..256 | `reserved[1..40]` | Zero |
+| 100..104 | `reserved[1]` | RV text word base (DP-414): the loader writes it, 0x8000 for xv6. `start_mbc.c` refuses a non-zero value that differs from `_kernel_text >> 2`; 0 means not checked |
+| 104..256 | `reserved[2..40]` | Zero |
 
 The hash covers the file's on-disk bytes, before the loader shifts entries to the kernel's RV-word base (0x8000). It is all zeros only when a dry run used `--allow-unverified-rv2mbc`; a live boot never writes zeros there.
 
@@ -277,7 +278,7 @@ A hash that does not match is refused with `Rv2mbcShaMismatch` and both hashes; 
 
 **Lab hatch.** `--allow-unverified-rv2mbc` (upc-bootctl `boot`, doom-runner `run`) turns a missing hash into a warning and is accepted only with `--dry-run`. A live run with it is refused. It never excuses a mismatch.
 
-**Kernel-written word (ADR-109).** `reserved[0]` is the first BootParams word a kernel writes rather than reads. The version stays 3: a reader that does not know the field sees 0 from the loader, or an address it ignores. BPF treats the word as untrusted (init can rewrite it) and relies on `RAM_MAP` bounds.
+**Kernel-written word (ADR-109).** `reserved[0]` is the first BootParams word a kernel writes rather than reads. The version stays 3: a reader that does not know the field sees 0 from the loader, or an address it ignores. BPF treats the word as untrusted (init can rewrite it) and relies on `RAM_MAP` bounds. It stays the only kernel-written word: `reserved[1]` is loader-written, and the kernel only reads it.
 
 **Kernel side.** `start_mbc.c` (xv6) and `crates/upc-bootstub/src/start.c` accept version 2 or 3 for one release and print nothing new (a new TTY line would change the boot goldens). Neither reads the hash.
 

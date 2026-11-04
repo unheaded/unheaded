@@ -702,15 +702,19 @@ fn boot_prepare(
             bs_words.len(),
             mbc_words.len()
         );
-        // Load bootstub's .data sidecar (if present) into RAM_MAP so the
-        // stub's "BOOT FAIL: ..." strings are resolvable.
+        // Load bootstub's .data sidecar into RAM_MAP so the stub's
+        // "BOOT FAIL: ..." strings are resolvable. Required (DP-414).
         let bs_data_path = bs_path.with_extension("data");
-        if bs_data_path.exists() {
-            match runner.load_data_image(&bs_data_path) {
-                Ok(()) => println!("  Bootstub data: loaded {}", bs_data_path.display()),
-                Err(e) => println!("  ⚠ bootstub data load failed: {}", e),
-            }
+        if !bs_data_path.exists() {
+            bail!("no bootstub .data sidecar at {}", bs_data_path.display());
         }
+        runner.load_data_image(&bs_data_path).map_err(|e| {
+            anyhow!(
+                "bootstub .data sidecar {} failed to load: {e}",
+                bs_data_path.display()
+            )
+        })?;
+        println!("  Bootstub data: loaded {}", bs_data_path.display());
     } else {
         // Phase 1.1 xv6 path: kernel.mbc loads at slot 0 (self-locating).
         runner.populate_rom(&mbc_words)?;
@@ -719,9 +723,8 @@ fn boot_prepare(
     // Load the kernel's data-section image into RAM_MAP at byte-VMA addresses,
     // so the C compiler's `lui rd, hi; addi rd, lo` patterns can dereference
     // .rodata strings + .data globals. The translator emits this file as a
-    // sibling to the .mbc (e.g. xv6-mbc.mbc -> xv6-mbc.data). Optional —
-    // if missing, the boot will still progress but may halt on the first
-    // string load. Task #61 closure.
+    // sibling to the .mbc (e.g. xv6-mbc.mbc -> xv6-mbc.data) and is the only
+    // source of .rodata: a live boot without it is refused (DP-414).
     // Phase 1.4: load the xv6-format ramdisk (fs.img) at byte 0x00800000.
     // mkfs produces this image; xv6's fs.c later mounts it. Address per
     // docs/doom/UPC_PAGE_TABLE_LAYOUT.md.
@@ -740,24 +743,19 @@ fn boot_prepare(
     }
 
     let data_path = kernel.with_extension("data");
-    if data_path.exists() {
-        match runner.load_data_image(&data_path) {
-            Ok(()) => println!(
-                "  Data image: loaded {} (.rodata/.data into RAM_MAP)",
-                data_path.display()
-            ),
-            Err(e) => println!(
-                "  ⚠ data image at {} failed to load: {} (boot may halt early)",
-                data_path.display(),
-                e
-            ),
-        }
-    } else {
-        println!(
-            "  ⚠ no data image at {} — .rodata reads will return zero",
-            data_path.display()
-        );
+    if !data_path.exists() {
+        bail!("no kernel .data sidecar at {}", data_path.display());
     }
+    runner.load_data_image(&data_path).map_err(|e| {
+        anyhow!(
+            "kernel .data sidecar {} failed to load: {e}",
+            data_path.display()
+        )
+    })?;
+    println!(
+        "  Data image: loaded {} (.rodata/.data into RAM_MAP)",
+        data_path.display()
+    );
 
     // Load the RV→MBC translation map. The translator emits this as a
     // sibling to the .mbc (xv6-mbc.mbc → xv6-mbc.rv2mbc). Without it,
@@ -768,12 +766,12 @@ fn boot_prepare(
     // .text section). xv6's .text begins at RV byte 0x20000 (RV word
     // 0x8000) per kernel-mbc.ld; the loader shifts entries by that base
     // so the BPF interpreter's absolute-RV-word lookups hit the right
-    // slot. Phase 2 will pass a different base for the bootstub flow.
+    // slot. BootParams carries the same word, and the kernel checks it.
     //
     // S-ASCEND-2 Item 5: the bytes were read and SHA-checked by
     // rv2mbc::check_all before the object was opened; populate_rv2mbc hashes
     // them again against that SHA before its first map write.
-    let text_rv_word_base: u32 = 0x8000; // xv6 .text base = RV byte 0x20000
+    let text_rv_word_base: u32 = bootparams::XV6_TEXT_RV_WORD_BASE;
     let kernel_rv_hex = kernel_rv.sha_hex();
     runner
         .populate_rv2mbc(
@@ -922,7 +920,8 @@ fn boot_prepare(
     // Pre-translate sibling userland programs into disjoint ROM/RV2MBC
     // regions + a PROGRAM_TABLE the in-kernel exec handler resolves by
     // basename hash. init stays at ROM 0x4000 / rv2mbc-base 0; programs
-    // start past it and below the kernel's rv2mbc base (0x8000). Loaded
+    // start past it and below the kernel's rv2mbc base
+    // (bootparams::XV6_TEXT_RV_WORD_BASE). Loaded
     // as siblings of --userland so the existing boot recipe is unchanged.
     if let Some(up) = userland {
         // Headline (Gate B) needs `sh`; ls/cat/echo/wc follow the same
@@ -939,7 +938,7 @@ fn boot_prepare(
             };
             let slot = i as u32;
             let rom_base = 0x6000 + slot * 0x3000; // 12 Ki-word stride
-            let rv2mbc_base = 0x1000 + slot * 0x1000; // < 0x8000 (kernel base)
+            let rv2mbc_base = 0x1000 + slot * 0x1000; // < XV6_TEXT_RV_WORD_BASE
             let data_stage_va =
                 geometry::RESIDENT_DATA_STAGE_BASE + slot * geometry::RESIDENT_DATA_STAGE_STRIDE; // pristine RAM
             load_resident_program(

@@ -33,3 +33,10 @@ Step 88, DP-503 object: OFF 870122, ON 870702, +580 (bar +1,500), `BUDGET-OK`. H
 
 Step 90-91, the sbrk rung's RED: `SB: init-refused=no`, `SB: base=no`, `SB: grow=yes`, `SB: moved=no`. The first two would read the same under the old fall-through (sbrk(n) returned n). `grow=yes` is the line that tells them apart: sbrk(0) and sbrk(0x19000) gave the same answer, -38, where the fall-through gave 0 and 0x19000.
 | honest ENOSYS (DP-503) | 870122 | 870702 | +580 | 50334 | p503-after |
+
+Step 106-107, DP-414 mutation: `XV6_TEXT_RV_WORD_BASE` 0x8001 boots to `BOOT FAIL: rv text base` (1 hit) and `parity_bootparams` fails; restored, the file's hash matches the pre-mutant one.
+
+Step 108, sidecar refusal: with `xv6-mbc.data` gone, `Error: no kernel .data sidecar at ...`, exit before attach. A 2-byte `.data` is refused too (`failed to load: data image too short`). `getpidfork` boots again after, `F: parent-pid=1`; both sidecars hash as before.
+
+Step 110, frozen-ABI check: `parity_bootparams` 4 passed; `BOOT_VERSION` 3; 0 `pub` field lines changed in `bootparams.rs`, so offsets 0..100 stand; `upc-bootstub/src/start.c` names `reserved` only in the struct; 0 diff lines under `crates/doom-runner`.
+| BootParams base, sidecar (DP-414) | 870702 | 870702 | +0 | 50334 | p414-after |

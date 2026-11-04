@@ -114,12 +114,15 @@ void mmio_puts(const char *s) {
 // xv6 main() lives in main.c after our patches.
 extern void main(void);
 
+// First byte of .text, from kernel-mbc.ld.
+extern char _kernel_text[];
+
 // ── ASCEND-LINUX entry point ─────────────────────────────────────────────
 //
 // Stage 1 of UPC_BOOT_PROTOCOL_V2 calls us in M-mode on the kernel's
 // initial stack. We:
 //
-//   1. Verify BootParams magic + version.
+//   1. Verify BootParams magic + version, and the loader's RV text base.
 //   2. Print a one-liner so the operator knows boot is alive.
 //   3. Set up M-mode → S-mode transition via MEPC + MSTATUS.MPP=S.
 //   4. Issue MRET — MBC opcode 0x47 jumps to MEPC at S-mode priv.
@@ -141,6 +144,15 @@ start(void)
     uint32 version = bp->version;
     if (version != BOOT_VERSION_V2 && version != BOOT_VERSION_V3) {
         mmio_puts("BOOT FAIL: bad version\n");
+        __asm__ volatile ("ebreak"); /* translator emits MBC HALT for ebreak */
+        while (1) {}
+    }
+    // DP-414: reserved[1] is the loader's RV text word base. 0 is a v3 loader
+    // from before the field, so it is not checked. Silent on success: a new
+    // TTY line would move every golden.
+    uint32 base = bp->reserved[1];
+    if (base != 0 && base != ((uint32)(uint64)_kernel_text >> 2)) {
+        mmio_puts("BOOT FAIL: rv text base\n");
         __asm__ volatile ("ebreak"); /* translator emits MBC HALT for ebreak */
         while (1) {}
     }
