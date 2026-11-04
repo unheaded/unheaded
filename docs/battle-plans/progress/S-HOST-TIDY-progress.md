@@ -21,6 +21,7 @@
 - Plan text, Step 32: it labels the evidence line and commit `Steps 28-32`, but Phase 3 is Steps 29-37 and Step 28 is Phase 2's exit gate. Run as written.
 - Plan text, Step 41: it labels the evidence line and commit `Steps 37-41`, but Phase 4 is Steps 38-42 and Step 37 is Phase 3's exit gate. Run as written. Step 39's `tail -1` shows the tool's `undo:` line, not a line saying applied; it was read with Step 40's `in place` check, and `pipefail` was added to see the real exit code (rc=0 on both hosts).
 - DP-708 done on the third try, under two coordinator rulings (Evidence has both). Plan text, if the rulings are kept: Step 58 needs the Pi-hole-alone set and one lookup before its command, and Step 59's first check needs `-t A`. With `-t A`, `resolvectl query` prints `name IN A 0.0.0.0 -- link: enp2s0`, not the `name: 0.0.0.0 ...` shape in Step 59's Expect; the address matched, so it was read as a pass under ruling 2.
+- Phase 8's Step 69 stop above is closed: Phase 2 moved the runbook off `root@east`, Step 69 then read `0`, and Phase 8 ran from Step 69 to Step 76. Phases 9, 11's east half and 13 no longer wait on it. East now takes password logins with fail2ban not yet in place (Phase 9). Your one-time password test from west is still open.
 
 ## Evidence
 
@@ -53,3 +54,5 @@
 - Steps 61-62: East: reach proven (route, 5/5 ping, 40 queries, sinkhole answer), netplan yaml and live link set, apt update clean, key login unaffected.
 - Step 63 exit gate: PASSED, `Link 2 (enp2s0): 10.10.20.252 1.1.1.1 8.8.8.8`. Supersedes the two FAILED lines above. DP-708 done on east.
 - Steps 68-75: East sshd: keys-only file removed, 05-unheaded-permitroot.conf added. Fresh key login proven, methods publickey,password,keyboard-interactive. Password itself not testable unattended.
+- Steps 69-74 rerun: Step 69 `Master running (pid=3290473)`, journal from `2026-10-26`, root logins `0`, `NO_ROOT_KEYS`, `root@` count `0`. Timer armed 17:03:39 UTC, stopped 17:03:50 UTC, never fired. Step 71 matched Expect in order, KEX unchanged, port 22. Step 73: `FRESH_KEY_LOGIN_OK`, `Permission denied (publickey,password,keyboard-interactive).`, hold session up. Step 74: `inactive`, the five expected files, `600` on `05-unheaded-permitroot.conf`.
+- Step 76 exit gate: PASSED, `well-backup-copy` is `passwordauthentication no`, `authenticationmethods publickey`. Supersedes the Step 69 [STUCK] lines above. DP-11 first half and DP-15 done on east.
