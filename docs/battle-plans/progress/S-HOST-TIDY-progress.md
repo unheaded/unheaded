@@ -16,3 +16,4 @@
 - Steps 8-11: Preflight done. Backups on west and east, hold session open, FACTS GATE passed.
 - Steps 12-16: Phase 1, checked: The register still parses and its tests pass..
 - Steps 17-18: 17 rows accepted until 2027-02-02, east password rows carry DP-11, stub deleted.
+- Steps 51-55: Phase 6, checked: PROOF 3  it is really Pi-hole answering: a denied name returns its sinkhole, and a public.
