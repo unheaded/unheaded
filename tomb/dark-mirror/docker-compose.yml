@@ -119,7 +119,7 @@ services:
   # Loki — Log Aggregation
   # =============================================
   loki:
-    image: grafana/loki:2.9.4
+    image: grafana/loki:2.9.17
     container_name: dark-mirror-loki
     restart: unless-stopped
     ports:
@@ -147,7 +147,7 @@ services:
   # Promtail — Log Shipper
   # =============================================
   promtail:
-    image: grafana/promtail:2.9.4
+    image: grafana/promtail:2.9.17
     container_name: dark-mirror-promtail
     restart: unless-stopped
     ports:
