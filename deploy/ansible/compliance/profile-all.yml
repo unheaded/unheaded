@@ -18,6 +18,8 @@
     - sshd-safe
     - auditd-rules
     - journald-caps
+    - journald-caps-west
+    - kmod-usb-storage
     - time-p2p
     - rocm-log-perms
     - aide-install

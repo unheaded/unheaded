@@ -45,8 +45,8 @@ func TestRepoModelValidAgainstCatalog(t *testing.T) {
 	if err := m.CheckCatalog(repoCatalog(t)); err != nil {
 		t.Fatal(err)
 	}
-	if len(m.Fixes) != 16 {
-		t.Errorf("%d fixes, want 16 (the 13 remediate.sh carried, plus rocm-log-perms, aide-install, apparmor-enforce)", len(m.Fixes))
+	if len(m.Fixes) != 18 {
+		t.Errorf("%d fixes, want 18 (the 13 remediate.sh carried, plus rocm-log-perms, aide-install, apparmor-enforce, journald-caps-west, kmod-usb-storage)", len(m.Fixes))
 	}
 }
 
