@@ -84,24 +84,6 @@ static BLOCKLIST: HashMap<u64, u8> = HashMap::with_max_entries(MAX_BLOCKLIST_ENT
 #[map]
 static RATE_TOKENS: HashMap<u64, u32> = HashMap::with_max_entries(MAX_BLOCKLIST_ENTRIES, 0);
 
-/// Per-flow HMAC keys for integrity validation (RFC 9000 §8.1).
-/// Key: (flow_id: u16, namespace: u16, reserved: [u8; 4])
-/// Value: (key[32]: [u8; 32], created_at: u32, expires_at: u32)
-#[map]
-static HMAC_KEYS: HashMap<u64, [u8; 40]> = HashMap::with_max_entries(4096, 0);
-
-/// Retry tokens for initial flows (RFC 9000 §8.1.2).
-/// Key: (flow_id: u16, src_addr[16]: [u8; 16], reserved: [u8; 2])
-/// Value: (token[32]: [u8; 32], issued_at: u32, expires_at: u32, new_addr[16]: [u8; 16])
-#[map]
-static RETRY_TOKENS: HashMap<u64, [u8; 48]> = HashMap::with_max_entries(4096, 0);
-
-/// Hop validators — per-hop packet validation rules (RFC 8200 §4).
-/// Key: (hop_id: u32, namespace: u32)
-/// Value: validation rules (allowed versions, required CRC/HMAC, dict IDs, flags)
-#[map]
-static HOP_VALIDATORS: HashMap<u64, [u8; 32]> = HashMap::with_max_entries(256, 0);
-
 /// Shield statistics.
 #[map]
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
@@ -128,12 +110,6 @@ static SHIELD_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(4, 0);
 /// Value: count (u32), last_seen_at (u32)
 #[map]
 static ERROR_COUNTERS: HashMap<u64, [u8; 8]> = HashMap::with_max_entries(256, 0);
-
-/// Dictionary authority enforcement (RFC 8200 §4.2).
-/// Key: (dict_id: u16, namespace: u16, reserved: u32)
-/// Value: owner_fingerprint[16], granted_at (u32), expires_at (u32)
-#[map]
-static AUTHORITY: HashMap<u64, [u8; 24]> = HashMap::with_max_entries(512, 0);
 
 // Stats keys
 const STAT_TOTAL: u32 = 0;
@@ -247,7 +223,7 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
         return Ok(xdp_action::XDP_DROP);
     }
 
-    // ── 4. Drop packets that already carry a Monad HBH header ─────────────────
+    // ── 4. Pass packets that already carry a Monad HBH header ─────────────────
     // This prevents double-stamping of Kingdom-internal packets that somehow
     // reach an ingress Shield (should not happen in a correctly configured
     // Kingdom, but defend against it).
@@ -263,12 +239,6 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
         }
         // Unknown HBH header from Shadow — strip it.
     }
-
-    // ── 4b–4d. HMAC / Retry / HopValidator lookups ─────────────────────────────
-    // Deferred to reduce verifier instruction count.  The HMAC_KEYS,
-    // RETRY_TOKENS, and HOP_VALIDATORS maps exist but have no userspace
-    // writer yet (M-180, FND-025); validation logic will be enabled once bpf_loop()
-    // is integrated (S-TRUE-WIRE).
 
     // ── 5. Save original transport protocol before stripping extension headers ─
     let original_next_header = strip_extension_headers(ip, ip_start, data_end);
@@ -539,14 +509,6 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
         }
     }
 
-    // ── Authority check (RFC 8200 §4.2) ─────────────────────────────────────────
-    // Verify dictionary authority before allowing Sophia field writes
-    let dict_id = monad.qos_class; // Simplified: use qos_class as dict_id
-    let namespace: u16 = 0; // Default namespace
-    let auth_key = make_authority_key(dict_id as u16, namespace);
-    let _ = unsafe { AUTHORITY.get(&auth_key) }; // Lookup for authority validation
-                                                 // Future: check fingerprint and expiry timestamp
-
     // ── Emit DEATH event ───────────────────────────────────────────────────────
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
     emit_anamnesis(now, EventType::Died, 0, flow_label, &monad);
@@ -598,21 +560,6 @@ fn src_addr_key(addr: &[u8; 16]) -> u64 {
     u64::from_be_bytes([
         addr[8], addr[9], addr[10], addr[11], addr[12], addr[13], addr[14], addr[15],
     ])
-}
-
-/// Encode a (flow_id, namespace) pair as a 64-bit map key for HMAC_KEYS / HOP_VALIDATORS.
-#[allow(dead_code)]
-#[inline(always)]
-fn make_hmac_key(flow_id: u16, namespace: u16) -> u64 {
-    ((flow_id as u64) << 48) | ((namespace as u64) << 32)
-}
-
-/// Encode a (flow_id, src_addr_low_64) pair as a 64-bit key for RETRY_TOKENS.
-/// The src_addr_low_64 is the low 64 bits of the IPv6 source address.
-#[allow(dead_code)]
-#[inline(always)]
-fn make_retry_token_key(flow_id: u16, src_low_64: u64) -> u64 {
-    ((flow_id as u64) << 48) | (src_low_64 & 0x0000_FFFF_FFFF_FFFF)
 }
 
 /// Walk and skip any IPv6 extension headers after the fixed header, returning
@@ -855,12 +802,6 @@ fn emit_block_event(ip: &Ipv6Hdr, _src_key: u64) {
 #[inline(always)]
 fn make_error_key(code: u16) -> u64 {
     (code as u64) << 48
-}
-
-/// Encode a (dict_id, namespace) pair as a 64-bit key for AUTHORITY.
-#[inline(always)]
-fn make_authority_key(dict_id: u16, namespace: u16) -> u64 {
-    ((dict_id as u64) << 48) | ((namespace as u64) << 32)
 }
 
 /// Increment a per-Shield statistics counter (saturating).
