@@ -311,6 +311,6 @@ All dependencies are permissive or public domain -- no copyleft conflicts.
 
 ## License
 
-GPL-3.0-only -- The Library cannot be enclosed.
+GPL-3.0-or-later -- The Library cannot be enclosed.
 
 Part of the [Unheaded Protocol](https://github.com/unheaded/unheaded).
