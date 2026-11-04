@@ -50,3 +50,4 @@
 - Step 56 passed (`1`, `blocked=0`). Step 57 matched Expect; the only diff from the backup is line 11, mode still `600 root:root`. Step 58 ruling: `Current DNS Server: 10.10.20.252` with Pi-hole alone. Step 58 own command matched Expect: `Link 2 (enp2s0): 10.10.20.252 1.1.1.1 8.8.8.8`, `/run/systemd/resolve/stub-resolv.conf`, `nameserver 127.0.0.53`.
 - Step 59 passed: `o401343.ingest.us.sentry.io IN A 0.0.0.0`, `archive.ubuntu.com: 2a06:bc80:0:1000::18`, apt errors `0`, `Current DNS Server: 10.10.20.252`, chrony `1`, `FRESH_KEY_LOGIN_OK`.
 - Steps 56-60: Phase 6, checked: AFTER  the stub reaches Pi-hole, names resolve, the login path is untouched..
+- Steps 61-62: East: reach proven (route, 5/5 ping, 40 queries, sinkhole answer), netplan yaml and live link set, apt update clean, key login unaffected.
