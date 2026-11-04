@@ -727,253 +727,6 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/Cargo.lock:0:rust-lock",
-      "name": "rustls 0.23.46",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls",
-          "version": "1.2-1.3"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "providers compiled: aws-lc-rs, ring; aws-lc-rs default_provider offers X25519MLKEM768 first at this version; the provider call sites decide"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "n/a"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/waf/Cargo.lock"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/Cargo.toml:20:rust-tls-dep",
-      "name": "rustls dependency",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default (features: aws_lc_rs, prefer-post-quantum, std, tls12, logging; default-features = false)"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/waf/Cargo.toml:20"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:123:rust-provider",
-      "name": "rustls aws-lc-rs provider",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:123"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:387:rust-provider",
-      "name": "rustls aws-lc-rs provider",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:387"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:401:rust-provider",
-      "name": "rustls aws-lc-rs provider",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:401"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:416:rust-provider",
-      "name": "rustls aws-lc-rs provider",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "hybrid"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:416"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
       "bom-ref": "cmd/yggdrasil-evidence/cask.go:17:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
@@ -1458,11 +1211,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default (features: aws_lc_rs, prefer-post-quantum, std, logging; default-features = false)"
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default (features: aws_lc_rs, prefer-post-quantum, std, logging; default-features = false); zhend's main never spawns the QUIC server; zhend is single-node gRPC-only (DP-209)"
         },
         {
           "name": "unheaded:link-state",
-          "value": "enabled"
+          "value": "not-spawned"
         },
         {
           "name": "unheaded:owner",
@@ -1499,11 +1252,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default; zhend's main never spawns the QUIC server; zhend is single-node gRPC-only (DP-209)"
         },
         {
           "name": "unheaded:link-state",
-          "value": "enabled"
+          "value": "not-spawned"
         },
         {
           "name": "unheaded:owner",
@@ -1540,11 +1293,11 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default; zhend's main never spawns the QUIC server; zhend is single-node gRPC-only (DP-209)"
         },
         {
           "name": "unheaded:link-state",
-          "value": "enabled"
+          "value": "not-spawned"
         },
         {
           "name": "unheaded:owner",

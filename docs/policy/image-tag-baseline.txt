@@ -1,12 +1,9 @@
 # Images not yet pinned to an exact version (ADR-102). This set may only SHRINK.
 # <file> <image>. Pin, then remove the line: scripts/check-image-tags.sh --update
 deploy/docker/zhen-agentd.Dockerfile gcr.io/distroless/static-debian12:nonroot
-deploy/sophia-eye/docker-compose.yml vllm/vllm-openai:latest-rocm
 docker/base/Dockerfile.base debian:bookworm-slim
 docker/base/Dockerfile.base gcr.io/distroless/static-debian12:nonroot
 docker/firewall/frr/Dockerfile ubuntu:24.04
-docker/firewall/ipfire/Dockerfile ubuntu:24.04
-docker/firewall/opnsense/Dockerfile ubuntu:24.04
 docker/routing/ospf/Dockerfile ubuntu:24.04
 docker/services/anamnesis/Dockerfile debian:bookworm-slim
 docker/services/anamnesis/Dockerfile gcr.io/distroless/static-debian12:nonroot
@@ -52,5 +49,4 @@ docker/services/trace-collector/Dockerfile gcr.io/distroless/static-debian12:non
 docker/services/unheaded-daemon/Dockerfile debian:bookworm-slim
 docker/services/wotan/Dockerfile debian:bookworm-slim
 docker/services/wotan/Dockerfile gcr.io/distroless/static-debian12:nonroot
-kubernetes/manifests/base/haproxy-ingress/controller.yaml haproxytech/kubernetes-ingress:3.1
 routing/frr/Dockerfile ubuntu:24.04
