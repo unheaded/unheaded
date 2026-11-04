@@ -28,3 +28,8 @@ Step 57, gate probes: same=12 diff=0 rc=0, ascend 872276 (equal to Stop A), Doom
 Step 66-68, SYS_yield form: OFF 872276. Alias row plus empty arm (Step 61 as written): 876146, +3870, over the ±500 bar. Arm for 13 as `syscall_nr == 13 || syscall_nr == 23`, no alias row, no empty arm (Step 68): 870122, -2154. Kept the second. Why the count fell below OFF was not investigated; behaviour held: gate p413-after same=12 diff=0 rc=0, Doom 758199, 7 rung gates skipped.
 
 Step 69, boots: gate_nway 3 NWAY-ok, getpidmulti 13 distinct GM lines. Order c1-pid, c2-pid, c3-pid, then c1-again, c2-again, c3-again: 23 really switches, since a silently ignored ecall would run each child straight through.
+
+Step 88, DP-503 object: OFF 870122, ON 870702, +580 (bar +1,500), `BUDGET-OK`. Honest non-ascend object (`--no-default-features --target-dir target/honest`) compiles; compile-checked only, nothing ships it.
+
+Step 90-91, the sbrk rung's RED: `SB: init-refused=no`, `SB: base=no`, `SB: grow=yes`, `SB: moved=no`. The first two would read the same under the old fall-through (sbrk(n) returned n). `grow=yes` is the line that tells them apart: sbrk(0) and sbrk(0x19000) gave the same answer, -38, where the fall-through gave 0 and 0x19000.
+| honest ENOSYS (DP-503) | 870122 | 870702 | +580 | 50334 | p503-after |
