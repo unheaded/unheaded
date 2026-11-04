@@ -22,7 +22,7 @@ Workspace members of `ebpf/Cargo.toml` (GPL-2.0-only):
 | `latency-probe` | kprobe / kretprobe | TCP latency (RTT) |
 | `syscall-tracer` | raw tracepoint | Syscall auditing |
 | `shield-ebpf` | XDP + TC | Protocol Shield: Monad stamp/validate at the boundary |
-| `hop-ebpf` | XDP | Per-hop Monad processing |
+| `hop-ebpf` | XDP | Per-hop Monad processing; validator, key and retry checks, off by default (ADR-125) |
 | `yaldabaoth-ebpf` | TC egress | Chaos: corrupt, delay, duplicate or truncate registered flows |
 | `monad-cpu-ebpf` | XDP | The UPC: MBC interpreter (Doom, xv6) |
 | `firewall-ebpf`, `maglev-ebpf`, `canary-ebpf`, `qos-ebpf`, `failover-ebpf`, `compliance-ebpf`, `nfv-ebpf`, `version-ebpf`, `anomaly-ebpf` | XDP | Monad CPU applications (apps 03-12) |

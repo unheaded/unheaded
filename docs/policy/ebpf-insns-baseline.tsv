@@ -8,7 +8,7 @@ failover-ebpf/failover_xdp	default	29125	6.17.0-41-generic	2026-10-28
 firewall-ebpf/firewall_xdp	default	33795	6.17.0-41-generic	2026-10-28
 flow-tracker/flow_tracker_egress	default	16096	6.17.0-41-generic	2026-10-28
 flow-tracker/flow_tracker_ingress	default	16097	6.17.0-41-generic	2026-10-28
-hop-ebpf/hop_xdp	default	153835	6.17.0-41-generic	2026-10-28
+hop-ebpf/hop_xdp	default	171672	6.17.0-41-generic	2026-10-28
 latency-probe/tcp_connect_enter	default	94	6.17.0-41-generic	2026-10-28
 latency-probe/tcp_connect_exit	default	538	6.17.0-41-generic	2026-10-28
 latency-probe/tcp_recvmsg_enter	default	94	6.17.0-41-generic	2026-10-28
