@@ -1125,7 +1125,8 @@ Why these paths: both units name them without a `-` prefix, so a missing one sto
   cd /home/govan/tmp/unheaded
   sudo install -d -o root -g root -m 0755 /var/zhen/projects
   sudo install -d -o zhen-agentd -g zhen-agentd -m 0700 /var/zhen/projects/default
-  sudo install -d -o zhen-agentd -g unheaded-vor -m 2750 /var/zhen/projects/zhen-taught
+  git archive HEAD runbooks scripts/run-runbook.py | sudo tar -x --no-same-owner -C /var/zhen/projects/default && sudo chown -R zhen-agentd:zhen-agentd /var/zhen/projects/default
+  sudo install -d -o govan -g unheaded-vor -m 2750 /var/zhen/projects/zhen-taught
   sudo install -d -o root -g zhen-agentd -m 0750 /etc/unheaded/zhen
   sudo install -m 0640 -o root -g zhen-agentd configs/zhen-schedules.yaml /etc/unheaded/zhen/schedules.yaml
   install -d -m 0755 /var/zhen/vor-source /var/zhen/code-index                 # as govan: /var/zhen is govan's, and git refuses root here
@@ -1133,8 +1134,8 @@ Why these paths: both units name them without a `-` prefix, so a missing one sto
   make build-zhen-codeindex install-hooks && bin/zhen-codeindex --repo . --out /var/zhen/code-index   # as govan
   stat -c '%a %U %G %n' /var/zhen/projects/default /var/zhen/projects/zhen-taught /etc/unheaded/zhen /etc/unheaded/zhen/schedules.yaml; test -f /var/zhen/vor-source/unheaded/.vor-export && test -f /var/zhen/code-index/CURRENT && test -L .git/hooks/post-merge && echo ready
   ```
-  Expect: `700 zhen-agentd zhen-agentd ...`, `2750 zhen-agentd unheaded-vor ...`, `750 root zhen-agentd ...`, `640 root zhen-agentd ...`, then `ready`. Else: Rollback, [STUCK]. The scheduler also needs `runbooks/`, `MANIFEST.sha256` and `scripts/run-runbook.py` under `/var/zhen/projects/default`: a `git archive` export there, by whoever runs `-scheduler` first.
-  **Rollback:** `cd /home/govan/tmp/unheaded && sudo rmdir /var/zhen/projects/zhen-taught /var/zhen/projects/default /var/zhen/projects; sudo rm -f /etc/unheaded/zhen/schedules.yaml; sudo rmdir /etc/unheaded/zhen; rm -f .git/hooks/post-commit .git/hooks/post-merge; rm -rf /var/zhen/vor-source /var/zhen/code-index`
+  Expect: `700 zhen-agentd zhen-agentd ...`, `2750 govan unheaded-vor ...`, `750 root zhen-agentd ...`, `640 root zhen-agentd ...`, then `ready`. Else: Rollback, [STUCK].
+  **Rollback:** `cd /home/govan/tmp/unheaded && sudo rm -rf /var/zhen/projects/default; sudo rmdir /var/zhen/projects/zhen-taught /var/zhen/projects; sudo rm -f /etc/unheaded/zhen/schedules.yaml; sudo rmdir /etc/unheaded/zhen; rm -f .git/hooks/post-commit .git/hooks/post-merge; rm -rf /var/zhen/vor-source /var/zhen/code-index`
 - [ ] **Step 133** [B][S] ~2m: The units. Not enabled, not started.
   ```bash
   cd /home/govan/tmp/unheaded && sudo install -m 0644 deploy/systemd/unheaded-vor.service deploy/systemd/zhen-agentd.service /etc/systemd/system/ && sudo systemctl daemon-reload; systemctl is-enabled unheaded-vor.service zhen-agentd.service
