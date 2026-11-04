@@ -41,6 +41,7 @@ These are estimates: sampling misses short spikes, wall power is higher than the
 
 1. The idle baseline: per request, or a rolling figure.
 2. Whether embeddings calls are recorded the same way.
+3. Stevie, 2026-11-04: energy may become a routing input, offloading to Claude when that is better for the environment. It cannot decide anything until a defensible Claude figure exists; until then routing stays on quality.
 
 ## Decision
 
