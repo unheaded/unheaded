@@ -8,6 +8,8 @@
 - `scripts/east-bootstrap.sh` lines 18 and 233 still name `root@`: stale, not run by anything, not changed here.
 - Test east's password once by hand from west, it cannot be tested unattended: `ssh -o PubkeyAuthentication=no -o ControlPath=none east true`
 - Plan typo, Step 2: the check `head -3 | tail -1` reads line 3 (blank); the heredoc puts `# S-HOST-TIDY progress` on line 2. The file matches the plan text exactly (checked with `sed -n 2p`), so the step counted as passed and the file was not bent to fit. The check should be `sed -n 2p`.
+- DP-708 not done, Phase 6 [STUCK] at Step 59 and rolled back; east is on `1.1.1.1 8.8.8.8` as before. The list took (`DNS Servers: 10.10.20.252 1.1.1.1 8.8.8.8`) but `Current DNS Server` stayed `1.1.1.1`, so the sinkhole name got a real address. Likely cause, not tested: `1.1.1.1` was already current (`resolvectl.before` shows it), it stayed in the new list, and systemd-resolved keeps a current server that is still listed; its journal was empty, so this was no failover. Step 58 has nothing that moves it to the first server. The restart in Step 61 might, but the plan does not name it for this failure, so it was not tried. Decide: add a tested step that moves resolved to the first server after Step 58, then rerun Steps 57-63. Proofs 1-4 passed and need no change.
+- Plan text, Steps 60 and 62: both are worded for success (Step 62 says the netplan yaml and live link are set), so neither was run as written after Step 59 failed. One [STUCK] commit stands in for them.
 
 ## Evidence
 
@@ -17,3 +19,6 @@
 - Steps 12-16: Phase 1, checked: The register still parses and its tests pass..
 - Steps 17-18: 17 rows accepted until 2027-02-02, east password rows carry DP-11, stub deleted.
 - Steps 51-55: Phase 6, checked: PROOF 3  it is really Pi-hole answering: a denied name returns its sinkhole, and a public.
+- Steps 56-59: Phase 6 [STUCK] at Step 59. Proof 4 passed (`1`, `blocked=0`); Steps 57 and 58 matched Expect. Step 59 got `o401343.ingest.us.sentry.io: 34.160.81.0`, `Current DNS Server: 1.1.1.1` (Expect `0.0.0.0`, `10.10.20.252`); `archive.ubuntu.com` resolved, apt errors `0`, chrony `1`, `FRESH_KEY_LOGIN_OK`.
+- Rollback run and checked: `/etc/netplan/01-enp2s0.yaml` matches the backup (`cmp`), `DNS=1.1.1.1`, `DNS=8.8.8.8`, `Link 2 (enp2s0): 1.1.1.1 8.8.8.8`, stub kept, names resolve, chrony `1`, fresh key login and hold session up.
+- Step 63 exit gate: FAILED, `Link 2 (enp2s0): 1.1.1.1 8.8.8.8`. Steps 60 and 62 not run as written. Phase 7 accepts this [STUCK].
