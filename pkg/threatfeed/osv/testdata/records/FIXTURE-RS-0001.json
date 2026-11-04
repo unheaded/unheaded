@@ -1,0 +1,1 @@
+{"id":"FIXTURE-RS-0001","summary":"Synthetic record: crate, listed versions only","affected":[{"package":{"name":"serde-fixture","ecosystem":"crates.io"},"versions":["1.0.230"]}]}
