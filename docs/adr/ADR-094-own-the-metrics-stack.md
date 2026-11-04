@@ -310,7 +310,7 @@ by the migration itself.
 - **`pkg/wotan-client` is linked into 16 binaries and served by 3**
   (trace-collector-go, architect, micromanager). In the other 13 (akira,
   chaos-controller, dashboard-backend, demo-trace-injector, kanban-app, monad,
-  pqc-verifier, shield, sophia, unheaded-daemon, captain, gateway, timeguru),
+  pqc-verifier (deleted 2026-11-04, DP-715), shield, sophia, unheaded-daemon, captain, gateway, timeguru),
   its idempotency, ordering, reliability and timeout metrics are counted and
   never exposed. The same holds for `pkg/health` in akira and `pkg/ebpf` in
   dashboard-backend. The Wotan client's dead-letter and retry counters are
@@ -464,7 +464,7 @@ time):
 | gateway | 1 | 36 | 0 |
 | akira | **404** | 35 | — |
 
-chaos-controller, demo-trace-injector, pqc-verifier and shield are
+chaos-controller, demo-trace-injector, pqc-verifier (deleted 2026-11-04, DP-715) and shield are
 ORPHAN/TOOL with no endpoint. Per ADR-093 they get no effort beyond this
 record. **Step 5 is complete for every live binary.**
 

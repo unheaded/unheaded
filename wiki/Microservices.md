@@ -18,7 +18,6 @@ Every binary under `cmd/`, grouped by role. Ports are in [[Port Registry|Port-Re
 | `unheaded-daemon` | Control plane: drift detection + reconciliation | [[Architecture]] |
 | `shield` | Shield WAF / Zero-Trust gateway daemon (Go) | [[Security]] |
 | `waf` | Shield command-line entry point (Rust) | [[Security]] |
-| `pqc-verifier` | Post-quantum signature verification service | [[PQC-Authentication]] |
 | `heimdall-daemon` | Userspace control for Mímir's Law / Gleipnir Phase 0 | [[Mimirs-Law]] |
 | `routing-health` | Health endpoint for BIRD + established BGP sessions | [[Load-Balancers]] |
 | `zhen-agentd` | Zhen agent daemon (ReAct loop + Champion gate) | [[Zhen-AI]] |

@@ -4,6 +4,8 @@
 
 > **"Quantum-resistant authentication from packet zero."**
 
+> Status 2026-11-04: `cmd/pqc-verifier` is deleted (DP-715, TRUE-WIRE L5); sections naming it describe the design ADR-119 parks. FN-DSA is withdrawn (DP-411).
+
 Unheaded's PQC subsystem provides post-quantum cryptographic authentication for all intra-Kingdom traffic. Every packet carries a 12-byte PQC value in the **Monad** wire format, referencing signatures and keys stored in **Sophia** BPF maps. The **Shield** verification engine validates packets through a 7-point pipeline, while the **Wotan** message bus propagates verification state and audit events.
 
 ---

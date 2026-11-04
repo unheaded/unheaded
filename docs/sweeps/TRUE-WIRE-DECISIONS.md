@@ -108,3 +108,22 @@ deleted package: `tomb/lich/harnesses/lich_006_real_lifecycle_test.go`
 | other references | `scripts/check-gosec-ratchet.sh` names `internal/bpfmap/bpfmap.go:21` in a comment only (an example); nothing in workflows, units or compose references a deleted path |
 
 Rows marked ASK (L6, T1-T3) were not part of the dry run.
+
+## Applied 2026-11-04 (DP-715: "accept all 36 defaults")
+
+The table has 35 rows, not 36: R1-R10, C1-C9, E1-E6, L1-L7, T1-T3. DP-203 (fold, nothing deleted) overrides C1-C8.
+
+| Rows | Disposition | Carried by |
+|---|---|---|
+| R1, R2, R3, R5, R6, R7, R8, R9, R10 | deleted (R6 with `lich_006_real_lifecycle_test.go`) | S-WIRE-HONEST |
+| R4 `pkg/protocol/migration` | stays parked: E8 answered (a), RETRY_TOKENS moved to hop-ebpf and carries no token on the wire; `ValidateToken` is a stub that must not be wired | S-WIRE-HONEST |
+| C1-C6, C7, C8 | NOT deleted: DP-203 folds them behind flags | S-G9-FOLD |
+| C9 `services/sabatons` | stays parked | none |
+| E1-E6 | KEEP, nothing to do | none |
+| L1 `pkg/afxdp` | DP-205, verify Doom first | S-CLEAN-CUT |
+| L2, L3, L4 | DP-401 | S-CLEAN-CUT |
+| L5 `cmd/pqc-verifier` | deleted; ADR-119 D1 revives it from history if that ADR is ever built; port 19008 stays reserved | S-WIRE-HONEST |
+| L6 `cmd/shield` + `services/shield` | ASK row: no default to accept, and no answer in the pack; open, for Stevie | none |
+| L7 `ebpf/pqc-common` | stays parked | none |
+| T1 `pkg/waf`, T2 `lxd/containers`, T3 `docker/hosts` | DP-401, DP-218 | S-CLEAN-CUT |
+
