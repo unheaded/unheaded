@@ -100,6 +100,8 @@ func TestCheckWireListen(t *testing.T) {
 	}{
 		{"127.0.0.1:19015", false, true},
 		{"[::1]:19015", false, true},
+		{"[::ffff:127.0.0.1]:19015", false, true},
+		{"[::1%lo]:19015", false, false},
 		{":19015", false, false},
 		{"0.0.0.0:19015", false, false},
 		{"192.168.13.2:19015", false, false},
