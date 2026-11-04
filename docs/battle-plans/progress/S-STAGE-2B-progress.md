@@ -21,4 +21,8 @@ DP-206 (approved, already run once under guard): the attended list is Appendix D
 3. (plan-time) `cargo-fuzz` is not installed on west, so `fuzz_mbc_execute` records SKIP. Installing it is a third-party question.
 - ascend baseline row now 872276 (net vs 921036: 48760)
 - Phase 2 departures, both small: Step 23 printed 2, not 0, because Phase 0's harness edit landed after the p0 gate recorded HEAD, so gate rung2-before ran as the step says (12/12, rc=0, 868290, Doom 758199). Step 34's cmt list omits $PROG, but insrow writes to it, so $PROG was added to that commit or Step 35's clean-tree check could not pass. Phases that run insrow later need the same addition.
+- ascend baseline row now 870122 (net vs 921036: 50914)
+- DP-413 moved the ascend baseline row by -2154 (872276 to 870122): not a rung, so DP-717 does not name it; net vs 921036 is 50914.
+- Phase 6 departures. Step 61's alias row measured +3870 (876146), so Step 68 ran: yield shares the arm for 13 as `syscall_nr == 13 || syscall_nr == 23`, measured 870122 (-2154), and there is no alias row or empty arm for 23. Step 67's ±500 was read as a growth bar: the fall is outside it on the low side, and the gate is green. parity_surface.rs now accepts one `||` group per arm (red first; a mutant dropping 23 fails it), so Step 73's cmt list gained that file and $PROG.
+- For later phases: Step 87 says the empty arms for 14 and 23 stay, and Step 208 says the 13 alias goes before the row for 23. Neither exists for 23 now. Step 208 still holds: alias 13 to 11, and 23 stays on the shared arm in BPF, which is what keeps yield a yield. When that rung lands, check the arm still reads right with 13 aliased away.
 

@@ -19,13 +19,13 @@
 // the shipped 8 MiB stride the bands are 2 MiB apart → disjoint → NWAY-ok.
 //
 // LIVENESS: ascend-linux has no timer preemption, so children co-schedule by
-// cooperatively yielding via pause() (mapped to scheduler_context_switch in the
+// cooperatively yielding via yield() (mapped to scheduler_context_switch in the
 // BPF RV32I dispatch). Each child WRITEs its canaries, yields once (by which
 // time every sibling has also written — see the round-robin trace below), then
 // VERIFIEs — so every clobber has happened before any verify.
 //   parent → c1.write,yield → c2.write,yield → c3.write,yield → (parent re-wait)
 //          → c1.verify,exit → c2.verify,exit → c3.verify,exit → parent.reap×3
-// A second pause() is added for margin (extra yields are harmless: memory is
+// A second yield() is added for margin (extra yields are harmless: memory is
 // stable once all canaries are written).
 //
 // FULLY UNROLLED. The unrolling was a workaround for a "looped-fork bug"
@@ -51,6 +51,7 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
+#include "user/uyield.h"
 
 // Probe geometry (must mirror phase12.rs SLICE_STRIDE / superpage layout).
 #define HIGH_BASE 0x00600000u    // 6 MiB — equals the falsification stride
@@ -92,8 +93,8 @@ child(int label, unsigned me)
 
   // Yield so every sibling completes its writes before we verify. One yield is
   // sufficient given the round-robin; a second is margin.
-  pause(0);
-  pause(0);
+  yield();
+  yield();
 
   // Verify — any foreign canary means a co-resident sibling's slice overlapped
   // ours (or our own slice was clobbered): isolation FAILED.

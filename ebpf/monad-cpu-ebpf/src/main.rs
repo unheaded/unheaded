@@ -2618,8 +2618,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // ── xv6 SYS_uptime (14): with UPC_RUNG2 on it never gets here
                 // (remapped to the getpid inject arm above; ADR-110 T2). Off: no
                 // BPF answer, a0 is left as it was (unchanged behaviour).
-            } else if cfg!(feature = "ascend-linux") && syscall_nr == 13 {
-                // ── xv6 SYS_pause (13) → cooperative YIELD (Gate 4, 2026-05-31) ─
+            } else if cfg!(feature = "ascend-linux") && (syscall_nr == 13 || syscall_nr == 23) {
+                // ── xv6 SYS_pause (13), SYS_yield (23) → cooperative YIELD (Gate 4, 2026-05-31) ─
                 // ascend-only (xv6 scheduler yield; Doom never issues it).
                 // ascend-linux has NO timer preemption (the round-robin timer
                 // switch near the top of this program is cfg-gated off for xv6
@@ -2627,11 +2627,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // exit/wait. Proving per-pid isolation of CONCURRENT live
                 // processes (gate_nway.c) requires children to pause-and-resume
                 // while staying live — exactly what a cooperative yield gives.
-                // We reuse SYS_pause (sleep's defining act IS yielding the CPU;
-                // the duration arg is ignored in the cooperative model) instead
-                // of minting a new syscall number — zero userland plumbing.
-                // Phase-3 TODO: split a dedicated SYS_yield from
-                // SYS_pause(sleep-with-duration) once real timer preemption lands.
+                // SYS_yield (23) shares this arm (ADR-078 §5). 13 also yields until
+                // the sleep rung gives pause(n) its own meaning; the duration arg
+                // is ignored in the cooperative model.
                 //
                 // pc is already advanced past the ecall (fetch pre-increment) and
                 // — unlike SYS_wait — we do NOT decrement it: the yielder resumes
