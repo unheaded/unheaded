@@ -14,3 +14,4 @@
 - Steps 1-5: Phase 0, checked: Back up wests configs..
 - Steps 6-7: Worktree made; open count saved; config backups on west and east.
 - Steps 8-11: Preflight done. Backups on west and east, hold session open, FACTS GATE passed.
+- Steps 12-16: Phase 1, checked: The register still parses and its tests pass..
