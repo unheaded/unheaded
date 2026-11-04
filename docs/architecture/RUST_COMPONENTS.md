@@ -162,18 +162,6 @@ The userspace AF_XDP engine with zero external dependencies:
 The FFI layer produces `libaf_xdp.a` (static) and `libaf_xdp.so` (dynamic)
 for consumption by the Go bridge via CGo.  The C header is `af_xdp.h`.
 
-### `xdp-redirect` -- XDP Redirect Program
-
-**Location:** `ebpf/xdp-redirect/`
-**Target:** `bpfel-unknown-none` (kernel eBPF)
-**License:** GPL-2.0-only
-
-Standalone XDP program that steers packets to AF_XDP sockets:
-
-- **Maps:** `XSKS` (XSKMAP), `CONFIG` (per-queue enable/filter), `STATS` (counters)
-- **Logic:** Parse ETH+IPv4, check per-queue CONFIG, redirect via XSKMAP
-- **Fallback:** XDP_PASS if redirect disabled or no socket bound
-
 ### `shield-ebpf` -- Kingdom Boundary with AF_XDP Dual-Path
 
 **Location:** `ebpf/shield-ebpf/`
@@ -186,8 +174,6 @@ Two programs in one binary:
 - **shield_tc** (TC egress): DEATH capture + HBH header stripping
 
 AF_XDP integration maps:
-- `SHIELD_XSKS` -- XSKMAP for zero-copy redirect after BIRTH
-- `SHIELD_CONFIG` -- Key 0 bit 0 toggles AF_XDP redirect
 
 ### `packet-marker` -- Trace ID with Selective AF_XDP
 
@@ -197,7 +183,7 @@ AF_XDP integration maps:
 
 XDP program for distributed trace propagation with AF_XDP integration:
 
-- **Maps:** `MARKER_XSKS` (XSKMAP), `MARKER_CONFIG` (enable toggle),
+- **Maps:**
   `FLOW_STATE`, `TRACE_INJECT`, `PACKET_EVENTS`, `STATS`
 - **Logic:** Trace-marked packets redirect to AF_XDP; unmarked packets
   pass to kernel stack
@@ -212,10 +198,6 @@ XDP program for distributed trace propagation with AF_XDP integration:
 Monad wire format types (20-byte register file, frozen at v0x01).
 AF_XDP-relevant exports:
 
-- `redirect_action::NO_REDIRECT` (0) -- standard kernel path
-- `redirect_action::AF_XDP` (1) -- redirected to AF_XDP socket
-- `redirect_action::KERNEL_STACK` (2) -- AF_XDP enabled but no socket bound
-- `flow_flags::TRACED_AF_XDP` (0x10) -- flow eligible for AF_XDP redirect
 
 ---
 
