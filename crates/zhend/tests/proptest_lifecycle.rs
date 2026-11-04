@@ -6,7 +6,7 @@
 //! -> sediment L2->L3 -> retrieve from any tier. Uses proptest for exhaustive
 //! random exploration.
 //!
-//! GPL-3.0-only
+//! GPL-3.0-or-later
 
 use proptest::prelude::*;
 use tempfile::TempDir;

@@ -1,7 +1,7 @@
 # Security Policy — zhend
 
 **Crate**: zhend
-**License**: GPL-3.0-only
+**License**: GPL-3.0-or-later
 **Last reviewed**: 2026-03-28
 
 ## Security Posture

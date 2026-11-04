@@ -38,7 +38,7 @@
 //! └─────────────────────────────────────────┘
 //! ```
 //!
-//! GPL-3.0-only — The Library cannot be enclosed.
+//! GPL-3.0-or-later — The Library cannot be enclosed.
 
 pub mod api;
 pub mod crypto;

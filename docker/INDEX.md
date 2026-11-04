@@ -215,7 +215,7 @@ Example header pattern:
 ## Version Control
 
 All files are production-ready and include:
-- Proper licensing (MIT)
+- Proper licensing (GPL-3.0-or-later)
 - Version control comments
 - Build traceability (VERSION, COMMIT, BUILD_DATE)
 - Source URL references

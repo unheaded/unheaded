@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && useradd -u 10001 -g unheaded -s /sbin/nologin -r unheaded
 LABEL org.opencontainers.image.title="unheaded-lich" \
       org.opencontainers.image.description="Lich adversary scanner service" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="GPL-3.0-or-later"
 COPY --from=builder /out/lich /usr/local/bin/lich
 USER 10001:10001
 ENTRYPOINT ["/usr/local/bin/lich"]

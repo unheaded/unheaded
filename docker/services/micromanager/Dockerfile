@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 FROM gcr.io/distroless/static-debian12:nonroot
 LABEL org.opencontainers.image.title="unheaded-micromanager" \
       org.opencontainers.image.description="Micromanager service coordination service" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="GPL-3.0-or-later"
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /out/micromanager /usr/local/bin/micromanager
 USER nonroot:nonroot

@@ -2,7 +2,8 @@
 # Deploy on host-a alongside existing services
 # Usage: docker compose -f monitoring/docker-compose.yml up -d
 #
-# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
 
 version: "3.9"
 
