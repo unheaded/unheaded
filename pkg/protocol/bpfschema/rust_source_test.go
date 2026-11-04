@@ -351,6 +351,7 @@ var structParity = []struct {
 	{reflect.TypeOf(FlowState{}), "common/src/lib.rs", "FlowState"},
 	{reflect.TypeOf(FlowMigrationTokenValue{}), "flow-tracker/src/main.rs", "MigrationTokenValue"},
 	{reflect.TypeOf(FlowCancelValue{}), "flow-tracker/src/main.rs", "CancelFlowValue"},
+	{reflect.TypeOf(ComplianceAuditRecord{}), "compliance-ebpf/src/main.rs", "AuditRecord"},
 }
 
 // TestRustSourceStructParity compares size and every non-padding field
