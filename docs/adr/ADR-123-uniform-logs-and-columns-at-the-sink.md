@@ -2,12 +2,12 @@
 SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis.
 -->
-# ADR-123: Uniform log output, and log lines broken into columns at the sink
+# ADR-123: Uniform log output, columns at the sink, and watching the sink
 
 **Status:** Proposed (pitch, parked under ADR-112)
 **Date:** 2026-11-04
 **Grounded on:** develop `3295d8da`
-**Related:** ADR-117 (ClickHouse is the only log store), ADR-116 (monitor the monitors), ADR-092 (log shipping), S-LOG-HARVEST (D1, D5, `config/logging/sources.yaml`).
+**Related:** ADR-117 (ClickHouse is the only log store), ADR-116 (monitor the monitors; R3 is the independent judge), ADR-100 (dead-man's switch), ADR-092 (log shipping), S-LOG-HARVEST (D1, D5, `config/logging/sources.yaml`).
 
 ## The pitch
 
@@ -72,6 +72,23 @@ A log line is hostile input. sshd logs attacker-chosen usernames, and a line tha
 - The audit `retention` value depends on facility, not `level`, so retention does not move.
 - Moving emitters to the contract touches many services. It can go service by service, because unparsed lines still load.
 
+## Watching the sink
+
+Stevie, 2026-11-04: "we must monitor this log sink is working. Services should send a info level hello health check - if one is missing it should alarm/page/alert, that might be a service/application in itself that has a sql read only user and watches that the db is functioning as expected"
+
+**What exists.** `monitoring/prometheus/rules/logs.yml` has `JournalNotShipping`, `LogSilence` and `VectorDown`, and `config/logging/sources.yaml` gives each source a `max_silence`. Those judge from inside the stack, so they share its fate. ADR-116 R3 says absence must be judged by something that does not depend on what it watches. Nothing today reads ClickHouse and asks whether expected rows arrived, and `config/clickhouse/` defines no read-only user.
+
+**Direction.**
+
+1. **Hello.** Every service we write logs one `info` line on a fixed interval, with `event: "hello"` added to the contract. It takes the real path: stdout, journald, Vector, ClickHouse. A row in the table proves the whole pipe works, which a metrics scrape cannot.
+2. **A sink watcher.** A small service, on its own nologin account, with a read-only SQL user: `SELECT` on `unheaded_logs.logs` and nothing else, credentials in the environment and never in the repo. On a timer it compares the newest hello per unit with the expected list.
+3. **It watches the database too.** It checks that it can connect, that a query returns in a stated time, and that the newest row of any kind is fresh. A failed connection or query is an alarm, never a pass (ADR-100: missing is bad).
+4. **What a gap means.** One unit quiet: that service. Every unit on a host quiet: the host or its shipper. Every unit everywhere quiet: Vector or ClickHouse. The alert says which.
+5. **The alert path stays out of the sink.** It posts straight to alert-mailer, as east's heartbeat does on 19131, so a dead ClickHouse or Prometheus cannot silence it.
+6. **The watcher is watched.** It sends its own dead-man's heartbeat, so a dead watcher pages as well (ADR-100 §4, ADR-116 R3).
+
+**Security.** Match on `unit`, which journald sets, and never on the `service` key in the line, so a forged hello from another process proves nothing. The read-only user gets no access to `system` tables beyond what the checks need, and no `INSERT`, `ALTER` or `DROP`. `message` holds log text, so the watcher reports counts and ages, never line contents.
+
 ## Open questions
 
 1. Go: move `log/slog` and stdlib `log` callers onto `pkg/logger`, or settle on `slog` with one shared handler and retire `pkg/logger`?
@@ -80,10 +97,16 @@ A log line is hostile input. sshd logs attacker-chosen usernames, and a line tha
 4. `level` holds syslog names today (`err`, `crit`, ...). Keep those and map the contract onto them, or normalise everything to the contract's five?
 5. Which third-party formats first? Suggested order: nginx, Postgres, haproxy, Pi-hole.
 6. Should a CLI's human output follow the contract? Suggested answer: no, only long-running services. ADR-111 governs CLIs.
+7. Is the sink watcher its own binary, or a job inside ADR-116's warden? Suggested answer: inside the warden if that gets built, because ADR-115 wants fewer binaries; Stevie's note allows either.
+8. Hello interval and allowed misses: suggested 5 minutes and 3 missed before an alert. Should it page or only warn at first?
+9. Should the same watcher check the Well, with a read-only Postgres role? The note says "the db", and the Well's health matters more.
+10. Where does the expected list live: `config/logging/sources.yaml`, or ADR-116's `config/monitoring/expectations.yaml`? One list, not two.
+11. Timers and one-shot jobs do not run on an interval of their own. Do they send hello per run, or stay on `max_silence`?
 
 ## Unblocks and depends on
 
 - **Depends on:** the stack being up (E1, S-E1-LIVE), because nothing reaches ClickHouse until then; S-LOG-HARVEST's source inventory; ADR-117's single log store.
+- **The watcher depends on:** the log contract above, a ClickHouse read-only user, and alert-mailer's listener.
 - **Unblocks:** real error search and error-rate alerts; sorting by service across hosts; ADR-116's "every expected signal" checks on application errors; compliance evidence that can cite a level.
 - **Worth doing first:** the `level` fix alone (step 2 for services already on `pkg/logger`) is small and removes the worst defect.
 
