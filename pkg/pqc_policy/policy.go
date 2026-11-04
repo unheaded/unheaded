@@ -48,7 +48,7 @@ type AppPolicy struct {
 // DefaultAppPolicy returns a permissive default policy.
 func DefaultAppPolicy() AppPolicy {
 	return AppPolicy{
-		AllowedAlgos: []uint8{algoSLHDSA, algoMLDSA, algoFNDSA},
+		AllowedAlgos: []uint8{algoSLHDSA, algoMLDSA},
 		MinNISTLevel: NISTLevel1,
 		MaxKeyAgeSec: 86400, // 24 hours
 		RequirePQC:   false,

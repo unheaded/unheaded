@@ -69,11 +69,8 @@ func (s *wotanServer) readMock(req *pb.ReadRequest) (*pb.ReadResponse, error) {
 
 // readBPF reads from BPF pinned maps
 func (s *wotanServer) readBPF(req *pb.ReadRequest) (*pb.ReadResponse, error) {
-	// In a real implementation, this would:
-	// 1. Open the pinned BPF map at /sys/fs/bpf/unheaded/wotan/[flow_label]
-	// 2. Read the 40-byte value
-	// 3. Parse into MemorySlot proto
-	// 4. Return with found=true/false
+	// No eBPF program declares a per-flow memory-slot map, so there is
+	// nothing pinned to read.
 	return nil, errBPFNotImplemented("wotan read")
 }
 
@@ -126,12 +123,8 @@ func (s *wotanServer) writeMock(req *pb.WriteRequest) (*pb.WriteResponse, error)
 
 // writeBPF writes to BPF pinned maps
 func (s *wotanServer) writeBPF(req *pb.WriteRequest) (*pb.WriteResponse, error) {
-	// In a real implementation, this would:
-	// 1. Validate state_data length (32 bytes)
-	// 2. Pack into 40-byte structure (32 state + 8 sequence)
-	// 3. Open or create pinned BPF map at /sys/fs/bpf/unheaded/wotan/[flow_label]
-	// 4. Write with atomic guarantees
-	// 5. Return written_at timestamp
+	// No eBPF program declares a per-flow memory-slot map, and DP-211 covers
+	// map reads only.
 	return nil, errBPFNotImplemented("wotan write")
 }
 

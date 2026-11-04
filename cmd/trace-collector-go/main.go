@@ -814,7 +814,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 						iter := directLatencyMap.Iterate()
 						var key, value []byte
 						for iter.Next(&key, &value) {
-							lk, err := DecodeLatencyKey(key)
+							lk, err := DecodeLatencyTraceKey(key)
 							if err != nil {
 								continue
 							}

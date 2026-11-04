@@ -83,15 +83,15 @@ func FuzzDecodeFlowEvent(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b []byte) { _, _ = DecodeFlowEvent(b) })
 }
 
-func FuzzDecodeLatencyKey(f *testing.F) {
-	seedSizes(f, LatencyKeySize)
+func FuzzDecodeLatencyTraceKey(f *testing.F) {
+	seedSizes(f, LatencyTraceKeySize)
 	f.Fuzz(func(t *testing.T, b []byte) {
-		v, err := DecodeLatencyKey(b)
+		v, err := DecodeLatencyTraceKey(b)
 		if err != nil {
 			return
 		}
 		enc := v.Encode()
-		v2, err := DecodeLatencyKey(enc[:])
+		v2, err := DecodeLatencyTraceKey(enc[:])
 		if err != nil || !reflect.DeepEqual(v, v2) {
 			t.Fatalf("round trip: %+v -> %+v (%v)", v, v2, err)
 		}

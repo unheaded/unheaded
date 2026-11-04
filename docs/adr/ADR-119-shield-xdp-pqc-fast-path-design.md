@@ -422,6 +422,10 @@ and the replay gap is the threat the drafts care most about.
    200/5,000 requests per second: accept as defaults to tune from, or set them from a measurement
    first?
 
+## Note 2026-11-04 (DP-715, TRUE-WIRE L5)
+
+`cmd/pqc-verifier` was deleted with the other TRUE-WIRE defaults. D1's "revive" now means restoring it from git (last commit carrying it: the parent of the S-WIRE-HONEST deletion). Port 19008 stays reserved in `pkg/ports`; `services/shield` stays until TRUE-WIRE L6 is answered.
+
 ## Decision
 
 None yet. Parked under ADR-112. The 2026-10-28 removal stands; no map, feature, branch or code
