@@ -11,7 +11,7 @@ Generated from `ls docs` on 2026-10-27; one line per subdirectory.
 | Directory | Contents |
 |-----------|----------|
 | `adr/` | Architecture Decision Records; index `adr/ADR-INDEX.md` |
-| `architecture/` | Component architecture (AF_XDP, AI stack, Kingdom, Zhen, Fae chambers) |
+| `architecture/` | Component architecture (AI stack, Kingdom, Zhen, Fae chambers) |
 | `archive/` | Historical documents kept for reference, incl. `internal-2026/` (S-era battle plans and session logs) |
 | `bare-metal/` | West/east host boot sequences, WireGuard tunnel, bare-metal verdict |
 | `battle-plans/` | Sprint battle plans; current index `battle-plans/NEXT-7-SPRINTS-2026-10-27.md`; `progress/` logs |
@@ -25,7 +25,7 @@ Generated from `ls docs` on 2026-10-27; one line per subdirectory.
 | `doom/` | Doom-over-UPC docs, plus ASCEND-LINUX rung docs (ROAD_TO_LINUX, UCLINUX, FUZIX) |
 | `gamedays/` | Chaos game-day reports and template |
 | `history/` | Session handoffs from January 2026 |
-| `infrastructure/` | AF_XDP deployment, load balancers |
+| `infrastructure/` | Load balancers |
 | `labs/` | Kubernetes lab plan and sessions |
 | `launch/` | S37/S73 release checklist and readiness report (historical) |
 | `legal/` | IP inventory, IANA registration plan, IETF Note Well review, license docs |

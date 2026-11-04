@@ -1,5 +1,7 @@
 # Unheaded Kingdom — Docker Infrastructure
 
+> **2026-11-04 (S-CLEAN-CUT, DP-218, DP-713):** the per-host stacks `docker/hosts/` and the image `docker/vllm-rocm/` were retired. The deployment that works is the root `docker-compose.yml` with Cuirass. Sections below that still say Host-A, Host-B or vLLM are history until the docs sweep.
+
 SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
@@ -134,8 +136,6 @@ make build
 # Or build single service
 make build-svc SERVICE=monad
 
-# Build vLLM/ROCm image (GPU inference)
-make build-vllm
 ```
 
 **Build times:**
@@ -148,19 +148,14 @@ make build-vllm
 Copy `.env.shared` to both host directories:
 
 ```bash
-cp .env.shared hosts/host-a/.env.shared
-cp .env.shared hosts/host-b/.env.shared
 ```
 
 Edit host-specific overrides in:
-- `hosts/host-a/.env` (Forge configuration)
-- `hosts/host-b/.env` (Outpost configuration)
 
 ### 3. Deploy Host-A (Forge)
 
 ```bash
 # Start all 25 services
-make up-forge
 
 # Verify health
 make status
@@ -181,7 +176,6 @@ On Host-B system:
 
 ```bash
 # Start edge compute services
-make up-outpost
 
 # Verify WireGuard connection
 docker exec unheaded-wireguard wg show all peers
@@ -254,13 +248,10 @@ WG_SERVERURL=<host-a-ip-or-fqdn>  # For client configuration
 ```bash
 make build                          # Build all 25 services
 make build-svc SERVICE=monad        # Build single service
-make build-vllm                     # Build vLLM/ROCm image
 ```
 
 **Running:**
 ```bash
-make up-forge                       # Start Host-A
-make up-outpost                     # Start Host-B
 make down                           # Stop all services
 make status                         # Show container health
 make logs SERVICE=monad             # Follow service logs
@@ -409,7 +400,6 @@ environment:
 
 ```bash
 # Build vLLM image
-make build-vllm
 
 # Launch test container
 docker run --rm \
@@ -737,7 +727,6 @@ docker compose -f unheaded-compose-backup.yml up -d
 
 3. Add to Makefile SERVICES list
 
-4. Add to host compose files (`hosts/host-a/docker-compose.yml`)
 
 5. Build and test:
    ```bash

@@ -4,7 +4,7 @@
 //!
 //! Tests Ingest, Surface, and Status operations over QUIC streams
 //! using the binary wire protocol.
-//! GPL-3.0-only
+//! GPL-3.0-or-later
 
 use std::net::SocketAddr;
 use std::sync::Arc;

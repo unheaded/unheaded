@@ -141,94 +141,20 @@ in
           };
         };
 
-        # vLLM systemd service (DeepSeek-R1 7B)
-        systemd.services.vllm-deepseek = {
-          description = "vLLM Inference Server - DeepSeek-R1 7B";
-          after = [ "network.target" ];
-          wantedBy = [ "multi-user.target" ];
-
-          environment = {
-            VLLM_WORKER_MULTIPROC_METHOD = "spawn";
-            HIP_VISIBLE_DEVICES = "0";
-            ROCR_VISIBLE_DEVICES = "0";
-            TORCH_ALLOW_TF32 = "1";
-            VLLM_ATTENTION_BACKEND = "flashinfer";
-          };
-
-          serviceConfig = {
-            Type = "simple";
-            User = "root";
-            WorkingDirectory = "/var/lib/sophia-eye";
-            ExecStart = ''
-              ${pkgs.python3}/bin/python -m vllm.entrypoints.openai.api_server \
-                --model /data/models/deepseek-r1-7b \
-                --host 0.0.0.0 \
-                --port 8000 \
-                --max-model-len 32768 \
-                --gpu-memory-utilization 0.85 \
-                --max-num-seqs 256 \
-                --enable-prefix-caching \
-                --trust-remote-code \
-                --dtype float16
-            '';
-            Restart = "on-failure";
-            RestartSec = "10s";
-            StandardOutput = "journal";
-            StandardError = "journal";
-            TimeoutStartSec = "120s";
-          };
-        };
-
-        # vLLM systemd service (Qwen 2.5 Coder 7B)
-        systemd.services.vllm-qwen = {
-          description = "vLLM Inference Server - Qwen 2.5 Coder 7B";
-          after = [ "network.target" ];
-          wantedBy = [ "multi-user.target" ];
-
-          environment = {
-            VLLM_WORKER_MULTIPROC_METHOD = "spawn";
-            HIP_VISIBLE_DEVICES = "0";
-            ROCR_VISIBLE_DEVICES = "0";
-            TORCH_ALLOW_TF32 = "1";
-            VLLM_ATTENTION_BACKEND = "flashinfer";
-          };
-
-          serviceConfig = {
-            Type = "simple";
-            User = "root";
-            WorkingDirectory = "/var/lib/sophia-eye";
-            ExecStart = ''
-              ${pkgs.python3}/bin/python -m vllm.entrypoints.openai.api_server \
-                --model /data/models/qwen2.5-coder-7b \
-                --host 0.0.0.0 \
-                --port 8001 \
-                --max-model-len 16384 \
-                --gpu-memory-utilization 0.80 \
-                --max-num-seqs 128 \
-                --enable-prefix-caching \
-                --trust-remote-code \
-                --dtype float16
-            '';
-            Restart = "on-failure";
-            RestartSec = "10s";
-            StandardOutput = "journal";
-            StandardError = "journal";
-            TimeoutStartSec = "120s";
-          };
-        };
-
         # Sophia Gateway service
         systemd.services.sophia-gateway = {
           description = "Sophia's Eye Gateway - AI Service Integration";
-          after = [ "network.target" "vllm-deepseek.service" "vllm-qwen.service" "qdrant.service" ];
-          wants = [ "vllm-deepseek.service" "vllm-qwen.service" "qdrant.service" ];
+          after = [ "network.target" "qdrant.service" ];
+          wants = [ "qdrant.service" ];
           wantedBy = [ "multi-user.target" ];
 
           environment = {
             UNHEADED_PROTOCOL_API = "http://bare-metal:17100";
             WOTAN_ENDPOINT = "bare-metal:18001";
-            VLLM_ENDPOINT = "http://localhost:8000";
-            QWEN_ENDPOINT = "http://localhost:8001";
+            # Both names reach the one llama-server on the host (privateNetwork
+            # is false); sophia-gateway reads them, renaming is ADR-117's.
+            VLLM_ENDPOINT = "http://127.0.0.1:8081";
+            QWEN_ENDPOINT = "http://127.0.0.1:8081";
             QDRANT_ENDPOINT = "http://localhost:6333";
             EMBEDDINGS_ENDPOINT = "http://localhost:8002";
             SOPHIA_SERVICE_NAME = "sophia-eye";
@@ -303,16 +229,12 @@ in
         # Firewall rules for AI services
         networking.firewall.enable = true;
         networking.firewall.allowedTCPPorts = [
-          20100  # vLLM (DeepSeek)
-          20101  # vLLM (Qwen)
           20102  # Qdrant HTTP
           20103  # Qdrant gRPC
           20104  # BGE-M3 embeddings
           20105  # Sophia's Eye gateway
           6333   # Qdrant (internal)
           6334   # Qdrant gRPC (internal)
-          8000   # vLLM internal
-          8001   # vLLM internal (Qwen)
           8002   # Embeddings internal
           9090   # Prometheus metrics
         ];

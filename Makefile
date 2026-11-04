@@ -88,12 +88,6 @@ build-upc-bootctl: ## Build upc-bootctl (ASCEND-LINUX kernel image loader + boot
 	cd cmd/upc-bootctl && cargo build $(CARGO_BUILD_FLAGS)
 	cp cmd/upc-bootctl/target/release/upc-bootctl $(BINARY_DIR)/
 
-build-shield: ## Build shield (cmd/waf — WAF / Zero-Trust gateway)
-	@echo "Building shield (cmd/waf)..."
-	@mkdir -p $(BINARY_DIR)
-	cd cmd/waf && cargo build $(CARGO_BUILD_FLAGS)
-	cp cmd/waf/target/release/shield $(BINARY_DIR)/
-
 build-upc-tty-bridge: ## Build upc-tty-bridge (ASCEND-LINUX Mode A WebSocket xterm)
 	@echo "Building upc-tty-bridge..."
 	@mkdir -p $(BINARY_DIR)
@@ -184,13 +178,6 @@ build-gateway: ## Build Gateway (API Gateway)
 	@mkdir -p $(BINARY_DIR)
 	cd services/gateway/cmd && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../$(BINARY_DIR)/gateway
 
-build-trace-collector: ## Build trace-collector (Rust)
-	@echo "Building trace-collector (Rust)..."
-	@mkdir -p $(BINARY_DIR)
-	cd cmd/trace-collector && cargo build $(CARGO_BUILD_FLAGS)
-	cp cmd/trace-collector/target/release/trace-collector $(BINARY_DIR)/
-	@echo "✓ trace-collector built"
-
 ebpf: ## Build eBPF programs (Rust)
 	@echo "Building eBPF programs..."
 	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none
@@ -249,7 +236,7 @@ test-go: ## Run Go tests
 	@echo "Running Go tests..."
 	go test -v -race -cover ./...
 
-test-rust: test-rust-ebpf-common test-rust-ebpf-af-xdp test-rust-svc-token test-rust-trace-collector test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc test-rust-zhend test-rust-doom-runner test-rust-shield ## Run Rust tests across all host-runnable crates
+test-rust: test-rust-ebpf-common test-rust-svc-token test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc test-rust-zhend test-rust-doom-runner ## Run Rust tests across all host-runnable crates
 	@echo "✓ All Rust test suites passed"
 
 # ebpf/ workspace targets bpfel-unknown-none — `cd ebpf && cargo test` fails
@@ -259,22 +246,19 @@ test-rust: test-rust-ebpf-common test-rust-ebpf-af-xdp test-rust-svc-token test-
 # inheritance. Verified 2026-05-09 — discovered + fixed 2 real test failures
 # (mbc_mmap_screen_and_kbd_overlap, mem_write_event_size repr-C alignment).
 EBPF_HOST_TARGET_DIR := /tmp/unheaded-ebpf-host-test
-test-rust-ebpf-common: ## Run host-runnable tests in ebpf/{common,monad-common,pqc-common,af-xdp-common}
+test-rust-ebpf-common: ## Run host-runnable tests in ebpf/{common,monad-common,pqc-common}
 	@echo "Running ebpf/ host-runnable common-crate tests..."
 	@# Loop covers the [lib] crates that share types between userspace and
 	@# kernel. Excludes [[bin]] BPF programs (packet-marker, latency-probe,
 	@# etc.) — they define their own panic_impl for the BPF target which
 	@# collides with std on host.
-	@for crate in common monad-common pqc-common af-xdp-common; do \
+	@for crate in common monad-common pqc-common; do \
 		echo "  $$crate:"; \
 		CARGO_TARGET_DIR=$(EBPF_HOST_TARGET_DIR) cargo test --locked --quiet --manifest-path ebpf/$$crate/Cargo.toml || exit 1; \
 	done
 
 test-rust-svc-token: ## Run svc-token tests (EdDSA service tokens for the Rust Wotan clients, ADR-103)
 	cd crates/svc-token && cargo test --locked
-
-test-rust-trace-collector: ## Run trace-collector tests
-	cd cmd/trace-collector && cargo test --locked
 
 test-rust-upc-bootctl: ## Run upc-bootctl tests (ASCEND-LINUX)
 	cd cmd/upc-bootctl && cargo test --locked
@@ -290,12 +274,6 @@ test-rust-zhend: ## Run zhend tests (Layer 0 anti-fragile gossip substrate)
 
 test-rust-doom-runner: ## Run doom-runner tests (Aya BPF runtime for Doom-on-Monad)
 	cd crates/doom-runner && cargo test --locked
-
-test-rust-ebpf-af-xdp: ## Run ebpf/af-xdp tests (excluded crate with own host config)
-	cd ebpf/af-xdp && cargo test --locked
-
-test-rust-shield: ## Run shield (cmd/waf) WAF rule-engine tests
-	cd cmd/waf && cargo test --locked
 
 test-e2e: ## Run E2E integration tests (auth, pipeline, security, message delivery)
 	@echo "Running E2E integration tests..."
@@ -476,7 +454,6 @@ clean: ## Clean build artifacts
 	@echo "Cleaning build artifacts..."
 	rm -rf $(BINARY_DIR)
 	rm -rf $(EBPF_DIR)/target
-	rm -rf cmd/trace-collector/target
 	cd $(NIX_DIR) && rm -f result-*
 	rm -f e2e.test kanban-app kanban-app.test runtime.test cover.out
 	@echo "✓ Clean complete"
@@ -513,14 +490,12 @@ fmt: ## Format all code
 	go fmt ./...
 	@echo "Formatting Rust code..."
 	cd $(EBPF_DIR) && cargo fmt
-	cd cmd/trace-collector && cargo fmt
 
 lint: ## Lint all code
 	@echo "Linting Go code..."
 	golangci-lint run ./...
 	@echo "Linting Rust code..."
 	cd $(EBPF_DIR) && cargo clippy --locked
-	cd cmd/trace-collector && cargo clippy --locked
 	@echo "Checking haproxy configs..."
 	scripts/check-haproxy-cfg.sh
 
@@ -581,7 +556,6 @@ deps: ## Download dependencies
 	go mod download
 	@echo "Downloading Rust dependencies..."
 	cd $(EBPF_DIR) && cargo fetch
-	cd cmd/trace-collector && cargo fetch
 
 tidy: ## Tidy dependencies
 	go mod tidy

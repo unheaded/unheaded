@@ -10,7 +10,7 @@
 ## Files Created (This Session)
 
 ### Profiles (5 files)
-All profiles include SPDX MIT license headers and comprehensive comments.
+All profiles include SPDX GPL-3.0-or-later license headers and comprehensive comments.
 
 1. **`profiles/unheaded-base.yaml`**
    - Applied to ALL 25 containers
@@ -46,7 +46,7 @@ All profiles include SPDX MIT license headers and comprehensive comments.
    - Tier: "critical"
 
 ### Cloud-Init Templates (3 files)
-All cloud-init templates include SPDX MIT license headers.
+All cloud-init templates include SPDX GPL-3.0-or-later license headers.
 
 1. **`cloud-init/base.yaml`**
    - Applied to ALL containers
@@ -144,7 +144,6 @@ lxd/
 │   └── unheaded-bridge.yaml          # LXD bridge definition
 ├── storage/
 │   └── unheaded-ssd.yaml             # ZFS pool definition
-├── containers/                        # (Pre-existing)
 │   ├── shield.yaml
 │   ├── unheaded-daemon.yaml
 │   └── [other service definitions]
@@ -270,7 +269,6 @@ All YAML files include:
 ## Notes for Integration
 
 ### With Existing Files
-- `containers/*.yaml` — Service-specific overrides (pre-existing, not modified)
 - `hosts/host-a/` — Host initialization scripts (pre-existing)
 - `hosts/host-b/` — WireGuard bridging setup (pre-existing)
 

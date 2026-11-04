@@ -29,18 +29,6 @@ scrape_configs:
     static_configs:
       - targets: ['sophia-gateway:9090']
 
-  # vLLM's OpenAI-compatible server exposes /metrics on its serving port.
-  # Both model servers listen on 8000 inside their containers; they differ only
-  # in the host port they publish (20100 / 20101).
-  - job_name: vllm
-    static_configs:
-      - targets: ['vllm:8000']
-        labels:
-          model_role: general
-      - targets: ['qwen-coder:8000']
-        labels:
-          model_role: coder
-
   # Qdrant's /metrics is behind its API key (401 without it); compose hands
   # the key to this container as the qdrant_api_key secret.
   - job_name: qdrant

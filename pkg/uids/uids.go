@@ -166,8 +166,8 @@ const (
 	WireGuard = 16783
 	Traefik   = 16784
 	CoreDNS   = 16785
-	// deploy/sophia-eye: the second vLLM server, and the RAG stack around it.
-	QwenCoder  = 16786
+	// 16786 retired: qwen-coder, removed 2026-11-04 (DP-713). Not reused.
+	// deploy/sophia-eye: the RAG stack.
 	Qdrant     = 16787
 	Embeddings = 16788 // text-embeddings-inference
 	OpenWebUI  = 16789
@@ -257,7 +257,6 @@ var Registry = map[string]int{
 	"wireguard":         WireGuard,
 	"traefik":           Traefik,
 	"coredns":           CoreDNS,
-	"qwen-coder":        QwenCoder,
 	"qdrant":            Qdrant,
 	"embeddings":        Embeddings,
 	"open-webui":        OpenWebUI,

@@ -324,6 +324,7 @@ def index_documents(config: dict, source_dir: str, collection_name: str,
 
     # Import heavy dependencies only when needed
     import chromadb
+    from chromadb.errors import NotFoundError
     from sentence_transformers import SentenceTransformer
 
     # --- Load embedding model ---
@@ -334,7 +335,7 @@ def index_documents(config: dict, source_dir: str, collection_name: str,
 
     logger.info("Loading embedding model: %s (device: %s)", model_name, device)
     model = SentenceTransformer(model_name, device=device)
-    logger.info("Embedding model loaded (dimension: %d)", model.get_sentence_embedding_dimension())
+    logger.info("Embedding model loaded (dimension: %d)", model.get_embedding_dimension())
 
     # --- Initialize ChromaDB ---
     chroma_config = config["chromadb"]
@@ -348,7 +349,7 @@ def index_documents(config: dict, source_dir: str, collection_name: str,
     try:
         client.delete_collection(name=collection_name)
         logger.info("Deleted existing collection: %s", collection_name)
-    except ValueError:
+    except NotFoundError:
         pass
 
     distance_fn = chroma_config.get("distance_function", "cosine")
@@ -461,7 +462,7 @@ def index_documents(config: dict, source_dir: str, collection_name: str,
     logger.info("  Collection:    %s", collection_name)
     logger.info("  Documents:     %d", len(raw_documents))
     logger.info("  Chunks:        %d", len(all_chunks))
-    logger.info("  Embedding dim: %d", model.get_sentence_embedding_dimension())
+    logger.info("  Embedding dim: %d", model.get_embedding_dimension())
     logger.info("  Persist dir:   %s", persist_dir)
     logger.info("="*60)
 

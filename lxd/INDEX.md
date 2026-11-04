@@ -54,7 +54,6 @@ lxd/
 ├── storage/
 │   └── unheaded-ssd.yaml        ← ZFS storage pool
 │
-├── containers/                  ← (Pre-existing)
 ├── hosts/                       ← (Pre-existing)
 └── ...
 ```
@@ -430,7 +429,7 @@ lxc exec vllm-deepseek -- rocminfo | grep gfx1101
 
 ## License & Attribution
 
-**SPDX-License-Identifier:** MIT  
+**SPDX-License-Identifier:** GPL-3.0-or-later  
 **Copyright:** (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 All files in `/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/lxd/` include proper SPDX headers and attribution.

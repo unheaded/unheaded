@@ -21,8 +21,9 @@
 // Events from all three programs are read, cross-correlated, and published
 // to Wotan topics for the dashboard and alerting pipeline.
 //
-// This is the Go rewrite of cmd/trace-collector (Rust), using the shared
-// pkg/ebpf infrastructure for ring buffer reading and event decoding.
+// The canonical collector (the Rust one was retired 2026-11-04, DP-210). It
+// uses the shared pkg/ebpf infrastructure for ring buffer reading and event
+// decoding.
 //
 // Per RFC 9669: we use "BPF" (not "eBPF") throughout.
 package main

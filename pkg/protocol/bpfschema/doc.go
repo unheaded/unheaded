@@ -15,9 +15,8 @@
 // make a mismatch pass.
 //
 // Map-name constants hold the names Aya gives the maps (the #[map] static
-// identifier unless #[map(name = "...")] overrides it). A few key/value
-// types (RingPath*, SophiaSync*, TLVHandlerEntry, PrefetchHint*) are design
-// placeholders with no Rust map yet and carry no map-name constant.
+// identifier unless #[map(name = "...")] overrides it). A type with no Rust
+// map does not live here: the placeholders were deleted 2026-11-04 (DP-407).
 //
 // Multi-byte fields of the Monad and Anamnesis event are big-endian
 // (network byte order) per RFC 8200; values a BPF program writes from a

@@ -12,8 +12,8 @@
 # cross-checked against the release notes), never from a mirror.
 # shellcheck disable=SC2034  # read by the scripts that source this
 
-OXLINT_VERSION="1.89.0"
-OXLINT_SHA256="eaccbadd29973d37cedc95ec1f6e889fdae13c694e1cef4b6cbfcfe1c650e7b8" # oxlint-x86_64-unknown-linux-musl.tar.gz
+OXLINT_VERSION="1.90.0"
+OXLINT_SHA256="70c5c44f0738b5d6a8716058e82aceff40524b476a6f533f9a94887352cb8f30" # oxlint-x86_64-unknown-linux-musl.tar.gz
 
 GITLEAKS_VERSION="8.30.1"
 GITLEAKS_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb" # gitleaks_<v>_linux_x64.tar.gz

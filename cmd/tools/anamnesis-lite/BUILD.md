@@ -6,11 +6,9 @@
 # from repo root
 go build -o bin/trace-collector-go ./cmd/trace-collector-go/
 go build -o bin/dashboard-backend  ./cmd/dashboard-backend/
-go build -o bin/ebpf-exporter      ./cmd/ebpf-exporter/
 
 ./bin/trace-collector-go -help   # verify
 ./bin/dashboard-backend -help
-./bin/ebpf-exporter -help
 ```
 
 The Go side is the consumer of the eBPF ring buffers. It runs without the
@@ -50,7 +48,6 @@ sudo bpftool prog show
     --version "$(git rev-parse --short HEAD)" \
     --include "bin/trace-collector-go" \
     --include "bin/dashboard-backend" \
-    --include "bin/ebpf-exporter" \
     --include "ebpf/target/bpfel-unknown-none/release/packet-marker" \
     --include "ebpf/target/bpfel-unknown-none/release/flow-tracker" \
     --include "ebpf/target/bpfel-unknown-none/release/latency-probe" \
@@ -79,7 +76,7 @@ tail -f /var/log/anamnesis/trace-collector.log
 ## Verification this BUILD.md is current
 
 ```bash
-for tgt in trace-collector-go dashboard-backend ebpf-exporter; do
+for tgt in trace-collector-go dashboard-backend; do
     go build -o /tmp/al-build-test ./cmd/$tgt/ && rm /tmp/al-build-test
 done
 # Result: zero output, exit 0. If any fail, BUILD.md is stale.

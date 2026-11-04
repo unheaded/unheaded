@@ -5,29 +5,34 @@
   "name": "unheaded-rust-dependencies",
   "documentNamespace": "https://github.com/unheaded/unheaded/sbom/rust",
   "creationInfo": {
-    "created": "2026-03-15T00:00:00Z",
+    "created": "2026-11-04T00:00:00Z",
     "creators": [
       "Tool: cargo-lock-parser",
       "Organization: Unheaded"
     ]
   },
   "summary": {
-    "totalExternalCrates": 346,
+    "totalExternalCrates": 364,
     "workspaceCrates": [
-      "af-xdp",
-      "af-xdp-common",
       "anomaly-ebpf",
+      "aws-lc-rs",
       "canary-ebpf",
+      "cartridge-ebpf",
       "collector",
       "compliance-ebpf",
+      "doom-runner",
       "ebpf-common",
+      "ebpf-load-check",
       "ebpf-loader",
       "ebpf-programs",
       "failover-ebpf",
       "firewall-ebpf",
       "flow-tracker",
+      "heimdall-bpf",
       "hop-ebpf",
       "latency-probe",
+      "lich-fuzz",
+      "lich015-diff-harness",
       "maglev-ebpf",
       "monad-common",
       "monad-cpu-ebpf",
@@ -36,31 +41,54 @@
       "nfv-ebpf",
       "packet-marker",
       "pqc-common",
+      "pqcrypto-mlkem",
       "qos-ebpf",
+      "ring",
+      "rustls",
       "shield-ebpf",
       "syscall-tracer",
-      "trace-collector",
       "unheaded-common",
+      "unheaded-svc-token",
+      "upc-api",
+      "upc-api-fuzz",
+      "upc-bootctl",
+      "upc-bootstub",
+      "upc-cartridge",
       "version-ebpf",
-      "xdp-redirect",
-      "yaldabaoth-ebpf"
+      "xv6-mbc",
+      "yaldabaoth-ebpf",
+      "zhenai-forge",
+      "zhend"
     ],
     "licenseSummary": {
-      "MIT OR Apache-2.0 (assumed)": 231,
-      "MIT OR Apache-2.0": 79,
-      "MIT": 27,
-      "Apache-2.0": 8,
+      "MIT OR Apache-2.0 (assumed)": 274,
+      "MIT OR Apache-2.0": 64,
+      "MIT": 21,
+      "Apache-2.0": 4,
       "Unlicense OR MIT": 1
     },
     "lockFiles": [
+      "cmd/crypto-inventory/testdata/rust/Cargo.lock",
       "cmd/ebpf-collector/Cargo.lock",
       "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+      "cmd/ebpf-load-check/Cargo.lock",
       "cmd/ebpf-loader/Cargo.lock",
-      "cmd/trace-collector/Cargo.lock",
+      "cmd/upc-bootctl/Cargo.lock",
+      "crates/doom-runner/Cargo.lock",
+      "crates/heimdall-bpf/Cargo.lock",
+      "crates/lich-fuzz/Cargo.lock",
       "crates/monad-mbc/Cargo.lock",
       "crates/monad-mbc/fuzz/Cargo.lock",
+      "crates/svc-token/Cargo.lock",
+      "crates/upc-api/Cargo.lock",
+      "crates/upc-api/fuzz/Cargo.lock",
+      "crates/upc-bootstub/Cargo.lock",
+      "crates/upc-cartridge/Cargo.lock",
+      "crates/xv6-mbc/Cargo.lock",
+      "crates/zhenai-forge/Cargo.lock",
+      "crates/zhend/Cargo.lock",
       "ebpf/Cargo.lock",
-      "ebpf/af-xdp/Cargo.lock"
+      "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
     ]
   },
   "packages": [
@@ -69,18 +97,42 @@
       "version": "2.0.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aead",
+      "version": "0.5.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aes",
+      "version": "0.8.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aes-gcm",
+      "version": "0.10.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "aho-corasick",
-      "version": "1.1.4",
+      "version": "1.1.5",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -89,37 +141,62 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "android_system_properties",
+      "version": "0.1.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "anes",
+      "version": "0.1.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "anstream",
-      "version": "0.6.21",
+      "version": "1.0.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "anstyle",
-      "version": "1.0.13",
+      "version": "1.0.14",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "anstyle-parse",
-      "version": "0.2.7",
+      "version": "1.0.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -129,7 +206,9 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -139,27 +218,42 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "anyhow",
-      "version": "1.0.101",
+      "version": "1.0.104",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
       "crate": "arbitrary",
-      "version": "1.4.2",
+      "version": "1.5.0",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-api/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "arrayvec",
+      "version": "0.7.8",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -168,7 +262,10 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
@@ -177,7 +274,7 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -186,16 +283,17 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "async-trait",
-      "version": "0.1.89",
+      "version": "0.1.92",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -204,16 +302,33 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "autocfg",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aws-lc-rs",
+      "version": "1.18.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aws-lc-sys",
+      "version": "0.46.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -221,15 +336,9 @@
       "version": "0.7.9",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "axum",
-      "version": "0.6.20",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -237,15 +346,9 @@
       "version": "0.4.5",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "axum-core",
-      "version": "0.3.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -254,7 +357,10 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
@@ -263,6 +369,7 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
@@ -272,6 +379,7 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
@@ -281,6 +389,7 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
@@ -290,6 +399,7 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
@@ -299,51 +409,7 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "ebpf/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "aya-log",
-      "version": "0.2.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "aya-log-common",
-      "version": "0.1.15",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "ebpf/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "aya-log-ebpf",
-      "version": "0.1.0",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "ebpf/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "aya-log-ebpf-macros",
-      "version": "0.1.0",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "ebpf/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "aya-log-parser",
-      "version": "0.1.13",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
@@ -353,7 +419,10 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
@@ -361,32 +430,50 @@
       "version": "0.22.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "base64",
-      "version": "0.21.7",
+      "version": "0.23.1",
       "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "bitflags",
-      "version": "2.11.0",
-      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
     },
     {
-      "crate": "bitflags",
-      "version": "2.10.0",
-      "license": "MIT OR Apache-2.0",
+      "crate": "bincode",
+      "version": "2.0.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "bincode_derive",
+      "version": "2.0.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "bit-set",
+      "version": "0.11.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "bit-vec",
+      "version": "0.10.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -394,7 +481,31 @@
       "version": "1.3.2",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "bitflags",
+      "version": "2.13.2",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "blake3",
+      "version": "1.8.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -402,7 +513,11 @@
       "version": "0.10.4",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -414,38 +529,68 @@
       ]
     },
     {
+      "crate": "borsh",
+      "version": "1.8.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "borsh-derive",
+      "version": "1.8.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "bumpalo",
+      "version": "3.20.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
       "crate": "byteorder",
       "version": "1.5.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "bytes",
-      "version": "1.11.1",
+      "version": "1.12.1",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "camino",
-      "version": "1.2.2",
+      "version": "1.2.6",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
       "crate": "cargo-platform",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
@@ -455,114 +600,188 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
-      "crate": "cc",
-      "version": "1.2.56",
-      "license": "MIT OR Apache-2.0",
+      "crate": "cast",
+      "version": "0.3.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "cc",
-      "version": "1.2.55",
+      "version": "1.9.0",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cc",
+      "version": "1.10.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/upc-api/fuzz/Cargo.lock"
       ]
     },
     {
       "crate": "cfg-if",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/upc-api/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "cfg_aliases",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-loader/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "chacha20",
+      "version": "0.10.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "chrono",
+      "version": "0.4.45",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ciborium",
+      "version": "0.2.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ciborium-io",
+      "version": "0.2.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ciborium-ll",
+      "version": "0.2.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cipher",
+      "version": "0.4.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "clap",
-      "version": "4.5.59",
+      "version": "4.6.7",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "clap",
-      "version": "4.5.57",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "clap_builder",
-      "version": "4.5.59",
+      "version": "4.6.7",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "clap_builder",
-      "version": "4.5.57",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "clap_derive",
-      "version": "4.5.55",
+      "version": "4.6.7",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "clap_lex",
-      "version": "1.0.0",
+      "version": "1.1.1",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "clap_lex",
-      "version": "0.7.7",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cmake",
+      "version": "0.1.58",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "colorchoice",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "constant_time_eq",
+      "version": "0.4.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -571,7 +790,26 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "core-foundation-sys",
+      "version": "0.8.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "core_detect",
+      "version": "1.0.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -579,65 +817,81 @@
       "version": "0.2.17",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cpufeatures",
+      "version": "0.3.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "crc32fast",
-      "version": "1.5.0",
+      "version": "1.5.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "crossbeam",
-      "version": "0.8.4",
+      "crate": "criterion",
+      "version": "0.5.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "crossbeam-channel",
-      "version": "0.5.15",
-      "license": "MIT OR Apache-2.0",
+      "crate": "criterion-plot",
+      "version": "0.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "crossbeam-deque",
-      "version": "0.8.6",
+      "version": "0.8.8",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "crossbeam-epoch",
-      "version": "0.9.18",
+      "version": "0.9.21",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "crossbeam-queue",
-      "version": "0.3.12",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "crossbeam-utils",
-      "version": "0.8.21",
+      "version": "0.8.23",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "crunchy",
+      "version": "0.2.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -645,23 +899,86 @@
       "version": "0.1.7",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ctr",
+      "version": "0.9.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "ctrlc",
-      "version": "3.5.1",
+      "version": "3.5.2",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock"
       ]
     },
     {
-      "crate": "data-encoding",
-      "version": "2.10.0",
+      "crate": "curve25519-dalek",
+      "version": "4.1.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "curve25519-dalek-derive",
+      "version": "0.1.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "data-encoding",
+      "version": "2.11.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/doom-runner/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "defmt",
+      "version": "1.2.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "defmt-macros",
+      "version": "1.2.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "defmt-parser",
+      "version": "1.1.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "derive_arbitrary",
+      "version": "1.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/lich-fuzz/Cargo.lock"
       ]
     },
     {
@@ -669,75 +986,67 @@
       "version": "0.10.7",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "dispatch2",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock"
       ]
     },
     {
-      "crate": "displaydoc",
-      "version": "0.2.5",
+      "crate": "dunce",
+      "version": "1.0.5",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "either",
-      "version": "1.15.0",
+      "version": "1.19.0",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "env_filter",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "env_filter",
-      "version": "0.1.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
       ]
     },
     {
       "crate": "env_logger",
-      "version": "0.11.9",
+      "version": "0.11.11",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "env_logger",
-      "version": "0.11.8",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
       ]
     },
     {
       "crate": "equivalent",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -746,26 +1055,49 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "fastbloom",
+      "version": "0.17.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "fastrand",
-      "version": "2.3.0",
+      "version": "2.5.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "fiat-crypto",
+      "version": "0.2.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "find-msvc-tools",
-      "version": "0.1.9",
+      "version": "0.1.15",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/upc-api/fuzz/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -773,24 +1105,16 @@
       "version": "0.5.7",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "fixedbitset",
-      "version": "0.4.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "flate2",
-      "version": "1.1.9",
+      "version": "1.1.10",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock"
       ]
     },
     {
@@ -799,7 +1123,7 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -808,7 +1132,18 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "foldhash",
+      "version": "0.2.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -816,96 +1151,88 @@
       "version": "1.2.2",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
+        "crates/doom-runner/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "fs2",
+      "version": "0.4.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "fs_extra",
+      "version": "1.3.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-channel",
+      "version": "0.3.34",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "futures-channel",
-      "version": "0.3.32",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "futures-channel",
-      "version": "0.3.31",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "futures-core",
-      "version": "0.3.32",
+      "version": "0.3.34",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "futures-core",
-      "version": "0.3.31",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "futures-macro",
-      "version": "0.3.31",
+      "version": "0.3.34",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
       "crate": "futures-sink",
-      "version": "0.3.32",
+      "version": "0.3.34",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "futures-sink",
-      "version": "0.3.31",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "futures-task",
-      "version": "0.3.32",
+      "version": "0.3.34",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "futures-task",
-      "version": "0.3.31",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "futures-util",
-      "version": "0.3.32",
+      "version": "0.3.34",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "futures-util",
-      "version": "0.3.31",
+      "crate": "fxhash",
+      "version": "0.2.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -913,7 +1240,11 @@
       "version": "0.14.7",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -922,15 +1253,22 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "getrandom",
-      "version": "0.4.1",
+      "version": "0.4.3",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-api/fuzz/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -938,8 +1276,23 @@
       "version": "0.3.4",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ghash",
+      "version": "0.5.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "glob",
+      "version": "0.3.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -947,24 +1300,38 @@
       "version": "0.8.2",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
+        "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "goblin",
+      "version": "0.9.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
       "crate": "h2",
-      "version": "0.4.13",
+      "version": "0.4.20",
       "license": "MIT",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "h2",
-      "version": "0.3.27",
-      "license": "MIT",
+      "crate": "half",
+      "version": "2.7.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -973,7 +1340,7 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -982,17 +1349,23 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
       "crate": "hashbrown",
-      "version": "0.16.1",
+      "version": "0.17.1",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1002,58 +1375,71 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "hostname",
-      "version": "0.3.1",
+      "crate": "hermit-abi",
+      "version": "0.5.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hex",
+      "version": "0.4.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hkdf",
+      "version": "0.12.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hmac",
+      "version": "0.12.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "http",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "http",
-      "version": "0.2.12",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "http-body",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "http-body",
-      "version": "0.4.6",
-      "license": "MIT",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "http-body-util",
-      "version": "0.1.3",
+      "version": "0.1.5",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1062,7 +1448,8 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1071,24 +1458,18 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "hyper",
-      "version": "1.8.1",
+      "version": "1.12.0",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "hyper",
-      "version": "0.14.32",
-      "license": "MIT",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1096,113 +1477,34 @@
       "version": "0.5.2",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "hyper-timeout",
-      "version": "0.4.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "hyper-util",
-      "version": "0.1.20",
+      "version": "0.1.21",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "icu_collections",
-      "version": "2.1.1",
+      "crate": "iana-time-zone",
+      "version": "0.1.65",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "icu_locale_core",
-      "version": "2.1.1",
+      "crate": "iana-time-zone-haiku",
+      "version": "0.1.2",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "icu_normalizer",
-      "version": "2.1.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "icu_normalizer_data",
-      "version": "2.1.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "icu_properties",
-      "version": "2.1.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "icu_properties_data",
-      "version": "2.1.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "icu_provider",
-      "version": "2.1.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "id-arena",
-      "version": "2.3.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "idna",
-      "version": "1.1.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "idna_adapter",
-      "version": "1.2.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1211,17 +1513,44 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "indexmap",
-      "version": "2.13.0",
+      "version": "2.14.2",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "inout",
+      "version": "0.1.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "instant",
+      "version": "0.1.13",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "is-terminal",
+      "version": "0.4.17",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1231,7 +1560,9 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1239,133 +1570,133 @@
       "version": "0.14.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "itertools",
-      "version": "0.12.1",
+      "version": "0.10.5",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "itoa",
-      "version": "1.0.17",
+      "version": "1.0.18",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
       "crate": "jiff",
-      "version": "0.2.20",
+      "version": "0.2.38",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
       ]
     },
     {
-      "crate": "jiff",
-      "version": "0.2.19",
+      "crate": "jiff-core",
+      "version": "0.1.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
       ]
     },
     {
       "crate": "jiff-static",
-      "version": "0.2.20",
+      "version": "0.2.38",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "jiff-static",
-      "version": "0.2.19",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
       ]
     },
     {
       "crate": "jobserver",
-      "version": "0.1.34",
+      "version": "0.1.35",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-api/fuzz/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "js-sys",
+      "version": "0.3.106",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "lazy_static",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "leb128fmt",
-      "version": "0.1.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "libc",
-      "version": "0.2.182",
+      "version": "0.2.191",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "libc",
-      "version": "0.2.181",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/ebpf-loader/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "libc",
-      "version": "0.2.180",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/upc-api/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "libfuzzer-sys",
-      "version": "0.4.12",
+      "version": "0.4.13",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-api/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "libm",
+      "version": "0.2.16",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "linux-raw-sys",
-      "version": "0.11.0",
+      "version": "0.12.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "litemap",
-      "version": "0.8.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1374,27 +1705,34 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "log",
-      "version": "0.4.29",
+      "version": "0.4.34",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "crates/zhend/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
       ]
     },
     {
-      "crate": "match_cfg",
-      "version": "0.1.0",
+      "crate": "lru-slab",
+      "version": "0.1.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1402,7 +1740,8 @@
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1411,27 +1750,33 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "memchr",
-      "version": "2.8.0",
+      "version": "2.8.3",
       "license": "Unlicense OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
       "crate": "memmap2",
-      "version": "0.9.9",
+      "version": "0.9.11",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhenai-forge/Cargo.lock"
       ]
     },
     {
@@ -1440,25 +1785,27 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "miniz_oxide",
-      "version": "0.8.9",
+      "version": "0.9.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock"
       ]
     },
     {
       "crate": "mio",
-      "version": "1.1.1",
+      "version": "1.2.4",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1467,23 +1814,15 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "nix",
-      "version": "0.30.1",
+      "version": "0.31.3",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "nix",
-      "version": "0.27.1",
-      "license": "MIT",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
       ]
     },
     {
@@ -1491,32 +1830,21 @@
       "version": "0.50.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "num_enum",
-      "version": "0.7.5",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "ebpf/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "num_enum_derive",
-      "version": "0.7.5",
+      "crate": "num-traits",
+      "version": "0.2.19",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "ebpf/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "objc2",
-      "version": "0.6.3",
+      "version": "0.6.5",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock"
@@ -1536,17 +1864,24 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
       "crate": "once_cell",
-      "version": "1.21.3",
+      "version": "1.21.4",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1556,7 +1891,25 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "oorandom",
+      "version": "11.1.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "opaque-debug",
+      "version": "0.3.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1565,7 +1918,16 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "parking_lot",
+      "version": "0.11.2",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1574,7 +1936,24 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "parking_lot_core",
+      "version": "0.8.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "paste",
+      "version": "1.0.15",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1583,7 +1962,8 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1591,51 +1971,45 @@
       "version": "0.7.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "petgraph",
-      "version": "0.6.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "pin-project",
-      "version": "1.1.10",
+      "version": "1.1.13",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "pin-project-internal",
-      "version": "1.1.10",
+      "version": "1.1.13",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "pin-project-lite",
-      "version": "0.2.16",
+      "version": "0.2.17",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "pin-utils",
-      "version": "0.1.0",
+      "crate": "pkg-config",
+      "version": "0.3.34",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1643,35 +2017,64 @@
       "version": "0.2.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "plotters",
+      "version": "0.3.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "plotters-backend",
+      "version": "0.3.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "plotters-svg",
+      "version": "0.3.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "polyval",
+      "version": "0.6.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "portable-atomic",
-      "version": "1.13.1",
+      "version": "1.15.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-loader/Cargo.lock"
+        "cmd/ebpf-loader/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "portable-atomic-util",
-      "version": "0.2.5",
+      "version": "0.2.8",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "potential_utf",
-      "version": "0.1.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
       ]
     },
     {
@@ -1680,7 +2083,40 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "pqcrypto-internals",
+      "version": "0.2.11",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "pqcrypto-mldsa",
+      "version": "0.1.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "pqcrypto-mlkem",
+      "version": "0.1.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "pqcrypto-traits",
+      "version": "0.3.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1689,21 +2125,38 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "proc-macro-crate",
+      "version": "3.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "proc-macro2",
-      "version": "1.0.106",
+      "version": "1.0.107",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
-        "ebpf/Cargo.lock"
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
+        "ebpf/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
       ]
     },
     {
@@ -1712,15 +2165,16 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
-      "crate": "prometheus",
-      "version": "0.13.4",
+      "crate": "proptest",
+      "version": "1.12.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1728,15 +2182,8 @@
       "version": "0.13.5",
       "license": "Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "prost",
-      "version": "0.12.6",
-      "license": "Apache-2.0",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1744,15 +2191,8 @@
       "version": "0.13.5",
       "license": "Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "prost-build",
-      "version": "0.12.6",
-      "license": "Apache-2.0",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1760,15 +2200,8 @@
       "version": "0.13.5",
       "license": "Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "prost-derive",
-      "version": "0.12.6",
-      "license": "Apache-2.0",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1776,37 +2209,76 @@
       "version": "0.13.5",
       "license": "Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "prost-types",
-      "version": "0.12.6",
-      "license": "Apache-2.0",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "protobuf",
-      "version": "2.28.0",
+      "crate": "quick-error",
+      "version": "1.2.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "quinn",
+      "version": "0.11.12",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "quinn-proto",
+      "version": "0.11.19",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "quinn-udp",
+      "version": "0.5.16",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "quote",
-      "version": "1.0.44",
+      "version": "1.0.47",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
-        "ebpf/Cargo.lock"
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
+        "ebpf/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "r-efi",
+      "version": "6.0.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-api/fuzz/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1814,18 +2286,25 @@
       "version": "5.3.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "rand",
-      "version": "0.8.5",
+      "version": "0.8.8",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rand",
+      "version": "0.10.3",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1834,7 +2313,8 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1843,7 +2323,48 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rand_core",
+      "version": "0.10.1",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rand_pcg",
+      "version": "0.10.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rand_xorshift",
+      "version": "0.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rayon",
+      "version": "1.12.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rayon-core",
+      "version": "1.13.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1852,37 +2373,48 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "redox_syscall",
+      "version": "0.2.16",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "regex",
-      "version": "1.12.3",
+      "version": "1.13.1",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "regex-automata",
-      "version": "0.4.14",
+      "version": "0.4.18",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "regex-syntax",
-      "version": "0.8.9",
+      "version": "0.8.11",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1891,75 +2423,98 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustc-hash",
+      "version": "2.1.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustc_version",
+      "version": "0.4.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "rustix",
-      "version": "1.1.3",
+      "version": "1.1.5",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "rustls",
-      "version": "0.23.36",
+      "version": "0.23.46",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "rustls",
-      "version": "0.21.12",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "rustls-pemfile",
-      "version": "1.0.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "rustls-pki-types",
-      "version": "1.14.0",
+      "version": "1.15.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "rustls-webpki",
-      "version": "0.103.9",
+      "version": "0.103.16",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "rustls-webpki",
-      "version": "0.101.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "rustversion",
-      "version": "1.0.22",
+      "version": "1.0.23",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rusty-fork",
+      "version": "0.3.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ryu",
+      "version": "1.0.23",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/doom-runner/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "same-file",
+      "version": "1.0.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1968,7 +2523,8 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -1976,8 +2532,13 @@
       "version": "0.12.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
       ]
     },
     {
@@ -1985,88 +2546,121 @@
       "version": "0.12.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "sct",
-      "version": "0.7.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
       ]
     },
     {
       "crate": "semver",
-      "version": "1.0.27",
+      "version": "1.0.28",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
       "crate": "serde",
-      "version": "1.0.228",
+      "version": "1.0.229",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
       "crate": "serde_core",
-      "version": "1.0.228",
+      "version": "1.0.229",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
       "crate": "serde_derive",
-      "version": "1.0.228",
+      "version": "1.0.229",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
       "crate": "serde_json",
-      "version": "1.0.149",
+      "version": "1.0.154",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
-      "crate": "serde_spanned",
-      "version": "0.6.9",
+      "crate": "serde_path_to_error",
+      "version": "0.1.20",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "serde_urlencoded",
+      "version": "0.7.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
       "crate": "sha1",
-      "version": "0.10.6",
+      "version": "0.10.7",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "sha2",
+      "version": "0.10.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2074,17 +2668,21 @@
       "version": "0.1.7",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "shlex",
-      "version": "1.3.0",
+      "version": "2.0.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/upc-api/fuzz/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2093,16 +2691,25 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "simd-adler32",
-      "version": "0.3.8",
+      "version": "0.3.10",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "siphasher",
+      "version": "1.0.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2111,16 +2718,26 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "sled",
+      "version": "0.34.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "smallvec",
-      "version": "1.15.1",
+      "version": "1.16.3",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2129,25 +2746,17 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "socket2",
-      "version": "0.6.2",
+      "version": "0.6.5",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "stable_deref_trait",
-      "version": "1.2.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2157,7 +2766,9 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2165,35 +2776,47 @@
       "version": "2.6.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "syn",
-      "version": "2.0.116",
+      "version": "2.0.119",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "crates/monad-mbc/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "syn",
-      "version": "2.0.114",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
-        "ebpf/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
+        "ebpf/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
       ]
     },
     {
       "crate": "syn",
-      "version": "2.0.117",
+      "version": "3.0.9",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/lich-fuzz/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
+        "ebpf/Cargo.lock"
       ]
     },
     {
@@ -2201,40 +2824,19 @@
       "version": "1.0.2",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "sync_wrapper",
-      "version": "0.1.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "synstructure",
-      "version": "0.13.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "crate": "tempfile",
+      "version": "3.27.0",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "tempfile",
-      "version": "3.25.0",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "tempfile",
-      "version": "3.24.0",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2243,18 +2845,27 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
       ]
     },
     {
       "crate": "thiserror",
-      "version": "2.0.18",
+      "version": "2.0.21",
       "license": "MIT OR Apache-2.0",
       "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
@@ -2264,128 +2875,125 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
       ]
     },
     {
       "crate": "thiserror-impl",
-      "version": "2.0.18",
+      "version": "2.0.21",
       "license": "MIT OR Apache-2.0",
       "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
       "crate": "thread_local",
-      "version": "1.1.9",
+      "version": "1.1.10",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "tinystr",
-      "version": "0.8.2",
+      "crate": "tinytemplate",
+      "version": "1.2.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tinyvec",
+      "version": "1.13.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "tokio",
-      "version": "1.49.0",
+      "version": "1.54.1",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "tokio-io-timeout",
-      "version": "1.2.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "tokio-macros",
-      "version": "2.6.0",
+      "version": "2.7.2",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "tokio-rustls",
-      "version": "0.24.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "tokio-stream",
-      "version": "0.1.18",
+      "version": "0.1.19",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "tokio-tungstenite",
-      "version": "0.21.0",
+      "version": "0.24.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
       "crate": "tokio-util",
-      "version": "0.7.18",
+      "version": "0.7.20",
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "toml",
-      "version": "0.8.23",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "toml_datetime",
-      "version": "0.6.11",
+      "version": "1.1.2+spec-1.1.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "toml_edit",
-      "version": "0.22.27",
+      "version": "0.25.17+spec-1.1.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "toml_write",
-      "version": "0.1.2",
+      "crate": "toml_parser",
+      "version": "1.1.5+spec-1.1.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2393,15 +3001,8 @@
       "version": "0.12.3",
       "license": "MIT",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "tonic",
-      "version": "0.10.2",
-      "license": "MIT",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2409,15 +3010,8 @@
       "version": "0.12.3",
       "license": "MIT",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "tonic-build",
-      "version": "0.10.2",
-      "license": "MIT",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2426,7 +3020,7 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2434,7 +3028,9 @@
       "version": "0.5.3",
       "license": "MIT",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2443,7 +3039,8 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2452,7 +3049,8 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2461,7 +3059,9 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2470,7 +3070,9 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2479,7 +3081,9 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2487,7 +3091,8 @@
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2495,15 +3100,16 @@
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "tracing-subscriber",
-      "version": "0.3.22",
+      "version": "0.3.23",
       "license": "MIT",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2512,59 +3118,66 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "tungstenite",
-      "version": "0.21.0",
+      "version": "0.24.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
       "crate": "typenum",
-      "version": "1.19.0",
+      "version": "1.20.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "unarray",
+      "version": "0.1.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "unicode-ident",
-      "version": "1.0.24",
+      "version": "1.0.27",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/xv6-mbc/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
+        "ebpf/Cargo.lock",
+        "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
       ]
     },
     {
-      "crate": "unicode-ident",
-      "version": "1.0.23",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/ebpf-loader/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "unicode-ident",
-      "version": "1.0.22",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock",
-        "ebpf/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "unicode-xid",
-      "version": "0.2.6",
+      "crate": "universal-hash",
+      "version": "0.5.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2573,24 +3186,32 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "unty",
+      "version": "0.0.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "ureq",
-      "version": "2.12.1",
+      "version": "3.5.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
     },
     {
-      "crate": "url",
-      "version": "2.5.8",
+      "crate": "ureq-proto",
+      "version": "0.6.5",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock"
       ]
     },
     {
@@ -2598,16 +3219,15 @@
       "version": "0.7.6",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
-      "crate": "utf8_iter",
-      "version": "1.0.4",
+      "crate": "utf8-zero",
+      "version": "0.8.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/ebpf-collector/Cargo.lock"
       ]
     },
     {
@@ -2617,7 +3237,9 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2625,7 +3247,8 @@
       "version": "0.1.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2635,18 +3258,48 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "crates/upc-cartridge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     },
     {
+      "crate": "virtue",
+      "version": "0.0.18",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wait-timeout",
+      "version": "0.2.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "walkdir",
+      "version": "2.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
       "crate": "want",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2655,62 +3308,71 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "wasip2",
-      "version": "1.0.2+wasi-0.2.9",
+      "version": "1.0.4+wasi-0.2.12",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "wasip3",
-      "version": "0.4.0+wasi-0.3.0-rc-2026-01-06",
+      "crate": "wasm-bindgen",
+      "version": "0.2.129",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "wasm-encoder",
-      "version": "0.244.0",
+      "crate": "wasm-bindgen-macro",
+      "version": "0.2.129",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "wasm-metadata",
-      "version": "0.244.0",
+      "crate": "wasm-bindgen-macro-support",
+      "version": "0.2.129",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "wasmparser",
-      "version": "0.244.0",
+      "crate": "wasm-bindgen-shared",
+      "version": "0.2.129",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "web-sys",
+      "version": "0.3.106",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "web-time",
+      "version": "1.1.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "webpki-roots",
-      "version": "0.26.11",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "webpki-roots",
-      "version": "1.0.6",
+      "version": "1.0.10",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
@@ -2721,7 +3383,7 @@
       "version": "0.3.9",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2729,7 +3391,15 @@
       "version": "0.4.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "winapi-util",
+      "version": "0.1.11",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2737,7 +3407,31 @@
       "version": "0.4.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-core",
+      "version": "0.62.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-implement",
+      "version": "0.60.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-interface",
+      "version": "0.59.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2747,7 +3441,26 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-result",
+      "version": "0.4.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-strings",
+      "version": "0.5.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2756,16 +3469,9 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows-sys",
-      "version": "0.60.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2775,7 +3481,10 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2784,16 +3493,9 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows-targets",
-      "version": "0.53.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2802,16 +3504,9 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows_aarch64_gnullvm",
-      "version": "0.53.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2820,16 +3515,9 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows_aarch64_msvc",
-      "version": "0.53.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2838,16 +3526,9 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows_i686_gnu",
-      "version": "0.53.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2856,16 +3537,9 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows_i686_gnullvm",
-      "version": "0.53.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2874,16 +3548,9 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows_i686_msvc",
-      "version": "0.53.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2892,16 +3559,9 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows_x86_64_gnu",
-      "version": "0.53.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2910,16 +3570,9 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows_x86_64_gnullvm",
-      "version": "0.53.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
@@ -2928,189 +3581,94 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "windows_x86_64_msvc",
-      "version": "0.53.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/svc-token/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "winnow",
-      "version": "0.7.14",
+      "version": "1.0.4",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "wit-bindgen",
-      "version": "0.51.0",
+      "version": "0.57.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock",
-        "crates/monad-mbc/fuzz/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "wit-bindgen-core",
-      "version": "0.51.0",
+      "crate": "x25519-dalek",
+      "version": "2.0.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "wit-bindgen-rust",
-      "version": "0.51.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "wit-bindgen-rust-macro",
-      "version": "0.51.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "wit-component",
-      "version": "0.244.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "wit-parser",
-      "version": "0.244.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "writeable",
-      "version": "0.6.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "yoke",
-      "version": "0.8.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "yoke-derive",
-      "version": "0.8.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "zerocopy",
-      "version": "0.8.39",
+      "version": "0.8.63",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "zerocopy-derive",
-      "version": "0.8.39",
+      "version": "0.8.63",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "zerofrom",
-      "version": "0.1.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "zerofrom-derive",
-      "version": "0.1.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
+        "crates/doom-runner/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock"
       ]
     },
     {
       "crate": "zeroize",
-      "version": "1.8.2",
+      "version": "1.9.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zeroize_derive",
+      "version": "1.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zlib-rs",
+      "version": "0.6.8",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
     },
     {
-      "crate": "zerotrie",
-      "version": "0.2.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "zerovec",
-      "version": "0.11.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "zerovec-derive",
-      "version": "0.11.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "cmd/trace-collector/Cargo.lock"
-      ]
-    },
-    {
       "crate": "zmij",
-      "version": "1.0.21",
+      "version": "1.0.23",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "cmd/ebpf-collector/ebpf-programs/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "zmij",
-      "version": "1.0.19",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/trace-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/upc-bootctl/Cargo.lock",
+        "crates/doom-runner/Cargo.lock",
+        "crates/heimdall-bpf/Cargo.lock",
+        "crates/zhenai-forge/Cargo.lock",
+        "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
     }

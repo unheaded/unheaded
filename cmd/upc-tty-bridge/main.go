@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	serviceVersion = "0.1.0-skeleton"
+	serviceVersion = "0.1.0"
 	serviceName    = "upc-tty-bridge"
 	defaultPort    = 26100
 )
@@ -158,31 +158,13 @@ func (h *Hub) handleWs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// pollTtyStream is the placeholder for the actual BPF-map-read /
-// Wotan-topic-subscribe loop. For now it generates a heartbeat byte every
-// 5s so the WS channel stays warm.
-func (h *Hub) pollTtyStream(ctx context.Context, instance uint8) {
-	tick := time.NewTicker(5 * time.Second)
-	defer tick.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case t := <-tick.C:
-			line := fmt.Sprintf("[heartbeat %s] instance=0x%02X (real BPF tty read NYI)\r\n",
-				t.Format(time.RFC3339), instance)
-			h.broadcastTty(instance, []byte(line))
-		}
-	}
-}
-
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	resp := map[string]any{
 		"service": serviceName,
 		"version": serviceVersion,
 		"status":  "ok",
-		"mode":    "skeleton",
+		"mode":    "push-ingest",
 	}
 	_ = json.NewEncoder(w).Encode(resp)
 }
@@ -243,11 +225,6 @@ func main() {
 	}
 
 	hub := newHub()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Heartbeat for instance 0xDE (default xv6 first-boot target).
-	go hub.pollTtyStream(ctx, 0xDE)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)

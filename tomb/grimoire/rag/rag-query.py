@@ -158,13 +158,15 @@ class GrimoireQueryEngine:
         else:
             collection_names = [collection_name]
 
+        from chromadb.errors import NotFoundError
+
         # Query each collection and merge results
         all_results = []
 
         for coll_name in collection_names:
             try:
                 collection = self.client.get_collection(name=coll_name)
-            except ValueError:
+            except NotFoundError:
                 logger.warning("Collection not found: %s", coll_name)
                 continue
 

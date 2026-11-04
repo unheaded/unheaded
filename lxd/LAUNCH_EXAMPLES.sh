@@ -107,12 +107,6 @@ launch_unheaded_daemon() {
         --config user.user-data="$(cat "$CLOUD_INIT_BASE" && cat "$CLOUD_INIT_EBPF")"
 }
 
-launch_ebpf_exporter() {
-    lxc launch "$BASE_IMAGE" ebpf-exporter \
-        --profile unheaded-base \
-        --profile unheaded-ebpf \
-        --config user.user-data="$(cat "$CLOUD_INIT_BASE" && cat "$CLOUD_INIT_EBPF")"
-}
 
 launch_network_tracer() {
     lxc launch "$BASE_IMAGE" network-tracer \
@@ -178,13 +172,6 @@ launch_mongodb() {
 # CATEGORY 4: AI/ML & LLM INFERENCE (2 containers) — HOST-A ONLY
 # ============================================================================
 
-launch_vllm_deepseek() {
-    # GPU passthrough only available on host-a with RX 7700 XT
-    lxc launch "$BASE_IMAGE" vllm-deepseek \
-        --profile unheaded-base \
-        --profile unheaded-gpu \
-        --config user.user-data="$(cat "$CLOUD_INIT_BASE" && cat "$CLOUD_INIT_GPU")"
-}
 
 launch_embeddings_service() {
     # GPU passthrough only available on host-a with RX 7700 XT
@@ -248,7 +235,6 @@ launch_all_ebpf_services() {
     echo "Launching eBPF & Network Observability Services..."
     launch_shield
     launch_unheaded_daemon
-    launch_ebpf_exporter
     launch_network_tracer
     launch_syscall_monitor
 }
@@ -265,7 +251,6 @@ launch_all_data_services() {
 
 launch_all_gpu_services() {
     echo "Launching AI/ML & GPU Services (host-a only)..."
-    launch_vllm_deepseek
     launch_embeddings_service
 }
 
@@ -334,7 +319,6 @@ if [ "${1:-}" == "" ]; then
     echo "  api-gateway                    Launch api-gateway service"
     echo "  shield                         Launch shield eBPF service"
     echo "  postgres                       Launch postgres database"
-    echo "  vllm-deepseek                  Launch vLLM GPU service (host-a only)"
     echo "  prometheus                     Launch prometheus telemetry"
     echo ""
     echo "  all-api                        Launch all 10 API services"
@@ -367,7 +351,6 @@ case "$1" in
     # eBPF Services
     shield)                launch_shield ;;
     unheaded-daemon)       launch_unheaded_daemon ;;
-    ebpf-exporter)         launch_ebpf_exporter ;;
     network-tracer)        launch_network_tracer ;;
     syscall-monitor)       launch_syscall_monitor ;;
     
@@ -380,7 +363,6 @@ case "$1" in
     mongodb)               launch_mongodb ;;
     
     # GPU Services
-    vllm-deepseek)         launch_vllm_deepseek ;;
     embeddings-service)    launch_embeddings_service ;;
     
     # Telemetry Services

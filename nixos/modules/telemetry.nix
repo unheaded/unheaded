@@ -91,10 +91,6 @@ in {
           relabel_configs = [{ target_label = "host"; replacement = "outpost"; }];
         }
         {
-          job_name = "ebpf-exporter";
-          static_configs = [{ targets = [ "localhost:9435" ]; }];
-        }
-        {
           job_name = "unheaded-services";
           static_configs = [{
             targets = [

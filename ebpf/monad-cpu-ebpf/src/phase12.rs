@@ -3,12 +3,9 @@
 
 //! ADR-074 Phase 1.2 page-table mapping module.
 //!
-//! Three feature flags — `phase12-option-a`, `phase12-option-b`,
-//! `phase12-option-c` — gate stub functions for the three options
-//! enumerated in ADR-074. The pair-call (2026-05-12) chose **Option A**;
-//! that's the implementation path. Options B and C remain as no-op
-//! stubs both for verifier-budget measurement and as documentation of
-//! the paths-not-taken.
+//! ADR-074's pair-call (2026-05-12) chose **Option A**, gated by
+//! `phase12-option-a`. The Option B and C stubs were deleted 2026-11-04
+//! (DP-409); ADR-074 keeps the paths not taken.
 //!
 //! Per the Architect addendum:
 //! - PROC_TABLE widens from `[u32; 20]` to `[u32; 21]` (slot[20] = `page_dir_base`)
@@ -175,44 +172,10 @@ pub fn phase12_option_a_on_context_switch(_cpu: &mut MbcCpuState, _new_pid: u8) 
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// Option B — ASID-tagged shared pgd (NOT CHOSEN; stub for measurement)
-// ───────────────────────────────────────────────────────────────────────
-
-#[cfg(feature = "phase12-option-b")]
-#[inline(always)]
-pub fn phase12_option_b_on_context_switch(_cpu: &mut MbcCpuState, _new_asid: u8) {
-    // Path-not-taken per ADR-074 pair-call. Documented for completeness.
-    // Would have required:
-    //   1. Add cpu.current_asid: u8 (1 new field on MbcCpuState — wire-format-compatible default 0)
-    //   2. Widen TLB_MAP from Array<[u32; 3]> to Array<[u32; 4]> (ASID column)
-    //   3. Update translate_address() TLB lookup to filter by ASID
-    //   4. Context switch becomes a 1-byte write (no flush)
-}
-
-// ───────────────────────────────────────────────────────────────────────
-// Option C — per-task pgd + pid-tagged TLB (NOT CHOSEN; future extension)
-// ───────────────────────────────────────────────────────────────────────
-
-#[cfg(feature = "phase12-option-c")]
-#[inline(always)]
-pub fn phase12_option_c_on_context_switch(_cpu: &mut MbcCpuState, _new_pid: u8) {
-    // Path-not-taken per ADR-074 pair-call. Can be added LATER as a
-    // non-breaking extension on top of Option A if defense-in-depth is
-    // needed. Would have required:
-    //   1. Option A's full path (pgd swap + flush)
-    //   2. Plus widen TLB_MAP to include pid column
-    //   3. Plus update translate_address() to filter by pid (belt-and-suspenders)
-}
-
-// ───────────────────────────────────────────────────────────────────────
 // Default (no Phase 1.2 feature) — pre-pair-call state
 // ───────────────────────────────────────────────────────────────────────
 
-#[cfg(not(any(
-    feature = "phase12-option-a",
-    feature = "phase12-option-b",
-    feature = "phase12-option-c"
-)))]
+#[cfg(not(feature = "phase12-option-a"))]
 #[inline(always)]
 #[allow(dead_code)]
 pub fn phase12_noop_on_context_switch(_cpu: &mut MbcCpuState, _new_pid: u8) {

@@ -13,7 +13,6 @@
     ../../modules/observability.nix
     ../../modules/wireguard.nix
     ../../modules/bird.nix
-    ../../modules/ebpf-exporter.nix
     ../../modules/services/monad.nix
     ../../modules/services/wotan.nix
     ../../modules/services/anamnesis.nix
@@ -56,7 +55,7 @@
     firewall = {
       enable = true;
       allowedTCPPorts = [
-        22 9100 9435 50051 50053 50054 50055 4222
+        22 9100 50051 50053 50054 50055 4222
       ];
       allowedUDPPorts = [ 51820 443 ];
     };

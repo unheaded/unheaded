@@ -63,18 +63,6 @@ services:
     proto: http
     display_name: aegis
   # AI Model Stack (Sophia's Eye)
-  vllm-deepseek:
-    host: localhost
-    port: 20100
-    proto: http
-    display_name: "vLLM DeepSeek-R1"
-    tier: applications
-  vllm-qwen:
-    host: localhost
-    port: 20101
-    proto: http
-    display_name: "vLLM Qwen Coder"
-    tier: applications
   qdrant:
     host: localhost
     port: 20102
