@@ -21,7 +21,7 @@ Neither has a receiver: nothing on west listens for syslog. A receiver takes byt
 
 ## Decision
 
-A first-party receiver: RFC 5424 and RFC 3164 over UDP and TCP in, the journal's native protocol out, so the shipping path stays the one Vector already has. `pkg/syslog` and `pkg/journald` use the standard library only. `cmd/syslog-relay` adds first-party packages and modules already in `go.mod` (`pkg/logsources`, `pkg/cmdline`, the Prometheus client); no new module.
+A first-party receiver: RFC 5424 and RFC 3164 over UDP and TCP in, the journal's native protocol out, so the shipping path stays the one Vector already has. `pkg/syslog` and `pkg/journald` use the standard library only. `cmd/syslog-relay` adds first-party packages (`pkg/logsources`, `pkg/cmdline`, `pkg/metrics`) and the zerolog logger every service uses; no new module.
 
 **Listeners.** `--listen udp://10.10.20.1:514`, `--listen tcp://10.10.20.1:514`, later the LAN address (D7). There is no default listener, and a wildcard address (`0.0.0.0`, `::`) is refused. The only capability is `CAP_NET_BIND_SERVICE`.
 

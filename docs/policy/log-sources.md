@@ -22,11 +22,13 @@ and whether it arrives).
     owner: architect
     status: gap                    # shipped | gap | blocked:<D#|FND-#> | excluded:<reason>
     note: "free text"              # optional
+    rate: 50                       # optional, syslog-device only: lowers the relay's per-sender limit
+    burst: 100                     # optional, as rate; then SIGHUP the relay
 ```
 
 - `journal-unit` matches a systemd unit file name (`foo.service`, templates as `foo@.service`); the host journal carries it.
 - `journal-container` matches a compose service by its `container_name` (`unheaded-<service>`); journald driver.
-- `file` is a path outside the journal; `lxd-file` / `lxd-journal` live inside an LXD container; `syslog-device` is a LAN device that sends syslog to the relay.
+- `file` is a path outside the journal; `lxd-file` / `lxd-journal` live inside an LXD container; `syslog-device` is a sender the syslog relay accepts (ADR-124): `match` is `<ip>`, or `<ip> <tag>` when one address carries several sources. An `excluded:` row is not a sender; the relay drops it like a stranger.
 - `excluded:` needs a reason. Platform units (dbus, polkit, …) ride the journal source with no expectation of their own; rsyslog's `/var/log` copies of the journal are not sources.
 
 ## The gate

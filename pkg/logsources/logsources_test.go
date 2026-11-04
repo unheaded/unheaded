@@ -191,3 +191,70 @@ func TestLoadRefusesWrongSchemaAndEmpty(t *testing.T) {
 		t.Fatal("empty inventory accepted")
 	}
 }
+
+func senderRow(id, match, status string) logsources.Source {
+	return logsources.Source{ID: id, Host: "west", Kind: logsources.SyslogKind, Match: match, Retention: "operational",
+		MaxSilence: "24h", Canary: "none: device decides", Owner: "sentinel", Status: status}
+}
+
+func TestSyslogSenders(t *testing.T) {
+	rows := []logsources.Source{
+		senderRow("a/plain", "192.0.2.1", "gap"),
+		senderRow("a/tagged", "192.0.2.2 pihole-dns", "blocked:D7"),
+		senderRow("a/v6", "2001:db8::1", "shipped"),
+		senderRow("a/mapped", "::ffff:192.0.2.3", "gap"),
+		senderRow("a/excluded", "192.0.2.4", "excluded:a workstation, not a log source"),
+		{ID: "a/file", Host: "west", Kind: "file", Match: "/var/log/x", Status: "gap"},
+	}
+	got, err := logsources.SyslogSenders(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 {
+		t.Fatalf("got %+v", got)
+	}
+	if got[0].Addr.String() != "192.0.2.1" || got[0].Tag != "" || got[0].ID != "a/plain" {
+		t.Errorf("plain: %+v", got[0])
+	}
+	if got[1].Addr.String() != "192.0.2.2" || got[1].Tag != "pihole-dns" {
+		t.Errorf("tagged: %+v", got[1])
+	}
+	if got[3].Addr.String() != "192.0.2.3" {
+		t.Errorf("a mapped address must compare equal to the IPv4 one: %+v", got[3])
+	}
+}
+
+func TestValidateSenderMatch(t *testing.T) {
+	bad := map[string]string{
+		"not an ip":          "match",
+		"host.example.org":   "match",
+		"0.0.0.0":            "unspecified",
+		"::":                 "unspecified",
+		"192.0.2.1 tag more": "not <ip> or <ip> <tag>",
+	}
+	for match, want := range bad {
+		errs := logsources.Validate([]logsources.Source{senderRow("a/b", match, "gap")})
+		if len(errs) != 1 || !strings.Contains(errs[0].Error(), want) {
+			t.Errorf("%q: errs = %v, want one naming %q", match, errs, want)
+		}
+	}
+}
+
+func TestValidateDuplicateSender(t *testing.T) {
+	errs := logsources.Validate([]logsources.Source{senderRow("a/one", "192.0.2.1 x", "gap"), senderRow("a/two", "192.0.2.1 x", "gap")})
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), `already source "a/one"`) {
+		t.Errorf("errs = %v", errs)
+	}
+	// The same address under different tags is how one host has many sources.
+	if errs := logsources.Validate([]logsources.Source{senderRow("a/one", "192.0.2.1 x", "gap"), senderRow("a/two", "192.0.2.1 y", "gap")}); len(errs) != 0 {
+		t.Errorf("errs = %v", errs)
+	}
+}
+
+func TestValidateRateNotNegative(t *testing.T) {
+	row := senderRow("a/b", "192.0.2.1", "gap")
+	row.Rate = -1
+	if errs := logsources.Validate([]logsources.Source{row}); len(errs) != 1 {
+		t.Errorf("errs = %v", errs)
+	}
+}
