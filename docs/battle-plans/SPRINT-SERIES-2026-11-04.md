@@ -23,6 +23,8 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 
 ## Rules every plan and every agent follows
 
+0. **Careful and correct over fast (Stevie, 2026-11-04).** There are many nights and work days for these sprints. No deadline justifies a skipped gate, a guessed fix or a rushed merge. One clean stop point beats two half-finished phases: when in doubt, mark `[STUCK]`, write down why, and stop that lane.
+
 1. **Branches.** One branch per plan, `sprint/<plan-lowercase>`, in its own worktree under `~/tmp/wt/<plan>`. go.mod's `../projects/doomgeneric` replace needs `ln -sfn /home/govan/tmp/projects /home/govan/tmp/wt/projects` once, before any worktree build. Scratch files go in a private directory per plan, never a shared one. Merge to develop with `git merge --no-ff -S`. Never `git push`: Stevie pushes.
 2. **Commits.** Signed (`-S`); if gpg-agent times out use `--no-gpg-sign` and say so in the handoff, not in the commit message. Stage named files only, never `git add -A <dir>`. Message format `[PLAN <name>] Steps X-Y: ...`, then the trailers `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and `Claude-Session: https://claude.ai/code/session_01TzL3Tqe5ebLDopsg5ZkZdp`.
 3. **Capacity.** West has 12 cores and 14 GiB. At most three lanes build at once; cargo with `-j4`, `GOMAXPROCS=4`. `/tmp` is a 7.2 GiB tmpfs: put build output under `/var/tmp` or the worktree. Never count swap. `Makefile.mbc clean` nukes `target/`.
