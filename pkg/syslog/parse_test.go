@@ -128,6 +128,18 @@ func TestParse3164(t *testing.T) {
 	}
 }
 
+// RFC 5424 starts with a PRI, so a bare line that happens to start "1 " is
+// words, not a broken header.
+func TestNoPRIIsNever5424(t *testing.T) {
+	m, err := Parse([]byte("1 apple fell"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Format != RFC3164 || m.Text != "1 apple fell" {
+		t.Errorf("got %+v", m)
+	}
+}
+
 // "anF" is inside the month table but is not a month.
 func TestBSDTimestampMonthMustBeAMonth(t *testing.T) {
 	m, err := Parse([]byte("<13>anF 11 22:14:15 host tag: body"))

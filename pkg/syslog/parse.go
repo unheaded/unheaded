@@ -109,15 +109,15 @@ func ParseMax(b []byte, max int) (Message, error) {
 	}
 
 	m := Message{Facility: defaultFacility, Severity: defaultSeverity, Truncated: truncated}
-	body := b
-	if b[0] == '<' {
-		pri, rest, err := parsePRI(b)
-		if err != nil {
-			return whole(b, max, truncated), err
-		}
-		m.Facility, m.Severity = pri/8, pri%8
-		body = rest
+	if b[0] != '<' {
+		parse3164(&m, b, max)
+		return m, nil
 	}
+	pri, body, err := parsePRI(b)
+	if err != nil {
+		return whole(b, max, truncated), err
+	}
+	m.Facility, m.Severity = pri/8, pri%8
 	if bytes.HasPrefix(body, []byte("1 ")) {
 		if err := parse5424(&m, body[2:], max); err != nil {
 			return whole(b, max, truncated), err
