@@ -117,3 +117,4 @@
 - Steps 118-122: Phase 16, checked: Remove from the register only the rows whose probe now passes..
 - Steps 123-124: Collector run; passing rows removed; wiki/Security.md carries the host facts.
 - Step 125 exit gate: PASSED, `0` at `96ab615b`. Step 122 `0817991e`, Step 124 `96ab615b`, both signed. Step 123 printed `wiki updated`, sentence as written. DP-711 and east `aide-install`, `apparmor-enforce` stay open; 8 register rows out, `147 open`. Nothing run on a host in Phase 16 beyond Step 119 collector; hold session left up, no undo timer armed.
+- Steps 126-127: Step 126 `0`, `0`: no `unheaded-tidy-*` timer on either host. Step 127 `Exit request sent.`, `FRESH_KEY_LOGIN_OK` with `ControlPath=none`; hold socket gone. S-SUPPLY-FIRST checked as an ancestor of develop before Step 126.
