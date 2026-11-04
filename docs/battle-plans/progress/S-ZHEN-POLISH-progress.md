@@ -1,0 +1,23 @@
+<!--
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2024-2026 Stevie Bellis.
+-->
+# S-ZHEN-POLISH progress
+
+## Log
+
+## Measurements
+
+## Stuck
+
+## For Stevie
+- **E1 file-backed shard.** ADR-056/057 need pgvector and tree-sitter; the 10-29 rule forbids them here. The shard is lexical and file-backed. A Well-backed or embedded one is a third-party sitting item.
+- **E2 migration batch.** DP-605 lists 030-043 for E1; 044, 045 and 046 join it. Nothing breaks before they apply: rows lose their estimate, session saving answers 503, `/teach` cannot queue. Both probes run once at startup, so zhen-agentd needs a restart after the batch.
+- **E3 manual vor.** After the merge the default is 20110, so a hand-started vor must be `cs serve 20110` until the unit is live. While vor is down or restarting, every mutating agent call is held; reads and answers continue.
+- **E4 runbook manifest.** Editing `west-startup-order` re-hashes `runbooks/MANIFEST.sha256`. It has `requires_sudo: true` and no `status: approved`, so nothing is revoked.
+- **E5 one text, two labels.** Repo text is `external` through vor and `local` through the shard, as ADR-057 says. So a mutating call justified by the same sentence passes Rule 2 by one route and not the other. ADR-057 is still Proposed: say if you want the shard `external` too. Every untrusted search hit now reaches the gate, so more writes that touch repo docs are held than before. That is the safe direction, and overnight work may stop on it more often.
+- **E6 ADR-120's open questions and reach.** Answered for this build in Phase 8: idle is one read at request start; embeddings are not recorded. A CPU-served model reads near zero under `gpu_sampled`. The reporting view waits for the routing evals. Energy stays out of routing until a defensible Claude figure exists. The installed daemon writes no `llm_requests` rows at all: its unit has no `-audit-well` and its env file no `WELL_OPS_DSN`. `zhen-claude` with `-audit-well` and the overnight runs do write rows, so those carry estimates. Say if the daemon should too; it is one flag and one line.
+- **E7 sibling plans.** Nothing outstanding: `cf839d59` carries the handoff into S-HOST-TIDY Step 132 and S-E1-LIVE Steps 244-245. See the HANDOFF section.
+- **E8 `zhen_actions.status` (found by the review, pre-existing).** `db/migrations/009_zhen_actions.sql` allows five values at VARCHAR(20), while the gate writes `accepted` and `denied_*`, up to 30 characters, so those `UpdateAction` calls fail on a real Well; the code only logs a warning, and the row stays `planned`. Fix: one migration, `ALTER COLUMN status TYPE VARCHAR(40)`, dropping `zhen_actions_status_check` and adding it back `NOT VALID` with `accepted` and `status LIKE 'denied\_%'`, then `VALIDATE`. Small, but not in this plan's scope: say if you want it folded in as 047, which the series holds for it.
+- **E9 `call` bodies stay unredacted.** Only `teach_write` is checked before it is queued. Other rows in `zhen_pending_confirmations` keep their full `call` until 031's seven-day blanking migration exists; nobody has written it. Say when you want it.
+- **E10 agentd's own in-root rows.** `confirm approve` runs as you, and `/var/zhen/projects/default` is 0700 zhen-agentd, so a queued write inside it fails on approval. Approval now stays in its row's root, so rows outside it fail too. Decide whether agentd's in-root writes should be approvable at all, or whether a daemon-side executor should run them.
