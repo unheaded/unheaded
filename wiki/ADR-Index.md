@@ -38,7 +38,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [016](../docs/adr/ADR-016-postgres-the-well.md) | [PostgreSQL — The Well (+ RPO 24 h amendment 2026-10-15)](ADR-016-Postgres-The-Well) | Accepted | 2026-03-15 |
 | [017](../docs/adr/ADR-017-zhen-hybrid-inference.md) | [Zhen Hybrid Inference](ADR-017-Zhen-Hybrid-Inference) | Accepted (Claude API → MCP) | 2026-03-16 |
 | [018](../docs/adr/ADR-018-zhen-raft-training-battle-plan.md) | [RAFT Training Pipeline](ADR-018-Zhen-RAFT-Training-Battle-Plan) | **Superseded** by ADR-030 (forge) + ADR-036 (distillation) | 2026-03-16 |
-| [019](../docs/adr/ADR-019-zhen-champion-agent.md) | [Zhen Champion Agent](ADR-019-Zhen-Champion-Agent) | Accepted (Phase 1+2) | 2026-03-16 |
+| [019](../docs/adr/ADR-019-zhen-champion-agent.md) | [Zhen Champion Agent](ADR-019-Zhen-Champion-Agent) | Accepted (Phase 1+2; Level 2 amendment accepted 2026-11-03) | 2026-03-16 |
 | [020](../docs/adr/ADR-020-kanban-bug-fixes.md) | [Kanban Bug Fixes](ADR-020-Kanban-Bug-Fixes) | Accepted (All 8 fixed) | 2026-03-19 |
 | [021](../docs/adr/ADR-021-zhen-layer0-substrate.md) | [Zhen Layer 0 Substrate](ADR-021-Zhen-Layer0-Substrate) | Accepted (133 tests) | 2026-03-28 |
 | [022](../docs/adr/ADR-022-pihole-docker-to-lxd.md) | [Pi-hole Docker → LXD](ADR-022-Pihole-Docker-to-LXD) | **Implemented** (Pi-hole in LXD, project default) | 2026-03-29 |

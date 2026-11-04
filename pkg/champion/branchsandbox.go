@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// Branch-sandbox mode (S-TWO-BRAINS Step 175; a Proposed amendment to
+// Branch-sandbox mode (S-TWO-BRAINS Step 175; an accepted amendment to
 // ADR-019's Level 2). When the Champion's project root is a throwaway
 // worktree under the agent root, checked out on a zhen/<name> branch,
 // Rule 2 is satisfied for write_file and patch_file by the sandbox itself

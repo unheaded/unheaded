@@ -6,6 +6,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ## Log
 
+- DP-302 cap headroom confirmed: one worst case is reserved before send; default cap 5 USD, max_tokens 16000.
+
 ## Measurements
 
 ## Stuck
