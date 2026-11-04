@@ -1,0 +1,84 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: syslog-relay
+  description: The native syslog relay is down, dropping, or hearing from a sender not in sources.yaml (SyslogRelayDown, SyslogRelayDropping, SyslogUnknownSender)
+  owner: sentinel
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-124. unheaded-syslog-relay is a host unit on west
+  (cmd/syslog-relay, deploy/systemd/unheaded-syslog-relay.service). It takes
+  syslog on 10.10.20.1:514, udp and tcp, from the kind: syslog-device rows of
+  /etc/unheaded/log-sources.yaml and writes each message to the journal,
+  where Vector ships it. Metrics are on 127.0.0.1:9599.
+
+  Down: Pi-hole's rsyslog holds lines in its disk queue; devices lose them.
+  Dropping, by reason: rate is a device in a loop; journal is a stalled
+  journald; frame_too_large, bad_frame and short_frame are a sender that does
+  not speak the protocol; conns is a sender holding too many connections.
+  Unknown sender: nothing from it was kept. A UDP source address can be forged,
+  so an address here says what the packet claimed.
+
+  Run the steps on west. The shell steps only read and show counts, never
+  message text; everything that changes state is manual. The relay's own
+  journal lines are its start, reloads and faults, not what it relays.
+
+steps:
+  - name: what-is-firing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname=~"SyslogRelayDown|SyslogRelayDropping|SyslogUnknownSender",alertstate="firing"}' |
+        python3 -c 'import json,sys; [print(r["metric"]["alertname"], r["metric"].get("reason", "-")) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Which alert, and for a drop which reason"
+
+  - name: unit-status
+    action: shell
+    command: "systemctl status unheaded-syslog-relay --no-pager | head -12"
+    description: "Running, restarting, or failed (a bad address or a bad sources file stops it at start)"
+
+  - name: relay-log
+    action: shell
+    command: "journalctl -u unheaded-syslog-relay -n 20 --no-pager -o cat | grep -F '\"service\":\"syslog-relay\"' | tail -20"
+    description: "The relay's own lines: start, refused reloads, a metrics listener that cannot bind"
+
+  - name: counters
+    action: shell
+    command: "curl -s -m 5 http://127.0.0.1:9599/metrics | grep -E '^syslog_relay_'"
+    description: "Received, dropped by reason, unknown senders, last seen per source (only when the port answers)"
+
+  - name: lower-a-source
+    action: manual
+    command: "sudoedit /etc/unheaded/log-sources.yaml && sudo systemctl reload unheaded-syslog-relay"
+    description: "MANUAL. For a flood: add rate: and burst: to that sender's row, then reload. A row can only lower the limit. A file that does not validate keeps the old list and counts syslog_relay_reload_failures_total"
+
+  - name: add-a-sender
+    action: manual
+    command: "sudoedit /etc/unheaded/log-sources.yaml && sudo systemctl reload unheaded-syslog-relay"
+    description: "MANUAL. For a sender that is yours: add its syslog-device row here and in config/logging/sources.yaml. Past lxdbr0 and the overlay it also needs the unit's IPAddressAllow and a firewall rule, which is Stevie's"
+
+  - name: restart-relay
+    action: manual
+    command: "sudo systemctl restart unheaded-syslog-relay"
+    description: "MANUAL. Once the log shows why it stopped. Pi-hole's queue drains on its own afterwards"
+
+verification:
+  - name: relay-quiet
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(ALERTS{alertname=~"SyslogRelayDown|SyslogRelayDropping",alertstate="firing"}) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("firing:", v); sys.exit(v != "0")'
+
+rollback:
+  - name: stop-relay
+    action: manual
+    command: "sudo systemctl stop unheaded-syslog-relay"
+    description: "MANUAL. Last resort for a flood that rotates other units out of the journal. Devices buffer or drop; nothing else depends on it"

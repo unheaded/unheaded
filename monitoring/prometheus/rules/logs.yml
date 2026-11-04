@@ -71,6 +71,48 @@ groups:
           description: "The journal is not shipping while it is down; docker compose ps vector"
           runbook_url: "runbooks/observe/log-pipeline.yaml"
 
+  # Native syslog relay (ADR-124): what cannot reach the journal any other
+  # way comes through it. Down means Pi-hole queues on its own disk and devices
+  # lose lines. A drop is per reason, because the reasons want different
+  # hands: rate is a device in a loop, journal is a stalled journald,
+  # frame_too_large and bad_frame are a sender that does not speak the protocol.
+  # Unknown senders are counted apart: that is not loss, it is someone new.
+  - name: syslog-relay
+    interval: 1m
+    rules:
+      - alert: SyslogRelayDown
+        expr: up{job="syslog-relay"} == 0
+        for: 10m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "The syslog relay on {{ $labels.host }} is not answering /metrics"
+          description: "Pi-hole and device logs are not reaching the journal; systemctl status unheaded-syslog-relay"
+          runbook_url: "runbooks/observe/syslog-relay.yaml"
+
+      - alert: SyslogRelayDropping
+        expr: sum by (host, reason) (increase(syslog_relay_dropped_total{job="syslog-relay"}[15m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "The syslog relay on {{ $labels.host }} dropped {{ printf `%.0f` $value }} messages in 15m ({{ $labels.reason }})"
+          description: "curl -s 127.0.0.1:9599/metrics | grep dropped on {{ $labels.host }}; rate is usually a device in a loop"
+          runbook_url: "runbooks/observe/syslog-relay.yaml"
+
+      - alert: SyslogUnknownSender
+        expr: sum by (host) (increase(syslog_relay_unknown_sender_total{job="syslog-relay"}[15m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "The syslog relay on {{ $labels.host }} refused {{ printf `%.0f` $value }} messages from senders not in sources.yaml in 15m"
+          description: "A new device, or something probing 514. Nothing from it was kept: add its row if it is yours"
+          runbook_url: "runbooks/observe/syslog-relay.yaml"
+
   # Log-volume deviation (ADR-100 Phase 3). Vector counts journal lines per
   # host, unit and level (unheaded_log_lines_total; config/vector/vector.yaml)
   # and never stores text for it. A unit's baseline is the median of its own

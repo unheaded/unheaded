@@ -159,6 +159,16 @@ sources:
     canary: http-get
     owner: sentinel
     status: "blocked:FND-001"
+  - id: west/unheaded-syslog-relay
+    host: west
+    kind: journal-unit
+    match: unheaded-syslog-relay.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: it logs only on start, reload and faults; what it relays is the sources' own rows"
+    owner: sentinel
+    status: gap
+    note: "ADR-124; built in Phase 5, installed by Phase 6 Step 141"
   - id: west/unheaded-trace-collector
     host: west
     kind: journal-unit
@@ -1290,6 +1300,16 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:platform unit; its lines ride the journal source with no expectation of their own"
+  - id: west/self
+    host: west
+    kind: syslog-device
+    match: 10.10.20.1
+    retention: operational
+    max_silence: n/a
+    canary: logger
+    owner: sentinel
+    status: gap
+    note: "west sending to its own relay; Phase 6 Step 144's canary"
   - id: device:192.168.69.129
     host: device:192.168.69.129
     kind: syslog-device
