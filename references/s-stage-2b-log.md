@@ -119,3 +119,22 @@ Step 141: mutant with the `memset` removed printed `SB: zeroed=no` once and ever
 Steps 142-143: `gate sbrk-after`: same=12 diff=0 rc=0 doom=1 ascend=891427, `sbrkprobe` PASS in the harness.
 
 Step 144, cost of one call, measured as getpid's +1,348 was (`references/s5-upc-wire-log.md` Step 101: insn_count at halt, with and without the call). Three throwaway programs that fork, make the call in the child, wait and exit; insn_count repeated exactly across boots. None 5,083,200; `sbrk(0)` 5,085,491; `sbrk(4096)` 5,106,000. So `sbrk(4096)` = +22,800 MBC instructions: +2,291 for the round trip, +20,509 for the zeroing, about 5 per byte. The window's worst case, one 192 KiB grow, is near 1M instructions in one trap. insn_count misses the SRET to U-mode, since the arm's `break` skips the increment.
+
+## Phase 12, kill rung
+
+| shared exit block, kill const off | 891427 | 892692 | +1265 | 28344 | kill-after |
+| kill | 892692 | 889682 | -3010 | 31354 | kill-after |
+
+Step 146: `$offv` 891,427, no before gate needed (no code diff against `last-green`).
+
+Step 148: the empty arm for 6 carries the const in its test, as Step 134 taught for 12, so it folds away when off and 6 answers -ENOSYS from the chain's tail.
+
+Step 149 [DECIDE]: the loop is shared, and the goldens' order did not move (gate below). The reparent scan and halted write are `slot_exited()`, called once after the reply block, before the deferred switch. The exit arm sets `exit_slot`. With `DEFERRED_SWITCH` off the arm calls `slot_exited()` itself, so that rollback still marks the zombie before its inline switch. It did not pay as Step 149 hoped: const off, the object grew from 891,427 to 892,692, +1,265. With the const on it fell to 889,682, -3,010 against the off object and -1,745 against `$offv`. So turning the rung on makes the object smaller, and these counts are not additive per edit.
+
+Step 153: `a` differs from `$offv`, so the refactor has its own ledger row, as this step says. Step 159's single `ledger 'kill' "$offv" "$nv"` is therefore split in two: the rows above sum to the same -1,745. Appendix A7's "rung's OFF number" for kill is 892,692, not 891,427: the shared block stays when the const goes off. The 892,692 object was measured, not gated on its own.
+
+Steps 154-155: `killprobe`, first boot: 12 yes, 0 no, 0 `self-survived`, `KL: done`. Step 156 did not run.
+
+Steps 157-158: `gate kill-after`: same=12 diff=0 rc=0 doom=1 ascend=889682, killprobe, gate_nway and forkloop PASS. `head=8ef6e117` on that line is the const-off commit: the gate ran on the tree with the const flipped, before Step 159 committed it. `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allowlisted over 900000. `cargo test --release` in bootctl: 0 failed on every line.
+
+Not covered by a probe: `killprobe` tests a dead target only after the reap, so a kill on an unreaped zombie (-1, D8) takes the same halted-bit branch but is not booted on its own.

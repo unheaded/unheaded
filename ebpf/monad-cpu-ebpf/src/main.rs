@@ -456,7 +456,7 @@ const UPC_RUNG_SBRK: bool = true;
 // ADR-135 D8 (the kill rung): kill is injected into the owned kernel, which checks
 // the pid range and replies KILL; BPF checks liveness, then does what exit does.
 // Needs UPC_REPLY and DEFERRED_SWITCH. Rollback = this const off.
-const UPC_RUNG_KILL: bool = false;
+const UPC_RUNG_KILL: bool = true;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause

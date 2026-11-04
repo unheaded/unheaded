@@ -72,7 +72,7 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 3 | wait | BPF | status written as 0 until rung 7 |
 | 4 | pipe | none yet | |
 | 5 | read | BPF | |
-| 6 | kill | none yet | |
+| 6 | kill | kernel validates, BPF acts | status 0 until rung 7 |
 | 7 | exec | BPF | |
 | 8 | fstat | BPF | |
 | 9 | chdir | none yet | |
