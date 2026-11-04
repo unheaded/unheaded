@@ -6,6 +6,9 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ## Log
 
+- Phase 19 (Steps 185-197) closing gate green on the merged tree, develop at d8fe589d. Step 185's merge stopped on two conflicts, both one row: ADR-121 from S-CLEAN-CUT against ADR-122 here, in `docs/adr/ADR-INDEX.md` and `wiki/ADR-Index.md`. Step 186 reads "a conflict: abort", but series rule 15 names those two files as its exception, so both rows stayed in number order; every other file merged clean. Merge commit 3c35eb8e (signed). Rule 15 also says generated files are regenerated: `compliance/crypto/cbom.cdx.json` and the dependency baseline had no drift, and `docs/LIVE-PATHS.md` had one row plus two counts. Phase 12's `cmd/zhen-codeindex` was never listed there, which no Phase 19 gate would have caught; commit afb71391 adds it.
+  Step 188: gofmt and vet quiet; 173 packages `ok`, one red. `pkg/secrets/store` panicked with `send on closed channel`, the known flake: the trace shows a nil secret on a 16-byte path, which is `watched/todelete` in `TestFileStore_WatchDelete`, and this sprint does not touch the package. One re-run of the package passed, as the coordinator's note allows. Step 190: all fourteen gates pass, and `git diff --stat develop...HEAD -- go.mod go.sum docs/policy` prints nothing. Step 192 ran as the normal user with docker available: `test-llm-requests.sh`, `test-zhen-conversations.sh`, `test-zhen-confirm.sh` and `test-batch-apply.sh` all end `all checks passed`, so 044-046 are rehearsed on this tree; T4 passes in `test-post-commit.sh`; the `usersystemd` tests pass. Step 194: 148 open on both trees, both fence commands print nothing. Phase 0 recorded 154; the six fewer are the siblings' closures and show on develop too. `check-gates-can-fail.sh` is not a Phase 19 step and was not run here.
+
 - Phase 18 (Steps 176-184) done, commit 355f8bee (signed): CLAUDE.md, port docs, The Well, three wiki sections, ADR-056, 057, 059 and 120. No sentence dropped: no phase is [STUCK] or [BLOCKED] (Step 37's man stamp touches no claim here), and Phases 1, 2, 3 and 12, which have no Log entry, have their commits (edd554ad, 75e447aa, 8ab0efba, 12b9e667). Each claim was read against the tree before writing: 11 MCP tools (eight read-only, three opt-in), ports and uid 16738, slot names, the Doom, Lich and Grimoire exclusion, hook names, flags, `Unavailable`, the share of `k`, both redaction guards, `check` exit codes, the energy constants, migration 044's shape check, loopback binds. Steps 180 and 182 ran from the plan's own text, extracted by script; all three ADR tails match it exactly.
   Two changes from the text as written. **Step 178:** `$"...\n..."` is locale quoting, so bash keeps `\n` as a backslash and an n, and the two `Zhen` rows would have landed as one broken line while Step 179 still printed `ok`. Same rows, written with `$'...'`. **`wiki/The-Well.md`:** the sed made line 83 read "Pending live as of 2026-10-27: 030-046", and 044-046 did not exist then, so the date is now 2026-11-04. Rows in `docs/network/INGRESS_EGRESS_PORTS.md` sit after `SophiaEye` as the plan placed them, so 20110 and 20111 come before `AIWebUI` 20106; nothing parses that table.
 
@@ -55,6 +58,43 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 - Steps 29-38 (Phase 4, commit 702b083b): Step 37 [D] [STUCK]. Its trigger holds: the redirected man/zhen-agentd.1 header carries the build stamp (`unheaded v0.0.0-...+dirty`, 2026-11-04), so it differs from gen-man output. The prescribed `scripts/gen-man.sh --write` regenerates every man page in the tree, which is outside the named files, so it was not run. Coordinator to decide.
 
+## Handoff
+
+| Phase | Name | Status | Commits |
+|---|---|---|---|
+| 0 | Preflight | done | f12bb41f |
+| 1 | ADR-019 L2, cap headroom | done | edd554ad |
+| 2 | ADR-122 parked | done | 75e447aa |
+| 3 | Register ports | done | 8ab0efba |
+| 4 | Move callers | done, Step 37 [STUCK] | 702b083b |
+| 5 | Units, account, log row, runbooks | done | 00e21478, 48251cb2 |
+| 6 | Bridge guard rails | done | 41cfe4d8, 3e95dfd7 |
+| 7 | Tab completion | done | 1963e34a |
+| 8 | Estimated energy (ADR-120) | done | c6ada563, b80a47b5, 5bf2cbcb, 5a13be92 |
+| 9 | Migration 045, session endpoint | done | daa7b014, 63858c34 |
+| 10 | Well rehearsals | done | 4245f5c3 |
+| 11 | Memory hit, session saving | done | 35223e7f |
+| 12 | Source shard | done | 12b9e667 |
+| 13 | Refresh on commit | done | 535e4624 |
+| 14 | Teach through the queue, migration 046 | done | 886722e0, 48a04dee |
+| 15 | code_callers, code_definition | done | 91592842 |
+| 16 | Federated retrieval, Rule 2 fails closed | done | 79459090 |
+| 17 | Adversarial suite | done | 9bf53a62 |
+| 18 | Doc ripple | done | 355f8bee |
+| 19 | Exit gate, merge | gate green; merge is Step 198 | 3c35eb8e, afb71391 |
+
+**[STUCK]:** one, Step 37 (Phase 4), still open and waiting on the coordinator. Phase 19's `scripts/gen-man.sh` check passes (`OK: man/ matches 58 binaries`), because the check skips line 1; `man/zhen-agentd.1`, `zhen-cli.1`, `zhen-claude.1` and `zhen-codeindex.1` keep their `+dirty` stamp until someone runs `--write`, which rewrites every page.
+
+**[BLOCKED]:** none. Docker was available, so 044-046 are rehearsed.
+
+**Index size:** 1769 files, 27886 chunks, 146513 calls; 86M on disk, two slots of 45014723 bytes. Measured at 318f74a4 into scratch (Phase 13), not re-measured on the merged tree.
+
+**Unsigned commits:** none. `/var/tmp/zhen-polish/unsigned.log` does not exist, and every first-parent commit since the branch point shows `G`.
+
+**From the plan's HANDOFF section:**
+
+Applied in `cf839d59`: S-HOST-TIDY Step 132 (the `govan:unheaded-vor` directory, the runbook export, its rollback) and S-E1-LIVE Steps 244-245 (`ZHEN_TAUGHT_DIR` in Stevie's file, not the unit's). Read those steps; nothing here is outstanding. Two facts for whoever runs them: `zhen-claude confirm approve` on a teach row needs a terminal, and zhen-agentd needs a restart after migrations 044-046 apply, because its schema probes run once at startup.
+
 ## For Stevie
 - **E1 file-backed shard.** ADR-056/057 need pgvector and tree-sitter; the 10-29 rule forbids them here. The shard is lexical and file-backed. A Well-backed or embedded one is a third-party sitting item.
 - **E2 migration batch.** DP-605 lists 030-043 for E1; 044, 045 and 046 join it. Nothing breaks before they apply: rows lose their estimate, session saving answers 503, `/teach` cannot queue. Both probes run once at startup, so zhen-agentd needs a restart after the batch.
@@ -76,3 +116,4 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - **Phase 16: a shard with `CURRENT` but no slot file reads as no hits, not an error.** `CodeBackend` treats `fs.ErrNotExist` as a missing index, and `Store.Get` does not say which file was missing, so a half-removed shard answers empty and counts `ok`. Not a fail-open: fewer `local` refs, never a dropped untrusted one. Telling the two apart needs a change in `pkg/codeindex`, outside this phase.
 - **Phase 16: `CodeBackend` does not stop at its context.** `Index.Search` scans every chunk, so a call past the deadline is dropped by `Federated`, as designed, but its goroutine runs on until the scan ends (about 40 ms today).
 - **Phase 18: `cmd/zhen-mcp/main.go`'s package comment still says "Six read-only tools".** Phase 15 left it for Phase 18, but Step 184 does not name the file and it is outside L-DOC-B's lane, so it is still stale: the tools are eight read-only and three opt-in, and the comment's list lacks `code_definition` and `code_callers`. One line for whoever next touches that package.
+- **Phase 19: Step 37 needs one word.** Four man pages carry a `+dirty` build stamp on line 1. It is cosmetic and the gate skips that line. `scripts/gen-man.sh --write` clears it but rewrites every page, so it was left alone. Say if you want it run after the merge.
