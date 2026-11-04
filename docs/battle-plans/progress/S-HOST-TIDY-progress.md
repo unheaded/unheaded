@@ -52,3 +52,4 @@
 - Steps 56-60: Phase 6, checked: AFTER  the stub reaches Pi-hole, names resolve, the login path is untouched..
 - Steps 61-62: East: reach proven (route, 5/5 ping, 40 queries, sinkhole answer), netplan yaml and live link set, apt update clean, key login unaffected.
 - Step 63 exit gate: PASSED, `Link 2 (enp2s0): 10.10.20.252 1.1.1.1 8.8.8.8`. Supersedes the two FAILED lines above. DP-708 done on east.
+- Steps 68-75: East sshd: keys-only file removed, 05-unheaded-permitroot.conf added. Fresh key login proven, methods publickey,password,keyboard-interactive. Password itself not testable unattended.
