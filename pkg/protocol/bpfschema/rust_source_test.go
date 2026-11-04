@@ -443,7 +443,6 @@ var goMapNames = []struct {
 	{"MapFlowTypes", MapFlowTypes, nil, reflect.TypeOf(FlowTypeEntry{})},
 	{"MapCancelFlows", MapCancelFlows, reflect.TypeOf(FlowKey{}), reflect.TypeOf(FlowCancelValue{})},
 	{"MapHopValidators", MapHopValidators, reflect.TypeOf(HopValidatorKey{}), reflect.TypeOf(HopValidatorValue{})},
-	{"MapAuthority", MapAuthority, reflect.TypeOf(AuthorityKey{}), reflect.TypeOf(AuthorityValue{})},
 }
 
 // legacyMapNames are map-name constants Go still uses that no Rust program

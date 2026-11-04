@@ -44,9 +44,6 @@ const (
 
 	// Per-thread RTT statistics keyed by trace id, pid, tid (latency-probe).
 	MapLatency = "LATENCY_MAP"
-
-	// H11: Dictionary authority enforcement (shield-ebpf).
-	MapAuthority = "AUTHORITY"
 )
 
 // === Q1: HMAC Key Entries (integrity package) ===
@@ -258,22 +255,4 @@ type HopValidatorValue struct {
 	_                 [3]byte
 	Flags             uint32  // Validation flags.
 	_                 [4]byte // Reserved, must be zero (Rust value is 32 bytes).
-}
-
-// === H11: Authority (intermediary package) ===
-
-// AuthorityKey identifies a dictionary authority binding.
-// Size: 8 bytes. Map type: HASH.
-type AuthorityKey struct {
-	DictID    uint16 // Dictionary identifier.
-	Namespace uint16 // Namespace.
-	_         [4]byte
-}
-
-// AuthorityValue stores authority metadata.
-// Size: 24 bytes.
-type AuthorityValue struct {
-	OwnerFingerprint [16]byte // Truncated SHA-256 of owner's public key.
-	GrantedAt        uint32   // Unix timestamp.
-	ExpiresAt        uint32   // Unix timestamp. 0 = no expiry.
 }

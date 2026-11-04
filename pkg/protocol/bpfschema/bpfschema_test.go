@@ -69,10 +69,6 @@ func TestStructSizes(t *testing.T) {
 		{"HopValidatorKey", unsafe.Sizeof(HopValidatorKey{}), 8},
 		// HopValidatorValue: 1+1+1+1+16+1+3+4+4 = 32 bytes, the shield-ebpf [u8; 32] value.
 		{"HopValidatorValue", unsafe.Sizeof(HopValidatorValue{}), 32},
-
-		// H11: Authority.
-		{"AuthorityKey", unsafe.Sizeof(AuthorityKey{}), 8},
-		{"AuthorityValue", unsafe.Sizeof(AuthorityValue{}), 24},
 	}
 
 	for _, tt := range tests {
@@ -132,7 +128,6 @@ func TestMapNameConstants(t *testing.T) {
 		MapFlowTypes,
 		MapCancelFlows,
 		MapHopValidators,
-		MapAuthority,
 	}
 
 	seen := make(map[string]bool)
@@ -146,8 +141,9 @@ func TestMapNameConstants(t *testing.T) {
 		seen[name] = true
 	}
 
-	// 11: GOAWAY_STATE left with shield-ebpf's map (S-TRUE-WIRE Step 207).
-	if len(seen) != 11 {
-		t.Errorf("expected 11 unique map names, got %d", len(seen))
+	// 10: GOAWAY_STATE left with shield-ebpf's map (S-TRUE-WIRE Step 207),
+	// AUTHORITY with its discarded lookup (S-WIRE-HONEST Step 98).
+	if len(seen) != 10 {
+		t.Errorf("expected 10 unique map names, got %d", len(seen))
 	}
 }
