@@ -4,6 +4,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-119: The Shield XDP post-quantum signature fast path, designed with both ends
 
+> **2026-11-04 (DP-205):** `SHIELD_CONFIG` existed only for the AF_XDP toggle and was deleted with it. Every use below assumes the map exists: it must be declared anew when this is built.
+
 **Status:** Proposed (pitch, parked under ADR-112). Design complete on paper; nothing is built. The removal of 2026-10-28 stands.
 **Date:** 2026-11-03
 **Grounded on:** `develop` at `dd70a4da` (the removed code read at `233b6451`, the last commit that carried it).

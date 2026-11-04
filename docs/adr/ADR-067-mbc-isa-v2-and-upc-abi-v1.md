@@ -1,5 +1,7 @@
 # ADR-067 — MBC ISA v2 + UPC ABI v1 (ASCEND-LINUX Phase 0 freeze)
 
+> **History, 2026-11-04 (DP-205):** AF_XDP was retired: `pkg/afxdp`, `ebpf/af-xdp`, `ebpf/af-xdp-common` and `ebpf/xdp-redirect` deleted, the branches cut from shield and packet-marker. Doom never used it. XDP is unchanged.
+
 **Status:** Accepted (decisions made 2026-05-08; implementation lands across Phase 0)
 **Date:** 2026-05-08
 **Deciders:** Stevie + unheaded-architect (BPF / verifier impact) + unheaded-computermancer (UPC ABI / MBC ISA) + unheaded-developer (impl) + unheaded-marshal (gate enforcement)
