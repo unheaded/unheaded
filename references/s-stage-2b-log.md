@@ -138,3 +138,13 @@ Steps 154-155: `killprobe`, first boot: 12 yes, 0 no, 0 `self-survived`, `KL: do
 Steps 157-158: `gate kill-after`: same=12 diff=0 rc=0 doom=1 ascend=889682, killprobe, gate_nway and forkloop PASS. `head=8ef6e117` on that line is the const-off commit: the gate ran on the tree with the const flipped, before Step 159 committed it. `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allowlisted over 900000. `cargo test --release` in bootctl: 0 failed on every line.
 
 Not covered by a probe: `killprobe` tests a dead target only after the reap, so a kill on an unreaped zombie (-1, D8) takes the same halted-bit branch but is not booted on its own.
+
+## Phase 13, user pointers and the row's cwd
+
+Step 161: last-green was HEAD, no before gate needed; `offv` 889,682.
+
+Steps 162-165: the parity test went red first (`UPC_USER_VA_CEILING not in upc_slots.h`), then 3 passed. `USER_VA_CEILING` is private in `main.rs`, so the test has its own line match, and it also asserts the ceiling is at most `SLICE_STRIDE`. Object unchanged, 889,682, so no ledger row. The kernel's `.mbc` fell 12 bytes (48,700 to 48,688) with code added; `.text` stays 31,488 in both builds, and `nm` shows `upc_user_pa` in the ELF. The fall was checked by rebuilding HEAD's three files and restoring them, not explained further.
+
+Steps 166-167: `gate uptr`: same=12 diff=0 rc=0 doom=1 ascend=889682, ALL GREEN, no panic in the harness output. `head=fff34c62` is the commit before this phase's: the gate ran on the uncommitted tree. Every forked child's first trap now runs `namei("/")`, and fsinit has run by then. `killprobe` and `sbrkprobe` were booted once more by hand on the final kernel: all checks reported.
+
+Not covered: no boot takes the slot-row branch of `walkaddr`, `copyout` or `vmfault` yet, because no pointer-taking number routes to the kernel. Phase 14's `mkprobe` is the first run of that code.

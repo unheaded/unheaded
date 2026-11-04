@@ -28,6 +28,7 @@
 #define UPC_REPLY_KILL          4
 #define UPC_HEAP_BASE           0x00010000 // ADR-135 D2: VA window, inside fork's low copy band
 #define UPC_HEAP_TOP            0x00040000
+#define UPC_USER_VA_CEILING     0x00800000 // ADR-135 D6: USER_VA_CEILING in main.rs
 #define UPC_SLICE_BASE(s)       ((s) == 0 ? 0 : 0x01000000 + ((s) - 1) * 0x00800000) // ADR-135 D5; phase12.rs pid_phys_offset
 
 struct upc_tf_slot {
@@ -56,6 +57,7 @@ void upc_slot_leave(void);
 void upc_reply(uint32 flags, uint32 arg);
 uint64 upc_sbrk(int n);
 uint64 upc_kill(int pid);
+uint64 upc_user_pa(uint64 va);
 
 _Static_assert(sizeof(struct upc_tf_slot) == UPC_TF_STRIDE, "ADR-109 trapframe stride");
 _Static_assert(sizeof(struct upc_slot_tables) == UPC_ST_SIZE, "ADR-109 slot tables size");

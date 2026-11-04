@@ -72,6 +72,23 @@ fn bpf_and_kernel_agree_on_the_slot_tables() {
     }
 }
 
+/// `upc_user_pa()` refuses a VA at or above the kernel's ceiling. BPF's sits in
+/// main.rs as a private const, so `rust_const` cannot see it. A ceiling above
+/// the slice stride would let a user pointer reach the next slot's slice.
+#[test]
+fn kernel_user_pointer_ceiling_is_bpfs() {
+    let main_rs = read("ebpf/monad-cpu-ebpf/src/main.rs");
+    let l = main_rs
+        .lines()
+        .find(|l| l.starts_with("const USER_VA_CEILING: u32 = "))
+        .expect("USER_VA_CEILING not in main.rs");
+    let bpf = parse(l.split('=').nth(1).unwrap().split("//").next().unwrap());
+    let h = read("crates/xv6-mbc/adapters/upc_slots.h");
+    assert_eq!(c_define(&h, "UPC_USER_VA_CEILING"), bpf);
+    let rs = read("ebpf/monad-cpu-ebpf/src/phase12.rs");
+    assert!(bpf <= rust_const(&rs, "SLICE_STRIDE"));
+}
+
 /// xv6's trapframe under ilp32e: 36 fields of 4 bytes (`uint64` is 4 bytes).
 fn trapframe_bytes() -> u32 {
     let h = read("crates/xv6-mbc/upstream/kernel/proc.h");

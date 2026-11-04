@@ -119,6 +119,7 @@ and r2 keep their pre-trap values. No handler reads a6 (`argraw` stops at a5), s
     walk it. The first rung that dereferences a user pointer (`copyin`/`copyout`, likely rung 3 or 6) owns the
     translation decision.
   - `state = RUNNING`, `killed = 0`, `parent = 0`, `sz = 0`.
+  - `cwd = namei("/")` if it is 0, once per row, kept across slot reuse (ADR-135 D9).
 - **Then, in every tagged case:** it sets `mycpu()->proc = &proc[s]`, and a7 from `trap_a7` if that tag is present.
   Without it, `tf->a7` stays as saved.
 
@@ -130,7 +131,7 @@ This is pre-existing. Rung 0 checks it (a word dump of `0xF01000` after boot) an
 `sched`, `sleep` or `freeproc`; each panics `upc: slot row` if it does. `usertrap`'s `killed` exits panic the same
 way. Rung 0 never sets `killed` on a slot row. How a kill reaches BPF is the kill rung's decision (skeleton rung 8).
 
-**Fields left stale, and their owners:** `sz` (sbrk rung), `ofile`/`cwd` (rung 6), `xstate`/`parent` (rung 7), and
+**Fields left stale, and their owners:** `sz` (sbrk rung), `ofile` (rung 6), `xstate`/`parent` (rung 7), and
 `chan` (the first rung that sleeps in the kernel).
 
 **Rung 7 forward rule:** row identity is slot s ↔ `proc[s]`. When the kernel takes over fork, it uses the slot BPF

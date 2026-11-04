@@ -80,6 +80,18 @@ upc_kill(int pid)
   return 0;
 }
 
+// ADR-135 D6. A slot row's user VA to its physical address, 0 when refused.
+// Only inside a tagged trap. VA 0 is mapped, so for slots 1-7 0 only ever means
+// refused; slot 0's base is 0, which refuses its first page, the safe way round.
+uint64
+upc_user_pa(uint64 va)
+{
+  uint32 s = myproc() - proc;
+  if(s >= UPC_SLOTS || va >= UPC_USER_VA_CEILING)
+    return 0;
+  return UPC_SLICE_BASE(s) + va;
+}
+
 int
 upc_is_slot_row(struct proc *p)
 {
@@ -182,6 +194,8 @@ upc_slot_enter(void)
     p->parent = 0;
     p->sz = 0;
     safestrcpy(p->name, "slot", sizeof(p->name));
+    if(p->cwd == 0)
+      p->cwd = namei("/"); // ADR-135 D9: once per row, kept across slot reuse
     rf = 1;
   }
 #endif
