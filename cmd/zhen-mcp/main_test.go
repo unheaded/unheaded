@@ -676,7 +676,7 @@ func TestLocalLLMDefaultsAndTimeout(t *testing.T) {
 	if cfg.llmURL != "http://127.0.0.1:8081" || cfg.llmModel != "local" || cfg.llmTimeout != 120*time.Second || cfg.llmErr != nil {
 		t.Errorf("defaults = %q %q %v %v", cfg.llmURL, cfg.llmModel, cfg.llmTimeout, cfg.llmErr)
 	}
-	if cfg.vorURL != "http://127.0.0.1:9876" || cfg.allowWrite || cfg.allowExec {
+	if cfg.vorURL != "http://127.0.0.1:20110" || cfg.allowWrite || cfg.allowExec {
 		t.Errorf("defaults = vor %q write %v exec %v", cfg.vorURL, cfg.allowWrite, cfg.allowExec)
 	}
 

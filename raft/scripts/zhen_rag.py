@@ -5,7 +5,7 @@
 Zhen RAG Pipeline — Retrieval-Augmented Generation for Unheaded
 
 WAVE15 REWIRE (2026-05-02): retrieval substrate is vor (cs serve at
-:9876); inference is qwen-coder-7b via llama-server at :8081 using
+:20110); inference is qwen-coder-7b via llama-server at :8081 using
 the OpenAI /v1/chat/completions shape. The legacy FAISS index over
 ring_all.jsonl is retired — see docs/battle-plans/WAVE15-ZHENAI-REWIRE.md.
 
@@ -48,9 +48,9 @@ from zhen_prompt_generated import (
 )
 
 # Default URLs — match the live Go-stack backends.
-DEFAULT_VOR_URL = "http://localhost:9876"
+DEFAULT_VOR_URL = "http://localhost:20110"
 DEFAULT_INFERENCE_URL = "http://localhost:8081"
-DEFAULT_AGENTD_URL = "http://localhost:20105"   # zhen-agentd: the chat path's gate
+DEFAULT_AGENTD_URL = "http://localhost:20111"   # zhen-agentd: the chat path's gate
 DEFAULT_MODEL_NAME = "qwen2.5-coder-7b-instruct"
 
 log = logging.getLogger("zhen_rag")
@@ -288,7 +288,7 @@ class RAGPipeline:
         and IGNORED — vor is the retrieval substrate now.
 
         New keyword args:
-            vor_url:        cs serve REST endpoint (default :9876).
+            vor_url:        cs serve REST endpoint (default :20110).
             inference_url:  llama-server endpoint (default :8081).
             agentd_url:     zhen-agentd endpoint (Phase 2 proxy target).
             model_name:     model identifier sent to /v1/chat/completions.
@@ -888,9 +888,9 @@ def main():
     """Smoke test: run a few sample queries against the rewired pipeline.
 
     Boots in ~2 s (no FAISS, no ring_all, no Wikipedia offset index).
-    Requires vor :9876 and llama-server :8081 to be reachable.
+    Requires vor :20110 and llama-server :8081 to be reachable.
     """
-    rag = RAGPipeline()  # defaults: vor :9876, llama :8081, qwen-coder.
+    rag = RAGPipeline()  # defaults: vor :20110, llama :8081, qwen-coder.
 
     test_queries = [
         "What is Unheaded?",

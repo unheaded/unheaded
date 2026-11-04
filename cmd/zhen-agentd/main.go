@@ -11,8 +11,7 @@
 //	GET  /health    — liveness probe (always returns 200 once up)
 //	GET  /ready     — readiness probe (verifies vor + llama-server reachable)
 //
-// Default port: 20105 (in the AI Services band 20101-20106 reserved
-// per CLAUDE.md's Port Allocation table).
+// Default port: 20111 (ports.ZhenAgentd; 20105 is SophiaEye, DP-712).
 //
 // Graceful shutdown on SIGINT/SIGTERM: stops accepting new requests,
 // waits up to 10s for in-flight requests to finish, then exits.
@@ -53,8 +52,8 @@ import (
 )
 
 const (
-	defaultPort      = 20105
-	defaultVorURL    = "http://127.0.0.1:9876"
+	defaultPort      = 20111
+	defaultVorURL    = "http://127.0.0.1:20110"
 	defaultLlamaURL  = "http://127.0.0.1:8081"
 	defaultModel     = "qwen2.5-coder-7b-instruct"
 	defaultK         = 5
@@ -84,7 +83,7 @@ func main() {
 		schedOn      = flag.Bool("scheduler", false, "run approved runbooks on the schedule in -schedules: one Kanban card and one zhen_agent_runs row (mode scheduled; DSN from env WELL_APP_ZHEN_DSN, in memory without it) per run, every call through the Champion gate; heartbeat gauge zhen_scheduler_heartbeat_timestamp_seconds (replaces raft/zhen_scheduler.py, ADR-028)")
 		schedFile    = flag.String("schedules", envOr("ZHEN_SCHEDULES", "configs/zhen-schedules.yaml"), "with -scheduler: the schedule file (env ZHEN_SCHEDULES); read-only to the daemon")
 		schedState   = flag.String("schedules-state", os.Getenv("ZHEN_SCHEDULES_STATE"), "with -scheduler: where run-time schedule changes (POST /api/v1/scheduler/add|remove|pause) persist (env ZHEN_SCHEDULES_STATE); empty keeps them until restart")
-		metricsAddr  = flag.String("metrics-addr", os.Getenv("ZHEN_METRICS_ADDR"), "also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20105'; the API stays on -host")
+		metricsAddr  = flag.String("metrics-addr", os.Getenv("ZHEN_METRICS_ADDR"), "also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20111'; the API stays on -host")
 	)
 	var wf workerFlags
 	registerWorkerFlags(flag.CommandLine, &wf)

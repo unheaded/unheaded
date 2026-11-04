@@ -125,7 +125,7 @@ zhen-agent-up: build-zhen-agent ## Build zhen-agent + verify prerequisites (vor,
 zhen-agentd-up: build-zhen-agentd ## Build zhen-agentd daemon + verify backends + start in foreground
 	@./scripts/zhen-agent-preflight.sh
 	@echo ""
-	@echo "Starting zhen-agentd on http://127.0.0.1:20105 (Ctrl-C to stop)..."
+	@echo "Starting zhen-agentd on http://127.0.0.1:20111 (Ctrl-C to stop)..."
 	@bin/zhen-agentd -project-root $(PWD)
 
 zhen-agentd-docker: ## Build zhen-agentd Docker image (deploy/docker/zhen-agentd.Dockerfile)

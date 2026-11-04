@@ -9,7 +9,7 @@ Zhen is Unheaded's AI-assisted development system. It combines retrieval-augment
 │              Zhen Pipeline              │
 ├─────────────┬───────────┬───────────────┤
 │  Question   │   vor     │  llama.cpp    │
-│  shaping    │  :9876    │  :8081        │
+│  shaping    │  :20110    │  :8081        │
 ├─────────────┼───────────┼───────────────┤
 │ pkg/vorquery│ ~2.3k md  │  model from   │
 │ zhen_rag.py │  topics   │  the selector │
@@ -18,7 +18,7 @@ Zhen is Unheaded's AI-assisted development system. It combines retrieval-augment
 
 ## RAG Pipeline
 
-Since WAVE15 (2026-05) retrieval is `vor` (`vor serve`, :9876), not the old FAISS index: Unheaded's markdown (docs, ADRs, wiki) plus vor's own cheatsheets, each labelled with a source trust.
+Since WAVE15 (2026-05) retrieval is `vor` (`vor serve`, :20110), not the old FAISS index: Unheaded's markdown (docs, ADRs, wiki) plus vor's own cheatsheets, each labelled with a source trust.
 
 - **Question shaping** (`raft/scripts/zhen_rag.py` for the web UI; `pkg/vorquery` for zhen-rag, zhen-agent, zhen-agentd, zhen-cli; a test keeps them identical): question words are dropped before the search, and topics whose *name* carries every query term (`Service-Wotan` for "what is wotan") are interleaved with vor's hits. Agent-worktree copies (`.claude/worktrees/`) are skipped.
 - **Fetch:** the top 5 unique topics, by exact name (`/api/topics/<name>`; vor 2044c0f fixed mixed-case names resolving to a different topic).
@@ -59,7 +59,7 @@ whether to trust project servers; after that the tools appear as
 
 Every tool runs through the Champion (`pkg/champion`): file and runbook tools
 through `Dispatch`, `corpus_search` (vor, `VOR_URL`, default
-`http://127.0.0.1:9876`), `service_health` and `local_llm` after
+`http://127.0.0.1:20110`), `service_health` and `local_llm` after
 `AcceptToolCall`. So the path allowlist (symlinks resolved, `.env`,
 `secrets`, `credentials`, keys denied) and the destructive-verb rule apply to
 every call, including a `local_llm` prompt. A flag is the operator's grant for
@@ -96,9 +96,9 @@ scheduler (`raft/zhen_scheduler.py`, ADR-028) was retired 2026-10-27
 **Unit.** `deploy/systemd/zhen-agentd.service` runs
 `-scheduler -schedules /etc/unheaded/zhen/schedules.yaml
 -schedules-state /var/lib/zhen-agentd/schedules-state.json`; `-metrics-addr`
-(env `ZHEN_METRICS_ADDR`, west: `[fd00:dead:beef::1]:20105`) serves `/metrics`
+(env `ZHEN_METRICS_ADDR`, west: `[fd00:dead:beef::1]:20111`) serves `/metrics`
 alone on the WireGuard address for Prometheus (job `zhen-agentd`); the API
-stays on `127.0.0.1:20105`.
+stays on `127.0.0.1:20111`.
 
 **Config.** `configs/zhen-schedules.yaml`, installed as
 `/etc/unheaded/zhen/schedules.yaml` (`root:zhen-agentd`, 0640; the daemon never

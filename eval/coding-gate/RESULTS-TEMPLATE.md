@@ -12,7 +12,7 @@
 
 ## Integrity checks (per RUBRIC §6)
 
-- [ ] vor reachable on :9876
+- [ ] vor reachable on :20110
 - [ ] llama-server reachable on :8081, ctx=16384
 - [ ] zhen-rag built from current HEAD
 - [ ] Smoke prompt grounded (WAVE14 H6 returns the session doc reference)

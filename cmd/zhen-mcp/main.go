@@ -27,7 +27,7 @@
 //
 //	ZHEN_MCP_PROJECT_ROOT   repo root (default: walk up from the binary,
 //	                        then the working directory, to go.mod + runbooks/)
-//	VOR_URL                 vor for corpus_search (default http://127.0.0.1:9876)
+//	VOR_URL                 vor for corpus_search (default http://127.0.0.1:20110)
 //	ZHEN_LOCAL_LLM_URL      llama-server (default http://127.0.0.1:8081)
 //	ZHEN_LOCAL_LLM_MODEL    "model" sent (default "local")
 //	ZHEN_LOCAL_LLM_TIMEOUT  seconds per local_llm call (default 120, max 600)
@@ -80,7 +80,7 @@ const (
 	envLocalLLMTimeout = "ZHEN_LOCAL_LLM_TIMEOUT"
 	envCaptureDir      = "ZHEN_CAPTURE_DIR"
 
-	defaultVorURL          = "http://127.0.0.1:9876"
+	defaultVorURL          = "http://127.0.0.1:20110"
 	defaultLocalLLMTimeout = 120 * time.Second
 	maxLocalLLMTimeout     = 600 * time.Second
 )

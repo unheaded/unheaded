@@ -1,4 +1,4 @@
-.TH ZHEN\-AGENTD 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.TH ZHEN\-AGENTD 1 "2026-11-04" "unheaded v0.0.0-20261104150438-43bea5e1d215+dirty" "Unheaded Kingdom"
 .SH NAME
 zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH SYNOPSIS
@@ -69,7 +69,7 @@ with \-overnight: cards tried per night (default 5)
 memory backend for /api/v1/memory/recall and /remember (zhen\-cli /recall, /remember): none (503) | pg (unheaded_app.zhen_memories, DSN from env WELL_APP_ZHEN_DSN) (default none)
 .TP
 .B \-\-metrics\-addr \fISTRING\fR
-also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20105'; the API stays on \-host
+also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20111'; the API stays on \-host
 .TP
 .B \-\-no\-auth
 serve without authentication; only with a loopback \-host and AUTH_ENABLED unset (dev). Without it, zhen\-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or a trust dir (AUTH_TRUST_DIR) is set
@@ -84,7 +84,7 @@ run the worker unattended inside \-window, then exit: its own ledger and cap (de
 with \-worker: time between polls for an eligible card (default 1m0s)
 .TP
 .B \-\-port \fIN\fR
-HTTP listen port (default 20105)
+HTTP listen port (default 20111)
 .TP
 .B \-\-privacy \fISTRING\fR
 with \-worker: privacy tier of the Claude leg: standard or strict (default standard)

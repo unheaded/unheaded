@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	defaultVorURL    = "http://127.0.0.1:9876"
+	defaultVorURL    = "http://127.0.0.1:20110"
 	defaultLlamaURL  = "http://127.0.0.1:8081"
 	defaultModel     = "qwen2.5-coder-7b-instruct"
 	defaultK         = 5

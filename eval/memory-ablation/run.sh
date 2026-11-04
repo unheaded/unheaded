@@ -20,7 +20,7 @@
 # Fail: d <  0.5 → ship recall disabled (writes still happen for audit)
 #
 # Pre-requisites:
-#   - vor on :9876
+#   - vor on :20110
 #   - llama-server on :8081
 #   - raft/zhen_app.py running on :20103
 #   - The Well reachable (PG) for memory persistence
@@ -71,7 +71,7 @@ cat > "$OUT" <<EOF
 **Pass threshold:** Cohen's d ≥ 0.5 (medium effect), p < 0.05. Computed by hand-grading each pair on a 1-5 usefulness scale.
 
 **Underlying inference:** llama-server qwen-coder-7b at :8081 (chat path direct per WAVE15 Phase 2b).
-**Underlying retrieval:** vor at :9876.
+**Underlying retrieval:** vor at :20110.
 
 ---
 
