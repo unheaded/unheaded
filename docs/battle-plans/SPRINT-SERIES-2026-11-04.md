@@ -18,7 +18,7 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 | S-G9-FOLD | unattended, ADRs first | D, after S-WIRE-HONEST | DP-203: one parked ADR per fold, compliance first |
 | S-STAGE-2B | unattended, serial | E | DP-213, 413, 414, 501, 502, 503, 717, 206 prep |
 | S-LOG-HARVEST Phase 5 | unattended, existing plan | C, after S-ZHEN-POLISH | native syslog relay, Steps 105-140 |
-| S-HOST-TIDY | unattended, live hosts, reversible only | coordinator | DP-09, 11 (password + fail2ban, not the port), 12, 15 (`PermitRootLogin no`), 25 (safe rows), 708, 711, 723 follow-up |
+| S-HOST-TIDY | unattended, live hosts, reversible only | coordinator | DP-713 image, DP-09, 11 (password + fail2ban, not the port), 12, 15 (`PermitRootLogin no`), 25 (safe rows), 708, 711, 712 (install), 723 follow-up |
 | S-E1-LIVE | ATTENDED | Stevie present | E1 stack up, DP-23, 605, 603 (103, 106), 22, 04, 15 keys, 11 port, 06 ceremony, 14, 03 later, 206, 710, 303, 505, 701, 602, 604, 606, 07 |
 
 ## Rules every plan and every agent follows
