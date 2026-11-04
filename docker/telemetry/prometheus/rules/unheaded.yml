@@ -50,18 +50,6 @@ groups:
           summary: "WireGuard handshake stale on {{ $labels.interface }}"
           description: "Last handshake on {{ $labels.interface }} was {{ $value | humanizeDuration }} ago. Peer {{ $labels.peer }} may be unreachable."
 
-      # LLM inference stalled alerts
-      - alert: LLMInferenceStalled
-        expr: |
-          rate(vllm_generation_tokens_total[1m]) == 0
-        for: 60s
-        labels:
-          severity: critical
-          service: unheaded
-        annotations:
-          summary: "LLM inference stalled on {{ $labels.instance }}"
-          description: "vLLM token generation rate is zero on {{ $labels.instance }}. Inference pipeline may be frozen."
-
       # High CPU usage alerts
       - alert: HighCPUUsage
         expr: |

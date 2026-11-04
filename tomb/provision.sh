@@ -825,11 +825,11 @@ GSEARCH_EOF"
     info "Deploying RAG infrastructure dependencies..."
     if [ -d "${PACKAGES_DIR}/grimoire/rag-deps" ]; then
         tomb_scp "${PACKAGES_DIR}/grimoire/rag-deps/" "${TOMB_STAGING}/rag-deps/"
-        tomb_root "pip3 install --no-index --find-links=${TOMB_STAGING}/rag-deps/ chromadb sentence-transformers 2>/dev/null || true"
+        tomb_root "pip3 install --no-index --find-links=${TOMB_STAGING}/rag-deps/ chromadb==1.5.9 sentence-transformers==6.2.0 2>/dev/null || true"
         ok "RAG Python dependencies installed (offline)"
     else
         warn "No rag-deps/ in packages/grimoire/ -- stage pip wheels for air-gapped install"
-        info "Hint: pip download -d tomb/packages/grimoire/rag-deps/ chromadb sentence-transformers"
+        info "Hint: pip download -d tomb/packages/grimoire/rag-deps/ chromadb==1.5.9 sentence-transformers==6.2.0"
     fi
 
     info "Deploying rag-query.py..."
@@ -878,7 +878,7 @@ def query_chromadb(query_text, top_k=None, config=None):
         from chromadb.config import Settings
     except ImportError:
         print(\"[ERROR] chromadb not installed. Install with:\", file=sys.stderr)
-        print(\"  pip3 install chromadb sentence-transformers\", file=sys.stderr)
+        print(\"  pip3 install chromadb==1.5.9 sentence-transformers==6.2.0\", file=sys.stderr)
         sys.exit(1)
 
     chroma_dir = config.get(\"chroma_dir\", CHROMA_DIR)
@@ -889,11 +889,10 @@ def query_chromadb(query_text, top_k=None, config=None):
         print(\"[WARN] Run grimoire-index.py to build the vector index.\", file=sys.stderr)
         return []
 
-    client = chromadb.Client(Settings(
-        chroma_db_impl=\"duckdb+parquet\",
-        persist_directory=chroma_dir,
-        anonymized_telemetry=False,
-    ))
+    client = chromadb.PersistentClient(
+        path=chroma_dir,
+        settings=Settings(anonymized_telemetry=False),
+    )
 
     try:
         collection = client.get_collection(name=collection_name)

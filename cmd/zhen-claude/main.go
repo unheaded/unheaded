@@ -122,6 +122,7 @@ var claudeSpec = cmdline.Spec{
 	Commands: []cmdline.Command{
 		{Name: "confirm", Purpose: "list, approve or deny queued writes (see zhen-claude confirm --help)"},
 		{Name: "review", Purpose: "review drafts in an agent worktree (see zhen-claude review --help)"},
+		{Name: "check", Purpose: "standard -check commands: go, json, cite (see zhen-claude check --help)"},
 	},
 }
 
@@ -256,6 +257,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if len(args) > 0 && args[0] == "review" {
 		return runReviewCmd(args[1:], stdout, stderr)
+	}
+	if len(args) > 0 && args[0] == "check" {
+		return runCheckCmd(args[1:], stdin, stdout, stderr)
 	}
 	o, err := parseFlags(args, stdout, stderr)
 	if err != nil {

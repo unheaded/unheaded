@@ -1,4 +1,4 @@
-.TH ZHEN\-CLI 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.TH ZHEN\-CLI 1 "2026-11-04" "unheaded v0.0.0-20261104152510-c303527bc1f5+dirty" "Unheaded Kingdom"
 .SH NAME
 zhen\-cli \- Interactive terminal REPL for Zhenai: vor retrieval plus llama\-server inference (ADR\-059).
 .SH SYNOPSIS
@@ -22,6 +22,12 @@ per\-topic content cap (default 10000)
 .TP
 .B \-\-no\-color
 disable ANSI colour even on a tty
+.TP
+.B \-\-no\-memory\-recall
+do not show the [memory hit] line
+.TP
+.B \-\-no\-persist
+do not save this session to zhen_conversations on exit
 .TP
 .B \-q \fISTRING\fR
 one\-shot question; print answer and exit (same as piping)

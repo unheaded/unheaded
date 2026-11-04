@@ -3,7 +3,7 @@
 
 // Package svctoken checks that the service tokens minted outside Go are the
 // tokens pkg/auth mints (ADR-103 §2): the Rust crate crates/svc-token (used
-// by cmd/trace-collector and cmd/ebpf-collector) and the Python module
+// by cmd/ebpf-collector) and the Python module
 // scripts/svc_token.py (used by scripts/run-runbook.py). Each test makes a
 // key pair with auth.GenerateKeyPair at run time (no key is ever
 // committed), has the foreign minter sign a token with it, and requires

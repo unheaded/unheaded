@@ -1,5 +1,7 @@
 # ADR-004: No-External-Dependencies Policy (Self-Hosted Everything)
 
+> **2026-11-04 (DP-401, round 4):** `cmd/waf` was deleted. `aws-lc-rs` and `aws-lc-sys` stay admitted for `crates/zhend` alone, which uses them directly.
+
 ## Status: Accepted — admission gate amended by [ADR-096](ADR-096-dependency-gate-cost-to-fake.md) (proposed 2026-09-24)
 
 ## Date: 2026-01-26
@@ -80,7 +82,7 @@ The policy extends to the frontend: no npm, no node_modules, no webpack, no Reac
 - **Full understanding**: Every line of code in production is written and maintained by the team. There are no "black box" dependencies where behavior is understood only through documentation.
 - **Minimal binary size**: Production binaries contain only the code they need. No unused transitive dependencies inflate the attack surface.
 - **License clarity**: The only licenses in production are Go's BSD license, Rust's MIT/Apache-2.0, and Unheaded's own license. The `LICENSES/THIRD_PARTY.md` file is for development tooling only.
-- **Brand alignment**: Self-hosting validation extends to dependencies. A platform that builds its own metrics, logging, netlink, and eBPF libraries demonstrates deep systems expertise.
+- **Self-hosting proof**: Self-hosting validation extends to dependencies. A platform that builds its own metrics, logging, netlink, and eBPF libraries can be read, audited and fixed by the people who run it.
 - **Operational independence**: The platform can be built, deployed, and operated on an air-gapped network with no internet access after the initial Go/Rust toolchain install.
 
 ### Negative
@@ -88,8 +90,12 @@ The policy extends to the frontend: no npm, no node_modules, no webpack, no Reac
 - **Higher upfront cost**: Writing `pkg/ebpf/` (3,937 LOC), `pkg/netlink/` (2,136 LOC), `pkg/logger/` (1,533 LOC), and `pkg/metrics/` (1,168 LOC) represents weeks of engineering that could have been spent on product features.
 - **Maintenance burden**: Bug fixes and performance improvements in upstream libraries (e.g., prometheus/client_golang) must be independently discovered and implemented.
 - **Potential for bugs**: Battle-tested libraries like zerolog and cilium/ebpf have thousands of users finding edge cases. Our internal replacements have a user base of one.
-- **Hiring friction**: Developers accustomed to using established libraries may find the policy unusual or unnecessary. The rationale must be clearly communicated.
+- **Contributor friction**: Contributors accustomed to established libraries may find the policy unusual or unnecessary. The rationale must be clearly communicated.
 - **Development speed**: The `.dev` placeholder pattern means some development workflows temporarily use external deps, creating a gap between dev and prod environments.
+
+## Amended 2026-11-04 (DP-405 Q3)
+
+Commercial framing removed under the community-first doctrine: the Context sentence on 2026-10-27 (`aad966c9`), the "Brand alignment" and "Hiring friction" bullets here. The policy itself is unchanged.
 
 ## Approved Exceptions Register
 
@@ -102,7 +108,7 @@ Dependencies from established organizations, approved by owner on a case-by-case
 | `cloudflare/circl` | Cloudflare | PQ cryptography: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205). Scope widened to record actual use, audit 2026-09-24 | 2026-03-15 |
 | `lib/pq` | Go community (widely used) | Pure Go PostgreSQL driver | 2026-03-15 |
 | `github.com/anthropics/anthropic-sdk-go` | Anthropic | Official Claude API client for `pkg/claudebridge` (ADR-104). MIT. Review below | 2026-10-23, **owner sign-off pending** |
-| `aws-lc-rs` (+ `aws-lc-sys`), Rust | AWS (`aws` org) | rustls' crypto provider in `cmd/waf` and `crates/zhend`: the only rustls provider with hybrid ML-KEM key exchange (ADR-105). Replaces `ring` there. Review below | 2026-10-23, **owner sign-off pending** |
+| `aws-lc-rs` (+ `aws-lc-sys`), Rust | AWS (`aws` org) | rustls' crypto provider in `crates/zhend` (`cmd/waf` deleted 2026-11-04): the only rustls provider with hybrid ML-KEM key exchange (ADR-105). Replaces `ring` there. Review below | 2026-10-23, **owner sign-off pending** |
 
 **Approval process:** New exceptions require owner sign-off. Target: Kanban board approval workflow (see ADR-025).
 

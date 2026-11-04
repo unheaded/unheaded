@@ -95,7 +95,9 @@ type Champion struct {
 	runCheck      *RunCheckConfig // nil: run_check refused (runcheck.go)
 	branchSandbox *branchSandbox  // nil: off (branchsandbox.go)
 	scheduler     ScheduleUpdater // nil: schedule_update refused (schedule.go)
+	taughtDir     string          // "": teach_write refused (teach.go); only confirm approve sets it
 	beforeOpen    func()          // test hook: runs between validation and the open (Step 68)
+	afterCreate   func(*os.File)  // test hook: runs between writeNewBeneath's create and its write
 }
 
 // New creates a new Champion with the given configuration.
@@ -126,6 +128,11 @@ func New(cfg Config, store ActionStore) (*Champion, error) {
 			".env",
 			"credentials",
 			"secrets",
+			// The stores that feed retrieval: only their own writers
+			// touch them, and no file tool does (DP-309).
+			"/zhen-taught/",
+			"/code-index/",
+			"/vor-source/",
 		}
 	}
 

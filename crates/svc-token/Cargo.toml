@@ -4,7 +4,7 @@
 # tokens Go's pkg/auth mints (ADR-103 §2): header {"alg":"EdDSA","typ":"JWT",
 # "kid":...}, claims sub/iss/aud/exp/iat/roles, 5-minute lifetime, key file =
 # the "UNHEADED ED25519 SEED" PEM unheaded-keygen writes, kid = first 16 hex
-# of SHA-256 over the raw public key. Used by cmd/trace-collector and
+# of SHA-256 over the raw public key. Used by
 # cmd/ebpf-collector to authenticate to Wotan (S-IRON-GATE Phase 7).
 #
 # Dependencies are already in the tree: ring 0.17 (Ed25519, SHA-256) and

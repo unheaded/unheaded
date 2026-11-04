@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -147,6 +149,58 @@ func TestFitMaxTokens(t *testing.T) {
 	for _, c := range cases {
 		if got := fitMaxTokens(c.capNano, outRate, 4096); got != c.want {
 			t.Errorf("cap %d: %d, want %d", c.capNano, got, c.want)
+		}
+	}
+}
+
+func TestRun_RedactionMatchNeverCallsClaude(t *testing.T) {
+	called := false
+	leg := func(context.Context, ClaudeInput) (claudebridge.ClaudeResult, error) {
+		called = true
+		return claudebridge.ClaudeResult{}, nil
+	}
+	out, err := Run(context.Background(), Config{Routing: routing(), Claude: leg, LocalURL: llama(t, "local answer")},
+		Task{Family: "docs", Prompt: "why does password=hunter2hunter2 fail"})
+	if err != nil || called || out.Route != claudebridge.RouteLocalOnly {
+		t.Errorf("out %+v err %v called %v", out, err, called)
+	}
+}
+
+// An agent worktree's Champion reaches the worktree and nothing else: the
+// default allowed paths include /var/zhen/, and a model works here with
+// no confirmation.
+func TestWorktreeChampion_OnlyTheWorktree(t *testing.T) {
+	agent, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wt := filepath.Join(agent, "card-7")
+	if err := os.Mkdir(wt, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"init", "-q", "-b", "zhen/card-7"},
+		{"config", "user.email", "t@example.invalid"},
+		{"config", "user.name", "t"},
+		{"commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "base"},
+	} {
+		if out, err := exec.Command("git", append([]string{"-C", wt}, args...)...).CombinedOutput(); err != nil {
+			t.Skipf("git %v: %v %s", args, err, out)
+		}
+	}
+	root, champ, err := worktreeChampion(context.Background(), Config{}, Task{Worktree: wt, AgentRoot: agent}, slog.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root != wt || champ.BranchSandbox() != "zhen/card-7" {
+		t.Fatalf("root %q, branch %q", root, champ.BranchSandbox())
+	}
+	if err := champ.CheckPath(filepath.Join(wt, "lib.go")); err != nil {
+		t.Errorf("inside the worktree: %v", err)
+	}
+	for _, p := range []string{"/var/zhen/notes.md", filepath.Join(agent, "other", "x.go")} {
+		if err := champ.CheckPath(p); err == nil {
+			t.Errorf("%s passes Rule 1", p)
 		}
 	}
 }

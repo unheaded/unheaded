@@ -4,9 +4,67 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"unheaded/pkg/champion"
+	"unheaded/pkg/vorquery"
 )
+
+// Every untrusted search hit reaches the gate, however the fetch loop missed
+// it: a failed fetch, a same-named trusted sheet, the cut at k.
+func TestVorRetriever_HidesNoUntrustedHit(t *testing.T) {
+	sheet := func(name, category, trust string) func(http.ResponseWriter, *http.Request) {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]string{"name": name, "category": category, "content": "x", "source_trust": trust})
+		}
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/search", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]string{
+			{"topic": "good", "category": "c", "source_trust": "canonical"},
+			{"topic": "broken", "category": "c", "source_trust": "external"},
+			{"topic": "masked", "category": "sub", "source_trust": "external"},
+			{"topic": "masked", "category": "sub", "source_trust": "external"},
+			{"topic": "samekey", "category": "c", "source_trust": "external"},
+			{"topic": "past", "category": "c", "source_trust": "external"},
+			{"topic": "pastgood", "category": "c", "source_trust": "canonical"},
+		})
+	})
+	mux.HandleFunc("/api/topics", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("[]")) })
+	mux.HandleFunc("/api/topics/good", sheet("good", "c", "canonical"))
+	mux.HandleFunc("/api/topics/broken", func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "boom", http.StatusInternalServerError) })
+	mux.HandleFunc("/api/topics/masked", sheet("masked", "other", "canonical"))
+	mux.HandleFunc("/api/topics/samekey", sheet("samekey", "c", "canonical"))
+	s := httptest.NewServer(mux)
+	defer s.Close()
+
+	r := &vorRetriever{client: s.Client(), baseURL: s.URL, maxChars: 100, index: vorquery.NewIndex(s.Client(), s.URL)}
+	refs, contents, err := r.Retrieve(context.Background(), "poison", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contents) != 3 {
+		t.Fatalf("contents %+v", contents)
+	}
+	var got []string
+	for _, ref := range refs[len(contents):] {
+		if ref.SourceTrust != "external" {
+			t.Fatalf("tail ref %+v", ref)
+		}
+		got = append(got, ref.Topic+"|"+ref.Category)
+	}
+	if want := "broken|c masked|sub samekey|c past|c"; strings.Join(got, " ") != want {
+		t.Fatalf("tail %q, want %q", strings.Join(got, " "), want)
+	}
+	if !(&champion.ToolCall{Name: "write_file", Justification: refs}).HasUntrustedJustification() {
+		t.Fatal("the gate would pass")
+	}
+}
 
 func TestClipContent_ReturnsAsIsWhenUnderLimit(t *testing.T) {
 	t.Parallel()

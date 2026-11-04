@@ -620,7 +620,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: coredns/coredns:1.12.0
+    image: coredns/coredns:1.12.4
     container_name: unheaded-coredns
     user: "16785:16785"   # pkg/uids; listens on 1053 (config/coredns/Corefile)
     read_only: true

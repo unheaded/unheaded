@@ -115,18 +115,18 @@ steps:
   - name: start-vor
     action: shell
     command: |
-      if ss -lnt | grep -q ':9876'; then
-        echo "vor already on :9876"
+      if ss -lnt | grep -q ':20110'; then
+        echo "vor already on :20110"
       else
-        nohup cs serve &> "$(~/tmp/unheaded/scripts/lib/logpath.sh vor)" &
+        nohup cs serve 20110 &> "$(~/tmp/unheaded/scripts/lib/logpath.sh vor)" &
         echo "vor PID: $!"
         for i in $(seq 1 15); do
-          curl -sf http://127.0.0.1:9876/api/health > /dev/null 2>&1 && break
+          curl -sf http://127.0.0.1:20110/api/health > /dev/null 2>&1 && break
           sleep 1
         done
       fi
-    verify: "curl -sf http://127.0.0.1:9876/api/health > /dev/null"
-    description: "Start vor (cs serve) corpus server on :9876"
+    verify: "curl -sf http://127.0.0.1:20110/api/health > /dev/null"
+    description: "Start vor (cs serve) corpus server on :20110"
     on_fail: "tail -10 $(~/tmp/unheaded/scripts/lib/logpath.sh vor)"
 
   # ── Tier 5c: Wiki ──────────────────────────────────────────────────────────
@@ -268,7 +268,7 @@ verification:
       sudo docker ps --format 'table {{.Names}}\t{{.Status}}' | grep unheaded | sort
       echo ""
       echo "=== Native services ==="
-      ss -lnt | grep -E ':(8081|9876|9110|20002|20103|20105|16666)' | awk '{print $4}'
+      ss -lnt | grep -E ':(8081|20110|9110|20002|20103|20111|16666)' | awk '{print $4}'
       echo ""
       echo "=== DOOM ==="
       sudo bpftool prog list 2>/dev/null | grep monad_cpu || echo "(not running)"

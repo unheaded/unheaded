@@ -6,9 +6,9 @@
 #   docker build -f deploy/docker/zhen-agentd.Dockerfile -t zhen-agentd:dev .
 #
 # Run:
-#   docker run --rm -p 20105:20105 \
+#   docker run --rm -p 20111:20111 \
 #     -e AUTH_ENABLED=false \
-#     -e VOR_URL=http://host.docker.internal:9876 \
+#     -e VOR_URL=http://host.docker.internal:20110 \
 #     -e LLAMA_URL=http://host.docker.internal:8081 \
 #     zhen-agentd:dev
 #
@@ -48,13 +48,13 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /out/zhen-agentd /usr/local/bin/zhen-agentd
 
 USER nonroot:nonroot
-EXPOSE 20105
+EXPOSE 20111
 
 # Default command. Override at run time via docker -e flags or
 # kubernetes env. Keep -host 0.0.0.0 so the container's port is
 # reachable from the host network.
 ENTRYPOINT ["/usr/local/bin/zhen-agentd"]
-CMD ["-host", "0.0.0.0", "-port", "20105", \
+CMD ["-host", "0.0.0.0", "-port", "20111", \
      "-project-root", "/var/zhen/projects/default", \
      "-action-store=stderr", \
      "-rate-limit", "10", \

@@ -129,7 +129,7 @@ go build \
 All images include standard labels:
 - title, description, version
 - created (BUILD_DATE), revision (COMMIT)
-- licenses (MIT), vendor, source URL
+- licenses (GPL-3.0-or-later), vendor, source URL
 
 ## Security Posture
 

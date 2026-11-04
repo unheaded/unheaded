@@ -17,6 +17,20 @@ import (
 // a reference whose text changed, was never retrieved, or carries a
 // made-up digest does not count as trusted provenance.
 
+// Unavailable is the reference a source leaves when it did not answer: a
+// corpus past its deadline, a per-turn lookup that failed. Its trust is not
+// in TrustedSourceLabels and it carries no text, so what could not be looked
+// up holds a mutating call at the gate, and the audit row names the source.
+func Unavailable(source string) Reference {
+	return Reference{
+		Topic:       "retrieval-unavailable/" + source,
+		Category:    "retrieval",
+		SourceKind:  "unavailable",
+		SourceTrust: "unavailable",
+		SourceLabel: source,
+	}
+}
+
 // ReferenceDigest is the Digest a Reference carries for text: lowercase
 // hex SHA-256 of its bytes.
 func ReferenceDigest(text string) string {

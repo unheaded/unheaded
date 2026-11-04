@@ -88,7 +88,6 @@ echo ""
 BINARIES=(
     trace-collector-go
     ebpf-collector
-    ebpf-exporter
     ebpf-loader
     kanban-app
     wiki-server
@@ -97,7 +96,6 @@ BINARIES=(
     chaos-controller
     lich-security
     routing-health
-    waf
     doom-bridge
     doom-go-injector
     doom-loader

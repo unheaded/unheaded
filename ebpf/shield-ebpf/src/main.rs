@@ -36,14 +36,14 @@
 use aya_ebpf::{
     bindings::{xdp_action, TC_ACT_OK},
     macros::{classifier, map, xdp},
-    maps::{HashMap, RingBuf, XskMap},
+    maps::{HashMap, RingBuf},
     programs::{TcContext, XdpContext},
     EbpfContext,
 };
 use monad_common::{
-    circuit_state, deploy_ring, flags, flow_action, redirect_action, AnamnesisEvent, ErrorCode,
-    EventType, HopByHopHeader, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
-    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE, MONAD_VERSION,
+    circuit_state, deploy_ring, flags, flow_action, AnamnesisEvent, ErrorCode, EventType,
+    HopByHopHeader, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN,
+    MONAD_OPT_TYPE, MONAD_SIZE, MONAD_VERSION,
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -88,21 +88,6 @@ static RATE_TOKENS: HashMap<u64, u32> = HashMap::with_max_entries(MAX_BLOCKLIST_
 #[map]
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 
-// ── AF_XDP Maps ─────────────────────────────────────────────────────────────
-
-/// XSKMAP — maps queue IDs to AF_XDP socket file descriptors.
-/// When AF_XDP is enabled, Shield redirects Monad-stamped packets to zero-copy
-/// userspace sockets instead of passing to the kernel stack.
-/// Userspace writes: SHIELD_XSKS[queue_id] = socket_fd
-#[map]
-static SHIELD_XSKS: XskMap = XskMap::with_max_entries(64, 0);
-
-/// Shield AF_XDP configuration.  Key 0 holds the runtime toggle.
-/// Bit 0: AF_XDP redirect enabled (1=on, 0=off).  Default: disabled.
-/// Userspace writes CONFIG[0] = 1 to enable AF_XDP redirect path.
-#[map]
-static SHIELD_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(4, 0);
-
 // ── Shield TC (Egress) specific maps ──────────────────────────────────────────
 
 /// Error code counters per type (RFC 9114 §8).
@@ -136,11 +121,6 @@ const STAT_TC_ENTRY: u32 = 13;
 const STAT_TC_IPV6: u32 = 14;
 #[cfg(feature = "debug-stats")]
 const STAT_TC_HBH: u32 = 15;
-const STAT_REDIRECT_ATTEMPTS: u32 = 16;
-const STAT_REDIRECT_SUCCESS: u32 = 17;
-
-/// SHIELD_CONFIG key for AF_XDP enable toggle.
-const SHIELD_AF_XDP_ENABLE: u32 = 0;
 
 // ── IPv6 header layout (repr(C, packed) for BPF direct pointer casts) ────────
 
@@ -348,55 +328,10 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     let hbh_bytes = hbh_header.to_bytes();
     write_bytes::<HBH_TOTAL_LEN>(hbh_start, &hbh_bytes, data_end)?;
 
-    // ── 13. AF_XDP dual-path decision ──────────────────────────────────────────
-    //
-    // If AF_XDP is enabled via SHIELD_CONFIG[0], redirect the Monad-stamped
-    // packet to the AF_XDP socket bound to this queue for zero-copy delivery.
-    // Otherwise, fall through to XDP_PASS (standard kernel stack).
-    let af_xdp_enabled = match unsafe { SHIELD_CONFIG.get(&SHIELD_AF_XDP_ENABLE) } {
-        Some(val) => (*val & 1) != 0,
-        None => false,
-    };
-
-    let redirect_act;
-
-    if af_xdp_enabled {
-        increment_stat(STAT_REDIRECT_ATTEMPTS);
-        let queue_id = unsafe { (*ctx.ctx).rx_queue_index };
-        match SHIELD_XSKS.redirect(queue_id, 0) {
-            Ok(action) => {
-                increment_stat(STAT_REDIRECT_SUCCESS);
-                redirect_act = redirect_action::AF_XDP;
-                // Emit BIRTH event with redirect_action encoded in hop_id
-                let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
-                emit_anamnesis(
-                    now,
-                    EventType::Born,
-                    redirect_act,
-                    flow_label,
-                    &hbh_header.monad,
-                );
-                increment_stat(STAT_BIRTHS);
-                return Ok(action);
-            }
-            Err(_) => {
-                // No socket bound to this queue — fall through to kernel stack
-                redirect_act = redirect_action::KERNEL_STACK;
-            }
-        }
-    } else {
-        redirect_act = redirect_action::NO_REDIRECT;
-    }
-
-    // ── 14. Emit BIRTH event to Anamnesis ─────────────────────────────────────
+    // ── 13. Emit BIRTH event to Anamnesis ─────────────────────────────────────
+    // hop_id stays 0, the value it has always carried on this path.
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
-    emit_anamnesis(
-        now,
-        EventType::Born,
-        redirect_act,
-        flow_label,
-        &hbh_header.monad,
-    );
+    emit_anamnesis(now, EventType::Born, 0, flow_label, &hbh_header.monad);
     increment_stat(STAT_BIRTHS);
 
     Ok(xdp_action::XDP_PASS)

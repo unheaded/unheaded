@@ -3,7 +3,7 @@
 //! Phase 6 integration test — gRPC service via tonic client.
 //!
 //! Tests Ingest, Surface, and Status RPCs end-to-end.
-//! GPL-3.0-only
+//! GPL-3.0-or-later
 
 use std::sync::Arc;
 use tempfile::TempDir;

@@ -236,6 +236,6 @@ show route where net ~ fd00:dead:beef::/32
 
 ---
 
-**License**: MIT  
+**License**: GPL-3.0-or-later  
 **Created**: 2026-02-26  
 **Base directory**: `/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/`

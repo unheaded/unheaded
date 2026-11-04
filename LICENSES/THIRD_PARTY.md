@@ -5,7 +5,7 @@ All attributions and licenses are listed below as required.
 
 **Last audited:** 2026-03-17 (go.mod, Cargo.toml scan — S78 Round Table)
 **Go module:** `unheaded` (Go 1.24) — 24 direct + 14 indirect dependencies
-**Rust crates:** trace-collector (28 deps), monad-mbc (3 deps), shield/WAF (10 deps), ebpf-loader (5 deps)
+**Rust crates:** monad-mbc (3 deps), ebpf-loader (5 deps)
 **Python:** raft/ (FAISS, Flask, sentence-transformers, llama-cpp-python)
 **New since last audit:** cloudflare/circl v1.6.3 (PQC), modernc.org/sqlite v1.44.3, yuin/goldmark v1.7.16, lib/pq v1.10.9
 
@@ -476,7 +476,7 @@ The following packages are pulled in transitively. Licenses verified.
 
 ---
 
-## Rust Dependencies (trace-collector, monad-mbc, shield/WAF, ebpf-loader)
+## Rust Dependencies (monad-mbc, ebpf-loader)
 
 ### tokio
 
@@ -624,7 +624,7 @@ Error handling. Used in trace-collector and ebpf-loader.
 **License:** MIT / Apache License 2.0 / ISC
 **URL:** https://github.com/rustls/rustls
 
-Pure-Rust TLS implementation. Used in shield/WAF for TLS termination.
+Pure-Rust TLS implementation. Used by zhend.
 
 ---
 
@@ -708,7 +708,7 @@ This software includes code from the following projects:
 - **goldmark** - Markdown parser for Go (triple-format rendering)
 - **Tokio** - Async runtime for Rust (trace-collector)
 - **Tonic** - gRPC for Rust (trace-collector → Wotan)
-- **rustls** - Pure-Rust TLS (shield/WAF)
+- **rustls** - Pure-Rust TLS (zhend)
 - **goblin** - ELF parser for Rust (MBC translator)
 - **modernc.org/sqlite** - Pure Go SQLite (Kanban persistence)
 

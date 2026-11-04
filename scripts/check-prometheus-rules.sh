@@ -23,8 +23,8 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RULES="${REPO_ROOT}/monitoring/prometheus/rules"
 COMPOSE="${REPO_ROOT}/monitoring/docker-compose.yml"
-# 3.10.0 resolved to this digest on 2026-10-13.
-CURRENT_IMAGE="${CURRENT_PROM_IMAGE:-prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e}"
+# 3.15.1 resolved to this digest on 2026-11-04.
+CURRENT_IMAGE="${CURRENT_PROM_IMAGE:-prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2}"
 
 if ! docker info >/dev/null 2>&1; then
     echo "[FAIL] docker is required to run promtool; this gate does not pass by skipping." >&2

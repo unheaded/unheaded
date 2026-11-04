@@ -33,6 +33,7 @@ type lineEditor struct {
 	out        io.Writer
 	history    []string
 	maxHistory int
+	complete   func(prefix string) []string // nil: Tab does nothing
 }
 
 func (e *lineEditor) readLine(prompt string) (string, error) {
@@ -71,6 +72,8 @@ func (e *lineEditor) readLine(prompt string) (string, error) {
 		case 0x15: // Ctrl-U
 			buf = append([]rune(nil), buf[pos:]...)
 			pos = 0
+		case '\t':
+			buf, pos = e.tab(prompt, buf, pos)
 		case 0x1b:
 			switch e.escape() {
 			case keyLeft:
@@ -261,7 +264,7 @@ func newLineReader(in, out *os.File) func(string) (string, error) {
 		return plainLineReader(in, out)
 	}
 	probe()
-	ed := &lineEditor{in: bufio.NewReader(in), out: out, maxHistory: defaultMaxHistory}
+	ed := &lineEditor{in: bufio.NewReader(in), out: out, maxHistory: defaultMaxHistory, complete: completeSlash}
 	return func(prompt string) (string, error) {
 		restore, err := makeRaw(fd)
 		if err != nil {
@@ -273,4 +276,56 @@ func newLineReader(in, out *os.File) func(string) (string, error) {
 		defer restoreTerminal()
 		return ed.readLine(prompt)
 	}
+}
+
+// slashCommands is every command handleSlash answers, sorted. The aliases
+// /q /? /h are left out: a completion should end on the real name.
+var slashCommands = []string{
+	"/clear", "/confirm", "/exit", "/health", "/help", "/history", "/model",
+	"/quit", "/recall", "/remember", "/runbook", "/source", "/teach",
+}
+
+// completeSlash returns the slash commands beginning with prefix.
+func completeSlash(prefix string) []string {
+	var out []string
+	for _, c := range slashCommands {
+		if strings.HasPrefix(c, prefix) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// tab completes a slash command under the cursor: only a line that starts
+// with / , has no space yet and has the cursor at its end. One match ends
+// with a space; several extend to their common prefix, or list themselves
+// when there is nothing to add.
+func (e *lineEditor) tab(prompt string, buf []rune, pos int) ([]rune, int) {
+	if e.complete == nil || pos != len(buf) || len(buf) == 0 || buf[0] != '/' {
+		return buf, pos
+	}
+	line := string(buf)
+	if strings.ContainsRune(line, ' ') {
+		return buf, pos
+	}
+	matches := e.complete(line)
+	switch len(matches) {
+	case 0:
+		return buf, pos
+	case 1:
+		out := []rune(matches[0] + " ")
+		return out, len(out)
+	}
+	common := matches[0]
+	for _, m := range matches[1:] {
+		for !strings.HasPrefix(m, common) {
+			common = common[:len(common)-1]
+		}
+	}
+	if len(common) > len(line) {
+		out := []rune(common)
+		return out, len(out)
+	}
+	fmt.Fprintf(e.out, "\r\n%s\r\n", strings.Join(matches, "  "))
+	return buf, pos
 }

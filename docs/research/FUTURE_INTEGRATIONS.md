@@ -95,7 +95,7 @@ Suricata is the IDS/IPS layer that sits inline with OPNsense (host-a) and IPFire
 - [ ] Configure IPFire Suricata via pakfire
 
 ### License Note
-Suricata is GPL-2.0. Unheaded is MIT. Suricata runs as a separate process/container
+Suricata is GPL-2.0. Unheaded is GPL-3.0-or-later. Suricata runs as a separate process/container
 — no linking. GPL-2.0 isolation maintained. Barrister-approved pattern.
 
 ---

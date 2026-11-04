@@ -26,9 +26,8 @@ Workspace members of `ebpf/Cargo.toml` (GPL-2.0-only):
 | `yaldabaoth-ebpf` | TC egress | Chaos: corrupt, delay, duplicate or truncate registered flows |
 | `monad-cpu-ebpf` | XDP | The UPC: MBC interpreter (Doom, xv6) |
 | `firewall-ebpf`, `maglev-ebpf`, `canary-ebpf`, `qos-ebpf`, `failover-ebpf`, `compliance-ebpf`, `nfv-ebpf`, `version-ebpf`, `anomaly-ebpf` | XDP | Monad CPU applications (apps 03-12) |
-| `xdp-redirect` | XDP | AF_XDP redirect (with userspace `af-xdp`) |
 
-Shared crates: `common`, `monad-common`, `pqc-common`, `af-xdp-common`. `trace-collector-go` loads packet-marker, flow-tracker and latency-probe on west and east ([[Systemd Units|Systemd-Units]]).
+Shared crates: `common`, `monad-common`, `pqc-common`. `trace-collector-go` loads packet-marker, flow-tracker and latency-probe on west and east ([[Systemd Units|Systemd-Units]]).
 
 ## Not tracing ourselves
 

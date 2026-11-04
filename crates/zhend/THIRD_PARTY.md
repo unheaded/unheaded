@@ -1,10 +1,10 @@
 # Third-Party Dependencies — zhend
 
 **Last updated**: 2026-03-28  
-**License**: GPL-3.0-only  
+**License**: GPL-3.0-or-later  
 **Compliance reviewed by**: MoatGhost  
 
-All dependencies are compatible with GPL-3.0-only.
+All dependencies are compatible with GPL-3.0-or-later.
 
 ## Runtime Dependencies
 
@@ -65,7 +65,7 @@ The `pqcrypto-*` crates wrap the PQClean project's C implementations:
 ## License Compatibility Matrix
 
 ```
-GPL-3.0-only (zhend)
+GPL-3.0-or-later (zhend)
   ├── CC0-1.0       ✓ (public domain, compatible with everything)
   ├── MIT            ✓ (permissive, compatible with GPL)
   ├── Apache-2.0     ✓ (compatible with GPL-3.0 per FSF guidance)
@@ -74,7 +74,7 @@ GPL-3.0-only (zhend)
 ```
 
 No copyleft dependency conflicts detected. All dependencies are permissive
-or public domain, allowing GPL-3.0-only distribution without issue.
+or public domain, allowing GPL-3.0-or-later distribution without issue.
 
 ## Supply Chain Notes
 

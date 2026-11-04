@@ -196,21 +196,6 @@ build_rust_binaries() {
         return 0
     fi
 
-    # Build trace-collector if it exists
-    if [ -d "${PROJECT_ROOT}/cmd/trace-collector" ]; then
-        log_info "Building trace-collector..."
-        if cd "${PROJECT_ROOT}/cmd/trace-collector" && cargo build --release; then
-            if cp target/release/trace-collector "${OUTPUT_DIR}/"; then
-                log_success "trace-collector built successfully"
-            else
-                log_error "Failed to copy trace-collector binary"
-                build_errors=$((build_errors + 1))
-            fi
-        else
-            log_error "Failed to build trace-collector"
-            build_errors=$((build_errors + 1))
-        fi
-    fi
 
     # Build eBPF programs (note: these are libraries, not binaries)
     if [ -d "${PROJECT_ROOT}/ebpf" ]; then

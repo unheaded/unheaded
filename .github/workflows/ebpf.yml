@@ -5,18 +5,16 @@ on:
     branches: [main, develop, staging]
     paths:
       - 'ebpf/**'
-      - 'cmd/trace-collector/**'
       - 'crates/svc-token/**'
   pull_request:
     branches: [main, develop, staging]
     paths:
       - 'ebpf/**'
-      - 'cmd/trace-collector/**'
       - 'crates/svc-token/**'
 
 jobs:
-  trace-collector:
-    name: Trace Collector (Rust)
+  svc-token:
+    name: svc-token (Rust)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -27,33 +25,8 @@ jobs:
           toolchain: stable
           components: clippy, rustfmt
 
-      - name: Cache cargo
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            cmd/trace-collector/target
-          key: ${{ runner.os }}-cargo-trace-${{ hashFiles('cmd/trace-collector/Cargo.lock') }}
-
-      - name: Check
-        working-directory: cmd/trace-collector
-        run: cargo check
-
-      - name: Clippy
-        working-directory: cmd/trace-collector
-        run: cargo clippy --locked -- -D warnings
-
-      - name: Format check
-        working-directory: cmd/trace-collector
-        run: cargo fmt -- --check
-
-      - name: Test
-        working-directory: cmd/trace-collector
-        run: cargo test --locked
-
-      # The Wotan service-token crate trace-collector and ebpf-collector use
-      # (ADR-103 §6). Its Go cross-check is tests/svctoken (Go CI job).
+      # The Wotan service-token crate ebpf-collector uses (ADR-103 §6). Its
+      # Go cross-check is tests/svctoken (Go CI job).
       - name: svc-token (clippy, format, test)
         working-directory: crates/svc-token
         run: cargo clippy --locked --all-targets -- -D warnings && cargo fmt -- --check && cargo test --locked

@@ -4,7 +4,7 @@
 
 **Unmaintained is a risk class of its own.** A dead module never gets an advisory. A direct module whose latest release is older than 24 months needs a decision in this file (`keep-pinned`, `replace-by <sprint>` or `vendor`); older than 36 months on an input boundary is a findings-register row (ADR-098). A change of maintainer or organisation ("handover") re-opens the row that sprint.
 
-**Bumps.** Dependabot opens grouped weekly PRs (Go and Rust wait 14 days, Actions and images 7); nothing auto-merges. A bump of a STALE or handover module is merged only after `scripts/dep-diff.sh` output has been read and the PR says what changed and why.
+**Bumps.** Dependabot opens grouped weekly PRs (Go, Rust and Actions wait 14 days, images 7); nothing auto-merges. A bump of a STALE or handover module is merged only after `scripts/dep-diff.sh` output has been read and the PR says what changed and why.
 
 Release dates are from `proxy.golang.org/<module>/@latest`, retrieved 2026-10-29. **Decisions marked "proposed" are Stevie's to confirm** (overlaps S-TRUE-WIRE E5: thresholds, yaml.v3, cilium/ebpf, lib/pq).
 
@@ -22,7 +22,7 @@ Release dates are from `proxy.golang.org/<module>/@latest`, retrieved 2026-10-29
 | github.com/lib/pq | v1.12.3 | v1.12.3 (2026-04-03) | 6 | Postgres wire protocol (the Well) | database/sql driver | none (a driver is protocol code) | keep |
 | github.com/rs/zerolog | v1.35.1 | v1.35.1 (2026-04-20) | 6 | none (writes logs) | 39 services; `log/slog` exists | slog migration = a sprint (Marshal fenced it out of this one) | replace-by: logger consolidation sprint |
 | github.com/yuin/goldmark | v1.8.6 | v1.8.6 (2026-09-03) | 1 | parses Markdown (wiki/docs, ours) | 1 caller (wiki-server) | own Markdown renderer: a sprint | keep |
-| golang.org/x/crypto | v0.58.0 | v0.58.0 (2026-10-09) | 0 | crypto | Go team | none | keep |
+| golang.org/x/crypto | v0.58.1-0.20261009181718-2f1f834330b2 | v0.58.0 (2026-10-09) | 0 | crypto | Go team | none | keep; untagged pin for GO-2026-5932 (`openpgp/` removed), back to a tag at the next release |
 | golang.org/x/sys | v0.49.0 | v0.49.0 (2026-10-06) | 0 | kernel | Go team | none | keep |
 | golang.org/x/text | v0.43.0 | v0.43.0 (2026-10-09) | 0 | none | 4 callers (`cases`/`language`); transitively required by gRPC anyway | drop the direct import when touched; SBOM doesn't shrink | keep (transitive) |
 | golang.org/x/time | v0.16.0 | v0.16.0 (2026-08-19) | 2 | none | rate limiting (wotan, protocol-api, zhen-agentd: `NewLimiter`, `Allow`, `Tokens`) | own token bucket ≈ 60 lines, 3 sites; but anthropic-sdk-go's go.mod requires it too, so `go list -m all` (the SBOM count) keeps it until that module goes. Our code is its only importer: removal shrinks the build, not the SBOM | proposed: keep (Go team; the rewrite would sit on DoS-protection paths for no SBOM gain); revisit with anthropic-sdk-go's replace-by |

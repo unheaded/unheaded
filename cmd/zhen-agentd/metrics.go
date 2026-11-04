@@ -97,6 +97,15 @@ var (
 		[]string{"outcome"},
 	)
 
+	retrievalBackendTotal = auto.NewCounterVec(
+		prom.CounterOpts{
+			Namespace: "zhen_agentd",
+			Name:      "retrieval_backend_total",
+			Help:      "Retrieval calls by backend (vor, code) and outcome (ok, timeout, error).",
+		},
+		[]string{"backend", "outcome"},
+	)
+
 	rateLimitedRequests = auto.NewCounter(
 		prom.CounterOpts{
 			Namespace: "zhen_agentd",

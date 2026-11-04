@@ -70,7 +70,6 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 │   ├── unheaded/                   # 🎯 UNIFIED CLI (alternative)
 │   │   └── main.go                 # Single binary for all operations
 │   │
-│   └── waf/                        # 🛡️ THE SHIELD STANDALONE (Rust)
 │       └── src/
 │           ├── main.rs             # WAF entry point
 │           └── rules/              # Detection rules
@@ -129,20 +128,6 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 │   │   ├── l4.go                   # TCP/UDP proxy
 │   │   ├── l7.go                   # HTTP/HTTPS proxy
 │   │   └── config.go               # Configuration
-│   │
-│   ├── waf/                        # 🛡️ THE SHIELD - Web Application Firewall
-│   │   ├── detection/              # Detection engines (6,057 LOC)
-│   │   │   ├── sqli.go             # SQL injection (tokenization)
-│   │   │   ├── xss.go              # XSS (HTML tokenizer)
-│   │   │   ├── path.go             # Path traversal
-│   │   │   ├── ssrf.go             # SSRF + DNS rebinding
-│   │   │   ├── bot.go              # Bot detection
-│   │   │   ├── scoring.go          # Anomaly scoring
-│   │   │   └── waf.go              # Main integration
-│   │   ├── ip/                     # IP reputation/blocking
-│   │   ├── ratelimit/              # Rate limiting
-│   │   ├── response/               # Block/challenge pages
-│   │   └── rules/                  # Rule definitions
 │   │
 │   ├── deploy/                     # ⚔️ THE SWORD - Deployment Engine
 │   │   ├── deploy.go               # Main deployer
@@ -405,7 +390,7 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 | Armor Piece | Domain | Primary Package | Status |
 |-------------|--------|-----------------|--------|
 | 🏰 **Cuirass** | Control Plane | `cmd/unheaded-daemon/` | 75% |
-| 🛡️ **Shield** | WAF/Gateway | `pkg/waf/`, `services/gateway/` | 90% |
+| 🛡️ **Shield** | Gateway | `cmd/shield/`, `services/gateway/` | 90% |
 | ⚔️ **Sword** | Deployment | `pkg/deploy/` | 85% |
 | ⛓️ **Hauberk** | Service Mesh | `pkg/mesh/` (deleted unused 2026-10-26, S-REAL-STEEL E1) | — |
 | 🏋️ **Pauldrons** | Load Balancer | `ebpf/maglev-ebpf`, `services/loadbalancer/` (`pkg/loadbalancer/` deleted unused 2026-10-26, E1) | — |

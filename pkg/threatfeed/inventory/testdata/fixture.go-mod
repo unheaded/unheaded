@@ -1,0 +1,17 @@
+module example.test/app
+
+go 1.27
+
+require (
+	example.test/alpha v1.2.3
+	example.test/local v0.0.0
+	example.test/beta/v2 v2.0.1 // indirect
+)
+
+require example.test/gamma v0.9.0
+
+replace example.test/local => ../local
+
+replace (
+	example.test/other => ./other
+)

@@ -16,8 +16,8 @@ containers running, which is the mistake ADR-093 rule 4 names.
 |---|---|---|
 | CONTAINER | built into the container image | 15 |
 | SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 21 |
-| TOOL | invoked by a script, runbook or Makefile, not supervised | 28 |
-| ORPHAN | referenced by nothing outside its own directory | 23 |
+| TOOL | invoked by a script, runbook or Makefile, not supervised | 29 |
+| ORPHAN | referenced by nothing outside its own directory | 22 |
 | **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **87** |
 
 ORPHAN is not an accusation — kept experiments are the point of a solo
@@ -52,7 +52,6 @@ that keeping them stays a decision.
 | `cmd/doom-injector-c` | TOOL |
 | `cmd/doom-loader` | TOOL |
 | `cmd/ebpf-collector` | TOOL |
-| `cmd/ebpf-exporter` | ORPHAN |
 | `cmd/ebpf-load-check` | TOOL |
 | `cmd/ebpf-loader` | TOOL |
 | `cmd/gjallarhorn-listener` | ORPHAN |
@@ -72,8 +71,8 @@ that keeping them stays a decision.
 | `cmd/sophia` | CONTAINER |
 | `cmd/steel-echo` | TOOL |
 | `cmd/sword` | CONTAINER |
+| `cmd/syslog-relay` | SUPERVISED |
 | `cmd/test_batch` | ORPHAN |
-| `cmd/trace-collector` | SUPERVISED |
 | `cmd/trace-collector-go` | SUPERVISED |
 | `cmd/unheaded` | SUPERVISED |
 | `cmd/unheaded-auth` | CONTAINER |
@@ -85,7 +84,7 @@ that keeping them stays a decision.
 | `cmd/upc-bootctl` | SUPERVISED |
 | `cmd/upc-cartridgectl` | ORPHAN |
 | `cmd/upc-tty-bridge` | SUPERVISED |
-| `cmd/waf` | TOOL |
+| `cmd/vulnmatch` | TOOL |
 | `cmd/well-migrate` | TOOL |
 | `cmd/well-retention` | SUPERVISED |
 | `cmd/wiki-server` | ORPHAN |
@@ -95,6 +94,7 @@ that keeping them stays a decision.
 | `cmd/zhen-agentd` | SUPERVISED |
 | `cmd/zhen-claude` | TOOL |
 | `cmd/zhen-cli` | ORPHAN |
+| `cmd/zhen-codeindex` | TOOL |
 | `cmd/zhen-eval` | ORPHAN |
 | `cmd/zhen-flywheel` | TOOL |
 | `cmd/zhen-mcp` | TOOL |

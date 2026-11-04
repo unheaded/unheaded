@@ -33,7 +33,7 @@ def test_guard_refuses_non_http(monkeypatch, bad):
         zhen_app._http_url_from_env('ZHEN_TEST_URL', 'http://localhost:1')
 
 
-@pytest.mark.parametrize('good', ['http://localhost:9876', 'https://vor.test'])
+@pytest.mark.parametrize('good', ['http://localhost:20110', 'https://vor.test'])
 def test_guard_accepts_http(monkeypatch, good):
     monkeypatch.setenv('ZHEN_TEST_URL', good)
     assert zhen_app._http_url_from_env('ZHEN_TEST_URL', 'http://localhost:1') == good

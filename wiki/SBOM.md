@@ -36,6 +36,12 @@ Source files carry `SPDX-License-Identifier` headers. `scripts/check-spdx.sh --l
 3. **Licenses** — the GPL boundary check and `go-licenses` above.
 4. **Manual review** — new dependencies need explicit approval (ADR-004).
 
+## Native CVE matcher
+
+`cmd/vulnmatch` reads the components a tree pins (`go.mod`, `Cargo.lock`, `requirements*.txt`, `sbom/python-pip-freeze.txt`, optionally `sbom/*-dependencies.json`), matches them against OSV records in a local directory, and marks any CVE in kev-poller's catalog. It is stage 1a of DP-721: lock data only, replacing no trivy use yet. Trivy stays pinned until each stage replaces its use.
+
+Today it runs on synthetic fixtures only (`scripts/vulnmatch-fixture.sh`). OSV is an outside data source the third-party sitting has not confirmed, so the tool has no network code: it reads records from a directory and nothing else. Requirement lines that are not exact pins are reported as not checked, never as clean.
+
 ## Output Formats
 
 - **SPDX JSON** and **CycloneDX JSON** from syft (`sbom-results/`)

@@ -1,4 +1,4 @@
 # Non-test Go lines using net.IP / net.ParseIP under cmd, pkg, services, internal.
 # Shrink-only (scripts/check-netip.sh): new IPv6-first code uses net/netip.
 # Lower this number when a rewrite removes uses; never raise it.
-120
+74

@@ -1,8 +1,0 @@
-# AF_XDP userspace library — builds for HOST target (not bpfel)
-# Overrides parent ebpf/.cargo/config.toml settings
-
-[build]
-target = "x86_64-unknown-linux-gnu"
-
-[target.x86_64-unknown-linux-gnu]
-rustflags = []

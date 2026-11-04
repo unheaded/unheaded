@@ -82,23 +82,6 @@ type SeqCounterValue struct {
 	Reordered uint32 // Total reordering events.
 }
 
-// === Q4: Ring Path Counters (amplification package) ===
-
-// RingPathKey identifies a flow for amplification tracking.
-// Placeholder: no Rust program declares a ring-path map yet.
-// Size: 16 bytes. Map type: HASH.
-type RingPathKey struct {
-	SrcAddr [16]byte // IPv6 source address.
-}
-
-// RingPathValue tracks ring path state.
-// Size: 8 bytes.
-type RingPathValue struct {
-	HopCount  uint16 // Current ring hop count.
-	MaxHops   uint16 // Configured maximum hops.
-	BytesSent uint32 // Bytes sent (for 3× ratio enforcement).
-}
-
 // === Q5/Q6: Migration & Retry Tokens (migration package) ===
 
 // MIGRATION_TOKENS is keyed by FlowKey with a FlowMigrationTokenValue
@@ -125,27 +108,6 @@ type RetryTokenValue struct {
 	_         [8]byte // Reserved, must be zero.
 }
 
-// === H1: Sophia Sync State (sophiasync package) ===
-
-// SophiaSyncKey identifies a dictionary sync channel.
-// Placeholder: no Rust program declares a Sophia sync map yet.
-// Size: 8 bytes. Map type: HASH.
-type SophiaSyncKey struct {
-	DictID uint16 // Dictionary identifier.
-	PeerID uint16 // Peer node identifier.
-	_      [4]byte
-}
-
-// SophiaSyncValue tracks encoder/decoder ACK state.
-// Size: 24 bytes.
-type SophiaSyncValue struct {
-	TableVersion uint32  // Current table version.
-	AckedVersion uint32  // Last ACK'd version by peer.
-	PendingDelta uint32  // Pending delta entries count.
-	LastSyncAt   uint32  // Unix timestamp of last sync.
-	Signature    [8]byte // Truncated HMAC of current state.
-}
-
 // === H2: Error Counters (errors package) ===
 
 // ErrorCounterKey indexes by error code.
@@ -160,17 +122,6 @@ type ErrorCounterKey struct {
 type ErrorCounterValue struct {
 	Count      uint32 // Total occurrences.
 	LastSeenAt uint32 // Unix timestamp of last occurrence.
-}
-
-// === H3: TLV Registry (tlv package) ===
-
-// TLVHandlerEntry maps TLV types to handler programs.
-// Placeholder: no Rust program declares a TLV registry map yet.
-// Size: 8 bytes. Map type: ARRAY (index = TLV type).
-type TLVHandlerEntry struct {
-	ProgFD   uint32 // File descriptor of handler BPF program.
-	Flags    uint16 // Handler flags (0x01 = required, 0x02 = mutable).
-	Reserved uint16 // Must be zero.
 }
 
 // === H4/H12: Settings (settings package) ===
@@ -228,30 +179,6 @@ type FlowTypeEntry struct {
 // CANCEL_FLOWS is keyed by FlowKey with a FlowCancelValue (core_maps.go),
 // the flow-tracker layout. The old CancelFlowKey and CancelFlowValue
 // (8 B each) matched no Rust map and were removed.
-
-// === H9: Prefetch Hints (prefetch package) ===
-
-// PrefetchHintKey identifies a prefetch hint.
-// Placeholder: no Rust program declares a prefetch hint map yet.
-// Size: 8 bytes. Map type: LRU_HASH.
-type PrefetchHintKey struct {
-	FlowID uint16 // Flow identifier.
-	HintID uint16 // Hint sequence number.
-	ConnID uint32 // Connection identifier.
-}
-
-// PrefetchHintValue stores hint metadata.
-// Size: 20 bytes (2+2+1+1+2+4+4+4).
-type PrefetchHintValue struct {
-	DictID    uint16 // Dictionary to prefetch.
-	FieldID   uint16 // Field within dictionary.
-	Priority  uint8  // 0-3 priority level.
-	Status    uint8  // 0=pending, 1=fulfilled, 2=cancelled.
-	_         [2]byte
-	IssuedAt  uint32 // Unix timestamp.
-	ExpiresAt uint32 // Unix timestamp.
-	_         [4]byte
-}
 
 // === H10: Hop Validators (intermediary package) ===
 

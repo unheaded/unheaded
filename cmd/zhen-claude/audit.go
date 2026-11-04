@@ -142,9 +142,13 @@ func wellAuditor(ctx context.Context, log *slog.Logger, source string, a *auditS
 	if _, err := db.ExecContext(ctx, "SELECT 1 FROM llm_requests LIMIT 0"); err != nil {
 		return nil, fmt.Errorf("llm_requests missing (db/migrations/030 not applied?): %w", err)
 	}
+	energy := claudebridge.LLMRequestsHasEnergy(ctx, db)
+	if !energy {
+		log.Warn("llm_requests has no energy columns until migration 044 is applied; estimates are dropped")
+	}
 	return claudebridge.NewWellAuditor(claudebridge.WellAuditorConfig{
 		Source: source, Backend: claudebridge.BackendClaude,
-		Requests: claudebridge.SQLRequestSink{DB: db}, Events: events, Log: log,
+		Requests: claudebridge.SQLRequestSink{DB: db, Energy: energy}, Events: events, Log: log,
 	})
 }
 

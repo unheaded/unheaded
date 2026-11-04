@@ -157,29 +157,24 @@ const (
 
 // BPF map types - different data structures available in kernel
 const (
-	BPF_MAP_TYPE_UNSPEC           = 0
-	BPF_MAP_TYPE_HASH             = 1  // Hash table
-	BPF_MAP_TYPE_ARRAY            = 2  // Array with integer keys
-	BPF_MAP_TYPE_PROG_ARRAY       = 3  // Array of program FDs for tail calls
-	BPF_MAP_TYPE_PERF_EVENT_ARRAY = 4  // Per-CPU perf event buffers
-	BPF_MAP_TYPE_PERCPU_HASH      = 5  // Per-CPU hash table
-	BPF_MAP_TYPE_PERCPU_ARRAY     = 6  // Per-CPU array
-	BPF_MAP_TYPE_STACK_TRACE      = 7  // Stack trace storage
-	BPF_MAP_TYPE_CGROUP_ARRAY     = 8  // Array of cgroup FDs
-	BPF_MAP_TYPE_LRU_HASH         = 9  // LRU hash table
-	BPF_MAP_TYPE_LRU_PERCPU_HASH  = 10 // Per-CPU LRU hash
-	BPF_MAP_TYPE_LPM_TRIE         = 11 // Longest prefix match trie
-	BPF_MAP_TYPE_ARRAY_OF_MAPS    = 12 // Array containing map FDs
-	BPF_MAP_TYPE_HASH_OF_MAPS     = 13 // Hash containing map FDs
-	BPF_MAP_TYPE_DEVMAP           = 14 // Device map for XDP redirect
-	BPF_MAP_TYPE_SOCKMAP          = 15 // Socket map
-	BPF_MAP_TYPE_CPUMAP           = 16 // CPU map for XDP redirect
-	// BPF_MAP_TYPE_XSKMAP support for AF_XDP socket attachment.
-	// Maps socket file descriptors to XSKMAP entries for packet redirection.
-	// Usage: XSKMAP[queue_id] = socket_fd
-	// eBPF: bpf_redirect_map(&XSKMAP, queue_id, 0) returns XDP_REDIRECT
-	// See: ebpf/xdp-redirect/src/main.rs and pkg/afxdp/
-	BPF_MAP_TYPE_XSKMAP                = 17
+	BPF_MAP_TYPE_UNSPEC                = 0
+	BPF_MAP_TYPE_HASH                  = 1  // Hash table
+	BPF_MAP_TYPE_ARRAY                 = 2  // Array with integer keys
+	BPF_MAP_TYPE_PROG_ARRAY            = 3  // Array of program FDs for tail calls
+	BPF_MAP_TYPE_PERF_EVENT_ARRAY      = 4  // Per-CPU perf event buffers
+	BPF_MAP_TYPE_PERCPU_HASH           = 5  // Per-CPU hash table
+	BPF_MAP_TYPE_PERCPU_ARRAY          = 6  // Per-CPU array
+	BPF_MAP_TYPE_STACK_TRACE           = 7  // Stack trace storage
+	BPF_MAP_TYPE_CGROUP_ARRAY          = 8  // Array of cgroup FDs
+	BPF_MAP_TYPE_LRU_HASH              = 9  // LRU hash table
+	BPF_MAP_TYPE_LRU_PERCPU_HASH       = 10 // Per-CPU LRU hash
+	BPF_MAP_TYPE_LPM_TRIE              = 11 // Longest prefix match trie
+	BPF_MAP_TYPE_ARRAY_OF_MAPS         = 12 // Array containing map FDs
+	BPF_MAP_TYPE_HASH_OF_MAPS          = 13 // Hash containing map FDs
+	BPF_MAP_TYPE_DEVMAP                = 14 // Device map for XDP redirect
+	BPF_MAP_TYPE_SOCKMAP               = 15 // Socket map
+	BPF_MAP_TYPE_CPUMAP                = 16 // CPU map for XDP redirect
+	BPF_MAP_TYPE_XSKMAP                = 17 // Kernel enum value; nothing here uses it (AF_XDP retired, DP-205)
 	BPF_MAP_TYPE_SOCKHASH              = 18 // Socket hash map
 	BPF_MAP_TYPE_CGROUP_STORAGE        = 19 // Per-cgroup storage
 	BPF_MAP_TYPE_REUSEPORT_SOCKARRAY   = 20

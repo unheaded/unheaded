@@ -18,7 +18,7 @@ func TestArgs_Confinement(t *testing.T) {
 	}
 	joined := strings.Join(args, " ")
 	for _, want := range []string{
-		"--user", "--wait", "--pipe", "PrivateNetwork=yes", "ProtectHome=tmpfs", "PrivateTmp=yes",
+		"--user", "--wait", "--pipe", "PrivateNetwork=yes", "ProtectHome=tmpfs", "ProtectSystem=strict", "PrivateTmp=yes",
 		"NoNewPrivileges=yes", "MemoryMax=2G", "MemorySwapMax=0", "RuntimeMaxSec=600", "TasksMax=256",
 		"BindPaths=" + dir, "WorkingDirectory=" + dir, "BindPaths=/var/cache/x", "BindReadOnlyPaths=/opt/go",
 		"--setenv=GOFLAGS=-mod=mod", "--setenv=GOPROXY=off",

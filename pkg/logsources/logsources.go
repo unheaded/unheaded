@@ -10,6 +10,7 @@ package logsources
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"regexp"
 	"sort"
@@ -40,6 +41,22 @@ type Source struct {
 	Owner      string `yaml:"owner"`
 	Status     string `yaml:"status"`
 	Note       string `yaml:"note"`
+	// Rate and Burst lower the syslog relay's per-sender limit for this
+	// source (messages/s and bucket size). Zero means the relay's flags.
+	Rate  int `yaml:"rate"`
+	Burst int `yaml:"burst"`
+}
+
+// SyslogKind is the kind of a row the syslog relay accepts (ADR-124).
+const SyslogKind = "syslog-device"
+
+// Sender is a sources.yaml row the syslog relay takes messages from.
+type Sender struct {
+	Addr  netip.Addr
+	Tag   string // empty: every message from Addr; else only this tag
+	ID    string
+	Rate  int
+	Burst int
 }
 
 // File is the document.
@@ -83,6 +100,7 @@ func Load(path string) ([]Source, error) {
 func Validate(sources []Source) []error {
 	var errs []error
 	seen := map[string]int{}
+	senders := map[senderKey]string{}
 	for i, s := range sources {
 		where := fmt.Sprintf("source %d (%s)", i+1, s.ID)
 		if !idRe.MatchString(s.ID) {
@@ -116,6 +134,19 @@ func Validate(sources []Source) []error {
 		if strings.HasPrefix(s.Status, "excluded:") && len(strings.TrimSpace(strings.TrimPrefix(s.Status, "excluded:"))) < 8 {
 			errs = append(errs, fmt.Errorf("%s: an excluded source needs a reason, not %q", where, s.Status))
 		}
+		if s.Rate < 0 || s.Burst < 0 {
+			errs = append(errs, fmt.Errorf("%s: rate and burst must not be negative", where))
+		}
+		if s.Kind == SyslogKind {
+			addr, tag, err := parseSenderMatch(s.Match)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", where, err))
+			} else if prev, dup := senders[senderKey{addr, tag}]; dup {
+				errs = append(errs, fmt.Errorf("%s: match %q is already source %q", where, s.Match, prev))
+			} else {
+				senders[senderKey{addr, tag}] = s.ID
+			}
+		}
 	}
 	var dups []string
 	for id, n := range seen {
@@ -128,6 +159,50 @@ func Validate(sources []Source) []error {
 		errs = append(errs, fmt.Errorf("duplicate id %q", id))
 	}
 	return errs
+}
+
+type senderKey struct {
+	addr netip.Addr
+	tag  string
+}
+
+// parseSenderMatch reads a syslog-device match: "<ip>" or "<ip> <tag>".
+func parseSenderMatch(match string) (netip.Addr, string, error) {
+	f := strings.Fields(match)
+	if len(f) == 0 || len(f) > 2 {
+		return netip.Addr{}, "", fmt.Errorf("match %q is not <ip> or <ip> <tag>", match)
+	}
+	addr, err := netip.ParseAddr(f[0])
+	if err != nil {
+		return netip.Addr{}, "", fmt.Errorf("match %q: %w", match, err)
+	}
+	addr = addr.Unmap().WithZone("")
+	if addr.IsUnspecified() {
+		return netip.Addr{}, "", fmt.Errorf("match %q is the unspecified address", match)
+	}
+	if len(f) == 2 {
+		return addr, f[1], nil
+	}
+	return addr, "", nil
+}
+
+// SyslogSenders returns the rows the relay accepts: every syslog-device row
+// that is not excluded. An excluded row is a decision that nothing should
+// arrive from that address, so it is not a sender. A row blocked on a firewall
+// or a device is a sender: it is expected, it just cannot reach us yet.
+func SyslogSenders(sources []Source) ([]Sender, error) {
+	var out []Sender
+	for _, s := range sources {
+		if s.Kind != SyslogKind || strings.HasPrefix(s.Status, "excluded:") {
+			continue
+		}
+		addr, tag, err := parseSenderMatch(s.Match)
+		if err != nil {
+			return nil, fmt.Errorf("source %s: %w", s.ID, err)
+		}
+		out = append(out, Sender{Addr: addr, Tag: tag, ID: s.ID, Rate: s.Rate, Burst: s.Burst})
+	}
+	return out, nil
 }
 
 // Covers reports whether some source of the given kind matches name.

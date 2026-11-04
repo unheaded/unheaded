@@ -79,6 +79,11 @@ const (
 	SophiaEye    = 20105
 	AIWebUI      = 20106
 
+	// Zhen (20110-20119). 20107 and 20108 are sophia-eye's published host
+	// ports (deploy/sophia-eye/docker-compose.yml); DP-712.
+	ZhenVor    = 20110 // vor serve: retrieval corpus
+	ZhenAgentd = 20111 // zhen-agentd HTTP API
+
 	// Gateway (21000-21443)
 	GatewayHTTP  = 21000
 	GatewayHTTPS = 21443
