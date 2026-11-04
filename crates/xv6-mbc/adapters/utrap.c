@@ -102,6 +102,7 @@ usertrap(void)
   if(which_dev == 2)
     yield();
 
+  upc_slot_leave();  // ADR-135: the tagged trap ends here
   prepare_return();
 
   // the user page table to switch to, for trampoline.S

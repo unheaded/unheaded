@@ -27,6 +27,48 @@ static struct upc_slot_tables upc_st __attribute__((aligned(UPC_TF_STRIDE)));
 
 #define UPC_PER_SLOT_PGD(s) (0x00F00000u + (uint32)(s) * 4096u)
 
+static int upc_active; // inside a tagged trap: upc_slot_enter to upc_slot_leave
+
+int
+upc_slot_active(void)
+{
+  return upc_active;
+}
+
+void
+upc_slot_leave(void)
+{
+  upc_active = 0;
+}
+
+// ADR-135 D1: the only writer of reply. One reply per trap, one flag at most.
+void
+upc_reply(uint32 flags, uint32 arg)
+{
+  upc_st.reply_arg = arg;
+  upc_st.reply = UPC_TAG_REPLY | flags;
+}
+
+// ADR-135 D2-D5. uint64 is 4 bytes under ilp32e; every bound below is 32-bit.
+uint64
+upc_sbrk(int n)
+{
+  uint32 s = myproc() - proc;
+  if(s == 0)
+    return -1;
+  uint32 cur = upc_st.brk_in;
+  if(cur < UPC_HEAP_BASE || cur > UPC_HEAP_TOP)
+    cur = UPC_HEAP_BASE;
+  if(n > 0 && (uint32)n > UPC_HEAP_TOP - cur)
+    return -1;
+  if(n < 0 && (n == -2147483647 - 1 || (uint32)-n > cur - UPC_HEAP_BASE))
+    return -1;
+  if(n > 0)
+    memset((void *)(UPC_SLICE_BASE(s) + cur), 0, n);
+  upc_reply(UPC_REPLY_SET_BRK, cur + n);
+  return cur;
+}
+
 int
 upc_is_slot_row(struct proc *p)
 {
@@ -91,6 +133,8 @@ upc_slot_enter(void)
   uint32 a7 = upc_st.trap_a7;
   upc_st.cur_slot = 0;
   upc_st.trap_a7 = 0;
+  upc_st.reply = 0;     // ADR-135 D1: no word written in U-mode survives entry
+  upc_st.reply_arg = 0;
   if((cs & UPC_TAG_MASK) != UPC_TAG_SLOT)
     return;
 
@@ -131,6 +175,7 @@ upc_slot_enter(void)
   }
 #endif
   mycpu()->proc = p;
+  upc_active = 1;
 
 #ifndef UPC_MUT_NO_A7
   if((a7 & UPC_TAG_MASK) == UPC_TAG_A7)

@@ -88,13 +88,27 @@ pub const UPC_ST_CUR_SLOT_OFF: u32 = 0x0000_0800; // UPC_TAG_SLOT | s, written a
 pub const UPC_ST_TRAP_A7_OFF: u32 = 0x0000_0804; // UPC_TAG_A7 | nr, written at trap injection
 pub const UPC_ST_FRESH_MASK_OFF: u32 = 0x0000_0808; // bit child set at fork
 pub const UPC_ST_TICKS_OFF: u32 = 0x0000_080C; // tick count at the last injection (ADR-110)
-pub const UPC_ST_SIZE: u32 = 0x0000_0810;
+pub const UPC_ST_BRK_IN_OFF: u32 = 0x0000_0810; // cpu.program_break, written at trap injection (ADR-135 D3)
+pub const UPC_ST_REPLY_OFF: u32 = 0x0000_0814; // UPC_TAG_REPLY | flags, kernel; read at SRET (ADR-135 D1)
+pub const UPC_ST_REPLY_ARG_OFF: u32 = 0x0000_0818; // the reply flag's one argument, kernel
+pub const UPC_ST_SIZE: u32 = 0x0000_0820;
 pub const UPC_TAG_SLOT: u32 = 0x5107_0000;
 pub const UPC_TAG_A7: u32 = 0xA700_0000;
+pub const UPC_TAG_REPLY: u32 = 0x5250_0000;
 pub const UPC_TAG_MASK: u32 = 0xFFFF_0000;
-// The table is the 8 trapframes followed by four words (upc_slots.h asserts
+pub const UPC_REPLY_SET_BRK: u32 = 1;
+#[allow(dead_code)] // the sleep rung (ADR-135 D7)
+pub const UPC_REPLY_YIELD: u32 = 2;
+#[allow(dead_code)] // the kill rung (ADR-135 D8)
+pub const UPC_REPLY_KILL: u32 = 4;
+// ADR-135 D2: the kernel owns these bounds; here for the parity test.
+#[allow(dead_code)]
+pub const UPC_HEAP_BASE: u32 = 0x0001_0000;
+#[allow(dead_code)]
+pub const UPC_HEAP_TOP: u32 = 0x0004_0000;
+// The table is the 8 trapframes followed by eight words (upc_slots.h asserts
 // the same in C).
-const _: () = assert!(UPC_ST_SIZE == UPC_SLOTS * UPC_TF_STRIDE + 16);
+const _: () = assert!(UPC_ST_SIZE == UPC_SLOTS * UPC_TF_STRIDE + 32);
 const _: () = assert!(UPC_ST_CUR_SLOT_OFF == UPC_SLOTS * UPC_TF_STRIDE);
 
 // ── Gate 4 isolation invariants (compile-time) ─────────────────────────────

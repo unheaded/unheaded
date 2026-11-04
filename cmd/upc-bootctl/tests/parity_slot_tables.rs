@@ -40,7 +40,7 @@ fn c_define(src: &str, name: &str) -> u32 {
     parse(l.split_whitespace().nth(2).unwrap())
 }
 
-const NAMES: [&str; 11] = [
+const NAMES: [&str; 20] = [
     "UPC_SLOT_TABLES_BP_BYTE",
     "UPC_SLOTS",
     "UPC_TF_STRIDE",
@@ -48,10 +48,19 @@ const NAMES: [&str; 11] = [
     "UPC_ST_TRAP_A7_OFF",
     "UPC_ST_FRESH_MASK_OFF",
     "UPC_ST_TICKS_OFF",
+    "UPC_ST_BRK_IN_OFF",
+    "UPC_ST_REPLY_OFF",
+    "UPC_ST_REPLY_ARG_OFF",
     "UPC_ST_SIZE",
     "UPC_TAG_SLOT",
     "UPC_TAG_A7",
+    "UPC_TAG_REPLY",
     "UPC_TAG_MASK",
+    "UPC_REPLY_SET_BRK",
+    "UPC_REPLY_YIELD",
+    "UPC_REPLY_KILL",
+    "UPC_HEAP_BASE",
+    "UPC_HEAP_TOP",
 ];
 
 #[test]
@@ -93,10 +102,23 @@ fn layout_is_the_adr_layout() {
     assert_eq!(rust_const(&rs, "UPC_ST_TRAP_A7_OFF"), slots * stride + 4);
     assert_eq!(rust_const(&rs, "UPC_ST_FRESH_MASK_OFF"), slots * stride + 8);
     assert_eq!(rust_const(&rs, "UPC_ST_TICKS_OFF"), slots * stride + 12);
-    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 16);
+    assert_eq!(rust_const(&rs, "UPC_ST_BRK_IN_OFF"), slots * stride + 16);
+    assert_eq!(rust_const(&rs, "UPC_ST_REPLY_OFF"), slots * stride + 20);
+    assert_eq!(rust_const(&rs, "UPC_ST_REPLY_ARG_OFF"), slots * stride + 24);
+    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 32);
     let mask = rust_const(&rs, "UPC_TAG_MASK");
     assert_eq!(rust_const(&rs, "UPC_TAG_SLOT") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_A7") & !mask, 0);
+    assert_eq!(rust_const(&rs, "UPC_TAG_REPLY") & !mask, 0);
+    // The reply flags live below the tag.
+    for f in ["UPC_REPLY_SET_BRK", "UPC_REPLY_YIELD", "UPC_REPLY_KILL"] {
+        assert_eq!(rust_const(&rs, f) & mask, 0, "{f}");
+        assert!(rust_const(&rs, f).is_power_of_two(), "{f}");
+    }
+    // ADR-135 D2: above the CSR window, inside fork's low copy band.
+    assert!(rust_const(&rs, "UPC_HEAP_BASE") >= 0x10000);
+    assert!(rust_const(&rs, "UPC_HEAP_BASE") < rust_const(&rs, "UPC_HEAP_TOP"));
+    assert!(rust_const(&rs, "UPC_HEAP_TOP") <= rust_const(&rs, "FORK_COPY_LOW_BYTES"));
     assert_ne!(
         rust_const(&rs, "UPC_TAG_SLOT"),
         rust_const(&rs, "UPC_TAG_A7")

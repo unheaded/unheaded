@@ -61,6 +61,23 @@ fn slice_geometry_matches_phase12() {
 }
 
 #[test]
+fn kernel_slice_base_matches_phase12() {
+    // ADR-135 D5: sbrk zeroes through UPC_SLICE_BASE(s); it must name the same
+    // physical slice as pid_phys_offset: 0 for slot 0, then base + (s-1)*stride.
+    let h = read("crates/xv6-mbc/adapters/upc_slots.h");
+    let line = h
+        .lines()
+        .find(|l| l.starts_with("#define UPC_SLICE_BASE(s)"))
+        .expect("UPC_SLICE_BASE in upc_slots.h");
+    let want = format!(
+        "((s) == 0 ? 0 : {:#010x} + ((s) - 1) * {:#010x})",
+        geometry::XV6_CHILD_SLICE_BASE,
+        geometry::XV6_SLICE_STRIDE
+    );
+    assert!(line.contains(&want), "{line} does not hold {want}");
+}
+
+#[test]
 fn slice_len_matches_user_va_ceiling() {
     let main = read("ebpf/monad-cpu-ebpf/src/main.rs");
     assert_eq!(

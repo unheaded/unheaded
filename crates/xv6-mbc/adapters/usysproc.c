@@ -9,7 +9,8 @@
 // RUNTIME-DEAD ON THE UPC, BY ARCHITECTURE: user ecalls are serviced by the
 // ascend BPF dispatch, so these wrappers never run — they are linked because
 // usyscall.c's syscalls[] table references every sys_*. They come alive if
-// the trap path flips to in-kernel dispatch (T4 decision). Kept at stock
+// the trap path flips to in-kernel dispatch (T4 decision). Slot rows reach the
+// kernel-routed ones (getpid, uptime; sbrk under ADR-135). Kept at stock
 // strength for that day: sys_sbrk's lazy-path overflow guards
 // (addr + n < addr, addr + n > TRAPFRAME) and sys_pause's killed() check.
 //
@@ -21,6 +22,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "upc_slots.h"
 
 uint64
 sys_exit(void)
@@ -60,6 +62,8 @@ sys_sbrk(void)
 
   argint(0, &n);
   argint(1, &t);
+  if(upc_slot_active())
+    return upc_sbrk(n); // ADR-135 D3: a slot row must never reach growproc
   addr = myproc()->sz;
 
   if(t == SBRK_EAGER || n < 0) {
