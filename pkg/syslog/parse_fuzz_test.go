@@ -14,7 +14,7 @@ import (
 )
 
 // The corpus and its invariants are registered with LICH as
-// tomb/lich/LICH-016-syslog-relay.
+// tomb/lich/LICH-019-syslog-relay.
 var parseSeeds = []string{
 	"<34>1 2003-10-11T22:14:15.003Z mymachine.example.com su - ID47 - \xEF\xBB\xBF'su root' failed",
 	`<165>1 2003-10-11T22:14:15.003Z h evntslog - ID47 [exampleSDID@32473 iut="3"][examplePriority@32473 class="high"] msg`,

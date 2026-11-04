@@ -2,7 +2,7 @@
 SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis.
 -->
-# LICH-016: syslog relay
+# LICH-019: syslog relay
 
 **Status:** fuzz targets run 2026-11-04 (no crashers); no red-team campaign has run against a live relay.
 **Design:** ADR-124.
