@@ -29,6 +29,7 @@
 - Plan text, Step 47: `lxc export ... | tail -1` hides lxc's exit code, so the script's rc was `0` with all three exports failed. Only the output lines and the final count `0` showed it. Step 47 also has no check that the project allows backups; `lxc project get unheaded restricted.backups` before the stop would catch this with the instances still up.
 - Plan text, Step 46: it labels the evidence line and commit `Steps 42-46`, but Phase 5 is Steps 43-51 and Step 42 is Phase 4's exit gate. Run as written.
 - Plan text, Step 90: it labels the evidence line and commit `Steps 85-90`, but Phase 10 is Steps 86-91 and Step 85 is Phase 9's exit gate. Run as written.
+- Plan text, Steps 97-98: they label the evidence lines and commits `Steps 91-97` and `Steps 98-98`, but Phase 11 is Steps 92-99 and Step 91 is Phase 10's exit gate. Run as written.
 
 ## Evidence
 
@@ -78,3 +79,5 @@
 - Steps 86-89: Step 86 journal from `2026-10-23`, root logins `0`, `govan@localhost: Permission denied (publickey,keyboard-interactive).` Added read-only: `_COMM=sshd-session` also shows `0` for root, `33` accepted in all. Timer armed 17:10:09 UTC, stopped 17:10:15 UTC, never fired. Step 88 matched Expect in order. Step 89 `inactive`, `2`. KEX and port unchanged.
 - Steps 85-90: West 05-unheaded-permitroot.conf in place; methods unchanged; port 7375 listening.
 - Step 91 exit gate: PASSED, `permitrootlogin no`. `sshd -T` against Phase 0's `sshd-T.before` differs in that one line only; `/etc/ssh/sshd_config.d` differs from the backup only by `05-unheaded-permitroot.conf`. DP-15 done on west. West password path (keyboard-interactive) untouched. DP-711 stays open (Phase 5).
+- Steps 92-96: Step 92 matched Expect. East timer armed 17:11:12 UTC, stopped 17:11:21 UTC; west armed 17:11:21 UTC, stopped 17:11:23 UTC; neither fired, the undo service never started on either host. Step 93 and Step 95 lines 6 and 7 as Expect, `sugroup` empty (gid 965 east, 963 west). Step 94 `SUDO_OK`, `root`, `nobody`, `FRESH_LOGIN_SUDO_OK`. Step 96 `SUDO_OK`, `root`, `nobody`, `inactive`. `/etc/pam.d/su` differs from the backup by the one added line on both hosts, mode still `644 root:root`.
+- Steps 91-97: Phase 11, checked: west sudo, su to root and nobody after pam_wheel; undo timer stopped before this commit.
