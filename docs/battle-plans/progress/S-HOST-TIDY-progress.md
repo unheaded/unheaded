@@ -14,6 +14,8 @@
 - Plan text, Step 58, if the change is kept: after Pi-hole is set alone, `resolvectl status` shows no `Current DNS Server` line until a lookup happens. The step needs one lookup before that check (`resolvectl query archive.ubuntu.com`).
 - East after DP-12: `apt-get -s autoremove` now offers 106 packages (among them `jq`, `tmux`, `htop`, `fwupd`, `open-vm-tools`), so a hand-run `apt autoremove` would take them. None is on Step 66's reachability list, and no `Unattended-Upgrade::Remove*` key is set on east. Left in place, as the plan says.
 - Plan text, Step 67: it labels the commit and evidence line `Steps 63-67`, but Phase 7 is Steps 64-68 and Step 63 belongs to Phase 6. Run as written.
+- DP-11 first half and DP-15 not done on east: Phase 8 [STUCK] at Step 69, nothing changed. Step 69's last check counts `root@` lines outside `scripts/east-bootstrap.sh`; Expect `0`, got `1`: `runbooks/data/well-restore-from-east-offsite.yaml:56`. It is the known line, not a new one, but Step 22 was meant to move it to `govan` first and Phase 2 has not run on this branch, so the runbook still says `root@east`. Phase 8's Prerequisite names only the hold session; the critical path has Phase 2 before it. The other four checks passed. Reading the line as "not new" would be waiving a gate in front of a live sshd change, so it was neither waived nor fixed here (Step 22 is Phase 2's). Decide: run Phase 2, or at least Step 22, then rerun Phase 8 from Step 69; or rule that this one line may stay and Step 69 may expect `1`. Phases 9, 11's east half and 13 wait on this.
+- Plan text, Step 75: it labels the evidence line and commit `Steps 68-75`, but Phase 8 is Steps 69-76 and Step 68 is Phase 7's exit gate.
 
 ## Evidence
 
@@ -32,3 +34,5 @@
 - Rollback run and checked: `/etc/netplan/01-enp2s0.yaml` matches the backup (`cmp`), `DNS=1.1.1.1`, `DNS=8.8.8.8`, `Link 2 (enp2s0): 1.1.1.1 8.8.8.8`, `Current DNS Server: 1.1.1.1`, stub kept, names resolve, chrony `1`, fresh key login and hold session up.
 - Step 63 exit gate: FAILED, `Link 2 (enp2s0): 1.1.1.1 8.8.8.8`. Steps 60 and 62 not run as written; this commit stands in for them. Phase 7 accepts this [STUCK].
 - Steps 63-67: lxd-installer and the ubuntu-server metapackage removed; no autoremove run; gid 101 kept.
+- Step 69 [STUCK]: `Master running (pid=3290473)`, journal from `2026-10-26`, root logins `0`, `NO_ROOT_KEYS`, `root@` count `1` (Expect `0`): the restore runbook, line 56. Steps 70-76 not run; undo timer never armed.
+- East unchanged, checked: `/etc/ssh/sshd_config.d` matches the backup (`diff -r`), `unheaded-tidy-sshd-undo.timer` inactive, `sshd -T` still `port 22`, `permitrootlogin without-password`, `passwordauthentication no`, `kbdinteractiveauthentication no`. Hold session left up.
