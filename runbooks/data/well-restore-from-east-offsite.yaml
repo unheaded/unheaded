@@ -51,9 +51,9 @@ steps:
     action: manual
     host: west
     command: |
-      # On west, as root (the offsite account on east is add-only and cannot read back):
+      # On west, as govan (the offsite account on east is add-only and cannot read back):
       sudo install -d -m 0700 "${STAGE}/$(dirname "${SET}")"
-      sudo scp -rp root@east:"/var/backups/unheaded-well-west/sets/${SET}" "${STAGE}/$(dirname "${SET}")/"
+      ssh east "sudo tar -C /var/backups/unheaded-well-west/sets -cf - '${SET}'" | sudo tar -C "${STAGE}" -xf -
     description: "MANUAL. Copy the verified set from east to west's stage directory"
 
   - name: re-check-checksums-on-west

@@ -1,0 +1,57 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# journald-caps-west: West's larger journal caps while the journal is its only log store (DP-09)
+- block:
+    - ansible.builtin.stat:
+        path: /etc/systemd/journald.conf.d
+      name: Is /etc/systemd/journald.conf.d there
+      register: uh_journald_caps_west_1_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/systemd/journald.conf.d
+        state: directory
+      name: Create /etc/systemd/journald.conf.d
+      when: not uh_journald_caps_west_1_dir.stat.exists
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # DP-09: west's caps; overrides 60-unheaded.conf (last value wins).
+          [Journal]
+          SystemMaxUse=4G
+          RuntimeMaxUse=500M
+        dest: /etc/systemd/journald.conf.d/61-unheaded-west.conf
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/systemd/journald.conf.d/61-unheaded-west.conf
+      register: uh_journald_caps_west_1_v1
+    - ansible.builtin.command:
+        argv:
+          - systemctl
+          - restart
+          - systemd-journald.service
+      changed_when: true
+      name: Run systemctl restart systemd-journald.service
+  name: journald-caps-west
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/systemd/journald.conf.d/61-unheaded-west.conf
+        remote_src: true
+        src: '{{ uh_journald_caps_west_1_v1.backup_file }}'
+      name: Restore /etc/systemd/journald.conf.d/61-unheaded-west.conf
+      when: uh_journald_caps_west_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/systemd/journald.conf.d/61-unheaded-west.conf
+        state: absent
+      name: Remove /etc/systemd/journald.conf.d/61-unheaded-west.conf if this role created it
+      when: uh_journald_caps_west_1_v1 is changed and uh_journald_caps_west_1_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/systemd/journald.conf.d
+        state: absent
+      name: Remove /etc/systemd/journald.conf.d if this role created it
+      when: not uh_journald_caps_west_1_dir.stat.exists
+    - ansible.builtin.fail:
+        msg: journald-caps-west failed a check; every file it changed was restored
+      name: Fail after restoring
