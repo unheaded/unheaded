@@ -25,6 +25,9 @@
 - Phase 9's jail cannot ban anything east sees today: every source line in east's journal is 192.168.13.2 (723 under `-u ssh`, 2263 under `_COMM=sshd-session`; the two views overlap), and that network is ignored. So the password login Phase 8 brought back has no rate limit for attempts arriving through west. This is the plan's stated trade-off, not a fault: banning west would close east's only door. The Phase 8 line above about fail2ban not yet being in place is closed.
 - Plan text, Step 80: it labels the evidence line and commit `Steps 76-80`, but Phase 9 is Steps 77-85 and Step 76 is Phase 8's exit gate. Run as written.
 - Plan text, Step 83: `banip` leaves an empty `inet f2b-table` on east after the unban, and Step 78's Rollback already removes it. Nothing needed.
+- DP-711 not done, Phase 5 [STUCK] at Step 47; the three `steel-echo-v2` instances are running as before. All three `lxc export` calls failed with `Project "unheaded" doesn't allow for backup creation`. The project is `restricted: "true"`, set on purpose by `scripts/cuirass-lxd-trust.sh`, and it has no `restricted.backups` key. Nothing was deleted, and the restriction was not touched, because the plan does not name it and it is part of Cuirass's confinement. Decide, neither tested: (a) `lxc project set unheaded restricted.backups allow` for a rerun of Steps 47-48, then `lxc project unset unheaded restricted.backups`; or (b) drop the export and delete them, since the image stays in the store and Cuirass recreates from it, at the cost of anything local to these instances. DP-713 and the DP-723 check are done; only DP-711 is open.
+- Plan text, Step 47: `lxc export ... | tail -1` hides lxc's exit code, so the script's rc was `0` with all three exports failed. Only the output lines and the final count `0` showed it. Step 47 also has no check that the project allows backups; `lxc project get unheaded restricted.backups` before the stop would catch this with the instances still up.
+- Plan text, Step 46: it labels the evidence line and commit `Steps 42-46`, but Phase 5 is Steps 43-51 and Step 42 is Phase 4's exit gate. Run as written.
 
 ## Evidence
 
@@ -66,3 +69,8 @@
 - Steps 81-83: Step 81 `Permission denied (publickey,password,keyboard-interactive).`, ignore count `1`, `Currently banned: 0`, `FRESH_KEY_LOGIN_OK`. Step 82 not needed. Step 83 `1`, `Currently banned: 0`, address gone from the set after unban. `unheaded_chaos_guard` table still there.
 - Step 85 exit gate: PASSED, `enabled`, `FRESH_KEY_LOGIN_OK`. dpkg shows only `fail2ban` installed in this phase. DP-11 second half done on east. Hold session left up, no undo timer armed.
 - Steps 42-46: Phase 5, checked: Gone, and its neighbour is not..
+- Steps 43-45: Step 43 matched Expect (`0`, the plan's digest, `Exited`). Step 44: `Deleted: sha256:`, `/var` used 667G to 638G. Step 45 `0`, `652f5092ddb7`. DP-713 done.
+- Step 47 [STUCK]: three lines of `Error: Create instance backup: Project "unheaded" doesn't allow for backup creation`, then `0` (Expect `Backup exported successfully!` x3, `3`). Instances were stopped for about a minute.
+- Rollback run and checked: all three started (rc 0), `RUNNING`, `:26601` listening, HTTP `200` through the proxy, Pi-hole `RUNNING`. No exports exist; `~/tmp/host-tidy-2026-11-04` is left empty, mode 0700.
+- Step 48 not run: it depends on the exports. Step 49 run on its own and matched Expect: `RUNNING`, `steel-echo-v2`, `0.0.0.0` x3. DP-723 confirmed. Step 50 not run as written, because its text says the instances were deleted; this commit stands in for it.
+- Step 51 exit gate: FAILED, `0`, `3` (Expect `0`, `0`). Image gone; instances not deleted.
