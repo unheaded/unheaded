@@ -1,0 +1,49 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# kmod-usb-storage: USB mass storage cannot load (CIS 1.1.1.9)
+- block:
+    - ansible.builtin.stat:
+        path: /etc/modprobe.d
+      name: Is /etc/modprobe.d there
+      register: uh_kmod_usb_storage_1_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/modprobe.d
+        state: directory
+      name: Create /etc/modprobe.d
+      when: not uh_kmod_usb_storage_1_dir.stat.exists
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # DP-25 row 25.2 / CIS Ubuntu 24.04 1.1.1.9.
+          install usb-storage /bin/false
+          blacklist usb-storage
+        dest: /etc/modprobe.d/unheaded-usb-storage.conf
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/modprobe.d/unheaded-usb-storage.conf
+      register: uh_kmod_usb_storage_1_v1
+  name: kmod-usb-storage
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/modprobe.d/unheaded-usb-storage.conf
+        remote_src: true
+        src: '{{ uh_kmod_usb_storage_1_v1.backup_file }}'
+      name: Restore /etc/modprobe.d/unheaded-usb-storage.conf
+      when: uh_kmod_usb_storage_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/modprobe.d/unheaded-usb-storage.conf
+        state: absent
+      name: Remove /etc/modprobe.d/unheaded-usb-storage.conf if this role created it
+      when: uh_kmod_usb_storage_1_v1 is changed and uh_kmod_usb_storage_1_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/modprobe.d
+        state: absent
+      name: Remove /etc/modprobe.d if this role created it
+      when: not uh_kmod_usb_storage_1_dir.stat.exists
+    - ansible.builtin.fail:
+        msg: kmod-usb-storage failed a check; every file it changed was restored
+      name: Fail after restoring

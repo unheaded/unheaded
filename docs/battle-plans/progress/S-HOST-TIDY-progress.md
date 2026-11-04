@@ -16,6 +16,8 @@
 - Plan text, Step 67: it labels the commit and evidence line `Steps 63-67`, but Phase 7 is Steps 64-68 and Step 63 belongs to Phase 6. Run as written.
 - DP-11 first half and DP-15 not done on east: Phase 8 [STUCK] at Step 69, nothing changed. Step 69's last check counts `root@` lines outside `scripts/east-bootstrap.sh`; Expect `0`, got `1`: `runbooks/data/well-restore-from-east-offsite.yaml:56`. It is the known line, not a new one, but Step 22 was meant to move it to `govan` first and Phase 2 has not run on this branch, so the runbook still says `root@east`. Phase 8's Prerequisite names only the hold session; the critical path has Phase 2 before it. The other four checks passed. Reading the line as "not new" would be waiving a gate in front of a live sshd change, so it was neither waived nor fixed here (Step 22 is Phase 2's). Decide: run Phase 2, or at least Step 22, then rerun Phase 8 from Step 69; or rule that this one line may stay and Step 69 may expect `1`. Phases 9, 11's east half and 13 wait on this.
 - Plan text, Step 75: it labels the evidence line and commit `Steps 68-75`, but Phase 8 is Steps 69-76 and Step 68 is Phase 7's exit gate.
+- `journald-caps-west` sits in the `all` profile (`all: true` takes every fix, so `profile-all.yml` lists it) with no host guard. Nothing runs that profile today and Phase 3 applies the fix by id, but a future `all` run on east would write 4G/500M there, against DP-09 (east stays at 1G/200M). `lab` and `lab-hardened` do not list it. Decide: exclude it from `all`, or add a per-host guard, or accept it.
+- Plan text, Step 23: it labels the evidence line and commit `Steps 19-23`, but Phase 2 is Steps 20-28 and Step 19 is Phase 1's exit gate. Run as written. That commit holds only the progress line; the Step 20-22 edits went in with Step 27, as the plan's staging list says.
 
 ## Evidence
 
@@ -37,3 +39,4 @@
 - Step 69 [STUCK]: `Master running (pid=3290473)`, journal from `2026-10-26`, root logins `0`, `NO_ROOT_KEYS`, `root@` count `1` (Expect `0`): the restore runbook, line 56. Steps 70-76 not run; undo timer never armed.
 - East unchanged, checked: `/etc/ssh/sshd_config.d` matches the backup (`diff -r`), `unheaded-tidy-sshd-undo.timer` inactive, `sshd -T` still `port 22`, `permitrootlogin without-password`, `passwordauthentication no`, `kbdinteractiveauthentication no`. Hold session left up.
 - Steps 19-23: Phase 2, checked: DP-15: the restore runbook stops needing root on east. It is in the manifest, so regenerat.
+- Steps 24-27: Two fixes added; parity goldens unchanged; restore runbook off root@east; tests green.

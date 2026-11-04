@@ -351,6 +351,46 @@ fixes:
                 RuntimeMaxUse=200M
       - run: "systemctl restart systemd-journald.service"
 
+  - id: journald-caps-west
+    title: West's larger journal caps while the journal is its only log store (DP-09)
+    controls: [UH-LOG-02]
+    closes: []
+    risk: low
+    class: service
+    note: >-
+      DP-09, Stevie 2026-11-03: west 4G/500M, east stays at 1G/200M. A second drop-in, because the file journald-caps
+      writes is pinned by the parity goldens. journald reads 60- then 61- and the last value wins.
+    actions:
+      - file:
+          path: /etc/systemd/journald.conf.d/61-unheaded-west.conf
+          mode: "0644"
+          parts:
+            - text: |
+                # DP-09: west's caps; overrides 60-unheaded.conf (last value wins).
+                [Journal]
+                SystemMaxUse=4G
+                RuntimeMaxUse=500M
+      - run: "systemctl restart systemd-journald.service"
+
+  - id: kmod-usb-storage
+    title: USB mass storage cannot load (CIS 1.1.1.9)
+    controls: [UH-HOST-02]
+    closes: ["host-probe:*:kmod-usb-storage-disabled"]
+    risk: none
+    class: kmod
+    note: >-
+      DP-25 row 25.2, both hosts: no disk on either host is USB (lsblk 2026-11-04), and custody uses YubiKeys (DP-06),
+      which are HID and CCID devices, not storage. Its own file because kmod-cis is pinned by the parity goldens.
+    actions:
+      - file:
+          path: /etc/modprobe.d/unheaded-usb-storage.conf
+          mode: "0644"
+          parts:
+            - text: |
+                # DP-25 row 25.2 / CIS Ubuntu 24.04 1.1.1.9.
+                install usb-storage /bin/false
+                blacklist usb-storage
+
   - id: time-p2p
     title: West serves time to east over the point-to-point link
     controls: [UH-TIME-01]
