@@ -70,7 +70,7 @@ pipeline {
           sh '''
             echo "Installing Rust toolchain..."
             # In real environment, use rustup
-            echo "Cargo audit would run on: ebpf/ cmd/trace-collector/ crates/monad-mbc/"
+            echo "Cargo audit would run on: ebpf/ crates/monad-mbc/"
           '''
         }
       }

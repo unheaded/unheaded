@@ -13,8 +13,7 @@
 - `syscall_tracer.bpf` - Security audit via raw tracepoints
 - `container_events.bpf` - Container lifecycle via tracepoints
 
-#### 2. trace-collector (Rust binary)
-**Location:** `cmd/trace-collector/` (already exists as Cargo project)
+#### 2. trace-collector (retired 2026-11-04, DP-210; see `cmd/trace-collector-go`)
 **Purpose:** Bridge from kernel eBPF to Fae Chamber (Wotan)
 
 Features:

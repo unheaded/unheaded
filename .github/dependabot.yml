@@ -59,7 +59,7 @@ updates:
       prefix: chore(deps)
 
   - package-ecosystem: cargo
-    directories: ["/ebpf", "/ebpf/af-xdp", "/crates/*", "/cmd/upc-bootctl", "/cmd/waf", "/cmd/trace-collector", "/cmd/ebpf-collector", "/cmd/ebpf-loader", "/cmd/ebpf-load-check"]
+    directories: ["/ebpf", "/crates/*", "/cmd/upc-bootctl", "/cmd/ebpf-collector", "/cmd/ebpf-loader", "/cmd/ebpf-load-check"]
     schedule:
       interval: weekly
       day: monday

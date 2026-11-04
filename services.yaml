@@ -663,38 +663,6 @@ services:
   # Presentation Layer Services (tier: presentation, ports 19000-19999)
 
   - service:
-      name: shield-waf
-      display_name: "Shield WAF"
-      description: "Web Application Firewall protecting ingress traffic with ModSecurity"
-      version: "0.5.0"
-    network:
-      port: 19001
-      http_port: 19101
-      protocol: both
-      health_endpoint: /health
-      metrics_endpoint: /metrics
-    deployment:
-      tier: presentation
-      replicas: 3
-      restart_policy: always
-      depends_on: [service-discovery, log-aggregator]
-    runtime:
-      binary: shield-waf
-      args: ["--config=/opt/unheaded/shield-waf/config.yaml"]
-      env:
-        LOG_LEVEL: warn
-        SHIELD_BACKEND: "pauldrons:19100"
-        SHIELD_TIMEOUT: "30s"
-        GOMAXPROCS: "8"
-    health:
-      check_interval: 15s
-      timeout: 10s
-      retries: 3
-    labels:
-      kingdom_tier: presentation
-      armor_piece: shield
-
-  - service:
       name: pauldrons
       display_name: "Pauldrons"
       description: "Load balancer and reverse proxy for ingress traffic distribution"
