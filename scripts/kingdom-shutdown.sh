@@ -95,7 +95,6 @@ BINARIES=(
     dashboard-backend
     protocol-api
     chaos-controller
-    pqc-verifier
     lich-security
     routing-health
     waf

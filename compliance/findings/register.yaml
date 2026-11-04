@@ -491,6 +491,64 @@ findings:
       dropping option (b), which leaves (a) ESP and (c) ML-DSA at Shield boundaries. Opened by S-WIRE-HONEST as what
       FND-025's move leaves behind (ADR-125).
 
+  - id: FND-033
+    title: >-
+      hop-ebpf enforce mode can be skipped from the wire: a bad CRC, the CHAOS flag, a hop count at CONFIG key 3 or a
+      deploy_ring with no validator each pass the packet unchecked
+    verify: >-
+      Stevie rules which of the four stay, ADR-125 states each result, and tests/hopchecks holds an enforce case for
+      each one asserting it
+    severity: low
+    class: app
+    opened: 2026-11-04
+    exposure: >-
+      hop_xdp returns XDP_PASS for a bad CRC, for CHAOS and at the hop limit before run_checks, and a deploy_ring with
+      no validator runs no check, so whoever writes the Monad decides whether enforce applies. Read from main.rs, not
+      run. Nothing loads hop-ebpf in production and CONFIG key 4 defaults to 0, so no path relies on enforce today.
+    lockout: none
+    step: 7
+    plan: >-
+      Not fixed in S-WIRE-HONEST: ADR-125 sets the order (after the hop-limit guard), the CRC fail-open and the chaos
+      guard predate it, and a default for an unmatched ring is a new rule. Moving run_checks changes hop_xdp's verified
+      count and needs a root test run. Found by Step 125's security read.
+
+  - id: FND-034
+    title: >-
+      hoprules repeated a missing key_file in its error, so a pasted base64 key starting with a slash printed whole
+    verify: >-
+      TestLoad_MissingKeyFileIsNotEchoed: a key_file with nothing at it gives an error that does not contain it
+    severity: low
+    class: app
+    opened: 2026-11-04
+    exposure: operator's own terminal and logs, and only for a key pasted over key_file; hop-ebpf never reads the key
+    lockout: none
+    step: 7
+    plan: >-
+      readKey drops the path from a failed Lstat and keeps the cause. Up to seven characters of a value in a wrongly
+      typed field can still print: yaml.v3 quotes them, and it is the operator's line number that needs that error.
+    resolved: {on: 2026-11-04, evidence: "sprint/s-wire-honest 3e3e546e: TestLoad_MissingKeyFileIsNotEchoed red then green, pkg/hoprules under -race"}
+
+  - id: FND-035
+    title: >-
+      One missing or expired flow-0 entry drops every Shield-born packet on an enforcing hop
+    verify: >-
+      Shield-born packets carry resolved service ids, or `unheaded hop rules apply` refuses or warns on a require_hmac
+      or require_retry validator with no live flow-0 entry on its namespace
+    severity: low
+    class: app
+    opened: 2026-11-04
+    exposure: >-
+      Shield leaves both service ids at 0 and stamps ring 1, so all its packets share flow 0, namespace 1 (ADR-125 says
+      so). No remote packet can trigger it: rules need root on the pins and CONFIG key 4 is set by hand. The risk is a
+      ttl lapsing unattended, since nothing renews an entry and `hop rules apply` cannot see the mode. Nothing loads
+      hop-ebpf in production.
+    lockout: none
+    step: 7
+    plan: >-
+      Not fixed in S-WIRE-HONEST: which of the two answers is a design call for Stevie. pkg/hoprules' comment now
+      states the lever and its example names ring 1. Way back while it stands: set CONFIG key 4 to 0. Found by Step
+      125's security read.
+
   - id: FND-027
     title: >-
       The main CI workflow (.github/workflows/ci.yml: Go build and test, golangci-lint, Rust check, SPDX, licence
