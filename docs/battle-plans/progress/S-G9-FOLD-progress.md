@@ -39,6 +39,24 @@
   - Step 64 commit 735b5839 (signed).
   - Exit gate passed.
 
+- Phase 9 (Steps 72-78), 2026-11-04, Opus. **Exit gate NOT passed. No merge to develop.**
+  - Step 72 `Already up to date`: develop `bca6ea7c` is an ancestor of the branch, nothing to merge.
+  - Step 73 **[STUCK]**. `go build ./...` rc 0; `go test -race` rc 1; the gate printed `1`, expected `0`. One new package: `unheaded/services/wotan/cmd/wotan`, one test, `TestEveryWotanClientIdentityIsAllowedAndApproved`. The other 59 packages `ok`. Not the known flake: it is a static test, it failed the same way on a `-count=1` rerun, and the same test passes on develop.
+    - Cause: Phase 3's `wire.go` calls `wotanClient.InitServiceIdentity("compliance-evidence")`. That test scans `cmd/` and `services/` for the literal and requires the identity in `docker-compose.yml` `AUTH_ALLOW_CALLERS`, `deploy/systemd/unheaded-wotan.service` `AUTH_ALLOW_CALLERS` and `configs/wotan.yaml` `auto_approve`. It is on none of them. Phases 3 to 7 ran narrower packages, so Step 73 is the first run that saw it.
+    - Why stuck, and not fixed: the plan contradicts itself here. The scope fence says no unit and no compose change, Step 50's [V] asserts them untouched, and ADR-127 lists Wotan `auto_approve` as not done here. Exempting the identity in the test, hiding the literal from the regex, or dropping `--wotan` would loosen a gate or change the plan's flags. Those are Stevie's calls (For Stevie 6).
+    - Measured, nothing kept: on a throwaway `git archive` copy under `$P`, since deleted, adding the three entries turned `./services/wotan/cmd/wotan` `ok`.
+  - Step 74 MoatGhost, findings below.
+  - Step 75 this entry. Unsigned commits: none; 16 commits and the develop merge are all `G`.
+  - Step 76 deviation: the plan's subject says "exit gates green", which is false here, so the commit says what happened. Same file, same helper.
+  - Step 77 **[BLOCKED]** on Step 73: rule 15 needs the closing gate to pass. Not run; develop stays `bca6ea7c`.
+  - Step 78 **[BLOCKED]** on Step 77: the timer still compiles develop without this code. The growth to 421 packages is unproven on the timer.
+  - Phase 8 fence `0`; Step 50 recheck `0`. Steps 65-71 stay [BLOCKED] as planned, unrun.
+  - Step 74 findings. Held up: `wire` without `--serve` does nothing (Step 56); `no_data` is set from construction, and score and completeness are 0 until a packet is evaluated; no write path to the evidence file exists in `cmd/compliance-evidence/wire*.go` or `services/compliance`, and the wiki's "adds nothing to the evidence file" is true. `services/compliance`, `cmd/compliance-evidence`, `pkg/ebpf` and `pkg/protocol/bpfschema` are `ok` in Step 73.
+    - F1 medium: `--wotan`'s help implies violations leave the host. With auth on, Wotan refuses this identity (Step 73), and `publishEvent` only logs a warning, so the plane keeps scoring while publishing nothing.
+    - F2 medium: `audit_completeness` reads 1.0 by construction once the ring feeds it (For Stevie 2). It claims a measurement it cannot make.
+    - F3 low: the plane subscribes as `compliance-service`, which is not in `configs/wotan.yaml`. Its four subscriptions would sit in `pending_approval`, the 2026-10-20 bug. `TestShippedAllowlistCoversDeployedSubscribers` does not walk `cmd/compliance-evidence` or `services/compliance`, so it stays green.
+    - F4 low: `no_data` is only in the score JSON. `/metrics` `compliance_score_pct 0` and `Stats()` `compliance_score` drop it, so an empty plane reads as a 0 % score unless the reader also checks the packet total. It errs to alarm, not comfort.
+
 ## For Stevie
 
 1. `compliance-evidence` now builds 421 packages, up from the 414 in the plan's list (item 8 there). `pkg/ebpf` is the extra 7.
@@ -46,3 +64,6 @@
 3. `--audit-ring` without `--wotan` logs one "event dropped" warning per blocked record through `publishEvent`: unbounded at wire speed. Not changed.
 4. If the ring consumer fails (a missing pin, say), `serveWire` prints one stderr line and keeps serving `no_data`. Honest, but quiet; the goroutine is also not joined at shutdown. `wire.go` is outside Phase 5's files.
 5. `docs/adr/ADR-INDEX.md` has no row for ADR-123, though the file exists, and its Total line still says 113. Both came from develop, not this plan.
+6. **Merge blocked: pick one for Step 73.** (a) Allow the identity: add `compliance-evidence` to the two `AUTH_ALLOW_CALLERS` lists and `auto_approve`. Rehearsed green, but it needs your waiver of the fence and Step 50, and it allows an identity that has no account yet. (b) Take `--wotan` out of `wire` until it has its own nologin account (ADR-127), so violations stay local. Not rehearsed; it stays inside the fence but changes Phase 3's flags and Appendix D. Recommendation: (b), the smaller surface, since nothing on the default path uses it and no test in `wire_test.go` or `wire_ring_linux_test.go` mentions Wotan. Then rerun Steps 73 to 78.
+7. Decide `compliance-service` with item 6 (Step 74 F3): under (a) it wants an `auto_approve` entry too; (b) removes the question.
+8. `no_data` on `/metrics` and `Stats()` (Step 74 F4). `services/compliance` scoring is otherwise done; a one-line gauge, not added here.
