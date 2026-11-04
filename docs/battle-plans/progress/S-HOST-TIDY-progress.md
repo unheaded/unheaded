@@ -12,3 +12,4 @@
 ## Evidence
 
 - Steps 1-5: Phase 0, checked: Back up wests configs..
+- Steps 6-7: Worktree made; open count saved; config backups on west and east.
