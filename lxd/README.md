@@ -1,5 +1,7 @@
 # Unheaded Kingdom — LXD Infrastructure
 
+> **2026-11-04 (S-CLEAN-CUT, DP-401):** the per-service definitions in `lxd/containers/` were deleted; Cuirass (`cmd/unheaded-daemon`) manages instances. Pi-hole runs from its own runbook. This file stays as the record.
+
 Comprehensive Linux Container (LXD) deployment for the Unheaded Kingdom distributed system. Manages 30+ containerized services across two hosts (Forge and Outpost) with telemetry, east-west encryption, and GPU acceleration.
 
 **Status:** Production-ready
