@@ -137,6 +137,7 @@ func newTestDaemonOpts(t *testing.T, root string, retr agent.Retriever, llm agen
 	mux.Handle("/api/v1/agent/ask/stream", instrument("/api/v1/agent/ask/stream", http.HandlerFunc(srv.handleAskStream)))
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
 	mux.Handle("/api/v1/openapi.json", instrument("/api/v1/openapi.json", http.HandlerFunc(srv.handleOpenAPI)))
+	mux.Handle("/api/v1/conversations", instrument("/api/v1/conversations", http.HandlerFunc(srv.handleConversations)))
 
 	ts := httptest.NewServer(testAuth(mux))
 	t.Cleanup(ts.Close)
@@ -227,7 +228,7 @@ func TestIntegration_OpenAPI_ServesSpec(t *testing.T) {
 	if !ok {
 		t.Fatalf("paths field not an object")
 	}
-	for _, want := range []string{"/health", "/ready", "/api/v1/agent/ask", "/api/v1/agent/ask/stream", "/api/v1/agent/confirm", "/api/v1/memory/recall", "/api/v1/memory/remember", "/api/v1/models"} {
+	for _, want := range []string{"/health", "/ready", "/api/v1/agent/ask", "/api/v1/agent/ask/stream", "/api/v1/agent/confirm", "/api/v1/memory/recall", "/api/v1/memory/remember", "/api/v1/conversations", "/api/v1/models"} {
 		if _, ok := paths[want]; !ok {
 			t.Errorf("missing path entry: %s", want)
 		}

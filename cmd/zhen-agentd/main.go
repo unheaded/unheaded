@@ -187,6 +187,14 @@ func main() {
 	}
 	defer closeMem()
 	pool.memory = mem
+	var convStore conversationStore
+	if pg, ok := mem.(*pgMemoryStore); ok {
+		if err := pg.conversationsReady(context.Background()); err != nil {
+			fmt.Fprintf(os.Stderr, "zhen-agentd: session saving off until migration 045 is applied: %v\n", err)
+		} else {
+			convStore = pg
+		}
+	}
 	gcCtx, stopGC := context.WithCancel(context.Background())
 	defer stopGC()
 	pool.gcCtx = gcCtx // RT-04: confirmation tokens are swept on a ticker
@@ -237,16 +245,17 @@ func main() {
 
 	httpClient := &http.Client{Timeout: httpTimeout}
 	srv := &server{
-		pool:        pool,
-		defaultRoot: rootAbs,
-		allowed:     allowed,
-		retriever:   &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars, index: vorquery.NewIndex(httpClient, vorURL)},
-		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor, gpuLock: wf.gpuLock, energy: energy.Discover()},
-		vorURL:      vorURL,
-		llamaURL:    llamaURL,
-		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
-		askTokens:   *askTokens,
-		memory:      mem,
+		pool:          pool,
+		defaultRoot:   rootAbs,
+		allowed:       allowed,
+		retriever:     &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars, index: vorquery.NewIndex(httpClient, vorURL)},
+		llm:           &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor, gpuLock: wf.gpuLock, energy: energy.Discover()},
+		vorURL:        vorURL,
+		llamaURL:      llamaURL,
+		ready:         newReadyTracker(httpClient, vorURL, llamaURL),
+		askTokens:     *askTokens,
+		memory:        mem,
+		conversations: convStore,
 	}
 	if queue != nil {
 		srv.confirmQueue = queue
@@ -269,6 +278,7 @@ func main() {
 	mux.Handle("/api/v1/openapi.json", instrument("/api/v1/openapi.json", http.HandlerFunc(srv.handleOpenAPI)))
 	mux.Handle("/api/v1/memory/recall", instrument("/api/v1/memory/recall", http.HandlerFunc(srv.handleMemoryRecall)))
 	mux.Handle("/api/v1/memory/remember", instrument("/api/v1/memory/remember", http.HandlerFunc(srv.handleMemoryRemember)))
+	mux.Handle("/api/v1/conversations", instrument("/api/v1/conversations", http.HandlerFunc(srv.handleConversations)))
 	mux.Handle("/api/v1/models", instrument("/api/v1/models", http.HandlerFunc(srv.handleModels)))
 	srv.registerScheduler(mux)
 
@@ -515,12 +525,13 @@ type server struct {
 	confirmPub   claudebridge.JSONPublisher  // zhen.confirm.pending notices
 	confirmAudit claudebridge.ConfirmAuditor // confirm_issue events
 	// askTokens restores the legacy /ask behaviour (tokens in the trace).
-	askTokens bool
-	vorURL    string
-	llamaURL  string
-	ready     *readyTracker
-	memory    champion.MemoryStore // nil: /api/v1/memory/* answer 503
-	sched     *scheduler           // nil: -scheduler off; /api/v1/scheduler/* answer 503
+	askTokens     bool
+	vorURL        string
+	llamaURL      string
+	ready         *readyTracker
+	memory        champion.MemoryStore // nil: /api/v1/memory/* answer 503
+	conversations conversationStore    // nil: /api/v1/conversations answers 503
+	sched         *scheduler           // nil: -scheduler off; /api/v1/scheduler/* answer 503
 }
 
 // championPool caches *champion.Champion instances keyed by absolute
