@@ -77,3 +77,4 @@
 - Step 51 exit gate: FAILED, `0`, `3` (Expect `0`, `0`). Image gone; instances not deleted.
 - Steps 86-89: Step 86 journal from `2026-10-23`, root logins `0`, `govan@localhost: Permission denied (publickey,keyboard-interactive).` Added read-only: `_COMM=sshd-session` also shows `0` for root, `33` accepted in all. Timer armed 17:10:09 UTC, stopped 17:10:15 UTC, never fired. Step 88 matched Expect in order. Step 89 `inactive`, `2`. KEX and port unchanged.
 - Steps 85-90: West 05-unheaded-permitroot.conf in place; methods unchanged; port 7375 listening.
+- Step 91 exit gate: PASSED, `permitrootlogin no`. `sshd -T` against Phase 0's `sshd-T.before` differs in that one line only; `/etc/ssh/sshd_config.d` differs from the backup only by `05-unheaded-permitroot.conf`. DP-15 done on west. West password path (keyboard-interactive) untouched. DP-711 stays open (Phase 5).
