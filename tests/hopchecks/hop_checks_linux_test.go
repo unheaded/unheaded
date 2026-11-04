@@ -15,16 +15,17 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"net/netip"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
-	"golang.org/x/sys/unix"
 
+	"unheaded/pkg/hoprules"
 	"unheaded/pkg/monadpkt"
-	"unheaded/pkg/protocol/bpfschema"
 	"unheaded/pkg/protocol/encoding"
 )
 
@@ -61,8 +62,6 @@ const (
 	eventComputed = 0x01
 	eventAnomaly  = 0x08
 	offEventType  = 8 // AnamnesisEvent: u64 timestamp, then the type
-
-	retryFlag = 1 // HopValidatorValue.Flags bit 0: a live retry entry is required
 )
 
 var (
@@ -72,8 +71,9 @@ var (
 
 // lab is one freshly loaded hop_xdp: its maps and counters start empty.
 type lab struct {
-	t    *testing.T
-	coll *ebpf.Collection
+	t     *testing.T
+	coll  *ebpf.Collection
+	clock func() time.Duration
 }
 
 func objPath() string {
@@ -93,7 +93,13 @@ func newLab(t *testing.T) *lab {
 		t.Fatalf("load %s: %v", objPath(), err)
 	}
 	t.Cleanup(coll.Close)
-	return &lab{t: t, coll: coll}
+	return &lab{t: t, coll: coll, clock: func() time.Duration {
+		now, err := hoprules.Boottime()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return now
+	}}
 }
 
 func (l *lab) m(name string) *ebpf.Map {
@@ -125,61 +131,53 @@ func (l *lab) stat(key uint32) uint64 {
 	return v
 }
 
-// encode writes a bpfschema struct as the map bytes, so these tests fail if
-// hop-ebpf and the Go mirror disagree.
-func (l *lab) encode(v any) []byte {
-	l.t.Helper()
-	var b bytes.Buffer
-	if err := binary.Write(&b, binary.LittleEndian, v); err != nil {
-		l.t.Fatalf("encode %T: %v", v, err)
-	}
-	return b.Bytes()
+// Update makes the lab a hoprules.MapWriter: every entry below reaches the
+// object through the writer `unheaded hop rules apply` uses, so a key or value
+// byte the writer gets wrong is a check that misses here.
+func (l *lab) Update(mapName string, key, value []byte) error {
+	return l.m(mapName).Put(key, value)
 }
 
-func (l *lab) validator(hop, ns uint32, v bpfschema.HopValidatorValue) {
+func (l *lab) apply(f *hoprules.File) {
 	l.t.Helper()
-	key := l.encode(bpfschema.HopValidatorKey{HopID: hop, Namespace: ns})
-	if err := l.m("HOP_VALIDATORS").Put(key, l.encode(v)); err != nil {
-		l.t.Fatalf("HOP_VALIDATORS: %v", err)
+	if err := f.Load(); err != nil {
+		l.t.Fatalf("load: %v", err)
 	}
-}
-
-func (l *lab) hmacKey(flow, ns uint16, expires uint32) {
-	l.t.Helper()
-	key := l.encode(bpfschema.HMACKeyKey{FlowID: flow, Namespace: ns})
-	val := l.encode(bpfschema.HMACKeyValue{ExpiresAt: expires})
-	if err := l.m("HMAC_KEYS").Put(key, val); err != nil {
-		l.t.Fatalf("HMAC_KEYS: %v", err)
+	if _, err := hoprules.Apply(l, f, l.clock); err != nil {
+		l.t.Fatalf("apply: %v", err)
 	}
 }
 
-// retry writes a RETRY_TOKENS entry. There is no Go mirror until Phase 13, so
-// the bytes are spelled out: the key is flow_id | src_low48 << 16, src_low48
-// being the last six address bytes as one big-endian number; the value is
-// token[32], issued_at u32, expires_at u32 at 36, 8 reserved.
-func (l *lab) retry(flow uint16, src net.IP, expires uint32) {
+func (l *lab) validator(hop uint32, ns uint8, v hoprules.Validator) {
 	l.t.Helper()
-	var low uint64
-	for _, b := range src.To16()[10:16] {
-		low = low<<8 | uint64(b)
-	}
-	key := make([]byte, 8)
-	binary.LittleEndian.PutUint64(key, uint64(flow)|low<<16)
-	val := make([]byte, 48)
-	binary.LittleEndian.PutUint32(val[36:], expires)
-	if err := l.m("RETRY_TOKENS").Put(key, val); err != nil {
-		l.t.Fatalf("RETRY_TOKENS: %v", err)
-	}
+	v.Hop, v.Namespace = hop, ns
+	l.apply(&hoprules.File{Validators: []hoprules.Validator{v}})
 }
 
-// boottimeIn returns CLOCK_BOOTTIME seconds d from now: ADR-125's clock.
-func boottimeIn(t *testing.T, d time.Duration) uint32 {
-	t.Helper()
-	var ts unix.Timespec
-	if err := unix.ClockGettime(unix.CLOCK_BOOTTIME, &ts); err != nil {
-		t.Fatal(err)
+// hmacKey writes a key good for ttl; a ttl of zero never expires.
+func (l *lab) hmacKey(flow uint16, ns uint8, ttl time.Duration) {
+	l.t.Helper()
+	path := filepath.Join(l.t.TempDir(), "hop.key")
+	if err := os.WriteFile(path, make([]byte, hoprules.KeySize), 0o400); err != nil {
+		l.t.Fatal(err)
 	}
-	return uint32(ts.Sec + int64(d/time.Second)) // #nosec G115 -- seconds since boot
+	l.apply(&hoprules.File{HMACKeys: []hoprules.HMACKey{{Flow: flow, Namespace: ns, KeyFile: path, TTL: ttl}}})
+}
+
+// retry writes a validated source good for ttl.
+func (l *lab) retry(flow uint16, src net.IP, ttl time.Duration) {
+	l.t.Helper()
+	addr, ok := netip.AddrFromSlice(src.To16())
+	if !ok {
+		l.t.Fatalf("source %v", src)
+	}
+	l.apply(&hoprules.File{Retry: []hoprules.Retry{{Flow: flow, Source: addr, TTL: ttl}}})
+}
+
+// sinceBoot sets the writer's clock to zero, so a one-second ttl lands on
+// expires_at 1: long past on the clock hop-ebpf reads.
+func (l *lab) sinceBoot() {
+	l.clock = func() time.Duration { return 0 }
 }
 
 // frame builds a Monad frame; flags go in through Build, which then computes
@@ -287,10 +285,10 @@ func check(t *testing.T, c hopCase) {
 	}
 }
 
-func hmacOnly() bpfschema.HopValidatorValue { return bpfschema.HopValidatorValue{RequireHMAC: 1} }
+func hmacOnly() hoprules.Validator { return hoprules.Validator{RequireHMAC: true} }
 
-func denyAll() bpfschema.HopValidatorValue {
-	return bpfschema.HopValidatorValue{AllowedVersionMin: 2, AllowedVersionMax: 3, RequireHMAC: 1, RequireCRC: 1, MaxHopCount: 1}
+func denyAll() hoprules.Validator {
+	return hoprules.Validator{VersionMin: 2, VersionMax: 3, RequireHMAC: true, RequireCRC: true, MaxHopCount: 1}
 }
 
 // TestHopChecks is the plan's fourteen-row table (Step 85).
@@ -306,13 +304,14 @@ func TestHopChecks(t *testing.T) {
 		{name: "04_observe_hmac_live_key", mode: modeObserve,
 			setup: func(l *lab) {
 				l.validator(0, 0, hmacOnly())
-				l.hmacKey(flowID, 0, boottimeIn(t, time.Hour))
+				l.hmacKey(flowID, 0, time.Hour)
 			},
 			verdict: xdpPass, run: 1},
 		{name: "05_observe_hmac_expired_key", mode: modeObserve,
 			setup: func(l *lab) {
 				l.validator(0, 0, hmacOnly())
-				l.hmacKey(flowID, 0, 1)
+				l.sinceBoot()
+				l.hmacKey(flowID, 0, time.Second)
 			},
 			verdict: xdpPass, run: 1, failed: 1},
 		{name: "06_enforce_hmac_no_key", mode: modeEnforce,
@@ -320,34 +319,34 @@ func TestHopChecks(t *testing.T) {
 			verdict: xdpDrop, run: 1, failed: 1, enforced: 1},
 		{name: "07_enforce_retry_entry_present", mode: modeEnforce,
 			setup: func(l *lab) {
-				l.validator(0, 0, bpfschema.HopValidatorValue{Flags: retryFlag})
-				l.retry(flowID, frameSrc, boottimeIn(t, time.Hour))
+				l.validator(0, 0, hoprules.Validator{RequireRetry: true})
+				l.retry(flowID, frameSrc, time.Hour)
 			},
 			verdict: xdpPass, run: 1},
 		{name: "08_enforce_retry_wrong_source", mode: modeEnforce,
 			setup: func(l *lab) {
-				l.validator(0, 0, bpfschema.HopValidatorValue{Flags: retryFlag})
-				l.retry(flowID, otherSrc, boottimeIn(t, time.Hour))
+				l.validator(0, 0, hoprules.Validator{RequireRetry: true})
+				l.retry(flowID, otherSrc, time.Hour)
 			},
 			verdict: xdpDrop, run: 1, failed: 1, enforced: 1},
 		{name: "09_enforce_hop_count_over_cap", mode: modeEnforce,
-			setup:   func(l *lab) { l.validator(0, 0, bpfschema.HopValidatorValue{MaxHopCount: 1}) },
+			setup:   func(l *lab) { l.validator(0, 0, hoprules.Validator{MaxHopCount: 1}) },
 			patch:   map[int]byte{offHopCount: 3},
 			verdict: xdpDrop, run: 1, failed: 1, enforced: 1},
 		{name: "10_enforce_version_out_of_range", mode: modeEnforce,
 			setup: func(l *lab) {
-				l.validator(0, 0, bpfschema.HopValidatorValue{AllowedVersionMin: 2, AllowedVersionMax: 3})
+				l.validator(0, 0, hoprules.Validator{VersionMin: 2, VersionMax: 3})
 			},
 			verdict: xdpDrop, run: 1, failed: 1, enforced: 1},
 		{name: "11_enforce_require_crc_custom", mode: modeEnforce,
-			setup:   func(l *lab) { l.validator(0, 0, bpfschema.HopValidatorValue{RequireCRC: 1}) },
+			setup:   func(l *lab) { l.validator(0, 0, hoprules.Validator{RequireCRC: true}) },
 			flags:   flagCustom,
 			verdict: xdpDrop, run: 1, failed: 1, enforced: 1},
 		{name: "12_mode_zero_case_6_setup", mode: modeOff,
 			setup:   func(l *lab) { l.validator(0, 0, hmacOnly()) },
 			verdict: xdpPass},
 		{name: "13_enforce_no_rules", mode: modeEnforce,
-			setup:   func(l *lab) { l.validator(0, 0, bpfschema.HopValidatorValue{}) },
+			setup:   func(l *lab) { l.validator(0, 0, hoprules.Validator{}) },
 			verdict: xdpPass, run: 1},
 		{name: "14_enforce_validator_on_other_ring", mode: modeEnforce,
 			setup:   func(l *lab) { l.validator(0, 2, denyAll()) },
@@ -405,17 +404,18 @@ func TestHopCheckEdges(t *testing.T) {
 			verdict: xdpPass, run: 1},
 		{name: "retry_expired", mode: modeEnforce,
 			setup: func(l *lab) {
-				l.validator(0, 0, bpfschema.HopValidatorValue{Flags: retryFlag})
-				l.retry(flowID, frameSrc, 1)
+				l.validator(0, 0, hoprules.Validator{RequireRetry: true})
+				l.sinceBoot()
+				l.retry(flowID, frameSrc, time.Second)
 			},
 			verdict: xdpDrop, run: 1, failed: 1, enforced: 1},
 		{name: "hop_count_at_cap_passes", mode: modeEnforce,
-			setup:   func(l *lab) { l.validator(0, 0, bpfschema.HopValidatorValue{MaxHopCount: 3}) },
+			setup:   func(l *lab) { l.validator(0, 0, hoprules.Validator{MaxHopCount: 3}) },
 			patch:   map[int]byte{offHopCount: 3},
 			verdict: xdpPass, run: 1},
 		{name: "version_in_range_passes", mode: modeEnforce,
 			setup: func(l *lab) {
-				l.validator(0, 0, bpfschema.HopValidatorValue{AllowedVersionMin: 1, AllowedVersionMax: 1})
+				l.validator(0, 0, hoprules.Validator{VersionMin: 1, VersionMax: 1})
 			},
 			verdict: xdpPass, run: 1},
 		{name: "unknown_mode_is_off", mode: 3,
