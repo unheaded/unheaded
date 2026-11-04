@@ -1,0 +1,19 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+# S-WIRE-HONEST lane pq progress
+
+## Log
+
+- Phase 4 Steps 30-40 (Sonnet). Lane pq worktree created with lane.sh (it did not exist). Step 32 red as predicted. Step 33 `fndsa.py: all edits applied`. Step 34 green: eight ok. Step 36: 0 and 0. Step 37 `fndsa_docs.py: all edits applied`. Step 39: both [PASS]; CBOM unchanged, Step 40 exit 3 (nothing staged), fine.
+- Deviation at Step 35: the pre-commit hook refused on gofmt drift in `tests/pqc/integration_test.go` (struct field alignment left by the removed lines; whitespace only). The plan did not predict it; `gofmt -w` on that one file was applied, tests/pqc re-run ok, then committed. Also `commit.sh` failed on the plan's listed path `pkg/crypto/pqc/fn_dsa.go` (already staged by `git rm`, pathspec gone); the commit was re-run without it and the deletion is in the commit. Step 35's path list should drop `fn_dsa.go` and the fndsa.py step should run gofmt.
+- Commits: f56e8c24 (signed), f3d45746 (signed). Phase 4 exit gate passed on this tree. Not merged: `$P/lane_merge.sh pq` is for after Phase 5.
+- Phase 5 Steps 41-49 (Opus). Step 41: `v1.6.5`, path, count 12. Step 42 red `undefined: SLHDSA_SHAKE_128s`. Step 43 green; `v1.6.3` gone from `slh_dsa.go` and `hqc.go`; `slh_dsa.go`'s "SHA2-based parameter sets by default" prose also went, since it stopped being true. Step 45 red `undefined: VerifySignature`, then green. Step 47: `ok`, `ok`, `0` (the third command ran 18 `ok` packages, so the `0` is not an empty run); `-v` shows all twelve subtests PASS under `PQC_SLOW=1`. Step 49: `[PASS] compliance/crypto/cbom.cdx.json matches the tree`; CBOM unchanged, commit exit 3, fine.
+- Phase 5 notes: Step 44's path list names `registry.go`, which needed no edit (no `v1.6.3` there; its `256f` size comment is true for both hashes), so `git add` was a no-op. Tests go past the step text: `param_ids_test.go` checks each row against circl's own name and sizes; `TestSLHDSAAllParameterSets` runs through `VerifySignature` and also refuses the same-size set of the other hash; `dispatch_test.go` adds ML-KEM, 0x00, 0xFF and cross-family parameter sets, and asserts `ok` is false on every refusal. Mutation check, reverted before commit: aliasing SHAKE-128f to SHA2-128f failed `TestSLHDSAParameterIDs` and `TestSLHDSAAllParameterSets`; routing 0x03 to SLH-DSA failed `TestVerifySignatureRefusesOtherAlgorithms`.
+- Phase 5 timing, west near idle: `-race` on the package 3.0 s with the default subset; all twelve 3.9 s without `-race`, 67.2 s with it. The default subset stays: 67 s of a 120 s budget is too thin on a loaded runner.
+- Phase 5 gates: exit gate `go test -race ./pkg/crypto/pqc/` ok and `v1.6.3` count 0. Also `gofmt -l` empty, `go vet` clean, `go build ./...` ok, `check-gosec-ratchet.sh` PASS. Commits: 15b41652 (signed), 46d6dd89 (signed).
+
+## For Stevie
+
+1. `VerifySignature` has no production caller yet, and SLH-DSA has none at all. The two production verifiers (`pkg/wotansig`, `pkg/protocol/sophiasync`) call `NewMLDSAVerifier(MLDSA65)` directly. The `algoID` switches in `pkg/pqc_policy`, `services/shield` and `services/sophia` classify ids; they verify nothing.
+2. `SLHDSASigner.Sign` uses `slhdsa.SignDeterministic` (existing code, unchanged). FIPS 205 also defines hedged signing, which mixes in fresh randomness. Keep deterministic, or move to hedged? No caller exists, so nothing is affected today.
+3. circl v1.6.3 is still named outside `pkg/crypto/pqc`: `CLAUDE.md` (S-PQC line), `LICENSES/THIRD_PARTY.md`, ADR-004 and several `docs/compliance/control-matrix` files. go.mod is v1.6.5. Outside this lane's files, not changed. The licence and compliance rows may want a real re-audit, not a search and replace.
+4. `hqc.go` still reads "Status: ROADMAP (Q3 2026)" and "as of March 2026". Both dates have passed and this lane only removed the circl version. HQC stays reserved.

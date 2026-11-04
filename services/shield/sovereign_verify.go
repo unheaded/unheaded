@@ -12,7 +12,7 @@ import (
 // AlgorithmFamily groups algorithms by cryptographic construction.
 const (
 	FamilyHashBased = "hash-based" // SLH-DSA
-	FamilyLattice   = "lattice"    // ML-DSA, FN-DSA
+	FamilyLattice   = "lattice"    // ML-DSA; the withdrawn 0x03 stays here so it can never count as a new family
 	FamilyCodeBased = "code-based" // HQC
 )
 

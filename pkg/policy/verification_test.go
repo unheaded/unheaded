@@ -23,8 +23,8 @@ func TestDefaultPolicyForTier_None(t *testing.T) {
 	if len(p.RequiredAlgos) != 0 {
 		t.Fatalf("TierNone should have no required algos, got %d", len(p.RequiredAlgos))
 	}
-	if len(p.AllowedAlgos) != 3 {
-		t.Fatalf("TierNone should allow 3 algos, got %d", len(p.AllowedAlgos))
+	if len(p.AllowedAlgos) != 2 {
+		t.Fatalf("TierNone should allow 2 algos, got %d", len(p.AllowedAlgos))
 	}
 	if p.MaxSigAge != 24*time.Hour {
 		t.Fatalf("TierNone MaxSigAge should be 24h, got %s", p.MaxSigAge)
@@ -86,8 +86,8 @@ func TestDefaultPolicyForTier_Sovereign(t *testing.T) {
 	if len(p.RequiredAlgos) != 2 {
 		t.Fatalf("TierSovereign should require 2 algos, got %d", len(p.RequiredAlgos))
 	}
-	if len(p.AllowedAlgos) != 3 {
-		t.Fatalf("TierSovereign should allow 3 algos, got %d", len(p.AllowedAlgos))
+	if len(p.AllowedAlgos) != 2 {
+		t.Fatalf("TierSovereign should allow 2 algos, got %d", len(p.AllowedAlgos))
 	}
 	if p.MinTrustTier != TierSovereign {
 		t.Fatalf("TierSovereign MinTrustTier should be Sovereign, got %s", p.MinTrustTier)
@@ -158,8 +158,8 @@ func TestIsAlgoAllowed(t *testing.T) {
 	if !p.IsAlgoAllowed(AlgoMLDSA) {
 		t.Fatal("ML-DSA should be allowed in TierStandard")
 	}
-	if p.IsAlgoAllowed(AlgoFNDSA) {
-		t.Fatal("FN-DSA should NOT be allowed in TierStandard")
+	if p.IsAlgoAllowed(0x03) {
+		t.Fatal("the withdrawn id 0x03 should NOT be allowed in TierStandard")
 	}
 	if p.IsAlgoAllowed(AlgoHQC) {
 		t.Fatal("HQC should NOT be allowed in TierStandard")

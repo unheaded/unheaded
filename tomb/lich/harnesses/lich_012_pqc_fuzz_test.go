@@ -202,7 +202,7 @@ func FuzzPQCAlgorithmIDMismatch(f *testing.F) {
 	f.Add(uint8(0x00), []byte("key-material"), []byte("message"), []byte("signature"))
 	f.Add(uint8(0x01), []byte("key-material"), []byte("message"), []byte("signature")) // SLH-DSA
 	f.Add(uint8(0x02), []byte("key-material"), []byte("message"), []byte("signature")) // ML-DSA
-	f.Add(uint8(0x03), []byte("key-material"), []byte("message"), []byte("signature")) // FN-DSA
+	f.Add(uint8(0x03), []byte("key-material"), []byte("message"), []byte("signature")) // withdrawn id 0x03
 	f.Add(uint8(0x04), []byte("key-material"), []byte("message"), []byte("signature")) // ML-KEM
 	f.Add(uint8(0x05), []byte("key-material"), []byte("message"), []byte("signature")) // HQC
 	f.Add(uint8(0x06), []byte("key-material"), []byte("message"), []byte("signature")) // unregistered
