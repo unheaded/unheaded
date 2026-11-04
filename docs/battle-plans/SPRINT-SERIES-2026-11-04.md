@@ -23,7 +23,7 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 
 ## Rules every plan and every agent follows
 
-1. **Branches.** One branch per plan, `sprint/<plan-lowercase>`, in its own worktree under `~/tmp/wt/<plan>`. Merge to develop with `git merge --no-ff -S`. Never `git push`: Stevie pushes.
+1. **Branches.** One branch per plan, `sprint/<plan-lowercase>`, in its own worktree under `~/tmp/wt/<plan>`. go.mod's `../projects/doomgeneric` replace needs `ln -sfn /home/govan/tmp/projects /home/govan/tmp/wt/projects` once, before any worktree build. Scratch files go in a private directory per plan, never a shared one. Merge to develop with `git merge --no-ff -S`. Never `git push`: Stevie pushes.
 2. **Commits.** Signed (`-S`); if gpg-agent times out use `--no-gpg-sign` and say so in the handoff, not in the commit message. Stage named files only, never `git add -A <dir>`. Message format `[PLAN <name>] Steps X-Y: ...`, then the trailers `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and `Claude-Session: https://claude.ai/code/session_01TzL3Tqe5ebLDopsg5ZkZdp`.
 3. **Capacity.** West has 12 cores and 14 GiB. At most three lanes build at once; cargo with `-j4`, `GOMAXPROCS=4`. `/tmp` is a 7.2 GiB tmpfs: put build output under `/var/tmp` or the worktree. Never count swap. `Makefile.mbc clean` nukes `target/`.
 4. **No third party.** No new module, crate, package, action or image without Stevie's confirm (2026-10-29 rule). Version bumps for vulnerabilities are approved (DP-722).
@@ -38,6 +38,10 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 10. **Every phase carries a model tag.** `**Model**: Haiku` for purely mechanical work: an exact file list, exact old and new text, one verify command, no judgement (deletions, header changes, doc ripples). `**Model**: Sonnet` for well-defined code with signatures, tests first and expected output. `**Model**: Opus` when a step needs judgement (eBPF verifier work, protocol, concurrency, security-sensitive logic, live sshd, PAM or resolvers, design calls). Use a cheaper tier only if an agent with no project context could finish the phase from the plan alone. Each plan carries a swarm table of the phases that can run at once on disjoint files; rule 3's limit of three concurrent builders still holds, and doc-only agents do not count against it.
 11. **Haiku and Sonnet phases leave nothing to infer.** Each step names the exact file and the exact text to find and to write, shows the full command and its expected output, and says what to do on any other output. For code, give the function signature, the test to write first with its assertions, and the expected red and green results. No "update as needed", "similar to", or "etc.".
 12. **Stop lines.** A Haiku or Sonnet agent that meets anything the plan did not predict does not improvise: it marks the step `[STUCK]`, records the output, and moves to the next independent step.
+
+## Reserved numbers and known collisions
+
+ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
 
 ## Order
 
