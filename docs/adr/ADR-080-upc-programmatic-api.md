@@ -92,7 +92,7 @@ gate on a real load of *each* variant, not just `cargo build`.
 |--------|-------|---------|-------|
 | Doom | Playable in-browser (bridge :16666) | DRAW_FRAME/GET_KEY/GET_TICKS/SLEEP | doom-runner, PC=0 |
 | xv6 | Phase 1 complete (sh + 5 cmds + FS) | RV32I ecall (fork/exec/wait/open/read/write/fstat/…) | upc-bootctl, PC=0x4000 |
-| uClinux/Linux | Phase 2, blocked on code-store decision | (will extend the ASCEND surface) | bootstub → S-mode MRET |
+| uClinux/Linux | Dropped (ADR-081; DP-212, 2026-11-04): no vendored Linux image is planned; the bootstub is done for xv6-class kernels | n/a | bootstub → S-mode MRET |
 
 ## 6. I/O-time gates (S-ASCEND-2, amended 2026-10-28)
 
