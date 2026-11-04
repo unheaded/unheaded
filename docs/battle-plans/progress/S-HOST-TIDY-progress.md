@@ -30,6 +30,10 @@
 - Plan text, Step 46: it labels the evidence line and commit `Steps 42-46`, but Phase 5 is Steps 43-51 and Step 42 is Phase 4's exit gate. Run as written.
 - Plan text, Step 90: it labels the evidence line and commit `Steps 85-90`, but Phase 10 is Steps 86-91 and Step 85 is Phase 9's exit gate. Run as written.
 - Plan text, Steps 97-98: they label the evidence lines and commits `Steps 91-97` and `Steps 98-98`, but Phase 11 is Steps 92-99 and Step 91 is Phase 10's exit gate. Run as written.
+- Row 25.1 is part done, Steps 100-101 each [STUCK] for some fixes. Four `-record-existing` calls were refused before any host check: `-applied-by` is capped at 30 characters (`maxAppliedBy`, `pkg/compliance/executor/check.go`), and the plan's `installer modes read 2026-10-27` is 31 and `S-WELL-SPRING host window (2026-10-27)` is 38. Recorded: west 10 of 11, east 12 of 15. The text was not shortened here, so a journal row's wording stays yours to pick. `rocm-log-perms` is in place on both hosts (read-only `check`) and only needs a rerun with shorter text, for example `installer modes (2026-10-27)` on west and `S-WELL-SPRING (2026-10-27)` on east. Decide: take those two, or name your own.
+- `aide-install` on east is not in place, none applied, row stays open: `package aide: "", want installed`; `/etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf: missing`; `dailyaidecheck.timer: is-enabled "not-found", want enabled=true`; `dailyaidecheck.timer: is-active "inactive", want active=true`. The tool refused it on the `-applied-by` length; this is from `check`. Step 101 credits it to the S-WELL-SPRING host window, but the package is not on east.
+- `apparmor-enforce` on east is not in place, none applied, row stays open: `apparmor profile Xorg: "complain", want enforce`. Same route as `aide-install`.
+- Plan text, Step 103: it labels the evidence line and commit `Steps 99-103`, but Phase 12 is Steps 100-104 and Step 99 is Phase 11's exit gate. Run as written.
 
 ## Evidence
 
@@ -83,3 +87,5 @@
 - Steps 91-97: Phase 11, checked: west sudo, su to root and nobody after pam_wheel; undo timer stopped before this commit.
 - Steps 98-98: sugroup empty on both, pam_wheel after pam_rootok; sudo, sudo su and fresh login proven.
 - Step 99 exit gate: PASSED, `1`, `1`. DP-25 row 25.9 done on west and east. Hold session left up, no undo timer armed. The `su-restricted` probe in Phase 15 is what proves the rule itself. DP-711 stays open (Phase 5).
+- Steps 100-102: journal at `686c7da8`, model on both hosts matches the worktree (`sha256` `28590a2a...`). West recorded 10: `sysctl-cis`, `apport-off`, `kmod-cis`, `cron-perms`, `banner-cis`, `apparmor-utils`, `auditd`, `sudo-cis`, `journald-caps`, `time-p2p`. East recorded 12: those ten plus `auditd-rules` and `sshd-safe`. Step 100 [STUCK] for `rocm-log-perms`; Step 101 [STUCK] for `rocm-log-perms`, `aide-install`, `apparmor-enforce`: `fix refused: -applied-by must be 1-30 printable characters`. Step 102 `10`, `12`, equal to what was recorded. Journals now 12 lines on west, 13 on east. None of the four was applied. DP-711 stays open (Phase 5).
+- Steps 99-103: Backfilled journal rows on west and east; fixes not in place listed under For Stevie, none applied.
