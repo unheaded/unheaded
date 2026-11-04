@@ -7,8 +7,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"go/parser"
+	"go/token"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -42,6 +45,50 @@ func TestRunWire_Help(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "--serve") {
 		t.Fatalf("help output has no --serve: %q", out.String())
+	}
+}
+
+// wire has no --wotan: it presents no Wotan identity until it has its own
+// nologin account (ADR-127).
+func TestRunWire_NoWotanFlag(t *testing.T) {
+	var errOut bytes.Buffer
+	if code := runWire([]string{"--wotan", "127.0.0.1:19001"}, io.Discard, &errOut); code != 2 {
+		t.Fatalf("runWire(--wotan) = %d, want 2", code)
+	}
+	var out bytes.Buffer
+	if code := runWire([]string{"--help"}, &out, io.Discard); code != 0 {
+		t.Fatalf("runWire(--help) = %d, want 0", code)
+	}
+	if strings.Contains(strings.ToLower(out.String()), "wotan") {
+		t.Fatalf("help output names Wotan: %q", out.String())
+	}
+}
+
+// The package cannot build a Wotan client, so serveWire's service has none and
+// its subscriptions (services/compliance, as compliance-service) never run.
+func TestPackageHasNoWotanClient(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		seen++
+		parsed, err := parser.ParseFile(token.NewFileSet(), f, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, imp := range parsed.Imports {
+			if imp.Path.Value == `"unheaded/pkg/wotan-client"` {
+				t.Errorf("%s imports the Wotan client", f)
+			}
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no source files found: the test is not looking at the package")
 	}
 }
 

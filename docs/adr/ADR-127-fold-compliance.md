@@ -34,11 +34,12 @@ Neither is a daemon today. `wire --serve` runs in the foreground; a unit is a la
 - The service runs behind `pkg/auth` and `pkg/tls`, never its own open listener: new `Handler()` and `StartBackground()`.
 - **Honest score.** No packets means `no_data: true`, `score_pct: 0`, `audit_completeness: 0`, never 100.
 - `--audit-ring PATH` consumes a pinned `AUDIT_LOG`; `IngestAuditRecord` is the first real input. Record layout mirrored in `bpfschema`.
+- **No Wotan client.** `wire` has no `--wotan` and presents no Wotan identity until it has its own nologin account: every service gets one, and no allowlist names `compliance-evidence`. Violations stay on the host. `services/compliance` keeps its Wotan code, but `wire` passes it no client, so its four `compliance-service` subscriptions never run. A dropped event is counted in `compliance_wotan_drops_total`, never logged per record: the ring reaches that path at wire speed.
 - The evidence catalog does not change. A new evidence source is a separate decision: it would move every framework's figures.
 
 ## Not done here
 
-- Writing `SERVICE_POLICIES` (string service ids against a u8 pair; needs a mapping), attaching `compliance_xdp` anywhere, a unit, a uid, Wotan topics on `auto_approve`.
+- Writing `SERVICE_POLICIES` (string service ids against a u8 pair; needs a mapping), attaching `compliance_xdp` anywhere, a unit, a uid, a Wotan identity and its topics on `auto_approve`.
 - **East.** compliance-evidence is a `go run` user timer with no deb, so nothing runs it on east.
 - **The operator's account.** That timer runs as an account with `sudo -n`. `--serve` there is not much better than a listener in baseline, so the `/etc/shadow` argument only fully holds once `wire` has its own nologin account and unit. Do not run `--serve` from that account beyond a lab test.
 - **Who may open the `AUDIT_LOG` pin.** Root only today. `pkg/cartridge/loader_linux.go`'s `EventsGID` is the precedent: the one ring pinned `root:<gid> 0660` for a reader with no right to the other maps.

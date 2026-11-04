@@ -188,6 +188,30 @@ func TestPublishEventNilWotan(t *testing.T) {
 	}
 }
 
+// With no Wotan client a dropped event is counted, never logged: the ring feeds
+// RecordViolation at wire speed, so a line per record has no limit.
+func TestPublishEventNilWotan_NoPerRecordLog(t *testing.T) {
+	var out bytes.Buffer
+	svc := NewService(logger.New(&out), nil, nil)
+
+	const records = 1000
+	for i := 0; i < records; i++ {
+		if err := svc.IngestAuditRecord(auditBytes(auditDecisionBlock, auditViolationPolicy, 0)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if out.Len() != 0 {
+		t.Fatalf("%d records logged %d bytes, want none; first line: %.120s", records, out.Len(), out.String())
+	}
+	if drops := svc.WotanDrops(); drops != records {
+		t.Errorf("WotanDrops = %d, want %d: the drop must still be counted", drops, records)
+	}
+	if blocked := svc.GetScore().Blocked; blocked != records {
+		t.Errorf("Blocked = %d, want %d", blocked, records)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // HTTP handler method-not-allowed branches
 // ---------------------------------------------------------------------------

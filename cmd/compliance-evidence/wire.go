@@ -21,21 +21,21 @@ import (
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	utls "unheaded/pkg/tls"
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/compliance"
 )
 
 // `compliance-evidence wire`: the wire compliance plane (services/compliance),
 // folded in behind --serve (ADR-127, DP-203). Without --serve it says it is
-// off and does nothing: no listener, no Wotan, no eBPF. No unit, timer or
-// compose service passes --serve. The evidence file is untouched either way.
+// off and does nothing: no listener, no eBPF. No unit, timer or compose service
+// passes --serve. The evidence file is untouched either way. There is no Wotan
+// client either way, so violations stay on the host: wire presents no Wotan
+// identity until it has its own nologin account.
 
 const wireOffMessage = "wire compliance is off; pass --serve to run it (ADR-127)"
 
 type wireOptions struct {
 	serve     bool
 	listen    string
-	wotanAddr string
 	auditRing string
 }
 
@@ -48,7 +48,6 @@ func runWire(args []string, stdout, stderr io.Writer) int {
 	fl.SetOutput(io.Discard)
 	fl.BoolVar(&o.serve, "serve", false, "run the wire compliance plane (default off)")
 	fl.StringVar(&o.listen, "listen", compliance.DefaultConfig().ListenAddr, "HTTP listen address; anything but loopback needs AUTH_ENABLED=true")
-	fl.StringVar(&o.wotanAddr, "wotan", "", "Wotan HTTP address (default: none, violations stay local)")
 	fl.StringVar(&o.auditRing, "audit-ring", "", "pinned compliance-ebpf AUDIT_LOG ring to consume (default: none)")
 	if err := fl.Parse(args); err != nil {
 		return cmdline.HandleParseError(err, fl, spec, args, stdout, stderr)
@@ -90,16 +89,7 @@ func serveWire(ctx context.Context, o wireOptions, ready chan<- string) error {
 	if err := checkWireListen(o.listen, authCfg.Enabled); err != nil {
 		return err
 	}
-	var wc *wotanClient.Client
-	if o.wotanAddr != "" {
-		wotanClient.InitServiceIdentity("compliance-evidence")
-		c, err := wotanClient.NewClient(o.wotanAddr)
-		if err != nil {
-			return fmt.Errorf("wotan: %w", err)
-		}
-		wc = c
-	}
-	svc := compliance.NewService(logger.New(os.Stderr), wc, nil)
+	svc := compliance.NewService(logger.New(os.Stderr), nil, nil)
 	if err := svc.StartBackground(ctx); err != nil {
 		return err
 	}

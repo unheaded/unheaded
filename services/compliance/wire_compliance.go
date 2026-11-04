@@ -775,11 +775,12 @@ func (s *WireComplianceService) handleCriticalAlert(_ context.Context, msg *wota
 		Msg("received critical alert — auditing compliance posture")
 }
 
-// publishEvent publishes an event to Wotan.
+// publishEvent publishes an event to Wotan. With no client the event is counted
+// in wotanDrops and not logged: the audit ring reaches here once per blocked
+// packet, and StartBackground has already said Wotan is not configured.
 func (s *WireComplianceService) publishEvent(ctx context.Context, topic string, event map[string]interface{}) {
 	if s.wotan == nil {
 		atomic.AddInt64(&s.wotanDrops, 1)
-		s.log.Warn().Str("topic", topic).Msg("wotan unavailable — event dropped (degraded mode)")
 		return
 	}
 
