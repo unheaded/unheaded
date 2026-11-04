@@ -1681,10 +1681,14 @@ Method, no new package: a LUKS2 file with the seed inside and both tokens enroll
 ## EVENING 13: FIRST ZHEN NIGHTS (Steps 244-257)
 
 **Goal**: DP-303: night one with a fake Claude leg, night two live at $3; cards owned by `zhen` with a ```zhen block only; `-audit-well` on; the confirm queue on; no auto-approve beyond `unheaded-baseline` and chaos-controller.
-**Prerequisite**: Evening 5 live with alerts; S-ZHEN-POLISH merged; S-HOST-TIDY Phase 18 done. Migrations 044 and 045 applied if that plan added them (Step 75 covers them if it merged first; otherwise run batch-apply again with `--from 044`).
+**Prerequisite**: Evening 5 live with alerts; S-ZHEN-POLISH merged; S-HOST-TIDY Phase 18 done. Migrations 044 and 045 are not a blocker: the writers survive without them (Step 75 covers them if that plan merged first; otherwise run batch-apply with `--from 044` when convenient).
 **Time**: 30 m now, 30 m next morning, twice. **Have ready**: one or two small cards you would be glad to see done; an Anthropic key.
 
-- [ ] **Step 244** [CLAUDE][S] ~10m: Start the DP-712 units. The binary comes from `make binaries`; TLS is in place since Evening 5.
+- [ ] **Step 244** [STEVIE][CLAUDE][S] ~15m: Start the DP-712 units: vor on 20110, zhen-agentd on 20111. The binary comes from `make binaries`; TLS is in place since Evening 5. **First the unit's environment file, yours to type.** The unit names it without a `-` and passes `-memory-store pg`, so a missing file or a missing `WELL_APP_ZHEN_DSN` stops it at startup. The next step's `~/.config` file is not read by this unit.
+  ```bash
+  sudo install -m 0640 -o root -g zhen-agentd /dev/null /etc/zhen-agentd.env; sudo ${EDITOR:-nano} /etc/zhen-agentd.env; sudo stat -c '%a %U %G' /etc/zhen-agentd.env; sudo grep -c '^WELL_APP_ZHEN_DSN=.' /etc/zhen-agentd.env
+  ```
+  Lines: `WELL_APP_ZHEN_DSN=` (required), `WELL_DSN=`, `WELL_KANBAN_DSN=`, `VOR_URL=http://127.0.0.1:20110`, `LLAMA_URL=http://127.0.0.1:8081`, `ZHEN_CODE_INDEX_DIR=/var/zhen/code-index`, `ZHEN_TAUGHT_DIR=/var/zhen/projects/zhen-taught`. The DSN form is in the next step; `deploy/systemd/zhen-agentd.env.example` names each one's role. Expect: `640 root zhen-agentd`, `1`. Else: fix the file; do not start the unit.
   ```bash
   cd /home/govan/tmp/unheaded && GOMAXPROCS=4 make binaries 2>&1 | tail -1 | cut -c1-70; sudo install -m 0755 bin/release/zhen-agentd /usr/local/bin/zhen-agentd; sudo systemctl enable --now unheaded-vor.service zhen-agentd.service; sleep 5; systemctl is-active unheaded-vor.service zhen-agentd.service; ss -tln | grep -cE ':(20110|20111) '
   ```
