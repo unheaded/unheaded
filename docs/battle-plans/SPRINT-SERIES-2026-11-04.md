@@ -10,10 +10,10 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 
 | Plan | Mode | Lane | Answers it carries |
 |---|---|---|---|
-| S-CLEAN-CUT | unattended | A | DP-401, 205 (verify Doom first), 209, 210, 306, 307, 407, 409, 402 Q3, 410, 706, 709, 713 (repo side), 308 corpus flags |
-| S-MOVE-OUT | unattended, local only | A, after S-CLEAN-CUT | DP-305 Doom to `unheaded-doom`, DP-17 k8s to `unheaded-k8s`; DP-314 |
+| S-CLEAN-CUT | unattended | A | DP-401 with `cmd/waf`, 205 (verify Doom first), 209, 210, 306, 307, 407, 409, 410, 709, 713 (repo side) |
+| S-MOVE-OUT | unattended, local only | A, after S-CLEAN-CUT and S-STAGE-2B | DP-305 Doom to `unheaded-doom`, DP-17 k8s to `unheaded-k8s`, the forge to `unheaded-forge` (round 4); DP-314 |
 | S-SUPPLY-FIRST | unattended | B | DP-722, 719, 415, 405, 08, 721 stage 1 |
-| S-ZHEN-POLISH | unattended | C | DP-216, 302, 308 GGUF, 309, 311, 312, 712 (code and units, not install), 608 prerequisite `answer_start`, ADR-120 estimated energy |
+| S-ZHEN-POLISH | unattended | C | DP-216 revised (code index, no swap), 302, 309, 311, 312, 712 (two units, code only), ADR-120 estimated energy |
 | S-WIRE-HONEST | unattended | D | DP-211, 408, 411, 412, 716, 715 |
 | S-G9-FOLD | unattended, ADRs first | D, after S-WIRE-HONEST | DP-203: one parked ADR per fold, compliance first |
 | S-STAGE-2B | unattended, serial | E | DP-213, 413, 414, 501, 502, 503, 717, 206 prep |
@@ -49,7 +49,7 @@ Source of every decision: `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP id
 
 ## Reserved numbers and known collisions
 
-FND-031 is S-WIRE-HONEST's and FND-032 is S-SUPPLY-FIRST's (ChromaDB); check the other plan before opening a new id. ADR-121 is S-CLEAN-CUT's parked WAF idea. ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. S-STAGE-2B starts at 135. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
+FND-031 is S-WIRE-HONEST's and FND-032 is S-SUPPLY-FIRST's (ChromaDB); check the other plan before opening a new id. ADR-121 is S-CLEAN-CUT's parked WAF idea, ADR-122 S-ZHEN-POLISH's parked embed service. ADR-125 to ADR-134 belong to S-WIRE-HONEST and S-G9-FOLD. S-STAGE-2B starts at 135. `pkg/protocol/bpfschema/bpfschema.go` is edited by both S-CLEAN-CUT (DP-407) and S-WIRE-HONEST: merge S-CLEAN-CUT first. The user timer for compliance evidence runs `go run` from `~/tmp/unheaded`, so a merge changes what it compiles.
 
 ## Order
 
