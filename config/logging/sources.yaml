@@ -1586,6 +1586,15 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:runs in compose on west (west/compose-sword); the host unit is not installed"
+  - id: unit/unheaded-vor
+    host: west
+    kind: journal-unit
+    match: unheaded-vor.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
   - id: unit/unheaded-well-retention
     host: west
     kind: journal-unit

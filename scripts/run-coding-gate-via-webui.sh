@@ -10,7 +10,7 @@
 # (and again at Phase 2 / Phase 4).
 #
 # Pre-requisites:
-#   - vor at $VOR_URL    (default 127.0.0.1:9876)
+#   - vor at $VOR_URL    (default 127.0.0.1:20110)
 #   - llama-server at $LLAMA_URL (default 127.0.0.1:8081)
 #   - raft/zhen_app.py running on $WEBUI_URL (default 127.0.0.1:20103)
 #

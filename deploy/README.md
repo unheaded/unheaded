@@ -35,9 +35,9 @@ your `-allowed-roots`).
 
 ```bash
 make zhen-agentd-docker
-docker run --rm -p 20105:20105 \
+docker run --rm -p 20111:20111 \
     -e AUTH_ENABLED=false \
-    -e VOR_URL=http://host.docker.internal:9876 \
+    -e VOR_URL=http://host.docker.internal:20110 \
     -e LLAMA_URL=http://host.docker.internal:8081 \
     zhen-agentd:dev
 ```
@@ -57,7 +57,7 @@ Before turning on `AUTH_ENABLED=true` and exposing beyond loopback:
 - [ ] PostgreSQL `unheaded_app` database has the `app_zhen` role with INSERT/UPDATE/SELECT on `zhen_actions` (db/migrations; the password is `APP_ZHEN_PASSWORD` in `.env`)
 - [ ] Reverse-proxy in front terminates TLS, sets `X-Forwarded-For`, and only forwards from trusted IPs
 - [ ] `journalctl -u zhen-agentd` is in the central log pipeline
-- [ ] `zhen_agentd_*` Prometheus metrics scraped (target: `127.0.0.1:20105/metrics`)
+- [ ] `zhen_agentd_*` Prometheus metrics scraped (target: `127.0.0.1:20111/metrics`)
 
 ## Endpoints exposed
 

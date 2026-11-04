@@ -62,6 +62,14 @@ zhen-claude -route auto -family repo-task -worktree ~/.cache/unheaded/zhen-workt
 
 `scripts/two-brains/run-fixture.sh --route auto --family repo-task --split holdout --limit 3` runs eval fixtures this way.
 
+## What never escalates
+
+A prompt matching a pattern in `pkg/zhencapture/redact_patterns.json`, email addresses included, stays on the host on every routed path (`-route auto`, `-family`, agentd worker and overnight). The local model still answers it. `-route claude` is an explicit choice and is not checked.
+
+## Standard checks
+
+`zhen-claude check go` (the answer type-checks; syntax only where no Go source tree is installed), `check json` (one JSON value), `check cite --root DIR` (every cited file exists). Use them with `-check`, for example `-check "zhen-claude check json"`. Exit 0 accepts, 1 rejects, 2 is bad usage. Nothing runs the answer. `-task-budget` stays off until measured.
+
 ## Family caps
 
 Each request of the Claude leg reserves its worst case (prompt estimate plus `max_tokens` at the routed model's rates; no refusal fallback runs on a routed leg) and is refused before the API call when that does not fit `min(max_claude_usd, what the daily cap has left)`. The first request is sized to about 70 % of the family cap; a later request of the tool loop goes out with the largest `max_tokens` that still fits, down to 1024, instead of ending the leg (`Config.MinMaxTokens`). Under 1024 tokens the leg stops with `stop: escalation_budget`.

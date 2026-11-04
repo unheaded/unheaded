@@ -175,6 +175,9 @@ data:
     postgres         042_retention_runner.sql
     unheaded_app     042_retention_runner.sql
     unheaded_ops     043_ops_retention.sql
+    unheaded_ops     044_ops_llm_requests_energy.sql
+    unheaded_app     045_app_zhen_conversations_client.sql
+    unheaded_app     046_app_zhen_confirm_teach_write.sql
 
     # The pre-split single-database schema, superseded by 003/004/005: applying
     # it would put a fourth copy of kanban_tasks, timeline_milestones and
@@ -2912,3 +2915,94 @@ data:
     GRANT SELECT (changed_at) ON compliance_findings_history TO retention_runner;
     GRANT SELECT (occurred_at) ON deploy_history_transitions TO retention_runner;
     GRANT SELECT (created_at) ON chaos_journal TO retention_runner;
+  044_ops_llm_requests_energy.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — estimated energy per LLM request (ADR-120), unheaded_ops.
+    --
+    -- 030 stays as it is. Two new columns on llm_requests:
+    --   energy_joules_est  NULL means no estimate; never 0 for unknown;
+    --   energy_method      '' with no estimate; gpu_sampled is pkg/energy's
+    --                      integration of hwmon power1_average above an idle
+    --                      read; gpu_cpu_sampled and published_figure are
+    --                      reserved by ADR-120. Claude rows stay NULL and ''.
+    -- llm_requests_energy_shape ties the two: a method needs a figure and a
+    -- figure needs a method, so "unknown" cannot be written as 0.
+    --
+    -- Writer: ops_writer, through 030's table grant (no new grant). Reader:
+    -- ops_reader. Access paths: 030's time range scans; nothing new is
+    -- indexed. Volume: 030's, plus 8 bytes and a short string per row.
+    -- Retention: unchanged. Append-only by 030's triggers: existing rows are
+    -- not touched, and need not be, both defaults being the "no estimate"
+    -- values.
+    --
+    -- Lock plan: ADD COLUMN with a constant default is a catalog update
+    -- under a short ACCESS EXCLUSIVE, bounded by lock_timeout. The CHECKs are
+    -- added NOT VALID and validated in a second statement (SHARE UPDATE
+    -- EXCLUSIVE while it scans). Rollback: a later numbered migration drops
+    -- the columns; writers must first return to the 030 column list.
+    -- Applied live with the E1 batch. Proof: scripts/well/test-llm-requests.sh
+    -- (step 5b).
+
+    SET lock_timeout = '5s';
+
+    ALTER TABLE llm_requests ADD COLUMN IF NOT EXISTS energy_joules_est DOUBLE PRECISION;
+    ALTER TABLE llm_requests ADD COLUMN IF NOT EXISTS energy_method TEXT NOT NULL DEFAULT '';
+
+    ALTER TABLE llm_requests ADD CONSTRAINT llm_requests_energy_method_check
+        CHECK (energy_method IN ('', 'gpu_sampled', 'gpu_cpu_sampled', 'published_figure')) NOT VALID;
+    ALTER TABLE llm_requests VALIDATE CONSTRAINT llm_requests_energy_method_check;
+
+    ALTER TABLE llm_requests ADD CONSTRAINT llm_requests_energy_shape
+        CHECK ((energy_joules_est IS NULL) = (energy_method = '')
+               AND (energy_joules_est IS NULL OR energy_joules_est >= 0)) NOT VALID;
+    ALTER TABLE llm_requests VALIDATE CONSTRAINT llm_requests_energy_shape;
+  045_app_zhen_conversations_client.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — zhen_conversations.client (ADR-059 Q3, DP-311), unheaded_app.
+    --
+    -- zhen-cli sessions join the web UI's in zhen_conversations; client tells
+    -- them apart. Existing rows are the web UI's, so the default is 'web'.
+    --
+    -- Writer: app_zhen, through 003 and 010's grants (no new grant). Reader:
+    -- unchanged. Access paths: by session_id and created_at, as today; nothing
+    -- new is indexed (two values, W-14). Volume: a few rows per CLI session.
+    -- Retention: unchanged (compliance/retention/classes.yaml).
+    --
+    -- Lock plan: ADD COLUMN with a constant default is a catalog update under
+    -- a short ACCESS EXCLUSIVE, bounded by lock_timeout; the CHECK is added NOT
+    -- VALID and validated in a second statement. Rollback: a later numbered
+    -- migration drops the column; zhen-agentd then answers 503 for sessions.
+    -- Applied live with the E1 batch.
+    -- Proof: scripts/well/test-zhen-conversations.sh.
+
+    SET lock_timeout = '5s';
+
+    ALTER TABLE zhen_conversations ADD COLUMN IF NOT EXISTS client TEXT NOT NULL DEFAULT 'web';
+
+    ALTER TABLE zhen_conversations ADD CONSTRAINT zhen_conversations_client_check
+        CHECK (client IN ('web', 'cli')) NOT VALID;
+    ALTER TABLE zhen_conversations VALIDATE CONSTRAINT zhen_conversations_client_check;
+  046_app_zhen_confirm_teach_write.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — teach_write joins the confirmation queue (DP-309), unheaded_app.
+    --
+    -- 031 lists the tools a queued call may name. teach_write runs only from a
+    -- queue approval, so without this no /teach can be queued at all: the row
+    -- is refused and zhen-agentd answers that it could not be queued.
+    --
+    -- Writer: app_zhen, through 031's grants (no new grant). Access paths and
+    -- volume: 031's. Retention: 031's.
+    --
+    -- Lock plan: the table is small (at most 20 pending rows per service, plus
+    -- decided ones). DROP CONSTRAINT is a catalog update under a short ACCESS
+    -- EXCLUSIVE, bounded by lock_timeout; the new CHECK is added NOT VALID and
+    -- validated in a second statement. Rollback: a later numbered migration
+    -- restores 031's list once no teach_write row remains. Applied live with
+    -- the E1 batch. Proof: scripts/well/test-zhen-confirm.sh.
+
+    SET lock_timeout = '5s';
+
+    ALTER TABLE zhen_pending_confirmations DROP CONSTRAINT zhen_pending_confirmations_tool_check;
+    ALTER TABLE zhen_pending_confirmations ADD CONSTRAINT zhen_pending_confirmations_tool_check
+        CHECK (tool IN ('write_file', 'patch_file', 'kanban_create', 'kanban_update', 'teach_write')) NOT VALID;
+    ALTER TABLE zhen_pending_confirmations VALIDATE CONSTRAINT zhen_pending_confirmations_tool_check;

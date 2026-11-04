@@ -217,16 +217,16 @@ Graduated capability model. Zhen starts constrained, earns more capability over 
 
 **Current target: Level 1 → Level 2.** Level 3 deferred.
 
-### Level 2 amendment: branch-sandbox sub-mode (Proposed, 2026-10-23)
+### Level 2 amendment: branch-sandbox sub-mode (Accepted, 2026-11-03)
 
-**Status: Proposed, for Stevie to accept or reject** (S-TWO-BRAINS Step 175;
+**Status: Accepted by Stevie in the 2026-11-03 sitting (DP-302): the review point moves from each write to each branch** (S-TWO-BRAINS Step 175;
 code: `pkg/champion/branchsandbox.go`).
 
 A model's mutating tool call has no retrieval-derived justification, so Rule 2
 refuses it pending out-of-band confirmation (`zhen-claude -confirm tty|queue`).
 For agent work on a throwaway branch, per-call approvals would stall every task
-(a 3 a.m. card cannot wait for a human per write). The proposal moves the review
-gate from the call to the branch:
+(a 3 a.m. card cannot wait for a human per write). This moves the review gate
+from the call to the branch:
 
 - When the Champion's project root is a real directory (no symlink in its path)
   under the agent worktree root (`~/.cache/unheaded/zhen-worktrees` by default),
@@ -244,8 +244,8 @@ gate from the call to the branch:
 Outside such a worktree nothing changes. If rejected: models return patches as
 text and the agent applies them (still sandboxed, still reviewed).
 
-**What the code does today** (verified 2026-10-27 on develop `4e0a9044`; the
-status above lags it): the mode is live and has no off switch.
+**What the code does** (verified 2026-10-27 on develop `4e0a9044`): the mode is
+live and has no off switch.
 `pkg/zhenroute.worktreeChampion` calls `WithBranchSandbox` for every routed
 task that names a worktree and refuses the task (`ErrNotAgentWorktree`) when
 the root does not qualify. The callers are `zhen-claude -family <f> -worktree
@@ -262,25 +262,11 @@ out of it. Kanban, `runbook_execute` and `model_switch` stay pending
 confirmation, and the routed Claude leg runs with `DenyConfirmer`, so they are
 refused there. Nothing is merged or pushed by the agent.
 
-**Decision requested from Stevie (E3, S-CHAMPION-HARDENING Step 117, filed
-2026-10-27).** Accept (Rule 2 is satisfied by the `zhen/<name>` branch
-sandbox for `write_file`/`patch_file`; you review the branch) or reject
-(models return patches as text, the agent applies them, per-call
-confirmations stay)? This moves the human review point from each write to
-each branch, which is the trust decision this ADR reserves to the operator,
-so there is no recommendation.
-
-- On **accept**: this section's status becomes Accepted with the date and one
-  line why. No code change.
-- On **reject**: Step 118 adds a feature flag to `branchsandbox.go`, default
-  off, with `TestBranchSandbox_Disabled`. With it off, `ApplyDraft`'s writes in
-  a worktree fall back to pending confirmation, so a routed task with a check
-  fails to apply its draft (`parse_fail`) and `zhen-agentd -worker` /
-  `-overnight` can no longer write a branch unattended; the agent returns the
-  draft as text for Stevie to apply.
-
-Steps 118-119 (record the answer, run `go test ./pkg/champion/ -run Branch`)
-wait on E3.
+**Decided 2026-11-03 (DP-302; closes E3 of S-CHAMPION-HARDENING).** Accepted. Rule 2
+is satisfied by the `zhen/<name>` branch sandbox for `write_file` and `patch_file`,
+and Stevie reviews the branch. No code change; Step 118's feature flag is not
+built. Family caps keep one-worst-case headroom
+(`TestFamilyCap_LeavesWorstCaseHeadroom`, `pkg/claudebridge/familycap_test.go`).
 
 ## MCP Server Architecture
 

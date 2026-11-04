@@ -1,4 +1,4 @@
-.TH ZHEN\-AGENTD 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.TH ZHEN\-AGENTD 1 "2026-11-04" "unheaded v0.0.0-20261104154528-fd2f60039d0a+dirty" "Unheaded Kingdom"
 .SH NAME
 zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH SYNOPSIS
@@ -38,6 +38,9 @@ with \-worker: the Claude leg: fake (no network call, changes nothing) or live (
 .B \-\-claude\-model \fISTRING\fR
 with \-worker \-claude live: Claude model ID (default claude\-opus\-5\-5)
 .TP
+.B \-\-code\-index \fISTRING\fR
+source shard written by zhen\-codeindex, searched beside vor (env ZHEN_CODE_INDEX_DIR; empty: vor alone)
+.TP
 .B \-\-confirm\-queue \fIzhen\-claude confirm\fR
 queue agent\-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with zhen\-claude confirm
 .TP
@@ -69,7 +72,7 @@ with \-overnight: cards tried per night (default 5)
 memory backend for /api/v1/memory/recall and /remember (zhen\-cli /recall, /remember): none (503) | pg (unheaded_app.zhen_memories, DSN from env WELL_APP_ZHEN_DSN) (default none)
 .TP
 .B \-\-metrics\-addr \fISTRING\fR
-also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20105'; the API stays on \-host
+also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20111'; the API stays on \-host
 .TP
 .B \-\-no\-auth
 serve without authentication; only with a loopback \-host and AUTH_ENABLED unset (dev). Without it, zhen\-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or a trust dir (AUTH_TRUST_DIR) is set
@@ -84,7 +87,7 @@ run the worker unattended inside \-window, then exit: its own ledger and cap (de
 with \-worker: time between polls for an eligible card (default 1m0s)
 .TP
 .B \-\-port \fIN\fR
-HTTP listen port (default 20105)
+HTTP listen port (default 20111)
 .TP
 .B \-\-privacy \fISTRING\fR
 with \-worker: privacy tier of the Claude leg: standard or strict (default standard)
@@ -100,6 +103,9 @@ per\-IP requests/sec (0 disables) (default 5)
 .TP
 .B \-\-report\-dir \fISTRING\fR
 with \-overnight: morning reports (<date>.md, 0600) (default /home/govan/.local/state/unheaded/zhen\-reports)
+.TP
+.B \-\-retrieve\-deadline \fIDURATION\fR
+how long each retrieval waits for each backend; a backend past it is skipped, reads and answers go on, and its silence holds every mutating call (0: no deadline) (default 2s)
 .TP
 .B \-\-review\-dir \fISTRING\fR
 with \-worker: review notes (one Markdown file per run, 0600) (default /home/govan/.local/state/unheaded/zhen\-reviews)

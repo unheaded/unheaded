@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -244,5 +245,250 @@ func TestConfirmDefault_IsDeny(t *testing.T) {
 	}
 	if o.confirm != "deny" {
 		t.Errorf("default -confirm = %q", o.confirm)
+	}
+}
+
+// fakeTTY stands in for /dev/tty: it keeps what was written and answers the
+// code it was shown, or a wrong one.
+type fakeTTY struct {
+	mu    sync.Mutex
+	seen  bytes.Buffer
+	right bool
+}
+
+var ttyCodeRE = regexp.MustCompile(`type (\S+) to approve`)
+
+func (f *fakeTTY) Write(p []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.seen.Write(p)
+}
+
+func (f *fakeTTY) Read(p []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	all := ttyCodeRE.FindAllSubmatch(f.seen.Bytes(), -1)
+	if len(all) == 0 {
+		return 0, io.EOF
+	}
+	answer := string(all[len(all)-1][1])
+	if !f.right {
+		answer += "x"
+	}
+	return copy(p, answer+"\n"), nil
+}
+
+func (f *fakeTTY) Close() error { return nil }
+
+func (f *fakeTTY) String() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.seen.String()
+}
+
+// typedTTY swaps a fakeTTY in for openTTY.
+func typedTTY(t *testing.T, right bool) *fakeTTY {
+	t.Helper()
+	f := &fakeTTY{right: right}
+	prev := openTTY
+	openTTY = func() (io.ReadWriteCloser, error) { return f, nil }
+	t.Cleanup(func() { openTTY = prev })
+	return f
+}
+
+// teachRow builds a teach_write row by hand: the queue's role can INSERT,
+// so nothing about a row is taken on trust.
+func teachRow(t *testing.T, root, title, text string) *claudebridge.QueuedCall {
+	t.Helper()
+	args := map[string]any{"title": title, "text": text}
+	_, sum, err := champion.CanonicalCall("teach_write", args, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &claudebridge.QueuedCall{ID: testID, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour), SourceService: "zhen-agentd",
+		EmittedBy: "zhen-cli", ProjectRoot: root, Tool: "teach_write", Call: b, CallSHA256: sum, Summary: "teach_write " + title, Status: "pending"}
+}
+
+func taughtDir(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "zhen-taught")
+	if err := os.Mkdir(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(envTaughtDir, dir)
+	return dir
+}
+
+func wantNoFiles(t *testing.T, dir string) {
+	t.Helper()
+	if ents, _ := os.ReadDir(dir); len(ents) != 0 {
+		t.Fatalf("files: %v", ents)
+	}
+}
+
+func TestConfirmTeach_ApproveShowsAllOfItAndWrites(t *testing.T) {
+	root := t.TempDir()
+	taught := taughtDir(t)
+	tty := typedTTY(t, true)
+	title := "A note " + strings.Repeat("x", 220)
+	m := withStore(t, teachRow(t, root, title, "first line\nsecond line\n\nlast line"))
+	code, out, errs := confirmRun("-allowed-roots", root, "approve", testID)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errs)
+	}
+	for _, want := range []string{"full title: " + title, "full text:", "first line", "second line", "last line"} {
+		if !strings.Contains(tty.String(), want) {
+			t.Errorf("the terminal did not show %q: %s", want, tty.String())
+		}
+	}
+	if strings.Contains(out, "first line") || ttyCodeRE.MatchString(out) {
+		t.Errorf("stdout carries the text or the code: %s", out)
+	}
+	if !strings.Contains(out, "vor restart") {
+		t.Errorf("no restart note: %s", out)
+	}
+	ents, _ := os.ReadDir(taught)
+	if len(ents) != 1 {
+		t.Fatalf("files: %v", ents)
+	}
+	st, err := os.Stat(filepath.Join(taught, ents[0].Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != 0o640 {
+		t.Errorf("mode %o", st.Mode().Perm())
+	}
+	if m.rows[testID].Status != "executed" {
+		t.Errorf("row = %+v", m.rows[testID])
+	}
+}
+
+func TestConfirmTeach_WrongCodeLeavesItPending(t *testing.T) {
+	root := t.TempDir()
+	taught := taughtDir(t)
+	typedTTY(t, false)
+	m := withStore(t, teachRow(t, root, "A note", "body"))
+	code, _, errs := confirmRun("-allowed-roots", root, "approve", testID)
+	if code != 1 || !strings.Contains(errs, "stays pending") {
+		t.Fatalf("exit %d: %s", code, errs)
+	}
+	if m.rows[testID].Status != "pending" {
+		t.Errorf("row = %+v", m.rows[testID])
+	}
+	wantNoFiles(t, taught)
+}
+
+func TestConfirmTeach_NoTerminalLeavesItPending(t *testing.T) {
+	root := t.TempDir()
+	taught := taughtDir(t)
+	prev := openTTY
+	openTTY = func() (io.ReadWriteCloser, error) { return nil, errors.New("no controlling terminal") }
+	t.Cleanup(func() { openTTY = prev })
+	m := withStore(t, teachRow(t, root, "A note", "body"))
+	code, _, errs := confirmRun("-allowed-roots", root, "approve", testID)
+	if code != 1 || !strings.Contains(errs, "needs a terminal") {
+		t.Fatalf("exit %d: %s", code, errs)
+	}
+	if m.rows[testID].Status != "pending" {
+		t.Errorf("row = %+v", m.rows[testID])
+	}
+	wantNoFiles(t, taught)
+}
+
+func TestConfirmTeach_NoTaughtDirLeavesItPending(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(envTaughtDir, "")
+	tty := typedTTY(t, true)
+	m := withStore(t, teachRow(t, root, "A note", "body"))
+	code, _, errs := confirmRun("-allowed-roots", root, "approve", testID)
+	if code != 1 || !strings.Contains(errs, envTaughtDir) {
+		t.Fatalf("exit %d: %s", code, errs)
+	}
+	if m.rows[testID].Status != "pending" {
+		t.Errorf("row = %+v", m.rows[testID])
+	}
+	if tty.String() != "" {
+		t.Errorf("asked before refusing: %s", tty.String())
+	}
+}
+
+func TestConfirmTeach_ShowPrintsTheText(t *testing.T) {
+	root := t.TempDir()
+	withStore(t, teachRow(t, root, "A note", "first line\nsecond line"))
+	code, out, _ := confirmRun("show", testID)
+	if code != 0 || !strings.Contains(out, "full title: A note") || !strings.Contains(out, "second line") {
+		t.Errorf("show: %d %s", code, out)
+	}
+}
+
+func TestConfirmTeach_SecretRowNotExecuted(t *testing.T) {
+	root := t.TempDir()
+	taught := taughtDir(t)
+	tty := typedTTY(t, true)
+	m := withStore(t, teachRow(t, root, "A note", "password=hunter2hunter2"))
+	code, out, errs := confirmRun("-allowed-roots", root, "approve", testID)
+	if code == 0 {
+		t.Fatal("a secret row was approved")
+	}
+	if m.rows[testID].Status == "executed" {
+		t.Errorf("row = %+v", m.rows[testID])
+	}
+	wantNoFiles(t, taught)
+	if strings.Contains(out+errs+tty.String(), "hunter2") {
+		t.Errorf("the secret was printed: %s %s %s", out, errs, tty.String())
+	}
+}
+
+// An approval stays in its row's root: as Stevie, the default allowed
+// paths would reach /var/zhen/. Asked of the path check, never by a write:
+// a regression here must not put a file on the host.
+func TestApproveChampion_OnlyTheRoot(t *testing.T) {
+	root := t.TempDir()
+	c, err := approveChampion(root, testID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.CheckPath(filepath.Join(root, "a.txt")); err != nil {
+		t.Errorf("inside the root: %v", err)
+	}
+	if err := c.CheckPath("/var/zhen/notes.md"); err == nil {
+		t.Error("/var/zhen/ passes Rule 1")
+	}
+}
+
+func TestConfirmApprove_PathOutsideItsRootRefused(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(t.TempDir(), "x.md")
+	c, err := champion.New(champion.Config{ProjectRoot: root}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := c.PendingCallFor(champion.ToolCall{Name: "write_file", Args: map[string]any{"path": path, "content": "x"}, EmittedBy: "e"}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(p.Args)
+	m := withStore(t, &claudebridge.QueuedCall{ID: testID, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour), SourceService: "zhen-agentd",
+		EmittedBy: "e", ProjectRoot: root, Tool: "write_file", Call: b, CallSHA256: p.SHA256, Summary: "w", Status: "pending"})
+	code, _, errs := confirmRun("-allowed-roots", root, "approve", testID)
+	if code == 0 || !strings.Contains(errs, "outside sandbox") {
+		t.Errorf("exit %d: %s", code, errs)
+	}
+	if m.rows[testID].Status == "executed" {
+		t.Errorf("row = %+v", m.rows[testID])
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Error("the file was written")
+	}
+}
+
+// Reading a long text must not hit the command's own deadline first.
+func TestConfirmCmd_DeadlineOutlastsTheCodePrompt(t *testing.T) {
+	if confirmCmdTimeout <= champion.PendingConfirmTTL {
+		t.Fatalf("command deadline %v, code prompt %v", confirmCmdTimeout, champion.PendingConfirmTTL)
 	}
 }

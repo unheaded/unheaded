@@ -157,7 +157,12 @@ func freshToken() (string, error) {
 //   - a prominent "this came from a user-added external source" warning
 //
 // before showing the token to the human.
+//
+// A QueueOnlyTools call gets no token: ErrQueueOnly.
 func (c *Champion) IssuePendingConfirmation(tc ToolCall) (string, error) {
+	if QueueOnlyTools[tc.Name] {
+		return "", fmt.Errorf("%w: %s", ErrQueueOnly, tc.Name)
+	}
 	s := c.confirms()
 	s.gc()
 	return s.IssuePending(tc)
@@ -214,6 +219,10 @@ func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token, approvedBy
 			_, _ = c.logAction(ctx, "confirm_refused_principal", "ToolCall token: "+err.Error(), approvedBy)
 		}
 		return nil, err
+	}
+	if QueueOnlyTools[tc.Name] {
+		_, _ = c.logAction(ctx, "confirm_refused_queue_only", "ToolCall token: "+tc.Name, approvedBy)
+		return nil, fmt.Errorf("%w: %s", ErrQueueOnly, tc.Name)
 	}
 
 	// Run a stripped gate: Rules 3 and 1, but skip Rule 2. Shared with
@@ -330,6 +339,8 @@ func (c *Champion) dispatchUnderlying(ctx context.Context, tc ToolCall) (any, er
 			return nil, err
 		}
 		return c.ModelSwap(ctx, key)
+	case teachTool:
+		return c.teachWrite(ctx, tc)
 	default:
 		return nil, fmt.Errorf("ConfirmPendingToolCall: unimplemented tool %q", tc.Name)
 	}

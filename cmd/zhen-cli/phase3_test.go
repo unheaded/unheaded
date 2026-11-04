@@ -246,3 +246,129 @@ func TestLoadAPIKey(t *testing.T) {
 		t.Error("file without api_key: want an error")
 	}
 }
+
+func TestChat_PrintsMemoryHitLine(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){
+		"/api/v1/memory/recall": func(capturedReq) (int, any) {
+			return 200, map[string]any{"memories": []map[string]any{{"id": 1, "answer": "a", "score": 0.06}}}
+		},
+	})
+	s, out := stubSession(a.srv.URL)
+	s.memoryRecall = true
+	s.memoryHint("what is wotan")
+	if !strings.Contains(out.String(), "[memory hit: 0.06]") {
+		t.Fatalf("output %q", out.String())
+	}
+	if q := a.reqs[0].Query; !strings.Contains(q, "k=1") {
+		t.Fatalf("query %q", q)
+	}
+}
+
+func TestChat_MemoryHitOptOutAndNoRows(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){
+		"/api/v1/memory/recall": func(capturedReq) (int, any) {
+			return 200, map[string]any{"memories": []map[string]any{}}
+		},
+	})
+	s, out := stubSession(a.srv.URL)
+	s.memoryRecall = true
+	s.memoryHint("q")
+	if strings.Contains(out.String(), "memory hit") {
+		t.Fatalf("no rows: %q", out.String())
+	}
+	s.memoryRecall = false
+	before := len(a.reqs)
+	s.memoryHint("q")
+	if len(a.reqs) != before {
+		t.Fatal("--no-memory-recall must not even ask")
+	}
+}
+
+func TestPersist_PostsBatchesOnce(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){
+		"/api/v1/conversations": func(capturedReq) (int, any) { return 200, map[string]any{"stored": 2, "redacted": 0} },
+	})
+	s, _ := stubSession(a.srv.URL)
+	s.persist, s.sessionID, s.model = true, "cli-1", "qwen"
+	for i := 0; i < 60; i++ {
+		s.logTurn("user", "q", nil, 0)
+	}
+	s.logTurn("user", strings.Repeat("x", maxSavedContent+10), nil, 0)
+	s.persistSession()
+	s.persistSession()
+	if len(a.reqs) != 2 {
+		t.Fatalf("%d requests, want 2 batches and no repeat", len(a.reqs))
+	}
+	turns := a.reqs[1].Body["turns"].([]any)
+	last := turns[len(turns)-1].(map[string]any)["content"].(string)
+	if len(last) > maxSavedContent {
+		t.Fatalf("content not clipped: %d", len(last))
+	}
+	if a.reqs[0].Body["session_id"] != "cli-1" {
+		t.Fatalf("%v", a.reqs[0].Body)
+	}
+}
+
+func TestPersist_OptOutAndEmpty(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){})
+	s, _ := stubSession(a.srv.URL)
+	s.persist = true
+	s.persistSession() // nothing said
+	s.persist = false
+	s.logTurn("user", "q", nil, 0)
+	s.persistSession()
+	if len(a.reqs) != 0 {
+		t.Fatalf("%d requests", len(a.reqs))
+	}
+}
+
+func TestPersist_FailureIsOneLineNotFatal(t *testing.T) {
+	s, out := stubSession("http://127.0.0.1:1")
+	s.persist, s.sessionID = true, "cli-1"
+	s.logTurn("user", "q", nil, 0)
+	s.persistSession()
+	if !strings.Contains(out.String(), "session not saved") {
+		t.Fatalf("output %q", out.String())
+	}
+}
+
+func TestTeach_QueuedPrintsTheRowAndHowToApprove(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){
+		"/api/v1/tool/exec": func(capturedReq) (int, any) {
+			return http.StatusAccepted, map[string]any{"status": "queued", "queue_id": "0123456789abcdef", "project_root": "/var/zhen/projects/default"}
+		},
+	})
+	s, out := stubSession(a.srv.URL)
+	s.handleSlash("/teach Port map | vor is on 20110 | agentd on 20111")
+	if len(a.reqs) != 1 {
+		t.Fatalf("requests: %+v", a.reqs)
+	}
+	args, _ := a.reqs[0].Body["args"].(map[string]any)
+	if a.reqs[0].Body["tool"] != "teach_write" || args["title"] != "Port map" || args["text"] != "vor is on 20110 | agentd on 20111" {
+		t.Errorf("request: %+v", a.reqs[0].Body)
+	}
+	for _, want := range []string{
+		"row 0123456789abcdef",
+		"zhen-claude confirm -allowed-roots /var/zhen/projects/default approve 0123456789abcdef",
+		"vor restart",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("missing %q in %s", want, out.String())
+		}
+	}
+}
+
+func TestTeach_UsageSendsNothing(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){})
+	s, out := stubSession(a.srv.URL)
+	for _, line := range []string{"/teach", "/teach no bar here", "/teach | text only", "/teach title only |"} {
+		out.Reset()
+		s.handleSlash(line)
+		if !strings.Contains(out.String(), "/teach <title> | <text>") {
+			t.Errorf("%q: %s", line, out.String())
+		}
+	}
+	if len(a.reqs) != 0 {
+		t.Errorf("requests: %+v", a.reqs)
+	}
+}

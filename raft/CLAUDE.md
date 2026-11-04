@@ -6,7 +6,7 @@ backends:
 
 - **Inference**: shared `llama-server` on `:8081` (Qwen-Coder-7B-Instruct
   q4_k_m on ROCm GPU). Same binary the Go agent stack uses.
-- **Retrieval**: `vor` (`cs serve`) on `:9876` — 1847+ Unheaded markdown
+- **Retrieval**: `vor` (`cs serve`) on `:20110` — 1847+ Unheaded markdown
   topics + curated cheatsheets, source-trust labeled. Replaces the
   legacy 1.76M-vector Mistral-era FAISS index.
 - **Memory**: `sentence-transformers/all-MiniLM-L6-v2` (local, ~80 MB)
@@ -89,7 +89,7 @@ justification + destructive-verb).
 `./start-zhen.sh`        — UI only (read-only on runbook surface)
 `./start-zhen.sh -gated` — UI + zhen-agentd (mutation gating ON)
 
-Both forms require `llama-server :8081` and `vor :9876` already up.
+Both forms require `llama-server :8081` and `vor :20110` already up.
 The script fails fast and prints the bring-up commands if either is
 missing. No more launching our own llama-server from this script.
 

@@ -193,14 +193,14 @@ scrape_configs:
         labels:
           service: "wotan"
 
-  # zhen-agentd on west: its API stays on 127.0.0.1:20105; -metrics-addr
+  # zhen-agentd on west: its API stays on 127.0.0.1:20111; -metrics-addr
   # (env ZHEN_METRICS_ADDR) serves /metrics alone on the WireGuard address,
   # same port number. zhen_scheduler_heartbeat_timestamp_seconds feeds
   # rules/zhen.yml (ZhenSchedulerStalled). Reads up == 0 until the unit
   # runs with -scheduler -metrics-addr (S-CHAMPION-HARDENING E4).
   - job_name: zhen-agentd
     static_configs:
-      - targets: ['[fd00:dead:beef::1]:20105']
+      - targets: ['[fd00:dead:beef::1]:20111']
         labels: {host: west}
 
   # alert-mailer (same compose network): its own counters, and the

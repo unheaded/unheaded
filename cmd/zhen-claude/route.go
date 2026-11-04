@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/energy"
 	"unheaded/pkg/zhencapture"
 )
 
@@ -34,7 +35,9 @@ const (
 func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.Writer, log *slog.Logger, capw *zhencapture.Writer, tools *toolCollector, aud *auditSetup) int {
 	t0 := time.Now()
 	local := &claudebridge.LocalLLM{BaseURL: o.localURL, Model: o.localModel, MaxTokens: o.localMaxTokens, Timeout: o.localTimeout}
+	run := energy.Discover().Start(ctx)
 	ans, lerr := local.Complete(ctx, claudebridge.DefaultLocalSystem, prompt)
+	est := run.Stop()
 	localDur := time.Since(t0)
 
 	// One id for the local leg's llm_requests row and the capture; an
@@ -74,7 +77,7 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 		}
 	}
 	attrs = append(attrs, "local_ok", lerr == nil, "why", why)
-	auditLocalLeg(ctx, aud, o, rec.ConversationID, rec.Local, localDur, lerr)
+	auditLocalLeg(ctx, aud, o, rec.ConversationID, rec.Local, localDur, lerr, est)
 	if rec.Local.Error != "" {
 		attrs = append(attrs, "local_error", rec.Local.Error)
 	}
@@ -90,6 +93,16 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 	}
 	if ctx.Err() != nil {
 		log.Warn("route_decision", append(attrs, "escalated", false, "decision", "none", "cancelled", true)...)
+		return 1
+	}
+	// ADR-104 Q4: nothing that looks like a secret leaves the host. The
+	// prompt is never logged; only the count is.
+	if _, hits := zhencapture.Redact(prompt); hits > 0 {
+		rec.Route = zhencapture.RouteLocal
+		rec.LatencyMS = time.Since(t0).Milliseconds()
+		log.Warn("route_decision", append(attrs, "escalated", false, "decision", "none", "refused", "redaction_match", "redaction_hits", hits, "total_latency_ms", rec.LatencyMS)...)
+		_, _ = fmt.Fprintf(stderr, "zhen-claude: local answer not accepted (%s); the prompt matches a redaction pattern, so it stays on this host\n", why)
+		writeCapture(capw, rec, log)
 		return 1
 	}
 	if o.localOnly {
@@ -268,7 +281,7 @@ func escalationReason(why string) string {
 
 // auditLocalLeg records the local model's request like any other: one
 // llm_requests row (backend local, cost 0), no text.
-func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, conversation string, leg *zhencapture.Leg, d time.Duration, lerr error) {
+func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, conversation string, leg *zhencapture.Leg, d time.Duration, lerr error, est energy.Estimate) {
 	if aud == nil || aud.auditor == nil || leg == nil {
 		return
 	}
@@ -279,6 +292,7 @@ func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, conversatio
 	r := claudebridge.RequestRecord{
 		Conversation: conversation, Model: leg.Model, ServedBy: leg.Model, StopReason: leg.StopReason,
 		Duration: d, Sent: true, Backend: claudebridge.BackendLocal, RouteReason: reason,
+		EnergyJoules: est.Joules, EnergyMethod: est.Method,
 	}
 	if lerr != nil {
 		r.Err = lerr.Error()

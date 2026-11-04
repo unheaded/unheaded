@@ -33,6 +33,12 @@ Writes are queued (1024 records per sink) and never block a model call. A full q
 
 `audit_events` for a tool call: `event_type='authorization'`, `action='tool_call'` (Phase 2 adds `confirm_issue`, `confirm_approve`, `confirm_deny`, `confirm_expire`), `outcome` success / pending / failure, `actor_id` `claude-api/<model>` or `zhen-local/<model>`, `actor_type='model'`, `resource_type='tool'`, `resource_id` = tool name (or `invalid` if it is not `^[a-z0-9_.-]{1,64}$`), `source_service`, `request_id` = conversation. `details`: provider, decision, reason (512 B), `input_sha256`, input/output bytes, truncated, pending, redactions.
 
+## Estimated energy
+
+`llm_requests.energy_joules_est` and `energy_method` (migration 044, ADR-120). A local request samples the card's `power1_average` about every 250 ms, found at runtime under `/sys/class/drm` (`ZHEN_GPU_POWER_PATH` overrides it, `off` disables it), and integrates above one idle read at the start. The method is `gpu_sampled`. Claude rows stay NULL: this project relies on no published figure. On a Well without 044 the writers use 030's columns and estimates are dropped.
+
+These are estimates. The figure covers the whole card, so concurrent work inflates it; a request right after another undercounts; sampling misses spikes; wall power is higher than the sensor; a CPU-served model reads near zero, and CPU energy is not sampled. Local and Claude cannot be compared until a defensible Claude figure exists.
+
 ## Queries
 
 ```sql

@@ -25,13 +25,15 @@ import (
 // passes Rules 3 and 1. Rule 2 is what the human approval answers.
 
 // ConfirmableTools are the only tools an approval can run: the Champion's
-// own writes, which snapshot and can be reverted (ADR-019). Runbooks,
-// model swaps and anything unknown are never confirmable.
+// own writes, which snapshot and can be reverted (ADR-019), and teach_write,
+// whose new file is removed by hand. Runbooks, model swaps and anything
+// unknown are never confirmable. Migration 046 repeats this list as a CHECK.
 var ConfirmableTools = map[string]bool{
 	"write_file":    true,
 	"patch_file":    true,
 	"kanban_create": true,
 	"kanban_update": true,
+	teachTool:       true,
 }
 
 // MaxPendingCallBytes caps a canonical call (a file body is the big part).
@@ -133,7 +135,7 @@ func CanonicalCallFor(tool string, args map[string]any, projectRoot, requester s
 // Only ConfirmableTools qualify.
 func (c *Champion) PendingCallFor(tc ToolCall, ttl time.Duration) (PendingCall, error) {
 	if !ConfirmableTools[tc.Name] {
-		return PendingCall{}, fmt.Errorf("tool %q cannot be confirmed (only write_file, patch_file, kanban_create, kanban_update)", tc.Name)
+		return PendingCall{}, fmt.Errorf("tool %q cannot be confirmed (only write_file, patch_file, kanban_create, kanban_update, teach_write)", tc.Name)
 	}
 	if ttl <= 0 {
 		return PendingCall{}, errors.New("confirmation TTL must be positive")
@@ -161,10 +163,15 @@ func (c *Champion) PendingCallFor(tc ToolCall, ttl time.Duration) (PendingCall, 
 // with this Champion's root, so tampered arguments, a different tool or a
 // different project root all refuse. approvedBy is the confirming
 // principal (ui:<x>, tty:<x> or QueuePrincipal); it must be allowed to
-// confirm for p.Requester (confirmerAllowed), which the hash binds.
+// confirm for p.Requester (confirmerAllowed), which the hash binds. A
+// QueueOnlyTools call takes QueuePrincipal and no one else.
 func (c *Champion) ConfirmCall(ctx context.Context, p PendingCall, approvedSHA, approvedBy string) (any, error) {
 	if !ConfirmableTools[p.Tool] {
 		return nil, fmt.Errorf("tool %q cannot be confirmed", p.Tool)
+	}
+	if QueueOnlyTools[p.Tool] && approvedBy != QueuePrincipal {
+		_, _ = c.logAction(ctx, "confirm_refused_queue_only", "ToolCall: "+p.Tool, approvedBy)
+		return nil, fmt.Errorf("%w: %s", ErrQueueOnly, p.Tool)
 	}
 	if !p.ExpiresAt.IsZero() && !time.Now().Before(p.ExpiresAt) {
 		return nil, fmt.Errorf("confirmation expired at %s", p.ExpiresAt.UTC().Format(time.RFC3339))

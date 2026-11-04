@@ -6,7 +6,7 @@ Long-running HTTP daemon variant of `zhen-agent`. Same agent runtime (`pkg/agent
 - `GET /health` — liveness probe (always 200 once the listener is up)
 - `GET /ready` — readiness probe (verifies vor + llama-server reachable; cached 5 s)
 
-Default port: **20105** (in the AI Services band 20101-20106 reserved per `CLAUDE.md`'s Port Allocation table).
+Default port: **20111** (`ports.ZhenAgentd`; 20105 is SophiaEye, DP-712).
 
 ## Quickstart
 
@@ -20,7 +20,7 @@ make build-zhen-agentd
 bin/zhen-agentd -no-auth -project-root /home/govan/tmp/unheaded   # dev, loopback; see Auth
 
 # 4. Ask
-curl -s -X POST http://127.0.0.1:20105/api/v1/agent/ask \
+curl -s -X POST http://127.0.0.1:20111/api/v1/agent/ask \
     -H 'Content-Type: application/json' \
     -d '{"goal":"Read CONTRIBUTING.md and tell me what sanitized:true means","seed":42,"temperature":0}' \
     | jq
@@ -163,7 +163,7 @@ X-Accel-Buffering: no   # disables nginx buffering
 Smoke recipe:
 
 ```bash
-curl -sN -X POST http://127.0.0.1:20105/api/v1/agent/ask/stream \
+curl -sN -X POST http://127.0.0.1:20111/api/v1/agent/ask/stream \
     -H 'Content-Type: application/json' \
     -d '{"goal":"...","seed":42}'
 ```
@@ -201,7 +201,7 @@ Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec`
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `-port <int>` | 20105 | HTTP listen port |
+| `-port <int>` | 20111 | HTTP listen port |
 | `-host <ip>` | 127.0.0.1 | listen host (use `0.0.0.0` for non-loopback) |
 | `-project-root <path>` | cwd | default Champion sandbox root used when a request omits `project_root` |
 | `-allowed-roots <list>` | (just `-project-root`) | comma-separated list of additional roots requests may target |
@@ -217,7 +217,7 @@ Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec`
 | `-overnight` | off | with `-worker`: one unattended night inside `-window` (01:00-07:00), then a morning report (`-report-dir`) and exit; `-max-cards`, its own ledger and cap, a memory floor without swap, `-stop-file`, strict privacy (wiki/Zhen-Agents.md, "Overnight mode") |
 | `-gpu-lock <path>` | `$XDG_RUNTIME_DIR/unheaded/gpu.lock` | the GPU lease shared with `switch-model.sh` and `forge-train.sh`; each llama-server call holds it shared; `""` disables |
 
-Env: `VOR_URL` (default `http://127.0.0.1:9876`), `LLAMA_URL` (default `http://127.0.0.1:8081`), `RAG_MODEL` (default `qwen2.5-coder-7b-instruct`).
+Env: `VOR_URL` (default `http://127.0.0.1:20110`), `LLAMA_URL` (default `http://127.0.0.1:8081`), `RAG_MODEL` (default `qwen2.5-coder-7b-instruct`).
 
 ## Graceful shutdown
 
@@ -241,7 +241,7 @@ bin/zhen-agentd \
     -allowed-roots /home/govan/tmp/projects/cs
 
 # Request can target either root:
-curl -X POST http://127.0.0.1:20105/api/v1/agent/ask \
+curl -X POST http://127.0.0.1:20111/api/v1/agent/ask \
     -d '{"goal":"...","project_root":"/home/govan/tmp/projects/cs"}'
 ```
 
@@ -312,9 +312,9 @@ Persists to PostgreSQL via `pkg/champion/pgstore`. Requires `WELL_DSN` env var:
 
 ```bash
 export WELL_DSN="host=well-pg.internal port=5432 user=app_zhen password=$APP_ZHEN_PASSWORD dbname=unheaded_app sslmode=require"
-bin/zhen-agentd -action-store=pg -port 20105
+bin/zhen-agentd -action-store=pg -port 20111
 # zhen-agentd: connected to PostgreSQL audit store; schema checked
-# zhen-agentd listening on http://127.0.0.1:20105 — ...
+# zhen-agentd listening on http://127.0.0.1:20111 — ...
 ```
 
 The table comes from The Well's migrations (009, 011, 020; ADR-101), never from the daemon: on startup it only checks that every column it writes exists (`zhen_actions schema missing or incomplete: run well-migrate` otherwise). The table:
@@ -388,8 +388,8 @@ pkg/champion/                 — gate + dispatch + confirm (shared)
 
 ```bash
 # Smoke against a running daemon
-bin/zhen-agentd -no-auth -port 20105 &
-curl -s -X POST http://127.0.0.1:20105/api/v1/agent/ask \
+bin/zhen-agentd -no-auth -port 20111 &
+curl -s -X POST http://127.0.0.1:20111/api/v1/agent/ask \
     -H 'Content-Type: application/json' \
     -d '{"goal":"What is the right tag for a clickable button?","seed":42,"temperature":0}'
 kill %1

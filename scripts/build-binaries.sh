@@ -51,7 +51,7 @@ unheaded-auth       ./cmd/unheaded-auth
 well-retention      ./cmd/well-retention
 "
 # Run by a unit but not built here: an upstream release binary.
-THIRD_PARTY="node_exporter"
+THIRD_PARTY="node_exporter vor"
 # Run by a unit, built by cargo from its own crate (not by this script; the
 # unit names the install command).
 # binary            crate

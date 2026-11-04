@@ -70,7 +70,7 @@ func TestAuthE2E_ZhenAgentd(t *testing.T) {
 	if c := withKey(http.MethodGet, "/api/v1/models"); c != http.StatusOK {
 		t.Errorf("observer GET /api/v1/models: %d, want 200", c)
 	}
-	for _, p := range []string{write, "/api/v1/tool/exec", "/api/v1/agent/confirm", "/api/v1/memory/remember"} {
+	for _, p := range []string{write, "/api/v1/tool/exec", "/api/v1/agent/confirm", "/api/v1/memory/remember", "/api/v1/conversations"} {
 		if c := withKey(http.MethodPost, p); c != http.StatusForbidden {
 			t.Errorf("observer POST %s: %d, want 403", p, c)
 		}
