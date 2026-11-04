@@ -453,6 +453,11 @@ const UPC_REPLY: bool = true;
 // answers from the heap window and moves the break through the reply channel.
 // Needs UPC_REPLY. Rollback = this const off.
 const UPC_RUNG_SBRK: bool = true;
+// ADR-135 D8 (the kill rung): kill is injected into the owned kernel, which checks
+// the pid range and replies KILL; BPF checks liveness, then does what exit does.
+// Needs UPC_REPLY and DEFERRED_SWITCH. Rollback = this const off.
+const UPC_RUNG_KILL: bool = false;
+const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
 const SWITCH_EXIT: u8 = 2; // halt if nothing else can run
@@ -762,6 +767,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     let mut i = 0usize;
     let mut switch_req = SWITCH_NONE;
     let mut reply_req = false;
+    let mut exit_slot = EXIT_SLOT_NONE;
     while i < MAX_INSN_PER_TICK {
         if cpu.halted != 0 {
             break;
@@ -2451,26 +2457,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // (Phase 1.3 ADR-075 D-5). exit code in a0 (→ r8).
                 cpu.exit_code = cpu.regs[8];
                 let exiting_pid = cpu.current_pid as u32;
-                // Stage 3 / M1: reparent this pid's children to init (pid 0)
-                // BEFORE marking it a zombie. With parent-filtered wait(), a
-                // child whose parent died first would otherwise be reapable by
-                // NO ONE → slot leak → fork-fails-forever (the phase16 bug
-                // class). One bounded ≤8 scan.
-                let mut q = 0u32;
-                while q < intr::MAX_PROCESSES as u32 {
-                    if let Some(pp) = PARENT_OF.get_ptr_mut(q) {
-                        unsafe {
-                            if *pp == exiting_pid {
-                                *pp = 0;
-                            }
-                        }
-                    }
-                    q += 1;
-                }
-                if let Some(p) = SCHED_STATE.get_ptr_mut(3) {
-                    unsafe {
-                        *p |= 1u32 << exiting_pid;
-                    }
+                // Reparent and zombie mark: once, after the loop, shared with
+                // kill (ADR-135 D8).
+                if DEFERRED_SWITCH {
+                    exit_slot = exiting_pid;
+                } else {
+                    slot_exited(exiting_pid);
                 }
                 if cpu.num_processes > 1 {
                     if DEFERRED_SWITCH {
@@ -2637,6 +2629,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // 1 here and in the owned kernel (xv6 allocpid starts at 1).
                     cpu.regs[8] = cpu.current_pid as u32 + 1;
                 }
+            } else if cfg!(feature = "ascend-linux") && UPC_RUNG_KILL && syscall_nr == 6 {
+                // ── xv6 SYS_kill (6): with UPC_RUNG_KILL on it never gets here
+                // (kernel_routed_alias, ADR-135 D8). The arm keeps parity_surface
+                // true; the const in the test folds it away when off, as for 12.
+                cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
             } else if cfg!(feature = "ascend-linux") && UPC_RUNG_SBRK && syscall_nr == 12 {
                 // ── xv6 SYS_sbrk (12): with UPC_RUNG_SBRK on it never gets here
                 // (kernel_routed_alias sends it to the inject arm, ADR-135). The
@@ -3416,8 +3413,30 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 if r & phase12::UPC_REPLY_SET_BRK != 0 {
                     cpu.program_break = mem_read_word((base + phase12::UPC_ST_REPLY_ARG_OFF) >> 2);
                 }
+                // ADR-135 D8. Live: counted, and halted bit clear. A reused slot is
+                // counted but stays halted until fork finalizes; a zombie gets -1.
+                if UPC_RUNG_KILL && r & phase12::UPC_REPLY_KILL != 0 {
+                    let t = mem_read_word((base + phase12::UPC_ST_REPLY_ARG_OFF) >> 2) & 7;
+                    let halted = match SCHED_STATE.get(3) {
+                        Some(v) => *v,
+                        None => 0,
+                    };
+                    if t != 0 && t < cpu.num_processes as u32 && (halted >> t) & 1 == 0 {
+                        exit_slot = t;
+                        if t == cpu.current_pid as u32 {
+                            switch_req = SWITCH_EXIT;
+                        }
+                    } else {
+                        cpu.regs[8] = (-1i32) as u32;
+                    }
+                }
             }
         }
+    }
+
+    // ADR-135 D8: exit and kill end a slot here, once, before the switch.
+    if cfg!(feature = "ascend-linux") && DEFERRED_SWITCH && exit_slot != EXIT_SLOT_NONE {
+        slot_exited(exit_slot);
     }
 
     // DEFERRED_SWITCH: the one context switch for the ascend exit/wait/pause
@@ -3729,12 +3748,39 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 
 // ── MBC CPU flag helper ───────────────────────────────────────────────────────
 
+/// Reparent a dead slot's children to init, then mark it a zombie.
+///
+/// Stage 3 / M1: reparent BEFORE marking the zombie. With parent-filtered
+/// wait(), a child whose parent died first would otherwise be reapable by NO
+/// ONE → slot leak → fork-fails-forever (the phase16 bug class). One bounded
+/// ≤8 scan.
+#[inline(always)]
+fn slot_exited(slot: u32) {
+    let mut q = 0u32;
+    while q < intr::MAX_PROCESSES as u32 {
+        if let Some(pp) = PARENT_OF.get_ptr_mut(q) {
+            unsafe {
+                if *pp == slot {
+                    *pp = 0;
+                }
+            }
+        }
+        q += 1;
+    }
+    if let Some(p) = SCHED_STATE.get_ptr_mut(3) {
+        unsafe {
+            *p |= 1u32 << slot;
+        }
+    }
+}
+
 /// xv6 numbers serviced by the owned kernel through the getpid inject arm:
 /// uptime 14 under UPC_RUNG2 (ADR-110 T2), sbrk 12 under UPC_RUNG_SBRK (ADR-135),
-/// and 22 in probe builds only.
+/// kill 6 under UPC_RUNG_KILL (ADR-135 D8), and 22 in probe builds only.
 #[inline(always)]
 fn kernel_routed_alias(n: u32) -> u32 {
     match n {
+        6 if cfg!(feature = "ascend-linux") && UPC_RUNG_KILL => 11,
         12 if cfg!(feature = "ascend-linux") && UPC_RUNG_SBRK => 11,
         14 if UPC_RUNG2 => 11,
         22 if UPC_PROBE_INJECT22 => 11,

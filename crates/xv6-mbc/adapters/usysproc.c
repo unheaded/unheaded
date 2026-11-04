@@ -111,6 +111,8 @@ sys_kill(void)
   int pid;
 
   argint(0, &pid);
+  if(upc_slot_active())
+    return upc_kill(pid); // ADR-135 D8: kkill never sees a slot row
   return kkill(pid);
 }
 

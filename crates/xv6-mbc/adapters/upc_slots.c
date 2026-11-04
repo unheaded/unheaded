@@ -69,6 +69,17 @@ upc_sbrk(int n)
   return cur;
 }
 
+// ADR-135 D8. Range only: BPF checks liveness and acts. A row with no trap yet
+// has pid 0, so kkill's proc[] walk is never used for slot rows.
+uint64
+upc_kill(int pid)
+{
+  if(pid < 2 || pid > UPC_SLOTS)
+    return -1;
+  upc_reply(UPC_REPLY_KILL, pid - 1);
+  return 0;
+}
+
 int
 upc_is_slot_row(struct proc *p)
 {

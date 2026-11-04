@@ -55,6 +55,7 @@ int  upc_slot_active(void);
 void upc_slot_leave(void);
 void upc_reply(uint32 flags, uint32 arg);
 uint64 upc_sbrk(int n);
+uint64 upc_kill(int pid);
 
 _Static_assert(sizeof(struct upc_tf_slot) == UPC_TF_STRIDE, "ADR-109 trapframe stride");
 _Static_assert(sizeof(struct upc_slot_tables) == UPC_ST_SIZE, "ADR-109 slot tables size");
