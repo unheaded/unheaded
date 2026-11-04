@@ -109,3 +109,13 @@ Step 122: `$offv` 870,702, no before gate needed (no code diff against `last-gre
 Step 130 [DECIDE], where the reply is read. In the SRET arm: 880,266, +9,564, over the +3,000 bar. After the loop, beside `DEFERRED_SWITCH`, with a `reply_req` local and a `break` in the arm: 873,001, +2,299. The post-loop form stands, and `$rv` is 873,001. It costs one short tick per return to U-mode: the `break` skips the arm's `i += 1`, so an SRET to U-mode is not counted in `insn_count`.
 
 Step 134, off-equal. The arm as Step 132 words it (`cfg!(...) && syscall_nr == 12`) failed this check: 869,372, -1,330. The `||` form on the arm for 14 measured the same, and the alias row alone 870,702, so the live compare is what moves the count. The landed arm is `cfg!(...) && UPC_RUNG_SBRK && syscall_nr == 12`: the const folds it away when off, 12 reaches the chain's tail and answers the same -ENOSYS, and the off object is 870,702 again. `parity_surface` reads this form unchanged. Later rungs will meet the same compare.
+| reply channel | 870702 | 873001 | +2299 | 48035 | sbrk-after |
+| sbrk | 873001 | 891427 | +18426 | 29609 | sbrk-after |
+
+Steps 136-139: both consts on, 891,427, +18,426 over the reply channel alone; `BUDGET-OK`, headroom 8,573. `sbrkprobe`: 13 yes, 0 no, `SB: done`, on the first boot. The arm is not the cost, nor is the alias row's form: with the arm folded out, and again with one `12 | 14` row, the count stays 891,427. Why one more alias value costs five times what uptime's did is unexplained.
+
+Step 141: mutant with the `memset` removed printed `SB: zeroed=no` once and every other line unchanged; restored, no mutation in the diff. No probe extension, as recorded under Phase 10.
+
+Steps 142-143: `gate sbrk-after`: same=12 diff=0 rc=0 doom=1 ascend=891427, `sbrkprobe` PASS in the harness.
+
+Step 144, cost of one call, measured as getpid's +1,348 was (`references/s5-upc-wire-log.md` Step 101: insn_count at halt, with and without the call). Three throwaway programs that fork, make the call in the child, wait and exit; insn_count repeated exactly across boots. None 5,083,200; `sbrk(0)` 5,085,491; `sbrk(4096)` 5,106,000. So `sbrk(4096)` = +22,800 MBC instructions: +2,291 for the round trip, +20,509 for the zeroing, about 5 per byte. The window's worst case, one 192 KiB grow, is near 1M instructions in one trap. insn_count misses the SRET to U-mode, since the arm's `break` skips the increment.

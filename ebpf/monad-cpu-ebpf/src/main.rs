@@ -448,11 +448,11 @@ const UPC_RUNG2: bool = true;
 // ADR-135 D1 (the kernel's reply channel): inject_strap publishes the break as
 // brk_in; the SRET arm reads the kernel's reply on a return to U-mode, clears
 // it and acts. Off: nothing reads reply. Rollback = this const off.
-const UPC_REPLY: bool = false;
+const UPC_REPLY: bool = true;
 // ADR-135 D2-D5 (the sbrk rung): sbrk is injected into the owned kernel, which
 // answers from the heap window and moves the break through the reply channel.
 // Needs UPC_REPLY. Rollback = this const off.
-const UPC_RUNG_SBRK: bool = false;
+const UPC_RUNG_SBRK: bool = true;
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
 const SWITCH_EXIT: u8 = 2; // halt if nothing else can run

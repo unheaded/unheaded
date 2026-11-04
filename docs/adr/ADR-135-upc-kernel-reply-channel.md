@@ -162,8 +162,10 @@ the rungs. With a const off the object equals the previous object (I6 style). Ea
 
 - `phase12.rs`, `upc_slots.h` and `parity_slot_tables.rs` move together. The table stays kernel `.bss`, published
   through BootParams `reserved[0]`; no BootParams field changes.
-- Every rung past uptime uses one read in the SRET arm. Its verifier cost is measured on its own (plan Step 129). If it
-  is over +3,000 inside the execute loop, the read moves beside the `DEFERRED_SWITCH` block.
+- Every rung past uptime uses one read on the return to U-mode. Inside the execute loop it measured +9,564 (plan Step
+  129), over the +3,000 bar, so the SRET arm only sets `reply_req` and breaks, and the read sits beside the
+  `DEFERRED_SWITCH` block, before the switch: +2,299. D1's "reads `reply` in the SRET arm" means that block. The price is
+  one short tick per return to U-mode.
 - Rollback: the rung const off. With `UPC_REPLY` off nothing reads `reply`, and no kernel path reaches a reply unless a
   rung routes it.
 
