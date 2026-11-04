@@ -46,3 +46,7 @@ mode file says `audit`. Turning it on needs a 7-day audit soak (`docs/compliance
 `unheaded_baseline_would_enforce_total` stays 0), Stevie's answers to E-E in
 `docs/compliance/privacy/decisions-for-stevie.md`, and a root drop-in measured on east first. The LICH-017 campaign
 (`go test ./tomb/lich/LICH-017-baseline-agent/...`) covers forged, replayed and soak-forged reports.
+
+## Wire compliance plane
+
+`compliance-evidence wire` is off: without `--serve` it says so and exits. `--serve` runs the plane on `127.0.0.1:19015` (ADR-127); any other address needs `AUTH_ENABLED=true`. `--audit-ring PATH` consumes a pinned `compliance-ebpf` `AUDIT_LOG`. With no packets evaluated the API answers `no_data: true` and a score of 0, never 100. No unit runs it, nothing loads `compliance_xdp` yet, and the plane adds nothing to the evidence file.
