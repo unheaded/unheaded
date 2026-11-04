@@ -10,6 +10,7 @@
 //! 2. Verify CRC-16/CCITT — emit ANOMALY on failure, pass without mutation
 //! 3. Skip if CHAOS flag is set (Yaldabaoth owns that packet)
 //! 4. Enforce hop limit (emit ANOMALY, pass — routing is broken, not our call)
+//!    4b. ADR-125 hop checks: off unless CONFIG key 4 says observe or enforce
 //! 5. Increment Hop Count (saturating)
 //! 6. Sophia dictionary lookups for QoS, circuit state, service routing
 //! 7. Circuit breaker enforcement via CIRCUIT_ERRORS map
@@ -29,7 +30,7 @@
 
 use aya_ebpf::{
     bindings::xdp_action,
-    helpers::bpf_ktime_get_ns,
+    helpers::{bpf_ktime_get_boot_ns, bpf_ktime_get_ns},
     macros::{map, xdp},
     maps::{HashMap, RingBuf},
     programs::XdpContext,
@@ -71,6 +72,7 @@ static CIRCUIT_ERRORS: HashMap<u16, u32> = HashMap::with_max_entries(65_536, 0);
 /// | 1   | sample_divisor (flow_label % N)    | 0 = all |
 /// | 2   | circuit_threshold (errors→OPEN)    | 0 = off |
 /// | 3   | max_hops (reject above this)       | 0 = off |
+/// | 4   | check mode (ADR-125): 1 observe, 2 enforce | 0 = off |
 #[map]
 static CONFIG: HashMap<u32, u64> = HashMap::with_max_entries(16, 0);
 
@@ -102,6 +104,63 @@ static DOS_STATE: HashMap<u64, [u8; 16]> = HashMap::with_max_entries(256, 0);
 #[map]
 static FLOW_TYPES: HashMap<u64, [u8; 4]> = HashMap::with_max_entries(65536, 0);
 
+/// One rule set per (hop, namespace), ADR-125. `pkg/protocol/bpfschema`
+/// mirrors it as `HopValidatorValue`; `allowed_dict_ids` is not evaluated,
+/// because no dictionary id is on the wire.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HopValidator {
+    /// `allowed_version_min` and `allowed_version_max` both 0: no version rule.
+    pub allowed_version_min: u8,
+    pub allowed_version_max: u8,
+    /// Non-zero: a CUSTOM packet fails, having no CRC to check.
+    pub require_crc: u8,
+    /// Non-zero: a live HMAC_KEYS entry for (flow_id, namespace) is required.
+    pub require_hmac: u8,
+    pub allowed_dict_ids: [u16; 8],
+    /// 0: no cap. Otherwise hop_count must be at or under it.
+    pub max_hop_count: u8,
+    pub _pad: [u8; 3],
+    /// Bit 0: a live RETRY_TOKENS entry for (flow_id, source) is required.
+    pub flags: u32,
+    pub _reserved: [u8; 4],
+}
+
+/// An HMAC key held for a (flow_id, namespace). v0x01 carries no tag and eBPF
+/// has no HMAC helper, so only presence and expiry are read: `key` is never
+/// touched here. Times are CLOCK_BOOTTIME seconds; `expires_at` 0 means never.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HmacKeyEntry {
+    pub key: [u8; 32],
+    pub created_at: u32,
+    pub expires_at: u32,
+}
+
+/// A source validated earlier. No retry token is on the wire, so `token` is
+/// never compared: the entry says only that a validation exists and is live.
+/// Times as in [`HmacKeyEntry`].
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RetryEntry {
+    pub token: [u8; 32],
+    pub issued_at: u32,
+    pub expires_at: u32,
+    pub _reserved: [u8; 8],
+}
+
+/// Hop validators (ADR-125). Key: [`make_validator_key`].
+#[map]
+static HOP_VALIDATORS: HashMap<u64, HopValidator> = HashMap::with_max_entries(256, 0);
+
+/// Live HMAC keys (ADR-125). Key: [`make_hmac_key`].
+#[map]
+static HMAC_KEYS: HashMap<u64, HmacKeyEntry> = HashMap::with_max_entries(4096, 0);
+
+/// Validated sources (ADR-125). Key: [`make_retry_key`].
+#[map]
+static RETRY_TOKENS: HashMap<u64, RetryEntry> = HashMap::with_max_entries(4096, 0);
+
 // ── Stats keys ────────────────────────────────────────────────────────────────
 const STAT_PACKETS_TOTAL: u32 = 0;
 const STAT_PACKETS_IPV6: u32 = 1;
@@ -118,6 +177,9 @@ const STAT_ACTION_DROP: u32 = 11;
 const STAT_ACTION_TRACE: u32 = 12;
 const STAT_ACTION_SAMPLE: u32 = 13;
 const STAT_ACTION_MIRROR: u32 = 14;
+const STAT_CHECKS_RUN: u32 = 15;
+const STAT_CHECKS_FAILED: u32 = 16;
+const STAT_CHECKS_ENFORCED: u32 = 17;
 const STAT_SETTINGS_REJECTED: u32 = 20;
 const STAT_DOS_ECN_SET: u32 = 21;
 const STAT_DOS_DROPPED: u32 = 22;
@@ -131,6 +193,15 @@ const CFG_HOP_ID: u32 = 0;
 const CFG_SAMPLE_DIVISOR: u32 = 1;
 const CFG_CIRCUIT_THRESHOLD: u32 = 2;
 const CFG_MAX_HOPS: u32 = 3;
+const CFG_CHECK_MODE: u32 = 4;
+
+// ── Hop check modes (ADR-125) ─────────────────────────────────────────────────
+// Anything else, 0 included, is off.
+const CHECK_MODE_OBSERVE: u64 = 1;
+const CHECK_MODE_ENFORCE: u64 = 2;
+
+/// `HopValidator::flags` bit 0: a live RETRY_TOKENS entry is required.
+const VALIDATOR_FLAG_RETRY: u32 = 0x01;
 
 // ── Sophia dictionary IDs ─────────────────────────────────────────────────────
 // These MUST match the dictionary IDs configured in the Kingdom Sophia service.
@@ -264,6 +335,12 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
         let hop_id = cfg(CFG_HOP_ID) as u8;
         emit_event(EventType::Anomaly as u8, hop_id, flow_label, &monad);
         return Ok(xdp_action::XDP_PASS);
+    }
+
+    // ── Hop Checks (ADR-125) ──────────────────────────────────────────────────
+    // Reads only: the Monad is not cloned yet, and no wire field is written.
+    if run_checks(&monad, &ip.src, flow_label) {
+        return Ok(xdp_action::XDP_DROP);
     }
 
     // ── Clone for mutation ────────────────────────────────────────────────────
@@ -453,6 +530,76 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     Ok(xdp_action::XDP_PASS)
 }
 
+// ── Hop checks (ADR-125) ──────────────────────────────────────────────────────
+
+/// Run this hop's validator, if it has one. Returns `true` to drop the packet.
+///
+/// This is an authorization check on hop-local state: it does not prove where
+/// a packet came from (ADR-125, "What this is not"; FND-031).
+#[inline(always)]
+fn run_checks(monad: &Monad, src: &[u8; 16], flow_label: u32) -> bool {
+    let mode = cfg(CFG_CHECK_MODE);
+    if mode != CHECK_MODE_OBSERVE && mode != CHECK_MODE_ENFORCE {
+        return false;
+    }
+    let hop_id = cfg(CFG_HOP_ID);
+    let key = make_validator_key(hop_id as u32, monad.deploy_ring);
+    let Some(validator) = (unsafe { HOP_VALIDATORS.get(&key) }) else {
+        return false;
+    };
+    increment_stat(STAT_CHECKS_RUN);
+    if checks_pass(validator, monad, src) {
+        return false;
+    }
+    increment_stat(STAT_CHECKS_FAILED);
+    emit_event(EventType::Anomaly as u8, hop_id as u8, flow_label, monad);
+    if mode != CHECK_MODE_ENFORCE {
+        return false;
+    }
+    increment_stat(STAT_CHECKS_ENFORCED);
+    true
+}
+
+/// Evaluate one validator, in ADR-125's order.
+#[inline(always)]
+fn checks_pass(v: &HopValidator, monad: &Monad, src: &[u8; 16]) -> bool {
+    let (min, max) = (v.allowed_version_min, v.allowed_version_max);
+    if (min != 0 || max != 0) && (monad.version < min || monad.version > max) {
+        return false;
+    }
+    if v.max_hop_count != 0 && monad.hop_count > v.max_hop_count {
+        return false;
+    }
+    if v.require_crc != 0 && monad.has_flag(flags::CUSTOM) {
+        return false;
+    }
+    // The CIRCUIT_ERRORS pair: the Monad has no flow id, and the flow label is
+    // random per packet at Shield.
+    let flow_id = (monad.src_service_id as u16) | ((monad.dst_service_id as u16) << 8);
+    if v.require_hmac != 0 {
+        let key = make_hmac_key(flow_id, monad.deploy_ring);
+        match unsafe { HMAC_KEYS.get(&key) } {
+            Some(entry) if is_live(entry.expires_at) => {}
+            _ => return false,
+        }
+    }
+    if v.flags & VALIDATOR_FLAG_RETRY != 0 {
+        let key = make_retry_key(flow_id, src);
+        match unsafe { RETRY_TOKENS.get(&key) } {
+            Some(entry) if is_live(entry.expires_at) => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
+/// `expires_at` is CLOCK_BOOTTIME seconds, 0 = never (ADR-119 D6.4(c)'s
+/// one-clock rule). Expired from the second it names.
+#[inline(always)]
+fn is_live(expires_at: u32) -> bool {
+    expires_at == 0 || unsafe { bpf_ktime_get_boot_ns() } / 1_000_000_000 < expires_at as u64
+}
+
 // ── Per-hop flow action ───────────────────────────────────────────────────────
 
 /// Apply flow_action semantics to the Monad.
@@ -620,6 +767,30 @@ fn make_settings_key(conn_id: u32, setting_id: u16) -> u64 {
 #[inline(always)]
 fn make_flow_type_key(flow_id: u32) -> u64 {
     flow_id as u64
+}
+
+/// HOP_VALIDATORS key, the bytes of `bpfschema.HopValidatorKey` on a
+/// little-endian host: `hop_id | namespace << 32`.
+#[inline(always)]
+const fn make_validator_key(hop_id: u32, namespace: u8) -> u64 {
+    (hop_id as u64) | ((namespace as u64) << 32)
+}
+
+/// HMAC_KEYS key, the bytes of `bpfschema.HMACKeyKey`:
+/// `flow_id | namespace << 16`, the top four bytes zero.
+#[inline(always)]
+const fn make_hmac_key(flow_id: u16, namespace: u8) -> u64 {
+    (flow_id as u64) | ((namespace as u64) << 16)
+}
+
+/// RETRY_TOKENS key: `flow_id | src_low48 << 16`, where `src_low48` is the low
+/// 48 bits of the IPv6 source as a number (the last six address bytes, read
+/// big-endian), so `fd00::1` gives 1.
+#[inline(always)]
+fn make_retry_key(flow_id: u16, src: &[u8; 16]) -> u64 {
+    let src_low48 =
+        u64::from_be_bytes([0, 0, src[10], src[11], src[12], src[13], src[14], src[15]]);
+    (flow_id as u64) | (src_low48 << 16)
 }
 
 // ── Config / stats helpers ────────────────────────────────────────────────────
