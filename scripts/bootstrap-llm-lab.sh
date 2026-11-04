@@ -23,7 +23,6 @@ readonly AMDGPU_INSTALL_VERSION="6.4.60402-1"     # amdgpu-install version
 readonly GO_VERSION="1.27.3"                      # Go toolchain
 readonly GO_SHA256="65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40" # go.dev/dl, linux-amd64
 readonly RUST_TOOLCHAIN="nightly"                 # Rust nightly for eBPF
-readonly VLLM_PORT=20100                          # vLLM inference port
 readonly NVME_MOUNT="/mnt/nvme"                   # Fast storage mount
 readonly HDD_MOUNT="/mnt/hdd"                     # Slow storage mount
 readonly MODELS_DIR="/mnt/hdd/models"             # LLM model weights
@@ -371,9 +370,6 @@ export WANDB_DIR="${HDD_MOUNT}/wandb"
 
 # XDG cache → HDD (go, misc caches)
 export XDG_CACHE_HOME="${HDD_MOUNT}/cache"
-
-# vLLM: AMD AITER acceleration (optimized attention for ROCm)
-export VLLM_USE_AITER=1
 
 # Active model slot (NVMe fast lane)
 export UNHEADED_ACTIVE_MODEL="/opt/unheaded/active-model/current"
@@ -999,27 +995,10 @@ phase_observability() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 11: vLLM + ROCm INFERENCE SERVER
+# PHASE 11: MODEL DOWNLOAD TOOLING
 # ─────────────────────────────────────────────────────────────────────────────
-phase_vllm() {
-    phase "11/16 — vLLM ROCm INFERENCE SERVER"
-
-    # ── Official AMD vLLM ROCm image (pre-tuned for GFX architectures) ──
-    step "Pulling official AMD vLLM ROCm image (pre-validated, no build needed)..."
-    run docker pull rocm/vllm:latest 2>/dev/null || {
-        warn "Official rocm/vllm:latest pull failed — trying ROCm PyTorch base as fallback..."
-        run docker pull "rocm/pytorch:6.1.3-ubuntu22.04" 2>/dev/null || {
-            warn "Fallback also failed — try manually:"
-            warn "  docker pull rocm/vllm:latest"
-        }
-    }
-
-    # Also pull custom Dockerfile base if repo has one
-    local vllm_dir="${UNHEADED_HOME}/docker/vllm-rocm"
-    if [[ -f "${vllm_dir}/Dockerfile" ]]; then
-        info "Custom Dockerfile also available at ${vllm_dir}"
-        info "Build custom: cd ${vllm_dir} && docker compose -f docker-compose.vllm.yml build"
-    fi
+phase_model_tools() {
+    phase "11/16 — MODEL DOWNLOAD TOOLING"
 
     # ── Install hf_transfer (Rust-based parallel downloader — 10x faster) ──
     step "Installing hf_transfer (Rust parallel HuggingFace downloads)..."
@@ -1099,65 +1078,15 @@ echo "✓ Model downloaded to: ${MODELS_DIR}/${NAME}"
 if $ACTIVATE; then
     ln -sfn "${MODELS_DIR}/${NAME}" "${ACTIVE_SLOT}"
     echo "✓ Activated: ${ACTIVE_SLOT} → ${MODELS_DIR}/${NAME}"
-    echo "  vLLM flag: --model ${ACTIVE_SLOT}"
 else
     echo "  Activate for NVMe speed: $0 $REPO $NAME --activate"
 fi
 
-echo ""
-echo "Quick start:"
-echo "  # Official AMD image (recommended):"
-echo "  docker run --device=/dev/kfd --device=/dev/dri --group-add video \\"
-echo "    -v ${MODELS_DIR}:/models -p 20100:20100 rocm/vllm:latest \\"
-echo "    --model /models/${NAME} --port 20100 --dtype half"
-echo ""
-echo "  # Custom Unheaded image:"
-echo "  cd docker/vllm-rocm && docker compose -f docker-compose.vllm.yml up -d"
 MODELDL
     chmod +x /usr/local/bin/unheaded-download-model
 
-    # ── Quick-launch helper for official AMD vLLM ──
-    step "Creating vLLM quick-launch helper..."
-    cat > /usr/local/bin/unheaded-vllm-start << 'VLLMSTART'
-#!/usr/bin/env bash
-# Quick-launch vLLM with official AMD ROCm image
-set -euo pipefail
-MODEL="${1:-/models/deepseek-r1-7b}"
-PORT="${2:-20100}"
-
-echo "Starting vLLM on port ${PORT} with model ${MODEL}..."
-docker run -d \
-    --name unheaded-vllm \
-    --restart unless-stopped \
-    --device=/dev/kfd --device=/dev/dri \
-    --group-add video --group-add render \
-    --shm-size=4g \
-    -e HSA_OVERRIDE_GFX_VERSION=11.0.1 \
-    -e PYTORCH_ROCM_ARCH=gfx1101 \
-    -e VLLM_USE_AITER=1 \
-    -v /mnt/hdd/models:/models:ro \
-    -p "${PORT}:${PORT}" \
-    --network unheaded_unheaded \
-    rocm/vllm:latest \
-    --model "${MODEL}" \
-    --port "${PORT}" \
-    --host 0.0.0.0 \
-    --dtype half \
-    --gpu-memory-utilization 0.90 \
-    --max-model-len 8192 \
-    --tensor-parallel-size 1
-
-echo "vLLM starting on port ${PORT}..."
-echo "  Health:  curl http://localhost:${PORT}/health"
-echo "  Models:  curl http://localhost:${PORT}/v1/models"
-echo "  Logs:    docker logs -f unheaded-vllm"
-VLLMSTART
-    chmod +x /usr/local/bin/unheaded-vllm-start
-
-    ok "vLLM infrastructure ready"
+    ok "Model download tooling ready"
     info "Download a model:   unheaded-download-model deepseek-ai/DeepSeek-R1-Distill-Qwen-7B deepseek-r1-7b --activate"
-    info "Start inference:    unheaded-vllm-start /models/deepseek-r1-7b"
-    info "Or custom build:    cd docker/vllm-rocm && docker compose -f docker-compose.vllm.yml up -d"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1485,21 +1414,12 @@ alias bpf-maps='bpftool map list'
 alias ports='ss -tlnp'
 alias flames='perf record -g -F 99 -p'
 
-# vLLM
-alias vllm-health='curl -s http://localhost:20100/health | jq'
-alias vllm-models='curl -s http://localhost:20100/v1/models | jq'
-alias vllm-chat='curl -s http://localhost:20100/v1/chat/completions -H "Content-Type: application/json" -d'
-alias vllm-start='unheaded-vllm-start'
-alias vllm-stop='docker stop unheaded-vllm && docker rm unheaded-vllm'
-alias vllm-logs='docker logs -f unheaded-vllm'
-
 # Model management
 alias model-dl='unheaded-download-model'
 alias model-ls='ls -lhS /mnt/hdd/models/'
 alias model-active='readlink -f /opt/unheaded/active-model/current'
 alias runway='python3 /opt/unheaded/scripts/vault-to-runway.py'
 alias runway-list='python3 /opt/unheaded/scripts/vault-to-runway.py --list'
-alias runway-go='python3 /opt/unheaded/scripts/vault-to-runway.py --launch'
 ALIASES
     chmod 644 /etc/profile.d/unheaded-aliases.sh
 
@@ -1650,7 +1570,6 @@ print_summary() {
     echo ""
 
     echo -e "${BOLD}PORTS (Doom Range 16666-26666):${NC}"
-    echo "  vLLM:        ${VLLM_PORT} (OpenAI-compatible API)"
     echo "  Dashboard:   20000 (Visor)"
     echo "  Kanban:      20001 (Herald)"
     echo "  Gateway:     21000/21443 (Portcullis)"
@@ -1663,10 +1582,8 @@ print_summary() {
     echo "  2. Verify GPU:              rocminfo | grep gfx"
     echo "  3. Clone unheaded:          git clone <repo> ${UNHEADED_HOME}"
     echo "  4. Download a model:        unheaded-download-model deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
-    echo "  5. Build vLLM container:    cd docker/vllm-rocm && docker compose -f docker-compose.vllm.yml build"
-    echo "  6. Start inference:         docker compose -f docker-compose.vllm.yml up -d"
-    echo "  7. Deploy full kingdom:     make deploy"
-    echo "  8. Run preflight:           ./scripts/bare-metal/preflight-host-a.sh"
+    echo "  5. Deploy full kingdom:     make deploy"
+    echo "  6. Run preflight:           ./scripts/bare-metal/preflight-host-a.sh"
     echo ""
 
     echo -e "${BOLD}QUICK TEST AFTER REBOOT:${NC}"
@@ -1729,7 +1646,7 @@ main() {
     phase_kernel_tune
     phase_networking
     phase_observability
-    phase_vllm
+    phase_model_tools
     phase_claude_cli
     phase_secrets
     phase_log_pipeline

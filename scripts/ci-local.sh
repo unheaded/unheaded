@@ -73,9 +73,7 @@ RUST_WORKSPACES=(
     crates/zhend
     crates/doom-runner
     crates/zhenai-forge
-    cmd/trace-collector
     cmd/ebpf-loader
-    cmd/waf
 )
 if command -v cargo &>/dev/null; then
     for ws in "${RUST_WORKSPACES[@]}"; do
@@ -86,7 +84,7 @@ if command -v cargo &>/dev/null; then
         fi
     done
     # Run tests on a curated subset (faster CI; full sweep happens in Jenkins).
-    for ws in crates/monad-mbc crates/zhend cmd/trace-collector; do
+    for ws in crates/monad-mbc crates/zhend; do
         if [ -f "${ws}/Cargo.toml" ]; then
             run_step "Rust Test (${ws})" cargo test --manifest-path "${ws}/Cargo.toml" --release
         fi
