@@ -1,0 +1,1 @@
+{"id":"FIXTURE-GO-0001","aliases":["CVE-2099-0001"],"summary":"Synthetic record: Go module, fixed release","affected":[{"package":{"name":"example.test/alpha","ecosystem":"Go"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"fixed":"1.3.0"}]}]}]}

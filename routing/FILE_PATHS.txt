@@ -464,7 +464,7 @@ CONTACT & LICENSING
 
 Author: Unheaded Kingdom team
 Date: 2026-02-26
-License: MIT (all files)
+License: GPL-3.0-or-later (all files)
 
 Questions about:
   - Architecture → See README.md

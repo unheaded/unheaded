@@ -10,7 +10,7 @@
 ## Files Created (This Session)
 
 ### Profiles (5 files)
-All profiles include SPDX MIT license headers and comprehensive comments.
+All profiles include SPDX GPL-3.0-or-later license headers and comprehensive comments.
 
 1. **`profiles/unheaded-base.yaml`**
    - Applied to ALL 25 containers
@@ -46,7 +46,7 @@ All profiles include SPDX MIT license headers and comprehensive comments.
    - Tier: "critical"
 
 ### Cloud-Init Templates (3 files)
-All cloud-init templates include SPDX MIT license headers.
+All cloud-init templates include SPDX GPL-3.0-or-later license headers.
 
 1. **`cloud-init/base.yaml`**
    - Applied to ALL containers

@@ -156,6 +156,7 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 |------|---------|-------|
 | gosec | Go static analysis, ratcheted per rule | `scripts/check-gosec-ratchet.sh`, CI |
 | govulncheck, cargo-audit, pip-audit, grype, trivy | Dependency and image vulnerabilities; pip-audit's accepted findings may only shrink | `.github/workflows/`, `scripts/check-python-audit.sh` |
+| vulnmatch | Native matcher, stage 1a of replacing trivy: lock data against local OSV records and the KEV catalog; no network code | `cmd/vulnmatch`, `scripts/vulnmatch-fixture.sh` |
 | Dependency baseline | No third-party package (go.sum, Cargo.lock, requirements, package.json) enters unrecorded (ADR-096) | `scripts/check-dependency-baseline.sh` |
 | Image tags | No new floating image tag; the existing ones may only shrink (ADR-102) | `scripts/check-image-tags.sh` |
 | Unit binaries / accounts | Every systemd unit runs a binary the repo builds, as its own sysusers account | `scripts/check-unit-binaries.sh`, `scripts/check-systemd-units.sh` |
@@ -173,7 +174,7 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | OpenSSF Scorecard | Supply-chain posture score, published, uploaded as code scanning | `.github/workflows/scorecard.yml` |
 | CodeQL | Go, JavaScript and Python analysis on push/PR to develop, staging, main | `.github/workflows/codeql.yml` |
 | eBPF size pin | ADR-089 promotion gate: `monad-cpu-ebpf --features ascend-linux` keeps its pinned byte size (per toolchain); run on the build host | `scripts/check-ebpf-size-pin.sh`, `docs/policy/ebpf-size-pins.txt` |
-| Dependabot | Grouped weekly PRs for actions, base images and Go modules, each after a 7-day cooldown | `.github/dependabot.yml` |
+| Dependabot | Grouped weekly PRs for actions, base images, Go modules and Rust crates; base images wait 7 days, the rest 14; nothing auto-merges | `.github/dependabot.yml` |
 | Go fuzz targets | Every package with Fuzz functions, 10 s each, on every security run | `.github/workflows/security.yml` (lich-fuzz) |
 | LICH campaigns | Fuzz / red team (ADR-062); LICH-005 fuzzes `.bpf.o` through the real loader into `bpf(2)` | `tomb/lich/`, `crates/*/fuzz/` |
 | Fuzz targets | MBC interpreter fuzzing | `crates/monad-mbc/fuzz/` |

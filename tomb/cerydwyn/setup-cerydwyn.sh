@@ -244,8 +244,8 @@ install_rag_deps() {
     # Check for pre-packaged Python wheels (air-gapped install)
     if [[ -d "$WHEELS_DIR" ]]; then
         pip3 install --no-index --find-links="$WHEELS_DIR" \
-            chromadb \
-            sentence-transformers \
+            chromadb==1.5.9 \
+            sentence-transformers==6.2.0 \
             requests \
             2>&1 | tail -5
         log_ok "RAG Python dependencies installed from offline wheels"

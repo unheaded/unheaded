@@ -65,8 +65,8 @@
     - name: "Install RAG Python dependencies (offline)"
       ansible.builtin.pip:
         name:
-          - chromadb
-          - sentence-transformers
+          - chromadb==1.5.9
+          - sentence-transformers==6.2.0
         extra_args: "--no-index --find-links={{ tomb_staging }}/rag-deps/"
         executable: pip3
       failed_when: false
@@ -148,11 +148,10 @@
               print(f"[INFO] Indexing Grimoire into {CHROMA_DIR}")
               os.makedirs(CHROMA_DIR, exist_ok=True)
 
-              client = chromadb.Client(Settings(
-                  chroma_db_impl="duckdb+parquet",
-                  persist_directory=CHROMA_DIR,
-                  anonymized_telemetry=False,
-              ))
+              client = chromadb.PersistentClient(
+                  path=CHROMA_DIR,
+                  settings=Settings(anonymized_telemetry=False),
+              )
 
               # Create or get collection
               try:
@@ -181,7 +180,6 @@
                   if total_docs % 100 == 0:
                       print(f"  Indexed {total_docs} documents, {total_chunks} chunks...")
 
-              client.persist()
               print(f"[  OK] Indexing complete: {total_docs} documents, {total_chunks} chunks")
 
 

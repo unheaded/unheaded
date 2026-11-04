@@ -4,8 +4,8 @@
 # to a commit SHA with the tag in a comment (ADR-095, check-actions-pinned),
 # and Dependabot bumps both together. One grouped PR a week per ecosystem,
 # not one per update. Container base images and Go modules too (S-IRON-GATE
-# Step 323), Cargo since S-LOW-FRUIT. Actions and images wait out the 7-day
-# cooldown the gates enforce (ADR-096); Go and Rust code waits 14. Nothing
+# Step 323), Cargo since S-LOW-FRUIT. Images wait out the 7-day cooldown the
+# gates enforce (ADR-096); Actions (DP-405), Go and Rust code wait 14. Nothing
 # auto-merges: a bump of a module marked STALE or handover in
 # docs/policy/dependency-watch.md is merged only after scripts/dep-diff.sh
 # output has been read.
@@ -24,7 +24,7 @@ updates:
     commit-message:
       prefix: ci
     cooldown:
-      default-days: 7
+      default-days: 14
 
   - package-ecosystem: docker
     directories: ["/", "/docker/**", "/deploy/**"]
