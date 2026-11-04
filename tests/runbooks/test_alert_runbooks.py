@@ -19,6 +19,7 @@ RUNBOOKS = {
     "runbooks/observe/trace-collector-down.yaml": ("TraceCollectorDown",),
     "runbooks/observe/high-latency.yaml": ("TraceCollectorHighLatency",),
     "runbooks/observe/log-pipeline.yaml": ("JournalNotShipping", "JournalShipErrors", "VectorDown", "LogSpam", "LogErrorSpam", "LogSilence"),
+    "runbooks/observe/syslog-relay.yaml": ("SyslogRelayDown", "SyslogRelayDropping", "SyslogUnknownSender"),
     "runbooks/security/kev-feed-stale.yaml": ("KEVFeedStale", "KEVFeedExpired", "KEVPollerDown"),
     # S-WELL-SPRING Phase 11 detections (monitoring/prometheus/rules/detection.yml).
     "runbooks/security/ssh-login-new-source.yaml": ("SSHLoginNewSource", "SSHAuthFailureBurst"),
