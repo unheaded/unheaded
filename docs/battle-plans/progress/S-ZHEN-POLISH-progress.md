@@ -6,6 +6,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ## Log
 
+- Phase 7 (Steps 69-74) done: Tab completes slash commands in the line editor. RED was `undefined: completeSlash`; GREEN `ok` under -race, gofmt clean, TestSlashCommandsMatchDispatch passes.
+
 - DP-302 cap headroom confirmed: one worst case is reserved before send; default cap 5 USD, max_tokens 16000.
 
 - Phase 6 (Steps 53-68) done: redaction matches stay local (runAuto and zhenroute); zhen-claude check go|json|cite shipped. TestCaptureEscalatedTurn changed per Step 57.
