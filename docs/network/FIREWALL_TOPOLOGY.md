@@ -429,7 +429,7 @@ lxc start opnsense-forge
 **Compatibility**:
 - Permissive license; can be integrated into commercial Unheaded deployments
 - No requirement to open-source modifications to OPNsense itself
-- Unheaded (MIT) remains MIT; OPNsense binaries retain BSD 2-Clause
+- Unheaded (GPL-3.0-or-later) stays GPL-3.0-or-later; OPNsense binaries retain BSD 2-Clause
 
 **Audit Trail Requirements** (SOC2, PCI-DSS, HIPAA):
 - OPNsense logs all firewall decisions to `/var/log/pf.log`
@@ -441,7 +441,7 @@ lxc start opnsense-forge
 
 **Compatibility**:
 - Copyleft license; modifications to IPFire itself must remain open source
-- Unheaded (MIT) is NOT linked to IPFire; remains MIT
+- Unheaded (GPL-3.0-or-later) is NOT linked to IPFire; stays GPL-3.0-or-later
 - IPFire binary and kernel modules are separate from Unheaded application code
 
 **Audit Trail Requirements**:
@@ -552,4 +552,4 @@ In production deployments, implement:
 **Document Version**: 1.0  
 **Last Updated**: 2026-02-26  
 **Maintained By**: Unheaded Development Team  
-**License**: MIT (Unheaded), BSD 2-Clause (OPNsense components), GPL v3 (IPFire components)
+**License**: GPL-3.0-or-later (Unheaded), BSD 2-Clause (OPNsense components), GPL v3 (IPFire components)

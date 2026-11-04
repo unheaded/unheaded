@@ -658,7 +658,7 @@ Common fixes:
 
 SPDX-License-Identifier: GPL-3.0-or-later
 
-All LXD infrastructure files, scripts, and configurations are released under the MIT License.
+All LXD infrastructure files, scripts, and configurations are released under GPL-3.0-or-later.
 
 ---
 

@@ -2,7 +2,7 @@
 AGENT 8: SURICATA DOCKER, LXD, AND RULE FILES
 ================================================================================
 Date: 2026-02-26
-License: MIT, Copyright (c) 2024-2026 Stevie Bellis
+License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
 Working Directory: /sessions/vibrant-adoring-maxwell/mnt/tmp/unheaded/
 
 ================================================================================
