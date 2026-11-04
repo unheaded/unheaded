@@ -70,3 +70,7 @@ None yet. Parked under ADR-112.
 From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 
 - E1 brings both compose stacks up exactly as pinned; this convergence is its own sprint later (DP-19). Q1-Q5 are DP-207, still open.
+
+## Decisions 2026-11-04 (decision pack, round 3)
+
+- DP-207: the leanest, cleanest long-term setup, polish over shortcuts: keep every dashboard worth keeping, rebuild paging rules on the native path before Prometheus retires, fold sophia-eye into the main VictoriaMetrics, retention per retention-policy-v1. Log store: ClickHouse through E1, then a measured week shipping to both, Postgres (the Well) favoured if the numbers are close; this may reopen S-LOG-HARVEST D1.

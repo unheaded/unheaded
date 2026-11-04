@@ -52,3 +52,7 @@ None yet. Parked under ADR-112.
 From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 
 - Idea only (Stevie: "maybe not", "just adr as idea"). Q1-Q6 are DP-208, still open.
+
+## Decisions 2026-11-04 (decision pack, round 3)
+
+- DP-208: own compose file under `deploy/pihole/`, Teleporter sync, no DoT leg until a device needs it, the front is ADR-116's LAN DNS expectation, both instances ship logs. Still an idea only.

@@ -173,3 +173,7 @@ Status stays Proposed and parked under ADR-112; these answers close the open que
 ## Decision
 
 None yet. Parked under ADR-112, marked high emphasis.
+
+## Decisions 2026-11-04 (decision pack, round 3)
+
+- DP-710: outbound alert mail gets its own expectation: send-only, no listening relay, a per-hour cap, every send logged, a volume alert.

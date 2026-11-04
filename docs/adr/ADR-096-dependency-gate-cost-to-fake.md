@@ -242,3 +242,7 @@ E5 fixes them.
 Module-level govulncheck findings not called by our code (2026-10-28):
 GO-2026-6866 and GO-2026-6860 in `golang.org/x/net` v0.61.0 (fixed in v0.62.0),
 GO-2026-5932 in `golang.org/x/crypto` (`openpgp`, no fix).
+
+## Decisions 2026-11-04 (decision pack, round 3)
+
+- DP-722: security first: anything in the SBOM with a vulnerability is bumped and code patched to fit. DP-719: Grimoire's libraries are bumped.

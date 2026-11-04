@@ -264,3 +264,7 @@ algorithm-confusion refusal holds.
 From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 
 - Accept at E1, after the AUTH_ENABLED rollout proves the issuer and the BFFs live (DP-603). The mTLS authenticator's fate is DP-410, still open.
+
+## Decisions 2026-11-04 (decision pack, round 3)
+
+- DP-410: the mTLS authenticator is deleted; service tokens over TLS are the one service-to-service path.

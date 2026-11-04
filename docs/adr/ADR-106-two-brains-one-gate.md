@@ -240,3 +240,7 @@ Every [ESCALATE] still open:
 From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 
 - Q1 migrations 030-043 apply inside the E1 window. Q2 the first unattended night is the first night after E1 is live with alerts: fake Claude leg first, live $3 the second night, zhen-owned cards with a zhen block only, `-audit-well` on. Q3 runbooks are approved case by case as each is first needed. Q4 the Claude-text flag stays off. Q5 the LoRA window is DP-608, still open. Q6 the ADR-019 Level 2 amendment is accepted; cap headroom stays one worst case. Accept the ADR at E1 (DP-301..303, DP-603, DP-605).
+
+## Decisions 2026-11-04 (decision pack, round 3)
+
+- Q5 (DP-608): the LoRA window opens when the trigger fires (at least 300 SFT examples across 3 families), `answer_start` fix first. Corpora (DP-705): see the pack; no run uses repo text until Anthropic's reply is on file.
