@@ -185,7 +185,7 @@ Signature: `func (s *WireComplianceService) IngestAuditRecord(b []byte) error`. 
 
 `OpenPinnedAnamnesisReader` is not touched: its only caller is `cmd/trace-collector-go/main.go:974`, a supervised service, and that path has no test of its own.
 
-- [ ] **Step 38** [V] ~1m: S-WIRE-HONEST is in: `git -C /home/govan/tmp/unheaded log develop --grep 'S-WIRE-HONEST' --oneline | wc -l`. Above `0` to go on. `0`: Phase 5 is [BLOCKED]; `--audit-ring` keeps its "not built yet" error; go to Phase 6.
+- [ ] **Step 38** [V] ~1m: S-WIRE-HONEST is in: `git -C /home/govan/tmp/unheaded merge-base --is-ancestor sprint/s-wire-honest develop && echo MERGED`. `MERGED` to go on. Anything else: Phase 5 is [BLOCKED]; `--audit-ring` keeps its "not built yet" error; go to Phase 6.
 - [ ] **Step 39** [B] ~3m: Bring develop in: `git merge --no-ff -S --no-edit develop`.
   - gpg failure: `git merge --abort; git merge --no-ff --no-gpg-sign --no-edit develop`, and record the unsigned merge in the progress file for the handoff.
   - Conflict: keep both sides' rows in `docs/adr/ADR-INDEX.md`, `pkg/protocol/bpfschema/core_maps.go` and `structParity` in `pkg/protocol/bpfschema/rust_source_test.go`, then `git commit --no-edit`. A conflict anywhere else: `git merge --abort`, [STUCK], Phase 5 [BLOCKED].

@@ -493,7 +493,7 @@ Signatures: `OpenPinnedMap(path string) (*PinnedMap, error)`; methods `KeySize()
 **Goal**: All lanes in, develop brought in first (rule 15), every gate green on that tree, one merge, one handoff.
 **Prerequisite**: every lane merged into `sprint/s-wire-honest`; **S-CLEAN-CUT merged into develop** (hard prerequisite: both edit `bpfschema.go`, and it merges first). **Time**: 60m · **Agent**: Coordinator · **Model**: Opus
 
-- [ ] **Step 128** [V] ~1m: `git -C /home/govan/tmp/unheaded log develop --grep 'S-CLEAN-CUT' --oneline | wc -l`. Above `0`. `0`: wait; do not merge. Record it in the progress file and stop here.
+- [ ] **Step 128** [V] ~1m: `git -C /home/govan/tmp/unheaded merge-base --is-ancestor sprint/s-clean-cut develop && echo MERGED`. Expected `MERGED`. Anything else: wait; do not merge. Record it in the progress file and stop here.
 - [ ] **Step 129** [B] ~3m: Rule 15: `git merge --no-ff -S --no-edit develop`. gpg failure: `git merge --abort; git merge --no-ff --no-gpg-sign --no-edit develop`, recorded. A conflict is [STUCK]: `git merge --abort`, no merge to develop.
 - [ ] **Step 130** [B] ~15m: Package names, timings stripped, against the `-race` baseline. `tests/pqc/integration_test.go` was unformatted before this sprint, so it is the one allowed gofmt line.
   ```bash
