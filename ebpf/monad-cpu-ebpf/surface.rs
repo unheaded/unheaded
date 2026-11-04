@@ -3,7 +3,8 @@
 // The ecall surface each build of this object compiles in: every syscall
 // number with a top-level arm in the `op::SYSCALL` dispatch of src/main.rs
 // (the chain that starts at `} else if opc == op::SYSCALL {`) under the
-// object's `cfg(feature)` set. A number with no arm falls through to
+// object's `cfg(feature)` set. A number with no arm answers -ENOSYS in the
+// `ascend-linux` build (DP-503); in the default build it falls through to
 // "Unknown syscall: silently ignore".
 //
 // build.rs hashes the list for the active feature set into UPC_SURFACE_ID
@@ -13,8 +14,9 @@
 // when an arm is added or removed without updating this file.
 //
 // Out of scope: the INT 0x80 Linux-compatible path (`vector ==
-// intr::VECTOR_SYSCALL`, non-ascend builds only). It is a second entry vector
-// that no shipped guest uses; it is not part of either guest's surface.
+// intr::VECTOR_SYSCALL`, non-ascend builds only; an `ascend-linux` INT 0x80
+// answers -ENOSYS, DP-503). It is a second entry vector that no shipped guest
+// uses; it is not part of either guest's surface.
 //
 // Plain items only: this file is `include!`d by build.rs and by host tests.
 
@@ -28,7 +30,7 @@ pub const SURFACE_DEFAULT: &[u32] = &[1, 2, 3, 4, 16, 200, 201];
 /// exec 7, fstat 8, dup 10, getpid 11, pause 13, uptime 14 (ADR-110), open 15, write 16, mknod 17,
 /// close 21, yield 23 (BPF only, ADR-078 §5), plus READ_BLOCK 200 and
 /// WRITE_BLOCK 201. xv6's pipe 4, kill 6, chdir 9, sbrk 12, unlink 18, link 19
-/// and mkdir 20 have no arm.
+/// and mkdir 20 have no arm and answer -ENOSYS (DP-503).
 pub const SURFACE_ASCEND: &[u32] = &[
     1, 2, 3, 5, 7, 8, 10, 11, 13, 14, 15, 16, 17, 21, 23, 200, 201,
 ];

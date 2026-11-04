@@ -1463,13 +1463,23 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // (the program sits right at the 1M processed-insn ceiling — adding
             // exec without this frees no room and the object fails to load).
             // Doom (non-ascend) keeps the dispatch exactly as before.
-            if !cfg!(feature = "ascend-linux") && vector == intr::VECTOR_SYSCALL {
+            //
+            // DP-503: an ascend INT 0x80 has no surface to reach, so it answers
+            // -ENOSYS instead of falling into IVT dispatch.
+            if cfg!(feature = "ascend-linux") && vector == intr::VECTOR_SYSCALL {
+                cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+            } else if !cfg!(feature = "ascend-linux") && vector == intr::VECTOR_SYSCALL {
                 // ── INT 0x80: Linux-compatible syscall dispatch (Level 4b) ────
                 // Convention: r0 = syscall number, r1-r3 = args.
                 // PC is NOT pushed (this is a synchronous call, not an interrupt).
                 increment_stat(STAT_LINUX_SYSCALLS);
                 let syscall_nr = cpu.regs[0];
-                if syscall_nr == lsys::SYS_EXIT {
+                // DP-503: without `fuzix-permissive` the fabricated set answers
+                // -ENOSYS. `cfg!` stays the left operand so the Doom object
+                // does not change.
+                if !cfg!(feature = "fuzix-permissive") && lsys::is_permissive(syscall_nr) {
+                    cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                } else if syscall_nr == lsys::SYS_EXIT {
                     // SYS_EXIT(1): exiting process is marked ZOMBIE (halted_mask
                     // bit set); slot stays allocated until parent SYS_WAITPID
                     // reaps it. Phase 1.3 ADR-075 D-5 (xv6 kfork()-authoritative
@@ -2617,7 +2627,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 14 {
                 // ── xv6 SYS_uptime (14): with UPC_RUNG2 on it never gets here
                 // (remapped to the getpid inject arm above; ADR-110 T2). Off: no
-                // BPF answer, a0 is left as it was (unchanged behaviour).
+                // BPF answer, so -ENOSYS as for any number with no server (DP-503).
+                cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
             } else if cfg!(feature = "ascend-linux") && (syscall_nr == 13 || syscall_nr == 23) {
                 // ── xv6 SYS_pause (13), SYS_yield (23) → cooperative YIELD (Gate 4, 2026-05-31) ─
                 // ascend-only (xv6 scheduler yield; Doom never issues it).
@@ -3338,8 +3349,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 } else {
                     cpu.regs[8] = (-(lsys::EIO as i32)) as u32;
                 }
+            } else if cfg!(feature = "ascend-linux") {
+                // DP-503: a number with no arm answers -ENOSYS, not a stale a0.
+                cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
             }
-            // Unknown syscall: silently ignore (fail-safe).
+            // Unknown syscall: silently ignore (default build only; fail-safe).
         } else if opc == op::HALT {
             halt_diag(
                 cpu.pc,

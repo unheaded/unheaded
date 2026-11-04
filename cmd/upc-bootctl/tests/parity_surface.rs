@@ -99,6 +99,11 @@ fn dispatch_arms() -> Vec<(Gate, u32)> {
         } else {
             Gate::Both
         };
+        // The chain's tail `else if cfg!(...)` is the no-arm answer (-ENOSYS,
+        // DP-503), not a number. Only an arm that never reads syscall_nr is skipped.
+        if !cond.contains("syscall_nr") {
+            continue;
+        }
         let parts: Vec<&str> = cond.split("syscall_nr == ").skip(1).collect();
         // One number per arm, or one `a || b` group sharing an arm (pause 13 and
         // yield 23, ADR-078 §5). Any other shape is not something this reads.
