@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && useradd -u 10001 -g unheaded -s /sbin/nologin -r unheaded
 LABEL org.opencontainers.image.title="unheaded-blackmage" \
       org.opencontainers.image.description="Blackmage pentesting service" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="GPL-3.0-or-later"
 COPY --from=builder /out/blackmage /usr/local/bin/blackmage
 USER 10001:10001
 EXPOSE 50066
