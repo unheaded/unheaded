@@ -612,6 +612,10 @@ Two things stay separate. **Routing:** the goal is to run prompts locally when p
 
 Two prompts rested on wrong facts from the coordinator and were re-asked. DP-402 Q3: 25 of the 28 ignored forge tests assert Gemma-4, the forge's current target, so they are not deleted. Stevie: training is unworkable on west, very little progress came through the experiments, and it goes on the back burner until a machine with enough GPU exists, to focus on tangible features. **The forge moves out to a new repository `unheaded-forge`**, tests and all, so the work is retained without digging through history. That carries DP-308 (GGUF), DP-608 (`answer_start`), the corpus scripts and the kingdom-v2/v3 LoRA finding. DP-706: `transport.Connect` is already gone and the queue has flushed since `c9927f77`, so it stays as it is. `cmd/waf` leaves with `pkg/waf`, after S-CLEAN-CUT confirms what depends on it; ADR-121 records it. DP-216 revised: the swap is deferred; the Python embedder stays, no third unit, the code index and retrieval work continues, and the embed service is parked in ADR-122. Licence: `zhend` and `zhenai-forge` move to GPL-3.0-or-later like everything else, with their README and SECURITY text.
 
+## Answers recorded, round 5 (2026-11-04)
+
+`zhen-flywheel` is training tooling and moves to `unheaded-forge`; captures stay switched off. Champion's audit trail (`llm_requests`, `zhen_actions`, Anamnesis) stays. The `raft/scripts` numbered corpus scripts that feed the retired FAISS index also move out, with the two runbooks that call them dealt with in the same step.
+
 ## Still open
 
 None. DP-206 answered 2026-11-04: approve all three on east (heimdall-daemon as root, XDP generic on enp2s0, scratch Wotan on the P2P link), guarded like the chaos-guard and upc0 netns. The sitting agenda (DP-217, DP-403, DP-404) stays for the third-party sitting.
