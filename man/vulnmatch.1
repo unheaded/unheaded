@@ -1,0 +1,43 @@
+.TH VULNMATCH 1 "2026-11-04" "unheaded 3a1f1b55" "Unheaded Kingdom"
+.SH NAME
+vulnmatch \- Match the components a tree pins against OSV records and the CISA KEV catalog.
+.SH SYNOPSIS
+.B vulnmatch
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Match the components a tree pins against OSV records and the CISA KEV catalog.
+.SH OPTIONS
+.TP
+.B \-\-fail\-on\-findings
+exit 1 when anything matched
+.TP
+.B \-\-json
+print findings as JSON
+.TP
+.B \-\-kev\-file \fISTRING\fR
+CISA KEV catalog, kev\-poller's latest.json
+.TP
+.B \-\-osv\-dir \fISTRING\fR
+directory of OSV records, one *.json each
+.TP
+.B \-\-root \fISTRING\fR
+tree to read lock data from (default .)
+.TP
+.B \-\-sbom \fISTRING\fR
+also read sbom/go\-dependencies.json or sbom/rust\-dependencies.json
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH EXIT STATUS
+Exit codes: 0 scan complete, 1 findings (with \-\-fail\-on\-findings), 2 usage or scan error.
+Reads local files only.
+.SH EXAMPLES
+.EX
+vulnmatch \-\-root . \-\-osv\-dir pkg/threatfeed/osv/testdata/records \-\-kev\-file pkg/threatfeed/osv/testdata/kev.json
+vulnmatch \-\-osv\-dir /var/tmp/osv \-\-kev\-file /var/lib/unheaded/threat\-feeds/cisa\-kev/latest.json \-\-fail\-on\-findings
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

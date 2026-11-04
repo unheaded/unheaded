@@ -156,6 +156,7 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 |------|---------|-------|
 | gosec | Go static analysis, ratcheted per rule | `scripts/check-gosec-ratchet.sh`, CI |
 | govulncheck, cargo-audit, pip-audit, grype, trivy | Dependency and image vulnerabilities; pip-audit's accepted findings may only shrink | `.github/workflows/`, `scripts/check-python-audit.sh` |
+| vulnmatch | Native matcher, stage 1a of replacing trivy: lock data against local OSV records and the KEV catalog; no network code | `cmd/vulnmatch`, `scripts/vulnmatch-fixture.sh` |
 | Dependency baseline | No third-party package (go.sum, Cargo.lock, requirements, package.json) enters unrecorded (ADR-096) | `scripts/check-dependency-baseline.sh` |
 | Image tags | No new floating image tag; the existing ones may only shrink (ADR-102) | `scripts/check-image-tags.sh` |
 | Unit binaries / accounts | Every systemd unit runs a binary the repo builds, as its own sysusers account | `scripts/check-unit-binaries.sh`, `scripts/check-systemd-units.sh` |
