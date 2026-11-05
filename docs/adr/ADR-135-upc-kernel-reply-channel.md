@@ -339,7 +339,8 @@ One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`
     frame, so `kernel_sp` and `kernel_trap` are child-chosen too.
 
   The reply word alone buys SET_BRK, YIELD and KILL of any live slot except init, and any child can already `kill` any
-  other. A child-chosen `kernel_trap` buys far more than that. The channel adds no primitive because the hole with D6
+  other. This is ADR-109's M-247 route: a store past 8 MiB reaches any slot's pgd, and with this channel it now reaches the
+  reply word too. It stays open while D6 is off. A child-chosen `kernel_trap` buys far more than that. The channel adds no primitive because the hole with D6
   off is already total, not because the channel is safe against it. Init can write everything, as it can today.
 - **`MRET` and `SRET` have no privilege check, so D6 alone does not confine a child.** With D6 on, no load or store
   reaches `.bss`, since they go through `translate_address`. D6 does not touch either opcode. `MPP=S` and `MEPC=main`
@@ -385,6 +386,14 @@ One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`
   258's `hostile_reply` in their shape would pass without testing anything. It must add a PDE first, then try both the
   `ecall` route and a U-mode `sret`. Step 258's `HR: heap-intact=yes` is the expected answer for the `ecall` route only:
   the `sret` route is expected to forge while D6 is off and `SRET` is unchecked.
+- **Booted by `hostile_reply` (Phase 21, D6 off).** It adds the PDE and tries each route. A word stored ahead of an
+  `ecall` does not take effect: `HR: heap-intact=yes`, and with the wipe removed that line goes to `=no`. A U-mode `sret`
+  forges: a chosen SET_BRK lands and the child keeps control, so that route is now demonstrated, not expected. The probe
+  picks a value inside the heap window; D3 normalizes one outside it, read from the code and not booted. A forged KILL of
+  slot 0 was refused (`HR: kill-init-refused=yes`). The same alias reaches
+  `fresh_mask`, so a child can run the fork note on a slot it names (`HR: note-forged=yes`, on a free slot). On a live
+  slot the note would close that row's fds and hand it the forger's: read from the code, not booted. The harness pins both
+  forgeries, so a change to either shows up. All of this needs D6 off, and none of it is closed here.
 
 ## Review
 

@@ -330,3 +330,57 @@ Steps 254-255: gate pipe-after, same=12 diff=0 rc=0 doom=1 ascend=889941. `pipep
 | Rung | Off | On | Delta | Net vs 921036 | Gate |
 |---|---|---|---|---|---|
 | pipe | 890496 | 889941 | -555 | 31095 | pipe-after |
+
+## Attack surface
+
+Step 257. One row per landed rung. Kernel C now parses user pointers where the verifier used to bound every access, so each row names the check that bounds a read and the line that proves it. "Open" means a line that shows the hole, not a check that closes it. Every user pointer ends at `upc_user_pa`: below `UPC_USER_VA_CEILING`, plus the slot's slice base. Words a child stores ahead of a trap are covered by the `hostile_reply` rows; "BPF" means BPF reads the word.
+
+| Rung | New read | Who writes it | What bounds it | Proof |
+|---|---|---|---|---|
+| uptime | `ticks` in `upc_slot_enter` | BPF, each injection | Only moves forward; a forged word is overwritten at the next injection | `UP: child-mono=yes` |
+| sbrk | `brk_in` in `upc_sbrk` | BPF, each injection | Outside [0x10000, 0x40000] normalizes to the base; `n` checked against both ends and INT_MIN; memset stays in the window | `SB: over-cap-refused`, `SB: under-base-refused`, `SB: intmin-refused` |
+| sbrk | `reply` and `reply_arg`, SET_BRK (BPF) | Kernel | Tag check, wipe at trap entry; the value is stored unchecked and bounded at its next use by the `brk_in` row | `HR: heap-intact=yes`; open: `HR: sret-forged=yes` |
+| kill | `pid` argument in `upc_kill` | User | 2 to 8 | `KL: zero-refused`, `KL: neg-refused`, `KL: huge-refused`, `KL: init-refused` |
+| kill | `reply_arg`, KILL (BPF) | Kernel | Masked to 7, `t != 0`, below `num_processes`, not halted | `KL: dead-refused`; forged at slot 0: `HR: kill-init-refused=yes` |
+| mkdir | path, a0 | User | `copyinstr` through `upc_user_pa`; no NUL before the ceiling refuses | `HU: unterminated-refused`, `HU: ceiling-refused`, `HU: kernel-refused`, `HU: wrap-refused`, `MK: noparent-refused` |
+| unlink | path, a0 | User | Same `argstr` as mkdir; `hostile_ptr` boots mkdir only, so the pointer bound here is read from the code | `RM: missing-refused`, `RM: dot-refused`, `RM: dotdot-refused` |
+| link | two paths, a0 and a1 | User | As unlink | `LN: missing-refused`, `LN: dup-refused`, `LN: dir-refused` |
+| sleep | `n` in `upc_pause`; `reply`, YIELD (BPF) | User; kernel | `n <= 0` returns at once; YIELD takes no argument and only reschedules, so forging it buys a slot its own turn. Not booted forged | `SL: zero`, `SL: neg` |
+| fd table | read and write buffers, stat pointer, open path | User | `copyin`, `copyout`, `copyinstr` through `upc_user_pa` | `FD: read-ptr-refused`, `FD: write-ptr-refused`, `FD: fstat-ptr-refused` |
+| fd table | fd number at or above 16 | User | `argfd` takes off 16, then bounds the index against `ofile` | `FD: read-bad`, `FD: write-neg`, `FD: close-unopened`, `FD: fstat-bad`, `FD: dup-bad` |
+| fd table | `fresh_mask` and slot in `upc_forknote` | BPF; a0 | Slot 1 to 7 and the fresh bit, set only from finalize to the note | `FD: note-zero`, `FD: note-neg`, `FD: note-huge`, `FD: note-own`, `FD: note-live`, `HR: note-refused=yes`; open: `HR: note-forged=yes` |
+| fd table | `reply`, EXIT (BPF) | Kernel | Ends the current slot only. Not booted forged | `FD: exit-closed`, for the honest path |
+| chdir | path | User | `copyinstr` through `upc_user_pa` | `CD: nope-refused`, `CD: file-refused`, `CD: rel-file-refused` |
+| chdir | `cwd_mask` (BPF) | Kernel | One bit, and it only picks which side serves open. Not booted forged | `CD: bpf-again` |
+| pipe | fd array pointer, a0 | User | `copyout` of two words through `upc_user_pa`; a refusal closes both ends | `PI: bad-refused`, `PI: no-leak` |
+| pipe | read and write buffers | User | `copyin`, `copyout` through `upc_user_pa`, in `piperead` and `pipewrite`. A bad write buffer returns 0, not -1, as stock xv6 does: read from the code | `PI: bad-refused` covers the fd array only |
+
+One carried limit, in no single row: slot 0's base is 0, so init's only bound is the 8 MiB ceiling, and a kernel-routed `copyout` from init can write kernel memory below it (Phase 13's note). Init is identity-mapped and can already store there, so that buys nothing new.
+
+## Phase 21, security pass
+
+Step 258: `user/hostile_reply.c`, tokens `HR:`, gated when `UPC_REPLY` is on. The step's shape alone cannot test anything (R-F9): the table links below 8 MiB, so that store lands in the child's slice. It is kept as the first check, `HR: own-slice-intact`. The probe then adds a PDE to its own pgd, a superpage at physical 0 on free PDE 2, and forges through that alias by three routes:
+
+| Route | Expected, D6 off | Booted |
+|---|---|---|
+| Word stored ahead of an ecall | wiped at entry | `HR: heap-intact=yes` |
+| Forged `fresh_mask`, then 24 on a free slot | lands | `HR: note-refused=yes`, then `HR: note-forged=yes` |
+| U-mode `sret`, real SEPC set through the alias, forged SET_BRK | lands | `HR: sret-forged=yes`: `sbrk(0)` answers 0x20000 |
+| U-mode `sret`, forged KILL of slot 0 | refused | `HR: kill-init-refused=yes`, then `HR: done` from init |
+
+So a U-mode `sret` does place a chosen reply and keep control, which ADR-135 had as expected and now has as booted. The forged break was chosen inside the heap window; a value outside it is normalized at its next use by `upc_sbrk`, read from the code and not booted. The KILL bound held.
+
+The first draft trapped with `sbrk(0)`, and that could not fail: `upc_sbrk` calls `upc_reply`, which overwrites the forged word with or without the wipe. The ecall route now traps with `getpid`, whose handler sends no reply. Two mutants, each restored from a saved copy, not git:
+
+| Mutant | Result |
+|---|---|
+| `upc_slot_enter` does not wipe `reply` and `reply_arg` | `HR: heap-intact=no`, every other line unchanged |
+| BPF's KILL block drops `t != 0` | `HR: kill-init-refused=no`, init dead, no `HR: done` |
+
+The first mutant also showed a draft line, `word-wiped`, staying `=yes`, because BPF clears any tagged word it consumes. It could not tell a wipe from a consumed forgery, so it was removed. After both mutants the kernel `.mbc` hash matched and `vcount` read 889941.
+
+Not booted: the harness's D6-on branch (`HR: table-reached=no`, `HR: route=closed`), since D6 stays off; a forged note against a live slot, which by `upc_forknote` closes that row's fds and hands it the forger's; forged YIELD, EXIT and `cwd_mask`.
+
+Step 259: `UPC_D6_MISS_FAULT` false, count 1.
+
+Steps 260-261: `cargo-fuzz` is not installed (`error: no such command: fuzz`), so `fuzz_mbc_execute` is a SKIP, as Stage 2 Step 140 was. A SKIP is not a pass.
