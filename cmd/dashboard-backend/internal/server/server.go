@@ -3521,13 +3521,19 @@ func readLocalProcessCounts() (total, zombie int) {
 	return
 }
 
+// fetchClient answers for the configured address, as the scrape and health
+// clients do: a redirect is a failed fetch. Callers bound it with a context.
+var fetchClient = &http.Client{
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
 // fetchURL fetches the body of a URL with the given context.
 func fetchURL(ctx context.Context, url string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fetchClient.Do(req)
 	if err != nil {
 		return "", err
 	}
