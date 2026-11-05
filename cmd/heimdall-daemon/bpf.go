@@ -40,6 +40,9 @@ type HookConfig struct {
 	Dir      string // directory holding the heimdall-* objects
 	XDPIface string // "" = no XDP observer
 	XDPMode  string // "generic" (default) or "native"
+	// AllowUntrustedObjects loads objects a non-root user could have written,
+	// as a build tree's are. Development only.
+	AllowUntrustedObjects bool
 }
 
 // hookEvent is one decoded ringbuf record: exactly one field is set.

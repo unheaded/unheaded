@@ -20,7 +20,10 @@ func TestLoadObject_ChecksTheObject(t *testing.T) {
 	if err := os.WriteFile(path, []byte("not an object"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := loadObject(path); !errors.Is(err, objtrust.ErrUntrusted) {
+	if _, _, err := loadObject(path, false); !errors.Is(err, objtrust.ErrUntrusted) {
 		t.Fatalf("err = %v, want objtrust.ErrUntrusted", err)
+	}
+	if _, _, err := loadObject(path, true); err == nil || errors.Is(err, objtrust.ErrUntrusted) {
+		t.Fatalf("opt-out: err = %v, want the object itself refused", err)
 	}
 }

@@ -7,8 +7,9 @@
 // so write access to its object is worth as much as write access to a root
 // loader's.
 //
-// What it guarantees: only root could have written the file or replaced any
-// directory above it, at the moment of the check.
+// What it guarantees: only root could have written the file, replaced any
+// directory above it or repointed any symlink on the way to it, at the moment
+// of the check. So the path a caller opens afterwards still leads there.
 //
 // What it cannot cover:
 //   - Integrity. It reads owners and modes, not bytes. A bad object that root
@@ -18,8 +19,9 @@
 //     and the shell tools (bpftool, ip, tc) do not come through here.
 //   - Pinned objects. Opening a pin in bpffs takes what is already in the
 //     kernel; it has no file to check.
-//   - Explicit opt-outs: --allow-untrusted-ebpf-obj-dir, -allow-untrusted-obj
-//     and LoaderConfig.AllowUntrustedObjectPaths, for development trees.
+//   - Explicit opt-outs, for development trees: --allow-untrusted-ebpf-obj-dir,
+//     -allow-untrusted-obj, --allow-untrusted-bpf-dir, YALD_ALLOW_UNTRUSTED_OBJ
+//     and LoaderConfig.AllowUntrustedObjectPaths.
 package objtrust
 
 import (
@@ -27,34 +29,83 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"strings"
 )
 
 // ErrUntrusted is returned for an object that a non-root user could have written.
 var ErrUntrusted = errors.New("eBPF object path is writable by a non-root user")
 
 // statFunc reports a path's owner uid and mode without following a final
-// symlink (the caller resolves symlinks first).
+// symlink.
 type statFunc func(path string) (uid uint32, mode fs.FileMode, err error)
 
+// readlinkFunc reports a symlink's target as written.
+type readlinkFunc func(path string) (string, error)
+
+// maxLinks is how many symlinks one path may pass through, as in the kernel.
+const maxLinks = 40
+
 // chainError applies ssh StrictModes semantics to an object about to be
-// loaded: the file and every directory above it must be owned by root and not
-// group- or world-writable. Write access to any of them is the ability to run
-// arbitrary BPF in the kernel, so a user-owned build directory (ebpf/target on
-// west) is not a trust anchor. path must already be absolute and symlink-free.
-func chainError(path string, stat statFunc) error {
-	for p := path; ; p = filepath.Dir(p) {
-		uid, mode, err := stat(p)
-		if err != nil {
-			return fmt.Errorf("%w: stat %s: %v", ErrUntrusted, p, err)
-		}
-		if uid != 0 {
-			return fmt.Errorf("%w: %s is owned by uid %d, not root", ErrUntrusted, p, uid)
-		}
-		if mode.Perm()&0o022 != 0 {
-			return fmt.Errorf("%w: %s is group- or world-writable (%v)", ErrUntrusted, p, mode.Perm())
-		}
-		if parent := filepath.Dir(p); parent == p {
-			return nil
-		}
+// loaded: the file, every directory above it and every symlink met on the way
+// must be owned by root, and the file and directories must not be group- or
+// world-writable. Write access to any of them is the ability to run arbitrary
+// BPF in the kernel, so a user-owned build directory (ebpf/target on west) is
+// not a trust anchor. It walks path one component at a time, as the kernel
+// does, following links as it meets them, so a link's own directory is checked
+// and not only where the link ends up. path must be absolute.
+func chainError(path string, stat statFunc, readlink readlinkFunc) error {
+	if _, err := trustedEntry("/", stat); err != nil {
+		return err
 	}
+	cur, links := "/", 0
+	pending := strings.Split(path, "/")
+	for len(pending) > 0 {
+		name := pending[0]
+		pending = pending[1:]
+		switch name {
+		case "", ".":
+			continue
+		case "..":
+			cur = filepath.Dir(cur)
+			continue
+		}
+		next := filepath.Join(cur, name)
+		mode, err := trustedEntry(next, stat)
+		if err != nil {
+			return err
+		}
+		if mode&fs.ModeSymlink == 0 {
+			cur = next
+			continue
+		}
+		if links++; links > maxLinks {
+			return fmt.Errorf("%w: %s passes through more than %d symlinks", ErrUntrusted, path, maxLinks)
+		}
+		target, err := readlink(next)
+		if err != nil {
+			return fmt.Errorf("%w: readlink %s: %v", ErrUntrusted, next, err)
+		}
+		if filepath.IsAbs(target) {
+			cur = "/"
+		}
+		pending = append(strings.Split(target, "/"), pending...)
+	}
+	return nil
+}
+
+// trustedEntry checks one file, directory or symlink and returns its mode. A
+// symlink's mode means nothing: only its owner and its directory decide who can
+// repoint it.
+func trustedEntry(p string, stat statFunc) (fs.FileMode, error) {
+	uid, mode, err := stat(p)
+	if err != nil {
+		return 0, fmt.Errorf("%w: stat %s: %v", ErrUntrusted, p, err)
+	}
+	if uid != 0 {
+		return 0, fmt.Errorf("%w: %s is owned by uid %d, not root", ErrUntrusted, p, uid)
+	}
+	if mode&fs.ModeSymlink == 0 && mode.Perm()&0o022 != 0 {
+		return 0, fmt.Errorf("%w: %s is group- or world-writable (%v)", ErrUntrusted, p, mode.Perm())
+	}
+	return mode, nil
 }

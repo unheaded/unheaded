@@ -13,16 +13,16 @@ import (
 	"syscall"
 )
 
-// Check resolves path and applies chainError with the real owners and modes.
+// Check applies chainError to path with the real owners and modes.
 func Check(path string) error {
-	abs, err := filepath.Abs(path)
-	if err == nil {
-		abs, err = filepath.EvalSymlinks(abs)
+	if !filepath.IsAbs(path) {
+		wd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("%w: resolve %s: %v", ErrUntrusted, path, err)
+		}
+		path = wd + "/" + path
 	}
-	if err != nil {
-		return fmt.Errorf("%w: resolve %s: %v", ErrUntrusted, path, err)
-	}
-	return chainError(abs, lstatOwner)
+	return chainError(path, lstatOwner, os.Readlink)
 }
 
 func lstatOwner(p string) (uint32, fs.FileMode, error) {

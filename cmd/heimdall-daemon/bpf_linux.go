@@ -59,10 +59,13 @@ type bpfHooks struct {
 
 var processedRE = regexp.MustCompile(`processed (\d+) insns`)
 
-// loadObject loads one Aya object, if only root could have written it.
-func loadObject(path string) (*ciliumebpf.Collection, map[string]int, error) {
-	if err := objtrust.Check(path); err != nil {
-		return nil, nil, err
+// loadObject loads one Aya object, if only root could have written it or the
+// operator said to load it anyway.
+func loadObject(path string, allowUntrusted bool) (*ciliumebpf.Collection, map[string]int, error) {
+	if !allowUntrusted {
+		if err := objtrust.Check(path); err != nil {
+			return nil, nil, err
+		}
 	}
 	return loadObjectUnchecked(path)
 }
@@ -100,7 +103,7 @@ func loadHooks(cfg HookConfig) (*bpfHooks, []error) {
 	var errs []error
 
 	attach := func(obj string, do func(*ciliumebpf.Collection) (link.Link, error), rbName string, horn bool) {
-		coll, counts, err := loadObject(filepath.Join(cfg.Dir, obj))
+		coll, counts, err := loadObject(filepath.Join(cfg.Dir, obj), cfg.AllowUntrustedObjects)
 		if err != nil {
 			errs = append(errs, err)
 			return

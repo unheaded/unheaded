@@ -1,4 +1,4 @@
-.TH HEIMDALL\-DAEMON 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.TH HEIMDALL\-DAEMON 1 "2026-11-05" "unheaded 6110a41e" "Unheaded Kingdom"
 .SH NAME
 heimdall\-daemon \- Heimdall: watch this host for drift from the Mjölnir baseline and publish signed drift events; alerts only, never restores (ADR\-043).
 .SH SYNOPSIS
@@ -10,6 +10,9 @@ Heimdall: watch this host for drift from the Mjölnir baseline and publish signe
 .TP
 .B \-\-allow\-unsigned
 load a manifest without verifying a seal (lab runs only)
+.TP
+.B \-\-allow\-untrusted\-bpf\-dir
+load \-\-bpf\-dir objects a non\-root user could have written, as a build tree's are (development only)
 .TP
 .B \-\-bpf\-dir \fISTRING\fR
 directory with the heimdall\-bpf objects: attach vfs_write/execve hooks (event\-driven scans); needs CAP_BPF
