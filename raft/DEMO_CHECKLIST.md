@@ -27,7 +27,8 @@ source ~/.venv/zhen/bin/activate
 cd ~/tmp/unheaded/raft
 python zhen_app.py &
 
-# 4. Verify
+# 4. Verify: rag_ready is true
+curl -s http://localhost:20103/health
 ```
 
 ## Performance Baseline
@@ -75,8 +76,9 @@ If **response quality** is poor:
 ## Final Verification (5 minutes before demo)
 
 ```bash
-source ~/.venv/zhen/bin/activate
-cd ~/tmp/unheaded/raft
+curl -s http://localhost:20100/v1/models
+curl -s http://localhost:20103/health
+curl -s http://localhost:20103/api/v1/stats
 ```
 
-All 10 tests should pass. If any fail, check the specific service and restart as needed.
+Each should answer as System Checks above says. If one does not, check that service and restart it as needed. The ten-test integration script moved to `unheaded-forge` with the rest of the training work.

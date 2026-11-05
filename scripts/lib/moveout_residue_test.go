@@ -40,11 +40,14 @@ var moveoutGone = []struct {
 	forbidden string
 }{
 	{"nix/containers/gateway.nix", `(?i)doom`},
+	{"raft/DEMO_CHECKLIST.md", `# 4\. Verify\n` + "```"},
+	{"raft/DEMO_CHECKLIST.md", `All 10 tests`},
+	{"raft/DEMO_CHECKLIST.md", `04_integration_tests`},
 }
 
 func TestMoveOutResidueStaysGone(t *testing.T) {
 	for _, row := range moveoutGone {
-		t.Run(row.file, func(t *testing.T) {
+		t.Run(row.file+"/"+row.forbidden, func(t *testing.T) {
 			re := regexp.MustCompile(row.forbidden)
 			if lines := moveoutHitLines(moveoutRepoFile(t, row.file), re); len(lines) > 0 {
 				t.Errorf("%s still matches %q at lines %v", row.file, row.forbidden, lines)
