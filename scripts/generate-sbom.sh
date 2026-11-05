@@ -52,8 +52,19 @@ def licenses(packages):
 direct = [d for d in go['packages'] if not d['indirect']]
 direct_rows = '\n'.join(f"| {d['module']} | {d['version']} | {d.get('license', 'unknown')} |"
                         for d in sorted(direct, key=lambda d: d['module']))
-verdict = 'PASS: no GPL-licensed Go module or Rust crate.' if not (go_gpl or rust_gpl) \
-    else 'REVIEW: GPL-licensed dependencies: ' + ', '.join(go_gpl + rust_gpl) + '.'
+# Both license databases are hand-kept and hold no GPL entry, so a package
+# they do not know lands as Unknown or "(assumed)", never as GPL. Only licenses
+# actually read can clear anything.
+go_unread = sum(1 for d in go['packages'] if d.get('license', 'Unknown').lower() == 'unknown')
+rust_unread = sum(1 for p in rust['packages'] if '(assumed)' in p.get('license', ''))
+unread = f"{go_unread} of {len(go['packages'])} Go modules are Unknown and " \
+         f"{rust_unread} of {len(rust['packages'])} Rust crates are assumed."
+if go_gpl or rust_gpl:
+    verdict = 'REVIEW: GPL-licensed dependencies: ' + ', '.join(go_gpl + rust_gpl) + '. ' + unread
+elif go_unread or rust_unread:
+    verdict = f'INCOMPLETE: no license read is GPL, but {unread} Those are not cleared.'
+else:
+    verdict = 'PASS: every license was read and none is GPL.'
 
 open(f'{sbom_dir}/SBOM.md', 'w').write(f"""# Unheaded Software Bill of Materials (SBOM)
 
@@ -71,6 +82,10 @@ JavaScript and runtime components outside these lists are in `THIRD_PARTY.md`.
 | Go | {gs['totalDependencies']} | {gs['directDependencies']} | `sbom/go-dependencies.json` |
 | Rust | {rs['totalExternalCrates']} external, {len(rs['workspaceCrates'])} workspace | | `sbom/rust-dependencies.json` |
 | Python | {len(python)} | | `sbom/python-pip-freeze.txt`, a `pip freeze` of the Zhen venv, not a manifest |
+
+Rust lock files read: {', '.join(f'`{f}`' for f in rs['lockFiles'])}.
+
+Rust workspace crates: {', '.join(f'`{c}`' for c in rs['workspaceCrates'])}.
 
 ## Go licenses
 
@@ -391,7 +406,7 @@ if go_gpl:
     for g in go_gpl:
         print(f"  Go GPL: {g['module']} ({g['license']})")
 else:
-    print("  Go: PASS - No GPL dependencies")
+    print(f"  Go: no GPL among licenses read; {sum(1 for d in go['packages'] if d.get('license', 'Unknown').lower() == 'unknown')} Unknown")
 
 # Check Rust GPL deps
 rust_gpl = [p for p in rust['packages'] if 'GPL' in p.get('license', '')]
@@ -399,7 +414,7 @@ if rust_gpl:
     for r in rust_gpl:
         print(f"  Rust GPL: {r['crate']} ({r['license']})")
 else:
-    print("  Rust: PASS - No GPL dependencies")
+    print(f"  Rust: no GPL among licenses read; {sum(1 for p in rust['packages'] if '(assumed)' in p.get('license', ''))} assumed")
 
 # Summary
 print(f"\n  Go:     {go['summary']['totalDependencies']} deps ({go['summary']['directDependencies']} direct)")

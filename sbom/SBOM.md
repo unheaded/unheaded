@@ -15,6 +15,10 @@ JavaScript and runtime components outside these lists are in `THIRD_PARTY.md`.
 | Rust | 352 external, 43 workspace | | `sbom/rust-dependencies.json` |
 | Python | 197 | | `sbom/python-pip-freeze.txt`, a `pip freeze` of the Zhen venv, not a manifest |
 
+Rust lock files read: `cmd/crypto-inventory/testdata/rust/Cargo.lock`, `cmd/ebpf-collector/Cargo.lock`, `cmd/ebpf-collector/ebpf-programs/Cargo.lock`, `cmd/ebpf-load-check/Cargo.lock`, `cmd/ebpf-loader/Cargo.lock`, `cmd/upc-bootctl/Cargo.lock`, `crates/heimdall-bpf/Cargo.lock`, `crates/lich-fuzz/Cargo.lock`, `crates/monad-mbc/Cargo.lock`, `crates/monad-mbc/fuzz/Cargo.lock`, `crates/svc-token/Cargo.lock`, `crates/upc-api/Cargo.lock`, `crates/upc-api/fuzz/Cargo.lock`, `crates/upc-bootstub/Cargo.lock`, `crates/upc-cartridge/Cargo.lock`, `crates/xv6-mbc/Cargo.lock`, `crates/zhend/Cargo.lock`, `ebpf/Cargo.lock`, `tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock`.
+
+Rust workspace crates: `anomaly-ebpf`, `aws-lc-rs`, `canary-ebpf`, `cartridge-ebpf`, `collector`, `compliance-ebpf`, `ebpf-common`, `ebpf-load-check`, `ebpf-loader`, `ebpf-programs`, `failover-ebpf`, `firewall-ebpf`, `flow-tracker`, `heimdall-bpf`, `hop-ebpf`, `latency-probe`, `lich-fuzz`, `lich015-diff-harness`, `maglev-ebpf`, `monad-common`, `monad-cpu-ebpf`, `monad-mbc`, `monad-mbc-fuzz`, `nfv-ebpf`, `packet-marker`, `pqc-common`, `pqcrypto-mlkem`, `qos-ebpf`, `ring`, `rustls`, `shield-ebpf`, `syscall-tracer`, `unheaded-common`, `unheaded-svc-token`, `upc-api`, `upc-api-fuzz`, `upc-bootctl`, `upc-bootstub`, `upc-cartridge`, `version-ebpf`, `xv6-mbc`, `yaldabaoth-ebpf`, `zhend`.
+
 ## Go licenses
 
 | License | Count |
@@ -64,7 +68,7 @@ JavaScript and runtime components outside these lists are in `THIRD_PARTY.md`.
 
 ## GPL boundary
 
-PASS: no GPL-licensed Go module or Rust crate.
+INCOMPLETE: no license read is GPL, but 71 of 148 Go modules are Unknown and 262 of 352 Rust crates are assumed. Those are not cleared.
 
 The compiled fixture under `doom/` is GPL-2.0. It runs inside the kernel's eBPF
 VM and talks through BPF maps, so nothing links it. HAProxy (GPL-2.0) is a
