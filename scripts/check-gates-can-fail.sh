@@ -118,6 +118,8 @@ restore_all() {
     local rc=$?
     restore_touched
     rm -rf "${BACKUP_DIR}"
+    # Nothing to keep: a directory this run made goes with it, on every exit.
+    rmdir "${GATE_LOG_DIR}" 2>/dev/null || true
 
     # Belt and braces: if the tree is still dirty after a run that mutated it,
     # say so loudly rather than leave the operator guessing. Only meaningful if
@@ -697,6 +699,17 @@ provoke_unit_flags() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_flags_relative() {
+    # Contract: a unit whose binary defaults to a ./relative path runs from its
+    # own state directory. Stop the gate looking, so unheaded-timeguru as east
+    # ran it passes.
+    local f="scripts/check-unit-flags.sh"
+    backup "${f}"
+    sed -i "s/^\t\tsource_has \"\$pkg\" '\"\\\\.\/\[A-Za-z\]' || continue$/\t\tcontinue/" "${REPO_ROOT}/${f}"
+    ! grep -q 'source_has "$pkg"' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_git_mirror() {
     # Contract (FND-005): the mirror never loses a ref west deleted. Switch
     # to push --mirror, which prunes them.
@@ -1179,6 +1192,7 @@ check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published adviso
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
 test-check-gitleaks-history|provoke_gitleaks_history|fast|check-gitleaks.sh --history treating a failed scan as findings (downloads the pinned tool)
+test-check-unit-flags|provoke_unit_flags_relative|fast|check-unit-flags.sh no longer reading relative defaults, so a unit with no working directory passes
 test-check-gates-can-fail|provoke_gates_output|fast|a clean run's output sent back to /dev/null, so an INCONCLUSIVE row names nothing
 test-generate-sbom|provoke_generate_sbom|fast|generate-sbom.sh's full run no longer writing sbom/SBOM.md, as from 2026-03-15
 test-fetch-tool|provoke_fetch_tool|fast|fetch-tool.sh unpacking over the cached binary in place, as it did until 2026-11-05
@@ -1446,9 +1460,6 @@ for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort)
         FAILURES=$((FAILURES + 1))
     fi
 done
-
-# Nothing to keep: a directory this run made goes with it.
-rmdir "${GATE_LOG_DIR}" 2>/dev/null || true
 
 # Print these EVERY run. A gate we cannot test is a real gap in coverage, and a
 # gap you cannot see is indistinguishable from one that does not exist.

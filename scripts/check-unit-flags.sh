@@ -13,13 +13,14 @@
 #   2. a deploy/systemd unit whose binary defaults to a ./relative path has a
 #      WorkingDirectory= that its own StateDirectory= creates and owns.
 #
-#   scripts/check-unit-flags.sh            # every tracked unit and unit template
+#   scripts/check-unit-flags.sh            # tracked .service and YAML files under
+#                                          # the paths listed below; not .nix or nixos/
 #   scripts/check-unit-flags.sh FILE...    # those files (scripts/test-check-unit-flags.sh)
 #
 # A flag declared some way this cannot read (a receiver it does not know, a
 # call split across lines, another package) fails: teach it, do not skip it.
 # Binaries built elsewhere (cargo, third-party) are out of scope. Compose
-# `command:` lists are not read.
+# `command:` lists and Nix unit definitions are not read.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
