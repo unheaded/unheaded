@@ -21,11 +21,18 @@
 # root 0700, and nothing reads pins from this process. Logs go to the journal,
 # which rotates them; under a hand launch they went to a file nothing rotated
 # (4.3 GB in ten hours while Wotan was down, 2026-10-18).
+#
+# Listens on loopback by default, with auth on. /health, /ready and /metrics
+# stay open; /api/v1/* needs a credential (and refuses everyone on a host with
+# no trust.d yet). Prometheus scrapes the overlay, so each host names it in
+# /etc/unheaded/trace-collector.env:
+#   TRACE_METRICS_ADDR=127.0.0.1:16671,[fd00:dead:beef::1]:16671   (west; ::2 on east)
+# A bind that cannot be made stops the start; Restart= retries it.
 
 [Unit]
 Description=Unheaded trace collector (eBPF to Wotan)
 Documentation=https://github.com/unheaded/unheaded/blob/develop/deploy/systemd/README.md
-After=network-online.target systemd-sysusers.service docker.service
+After=network-online.target systemd-sysusers.service docker.service wg-quick@wg0.service
 Wants=network-online.target
 
 [Service]
@@ -37,6 +44,9 @@ TasksMax=512
 Environment=GOMEMLIMIT=460MiB
 Type=simple
 Environment=TRACE_IFACE=br-unhe-data
+Environment=TRACE_METRICS_ADDR=127.0.0.1:16671
+Environment=AUTH_ENABLED=true
+Environment=AUTH_ALLOW_CALLERS=unheaded-cli
 # TLS (S-IRON-GATE Phase 8; deploy/systemd/README.md#tls): Wotan and Cuirass
 # serve TLS only, so this unit dials them with the Kingdom CA. Its own
 # listener stays plain HTTP: no certificate of its own here (pkg/tls.ServesTLS).
@@ -44,7 +54,7 @@ Environment=UNHEADED_TLS_ENABLED=true
 Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
 ReadOnlyPaths=-/etc/unheaded/tls/ca.pem
 EnvironmentFile=-/etc/unheaded/trace-collector.env
-ExecStart=/usr/local/bin/trace-collector-go --unified --interface ${TRACE_IFACE} --ebpf-obj-dir /usr/local/lib/unheaded/ebpf --map-pin-path= --log-json
+ExecStart=/usr/local/bin/trace-collector-go --unified --interface ${TRACE_IFACE} --metrics-addr ${TRACE_METRICS_ADDR} --ebpf-obj-dir /usr/local/lib/unheaded/ebpf --map-pin-path= --log-json
 Restart=on-failure
 RestartSec=5s
 

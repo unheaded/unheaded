@@ -109,6 +109,12 @@ func DefaultAddr(port int) string {
 	return fmt.Sprintf(":%d", port)
 }
 
+// LoopbackAddr returns "127.0.0.1:<port>", the default bind of a listener
+// nothing off the host needs.
+func LoopbackAddr(port int) string {
+	return fmt.Sprintf("127.0.0.1:%d", port)
+}
+
 // PortOf returns the port of a listen address such as ":19006" or
 // "0.0.0.0:17000", or fallback when addr has no valid port.
 func PortOf(addr string, fallback int) int {

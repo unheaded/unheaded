@@ -100,6 +100,27 @@ type ServiceAuthConfig struct {
 	// "well" (unheaded_app.api_keys, as AUTH_WELL_USER, default app_auth)
 	// or "file:<absolute path>". Empty: no uhk_ keys. ADR-103 §5.
 	APIKeyStore string
+
+	// AuditLog is a file that keeps every auth decision (AUTH_AUDIT_LOG).
+	// Empty: refusals go to stderr, the service's journal.
+	AuditLog string
+}
+
+// ErrOpenListener: a listener off loopback with auth off.
+var ErrOpenListener = errors.New("auth: refusing a non-loopback listener with auth off (set AUTH_ENABLED=true, or bind 127.0.0.1)")
+
+// CheckListen refuses to start a listener that would serve a network with
+// no auth: every address must be loopback unless cfg has auth on.
+func CheckListen(addrs []string, cfg ServiceAuthConfig) error {
+	if cfg.Enabled {
+		return nil
+	}
+	for _, a := range addrs {
+		if !pqtls.IsLoopbackListenAddr(a) {
+			return fmt.Errorf("%w: %s", ErrOpenListener, a)
+		}
+	}
+	return nil
 }
 
 // LoadServiceAuthConfig loads auth configuration from environment variables.
@@ -115,6 +136,7 @@ func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 		TrustDir:      getEnvDefault("AUTH_TRUST_DIR", DefaultTrustDir),
 		OIDCIssuerURL: os.Getenv("AUTH_OIDC_ISSUER_URL"),
 		APIKeyStore:   os.Getenv("AUTH_APIKEY_STORE"),
+		AuditLog:      os.Getenv("AUTH_AUDIT_LOG"),
 	}
 	if v := os.Getenv("AUTH_OIDC_MAX_LIFETIME"); v != "" {
 		d, err := time.ParseDuration(v)
@@ -143,8 +165,9 @@ func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 //
 // Enabled never yields nil: with a configuration NewServiceMiddleware
 // refuses (no credentials, AUTH_JWT_KEY set, a broken trust dir or key
-// file) it logs the error and the middleware refuses every request outside
-// /health, /ready and /metrics. Returning nil there would serve the service
+// file, an AUTH_AUDIT_LOG that cannot be opened) it logs the error and the
+// middleware refuses every request outside /health, /ready and /metrics,
+// recording the refusals on stderr if the file is what failed. Returning nil there would serve the service
 // with no auth at all while its operator, and callers keyed on Enabled
 // (Cuirass opens its container write API), take it as protected. Callers
 // that can exit should use NewServiceMiddleware and refuse to start.
@@ -158,8 +181,16 @@ func SetupMiddleware(cfg ServiceAuthConfig) func(http.Handler) http.Handler {
 	if err != nil {
 		log.Error().Err(err).Str("service", cfg.ServiceName).
 			Msg("auth: refusing every request except /health /ready /metrics (see ADR-103)")
+		// This caller cannot exit, so a log that will not open costs the
+		// file, not the trail.
+		audit, auditErr := NewServiceAudit(cfg)
+		if auditErr != nil {
+			log.Error().Err(auditErr).Str("service", cfg.ServiceName).Msg("auth: recording refusals on stderr")
+			audit = stderrAudit(cfg)
+		}
 		// An empty MultiAuthenticator refuses every request (401).
-		return SkipAuthPaths(Middleware(&MultiAuthenticator{}), "/health", "/ready", "/metrics")
+		refuse := auditedAuthenticator{&MultiAuthenticator{}, audit}
+		return SkipAuthPaths(Middleware(refuse), "/health", "/ready", "/metrics")
 	}
 	return mw
 }
@@ -184,8 +215,22 @@ func NewServiceMiddleware(cfg ServiceAuthConfig) (func(http.Handler) http.Handle
 // ModeEdDSA (the default): service tokens verified against TrustDir with
 // the AllowCallers allowlist, user tokens from OIDCIssuerURL's JWKS, and
 // API keys; AUTH_JWT_KEY is refused. In ModeHS256Test (tests only): the
-// pre-ADR-103 HS256 user and service tokens, and API keys.
+// pre-ADR-103 HS256 user and service tokens, and API keys. Every decision
+// it makes goes to NewServiceAudit.
 func NewServiceAuthenticator(cfg ServiceAuthConfig) (Authenticator, error) {
+	a, err := configuredAuthenticator(cfg)
+	if err != nil {
+		return nil, err
+	}
+	audit, err := NewServiceAudit(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return auditedAuthenticator{a, audit}, nil
+}
+
+// configuredAuthenticator is NewServiceAuthenticator with no audit trail.
+func configuredAuthenticator(cfg ServiceAuthConfig) (Authenticator, error) {
 	var authenticators []Authenticator
 	switch cfg.Mode {
 	case "", ModeEdDSA:

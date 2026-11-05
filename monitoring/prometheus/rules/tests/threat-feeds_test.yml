@@ -18,7 +18,7 @@ tests:
           - exp_labels: {severity: warning, urgency: none, instance: "west:19120", job: kev-poller}
             exp_annotations:
               summary: "CISA KEV catalog on west:19120 not refreshed for 6h"
-              description: "Last good pull 6h 20m 0s ago; GET /api/v1/kev on the poller shows the last error"
+              description: "Last good pull 6h 20m 0s ago; the poller's /metrics has the pull counters and its unit log the last error"
               runbook_url: "runbooks/security/kev-feed-stale.yaml"
       - eval_time: 7d
         alertname: KEVFeedExpired

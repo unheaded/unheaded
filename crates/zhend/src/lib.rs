@@ -99,6 +99,10 @@ pub struct ZhenConfig {
     /// gRPC listen address.
     pub grpc_addr: String,
 
+    /// Serve gRPC on an address other than loopback. The API has no auth or
+    /// TLS, so `api::grpc::serve` refuses that unless this is set.
+    pub grpc_allow_non_loopback: bool,
+
     /// QUIC listen address.
     pub quic_addr: String,
 
@@ -132,6 +136,7 @@ impl Default for ZhenConfig {
         Self {
             data_dir: std::path::PathBuf::from("/var/lib/zhend"),
             grpc_addr: "[::1]:7300".into(),
+            grpc_allow_non_loopback: false,
             quic_addr: "[::1]:7301".into(),
             gossip_addr: "[::]:7302".into(),
             seed_peers: vec![],

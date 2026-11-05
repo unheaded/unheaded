@@ -6,9 +6,7 @@
 cmd/alert-mailer/main.go
 cmd/heimdall-daemon/metrics.go
 cmd/huginn/main.go
-cmd/kev-poller/main.go
 cmd/routing-health/main.go
-cmd/shield/main.go
 cmd/steel-echo/serve.go
 cmd/syslog-relay/main.go
 cmd/upc-cartridgectl/main_linux.go
@@ -18,7 +16,6 @@ pkg/httputil/pprof.go
 pkg/tls/server.go
 pkg/tls/setup.go
 pkg/wotan-client/wotantest/wotantest.go
-services/anomaly/anomaly.go
 services/compliance/wire_compliance.go
 services/firewall/firewall.go
 services/gateway/gateway.go

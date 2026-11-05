@@ -69,6 +69,7 @@ func RBACMiddleware(cfg RBACConfig) func(http.Handler) http.Handler {
 						Service:   cfg.ServiceName,
 						Endpoint:  r.URL.Path,
 						Method:    r.Method,
+						IP:        peerIP(r),
 						Result:    "denied",
 						Reason:    "no identity in context",
 					})
@@ -84,6 +85,7 @@ func RBACMiddleware(cfg RBACConfig) func(http.Handler) http.Handler {
 						Service:   cfg.ServiceName,
 						Endpoint:  r.URL.Path,
 						Method:    r.Method,
+						IP:        peerIP(r),
 						Subject:   identity.Subject,
 						Result:    "denied",
 						Reason:    "insufficient role",
@@ -99,6 +101,7 @@ func RBACMiddleware(cfg RBACConfig) func(http.Handler) http.Handler {
 					Service:   cfg.ServiceName,
 					Endpoint:  r.URL.Path,
 					Method:    r.Method,
+					IP:        peerIP(r),
 					Subject:   identity.Subject,
 					Result:    "allowed",
 				})

@@ -7,10 +7,12 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -23,25 +25,9 @@ import (
 // On failure, returns codes.Unauthenticated or codes.PermissionDenied.
 func GRPCUnaryInterceptor(auth Authenticator) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// Extract authorization metadata
-		md, ok := metadata.FromIncomingContext(ctx)
-		if !ok {
-			return nil, status.Error(codes.Unauthenticated, "missing metadata")
-		}
-
-		authValues := md.Get("authorization")
-		if len(authValues) == 0 {
-			return nil, status.Error(codes.Unauthenticated, "missing authorization header")
-		}
-
-		// Create a minimal http.Request with the Authorization header for the authenticator
-		fakeReq := &http.Request{Header: http.Header{"Authorization": authValues}}
-		identity, err := auth.Authenticate(ctx, fakeReq)
-		if err == nil && identity == nil {
-			err = ErrUnauthenticated
-		}
+		identity, err := grpcAuthenticate(ctx, auth, info.FullMethod)
 		if err != nil {
-			return nil, grpcAuthError(err)
+			return nil, err
 		}
 
 		// Store identity in context for the handler
@@ -54,25 +40,9 @@ func GRPCUnaryInterceptor(auth Authenticator) grpc.UnaryServerInterceptor {
 // authorization headers from the request metadata.
 func GRPCStreamInterceptor(auth Authenticator) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		// Extract authorization metadata
-		md, ok := metadata.FromIncomingContext(ss.Context())
-		if !ok {
-			return status.Error(codes.Unauthenticated, "missing metadata")
-		}
-
-		authValues := md.Get("authorization")
-		if len(authValues) == 0 {
-			return status.Error(codes.Unauthenticated, "missing authorization header")
-		}
-
-		// Authenticate
-		fakeReq := &http.Request{Header: http.Header{"Authorization": authValues}}
-		identity, err := auth.Authenticate(ss.Context(), fakeReq)
-		if err == nil && identity == nil {
-			err = ErrUnauthenticated
-		}
+		identity, err := grpcAuthenticate(ss.Context(), auth, info.FullMethod)
 		if err != nil {
-			return grpcAuthError(err)
+			return err
 		}
 
 		// Wrap the stream context with identity
@@ -82,6 +52,47 @@ func GRPCStreamInterceptor(auth Authenticator) grpc.StreamServerInterceptor {
 		}
 
 		return handler(srv, wrappedStream)
+	}
+}
+
+// auditMethodGRPC is the Method of an audit event from a gRPC call, whose
+// Endpoint is the full method name.
+const auditMethodGRPC = "GRPC"
+
+// grpcAuthenticate verifies the call's "authorization" metadata through a
+// minimal http.Request carrying what an audit event reports: the method and
+// the peer. A call with no credential never reaches a, so its refusal is
+// recorded here. The error returned is a gRPC status.
+func grpcAuthenticate(ctx context.Context, a Authenticator, fullMethod string) (*Identity, error) {
+	r := &http.Request{Method: auditMethodGRPC, URL: &url.URL{Path: fullMethod}, Header: http.Header{}}
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		r.RemoteAddr = p.Addr.String()
+	}
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		recordGRPCRefusal(a, r)
+		return nil, status.Error(codes.Unauthenticated, "missing metadata")
+	}
+	authValues := md.Get("authorization")
+	if len(authValues) == 0 {
+		recordGRPCRefusal(a, r)
+		return nil, status.Error(codes.Unauthenticated, "missing authorization header")
+	}
+	r.Header["Authorization"] = authValues
+	identity, err := a.Authenticate(ctx, r)
+	if err == nil && identity == nil {
+		err = ErrUnauthenticated
+	}
+	if err != nil {
+		return nil, grpcAuthError(err)
+	}
+	return identity, nil
+}
+
+// recordGRPCRefusal notes a call refused before reaching a, if a keeps a trail.
+func recordGRPCRefusal(a Authenticator, r *http.Request) {
+	if rec, ok := a.(refusalRecorder); ok {
+		rec.recordRefusal(r, ErrUnauthenticated)
 	}
 }
 

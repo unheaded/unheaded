@@ -22,8 +22,25 @@ Two authentication mechanisms are planned:
 
 - Used by: All service-to-service calls within the Kingdom (ADR-103)
 - Flow: each binary mints a 5-minute EdDSA token per target; TLS 1.3 carries it
+- Trust: verifiers re-read `trust.d` every 30 seconds, so adding or removing a `.pub` needs no restart, provided the directory existed when the service started: one created later (first `unheaded-keygen` on a host) needs a restart; user-token keys stop being trusted after three JWKS TTLs with no good fetch
 - Validation: the caller's `.pub` in `trust.d`, the caller in `AUTH_ALLOW_CALLERS`
 - Identity: `sub` = key name (e.g. `timeguru`, `captain`)
+
+### Audit trail
+
+Every refusal, at authentication or at RBAC, over HTTP or gRPC, is recorded as
+one JSON line with the service, path (for gRPC, the full method), method (`GRPC`
+for gRPC), peer address and subject, never a credential. By default these go to
+stderr, the service's journal. `AUTH_AUDIT_LOG=<path>` keeps every decision in
+that file, each accepted credential included, with a further line from RBAC
+where the service has it; a unit needs `ReadWritePaths=` for it. Paths and
+methods are cut to 512 bytes. The file is not rotated.
+
+A log that cannot be opened stops a service built on `NewServiceHandler`,
+`NewServiceChain`, `NewServiceMiddleware` or `NewServiceAuthenticator`. On
+`SetupMiddleware`, whose callers cannot exit, the service keeps running, refuses
+every request outside `/health`, `/ready` and `/metrics`, and records the
+refusals on stderr.
 
 ### Common Interface
 

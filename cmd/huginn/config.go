@@ -64,7 +64,7 @@ func (d *duration) UnmarshalYAML(value *yaml.Node) error {
 
 func defaultConfig() Config {
 	return Config{
-		Listen:    ":9110",
+		Listen:    "127.0.0.1:9110",
 		HostLabel: "",
 		Collection: CollectionConfig{
 			Interval:        duration{10 * time.Second},

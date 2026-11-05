@@ -20,7 +20,9 @@ kanban=kanban-app:20001
 # off the LAN. Custom liveness paths are in health.go serviceHealthPaths.
 wiki=172.28.1.1:20002
 zhenai=172.28.1.1:20103
-huginn=172.28.1.1:9110
+# huginn binds named addresses (deploy/systemd/huginn.env.example): this is the
+# one the dashboard's host cards read, and it does not need the bridge up.
+huginn=192.168.13.2:9110
 llama-server=172.28.1.1:8081
 vor=172.28.1.1:20110
 # Compose publishes these two on the host's loopback, so the gateway refuses

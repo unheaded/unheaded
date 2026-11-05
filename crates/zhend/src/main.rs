@@ -40,6 +40,10 @@ struct Cli {
     #[arg(long, default_value = "[::1]:7300")]
     grpc_addr: String,
 
+    /// Serve gRPC off loopback. It has no auth or TLS; refused without this.
+    #[arg(long)]
+    grpc_allow_non_loopback: bool,
+
     /// QUIC listen address.
     #[arg(long, default_value = "[::1]:7301")]
     quic_addr: String,
@@ -101,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
     let config = ZhenConfig {
         data_dir: cli.data_dir.into(),
         grpc_addr: cli.grpc_addr,
+        grpc_allow_non_loopback: cli.grpc_allow_non_loopback,
         quic_addr: cli.quic_addr,
         gossip_addr: cli.gossip_addr,
         seed_peers: cli.seed_peers,
@@ -111,6 +116,9 @@ async fn main() -> anyhow::Result<()> {
         gossip_fanout: cli.gossip_fanout,
         gossip_interval_ms: cli.gossip_interval_ms,
     };
+
+    // Before anything opens: a bind this daemon must refuse stops the start.
+    zhend::api::grpc::check_bind(&config.grpc_addr, config.grpc_allow_non_loopback)?;
 
     // Open tiered store.
     let store = Arc::new(TieredStore::open(&config.data_dir)?);

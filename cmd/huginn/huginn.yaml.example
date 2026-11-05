@@ -2,7 +2,7 @@
 # Copy to /etc/huginn.yaml and adjust for this host.
 # All fields are optional; omitted fields use built-in defaults.
 
-# listen: ":9110"
+# listen: "127.0.0.1:9110"   # comma-separated; huginn has no auth, so internal addresses only
 # host_label: ""    # defaults to hostname
 
 collection:

@@ -18,6 +18,9 @@ time between pulls, 15m..24h (default 1h)
 .B \-\-keep \fIDURATION\fR
 delete snapshots older than this (the newest is always kept) (default 720h0m0s)
 .TP
+.B \-\-listen \fISTRING\fR
+HTTP listen addresses, comma\-separated, overriding \-\-port; off loopback needs AUTH_ENABLED=true
+.TP
 .B \-\-node \fISTRING\fR
 node identifier (default: hostname)
 .TP
@@ -25,7 +28,7 @@ node identifier (default: hostname)
 pull once, print a summary, exit (non\-zero on failure)
 .TP
 .B \-\-port \fIN\fR
-HTTP port for /health, /ready, /metrics, /api/v1/kev (default 19120)
+HTTP port on loopback for /health, /ready, /metrics, /api/v1/kev (default 19120)
 .TP
 .B \-\-stack \fISTRING\fR
 stack file (config/kev\-poller/stack.yaml): tag entries the Kingdom runs

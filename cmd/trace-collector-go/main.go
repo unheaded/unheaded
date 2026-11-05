@@ -31,8 +31,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -51,6 +53,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/healthreport"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
@@ -66,7 +69,7 @@ var (
 	ringPath      = flag.String("ring-path", ebpf.DefaultAnamnesisRingPath, "BPF ring buffer pin path")
 	wotanAddr     = flag.String("wotan-addr", "localhost:18001", "Wotan gRPC address")
 	wotanHTTPAddr = flag.String("wotan-http-addr", "localhost:18000", "Wotan HTTP address (fallback)")
-	httpAddr      = flag.String("http-addr", ports.DefaultAddr(ports.TraceCollectorHTTP), "HTTP address for health/metrics")
+	httpAddr      = flag.String("http-addr", ports.LoopbackAddr(ports.TraceCollectorHTTP), "HTTP listen addresses for health/metrics, comma-separated; off loopback needs AUTH_ENABLED=true")
 	maxRate       = flag.Int("max-rate", 10000, "Max events/sec (0 = unlimited)")
 	batchSize     = flag.Int("batch-size", 100, "Publish batch size")
 	batchTimeout  = flag.Duration("batch-timeout", 50*time.Millisecond, "Publish batch timeout")
@@ -75,7 +78,7 @@ var (
 
 	// Unified BPF loader flags
 	iface              = flag.String("interface", "lo", "Network interface to attach BPF programs")
-	metricsAddr        = flag.String("metrics-addr", ports.DefaultAddr(ports.TraceCollectorMetrics), "Prometheus metrics address (unified mode)")
+	metricsAddr        = flag.String("metrics-addr", ports.LoopbackAddr(ports.TraceCollectorMetrics), "HTTP listen addresses (unified mode), comma-separated; off loopback needs AUTH_ENABLED=true")
 	mapPinPath         = flag.String("map-pin-path", "/sys/fs/bpf/unheaded/", "BPF map pin path")
 	readInterval       = flag.Duration("read-interval", 100*time.Millisecond, "Map read interval")
 	enablePacketMarker = flag.Bool("enable-packet-marker", true, "Enable packet_marker XDP program")
@@ -617,7 +620,7 @@ func resolveEBPFObjDir() string {
 
 // runUnifiedMode starts the unified trace collector that loads all three
 // BPF programs (packet_marker, flow_tracker, latency_probe) based on flags.
-func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config) {
+func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, lns []net.Listener) {
 	log.Info().
 		Str("interface", *iface).
 		Str("wotan_addr", *wotanAddr).
@@ -901,13 +904,8 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	mux.Handle("/api/v1/traces", &TracesHandler{State: state})
 	mux.Handle("/api/v1/stats", &StatsHandler{State: state})
 
-	// Auth middleware (activated via AUTH_ENABLED=true)
-	unifiedAuthCfg := auth.LoadServiceAuthConfig("trace-collector")
-	unifiedHandler := auth.WrapHandler(mux, auth.SetupMiddleware(unifiedAuthCfg))
-
 	httpServer := &http.Server{
-		Addr:           *metricsAddr,
-		Handler:        unifiedHandler,
+		Handler:        apiHandler(mux, authCfg),
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
@@ -917,12 +915,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		IdleTimeout:       60 * time.Second,
 	}
 
-	go func() {
-		log.Info().Str("addr", *metricsAddr).Msg("unified HTTP server starting")
-		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
-			log.Error().Err(err).Msg("HTTP server error")
-		}
-	}()
+	serveOn(httpServer, lns)
 
 	// Wait for shutdown
 	<-ctx.Done()
@@ -940,10 +933,42 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	log.Info().Msg("unified trace-collector-go stopped")
 }
 
+// apiHandler puts the collector's routes behind pkg/auth: /health, /ready and
+// /metrics stay open for probes and scrapes, everything else needs a
+// credential. With auth on and nothing to verify against, it refuses those
+// routes and the collector carries on: its work is the BPF programs, and a
+// host before unheaded-keygen must not lose them over an API nobody can call.
+func apiHandler(mux http.Handler, cfg auth.ServiceAuthConfig) http.Handler {
+	return auth.WrapHandler(mux, auth.SetupMiddleware(cfg))
+}
+
+// openListeners binds every address of list (comma-separated), before any
+// BPF program loads, so a bad bind stops the start instead of leaving a
+// collector nothing can reach. Off loopback it needs auth on (M10).
+func openListeners(list string, cfg auth.ServiceAuthConfig) ([]net.Listener, error) {
+	addrs := httputil.ListenAddrs(list)
+	if err := auth.CheckListen(addrs, cfg); err != nil {
+		return nil, err
+	}
+	return httputil.ListenAll(addrs)
+}
+
+// serveOn starts srv on every listener.
+func serveOn(srv *http.Server, lns []net.Listener) {
+	for _, ln := range lns {
+		go func() {
+			log.Info().Str("addr", ln.Addr().String()).Msg("HTTP server starting")
+			if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
+				log.Error().Err(err).Msg("HTTP server error")
+			}
+		}()
+	}
+}
+
 // ── Legacy Anamnesis mode runner ────────────────────────────────────────
 
 // runAnamnesisMode starts the original Anamnesis-based trace collector.
-func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config) {
+func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, lns []net.Listener) {
 	// Resolved addresses, not raw flags: this is the DEFAULT mode, and it
 	// read the flags directly, so WOTAN_GRPC_ADDR / WOTAN_ADDR were ignored
 	// entirely on the path that actually runs.
@@ -990,13 +1015,8 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 	})
 	healthSrv.RegisterHTTP(mux)
 
-	// Auth middleware (activated via AUTH_ENABLED=true)
-	anamnesisAuthCfg := auth.LoadServiceAuthConfig("trace-collector")
-	anamnesisHandler := auth.WrapHandler(mux, auth.SetupMiddleware(anamnesisAuthCfg))
-
 	httpServer := &http.Server{
-		Addr:           *httpAddr,
-		Handler:        anamnesisHandler,
+		Handler:        apiHandler(mux, authCfg),
 		MaxHeaderBytes: 1 << 20, // 1 MB
 		// Timeouts match the service template in pkg/service/service.go.
 		// Without ReadHeaderTimeout a client can hold the connection open
@@ -1006,12 +1026,7 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	go func() {
-		log.Info().Str("addr", *httpAddr).Msg("HTTP server starting")
-		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
-			log.Error().Err(err).Msg("HTTP server error")
-		}
-	}()
+	serveOn(httpServer, lns)
 
 	// Start flow GC goroutine
 	go func() {
@@ -1191,13 +1206,20 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
-	// Announce the port that actually serves: unified mode serves only
-	// --metrics-addr (16671); it used to announce 16670 regardless.
-	announceAddr := *httpAddr
+	// The port that actually serves: unified mode serves only --metrics-addr
+	// (16671); it used to announce 16670 regardless.
+	listenList := *httpAddr
 	if *unifiedMode {
-		announceAddr = *metricsAddr
+		listenList = *metricsAddr
 	}
+	authCfg := auth.LoadServiceAuthConfig("trace-collector")
+	lns, err := openListeners(listenList, authCfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("refusing to start")
+	}
+
+	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
+	announceAddr := httputil.ListenAddrs(listenList)[0]
 	discovery.Start(ctx, transportCfg, "trace-collector", ports.PortOf(announceAddr, ports.TraceCollectorHTTP))
 	healthreport.StartService(ctx, transportCfg, "trace-collector", healthreport.HealthURL(announceAddr, ports.PortOf(announceAddr, ports.TraceCollectorHTTP))) // ADR-029: a vote on Akira's ballot
 
@@ -1210,8 +1232,8 @@ func main() {
 	}()
 
 	if *unifiedMode {
-		runUnifiedMode(ctx, healthSrv, transportCfg)
+		runUnifiedMode(ctx, healthSrv, transportCfg, authCfg, lns)
 	} else {
-		runAnamnesisMode(ctx, healthSrv, transportCfg)
+		runAnamnesisMode(ctx, healthSrv, transportCfg, authCfg, lns)
 	}
 }

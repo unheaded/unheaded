@@ -8,8 +8,11 @@ shield \- Run Shield, the Kingdom's WAF / Zero\-Trust gateway daemon.
 Run Shield, the Kingdom's WAF / Zero\-Trust gateway daemon.
 .SH OPTIONS
 .TP
+.B \-\-listen \fISTRING\fR
+HTTP listen address, overriding \-\-port; off loopback needs AUTH_ENABLED=true
+.TP
 .B \-\-port \fIN\fR
-HTTP port to bind (default 19009)
+HTTP port to bind on loopback (default 19009)
 .TP
 .B \-\-shutdown\-timeout \fIDURATION\fR
 graceful shutdown deadline (default 10s)

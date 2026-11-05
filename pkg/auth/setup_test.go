@@ -5,6 +5,7 @@ package auth
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -541,5 +542,22 @@ func TestAuditLogger_LogWithService(t *testing.T) {
 	}
 	if strings.Contains(output, "default-svc") {
 		t.Errorf("default service should NOT appear when Service is pre-set: %s", output)
+	}
+}
+
+func TestCheckListen(t *testing.T) {
+	off, on := ServiceAuthConfig{}, ServiceAuthConfig{Enabled: true}
+	for _, addr := range []string{"127.0.0.1:1", "[::1]:1", "localhost:1"} {
+		if err := CheckListen([]string{addr}, off); err != nil {
+			t.Errorf("loopback %s with auth off: %v", addr, err)
+		}
+	}
+	for _, addr := range []string{":1", "0.0.0.0:1", "[::]:1", "192.0.2.1:1", "[fd00::1]:1"} {
+		if err := CheckListen([]string{"127.0.0.1:1", addr}, off); !errors.Is(err, ErrOpenListener) {
+			t.Errorf("%s with auth off: %v, want ErrOpenListener", addr, err)
+		}
+		if err := CheckListen([]string{addr}, on); err != nil {
+			t.Errorf("%s with auth on: %v", addr, err)
+		}
 	}
 }
