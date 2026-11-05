@@ -57,6 +57,8 @@ void upc_slot_leave(void);
 void upc_reply(uint32 flags, uint32 arg);
 uint64 upc_sbrk(int n);
 uint64 upc_kill(int pid);
+void upc_retry(void);
+uint64 upc_pause(int n);
 uint64 upc_user_pa(uint64 va);
 
 _Static_assert(sizeof(struct upc_tf_slot) == UPC_TF_STRIDE, "ADR-109 trapframe stride");

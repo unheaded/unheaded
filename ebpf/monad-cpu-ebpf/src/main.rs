@@ -469,6 +469,10 @@ const UPC_RUNG_UNLINK: bool = true;
 // The new dirent names the old inode, so BPF open reads the same bytes through it.
 // Rollback = this const off.
 const UPC_RUNG_LINK: bool = true;
+// ADR-110, ADR-135 D7 (the sleep rung): pause is injected into the owned kernel, which
+// holds the deadline and replies YIELD with epc back on the ecall until ticks reach it.
+// Needs UPC_REPLY and DEFERRED_SWITCH. Rollback = this const off.
+const UPC_RUNG_SLEEP: bool = false;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
@@ -2683,9 +2687,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // exit/wait. Proving per-pid isolation of CONCURRENT live
                 // processes (gate_nway.c) requires children to pause-and-resume
                 // while staying live — exactly what a cooperative yield gives.
-                // SYS_yield (23) shares this arm (ADR-078 §5). 13 also yields until
-                // the sleep rung gives pause(n) its own meaning; the duration arg
-                // is ignored in the cooperative model.
+                // SYS_yield (23) shares this arm (ADR-078 §5). With UPC_RUNG_SLEEP on,
+                // 13 never gets here (kernel_routed_alias, ADR-135 D7); off, 13 also
+                // yields and the duration arg is ignored in the cooperative model.
                 //
                 // pc is already advanced past the ecall (fetch pre-increment) and
                 // — unlike SYS_wait — we do NOT decrement it: the yielder resumes
@@ -3440,6 +3444,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 if r & phase12::UPC_REPLY_SET_BRK != 0 {
                     cpu.program_break = mem_read_word((base + phase12::UPC_ST_REPLY_ARG_OFF) >> 2);
                 }
+                // ADR-135 D7: the handler left epc on the ecall; yield, and the slot
+                // runs it again when next scheduled. Alone, it runs it again at once.
+                if UPC_RUNG_SLEEP && r & phase12::UPC_REPLY_YIELD != 0 && cpu.num_processes > 1 {
+                    switch_req = SWITCH_YIELD;
+                }
                 // ADR-135 D8. Live: counted, and halted bit clear. A reused slot is
                 // counted but stays halted until fork finalizes; a zombie gets -1.
                 if UPC_RUNG_KILL && r & phase12::UPC_REPLY_KILL != 0 {
@@ -3803,7 +3812,7 @@ fn slot_exited(slot: u32) {
 
 /// xv6 numbers serviced by the owned kernel through the getpid inject arm:
 /// uptime 14 under UPC_RUNG2 (ADR-110 T2), sbrk 12 under UPC_RUNG_SBRK (ADR-135),
-/// kill 6 under UPC_RUNG_KILL (ADR-135 D8), unlink 18 under UPC_RUNG_UNLINK,
+/// pause 13 under UPC_RUNG_SLEEP (ADR-135 D7), kill 6 under UPC_RUNG_KILL (ADR-135 D8), unlink 18 under UPC_RUNG_UNLINK,
 /// link 19 under UPC_RUNG_LINK and mkdir 20 under UPC_RUNG_MKDIR (DP-502), and
 /// 22 in probe builds only.
 #[inline(always)]
@@ -3811,6 +3820,7 @@ fn kernel_routed_alias(n: u32) -> u32 {
     match n {
         6 if cfg!(feature = "ascend-linux") && UPC_RUNG_KILL => 11,
         12 if cfg!(feature = "ascend-linux") && UPC_RUNG_SBRK => 11,
+        13 if cfg!(feature = "ascend-linux") && UPC_RUNG_SLEEP => 11,
         14 if UPC_RUNG2 => 11,
         18 if cfg!(feature = "ascend-linux") && UPC_RUNG_UNLINK => 11,
         19 if cfg!(feature = "ascend-linux") && UPC_RUNG_LINK => 11,

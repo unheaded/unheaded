@@ -92,6 +92,8 @@ sys_pause(void)
   argint(0, &n);
   if(n < 0)
     n = 0;
+  if(upc_slot_active())
+    return upc_pause(n); // ADR-135 D7: never sleep() on a slot row
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){

@@ -80,6 +80,37 @@ upc_kill(int pid)
   return 0;
 }
 
+static uint upc_wake[UPC_SLOTS];  // 0 = no deadline; survives retries, cleared on refresh
+
+// ADR-135 D7: cannot finish now. Run the ecall again when this slot is next scheduled.
+void
+upc_retry(void)
+{
+  myproc()->trapframe->epc -= 4;
+  upc_reply(UPC_REPLY_YIELD, 0);
+}
+
+// ADR-110, ADR-135 D7. n UPC ticks. Decides before it changes anything, holds no
+// lock, and returns the a0 it was given: the ecall runs from the top each time.
+uint64
+upc_pause(int n)
+{
+  uint32 s = myproc() - proc;
+  if(n <= 0){
+    upc_wake[s] = 0;
+    return 0;
+  }
+  uint t = ticks;
+  if(upc_wake[s] == 0)
+    upc_wake[s] = (t + n) ? (t + n) : 1;
+  if(t >= upc_wake[s]){
+    upc_wake[s] = 0;
+    return 0;
+  }
+  upc_retry();
+  return n;   // a0 stays n for the re-run
+}
+
 // ADR-135 D6. A slot row's user VA to its physical address, 0 when refused.
 // Only inside a tagged trap. VA 0 is mapped, so for slots 1-7 0 only ever means
 // refused; slot 0's base is 0, which refuses its first page, the safe way round.
@@ -180,6 +211,7 @@ upc_slot_enter(void)
 #ifndef UPC_MUT_NO_REFRESH
   if(s != 0 && ((upc_st.fresh_mask & (1u << s)) || p->pid == 0)){
     upc_st.fresh_mask &= ~(1u << s);
+    upc_wake[s] = 0;
     p->pid = s + 1;
 #ifdef UPC_MUT_SHARED_TF
     p->trapframe = &upc_st.tf[0].tf;
