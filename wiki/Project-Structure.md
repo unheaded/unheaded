@@ -9,9 +9,8 @@ Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust 
 | `cmd/` | Every binary's entry point (Go, plus a few Rust/C) |
 | `services/` | Service internals: wotan, timeguru, captain, architect, micromanager, monad, sophia, anamnesis, shield, plus the armor-named components (cuirass, gauntlets, vambraces…) |
 | `pkg/` | Shared Go packages: auth, audit, transport, discovery, logagg, health, ports, wotan-client, compliance, champion, gungnir, gjallarhorn, enkrateia, pqc_policy, … |
-| `internal/` | Repo-private Go helpers (bpf, bpfmap, ebpf, doom, dashboard) |
 | `ebpf/` | Rust/Aya eBPF workspace (GPL-2.0-only): XDP/TC programs + shared types |
-| `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, xv6-mbc, doom-runner, heimdall-bpf, lich-fuzz, zhend |
+| `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, xv6-mbc, heimdall-bpf, lich-fuzz, zhend |
 | `arch/mbc/` | MBC architecture support for the UPC kernel |
 | `drivers/` | UPC guest drivers (tty, block) |
 | `proto/`, `api/` | Protobuf definitions, `openapi.yaml` |
@@ -47,10 +46,10 @@ Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust 
 
 | Dir | What |
 |-----|------|
-| `docs/` | Source docs: `adr/`, `architecture/`, `protocol/`, `security/`, `battle-plans/`, `doom/`, … |
+| `docs/` | Source docs: `adr/`, `architecture/`, `protocol/`, `security/`, `battle-plans/`, … |
 | `wiki/` | This wiki (source of truth; `scripts/sync-wiki.sh` publishes it) |
 | `ietf-submission/` | Internet-Draft XML/MD for submission ([[Drafts-Index]]) |
-| `tests/` | e2e, integration, security, pqc, mbc-pipeline, doom-reference |
+| `tests/` | e2e, integration, unit, pqc, mbc-pipeline, runbooks, scripts, … |
 | `tomb/` | LICH campaigns, Dark Mirror, grimoire ([[LICH-Campaigns]]) |
 | `skills/` | Claude skill definitions ([[Skills-Index]]) |
 | `scripts/` | Build, CI gates, Well tooling, sync scripts |

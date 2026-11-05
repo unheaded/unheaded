@@ -1,5 +1,7 @@
 # UPC Dream Ladder
 
+> **Moved (DP-305).** Doom left for the `unheaded-doom` repository: `crates/doom-runner/` and `docs/doom/` are there, and [Doom's lessons](../docs/upc/DOOM-LESSONS.md) keeps what it taught. The interpreter and its Doom build variant stay here. Where this page and the lessons disagree, the lessons are the later reading.
+
 The Dream Ladder is the six-level ascent from "packet stamping works" to "Linux runs on the UPC". Each level has a concrete gate criterion. The Computermancer owns level transitions; the Marshal enforces gate verification.
 
 This page is the live status. The deep architecture is at [UPC Overview](UPC-Overview); current frontier work is at [Linux on UPC](Linux-on-UPC).
@@ -108,4 +110,4 @@ The L4 → L5 acceleration is the substrate-investment payoff. With a working MB
 
 ---
 
-> **Source:** [docs/doom/](../docs/upc/DOOM-LESSONS.md) · [crates/xv6-mbc/](../crates/xv6-mbc/) · [ebpf/monad-cpu-ebpf/](../ebpf/monad-cpu-ebpf/) · [cmd/upc-bootctl/](../cmd/upc-bootctl/)
+> **Source:** [Doom's lessons](../docs/upc/DOOM-LESSONS.md) · [crates/xv6-mbc/](../crates/xv6-mbc/) · [ebpf/monad-cpu-ebpf/](../ebpf/monad-cpu-ebpf/) · [cmd/upc-bootctl/](../cmd/upc-bootctl/)

@@ -482,6 +482,67 @@ provoke_actions_pinned() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_ci_verdicts() {
+    # Contract (M4): Security Gate fails when any job it needs did not
+    # succeed. Make its body record a failure and carry on.
+    local f=".github/workflows/security.yml"
+    backup "${f}"
+    sed -i -E 's/^( +)fail=1$/\1fail=0/' "${REPO_ROOT}/${f}"
+    grep -qE '^ +fail=1$' "${REPO_ROOT}/${f}" && { echo "provocation anchor still present in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_http_auth() {
+    # Contract (L21): a new HTTP listener outside pkg/auth does not land
+    # unseen. Plant one, untracked, as new code would arrive.
+    local d="pkg/meta-gate-probe-http"
+    mkdir -p "${REPO_ROOT}/${d}"
+    CREATED_DIRS+=("${d}")
+    local f="${d}/serve.go"
+    backup "${f}"
+    printf 'package probe\n\nimport "net/http"\n\nfunc Serve() error { return http.ListenAndServe(":0", nil) }\n' > "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_test_http_auth() {
+    # Contract (L21): pkg/tls's wrappers are listeners. Stop looking for them.
+    local f="scripts/check-http-auth.sh"
+    backup "${f}"
+    sed -i 's/|\\.(ListenAndServe|ListenAndServeTLS|ServeTLS)\\(|\\bMaybeWrapServer\\(//' "${REPO_ROOT}/${f}"
+    ! grep -q 'MaybeWrapServer\\(' "${REPO_ROOT}/${f}" || { echo "provocation anchor still present in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_install_trivy() {
+    # Contract: the Jenkins agents run only the tarball the pin names. Skip the check.
+    local f="scripts/install-trivy.sh"
+    backup "${f}"
+    sed -i '/sha256sum -c/d' "${REPO_ROOT}/${f}"
+    ! grep -q 'sha256sum -c' "${REPO_ROOT}/${f}" || { echo "provocation anchor still present in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_upc_regression_build() {
+    # Contract: a failed cargo build is a FAIL in the harness. Restore the
+    # shape that hid it, a pipe into grep that pipefail skips.
+    local f="scripts/upc-regression.sh"
+    backup "${f}"
+    sed -i 's/^cargo_build_ok ebpf_cargo_build -p monad-cpu-ebpf --features ascend-linux || fail "ascend build"$/ebpf_cargo_build -p monad-cpu-ebpf --features ascend-linux 2>\&1 | grep -qE "^error" \&\& fail "ascend build"/' "${REPO_ROOT}/${f}"
+    grep -q 'grep -qE "^error" && fail "ascend build"' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_test_ci_verdicts() {
+    # Contract: every rule of check-ci-verdicts.sh has a case that proves it.
+    # Switch one rule off; its cases must now report the gate passing.
+    local f="scripts/check-ci-verdicts.sh"
+    backup "${f}"
+    sed -i 's/^security_gate()$/pass/' "${REPO_ROOT}/${f}"
+    grep -qx 'pass' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_compliance_schema() {
     # Contract (W-05): history tables refuse TRUNCATE even for the owner.
     # Drop audit_events' TRUNCATE guard from 015.
@@ -719,6 +780,16 @@ provoke_gitleaks() {
     local f="docs/compliance/SECRETS-SCAN.md"
     backup "${f}"
     printf '\naws_access_key_id = %s%s\n' "AKIA" "Q7ZK3M5R2TXW4P6N" >>"${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_gitleaks_history() {
+    # Contract (M5): only findings report; a scan that errored fails. Make
+    # every exit status read as findings.
+    local f="scripts/check-gitleaks.sh"
+    backup "${f}"
+    sed -i 's/^\t\*)$/\t*) exit 0 ;;\n\tnever)/' "${REPO_ROOT}/${f}"
+    grep -q 'exit 0 ;;' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
@@ -1044,6 +1115,12 @@ check-well-migrations|provoke_well_migrations|fast|an untracked migration file t
 check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at startup (a new ddl-outside-ledger finding)
 check-kanban-genesis|provoke_kanban_genesis|fast|a Genesis card title edited in db/seed/kanban-genesis.json without re-rendering migration 034
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
+check-http-auth|provoke_http_auth|fast|an untracked HTTP listener in a package without pkg/auth
+test-check-http-auth|provoke_test_http_auth|fast|check-http-auth.sh no longer looking for pkg/tls's wrappers
+test-install-trivy|provoke_install_trivy|fast|install-trivy.sh with its sha256 check removed
+test-upc-regression-build|provoke_upc_regression_build|fast|the ascend build verdict back to a pipe into grep, which pipefail skips on a failed build
+check-ci-verdicts|provoke_ci_verdicts|fast|Security Gate's body recording a failed need and carrying on
+test-check-ci-verdicts|provoke_test_ci_verdicts|fast|one rule of check-ci-verdicts.sh switched off, so its cases see the gate pass
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
@@ -1052,6 +1129,7 @@ check-pq-kex|provoke_pq_kex|fast|an untracked Go file pinning CurvePreferences t
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
+test-check-gitleaks-history|provoke_gitleaks_history|fast|check-gitleaks.sh --history treating a failed scan as findings (downloads the pinned tool)
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
@@ -1105,6 +1183,7 @@ check-gates-can-fail|SELF|self|this script — see the self-exemption note
 # someone made on purpose.
 # ---------------------------------------------------------------------------
 NOT_A_GATE="
+install-trivy|installs the pinned trivy on Jenkins agents, a tool not a gate; its sha256 refusal is proven by test-install-trivy
 generate-sbom|emits an SBOM; failure surfaces in the jobs that consume it
 build-all-debs|produces .deb artifacts
 build-sealed-cask|produces a sealed image

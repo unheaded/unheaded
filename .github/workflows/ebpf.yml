@@ -42,7 +42,6 @@ jobs:
         with:
           toolchain: nightly
           components: clippy, rustfmt, rust-src
-          targets: bpfel-unknown-none
 
       - name: Cache cargo
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
@@ -79,8 +78,9 @@ jobs:
           toolchain: nightly
           components: rust-src
 
+      # Pinned as in static-analysis.yml, which says why this version.
       - name: Install bpf-linker
-        run: cargo install bpf-linker --no-default-features
+        run: cargo install bpf-linker@0.10.2 --locked
 
       - name: Kernel
         run: uname -r
@@ -92,9 +92,8 @@ jobs:
 
       # Informational, not a gate. The verified-instruction ratchet
       # (scripts/check-ebpf-insns.sh, ADR-012) compares against a baseline
-      # measured on west's kernel with bpf-linker 0.10.2; this runner has
-      # another kernel and installs bpf-linker unpinned, so its counts are
-      # not comparable and the ratchet would refuse (exit 2). It gates on
+      # measured on west's kernel; this runner has another kernel, so its
+      # counts are not comparable and the ratchet would refuse (exit 2). It gates on
       # west (scripts/ci-local.sh, check-gates-can-fail.sh). The runner's
       # numbers go to the job summary, where a large drift is still visible.
       - name: Verified instruction counts (informational)

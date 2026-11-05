@@ -1,10 +1,12 @@
 # Performance Analysis
 
+> **Moved (DP-305).** Doom left for the `unheaded-doom` repository: the injector, `docs/doom/` and `scripts/ws3/` below are there, and [Doom's lessons](../docs/upc/DOOM-LESSONS.md) keeps what it taught. Where this page and the lessons disagree, the lessons are the later reading.
+
 > **Historical analysis (2026-03 → 05).** Doom is playable now; the last browser verification (2026-07-19) ran the injector at ~90K pkt/s with the verifier at 737,087 insns. See [[Doom on UPC|Doom-on-UPC]].
 
 ## Overview
 
-This page summarizes the performance characteristics of the Doom-over-IPv6 execution engine and the optimization roadmap for achieving playable frame rates. Detailed methodology, raw data, and profiling scripts are documented in `docs/doom/PERFORMANCE.md`.
+This page summarizes the performance characteristics of the Doom-over-IPv6 execution engine and the optimization roadmap for achieving playable frame rates. Detailed methodology, raw data, and profiling scripts are documented in `docs/doom/PERFORMANCE.md` in `unheaded-doom`.
 
 ---
 
@@ -85,7 +87,7 @@ Three hypotheses guide the WS3 scaling profiler work:
 
 ## Go Injector
 
-Location: `cmd/doom-go-injector/main.go`
+Location: `cmd/doom-go-injector/main.go` in `unheaded-doom`
 
 The Go injector replaces Python for high-throughput packet injection. It uses AF_PACKET raw sockets for zero-copy sending.
 
@@ -97,7 +99,7 @@ The Go injector replaces Python for high-throughput packet injection. It uses AF
 | `burst` | Fire batch, brief pause, repeat | Production target (Netflix model) |
 | `fast` | No delay, maximum throughput | Stress testing only |
 
-**Usage:**
+**Usage**, from an `unheaded-doom` checkout:
 ```bash
 go build -o /tmp/doom-go-injector ./cmd/doom-go-injector/
 sudo ip netns exec monad0 /tmp/doom-go-injector \
@@ -138,7 +140,7 @@ At the target rate of 1,000 pps, Doom consumes traffic equivalent to approximate
 
 ---
 
-## Key Files
+## Key Files, in `unheaded-doom`
 
 | File | Purpose |
 |------|---------|

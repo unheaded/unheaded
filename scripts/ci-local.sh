@@ -103,7 +103,7 @@ fi
 if command -v govulncheck &>/dev/null; then
     run_step "govulncheck" govulncheck ./...
 else
-    skip_step "govulncheck" "not installed; run: go install golang.org/x/vuln/cmd/govulncheck@latest"
+    skip_step "govulncheck" "not installed; run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0"
 fi
 
 # 8. SBOM generation (optional, requires make)

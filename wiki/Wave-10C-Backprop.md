@@ -98,4 +98,4 @@ it, the path to a useful Champion is unblocked.
 
 ---
 
-> **Source:** [WAVE10C battle plan](../docs/battle-plans/WAVE10C-PROPER-BACKPROP.md) · [crates/zhenai-forge/src/backward.rs](../crates/zhenai-forge/src/backward.rs) · [crates/zhenai-forge/src/train.rs](../crates/zhenai-forge/src/train.rs)
+> **Source:** [WAVE10C battle plan](../docs/battle-plans/WAVE10C-PROPER-BACKPROP.md) · `crates/zhenai-forge/src/backward.rs` and `crates/zhenai-forge/src/train.rs` in `unheaded-forge`

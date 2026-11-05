@@ -57,16 +57,13 @@ See [[eBPF Programs|eBPF-Programs]] and [[Observability Backends|Observability-B
 | `lich-security` | Offensive test suite: campaign modules D1–D6 against the stack | 062 |
 | `perf-benchmark` | Performance benchmarking harness | — |
 
-## UPC and Doom
+## UPC
 
 | Binary | What it does |
 |--------|--------------|
 | `upc-bootctl` | UPC kernel image loader + boot dispatcher (ASCEND-LINUX) |
-| `upc-tty-bridge` | WebSocket bridge for UPC tty streams; same-origin WebSockets only, extra origins via `WS_ALLOWED_ORIGINS` (doom-bridge too) |
+| `upc-tty-bridge` | WebSocket bridge for UPC tty streams; same-origin WebSockets only, extra origins via `WS_ALLOWED_ORIGINS` |
 | `gjallarhorn-sender` / `-listener` | Emit / receive UPC trigger packets (Mímir's Law) |
-| `doom`, `doom-loader`, `doom-bridge`, `doom-cpu-dump` | Doom engine CLI, ROM/RAM loader, BPF map access, CPU state dump |
-| `doom-go-injector`, `doom-injector-c` | Packet injectors (Go, raw AF_PACKET C) |
-| `test_batch` | Scratch tool: batch-read the Doom screen map |
 
 See [[UPC Overview|UPC-Overview]] and [[Doom on UPC|Doom-on-UPC]].
 

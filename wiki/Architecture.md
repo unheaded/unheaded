@@ -101,7 +101,7 @@ For the Doom proof of concept, the `monad_cpu` XDP program:
 
 1. Reads the Monad header from the incoming packet
 2. Loads CPU state from `CPU_MAP`
-3. Executes up to `MAX_INSN_PER_TICK` (16) MBC instructions from `ROM_MAP` per round, and tail-calls itself for `--chain-depth` rounds (default 16, `crates/doom-runner`): up to 256 per packet
+3. Executes up to `MAX_INSN_PER_TICK` (16) MBC instructions from `ROM_MAP` per round, and tail-calls itself for `--chain-depth` rounds (default 16, `crates/doom-runner` in `unheaded-doom`): up to 256 per packet
 4. Writes updated CPU state back to `CPU_MAP`
 5. Writes screen pixels to `SCREEN_MAP` (on SYSCALL for screen write)
 6. Increments bounce counter in the Monad header

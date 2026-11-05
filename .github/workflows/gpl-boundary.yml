@@ -30,8 +30,8 @@ jobs:
 
       - name: Install license tools
         run: |
-          go install github.com/google/go-licenses@latest
-          cargo install cargo-license || true
+          go install github.com/google/go-licenses@v1.6.0
+          cargo install cargo-license@0.7.0 --locked
 
       - name: Run GPL boundary verification
         run: |

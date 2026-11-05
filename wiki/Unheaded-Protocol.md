@@ -163,7 +163,7 @@ Index: [Drafts Index](Drafts-Index).
 
 - [UPC Overview](UPC-Overview) — the substrate that dispatches the protocol
 - [Linux on UPC](Linux-on-UPC) — current frontier program
-- [Doom on UPC](Doom-on-UPC) — the computational-completeness proof
+- [Doom on UPC](Doom-on-UPC) — the computational-generality evidence
 - [Protocol Heritage](Protocol-Heritage) — ARINC 429 → I2C → CAN Bus → BGP → BPF → IPv6 → Unheaded
 - [The First Packet](The-First-Packet) — the bootstrapping story
 

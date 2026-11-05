@@ -32,7 +32,6 @@ Every program is loaded through the kernel verifier in CI (`cmd/ebpf-load-check`
 | `upc-api` | Host-side contract for loading and running guests on the UPC; both loaders use it (ADR-080) |
 | `upc-bootstub` | Stage-1 boot stub for uClinux/Linux on the UPC |
 | `xv6-mbc` | The UPC kernel and userland (Unheaded-authored since Phase 2.4) ([[Linux-on-UPC]]) |
-| `doom-runner` | Aya loader + memory manager for Doom on the UPC ([[Doom-on-UPC]]) |
 | `heimdall-bpf` | kprobe scaffold for Mímir's Law ([[Mimirs-Law]]) |
 | `lich-fuzz` | The Lich: fuzzing for the protocol and eBPF programs ([[LICH-Campaigns]]) |
 | `zhend` | Zhen Layer 0: single-node gRPC store; gossip and QUIC written, never spawned (DP-209) |
