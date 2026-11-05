@@ -1389,10 +1389,7 @@ TMUXCFG
     step "Writing shell aliases..."
     cat > /etc/profile.d/unheaded-aliases.sh << 'ALIASES'
 # Unheaded Kingdom — shell aliases
-alias k='kubectl'
-alias d='docker'
 alias dc='docker compose'
-alias g='git'
 alias gs='git status'
 alias gl='git log --oneline -20'
 alias gd='git diff'
