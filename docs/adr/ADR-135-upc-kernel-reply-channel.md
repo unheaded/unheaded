@@ -423,7 +423,7 @@ disposition. Text fixes are in this ADR. A code fix named below is outside the r
 | R-S4 | Suspected | `LR_W`, `SC_W`, `XCHG`, `CAS` skip translation | Translator read, emits none. Stated in Security notes. Opcode scan open, For Stevie |
 | R-NC | Not checked by the review | Whether exec zeroes `.bss` | Checked: it does not. D5 narrowed, stated in Security notes, For Stevie |
 
-Plan Step 221 reviewed D10-D14 independently at `118656a4` plus the uncommitted text, nothing built or booted, and found
+Plan Step 221 reviewed D10-D14 independently at `1dda0be8` plus the uncommitted text, nothing built or booted, and found
 no blocker on its three questions: 24 cannot forge a child's row through the syscall, a parent cannot be killed between
 finalize and the note, and the re-run does not disturb a2's copy cursor. Those findings are numbered `T-` here, because
 their numbers overlap both sets above. Each was re-read in the tree before its disposition.

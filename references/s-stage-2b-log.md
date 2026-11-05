@@ -183,7 +183,7 @@ Step 188: `flip`, 891,248, delta 0, `BUDGET-OK`, headroom 8,752. A zero was chec
 
 Steps 189-190: `rmprobe`: 8 yes, 0 no, `RM: done`, first boot. `fs_walk`'s dirent scan already skips inum 0 (`if inum != 0 && inum < ninodes`), so `inner-gone=yes` needed no read-path fix.
 
-Steps 191-192: `gate unlink-after`: same=12 diff=0 rc=0 doom=1 ascend=891248, ALL GREEN, `rmprobe` PASS (1). `head=05c2c1de` is the const-off commit: the gate ran on the flipped tree, as Step 193 commits after it. Object sha256 unchanged across the gate (e2789733), so the harness's Doom build left the ascend object in place.
+Steps 191-192: `gate unlink-after`: same=12 diff=0 rc=0 doom=1 ascend=891248, ALL GREEN, `rmprobe` PASS (1). `head=65bf8c23` is the const-off commit: the gate ran on the flipped tree, as Step 193 commits after it. Object sha256 unchanged across the gate (e2789733), so the harness's Doom build left the ascend object in place.
 
 Step 193: `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allowlisted over 900000. The baseline row's count is unchanged; only its date moved.
 
@@ -201,7 +201,7 @@ Step 199: `flip`, 890,064, delta -1,184, `BUDGET-OK`, headroom 9,936. The fall w
 
 Steps 200-201: `lnprobe`: 9 yes, 0 no, `LN: done`, first boot. `same-bytes` reads the first 4 bytes of README back through the new name in BPF `read`, so the second dirent reaches the same inode.
 
-Steps 202-203: `gate link-after`: same=12 diff=0 rc=0 doom=1 ascend=890064, ALL GREEN, `lnprobe` PASS (1). `head=974106b0` is the const-off commit: the gate ran on the flipped tree, as Step 204 commits after it. Object sha256 unchanged across the gate (478dc65f), and `pgrep -c doom-runner` read 0 after it.
+Steps 202-203: `gate link-after`: same=12 diff=0 rc=0 doom=1 ascend=890064, ALL GREEN, `lnprobe` PASS (1). `head=f79c709c` is the const-off commit: the gate ran on the flipped tree, as Step 204 commits after it. Object sha256 unchanged across the gate (478dc65f), and `pgrep -c doom-runner` read 0 after it.
 
 Step 204: `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allowlisted over 900000.
 
@@ -221,19 +221,19 @@ Steps 211-212: `flip`, 891,808, delta +1,744, `BUDGET-OK`, headroom 8,192.
 
 Steps 213-214: first boot. `sleepprobe`: four `=yes`, `SL: parent-ran` before `SL: child-woke`, `SL: done`; `uptimeprobe` `moved=yes` 2; `gate_nway` 3. No `TRIG` change. ADR-135 D7's check is met: at 3,000,000 triggers all seven lines survived the `S` and the 100-PC tracer each retry writes. Stats from that boot: `syscalls=5546 ctx_sw=32 forks=1 waitpid=49 rom_fault=0`, at about 16 instructions per tick, so a retry costs about 84 ticks and `pause(2000)` polled about 24 times.
 
-Steps 215-216: `gate sleep-after`: same=12 diff=0 rc=0 doom=1 ascend=891808, ALL GREEN, `sleepprobe` PASS (1), `pgrep -c doom-runner` 0. `head=5ae498fe` is the const-off commit: the gate ran on the flipped tree, as Step 217 commits after it.
+Steps 215-216: `gate sleep-after`: same=12 diff=0 rc=0 doom=1 ascend=891808, ALL GREEN, `sleepprobe` PASS (1), `pgrep -c doom-runner` 0. `head=e310a11a` is the const-off commit: the gate ran on the flipped tree, as Step 217 commits after it.
 
 Not covered: `sleepprobe` checks the 300-tick wait against `uptime`; the child's 2,000-tick wait is shown only by order against the parent, not by a tick count. Deadline wrap (`t + n` past 2^32) and a `kill` landing on a slot in `pause` are not booted: a killed slot's stale deadline is cleared at row refresh, read from the code.
 
 ## Phase 18, fd table
 
-Step 219: before-gate diff 0 (`last-green` was HEAD, 118656a4), so no gate ran. `vcount` under the shared lock: `offv` 891,808, the same as Phase 17's on figure.
+Step 219: before-gate diff 0 (`last-green` was HEAD, 1dda0be8), so no gate ran. `vcount` under the shared lock: `offv` 891,808, the same as Phase 17's on figure.
 
 Step 220: ADR-135 gains D10-D14, uncommitted until Step 222. Nothing built or booted beyond Step 219's `vcount`. Read from the tree first: all 12 goldens hold one `S` and one tracer run, from init's first return; `kexit` panics on slot 0 as well as on slot rows; `slot_exited` has two callers, exit and the reply block's kill; `ush` and `init` open only `console`, with O_RDWR.
 
 D14 as written differs from the plan's text twice. The mark goes in `upc_slot_leave()`, as ADR-135 D1 already ruled (R-F8). `S` and the tracer move behind the reply read, after the loop, where the plan moves the read ahead of them into the loop: that read measured +9,564 and the rung starts with 8,192 of headroom. D13 adds two things the plan leaves open: the test is `upc_slot_active()`, so slot 0 never reaches `kexit`, and the status comes back in a0, so the reply block sets `exit_code` as the arm does and reads no extra word.
 
-Step 221: the workflow ran the independent read-only review at `118656a4` plus the uncommitted ADR. No blocker on its three questions: 24 cannot forge a child's row through the syscall, a parent cannot be killed between finalize and the note, and the re-run leaves a2's cursor alone. Nothing built or booted.
+Step 221: the workflow ran the independent read-only review at `1dda0be8` plus the uncommitted ADR. No blocker on its three questions: 24 cannot forge a child's row through the syscall, a parent cannot be killed between finalize and the note, and the re-run leaves a2's cursor alone. Nothing built or booted.
 
 Step 222 dispositions, each re-read in the tree first. Ids are `T-` in ADR-135 Review, because the numbers overlap the earlier two sets.
 
@@ -385,8 +385,8 @@ Step 259: `UPC_D6_MISS_FAULT` false, count 1.
 
 Steps 260-261: `cargo-fuzz` is not installed (`error: no such command: fuzz`), so `fuzz_mbc_execute` is a SKIP, as Stage 2 Step 140 was. A SKIP is not a pass.
 
-Step 262: `git status --short` 0 at 75c1c051, after the commit took in the Step 259 lines.
+Step 262: `git status --short` 0 at 0d579111, after the commit took in the Step 259 lines.
 
-Gate p21 at 75c1c051, run because the harness changed though the phase names no gate: same=12 diff=0 rc=0 doom=1 ascend=889941, ALL GREEN, and `hostile_reply` PASS. The object did not move: no kernel, BPF or corpus source changed.
+Gate p21 at 0d579111, run because the harness changed though the phase names no gate: same=12 diff=0 rc=0 doom=1 ascend=889941, ALL GREEN, and `hostile_reply` PASS. The object did not move: no kernel, BPF or corpus source changed.
 
 Steps 263-264: `.go` diff against develop 0 lines, so the Go gates are out of scope. `check-ebpf-insns.sh` PASS, 35 programs. `check-spdx.sh` OK. `check-gitleaks.sh` PASS. `check-gates-can-fail.sh --only check-ebpf-insns` PASS, 1 gate proven to fail when violated. `vcount` after them: 889941.
