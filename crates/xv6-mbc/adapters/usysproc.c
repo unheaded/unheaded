@@ -6,13 +6,14 @@
 // Replaces MIT kernel/sysproc.c in the Makefile.mbc OBJS list; the MIT file
 // stays vendored, unwired.
 //
-// RUNTIME-DEAD ON THE UPC, BY ARCHITECTURE: user ecalls are serviced by the
-// ascend BPF dispatch, so these wrappers never run — they are linked because
-// usyscall.c's syscalls[] table references every sys_*. They come alive if
-// the trap path flips to in-kernel dispatch (T4 decision). Slot rows reach the
-// kernel-routed ones (getpid, uptime; sbrk, exit under ADR-135). Kept at stock
-// strength for that day: sys_sbrk's lazy-path overflow guards
-// (addr + n < addr, addr + n > TRAPFRAME) and sys_pause's killed() check.
+// WHO RUNS WHAT: the ascend BPF dispatch injects a trap for the numbers it routes
+// to the kernel (kernel_routed_alias; ADR-109, ADR-135), so on a slot row
+// sys_exit, sys_upc_forknote, sys_getpid, sys_sbrk, sys_pause, sys_kill and
+// sys_uptime run for real. BPF serves fork and wait itself: sys_fork and sys_wait
+// are linked only because usyscall.c's syscalls[] table references every sys_*.
+// The paths for a row with no tagged trap stay at stock strength: sys_sbrk's
+// lazy-path overflow guards (addr + n < addr, addr + n > TRAPFRAME) and
+// sys_pause's killed() check.
 //
 #include "types.h"
 #include "riscv.h"

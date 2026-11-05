@@ -8,11 +8,11 @@
 //
 // Boot-live: fileinit at main(), and the devsw[] array LIVES here —
 // uconsole.c's consoleinit wires devsw[CONSOLE].read/.write into it, so
-// this file is a link-time anchor for the console stack even though
-// fileread/filewrite bodies are dormant on the UPC (the BPF ecall dispatch
-// owns user fd I/O). Dormant bodies keep stock strength: the devsw major
-// bounds checks, fileclose's copy-then-release pattern, and filewrite's
-// MAXOPBLOCKS transaction batching are verbatim.
+// this file is the console stack's link-time anchor. BPF owns fds below 16;
+// fds at 16 and up route here (ADR-135 D10, D11), so fileread, filewrite and
+// fileclose run for those. All keep stock strength: the devsw major bounds
+// checks, fileclose's copy-then-release pattern, and filewrite's MAXOPBLOCKS
+// transaction batching are verbatim.
 //
 // Support functions for system calls that involve file descriptors.
 
