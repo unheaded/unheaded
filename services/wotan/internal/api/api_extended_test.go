@@ -17,6 +17,7 @@ import (
 
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/room"
+	"unheaded/services/wotan/internal/topicpattern"
 	"unheaded/services/wotan/internal/wotan"
 )
 
@@ -137,21 +138,21 @@ func TestExtractTopic(t *testing.T) {
 }
 
 // ============================================================
-// isTopicChar Tests
+// Topic character Tests
 // ============================================================
 
 func TestIsTopicChar(t *testing.T) {
 	valid := []rune{'a', 'z', 'A', 'Z', '0', '9', '.', '-', '_', '*', '#'}
 	for _, c := range valid {
-		if !isTopicChar(c) {
-			t.Errorf("isTopicChar(%q) = false, want true", c)
+		if !topicpattern.ValidPattern(string(c)) {
+			t.Errorf("ValidPattern(%q) = false, want true", c)
 		}
 	}
 
 	invalid := []rune{' ', '!', '@', '/', '\\', '(', ')', '{', '}', '+', '='}
 	for _, c := range invalid {
-		if isTopicChar(c) {
-			t.Errorf("isTopicChar(%q) = true, want false", c)
+		if topicpattern.ValidPattern(string(c)) {
+			t.Errorf("ValidPattern(%q) = true, want false", c)
 		}
 	}
 }

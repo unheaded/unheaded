@@ -19,6 +19,7 @@ import (
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/store"
+	"unheaded/services/wotan/internal/topicpattern"
 	"unheaded/services/wotan/internal/wotan"
 )
 
@@ -126,14 +127,12 @@ func (s *Server) JoinRoom(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "room_id and name are required")
 		return
 	}
-
-	// Create or get room
-	if _, err := s.RoomManager.GetOrCreate(req.RoomID, req.RoomID); err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
+	if !topicpattern.ValidTopic(req.RoomID) {
+		writeError(w, http.StatusBadRequest, "invalid room_id")
 		return
 	}
 
-	// Create pending member with timeout
+	// Create pending member with timeout. Its room comes with its approval.
 	newMember, err := s.MemberManager.RequestJoin(req.RoomID, req.Name, req.PublicKey, s.PendingApprovalTimeout)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
@@ -391,6 +390,15 @@ func (s *Server) ApproveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	mbr, err := s.MemberManager.Get(memberID)
+	if err != nil {
+		writeError(w, memberErrStatus(err), err.Error())
+		return
+	}
+	if err := s.ensureRoom(mbr.RoomID); err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
 	if err := s.MemberManager.Approve(memberID, req.ApprovedBy); err != nil {
 		writeError(w, memberErrStatus(err), err.Error())
 		return
@@ -463,6 +471,11 @@ func (s *Server) ApproveAllMembers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	for _, mbr := range s.MemberManager.GetAllPending() {
+		if err := s.ensureRoom(mbr.RoomID); err != nil {
+			log.Warn().Err(err).Str("room", mbr.RoomID).Msg("approve_all_room_refused")
+		}
+	}
 	count := s.MemberManager.ApproveAll(approvedBy)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
