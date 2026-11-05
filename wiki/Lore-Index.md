@@ -15,7 +15,7 @@ Unheaded uses naming conventions drawn from Gnostic cosmology, medieval armory, 
 
 - [[Kingdom Architecture|Kingdom-Architecture]] — Component hierarchy and naming conventions
 - [[The Phylactery|Phylactery]] — Encrypted storage layer and state persistence
-- [[Doom over IPv6|Doom-over-IPv6]] — Computational completeness proof
+- [[Doom over IPv6|Doom-over-IPv6]] — Computational generality evidence
 - [[Kingdom Mode Math|Kingdom-Mode-Math]] — Extended register space verification
 
 ---

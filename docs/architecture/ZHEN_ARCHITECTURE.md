@@ -5,7 +5,7 @@
 **Date:** 2026-03-15
 **Status:** Operational (594K indexed chunks, inference + RAG + UI live)
 
-> **Corrected 2026-10-27.** Inference is the shared `llama-server` on `127.0.0.1:8081` serving an allowlisted GGUF chosen with `scripts/switch-model.sh` (qwen2.5-coder 7B default; ADR-060), not Mistral 7B on 20100. Training is the Gemma-4 E2B forge (`crates/zhenai-forge`, ADR-048/049/050); the Mistral QLoRA plan below is superseded.
+> **Corrected 2026-10-27.** Inference is the shared `llama-server` on `127.0.0.1:8081` serving an allowlisted GGUF chosen with `scripts/switch-model.sh` (qwen2.5-coder 7B default; ADR-060), not Mistral 7B on 20100. Training is the Gemma-4 E2B forge (the `unheaded-forge` repository, ADR-048/049/050); the Mistral QLoRA plan below is superseded.
 
 ---
 

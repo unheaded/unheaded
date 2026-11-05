@@ -8,7 +8,7 @@ pprof is off by default. Turn it on per process:
 
 | Binary | Switch |
 |---|---|
-| akira, huginn, heimdall-daemon, upc-tty-bridge, doom-bridge | `--pprof 127.0.0.1:6060` |
+| akira, huginn, heimdall-daemon, upc-tty-bridge | `--pprof 127.0.0.1:6060` |
 | wotan, dashboard-backend | `PPROF_ADDR=127.0.0.1:6060` |
 
 It runs on its own listener, never on the service port. Any address that isn't loopback (`127.0.0.0/8`, `::1`, `localhost`) is refused at startup with exit 2: heap and goroutine dumps can hold service tokens and keys.

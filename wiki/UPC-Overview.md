@@ -1,8 +1,10 @@
 # UPC — Unheaded Protocol Computer
 
+> **Moved (DP-305).** Doom left for the `unheaded-doom` repository: `crates/doom-runner/` and `docs/doom/` are there, and [Doom's lessons](../docs/upc/DOOM-LESSONS.md) keeps what it taught. The interpreter and its Doom build variant stay here. Where this page and the lessons disagree, the lessons are the later reading.
+
 The **UPC** is a virtual CPU implemented entirely in the eBPF runtime. It treats the IPv6 Hop-by-Hop Options header as a register file, an XDP program as the instruction dispatcher, and BPF maps as ROM / RAM / page tables / TTY / screen / scheduler state. Every Monad packet that arrives is a clock tick.
 
-This page is the canonical UPC reference. Implementation-deep specs live in [`docs/doom/ARCHITECTURE.md`](../docs/upc/DOOM-LESSONS.md) and the Internet-Drafts (MBC-ISA-00, Shim-00) under [`docs/protocol/`](../docs/protocol/).
+This page is the canonical UPC reference. Implementation-deep specs live in [`docs/upc/`](../docs/upc/) and the Internet-Drafts (MBC-ISA-00, Shim-00) under [`docs/protocol/`](../docs/protocol/).
 
 ## Big picture
 
@@ -135,14 +137,14 @@ Per-level detail: [UPC Dream Ladder](UPC-Dream-Ladder). The current frontier is 
 
 ## Why this exists
 
-The UPC is the Kingdom's computational-completeness proof. The Unheaded Protocol claims that packet processing IS computation; the UPC is what makes that claim falsifiable. Doom-on-Monad ran a real Turing-complete program inside the eBPF runtime. xv6-on-UPC closes the loop: a real OS, with real privilege levels, real syscalls, real user processes, all dispatched by the same XDP program that handles a forwarded HTTP request.
+The UPC is the Kingdom's computational-generality evidence. The Unheaded Protocol claims that packet processing IS computation; the UPC is what makes that claim falsifiable. Doom-on-Monad ran a large real program inside the eBPF runtime. xv6-on-UPC closes the loop: a real OS, with real privilege levels, real syscalls, real user processes, all dispatched by the same XDP program that handles a forwarded HTTP request.
 
 The longer-term play is that everything Unheaded does — gateway routing, drift detection, scheduler decisions, observability event correlation — eventually compiles down to MBC and runs on the UPC. The eBPF dispatch path is the only path. There is no separate userspace coordinator. The kernel ring 0 IS the application.
 
 ## Cross-references
 
 - [Linux on UPC](Linux-on-UPC) — ASCEND-LINUX status, Phase 0 through the ownership ladder and EVOLUTION-1
-- [Doom on UPC](Doom-on-UPC) — the L3 computational-completeness proof
+- [Doom on UPC](Doom-on-UPC) — the L3 computational-generality evidence
 - [UPC Dream Ladder](UPC-Dream-Ladder) — level-by-level gates
 - [MBC ISA Reference](MBC-ISA-Reference) — opcode + encoding reference
 - [Protocol Foundation](Protocol-Foundation) — the Monad wire format the UPC dispatches on
@@ -153,4 +155,4 @@ The longer-term play is that everything Unheaded does — gateway routing, drift
 
 ---
 
-> **Source:** [docs/doom/ARCHITECTURE.md](../docs/upc/DOOM-LESSONS.md) · [docs/upc/UPC_BOOT_PROTOCOL_V2.md](../docs/upc/UPC_BOOT_PROTOCOL_V2.md) · [docs/protocol/draft-bellis-unheaded-mbc-isa-00.md](../docs/protocol/draft-bellis-unheaded-mbc-isa-00.md) · [ebpf/monad-cpu-ebpf/src/main.rs](../ebpf/monad-cpu-ebpf/src/main.rs) · [crates/doom-runner/src/memory.rs](../crates/doom-runner/src/memory.rs) · [cmd/upc-bootctl/](../cmd/upc-bootctl/)
+> **Source:** [Doom's lessons](../docs/upc/DOOM-LESSONS.md) · [docs/upc/UPC_BOOT_PROTOCOL_V2.md](../docs/upc/UPC_BOOT_PROTOCOL_V2.md) · [docs/protocol/draft-bellis-unheaded-mbc-isa-00.md](../docs/protocol/draft-bellis-unheaded-mbc-isa-00.md) · [ebpf/monad-cpu-ebpf/src/main.rs](../ebpf/monad-cpu-ebpf/src/main.rs) · `crates/doom-runner/src/memory.rs` in `unheaded-doom` · [cmd/upc-bootctl/](../cmd/upc-bootctl/)

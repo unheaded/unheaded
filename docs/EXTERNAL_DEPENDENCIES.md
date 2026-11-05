@@ -14,7 +14,7 @@ cd llama.cpp
 make -j$(nproc)
 # Models: the GGUFs in scripts/switch-model.sh's MODEL_FILE allowlist
 # (qwen2.5-coder 7B / 14B, DeepSeek-Coder-V2-Lite), under /var/zhen/models.
-# Training uses the Gemma-4 E2B forge (crates/zhenai-forge, ADR-048/049/050), not llama.cpp.
+# Training uses the Gemma-4 E2B forge (unheaded-forge, ADR-048/049/050), not llama.cpp.
 ```
 
 Mistral-7B (the model this section used to download) was retired with the

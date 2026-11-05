@@ -23,11 +23,11 @@ The March 2026 audit counted 553 dependencies; that number included npm packages
 - **GPL-2.0-only dependencies are flagged**: they cannot be combined with GPL-3.0-or-later code. GPL-2.0-or-later is fine (3.0 is elected). A bare `GPL-2.0` counts as -only.
 - The classifier has its own test, `scripts/test-gpl-boundary-classifier.sh`.
 
-`sbom-audit.yml` also runs `go-licenses check ./...` with an allow-list of MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause and ISC, ignoring this module, `github.com/unheaded/doomgeneric` (first-party, fetched by `scripts/ci-fetch-doomgeneric.sh` as the `go.mod` replace target) and `modernc.org/mathutil` (BSD-3-Clause the classifier misses).
+`sbom-audit.yml` also runs `go-licenses check ./...` with an allow-list of MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause and ISC, ignoring this module and `modernc.org/mathutil` (BSD-3-Clause the classifier misses).
 
 ## SPDX Headers
 
-Source files carry `SPDX-License-Identifier` headers. `scripts/check-spdx.sh --langs go,rs --forbid MIT` (CI job `spdx-check`, Jenkins stage `SPDX Headers`) fails if a tracked Go or Rust file lacks one or declares MIT; `scripts/spdx-backfill.sh --apply` adds the two-line header (scope and identifier rule in `scripts/lib/spdx.sh`; vendored `llama.cpp/`, `doom/`, `crates/xv6-mbc/upstream/` are out of scope). Python and shell are reported (`--langs py,sh`) but not gated: 22 Doom scripts and 6 fixtures still lack a header. What remains MIT and why: `docs/legal/LICENSE-MIT.md`.
+Source files carry `SPDX-License-Identifier` headers. `scripts/check-spdx.sh --langs go,rs --forbid MIT` (CI job `spdx-check`, Jenkins stage `SPDX Headers`) fails if a tracked Go or Rust file lacks one or declares MIT; `scripts/spdx-backfill.sh --apply` adds the two-line header (scope and identifier rule in `scripts/lib/spdx.sh`; vendored `llama.cpp/`, `doom/`, `crates/xv6-mbc/upstream/` are out of scope). Python and shell are reported (`--langs py,sh`) but not gated: 6 fixtures still lack a header. What remains MIT and why: `docs/legal/LICENSE-MIT.md`.
 
 ## Audit Process
 
