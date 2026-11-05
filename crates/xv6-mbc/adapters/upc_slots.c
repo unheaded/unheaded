@@ -152,6 +152,17 @@ upc_user_pa(uint64 va)
   return UPC_SLICE_BASE(s) + va;
 }
 
+// ADR-135 D15: BPF open walks from the root, so it has to know who is off it.
+void
+upc_cwd_mark(struct proc *p, int off_root)
+{
+  uint32 s = p - proc;
+  if(off_root)
+    upc_st.cwd_mask |= 1u << s;
+  else
+    upc_st.cwd_mask &= ~(1u << s);
+}
+
 int
 upc_is_slot_row(struct proc *p)
 {
@@ -250,6 +261,7 @@ upc_forknote(int a)
       c->ofile[i] = filedup(p->ofile[i]);
   struct inode *old = c->cwd;
   c->cwd = idup(p->cwd);
+  upc_cwd_mark(c, (upc_st.cwd_mask >> (p - proc)) & 1); // ADR-135 D15
   if(old){
     begin_op();
     iput(old);

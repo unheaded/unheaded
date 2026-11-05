@@ -91,6 +91,7 @@ pub const UPC_ST_TICKS_OFF: u32 = 0x0000_080C; // tick count at the last injecti
 pub const UPC_ST_BRK_IN_OFF: u32 = 0x0000_0810; // cpu.program_break, written at trap injection (ADR-135 D3)
 pub const UPC_ST_REPLY_OFF: u32 = 0x0000_0814; // UPC_TAG_REPLY | flags, kernel; read at SRET (ADR-135 D1)
 pub const UPC_ST_REPLY_ARG_OFF: u32 = 0x0000_0818; // the reply flag's one argument, kernel
+pub const UPC_ST_CWD_MASK_OFF: u32 = 0x0000_081C; // bit s: row s is off the root inode, kernel (ADR-135 D15)
 pub const UPC_ST_SIZE: u32 = 0x0000_0820;
 pub const UPC_TAG_SLOT: u32 = 0x5107_0000;
 pub const UPC_TAG_A7: u32 = 0xA700_0000;

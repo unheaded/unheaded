@@ -478,6 +478,11 @@ const UPC_RUNG_SLEEP: bool = true;
 // child's row at once; a tagged trap's return skips the S and the tracer. Needs
 // UPC_REPLY and DEFERRED_SWITCH. Rollback = this const off.
 const UPC_RUNG_FD: bool = true;
+// ADR-135 D15 (the chdir rung): chdir is injected into the owned kernel, and a process
+// off the root opens through it, because BPF open walks from the root inode. Needs
+// UPC_RUNG_FD: the fork note carries the cwd, and read-only opens answer kernel fds.
+// Rollback = this const off.
+const UPC_RUNG_CHDIR: bool = true;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
@@ -2674,6 +2679,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // (kernel_routed_alias, ADR-135 D8). The arm keeps parity_surface
                 // true; the const in the test folds it away when off, as for 12.
                 cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
+            } else if cfg!(feature = "ascend-linux") && UPC_RUNG_CHDIR && syscall_nr == 9 {
+                // ── xv6 SYS_chdir (9): with UPC_RUNG_CHDIR on it never gets here
+                // (kernel_routed_alias, ADR-135 D15). The arm keeps parity_surface true;
+                // the const in the test folds it away when off, as for 12.
+                cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
             } else if cfg!(feature = "ascend-linux") && UPC_RUNG_UNLINK && syscall_nr == 18 {
                 // ── xv6 SYS_unlink (18): with UPC_RUNG_UNLINK on it never gets here
                 // (kernel_routed_alias, DP-502). The arm keeps parity_surface true;
@@ -3873,11 +3883,13 @@ const OPEN_KERNEL_FLAGS: u32 = 0x001 | 0x200 | 0x400;
 /// 22 in probe builds only. Under UPC_RUNG_FD (ADR-135 D11-D13): exit 2 and the
 /// fork note 24 always; read 5, fstat 8, dup 10, write 16 and close 21 for a fd at
 /// 16 or above, the compare unsigned so a negative fd goes too; open 15 with a
-/// masked flag.
+/// masked flag. Under UPC_RUNG_CHDIR (ADR-135 D15): chdir 9 always, and open 15 from a
+/// process off the root.
 #[inline(always)]
 fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
     match n {
         2 if cfg!(feature = "ascend-linux") && UPC_RUNG_FD => 11,
+        9 if cfg!(feature = "ascend-linux") && UPC_RUNG_CHDIR => 11,
         5 | 8 | 10 | 16 | 21
             if cfg!(feature = "ascend-linux") && UPC_RUNG_FD && cpu.regs[8] >= 16 =>
         {
@@ -3893,6 +3905,7 @@ fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
         {
             11
         }
+        15 if cfg!(feature = "ascend-linux") && UPC_RUNG_CHDIR && cwd_off_root(cpu) => 11,
         18 if cfg!(feature = "ascend-linux") && UPC_RUNG_UNLINK => 11,
         19 if cfg!(feature = "ascend-linux") && UPC_RUNG_LINK => 11,
         20 if cfg!(feature = "ascend-linux") && UPC_RUNG_MKDIR => 11,
@@ -3900,6 +3913,14 @@ fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
         24 if cfg!(feature = "ascend-linux") && UPC_RUNG_FD => 11,
         _ => n,
     }
+}
+
+/// ADR-135 D15: is the running slot's cwd off the root inode? The kernel keeps the mask.
+#[inline(always)]
+fn cwd_off_root(cpu: &MbcCpuState) -> bool {
+    let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
+    let slot = cpu.current_pid as u32 & (phase12::UPC_SLOTS - 1);
+    base != 0 && (mem_read_word((base + phase12::UPC_ST_CWD_MASK_OFF) >> 2) >> slot) & 1 != 0
 }
 
 /// ADR-109 D6: where a U-mode page-walk miss resolves. Outside RAM_MAP, so

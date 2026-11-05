@@ -277,3 +277,28 @@ T-F4's cwd drop boots (`FD: reuse-cwd`) but cannot be observed: every row's cwd 
 Steps 233-234: gate fd-after, same=12 diff=0 rc=0 doom=1 ascend=889100. `forkloop`, `gate_nway`, `gate2`, the four `ut_*` and `fdprobe: 49 checks` PASS, ALL GREEN. T-S1 and T-S2 answered: exec'd images take injected fork and exit traps in all 12, and none was cut off at its trigger count.
 
 Not booted: a file past one block (`fdprobe` writes 300 bytes, so `filewrite`'s chunking, `bmap`'s indirect block and BPF reading them back are unshown); a forged 24 with ADR-109 D6 off (Phase 21's); `upc-rung0-assert.awk` against a probe kernel.
+
+## Phase 19, chdir
+
+Step 237: last-green is HEAD, so no before gate; `offv` 889100.
+
+Step 238: ADR-135 D15. `cwd_mask` takes the pad at +0x81C; `UPC_ST_SIZE` stays. The kernel writes it at `sys_chdir` and in the fork note.
+
+Steps 239-240: `chdirprobe`, 24 checks where the step lists 8. Added: `root-hidden` (a relative `README` from `cdd` must miss, which BPF's root walk would find), `absolute`, `cwd-kept` after a refused chdir, a file written and read back relative, then through BPF from the root, `parent-stayed`, `reuse-root`, and T-F4's cwd drop.
+
+Steps 241-242: off 889100, `off-equal`; on 890496, delta +1,396, `BUDGET-OK`, headroom 9,504. Off, the probe answered `chdir=no`. On, first boot: 24 `=yes`, 0 `=no`, `CD: done`. Unlike Step 129's reply read, the in-loop table read did not cost +9,564.
+
+| Mutant | Result |
+|---|---|
+| fork note does not copy the bit | 2 `=no`: child-inherits, reuse-root |
+| `upc_cwd_mark` never clears | 3 `=no`: bpf-again, bpf-read, reuse-root |
+| fork note does not drop the old `cwd` | 1 `=no`: cwd-dropped |
+| no alias row for open off the root | 7 `=no`: open-rel, root-hidden, absolute, cwd-kept, read-rel, child-inherits, parent-stayed |
+
+All four reverted; the restored kernel's `.mbc` hash and the restored object's count matched before the gate. T-F4's open item is closed: `cwd-held` and `cwd-dropped` show the note drops the row's reference.
+
+Steps 243-244: gate chdir-after, same=12 diff=0 rc=0 doom=1 ascend=890496. `chdirprobe: 24 checks` PASS, ALL GREEN. `check-ebpf-insns.sh` PASS.
+
+| Rung | Off | On | Delta | Net vs 921036 | Gate |
+|---|---|---|---|---|---|
+| chdir | 889100 | 890496 | +1396 | 30540 | chdir-after |

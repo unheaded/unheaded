@@ -40,7 +40,7 @@ fn c_define(src: &str, name: &str) -> u32 {
     parse(l.split_whitespace().nth(2).unwrap())
 }
 
-const NAMES: [&str; 21] = [
+const NAMES: [&str; 22] = [
     "UPC_SLOT_TABLES_BP_BYTE",
     "UPC_SLOTS",
     "UPC_TF_STRIDE",
@@ -51,6 +51,7 @@ const NAMES: [&str; 21] = [
     "UPC_ST_BRK_IN_OFF",
     "UPC_ST_REPLY_OFF",
     "UPC_ST_REPLY_ARG_OFF",
+    "UPC_ST_CWD_MASK_OFF",
     "UPC_ST_SIZE",
     "UPC_TAG_SLOT",
     "UPC_TAG_A7",

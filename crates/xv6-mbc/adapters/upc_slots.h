@@ -18,6 +18,7 @@
 #define UPC_ST_BRK_IN_OFF       0x00000810 // cpu.program_break, BPF at trap injection (ADR-135 D3)
 #define UPC_ST_REPLY_OFF        0x00000814 // UPC_TAG_REPLY | flags, kernel; BPF reads at SRET (ADR-135 D1)
 #define UPC_ST_REPLY_ARG_OFF    0x00000818 // the reply flag's one argument, kernel
+#define UPC_ST_CWD_MASK_OFF     0x0000081C // bit s: row s is off the root inode, kernel; BPF reads at open (ADR-135 D15)
 #define UPC_ST_SIZE             0x00000820
 #define UPC_TAG_SLOT            0x51070000
 #define UPC_TAG_A7              0xA7000000
@@ -47,7 +48,7 @@ struct upc_slot_tables {
   uint32 brk_in;
   uint32 reply;
   uint32 reply_arg;
-  uint32 pad;
+  uint32 cwd_mask;
 };
 
 struct proc;
@@ -64,6 +65,7 @@ uint64 upc_forknote(int s);
 void upc_retry(void);
 uint64 upc_pause(int n);
 uint64 upc_user_pa(uint64 va);
+void upc_cwd_mark(struct proc *p, int off_root);
 
 _Static_assert(sizeof(struct upc_tf_slot) == UPC_TF_STRIDE, "ADR-109 trapframe stride");
 _Static_assert(sizeof(struct upc_slot_tables) == UPC_ST_SIZE, "ADR-109 slot tables size");
@@ -74,5 +76,6 @@ _Static_assert(__builtin_offsetof(struct upc_slot_tables, ticks) == UPC_ST_TICKS
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, brk_in) == UPC_ST_BRK_IN_OFF, "brk_in offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, reply) == UPC_ST_REPLY_OFF, "reply offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, reply_arg) == UPC_ST_REPLY_ARG_OFF, "reply_arg offset");
+_Static_assert(__builtin_offsetof(struct upc_slot_tables, cwd_mask) == UPC_ST_CWD_MASK_OFF, "cwd_mask offset");
 
 #endif

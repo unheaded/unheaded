@@ -5,8 +5,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-135: The owned kernel's reply channel to BPF
 
-**Status**: Proposed (2026-11-04; implements DP-213, DP-501, DP-502). Independent read-only review done the same day, no blocker against D1: see Review. Acceptance is Stevie's. D10-D14 added 2026-11-05 for the fd rung; their review is plan Step 221.
-**Context sprint**: S-STAGE-2B (`docs/battle-plans/S-STAGE-2B-battle-plan.md`), Phases 10-13, 17 and 18
+**Status**: Proposed (2026-11-04; implements DP-213, DP-501, DP-502). Independent read-only review done the same day, no blocker against D1: see Review. Acceptance is Stevie's. D10-D14 added 2026-11-05 for the fd rung; their review is plan Step 221. D15 added 2026-11-05 for the chdir rung; no independent review ran on it (plan Phase 19 asks for none).
+**Context sprint**: S-STAGE-2B (`docs/battle-plans/S-STAGE-2B-battle-plan.md`), Phases 10-13 and 17-19
 **Relates to**: ADR-109 (kernel rows per BPF slot), ADR-110 (kernel time from BPF ticks), ADR-078 §5 (syscall number
 registry), ADR-074 (per-pid page directories), ADR-075 (process model)
 
@@ -269,10 +269,46 @@ both, as it did before this rung.
 The mark does not depend on the const. With `UPC_RUNG_FD` off, BPF reads a bare tag, clears it and acts on no flag. A
 forged bare tag hides one diagnostic and nothing else.
 
+### D15. A process off the root
+
+BPF `open` walks from the root inode and never sees a row's `cwd`, so once `chdir` is real a relative read-only open
+would answer for the wrong directory. A process off the root therefore opens through the kernel.
+
+The table's last word, the pad at +0x81C, becomes `cwd_mask`. Bit s is set when row s's `cwd` is not the root inode.
+`UPC_ST_SIZE` does not move. Only the kernel writes it, in two places: `sys_chdir` after it installs the new `cwd`, by
+`ip->inum != ROOTINO`, so `chdir("..")` back to the root and `chdir("/")` both clear the bit; and the fork note (D12),
+which copies the parent's bit to the child's, setting or clearing it, so a reused slot never keeps a dead process's bit.
+A dead slot's bit stays with its `cwd` (D9, D13) until that note, and nothing reads it: only the running slot's bit is read.
+
+`kernel_routed_alias` gains two rows, behind `cfg!(feature = "ascend-linux")`:
+
+```
+9 if UPC_RUNG_CHDIR => 11
+15 if UPC_RUNG_CHDIR && cwd bit set => 11
+```
+
+The second reads the table word, and only when n is 15. `base == 0` counts as not set. Unlike the reply read, this one sits
+inside the execute loop; Step 241 measured the rung whole at +1,396, against that read's +9,564. `sys_open` then answers a fd at or
+above 16, which `read`, `fstat`, `dup` and `close` already route (D11). `sys_chdir` is stock over a row with a real `cwd`
+(D9), and `mkdir`, `unlink` and `link` already resolve through `namex` from the row's `cwd`.
+
+Limits:
+- `exec` stays in BPF and takes the basename of its path, looked up in `PROGRAM_TABLE`, so it ignores `cwd`, as it
+  ignores every directory in the path. `exec` keeps the row, so the process keeps its `cwd` and its bit.
+- `console` is implicit in BPF, not in `fs.img`, so `open("console")` off the root reaches the kernel and answers -1.
+  `init` and `ush` open it from the root.
+- `mknod` stays the BPF stub, which takes no path walk at all.
+- A dead slot still holds its `cwd` reference until the slot's next note (D9), so a directory removed in the meantime keeps
+  its inode until then. The probe shows both halves. At most one inode per slot.
+
+With ADR-109 D6 off a child can write this word as it can the rest of the table. Setting a bit sends that slot's open to the
+kernel, which answers correctly from the row's `cwd`. Clearing one sends an off-root open to BPF, which walks from the
+root: read-only, and the slot could have opened that path anyway. One more use of the same hole, and no new reach.
+
 ## Guards
 
 One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`, `UPC_RUNG_KILL`, `UPC_RUNG_SLEEP`,
-`UPC_RUNG_FD` for the rungs. With a const off the object equals the previous object (I6 style). Each alias row carries
+`UPC_RUNG_FD`, `UPC_RUNG_CHDIR` for the rungs. With a const off the object equals the previous object (I6 style). Each alias row carries
 `cfg!(feature = "ascend-linux")`, because `kernel_routed_alias` runs in the Doom build too.
 
 ## Consequences

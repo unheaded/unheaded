@@ -75,13 +75,13 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 6 | kill | kernel validates, BPF acts | status 0 until rung 7 |
 | 7 | exec | BPF | |
 | 8 | fstat | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
-| 9 | chdir | none yet | |
+| 9 | chdir | kernel | ADR-135 D15 |
 | 10 | dup | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
 | 11 | getpid | kernel | ADR-109 |
 | 12 | sbrk | kernel | heap window, ADR-135 |
 | 13 | pause | kernel | n UPC ticks (ADR-110), retry hand-off |
 | 14 | uptime | kernel | ADR-110 |
-| 15 | open | BPF; kernel with O_WRONLY, O_CREATE or O_TRUNC | ADR-135 D11; O_RDWR alone stays in BPF |
+| 15 | open | BPF; kernel with O_WRONLY, O_CREATE or O_TRUNC, or from a process off the root | ADR-135 D11, D15; O_RDWR alone at the root stays in BPF |
 | 16 | write | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
 | 17 | mknod | BPF | stub |
 | 18 | unlink | kernel | DP-502 |

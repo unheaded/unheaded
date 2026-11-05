@@ -9,7 +9,8 @@
 // MOSTLY RUNTIME-DEAD ON THE UPC, BY ARCHITECTURE: the BPF ecall dispatch owns
 // fds below 16 and read-only FS access (in-BPF fs_walk, FD_INODE_MAP; exec(7)
 // stages from PROGRAM_TABLE with its own argv harvest). Slot rows reach mkdir,
-// unlink and link, and under ADR-135 D10 the fds at 16 and up. Linked because
+// unlink, link and chdir, under ADR-135 D10 the fds at 16 and up, and under D15
+// every open from a row off the root. Linked because
 // usyscall.c's syscalls[] table references every sys_*. Dormant bodies keep stock
 // strength: argfd's bounds ladder, sys_exec's MAXARG cap + page-sized argv
 // fetch loop with the uarg==0 terminator, sys_link/unlink's lock ordering
@@ -461,6 +462,8 @@ sys_chdir(void)
   iput(p->cwd);
   end_op();
   p->cwd = ip;
+  if(upc_slot_active())
+    upc_cwd_mark(p, ip->inum != ROOTINO); // ADR-135 D15
   return 0;
 }
 
