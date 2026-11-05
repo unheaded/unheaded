@@ -39,7 +39,7 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/rules:/etc/prometheus/rules:ro
@@ -68,7 +68,7 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "8428:8428"
+      - "127.0.0.1:8428:8428"
     volumes:
       - victoriametrics-data:/victoria-metrics-data
     command:
@@ -97,8 +97,8 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "3100:3100"
-      - "9096:9096"
+      - "127.0.0.1:3100:3100"
+      - "127.0.0.1:9096:9096"
     volumes:
       - ./loki/loki.yml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
@@ -121,7 +121,7 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "9080:9080"
+      - "127.0.0.1:9080:9080"
     volumes:
       - ./promtail/promtail.yml:/etc/promtail/config.yml:ro
       # The host journal, read-only. Was the Docker socket (root on the host,
@@ -147,8 +147,6 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    ports:
-      - "9100:9100"
     pid: host
     network_mode: host
     volumes:
@@ -180,7 +178,7 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD - credentials are not stored in this repo}

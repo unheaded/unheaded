@@ -166,6 +166,12 @@ jobs:
       - name: No nested bind mounts in compose
         run: ./scripts/check-compose-bind-nesting.sh
 
+      # Docker's NAT rules go around a host firewall, so a publish with no
+      # address is open whatever the firewall says. Provoked red by dropping
+      # the address from victoria's publish.
+      - name: Every compose publish names an internal address
+        run: ./scripts/check-compose-publish-bind.sh
+
       # ADR-094: prometheus/client_golang was replaced by pkg/metrics and
       # removed from go.mod. This keeps it out. Provoked red by planting an
       # import in a new file.

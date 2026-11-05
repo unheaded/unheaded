@@ -1,0 +1,11 @@
+# Compose publishes that bind outside the internal address set, one per line:
+#   file:service:container-port/proto # who needs it from another host
+# Read by scripts/check-compose-publish-bind.sh. An entry that matches no such
+# publish fails the gate. Docker's NAT rules go around a host firewall's INPUT
+# chain, so a port listed here is reachable whatever the firewall says.
+docker-compose.yml:traefik:8000/tcp # the edge: browsers on other hosts reach /dashboard and /kanban through it
+docker-compose.yml:traefik:8443/tcp # the edge, HTTPS
+docker-compose.yml:traefik:8443/udp # the edge, HTTP/3
+docker/docker-compose.loadbalancers.yml:haproxy-edge:21080/tcp # optional HAProxy edge, HTTP
+docker/docker-compose.loadbalancers.yml:haproxy-edge:21443/tcp # optional HAProxy edge, HTTPS
+docker/wireguard/docker-compose.wireguard.yml:wireguard:51820/udp # WireGuard peers dial this from outside the host

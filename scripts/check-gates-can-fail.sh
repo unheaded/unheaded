@@ -1083,6 +1083,14 @@ provoke_well_slo_definitions() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_compose_publish_bind() {
+    # Contract (M11): a compose publish names an internal address. Drop the
+    # address from one, which is how every bare publish got there.
+    backup "docker-compose.yml"
+    sed -i 's|"127.0.0.1:8428:8428"|"8428:8428"|' "${REPO_ROOT}/docker-compose.yml"
+    grep -q '"8428:8428"' "${REPO_ROOT}/docker-compose.yml"
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_yggdrasil_anchor() {
     # Contract (OS-FORK-DISCIPLINE §8): the anchor names a real Debian
     # release. Name one that is not.
@@ -1108,6 +1116,7 @@ check-haproxy-cfg|provoke_haproxy_cfg|slow|req.hdr(X-Trace-Id) restored in the i
 check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with read_only removed
 check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
+check-compose-publish-bind|provoke_compose_publish_bind|fast|victoria's 8428 published with no address
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang

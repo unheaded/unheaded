@@ -31,15 +31,36 @@ Outside the Doom Range (infrastructure on standard ports):
 |---------|------|----------|
 | The Well (PostgreSQL) | 5432 | `127.0.0.1` only, TLS ([[The-Well]]) |
 | Huginn | 9110 | host ([[Service-Huginn]]) |
-| VictoriaMetrics | 8428 | all |
-| Grafana | 3001 | all |
+| VictoriaMetrics | 8428 | `127.0.0.1`, plus `UNHEADED_P2P_BIND` and `UNHEADED_OVERLAY_BIND` |
+| Grafana | 3001 | `127.0.0.1`, plus `UNHEADED_LAN_BIND`; `monitoring/docker-compose.yml` on 3000: `GRAFANA_BIND`, default `127.0.0.1` |
 | ClickHouse | 8123 / 9000 | `127.0.0.1` |
 | Vector metrics | 9598 | `172.17.0.1` (override `VECTOR_METRICS_BIND`) |
 | syslog-relay (ADR-124) | 514 udp and tcp | `10.10.20.1`, LAN after D7; no wildcard; not installed |
 | syslog-relay metrics | 9599 | `127.0.0.1` and `[fd00:dead:beef::1]` |
-| CoreDNS | 5353 | all (override `COREDNS_PORT`) |
-| Traefik edge | 80 / 443 / 50051 | all (override `TRAEFIK_HTTP_PORT`, `TRAEFIK_HTTPS_PORT`, `TRAEFIK_GRPC_PORT`) |
-| Prometheus (monitoring stack) | 9090 | all (`monitoring/docker-compose.yml`) |
+| CoreDNS | 5353 | `127.0.0.1` (override `COREDNS_PORT`) |
+| Traefik edge | 80 / 443 | all IPv4 on purpose, narrowed by `TRAEFIK_BIND` (override `TRAEFIK_HTTP_PORT`, `TRAEFIK_HTTPS_PORT`) |
+| Traefik gRPC entrypoint | 50051 | `127.0.0.1`, no router uses it (override `TRAEFIK_GRPC_PORT`) |
+| Prometheus (monitoring stack) | 9090 | `127.0.0.1` (`monitoring/docker-compose.yml`) |
+
+### Compose publishes
+
+Docker publishes through its own NAT rules, so a host firewall's INPUT chain
+does not cover them. Every compose publish therefore names an internal address,
+and `scripts/check-compose-publish-bind.sh` fails one that does not. The
+exceptions are in `docs/security/compose-publish-allowlist.txt`.
+
+All first-party ports in `docker-compose.yml` publish on `127.0.0.1`. A host
+that serves peers sets these in `.env`. Unset, they fall to spare loopback
+addresses, because docker will not start a container whose published address
+is missing.
+
+| Variable | West's value | Publishes | Who needs it |
+|----------|--------------|-----------|--------------|
+| `UNHEADED_P2P_BIND` | `192.168.13.2` | 8428 | east's huginn |
+| `UNHEADED_OVERLAY_BIND` | `[fd00:dead:beef::1]` | 8428, 18000, 19006, 20000 | Prometheus remote-write and scrape |
+| `UNHEADED_LAN_BIND` | `192.168.69.184`, only if wanted | 3001, 20000, 20001 | browsers on the LAN using the pages' nav links |
+
+The victoria Ansible role sets the first two for its own `up`.
 
 ## Deploy and chaos ports and identities (S-REAL-STEEL, 2026-10-26)
 

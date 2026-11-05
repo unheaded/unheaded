@@ -114,7 +114,7 @@ services:
       - /var/log/grafana:uid=16701,gid=16701,size=16M
     cap_drop: [ALL]
     ports:
-      - "3000:3000"
+      - "${GRAFANA_BIND:-127.0.0.1}:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro

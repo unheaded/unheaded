@@ -61,8 +61,8 @@ services:
       TZ: UTC
 
     ports:
-      - "20102:6333"
-      - "20103:6334"
+      - "127.0.0.1:20102:6333"
+      - "127.0.0.1:20103:6334"
 
     networks:
       - sophia-eye
@@ -118,7 +118,7 @@ services:
       TZ: UTC
 
     ports:
-      - "20104:8080"
+      - "127.0.0.1:20104:8080"
 
     networks:
       - sophia-eye
@@ -201,7 +201,7 @@ services:
       - 'QDRANT_API_KEY="$$(cat /run/secrets/qdrant_api_key)"; export QDRANT_API_KEY; exec bash start.sh'
 
     ports:
-      - "20105:8080"
+      - "127.0.0.1:20105:8080"
 
     networks:
       - sophia-eye
@@ -270,8 +270,8 @@ services:
       TZ: UTC
 
     ports:
-      - "20106:9090"
-      - "20107:20105"
+      - "127.0.0.1:20106:9090"
+      - "127.0.0.1:20107:20105"
 
     networks:
       - sophia-eye
@@ -326,7 +326,7 @@ services:
       TZ: UTC
 
     ports:
-      - "20108:9090"
+      - "127.0.0.1:20108:9090"
 
     networks:
       - sophia-eye
