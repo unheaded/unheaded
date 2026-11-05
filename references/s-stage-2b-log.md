@@ -188,3 +188,21 @@ Steps 191-192: `gate unlink-after`: same=12 diff=0 rc=0 doom=1 ascend=891248, AL
 Step 193: `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allowlisted over 900000. The baseline row's count is unchanged; only its date moved.
 
 Not covered: `rmprobe` unlinks directories only, so `unlink` on a regular file was not booted. The two directories' own data blocks do go through `iput` and `itrunc`, with no panic.
+
+## Phase 16, link rung
+
+| Rung | OFF | ON | delta | net vs 921,036 | gate |
+|---|---|---|---|---|---|
+| link | 891248 | 890064 | -1184 | 30972 | link-after |
+
+Steps 195-198: before-gate diff 0 (`last-green` was HEAD), `offv` 891,248. `parity_surface` green, off object 891,248, `off-equal`. The arm carries the const in its test, per Phase 11's note.
+
+Step 199: `flip`, 890,064, delta -1,184, `BUDGET-OK`, headroom 9,936. The fall was checked before it was believed. The off object was rebuilt from the same source for comparison and the on object then restored (sha256 478dc65f before and after). `.text` is 81,816 bytes off and 81,808 on: one instruction fewer. The mask goes from 0x145840 to 0x1c5840, bit 19 added, as Phase 15 predicted. The rest of the diff is LLVM's: blocks in a different order and one stack spill moved. So the fall comes from layout, not from anything link saves, and the verifier walks that layout. Read it as noise of the kind Phase 12 recorded, not as a rule.
+
+Steps 200-201: `lnprobe`: 9 yes, 0 no, `LN: done`, first boot. `same-bytes` reads the first 4 bytes of README back through the new name in BPF `read`, so the second dirent reaches the same inode.
+
+Steps 202-203: `gate link-after`: same=12 diff=0 rc=0 doom=1 ascend=890064, ALL GREEN, `lnprobe` PASS (1). `head=974106b0` is the const-off commit: the gate ran on the flipped tree, as Step 204 commits after it. Object sha256 unchanged across the gate (478dc65f), and `pgrep -c doom-runner` read 0 after it.
+
+Step 204: `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allowlisted over 900000.
+
+Not covered: `original-kept` opens README after the unlink of `lnk` and reads no bytes, so it does not by itself show the data survived. `nlink` is not read back: BPF `fstat` was not asked for it. `link` runs against a fresh `fs.img` with an empty log, so log pressure is untested, as for `mkdir`.

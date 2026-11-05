@@ -468,7 +468,7 @@ const UPC_RUNG_UNLINK: bool = true;
 // DP-502 (the link rung): link is injected into the owned kernel, as for mkdir.
 // The new dirent names the old inode, so BPF open reads the same bytes through it.
 // Rollback = this const off.
-const UPC_RUNG_LINK: bool = false;
+const UPC_RUNG_LINK: bool = true;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
