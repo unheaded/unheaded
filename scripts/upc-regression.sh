@@ -37,6 +37,20 @@ pass() { printf '  \033[32mPASS\033[0m  %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=1; }
 note() { printf '        %s\n' "$1"; }
 
+# A build verdict: cargo's own exit status, and a line that starts with "error".
+# Never a pipe into grep here. Under pipefail a failed cargo makes the whole
+# pipeline non-zero, so `cargo | grep -q error && fail` and `if cargo | grep -q`
+# skip the failure branch exactly when the build failed; and an unanchored
+# "error" matches `Compiling thiserror` on a cold target.
+cargo_build_ok() {
+  local out rc=0
+  out="$("$@" 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && ! grep -qE '^error' <<<"$out" && return 0
+  printf '%s\n' "$out" | tail -5 | sed 's/^/        /'
+  return 1
+}
+ebpf_cargo_build() { ( cd "$EBPF" && cargo build --release "$@" ); }
+
 # Stop doom-runner by its recorded pid (series rule 14). The launcher prints the
 # pid into LOG: root cannot open a user-owned file in sticky /tmp
 # (fs.protected_regular=2), but it inherits this already-open stdout. Truncating
@@ -77,8 +91,7 @@ echo "== UPC regression harness =="
 
 # ---- Variant 1: ascend (xv6 / Linux) --------------------------------------
 echo "[1/3] ascend build (xv6 corpus)"
-( cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 ) \
-  | grep -qE "error" && { fail "ascend build"; }
+cargo_build_ok ebpf_cargo_build -p monad-cpu-ebpf --features ascend-linux || fail "ascend build"
 
 VBUD="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 UPC_VERIFIER_STATS=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/init.mbc" --triggers 3000 --instance 111 --input $'echo\n' 2>&1 \
@@ -289,8 +302,7 @@ grep -aq 'hello' <<<"$UI" && pass "uinit forks+execs sh, echo runs" \
 # complete" == loaded == under budget. doom-runner honours UPC_VERIFIER_STATS,
 # so the exact Doom insn count is captured below as DBUD.
 echo "[2/3] non-ascend build (Doom load)"
-( cd "$EBPF" && cargo build --release -p monad-cpu-ebpf 2>&1 ) \
-  | grep -qE "error" && { fail "non-ascend build"; }
+cargo_build_ok ebpf_cargo_build -p monad-cpu-ebpf || fail "non-ascend build"
 
 # The fixture stays in this repository: intact and structurally valid, always.
 if ( cd "$ROOT/doom" && [ "$(sha256sum doom.rv2mbc | cut -d' ' -f1)" = "$(cat doom.rv2mbc.sha256)" ] ); then
@@ -338,9 +350,9 @@ fi
 # program over 500,000; the rest of the package's root tests run cartridges
 # through BPF_PROG_TEST_RUN (no attach).
 echo "[3/3] cartridge-ebpf (load + verifier gate + cartridge tests)"
-if ( cd "$EBPF" && cargo build --release -p cartridge-ebpf 2>&1 ) | grep -qE "^error"; then
+if ! cargo_build_ok ebpf_cargo_build -p cartridge-ebpf; then
   fail "cartridge-ebpf build"
-elif ( cargo build --release --manifest-path "$ROOT/crates/upc-cartridge/Cargo.toml" 2>&1 ) | grep -qE "^error"; then
+elif ! cargo_build_ok cargo build --release --manifest-path "$ROOT/crates/upc-cartridge/Cargo.toml"; then
   fail "upc-cartridge (cart CLI) build"
 else
   CT="$(mktemp)"

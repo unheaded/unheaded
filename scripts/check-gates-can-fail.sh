@@ -505,6 +505,16 @@ provoke_http_auth() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_upc_regression_build() {
+    # Contract: a failed cargo build is a FAIL in the harness. Restore the
+    # shape that hid it, a pipe into grep that pipefail skips.
+    local f="scripts/upc-regression.sh"
+    backup "${f}"
+    sed -i 's/^cargo_build_ok ebpf_cargo_build -p monad-cpu-ebpf --features ascend-linux || fail "ascend build"$/ebpf_cargo_build -p monad-cpu-ebpf --features ascend-linux 2>\&1 | grep -qE "^error" \&\& fail "ascend build"/' "${REPO_ROOT}/${f}"
+    grep -q 'grep -qE "^error" && fail "ascend build"' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_test_ci_verdicts() {
     # Contract: every rule of check-ci-verdicts.sh has a case that proves it.
     # Switch one rule off; its cases must now report the gate passing.
@@ -1088,6 +1098,7 @@ check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at st
 check-kanban-genesis|provoke_kanban_genesis|fast|a Genesis card title edited in db/seed/kanban-genesis.json without re-rendering migration 034
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 check-http-auth|provoke_http_auth|fast|an untracked HTTP listener in a package without pkg/auth
+test-upc-regression-build|provoke_upc_regression_build|fast|the ascend build verdict back to a pipe into grep, which pipefail skips on a failed build
 check-ci-verdicts|provoke_ci_verdicts|fast|Security Gate's body recording a failed need and carrying on
 test-check-ci-verdicts|provoke_test_ci_verdicts|fast|one rule of check-ci-verdicts.sh switched off, so its cases see the gate pass
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
