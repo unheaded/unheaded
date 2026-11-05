@@ -82,6 +82,65 @@ PYEOF
 }
 ok "the committed report assumes nothing and names every unread or GPL license" committed_names_all
 
+# THIRD_PARTY.md: every row it keeps is what the detail files say, and nothing
+# in it rules for the whole list, because the report does not.
+third_party_matches() {
+	python3 - "$REPO_ROOT" <<'PYEOF'
+import json, re, sys
+
+root = sys.argv[1]
+text = open(f'{root}/THIRD_PARTY.md').read()
+load = lambda kind: json.load(open(f'{root}/sbom/{kind}-dependencies.json'))['packages']
+go, rust, python, js = load('go'), load('rust'), load('python'), load('javascript')
+
+def section(start, stop):
+    return text.split(start, 1)[1].split(stop, 1)[0]
+
+def rows(body):
+    return [[c.strip() for c in line.strip('|').split('|')] for line in body.splitlines()
+            if line.startswith('|') and not re.match(r'\|[ -]*\|', line)][1:]
+
+wrong = []
+direct = {p['module']: p for p in go if not p['indirect']}
+table = {r[0]: r for r in rows(section('## Go Dependencies', '## Rust Dependencies'))}
+wrong += [f'Go {m} missing' for m in direct if m not in table]
+wrong += [f'Go {m} not direct' for m in table if m not in direct]
+wrong += [f'Go {m}: {table[m][1:3]}' for m in table if m in direct
+          and table[m][1:3] != [direct[m]['version'], direct[m]['license']]]
+
+crates = {(p['crate'], p['version']): p['license'] for p in rust}
+table = rows(section('## Rust Dependencies', '## JavaScript'))
+wrong += [f'Rust {r[:3]}' for r in table if crates.get((r[0], r[1])) != r[2]]
+if not table:
+    wrong.append('no Rust rows')
+
+packages = {p['package'].lower(): p for p in python}
+table = {r[0].lower(): r for r in rows(section('## Python Dependencies', '## External Runtime'))}
+declared = [l.split('==')[0].strip().lower() for l in open(f'{root}/raft/requirements.txt')
+            if l.strip() and not l.startswith('#')]
+wrong += [f'Python {n} missing' for n in declared if n not in table]
+wrong += [f'Python {n} not declared' for n in table if n not in declared]
+wrong += [f'Python {n}: {table[n][1:3]}' for n in table if n in declared and
+          table[n][1:3] != [packages[n]['version'], packages[n]['license']]]
+
+libraries = {p['library']: p['version'] for p in js if p['version']}
+table = rows(section('at runtime from CDNs', 'Google Fonts'))
+wrong += [f'CDN {r[:2]}' for r in table if libraries.get(r[0]) != r[1]]
+if len(table) != len(libraries):
+    wrong.append('CDN row count')
+
+for claim in ('All Go dependencies use permissive', 'All dependencies are compatible', 'Compatible with GPL-3.0?',
+              'doom1.wad', 'internal/bpf', 'docs/compliance/SBOM.md'):
+    if claim in text:
+        wrong.append(f'still says {claim!r}')
+if not re.search(r'\*\*Last updated:\*\* 2026-11-05', text):
+    wrong.append('date')
+print(wrong[:12])
+sys.exit(1 if wrong else 0)
+PYEOF
+}
+ok "THIRD_PARTY.md matches the detail files and rules on nothing the report does not" third_party_matches
+
 # Reading: fixture trees, built here, so this needs no cache and no network.
 F="$T/fixture"
 lib="$REPO_ROOT/scripts/lib/sbom_licenses.py"
