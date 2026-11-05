@@ -483,6 +483,10 @@ const UPC_RUNG_FD: bool = true;
 // UPC_RUNG_FD: the fork note carries the cwd, and read-only opens answer kernel fds.
 // Rollback = this const off.
 const UPC_RUNG_CHDIR: bool = true;
+// ADR-135 D7, D10, D12, D13 (the pipe rung): pipe is injected into the owned kernel.
+// read, write and close on its fds already route there; an end that cannot go on
+// retries, and EOF comes from exit's close. Needs UPC_RUNG_FD. Rollback = this const off.
+const UPC_RUNG_PIPE: bool = true;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
@@ -2674,6 +2678,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // 1 here and in the owned kernel (xv6 allocpid starts at 1).
                     cpu.regs[8] = cpu.current_pid as u32 + 1;
                 }
+            } else if cfg!(feature = "ascend-linux") && UPC_RUNG_PIPE && syscall_nr == 4 {
+                // ── xv6 SYS_pipe (4): with UPC_RUNG_PIPE on it never gets here
+                // (kernel_routed_alias). The arm keeps parity_surface true; the const
+                // in the test folds it away when off, as for 12.
+                cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
             } else if cfg!(feature = "ascend-linux") && UPC_RUNG_KILL && syscall_nr == 6 {
                 // ── xv6 SYS_kill (6): with UPC_RUNG_KILL on it never gets here
                 // (kernel_routed_alias, ADR-135 D8). The arm keeps parity_surface
@@ -3884,11 +3893,12 @@ const OPEN_KERNEL_FLAGS: u32 = 0x001 | 0x200 | 0x400;
 /// fork note 24 always; read 5, fstat 8, dup 10, write 16 and close 21 for a fd at
 /// 16 or above, the compare unsigned so a negative fd goes too; open 15 with a
 /// masked flag. Under UPC_RUNG_CHDIR (ADR-135 D15): chdir 9 always, and open 15 from a
-/// process off the root.
+/// process off the root. Pipe 4 under UPC_RUNG_PIPE.
 #[inline(always)]
 fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
     match n {
         2 if cfg!(feature = "ascend-linux") && UPC_RUNG_FD => 11,
+        4 if cfg!(feature = "ascend-linux") && UPC_RUNG_PIPE => 11,
         9 if cfg!(feature = "ascend-linux") && UPC_RUNG_CHDIR => 11,
         5 | 8 | 10 | 16 | 21
             if cfg!(feature = "ascend-linux") && UPC_RUNG_FD && cpu.regs[8] >= 16 =>

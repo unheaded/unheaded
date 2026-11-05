@@ -5,8 +5,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-135: The owned kernel's reply channel to BPF
 
-**Status**: Proposed (2026-11-04; implements DP-213, DP-501, DP-502). Independent read-only review done the same day, no blocker against D1: see Review. Acceptance is Stevie's. D10-D14 added 2026-11-05 for the fd rung; their review is plan Step 221. D15 added 2026-11-05 for the chdir rung; no independent review ran on it (plan Phase 19 asks for none).
-**Context sprint**: S-STAGE-2B (`docs/battle-plans/S-STAGE-2B-battle-plan.md`), Phases 10-13 and 17-19
+**Status**: Proposed (2026-11-04; implements DP-213, DP-501, DP-502). Independent read-only review done the same day, no blocker against D1: see Review. Acceptance is Stevie's. D10-D14 added 2026-11-05 for the fd rung; their review is plan Step 221. D15 added 2026-11-05 for the chdir rung; no independent review ran on it (plan Phase 19 asks for none). D7's a0 rule amended 2026-11-05 for the pipe rung; no review ran on that either (plan Phase 20 asks for none).
+**Context sprint**: S-STAGE-2B (`docs/battle-plans/S-STAGE-2B-battle-plan.md`), Phases 10-13 and 17-20
 **Relates to**: ADR-109 (kernel rows per BPF slot), ADR-110 (kernel time from BPF ticks), ADR-078 §5 (syscall number
 registry), ADR-074 (per-pid page directories), ADR-075 (process model)
 
@@ -115,7 +115,11 @@ A retrying handler obeys four rules, because the ecall runs from the top each ti
   refresh, or the call returns short.
 - It holds no lock and no log transaction when it replies.
 - It undoes `usertrap`'s `epc += 4`.
-- It returns the a0 it was given, because `syscall()` stores the return value there.
+- It keeps a0. While `upc_retry()`'s YIELD reply is pending `syscall()` does not store the return value, so fd, buffer
+  and count survive for the re-run. `piperead` and `pipewrite` return `UPC_RETRY_RC`; `upc_pause` still returns n.
+
+A pipe follows the first rule this way: `piperead` retries on an empty pipe with a live writer, and `pipewrite` retries
+only while `i` is 0. Past that it returns short, because a re-run would send the moved bytes again, and the caller loops.
 
 The a7 is safe across a retry: x17 shares r1 with gp, and `uservec` and `userret` save and restore gp. The ecall has no
 spill prologue, and `pc_map` records every RV word, so `epc - 4` resolves to the SYSCALL word itself.

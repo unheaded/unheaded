@@ -302,3 +302,31 @@ Steps 243-244: gate chdir-after, same=12 diff=0 rc=0 doom=1 ascend=890496. `chdi
 | Rung | Off | On | Delta | Net vs 921036 | Gate |
 |---|---|---|---|---|---|
 | chdir | 889100 | 890496 | +1396 | 30540 | chdir-after |
+
+## Phase 20, pipe
+
+Step 246: last-green is HEAD, so no before gate; `offv` 890496.
+
+Step 247: `pipeprobe`, 20 checks. Beyond the step's list: EOF stays 0 on a second read, a writer already blocked on a full pipe gets -1 when the reader closes, a kill landing on a slot parked on a retry closes its read end and it never returns (Phase 17's unbooted case), and a pointer that straddles the ceiling, so the first word lands and the second is refused. Forty refusals against 16 `ofile` rows, then the same two fd numbers, show no leak. The child never closes its write end by hand, and its marker directory appears after a `pause(200)`, so EOF can only have come from exit's close.
+
+Steps 248-249: `UPC_RETRY_RC` is what a retrying pipe end returns, but `syscall()` does not test that value: `upc_retry_pending()` reads the YIELD reply, so no handler's real return can be mistaken for a retry. ADR-135 D7's rule that a handler returns the a0 it was given becomes "keeps a0". The arm for 4 carries the const in its test, as for 12.
+
+Steps 250-252: off 890496, `off-equal`; on 889941, delta -555, `BUDGET-OK`, headroom 10,059. First boot: 20 `=yes`, 0 `=no`, `PI: done`. At 8,000,000 triggers a boot takes about 19 s. Step 253 did not run. As with link, a fall is compiler layout, not a saving.
+
+| Mutant | Result |
+|---|---|
+| `syscall()` stores the return over a0 | 9 `=no`, first all-bytes; the re-run reads a wrong fd |
+| `pipewrite` retries after partial progress | stops after `PI: fds`, no `PI: done` |
+| `upc_exit` does not close `ofile` | no EOF, stops after `short-writes`, no `PI: done` |
+| `upc_kill` does not close `ofile` | 1 `=no`: kill-closed |
+| `piperead` returns 0 on an empty pipe | 2 `=no`, first all-bytes, no `PI: done` |
+| `sys_pipe` keeps the fds when copyout fails | 1 `=no`: no-leak |
+| fork note shares the file without `filedup` | 2 `=no`, first all-bytes, no `PI: done` |
+
+All seven reverted from saved copies, not git, since the edits were not yet committed; the restored kernel's `.mbc` hash matched before the gate. bootctl's tests passed with the new surface.
+
+Steps 254-255: gate pipe-after, same=12 diff=0 rc=0 doom=1 ascend=889941. `pipeprobe: 20 checks` PASS, ALL GREEN.
+
+| Rung | Off | On | Delta | Net vs 921036 | Gate |
+|---|---|---|---|---|---|
+| pipe | 890496 | 889941 | -555 | 31095 | pipe-after |

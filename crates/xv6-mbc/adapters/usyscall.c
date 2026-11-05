@@ -23,6 +23,7 @@
 #include "proc.h"
 #include "syscall.h"
 #include "defs.h"
+#include "upc_slots.h"
 
 // Copy the uint64 at user address addr into *ip.
 // Both guards are required: `addr >= p->sz` alone misses the case where
@@ -155,7 +156,8 @@ static uint64 (*handler_for(int num))(void)
   return 0;
 }
 
-// Dispatch the syscall in trapframe a7; result (or -1) lands in a0.
+// Dispatch the syscall in trapframe a7; result (or -1) lands in a0. A retrying
+// handler keeps a0: the re-run needs the ecall's own arguments (ADR-135 D7).
 void
 syscall(void)
 {
@@ -166,7 +168,9 @@ syscall(void)
   num = p->trapframe->a7;
   fn = handler_for(num);
   if(fn){
-    p->trapframe->a0 = fn();
+    uint64 r = fn();
+    if(!upc_retry_pending())
+      p->trapframe->a0 = r;
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);

@@ -119,6 +119,15 @@ upc_retry(void)
   upc_reply(UPC_REPLY_YIELD, 0);
 }
 
+// ADR-135 D7: this trap's handler asked to run again, so a0 is still the ecall's
+// argument and the handler's return is not a result. upc_slot_enter clears reply.
+int
+upc_retry_pending(void)
+{
+  uint32 want = UPC_TAG_REPLY | UPC_REPLY_YIELD;
+  return (upc_st.reply & (UPC_TAG_MASK | UPC_REPLY_YIELD)) == want;
+}
+
 // ADR-110, ADR-135 D7. n UPC ticks. Decides before it changes anything, holds no
 // lock, and returns the a0 it was given: the ecall runs from the top each time.
 uint64

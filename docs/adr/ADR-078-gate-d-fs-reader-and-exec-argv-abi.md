@@ -70,7 +70,7 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 1 | fork | BPF | |
 | 2 | exit | kernel closes, BPF ends the slot | ADR-135 D13 |
 | 3 | wait | BPF | status written as 0 until rung 7 |
-| 4 | pipe | none yet | |
+| 4 | pipe | kernel | ADR-135 D7, D10-D13; fds at 16 and up, read and write retry |
 | 5 | read | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
 | 6 | kill | kernel validates, BPF acts | status 0 until rung 7 |
 | 7 | exec | BPF | |

@@ -28,6 +28,7 @@
 #define UPC_REPLY_YIELD         2
 #define UPC_REPLY_KILL          4
 #define UPC_REPLY_EXIT          8 // ADR-135 D13
+#define UPC_RETRY_RC            (-2) // a retrying handler's return; syscall() leaves a0 alone (ADR-135 D7)
 #define UPC_KFD_BASE            16 // ADR-135 D10: kernel fd = 16 + ofile index; BPF's NOFILE
 #define UPC_HEAP_BASE           0x00010000 // ADR-135 D2: VA window, inside fork's low copy band
 #define UPC_HEAP_TOP            0x00040000
@@ -63,6 +64,7 @@ uint64 upc_kill(int pid);
 uint64 upc_exit(int n);
 uint64 upc_forknote(int s);
 void upc_retry(void);
+int  upc_retry_pending(void);
 uint64 upc_pause(int n);
 uint64 upc_user_pa(uint64 va);
 void upc_cwd_mark(struct proc *p, int off_root);

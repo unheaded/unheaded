@@ -254,10 +254,9 @@ fn relocate_rv2mbc_entry(entry: u32, rom_base: u32) -> u32 {
 /// the `ascend-linux` interpreter build has an arm for
 /// (`ebpf/monad-cpu-ebpf/surface.rs::SURFACE_ASCEND`). Numbers are xv6's
 /// `kernel/syscall.h` plus the UPC block-device calls 200/201
-/// (`monad_common::mbc_linux_syscalls`). xv6's pipe 4 is absent because the
-/// object has no arm for it (it answers -ENOSYS, DP-503). Gate A refuses an
-/// object whose `UPC_SURFACE_ID` is not the id of this list.
-static XV6_SYSCALLS: [upc_api::SyscallDesc; 24] = [
+/// (`monad_common::mbc_linux_syscalls`). Gate A refuses an object whose
+/// `UPC_SURFACE_ID` is not the id of this list.
+static XV6_SYSCALLS: [upc_api::SyscallDesc; 25] = [
     upc_api::SyscallDesc {
         number: 1,
         name: "fork",
@@ -269,6 +268,10 @@ static XV6_SYSCALLS: [upc_api::SyscallDesc; 24] = [
     upc_api::SyscallDesc {
         number: 3,
         name: "wait",
+    },
+    upc_api::SyscallDesc {
+        number: 4,
+        name: "pipe", // routed to the owned kernel under UPC_RUNG_PIPE
     },
     upc_api::SyscallDesc {
         number: 5,
