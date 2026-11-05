@@ -13,9 +13,9 @@
 // goldens gate that path byte-for-byte.
 //
 // Runtime-dead on the UPC, preserved at full stock strength: consoleread /
-// consolewrite (devsw targets — the BPF ecall dispatch owns user fd I/O) and
-// consoleintr (no UART interrupt; the KBD ring in BPF feeds read(5) directly).
-// They come ALIVE in Phase 2.4 when the kernel core is ours, so their line
+// consolewrite (devsw targets: the console is implicit in BPF and has no node
+// in fs.img, so no kernel fd reaches them, ADR-135 D11, D15) and consoleintr
+// (no UART interrupt; the KBD ring in BPF feeds read(5) directly). Their line
 // discipline (^H/^U/^D/^P, echo, ring indices) and copy bounds are kept
 // behavior-identical.
 

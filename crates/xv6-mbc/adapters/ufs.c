@@ -8,11 +8,12 @@
 //
 // Boot-live: iinit's NINODE lock loop at main(); fsinit via forkret —
 // readsb pulls the superblock from fs.img through bread/blk-ramdisk,
-// checks FSMAGIC, then initlog recovers the redo log. Everything else
-// (balloc/bmap walks, readi/writei, dirlookup, namex path resolution) is
-// dormant on the UPC — the in-BPF fs_walk (ADR-078) owns user FS reads.
-// Dormant bodies keep stock strength: bmap's NDIRECT/indirect bounds +
-// "bmap: out of range" panic, readi/writei's off/size overflow guards,
+// checks FSMAGIC, then initlog recovers the redo log. The rest (balloc/bmap
+// walks, readi/writei, dirlookup, namex path resolution) runs for the calls
+// routed to the kernel: mkdir, unlink, link, chdir, and opens that write or
+// start off the root (ADR-135, DP-502). The in-BPF fs_walk (ADR-078) keeps
+// the read-only opens from the root. All keep stock strength: bmap's
+// NDIRECT/indirect bounds + "bmap: out of range" panic, readi/writei's off/size overflow guards,
 // namex's locked hand-over-hand walk, dirlink's DIRSIZ namecmp discipline.
 //
 // File system implementation.  Five layers:

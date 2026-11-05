@@ -9,10 +9,9 @@
 // Boot-live: trapinit/trapinithart at main(). UPC patch carried verbatim:
 // under UPC_FLAT_TRAMPOLINE, STVEC points at uservec's kernel-link address
 // (the trampoline page is not VA-mapped; the page table is decorative — see
-// uvm.c/uproc.c). usertrap/kerneltrap bodies are dormant on the UPC (the
-// BPF ecall dispatch owns the trap surface) and keep stock strength — they
-// are the code that wakes if the trap→syscall() flip ever lands (that flip
-// is a NEW-gates event per the tranche map, not part of this swap).
+// uvm.c/uproc.c). usertrap runs for every trap BPF injects for a number routed
+// to the kernel (ADR-109, ADR-135); user ecalls BPF answers itself never get
+// here. Both trap bodies keep stock strength.
 //
 #include "types.h"
 #include "param.h"

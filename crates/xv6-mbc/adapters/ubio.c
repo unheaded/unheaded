@@ -9,9 +9,8 @@
 // Boot-live: binit builds the LRU ring at main(); bread runs during
 // forkret→fsinit (superblock + log-header reads) — virtio_disk_rw resolves
 // to the Phase 1.1 blk-ramdisk.c adapter, unchanged. Write paths (bwrite
-// via log commit) are dormant on the UPC until file writes land (Track 1
-// Epic 1.3.2); their holdingsleep panics and LRU discipline are kept at
-// stock strength.
+// via log commit) run for the writes routed to the kernel (ADR-135, DP-502);
+// their holdingsleep panics and LRU discipline are kept at stock strength.
 //
 // The buffer cache is a linked list of buf structures holding
 // cached copies of disk block contents.  Caching disk blocks

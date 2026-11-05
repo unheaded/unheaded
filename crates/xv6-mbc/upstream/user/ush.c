@@ -11,21 +11,20 @@
 //
 // Scope: EXEC-only — `line := WS* word (WS+ word)* '\n'`, then
 // fork / exec / wait, prompt, loop. That is every clause the corpus
-// exercises (battle plan docs/battle-plans/PHASE22-SH-REPLACE.md), and
-// the rest of stock sh's grammar is dead code on the UPC by construction:
-//   * PIPE needs pipe(4), cd needs chdir(9) — both unimplemented
-//     (silent no-op fall-through in the ascend ecall dispatch);
-//   * REDIR `>` needs open(15) O_CREATE, which the FS reader lacks;
-//   * stock's parser mallocs every cmd node, and malloc rides sbrk(12) —
-//     also unimplemented, so stock sh only ever worked by accident
-//     (garbage a0 taken as a heap pointer). ush is malloc-free: one
-//     static line buffer, argv tokenized in place.
+// exercises (battle plan docs/battle-plans/PHASE22-SH-REPLACE.md). The rest
+// of stock sh's grammar stays out for now:
+//   * PIPE and REDIR need a descriptor on fds 0-2. pipe(4), open(15) with
+//     O_CREATE and dup(10) all work (ADR-135), but a kernel fd stays at 16
+//     or above until the full hand-off (rung 6);
+//   * cd would be a builtin over chdir(9), which works; ush does not have
+//     one yet.
+// ush is malloc-free, though sbrk(12) now works in a child: one static line
+// buffer, argv tokenized in place.
 //
-// Documented divergences (all invisible to the corpus, all safer):
-//   * metachars `<|>&;()` -> "syntax" from the child (stock: undefined
-//     behavior through dead syscalls);
-//   * `cd x` is just a command -> "exec cd failed" (stock: chdir no-op
-//     that silently pretends to succeed);
+// Documented divergences (all invisible to the corpus):
+//   * metachars `<|>&;()` -> "syntax" from the child (stock: a pipeline or
+//     redirect);
+//   * `cd x` is just a command -> "exec cd failed" (stock: a builtin);
 //   * arg cap 8 = the exec(7) argv-harvest ABI (ARGV_MAX), not stock's
 //     10 — the harvester drops args past 8 anyway, ush says so.
 //
