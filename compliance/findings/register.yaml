@@ -1920,3 +1920,13 @@ findings:
     step: 5
     plan: Goes with west's entry, east first
     decision: keep passwordless sudo, or narrow it, and when
+  - source: "host-probe:west:auditd-rules-loaded"
+    severity: medium
+    class: service
+    opened: 2026-11-05
+    exposure: auditd runs on west with no rules, so the main host records almost no kernel audit events; east has them
+    lockout: none
+    step: 3
+    plan: >-
+      West's profile is lab, which leaves out auditd-rules. Moving west to lab-hardened in the E-D host window, after
+      east, loads them; a host change, so not done unattended

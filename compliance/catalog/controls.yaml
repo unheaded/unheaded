@@ -1197,8 +1197,9 @@ controls:
   - id: UH-AUDIT-01
     title: Hosts record security-relevant events with auditd
     statement: >-
-      auditd is running on west and east, so the kernel audit subsystem
-      records security-relevant system calls and authentication events.
+      auditd is running on west and east with the rule set the auditd-rules
+      fix installs loaded, so the kernel audit subsystem records
+      security-relevant system calls and authentication events.
     rationale: >-
       Event logging and audit record generation (AU-2, AU-12; 800-171
       03.03.01); CSF PR.PS-04 log records generated; ISO A.8.15 logging;
@@ -1208,6 +1209,8 @@ controls:
     evidence:
       - {kind: host-probe, ref: "west:auditd-running", maps: {cis-ubuntu2404: ["6.2.1.2"]}}
       - {kind: host-probe, ref: "east:auditd-running", maps: {cis-ubuntu2404: ["6.2.1.2"]}}
+      - {kind: host-probe, ref: "west:auditd-rules-loaded"}
+      - {kind: host-probe, ref: "east:auditd-rules-loaded"}
       - {kind: host-probe, ref: "west:journald-active", maps: {cis-ubuntu2404: ["6.1.1.1"]}}
       - {kind: host-probe, ref: "east:journald-active", maps: {cis-ubuntu2404: ["6.1.1.1"]}}
     mappings:

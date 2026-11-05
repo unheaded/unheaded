@@ -718,6 +718,12 @@ func TestProbeJudges(t *testing.T) {
 		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\nwell=0\n", false},
 		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\n", false},
 		{"alert-route", "", false},
+		// auditd can run with nothing to record: the rules are the control.
+		{"auditd-rules-loaded", "No rules\n@ok\n", false},
+		{"auditd-rules-loaded", "", false}, // sudo refused: not read, so no pass
+		{"auditd-rules-loaded", "-w /etc/sudoers -p wa -k scope\n@ok\n", false},
+		{"auditd-rules-loaded", auditRulesFixture(), true},
+		{"auditd-rules-loaded", strings.ReplaceAll(auditRulesFixture(), "key=identity", "key=other"), false},
 		// CIS 5.2.4: users give a password to escalate, narrow rules included.
 		{"sudo-password-required", "@ok\n", true},
 		{"sudo-password-required", "govan ALL=(ALL) NOPASSWD: ALL\n@ok\n", false},
@@ -729,6 +735,38 @@ func TestProbeJudges(t *testing.T) {
 		if pass != tc.pass {
 			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
 		}
+	}
+}
+
+// auditRulesFixture is auditctl -l with one rule per required key, in the two
+// forms it prints: watches keep -k, syscall rules print key=.
+func auditRulesFixture() string {
+	var b strings.Builder
+	for _, k := range auditRuleKeys {
+		fmt.Fprintf(&b, "-a always,exit -F arch=b64 -S execve -F key=%s\n", k)
+	}
+	b.WriteString("-w /etc/hosts -p wa -k system-locale\n@ok\n")
+	return b.String()
+}
+
+// The probe's minimum set is the rule file the auditd-rules fix installs: a key
+// dropped from that fix must not stay required here, or the reverse.
+func TestAuditRuleKeysAreInTheFix(t *testing.T) {
+	raw, err := os.ReadFile("../../../../compliance/remediation/fixes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inFix := map[string]bool{}
+	for _, m := range regexp.MustCompile(`-k ([A-Za-z_-]+)`).FindAllStringSubmatch(string(raw), -1) {
+		inFix[m[1]] = true
+	}
+	for _, k := range auditRuleKeys {
+		if !inFix[k] {
+			t.Errorf("required audit key %q is in no rule of the auditd-rules fix", k)
+		}
+	}
+	if len(inFix) != len(auditRuleKeys) {
+		t.Errorf("fix has keys %v, probe requires %v", inFix, auditRuleKeys)
 	}
 }
 

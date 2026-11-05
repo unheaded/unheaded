@@ -6,6 +6,7 @@ package collect
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -615,6 +616,12 @@ func init() {
 	Probes["svc-apport-not-in-use"] = serviceProbe([]string{"apport"}, []string{"apport.service"})
 	Probes["sudo-installed"] = packageInstalledProbe([]string{"sudo"})
 
+	// Central-only, like sudo-password-required: the agent has no auditctl
+	// route today and a new baseline source would read as drift.
+	auditRules := markerLinesProbe(`$UH_PRIV sh -c 'auditctl -l && echo @ok'`, judgeAuditRules)
+	auditRules.Baseline = false
+	Probes["auditd-rules-loaded"] = auditRules
+
 	// Only Defaults lines and !authenticate uses are printed, comments dropped.
 	// "@ok" comes from inside the sudo'd shell, after every file was read: a
 	// refused sudo, or a sudoers file the agent cannot read, prints none
@@ -701,6 +708,36 @@ func markerLinesProbe(cmd string, judge func(lines []string) (bool, string)) Pro
 			return judge(lines)
 		},
 	}
+}
+
+// auditRuleKeys are the keys of the rule file the auditd-rules fix installs. A
+// host with auditd running and none of these records nothing the catalog claims.
+var auditRuleKeys = []string{
+	"MAC-policy", "access", "identity", "kernel_modules", "logins", "mounts", "scope",
+	"session", "sshd", "system-locale", "time-change", "user_emulation", "usermod",
+}
+
+var auditKeyRe = regexp.MustCompile(`(?:-k |key=)([A-Za-z_-]+)`)
+
+// judgeAuditRules passes when every required key has a loaded rule. auditctl
+// prints watches with -k and syscall rules with key=.
+func judgeAuditRules(lines []string) (bool, string) {
+	loaded := map[string]bool{}
+	for _, l := range lines {
+		for _, m := range auditKeyRe.FindAllStringSubmatch(l, -1) {
+			loaded[m[1]] = true
+		}
+	}
+	var missing []string
+	for _, k := range auditRuleKeys {
+		if !loaded[k] {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) > 0 {
+		return false, fmt.Sprintf("%d audit rule lines; no rule for %s", len(lines), strings.Join(missing, ", "))
+	}
+	return true, fmt.Sprintf("%d audit rule lines cover all %d keys", len(lines), len(auditRuleKeys))
 }
 
 func offenderProbe(cmd string) Probe {
