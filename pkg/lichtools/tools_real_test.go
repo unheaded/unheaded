@@ -384,12 +384,13 @@ func TestReadCrash_RegularFilesOnly(t *testing.T) {
 				t.Errorf("%s was read: %+v", id, res)
 			}
 		case <-time.After(5 * time.Second):
-			// Let the blocked open finish, so the goroutine does not outlive the test.
+			t.Errorf("reading %s hung", id)
+			// A writer that comes and goes ends the read, so the goroutine
+			// does not outlive the test.
 			if f, err := os.OpenFile(fifo, os.O_RDWR, 0); err == nil {
-				defer f.Close()
+				_ = f.Close()
 			}
 			<-done
-			t.Errorf("reading %s hung", id)
 		}
 	}
 }
