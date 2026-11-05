@@ -84,7 +84,7 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 15 | open | BPF | |
 | 16 | write | BPF | |
 | 17 | mknod | BPF | stub |
-| 18 | unlink | none yet | |
+| 18 | unlink | kernel | DP-502 |
 | 19 | link | none yet | |
 | 20 | mkdir | kernel | DP-502 |
 | 21 | close | BPF | |

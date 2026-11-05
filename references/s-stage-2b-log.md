@@ -170,3 +170,21 @@ Step 182: `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allo
 Resume after west's unclean reboot, 2026-11-05. The first agent stopped with Step 182's edits uncommitted; its cmt never ran. The tree was confirmed as the gated one, so the gate was not re-run. `main.rs` was last written at 19:07:27, before the gate began; the only other tracked changes since `fa7b03a3` are the ADR row, the baseline row, the progress file and this log, none of them build inputs. No kernel or user source is newer than `xv6-mbc.mbc`. The working object's sha256 equals the one `check-ebpf-insns.sh` built on its own from the same source. After the reboot `vcount` read 891,248 twice, and `mkprobe` and `hostile_ptr` booted once more: `mkprobe` lines identical to the gated run, `hostile_ptr` the same five yes and `HU: done`.
 
 Not covered: `mkdir` takes no `copyout`, so that slot-row branch and `vmfault`'s are still unbooted. `create` runs against a fresh `fs.img` with an empty log, so log pressure is untested.
+
+## Phase 15, unlink rung
+
+| Rung | OFF | ON | delta | net vs 921,036 | gate |
+|---|---|---|---|---|---|
+| unlink | 891248 | 891248 | +0 | 29788 | unlink-after |
+
+Steps 184-187: before-gate diff 0 (`last-green` was HEAD), `offv` 891,248. `parity_surface` green, off object 891,248, `off-equal`. The arm carries the const in its test, per Phase 11's note.
+
+Step 188: `flip`, 891,248, delta 0, `BUDGET-OK`, headroom 8,752. A zero was checked before it was believed, since it could mean a stale object. The on object served `unlink` (Step 189 needs a real 0 and -1, not -ENOSYS), and vcount printed the same on a second load. `.text` is 81,816 bytes in both builds: LLVM lowers `kernel_routed_alias` to one bit test, and the on object's mask is 0x145840 where the off object's is 0x105840, bit 18 added. Ignoring jump offsets, the two `.text` sections hold the same 10,227 instructions apart from that one immediate: LLVM laid the blocks out in a different order, and the arm for 18 is dead code it removed once the alias sends 18 away. The object file grew 976 bytes, in debug sections.
+
+Steps 189-190: `rmprobe`: 8 yes, 0 no, `RM: done`, first boot. `fs_walk`'s dirent scan already skips inum 0 (`if inum != 0 && inum < ninodes`), so `inner-gone=yes` needed no read-path fix.
+
+Steps 191-192: `gate unlink-after`: same=12 diff=0 rc=0 doom=1 ascend=891248, ALL GREEN, `rmprobe` PASS (1). `head=05c2c1de` is the const-off commit: the gate ran on the flipped tree, as Step 193 commits after it. Object sha256 unchanged across the gate (e2789733), so the harness's Doom build left the ascend object in place.
+
+Step 193: `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allowlisted over 900000. The baseline row's count is unchanged; only its date moved.
+
+Not covered: `rmprobe` unlinks directories only, so `unlink` on a regular file was not booted. The two directories' own data blocks do go through `iput` and `itrunc`, with no panic.

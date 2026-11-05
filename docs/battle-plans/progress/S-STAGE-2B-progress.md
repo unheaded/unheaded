@@ -60,3 +60,8 @@ DP-206 (approved, already run once under guard): the attended list is Appendix D
 - Phase 14 departures. West rebooted uncleanly with Step 182's edits uncommitted; the resume confirmed the tree by timestamps, object sha256 and fresh vcount and probe boots, did not re-run the gate, and reset DEADLINE. Step 182's cmt list gained $PROG, as in Phases 2, 6, 9 and 11.
 
 - unsigned commit: [PLAN S-STAGE-2B] Steps 173-182: mkdir in the owned kernel, read back through BPF
+- unsigned commit: [PLAN S-STAGE-2B] Steps 183-187: unlink arm wired, const off
+- ascend baseline row now 891248 (net vs 921036: 29788)
+- Phase 15: unlink is on at 891,248, delta 0, headroom 8,752, net 29,788. rmprobe 8 checks PASS in gate unlink-after, and the removed names are gone to BPF open. The zero is real: the alias compiles to one bit test, so bit 18 went into the mask and no instruction was added ($LOG has the object diff). link (19) may land the same way, since 19 fits that mask; a mask-shaped zero says nothing about the rung's run cost, only the verifier's.
+- Phase 15 departures. Step 193's cmt list gained $PROG, as in Phases 2, 6, 9 and 11. rmprobe unlinks only empty directories: unlink of a regular file with data blocks has not been booted, and the plan has no probe for it. Say if you want one.
+- unsigned commit: [PLAN S-STAGE-2B] Steps 188-193: unlink in the owned kernel
