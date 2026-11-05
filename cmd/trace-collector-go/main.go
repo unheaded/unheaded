@@ -620,7 +620,7 @@ func resolveEBPFObjDir() string {
 
 // runUnifiedMode starts the unified trace collector that loads all three
 // BPF programs (packet_marker, flow_tracker, latency_probe) based on flags.
-func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, lns []net.Listener) {
+func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) {
 	log.Info().
 		Str("interface", *iface).
 		Str("wotan_addr", *wotanAddr).
@@ -915,7 +915,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		IdleTimeout:       60 * time.Second,
 	}
 
-	serveOn(httpServer, lns)
+	serveOn(ctx, httpServer, ls)
 
 	// Wait for shutdown
 	<-ctx.Done()
@@ -942,24 +942,68 @@ func apiHandler(mux http.Handler, cfg auth.ServiceAuthConfig) http.Handler {
 	return auth.WrapHandler(mux, auth.SetupMiddleware(cfg))
 }
 
-// openListeners binds every address of list (comma-separated), before any
-// BPF program loads, so a bad bind stops the start instead of leaving a
-// collector nothing can reach. Off loopback it needs auth on (M10).
-func openListeners(list string, cfg auth.ServiceAuthConfig) ([]net.Listener, error) {
-	addrs := httputil.ListenAddrs(list)
-	if err := auth.CheckListen(addrs, cfg); err != nil {
-		return nil, err
-	}
-	return httputil.ListenAll(addrs)
+// listenRetry is how often serveOn tries an address the host does not hold.
+var listenRetry = 5 * time.Second
+
+// bindAddr opens one listener; a test swaps it to bring an address up.
+var bindAddr = httputil.ListenTCP
+
+// listeners is what the start could bind.
+type listeners struct {
+	bound   []net.Listener
+	pending []string                // not on this host yet
+	stop    context.CancelCauseFunc // ends the run with a failure
 }
 
-// serveOn starts srv on every listener.
-func serveOn(srv *http.Server, lns []net.Listener) {
-	for _, ln := range lns {
+// openListeners binds every address of list (comma-separated), before any
+// BPF program loads, so a taken port or a bad address stops the start instead
+// of leaving a collector nothing can reach. An address the host does not hold
+// yet does not: the BPF programs and the addresses that are up carry on, and
+// serveOn takes that one once it appears, so a link that is down at boot costs
+// its scrapes and nothing else. Off loopback it needs auth on (M10).
+func openListeners(list string, cfg auth.ServiceAuthConfig) (listeners, error) {
+	addrs := httputil.ListenAddrs(list)
+	if err := auth.CheckListen(addrs, cfg); err != nil {
+		return listeners{}, err
+	}
+	lns, pending, err := httputil.ListenAvailable(addrs)
+	if err != nil {
+		return listeners{}, err
+	}
+	return listeners{bound: lns, pending: pending}, nil
+}
+
+// runFailure is why ctx ended, when a listener ended it and a signal did not.
+func runFailure(ctx context.Context) error {
+	if err := context.Cause(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
+}
+
+// serveOn starts srv on every listener, and on each pending address once the
+// host holds it, until ctx ends. A pending address that turns out taken or bad
+// ends the run through ls.stop, as it would have stopped the start.
+func serveOn(ctx context.Context, srv *http.Server, ls listeners) {
+	serve := func(ln net.Listener) {
+		log.Info().Str("addr", ln.Addr().String()).Msg("HTTP server starting")
+		if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
+			log.Error().Err(err).Msg("HTTP server error")
+		}
+	}
+	for _, ln := range ls.bound {
+		go serve(ln)
+	}
+	every, bind := listenRetry, bindAddr
+	for _, addr := range ls.pending {
+		log.Warn().Str("addr", addr).Dur("retry", every).Msg("address not on this host yet")
 		go func() {
-			log.Info().Str("addr", ln.Addr().String()).Msg("HTTP server starting")
-			if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
-				log.Error().Err(err).Msg("HTTP server error")
+			ln, err := httputil.AwaitAddr(addr, every, bind, ctx.Done())
+			switch {
+			case err != nil:
+				ls.stop(err)
+			case ln != nil:
+				serve(ln)
 			}
 		}()
 	}
@@ -968,7 +1012,7 @@ func serveOn(srv *http.Server, lns []net.Listener) {
 // ── Legacy Anamnesis mode runner ────────────────────────────────────────
 
 // runAnamnesisMode starts the original Anamnesis-based trace collector.
-func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, lns []net.Listener) {
+func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) {
 	// Resolved addresses, not raw flags: this is the DEFAULT mode, and it
 	// read the flags directly, so WOTAN_GRPC_ADDR / WOTAN_ADDR were ignored
 	// entirely on the path that actually runs.
@@ -1026,7 +1070,7 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	serveOn(httpServer, lns)
+	serveOn(ctx, httpServer, ls)
 
 	// Start flow GC goroutine
 	go func() {
@@ -1203,8 +1247,8 @@ func main() {
 	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create context with signal handling
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
 
 	// The port that actually serves: unified mode serves only --metrics-addr
 	// (16671); it used to announce 16670 regardless.
@@ -1213,10 +1257,11 @@ func main() {
 		listenList = *metricsAddr
 	}
 	authCfg := auth.LoadServiceAuthConfig("trace-collector")
-	lns, err := openListeners(listenList, authCfg)
+	ls, err := openListeners(listenList, authCfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("refusing to start")
 	}
+	ls.stop = cancel
 
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	announceAddr := httputil.ListenAddrs(listenList)[0]
@@ -1228,12 +1273,15 @@ func main() {
 	go func() {
 		sig := <-sigCh
 		log.Info().Str("signal", sig.String()).Msg("shutdown signal received")
-		cancel()
+		cancel(nil)
 	}()
 
 	if *unifiedMode {
-		runUnifiedMode(ctx, healthSrv, transportCfg, authCfg, lns)
+		runUnifiedMode(ctx, healthSrv, transportCfg, authCfg, ls)
 	} else {
-		runAnamnesisMode(ctx, healthSrv, transportCfg, authCfg, lns)
+		runAnamnesisMode(ctx, healthSrv, transportCfg, authCfg, ls)
+	}
+	if err := runFailure(ctx); err != nil {
+		log.Fatal().Err(err).Msg("stopped by a listener failure")
 	}
 }

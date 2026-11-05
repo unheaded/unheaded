@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // ListenAddrs splits a comma-separated listen list ("127.0.0.1:9110,
@@ -69,6 +70,32 @@ func ListenAvailable(addrs []string) (lns []net.Listener, pending []string, err 
 		}
 	}
 	return lns, pending, nil
+}
+
+// ListenTCP opens one TCP listener.
+func ListenTCP(addr string) (net.Listener, error) { return net.Listen("tcp", addr) }
+
+// AwaitAddr binds an address ListenAvailable left pending, once the host holds
+// it, trying every interval. Any failure but AddrNotOnHost is returned at once,
+// as it would have been at the start. It returns nil, nil when done closes
+// first.
+func AwaitAddr(addr string, every time.Duration, bind func(string) (net.Listener, error), done <-chan struct{}) (net.Listener, error) {
+	tick := time.NewTicker(every)
+	defer tick.Stop()
+	for {
+		select {
+		case <-done:
+			return nil, nil
+		case <-tick.C:
+		}
+		ln, err := bind(addr)
+		if err == nil {
+			return ln, nil
+		}
+		if !AddrNotOnHost(err) {
+			return nil, fmt.Errorf("listen %s: %w", addr, err)
+		}
+	}
 }
 
 // AddrNotOnHost reports whether a listen failed because the address is not

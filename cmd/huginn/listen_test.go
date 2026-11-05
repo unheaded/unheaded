@@ -146,18 +146,6 @@ func TestServeAll_WaitsForAnAddressNotOnTheHostYet(t *testing.T) {
 	}
 }
 
-// L11: an address that turns out unusable for any other reason ends the wait
-// with that error, as it would have at the start.
-func TestAwaitAddr_OtherFailureIsReturned(t *testing.T) {
-	savedBind, savedRetry := bindAddr, listenRetry
-	t.Cleanup(func() { bindAddr, listenRetry = savedBind, savedRetry })
-	listenRetry = time.Millisecond
-	bindAddr = func(string) (net.Listener, error) { return nil, syscall.EADDRINUSE }
-	if _, err := awaitAddr("127.0.0.1:1", make(chan struct{})); !errors.Is(err, syscall.EADDRINUSE) {
-		t.Fatalf("err = %v, want EADDRINUSE", err)
-	}
-}
-
 // L11: the unit reads the list from the host's env file, loopback without
 // one, and the dashboard's health check uses the address its host cards
 // already use, which a host can list.

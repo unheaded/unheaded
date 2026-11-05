@@ -4,12 +4,15 @@
 package httputil
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestListenAddrs(t *testing.T) {
@@ -136,5 +139,42 @@ func TestListenAvailable_OtherFailuresRefuse(t *testing.T) {
 	}
 	if _, _, err := ListenAvailable([]string{"not an address"}); err == nil {
 		t.Fatal("no error for a malformed address")
+	}
+}
+
+// L11: a pending address is bound once the host holds it.
+func TestAwaitAddr_BindsOnceTheAddressAppears(t *testing.T) {
+	tries := 0
+	bind := func(string) (net.Listener, error) {
+		if tries++; tries < 3 {
+			return nil, &net.OpError{Op: "listen", Err: syscall.EADDRNOTAVAIL}
+		}
+		return ListenTCP("127.0.0.1:0")
+	}
+	ln, err := AwaitAddr("late", time.Millisecond, bind, make(chan struct{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	if tries != 3 {
+		t.Fatalf("tries = %d, want 3", tries)
+	}
+}
+
+// L11: an address that turns out unusable for any other reason ends the wait
+// with that error, as it would have at the start.
+func TestAwaitAddr_OtherFailureIsReturned(t *testing.T) {
+	bind := func(string) (net.Listener, error) { return nil, syscall.EADDRINUSE }
+	if _, err := AwaitAddr("127.0.0.1:1", time.Millisecond, bind, make(chan struct{})); !errors.Is(err, syscall.EADDRINUSE) {
+		t.Fatalf("err = %v, want EADDRINUSE", err)
+	}
+}
+
+func TestAwaitAddr_DoneEndsTheWait(t *testing.T) {
+	done := make(chan struct{})
+	close(done)
+	bind := func(string) (net.Listener, error) { return nil, syscall.EADDRNOTAVAIL }
+	if ln, err := AwaitAddr("late", time.Hour, bind, done); ln != nil || err != nil {
+		t.Fatalf("AwaitAddr = %v, %v, want nil, nil", ln, err)
 	}
 }
