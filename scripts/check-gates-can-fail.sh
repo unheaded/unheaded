@@ -228,7 +228,7 @@ PROBE
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_manifest_yaml() {
     # Contract: every tracked YAML manifest parses. Plant a file that cannot.
-    local f="deploy/k8s/policies/.meta-gate-probe.yaml"
+    local f="configs/.meta-gate-probe.yaml"
     backup "${f}"
     printf 'a: "unterminated\nb: [1, 2\n' > "${REPO_ROOT}/${f}"
     git -C "${REPO_ROOT}" add -N "${f}" >/dev/null 2>&1  # gate reads git ls-files
@@ -459,15 +459,6 @@ provoke_well_migrations() {
     local f="db/migrations/099_meta_gate_probe.sql"
     backup "${f}"
     printf 'SELECT 1;\n' > "${REPO_ROOT}/${f}"
-}
-
-# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
-provoke_k8s_well_initdb() {
-    # Contract (ADR-101): the ConfigMap is db/, rendered. Edit a migration
-    # without re-rendering.
-    local f="db/migrations/018_config_bindings_profile_index.sql"
-    backup "${f}"
-    printf -- '-- edited without re-rendering\n' >> "${REPO_ROOT}/${f}"
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
@@ -728,15 +719,6 @@ provoke_gitleaks() {
     local f="docs/compliance/SECRETS-SCAN.md"
     backup "${f}"
     printf '\naws_access_key_id = %s%s\n' "AKIA" "Q7ZK3M5R2TXW4P6N" >>"${REPO_ROOT}/${f}"
-}
-
-# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
-provoke_helm_security() {
-    # Contract: every container the chart renders has a read-only root
-    # filesystem. Flip the chart-wide default.
-    local f="helm/unheaded/values.yaml"
-    backup "${f}"
-    sed -i 's/readOnlyRootFilesystem: true/readOnlyRootFilesystem: false/' "${REPO_ROOT}/${f}"
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
@@ -1060,7 +1042,6 @@ live-path-inventory|provoke_live_path_inventory|fast|a new main package outside 
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
 check-well-migrations|provoke_well_migrations|fast|an untracked migration file the MANIFEST does not route
 check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at startup (a new ddl-outside-ledger finding)
-check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re-rendering the Kubernetes initdb ConfigMap
 check-kanban-genesis|provoke_kanban_genesis|fast|a Genesis card title edited in db/seed/kanban-genesis.json without re-rendering migration 034
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
@@ -1071,7 +1052,6 @@ check-pq-kex|provoke_pq_kex|fast|an untracked Go file pinning CurvePreferences t
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
-check-helm-security|provoke_helm_security|fast|the chart-wide readOnlyRootFilesystem flipped to false in values.yaml (downloads the pinned Helm once)
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
@@ -1132,7 +1112,7 @@ kanban-git-link|writes kanban links, no verdict
 drift-detect|reports drift; alerts-only by design (pkg/enkrateia contract)
 qa-smoke|prints a score for a human to compare against the previous batch
 ci-python-lock|regenerates .github/ci-python/requirements.txt (uv in a throwaway container); no verdict of its own: check-tool-freshness and the --require-hashes installs are the gates
-ci-install-tools|installs pinned syft/grype/cosign/helm/kubeconform for CI jobs (lib/tool-pins + lib/fetch-tool, which the check-* scripts also use); no verdict of its own
+ci-install-tools|installs pinned syft/grype/cosign for CI jobs (lib/tool-pins + lib/fetch-tool, which the check-* scripts also use); no verdict of its own
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
 lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs, Jenkinsfile); proven by test-deb-maintscripts
 apt-repo|keeps the signed apt repo on west (runbooks/deploy/apt-repo-publish.yaml, Jenkinsfile); its refusals and signatures are proven by tests/apt/apt_repo_test.sh (security.yml)

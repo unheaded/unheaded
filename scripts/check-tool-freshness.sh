@@ -33,8 +33,6 @@ TOOLS=(
 	"syft|scripts/lib/tool-pins.sh|SYFT_VERSION|anchore/syft|v"
 	"grype|scripts/lib/tool-pins.sh|GRYPE_VERSION|anchore/grype|v"
 	"cosign|scripts/lib/tool-pins.sh|COSIGN_VERSION|sigstore/cosign|v"
-	"helm|scripts/lib/tool-pins.sh|HELM_VERSION|helm/helm|v"
-	"kubeconform|scripts/lib/tool-pins.sh|KUBECONFORM_VERSION|yannh/kubeconform|v"
 	"hadolint|scripts/lib/tool-pins.sh|HADOLINT_VERSION|hadolint/hadolint|v"
 	"trivy|scripts/lib/tool-pins.sh|TRIVY_VERSION|aquasecurity/trivy|v"
 )

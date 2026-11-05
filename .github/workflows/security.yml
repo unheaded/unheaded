@@ -149,11 +149,6 @@ jobs:
       - name: haproxy configs parse (haproxy -c)
         run: ./scripts/check-haproxy-cfg.sh
 
-      # ADR-101: the Kubernetes Well's initdb ConfigMap is rendered from db/,
-      # so a migration added for compose reaches Kubernetes too.
-      - name: Kubernetes Well initdb matches db/
-        run: ./scripts/check-k8s-well-initdb.sh
-
       # S-TWO-BRAINS Phase 13: the Kanban Genesis cards are reviewed in
       # db/seed/kanban-genesis.json and reach the Well through migration
       # 034, rendered from it; neither may drift from the other.

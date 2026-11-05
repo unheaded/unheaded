@@ -6,7 +6,7 @@
 # and reach the Well through db/migrations/034_app_kanban_genesis.sql,
 # which scripts/kanban/render-genesis-sql.py renders from it. This fails
 # when the two disagree, so neither can drift from the other (S-TWO-BRAINS
-# Step 421). Same pattern as check-k8s-well-initdb.sh.
+# Step 421).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 tmp="$(mktemp)"

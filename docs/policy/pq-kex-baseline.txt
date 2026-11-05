@@ -2,4 +2,3 @@
 # <path> <rule>. Regenerate after a fix: go run ./cmd/crypto-inventory lint --update (refuses additions).
 # held until E1: docker-compose.yml + the-well statefulset postgres-pre18: the Well stays on PG 16 until Stevie approves runbooks/data/well-pg18-upgrade.yaml.
 docker-compose.yml postgres-pre18
-kubernetes/manifests/base/the-well/statefulset.yaml postgres-pre18
