@@ -195,8 +195,8 @@ func (s *Segment) Read(seq uint64) ([]byte, error) {
 
 		if entrySeq == seq {
 			// Found it - read data
-			data := make([]byte, length)
-			if _, err := io.ReadFull(reader, data); err != nil {
+			data, err := s.readBody(reader, length)
+			if err != nil {
 				return nil, err
 			}
 
@@ -213,6 +213,23 @@ func (s *Segment) Read(seq uint64) ([]byte, error) {
 			return nil, err
 		}
 	}
+}
+
+// readBody reads an entry's body. length comes from the file, so it is held
+// against the file's size before anything is allocated for it.
+func (s *Segment) readBody(r io.Reader, length uint32) ([]byte, error) {
+	info, err := s.file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if int64(length) > info.Size() {
+		return nil, ErrCorruptedEntry
+	}
+	data := make([]byte, length)
+	if _, err := io.ReadFull(r, data); err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 // Scan iterates over entries in the segment.
@@ -252,8 +269,8 @@ func (s *Segment) Scan(startSeq uint64, fn func(seq uint64, data []byte) error) 
 		crc := binary.BigEndian.Uint32(header[12:16])
 
 		// Read data
-		data := make([]byte, length)
-		if _, err := io.ReadFull(reader, data); err != nil {
+		data, err := s.readBody(reader, length)
+		if err != nil {
 			return err
 		}
 
@@ -443,8 +460,8 @@ func (s *Segment) Repair() error {
 		crc := binary.BigEndian.Uint32(header[12:16])
 
 		// Read data
-		data := make([]byte, length)
-		if _, err := io.ReadFull(reader, data); err != nil {
+		data, err := s.readBody(reader, length)
+		if err != nil {
 			break
 		}
 
@@ -511,8 +528,8 @@ func (s *Segment) ReadAll() ([]Entry, error) {
 		crc := binary.BigEndian.Uint32(header[12:16])
 
 		// Read data
-		data := make([]byte, length)
-		if _, err := io.ReadFull(reader, data); err != nil {
+		data, err := s.readBody(reader, length)
+		if err != nil {
 			return nil, err
 		}
 

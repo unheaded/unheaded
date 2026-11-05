@@ -19,7 +19,7 @@ import (
 
 func TestFileStore_DoubleClose(t *testing.T) {
 	tmpDir := t.TempDir()
-	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestFileStore_DoubleClose(t *testing.T) {
 
 func TestFileStore_ClosedSet(t *testing.T) {
 	tmpDir := t.TempDir()
-	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestFileStore_ClosedSet(t *testing.T) {
 
 func TestFileStore_ClosedDelete(t *testing.T) {
 	tmpDir := t.TempDir()
-	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestFileStore_ClosedDelete(t *testing.T) {
 
 func TestFileStore_ClosedList(t *testing.T) {
 	tmpDir := t.TempDir()
-	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestFileStore_ClosedList(t *testing.T) {
 
 func TestFileStore_ClosedWatch(t *testing.T) {
 	tmpDir := t.TempDir()
-	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestFileStore_ClosedWatch(t *testing.T) {
 
 func TestFileStore_Overwrite(t *testing.T) {
 	tmpDir := t.TempDir()
-	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
@@ -140,8 +140,9 @@ func TestFileStore_WatchDelete(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	fs, err := store.NewFileStore(store.FileStoreConfig{
-		BasePath:     tmpDir,
-		PollInterval: 100 * time.Millisecond,
+		BasePath:       tmpDir,
+		PollInterval:   100 * time.Millisecond,
+		AllowPlaintext: true,
 	})
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
@@ -181,7 +182,7 @@ func TestFileStore_WatchDelete(t *testing.T) {
 
 func TestFileStore_ConcurrentReads(t *testing.T) {
 	tmpDir := t.TempDir()
-	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
@@ -243,7 +244,7 @@ func TestFileStore_ConcurrentReads(t *testing.T) {
 
 func TestFileStore_ListSkipsNonJSON(t *testing.T) {
 	tmpDir := t.TempDir()
-	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}

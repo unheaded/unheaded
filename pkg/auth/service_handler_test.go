@@ -197,3 +197,44 @@ func TestNewServiceHandler_CustomPolicies(t *testing.T) {
 		t.Errorf("custom policies, service token on /api/v1/deploy: %d, want 200", c)
 	}
 }
+
+// L13: a method the policies do not name is judged as a write, so a
+// read-only identity cannot use one to reach a handler that does not check
+// its method.
+func TestNewServiceHandler_UnknownMethodIsAWrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keys.jsonl")
+	store, err := NewFileAPIKeyStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer, _, err := store.Create(t.Context(), "watcher", RoleObserver, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	operator, _, err := store.Create(t.Context(), "hand", RoleOperator, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := NewServiceHandler(okHandler(), ServiceAuthConfig{Enabled: true, ServiceName: "svc", APIKeyStore: "file:" + path}, ServiceRoutes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	do := func(method, target, key string) int {
+		req := httptest.NewRequest(method, target, nil)
+		req.Header.Set("X-API-Key", key)
+		return codeOf(h, req)
+	}
+	for _, target := range []string{"/timeline", "/api/v1/timeline"} {
+		for _, method := range []string{"PROPFIND", "MERGE", "post", "CONNECT"} {
+			if got := do(method, target, observer); got != http.StatusForbidden {
+				t.Errorf("observer %s %s = %d, want 403", method, target, got)
+			}
+			if got := do(method, target, operator); got != http.StatusOK {
+				t.Errorf("operator %s %s = %d, want 200", method, target, got)
+			}
+		}
+		if got := do(http.MethodGet, target, observer); got != http.StatusOK {
+			t.Errorf("observer GET %s = %d, want 200", target, got)
+		}
+	}
+}

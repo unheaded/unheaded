@@ -439,6 +439,11 @@ func (h *Handler) sendSSEEvent(w http.ResponseWriter, flusher http.Flusher, even
 
 // HandleUpdateMilestone handles POST /milestones/:id/update
 func (h *Handler) HandleUpdateMilestone(w http.ResponseWriter, r *http.Request, milestoneID string) {
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "use POST", nil)
+		return
+	}
+
 	// Defensive: validate ID
 	if milestoneID == "" {
 		h.writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "milestone ID cannot be empty", nil)

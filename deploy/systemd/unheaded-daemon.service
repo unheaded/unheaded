@@ -39,7 +39,7 @@ Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 # S-IRON-GATE Phase 5: container writes and reconcile need a service token
 # from one of these callers; reads under /api/v1/info and /api/v1/state stay open.
 Environment=AUTH_ENABLED=true
-Environment=AUTH_ALLOW_CALLERS=sword,unheaded-cli,dashboard-backend
+Environment=AUTH_ALLOW_CALLERS=sword,unheaded-cli
 ReadOnlyPaths=-/etc/unheaded/trust.d
 # TLS (S-IRON-GATE Phase 8, ADR-105, FND-017; deploy/systemd/README.md#tls):
 # TLS 1.3 with hybrid ML-KEM on the listener and every first-party link.

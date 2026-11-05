@@ -13,12 +13,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/wotanerr"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/store"
+	"unheaded/services/wotan/internal/topicpattern"
 	"unheaded/services/wotan/internal/wotan"
 )
 
@@ -126,14 +128,18 @@ func (s *Server) JoinRoom(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "room_id and name are required")
 		return
 	}
-
-	// Create or get room
-	if _, err := s.RoomManager.GetOrCreate(req.RoomID, req.RoomID); err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
+	if !topicpattern.ValidTopic(req.RoomID) {
+		writeError(w, http.StatusBadRequest, "invalid room_id")
+		return
+	}
+	// With auth on a member acts only as its identity (memberIsCaller), so a
+	// member under any other name could never use what it was approved for.
+	if id := auth.IdentityFromContext(r.Context()); id != nil && req.Name != id.Subject {
+		writeError(w, http.StatusForbidden, "name must be the caller's identity")
 		return
 	}
 
-	// Create pending member with timeout
+	// Create pending member with timeout. Its room comes with its approval.
 	newMember, err := s.MemberManager.RequestJoin(req.RoomID, req.Name, req.PublicKey, s.PendingApprovalTimeout)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
@@ -171,6 +177,12 @@ func (s *Server) SendMessage(w http.ResponseWriter, r *http.Request) {
 	// Check if member is approved
 	if !s.MemberManager.IsApproved(req.MemberID) {
 		writeError(w, http.StatusForbidden, "member not approved or not found")
+		return
+	}
+	// A member id is no secret (every message carries its creator's): with
+	// auth on, a caller acts only through its own members.
+	if !s.memberIsCaller(r, req.MemberID) {
+		writeError(w, http.StatusForbidden, "member belongs to another identity")
 		return
 	}
 
@@ -238,6 +250,12 @@ func (s *Server) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "member not approved or not found")
 		return
 	}
+	// A member id is no secret (every message carries its creator's): with
+	// auth on, a caller acts only through its own members.
+	if !s.memberIsCaller(r, req.MemberID) {
+		writeError(w, http.StatusForbidden, "member belongs to another identity")
+		return
+	}
 
 	// Get room
 	rm, err := s.RoomManager.Get(req.RoomID)
@@ -295,6 +313,13 @@ func (s *Server) GetMessages(w http.ResponseWriter, r *http.Request) {
 	// Check if member is approved
 	if !s.MemberManager.IsApproved(memberID) {
 		writeError(w, http.StatusForbidden, "member not approved or not found")
+		return
+	}
+
+	// A member id is no secret (every message carries its creator's): with
+	// auth on, a caller acts only through its own members.
+	if !s.memberIsCaller(r, memberID) {
+		writeError(w, http.StatusForbidden, "member belongs to another identity")
 		return
 	}
 
@@ -372,6 +397,15 @@ func (s *Server) ApproveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	mbr, err := s.MemberManager.Get(memberID)
+	if err != nil {
+		writeError(w, memberErrStatus(err), err.Error())
+		return
+	}
+	if err := s.ensureRoom(mbr.RoomID); err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
 	if err := s.MemberManager.Approve(memberID, req.ApprovedBy); err != nil {
 		writeError(w, memberErrStatus(err), err.Error())
 		return
@@ -444,11 +478,25 @@ func (s *Server) ApproveAllMembers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	count := s.MemberManager.ApproveAll(approvedBy)
+	// As in ApproveMember: no room, no approval. Whoever arrives after this
+	// listing stays pending for the next call.
+	count, leftPending := 0, 0
+	for _, mbr := range s.MemberManager.GetAllPending() {
+		if err := s.ensureRoom(mbr.RoomID); err != nil {
+			log.Warn().Err(err).Str("room", mbr.RoomID).Msg("approve_all_room_refused")
+			leftPending++
+			continue
+		}
+		if err := s.MemberManager.Approve(mbr.ID, approvedBy); err != nil {
+			continue // denied or expired since the listing
+		}
+		count++
+	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":         "approved",
 		"approved_count": count,
+		"left_pending":   leftPending,
 		"message":        fmt.Sprintf("approved %d pending member(s)", count),
 	})
 }

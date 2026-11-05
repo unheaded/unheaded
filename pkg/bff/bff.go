@@ -40,6 +40,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -146,6 +147,8 @@ type BFF struct {
 	limitMu sync.Mutex
 	limits  map[string]*window
 
+	failures *loginFailures
+
 	stop     chan struct{}
 	stopOnce sync.Once
 }
@@ -210,6 +213,7 @@ func New(cfg Config) (*BFF, error) {
 		store:    store,
 		now:      cfg.Now,
 		limits:   make(map[string]*window),
+		failures: newLoginFailures(cfg.Now),
 		stop:     make(chan struct{}),
 	}
 	go b.evictLoop()
@@ -250,6 +254,7 @@ func (b *BFF) Evict(ctx context.Context) int {
 		}
 	}
 	b.limitMu.Unlock()
+	b.failures.evict()
 	return n
 }
 
@@ -383,7 +388,23 @@ func (b *BFF) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tok, status, retry := b.issuerLogin(r.Context(), req)
+	if wait, ok := b.failures.charge(client, req.Username); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds()+0.999)))
+		log.Warn().Str("service", b.cfg.ServiceName).Str("source", client).Msg("bff: login failure budget spent")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "temporarily_locked"})
+		return
+	}
+
+	// Not bound to the client's connection: the issuer counts an attempt
+	// once it has it, so hanging up must not win the charge back.
+	tok, status, retry := b.issuerLogin(context.WithoutCancel(r.Context()), req)
+	switch status {
+	case http.StatusOK:
+		b.failures.success(client, req.Username)
+	case http.StatusUnauthorized:
+	default:
+		b.failures.refund(client, req.Username)
+	}
 	if status != http.StatusOK {
 		if retry != "" {
 			w.Header().Set("Retry-After", retry)

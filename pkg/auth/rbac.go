@@ -153,12 +153,25 @@ func DefaultServicePolicies(serviceName string) RBACConfig {
 	}
 }
 
+// policyMethod is the method a request is judged as. Policies name the
+// methods they mean, so any other method counts as a write: it must not fall
+// through to the read roles and reach a handler that ignores its method.
+func policyMethod(method string) string {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions,
+		http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return method
+	}
+	return http.MethodPost
+}
+
 func findRequiredRoles(cfg RBACConfig, r *http.Request) []string {
+	method := policyMethod(r.Method)
 	for _, p := range cfg.Policies {
 		if !policyMatches(p, r.URL) {
 			continue
 		}
-		if len(p.Methods) > 0 && !containsMethod(p.Methods, r.Method) {
+		if len(p.Methods) > 0 && !containsMethod(p.Methods, method) {
 			continue
 		}
 		return p.RequiredRoles

@@ -307,6 +307,8 @@ func NewMonitor(config *Config, log *logger.Logger) (*Monitor, error) {
 		client: &http.Client{
 			Timeout:   config.PollTimeout,
 			Transport: tr,
+			// A target answers for itself: the poll never goes elsewhere.
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 		targets: make(map[string]*ServiceTarget),
 		health:  make(map[string]*ServiceHealth),
@@ -315,6 +317,9 @@ func NewMonitor(config *Config, log *logger.Logger) (*Monitor, error) {
 		doneCh:  make(chan struct{}),
 	}, nil
 }
+
+// maxHealthBody bounds one /health answer, far above any real one here.
+const maxHealthBody = 1 << 20
 
 // RegisterTarget registers a service target for monitoring
 func (m *Monitor) RegisterTarget(target *ServiceTarget) error {
@@ -527,7 +532,10 @@ func (m *Monitor) pollTarget(ctx context.Context, target *ServiceTarget) {
 	result.Duration = time.Since(start)
 
 	// Read response body
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxHealthBody+1))
+	if err == nil && len(body) > maxHealthBody {
+		err = fmt.Errorf("over %d bytes", maxHealthBody)
+	}
 	if err != nil {
 		result.Status = StatusDegraded
 		result.Error = fmt.Sprintf("read body: %v", err)

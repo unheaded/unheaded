@@ -25,7 +25,7 @@ Before 2026-10-23 none of this touched anything: the injectors logged and return
 | `http_error` | **refuses**: "not supported: deploy a faulty build instead" (steel-echo `STEEL_ERROR_RATE`, D-22) | | |
 | `cpu_stress`, `memory_stress`, `disk_stress`, `dns_failure`, `time_skew`, `node_drain`, `resource_exhaustion`, `custom` | **refuse** "not implemented" (501). They had no injector; now they say so | | |
 
-Request shape (`POST /api/v1/chaos/experiments`, `X-API-Key`):
+Writes need the admin, operator or service role (an `AUTH_API_KEYS` key is service); reads also take observer. Request shape (`POST /api/v1/chaos/experiments`, `X-API-Key`):
 
 ```json
 {"name":"rs-netem-1","type":"network_delay",

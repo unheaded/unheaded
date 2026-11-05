@@ -30,6 +30,13 @@ type ReverseProxy struct {
 	circuitBreaker  *CircuitBreaker
 	transport       http.RoundTripper
 	bufferPool      sync.Pool
+	trustedProxies  map[string]bool
+}
+
+// SetTrustedProxies names the peers whose forwarding headers are believed.
+// Call it before serving.
+func (p *ReverseProxy) SetTrustedProxies(addrs []string) {
+	p.trustedProxies = middleware.TrustedProxySet(addrs)
 }
 
 // NewReverseProxy creates a new reverse proxy.
@@ -195,10 +202,11 @@ func (p *ReverseProxy) proxyRequest(w http.ResponseWriter, r *http.Request, back
 	copyHeaders(outReq.Header, r.Header)
 
 	// Add proxy headers
-	outReq.Header.Set("X-Forwarded-For", getClientIP(r))
+	clientIP := middleware.ClientIP(r, p.trustedProxies)
+	outReq.Header.Set("X-Forwarded-For", clientIP)
 	outReq.Header.Set("X-Forwarded-Host", r.Host)
 	outReq.Header.Set("X-Forwarded-Proto", getScheme(r))
-	outReq.Header.Set("X-Real-IP", getClientIP(r))
+	outReq.Header.Set("X-Real-IP", clientIP)
 
 	// Inject tracing headers
 	middleware.InjectHeaders(ctx, outReq.Header)
@@ -317,24 +325,6 @@ func isHopByHopHeader(header string) bool {
 		"Upgrade":             true,
 	}
 	return hopByHopHeaders[header]
-}
-
-// getClientIP extracts the client IP from the request.
-func getClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		for i := 0; i < len(xff); i++ {
-			if xff[i] == ',' {
-				return xff[:i]
-			}
-		}
-		return xff
-	}
-
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }
 
 // getScheme returns the request scheme.

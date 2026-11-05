@@ -385,8 +385,9 @@ type TraceBuffer struct {
 // dashboardCSP is the dashboard's Content-Security-Policy (S-IRON-GATE Step
 // 298): scripts only from this origin (no inline handlers), inline styles
 // still allowed until the SPA's style attributes move to classes, and the
-// live views' WebSocket / EventSource on this origin.
-const dashboardCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none'"
+// live views' WebSocket / EventSource on this origin. Forms submit only to
+// this origin, whatever markup reaches a page.
+const dashboardCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 
 func withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1539,37 +1540,56 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
+// A stream filter names a few types and services: no real one nears these.
+const (
+	maxStreamFilterEntries = 64
+	maxStreamFilterBytes   = 2048
+)
+
+// parseStreamFilterList splits one comma-separated filter parameter, or
+// reports it too large.
+func parseStreamFilterList(raw string) ([]string, bool) {
+	if raw == "" {
+		return nil, true
+	}
+	if len(raw) > maxStreamFilterBytes || strings.Count(raw, ",") >= maxStreamFilterEntries {
+		return nil, false
+	}
+	return strings.Split(raw, ","), true
+}
+
 // handleStreamWebSocket handles WS /api/v1/stream - real-time metrics stream
 func (s *Server) handleStreamWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Parse filter query parameters
-	filter := StreamFilter{}
-
-	if types := r.URL.Query().Get("types"); types != "" {
-		filter.Types = strings.Split(types, ",")
+	types, okTypes := parseStreamFilterList(r.URL.Query().Get("types"))
+	services, okServices := parseStreamFilterList(r.URL.Query().Get("services"))
+	if !okTypes || !okServices {
+		http.Error(w, "stream filter too large", http.StatusBadRequest)
+		return
 	}
-	if services := r.URL.Query().Get("services"); services != "" {
-		filter.Services = strings.Split(services, ",")
-	}
-	filter.MinLevel = r.URL.Query().Get("min_level")
+	filter := StreamFilter{Types: types, Services: services, MinLevel: r.URL.Query().Get("min_level")}
 
-	// Use the WebSocket server to handle upgrade and connection
-	s.wsServer.HandleWebSocket(w, r)
+	// The WebSocket server upgrades and owns the connection; the filtered
+	// subscription lives exactly as long as that connection does.
+	s.wsServer.HandleWebSocketWith(w, r, func() func() {
+		ch := make(chan *StreamMessage, 256)
 
-	// Note: The actual streaming is handled via the existing broadcast mechanism
-	// We register a dedicated stream subscription for filtered streaming
-	ch := make(chan *StreamMessage, 256)
+		s.streamSubsMu.Lock()
+		s.streamSubs[ch] = filter
+		s.streamSubsMu.Unlock()
 
-	s.streamSubsMu.Lock()
-	s.streamSubs[ch] = filter
-	s.streamSubsMu.Unlock()
+		s.log.Debug().
+			Strs("types", filter.Types).
+			Strs("services", filter.Services).
+			Str("min_level", filter.MinLevel).
+			Msg("stream subscriber connected")
 
-	s.log.Debug().
-		Strs("types", filter.Types).
-		Strs("services", filter.Services).
-		Str("min_level", filter.MinLevel).
-		Msg("stream subscriber connected")
-
-	// Cleanup on disconnect is handled by the WebSocket server
+		return func() {
+			s.streamSubsMu.Lock()
+			delete(s.streamSubs, ch)
+			s.streamSubsMu.Unlock()
+		}
+	})
 }
 
 // broadcastToStream broadcasts a message to all stream subscribers
@@ -3004,6 +3024,16 @@ func formatHostLabels(labels map[string]string) string {
 	return b.String()
 }
 
+// maxVMErrorBody bounds what a failed push reads and logs of the answer.
+const maxVMErrorBody = 4 << 10
+
+// vmPushClient answers for the configured address: a push never goes
+// elsewhere.
+var vmPushClient = &http.Client{
+	Timeout:       10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
 // pushToVictoriaMetrics sends metrics directly to VictoriaMetrics via the
 // /api/v1/import/prometheus endpoint (Approach C).
 func (s *Server) pushToVictoriaMetrics(ctx context.Context, lines []string) {
@@ -3017,7 +3047,7 @@ func (s *Server) pushToVictoriaMetrics(ctx context.Context, lines []string) {
 	}
 	req.Header.Set("Content-Type", "text/plain")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := vmPushClient.Do(req)
 	if err != nil {
 		s.log.Debug().Err(err).Msg("VM push failed")
 		return
@@ -3025,7 +3055,7 @@ func (s *Server) pushToVictoriaMetrics(ctx context.Context, lines []string) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxVMErrorBody))
 		s.log.Warn().
 			Int("status", resp.StatusCode).
 			Str("body", string(respBody)).

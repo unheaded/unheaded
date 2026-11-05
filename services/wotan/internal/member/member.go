@@ -206,7 +206,8 @@ func (m *Manager) Deny(memberID uuid.UUID) error {
 	return nil
 }
 
-// ApproveAll approves all pending members
+// ApproveAll approves all pending members and makes no rooms: the admin route
+// approves one at a time, through a member's room, for that reason.
 func (m *Manager) ApproveAll(approvedBy string) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()

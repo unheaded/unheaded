@@ -106,3 +106,27 @@ func FilterTopics(pattern string, topics []string) []string {
 func IsPattern(s string) bool {
 	return strings.ContainsAny(s, "*#")
 }
+
+// MaxTopicLen bounds a topic name, and so a room's identity.
+const MaxTopicLen = 255
+
+// ValidPattern reports whether s may name topics: one rule for every path
+// that takes a name, alphanumerics, dots, hyphens and underscores, plus the
+// wildcards * and #.
+func ValidPattern(s string) bool {
+	if s == "" || len(s) > MaxTopicLen {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		case c == '.', c == '-', c == '_', c == '*', c == '#':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// ValidTopic reports whether s names one topic, which a room can back.
+func ValidTopic(s string) bool { return ValidPattern(s) && !IsPattern(s) }

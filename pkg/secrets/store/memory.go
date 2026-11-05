@@ -193,12 +193,14 @@ func (s *MemoryStore) Close() error {
 	s.closed = true
 	close(s.closeCh)
 
-	// Close all watcher channels
+	// Close all watcher channels. Drop the map too: a watcher whose context
+	// ends after this must not find its channel and close it twice.
 	for _, watchers := range s.watchers {
 		for _, ch := range watchers {
 			close(ch)
 		}
 	}
+	s.watchers = nil
 
 	s.log.Info().Msg("memory store closed")
 	return nil

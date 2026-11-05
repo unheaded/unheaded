@@ -84,16 +84,6 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 		req.DisplayName = "service"
 	}
 
-	// Create or get the room backing this topic. A pattern ("alerts.*")
-	// names a set of topics, not one: creating a room for it made a topic
-	// literally called "alerts.*".
-	if !topicpattern.IsPattern(topic) {
-		if _, err := s.RoomManager.GetOrCreate(topic, topic); err != nil {
-			writeError(w, http.StatusServiceUnavailable, err.Error())
-			return
-		}
-	}
-
 	// An allowlisted name gets the one approved member for (topic, name),
 	// made on first use. A new member per call, never reaped, left one
 	// behind for good each time a client restarted and subscribed again.
@@ -107,6 +97,14 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	var err error
 	status := "pending"
 	if s.TopicConfig != nil && s.TopicConfig.IsAutoApproved(identity, req.DisplayName) {
+		// An approved subscriber gets the room backing its topic; a pending
+		// one does not, or anyone could fill the room cap by asking. A
+		// pattern ("alerts.*") names a set of topics, not one: creating a
+		// room for it made a topic literally called "alerts.*".
+		if err := s.ensureRoom(topic); err != nil {
+			writeError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
 		newMember, err = s.MemberManager.EnsureApproved(topic, memberName, "topic-auto-approve")
 		status = "approved"
 	} else {
@@ -258,6 +256,15 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		"seq":        seq,
 		"timestamp":  msg.Timestamp,
 	})
+}
+
+// ensureRoom makes the room behind a topic or room name. A pattern has none.
+func (s *Server) ensureRoom(name string) error {
+	if topicpattern.IsPattern(name) {
+		return nil
+	}
+	_, err := s.RoomManager.GetOrCreate(name, name)
+	return err
 }
 
 // memberIsCaller reports whether the member belongs to the caller: true
@@ -435,21 +442,10 @@ func extractTopic(path, prefix, suffix string) string {
 		}
 		rest = rest[:len(rest)-len(suffix)]
 	}
-	// Validate topic name: allow alphanumeric, dots, hyphens, underscores
-	for _, c := range rest {
-		if !isTopicChar(c) {
-			return ""
-		}
+	if !topicpattern.ValidPattern(rest) {
+		return ""
 	}
 	return rest
-}
-
-func isTopicChar(c rune) bool {
-	return (c >= 'a' && c <= 'z') ||
-		(c >= 'A' && c <= 'Z') ||
-		(c >= '0' && c <= '9') ||
-		c == '.' || c == '-' || c == '_' ||
-		c == '*' || c == '#' // wildcard pattern chars for subscriptions
 }
 
 func ringbufferToTopicMessage(msg *ringbuffer.Message, topic string) TopicMessage {

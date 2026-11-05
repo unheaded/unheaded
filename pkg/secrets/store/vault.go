@@ -11,12 +11,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"unheaded/pkg/logger"
 	"unheaded/pkg/secrets"
+	pqtls "unheaded/pkg/tls"
 )
 
 // VaultStore integrates with HashiCorp Vault for secret storage.
@@ -66,7 +69,8 @@ type VaultTLSConfig struct {
 	// ClientKey is the path to the client key.
 	ClientKey string
 
-	// Insecure skips TLS verification (not recommended for production).
+	// Insecure asks to skip server verification. NewVaultStore refuses it:
+	// the token and every secret would go to whoever answers.
 	Insecure bool
 }
 
@@ -107,10 +111,22 @@ func NewVaultStore(config VaultStoreConfig) (*VaultStore, error) {
 		pollInterval = 10 * time.Second
 	}
 
+	// TLS settings on a plain address would be ignored, and the token sent in
+	// clear. A store with no TLS settings keeps whatever address it is given.
+	if config.TLSConfig != nil {
+		if u, err := url.Parse(config.Address); err != nil || u.Scheme != "https" {
+			return nil, errors.New("vault tls: TLSConfig needs an https address")
+		}
+	}
+	httpClient, err := vaultHTTPClient(config.TLSConfig, timeout)
+	if err != nil {
+		return nil, err
+	}
+
 	client := &VaultClient{
 		address: strings.TrimSuffix(config.Address, "/"),
 		token:   config.Token,
-		client:  &http.Client{Timeout: timeout},
+		client:  httpClient,
 		log:     log,
 	}
 
@@ -132,6 +148,40 @@ func NewVaultStore(config VaultStoreConfig) (*VaultStore, error) {
 	go vs.watchSecrets()
 
 	return vs, nil
+}
+
+// vaultHTTPClient applies cfg; nil means the system roots and no client
+// certificate.
+func vaultHTTPClient(cfg *VaultTLSConfig, timeout time.Duration) (*http.Client, error) {
+	if cfg == nil {
+		return &http.Client{Timeout: timeout}, nil
+	}
+	if cfg.Insecure {
+		return nil, errors.New("vault tls: Insecure is refused")
+	}
+	if (cfg.ClientCert == "") != (cfg.ClientKey == "") {
+		return nil, errors.New("vault tls: ClientCert and ClientKey go together")
+	}
+	var client pqtls.ClientConfig
+	client.Timeout = timeout
+	for _, f := range []struct {
+		path string
+		into *[]byte
+	}{{cfg.CACert, &client.CAPEM}, {cfg.ClientCert, &client.CertPEM}, {cfg.ClientKey, &client.KeyPEM}} {
+		if f.path == "" {
+			continue
+		}
+		raw, err := os.ReadFile(f.path) // #nosec G304 -- path from the store's own configuration
+		if err != nil {
+			return nil, fmt.Errorf("vault tls: %w", err)
+		}
+		*f.into = raw
+	}
+	c, err := pqtls.NewTLSHTTPClient(client)
+	if err != nil {
+		return nil, fmt.Errorf("vault tls: %w", err)
+	}
+	return c, nil
 }
 
 // verifyConnection checks if we can connect to Vault.
@@ -352,13 +402,15 @@ func (s *VaultStore) Watch(ctx context.Context, path string) (<-chan *secrets.Se
 	return ch, nil
 }
 
-// notifyWatchers sends a secret update to all watchers.
+// notifyWatchers sends a secret update to all watchers. It holds the read
+// lock across the sends because Close and removeWatcher close these channels
+// under the write lock, and a send on a closed channel panics. The sends
+// never block, so the lock is held briefly.
 func (s *VaultStore) notifyWatchers(path string, secret *secrets.Secret) {
 	s.mu.RLock()
-	watchers := s.watchers[path]
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
-	for _, ch := range watchers {
+	for _, ch := range s.watchers[path] {
 		select {
 		case ch <- secret:
 		default:
@@ -441,11 +493,14 @@ func (s *VaultStore) Close() error {
 	s.closed = true
 	close(s.closeCh)
 
+	// Drop the map too: a watcher whose context ends after this must not
+	// find its channel and close it twice.
 	for _, watchers := range s.watchers {
 		for _, ch := range watchers {
 			close(ch)
 		}
 	}
+	s.watchers = nil
 
 	s.log.Info().Msg("vault store closed")
 	return nil

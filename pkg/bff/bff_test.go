@@ -272,7 +272,7 @@ func TestLogin_RateLimitedPerClient(t *testing.T) {
 	pw := a.is.AddUser(t, "dev", "operator")
 	var last int
 	for i := 0; i < bff.LoginAttemptsPerMinute+1; i++ {
-		last = a.do(http.MethodPost, "/auth/login", loginBody("dev", pw+"x"), withXRW(), fromAddr("192.0.2.7:4000")).Code
+		last = a.do(http.MethodPost, "/auth/login", loginBody("dev", pw), withXRW(), fromAddr("192.0.2.7:4000")).Code
 	}
 	if last != http.StatusTooManyRequests {
 		t.Fatalf("attempt %d from one client: %d, want 429", bff.LoginAttemptsPerMinute+1, last)

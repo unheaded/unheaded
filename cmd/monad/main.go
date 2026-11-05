@@ -411,8 +411,8 @@ func NewHTTPServer(service *monad.Service, log *logger.Logger, addr string) (*HT
 
 // newHTTPServer is NewHTTPServer with an explicit auth configuration. With
 // auth on (S-IRON-GATE Phase 6) every route but /health, /ready and
-// /metrics needs a token from an AUTH_ALLOW_CALLERS caller (unheaded-cli,
-// dashboard-backend), and a write needs a write role.
+// /metrics needs a token from an AUTH_ALLOW_CALLERS caller (unheaded-cli),
+// and a write needs a write role.
 func newHTTPServer(service *monad.Service, log *logger.Logger, addr string, authCfg auth.ServiceAuthConfig) (*HTTPServer, error) {
 	if service == nil {
 		return nil, errors.New("service cannot be nil")

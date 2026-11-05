@@ -14,6 +14,12 @@ import (
 // maxFailuresPerSource failures across any usernames (spraying). There is
 // no per-username lock across addresses: anyone could then lock any user
 // out. Locked attempts never reach argon2id, so they cost nothing.
+//
+// Behind a backend-for-frontend the source is that backend, so these locks
+// fall on all its clients together. pkg/bff holds each client address to
+// budgets that, summed over the backends sharing a source, stay under these
+// limits, so one client address cannot reach them. Several together can. The
+// issuer takes no forwarded address.
 const (
 	lockoutWindow        = 10 * time.Minute
 	maxFailuresPerPair   = 5
@@ -52,17 +58,20 @@ func (l *lockout) recent(key string, now time.Time) []time.Time {
 	return ts
 }
 
-// locked reports whether user from src is locked out and, if so, for how
-// long.
-func (l *lockout) locked(user, src string) (bool, time.Duration) {
+// begin admits an attempt or reports the lockout and how long it lasts. An
+// admitted attempt is charged as a failure now, before the slow hash, so
+// attempts in flight count and a burst gets no more guesses than a sequence
+// would. success or abandon takes the charge back.
+func (l *lockout) begin(user, src string) (bool, time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := l.now()
-	var wait time.Duration
-	for _, k := range []struct {
+	limits := []struct {
 		key string
 		max int
-	}{{pairKey(user, src), maxFailuresPerPair}, {sourceKey(src), maxFailuresPerSource}} {
+	}{{pairKey(user, src), maxFailuresPerPair}, {sourceKey(src), maxFailuresPerSource}}
+	var wait time.Duration
+	for _, k := range limits {
 		ts := l.recent(k.key, now)
 		if len(ts) >= k.max {
 			// Unlocked once enough of the oldest failures have aged out.
@@ -72,35 +81,45 @@ func (l *lockout) locked(user, src string) (bool, time.Duration) {
 			}
 		}
 	}
-	return wait > 0, wait
-}
-
-// failure records a failed login.
-func (l *lockout) failure(user, src string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := l.now()
+	if wait > 0 {
+		return true, wait
+	}
 	if len(l.fail) >= maxTrackedKeys {
 		l.evict(now)
 	}
-	for _, k := range []struct {
-		key string
-		max int
-	}{{pairKey(user, src), maxFailuresPerPair}, {sourceKey(src), maxFailuresPerSource}} {
-		ts := append(l.recent(k.key, now), now)
-		if len(ts) > k.max {
-			ts = ts[len(ts)-k.max:]
-		}
-		l.fail[k.key] = ts
+	for _, k := range limits {
+		l.fail[k.key] = append(l.recent(k.key, now), now)
+	}
+	return false, 0
+}
+
+// dropNewest takes back one charge. Caller holds mu.
+func (l *lockout) dropNewest(key string) {
+	switch ts := l.fail[key]; len(ts) {
+	case 0:
+	case 1:
+		delete(l.fail, key)
+	default:
+		l.fail[key] = ts[:len(ts)-1]
 	}
 }
 
-// success clears the pair (not the source: an attacker with one valid
-// account must not reset its spraying count by logging in).
+// success clears the pair and takes back this attempt's charge on the
+// source, but no more: an attacker with one valid account must not reset its
+// spraying count by logging in.
 func (l *lockout) success(user, src string) {
 	l.mu.Lock()
+	defer l.mu.Unlock()
 	delete(l.fail, pairKey(user, src))
-	l.mu.Unlock()
+	l.dropNewest(sourceKey(src))
+}
+
+// abandon takes back the charge of an attempt that checked no password.
+func (l *lockout) abandon(user, src string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.dropNewest(pairKey(user, src))
+	l.dropNewest(sourceKey(src))
 }
 
 // evict drops expired entries, then, if still full, half of the rest.
