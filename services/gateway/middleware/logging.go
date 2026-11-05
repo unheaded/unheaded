@@ -68,6 +68,13 @@ type LoggingMiddleware struct {
 	requestsCounter  *metrics.CounterVec
 	durationHist     *metrics.HistogramVec
 	responseSizeHist *metrics.HistogramVec
+	trustedProxies   map[string]bool
+}
+
+// SetTrustedProxies names the peers whose forwarding headers are believed.
+// With none the direct peer is logged. Call it before serving.
+func (m *LoggingMiddleware) SetTrustedProxies(addrs []string) {
+	m.trustedProxies = TrustedProxySet(addrs)
 }
 
 // NewLoggingMiddleware creates a new logging middleware.
@@ -132,7 +139,7 @@ func (m *LoggingMiddleware) Handler(next http.Handler) http.Handler {
 		duration := time.Since(start)
 
 		// Get client IP
-		clientIP := getClientIP(r)
+		clientIP := ClientIP(r, m.trustedProxies)
 
 		// Log the request
 		m.log.Info().
@@ -162,32 +169,6 @@ func (m *LoggingMiddleware) Handler(next http.Handler) http.Handler {
 			m.responseSizeHist.WithLabels(labels).Observe(float64(rw.size))
 		}
 	})
-}
-
-// getClientIP extracts the client IP from the request.
-func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the first IP
-		for i := 0; i < len(xff); i++ {
-			if xff[i] == ',' {
-				return xff[:i]
-			}
-		}
-		return xff
-	}
-
-	// Check X-Real-IP header
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
-	}
-
-	// Fall back to RemoteAddr
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }
 
 // normalizePath normalizes a path for metrics labels.

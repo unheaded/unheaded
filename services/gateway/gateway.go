@@ -160,6 +160,7 @@ func (g *Gateway) buildHandler() http.Handler {
 	// Add middleware (applied in reverse order)
 	// Logging should be outermost to capture all requests
 	loggingMw := middleware.NewLoggingMiddleware(g.log, g.metrics)
+	loggingMw.SetTrustedProxies(g.cfg.RateLimit.TrustedProxies)
 	handler = loggingMw.Handler(handler)
 
 	// Rate limiting
