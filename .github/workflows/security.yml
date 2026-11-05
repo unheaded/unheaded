@@ -192,9 +192,13 @@ jobs:
       - name: Floating image tags may only shrink
         run: ./scripts/check-image-tags.sh
 
-      - name: gitleaks (full history — reporting only, see PRE-PUBLIC-BLOCKERS.md)
-        continue-on-error: true
-        run: /tmp/gitleaks git --no-banner --redact --exit-code 1 --config .gitleaks.toml .
+      # Findings in history warn (see PRE-PUBLIC-BLOCKERS.md). A scan that
+      # could not run fails the job, so no continue-on-error here.
+      - name: gitleaks (full history — findings report, a failed scan fails)
+        run: ./scripts/check-gitleaks.sh --history
+
+      - name: The history scan's verdicts hold
+        run: ./scripts/test-check-gitleaks-history.sh
 
   # ============================================================================
   # Post-quantum key exchange (ADR-105)

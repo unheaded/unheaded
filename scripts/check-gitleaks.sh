@@ -17,8 +17,24 @@
 # applies as usual. Rules: gitleaks' defaults plus ours in .gitleaks.toml
 # (unheaded-api-key: uhk_ keys, ADR-103 §5).
 #
-#   scripts/check-gitleaks.sh
+#   scripts/check-gitleaks.sh             tracked files, GATING
+#   scripts/check-gitleaks.sh --history   every commit, findings report only
+#
+# --history reports rather than fails on what it finds: the findings in the
+# history are the accepted set in docs/security/PRE-PUBLIC-BLOCKERS.md. Only
+# findings get that treatment. A tool that cannot be fetched, a scan that
+# errors or a shallow clone exits 2, so a scan that did not run cannot read as
+# one that found nothing.
 set -euo pipefail
+
+MODE="${1:-}"
+case "$MODE" in
+"" | --history) ;;
+*)
+	echo "usage: $0 [--history]" >&2
+	exit 2
+	;;
+esac
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -29,6 +45,26 @@ source scripts/lib/fetch-tool.sh
 BIN="$(fetch_tool gitleaks "$GITLEAKS_VERSION" \
 	"https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
 	"$GITLEAKS_SHA256" gitleaks)"
+
+if [[ "$MODE" == --history ]]; then
+	[[ "$(git rev-parse --is-shallow-repository)" == false ]] || {
+		echo "[FAIL] shallow clone: there is no history to scan (fetch-depth: 0)" >&2
+		exit 2
+	}
+	# Its own exit code for findings: gitleaks also exits 1 on an error.
+	LEAKS_RC=3
+	rc=0
+	"$BIN" git --no-banner --redact --exit-code "$LEAKS_RC" --config .gitleaks.toml . || rc=$?
+	case "$rc" in
+	0) echo "[PASS] gitleaks ${GITLEAKS_VERSION}: no findings in $(git rev-list --count HEAD) commits" ;;
+	"$LEAKS_RC") echo "::warning title=gitleaks history::findings in git history outside .gitleaksignore; see the count above and docs/security/PRE-PUBLIC-BLOCKERS.md" ;;
+	*)
+		echo "[FAIL] gitleaks could not scan the history (exit ${rc})" >&2
+		exit 2
+		;;
+	esac
+	exit 0
+fi
 
 TREE="$(mktemp -d)"
 trap 'rm -rf "$TREE"' EXIT

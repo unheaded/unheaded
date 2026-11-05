@@ -83,7 +83,28 @@ def security_gate():
     if run_step(step["run"], {}) == 0:
         bad("security-gate", "passes with no job results at all")
 
+# M5. The history scan runs the fetched, sha256-checked tool through its
+# script, and nothing softens the step: the script already decides which
+# outcomes only report. A step that names its own binary path is the shape of
+# the bug this replaced, a path nothing created, under continue-on-error.
+def history_scan():
+    job = workflow("security.yml")["jobs"]["gitleaks"]
+    if job.get("continue-on-error"):
+        bad("history-scan", "the job has continue-on-error")
+    if job.get("steps", [{}])[0].get("with", {}).get("fetch-depth") != 0:
+        bad("history-scan", "checkout must set fetch-depth: 0")
+    runs = [s for s in job.get("steps", []) if str(s.get("run", "")).strip() == "./scripts/check-gitleaks.sh --history"]
+    if len(runs) != 1:
+        bad("history-scan", "no step runs ./scripts/check-gitleaks.sh --history")
+    for s in runs:
+        if s.get("continue-on-error"):
+            bad("history-scan", "the step has continue-on-error")
+    for s in job.get("steps", []):
+        if re.search(r"(^|\s)/tmp/gitleaks\b", str(s.get("run", ""))):
+            bad("history-scan", "a step calls /tmp/gitleaks, which nothing creates")
+
 security_gate()
+history_scan()
 
 if problems:
     print("\n".join(f"[FAIL] {p}" for p in problems))

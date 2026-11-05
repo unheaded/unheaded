@@ -743,6 +743,16 @@ provoke_gitleaks() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_gitleaks_history() {
+    # Contract (M5): only findings report; a scan that errored fails. Make
+    # every exit status read as findings.
+    local f="scripts/check-gitleaks.sh"
+    backup "${f}"
+    sed -i 's/^\t\*)$/\t*) exit 0 ;;\n\tnever)/' "${REPO_ROOT}/${f}"
+    grep -q 'exit 0 ;;' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_tool_freshness() {
     # Contract: release-pinned tools are not behind a release past its 7-day
     # cooldown. Pin oxlint back to a long-superseded release.
@@ -1075,6 +1085,7 @@ check-pq-kex|provoke_pq_kex|fast|an untracked Go file pinning CurvePreferences t
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
+test-check-gitleaks-history|provoke_gitleaks_history|fast|check-gitleaks.sh --history treating a failed scan as findings (downloads the pinned tool)
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included

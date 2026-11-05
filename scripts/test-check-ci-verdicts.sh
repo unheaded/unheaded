@@ -65,6 +65,16 @@ ci_verdict_expect_bite "a failed need recorded, then forgotten" security-gate "$
 ci_verdict_expect_bite "needs context replaced by a hand list" security-gate "${SEC}" \
 	's/NEEDS_JSON: \$\{\{ toJSON\(needs\) \}\}/NEEDS_JSON: ${{ toJSON(needs.gosec) }}/'
 
+echo "--- history secret scan (M5) ---"
+ci_verdict_expect_bite "the step softened" history-scan "${SEC}" \
+	's/^( +)run: \.\/scripts\/check-gitleaks\.sh --history$/\1continue-on-error: true\n&/'
+ci_verdict_expect_bite "the step removed" history-scan "${SEC}" \
+	's/check-gitleaks\.sh --history$/check-gitleaks.sh/'
+ci_verdict_expect_bite "a binary path nothing creates" history-scan "${SEC}" \
+	's/^( +)run: \.\/scripts\/check-secrets-baseline\.sh$/\1run: \/tmp\/gitleaks git ./'
+ci_verdict_expect_bite "history not fetched" history-scan "${SEC}" \
+	's/fetch-depth: 0   # full history — see note below/fetch-depth: 1/'
+
 echo
 echo "passed: ${PASSED}  failed: ${FAILED}"
 [ "${FAILED}" -eq 0 ] || exit 1
