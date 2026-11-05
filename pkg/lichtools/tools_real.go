@@ -349,6 +349,11 @@ func (p *Provider) fileFinding(in fileFindingInput) (zhentools.Result, error) {
 	in.Host = clampField(in.Host, 128)
 	in.HarnessID = clampField(in.HarnessID, 128)
 	in.ReproSHA256 = clampField(in.ReproSHA256, 128)
+	// The key goes into the seed's file name and the register, so it is one
+	// plain name: a triage hash, or a driver's own short label.
+	if in.DedupKey != "" && !dedupKeyRe.MatchString(in.DedupKey) {
+		return zhentools.Result{IsError: true, Text: "dedup_key must be 1 to 128 of [A-Za-z0-9_-]"}, nil
+	}
 	registerPath := p.cfg.RegisterAbs()
 	raw, err := os.ReadFile(registerPath) // #nosec G304 -- operator-configured register path
 	if err != nil {
@@ -393,6 +398,10 @@ func (p *Provider) fileFinding(in fileFindingInput) (zhentools.Result, error) {
 			"A needs-regen marker was written; regenerate evidence after signing. dedup=%s%s", fnd, sev, dedup, seedNote)}, nil
 }
 
+// dedupKeyRe is the shape of a dedup key: no separators, nothing a file name
+// or a register line could read as more than one name.
+var dedupKeyRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
 // writeRegressionSeed checks in the crashing input for a filed finding under the
 // campaign's seed dir (scope-validated to stay inside the configured seeds
 // tree). When ReproHex is supplied it writes the exact bytes; otherwise it
@@ -410,6 +419,9 @@ func (p *Provider) writeRegressionSeed(fnd, dedup string, in fileFindingInput) (
 	}
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", err
+	}
+	if !dedupKeyRe.MatchString(dedup) {
+		return "", fmt.Errorf("%w: dedup key is not a plain name", ErrOutOfScope)
 	}
 	name := "regression-" + fnd + "-" + dedup
 	var content []byte
