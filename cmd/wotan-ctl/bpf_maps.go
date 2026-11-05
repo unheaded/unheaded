@@ -17,6 +17,30 @@ type BPFMap struct {
 	name string
 }
 
+// bpfObjGetAttr is the kernel's BPF_OBJ_GET attr.
+type bpfObjGetAttr struct {
+	pathname  unsafe.Pointer
+	bpfFd     uint32
+	fileFlags uint32
+}
+
+// bpfMapUpdateAttr is the kernel's BPF_MAP_UPDATE_ELEM attr.
+type bpfMapUpdateAttr struct {
+	mapFd uint32
+	key   unsafe.Pointer
+	value unsafe.Pointer
+	flags uint64
+}
+
+// bpfMapLookupAttr is the kernel's BPF_MAP_LOOKUP_ELEM attr.
+type bpfMapLookupAttr struct {
+	mapFd uint32
+	key   unsafe.Pointer
+	value unsafe.Pointer
+	pad1  uint32
+	pad2  uint32
+}
+
 // bpfObjGet opens a pinned BPF object (map/program) by its path using
 // the raw BPF_OBJ_GET syscall (command 7).
 func bpfObjGet(pinPath string) (int, error) {
@@ -26,16 +50,12 @@ func bpfObjGet(pinPath string) (int, error) {
 	}
 
 	// BPF_OBJ_GET attr: { pathname (u64), bpf_fd (u32), file_flags (u32) }
-	attr := struct {
-		pathname  uint64
-		bpfFd     uint32
-		fileFlags uint32
-	}{
-		pathname: uint64(uintptr(unsafe.Pointer(pathBytes))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+	attr := bpfObjGetAttr{
+		pathname: unsafe.Pointer(pathBytes), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
 
 	const BPF_OBJ_GET = 7
-	fd, _, errno := unix.Syscall(unix.SYS_BPF, BPF_OBJ_GET, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	fd, _, errno := unix.Syscall(unix.SYS_BPF, BPF_OBJ_GET, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr)) // #nosec G103 -- Pointer->uintptr inside the syscall's own argument list, unsafe.Pointer rule (4)
 	if errno != 0 {
 		return -1, errno
 	}
@@ -86,23 +106,18 @@ func (m *BPFMap) Update(key interface{}, value interface{}) error {
 
 // updateElem performs the BPF_MAP_UPDATE_ELEM syscall.
 func (m *BPFMap) updateElem(key, value []byte) error {
-	attr := struct {
-		mapFd uint32
-		key   uint64
-		value uint64
-		flags uint64
-	}{
-		mapFd: uint32(m.fd),                               // #nosec G115 -- bounded by construction; see the surrounding guard
-		key:   uint64(uintptr(unsafe.Pointer(&key[0]))),   // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
-		value: uint64(uintptr(unsafe.Pointer(&value[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
-		flags: 0,                                          // BPF_ANY (overwrite existing or create new)
+	attr := bpfMapUpdateAttr{
+		mapFd: uint32(m.fd),              // #nosec G115 -- bounded by construction; see the surrounding guard
+		key:   unsafe.Pointer(&key[0]),   // #nosec G103 -- pointer-typed field: the GC and stack copies see it
+		value: unsafe.Pointer(&value[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
+		flags: 0,                         // BPF_ANY (overwrite existing or create new)
 	}
 
 	// BPF syscall (number 321 on x86_64)
 	// First arg: command (BPF_MAP_UPDATE_ELEM = 2)
 	// Second arg: pointer to attr struct
 	// Third arg: size of attr struct
-	_, _, errno := unix.Syscall(unix.SYS_BPF, 2, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, _, errno := unix.Syscall(unix.SYS_BPF, 2, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr)) // #nosec G103 -- Pointer->uintptr inside the syscall's own argument list, unsafe.Pointer rule (4)
 	if errno != 0 {
 		return fmt.Errorf("BPF_MAP_UPDATE_ELEM: %w", errno)
 	}
@@ -127,20 +142,14 @@ func (m *BPFMap) Lookup(key interface{}) ([]byte, bool, error) {
 	// In production, you'd want to know the map's value size ahead of time
 	value := make([]byte, 8)
 
-	attr := struct {
-		mapFd uint32
-		key   uint64
-		value uint64
-		pad1  uint32
-		pad2  uint32
-	}{
-		mapFd: uint32(m.fd),                                  // #nosec G115 -- bounded by construction; see the surrounding guard
-		key:   uint64(uintptr(unsafe.Pointer(&keyBytes[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
-		value: uint64(uintptr(unsafe.Pointer(&value[0]))),    // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+	attr := bpfMapLookupAttr{
+		mapFd: uint32(m.fd),                 // #nosec G115 -- bounded by construction; see the surrounding guard
+		key:   unsafe.Pointer(&keyBytes[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
+		value: unsafe.Pointer(&value[0]),    // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
 
 	// BPF_MAP_LOOKUP_ELEM = 1
-	_, _, errno := unix.Syscall(unix.SYS_BPF, 1, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, _, errno := unix.Syscall(unix.SYS_BPF, 1, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr)) // #nosec G103 -- Pointer->uintptr inside the syscall's own argument list, unsafe.Pointer rule (4)
 
 	if errno == unix.ENOENT {
 		return nil, false, nil
@@ -173,7 +182,7 @@ func encodeValue(v interface{}) ([]byte, error) {
 	case CpuState:
 		// Serialize CpuState struct
 		buf := make([]byte, unsafe.Sizeof(CpuState{}))
-		ptr := unsafe.Pointer(&val) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+		ptr := unsafe.Pointer(&val) // #nosec G103 -- reads exactly sizeof(CpuState) bytes of this local copy
 		copy(buf, (*[unsafe.Sizeof(CpuState{})]byte)(ptr)[:])
 		return buf, nil
 	default:

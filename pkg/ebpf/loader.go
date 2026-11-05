@@ -752,49 +752,73 @@ type bpfMapCreateAttr struct {
 	MapExtra       uint64   // Extra data for specific map types
 }
 
+// Every field below that the kernel follows is an unsafe.Pointer, never an
+// integer holding an address. The attr is built before the bpf(2) call, and an
+// integer is invisible to the garbage collector and to a stack copy: a buffer on
+// the caller's stack would move away and the kernel would use the old stack. The
+// kernel's fields are 8 bytes wide, so this holds on 64-bit targets only, and the
+// line below stops a build for any other.
+var _ [8]byte = [unsafe.Sizeof(uintptr(0))]byte{}
+
 // bpfMapOpAttr is the attribute structure for map element operations
 // Used for BPF_MAP_LOOKUP_ELEM, BPF_MAP_UPDATE_ELEM, BPF_MAP_DELETE_ELEM
 type bpfMapOpAttr struct {
-	MapFD uint32 // File descriptor of the map
-	_     uint32 // Padding
-	Key   uint64 // Pointer to key
-	Value uint64 // Pointer to value (or next key for GET_NEXT_KEY)
-	Flags uint64 // Operation flags (BPF_ANY, BPF_NOEXIST, BPF_EXIST)
+	MapFD uint32         // File descriptor of the map
+	_     uint32         // Padding
+	Key   unsafe.Pointer // Key
+	Value unsafe.Pointer // Value (or next key for GET_NEXT_KEY)
+	Flags uint64         // Operation flags (BPF_ANY, BPF_NOEXIST, BPF_EXIST)
 }
 
 // bpfProgLoadAttr is the attribute structure for BPF_PROG_LOAD
 // This loads and verifies a BPF program
 type bpfProgLoadAttr struct {
-	ProgType       uint32   // One of BPF_PROG_TYPE_*
-	InsnCnt        uint32   // Number of BPF instructions
-	Insns          uint64   // Pointer to BPF instruction array
-	License        uint64   // Pointer to license string (must be GPL for some helpers)
-	LogLevel       uint32   // Verbosity of verifier log
-	LogSize        uint32   // Size of log buffer
-	LogBuf         uint64   // Pointer to log buffer
-	KernVersion    uint32   // Kernel version (for some program types)
-	ProgFlags      uint32   // Program flags
-	ProgName       [16]byte // Program name (for debugging)
-	ProgIfIndex    uint32   // Network interface (for HW offload)
-	ExpectedAttach uint32   // Expected attach type
-	ProgBTFFD      uint32   // BTF file descriptor
-	FuncInfoRecSz  uint32   // Size of func_info records
-	FuncInfo       uint64   // Pointer to func_info array
-	FuncInfoCnt    uint32   // Number of func_info records
-	LineInfoRecSz  uint32   // Size of line_info records
-	LineInfo       uint64   // Pointer to line_info array
-	LineInfoCnt    uint32   // Number of line_info records
-	AttachBTFID    uint32   // BTF type ID for attach target
-	AttachProgFD   uint32   // FD of program to attach to (for extension)
-	FDArray        uint64   // Pointer to array of FDs for map relocations
+	ProgType       uint32         // One of BPF_PROG_TYPE_*
+	InsnCnt        uint32         // Number of BPF instructions
+	Insns          unsafe.Pointer // BPF instruction array
+	License        unsafe.Pointer // License string (must be GPL for some helpers)
+	LogLevel       uint32         // Verbosity of verifier log
+	LogSize        uint32         // Size of log buffer
+	LogBuf         unsafe.Pointer // Log buffer
+	KernVersion    uint32         // Kernel version (for some program types)
+	ProgFlags      uint32         // Program flags
+	ProgName       [16]byte       // Program name (for debugging)
+	ProgIfIndex    uint32         // Network interface (for HW offload)
+	ExpectedAttach uint32         // Expected attach type
+	ProgBTFFD      uint32         // BTF file descriptor
+	FuncInfoRecSz  uint32         // Size of func_info records
+	FuncInfo       uint64         // Pointer to func_info array
+	FuncInfoCnt    uint32         // Number of func_info records
+	LineInfoRecSz  uint32         // Size of line_info records
+	LineInfo       uint64         // Pointer to line_info array
+	LineInfoCnt    uint32         // Number of line_info records
+	AttachBTFID    uint32         // BTF type ID for attach target
+	AttachProgFD   uint32         // FD of program to attach to (for extension)
+	FDArray        uint64         // Pointer to array of FDs for map relocations
 }
 
 // bpfObjAttr is the attribute structure for BPF_OBJ_PIN and BPF_OBJ_GET
 // These pin/retrieve objects to/from the BPF filesystem
 type bpfObjAttr struct {
-	Pathname uint64 // Pointer to pathname string
-	BPFFD    uint32 // FD of BPF object (program or map)
-	FileFlag uint32 // Flags for operation
+	Pathname unsafe.Pointer // Pathname string
+	BPFFD    uint32         // FD of BPF object (program or map)
+	FileFlag uint32         // Flags for operation
+}
+
+// bpfRawTPLinkAttr is the attribute structure for attaching a raw tracepoint.
+type bpfRawTPLinkAttr struct {
+	ProgFD     uint32
+	_          uint32
+	AttachType uint32
+	Flags      uint32
+	RawTPName  unsafe.Pointer // Tracepoint name
+}
+
+// bpfBTFLoadAttr is the attribute structure for BPF_BTF_LOAD.
+type bpfBTFLoadAttr struct {
+	BTF     unsafe.Pointer // BTF data
+	BTFSize uint32
+	_       [52]byte
 }
 
 // bpfProgAttachAttr is the attribute structure for BPF_PROG_ATTACH
@@ -823,9 +847,9 @@ type bpfLinkCreateAttr struct {
 
 // bpfObjGetInfoAttr is the attribute structure for BPF_OBJ_GET_INFO_BY_FD
 type bpfObjGetInfoAttr struct {
-	BPFFD   uint32 // FD of BPF object
-	InfoLen uint32 // Size of info buffer
-	Info    uint64 // Pointer to info buffer
+	BPFFD   uint32         // FD of BPF object
+	InfoLen uint32         // Size of info buffer
+	Info    unsafe.Pointer // Info buffer
 }
 
 // bpfProgInfo is the structure returned by BPF_OBJ_GET_INFO_BY_FD for programs
@@ -1159,7 +1183,7 @@ func bpfMapCreate(mapType, keySize, valueSize, maxEntries, flags uint32, name st
 	}
 	copy(attr.MapName[:], name)
 
-	fd, err := bpfSyscall(BPF_MAP_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	fd, err := bpfSyscall(BPF_MAP_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return -1, fmt.Errorf("%w: map_create %s: %v", ErrSyscallFailed, name, err)
 	}
@@ -1171,11 +1195,11 @@ func bpfMapCreate(mapType, keySize, valueSize, maxEntries, flags uint32, name st
 func bpfMapLookupElem(mapFD int, key, value unsafe.Pointer) error {
 	attr := bpfMapOpAttr{
 		MapFD: uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
-		Key:   uint64(uintptr(key)),
-		Value: uint64(uintptr(value)),
+		Key:   key,
+		Value: value,
 	}
 
-	_, err := bpfSyscall(BPF_MAP_LOOKUP_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_MAP_LOOKUP_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return fmt.Errorf("%w: map_lookup: %w", ErrSyscallFailed, err)
 	}
@@ -1187,12 +1211,12 @@ func bpfMapLookupElem(mapFD int, key, value unsafe.Pointer) error {
 func bpfMapUpdateElem(mapFD int, key, value unsafe.Pointer, flags uint64) error {
 	attr := bpfMapOpAttr{
 		MapFD: uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
-		Key:   uint64(uintptr(key)),
-		Value: uint64(uintptr(value)),
+		Key:   key,
+		Value: value,
 		Flags: flags,
 	}
 
-	_, err := bpfSyscall(BPF_MAP_UPDATE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_MAP_UPDATE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return fmt.Errorf("%w: map_update: %v", ErrSyscallFailed, err)
 	}
@@ -1204,10 +1228,10 @@ func bpfMapUpdateElem(mapFD int, key, value unsafe.Pointer, flags uint64) error 
 func bpfMapDeleteElem(mapFD int, key unsafe.Pointer) error {
 	attr := bpfMapOpAttr{
 		MapFD: uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
-		Key:   uint64(uintptr(key)),
+		Key:   key,
 	}
 
-	_, err := bpfSyscall(BPF_MAP_DELETE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_MAP_DELETE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return fmt.Errorf("%w: map_delete: %w", ErrSyscallFailed, err)
 	}
@@ -1219,11 +1243,11 @@ func bpfMapDeleteElem(mapFD int, key unsafe.Pointer) error {
 func bpfMapGetNextKey(mapFD int, key, nextKey unsafe.Pointer) error {
 	attr := bpfMapOpAttr{
 		MapFD: uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
-		Key:   uint64(uintptr(key)),
-		Value: uint64(uintptr(nextKey)),
+		Key:   key,
+		Value: nextKey,
 	}
 
-	_, err := bpfSyscall(BPF_MAP_GET_NEXT_KEY, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_MAP_GET_NEXT_KEY, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return err // Return raw error for ENOENT check
 	}
@@ -1246,15 +1270,15 @@ func bpfProgLoad(progType uint32, insns []byte, license string, logBuf []byte, b
 	attr := bpfProgLoadAttr{
 		ProgType: progType,
 		InsnCnt:  insnCnt,
-		Insns:    uint64(uintptr(unsafe.Pointer(&insns[0]))),        // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
-		License:  uint64(uintptr(unsafe.Pointer(&licenseBytes[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+		Insns:    unsafe.Pointer(&insns[0]),        // #nosec G103 -- pointer-typed field: the GC and stack copies see it
+		License:  unsafe.Pointer(&licenseBytes[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
 
 	// Set up log buffer if provided
 	if len(logBuf) > 0 {
 		attr.LogLevel = 1
-		attr.LogSize = uint32(len(logBuf))                        // #nosec G115 -- bounded by the buffer this code allocated; BPF verifier caps programs at 1M instructions
-		attr.LogBuf = uint64(uintptr(unsafe.Pointer(&logBuf[0]))) // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+		attr.LogSize = uint32(len(logBuf))       // #nosec G115 -- bounded by the buffer this code allocated; BPF verifier caps programs at 1M instructions
+		attr.LogBuf = unsafe.Pointer(&logBuf[0]) // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
 
 	// Add BTF if available
@@ -1262,7 +1286,7 @@ func bpfProgLoad(progType uint32, insns []byte, license string, logBuf []byte, b
 		attr.ProgBTFFD = uint32(btfFD) // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 	}
 
-	fd, err := bpfSyscall(BPF_PROG_LOAD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	fd, err := bpfSyscall(BPF_PROG_LOAD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 
 	// Extract verifier log
 	var verifierLog string
@@ -1286,11 +1310,11 @@ func bpfObjPin(fd int, pathname string) error {
 	pathBytes := append([]byte(pathname), 0)
 
 	attr := bpfObjAttr{
-		Pathname: uint64(uintptr(unsafe.Pointer(&pathBytes[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
-		BPFFD:    uint32(fd),                                     // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
+		Pathname: unsafe.Pointer(&pathBytes[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
+		BPFFD:    uint32(fd),                    // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 	}
 
-	_, err := bpfSyscall(BPF_OBJ_PIN, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_OBJ_PIN, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return fmt.Errorf("%w: obj_pin %s: %v", ErrSyscallFailed, pathname, err)
 	}
@@ -1303,10 +1327,10 @@ func bpfObjGet(pathname string) (int, error) {
 	pathBytes := append([]byte(pathname), 0)
 
 	attr := bpfObjAttr{
-		Pathname: uint64(uintptr(unsafe.Pointer(&pathBytes[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+		Pathname: unsafe.Pointer(&pathBytes[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
 
-	fd, err := bpfSyscall(BPF_OBJ_GET, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	fd, err := bpfSyscall(BPF_OBJ_GET, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return -1, fmt.Errorf("%w: obj_get %s: %v", ErrSyscallFailed, pathname, err)
 	}
@@ -1322,7 +1346,7 @@ func bpfProgAttach(progFD, targetFD int, attachType uint32) error {
 		AttachType:  attachType,
 	}
 
-	_, err := bpfSyscall(BPF_PROG_ATTACH, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_PROG_ATTACH, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return fmt.Errorf("%w: prog_attach: %v", ErrSyscallFailed, err)
 	}
@@ -1342,7 +1366,7 @@ func bpfProgDetach(progFD, targetFD int, attachType uint32) error {
 		AttachType:  attachType,
 	}
 
-	_, err := bpfSyscall(BPF_PROG_DETACH, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_PROG_DETACH, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return fmt.Errorf("%w: prog_detach: %v", ErrSyscallFailed, err)
 	}
@@ -1358,7 +1382,7 @@ func bpfLinkCreate(progFD, targetFD int, attachType uint32) (int, error) {
 		AttachType: attachType,
 	}
 
-	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return -1, fmt.Errorf("%w: link_create: %v", ErrSyscallFailed, err)
 	}
@@ -1373,10 +1397,10 @@ func bpfGetProgInfo(fd int) (*bpfProgInfo, error) {
 	attr := bpfObjGetInfoAttr{
 		BPFFD:   uint32(fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		InfoLen: uint32(unsafe.Sizeof(*info)),
-		Info:    uint64(uintptr(unsafe.Pointer(info))), // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+		Info:    unsafe.Pointer(info), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
 
-	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return nil, fmt.Errorf("%w: get_info: %v", ErrSyscallFailed, err)
 	}
@@ -1391,10 +1415,10 @@ func bpfGetMapInfo(fd int) (*bpfMapInfo, error) {
 	attr := bpfObjGetInfoAttr{
 		BPFFD:   uint32(fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		InfoLen: uint32(unsafe.Sizeof(*info)),
-		Info:    uint64(uintptr(unsafe.Pointer(info))), // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+		Info:    unsafe.Pointer(info), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
 
-	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return nil, fmt.Errorf("%w: get_map_info: %v", ErrSyscallFailed, err)
 	}
@@ -2775,7 +2799,7 @@ func (l *NativeLoader) attachXDPLink(loaded *loadedProgram, ifIndex int) (int, e
 		attr.Flags = XDP_FLAGS_HW_MODE
 	}
 
-	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return -1, err
 	}
@@ -2970,7 +2994,7 @@ func (l *NativeLoader) attachTCX(loaded *loadedProgram, ifIndex int) (int, error
 		AttachType:  attachType,
 	}
 
-	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return -1, err
 	}
@@ -3184,7 +3208,7 @@ type perfEventAttr struct {
 	Flags              uint64
 	WakeupEventsOrWM   uint32
 	BPType             uint32
-	ExtConfig          uint64
+	ExtConfig          unsafe.Pointer // config1: the kprobe function name
 	BranchSampleType   uint64
 	SampleRegsUser     uint64
 	SampleStackUser    uint32
@@ -3244,7 +3268,7 @@ func (l *NativeLoader) attachKprobeLink(loaded *loadedProgram, funcName string, 
 	}
 
 	// For PMU-based kprobes, the function name goes in config1
-	attr.ExtConfig = uint64(uintptr(unsafe.Pointer(&funcNameBytes[0]))) // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+	attr.ExtConfig = unsafe.Pointer(&funcNameBytes[0]) // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 
 	// Call perf_event_open
 	perfFD, _, errno := unix.Syscall6(
@@ -3509,19 +3533,13 @@ func (l *NativeLoader) attachRawTracepoint(loaded *loadedProgram) error {
 	// Raw tracepoints use BPF_RAW_TRACEPOINT_OPEN (via BPF_LINK_CREATE)
 	tpNameBytes := append([]byte(tpName), 0)
 
-	attr := struct {
-		ProgFD     uint32
-		_          uint32
-		AttachType uint32
-		Flags      uint32
-		RawTPName  uint64
-	}{
+	attr := bpfRawTPLinkAttr{
 		ProgFD:     uint32(loaded.fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		AttachType: BPF_TRACE_RAW_TP,
-		RawTPName:  uint64(uintptr(unsafe.Pointer(&tpNameBytes[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+		RawTPName:  unsafe.Pointer(&tpNameBytes[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
 
-	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return fmt.Errorf("raw tracepoint attach: %w", err)
 	}
@@ -4294,16 +4312,12 @@ func loadKernelBTF(path string) (int, error) {
 	}
 
 	// Load BTF into kernel
-	attr := struct {
-		BTF     uint64
-		BTFSize uint32
-		_       [52]byte
-	}{
-		BTF:     uint64(uintptr(unsafe.Pointer(&data[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
-		BTFSize: uint32(len(data)),                         // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+	attr := bpfBTFLoadAttr{
+		BTF:     unsafe.Pointer(&data[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
+		BTFSize: uint32(len(data)),        // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 	}
 
-	// #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	// #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	fd, err := bpfSyscall(18, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // BPF_BTF_LOAD = 18
 	if err != nil {
 		return -1, err
