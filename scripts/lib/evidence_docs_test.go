@@ -40,7 +40,7 @@ func ontologyCells(t *testing.T) []ontologyCell {
 	return cells
 }
 
-// M-evidence: Doom left this repository, so the service map no longer draws it.
+// Doom left this repository, so the service map no longer draws it.
 func TestOntologyDrawsNoDoom(t *testing.T) {
 	doom := regexp.MustCompile(`(?i)doom|E1M1`)
 	for _, c := range ontologyCells(t) {
@@ -71,5 +71,50 @@ func TestOntologyPDFIsMarkedStale(t *testing.T) {
 	note := moveoutRepoFile(t, "docs/architecture/diagrams/README.md")
 	if !strings.Contains(note, "service-ontology.drawio.pdf") || !strings.Contains(note, "stale") {
 		t.Errorf("docs/architecture/diagrams/README.md does not mark the PDF stale:\n%s", note)
+	}
+}
+
+// hostTidyStep gives one step of the S-HOST-TIDY plan, up to the next step.
+func hostTidyStep(t *testing.T, n string) string {
+	t.Helper()
+	plan := moveoutRepoFile(t, "docs/battle-plans/S-HOST-TIDY-battle-plan.md")
+	_, after, found := strings.Cut(plan, "**Step "+n+"**")
+	if !found {
+		t.Fatalf("no Step %s in the plan", n)
+	}
+	body, _, _ := strings.Cut(after, "\n- [ ] **Step ")
+	return body
+}
+
+// Ruling 1: resolved keeps a current server that stays listed, so the plan sets
+// Pi-hole alone, looks one name up, and confirms it, before the full list.
+func TestHostTidyStep58SetsPiHoleAlone(t *testing.T) {
+	step := hostTidyStep(t, "58")
+	alone := strings.Index(step, "resolvectl dns enp2s0 10.10.20.252 &&")
+	lookup := strings.Index(step, "resolvectl query archive.ubuntu.com")
+	confirm := strings.Index(step, `grep "Current DNS"`)
+	full := strings.Index(step, "resolvectl dns enp2s0 10.10.20.252 1.1.1.1 8.8.8.8")
+	if alone < 0 || lookup < alone || confirm < lookup || full < confirm {
+		t.Errorf("Step 58 must set Pi-hole alone, look up, confirm, then set the list; at %d %d %d %d", alone, lookup, confirm, full)
+	}
+	if !strings.Contains(step, "`Current DNS Server: 10.10.20.252`") {
+		t.Error("Step 58's Expect does not name the current server")
+	}
+	if strings.Contains(step, "sudo systemctl restart") || strings.Contains(step, "sudo netplan apply") {
+		t.Error("the ruling runs no resolved restart and no netplan apply")
+	}
+}
+
+// Ruling 2: resolvectl prints A and AAAA in varying order, so the check asks for A.
+func TestHostTidyStep59AsksForA(t *testing.T) {
+	step := hostTidyStep(t, "59")
+	if !strings.Contains(step, "resolvectl query -t A o401343.ingest.us.sentry.io") {
+		t.Error("Step 59's first check does not ask for the A record")
+	}
+	if !strings.Contains(step, "`o401343.ingest.us.sentry.io IN A 0.0.0.0") {
+		t.Error("Step 59's Expect is not the shape -t A prints")
+	}
+	if strings.Contains(step, "`o401343.ingest.us.sentry.io: 0.0.0.0") {
+		t.Error("Step 59 still expects the shape of a plain query")
 	}
 }
