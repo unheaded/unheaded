@@ -147,12 +147,12 @@ func (s *TFTPServer) WriteFile(path string, data []byte) error {
 	defer func() { _ = root.Close() }()
 
 	// Ensure directory exists
-	if err := root.MkdirAll(filepath.Dir(rel), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
+	if err := root.MkdirAll(filepath.Dir(rel), 0755); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
 	// Write file
-	if err := root.WriteFile(rel, data, 0644); err != nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
+	if err := root.WriteFile(rel, data, 0644); err != nil {
 		return fmt.Errorf("writing file: %w", err)
 	}
 

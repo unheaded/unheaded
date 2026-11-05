@@ -155,7 +155,7 @@ pkg/auth/keys.go 3
 pkg/auth/setup.go 1
 pkg/baremetal/image/image.go 5
 pkg/baremetal/image/nixos.go 9
-pkg/baremetal/pxe/tftp.go 4
+pkg/baremetal/pxe/tftp.go 3
 pkg/benchmark/benchmark.go 1
 pkg/bff/bff.go 5
 pkg/cartridge/cartridge.go 2
