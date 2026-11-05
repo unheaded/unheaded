@@ -5,23 +5,30 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/health"
 )
 
-// maxRefusedLogs bounds the log lines for verdicts on services this node does
-// not watch: the names are not ours, and each one comes back every sweep.
-const maxRefusedLogs = 64
+// A verdict on a service this node does not watch comes back every sweep, and
+// reports can carry any number of names. So such a name is logged at most once
+// per refusedQuiet, and at most maxRefused names are held at a time: that is
+// all the memory and all the log lines they can cost.
+const (
+	maxRefused   = 64
+	refusedQuiet = time.Hour
+)
 
 // restarter is what --remediate does with a verdict at the threshold.
 type restarter struct {
-	noUnit  map[string]bool   // exec targets: nothing to restart
-	units   map[string]string // service -> unit, from restartUnits
-	enabled bool              // --remediate
-	counts  map[string]int    // attempts this outage; -1 once a human was told
-	refused int               // verdicts logged as not ours to restart
+	noUnit  map[string]bool      // exec targets: nothing to restart
+	units   map[string]string    // service -> unit, from restartUnits
+	enabled bool                 // --remediate
+	counts  map[string]int       // this node's targets: attempts this outage; -1 once a human was told
+	refused map[string]time.Time // other names: when each was last logged
+	now     func() time.Time
 	run     func(unit string) ([]byte, error)
 }
 
@@ -50,22 +57,16 @@ func (r *restarter) onAlert(v health.Verdict) {
 		}
 		return
 	}
+	svcUnit, ok := r.units[v.Service]
+	if !ok {
+		r.refuse(v)
+		return
+	}
 	if !r.enabled {
 		if r.counts[v.Service] == 0 {
 			log.Error().Str("service", v.Service).Float64("failure_rate", v.FailureRate).
 				Msg("CONSENSUS THRESHOLD — remediation off (--remediate=false): needs a human")
 			r.counts[v.Service] = -1 // logged for this outage
-		}
-		return
-	}
-	svcUnit, ok := r.units[v.Service]
-	if !ok {
-		// A peer's service, or a name nothing here knows: no count is kept,
-		// so a stream of new names cannot grow the table.
-		if r.refused < maxRefusedLogs {
-			r.refused++
-			log.Warn().Str("service", v.Service).
-				Msg("CONSENSUS THRESHOLD on a service this node does not watch — not restarting: needs a human")
 		}
 		return
 	}
@@ -86,4 +87,23 @@ func (r *restarter) onAlert(v health.Verdict) {
 	} else {
 		log.Info().Str("service", v.Service).Msg("auto-restart SUCCESS")
 	}
+}
+
+// refuse handles a verdict on a peer's service, or on a name nothing here knows.
+func (r *restarter) refuse(v health.Verdict) {
+	now := r.now()
+	for name, at := range r.refused {
+		if now.Sub(at) >= refusedQuiet {
+			delete(r.refused, name)
+		}
+	}
+	if _, quiet := r.refused[v.Service]; quiet || len(r.refused) >= maxRefused {
+		return
+	}
+	r.refused[v.Service] = now
+	msg := "CONSENSUS THRESHOLD on a service this node does not watch — not restarting: needs a human"
+	if !r.enabled {
+		msg = "CONSENSUS THRESHOLD — remediation off (--remediate=false): needs a human"
+	}
+	log.Error().Str("service", v.Service).Float64("failure_rate", v.FailureRate).Msg(msg)
 }

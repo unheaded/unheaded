@@ -196,7 +196,7 @@ func main() {
 	configPath := flag.String("config", "", "Path to config YAML (optional)")
 	nodeID := flag.String("node", "", "Node identifier (default: hostname)")
 	listenPort := flag.Int("port", ports.Akira, "HTTP API port for Akira status")
-	remediate := flag.Bool("remediate", false, "restart a service (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
+	remediate := flag.Bool("remediate", false, "restart a service in this node's own targets (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
 	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
 	wotanGRPC := flag.String("wotan-grpc", "", "Wotan gRPC address for the signed topics (consensus, remediate); default: the --wotan host on port 18001")
 	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
@@ -345,7 +345,10 @@ func main() {
 	})
 
 	noUnit := execTargetNames(targets)
-	restart := &restarter{noUnit: noUnit, units: restartUnits(targets), enabled: *remediate, counts: restarts, run: systemctlRestart}
+	restart := &restarter{
+		noUnit: noUnit, units: restartUnits(targets), enabled: *remediate,
+		counts: restarts, refused: map[string]time.Time{}, now: time.Now, run: systemctlRestart,
+	}
 	akira.OnAlert(restart.onAlert)
 
 	// Single sweep mode
