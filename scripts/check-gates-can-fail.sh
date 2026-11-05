@@ -1098,6 +1098,15 @@ provoke_nosec_ratchet() {
     printf '\n// #nosec G101 -- meta-gate provocation\n' >>"${REPO_ROOT}/${f}"
 }
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_test_nosec_ratchet() {
+    # Contract (L20): a gosec config file is one way round the count. Stop
+    # looking for it, so its case sees the ratchet pass.
+    local f="scripts/check-nosec-ratchet.sh"
+    backup "${f}"
+    sed -i 's/(nosec-tag|conf|exclude-dir/(nosec-tag|exclude-dir/' "${REPO_ROOT}/${f}"
+    ! grep -q 'nosec-tag|conf|' "${REPO_ROOT}/${f}" || { echo "provocation anchor still present in ${f}" >&2; return 1; }
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_compose_publish_bind() {
     # Contract (M11): a compose publish names an internal address. Drop the
     # address from one, which is how every bare publish got there.
@@ -1134,6 +1143,7 @@ provoke_yggdrasil_anchor() {
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-nosec-ratchet|provoke_nosec_ratchet|fast|one more #nosec in pkg/database/config.go
+test-check-nosec-ratchet|provoke_test_nosec_ratchet|fast|check-nosec-ratchet.sh no longer refusing gosec -conf
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
 check-secrets-baseline|provoke_secrets_baseline|fast|a new fingerprint appended to .gitleaksignore
 check-python-syntax|provoke_python_syntax|fast|a syntax error in a tracked .py file

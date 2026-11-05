@@ -59,6 +59,7 @@ class ActionManager:
                 host=os.environ.get('ZHEN_DB_HOST', 'localhost'),
                 port=int(os.environ.get('ZHEN_DB_PORT', '5432')),
                 sslmode=os.environ.get('ZHEN_DB_SSLMODE', 'require'),  # The Well accepts TLS only
+                sslrootcert=os.environ.get('ZHEN_DB_SSLROOTCERT') or None,  # verify-full needs the CA
                 connect_timeout=3,
             )
             conn.autocommit = False

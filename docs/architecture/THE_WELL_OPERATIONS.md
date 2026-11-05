@@ -128,7 +128,8 @@ with `verify-ca` or `verify-full` and no readable CA stops with
 `database.ErrMissingCA` before it connects, and so does any client with
 `WELL_SSLROOTCERT` set to a file that is missing, whatever its sslmode. Clients
 that take a whole DSN (`WELL_DSN`, huginn, Wotan's store) put `sslmode` and
-`sslrootcert` in it.
+`sslrootcert` in it. The Python clients in `raft/` take `ZHEN_DB_SSLMODE` and
+`ZHEN_DB_SSLROOTCERT`.
 
 ---
 
