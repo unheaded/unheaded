@@ -12,7 +12,8 @@
 #   scripts/check-ci-verdicts.sh
 #
 # CI_VERDICTS_ROOT points it at another tree (scripts/test-check-ci-verdicts.sh
-# runs each rule against a broken copy). Exit 1 on a violation, 2 if it cannot
+# runs each rule against a broken copy), and CI_VERDICTS_TREE at the tree the
+# workflows' paths are looked up in, default the same one. Exit 1 on a violation, 2 if it cannot
 # run: this gate does not pass by skipping.
 set -euo pipefail
 
@@ -284,6 +285,45 @@ def rust_targets():
                 if "rust-toolchain" in str(s.get("uses", "")) and "bpf" in str(s.get("with", {}).get("targets", "")):
                     bad("rust-target", f"{path} {name}: rustup has no bpf target to install; build-std supplies it")
 
+# A step that names a file the tree does not have fails with nothing run, and
+# no fixture catches it: docker.yml named two Dockerfiles the tree did not have,
+# and moving code to another repository makes more of these. CI_VERDICTS_TREE
+# is where the paths are looked up, for a test that breaks only the workflows.
+RUN_PATH = re.compile(r"(?:^|[\s;&|(])((?:\./)?(?:scripts|tests|nix/yggdrasil/(?:scripts|tests))/[\w./-]+\.(?:sh|py))(?=$|[\s;&|)])")
+
+def workflow_paths():
+    tree = os.environ.get("CI_VERDICTS_TREE", ".")
+    def there(p):
+        return os.path.exists(os.path.join(tree, p))
+    def named(path, job, what, p):
+        if p and "${{" not in p and not there(p):
+            bad("workflow-paths", f"{path} {job}: {what} {p} is not in the tree")
+    for path in sorted(glob.glob(".github/workflows/*.yml")):
+        for name, j in workflow(os.path.basename(path)).get("jobs", {}).items():
+            for s in j.get("steps", []):
+                w = s.get("with") or {}
+                named(path, name, "working-directory", s.get("working-directory"))
+                named(path, name, "go-version-file", w.get("go-version-file"))
+                named(path, name, "trivyignores", w.get("trivyignores"))
+                for key in re.findall(r"hashFiles\('([^'*]+)'\)", str(w.get("key", ""))):
+                    named(path, name, "hashFiles", key)
+                if "build-push-action" in str(s.get("uses", "")):
+                    named(path, name, "build context", w.get("context"))
+                    named(path, name, "Dockerfile", w.get("file"))
+                    target = w.get("target")
+                    if target and w.get("file") and there(w["file"]):
+                        with open(os.path.join(tree, w["file"]), encoding="utf-8") as f:
+                            if not re.search(rf"(?im)^FROM\s.*\sAS\s+{re.escape(target)}\s*$", f.read()):
+                                bad("workflow-paths", f"{path} {name}: {w['file']} has no stage {target}")
+                for line in str(s.get("run", "")).splitlines():
+                    if line.strip().startswith("#"):
+                        continue
+                    for script in RUN_PATH.findall(line):
+                        named(path, name, "script", script)
+                        if (line.strip().startswith(script) and there(script)
+                                and not os.access(os.path.join(tree, script), os.X_OK)):
+                            bad("workflow-paths", f"{path} {name}: {script} is run directly but is not executable")
+
 security_gate()
 history_scan()
 bpf_linker()
@@ -293,6 +333,7 @@ tool_fetches()
 jenkins_agents()
 branch_protection()
 rust_targets()
+workflow_paths()
 
 if problems:
     print("\n".join(f"[FAIL] {p}" for p in problems))

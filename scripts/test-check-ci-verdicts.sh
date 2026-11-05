@@ -37,7 +37,7 @@ ci_verdict_expect_bite() {
 		FAILED=$((FAILED + 1))
 		return
 	fi
-	out="$(CI_VERDICTS_ROOT="${WORK}/tree" "${GATE}" 2>&1)" || rc=$?
+	out="$(CI_VERDICTS_ROOT="${WORK}/tree" CI_VERDICTS_TREE="${REPO_ROOT}" "${GATE}" 2>&1)" || rc=$?
 	if [ "${rc}" -eq 1 ] && grep -q "^\[FAIL\] ${rule}:" <<<"${out}"; then
 		printf '  PASS  %s\n' "${label}"
 		PASSED=$((PASSED + 1))
@@ -50,7 +50,7 @@ ci_verdict_expect_bite() {
 
 echo "--- the tree as committed ---"
 ci_verdict_fresh_copy
-if CI_VERDICTS_ROOT="${WORK}/tree" "${GATE}" >/dev/null 2>&1; then
+if CI_VERDICTS_ROOT="${WORK}/tree" CI_VERDICTS_TREE="${REPO_ROOT}" "${GATE}" >/dev/null 2>&1; then
 	echo "  PASS  an unbroken copy passes"
 	PASSED=$((PASSED + 1))
 else
@@ -158,6 +158,25 @@ ci_verdict_expect_bite "an agent older than go.mod" jenkins "jenkins/Jenkinsfile
 	"s/image 'golang:[^']+'/image 'golang:1.25'/"
 ci_verdict_expect_bite "a target rustup cannot install" rust-target ".github/workflows/release.yml" \
 	's/^( +)components: rust-src$/&\n\1targets: bpfel-unknown-none/'
+
+echo "--- paths a step names ---"
+DOCKER_WF=".github/workflows/docker.yml"
+ci_verdict_expect_bite "a script nothing tracks" workflow-paths "${SEC}" \
+	's#^( +)run: \./scripts/check-well-lint\.sh$#\1run: ./scripts/check-well-lint-gone.sh#'
+ci_verdict_expect_bite "a script reached through bash" workflow-paths ".github/workflows/static-analysis.yml" \
+	's#bash tests/sealed-cask/round_trip_test\.sh#bash tests/sealed-cask/round_trip_gone.sh#'
+ci_verdict_expect_bite "a script run directly without its mode" workflow-paths "${SEC}" \
+	's#^( +)source scripts/lib/tool-pins\.sh$#\1scripts/lib/tool-pins.sh#'
+ci_verdict_expect_bite "a working directory that left" workflow-paths ".github/workflows/ebpf.yml" \
+	's#working-directory: crates/svc-token#working-directory: crates/svc-token-gone#'
+ci_verdict_expect_bite "a lockfile the cache key hashes that left" workflow-paths ".github/workflows/ebpf.yml" \
+	"s#hashFiles\('ebpf/Cargo.lock'\)#hashFiles('ebpf-gone/Cargo.lock')#"
+ci_verdict_expect_bite "a Dockerfile that left" workflow-paths "${DOCKER_WF}" \
+	's#file: \./Dockerfile#file: ./wotan/Dockerfile#'
+ci_verdict_expect_bite "a build context that left" workflow-paths "${DOCKER_WF}" \
+	's#context: \.$#context: ./unheaded#'
+ci_verdict_expect_bite "a stage the Dockerfile lacks" workflow-paths "${DOCKER_WF}" \
+	's#target: wotan#target: wotan-gone#'
 
 echo
 echo "passed: ${PASSED}  failed: ${FAILED}"
