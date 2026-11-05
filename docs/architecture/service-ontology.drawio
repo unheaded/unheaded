@@ -114,7 +114,7 @@
         <mxCell id="p1_upc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="UPC / Crates: monad-mbc → xv6 → doom-runner   (tab &#39;4 · UPC/Crates&#39;)" vertex="1">
           <mxGeometry height="40" width="500" x="1150" y="624" as="geometry" />
         </mxCell>
-        <mxCell id="p1_zhen" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="Zhen: zhend → zhenai-forge → Champion → runbooks" vertex="1">
+        <mxCell id="p1_zhen" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="Zhen: zhend → Champion → runbooks" vertex="1">
           <mxGeometry height="40" width="500" x="1150" y="570" as="geometry" />
         </mxCell>
         <mxCell id="p1_tomb" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" value="Tomb red-team: LICH (future agent) → Cerydwyn → Dark-Mirror   (tab &#39;5 · Tomb&#39;)" vertex="1">
@@ -493,7 +493,7 @@
         <mxCell id="p4_zhend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="zhend — gossip knowledge (Layer 0)&#xa;content-addressed, PQ crypto" vertex="1">
           <mxGeometry height="56" width="230" x="30" y="340" as="geometry" />
         </mxCell>
-        <mxCell id="p4_forge" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="zhenai-forge — LoRA on Gemma-4 E2B&#xa;GPU fwd+bwd kernels" vertex="1">
+        <mxCell id="p4_forge" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="unheaded-forge (separate repo) — LoRA on Gemma-4 E2B&#xa;GPU fwd+bwd kernels" vertex="1">
           <mxGeometry height="56" width="240" x="360" y="396" as="geometry" />
         </mxCell>
         <mxCell id="p4_infer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="zhen-inference (llama.cpp)" vertex="1">
