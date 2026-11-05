@@ -13,7 +13,7 @@ metadata:
   approved_by: ""
   dry_run_test: tests/runbooks/test_mcp_enablement.py
 notes: |
-  This runbook enables the Zhen MCP server's mutating tools (file writes, or running a runbook) for a single session. It verifies the tools are enabled, allows the operator to perform the work, and then disables the tools. The committed `.mcp.json` must keep both flags off. Write-enable is for attended sessions only: a refused path returns `ACCESS DENIED` text rather than `isError`, and `file_write` has a symlink TOCTOU race. The Champion's own write tools (snapshots, revert, out-of-band confirmation) are the preferred path for writes, and `zhen-claude -mcp-mutating` calls still pass the Champion gate.
+  This runbook enables the Zhen MCP server's gated tools (file writes, or a dry run of a runbook) for a single session. ZHEN_MCP_ALLOW_EXEC reaches dry runs only: a live run is held for a person, through zhen-cli. It verifies the tools are enabled, allows the operator to perform the work, and then disables the tools. The committed `.mcp.json` must keep both flags off. Write-enable is for attended sessions only: a refused path returns `ACCESS DENIED` text rather than `isError`, and `file_write` has a symlink TOCTOU race. The Champion's own write tools (snapshots, revert, out-of-band confirmation) are the preferred path for writes, and `zhen-claude -mcp-mutating` calls still pass the Champion gate.
   The tool-list checks read the flags from their own environment, so run them in the same shell that launches the session.
 parameters:
   - name: REPO
@@ -28,7 +28,7 @@ steps:
     command: |
       # Enable only what the work needs, BEFORE starting the session, in the launching shell:
       export ZHEN_MCP_ALLOW_WRITE=1   # file writes (file_write, file_patch)
-      export ZHEN_MCP_ALLOW_EXEC=1    # running a runbook (runbook_execute)
+      export ZHEN_MCP_ALLOW_EXEC=1    # a runbook's dry run (runbook_execute); a live run stays with zhen-cli
       # Or set the flag in the "env" of the zhen entry in <REPO>/.mcp.json; do NOT commit that edit.
       # Then start the Claude session.
     description: "MANUAL. Enable only the needed flag for this one session, before launching it."

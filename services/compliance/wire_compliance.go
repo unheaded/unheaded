@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-// Package compliance provides wire-level policy enforcement and audit capabilities.
-// Wire Compliance is the Kingdom's regulatory framework - ensuring service-to-service
-// communication adheres to security policies, data classification rules, geographic
-// zone restrictions, and encryption requirements. Every violation is audited.
+// Package compliance records and scores wire-level policy events. It holds the
+// service policies and geographic zones, takes the violations reported to it
+// (the audit ring cmd/compliance-evidence wire reads, or RecordViolation),
+// writes each to its audit log, and serves a compliance score over them.
+//
+// It enforces nothing: no packet passes through it, and a policy's Action says
+// what the policy asks for, not what happened. Blocking is the data path's.
 package compliance
 
 import (

@@ -71,6 +71,10 @@
 #   ./scripts/check-gates-can-fail.sh --list     # show registry, run nothing
 #   ./scripts/check-gates-can-fail.sh --only NAME  # provoke one registered gate
 #
+# A row that is not a clean verdict names a file holding the output behind it
+# and shows the tail. Those files stay in GATE_LOG_DIR (default: a new
+# directory under TMPDIR or /var/tmp); a clean verdict keeps nothing.
+#
 # SAFETY
 # It mutates tracked files on purpose. It refuses to run on a dirty tree, and an
 # EXIT trap restores every file it touched even on Ctrl-C or a failed assertion.
@@ -92,6 +96,11 @@ if [ "${MODE}" = "--only" ]; then
     [ -n "${ONLY}" ] || { echo "usage: $0 --only <gate name from --list>" >&2; exit 2; }
 fi
 BACKUP_DIR="$(mktemp -d)"
+if [ -n "${GATE_LOG_DIR:-}" ]; then
+    mkdir -p "${GATE_LOG_DIR}" || exit 1
+else
+    GATE_LOG_DIR="$(mktemp -d "${TMPDIR:-/var/tmp}/unheaded-gate-logs.XXXXXX")" || exit 1
+fi
 TOUCHED=()
 CREATED=()          # files the provocation brought into existence
 CREATED_DIRS=()     # directories it had to mkdir -- see restore_touched
@@ -109,6 +118,8 @@ restore_all() {
     local rc=$?
     restore_touched
     rm -rf "${BACKUP_DIR}"
+    # Nothing to keep: a directory this run made goes with it, on every exit.
+    rmdir "${GATE_LOG_DIR}" 2>/dev/null || true
 
     # Belt and braces: if the tree is still dirty after a run that mutated it,
     # say so loudly rather than leave the operator guessing. Only meaningful if
@@ -678,6 +689,27 @@ provoke_systemd_units() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_flags() {
+    # Contract: a unit passes only flags its binary declares. Restore what
+    # east's 1.0.0 unit passed.
+    local f="deploy/systemd/unheaded-wotan.service"
+    backup "${f}"
+    sed -i 's|^    --http-port 18000 \\$|    --config /etc/unheaded/wotan.yaml \\\n&|' "${REPO_ROOT}/${f}"
+    grep -q '^    --config ' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_flags_relative() {
+    # Contract: a unit whose binary defaults to a ./relative path runs from its
+    # own state directory. Stop the gate looking, so unheaded-timeguru as east
+    # ran it passes.
+    local f="scripts/check-unit-flags.sh"
+    backup "${f}"
+    sed -i "s/^\t\tsource_has \"\$pkg\" '\"\\\\.\/\[A-Za-z\]' || continue$/\t\tcontinue/" "${REPO_ROOT}/${f}"
+    ! grep -q 'source_has "$pkg"' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_git_mirror() {
     # Contract (FND-005): the mirror never loses a ref west deleted. Switch
     # to push --mirror, which prunes them.
@@ -790,6 +822,35 @@ provoke_gitleaks_history() {
     backup "${f}"
     sed -i 's/^\t\*)$/\t*) exit 0 ;;\n\tnever)/' "${REPO_ROOT}/${f}"
     grep -q 'exit 0 ;;' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_gates_output() {
+    # Contract: an INCONCLUSIVE row can be diagnosed. Send the clean run's
+    # output back to /dev/null, as this script did until 2026-11-05.
+    local f="scripts/check-gates-can-fail.sh"
+    backup "${f}"
+    sed -i 's|"${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 \|\| rc=$?|"${REPO_ROOT}/${gate}" >/dev/null 2>\&1 \|\| rc=$?|' "${REPO_ROOT}/${f}"
+    grep -q '"${REPO_ROOT}/${gate}" >/dev/null 2>&1 || rc=' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_generate_sbom() {
+    # Contract: the generator writes sbom/SBOM.md. Stop the full run writing it.
+    local f="scripts/generate-sbom.sh"
+    backup "${f}"
+    sed -i '/^write_report$/d' "${REPO_ROOT}/${f}"
+    ! grep -q '^write_report$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_fetch_tool() {
+    # Contract: a binary keeps running while another gate fetches the same
+    # tool. Unpack over it in place again.
+    local f="scripts/lib/fetch-tool.sh"
+    backup "${f}"
+    sed -i 's|tar -xzf "$tarball" -C "$staging" "$member" \|\| rc=2|tar -xzf "$tarball" -C "$cache" "$member" \&\& cp "$cache/$member" "$staging/" \|\| rc=2|' "${REPO_ROOT}/${f}"
+    grep -q -- '-C "$cache" "$member"' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
@@ -1107,6 +1168,7 @@ check-log-sources|provoke_log_sources|fast|a systemd unit file with no row in co
 check-haproxy-cfg|provoke_haproxy_cfg|slow|req.hdr(X-Trace-Id) restored in the internal haproxy config's log-format (needs docker)
 check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with read_only removed
 check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
+check-unit-flags|provoke_unit_flags|fast|--config, which wotan does not declare, restored in unheaded-wotan.service
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
@@ -1130,6 +1192,10 @@ check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published adviso
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
 test-check-gitleaks-history|provoke_gitleaks_history|fast|check-gitleaks.sh --history treating a failed scan as findings (downloads the pinned tool)
+test-check-unit-flags|provoke_unit_flags_relative|fast|check-unit-flags.sh no longer reading relative defaults, so a unit with no working directory passes
+test-check-gates-can-fail|provoke_gates_output|fast|a clean run's output sent back to /dev/null, so an INCONCLUSIVE row names nothing
+test-generate-sbom|provoke_generate_sbom|fast|generate-sbom.sh's full run no longer writing sbom/SBOM.md, as from 2026-03-15
+test-fetch-tool|provoke_fetch_tool|fast|fetch-tool.sh unpacking over the cached binary in place, as it did until 2026-11-05
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
@@ -1314,6 +1380,13 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 2
 fi
 
+# row_output LOG: under a row that is not a clean verdict, name the file and
+# show the end of it, so the row can be diagnosed once this run is gone.
+row_output() {
+    echo "      output: ${1}"
+    tail -n 20 "${1}" | sed 's/^/      | /'
+}
+
 # ---------------------------------------------------------------------------
 # Run each gate: must PASS clean, then must FAIL when provoked.
 # ---------------------------------------------------------------------------
@@ -1348,25 +1421,30 @@ for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort)
 
     # Phase 1 — green on a clean tree. If it is already red, the provocation
     # result would be meaningless.
-    if ! "${REPO_ROOT}/${gate}" >/dev/null 2>&1; then
-        echo "INCONCLUSIVE — already failing on a clean tree"
+    log="${GATE_LOG_DIR}/${name//\//_}"
+    rc=0
+    "${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 || rc=$?
+    if [ "${rc}" -ne 0 ]; then
+        echo "INCONCLUSIVE — already failing on a clean tree (exit ${rc})"
+        row_output "${log}.clean.log"
         FAILURES=$((FAILURES + 1))
         continue
     fi
 
     # Phase 2 — plant the violation.
     DID_PROVOKE=1
-    if ! "${fn}" >/dev/null 2>&1; then
+    if ! "${fn}" >"${log}.provoke.log" 2>&1; then
         echo "ERROR — provocation ${fn} could not be applied"
+        row_output "${log}.provoke.log"
         FAILURES=$((FAILURES + 1))
         continue
     fi
 
     # Phase 3 — it must now fail.
     if [ "${name}" = "check-timeline-freshness" ]; then
-        run_timeline_freshness >/dev/null 2>&1
+        run_timeline_freshness >"${log}.provoked.log" 2>&1
     else
-        "${REPO_ROOT}/${gate}" >/dev/null 2>&1
+        "${REPO_ROOT}/${gate}" >"${log}.provoked.log" 2>&1
     fi
     rc=$?
 
@@ -1375,8 +1453,10 @@ for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort)
 
     if [ "${rc}" -ne 0 ]; then
         echo "OK — bites when provoked (exit ${rc})"
+        rm -f "${log}.clean.log" "${log}.provoke.log" "${log}.provoked.log"
     else
         echo "FAIL — PASSED WHILE VIOLATED"
+        row_output "${log}.provoked.log"
         FAILURES=$((FAILURES + 1))
     fi
 done

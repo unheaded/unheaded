@@ -13,6 +13,11 @@
 # ${XDG_CACHE_HOME:-~/.cache}/unheaded-tools/NAME-VERSION. A cached archive
 # whose hash no longer matches is deleted and the call fails: a swapped file
 # must never run. Pins and their freshness: scripts/check-tool-freshness.sh.
+#
+# The cache is shared by every gate on a host and gates run side by side, so
+# the binary is unpacked beside the cache and renamed in: writing it in place
+# made another caller's run of it exit 126 or 127, which reads as a failed gate
+# (scripts/test-fetch-tool.sh).
 
 fetch_tool() {
 	local name="$1" version="$2" url="$3" sha256="$4" member="$5"
@@ -24,19 +29,27 @@ fetch_tool() {
 	}
 	mkdir -p "$cache"
 	if [[ ! -f "$tarball" ]]; then
-		curl -fsSL --retry 3 -o "$tarball.part" "$url" || return 2
-		mv "$tarball.part" "$tarball"
+		curl -fsSL --retry 3 -o "$tarball.part.$$" "$url" || { rm -f "$tarball.part.$$"; return 2; }
+		mv "$tarball.part.$$" "$tarball"
 	fi
 	echo "${sha256}  ${tarball}" | sha256sum -c --quiet - >&2 || {
 		echo "[FAIL] ${name} ${version} does not match its pinned sha256; deleted" >&2
 		rm -f "$tarball" "$cache/$member"
 		return 2
 	}
+	local staging out rc=0
+	staging="$(mktemp -d "$cache/.extract.XXXXXX")" || return 2
 	if [[ "$member" == "-" ]]; then
-		install -m 0755 "$tarball" "$cache/$name" || return 2
-		echo "$cache/$name"
-		return 0
+		out="$name"
+		install -m 0755 "$tarball" "$staging/$out" || rc=2
+	else
+		out="$member"
+		tar -xzf "$tarball" -C "$staging" "$member" || rc=2
 	fi
-	tar -xzf "$tarball" -C "$cache" "$member" || return 2
-	echo "$cache/$member"
+	if [[ "$rc" -eq 0 ]]; then
+		mkdir -p "$(dirname "$cache/$out")" && mv -f "$staging/$out" "$cache/$out" || rc=2
+	fi
+	rm -rf "$staging"
+	[[ "$rc" -eq 0 ]] || return "$rc"
+	echo "$cache/$out"
 }
