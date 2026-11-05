@@ -7,7 +7,6 @@ package main
 import (
 	"context"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -222,39 +221,10 @@ func rateLimitMiddleware(limiter *RateLimiter) func(http.Handler) http.Handler {
 	}
 }
 
-// trustedProxies holds the set of proxy IPs whose X-Forwarded-For /
-// X-Real-IP headers are trusted.  Empty by default — meaning the rate
-// limiter always keys on RemoteAddr, which cannot be spoofed by the
-// client.  Populate this from configuration when running behind a
-// known load-balancer or reverse proxy (e.g. the Unheaded gateway on
-// localhost or the LXD bridge).
-var trustedProxies = map[string]bool{}
-
-// getClientIP extracts the client IP from the request.
-//
-// It uses RemoteAddr (with port stripped) by default.  X-Forwarded-For
-// and X-Real-IP are only consulted when RemoteAddr belongs to a
-// trusted proxy — preventing spoofing by arbitrary clients.
+// getClientIP is the address the rate limiter keys on: the peer, port
+// stripped, and never a header a client could set.
 func getClientIP(r *http.Request) string {
-	remoteIP := stripPort(r.RemoteAddr)
-
-	// Only trust forwarded headers when the direct peer is a known proxy.
-	if trustedProxies[remoteIP] {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			// Take the first (client-supplied) IP in the chain.
-			for i, c := range xff {
-				if c == ',' {
-					return strings.TrimSpace(xff[:i])
-				}
-			}
-			return strings.TrimSpace(xff)
-		}
-		if xri := r.Header.Get("X-Real-IP"); xri != "" {
-			return strings.TrimSpace(xri)
-		}
-	}
-
-	return remoteIP
+	return stripPort(r.RemoteAddr)
 }
 
 // stripPort removes the port suffix from an address string.

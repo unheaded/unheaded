@@ -124,7 +124,7 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 - ✅ **Rate Limiting** - Token bucket (60 req/min, burst 10)
 - ✅ **Security Headers** - CSP, X-Frame-Options, X-Content-Type-Options
 - ✅ **Request Size Limit** - Max 1MB payload
-- ✅ **Client IP Extraction** - X-Forwarded-For, X-Real-IP support
+- ✅ **Client IP Extraction** - the peer address; forwarded headers are ignored
 
 **Rate Limiter:**
 - Per-client IP tracking
