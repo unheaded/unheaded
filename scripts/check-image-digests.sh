@@ -11,6 +11,9 @@
 # docs/policy/image-digest-baseline.txt as "<file> <image>". That set may only
 # shrink: a listed image that now has a digest fails too.
 #
+# Dockerfile FROM lines and the other compose files are not read here; ADR-102
+# says why.
+#
 # Exact version tags themselves are check-image-tags.sh (ADR-102).
 set -uo pipefail
 

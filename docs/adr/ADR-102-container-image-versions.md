@@ -49,6 +49,13 @@ are left in `docs/policy/image-digest-baseline.txt`: their tags have been
 rebuilt since west pulled them. Dependabot's docker entry covers `/`, not
 `monitoring/`, so a digest there moves only by hand.
 
+Decision 4 still stands everywhere else. Dockerfile `FROM` lines (`debian`,
+`golang`, `alpine`, `ubuntu`, distroless) and the sophia-eye, telemetry and
+load-balancer compose files carry tags, and the gate does not read them. West
+holds no build of `debian:bookworm-slim`, `golang` or distroless, and its
+`ubuntu:24.04` has moved, so no digest there can be read as what already runs:
+choosing one is choosing a version.
+
 ## Done 2026-10-15
 
 - `docker-compose.yml`: `postgres:16.13-alpine`, `traefik:v3.3.7`,
