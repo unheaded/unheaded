@@ -8,10 +8,9 @@ FROM golang:1.27.3-alpine3.24 AS builder
 
 WORKDIR /build
 COPY go.mod go.sum ./
-# doomgeneric is replaced by a path outside the repo and not imported here.
-RUN sed -i '/doomgeneric/d' go.mod go.sum && go mod download
+RUN go mod download
 COPY . .
-RUN sed -i '/doomgeneric/d' go.mod go.sum && \
+RUN \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags='-s -w' -o /out/alert-mailer ./cmd/alert-mailer
 
 FROM alpine:3.24

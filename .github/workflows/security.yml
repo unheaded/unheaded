@@ -31,9 +31,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
-
       - name: Run govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -77,9 +74,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
 
       # Built from tools/gosec (gosec v2.29.0 + x/tools v0.52.0, go.sum-pinned):
       # `go install gosec@v2.29.0` brings an x/tools that cannot read Go 1.27
@@ -415,9 +409,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
-
       # Every package with a Fuzz function, each target for FUZZ_TIME. This
       # was `go list ./... | head -50`: 3 of the 12 packages with fuzz
       # targets were in the first 50 of 298, so the rest were never fuzzed
@@ -554,9 +545,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
-
       - name: Schema constraints and Go integration tests
         run: ./scripts/well/test-compliance-schema.sh --go
 
@@ -638,9 +626,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
 
       # ADR-100: slo.yml and alertmanager.yml are generated from
       # observability/alerting/policy.yaml, and every hand-written rule is

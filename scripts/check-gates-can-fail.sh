@@ -1131,7 +1131,6 @@ build-sealed-cask|produces a sealed image
 kanban-git-link|writes kanban links, no verdict
 drift-detect|reports drift; alerts-only by design (pkg/enkrateia contract)
 qa-smoke|prints a score for a human to compare against the previous batch
-ci-fetch-doomgeneric|fetches a pinned checkout the Go jobs need; no verdict of its own
 ci-python-lock|regenerates .github/ci-python/requirements.txt (uv in a throwaway container); no verdict of its own: check-tool-freshness and the --require-hashes installs are the gates
 ci-install-tools|installs pinned syft/grype/cosign/helm/kubeconform for CI jobs (lib/tool-pins + lib/fetch-tool, which the check-* scripts also use); no verdict of its own
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
@@ -1168,8 +1167,6 @@ zhen-morning-report|prints the overnight worker's report (S-CHAMPION-HARDENING P
 NEEDS_HARDWARE="
 ascend-linux-smoke|attaches XDP and boots the UPC; needs sudo + a live kernel
 check-ebpf-size-pin|needs the build host's pinned Rust nightly (CI's floats: byte sizes are not comparable there); proven by hand 2026-10-27: size edit exit 1, other toolchain exit 2
-doom-smoke|drives BPF maps via bpftool under sudo
-doom-ring|reads a live ring buffer from a running instance
 verify-binding-rune|verifies a sealed-cask image that must be built first; its refusals (appended byte, unsigned cask, wrong build key) are proven by tests/sealed-cask/round_trip_test.sh (CI job sealed-cask-verify)
 yggdrasil-verify-overlay|verifies a built overlay image not present in the sandbox
 east-bootstrap|bootstraps the EAST host over ssh (WireGuard, BGP, LXD services); needs both hosts

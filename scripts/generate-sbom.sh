@@ -83,7 +83,7 @@ LICENSE_DB = {
     'github.com/rogpeppe/go-internal': 'BSD-3-Clause',
     'github.com/rs/xid': 'MIT', 'github.com/rs/zerolog': 'MIT', 'github.com/rs/cors': 'MIT',
     'github.com/sony/gobreaker': 'MIT', 'github.com/stretchr/objx': 'MIT',
-    'github.com/stretchr/testify': 'MIT', 'github.com/unheaded/doomgeneric': 'GPL-2.0',
+    'github.com/stretchr/testify': 'MIT',
     'github.com/xhit/go-str2duration': 'BSD-3-Clause', 'github.com/yuin/goldmark': 'MIT',
     'google.golang.org/appengine': 'Apache-2.0', 'google.golang.org/genproto': 'Apache-2.0',
     'google.golang.org/grpc': 'Apache-2.0', 'google.golang.org/protobuf': 'BSD-3-Clause',

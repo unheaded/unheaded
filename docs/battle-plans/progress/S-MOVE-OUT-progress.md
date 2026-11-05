@@ -8,6 +8,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 - Step 8: `~/tmp/projects/doomgeneric` has uncommitted edits to `doomgeneric/r_data.c` and `doomgeneric/w_wad.c`; they are not in unheaded-doom. DOOM1.WAD stays out of unheaded-doom but remains in upstream doomgeneric history.
 
+- Phase 8 (Step 44): two Dockerfile comments now point at a line that no longer exists: `deploy/docker/zhen-agentd.Dockerfile` (`# it, so drop it here, as the main Dockerfile does.`) and `deploy/sophia-eye/sophia-gateway/Dockerfile` (`# import it, so drop it rather than resolve it (as the root Dockerfile does).`). Neither line was in the plan's list, so they were left alone; cosmetic, for an Opus or attended pass.
+
 ## Stuck steps
 
 ## Evidence
@@ -25,3 +27,6 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - Phase 13 (Steps 77-80): Step 77 `32` (red, above 5). Step 78 `UIDS-OK`, no gofmt or vet lines, `ok`. Step 79 `ok`, `rc=1`; both sed edits applied (2 insertions, 2 changed lines in uids.go). Step 80 commit below.
 - Phase 10 (Steps 54-59): Step 54 `rows removed 3`, check-log-sources OK, `ok ... pkg/logsources`. Step 55 manifest rewritten (92 runbooks), `0`, check-runbooks fresh, systemd README section removed `True`, wiki row removed, `rc=1`. Step 56 `docker/Makefile` edited, `rc=1`. Step 57 man baseline lines removed, four counts `:0`, man count `0`. Step 58 ADR-057 line added (`ADR-057 OK`), REAL-STEEL-UNREACHED row MOVED (`tsv rows 1`). Step 59 commit below.
 - Phase 7 (Steps 38-41): Step 38 `2 block(s) applied`, `README True`, ok, rc=1 (binary built to /var/tmp, not the worktree). Step 39 3 + 2 blocks applied, `tests removed 3`, gofmt and vet silent. Step 40 no output at all; go build ./... clean.
+- Phase 9A (Steps 51-53): Step 51 `1`, `doom.mbc: 86463 instructions loaded`, `test result: ok. 1 passed`. Step 52 count `5`, `test result: ok. 18 passed`, `✓ kernel image structurally valid`. Step 53 commit below.
+- Phase 9A Step 53 [STUCK]: plan-commit refused. Unpredicted output pasted: `pre-commit: run \`cargo fmt\` in the affected workspace and re-stage.` then `plan-commit: refused, unstaged`. Cause seen with `rustfmt --check`: the edited line at integration_tests.rs:636 now fits on one line (`let doom_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../doom/doom.mbc");`). Steps 51 and 52 passed; the Step 51 edit is in the worktree, uncommitted. Rescue: run rustfmt on that one file, re-run Step 53.
+- Phase 8 (Steps 42-45): Step 42 `go.mod:0`, `go.sum:0`, `rc=1` (printed go.sum first; separate greps confirm both 0), `go build ./...` clean; go.mod replace block now one line. Step 43 `fetch steps removed 12`, no grep lines, five `ok-` lines, `bash -n` silent; `ci-fetch-doomgeneric.sh` removed. Step 44 `git grep` silent (zero lines, inside 'one line at most'); no `RUN` line left. Step 45 commit below.

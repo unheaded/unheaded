@@ -41,9 +41,6 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
-
       - name: Download dependencies
         run: go mod download
 
@@ -115,9 +112,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
-
       # v9: v6 runs golangci-lint v1 only, and .golangci.yml is the v2 schema.
       - name: golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
@@ -128,10 +122,9 @@ jobs:
           args: --timeout=10m
 
   # gosec, govulncheck and the SBOM scan run in security.yml and sbom.yml,
-  # correctly configured (gosec go-installed at the module's Go, doomgeneric
-  # fetched first, grype at a medium cutoff). The copies here could not work:
-  # the gosec action ran Go 1.22 and scanned 0 files, govulncheck had no
-  # doomgeneric checkout, and the SBOM job piped unpinned install scripts
+  # correctly configured (gosec go-installed at the module's Go, grype at a
+  # medium cutoff). The copies here could not work:
+  # the gosec action ran Go 1.22 and scanned 0 files, and the SBOM job piped unpinned install scripts
   # and ended in `|| true`. Removed 2026-10-13 when this workflow was
   # re-enabled.
 
@@ -195,13 +188,8 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
-
       # Same reviewed ignore list as the weekly SBOM audit (sbom-audit.yml):
       #   unheaded: this module (GPL-3.0); the allow-list is for dependencies.
-      #   github.com/unheaded/doomgeneric: first-party, SPDX MIT in every
-      #     pkg/doom file, but its module dir has no LICENSE file to find.
       #   modernc.org/mathutil: BSD-3-Clause the classifier does not match.
       - name: License check
         run: |
@@ -209,7 +197,6 @@ jobs:
           go-licenses check ./... \
             --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC \
             --ignore unheaded \
-            --ignore github.com/unheaded/doomgeneric \
             --ignore modernc.org/mathutil
 
   ci-gate:

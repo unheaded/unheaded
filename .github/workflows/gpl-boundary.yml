@@ -23,9 +23,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
-
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
         with:

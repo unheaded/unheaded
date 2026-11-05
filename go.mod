@@ -31,7 +31,6 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/lib/pq v1.12.3
 	github.com/rs/zerolog v1.35.1
-	github.com/unheaded/doomgeneric v0.0.0
 	github.com/yuin/goldmark v1.8.6
 	golang.org/x/crypto v0.58.1-0.20261009181718-2f1f834330b2
 	golang.org/x/sys v0.49.0
@@ -43,10 +42,7 @@ require (
 	modernc.org/sqlite v1.61.0
 )
 
-replace (
-	github.com/unheaded/doomgeneric => ../projects/doomgeneric/unheaded
-	unheaded/pkg/wotan-client => ./pkg/wotan-client
-)
+replace unheaded/pkg/wotan-client => ./pkg/wotan-client
 
 require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect

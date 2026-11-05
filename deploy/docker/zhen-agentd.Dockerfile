@@ -21,14 +21,11 @@ FROM golang:1.27.3-alpine3.24 AS builder
 RUN apk add --no-cache git ca-certificates
 
 WORKDIR /src
-# go.mod replaces github.com/unheaded/doomgeneric with a sibling checkout
-# outside the build context (../projects/doomgeneric); only wotan-ctl imports
 # it, so drop it here, as the main Dockerfile does.
 COPY go.mod go.sum ./
-RUN sed -i '/doomgeneric/d' go.mod && go mod download
+RUN go mod download
 
 COPY . .
-RUN sed -i '/doomgeneric/d' go.mod
 
 # Build with the same flags as the Makefile target.
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64

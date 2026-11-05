@@ -10,11 +10,10 @@ FROM golang:1.27.3-alpine3.24 AS builder
 
 WORKDIR /build
 COPY go.mod go.sum ./
-# doomgeneric is replaced by a path outside the repo; the gateway does not
 # import it, so drop it rather than resolve it (as the root Dockerfile does).
-RUN sed -i '/doomgeneric/d' go.mod go.sum && go mod download
+RUN go mod download
 COPY . .
-RUN sed -i '/doomgeneric/d' go.mod go.sum && \
+RUN \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags='-s -w' \
       -o /out/sophia-gateway ./deploy/sophia-eye/sophia-gateway
 

@@ -322,8 +322,6 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
       - run: bash tests/sealed-cask/round_trip_test.sh
 
   meta-gate:
