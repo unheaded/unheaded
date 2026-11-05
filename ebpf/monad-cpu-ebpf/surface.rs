@@ -28,9 +28,9 @@ pub const SURFACE_DEFAULT: &[u32] = &[1, 2, 3, 4, 16, 200, 201];
 
 /// `ascend-linux` build (the xv6 object): xv6 fork 1, exit 2, wait 3, read 5,
 /// kill 6 (ADR-135 D8), exec 7, fstat 8, dup 10, getpid 11, sbrk 12 (ADR-135), pause 13, uptime 14 (ADR-110), open 15,
-/// write 16, mknod 17, mkdir 20 (DP-502), close 21, yield 23 (BPF only, ADR-078 §5), plus
-/// READ_BLOCK 200 and WRITE_BLOCK 201. xv6's pipe 4, chdir 9, unlink 18 and link 19
+/// write 16, mknod 17, unlink 18 and mkdir 20 (DP-502), close 21, yield 23 (BPF only, ADR-078 §5), plus
+/// READ_BLOCK 200 and WRITE_BLOCK 201. xv6's pipe 4, chdir 9 and link 19
 /// have no arm and answer -ENOSYS (DP-503).
 pub const SURFACE_ASCEND: &[u32] = &[
-    1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 20, 21, 23, 200, 201,
+    1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 23, 200, 201,
 ];
