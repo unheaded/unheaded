@@ -5,9 +5,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -101,6 +106,93 @@ func TestGRPC_APIKey(t *testing.T) {
 	_, err := pb.NewSophiaServiceClient(conn).List(ctx, &pb.DictionaryListRequest{})
 	if c := status.Code(err); c != codes.Unauthenticated {
 		t.Errorf("unary call with no key: %v, want Unauthenticated", c)
+	}
+}
+
+// L16: the legacy key's decisions reach the same trail as pkg/auth's, with
+// the method and the peer, and never the key.
+func TestLegacyKey_DecisionsAreRecorded(t *testing.T) {
+	ensureMockMode(t)
+	globalAPIKey = "sample"
+	var mu sync.Mutex
+	var events []auth.AuditEvent
+	globalAudit = func(e auth.AuditEvent) {
+		mu.Lock()
+		defer mu.Unlock()
+		events = append(events, e)
+	}
+	t.Cleanup(func() { globalAudit = nil })
+	taken := func() []auth.AuditEvent {
+		mu.Lock()
+		defer mu.Unlock()
+		out := events
+		events = nil
+		return out
+	}
+
+	conn := dialTestGRPC(t, auth.ServiceAuthConfig{})
+	if c := streamCode(t, conn, nil); c != codes.Unauthenticated {
+		t.Fatalf("Stream with no key: %v", c)
+	}
+	got := taken()
+	if len(got) != 1 {
+		t.Fatalf("events = %+v, want one refusal", got)
+	}
+	if e := got[0]; e.EventType != auth.AuditAPIKeyFailure || e.Result != "denied" || e.Method != "GRPC" ||
+		!strings.HasSuffix(e.Endpoint, "/Stream") || e.IP != "127.0.0.1" {
+		t.Errorf("gRPC refusal = %+v", e)
+	}
+	if c := streamCode(t, conn, metadata.Pairs("x-api-key", "sample")); c != codes.OK {
+		t.Fatalf("Stream with the key: %v", c)
+	}
+	if got := taken(); len(got) != 1 || got[0].EventType != auth.AuditAPIKeySuccess || got[0].Result != "allowed" {
+		t.Errorf("gRPC allowed = %+v", got)
+	}
+
+	h := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/wotan/write", nil)
+	r.RemoteAddr = "192.0.2.7:4242"
+	r.Header.Set(apiKeyHeader, "wrong")
+	h.ServeHTTP(httptest.NewRecorder(), r)
+	got = taken()
+	if len(got) != 1 {
+		t.Fatalf("events = %+v, want one refusal", got)
+	}
+	if e := got[0]; e.EventType != auth.AuditAPIKeyFailure || e.Method != http.MethodPost ||
+		e.Endpoint != "/api/v1/wotan/write" || e.IP != "192.0.2.7" {
+		t.Errorf("REST refusal = %+v", e)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", got[0]), "wrong") {
+		t.Error("a presented key reached the audit trail")
+	}
+}
+
+// L5: the run an operator gets by default says what it is, as does a key on
+// argv.
+func TestStartupWarnings(t *testing.T) {
+	cases := []struct {
+		name         string
+		cfg          auth.ServiceAuthConfig
+		key, argvKey string
+		want         []string
+	}{
+		{name: "no credential, every interface", want: []string{"off loopback"}},
+		{name: "key from a file", key: "k"},
+		{name: "auth on", cfg: auth.ServiceAuthConfig{Enabled: true}},
+		{name: "key on argv", key: "k", argvKey: "k", want: []string{"process list"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := startupWarnings(tc.cfg, tc.key, tc.argvKey)
+			if len(got) != len(tc.want) {
+				t.Fatalf("warnings = %q, want %q", got, tc.want)
+			}
+			for i, w := range tc.want {
+				if !strings.Contains(got[i], w) {
+					t.Errorf("warning %q, want it to mention %q", got[i], w)
+				}
+			}
+		})
 	}
 }
 
