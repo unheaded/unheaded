@@ -41,7 +41,7 @@ Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 # service tokens are taken from these callers; RBAC keeps observer keys off
 # the gate's writes. /etc/zhen-agentd.env (read after) may override both.
 Environment=AUTH_ENABLED=true
-Environment=AUTH_ALLOW_CALLERS=unheaded-cli,dashboard-backend
+Environment=AUTH_ALLOW_CALLERS=unheaded-cli
 ReadOnlyPaths=-/etc/unheaded/trust.d
 # TLS (S-IRON-GATE Phase 8; deploy/systemd/README.md#tls): Wotan and Cuirass
 # serve TLS only, so this unit dials them with the Kingdom CA. Its own

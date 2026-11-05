@@ -845,7 +845,7 @@ services:
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "architect,micromanager,dashboard-backend"
+      AUTH_ALLOW_CALLERS: "architect,micromanager"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       HTTP_ADDR: "0.0.0.0:19002"
@@ -908,7 +908,7 @@ services:
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "captain,micromanager,dashboard-backend"
+      AUTH_ALLOW_CALLERS: "captain,micromanager"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       ARCHITECT_DATA_DIR: "/data"   # its state file; state was memory-only, lost on every restart
@@ -957,7 +957,7 @@ services:
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "captain,architect,dashboard-backend"
+      AUTH_ALLOW_CALLERS: "captain,architect"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       MICROMANAGER_DATA_DIR: "/data"   # its state file; state was memory-only, lost on every restart
@@ -1126,7 +1126,7 @@ services:
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "unheaded-cli,dashboard-backend"
+      AUTH_ALLOW_CALLERS: "unheaded-cli"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       MONAD_PORT: "19004"
@@ -1188,7 +1188,7 @@ services:
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
       # service token from one of these callers (none calls the API today).
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "unheaded-cli,dashboard-backend"
+      AUTH_ALLOW_CALLERS: "unheaded-cli"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       SOPHIA_LISTEN_ADDR: ":19005"
@@ -1343,7 +1343,7 @@ services:
       # callers. The issuer is https, verified against the dev CA (Phase 8).
       AUTH_ENABLED: "true"
       AUTH_ISSUER_URL: "https://auth:19020"
-      AUTH_ALLOW_CALLERS: "dashboard-backend,zhen-agentd,micromanager"
+      AUTH_ALLOW_CALLERS: "zhen-agentd,micromanager"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       PORT: "20001"
@@ -1421,7 +1421,7 @@ services:
       # S-IRON-GATE Phase 5: writes need a service token from an allowlisted
       # caller (reads under /api/v1/info and /api/v1/state stay open).
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "sword,unheaded-cli,dashboard-backend"
+      AUTH_ALLOW_CALLERS: "sword,unheaded-cli"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       HEALTH_REPORT_SERVICE: cuirass        # its name on Akira's ballot in this stack (config/akira/akira.yaml)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
@@ -1558,7 +1558,7 @@ services:
       # S-IRON-GATE Phase 6: deployments need a service token from one of
       # these callers (or an operator key); before this list was set, every
       # service token got 403.
-      AUTH_ALLOW_CALLERS: "unheaded-cli,dashboard-backend"
+      AUTH_ALLOW_CALLERS: "unheaded-cli"
       CUIRASS_URL: "https://cuirass:19006"   # Phase 8: the cert names cuirass
       # Deployment history in The Well (unheaded_ops.deploy_history, migration
       # 039, S-WELL-SPRING Phase 2) as the scoped writer. Sword refuses to start
