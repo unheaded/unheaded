@@ -27,6 +27,7 @@ import (
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/store"
+	"unheaded/services/wotan/internal/topicpattern"
 	"unheaded/services/wotan/internal/wotan"
 	chatpb "unheaded/services/wotan/proto"
 	"unicode/utf8"
@@ -170,6 +171,10 @@ func (s *TopicService) StreamTopics(
 	if req.TopicPattern == "" {
 		logger.FromContext(streamCtx).Warn().Msg("topic_pattern_required")
 		return status.Error(codes.InvalidArgument, "topic_pattern is required")
+	}
+	if !topicpattern.ValidPattern(req.TopicPattern) {
+		logger.FromContext(streamCtx).Warn().Msg("topic_pattern_invalid")
+		return status.Error(codes.InvalidArgument, "invalid topic_pattern")
 	}
 
 	// Wrap the stream context in a cancellable context so that all spawned
@@ -567,6 +572,10 @@ func (s *TopicService) PublishTopic(
 	if req.Topic == "" {
 		logger.FromContext(ctx).Warn().Msg("topic_required")
 		return nil, status.Error(codes.InvalidArgument, "topic is required")
+	}
+	if !topicpattern.ValidTopic(req.Topic) {
+		logger.FromContext(ctx).Warn().Msg("topic_invalid")
+		return nil, status.Error(codes.InvalidArgument, "invalid topic")
 	}
 
 	if len(req.Payload) == 0 {

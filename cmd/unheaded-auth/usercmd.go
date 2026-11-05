@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode/utf8"
 )
 
 // readPassword reads a password without echo from the terminal; a
@@ -82,6 +83,10 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	}
 }
 
+// minPasswordLen is the shortest password user add takes: this login has one
+// factor, so length is what the password has to offer.
+const minPasswordLen = 12
+
 func userAdd(path, name, roleList string, pwStdin bool, stdin io.Reader, stdout, stderr io.Writer) int {
 	if !validUsername(name) {
 		fmt.Fprintf(stderr, "unheaded-auth: bad username %q (lower-case letters, digits, . _ - @; at most %d)\n", name, maxUsernameLen)
@@ -128,6 +133,10 @@ func userAdd(path, name, roleList string, pwStdin bool, stdin io.Reader, stdout,
 	}
 	if pw == "" {
 		fmt.Fprintln(stderr, "unheaded-auth: empty password refused")
+		return 2
+	}
+	if utf8.RuneCountInString(pw) < minPasswordLen {
+		fmt.Fprintf(stderr, "unheaded-auth: password shorter than %d characters\n", minPasswordLen)
 		return 2
 	}
 	if len(pw) > maxPasswordLen {

@@ -99,10 +99,9 @@ func TestJoinRoom_Success(t *testing.T) {
 		t.Error("Message is empty")
 	}
 
-	// Verify room was created
-	_, err := server.RoomManager.Get("test-room")
-	if err != nil {
-		t.Error("Room was not created")
+	// The room comes with approval, not with the request.
+	if _, err := server.RoomManager.Get("test-room"); err == nil {
+		t.Error("a pending join created a room")
 	}
 
 	// Verify member was created

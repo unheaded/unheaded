@@ -31,10 +31,10 @@ func cheapDefaults(t *testing.T) {
 func TestUserAddListDel(t *testing.T) {
 	cheapDefaults(t)
 	path := filepath.Join(t.TempDir(), "users.json")
-	if code, _, e := runCmd(t, "s3cret pass\n", "user", "add", "alice", "--roles", "viewer,operator", "--password-stdin", "-users-file", path); code != 0 {
+	if code, _, e := runCmd(t, "s3cret passphrase\n", "user", "add", "alice", "--roles", "viewer,operator", "--password-stdin", "-users-file", path); code != 0 {
 		t.Fatalf("add: exit %d %s", code, e)
 	}
-	if code, _, e := runCmd(t, "other pass\n", "user", "add", "-users-file", path, "--roles=viewer", "--password-stdin", "bob"); code != 0 {
+	if code, _, e := runCmd(t, "other passphrase\n", "user", "add", "-users-file", path, "--roles=viewer", "--password-stdin", "bob"); code != 0 {
 		t.Fatalf("add bob: exit %d %s", code, e)
 	}
 	st, err := os.Stat(path)
@@ -52,7 +52,7 @@ func TestUserAddListDel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issuer cannot load what user add wrote: %v", err)
 	}
-	if !users["alice"].hash.verify("s3cret pass") || users["alice"].hash.verify("other pass") {
+	if !users["alice"].hash.verify("s3cret passphrase") || users["alice"].hash.verify("other passphrase") {
 		t.Error("alice's hash does not verify her password only")
 	}
 	code, out, _ := runCmd(t, "", "user", "list", "-users-file", path)
@@ -84,7 +84,7 @@ func TestUserAddRefusals(t *testing.T) {
 		"bad name":       {"user", "add", "Carol!", "--roles", "viewer", "--password-stdin"},
 		"two names":      {"user", "add", "carol", "dave", "--roles", "viewer", "--password-stdin"},
 	} {
-		stdin := "pw\n"
+		stdin := "long enough passphrase\n"
 		if name == "empty password" {
 			stdin = "\n"
 		}
@@ -105,7 +105,7 @@ func TestUserAddRefusals(t *testing.T) {
 func TestUserAddPromptsTwice(t *testing.T) {
 	cheapDefaults(t)
 	path := filepath.Join(t.TempDir(), "users.json")
-	answers := []string{"same pw", "same pw"}
+	answers := []string{"same passphrase", "same passphrase"}
 	old := readPassword
 	t.Cleanup(func() { readPassword = old })
 	readPassword = func(io.Writer, string) (string, error) {
@@ -129,7 +129,7 @@ func TestUserAddPromptsTwice(t *testing.T) {
 func TestUserCmdRefusesExposedFile(t *testing.T) {
 	cheapDefaults(t)
 	path := filepath.Join(t.TempDir(), "users.json")
-	if code, _, _ := runCmd(t, "pw\n", "user", "add", "alice", "--roles", "viewer", "--password-stdin", "-users-file", path); code != 0 {
+	if code, _, _ := runCmd(t, "long enough passphrase\n", "user", "add", "alice", "--roles", "viewer", "--password-stdin", "-users-file", path); code != 0 {
 		t.Fatal("add failed")
 	}
 	if err := os.Chmod(path, 0o644); err != nil {
@@ -169,5 +169,18 @@ func TestUserUsage(t *testing.T) {
 		if code, _, _ := runCmd(t, "", args...); code != 2 {
 			t.Errorf("%q: exit %d, want 2", args, code)
 		}
+	}
+}
+
+// L14: a password has a floor.
+func TestUserAdd_ShortPasswordRefused(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "users.json")
+	short := strings.Repeat("x", 11) + "\n"
+	if code, _, _ := runCmd(t, short, "user", "add", "carol", "--roles", "viewer", "--password-stdin", "-users-file", path); code != 2 {
+		t.Errorf("short password: exit %d, want 2", code)
+	}
+	ok := strings.Repeat("x", 12) + "\n"
+	if code, _, e := runCmd(t, ok, "user", "add", "carol", "--roles", "viewer", "--password-stdin", "-users-file", path); code != 0 {
+		t.Errorf("12 characters: exit %d: %s", code, e)
 	}
 }

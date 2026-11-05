@@ -154,7 +154,9 @@ A Wotan client sends its service token over TLS only.
 The units that dial Wotan or Cuirass but keep a plain listener
 (chaos-controller, kev-poller, anomaly, baseline, trace-collector,
 zhen-agentd) set `UNHEADED_TLS_ENABLED=true` and
-`UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem` only.
+`UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem` only. chaos-controller
+serves TLS once `chaos.env` also sets `UNHEADED_TLS_CERT` and
+`UNHEADED_TLS_KEY_FILE`; one without the other stops it.
 
 `scripts/gen-dev-certs.sh` is for the compose stack only. On a host, issue
 from the Kingdom CA (`runbooks/pki/generate-kingdom-certs.yaml`; rotation:

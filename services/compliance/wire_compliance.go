@@ -10,6 +10,7 @@ package compliance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -485,10 +486,21 @@ func (s *WireComplianceService) listPolicies(w http.ResponseWriter, _ *http.Requ
 	})
 }
 
+// A policy is a few short fields, and a deployment has one per service pair.
+const (
+	maxPolicyBody = 64 << 10
+	maxPolicies   = 8192
+)
+
 // updatePolicy creates or updates a service-to-service policy.
 func (s *WireComplianceService) updatePolicy(w http.ResponseWriter, r *http.Request) {
 	var policy ServicePolicy
-	if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxPolicyBody)).Decode(&policy); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			http.Error(w, "policy too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, fmt.Sprintf("invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -503,6 +515,11 @@ func (s *WireComplianceService) updatePolicy(w http.ResponseWriter, r *http.Requ
 
 	s.mu.Lock()
 	existing, exists := s.policies[key]
+	if !exists && len(s.policies) >= maxPolicies {
+		s.mu.Unlock()
+		http.Error(w, "policy table full", http.StatusInsufficientStorage)
+		return
+	}
 	if exists {
 		policy.CreatedAt = existing.CreatedAt
 	} else {

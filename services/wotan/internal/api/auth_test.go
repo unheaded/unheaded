@@ -51,6 +51,10 @@ func newAuthedHTTPWotan(t *testing.T) *authedHTTPWotan {
 	mux.HandleFunc("/health", s.Health)
 	mux.HandleFunc("/api/v1/topics/", s.TopicRouter)
 	mux.HandleFunc("/api/v1/topics", s.TopicRouter)
+	mux.HandleFunc("/api/v1/join", s.JoinRoom)
+	mux.HandleFunc("/api/v1/messages/send", s.SendMessage)
+	mux.HandleFunc("/api/v1/messages/delete", s.DeleteMessage)
+	mux.HandleFunc("/api/v1/messages", s.GetMessages)
 	f := authtest.New(t, "wotan", "timeguru", "kev-poller", "captain", "outsider")
 	h, err := auth.NewServiceHandler(mux, f.Config("wotan", "timeguru", "kev-poller", "captain"), auth.ServiceRoutes{})
 	if err != nil {
@@ -146,6 +150,61 @@ func TestAuthE2E_HTTPPublishBoundToCallerMember(t *testing.T) {
 	}
 	if got := w.do(http.MethodGet, "/api/v1/topics/alerts.critical/messages", "", w.f.Bearer("timeguru", "wotan")).Code; got != http.StatusOK {
 		t.Errorf("authenticated read = %d, want 200", got)
+	}
+}
+
+// M2: the legacy room routes bind member_id to the verified caller just as
+// the topic publish route does. A member id is no secret: every message
+// carries its creator's.
+func TestAuthE2E_LegacyRoomRoutesBoundToCallerMember(t *testing.T) {
+	w := newAuthedHTTPWotan(t)
+	_, _, captainID := w.subscribe(t, w.f.Bearer("captain", "wotan"), "alerts.critical", "captain")
+	_, _, timeguruID := w.subscribe(t, w.f.Bearer("timeguru", "wotan"), "alerts.critical", "timeguru")
+	captain, timeguru := w.f.Bearer("captain", "wotan"), w.f.Bearer("timeguru", "wotan")
+
+	send := `{"member_id":"` + captainID + `","room_id":"alerts.critical","content":"p"}`
+	if got := w.do(http.MethodPost, "/api/v1/messages/send", send, timeguru).Code; got != http.StatusForbidden {
+		t.Errorf("timeguru sending as captain = %d, want 403", got)
+	}
+	rec := w.do(http.MethodPost, "/api/v1/messages/send", send, captain)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("captain sending as itself = %d, want 201", rec.Code)
+	}
+	var sent SendMessageResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &sent); err != nil {
+		t.Fatal(err)
+	}
+
+	read := "/api/v1/messages?room_id=alerts.critical&member_id="
+	if got := w.do(http.MethodGet, read+captainID, "", timeguru).Code; got != http.StatusForbidden {
+		t.Errorf("timeguru reading as captain = %d, want 403", got)
+	}
+	if got := w.do(http.MethodGet, read+timeguruID, "", timeguru).Code; got != http.StatusOK {
+		t.Errorf("timeguru reading as itself = %d, want 200", got)
+	}
+
+	del := `{"message_id":"` + sent.MessageID.String() + `","member_id":"` + captainID + `","room_id":"alerts.critical","content":"p"}`
+	if got := w.do(http.MethodPost, "/api/v1/messages/delete", del, timeguru).Code; got != http.StatusForbidden {
+		t.Errorf("timeguru deleting as captain = %d, want 403", got)
+	}
+	if got := w.do(http.MethodPost, "/api/v1/messages/delete", del, captain).Code; got != http.StatusOK {
+		t.Errorf("captain deleting its own message = %d, want 200", got)
+	}
+}
+
+// M2: with auth on a member's name is its identity, or the member could never
+// use the routes above. The join says so at once, before anyone approves it.
+func TestAuthE2E_JoinUnderAnotherNameRefused(t *testing.T) {
+	w := newAuthedHTTPWotan(t)
+	captain := w.f.Bearer("captain", "wotan")
+	if got := w.do(http.MethodPost, "/api/v1/join", `{"room_id":"ops","name":"timeguru"}`, captain).Code; got != http.StatusForbidden {
+		t.Errorf("captain joining as timeguru = %d, want 403", got)
+	}
+	if got := w.s.MemberManager.Count(); got != 0 {
+		t.Errorf("%d members after a refused join, want 0", got)
+	}
+	if got := w.do(http.MethodPost, "/api/v1/join", `{"room_id":"ops","name":"captain"}`, captain).Code; got != http.StatusCreated {
+		t.Errorf("captain joining as itself = %d, want 201", got)
 	}
 }
 

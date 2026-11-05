@@ -102,6 +102,7 @@ func New(cfg *config.Config, log *logger.Logger) (*Gateway, error) {
 
 	// Create router
 	router := routes.NewRouter(log, metricsReg)
+	router.SetTrustedProxies(cfg.RateLimit.TrustedProxies)
 
 	// Create health checker
 	healthChecker := proxy.NewHealthChecker(30*time.Second, 5*time.Second, log)

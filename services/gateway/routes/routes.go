@@ -32,6 +32,8 @@ type Router struct {
 	log      *logger.Logger
 	metrics  *metrics.Registry
 	mu       sync.RWMutex
+
+	trustedProxies []string
 }
 
 // NewRouter creates a new router.
@@ -42,6 +44,14 @@ func NewRouter(log *logger.Logger, metricsReg *metrics.Registry) *Router {
 		log:      log,
 		metrics:  metricsReg,
 	}
+}
+
+// SetTrustedProxies names the peers whose forwarding headers the routes added
+// after it believe.
+func (r *Router) SetTrustedProxies(addrs []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.trustedProxies = addrs
 }
 
 // AddRoute adds a route to the router.
@@ -57,6 +67,7 @@ func (r *Router) AddRoute(cfg *config.RouteConfig, circuitCfg *config.CircuitCon
 
 	// Create reverse proxy
 	p := proxy.NewReverseProxy(cfg, r.log, r.metrics, lb, cb)
+	p.SetTrustedProxies(r.trustedProxies)
 
 	route := &Route{
 		Config:       cfg,

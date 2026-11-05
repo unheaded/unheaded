@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"unheaded/pkg/auth"
 	"unheaded/services/wotan/internal/logger"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
@@ -86,6 +87,17 @@ func (s *ChatService) StreamMessages(
 			Str("status", string(mbr.Status)).
 			Msg("member_not_approved")
 		return status.Error(codes.PermissionDenied, "member not approved")
+	}
+
+	// A member id is no secret (every message carries its creator's): with
+	// auth on, a caller streams only through its own members.
+	if id := auth.IdentityFromContext(ctx); id != nil && mbr.Name != id.Subject {
+		logger.FromContext(ctx).Warn().
+			Str("member_id", memberID.String()).
+			Str("room_id", req.RoomId).
+			Str("caller", id.Subject).
+			Msg("member_of_another_identity")
+		return status.Error(codes.PermissionDenied, "member belongs to another identity")
 	}
 
 	// Verify room exists

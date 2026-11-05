@@ -203,8 +203,8 @@ var openWellHistory = func(c config) (sword.History, error) {
 
 // handler is Sword's mux with auth from authCfg in front (S-IRON-GATE
 // Phase 6). With auth on, /api/v1/deployments needs a token or key: a
-// write (deploy, rollback) needs admin, operator or service (the CLI's and
-// the dashboard backend's service tokens, an AUTH_API_KEYS key), a read
+// write (deploy, rollback) needs admin, operator or service (the CLI's
+// service token, an AUTH_API_KEYS key), a read
 // also takes observer. DefaultServicePolicies alone would keep everything
 // under /api/v1/deploy* for admin and operator. An error means auth is on
 // but unusable, and Sword must not start.

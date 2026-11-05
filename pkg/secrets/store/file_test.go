@@ -25,7 +25,8 @@ func TestFileStore_SetAndGet(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	fs, err := store.NewFileStore(store.FileStoreConfig{
-		BasePath: tmpDir,
+		BasePath:       tmpDir,
+		AllowPlaintext: true,
 	})
 	if err != nil {
 		t.Fatalf("NewFileStore failed: %v", err)
@@ -130,7 +131,7 @@ func TestFileStore_GetNotFound(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "filestore_test")
 	defer os.RemoveAll(tmpDir)
 
-	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	defer fs.Close()
 
 	_, err := fs.Get(ctx, "nonexistent/path")
@@ -145,7 +146,7 @@ func TestFileStore_Delete(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "filestore_test")
 	defer os.RemoveAll(tmpDir)
 
-	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	defer fs.Close()
 
 	secret := &secrets.Secret{
@@ -178,7 +179,7 @@ func TestFileStore_DeleteNotFound(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "filestore_test")
 	defer os.RemoveAll(tmpDir)
 
-	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	defer fs.Close()
 
 	err := fs.Delete(ctx, "nonexistent/path")
@@ -193,7 +194,7 @@ func TestFileStore_List(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "filestore_test")
 	defer os.RemoveAll(tmpDir)
 
-	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	defer fs.Close()
 
 	paths := []string{
@@ -239,7 +240,7 @@ func TestFileStore_PathEncoding(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "filestore_test")
 	defer os.RemoveAll(tmpDir)
 
-	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	defer fs.Close()
 
 	// Path with multiple levels
@@ -272,8 +273,9 @@ func TestFileStore_Watch(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	fs, _ := store.NewFileStore(store.FileStoreConfig{
-		BasePath:     tmpDir,
-		PollInterval: 100 * time.Millisecond, // Fast polling for test
+		BasePath:       tmpDir,
+		PollInterval:   100 * time.Millisecond, // Fast polling for test
+		AllowPlaintext: true,
 	})
 	defer fs.Close()
 
@@ -311,7 +313,7 @@ func TestFileStore_Close(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "filestore_test")
 	defer os.RemoveAll(tmpDir)
 
-	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 
 	secret := &secrets.Secret{
 		Path: "test/close",
@@ -337,7 +339,7 @@ func TestFileStore_AtomicWrite(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "filestore_atomic_test")
 	defer os.RemoveAll(tmpDir)
 
-	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir})
+	fs, _ := store.NewFileStore(store.FileStoreConfig{BasePath: tmpDir, AllowPlaintext: true})
 	defer fs.Close()
 
 	// Create initial secret

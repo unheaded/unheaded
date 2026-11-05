@@ -87,17 +87,12 @@ func NewRateLimiter(cfg *config.RateLimitConfig, log *logger.Logger, metricsReg 
 		_ = metricsReg.Register(rateLimitCounter)
 	}
 
-	// Build trustedProxies map from config
-	trustedProxies := make(map[string]bool)
-	for _, proxy := range cfg.TrustedProxies {
-		trustedProxies[proxy] = true
-	}
 	rl := &RateLimiter{
 		cfg:              cfg,
 		log:              log,
 		metrics:          metricsReg,
 		rateLimitCounter: rateLimitCounter,
-		trustedProxies:   trustedProxies,
+		trustedProxies:   TrustedProxySet(cfg.TrustedProxies),
 		buckets:          make(map[string]*TokenBucket),
 		stopCh:           make(chan struct{}),
 	}
@@ -164,44 +159,52 @@ func (rl *RateLimiter) getBucket(clientIP string) *TokenBucket {
 	return bucket
 }
 
-// getClientIP extracts the client IP from the request.
-// Only trusts X-Forwarded-For/X-Real-IP from explicitly configured proxy IPs.
-// Defaults to using the direct peer (RemoteAddr) for rate limiting.
+// getClientIP is the client address this limiter keys on.
 func (rl *RateLimiter) getClientIP(r *http.Request) string {
-	// Extract the direct peer IP (cannot be spoofed)
+	return ClientIP(r, rl.trustedProxies)
+}
+
+// TrustedProxySet is addrs as ClientIP takes them.
+func TrustedProxySet(addrs []string) map[string]bool {
+	set := make(map[string]bool, len(addrs))
+	for _, a := range addrs {
+		set[a] = true
+	}
+	return set
+}
+
+// ClientIP is the address of the client behind r. The direct peer is the
+// answer unless it is a trusted proxy. Then X-Forwarded-For is read from the
+// nearest hop outward: the first entry that is not itself a trusted proxy is
+// the client, since each proxy appends and only entries left of that one are
+// the client's own. Several header lines are one list, in order. With no
+// X-Forwarded-For, X-Real-IP stands. Anything that does not parse ends the
+// walk at the last address known good.
+func ClientIP(r *http.Request, trusted map[string]bool) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
 	}
-
-	// Only trust forwarded headers if the direct peer is a known proxy
-	if rl.trustedProxies[host] {
-		// Check X-Forwarded-For header
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			// Take the first IP
-			if idx := len(xff); idx > 0 {
-				for i := 0; i < len(xff); i++ {
-					if xff[i] == ',' {
-						idx = i
-						break
-					}
-				}
-				ip := strings.TrimSpace(xff[:idx])
-				if parsedIP := net.ParseIP(ip); parsedIP != nil {
-					return parsedIP.String()
-				}
-			}
-		}
-
-		// Check X-Real-IP header
-		if xri := r.Header.Get("X-Real-IP"); xri != "" {
-			if parsedIP := net.ParseIP(xri); parsedIP != nil {
-				return parsedIP.String()
-			}
-		}
+	if !trusted[host] {
+		return host
 	}
-
-	// Fall back to RemoteAddr (default, secure behavior)
+	if xff := strings.Join(r.Header.Values("X-Forwarded-For"), ","); xff != "" {
+		hops := strings.Split(xff, ",")
+		for i := len(hops) - 1; i >= 0; i-- {
+			ip := net.ParseIP(strings.TrimSpace(hops[i]))
+			if ip == nil {
+				return host
+			}
+			if !trusted[ip.String()] {
+				return ip.String()
+			}
+			host = ip.String()
+		}
+		return host
+	}
+	if ip := net.ParseIP(r.Header.Get("X-Real-IP")); ip != nil {
+		return ip.String()
+	}
 	return host
 }
 

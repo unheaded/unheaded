@@ -1462,3 +1462,20 @@ func TestHandlers_ConcurrentMixedRequests(t *testing.T) {
 // tp returns a pointer to t. The date fields are *time.Time so that a zero
 // value can be omitted from JSON/YAML — `omitempty` cannot omit a struct.
 func tp(t time.Time) *time.Time { return &t }
+
+// L13: only POST updates a milestone, whatever the auth in front allowed.
+func TestHandleUpdateMilestone_OnlyPOST(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodHead, http.MethodPut, "PROPFIND"} {
+		store := &mockStore{timeline: createMockTimeline()}
+		handler := NewHandler(store)
+		req := httptest.NewRequest(method, "/milestones/milestone-1/update", bytes.NewReader([]byte(`{"status":"completed","progress":100}`)))
+		w := httptest.NewRecorder()
+		handler.HandleUpdateMilestone(w, req, "milestone-1")
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s = %d, want 405", method, w.Code)
+		}
+		if store.updateCalls.Load() != 0 {
+			t.Errorf("%s reached the store", method)
+		}
+	}
+}

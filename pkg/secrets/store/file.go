@@ -20,6 +20,9 @@ import (
 	"unheaded/pkg/secrets/encryption"
 )
 
+// ErrPathMismatch reports a stored secret that belongs to another path.
+var ErrPathMismatch = errors.New("secret file holds another path's secret")
+
 // FileStore stores secrets as encrypted files on disk.
 // Each secret is stored as a JSON file encrypted with age.
 type FileStore struct {
@@ -41,6 +44,10 @@ type FileStoreConfig struct {
 	// Encryptor encrypts/decrypts secret data.
 	Encryptor encryption.Encryptor
 
+	// AllowPlaintext permits a nil Encryptor, which stores secrets in the
+	// clear. Without it a nil Encryptor is an error.
+	AllowPlaintext bool
+
 	// Logger is the logger to use.
 	Logger *logger.Logger
 
@@ -52,6 +59,9 @@ type FileStoreConfig struct {
 func NewFileStore(config FileStoreConfig) (*FileStore, error) {
 	if config.BasePath == "" {
 		return nil, errors.New("base path is required")
+	}
+	if config.Encryptor == nil && !config.AllowPlaintext {
+		return nil, errors.New("file store: an encryptor is required (AllowPlaintext stores secrets in the clear)")
 	}
 
 	// Create base directory if it doesn't exist
@@ -84,6 +94,16 @@ func NewFileStore(config FileStoreConfig) (*FileStore, error) {
 	return fs, nil
 }
 
+// checkPath refuses a path that pathToFile could not keep apart from another:
+// "/" becomes "__", so "a/b" and "a__b" would share a file, as would "a_/b"
+// and "a/_b".
+func checkPath(path string) error {
+	if path == "" || strings.Contains(path, "__") || strings.Contains(path, "_/") || strings.Contains(path, "/_") {
+		return fmt.Errorf("%w: %q", secrets.ErrInvalidPath, path)
+	}
+	return nil
+}
+
 // pathToFile converts a secret path to a file path.
 func (s *FileStore) pathToFile(path string) string {
 	// Replace path separators with double underscores to avoid directory issues
@@ -107,6 +127,9 @@ func (s *FileStore) Get(ctx context.Context, path string) (*secrets.Secret, erro
 	}
 	s.mu.RUnlock()
 
+	if err := checkPath(path); err != nil {
+		return nil, err
+	}
 	filePath := s.pathToFile(path)
 
 	data, err := os.ReadFile(filePath) // #nosec G304 -- internal secrets-store path derived from the configured store dir
@@ -129,6 +152,11 @@ func (s *FileStore) Get(ctx context.Context, path string) (*secrets.Secret, erro
 	if err := json.Unmarshal(data, &secret); err != nil {
 		return nil, fmt.Errorf("unmarshal secret: %w", err)
 	}
+	// Set stores each secret's path inside its encrypted body, so a file
+	// moved or copied to another path is caught here.
+	if secret.Path != path {
+		return nil, fmt.Errorf("%w: the file for %q holds another path's secret", ErrPathMismatch, path)
+	}
 
 	return &secret, nil
 }
@@ -142,9 +170,17 @@ func (s *FileStore) Set(ctx context.Context, path string, secret *secrets.Secret
 	}
 	s.mu.RUnlock()
 
+	if err := checkPath(path); err != nil {
+		return err
+	}
 	filePath := s.pathToFile(path)
 
-	data, err := json.MarshalIndent(secret, "", "  ")
+	if secret == nil {
+		return errors.New("file store: nil secret")
+	}
+	bound := secret.Clone()
+	bound.Path = path
+	data, err := json.MarshalIndent(bound, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal secret: %w", err)
 	}
@@ -157,21 +193,40 @@ func (s *FileStore) Set(ctx context.Context, path string, secret *secrets.Secret
 		}
 	}
 
-	// Write to temp file first, then rename for atomicity
-	tmpPath := filePath + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
-		return fmt.Errorf("write temp file: %w", err)
-	}
-
-	if err := os.Rename(tmpPath, filePath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("rename temp file: %w", err)
+	if err := writeFileAtomic(filePath, data); err != nil {
+		return err
 	}
 
 	// Notify watchers
 	s.notifyWatchers(path, secret)
 
 	s.log.Debug().Str("path", path).Str("file", filePath).Msg("secret stored to file")
+	return nil
+}
+
+// writeFileAtomic puts data at filePath through a temp file of this write's
+// own, mode 0600, so concurrent writers each rename a whole file.
+func writeFileAtomic(filePath string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(filePath), filepath.Base(filePath)+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	_, err = tmp.Write(data)
+	if err == nil {
+		err = tmp.Sync()
+	}
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("write temp file: %w", err)
+	}
+	if err := os.Rename(tmpPath, filePath); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("rename temp file: %w", err)
+	}
 	return nil
 }
 
@@ -184,6 +239,9 @@ func (s *FileStore) Delete(ctx context.Context, path string) error {
 	}
 	s.mu.RUnlock()
 
+	if err := checkPath(path); err != nil {
+		return err
+	}
 	filePath := s.pathToFile(path)
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
