@@ -6,11 +6,12 @@ Run through this checklist before any live demonstration.
 
 ## System Checks
 
-- [ ] **GPU available**: `nvidia-smi` shows GPU with free VRAM (need ~6GB for Mistral-7B)
-- [ ] **Inference server running**: `curl http://localhost:20100/v1/models` returns 200 with model data
-- [ ] **Web UI running**: `curl http://localhost:20103/` returns HTML containing "ZHEN"
+- [ ] **GPU available**: `rocm-smi --showmeminfo vram` shows room for the qwen-coder-7b GGUF
+- [ ] **Inference server running**: `curl http://localhost:8081/v1/models` returns 200 with model data
+- [ ] **Retrieval running**: `curl http://localhost:20110/api/health` returns 200 from vor
+- [ ] **Web UI running**: `curl http://localhost:20103/` returns HTML containing "Zhenai"
 - [ ] **RAG healthy**: `curl http://localhost:20103/health` shows `rag_ready: true`
-- [ ] **Index loaded**: `curl http://localhost:20103/api/v1/stats` shows `index_vectors > 20000`
+- [ ] **Backends reported**: `curl http://localhost:20103/api/v1/stats` shows `vor_health` filled in and `inference_model` naming the loaded model
 - [ ] **Python venv active**: `source ~/.venv/zhen/bin/activate`
 
 ## Startup Commands (if services are not running)
@@ -19,13 +20,14 @@ Run through this checklist before any live demonstration.
 # 1. Activate venv
 source ~/.venv/zhen/bin/activate
 
-# 2. Start inference server (if not running)
-# Check: curl http://localhost:20100/v1/models
-# Start: (refer to llama.cpp server launch command with Mistral-7B model)
+# 2. Check the backends. start-zhen.sh does not launch them: with one down it
+#    stops and prints how to bring it up.
+curl -s http://localhost:8081/v1/models
+curl -s http://localhost:20110/api/health
 
-# 3. Start Zhen web app
+# 3. Start zhen-agentd and the web app. Chat answers 503 without the daemon.
 cd ~/tmp/unheaded/raft
-python zhen_app.py &
+./start-zhen.sh -gated
 
 # 4. Verify: rag_ready is true
 curl -s http://localhost:20103/health
@@ -53,16 +55,15 @@ curl -s http://localhost:20103/health
 ## Network
 
 - [ ] **No VPN interference**: Ensure localhost ports are not being intercepted
-- [ ] **No port conflicts**: Ports 20100 and 20103 are not used by other services
+- [ ] **No port conflicts**: Ports 8081, 20103, 20110 and 20111 are not used by other services
 - [ ] **Firewall**: If presenting from a projector/external display, ensure localhost still resolves
 
 ## Fallback Plan
 
 If the **inference server** goes down mid-demo:
-1. Show `/api/v1/search` — vector search works without the LLM
-2. Show `/api/v1/stats` — proves the 21K vector index is loaded
-3. Show integration test results from the last successful run
-4. Talk through the architecture using DEMO_SCRIPT.md
+1. Show `/api/v1/search` — retrieval through vor works without the LLM
+2. Show `/api/v1/stats` — names the retrieval backend and shows its health
+3. Talk through the architecture using DEMO_SCRIPT.md
 
 If the **web UI** goes down mid-demo:
 1. Use `curl` commands directly against the API
@@ -76,7 +77,8 @@ If **response quality** is poor:
 ## Final Verification (5 minutes before demo)
 
 ```bash
-curl -s http://localhost:20100/v1/models
+curl -s http://localhost:8081/v1/models
+curl -s http://localhost:20110/api/health
 curl -s http://localhost:20103/health
 curl -s http://localhost:20103/api/v1/stats
 ```
