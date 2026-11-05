@@ -44,6 +44,7 @@ var moveoutGone = []struct {
 	{"raft/DEMO_CHECKLIST.md", `All 10 tests`},
 	{"raft/DEMO_CHECKLIST.md", `04_integration_tests`},
 	{"scripts/clean-artifacts.sh", `(?i)doom|build_monad`},
+	{"nixos/modules/services/README.md", `(?i)doom`},
 }
 
 func TestMoveOutResidueStaysGone(t *testing.T) {
