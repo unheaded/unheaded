@@ -118,6 +118,7 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
+extern uint64 sys_upc_forknote(void);
 
 // Syscall number (kernel/syscall.h) → handler. Gaps stay NULL and are
 // rejected by dispatch below.
@@ -143,6 +144,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_upc_forknote] sys_upc_forknote,
 };
 
 // Look up a syscall number; NULL for out-of-range numbers and table gaps.

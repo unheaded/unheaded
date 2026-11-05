@@ -6,10 +6,11 @@
 // Replaces MIT kernel/sysfile.c in the Makefile.mbc OBJS list; the MIT file
 // stays vendored, unwired.
 //
-// RUNTIME-DEAD ON THE UPC, BY ARCHITECTURE: the BPF ecall dispatch owns the
-// user fd/FS surface (in-BPF fs_walk, FD_INODE_MAP; exec(7) stages from
-// PROGRAM_TABLE with its own argv harvest). Linked because usyscall.c's
-// syscalls[] table references every sys_*. Dormant bodies keep stock
+// MOSTLY RUNTIME-DEAD ON THE UPC, BY ARCHITECTURE: the BPF ecall dispatch owns
+// fds below 16 and read-only FS access (in-BPF fs_walk, FD_INODE_MAP; exec(7)
+// stages from PROGRAM_TABLE with its own argv harvest). Slot rows reach mkdir,
+// unlink and link, and under ADR-135 D10 the fds at 16 and up. Linked because
+// usyscall.c's syscalls[] table references every sys_*. Dormant bodies keep stock
 // strength: argfd's bounds ladder, sys_exec's MAXARG cap + page-sized argv
 // fetch loop with the uarg==0 terminator, sys_link/unlink's lock ordering
 // and nlink accounting, create()'s type-match reuse semantics.
@@ -31,9 +32,19 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "upc_slots.h"
+
+// ADR-135 D10: an ofile index as the user sees it. Slot rows number kernel fds
+// from 16, above BPF's table, so neither allocator sees the other.
+static int
+fduser(int fd)
+{
+  return upc_slot_active() ? fd + UPC_KFD_BASE : fd;
+}
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
+// *pfd is the ofile index, whatever number the user passed (ADR-135 D10).
 static int
 argfd(int n, int *pfd, struct file **pf)
 {
@@ -41,6 +52,11 @@ argfd(int n, int *pfd, struct file **pf)
   struct file *f;
 
   argint(n, &fd);
+  if(upc_slot_active()){
+    if(fd < UPC_KFD_BASE)
+      return -1;
+    fd -= UPC_KFD_BASE;
+  }
   if(fd < 0 || fd >= NOFILE || (f=myproc()->ofile[fd]) == 0)
     return -1;
   if(pfd)
@@ -52,6 +68,7 @@ argfd(int n, int *pfd, struct file **pf)
 
 // Allocate a file descriptor for the given file.
 // Takes over file reference from caller on success.
+// Returns the ofile index: sys_pipe indexes with it, fduser() answers the user.
 static int
 fdalloc(struct file *f)
 {
@@ -78,7 +95,7 @@ sys_dup(void)
   if((fd=fdalloc(f)) < 0)
     return -1;
   filedup(f);
-  return fd;
+  return fduser(fd);
 }
 
 uint64
@@ -383,7 +400,7 @@ sys_open(void)
   iunlock(ip);
   end_op();
 
-  return fd;
+  return fduser(fd);
 }
 
 uint64
@@ -495,7 +512,7 @@ sys_pipe(void)
 {
   uint64 fdarray; // user pointer to array of two integers
   struct file *rf, *wf;
-  int fd0, fd1;
+  int fd0, fd1, u0, u1;
   struct proc *p = myproc();
 
   argaddr(0, &fdarray);
@@ -509,8 +526,10 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
-  if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
-     copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+  u0 = fduser(fd0);
+  u1 = fduser(fd1);
+  if(copyout(p->pagetable, fdarray, (char*)&u0, sizeof(u0)) < 0 ||
+     copyout(p->pagetable, fdarray+sizeof(u0), (char *)&u1, sizeof(u1)) < 0){
     p->ofile[fd0] = 0;
     p->ofile[fd1] = 0;
     fileclose(rf);

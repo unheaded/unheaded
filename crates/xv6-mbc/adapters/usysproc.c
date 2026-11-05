@@ -10,7 +10,7 @@
 // ascend BPF dispatch, so these wrappers never run — they are linked because
 // usyscall.c's syscalls[] table references every sys_*. They come alive if
 // the trap path flips to in-kernel dispatch (T4 decision). Slot rows reach the
-// kernel-routed ones (getpid, uptime; sbrk under ADR-135). Kept at stock
+// kernel-routed ones (getpid, uptime; sbrk, exit under ADR-135). Kept at stock
 // strength for that day: sys_sbrk's lazy-path overflow guards
 // (addr + n < addr, addr + n > TRAPFRAME) and sys_pause's killed() check.
 //
@@ -29,8 +29,22 @@ sys_exit(void)
 {
   int n;
   argint(0, &n);
+  if(upc_slot_active())
+    return upc_exit(n); // ADR-135 D13: kexit panics on a slot row and on slot 0
   kexit(n);
   return 0;  // not reached
+}
+
+// ADR-135 D12: BPF re-runs a finished fork's ecall as this number.
+uint64
+sys_upc_forknote(void)
+{
+  int s;
+
+  argint(0, &s);
+  if(!upc_slot_active())
+    return -1;
+  return upc_forknote(s);
 }
 
 uint64

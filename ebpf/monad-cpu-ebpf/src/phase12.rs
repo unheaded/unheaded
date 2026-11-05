@@ -101,6 +101,8 @@ pub const UPC_REPLY_SET_BRK: u32 = 1;
 pub const UPC_REPLY_YIELD: u32 = 2;
 #[allow(dead_code)] // the kill rung (ADR-135 D8)
 pub const UPC_REPLY_KILL: u32 = 4;
+// ADR-135 D13: the kernel closed ofile; end the caller, status in a0.
+pub const UPC_REPLY_EXIT: u32 = 8;
 // ADR-135 D2: the kernel owns these bounds; here for the parity test.
 #[allow(dead_code)]
 pub const UPC_HEAP_BASE: u32 = 0x0001_0000;

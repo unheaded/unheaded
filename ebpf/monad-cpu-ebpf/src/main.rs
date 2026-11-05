@@ -473,6 +473,11 @@ const UPC_RUNG_LINK: bool = true;
 // holds the deadline and replies YIELD with epc back on the ecall until ticks reach it.
 // Needs UPC_REPLY and DEFERRED_SWITCH. Rollback = this const off.
 const UPC_RUNG_SLEEP: bool = true;
+// ADR-135 D10-D14 (the fd rung): fds at 16 and up, opens that write and exit go to the
+// owned kernel; fork finalize re-runs the parent's ecall as 24, so the kernel fills the
+// child's row at once; a tagged trap's return skips the S and the tracer. Needs
+// UPC_REPLY and DEFERRED_SWITCH. Rollback = this const off.
+const UPC_RUNG_FD: bool = false;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
@@ -1438,11 +1443,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => {
                     // Diagnostic: emit 'S' on every SRET + arm PC tracer for
-                    // first 100 user-mode instructions.
-                    mem_write_byte(0xC001, b'S');
-                    if let Some(p) = TRACE_HEAD.get_ptr_mut(0) {
-                        unsafe {
-                            *p = 100;
+                    // first 100 user-mode instructions. ADR-135 D14: under
+                    // UPC_RUNG_FD a return to U-mode does this after the reply read.
+                    if !(cfg!(feature = "ascend-linux") && UPC_RUNG_FD && spp == 0) {
+                        mem_write_byte(0xC001, b'S');
+                        if let Some(p) = TRACE_HEAD.get_ptr_mut(0) {
+                            unsafe {
+                                *p = 100;
+                            }
                         }
                     }
                     *mbc_idx & 0xFFFF
@@ -2106,7 +2114,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let syscall_nr = cpu.regs[1];
             // Kernel-routed numbers share the getpid inject arm; the kernel reads
             // the real number from trap_a7 (regs[1]).
-            let syscall_nr = kernel_routed_alias(syscall_nr);
+            let syscall_nr = kernel_routed_alias(syscall_nr, cpu);
             // NOTE: the Doom syscalls DRAW_FRAME(1)/GET_KEY(2)/GET_TICKS(3)/SLEEP(4)
             // collide numerically with xv6 fork(1)/exit(2)/wait(3). They are
             // mutually-exclusive workloads, so under `ascend-linux` the Doom
@@ -2435,11 +2443,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     }
                     // ADR-109 D3: the kernel refreshes this slot's row on its
                     // first trap (fresh_mask bit), whether or not the slot is new.
+                    // ADR-135 D12: under UPC_RUNG_FD the fork note does it first.
+                    let mut note_due = false;
                     if UPC_RUNG0 {
                         let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
                         if base != 0 {
                             let w = (base + phase12::UPC_ST_FRESH_MASK_OFF) >> 2;
                             mem_write_word(w, mem_read_word(w) | (1u32 << (child_pid & 7)));
+                            note_due = cfg!(feature = "ascend-linux") && UPC_RUNG_FD;
                         }
                     }
                     if child_pid + 1 > cpu.num_processes as u32 {
@@ -2461,7 +2472,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // Parent's fork() return value: the child's pid. S-ASCEND-2
                     // E1 (option K, 2026-10-28): one numbering with the owned
                     // kernel, init = 1, so a user-visible pid is slot + 1.
-                    cpu.regs[8] = child_pid + 1;
+                    // ADR-135 D12: the note answers it instead. This must stay the
+                    // last write to a0: the note's argument is the child's slot.
+                    if note_due {
+                        cpu.regs[1] = SYS_UPC_FORKNOTE;
+                        cpu.regs[8] = child_pid;
+                        cpu.pc = cpu.pc.wrapping_sub(1); // the ecall again, as 24
+                    } else {
+                        cpu.regs[8] = child_pid + 1;
+                    }
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 2 {
                 // ── xv6 SYS_exit (2) — RV32I ecall path (Phase 1.6) ──────────
@@ -2665,6 +2684,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // (kernel_routed_alias, DP-502). The arm keeps parity_surface true;
                 // the const in the test folds it away when off, as for 12.
                 cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
+            } else if cfg!(feature = "ascend-linux") && UPC_RUNG_FD && syscall_nr == 24 {
+                // ── SYS_upc_forknote (24): with UPC_RUNG_FD on it never gets here
+                // (kernel_routed_alias, ADR-135 D12). The arm keeps parity_surface
+                // true; off, 24 answers the same -ENOSYS from the chain's tail.
             } else if cfg!(feature = "ascend-linux") && UPC_RUNG_SBRK && syscall_nr == 12 {
                 // ── xv6 SYS_sbrk (12): with UPC_RUNG_SBRK on it never gets here
                 // (kernel_routed_alias sends it to the inject arm, ADR-135). The
@@ -3435,11 +3458,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     // SRET arm because variable RAM offsets inside the loop cost the verifier
     // (Step 130 measured both); the price is one short tick per trap return.
     if cfg!(feature = "ascend-linux") && UPC_REPLY && reply_req {
+        let mut tagged = false;
         let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
         if base != 0 {
             let w = (base + phase12::UPC_ST_REPLY_OFF) >> 2;
             let r = mem_read_word(w);
             if (r & phase12::UPC_TAG_MASK) == phase12::UPC_TAG_REPLY {
+                tagged = true;
                 mem_write_word(w, 0);
                 if r & phase12::UPC_REPLY_SET_BRK != 0 {
                     cpu.program_break = mem_read_word((base + phase12::UPC_ST_REPLY_ARG_OFF) >> 2);
@@ -3465,6 +3490,27 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     } else {
                         cpu.regs[8] = (-1i32) as u32;
                     }
+                }
+                // ADR-135 D13: what the arm for 2 does, a0 holding the status.
+                if UPC_RUNG_FD && r & phase12::UPC_REPLY_EXIT != 0 {
+                    cpu.exit_code = cpu.regs[8];
+                    exit_slot = cpu.current_pid as u32;
+                    if cpu.num_processes > 1 {
+                        switch_req = SWITCH_EXIT;
+                    } else {
+                        cpu.halted = 1;
+                        increment_stat(STAT_HALTED);
+                    }
+                }
+            }
+        }
+        // ADR-135 D14: an untagged return keeps the SRET arm's S and tracer. Nothing
+        // runs between the arm's break and here, so the bytes land where they did.
+        if UPC_RUNG_FD && !tagged && cpu.halted == 0 {
+            mem_write_byte(0xC001, b'S');
+            if let Some(p) = TRACE_HEAD.get_ptr_mut(0) {
+                unsafe {
+                    *p = 100;
                 }
             }
         }
@@ -3810,22 +3856,43 @@ fn slot_exited(slot: u32) {
     }
 }
 
+/// The number fork finalize re-runs the parent's ecall as (ADR-135 D12).
+const SYS_UPC_FORKNOTE: u32 = 24;
+/// O_WRONLY | O_CREATE | O_TRUNC: an open with any of these is the kernel's (ADR-135 D11).
+const OPEN_KERNEL_FLAGS: u32 = 0x001 | 0x200 | 0x400;
+
 /// xv6 numbers serviced by the owned kernel through the getpid inject arm:
 /// uptime 14 under UPC_RUNG2 (ADR-110 T2), sbrk 12 under UPC_RUNG_SBRK (ADR-135),
 /// pause 13 under UPC_RUNG_SLEEP (ADR-135 D7), kill 6 under UPC_RUNG_KILL (ADR-135 D8), unlink 18 under UPC_RUNG_UNLINK,
 /// link 19 under UPC_RUNG_LINK and mkdir 20 under UPC_RUNG_MKDIR (DP-502), and
-/// 22 in probe builds only.
+/// 22 in probe builds only. Under UPC_RUNG_FD (ADR-135 D11-D13): exit 2 and the
+/// fork note 24 always; read 5, fstat 8, dup 10, write 16 and close 21 for a fd at
+/// 16 or above, the compare unsigned so a negative fd goes too; open 15 with a
+/// masked flag.
 #[inline(always)]
-fn kernel_routed_alias(n: u32) -> u32 {
+fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
     match n {
+        2 if cfg!(feature = "ascend-linux") && UPC_RUNG_FD => 11,
+        5 | 8 | 10 | 16 | 21
+            if cfg!(feature = "ascend-linux") && UPC_RUNG_FD && cpu.regs[8] >= 16 =>
+        {
+            11
+        }
         6 if cfg!(feature = "ascend-linux") && UPC_RUNG_KILL => 11,
         12 if cfg!(feature = "ascend-linux") && UPC_RUNG_SBRK => 11,
         13 if cfg!(feature = "ascend-linux") && UPC_RUNG_SLEEP => 11,
         14 if UPC_RUNG2 => 11,
+        15 if cfg!(feature = "ascend-linux")
+            && UPC_RUNG_FD
+            && cpu.regs[9] & OPEN_KERNEL_FLAGS != 0 =>
+        {
+            11
+        }
         18 if cfg!(feature = "ascend-linux") && UPC_RUNG_UNLINK => 11,
         19 if cfg!(feature = "ascend-linux") && UPC_RUNG_LINK => 11,
         20 if cfg!(feature = "ascend-linux") && UPC_RUNG_MKDIR => 11,
         22 if UPC_PROBE_INJECT22 => 11,
+        24 if cfg!(feature = "ascend-linux") && UPC_RUNG_FD => 11,
         _ => n,
     }
 }

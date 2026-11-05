@@ -193,6 +193,7 @@ rung_gate UPC_RUNG_KILL killprobe 3000000 KL 12
 rung_gate UPC_RUNG_MKDIR mkprobe 4000000 MK 7
 rung_gate UPC_RUNG_UNLINK rmprobe 4000000 RM 8
 rung_gate UPC_RUNG_LINK lnprobe 4000000 LN 9
+rung_gate UPC_RUNG_FD fdprobe 5000000 FD 49
 rung_gate UPC_RUNG_MKDIR hostile_ptr 3000000 HU 5
 if rung_on UPC_RUNG_SLEEP; then
   SLL="$(probe_lines sleepprobe 3000000 SL)"

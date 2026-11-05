@@ -258,7 +258,7 @@ fn relocate_rv2mbc_entry(entry: u32, rom_base: u32) -> u32 {
 /// are absent because the object has
 /// no arm for them (they answer -ENOSYS, DP-503). Gate A refuses an
 /// object whose `UPC_SURFACE_ID` is not the id of this list.
-static XV6_SYSCALLS: [upc_api::SyscallDesc; 22] = [
+static XV6_SYSCALLS: [upc_api::SyscallDesc; 23] = [
     upc_api::SyscallDesc {
         number: 1,
         name: "fork",
@@ -338,6 +338,10 @@ static XV6_SYSCALLS: [upc_api::SyscallDesc; 22] = [
     upc_api::SyscallDesc {
         number: 23,
         name: "yield",
+    },
+    upc_api::SyscallDesc {
+        number: 24,
+        name: "upc_forknote",
     },
     upc_api::SyscallDesc {
         number: 200,

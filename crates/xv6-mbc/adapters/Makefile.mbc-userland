@@ -167,6 +167,7 @@ mkprobe: $T/mkprobe.mbc
 rmprobe: $T/rmprobe.mbc
 lnprobe: $T/lnprobe.mbc
 sleepprobe: $T/sleepprobe.mbc
+fdprobe: $T/fdprobe.mbc
 hostile_ptr: $T/hostile_ptr.mbc
 # Every program the regression harness boots as the userland. Not part of
 # USERLAND_PROGS: those are copied into fs.img, and the `ls` golden lists it.
@@ -176,7 +177,7 @@ GATE_PROGS = $T/uinit.mbc $T/gate2.mbc $T/gate_nway.mbc $T/forkloop.mbc $T/devpr
              $T/getpidloop.mbc $T/getpidmulti.mbc $T/getpidx.mbc \
              $T/uptimeprobe.mbc $T/hostile_pgd.mbc $T/hostile_slot.mbc $T/hostile_tf.mbc \
              $T/sbrkprobe.mbc $T/killprobe.mbc $T/mkprobe.mbc $T/rmprobe.mbc $T/lnprobe.mbc \
-             $T/sleepprobe.mbc $T/hostile_ptr.mbc
+             $T/sleepprobe.mbc $T/hostile_ptr.mbc $T/fdprobe.mbc
 gates: $(GATE_PROGS) $(call sidecars,$(GATE_PROGS))
 
 # Phase 1.2 Gate 4 — N-way CONCURRENT isolation falsification test (ADR-074
@@ -239,10 +240,10 @@ clean:
 	       $T/wc.* $T/ln.* $T/mkdir.* $T/kill.* $T/rm.* $T/grep.* \
 	       $T/gate2.* $T/gate_nway.* $T/getpidprobe.* $T/getpidfork.* $T/forkloop.* $T/devprobe.* \
 	       $T/ut_exitwait.* $T/ut_twochildren.* $T/ut_forktest.* $T/ut_reparent2.* \
-	       $T/getpidloop.* $T/getpidmulti.* $T/getpidx.* $T/uptimeprobe.* $T/hostile_pgd.* $T/hostile_slot.* $T/hostile_tf.* $T/sbrkprobe.* $T/killprobe.* $T/mkprobe.* $T/rmprobe.* $T/lnprobe.* $T/sleepprobe.* $T/hostile_ptr.* \
+	       $T/getpidloop.* $T/getpidmulti.* $T/getpidx.* $T/uptimeprobe.* $T/hostile_pgd.* $T/hostile_slot.* $T/hostile_tf.* $T/sbrkprobe.* $T/killprobe.* $T/mkprobe.* $T/rmprobe.* $T/lnprobe.* $T/sleepprobe.* $T/hostile_ptr.* $T/fdprobe.* \
 	       $T/fs.img $T/README $T/BIGFILE $T/sub
 
-.PHONY: clean sbrkprobe killprobe mkprobe rmprobe lnprobe sleepprobe hostile_ptr init uinit sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway getpidprobe getpidfork forkloop devprobe ut_exitwait ut_twochildren ut_forktest ut_reparent2 getpidloop getpidmulti getpidx uptimeprobe hostile_pgd hostile_slot hostile_tf gates userland ramdisk
+.PHONY: clean sbrkprobe killprobe mkprobe rmprobe lnprobe sleepprobe hostile_ptr fdprobe init uinit sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway getpidprobe getpidfork forkloop devprobe ut_exitwait ut_twochildren ut_forktest ut_reparent2 getpidloop getpidmulti getpidx uptimeprobe hostile_pgd hostile_slot hostile_tf gates userland ramdisk
 
 # Keep .elf intermediates around for debugging.
 .SECONDARY: $T/init.elf $T/uinit.elf $T/sh.elf $T/ls.elf $T/cat.elf $T/echo.elf $T/wc.elf

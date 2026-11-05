@@ -40,7 +40,7 @@ fn c_define(src: &str, name: &str) -> u32 {
     parse(l.split_whitespace().nth(2).unwrap())
 }
 
-const NAMES: [&str; 20] = [
+const NAMES: [&str; 21] = [
     "UPC_SLOT_TABLES_BP_BYTE",
     "UPC_SLOTS",
     "UPC_TF_STRIDE",
@@ -59,6 +59,7 @@ const NAMES: [&str; 20] = [
     "UPC_REPLY_SET_BRK",
     "UPC_REPLY_YIELD",
     "UPC_REPLY_KILL",
+    "UPC_REPLY_EXIT",
     "UPC_HEAP_BASE",
     "UPC_HEAP_TOP",
 ];
@@ -128,7 +129,12 @@ fn layout_is_the_adr_layout() {
     assert_eq!(rust_const(&rs, "UPC_TAG_A7") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_REPLY") & !mask, 0);
     // The reply flags live below the tag.
-    for f in ["UPC_REPLY_SET_BRK", "UPC_REPLY_YIELD", "UPC_REPLY_KILL"] {
+    for f in [
+        "UPC_REPLY_SET_BRK",
+        "UPC_REPLY_YIELD",
+        "UPC_REPLY_KILL",
+        "UPC_REPLY_EXIT",
+    ] {
         assert_eq!(rust_const(&rs, f) & mask, 0, "{f}");
         assert!(rust_const(&rs, f).is_power_of_two(), "{f}");
     }

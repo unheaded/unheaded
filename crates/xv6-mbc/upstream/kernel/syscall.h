@@ -21,3 +21,4 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_yield  23 // BPF only; 22 is the probe-only inject number
+#define SYS_upc_forknote 24 // ADR-135 D12: BPF's re-run of a finished fork

@@ -81,3 +81,4 @@ DP-206 (approved, already run once under guard): the attended list is Appendix D
 - ADR-135 T-F3 (pre-existing): open(path, O_RDWR) on a regular file stays in BPF, which ignores the flags, and BPF write prints to the TTY and returns n, so the file silently does not change. This rung claims file writes, so it is the one way left to lose one. BPF open cannot tell a file from the console before its walk; a fix means refusing the write in BPF for an inode-kind fd, at a verifier cost not measured. ADR-135 D10 states the limit. Do you want that refusal?
 - ADR-135 T-F7: plan Steps 224-225 are stale against the ADR (prepare_return tag, D14 tracer guard in the arm, no arm named for 24), and Step 227's commit list omits parity_slot_tables.rs. The plan is not mine to edit, so the ADR rules, as with R-F8.
 - unsigned commit: [PLAN S-STAGE-2B] Steps 218-222: fd table design
+- unsigned commit: [PLAN S-STAGE-2B] Steps 223-227: fd table wired, const off
