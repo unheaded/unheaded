@@ -325,6 +325,8 @@ func NewScraper(config *Config, log *logger.Logger) (*Scraper, error) {
 		client: &http.Client{
 			Transport: tr,
 			Timeout:   config.ScrapeTimeout,
+			// A target answers for itself: the scrape never goes elsewhere.
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 		targets:  make(map[string]*ServiceTarget),
 		series:   make(map[string]*MetricSeries),
@@ -511,6 +513,9 @@ func (s *Scraper) scrapeAll(ctx context.Context) {
 	wg.Wait()
 }
 
+// maxScrapeBody bounds one /metrics answer, far above any real one here.
+const maxScrapeBody = 16 << 20
+
 // scrapeTarget scrapes a single target
 func (s *Scraper) scrapeTarget(ctx context.Context, target *ServiceTarget) {
 	start := time.Now()
@@ -545,7 +550,10 @@ func (s *Scraper) scrapeTarget(ctx context.Context, target *ServiceTarget) {
 		return
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxScrapeBody+1))
+	if err == nil && len(body) > maxScrapeBody {
+		err = fmt.Errorf("over %d bytes", maxScrapeBody)
+	}
 	if err != nil {
 		result.Error = fmt.Sprintf("read body: %v", err)
 		result.Duration = time.Since(start)
