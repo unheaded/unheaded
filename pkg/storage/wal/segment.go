@@ -44,7 +44,7 @@ func CreateSegment(path string, syncWrites bool) (*Segment, error) {
 
 // OpenSegment opens an existing segment file.
 func OpenSegment(path string, syncWrites bool) (*Segment, error) {
-	file, err := os.OpenFile(path, os.O_RDWR, 0o600) // #nosec G304 -- a *.wal entry listed in the configured WAL dir
+	file, err := os.OpenFile(path, os.O_RDWR, 0) // #nosec G304 -- a *.wal entry listed in the configured WAL dir
 	if err != nil {
 		return nil, fmt.Errorf("open segment: %w", err)
 	}
@@ -53,6 +53,14 @@ func OpenSegment(path string, syncWrites bool) (*Segment, error) {
 	if err != nil {
 		_ = file.Close()
 		return nil, fmt.Errorf("stat segment: %w", err)
+	}
+
+	// A segment written before CreateSegment made them owner-only.
+	if stat.Mode().Perm()&0o077 != 0 {
+		if err := file.Chmod(0o600); err != nil {
+			_ = file.Close()
+			return nil, fmt.Errorf("narrow segment mode: %w", err)
+		}
 	}
 
 	segment := &Segment{
