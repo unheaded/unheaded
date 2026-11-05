@@ -223,7 +223,8 @@ The `.deb` packages (`scripts/build-all-debs.sh`, table in
 `/opt/unheaded/bin/<name>` and ship these units under their own names in
 `/etc/systemd/system/`, with `/usr/local/bin/` rewritten to
 `/opt/unheaded/bin/`. Every unit here that runs a binary from
-`/usr/local/bin` has a package (`scripts/test-deb-maintscripts.sh` fails
+`/usr/local/bin` has a package, third-party binaries (`node_exporter`,
+`vor`) and cargo-built ones aside (`scripts/test-deb-maintscripts.sh` fails
 otherwise). The package is `unheaded-<binary>`, or the binary's own name
 when it already starts with `unheaded-`:
 
@@ -237,6 +238,7 @@ when it already starts with `unheaded-`:
 | `unheaded-huginn`, `unheaded-zhen-agentd` | `huginn.service`, `zhen-agentd.service` |
 | `unheaded-baseline` | `unheaded-baseline.service` + `.timer` + `.path` |
 | `unheaded-well-retention` | `unheaded-well-retention.service` + `.timer` |
+| `unheaded-syslog-relay` | `unheaded-syslog-relay.service`, with `/etc/unheaded/log-sources.yaml` as a conffile |
 | `unheaded-<svc>` (wotan, akira, timeguru, captain, architect, micromanager, monad, sophia, auth, sword, chaos-controller, anomaly, kev-poller) | `unheaded-<svc>.service` |
 | `unheaded-keygen` | none: the key tool every key-holding package depends on |
 | `unheaded-configs` | none: runbooks + `run-runbook.py` under `/opt/unheaded` (Akira's cert-expiry check) |

@@ -5,8 +5,12 @@
 # free, no IPv4-in-IPv6 ambiguity); this doesn't rewrite the old uses, it
 # stops new ones.
 #
-#   scripts/check-netip.sh            fail if the count rose above the baseline
+#   scripts/check-netip.sh            fail unless the count equals the baseline
 #   scripts/check-netip.sh --update   lower the baseline to today's count (never raises it)
+#
+# A count below the baseline fails too. Slack is room for new uses: S-WIRE-HONEST
+# took the count from 74 to 68 and left the baseline at 74, so S-G9-FOLD's new
+# net.ParseIP in cmd/compliance-evidence passed unnoticed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 baseline=docs/policy/netip-baseline.txt
@@ -32,7 +36,7 @@ if (( count > base )); then
 	exit 1
 fi
 if (( count < base )); then
-	echo "OK: ${count} uses (baseline ${base}); lower it: scripts/check-netip.sh --update"
-	exit 0
+	echo "FAIL: ${count} net.IP/net.ParseIP uses, baseline ${base}. Lock the shrink in: scripts/check-netip.sh --update"
+	exit 1
 fi
 echo "OK: ${count} uses (baseline ${base})"

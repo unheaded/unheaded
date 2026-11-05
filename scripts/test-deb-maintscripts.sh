@@ -155,13 +155,17 @@ expect "debian/ holds no maintainer scripts of its own" \
 	"$(find "$REPO_ROOT/debian" -maxdepth 1 \( -name '*.postinst' -o -name '*.preinst' -o -name '*.prerm' -o -name '*.postrm' \) | wc -l)" "0"
 
 # The wotan package ships the topic config its unit reads, as a conffile.
-mkdir -p "$T/pkg/DEBIAN" "$T/other/DEBIAN" "$T/wr/DEBIAN"
+mkdir -p "$T/pkg/DEBIAN" "$T/other/DEBIAN" "$T/wr/DEBIAN" "$T/sr/DEBIAN"
 deb_conffiles wotan "$T/pkg" "$REPO_ROOT"
 expect "wotan ships /etc/unheaded/wotan.yaml as a conffile" "$(cat "$T/pkg/DEBIAN/conffiles")" "/etc/unheaded/wotan.yaml"
 expect "wotan.yaml is the repo's configs/wotan.yaml" "$(cmp -s "$REPO_ROOT/configs/wotan.yaml" "$T/pkg/etc/unheaded/wotan.yaml" && echo same)" "same"
 expect "unit reads that path" "$(grep -c -- '--topic-config /etc/unheaded/wotan.yaml' "$REPO_ROOT/deploy/systemd/unheaded-wotan.service")" "1"
 deb_conffiles well-retention "$T/wr" "$REPO_ROOT"
 expect "well-retention ships its classes as a conffile" "$(cat "$T/wr/DEBIAN/conffiles")" "/etc/unheaded/well/retention-classes.yaml"
+deb_conffiles syslog-relay "$T/sr" "$REPO_ROOT"
+expect "syslog-relay ships its sources as a conffile" "$(cat "$T/sr/DEBIAN/conffiles")" "/etc/unheaded/log-sources.yaml"
+expect "log-sources.yaml is the repo's config/logging/sources.yaml" "$(cmp -s "$REPO_ROOT/config/logging/sources.yaml" "$T/sr/etc/unheaded/log-sources.yaml" && echo same)" "same"
+expect "syslog-relay's unit reads that path" "$(grep -c -- '--sources /etc/unheaded/log-sources.yaml' "$REPO_ROOT/deploy/systemd/unheaded-syslog-relay.service")" "1"
 deb_conffiles timeguru "$T/other" "$REPO_ROOT"
 expect "other services ship no conffiles" "$(ls "$T/other/DEBIAN")" ""
 
@@ -205,11 +209,14 @@ rm -rf "${T:?}/migrate/"*
 # The package table (scripts/lib/deb-packages.sh).
 unit_bins() { # every /usr/local/bin binary a unit runs, minus third-party and cargo-built ones
 	# Cargo-built binaries (build-binaries.sh CARGO, e.g. upc-bootctl) are not
-	# packaged as .debs; their unit names the install command.
+	# packaged as .debs; their unit names the install command. Third-party ones
+	# are named here, not read from build-binaries.sh's THIRD_PARTY: vor lives
+	# in its own repository, and a binary built here must not drop out of this
+	# check by joining that list.
 	local cargo
 	cargo="$(awk '/^CARGO="/{f=1;next} f&&/^"/{f=0} f&&NF==2{print $1}' "$REPO_ROOT/scripts/build-binaries.sh")"
 	sed -n 's|^ExecStart=-\{0,1\}/usr/local/bin/\([A-Za-z0-9._-]*\).*|\1|p' \
-		"$REPO_ROOT"/deploy/systemd/*.service | grep -vxF node_exporter | grep -vxF -e "${cargo:-/}" | sort -u
+		"$REPO_ROOT"/deploy/systemd/*.service | grep -vxF -e node_exporter -e vor | grep -vxF -e "${cargo:-/}" | sort -u
 }
 expect "every unit's binary is packaged, and nothing else" \
 	"$(printf '%s\n' "${DEB_SERVICES[@]}" | sort -u)" "$(unit_bins)"
@@ -251,6 +258,7 @@ expect "build-all-debs ships the gate in every service package" \
 expect "build-all-debs: key-holding packages depend on unheaded-keygen" \
 	"$(deb_depends wotan)" 'libc6, unheaded-keygen (= ${VERSION})'
 expect "build-all-debs: keyless packages do not" "$(deb_depends huginn)" "libc6"
+expect "syslog-relay holds no service key" "$(deb_identity_for syslog-relay)" ""
 expect "the Jenkinsfile packages through build-all-debs.sh (one copy)" \
 	"$(grep -c '^ *DEB_OUTPUT_DIR=build/deb \./scripts/build-all-debs\.sh ' "$REPO_ROOT/Jenkinsfile")" "1"
 expect "the Jenkinsfile writes no maintainer scripts of its own" \

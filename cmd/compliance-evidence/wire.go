@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"syscall"
@@ -75,8 +76,8 @@ func checkWireListen(addr string, authEnabled bool) error {
 	if err != nil {
 		return fmt.Errorf("--listen %q: %w", addr, err)
 	}
-	ip := net.ParseIP(host)
-	if !authEnabled && (ip == nil || !ip.IsLoopback()) {
+	ip, parseErr := netip.ParseAddr(host)
+	if !authEnabled && (parseErr != nil || ip.Zone() != "" || !ip.IsLoopback()) {
 		return fmt.Errorf("--listen %q is not loopback: set AUTH_ENABLED=true first", addr)
 	}
 	return nil

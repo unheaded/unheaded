@@ -124,6 +124,10 @@ deb_conffiles() {
 		install -D -m 0644 "$3/compliance/retention/classes.yaml" "$2/etc/unheaded/well/retention-classes.yaml"
 		echo /etc/unheaded/well/retention-classes.yaml >"$2/DEBIAN/conffiles"
 		;;
+	syslog-relay)
+		install -D -m 0644 "$3/config/logging/sources.yaml" "$2/etc/unheaded/log-sources.yaml"
+		echo /etc/unheaded/log-sources.yaml >"$2/DEBIAN/conffiles"
+		;;
 	esac
 }
 

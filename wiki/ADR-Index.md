@@ -1,21 +1,26 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-10-31 (113 entries)
+**Last synced from canonical:** 2026-11-05 (131 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
-| Accepted | 51 |
-| Proposed | 25 |
-| Planned | 14 |
-| In Progress | 5 |
-| Deferred | 5 |
+| Accepted | 60 |
+| Proposed | 33 |
+| Planned | 10 |
+| In Progress | 1 |
+| Deferred | 3 |
 | Pipe Dream | 5 |
-| PoC / Research | 3 |
-| Superseded / Deprecated | 4 |
+| PoC / Research | 2 |
+| Superseded / Deprecated | 10 |
 | Acknowledged | 1 |
-| **Total** | **113** |
+| Implemented | 2 |
+| Partially implemented | 1 |
+| Shipped | 1 |
+| Withdrawn | 1 |
+| Brainstorm | 1 |
+| **Total** | **131** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -142,6 +147,14 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [124](../docs/adr/ADR-124-native-syslog-relay.md) | Native syslog relay `cmd/syslog-relay`: RFC 5424/3164 over UDP and TCP into the journal's native protocol, so Vector ships it; `sources.yaml` allowlist, per-sender token bucket, capped frames, control bytes escaped | **Proposed** (D2 answered native 2026-11-03; carried by S-LOG-HARVEST Phase 5) | 2026-11-04 |
 | [125](../docs/adr/ADR-125-hop-checks.md) | Hop checks: validators, HMAC-key presence and retry state move from Shield ingress to hop-ebpf; key presence only, the Monad carries no tag | **Proposed** | 2026-11-04 |
 | [126](../docs/adr/ADR-126-private-hbh-option-registry.md) | Private Hop-by-Hop option registry: 0x3E is the Monad's and Zhen's today, length alone separates them; Zhen reserved at 0x1E | **Proposed** (parked) | 2026-11-04 |
+| [127](../docs/adr/ADR-127-fold-compliance.md) | Fold wire compliance into compliance-evidence behind --serve; not unheaded-baseline (oneshot, reads /etc/shadow); no data is not 100 % | **Proposed** (parked) | 2026-11-04 |
+| [128](../docs/adr/ADR-128-fold-firewall.md) | Fold firewall into Cuirass as intent only; Cuirass has no CAP_BPF and runs once: the node writer question (Go writer recommended) | **Proposed** (parked) | 2026-11-04 |
+| [129](../docs/adr/ADR-129-fold-qos.md) | Fold QoS into Cuirass without its 10 Hz publisher | **Proposed** (parked) | 2026-11-04 |
+| [130](../docs/adr/ADR-130-fold-nfv.md) | Fold NFV: where is a question: Cuirass has no CAP_BPF, cartridges are a different mechanism; prog_fd over HTTP goes | **Proposed** (parked) | 2026-11-04 |
+| [131](../docs/adr/ADR-131-fold-failover.md) | Fold failover into Cuirass as the actuator; deciding stays with Akira | **Proposed** (parked) | 2026-11-04 |
+| [132](../docs/adr/ADR-132-fold-loadbalancer.md) | Fold the load balancer into Cuirass; the map write goes to the node writer | **Proposed** (parked) | 2026-11-04 |
+| [133](../docs/adr/ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
+| [134](../docs/adr/ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |
 
 ---
 

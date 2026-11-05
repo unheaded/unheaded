@@ -988,12 +988,14 @@ provoke_check_perf_regression() {
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_zhen_mcp() {
     # Contract (S-CHAMPION-HARDENING Step 201): without ZHEN_MCP_ALLOW_WRITE=1
-    # the server lists six read-only tools and file_write is refused. Turn
-    # the write tools on unconditionally.
+    # the server lists eight read-only tools and file_write is refused. Turn
+    # the write tools on unconditionally. The space after the colon is
+    # gofmt's column alignment and moves when a longer field joins the
+    # struct literal (codeIndexDir did, in S-ZHEN-POLISH): match any width.
     local f="cmd/zhen-mcp/main.go"
     backup "${f}"
-    sed -i 's/^\([[:space:]]*\)allowWrite:  getenv(envAllowWrite) == "1",$/\1allowWrite:  true,/' "${REPO_ROOT}/${f}"
-    grep -q '^[[:space:]]*allowWrite:  true,$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+    sed -i 's/^\([[:space:]]*\)allowWrite:[[:space:]]*getenv(envAllowWrite) == "1",$/\1allowWrite: true,/' "${REPO_ROOT}/${f}"
+    grep -q '^[[:space:]]*allowWrite: true,$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch

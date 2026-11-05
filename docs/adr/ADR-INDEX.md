@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-10-31
-**Total:** 113 entries (ADR-001 to ADR-116, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Last updated:** 2026-11-05
+**Total:** 131 entries (ADR-001 to ADR-134, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -16,20 +16,25 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now).
 
 | Status | Count |
 |--------|-------|
-| Accepted | 51 |
-| Proposed | 25 |
-| Planned | 14 |
-| In Progress | 5 |
-| Deferred | 5 |
+| Accepted | 60 |
+| Proposed | 33 |
+| Planned | 10 |
+| In Progress | 1 |
+| Deferred | 3 |
 | Pipe Dream | 5 |
-| PoC / Research | 3 |
-| Superseded / Deprecated | 4 |
+| PoC / Research | 2 |
+| Superseded / Deprecated | 10 |
 | Acknowledged | 1 |
-| **Total** | **113** |
+| Implemented | 2 |
+| Partially implemented | 1 |
+| Shipped | 1 |
+| Withdrawn | 1 |
+| Brainstorm | 1 |
+| **Total** | **131** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
