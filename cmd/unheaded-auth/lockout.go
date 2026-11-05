@@ -14,6 +14,11 @@ import (
 // maxFailuresPerSource failures across any usernames (spraying). There is
 // no per-username lock across addresses: anyone could then lock any user
 // out. Locked attempts never reach argon2id, so they cost nothing.
+//
+// Behind a backend-for-frontend the source is that backend, so these locks
+// fall on all its clients together. pkg/bff holds each client to smaller
+// budgets, which keeps any one client from reaching them; several clients
+// failing together still can, since the issuer takes no forwarded address.
 const (
 	lockoutWindow        = 10 * time.Minute
 	maxFailuresPerPair   = 5
