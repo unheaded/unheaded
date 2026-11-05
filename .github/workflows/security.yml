@@ -192,9 +192,10 @@ jobs:
       - name: Floating image tags may only shrink
         run: ./scripts/check-image-tags.sh
 
-      # Findings in history warn (see PRE-PUBLIC-BLOCKERS.md). A scan that
-      # could not run fails the job, so no continue-on-error here.
-      - name: gitleaks (full history — findings report, a failed scan fails)
+      # A finding with a row in docs/policy/gitleaks-history-baseline.txt
+      # warns; a new one, or a scan that could not run, fails the job, so no
+      # continue-on-error here.
+      - name: gitleaks (full history — known findings warn, new ones fail)
         run: ./scripts/check-gitleaks.sh --history
 
       - name: The history scan's verdicts hold
