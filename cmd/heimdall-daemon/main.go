@@ -128,7 +128,7 @@ func SealPath(manifest string) string { return manifest + ".seal" }
 // baseline is the thing an attacker most wants to swap; drift detection
 // against a forged baseline reports nothing).
 func LoadManifest(path string, trust Trust) (*MjolnirManifest, error) {
-	data, err := os.ReadFile(path) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
+	data, err := os.ReadFile(path) // #nosec G304 -- the operator's --manifest path
 	if err != nil {
 		return nil, fmt.Errorf("read manifest: %w", err)
 	}
@@ -213,7 +213,7 @@ func (h *Heimdall) scan(onlyChanged bool) {
 }
 
 func hashFile(path string) (string, error) {
-	data, err := os.ReadFile(path) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
+	data, err := os.ReadFile(path) // #nosec G304 -- a file the manifest names; only its hash leaves here
 	if err != nil {
 		return "", err
 	}

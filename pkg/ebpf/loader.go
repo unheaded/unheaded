@@ -3367,7 +3367,7 @@ func registerKprobe(funcName string, ret bool) (uint64, error) {
 
 	// Read probe ID
 	idPath := fmt.Sprintf("/sys/kernel/debug/tracing/events/kprobes/%s/id", probeName)
-	idData, err := os.ReadFile(idPath) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
+	idData, err := os.ReadFile(idPath) // #nosec G304 -- tracefs id of the probe registered above; the name is ours
 	if err != nil {
 		return 0, fmt.Errorf("read probe id: %w", err)
 	}
@@ -3399,7 +3399,7 @@ func (l *NativeLoader) attachTracepoint(loaded *loadedProgram) error {
 
 	// Get tracepoint ID
 	idPath := fmt.Sprintf("/sys/kernel/debug/tracing/events/%s/%s/id", category, name)
-	idData, err := os.ReadFile(idPath) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
+	idData, err := os.ReadFile(idPath) // #nosec G304 -- tracefs id; category and name come from the program spec the caller loads
 	if err != nil {
 		return fmt.Errorf("read tracepoint id: %w", err)
 	}
@@ -3943,7 +3943,7 @@ func (l *NativeLoader) ReadRingbuf(ctx context.Context, programName, mapName str
 	events := make(chan []byte, 1024)
 
 	// Create cancellable context
-	ctx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel stored in loaded.cancelFns and invoked at loader.go:2268/4011
+	ctx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel stored in loaded.cancelFns; Unload and Close call it
 	loaded.cancelFns = append(loaded.cancelFns, cancel)
 
 	// Start reader goroutine
@@ -4050,7 +4050,7 @@ func (l *NativeLoader) ReadPerfEvents(ctx context.Context, programName, mapName 
 	// This is simplified - full implementation would handle all CPUs
 	events := make(chan []byte, 1024)
 
-	ctx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel stored in loaded.cancelFns and invoked at loader.go:2268/4011
+	ctx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel stored in loaded.cancelFns; Unload and Close call it
 	loaded.cancelFns = append(loaded.cancelFns, cancel)
 
 	// Start reader
@@ -4288,7 +4288,7 @@ func loadKernelBTF(path string) (int, error) {
 	// For other paths, we'd need to load the file
 
 	// Try the raw BTF blob via bpf syscall
-	data, err := os.ReadFile(path) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
+	data, err := os.ReadFile(path) // #nosec G304 -- the kernel BTF, or the BTFPath the loader was configured with
 	if err != nil {
 		return -1, err
 	}

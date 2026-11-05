@@ -93,7 +93,7 @@ func execTargetNames(targets []health.ServiceTarget) map[string]bool {
 }
 
 func loadConfig(path string) ([]health.ServiceTarget, error) {
-	data, err := os.ReadFile(path) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
+	data, err := os.ReadFile(path) // #nosec G304 -- the operator's --config path
 	if err != nil {
 		return nil, err
 	}

@@ -483,7 +483,7 @@ func (s *Server) upgradeConnection(w http.ResponseWriter, r *http.Request) (net.
 // RFC 6455 §4.2.2 requires SHA-1 for the WebSocket handshake; this is a
 // protocol fingerprint, not a security primitive. (gosec G401 false-positive.)
 func computeAcceptKey(key string) string {
-	h := sha1.New() // #nosec G401 -- non-cryptographic digest (ETag / fingerprint / page checksum), not an integrity or auth primitive
+	h := sha1.New() // #nosec G401 -- RFC 6455 s4.2.2 fixes SHA-1 for Sec-WebSocket-Accept; a handshake value, not a security primitive
 	h.Write([]byte(key + websocketGUID))
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }

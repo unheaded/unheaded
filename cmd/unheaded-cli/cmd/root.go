@@ -404,7 +404,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	configPath := filepath.Join(homeDir, ".unheaded", "config.yaml")
-	data, err := os.ReadFile(configPath) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
+	data, err := os.ReadFile(configPath) // #nosec G304 -- fixed name under the user's own home
 	if err != nil {
 		return nil, err
 	}

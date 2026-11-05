@@ -428,7 +428,6 @@ func (p *Provider) writeRegressionSeed(fnd, dedup string, in fileFindingInput) (
 		name += ".seed"
 	}
 	full := filepath.Join(dir, name)
-	// #nosec G306 -- inert, non-secret regression seed inside the configured seeds tree
 	if err := os.WriteFile(full, content, 0o600); err != nil {
 		return "", err
 	}
