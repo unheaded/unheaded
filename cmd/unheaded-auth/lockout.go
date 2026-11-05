@@ -16,9 +16,10 @@ import (
 // out. Locked attempts never reach argon2id, so they cost nothing.
 //
 // Behind a backend-for-frontend the source is that backend, so these locks
-// fall on all its clients together. pkg/bff holds each client to smaller
-// budgets, which keeps any one client from reaching them. The issuer takes
-// no forwarded address.
+// fall on all its clients together. pkg/bff holds each client address to
+// budgets that, summed over the backends sharing a source, stay under these
+// limits, so one client address cannot reach them. Several together can. The
+// issuer takes no forwarded address.
 const (
 	lockoutWindow        = 10 * time.Minute
 	maxFailuresPerPair   = 5

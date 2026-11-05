@@ -8,18 +8,26 @@ import (
 	"time"
 )
 
-// The issuer's lockout sees only this backend's address, so its locks fall
-// on every client behind it. These budgets are the client's own, kept here
-// where the client's address is known and stay below the issuer's limits
-// (TestBFF_BudgetsStayBelowTheIssuerLockout): one client runs out of
-// attempts before it can trip the issuer's lock on anyone else.
+// The issuer's lockout sees only the backend's address, so its locks fall on
+// every client behind it. These budgets are the client's own, kept here where
+// the client's address is known. Each backend keeps its own count and
+// IssuerAddressBackends of them share an address at the issuer, so the sum
+// stays below the issuer's limits (TestBFF_BudgetsStayBelowTheIssuerLockout):
+// one client address runs out of attempts on every backend before it can trip
+// the issuer's lock on anyone else. Several client addresses together can
+// still reach that lock.
 const (
 	// LoginFailureWindow is how long a failed login counts.
 	LoginFailureWindow = 10 * time.Minute
+	// IssuerAddressBackends is how many backends reach the issuer from one
+	// source address: the dashboard and the board on one host. The
+	// budgets below are per backend, so this many of them add up at the
+	// issuer.
+	IssuerAddressBackends = 2
 	// ClientUserLoginFailures bounds failures per client and username.
-	ClientUserLoginFailures = 4
+	ClientUserLoginFailures = 2
 	// ClientLoginFailures bounds failures per client across usernames.
-	ClientLoginFailures = 10
+	ClientLoginFailures = 9
 )
 
 // loginFailures charges an attempt before the issuer answers, so concurrent
