@@ -1,5 +1,7 @@
 # ADR-047: K8s Honest Assessment + Extractable Tools + East/West K8s Lab
 
+> **2026-11-04 (DP-17):** Kubernetes is a lab component in its own repository, `unheaded-k8s`; not a product target. The platform scales from one host to many without it. The manifests, chart and lab named here moved there with their history.
+
 ## Status: ACKNOWLEDGED + LAB ACTION ITEM
 
 ## Date: 2026-04-11

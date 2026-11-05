@@ -89,7 +89,7 @@ GOOS=darwin GOARCH=arm64 go build -o dist/mimir/heimdall-daemon-darwin-arm64 \
 
 - `wotan` itself — Mímir publishes to Wotan if available; if not, it logs to
   stdout. Wotan is its own tool (see `cmd/tools/anamnesis-lite/` for the
-  Wotan-shipping bundle, or `helm/unheaded/` for the cluster deployment).
+  Wotan-shipping bundle; `unheaded-k8s` holds a chart for a lab cluster).
 - The PostgreSQL schema for `zhen_actions` audit (Mímir's drift events can
   be stored in PG via that pipeline; that's an integration the adopter
   enables, not a hard dependency).

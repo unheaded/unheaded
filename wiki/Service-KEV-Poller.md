@@ -6,7 +6,7 @@ kev-poller keeps CISA's KEV catalog current on a host, tags the entries that nam
 
 | | |
 |---|---|
-| Unit | `unheaded-kev-poller.service` as `unheaded-kev-poller` (no capabilities); enabled on west and east since 2026-10-20 ([[Systemd Units|Systemd-Units]]). Also a Dockerfile stage and a DaemonSet (`deploy/k8s/kev-poller/`) for when there is a cluster |
+| Unit | `unheaded-kev-poller.service` as `unheaded-kev-poller` (no capabilities); enabled on west and east since 2026-10-20 ([[Systemd Units|Systemd-Units]]). Also a Dockerfile stage. |
 | Port | 19120 (`pkg/ports.KEVPoller`) |
 | State | `/var/lib/unheaded/threat-feeds/cisa-kev/`: `latest.json` (as published), `state.json`, `snapshots/` (one per change, 30 days) |
 | Wotan topics | `threats.cisa-kev.updates` every good pull; `threats.cisa-kev.delta` when entries are added or removed (chunks of 50, stack entries carry `categories`) |

@@ -36,7 +36,7 @@ Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust 
 | `deploy/` | systemd units ([[Systemd-Units]]), `sysusers.d/` (one account per service), east offsite, ansible, argocd, k8s, tofu, nftables |
 | `docker/`, `docker-compose*.yml` | Compose stack: services, hosts, telemetry, firewall, nginx |
 | `containers/`, `lxd/`, `nix/`, `nixos/` | The four container runtimes + NixOS host config ([[Containers]]) |
-| `kubernetes/`, `helm/` | K8s manifests and chart |
+| (moved) | K8s manifests and chart live in `unheaded-k8s` (DP-17) |
 | `monitoring/` | Prometheus rules, Grafana dashboards, Loki, Alertmanager |
 | `routing/` | BIRD, FRR, OSPF, IS-IS, MPLS configs |
 | `debian/`, `jenkins/` | Packaging, Jenkins pipeline |
