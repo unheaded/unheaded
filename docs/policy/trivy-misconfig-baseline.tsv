@@ -9,7 +9,6 @@ DS-0026	docker/services/busboy/Dockerfile	1
 DS-0026	docker/services/captain/Dockerfile	1
 DS-0026	docker/services/dashboard-backend/Dockerfile	1
 DS-0026	docker/services/developer/Dockerfile	1
-DS-0026	docker/services/doom/Dockerfile	1
 DS-0026	docker/services/gateway/Dockerfile	1
 DS-0026	docker/services/kanban/Dockerfile	1
 DS-0026	docker/services/kingdom/Dockerfile	1

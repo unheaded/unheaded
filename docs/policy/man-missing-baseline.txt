@@ -2,7 +2,4 @@
 # Shrink-only: scripts/gen-man.sh fails on a new binary missing from the
 # pages AND on a listed binary that now answers (remove it here).
 # Dispatchers answer --man with cmdline.IsManArg + cmdline.Man and a top-level
-# Spec; what is left is the Doom tools.
-doom
-doom-cpu-dump
-doom-loader
+# Spec.
