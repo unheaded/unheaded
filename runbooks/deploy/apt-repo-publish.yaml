@@ -29,8 +29,15 @@ notes: |
   keeps its old binary until they are. The upgrade renames three units on
   east (unheaded-dashboard-backend -> unheaded-dashboard, unheaded-kanban-app
   -> unheaded-kanban, unheaded-unheaded-daemon -> unheaded-daemon) and the
-  package unheaded-unheaded-daemon -> unheaded-daemon; the packages carry the
-  enabled/running state over, and verify-east checks it.
+  package unheaded-unheaded-daemon -> unheaded-daemon.
+  East still runs the 1.0.0 packages, and three things about them need
+  install-east's handling: 1.0.0 sorts above the 0.2.0 line, so apt keeps it
+  unless the version is named and downgrades allowed; their prerm stops and
+  disables the service before any new maintainer script runs, so no package
+  can carry that state over and install-east enables the services itself;
+  and they ship /etc/unheaded/wotan.yaml as a plain file, which dpkg takes
+  for a local edit of the new conffile, prompts about, and fails on with no
+  terminal. install-east's handling is tested by scripts/test-deb-maintscripts.sh.
 parameters:
   - name: REPO
     default: "$HOME/tmp/unheaded"
@@ -112,23 +119,38 @@ steps:
     host: east
     command: |
       set -euo pipefail
-      sudo apt-get install -y unheaded-keygen unheaded-configs unheaded-wotan unheaded-daemon \
+      for id in wotan timeguru akira captain architect micromanager unheaded-daemon dashboard-backend kanban-app; do
+        sudo test -e "/etc/unheaded/tls/$id/ca.pem" || { echo "no TLS material for $id (deploy/systemd/README.md#tls): nothing installed" >&2; exit 1; }
+      done
+      if [ -e /etc/unheaded/wotan.yaml ] && [ -z "$(dpkg-query -W -f '${Conffiles}' unheaded-wotan 2>/dev/null)" ]; then
+        sudo mv /etc/unheaded/wotan.yaml /etc/unheaded/wotan.yaml.pre-conffile
+      fi
+      tag="${TAG}"
+      v="${tag#v}"
+      v="${v/-/\~}"
+      pkgs=()
+      for p in unheaded-keygen unheaded-configs unheaded-wotan unheaded-daemon \
         unheaded-dashboard-backend unheaded-kanban-app unheaded-akira unheaded-timeguru \
-        unheaded-captain unheaded-architect unheaded-micromanager unheaded-auth
+        unheaded-captain unheaded-architect unheaded-micromanager unheaded-auth; do
+        pkgs+=("$p=$v")
+      done
+      sudo apt-get install -y --allow-downgrades "${pkgs[@]}"
+      sudo systemctl enable --now unheaded-wotan unheaded-timeguru unheaded-akira unheaded-captain \
+        unheaded-architect unheaded-micromanager unheaded-daemon unheaded-dashboard unheaded-kanban
     timeout: 900
-    description: Upgrade east's packages and add the issuer (new units are installed, not enabled)
-    on_fail: "Roll back (below); read the postinst warnings: a missing TLS file leaves its service on the old binary"
+    description: Install this release's packages on east, add the issuer (its unit is installed, not enabled), and start the services east ran
+    on_fail: "Roll back (below); read the postinst warnings"
 
   - name: verify-east
     action: shell
     host: east
     command: |
       set -euo pipefail
-      systemctl is-enabled unheaded-daemon unheaded-dashboard unheaded-kanban
+      systemctl is-enabled unheaded-wotan unheaded-timeguru unheaded-daemon unheaded-dashboard unheaded-kanban
       systemctl list-units 'unheaded-*' --no-pager
       curl -sk -o /dev/null -w 'wotan=%{http_code}\n' https://127.0.0.1:18000/health
-    description: The renamed units took over (enabled, running), every unit active, Wotan healthy over TLS
-    verify: "ssh govan@east 'systemctl is-active --quiet unheaded-wotan unheaded-daemon unheaded-dashboard unheaded-kanban && ! systemctl --failed --no-legend | grep -q unheaded-'"
+    description: The services are enabled and running under their new unit names, every unit active, Wotan healthy over TLS
+    verify: "ssh govan@east 'systemctl is-active --quiet unheaded-wotan unheaded-timeguru unheaded-daemon unheaded-dashboard unheaded-kanban && ! systemctl --failed --no-legend | grep -q unheaded-'"
 
 rollback:
   - name: east-previous-version

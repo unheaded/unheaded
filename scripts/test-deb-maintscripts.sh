@@ -264,4 +264,81 @@ expect "the Jenkinsfile packages through build-all-debs.sh (one copy)" \
 expect "the Jenkinsfile writes no maintainer scripts of its own" \
 	"$(grep -cE 'deb_(postinst|prerm|preinst)' "$REPO_ROOT/Jenkinsfile" || true)" "0"
 
+# East's 1.0.0 packages: runbooks/deploy/apt-repo-publish.yaml's install-east
+# step, run against stand-ins, with /etc/unheaded moved under $T.
+mkdir -p "$T/etc/unheaded" "$T/east"
+python3 -c 'import sys, yaml
+steps = yaml.safe_load(open(sys.argv[1]))["steps"]
+print(next(s["command"] for s in steps if s["name"] == "install-east"))' \
+	"$REPO_ROOT/runbooks/deploy/apt-repo-publish.yaml" |
+	sed -e "s|/etc/unheaded|$T/etc/unheaded|g" -e 's|\${TAG}|v0.2.0-alpha|' >"$T/install-east"
+printf '#!/bin/sh\nexec "$@"\n' >"$T/east/sudo"
+for tool in apt-get systemctl; do
+	printf '#!/bin/sh\necho "%s $*" >>"%s/calls"\n' "$tool" "$T" >"$T/east/$tool"
+done
+# dpkg-query: the conffiles $T/conffiles lists for the package.
+printf '#!/bin/sh\ncat "%s/conffiles"\n' "$T" >"$T/east/dpkg-query"
+chmod +x "$T"/east/*
+east_tls() { for id in "$@"; do mkdir -p "$T/etc/unheaded/tls/$id" && : >"$T/etc/unheaded/tls/$id/ca.pem"; done; }
+install_east() { # the calls install-east made, then its exit status
+	local rc=0
+	: >"$T/calls"
+	PATH="$T/east:$PATH" bash "$T/install-east" 2>"$T/stderr" || rc=$?
+	cat "$T/calls"
+	echo "rc=$rc"
+}
+: >"$T/conffiles"
+echo "1.0.0's file" >"$T/etc/unheaded/wotan.yaml"
+east_tls wotan timeguru akira captain architect micromanager unheaded-daemon dashboard-backend
+expect "install-east: one service's TLS material missing, nothing installed" "$(install_east | tail -n 2)" "rc=1"
+expect "install-east: and says whose" "$(grep -c 'no TLS material for kanban-app' "$T/stderr")" "1"
+expect "install-east: and leaves wotan.yaml alone" "$(cat "$T/etc/unheaded/wotan.yaml")" "1.0.0's file"
+east_tls kanban-app
+got="$(install_east)"
+expect "install-east finishes" "$(tail -n 1 <<<"$got")" "rc=0"
+expect "install-east names the version and allows the move from 1.0.0" \
+	"$(grep -c '^apt-get install -y --allow-downgrades .*unheaded-wotan=0\.2\.0~alpha .*unheaded-timeguru=0\.2\.0~alpha ' <<<"$got")" "1"
+expect "install-east starts wotan and timeguru after the packages are in" \
+	"$(grep -n . <<<"$got" | sed -n '2s/^2:systemctl enable --now unheaded-wotan unheaded-timeguru .*/yes/p')" "yes"
+expect "install-east moves 1.0.0's plain wotan.yaml aside" \
+	"$(cat "$T/etc/unheaded/wotan.yaml.pre-conffile"; [ ! -e "$T/etc/unheaded/wotan.yaml" ] && echo gone)" "1.0.0's file
+gone"
+echo "an edited conffile" >"$T/etc/unheaded/wotan.yaml"
+rm "$T/etc/unheaded/wotan.yaml.pre-conffile"
+printf ' /etc/unheaded/wotan.yaml 0123\n' >"$T/conffiles"
+install_east >/dev/null
+expect "install-east leaves a real conffile for dpkg" "$(cat "$T/etc/unheaded/wotan.yaml")" "an edited conffile"
+
+# The reasons, from dpkg itself, on packages shaped like 1.0.0's and this
+# release's, in a private root.
+expect "this release's version sorts below 1.0.0, so apt needs it named" \
+	"$(dpkg --compare-versions '0.2.0~alpha' lt 1.0.0 && echo lower)" "lower"
+R="$T/dpkg-root"
+mkdir -p "$R/var/lib/dpkg/info" "$R/var/lib/dpkg/updates" "$R/var/lib/dpkg/triggers" \
+	"$T/old/DEBIAN" "$T/old/etc/unheaded" "$T/new/DEBIAN" "$T/new/etc/unheaded"
+: >"$R/var/lib/dpkg/status"
+fixture_control() { printf 'Package: fixture\nVersion: %s\nArchitecture: all\nMaintainer: t <t@invalid>\nDescription: t\n' "$1"; }
+fixture_control 1.0.0 >"$T/old/DEBIAN/control"
+echo old >"$T/old/etc/unheaded/wotan.yaml"
+fixture_control '0.2.0~alpha' >"$T/new/DEBIAN/control"
+echo new >"$T/new/etc/unheaded/wotan.yaml"
+echo /etc/unheaded/wotan.yaml >"$T/new/DEBIAN/conffiles"
+printf '#!/bin/sh\necho "old prerm $1" >>"%s/order"\n' "$T" >"$T/old/DEBIAN/prerm"
+printf '#!/bin/sh\necho "new preinst $1" >>"%s/order"\n' "$T" >"$T/new/DEBIAN/preinst"
+chmod 755 "$T/old/DEBIAN/prerm" "$T/new/DEBIAN/preinst"
+dpkg-deb --root-owner-group --build "$T/old" "$T/old.deb" >/dev/null
+dpkg-deb --root-owner-group --build "$T/new" "$T/new.deb" >/dev/null
+sandbox_dpkg() {
+	dpkg --root="$R" --force-not-root --force-script-chrootless --no-triggers --log=/dev/null "$@" </dev/null >"$T/dpkg.out" 2>&1
+}
+sandbox_dpkg -i "$T/old.deb"
+expect "a plain file turned conffile fails with no terminal" \
+	"$(sandbox_dpkg -i "$T/new.deb" && echo installed || grep -c 'end of file on stdin at conffile prompt' "$T/dpkg.out")" "1"
+expect "the old prerm runs before any new script, so no package can read the state it destroys" \
+	"$(cat "$T/order")" "old prerm upgrade
+new preinst upgrade"
+rm "$R/etc/unheaded/wotan.yaml"
+expect "with the plain file moved aside the install completes" \
+	"$(sandbox_dpkg --configure fixture && cat "$R/etc/unheaded/wotan.yaml")" "new"
+
 exit "$fail"
