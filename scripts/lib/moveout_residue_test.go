@@ -43,6 +43,10 @@ var moveoutGone = []struct {
 	{"raft/DEMO_CHECKLIST.md", `# 4\. Verify\n` + "```"},
 	{"raft/DEMO_CHECKLIST.md", `All 10 tests`},
 	{"raft/DEMO_CHECKLIST.md", `04_integration_tests`},
+	{"raft/DEMO_CHECKLIST.md", `Mistral|nvidia-smi|21K|integration test results`},
+	{"config/dashboard/services.txt", `(?i)doom`},
+	{".gitignore", `ci-fetch-doomgeneric|scripts/doom/`},
+	{"docs/EXTERNAL_DEPENDENCIES.md", `crates/zhenai-forge`},
 	{"scripts/clean-artifacts.sh", `(?i)doom|build_monad`},
 	{"nixos/modules/services/README.md", `(?i)doom`},
 	{"dashboard/css/style.css", `(?i)doom`},
@@ -57,6 +61,14 @@ var moveoutGone = []struct {
 	{"wiki/Performance.md", `(?m)^## Key Files$`},
 	{"wiki/Doom-on-UPC.md", `__umoddi3|__udivdi3`},
 	{"wiki/Doom-on-UPC.md", `(?i)formal proof|computational-completeness proof|Computational-generality proof|No external state`},
+	{"wiki/Doom-on-UPC.md", `(?m)^cd ~/tmp/unheaded$`},
+	{"wiki/SBOM.md", `ci-fetch-doomgeneric|doomgeneric|22 Doom scripts`},
+	{"wiki/Project-Structure.md", "doom-runner|doom-reference|`doom/`|`internal/`"},
+	{"wiki/Rust-Components.md", `doom-runner`},
+	{"wiki/Microservices.md", `doom-(?:bridge|loader|cpu-dump|go-injector|injector-c)|test_batch`},
+	{"wiki/Profiling.md", `(?i)doom`},
+	{"wiki/Architecture.md", "default 16, `crates/doom-runner`\\)"},
+	{"wiki/eBPF-Programs.md", "by `demos/doom/Makefile` into"},
 }
 
 func TestMoveOutResidueStaysGone(t *testing.T) {
@@ -88,6 +100,19 @@ func TestMovedPagesCarryABanner(t *testing.T) {
 	}
 }
 
+// moveoutDeadLinks gives every repository link in a page under wiki/ that opens
+// nothing below root, the repository root.
+func moveoutDeadLinks(root, text string) []string {
+	link := regexp.MustCompile(`\]\((\.\./[^)#\s]+)`)
+	var dead []string
+	for _, m := range link.FindAllStringSubmatch(text, -1) {
+		if _, err := os.Stat(filepath.Join(root, "wiki", filepath.FromSlash(m[1]))); err != nil {
+			dead = append(dead, m[1])
+		}
+	}
+	return dead
+}
+
 // A wiki link has to say what it opens, and has to open something here.
 func TestWikiLinksMatchWhatTheyOpen(t *testing.T) {
 	label := regexp.MustCompile("\\[`?docs/doom[^\\]]*\\]\\(")
@@ -108,6 +133,157 @@ func TestWikiLinksMatchWhatTheyOpen(t *testing.T) {
 		if lines := moveoutHitLines(text, target); len(lines) > 0 {
 			t.Errorf("%s: link into a moved path at lines %v", rel, lines)
 		}
+		if dead := moveoutDeadLinks(filepath.Join("..", ".."), text); len(dead) > 0 {
+			t.Errorf("%s: links open nothing here: %v", rel, dead)
+		}
+	}
+}
+
+func TestDeadLinkCheckFindsAnyMissingTarget(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"wiki", "cmd/kept"} {
+		if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(dir)), 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	text := "[a](../cmd/kept/) [b](../cmd/doom-bridge/) [c](../deploy/k8s/#x) " +
+		"[d](../scripts/doom-xdp-attach.sh) [e](https://example.org/x) [f](Home)"
+	got := strings.Join(moveoutDeadLinks(root, text), " ")
+	if want := "../cmd/doom-bridge/ ../deploy/k8s/ ../scripts/doom-xdp-attach.sh"; got != want {
+		t.Fatalf("dead links = %q, want %q", got, want)
+	}
+}
+
+// Doom is evidence for the generality hypothesis, not a proof of it: the
+// machine is finite and the wording has to stay honest on every page.
+func TestWikiMakesNoCompletenessProofClaim(t *testing.T) {
+	claim := regexp.MustCompile(`(?i)computational[- ]completeness proof|proof of computational completeness|completeness proven`)
+	pages, err := filepath.Glob(filepath.Join("..", "..", "wiki", "*.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) == 0 {
+		t.Fatal("no wiki pages found")
+	}
+	for _, page := range pages {
+		rel := filepath.ToSlash(filepath.Join("wiki", filepath.Base(page)))
+		if lines := moveoutHitLines(moveoutRepoFile(t, rel), claim); len(lines) > 0 {
+			t.Errorf("%s: claims a completeness proof at lines %v", rel, lines)
+		}
+	}
+}
+
+// Every path a Code-table row or crate list names has to be in this checkout.
+func TestWikiStructurePagesNameWhatIsHere(t *testing.T) {
+	root := filepath.Join("..", "..")
+	structure := moveoutRepoFile(t, "wiki/Project-Structure.md")
+	code := regexp.MustCompile(`(?s)## Code\n(.*?)\n## `).FindStringSubmatch(structure)
+	if code == nil {
+		t.Fatal("wiki/Project-Structure.md: no Code section")
+	}
+	dirs := regexp.MustCompile("(?m)^\\| `([a-z]+(?:/[a-z]+)*)/`").FindAllStringSubmatch(code[1], -1)
+	if len(dirs) == 0 {
+		t.Fatal("wiki/Project-Structure.md: no directories found")
+	}
+	for _, m := range dirs {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(m[1]))); err != nil {
+			t.Errorf("wiki/Project-Structure.md lists %s/, which is not here", m[1])
+		}
+	}
+	list := regexp.MustCompile("(?m)^\\| `crates/` \\| Other Rust crates: (.*) \\|$").FindStringSubmatch(structure)
+	if list == nil {
+		t.Fatal("wiki/Project-Structure.md: no crate list")
+	}
+	crates := strings.Split(list[1], ", ")
+	section := regexp.MustCompile("(?s)## `crates/`\\n(.*?)\\n## ").FindStringSubmatch(moveoutRepoFile(t, "wiki/Rust-Components.md"))
+	if section == nil {
+		t.Fatal("wiki/Rust-Components.md: no crates section")
+	}
+	for _, m := range regexp.MustCompile("(?m)^\\| `([a-z0-9-]+)` \\|").FindAllStringSubmatch(section[1], -1) {
+		crates = append(crates, m[1])
+	}
+	for _, name := range crates {
+		if _, err := os.Stat(filepath.Join(root, "crates", name)); err != nil {
+			t.Errorf("wiki names crate %s, which is not in crates/", name)
+		}
+	}
+}
+
+// demoChecklistFaults names each check in the checklist that a healthy Zhen
+// stack cannot pass. It compares the checklist with what start-zhen.sh brings
+// up and what zhen_app.py and its page answer, so a stale port, route or stats
+// field fails here rather than five minutes before a demo.
+func demoChecklistFaults(checklist, app, start, page string) []string {
+	var faults []string
+	host := regexp.MustCompile(`(?:localhost|127\.0\.0\.1):(\d+)`)
+	ports := map[string]bool{}
+	for _, m := range host.FindAllStringSubmatch(start, -1) {
+		ports[m[1]] = true
+	}
+	for _, m := range host.FindAllStringSubmatch(checklist, -1) {
+		if !ports[m[1]] {
+			faults = append(faults, "port "+m[1]+" is not one start-zhen.sh uses")
+		}
+	}
+	for _, m := range regexp.MustCompile(`localhost:20103(/[A-Za-z0-9_/-]*)`).FindAllStringSubmatch(checklist, -1) {
+		if !strings.Contains(app, "@app.route('"+m[1]+"'") {
+			faults = append(faults, "route "+m[1]+" is not in zhen_app.py")
+		}
+	}
+	body := app
+	if i := strings.Index(body, "def stats():"); i >= 0 {
+		body = body[i:]
+		if j := strings.Index(body, "@app.route"); j >= 0 {
+			body = body[:j]
+		}
+	}
+	claimed := 0
+	for _, line := range regexp.MustCompile("(?m)^.*api/v1/stats` shows (.*)$").FindAllStringSubmatch(checklist, -1) {
+		for _, m := range regexp.MustCompile("`([a-z_]+)").FindAllStringSubmatch(line[1], -1) {
+			claimed++
+			if !strings.Contains(body, "'"+m[1]+"':") {
+				faults = append(faults, "stats field "+m[1]+" is not returned by /api/v1/stats")
+			}
+		}
+	}
+	if claimed == 0 {
+		faults = append(faults, "no stats field is checked")
+	}
+	for _, m := range regexp.MustCompile(`returns HTML containing "([^"]+)"`).FindAllStringSubmatch(checklist, -1) {
+		if !strings.Contains(page, m[1]) {
+			faults = append(faults, "the page does not contain "+m[1])
+		}
+	}
+	return faults
+}
+
+func TestDemoChecklistChecksWhatTheStackServes(t *testing.T) {
+	faults := demoChecklistFaults(moveoutRepoFile(t, "raft/DEMO_CHECKLIST.md"), moveoutRepoFile(t, "raft/zhen_app.py"),
+		moveoutRepoFile(t, "raft/start-zhen.sh"), moveoutRepoFile(t, "raft/static/index.html"))
+	for _, fault := range faults {
+		t.Error(fault)
+	}
+}
+
+func TestDemoChecklistFaultsFindPlantedChecks(t *testing.T) {
+	app := "@app.route('/health')\n@app.route('/api/v1/stats')\ndef stats():\n    return {'backend': 1}\n@app.route('/x')\n"
+	start := "curl http://127.0.0.1:8081/health\ncurl http://localhost:20103/health\n"
+	good := "`curl http://localhost:8081/v1/models`\n`curl http://localhost:20103/api/v1/stats` shows `backend`\n"
+	if got := demoChecklistFaults(good, app, start, "Zhenai"); len(got) != 0 {
+		t.Fatalf("clean checklist faults = %v", got)
+	}
+	for _, planted := range []string{
+		"curl http://localhost:20100/v1/models\n",
+		"curl http://localhost:20103/nope\n",
+		"`curl http://localhost:20103/api/v1/stats` shows `index_vectors > 20000`\n",
+		"returns HTML containing \"ZHEN\"\n",
+	} {
+		if got := demoChecklistFaults(good+planted, app, start, "Zhenai"); len(got) != 1 {
+			t.Errorf("planted %q: faults = %v, want one", planted, got)
+		}
+	}
+	if got := demoChecklistFaults("no stats here\n", app, start, "Zhenai"); len(got) != 1 {
+		t.Errorf("checklist without a stats check: faults = %v, want one", got)
 	}
 }
 
@@ -123,33 +299,94 @@ func TestMoveOutMatcherFindsPlantedResidue(t *testing.T) {
 	}
 }
 
-// A runbook step that names a repository script has to name one that exists:
-// an operator following the step cannot tell a moved file from a typo.
-func TestRunbooksNameOnlyScriptsThatExist(t *testing.T) {
-	root := filepath.Join("..", "..")
-	scriptRef := regexp.MustCompile(`(?:^|[\s"'=(])(?:\./)?(scripts/[A-Za-z0-9_./-]+\.(?:sh|py))\b`)
-	seen := 0
-	err := filepath.WalkDir(filepath.Join(root, "runbooks"), func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || filepath.Ext(path) != ".yaml" {
+// moveoutScriptRef matches a repository script however a runbook spells it:
+// bare, ./-relative, through $REPO or the checkout path, with or without an
+// extension. A path under another directory (raft/scripts/) is not one.
+var moveoutScriptRef = regexp.MustCompile("(?:^|[\\s\"'=(`]|\\./|\\$\\{?REPO[A-Z_]*\\}?/|(?:~|\\$\\{?HOME\\}?)/tmp/unheaded/)" +
+	`(scripts/[A-Za-z0-9_./-]*[A-Za-z0-9_-])`)
+
+// moveoutMissingRunbookScripts walks root/runbooks and gives every script
+// reference that opens nothing below root, with how many references it saw.
+func moveoutMissingRunbookScripts(root string) (missing []string, seen int, err error) {
+	err = filepath.WalkDir(filepath.Join(root, "runbooks"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
 			return err
+		}
+		if ext := filepath.Ext(path); ext != ".yaml" && ext != ".yml" {
+			return nil
 		}
 		b, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		for _, m := range scriptRef.FindAllSubmatch(b, -1) {
+		for _, m := range moveoutScriptRef.FindAllSubmatch(b, -1) {
 			seen++
 			if _, err := os.Stat(filepath.Join(root, string(m[1]))); err != nil {
-				t.Errorf("%s names %s, which does not exist", path, m[1])
+				missing = append(missing, filepath.Base(path)+": "+string(m[1]))
 			}
 		}
 		return nil
 	})
+	return missing, seen, err
+}
+
+// A runbook step that names a repository script has to name one that exists:
+// an operator following the step cannot tell a moved file from a typo.
+func TestRunbooksNameOnlyScriptsThatExist(t *testing.T) {
+	missing, seen, err := moveoutMissingRunbookScripts(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, ref := range missing {
+		t.Errorf("runbook names a script that does not exist: %s", ref)
+	}
 	if seen == 0 {
 		t.Fatal("no script references found: the pattern no longer matches any runbook")
+	}
+}
+
+func TestRunbookScriptCheckCoversEverySpelling(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"runbooks", "scripts/lib"} {
+		if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(dir)), 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "scripts", "lib", "kept.sh"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plant := func(name, text string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(root, "runbooks", name), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plant("kept.yaml", `run: scripts/lib/kept.sh; "${REPO}/scripts/lib/kept.sh"; raft/scripts/other.sh; scripts/`+"\n")
+	if missing, seen, err := moveoutMissingRunbookScripts(root); err != nil || len(missing) != 0 || seen != 2 {
+		t.Fatalf("clean runbook: missing %v, seen %d, err %v; want none missing, 2 seen", missing, seen, err)
+	}
+	for _, c := range []struct{ name, text, want string }{
+		{"a.yaml", "bash scripts/nope1.sh\n", "scripts/nope1.sh"},
+		{"b.yaml", "./scripts/nope2.py\n", "scripts/nope2.py"},
+		{"c.yaml", "\"${REPO}/scripts/nope3.sh\"\n", "scripts/nope3.sh"},
+		{"d.yaml", "$REPO_ROOT/scripts/nope4.sh\n", "scripts/nope4.sh"},
+		{"e.yaml", "~/tmp/unheaded/scripts/nope5.sh\n", "scripts/nope5.sh"},
+		{"f.yaml", "$HOME/tmp/unheaded/scripts/nope6.sh\n", "scripts/nope6.sh"},
+		{"g.yaml", "run scripts/nope7 now\n", "scripts/nope7"},
+		{"h.yaml", "see `scripts/nope8.sh`.\n", "scripts/nope8.sh"},
+		{"i.yml", "bash scripts/nope9.sh\n", "scripts/nope9.sh"},
+	} {
+		plant(c.name, c.text)
+		missing, _, err := moveoutMissingRunbookScripts(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := c.name + ": " + c.want; len(missing) != 1 || missing[0] != want {
+			t.Errorf("%q: missing = %v, want %q", c.text, missing, want)
+		}
+		if err := os.Remove(filepath.Join(root, "runbooks", c.name)); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
