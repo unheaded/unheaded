@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"syscall"
 )
 
 // ListenAddrs splits a comma-separated listen list ("127.0.0.1:9110,
@@ -43,6 +44,37 @@ func ListenAll(addrs []string) ([]net.Listener, error) {
 		lns = append(lns, ln)
 	}
 	return lns, nil
+}
+
+// ListenAvailable is ListenAll for a service that must run while part of its
+// list is not on the host yet, an interface still coming up: an address the
+// host does not hold comes back in pending, not as an error. Any other failure
+// (a taken port, a malformed address) still closes everything and is returned.
+func ListenAvailable(addrs []string) (lns []net.Listener, pending []string, err error) {
+	if len(addrs) == 0 {
+		return nil, nil, errors.New("no listen address")
+	}
+	for _, a := range addrs {
+		ln, err := net.Listen("tcp", a)
+		switch {
+		case err == nil:
+			lns = append(lns, ln)
+		case AddrNotOnHost(err):
+			pending = append(pending, a)
+		default:
+			for _, open := range lns {
+				_ = open.Close()
+			}
+			return nil, nil, fmt.Errorf("listen %s: %w", a, err)
+		}
+	}
+	return lns, pending, nil
+}
+
+// AddrNotOnHost reports whether a listen failed because the address is not
+// assigned to this host, or not yet usable.
+func AddrNotOnHost(err error) bool {
+	return errors.Is(err, syscall.EADDRNOTAVAIL)
 }
 
 // ReadJSON decodes r's JSON body into v, reading at most limit bytes. On

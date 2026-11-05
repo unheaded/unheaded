@@ -4,12 +4,15 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -72,6 +75,86 @@ func TestServeAll_RefusesAnAddressItCannotBind(t *testing.T) {
 	srv := &http.Server{ReadHeaderTimeout: time.Second}
 	if err := serveAll(srv, taken.Addr().String()); err == nil {
 		t.Fatal("serveAll succeeded on a taken port")
+	}
+}
+
+// freeAddr is a loopback address nothing is listening on.
+func freeAddr(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	return ln.Addr().String()
+}
+
+func waitForOK(t *testing.T, addr string) {
+	t.Helper()
+	client := &http.Client{Timeout: time.Second}
+	var err error
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		var resp *http.Response
+		if resp, err = client.Get("http://" + addr + "/"); err == nil {
+			_ = resp.Body.Close()
+			return
+		}
+	}
+	t.Fatalf("GET %s: %v", addr, err)
+}
+
+// L11: an address not on the host yet does not stop huginn, whose pushes must
+// carry on: the rest of the list serves now, and that one once it appears.
+func TestServeAll_WaitsForAnAddressNotOnTheHostYet(t *testing.T) {
+	const late = "192.0.2.1:9110" // TEST-NET-1: no host holds it
+	if ln, err := net.Listen("tcp", late); err == nil {
+		_ = ln.Close()
+		t.Skip("this host binds addresses it does not hold (ip_nonlocal_bind)")
+	}
+	up, stand := freeAddr(t), freeAddr(t)
+	savedBind, savedRetry := bindAddr, listenRetry
+	t.Cleanup(func() { bindAddr, listenRetry = savedBind, savedRetry })
+	listenRetry = 10 * time.Millisecond
+	var tries atomic.Int32
+	bindAddr = func(addr string) (net.Listener, error) {
+		if addr != late {
+			return nil, fmt.Errorf("bound %s, want %s", addr, late)
+		}
+		if tries.Add(1) < 3 {
+			return nil, &net.OpError{Op: "listen", Err: syscall.EADDRNOTAVAIL}
+		}
+		return net.Listen("tcp", stand)
+	}
+	srv := &http.Server{
+		Handler:           http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") }),
+		ReadHeaderTimeout: time.Second,
+	}
+	done := make(chan error, 1)
+	go func() { done <- serveAll(srv, up+","+late) }()
+	waitForOK(t, up)
+	waitForOK(t, stand)
+	select {
+	case err := <-done:
+		t.Fatalf("serveAll returned: %v", err)
+	default:
+	}
+	if err := srv.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; !errors.Is(err, http.ErrServerClosed) {
+		t.Fatalf("serveAll = %v", err)
+	}
+}
+
+// L11: an address that turns out unusable for any other reason ends the wait
+// with that error, as it would have at the start.
+func TestAwaitAddr_OtherFailureIsReturned(t *testing.T) {
+	savedBind, savedRetry := bindAddr, listenRetry
+	t.Cleanup(func() { bindAddr, listenRetry = savedBind, savedRetry })
+	listenRetry = time.Millisecond
+	bindAddr = func(string) (net.Listener, error) { return nil, syscall.EADDRINUSE }
+	if _, err := awaitAddr("127.0.0.1:1", make(chan struct{})); !errors.Is(err, syscall.EADDRINUSE) {
+		t.Fatalf("err = %v, want EADDRINUSE", err)
 	}
 }
 

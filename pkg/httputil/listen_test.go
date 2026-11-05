@@ -83,3 +83,58 @@ func TestReadJSON(t *testing.T) {
 		t.Errorf("body over the limit: code %d, want 413", code)
 	}
 }
+
+// notOnHost is an address from TEST-NET-1, which no host holds.
+const notOnHost = "192.0.2.1:9110"
+
+func skipIfBindable(t *testing.T) {
+	t.Helper()
+	if ln, err := net.Listen("tcp", notOnHost); err == nil {
+		_ = ln.Close()
+		t.Skip("this host binds addresses it does not hold (ip_nonlocal_bind)")
+	}
+}
+
+// L11: an address the host does not hold yet does not cost the rest.
+func TestListenAvailable_AddressNotOnHostIsPending(t *testing.T) {
+	skipIfBindable(t)
+	lns, pending, err := ListenAvailable([]string{"127.0.0.1:0", notOnHost})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ln := range lns {
+		_ = ln.Close()
+	}
+	if len(lns) != 1 || len(pending) != 1 || pending[0] != notOnHost {
+		t.Fatalf("lns = %d, pending = %q", len(lns), pending)
+	}
+}
+
+// L11: anything else is still a refusal, with nothing left open.
+func TestListenAvailable_OtherFailuresRefuse(t *testing.T) {
+	taken, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = taken.Close() }()
+	free, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := free.Addr().String()
+	_ = free.Close()
+	if _, _, err := ListenAvailable([]string{addr, taken.Addr().String()}); err == nil {
+		t.Fatal("no error for a taken port")
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatalf("first address left open: %v", err)
+	}
+	_ = ln.Close()
+	if _, _, err := ListenAvailable(nil); err == nil {
+		t.Fatal("no error for an empty list")
+	}
+	if _, _, err := ListenAvailable([]string{"not an address"}); err == nil {
+		t.Fatal("no error for a malformed address")
+	}
+}
