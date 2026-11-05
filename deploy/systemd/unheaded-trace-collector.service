@@ -27,7 +27,8 @@
 # no trust.d yet). Prometheus scrapes the overlay, so each host names it in
 # /etc/unheaded/trace-collector.env:
 #   TRACE_METRICS_ADDR=127.0.0.1:16671,[fd00:dead:beef::1]:16671   (west; ::2 on east)
-# A bind that cannot be made stops the start; Restart= retries it.
+# An address not on the host yet is served once it appears. A taken port or a
+# bad address stops the collector; Restart= retries it.
 
 [Unit]
 Description=Unheaded trace collector (eBPF to Wotan)

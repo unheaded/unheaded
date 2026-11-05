@@ -6,6 +6,7 @@
 #   DEB_OUTPUT_DIR=DIR scripts/build-all-debs.sh 0.2.0~alpha+test
 #   DEB_SIGN_KEY=<keyid> scripts/build-all-debs.sh   # + signed SHA256SUMS
 #   scripts/build-all-debs.sh --control       # debian/control, from the same table
+#   scripts/build-all-debs.sh --print-version [VERSION]  # the version a build here would carry
 #
 # What is packaged, under which name, with which unit, account and key comes
 # from scripts/lib/deb-packages.sh; the maintainer scripts from
@@ -29,6 +30,12 @@ if [[ "${1:-}" == --control ]]; then
     exit 0
 fi
 
+PRINT_VERSION=""
+if [[ "${1:-}" == --print-version ]]; then
+    PRINT_VERSION=1
+    shift
+fi
+
 # Default version: v0.2.0-alpha in Debian form (`~` sorts before the release,
 # so 0.2.0~alpha < 0.2.0), plus the commit it was built from. The commit
 # time keeps successive builds ordered for apt; the hash names the commit.
@@ -43,6 +50,10 @@ else
     VERSION="0.2.0~alpha+$(TZ=UTC git -C "$PROJECT_ROOT" show -s --format=%cd --date=format-local:%Y%m%d%H%M%S HEAD).g$(git -C "$PROJECT_ROOT" rev-parse --short=8 HEAD)"
 fi
 [[ "$VERSION" =~ ^[0-9][A-Za-z0-9.+~-]*$ ]] || { echo "FAIL: '$VERSION' is not a Debian version" >&2; exit 1; }
+if [[ -n "$PRINT_VERSION" ]]; then
+    echo "$VERSION"
+    exit 0
+fi
 
 # Not a fixed /tmp path: another local user could pre-create it.
 OUTPUT_DIR="${DEB_OUTPUT_DIR:-${PROJECT_ROOT}/dist/debs}"

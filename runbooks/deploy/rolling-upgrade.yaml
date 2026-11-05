@@ -7,18 +7,70 @@ metadata:
   estimated_duration: 20m
   risk: high
   requires_sudo: true
+notes: |
+  For a host already on the signed repo. --only-upgrade keeps a package that
+  sorts above what is published and reports success, so this runbook refuses
+  to start while either host holds one, and checks each host reached the
+  published version before going on. The first move off 1.0.0 is that case:
+  1.0.0 sorts above the 0.2.0 line, and unheaded-unheaded-daemon is renamed.
+  That move is runbooks/deploy/apt-repo-publish.yaml. A host ahead of this
+  checkout needs a newer commit built.
+  A failed run can be started again at the same commit: the debs built for it
+  are kept, because the repo refuses one version with other bytes and a rebuild
+  has other bytes. A run on a newer commit is a new version.
 
 env:
-  # The packages scripts/build-all-debs.sh builds (unheaded-<binary>).
-  # `apt upgrade` would upgrade every package on the host, not these.
-  UNHEADED_PKGS: "unheaded-wotan unheaded-unheaded-daemon unheaded-dashboard-backend unheaded-kanban-app unheaded-akira unheaded-timeguru unheaded-captain unheaded-architect unheaded-micromanager"
+  # What apt-repo-publish's install-east installs, under the names
+  # scripts/lib/deb-packages.sh gives them. `apt upgrade` would upgrade every
+  # package on the host, not these. --only-upgrade skips any a host lacks.
+  UNHEADED_PKGS: "unheaded-keygen unheaded-configs unheaded-wotan unheaded-daemon unheaded-dashboard-backend unheaded-kanban-app unheaded-akira unheaded-timeguru unheaded-captain unheaded-architect unheaded-micromanager unheaded-auth"
+
+parameters:
+  - name: REPO
+    default: "$HOME/tmp/unheaded"
+    description: The repository checkout on west
+  - name: GNUPGHOME
+    default: ""
+    description: The GNUPGHOME that holds the repo signing key (E4)
+  - name: APT_REPO_BASE
+    default: "/srv/unheaded-apt"
+    description: The repo directory on west
+
+preconditions:
+  - check: "test -n \"${GNUPGHOME}\""
+    description: E4 answered (the GNUPGHOME that holds the repo signing key)
+  - check: "test -z \"$(git -C \"${REPO}\" status --porcelain)\""
+    description: The checkout is clean (the version names its commit)
+  - check: "command -v reprepro"
+    description: reprepro installed on west
+  - check: "test -f \"${APT_REPO_BASE}/conf/distributions\""
+    description: The signed repo is initialised (deploy/apt-repo-publish)
+  - check: "ssh govan@east 'test -x /opt/unheaded/bin/akira && test -r /opt/unheaded/etc/akira.yaml'"
+    description: East has the akira binary and config verify-east-health runs, before east is upgraded
+  - check: |
+      set -euo pipefail
+      want="$(cd "${REPO}" && scripts/build-all-debs.sh --print-version)"
+      west="$(dpkg --version >/dev/null && { dpkg -l 'unheaded-*' 2>/dev/null || true; })"
+      east="$(ssh govan@east "dpkg --version >/dev/null && { dpkg -l 'unheaded-*' 2>/dev/null || true; }")"
+      held=""
+      while read -r state pkg version _; do
+        case "$state" in [uihrp][iUFHWt]*) ;; *) continue ;; esac
+        if [ "${pkg%%:*}" = unheaded-unheaded-daemon ] || dpkg --compare-versions "$version" gt "$want"; then
+          held="$held ${pkg%%:*}=$version"
+        fi
+      done <<<"$west"$'\n'"$east"
+      if [ -n "$held" ]; then
+        echo "--only-upgrade would keep these. 1.0.x: use runbooks/deploy/apt-repo-publish.yaml. Otherwise build a newer commit. Held:$held" >&2
+        exit 1
+      fi
+    description: Neither host holds a package --only-upgrade would keep (the first move off 1.0.0 is deploy/apt-repo-publish)
 
 steps:
   - name: pre-flight-check
     action: shell
     command: |
       echo "=== Pre-flight ==="
-      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+      for svc in wotan daemon timeguru captain architect micromanager dashboard-backend kanban-app akira; do
         dpkg -l "unheaded-${svc}" 2>/dev/null | grep "^ii" | awk '{print $2, $3}'
       done
     description: "Show current package versions"
@@ -36,47 +88,71 @@ steps:
 
   - name: build-new-packages
     action: shell
-    command: "bash ~/tmp/unheaded/scripts/build-all-debs.sh"
-    timeout: 300
-    description: "Build all .deb packages from current code"
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      debs="dist/debs/rolling-$(git rev-parse --short=8 HEAD)"
+      if [ -d "$debs" ]; then
+        echo "keeping the debs already built for this commit: $debs"
+        exit 0
+      fi
+      rm -rf "$debs.part"
+      DEB_OUTPUT_DIR="$debs.part" scripts/build-all-debs.sh
+      mv "$debs.part" "$debs"
+    timeout: 1200
+    description: "Build all .deb packages from the current commit into their own directory, once per commit"
 
   - name: publish-to-repo
     action: shell
     command: |
-      for deb in ~/tmp/unheaded/dist/debs/*.deb; do
-        reprepro -b /var/lib/apt-repo includedeb noble "$deb" 2>/dev/null
-      done
-    description: "Publish new packages to APT repo"
+      set -euo pipefail
+      cd "${REPO}"
+      debs="dist/debs/rolling-$(git rev-parse --short=8 HEAD)"
+      sudo GNUPGHOME="${GNUPGHOME}" APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh include "$debs"/*.deb
+      APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh check
+    description: "Publish the new packages to the signed APT repo (re-signs Release) and check it"
 
   - name: upgrade-east-first
     action: shell
     command: |
-      ssh govan@east 'sudo apt-get update -qq && sudo apt-get install --only-upgrade -y ${UNHEADED_PKGS} 2>&1 | tail -10'
+      ssh govan@east 'set -o pipefail; sudo apt-get update -qq && sudo apt-get install --only-upgrade -y ${UNHEADED_PKGS} 2>&1 | tail -10'
+    timeout: 900
     description: "Upgrade EAST's Unheaded packages first (canary)"
     # `|| echo not-running` made this verify pass whether Wotan was up or not.
-    verify: "ssh govan@east 'systemctl is-active --quiet unheaded-wotan'"
+    verify: |
+      set -euo pipefail
+      ssh govan@east 'systemctl is-active --quiet unheaded-wotan'
+      want="$(cd "${REPO}" && scripts/build-all-debs.sh --print-version)"
+      ssh govan@east "dpkg -l ${UNHEADED_PKGS} 2>/dev/null || true" \
+        | awk -v want="$want" '$1 ~ /^[uihrp][iUFHWt]/ {n++; if ($3 != want) {print $2 "=" $3 " is not " want > "/dev/stderr"; behind = 1}} END {exit behind || !n}'
 
   - name: verify-east-health
     action: shell
     command: |
-      ssh govan@east '/opt/unheaded/bin/akira --once --config /opt/unheaded/etc/akira.yaml 2>&1 | tail -5'
+      ssh govan@east 'set -o pipefail; /opt/unheaded/bin/akira --once --config /opt/unheaded/etc/akira.yaml 2>&1 | tail -5'
     description: "Run Akira health sweep on EAST after upgrade"
     timeout: 30
 
   - name: upgrade-west
     action: shell
-    command: "sudo apt-get update -qq && sudo apt-get install --only-upgrade -y ${UNHEADED_PKGS} 2>&1 | tail -10"
+    command: "set -o pipefail; sudo apt-get update -qq && sudo apt-get install --only-upgrade -y ${UNHEADED_PKGS} 2>&1 | tail -10"
+    timeout: 900
     description: "Upgrade WEST's Unheaded packages (primary)"
+    verify: |
+      set -euo pipefail
+      want="$(cd "${REPO}" && scripts/build-all-debs.sh --print-version)"
+      { dpkg -l ${UNHEADED_PKGS} 2>/dev/null || true; } \
+        | awk -v want="$want" '$1 ~ /^[uihrp][iUFHWt]/ {n++; if ($3 != want) {print $2 "=" $3 " is not " want > "/dev/stderr"; behind = 1}} END {exit behind || !n}'
 
   - name: verify-west-health
     action: shell
-    command: "cd ~/tmp/unheaded && go run ./cmd/akira --once 2>&1 | tail -5"
+    command: "set -o pipefail; cd ~/tmp/unheaded && go run ./cmd/akira --once 2>&1 | tail -5"
 
   - name: post-upgrade-check
     action: shell
     command: |
       echo "=== Post-upgrade versions ==="
-      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+      for svc in wotan daemon timeguru captain architect micromanager dashboard-backend kanban-app akira; do
         dpkg -l "unheaded-${svc}" 2>/dev/null | grep "^ii" | awk '{print $2, $3}'
       done
 
