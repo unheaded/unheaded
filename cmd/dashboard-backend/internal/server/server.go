@@ -3024,6 +3024,16 @@ func formatHostLabels(labels map[string]string) string {
 	return b.String()
 }
 
+// maxVMErrorBody bounds what a failed push reads and logs of the answer.
+const maxVMErrorBody = 4 << 10
+
+// vmPushClient answers for the configured address: a push never goes
+// elsewhere.
+var vmPushClient = &http.Client{
+	Timeout:       10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
 // pushToVictoriaMetrics sends metrics directly to VictoriaMetrics via the
 // /api/v1/import/prometheus endpoint (Approach C).
 func (s *Server) pushToVictoriaMetrics(ctx context.Context, lines []string) {
@@ -3037,7 +3047,7 @@ func (s *Server) pushToVictoriaMetrics(ctx context.Context, lines []string) {
 	}
 	req.Header.Set("Content-Type", "text/plain")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := vmPushClient.Do(req)
 	if err != nil {
 		s.log.Debug().Err(err).Msg("VM push failed")
 		return
@@ -3045,7 +3055,7 @@ func (s *Server) pushToVictoriaMetrics(ctx context.Context, lines []string) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxVMErrorBody))
 		s.log.Warn().
 			Int("status", resp.StatusCode).
 			Str("body", string(respBody)).
