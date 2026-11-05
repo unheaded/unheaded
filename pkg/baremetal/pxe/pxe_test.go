@@ -894,3 +894,57 @@ func TestConcurrentPXEOperations(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// ReadFile and Serve take the name a TFTP client asks for: it must stay in the
+// root, and a link in the root must not lead out of it.
+func TestTFTPServer_ReadStaysInRoot(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	if err := os.Mkdir(root, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(base, "private")
+	if err := os.WriteFile(outside, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pxelinux.0"), []byte("boot"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv, _ := NewTFTPServerWithOptions(":0", root, true)
+	for _, name := range []string{"../private", "a/../../private", "link"} {
+		if got, err := srv.ReadFile(name); err == nil {
+			t.Errorf("ReadFile(%q) = %q, want an error", name, got)
+		}
+	}
+	// A client may lead with a slash: it means the root, as it always did.
+	got, err := srv.ReadFile("/pxelinux.0")
+	if err != nil || string(got) != "boot" {
+		t.Fatalf("ReadFile(/pxelinux.0) = %q, %v", got, err)
+	}
+}
+
+func TestTFTPServer_WriteAndRemoveStayInRoot(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	if err := os.Mkdir(root, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(base, "private")
+	if err := os.WriteFile(outside, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv, _ := NewTFTPServerWithOptions(":0", root, true)
+	if err := srv.WriteFile("../private", []byte("changed")); err == nil {
+		t.Error("WriteFile escaped the root")
+	}
+	if err := srv.RemoveFile("../private"); err == nil {
+		t.Error("RemoveFile escaped the root")
+	}
+	got, err := os.ReadFile(outside)
+	if err != nil || string(got) != "outside" {
+		t.Fatalf("outside file is %q, %v", got, err)
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -116,9 +117,23 @@ func (s *TFTPServer) Stop() error {
 	return nil
 }
 
+// rootRelative returns name relative to the TFTP root, or an error for one
+// that leaves it. A leading slash means the root.
+func rootRelative(name string) (string, error) {
+	rel := strings.TrimLeft(name, "/")
+	if !filepath.IsLocal(rel) {
+		return "", fmt.Errorf("path %q is outside the TFTP root", name)
+	}
+	return rel, nil
+}
+
 // WriteFile writes a file to the TFTP root.
 func (s *TFTPServer) WriteFile(path string, data []byte) error {
-	fullPath := filepath.Join(s.root, path)
+	rel, err := rootRelative(path)
+	if err != nil {
+		return err
+	}
+	fullPath := filepath.Join(s.root, rel)
 
 	// Ensure directory exists
 	dir := filepath.Dir(fullPath)
@@ -141,7 +156,11 @@ func (s *TFTPServer) WriteFile(path string, data []byte) error {
 
 // RemoveFile removes a file from the TFTP root.
 func (s *TFTPServer) RemoveFile(path string) error {
-	fullPath := filepath.Join(s.root, path)
+	rel, err := rootRelative(path)
+	if err != nil {
+		return err
+	}
+	fullPath := filepath.Join(s.root, rel)
 
 	// Remove file
 	if err := os.Remove(fullPath); err != nil && !os.IsNotExist(err) {
@@ -179,9 +198,18 @@ func (s *TFTPServer) ReadFile(path string) ([]byte, error) {
 	s.stats.CacheMisses++
 	s.stats.mu.Unlock()
 
-	// Read from disk
-	fullPath := filepath.Join(s.root, path)
-	data, err := os.ReadFile(fullPath) // #nosec G304 -- image/PXE path derived from the configured storage dir
+	// Read from disk. path is what a client asked for, so os.Root does the
+	// read: it refuses to leave s.root, links included.
+	rel, err := rootRelative(path)
+	if err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(s.root)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = root.Close() }()
+	data, err := root.ReadFile(rel)
 	if err != nil {
 		return nil, err
 	}
