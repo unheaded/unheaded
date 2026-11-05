@@ -4,8 +4,13 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -90,6 +95,65 @@ func (a *AuditLogger) Close() error {
 		return c.Close()
 	}
 	return nil
+}
+
+// auditStderr is the default sink: a service's stderr is its journal.
+var auditStderr io.Writer = os.Stderr
+
+// newAuditFunc is where a service's auth decisions go. AUTH_AUDIT_LOG keeps
+// every decision in that file. Without it, refusals go to stderr; allowed
+// requests do not, as one line per Wotan publish would drown the journal. An
+// audit log that cannot be opened is an error: the service does not run with
+// no trail.
+func newAuditFunc(cfg ServiceAuthConfig) (func(AuditEvent), error) {
+	if cfg.AuditLog != "" {
+		l, err := NewFileAuditLogger(cfg.AuditLog, cfg.ServiceName)
+		if err != nil {
+			return nil, fmt.Errorf("auth: AUTH_AUDIT_LOG unusable: %w", err)
+		}
+		return l.LogFunc(), nil
+	}
+	l := NewAuditLogger(auditStderr, cfg.ServiceName)
+	return func(e AuditEvent) {
+		if e.EventType != AuditRBACAllowed {
+			l.Log(e)
+		}
+	}, nil
+}
+
+// auditedAuthenticator records every refusal of the authenticator it wraps.
+type auditedAuthenticator struct {
+	Authenticator
+	audit func(AuditEvent)
+}
+
+// Authenticate implements Authenticator. The event carries a fixed reason,
+// not err's text, and never a credential.
+func (a auditedAuthenticator) Authenticate(ctx context.Context, r *http.Request) (*Identity, error) {
+	id, err := a.Authenticator.Authenticate(ctx, r)
+	if err == nil && id != nil {
+		return id, nil
+	}
+	e := AuditEvent{EventType: AuditUnauthorized, Result: "denied", Method: r.Method, IP: peerIP(r), Reason: "unauthenticated"}
+	if r.URL != nil {
+		e.Endpoint = r.URL.Path
+	}
+	switch {
+	case errors.Is(err, ErrRateLimited):
+		e.EventType, e.Reason = AuditRateLimited, "rate limited"
+	case errors.Is(err, ErrForbidden):
+		e.Reason = "forbidden"
+	}
+	a.audit(e)
+	return id, err
+}
+
+// peerIP is the address the request came from, without its port.
+func peerIP(r *http.Request) string {
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 // NopAuditLogger returns an audit function that discards events.

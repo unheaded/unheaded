@@ -100,6 +100,10 @@ type ServiceAuthConfig struct {
 	// "well" (unheaded_app.api_keys, as AUTH_WELL_USER, default app_auth)
 	// or "file:<absolute path>". Empty: no uhk_ keys. ADR-103 §5.
 	APIKeyStore string
+
+	// AuditLog is a file that keeps every auth decision (AUTH_AUDIT_LOG).
+	// Empty: refusals go to stderr, the service's journal.
+	AuditLog string
 }
 
 // ErrOpenListener: a listener off loopback with auth off.
@@ -132,6 +136,7 @@ func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 		TrustDir:      getEnvDefault("AUTH_TRUST_DIR", DefaultTrustDir),
 		OIDCIssuerURL: os.Getenv("AUTH_OIDC_ISSUER_URL"),
 		APIKeyStore:   os.Getenv("AUTH_APIKEY_STORE"),
+		AuditLog:      os.Getenv("AUTH_AUDIT_LOG"),
 	}
 	if v := os.Getenv("AUTH_OIDC_MAX_LIFETIME"); v != "" {
 		d, err := time.ParseDuration(v)
@@ -241,7 +246,11 @@ func NewServiceAuthenticator(cfg ServiceAuthConfig) (Authenticator, error) {
 	if len(authenticators) == 0 {
 		return nil, ErrNoCredentials
 	}
-	return &MultiAuthenticator{Authenticators: authenticators}, nil
+	audit, err := newAuditFunc(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return auditedAuthenticator{&MultiAuthenticator{Authenticators: authenticators}, audit}, nil
 }
 
 func eddsaAuthenticators(cfg ServiceAuthConfig) ([]Authenticator, error) {

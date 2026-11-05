@@ -62,12 +62,18 @@ func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Han
 	if !cfg.Enabled {
 		return nil, nil
 	}
+	audit, err := newAuditFunc(cfg)
+	if err != nil {
+		return nil, err
+	}
 	list := append([]Authenticator(nil), routes.Authenticators...)
 	a, err := NewServiceAuthenticator(cfg)
 	switch {
 	case err == nil:
 		list = append(list, a)
 	case errors.Is(err, ErrNoCredentials) && len(list) > 0:
+		// The last one tried is the one whose refusal stands.
+		list[len(list)-1] = auditedAuthenticator{list[len(list)-1], audit}
 	default:
 		return nil, err
 	}
@@ -81,6 +87,9 @@ func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Han
 	policies = append(policies, EndpointPolicy{PathPrefix: "/", Methods: writeMethods,
 		RequiredRoles: []string{RoleAdmin, RoleOperator, RoleService}})
 	rbacCfg.Policies = policies
+	if rbacCfg.AuditFunc == nil {
+		rbacCfg.AuditFunc = audit
+	}
 	rbac := RBACMiddleware(rbacCfg)
 
 	open := append([]string(nil), routes.OpenPaths...)

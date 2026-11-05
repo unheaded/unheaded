@@ -26,6 +26,14 @@ Two authentication mechanisms are planned:
 - Validation: the caller's `.pub` in `trust.d`, the caller in `AUTH_ALLOW_CALLERS`
 - Identity: `sub` = key name (e.g. `timeguru`, `captain`)
 
+### Audit trail
+
+Every refusal, at authentication or at RBAC, is recorded as one JSON line with
+the service, path, method, peer address and subject, never a credential. By
+default these go to stderr, the service's journal. `AUTH_AUDIT_LOG=<path>` keeps
+every decision, allowed requests included, in that file; a unit needs
+`ReadWritePaths=` for it, and a log that cannot be opened stops the service.
+
 ### Common Interface
 
 Both backends implement `Authenticator`:
