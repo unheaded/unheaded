@@ -956,30 +956,6 @@ func TestHandleServiceConfig_PutIsRefused(t *testing.T) {
 	}
 }
 
-// ---- Doom Screen MethodNotAllowed ----
-
-func TestHandleDoomScreen_MethodNotAllowed(t *testing.T) {
-	srv := newTestServer(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/doom/screen", nil)
-	w := httptest.NewRecorder()
-	srv.handleDoomScreen(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status = %d, want 405", w.Code)
-	}
-}
-
-// ---- Doom Input MethodNotAllowed ----
-
-func TestHandleDoomInput_MethodNotAllowed(t *testing.T) {
-	srv := newTestServer(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/doom/input", nil)
-	w := httptest.NewRecorder()
-	srv.handleDoomInput(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status = %d, want 405", w.Code)
-	}
-}
-
 // ---- Stream Filter ----
 
 func TestMatchesStreamFilter_TypeFilter(t *testing.T) {
@@ -1380,28 +1356,6 @@ func TestServerShutdown(t *testing.T) {
 	if err := srv.Shutdown(shutCtx); err != nil {
 		t.Errorf("second Shutdown: %v", err)
 	}
-}
-
-// ---- DoomState snapshot concurrency ----
-
-func TestDoomState_SnapshotConcurrency(t *testing.T) {
-	ds := &DoomState{}
-
-	done := make(chan struct{})
-	go func() {
-		for i := 0; i < 100; i++ {
-			regs := [16]uint32{}
-			regs[0] = uint32(i)
-			ds.UpdateCPU(uint32(i), regs, 0, false, false, uint64(i), 0, 0)
-		}
-		close(done)
-	}()
-
-	for i := 0; i < 100; i++ {
-		snap := ds.snapshot()
-		_ = snap.PC // read
-	}
-	<-done
 }
 
 // ---- Static file handling ----

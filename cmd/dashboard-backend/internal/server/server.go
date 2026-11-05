@@ -283,9 +283,6 @@ type Server struct {
 	// Service config management
 	configLoader *discovery.ServiceConfigLoader
 
-	// Doom compute state (populated by compute.* events from ingestor)
-	doomState *DoomState
-
 	// Kingdom host registry for /api/v1/hosts
 	hosts     []KingdomHost
 	startedAt time.Time
@@ -519,7 +516,6 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		logStream:         logStreamHandler,
 		streamSubs:        make(map[chan *StreamMessage]StreamFilter),
 		configLoader:      cfgLoader,
-		doomState:         &DoomState{},
 		hosts: []KingdomHost{
 			{ID: "west", Addr: "192.168.13.2", Type: "bare-metal", MetricsURL: "http://192.168.13.2:9110/host-summary"},
 			{ID: "east", Addr: "192.168.13.1", Type: "bare-metal", MetricsURL: "http://192.168.13.1:9110/host-summary"},
@@ -745,11 +741,6 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/services/config/", s.handleServiceConfig)
 	s.mux.HandleFunc("/api/v1/infrastructure", s.handleInfrastructure)
 	s.mux.HandleFunc("/api/v1/infrastructure/containers", s.handleInfraContainers)
-
-	// Doom compute endpoints (S42)
-	s.mux.HandleFunc("/api/v1/doom/screen", s.handleDoomScreen)
-	s.mux.HandleFunc("/api/v1/doom/cpu", s.handleDoomCPU)
-	s.mux.HandleFunc("/api/v1/doom/input", s.handleDoomInput)
 
 	// RFC 9116 vulnerability-report contact (public; skipped by auth).
 	s.mux.HandleFunc(securityTxtPath, handleSecurityTxt)

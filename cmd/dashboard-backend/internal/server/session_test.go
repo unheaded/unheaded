@@ -120,7 +120,7 @@ func TestBFF_LoginMeLogout(t *testing.T) {
 
 func TestBFF_WritesNeedAnOperatorSession(t *testing.T) {
 	e := newBFFEnv(t, nil)
-	const write = "/api/v1/doom/input"
+	const write = "/api/v1/services/config/wotan"
 	if code := e.do(http.MethodPost, write, "{}", xrw).Code; code != http.StatusUnauthorized {
 		t.Fatalf("write without a session: %d, want 401", code)
 	}
@@ -159,10 +159,10 @@ func TestBFF_ReadsNeedASession(t *testing.T) {
 func TestBFF_ServiceTokensStillWork(t *testing.T) {
 	e := newBFFEnv(t, nil)
 	tok := e.f.Bearer("unheaded-cli", "dashboard-backend")
-	if code := e.do(http.MethodPost, "/api/v1/doom/input", "{}", map[string]string{"Authorization": tok}).Code; !authtest.Authorized(code) {
+	if code := e.do(http.MethodPost, "/api/v1/services/config/wotan", "{}", map[string]string{"Authorization": tok}).Code; !authtest.Authorized(code) {
 		t.Fatalf("unheaded-cli service token write: %d", code)
 	}
-	if code := e.do(http.MethodPost, "/api/v1/doom/input", "{}", map[string]string{"Authorization": e.f.StrangerBearer("unheaded-cli", "dashboard-backend")}).Code; code != http.StatusUnauthorized {
+	if code := e.do(http.MethodPost, "/api/v1/services/config/wotan", "{}", map[string]string{"Authorization": e.f.StrangerBearer("unheaded-cli", "dashboard-backend")}).Code; code != http.StatusUnauthorized {
 		t.Fatalf("untrusted key: %d, want 401", code)
 	}
 }
