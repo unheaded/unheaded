@@ -62,22 +62,22 @@ func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Han
 	if !cfg.Enabled {
 		return nil, nil
 	}
-	audit, err := newAuditFunc(cfg)
+	audit, err := NewServiceAudit(cfg)
 	if err != nil {
 		return nil, err
 	}
 	list := append([]Authenticator(nil), routes.Authenticators...)
-	a, err := NewServiceAuthenticator(cfg)
+	a, err := configuredAuthenticator(cfg)
 	switch {
 	case err == nil:
 		list = append(list, a)
 	case errors.Is(err, ErrNoCredentials) && len(list) > 0:
-		// The last one tried is the one whose refusal stands.
-		list[len(list)-1] = auditedAuthenticator{list[len(list)-1], audit}
+		// routes.Authenticators are all this service accepts.
 	default:
 		return nil, err
 	}
-	authn := SkipAuthPaths(Middleware(&MultiAuthenticator{Authenticators: list}), "/health", "/ready", "/metrics")
+	authed := auditedAuthenticator{&MultiAuthenticator{Authenticators: list}, audit}
+	authn := SkipAuthPaths(Middleware(authed), "/health", "/ready", "/metrics")
 	rbacCfg := DefaultServicePolicies(cfg.ServiceName)
 	if routes.RBAC != nil {
 		rbacCfg = *routes.RBAC

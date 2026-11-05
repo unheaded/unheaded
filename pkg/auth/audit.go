@@ -27,7 +27,17 @@ const (
 	AuditRBACDenied    = "rbac_denied"
 	AuditRateLimited   = "rate_limited"
 	AuditUnauthorized  = "unauthorized_access"
+	// AuditAuthenticated is a caller's credential being accepted; RBAC, where
+	// the service has it, records its own decision after this one.
+	AuditAuthenticated = "authenticated"
 )
+
+// maxAuditField caps the request-supplied fields of an event, so one request
+// cannot write an arbitrarily long line.
+const maxAuditField = 512
+
+// resultAllowed is the Result of an event that let a request through.
+const resultAllowed = "allowed"
 
 // AuditEvent represents a single auth audit log entry.
 type AuditEvent struct {
@@ -72,6 +82,8 @@ func (a *AuditLogger) Log(event AuditEvent) {
 	if event.Service == "" {
 		event.Service = a.service
 	}
+	event.Endpoint = capAuditField(event.Endpoint)
+	event.Method = capAuditField(event.Method)
 
 	data, err := json.Marshal(event)
 	if err != nil {
@@ -82,6 +94,14 @@ func (a *AuditLogger) Log(event AuditEvent) {
 	a.mu.Lock()
 	_, _ = a.w.Write(data)
 	a.mu.Unlock()
+}
+
+// capAuditField shortens s to maxAuditField bytes.
+func capAuditField(s string) string {
+	if len(s) > maxAuditField {
+		return s[:maxAuditField]
+	}
+	return s
 }
 
 // LogFunc returns a function suitable for RBACConfig.AuditFunc.
@@ -100,12 +120,12 @@ func (a *AuditLogger) Close() error {
 // auditStderr is the default sink: a service's stderr is its journal.
 var auditStderr io.Writer = os.Stderr
 
-// newAuditFunc is where a service's auth decisions go. AUTH_AUDIT_LOG keeps
+// NewServiceAudit is where a service's auth decisions go. AUTH_AUDIT_LOG keeps
 // every decision in that file. Without it, refusals go to stderr; allowed
 // requests do not, as one line per Wotan publish would drown the journal. An
-// audit log that cannot be opened is an error: the service does not run with
-// no trail.
-func newAuditFunc(cfg ServiceAuthConfig) (func(AuditEvent), error) {
+// audit log that cannot be opened is an error, for the caller to refuse to
+// start on.
+func NewServiceAudit(cfg ServiceAuthConfig) (func(AuditEvent), error) {
 	if cfg.AuditLog != "" {
 		l, err := NewFileAuditLogger(cfg.AuditLog, cfg.ServiceName)
 		if err != nil {
@@ -113,31 +133,49 @@ func newAuditFunc(cfg ServiceAuthConfig) (func(AuditEvent), error) {
 		}
 		return l.LogFunc(), nil
 	}
-	l := NewAuditLogger(auditStderr, cfg.ServiceName)
-	return func(e AuditEvent) {
-		if e.EventType != AuditRBACAllowed {
-			l.Log(e)
-		}
-	}, nil
+	return stderrAudit(cfg), nil
 }
 
-// auditedAuthenticator records every refusal of the authenticator it wraps.
+// stderrAudit records refusals in the service's journal.
+func stderrAudit(cfg ServiceAuthConfig) func(AuditEvent) {
+	l := NewAuditLogger(auditStderr, cfg.ServiceName)
+	return func(e AuditEvent) {
+		if e.Result != resultAllowed {
+			l.Log(e)
+		}
+	}
+}
+
+// auditedAuthenticator records every decision of the authenticator it wraps.
 type auditedAuthenticator struct {
 	Authenticator
 	audit func(AuditEvent)
 }
 
-// Authenticate implements Authenticator. The event carries a fixed reason,
-// not err's text, and never a credential.
+// Authenticate implements Authenticator.
 func (a auditedAuthenticator) Authenticate(ctx context.Context, r *http.Request) (*Identity, error) {
 	id, err := a.Authenticator.Authenticate(ctx, r)
 	if err == nil && id != nil {
+		e := requestEvent(r)
+		e.EventType, e.Result, e.Subject = AuditAuthenticated, resultAllowed, id.Subject
+		a.audit(e)
 		return id, nil
 	}
-	e := AuditEvent{EventType: AuditUnauthorized, Result: "denied", Method: r.Method, IP: peerIP(r), Reason: "unauthenticated"}
-	if r.URL != nil {
-		e.Endpoint = r.URL.Path
-	}
+	a.recordRefusal(r, err)
+	return id, err
+}
+
+// refusalRecorder is an authenticator that keeps a trail, for a refusal made
+// before it is reached (a gRPC call with no credential at all).
+type refusalRecorder interface {
+	recordRefusal(r *http.Request, err error)
+}
+
+// recordRefusal writes one refusal, with a fixed reason rather than err's
+// text and never a credential.
+func (a auditedAuthenticator) recordRefusal(r *http.Request, err error) {
+	e := requestEvent(r)
+	e.EventType, e.Result, e.Reason = AuditUnauthorized, "denied", "unauthenticated"
 	switch {
 	case errors.Is(err, ErrRateLimited):
 		e.EventType, e.Reason = AuditRateLimited, "rate limited"
@@ -145,7 +183,15 @@ func (a auditedAuthenticator) Authenticate(ctx context.Context, r *http.Request)
 		e.Reason = "forbidden"
 	}
 	a.audit(e)
-	return id, err
+}
+
+// requestEvent is an event naming where r came from and what it asked for.
+func requestEvent(r *http.Request) AuditEvent {
+	e := AuditEvent{Method: r.Method, IP: peerIP(r)}
+	if r.URL != nil {
+		e.Endpoint = r.URL.Path
+	}
+	return e
 }
 
 // peerIP is the address the request came from, without its port.
