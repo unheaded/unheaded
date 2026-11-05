@@ -501,7 +501,7 @@ func (s *Server) registerRunbookRoutes(mux *http.ServeMux) {
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(v) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(v) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // handleRunbooks serves GET /api/v1/runbooks.

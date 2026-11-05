@@ -396,7 +396,7 @@ func (g *Gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 
-	json.NewEncoder(w).Encode(status) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(status) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // livenessHandler handles Kubernetes liveness probe.

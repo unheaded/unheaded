@@ -429,7 +429,7 @@ func addFile(fs []uint32, name string, data []byte, mode uint32, fileType uint32
 
 	blocksNeeded := uint32(0)
 	if len(data) > 0 {
-		blocksNeeded = (uint32(len(data)) + UNFSBlockSize - 1) / UNFSBlockSize // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+		blocksNeeded = (uint32(len(data)) + UNFSBlockSize - 1) / UNFSBlockSize // #nosec G115 -- a built program for a small image, far below 4 GiB
 	}
 
 	// Find contiguous free blocks (simple: use first_data + scan)
@@ -442,7 +442,7 @@ func addFile(fs []uint32, name string, data []byte, mode uint32, fileType uint32
 	for i := 0; i < 7; i++ {
 		fs[off+i] = binary.LittleEndian.Uint32(nameBytes[i*4 : i*4+4])
 	}
-	fs[off+7] = uint32(len(data)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	fs[off+7] = uint32(len(data)) // #nosec G115 -- a built program for a small image, far below 4 GiB
 	fs[off+8] = mode
 	fs[off+9] = blockStart
 	fs[off+10] = blocksNeeded

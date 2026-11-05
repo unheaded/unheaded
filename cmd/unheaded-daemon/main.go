@@ -1026,7 +1026,7 @@ func (d *Daemon) handleGetState(w http.ResponseWriter, r *http.Request) {
 	defer d.stateManager.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"desired_count": len(d.stateManager.desired),
 		"actual_count":  len(d.stateManager.actual),
 		"drift_count":   len(d.stateManager.drifts),
@@ -1039,7 +1039,7 @@ func (d *Daemon) handleDesiredState(w http.ResponseWriter, r *http.Request) {
 	defer d.stateManager.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d.stateManager.desired) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(d.stateManager.desired) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 func (d *Daemon) handleActualState(w http.ResponseWriter, r *http.Request) {
@@ -1047,7 +1047,7 @@ func (d *Daemon) handleActualState(w http.ResponseWriter, r *http.Request) {
 	defer d.stateManager.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d.stateManager.actual) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(d.stateManager.actual) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 func (d *Daemon) handleDrift(w http.ResponseWriter, r *http.Request) {
@@ -1055,7 +1055,7 @@ func (d *Daemon) handleDrift(w http.ResponseWriter, r *http.Request) {
 	defer d.stateManager.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d.stateManager.drifts) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(d.stateManager.drifts) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 func (d *Daemon) handleContainers(w http.ResponseWriter, r *http.Request) {
@@ -1076,7 +1076,7 @@ func (d *Daemon) handleContainers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(containers) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(containers) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
@@ -1090,7 +1090,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 	}
 	if id == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			"error": "container id is required",
 		})
 		return
@@ -1098,7 +1098,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 
 	if (r.Method == http.MethodPut || r.Method == http.MethodDelete) && !d.authEnabled {
 		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			"error": "container writes need AUTH_ENABLED=true",
 		})
 		return
@@ -1114,14 +1114,14 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		if !desiredExists && !actualExists {
 			d.log.Warn().Str("id", id).Msg("Container not found")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 				"error": "container not found",
 			})
 			return
 		}
 
 		d.log.Info().Str("id", id).Msg("Retrieved container state")
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			"id":      id,
 			"desired": desired,
 			"actual":  actual,
@@ -1133,7 +1133,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1*1024*1024)).Decode(&spec); err != nil {
 			d.log.Error().Err(err).Str("id", id).Msg("Invalid request body for container update")
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 				"error": fmt.Sprintf("invalid request body: %v", err),
 			})
 			return
@@ -1143,13 +1143,13 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		// instance name.
 		if err := validLXDName(id); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			return
 		}
 		spec.ID = id
 		if err := spec.validate(d.config.ProxyListenAddrs); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			return
 		}
 
@@ -1157,7 +1157,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		if owner := d.proxyListenOwner(id, spec.Proxy); owner != "" {
 			d.stateManager.mu.Unlock()
 			w.WriteHeader(http.StatusConflict)
-			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 				"error": fmt.Sprintf("proxy listen %s is already %s's", spec.Proxy.Listen, owner),
 			})
 			return
@@ -1173,7 +1173,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 
 		d.log.Info().Str("id", id).Str("name", spec.Name).Str("image", spec.Image).Msg("Updated desired state for container")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			"message": "desired state updated",
 			"id":      id,
 			"desired": &spec,
@@ -1186,7 +1186,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 			d.stateManager.mu.Unlock()
 			d.log.Warn().Str("id", id).Msg("Container not found in desired state for deletion")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 				"error": "container not found in desired state",
 			})
 			return
@@ -1202,14 +1202,14 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 
 		d.log.Info().Str("id", id).Msg("Removed container from desired state, reconciliation will clean up")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			"message": "container removed from desired state",
 			"id":      id,
 		})
 
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			"error": fmt.Sprintf("method %s not allowed", r.Method),
 		})
 	}
@@ -1256,7 +1256,7 @@ func cloneDesired(m map[string]*ContainerSpec) map[string]*ContainerSpec {
 func (d *Daemon) writeStoreError(w http.ResponseWriter, id string, err error) {
 	d.log.Error().Err(err).Str("id", id).Msg("Desired state not changed")
 	w.WriteHeader(http.StatusServiceUnavailable)
-	json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -1267,8 +1267,7 @@ func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
 
 	// A Daemon built as a struct literal has no registry. Guard rather than
 	// dereference: a nil-pointer panic here takes the whole endpoint down.
-	// #nosec G104 -- response already committed; a write failure here means
-	// the client went away and nothing further can be sent.
+	// #nosec G104 -- response already committed; a write failure cannot reach the client
 	//
 	// The default registry rides along: go_*, process_* and what linked
 	// libraries register at load (pkg/wotan-client) never reached this
@@ -1303,7 +1302,7 @@ func (d *Daemon) handleInfo(w http.ResponseWriter, r *http.Request) {
 		backend = "mock"
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		// Which LXD and which modes are live: mock and real look alike
 		// otherwise without reading the environment.
 		"lxd_backend": backend,

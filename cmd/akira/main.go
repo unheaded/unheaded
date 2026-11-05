@@ -448,7 +448,7 @@ func apiHandler(a akiraAPI, node string, cfg auth.ServiceAuthConfig) (http.Handl
 	mux.HandleFunc("/api/v1/status", func(w http.ResponseWriter, _ *http.Request) {
 		states := a.GetStates()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(states) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(states) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 	})
 	return auth.NewServiceHandler(mux, cfg, auth.ServiceRoutes{OpenReads: []string{"/api/v1/status"}})
 }

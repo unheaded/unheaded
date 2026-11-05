@@ -502,7 +502,7 @@ func (s *Server) refuseIfReadOnly(w http.ResponseWriter, r *http.Request) bool {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusServiceUnavailable)
-	json.NewEncoder(w).Encode(map[string]string{"error": "read-only: no database, so writes are refused"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]string{"error": "read-only: no database, so writes are refused"}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 	return true
 }
 
@@ -601,7 +601,7 @@ func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"tasks": tasks,
 		"count": count,
 	})
@@ -630,7 +630,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"task": task,
 	})
 }
@@ -701,7 +701,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"task": task,
 	})
 }
@@ -761,7 +761,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"deleted": true,
 		"task_id": taskID,
 	})
@@ -952,7 +952,7 @@ func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, ta
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"task": task}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{"task": task}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // handleDeleteTaskByID deletes a single task
@@ -996,7 +996,7 @@ func (s *Server) handleDeleteTaskByID(w http.ResponseWriter, r *http.Request, ta
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"deleted": true, "task_id": taskID}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{"deleted": true, "task_id": taskID}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // handleDeletedTasks returns soft-deleted tasks.
@@ -1012,11 +1012,11 @@ func (s *Server) handleDeletedTasks(w http.ResponseWriter, r *http.Request) {
 			out[i] = fromPgTask(t)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // handleArchivedTasks returns archived tasks.
@@ -1032,11 +1032,11 @@ func (s *Server) handleArchivedTasks(w http.ResponseWriter, r *http.Request) {
 			out[i] = fromPgTask(t)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // handleCompletedTasks returns done tasks (still on board but accessible here too).
@@ -1071,7 +1071,7 @@ func (s *Server) handleCompletedTasks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // handleRestoreTask un-deletes or un-archives a task.
@@ -1086,7 +1086,7 @@ func (s *Server) handleRestoreTask(w http.ResponseWriter, r *http.Request, taskI
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"restored": true, "task_id": taskID}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{"restored": true, "task_id": taskID}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		return
 	}
 	http.Error(w, "Restore not available without PostgreSQL", http.StatusNotImplemented)
@@ -1236,7 +1236,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		timelineHTTP = tm.GetTimeline() != nil
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"status":              "healthy",
 		"timestamp":           time.Now().UTC().Format(time.RFC3339),
 		"version":             "0.1.0",
@@ -1255,14 +1255,14 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if status == transport.StatusDown {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 				"ready":   false,
 				"reason":  string(status),
 				"service": "kanban-app",
 			})
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			"ready":   true,
 			"reason":  string(status),
 			"service": "kanban-app",
@@ -1285,7 +1285,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"ready":   ready,
 		"reason":  reason,
 		"service": "kanban-app",
@@ -1299,8 +1299,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	// A Server built as a struct literal (tests, embedding callers) has no
 	// registry. Guard rather than dereference: a nil-pointer panic here does
 	// not lose one series, it takes the whole /metrics endpoint down.
-	// #nosec G104 -- response already committed; a write failure here means
-	// the client went away and nothing further can be sent.
+	// #nosec G104 -- response already committed; a write failure cannot reach the client
 	//
 	// The default registry rides along: go_*, process_* and what linked
 	// libraries register at load (pkg/wotan-client) never reached this
@@ -1327,14 +1326,14 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if timeline == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 			"timeline": nil,
 			"message":  "No timeline data available yet. Waiting for Timeguru updates.",
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"timeline": timeline,
 	})
 }
@@ -1383,7 +1382,7 @@ func (s *Server) handleTimelineCards(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"tasks":  tasks,
 		"count":  count,
 		"source": source,
