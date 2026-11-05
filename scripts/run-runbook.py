@@ -485,6 +485,22 @@ def run_verification(runbook, env, dry_run=False):
     return failed
 
 
+def rollback_applies(when, failed_step, completed):
+    """Whether a rollback's `when` holds: || or OR between alternatives, every
+    clause within one must hold. Only one step fails, so `a.failed || b.failed`
+    read as a single AND could never fire. Text with no step clause applies."""
+    if not re.search(r"step\.[\w-]+\.(?:failed|completed)", when):
+        return True
+    for alternative in re.split(r"\|\||\bOR\b", when):
+        clauses = re.findall(r"step\.([\w-]+)\.(failed|completed)", alternative)
+        if clauses and all(
+            (s == failed_step) if state == "failed" else (s in completed)
+            for s, state in clauses
+        ):
+            return True
+    return False
+
+
 def execute_rollback(runbook, env, failed_step, dry_run=False):
     """Execute rollback steps if available."""
     rollbacks = runbook.get("rollback", [])
@@ -508,11 +524,7 @@ def execute_rollback(runbook, env, failed_step, dry_run=False):
         # restoring sshd_config because an unrelated later step failed.
         # Free-text conditions ("any step fails") still always apply.
         when = str(rb.get("when", ""))
-        clauses = re.findall(r"step\.([\w-]+)\.(failed|completed)", when)
-        if clauses and not all(
-            (s == failed_step) if state == "failed" else (s in completed)
-            for s, state in clauses
-        ):
+        if not rollback_applies(when, failed_step, completed):
             print(f"  [ROLLBACK SKIPPED] {name} (when: {when})")
             continue
 
