@@ -1930,3 +1930,14 @@ findings:
     plan: >-
       West's profile is lab, which leaves out auditd-rules. Moving west to lab-hardened in the E-D host window, after
       east, loads them; a host change, so not done unattended
+  - source: "host-probe:west:db-backup-recent"
+    severity: medium
+    class: backup
+    opened: 2026-11-05
+    exposure: >-
+      unheaded-well-backup.service fails every night because the Well is stopped, and the newest set is from
+      2026-10-28. No new data goes unprotected while it is stopped, which is why this is medium; east's offsite check
+      fails daily for the same reason
+    lockout: none
+    step: 1
+    plan: Clears with E1 (host-probe:west:alert-route) at the next nightly run; if it does not within a day, treat it as a new failure

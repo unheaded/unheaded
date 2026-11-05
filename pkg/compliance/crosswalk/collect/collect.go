@@ -820,9 +820,10 @@ var Probes = map[string]Probe{
 		// under /srv/backups/unheaded-well, whose world-readable LATEST
 		// names the newest (the sets are 0700); a manual scripts/db-backup.sh
 		// set (well-<time>Z/SHA256SUMS) or an older pg_dump *.sql.gz under
-		// ~/backups/unheaded.
-		Command: `{ find "$HOME/backups/unheaded" -type f \( -name '*.sql.gz' -o -path '*/well-*Z/SHA256SUMS' \) -mtime -7 -printf '%TF %P\n'; ` +
-			`find /srv/backups/unheaded-well -maxdepth 1 -type f -name LATEST -mtime -7 -printf '%TF scheduled\n'; } 2>/dev/null | sort | tail -1; ` +
+		// ~/backups/unheaded. 36 hours is the recovery point with a missed
+		// night's slack, the line east's offsite check draws; 2160 minutes.
+		Command: `{ find "$HOME/backups/unheaded" -type f \( -name '*.sql.gz' -o -path '*/well-*Z/SHA256SUMS' \) -mmin -2160 -printf '%TF %P\n'; ` +
+			`find /srv/backups/unheaded-well -maxdepth 1 -type f -name LATEST -mmin -2160 -printf '%TF scheduled\n'; } 2>/dev/null | sort | tail -1; ` +
 			`echo ---; { find "$HOME/backups/unheaded" -type f \( -name '*.sql.gz' -o -path '*/well-*Z/SHA256SUMS' \) -printf '%TF\n'; ` +
 			`find /srv/backups/unheaded-well -maxdepth 1 -type f -name LATEST -printf '%TF\n'; } 2>/dev/null | sort | tail -1`,
 		Judge: func(out string) (bool, string) {
@@ -831,7 +832,7 @@ var Probes = map[string]Probe{
 			if newest == "" {
 				newest = "none"
 			}
-			return backupLineRe.MatchString(recent), "newest database backup " + newest + " (required within 7 days)"
+			return backupLineRe.MatchString(recent), "newest database backup " + newest + " (required within 36 hours)"
 		},
 	},
 	"apparmor-enabled": {

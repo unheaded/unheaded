@@ -770,6 +770,51 @@ func TestAuditRuleKeysAreInTheFix(t *testing.T) {
 	}
 }
 
+// The backup probe answers the recovery point: a set older than 36 hours, the
+// same line east's offsite check draws, is a miss. The real command runs against
+// a stand-in home and backup directory, each set aged by hand.
+func TestBackupProbeHoldsTheRecoveryPoint(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		age  time.Duration
+		pass bool
+	}{
+		{"last night's", 26 * time.Hour, true},
+		{"just inside", 35 * time.Hour, true},
+		{"just past", 37 * time.Hour, false},
+		{"six days old", 6 * 24 * time.Hour, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home, srv := t.TempDir(), t.TempDir()
+			if err := os.MkdirAll(home+"/backups/unheaded", 0o700); err != nil {
+				t.Fatal(err)
+			}
+			latest := srv + "/LATEST"
+			if err := os.WriteFile(latest, []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			when := time.Now().Add(-tc.age)
+			if err := os.Chtimes(latest, when, when); err != nil {
+				t.Fatal(err)
+			}
+			probe := Probes["db-backup-recent"]
+			cmd := exec.Command("sh", "-c", strings.ReplaceAll(probe.Command, "/srv/backups/unheaded-well", srv))
+			cmd.Env = append(os.Environ(), "HOME="+home)
+			out, err := cmd.Output()
+			if err != nil {
+				t.Fatal(err)
+			}
+			pass, detail := probe.Judge(string(out))
+			if pass != tc.pass {
+				t.Fatalf("pass = %v (%s), want %v", pass, detail, tc.pass)
+			}
+			if !strings.Contains(detail, "within 36 hours") {
+				t.Errorf("detail %q does not name the limit", detail)
+			}
+		})
+	}
+}
+
 func TestKernelModuleProbes(t *testing.T) {
 	for _, tc := range []struct {
 		name, out string
