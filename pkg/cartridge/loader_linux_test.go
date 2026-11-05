@@ -35,7 +35,7 @@ const VerifierBudget = 500_000
 // TestLoad_VerifierBudget (root-gated, S5 Steps 281-282): both programs load
 // and each stays within half the 1M ceiling.
 func TestLoad_VerifierBudget(t *testing.T) {
-	c, err := Load(objPath(t), Options{})
+	c, err := Load(objPath(t), Options{AllowUntrustedObject: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestLoad_EventsGroupPin(t *testing.T) {
 	obj := objPath(t)
 	pin := filepath.Join("/sys/fs/bpf", fmt.Sprintf("unheaded-test-%d", os.Getpid()))
 	const gid = 16734 // pkg/uids.Anomaly; need not exist on the host
-	c, err := Load(obj, Options{PinDir: pin, EventsGID: gid})
+	c, err := Load(obj, Options{PinDir: pin, EventsGID: gid, AllowUntrustedObject: true})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -35,7 +35,7 @@ func TestLoadObjects(t *testing.T) {
 		if _, err := os.Stat(path); err != nil {
 			t.Skipf("%s not built (cargo build --release in crates/heimdall-bpf): %v", obj, err)
 		}
-		coll, counts, err := loadObject(path)
+		coll, counts, err := loadObjectUnchecked(path) // a build tree; objtrust is bpf_trust_linux_test.go
 		if err != nil {
 			t.Fatalf("%s: %v", obj, err)
 		}

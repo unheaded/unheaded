@@ -129,9 +129,13 @@ func TestLoad_MapBudgetRefusedBeforeSyscalls(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The object sits in a temp dir; this is about the budget, not the path
+	// (objtrust covers that).
+	untrusted := DefaultLoaderConfig()
+	untrusted.AllowUntrustedObjectPaths = true
 	for _, cfg := range []LoaderConfig{
-		DefaultLoaderConfig(),
-		{}, // zero value: MaxMapBytes 0 means the default, not unlimited
+		untrusted,
+		{AllowUntrustedObjectPaths: true}, // zero value otherwise: MaxMapBytes 0 means the default, not unlimited
 	} {
 		l := &NativeLoader{config: cfg, programs: make(map[string]*loadedProgram)}
 		err := l.Load(context.Background(), &ProgramSpec{Name: "big", Path: path})
@@ -147,6 +151,7 @@ func TestLoad_WithinBudgetPassesTheCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := DefaultLoaderConfig()
+	cfg.AllowUntrustedObjectPaths = true // a temp dir; this is about the budget
 	l := &NativeLoader{config: cfg, programs: make(map[string]*loadedProgram)}
 	err := l.Load(context.Background(), &ProgramSpec{Name: "small", Path: path})
 	if errors.Is(err, ErrMapBudgetExceeded) {
@@ -154,5 +159,25 @@ func TestLoad_WithinBudgetPassesTheCheck(t *testing.T) {
 	}
 	if err == nil {
 		_ = l.Unload(context.Background(), "small")
+	}
+}
+
+// L17: the check does not depend on who runs the loader. A unit with CAP_BPF
+// and no root reaches the kernel too; the object is refused before it is read.
+func TestLoad_ObjectTrustAppliesToEveryUser(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "prog.bpf.o")
+	if err := os.WriteFile(path, []byte("not an object"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	l := &NativeLoader{config: DefaultLoaderConfig(), programs: make(map[string]*loadedProgram)}
+	if err := l.Load(context.Background(), &ProgramSpec{Name: "p", Path: path}); !errors.Is(err, ErrUntrustedObject) {
+		t.Fatalf("Load = %v, want ErrUntrustedObject", err)
+	}
+
+	cfg := DefaultLoaderConfig()
+	cfg.AllowUntrustedObjectPaths = true
+	l = &NativeLoader{config: cfg, programs: make(map[string]*loadedProgram)}
+	if err := l.Load(context.Background(), &ProgramSpec{Name: "p", Path: path}); errors.Is(err, ErrUntrustedObject) {
+		t.Fatalf("Load with the opt-out = %v", err)
 	}
 }

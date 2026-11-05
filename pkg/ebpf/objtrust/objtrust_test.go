@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-package ebpf
+package objtrust
 
 import (
 	"errors"
@@ -22,7 +22,7 @@ func (f fakeStat) stat(p string) (uint32, fs.FileMode, error) {
 	return e.uid, e.mode, nil
 }
 
-func TestObjectTrustError(t *testing.T) {
+func TestChainError(t *testing.T) {
 	good := fakeStat{
 		"/":                        {0, fs.ModeDir | 0o755},
 		"/usr":                     {0, fs.ModeDir | 0o755},
@@ -30,7 +30,7 @@ func TestObjectTrustError(t *testing.T) {
 		"/usr/lib/unheaded":        {0, fs.ModeDir | 0o755},
 		"/usr/lib/unheaded/prog.o": {0, 0o644},
 	}
-	if err := objectTrustError("/usr/lib/unheaded/prog.o", good.stat); err != nil {
+	if err := chainError("/usr/lib/unheaded/prog.o", good.stat); err != nil {
 		t.Fatalf("root-owned, non-writable chain refused: %v", err)
 	}
 
@@ -78,8 +78,8 @@ func TestObjectTrustError(t *testing.T) {
 			f[k] = v
 		}
 		mut(f)
-		if err := objectTrustError("/usr/lib/unheaded/prog.o", f.stat); !errors.Is(err, ErrUntrustedObject) {
-			t.Errorf("%s: err = %v, want ErrUntrustedObject", name, err)
+		if err := chainError("/usr/lib/unheaded/prog.o", f.stat); !errors.Is(err, ErrUntrusted) {
+			t.Errorf("%s: err = %v, want ErrUntrusted", name, err)
 		}
 	}
 }

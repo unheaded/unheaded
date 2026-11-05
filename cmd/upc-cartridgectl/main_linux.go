@@ -61,7 +61,7 @@ func parseSub(fs *flag.FlagSet, args []string) {
 
 type globals struct {
 	registryDir, sophiaURL, pubKeyPath, pinDir, obj, cartBin, eventsGroup string
-	lab                                                                   bool
+	lab, allowUntrusted                                                   bool
 	pub                                                                   *mldsa65.PublicKey
 }
 
@@ -104,6 +104,7 @@ func main() {
 	fs.BoolVar(&g.lab, "lab", false, "accept UNSIGNED cartridges (lab only; marked lab=\"1\")")
 	fs.StringVar(&g.pinDir, "pin-dir", cartridge.DefaultPinDir, "bpffs directory of the pinned interpreter")
 	fs.StringVar(&g.obj, "obj", "ebpf/target/bpfel-unknown-none/release/cartridge-ebpf", "cartridge-ebpf object (for up)")
+	fs.BoolVar(&g.allowUntrusted, "allow-untrusted-obj", false, "up: load an object a non-root user could have written, as the default build-tree -obj is (development only)")
 	fs.StringVar(&g.eventsGroup, "events-group", "", "up: make the CART_EVENTS pin readable by this group (cmd/anomaly's bridge); other pins stay root 0600")
 	fs.StringVar(&g.cartBin, "cart", "crates/upc-cartridge/target/release/cart", "the cart CLI (validator)")
 	if len(os.Args) == 2 && cmdline.IsVersionArg(os.Args[1]) {
@@ -170,7 +171,7 @@ func main() {
 }
 
 func cmdUp(g *globals) error {
-	opts := cartridge.Options{PinDir: g.pinDir}
+	opts := cartridge.Options{PinDir: g.pinDir, AllowUntrustedObject: g.allowUntrusted}
 	if g.eventsGroup != "" {
 		grp, err := user.LookupGroup(g.eventsGroup)
 		if err != nil {

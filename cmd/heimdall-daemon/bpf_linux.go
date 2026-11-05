@@ -26,6 +26,8 @@ import (
 	ciliumebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
+
+	"unheaded/pkg/ebpf/objtrust"
 )
 
 // Object file names under --bpf-dir (cargo [[bin]] names).
@@ -57,8 +59,16 @@ type bpfHooks struct {
 
 var processedRE = regexp.MustCompile(`processed (\d+) insns`)
 
-// loadObject loads one Aya object with verifier stats logging on.
+// loadObject loads one Aya object, if only root could have written it.
 func loadObject(path string) (*ciliumebpf.Collection, map[string]int, error) {
+	if err := objtrust.Check(path); err != nil {
+		return nil, nil, err
+	}
+	return loadObjectUnchecked(path)
+}
+
+// loadObjectUnchecked loads one Aya object with verifier stats logging on.
+func loadObjectUnchecked(path string) (*ciliumebpf.Collection, map[string]int, error) {
 	spec, err := ciliumebpf.LoadCollectionSpec(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("spec %s: %w", filepath.Base(path), err)

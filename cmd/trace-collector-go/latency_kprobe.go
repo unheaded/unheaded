@@ -15,7 +15,9 @@ import (
 
 	ciliumebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+
 	"github.com/rs/zerolog/log"
+	"unheaded/pkg/ebpf/objtrust"
 )
 
 // LatencyKprobeLoader loads and attaches all kprobe/kretprobe functions
@@ -41,7 +43,13 @@ var kprobeAttachments = []struct {
 
 // LoadLatencyKprobes loads the latency-probe ELF and attaches all kprobe functions.
 // Returns the LATENCY_MAP for reading by LatencyReader.
-func LoadLatencyKprobes(elfPath string) (*LatencyKprobeLoader, *ciliumebpf.Map, error) {
+// allowUntrusted is --allow-untrusted-ebpf-obj-dir, as for the native loader.
+func LoadLatencyKprobes(elfPath string, allowUntrusted bool) (*LatencyKprobeLoader, *ciliumebpf.Map, error) {
+	if !allowUntrusted {
+		if err := objtrust.Check(elfPath); err != nil {
+			return nil, nil, err
+		}
+	}
 	f, err := os.Open(elfPath) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open ELF: %w", err)

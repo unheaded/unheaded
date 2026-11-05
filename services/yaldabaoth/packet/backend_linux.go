@@ -17,6 +17,8 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+
+	"unheaded/pkg/ebpf/objtrust"
 )
 
 // LinuxBackend is the real kernel: cilium/ebpf for the object, maps and the
@@ -48,6 +50,9 @@ func (b *LinuxBackend) Present(iface string) bool {
 // the classifier at pinDir/prog. The collection's own descriptors are
 // closed: the pins keep everything alive until Unpin.
 func (b *LinuxBackend) Load(objPath, pinDir string) error {
+	if err := objtrust.Check(objPath); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(pinDir, 0o700); err != nil {
 		return err
 	}

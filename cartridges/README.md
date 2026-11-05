@@ -34,6 +34,9 @@ upc-cartridgectl sign --key "$S5/lab.seed" --ttl 24h pass.cart      # writes pas
 
 ## Register, load, swap (root: map writes need CAP_BPF)
 
+`up` refuses an object a non-root user could have written, so point `-obj` at a
+root-owned install, or pass `-allow-untrusted-obj` for a build tree in a lab.
+
 ```
 upc-cartridgectl up
 upc-cartridgectl --pubkey "$S5/lab.pub" register pass pass.cart
