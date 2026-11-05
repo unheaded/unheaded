@@ -6,7 +6,6 @@ package main
 import (
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -97,20 +96,10 @@ func (rl *rateLimiter) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// clientIP extracts the best-available client identifier from the
-// request. Prefers the right-most IP in X-Forwarded-For (the closest
-// trusted proxy's view of the client) when present; otherwise falls
-// back to RemoteAddr. Trust X-Forwarded-For ONLY when the daemon is
-// behind a known reverse proxy that injects it.
+// clientIP names the client by its TCP peer. The limiter runs before auth, so
+// a header the client wrote cannot be the key: no proxy sits in front of the
+// daemon, and one that did would need its own trust rule.
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Last entry is the most-trusted proxy's view of the source.
-		parts := strings.Split(xff, ",")
-		ip := strings.TrimSpace(parts[len(parts)-1])
-		if ip != "" {
-			return ip
-		}
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
