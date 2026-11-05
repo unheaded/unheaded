@@ -75,6 +75,14 @@ ci_verdict_expect_bite "a binary path nothing creates" history-scan "${SEC}" \
 ci_verdict_expect_bite "history not fetched" history-scan "${SEC}" \
 	's/fetch-depth: 0   # full history — see note below/fetch-depth: 1/'
 
+echo "--- bpf-linker (M22) ---"
+ci_verdict_expect_bite "release.yml unpinned" bpf-linker ".github/workflows/release.yml" \
+	's/cargo install bpf-linker@[0-9.]+ --locked/cargo install bpf-linker --no-default-features/'
+ci_verdict_expect_bite "ebpf.yml without --locked" bpf-linker ".github/workflows/ebpf.yml" \
+	's/(cargo install bpf-linker@[0-9.]+) --locked/\1/'
+ci_verdict_expect_bite "the workflows disagree" bpf-linker ".github/workflows/ebpf.yml" \
+	's/cargo install bpf-linker@[0-9.]+ --locked/cargo install bpf-linker@0.11.0 --locked/'
+
 echo
 echo "passed: ${PASSED}  failed: ${FAILED}"
 [ "${FAILED}" -eq 0 ] || exit 1

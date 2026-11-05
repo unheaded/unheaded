@@ -21,7 +21,7 @@ cd "$ROOT"
 command -v jq >/dev/null || { echo "[FAIL] jq not found; this gate does not pass by skipping" >&2; exit 2; }
 
 python3 -I - <<'PY'
-import json, os, re, subprocess, sys, tempfile
+import glob, json, os, re, subprocess, sys, tempfile
 
 try:
     import yaml
@@ -103,8 +103,35 @@ def history_scan():
         if re.search(r"(^|\s)/tmp/gitleaks\b", str(s.get("run", ""))):
             bad("history-scan", "a step calls /tmp/gitleaks, which nothing creates")
 
+# M22. bpf-linker builds the eBPF objects a release signs. One version in
+# every workflow, --locked so its dependencies are the ones that version
+# shipped, and default features: they link through rustc's own LLVM, so the
+# runner needs no system LLVM.
+BPF_LINKER_INSTALL = re.compile(r"cargo install bpf-linker@(\d+\.\d+\.\d+) --locked$")
+
+def bpf_linker():
+    versions = {}
+    for path in sorted(glob.glob(".github/workflows/*.yml")):
+        with open(path, encoding="utf-8") as f:
+            for n, line in enumerate(f, 1):
+                body = line.split("#", 1)[0].strip()
+                body = re.sub(r"^run:\s*", "", body)
+                if not re.search(r"cargo install\b.*\bbpf-linker\b", body):
+                    continue
+                m = BPF_LINKER_INSTALL.fullmatch(body)
+                if not m:
+                    bad("bpf-linker", f"{path}:{n}: not `cargo install bpf-linker@<version> --locked`")
+                else:
+                    versions.setdefault(m.group(1), []).append(f"{path}:{n}")
+    if len(versions) > 1:
+        bad("bpf-linker", f"workflows disagree on the version: {versions}")
+    for must in ("release.yml", "ebpf.yml", "static-analysis.yml"):
+        if not any(must in w for v in versions.values() for w in v):
+            bad("bpf-linker", f"{must} no longer installs a pinned bpf-linker")
+
 security_gate()
 history_scan()
+bpf_linker()
 
 if problems:
     print("\n".join(f"[FAIL] {p}" for p in problems))
