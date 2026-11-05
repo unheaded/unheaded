@@ -123,3 +123,4 @@ DP-206 (approved, already run once under guard): the attended list is Appendix D
 - Next rung: rung 3 of the skeleton, console `write` and `read` into the kernel, on the way to retiring `fs_walk`, `FD_INODE_MAP` and `PROC_TABLE`. That is the plan after this one (Appendix E); it is not written yet.
 - Commits on the branch ahead of develop, before this close commit: 43.
 - unsigned commit: [PLAN S-STAGE-2B] Steps 273-278: close
+- unsigned merge
