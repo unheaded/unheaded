@@ -48,6 +48,10 @@ var moveoutGone = []struct {
 	{"dashboard/css/style.css", `(?i)doom`},
 	{"deploy/docker/zhen-agentd.Dockerfile", `as the main Dockerfile does`},
 	{"deploy/sophia-eye/sophia-gateway/Dockerfile", `as the root Dockerfile does`},
+	{"wiki/Performance.md", "(?m)^Location: `cmd/doom-go-injector/main\\.go`$"},
+	{"wiki/Performance.md", "documented in `docs/doom/PERFORMANCE\\.md`\\."},
+	{"wiki/Performance.md", `(?m)^\*\*Usage:\*\*$`},
+	{"wiki/Performance.md", `(?m)^## Key Files$`},
 	{"wiki/Doom-on-UPC.md", `__umoddi3|__udivdi3`},
 	{"wiki/Doom-on-UPC.md", `(?i)formal proof|computational-completeness proof|Computational-generality proof|No external state`},
 }
@@ -67,6 +71,7 @@ func TestMoveOutResidueStaysGone(t *testing.T) {
 var moveoutBanner = []string{
 	"wiki/Doom-on-UPC.md",
 	"wiki/Doom-over-IPv6.md",
+	"wiki/Performance.md",
 	"wiki/UPC-Dream-Ladder.md",
 	"wiki/UPC-Overview.md",
 }
