@@ -195,13 +195,16 @@ func (s *session) handleConfirm(args []string) {
 		s.warn("/confirm <token>")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	// A confirmed model swap or runbook outlives the session client's
+	// timeout; this request gets its own, bounded by ctx.
+	ctx, cancel := context.WithTimeout(context.Background(), modelSwitchTimeout)
 	defer cancel()
+	long := &http.Client{Transport: s.client.Transport}
 	var resp struct {
 		toolExecResponse
 		errorBody
 	}
-	code, err := s.agentdJSON(ctx, s.client, http.MethodPost, "/api/v1/agent/confirm", map[string]string{"token": args[0]}, &resp)
+	code, err := s.agentdJSON(ctx, long, http.MethodPost, "/api/v1/agent/confirm", map[string]string{"token": args[0]}, &resp)
 	if err != nil {
 		s.errf("/confirm: %v", err)
 		return
@@ -265,14 +268,11 @@ func (s *session) handleModel(args []string) {
 		s.warn("/model <key>  (a key from /model)")
 		return
 	}
-	s.dim(fmt.Sprintf("zhen-cli: swapping llama-server to %s; chat is down until it is healthy.", key))
-	ctx, cancel := context.WithTimeout(context.Background(), modelSwitchTimeout)
+	s.dim(fmt.Sprintf("zhen-cli: asking to swap llama-server to %s; once confirmed, chat is down until it is healthy.", key))
+	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
-	// The swap outlives the session client's timeout; this request gets
-	// its own, bounded by ctx.
-	long := &http.Client{Transport: s.client.Transport}
 	var resp toolExecResponse
-	if _, err := s.agentdJSON(ctx, long, http.MethodPost, "/api/v1/tool/exec", s.toolExecBody("model_switch", map[string]any{"key": key}), &resp); err != nil {
+	if _, err := s.agentdJSON(ctx, s.client, http.MethodPost, "/api/v1/tool/exec", s.toolExecBody("model_switch", map[string]any{"key": key}), &resp); err != nil {
 		s.errf("/model: %v", err)
 		return
 	}

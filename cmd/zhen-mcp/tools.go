@@ -116,7 +116,7 @@ var toolDefs = []mcpserver.Tool{
 	},
 	{
 		Name:        "runbook_execute",
-		Description: "Execute an operational runbook by name through the Champion (live runs need the runbook in runbooks/MANIFEST.sha256). Use dry_run=true to validate without executing. Enabled only when this server runs with ZHEN_MCP_ALLOW_EXEC=1.",
+		Description: "Validate an operational runbook by name through the Champion with dry_run=true. A live run is held for a person and refused here; ask the operator to run it from zhen-cli. Enabled only when this server runs with ZHEN_MCP_ALLOW_EXEC=1.",
 		InputSchema: schema(`{"type":"object","properties":{"name":{"type":"string","description":"Runbook name, without .yaml"},"dry_run":{"type":"boolean","description":"If true, validate without executing","default":false}},"required":["name"]}`),
 	},
 }

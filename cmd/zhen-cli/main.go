@@ -361,7 +361,7 @@ func (s *session) handleSlash(line string) bool {
 //
 // All three runbook tools are routed through /api/v1/tool/exec, so
 // Champion's three-rule gate evaluates each call. runbook_execute is
-// the only mutating one — the daemon may respond with status
+// the only mutating one — a live run always comes back with status
 // "pending_confirmation" and a pending_token; the CLI surfaces both
 // and how to redeem it (/confirm <token>).
 func (s *session) handleRunbook(args []string) {

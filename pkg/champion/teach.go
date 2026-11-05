@@ -42,9 +42,18 @@ const (
 // pending token, no confirmer but QueuePrincipal.
 var QueueOnlyTools = map[string]bool{teachTool: true}
 
-// AlwaysConfirmTools answer to a human whatever their justification, so a
-// claimed direct-user label does not pass Rule 2.
-var AlwaysConfirmTools = map[string]bool{teachTool: true}
+// AlwaysConfirmTools answer to a human whatever their justification, so
+// neither a retrieval chain nor a claimed direct-user label passes Rule 2.
+// A person runs one from a pending token; a model loop's call stops at the
+// gate, because only ConfirmableTools reach the approval queue. heldForHuman
+// names the two argument shapes that keep the ordinary rules, and
+// DispatchStanding is the scheduler's route for a job a person set.
+var AlwaysConfirmTools = map[string]bool{
+	teachTool:         true,
+	"runbook_execute": true,
+	"schedule_update": true,
+	"model_switch":    true,
+}
 
 // ErrQueueOnly refuses any route to a QueueOnlyTools call but the queue.
 var ErrQueueOnly = errors.New("this tool runs only from a queue approval")

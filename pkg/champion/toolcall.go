@@ -49,6 +49,10 @@ type ToolCall struct {
 	// confirmation is bound to it (RT-03): only the same principal, or
 	// "queue:stevie", may confirm; "agent:<model>" never confirms.
 	Principal string `json:"principal,omitempty"`
+
+	// standing marks a call DispatchStanding made. It is unexported so
+	// that no JSON body or model output can set it.
+	standing bool
 }
 
 // Reference mirrors the cs/vor B1-schema source-provenance fields.
@@ -315,9 +319,10 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 	// zhen/<name> agent worktree; Rules 1 and 3 still apply).
 	// AlwaysConfirmTools are held whatever their justification.
 	sandboxJustification, sandboxed := c.branchSandboxAllows(tc)
-	if tc.IsMutating() && (AlwaysConfirmTools[tc.Name] || tc.HasUntrustedJustification()) && !sandboxed {
+	held := tc.heldForHuman()
+	if tc.IsMutating() && (held || tc.HasUntrustedJustification()) && !sandboxed {
 		var reason string
-		if AlwaysConfirmTools[tc.Name] {
+		if held {
 			reason = fmt.Sprintf("tool %q always requires out-of-band user confirmation, whatever its justification", tc.Name)
 		} else if len(tc.Justification) == 0 {
 			reason = fmt.Sprintf("mutating tool %q has empty justification chain; requires out-of-band user confirmation (fail-closed: agent could not produce a retrieval-derived rationale for the call)", tc.Name)
@@ -360,6 +365,28 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 		accepted, "",
 		time.Since(start))
 	return ToolCallDecision{Allow: true}, nil
+}
+
+// heldForHuman reports whether tc is an AlwaysConfirmTools call Rule 2 holds
+// whatever its justification. Two shapes keep the ordinary rules, read
+// exactly as the tools read them: a dry run, which prints a runbook and runs
+// nothing, and a scheduler pause, the stop control, which has to work with
+// nobody there to confirm it. A call made through DispatchStanding is not
+// held either; its justification is still read.
+func (tc *ToolCall) heldForHuman() bool {
+	if !AlwaysConfirmTools[tc.Name] || tc.standing {
+		return false
+	}
+	switch tc.Name {
+	case "runbook_execute":
+		dry, ok := tc.Args["dry_run"].(bool)
+		return !ok || !dry
+	case "schedule_update":
+		op, _ := tc.Args["op"].(string)
+		paused, ok := tc.Args["paused"].(bool)
+		return op != "pause" || !ok || !paused
+	}
+	return true
 }
 
 // untrustedRefSummary formats the user-source references in the chain

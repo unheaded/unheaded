@@ -339,6 +339,12 @@ func (c *Champion) dispatchUnderlying(ctx context.Context, tc ToolCall) (any, er
 			return nil, err
 		}
 		return c.ModelSwap(ctx, key)
+	case "schedule_update":
+		op, err := requireString(tc.Args, "op")
+		if err != nil {
+			return nil, err
+		}
+		return c.ScheduleUpdate(ctx, op, tc.Args)
 	case teachTool:
 		return c.teachWrite(ctx, tc)
 	default:

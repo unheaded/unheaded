@@ -287,6 +287,17 @@ func TestRunbookExecuteEnabledDryRun(t *testing.T) {
 	}
 }
 
+// H3: the opt-in reaches a dry run only. A live run answers to a person, and
+// an MCP client has no way to be one.
+func TestRunbookExecuteLiveIsHeldEvenWhenEnabled(t *testing.T) {
+	root := testRoot(t)
+	srv := testServer(t, root, map[string]string{envAllowExec: "1"})
+	res := call(t, srv, "runbook_execute", `{"name":"slo-check"}`)
+	if !res.IsError || !strings.Contains(res.Content[0].Text, "confirmation") {
+		t.Fatalf("live runbook_execute = %+v", res)
+	}
+}
+
 func TestUnknownToolIsError(t *testing.T) {
 	res := call(t, testServer(t, testRoot(t), nil), "no_such_tool", `{}`)
 	if !res.IsError || !strings.Contains(res.Content[0].Text, "Unknown tool: no_such_tool") {

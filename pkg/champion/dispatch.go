@@ -6,6 +6,7 @@ package champion
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -158,9 +159,9 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 		// ADR-060: swap which model llama-server is serving on :8081.
 		// Args: {"key": "<allowlisted-model-key>"}. The allowlist is
 		// scripts/switch-model.sh's MODEL_FILE keys, parsed at boot.
-		// model_switch is a destructive verb — Champion's third rule
-		// refuses it unless the justification ends in 'direct-user'
-		// (browser-clicked actions).
+		// AlwaysConfirmTools holds it at Rule 2 whatever the
+		// justification: a swap runs from a pending token, through
+		// dispatchUnderlying's case, not from here.
 		key, err := requireString(tc.Args, "key")
 		if err != nil {
 			return nil, err
@@ -186,6 +187,22 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 		// distinct failure that surfaces a real bug.
 		return nil, fmt.Errorf("Dispatch: unimplemented tool %q", tc.Name)
 	}
+}
+
+// ErrNotStanding refuses DispatchStanding for anything but a live runbook.
+var ErrNotStanding = errors.New("only runbook_execute runs as a standing instruction")
+
+// DispatchStanding is Dispatch for a job a person set beforehand, which the
+// scheduler alone calls: the schedule file, or a schedule_update that person
+// confirmed, is the human answer heldForHuman asks for. It runs nothing but
+// runbook_execute, and every other rule applies, justification included. It
+// is a Go call so that no request or model output can reach it.
+func (c *Champion) DispatchStanding(ctx context.Context, tc ToolCall) (any, error) {
+	if tc.Name != "runbook_execute" {
+		return nil, fmt.Errorf("%w: %s", ErrNotStanding, tc.Name)
+	}
+	tc.standing = true
+	return c.Dispatch(ctx, tc)
 }
 
 // dispatchable is the set of tools Dispatch's switch implements. Keep it

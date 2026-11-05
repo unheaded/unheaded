@@ -55,7 +55,8 @@ import (
 // verification section failed) is a failed run. Every call carries one
 // direct-user reference naming the schedule: the job is Stevie's standing
 // instruction, written in a root-owned file or added by him through the
-// gate. Only runbooks that are approved, or carry no status at all, may
+// gate, so the runbook goes through Champion.DispatchStanding, the one route
+// past the hold on runbook_execute. Only runbooks that are approved, or carry no status at all, may
 // be scheduled (ADR-024 "Authorship and approval"); the status is checked
 // when a job is loaded or added and again before every run.
 
@@ -250,6 +251,7 @@ func runbookApproved(body string) error {
 // schedChampion is what the scheduler needs of the Champion.
 type schedChampion interface {
 	Dispatch(ctx context.Context, tc champion.ToolCall) (any, error)
+	DispatchStanding(ctx context.Context, tc champion.ToolCall) (any, error)
 	RunbookShow(ctx context.Context, name string) (string, error)
 	RunbookList(ctx context.Context) ([]string, error)
 }
@@ -513,7 +515,7 @@ func (s *scheduler) runJob(ctx context.Context, j dueJob) {
 	}
 	s.event(ctx, runEvent{Kind: "agent_run", Run: runID, Card: cardID, Mode: zhenagent.ModeScheduled, Family: j.name, To: zhenagent.StatusRunning})
 
-	runErr := s.execute(ctx, j, call)
+	runErr := s.execute(ctx, j, refs)
 	status, check, errText := zhenagent.StatusSucceeded, "pass", ""
 	if runErr != nil {
 		status, check, errText = zhenagent.StatusFailed, "fail", runErr.Error()
@@ -555,11 +557,12 @@ func (s *scheduler) runJob(ctx context.Context, j dueJob) {
 }
 
 // execute re-checks the runbook's status and runs it through the gate.
-func (s *scheduler) execute(ctx context.Context, j dueJob, call func(context.Context, string, map[string]any) (any, error)) error {
+func (s *scheduler) execute(ctx context.Context, j dueJob, refs []champion.Reference) error {
 	if err := s.checkRunbook(ctx, j.runbook); err != nil {
 		return err
 	}
-	out, err := call(ctx, "runbook_execute", map[string]any{"name": j.runbook})
+	out, err := s.cfg.Champion.DispatchStanding(ctx, champion.ToolCall{Name: "runbook_execute",
+		Args: map[string]any{"name": j.runbook}, Justification: refs, EmittedBy: schedulerEmitter})
 	if err != nil {
 		return err
 	}

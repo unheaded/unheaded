@@ -21,7 +21,9 @@
 // Champion's Rule 2 lets it through; Rule 1 (path allowlist, symlinks
 // resolved, deny list), Rule 3 (destructive verbs, on every tool's
 // arguments), the write cap, openat2 writes and the runbook manifest still
-// apply. A refused or failed call is an isError result, never plain text.
+// apply. runbook_execute is an AlwaysConfirmTools tool, so the grant reaches
+// its dry run only: a live run answers to a person, through zhen-cli. A
+// refused or failed call is an isError result, never plain text.
 //
 // Environment:
 //

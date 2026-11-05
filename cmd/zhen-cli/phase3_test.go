@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type capturedReq struct {
@@ -149,6 +150,23 @@ func TestConfirm_PostsTokenAndPrintsResult(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %q:\n%s", want, out.String())
 		}
+	}
+}
+
+// A confirmed swap or runbook runs inside the /confirm request, so the
+// session client's timeout must not cut it off.
+func TestConfirm_OutlivesTheSessionClientTimeout(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){
+		"/api/v1/agent/confirm": func(capturedReq) (int, any) {
+			time.Sleep(200 * time.Millisecond)
+			return 200, map[string]any{"status": "ok", "result": "swapped"}
+		},
+	})
+	s, out := stubSession(a.srv.URL)
+	s.client = &http.Client{Timeout: 20 * time.Millisecond}
+	s.handleSlash("/confirm tok-ok")
+	if !strings.Contains(out.String(), "swapped") {
+		t.Errorf("output lacks the result:\n%s", out.String())
 	}
 }
 
