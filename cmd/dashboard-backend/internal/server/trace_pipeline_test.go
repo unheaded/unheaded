@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -690,6 +691,12 @@ func TestViewerOwnPacketsLeftOut(t *testing.T) {
 	}
 	if srv.isViewerTraceEvent(map[string]interface{}{"src_ip": "10.0.0.1", "src_port": 1.0, "dst_ip": "10.0.0.2", "dst_port": 2.0}) {
 		t.Error("unrelated traces.packet event treated as viewer traffic")
+	}
+	// A value that is no port names no viewer, however its low bits read.
+	for _, port := range []float64{float64(peerPort) + 65536, -1, 1.5, math.NaN()} {
+		if srv.isViewerTraceEvent(map[string]interface{}{"src_ip": peerHost, "src_port": port, "dst_ip": "10.0.0.2", "dst_port": 2.0}) {
+			t.Errorf("port %v treated as viewer traffic", port)
+		}
 	}
 }
 

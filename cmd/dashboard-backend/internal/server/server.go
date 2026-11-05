@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -2034,7 +2035,18 @@ func (s *Server) isViewerTraceEvent(d map[string]interface{}) bool {
 	if srcIP == "" || dstIP == "" {
 		return false
 	}
-	return s.isViewerFlow(srcIP, uint16(srcPort), dstIP, uint16(dstPort)) // #nosec G115 -- ports from the tracer's JSON, 0-65535
+	src, srcOK := jsonPort(srcPort)
+	dst, dstOK := jsonPort(dstPort)
+	return srcOK && dstOK && s.isViewerFlow(srcIP, src, dstIP, dst)
+}
+
+// jsonPort reads a port from a decoded JSON number, refusing a value that is
+// not one: the conversion alone would wrap it onto some real port.
+func jsonPort(v float64) (uint16, bool) {
+	if !(v >= 0 && v <= math.MaxUint16) || v != math.Trunc(v) {
+		return 0, false
+	}
+	return uint16(v), true
 }
 
 // parseTraceTopicEvent converts an events.Event from a traces.* topic into a TraceEvent.

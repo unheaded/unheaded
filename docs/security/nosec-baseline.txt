@@ -34,7 +34,7 @@ cmd/dashboard-backend/internal/logs/handler.go 1
 cmd/dashboard-backend/internal/server/allow_callers_test.go 2
 cmd/dashboard-backend/internal/server/compliance.go 2
 cmd/dashboard-backend/internal/server/securitytxt.go 1
-cmd/dashboard-backend/internal/server/server.go 58
+cmd/dashboard-backend/internal/server/server.go 57
 cmd/dashboard-backend/internal/websocket/server.go 3
 cmd/dashboard-backend/main.go 1
 cmd/demo-trace-injector/main.go 12
