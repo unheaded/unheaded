@@ -24,12 +24,12 @@ cp "$fixture" "$T/src/fixture"
 tar -czf "$T/fixture.tar.gz" -C "$T/src" fixture
 
 survives_refetch() { # NAME MEMBER: run the binary while another caller refetches
-	local name=$1 member=$2 src=$3 sha bin writer i bad=0 rc
+	local name=$1 member=$2 src=$3 sha bin writer bad=0 rc
 	sha="$(sha256sum "$src" | cut -d' ' -f1)"
 	mkdir -p "$XDG_CACHE_HOME/unheaded-tools/$name-1"
 	cp "$src" "$XDG_CACHE_HOME/unheaded-tools/$name-1/$name.tar.gz"
 	bin="$(fetch_tool "$name" 1 "$URL" "$sha" "$member")" || { echo "[FAIL] $name: first fetch failed"; fail=1; return; }
-	(for i in $(seq 1 60); do fetch_tool "$name" 1 "$URL" "$sha" "$member" >/dev/null || exit 1; done) &
+	(for _ in $(seq 1 60); do fetch_tool "$name" 1 "$URL" "$sha" "$member" >/dev/null || exit 1; done) &
 	writer=$!
 	while kill -0 "$writer" 2>/dev/null; do
 		rc=0

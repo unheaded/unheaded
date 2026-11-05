@@ -71,6 +71,10 @@
 #   ./scripts/check-gates-can-fail.sh --list     # show registry, run nothing
 #   ./scripts/check-gates-can-fail.sh --only NAME  # provoke one registered gate
 #
+# A row that is not a clean verdict names a file holding the output behind it
+# and shows the tail. Those files stay in GATE_LOG_DIR (default: a new
+# directory under TMPDIR or /var/tmp); a clean verdict keeps nothing.
+#
 # SAFETY
 # It mutates tracked files on purpose. It refuses to run on a dirty tree, and an
 # EXIT trap restores every file it touched even on Ctrl-C or a failed assertion.
@@ -92,6 +96,11 @@ if [ "${MODE}" = "--only" ]; then
     [ -n "${ONLY}" ] || { echo "usage: $0 --only <gate name from --list>" >&2; exit 2; }
 fi
 BACKUP_DIR="$(mktemp -d)"
+if [ -n "${GATE_LOG_DIR:-}" ]; then
+    mkdir -p "${GATE_LOG_DIR}" || exit 1
+else
+    GATE_LOG_DIR="$(mktemp -d "${TMPDIR:-/var/tmp}/unheaded-gate-logs.XXXXXX")" || exit 1
+fi
 TOUCHED=()
 CREATED=()          # files the provocation brought into existence
 CREATED_DIRS=()     # directories it had to mkdir -- see restore_touched
@@ -803,6 +812,16 @@ provoke_gitleaks_history() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_gates_output() {
+    # Contract: an INCONCLUSIVE row can be diagnosed. Send the clean run's
+    # output back to /dev/null, as this script did until 2026-11-05.
+    local f="scripts/check-gates-can-fail.sh"
+    backup "${f}"
+    sed -i 's|"${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 \|\| rc=$?|"${REPO_ROOT}/${gate}" >/dev/null 2>\&1 \|\| rc=$?|' "${REPO_ROOT}/${f}"
+    grep -q '"${REPO_ROOT}/${gate}" >/dev/null 2>&1 || rc=' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_fetch_tool() {
     # Contract: a binary keeps running while another gate fetches the same
     # tool. Unpack over it in place again.
@@ -1151,6 +1170,7 @@ check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published adviso
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
 test-check-gitleaks-history|provoke_gitleaks_history|fast|check-gitleaks.sh --history treating a failed scan as findings (downloads the pinned tool)
+test-check-gates-can-fail|provoke_gates_output|fast|a clean run's output sent back to /dev/null, so an INCONCLUSIVE row names nothing
 test-fetch-tool|provoke_fetch_tool|fast|fetch-tool.sh unpacking over the cached binary in place, as it did until 2026-11-05
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
@@ -1336,6 +1356,13 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 2
 fi
 
+# row_output LOG: under a row that is not a clean verdict, name the file and
+# show the end of it, so the row can be diagnosed once this run is gone.
+row_output() {
+    echo "      output: ${1}"
+    tail -n 20 "${1}" | sed 's/^/      | /'
+}
+
 # ---------------------------------------------------------------------------
 # Run each gate: must PASS clean, then must FAIL when provoked.
 # ---------------------------------------------------------------------------
@@ -1370,25 +1397,30 @@ for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort)
 
     # Phase 1 — green on a clean tree. If it is already red, the provocation
     # result would be meaningless.
-    if ! "${REPO_ROOT}/${gate}" >/dev/null 2>&1; then
-        echo "INCONCLUSIVE — already failing on a clean tree"
+    log="${GATE_LOG_DIR}/${name//\//_}"
+    rc=0
+    "${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 || rc=$?
+    if [ "${rc}" -ne 0 ]; then
+        echo "INCONCLUSIVE — already failing on a clean tree (exit ${rc})"
+        row_output "${log}.clean.log"
         FAILURES=$((FAILURES + 1))
         continue
     fi
 
     # Phase 2 — plant the violation.
     DID_PROVOKE=1
-    if ! "${fn}" >/dev/null 2>&1; then
+    if ! "${fn}" >"${log}.provoke.log" 2>&1; then
         echo "ERROR — provocation ${fn} could not be applied"
+        row_output "${log}.provoke.log"
         FAILURES=$((FAILURES + 1))
         continue
     fi
 
     # Phase 3 — it must now fail.
     if [ "${name}" = "check-timeline-freshness" ]; then
-        run_timeline_freshness >/dev/null 2>&1
+        run_timeline_freshness >"${log}.provoked.log" 2>&1
     else
-        "${REPO_ROOT}/${gate}" >/dev/null 2>&1
+        "${REPO_ROOT}/${gate}" >"${log}.provoked.log" 2>&1
     fi
     rc=$?
 
@@ -1397,11 +1429,16 @@ for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort)
 
     if [ "${rc}" -ne 0 ]; then
         echo "OK — bites when provoked (exit ${rc})"
+        rm -f "${log}.clean.log" "${log}.provoke.log" "${log}.provoked.log"
     else
         echo "FAIL — PASSED WHILE VIOLATED"
+        row_output "${log}.provoked.log"
         FAILURES=$((FAILURES + 1))
     fi
 done
+
+# Nothing to keep: a directory this run made goes with it.
+rmdir "${GATE_LOG_DIR}" 2>/dev/null || true
 
 # Print these EVERY run. A gate we cannot test is a real gap in coverage, and a
 # gap you cannot see is indistinguishable from one that does not exist.
