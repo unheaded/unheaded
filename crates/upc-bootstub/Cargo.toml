@@ -21,7 +21,7 @@
 #
 # License: GPL-3.0-or-later (this Cargo.toml + lib + C source).
 # C source links no third-party code; relies only on the MBC ABI v2
-# defined in ADR-067 + UPC Boot Protocol v2 (docs/doom/UPC_BOOT_PROTOCOL_V2.md).
+# defined in ADR-067 + UPC Boot Protocol v2 (docs/upc/UPC_BOOT_PROTOCOL_V2.md).
 
 [package]
 name = "upc-bootstub"

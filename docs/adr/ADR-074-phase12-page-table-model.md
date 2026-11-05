@@ -331,7 +331,7 @@ These items can land WITHOUT the pair-call decision because they're structural p
 | AP-1 | **Author ADR-074 follow-on note**: add the `PROC_TABLE` layout-extension table and the fixed-per-pid-pgd-region memory map. | 30 min | Architect | This addendum (DONE) |
 | AP-2 | **Measure baseline verifier budget** with current code on the Yggdrasil anchor kernel. Capture `tmp/bpf-budget-baseline-2026-05-11.txt`. | 15 min | Architect + Developer | Baseline numbers in `tmp/` |
 | AP-3 | **Write a feature-flag scaffold in `ebpf/monad-cpu-ebpf/src/main.rs`** that's a NO-OP today but gates the future Option-A code path behind `#[cfg(feature = "phase12-option-a")]`. Lets the pair-call build all 3 variants for measurement. | 1 hour | Architect + Developer | Feature flags + 3 stub builds compile |
-| AP-4 | **Document the per-pid pgd memory map** in `docs/doom/UPC_OS_PRIMITIVES.md` (or a new `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`) so the pair-call has a concrete address space picture. | 45 min | Architect | New doc + diagram |
+| AP-4 | **Document the per-pid pgd memory map** in `docs/upc/UPC_OS_PRIMITIVES.md` (or a new `docs/upc/UPC_PAGE_TABLE_LAYOUT.md`) so the pair-call has a concrete address space picture. | 45 min | Architect | New doc + diagram |
 | AP-5 | **Sample MEM_READ_WORD verifier cost** at the current path-traversal-guarded sites to validate the Scientist's "+0.2% to +0.8%" revised estimate. | 30 min | Architect + Scientist | Numbers in `tmp/` |
 | AP-6 | **Flag the DISTRIBUTED-mode follow-on** in the ASCEND-LINUX battle plan as an explicit Phase 3 dependency, so the page-table work in Phase 1.2 + Phase 3.1 isn't surprised by it. | 15 min | Architect | Battle-plan amendment commit |
 
@@ -360,7 +360,7 @@ If the measurement comes back >5% or some assumption fails, Architect joins the 
 > **DECIDED**: **Option A — per-task pgd** selected.
 > **Vote**: Stevie (Captain) called Option A. Architect, Scientist, Computermancer, BlackMage, Developer, Marshal all aligned with the recommendation. No dissents.
 > **PROC_TABLE layout**: `[u32; 21]` adopted (slot[20] = `page_dir_base`).
-> **Page-table allocator**: **A1 — Fixed per-pid region** at `RAM_MAP[0x00F00000 + pid*0x1000]` (16 KiB total, inherits current 4-pid scheduler cap). Per `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`.
+> **Page-table allocator**: **A1 — Fixed per-pid region** at `RAM_MAP[0x00F00000 + pid*0x1000]` (16 KiB total, inherits current 4-pid scheduler cap). Per `docs/upc/UPC_PAGE_TABLE_LAYOUT.md`.
 > **Execution mode**: Marshal executes pre-work + implementation autonomously per Track C "slow + safe" posture.
 > **Verification**: forkbomb test at Phase 3.1 hard gate; falsification experiment per strong-inference protocol above (PID 1 maps page → switch to PID 2 → verify isolation).
 > **Implementation kickoff**: this commit lands the decision; subsequent commits execute the pre-work battle plan at `references/battle-plan-phase12-prework-2026-05-11.md` (HOLD lifted) followed by the actual Option A implementation.

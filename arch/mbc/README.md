@@ -72,6 +72,6 @@ GPL-2.0 (Linux kernel license)
 ### References
 
 - `docs/UPC_REFERENCE_MANUAL.md` — full MBC ISA specification
-- `docs/doom/UCLINUX_PORT_GUIDE.md` — uClinux porting notes
+- `docs/upc/UCLINUX_PORT_GUIDE.md` — uClinux porting notes
 - `crates/monad-mbc/` — reference MBC implementation (Rust)
 - `ebpf/monad-common/src/lib.rs` — canonical syscall numbers

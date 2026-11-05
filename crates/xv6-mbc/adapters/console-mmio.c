@@ -7,7 +7,7 @@
 // 0x10000000 with NS16550A register layout and DLAB-style baud-rate setup.
 //
 // We replace it with direct writes to UPC's MMIO TTY at 0xC001 (per
-// docs/doom/UPC_OS_PRIMITIVES.md L4f). The MBC dispatch layer routes
+// docs/upc/UPC_OS_PRIMITIVES.md L4f). The MBC dispatch layer routes
 // 0xC001 writes to the Busboy topic `compute.tty.{label}` which is then
 // fan-out to:
 //

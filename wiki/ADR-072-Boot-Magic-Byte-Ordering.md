@@ -22,8 +22,8 @@ Both views describe the same constant. Same pattern as ELF magic (`\x7fELF` = `0
 
 ## Affected surfaces
 
-- `docs/doom/UPC_BOOT_PROTOCOL.md` §"Magic Value"
-- `docs/doom/UPC_BOOT_PROTOCOL_V2.md` lines 113, 140
+- `docs/upc/UPC_BOOT_PROTOCOL.md` §"Magic Value"
+- `docs/upc/UPC_BOOT_PROTOCOL_V2.md` lines 113, 140
 - `crates/xv6-mbc/src/lib.rs:38-50` (canonical docstring)
 - `crates/xv6-mbc/src/lib.rs:65` (intentional-pin test)
 - `cmd/upc-bootctl/src/bootparams.rs:118` (intentional-pin test)

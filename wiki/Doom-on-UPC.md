@@ -139,7 +139,7 @@ Then open `http://localhost:16666/` for the browser canvas + keyboard relay.
 
 ## Computational-generality proof
 
-Doom-on-Monad is documented as a formal proof of computational generality in [`docs/doom/COMPUTATIONAL_GENERALITY.md`](../docs/doom/COMPUTATIONAL_GENERALITY.md). The argument: if a non-trivial Turing-complete program (Doom) runs to completion on a substrate (the UPC), the substrate is Turing-complete. The proof relies on:
+Doom-on-Monad is documented as a formal proof of computational generality in [`docs/upc/COMPUTATIONAL_GENERALITY.md`](../docs/upc/COMPUTATIONAL_GENERALITY.md). The argument: if a non-trivial Turing-complete program (Doom) runs to completion on a substrate (the UPC), the substrate is Turing-complete. The proof relies on:
 
 - Doom uses dynamic dispatch (function pointers through the BSP traversal), unbounded recursion (via tail-call elimination + heap allocation), arbitrary memory R/W (the Z_Malloc heap), and conditional branches (the entire FSM-driven enemy AI).
 - Every one of those compiles to MBC and dispatches through the XDP program.
@@ -154,4 +154,4 @@ Doom-on-Monad is documented as a formal proof of computational generality in [`d
 
 ---
 
-> **Source:** [docs/doom/README.md](../docs/doom/README.md) · [docs/doom/ARCHITECTURE.md](../docs/doom/ARCHITECTURE.md) · [docs/doom/FINDINGS.md](../docs/doom/FINDINGS.md) · [docs/doom/COMPUTATIONAL_GENERALITY.md](../docs/doom/COMPUTATIONAL_GENERALITY.md) · [crates/doom-runner/](../crates/doom-runner/) · [demos/doom/](../demos/doom/)
+> **Source:** [docs/doom/README.md](../docs/doom/README.md) · [docs/doom/ARCHITECTURE.md](../docs/doom/ARCHITECTURE.md) · [docs/doom/FINDINGS.md](../docs/doom/FINDINGS.md) · [docs/upc/COMPUTATIONAL_GENERALITY.md](../docs/upc/COMPUTATIONAL_GENERALITY.md) · [crates/doom-runner/](../crates/doom-runner/) · [demos/doom/](../demos/doom/)

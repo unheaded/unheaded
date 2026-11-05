@@ -15,7 +15,7 @@
 use monad_common::MbcCpuState;
 
 /// Fixed per-pid page-directory base address (Allocator A1).
-/// Each pid gets a 4 KiB pgd at this offset. Per `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`.
+/// Each pid gets a 4 KiB pgd at this offset. Per `docs/upc/UPC_PAGE_TABLE_LAYOUT.md`.
 #[allow(dead_code)] // Used by Phase 1.2 implementation when MMU goes live
 pub const PER_PID_PGD_BASE: u32 = 0x00F0_0000;
 

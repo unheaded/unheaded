@@ -226,7 +226,7 @@ freeproc(struct proc *p)
 // w_satp(MAKE_SATP(p->pagetable)) which our memory-mapped CSR region
 // (0x0000F000+) routes to MbcCpuState::page_dir_base. The BPF scheduler
 // hook (phase12_option_a_on_context_switch) and PROC_TABLE[pid][20]
-// observe the same value. See docs/doom/UPC_PAGE_TABLE_LAYOUT.md.
+// observe the same value. See docs/upc/UPC_PAGE_TABLE_LAYOUT.md.
 pagetable_t
 proc_pagetable(struct proc *p)
 {

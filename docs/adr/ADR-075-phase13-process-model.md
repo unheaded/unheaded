@@ -47,7 +47,7 @@ Phase 1.3 advances xv6 past the boot banner into a real process model: SYS_FORK,
 
 ### D-4 — Userland address space layout
 
-**Decision**: Adopt the layout amendment landed at commit `0089a3ff` (`docs/doom/UPC_PAGE_TABLE_LAYOUT.md`):
+**Decision**: Adopt the layout amendment landed at commit `0089a3ff` (`docs/upc/UPC_PAGE_TABLE_LAYOUT.md`):
 
 - **User code/data**: virtual addresses `0x00000000+` (xv6 default user-VA layout). Page tables at `pgd[pid]` map these to physical range `0x01000000-0x02FFFFFF`.
 - **Trampoline**: highest user VA (`TRAMPOLINE = MAXVA - PGSIZE`, per xv6 convention). Maps to physical address of `trampoline_mbc.S` (kernel-side, shared).

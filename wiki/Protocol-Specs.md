@@ -268,7 +268,7 @@ A single packet's lifecycle:
 | Wotan Memory Model RFC | `docs/protocol/draft-bellis-unheaded-wotan-memory-03.md` |
 | Wire Format Patterns | `wiki/Wire-Format-Patterns.md` |
 | Doom-over-IPv6 Architecture | `docs/protocol/doom-over-ipv6-architecture.md` |
-| BPF Map Reference | `docs/doom/BPF-MAP-REFERENCE.md` |
+| BPF Map Reference | `docs/upc/BPF-MAP-REFERENCE.md` |
 
 ---
 

@@ -1346,7 +1346,7 @@ cd ../../../ebpf && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 /home/govan/tmp/
 
 The Dream Ladder summit per `references/battle-plan-ascend-linux-2026-05-08.md`.
 
-**Phase 0 (DONE):** ABI v1 + ISA v2 frozen per `docs/adr/ADR-067-mbc-isa-v2-and-upc-abi-v1.md`. 5 new MBC opcodes (FENCE 0x3F, MRET 0x47, SRET 0x48, LR.W 0x49, SC.W 0x4A) implemented in monad-mbc + monad-cpu-ebpf. MbcCpuState 128 → 136 bytes (priv_level + reservation_address). UPC Boot Protocol v2 spec (`docs/doom/UPC_BOOT_PROTOCOL_V2.md`) — two-stage boot, 256B BootParams, memory-mapped CSR region 0x000_F000+. BPF verifier still well under budget.
+**Phase 0 (DONE):** ABI v1 + ISA v2 frozen per `docs/adr/ADR-067-mbc-isa-v2-and-upc-abi-v1.md`. 5 new MBC opcodes (FENCE 0x3F, MRET 0x47, SRET 0x48, LR.W 0x49, SC.W 0x4A) implemented in monad-mbc + monad-cpu-ebpf. MbcCpuState 128 → 136 bytes (priv_level + reservation_address). UPC Boot Protocol v2 spec (`docs/upc/UPC_BOOT_PROTOCOL_V2.md`) — two-stage boot, 256B BootParams, memory-mapped CSR region 0x000_F000+. BPF verifier still well under budget.
 
 **Phase 1.1 SHIP gate ACHIEVED 2026-05-10 (commit `3ac1f684`):**
 - xv6-riscv vendored at `crates/xv6-mbc/upstream/` (commit `5474d4bf`, MIT).

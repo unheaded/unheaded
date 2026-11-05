@@ -53,8 +53,8 @@ pub fn image_path() -> Option<PathBuf> {
 /// u32 on LE systems.
 ///
 /// Resolved 2026-05-10 per ADR-072 ("BOOT_MAGIC byte-ordering convention");
-/// see `docs/doom/UPC_BOOT_PROTOCOL.md` §"Magic Value" and
-/// `docs/doom/UPC_BOOT_PROTOCOL_V2.md` line 113 for the spec-side framing.
+/// see `docs/upc/UPC_BOOT_PROTOCOL.md` §"Magic Value" and
+/// `docs/upc/UPC_BOOT_PROTOCOL_V2.md` line 113 for the spec-side framing.
 pub const BOOT_MAGIC: u32 = 0x554E4844;
 
 #[cfg(test)]
@@ -63,8 +63,8 @@ mod tests {
 
     #[test]
     fn boot_magic_pinned_to_spec_value() {
-        // Per docs/doom/UPC_BOOT_PROTOCOL.md line 73 and
-        // docs/doom/UPC_BOOT_PROTOCOL_V2.md line 113.
+        // Per docs/upc/UPC_BOOT_PROTOCOL.md line 73 and
+        // docs/upc/UPC_BOOT_PROTOCOL_V2.md line 113.
         // If this assertion fails, ensure the spec was updated in lockstep.
         assert_eq!(BOOT_MAGIC, 0x554E4844);
     }

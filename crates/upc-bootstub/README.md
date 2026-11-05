@@ -101,7 +101,7 @@ sudo cargo run -p upc-bootctl -- boot \
 
 ## See also
 
-- `docs/doom/UPC_BOOT_PROTOCOL_V2.md` — wire-format contract for BootParamsV2.
+- `docs/upc/UPC_BOOT_PROTOCOL_V2.md` — wire-format contract for BootParamsV2.
 - `crates/xv6-mbc/adapters/start_mbc.c` — the Phase 1.1 inlined version of this stub.
 - `crates/xv6-mbc/TRANSLATOR_EXTENSIONS.md` §"Phase 1.1 SHIP decisions" — context on why this crate was deferred from Phase 1.1.
 - `references/battle-plan-ascend-linux-2026-05-08.md` §6 (Phase 2) — the broader Phase 2 plan this crate slots into.

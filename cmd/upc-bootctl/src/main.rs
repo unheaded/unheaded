@@ -64,7 +64,7 @@ enum Cmd {
 
         /// Path to the optional xv6-format ramdisk image (built by
         /// `crates/xv6-mbc/upstream/mkfs/mkfs`). Loaded into RAM_MAP at
-        /// byte 0x00800000 per docs/doom/UPC_PAGE_TABLE_LAYOUT.md.
+        /// byte 0x00800000 per docs/upc/UPC_PAGE_TABLE_LAYOUT.md.
         /// Phase 1.4 IMPL — distinct from --initramfs (Linux CPIO).
         #[arg(long)]
         ramdisk: Option<PathBuf>,
@@ -757,7 +757,7 @@ fn boot_prepare(
     // source of .rodata: a live boot without it is refused (DP-414).
     // Phase 1.4: load the xv6-format ramdisk (fs.img) at byte 0x00800000.
     // mkfs produces this image; xv6's fs.c later mounts it. Address per
-    // docs/doom/UPC_PAGE_TABLE_LAYOUT.md.
+    // docs/upc/UPC_PAGE_TABLE_LAYOUT.md.
     if let Some(rd) = ramdisk {
         match std::fs::read(rd) {
             Ok(bytes) => match runner.populate_ram(&[(0x00800000, &bytes)]) {
@@ -1120,7 +1120,7 @@ fn cmd_boot(
         println!("initramfs:     (none — kernel boots without /init)");
     }
 
-    println!("\nBoot Protocol v2 setup (per docs/doom/UPC_BOOT_PROTOCOL_V2.md):");
+    println!("\nBoot Protocol v2 setup (per docs/upc/UPC_BOOT_PROTOCOL_V2.md):");
     println!(
         "  1. Allocate PerCPU<MbcCpuState> slot for instance 0x{:02X}",
         instance

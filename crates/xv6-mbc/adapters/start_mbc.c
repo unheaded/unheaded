@@ -37,7 +37,7 @@
 __attribute__((aligned(16))) char stack0[4096 * NCPU];
 
 // ── BootParams v2/v3 layout (at byte address 0x100) ────────────────────────
-// See docs/doom/UPC_BOOT_PROTOCOL_V2.md. v3 (S-ASCEND-2) = the v2 layout with
+// See docs/upc/UPC_BOOT_PROTOCOL_V2.md. v3 (S-ASCEND-2) = the v2 layout with
 // the loader-verified kernel .rv2mbc SHA-256 in bytes 64..96. Both versions
 // are accepted for one release; the kernel does not read the hash.
 #define BOOT_PARAMS_ADDR  0x100
