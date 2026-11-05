@@ -107,3 +107,19 @@ DP-206 (approved, already run once under guard): the attended list is Appendix D
 - ADR-135 is Proposed; gate commits: 75c1c051 7f7e17eb c1c2093a de38d86e a9af9c92 c8c266d7 118656a4 5ae498fe 9dca5441 974106b0 7929f67c 05c2c1de 
 - unsigned commit: [PLAN S-STAGE-2B] Steps 263-266: security pass
 - unsigned commit: [PLAN S-STAGE-2B] Steps 267-272: docs ripple
+- unsigned merge of develop
+- wiki/ADR-Index.md has no row for ADR-135: the plan's Step 116 asks only for docs/adr/ADR-INDEX.md, so the merge left the wiki at 131 entries through ADR-134 while the docs index says 132. Phase 23 does not own that file. It wants one row and two counts.
+
+## Close
+
+- Last Stop reached: H (Phase 20). Phases 21 and 22 ran from there, so nothing the plan scheduled is left undone.
+- Landed: UPC_RUNG0, UPC_RUNG2, UPC_RUNG_SBRK, UPC_RUNG_KILL, UPC_RUNG_MKDIR, UPC_RUNG_UNLINK, UPC_RUNG_LINK, UPC_RUNG_SLEEP, UPC_RUNG_FD, UPC_RUNG_CHDIR, UPC_RUNG_PIPE.
+- Ledger's last row: `| pipe | 890496 | 889941 | -555 | 31095 | pipe-after |`.
+- Close gate, on 93a7bcce with develop merged in at 964244ae: same=12 diff=0 rc=0 doom=1 ascend=889941, BUDGET-OK, headroom 10,059, net 31,095. Build: 35 sidecars.
+- `[STUCK]`: none. Two things that are not stuck but read like it: Step 232's stop was not taken (Phase 18's 'please read' line above), and `fuzz_mbc_execute` is a SKIP, not a pass, because cargo-fuzz is absent.
+- Merging develop conflicted in `docs/adr/ADR-INDEX.md` only. Series rule 15 keeps both sides in number order, so no `[STUCK]`. The count there was develop's, through ADR-134, so the merge moved it to 132 entries through ADR-135 and Proposed to 34. `wiki/ADR-Index.md` did not conflict and still stops at 134: see For Stevie.
+- Unsigned: gpg-agent has no cached key since the reboot, so every commit since Step 173 is unsigned, and so is the merge of develop. Hashes are in `~/tmp/s-stage-2b/unsigned.txt`; `scripts/resign-unpushed.py` re-signs them before any push. If gpg is still cold at Step 280, the merge into develop is unsigned too, and its hash goes in the same file.
+- Timeline mirrors left stale: `references/timeline.json`, `.yaml` and `.toml`. `-sync-once` does not exist and timeguru's syncer has no command line, so only `references/timeline.md` carries S-STAGE-2B.
+- Next rung: rung 3 of the skeleton, console `write` and `read` into the kernel, on the way to retiring `fs_walk`, `FD_INODE_MAP` and `PROC_TABLE`. That is the plan after this one (Appendix E); it is not written yet.
+- Commits on the branch ahead of develop, before this close commit: 43.
+- unsigned commit: [PLAN S-STAGE-2B] Steps 273-278: close
