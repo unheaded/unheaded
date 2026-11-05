@@ -211,8 +211,8 @@ const LogViewer = {
 
         line.innerHTML =
             '<span class="log-ts">' + ts + '</span> ' +
-            '<span class="log-level" style="color:' + color + '">' + level + '</span> ' +
-            '<span class="log-service">[' + (entry.service || '?') + ']</span> ' +
+            '<span class="log-level" style="color:' + this.escapeHTML(color) + '">' + this.escapeHTML(level) + '</span> ' +
+            '<span class="log-service">[' + this.escapeHTML(entry.service || '?') + ']</span> ' +
             '<span class="log-msg">' + this.escapeHTML(entry.message || '') + '</span>';
 
         // Add fields if present
@@ -257,12 +257,13 @@ const LogViewer = {
     },
 
     /**
-     * Escape HTML entities
+     * Escape HTML entities, quotes included: safe in text and in a quoted
+     * attribute.
      */
     escapeHTML(str) {
         const div = document.createElement('div');
         div.textContent = str;
-        return div.innerHTML;
+        return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 };
 

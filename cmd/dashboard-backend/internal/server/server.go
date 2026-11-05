@@ -385,8 +385,9 @@ type TraceBuffer struct {
 // dashboardCSP is the dashboard's Content-Security-Policy (S-IRON-GATE Step
 // 298): scripts only from this origin (no inline handlers), inline styles
 // still allowed until the SPA's style attributes move to classes, and the
-// live views' WebSocket / EventSource on this origin.
-const dashboardCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none'"
+// live views' WebSocket / EventSource on this origin. Forms submit only to
+// this origin, whatever markup reaches a page.
+const dashboardCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 
 func withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

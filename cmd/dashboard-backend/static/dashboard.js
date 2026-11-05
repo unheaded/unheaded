@@ -1496,11 +1496,12 @@
     // ======================================================================
     // Utilities
     // ======================================================================
+    // Safe in text and in a quoted attribute: innerHTML alone leaves quotes.
     function esc(text) {
         if (!text) return '';
         var d = document.createElement('div');
         d.textContent = String(text);
-        return d.innerHTML;
+        return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function setText(element, value) { if (element) element.textContent = value; }

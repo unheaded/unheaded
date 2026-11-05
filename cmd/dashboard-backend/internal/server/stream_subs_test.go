@@ -95,3 +95,13 @@ func TestStream_OversizedFilterRefused(t *testing.T) {
 		t.Errorf("%d subscriptions left behind", got)
 	}
 }
+
+// L9: markup that reaches a page cannot post a form off this origin.
+func TestDashboardCSP_LimitsForms(t *testing.T) {
+	srv := newTestServer(t)
+	rec := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+	if csp := rec.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "form-action 'self'") {
+		t.Fatalf("CSP %q has no form-action", csp)
+	}
+}
