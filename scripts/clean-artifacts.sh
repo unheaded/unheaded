@@ -10,8 +10,7 @@
 #   3. Stale root-level Go binaries (architect, captain, sophia, etc.)
 #   4. Junk files (.DS_Store, coverage.*, swap files, backups)
 #   5. Python __pycache__ directories
-#   6. Doom C build artifacts (build_monad/)
-#   7. Fuzz corpus/artifacts (crates/monad-mbc/fuzz/)
+#   6. Fuzz corpus/artifacts (crates/monad-mbc/fuzz/)
 #
 # Usage:
 #   ./scripts/clean-artifacts.sh          # Dry run (shows what would be removed)
@@ -163,19 +162,6 @@ show_sizes() {
     done
     if [ "$junk_count" -gt 0 ]; then
         echo -e "  ${YELLOW}${junk_count}${NC} junk files (.DS_Store, coverage.*, etc.)"
-        echo ""
-    fi
-
-    # Doom WADs (special — warn but don't auto-count)
-    local wad_total=0
-    for wad in doom/doom.wad doom/doom2.wad; do
-        if [ -f "$wad" ]; then
-            size=$(du -sm "$wad" 2>/dev/null | cut -f1)
-            wad_total=$((wad_total + size))
-        fi
-    done
-    if [ "$wad_total" -gt 0 ]; then
-        echo -e "  ${CYAN}${wad_total}M${NC}  Doom WADs (gitignored, nuked by --nuke, re-download if needed)"
         echo ""
     fi
 
