@@ -470,10 +470,16 @@ func newAPI(s *yaldabaoth.Service, pub yaldabaoth.Publisher, authEnabled bool) *
 	return &api{s: s, gameday: yaldabaoth.NewGameDayScheduler(nil, s, pub), authEnabled: authEnabled}
 }
 
-func handler(a *api) http.Handler {
+// handler guards the routes with auth.NewServiceHandler: with auth on, a
+// write needs admin, operator or service and a read also takes observer. An
+// error means auth is on but unusable, and the controller must not start.
+func handler(a *api, authCfg auth.ServiceAuthConfig) (http.Handler, error) {
 	mux := a.routes(a.s.Registry())
-	h := auth.WrapHandler(mux, auth.SetupMiddleware(auth.LoadServiceAuthConfig(serviceName)))
-	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, h))
+	h, err := auth.NewServiceHandler(mux, authCfg, auth.ServiceRoutes{})
+	if err != nil {
+		return nil, err
+	}
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, h)), nil
 }
 
 // renderPolkit prints the polkit rule for the configured allowlist's systemd
@@ -539,11 +545,15 @@ func main() {
 	if err := s.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("chaos-controller cannot start")
 	}
-	authEnabled := auth.LoadServiceAuthConfig(serviceName).Enabled
-	if !authEnabled {
+	authCfg := auth.LoadServiceAuthConfig(serviceName)
+	if !authCfg.Enabled {
 		log.Warn().Msg("AUTH_ENABLED is not true: every chaos write answers 403")
 	}
-	a := newAPI(s, nil, authEnabled)
+	a := newAPI(s, nil, authCfg.Enabled)
+	h, err := handler(a, authCfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("chaos-controller cannot start")
+	}
 
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
@@ -552,7 +562,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              c.addr,
-		Handler:           handler(a),
+		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,
