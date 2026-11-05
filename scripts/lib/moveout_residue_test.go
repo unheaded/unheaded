@@ -40,6 +40,8 @@ var moveoutGone = []struct {
 	forbidden string
 }{
 	{"nix/containers/gateway.nix", `(?i)doom`},
+	{"go.mod", `=> \.\./`},
+	{"Dockerfile", `=> \\\.\\\.`},
 	{"cmd/dashboard-backend/static/index.html", `:16666|>Doom<`},
 	{"cmd/dashboard-backend/static/logs.html", `:16666|>Doom<`},
 	{"cmd/dashboard-backend/static/compliance.html", `:16666|>Doom<`},
