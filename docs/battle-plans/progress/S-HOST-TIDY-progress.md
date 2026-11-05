@@ -127,3 +127,4 @@
 - Phase 14 commits are unsigned (`--no-gpg-sign`): gpg-agent has no cached key, coordinator's note.
 - Steps 111-115: Phase 14, checked: TRIAL, NAMED ROOT STEP  the same namespace as govan, GOTMPDIR and TMPDIR under /var/tmp: G.
 - Steps 116-117: Control failed as it must; trial result recorded under For Stevie; deferred to S-E1-LIVE Evening 17.
+- Step 118 exit gate: PASSED, `0`, `1`. Host `/tmp` still `rw,nosuid,nodev`, no `noexec`, `GOTMPDIR` unset, `/var/tmp/host-tidy/cargo` removed. Row 25.4 trial green, host change deferred to S-E1-LIVE Evening 17. This commit is unsigned too.
