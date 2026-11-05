@@ -200,6 +200,7 @@ func (p *ReverseProxy) proxyRequest(w http.ResponseWriter, r *http.Request, back
 
 	// Copy headers
 	copyHeaders(outReq.Header, r.Header)
+	dropForwardingHeaders(outReq.Header)
 
 	// Add proxy headers
 	clientIP := middleware.ClientIP(r, p.trustedProxies)
@@ -297,6 +298,16 @@ func singleJoiningSlash(a, b string) string {
 		return a + "/" + b
 	}
 	return a + b
+}
+
+// dropForwardingHeaders removes every forwarding header the client sent, so
+// what a backend hears about the client is only what the gateway states.
+func dropForwardingHeaders(h http.Header) {
+	for k := range h {
+		if k == "Forwarded" || strings.HasPrefix(k, "X-Forwarded-") {
+			delete(h, k)
+		}
+	}
 }
 
 // copyHeaders copies headers from src to dst.

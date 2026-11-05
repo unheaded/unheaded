@@ -86,3 +86,49 @@ func TestForwardedProto_OwnTLSWins(t *testing.T) {
 		t.Fatalf("backend told %q, want https", got)
 	}
 }
+
+// The backend hears about the client from the gateway alone: a forwarding
+// header the gateway does not state itself does not get through, from any peer.
+func TestForwardingHeaders_OnlyTheGatewaysOwnReachTheBackend(t *testing.T) {
+	const proxyAddr = "192.0.2.1"
+	for _, c := range []struct {
+		name    string
+		trusted []string
+		peer    string
+	}{
+		{"untrusted peer", nil, "203.0.113.9:4000"},
+		{"trusted proxy", []string{proxyAddr}, proxyAddr + ":4000"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var seen http.Header
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				seen = r.Header.Clone()
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer backend.Close()
+			p := NewReverseProxy(&config.RouteConfig{Name: "forwarding", Timeout: 5 * time.Second}, testLogger(), nil,
+				NewRoundRobinLoadBalancer([]string{backend.URL}, testLogger()), nil)
+			defer p.Close()
+			p.SetTrustedProxies(c.trusted)
+
+			req := httptest.NewRequest(http.MethodGet, "http://gateway.test/", nil)
+			req.RemoteAddr = c.peer
+			req.Header.Set("Forwarded", "for=192.0.2.60;proto=https")
+			req.Header.Set("X-Forwarded-Port", "8443")
+			req.Header.Set("X-Forwarded-Prefix", "/made-up")
+			req.Header.Set("X-Keep", "this one is the client's own")
+			p.ServeHTTP(httptest.NewRecorder(), req)
+
+			for _, h := range []string{"Forwarded", "X-Forwarded-Port", "X-Forwarded-Prefix"} {
+				if got := seen.Values(h); len(got) != 0 {
+					t.Errorf("%s reached the backend: %q", h, got)
+				}
+			}
+			for _, h := range []string{"X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Keep"} {
+				if seen.Get(h) == "" {
+					t.Errorf("%s is missing at the backend", h)
+				}
+			}
+		})
+	}
+}
