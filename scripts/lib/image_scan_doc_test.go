@@ -18,7 +18,10 @@ func TestImageScanRecordsTheOpenWebUIPinMove(t *testing.T) {
 		t.Fatalf("the tree still pins %s; the record below would be false", scanned)
 	}
 	scan := moveoutRepoFile(t, "docs/security/image-scan-2026-11-04.md")
-	if !regexp.MustCompile("(?m)^.*open-webui.*moved.*`f11da98d`").MatchString(scan) {
+	if !strings.Contains(scan, "`f11da98d` moved the open-webui pin") {
 		t.Error("image-scan-2026-11-04.md does not say f11da98d moved the open-webui pin")
+	}
+	if m := regexp.MustCompile(`digest this tree pins|14/137 is the true figure`).FindString(scan); m != "" {
+		t.Errorf("image-scan-2026-11-04.md still says %q of the digest the tree has left", m)
 	}
 }
