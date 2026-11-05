@@ -6,14 +6,11 @@
 // Replaces MIT kernel/syscall.c in the Makefile.mbc OBJS list; the MIT file
 // stays vendored, unwired.
 //
-// RUNTIME-DEAD ON THE UPC, BY ARCHITECTURE: user ecalls never reach this
-// code — the ascend BPF ecall dispatch (ebpf/monad-cpu-ebpf/src/main.rs,
-// SYS_* handlers) owns the entire syscall surface and services each call
-// in-BPF. This file is linked because trap.c references syscall() and
-// sysproc.c/sysfile.c use the arg*/fetch* helpers; it comes ALIVE in Phase
-// 2.4 when the kernel core (trap path included) becomes ours. Every bounds
-// check is therefore preserved at full stock strength — dead code today is
-// the attack surface of tomorrow.
+// WHO REACHES THIS: the ascend BPF ecall dispatch
+// (ebpf/monad-cpu-ebpf/src/main.rs) answers most calls itself and injects a
+// trap for the numbers routed to the kernel (ADR-109, ADR-135), so those land
+// here through the ordinary trap path. Every bounds check is preserved at
+// full stock strength, because a user pointer now arrives here for real.
 
 #include "types.h"
 #include "param.h"

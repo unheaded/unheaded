@@ -40,6 +40,8 @@ var moveoutGone = []struct {
 	forbidden string
 }{
 	{"nix/containers/gateway.nix", `(?i)doom`},
+	{"crates/xv6-mbc/adapters/usyscall.c", `RUNTIME-DEAD|never reach this|comes ALIVE`},
+	{"crates/xv6-mbc/upstream/user/ush.c", `both unimplemented|FS reader lacks|also unimplemented|dead syscalls|chdir no-op`},
 	{"go.mod", `=> \.\./`},
 	{"Dockerfile", `=> \\\.\\\.`},
 	{"cmd/dashboard-backend/static/index.html", `:16666|>Doom<`},
