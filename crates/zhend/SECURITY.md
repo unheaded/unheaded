@@ -94,5 +94,5 @@ zhend is designed to operate in adversarial network environments:
 ## Dependencies
 
 See `THIRD_PARTY.md` for a complete dependency inventory with licenses.
-All dependencies are permissive (MIT, Apache-2.0, BSD-3-Clause, CC0) or public domain.
-No copyleft dependency conflicts. `cargo audit` should be run before each release.
+`sbom/SBOM.md` at the repo root gives the license of every crate in `Cargo.lock` and
+names what is left for a person to rule on. `cargo audit` should be run before each release.

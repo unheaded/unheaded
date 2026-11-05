@@ -11,28 +11,32 @@ outside these lists are in `THIRD_PARTY.md`.
 
 | Ecosystem | Total | Direct | Licenses not read | Detail file |
 |-----------|-------|--------|-------------------|-------------|
-| Go | 148 | 17 | 32 | `sbom/go-dependencies.json` |
-| Rust | 352 external, 43 workspace | | 0 | `sbom/rust-dependencies.json` |
-| Python | 197 | | 0 | `sbom/python-dependencies.json`, from `sbom/python-pip-freeze.txt`, a `pip freeze` of the Zhen venv, not a manifest |
+| Go | 168 | 17 | 32 | `sbom/go-dependencies.json` |
+| Rust | 352 external, 39 workspace | | 0 | `sbom/rust-dependencies.json` |
+| Python | 249 | | 20 | `sbom/python-dependencies.json`, from `sbom/python-pip-freeze.txt`, a `pip freeze` of the Zhen venv, and the manifests below |
 | JavaScript | 4 | | 4 | `sbom/javascript-dependencies.json`, CDN-loaded files; nothing is installed |
 
-Rust lock files read: `cmd/crypto-inventory/testdata/rust/Cargo.lock`, `cmd/ebpf-collector/Cargo.lock`, `cmd/ebpf-collector/ebpf-programs/Cargo.lock`, `cmd/ebpf-load-check/Cargo.lock`, `cmd/ebpf-loader/Cargo.lock`, `cmd/upc-bootctl/Cargo.lock`, `crates/heimdall-bpf/Cargo.lock`, `crates/lich-fuzz/Cargo.lock`, `crates/monad-mbc/Cargo.lock`, `crates/monad-mbc/fuzz/Cargo.lock`, `crates/svc-token/Cargo.lock`, `crates/upc-api/Cargo.lock`, `crates/upc-api/fuzz/Cargo.lock`, `crates/upc-bootstub/Cargo.lock`, `crates/upc-cartridge/Cargo.lock`, `crates/xv6-mbc/Cargo.lock`, `crates/zhend/Cargo.lock`, `ebpf/Cargo.lock`, `tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock`.
+Go modules read: `unheaded`, `unheaded/tools/gosec`.
 
-Rust workspace crates: `anomaly-ebpf`, `aws-lc-rs`, `canary-ebpf`, `cartridge-ebpf`, `collector`, `compliance-ebpf`, `ebpf-common`, `ebpf-load-check`, `ebpf-loader`, `ebpf-programs`, `failover-ebpf`, `firewall-ebpf`, `flow-tracker`, `heimdall-bpf`, `hop-ebpf`, `latency-probe`, `lich-fuzz`, `lich015-diff-harness`, `maglev-ebpf`, `monad-common`, `monad-cpu-ebpf`, `monad-mbc`, `monad-mbc-fuzz`, `nfv-ebpf`, `packet-marker`, `pqc-common`, `pqcrypto-mlkem`, `qos-ebpf`, `ring`, `rustls`, `shield-ebpf`, `syscall-tracer`, `unheaded-common`, `unheaded-svc-token`, `upc-api`, `upc-api-fuzz`, `upc-bootctl`, `upc-bootstub`, `upc-cartridge`, `version-ebpf`, `xv6-mbc`, `yaldabaoth-ebpf`, `zhend`.
+Python manifests read: `.github/ci-python/requirements.txt`, `notebooks/requirements.txt`, `raft/requirements.txt`, `tomb/grimoire/rag/requirements.txt`.
+
+Rust lock files read: `cmd/ebpf-collector/Cargo.lock`, `cmd/ebpf-collector/ebpf-programs/Cargo.lock`, `cmd/ebpf-load-check/Cargo.lock`, `cmd/ebpf-loader/Cargo.lock`, `cmd/upc-bootctl/Cargo.lock`, `crates/heimdall-bpf/Cargo.lock`, `crates/lich-fuzz/Cargo.lock`, `crates/monad-mbc/Cargo.lock`, `crates/monad-mbc/fuzz/Cargo.lock`, `crates/svc-token/Cargo.lock`, `crates/upc-api/Cargo.lock`, `crates/upc-api/fuzz/Cargo.lock`, `crates/upc-bootstub/Cargo.lock`, `crates/upc-cartridge/Cargo.lock`, `crates/xv6-mbc/Cargo.lock`, `crates/zhend/Cargo.lock`, `ebpf/Cargo.lock`, `tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock`.
+
+Rust workspace crates: `anomaly-ebpf`, `canary-ebpf`, `cartridge-ebpf`, `collector`, `compliance-ebpf`, `ebpf-common`, `ebpf-load-check`, `ebpf-loader`, `ebpf-programs`, `failover-ebpf`, `firewall-ebpf`, `flow-tracker`, `heimdall-bpf`, `hop-ebpf`, `latency-probe`, `lich-fuzz`, `lich015-diff-harness`, `maglev-ebpf`, `monad-common`, `monad-cpu-ebpf`, `monad-mbc`, `monad-mbc-fuzz`, `nfv-ebpf`, `packet-marker`, `pqc-common`, `qos-ebpf`, `shield-ebpf`, `syscall-tracer`, `unheaded-common`, `unheaded-svc-token`, `upc-api`, `upc-api-fuzz`, `upc-bootctl`, `upc-bootstub`, `upc-cartridge`, `version-ebpf`, `xv6-mbc`, `yaldabaoth-ebpf`, `zhend`.
 
 ## Go licenses
 
-Read from each module's license files, in the module cache. " AND " means the
-files name each of these; they may be alternatives.
+Read from the license files at each module's root, in the module cache. " AND "
+means the files name each of these; they may be alternatives.
 
 | License | Count |
 |---------|-------|
-| BSD-3-Clause | 37 |
-| MIT | 32 |
+| BSD-3-Clause | 39 |
+| MIT | 39 |
+| Apache-2.0 | 38 |
 | Unknown | 31 |
-| Apache-2.0 | 30 |
-| Apache-2.0 AND BSD-3-Clause | 6 |
-| Apache-2.0 AND MIT | 4 |
+| Apache-2.0 AND BSD-3-Clause | 8 |
+| Apache-2.0 AND MIT | 5 |
 | BSD-2-Clause | 3 |
 | BSD-3-Clause AND MIT | 2 |
 | Apache-2.0 AND BSD-3-Clause AND LicenseRef-public-domain AND MIT AND MPL-2.0 | 1 |
@@ -63,7 +67,8 @@ files name each of these; they may be alternatives.
 
 ## Rust licenses
 
-The license field of each crate's own Cargo.toml, as written.
+The license field of each crate's own Cargo.toml, as written. Files a crate
+bundles are not read.
 
 | License | Count |
 |---------|-------|
@@ -100,20 +105,31 @@ The license field of each crate's own Cargo.toml, as written.
 
 ## Python licenses
 
-Read from each package's metadata in the Zhen venv: License-Expression, else
-the license classifiers, else the License field, else its license files.
+Read from each package's metadata in the venvs on this host, for the version
+listed: License-Expression, else the license classifiers, else the License
+field, else its license files. A manifest line that is not an exact pin names no
+one version, so it stays not read. Every license file the package installed is
+then read as well, and what those name of the GPL family goes to the verdict
+below, even when the metadata says otherwise. "Name" is as far as it goes: a
+file may only quote such a license, or cover one bundled binary.
 
 | License | Count |
 |---------|-------|
-| MIT | 39 |
-| MIT License | 33 |
-| BSD-3-Clause | 22 |
-| Apache-2.0 | 20 |
+| MIT | 49 |
+| MIT License | 37 |
+| Apache-2.0 | 24 |
+| BSD-3-Clause | 24 |
+| Unknown | 20 |
+| Apache Software License | 19 |
 | BSD License | 18 |
-| Apache Software License | 14 |
 | Other/Proprietary License | 13 |
 | Apache Software License AND BSD License | 2 |
+| Apache-2.0 OR BSD-2-Clause | 2 |
 | BSD-2-Clause | 2 |
+| GPL-3.0-or-later | 2 |
+| ISC License (ISCL) | 2 |
+| Mozilla Public License 2.0 (MPL 2.0) | 2 |
+| Python Software Foundation License | 2 |
 | Apache 2.0 License | 1 |
 | Apache License 2.0 | 1 |
 | Apache Software License AND MIT License | 1 |
@@ -122,7 +138,6 @@ the license classifiers, else the License field, else its license files.
 | Apache-2.0 AND CC-BY-4.0 AND LicenseRef-scancode-other-permissive AND LicenseRef-scancode-other-copyleft | 1 |
 | Apache-2.0 AND CNRI-Python | 1 |
 | Apache-2.0 AND MIT | 1 |
-| Apache-2.0 OR BSD-2-Clause | 1 |
 | Apache-2.0 OR BSD-3-Clause | 1 |
 | Apache-2.0 OR MIT | 1 |
 | Artistic License AND GNU General Public License (GPL) AND GNU General Public License v2 or later (GPLv2+) | 1 |
@@ -134,17 +149,15 @@ the license classifiers, else the License field, else its license files.
 | GNU Lesser General Public License v3 or later (LGPLv3+) | 1 |
 | GNU Library or Lesser General Public License (LGPL) | 1 |
 | GPL-3.0-or-later OR MIT | 1 |
-| ISC License (ISCL) | 1 |
 | LicenseRef-NVIDIA-Proprietary | 1 |
 | LicenseRef-NVIDIA-SOFTWARE-LICENSE | 1 |
 | MIT AND BSD-3-Clause | 1 |
 | MIT License AND Mozilla Public License 2.0 (MPL 2.0) | 1 |
+| MIT-0 | 1 |
 | MPL-2.0 AND (Apache-2.0 OR MIT) | 1 |
 | MPL-2.0 AND MIT | 1 |
-| Mozilla Public License 2.0 (MPL 2.0) | 1 |
 | NVIDIA Proprietary Software | 1 |
 | PSF-2.0 | 1 |
-| Python Software Foundation License | 1 |
 | apache-2.0 AND bsd-simplified | 1 |
 | apache-2.0 AND bsd-simplified-darwin AND (bsd-simplified AND public-domain AND bsd-new AND isc AND (bsd-new OR gpl-1.0-plus) AND bsd-original) | 1 |
 | apache-2.0 AND lgpl-2.1 and unrar and brian-gladman-3-clause | 1 |
@@ -194,6 +207,26 @@ the license classifiers, else the License field, else its license files.
 | Go | google.golang.org/genproto/googleapis/api | v0.0.0-20260706201446-f0a921348800 | no source in the module cache; compiled into no package here |
 | Go | gotest.tools/v3 | v3.5.0 | no source in the module cache; compiled into no package here |
 | Go | modernc.org/memory | v1.12.1 | LICENSE-LOGO not recognised |
+| Python | beautifulsoup4 | >=4.12.0,<5.0.0 | no exact pin; the venvs read hold 4.14.3 |
+| Python | chromadb | 1.5.9 | not installed in a venv read |
+| Python | jupyter | >=1.0.0 | not installed in a venv read |
+| Python | jupyterlab | >=4.0.0 | not installed in a venv read |
+| Python | markdown | >=3.5,<4.0 | not installed in a venv read |
+| Python | matplotlib | >=3.8.0 | not installed in a venv read |
+| Python | nbformat | >=5.9.0 | not installed in a venv read |
+| Python | numpy | >=1.26.0 | no exact pin; the venvs read hold 2.4.3 |
+| Python | pandas | >=2.1.0 | no exact pin; the venvs read hold 3.0.1 |
+| Python | plotly | >=5.18.0 | not installed in a venv read |
+| Python | prometheus-api-client | >=0.5.4 | not installed in a venv read |
+| Python | psutil | >=5.9.0 | no exact pin; the venvs read hold 7.2.2 |
+| Python | pyyaml | >=6.0,<7.0 | no exact pin; the venvs read hold 6.0.3 |
+| Python | scipy | >=1.11.0 | no exact pin; the venvs read hold 1.17.1 |
+| Python | seaborn | >=0.13.0 | not installed in a venv read |
+| Python | sentence-transformers | 6.2.0 | the venvs read hold 5.7.0, not this version |
+| Python | tokenizers | 0.23.3 | the venvs read hold 0.23.2, not this version |
+| Python | torch | >=2.14.1,<3.0.0 | no exact pin; the venvs read hold 2.10.0 |
+| Python | tqdm | >=4.66.0,<5.0.0 | no exact pin; the venvs read hold 4.67.3 |
+| Python | transformers | 5.20.2 | the venvs read hold 5.17.0, not this version |
 | JavaScript | fonts.googleapis.com |  | loaded from a CDN, no copy on this host |
 | JavaScript | xlsx | 0.20.3 | loaded from a CDN, no copy on this host |
 | JavaScript | xterm | 5.3.0 | loaded from a CDN, no copy on this host |
@@ -201,11 +234,13 @@ the license classifiers, else the License field, else its license files.
 
 ## GPL boundary
 
-REVIEW: licenses that name the GPL family, for a person to rule on: r-efi 5.3.0 (MIT OR Apache-2.0 OR LGPL-2.1-or-later), r-efi 6.0.0 (MIT OR Apache-2.0 OR LGPL-2.1-or-later), chardet 5.2.0 (GNU Lesser General Public License v2 or later (LGPLv2+)), extractcode-7z 16.5.210531 (apache-2.0 AND lgpl-2.1 and unrar and brian-gladman-3-clause), gemfileparser2 0.9.4 (GPL-3.0-or-later OR MIT), intbitset 4.1.0 (GNU Lesser General Public License v3 or later (LGPLv3+)), psycopg2-binary 2.9.11 (GNU Library or Lesser General Public License (LGPL)), text-unidecode 1.3 (Artistic License AND GNU General Public License (GPL) AND GNU General Public License v2 or later (GPLv2+)), typecode-libmagic 5.39.210531 (apache-2.0 AND bsd-simplified-darwin AND (bsd-simplified AND public-domain AND bsd-new AND isc AND (bsd-new OR gpl-1.0-plus) AND bsd-original)), wikiextractor 3.0.6 (GNU Affero General Public License v3 or later (AGPLv3+)). 32 of 148 Go modules, 0 of 352 Rust crates, 0 of 197 Python packages and 4 of 4 JavaScript files are not read.
+REVIEW: for a person to rule on. Licenses that name the GPL family: r-efi 5.3.0 (MIT OR Apache-2.0 OR LGPL-2.1-or-later), r-efi 6.0.0 (MIT OR Apache-2.0 OR LGPL-2.1-or-later), ansible-core 2.21.5 (GPL-3.0-or-later), chardet 5.2.0 (GNU Lesser General Public License v2 or later (LGPLv2+)), extractcode-7z 16.5.210531 (apache-2.0 AND lgpl-2.1 and unrar and brian-gladman-3-clause), gemfileparser2 0.9.4 (GPL-3.0-or-later OR MIT), intbitset 4.1.0 (GNU Lesser General Public License v3 or later (LGPLv3+)), psycopg2-binary 2.9.11 (GNU Library or Lesser General Public License (LGPL)), text-unidecode 1.3 (Artistic License AND GNU General Public License (GPL) AND GNU General Public License v2 or later (GPLv2+)), typecode-libmagic 5.39.210531 (apache-2.0 AND bsd-simplified-darwin AND (bsd-simplified AND public-domain AND bsd-new AND isc AND (bsd-new OR gpl-1.0-plus) AND bsd-original)), wikiextractor 3.0.6 (GNU Affero General Public License v3 or later (AGPLv3+)), yamllint 1.38.0 (GPL-3.0-or-later). Named in a package's own license files, not its license field: aiohappyeyeballs 2.6.1 (GPL), cyclonedx-python-lib 11.12.0 (GPL), extractcode-libarchive 3.5.1.210531 (GPL, GPL-2.0, GPL-3.0, LGPL, LGPL-2.1), git-filter-repo 2.47.0 (GPL, GPL-2.0, LGPL), numpy 2.4.3 (AGPL, GPL, GPL-3.0, LGPL), nvidia-cublas-cu12 12.8.4.1 (GPL, LGPL), nvidia-cuda-cupti-cu12 12.8.90 (GPL, LGPL), nvidia-cuda-nvrtc-cu12 12.8.93 (GPL, LGPL), nvidia-cuda-runtime-cu12 12.8.90 (GPL, LGPL), nvidia-cufft-cu12 11.3.3.83 (GPL, LGPL), nvidia-cufile-cu12 1.13.1.3 (GPL, LGPL), nvidia-curand-cu12 10.3.9.90 (GPL, LGPL), nvidia-cusolver-cu12 11.7.3.90 (GPL, LGPL), nvidia-cusparse-cu12 12.5.8.93 (GPL, LGPL), nvidia-nvjitlink-cu12 12.8.93 (GPL, LGPL), nvidia-nvshmem-cu12 3.4.5 (GPL, LGPL), nvidia-nvtx-cu12 12.8.90 (GPL), pandas 3.0.1 (GPL), pip 26.2.1 (GPL), pyarrow 23.0.1 (GPL), scancode-toolkit 32.5.0 (GPL, LGPL), scikit-learn 1.8.0 (GPL, GPL-3.0), scipy 1.17.1 (AGPL, GPL, GPL-3.0, LGPL), setuptools 84.1.0 (GPL, LGPL, LGPL-3.0), torch 2.10.0 (AGPL, GPL, GPL-2.0, GPL-3.0, LGPL, LGPL-2.1, LGPL-3.0), typing_extensions 4.16.0 (GPL). Proprietary licenses: cuda-bindings 12.9.4 (LicenseRef-NVIDIA-SOFTWARE-LICENSE), nvidia-cublas-cu12 12.8.4.1 (Other/Proprietary License), nvidia-cuda-cupti-cu12 12.8.90 (Other/Proprietary License), nvidia-cuda-nvrtc-cu12 12.8.93 (Other/Proprietary License), nvidia-cuda-runtime-cu12 12.8.90 (Other/Proprietary License), nvidia-cudnn-cu12 9.10.2.21 (Other/Proprietary License), nvidia-cufft-cu12 11.3.3.83 (Other/Proprietary License), nvidia-cufile-cu12 1.13.1.3 (Other/Proprietary License), nvidia-curand-cu12 10.3.9.90 (Other/Proprietary License), nvidia-cusolver-cu12 11.7.3.90 (Other/Proprietary License), nvidia-cusparse-cu12 12.5.8.93 (Other/Proprietary License), nvidia-cusparselt-cu12 0.7.1 (NVIDIA Proprietary Software), nvidia-nccl-cu12 2.27.5 (Other/Proprietary License), nvidia-nvjitlink-cu12 12.8.93 (Other/Proprietary License), nvidia-nvshmem-cu12 3.4.5 (LicenseRef-NVIDIA-Proprietary), nvidia-nvtx-cu12 12.8.90 (Other/Proprietary License). 32 of 168 Go modules, 0 of 352 Rust crates, 20 of 249 Python packages and 4 of 4 JavaScript files are not read.
 
 This report reads licenses. It does not rule on whether they fit with
 GPL-3.0-or-later. "Name the GPL family" includes a crate offering the LGPL as
-one of several choices.
+one of several choices. It covers what is read, as each section above says: a
+license stated only inside a source file, or in a file a Rust crate bundles, is
+not seen.
 
 The compiled fixture under `doom/` is GPL-2.0. It runs inside the kernel's eBPF
 VM and talks through BPF maps, so nothing links it. HAProxy (GPL-2.0) is a

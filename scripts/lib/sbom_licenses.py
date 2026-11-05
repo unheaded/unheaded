@@ -9,13 +9,14 @@ is guessed from a name and nothing is kept in a table here, so a package whose
 files are not on this host lands as Unknown, with the reason, and the report
 names it. This reads licenses; it does not rule on whether they fit together.
 
-    sbom_licenses.py go TODAY MODULES_JSON GOMODCACHE COMPILED_LIST
+    sbom_licenses.py go TODAY MODULES_JSON GOMODCACHE COMPILED_LIST [GO_MOD_EDIT_JSON...]
     sbom_licenses.py rust TODAY PROJECT_ROOT CARGO_HOME
-    sbom_licenses.py python TODAY FREEZE_FILE SITE_PACKAGES
+    sbom_licenses.py python TODAY FREEZE_FILE PROJECT_ROOT MANIFEST_LIST [SITE_PACKAGES...]
     sbom_licenses.py javascript TODAY PROJECT_ROOT HTML_PAGE_LIST
     sbom_licenses.py report SBOM_DIR TODAY
 """
 import collections
+import csv
 import email.parser
 import glob
 import json
@@ -30,6 +31,9 @@ UNKNOWN = 'Unknown'
 LICENSE_FILE = re.compile(r'^(?!.*\.(?:go|rs|py|c|h|s|sh|js|json|ya?ml|toml)$)'
                           r'(licen[cs]e|copying|unlicense|copyright)([-._].*)?$', re.IGNORECASE)
 GPL_FAMILY = re.compile(r'GPL|General Public', re.IGNORECASE)
+PIP_INCLUDE = re.compile(r'(-r|--requirement|-e|--editable)[\s=]')
+GPL_WORD = re.compile(r'\b[AL]?GPL(?:v?\d)?\b')
+PROPRIETARY = re.compile(r'proprietar|commercial|eula|nvidia', re.IGNORECASE)
 SECONDARY_LICENSE = ('secondary license means either the gnu general public license version 2 0 '
                      'the gnu lesser general public license version 2 1 '
                      'the gnu affero general public license version 3 0 '
@@ -104,8 +108,8 @@ def escaped(path):
 def go_license_texts(obj, modcache):
     """{file: text} from the extracted module, else its cached zip. None when neither is here."""
     src = obj.get('Replace') or obj
-    directory = src.get('Dir')
-    if directory and os.path.isdir(directory):
+    directory = src.get('Dir') or f"{modcache}/{escaped(src.get('Path', ''))}@{escaped(src.get('Version', ''))}"
+    if os.path.isdir(directory):
         return {f: slurp(os.path.join(directory, f))
                 for f in os.listdir(directory)
                 if LICENSE_FILE.match(f) and os.path.isfile(os.path.join(directory, f))}
@@ -151,23 +155,42 @@ def emit(doc):
     print()
 
 
-def read_go(today, modules_json, modcache, compiled_list):
-    compiled = set(slurp(compiled_list).split())
-    deps = []
+def go_requirements(modules_json, go_mod_edits):
+    """(module that requires it, module object) for every requirement of every go.mod read."""
+    main = ''
     for obj in go_modules(modules_json):
         if obj.get('Main'):
+            main = obj.get('Path', '')
+        else:
+            yield main, obj
+    for path in go_mod_edits:
+        edit = json.loads(slurp(path))
+        for obj in edit.get('Require') or []:
+            yield edit['Module']['Path'], obj
+
+
+def read_go(today, modules_json, modcache, compiled_list, *go_mod_edits):
+    compiled = set(slurp(compiled_list).split())
+    deps = {}
+    for main, obj in go_requirements(modules_json, go_mod_edits):
+        key = (obj.get('Path', ''), obj.get('Version', ''))
+        if key in deps:
+            deps[key]['indirect'] = deps[key]['indirect'] and obj.get('Indirect', False)
+            deps[key]['foundIn'].append(main)
             continue
         texts = go_license_texts(obj, modcache)
         lic, why = (UNKNOWN, 'no source in the module cache') if texts is None else read_texts(texts)
-        dep = {'module': obj.get('Path', ''), 'version': obj.get('Version', ''),
-               'indirect': obj.get('Indirect', False), 'compiled': obj.get('Path') in compiled, 'license': lic}
+        dep = {'module': key[0], 'version': key[1], 'indirect': obj.get('Indirect', False),
+               'compiled': key[0] in compiled, 'license': lic, 'foundIn': [main]}
         if why:
             dep['licenseNotRead'] = why
-        deps.append(dep)
+        deps[key] = dep
+    deps = list(deps.values())
     direct = [d for d in deps if not d['indirect']]
     emit(document('go', today, 'go-list-m-json', {
         'totalDependencies': len(deps), 'directDependencies': len(direct),
-        'indirectDependencies': len(deps) - len(direct), 'licenseSummary': counts(deps)}, deps))
+        'indirectDependencies': len(deps) - len(direct), 'licenseSummary': counts(deps),
+        'modules': sorted({m for d in deps for m in d['foundIn']})}, deps))
     print(f'  Go: {len(deps)} dependencies ({len(direct)} direct)', file=sys.stderr)
 
 
@@ -209,7 +232,7 @@ def read_crate(cargo_home, crate):
 def read_rust(today, root, cargo_home):
     lock_files = []
     for base, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in ('.git', 'node_modules', 'vendor', 'llama.cpp')]
+        dirs[:] = [d for d in dirs if d not in ('.git', 'node_modules', 'vendor', 'llama.cpp', 'testdata')]
         if 'Cargo.lock' in files:
             lock_files.append(os.path.relpath(os.path.join(base, 'Cargo.lock'), root))
     lock_files.sort()
@@ -238,13 +261,42 @@ def normal_name(name):
     return re.sub(r'[-_.]+', '-', name).lower()
 
 
-def installed_dists(site):
-    """{normal name: (version, METADATA, dist-info path)} for one site-packages."""
+def installed_dists(sites):
+    """{normal name: {version: (METADATA, dist-info path, site-packages)}} across the venvs given."""
     dists = {}
-    for info in glob.glob(f'{glob.escape(site)}/*.dist-info'):
-        meta = email.parser.Parser().parsestr(slurp(f'{info}/METADATA'))
-        dists[normal_name(meta['Name'])] = (meta['Version'], meta, info)
+    for site in sites:
+        for info in glob.glob(f'{glob.escape(site)}/*.dist-info'):
+            meta = email.parser.Parser().parsestr(slurp(f'{info}/METADATA'))
+            dists.setdefault(normal_name(meta['Name']), {}).setdefault(meta['Version'], (meta, info, site))
     return dists
+
+
+def dist_info_license_files(info):
+    """{path in the dist-info: path on disk}."""
+    return {os.path.relpath(os.path.join(base, f), info): os.path.join(base, f)
+            for base, _, files in os.walk(info) for f in files if LICENSE_FILE.match(f)}
+
+
+def installed_license_files(site, info):
+    """Every license file the wheel installed, by its RECORD, the dist-info's own included."""
+    paths = list(dist_info_license_files(info).values())
+    record = f'{info}/RECORD'
+    if os.path.isfile(record):
+        with open(record, newline='', errors='replace') as f:
+            listed = [row[0] for row in csv.reader(f) if row]
+        full = [os.path.normpath(os.path.join(site, p)) for p in listed if LICENSE_FILE.match(os.path.basename(p))]
+        paths += [p for p in full if p.startswith(site + os.sep) and not p.startswith(info + os.sep) and os.path.isfile(p)]
+    return paths
+
+
+def gpl_in_license_files(site, info):
+    """What the package's license files say of the GPL family, whatever its metadata declares."""
+    named = set()
+    for path in installed_license_files(site, info):
+        text = slurp(path)
+        ids = {i for i in identify(text) if GPL_FAMILY.search(i)}
+        named |= ids or ({'GPL'} if GPL_WORD.search(text) else set())
+    return sorted(named)
 
 
 def read_dist(meta, info):
@@ -261,36 +313,70 @@ def read_dist(meta, info):
             return field, None
         if identify(field):
             return ' AND '.join(sorted(identify(field))), None
-    texts = {}
-    for base, _, files in os.walk(info):
-        for f in files:
-            if LICENSE_FILE.match(f):
-                texts[os.path.relpath(os.path.join(base, f), info)] = slurp(os.path.join(base, f))
+    texts = {name: slurp(path) for name, path in dist_info_license_files(info).items()}
     return read_texts(texts) if texts else (UNKNOWN, 'no license in its metadata')
 
 
-def read_python(today, freeze, site):
-    dists = installed_dists(site)
-    packages = []
-    for line in slurp(freeze).splitlines():
-        line = line.strip()
-        if not line or line.startswith('#'):
-            continue
-        m = re.match(r'([A-Za-z0-9._-]+)\s*(?:==\s*(\S+)|@\s*\S+)?', line)
-        name, version = m.group(1), m.group(2) or ''
-        dist = dists.get(normal_name(name))
-        if dist is None:
-            lic, why = UNKNOWN, 'not installed in the venv read'
-        elif version and dist[0] != version:
-            lic, why = UNKNOWN, f'venv holds {dist[0]}, not this version'
-        else:
-            lic, why = read_dist(dist[1], dist[2])
-        package = {'package': name, 'version': version or (dist[0] if dist else ''), 'license': lic}
+def requirement_lines(text):
+    """The requirements in a pip file, with continuations joined and comments and options gone.
+
+    An include or editable line stays: nothing here follows it, so it has to show.
+    """
+    for line in text.replace('\\\n', ' ').splitlines():
+        line = re.sub(r'(^|\s)#.*', '', line).strip()
+        if line and (not line.startswith('-') or PIP_INCLUDE.match(line)):
+            yield line
+
+
+def parse_requirement(line):
+    """(name, exact version or '', the rest of the line as written)."""
+    if line.startswith('-'):
+        return line, '', ''
+    m = re.match(r'([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*(.*)', line)
+    spec = m.group(2).split(';')[0].split('--hash')[0].strip()
+    pin = re.fullmatch(r'==\s*([^\s,*]+)', spec)
+    return m.group(1), pin.group(1) if pin else '', spec
+
+
+def python_row(name, version, spec, dists):
+    """One package, read only from metadata of the version it names."""
+    held = dists.get(normal_name(name), {})
+    row = {'package': name, 'version': version or spec, 'license': UNKNOWN}
+    if spec.startswith('@') and held:
+        version = row['version'] = max(held)
+    if not held:
+        row['licenseNotRead'] = 'not installed in a venv read'
+    elif not version:
+        row['licenseNotRead'] = f"no exact pin; the venvs read hold {', '.join(sorted(held))}"
+    elif version not in held:
+        row['licenseNotRead'] = f"the venvs read hold {', '.join(sorted(held))}, not this version"
+    else:
+        meta, info, site = held[version]
+        row['license'], why = read_dist(meta, info)
         if why:
-            package['licenseNotRead'] = why
-        packages.append(package)
+            row['licenseNotRead'] = why
+        named = gpl_in_license_files(site, info)
+        if named:
+            row['licenseFilesName'] = named
+    return row
+
+
+def read_python(today, freeze, root, manifest_list, *sites):
+    dists = installed_dists(sites)
+    manifests = slurp(manifest_list).split()
+    rows, venv_read = {}, False
+    for source, text in [('sbom/python-pip-freeze.txt', slurp(freeze))] + [(m, slurp(os.path.join(root, m))) for m in manifests]:
+        for line in requirement_lines(text):
+            name, version, spec = parse_requirement(line)
+            key = (normal_name(name), version or spec)
+            if key not in rows:
+                rows[key] = python_row(name, version, spec, dists) | {'found_in': []}
+            rows[key]['found_in'].append(source)
+            venv_read = venv_read or (source.startswith('sbom/') and normal_name(name) in dists)
+    packages = [rows[k] for k in sorted(rows)]
     emit(document('python', today, 'python-dist-info-reader', {
-        'totalPackages': len(packages), 'licenseSummary': counts(packages)}, packages))
+        'totalPackages': len(packages), 'licenseSummary': counts(packages),
+        'manifests': manifests, 'venvRead': venv_read}, packages))
     print(f'  Python: {len(packages)} packages', file=sys.stderr)
 
 
@@ -339,23 +425,37 @@ def license_table(packages):
 def report(sbom_dir, today):
     go, rust, python, javascript = (json.loads(slurp(f'{sbom_dir}/{kind}-dependencies.json'))
                                     for kind in ('go', 'rust', 'python', 'javascript'))
-    gs, rs = go['summary'], rust['summary']
+    gs, rs, ps = go['summary'], rust['summary'], python['summary']
     sets = (('Go', 'module', go['packages'], 'Go modules'),
             ('Rust', 'crate', rust['packages'], 'Rust crates'),
             ('Python', 'package', python['packages'], 'Python packages'),
             ('JavaScript', 'library', javascript['packages'], 'JavaScript files'))
 
-    gpl = [f"{p[key]} {p['version']} ({p['license']})" for _, key, packages, _ in sets
-           for p in packages if GPL_FAMILY.search(p['license'])]
+    every = [(key, p) for _, key, packages, _ in sets for p in packages]
+    gpl = [f"{p[key]} {p['version']} ({p['license']})" for key, p in every if GPL_FAMILY.search(p['license'])]
+    in_files = [f"{p[key]} {p['version']} ({', '.join(p['licenseFilesName'])})" for key, p in every
+                if p.get('licenseFilesName') and not GPL_FAMILY.search(p['license'])]
+    proprietary = [f"{p[key]} {p['version']} ({p['license']})" for key, p in every if PROPRIETARY.search(p['license'])]
     tally = [f'{sum(1 for p in packages if unread(p))} of {len(packages)} {label}' for _, _, packages, label in sets]
     not_read = ', '.join(tally[:-1]) + f' and {tally[-1]} are not read.'
-    any_unread = any(unread(p) for _, _, packages, _ in sets for p in packages)
+    any_unread = any(unread(p) for _, p in every)
+    gaps = [f'No {label} are listed at all.' for _, _, packages, label in sets[:3] if not packages]
+    if ps.get('venvRead') is not True:
+        gaps.append('The Zhen venv was not read, so the packages only it holds are not here.')
+    gaps = ''.join(f' {gap}' for gap in gaps)
+    review = []
     if gpl:
-        verdict = 'REVIEW: licenses that name the GPL family, for a person to rule on: ' + ', '.join(gpl) + '. ' + not_read
-    elif any_unread:
-        verdict = f'INCOMPLETE: no license read names the GPL, but {not_read} Those are not cleared.'
+        review.append('Licenses that name the GPL family: ' + ', '.join(gpl) + '.')
+    if in_files:
+        review.append("Named in a package's own license files, not its license field: " + ', '.join(in_files) + '.')
+    if proprietary:
+        review.append('Proprietary licenses: ' + ', '.join(proprietary) + '.')
+    if review:
+        verdict = 'REVIEW: for a person to rule on. ' + ' '.join(review) + f' {not_read}{gaps}'
+    elif any_unread or gaps:
+        verdict = f'INCOMPLETE: no license read names the GPL, but {not_read} Those are not cleared.{gaps}'
     else:
-        verdict = 'PASS: every license was read and none is GPL.'
+        verdict = 'PASS: every license was read and none is GPL or proprietary.'
 
     rows = []
     for label, key, packages, _ in sets:
@@ -387,8 +487,12 @@ outside these lists are in `THIRD_PARTY.md`.
 |-----------|-------|--------|-------------------|-------------|
 | Go | {gs['totalDependencies']} | {gs['directDependencies']} | {summary[0][2]} | `sbom/go-dependencies.json` |
 | Rust | {rs['totalExternalCrates']} external, {len(rs['workspaceCrates'])} workspace | | {summary[1][2]} | `sbom/rust-dependencies.json` |
-| Python | {summary[2][1]} | | {summary[2][2]} | `sbom/python-dependencies.json`, from `sbom/python-pip-freeze.txt`, a `pip freeze` of the Zhen venv, not a manifest |
+| Python | {summary[2][1]} | | {summary[2][2]} | `sbom/python-dependencies.json`, from `sbom/python-pip-freeze.txt`, a `pip freeze` of the Zhen venv, and the manifests below |
 | JavaScript | {summary[3][1]} | | {summary[3][2]} | `sbom/javascript-dependencies.json`, CDN-loaded files; nothing is installed |
+
+Go modules read: {', '.join(f'`{m}`' for m in gs['modules'])}.
+
+Python manifests read: {', '.join(f'`{m}`' for m in ps['manifests'])}.
 
 Rust lock files read: {', '.join(f'`{f}`' for f in rs['lockFiles'])}.
 
@@ -396,8 +500,8 @@ Rust workspace crates: {', '.join(f'`{c}`' for c in rs['workspaceCrates'])}.
 
 ## Go licenses
 
-Read from each module's license files, in the module cache. " AND " means the
-files name each of these; they may be alternatives.
+Read from the license files at each module's root, in the module cache. " AND "
+means the files name each of these; they may be alternatives.
 
 {license_table(go['packages'])}
 
@@ -409,14 +513,20 @@ files name each of these; they may be alternatives.
 
 ## Rust licenses
 
-The license field of each crate's own Cargo.toml, as written.
+The license field of each crate's own Cargo.toml, as written. Files a crate
+bundles are not read.
 
 {license_table(rust['packages'])}
 
 ## Python licenses
 
-Read from each package's metadata in the Zhen venv: License-Expression, else
-the license classifiers, else the License field, else its license files.
+Read from each package's metadata in the venvs on this host, for the version
+listed: License-Expression, else the license classifiers, else the License
+field, else its license files. A manifest line that is not an exact pin names no
+one version, so it stays not read. Every license file the package installed is
+then read as well, and what those name of the GPL family goes to the verdict
+below, even when the metadata says otherwise. "Name" is as far as it goes: a
+file may only quote such a license, or cover one bundled binary.
 
 {license_table(python['packages'])}
 
@@ -436,7 +546,9 @@ the license classifiers, else the License field, else its license files.
 
 This report reads licenses. It does not rule on whether they fit with
 GPL-3.0-or-later. "Name the GPL family" includes a crate offering the LGPL as
-one of several choices.
+one of several choices. It covers what is read, as each section above says: a
+license stated only inside a source file, or in a file a Rust crate bundles, is
+not seen.
 
 The compiled fixture under `doom/` is GPL-2.0. It runs inside the kernel's eBPF
 VM and talks through BPF maps, so nothing links it. HAProxy (GPL-2.0) is a

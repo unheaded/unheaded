@@ -6,12 +6,14 @@ Dependency tracking, license compliance and supply-chain scanning for Unheaded. 
 
 | Ecosystem | Manifest | Primary licenses |
 |-----------|----------|------------------|
-| Go modules | `go.mod` (list: `sbom/go-dependencies.json`, `LICENSES/sbom-go-modules.txt`) | MIT, Apache-2.0, BSD-3-Clause |
+| Go modules | `go.mod`, `tools/gosec/go.mod` (list: `sbom/go-dependencies.json`, `LICENSES/sbom-go-modules.txt`) | MIT, Apache-2.0, BSD-3-Clause |
 | Rust crates | `ebpf/`, `crates/*/Cargo.toml` (`sbom/rust-dependencies.json`) | MIT, Apache-2.0 |
-| Python | `sbom/python-pip-freeze.txt`, `sbom/python-dependencies.json` (Zhen / RAFT tooling) | mixed: `sbom/SBOM.md` names the GPL family |
+| Python | `sbom/python-pip-freeze.txt` (the Zhen venv) and every tracked `requirements*.txt`, in `sbom/python-dependencies.json` | mixed: `sbom/SBOM.md` names the GPL family and the proprietary ones |
 | System (libbpf, etc.) | — | LGPL-2.1, GPL-2.0 |
 
 There is no npm in the repo: the front ends are vanilla JS (ADR-006) and JS lint is oxlint. CDN-loaded files are in `sbom/javascript-dependencies.json`.
+
+`scripts/generate-sbom.sh` reads licenses from what is on the host, and only `~/.venv/zhen` by default. Set `PYTHON_EXTRA_VENVS` to the CI tools' venv too, or the CI manifest's packages list as not read. On west that is `/var/tmp/s-clean-cut-civenv`, a scratch venv, rebuilt from `.github/ci-python/requirements.txt` when it goes.
 
 The March 2026 audit counted 553 dependencies; that number included npm packages since removed and is not regenerated.
 
@@ -38,7 +40,7 @@ Source files carry `SPDX-License-Identifier` headers. `scripts/check-spdx.sh --l
 
 ## Native CVE matcher
 
-`cmd/vulnmatch` reads the components a tree pins (`go.mod`, `Cargo.lock`, `requirements*.txt`, `sbom/python-pip-freeze.txt`, optionally `sbom/*-dependencies.json`), matches them against OSV records in a local directory, and marks any CVE in kev-poller's catalog. It is stage 1a of DP-721: lock data only, replacing no trivy use yet. Trivy stays pinned until each stage replaces its use.
+`cmd/vulnmatch` reads the components a tree pins (`go.mod`, `Cargo.lock`, `requirements*.txt`, `sbom/python-pip-freeze.txt`, optionally `sbom/go-dependencies.json` or `sbom/rust-dependencies.json`), matches them against OSV records in a local directory, and marks any CVE in kev-poller's catalog. It is stage 1a of DP-721: lock data only, replacing no trivy use yet. Trivy stays pinned until each stage replaces its use.
 
 Today it runs on synthetic fixtures only (`scripts/vulnmatch-fixture.sh`). OSV is an outside data source the third-party sitting has not confirmed, so the tool has no network code: it reads records from a directory and nothing else. Requirement lines that are not exact pins are reported as not checked, never as clean.
 

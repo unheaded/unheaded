@@ -308,7 +308,8 @@ Remaining: Phase 7 (Monad bridge integration), Phase 14 (performance benchmarkin
 ## Dependencies
 
 See `THIRD_PARTY.md` for the complete dependency inventory with licenses.
-All dependencies are permissive or public domain -- no copyleft conflicts.
+`sbom/SBOM.md` at the repo root gives the license of every crate in `Cargo.lock`
+and names what is left for a person to rule on.
 
 ## License
 

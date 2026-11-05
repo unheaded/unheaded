@@ -14,7 +14,7 @@ This document describes all third-party dependencies used by the Unheaded Kingdo
 The codebase consists of:
 - **Unheaded code:** Licensed under GPL-3.0 (see `/LICENSE`)
 - **DOOM subsystem:** GPL v2.0, architecturally isolated and NOT linked into the main codebase
-- **Third-party dependencies:** Go modules, Rust crates, Python packages, and JavaScript libraries. `sbom/SBOM.md` gives each license as read, names every license in the GPL family, and names every package it could not read
+- **Third-party dependencies:** Go modules, Rust crates, Python packages, and JavaScript libraries. `sbom/SBOM.md` gives each license as read, names every package where what it reads names the GPL family or a proprietary license, and names every package it could not read. What it reads differs by ecosystem, and it says how
 - **Protocol specifications:** Published under GPL-3.0/Apache 2.0 to encourage ecosystem adoption
 
 ---
@@ -205,8 +205,8 @@ this entire surface. See `docs/security/python-deps-unscanned-2026-08-04.md`.
 
 Each license is the installed package's own metadata in `~/.venv/zhen`, as written, read by
 `scripts/generate-sbom.sh`. The whole venv, including what these pull in, is in
-`sbom/python-dependencies.json`; some of it is in the GPL family and some is proprietary.
-`sbom/SBOM.md` names the first and counts the second.
+`sbom/python-dependencies.json`, with every other requirements file the repo tracks;
+some of it is in the GPL family and some is proprietary. `sbom/SBOM.md` names both.
 
 **psycopg2:** its metadata says LGPL, and its LICENSE file says version 3 or later,
 with exceptions. It is called from Python at runtime, never linked into a Go or Rust
@@ -232,7 +232,7 @@ MPL-2.0 and likewise a separate process fed by configuration only.
 
 ## License Summary
 
-Counts by license are in `sbom/SBOM.md`, and they move with the lock files, so they are not repeated here. That report reads licenses and does not rule on them: its verdict names every license in the GPL family and every package it could not read, for a person to rule on.
+Counts by license are in `sbom/SBOM.md`, and they move with the lock files, so they are not repeated here. That report reads licenses and does not rule on them: its verdict names every package where what it reads names the GPL family or a proprietary license, and every package it could not read, for a person to rule on. It reads license files at a Go module's root, the license field of a crate's `Cargo.toml`, and a Python package's metadata and installed license files. A license stated only inside a source file, or in a file a crate bundles, is not seen.
 
 The GPL-2.0 fixture in `doom/` stays behind the boundary described above.
 
@@ -244,7 +244,7 @@ The GPL-2.0 fixture in `doom/` stays behind the boundary described above.
 scripts/generate-sbom.sh    # sbom/*.json and sbom/SBOM.md
 ```
 
-It reads licenses from what is on the host: the Go module cache, the cargo registry and `~/.venv/zhen`. It fetches nothing, so a module with no source in the cache stays listed as not read. `go mod download` first would read those. Then bring the tables above into line: `scripts/test-generate-sbom.sh` fails until they match.
+It reads licenses from what is on the host: the Go module cache, the cargo registry, `~/.venv/zhen` and any venv named in `PYTHON_EXTRA_VENVS`, colon-separated. The committed report also read the CI tools' venv, built from `.github/ci-python/requirements.txt`; without it, those packages list as not read. It fetches nothing, so a module with no source in the cache stays listed as not read. `go mod download` first would read those. With no `~/.venv/zhen` the run still finishes, keeps the last freeze, lists its packages as not read, and cannot PASS. Then bring the tables above into line: `scripts/test-generate-sbom.sh` fails until they match.
 
 ### JavaScript loaded from CDNs
 

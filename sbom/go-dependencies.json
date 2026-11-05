@@ -12,22 +12,26 @@
     ]
   },
   "summary": {
-    "totalDependencies": 148,
+    "totalDependencies": 168,
     "directDependencies": 17,
-    "indirectDependencies": 131,
+    "indirectDependencies": 151,
     "licenseSummary": {
-      "BSD-3-Clause": 37,
-      "MIT": 32,
+      "BSD-3-Clause": 39,
+      "MIT": 39,
+      "Apache-2.0": 38,
       "Unknown": 31,
-      "Apache-2.0": 30,
-      "Apache-2.0 AND BSD-3-Clause": 6,
-      "Apache-2.0 AND MIT": 4,
+      "Apache-2.0 AND BSD-3-Clause": 8,
+      "Apache-2.0 AND MIT": 5,
       "BSD-2-Clause": 3,
       "BSD-3-Clause AND MIT": 2,
       "Apache-2.0 AND BSD-3-Clause AND LicenseRef-public-domain AND MIT AND MPL-2.0": 1,
       "ISC": 1,
       "MPL-2.0": 1
-    }
+    },
+    "modules": [
+      "unheaded",
+      "unheaded/tools/gosec"
+    ]
   },
   "packages": [
     {
@@ -36,35 +40,51 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
       "module": "cloud.google.com/go/auth",
       "version": "v0.20.0",
       "indirect": true,
-      "compiled": false,
-      "license": "Apache-2.0"
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "cloud.google.com/go/auth/oauth2adapt",
       "version": "v0.2.3",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "cloud.google.com/go/compute/metadata",
       "version": "v0.9.0",
       "indirect": true,
-      "compiled": false,
-      "license": "Apache-2.0"
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/BurntSushi/toml",
       "version": "v1.6.0",
       "indirect": false,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp",
@@ -72,6 +92,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -79,119 +102,171 @@
       "version": "v1.82.0",
       "indirect": false,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2",
       "version": "v1.38.0",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream",
       "version": "v1.7.8",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/config",
       "version": "v1.27.27",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/credentials",
       "version": "v1.17.27",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/feature/ec2/imds",
       "version": "v1.16.11",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/internal/configsources",
       "version": "v1.3.15",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2",
       "version": "v2.6.15",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/internal/ini",
       "version": "v1.8.0",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding",
       "version": "v1.11.3",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url",
       "version": "v1.11.17",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/service/sso",
       "version": "v1.22.4",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/service/ssooidc",
       "version": "v1.26.4",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/aws-sdk-go-v2/service/sts",
       "version": "v1.30.3",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/aws/smithy-go",
       "version": "v1.24.2",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/bahlo/generic-list-go",
       "version": "v0.2.0",
       "indirect": true,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/buger/jsonparser",
       "version": "v1.1.2",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/bwesterb/go-ristretto",
@@ -199,6 +274,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -206,21 +284,31 @@
       "version": "v2.3.0",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/cilium/ebpf",
       "version": "v0.22.0",
       "indirect": false,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/cloudflare/circl",
       "version": "v1.6.5",
       "indirect": false,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/cncf/xds/go",
@@ -228,6 +316,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -236,6 +327,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -244,6 +338,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -252,6 +349,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -259,14 +359,20 @@
       "version": "v1.1.2-0.20180830191138-d8f796af33cc",
       "indirect": true,
       "compiled": false,
-      "license": "ISC"
+      "license": "ISC",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/dnaeon/go-vcr",
       "version": "v1.2.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-2-Clause"
+      "license": "BSD-2-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/docker/cli",
@@ -274,6 +380,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -282,6 +391,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -290,6 +402,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -297,7 +412,10 @@
       "version": "v1.1.0",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/envoyproxy/go-control-plane",
@@ -305,6 +423,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -313,6 +434,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -321,6 +445,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -329,14 +456,21 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
       "module": "github.com/felixge/httpsnoop",
       "version": "v1.1.0",
       "indirect": true,
-      "compiled": false,
-      "license": "MIT"
+      "compiled": true,
+      "license": "MIT",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/go-jose/go-jose/v4",
@@ -344,6 +478,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -351,21 +488,32 @@
       "version": "v1.4.4",
       "indirect": true,
       "compiled": true,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/go-logr/stdr",
       "version": "v1.2.2",
       "indirect": true,
       "compiled": true,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/go-quicktest/qt",
       "version": "v1.101.1-0.20240301121107-c6c8733fa1e6",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/golang-jwt/jwt/v5",
@@ -373,6 +521,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -381,6 +532,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -388,21 +542,31 @@
       "version": "v0.0.0-20210331224755-41bb18bfe9da",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/golang/protobuf",
       "version": "v1.5.4",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/google/go-cmp",
       "version": "v0.7.0",
       "indirect": true,
-      "compiled": false,
-      "license": "BSD-3-Clause"
+      "compiled": true,
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/google/go-containerregistry",
@@ -410,6 +574,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -417,56 +584,83 @@
       "version": "v0.4.2",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/google/pprof",
       "version": "v0.0.0-20261016150608-1facf8f91b50",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/google/s2a-go",
       "version": "v0.1.9",
       "indirect": true,
-      "compiled": false,
-      "license": "Apache-2.0"
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/google/uuid",
       "version": "v1.6.0",
       "indirect": false,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/googleapis/enterprise-certificate-proxy",
       "version": "v0.3.15",
       "indirect": true,
-      "compiled": false,
-      "license": "Apache-2.0"
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/googleapis/gax-go/v2",
       "version": "v2.22.0",
       "indirect": true,
-      "compiled": false,
-      "license": "BSD-3-Clause"
+      "compiled": true,
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/gorilla/websocket",
       "version": "v1.5.3",
       "indirect": false,
       "compiled": true,
-      "license": "BSD-2-Clause"
+      "license": "BSD-2-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/hashicorp/golang-lru/v2",
       "version": "v2.0.7",
       "indirect": true,
       "compiled": false,
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/inconshreveable/mousetrap",
@@ -474,6 +668,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -481,21 +678,31 @@
       "version": "v0.14.0",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/josharian/native",
       "version": "v1.1.0",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/jsimonetti/rtnetlink/v2",
       "version": "v2.0.1",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/klauspost/compress",
@@ -503,6 +710,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -510,70 +720,100 @@
       "version": "v0.3.1",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/kr/text",
       "version": "v0.2.0",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/lib/pq",
       "version": "v1.12.3",
       "indirect": false,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/mattn/go-colorable",
       "version": "v0.1.16",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/mattn/go-isatty",
       "version": "v0.0.24",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/mdlayher/netlink",
       "version": "v1.7.2",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/mdlayher/socket",
       "version": "v0.5.1",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/mitchellh/go-homedir",
       "version": "v1.1.0",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/modelcontextprotocol/go-sdk",
       "version": "v1.4.1",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0 AND MIT"
+      "license": "Apache-2.0 AND MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/ncruces/go-strftime",
       "version": "v1.1.0",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/opencontainers/go-digest",
@@ -581,6 +821,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -589,6 +832,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -596,7 +842,11 @@
       "version": "v2.3.1",
       "indirect": true,
       "compiled": true,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/pkg/errors",
@@ -604,6 +854,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -612,6 +865,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -619,21 +875,30 @@
       "version": "v1.0.1-0.20181226105442-5d4384ee4fb2",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/remyoudompheng/bigfft",
       "version": "v0.0.0-20230129092748-24d4a6f8daec",
       "indirect": true,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/rogpeppe/go-internal",
       "version": "v1.14.1",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/rs/xid",
@@ -641,6 +906,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -648,42 +916,60 @@
       "version": "v1.35.1",
       "indirect": false,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/segmentio/asm",
       "version": "v1.1.3",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/segmentio/encoding",
       "version": "v0.5.4",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/sirupsen/logrus",
       "version": "v1.9.4",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/spf13/cobra",
       "version": "v1.10.2",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/spf13/pflag",
       "version": "v1.0.10",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/spiffe/go-spiffe/v2",
@@ -691,6 +977,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -698,42 +987,63 @@
       "version": "v0.0.1",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/stretchr/testify",
       "version": "v1.11.1",
       "indirect": true,
       "compiled": false,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/tidwall/gjson",
       "version": "v1.18.0",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/tidwall/match",
       "version": "v1.1.1",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/tidwall/pretty",
       "version": "v1.2.1",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/tidwall/sjson",
       "version": "v1.2.5",
       "indirect": true,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "github.com/vbatts/tar-split",
@@ -741,6 +1051,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -748,28 +1061,41 @@
       "version": "v3.0.2",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "github.com/yuin/goldmark",
       "version": "v1.8.6",
       "indirect": false,
       "compiled": true,
-      "license": "MIT"
+      "license": "MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "go.opencensus.io",
       "version": "v0.24.0",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "go.opentelemetry.io/auto/sdk",
       "version": "v1.2.1",
       "indirect": true,
       "compiled": true,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "go.opentelemetry.io/contrib/detectors/gcp",
@@ -777,6 +1103,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -784,49 +1113,73 @@
       "version": "v0.49.0",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
       "version": "v0.69.0",
       "indirect": true,
-      "compiled": false,
-      "license": "Apache-2.0 AND BSD-3-Clause"
+      "compiled": true,
+      "license": "Apache-2.0 AND BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "go.opentelemetry.io/otel",
       "version": "v1.45.0",
       "indirect": true,
       "compiled": true,
-      "license": "Apache-2.0 AND BSD-3-Clause"
+      "license": "Apache-2.0 AND BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "go.opentelemetry.io/otel/metric",
       "version": "v1.45.0",
       "indirect": true,
       "compiled": true,
-      "license": "Apache-2.0 AND BSD-3-Clause"
+      "license": "Apache-2.0 AND BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "go.opentelemetry.io/otel/sdk",
       "version": "v1.45.0",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0 AND BSD-3-Clause"
+      "license": "Apache-2.0 AND BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "go.opentelemetry.io/otel/sdk/metric",
       "version": "v1.45.0",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0 AND BSD-3-Clause"
+      "license": "Apache-2.0 AND BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "go.opentelemetry.io/otel/trace",
       "version": "v1.45.0",
       "indirect": true,
       "compiled": true,
-      "license": "Apache-2.0 AND BSD-3-Clause"
+      "license": "Apache-2.0 AND BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "go.uber.org/goleak",
@@ -834,6 +1187,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -841,98 +1197,147 @@
       "version": "v4.0.0-rc.2",
       "indirect": true,
       "compiled": true,
-      "license": "Apache-2.0 AND MIT"
+      "license": "Apache-2.0 AND MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "golang.org/x/crypto",
       "version": "v0.58.1-0.20261009181718-2f1f834330b2",
       "indirect": false,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "golang.org/x/exp/typeparams",
       "version": "v0.0.0-20260209203927-2842357ff358",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "golang.org/x/mod",
       "version": "v0.42.0",
       "indirect": true,
-      "compiled": false,
-      "license": "BSD-3-Clause"
+      "compiled": true,
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "golang.org/x/net",
       "version": "v0.62.0",
       "indirect": true,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "golang.org/x/oauth2",
       "version": "v0.36.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "golang.org/x/sync",
       "version": "v0.24.0",
       "indirect": true,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "golang.org/x/sys",
       "version": "v0.49.0",
       "indirect": false,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "golang.org/x/term",
       "version": "v0.47.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "golang.org/x/text",
       "version": "v0.43.0",
       "indirect": false,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "golang.org/x/time",
       "version": "v0.16.0",
       "indirect": false,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "golang.org/x/tools",
       "version": "v0.52.0",
       "indirect": true,
-      "compiled": false,
-      "license": "BSD-3-Clause"
+      "compiled": true,
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "gonum.org/v1/gonum",
       "version": "v0.17.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "google.golang.org/api",
       "version": "v0.278.0",
       "indirect": true,
-      "compiled": false,
-      "license": "BSD-3-Clause"
+      "compiled": true,
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "google.golang.org/genproto/googleapis/api",
@@ -940,6 +1345,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -947,42 +1355,61 @@
       "version": "v0.0.0-20261019180522-ce908d29299b",
       "indirect": true,
       "compiled": true,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "google.golang.org/grpc",
       "version": "v1.84.0",
       "indirect": false,
       "compiled": true,
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "google.golang.org/protobuf",
       "version": "v1.36.12",
       "indirect": false,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded",
+        "unheaded/tools/gosec"
+      ]
     },
     {
       "module": "gopkg.in/check.v1",
       "version": "v1.0.0-20201130134442-10cb98267c6c",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-2-Clause"
+      "license": "BSD-2-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "gopkg.in/yaml.v2",
       "version": "v2.2.8",
       "indirect": true,
       "compiled": false,
-      "license": "Apache-2.0 AND MIT"
+      "license": "Apache-2.0 AND MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "gopkg.in/yaml.v3",
       "version": "v3.0.1",
       "indirect": false,
       "compiled": true,
-      "license": "Apache-2.0 AND MIT"
+      "license": "Apache-2.0 AND MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "gotest.tools/v3",
@@ -990,6 +1417,9 @@
       "indirect": true,
       "compiled": false,
       "license": "Unknown",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "no source in the module cache"
     },
     {
@@ -997,63 +1427,90 @@
       "version": "v0.7.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause AND MIT"
+      "license": "BSD-3-Clause AND MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/cc/v4",
       "version": "v4.30.3",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/ccgo/v4",
       "version": "v4.37.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/fileutil",
       "version": "v1.4.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/gc/v2",
       "version": "v2.6.5",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/gc/v3",
       "version": "v3.2.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/goabi0",
       "version": "v0.2.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/libc",
       "version": "v1.79.0",
       "indirect": true,
       "compiled": true,
-      "license": "BSD-3-Clause AND MIT"
+      "license": "BSD-3-Clause AND MIT",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/mathutil",
       "version": "v1.7.1",
       "indirect": true,
       "compiled": true,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/memory",
@@ -1061,6 +1518,9 @@
       "indirect": true,
       "compiled": true,
       "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ],
       "licenseNotRead": "LICENSE-LOGO not recognised"
     },
     {
@@ -1068,35 +1528,250 @@
       "version": "v0.2.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/sortutil",
       "version": "v1.2.1",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/sqlite",
       "version": "v1.61.0",
       "indirect": false,
       "compiled": true,
-      "license": "Apache-2.0 AND BSD-3-Clause AND LicenseRef-public-domain AND MIT AND MPL-2.0"
+      "license": "Apache-2.0 AND BSD-3-Clause AND LicenseRef-public-domain AND MIT AND MPL-2.0",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/strutil",
       "version": "v1.2.1",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
     },
     {
       "module": "modernc.org/token",
       "version": "v1.1.0",
       "indirect": true,
       "compiled": false,
-      "license": "BSD-3-Clause"
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded"
+      ]
+    },
+    {
+      "module": "cloud.google.com/go",
+      "version": "v0.123.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "cloud.google.com/go/auth",
+      "version": "v0.23.2",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/anthropics/anthropic-sdk-go",
+      "version": "v1.66.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "MIT",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/buger/jsonparser",
+      "version": "v1.6.1",
+      "indirect": true,
+      "compiled": true,
+      "license": "MIT",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/ccojocar/zxcvbn-go",
+      "version": "v1.0.4",
+      "indirect": true,
+      "compiled": true,
+      "license": "MIT",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/googleapis/enterprise-certificate-proxy",
+      "version": "v0.3.20",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/googleapis/gax-go/v2",
+      "version": "v2.24.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/gookit/color",
+      "version": "v1.6.1",
+      "indirect": true,
+      "compiled": true,
+      "license": "MIT",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/openai/openai-go/v3",
+      "version": "v3.52.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/securego/gosec/v2",
+      "version": "v2.29.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/tidwall/gjson",
+      "version": "v1.19.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "MIT",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/tidwall/match",
+      "version": "v1.2.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "MIT",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "github.com/xo/terminfo",
+      "version": "v1.0.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "MIT",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+      "version": "v0.70.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0 AND BSD-3-Clause",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "go.yaml.in/yaml/v3",
+      "version": "v3.0.5",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0 AND MIT",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "go.yaml.in/yaml/v4",
+      "version": "v4.0.0-rc.6",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "google.golang.org/api",
+      "version": "v0.293.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "BSD-3-Clause",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "google.golang.org/genai",
+      "version": "v1.69.0",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0 AND BSD-3-Clause",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "google.golang.org/genproto/googleapis/rpc",
+      "version": "v0.0.0-20260819154853-08b0e4226688",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
+    },
+    {
+      "module": "google.golang.org/grpc",
+      "version": "v1.83.2",
+      "indirect": true,
+      "compiled": true,
+      "license": "Apache-2.0",
+      "foundIn": [
+        "unheaded/tools/gosec"
+      ]
     }
   ]
 }

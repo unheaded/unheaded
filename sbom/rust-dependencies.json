@@ -15,7 +15,6 @@
     "totalExternalCrates": 352,
     "workspaceCrates": [
       "anomaly-ebpf",
-      "aws-lc-rs",
       "canary-ebpf",
       "cartridge-ebpf",
       "collector",
@@ -40,10 +39,7 @@
       "nfv-ebpf",
       "packet-marker",
       "pqc-common",
-      "pqcrypto-mlkem",
       "qos-ebpf",
-      "ring",
-      "rustls",
       "shield-ebpf",
       "syscall-tracer",
       "unheaded-common",
@@ -91,7 +87,6 @@
       "MIT OR Zlib OR Apache-2.0": 1
     },
     "lockFiles": [
-      "cmd/crypto-inventory/testdata/rust/Cargo.lock",
       "cmd/ebpf-collector/Cargo.lock",
       "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
       "cmd/ebpf-load-check/Cargo.lock",
