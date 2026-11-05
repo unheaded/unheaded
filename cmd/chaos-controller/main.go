@@ -35,6 +35,7 @@
 //	VM_URL, CHAOS_SLO_POLICY  the Kingdom SLO guard; without VM_URL nothing starts
 //	WOTAN_ADDR, WOTAN_GRPC_ADDR  events, and the chaos.abort path
 //	AUTH_ENABLED=true, AUTH_API_KEYS  pkg/auth; without AUTH_ENABLED every POST answers 403
+//	UNHEADED_TLS_CERT, UNHEADED_TLS_KEY_FILE  with UNHEADED_TLS_ENABLED=true, serve TLS; without them, plain HTTP
 package main
 
 import (
@@ -59,6 +60,7 @@ import (
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/sloguard"
+	utls "unheaded/pkg/tls"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/yaldabaoth"
@@ -482,6 +484,29 @@ func handler(a *api, authCfg auth.ServiceAuthConfig) (http.Handler, error) {
 	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, h)), nil
 }
 
+// newHTTPServer builds the listener and reports whether it is TLS. The
+// shipped unit sets UNHEADED_TLS_ENABLED only to dial Wotan and Cuirass and
+// has no certificate of its own, which ConfigureServer alone would refuse, so
+// with neither certificate nor key the listener stays plain. Either one set
+// goes to ConfigureServer, where half a pair stops the controller instead of
+// falling back to plain HTTP.
+func newHTTPServer(addr string, h http.Handler) (*http.Server, bool, error) {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	if cfg := utls.LoadServiceTLSConfig(); cfg.CertFile == "" && cfg.KeyFile == "" {
+		return srv, false, nil
+	}
+	tlsOn, err := utls.ConfigureServer(srv)
+	return srv, tlsOn, err
+}
+
 // renderPolkit prints the polkit rule for the configured allowlist's systemd
 // units (D-23). The east install redirects it to
 // /etc/polkit-1/rules.d/60-unheaded-chaos.rules.
@@ -560,19 +585,14 @@ func main() {
 	discovery.Start(ctx, transportCfg, serviceName, ports.PortOf(c.addr, ports.Chaos))
 	healthreport.StartService(ctx, transportCfg, serviceName, healthreport.HealthURL(c.addr, ports.PortOf(c.addr, ports.Chaos))) // ADR-029: a vote on Akira's ballot
 
-	srv := &http.Server{
-		Addr:              c.addr,
-		Handler:           h,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		MaxHeaderBytes:    1 << 20,
+	srv, tlsOn, err := newHTTPServer(c.addr, h)
+	if err != nil {
+		log.Fatal().Err(err).Msg("chaos-controller cannot start: TLS")
 	}
 	errc := make(chan error, 1)
 	go func() {
-		log.Info().Str("addr", c.addr).Bool("dry_run", c.dryRun).Msg("chaos-controller listening")
-		errc <- srv.ListenAndServe()
+		log.Info().Str("addr", c.addr).Bool("dry_run", c.dryRun).Bool("tls", tlsOn).Msg("chaos-controller listening")
+		errc <- utls.ListenAndServe(srv)
 	}()
 	select {
 	case err := <-errc:

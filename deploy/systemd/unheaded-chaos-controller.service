@@ -57,9 +57,13 @@ Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 ReadOnlyPaths=-/etc/unheaded/trust.d
 # TLS (S-IRON-GATE Phase 8; deploy/systemd/README.md#tls): Wotan and Cuirass
 # serve TLS only, so this unit dials them with the Kingdom CA. Its own
-# listener stays plain HTTP: no certificate of its own here (pkg/tls.ServesTLS).
+# listener is plain HTTP until chaos.env sets UNHEADED_TLS_CERT and
+# UNHEADED_TLS_KEY_FILE, then TLS (pkg/tls.ServesTLS). The certificate must
+# name 127.0.0.1 for its health report; the caller's identity is its key, not
+# a client certificate.
 Environment=UNHEADED_TLS_ENABLED=true
 Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
+Environment=UNHEADED_TLS_MTLS_ENABLED=false
 ReadOnlyPaths=-/etc/unheaded/tls/ca.pem
 
 User=unheaded-chaos
