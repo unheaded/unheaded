@@ -331,6 +331,10 @@ services:
       # on the host that runs this stack (.env, or the victoria Ansible role).
       # Unset, they fall to spare loopback addresses, because docker will not
       # start a container whose published address does not exist.
+      # config/victoria/scrape.yml reaches its targets at host.docker.internal,
+      # docker0's gateway, so each of those services publishes its metrics port
+      # there too: off the LAN, and held by check-scrape-publish.sh.
+      # UNHEADED_GATEWAY_BIND if a host's docker0 differs.
       - "127.0.0.1:8428:8428"  # Prometheus-compatible API
       - "${UNHEADED_P2P_BIND:-127.0.0.2}:8428:8428"
       - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:8428:8428"
@@ -735,6 +739,7 @@ services:
     ports:
       - "127.0.0.1:18001:18001"     # gRPC streaming
       - "127.0.0.1:18000:18000"     # HTTP REST API
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:18000:18000"   # VictoriaMetrics scrape; see victoria
       - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:18000:18000"   # Prometheus scrape; see victoria
     volumes:
       - ./configs/certs/dev/wotan:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
@@ -813,6 +818,7 @@ services:
       - ./references:/references:ro
     ports:
       - "127.0.0.1:19000:19000"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19000:19000"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -876,6 +882,7 @@ services:
       - captain-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
       - "127.0.0.1:19002:19002"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19002:19002"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -939,6 +946,7 @@ services:
       - architect-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
       - "127.0.0.1:19001:19001"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19001:19001"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -1004,6 +1012,7 @@ services:
       - micromanager-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
       - "127.0.0.1:19003:19003"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19003:19003"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -1091,6 +1100,7 @@ services:
       - ./configs/certs/dev/wotan/wotan.pem:/etc/unheaded/tls-watch/wotan/wotan.pem:ro
     ports:
       - "127.0.0.1:19100:19100"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19100:19100"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -1152,6 +1162,7 @@ services:
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     ports:
       - "127.0.0.1:19004:19004"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19004:19004"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -1214,6 +1225,7 @@ services:
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     ports:
       - "127.0.0.1:19005:19005"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19005:19005"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -1311,6 +1323,7 @@ services:
       # unset, a browser on another host comes in through Traefik's /dashboard
       # and /kanban. Unset, it falls to a spare loopback address (see victoria).
       - "127.0.0.1:20000:20000"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:20000:20000"   # VictoriaMetrics scrape; see victoria
       - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:20000:20000"   # Prometheus scrape; see victoria
       - "${UNHEADED_LAN_BIND:-127.0.0.4}:20000:20000"
     networks:
@@ -1393,6 +1406,7 @@ services:
       - kanban-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
       - "127.0.0.1:20001:20001"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:20001:20001"   # VictoriaMetrics scrape; see victoria
       - "${UNHEADED_LAN_BIND:-127.0.0.4}:20001:20001"   # see dashboard-backend
     networks:
       - data
@@ -1459,6 +1473,7 @@ services:
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     ports:
       - "127.0.0.1:19006:19006"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19006:19006"   # VictoriaMetrics scrape; see victoria
       - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:19006:19006"   # Prometheus scrape; see victoria
     volumes:
       - ./configs/certs/dev/cuirass:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
@@ -1607,6 +1622,7 @@ services:
       WOTAN_GRPC_ADDR: "wotan:18001"
     ports:
       - "127.0.0.1:19011:19011"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19011:19011"   # VictoriaMetrics scrape; see victoria
     volumes:
       - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/certs/dev/sword:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA

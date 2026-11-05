@@ -49,10 +49,13 @@ does not cover them. Every compose publish therefore names an internal address,
 and `scripts/check-compose-publish-bind.sh` fails one that does not. The
 exceptions are in `docs/security/compose-publish-allowlist.txt`.
 
-All first-party ports in `docker-compose.yml` publish on `127.0.0.1`. A host
-that serves peers sets these in `.env`. Unset, they fall to spare loopback
-addresses, because docker will not start a container whose published address
-is missing.
+All first-party ports in `docker-compose.yml` publish on `127.0.0.1`. The twelve
+that VictoriaMetrics scrapes also publish on docker0's gateway, `172.17.0.1`,
+because `config/victoria/scrape.yml` reaches them at `host.docker.internal`
+(`UNHEADED_GATEWAY_BIND` if a host's docker0 differs;
+`scripts/check-scrape-publish.sh` holds it). A host that serves peers sets the
+variables below in `.env`. Unset, they fall to spare loopback addresses, because
+docker will not start a container whose published address is missing.
 
 | Variable | West's value | Publishes | Who needs it |
 |----------|--------------|-----------|--------------|

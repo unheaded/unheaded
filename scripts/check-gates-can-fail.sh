@@ -1106,6 +1106,22 @@ provoke_compose_publish_bind() {
     grep -q '"8428:8428"' "${REPO_ROOT}/docker-compose.yml"
 }
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_test_compose_publish_bind() {
+    # Contract (M11): an address with an empty-is-fine default is not a promise.
+    # Accept the colon-less form again, so its case sees the gate pass.
+    local f="scripts/check-compose-publish-bind.sh"
+    backup "${f}"
+    sed -i 's/\[A-Za-z0-9_\]\*:-(\[^}\]\*)/[A-Za-z0-9_]*:?-([^}]*)/' "${REPO_ROOT}/${f}"
+    grep -q ':?-(\[^}\]\*)' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_scrape_publish() {
+    # Contract (M11): what Victoria scrapes at the gateway is published there.
+    backup "docker-compose.yml"
+    sed -i '/UNHEADED_GATEWAY_BIND:-172.17.0.1}:18000:18000/d' "${REPO_ROOT}/docker-compose.yml"
+    ! grep -q 'UNHEADED_GATEWAY_BIND:-172.17.0.1}:18000' "${REPO_ROOT}/docker-compose.yml"
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_yggdrasil_anchor() {
     # Contract (OS-FORK-DISCIPLINE §8): the anchor names a real Debian
     # release. Name one that is not.
@@ -1133,6 +1149,8 @@ check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with re
 check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-compose-publish-bind|provoke_compose_publish_bind|fast|victoria's 8428 published with no address
+test-check-compose-publish-bind|provoke_test_compose_publish_bind|fast|the publish gate accepting \${X-127.0.0.1}, whose empty value binds every interface
+check-scrape-publish|provoke_scrape_publish|fast|wotan's publish on docker0's gateway dropped, so Victoria's scrape is refused
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang

@@ -11,13 +11,15 @@
 # WireGuard overlay (fd00:dead:beef::/48). An address that comes from a
 # variable is judged by the default written in the file, so ${X:-127.0.0.1}
 # passes and ${X} with no default fails: what it binds is not in the file.
+# ${X-127.0.0.1} fails as well: set and empty, it binds every interface.
 #
 # A publish that really is an edge is listed in
 # docs/security/compose-publish-allowlist.txt as file:service:port/proto with
 # a reason, and still has to write its address out (0.0.0.0 on purpose, never
 # by omission). An entry that matches no such publish fails too.
 #
-# Covers every tracked compose file outside tomb/, in short and long form.
+# Covers every tracked compose file outside tomb/, in short and long form. A
+# file that uses extends: or include: fails: its publishes are in another file.
 # Reads the files as written: the guarantee must be in the declared
 # configuration, not in a host's .env.
 set -euo pipefail
@@ -85,7 +87,7 @@ def parse(entry):
 
 def resolved(address):
     """Literal address the file promises, or None if the file promises none."""
-    m = re.fullmatch(r"\$\{[A-Za-z_][A-Za-z0-9_]*:?-([^}]*)\}", address)
+    m = re.fullmatch(r"\$\{[A-Za-z_][A-Za-z0-9_]*:-([^}]*)\}", address)
     if m:
         address = m.group(1)
     elif "$" in address:
@@ -97,12 +99,19 @@ fail, total, seen = False, 0, set()
 for f in files:
     rel = os.path.relpath(os.path.join(root, f) if not os.path.isabs(f) else f, root)
     try:
-        services = (yaml.safe_load(open(os.path.join(root, rel))) or {}).get("services") or {}
+        doc = yaml.safe_load(open(os.path.join(root, rel))) or {}
     except yaml.YAMLError as e:
         print(f"[FAIL] {rel}: not parseable YAML: {e}")
         fail = True
         continue
+    if "include" in doc:
+        print(f"[FAIL] {rel}: include: brings in publishes this gate cannot read")
+        fail = True
+    services = doc.get("services") or {}
     for name, spec in sorted(services.items()):
+        if "extends" in (spec or {}):
+            print(f"[FAIL] {rel}:{name}: extends: brings in publishes this gate cannot read")
+            fail = True
         for entry in (spec or {}).get("ports") or []:
             total += 1
             address, target, proto = parse(entry)

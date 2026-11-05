@@ -177,6 +177,15 @@ jobs:
       - name: Every compose publish names an internal address
         run: ./scripts/check-compose-publish-bind.sh
 
+      - name: The publish gate refuses each form it names
+        run: ./scripts/test-check-compose-publish-bind.sh
+
+      # A scrape at host.docker.internal needs a publish on docker0's gateway:
+      # loopback is refused there, and nothing but missing series shows it.
+      # Provoked red by dropping wotan's gateway publish.
+      - name: Every gateway scrape target has a publish
+        run: ./scripts/check-scrape-publish.sh
+
       # ADR-094: prometheus/client_golang was replaced by pkg/metrics and
       # removed from go.mod. This keeps it out. Provoked red by planting an
       # import in a new file.
