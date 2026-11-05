@@ -580,18 +580,22 @@ def main():
     print(f"  Risk: {meta.get('risk', 'unknown')} | ETA: {meta.get('estimated_duration', '?')}")
     if args.dry_run:
         print("  MODE: DRY RUN (no commands will be executed)")
-    if meta.get("status") == "draft":
+    status = str(meta.get("status", "")).strip().lower()
+    if status == "draft":
         # S-TWO-BRAINS drafts (ADR-024): implemented and tested in dry-run
-        # form, but not yet approved by their owner.
+        # form, but not yet approved by their owner. Only --dry-run reads one.
         print("  STATUS: DRAFT — not yet approved (metadata.approved_by is empty).")
-        print("          Read every step before running it; manual steps")
-        print("          are printed, never executed.")
-    elif meta.get("status") == "stub":
+        if not args.dry_run:
+            print("          Refused: a draft runs only with --dry-run, until its")
+            print("          owner approves it (metadata.status, ADR-024).")
+            print("=" * 60)
+            sys.exit(1)
+    elif status == "stub":
         # `status: stub` was already a convention in the runbooks; nothing read it.
         # A stub's steps are action: manual placeholders, so without this banner the
         # run ends in [SUCCESS] having done almost nothing — which on a risk: high
         # runbook reads as "the cutover ran".
-        print(f"  STATUS: {meta['status'].upper()} — steps are not implemented.")
+        print("  STATUS: STUB — steps are not implemented.")
         print("          Executing this performs no changes; it is a checklist,")
         print("          not a script.")
     print("=" * 60)
