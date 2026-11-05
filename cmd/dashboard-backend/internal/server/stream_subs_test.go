@@ -4,6 +4,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,7 +40,7 @@ func TestStream_FailedUpgradeLeavesNoSubscription(t *testing.T) {
 			r.Header.Set("Origin", "https://elsewhere.example")
 			r.Header.Set("Upgrade", "websocket")
 			r.Header.Set("Connection", "Upgrade")
-			r.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+			r.Header.Set("Sec-WebSocket-Key", base64.StdEncoding.EncodeToString([]byte("the sample nonce"))) // RFC 6455 section 1.3
 		},
 	} {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/stream?types=metrics", nil)
