@@ -46,8 +46,9 @@ const (
 
 	// DefaultPinRoot holds one directory per experiment.
 	DefaultPinRoot = "/sys/fs/bpf/unheaded/chaos"
-	// DefaultObject is where a package install puts the program; YALD_OBJ
-	// (ObjectPath) points at a build tree instead.
+	// DefaultObject is where a root install puts the program. Nothing in this
+	// repo installs it yet. YALD_OBJ (ObjectPath) points elsewhere; a build tree
+	// also needs YALD_ALLOW_UNTRUSTED_OBJ=1 (AllowUntrustedObject).
 	DefaultObject = "/usr/lib/unheaded/ebpf/yaldabaoth-ebpf"
 
 	// Names in the object and under a pin directory.
@@ -399,6 +400,12 @@ func ObjectPath(getenv func(string) string) string {
 		return v
 	}
 	return DefaultObject
+}
+
+// AllowUntrustedObject reports whether YALD_ALLOW_UNTRUSTED_OBJ is exactly 1,
+// which loads an object a non-root user could have written.
+func AllowUntrustedObject(getenv func(string) string) bool {
+	return getenv("YALD_ALLOW_UNTRUSTED_OBJ") == "1"
 }
 
 // Injector implements yaldabaoth.Injector for packet_chaos.

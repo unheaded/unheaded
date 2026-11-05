@@ -14,7 +14,8 @@
 # Wotan elsewhere: ANOMALY_WOTAN=host:18000 in /etc/unheaded/anomaly.env.
 #
 # Cartridge bridge, no capabilities: load the interpreter with
-#   sudo upc-cartridgectl -events-group unheaded-anomaly up
+#   sudo upc-cartridgectl -events-group unheaded-anomaly -obj <root-owned object> up
+# (-allow-untrusted-obj for the default build-tree -obj, development only)
 # which makes only the CART_EVENTS pin root:unheaded-anomaly 0660 (the rest,
 # including the signed ROM slots, stay root 0600 under a root 0700 dir).
 # BindPaths= hands the unit that one pin, and SystemCallFilter=bpf allows

@@ -87,7 +87,7 @@ var (
 	ebpfObjDir         = flag.String("ebpf-obj-dir", "", "Directory containing compiled BPF ELF objects (default: ebpf/target/bpfel-unknown-none/release)")
 	unifiedMode        = flag.Bool("unified", false, "Run in unified mode (load all BPF programs)")
 	allowUntrustedObjs = flag.Bool("allow-untrusted-ebpf-obj-dir", false,
-		"Development only: as root, load BPF objects from paths a non-root user can write (e.g. a user-owned ebpf/target). Off, such objects are refused")
+		"Development only: load BPF objects from paths a non-root user can write (e.g. a user-owned ebpf/target). Off, such objects are refused")
 )
 
 // ── Prometheus metrics ──────────────────────────────────────────────────
@@ -715,7 +715,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	}
 	if *enableLatencyProbe {
 		progPath := fmt.Sprintf("%s/latency-probe", elfBase)
-		kl, lmap, err := LoadLatencyKprobes(progPath)
+		kl, lmap, err := LoadLatencyKprobes(progPath, *allowUntrustedObjs)
 		if err != nil {
 			// No fallback: the native loader cannot load this object (one
 			// program per object vs six kprobe functions). The old fallback

@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/logsources"
 	"unheaded/pkg/metrics/metricstest"
+	"unheaded/pkg/syslog"
 )
 
 const (
@@ -77,13 +79,14 @@ func start(t *testing.T, mutate func(*config)) *harness {
 			{"udp", netip.MustParseAddrPort("127.0.0.1:0")},
 			{"tcp", netip.MustParseAddrPort("127.0.0.1:0")},
 		},
-		sources:       src,
-		rate:          defaultRate,
-		burst:         defaultBurst,
-		maxMsg:        8192,
-		maxConns:      8,
-		idle:          time.Minute,
-		journalSocket: sock,
+		sources:        src,
+		rate:           defaultRate,
+		burst:          defaultBurst,
+		maxMsg:         8192,
+		maxConns:       8,
+		maxConnsSender: 8,
+		idle:           time.Minute,
+		journalSocket:  sock,
 	}
 	if mutate != nil {
 		mutate(&cfg)
@@ -450,6 +453,45 @@ func TestHostileFieldsCannotForgeTheEntry(t *testing.T) {
 	}
 }
 
+// L3: journald writes an emerg entry to every login tty (ForwardToWall,
+// MaxLevelWall=emerg by default), so no sender's claim may arrive at that level.
+// What the sender claimed stays readable in its own field.
+func TestEmergCannotReachTheWallPath(t *testing.T) {
+	h := start(t, nil)
+	for name, tc := range map[string]struct{ msg, facility string }{
+		"5424, kernel": {"<0>1 - - app - - - boom", "0"},
+		"5424, user":   {"<8>1 - - app - - - boom", "1"},
+		"3164":         {"<8>Oct  5 12:00:00 host app: boom", "1"},
+		"5424, local7": {"<184>1 - - app - - - boom", "23"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h.sendUDP(knownAddr, tc.msg)
+			got := h.next()
+			wantField(t, got, "PRIORITY", "1")
+			wantField(t, got, "UNHEADED_SEVERITY_CLAIMED", "0")
+			wantField(t, got, "SYSLOG_FACILITY", tc.facility)
+		})
+	}
+}
+
+func TestEveryPRIStaysOffTheWallPath(t *testing.T) {
+	for pri := 0; pri <= 191; pri++ {
+		m, err := syslog.ParseMax([]byte(fmt.Sprintf("<%d>1 - - app - - - x", pri)), 8192)
+		if err != nil {
+			t.Fatalf("<%d>: %v", pri, err)
+		}
+		fields := journalFields(m, netip.MustParseAddr("127.0.0.1"), "test", nil)
+		got, err := strconv.Atoi(fields["PRIORITY"])
+		if err != nil || got < 1 || got > 7 {
+			t.Fatalf("<%d>: PRIORITY %q", pri, fields["PRIORITY"])
+		}
+		_, flagged := fields["UNHEADED_SEVERITY_CLAIMED"]
+		if sev := pri % 8; flagged != (sev == 0) || (sev != 0 && got != sev) {
+			t.Fatalf("<%d>: PRIORITY %d, claimed field %v", pri, got, flagged)
+		}
+	}
+}
+
 func TestMalformedIsShippedAndCounted(t *testing.T) {
 	h := start(t, nil)
 	for _, tt := range []struct{ in, kind string }{
@@ -594,6 +636,63 @@ func TestConnectionCap(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantField(t, h.next(), "MESSAGE", "again")
+}
+
+// L3: one sender is held to its own share, and the rest of the slots stay free
+// for everyone else.
+func TestOneSenderCannotTakeEverySlot(t *testing.T) {
+	h := start(t, func(c *config) { c.maxConns, c.maxConnsSender = 4, 2 })
+	held := []*net.TCPConn{h.dialTCP(knownAddr), h.dialTCP(knownAddr)}
+	for i, c := range held {
+		if _, err := fmt.Fprintf(c, "<13>1 - - app - - - held%d\n", i); err != nil {
+			t.Fatal(err)
+		}
+		h.next()
+	}
+	over := h.dialTCP(knownAddr)
+	closedByPeer(t, over)
+	h.eventually("counted", func() bool { return h.dropped(dropSenderConns) == 1 })
+	if got := h.dropped(dropConns); got != 0 {
+		t.Fatalf("the global cap counted %v; it was not reached", got)
+	}
+
+	// Another sender still gets a slot.
+	other := h.dialTCP(taggedAddr)
+	if _, err := io.WriteString(other, "<13>1 - - pihole-dns - - - other\n"); err != nil {
+		t.Fatal(err)
+	}
+	wantField(t, h.next(), "MESSAGE", "other")
+
+	// A closed connection gives the sender its share back.
+	if err := held[0].Close(); err != nil {
+		t.Fatal(err)
+	}
+	h.eventually("slot back", func() bool { return len(h.r.slots) == 2 })
+	again := h.dialTCP(knownAddr)
+	if _, err := io.WriteString(again, "<13>1 - - app - - - again\n"); err != nil {
+		t.Fatal(err)
+	}
+	wantField(t, h.next(), "MESSAGE", "again")
+}
+
+// A refused or finished connection leaves no entry behind, so a stream of
+// addresses under --accept-unknown cannot grow the table.
+func TestSenderTableEmptiesWhenConnectionsEnd(t *testing.T) {
+	h := start(t, func(c *config) { c.maxConns, c.maxConnsSender = 4, 1 })
+	first := h.dialTCP(knownAddr)
+	if _, err := io.WriteString(first, "<13>1 - - app - - - held\n"); err != nil {
+		t.Fatal(err)
+	}
+	h.next()
+	closedByPeer(t, h.dialTCP(knownAddr))
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	h.eventually("table empty", func() bool {
+		h.r.perSenderMu.Lock()
+		defer h.r.perSenderMu.Unlock()
+		return len(h.r.perSender) == 0
+	})
 }
 
 func TestIdleConnectionCloses(t *testing.T) {
@@ -767,6 +866,13 @@ func TestParseFlags(t *testing.T) {
 	if c.rate != 200 || c.burst != 1000 || c.maxMsg != 8192 || c.frameCap() != 16384 {
 		t.Errorf("defaults %+v", c)
 	}
+	if got := c.senderCap(); got != 16 {
+		t.Errorf("default per-sender cap %d, want a sixteenth of 256", got)
+	}
+	c.maxConns = 8
+	if got := c.senderCap(); got != 1 {
+		t.Errorf("per-sender cap at --max-conns 8 is %d, want at least 1", got)
+	}
 
 	c, err = parseFlags(append(ok, "--metrics", "127.0.0.1:9599", "--metrics", "[fd00:dead:beef::1]:9599"), io.Discard, io.Discard)
 	if err != nil || len(c.metrics) != 2 {
@@ -788,6 +894,9 @@ func TestParseFlags(t *testing.T) {
 		"zero burst":        append(ok[:2:2], "--burst", "0"),
 		"zero conns":        append(ok[:2:2], "--max-conns", "0"),
 		"zero idle":         append(ok[:2:2], "--idle-timeout", "0s"),
+		"negative share":    append(ok[:2:2], "--max-conns-per-sender", "-1"),
+		"share = cap":       append(ok[:2:2], "--max-conns", "8", "--max-conns-per-sender", "8"),
+		"share over cap":    append(ok[:2:2], "--max-conns-per-sender", "257"),
 		"stray operand":     append(ok[:2:2], "extra"),
 		"unknown flag":      {"--nope"},
 	} {

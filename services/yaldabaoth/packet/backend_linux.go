@@ -17,6 +17,8 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+
+	"unheaded/pkg/ebpf/objtrust"
 )
 
 // LinuxBackend is the real kernel: cilium/ebpf for the object, maps and the
@@ -24,6 +26,9 @@ import (
 type LinuxBackend struct {
 	// TCPath is the tc binary; NewLinuxBackend resolves it.
 	TCPath string
+	// AllowUntrustedObject loads an object a non-root user could have written.
+	// NewLinuxBackend sets it from YALD_ALLOW_UNTRUSTED_OBJ. Development only.
+	AllowUntrustedObject bool
 }
 
 // NewLinuxBackend finds tc in PATH, else /sbin/tc.
@@ -32,7 +37,7 @@ func NewLinuxBackend() *LinuxBackend {
 	if err != nil {
 		p = "/sbin/tc"
 	}
-	return &LinuxBackend{TCPath: p}
+	return &LinuxBackend{TCPath: p, AllowUntrustedObject: AllowUntrustedObject(os.Getenv)}
 }
 
 // Present reports whether the interface exists in this network namespace.
@@ -48,6 +53,11 @@ func (b *LinuxBackend) Present(iface string) bool {
 // the classifier at pinDir/prog. The collection's own descriptors are
 // closed: the pins keep everything alive until Unpin.
 func (b *LinuxBackend) Load(objPath, pinDir string) error {
+	if !b.AllowUntrustedObject {
+		if err := objtrust.Check(objPath); err != nil {
+			return err
+		}
+	}
 	if err := os.MkdirAll(pinDir, 0o700); err != nil {
 		return err
 	}

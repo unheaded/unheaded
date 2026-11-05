@@ -26,6 +26,8 @@ import (
 	ciliumebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
+
+	"unheaded/pkg/ebpf/objtrust"
 )
 
 // Object file names under --bpf-dir (cargo [[bin]] names).
@@ -57,8 +59,19 @@ type bpfHooks struct {
 
 var processedRE = regexp.MustCompile(`processed (\d+) insns`)
 
-// loadObject loads one Aya object with verifier stats logging on.
-func loadObject(path string) (*ciliumebpf.Collection, map[string]int, error) {
+// loadObject loads one Aya object, if only root could have written it or the
+// operator said to load it anyway.
+func loadObject(path string, allowUntrusted bool) (*ciliumebpf.Collection, map[string]int, error) {
+	if !allowUntrusted {
+		if err := objtrust.Check(path); err != nil {
+			return nil, nil, err
+		}
+	}
+	return loadObjectUnchecked(path)
+}
+
+// loadObjectUnchecked loads one Aya object with verifier stats logging on.
+func loadObjectUnchecked(path string) (*ciliumebpf.Collection, map[string]int, error) {
 	spec, err := ciliumebpf.LoadCollectionSpec(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("spec %s: %w", filepath.Base(path), err)
@@ -90,7 +103,7 @@ func loadHooks(cfg HookConfig) (*bpfHooks, []error) {
 	var errs []error
 
 	attach := func(obj string, do func(*ciliumebpf.Collection) (link.Link, error), rbName string, horn bool) {
-		coll, counts, err := loadObject(filepath.Join(cfg.Dir, obj))
+		coll, counts, err := loadObject(filepath.Join(cfg.Dir, obj), cfg.AllowUntrustedObjects)
 		if err != nil {
 			errs = append(errs, err)
 			return

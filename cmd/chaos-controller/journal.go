@@ -50,6 +50,9 @@ var openWell = func(ctx context.Context, getenv func(string) string) (*wellConn,
 	if v := getenv("WELL_SSLMODE"); v != "" {
 		cfg.SSLMode = v
 	}
+	if v := getenv("WELL_SSLROOTCERT"); v != "" {
+		cfg.SSLRootCert = v
+	}
 	db, err := database.Connect(ctx, cfg)
 	if err != nil {
 		return nil, err

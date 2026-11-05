@@ -129,9 +129,11 @@ docker compose logs -f
 
 These come up with `docker compose up -d` alongside the services above.
 
+Every port except Traefik's 80 and 443 binds `127.0.0.1`. To serve another host, see Compose publishes in `wiki/Port-Registry.md`.
+
 | Component | Container | Host Port(s) | Role |
 |-----------|-----------|--------------|------|
-| Traefik (edge) | unheaded-traefik | 80 (HTTP), 443 (HTTPS), 50051 (gRPC) | Reverse proxy / ingress. Override via `.env` (`TRAEFIK_HTTP_PORT`/`TRAEFIK_HTTPS_PORT`) if 80/443 are taken. |
+| Traefik (edge) | unheaded-traefik | 80 (HTTP), 443 (HTTPS); 50051 (gRPC) on loopback | Reverse proxy / ingress. Override via `.env` (`TRAEFIK_HTTP_PORT`/`TRAEFIK_HTTPS_PORT`) if 80/443 are taken. |
 | Grafana | unheaded-grafana | 3001 | Dashboards (admin / `GRAFANA_ADMIN_PASSWORD` from `.env`) |
 | VictoriaMetrics | unheaded-victoria (compose service `victoria`) | 8428 | Prometheus-compatible metrics store |
 | ClickHouse | unheaded-clickhouse | 8123 (HTTP), 9000 (native) | Log store |

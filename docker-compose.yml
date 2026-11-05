@@ -162,7 +162,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: traefik:v3.3.7
+    image: traefik:v3.3.7@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f
     container_name: unheaded-traefik
     user: "16784:16784"   # pkg/uids; ports above 1024 inside, no capabilities
     read_only: true
@@ -201,10 +201,14 @@ services:
     ports:
       # Host ports are env-overridable (see .env) so the edge can coexist with a
       # host LB already on 80/443 (e.g. WEST's HAProxy). Defaults preserve 80/443.
-      - "${TRAEFIK_HTTP_PORT:-80}:8000"         # HTTP
-      - "${TRAEFIK_HTTPS_PORT:-443}:8443"      # HTTPS + HTTP/3 (QUIC)
-      - "${TRAEFIK_HTTPS_PORT:-443}:8443/udp"  # QUIC UDP
-      - "${TRAEFIK_GRPC_PORT:-50051}:50051"   # gRPC
+      # Every other publish in this file names an internal address; this edge
+      # is the door from outside the host, so it binds all interfaces on
+      # purpose (docs/security/compose-publish-allowlist.txt). TRAEFIK_BIND
+      # narrows it. No router uses the gRPC entrypoint, so it stays on loopback.
+      - "${TRAEFIK_BIND:-0.0.0.0}:${TRAEFIK_HTTP_PORT:-80}:8000"         # HTTP
+      - "${TRAEFIK_BIND:-0.0.0.0}:${TRAEFIK_HTTPS_PORT:-443}:8443"      # HTTPS + HTTP/3 (QUIC)
+      - "${TRAEFIK_BIND:-0.0.0.0}:${TRAEFIK_HTTPS_PORT:-443}:8443/udp"  # QUIC UDP
+      - "127.0.0.1:${TRAEFIK_GRPC_PORT:-50051}:50051"   # gRPC
       - "127.0.0.1:21000:21000"   # Traefik dashboard (dev only) — loopback: operator-local, not LAN
     volumes:
       - "./config/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro"
@@ -287,7 +291,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: victoriametrics/victoria-metrics:v1.108.1
+    image: victoriametrics/victoria-metrics:v1.108.1@sha256:f6e5322b315795ae2fec494c1d1c94b2e0325b789fead60ef3a13fccdefcd81e
     container_name: unheaded-victoria
     user: "16703:16703"   # pkg/uids; volume-init chowns its data volume
     read_only: true
@@ -319,7 +323,21 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "8428:8428"  # Prometheus-compatible API
+      # The write API feeds the SLO guards in Sword and chaos, so it is never on
+      # the LAN. Loopback serves this host; the two lines below reach the peers.
+      # UNHEADED_P2P_BIND=192.168.13.2 lets east's huginn push here, and
+      # UNHEADED_OVERLAY_BIND=[fd00:dead:beef::1] lets Prometheus on either host
+      # remote-write here and scrape wotan, cuirass and the dashboard. Set them
+      # on the host that runs this stack (.env, or the victoria Ansible role).
+      # Unset, they fall to spare loopback addresses, because docker will not
+      # start a container whose published address does not exist.
+      # config/victoria/scrape.yml reaches its targets at host.docker.internal,
+      # docker0's gateway, so each of those services publishes its metrics port
+      # there too: off the LAN, and held by check-scrape-publish.sh.
+      # UNHEADED_GATEWAY_BIND if a host's docker0 differs.
+      - "127.0.0.1:8428:8428"  # Prometheus-compatible API
+      - "${UNHEADED_P2P_BIND:-127.0.0.2}:8428:8428"
+      - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:8428:8428"
     volumes:
       - victoria-data:/victoria-data
       - victoria-auth:/victoria-auth:ro
@@ -425,7 +443,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: clickhouse/clickhouse-server:24.12.6.70
+    image: clickhouse/clickhouse-server:24.12.6.70@sha256:a65ca89ddbe8e04a05036dd7d7110a203256293b407b9359130ed5e4333f45ff
     container_name: unheaded-clickhouse
     user: "16707:16707"   # pkg/uids (not the image's 101: that is _chrony on the host); volume-init chowns the data volume
     depends_on:
@@ -482,7 +500,7 @@ services:
     logging:
       driver: "json-file"
       options: { max-size: "1m", max-file: "1" }
-    image: clickhouse/clickhouse-server:24.12.6.70
+    image: clickhouse/clickhouse-server:24.12.6.70@sha256:a65ca89ddbe8e04a05036dd7d7110a203256293b407b9359130ed5e4333f45ff
     container_name: unheaded-clickhouse-schema
     user: "16708:16708"   # pkg/uids
     read_only: true
@@ -517,7 +535,7 @@ services:
     logging:
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: timberio/vector:0.43.1-debian
+    image: timberio/vector:0.43.1-debian@sha256:0e3603f594a85628536d50aa2fd91128d6518b4967e23f35fd9771817633a743
     container_name: unheaded-vector
     user: "16706:16706"   # pkg/uids; volume-init chowns its data volume
     group_add:
@@ -568,7 +586,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: grafana/grafana:11.5.1
+    image: grafana/grafana:11.5.1@sha256:5781759b3d27734d4d548fcbaf60b1180dbf4290e708f01f292faa6ae764c5e6
     container_name: unheaded-grafana
     user: "16701:16701"   # pkg/uids; state on tmpfs (it had no volume: dashboards come from provisioning)
     read_only: true
@@ -592,7 +610,10 @@ services:
       - ./config/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "3001:3000"  # 3001 to avoid conflict with Fiber on :3000
+      # 3001 to avoid conflict with Fiber on :3000. Traefik has no Grafana route,
+      # so a browser on another host needs UNHEADED_LAN_BIND (see dashboard-backend).
+      - "127.0.0.1:3001:3000"
+      - "${UNHEADED_LAN_BIND:-127.0.0.4}:3001:3000"
     networks:
       - observe
     labels:
@@ -620,7 +641,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: coredns/coredns:1.12.4
+    image: coredns/coredns:1.12.4@sha256:986f04c2e15e147d00bdd51e8c51bcef3644b13ff806be7d2ff1b261d6dfbae1
     container_name: unheaded-coredns
     user: "16785:16785"   # pkg/uids; listens on 1053 (config/coredns/Corefile)
     read_only: true
@@ -638,8 +659,8 @@ services:
     ports:
       # Host-published only (other containers use Docker's internal DNS, not this).
       # Override in .env to dodge a host already on 5353 (macOS Bonjour / Pi-hole).
-      - "${COREDNS_PORT:-5353}:1053/udp"
-      - "${COREDNS_PORT:-5353}:1053/tcp"
+      - "127.0.0.1:${COREDNS_PORT:-5353}:1053/udp"
+      - "127.0.0.1:${COREDNS_PORT:-5353}:1053/tcp"
     networks:
       - control
       - data
@@ -716,8 +737,10 @@ services:
       # let ~50 log topics hold 290 MiB of heap (OOM-killed 2026-10-18).
       GOMEMLIMIT: "200MiB"
     ports:
-      - "18001:18001"     # gRPC streaming
-      - "18000:18000"     # HTTP REST API
+      - "127.0.0.1:18001:18001"     # gRPC streaming
+      - "127.0.0.1:18000:18000"     # HTTP REST API
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:18000:18000"   # VictoriaMetrics scrape; see victoria
+      - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:18000:18000"   # Prometheus scrape; see victoria
     volumes:
       - ./configs/certs/dev/wotan:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
@@ -794,7 +817,8 @@ services:
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./references:/references:ro
     ports:
-      - "19000:19000"
+      - "127.0.0.1:19000:19000"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19000:19000"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -857,7 +881,8 @@ services:
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - captain-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
-      - "19002:19002"
+      - "127.0.0.1:19002:19002"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19002:19002"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -920,7 +945,8 @@ services:
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - architect-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
-      - "19001:19001"
+      - "127.0.0.1:19001:19001"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19001:19001"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -985,7 +1011,8 @@ services:
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - micromanager-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
-      - "19003:19003"
+      - "127.0.0.1:19003:19003"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19003:19003"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -1072,7 +1099,8 @@ services:
       - ./configs/certs/dev/timeguru/timeguru.pem:/etc/unheaded/tls-watch/timeguru/timeguru.pem:ro
       - ./configs/certs/dev/wotan/wotan.pem:/etc/unheaded/tls-watch/wotan/wotan.pem:ro
     ports:
-      - "19100:19100"
+      - "127.0.0.1:19100:19100"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19100:19100"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -1133,7 +1161,8 @@ services:
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     ports:
-      - "19004:19004"
+      - "127.0.0.1:19004:19004"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19004:19004"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -1195,7 +1224,8 @@ services:
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     ports:
-      - "19005:19005"
+      - "127.0.0.1:19005:19005"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19005:19005"   # VictoriaMetrics scrape; see victoria
     networks:
       - data
     depends_on:
@@ -1269,9 +1299,11 @@ services:
       WELL_USER: "ops_writer"
       WELL_PASSWORD: "${OPS_WRITER_PASSWORD:?set OPS_WRITER_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_ops"
-      WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
+      WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
+      WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
     volumes:
       - ./configs/certs/dev/dashboard-backend:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
       - /proc:/host/proc:ro
@@ -1286,7 +1318,14 @@ services:
     # does exact matching, so "*" silently denies every real browser origin.
     command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--compliance-root", "/opt/unheaded"]
     ports:
-      - "20000:20000"
+      # The nav links in the dashboard and kanban pages name the host's LAN
+      # address. Set UNHEADED_LAN_BIND to that address to keep them working;
+      # unset, a browser on another host comes in through Traefik's /dashboard
+      # and /kanban. Unset, it falls to a spare loopback address (see victoria).
+      - "127.0.0.1:20000:20000"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:20000:20000"   # VictoriaMetrics scrape; see victoria
+      - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:20000:20000"   # Prometheus scrape; see victoria
+      - "${UNHEADED_LAN_BIND:-127.0.0.4}:20000:20000"
     networks:
       - data
       - observe
@@ -1358,13 +1397,17 @@ services:
       WELL_USER: "app_kanban"
       WELL_PASSWORD: "${APP_KANBAN_PASSWORD:?set APP_KANBAN_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_app"
-      WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
+      WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
+      WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
     volumes:
       - ./configs/certs/dev/kanban-app:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - kanban-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
-      - "20001:20001"
+      - "127.0.0.1:20001:20001"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:20001:20001"   # VictoriaMetrics scrape; see victoria
+      - "${UNHEADED_LAN_BIND:-127.0.0.4}:20001:20001"   # see dashboard-backend
     networks:
       - data
     depends_on:
@@ -1429,7 +1472,9 @@ services:
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     ports:
-      - "19006:19006"
+      - "127.0.0.1:19006:19006"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19006:19006"   # VictoriaMetrics scrape; see victoria
+      - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:19006:19006"   # Prometheus scrape; see victoria
     volumes:
       - ./configs/certs/dev/cuirass:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
@@ -1568,15 +1613,18 @@ services:
       WELL_USER: "ops_writer"
       WELL_PASSWORD: "${OPS_WRITER_PASSWORD:?set OPS_WRITER_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_ops"
-      WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
+      WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
+      WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
       SWORD_DATA_DIR: "/data"
       VM_URL: "http://victoria:8428"
       SWORD_SLO_POLICY: "/etc/unheaded/sword/policy.yaml"
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"
     ports:
-      - "19011:19011"
+      - "127.0.0.1:19011:19011"
+      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19011:19011"   # VictoriaMetrics scrape; see victoria
     volumes:
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/certs/dev/sword:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - sword-data:/data

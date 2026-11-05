@@ -1,4 +1,4 @@
-.TH SYSLOG\-RELAY 1 "2026-11-04" "unheaded 529a754e" "Unheaded Kingdom"
+.TH SYSLOG\-RELAY 1 "2026-11-05" "unheaded 31956da1" "Unheaded Kingdom"
 .SH NAME
 syslog\-relay \- Receive syslog over UDP and TCP and write it to the local journal (ADR\-124).
 .SH SYNOPSIS
@@ -25,6 +25,9 @@ udp://IP:PORT or tcp://IP:PORT, repeatable; required, no wildcard address
 .TP
 .B \-\-max\-conns \fIN\fR
 TCP connections at once, across every listener (default 256)
+.TP
+.B \-\-max\-conns\-per\-sender \fIN\fR
+TCP connections one sender may hold, below \-\-max\-conns; 0 means a sixteenth of it
 .TP
 .B \-\-max\-msg \fIN\fR
 message cap in bytes; longer is truncated and flagged (default 8192)

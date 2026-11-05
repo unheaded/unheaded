@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -107,6 +108,20 @@ func TestRevertAllWell(t *testing.T) {
 	}
 	if code := revertAll(c, &out); code != 0 {
 		t.Fatalf("second revert-all = %d", code)
+	}
+}
+
+// M12: the journal's connection takes WELL_SSLROOTCERT from the same getenv as
+// the rest, and a named CA that is missing stops it before it connects.
+func TestOpenWellRefusesMissingCA(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "gone.crt")
+	env := map[string]string{
+		"WELL_DB": "unheaded_ops", "WELL_HOST": "127.0.0.1", "WELL_PORT": "1", "WELL_USER": "ops_writer",
+		"WELL_PASSWORD": "x", "WELL_SSLMODE": "verify-full", "WELL_SSLROOTCERT": gone,
+	}
+	_, err := openWell(context.Background(), func(k string) string { return env[k] })
+	if !errors.Is(err, database.ErrMissingCA) || !strings.Contains(err.Error(), gone) {
+		t.Fatalf("openWell = %v, want ErrMissingCA naming %s", err, gone)
 	}
 }
 

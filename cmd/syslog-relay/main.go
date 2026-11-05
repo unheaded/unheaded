@@ -64,20 +64,27 @@ const (
 	udpReadBuffer = 64 << 10 // the largest datagram UDP can carry
 	metricsRetry  = 30 * time.Second
 	acceptBackoff = 100 * time.Millisecond
+
+	// severityFloor is the most urgent PRIORITY a relayed line carries.
+	// journald writes emerg entries to every login tty (ForwardToWall,
+	// MaxLevelWall=emerg by default), and a sender must not be able to do
+	// that. A host that raises MaxLevelWall raises this too.
+	severityFloor = 1
 )
 
 // Drop reasons, the values of syslog_relay_dropped_total{reason}.
 const (
-	dropRate       = "rate"
-	dropEmpty      = "empty"
-	dropJournal    = "journal"
-	dropConns      = "conns"
-	dropFrameLarge = "frame_too_large"
-	dropBadFrame   = "bad_frame"
-	dropShortFrame = "short_frame"
+	dropRate        = "rate"
+	dropEmpty       = "empty"
+	dropJournal     = "journal"
+	dropConns       = "conns"
+	dropSenderConns = "sender_conns"
+	dropFrameLarge  = "frame_too_large"
+	dropBadFrame    = "bad_frame"
+	dropShortFrame  = "short_frame"
 )
 
-var dropReasons = []string{dropRate, dropEmpty, dropJournal, dropConns, dropFrameLarge, dropBadFrame, dropShortFrame}
+var dropReasons = []string{dropRate, dropEmpty, dropJournal, dropConns, dropSenderConns, dropFrameLarge, dropBadFrame, dropShortFrame}
 
 var relaySpec = cmdline.Spec{
 	Name:    serviceName,
@@ -95,23 +102,33 @@ type listenAddr struct {
 }
 
 type config struct {
-	listens       []listenAddr
-	sources       string
-	rate          int
-	burst         int
-	maxMsg        int
-	maxConns      int
-	idle          time.Duration
-	metrics       []string
-	acceptUnknown bool
-	journalSocket string
-	metricsRetry  time.Duration
+	listens        []listenAddr
+	sources        string
+	rate           int
+	burst          int
+	maxMsg         int
+	maxConns       int
+	maxConnsSender int
+	idle           time.Duration
+	metrics        []string
+	acceptUnknown  bool
+	journalSocket  string
+	metricsRetry   time.Duration
 }
 
 // frameCap is the largest TCP frame kept. Twice the message cap, so a line at
 // the cap plus a header is truncated and flagged. Closing on it would make
 // rsyslog's omfwd resend that one message forever (ADR-124).
 func (c config) frameCap() int { return 2 * c.maxMsg }
+
+// senderCap is how many TCP connections one sender may hold. Left at 0 it is a
+// sixteenth of --max-conns, so a compromised sender cannot fill the table.
+func (c config) senderCap() int {
+	if c.maxConnsSender > 0 {
+		return c.maxConnsSender
+	}
+	return max(1, c.maxConns/16)
+}
 
 // repeated is a flag that may be given more than once.
 type repeated []string
@@ -136,6 +153,7 @@ func parseFlags(args []string, stdout, stderr io.Writer) (config, error) {
 	fs.IntVar(&c.burst, "burst", defaultBurst, "token bucket size per sender; a row's burst: lowers it")
 	fs.IntVar(&c.maxMsg, "max-msg", syslog.DefaultMaxMessage, "message cap in bytes; longer is truncated and flagged")
 	fs.IntVar(&c.maxConns, "max-conns", defaultMaxConns, "TCP connections at once, across every listener")
+	fs.IntVar(&c.maxConnsSender, "max-conns-per-sender", 0, "TCP connections one sender may hold, below --max-conns; 0 means a sixteenth of it")
 	fs.DurationVar(&c.idle, "idle-timeout", defaultIdle, "time a TCP sender has to complete a frame")
 	fs.Var(&metric, "metrics", "address for /metrics, /health and /ready, repeatable (default "+defaultMetrics+")")
 	fs.BoolVar(&c.acceptUnknown, "accept-unknown", false, "ship unknown senders as source unknown; for the inventory phase only")
@@ -171,6 +189,10 @@ func parseFlags(args []string, stdout, stderr io.Writer) (config, error) {
 		return c, fmt.Errorf("--max-msg must be %d..%d", minMaxMsg, maxMaxMsg)
 	case c.maxConns < 1:
 		return c, errors.New("--max-conns must be at least 1")
+	case c.maxConnsSender < 0:
+		return c, errors.New("--max-conns-per-sender must not be negative")
+	case c.maxConnsSender >= c.maxConns:
+		return c, errors.New("--max-conns-per-sender must be below --max-conns, or one sender could hold every slot")
 	case c.idle <= 0:
 		return c, errors.New("--idle-timeout must be positive")
 	}
@@ -332,12 +354,14 @@ func newRelayMetrics() *relayMetrics {
 }
 
 type relay struct {
-	cfg     config
-	log     zerolog.Logger
-	journal *journald.Writer
-	metrics *relayMetrics
-	list    atomic.Pointer[allowlist]
-	slots   chan struct{}
+	cfg         config
+	log         zerolog.Logger
+	journal     *journald.Writer
+	metrics     *relayMetrics
+	list        atomic.Pointer[allowlist]
+	slots       chan struct{}
+	perSenderMu sync.Mutex
+	perSender   map[netip.Addr]int
 
 	udp []*net.UDPConn
 	tcp []*net.TCPListener
@@ -345,11 +369,12 @@ type relay struct {
 
 func newRelay(cfg config, log zerolog.Logger) (*relay, error) {
 	r := &relay{
-		cfg:     cfg,
-		log:     log,
-		journal: journald.New(cfg.journalSocket),
-		metrics: newRelayMetrics(),
-		slots:   make(chan struct{}, cfg.maxConns),
+		cfg:       cfg,
+		log:       log,
+		journal:   journald.New(cfg.journalSocket),
+		metrics:   newRelayMetrics(),
+		slots:     make(chan struct{}, cfg.maxConns),
+		perSender: make(map[netip.Addr]int),
 	}
 	list, err := r.loadAllowlist()
 	if err != nil {
@@ -478,19 +503,46 @@ func (r *relay) serveTCP(ctx context.Context, l *net.TCPListener, wg *sync.WaitG
 			_ = c.Close()
 			continue
 		}
-		select {
-		case r.slots <- struct{}{}:
-		default:
-			r.metrics.dropped.WithLabelValues(dropConns).Inc()
+		if !r.takeSlot(addr) {
 			_ = c.Close()
 			continue
 		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer func() { <-r.slots }()
+			defer r.freeSlot(addr)
 			r.serveConn(ctx, c, addr)
 		}()
+	}
+}
+
+// takeSlot claims one of the sender's connections and one of the relay's. A
+// refusal is counted under the cap that caused it.
+func (r *relay) takeSlot(addr netip.Addr) bool {
+	r.perSenderMu.Lock()
+	defer r.perSenderMu.Unlock()
+	if r.perSender[addr] >= r.cfg.senderCap() {
+		r.metrics.dropped.WithLabelValues(dropSenderConns).Inc()
+		return false
+	}
+	select {
+	case r.slots <- struct{}{}:
+	default:
+		r.metrics.dropped.WithLabelValues(dropConns).Inc()
+		return false
+	}
+	r.perSender[addr]++
+	return true
+}
+
+// freeSlot gives both back. The entry goes with the last connection, so the
+// table holds open senders only, however many addresses have come and gone.
+func (r *relay) freeSlot(addr netip.Addr) {
+	r.perSenderMu.Lock()
+	defer r.perSenderMu.Unlock()
+	<-r.slots
+	if r.perSender[addr]--; r.perSender[addr] <= 0 {
+		delete(r.perSender, addr)
 	}
 }
 
@@ -593,7 +645,7 @@ func (r *relay) handle(from netip.Addr, raw []byte) bool {
 func journalFields(m syslog.Message, addr netip.Addr, source string, parseErr error) map[string]string {
 	fields := map[string]string{
 		"MESSAGE":         m.Text,
-		"PRIORITY":        strconv.Itoa(m.Severity),
+		"PRIORITY":        strconv.Itoa(max(m.Severity, severityFloor)),
 		"SYSLOG_FACILITY": strconv.Itoa(m.Facility),
 		"REMOTE_ADDR":     addr.String(),
 		"UNHEADED_SOURCE": source,
@@ -609,6 +661,9 @@ func journalFields(m syslog.Message, addr netip.Addr, source string, parseErr er
 		if value != "" {
 			fields[name] = value
 		}
+	}
+	if m.Severity < severityFloor {
+		fields["UNHEADED_SEVERITY_CLAIMED"] = strconv.Itoa(m.Severity)
 	}
 	if m.Truncated {
 		fields["UNHEADED_TRUNCATED"] = "1"

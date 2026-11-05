@@ -110,7 +110,9 @@ func TestLoad_FuzzFoundSubprogramOffset(t *testing.T) {
 					t.Fatalf("run %d: Load panicked: %v", i, r)
 				}
 			}()
-			l := &NativeLoader{config: DefaultLoaderConfig(), programs: make(map[string]*loadedProgram)}
+			cfg := DefaultLoaderConfig()
+			cfg.AllowUntrustedObjectPaths = true // a temp dir; this is about the parser
+			l := &NativeLoader{config: cfg, programs: make(map[string]*loadedProgram)}
 			err := l.Load(context.Background(), &ProgramSpec{Name: "crash", Path: path})
 			if err == nil {
 				_ = l.Unload(context.Background(), "crash")

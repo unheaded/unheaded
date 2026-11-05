@@ -147,11 +147,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	base := database.Config{
-		Host:     getenv("WELL_HOST", "127.0.0.1"),
-		Port:     getenv("WELL_PORT", "5432"),
-		User:     getenv("WELL_USER", "retention_runner"),
-		Password: pw,
-		SSLMode:  getenv("WELL_SSLMODE", "require"),
+		Host:        getenv("WELL_HOST", "127.0.0.1"),
+		Port:        getenv("WELL_PORT", "5432"),
+		User:        getenv("WELL_USER", "retention_runner"),
+		Password:    pw,
+		SSLMode:     getenv("WELL_SSLMODE", "require"),
+		SSLRootCert: getenv("WELL_SSLROOTCERT", ""),
 	}
 	appCfg, opsCfg := base, base
 	appCfg.DBName = getenv("WELL_APP_DB", dbApp)

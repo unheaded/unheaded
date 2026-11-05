@@ -124,12 +124,13 @@ func ConfigFromEnv() database.Config {
 		return def
 	}
 	return database.Config{
-		Host:     get("WELL_HOST", "127.0.0.1"),
-		Port:     get("WELL_PORT", "5432"),
-		User:     get("WELL_CONFIG_USER", "config_reader"),
-		Password: os.Getenv("WELL_CONFIG_PASSWORD"),
-		DBName:   get("WELL_CONFIG_DB", "unheaded_config"),
-		SSLMode:  get("WELL_SSLMODE", "require"),
+		Host:        get("WELL_HOST", "127.0.0.1"),
+		Port:        get("WELL_PORT", "5432"),
+		User:        get("WELL_CONFIG_USER", "config_reader"),
+		Password:    os.Getenv("WELL_CONFIG_PASSWORD"),
+		DBName:      get("WELL_CONFIG_DB", "unheaded_config"),
+		SSLMode:     get("WELL_SSLMODE", "require"),
+		SSLRootCert: get("WELL_SSLROOTCERT", ""),
 	}
 }
 

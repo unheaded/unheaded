@@ -89,6 +89,14 @@ jobs:
       - name: Verify gosec ratchet only shrinks
         run: ./scripts/check-gosec-ratchet.sh
 
+      # The rule list is empty, so annotations are the only way past gosec.
+      # This holds their number, per file. Provoked red by adding one.
+      - name: gosec suppressions may only shrink
+        run: ./scripts/check-nosec-ratchet.sh
+
+      - name: The suppression ratchet refuses each form it names
+        run: ./scripts/test-check-nosec-ratchet.sh
+
       - name: Upload gosec SARIF
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         if: always()
@@ -166,6 +174,21 @@ jobs:
       - name: No nested bind mounts in compose
         run: ./scripts/check-compose-bind-nesting.sh
 
+      # Docker's NAT rules go around a host firewall, so a publish with no
+      # address is open whatever the firewall says. Provoked red by dropping
+      # the address from victoria's publish.
+      - name: Every compose publish names an internal address
+        run: ./scripts/check-compose-publish-bind.sh
+
+      - name: The publish gate refuses each form it names
+        run: ./scripts/test-check-compose-publish-bind.sh
+
+      # A scrape at host.docker.internal needs a publish on docker0's gateway:
+      # loopback is refused there, and nothing but missing series shows it.
+      # Provoked red by dropping wotan's gateway publish.
+      - name: Every gateway scrape target has a publish
+        run: ./scripts/check-scrape-publish.sh
+
       # ADR-094: prometheus/client_golang was replaced by pkg/metrics and
       # removed from go.mod. This keeps it out. Provoked red by planting an
       # import in a new file.
@@ -191,6 +214,10 @@ jobs:
       # ADR-102: no new latest / major-only image tag anywhere.
       - name: Floating image tags may only shrink
         run: ./scripts/check-image-tags.sh
+
+      # L23: a compose image keeps the digest it was pinned to.
+      - name: Compose images keep their digests
+        run: ./scripts/check-image-digests.sh
 
       # A finding with a row in docs/policy/gitleaks-history-baseline.txt
       # warns; a new one, or a scan that could not run, fails the job, so no

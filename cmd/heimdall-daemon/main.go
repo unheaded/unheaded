@@ -371,21 +371,22 @@ func signManifest(manifest, keyPath string, ttl time.Duration) error {
 
 func main() {
 	var (
-		manifestPath  = flag.String("manifest", "references/baseline/mjolnir.example.yaml", "Path to Mjölnir manifest")
-		nodeID        = flag.String("node-id", "", "Node identifier (defaults to hostname)")
-		scanInterval  = flag.Duration("scan-interval", 30*time.Second, "Baseline scan interval")
-		pubKeyPath    = flag.String("pubkey", "", "ML-DSA-65 public key file: verify <manifest>.seal before trusting the manifest")
-		allowUnsigned = flag.Bool("allow-unsigned", false, "load a manifest without verifying a seal (lab runs only)")
-		signKey       = flag.String("sign-key", "", "sign --manifest with this private key seed, write <manifest>.seal, exit")
-		signTTL       = flag.Duration("sign-ttl", 30*24*time.Hour, "how long a seal written by --sign-key stays valid")
-		wotanGRPC     = flag.String("wotan-grpc", "", "Wotan gRPC address: publish each drift alert to drift.detected.<node-id>, signed (UNHEADED_GRPC_TLS=1 for TLS)")
-		driftSignKey  = flag.String("drift-sign-key", "", "ML-DSA-65 seed (0600) that signs drift events; must not be the --sign-key or --pubkey key")
-		publishQueue  = flag.Int("publish-queue", 256, "drift events held for Wotan before the oldest is dropped")
-		bpfDir        = flag.String("bpf-dir", "", "directory with the heimdall-bpf objects: attach vfs_write/execve hooks (event-driven scans); needs CAP_BPF")
-		xdpIface      = flag.String("xdp-iface", "", "attach the observe-only Gjallarhorn XDP program here (needs --bpf-dir)")
-		xdpMode       = flag.String("xdp-mode", "generic", "XDP attach mode: generic | native")
-		cluster       = flag.Uint("cluster", 1, "this node's Gjallarhorn cluster ID; reverify horns for other clusters are ignored")
-		metricsAddr   = flag.String("metrics-addr", defaultMetricsAddr, "serve GET /metrics here (drift publish counters, scan duration); empty disables")
+		manifestPath      = flag.String("manifest", "references/baseline/mjolnir.example.yaml", "Path to Mjölnir manifest")
+		nodeID            = flag.String("node-id", "", "Node identifier (defaults to hostname)")
+		scanInterval      = flag.Duration("scan-interval", 30*time.Second, "Baseline scan interval")
+		pubKeyPath        = flag.String("pubkey", "", "ML-DSA-65 public key file: verify <manifest>.seal before trusting the manifest")
+		allowUnsigned     = flag.Bool("allow-unsigned", false, "load a manifest without verifying a seal (lab runs only)")
+		signKey           = flag.String("sign-key", "", "sign --manifest with this private key seed, write <manifest>.seal, exit")
+		signTTL           = flag.Duration("sign-ttl", 30*24*time.Hour, "how long a seal written by --sign-key stays valid")
+		wotanGRPC         = flag.String("wotan-grpc", "", "Wotan gRPC address: publish each drift alert to drift.detected.<node-id>, signed (UNHEADED_GRPC_TLS=1 for TLS)")
+		driftSignKey      = flag.String("drift-sign-key", "", "ML-DSA-65 seed (0600) that signs drift events; must not be the --sign-key or --pubkey key")
+		publishQueue      = flag.Int("publish-queue", 256, "drift events held for Wotan before the oldest is dropped")
+		bpfDir            = flag.String("bpf-dir", "", "directory with the heimdall-bpf objects: attach vfs_write/execve hooks (event-driven scans); needs CAP_BPF")
+		allowUntrustedBPF = flag.Bool("allow-untrusted-bpf-dir", false, "load --bpf-dir objects a non-root user could have written, as a build tree's are (development only)")
+		xdpIface          = flag.String("xdp-iface", "", "attach the observe-only Gjallarhorn XDP program here (needs --bpf-dir)")
+		xdpMode           = flag.String("xdp-mode", "generic", "XDP attach mode: generic | native")
+		cluster           = flag.Uint("cluster", 1, "this node's Gjallarhorn cluster ID; reverify horns for other clusters are ignored")
+		metricsAddr       = flag.String("metrics-addr", defaultMetricsAddr, "serve GET /metrics here (drift publish counters, scan duration); empty disables")
 	)
 	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
 	cmdline.Parse(cmdline.Spec{
@@ -503,7 +504,7 @@ func main() {
 	// BPF hooks are optional: any load/attach failure is logged once and
 	// the daemon keeps polling (S5 Step 150).
 	if *bpfDir != "" {
-		hooks, errs := loadHooks(HookConfig{Dir: *bpfDir, XDPIface: *xdpIface, XDPMode: *xdpMode})
+		hooks, errs := loadHooks(HookConfig{Dir: *bpfDir, XDPIface: *xdpIface, XDPMode: *xdpMode, AllowUntrustedObjects: *allowUntrustedBPF})
 		for _, e := range errs {
 			fmt.Fprintf(os.Stderr, "[BPF] %v (continuing without it)\n", e)
 		}

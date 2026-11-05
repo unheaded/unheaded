@@ -884,7 +884,7 @@ provoke_image_tags() {
     # Contract (ADR-102): no image enters at a floating tag.
     local f="docker-compose.yml"
     backup "${f}"
-    sed -i '0,/image: traefik:v3.3.7/s//image: traefik:latest/' "${REPO_ROOT}/${f}"
+    sed -i -E '0,/image: traefik:v3\.3\.7[^[:space:]]*/s//image: traefik:latest/' "${REPO_ROOT}/${f}"
     grep -q 'image: traefik:latest' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
@@ -1144,6 +1144,54 @@ provoke_well_slo_definitions() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_image_digests() {
+    # Contract (L23): a pinned compose image keeps its digest. Drop one.
+    local f="docker-compose.yml"
+    backup "${f}"
+    sed -i -E '0,/(image: traefik:v3\.3\.7)@sha256:[0-9a-f]{64}/s//\1/' "${REPO_ROOT}/${f}"
+    grep -qE 'image: traefik:v3\.3\.7$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_nosec_ratchet() {
+    # Contract (L20): gosec suppressions may only shrink. Add one.
+    local f="pkg/database/config.go"
+    backup "${f}"
+    printf '\n// #nosec G101 -- meta-gate provocation\n' >>"${REPO_ROOT}/${f}"
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_test_nosec_ratchet() {
+    # Contract (L20): a gosec config file is one way round the count. Stop
+    # looking for it, so its case sees the ratchet pass.
+    local f="scripts/check-nosec-ratchet.sh"
+    backup "${f}"
+    sed -i 's/(nosec-tag|conf|exclude-dir/(nosec-tag|exclude-dir/' "${REPO_ROOT}/${f}"
+    ! grep -q 'nosec-tag|conf|' "${REPO_ROOT}/${f}" || { echo "provocation anchor still present in ${f}" >&2; return 1; }
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_compose_publish_bind() {
+    # Contract (M11): a compose publish names an internal address. Drop the
+    # address from one, which is how every bare publish got there.
+    backup "docker-compose.yml"
+    sed -i 's|"127.0.0.1:8428:8428"|"8428:8428"|' "${REPO_ROOT}/docker-compose.yml"
+    grep -q '"8428:8428"' "${REPO_ROOT}/docker-compose.yml"
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_test_compose_publish_bind() {
+    # Contract (M11): an address with an empty-is-fine default is not a promise.
+    # Accept the colon-less form again, so its case sees the gate pass.
+    local f="scripts/check-compose-publish-bind.sh"
+    backup "${f}"
+    sed -i 's/\[A-Za-z0-9_\]\*:-(\[^}\]\*)/[A-Za-z0-9_]*:?-([^}]*)/' "${REPO_ROOT}/${f}"
+    grep -q ':?-(\[^}\]\*)' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_scrape_publish() {
+    # Contract (M11): what Victoria scrapes at the gateway is published there.
+    backup "docker-compose.yml"
+    sed -i '/UNHEADED_GATEWAY_BIND:-172.17.0.1}:18000:18000/d' "${REPO_ROOT}/docker-compose.yml"
+    ! grep -q 'UNHEADED_GATEWAY_BIND:-172.17.0.1}:18000' "${REPO_ROOT}/docker-compose.yml"
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_yggdrasil_anchor() {
     # Contract (OS-FORK-DISCIPLINE §8): the anchor names a real Debian
     # release. Name one that is not.
@@ -1155,6 +1203,8 @@ provoke_yggdrasil_anchor() {
 
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
+check-nosec-ratchet|provoke_nosec_ratchet|fast|one more #nosec in pkg/database/config.go
+test-check-nosec-ratchet|provoke_test_nosec_ratchet|fast|check-nosec-ratchet.sh no longer refusing gosec -conf
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
 check-secrets-baseline|provoke_secrets_baseline|fast|a new fingerprint appended to .gitleaksignore
 check-python-syntax|provoke_python_syntax|fast|a syntax error in a tracked .py file
@@ -1170,6 +1220,9 @@ check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with re
 check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
 check-unit-flags|provoke_unit_flags|fast|--config, which wotan does not declare, restored in unheaded-wotan.service
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
+check-compose-publish-bind|provoke_compose_publish_bind|fast|victoria's 8428 published with no address
+test-check-compose-publish-bind|provoke_test_compose_publish_bind|fast|the publish gate accepting \${X-127.0.0.1}, whose empty value binds every interface
+check-scrape-publish|provoke_scrape_publish|fast|wotan's publish on docker0's gateway dropped, so Victoria's scrape is refused
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
@@ -1186,6 +1239,7 @@ test-check-ci-verdicts|provoke_test_ci_verdicts|fast|one rule of check-ci-verdic
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
+check-image-digests|provoke_image_digests|fast|traefik's digest dropped from docker-compose.yml
 check-crypto-inventory|provoke_crypto_inventory|fast|a component the tree does not contain appended to compliance/crypto/cbom.cdx.json
 check-pq-kex|provoke_pq_kex|fast|an untracked Go file pinning CurvePreferences to X25519 only (classical key exchange)
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt

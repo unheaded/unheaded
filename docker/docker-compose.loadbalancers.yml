@@ -41,9 +41,9 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "21080:21080"   # HTTP ingress
-      - "21443:21443"   # HTTPS ingress
-      - "21404:21404"   # Metrics/healthcheck
+      - "0.0.0.0:21080:21080"   # HTTP ingress
+      - "0.0.0.0:21443:21443"   # HTTPS ingress
+      - "127.0.0.1:21404:21404"   # Metrics/healthcheck
     volumes:
       - ./docker/haproxy/edge/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
       - ./docker/haproxy/edge/certs:/etc/haproxy/certs:ro   # gitignored pems, never committed
@@ -88,8 +88,8 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "21081:21081"   # Internal HTTP load balancing
-      - "21405:21405"   # Metrics/healthcheck
+      - "127.0.0.1:21081:21081"   # Internal HTTP load balancing
+      - "127.0.0.1:21405:21405"   # Metrics/healthcheck
     volumes:
       - ./docker/haproxy/internal/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     networks:

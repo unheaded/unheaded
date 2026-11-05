@@ -4,6 +4,7 @@
 package database
 
 import (
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -24,19 +25,45 @@ var ErrMissingCredentials = errors.New("database credentials not set (credential
 // plaintext without a word.
 var ErrWeakTLS = errors.New("database sslmode must be require, verify-ca or verify-full (disable only on this host)")
 
+// ErrMissingCA is returned by Connect (and CheckTLS) when the client was told
+// to verify the server and has no usable CA. Without it verify-ca and
+// verify-full would judge a private CA's certificate against whatever roots
+// the host holds, and require with a missing file would silently verify nothing.
+var ErrMissingCA = errors.New("database CA unusable: sslmode verify-ca and verify-full need WELL_SSLROOTCERT, a readable PEM file")
+
 // CheckTLS refuses an sslmode that would let the session run without TLS
 // to anything but this host: allow and prefer anywhere, disable unless the
-// host is a loopback address, localhost or a Unix socket directory.
+// host is a loopback address, localhost or a Unix socket directory. It also
+// refuses a client told to verify the server that has no usable CA.
 func CheckTLS(c Config) error {
 	switch c.SSLMode {
 	case "require", "verify-ca", "verify-full":
-		return nil
+		return checkCA(c)
 	case "disable":
 		if isLocalHost(c.Host) {
-			return nil
+			return checkCA(c)
 		}
 	}
 	return fmt.Errorf("%w: sslmode %q for host %q", ErrWeakTLS, c.SSLMode, c.Host)
+}
+
+// checkCA loads the configured CA the way the driver will. A path that is set
+// is always checked, because it means someone expects verification.
+func checkCA(c Config) error {
+	if c.SSLRootCert == "" {
+		if c.SSLMode == "verify-ca" || c.SSLMode == "verify-full" {
+			return fmt.Errorf("%w: sslmode %q with no CA path", ErrMissingCA, c.SSLMode)
+		}
+		return nil
+	}
+	data, err := os.ReadFile(c.SSLRootCert) // #nosec G304 -- operator-set path of a public certificate
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrMissingCA, err)
+	}
+	if !x509.NewCertPool().AppendCertsFromPEM(data) {
+		return fmt.Errorf("%w: no certificate in %s", ErrMissingCA, c.SSLRootCert)
+	}
+	return nil
 }
 
 func isLocalHost(host string) bool {
@@ -55,16 +82,23 @@ type Config struct {
 	Password string
 	DBName   string
 	SSLMode  string
+	// The CA that signed the server's certificate (WELL_SSLROOTCERT), as a
+	// file path. Empty means none is configured.
+	SSLRootCert string
 }
 
 // DSN returns the PostgreSQL connection string. Every value is quoted, so
 // a space or quote in one (a password, say) cannot add or override a
 // keyword such as sslmode.
 func (c Config) DSN() string {
-	return fmt.Sprintf(
+	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		quoteDSN(c.Host), quoteDSN(c.Port), quoteDSN(c.User), quoteDSN(c.Password), quoteDSN(c.DBName), quoteDSN(c.SSLMode),
 	)
+	if c.SSLRootCert != "" {
+		dsn += " sslrootcert=" + quoteDSN(c.SSLRootCert)
+	}
+	return dsn
 }
 
 // quoteDSN quotes a libpq keyword/value: single quotes around it, with
@@ -79,12 +113,13 @@ func quoteDSN(v string) string {
 // ops_writer, never the superuser, and there is no default password.
 func OpsWriterConfig() Config {
 	return Config{
-		Host:     getEnv("WELL_HOST", "localhost"),
-		Port:     getEnv("WELL_PORT", "5432"),
-		User:     getEnv("WELL_USER", "ops_writer"),
-		Password: os.Getenv("WELL_PASSWORD"),
-		DBName:   getEnv("WELL_DB", "unheaded_ops"),
-		SSLMode:  getEnv("WELL_SSLMODE", "require"),
+		Host:        getEnv("WELL_HOST", "localhost"),
+		Port:        getEnv("WELL_PORT", "5432"),
+		User:        getEnv("WELL_USER", "ops_writer"),
+		Password:    os.Getenv("WELL_PASSWORD"),
+		DBName:      getEnv("WELL_DB", "unheaded_ops"),
+		SSLMode:     getEnv("WELL_SSLMODE", "require"),
+		SSLRootCert: os.Getenv("WELL_SSLROOTCERT"),
 	}
 }
 
@@ -93,12 +128,13 @@ func OpsWriterConfig() Config {
 // scoped role app_kanban; there is no default password.
 func AppKanbanConfig() Config {
 	return Config{
-		Host:     getEnv("WELL_HOST", "localhost"),
-		Port:     getEnv("WELL_PORT", "5432"),
-		User:     getEnv("WELL_USER", "app_kanban"),
-		Password: os.Getenv("WELL_PASSWORD"),
-		DBName:   getEnv("WELL_DB", "unheaded_app"),
-		SSLMode:  getEnv("WELL_SSLMODE", "require"),
+		Host:        getEnv("WELL_HOST", "localhost"),
+		Port:        getEnv("WELL_PORT", "5432"),
+		User:        getEnv("WELL_USER", "app_kanban"),
+		Password:    os.Getenv("WELL_PASSWORD"),
+		DBName:      getEnv("WELL_DB", "unheaded_app"),
+		SSLMode:     getEnv("WELL_SSLMODE", "require"),
+		SSLRootCert: os.Getenv("WELL_SSLROOTCERT"),
 	}
 }
 
@@ -108,16 +144,17 @@ func AppKanbanConfig() Config {
 // own, AUTH_WELL_USER / AUTH_WELL_PASSWORD / AUTH_WELL_DB, never the
 // service's WELL_USER/WELL_PASSWORD/WELL_DB: those belong to the role the
 // service otherwise uses (app_kanban, ops_writer on unheaded_ops). Host,
-// port and sslmode are the same Well's (WELL_HOST, WELL_PORT,
-// WELL_SSLMODE). There is no default password.
+// port, sslmode and CA are the same Well's (WELL_HOST, WELL_PORT,
+// WELL_SSLMODE, WELL_SSLROOTCERT). There is no default password.
 func AppAuthConfig() Config {
 	return Config{
-		Host:     getEnv("WELL_HOST", "localhost"),
-		Port:     getEnv("WELL_PORT", "5432"),
-		User:     getEnv("AUTH_WELL_USER", "app_auth"),
-		Password: os.Getenv("AUTH_WELL_PASSWORD"),
-		DBName:   getEnv("AUTH_WELL_DB", "unheaded_app"),
-		SSLMode:  getEnv("WELL_SSLMODE", "require"),
+		Host:        getEnv("WELL_HOST", "localhost"),
+		Port:        getEnv("WELL_PORT", "5432"),
+		User:        getEnv("AUTH_WELL_USER", "app_auth"),
+		Password:    os.Getenv("AUTH_WELL_PASSWORD"),
+		DBName:      getEnv("AUTH_WELL_DB", "unheaded_app"),
+		SSLMode:     getEnv("WELL_SSLMODE", "require"),
+		SSLRootCert: os.Getenv("WELL_SSLROOTCERT"),
 	}
 }
 

@@ -1,4 +1,4 @@
-.TH UPC\-CARTRIDGECTL 1 "2026-10-29" "unheaded 86590d34" "Unheaded Kingdom"
+.TH UPC\-CARTRIDGECTL 1 "2026-11-05" "unheaded 31956da1" "Unheaded Kingdom"
 .SH NAME
 upc\-cartridgectl \- Register, sign, load and swap UPC cartridges on the pinned cartridge interpreter.
 .SH SYNOPSIS
@@ -39,6 +39,9 @@ replay a trace
 .B weights publish | weights fetch
 publish or fetch sealed weights over Wotan (see weights \-\-help)
 .SH OPTIONS
+.TP
+.B \-\-allow\-untrusted\-obj
+up: load an object a non\-root user could have written, as the default build\-tree \-obj is (development only)
 .TP
 .B \-\-cart \fISTRING\fR
 the cart CLI (validator) (default crates/upc\-cartridge/target/release/cart)

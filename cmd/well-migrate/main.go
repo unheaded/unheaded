@@ -114,11 +114,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 
 	cfg := database.Config{
-		Host:     env("WELL_HOST", "127.0.0.1"),
-		Port:     env("WELL_PORT", "5432"),
-		User:     env("WELL_MIGRATE_USER", "unheaded"),
-		Password: os.Getenv("WELL_MIGRATE_PASSWORD"),
-		SSLMode:  env("WELL_SSLMODE", "require"),
+		Host:        env("WELL_HOST", "127.0.0.1"),
+		Port:        env("WELL_PORT", "5432"),
+		User:        env("WELL_MIGRATE_USER", "unheaded"),
+		Password:    os.Getenv("WELL_MIGRATE_PASSWORD"),
+		SSLMode:     env("WELL_SSLMODE", "require"),
+		SSLRootCert: env("WELL_SSLROOTCERT", ""),
 	}
 	if cfg.Password == "" {
 		return fail(fmt.Errorf("WELL_MIGRATE_PASSWORD is not set: %w", database.ErrMissingCredentials))

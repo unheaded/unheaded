@@ -61,7 +61,7 @@ func FuzzKernelLoad(f *testing.F) {
 	cfg.MetricsEnabled = false
 	cfg.VerifierLogSize = 16 * 1024
 	// Inputs are written to the (world-writable) temp dir; this harness
-	// fuzzes object bytes, not path trust (objtrust_test.go covers that).
+	// fuzzes object bytes, not path trust (pkg/ebpf/objtrust covers that).
 	cfg.AllowUntrustedObjectPaths = true
 	// Well under the 2 GiB cgroup: at ~3K loads/s across workers, maps near
 	// the 512 MiB default are freed (asynchronously, by the kernel) slower

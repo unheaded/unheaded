@@ -58,7 +58,7 @@ func buildCart(t *testing.T, asm, stage string, extra ...string) []byte {
 
 func loadCart(t *testing.T) *Cart {
 	t.Helper()
-	c, err := Load(objPath(t), Options{})
+	c, err := Load(objPath(t), Options{AllowUntrustedObject: true})
 	if err != nil {
 		t.Fatal(err)
 	}

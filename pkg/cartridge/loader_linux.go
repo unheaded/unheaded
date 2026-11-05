@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 
+	"unheaded/pkg/ebpf/objtrust"
 	"unheaded/pkg/protocol/encoding"
 )
 
@@ -33,6 +34,9 @@ type Options struct {
 	// The other pins, including the signed ROM slots, stay root 0600. The
 	// reader still can't traverse PinDir; it gets the pin by bind mount.
 	EventsGID int
+	// AllowUntrustedObject loads an object a non-root user could have written
+	// (see pkg/ebpf/objtrust). Off by default; for a development tree.
+	AllowUntrustedObject bool
 }
 
 // Cart is a loaded cartridge-ebpf object.
@@ -48,6 +52,11 @@ var processedRE = regexp.MustCompile(`processed (\d+) insns`)
 // Load loads cartridge-ebpf from objPath with verifier statistics on. It
 // attaches nothing.
 func Load(objPath string, opts Options) (*Cart, error) {
+	if !opts.AllowUntrustedObject {
+		if err := objtrust.Check(objPath); err != nil {
+			return nil, fmt.Errorf("cartridge: %w", err)
+		}
+	}
 	spec, err := ebpf.LoadCollectionSpec(objPath)
 	if err != nil {
 		return nil, fmt.Errorf("cartridge: spec: %w", err)

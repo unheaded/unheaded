@@ -63,7 +63,7 @@ services:
         own 16710:16710 /volumes/alert-mailer
 
   prometheus:
-    image: prom/prometheus:v3.15.1
+    image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
     container_name: unheaded-prometheus
     restart: unless-stopped
     user: "16700:16700"
@@ -102,7 +102,7 @@ services:
       - no-new-privileges:true
 
   grafana:
-    image: grafana/grafana:10.4.0
+    image: grafana/grafana:10.4.0@sha256:f9811e4e687ffecf1a43adb9b64096c50bc0d7a782f8608530f478b6542de7d5
     # Not unheaded-grafana: docker-compose.yml's Grafana has that name, and
     # the two stacks run on the same host.
     container_name: unheaded-monitoring-grafana
@@ -114,7 +114,7 @@ services:
       - /var/log/grafana:uid=16701,gid=16701,size=16M
     cap_drop: [ALL]
     ports:
-      - "3000:3000"
+      - "${GRAFANA_BIND:-127.0.0.1}:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -147,7 +147,7 @@ services:
       - no-new-privileges:true
 
   loki:
-    image: grafana/loki:3.0.1
+    image: grafana/loki:3.0.1@sha256:ac6eb6be00ce34eb6584de508766974da66241cd073c51187f33251f97b4edd5
     container_name: unheaded-loki
     restart: unless-stopped
     user: "16702:16702"
@@ -179,7 +179,7 @@ services:
       - no-new-privileges:true
 
   victoriametrics:
-    image: victoriametrics/victoria-metrics:v1.108.1
+    image: victoriametrics/victoria-metrics:v1.108.1@sha256:f6e5322b315795ae2fec494c1d1c94b2e0325b789fead60ef3a13fccdefcd81e
     container_name: unheaded-victoriametrics
     restart: unless-stopped
     user: "16703:16703"
@@ -212,7 +212,7 @@ services:
       - no-new-privileges:true
 
   alertmanager:
-    image: prom/alertmanager:v0.34.1
+    image: prom/alertmanager:v0.34.1@sha256:e9733bafb1bdef9b00e25a21f8f99dc26a22224bf16641ad754d1649f4c3357a
     container_name: unheaded-alertmanager
     restart: unless-stopped
     user: "16709:16709"

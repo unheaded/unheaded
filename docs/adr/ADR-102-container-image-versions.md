@@ -39,6 +39,23 @@ latest; Loki 2.9.0 / 2.9.4 / 3.0.0).
    bumps tags and digests in Dockerfiles and compose files. Actions already
    work this way (`.github/dependabot.yml`, ADR-095).
 
+## Update 2026-11-05
+
+Decision 4 is overtaken for two files. `docker-compose.yml` and
+`monitoring/docker-compose.yml` carry `tag@sha256:...` where the digest the
+registry serves for the tag is the build west already holds, so nothing moved
+(decision 2). `scripts/check-image-digests.sh` holds it. `postgres` and `alpine`
+are left in `docs/policy/image-digest-baseline.txt`: their tags have been
+rebuilt since west pulled them. Dependabot's docker entry covers `/`, not
+`monitoring/`, so a digest there moves only by hand.
+
+Decision 4 still stands everywhere else. Dockerfile `FROM` lines (`debian`,
+`golang`, `alpine`, `ubuntu`, distroless) and the sophia-eye, telemetry and
+load-balancer compose files carry tags, and the gate does not read them. West
+holds no build of `debian:bookworm-slim`, `golang` or distroless, and its
+`ubuntu:24.04` has moved, so no digest there can be read as what already runs:
+choosing one is choosing a version.
+
 ## Done 2026-10-15
 
 - `docker-compose.yml`: `postgres:16.13-alpine`, `traefik:v3.3.7`,

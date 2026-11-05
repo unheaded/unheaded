@@ -42,6 +42,8 @@ Environment=GOMEMLIMIT=460MiB
 Type=oneshot
 Environment=WELL_HOST=127.0.0.1
 Environment=WELL_PORT=5432
+# To verify the server, set WELL_SSLMODE=verify-full and
+# WELL_SSLROOTCERT=/etc/unheaded/well-tls/ca.crt in retention.env.
 Environment=WELL_SSLMODE=require
 Environment=WELL_USER=retention_runner
 Environment=WELL_METRICS_DIR=/var/lib/unheaded/textfile
