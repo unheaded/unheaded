@@ -19,7 +19,7 @@ import (
 // closed channel panics the whole service. Run with -race.
 func TestFileStore_NotifyDuringClose(t *testing.T) {
 	for i := 0; i < 50; i++ {
-		fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: t.TempDir(), PollInterval: time.Hour})
+		fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: t.TempDir(), AllowPlaintext: true, PollInterval: time.Hour})
 		if err != nil {
 			t.Fatalf("NewFileStore: %v", err)
 		}
@@ -53,7 +53,7 @@ func TestFileStore_NotifyDuringClose(t *testing.T) {
 // the same channel again.
 func TestFileStore_CancelAfterClose(t *testing.T) {
 	for i := 0; i < 200; i++ {
-		fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: t.TempDir(), PollInterval: time.Hour})
+		fs, err := store.NewFileStore(store.FileStoreConfig{BasePath: t.TempDir(), AllowPlaintext: true, PollInterval: time.Hour})
 		if err != nil {
 			t.Fatalf("NewFileStore: %v", err)
 		}
