@@ -104,3 +104,5 @@ DP-206 (approved, already run once under guard): the attended list is Appendix D
 - Phase 21, not booted: the harness's D6-on branch for hostile_reply, a forged fork note against a live slot, forged YIELD, EXIT and cwd_mask. hostile_ptr boots mkdir only, so unlink's, link's and chdir's pointer bounds are the same argstr read from the code, not booted bad pointers. Say if you want them booted.
 - Step 261: cargo-fuzz is absent, so fuzz_mbc_execute is a SKIP, not a pass. Installing it is your call.
 - unsigned commit: [PLAN S-STAGE-2B] Steps 256-262: attack surface, forged-reply probe
+- ADR-135 is Proposed; gate commits: 75c1c051 7f7e17eb c1c2093a de38d86e a9af9c92 c8c266d7 118656a4 5ae498fe 9dca5441 974106b0 7929f67c 05c2c1de 
+- unsigned commit: [PLAN S-STAGE-2B] Steps 263-266: security pass

@@ -384,3 +384,9 @@ Not booted: the harness's D6-on branch (`HR: table-reached=no`, `HR: route=close
 Step 259: `UPC_D6_MISS_FAULT` false, count 1.
 
 Steps 260-261: `cargo-fuzz` is not installed (`error: no such command: fuzz`), so `fuzz_mbc_execute` is a SKIP, as Stage 2 Step 140 was. A SKIP is not a pass.
+
+Step 262: `git status --short` 0 at 75c1c051, after the commit took in the Step 259 lines.
+
+Gate p21 at 75c1c051, run because the harness changed though the phase names no gate: same=12 diff=0 rc=0 doom=1 ascend=889941, ALL GREEN, and `hostile_reply` PASS. The object did not move: no kernel, BPF or corpus source changed.
+
+Steps 263-264: `.go` diff against develop 0 lines, so the Go gates are out of scope. `check-ebpf-insns.sh` PASS, 35 programs. `check-spdx.sh` OK. `check-gitleaks.sh` PASS. `check-gates-can-fail.sh --only check-ebpf-insns` PASS, 1 gate proven to fail when violated. `vcount` after them: 889941.
