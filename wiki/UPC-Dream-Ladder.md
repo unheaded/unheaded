@@ -108,4 +108,4 @@ The L4 → L5 acceleration is the substrate-investment payoff. With a working MB
 
 ---
 
-> **Source:** [docs/doom/](../docs/doom/) · [crates/xv6-mbc/](../crates/xv6-mbc/) · [ebpf/monad-cpu-ebpf/](../ebpf/monad-cpu-ebpf/) · [cmd/upc-bootctl/](../cmd/upc-bootctl/)
+> **Source:** [docs/doom/](../docs/upc/DOOM-LESSONS.md) · [crates/xv6-mbc/](../crates/xv6-mbc/) · [ebpf/monad-cpu-ebpf/](../ebpf/monad-cpu-ebpf/) · [cmd/upc-bootctl/](../cmd/upc-bootctl/)

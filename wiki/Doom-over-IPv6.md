@@ -1,5 +1,7 @@
 # Doom over IPv6: Running a Game Engine Inside eBPF
 
+> **Moved (DP-305).** The code lives in the `unheaded-doom` repository: `demos/doom/`, `crates/doom-runner/` and `docs/doom/` below are there, and links that named `docs/doom/` now open [Doom's lessons](../docs/upc/DOOM-LESSONS.md). Where this page and the lessons disagree, the lessons are the later reading. This page records the doomgeneric era: six namespaces, 128 instructions per hop, the shareware WAD.
+
 ## Summary
 
 Doom (1993, id Software) runs inside Linux eBPF as a proof of computational completeness for the Unheaded Monad protocol. The game executes as MBC (Monad Bytecode) instructions inside an XDP program, with BPF maps serving as RAM, ROM, framebuffer, and keyboard input. Packets circulate through 6 Linux network namespaces in a ring topology, executing 128 instructions per hop, 255 hops per packet -- delivering approximately 32,640 instructions per injected packet.

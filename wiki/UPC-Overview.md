@@ -2,7 +2,7 @@
 
 The **UPC** is a virtual CPU implemented entirely in the eBPF runtime. It treats the IPv6 Hop-by-Hop Options header as a register file, an XDP program as the instruction dispatcher, and BPF maps as ROM / RAM / page tables / TTY / screen / scheduler state. Every Monad packet that arrives is a clock tick.
 
-This page is the canonical UPC reference. Implementation-deep specs live in [`docs/doom/ARCHITECTURE.md`](../docs/doom/ARCHITECTURE.md) and the Internet-Drafts (MBC-ISA-00, Shim-00) under [`docs/protocol/`](../docs/protocol/).
+This page is the canonical UPC reference. Implementation-deep specs live in [`docs/doom/ARCHITECTURE.md`](../docs/upc/DOOM-LESSONS.md) and the Internet-Drafts (MBC-ISA-00, Shim-00) under [`docs/protocol/`](../docs/protocol/).
 
 ## Big picture
 
@@ -153,4 +153,4 @@ The longer-term play is that everything Unheaded does — gateway routing, drift
 
 ---
 
-> **Source:** [docs/doom/ARCHITECTURE.md](../docs/doom/ARCHITECTURE.md) · [docs/upc/UPC_BOOT_PROTOCOL_V2.md](../docs/upc/UPC_BOOT_PROTOCOL_V2.md) · [docs/protocol/draft-bellis-unheaded-mbc-isa-00.md](../docs/protocol/draft-bellis-unheaded-mbc-isa-00.md) · [ebpf/monad-cpu-ebpf/src/main.rs](../ebpf/monad-cpu-ebpf/src/main.rs) · [crates/doom-runner/src/memory.rs](../crates/doom-runner/src/memory.rs) · [cmd/upc-bootctl/](../cmd/upc-bootctl/)
+> **Source:** [docs/doom/ARCHITECTURE.md](../docs/upc/DOOM-LESSONS.md) · [docs/upc/UPC_BOOT_PROTOCOL_V2.md](../docs/upc/UPC_BOOT_PROTOCOL_V2.md) · [docs/protocol/draft-bellis-unheaded-mbc-isa-00.md](../docs/protocol/draft-bellis-unheaded-mbc-isa-00.md) · [ebpf/monad-cpu-ebpf/src/main.rs](../ebpf/monad-cpu-ebpf/src/main.rs) · [crates/doom-runner/src/memory.rs](../crates/doom-runner/src/memory.rs) · [cmd/upc-bootctl/](../cmd/upc-bootctl/)
