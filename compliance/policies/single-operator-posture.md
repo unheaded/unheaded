@@ -30,12 +30,12 @@ These make one person's actions recorded, attributable and hard to undo quietly.
 | Control | What it gives | Evidence |
 |---|---|---|
 | Signed commits on `develop` | every change attributable to a key; history cannot be rewritten without it showing | UH-SIGN-01 |
-| Gates that cannot be silenced | CI gates proven able to fail; baselines only shrink; a new finding cannot be waived by appending it | UH-GATE-01, UH-SECRET-01 |
-| Attestations that expire | every human statement is signed and lapses (90 or 365 days); a lapsed one fails its control instead of standing forever | UH-POL-01, UH-IR-01, UH-AC-01 |
-| Append-only journals | `audit_events`, `service_health_transitions` and the compliance history tables refuse UPDATE, DELETE and TRUNCATE for every role (migrations 014, 015, 016); host fixes are journalled with undo (`unheaded-remediate`) | UH-REMED-01 |
+| Gates that cannot be silenced | `check-gates-can-fail.sh` provokes each gate; baselines only shrink; a new finding cannot be waived by appending it. As of 2026-11-05 the proof is a local run: the CI job has no green run at the head of `develop`, and UH-GATE-01 fails until it does | UH-GATE-01, UH-SECRET-01 |
+| Attestations that expire | a human statement is signed and lapses (90 or 365 days); a lapsed one fails its control instead of standing forever. None has been signed yet, so these controls read NOT_ASSESSED | UH-POL-01, UH-IR-01, UH-AC-01 |
+| Append-only journals | `audit_events`, `service_health_transitions` and the compliance history tables refuse UPDATE, DELETE and TRUNCATE for every role (migrations 014, 015, 016); host fixes are journalled with undo (`unheaded-remediate`). The table journals live in the Well, which is stopped, and their triggers have not been read on a live Well since it stopped; UH-REMED-01 fails on east | UH-REMED-01 |
 | Ledgered migrations | every schema change is a reviewed file in `db/migrations/` with a ledger row | (ADR-101) |
 | Exceptions with an end date | accepted findings carry an `until` at most 90 days out and still count as open | ADR-098 register |
-| Agents cannot push or sign | the owner pushes; attestation signing refuses any identity but the owner's (`scripts/compliance/sign-attestation.sh`) | (practice) |
+| The owner pushes | agents commit and do not push, by rule, not by any technical stop. Agents do sign: their commits carry the owner's key from a warm gpg-agent, so a signature on agent work shows the cache was warm, not who decided (FND-038). `sign-attestation.sh` checks the git identity, which agents share, so it does not stop an agent either | (practice) |
 
 ## When this changes
 

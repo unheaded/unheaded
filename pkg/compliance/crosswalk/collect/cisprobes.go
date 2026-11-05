@@ -1409,7 +1409,7 @@ func init() {
 		grepFiles(`^[^#]*pam_umask\.so.*umask=`, "/etc/pam.d/common-session", "/etc/pam.d/common-session-noninteractive")+"; echo @ok",
 		func(lines []string) (bool, string) {
 			if len(lines) == 0 {
-				return false, "no default umask set (the system default is 022)"
+				return false, "no default umask set in login.defs, the shell profiles or pam_umask"
 			}
 			for _, l := range lines {
 				if ok, v := umaskStrict(l); !ok {

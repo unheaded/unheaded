@@ -1304,8 +1304,9 @@ controls:
       AUTH_ENABLED=true, so pkg/auth installs a real authenticator (API key
       or JWT) instead of the Noop one that admits every request. Checked from
       the declared compose configuration by
-      scripts/compliance/check-service-auth.sh (a compliance check, not a CI
-      gate: it fails today).
+      scripts/compliance/check-service-auth.sh, a compliance check and not a
+      CI gate. It reads the compose file as written, so it says nothing about
+      what runs: see FND-037.
     rationale: >-
       Access enforcement (AC-3) with identification and authentication of
       users and services (IA-2, IA-9); 800-171 03.01.02 access enforcement,
@@ -1371,7 +1372,7 @@ controls:
       iso27001-2022: [A.5.9, A.8.24]
 
   - id: UH-PQC-02
-    title: First-party key exchange is hybrid post-quantum
+    title: No repository configuration turns hybrid post-quantum key exchange off
     statement: >-
       No repository configuration turns hybrid ML-KEM key exchange off: no
       CurvePreferences list without a hybrid group, no first-party TLS floor
@@ -1407,9 +1408,9 @@ controls:
     statement: >-
       On west and east, every KexAlgorithms entry in the effective sshd
       configuration (sshd -T) is a post-quantum hybrid
-      (mlkem768x25519-sha256 or sntrup761x25519-sha512). Fails today on both
-      hosts: ML-KEM is offered first and negotiated by current clients, but
-      classical curve25519 and ECDH are still accepted. Making the lists
+      (mlkem768x25519-sha256 or sntrup761x25519-sha512). East passes. West
+      fails today: ML-KEM is offered first and negotiated by current clients,
+      but classical curve25519 and ECDH are still accepted. Making west's list
       hybrid-only is Stevie's call (E2, lockout risk).
     rationale: >-
       Only a server list without classical entries guarantees a hybrid key

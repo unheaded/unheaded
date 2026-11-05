@@ -101,3 +101,17 @@ An exception is an `accepted` entry in the ADR-098 findings register (`complianc
 ## 12. Review
 
 This policy, the [single-operator posture](single-operator-posture.md) and the [risk management strategy](risk-management-strategy.md) are reviewed together once a year. The review is the signed `security-policy-review` attestation (`scripts/compliance/sign-attestation.sh security-policy-review`).
+
+## 13. Where practice falls short
+
+Sections 4 to 10 state the rule. As of 2026-11-05 these parts of it do not hold; each stays open in `compliance/findings/register.yaml` until its evidence passes.
+
+| Section | Rule | Today |
+|---|---|---|
+| 4 | SSH with keys | East allows password login and west allows keyboard-interactive; accepted in the register until 2026-12-30 |
+| 4 | No service runs as root or as a shared account | Seven services on east share one account (FND-037); some units still start as root (FND-010) |
+| 5 | CI gates run on every push | `ci.yml` is disabled in GitHub (FND-027), and `develop` has unpushed commits no workflow has seen |
+| 6 | Logs flow through Vector; a dead-man's switch proves the alert path is alive | Vector and the monitoring stack are stopped, and east's heartbeat has never succeeded (`host-probe:west:alert-route`) |
+| 8 | Unattended security updates | They run against an archive that stopped publishing when Ubuntu 25.10 left support (`host-probe:*:os-supported`) |
+| 9 | Nightly dump, copied to east | The newest set is from 2026-10-28, because the Well is stopped (`host-probe:west:db-backup-recent`) |
+| 10 | First-party TLS 1.3 only, hybrid | East's running services are plain HTTP (FND-017, FND-037) |
