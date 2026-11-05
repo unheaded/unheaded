@@ -1,6 +1,6 @@
 # Doom on UPC
 
-> **Moved (DP-305).** The code lives in the `unheaded-doom` repository: `demos/doom/`, `crates/doom-runner/` and `docs/doom/` below are there, and links that named `docs/doom/` now open [Doom's lessons](../docs/upc/DOOM-LESSONS.md). Where this page and the lessons disagree, the lessons are the later reading.
+> **Moved (DP-305).** The code lives in the `unheaded-doom` repository: `demos/doom/`, `crates/doom-runner/` and `docs/doom/` below are there, and [Doom's lessons](../docs/upc/DOOM-LESSONS.md) keeps what it taught. Where this page and the lessons disagree, the lessons are the later reading.
 
 Running id Software's original 1993 DOOM on the [Unheaded Protocol Computer](UPC-Overview). The computational-completeness proof for the Unheaded Protocol — every Doom frame is rendered by an XDP program executing MBC bytecode that arrived as IPv6 packets through a network namespace ring.
 
@@ -103,7 +103,7 @@ At 35 fps with ~100 K MBC insns per frame, the CPU needs ~3.5 M insns/sec sustai
 
 ## Bug-Of-The-Day journal
 
-The Doom path took a year of hard debugging. Highlights live in [`docs/doom/FINDINGS.md`](../docs/upc/DOOM-LESSONS.md). The key ones that informed the broader UPC design:
+The Doom path took a year of hard debugging. Highlights live in [Doom's lessons](../docs/upc/DOOM-LESSONS.md). The key ones that informed the broader UPC design:
 
 - **Bug 20**: function-pointer JMPR landing on stale rv2mbc slots. Fix: skip the JMPR rather than halt, log a sentinel at 0xE0000. Phase 1.4 then tightened this with a non-zero guard so user VA 0 stops silently rerouting PC to 0.
 - **Bug 24**: word stores were leaking into SCREEN_MAP whenever a corrupted pointer landed in the 0x70000–0x73E80 range. Fix: only byte stores (STB → mem_write_byte) update SCREEN_MAP; word stores (ST) stay out.
@@ -112,7 +112,7 @@ The Doom path took a year of hard debugging. Highlights live in [`docs/doom/FIND
 
 ## Building + running
 
-Full guide: [`docs/doom/DOOM-BUILD-GUIDE.md`](../docs/upc/DOOM-LESSONS.md). Short form:
+Full guide: `docs/doom/DOOM-BUILD-GUIDE.md` in `unheaded-doom`. Short form:
 
 ```bash
 cd ~/tmp/unheaded
@@ -152,8 +152,8 @@ Doom-on-Monad is documented as a formal proof of computational generality in [`d
 - [UPC Overview](UPC-Overview) — the substrate Doom runs on
 - [Linux on UPC](Linux-on-UPC) — the L5 sibling project sharing the same XDP program
 - [MBC ISA Reference](MBC-ISA-Reference) — what Doom's compiled instructions are
-- [`docs/doom/`](../docs/upc/DOOM-LESSONS.md) — 31 documents covering architecture, build guide, findings, BPF maps, baseline benchmarks, computational-generality proof, and the Doom-Bridge architecture
+- [Doom's lessons](../docs/upc/DOOM-LESSONS.md) — what the 31 documents in `unheaded-doom`'s `docs/doom/` taught: architecture, build guide, findings, BPF maps, baseline benchmarks and the Doom-Bridge architecture
 
 ---
 
-> **Source:** [docs/doom/README.md](../docs/upc/DOOM-LESSONS.md) · [docs/doom/ARCHITECTURE.md](../docs/upc/DOOM-LESSONS.md) · [docs/doom/FINDINGS.md](../docs/upc/DOOM-LESSONS.md) · [docs/upc/COMPUTATIONAL_GENERALITY.md](../docs/upc/COMPUTATIONAL_GENERALITY.md) · [crates/doom-runner/](../crates/doom-runner/) · [demos/doom/](../demos/doom/)
+> **Source:** [Doom's lessons](../docs/upc/DOOM-LESSONS.md) · [docs/upc/COMPUTATIONAL_GENERALITY.md](../docs/upc/COMPUTATIONAL_GENERALITY.md) · `docs/doom/`, `crates/doom-runner/` and `demos/doom/` in `unheaded-doom`

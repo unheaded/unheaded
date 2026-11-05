@@ -61,6 +61,46 @@ func TestMoveOutResidueStaysGone(t *testing.T) {
 	}
 }
 
+// moveoutBanner lists wiki pages that describe moved code and must say so.
+var moveoutBanner = []string{
+	"wiki/Doom-on-UPC.md",
+	"wiki/Doom-over-IPv6.md",
+	"wiki/UPC-Dream-Ladder.md",
+	"wiki/UPC-Overview.md",
+}
+
+func TestMovedPagesCarryABanner(t *testing.T) {
+	banner := regexp.MustCompile(`(?m)^> \*\*Moved \(DP-305\)\.\*\*.*unheaded-doom.*DOOM-LESSONS\.md`)
+	for _, file := range moveoutBanner {
+		if !banner.MatchString(moveoutRepoFile(t, file)) {
+			t.Errorf("%s has no moved banner pointing at Doom's lessons", file)
+		}
+	}
+}
+
+// A wiki link has to say what it opens, and has to open something here.
+func TestWikiLinksMatchWhatTheyOpen(t *testing.T) {
+	label := regexp.MustCompile("\\[`?docs/doom[^\\]]*\\]\\(")
+	target := regexp.MustCompile(`\]\(\.\./(?:cmd/doom-go-injector|crates/doom-runner|crates/zhenai-forge|demos/doom|docs/doom)\b`)
+	pages, err := filepath.Glob(filepath.Join("..", "..", "wiki", "*.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) == 0 {
+		t.Fatal("no wiki pages found")
+	}
+	for _, page := range pages {
+		rel := filepath.ToSlash(filepath.Join("wiki", filepath.Base(page)))
+		text := moveoutRepoFile(t, rel)
+		if lines := moveoutHitLines(text, label); len(lines) > 0 {
+			t.Errorf("%s: link label names docs/doom at lines %v, which opens another page", rel, lines)
+		}
+		if lines := moveoutHitLines(text, target); len(lines) > 0 {
+			t.Errorf("%s: link into a moved path at lines %v", rel, lines)
+		}
+	}
+}
+
 // The matcher has to find a planted violation, or every row above passes
 // for nothing.
 func TestMoveOutMatcherFindsPlantedResidue(t *testing.T) {

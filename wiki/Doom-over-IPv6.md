@@ -1,6 +1,6 @@
 # Doom over IPv6: Running a Game Engine Inside eBPF
 
-> **Moved (DP-305).** The code lives in the `unheaded-doom` repository: `demos/doom/`, `crates/doom-runner/` and `docs/doom/` below are there, and links that named `docs/doom/` now open [Doom's lessons](../docs/upc/DOOM-LESSONS.md). Where this page and the lessons disagree, the lessons are the later reading. This page records the doomgeneric era: six namespaces, 128 instructions per hop, the shareware WAD.
+> **Moved (DP-305).** The code lives in the `unheaded-doom` repository: `demos/doom/`, `crates/doom-runner/` and `docs/doom/` below are there, and [Doom's lessons](../docs/upc/DOOM-LESSONS.md) keeps what it taught. Where this page and the lessons disagree, the lessons are the later reading. This page records the doomgeneric era: six namespaces, 128 instructions per hop, the shareware WAD.
 
 ## Summary
 
