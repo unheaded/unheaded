@@ -956,11 +956,14 @@ type listeners struct {
 }
 
 // openListeners binds every address of list (comma-separated), before any
-// BPF program loads, so a taken port or a bad address stops the start instead
-// of leaving a collector nothing can reach. An address the host does not hold
-// yet does not: the BPF programs and the addresses that are up carry on, and
-// serveOn takes that one once it appears, so a link that is down at boot costs
-// its scrapes and nothing else. Off loopback it needs auth on (M10).
+// BPF program loads, so a taken port or a bad address stops the start. An
+// address the host does not hold yet does not: the BPF programs and the
+// addresses that are up carry on, and serveOn takes that one once it appears,
+// so a link that is down at boot costs its scrapes and nothing else. That holds
+// when every address is pending too, and then nothing can reach the collector
+// until one appears: the host cannot tell an interface still coming up from a
+// well-formed address it will never hold, so such an address is warned about
+// once and retried until the run ends. Off loopback it needs auth on (M10).
 func openListeners(list string, cfg auth.ServiceAuthConfig) (listeners, error) {
 	addrs := httputil.ListenAddrs(list)
 	if err := auth.CheckListen(addrs, cfg); err != nil {
@@ -1198,6 +1201,16 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 
 // ── Main ────────────────────────────────────────────────────────────────
 
+// runCollector is the run itself, in the mode the flags chose. It returns when
+// ctx ends; a test swaps it to reach the end of main without BPF programs.
+var runCollector = func(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) {
+	if *unifiedMode {
+		runUnifiedMode(ctx, healthSrv, transportCfg, authCfg, ls)
+		return
+	}
+	runAnamnesisMode(ctx, healthSrv, transportCfg, authCfg, ls)
+}
+
 func main() {
 	cmdline.Parse(cmdline.Spec{
 		Name:     "trace-collector-go",
@@ -1276,11 +1289,7 @@ func main() {
 		cancel(nil)
 	}()
 
-	if *unifiedMode {
-		runUnifiedMode(ctx, healthSrv, transportCfg, authCfg, ls)
-	} else {
-		runAnamnesisMode(ctx, healthSrv, transportCfg, authCfg, ls)
-	}
+	runCollector(ctx, healthSrv, transportCfg, authCfg, ls)
 	if err := runFailure(ctx); err != nil {
 		log.Fatal().Err(err).Msg("stopped by a listener failure")
 	}

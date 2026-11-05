@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -20,6 +21,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/auth/authtest"
 	"unheaded/pkg/ports"
+	"unheaded/pkg/transport"
 )
 
 // M10: with no flags the collector binds loopback, in both modes.
@@ -183,6 +185,51 @@ func TestRunFailure_SignalIsNotAFailure(t *testing.T) {
 	cancel(nil)
 	if err := runFailure(ctx); err != nil {
 		t.Fatalf("after a signal: %v", err)
+	}
+}
+
+// runEnding names what the stand-in run does in the child of TestMainEnding.
+const runEnding = "TRACE_COLLECTOR_TEST_RUN"
+
+// main ends with the status the run earned: a listener failure is a non-zero
+// exit, for the unit to restart it, and a signal is a clean one. The child is
+// this test binary running main with the BPF work swapped out.
+func TestMainEnding(t *testing.T) {
+	if mode := os.Getenv(runEnding); mode != "" {
+		runCollector = func(ctx context.Context, _ *transport.HealthServer, _ transport.Config, _ auth.ServiceAuthConfig, ls listeners) {
+			if mode == "late-failure" {
+				ls.stop(syscall.EADDRINUSE)
+			} else {
+				ls.stop(nil)
+			}
+			<-ctx.Done()
+		}
+		os.Args = []string{"trace-collector-go", "--http-addr", "127.0.0.1:0"}
+		main()
+		return
+	}
+	for _, c := range []struct {
+		mode    string
+		failure bool
+	}{{"late-failure", true}, {"signal", false}} {
+		t.Run(c.mode, func(t *testing.T) {
+			cmd := exec.Command(os.Args[0], "-test.run=^TestMainEnding$")
+			cmd.Env = append(os.Environ(), runEnding+"="+c.mode, "AUTH_ENABLED=false")
+			out, err := cmd.CombinedOutput()
+			if !c.failure {
+				if err != nil {
+					t.Fatalf("clean stop exited with %v:\n%s", err, out)
+				}
+				return
+			}
+			var exit *exec.ExitError
+			if !errors.As(err, &exit) || exit.ExitCode() != 1 {
+				t.Fatalf("exit = %v, want status 1:\n%s", err, out)
+			}
+			if !strings.Contains(string(out), "stopped by a listener failure") {
+				t.Fatalf("no listener failure reported:\n%s", out)
+			}
+		})
 	}
 }
 
