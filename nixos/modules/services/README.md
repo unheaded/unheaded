@@ -134,7 +134,6 @@ services.unheaded.wotan.enable = true;
 - Wotan (message bus, highest throughput)
 - Anamnesis (event log streaming)
 - Unheaded-daemon (control plane)
-- DOOM (compute substrate)
 - Gateway (ingress processing)
 
 ### Extra Large (2G memory, 400% CPU)

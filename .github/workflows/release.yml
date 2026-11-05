@@ -63,10 +63,10 @@ jobs:
         with:
           toolchain: nightly
           components: rust-src
-          targets: bpfel-unknown-none
 
+      # Pinned as in static-analysis.yml, which says why this version.
       - name: Install bpf-linker
-        run: cargo install bpf-linker --no-default-features
+        run: cargo install bpf-linker@0.10.2 --locked
 
       - name: Build
         working-directory: ebpf

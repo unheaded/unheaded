@@ -319,9 +319,9 @@ configs/certs/
 /host-agent
 /cmd/host-agent/
 
-# Local doomgeneric checkout for the Doom scripts (scripts/doom/loader.sh, doom-smoke.sh). It was a
-# gitlink with no .gitmodules entry, pointing at a commit no public repo has; actions/checkout failed on
-# it ("No url found for submodule path"). CI fetches doomgeneric by pinned SHA (scripts/ci-fetch-doomgeneric.sh).
+# Local doomgeneric checkout. It was a gitlink with no .gitmodules entry, pointing at a commit no public
+# repo has; actions/checkout failed on it ("No url found for submodule path"). The Doom scripts and the
+# pinned fetch moved to unheaded-doom.
 /doom/doomgeneric/
 
 # Raw pprof profiles can hold in-memory secrets (S-LOW-FRUIT Phase 4)

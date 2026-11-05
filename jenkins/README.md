@@ -300,7 +300,6 @@ Set in Jenkins **Manage → Configure System → Global properties** or in pipel
 
 ```groovy
 environment {
-  GO_VERSION = '1.24'
   RUST_STABLE = 'stable'
   RUST_NIGHTLY = 'nightly-2025-06-01'
   REGISTRY = 'ghcr.io'

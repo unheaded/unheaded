@@ -21,7 +21,6 @@ FROM golang:1.27.3-alpine3.24 AS builder
 RUN apk add --no-cache git ca-certificates
 
 WORKDIR /src
-# it, so drop it here, as the main Dockerfile does.
 COPY go.mod go.sum ./
 RUN go mod download
 

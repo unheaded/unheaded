@@ -52,6 +52,25 @@ jobs:
       - name: Parse every tracked YAML
         run: ./scripts/check-manifest-yaml.sh
 
+      # A step's name is a claim. This reads the workflows and runs their
+      # verdict bodies against fixtures; here because this job has PyYAML.
+      - name: CI steps can fail on what they claim to check
+        run: ./scripts/check-ci-verdicts.sh
+
+      - name: Every rule of that check bites
+        run: ./scripts/test-check-ci-verdicts.sh
+
+      # The harness needs sudo and a kernel, so CI cannot run it; this runs it
+      # with sudo, cargo and go stubbed and reads only its build verdicts.
+      - name: UPC harness build verdicts
+        run: ./scripts/test-upc-regression-build.sh
+
+      - name: Every listener form is seen
+        run: ./scripts/test-check-http-auth.sh
+
+      - name: The Jenkins trivy install refuses what fails its sha256
+        run: ./scripts/test-install-trivy.sh
+
   shellcheck:
     name: Shell (shellcheck)
     runs-on: ubuntu-latest

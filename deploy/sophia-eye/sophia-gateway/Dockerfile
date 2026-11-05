@@ -10,7 +10,6 @@ FROM golang:1.27.3-alpine3.24 AS builder
 
 WORKDIR /build
 COPY go.mod go.sum ./
-# import it, so drop it rather than resolve it (as the root Dockerfile does).
 RUN go mod download
 COPY . .
 RUN \
