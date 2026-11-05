@@ -493,6 +493,18 @@ provoke_ci_verdicts() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_http_auth() {
+    # Contract (L21): a new HTTP listener outside pkg/auth does not land
+    # unseen. Plant one, untracked, as new code would arrive.
+    local d="pkg/meta-gate-probe-http"
+    mkdir -p "${REPO_ROOT}/${d}"
+    CREATED_DIRS+=("${d}")
+    local f="${d}/serve.go"
+    backup "${f}"
+    printf 'package probe\n\nimport "net/http"\n\nfunc Serve() error { return http.ListenAndServe(":0", nil) }\n' > "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_test_ci_verdicts() {
     # Contract: every rule of check-ci-verdicts.sh has a case that proves it.
     # Switch one rule off; its cases must now report the gate passing.
@@ -1075,6 +1087,7 @@ check-well-migrations|provoke_well_migrations|fast|an untracked migration file t
 check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at startup (a new ddl-outside-ledger finding)
 check-kanban-genesis|provoke_kanban_genesis|fast|a Genesis card title edited in db/seed/kanban-genesis.json without re-rendering migration 034
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
+check-http-auth|provoke_http_auth|fast|an untracked HTTP listener in a package without pkg/auth
 check-ci-verdicts|provoke_ci_verdicts|fast|Security Gate's body recording a failed need and carrying on
 test-check-ci-verdicts|provoke_test_ci_verdicts|fast|one rule of check-ci-verdicts.sh switched off, so its cases see the gate pass
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt

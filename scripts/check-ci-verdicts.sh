@@ -129,9 +129,46 @@ def bpf_linker():
         if not any(must in w for v in versions.values() for w in v):
             bad("bpf-linker", f"{must} no longer installs a pinned bpf-linker")
 
+# L21. A scanner step says whether it can fail. trivy-action defaults to
+# exit 0, so a step that sets no exit-code only reports. With format: sarif the
+# action also drops `severity` unless limit-severities-for-sarif is set, so a
+# gate on sarif would fail on every LOW.
+def trivy_steps():
+    steps = workflow("security.yml")["jobs"]["trivy-fs"]["steps"]
+    scans = [s for s in steps if "trivy-action" in str(s.get("uses", ""))]
+    if not scans:
+        bad("trivy", "trivy-fs runs no scan")
+    for s in scans:
+        if "exit-code" not in s.get("with", {}):
+            bad("trivy", f"step '{s.get('name')}' sets no exit-code")
+    gates = [s for s in scans if s.get("with", {}).get("scanners") == "vuln" and str(s["with"].get("exit-code")) == "1"]
+    if len(gates) != 1:
+        bad("trivy", f"expected one vuln step with exit-code 1, found {len(gates)}")
+    for s in gates:
+        w = s["with"]
+        if set(str(w.get("severity", "")).split(",")) != {"CRITICAL", "HIGH"}:
+            bad("trivy", "the vuln gate must fail on CRITICAL and HIGH")
+        if w.get("format") == "sarif" and str(w.get("limit-severities-for-sarif")) != "true":
+            bad("trivy", "the vuln gate on sarif ignores its severity")
+
+# L21. A step that only prints what it found, and tells a person to look,
+# cannot fail. The listener inventory is scripts/check-http-auth.sh.
+def auth_listeners():
+    job = workflow("security.yml")["jobs"]["doom-security"]
+    step = next((s for s in job["steps"] if s.get("name") == "HTTP listeners use pkg/auth or are recorded"), None)
+    if step is None or str(step.get("run", "")).strip() != "./scripts/check-http-auth.sh":
+        bad("auth-listeners", "no step runs ./scripts/check-http-auth.sh")
+    for path in sorted(glob.glob(".github/workflows/*.yml")):
+        for name, j in workflow(os.path.basename(path)).get("jobs", {}).items():
+            for s in j.get("steps", []):
+                if "manual review" in str(s.get("run", "")).lower():
+                    bad("auth-listeners", f"{path} {name}: a step ends in a note for a person, not a verdict")
+
 security_gate()
 history_scan()
 bpf_linker()
+trivy_steps()
+auth_listeners()
 
 if problems:
     print("\n".join(f"[FAIL] {p}" for p in problems))
