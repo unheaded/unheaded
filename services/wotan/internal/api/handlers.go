@@ -173,6 +173,12 @@ func (s *Server) SendMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "member not approved or not found")
 		return
 	}
+	// A member id is no secret (every message carries its creator's): with
+	// auth on, a caller acts only through its own members.
+	if !s.memberIsCaller(r, req.MemberID) {
+		writeError(w, http.StatusForbidden, "member belongs to another identity")
+		return
+	}
 
 	// A topic's room is its name: this path must not reach config.* rooms,
 	// which only take signed messages over gRPC.
@@ -238,6 +244,12 @@ func (s *Server) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "member not approved or not found")
 		return
 	}
+	// A member id is no secret (every message carries its creator's): with
+	// auth on, a caller acts only through its own members.
+	if !s.memberIsCaller(r, req.MemberID) {
+		writeError(w, http.StatusForbidden, "member belongs to another identity")
+		return
+	}
 
 	// Get room
 	rm, err := s.RoomManager.Get(req.RoomID)
@@ -295,6 +307,13 @@ func (s *Server) GetMessages(w http.ResponseWriter, r *http.Request) {
 	// Check if member is approved
 	if !s.MemberManager.IsApproved(memberID) {
 		writeError(w, http.StatusForbidden, "member not approved or not found")
+		return
+	}
+
+	// A member id is no secret (every message carries its creator's): with
+	// auth on, a caller acts only through its own members.
+	if !s.memberIsCaller(r, memberID) {
+		writeError(w, http.StatusForbidden, "member belongs to another identity")
 		return
 	}
 

@@ -53,7 +53,7 @@ DNS-like hierarchy with subscription mirroring:
 | `POST /api/v1/join` | Register a service |
 | `GET /api/v1/topics` | List topics |
 | `POST /api/v1/topics/<topic>/subscribe`, `POST …/publish`, `GET …/messages` | Topic pub/sub; `messages` pages with `after_seq` and takes wildcards |
-| `POST /api/v1/messages/send`, `GET /api/v1/messages`, `POST`/`DELETE /api/v1/messages/delete` | Room (legacy chat) API |
+| `POST /api/v1/messages/send`, `GET /api/v1/messages`, `POST`/`DELETE /api/v1/messages/delete` | Room (legacy chat) API; with auth on, `member_id` must be the caller's own |
 | `GET /api/v1/admin/pending`, `POST /api/v1/admin/{approve,approve-all,deny}` | Join approval (registered only with `--admin` and `WOTAN_ADMIN_API_KEY` set (default off since S-CLEAN-SLATE); send the key as `X-Admin-API-Key` or `Authorization: Bearer`; `--admin` without the key exits at startup) |
 | gRPC `:18001` | Streaming publish/subscribe |
 
