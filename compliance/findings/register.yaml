@@ -1898,3 +1898,25 @@ findings:
     plan: >-
       The repo's units and binaries already agree (check-unit-flags). East needs a redeploy from develop and
       /etc/unheaded/tls before it can start them, which is attended work. Watching restart counts needs the stack up
+  - source: "host-probe:west:sudo-password-required"
+    severity: high
+    class: sudo
+    opened: 2026-11-05
+    exposure: >-
+      the operator account has NOPASSWD: ALL on west, so anything running as that account, every agent session and the
+      evidence collector included, is root with no further step
+    lockout: high
+    step: 5
+    plan: >-
+      Undecided. Keep it and record an acceptance, or narrow it: automation needs rules naming exact commands and the
+      collector needs its own read-only account first, because these probes reach root through the same rule
+    decision: keep passwordless sudo, or narrow it, and when
+  - source: "host-probe:east:sudo-password-required"
+    severity: high
+    class: sudo
+    opened: 2026-11-05
+    exposure: same rule on east, reached from west over ssh with no prompt
+    lockout: high
+    step: 5
+    plan: Goes with west's entry, east first
+    decision: keep passwordless sudo, or narrow it, and when

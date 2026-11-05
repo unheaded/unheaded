@@ -135,6 +135,31 @@ func TestMappingsCorroborated(t *testing.T) {
 	}
 }
 
+// UH-SUDO-01 holds a claim about re-authentication only with the probe that
+// can fail it, on both hosts, mapped to CIS 5.2.4.
+func TestSudoControlReadsPasswordRule(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	need := map[string]bool{"west:sudo-password-required": false, "east:sudo-password-required": false}
+	for _, ctl := range c.Controls {
+		if ctl.ID != "UH-SUDO-01" {
+			continue
+		}
+		for _, e := range ctl.Evidence {
+			if _, ok := need[e.Ref]; ok && len(e.Maps["cis-ubuntu2404"]) == 1 && e.Maps["cis-ubuntu2404"][0] == "5.2.4" {
+				need[e.Ref] = true
+			}
+		}
+	}
+	for ref, found := range need {
+		if !found {
+			t.Errorf("UH-SUDO-01 has no %s mapped to CIS 5.2.4", ref)
+		}
+	}
+}
+
 // A stopped monitoring stack has to show as a failure somewhere: without this
 // source every monitoring control read files, and a week of silence passed.
 func TestAlertPathIsEvidence(t *testing.T) {

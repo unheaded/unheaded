@@ -718,6 +718,12 @@ func TestProbeJudges(t *testing.T) {
 		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\nwell=0\n", false},
 		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\n", false},
 		{"alert-route", "", false},
+		// CIS 5.2.4: users give a password to escalate, narrow rules included.
+		{"sudo-password-required", "@ok\n", true},
+		{"sudo-password-required", "govan ALL=(ALL) NOPASSWD: ALL\n@ok\n", false},
+		{"sudo-password-required", "backup ALL=(root) NOPASSWD: /usr/bin/rsync\n@ok\n", false},
+		{"sudo-password-required", "Defaults:govan !authenticate, NOPASSWD: ALL\n@ok\n", false},
+		{"sudo-password-required", "", false}, // sudoers not read: no pass
 	} {
 		pass, detail := Probes[tc.probe].Judge(tc.out)
 		if pass != tc.pass {

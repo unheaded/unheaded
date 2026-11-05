@@ -745,23 +745,25 @@ controls:
     title: Privilege escalation through sudo is logged, re-authenticated and pty-bound
     statement: >-
       On both hosts sudo is installed, runs commands in a pty, logs to its
-      own file, never skips authentication (!authenticate), and sets
-      timestamp_timeout explicitly to 15 minutes or less.
+      own file, never skips authentication (!authenticate or NOPASSWD), and
+      sets timestamp_timeout explicitly to 15 minutes or less.
     rationale: >-
       Least privilege with logging of privileged functions (AC-6(9), AU-12)
       and re-authentication (IA-11); 800-171 03.01.07; CSF PR.AA-05; ISO
-      A.8.2. CIS Ubuntu 24.04 5.2.1-5.2.3, 5.2.5, 5.2.6 (timeout must be
-      explicit per ComplianceAsCode).
+      A.8.2. CIS Ubuntu 24.04 5.2.1-5.2.6 (timeout must be explicit per
+      ComplianceAsCode).
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:sudo-installed", maps: {cis-ubuntu2404: ["5.2.1"]}}
       - {kind: host-probe, ref: "west:sudo-use-pty", maps: {cis-ubuntu2404: ["5.2.2"]}}
       - {kind: host-probe, ref: "west:sudo-logfile", maps: {cis-ubuntu2404: ["5.2.3"]}}
+      - {kind: host-probe, ref: "west:sudo-password-required", maps: {cis-ubuntu2404: ["5.2.4"]}}
       - {kind: host-probe, ref: "west:sudo-no-noauth", maps: {cis-ubuntu2404: ["5.2.5"]}}
       - {kind: host-probe, ref: "west:sudo-timeout", maps: {cis-ubuntu2404: ["5.2.6"]}}
       - {kind: host-probe, ref: "east:sudo-installed", maps: {cis-ubuntu2404: ["5.2.1"]}}
       - {kind: host-probe, ref: "east:sudo-use-pty", maps: {cis-ubuntu2404: ["5.2.2"]}}
       - {kind: host-probe, ref: "east:sudo-logfile", maps: {cis-ubuntu2404: ["5.2.3"]}}
+      - {kind: host-probe, ref: "east:sudo-password-required", maps: {cis-ubuntu2404: ["5.2.4"]}}
       - {kind: host-probe, ref: "east:sudo-no-noauth", maps: {cis-ubuntu2404: ["5.2.5"]}}
       - {kind: host-probe, ref: "east:sudo-timeout", maps: {cis-ubuntu2404: ["5.2.6"]}}
     mappings:

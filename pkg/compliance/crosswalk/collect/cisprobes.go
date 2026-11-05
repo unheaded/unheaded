@@ -619,8 +619,9 @@ func init() {
 	// "@ok" comes from inside the sudo'd shell, after every file was read: a
 	// refused sudo, or a sudoers file the agent cannot read, prints none
 	// (sudo-no-noauth once passed on an unread /etc/sudoers).
-	sudoers := `$UH_PRIV sh -c 'cat /etc/sudoers || exit; if [ -d /etc/sudoers.d ]; then ls /etc/sudoers.d >/dev/null || exit; ` +
-		`for f in /etc/sudoers.d/*; do [ -e "$f" ] || continue; cat "$f" || exit; done; fi; echo @ok' | grep -Ev '^[[:space:]]*#' | grep -E 'Defaults|authenticate|^@ok$'`
+	sudoersRead := `$UH_PRIV sh -c 'cat /etc/sudoers || exit; if [ -d /etc/sudoers.d ]; then ls /etc/sudoers.d >/dev/null || exit; ` +
+		`for f in /etc/sudoers.d/*; do [ -e "$f" ] || continue; cat "$f" || exit; done; fi; echo @ok' | grep -Ev '^[[:space:]]*#'`
+	sudoers := sudoersRead + ` | grep -E 'Defaults|authenticate|^@ok$'`
 	Probes["sudo-use-pty"] = markerLinesProbe(sudoers, func(lines []string) (bool, string) {
 		for _, l := range lines {
 			if defaultsSet(l, "use_pty") {
@@ -645,6 +646,17 @@ func init() {
 		}
 		return true, "no !authenticate in sudoers"
 	})
+	// CIS 5.2.4, narrow rules included, as CIS audits it. Central-only for now:
+	// a new baseline source would read as drift on every host agent until the
+	// next install.
+	passwordRequired := markerLinesProbe(sudoersRead+` | grep -E 'NOPASSWD|^@ok$'`, func(lines []string) (bool, string) {
+		if len(lines) > 0 {
+			return false, fmt.Sprintf("%d sudoers lines skip the password, first: %s", len(lines), strings.TrimSpace(lines[0]))
+		}
+		return true, "no NOPASSWD in sudoers"
+	})
+	passwordRequired.Baseline = false
+	Probes["sudo-password-required"] = passwordRequired
 	Probes["sudo-timeout"] = markerLinesProbe(sudoers, func(lines []string) (bool, string) {
 		for _, l := range lines {
 			i := strings.Index(l, "timestamp_timeout=")
