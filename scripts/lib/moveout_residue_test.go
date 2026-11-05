@@ -48,6 +48,8 @@ var moveoutGone = []struct {
 	{"dashboard/css/style.css", `(?i)doom`},
 	{"deploy/docker/zhen-agentd.Dockerfile", `as the main Dockerfile does`},
 	{"deploy/sophia-eye/sophia-gateway/Dockerfile", `as the root Dockerfile does`},
+	{"wiki/Doom-on-UPC.md", `__umoddi3|__udivdi3`},
+	{"wiki/Doom-on-UPC.md", `(?i)formal proof|computational-completeness proof|Computational-generality proof|No external state`},
 }
 
 func TestMoveOutResidueStaysGone(t *testing.T) {

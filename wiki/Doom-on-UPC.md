@@ -2,7 +2,7 @@
 
 > **Moved (DP-305).** The code lives in the `unheaded-doom` repository: `demos/doom/`, `crates/doom-runner/` and `docs/doom/` below are there, and [Doom's lessons](../docs/upc/DOOM-LESSONS.md) keeps what it taught. Where this page and the lessons disagree, the lessons are the later reading.
 
-Running id Software's original 1993 DOOM on the [Unheaded Protocol Computer](UPC-Overview). The computational-completeness proof for the Unheaded Protocol — every Doom frame is rendered by an XDP program executing MBC bytecode that arrived as IPv6 packets through a network namespace ring.
+Running id Software's original 1993 DOOM on the [Unheaded Protocol Computer](UPC-Overview). The main evidence for the computational-generality hypothesis — every Doom frame is rendered by an XDP program executing MBC bytecode that arrived as IPv6 packets through a network namespace ring.
 
 **Status:** PLAYABLE (browser-verified again 2026-07-19: verifier 737,087 insns, full 320×200 frames, ~90K pkt/s; retail `DOOM.WAD` IWAD detection fixed 2026-07-29). Menus, movement, shooting, doors all work. Stable beyond 5.9 B instructions executed. The framebuffer streams to a browser canvas over WebSocket; keyboard input flows back the same way.
 
@@ -108,7 +108,7 @@ The Doom path took a year of hard debugging. Highlights live in [Doom's lessons]
 - **Bug 20**: function-pointer JMPR landing on stale rv2mbc slots. Fix: skip the JMPR rather than halt, log a sentinel at 0xE0000. Phase 1.4 then tightened this with a non-zero guard so user VA 0 stops silently rerouting PC to 0.
 - **Bug 24**: word stores were leaking into SCREEN_MAP whenever a corrupted pointer landed in the 0x70000–0x73E80 range. Fix: only byte stores (STB → mem_write_byte) update SCREEN_MAP; word stores (ST) stay out.
 - **Bug 32**: x16/x17 spill-shadow on r2/r1 wrote into low RAM colliding with `.rodata` at byte 0. Moved spill region to byte 0x64000 / 0x64004 (in the gap between BSS end and WAD).
-- **PC corruption bug** (March 2026): MBC PC randomly walked into NOP regions. Root cause: `__umoddi3` / `__udivdi3` were stubbed too aggressively; some 64-bit divides clobbered the link register through libgcc-style trampolines. Fix in `demos/doom/gcc_runtime.c`.
+- **PC corruption** (March 2026): MBC PC appeared to walk into NOP regions. It was mostly a misread instrument: the samples read the wrong bytes from `CPU_MAP`, and a `pc >= 262144` bounds check never fired (`40b62878`). The blocker behind it was the soft-float functions recursing into themselves (`6a2a7d16`, `1f7a60e5`). [Doom's lessons](../docs/upc/DOOM-LESSONS.md) has the full account.
 
 ## Building + running
 
@@ -139,13 +139,14 @@ The same pipeline as systemd units: `unheaded-doom.target` (`unheaded-doom-ring`
 
 Then open `http://localhost:16666/` for the browser canvas + keyboard relay.
 
-## Computational-generality proof
+## Computational generality
 
-Doom-on-Monad is documented as a formal proof of computational generality in [`docs/upc/COMPUTATIONAL_GENERALITY.md`](../docs/upc/COMPUTATIONAL_GENERALITY.md). The argument: if a non-trivial Turing-complete program (Doom) runs to completion on a substrate (the UPC), the substrate is Turing-complete. The proof relies on:
+[`docs/upc/COMPUTATIONAL_GENERALITY.md`](../docs/upc/COMPUTATIONAL_GENERALITY.md) states a hypothesis: what compiles to RV32I can run here. Doom is evidence for it, not a proof. It shows that:
 
-- Doom uses dynamic dispatch (function pointers through the BSP traversal), unbounded recursion (via tail-call elimination + heap allocation), arbitrary memory R/W (the Z_Malloc heap), and conditional branches (the entire FSM-driven enemy AI).
+- Dynamic dispatch (function pointers through the BSP traversal), a heap (Z_Malloc), arbitrary memory reads and writes, and conditional branches (the FSM-driven enemy AI) all work.
 - Every one of those compiles to MBC and dispatches through the XDP program.
-- The XDP program is purely a function from `(MBC bytecode, packet input)` to `(MBC bytecode state after up to 256 insns, packet output)`. No external state, no out-of-band side channels.
+
+The limits: the machine is finite, each packet runs at most 256 instructions, and running depends on an injector that keeps sending. State lives in maps between packets, a userspace loader fills them, and a userspace bridge reads frames and writes keys. [Doom's lessons](../docs/upc/DOOM-LESSONS.md) sets these out.
 
 ## Cross-references
 
