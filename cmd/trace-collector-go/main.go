@@ -986,12 +986,14 @@ func runFailure(ctx context.Context) error {
 
 // serveOn starts srv on every listener, and on each pending address once the
 // host holds it, until ctx ends. A pending address that turns out taken or bad
-// ends the run through ls.stop, as it would have stopped the start.
+// ends the run through ls.stop, as it would have stopped the start, and so
+// does a listener that dies under Serve: the unit restarts the collector.
 func serveOn(ctx context.Context, srv *http.Server, ls listeners) {
 	serve := func(ln net.Listener) {
 		log.Info().Str("addr", ln.Addr().String()).Msg("HTTP server starting")
 		if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 			log.Error().Err(err).Msg("HTTP server error")
+			ls.stop(err)
 		}
 	}
 	for _, ln := range ls.bound {
