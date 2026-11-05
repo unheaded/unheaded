@@ -32,7 +32,8 @@ A first-party receiver: RFC 5424 and RFC 3164 over UDP and TCP in, the journal's
 | `REMOTE_ADDR` | the socket | as far as the transport is (below) |
 | `UNHEADED_SOURCE` | the `sources.yaml` row for the sender, or `unknown` | yes: the relay decides it |
 | `MESSAGE` | the message | no |
-| `PRIORITY`, `SYSLOG_FACILITY` | PRI | no |
+| `PRIORITY`, `SYSLOG_FACILITY` | PRI | no. `PRIORITY` never goes below 1: journald sends emerg entries to every login tty |
+| `UNHEADED_SEVERITY_CLAIMED` | PRI, only when the relay raised `PRIORITY` | no |
 | `SYSLOG_IDENTIFIER` | APP-NAME or the 3164 tag | no |
 | `REMOTE_HOSTNAME_CLAIMED` | HOSTNAME | no; the name says so |
 | `SYSLOG_TIMESTAMP`, `SYSLOG_PID`, `SYSLOG_MSGID`, `SYSLOG_STRUCTURED_DATA` | the header, when present | no. Kept so a queued replay keeps the sender's time and a 5424 message keeps its structured data. |
@@ -47,7 +48,7 @@ The relay never writes a field starting with `_`; those are journald's own, and 
 - TCP frames are capped at twice `--max-msg`. A frame between the two is truncated and flagged, because closing on it would make rsyslog's `omfwd` resend the same message forever: its header sits on top of an 8 KiB `maxMessageSize` line. A frame over the cap closes the connection; the length is read before any buffer is allocated.
 - Output is escaped after parsing, in every field: C0, DEL and C1 controls, line and paragraph separators and Unicode format characters (bidi overrides included) become `\xHH` or `\uHHHH`, invalid UTF-8 byte by byte. A backslash is left alone, so a sender can write text that looks like an escape; it cannot write a control byte.
 - Per-sender token bucket, default 200 msg/s, burst 1000, in front of the parser. Over the limit: dropped and counted. A row may lower it (`rate:`, `burst:`), then SIGHUP.
-- TCP: `--max-conns` (default 256), and a deadline per frame (`--idle-timeout`, default 5 m), so dribbling a byte a minute does not hold a slot.
+- TCP: `--max-conns` (default 256), `--max-conns-per-sender` (default a sixteenth of it), and a deadline per frame (`--idle-timeout`, default 5 m), so dribbling a byte a minute does not hold a slot.
 - State is bounded by the allowlist. Buckets exist only for rows in `sources.yaml`; with `--accept-unknown` all unknown senders share one bucket; a metric label is only ever a row id, never a claimed name or an unknown address.
 
 **Malformed is not dropped.** A line whose header will not parse (`<192>`, a cut 5424 header) from a known sender is shipped as text with `UNHEADED_MALFORMED` set, at user.notice, and counted. A log line that fails to parse is still evidence (ADR-123 takes the same line).
@@ -66,7 +67,7 @@ The relay never writes a field starting with `_`; those are journald's own, and 
 ## Limits
 
 - **UDP source addresses can be forged** by anything on the same segment. `REMOTE_ADDR` on a UDP message is a strong hint, not proof; TCP's handshake is better, which is why Pi-hole sends over TCP. There is no TLS: rsyslog in the container and most devices would need certificates, and both legs stay on one host or one LAN.
-- **`--max-conns` is global.** A compromised allowlisted sender can take every slot until the idle deadline. Accepted: the allowlist holds a handful of rows.
+- **`--max-conns` is global; `--max-conns-per-sender` is not.** One sender holds at most a sixteenth of the slots by default (`reason="sender_conns"` past that). Several compromised senders together can still fill the table until the idle deadline. Accepted: the allowlist holds a handful of rows.
 - **LF-framed TCP cannot carry a newline.** A sender that lets someone else's text reach its LF-framed output lets them start a new line, under that sender's name. Octet counting avoids this; D3's `omfwd` config uses it.
 - **Kernel socket drops are not counted.** A UDP flood past the receive buffer never reaches the relay. journald's own rate limit (per service, so per relay) can also suppress lines, and it says so only in the journal.
 - **A journal stall drops rather than blocks.** A write that cannot finish within a second is dropped and counted (`reason="journal"`), so the UDP read loop keeps moving.
