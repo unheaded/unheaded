@@ -162,7 +162,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: traefik:v3.3.7
+    image: traefik:v3.3.7@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f
     container_name: unheaded-traefik
     user: "16784:16784"   # pkg/uids; ports above 1024 inside, no capabilities
     read_only: true
@@ -291,7 +291,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: victoriametrics/victoria-metrics:v1.108.1
+    image: victoriametrics/victoria-metrics:v1.108.1@sha256:f6e5322b315795ae2fec494c1d1c94b2e0325b789fead60ef3a13fccdefcd81e
     container_name: unheaded-victoria
     user: "16703:16703"   # pkg/uids; volume-init chowns its data volume
     read_only: true
@@ -439,7 +439,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: clickhouse/clickhouse-server:24.12.6.70
+    image: clickhouse/clickhouse-server:24.12.6.70@sha256:a65ca89ddbe8e04a05036dd7d7110a203256293b407b9359130ed5e4333f45ff
     container_name: unheaded-clickhouse
     user: "16707:16707"   # pkg/uids (not the image's 101: that is _chrony on the host); volume-init chowns the data volume
     depends_on:
@@ -496,7 +496,7 @@ services:
     logging:
       driver: "json-file"
       options: { max-size: "1m", max-file: "1" }
-    image: clickhouse/clickhouse-server:24.12.6.70
+    image: clickhouse/clickhouse-server:24.12.6.70@sha256:a65ca89ddbe8e04a05036dd7d7110a203256293b407b9359130ed5e4333f45ff
     container_name: unheaded-clickhouse-schema
     user: "16708:16708"   # pkg/uids
     read_only: true
@@ -531,7 +531,7 @@ services:
     logging:
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: timberio/vector:0.43.1-debian
+    image: timberio/vector:0.43.1-debian@sha256:0e3603f594a85628536d50aa2fd91128d6518b4967e23f35fd9771817633a743
     container_name: unheaded-vector
     user: "16706:16706"   # pkg/uids; volume-init chowns its data volume
     group_add:
@@ -582,7 +582,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: grafana/grafana:11.5.1
+    image: grafana/grafana:11.5.1@sha256:5781759b3d27734d4d548fcbaf60b1180dbf4290e708f01f292faa6ae764c5e6
     container_name: unheaded-grafana
     user: "16701:16701"   # pkg/uids; state on tmpfs (it had no volume: dashboards come from provisioning)
     read_only: true
@@ -637,7 +637,7 @@ services:
       # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: coredns/coredns:1.12.4
+    image: coredns/coredns:1.12.4@sha256:986f04c2e15e147d00bdd51e8c51bcef3644b13ff806be7d2ff1b261d6dfbae1
     container_name: unheaded-coredns
     user: "16785:16785"   # pkg/uids; listens on 1053 (config/coredns/Corefile)
     read_only: true

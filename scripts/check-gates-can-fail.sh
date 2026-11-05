@@ -823,7 +823,7 @@ provoke_image_tags() {
     # Contract (ADR-102): no image enters at a floating tag.
     local f="docker-compose.yml"
     backup "${f}"
-    sed -i '0,/image: traefik:v3.3.7/s//image: traefik:latest/' "${REPO_ROOT}/${f}"
+    sed -i -E '0,/image: traefik:v3\.3\.7[^[:space:]]*/s//image: traefik:latest/' "${REPO_ROOT}/${f}"
     grep -q 'image: traefik:latest' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
@@ -1083,6 +1083,14 @@ provoke_well_slo_definitions() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_image_digests() {
+    # Contract (L23): a pinned compose image keeps its digest. Drop one.
+    local f="docker-compose.yml"
+    backup "${f}"
+    sed -i -E '0,/(image: traefik:v3\.3\.7)@sha256:[0-9a-f]{64}/s//\1/' "${REPO_ROOT}/${f}"
+    grep -qE 'image: traefik:v3\.3\.7$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_nosec_ratchet() {
     # Contract (L20): gosec suppressions may only shrink. Add one.
     local f="pkg/database/config.go"
@@ -1141,6 +1149,7 @@ test-check-ci-verdicts|provoke_test_ci_verdicts|fast|one rule of check-ci-verdic
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
+check-image-digests|provoke_image_digests|fast|traefik's digest dropped from docker-compose.yml
 check-crypto-inventory|provoke_crypto_inventory|fast|a component the tree does not contain appended to compliance/crypto/cbom.cdx.json
 check-pq-kex|provoke_pq_kex|fast|an untracked Go file pinning CurvePreferences to X25519 only (classical key exchange)
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt

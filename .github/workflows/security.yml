@@ -203,6 +203,10 @@ jobs:
       - name: Floating image tags may only shrink
         run: ./scripts/check-image-tags.sh
 
+      # L23: a compose image keeps the digest it was pinned to.
+      - name: Compose images keep their digests
+        run: ./scripts/check-image-digests.sh
+
       # A finding with a row in docs/policy/gitleaks-history-baseline.txt
       # warns; a new one, or a scan that could not run, fails the job, so no
       # continue-on-error here.
