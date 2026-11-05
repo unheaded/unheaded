@@ -205,3 +205,70 @@ func TestJWKSVerifier_DeadIssuerIsNotRetriedPerRequest(t *testing.T) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// L12: a caller that goes away does not count as the issuer failing: the
+// next caller still gets the keys.
+func TestJWKSVerifier_CallerContextDoesNotStartTheBackoff(t *testing.T) {
+	fi := newFakeIssuer(t)
+	kid := fi.addKey(t, true)
+	v := newJWKS(t, fi)
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, ok := v.keyFor(gone, "no-such-kid"); ok {
+		t.Fatal("an unknown kid resolved")
+	}
+	if _, ok := v.keyFor(context.Background(), kid); !ok {
+		t.Fatal("key not found after an earlier caller's context ended")
+	}
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	if !v.lastFail.IsZero() {
+		t.Fatalf("lastFail = %v, want none: the issuer never failed", v.lastFail)
+	}
+}
+
+// L12: a request whose key is usable does not wait for a refresh another
+// request started.
+func TestJWKSVerifier_UsableKeysDoNotWaitForAFetch(t *testing.T) {
+	fi := newFakeIssuer(t)
+	kid := fi.addKey(t, true)
+	v := newJWKS(t, fi)
+	at := jwksClock(v)
+	ctx := context.Background()
+	if _, ok := v.keyFor(ctx, kid); !ok {
+		t.Fatal("key not fetched")
+	}
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	v.client.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		once.Do(func() { close(entered) })
+		<-release
+		return nil, os.ErrDeadlineExceeded
+	})
+	*at = at.Add(v.ttl)
+
+	first := make(chan struct{})
+	go func() {
+		defer close(first)
+		v.keyFor(ctx, kid)
+	}()
+	<-entered
+	defer func() {
+		close(release)
+		<-first
+	}()
+	second := make(chan bool, 1)
+	go func() {
+		_, ok := v.keyFor(ctx, kid)
+		second <- ok
+	}()
+	select {
+	case ok := <-second:
+		if !ok {
+			t.Fatal("usable key refused while a refresh was in flight")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("request queued behind a refresh with a usable key in hand")
+	}
+}

@@ -310,7 +310,10 @@ func (v *JWKSVerifier) usableLocked() bool {
 // refresh fetches the keys unless (without force) another caller already
 // refreshed them within the TTL, or a fetch failed within
 // jwksFailRetryInterval. A failed fetch keeps the old keys. A caller holding
-// usable keys does not queue behind a fetch already in flight.
+// usable keys does not queue behind a fetch already in flight. The fetch
+// serves every later caller, so it outlives the request that started it:
+// only the issuer's answer can start the failure backoff, and getJSON's
+// timeout bounds it.
 func (v *JWKSVerifier) refresh(ctx context.Context, force bool) {
 	v.mu.RLock()
 	usable := v.usableLocked()
@@ -331,7 +334,7 @@ func (v *JWKSVerifier) refresh(ctx context.Context, force bool) {
 			return
 		}
 	}
-	keys, err := v.fetch(ctx)
+	keys, err := v.fetch(context.WithoutCancel(ctx))
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if err != nil {
