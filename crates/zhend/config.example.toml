@@ -18,7 +18,8 @@ l1_to_l2_secs = 3600
 l2_to_l3_secs = 604800
 
 [network]
-# gRPC listen address (internal Kingdom services).
+# gRPC listen address (internal Kingdom services). It has no auth or TLS, so
+# an address off loopback also needs grpc_allow_non_loopback = true.
 grpc_addr = "[::1]:7300"
 
 # QUIC/HTTP3 listen address (external/edge access).
