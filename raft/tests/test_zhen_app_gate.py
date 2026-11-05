@@ -6,12 +6,11 @@
 Imports the Flask app with sentence-transformers stubbed (no model load) and
 drives it with Flask's test client: nothing listens, no daemon or model runs.
 
-CSRF (threat model T8, interim until the Go port): a browser request
-(it carries Origin or Sec-Fetch-Site) that changes state must echo the
-per-session zhen_csrf cookie (SameSite=Strict) in X-Zhen-CSRF. A cross-site
-page cannot read that cookie, so it cannot forge the header. Requests with
-neither header are not from a browser (curl, zhen-mcp, eval scripts)
-and carry no ambient browser state to ride, so they are not CSRF.
+CSRF (threat model T8, interim until the Go port): a request that changes
+state must come from this UI's own origin and echo the per-session zhen_csrf
+cookie (SameSite=Strict) in X-Zhen-CSRF. A cross-site page cannot read that
+cookie, so it cannot forge the header. Only the scripted read and chat routes
+take a request with no browser headers at all (curl, eval scripts).
 """
 
 import io
@@ -38,7 +37,8 @@ ORIGIN = 'http://zhen.test'
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    monkeypatch.setenv('ZHEN_ALLOWED_HOSTS', 'zhen.test')
     zhen_app.app.config['TESTING'] = True
     with zhen_app.app.test_client() as c:
         yield c
@@ -50,6 +50,12 @@ def _csrf_cookie(client):
     cookies = [h for h in r.headers.getlist('Set-Cookie') if h.startswith('zhen_csrf=')]
     assert cookies, 'GET / must set the zhen_csrf cookie'
     return cookies[0].split(';', 1)[0].split('=', 1)[1], cookies[0]
+
+
+def _browser(client):
+    """The headers the page sends on a state-changing request."""
+    tok, _ = _csrf_cookie(client)
+    return {'Origin': ORIGIN, 'Sec-Fetch-Site': 'same-origin', 'X-Zhen-CSRF': tok}
 
 
 # ── CSRF ────────────────────────────────────────────────────────────────
@@ -166,7 +172,7 @@ def test_agentd_kanban_create_goes_through_the_app_with_key(client, monkeypatch)
     monkeypatch.setattr(ur, 'urlopen', fake_urlopen)
     monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', 'k-test')
     monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', None)
-    r = client.post('/api/v1/kanban/create', base_url=ORIGIN,
+    r = client.post('/api/v1/kanban/create', base_url=ORIGIN, headers=_browser(client),
                     json={'task': {'id': 'task-zhen-1', 'title': 't'}})
     assert r.status_code == 200, r.get_json()
     assert seen['url'].endswith('/api/v1/tool/exec')
@@ -178,7 +184,7 @@ def test_agentd_kanban_create_goes_through_the_app_with_key(client, monkeypatch)
 def test_agentd_kanban_create_without_auth_config_is_503(client, monkeypatch):
     monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', '')
     monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', 'ZHEN_AGENTD_API_KEY is not set')
-    r = client.post('/api/v1/kanban/create', base_url=ORIGIN,
+    r = client.post('/api/v1/kanban/create', base_url=ORIGIN, headers=_browser(client),
                     json={'task': {'id': 'task-zhen-1', 'title': 't'}})
     assert r.status_code == 503
 
@@ -234,3 +240,221 @@ def test_schedule_commands_call_agentd_not_a_local_scheduler(monkeypatch):
     assert calls[0][1] == {'name': 'service-health-sweep', 'every': '6h'}
     assert calls[3][1] == {'paused': True} and calls[4][1] == {'paused': False}
     assert 'zhen_scheduler' not in sys.modules or not hasattr(sys.modules['zhen_scheduler'], 'add_schedule')
+
+
+def test_held_schedule_change_points_at_the_client_that_can_confirm(monkeypatch):
+    import zhen_scheduler_client
+    held = {'status': 'pending_confirmation', 'reason': 'held', 'pending_token': 'tok-secret'}
+    monkeypatch.setattr(zhen_scheduler_client, 'call', lambda *a, **kw: (403, held))
+    for q in ('schedule service-health-sweep every 6h', 'unschedule service-health-sweep', 'resume schedules'):
+        answer, handled = zhen_app._try_command(q)
+        assert handled, q
+        assert '/schedule' in answer['answer'] and 'zhen-cli' in answer['answer'], q
+        assert 'tok-secret' not in answer['answer'], q
+
+
+def test_emergency_stop_says_how_to_come_back(monkeypatch):
+    import zhen_scheduler_client
+    monkeypatch.setattr(zhen_scheduler_client, 'call', lambda *a, **kw: (200, {'status': 'ok'}))
+    answer, _ = zhen_app._try_command('emergency stop')
+    assert '/schedule resume' in answer['answer']
+    assert 'until `resume schedules`' not in answer['answer']
+
+
+def test_help_offers_only_what_the_web_ui_does():
+    answer, handled = zhen_app._try_command('help')
+    assert handled
+    for gone in ('`run <name>`', '`run --dry <name>`', '`schedule <runbook>', '`unschedule <runbook>`', '`resume schedules`'):
+        assert gone not in answer['answer'], gone
+    assert '/runbook exec' in answer['answer'] and '/schedule resume' in answer['answer']
+
+
+# ── runbooks: chat runs nothing, and a name must be on the list (H5) ────
+
+@pytest.fixture
+def runbooks(tmp_path, monkeypatch):
+    root = tmp_path / 'runbooks'
+    (root / 'observe').mkdir(parents=True)
+    (root / 'observe' / 'health-sweep.yaml').write_text('metadata:\n  name: health-sweep\n  risk: low\nsteps: []\n')
+    (tmp_path / 'outside.yaml').write_text('metadata:\n  name: outside\nsteps: []\n')
+    monkeypatch.setattr(zhen_app, 'RUNBOOKS_DIR', str(root))
+    return root
+
+
+def _no_subprocess(monkeypatch):
+    import subprocess
+
+    def refuse(*a, **kw):
+        raise AssertionError(f'a chat command started a process: {a}')
+    monkeypatch.setattr(subprocess, 'run', refuse)
+
+
+@pytest.mark.parametrize('question', [
+    'run health-sweep', 'execute health-sweep', 'run --dry health-sweep', 'run --dry-run health-sweep',
+])
+def test_chat_run_of_a_known_runbook_starts_nothing(runbooks, monkeypatch, question):
+    _no_subprocess(monkeypatch)
+    result, handled = zhen_app._try_command(question)
+    assert handled
+    assert 'zhen-cli' in result['answer']
+    assert 'SUCCESS' not in result['answer']
+
+
+@pytest.mark.parametrize('question', [
+    'run ../outside', 'run ../../outside', 'run *', 'execute **/*', 'run the tests please',
+])
+def test_chat_run_of_anything_else_is_not_a_command(runbooks, monkeypatch, question):
+    _no_subprocess(monkeypatch)
+    _, handled = zhen_app._try_command(question)
+    assert not handled
+
+
+@pytest.mark.parametrize('name', ['..', '*', '[a-z]*', '?ealth-sweep', 'health*', 'outside'])
+def test_runbook_routes_take_only_a_listed_name(client, runbooks, name):
+    from urllib.parse import quote
+    assert client.get(f'/api/v1/runbooks/{quote(name, safe="")}', base_url=ORIGIN).status_code == 404
+
+
+def test_runbook_route_serves_a_listed_name(client, runbooks):
+    r = client.get('/api/v1/runbooks/health-sweep', base_url=ORIGIN)
+    assert r.status_code == 200
+    assert r.get_json()['parsed']['metadata']['name'] == 'health-sweep'
+
+
+def test_runbook_link_out_of_the_tree_is_not_listed(runbooks):
+    (runbooks / 'observe' / 'linked.yaml').symlink_to(runbooks.parent / 'outside.yaml')
+    assert zhen_app._runbook_path('linked') is None
+    assert zhen_app._runbook_path('health-sweep') is not None
+
+
+def test_app_never_starts_the_runner_itself():
+    src = (RAFT / 'zhen_app.py').read_text()
+    assert "scripts/run-runbook.py')" not in src
+
+
+# ── strict Host and Origin (H5) ─────────────────────────────────────────
+
+GATED_ROUTES = [
+    '/api/v1/runbooks/health-sweep/execute', '/api/v1/models/switch', '/api/v1/kanban/create',
+    '/api/v1/approvals', '/api/v1/approvals/1/approve', '/api/v1/approvals/1/deny',
+    '/api/v1/champion/read', '/api/v1/remember', '/api/v1/forget', '/api/v1/generate-file',
+]
+
+
+def _reached_handler(r):
+    return not (r.status_code == 403 and 'CSRF' in (r.get_json() or {}).get('error', ''))
+
+
+@pytest.mark.parametrize('route', GATED_ROUTES)
+def test_gated_route_needs_a_browser_session_with_no_headers_at_all(client, route):
+    r = client.post(route, base_url=ORIGIN, json={})
+    assert r.status_code == 403
+    assert 'CSRF' in r.get_json()['error']
+
+
+@pytest.mark.parametrize('route', ['/api/v1/highlight'])
+def test_scripted_routes_stay_open_to_a_caller_with_no_browser_headers(client, route):
+    assert _reached_handler(client.post(route, base_url=ORIGIN, json={'blocks': []}))
+
+
+@pytest.mark.parametrize('origin', [
+    'http://evil.test', 'https://zhen.test.evil.test', 'http://zhen.test:1', 'null', 'zhen.test', 'file://zhen.test',
+])
+def test_a_token_does_not_excuse_another_origin(client, origin):
+    tok, _ = _csrf_cookie(client)
+    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
+                    headers={'Origin': origin, 'X-Zhen-CSRF': tok})
+    assert r.status_code == 403
+
+
+@pytest.mark.parametrize('site', ['cross-site', 'same-site', 'none'])
+def test_a_token_does_not_excuse_another_fetch_site(client, site):
+    tok, _ = _csrf_cookie(client)
+    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
+                    headers={'Origin': ORIGIN, 'Sec-Fetch-Site': site, 'X-Zhen-CSRF': tok})
+    assert r.status_code == 403
+
+
+def test_a_browser_marker_without_origin_is_refused(client):
+    tok, _ = _csrf_cookie(client)
+    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
+                    headers={'Sec-Fetch-Site': 'same-origin', 'X-Zhen-CSRF': tok})
+    assert r.status_code == 403
+
+
+@pytest.mark.parametrize('method', ['get', 'post'])
+def test_a_host_off_the_list_is_refused_on_every_method(client, method):
+    r = getattr(client, method)('/health', base_url='http://rebound.test:20103')
+    assert r.status_code == 403
+    assert 'Host' in r.get_json()['error']
+
+
+@pytest.mark.parametrize('host', ['localhost', '127.0.0.1', '[::1]', 'localhost:20103', '127.0.0.1:20103'])
+def test_loopback_hosts_are_on_the_list(client, host):
+    assert client.get('/health', headers={'Host': host}).status_code == 200
+
+
+def test_the_bind_address_is_on_the_list(client, monkeypatch):
+    monkeypatch.setenv('ZHEN_BIND_ADDR', '10.10.20.1')
+    assert client.get('/health', headers={'Host': '10.10.20.1:20103'}).status_code == 200
+
+
+def test_a_wildcard_bind_is_not_a_host(client, monkeypatch):
+    monkeypatch.setenv('ZHEN_BIND_ADDR', '0.0.0.0')
+    assert client.get('/health', headers={'Host': '0.0.0.0:20103'}).status_code == 403
+
+
+# ── /api/v1/champion/read judges the real path (M21) ────────────────────
+
+@pytest.fixture
+def sandbox_root(tmp_path, monkeypatch):
+    root = tmp_path / 'unheaded'
+    (root / 'pkg').mkdir(parents=True)
+    (root / 'pkg' / 'ok.go').write_text('package ok\n')
+    monkeypatch.setattr(zhen_app, 'CHAMPION_ALLOWED', [str(root) + '/'])
+    return root
+
+
+def test_champion_read_allows_a_file_in_the_sandbox(sandbox_root):
+    path, err = zhen_app.champion_validate_path(str(sandbox_root / 'pkg' / 'ok.go'))
+    assert err is None and path.endswith('ok.go')
+
+
+def test_champion_read_refuses_a_sibling_of_the_root(sandbox_root):
+    sibling = sandbox_root.parent / 'unheaded-x'
+    sibling.mkdir()
+    (sibling / 'f').write_text('x\n')
+    path, err = zhen_app.champion_validate_path(str(sibling / 'f'))
+    assert path is None and err
+
+
+def test_champion_read_refuses_a_link_out_of_the_root(sandbox_root):
+    (sandbox_root.parent / 'outside').write_text('x\n')
+    (sandbox_root / 'pkg' / 'link').symlink_to(sandbox_root.parent / 'outside')
+    path, err = zhen_app.champion_validate_path(str(sandbox_root / 'pkg' / 'link'))
+    assert path is None and err
+
+
+def test_champion_read_refuses_a_link_to_a_denied_name_in_the_root(sandbox_root):
+    (sandbox_root / 'server.key').write_text('x\n')
+    (sandbox_root / 'pkg' / 'notes').symlink_to(sandbox_root / 'server.key')
+    path, err = zhen_app.champion_validate_path(str(sandbox_root / 'pkg' / 'notes'))
+    assert path is None and err
+
+
+@pytest.mark.parametrize('rel', ['tls/server.key', 'tls/ca.PEM', '.git/config', 'sub/.git/config', '.env'])
+def test_champion_read_refuses_key_material_and_git_config(sandbox_root, rel):
+    p = sandbox_root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text('x\n')
+    path, err = zhen_app.champion_validate_path(str(p))
+    assert path is None and err
+
+
+@pytest.mark.parametrize('rel', ['pkg/keyboard.go', 'docs/pem-format.md', '.gitignore'])
+def test_champion_read_allows_names_that_only_look_alike(sandbox_root, rel):
+    p = sandbox_root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text('x\n')
+    path, err = zhen_app.champion_validate_path(str(p))
+    assert err is None and path

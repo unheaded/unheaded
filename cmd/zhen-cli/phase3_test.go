@@ -14,9 +14,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type capturedReq struct {
@@ -152,7 +154,66 @@ func TestConfirm_PostsTokenAndPrintsResult(t *testing.T) {
 	}
 }
 
+// A confirmed swap or runbook runs inside the /confirm request, so the
+// session client's timeout must not cut it off.
+func TestConfirm_OutlivesTheSessionClientTimeout(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){
+		"/api/v1/agent/confirm": func(capturedReq) (int, any) {
+			time.Sleep(200 * time.Millisecond)
+			return 200, map[string]any{"status": "ok", "result": "swapped"}
+		},
+	})
+	s, out := stubSession(a.srv.URL)
+	s.client = &http.Client{Timeout: 20 * time.Millisecond}
+	s.handleSlash("/confirm tok-ok")
+	if !strings.Contains(out.String(), "swapped") {
+		t.Errorf("output lacks the result:\n%s", out.String())
+	}
+}
+
 // A pending confirmation now names the command that redeems it.
+// /schedule is the way back from a pause: each change is schedule_update
+// through the gate as the typed action of the person at the terminal.
+func TestSchedule_GoesThroughTheGate(t *testing.T) {
+	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){
+		"/api/v1/tool/exec": func(capturedReq) (int, any) {
+			return 403, map[string]any{"status": "pending_confirmation", "reason": "held", "pending_token": "tok-1"}
+		},
+	})
+	s, out := stubSession(a.srv.URL)
+	for _, line := range []string{
+		"/schedule resume", "/schedule pause", "/schedule remove sweep",
+		"/schedule add sweep 6h", "/schedule add sweep 6h observe/service-health-sweep",
+	} {
+		s.handleSlash(line)
+	}
+	want := []map[string]any{
+		{"op": "pause", "paused": false}, {"op": "pause", "paused": true}, {"op": "remove", "name": "sweep"},
+		{"op": "add", "name": "sweep", "every": "6h"}, {"op": "add", "name": "sweep", "every": "6h", "runbook": "observe/service-health-sweep"},
+	}
+	if len(a.reqs) != len(want) {
+		t.Fatalf("requests %+v", a.reqs)
+	}
+	for i, r := range a.reqs {
+		if r.Body["tool"] != "schedule_update" || !reflect.DeepEqual(r.Body["args"], want[i]) {
+			t.Errorf("request %d: %+v", i, r.Body)
+		}
+		refs, _ := r.Body["justification"].([]any)
+		if len(refs) != 1 || refs[0].(map[string]any)["source_trust"] != "direct-user" {
+			t.Errorf("request %d justification: %+v", i, r.Body)
+		}
+	}
+	if !strings.Contains(out.String(), "/confirm tok-1") {
+		t.Errorf("no pointer to /confirm:\n%s", out.String())
+	}
+	for _, line := range []string{"/schedule", "/schedule add x", "/schedule remove", "/schedule resume now", "/schedule add a b c d"} {
+		s.handleSlash(line)
+	}
+	if len(a.reqs) != len(want) {
+		t.Errorf("a bad /schedule posted: %+v", a.reqs[len(want):])
+	}
+}
+
 func TestPendingConfirmation_PointsAtConfirm(t *testing.T) {
 	a := newAgentdStub(t, map[string]func(capturedReq) (int, any){
 		"/api/v1/tool/exec": func(capturedReq) (int, any) {

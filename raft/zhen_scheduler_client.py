@@ -14,7 +14,9 @@ the daemon's auth:
 
 The changes are the Champion's mutating tool schedule_update; the typed
 command is the user's own action, so it carries a direct-user justification
-(the same shape the runbook and model-switch buttons send). stdlib only.
+(the same shape the runbook and model-switch buttons send). Only a pause
+takes effect from here: add, remove and resume are held for a person, and
+that is `/schedule` in zhen-cli. stdlib only.
 """
 
 import json
@@ -63,7 +65,10 @@ def call(agentd_url, headers, op, body=None, timeout=30):
 
 
 def reason(body):
-    """The daemon's reason, for a chat answer."""
+    """The daemon's reason, for a chat answer. A held change has a token this
+    UI cannot redeem, so the answer points at the client that can."""
+    if body.get('status') == 'pending_confirmation':
+        return 'this change answers to a person: use `/schedule` in zhen-cli, then `/confirm <token>`'
     return body.get('reason') or body.get('error') or json.dumps(body)[:300]
 
 

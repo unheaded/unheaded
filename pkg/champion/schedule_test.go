@@ -29,8 +29,26 @@ func directUser() []Reference {
 	return []Reference{{Topic: "typed-schedule-command", SourceTrust: "direct-user"}}
 }
 
-// schedule_update is mutating: listed, dispatched, gated by Rule 2, and
-// logged as a mutation (S-CHAMPION-HARDENING Step 165).
+// confirmedCall runs tc the way a person does: Rule 2 holds it, and the
+// person redeems the token their own request caused.
+func confirmedCall(t *testing.T, c *Champion, tc ToolCall) (any, error) {
+	t.Helper()
+	ctx := context.Background()
+	tc.Principal = "tty:stevie"
+	_, err := c.Dispatch(ctx, tc)
+	var ge *GateError
+	if !errors.As(err, &ge) || !ge.PendingConfirmation() {
+		t.Fatalf("%s: %v; want a pending-confirmation refusal", tc.Name, err)
+	}
+	tok, err := c.IssuePendingConfirmation(tc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c.ConfirmPendingToolCall(ctx, tok, "tty:stevie")
+}
+
+// schedule_update is mutating: listed, dispatched, held for a person at
+// Rule 2, and logged as a mutation (S-CHAMPION-HARDENING Step 165).
 func TestScheduleUpdate_GatedAndDispatched(t *testing.T) {
 	if !MutatingTools["schedule_update"] {
 		t.Fatal("schedule_update is not in MutatingTools")
@@ -50,8 +68,8 @@ func TestScheduleUpdate_GatedAndDispatched(t *testing.T) {
 		t.Fatalf("the scheduler saw a refused call: %v", rec.ops)
 	}
 
-	// A direct user's call reaches it, with its op and args.
-	out, err := c.Dispatch(ctx, ToolCall{Name: "schedule_update", Args: map[string]any{"op": "remove", "name": "x"}, Justification: directUser()})
+	// A direct user's call reaches it once confirmed, with its op and args.
+	out, err := confirmedCall(t, c, ToolCall{Name: "schedule_update", Args: map[string]any{"op": "remove", "name": "x"}, Justification: directUser()})
 	if err != nil {
 		t.Fatalf("direct-user remove: %v", err)
 	}
@@ -75,9 +93,8 @@ func TestScheduleUpdate_GatedAndDispatched(t *testing.T) {
 }
 
 func TestScheduleUpdate_Refusals(t *testing.T) {
-	ctx := context.Background()
 	c, store := newTestChampion(t)
-	_, err := c.Dispatch(ctx, ToolCall{Name: "schedule_update", Args: map[string]any{"op": "add"}, Justification: directUser()})
+	_, err := confirmedCall(t, c, ToolCall{Name: "schedule_update", Args: map[string]any{"op": "add"}, Justification: directUser()})
 	if err == nil || !strings.Contains(err.Error(), "no scheduler") {
 		t.Fatalf("without a scheduler: %v", err)
 	}
@@ -86,10 +103,10 @@ func TestScheduleUpdate_Refusals(t *testing.T) {
 	}
 
 	c = c.WithScheduleUpdater(&recScheduler{err: errors.New("bad interval")})
-	if _, err := c.Dispatch(ctx, ToolCall{Name: "schedule_update", Args: map[string]any{"op": "add"}, Justification: directUser()}); err == nil || !strings.Contains(err.Error(), "bad interval") {
+	if _, err := confirmedCall(t, c, ToolCall{Name: "schedule_update", Args: map[string]any{"op": "add"}, Justification: directUser()}); err == nil || !strings.Contains(err.Error(), "bad interval") {
 		t.Fatalf("scheduler error: %v", err)
 	}
-	if _, err := c.Dispatch(ctx, ToolCall{Name: "schedule_update", Args: map[string]any{}, Justification: directUser()}); err == nil || !strings.Contains(err.Error(), `"op"`) {
+	if _, err := confirmedCall(t, c, ToolCall{Name: "schedule_update", Args: map[string]any{}, Justification: directUser()}); err == nil || !strings.Contains(err.Error(), `"op"`) {
 		t.Fatalf("missing op: %v", err)
 	}
 }

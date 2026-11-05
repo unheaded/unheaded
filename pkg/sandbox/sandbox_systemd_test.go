@@ -10,6 +10,7 @@ package sandbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -146,5 +147,31 @@ func TestSystemd_KingdomConfigHidden(t *testing.T) {
 	}
 	if strings.Contains(r.Output, "ANTHROPIC") || strings.Contains(r.Output, "KEY=") {
 		t.Fatal("a credential file was readable in the sandbox")
+	}
+}
+
+// A cancelled run leaves nothing behind that can still write the directory.
+func TestSystemd_CancelStopsTheUnit(t *testing.T) {
+	dir := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		for i := 0; i < 1000; i++ {
+			if _, err := os.Stat(filepath.Join(dir, "started")); err == nil {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		cancel()
+	}()
+	if _, err := Run(ctx, Config{Dir: dir, RuntimeMax: 30 * time.Second}, []string{"/bin/sh", "-c", "touch started; trap '' TERM; sleep 8; touch survived"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "started")); err != nil {
+		t.Fatalf("the unit never started: %v", err)
+	}
+	time.Sleep(4 * time.Second) // past the sleep: stopGrace elapsed inside Run
+	if _, err := os.Stat(filepath.Join(dir, "survived")); err == nil {
+		t.Fatal("the unit outlived its cancelled run")
 	}
 }

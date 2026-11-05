@@ -12,6 +12,8 @@ package sandbox
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -36,6 +38,10 @@ const (
 	DefaultRuntimeMax  = 600 * time.Second
 	DefaultTasksMax    = 256
 	DefaultOutputLimit = 16 << 10
+	// stopGrace is what a cancelled unit gets between SIGTERM and SIGKILL;
+	// stopTimeout bounds the wait for the stop itself.
+	stopGrace   = 5 * time.Second
+	stopTimeout = 15 * time.Second
 )
 
 // Config is one run's confinement.
@@ -60,8 +66,9 @@ type Config struct {
 	TasksMax   int
 	// OutputLimit cuts combined stdout+stderr. Default 16 KiB.
 	OutputLimit int
-	// SystemdRun is the systemd-run binary. Default: from PATH.
+	// SystemdRun and Systemctl are the binaries. Default: from PATH.
 	SystemdRun string
+	Systemctl  string
 }
 
 // Result is what the check did.
@@ -115,6 +122,7 @@ func Args(cfg Config, argv []string) ([]string, error) {
 		"-p", "MemorySwapMax=0",
 		"-p", "RuntimeMaxSec=" + strconv.Itoa(int(rt.Seconds())),
 		"-p", "TasksMax=" + strconv.Itoa(tasks),
+		"-p", "TimeoutStopSec=" + strconv.Itoa(int(stopGrace.Seconds())),
 		"-p", "BindPaths=" + cfg.Dir,
 		"-p", "WorkingDirectory=" + cfg.Dir,
 	}
@@ -179,7 +187,9 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 }
 
 // Run runs argv confined by cfg. A non-zero exit is a Result, not an
-// error; the error is for when the sandbox itself could not run.
+// error; the error is for when the sandbox itself could not run. When ctx
+// ends first the unit is stopped before Run returns: killing the systemd-run
+// client alone leaves it running, with the directory still writable.
 func Run(ctx context.Context, cfg Config, argv []string) (Result, error) {
 	args, err := Args(cfg, argv)
 	if err != nil {
@@ -195,12 +205,23 @@ func Run(ctx context.Context, cfg Config, argv []string) (Result, error) {
 	if limit <= 0 {
 		limit = DefaultOutputLimit
 	}
+	unit, err := unitName()
+	if err != nil {
+		return Result{Exit: -1}, err
+	}
 	out := &limitedBuffer{n: limit}
 	// #nosec G204 -- fixed binary; argv built by Args from validated parts, no shell
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := exec.CommandContext(ctx, bin, append([]string{"--unit=" + unit}, args...)...)
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.Stdin = nil
 	cmd.WaitDelay = 5 * time.Second
+	var stopErr error
+	cmd.Cancel = func() error {
+		// The client first: once it is gone no unit can start after the stop.
+		killErr := cmd.Process.Kill()
+		stopErr = stopUnit(cfg.Systemctl, unit)
+		return killErr
+	}
 	t0 := time.Now()
 	runErr := cmd.Run()
 	res := Result{Exit: 0, Duration: time.Since(t0)}
@@ -215,11 +236,41 @@ func Run(ctx context.Context, cfg Config, argv []string) (Result, error) {
 		}
 		res.Exit = -1
 		if ctx.Err() != nil {
-			return res, fmt.Errorf("sandbox: %w", ctx.Err())
+			return res, errors.Join(fmt.Errorf("sandbox: %w", ctx.Err()), stopErr)
 		}
 		return res, fmt.Errorf("sandbox: %w", runErr)
 	}
-	return res, nil
+	return res, stopErr
+}
+
+// unitName returns a name for one run's unit, so that it can be stopped.
+func unitName() (string, error) {
+	b := make([]byte, 12)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("sandbox: unit name: %w", err)
+	}
+	return "sandbox-" + hex.EncodeToString(b) + ".service", nil
+}
+
+// systemctlNotLoaded is systemctl's exit status for a unit that is not
+// there: it finished, and --collect removed it, or it never started.
+const systemctlNotLoaded = 5
+
+// stopUnit stops unit and waits for it, on a clock of its own: the caller's
+// context has already ended.
+func stopUnit(bin, unit string) error {
+	if bin == "" {
+		bin = "systemctl"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), stopTimeout)
+	defer cancel()
+	// #nosec G204 -- fixed binary, a generated unit name, no shell
+	out, err := exec.CommandContext(ctx, bin, "--user", "stop", "--", unit).CombinedOutput()
+	var ee *exec.ExitError
+	if err == nil || (errors.As(err, &ee) && ee.ExitCode() == systemctlNotLoaded) {
+		return nil
+	}
+	return fmt.Errorf("sandbox: stop %s: %w: %s", unit, err, strings.TrimSpace(string(out)))
 }
 
 // Available reports whether a user systemd session can start units.

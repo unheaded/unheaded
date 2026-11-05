@@ -2246,7 +2246,7 @@ async function opRecentRunbooks() {
         if (!rows.length) {
             opShow(`<div class="op-section">
                 <div class="op-section-head">recent runbook executions</div>
-                <div class="op-meta">no rows yet${body.error ? ' — ' + escapeHtml(body.error) : ''}. Execute a runbook from the chat (ask "run service-health-sweep dry-run") or click the Health sweep button above to populate.</div>
+                <div class="op-meta">no rows yet${body.error ? ' — ' + escapeHtml(body.error) : ''}. Click the Health sweep button above to populate.</div>
             </div>`);
             return;
         }

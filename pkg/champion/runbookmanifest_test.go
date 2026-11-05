@@ -332,3 +332,58 @@ func TestCommittedManifest_IsFresh(t *testing.T) {
 		t.Errorf("manifest has %d entries, runbooks/ has %d yaml files", len(m), seen)
 	}
 }
+
+// L7: the scan reads every command run-runbook.py runs, the checks included.
+func TestScanRunbook_ReadsPreconditionsAndChecks(t *testing.T) {
+	for name, body := range map[string]string{
+		"precondition": "preconditions:\n  - check: rm -rf /srv/x\n    description: d\nsteps: []\n",
+		// The runner reads no action on a precondition: it runs the check.
+		"manual precondition": "preconditions:\n  - check: rm -rf /srv/x\n    action: manual\nsteps: []\n",
+		"verification":        "steps: []\nverification:\n  - name: v\n    check: rm -rf /srv/x\n",
+	} {
+		hits, err := scanRunbook([]byte(body))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if len(hits) != 1 {
+			t.Errorf("%s: hits = %v", name, hits)
+		}
+	}
+	// A manual verification is printed, never run.
+	hits, err := scanRunbook([]byte("steps: []\nverification:\n  - name: v\n    action: manual\n    check: rm -rf /srv/x\n"))
+	if err != nil || len(hits) != 0 {
+		t.Errorf("manual check: %v %v", hits, err)
+	}
+}
+
+// Reading the checks refuses no runbook on the manifest that ran before.
+func TestScanRunbook_RepositoryRunbooksStayRunnable(t *testing.T) {
+	root := filepath.Join("..", "..", "runbooks")
+	raw, err := os.ReadFile(filepath.Join(root, RunbookManifestFile))
+	if err != nil {
+		t.Skipf("no manifest: %v", err)
+	}
+	manifest, err := parseRunbookManifest(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name := range manifest {
+		body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(name))) // #nosec G304 -- names from the repository's manifest
+		if err != nil {
+			t.Fatal(err)
+		}
+		hits, err := scanRunbook(body)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if runbookApproved(body) {
+			continue
+		}
+		for _, h := range hits {
+			if strings.HasPrefix(h, "preconditions/") || strings.HasPrefix(h, "verification/") {
+				t.Errorf("%s: %s", name, h)
+			}
+		}
+	}
+}

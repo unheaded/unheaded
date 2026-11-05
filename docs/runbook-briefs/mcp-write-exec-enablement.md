@@ -13,7 +13,8 @@ plus the work.
   registered for Claude Code in the repo's `.mcp.json` as server `zhen` with
   `"env": {}` (read-only). Gates, read at call time: `ZHEN_MCP_ALLOW_WRITE=1`
   adds `file_write` and `file_patch`; `ZHEN_MCP_ALLOW_EXEC=1` adds
-  `runbook_execute` (runs `scripts/run-runbook.py`). Off means the tool is
+  `runbook_execute` (`scripts/run-runbook.py`; dry runs only, as a live run
+  is held for a person at the Champion gate). Off means the tool is
   not listed and a call is refused.
 - Enable for ONE session only: in the launching shell
   (`export ZHEN_MCP_ALLOW_WRITE=1` before starting the session), or in the

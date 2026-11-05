@@ -5,10 +5,11 @@ package privacy
 
 import (
 	"context"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"unheaded/pkg/sandbox"
 )
 
 // repoTools return repository text only (the corpus and runbooks are
@@ -95,7 +96,5 @@ func gitTracked(root, path string) bool {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	// #nosec G204 -- fixed binary and flags; rel is passed after "--", no shell
-	cmd := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "--error-unmatch", "--", rel)
-	return cmd.Run() == nil
+	return sandbox.HostGit(ctx, root, "ls-files", "--error-unmatch", "--", rel).Run() == nil
 }

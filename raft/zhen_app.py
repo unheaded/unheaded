@@ -97,27 +97,66 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 # the LAN. GET / issues a per-session random token in a SameSite=Strict cookie;
 # the page echoes it in X-Zhen-CSRF on every state-changing request. A
 # cross-site page can neither read the cookie nor make the browser send it.
-# A request with neither Origin nor Sec-Fetch-Site did not come from a browser
-# (curl, zhen-mcp, eval scripts); it has no browser state to ride, so it
-# is not CSRF and is not asked for the token.
+#
+# H5: every request must name a Host on the list, so a name that resolves here
+# is not this origin. A state-changing request must also come from that origin
+# (Origin matches Host, Sec-Fetch-Site is same-origin) and carry the token. A
+# token never excuses another origin. The one exception is _SCRIPTED_ROUTES: a
+# request with no browser headers at all has no browser state to ride, so
+# curl, the deploy runbook's smoke test and the eval scripts may reach chat.
+# None of this is a login: it binds a browser to this origin, it does not say
+# who a local caller is.
 # ---------------------------------------------------------------------------
 CSRF_COOKIE = 'zhen_csrf'
 CSRF_HEADER = 'X-Zhen-CSRF'
 _CSRF_SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
+_SCRIPTED_ROUTES = frozenset({'/api/v1/query', '/api/v1/highlight'})
+
+
+def _allowed_hosts():
+    """Loopback, the address the UI binds, and ZHEN_ALLOWED_HOSTS (comma list)."""
+    hosts = {'localhost', '127.0.0.1', '::1'}
+    bind = os.environ.get('ZHEN_BIND_ADDR', '').strip().lower()
+    if bind and bind not in ('0.0.0.0', '::'):
+        hosts.add(bind)
+    hosts.update(h.strip().lower() for h in os.environ.get('ZHEN_ALLOWED_HOSTS', '').split(',') if h.strip())
+    return hosts
+
+
+def _host_allowed():
+    try:
+        return urlsplit('//' + request.host).hostname in _allowed_hosts()
+    except ValueError:
+        return False
+
+
+def _same_origin(origin):
+    try:
+        parts = urlsplit(origin)
+    except ValueError:
+        return False
+    return parts.scheme in ('http', 'https') and parts.netloc.lower() == request.host.lower() and not parts.path
 
 
 @app.before_request
 def _csrf_guard():
+    # This keeps a browser on another origin, or a rebound name, out. It does
+    # not identify a caller: nothing here records the cookie's value, so a
+    # local program can send the same headers. That takes a login.
+    if not _host_allowed():
+        return jsonify({'error': 'Host not allowed: set ZHEN_ALLOWED_HOSTS to serve this name'}), 403
     if request.method in _CSRF_SAFE_METHODS:
         return None
-    if not request.headers.get('Origin') and not request.headers.get('Sec-Fetch-Site'):
+    origin = request.headers.get('Origin', '')
+    site = request.headers.get('Sec-Fetch-Site', '')
+    if not origin and not site and request.path in _SCRIPTED_ROUTES:
         return None
     cookie = request.cookies.get(CSRF_COOKIE, '')
     sent = request.headers.get(CSRF_HEADER, '')
-    if cookie and sent and hmac.compare_digest(cookie, sent):
+    if _same_origin(origin) and site in ('', 'same-origin') and cookie and sent and hmac.compare_digest(cookie, sent):
         return None
     return jsonify({'error': f'CSRF check failed: send the {CSRF_COOKIE} cookie value '
-                             f'in {CSRF_HEADER} (reload the page for a fresh one)'}), 403
+                             f'in {CSRF_HEADER} from this origin (reload the page for a fresh one)'}), 403
 
 
 def _with_csrf_cookie(resp):
@@ -648,14 +687,12 @@ def _try_command(question):
 
 **Runbooks:**
 - `list runbooks` — show all 51 runbooks by category
-- `run <name>` — execute a runbook
-- `run --dry <name>` — dry-run validation
+- To run one: `zhen-cli`, `/runbook exec <name>`, then `/confirm <token>`
 
 **Scheduling** (zhen-agentd -scheduler; approved runbooks only):
-- `schedule <runbook> every <interval>` — 30m, 6h, daily@03:00 or weekly@sun@03:00
-- `unschedule <runbook>` — remove schedule
 - `list schedules` — show all scheduled jobs and their last run
-- `emergency stop` — pause the scheduler (`resume schedules` to restart)
+- `emergency stop` — pause the scheduler at once
+- To change the schedule or resume: `zhen-cli`, `/schedule add`, `/schedule remove` or `/schedule resume`, then `/confirm <token>`
 
 **Memory:**
 - `recall <topic>` — search past conversations
@@ -773,31 +810,17 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             lines.append(f"\n**{cat}/** ({len(by_cat[cat])})")
             for name in sorted(by_cat[cat]):
                 lines.append(f"  - {name}")
-        lines.append("\nTo run: type `run <name>` or `run --dry <name>`")
+        lines.append("\nTo run one: `zhen-cli`, `/runbook exec <name>`")
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
-    # Run runbook
+    # A runbook does not run from chat: a live run answers to a person at the
+    # Champion gate, and this path has no gate. Only a listed name is a
+    # command; any other "run ..." is an ordinary question.
     if q.startswith(('run ', 'execute ')):
-        import subprocess as sp
-        parts = q.split(None, 2)
-        dry_run = '--dry' in q or '--dry-run' in q
-        name = parts[-1].replace('--dry', '').replace('--dry-run', '').strip()
-        import glob as g
-        matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
-        if not matches:
-            return {'answer': f'Runbook not found: `{name}`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
-        runner = os.path.expanduser('~/tmp/unheaded/scripts/run-runbook.py')
-        cmd = ['python3', runner]
-        if dry_run:
-            cmd.append('--dry-run')
-        cmd.append(matches[0])
-        try:
-            result = sp.run(cmd, capture_output=True, text=True, timeout=120, check=False)
-            status = 'SUCCESS' if result.returncode == 0 else 'FAILED'
-            output = result.stdout[-3000:]
-            return {'answer': f'**Runbook {name}: {status}**\n\n```\n{output}\n```', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
-        except sp.TimeoutExpired:
-            return {'answer': f'Runbook `{name}` timed out (120s)', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        name = q.split()[-1]
+        if _runbook_path(name):
+            return {'answer': f'Runbooks do not run from chat. Use `zhen-cli`: `/runbook exec {name}`, then `/confirm <token>`.',
+                    'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Service health
     if q in ('health', 'service health', 'check health', 'status'):
@@ -854,7 +877,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
         if drifts == 0:
             lines.append('\n**No drift detected.** All services aligned with desired state.')
         else:
-            lines.append(f'\n**{drifts} drift(s) detected.** Run `run service-health-sweep` for details.')
+            lines.append(f'\n**{drifts} drift(s) detected.** The service-health-sweep runbook has the details.')
 
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
@@ -961,11 +984,11 @@ backend {svc_name}_back
 
     # Emergency stop: pause the scheduler through the gate (no pkill: the
     # daemon is another user's process). A run in flight finishes; nothing
-    # new starts until `resume schedules`.
+    # new starts until a person resumes it from zhen-cli.
     if q in ('emergency stop', 'stop all', 'kill all'):
         code, body = zhen_scheduler_client.call(ZHEN_AGENTD_URL, _agentd_headers(), 'pause', {'paused': True})
         if code == 200:
-            return {'answer': '**EMERGENCY STOP**: the scheduler is paused; no scheduled runbook starts until `resume schedules`. A run already in flight finishes (zhen-agentd caps it at 10 minutes).', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+            return {'answer': '**EMERGENCY STOP**: the scheduler is paused; no scheduled runbook starts until you resume it: `/schedule resume` in `zhen-cli`, then `/confirm <token>`. A run already in flight finishes (zhen-agentd caps it at 10 minutes).', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
         return {'answer': f'**EMERGENCY STOP FAILED** ({code}): {zhen_scheduler_client.reason(body)}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Trust level
@@ -2065,18 +2088,37 @@ CHAMPION_ALLOWED = [
     '/var/zhen/',
 ]
 CHAMPION_DENIED = ['.ssh', '.env', 'credentials', 'secrets', 'shadow', 'id_rsa', 'id_ed25519']
+CHAMPION_DENIED_SUFFIXES = ('.key', '.pem')
+
+
+def _champion_denied(path):
+    """The denied pattern in path, or None. Key material goes by file suffix,
+    and .git is a path component, so .gitignore stays readable."""
+    for denied in CHAMPION_DENIED:
+        if denied in path:
+            return denied
+    if path.lower().endswith(CHAMPION_DENIED_SUFFIXES):
+        return os.path.splitext(path)[1]
+    if '.git' in path.split(os.sep):
+        return '.git'
+    return None
+
 
 def champion_validate_path(path):
-    """Validate path is within sandbox. Returns (abs_path, error)."""
+    """Validate path is within sandbox, as given and as resolved, so a link
+    cannot lead a read out of it. Returns (real_path, error)."""
     if '..' in path:
         return None, 'Path traversal blocked'
     abs_path = os.path.abspath(os.path.expanduser(path))
-    for denied in CHAMPION_DENIED:
-        if denied in abs_path:
+    real_path = os.path.realpath(abs_path)
+    for candidate in (abs_path, real_path):
+        denied = _champion_denied(candidate)
+        if denied:
             return None, f'Path contains denied pattern: {denied}'
     for allowed in CHAMPION_ALLOWED:
-        if abs_path.startswith(os.path.abspath(allowed)):
-            return abs_path, None
+        root = os.path.realpath(os.path.expanduser(allowed))
+        if real_path.startswith(root + os.sep):
+            return real_path, None
     return None, 'Path outside sandbox'
 
 
@@ -2148,6 +2190,17 @@ RISK_REQUIRES_APPROVAL = {
     3: ['critical'],                               # Level 3: only critical needs approval
 }
 
+def _runbook_path(name):
+    """The file of a listed runbook, or None. A name is looked up, never put
+    into a pattern or a path, and a link out of the tree is not listed."""
+    import glob as g
+    root = os.path.realpath(RUNBOOKS_DIR)
+    for path in sorted(g.glob(os.path.join(g.escape(RUNBOOKS_DIR), '**', '*.yaml'), recursive=True)):
+        if os.path.splitext(os.path.basename(path))[0] == name:
+            return path if os.path.realpath(path).startswith(root + os.sep) else None
+    return None
+
+
 @app.route('/api/v1/runbooks', methods=['GET'])
 def list_runbooks():
     """List all available runbooks."""
@@ -2175,17 +2228,16 @@ def list_runbooks():
 @app.route('/api/v1/runbooks/<name>', methods=['GET'])
 def get_runbook(name):
     """Get runbook details by name."""
-    import glob as g
-    matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
-    if not matches:
+    rb_path = _runbook_path(name)
+    if not rb_path:
         return jsonify({'error': f'Runbook not found: {name}'}), 404
-    with open(matches[0]) as f:
+    with open(rb_path) as f:
         content = f.read()
     try:
         data = yaml.safe_load(content) if 'yaml' in sys.modules else {}
     except Exception:
         data = {}
-    return jsonify({'name': name, 'path': matches[0], 'content': content, 'parsed': data})
+    return jsonify({'name': name, 'path': rb_path, 'content': content, 'parsed': data})
 
 
 @app.route('/api/v1/trust', methods=['GET'])
@@ -2225,7 +2277,6 @@ def execute_runbook(name):
         reason:        explanation (when not-ok)
         pending_token: redeem at /api/v1/agent/confirm (when pending)
     """
-    import glob as g
     import urllib.error as _ue
     import urllib.request as _ur
 
@@ -2233,14 +2284,14 @@ def execute_runbook(name):
     dry_run = bool(data.get('dry_run', False))
     force = bool(data.get('force', False))
 
-    matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
-    if not matches:
+    rb_path = _runbook_path(name)
+    if not rb_path:
         return jsonify({'error': f'Runbook not found: {name}'}), 404
 
     # Front-end trust-level check (UX shaping; Champion is the real gate).
     if not dry_run and not force:
         try:
-            with open(matches[0]) as f:
+            with open(rb_path) as f:
                 rb_data = yaml.safe_load(f)
             risk = rb_data.get('metadata', {}).get('risk', 'medium')
             needs_approval = RISK_REQUIRES_APPROVAL.get(TRUST_LEVEL, [])
@@ -2257,7 +2308,6 @@ def execute_runbook(name):
     # Compute the runbook name argument the way Champion.RunbookExecute
     # expects it: "<category>/<runbook>" relative to the runbooks/ dir,
     # without the .yaml extension. e.g. "observe/service-health-sweep".
-    rb_path = matches[0]
     runbooks_root = os.path.realpath(RUNBOOKS_DIR)
     rb_real = os.path.realpath(rb_path)
     if not rb_real.startswith(runbooks_root + os.sep):
@@ -2265,11 +2315,12 @@ def execute_runbook(name):
     rel = os.path.relpath(rb_real, runbooks_root)
     rel = rel.removesuffix('.yaml')
 
-    # Hit the daemon's /api/v1/tool/exec endpoint. Default justification
-    # is direct-user (the operator clicked this in the browser); Champion's
-    # Rule 2 (untrusted-justification) is escaped by the direct-user trust
-    # label. Rules 1 (path) + 3 (destructive verb) still apply — Champion
-    # rejects runbook names with ".." or absolute paths regardless.
+    # Hit the daemon's /api/v1/tool/exec endpoint. The justification is
+    # direct-user (the operator clicked this in the browser). A dry run
+    # passes on it; a live run is held whatever it says, and the daemon
+    # answers with a pending_token. Rules 1 (path) + 3 (destructive verb)
+    # still apply — Champion rejects runbook names with ".." or absolute
+    # paths regardless.
     agentd_url = ZHEN_AGENTD_URL
     payload = {
         'tool': 'runbook_execute',

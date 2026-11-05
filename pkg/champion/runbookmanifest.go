@@ -89,9 +89,10 @@ type runbookDoc struct {
 		Status     string `yaml:"status"`
 		ApprovedBy string `yaml:"approved_by"`
 	} `yaml:"metadata"`
-	Steps        []runbookStep `yaml:"steps"`
-	Rollback     yaml.Node     `yaml:"rollback"` // a list, or {description, steps: [...]}
-	Verification []runbookStep `yaml:"verification"`
+	Preconditions []runbookStep `yaml:"preconditions"`
+	Steps         []runbookStep `yaml:"steps"`
+	Rollback      yaml.Node     `yaml:"rollback"` // a list, or {description, steps: [...]}
+	Verification  []runbookStep `yaml:"verification"`
 }
 
 type runbookStep struct {
@@ -99,6 +100,7 @@ type runbookStep struct {
 	Action  string `yaml:"action"` // "" means shell (run-runbook.py's default)
 	Command string `yaml:"command"`
 	Verify  string `yaml:"verify"`
+	Check   string `yaml:"check"` // a precondition's command; a verification's, when it has no command
 }
 
 func (d *runbookDoc) rollbackSteps() ([]runbookStep, error) {
@@ -135,12 +137,14 @@ func scanRunbook(body []byte) ([]string, error) {
 	for _, sec := range []struct {
 		name  string
 		steps []runbookStep
-	}{{"steps", d.Steps}, {"rollback", rb}, {"verification", d.Verification}} {
+	}{{"preconditions", d.Preconditions}, {"steps", d.Steps}, {"rollback", rb}, {"verification", d.Verification}} {
 		for _, s := range sec.steps {
-			if s.Action == "manual" {
+			// The runner prints a manual step and runs nothing, except in
+			// preconditions, where it reads no action at all.
+			if s.Action == "manual" && sec.name != "preconditions" {
 				continue
 			}
-			for _, text := range []string{s.Command, s.Verify} {
+			for _, text := range []string{s.Command, s.Verify, s.Check} {
 				if m := zhenrag.DestructivePattern.FindString(text); m != "" {
 					hits = append(hits, fmt.Sprintf("%s/%s: %q", sec.name, s.Name, m))
 				}

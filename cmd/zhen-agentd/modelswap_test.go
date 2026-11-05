@@ -78,10 +78,21 @@ func TestModelSwap_TimeoutRollsBack(t *testing.T) {
 
 	pool := newChampionPool(newMetricsActionStore(nopActionStore{}), nil)
 	srv := &server{pool: pool, defaultRoot: root, allowed: map[string]struct{}{root: {}}}
-	rec := as("stevie", srv.handleToolExec, http.MethodPost, "/api/v1/tool/exec", map[string]any{
-		"tool": "model_switch", "args": map[string]any{"key": "slow"}, "emitted_by": "zhen-cli",
-		"justification": []map[string]any{{"topic": "user-typed-model_switch", "source_trust": "direct-user"}},
-	})
+	// A swap is held for its person, and runs from the token.
+	swap := func(key string) *httptest.ResponseRecorder {
+		t.Helper()
+		rec := as("stevie", srv.handleToolExec, http.MethodPost, "/api/v1/tool/exec", map[string]any{
+			"tool": "model_switch", "args": map[string]any{"key": key}, "emitted_by": "zhen-cli",
+			"justification": []map[string]any{{"topic": "user-typed-model_switch", "source_trust": "direct-user"}},
+		})
+		var held toolExecResponse
+		_ = json.Unmarshal(rec.Body.Bytes(), &held)
+		if rec.Code != http.StatusForbidden || held.Status != "pending_confirmation" || held.PendingToken == "" {
+			t.Fatalf("swap to %s was not held: %d %+v", key, rec.Code, held)
+		}
+		return as("stevie", srv.handleConfirm, http.MethodPost, "/api/v1/agent/confirm", map[string]any{"token": held.PendingToken})
+	}
+	rec := swap("slow")
 	var resp toolExecResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	if rec.Code != http.StatusInternalServerError || resp.Status != "error" ||
@@ -106,10 +117,7 @@ func TestModelSwap_TimeoutRollsBack(t *testing.T) {
 
 	// A swap that comes up is observed as ok.
 	okBefore := metricValue(t, `zhen_model_swap_duration_seconds_count{key="fast",outcome="ok"}`)
-	rec = as("stevie", srv.handleToolExec, http.MethodPost, "/api/v1/tool/exec", map[string]any{
-		"tool": "model_switch", "args": map[string]any{"key": "fast"}, "emitted_by": "zhen-cli",
-		"justification": []map[string]any{{"topic": "user-typed-model_switch", "source_trust": "direct-user"}},
-	})
+	rec = swap("fast")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("swap to fast: %d %s", rec.Code, rec.Body.String())
 	}

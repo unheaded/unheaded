@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -180,7 +181,7 @@ func (c *Champion) ReadFile(ctx context.Context, path string) (string, error) {
 	}
 
 	// Read file
-	data, err := os.ReadFile(absPath) // #nosec G304 -- sandboxed path — validated by validatePath (no .., blocklist, allowed-prefix check)
+	data, err := readCapped(absPath)
 	if err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return "", fmt.Errorf("read file: %w", err)
@@ -191,6 +192,47 @@ func (c *Champion) ReadFile(ctx context.Context, path string) (string, error) {
 	c.completeAction(ctx, actionID, "completed", summary, "", time.Since(start))
 
 	return content, nil
+}
+
+// MaxReadBytes caps what one ReadFile returns. It is far past anything a
+// model can use and keeps a model file or a disk image out of memory.
+const MaxReadBytes = 16 << 20
+
+// ErrReadTooLarge means the file is over MaxReadBytes; none of it was returned.
+var ErrReadTooLarge = errors.New("file is too large to read")
+
+// readCapped reads a regular file of at most MaxReadBytes. The type is
+// checked before the open, so a fifo cannot block it, and the read is bounded
+// whatever the size said, so a file that grows cannot pass the cap.
+func readCapped(path string) ([]byte, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
+	if fi.Size() > MaxReadBytes {
+		return nil, fmt.Errorf("%w: %d bytes, cap %d", ErrReadTooLarge, fi.Size(), MaxReadBytes)
+	}
+	f, err := os.Open(path) // #nosec G304 -- sandboxed path, validated by validatePath (no .., blocklist, allowed-prefix check)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return readUpTo(f, MaxReadBytes)
+}
+
+// readUpTo reads r, stopping one byte past limit, however long r goes on.
+func readUpTo(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("%w: cap %d", ErrReadTooLarge, limit)
+	}
+	return data, nil
 }
 
 // validatePath checks if a path is within the sandbox.
@@ -239,6 +281,12 @@ func (c *Champion) validatePath(path string) error {
 			return fmt.Errorf("path resolves to a denied pattern: %s", denied)
 		}
 	}
+	if c.inProtectedTree(absPath) || c.inProtectedTree(resolved) {
+		return fmt.Errorf("path is in a protected tree (runbooks/, scripts/, .git or the schedule file): %s", absPath)
+	}
+	if keyMaterial(absPath) || keyMaterial(resolved) {
+		return fmt.Errorf("path is key material: %s", absPath)
+	}
 	for _, allowed := range c.config.AllowedPaths {
 		allowedAbs, _ := filepath.Abs(allowed)
 		allowedReal, err := realPath(allowedAbs)
@@ -250,6 +298,77 @@ func (c *Champion) validatePath(path string) error {
 		}
 	}
 	return fmt.Errorf("path resolves outside sandbox: %s -> %s", absPath, resolved)
+}
+
+// keyMaterial reports a private key or certificate file by its suffix.
+func keyMaterial(p string) bool {
+	ext := strings.ToLower(filepath.Ext(p))
+	return ext == ".key" || ext == ".pem"
+}
+
+// protectedTopDirs are the directories at a root that decide what runs on
+// the host: the runbooks and their manifest, and the scripts that run them.
+var protectedTopDirs = map[string]bool{"runbooks": true, "scripts": true}
+
+// protectedScheduleFile is zhen-agentd's default -schedules: the daemon reads
+// it at start, and it is a standing instruction like any other change to the
+// schedule.
+var protectedScheduleFile = filepath.Join("configs", "zhen-schedules.yaml")
+
+// inProtectedTree reports whether p lies in one of protectedTopDirs at the
+// project root, is protectedScheduleFile there, or lies in a .git at any
+// depth. No file tool reaches those, with
+// or without a confirmation: they change by commit, not by tool call. It does
+// not depend on Config.DeniedPaths, which a caller may replace, and the name
+// of a directory above a root means nothing.
+//
+// Under another allowed root, which may hold further checkouts, a protected
+// name counts at any depth. In a branch-sandbox worktree only .git counts:
+// nothing there runs on the host, and a draft runbook or a script change on a
+// zhen/<name> branch waits for Stevie's review (ADR-024, ADR-019 Level 2).
+func (c *Champion) inProtectedTree(p string) bool {
+	if rest, ok := underRoot(p, c.config.ProjectRoot); ok {
+		return protectedRel(rest, c.branchSandbox == nil, false)
+	}
+	for _, allowed := range c.config.AllowedPaths {
+		if rest, ok := underRoot(p, allowed); ok {
+			return protectedRel(rest, true, true)
+		}
+	}
+	return false
+}
+
+// underRoot returns p relative to root, as given or as resolved.
+func underRoot(p, root string) (string, bool) {
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", false
+	}
+	sep := string(filepath.Separator)
+	if rest, ok := strings.CutPrefix(p, strings.TrimSuffix(abs, sep)+sep); ok {
+		return rest, true
+	}
+	real, err := realPath(abs)
+	if err != nil {
+		return "", false
+	}
+	return strings.CutPrefix(p, strings.TrimSuffix(real, sep)+sep)
+}
+
+// protectedRel judges a root-relative path, component by component.
+func protectedRel(rel string, topDirs, anyDepth bool) bool {
+	if topDirs && (rel == protectedScheduleFile || (anyDepth && strings.HasSuffix(rel, string(filepath.Separator)+protectedScheduleFile))) {
+		return true
+	}
+	for i, part := range strings.Split(rel, string(filepath.Separator)) {
+		if strings.EqualFold(part, ".git") {
+			return true
+		}
+		if topDirs && (i == 0 || anyDepth) && protectedTopDirs[part] {
+			return true
+		}
+	}
+	return false
 }
 
 // realPath resolves symlinks in the deepest existing ancestor of an

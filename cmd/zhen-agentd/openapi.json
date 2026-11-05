@@ -140,7 +140,7 @@
     "/api/v1/scheduler/add": {
       "post": {
         "summary": "Add or replace a scheduled runbook job",
-        "description": "Schedules an approved runbook (status approved, or no status) on a cadence: <N>m or <N>h (5m..744h), daily@HH:MM, weekly@<sun..sat>@HH:MM. A bare runbook name resolves to its one category/name. Persists to -schedules-state. Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct caller sends a direct-user justification; an agent loop cannot.",
+        "description": "Schedules an approved runbook (status approved, or no status) on a cadence: <N>m or <N>h (5m..744h), daily@HH:MM, weekly@<sun..sat>@HH:MM. A bare runbook name resolves to its one category/name. Persists to -schedules-state. Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct-user justification gets a 403 with a pending_token, and the change happens when that token is redeemed at /api/v1/agent/confirm by the same principal; an agent loop gets no token.",
         "security": [
           {
             "ApiKey": []
@@ -250,7 +250,7 @@
     "/api/v1/scheduler/remove": {
       "post": {
         "summary": "Remove a scheduled job",
-        "description": "Removes a job from the live schedule (a job from the schedule file is recorded as removed in -schedules-state; the file is not written). Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct caller sends a direct-user justification; an agent loop cannot.",
+        "description": "Removes a job from the live schedule (a job from the schedule file is recorded as removed in -schedules-state; the file is not written). Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct-user justification gets a 403 with a pending_token, and the change happens when that token is redeemed at /api/v1/agent/confirm by the same principal; an agent loop gets no token.",
         "security": [
           {
             "ApiKey": []
@@ -348,7 +348,7 @@
     "/api/v1/scheduler/pause": {
       "post": {
         "summary": "Pause or resume every scheduled job",
-        "description": "The web UI's emergency stop. A paused scheduler still beats (zhen_scheduler_heartbeat_timestamp_seconds) and starts no job; a run in flight finishes. Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct caller sends a direct-user justification; an agent loop cannot.",
+        "description": "The web UI's emergency stop. A paused scheduler still beats (zhen_scheduler_heartbeat_timestamp_seconds) and starts no job; a run in flight finishes. Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: with a direct-user justification paused=true takes effect at once, and paused=false gets a 403 with a pending_token, redeemed at /api/v1/agent/confirm by the same principal; an agent loop can do neither.",
         "security": [
           {
             "ApiKey": []
@@ -811,6 +811,10 @@
           "401": {"description": "Auth required"},
           "403": {
             "description": "Gate refused even after confirm (destructive verb / path outside allowlist), the caller is not the principal the token was issued to, or the daemon runs without auth (no principal can confirm)",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ConfirmResponse"}}}
+          },
+          "500": {
+            "description": "The confirmed call ran and failed",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ConfirmResponse"}}}
           },
           "429": {"description": "Rate limit exceeded"}

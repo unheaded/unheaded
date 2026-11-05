@@ -341,6 +341,8 @@ func (s *session) handleSlash(line string) bool {
 		s.handleRemember(strings.TrimSpace(strings.TrimPrefix(line, parts[0])))
 	case "/confirm":
 		s.handleConfirm(parts[1:])
+	case "/schedule":
+		s.handleSchedule(parts[1:])
 	case "/model":
 		s.handleModel(parts[1:])
 	case "/teach":
@@ -361,7 +363,7 @@ func (s *session) handleSlash(line string) bool {
 //
 // All three runbook tools are routed through /api/v1/tool/exec, so
 // Champion's three-rule gate evaluates each call. runbook_execute is
-// the only mutating one — the daemon may respond with status
+// the only mutating one — a live run always comes back with status
 // "pending_confirmation" and a pending_token; the CLI surfaces both
 // and how to redeem it (/confirm <token>).
 func (s *session) handleRunbook(args []string) {
@@ -554,6 +556,10 @@ func (s *session) printHelp() {
 	fmt.Fprintln(s.w(), "  /remember [text]          store text as a note, or with no text the last exchange")
 	fmt.Fprintln(s.w(), "  /confirm <token>          run a call the gate held for confirmation")
 	fmt.Fprintln(s.w(), "  /teach <title> | <text>   queue text for the corpus; Stevie approves it at a terminal")
+	fmt.Fprintln(s.w(), "  /schedule add <name> <every> [runbook]")
+	fmt.Fprintln(s.w(), "  /schedule remove <name>   ask to change the schedule; /confirm <token> applies it")
+	fmt.Fprintln(s.w(), "  /schedule resume          ask to restart a paused scheduler; /confirm <token> applies it")
+	fmt.Fprintln(s.w(), "  /schedule pause           stop starting scheduled jobs, at once")
 	fmt.Fprintln(s.w(), "  /model                    list models (* = serving now)")
 	fmt.Fprintln(s.w(), "  /model <key>              swap llama-server to <key> (45 s to minutes; rolls back on timeout)")
 	fmt.Fprintln(s.w(), "  sessions are saved to the Well on exit unless --no-persist")

@@ -68,6 +68,11 @@ import (
 // Only direct callers (the web UI, emitted_by "direct" or a UI name) get
 // a pending_token for /api/v1/agent/confirm.
 //
+// A champion.AlwaysConfirmTools call (a live runbook, a schedule change, a
+// model swap) is refused pending confirmation whatever its justification,
+// direct-user included. A direct caller redeems the token; a model loop's
+// call is denied, since only champion.ConfirmableTools reach the queue.
+//
 // A champion.QueueOnlyTools call (teach_write) goes to the queue whoever
 // asked, zhen-cli's direct-user included, with no token ever; without the
 // queue it is denied. zhen-agentd never runs one: it has no taught dir.

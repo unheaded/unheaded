@@ -170,7 +170,7 @@ curl -sN -X POST http://127.0.0.1:20111/api/v1/agent/ask/stream \
 
 ### `POST /api/v1/agent/confirm`
 
-Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec` response from the direct-user UI, or from `/api/v1/agent/ask` under `-ask-tokens` (look for `Trace[i].pending_token`). The bound tool call is re-run with Rule 2 (untrusted justification) suppressed; Rules 1 (path-allowlist) and 3 (destructive verb) still fire — users can authorize an external source, they cannot authorize destruction.
+Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec` response from the direct-user UI, or from `/api/v1/agent/ask` under `-ask-tokens` (look for `Trace[i].pending_token`). This is also the only route to a live `runbook_execute`, a `schedule_update` other than a pause, and a `model_switch`, which Rule 2 holds whatever their justification. The bound tool call is re-run with Rule 2 (untrusted justification) suppressed; Rules 1 (path-allowlist) and 3 (destructive verb) still fire — users can authorize an external source, they cannot authorize destruction.
 
 **Request body**:
 
@@ -195,7 +195,7 @@ Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec`
 
 - `GET /api/v1/memory/recall?q=<text>&k=<1..20>` → `{"memories":[{"id","question","answer","source","model","created_at","score"}]}`, ranked by Postgres full-text search over `unheaded_app.zhen_memories`. `source` is the provenance: the principal that wrote the row (`ui:<subject>`), or `user` for rows the web app wrote. 503 without `-memory-store pg`.
 - `POST /api/v1/memory/remember` `{"question","answer","model","emitted_by"}` → the `/api/v1/tool/exec` shapes. Runs the mutating Champion tool `memory_write`: an authenticated caller's request carries a direct-user justification, Rule 3 refuses destructive verbs in the text (16 KiB cap per field), and a request with no authenticated principal is refused (a token it got could never be confirmed).
-- `GET /api/v1/models` → `scripts/switch-model.sh --json --status` under `-project-root`: the key llama-server serves and the allowlisted keys with their documented load times. A swap is `POST /api/v1/tool/exec` `{"tool":"model_switch","args":{"key":...}}`; it gets 4x the key's documented load time plus the GPU lease wait (`GPU_LEASE_TIMEOUT`, default 60 s here), then the previous model is started again (ADR-060 T19).
+- `GET /api/v1/models` → `scripts/switch-model.sh --json --status` under `-project-root`: the key llama-server serves and the allowlisted keys with their documented load times. A swap is `POST /api/v1/tool/exec` `{"tool":"model_switch","args":{"key":...}}`, held for a person: it answers with a `pending_token` for `/api/v1/agent/confirm`. It gets 4x the key's documented load time plus the GPU lease wait (`GPU_LEASE_TIMEOUT`, default 60 s here), then the previous model is started again (ADR-060 T19).
 
 ## Flags
 

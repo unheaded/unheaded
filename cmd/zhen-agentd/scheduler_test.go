@@ -4,8 +4,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +15,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -35,6 +38,7 @@ type fakeSchedChampion struct {
 	calls    []champion.ToolCall
 	cards    map[string]map[string]any
 	noKanban bool
+	standing bool // inside DispatchStanding
 }
 
 func newFakeSchedChampion() *fakeSchedChampion {
@@ -77,6 +81,9 @@ func (f *fakeSchedChampion) Dispatch(_ context.Context, tc champion.ToolCall) (a
 		}
 		return nil, nil
 	case "runbook_execute":
+		if !f.standing {
+			return nil, errors.New("runbook_execute held: a scheduled run goes through DispatchStanding")
+		}
 		name, _ := tc.Args["name"].(string)
 		if err := f.errs[name]; err != nil {
 			return nil, err
@@ -84,6 +91,20 @@ func (f *fakeSchedChampion) Dispatch(_ context.Context, tc champion.ToolCall) (a
 		return &champion.RunbookExecuteResult{Name: name, ExitCode: f.exits[name], Output: "step ok\nverification: 0/1 passed\n"}, nil
 	}
 	return nil, errors.New("unexpected tool " + tc.Name)
+}
+
+// DispatchStanding is the real Champion's split: only this route runs a
+// live runbook, as Dispatch would hold it.
+func (f *fakeSchedChampion) DispatchStanding(ctx context.Context, tc champion.ToolCall) (any, error) {
+	f.mu.Lock()
+	f.standing = true
+	f.mu.Unlock()
+	defer func() {
+		f.mu.Lock()
+		f.standing = false
+		f.mu.Unlock()
+	}()
+	return f.Dispatch(ctx, tc)
 }
 
 func (f *fakeSchedChampion) RunbookShow(_ context.Context, name string) (string, error) {
@@ -527,8 +548,58 @@ func TestScheduler_WellDownKeepsTheRunInMemory(t *testing.T) {
 	}
 }
 
+// The gate itself, not a fake: a scheduled job still runs its runbook, and
+// the same call from a model loop does not, whatever it cites.
+func TestScheduler_StandingJobRunsPastTheHoldAModelLoopDoesNot(t *testing.T) {
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 not installed")
+	}
+	srv, root := toolExecServer(t, nil)
+	body := []byte("metadata:\n  name: sweep\nsteps: []\n")
+	marker := filepath.Join(root, "ran")
+	sum := sha256.Sum256(body)
+	for p, b := range map[string][]byte{
+		"runbooks/observe/sweep.yaml": body,
+		"runbooks/MANIFEST.sha256":    []byte(hex.EncodeToString(sum[:]) + "  observe/sweep.yaml\n"),
+		"scripts/run-runbook.py":      []byte("open(" + strconv.Quote(marker) + ", 'a').write('x')\n"),
+	} {
+		full := filepath.Join(root, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	champ, err := srv.pool.get(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := newScheduler(context.Background(), schedulerConfig{Champion: champ, Path: writeSchedules(t, "version: 1\njobs: []\n"),
+		Runs: zhenagent.NewMemStore(), Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, resp := postToolExec(t, srv, map[string]any{"tool": "runbook_execute", "args": map[string]any{"name": "observe/sweep"}, "emitted_by": "zhen-agent",
+		"justification": []map[string]any{{"topic": "t", "source_trust": "canonical"}}})
+	if code == http.StatusOK || resp.PendingToken != "" {
+		t.Fatalf("a model loop's runbook_execute: %d %+v", code, resp)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("a model loop ran a runbook")
+	}
+	if err := s.execute(context.Background(), dueJob{name: "sweep", runbook: "observe/sweep"}, s.refs("sweep")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("the scheduled job did not run: %v", err)
+	}
+}
+
 // The HTTP surface: add/remove/pause go through the Champion gate as
-// schedule_update; list reads the schedule; without -scheduler they 503.
+// schedule_update; add, remove and resume are held for a person, while
+// pausing stays immediate; list reads the schedule; without -scheduler they
+// 503.
 func TestSchedulerEndpoints(t *testing.T) {
 	srv, root := toolExecServer(t, nil)
 	if err := os.MkdirAll(filepath.Join(root, "runbooks", "observe"), 0o700); err != nil {
@@ -538,12 +609,22 @@ func TestSchedulerEndpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	post := func(path string, body map[string]any) (int, map[string]any) {
-		b, _ := json.Marshal(body)
-		rec := httptest.NewRecorder()
-		srv.schedulerMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, bytes.NewReader(b)))
+		rec := as("stevie", srv.schedulerMux().ServeHTTP, http.MethodPost, path, body)
 		var out map[string]any
 		_ = json.Unmarshal(rec.Body.Bytes(), &out)
 		return rec.Code, out
+	}
+	confirmed := func(path string, body map[string]any) (int, map[string]any) {
+		t.Helper()
+		code, out := post(path, body)
+		tok, _ := out["pending_token"].(string)
+		if code != http.StatusForbidden || out["status"] != "pending_confirmation" || tok == "" {
+			t.Fatalf("%s was not held: %d %v", path, code, out)
+		}
+		rec := as("stevie", srv.handleConfirm, http.MethodPost, "/api/v1/agent/confirm", map[string]any{"token": tok})
+		var res map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &res)
+		return rec.Code, res
 	}
 	if code, _ := post("/api/v1/scheduler/list", nil); code != http.StatusServiceUnavailable {
 		t.Errorf("list without -scheduler: %d", code)
@@ -572,7 +653,7 @@ func TestSchedulerEndpoints(t *testing.T) {
 	if len(s.view().Jobs) != 0 {
 		t.Fatal("a refused add changed the schedule")
 	}
-	if code, out := post("/api/v1/scheduler/add", map[string]any{"name": "service-health-sweep", "every": "1h", "emitted_by": "zhen-web-ui", "justification": directUserRefs()}); code != http.StatusOK || out["status"] != "ok" {
+	if code, out := confirmed("/api/v1/scheduler/add", map[string]any{"name": "service-health-sweep", "every": "1h", "emitted_by": "zhen-web-ui", "justification": directUserRefs()}); code != http.StatusOK || out["status"] != "ok" {
 		t.Fatalf("direct-user add: %d %v", code, out)
 	}
 	code, out := post("/api/v1/scheduler/list", nil)
@@ -586,7 +667,25 @@ func TestSchedulerEndpoints(t *testing.T) {
 	if code, out := post("/api/v1/scheduler/pause", map[string]any{"paused": true, "justification": directUserRefs()}); code != http.StatusOK || !s.view().Paused {
 		t.Errorf("pause: %d %v", code, out)
 	}
-	if code, out := post("/api/v1/scheduler/remove", map[string]any{"name": "service-health-sweep", "justification": directUserRefs()}); code != http.StatusOK || len(s.view().Jobs) != 0 {
+	if code, out := confirmed("/api/v1/scheduler/pause", map[string]any{"paused": false, "justification": directUserRefs()}); code != http.StatusOK || s.view().Paused {
+		t.Errorf("resume: %d %v", code, out)
+	}
+	// zhen-cli's /schedule reaches the same tool through /api/v1/tool/exec.
+	if code, out := post("/api/v1/scheduler/pause", map[string]any{"paused": true, "justification": directUserRefs()}); code != http.StatusOK || !s.view().Paused {
+		t.Fatalf("pause: %d %v", code, out)
+	}
+	rec := as("stevie", srv.handleToolExec, http.MethodPost, "/api/v1/tool/exec", map[string]any{
+		"tool": "schedule_update", "args": map[string]any{"op": "pause", "paused": false}, "emitted_by": "zhen-cli", "justification": directUserRefs(),
+	})
+	var held toolExecResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &held)
+	if rec.Code != http.StatusForbidden || held.Status != "pending_confirmation" || held.PendingToken == "" || !s.view().Paused {
+		t.Fatalf("a resume through tool/exec was not held: %d %+v", rec.Code, held)
+	}
+	if rec := as("stevie", srv.handleConfirm, http.MethodPost, "/api/v1/agent/confirm", map[string]any{"token": held.PendingToken}); rec.Code != http.StatusOK || s.view().Paused {
+		t.Fatalf("confirming the resume: %d %s", rec.Code, rec.Body.String())
+	}
+	if code, out := confirmed("/api/v1/scheduler/remove", map[string]any{"name": "service-health-sweep", "justification": directUserRefs()}); code != http.StatusOK || len(s.view().Jobs) != 0 {
 		t.Errorf("remove: %d %v", code, out)
 	}
 	if code, _ := post("/api/v1/scheduler/add", map[string]any{"name": "x", "every": "1h", "command": "id", "justification": directUserRefs()}); code != http.StatusBadRequest {

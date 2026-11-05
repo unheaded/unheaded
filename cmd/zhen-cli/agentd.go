@@ -195,13 +195,16 @@ func (s *session) handleConfirm(args []string) {
 		s.warn("/confirm <token>")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	// A confirmed model swap or runbook outlives the session client's
+	// timeout; this request gets its own, bounded by ctx.
+	ctx, cancel := context.WithTimeout(context.Background(), modelSwitchTimeout)
 	defer cancel()
+	long := &http.Client{Transport: s.client.Transport}
 	var resp struct {
 		toolExecResponse
 		errorBody
 	}
-	code, err := s.agentdJSON(ctx, s.client, http.MethodPost, "/api/v1/agent/confirm", map[string]string{"token": args[0]}, &resp)
+	code, err := s.agentdJSON(ctx, long, http.MethodPost, "/api/v1/agent/confirm", map[string]string{"token": args[0]}, &resp)
 	if err != nil {
 		s.errf("/confirm: %v", err)
 		return
@@ -211,6 +214,35 @@ func (s *session) handleConfirm(args []string) {
 		return
 	}
 	s.printToolExecResponse("confirm", &resp.toolExecResponse)
+}
+
+// handleSchedule: /schedule add|remove|pause|resume → the tool
+// schedule_update through /api/v1/tool/exec. Pausing takes effect at once;
+// the rest come back held, and /confirm <token> applies them.
+func (s *session) handleSchedule(args []string) {
+	usage := "/schedule add <name> <every> [runbook] | remove <name> | pause | resume"
+	var call map[string]any
+	switch {
+	case len(args) == 1 && args[0] == "pause":
+		call = map[string]any{"op": "pause", "paused": true}
+	case len(args) == 1 && args[0] == "resume":
+		call = map[string]any{"op": "pause", "paused": false}
+	case len(args) == 2 && args[0] == "remove":
+		call = map[string]any{"op": "remove", "name": args[1]}
+	case len(args) == 3 && args[0] == "add":
+		call = map[string]any{"op": "add", "name": args[1], "every": args[2]}
+	case len(args) == 4 && args[0] == "add":
+		call = map[string]any{"op": "add", "name": args[1], "every": args[2], "runbook": args[3]}
+	default:
+		s.warn(usage)
+		return
+	}
+	resp, err := s.toolExec("schedule_update", call)
+	if err != nil {
+		s.errf("/schedule: %v", err)
+		return
+	}
+	s.printToolExecResponse("schedule_update", resp)
 }
 
 type modelInfo struct {
@@ -265,14 +297,11 @@ func (s *session) handleModel(args []string) {
 		s.warn("/model <key>  (a key from /model)")
 		return
 	}
-	s.dim(fmt.Sprintf("zhen-cli: swapping llama-server to %s; chat is down until it is healthy.", key))
-	ctx, cancel := context.WithTimeout(context.Background(), modelSwitchTimeout)
+	s.dim(fmt.Sprintf("zhen-cli: asking to swap llama-server to %s; once confirmed, chat is down until it is healthy.", key))
+	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
-	// The swap outlives the session client's timeout; this request gets
-	// its own, bounded by ctx.
-	long := &http.Client{Transport: s.client.Transport}
 	var resp toolExecResponse
-	if _, err := s.agentdJSON(ctx, long, http.MethodPost, "/api/v1/tool/exec", s.toolExecBody("model_switch", map[string]any{"key": key}), &resp); err != nil {
+	if _, err := s.agentdJSON(ctx, s.client, http.MethodPost, "/api/v1/tool/exec", s.toolExecBody("model_switch", map[string]any{"key": key}), &resp); err != nil {
 		s.errf("/model: %v", err)
 		return
 	}

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"unheaded/pkg/audit"
 	"unheaded/pkg/audit/storage"
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/sandbox"
 	"unheaded/pkg/zhenagent"
 )
 
@@ -82,7 +82,7 @@ var openReviewAudit = func(ctx context.Context) (func(ev *audit.AuditEvent) erro
 
 // reviewGit runs git for the review subcommand. A variable for tests.
 var reviewGit = func(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...).CombinedOutput() // #nosec G204 -- fixed binary; ids validated, no shell
+	return sandbox.HostGit(ctx, dir, args...).CombinedOutput()
 }
 
 func reviewUsage(stderr io.Writer) {

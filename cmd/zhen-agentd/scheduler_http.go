@@ -24,7 +24,9 @@ import (
 // add, remove and pause are the mutating tool schedule_update and take
 // exactly /api/v1/tool/exec's path (justification required, an agent
 // loop's direct-user stripped, its call queued or denied), so a model
-// cannot schedule anything. list is read-only. Without -scheduler they
+// cannot schedule anything. add, remove and resume answer with a
+// pending_token for /api/v1/agent/confirm; pausing takes effect at once
+// (the stop control). list is read-only. Without -scheduler they
 // answer 503.
 
 // schedulerOps are the args each change op takes from the body.

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -18,6 +17,7 @@ import (
 
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/gpulease"
+	"unheaded/pkg/sandbox"
 	"unheaded/pkg/zhenagent"
 	"unheaded/pkg/zhenroute"
 )
@@ -36,7 +36,12 @@ import (
 // Zhenai with Zhen-* trailers, moves the card to review and writes a
 // review note outside the repository. Nothing is ever pushed; git hooks
 // are not run on model-written code (--no-verify: the sandboxed check is
-// the judge, and a hook would run it unsandboxed).
+// the judge, and a hook would run it unsandboxed). A sandboxed check can
+// write the worktree, so all git here is sandbox.HostGit, and the worktree's
+// .git is recorded before the run and must match after it, with no other
+// .git below it. If not, the run fails, no git touches that worktree again,
+// and what the run left is moved where git will not read it for a person
+// either.
 
 // Outcomes of one runOnce.
 const (
@@ -143,9 +148,7 @@ type cardResult struct {
 }
 
 func execGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...) // #nosec G204 -- fixed binary; argv built by the worker from validated values, no shell
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0")
-	out, err := cmd.CombinedOutput()
+	out, err := sandbox.HostGit(ctx, dir, args...).CombinedOutput()
 	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if len(msg) > 400 {
@@ -436,9 +439,10 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 	// is cancelled (SIGTERM mid-card).
 	bg := context.WithoutCancel(ctx)
 
+	refused := false // the worktree's .git changed: no git in it again
 	end := func(status, reason string, infra bool, o claudebridge.RouteOutcome, head string, changed int) cardResult {
 		res.Infra, res.Route, res.Reason = infra, o, reason
-		res.ReviewNote = w.writeNote(bg, c, spec, run, wt, status, reason, o, head, res.Artefacts)
+		res.ReviewNote = w.writeNote(bg, c, spec, run, wt, refused, status, reason, o, head, res.Artefacts)
 		if err := w.cfg.Store.Finish(bg, run.ID, zhenagent.Outcome{Status: status, HeadCommit: head, Summary: summaryOf(o, res.ReviewNote, changed),
 			ClaudeNanoUSD: int64(o.Cost), Error: reason}); err != nil {
 			log.Error("worker_finish", "error", err.Error())
@@ -480,10 +484,24 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 	if _, err := w.cfg.Git(ctx, w.cfg.Repo, "worktree", "add", "-b", run.Branch, wt, run.BaseCommit); err != nil {
 		return end(zhenagent.StatusFailed, "worktree: "+err.Error(), true, claudebridge.RouteOutcome{}, "", 0)
 	}
+	gitLink, err := sandbox.RecordGitLink(wt)
+	if err != nil {
+		return end(zhenagent.StatusFailed, "worktree: "+err.Error(), true, claudebridge.RouteOutcome{}, "", 0)
+	}
 	o, rerr := w.cfg.Runner.Run(ctx, zhenroute.Task{
 		Family: spec.Family, Prompt: cardPrompt(c, spec), Worktree: wt, AgentRoot: w.cfg.AgentRoot,
 		Check: spec.Check, CheckPath: spec.Path, ContextPath: contextDir(spec.Path), MaxClaudeUSD: spec.MaxClaudeUSD,
 	})
+	if err := sandbox.CheckGitLink(wt, gitLink); err != nil {
+		refused = true
+		log.Warn("worker_worktree_refused", "error", err.Error())
+		quarantine, qerr := sandbox.QuarantineGit(wt, gitLink)
+		if qerr != nil {
+			log.Error("worker_quarantine", "error", qerr.Error())
+		}
+		log.Info("worker_quarantined", "path", quarantine)
+		return end(zhenagent.StatusFailed, "refused: "+err.Error(), false, o, "", 0)
+	}
 	if ctx.Err() != nil || (w.cfg.Stop != nil && w.cfg.Stop()) {
 		w.dropUncommitted(bg, run, wt)
 		return end(zhenagent.StatusCancelled, "stopped mid-card; nothing committed", false, o, "", 0)
