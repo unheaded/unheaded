@@ -3414,9 +3414,9 @@ func readLocalDisks() []DiskInfo {
 		if err := statfs(abs, &stat); err != nil {
 			continue
 		}
-		total := stat.Blocks * uint64(stat.Bsize)         // #nosec G115 -- bounded by construction; see the surrounding guard
-		free := stat.Bavail * uint64(stat.Bsize)          // #nosec G115 -- bounded by construction; see the surrounding guard
-		used := total - (stat.Bfree * uint64(stat.Bsize)) // #nosec G115 -- bounded by construction; see the surrounding guard
+		total := stat.Blocks * uint64(stat.Bsize)         // #nosec G115 -- statfs block size, positive
+		free := stat.Bavail * uint64(stat.Bsize)          // #nosec G115 -- statfs block size, positive
+		used := total - (stat.Bfree * uint64(stat.Bsize)) // #nosec G115 -- statfs block size, positive
 		var pct float64
 		if total > 0 {
 			pct = float64(used) / float64(total) * 100
@@ -3439,9 +3439,9 @@ func readLocalDisks() []DiskInfo {
 		}
 		var stat syscallStatfs
 		if err := statfs(root, &stat); err == nil && stat.Blocks > 0 {
-			total := stat.Blocks * uint64(stat.Bsize)         // #nosec G115 -- bounded by construction; see the surrounding guard
-			free := stat.Bavail * uint64(stat.Bsize)          // #nosec G115 -- bounded by construction; see the surrounding guard
-			used := total - (stat.Bfree * uint64(stat.Bsize)) // #nosec G115 -- bounded by construction; see the surrounding guard
+			total := stat.Blocks * uint64(stat.Bsize)         // #nosec G115 -- statfs block size, positive
+			free := stat.Bavail * uint64(stat.Bsize)          // #nosec G115 -- statfs block size, positive
+			used := total - (stat.Bfree * uint64(stat.Bsize)) // #nosec G115 -- statfs block size, positive
 			var pct float64
 			if total > 0 {
 				pct = float64(used) / float64(total) * 100

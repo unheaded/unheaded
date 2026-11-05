@@ -184,7 +184,7 @@ func (fb *FlowBuilder) GC(nowNs uint64) int {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
 
-	ttlNs := uint64(fb.config.TTL.Nanoseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
+	ttlNs := uint64(fb.config.TTL.Nanoseconds()) // #nosec G115 -- a configured TTL, positive and far below 292 years
 	removed := 0
 	for fl, flow := range fb.flows {
 		if nowNs-flow.StartNs > ttlNs {

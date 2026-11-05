@@ -235,7 +235,7 @@ func (fc *FlowCorrelator) GC(nowNs uint64) int {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
 
-	ttlNs := uint64(fc.ttl.Nanoseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
+	ttlNs := uint64(fc.ttl.Nanoseconds()) // #nosec G115 -- a configured TTL, positive and far below 292 years
 	removed := 0
 	for fl, rec := range fc.flows {
 		if olderThan(nowNs, rec.StartNs, ttlNs) {

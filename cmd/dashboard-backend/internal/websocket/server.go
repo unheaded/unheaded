@@ -621,7 +621,7 @@ func (s *Server) readFrame(r *bufio.Reader) (byte, []byte, error) {
 	}
 
 	// Check message size
-	if length > uint64(s.config.MaxMessageSize) { // #nosec G115 -- UNFS inode field; bounded by the filesystem image size
+	if length > uint64(s.config.MaxMessageSize) { // #nosec G115 -- the operator's positive frame limit
 		return 0, nil, errors.New("message too large")
 	}
 

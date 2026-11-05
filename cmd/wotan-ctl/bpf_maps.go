@@ -107,7 +107,7 @@ func (m *BPFMap) Update(key interface{}, value interface{}) error {
 // updateElem performs the BPF_MAP_UPDATE_ELEM syscall.
 func (m *BPFMap) updateElem(key, value []byte) error {
 	attr := bpfMapUpdateAttr{
-		mapFd: uint32(m.fd),              // #nosec G115 -- bounded by construction; see the surrounding guard
+		mapFd: uint32(m.fd),              // #nosec G115 -- an open fd, small and non-negative
 		key:   unsafe.Pointer(&key[0]),   // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 		value: unsafe.Pointer(&value[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 		flags: 0,                         // BPF_ANY (overwrite existing or create new)
@@ -143,7 +143,7 @@ func (m *BPFMap) Lookup(key interface{}) ([]byte, bool, error) {
 	value := make([]byte, 8)
 
 	attr := bpfMapLookupAttr{
-		mapFd: uint32(m.fd),                 // #nosec G115 -- bounded by construction; see the surrounding guard
+		mapFd: uint32(m.fd),                 // #nosec G115 -- an open fd, small and non-negative
 		key:   unsafe.Pointer(&keyBytes[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 		value: unsafe.Pointer(&value[0]),    // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
@@ -172,10 +172,10 @@ func encodeValue(v interface{}) ([]byte, error) {
 		binary.LittleEndian.PutUint64(buf[:], val)
 		return buf[:], nil
 	case int32:
-		binary.LittleEndian.PutUint32(buf[:4], uint32(val)) // #nosec G115 -- kernel/netlink ABI field width
+		binary.LittleEndian.PutUint32(buf[:4], uint32(val)) // #nosec G115 -- a signed value's two's-complement bits, as the map stores them
 		return buf[:4], nil
 	case int64:
-		binary.LittleEndian.PutUint64(buf[:], uint64(val)) // #nosec G115 -- kernel/netlink ABI field width
+		binary.LittleEndian.PutUint64(buf[:], uint64(val)) // #nosec G115 -- a signed value's two's-complement bits, as the map stores them
 		return buf[:], nil
 	case []byte:
 		return val, nil

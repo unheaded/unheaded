@@ -61,7 +61,7 @@ func (s *flowServer) listMock() (*pb.FlowListResponse, error) {
 
 	return &pb.FlowListResponse{
 		Flows: flows,
-		Total: int32(len(flows)), // #nosec G115 -- bounded by the length of an already-allocated slice
+		Total: int32(len(flows)), // #nosec G115 -- a count of flows; the map holds far fewer than int32
 	}, nil
 }
 
@@ -73,7 +73,7 @@ func (s *flowServer) listBPF() (*pb.FlowListResponse, error) {
 	}
 	return &pb.FlowListResponse{
 		Flows: flows,
-		Total: int32(len(flows)), // #nosec G115 -- bounded by the length of an already-allocated slice
+		Total: int32(len(flows)), // #nosec G115 -- a count of flows; the map holds far fewer than int32
 	}, nil
 }
 

@@ -207,7 +207,7 @@ func NewTLV(tlvType TLVType, value []byte) (*TLV, error) {
 	}
 	return &TLV{
 		Type:   tlvType,
-		Length: uint8(len(value)), // #nosec G115 -- bounded by the length of an already-allocated slice
+		Length: uint8(len(value)), // #nosec G115 -- at most 255, refused above
 		Value:  value,
 	}, nil
 }

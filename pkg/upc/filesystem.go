@@ -140,7 +140,7 @@ func AddFileWithType(fs []uint32, name string, data []byte, mode uint32, fileTyp
 	// Calculate blocks needed for data
 	blocksNeeded := uint32(0)
 	if len(data) > 0 {
-		blocksNeeded = (uint32(len(data)) + UNFSBlockSize - 1) / UNFSBlockSize // #nosec G115 -- bounded by the length of an already-allocated slice
+		blocksNeeded = (uint32(len(data)) + UNFSBlockSize - 1) / UNFSBlockSize // #nosec G115 -- a file for a small UNFS image, far below 4 GiB
 	}
 
 	if blocksNeeded > sb.FreeBlks {
@@ -155,7 +155,7 @@ func AddFileWithType(fs []uint32, name string, data []byte, mode uint32, fileTyp
 
 	// Build inode
 	inode := Inode{
-		Size:       uint32(len(data)), // #nosec G115 -- bounded by the length of an already-allocated slice
+		Size:       uint32(len(data)), // #nosec G115 -- a file for a small UNFS image, far below 4 GiB
 		Mode:       mode,
 		BlockStart: blockStart,
 		BlockCount: blocksNeeded,

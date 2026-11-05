@@ -1626,7 +1626,7 @@ func parseELFFile(f *elf.File) (*parsedELF, error) {
 			}
 			section := f.Sections[sym.Section]
 			if section.Name == ".text" {
-				result.FuncSizes[sym.Value] = int(sym.Size) // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
+				result.FuncSizes[sym.Value] = int(sym.Size) // #nosec G115 -- a wrapped size is negative, and appendSubprogram refuses it
 			}
 		}
 
@@ -1658,8 +1658,8 @@ func parseELFFile(f *elf.File) (*parsedELF, error) {
 			}
 			sectionFuncs[section.Name] = append(sectionFuncs[section.Name], funcEntry{
 				name:   sym.Name,
-				offset: int(sym.Value), // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
-				size:   int(sym.Size),  // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
+				offset: int(sym.Value), // #nosec G115 -- a wrapped value fails the slice below, and recoverELF makes that a parse error
+				size:   int(sym.Size),  // #nosec G115 -- a wrapped value fails the slice below, and recoverELF makes that a parse error
 			})
 		}
 
@@ -1692,10 +1692,10 @@ func parseELFFile(f *elf.File) (*parsedELF, error) {
 				// Filter relocations for this function's range
 				var subRelocs []elfRelocation
 				for _, r := range origRelocs {
-					if r.Offset >= uint64(fn.offset) && r.Offset < uint64(fn.offset+fn.size) { // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+					if r.Offset >= uint64(fn.offset) && r.Offset < uint64(fn.offset+fn.size) { // #nosec G115 -- fn.offset and size passed the slice above, so both are non-negative
 						// Adjust offset relative to function start
 						adjusted := r
-						adjusted.Offset -= uint64(fn.offset) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+						adjusted.Offset -= uint64(fn.offset) // #nosec G115 -- fn.offset passed the slice above, so it is non-negative
 						subRelocs = append(subRelocs, adjusted)
 					}
 				}
@@ -1922,7 +1922,7 @@ func resolveMapNames(f *elf.File, mapSection *elf.Section, defSize int, result *
 
 		// Symbol's Value is the byte offset within the section.
 		// Dividing by defSize gives the map index matching map_N naming.
-		mapIdx := int(sym.Value) / defSize // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
+		mapIdx := int(sym.Value) / defSize // #nosec G115 -- only names a map to look up; a wrapped value finds none
 		genericName := fmt.Sprintf("map_%d", mapIdx)
 
 		mapDef, ok := result.Maps[genericName]
@@ -1960,7 +1960,7 @@ func findFuncSize(parsed *parsedELF, funcOff uint64) int {
 	}
 	for i := int(funcOff); i+8 <= len(data); i += 8 { // #nosec G115 -- funcOff < len(data), checked above
 		if data[i] == 0x95 { // BPF_EXIT
-			return i + 8 - int(funcOff) // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
+			return i + 8 - int(funcOff) // #nosec G115 -- funcOff < len(data), checked above
 		}
 	}
 	return 0
@@ -2129,7 +2129,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 			continue
 		}
 		// .rodata sections become BPF_MAP_TYPE_ARRAY with BPF_F_RDONLY_PROG
-		dataLen := uint32(len(prog.Instructions)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+		dataLen := uint32(len(prog.Instructions)) // #nosec G115 -- a section length; the kernel refuses a value size it cannot hold
 		if dataLen == 0 {
 			continue
 		}
@@ -2381,7 +2381,7 @@ func (l *NativeLoader) applyRelocations(insns []byte, relocs []elfRelocation,
 		// anything above MaxInt64 — which then compares as "in bounds" and
 		// panics on the indexing below. Comparing the offset directly against
 		// a bounded right-hand side cannot overflow.
-		if len(insns) < 8 || reloc.Offset > uint64(len(insns)-8) { // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+		if len(insns) < 8 || reloc.Offset > uint64(len(insns)-8) { // #nosec G115 -- len(insns) >= 8 is checked first on this line
 			return fmt.Errorf("relocation offset %d out of bounds (insns %d bytes)", reloc.Offset, len(insns))
 		}
 		if reloc.Offset%8 != 0 {
@@ -2883,7 +2883,7 @@ func (l *NativeLoader) attachXDPNetlink(loaded *loadedProgram, ifIndex int) erro
 	fdAttr.Len = xdpFDAttrLen
 	fdAttr.Type = IFLA_XDP_FD
 	offset += 4
-	binary.LittleEndian.PutUint32(buf[offset:], uint32(loaded.fd)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+	binary.LittleEndian.PutUint32(buf[offset:], uint32(loaded.fd)) // #nosec G115 -- an open fd, small and non-negative
 	offset += 4
 
 	// Write XDP_FLAGS attribute
@@ -3013,7 +3013,7 @@ func (l *NativeLoader) attachTCX(loaded *loadedProgram, ifIndex int) (int, error
 
 	attr := linkCreateAttr{
 		ProgFD:      uint32(loaded.fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
-		TargetIfIdx: uint32(ifIndex),   // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
+		TargetIfIdx: uint32(ifIndex),   // #nosec G115 -- an interface index, positive
 		AttachType:  attachType,
 	}
 
@@ -3078,7 +3078,7 @@ func (l *NativeLoader) createClsactQdisc(sock int, ifIndex int) error {
 
 	// Write nlmsghdr
 	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
-	nlh.Len = uint32(totalLen)                  // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+	nlh.Len = uint32(totalLen)                  // #nosec G115 -- a message of a few dozen bytes, sized above
 	nlh.Type = RTM_NEWQDISC
 	nlh.Flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL
 	nlh.Seq = 2
@@ -3137,7 +3137,7 @@ func (l *NativeLoader) addTCBPFFilter(sock int, loaded *loadedProgram, ifIndex i
 	bpfFDAttr := make([]byte, 8)
 	binary.LittleEndian.PutUint16(bpfFDAttr[0:], 8)
 	binary.LittleEndian.PutUint16(bpfFDAttr[2:], TCA_BPF_FD)
-	binary.LittleEndian.PutUint32(bpfFDAttr[4:], uint32(loaded.fd)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+	binary.LittleEndian.PutUint32(bpfFDAttr[4:], uint32(loaded.fd)) // #nosec G115 -- an open fd, small and non-negative
 
 	bpfFlagsAttr := make([]byte, 8)
 	binary.LittleEndian.PutUint16(bpfFlagsAttr[0:], 8)
@@ -3153,7 +3153,7 @@ func (l *NativeLoader) addTCBPFFilter(sock int, loaded *loadedProgram, ifIndex i
 
 	// Write nlmsghdr
 	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
-	nlh.Len = uint32(totalLen)                  // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+	nlh.Len = uint32(totalLen)                  // #nosec G115 -- a message of a few dozen bytes, sized above
 	nlh.Type = 44                               // RTM_NEWTFILTER
 	nlh.Flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL
 	nlh.Seq = 3
@@ -3176,7 +3176,7 @@ func (l *NativeLoader) addTCBPFFilter(sock int, loaded *loadedProgram, ifIndex i
 
 	// Write TCA_OPTIONS attribute (nested)
 	optNla := (*nlAttr)(unsafe.Pointer(&buf[offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
-	optNla.Len = uint16(4 + optionsLen)               // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
+	optNla.Len = uint16(4 + optionsLen)               // #nosec G115 -- two 8-byte attributes
 	optNla.Type = TCA_OPTIONS | 0x8000                // NLA_F_NESTED
 	offset += 4
 	copy(buf[offset:], bpfFDAttr)
@@ -4362,7 +4362,7 @@ func loadKernelBTF(path string) (int, error) {
 	// Load BTF into kernel
 	attr := bpfBTFLoadAttr{
 		BTF:     unsafe.Pointer(&data[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
-		BTFSize: uint32(len(data)),        // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+		BTFSize: uint32(len(data)),        // #nosec G115 -- a BTF blob of a few MiB; the kernel caps it lower than u32
 	}
 
 	// #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
