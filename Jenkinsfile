@@ -25,7 +25,6 @@ pipeline {
   }
 
   environment {
-    GO_VERSION = '1.24'
     GOFLAGS = '-v -mod=readonly'
     CGO_ENABLED = '0'
     REGISTRY = 'ghcr.io'
@@ -80,7 +79,7 @@ pipeline {
             script {
               echo "=== Running golangci-lint ==="
               sh '''
-                go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+                go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
                 golangci-lint run ./... --timeout=5m
                 echo "Lint passed"
               '''
@@ -155,7 +154,7 @@ pipeline {
             script {
               echo "=== Running govulncheck ==="
               sh '''
-                go install golang.org/x/vuln/cmd/govulncheck@latest
+                go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
                 govulncheck ./...
               '''
             }
@@ -166,9 +165,10 @@ pipeline {
             script {
               echo "=== Running gosec ==="
               sh '''
-                go install github.com/securego/gosec/v2/cmd/gosec@latest
-                gosec -fmt json -out gosec-report.json ./... || true
-                gosec -fmt text ./...
+                GOSEC_BIN="$(mktemp -d)/gosec"
+                go -C tools/gosec build -o "$GOSEC_BIN" github.com/securego/gosec/v2/cmd/gosec
+                "$GOSEC_BIN" -fmt json -out gosec-report.json ./... || true
+                "$GOSEC_BIN" -fmt text ./...
               '''
             }
           }
@@ -200,7 +200,7 @@ pipeline {
         script {
           echo "=== Running license compliance checks ==="
           sh '''
-            go install github.com/google/go-licenses@latest
+            go install github.com/google/go-licenses@v1.6.0
             go-licenses check ./... --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC
             echo "Go license check passed"
           '''

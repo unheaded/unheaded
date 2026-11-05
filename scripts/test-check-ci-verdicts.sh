@@ -18,8 +18,12 @@ FAILED=0
 
 ci_verdict_fresh_copy() {
 	rm -rf "${WORK}/tree"
-	mkdir -p "${WORK}/tree/.github"
+	mkdir -p "${WORK}/tree/.github" "${WORK}/tree/scripts/lib" "${WORK}/tree/nix/yggdrasil"
 	cp -r "${REPO_ROOT}/.github/workflows" "${WORK}/tree/.github/workflows"
+	cp -r "${REPO_ROOT}/jenkins" "${WORK}/tree/jenkins"
+	cp "${REPO_ROOT}/Jenkinsfile" "${REPO_ROOT}/Makefile" "${WORK}/tree/"
+	cp "${REPO_ROOT}/nix/yggdrasil/Jenkinsfile" "${WORK}/tree/nix/yggdrasil/"
+	cp "${REPO_ROOT}/scripts/lib/tool-pins.sh" "${WORK}/tree/scripts/lib/"
 }
 
 # $1 label, $2 the rule name the gate must print, $3 file, $4 sed expression.
@@ -94,6 +98,28 @@ ci_verdict_expect_bite "the vuln gate reads HIGH no more" trivy "${SEC}" \
 	'/severity: CRITICAL,HIGH$/{N;s/CRITICAL,HIGH(\n +ignore-unfixed)/CRITICAL\1/}'
 ci_verdict_expect_bite "the listener check replaced by a note" auth-listeners "${SEC}" \
 	's/run: \.\/scripts\/check-http-auth\.sh/run: echo manual review the servers/'
+
+echo "--- tool fetches (L22) ---"
+ci_verdict_expect_bite "@latest in a workflow" tool-fetch "${SEC}" \
+	's/(govulncheck)@v[0-9.]+/\1@latest/'
+ci_verdict_expect_bite "@latest in the Jenkinsfile" tool-fetch "Jenkinsfile" \
+	's/(go-licenses)@v[0-9.]+/\1@latest/'
+ci_verdict_expect_bite "@latest in jenkins/vars" tool-fetch "jenkins/vars/unheadedPipeline.groovy" \
+	's/(govulncheck)@v[0-9.]+/\1@latest/'
+ci_verdict_expect_bite "a bare cargo install" tool-fetch "${SEC}" \
+	's/cargo install cargo-audit@[0-9.]+ --locked/cargo install cargo-audit/'
+ci_verdict_expect_bite "cargo install without --locked" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's/(cargo install cargo-audit@[0-9.]+) --locked/\1/'
+ci_verdict_expect_bite "an install whose failure is swallowed" tool-fetch ".github/workflows/gpl-boundary.yml" \
+	's/(cargo install cargo-license@[0-9.]+ --locked)/\1 || true/'
+ci_verdict_expect_bite "two versions of one tool" tool-fetch "${SEC}" \
+	's/(govulncheck)@v[0-9.]+/\1@v1.8.0/'
+ci_verdict_expect_bite "an install script read from a branch" tool-fetch "jenkins/Jenkinsfile.security" \
+	's#aquasecurity/trivy/v[0-9.]+/#aquasecurity/trivy/main/#'
+ci_verdict_expect_bite "the trivy pin moved, Jenkins did not" tool-fetch "scripts/lib/tool-pins.sh" \
+	's/^TRIVY_VERSION="[^"]+"/TRIVY_VERSION="0.1.0"/'
+ci_verdict_expect_bite "a Go version nothing reads" tool-fetch "Jenkinsfile" \
+	"s/^( +)GOFLAGS = /\1GO_VERSION = '1.24'\n\1GOFLAGS = /"
 
 echo
 echo "passed: ${PASSED}  failed: ${FAILED}"

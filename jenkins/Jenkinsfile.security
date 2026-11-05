@@ -21,7 +21,6 @@ pipeline {
   }
 
   environment {
-    GO_VERSION = '1.24'
   }
 
   stages {
@@ -42,7 +41,7 @@ pipeline {
         script {
           echo "=== govulncheck ==="
           sh '''
-            go install golang.org/x/vuln/cmd/govulncheck@latest
+            go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
             govulncheck ./... || EXIT_CODE=$?
             echo "Exit code: ${EXIT_CODE:-0}"
           '''
@@ -55,9 +54,10 @@ pipeline {
         script {
           echo "=== gosec ==="
           sh '''
-            go install github.com/securego/gosec/v2/cmd/gosec@latest
-            gosec -fmt json -out gosec-report.json ./... || true
-            gosec -fmt text ./...
+            GOSEC_BIN="$(mktemp -d)/gosec"
+            go -C tools/gosec build -o "$GOSEC_BIN" github.com/securego/gosec/v2/cmd/gosec
+            "$GOSEC_BIN" -fmt json -out gosec-report.json ./... || true
+            "$GOSEC_BIN" -fmt text ./...
           '''
         }
       }
@@ -81,7 +81,7 @@ pipeline {
         script {
           echo "=== Trivy Filesystem Scan ==="
           sh '''
-            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.76.1/contrib/install.sh | sh -s -- -b /usr/local/bin v0.76.1
             trivy fs \
               --format json \
               --output trivy-fs-report.json \

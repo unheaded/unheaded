@@ -33,7 +33,7 @@ jobs:
 
       - name: Run govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           govulncheck ./...
 
       # ADR-101: every migration is routed by db/migrations/MANIFEST (or
@@ -252,7 +252,7 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        run: cargo install cargo-audit@0.22.1 --locked
 
       # Discover workspaces rather than listing them. The previous version
       # hardcoded ebpf, cmd/trace-collector and crates/monad-mbc — so

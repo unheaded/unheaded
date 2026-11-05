@@ -164,11 +164,62 @@ def auth_listeners():
                 if "manual review" in str(s.get("run", "")).lower():
                     bad("auth-listeners", f"{path} {name}: a step ends in a note for a person, not a verdict")
 
+# L22. What CI fetches and runs is decided in the repo, not by whatever was
+# newest that day. @latest, a bare `cargo install`, an install whose failure is
+# swallowed and an install script read from a branch all let it move unseen.
+CI_FILES = sorted(glob.glob(".github/workflows/*.yml") + glob.glob("jenkins/Jenkinsfile.*")
+                  + glob.glob("jenkins/vars/*.groovy") + ["Jenkinsfile", "nix/yggdrasil/Jenkinsfile", "Makefile"])
+FETCH_MODULE = re.compile(r"\bgo (?:install|run) ([a-z0-9.-]+\.[a-z]+/\S+?)@(\S+)")
+CARGO_INSTALL = re.compile(r"\bcargo install (?:--\S+ )*([A-Za-z0-9_-]+)(@\S+)?(.*)")
+CURL_TO_SHELL = re.compile(r"\bcurl\b.*\|\s*(?:sudo\s+)?(?:sh|bash)\b")
+
+def trivy_pin():
+    with open("scripts/lib/tool-pins.sh", encoding="utf-8") as f:
+        m = re.search(r'^TRIVY_VERSION="([^"]+)"', f.read(), re.M)
+    if not m:
+        bad("tool-fetch", "no TRIVY_VERSION in scripts/lib/tool-pins.sh")
+    return m.group(1) if m else ""
+
+def tool_fetches():
+    seen = {}
+    trivy = trivy_pin()
+    for path in CI_FILES:
+        with open(path, encoding="utf-8") as f:
+            for n, line in enumerate(f, 1):
+                text = line.strip()
+                if text.startswith(("#", "//")):
+                    continue
+                text = re.split(r"\s#\s", text, maxsplit=1)[0]
+                where = f"{path}:{n}"
+                for mod, version in FETCH_MODULE.findall(text):
+                    if not re.fullmatch(r"v\d+\.\d+\.\d+", version.rstrip(")\"'")):
+                        bad("tool-fetch", f"{where}: {mod}@{version} is not an exact version")
+                    seen.setdefault(mod, {}).setdefault(version.rstrip(")\"'"), []).append(where)
+                m = CARGO_INSTALL.search(text)
+                if m:
+                    crate, version, rest = m.group(1), m.group(2), m.group(3)
+                    if not version or not re.fullmatch(r"@\d+\.\d+\.\d+", version) or "--locked" not in rest:
+                        bad("tool-fetch", f"{where}: `cargo install {crate}` needs @<version> and --locked")
+                    else:
+                        seen.setdefault(crate, {}).setdefault(version[1:], []).append(where)
+                    if "|| true" in rest:
+                        bad("tool-fetch", f"{where}: `cargo install {crate}` swallows its failure")
+                if CURL_TO_SHELL.search(text):
+                    pin = f"/v{trivy}/"
+                    if "aquasecurity/trivy" not in text or pin not in text or text.rstrip(")").split()[-1] != f"v{trivy}":
+                        bad("tool-fetch", f"{where}: a script piped to a shell is not at the pinned tag and version")
+                if re.match(r"GO_VERSION\s*=", text):
+                    bad("tool-fetch", f"{where}: GO_VERSION is read by nothing; the agent image sets Go")
+    for tool, versions in sorted(seen.items()):
+        if len(versions) > 1:
+            bad("tool-fetch", f"{tool}: more than one version in CI: {sorted(versions)}")
+
 security_gate()
 history_scan()
 bpf_linker()
 trivy_steps()
 auth_listeners()
+tool_fetches()
 
 if problems:
     print("\n".join(f"[FAIL] {p}" for p in problems))

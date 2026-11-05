@@ -82,7 +82,7 @@ pipeline {
           echo "=== Vulnerability Scanning ==="
           sh '''
             # Install Trivy if not present
-            which trivy || (curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin)
+            which trivy || (curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.76.1/contrib/install.sh | sh -s -- -b /usr/local/bin v0.76.1)
 
             # Scan Wotan image
             trivy image \
