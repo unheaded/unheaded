@@ -244,15 +244,15 @@ func (p *Provider) readCrash(in readCrashInput) (zhentools.Result, error) {
 	if !within(crashDir, filepath.Join(crashDir, in.CrashID)) {
 		return zhentools.Result{IsError: true, Text: "crash path escapes the results tree"}, nil
 	}
-	data, err := readCrashFile(crashDir, in.CrashID)
+	crashes, err := p.openCrashes(resultsDir)
+	var data []byte
+	if err == nil {
+		defer func() { _ = crashes.Close() }()
+		data, err = readCrashFile(crashes, in.CrashID)
+	}
 	if err != nil {
 		// List what is available to help the caller.
-		avail, _ := filepath.Glob(filepath.Join(resultsDir, "crashes", "*"))
-		names := make([]string, 0, len(avail))
-		for _, a := range avail {
-			names = append(names, filepath.Base(a))
-		}
-		return zhentools.Result{IsError: true, Text: fmt.Sprintf("crash %q not found; available: %v", in.CrashID, names)}, nil
+		return zhentools.Result{IsError: true, Text: fmt.Sprintf("crash %q not found; available: %v", in.CrashID, crashNames(crashes))}, nil
 	}
 	sum := sha256.Sum256(data)
 	dump := data
@@ -264,27 +264,50 @@ func (p *Provider) readCrash(in readCrashInput) (zhentools.Result, error) {
 		in.CrashID, len(data), hex.EncodeToString(sum[:]), len(dump), hex.EncodeToString(dump))}, nil
 }
 
-// readCrashFile reads the regular file name directly in dir. dir must be a
-// real directory; os.Root keeps the read inside it, links included.
-func readCrashFile(dir, name string) ([]byte, error) {
-	if fi, err := os.Lstat(dir); err != nil {
-		return nil, err
-	} else if !fi.IsDir() {
-		return nil, fmt.Errorf("%s is not a directory", dir)
-	}
-	root, err := os.OpenRoot(dir)
+// openCrashes opens <resultsDir>/crashes by way of the results tree, so a link
+// at any level can lead nowhere outside that tree.
+func (p *Provider) openCrashes(resultsDir string) (*os.Root, error) {
+	base := p.cfg.ResultsDirAbs()
+	rel, err := filepath.Rel(base, resultsDir)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = root.Close() }()
-	fi, err := root.Lstat(name)
+	tree, err := os.OpenRoot(base)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tree.Close() }()
+	return tree.OpenRoot(filepath.Join(rel, "crashes"))
+}
+
+// readCrashFile reads the regular file name directly in crashes.
+func readCrashFile(crashes *os.Root, name string) ([]byte, error) {
+	fi, err := crashes.Lstat(name)
 	if err != nil {
 		return nil, err
 	}
 	if !fi.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s is not a regular file", name)
 	}
-	return root.ReadFile(name)
+	return crashes.ReadFile(name)
+}
+
+// crashNames lists crashes, or nothing when it could not be opened.
+func crashNames(crashes *os.Root) []string {
+	if crashes == nil {
+		return nil
+	}
+	dir, err := crashes.Open(".")
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = dir.Close() }()
+	names, err := dir.Readdirnames(-1)
+	if err != nil {
+		return nil
+	}
+	sort.Strings(names)
+	return names
 }
 
 // --- lich_triage (crash-triage.sh in the sandbox) ------------------------
