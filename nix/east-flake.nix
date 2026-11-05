@@ -262,7 +262,7 @@ with lib;
     configuration = {
       clients = [
         {
-          url = "http://fd00:dead:beef::1:3100/loki/api/v1/push";
+          url = "http://[fd00:dead:beef::1]:3100/loki/api/v1/push";
         }
       ];
       scrape_configs = [
@@ -332,7 +332,7 @@ with lib;
   # Remote write to WEST (configure after Phase 4)
   # services.prometheus.remoteWrite = [
   #   {
-  #     url = "http://fd00:dead:beef::1:9009/api/v1/write";
+  #     url = "http://[fd00:dead:beef::1]:9009/api/v1/write";
   #   }
   # ];
 

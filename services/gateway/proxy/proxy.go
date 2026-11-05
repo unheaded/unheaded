@@ -200,12 +200,13 @@ func (p *ReverseProxy) proxyRequest(w http.ResponseWriter, r *http.Request, back
 
 	// Copy headers
 	copyHeaders(outReq.Header, r.Header)
+	dropForwardingHeaders(outReq.Header)
 
 	// Add proxy headers
 	clientIP := middleware.ClientIP(r, p.trustedProxies)
 	outReq.Header.Set("X-Forwarded-For", clientIP)
 	outReq.Header.Set("X-Forwarded-Host", r.Host)
-	outReq.Header.Set("X-Forwarded-Proto", getScheme(r))
+	outReq.Header.Set("X-Forwarded-Proto", getScheme(r, p.trustedProxies))
 	outReq.Header.Set("X-Real-IP", clientIP)
 
 	// Inject tracing headers
@@ -299,6 +300,16 @@ func singleJoiningSlash(a, b string) string {
 	return a + b
 }
 
+// dropForwardingHeaders removes every forwarding header the client sent, so
+// what a backend hears about the client is only what the gateway states.
+func dropForwardingHeaders(h http.Header) {
+	for k := range h {
+		if k == "Forwarded" || strings.HasPrefix(k, "X-Forwarded-") {
+			delete(h, k)
+		}
+	}
+}
+
 // copyHeaders copies headers from src to dst.
 func copyHeaders(dst, src http.Header) {
 	for k, vv := range src {
@@ -327,12 +338,13 @@ func isHopByHopHeader(header string) bool {
 	return hopByHopHeaders[header]
 }
 
-// getScheme returns the request scheme.
-func getScheme(r *http.Request) string {
+// getScheme is the scheme the client used: https if the gateway ended TLS
+// itself, otherwise what a trusted proxy says, otherwise http.
+func getScheme(r *http.Request, trusted map[string]bool) string {
 	if r.TLS != nil {
 		return "https"
 	}
-	if scheme := r.Header.Get("X-Forwarded-Proto"); scheme != "" {
+	if scheme := middleware.ForwardedProto(r, trusted); scheme != "" {
 		return scheme
 	}
 	return "http"
