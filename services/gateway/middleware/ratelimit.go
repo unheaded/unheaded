@@ -181,10 +181,7 @@ func TrustedProxySet(addrs []string) map[string]bool {
 // X-Forwarded-For, X-Real-IP stands. Anything that does not parse ends the
 // walk at the last address known good.
 func ClientIP(r *http.Request, trusted map[string]bool) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
+	host := peerHost(r)
 	if !trusted[host] {
 		return host
 	}
@@ -204,6 +201,31 @@ func ClientIP(r *http.Request, trusted map[string]bool) string {
 	}
 	if ip := net.ParseIP(r.Header.Get("X-Real-IP")); ip != nil {
 		return ip.String()
+	}
+	return host
+}
+
+// ForwardedProto is the scheme a trusted proxy says the client used, http or
+// https, or "" when there is no such word: the direct peer is not trusted, or
+// the nearest entry is not one of the two. Several header lines are one list,
+// and as in ClientIP only the nearest entry is the proxy's own.
+func ForwardedProto(r *http.Request, trusted map[string]bool) string {
+	if !trusted[peerHost(r)] {
+		return ""
+	}
+	xfp := strings.Join(r.Header.Values("X-Forwarded-Proto"), ",")
+	nearest := strings.ToLower(strings.TrimSpace(xfp[strings.LastIndexByte(xfp, ',')+1:]))
+	if nearest == "http" || nearest == "https" {
+		return nearest
+	}
+	return ""
+}
+
+// peerHost is the address of r's direct peer, without its port.
+func peerHost(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
 	}
 	return host
 }
