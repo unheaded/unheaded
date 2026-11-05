@@ -115,15 +115,10 @@ func (x *XDPSync) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	x.registerRoutes(mux)
 
-	// A separate port for the XDP sync service (Firewall is 19010). The API
-	// takes writes and has no authentication, so it listens on loopback only,
-	// and on an ephemeral loopback port when the fixed one is taken.
-	ln, err := net.Listen("tcp", ports.LoopbackAddr(ports.Firewall+100)) // 19110 as a convention
+	// A separate port for the XDP sync service (Firewall is 19010).
+	ln, err := listenLoopback(ports.Firewall + 100) // 19110 as a convention
 	if err != nil {
-		ln, err = net.Listen("tcp", ports.LoopbackAddr(0))
-		if err != nil {
-			return fmt.Errorf("xdpsync: listen: %w", err)
-		}
+		return fmt.Errorf("xdpsync: listen: %w", err)
 	}
 	x.listener = ln
 
@@ -144,6 +139,17 @@ func (x *XDPSync) Start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+// listenLoopback listens on port, or on an ephemeral port when that one is
+// taken. The API takes writes and has no authentication, so either way it is
+// on loopback only.
+func listenLoopback(port int) (net.Listener, error) {
+	ln, err := net.Listen("tcp", ports.LoopbackAddr(port))
+	if err != nil {
+		return net.Listen("tcp", ports.LoopbackAddr(0))
+	}
+	return ln, nil
 }
 
 // Stop gracefully shuts down the service.

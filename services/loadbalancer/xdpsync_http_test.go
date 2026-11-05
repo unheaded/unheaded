@@ -724,32 +724,66 @@ func TestHTTPIntegration(t *testing.T) {
 }
 
 // The API takes writes and has no authentication, so it must not listen off
-// the host, on the fixed port or when that port is taken.
+// the host.
 func TestStart_ListensOnLoopbackOnly(t *testing.T) {
-	check := func(t *testing.T) {
-		t.Helper()
-		svc := newTestSvc()
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		if err := svc.Start(ctx); err != nil {
-			t.Fatalf("Start: %v", err)
-		}
-		defer func() { _ = svc.Stop() }()
-		host, _, err := net.SplitHostPort(svc.Addr())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
-			t.Fatalf("listening on %s, want loopback only", svc.Addr())
-		}
+	svc := newTestSvc()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
 	}
-	t.Run("fixed port", check)
-	t.Run("port taken", func(t *testing.T) {
-		held, err := net.Listen("tcp", ports.LoopbackAddr(ports.Firewall+100))
-		if err != nil {
-			t.Skipf("cannot hold the fixed port: %v", err)
-		}
-		defer held.Close()
-		check(t)
-	})
+	defer func() { _ = svc.Stop() }()
+	assertLoopback(t, svc.Addr())
+}
+
+// Nor when the wanted port is taken. The port is one this test holds, so the
+// fallback runs every time, whatever else is on the host.
+func TestListenLoopback_FallbackStaysOnLoopback(t *testing.T) {
+	held, err := net.Listen("tcp", ports.LoopbackAddr(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	port := held.Addr().(*net.TCPAddr).Port
+	ln, err := listenLoopback(port)
+	if err != nil {
+		t.Fatalf("listenLoopback: %v", err)
+	}
+	defer ln.Close()
+	if got := ln.Addr().(*net.TCPAddr).Port; got == port {
+		t.Fatalf("listening on the held port %d", got)
+	}
+	assertLoopback(t, ln.Addr().String())
+}
+
+// The wanted port is used when it is free.
+func TestListenLoopback_UsesTheWantedPort(t *testing.T) {
+	probe, err := net.Listen("tcp", ports.LoopbackAddr(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := probe.Addr().(*net.TCPAddr).Port
+	if err := probe.Close(); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := listenLoopback(port)
+	if err != nil {
+		t.Fatalf("listenLoopback: %v", err)
+	}
+	defer ln.Close()
+	if got := ln.Addr().(*net.TCPAddr).Port; got != port {
+		t.Fatalf("listening on %d, want %d", got, port)
+	}
+	assertLoopback(t, ln.Addr().String())
+}
+
+func assertLoopback(t *testing.T, addr string) {
+	t.Helper()
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+		t.Fatalf("listening on %s, want loopback only", addr)
+	}
 }
