@@ -112,10 +112,9 @@ The Doom path took a year of hard debugging. Highlights live in [Doom's lessons]
 
 ## Building + running
 
-Full guide: `docs/doom/DOOM-BUILD-GUIDE.md` in `unheaded-doom`. Short form:
+Full guide: `docs/doom/DOOM-BUILD-GUIDE.md` in `unheaded-doom`. Short form, from an `unheaded-doom` checkout:
 
 ```bash
-cd ~/tmp/unheaded
 cd demos/doom
 make    # builds doom.elf → doom.mbc + doom.rv2mbc + doom.data
 

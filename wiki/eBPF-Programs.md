@@ -72,7 +72,7 @@ The baseline is kernel-specific: on another kernel `check-ebpf-insns.sh` exits 2
 
 - **Aya/aya-ebpf**: MIT / Apache-2.0
 - **cilium/ebpf**: Apache-2.0
-- **Doom engine** (id Software linuxdoom-1.10): GPL-2.0, compiled from a checkout outside the repo by `demos/doom/Makefile` into `doom.elf` for the UPC ([[SBOM]])
+- **Doom engine** (id Software linuxdoom-1.10): GPL-2.0, compiled from a checkout outside the repo by `demos/doom/Makefile` in `unheaded-doom` into `doom.elf` for the UPC ([[SBOM]])
 
 See [LICENSES/THIRD_PARTY.md](../LICENSES/THIRD_PARTY.md) for full attribution.
 
