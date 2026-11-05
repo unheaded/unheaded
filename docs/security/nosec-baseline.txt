@@ -39,7 +39,6 @@ cmd/dashboard-backend/internal/websocket/server.go 3
 cmd/dashboard-backend/main.go 1
 cmd/demo-trace-injector/main.go 12
 cmd/depaudit/main.go 1
-cmd/gjallarhorn-sender/main.go 1
 cmd/healthprobe/main.go 2
 cmd/heimdall-daemon/main.go 7
 cmd/huginn/config.go 1
