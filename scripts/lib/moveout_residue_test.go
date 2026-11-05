@@ -49,7 +49,6 @@ var moveoutGone = []struct {
 	{"cmd/dashboard-backend/static/compliance.html", `:16666|>Doom<`},
 	{"cmd/kanban-app/static/index.html", `:16666|>Doom<`},
 	{"raft/static/index.html", `:16666|>Doom<`},
-	{"cmd/wiki-server/main.go", `:16666|>Doom<`},
 	{"raft/DEMO_CHECKLIST.md", `# 4\. Verify\n` + "```"},
 	{"raft/DEMO_CHECKLIST.md", `All 10 tests`},
 	{"raft/DEMO_CHECKLIST.md", `04_integration_tests`},
