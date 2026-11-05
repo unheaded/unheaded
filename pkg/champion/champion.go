@@ -220,12 +220,17 @@ func readCapped(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, MaxReadBytes+1))
+	return readUpTo(f, MaxReadBytes)
+}
+
+// readUpTo reads r, stopping one byte past limit, however long r goes on.
+func readUpTo(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > MaxReadBytes {
-		return nil, fmt.Errorf("%w: cap %d", ErrReadTooLarge, MaxReadBytes)
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("%w: cap %d", ErrReadTooLarge, limit)
 	}
 	return data, nil
 }
@@ -277,7 +282,7 @@ func (c *Champion) validatePath(path string) error {
 		}
 	}
 	if c.inProtectedTree(absPath) || c.inProtectedTree(resolved) {
-		return fmt.Errorf("path is in a protected tree (runbooks/, scripts/ or .git): %s", absPath)
+		return fmt.Errorf("path is in a protected tree (runbooks/, scripts/, .git or the schedule file): %s", absPath)
 	}
 	if keyMaterial(absPath) || keyMaterial(resolved) {
 		return fmt.Errorf("path is key material: %s", absPath)
@@ -305,8 +310,14 @@ func keyMaterial(p string) bool {
 // the host: the runbooks and their manifest, and the scripts that run them.
 var protectedTopDirs = map[string]bool{"runbooks": true, "scripts": true}
 
+// protectedScheduleFile is zhen-agentd's default -schedules: the daemon reads
+// it at start, and it is a standing instruction like any other change to the
+// schedule.
+var protectedScheduleFile = filepath.Join("configs", "zhen-schedules.yaml")
+
 // inProtectedTree reports whether p lies in one of protectedTopDirs at the
-// project root, or in a .git at any depth. No file tool reaches those, with
+// project root, is protectedScheduleFile there, or lies in a .git at any
+// depth. No file tool reaches those, with
 // or without a confirmation: they change by commit, not by tool call. It does
 // not depend on Config.DeniedPaths, which a caller may replace, and the name
 // of a directory above a root means nothing.
@@ -346,6 +357,9 @@ func underRoot(p, root string) (string, bool) {
 
 // protectedRel judges a root-relative path, component by component.
 func protectedRel(rel string, topDirs, anyDepth bool) bool {
+	if topDirs && (rel == protectedScheduleFile || (anyDepth && strings.HasSuffix(rel, string(filepath.Separator)+protectedScheduleFile))) {
+		return true
+	}
 	for i, part := range strings.Split(rel, string(filepath.Separator)) {
 		if strings.EqualFold(part, ".git") {
 			return true

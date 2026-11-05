@@ -139,7 +139,9 @@ func scanRunbook(body []byte) ([]string, error) {
 		steps []runbookStep
 	}{{"preconditions", d.Preconditions}, {"steps", d.Steps}, {"rollback", rb}, {"verification", d.Verification}} {
 		for _, s := range sec.steps {
-			if s.Action == "manual" {
+			// The runner prints a manual step and runs nothing, except in
+			// preconditions, where it reads no action at all.
+			if s.Action == "manual" && sec.name != "preconditions" {
 				continue
 			}
 			for _, text := range []string{s.Command, s.Verify, s.Check} {

@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -206,6 +208,33 @@ func TestReadFile_NilStore(t *testing.T) {
 
 // L7: read_file reads a regular file of at most MaxReadBytes, and refuses
 // anything else before it reads a byte past the cap.
+// countingZeros never ends, and counts what was taken from it.
+type countingZeros struct{ n int64 }
+
+func (z *countingZeros) Read(p []byte) (int, error) {
+	if z.n > 1<<20 {
+		return 0, errors.New("read far past the limit")
+	}
+	clear(p)
+	z.n += int64(len(p))
+	return len(p), nil
+}
+
+// A file that grows past what its size said cannot pass the cap: the read
+// stops there, whatever is left.
+func TestReadUpTo_StopsAtTheLimit(t *testing.T) {
+	z := &countingZeros{}
+	if _, err := readUpTo(z, 1024); !errors.Is(err, ErrReadTooLarge) {
+		t.Fatalf("err = %v", err)
+	}
+	if z.n != 1025 {
+		t.Errorf("took %d bytes for a limit of 1024", z.n)
+	}
+	if got, err := readUpTo(strings.NewReader("abc"), 3); err != nil || string(got) != "abc" {
+		t.Errorf("at the limit: %q, %v", got, err)
+	}
+}
+
 func TestReadFile_Limits(t *testing.T) {
 	root := t.TempDir()
 	c, err := New(Config{ProjectRoot: root}, &mockStore{})
@@ -231,6 +260,8 @@ func TestReadFile_Limits(t *testing.T) {
 	_ = f.Close()
 	if got, err := c.ReadFile(ctx, huge); !errors.Is(err, ErrReadTooLarge) || got != "" {
 		t.Fatalf("a huge file: %d bytes, %v", len(got), err)
+	} else if !strings.Contains(err.Error(), strconv.FormatInt(9<<30, 10)) {
+		t.Errorf("a huge file was read, not refused on its size: %v", err)
 	}
 	if _, err := c.ReadFile(ctx, root); err == nil {
 		t.Fatal("read a directory")

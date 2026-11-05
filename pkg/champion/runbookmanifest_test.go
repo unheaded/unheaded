@@ -337,7 +337,9 @@ func TestCommittedManifest_IsFresh(t *testing.T) {
 func TestScanRunbook_ReadsPreconditionsAndChecks(t *testing.T) {
 	for name, body := range map[string]string{
 		"precondition": "preconditions:\n  - check: rm -rf /srv/x\n    description: d\nsteps: []\n",
-		"verification": "steps: []\nverification:\n  - name: v\n    check: rm -rf /srv/x\n",
+		// The runner reads no action on a precondition: it runs the check.
+		"manual precondition": "preconditions:\n  - check: rm -rf /srv/x\n    action: manual\nsteps: []\n",
+		"verification":        "steps: []\nverification:\n  - name: v\n    check: rm -rf /srv/x\n",
 	} {
 		hits, err := scanRunbook([]byte(body))
 		if err != nil {

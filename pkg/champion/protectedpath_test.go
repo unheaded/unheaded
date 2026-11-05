@@ -18,7 +18,7 @@ func TestValidatePath_ProtectedTrees(t *testing.T) {
 	root := c.GetProjectRoot()
 	for _, rel := range []string{
 		"runbooks", "runbooks/infra/x.yaml", "runbooks/" + RunbookManifestFile,
-		"scripts", "scripts/run-runbook.py",
+		"scripts", "scripts/run-runbook.py", "configs/zhen-schedules.yaml",
 		".git", ".git/config", ".git/hooks/pre-commit", "pkg/vendored/.git/config", "pkg/.GIT/config",
 	} {
 		if err := c.validatePath(filepath.Join(root, rel)); err == nil {
@@ -27,7 +27,7 @@ func TestValidatePath_ProtectedTrees(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"pkg/ex/ex.go", "README.md", ".gitignore", ".github/workflows/ci.yml", "docs/runbooks/index.md",
-		"pkg/scripts/gen.go", "runbooks.md", "scripts.txt",
+		"pkg/scripts/gen.go", "runbooks.md", "scripts.txt", "configs/wotan.yaml", "pkg/configs/zhen-schedules.yaml",
 	} {
 		if err := c.validatePath(filepath.Join(root, rel)); err != nil {
 			t.Errorf("validatePath refuses %s: %v", rel, err)
@@ -78,6 +78,26 @@ func TestValidatePath_ProtectedTreesThroughASymlink(t *testing.T) {
 	}
 	if err := c.validatePath(filepath.Join(root, "notes", "x.yaml")); err == nil {
 		t.Error("a link into runbooks/ is allowed")
+	}
+}
+
+// A link inside a protected tree stays out of reach wherever it leads: the
+// path as given counts too.
+func TestValidatePath_ProtectedTreesAsGiven(t *testing.T) {
+	c, _ := newTestChampion(t)
+	root := c.GetProjectRoot()
+	if err := os.MkdirAll(filepath.Join(root, "scripts"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, "notes.txt")
+	if err := os.WriteFile(target, []byte("x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(root, "scripts", "notes")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.validatePath(filepath.Join(root, "scripts", "notes")); err == nil {
+		t.Error("a path under scripts/ is allowed because a link leads out of it")
 	}
 }
 
