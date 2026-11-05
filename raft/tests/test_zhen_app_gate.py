@@ -6,12 +6,11 @@
 Imports the Flask app with sentence-transformers stubbed (no model load) and
 drives it with Flask's test client: nothing listens, no daemon or model runs.
 
-CSRF (threat model T8, interim until the Go port): a browser request
-(it carries Origin or Sec-Fetch-Site) that changes state must echo the
-per-session zhen_csrf cookie (SameSite=Strict) in X-Zhen-CSRF. A cross-site
-page cannot read that cookie, so it cannot forge the header. Requests with
-neither header are not from a browser (curl, zhen-mcp, eval scripts)
-and carry no ambient browser state to ride, so they are not CSRF.
+CSRF (threat model T8, interim until the Go port): a request that changes
+state must come from this UI's own origin and echo the per-session zhen_csrf
+cookie (SameSite=Strict) in X-Zhen-CSRF. A cross-site page cannot read that
+cookie, so it cannot forge the header. Only the scripted read and chat routes
+take a request with no browser headers at all (curl, eval scripts).
 """
 
 import io
@@ -38,7 +37,8 @@ ORIGIN = 'http://zhen.test'
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    monkeypatch.setenv('ZHEN_ALLOWED_HOSTS', 'zhen.test')
     zhen_app.app.config['TESTING'] = True
     with zhen_app.app.test_client() as c:
         yield c
@@ -50,6 +50,12 @@ def _csrf_cookie(client):
     cookies = [h for h in r.headers.getlist('Set-Cookie') if h.startswith('zhen_csrf=')]
     assert cookies, 'GET / must set the zhen_csrf cookie'
     return cookies[0].split(';', 1)[0].split('=', 1)[1], cookies[0]
+
+
+def _browser(client):
+    """The headers the page sends on a state-changing request."""
+    tok, _ = _csrf_cookie(client)
+    return {'Origin': ORIGIN, 'Sec-Fetch-Site': 'same-origin', 'X-Zhen-CSRF': tok}
 
 
 # ── CSRF ────────────────────────────────────────────────────────────────
@@ -166,7 +172,7 @@ def test_agentd_kanban_create_goes_through_the_app_with_key(client, monkeypatch)
     monkeypatch.setattr(ur, 'urlopen', fake_urlopen)
     monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', 'k-test')
     monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', None)
-    r = client.post('/api/v1/kanban/create', base_url=ORIGIN,
+    r = client.post('/api/v1/kanban/create', base_url=ORIGIN, headers=_browser(client),
                     json={'task': {'id': 'task-zhen-1', 'title': 't'}})
     assert r.status_code == 200, r.get_json()
     assert seen['url'].endswith('/api/v1/tool/exec')
@@ -178,7 +184,7 @@ def test_agentd_kanban_create_goes_through_the_app_with_key(client, monkeypatch)
 def test_agentd_kanban_create_without_auth_config_is_503(client, monkeypatch):
     monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', '')
     monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', 'ZHEN_AGENTD_API_KEY is not set')
-    r = client.post('/api/v1/kanban/create', base_url=ORIGIN,
+    r = client.post('/api/v1/kanban/create', base_url=ORIGIN, headers=_browser(client),
                     json={'task': {'id': 'task-zhen-1', 'title': 't'}})
     assert r.status_code == 503
 
@@ -297,3 +303,75 @@ def test_runbook_link_out_of_the_tree_is_not_listed(runbooks):
 def test_app_never_starts_the_runner_itself():
     src = (RAFT / 'zhen_app.py').read_text()
     assert "scripts/run-runbook.py')" not in src
+
+
+# ── strict Host and Origin (H5) ─────────────────────────────────────────
+
+GATED_ROUTES = [
+    '/api/v1/runbooks/health-sweep/execute', '/api/v1/models/switch', '/api/v1/kanban/create',
+    '/api/v1/approvals', '/api/v1/approvals/1/approve', '/api/v1/approvals/1/deny',
+    '/api/v1/champion/read', '/api/v1/remember', '/api/v1/forget', '/api/v1/generate-file',
+]
+
+
+def _reached_handler(r):
+    return not (r.status_code == 403 and 'CSRF' in (r.get_json() or {}).get('error', ''))
+
+
+@pytest.mark.parametrize('route', GATED_ROUTES)
+def test_gated_route_needs_a_browser_session_with_no_headers_at_all(client, route):
+    r = client.post(route, base_url=ORIGIN, json={})
+    assert r.status_code == 403
+    assert 'CSRF' in r.get_json()['error']
+
+
+@pytest.mark.parametrize('route', ['/api/v1/highlight'])
+def test_scripted_routes_stay_open_to_a_caller_with_no_browser_headers(client, route):
+    assert _reached_handler(client.post(route, base_url=ORIGIN, json={'blocks': []}))
+
+
+@pytest.mark.parametrize('origin', [
+    'http://evil.test', 'https://zhen.test.evil.test', 'http://zhen.test:1', 'null', 'zhen.test', 'file://zhen.test',
+])
+def test_a_token_does_not_excuse_another_origin(client, origin):
+    tok, _ = _csrf_cookie(client)
+    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
+                    headers={'Origin': origin, 'X-Zhen-CSRF': tok})
+    assert r.status_code == 403
+
+
+@pytest.mark.parametrize('site', ['cross-site', 'same-site', 'none'])
+def test_a_token_does_not_excuse_another_fetch_site(client, site):
+    tok, _ = _csrf_cookie(client)
+    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
+                    headers={'Origin': ORIGIN, 'Sec-Fetch-Site': site, 'X-Zhen-CSRF': tok})
+    assert r.status_code == 403
+
+
+def test_a_browser_marker_without_origin_is_refused(client):
+    tok, _ = _csrf_cookie(client)
+    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
+                    headers={'Sec-Fetch-Site': 'same-origin', 'X-Zhen-CSRF': tok})
+    assert r.status_code == 403
+
+
+@pytest.mark.parametrize('method', ['get', 'post'])
+def test_a_host_off_the_list_is_refused_on_every_method(client, method):
+    r = getattr(client, method)('/health', base_url='http://rebound.test:20103')
+    assert r.status_code == 403
+    assert 'Host' in r.get_json()['error']
+
+
+@pytest.mark.parametrize('host', ['localhost', '127.0.0.1', '[::1]', 'localhost:20103', '127.0.0.1:20103'])
+def test_loopback_hosts_are_on_the_list(client, host):
+    assert client.get('/health', headers={'Host': host}).status_code == 200
+
+
+def test_the_bind_address_is_on_the_list(client, monkeypatch):
+    monkeypatch.setenv('ZHEN_BIND_ADDR', '10.10.20.1')
+    assert client.get('/health', headers={'Host': '10.10.20.1:20103'}).status_code == 200
+
+
+def test_a_wildcard_bind_is_not_a_host(client, monkeypatch):
+    monkeypatch.setenv('ZHEN_BIND_ADDR', '0.0.0.0')
+    assert client.get('/health', headers={'Host': '0.0.0.0:20103'}).status_code == 403

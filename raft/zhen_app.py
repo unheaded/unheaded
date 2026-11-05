@@ -97,27 +97,63 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 # the LAN. GET / issues a per-session random token in a SameSite=Strict cookie;
 # the page echoes it in X-Zhen-CSRF on every state-changing request. A
 # cross-site page can neither read the cookie nor make the browser send it.
-# A request with neither Origin nor Sec-Fetch-Site did not come from a browser
-# (curl, zhen-mcp, eval scripts); it has no browser state to ride, so it
-# is not CSRF and is not asked for the token.
+#
+# H5: every request must name a Host on the list, so a name that resolves here
+# is not this origin. A state-changing request must also come from that origin
+# (Origin matches Host, Sec-Fetch-Site is same-origin) and carry the token. A
+# token never excuses another origin. The one exception is _SCRIPTED_ROUTES: a
+# request with no browser headers at all has no browser state to ride, so
+# curl, the deploy runbook's smoke test and the eval scripts may reach chat.
+# None of this is a login: it binds a browser to this origin, it does not say
+# who a local caller is.
 # ---------------------------------------------------------------------------
 CSRF_COOKIE = 'zhen_csrf'
 CSRF_HEADER = 'X-Zhen-CSRF'
 _CSRF_SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
+_SCRIPTED_ROUTES = frozenset({'/api/v1/query', '/api/v1/highlight'})
+
+
+def _allowed_hosts():
+    """Loopback, the address the UI binds, and ZHEN_ALLOWED_HOSTS (comma list)."""
+    hosts = {'localhost', '127.0.0.1', '::1'}
+    bind = os.environ.get('ZHEN_BIND_ADDR', '').strip().lower()
+    if bind and bind not in ('0.0.0.0', '::'):
+        hosts.add(bind)
+    hosts.update(h.strip().lower() for h in os.environ.get('ZHEN_ALLOWED_HOSTS', '').split(',') if h.strip())
+    return hosts
+
+
+def _host_allowed():
+    try:
+        return urlsplit('//' + request.host).hostname in _allowed_hosts()
+    except ValueError:
+        return False
+
+
+def _same_origin(origin):
+    try:
+        parts = urlsplit(origin)
+    except ValueError:
+        return False
+    return parts.scheme in ('http', 'https') and parts.netloc.lower() == request.host.lower() and not parts.path
 
 
 @app.before_request
 def _csrf_guard():
+    if not _host_allowed():
+        return jsonify({'error': 'Host not allowed: set ZHEN_ALLOWED_HOSTS to serve this name'}), 403
     if request.method in _CSRF_SAFE_METHODS:
         return None
-    if not request.headers.get('Origin') and not request.headers.get('Sec-Fetch-Site'):
+    origin = request.headers.get('Origin', '')
+    site = request.headers.get('Sec-Fetch-Site', '')
+    if not origin and not site and request.path in _SCRIPTED_ROUTES:
         return None
     cookie = request.cookies.get(CSRF_COOKIE, '')
     sent = request.headers.get(CSRF_HEADER, '')
-    if cookie and sent and hmac.compare_digest(cookie, sent):
+    if _same_origin(origin) and site in ('', 'same-origin') and cookie and sent and hmac.compare_digest(cookie, sent):
         return None
     return jsonify({'error': f'CSRF check failed: send the {CSRF_COOKIE} cookie value '
-                             f'in {CSRF_HEADER} (reload the page for a fresh one)'}), 403
+                             f'in {CSRF_HEADER} from this origin (reload the page for a fresh one)'}), 403
 
 
 def _with_csrf_cookie(resp):
