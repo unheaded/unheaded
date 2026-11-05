@@ -1083,6 +1083,13 @@ provoke_well_slo_definitions() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_nosec_ratchet() {
+    # Contract (L20): gosec suppressions may only shrink. Add one.
+    local f="pkg/database/config.go"
+    backup "${f}"
+    printf '\n// #nosec G101 -- meta-gate provocation\n' >>"${REPO_ROOT}/${f}"
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_compose_publish_bind() {
     # Contract (M11): a compose publish names an internal address. Drop the
     # address from one, which is how every bare publish got there.
@@ -1102,6 +1109,7 @@ provoke_yggdrasil_anchor() {
 
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
+check-nosec-ratchet|provoke_nosec_ratchet|fast|one more #nosec in pkg/database/config.go
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
 check-secrets-baseline|provoke_secrets_baseline|fast|a new fingerprint appended to .gitleaksignore
 check-python-syntax|provoke_python_syntax|fast|a syntax error in a tracked .py file
