@@ -87,6 +87,47 @@ func TestApproveAll_MakesTheRooms(t *testing.T) {
 	}
 }
 
+// L15: as with ApproveMember, no room means no approval. A member approved
+// without one could only ever get a 404.
+func TestApproveAll_NoRoomNoApproval(t *testing.T) {
+	srv := setupTestServer()
+	srv.RoomManager.SetMaxRooms(1)
+	if _, err := srv.RoomManager.Create("full", "full"); err != nil {
+		t.Fatal(err)
+	}
+	inRoom, err := srv.MemberManager.RequestJoin("full", "alice", "", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noRoom, err := srv.MemberManager.RequestJoin("past-the-cap", "bob", "", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/admin/approve-all", nil)
+	setAdminAuth(req)
+	rec := httptest.NewRecorder()
+	srv.ApproveAllMembers(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("approve-all = %d", rec.Code)
+	}
+	var out struct {
+		ApprovedCount int `json:"approved_count"`
+		LeftPending   int `json:"left_pending"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.ApprovedCount != 1 || out.LeftPending != 1 {
+		t.Fatalf("approved %d, left pending %d, want 1 and 1", out.ApprovedCount, out.LeftPending)
+	}
+	if !srv.MemberManager.IsApproved(inRoom.ID) {
+		t.Error("the member with a room was not approved")
+	}
+	if srv.MemberManager.IsApproved(noRoom.ID) {
+		t.Error("a member was approved with no room to use")
+	}
+}
+
 // L15: one rule for a name, on every path that can make a room.
 func TestRoomNames_OneRule(t *testing.T) {
 	srv := setupTestServer()

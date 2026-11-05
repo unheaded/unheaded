@@ -51,6 +51,7 @@ func newAuthedHTTPWotan(t *testing.T) *authedHTTPWotan {
 	mux.HandleFunc("/health", s.Health)
 	mux.HandleFunc("/api/v1/topics/", s.TopicRouter)
 	mux.HandleFunc("/api/v1/topics", s.TopicRouter)
+	mux.HandleFunc("/api/v1/join", s.JoinRoom)
 	mux.HandleFunc("/api/v1/messages/send", s.SendMessage)
 	mux.HandleFunc("/api/v1/messages/delete", s.DeleteMessage)
 	mux.HandleFunc("/api/v1/messages", s.GetMessages)
@@ -188,6 +189,22 @@ func TestAuthE2E_LegacyRoomRoutesBoundToCallerMember(t *testing.T) {
 	}
 	if got := w.do(http.MethodPost, "/api/v1/messages/delete", del, captain).Code; got != http.StatusOK {
 		t.Errorf("captain deleting its own message = %d, want 200", got)
+	}
+}
+
+// M2: with auth on a member's name is its identity, or the member could never
+// use the routes above. The join says so at once, before anyone approves it.
+func TestAuthE2E_JoinUnderAnotherNameRefused(t *testing.T) {
+	w := newAuthedHTTPWotan(t)
+	captain := w.f.Bearer("captain", "wotan")
+	if got := w.do(http.MethodPost, "/api/v1/join", `{"room_id":"ops","name":"timeguru"}`, captain).Code; got != http.StatusForbidden {
+		t.Errorf("captain joining as timeguru = %d, want 403", got)
+	}
+	if got := w.s.MemberManager.Count(); got != 0 {
+		t.Errorf("%d members after a refused join, want 0", got)
+	}
+	if got := w.do(http.MethodPost, "/api/v1/join", `{"room_id":"ops","name":"captain"}`, captain).Code; got != http.StatusCreated {
+		t.Errorf("captain joining as itself = %d, want 201", got)
 	}
 }
 

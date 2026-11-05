@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/wotanerr"
 	"unheaded/services/wotan/internal/member"
@@ -129,6 +130,12 @@ func (s *Server) JoinRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	if !topicpattern.ValidTopic(req.RoomID) {
 		writeError(w, http.StatusBadRequest, "invalid room_id")
+		return
+	}
+	// With auth on a member acts only as its identity (memberIsCaller), so a
+	// member under any other name could never use what it was approved for.
+	if id := auth.IdentityFromContext(r.Context()); id != nil && req.Name != id.Subject {
+		writeError(w, http.StatusForbidden, "name must be the caller's identity")
 		return
 	}
 
@@ -471,16 +478,25 @@ func (s *Server) ApproveAllMembers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// As in ApproveMember: no room, no approval. Whoever arrives after this
+	// listing stays pending for the next call.
+	count, leftPending := 0, 0
 	for _, mbr := range s.MemberManager.GetAllPending() {
 		if err := s.ensureRoom(mbr.RoomID); err != nil {
 			log.Warn().Err(err).Str("room", mbr.RoomID).Msg("approve_all_room_refused")
+			leftPending++
+			continue
 		}
+		if err := s.MemberManager.Approve(mbr.ID, approvedBy); err != nil {
+			continue // denied or expired since the listing
+		}
+		count++
 	}
-	count := s.MemberManager.ApproveAll(approvedBy)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":         "approved",
 		"approved_count": count,
+		"left_pending":   leftPending,
 		"message":        fmt.Sprintf("approved %d pending member(s)", count),
 	})
 }
