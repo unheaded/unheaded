@@ -228,7 +228,7 @@ func checkName(name string) error {
 	}
 	for i := 0; i < len(name); i++ {
 		c := name[i]
-		if !(c >= 'A' && c <= 'Z') && !(c >= '0' && c <= '9') && c != '_' {
+		if (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' {
 			return fmt.Errorf("%w: %s", ErrFieldName, strconv.Quote(name))
 		}
 	}

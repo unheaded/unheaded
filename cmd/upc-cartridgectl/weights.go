@@ -282,7 +282,7 @@ func writeWeights(dir, model string, data []byte) (string, error) {
 		return "", err
 	}
 	tmp := f.Name()
-	defer os.Remove(tmp) // a no-op after the rename
+	defer func() { _ = os.Remove(tmp) }() // a no-op after the rename
 	if err := f.Chmod(0o600); err != nil {
 		_ = f.Close() // the first error is the one returned
 		return "", err
