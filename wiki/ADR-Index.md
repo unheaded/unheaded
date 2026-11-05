@@ -1,13 +1,13 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-11-05 (131 entries)
+**Last synced from canonical:** 2026-11-05 (132 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
 | Accepted | 60 |
-| Proposed | 33 |
+| Proposed | 34 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 3 |
@@ -20,7 +20,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **131** |
+| **Total** | **132** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -155,6 +155,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [132](../docs/adr/ADR-132-fold-loadbalancer.md) | Fold the load balancer into Cuirass; the map write goes to the node writer | **Proposed** (parked) | 2026-11-04 |
 | [133](../docs/adr/ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
 | [134](../docs/adr/ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |
+| [135](../docs/adr/ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF | **Proposed** | 2026-11-05 |
 
 ---
 
