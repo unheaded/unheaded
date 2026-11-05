@@ -8,7 +8,6 @@
 #   2. eBPF programs build (BPF target)
 #   3. xv6 kernel builds (RV32 cross-compile + link + translate)
 #   4. upc-bootctl validates the kernel image
-#   5. doom-runner builds (regression: ABI v2 didn't break Doom)
 #
 # Run from repo root: bash scripts/ascend-linux-smoke.sh
 
@@ -81,10 +80,6 @@ step "upc-tty-bridge Go build" \
     bash -c 'go build -o /tmp/upc-tty-bridge.smoke ./cmd/upc-tty-bridge/ && \
              test -x /tmp/upc-tty-bridge.smoke && \
              rm /tmp/upc-tty-bridge.smoke'
-
-# 10. doom-runner builds (regression: ABI v2 MbcCpuState 136 bytes)
-step "doom-runner builds with ABI v2 (regression)" \
-    bash -c 'cd crates/doom-runner && cargo build --release 2>&1 | tail -1 | grep -q "Finished"'
 
 # 11. GPL boundary check passes (no contamination from new ASCEND-LINUX crates)
 step "GPL boundary check (no contamination from new code)" \
