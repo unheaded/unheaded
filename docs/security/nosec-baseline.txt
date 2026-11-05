@@ -288,7 +288,7 @@ services/gateway/proxy/loadbalancer.go 1
 services/gateway/routes/routes.go 2
 services/keymgmt/handler/keygen.go 1
 services/keymgmt/keymgmt.go 5
-services/loadbalancer/xdpsync.go 2
+services/loadbalancer/xdpsync.go 1
 services/nfv/nfv.go 9
 services/sabatons/sabatons.go 2
 services/selfheal/selfheal.go 9

@@ -115,15 +115,12 @@ func (x *XDPSync) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	x.registerRoutes(mux)
 
-	// Use a separate port for the XDP sync service (Firewall is 19010; LB uses
-	// an ephemeral port for tests, or can be configured via an offset from an
-	// existing LB port). For the test infrastructure we bind to :0 and expose
-	// Addr(). Production deployments should set a fixed port.
-	addr := ports.DefaultAddr(ports.Firewall + 100) // 19110 as a convention
-	ln, err := net.Listen("tcp", addr)
+	// A separate port for the XDP sync service (Firewall is 19010). The API
+	// takes writes and has no authentication, so it listens on loopback only,
+	// and on an ephemeral loopback port when the fixed one is taken.
+	ln, err := net.Listen("tcp", ports.LoopbackAddr(ports.Firewall+100)) // 19110 as a convention
 	if err != nil {
-		// Fallback to any available port.
-		ln, err = net.Listen("tcp", ":0") // #nosec G102 -- bind-to-all is the explicit fallback when the fixed port is taken; production sets a fixed addr
+		ln, err = net.Listen("tcp", ports.LoopbackAddr(0))
 		if err != nil {
 			return fmt.Errorf("xdpsync: listen: %w", err)
 		}
