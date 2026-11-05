@@ -141,7 +141,8 @@ scrape_configs:
   # /metrics on 16671 = pkg/ports.TraceCollectorMetrics); alerts in
   # rules/collector.yml. 16671 used to sit in doom_services above labelled
   # "wotan", so the collector was scraped under the wrong name and never
-  # on east.
+  # on east. The unit binds loopback unless TRACE_METRICS_ADDR in
+  # /etc/unheaded/trace-collector.env names the overlay address too.
   - job_name: trace-collector
     static_configs:
       - targets: ['[fd00:dead:beef::1]:16671']

@@ -102,6 +102,23 @@ type ServiceAuthConfig struct {
 	APIKeyStore string
 }
 
+// ErrOpenListener: a listener off loopback with auth off.
+var ErrOpenListener = errors.New("auth: refusing a non-loopback listener with auth off (set AUTH_ENABLED=true, or bind 127.0.0.1)")
+
+// CheckListen refuses to start a listener that would serve a network with
+// no auth: every address must be loopback unless cfg has auth on.
+func CheckListen(addrs []string, cfg ServiceAuthConfig) error {
+	if cfg.Enabled {
+		return nil
+	}
+	for _, a := range addrs {
+		if !pqtls.IsLoopbackListenAddr(a) {
+			return fmt.Errorf("%w: %s", ErrOpenListener, a)
+		}
+	}
+	return nil
+}
+
 // LoadServiceAuthConfig loads auth configuration from environment variables.
 func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 	cfg := ServiceAuthConfig{
