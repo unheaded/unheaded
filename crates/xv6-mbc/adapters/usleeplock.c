@@ -7,7 +7,8 @@
 // stays vendored, unwired.
 //
 // Boot-live in bio/log/inode init paths (binit/iinit take these at boot);
-// contended sleep/wakeup traffic stays dormant until multi-process file I/O.
+// a tagged trap runs to its SRET (ADR-109 I7), so contended sleep/wakeup
+// traffic does not arise.
 //
 // Quirk kept verbatim: initsleeplock names the INNER spinlock with the
 // literal "sleep lock" — every sleeplock's guard shares that name; only

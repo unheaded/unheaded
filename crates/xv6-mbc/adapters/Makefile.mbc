@@ -94,9 +94,9 @@ OBJS = \
 #   $K/virtio_disk.o    → replaced by $A/blk-ramdisk.o
 # Track 2 Phase 2.3 (ADR-081) — kernel edges are OURS:
 #   $K/entry.o          → replaced by $A/uentry.o
-#   $K/syscall.o        → replaced by $A/usyscall.o (runtime-dead on UPC —
-#                         BPF ecall dispatch owns the syscall surface — but
-#                         linked for trap.c/sysproc/sysfile; alive in 2.4)
+#   $K/syscall.o        → replaced by $A/usyscall.o (BPF injects a trap for
+#                         the numbers routed to the kernel, ADR-109, ADR-135,
+#                         and they land in its syscalls[] table)
 #   $K/printf.o         → replaced by $A/uprintf.o (every kernel boot print)
 #   $K/console.o        → replaced by $A/uconsole.o (top half; bottom half
 #                         is console-mmio.o — console stack 100% ours)
@@ -117,24 +117,24 @@ OBJS = \
 #   $K/bio.o            → replaced by $A/ubio.o (LRU buffer cache; binit +
 #                         fsinit-era bread live via blk-ramdisk)
 #   $K/log.o            → replaced by $A/ulog.o (redo log; recover_from_log
-#                         live at fsinit; commit machinery dormant)
+#                         live at fsinit; commit runs for routed writes)
 #   $K/file.o           → replaced by $A/ufile.o (ftable + devsw[] — the
-#                         console stack's link anchor; bodies dormant)
+#                         console stack's link anchor; fds at 16 and up)
 # Track 2 Phase 2.4 (ADR-081) — kernel core, tranche 3:
-#   $K/sysproc.o        → replaced by $A/usysproc.o (runtime-dead wrappers;
-#                         linked via usyscall's syscalls[] table)
+#   $K/sysproc.o        → replaced by $A/usysproc.o (wrappers for the routed
+#                         numbers; sys_fork and sys_wait stay unreached)
 #   $K/sysfile.o        → replaced by $A/usysfile.o (fd/FS wrappers; BPF
-#                         fs_walk owns the live surface)
+#                         keeps fds below 16 and read-only opens)
 #   $K/pipe.o           → replaced by $A/upipe.o (live: pipe(4) routes to the
 #                         owned kernel, retry hand-off, ADR-135 D7)
 #   $K/fs.o             → replaced by $A/ufs.o (on-disk FS; iinit + fsinit
-#                         boot-live via blk-ramdisk; walks dormant — the
-#                         in-BPF fs_walk owns user FS reads)
+#                         boot-live via blk-ramdisk; walks run for routed
+#                         calls, in-BPF fs_walk keeps read-only opens)
 # Track 2 Phase 2.4 (ADR-081) — kernel core, tranche 4 (the summit):
 #   $K/vm.o             → replaced by $A/uvm.o (UPC_SKIP_KVMINIT — page
 #                         table decorative, BPF translate_address rules)
 #   $K/trap.o           → replaced by $A/utrap.o (UPC_FLAT_TRAMPOLINE
-#                         stvec; usertrap/kerneltrap dormant)
+#                         stvec; usertrap runs for injected traps)
 #   $K/exec.o           → replaced by $A/uexec.o (kexec sentinels + the
 #                         MBC-userland epc=0 path; ELF loader dormant)
 #   $K/proc.o           → replaced by $A/uproc.o (THE LAST MIT FILE —

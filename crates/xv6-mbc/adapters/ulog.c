@@ -9,9 +9,9 @@
 // Boot-live: initlog runs during forkret→fsinit and recover_from_log READS
 // the log header from fs.img through bread (then writes the cleared header
 // back — the one write the boot path performs). The commit machinery
-// (begin_op/end_op/write_log/install_trans) is dormant on the UPC until
-// file writes land; its sleep/wakeup protocol, absorption loop, and panics
-// ("initlog: too big logheader", "log.committing", "too big a transaction",
+// (begin_op/end_op/write_log/install_trans) runs for every write routed to
+// the kernel (ADR-135, DP-502); its sleep/wakeup protocol, absorption loop,
+// and panics ("initlog: too big logheader", "log.committing", "too big a transaction",
 // "log_write outside of trans") are kept at stock strength.
 //
 // Simple logging that allows concurrent FS system calls.
