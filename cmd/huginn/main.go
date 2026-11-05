@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -517,7 +516,7 @@ func main() {
 var listenRetry = 5 * time.Second
 
 // bindAddr opens one listener; a test swaps it to bring an address up.
-var bindAddr = func(addr string) (net.Listener, error) { return net.Listen("tcp", addr) }
+var bindAddr = httputil.ListenTCP
 
 // serveAll serves srv on every address of list (comma-separated) until one
 // listener fails. A taken port or a bad address stops the start. An address
@@ -538,36 +537,15 @@ func serveAll(srv *http.Server, list string) error {
 	for _, addr := range pending {
 		fmt.Fprintf(os.Stderr, "huginn: %s is not on this host yet; retrying every %s\n", addr, listenRetry)
 		go func() {
-			ln, err := awaitAddr(addr, done)
+			ln, err := httputil.AwaitAddr(addr, listenRetry, bindAddr, done)
 			switch {
 			case err != nil:
 				errs <- err
 			case ln != nil:
+				fmt.Fprintf(os.Stderr, "huginn: now listening on %s\n", addr)
 				errs <- srv.Serve(ln)
 			}
 		}()
 	}
 	return <-errs
-}
-
-// awaitAddr binds addr once the host holds it. It returns nil, nil when done
-// closes first.
-func awaitAddr(addr string, done <-chan struct{}) (net.Listener, error) {
-	tick := time.NewTicker(listenRetry)
-	defer tick.Stop()
-	for {
-		select {
-		case <-done:
-			return nil, nil
-		case <-tick.C:
-		}
-		ln, err := bindAddr(addr)
-		if err == nil {
-			fmt.Fprintf(os.Stderr, "huginn: now listening on %s\n", addr)
-			return ln, nil
-		}
-		if !httputil.AddrNotOnHost(err) {
-			return nil, fmt.Errorf("listen %s: %w", addr, err)
-		}
-	}
 }

@@ -5,6 +5,7 @@ package proxy
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -604,14 +605,21 @@ func TestCopyHeaders(t *testing.T) {
 func TestGetScheme(t *testing.T) {
 	// Default (no TLS, no header)
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
-	if got := getScheme(req); got != "http" {
+	if got := getScheme(req, nil); got != "http" {
 		t.Fatalf("expected http, got %q", got)
 	}
 
-	// X-Forwarded-Proto header
+	// X-Forwarded-Proto header, from a peer not trusted and then trusted
 	req.Header.Set("X-Forwarded-Proto", "https")
-	if got := getScheme(req); got != "https" {
-		t.Fatalf("expected https from header, got %q", got)
+	if got := getScheme(req, nil); got != "http" {
+		t.Fatalf("expected http from an untrusted peer, got %q", got)
+	}
+	peer, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := getScheme(req, map[string]bool{peer: true}); got != "https" {
+		t.Fatalf("expected https from a trusted peer, got %q", got)
 	}
 }
 

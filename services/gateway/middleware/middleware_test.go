@@ -905,7 +905,7 @@ func TestResponseWriter_Flush(t *testing.T) {
 	rw.Flush()
 }
 
-func TestGetClientIP(t *testing.T) {
+func TestClientIP_NoTrustedProxies(t *testing.T) {
 	tests := []struct {
 		name       string
 		xff        string
@@ -913,9 +913,9 @@ func TestGetClientIP(t *testing.T) {
 		remoteAddr string
 		want       string
 	}{
-		{"X-Forwarded-For single", "1.2.3.4", "", "5.6.7.8:1234", "1.2.3.4"},
-		{"X-Forwarded-For multiple", "1.2.3.4, 5.6.7.8", "", "9.0.0.1:1234", "1.2.3.4"},
-		{"X-Real-IP", "", "10.0.0.1", "5.6.7.8:1234", "10.0.0.1"},
+		{"X-Forwarded-For single", "1.2.3.4", "", "5.6.7.8:1234", "5.6.7.8"},
+		{"X-Forwarded-For multiple", "1.2.3.4, 5.6.7.8", "", "9.0.0.1:1234", "9.0.0.1"},
+		{"X-Real-IP", "", "10.0.0.1", "5.6.7.8:1234", "5.6.7.8"},
 		{"RemoteAddr with port", "", "", "192.168.1.1:4321", "192.168.1.1"},
 		{"RemoteAddr no port", "", "", "192.168.1.1", "192.168.1.1"},
 	}
@@ -930,7 +930,7 @@ func TestGetClientIP(t *testing.T) {
 				req.Header.Set("X-Real-IP", tt.xri)
 			}
 			req.RemoteAddr = tt.remoteAddr
-			got := getClientIP(req)
+			got := ClientIP(req, nil)
 			if got != tt.want {
 				t.Fatalf("expected %q, got %q", tt.want, got)
 			}

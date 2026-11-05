@@ -4,16 +4,24 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
+	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"testing"
+	"time"
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/auth/authtest"
 	"unheaded/pkg/ports"
+	"unheaded/pkg/transport"
 )
 
 // M10: with no flags the collector binds loopback, in both modes.
@@ -33,12 +41,195 @@ func TestOpenListeners_RefusesOpenBindWithAuthOff(t *testing.T) {
 	if _, err := openListeners("127.0.0.1:0,0.0.0.0:0", auth.ServiceAuthConfig{}); !errors.Is(err, auth.ErrOpenListener) {
 		t.Fatalf("every-interface bind with auth off: %v, want ErrOpenListener", err)
 	}
-	lns, err := openListeners("127.0.0.1:0", auth.ServiceAuthConfig{})
+	ls, err := openListeners("127.0.0.1:0", auth.ServiceAuthConfig{})
 	if err != nil {
 		t.Fatalf("loopback with auth off: %v", err)
 	}
-	for _, ln := range lns {
+	ls.close()
+}
+
+// close closes what openListeners bound.
+func (l listeners) close() {
+	for _, ln := range l.bound {
 		_ = ln.Close()
+	}
+}
+
+// lateAddr is an address no host holds (TEST-NET-1).
+const lateAddr = "192.0.2.1:16671"
+
+func skipIfBindable(t *testing.T) {
+	t.Helper()
+	if ln, err := net.Listen("tcp", lateAddr); err == nil {
+		_ = ln.Close()
+		t.Skip("this host binds addresses it does not hold (ip_nonlocal_bind)")
+	}
+}
+
+// An address not on the host yet, an overlay still down, does not stop the
+// collector: its work is the BPF programs.
+func TestOpenListeners_AddressNotOnHostDoesNotStopTheStart(t *testing.T) {
+	skipIfBindable(t)
+	ls, err := openListeners("127.0.0.1:0,"+lateAddr, auth.ServiceAuthConfig{Enabled: true})
+	if err != nil {
+		t.Fatalf("openListeners: %v", err)
+	}
+	defer ls.close()
+	if len(ls.bound) != 1 || len(ls.pending) != 1 || ls.pending[0] != lateAddr {
+		t.Fatalf("bound = %d, pending = %q", len(ls.bound), ls.pending)
+	}
+}
+
+// A taken port or a bad address still stops the start, and nothing stays open.
+func TestOpenListeners_OtherFailuresStopTheStart(t *testing.T) {
+	taken, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = taken.Close() }()
+	free := freeAddr(t)
+	for name, list := range map[string]string{
+		"taken port":  free + "," + taken.Addr().String(),
+		"bad address": free + ",not an address",
+	} {
+		if _, err := openListeners(list, auth.ServiceAuthConfig{Enabled: true}); err == nil {
+			t.Fatalf("%s: start was not stopped", name)
+		}
+		ln, err := net.Listen("tcp", free)
+		if err != nil {
+			t.Fatalf("%s: %s left open: %v", name, free, err)
+		}
+		_ = ln.Close()
+	}
+}
+
+// freeAddr is a loopback address nothing is listening on.
+func freeAddr(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	return ln.Addr().String()
+}
+
+// swapBind stands in for the host: bind answers every retry.
+func swapBind(t *testing.T, bind func(string) (net.Listener, error)) {
+	t.Helper()
+	savedBind, savedRetry := bindAddr, listenRetry
+	t.Cleanup(func() { bindAddr, listenRetry = savedBind, savedRetry })
+	bindAddr, listenRetry = bind, time.Millisecond
+}
+
+// A pending address is served once the host holds it.
+func TestServeOn_ServesAPendingAddressOnceItAppears(t *testing.T) {
+	stand := freeAddr(t)
+	var tries atomic.Int32
+	swapBind(t, func(addr string) (net.Listener, error) {
+		if addr != lateAddr {
+			return nil, fmt.Errorf("bound %s, want %s", addr, lateAddr)
+		}
+		if tries.Add(1) < 3 {
+			return nil, &net.OpError{Op: "listen", Err: syscall.EADDRNOTAVAIL}
+		}
+		return net.Listen("tcp", stand)
+	})
+	srv := &http.Server{
+		Handler:           http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") }),
+		ReadHeaderTimeout: time.Second,
+	}
+	defer func() { _ = srv.Close() }()
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	serveOn(ctx, srv, listeners{pending: []string{lateAddr}, stop: cancel})
+
+	client := &http.Client{Timeout: time.Second}
+	var err error
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		var resp *http.Response
+		if resp, err = client.Get("http://" + stand + "/"); err == nil {
+			_ = resp.Body.Close()
+			if ctx.Err() != nil {
+				t.Fatalf("run stopped: %v", context.Cause(ctx))
+			}
+			return
+		}
+	}
+	t.Fatalf("GET %s: %v", stand, err)
+}
+
+// A pending address that turns out taken ends the run with a failure, so the
+// collector shuts down its BPF programs and the unit restarts it.
+func TestServeOn_LateFailureEndsTheRun(t *testing.T) {
+	swapBind(t, func(string) (net.Listener, error) { return nil, syscall.EADDRINUSE })
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	serveOn(ctx, &http.Server{ReadHeaderTimeout: time.Second}, listeners{pending: []string{lateAddr}, stop: cancel})
+	select {
+	case <-ctx.Done():
+	case <-time.After(3 * time.Second):
+		t.Fatal("run was not ended")
+	}
+	if err := runFailure(ctx); !errors.Is(err, syscall.EADDRINUSE) {
+		t.Fatalf("runFailure = %v, want EADDRINUSE", err)
+	}
+}
+
+// A signal is a clean stop, not a failure.
+func TestRunFailure_SignalIsNotAFailure(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	if err := runFailure(ctx); err != nil {
+		t.Fatalf("running: %v", err)
+	}
+	cancel(nil)
+	if err := runFailure(ctx); err != nil {
+		t.Fatalf("after a signal: %v", err)
+	}
+}
+
+// runEnding names what the stand-in run does in the child of TestMainEnding.
+const runEnding = "TRACE_COLLECTOR_TEST_RUN"
+
+// main ends with the status the run earned: a listener failure is a non-zero
+// exit, for the unit to restart it, and a signal is a clean one. The child is
+// this test binary running main with the BPF work swapped out.
+func TestMainEnding(t *testing.T) {
+	if mode := os.Getenv(runEnding); mode != "" {
+		runCollector = func(ctx context.Context, _ *transport.HealthServer, _ transport.Config, _ auth.ServiceAuthConfig, ls listeners) {
+			if mode == "late-failure" {
+				ls.stop(syscall.EADDRINUSE)
+			} else {
+				ls.stop(nil)
+			}
+			<-ctx.Done()
+		}
+		os.Args = []string{"trace-collector-go", "--http-addr", "127.0.0.1:0"}
+		main()
+		return
+	}
+	for _, c := range []struct {
+		mode    string
+		failure bool
+	}{{"late-failure", true}, {"signal", false}} {
+		t.Run(c.mode, func(t *testing.T) {
+			cmd := exec.Command(os.Args[0], "-test.run=^TestMainEnding$")
+			cmd.Env = append(os.Environ(), runEnding+"="+c.mode, "AUTH_ENABLED=false")
+			out, err := cmd.CombinedOutput()
+			if !c.failure {
+				if err != nil {
+					t.Fatalf("clean stop exited with %v:\n%s", err, out)
+				}
+				return
+			}
+			var exit *exec.ExitError
+			if !errors.As(err, &exit) || exit.ExitCode() != 1 {
+				t.Fatalf("exit = %v, want status 1:\n%s", err, out)
+			}
+			if !strings.Contains(string(out), "stopped by a listener failure") {
+				t.Fatalf("no listener failure reported:\n%s", out)
+			}
+		})
 	}
 }
 
