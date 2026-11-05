@@ -465,6 +465,10 @@ const UPC_RUNG_MKDIR: bool = true;
 // fs_walk skips a zeroed dirent (inum 0), so the name is gone to BPF open at once.
 // Rollback = this const off.
 const UPC_RUNG_UNLINK: bool = true;
+// DP-502 (the link rung): link is injected into the owned kernel, as for mkdir.
+// The new dirent names the old inode, so BPF open reads the same bytes through it.
+// Rollback = this const off.
+const UPC_RUNG_LINK: bool = false;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
@@ -2647,6 +2651,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // (kernel_routed_alias, DP-502). The arm keeps parity_surface true;
                 // the const in the test folds it away when off, as for 12.
                 cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
+            } else if cfg!(feature = "ascend-linux") && UPC_RUNG_LINK && syscall_nr == 19 {
+                // ── xv6 SYS_link (19): with UPC_RUNG_LINK on it never gets here
+                // (kernel_routed_alias, DP-502). The arm keeps parity_surface true;
+                // the const in the test folds it away when off, as for 12.
+                cpu.regs[8] = (-(lsys::ENOSYS as i32)) as u32;
             } else if cfg!(feature = "ascend-linux") && UPC_RUNG_MKDIR && syscall_nr == 20 {
                 // ── xv6 SYS_mkdir (20): with UPC_RUNG_MKDIR on it never gets here
                 // (kernel_routed_alias, DP-502). The arm keeps parity_surface true;
@@ -3794,8 +3803,9 @@ fn slot_exited(slot: u32) {
 
 /// xv6 numbers serviced by the owned kernel through the getpid inject arm:
 /// uptime 14 under UPC_RUNG2 (ADR-110 T2), sbrk 12 under UPC_RUNG_SBRK (ADR-135),
-/// kill 6 under UPC_RUNG_KILL (ADR-135 D8), unlink 18 under UPC_RUNG_UNLINK and
-/// mkdir 20 under UPC_RUNG_MKDIR (DP-502), and 22 in probe builds only.
+/// kill 6 under UPC_RUNG_KILL (ADR-135 D8), unlink 18 under UPC_RUNG_UNLINK,
+/// link 19 under UPC_RUNG_LINK and mkdir 20 under UPC_RUNG_MKDIR (DP-502), and
+/// 22 in probe builds only.
 #[inline(always)]
 fn kernel_routed_alias(n: u32) -> u32 {
     match n {
@@ -3803,6 +3813,7 @@ fn kernel_routed_alias(n: u32) -> u32 {
         12 if cfg!(feature = "ascend-linux") && UPC_RUNG_SBRK => 11,
         14 if UPC_RUNG2 => 11,
         18 if cfg!(feature = "ascend-linux") && UPC_RUNG_UNLINK => 11,
+        19 if cfg!(feature = "ascend-linux") && UPC_RUNG_LINK => 11,
         20 if cfg!(feature = "ascend-linux") && UPC_RUNG_MKDIR => 11,
         22 if UPC_PROBE_INJECT22 => 11,
         _ => n,
