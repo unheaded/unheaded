@@ -157,3 +157,159 @@ func TestGitLink_RefusesAnythingButWhatWasRecorded(t *testing.T) {
 		t.Error("recorded a .git that is not a file")
 	}
 }
+
+// plantedGit puts one entry of each kind a repository can be found by.
+var plantedGit = map[string]func(dir string) error{
+	"a directory": func(dir string) error { return os.MkdirAll(filepath.Join(dir, "sub", ".git"), 0o700) },
+	"a file": func(dir string) error {
+		if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o700); err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(dir, "sub", ".git"), []byte("gitdir: /elsewhere\n"), 0o600)
+	},
+	"a link": func(dir string) error {
+		if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o700); err != nil {
+			return err
+		}
+		return os.Symlink("/elsewhere", filepath.Join(dir, "sub", ".git"))
+	},
+	"deep, under a hidden directory": func(dir string) error {
+		return os.MkdirAll(filepath.Join(dir, ".cache", "a", "b", ".git"), 0o700)
+	},
+	"another case": func(dir string) error { return os.MkdirAll(filepath.Join(dir, "sub", ".GIT"), 0o700) },
+}
+
+func linkedDir(t *testing.T) (dir string, link []byte) {
+	t.Helper()
+	dir = t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: /repo/.git/worktrees/a\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "src", "gitignore.d"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link, err := RecordGitLink(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir, link
+}
+
+func TestGitLink_OneGitPerWorktree(t *testing.T) {
+	for name, plant := range plantedGit {
+		t.Run(name, func(t *testing.T) {
+			dir, link := linkedDir(t)
+			if err := CheckGitLink(dir, link); err != nil {
+				t.Fatalf("before: %v", err)
+			}
+			if err := plant(dir); err != nil {
+				t.Fatal(err)
+			}
+			if err := CheckGitLink(dir, link); !errors.Is(err, ErrGitLinkChanged) {
+				t.Fatalf("after: %v", err)
+			}
+		})
+	}
+}
+
+// A directory it cannot read could hold anything, so it counts as a change.
+func TestGitLink_RefusesWhatItCannotRead(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	dir, link := linkedDir(t)
+	shut := filepath.Join(dir, "src")
+	if err := os.Chmod(shut, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(shut, 0o700) }) // #nosec G302 -- test directory
+	if err := CheckGitLink(dir, link); !errors.Is(err, ErrGitLinkChanged) {
+		t.Fatal(err)
+	}
+}
+
+func TestQuarantineGit_LeavesOnlyTheRecordedLink(t *testing.T) {
+	for name, plant := range plantedGit {
+		t.Run(name, func(t *testing.T) {
+			dir, link := linkedDir(t)
+			top := filepath.Join(dir, ".git")
+			if err := os.Remove(top); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Join(top, "hooks"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := plant(dir); err != nil {
+				t.Fatal(err)
+			}
+			q, err := QuarantineGit(dir, link)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := CheckGitLink(dir, link); err != nil {
+				t.Errorf("after quarantine: %v", err)
+			}
+			if kept, err := os.ReadDir(q); err != nil || len(kept) != 2 {
+				t.Errorf("quarantine %s holds %v, %v", q, kept, err)
+			}
+		})
+	}
+}
+
+func TestQuarantineGit_ReportsWhatItCouldNotReach(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	dir, link := linkedDir(t)
+	shut := filepath.Join(dir, "src")
+	if err := os.Chmod(shut, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(shut, 0o700) }) // #nosec G302 -- test directory
+	if _, err := QuarantineGit(dir, link); err == nil {
+		t.Fatal("no error for a directory it could not read")
+	}
+	if got, err := RecordGitLink(dir); err != nil || string(got) != string(link) {
+		t.Errorf("the link did not go back: %q, %v", got, err)
+	}
+}
+
+// Host-side git reports a tracked submodule as it was recorded: it does not
+// go and look inside.
+func TestHostGit_DoesNotLookInsideASubmodule(t *testing.T) {
+	dir, _ := repoWithPrograms(t)
+	sub := filepath.Join(dir, "sub")
+	if err := os.MkdirAll(sub, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"-C", sub, "init", "-q"}, {"-C", sub, "config", "user.email", "t@example.invalid"}, {"-C", sub, "config", "user.name", "t"},
+		{"-C", sub, "commit", "-q", "--allow-empty", "--no-gpg-sign", "--no-verify", "-m", "sub"},
+		{"-C", dir, "-c", "core.fsmonitor=false", "add", "--", "sub"},
+		{"-C", dir, "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "commit", "-q", "--no-gpg-sign", "--no-verify", "-m", "gitlink"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(sub, "dirty"), []byte("x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := HostGit(context.Background(), dir, "status", "--porcelain=v1").CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	if strings.Contains(string(out), "sub") {
+		t.Errorf("status looked inside the submodule: %s", out)
+	}
+}
+
+func TestHostGit_RefusesAnImplicitBareRepository(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "bare")
+	if out, err := exec.Command("git", "init", "-q", "--bare", dir).CombinedOutput(); err != nil {
+		t.Skipf("git init: %v %s", err, out)
+	}
+	if out, err := HostGit(context.Background(), dir, "rev-parse", "--git-dir").CombinedOutput(); err == nil {
+		t.Fatalf("git read a bare repository it was not pointed at: %s", out)
+	}
+}

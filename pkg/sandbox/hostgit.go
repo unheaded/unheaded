@@ -9,21 +9,30 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 // Host-side git on a directory a sandboxed check could write (H4). A check
 // runs with the worktree writable, .git included, and git reads that .git
-// when it runs on the host afterwards. HostGit is the only way to run it
-// there: nothing the repository's config names is run, and git gets none of
-// the caller's environment but the variables below. RecordGitLink and
-// CheckGitLink let a caller refuse a worktree whose .git changed at all.
+// when it runs on the host afterwards.
+//
+// CheckGitLink is the control: a worktree is trusted to git only once it
+// passes, and any command that reads the working tree or the index for
+// content (status, add, commit, diff) runs after it. HostGit narrows what a
+// repository's config can do and gives git none of the caller's environment
+// but the variables below, but it cannot make a changed .git safe: git has
+// settings no command line can switch off. Before CheckGitLink, a caller may
+// run only ls-files, symbolic-ref and rev-parse, which HostGit's tests pin.
 
-// hostGitConfig overrides, on the command line, the settings that make git
-// run a program or look in another repository. Command-line config beats the
-// repository's, and git hands it on to any child git.
+// hostGitConfig overrides, on the command line, the two settings that run a
+// program on every command, and keeps git out of a submodule and an implicit
+// bare repository. Command-line config beats the repository's, and git hands
+// it on to any child git.
 var hostGitConfig = []string{
 	"core.fsmonitor=false",
 	"core.hooksPath=/dev/null",
@@ -69,8 +78,10 @@ func RecordGitLink(dir string) ([]byte, error) {
 }
 
 // CheckGitLink refuses, with ErrGitLinkChanged, a worktree whose .git is not
-// the regular file recorded, byte for byte. A caller checks before any git
-// runs in the worktree after a sandboxed run.
+// the regular file recorded, byte for byte, or that holds any other .git, or
+// that it cannot read to the bottom. A caller checks before any git runs in
+// the worktree after a sandboxed run, and the unit must be gone by then:
+// Run sees to that.
 func CheckGitLink(dir string, want []byte) error {
 	got, err := readGitLink(dir)
 	if err != nil {
@@ -79,7 +90,67 @@ func CheckGitLink(dir string, want []byte) error {
 	if !bytes.Equal(got, want) {
 		return ErrGitLinkChanged
 	}
+	found, err := gitEntries(dir)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrGitLinkChanged, err)
+	}
+	for _, p := range found {
+		if p != filepath.Join(dir, ".git") {
+			return fmt.Errorf("%w: another at %q", ErrGitLinkChanged, p)
+		}
+	}
 	return nil
+}
+
+// QuarantineGit leaves a refused worktree safe to keep on disk. Every .git
+// in it moves into a new directory under dir, under a name git does not look
+// for, and link, the file RecordGitLink returned, goes back at the top so
+// `git worktree remove` still knows the worktree. It returns that directory,
+// and an error if anything stayed where it was. It runs no git.
+func QuarantineGit(dir string, link []byte) (string, error) {
+	quarantine, err := os.MkdirTemp(dir, ".refused-git-")
+	if err != nil {
+		return "", err
+	}
+	found, errs := gitEntries(dir)
+	for i, p := range found {
+		errs = errors.Join(errs, os.Rename(p, filepath.Join(quarantine, strconv.Itoa(i))))
+	}
+	return quarantine, errors.Join(errs, writeNewFile(filepath.Join(dir, ".git"), link))
+}
+
+// writeNewFile writes a file that must not exist yet, so a link cannot lead
+// the write elsewhere.
+func writeNewFile(path string, b []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644) // #nosec G302,G304 -- the .git of a worktree the caller named, as git writes it
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(b)
+	return errors.Join(err, f.Close())
+}
+
+// gitEntries returns every entry named .git under dir, the top one included,
+// of any type, without following a link. It goes on past what it cannot read
+// and returns that too: the caller decides what an unread directory means.
+func gitEntries(dir string) ([]string, error) {
+	var found []string
+	var errs error
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			errs = errors.Join(errs, err)
+			return nil
+		}
+		if !strings.EqualFold(d.Name(), ".git") || p == dir {
+			return nil
+		}
+		found = append(found, p)
+		if d.IsDir() {
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	return found, errs
 }
 
 func readGitLink(dir string) ([]byte, error) {

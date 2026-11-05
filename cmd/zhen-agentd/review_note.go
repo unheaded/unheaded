@@ -89,12 +89,17 @@ func (w *worker) writeNote(ctx context.Context, c zhenagent.Card, spec zhenagent
 	}
 
 	b.WriteString("\n## Review\n\n```bash\n")
-	if status == zhenagent.StatusSucceeded {
+	switch {
+	case status == zhenagent.StatusSucceeded:
 		fmt.Fprintf(&b, "git -C %s log --stat %s..%s\n", w.cfg.Repo, w.cfg.Base, run.Branch)
 		fmt.Fprintf(&b, "git -C %s switch %s && git -C %s merge --no-ff %s   # your own merge; nothing was pushed\n", w.cfg.Repo, w.cfg.Base, w.cfg.Repo, run.Branch)
 		fmt.Fprintf(&b, "zhen-claude review accept %s            # after the merge\n", run.ID)
 		fmt.Fprintf(&b, "zhen-claude review reject %s -reason '...'\n", run.ID)
-	} else {
+	case refused:
+		fmt.Fprintf(&b, "# Refused: nothing in this worktree is trusted. Read it with ls and cat, never git;\n")
+		fmt.Fprintf(&b, "# what replaced its .git is in %s/.refused-git-*.\n", wt)
+		fmt.Fprintf(&b, "rm -rf -- %s && git -C %s worktree prune   # when done with it\n", wt, w.cfg.Repo)
+	default:
 		fmt.Fprintf(&b, "git -C %s status   # the worktree is kept for inspection\n", wt)
 		fmt.Fprintf(&b, "git -C %s worktree remove --force %s   # when done with it\n", w.cfg.Repo, wt)
 	}

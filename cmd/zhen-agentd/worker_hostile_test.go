@@ -131,6 +131,69 @@ func taintGitLink(t *testing.T, wt string, marker string) {
 	}
 }
 
+// secondGit stands in for a check that left another repository in the tree.
+func secondGit(t *testing.T, wt string, marker string) {
+	t.Helper()
+	sub := filepath.Join(wt, "pkg", "sub")
+	for _, args := range [][]string{{"init", "-q", sub}, {"-C", sub, "config", "core.fsmonitor", "touch " + marker + " #"}} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+}
+
+// assertRefusedWorktreeIsSafe: what is left of a refused worktree runs
+// nothing when a person, a shell prompt or `worktree remove` meets it, and
+// the note points away from git in it.
+func assertRefusedWorktreeIsSafe(t *testing.T, repo, wt, marker string, res cardResult) {
+	t.Helper()
+	note, err := os.ReadFile(res.ReviewNote)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(note), "git -C "+wt) {
+		t.Errorf("the note sends a person to git in the refused worktree:\n%s", note)
+	}
+	if !strings.Contains(string(note), "rm -rf -- "+wt) {
+		t.Errorf("the note does not say how to remove it:\n%s", note)
+	}
+	if out, err := exec.Command("git", "-C", wt, "status", "--porcelain").CombinedOutput(); err != nil {
+		t.Errorf("plain git in what is left: %v %s", err, out)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("plain git in the refused worktree ran a program it left")
+	}
+	if out, err := exec.Command("git", "-C", repo, "worktree", "remove", "--force", wt).CombinedOutput(); err != nil {
+		t.Errorf("worktree remove: %v %s", err, out)
+	}
+}
+
+// H4: a worktree with a second repository in it is refused like one whose
+// own .git changed.
+func TestWorker_RefusesAWorktreeHoldingAnotherGit(t *testing.T) {
+	m := zhenagent.NewMemStore()
+	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	r := &fakeRunner{write: true, out: passOutcome()}
+	w, repo, agent, _ := newTestWorker(t, m, r)
+	marker := filepath.Join(t.TempDir(), "ran")
+	wt := filepath.Join(agent, "good")
+	r.hook = func() { secondGit(t, wt, marker) }
+	res, err := w.runOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != outcomeFailed || !strings.Contains(res.Reason, "refused") {
+		t.Fatalf("result = %+v", res)
+	}
+	if got := gitOut(t, repo, "rev-parse", "refs/heads/zhen/good"); got != gitOut(t, repo, "rev-parse", "develop") {
+		t.Errorf("the branch moved: %s", got)
+	}
+	if _, err := os.Lstat(filepath.Join(wt, "pkg", "sub", ".git")); err == nil {
+		t.Error("the second .git stayed where it was")
+	}
+	assertRefusedWorktreeIsSafe(t, repo, wt, marker, res)
+}
+
 // H4: a worktree whose .git is not the one recorded before the run is
 // refused, whatever the check said, and no git touches it again.
 func TestWorker_RefusesAWorktreeWhoseGitChanged(t *testing.T) {
@@ -171,6 +234,7 @@ func TestWorker_RefusesAWorktreeWhoseGitChanged(t *testing.T) {
 			if c, _ := m.CardState("good"); c.Status != "todo" {
 				t.Errorf("card status %q", c.Status)
 			}
+			assertRefusedWorktreeIsSafe(t, repo, wt, marker, res)
 		})
 	}
 }

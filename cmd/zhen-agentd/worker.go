@@ -38,8 +38,10 @@ import (
 // are not run on model-written code (--no-verify: the sandboxed check is
 // the judge, and a hook would run it unsandboxed). A sandboxed check can
 // write the worktree, so all git here is sandbox.HostGit, and the worktree's
-// .git is recorded before the run and must match after it: if not, the run
-// fails and no git touches that worktree again.
+// .git is recorded before the run and must match after it, with no other
+// .git below it. If not, the run fails, no git touches that worktree again,
+// and what the run left is moved where git will not read it for a person
+// either.
 
 // Outcomes of one runOnce.
 const (
@@ -493,6 +495,11 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 	if err := sandbox.CheckGitLink(wt, gitLink); err != nil {
 		refused = true
 		log.Warn("worker_worktree_refused", "error", err.Error())
+		quarantine, qerr := sandbox.QuarantineGit(wt, gitLink)
+		if qerr != nil {
+			log.Error("worker_quarantine", "error", qerr.Error())
+		}
+		log.Info("worker_quarantined", "path", quarantine)
 		return end(zhenagent.StatusFailed, "refused: "+err.Error(), false, o, "", 0)
 	}
 	if ctx.Err() != nil || (w.cfg.Stop != nil && w.cfg.Stop()) {
