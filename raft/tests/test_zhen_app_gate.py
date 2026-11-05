@@ -375,3 +375,59 @@ def test_the_bind_address_is_on_the_list(client, monkeypatch):
 def test_a_wildcard_bind_is_not_a_host(client, monkeypatch):
     monkeypatch.setenv('ZHEN_BIND_ADDR', '0.0.0.0')
     assert client.get('/health', headers={'Host': '0.0.0.0:20103'}).status_code == 403
+
+
+# ── /api/v1/champion/read judges the real path (M21) ────────────────────
+
+@pytest.fixture
+def sandbox_root(tmp_path, monkeypatch):
+    root = tmp_path / 'unheaded'
+    (root / 'pkg').mkdir(parents=True)
+    (root / 'pkg' / 'ok.go').write_text('package ok\n')
+    monkeypatch.setattr(zhen_app, 'CHAMPION_ALLOWED', [str(root) + '/'])
+    return root
+
+
+def test_champion_read_allows_a_file_in_the_sandbox(sandbox_root):
+    path, err = zhen_app.champion_validate_path(str(sandbox_root / 'pkg' / 'ok.go'))
+    assert err is None and path.endswith('ok.go')
+
+
+def test_champion_read_refuses_a_sibling_of_the_root(sandbox_root):
+    sibling = sandbox_root.parent / 'unheaded-x'
+    sibling.mkdir()
+    (sibling / 'f').write_text('x\n')
+    path, err = zhen_app.champion_validate_path(str(sibling / 'f'))
+    assert path is None and err
+
+
+def test_champion_read_refuses_a_link_out_of_the_root(sandbox_root):
+    (sandbox_root.parent / 'outside').write_text('x\n')
+    (sandbox_root / 'pkg' / 'link').symlink_to(sandbox_root.parent / 'outside')
+    path, err = zhen_app.champion_validate_path(str(sandbox_root / 'pkg' / 'link'))
+    assert path is None and err
+
+
+def test_champion_read_refuses_a_link_to_a_denied_name_in_the_root(sandbox_root):
+    (sandbox_root / 'server.key').write_text('x\n')
+    (sandbox_root / 'pkg' / 'notes').symlink_to(sandbox_root / 'server.key')
+    path, err = zhen_app.champion_validate_path(str(sandbox_root / 'pkg' / 'notes'))
+    assert path is None and err
+
+
+@pytest.mark.parametrize('rel', ['tls/server.key', 'tls/ca.PEM', '.git/config', 'sub/.git/config', '.env'])
+def test_champion_read_refuses_key_material_and_git_config(sandbox_root, rel):
+    p = sandbox_root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text('x\n')
+    path, err = zhen_app.champion_validate_path(str(p))
+    assert path is None and err
+
+
+@pytest.mark.parametrize('rel', ['pkg/keyboard.go', 'docs/pem-format.md', '.gitignore'])
+def test_champion_read_allows_names_that_only_look_alike(sandbox_root, rel):
+    p = sandbox_root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text('x\n')
+    path, err = zhen_app.champion_validate_path(str(p))
+    assert err is None and path

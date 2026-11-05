@@ -2088,18 +2088,37 @@ CHAMPION_ALLOWED = [
     '/var/zhen/',
 ]
 CHAMPION_DENIED = ['.ssh', '.env', 'credentials', 'secrets', 'shadow', 'id_rsa', 'id_ed25519']
+CHAMPION_DENIED_SUFFIXES = ('.key', '.pem')
+
+
+def _champion_denied(path):
+    """The denied pattern in path, or None. Key material goes by file suffix,
+    and .git is a path component, so .gitignore stays readable."""
+    for denied in CHAMPION_DENIED:
+        if denied in path:
+            return denied
+    if path.lower().endswith(CHAMPION_DENIED_SUFFIXES):
+        return os.path.splitext(path)[1]
+    if '.git' in path.split(os.sep):
+        return '.git'
+    return None
+
 
 def champion_validate_path(path):
-    """Validate path is within sandbox. Returns (abs_path, error)."""
+    """Validate path is within sandbox, as given and as resolved, so a link
+    cannot lead a read out of it. Returns (real_path, error)."""
     if '..' in path:
         return None, 'Path traversal blocked'
     abs_path = os.path.abspath(os.path.expanduser(path))
-    for denied in CHAMPION_DENIED:
-        if denied in abs_path:
+    real_path = os.path.realpath(abs_path)
+    for candidate in (abs_path, real_path):
+        denied = _champion_denied(candidate)
+        if denied:
             return None, f'Path contains denied pattern: {denied}'
     for allowed in CHAMPION_ALLOWED:
-        if abs_path.startswith(os.path.abspath(allowed)):
-            return abs_path, None
+        root = os.path.realpath(os.path.expanduser(allowed))
+        if real_path.startswith(root + os.sep):
+            return real_path, None
     return None, 'Path outside sandbox'
 
 

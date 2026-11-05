@@ -242,6 +242,9 @@ func (c *Champion) validatePath(path string) error {
 	if c.inProtectedTree(absPath) || c.inProtectedTree(resolved) {
 		return fmt.Errorf("path is in a protected tree (runbooks/, scripts/ or .git): %s", absPath)
 	}
+	if keyMaterial(absPath) || keyMaterial(resolved) {
+		return fmt.Errorf("path is key material: %s", absPath)
+	}
 	for _, allowed := range c.config.AllowedPaths {
 		allowedAbs, _ := filepath.Abs(allowed)
 		allowedReal, err := realPath(allowedAbs)
@@ -253,6 +256,12 @@ func (c *Champion) validatePath(path string) error {
 		}
 	}
 	return fmt.Errorf("path resolves outside sandbox: %s -> %s", absPath, resolved)
+}
+
+// keyMaterial reports a private key or certificate file by its suffix.
+func keyMaterial(p string) bool {
+	ext := strings.ToLower(filepath.Ext(p))
+	return ext == ".key" || ext == ".pem"
 }
 
 // protectedTopDirs are the directories at a root that decide what runs on

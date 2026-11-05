@@ -142,3 +142,32 @@ func TestBranchSandbox_KeepsTheAuthoringRouteAndNotGit(t *testing.T) {
 		}
 	}
 }
+
+// M21: key material is out of every file tool's reach, by the name as given
+// and as resolved, whatever Config.DeniedPaths says.
+func TestValidatePath_KeyMaterial(t *testing.T) {
+	root := t.TempDir()
+	c, err := New(Config{ProjectRoot: root, DeniedPaths: []string{"nothing-here"}}, &mockStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{"tls/server.key", "tls/ca.pem", "tls/CA.PEM"} {
+		if err := c.validatePath(filepath.Join(root, rel)); err == nil {
+			t.Errorf("validatePath allows %s", rel)
+		}
+	}
+	for _, rel := range []string{"pkg/keyboard.go", "docs/pem-format.md", "pkg/x.key.md"} {
+		if err := c.validatePath(filepath.Join(root, rel)); err != nil {
+			t.Errorf("validatePath refuses %s: %v", rel, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "server.key"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "server.key"), filepath.Join(root, "notes")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.validatePath(filepath.Join(root, "notes")); err == nil {
+		t.Error("a link to key material is allowed")
+	}
+}
