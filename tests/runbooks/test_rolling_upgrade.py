@@ -147,8 +147,8 @@ def test_a_failure_before_tail_fails_the_step(tmp_path, name):
     rb = harness.load(RB)
     text = harness.step(rb, name)["command"].replace("/opt/unheaded/bin/akira", "sudo").replace("cd ~/tmp/unheaded && ", "")
     cmd = harness._RUNNER.expand_env(text, harness.runner_env(rb, {}))
-    r = subprocess.run(cmd, shell=True, executable="/bin/bash", capture_output=True, text=True,  # nosec B602 - runbook text under test, against stand-ins
-                       timeout=30, check=False, env={"PATH": f"{bin_dir}:/usr/bin:/bin"}, cwd=tmp_path)
+    r = subprocess.run(["/bin/bash", "-c", cmd], capture_output=True, text=True, timeout=30, check=False,
+                       env={"PATH": f"{bin_dir}:/usr/bin:/bin"}, cwd=tmp_path)
     assert r.returncode != 0, cmd
 
 
