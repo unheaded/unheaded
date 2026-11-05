@@ -117,7 +117,7 @@ def _allowed_hosts():
     """Loopback, the address the UI binds, and ZHEN_ALLOWED_HOSTS (comma list)."""
     hosts = {'localhost', '127.0.0.1', '::1'}
     bind = os.environ.get('ZHEN_BIND_ADDR', '').strip().lower()
-    if bind and bind not in ('0.0.0.0', '::'):
+    if bind and bind not in ('0.0.0.0', '::'):  # nosec B104 - compared, never bound: a wildcard is no Host value
         hosts.add(bind)
     hosts.update(h.strip().lower() for h in os.environ.get('ZHEN_ALLOWED_HOSTS', '').split(',') if h.strip())
     return hosts

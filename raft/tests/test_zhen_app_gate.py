@@ -244,7 +244,7 @@ def test_schedule_commands_call_agentd_not_a_local_scheduler(monkeypatch):
 
 def test_held_schedule_change_points_at_the_client_that_can_confirm(monkeypatch):
     import zhen_scheduler_client
-    held = {'status': 'pending_confirmation', 'reason': 'held', 'pending_token': 'tok-secret'}
+    held = {'status': 'pending_confirmation', 'reason': 'held', 'pending_token': 'tok-secret'}  # nosec B105 - fixture string, no credential
     monkeypatch.setattr(zhen_scheduler_client, 'call', lambda *a, **kw: (403, held))
     for q in ('schedule service-health-sweep every 6h', 'unschedule service-health-sweep', 'resume schedules'):
         answer, handled = zhen_app._try_command(q)
@@ -400,7 +400,7 @@ def test_the_bind_address_is_on_the_list(client, monkeypatch):
 
 
 def test_a_wildcard_bind_is_not_a_host(client, monkeypatch):
-    monkeypatch.setenv('ZHEN_BIND_ADDR', '0.0.0.0')
+    monkeypatch.setenv('ZHEN_BIND_ADDR', '0.0.0.0')  # nosec B104 - test data: the wildcard is what must be refused
     assert client.get('/health', headers={'Host': '0.0.0.0:20103'}).status_code == 403
 
 
