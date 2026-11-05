@@ -1183,6 +1183,7 @@ check-gates-can-fail|SELF|self|this script — see the self-exemption note
 # someone made on purpose.
 # ---------------------------------------------------------------------------
 NOT_A_GATE="
+install-trivy|installs the pinned trivy on Jenkins agents, a tool not a gate; its sha256 refusal is proven by test-install-trivy
 generate-sbom|emits an SBOM; failure surfaces in the jobs that consume it
 build-all-debs|produces .deb artifacts
 build-sealed-cask|produces a sealed image
