@@ -42,6 +42,8 @@
 - `host-journal:east:apply-journal` stays in the register, KEEP from Step 121, verdict `fail`, detail `not applied: aide-install, apparmor-enforce`. Those are the two fixes row 25.1 leaves open on east. Its `plan` text still opens "As west", and west's row is gone; it was not edited, because Step 121 only removes rows.
 - Ten other register entries print `remove from the register` in the findings output and were not touched, because they are not in Step 121's list: `host-probe:east:sshd-kex-pq`, `FND-020`, `gate-script:scripts/compliance/check-service-auth.sh`, `FND-028`, `FND-029`, `git-signatures:develop`, `github-job:Static Analysis/Python (ruff + bandit)`, `github-job:SBOM + Vulnerability Scan/sbom`, `host-agent:west:baseline-report`, `github-job:Security Scan (Daily + PR)/Go Security Scan (gosec)`. None comes from this plan. Decide: clear them in a register sweep, or leave them.
 - Plan text, Step 122: it labels the evidence line and commit `Steps 118-122`, but Phase 16 is Steps 121-125 and Step 118 is Phase 14's, which did not run. Its staging list has only the progress file, so the Step 121 row removals go in with Step 124. Run as written.
+- 25.4: trial green; host /tmp unchanged; S-E1-LIVE Evening 17 applies it when no lane runs. Green covers what Step 114 ran: two Go packages, `check-go-env.sh`, `check-zhen-mcp.sh` and one cargo crate, all with `GOTMPDIR` and `TMPDIR` set; the other seven `mktemp` scripts were not run. Without the redirect `go test` fails with `permission denied`, so Step 291's `GOTMPDIR` and `TMPDIR` must land before the remount.
+- Plan text, Step 113: its Expect wants `permission denied`, but `tail -2` only ever shows the two `FAIL` lines. The step was run again with `tail -6` to see the cause. S-E1-LIVE does not repeat this command, so nothing else needs it.
 
 ## Evidence
 
@@ -124,3 +126,4 @@
 - Step 114 trial: `ok` for `pkg/cmdline` and `cmd/unheaded-remediate`, `check-go-env.sh` `OK`, `check-zhen-mcp.sh` `handshake ok` (one of the eight `mktemp` builds, the only one run), cargo `monad-mbc --lib` `269 passed; 0 failed`. Two proc-macro `.so` files built under `/var/tmp/host-tidy/cargo` (`thiserror_impl`, `scroll_derive`), so proc-macros ran with `/tmp` noexec. Worktree clean after.
 - Phase 14 commits are unsigned (`--no-gpg-sign`): gpg-agent has no cached key, coordinator's note.
 - Steps 111-115: Phase 14, checked: TRIAL, NAMED ROOT STEP  the same namespace as govan, GOTMPDIR and TMPDIR under /var/tmp: G.
+- Steps 116-117: Control failed as it must; trial result recorded under For Stevie; deferred to S-E1-LIVE Evening 17.
