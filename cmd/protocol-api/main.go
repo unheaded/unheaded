@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"flag"
 	"fmt"
 	"log"
@@ -12,12 +13,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"unheaded/pkg/auth"
@@ -33,14 +39,18 @@ var (
 
 const (
 	apiKeyHeader = "X-API-Key" // #nosec G101 -- HTTP header NAME, not a key value
-	version      = "0.1.0"
-	drainTimeout = 30 * time.Second
-	rateLimitQPS = 1000
+	// apiKeyMetadata is apiKeyHeader on gRPC, whose metadata keys are lower case.
+	apiKeyMetadata = "x-api-key"        // #nosec G101 -- metadata NAME, not a key value
+	apiKeyEnv      = "PROTOCOL_API_KEY" // #nosec G101 -- variable NAME, not a key value
+	version        = "0.1.0"
+	drainTimeout   = 30 * time.Second
+	rateLimitQPS   = 1000
 )
 
 var (
 	mode        = flag.String("mode", "mock", "Backend mode: mock (in-memory) or bpf (pinned maps)")
-	apiKey      = flag.String("api-key", "", "API key for authentication (empty = disabled)")
+	apiKey      = flag.String("api-key", "", "API key for authentication (empty = disabled); prefer --api-key-file or "+apiKeyEnv+", as argv is visible to every local user")
+	apiKeyFile  = flag.String("api-key-file", "", "file holding the API key")
 	bpfMapsPath = flag.String("bpf-maps", "/sys/fs/bpf/unheaded", "Path to pinned BPF maps")
 	logRequests = flag.Bool("log", true, "Enable request logging")
 	// Deprecated: use --mode=mock instead. Kept for backwards compatibility.
@@ -51,6 +61,8 @@ var (
 var (
 	globalMockMode bool // Derived from globalBackend.Mode(); kept for backwards compat
 	globalAPIKey   string
+	// globalAudit records the legacy key's decisions (auth.NewServiceAudit).
+	globalAudit func(auth.AuditEvent)
 	// (globalBPFPath was once threaded through to map readers but the
 	// modern path goes via globalBackend; the variable was assigned but
 	// never read. Removed.)
@@ -88,7 +100,11 @@ func main() {
 		log.Fatalf("Unknown --mode %q (valid: mock, bpf)", resolvedMode)
 	}
 	globalMockMode = IsMockMode()
-	globalAPIKey = *apiKey
+	key, err := resolveAPIKey(*apiKey, *apiKeyFile, os.Getenv)
+	if err != nil {
+		log.Fatalf("API key: %v", err)
+	}
+	globalAPIKey = key
 	_ = bpfMapsPath // path is owned by globalBackend; flag still parsed for CLI compat
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -102,11 +118,18 @@ func main() {
 	// (AUTH_ENABLED=true, ADR-103). A configuration auth cannot use stops
 	// the service here rather than serving it open.
 	authCfg := auth.LoadServiceAuthConfig("protocol-api")
+	for _, w := range startupWarnings(authCfg, key, *apiKey) {
+		log.Printf("WARNING: %s", w)
+	}
+	globalAudit, err = auth.NewServiceAudit(authCfg)
+	if err != nil {
+		log.Fatalf("auth: %v (see ADR-103)", err)
+	}
 	srvHandler, err := newRESTHandler(authCfg)
 	if err != nil {
 		log.Fatalf("auth: %v (see ADR-103)", err)
 	}
-	unaryAuth, err := grpcInterceptor(authCfg)
+	grpcServer, err := newGRPCServer(authCfg)
 	if err != nil {
 		log.Fatalf("auth (gRPC): %v (see ADR-103)", err)
 	}
@@ -130,16 +153,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to listen on gRPC port %s: %v", grpcPort, err)
 	}
-
-	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(unaryAuth),
-	)
-
-	pb.RegisterMonadServiceServer(grpcServer, &monadServer{})
-	pb.RegisterSophiaServiceServer(grpcServer, getSophiaServer())
-	pb.RegisterWotanServiceServer(grpcServer, getWotanServer())
-	pb.RegisterAnamnesisServiceServer(grpcServer, getAnamnesisServer())
-	pb.RegisterFlowServiceServer(grpcServer, getFlowServer())
 
 	// Start servers in goroutines
 	go func() {
@@ -191,23 +204,96 @@ func newRESTHandler(cfg auth.ServiceAuthConfig) (http.Handler, error) {
 	return auth.NewServiceHandler(restHandler, cfg, auth.ServiceRoutes{})
 }
 
-// grpcInterceptor is the gRPC listener's unary interceptor: with auth on,
-// the caller's token in "authorization" metadata is verified like a REST
-// call's (same authenticator, same allowlist) before the legacy check.
-func grpcInterceptor(cfg auth.ServiceAuthConfig) (grpc.UnaryServerInterceptor, error) {
+// grpcInterceptors are the gRPC listener's interceptors, unary and stream:
+// with auth on, the caller's token in "authorization" metadata is verified
+// like a REST bearer token, then both apply the legacy API key check. An
+// error means auth is on but unusable.
+func grpcInterceptors(cfg auth.ServiceAuthConfig) (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor, error) {
 	if !cfg.Enabled {
-		return grpcAuthInterceptor, nil
+		return grpcAuthInterceptor, grpcStreamAuthInterceptor, nil
 	}
 	a, err := auth.NewServiceAuthenticator(cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	verify := auth.GRPCUnaryInterceptor(a)
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	verifyStream := auth.GRPCStreamInterceptor(a)
+	unary := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		return verify(ctx, req, info, func(ctx context.Context, req interface{}) (interface{}, error) {
 			return grpcAuthInterceptor(ctx, req, info, handler)
 		})
-	}, nil
+	}
+	stream := func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		return verifyStream(srv, ss, info, func(srv interface{}, ss grpc.ServerStream) error {
+			return grpcStreamAuthInterceptor(srv, ss, info, handler)
+		})
+	}
+	return unary, stream, nil
+}
+
+// newGRPCServer builds the gRPC server with every service registered behind
+// grpcInterceptors.
+func newGRPCServer(cfg auth.ServiceAuthConfig, opts ...grpc.ServerOption) (*grpc.Server, error) {
+	unaryAuth, streamAuth, err := grpcInterceptors(cfg)
+	if err != nil {
+		return nil, err
+	}
+	grpcServer := grpc.NewServer(append(opts, grpc.UnaryInterceptor(unaryAuth), grpc.StreamInterceptor(streamAuth))...)
+	pb.RegisterMonadServiceServer(grpcServer, &monadServer{})
+	pb.RegisterSophiaServiceServer(grpcServer, getSophiaServer())
+	pb.RegisterWotanServiceServer(grpcServer, getWotanServer())
+	pb.RegisterAnamnesisServiceServer(grpcServer, getAnamnesisServer())
+	pb.RegisterFlowServiceServer(grpcServer, getFlowServer())
+	return grpcServer, nil
+}
+
+// startupWarnings says what about this configuration an operator should
+// change. The all-interfaces default with no credential stays a warning, not
+// a refusal, while deployments reach this service off-host with neither.
+func startupWarnings(cfg auth.ServiceAuthConfig, key, argvKey string) []string {
+	var out []string
+	if argvKey != "" {
+		out = append(out, "--api-key is visible to every local user in the process list; use --api-key-file or "+apiKeyEnv)
+	}
+	if key == "" && auth.CheckListen([]string{restPort, grpcPort}, cfg) != nil {
+		out = append(out, fmt.Sprintf("serving %s and %s off loopback with no credential: set AUTH_ENABLED=true or an API key", restPort, grpcPort))
+	}
+	return out
+}
+
+// recordKeyDecision is the legacy key's line in the audit trail, which sits
+// beside pkg/auth's own.
+func recordKeyDecision(allowed bool, method, endpoint, ip string) {
+	if globalAudit == nil {
+		return
+	}
+	e := auth.AuditEvent{EventType: auth.AuditAPIKeySuccess, Result: "allowed", Method: method, Endpoint: endpoint, IP: ip}
+	if !allowed {
+		e.EventType, e.Result, e.Reason = auth.AuditAPIKeyFailure, "denied", "invalid or missing API key"
+	}
+	globalAudit(e)
+}
+
+// resolveAPIKey finds the legacy API key: --api-key-file, then
+// PROTOCOL_API_KEY, then --api-key, which every local user can read in the
+// process list. A file that is named but unusable is an error, so a typo
+// cannot leave the service with no key.
+func resolveAPIKey(flagKey, file string, getenv func(string) string) (string, error) {
+	if file != "" {
+		raw, err := os.ReadFile(file) // #nosec G304 -- operator-supplied key file path
+		if err != nil {
+			return "", fmt.Errorf("--api-key-file: %w", err)
+		}
+		key := strings.TrimSpace(string(raw))
+		if key == "" {
+			return "", fmt.Errorf("--api-key-file: %s is empty", file)
+		}
+		return key, nil
+	}
+	if key := getenv(apiKeyEnv); key != "" {
+		return key, nil
+	}
+	return flagKey, nil
 }
 
 // Middleware chain
@@ -241,8 +327,9 @@ func authMiddleware(next http.Handler) http.Handler {
 		}
 
 		if globalAPIKey != "" {
-			providedKey := r.Header.Get(apiKeyHeader)
-			if providedKey != globalAPIKey {
+			ok := apiKeyMatches(r.Header.Get(apiKeyHeader))
+			recordKeyDecision(ok, r.Method, r.URL.Path, hostOnly(r.RemoteAddr))
+			if !ok {
 				writeJSON(w, http.StatusUnauthorized, map[string]interface{}{
 					"code":    http.StatusUnauthorized,
 					"message": "Invalid or missing API key",
@@ -304,12 +391,51 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 
 // grpcAuthInterceptor enforces API key authentication for gRPC
 func grpcAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	if globalAPIKey != "" {
-		// info.FullMethod contains the gRPC method name (e.g. "/unheaded.v1.MonadService/Encode")
-		_ = info.FullMethod // Placeholder: use metadata to check API key if needed
+	if err := checkGRPCAPIKey(ctx); err != nil {
+		return nil, err
 	}
-
 	return handler(ctx, req)
+}
+
+// grpcStreamAuthInterceptor is grpcAuthInterceptor for streams.
+func grpcStreamAuthInterceptor(srv interface{}, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	if err := checkGRPCAPIKey(ss.Context()); err != nil {
+		return err
+	}
+	return handler(srv, ss)
+}
+
+// checkGRPCAPIKey wants the configured key, if any, in "x-api-key" metadata.
+func checkGRPCAPIKey(ctx context.Context) error {
+	if globalAPIKey == "" {
+		return nil
+	}
+	md, _ := metadata.FromIncomingContext(ctx)
+	v := md.Get(apiKeyMetadata)
+	ok := len(v) == 1 && apiKeyMatches(v[0])
+	fullMethod, _ := grpc.Method(ctx)
+	var ip string
+	if p, found := peer.FromContext(ctx); found && p.Addr != nil {
+		ip = hostOnly(p.Addr.String())
+	}
+	recordKeyDecision(ok, "GRPC", fullMethod, ip)
+	if !ok {
+		return status.Error(codes.Unauthenticated, "invalid or missing API key")
+	}
+	return nil
+}
+
+// hostOnly drops the port from a peer address.
+func hostOnly(addr string) string {
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return host
+	}
+	return addr
+}
+
+// apiKeyMatches compares in constant time.
+func apiKeyMatches(provided string) bool {
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(globalAPIKey)) == 1
 }
 
 // registerRestRoutes registers all REST endpoints

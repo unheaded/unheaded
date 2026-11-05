@@ -49,8 +49,8 @@ steps:
 
   - name: last-error
     action: shell
-    command: "curl -s -m 5 \"http://${KEV_HOST}:19120/api/v1/kev\""
-    description: "The poller's state (no catalog body): catalog version, count, fetched_at, next pull, and the last error when a pull failed"
+    command: "curl -s -m 5 \"http://${KEV_HOST}:19120/metrics\" | grep -E '^unheaded_kev_(pull_(success|failure)_total|last_(pull|success)_timestamp_seconds|total_count)'"
+    description: "Pull counters and timestamps, open with auth on (/api/v1/kev needs a credential): failures climbing with an old last success means pulls are failing; unit-log says why"
 
   - name: unit-log
     action: shell

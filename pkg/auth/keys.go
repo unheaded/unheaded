@@ -18,6 +18,10 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // Service key files (ADR-103 §2). Each service holds one Ed25519 private key
@@ -208,22 +212,33 @@ func readCapped(r io.Reader) ([]byte, error) {
 type trustedKey struct {
 	pub  ed25519.PublicKey
 	name string
+	file string // base name of the .pub it came from
 }
 
 // TrustDir is the set of service public keys a verifier accepts, read from
 // a directory of "<name>.pub" files (rotation adds "<name>.<anything>.pub";
-// the name is everything before the first dot). Removing a file and calling
-// Reload revokes that key. Safe for concurrent use.
+// the name is everything before the first dot). Removing a file revokes that
+// key within trustReloadInterval, or at once with Reload. Safe for concurrent
+// use.
 type TrustDir struct {
 	path string
-	mu   sync.RWMutex
-	keys map[string]trustedKey // kid -> key
+	now  func() time.Time
+
+	mu      sync.RWMutex
+	keys    map[string]trustedKey // kid -> key
+	checked time.Time             // when the directory was last read
+
+	reloading atomic.Bool // one lookup re-reads the directory; the rest carry on
 }
+
+// trustReloadInterval is how often lookups re-read the directory, so adding
+// or removing a .pub takes effect with no restart.
+const trustReloadInterval = 30 * time.Second
 
 // NewTrustDir loads the trust directory at path. It fails if the directory
 // cannot be read or holds anything Reload refuses.
 func NewTrustDir(path string) (*TrustDir, error) {
-	td := &TrustDir{path: path}
+	td := &TrustDir{path: path, now: time.Now}
 	if err := td.Reload(); err != nil {
 		return nil, err
 	}
@@ -271,12 +286,58 @@ func (t *TrustDir) Reload() error {
 		if prev, dup := keys[kid]; dup && prev.name != name {
 			return fmt.Errorf("auth: trust dir %s: key %s is filed under both %q and %q", t.path, kid, prev.name, name)
 		}
-		keys[kid] = trustedKey{pub: pub, name: name}
+		keys[kid] = trustedKey{pub: pub, name: name, file: fn}
 	}
 	t.mu.Lock()
 	t.keys = keys
+	t.checked = t.now()
 	t.mu.Unlock()
 	return nil
+}
+
+// refreshIfDue re-reads the directory when trustReloadInterval has passed.
+// When Reload refuses the directory, a broken sibling must not keep a removed
+// key alive, so every key is checked against its own file instead.
+func (t *TrustDir) refreshIfDue() {
+	now := t.now()
+	t.mu.RLock()
+	due := now.Sub(t.checked) >= trustReloadInterval
+	t.mu.RUnlock()
+	if !due || !t.reloading.CompareAndSwap(false, true) {
+		return
+	}
+	defer t.reloading.Store(false)
+	err := t.Reload()
+	if err == nil {
+		return
+	}
+	log.Error().Err(err).Str("trust_dir", t.path).Msg("auth: trust directory refused; keeping only keys whose files still match")
+	t.dropStale()
+	t.mu.Lock()
+	t.checked = now
+	t.mu.Unlock()
+}
+
+// dropStale removes every key whose file is gone or no longer holds it.
+func (t *TrustDir) dropStale() {
+	t.mu.RLock()
+	held := make(map[string]trustedKey, len(t.keys))
+	for kid, k := range t.keys {
+		held[kid] = k
+	}
+	t.mu.RUnlock()
+	var stale []string
+	for kid, k := range held {
+		pub, err := readPubFile(filepath.Join(t.path, k.file))
+		if err != nil || !pub.Equal(k.pub) {
+			stale = append(stale, kid)
+		}
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, kid := range stale {
+		delete(t.keys, kid)
+	}
 }
 
 // readPubFile reads one .pub file, following a symlink (Docker and
@@ -311,6 +372,7 @@ func (t *TrustDir) Lookup(kid string) (ed25519.PublicKey, bool) {
 // file binds it to. A verifier must check a token's subject against that
 // name: the key proves who signed, the name says who that is.
 func (t *TrustDir) LookupName(kid string) (ed25519.PublicKey, string, bool) {
+	t.refreshIfDue()
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	k, ok := t.keys[kid]

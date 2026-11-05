@@ -9,7 +9,10 @@ Serve the Unheaded Protocol API over HTTP and gRPC, backed by mock data or pinne
 .SH OPTIONS
 .TP
 .B \-\-api\-key \fISTRING\fR
-API key for authentication (empty = disabled)
+API key for authentication (empty = disabled); prefer \-\-api\-key\-file or PROTOCOL_API_KEY, as argv is visible to every local user
+.TP
+.B \-\-api\-key\-file \fISTRING\fR
+file holding the API key
 .TP
 .B \-\-bpf\-maps \fISTRING\fR
 Path to pinned BPF maps (default /sys/fs/bpf/unheaded)

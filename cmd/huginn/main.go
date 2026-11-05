@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -389,7 +390,7 @@ func main() {
 	// Config file is loaded first; CLI flags override individual fields.
 	configPath := flag.String("config", "/etc/huginn.yaml", "path to YAML config file (optional)")
 	flagHost := flag.String("host", "", "host label override (default: hostname or config)")
-	flagListen := flag.String("listen", "", "listen address override")
+	flagListen := flag.String("listen", "", "listen addresses override, comma-separated (default 127.0.0.1:9110; huginn has no auth, so name internal addresses only)")
 	flagVM := flag.String("vm", "", "VictoriaMetrics URL override (empty string = no override)")
 	flagInterval := flag.Duration("interval", 0, "collection/push interval override")
 	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
@@ -500,15 +501,73 @@ func main() {
 	// connections open indefinitely sending headers a byte at a time until the
 	// agent exhausts its connection budget. gosec G114.
 	srv := &http.Server{
-		Addr:              cfg.Listen,
 		Handler:           nil, // http.DefaultServeMux, as before
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	if err := srv.ListenAndServe(); err != nil {
+	if err := serveAll(srv, cfg.Listen); err != nil {
 		fmt.Fprintf(os.Stderr, "huginn: listen: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+// listenRetry is how often serveAll tries an address the host does not hold.
+var listenRetry = 5 * time.Second
+
+// bindAddr opens one listener; a test swaps it to bring an address up.
+var bindAddr = func(addr string) (net.Listener, error) { return net.Listen("tcp", addr) }
+
+// serveAll serves srv on every address of list (comma-separated) until one
+// listener fails. A taken port or a bad address stops the start. An address
+// the host does not hold yet does not: huginn's pushes and the addresses that
+// are up carry on, and that one is served once it appears, so a link that is
+// down at boot costs its callers and nothing else.
+func serveAll(srv *http.Server, list string) error {
+	lns, pending, err := httputil.ListenAvailable(httputil.ListenAddrs(list))
+	if err != nil {
+		return err
+	}
+	errs := make(chan error, len(lns)+len(pending))
+	done := make(chan struct{})
+	defer close(done)
+	for _, ln := range lns {
+		go func() { errs <- srv.Serve(ln) }()
+	}
+	for _, addr := range pending {
+		fmt.Fprintf(os.Stderr, "huginn: %s is not on this host yet; retrying every %s\n", addr, listenRetry)
+		go func() {
+			ln, err := awaitAddr(addr, done)
+			switch {
+			case err != nil:
+				errs <- err
+			case ln != nil:
+				errs <- srv.Serve(ln)
+			}
+		}()
+	}
+	return <-errs
+}
+
+// awaitAddr binds addr once the host holds it. It returns nil, nil when done
+// closes first.
+func awaitAddr(addr string, done <-chan struct{}) (net.Listener, error) {
+	tick := time.NewTicker(listenRetry)
+	defer tick.Stop()
+	for {
+		select {
+		case <-done:
+			return nil, nil
+		case <-tick.C:
+		}
+		ln, err := bindAddr(addr)
+		if err == nil {
+			fmt.Fprintf(os.Stderr, "huginn: now listening on %s\n", addr)
+			return ln, nil
+		}
+		if !httputil.AddrNotOnHost(err) {
+			return nil, fmt.Errorf("listen %s: %w", addr, err)
+		}
 	}
 }

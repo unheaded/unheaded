@@ -18,6 +18,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -498,8 +499,14 @@ func TestGRPCAuthInterceptor(t *testing.T) {
 			return "ok", nil
 		}
 		info := &grpc.UnaryServerInfo{FullMethod: "/test.Service/Method"}
-		_, err := grpcAuthInterceptor(context.Background(), nil, info, handler)
-		if err != nil {
+		if _, err := grpcAuthInterceptor(context.Background(), nil, info, handler); status.Code(err) != codes.Unauthenticated {
+			t.Fatalf("no key sent: %v, want Unauthenticated", err)
+		}
+		if called {
+			t.Error("handler called with no key")
+		}
+		ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(apiKeyMetadata, "secret"))
+		if _, err := grpcAuthInterceptor(ctx, nil, info, handler); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if !called {

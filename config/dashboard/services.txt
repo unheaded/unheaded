@@ -22,7 +22,9 @@ wiki=172.28.1.1:20002
 zhenai=172.28.1.1:20103
 grafana=172.28.1.1:3001
 victoriametrics=172.28.1.1:8428
-huginn=172.28.1.1:9110
+# huginn binds named addresses (deploy/systemd/huginn.env.example): this is the
+# one the dashboard's host cards read, and it does not need the bridge up.
+huginn=192.168.13.2:9110
 llama-server=172.28.1.1:8081
 vor=172.28.1.1:20110
 # Traefik's dashboard entrypoint: compose publishes 21000 on the host's

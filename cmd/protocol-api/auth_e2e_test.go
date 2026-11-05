@@ -52,7 +52,7 @@ func TestAuthE2E_ProtocolAPI(t *testing.T) {
 // The gRPC listener takes the same tokens in "authorization" metadata.
 func TestAuthE2E_ProtocolAPIGRPC(t *testing.T) {
 	f := authtest.New(t, "protocol-api", "unheaded-cli", "kanban-app")
-	ic, err := grpcInterceptor(f.Config("protocol-api", "unheaded-cli"))
+	ic, _, err := grpcInterceptors(f.Config("protocol-api", "unheaded-cli"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestAuthE2E_ProtocolAPIRefusesBadConfig(t *testing.T) {
 	if _, err := newRESTHandler(cfg); err == nil {
 		t.Error("auth on with nothing to verify against: no error, want refusal to start")
 	}
-	if _, err := grpcInterceptor(cfg); err == nil {
+	if _, _, err := grpcInterceptors(cfg); err == nil {
 		t.Error("gRPC: auth on with nothing to verify against: no error, want refusal to start")
 	}
 }

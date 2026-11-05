@@ -243,6 +243,7 @@ func (s *anamnesisServer) streamMock(req *pb.StreamRequest, stream grpc.ServerSt
 	s.subMu.Lock()
 	s.subscribers = append(s.subscribers, eventChan)
 	s.subMu.Unlock()
+	defer s.removeSubscriber(eventChan)
 
 	// Wait for context cancellation or events
 	for {
@@ -283,6 +284,20 @@ func (s *anamnesisServer) streamMock(req *pb.StreamRequest, stream grpc.ServerSt
 			}
 		}
 	}
+}
+
+// removeSubscriber drops ch from the broadcast list. It builds a new slice:
+// PublishEvent ranges over the old one without the lock.
+func (s *anamnesisServer) removeSubscriber(ch chan *pb.Event) {
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	kept := make([]chan *pb.Event, 0, len(s.subscribers))
+	for _, c := range s.subscribers {
+		if c != ch {
+			kept = append(kept, c)
+		}
+	}
+	s.subscribers = kept
 }
 
 // streamBPF streams events from eBPF ring buffer

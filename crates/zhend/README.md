@@ -273,7 +273,8 @@ for a TOML configuration template.
 | Field | CLI Flag | Default | Description |
 |---|---|---|---|
 | data_dir | `--data-dir` | `/var/lib/zhend` | Storage directory for all tiers |
-| grpc_addr | `--grpc-addr` | `[::1]:7300` | gRPC listen address |
+| grpc_addr | `--grpc-addr` | `[::1]:7300` | gRPC listen address; off loopback needs `--grpc-allow-non-loopback` (no auth or TLS) |
+| grpc_allow_non_loopback | `--grpc-allow-non-loopback` | `false` | Serve gRPC off loopback |
 | quic_addr | `--quic-addr` | `[::1]:7301` | QUIC listen address |
 | gossip_addr | `--gossip-addr` | `[::]:7302` | UDP gossip listen address |
 | seed_peers | `--seed-peer` | `[]` | Seed peers for mesh join (repeatable) |

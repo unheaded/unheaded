@@ -274,8 +274,21 @@ impl Zhen for ZhenService {
     }
 }
 
+/// Refuse a gRPC bind off loopback unless told otherwise: the API has no
+/// auth or TLS. A bad address is an error too.
+pub fn check_bind(addr: &str, allow_non_loopback: bool) -> anyhow::Result<()> {
+    let parsed: std::net::SocketAddr = addr.parse()?;
+    if !parsed.ip().is_loopback() && !allow_non_loopback {
+        anyhow::bail!(
+            "refusing gRPC on {addr}: it has no auth or TLS; bind loopback, or pass --grpc-allow-non-loopback"
+        );
+    }
+    Ok(())
+}
+
 /// Start the gRPC server on the given address.
 pub async fn serve(service: ZhenService, addr: &str) -> Result<(), Box<dyn std::error::Error>> {
+    check_bind(addr, service.config.grpc_allow_non_loopback)?;
     let addr: std::net::SocketAddr = addr.parse()?;
 
     tracing::info!(%addr, "zhend gRPC server starting");
@@ -286,4 +299,50 @@ pub async fn serve(service: ZhenService, addr: &str) -> Result<(), Box<dyn std::
         .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod bind_tests {
+    use super::*;
+
+    #[test]
+    fn loopback_needs_no_flag() {
+        for addr in ["127.0.0.1:7300", "[::1]:7300"] {
+            assert!(check_bind(addr, false).is_ok(), "{addr}");
+        }
+    }
+
+    // L25: anything else is refused unless explicitly allowed.
+    #[test]
+    fn off_loopback_is_refused_without_the_flag() {
+        for addr in [
+            "0.0.0.0:7300",
+            "[::]:7300",
+            "192.0.2.1:7300",
+            "[fd00::1]:7300",
+        ] {
+            assert!(check_bind(addr, false).is_err(), "{addr} accepted");
+            assert!(
+                check_bind(addr, true).is_ok(),
+                "{addr} refused with the flag"
+            );
+        }
+    }
+
+    #[test]
+    fn bad_address_is_refused() {
+        assert!(check_bind("not an address", true).is_err());
+    }
+
+    // L25: the check sits on the path that binds, whoever calls it.
+    #[tokio::test]
+    async fn serve_refuses_off_loopback() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store = Arc::new(TieredStore::open(tmp.path()).unwrap());
+        let embedder = Arc::new(Embedder::new(384));
+        let service = ZhenService::new(store, embedder, ZhenConfig::default());
+        let run = serve(service, "0.0.0.0:0");
+        let out = tokio::time::timeout(std::time::Duration::from_secs(2), run).await;
+        assert!(matches!(out, Ok(Err(_))), "serve bound off loopback");
+    }
 }

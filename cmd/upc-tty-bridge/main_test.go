@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -277,5 +278,40 @@ func TestHealthReportsPushIngest(t *testing.T) {
 	}
 	if got["version"] != "0.1.0" {
 		t.Errorf("version = %v, want 0.1.0", got["version"])
+	}
+}
+
+// L6: an ingest body is bounded.
+func TestHandleTtyIngest_BodyLimit(t *testing.T) {
+	hub := newHub()
+	big := `{"instance":1,"bytes":[` + strings.Repeat("0,", maxIngestBytes) + `0]}`
+	w := httptest.NewRecorder()
+	hub.handleTtyIngest(w, httptest.NewRequest(http.MethodPost, "/api/v1/tty/ingest", strings.NewReader(big)))
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("over the limit: %d, want 413", w.Code)
+	}
+}
+
+// L6: a keystroke message is bounded; one over the limit ends the session.
+func TestHandleWs_ReadLimit(t *testing.T) {
+	hub := newHub()
+	srv := httptest.NewServer(http.HandlerFunc(hub.handleWs))
+	defer srv.Close()
+	conn, resp, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http"), http.Header{"Origin": {srv.URL}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close(); _ = conn.Close() }()
+	if _, _, err := conn.ReadMessage(); err != nil { // the banner
+		t.Fatal(err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, make([]byte, maxKbdMessage+1)); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, _, err = conn.ReadMessage()
+	var closed *websocket.CloseError
+	if !errors.As(err, &closed) || closed.Code != websocket.CloseMessageTooBig {
+		t.Fatalf("after an oversize message: %v, want close 1009", err)
 	}
 }

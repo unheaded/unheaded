@@ -9,6 +9,11 @@
 #   sudo cp deploy/systemd/unheaded-kev-poller.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now unheaded-kev-poller   # ADR-055: always on
+#
+# Prometheus scrapes this port over the overlay, so the unit binds every
+# interface with auth on: /health, /ready and /metrics stay open, and
+# /api/v1/kev needs a credential (everyone is refused on a host with no
+# trust.d). KEV_LISTEN in /etc/unheaded/kev-poller.env narrows the bind.
 
 [Unit]
 Description=Unheaded kev-poller — CISA Known Exploited Vulnerabilities feed
@@ -20,6 +25,9 @@ After=unheaded-wotan.service
 
 [Service]
 Type=simple
+Environment=KEV_LISTEN=:19120
+Environment=AUTH_ENABLED=true
+Environment=AUTH_ALLOW_CALLERS=unheaded-cli
 EnvironmentFile=-/etc/unheaded/kev-poller.env
 # TLS (S-IRON-GATE Phase 8; deploy/systemd/README.md#tls): Wotan and Cuirass
 # serve TLS only, so this unit dials them with the Kingdom CA. Its own
@@ -28,7 +36,7 @@ Environment=UNHEADED_TLS_ENABLED=true
 Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
 ReadOnlyPaths=-/etc/unheaded/tls/ca.pem
 # --stack: install config/kev-poller/stack.yaml as /etc/unheaded/kev-stack.yaml
-ExecStart=/usr/local/bin/kev-poller --port 19120 --state-dir /var/lib/unheaded/threat-feeds/cisa-kev --stack /etc/unheaded/kev-stack.yaml
+ExecStart=/usr/local/bin/kev-poller --listen ${KEV_LISTEN} --state-dir /var/lib/unheaded/threat-feeds/cisa-kev --stack /etc/unheaded/kev-stack.yaml
 WorkingDirectory=/var/lib/unheaded/threat-feeds/cisa-kev
 Restart=always
 RestartSec=30s

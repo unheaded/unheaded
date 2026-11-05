@@ -34,6 +34,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/cartridge"
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/logger"
@@ -97,14 +98,14 @@ func bridge(ctx context.Context, evs []cartridge.Event, out sink) (int, error) {
 }
 
 func main() {
-	listen := flag.String("listen", "127.0.0.1:"+fmt.Sprint(ports.Anomaly), "HTTP listen address (loopback by default)")
+	listen := flag.String("listen", "127.0.0.1:"+fmt.Sprint(ports.Anomaly), "HTTP listen address (loopback by default; off loopback needs AUTH_ENABLED=true)")
 	pinDir := flag.String("pin-dir", cartridge.DefaultPinDir, "bpffs directory of the pinned cartridge interpreter")
 	wotanAddr := flag.String("wotan", "", "Wotan HTTP address: publish anomaly.scores there (default: in-process intake)")
 	noCart := flag.Bool("no-cartridge", false, "run the service without the cartridge bridge")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "anomaly",
 		Purpose:  "Run the Anomaly Detection service and bridge MBC cartridge scores into it (ADR-108).",
-		Examples: []string{"anomaly", "anomaly --listen :19018 --pin-dir /sys/fs/bpf/unheaded"},
+		Examples: []string{"anomaly", "anomaly --pin-dir /sys/fs/bpf/unheaded"},
 	})
 	wotanClient.InitServiceIdentity("anomaly") // ADR-103 §6: every Wotan call carries anomaly's service token
 
@@ -120,6 +121,7 @@ func main() {
 	}
 	svc := anomaly.NewService(log, wc)
 	svc.ListenAddr = *listen
+	svc.Auth = auth.LoadServiceAuthConfig("anomaly")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := svc.Start(ctx); err != nil {

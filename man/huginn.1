@@ -18,7 +18,7 @@ host label override (default: hostname or config)
 collection/push interval override
 .TP
 .B \-\-listen \fISTRING\fR
-listen address override
+listen addresses override, comma\-separated (default 127.0.0.1:9110; huginn has no auth, so name internal addresses only)
 .TP
 .B \-\-pprof \fIADDR\fR
 serve net/http/pprof on this loopback ADDR (e.g. 127.0.0.1:6060); off when empty

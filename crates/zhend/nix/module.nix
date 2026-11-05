@@ -40,7 +40,13 @@ in
     grpcAddr = lib.mkOption {
       type = lib.types.str;
       default = "[::1]:7300";
-      description = "gRPC listen address (internal Kingdom services).";
+      description = "gRPC listen address (internal Kingdom services). It has no auth or TLS; off loopback needs grpcAllowNonLoopback.";
+    };
+
+    grpcAllowNonLoopback = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Serve gRPC off loopback.";
     };
 
     quicAddr = lib.mkOption {
@@ -152,6 +158,7 @@ in
           "--gossip-interval-ms ${toString cfg.gossipIntervalMs}"
           "--log-format ${cfg.logFormat}"
         ]
+        ++ (lib.optional cfg.grpcAllowNonLoopback "--grpc-allow-non-loopback")
         ++ (map (p: "--seed-peer '${p}'") cfg.seedPeers)
         ++ (lib.optional (cfg.embeddingModel != null)
               "--embedding-model '${cfg.embeddingModel}'"));
