@@ -352,13 +352,15 @@ func (s *VaultStore) Watch(ctx context.Context, path string) (<-chan *secrets.Se
 	return ch, nil
 }
 
-// notifyWatchers sends a secret update to all watchers.
+// notifyWatchers sends a secret update to all watchers. It holds the read
+// lock across the sends because Close and removeWatcher close these channels
+// under the write lock, and a send on a closed channel panics. The sends
+// never block, so the lock is held briefly.
 func (s *VaultStore) notifyWatchers(path string, secret *secrets.Secret) {
 	s.mu.RLock()
-	watchers := s.watchers[path]
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
-	for _, ch := range watchers {
+	for _, ch := range s.watchers[path] {
 		select {
 		case ch <- secret:
 		default:
@@ -441,11 +443,14 @@ func (s *VaultStore) Close() error {
 	s.closed = true
 	close(s.closeCh)
 
+	// Drop the map too: a watcher whose context ends after this must not
+	// find its channel and close it twice.
 	for _, watchers := range s.watchers {
 		for _, ch := range watchers {
 			close(ch)
 		}
 	}
+	s.watchers = nil
 
 	s.log.Info().Msg("vault store closed")
 	return nil
