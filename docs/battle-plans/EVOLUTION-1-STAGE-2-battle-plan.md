@@ -690,6 +690,8 @@ green, and the handoff is written.
 
 ## RUNGS 2-8 (forge each when the one before it is green)
 
+Forged past rung 2 in `S-STAGE-2B-battle-plan.md`. The arrivals moved ahead of rungs 3-7 (DP-501, DP-213).
+
 Each rung is forged from its section of `docs/battle-plans/EVOLUTION-1-STAGE-2-skeleton.md`, which gives its
 prerequisites, gate and usertests subset. Every rung takes the shape of Phases 3-5:
 - probes first (RED recorded);

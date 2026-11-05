@@ -106,3 +106,4 @@ DP-206 (approved, already run once under guard): the attended list is Appendix D
 - unsigned commit: [PLAN S-STAGE-2B] Steps 256-262: attack surface, forged-reply probe
 - ADR-135 is Proposed; gate commits: 75c1c051 7f7e17eb c1c2093a de38d86e a9af9c92 c8c266d7 118656a4 5ae498fe 9dca5441 974106b0 7929f67c 05c2c1de 
 - unsigned commit: [PLAN S-STAGE-2B] Steps 263-266: security pass
+- unsigned commit: [PLAN S-STAGE-2B] Steps 267-272: docs ripple
