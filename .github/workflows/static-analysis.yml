@@ -52,6 +52,14 @@ jobs:
       - name: Parse every tracked YAML
         run: ./scripts/check-manifest-yaml.sh
 
+      # A step's name is a claim. This reads the workflows and runs their
+      # verdict bodies against fixtures; here because this job has PyYAML.
+      - name: CI steps can fail on what they claim to check
+        run: ./scripts/check-ci-verdicts.sh
+
+      - name: Every rule of that check bites
+        run: ./scripts/test-check-ci-verdicts.sh
+
   shellcheck:
     name: Shell (shellcheck)
     runs-on: ubuntu-latest

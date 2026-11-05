@@ -501,18 +501,27 @@ jobs:
     needs: [govulncheck, gosec, gitleaks, cargo-audit, trivy-fs]
     if: always()
     steps:
+      # Reads whatever `needs` lists, so a job added above is covered with no
+      # second list to keep. Anything but success fails, skipped included.
+      # scripts/check-ci-verdicts.sh runs this body against fixture results.
       - name: Check all security scans passed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
-          echo "govulncheck: ${{ needs.govulncheck.result }}"
-          echo "gosec: ${{ needs.gosec.result }}"
-          echo "cargo-audit: ${{ needs.cargo-audit.result }}"
-          echo "trivy-fs: ${{ needs.trivy-fs.result }}"
-          if [ "${{ needs.govulncheck.result }}" != "success" ]; then
-            echo "::error::govulncheck failed"
+          results="$(jq -r 'to_entries[] | "\(.key) \(.value.result)"' <<<"$NEEDS_JSON")"
+          if [ -z "$results" ]; then
+            echo "::error::Security Gate read no job results"
             exit 1
           fi
-          if [ "${{ needs.gosec.result }}" != "success" ]; then
-            echo "::error::gosec failed"
+          fail=0
+          while read -r job result; do
+            echo "$job: $result"
+            if [ "$result" != "success" ]; then
+              echo "::error::$job: $result"
+              fail=1
+            fi
+          done <<<"$results"
+          if [ "$fail" -ne 0 ]; then
             exit 1
           fi
           echo "All required security scans passed"

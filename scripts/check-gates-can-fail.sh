@@ -482,6 +482,27 @@ provoke_actions_pinned() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_ci_verdicts() {
+    # Contract (M4): Security Gate fails when any job it needs did not
+    # succeed. Make its body record a failure and carry on.
+    local f=".github/workflows/security.yml"
+    backup "${f}"
+    sed -i -E 's/^( +)fail=1$/\1fail=0/' "${REPO_ROOT}/${f}"
+    grep -qE '^ +fail=1$' "${REPO_ROOT}/${f}" && { echo "provocation anchor still present in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_test_ci_verdicts() {
+    # Contract: every rule of check-ci-verdicts.sh has a case that proves it.
+    # Switch one rule off; its cases must now report the gate passing.
+    local f="scripts/check-ci-verdicts.sh"
+    backup "${f}"
+    sed -i 's/^security_gate()$/pass/' "${REPO_ROOT}/${f}"
+    grep -qx 'pass' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_compliance_schema() {
     # Contract (W-05): history tables refuse TRUNCATE even for the owner.
     # Drop audit_events' TRUNCATE guard from 015.
@@ -1044,6 +1065,8 @@ check-well-migrations|provoke_well_migrations|fast|an untracked migration file t
 check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at startup (a new ddl-outside-ledger finding)
 check-kanban-genesis|provoke_kanban_genesis|fast|a Genesis card title edited in db/seed/kanban-genesis.json without re-rendering migration 034
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
+check-ci-verdicts|provoke_ci_verdicts|fast|Security Gate's body recording a failed need and carrying on
+test-check-ci-verdicts|provoke_test_ci_verdicts|fast|one rule of check-ci-verdicts.sh switched off, so its cases see the gate pass
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
