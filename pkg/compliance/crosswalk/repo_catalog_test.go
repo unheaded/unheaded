@@ -135,6 +135,23 @@ func TestMappingsCorroborated(t *testing.T) {
 	}
 }
 
+// A stopped monitoring stack has to show as a failure somewhere: without this
+// source every monitoring control read files, and a week of silence passed.
+func TestAlertPathIsEvidence(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ctl := range c.Controls {
+		for _, e := range ctl.Evidence {
+			if e.Ref == "west:alert-route" {
+				return
+			}
+		}
+	}
+	t.Error("no control declares west:alert-route")
+}
+
 // UH-PATCH-01 says updates install: that needs a release still getting them,
 // so both hosts carry os-supported beside the apt setting.
 func TestPatchControlNeedsASupportedRelease(t *testing.T) {

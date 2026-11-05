@@ -710,6 +710,14 @@ func TestProbeJudges(t *testing.T) {
 		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09,2026-07-09\n", false},
 		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-01\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09\n", false},
 		{"os-supported", "", false},
+		// Every link in the chain answers, or no alert reaches anyone.
+		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\nwell=1\n", true},
+		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=000\nwell=1\n", false},
+		{"alert-route", "prometheus=200\nalertmanager=503\nalert-mailer=200\nwell=1\n", false},
+		{"alert-route", "prometheus=000\nalertmanager=200\nalert-mailer=200\nwell=1\n", false},
+		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\nwell=0\n", false},
+		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\n", false},
+		{"alert-route", "", false},
 	} {
 		pass, detail := Probes[tc.probe].Judge(tc.out)
 		if pass != tc.pass {

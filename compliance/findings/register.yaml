@@ -47,7 +47,9 @@ findings:
       from personal Gmail stevenrbellis@gmail.com to stevie@bellis.tech, short-term): app password at
       /etc/unheaded/alert-mailer/smtp-password (0400, uid 16710), relay keys in the gitignored monitoring/.env, one
       synthetic page sent through smtp.gmail.com:587 (outbox outcome sent, HTTP 204), policy.yaml mailer.mode=send,
-      monitoring stack up on west. Left: the first real SLO page, or the alert-route host probe, closes this entry
+      monitoring stack up on west. 2026-11-05: the whole stack has been stopped since 2026-10-28 23:10 UTC, so nothing
+      alerts today and east's heartbeat has never succeeded (host-probe:west:alert-route, step E1). Left: the first
+      real SLO page closes this entry; alert-route proves the chain is up, not that a page arrived
     decision: 'SMTP relay: personal Gmail (Stevie 2026-10-27, short-term; Workspace account later). Left dry-run 2026-10-27'
 
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
@@ -1867,3 +1869,32 @@ findings:
     step: 3
     plan: Move east to the same supported release as west, east first. An OS upgrade is Stevie's to run
     decision: which LTS, and when
+  - source: "host-probe:west:alert-route"
+    severity: high
+    class: service
+    opened: 2026-11-05
+    exposure: >-
+      every container on west stopped at 2026-10-28 23:10 UTC and stayed down through later reboots: Prometheus,
+      Alertmanager, alert-mailer, the Well, Loki, Wotan and the dashboard. No alert can reach anyone, the Compliance*
+      rules cannot fire, and east's dead-man heartbeat targets the stopped alert-mailer, so its failures tell nobody
+    lockout: none
+    step: 1
+    plan: >-
+      E1, attended: bring the stack up after the batch 2 list in the handoff. Passes when all four links answer.
+      The heartbeat's watcher still depends on west; moving it is a separate call
+    decision: when to run E1, and whether the heartbeat watcher moves off west
+  - id: FND-036
+    title: >-
+      East's unheaded-wotan and unheaded-timeguru restart in a loop: the April 1.0.0 units pass a flag the binary does
+      not take and timeguru cannot create its data directory. Nothing alerted on it
+    verify: on east, systemctl show -p NRestarts unheaded-wotan unheaded-timeguru stays flat over an hour and both are active
+    host: east
+    severity: medium
+    class: service
+    opened: 2026-11-05
+    exposure: two of east's first-party services have not run for weeks; found by reading the host, not by any alert
+    lockout: none
+    step: 7
+    plan: >-
+      The repo's units and binaries already agree (check-unit-flags). East needs a redeploy from develop and
+      /etc/unheaded/tls before it can start them, which is attended work. Watching restart counts needs the stack up

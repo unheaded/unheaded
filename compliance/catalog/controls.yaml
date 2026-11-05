@@ -1546,3 +1546,24 @@ controls:
       nist-csf-2: [DE.CM-01]
       soc2-security: [CC7.2]
       iso27001-2022: [A.8.16]
+
+  - id: UH-ALERT-01
+    title: The alert path is running
+    statement: >-
+      On west, Prometheus, Alertmanager, alert-mailer and the Well each answer
+      on their own port, asked directly by a host probe. Checks that the chain
+      is up, not that an alert was delivered: FND-001 holds that proof.
+    rationale: >-
+      System monitoring that can reach a person (SI-4) and continuous
+      monitoring (CA-7); 800-171 03.14.06; CSF DE.CM-01; ISO A.8.16; SOC 2
+      CC7.2. The other monitoring controls read files or series a stopped
+      stack cannot write, so without this source a dead stack fails nothing.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:alert-route"}
+    mappings:
+      nist-800-53r5: [CA-7, SI-4]
+      nist-800-171r3: ["03.14.06"]
+      nist-csf-2: [DE.CM-01]
+      soc2-security: [CC7.2]
+      iso27001-2022: [A.8.16]
