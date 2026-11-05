@@ -38,12 +38,21 @@ const (
 	// jwksUnknownKidInterval is the least time between refetches caused by
 	// an unknown kid, so a flood of made-up kids cannot hammer the issuer.
 	jwksUnknownKidInterval = 30 * time.Second
+	// jwksFailRetryInterval is the least time between refreshes after one
+	// failed, so a dead issuer costs one wait, not one per request.
+	jwksFailRetryInterval = 30 * time.Second
+	// jwksMaxStaleTTLs bounds how long fetched keys are used with no
+	// successful refresh, in TTLs: an outage shorter than this passes
+	// unnoticed, a longer one stops user tokens rather than trust keys the
+	// issuer may have dropped.
+	jwksMaxStaleTTLs = 3
 )
 
 // JWKSVerifier authenticates user tokens signed by an OIDC issuer's EdDSA
 // keys. Keys are fetched lazily (a service starts while the issuer is
 // down), cached for the TTL, refetched once for an unknown kid (at most
-// every 30 s), and kept when a refetch fails. Safe for concurrent use.
+// every 30 s), and kept when a refetch fails, for at most jwksMaxStaleTTLs
+// TTLs since the last good fetch. Safe for concurrent use.
 type JWKSVerifier struct {
 	issuer   string
 	audience string
@@ -61,6 +70,7 @@ type JWKSVerifier struct {
 	keys        map[string]ed25519.PublicKey
 	fetchedAt   time.Time
 	lastUnknown time.Time
+	lastFail    time.Time
 	lastErr     error
 }
 
@@ -285,20 +295,39 @@ func (v *JWKSVerifier) keyFor(ctx context.Context, kid string) (ed25519.PublicKe
 func (v *JWKSVerifier) cached(kid string) (ed25519.PublicKey, bool) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
+	if !v.usableLocked() {
+		return nil, false
+	}
 	pub, ok := v.keys[kid]
 	return pub, ok
 }
 
+// usableLocked reports whether the held keys may still be trusted. v.mu held.
+func (v *JWKSVerifier) usableLocked() bool {
+	return v.keys != nil && v.now().Sub(v.fetchedAt) < v.ttl*jwksMaxStaleTTLs
+}
+
 // refresh fetches the keys unless (without force) another caller already
-// refreshed them within the TTL. A failed fetch keeps the old keys.
+// refreshed them within the TTL, or a fetch failed within
+// jwksFailRetryInterval. A failed fetch keeps the old keys. A caller holding
+// usable keys does not queue behind a fetch already in flight.
 func (v *JWKSVerifier) refresh(ctx context.Context, force bool) {
-	v.fetchMu.Lock()
+	v.mu.RLock()
+	usable := v.usableLocked()
+	v.mu.RUnlock()
+	if force || !usable {
+		v.fetchMu.Lock()
+	} else if !v.fetchMu.TryLock() {
+		return
+	}
 	defer v.fetchMu.Unlock()
 	if !force {
+		now := v.now()
 		v.mu.RLock()
-		fresh := v.keys != nil && v.now().Sub(v.fetchedAt) < v.ttl
+		fresh := v.keys != nil && now.Sub(v.fetchedAt) < v.ttl
+		failed := !v.lastFail.IsZero() && now.Sub(v.lastFail) < jwksFailRetryInterval
 		v.mu.RUnlock()
-		if fresh {
+		if fresh || failed {
 			return
 		}
 	}
@@ -306,11 +335,11 @@ func (v *JWKSVerifier) refresh(ctx context.Context, force bool) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if err != nil {
-		v.lastErr = err
-		log.Warn().Err(err).Str("issuer", v.issuer).Msg("auth: JWKS fetch failed; keeping the keys already held")
+		v.lastErr, v.lastFail = err, v.now()
+		log.Warn().Err(err).Str("issuer", v.issuer).Msg("auth: JWKS fetch failed; keeping the keys already held, within the stale limit")
 		return
 	}
-	v.keys, v.fetchedAt, v.lastErr = keys, v.now(), nil
+	v.keys, v.fetchedAt, v.lastErr, v.lastFail = keys, v.now(), nil, time.Time{}
 }
 
 func (v *JWKSVerifier) fetch(ctx context.Context) (map[string]ed25519.PublicKey, error) {

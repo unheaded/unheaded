@@ -22,6 +22,7 @@ Two authentication mechanisms are planned:
 
 - Used by: All service-to-service calls within the Kingdom (ADR-103)
 - Flow: each binary mints a 5-minute EdDSA token per target; TLS 1.3 carries it
+- Trust: verifiers re-read `trust.d` every 30 seconds, so adding or removing a `.pub` needs no restart; user-token keys stop being trusted after three JWKS TTLs with no good fetch
 - Validation: the caller's `.pub` in `trust.d`, the caller in `AUTH_ALLOW_CALLERS`
 - Identity: `sub` = key name (e.g. `timeguru`, `captain`)
 
