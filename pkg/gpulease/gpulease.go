@@ -7,8 +7,8 @@
 //
 // Inference against the loaded model (llama-server requests from the
 // worker, the summariser, the eval) takes a shared lease per call; anything
-// that changes what is loaded on the GPU (scripts/switch-model.sh,
-// scripts/forge-train.sh) takes an exclusive lease for its whole run. The
+// that changes what is loaded on the GPU (scripts/switch-model.sh, and
+// forge-train.sh in unheaded-forge) takes an exclusive lease for its whole run. The
 // RX 7700 XT's 12 GB cannot hold a served model and a Gemma-4 training
 // run at once: the lease is what keeps them from meeting.
 //

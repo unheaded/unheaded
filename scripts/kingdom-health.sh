@@ -127,7 +127,7 @@ echo ""
 
 echo "$(color bold "[5] Vulnerabilities — Rust crates")"
 if command -v cargo-audit >/dev/null 2>&1 || command -v cargo >/dev/null 2>&1 && cargo audit --version >/dev/null 2>&1; then
-    for D in cmd/upc-bootctl crates/monad-mbc crates/upc-bootstub crates/zhenai-forge ebpf; do
+    for D in cmd/upc-bootctl crates/monad-mbc crates/upc-bootstub ebpf; do
         if [ -f "$D/Cargo.lock" ]; then
             # cargo audit's own exit status is the verdict. The old
             # `... | grep -q Scanning || cargo audit | tail -5` ended in tail,

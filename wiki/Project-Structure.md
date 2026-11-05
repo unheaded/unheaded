@@ -11,7 +11,7 @@ Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust 
 | `pkg/` | Shared Go packages: auth, audit, transport, discovery, logagg, health, ports, wotan-client, compliance, champion, gungnir, gjallarhorn, enkrateia, pqc_policy, … |
 | `internal/` | Repo-private Go helpers (bpf, bpfmap, ebpf, doom, dashboard) |
 | `ebpf/` | Rust/Aya eBPF workspace (GPL-2.0-only): XDP/TC programs + shared types |
-| `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, xv6-mbc, doom-runner, heimdall-bpf, lich-fuzz, zhend, zhenai-forge |
+| `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, xv6-mbc, doom-runner, heimdall-bpf, lich-fuzz, zhend |
 | `arch/mbc/` | MBC architecture support for the UPC kernel |
 | `drivers/` | UPC guest drivers (tty, block) |
 | `proto/`, `api/` | Protobuf definitions, `openapi.yaml` |

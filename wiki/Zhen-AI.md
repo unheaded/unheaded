@@ -31,7 +31,7 @@ Since WAVE15 (2026-05) retrieval is `vor` (`vor serve`, :20110), not the old FAI
 - **Model pins:** every GGUF's sha256 is pinned in `scripts/lib/model-pins.sh` (`MODEL_SHA256[<key>]`). A swap, and `switch-model.sh --dry-run <key>`, hashes the file and refuses with exit 4 when it differs or the key has no pin; `--check` stays a fast fit-only answer and hashes nothing. Adding a model = put the file in `/var/zhen/models`, add its `MODEL_FILE`/`MODEL_FLAGS`/`MODEL_NAME` in `switch-model.sh` and its hash in `model-pins.sh`. `--no-verify` is for local experiments only; it is logged (stderr and syslog tag `switch-model`). The memory embedder is pinned the same way (`EMBEDDER_SHA256`, `EMBEDDER_REVISION`): `raft/start-zhen.sh` exports them as `ZHEN_EMBEDDER_SHA256`/`ZHEN_EMBEDDER_REVISION` and the web UI refuses to start on a mismatch.
 - **System prompt:** one copy, `pkg/zhenrag` (`SystemPrompt(Chat|Web|Agent)`), used by `cmd/zhen-rag`, `cmd/zhen-cli`, `pkg/agent` and, through the generated `raft/scripts/zhen_prompt_generated.py`, the web UI. The destructive-verb list the prompts name and the Champion's Rule 3 regexp come from the same table (`zhenrag.Verbs`). After editing either, run `go generate ./pkg/zhenrag/...` and `make coding-gate-ci`; `go run ./pkg/zhenrag/gen -dump chat|web|agent` prints a rendered prompt.
 - **Runbooks before execute:** a live `runbook_execute` runs only a runbook whose sha256 is in `runbooks/MANIFEST.sha256` (`scripts/runbook-manifest.sh --write` after editing a runbook; `scripts/check-runbooks.sh` fails CI when it is stale), refuses an unapproved runbook whose executed commands match the destructive-verb pattern, and runs a private copy of the bytes it checked. Dry runs skip all three.
-- **Training (zhenai-forge):** Rust LoRA trainer with GPU kernels, on **Gemma 4 E2B** (fits west's VRAM). Mistral-7B was the original target; on the 14 GB APU it never learned (Wave 10D).
+- **Training (back burner):** the Rust LoRA trainer moved to `unheaded-forge` 2026-11-04: training is unworkable on west. Mistral-7B was the original target; on the 14 GB APU it never learned (Wave 10D).
 - **Results so far:** WAVE12 Kingdom RAFT LoRA cut held-out eval loss from 21.10 to 6.78 (ADR-050). WAVE13 Phase 2's quality verdict was **RETRAIN**: 0 of 8 prompts better than base (ADR-051). The WAVE14 retrain (≥ 3 epochs) is still pending.
 
 ## Components
@@ -45,7 +45,7 @@ Since WAVE15 (2026-05) retrieval is `vor` (`vor serve`, :20110), not the old FAI
 | Claude API bridge (`-route auto`: local model first, Claude on failure) | `cmd/zhen-claude`, `pkg/claudebridge` (ADR-104) |
 | Training capture (opt-in, redacted JSONL) | `pkg/zhencapture` ([format](../docs/architecture/zhen-capture.md)) |
 | MCP server for Claude Code | `cmd/zhen-mcp` (every call through the Champion; stdio transport `pkg/mcpserver`, shared with `cmd/lich-mcp`), registered in `.mcp.json` (server `zhen`, launched by `scripts/zhen-mcp.sh`) |
-| Forge (training) | `crates/zhenai-forge/` (ADR-048 backend trait) |
+| Forge (training) | `unheaded-forge` repository (ADR-048 backend trait) |
 
 **On west today (2026-10-15):** none of these is running. Zhen is started on demand.
 

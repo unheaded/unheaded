@@ -1,5 +1,7 @@
 # Zhen Training Data
 
+> **2026-11-04 (rounds 4 and 5):** `zhen-flywheel`, the forge and the tokenizers moved to `unheaded-forge`, which keeps a copy of this page. Captures stay off. The capture tables stay in the Well; `pkg/zhencapture` stays here because `zhen-claude`, `zhen-mcp`, `well-retention` and `claudebridge` use it.
+
 How answers of both brains become training data for the local model: captured, stored in [[The Well|The-Well]], labelled by what happened to them, filtered, split with a hold-out, and exported in the forge's format. Tool: `cmd/zhen-flywheel`. Plan: S-TWO-BRAINS Phases 10-11.
 
 ```

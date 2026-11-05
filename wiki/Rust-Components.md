@@ -36,7 +36,6 @@ Every program is loaded through the kernel verifier in CI (`cmd/ebpf-load-check`
 | `heimdall-bpf` | kprobe scaffold for Mímir's Law ([[Mimirs-Law]]) |
 | `lich-fuzz` | The Lich: fuzzing for the protocol and eBPF programs ([[LICH-Campaigns]]) |
 | `zhend` | Zhen Layer 0: single-node gRPC store; gossip and QUIC written, never spawned (DP-209) |
-| `zhenai-forge` | LoRA fine-tuning for GGUF models on CPU/GPU (`ForgeBackend` trait, ADR-048) ([[Zhen-AI]]) |
 
 ## Rust binaries under `cmd/`
 

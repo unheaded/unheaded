@@ -5,6 +5,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-106: Two brains, one gate
 
+> **2026-11-04 (round 5):** `zhen-flywheel` moved to `unheaded-forge`. Captures stay off. Champion's audit trail (`llm_requests`, `zhen_actions`, Anamnesis) stays here.
+
 **Status:** Proposed (Stevie to accept).
 **Date:** 2026-10-23
 **Sprint:** S-TWO-BRAINS (`docs/battle-plans/S-TWO-BRAINS-battle-plan.md`; ledger `docs/battle-plans/S-TWO-BRAINS-progress.md`).

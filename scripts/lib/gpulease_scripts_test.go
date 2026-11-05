@@ -73,20 +73,6 @@ func TestSwitchModel_UsageAndStopUnderTheLease(t *testing.T) {
 	}
 }
 
-func TestForgeTrain_WaitsForTheLease(t *testing.T) {
-	lock := filepath.Join(t.TempDir(), "u", "gpu.lock")
-	sh, err := gpulease.Shared(context.Background(), lock, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = sh.Release() }()
-	// An inference call holds the GPU; training does not start under it.
-	code := runScript(t, "forge-train.sh", []string{"GPU_LOCK=" + lock, "GPU_LEASE_TIMEOUT=1", "FORGE_BIN=/nonexistent"}, "train")
-	if code != 75 {
-		t.Errorf("forge-train.sh under a shared lease: exit %d, want 75", code)
-	}
-}
-
 // llama_pid matched LLAMA_PORT as an unanchored regex, so ":3901" also
 // matched a listener on ":39017" and --stop killed it. Here the listener is
 // this test process on an ephemeral port P, and LLAMA_PORT is P without its
