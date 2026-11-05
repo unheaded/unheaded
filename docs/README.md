@@ -22,7 +22,7 @@ Generated from `ls docs` on 2026-10-27; one line per subdirectory.
 | `decisions/` | Track-call decision record (2026-04-29) |
 | `demo/` | Demo video script (dormant) |
 | `dev/` | Branch-hygiene notes |
-| `doom/` | Doom-over-UPC docs, plus ASCEND-LINUX rung docs (ROAD_TO_LINUX, UCLINUX, FUZIX) |
+| `upc/` | UPC specs and ports, and Doom's lessons (`DOOM-LESSONS.md`) |
 | `gamedays/` | Chaos game-day reports and template |
 | `history/` | Session handoffs from January 2026 |
 | `infrastructure/` | Load balancers |

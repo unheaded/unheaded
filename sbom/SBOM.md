@@ -35,7 +35,6 @@
 | BSD-2-Clause | 4 | gorilla/websocket, godbus/dbus, pkg/errors, gopkg.in/check |
 | ISC | 1 | davecgh/go-spew |
 | MPL-2.0 | 1 | hashicorp/golang-lru/v2 |
-| GPL-2.0 | 1 | unheaded/doomgeneric (ISOLATED -- see GPL Boundary) |
 | MIT AND Apache-2.0 | 1 | gopkg.in/yaml.v3 |
 
 ### Key Direct Dependencies (21)
@@ -61,7 +60,6 @@
 | gopkg.in/yaml.v3 | v3.0.1 | MIT AND Apache-2.0 |
 | modernc.org/sqlite | v1.44.3 | BSD-3-Clause |
 | github.com/sony/gobreaker | v0.5.0 | MIT |
-| github.com/unheaded/doomgeneric | v0.0.0 | GPL-2.0 |
 
 ---
 
@@ -183,9 +181,9 @@ upstream code, not part of the Unheaded build).
 
 ### PASS -- No GPL leakage into core
 
-The GPL boundary is clean. The only GPL-licensed dependency in the Go module graph
-is `github.com/unheaded/doomgeneric`, which is the DOOM engine used for computational
-completeness proof (DOOM-on-Monad). This dependency is architecturally isolated:
+The GPL boundary is clean. The Go module graph holds no GPL-licensed dependency: the
+DOOM engine left for `unheaded-doom` on 2026-11-04 (DP-305). Only the compiled fixture
+under `doom/` is GPL-2.0, and it is architecturally isolated:
 
 1. **DOOM MBC bytecode** runs inside the Linux kernel's eBPF VM sandbox
 2. **Communication** is via BPF map reads/writes only (data protocol, not code linkage)
@@ -222,7 +220,7 @@ separate process and communicates via network sockets only. No linking occurs.
 | BSD-2-Clause | 4 | 0 | 0 | 1 | Yes |
 | ISC | 1 | 0 | 0 | 0 | Yes |
 | MPL-2.0 | 1 | 0 | 0 | 0 | Yes (weak copyleft) |
-| GPL-2.0 | 1 | 0 | 0 | 2 | Yes (isolated) |
+| GPL-2.0 | 0 | 0 | 0 | 2 | Yes (isolated) |
 | NVIDIA EULA | 0 | 0 | 15 | 1 | N/A (runtime, not linked) |
 | Unlicense OR MIT | 0 | 1 | 0 | 0 | Yes |
 

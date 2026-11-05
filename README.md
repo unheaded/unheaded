@@ -55,13 +55,13 @@ A virtual CPU built on the protocol: Monad as the transport bus, Wotan as memory
 as microcode, eBPF as the interpreter. One interpreter runs multiple guest workloads,
 feature-partitioned to fit the eBPF verifier's 1M-instruction budget.
 
-- **Doom** — runs; playable in a browser via `doom-runner`.
+- **Doom** — runs; lives in its own repository, `unheaded-doom`.
 - **xv6** — runs; interactive shell, fork/exec/wait, per-pid MMU isolation, in-BPF
   filesystem reader (`ls`/`cat`/`echo`/`wc` over `fs.img`).
 - **Unheaded Linux** — a from-scratch minimal OS, evolving from the xv6 substrate.
   In development.
 
-Code: `ebpf/monad-cpu-ebpf/` (interpreter), `crates/xv6-mbc/`, `crates/doom-runner/`,
+Code: `ebpf/monad-cpu-ebpf/` (interpreter), `crates/xv6-mbc/`,
 `cmd/upc-bootctl/`. Docs: [`wiki/UPC-Overview.md`](wiki/UPC-Overview.md),
 [`wiki/Linux-on-UPC.md`](wiki/Linux-on-UPC.md), [`wiki/Doom-on-UPC.md`](wiki/Doom-on-UPC.md),
 [`wiki/MBC-ISA-Reference.md`](wiki/MBC-ISA-Reference.md).
@@ -74,9 +74,8 @@ SLH-DSA / ML-DSA-65 post-quantum crypto, deterministic Sealed Cask builds.
 
 ## Zhen
 
-`crates/zhend/` — anti-fragile gossip knowledge substrate, PQC-secured. `crates/zhenai-forge/`
-— LoRA fine-tuning on Gemma-4 / Mistral-7B via ROCm. Flask web UI on port 20103 over a
-1.52M-vector RAG corpus.
+`crates/zhend/` — knowledge store, single-node gRPC (DP-209). Training moved to `unheaded-forge`.
+Flask web UI on port 20103 over `vor` retrieval.
 
 ## Security
 

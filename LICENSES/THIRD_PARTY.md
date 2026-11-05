@@ -680,8 +680,8 @@ Logging facade and env-filter logger. Used in ebpf-loader.
 **Fork:** https://github.com/unheaded-kingdom/doomgeneric (Unheaded modifications)
 
 Portable Doom source port used for the Doom-over-IPv6 computational completeness
-proof (Monad spec Section 12). The doomgeneric code lives in `doom/doomgeneric/`
-as a git submodule. It is compiled to MBC bytecode via the rv32i-to-mbc translator
+proof (Monad spec Section 12). The doomgeneric code lives in the `unheaded-doom` repository;
+it is compiled to MBC bytecode via the rv32i-to-mbc translator
 and executed inside eBPF BPF maps — it does NOT link against or modify the
 Unheaded codebase. The GPL-2.0 license applies only to the doomgeneric directory.
 
