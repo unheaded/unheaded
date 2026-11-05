@@ -6,6 +6,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -80,7 +81,7 @@ func (s *ReplicationServer) CatchUp(req *chatpb.CatchUpRequest, stream chatpb.Wo
 func (s *ReplicationServer) ReplicationPing(ctx context.Context, req *chatpb.ReplicationPingRequest) (*chatpb.ReplicationPongResponse, error) {
 	mySeq := s.lastSeq.Load()
 	peerSeq := req.LastSeq
-	lag := int64(mySeq) - int64(peerSeq) // #nosec G115 -- bounded by construction; see the surrounding guard
+	lag := seqLag(mySeq, peerSeq)
 
 	return &chatpb.ReplicationPongResponse{
 		NodeId:         s.nodeID,
@@ -139,4 +140,21 @@ func WaitForNewEntries(ctx context.Context, w *wal.WAL, afterSeq uint64, pollInt
 			}
 		}
 	}
+}
+
+// seqLag is how far mine leads peer, negative when peer leads, saturating at
+// the ends of int64 where the plain difference would change sign.
+func seqLag(mine, peer uint64) int64 {
+	if mine >= peer {
+		d := mine - peer
+		if d > math.MaxInt64 {
+			return math.MaxInt64
+		}
+		return int64(d)
+	}
+	d := peer - mine
+	if d > math.MaxInt64 {
+		return math.MinInt64
+	}
+	return -int64(d)
 }
