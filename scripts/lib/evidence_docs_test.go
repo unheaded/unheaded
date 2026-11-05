@@ -118,3 +118,38 @@ func TestHostTidyStep59AsksForA(t *testing.T) {
 		t.Error("Step 59 still expects the shape of a plain query")
 	}
 }
+
+// Phase 18 ran on west. The progress file says so, and says what it did beyond
+// the plan: Step 131 installs the whole sysusers file, not three lines of it.
+func TestHostTidyProgressRecordsPhase18(t *testing.T) {
+	progress := moveoutRepoFile(t, "docs/battle-plans/progress/S-HOST-TIDY-progress.md")
+	if strings.Contains(progress, "Phase 18 has not run") {
+		t.Error("the progress file still says Phase 18 has not run")
+	}
+	var record string
+	for _, line := range strings.Split(progress, "\n") {
+		if strings.HasPrefix(line, "- Phase 18 ran on west") {
+			record = line
+		}
+	}
+	if record == "" {
+		t.Fatal("the progress file has no line recording that Phase 18 ran on west")
+	}
+	sysusers := moveoutRepoFile(t, "deploy/sysusers.d/unheaded.conf")
+	for _, account := range []string{
+		"unheaded-vor", "unheaded-buildkey", "unheaded-heimdall", "unheaded-auth",
+		"unheaded-well-retention", "unheaded-ci-status", "unheaded-heartbeat", "unheaded-vector",
+	} {
+		if !strings.Contains(record, "`"+account+"`") {
+			t.Errorf("the Phase 18 line does not name %s", account)
+		}
+		if !strings.Contains(sysusers, "u     "+account+" ") {
+			t.Errorf("%s is not in deploy/sysusers.d/unheaded.conf", account)
+		}
+	}
+	for _, fact := range []string{"eight", "labelled east", "/var/backups/unheaded-sysusers.conf.bak-host-tidy"} {
+		if !strings.Contains(record, fact) {
+			t.Errorf("the Phase 18 line does not say %q", fact)
+		}
+	}
+}
