@@ -224,3 +224,27 @@ Steps 213-214: first boot. `sleepprobe`: four `=yes`, `SL: parent-ran` before `S
 Steps 215-216: `gate sleep-after`: same=12 diff=0 rc=0 doom=1 ascend=891808, ALL GREEN, `sleepprobe` PASS (1), `pgrep -c doom-runner` 0. `head=5ae498fe` is the const-off commit: the gate ran on the flipped tree, as Step 217 commits after it.
 
 Not covered: `sleepprobe` checks the 300-tick wait against `uptime`; the child's 2,000-tick wait is shown only by order against the parent, not by a tick count. Deadline wrap (`t + n` past 2^32) and a `kill` landing on a slot in `pause` are not booted: a killed slot's stale deadline is cleared at row refresh, read from the code.
+
+## Phase 18, fd table
+
+Step 219: before-gate diff 0 (`last-green` was HEAD, 118656a4), so no gate ran. `vcount` under the shared lock: `offv` 891,808, the same as Phase 17's on figure.
+
+Step 220: ADR-135 gains D10-D14, uncommitted until Step 222. Nothing built or booted beyond Step 219's `vcount`. Read from the tree first: all 12 goldens hold one `S` and one tracer run, from init's first return; `kexit` panics on slot 0 as well as on slot rows; `slot_exited` has two callers, exit and the reply block's kill; `ush` and `init` open only `console`, with O_RDWR.
+
+D14 as written differs from the plan's text twice. The mark goes in `upc_slot_leave()`, as ADR-135 D1 already ruled (R-F8). `S` and the tracer move behind the reply read, after the loop, where the plan moves the read ahead of them into the loop: that read measured +9,564 and the rung starts with 8,192 of headroom. D13 adds two things the plan leaves open: the test is `upc_slot_active()`, so slot 0 never reaches `kexit`, and the status comes back in a0, so the reply block sets `exit_code` as the arm does and reads no extra word.
+
+Step 221: the workflow ran the independent read-only review at `118656a4` plus the uncommitted ADR. No blocker on its three questions: 24 cannot forge a child's row through the syscall, a parent cannot be killed between finalize and the note, and the re-run leaves a2's cursor alone. Nothing built or booted.
+
+Step 222 dispositions, each re-read in the tree first. Ids are `T-` in ADR-135 Review, because the numbers overlap the earlier two sets.
+
+| Id | Severity | Disposition |
+|---|---|---|
+| T-F1 | Medium | Fixed in D12: finalize records that a note is due and chooses at the a0 write, so `num_processes`, `PARENT_OF` and `STAT_FORKS` still run |
+| T-F2 | Medium, forward | Fixed in D10: `fdalloc` keeps the index, `fduser()` translates in `sys_open`, `sys_dup` and `sys_pipe` |
+| T-F3 | Low to Medium, pre-existing | Stated in D10 and D11; no code, For Stevie |
+| T-F4 | Low to Medium | `fdprobe` gains the tokens and the `fresh_mask` check a mutant. The cwd drop boots but cannot be observed until chdir |
+| T-F5 | Low, D6 off | Fixed: the note closes what it finds; D12 and D13 restated |
+| T-F6 | Low | ADR-109 amended in I3, D5 and Security notes; `upc-rung0-assert.awk` updated and checked on four synthetic inputs (old pass, note pass, old fail, note fail). Not run against a probe kernel: `upc-regression.sh` does not run it |
+| T-F7 | Low | ADR rules over the plan text; arm for 24 lands with Step 225; `parity_slot_tables.rs` joins Step 227's commit; For Stevie |
+| T-F8 | Low, pre-existing | Stated in D10 |
+| T-S1, T-S2, T-S3 | Suspected | Answered by Steps 228-232 below |
