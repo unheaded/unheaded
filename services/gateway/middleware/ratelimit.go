@@ -177,8 +177,9 @@ func TrustedProxySet(addrs []string) map[string]bool {
 // answer unless it is a trusted proxy. Then X-Forwarded-For is read from the
 // nearest hop outward: the first entry that is not itself a trusted proxy is
 // the client, since each proxy appends and only entries left of that one are
-// the client's own. With no X-Forwarded-For, X-Real-IP stands. Anything that
-// does not parse ends the walk at the last address known good.
+// the client's own. Several header lines are one list, in order. With no
+// X-Forwarded-For, X-Real-IP stands. Anything that does not parse ends the
+// walk at the last address known good.
 func ClientIP(r *http.Request, trusted map[string]bool) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -187,7 +188,7 @@ func ClientIP(r *http.Request, trusted map[string]bool) string {
 	if !trusted[host] {
 		return host
 	}
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+	if xff := strings.Join(r.Header.Values("X-Forwarded-For"), ","); xff != "" {
 		hops := strings.Split(xff, ",")
 		for i := len(hops) - 1; i >= 0; i-- {
 			ip := net.ParseIP(strings.TrimSpace(hops[i]))
