@@ -320,7 +320,7 @@ func (s *issuer) login(w http.ResponseWriter, r *http.Request) {
 		aud = req.Audience
 	}
 	src := sourceAddr(r)
-	if locked, wait := s.lock.locked(req.Username, src); locked {
+	if locked, wait := s.lock.begin(req.Username, src); locked {
 		loginsTotal.WithLabelValues("locked").Inc()
 		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds()+0.999)))
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "temporarily_locked"})
@@ -330,6 +330,7 @@ func (s *issuer) login(w http.ResponseWriter, r *http.Request) {
 	select {
 	case s.hashSlots <- struct{}{}:
 	case <-r.Context().Done():
+		s.lock.abandon(req.Username, src)
 		loginsTotal.WithLabelValues("busy").Inc()
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "busy"})
 		return
@@ -347,7 +348,6 @@ func (s *issuer) login(w http.ResponseWriter, r *http.Request) {
 	<-s.hashSlots
 
 	if !ok {
-		s.lock.failure(req.Username, src)
 		loginsTotal.WithLabelValues("invalid").Inc()
 		// Only a known name is logged: a password typed into the username
 		// field must not land in the log.

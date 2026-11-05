@@ -471,3 +471,70 @@ func TestReloadUsers(t *testing.T) {
 		t.Errorf("after a failed reload: %d", resp.StatusCode)
 	}
 }
+
+// L14: attempts in flight count. A burst of wrong passwords all queued
+// behind the hash slots must not get more guesses than the lockout allows.
+func TestLockout_ConcurrentAttemptsCannotOutrunIt(t *testing.T) {
+	f := newFixture(t)
+	iss, err := newIssuer(issuerConfig{IssuerURL: "http://127.0.0.1:19020", KeyFile: f.keyFile, UsersFile: f.usersFile, DevPlaintext: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := iss.Handler()
+	for i := 0; i < cap(iss.hashSlots); i++ {
+		iss.hashSlots <- struct{}{} // every attempt waits here, past the lockout check
+	}
+	const burst = 3 * maxFailuresPerPair
+	codes := make(chan int, burst)
+	for i := 0; i < burst; i++ {
+		go func() { codes <- loginFrom(h, "10.0.0.1", `{"username":"dev","password":"nope"}`).Code }()
+	}
+	time.Sleep(200 * time.Millisecond)
+	for i := 0; i < cap(iss.hashSlots); i++ {
+		<-iss.hashSlots
+	}
+	guesses := 0
+	for i := 0; i < burst; i++ {
+		if <-codes == http.StatusUnauthorized {
+			guesses++
+		}
+	}
+	if guesses > maxFailuresPerPair {
+		t.Fatalf("%d guesses checked in one burst, lockout allows %d", guesses, maxFailuresPerPair)
+	}
+}
+
+// A good login is not a failure: many of them from one backend lock nobody.
+func TestLockout_GoodLoginsDoNotCount(t *testing.T) {
+	f := newFixture(t)
+	iss, err := newIssuer(issuerConfig{IssuerURL: "http://127.0.0.1:19020", KeyFile: f.keyFile, UsersFile: f.usersFile, DevPlaintext: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := iss.Handler()
+	for i := 0; i < 2*maxFailuresPerSource; i++ {
+		if w := loginFrom(h, "10.0.0.1", `{"username":"dev","password":"correct horse battery"}`); w.Code != http.StatusOK {
+			t.Fatalf("login %d = %d, want 200", i+1, w.Code)
+		}
+	}
+}
+
+// A good login clears its pair, not the address's count across users.
+func TestLockout_GoodLoginKeepsTheSourceCount(t *testing.T) {
+	f := newFixture(t)
+	iss, err := newIssuer(issuerConfig{IssuerURL: "http://127.0.0.1:19020", KeyFile: f.keyFile, UsersFile: f.usersFile, DevPlaintext: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := iss.Handler()
+	for i := 0; i < maxFailuresPerSource-1; i++ {
+		loginFrom(h, "10.0.0.1", `{"username":"nobody`+string(rune('a'+i))+`","password":"x"}`)
+	}
+	if w := loginFrom(h, "10.0.0.1", `{"username":"dev","password":"correct horse battery"}`); w.Code != http.StatusOK {
+		t.Fatalf("good login = %d, want 200", w.Code)
+	}
+	loginFrom(h, "10.0.0.1", `{"username":"last","password":"x"}`)
+	if w := loginFrom(h, "10.0.0.1", `{"username":"dev","password":"correct horse battery"}`); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("after the source's limit = %d, want 429", w.Code)
+	}
+}
