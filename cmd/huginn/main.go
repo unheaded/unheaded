@@ -272,7 +272,7 @@ func disks() []DiskInfo {
 func netConns() NetConnections {
 	var nc NetConnections
 	for _, p := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
-		f, err := os.Open(p) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
+		f, err := os.Open(p) // #nosec G304 -- the fixed /proc paths listed above
 		if err != nil {
 			continue
 		}

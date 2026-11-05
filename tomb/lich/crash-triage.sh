@@ -67,6 +67,12 @@ echo ""
 # Severity Classification Functions
 # ============================================================================
 
+# A log is read only as a real file in a real logs directory: lines of it reach
+# the report, and a link could lead out of the results tree.
+is_plain_log() {
+    [[ -f "$1" && ! -L "$1" && ! -L "${LOG_DIR}" ]]
+}
+
 classify_crash() {
     local log_file="$1"
     local crash_file="$2"
@@ -74,7 +80,7 @@ classify_crash() {
 
     # Read log for crash indicators
     local log_content=""
-    if [[ -f "${log_file}" ]]; then
+    if is_plain_log "${log_file}"; then
         log_content=$(cat "${log_file}" 2>/dev/null || true)
     fi
 
@@ -193,7 +199,7 @@ echo ""
 
 if [[ -d "${LOG_DIR}" ]]; then
     for log_file in "${LOG_DIR}"/*.log; do
-        [[ -f "${log_file}" ]] || continue
+        is_plain_log "${log_file}" || continue
 
         basename=$(basename "${log_file}" .log)
         exitcode_file="${LOG_DIR}/${basename}.exitcode"

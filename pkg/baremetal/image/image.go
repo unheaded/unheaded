@@ -210,8 +210,12 @@ func (m *Manager) ListImages(ctx context.Context) ([]*ImageInfo, error) {
 	return result, nil
 }
 
-// ImportImage imports an image from a path.
+// ImportImage imports an image from a path. id names the image's directory
+// directly under the storage dir.
 func (m *Manager) ImportImage(ctx context.Context, id string, kernelPath, initrdPath, rootfsPath string) (*ImageInfo, error) {
+	if !filepath.IsLocal(id) || filepath.Base(id) != id || id == "." {
+		return nil, fmt.Errorf("image id %q is not one plain name", id)
+	}
 	imagePath := filepath.Join(m.config.StoragePath, id)
 	if err := os.MkdirAll(imagePath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("creating image directory: %w", err)
@@ -267,13 +271,13 @@ func (m *Manager) ImportImage(ctx context.Context, id string, kernelPath, initrd
 
 // copyFile copies a file and returns its checksum.
 func (m *Manager) copyFile(src, dst string) (string, int64, error) {
-	srcFile, err := os.Open(src) // #nosec G304 -- image/PXE path derived from the configured storage dir
+	srcFile, err := os.Open(src) // #nosec G304 -- the caller's kernel, initrd or rootfs path, read only
 	if err != nil {
 		return "", 0, err
 	}
 	defer func() { _ = srcFile.Close() }()
 
-	dstFile, err := os.Create(dst) // #nosec G304 -- image/PXE path derived from the configured storage dir
+	dstFile, err := os.Create(dst) // #nosec G304 -- a fixed name in this image's directory under the configured storage dir
 	if err != nil {
 		return "", 0, err
 	}
@@ -359,7 +363,7 @@ func (m *Manager) VerifyImage(ctx context.Context, id string) error {
 
 // verifyChecksum verifies a file's checksum.
 func (m *Manager) verifyChecksum(path, expected string) error {
-	file, err := os.Open(path) // #nosec G304 -- image/PXE path derived from the configured storage dir
+	file, err := os.Open(path) // #nosec G304 -- a path this manager recorded when it imported the image, read only
 	if err != nil {
 		return err
 	}

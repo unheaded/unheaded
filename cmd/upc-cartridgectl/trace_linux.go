@@ -164,7 +164,7 @@ func cmdReplay(g *globals, args []string) error {
 	if *steps {
 		cargs = append(cargs, "--steps")
 	}
-	cmd := exec.Command(g.cartBin, cargs...) // #nosec G204 -- operator-configured tool path, validated flag values
+	cmd := exec.Command(g.cartBin, cargs...) // #nosec G204 -- operator-configured tool path; the operator's own flags, each a separate argument, no shell
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	err = cmd.Run()
 	var ee *exec.ExitError

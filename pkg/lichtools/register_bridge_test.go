@@ -119,3 +119,53 @@ func TestRegressionSeed_CannotEscapeSeedTree(t *testing.T) {
 		t.Fatalf("seed escaped the seeds tree: %s", abs)
 	}
 }
+
+// A driver supplies dedup_key and the seed's file name is built from it, so it
+// must be one plain name, and a refused key must leave nothing behind.
+func TestFileFinding_DedupKeyIsOneName(t *testing.T) {
+	p, root := richProvider(t)
+	regBefore, err := os.ReadFile(p.cfg.RegisterAbs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{
+		filepath.Join("x", "..", "..", "..", "..", "planted"),
+		"x/y", "a b", "line\nbreak", strings.Repeat("k", 129),
+	} {
+		payload, _ := json.Marshal(map[string]string{
+			"severity": "high", "summary": "s", "dedup_key": key,
+			"campaign_id": "LICH-015", "repro_hex": "3a01",
+		})
+		res, err := p.Call(context.Background(), ToolFileFinding, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !res.IsError {
+			t.Errorf("dedup_key %q was accepted: %s", key, res.Text)
+		}
+	}
+	var stray []string
+	err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err == nil && strings.HasSuffix(path, ".bin") {
+			stray = append(stray, path)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stray) != 0 {
+		t.Errorf("seeds written for refused keys: %q", stray)
+	}
+	if got, _ := os.ReadFile(p.cfg.RegisterAbs()); string(got) != string(regBefore) {
+		t.Error("a refused key changed the register")
+	}
+}
+
+// A seed's path stays in the seeds tree even if its caller passes a bad key.
+func TestWriteRegressionSeed_StaysInTheSeedsTree(t *testing.T) {
+	p, _ := richProvider(t)
+	if _, err := p.writeRegressionSeed("FND-001", "a/../../../b", fileFindingInput{CampaignID: "LICH-015"}); err == nil {
+		t.Fatal("a seed name with separators was written")
+	}
+}

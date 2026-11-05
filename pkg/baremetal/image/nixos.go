@@ -69,9 +69,10 @@ func (b *NixOSBuilder) buildSystem(ctx context.Context, flakeRef, system string)
 	// Build the toplevel derivation
 	attribute := fmt.Sprintf("%s#nixosConfigurations.%s.config.system.build.toplevel", flakeRef, system)
 
-	cmd := exec.CommandContext(ctx, "nix", "build", // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
+	cmd := exec.CommandContext(ctx, "nix", "build", // #nosec G204 -- fixed binary, no shell; the attribute follows --
 		"--no-link",
 		"--print-out-paths",
+		"--",
 		attribute,
 	)
 
@@ -111,7 +112,7 @@ func (b *NixOSBuilder) extractNetbootArtifacts(ctx context.Context, storePath st
 
 	// Read kernel parameters
 	kernelParamsPath := filepath.Join(storePath, "kernel-params")
-	if data, err := os.ReadFile(kernelParamsPath); err == nil { // #nosec G304 -- image/PXE path derived from the configured storage dir
+	if data, err := os.ReadFile(kernelParamsPath); err == nil { // #nosec G304 -- a fixed name in the store path nix build printed
 		result.KernelParams = strings.TrimSpace(string(data))
 	}
 
@@ -143,7 +144,7 @@ func (b *NixOSBuilder) buildSquashFS(ctx context.Context, storePath string) (str
 	defer func() { _ = os.Remove(listPath) }()
 
 	// Build squashfs
-	cmd := exec.CommandContext(ctx, "mksquashfs", // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
+	cmd := exec.CommandContext(ctx, "mksquashfs", // #nosec G204 -- fixed binary, no shell; the output path is built under the cache dir
 		"-",
 		outputPath,
 		"-comp", "zstd",
@@ -162,7 +163,7 @@ func (b *NixOSBuilder) buildSquashFS(ctx context.Context, storePath string) (str
 
 // getStoreClosure returns the store closure for a path.
 func (b *NixOSBuilder) getStoreClosure(ctx context.Context, storePath string) ([]string, error) {
-	cmd := exec.CommandContext(ctx, "nix-store", "-qR", storePath) // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
+	cmd := exec.CommandContext(ctx, "nix-store", "-qR", storePath) // #nosec G204 -- fixed binary, no shell; storePath is what nix build printed
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -179,9 +180,10 @@ func (b *NixOSBuilder) BuildNetboot(ctx context.Context, flakeRef, system string
 	// Build the netboot derivation
 	attribute := fmt.Sprintf("%s#nixosConfigurations.%s.config.system.build.netboot", flakeRef, system)
 
-	cmd := exec.CommandContext(ctx, "nix", "build", // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
+	cmd := exec.CommandContext(ctx, "nix", "build", // #nosec G204 -- fixed binary, no shell; the attribute follows --
 		"--no-link",
 		"--print-out-paths",
+		"--",
 		attribute,
 	)
 
@@ -204,7 +206,7 @@ func (b *NixOSBuilder) BuildNetboot(ctx context.Context, flakeRef, system string
 
 	// Read kernel params
 	paramsPath := filepath.Join(storePath, "netboot-params")
-	if data, err := os.ReadFile(paramsPath); err == nil { // #nosec G304 -- image/PXE path derived from the configured storage dir
+	if data, err := os.ReadFile(paramsPath); err == nil { // #nosec G304 -- a fixed name in the store path nix build printed
 		result.KernelParams = strings.TrimSpace(string(data))
 	}
 
@@ -218,9 +220,10 @@ func (b *NixOSBuilder) BuildKexec(ctx context.Context, flakeRef, system string) 
 	// Build the kexec derivation
 	attribute := fmt.Sprintf("%s#nixosConfigurations.%s.config.system.build.kexec", flakeRef, system)
 
-	cmd := exec.CommandContext(ctx, "nix", "build", // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
+	cmd := exec.CommandContext(ctx, "nix", "build", // #nosec G204 -- fixed binary, no shell; the attribute follows --
 		"--no-link",
 		"--print-out-paths",
+		"--",
 		attribute,
 	)
 
@@ -255,7 +258,7 @@ func (b *NixOSBuilder) BuildKexec(ctx context.Context, flakeRef, system string) 
 // GenerateHardwareConfig generates hardware configuration for a machine.
 func (b *NixOSBuilder) GenerateHardwareConfig(ctx context.Context, targetHost string) (string, error) {
 	// SSH to the target and run nixos-generate-config
-	cmd := exec.CommandContext(ctx, "ssh", targetHost, // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
+	cmd := exec.CommandContext(ctx, "ssh", "--", targetHost, // #nosec G204 -- the host follows --, so it is never an option; the remote command is constant
 		"nixos-generate-config", "--show-hardware-config",
 	)
 

@@ -14,7 +14,7 @@ From `pkg/ports/ports.go`:
 | Core Services | 19000-19099 | timeguru 19000, architect 19001, captain 19002, micromanager 19003, monad 19004, sophia 19005, cuirass 19006, key-mgmt 19007, pqc-verifier 19008 (reserved, ADR-119), shield 19009, firewall 19010, sword 19011 (was canary), chaos 19012, QoS 19013, backup-mgr 19014, compliance 19015, NFV 19016, version 19017, anomaly 19018, telemetry-agg 19019, unheaded-auth 19020 ([[Service-Auth]]) |
 | Health | 19100 | akira |
 | Health | 19101 | heimdall-daemon `/metrics` (`-metrics-addr`, default `127.0.0.1`; empty disables) |
-| Threat feeds | 19120 | kev-poller (ADR-055); 19110 is the loadbalancer's xdpsync |
+| Threat feeds | 19120 | kev-poller (ADR-055); 19110 is the loadbalancer's xdpsync (loopback only) |
 | Alerting | 19130 | alert-mailer (ADR-100), `127.0.0.1` in `monitoring/docker-compose.yml` |
 | Alerting | 19131 | alert-mailer `/heartbeat/{host}` only (dead-man switch); loopback until `HEARTBEAT_LISTEN` |
 | Packages | 18888 | signed apt repo (reprepro) behind the `nginx` sysuser, `deploy/nginx/unheaded-apt.conf`: 127.0.0.1 and 192.168.13.2 only (S-IRON-GATE Phase 14; installs in E3) |

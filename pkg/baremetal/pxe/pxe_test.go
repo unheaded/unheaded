@@ -894,3 +894,146 @@ func TestConcurrentPXEOperations(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// ReadFile and HandleRead take the name a TFTP client asks for: it must stay in the
+// root, and a link in the root must not lead out of it.
+func TestTFTPServer_ReadStaysInRoot(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	if err := os.Mkdir(root, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(base, "private")
+	if err := os.WriteFile(outside, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pxelinux.0"), []byte("boot"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv, _ := NewTFTPServerWithOptions(":0", root, true)
+	for _, name := range []string{"../private", "a/../../private", "link"} {
+		if got, err := srv.ReadFile(name); err == nil {
+			t.Errorf("ReadFile(%q) = %q, want an error", name, got)
+		}
+	}
+	// A client may lead with a slash: it means the root, as it always did.
+	got, err := srv.ReadFile("/pxelinux.0")
+	if err != nil || string(got) != "boot" {
+		t.Fatalf("ReadFile(/pxelinux.0) = %q, %v", got, err)
+	}
+}
+
+func TestTFTPServer_WriteAndRemoveStayInRoot(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	if err := os.Mkdir(root, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(base, "private")
+	if err := os.WriteFile(outside, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv, _ := NewTFTPServerWithOptions(":0", root, true)
+	if err := srv.WriteFile("../private", []byte("changed")); err == nil {
+		t.Error("WriteFile escaped the root")
+	}
+	if err := srv.RemoveFile("../private"); err == nil {
+		t.Error("RemoveFile escaped the root")
+	}
+	got, err := os.ReadFile(outside)
+	if err != nil || string(got) != "outside" {
+		t.Fatalf("outside file is %q, %v", got, err)
+	}
+}
+
+// A link in the root does not carry a write or a remove out of it.
+func TestTFTPServer_LinksDoNotLeaveTheRoot(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	outDir := filepath.Join(base, "outdir")
+	for _, dir := range []string{root, outDir} {
+		if err := os.Mkdir(dir, 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	file := filepath.Join(outDir, "f")
+	if err := os.WriteFile(file, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(file, filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outDir, filepath.Join(root, "ldir")); err != nil {
+		t.Fatal(err)
+	}
+	srv, _ := NewTFTPServerWithOptions(":0", root, true)
+
+	if err := srv.WriteFile("link", []byte("changed")); err == nil {
+		t.Error("WriteFile through a link succeeded")
+	}
+	if err := srv.WriteFile("ldir/new", []byte("changed")); err == nil {
+		t.Error("WriteFile through a linked directory succeeded")
+	}
+	if err := srv.WriteFile("ldir/sub/new", []byte("changed")); err == nil {
+		t.Error("WriteFile made a directory through a link")
+	}
+	if err := srv.RemoveFile("ldir/f"); err == nil {
+		t.Error("RemoveFile through a linked directory succeeded")
+	}
+	got, err := os.ReadFile(file)
+	if err != nil || string(got) != "outside" {
+		t.Fatalf("outside file is %q, %v", got, err)
+	}
+	entries, err := os.ReadDir(outDir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("outside directory holds %v, %v", entries, err)
+	}
+}
+
+// WriteFile still makes a root that was not made at start.
+func TestTFTPServer_WriteMakesTheRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "later", "root")
+	srv, _ := NewTFTPServerWithOptions(":0", root, true)
+	if err := srv.RemoveFile("x"); err != nil {
+		t.Fatalf("RemoveFile with no root: %v", err)
+	}
+	if err := srv.WriteFile("pxelinux.cfg/x", []byte("v")); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if got, err := srv.ReadFile("pxelinux.cfg/x"); err != nil || string(got) != "v" {
+		t.Fatalf("ReadFile = %q, %v", got, err)
+	}
+}
+
+// One file is one cache entry, however the client spells its name.
+func TestTFTPServer_CacheKeyIsTheFile(t *testing.T) {
+	root := t.TempDir()
+	srv, _ := NewTFTPServerWithOptions(":0", root, true)
+	if err := srv.WriteFile("c", []byte("old")); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"c", "/c", "a/../c"} {
+		if got, err := srv.ReadFile(name); err != nil || string(got) != "old" {
+			t.Fatalf("ReadFile(%q) = %q, %v", name, got, err)
+		}
+	}
+	if err := srv.WriteFile("c", []byte("new")); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"c", "/c", "a/../c"} {
+		if got, err := srv.ReadFile(name); err != nil || string(got) != "new" {
+			t.Errorf("after a write, ReadFile(%q) = %q, %v", name, got, err)
+		}
+	}
+	if err := srv.RemoveFile("/c"); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"c", "/c", "a/../c"} {
+		if got, err := srv.ReadFile(name); err == nil {
+			t.Errorf("after a remove, ReadFile(%q) = %q", name, got)
+		}
+	}
+}

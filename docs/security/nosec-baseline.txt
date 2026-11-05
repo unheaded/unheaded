@@ -155,7 +155,7 @@ pkg/auth/keys.go 3
 pkg/auth/setup.go 1
 pkg/baremetal/image/image.go 5
 pkg/baremetal/image/nixos.go 9
-pkg/baremetal/pxe/tftp.go 5
+pkg/baremetal/pxe/tftp.go 3
 pkg/benchmark/benchmark.go 1
 pkg/bff/bff.go 5
 pkg/cartridge/cartridge.go 2
@@ -227,7 +227,7 @@ pkg/lichtools/register_bridge_test.go 2
 pkg/lichtools/sandbox.go 1
 pkg/lichtools/seedgen.go 3
 pkg/lichtools/self_redteam_test.go 1
-pkg/lichtools/tools_real.go 6
+pkg/lichtools/tools_real.go 4
 pkg/localllm/localllm.go 1
 pkg/logsources/logsources.go 1
 pkg/logsources/logsources_test.go 1
@@ -288,7 +288,7 @@ services/gateway/proxy/loadbalancer.go 1
 services/gateway/routes/routes.go 2
 services/keymgmt/handler/keygen.go 1
 services/keymgmt/keymgmt.go 5
-services/loadbalancer/xdpsync.go 2
+services/loadbalancer/xdpsync.go 1
 services/nfv/nfv.go 9
 services/sabatons/sabatons.go 2
 services/selfheal/selfheal.go 9

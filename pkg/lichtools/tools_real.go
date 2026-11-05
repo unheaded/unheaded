@@ -240,19 +240,19 @@ func (p *Provider) readCrash(in readCrashInput) (zhentools.Result, error) {
 	if strings.ContainsAny(in.CrashID, "/\\") || strings.Contains(in.CrashID, "..") {
 		return zhentools.Result{IsError: true, Text: "crash_id must be a bare artifact name"}, nil
 	}
-	crashPath := filepath.Join(resultsDir, "crashes", in.CrashID)
-	if !within(filepath.Join(resultsDir, "crashes"), crashPath) {
+	crashDir := filepath.Join(resultsDir, "crashes")
+	if !within(crashDir, filepath.Join(crashDir, in.CrashID)) {
 		return zhentools.Result{IsError: true, Text: "crash path escapes the results tree"}, nil
 	}
-	data, err := os.ReadFile(crashPath) // #nosec G304 -- path validated: within <results>/crashes, no separators/traversal
+	crashes, err := p.openCrashes(resultsDir)
+	var data []byte
+	if err == nil {
+		defer func() { _ = crashes.Close() }()
+		data, err = readCrashFile(crashes, in.CrashID)
+	}
 	if err != nil {
 		// List what is available to help the caller.
-		avail, _ := filepath.Glob(filepath.Join(resultsDir, "crashes", "*"))
-		names := make([]string, 0, len(avail))
-		for _, a := range avail {
-			names = append(names, filepath.Base(a))
-		}
-		return zhentools.Result{IsError: true, Text: fmt.Sprintf("crash %q not found; available: %v", in.CrashID, names)}, nil
+		return zhentools.Result{IsError: true, Text: fmt.Sprintf("crash %q not found; available: %v", in.CrashID, crashNames(crashes))}, nil
 	}
 	sum := sha256.Sum256(data)
 	dump := data
@@ -262,6 +262,52 @@ func (p *Provider) readCrash(in readCrashInput) (zhentools.Result, error) {
 	return zhentools.Result{Text: fmt.Sprintf(
 		"crash %s\nsize: %d bytes\nsha256: %s\nhex (first %d bytes):\n%s\n(NOTE: the crashing input is NEVER executed by this tool)",
 		in.CrashID, len(data), hex.EncodeToString(sum[:]), len(dump), hex.EncodeToString(dump))}, nil
+}
+
+// openCrashes opens <resultsDir>/crashes by way of the results tree, so a link
+// at any level can lead nowhere outside that tree.
+func (p *Provider) openCrashes(resultsDir string) (*os.Root, error) {
+	base := p.cfg.ResultsDirAbs()
+	rel, err := filepath.Rel(base, resultsDir)
+	if err != nil {
+		return nil, err
+	}
+	tree, err := os.OpenRoot(base)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tree.Close() }()
+	return tree.OpenRoot(filepath.Join(rel, "crashes"))
+}
+
+// readCrashFile reads the regular file name directly in crashes.
+func readCrashFile(crashes *os.Root, name string) ([]byte, error) {
+	fi, err := crashes.Lstat(name)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", name)
+	}
+	return crashes.ReadFile(name)
+}
+
+// crashNames lists crashes, or nothing when it could not be opened.
+func crashNames(crashes *os.Root) []string {
+	if crashes == nil {
+		return nil
+	}
+	dir, err := crashes.Open(".")
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = dir.Close() }()
+	names, err := dir.Readdirnames(-1)
+	if err != nil {
+		return nil
+	}
+	sort.Strings(names)
+	return names
 }
 
 // --- lich_triage (crash-triage.sh in the sandbox) ------------------------
@@ -326,6 +372,11 @@ func (p *Provider) fileFinding(in fileFindingInput) (zhentools.Result, error) {
 	in.Host = clampField(in.Host, 128)
 	in.HarnessID = clampField(in.HarnessID, 128)
 	in.ReproSHA256 = clampField(in.ReproSHA256, 128)
+	// The key goes into the seed's file name and the register, so it is one
+	// plain name: a triage hash, or a driver's own short label.
+	if in.DedupKey != "" && !dedupKeyRe.MatchString(in.DedupKey) {
+		return zhentools.Result{IsError: true, Text: "dedup_key must be 1 to 128 of [A-Za-z0-9_-]"}, nil
+	}
 	registerPath := p.cfg.RegisterAbs()
 	raw, err := os.ReadFile(registerPath) // #nosec G304 -- operator-configured register path
 	if err != nil {
@@ -370,6 +421,10 @@ func (p *Provider) fileFinding(in fileFindingInput) (zhentools.Result, error) {
 			"A needs-regen marker was written; regenerate evidence after signing. dedup=%s%s", fnd, sev, dedup, seedNote)}, nil
 }
 
+// dedupKeyRe is the shape of a dedup key: no separators, nothing a file name
+// or a register line could read as more than one name.
+var dedupKeyRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
 // writeRegressionSeed checks in the crashing input for a filed finding under the
 // campaign's seed dir (scope-validated to stay inside the configured seeds
 // tree). When ReproHex is supplied it writes the exact bytes; otherwise it
@@ -388,6 +443,9 @@ func (p *Provider) writeRegressionSeed(fnd, dedup string, in fileFindingInput) (
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", err
 	}
+	if !dedupKeyRe.MatchString(dedup) {
+		return "", fmt.Errorf("%w: dedup key is not a plain name", ErrOutOfScope)
+	}
 	name := "regression-" + fnd + "-" + dedup
 	var content []byte
 	if in.ReproHex != "" {
@@ -405,7 +463,6 @@ func (p *Provider) writeRegressionSeed(fnd, dedup string, in fileFindingInput) (
 		name += ".seed"
 	}
 	full := filepath.Join(dir, name)
-	// #nosec G306 -- inert, non-secret regression seed inside the configured seeds tree
 	if err := os.WriteFile(full, content, 0o600); err != nil {
 		return "", err
 	}

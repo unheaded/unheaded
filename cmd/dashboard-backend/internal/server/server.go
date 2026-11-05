@@ -2657,7 +2657,7 @@ func (s *Server) handleServiceConfig(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/x-yaml")
-		_, _ = w.Write(yamlBytes) // #nosec G705 -- response is application/x-yaml and X-Content-Type-Options: nosniff is set globally (server.go:362)
+		_, _ = w.Write(yamlBytes) // #nosec G705 -- response is application/x-yaml and X-Content-Type-Options: nosniff is set by withSecurityHeaders
 
 	case http.MethodPut:
 		// This replaced the dashboard's in-memory copy and answered

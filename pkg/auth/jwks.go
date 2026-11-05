@@ -414,7 +414,7 @@ func parseJWKS(raw []json.RawMessage) (map[string]ed25519.PublicKey, error) {
 func (v *JWKSVerifier) getJSON(ctx context.Context, u string, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, jwksFetchTimeout)
 	defer cancel()
-	// #nosec G704 -- u is the configured issuer's discovery URL or the jwks_uri it names; both pass checkURL (https, or http to loopback) before this is called
+	// #nosec G704 -- u is the configured issuer's discovery URL or the jwks_uri it names; both pass checkURL before this is called (https; http to loopback; http to any host only under WithPlainHTTPIssuer)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return err

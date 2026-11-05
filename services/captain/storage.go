@@ -228,7 +228,7 @@ func (fs *FileStorage) loadAll(ctx context.Context) error {
 
 		filePath := filepath.Join(fs.basePath, entry.Name())
 
-		data, err := os.ReadFile(filePath) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
+		data, err := os.ReadFile(filePath) // #nosec G304 -- a *.json entry listed in the store's own directory
 		if err != nil {
 			return fmt.Errorf("%s: %w", filePath, err)
 		}

@@ -779,7 +779,7 @@ func (r *applyRun) validate(ctx context.Context, v string) error {
 }
 
 func runCmd(ctx context.Context, argv []string, env ...string) error {
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- argv comes from the allowlist and the model's validated names
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- argv comes from the allowlist, the model's validated names, or the undo record apply wrote in the operator-named backup directory
 	cmd.Env = append(os.Environ(), env...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

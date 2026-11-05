@@ -50,7 +50,7 @@ func LoadLatencyKprobes(elfPath string, allowUntrusted bool) (*LatencyKprobeLoad
 			return nil, nil, err
 		}
 	}
-	f, err := os.Open(elfPath) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
+	f, err := os.Open(elfPath) // #nosec G304 -- the operator's ELF path, passed objtrust.Check above unless --allow-untrusted-ebpf-obj-dir
 	if err != nil {
 		return nil, nil, fmt.Errorf("open ELF: %w", err)
 	}

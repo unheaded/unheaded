@@ -5,13 +5,19 @@ package lichtools
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"unheaded/pkg/zhentools"
 )
 
 // richProvider builds a provider over a realistic temp tree: harnesses, a
@@ -263,5 +269,194 @@ func TestReserveFuzzBudget(t *testing.T) {
 	}
 	if err := p.reserveFuzzBudget(60); err == nil {
 		t.Fatalf("second reserve should exceed the 100s budget")
+	}
+}
+
+// A crash id names a file in the crashes directory itself. A link planted
+// there must not turn the read into a read of something outside the tree.
+func TestReadCrash_RefusesLinks(t *testing.T) {
+	p := testProvider(t)
+	results := p.cfg.ResultsDirAbs()
+	crashes := filepath.Join(results, "run-1", "crashes")
+	if err := os.MkdirAll(crashes, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "private")
+	if err := os.WriteFile(outside, []byte("OUTSIDE-THE-TREE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(crashes, "crash-link")); err != nil {
+		t.Fatal(err)
+	}
+	res, err := p.readCrash(readCrashInput{ResultsDir: "run-1", CrashID: "crash-link"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || strings.Contains(res.Text, hex.EncodeToString([]byte("OUTSIDE"))) {
+		t.Fatalf("a link in crashes/ was followed: %+v", res)
+	}
+}
+
+// Nor may crashes/ itself be a link out of the results tree.
+func TestReadCrash_RefusesALinkedCrashesDir(t *testing.T) {
+	p := testProvider(t)
+	run := filepath.Join(p.cfg.ResultsDirAbs(), "run-2")
+	if err := os.MkdirAll(run, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "crash-a"), []byte("OUTSIDE-THE-TREE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(run, "crashes")); err != nil {
+		t.Fatal(err)
+	}
+	res, err := p.readCrash(readCrashInput{ResultsDir: "run-2", CrashID: "crash-a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError {
+		t.Fatalf("a linked crashes/ was followed: %+v", res)
+	}
+	// A failed read lists what is available: that list stays in the tree too.
+	for _, id := range []string{"crash-a", "no-such-crash"} {
+		res, err := p.readCrash(readCrashInput{ResultsDir: "run-2", CrashID: id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !res.IsError || strings.Contains(strings.ReplaceAll(res.Text, id, ""), "crash-a") {
+			t.Fatalf("names from outside the tree reached the caller: %+v", res)
+		}
+	}
+}
+
+// A wrong id still gets the list of what the real directory holds.
+func TestReadCrash_ListsTheCrashesDir(t *testing.T) {
+	p := testProvider(t)
+	crashes := filepath.Join(p.cfg.ResultsDirAbs(), "run-3", "crashes")
+	if err := os.MkdirAll(crashes, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"crash-b", "crash-a"} {
+		if err := os.WriteFile(filepath.Join(crashes, name), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := p.readCrash(readCrashInput{ResultsDir: "run-3", CrashID: "nope"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(res.Text, "[crash-a crash-b]") {
+		t.Fatalf("got %+v", res)
+	}
+}
+
+// Only a regular file is read: a link that stays in crashes/ is refused, and
+// a FIFO must not hang the tool.
+func TestReadCrash_RegularFilesOnly(t *testing.T) {
+	p := testProvider(t)
+	crashes := filepath.Join(p.cfg.ResultsDirAbs(), "run-4", "crashes")
+	if err := os.MkdirAll(crashes, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(crashes, "crash-real"), []byte("IN-THE-TREE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("crash-real", filepath.Join(crashes, "crash-link")); err != nil {
+		t.Fatal(err)
+	}
+	fifo := filepath.Join(crashes, "crash-fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"crash-link", "crash-fifo"} {
+		done := make(chan zhentools.Result, 1)
+		go func() {
+			res, err := p.readCrash(readCrashInput{ResultsDir: "run-4", CrashID: id})
+			if err != nil {
+				t.Error(err)
+			}
+			done <- res
+		}()
+		select {
+		case res := <-done:
+			if !res.IsError {
+				t.Errorf("%s was read: %+v", id, res)
+			}
+		case <-time.After(5 * time.Second):
+			t.Errorf("reading %s hung", id)
+			// A writer that comes and goes ends the read, so the goroutine
+			// does not outlive the test.
+			if f, err := os.OpenFile(fifo, os.O_RDWR, 0); err == nil {
+				_ = f.Close()
+			}
+			<-done
+		}
+	}
+}
+
+// A crash log in logs/ that is a link, or a linked logs/, is not read: one line
+// of a log reaches the report, and the report reaches the caller.
+func TestCrashTriage_ReadsNoLinkedLog(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash unavailable")
+	}
+	script, err := filepath.Abs(filepath.Join("..", "..", "tomb", "lich", "crash-triage.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := filepath.Join(t.TempDir(), "private.log")
+	if err := os.WriteFile(secret, []byte("Error: OUTSIDE-THE-TREE\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outsideDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outsideDir, "h.log"), []byte("Error: OUTSIDE-THE-TREE\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outsideDir, "h.exitcode"), []byte("1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	triage := func(t *testing.T, results string) string {
+		t.Helper()
+		out, err := exec.Command("bash", script, results).CombinedOutput()
+		if err != nil {
+			t.Fatalf("crash-triage: %v\n%s", err, out)
+		}
+		return string(out)
+	}
+	real := filepath.Join(t.TempDir(), "real")
+	logs := filepath.Join(real, "logs")
+	if err := os.MkdirAll(logs, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(logs, "own.log"), []byte("Error: IN-THE-TREE\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(logs, "own.exitcode"), []byte("1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(secret, filepath.Join(logs, "linked.log")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(logs, "linked.exitcode"), []byte("1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := triage(t, real)
+	if strings.Contains(out, "OUTSIDE-THE-TREE") {
+		t.Fatalf("a linked log reached the report:\n%s", out)
+	}
+	if !strings.Contains(out, "IN-THE-TREE") {
+		t.Fatalf("a real log did not reach the report:\n%s", out)
+	}
+
+	linkedDir := filepath.Join(t.TempDir(), "linked-logs")
+	if err := os.Mkdir(linkedDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outsideDir, filepath.Join(linkedDir, "logs")); err != nil {
+		t.Fatal(err)
+	}
+	if out := triage(t, linkedDir); strings.Contains(out, "OUTSIDE-THE-TREE") {
+		t.Fatalf("a linked logs/ reached the report:\n%s", out)
 	}
 }

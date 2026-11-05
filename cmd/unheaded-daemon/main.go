@@ -1725,7 +1725,7 @@ func loadConfig(path string) *Config {
 
 	// Load from YAML file if path provided, overriding defaults
 	if path != "" {
-		data, err := os.ReadFile(path) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
+		data, err := os.ReadFile(path) // #nosec G304 -- the operator's --config path
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading config file %s: %v\n", path, err)
 			os.Exit(1)

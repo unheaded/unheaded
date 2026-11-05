@@ -15,7 +15,7 @@ import (
 var shaRe = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
 
 func gitOut(ctx context.Context, repo string, args ...string) ([]byte, error) {
-	// #nosec G204 -- arguments are constants plus validated hex shas
+	// #nosec G204 -- repo is the operator's -repo; the other arguments are constants plus validated hex shas
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

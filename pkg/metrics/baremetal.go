@@ -352,7 +352,7 @@ func (b *BareMetalCollector) parseNetStats(netPath string, ifName string) map[st
 	metrics := []string{"rx_bytes", "rx_packets", "tx_bytes", "tx_packets"}
 	for _, metric := range metrics {
 		filePath := filepath.Join(statsPath, metric)
-		data, err := os.ReadFile(filePath) // #nosec G304 -- procfs/sysfs metrics path, fixed prefix + literal suffix
+		data, err := os.ReadFile(filePath) // #nosec G304 -- sysfs: fixed prefix, an interface the directory listed, a literal metric name
 		if err != nil {
 			continue
 		}

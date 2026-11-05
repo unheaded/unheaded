@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -116,51 +117,90 @@ func (s *TFTPServer) Stop() error {
 	return nil
 }
 
-// WriteFile writes a file to the TFTP root.
+// rootRelative returns name relative to the TFTP root, or an error for one
+// that leaves it. A leading slash means the root. Every spelling of one file
+// gives the same result, so this is also the cache key.
+func rootRelative(name string) (string, error) {
+	rel := strings.TrimLeft(name, "/")
+	if !filepath.IsLocal(rel) {
+		return "", fmt.Errorf("path %q is outside the TFTP root", name)
+	}
+	return filepath.Clean(rel), nil
+}
+
+// WriteFile writes a file to the TFTP root. os.Root does the work, so neither
+// the write nor the directories for it can leave the root, links included.
 func (s *TFTPServer) WriteFile(path string, data []byte) error {
-	fullPath := filepath.Join(s.root, path)
+	rel, err := rootRelative(path)
+	if err != nil {
+		return err
+	}
+
+	// The root itself may not exist yet: skipDirInit leaves it to the first write.
+	if err := os.MkdirAll(s.root, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
+		return fmt.Errorf("creating directory: %w", err)
+	}
+	root, err := os.OpenRoot(s.root)
+	if err != nil {
+		return fmt.Errorf("opening TFTP root: %w", err)
+	}
+	defer func() { _ = root.Close() }()
 
 	// Ensure directory exists
-	dir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(dir, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
+	if err := root.MkdirAll(filepath.Dir(rel), 0755); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
 	// Write file
-	if err := os.WriteFile(fullPath, data, 0644); err != nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
+	if err := root.WriteFile(rel, data, 0644); err != nil {
 		return fmt.Errorf("writing file: %w", err)
 	}
 
 	// Invalidate cache
 	s.cacheMu.Lock()
-	delete(s.cache, path)
+	delete(s.cache, rel)
 	s.cacheMu.Unlock()
 
 	return nil
 }
 
-// RemoveFile removes a file from the TFTP root.
+// RemoveFile removes a file from the TFTP root. os.Root does the work, so the
+// remove cannot leave the root, links included.
 func (s *TFTPServer) RemoveFile(path string) error {
-	fullPath := filepath.Join(s.root, path)
+	rel, err := rootRelative(path)
+	if err != nil {
+		return err
+	}
 
 	// Remove file
-	if err := os.Remove(fullPath); err != nil && !os.IsNotExist(err) {
+	root, err := os.OpenRoot(s.root)
+	if err == nil {
+		defer func() { _ = root.Close() }()
+		err = root.Remove(rel)
+	}
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("removing file: %w", err)
 	}
 
 	// Invalidate cache
 	s.cacheMu.Lock()
-	delete(s.cache, path)
+	delete(s.cache, rel)
 	s.cacheMu.Unlock()
 
 	return nil
 }
 
-// ReadFile reads a file from the TFTP root.
+// ReadFile reads a file from the TFTP root. path is what a client asked for,
+// so os.Root does the read: it refuses to leave s.root, links included.
 func (s *TFTPServer) ReadFile(path string) ([]byte, error) {
+	rel, err := rootRelative(path)
+	if err != nil {
+		return nil, err
+	}
+
 	// Check cache first
 	s.cacheMu.RLock()
-	cached, exists := s.cache[path]
+	cached, exists := s.cache[rel]
 	if exists {
 		cached.lastAccess = time.Now()
 		cached.hits++
@@ -179,16 +219,20 @@ func (s *TFTPServer) ReadFile(path string) ([]byte, error) {
 	s.stats.CacheMisses++
 	s.stats.mu.Unlock()
 
-	// Read from disk
-	fullPath := filepath.Join(s.root, path)
-	data, err := os.ReadFile(fullPath) // #nosec G304 -- image/PXE path derived from the configured storage dir
+	// Read from disk.
+	root, err := os.OpenRoot(s.root)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = root.Close() }()
+	data, err := root.ReadFile(rel)
 	if err != nil {
 		return nil, err
 	}
 
 	// Add to cache if small enough
 	if int64(len(data)) < s.maxCache/10 {
-		s.addToCache(path, data)
+		s.addToCache(rel, data)
 	}
 
 	return data, nil
