@@ -227,7 +227,7 @@ pkg/lichtools/register_bridge_test.go 2
 pkg/lichtools/sandbox.go 1
 pkg/lichtools/seedgen.go 3
 pkg/lichtools/self_redteam_test.go 1
-pkg/lichtools/tools_real.go 6
+pkg/lichtools/tools_real.go 5
 pkg/localllm/localllm.go 1
 pkg/logsources/logsources.go 1
 pkg/logsources/logsources_test.go 1

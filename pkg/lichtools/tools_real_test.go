@@ -5,6 +5,7 @@ package lichtools
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -263,5 +264,53 @@ func TestReserveFuzzBudget(t *testing.T) {
 	}
 	if err := p.reserveFuzzBudget(60); err == nil {
 		t.Fatalf("second reserve should exceed the 100s budget")
+	}
+}
+
+// A crash id names a file in the crashes directory itself. A link planted
+// there must not turn the read into a read of something outside the tree.
+func TestReadCrash_RefusesLinks(t *testing.T) {
+	p := testProvider(t)
+	results := p.cfg.ResultsDirAbs()
+	crashes := filepath.Join(results, "run-1", "crashes")
+	if err := os.MkdirAll(crashes, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "private")
+	if err := os.WriteFile(outside, []byte("OUTSIDE-THE-TREE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(crashes, "crash-link")); err != nil {
+		t.Fatal(err)
+	}
+	res, err := p.readCrash(readCrashInput{ResultsDir: "run-1", CrashID: "crash-link"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || strings.Contains(res.Text, hex.EncodeToString([]byte("OUTSIDE"))) {
+		t.Fatalf("a link in crashes/ was followed: %+v", res)
+	}
+}
+
+// Nor may crashes/ itself be a link out of the results tree.
+func TestReadCrash_RefusesALinkedCrashesDir(t *testing.T) {
+	p := testProvider(t)
+	run := filepath.Join(p.cfg.ResultsDirAbs(), "run-2")
+	if err := os.MkdirAll(run, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "crash-a"), []byte("OUTSIDE-THE-TREE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(run, "crashes")); err != nil {
+		t.Fatal(err)
+	}
+	res, err := p.readCrash(readCrashInput{ResultsDir: "run-2", CrashID: "crash-a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError {
+		t.Fatalf("a linked crashes/ was followed: %+v", res)
 	}
 }

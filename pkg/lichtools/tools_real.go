@@ -240,11 +240,11 @@ func (p *Provider) readCrash(in readCrashInput) (zhentools.Result, error) {
 	if strings.ContainsAny(in.CrashID, "/\\") || strings.Contains(in.CrashID, "..") {
 		return zhentools.Result{IsError: true, Text: "crash_id must be a bare artifact name"}, nil
 	}
-	crashPath := filepath.Join(resultsDir, "crashes", in.CrashID)
-	if !within(filepath.Join(resultsDir, "crashes"), crashPath) {
+	crashDir := filepath.Join(resultsDir, "crashes")
+	if !within(crashDir, filepath.Join(crashDir, in.CrashID)) {
 		return zhentools.Result{IsError: true, Text: "crash path escapes the results tree"}, nil
 	}
-	data, err := os.ReadFile(crashPath) // #nosec G304 -- path validated: within <results>/crashes, no separators/traversal
+	data, err := readCrashFile(crashDir, in.CrashID)
 	if err != nil {
 		// List what is available to help the caller.
 		avail, _ := filepath.Glob(filepath.Join(resultsDir, "crashes", "*"))
@@ -262,6 +262,29 @@ func (p *Provider) readCrash(in readCrashInput) (zhentools.Result, error) {
 	return zhentools.Result{Text: fmt.Sprintf(
 		"crash %s\nsize: %d bytes\nsha256: %s\nhex (first %d bytes):\n%s\n(NOTE: the crashing input is NEVER executed by this tool)",
 		in.CrashID, len(data), hex.EncodeToString(sum[:]), len(dump), hex.EncodeToString(dump))}, nil
+}
+
+// readCrashFile reads the regular file name directly in dir. dir must be a
+// real directory; os.Root keeps the read inside it, links included.
+func readCrashFile(dir, name string) ([]byte, error) {
+	if fi, err := os.Lstat(dir); err != nil {
+		return nil, err
+	} else if !fi.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", dir)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = root.Close() }()
+	fi, err := root.Lstat(name)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", name)
+	}
+	return root.ReadFile(name)
 }
 
 // --- lich_triage (crash-triage.sh in the sandbox) ------------------------
