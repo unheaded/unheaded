@@ -262,7 +262,7 @@ func main() {
 		_ = server.Shutdown(ctx)
 	}()
 
-	log.Printf("Starting routing-health server on %s", addr) // #nosec G706 -- zerolog structured field, not a raw newline-injectable log line
+	log.Printf("Starting routing-health server on %s", addr) // #nosec G706 -- addr comes from ROUTING_HEALTH_ADDR, not from a request
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server error: %v", err)
 	}

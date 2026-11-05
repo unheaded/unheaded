@@ -311,7 +311,7 @@ func chainMiddleware(handler http.Handler, middlewares ...Middleware) http.Handl
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if *logRequests {
-			log.Printf("[%s] %s %s %s", r.RemoteAddr, r.Method, r.URL.Path, r.UserAgent()) // #nosec G706 -- zerolog structured field, not a raw newline-injectable log line
+			log.Printf("[%s] %s %q %q", r.RemoteAddr, r.Method, r.URL.Path, r.UserAgent()) // #nosec G706 -- %q escapes the client's path and agent, so one request stays one line
 		}
 		next.ServeHTTP(w, r)
 	})
