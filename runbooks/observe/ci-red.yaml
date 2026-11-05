@@ -64,7 +64,7 @@ steps:
 
   - name: reproduce-locally
     action: manual
-    command: "Reproduce the job in a clean clone in a scratch directory: run the workflow's own setup and command, with scripts/ci-fetch-doomgeneric.sh first."
+    command: "Reproduce the job in a clean clone in a scratch directory: run the workflow's own setup and command."
     description: "MANUAL. Fix on develop, push; the SLI turns green on the next successful run"
 
   - name: reader-health

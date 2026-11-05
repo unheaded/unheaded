@@ -4,6 +4,7 @@
 package scriptlib
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -61,6 +62,36 @@ func TestMoveOutMatcherFindsPlantedResidue(t *testing.T) {
 	}
 	if got := moveoutHitLines("clean\n", re); len(got) != 0 {
 		t.Fatalf("clean text hits = %v, want none", got)
+	}
+}
+
+// A runbook step that names a repository script has to name one that exists:
+// an operator following the step cannot tell a moved file from a typo.
+func TestRunbooksNameOnlyScriptsThatExist(t *testing.T) {
+	root := filepath.Join("..", "..")
+	scriptRef := regexp.MustCompile(`(?:^|[\s"'=(])(?:\./)?(scripts/[A-Za-z0-9_./-]+\.(?:sh|py))\b`)
+	seen := 0
+	err := filepath.WalkDir(filepath.Join(root, "runbooks"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Ext(path) != ".yaml" {
+			return err
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, m := range scriptRef.FindAllSubmatch(b, -1) {
+			seen++
+			if _, err := os.Stat(filepath.Join(root, string(m[1]))); err != nil {
+				t.Errorf("%s names %s, which does not exist", path, m[1])
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seen == 0 {
+		t.Fatal("no script references found: the pattern no longer matches any runbook")
 	}
 }
 
