@@ -126,7 +126,7 @@ const (
 	AllInOneDev = 16759
 )
 
-// Armory tier (16740-16759). Infrastructure components under deploy/k8s/armory.
+// Armory tier (16740-16759). Their manifests left for unheaded-k8s (DP-17); the numbers stay reserved.
 // These manifests set runAsNonRoot but no runAsUser, which stops root without
 // giving each service an identity of its own — the UID then comes from whatever
 // the image happens to declare, and two images can easily share one.
@@ -164,7 +164,7 @@ const (
 // membership of render (GID 992) and video (GID 44) rather than UID 0.
 const (
 	VoidCollector = 16780
-	VLLM          = 16781
+	VLLM          = 16781 // reserved: vLLM is parked (DP-713)
 	// 16782 retired: Suricata, removed 2026-10-22. Not reused.
 	WireGuard = 16783
 	Traefik   = 16784
