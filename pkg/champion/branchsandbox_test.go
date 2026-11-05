@@ -175,3 +175,18 @@ func TestBranchSandbox_OffByDefault(t *testing.T) {
 		t.Errorf("without WithBranchSandbox: %v", err)
 	}
 }
+
+// H4: the mode re-reads the branch on every write, between sandboxed checks,
+// so that git is host-side git too: the process's environment does not choose
+// the repository it reads.
+func TestDetectBranchSandbox_IgnoresTheCallersGitEnvironment(t *testing.T) {
+	agent := t.TempDir()
+	wt := filepath.Join(agent, "card-7")
+	gitWorktree(t, wt, "main")
+	other := filepath.Join(t.TempDir(), "other")
+	gitWorktree(t, other, "zhen/card-7")
+	t.Setenv("GIT_DIR", filepath.Join(other, ".git"))
+	if b, err := DetectBranchSandbox(wt, agent); err == nil {
+		t.Fatalf("branch %q came from another repository", b)
+	}
+}

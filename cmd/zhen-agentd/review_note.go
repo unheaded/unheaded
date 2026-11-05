@@ -22,7 +22,7 @@ import (
 
 const noteCheckTail = 2 << 10
 
-func (w *worker) writeNote(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec, run zhenagent.Run, wt, status, reason string,
+func (w *worker) writeNote(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec, run zhenagent.Run, wt string, refused bool, status, reason string,
 	o claudebridge.RouteOutcome, head string, artefacts []string) string {
 	name := strings.TrimPrefix(run.Branch, "zhen/") + ".md"
 	path := filepath.Join(w.cfg.ReviewDir, name)
@@ -52,7 +52,9 @@ func (w *worker) writeNote(ctx context.Context, c zhenagent.Card, spec zhenagent
 	}
 
 	b.WriteString("\n## Changes\n\n```text\n")
-	if head != "" {
+	if refused {
+		b.WriteString("(worktree refused: its .git changed during the run, so git did not read it)\n")
+	} else if head != "" {
 		if out, err := w.cfg.Git(ctx, wt, "diff", "--stat", run.BaseCommit+".."+head); err == nil {
 			b.Write(out)
 		}

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -123,7 +122,7 @@ func protectedSet(ctx context.Context, root, checkPath, check string) []string {
 	if check != "fixture-check" {
 		return out
 	}
-	files, err := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "-z").Output() // #nosec G702 G204 -- fixed binary and flags; root is the validated agent worktree
+	files, err := sandbox.HostGit(ctx, root, "ls-files", "-z").Output()
 	if err != nil {
 		return out
 	}
@@ -169,11 +168,11 @@ func FileSHA(root, rel string) string {
 // WorktreeFiles lists the tracked files of the worktree under dir ("" =
 // all), at most 40 files and 64 KiB, for the local model's prompt.
 func WorktreeFiles(ctx context.Context, root, dir string) (string, error) {
-	args := []string{"-C", root, "ls-files", "-z"}
+	args := []string{"ls-files", "-z"}
 	if dir != "" && dir != "." {
 		args = append(args, "--", dir)
 	}
-	out, err := exec.CommandContext(ctx, "git", args...).Output() // #nosec G204 -- fixed binary; root is the validated agent worktree, dir a validated relative path after --
+	out, err := sandbox.HostGit(ctx, root, args...).Output()
 	if err != nil {
 		return "", fmt.Errorf("list worktree files: %w", err)
 	}

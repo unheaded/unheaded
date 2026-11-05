@@ -238,3 +238,19 @@ func TestClassify_SymlinkToUntrackedIsOps(t *testing.T) {
 		t.Errorf("symlink to an untracked file = %v", got)
 	}
 }
+
+// H4: classification asks git about a worktree between sandboxed checks, so
+// that git is host-side git too: it runs nothing the worktree's config names.
+func TestGitTracked_RunsNoProgramTheRepositoryNames(t *testing.T) {
+	wt := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "ran")
+	for _, args := range [][]string{{"init", "-q"}, {"config", "core.fsmonitor", "touch " + marker + " #"}} {
+		if out, err := exec.Command("git", append([]string{"-C", wt}, args...)...).CombinedOutput(); err != nil {
+			t.Skipf("git %v: %v %s", args, err, out)
+		}
+	}
+	gitTracked(wt, filepath.Join(wt, "f"))
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("asking git ran a program from the worktree's config")
+	}
+}

@@ -204,3 +204,21 @@ func TestWorktreeChampion_OnlyTheWorktree(t *testing.T) {
 		}
 	}
 }
+
+// H4: the route lists a worktree between sandboxed checks, so that git is
+// host-side git too: it runs nothing the worktree's config names.
+func TestWorktreeFiles_RunsNoProgramTheRepositoryNames(t *testing.T) {
+	wt := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "ran")
+	for _, args := range [][]string{{"init", "-q"}, {"config", "core.fsmonitor", "touch " + marker + " #"}} {
+		if out, err := exec.Command("git", append([]string{"-C", wt}, args...)...).CombinedOutput(); err != nil {
+			t.Skipf("git %v: %v %s", args, err, out)
+		}
+	}
+	if _, err := WorktreeFiles(context.Background(), wt, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("listing the worktree ran a program from its config")
+	}
+}
