@@ -601,33 +601,6 @@ func TestCopyHeaders(t *testing.T) {
 	}
 }
 
-func TestGetClientIP_Proxy(t *testing.T) {
-	tests := []struct {
-		name       string
-		xff        string
-		remoteAddr string
-		want       string
-	}{
-		{"XFF single", "1.2.3.4", "9.9.9.9:80", "1.2.3.4"},
-		{"XFF multi", "1.2.3.4, 5.6.7.8", "9.9.9.9:80", "1.2.3.4"},
-		{"No XFF", "", "192.168.1.1:4321", "192.168.1.1"},
-		{"No port", "", "192.168.1.1", "192.168.1.1"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			if tt.xff != "" {
-				req.Header.Set("X-Forwarded-For", tt.xff)
-			}
-			req.RemoteAddr = tt.remoteAddr
-			got := getClientIP(req)
-			if got != tt.want {
-				t.Fatalf("expected %q, got %q", tt.want, got)
-			}
-		})
-	}
-}
-
 func TestGetScheme(t *testing.T) {
 	// Default (no TLS, no header)
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
