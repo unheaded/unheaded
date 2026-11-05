@@ -181,7 +181,11 @@ func SetupMiddleware(cfg ServiceAuthConfig) func(http.Handler) http.Handler {
 		log.Error().Err(err).Str("service", cfg.ServiceName).
 			Msg("auth: refusing every request except /health /ready /metrics (see ADR-103)")
 		// An empty MultiAuthenticator refuses every request (401).
-		return SkipAuthPaths(Middleware(&MultiAuthenticator{}), "/health", "/ready", "/metrics")
+		var refuse Authenticator = &MultiAuthenticator{}
+		if audit, auditErr := newAuditFunc(cfg); auditErr == nil {
+			refuse = auditedAuthenticator{refuse, audit}
+		}
+		return SkipAuthPaths(Middleware(refuse), "/health", "/ready", "/metrics")
 	}
 	return mw
 }

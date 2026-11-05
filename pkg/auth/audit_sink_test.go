@@ -175,3 +175,14 @@ func TestServiceAuthenticator_AuditsRefusal(t *testing.T) {
 		t.Fatalf("events = %+v, want one refusal", events)
 	}
 }
+
+// L16: a service refusing everyone for want of credentials still records it.
+func TestSetupMiddleware_AuditsRefusalWithNoCredentials(t *testing.T) {
+	buf := withAuditStderr(t)
+	mw := SetupMiddleware(ServiceAuthConfig{Enabled: true, ServiceName: "svc"})
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	auditDo(mw(ok), http.MethodGet, "/api/v1/x", "")
+	if !hasAudit(auditEvents(t, buf.Bytes()), AuditUnauthorized, http.MethodGet, "/api/v1/x") {
+		t.Fatalf("no refusal recorded: %q", buf.String())
+	}
+}
