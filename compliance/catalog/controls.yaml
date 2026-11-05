@@ -1220,7 +1220,8 @@ controls:
     statement: >-
       On west and east, apt's periodic unattended upgrade is enabled
       (APT::Periodic::Unattended-Upgrade "1"), so security updates install
-      without waiting for a person.
+      without waiting for a person, and the running Ubuntu release is inside
+      its support window, so there are updates to install.
     rationale: >-
       Flaw remediation with automated installation (SI-2, SI-2(2) automated
       flaw remediation status; 800-171 03.14.01); CSF PR.PS-02 software
@@ -1230,6 +1231,8 @@ controls:
     evidence:
       - {kind: host-probe, ref: "west:unattended-upgrades-enabled", maps: {cis-ubuntu2404: ["1.2.2.1"]}}
       - {kind: host-probe, ref: "east:unattended-upgrades-enabled", maps: {cis-ubuntu2404: ["1.2.2.1"]}}
+      - {kind: host-probe, ref: "west:os-supported"}
+      - {kind: host-probe, ref: "east:os-supported"}
     mappings:
       nist-800-53r5: [SI-2, SI-2(2)]
       nist-800-171r3: ["03.14.01"]

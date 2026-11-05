@@ -697,6 +697,19 @@ func TestProbeJudges(t *testing.T) {
 		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"0\";\nAPT::Periodic::Unattended-Upgrade::Note \"1\";\ninstalled=unattended-upgrades \ntimer=enabled/active\n", false},
 		{"apparmor-enabled", "N\n", false},
 		{"ntp-synchronized", "no\n", false},
+		// A release past its end date gets no fixes, whatever apt is set to do.
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-09\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09,2026-07-09\n", true},
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-10\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09,2026-07-09\n", false},
+		// An LTS server release runs to eol-server; ESM needs a paid attachment, so it does not count.
+		{"os-supported", "id=ubuntu\ncodename=resolute\ntoday=2031-05-29\n26.04 LTS,Resolute Raccoon,resolute,2025-10-09,2026-04-23,2031-05-29,2031-05-29,2036-04-23,2038-04-27\n", true},
+		{"os-supported", "id=ubuntu\ncodename=resolute\ntoday=2031-05-30\n26.04 LTS,Resolute Raccoon,resolute,2025-10-09,2026-04-23,2031-05-29,2031-05-29,2036-04-23,2038-04-27\n", false},
+		{"os-supported", "id=ubuntu\ncodename=noble\ntoday=2026-11-05\n24.04 LTS,Noble Numbat,noble,2023-10-20,2024-04-25,2029-05-31,2029-05-31,2034-04-25,2036-04-25\n", true},
+		// Anything it cannot read is not a pass.
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-01\n", false},
+		{"os-supported", "id=debian\ncodename=trixie\ntoday=2026-07-01\n", false},
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09,2026-07-09\n", false},
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-01\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09\n", false},
+		{"os-supported", "", false},
 	} {
 		pass, detail := Probes[tc.probe].Judge(tc.out)
 		if pass != tc.pass {

@@ -135,6 +135,31 @@ func TestMappingsCorroborated(t *testing.T) {
 	}
 }
 
+// UH-PATCH-01 says updates install: that needs a release still getting them,
+// so both hosts carry os-supported beside the apt setting.
+func TestPatchControlNeedsASupportedRelease(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	need := map[string]bool{"west:os-supported": false, "east:os-supported": false}
+	for _, ctl := range c.Controls {
+		if ctl.ID != "UH-PATCH-01" {
+			continue
+		}
+		for _, e := range ctl.Evidence {
+			if _, ok := need[e.Ref]; ok {
+				need[e.Ref] = true
+			}
+		}
+	}
+	for ref, found := range need {
+		if !found {
+			t.Errorf("UH-PATCH-01 has no %s", ref)
+		}
+	}
+}
+
 // The findings register in the repo loads against the catalog in the repo:
 // every entry names a source some control still declares (ADR-098).
 func TestRepoRegister(t *testing.T) {

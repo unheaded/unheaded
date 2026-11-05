@@ -782,6 +782,15 @@ var Probes = map[string]Probe{
 			return true, "APT::Periodic::Unattended-Upgrade " + setting + ", unattended-upgrades installed, apt-daily-upgrade.timer enabled/active"
 		},
 	},
+	"os-supported": {
+		// Automatic updates are only worth what the archive still publishes:
+		// unattended-upgrades reads as healthy on a release Ubuntu stopped
+		// patching. distro-info's table is the end date; ESM needs a paid
+		// attachment, so it does not count.
+		Command: `( . /etc/os-release; echo "id=$ID"; echo "codename=$VERSION_CODENAME"; echo "today=$(date -u +%F)"; ` +
+			`grep -E "^[^,]*,[^,]*,${VERSION_CODENAME:-none}," /usr/share/distro-info/ubuntu.csv )`,
+		Judge: judgeOSSupported,
+	},
 	"db-backup-recent": {
 		// The Well's dumps: the scheduled sets (unheaded-well-backup.timer)
 		// under /srv/backups/unheaded-well, whose world-readable LATEST
@@ -809,6 +818,38 @@ var Probes = map[string]Probe{
 			return v == "Y", "apparmor enabled=" + v
 		},
 	},
+}
+
+// judgeOSSupported reads distro-info's row for the running release, whose
+// columns are version,codename,series,created,release,eol,eol-server,eol-esm.
+// A release is supported through the later of eol and eol-server. A row it
+// cannot read is no pass: nothing shows the release still gets fixes.
+func judgeOSSupported(out string) (bool, string) {
+	f := parseKV(out)
+	if f["id"] != "ubuntu" {
+		return false, "not Ubuntu (" + f["id"] + "): no end-of-support table for this release"
+	}
+	today, err := time.Parse(time.DateOnly, f["today"])
+	if err != nil {
+		return false, "host gave no date: not checked"
+	}
+	var end time.Time
+	for _, l := range strings.Split(out, "\n") {
+		cols := strings.Split(strings.TrimSpace(l), ",")
+		if len(cols) < 3 || cols[2] != f["codename"] {
+			continue
+		}
+		for _, c := range cols[5:min(len(cols), 7)] {
+			if d, err := time.Parse(time.DateOnly, c); err == nil && d.After(end) {
+				end = d
+			}
+		}
+	}
+	if end.IsZero() {
+		return false, "no end-of-support date for " + f["codename"] + " in /usr/share/distro-info/ubuntu.csv"
+	}
+	detail := fmt.Sprintf("%s supported until %s, today %s", f["codename"], end.Format(time.DateOnly), f["today"])
+	return !today.After(end), detail
 }
 
 // sectionTag is a fresh random tag for one host's probe script.

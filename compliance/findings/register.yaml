@@ -157,7 +157,7 @@ findings:
   - id: FND-011
     title: >-
       Two Linux kernel vulnerabilities on CISA's KEV list (exploited in the wild) are unpatched on west and east, and
-      Ubuntu has no fixed kernel yet: CVE-2026-53266 (ebtables SNAT out-of-bounds write, KEV 2026-09-18) and
+      no fixed kernel is coming for the release they run, which left support on 2026-07-09: CVE-2026-53266 (ebtables SNAT out-of-bounds write, KEV 2026-09-18) and
       CVE-2026-53362 (privilege escalation via the IPv6 stack, KEV 2026-08-27). Both hosts run 6.17.0-41-generic
     verify: pro fix CVE-2026-53266 --dry-run and pro fix CVE-2026-53362 --dry-run report "resolved" on west and east
     severity: high
@@ -171,14 +171,15 @@ findings:
     lockout: none
     step: 3
     plan: >-
-      Install the fixed kernel as soon as Ubuntu publishes it (unattended-upgrades or apt), then reboot; re-run the
-      verify commands. Until then, for CVE-2026-53266: nothing here uses ebtables, so /etc/modprobe.d/unheaded-cis.conf
+      Waiting will not close this: Ubuntu 25.10 left support on 2026-07-09 and `pro fix` reports no fix for either CVE,
+      so the fixed kernel comes with the move to a supported release (host-probe:*:os-supported), then a reboot and
+      the verify commands. Until then, for CVE-2026-53266: nothing here uses ebtables, so /etc/modprobe.d/unheaded-cis.conf
       can gain `install ebtables /bin/false`, `install ebtable_nat /bin/false`, `install ebt_snat /bin/false` (no
       module to unload today). CVE-2026-53362 has no published mitigation short of the fixed kernel. 2026-10-27
       (S24, S-CLEAN-SLATE E4, Stevie's yes): the stopgap is in remediate.sh kmod-cis and fixes.yaml (9d3c6cf1,
       12adcb92) and applied on east (12:42:11Z) then west (12:42:12Z); on both, modprobe -n -v ebtables shows
       /bin/false, a real modprobe fails, no ebt module is loaded; undo dirs under /var/lib/unheaded/remediate/.
-      LXD (nftables driver) and Docker unaffected. This entry stays open until the fixed kernel is installed
+      LXD (nftables driver) and Docker unaffected. This entry stays open until a fixed kernel is installed
     decision: >-
       stopgap applied 2026-10-27; west keeps unprivileged user namespaces open for LXD until an LXD test says
       closing them is safe (Stevie, decision 6)
@@ -1840,4 +1841,29 @@ findings:
       cluster exists (Stevie's call). Re-read after a week of green pushes; if the budget is still spent,
       open a postmortem. Not accepted: only Stevie accepts risk.
 
-
+  # --- 2026-11-05: found by the compliance review -----------------------------
+  - source: "host-probe:west:os-supported"
+    severity: high
+    class: package
+    opened: 2026-11-05
+    exposure: >-
+      west runs Ubuntu 25.10, out of support since 2026-07-09: the archive publishes no security updates for it, so
+      unattended-upgrades has nothing to install and FND-011 cannot close by waiting
+    lockout: low
+    step: 3
+    plan: >-
+      Move west to a supported release, after east. 26.04 LTS is the newest; 24.04 LTS is the one the CIS catalog
+      matches exactly, and on 26.04 the catalog needs re-importing against a matching benchmark. FND-010 and FND-011
+      wait on the same move. An OS upgrade is Stevie's to run
+    decision: which LTS, and when
+  - source: "host-probe:east:os-supported"
+    severity: high
+    class: package
+    opened: 2026-11-05
+    exposure: >-
+      east runs Ubuntu 25.10, out of support since 2026-07-09: same as west, on a host reachable only over the P2P link
+      and WireGuard
+    lockout: low
+    step: 3
+    plan: Move east to the same supported release as west, east first. An OS upgrade is Stevie's to run
+    decision: which LTS, and when
