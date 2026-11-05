@@ -12,6 +12,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - Step 29: the unheaded-forge README differs from the plan's text in three ways, every planned number kept. (1) It says what followed H6: Runs A, B and C all collapsed after the parser fix, and the notes blame the corpus, so stopping at H6 read as if the fix had solved it. (2) DP-608 under "not done": the parser fix and `--strict-data` landed (WAVE14, S-TWO-BRAINS Steps 380-381); what is open is that the flag is off by default and the window has no data. (3) Moved date is 2026-11-05, the day it ran; unheaded-doom's README still says 2026-11-04.
 - Step 29: S-TWO-BRAINS Step 380 says "the flywheel always passes `--strict-data`", but nothing in `cmd/zhen-flywheel` calls the forge or names the flag. Any future training path must pass it; left as a README line, no code changed.
 
+- Phase 14 Step 85: local trivy is 0.72.0, the pin is 0.76.1; check-trivy-misconfig.sh passed on 0.72 (27 pairs, all at baseline). Re-run on the pinned version.
+
 ## Stuck steps
 
 ## Evidence
