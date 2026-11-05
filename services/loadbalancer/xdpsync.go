@@ -452,7 +452,7 @@ func BuildTable(backends []Backend, tableSize int) []uint32 {
 	// The Maglev algorithm requires a prime table size to guarantee that
 	// each (offset, skip) pair generates a full permutation of [0..M-1].
 	tableSize = nextPrime(tableSize)
-	m := uint32(tableSize) // #nosec G115 -- Maglev table index, bounded by the modulo against tableSize
+	m := uint32(tableSize) // #nosec G115 -- a configured table size, prime and near 65537, far below u32
 
 	// Sort backends by ID for deterministic results.
 	sorted := make([]Backend, len(backends))
