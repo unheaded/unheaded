@@ -1,7 +1,8 @@
 # HTTP listeners whose package does not import pkg/auth, as of 2026-11-05
-# (scripts/check-http-auth.sh). This list may only SHRINK. A row is not a
-# statement that the listener is safe: it says nobody has wired it yet, or it
-# serves only health or metrics.
+# (scripts/check-http-auth.sh). A row that no longer applies fails until it is
+# removed; a new row is a decision for review, which the script cannot make. A
+# row is not a statement that the listener is safe: it says nobody has wired it
+# yet, or it serves only health or metrics.
 cmd/alert-mailer/main.go
 cmd/heimdall-daemon/metrics.go
 cmd/huginn/main.go

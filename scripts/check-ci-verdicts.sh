@@ -53,15 +53,24 @@ def run_step(body, results):
     finally:
         os.unlink(f.name)
 
+def softened(step):
+    """A step that runs only sometimes, or whose failure is ignored, is not a
+    verdict. It reads as passed, and the job above it does too."""
+    return bool(step.get("continue-on-error")) or step.get("if", "always()") != "always()"
+
 # M4. The summary job is what a branch rule would require, so it must fail
 # when any job it waits for did not succeed, and must run when one of them
 # failed: a job skipped by a failed dependency reads as passed.
 SCANNERS = {"govulncheck", "gosec", "gitleaks", "cargo-audit", "trivy-fs"}
 
 def security_gate():
-    job = workflow("security.yml")["jobs"]["security-gate"]
+    jobs = workflow("security.yml")["jobs"]
+    job = jobs["security-gate"]
     needs = job.get("needs", [])
     needs = [needs] if isinstance(needs, str) else list(needs)
+    for n in needs:
+        if jobs.get(n, {}).get("continue-on-error"):
+            bad("security-gate", f"{n} has continue-on-error, so its failure reads as success here")
     for missing in sorted(SCANNERS - set(needs)):
         bad("security-gate", f"needs no longer lists {missing}")
     if job.get("if") != "always()":
@@ -97,8 +106,10 @@ def history_scan():
     if len(runs) != 1:
         bad("history-scan", "no step runs ./scripts/check-gitleaks.sh --history")
     for s in runs:
-        if s.get("continue-on-error"):
-            bad("history-scan", "the step has continue-on-error")
+        if softened(s):
+            bad("history-scan", "the step has continue-on-error or an if:")
+    if not any(str(s.get("run", "")).strip() == "./scripts/test-check-gitleaks-history.sh" for s in job.get("steps", [])):
+        bad("history-scan", "no step runs ./scripts/test-check-gitleaks-history.sh")
     for s in job.get("steps", []):
         if re.search(r"(^|\s)/tmp/gitleaks\b", str(s.get("run", ""))):
             bad("history-scan", "a step calls /tmp/gitleaks, which nothing creates")
@@ -146,6 +157,8 @@ def trivy_steps():
         bad("trivy", f"expected one vuln step with exit-code 1, found {len(gates)}")
     for s in gates:
         w = s["with"]
+        if softened(s):
+            bad("trivy", "the vuln gate has continue-on-error or an if:")
         if set(str(w.get("severity", "")).split(",")) != {"CRITICAL", "HIGH"}:
             bad("trivy", "the vuln gate must fail on CRITICAL and HIGH")
         if w.get("format") == "sarif" and str(w.get("limit-severities-for-sarif")) != "true":
@@ -158,6 +171,8 @@ def auth_listeners():
     step = next((s for s in job["steps"] if s.get("name") == "HTTP listeners use pkg/auth or are recorded"), None)
     if step is None or str(step.get("run", "")).strip() != "./scripts/check-http-auth.sh":
         bad("auth-listeners", "no step runs ./scripts/check-http-auth.sh")
+    elif softened(step):
+        bad("auth-listeners", "the listener check has continue-on-error or an if:")
     for path in sorted(glob.glob(".github/workflows/*.yml")):
         for name, j in workflow(os.path.basename(path)).get("jobs", {}).items():
             for s in j.get("steps", []):
@@ -169,20 +184,17 @@ def auth_listeners():
 # swallowed and an install script read from a branch all let it move unseen.
 CI_FILES = sorted(glob.glob(".github/workflows/*.yml") + glob.glob("jenkins/Jenkinsfile.*")
                   + glob.glob("jenkins/vars/*.groovy") + ["Jenkinsfile", "nix/yggdrasil/Jenkinsfile", "Makefile"])
-FETCH_MODULE = re.compile(r"\bgo (?:install|run) ([a-z0-9.-]+\.[a-z]+/\S+?)@(\S+)")
+FETCH_MODULE = re.compile(r"\bgo (?:install|run)\b[^|;&]*?\s([a-z0-9.-]+\.[a-z]+/\S+?)@(\S+)")
 CARGO_INSTALL = re.compile(r"\bcargo install (?:--\S+ )*([A-Za-z0-9_-]+)(@\S+)?(.*)")
 CURL_TO_SHELL = re.compile(r"\bcurl\b.*\|\s*(?:sudo\s+)?(?:sh|bash)\b")
-
-def trivy_pin():
-    with open("scripts/lib/tool-pins.sh", encoding="utf-8") as f:
-        m = re.search(r'^TRIVY_VERSION="([^"]+)"', f.read(), re.M)
-    if not m:
-        bad("tool-fetch", "no TRIVY_VERSION in scripts/lib/tool-pins.sh")
-    return m.group(1) if m else ""
+PIP_INSTALL = re.compile(r"\bpip3? install\b(.*)")
+PIP_EXACT = re.compile(r"[A-Za-z0-9._-]+==\d+(?:\.\d+)+")
 
 def tool_fetches():
     seen = {}
-    trivy = trivy_pin()
+    with open("scripts/lib/tool-pins.sh", encoding="utf-8") as f:
+        if not re.search(r'^TRIVY_SHA256="[0-9a-f]{64}"', f.read(), re.M):
+            bad("tool-fetch", "no TRIVY_SHA256 in scripts/lib/tool-pins.sh for install-trivy.sh to check")
     for path in CI_FILES:
         with open(path, encoding="utf-8") as f:
             for n, line in enumerate(f, 1):
@@ -205,14 +217,72 @@ def tool_fetches():
                     if "|| true" in rest:
                         bad("tool-fetch", f"{where}: `cargo install {crate}` swallows its failure")
                 if CURL_TO_SHELL.search(text):
-                    pin = f"/v{trivy}/"
-                    if "aquasecurity/trivy" not in text or pin not in text or text.rstrip(")").split()[-1] != f"v{trivy}":
-                        bad("tool-fetch", f"{where}: a script piped to a shell is not at the pinned tag and version")
+                    bad("tool-fetch", f"{where}: a script piped to a shell runs before anything checks it")
+                m = PIP_INSTALL.search(text)
+                if m and "--require-hashes" not in m.group(1):
+                    for arg in m.group(1).split():
+                        if not arg.startswith("-") and not PIP_EXACT.fullmatch(arg):
+                            bad("tool-fetch", f"{where}: pip install {arg} is not an exact version")
                 if re.match(r"GO_VERSION\s*=", text):
                     bad("tool-fetch", f"{where}: GO_VERSION is read by nothing; the agent image sets Go")
     for tool, versions in sorted(seen.items()):
         if len(versions) > 1:
             bad("tool-fetch", f"{tool}: more than one version in CI: {sorted(versions)}")
+
+# A Jenkins pipeline that does not compile, or whose agent cannot build the
+# module, fails with nothing scanned. The declarative validator rejects an
+# empty environment block, and the golang images set GOTOOLCHAIN=local, so the
+# image's Go must be the one go.mod names.
+def jenkins_agents():
+    with open("go.mod", encoding="utf-8") as f:
+        go = re.search(r"^toolchain go(\S+)$", f.read(), re.M)
+    if not go:
+        bad("jenkins", "go.mod names no toolchain")
+        return
+    for path in CI_FILES:
+        if "Jenkinsfile" not in path:
+            continue
+        with open(path, encoding="utf-8") as f:
+            text = re.sub(r"(?m)^\s*//.*$", "", f.read())
+        if re.search(r"\benvironment\s*\{\s*\}", text):
+            bad("jenkins", f"{path}: an empty environment block does not compile")
+        for image in re.findall(r"\bimage\s+'golang:([^']+)'", text):
+            if image != go.group(1) and not image.startswith(go.group(1) + "-"):
+                bad("jenkins", f"{path}: golang:{image} is not go.mod's toolchain {go.group(1)}")
+
+# M4. A required check that no job reports leaves every merge waiting, and a
+# summary job nothing requires blocks nothing. This reads the documented list;
+# what GitHub enforces is a setting no file here can show.
+def branch_protection():
+    with open(".github/BRANCH_PROTECTION.md", encoding="utf-8") as f:
+        text = f.read()
+    names = set()
+    for path in glob.glob(".github/workflows/*.yml"):
+        w = workflow(os.path.basename(path))
+        if "pull_request" in (w.get("on") or w.get(True) or {}):
+            for job_id, j in w.get("jobs", {}).items():
+                names.add(j.get("name", job_id))
+    lists = [re.findall(r'"([^"]+)"', c) for c in re.findall(r'"contexts": \[(.*?)\]', text, re.S)]
+    lists += [re.findall(r"^- \[x\] `([^`]+)` —", s, re.M)
+              for s in re.findall(r"#### Required Status Checks \(All must pass\)\n(.*?)\n####", text, re.S)]
+    if len(lists) < 4:
+        bad("branch-protection", f"found {len(lists)} required-check lists, expected main and develop, prose and command")
+    for contexts in lists:
+        if "Security Gate" not in contexts or "CI Gate" not in contexts:
+            bad("branch-protection", f"a required-check list omits a summary job: {contexts}")
+        for c in contexts:
+            if c not in names:
+                bad("branch-protection", f"no pull_request job reports `{c}`")
+
+# A target rustup has no prebuilt std for stops the toolchain install, and with
+# it the job. ebpf/.cargo/config.toml builds core for it instead (build-std),
+# from rust-src.
+def rust_targets():
+    for path in sorted(glob.glob(".github/workflows/*.yml")):
+        for name, j in workflow(os.path.basename(path)).get("jobs", {}).items():
+            for s in j.get("steps", []):
+                if "rust-toolchain" in str(s.get("uses", "")) and "bpf" in str(s.get("with", {}).get("targets", "")):
+                    bad("rust-target", f"{path} {name}: rustup has no bpf target to install; build-std supplies it")
 
 security_gate()
 history_scan()
@@ -220,6 +290,9 @@ bpf_linker()
 trivy_steps()
 auth_listeners()
 tool_fetches()
+jenkins_agents()
+branch_protection()
+rust_targets()
 
 if problems:
     print("\n".join(f"[FAIL] {p}" for p in problems))

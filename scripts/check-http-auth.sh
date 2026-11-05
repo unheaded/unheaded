@@ -5,16 +5,20 @@
 # check-http-auth.sh — an HTTP listener in a package that does not use pkg/auth
 # is a recorded decision, not an accident (GATING).
 #
-# Every non-test Go file with http.ListenAndServe or http.Server{ is a
-# listener. Its package either imports pkg/auth, or the file is listed in
-# docs/policy/http-auth-baseline.txt. The list holds today's set, so new code
-# cannot add to it unseen, and it may only shrink: a listed file that has gone
-# or now has pkg/auth in its package fails until its row is removed.
+# A non-test Go file is a listener if it builds an http.Server, calls
+# ListenAndServe, ListenAndServeTLS or ServeTLS on anything, or calls Serve on
+# net/http, under whatever name the file imports it, or if it calls pkg/tls's
+# MaybeWrapServer. Its package either imports pkg/auth, or the file is listed in
+# docs/policy/http-auth-baseline.txt. A listed file that has gone or now has
+# pkg/auth in its package fails until its row is removed.
 #
-# It proves a package imports pkg/auth, not that a given route is behind it,
-# and a row says only that nobody has wired this one, not that it is safe:
-# many rows are health or metrics listeners. Compares the path SET, not a
-# count, for the reason in check-tmp-log-baseline.sh.
+# It reads source text: a wrapper of net/http outside these names, or a server
+# from another library, is not seen. It proves a package imports pkg/auth, not
+# that a given route is behind it. A row says only that nobody has wired this
+# one, not that it is safe: many rows are health or metrics listeners. A new
+# row beside a new listener passes here, so the list grows only as far as
+# review of that diff allows. Compares the path SET, not a count, for the
+# reason in check-tmp-log-baseline.sh.
 #
 #   scripts/check-http-auth.sh
 set -euo pipefail
@@ -31,11 +35,17 @@ BASELINE="docs/policy/http-auth-baseline.txt"
 all_go="$(git ls-files --cached --others --exclude-standard '*.go' | grep -v '_test\.go$' || true)"
 [[ -n "$all_go" ]] || { echo "[FAIL] no Go files found; refusing to pass vacuously" >&2; exit 2; }
 
+http_auth_is_listener() { # $1 file
+	local name
+	name="$(sed -nE 's/^[[:space:]]*(import[[:space:]]+)?([A-Za-z][A-Za-z0-9_]*)[[:space:]]+"net\/http".*$/\2/p' "$1" | grep -vx import | head -1 || true)"
+	grep -qE "\b(http${name:+|$name})\.(Serve\(|Server\{)|\.(ListenAndServe|ListenAndServeTLS|ServeTLS)\(|\bMaybeWrapServer\(" "$1"
+}
+
 listeners=""
 total=0
 while IFS= read -r f; do
 	[[ -f "$f" ]] || continue
-	grep -qE 'http\.ListenAndServe|http\.Server\{' "$f" || continue
+	http_auth_is_listener "$f" || continue
 	total=$((total + 1))
 	wired=0
 	for g in "$(dirname "$f")"/*.go; do
@@ -60,7 +70,7 @@ if [[ -n "$new" ]]; then
 	echo "Put the handler behind auth.Middleware, or take a row to review saying why it needs none."
 fi
 if [[ -n "$stale" ]]; then
-	echo "[FAIL] rows in $BASELINE that no longer apply; delete them (it may only shrink):"
+	echo "[FAIL] rows in $BASELINE that no longer apply; delete them:"
 	printf '%s\n' "$stale" | sed 's/^/  /'
 fi
 [[ -z "$new" && -z "$stale" ]] || exit 1

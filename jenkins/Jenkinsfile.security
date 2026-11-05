@@ -5,7 +5,7 @@
 pipeline {
   agent {
     docker {
-      image 'golang:1.25-alpine'
+      image 'golang:1.27.3-alpine3.24'
     }
   }
 
@@ -18,9 +18,6 @@ pipeline {
     timestamps()
     timeout(time: 20, unit: 'MINUTES')
     buildDiscarder(logRotator(numToKeepStr: '90', artifactNumToKeepStr: '30'))
-  }
-
-  environment {
   }
 
   stages {
@@ -81,7 +78,9 @@ pipeline {
         script {
           echo "=== Trivy Filesystem Scan ==="
           sh '''
-            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.76.1/contrib/install.sh | sh -s -- -b /usr/local/bin v0.76.1
+            TRIVY_DIR="$(mktemp -d)"
+            ./scripts/install-trivy.sh "$TRIVY_DIR"
+            PATH="$TRIVY_DIR:$PATH"
             trivy fs \
               --format json \
               --output trivy-fs-report.json \

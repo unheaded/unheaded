@@ -42,7 +42,6 @@ jobs:
         with:
           toolchain: nightly
           components: clippy, rustfmt, rust-src
-          targets: bpfel-unknown-none
 
       - name: Cache cargo
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5

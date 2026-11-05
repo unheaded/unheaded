@@ -65,6 +65,12 @@ jobs:
       - name: UPC harness build verdicts
         run: ./scripts/test-upc-regression-build.sh
 
+      - name: Every listener form is seen
+        run: ./scripts/test-check-http-auth.sh
+
+      - name: The Jenkins trivy install refuses what fails its sha256
+        run: ./scripts/test-install-trivy.sh
+
   shellcheck:
     name: Shell (shellcheck)
     runs-on: ubuntu-latest

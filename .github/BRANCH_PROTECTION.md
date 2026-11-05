@@ -20,12 +20,13 @@ Production-ready code and releases. Only merge stable, fully-tested changes.
 ### Protection Rules
 
 #### Required Status Checks (All must pass)
-- [x] `go-build` — Go build & test (ci.yml)
-- [x] `go-lint` — golangci-lint (ci.yml)
-- [x] `sbom` — SBOM generation & Grype scan (ci.yml)
-- [x] `govulncheck` — Go vulnerability check (ci.yml)
-- [x] `gosec` — Go security scan (ci.yml)
-- [x] `license-check` — License compliance (ci.yml)
+A check's name is the job's `name:`, or its id when it has none; a name no job
+reports leaves the merge waiting forever. `scripts/check-ci-verdicts.sh` holds
+this list to the workflows.
+
+- [x] `CI Gate` — every job in ci.yml: Go build and lint, Rust, SPDX, licenses
+- [x] `Security Gate` — security.yml: govulncheck, gosec, gitleaks, cargo-audit, Trivy
+- [x] `sbom` — SBOM generation and Grype scan (sbom.yml)
 
 #### Required Reviews
 - [x] Require pull request reviews before merging: **2 approvals**
@@ -58,12 +59,9 @@ Development integration branch. Staging for features being prepared for `main`.
 ### Protection Rules
 
 #### Required Status Checks (All must pass)
-- [x] `go-build` — Go build & test (ci.yml)
-- [x] `go-lint` — golangci-lint (ci.yml)
-- [x] `sbom` — SBOM generation & Grype scan (ci.yml)
-- [x] `govulncheck` — Go vulnerability check (ci.yml)
-- [x] `gosec` — Go security scan (ci.yml)
-- [x] `license-check` — License compliance (ci.yml)
+- [x] `CI Gate` — every job in ci.yml: Go build and lint, Rust, SPDX, licenses
+- [x] `Security Gate` — security.yml: govulncheck, gosec, gitleaks, cargo-audit, Trivy
+- [x] `sbom` — SBOM generation and Grype scan (sbom.yml)
 
 #### Required Reviews
 - [x] Require pull request reviews before merging: **1 approval**
@@ -124,19 +122,15 @@ Development-in-progress branches. No restrictions; developers have full control.
 
 ```bash
 # Protect main branch
-gh api repos/unheaded-kingdom/unheaded/branches/main/protection \
+gh api repos/unheaded/unheaded/branches/main/protection \
   --input - <<EOF
 {
   "required_status_checks": {
     "strict": true,
     "contexts": [
-      "go-build",
-      "go-lint",
-      "sbom",
-      "govulncheck",
-      "gosec",
-      "license-check",
-      "ci-gate"
+      "CI Gate",
+      "Security Gate",
+      "sbom"
     ]
   },
   "required_pull_request_reviews": {
@@ -151,18 +145,15 @@ gh api repos/unheaded-kingdom/unheaded/branches/main/protection \
 EOF
 
 # Protect develop branch
-gh api repos/unheaded-kingdom/unheaded/branches/develop/protection \
+gh api repos/unheaded/unheaded/branches/develop/protection \
   --input - <<EOF
 {
   "required_status_checks": {
     "strict": true,
     "contexts": [
-      "go-build",
-      "go-lint",
-      "sbom",
-      "govulncheck",
-      "gosec",
-      "license-check"
+      "CI Gate",
+      "Security Gate",
+      "sbom"
     ]
   },
   "required_pull_request_reviews": {
@@ -183,7 +174,7 @@ EOF
 
 | Aspect | Main | Develop | Feature |
 |--------|------|---------|---------|
-| **Status Checks** | All 7 | 6 (no ci-gate) | None |
+| **Status Checks** | All 3 | All 3 | None |
 | **Code Review** | 2 approvals | 1 approval | None |
 | **Code Owner Review** | Required | Not required | N/A |
 | **Up-to-date** | Required | Required | Not enforced |

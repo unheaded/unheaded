@@ -505,6 +505,24 @@ provoke_http_auth() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_test_http_auth() {
+    # Contract (L21): pkg/tls's wrappers are listeners. Stop looking for them.
+    local f="scripts/check-http-auth.sh"
+    backup "${f}"
+    sed -i 's/|\\.(ListenAndServe|ListenAndServeTLS|ServeTLS)\\(|\\bMaybeWrapServer\\(//' "${REPO_ROOT}/${f}"
+    ! grep -q 'MaybeWrapServer\\(' "${REPO_ROOT}/${f}" || { echo "provocation anchor still present in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_install_trivy() {
+    # Contract: the Jenkins agents run only the tarball the pin names. Skip the check.
+    local f="scripts/install-trivy.sh"
+    backup "${f}"
+    sed -i '/sha256sum -c/d' "${REPO_ROOT}/${f}"
+    ! grep -q 'sha256sum -c' "${REPO_ROOT}/${f}" || { echo "provocation anchor still present in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_upc_regression_build() {
     # Contract: a failed cargo build is a FAIL in the harness. Restore the
     # shape that hid it, a pipe into grep that pipefail skips.
@@ -1098,6 +1116,8 @@ check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at st
 check-kanban-genesis|provoke_kanban_genesis|fast|a Genesis card title edited in db/seed/kanban-genesis.json without re-rendering migration 034
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 check-http-auth|provoke_http_auth|fast|an untracked HTTP listener in a package without pkg/auth
+test-check-http-auth|provoke_test_http_auth|fast|check-http-auth.sh no longer looking for pkg/tls's wrappers
+test-install-trivy|provoke_install_trivy|fast|install-trivy.sh with its sha256 check removed
 test-upc-regression-build|provoke_upc_regression_build|fast|the ascend build verdict back to a pipe into grep, which pipefail skips on a failed build
 check-ci-verdicts|provoke_ci_verdicts|fast|Security Gate's body recording a failed need and carrying on
 test-check-ci-verdicts|provoke_test_ci_verdicts|fast|one rule of check-ci-verdicts.sh switched off, so its cases see the gate pass
