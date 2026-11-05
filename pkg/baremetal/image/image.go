@@ -210,8 +210,12 @@ func (m *Manager) ListImages(ctx context.Context) ([]*ImageInfo, error) {
 	return result, nil
 }
 
-// ImportImage imports an image from a path.
+// ImportImage imports an image from a path. id names the image's directory
+// directly under the storage dir.
 func (m *Manager) ImportImage(ctx context.Context, id string, kernelPath, initrdPath, rootfsPath string) (*ImageInfo, error) {
+	if !filepath.IsLocal(id) || filepath.Base(id) != id || id == "." {
+		return nil, fmt.Errorf("image id %q is not one plain name", id)
+	}
 	imagePath := filepath.Join(m.config.StoragePath, id)
 	if err := os.MkdirAll(imagePath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("creating image directory: %w", err)

@@ -71,3 +71,27 @@ func TestNixBuild_FlakeRefIsNeverAnOption(t *testing.T) {
 		}
 	}
 }
+
+// An image id names one directory under the storage dir, so it cannot lead out
+// of it or nest inside it, and nothing is created for one that would.
+func TestImportImage_IDIsOneName(t *testing.T) {
+	base := t.TempDir()
+	storage := filepath.Join(base, "images")
+	mgr, err := NewManager(&Config{StoragePath: storage, CachePath: filepath.Join(base, "cache")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"", ".", "..", "../escaped", "nixos-../../escaped-1", "a/b", "/abs"} {
+		if _, err := mgr.ImportImage(context.Background(), id, "", "", ""); err == nil {
+			t.Errorf("ImportImage(%q) succeeded", id)
+		}
+	}
+	for _, dir := range []string{filepath.Join(base, "escaped"), filepath.Join(storage, "a")} {
+		if _, err := os.Stat(dir); err == nil {
+			t.Errorf("%s was created", dir)
+		}
+	}
+	if _, err := mgr.ImportImage(context.Background(), "nixos-x86_64-linux-1", "", "", ""); err != nil {
+		t.Fatalf("a plain id was refused: %v", err)
+	}
+}
