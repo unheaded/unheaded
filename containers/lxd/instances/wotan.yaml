@@ -4,7 +4,7 @@
 # The heart of Unheaded - all services communicate through Wotan.
 #
 # IP:    10.10.10.10
-# Ports: 18001 (gRPC), 18000 (REST), 9100 (metrics)
+# Ports: 18001 (gRPC), 18000 (REST and /metrics)
 # Role:  Infrastructure (critical)
 # =============================================================================
 
@@ -53,7 +53,7 @@ write_files:
       Type=simple
       User=unheaded
       Group=unheaded
-      ExecStart=/opt/unheaded/bin/wotan --grpc-addr=0.0.0.0:18001 --http-addr=0.0.0.0:18000 --metrics-addr=0.0.0.0:9100
+      ExecStart=/opt/unheaded/bin/wotan --bind 0.0.0.0 --grpc-port 18001 --http-port 18000
       WorkingDirectory=/var/lib/unheaded/wotan
       Environment=SERVICE_NAME=wotan
       Environment=WOTAN_DATA_DIR=/var/lib/unheaded/wotan
@@ -105,7 +105,6 @@ runcmd:
     ufw default allow outgoing
     ufw allow from 10.10.10.0/24 to any port 18001 proto tcp
     ufw allow from 10.10.10.0/24 to any port 18000 proto tcp
-    ufw allow from 10.10.10.0/24 to any port 9100 proto tcp
     ufw --force enable
   - systemctl daemon-reload
   - systemctl enable wotan.service

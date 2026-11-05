@@ -678,6 +678,16 @@ provoke_systemd_units() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_flags() {
+    # Contract: a unit passes only flags its binary declares. Restore what
+    # east's 1.0.0 unit passed.
+    local f="deploy/systemd/unheaded-wotan.service"
+    backup "${f}"
+    sed -i 's|^    --http-port 18000 \\$|    --config /etc/unheaded/wotan.yaml \\\n&|' "${REPO_ROOT}/${f}"
+    grep -q '^    --config ' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_git_mirror() {
     # Contract (FND-005): the mirror never loses a ref west deleted. Switch
     # to push --mirror, which prunes them.
@@ -1107,6 +1117,7 @@ check-log-sources|provoke_log_sources|fast|a systemd unit file with no row in co
 check-haproxy-cfg|provoke_haproxy_cfg|slow|req.hdr(X-Trace-Id) restored in the internal haproxy config's log-format (needs docker)
 check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with read_only removed
 check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
+check-unit-flags|provoke_unit_flags|fast|--config, which wotan does not declare, restored in unheaded-wotan.service
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
