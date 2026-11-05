@@ -1054,6 +1054,29 @@ type loadedMap struct {
 	mmapAddr uintptr
 }
 
+// checkElemBuffers refuses a map whose element does not fit one key buffer and
+// one value buffer of the map's stated sizes. The kernel fills a per-CPU value
+// once per CPU, so a single value's buffer would be overrun.
+func (m *loadedMap) checkElemBuffers() error {
+	switch m.info.Type {
+	case MapTypePercpuHash, MapTypePercpuArray, MapTypeLruPercpuHash, MapTypeRingbuf:
+		return fmt.Errorf("%w: %s has type %s", ErrUnsupportedMapType, m.info.Name, m.info.Type)
+	}
+	if m.info.KeySize == 0 || m.info.ValueSize == 0 {
+		return fmt.Errorf("%w: %s has key size %d, value size %d", ErrUnsupportedMapType, m.info.Name, m.info.KeySize, m.info.ValueSize)
+	}
+	return nil
+}
+
+// checkKey holds key to the map's key size: the kernel reads that many bytes
+// through the pointer whatever the slice's length.
+func (m *loadedMap) checkKey(key []byte) error {
+	if len(key) == 0 || uint64(len(key)) != uint64(m.info.KeySize) {
+		return fmt.Errorf("%w: got %d, want %d", ErrKeySize, len(key), m.info.KeySize)
+	}
+	return nil
+}
+
 // loadedProgram holds state for a loaded BPF program
 type loadedProgram struct {
 	spec      *ProgramSpec
@@ -3725,6 +3748,13 @@ func (l *NativeLoader) ReadMap(ctx context.Context, programName, mapName string,
 		return nil, ErrMapNotFound
 	}
 
+	if err := m.checkElemBuffers(); err != nil {
+		return nil, err
+	}
+	if err := m.checkKey(key); err != nil {
+		return nil, err
+	}
+
 	// Allocate value buffer
 	value := make([]byte, m.info.ValueSize)
 
@@ -3762,6 +3792,16 @@ func (l *NativeLoader) WriteMap(ctx context.Context, programName, mapName string
 		return ErrMapNotFound
 	}
 
+	if err := m.checkElemBuffers(); err != nil {
+		return err
+	}
+	if err := m.checkKey(key); err != nil {
+		return err
+	}
+	if uint64(len(value)) != uint64(m.info.ValueSize) {
+		return fmt.Errorf("%w: got %d, want %d", ErrValueSize, len(value), m.info.ValueSize)
+	}
+
 	err := bpfMapUpdateElem(m.fd, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), BPF_ANY) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 	if err != nil {
 		return err
@@ -3791,6 +3831,10 @@ func (l *NativeLoader) DeleteMapEntry(ctx context.Context, programName, mapName 
 	m, exists := loaded.maps[mapName]
 	if !exists {
 		return ErrMapNotFound
+	}
+
+	if err := m.checkKey(key); err != nil {
+		return err
 	}
 
 	err := bpfMapDeleteElem(m.fd, unsafe.Pointer(&key[0])) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
@@ -3829,6 +3873,10 @@ func (l *NativeLoader) IterateMap(ctx context.Context, programName, mapName stri
 		return ErrMapNotFound
 	}
 
+	if err := m.checkElemBuffers(); err != nil {
+		l.mu.RUnlock()
+		return err
+	}
 	keySize := m.info.KeySize
 	valueSize := m.info.ValueSize
 	mapFD := m.fd
