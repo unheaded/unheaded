@@ -40,7 +40,7 @@ func ontologyCells(t *testing.T) []ontologyCell {
 	return cells
 }
 
-// Doom left this repository, so the service map no longer draws it.
+// Doom is no longer a service here, so the service map does not draw it.
 func TestOntologyDrawsNoDoom(t *testing.T) {
 	doom := regexp.MustCompile(`(?i)doom|E1M1`)
 	for _, c := range ontologyCells(t) {
@@ -123,17 +123,22 @@ func TestHostTidyStep59AsksForA(t *testing.T) {
 // the plan: Step 131 installs the whole sysusers file, not three lines of it.
 func TestHostTidyProgressRecordsPhase18(t *testing.T) {
 	progress := moveoutRepoFile(t, "docs/battle-plans/progress/S-HOST-TIDY-progress.md")
-	if strings.Contains(progress, "Phase 18 has not run") {
-		t.Error("the progress file still says Phase 18 has not run")
-	}
+	const notRun = "Phases 14 and 18 not run"
 	var record string
+	stale := 0
 	for _, line := range strings.Split(progress, "\n") {
 		if strings.HasPrefix(line, "- Phase 18 ran on west") {
 			record = line
+		} else if strings.Contains(line, notRun) {
+			stale++
 		}
 	}
 	if record == "" {
 		t.Fatal("the progress file has no line recording that Phase 18 ran on west")
+	}
+	// The log stays as written, so the record answers each line it overtakes.
+	if stale > 0 && !strings.Contains(record, "`"+notRun+"`") {
+		t.Errorf("the Phase 18 line does not answer the %d evidence lines that say %q", stale, notRun)
 	}
 	sysusers := moveoutRepoFile(t, "deploy/sysusers.d/unheaded.conf")
 	for _, account := range []string{
