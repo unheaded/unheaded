@@ -111,7 +111,7 @@
         <mxCell id="p1_pkg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;strokeWidth=2;fontSize=11;" value="pkg/ foundation libs — protocol-core · networking · security/crypto · observability · infra/deploy · control/util" vertex="1">
           <mxGeometry height="40" width="800" x="185" y="760" as="geometry" />
         </mxCell>
-        <mxCell id="p1_upc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="UPC / Crates: monad-mbc → xv6 → doom-runner   (tab &#39;4 · UPC/Crates&#39;)" vertex="1">
+        <mxCell id="p1_upc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="UPC / Crates: monad-mbc → xv6 → upc-bootctl   (tab &#39;4 · UPC/Crates&#39;)" vertex="1">
           <mxGeometry height="40" width="500" x="1150" y="624" as="geometry" />
         </mxCell>
         <mxCell id="p1_zhen" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="Zhen: zhend → Champion → runbooks" vertex="1">
@@ -454,7 +454,7 @@
         <mxCell id="p4_xv6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="xv6-mbc kernel&#xa;Phase 1.6: &#39;init: starting sh&#39; ✅" vertex="1">
           <mxGeometry height="56" width="220" x="320" y="110" as="geometry" />
         </mxCell>
-        <mxCell id="p4_runner" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="doom-runner / upc-bootctl&#xa;Aya BPF loader + memory mgr" vertex="1">
+        <mxCell id="p4_runner" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="upc-bootctl&#xa;Aya BPF loader + memory mgr" vertex="1">
           <mxGeometry height="56" width="220" x="600" y="110" as="geometry" />
         </mxCell>
         <mxCell id="p4_tty" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="upc-tty-bridge (WS :26100)" vertex="1">
@@ -473,12 +473,6 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="p4_e4" edge="1" parent="1" source="p4_tty" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" target="p4_browser">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_doom" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="Doom-over-IPv6 (E1M1 playable)" vertex="1">
-          <mxGeometry height="40" width="220" x="600" y="200" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_e_runner_doom" edge="1" parent="1" source="p4_runner" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" target="p4_doom">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="p4_bootstub" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;dashed=1;dashPattern=6 4;fontStyle=2;" value="upc-bootstub → uClinux / Linux (FUTURE)" vertex="1">

@@ -560,16 +560,17 @@ Why it cannot lock anyone out: sshd is reached at 192.168.13.1 by address, so a 
   ```
   Expect: a line with `addresses: [10.10.20.252, 1.1.1.1, 8.8.8.8]`, then `DNS=10.10.20.252`, `DNS=1.1.1.1`, `DNS=8.8.8.8`. Else: Rollback, [STUCK].
   **Rollback:** `ssh -S /run/user/1000/host-tidy-east.sock east 'sudo cp -p /var/backups/unheaded-host-tidy-2026-11-04/netplan/01-enp2s0.yaml /etc/netplan/01-enp2s0.yaml && sudo netplan generate && sudo resolvectl dns enp2s0 1.1.1.1 8.8.8.8'`
-- [ ] **Step 58** [B][S] ~1m: Apply to the running link.
+- [ ] **Step 58** [B][S] ~1m: Apply to the running link. Pi-hole goes on alone first: systemd-resolved keeps a current server that is still listed, so setting the full list straight over `1.1.1.1` leaves `1.1.1.1` current. `Current DNS Server` shows no line until a lookup happens, hence the one lookup. No resolved restart, no `netplan apply`.
   ```bash
+  ssh -S /run/user/1000/host-tidy-east.sock east 'sudo resolvectl dns enp2s0 10.10.20.252 && resolvectl query archive.ubuntu.com >/dev/null && resolvectl status enp2s0 | grep "Current DNS"'
   ssh -S /run/user/1000/host-tidy-east.sock east 'sudo resolvectl dns enp2s0 10.10.20.252 1.1.1.1 8.8.8.8 && resolvectl dns enp2s0 && readlink -f /etc/resolv.conf && grep ^nameserver /etc/resolv.conf'
   ```
-  Expect: `Link 2 (enp2s0): 10.10.20.252 1.1.1.1 8.8.8.8`, `/run/systemd/resolve/stub-resolv.conf`, `nameserver 127.0.0.53`. Else: previous step's Rollback, [STUCK].
-- [ ] **Step 59** [V] ~2m: **AFTER** — the stub reaches Pi-hole, names resolve, the login path is untouched.
+  Expect: `Current DNS Server: 10.10.20.252`, then `Link 2 (enp2s0): 10.10.20.252 1.1.1.1 8.8.8.8`, `/run/systemd/resolve/stub-resolv.conf`, `nameserver 127.0.0.53`. Else: previous step's Rollback, [STUCK].
+- [ ] **Step 59** [V] ~2m: **AFTER** — the stub reaches Pi-hole, names resolve, the login path is untouched. The first check asks for the A record because a plain query prints A and AAAA in varying order, and `head -1` can read `::`.
   ```bash
-  ssh -S /run/user/1000/host-tidy-east.sock east 'resolvectl query o401343.ingest.us.sentry.io 2>&1 | head -1; resolvectl query archive.ubuntu.com 2>&1 | head -1 | cut -c1-40; sudo apt-get update 2>&1 | grep -ciE "misbehaving|temporary failure|could not resolve"; resolvectl status enp2s0 | grep "Current DNS"; chronyc -n sources | grep -c "^\^\*"'; ssh -o BatchMode=yes -o ControlPath=none east 'echo FRESH_KEY_LOGIN_OK'
+  ssh -S /run/user/1000/host-tidy-east.sock east 'resolvectl query -t A o401343.ingest.us.sentry.io 2>&1 | head -1; resolvectl query archive.ubuntu.com 2>&1 | head -1 | cut -c1-40; sudo apt-get update 2>&1 | grep -ciE "misbehaving|temporary failure|could not resolve"; resolvectl status enp2s0 | grep "Current DNS"; chronyc -n sources | grep -c "^\^\*"'; ssh -o BatchMode=yes -o ControlPath=none east 'echo FRESH_KEY_LOGIN_OK'
   ```
-  Expect: `o401343.ingest.us.sentry.io: 0.0.0.0 ...`; `archive.ubuntu.com: <address>`; `0`; `Current DNS Server: 10.10.20.252`; `1`; `FRESH_KEY_LOGIN_OK`. Else: the Rollback of the netplan step, [STUCK].
+  Expect: `o401343.ingest.us.sentry.io IN A 0.0.0.0 -- link: enp2s0`; `archive.ubuntu.com: <address>`; `0`; `Current DNS Server: 10.10.20.252`; `1`; `FRESH_KEY_LOGIN_OK`. Else: the Rollback of the netplan step, [STUCK].
 - [ ] **Step 60** [C] ~1m: **COMMIT CHECKPOINT** (only after the last [V] passed).
   ```bash
   cd /home/govan/tmp/wt/S-HOST-TIDY && printf '%s\n' '- Steps 56-60: Phase 6, checked: AFTER  the stub reaches Pi-hole, names resolve, the login path is untouched..' >> docs/battle-plans/progress/S-HOST-TIDY-progress.md && git add docs/battle-plans/progress/S-HOST-TIDY-progress.md && git commit -S -q -m '[PLAN S-HOST-TIDY] Steps 56-60: Checkpoint in Phase 6: AFTER  the stub reaches Pi-hole, names resolve, the login path is untouched.' -m 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

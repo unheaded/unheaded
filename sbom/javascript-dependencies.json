@@ -1,0 +1,67 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "unheaded-javascript-dependencies",
+  "documentNamespace": "https://github.com/unheaded/unheaded/sbom/javascript",
+  "creationInfo": {
+    "created": "2026-11-05T00:00:00Z",
+    "creators": [
+      "Tool: html-script-tag-reader",
+      "Organization: Unheaded"
+    ]
+  },
+  "summary": {
+    "totalFiles": 4,
+    "licenseSummary": {
+      "Unknown": 4
+    }
+  },
+  "packages": [
+    {
+      "library": "fonts.googleapis.com",
+      "version": "",
+      "url": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Space+Grotesk:wght@300;400;500;700&display=swap",
+      "integrity": false,
+      "loadedBy": [
+        "raft/static/index.html",
+        "skills/marshal-eval-review.html"
+      ],
+      "license": "Unknown",
+      "licenseNotRead": "loaded from a CDN, no copy on this host"
+    },
+    {
+      "library": "xlsx",
+      "version": "0.20.3",
+      "url": "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
+      "integrity": true,
+      "loadedBy": [
+        "skills/marshal-eval-review.html"
+      ],
+      "license": "Unknown",
+      "licenseNotRead": "loaded from a CDN, no copy on this host"
+    },
+    {
+      "library": "xterm",
+      "version": "5.3.0",
+      "url": "https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css",
+      "integrity": true,
+      "loadedBy": [
+        "dashboard/upc-console.html"
+      ],
+      "license": "Unknown",
+      "licenseNotRead": "loaded from a CDN, no copy on this host"
+    },
+    {
+      "library": "xterm-addon-fit",
+      "version": "0.8.0",
+      "url": "https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js",
+      "integrity": true,
+      "loadedBy": [
+        "dashboard/upc-console.html"
+      ],
+      "license": "Unknown",
+      "licenseNotRead": "loaded from a CDN, no copy on this host"
+    }
+  ]
+}
