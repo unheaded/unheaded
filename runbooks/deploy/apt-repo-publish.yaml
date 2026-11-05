@@ -24,20 +24,30 @@ notes: |
   noble, served on 0.0.0.0:18888 with /conf and /db readable) is replaced:
   its nginx site goes when this one is enabled.
   Before installing on a host, its TLS material (/etc/unheaded/tls/<identity>/,
-  deploy/systemd/README.md#tls) and trust.d must be in place: postinst does
-  not restart a service whose TLS files are missing, so a running service
-  keeps its old binary until they are. The upgrade renames three units on
+  deploy/systemd/README.md#tls) must be in place: postinst does not restart a
+  service whose TLS files are missing, so a running service keeps its old binary
+  until they are. Service keys and trust.d need nothing: postinst's keygen
+  creates both on first install. The upgrade renames three units on
   east (unheaded-dashboard-backend -> unheaded-dashboard, unheaded-kanban-app
   -> unheaded-kanban, unheaded-unheaded-daemon -> unheaded-daemon) and the
   package unheaded-unheaded-daemon -> unheaded-daemon.
   East still runs the 1.0.0 packages, and three things about them need
   install-east's handling: 1.0.0 sorts above the 0.2.0 line, so apt keeps it
-  unless the version is named and downgrades allowed; their prerm stops and
-  disables the service before any new maintainer script runs, so no package
-  can carry that state over and install-east enables the services itself;
-  and they ship /etc/unheaded/wotan.yaml as a plain file, which dpkg takes
-  for a local edit of the new conffile, prompts about, and fails on with no
-  terminal. install-east's handling is tested by scripts/test-deb-maintscripts.sh.
+  unless the version is named and downgrades allowed; the 1.0.0 prerm of
+  wotan, akira, dashboard-backend, kanban-app and unheaded-daemon stops and
+  disables the service before any new maintainer script runs (timeguru,
+  captain, architect and micromanager have no prerm), so no package can carry
+  that state over and install-east enables the services itself; and they ship
+  /etc/unheaded/wotan.yaml as a plain file, which dpkg takes for a local edit
+  of the new conffile, prompts about, and fails on with no terminal. install-east
+  moves that file to wotan.yaml.pre-conffile and nothing moves it back: a hand
+  edit stays in that copy. east-source moves east's old unheaded.sources, which
+  trusts the unsigned repo, to /var/backups, because that repo still offers
+  1.0.0 and 1.0.0 sorts above this line.
+  The first move off 1.0.0 has no rollback. unheaded-auth, -configs, -keygen and
+  -daemon have no 1.0.0 build, so the rollback step finds that, says which, and
+  changes nothing; a failed first move is fixed forward by re-running install-east.
+  Each step is tested by scripts/test-deb-maintscripts.sh.
 parameters:
   - name: REPO
     default: "$HOME/tmp/unheaded"
@@ -109,9 +119,12 @@ steps:
       sudo install -d -m 0755 /etc/apt/keyrings
       curl -fsS http://192.168.13.2:18888/unheaded-apt.gpg | sudo tee /etc/apt/keyrings/unheaded.gpg >/dev/null
       gpg --show-keys --with-colons /etc/apt/keyrings/unheaded.gpg | grep -q "${KEYID}"
+      if [ -e /etc/apt/sources.list.d/unheaded.sources ]; then
+        sudo mv /etc/apt/sources.list.d/unheaded.sources /var/backups/unheaded.sources.bak-e1
+      fi
       echo "deb [signed-by=/etc/apt/keyrings/unheaded.gpg] http://192.168.13.2:18888 unheaded main" | sudo tee /etc/apt/sources.list.d/unheaded.list >/dev/null
       sudo apt-get update
-    description: Pin the repo key on east (fingerprint checked) and add the source
+    description: Pin the repo key on east (fingerprint checked), retire the unsigned source and add the signed one
     verify: "ssh govan@east 'apt-cache policy unheaded-wotan | grep -q 192.168.13.2:18888'"
 
   - name: install-east
@@ -120,9 +133,11 @@ steps:
     command: |
       set -euo pipefail
       for id in wotan timeguru akira captain architect micromanager unheaded-daemon dashboard-backend kanban-app; do
-        sudo test -e "/etc/unheaded/tls/$id/ca.pem" || { echo "no TLS material for $id (deploy/systemd/README.md#tls): nothing installed" >&2; exit 1; }
+        for f in ca.pem "$id.pem" "$id-key.pem"; do
+          sudo test -e "/etc/unheaded/tls/$id/$f" || { echo "no /etc/unheaded/tls/$id/$f (deploy/systemd/README.md#tls): nothing installed" >&2; exit 1; }
+        done
       done
-      if [ -e /etc/unheaded/wotan.yaml ] && [ -z "$(dpkg-query -W -f '${Conffiles}' unheaded-wotan 2>/dev/null)" ]; then
+      if [ -e /etc/unheaded/wotan.yaml ] && ! dpkg-query --control-show unheaded-wotan conffiles >/dev/null 2>&1; then
         sudo mv /etc/unheaded/wotan.yaml /etc/unheaded/wotan.yaml.pre-conffile
       fi
       tag="${TAG}"
@@ -139,7 +154,7 @@ steps:
         unheaded-architect unheaded-micromanager unheaded-daemon unheaded-dashboard unheaded-kanban
     timeout: 900
     description: Install this release's packages on east, add the issuer (its unit is installed, not enabled), and start the services east ran
-    on_fail: "Roll back (below); read the postinst warnings"
+    on_fail: "Read the postinst warnings. Roll back (below), unless this was the first move off 1.0.0, which has none (notes)"
 
   - name: verify-east
     action: shell
@@ -159,8 +174,19 @@ rollback:
     command: |
       set -euo pipefail
       test -n "${PREVIOUS}"
-      for p in $(dpkg-query -W -f '${Package}\n' 'unheaded-*'); do
-        sudo apt-get install -y --allow-downgrades "${p}=${PREVIOUS}"
+      pkgs=()
+      missing=()
+      for p in $(dpkg -l 'unheaded-*' | awk '$1 == "ii" {print $2}'); do
+        if apt-cache madison "$p" | awk -v v="${PREVIOUS}" '$3 == v {found = 1} END {exit !found}'; then
+          pkgs+=("$p=${PREVIOUS}")
+        else
+          missing+=("$p")
+        fi
       done
-    description: Install the previous version of every unheaded package from the repo
+      if [ "${#missing[@]}" -gt 0 ]; then
+        echo "no ${PREVIOUS} build of: ${missing[*]}: nothing rolled back (notes: the first move off 1.0.0 has no rollback)" >&2
+        exit 1
+      fi
+      sudo apt-get install -y --allow-downgrades "${pkgs[@]}"
+    description: Install the previous version of every unheaded package from the repo in one apt run, or change nothing if any package has no such version
     when: "step.install-east.failed || step.verify-east.failed"

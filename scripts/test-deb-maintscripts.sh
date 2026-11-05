@@ -264,36 +264,68 @@ expect "the Jenkinsfile packages through build-all-debs.sh (one copy)" \
 expect "the Jenkinsfile writes no maintainer scripts of its own" \
 	"$(grep -cE 'deb_(postinst|prerm|preinst)' "$REPO_ROOT/Jenkinsfile" || true)" "0"
 
-# East's 1.0.0 packages: runbooks/deploy/apt-repo-publish.yaml's install-east
-# step, run against stand-ins, with /etc/unheaded moved under $T.
-mkdir -p "$T/etc/unheaded" "$T/east"
-python3 -c 'import sys, yaml
-steps = yaml.safe_load(open(sys.argv[1]))["steps"]
-print(next(s["command"] for s in steps if s["name"] == "install-east"))' \
-	"$REPO_ROOT/runbooks/deploy/apt-repo-publish.yaml" |
-	sed -e "s|/etc/unheaded|$T/etc/unheaded|g" -e 's|\${TAG}|v0.2.0-alpha|' >"$T/install-east"
+# East's 1.0.0 packages: runbooks/deploy/apt-repo-publish.yaml's east-side
+# steps, run against stand-ins, with /etc/unheaded, /etc/apt and /var/backups
+# moved under $T. awk, not a YAML parser: this job has no Python set up.
+runbook_command() { # the command block of the step with this name, unindented
+	awk -v want="  - name: $1" '
+		$0 == want { found = 1; next }
+		found && /^    command: \|$/ { body = 1; next }
+		body && /^      / { print substr($0, 7); next }
+		body && /^$/ { print; next }
+		body { exit }' "$REPO_ROOT/runbooks/deploy/apt-repo-publish.yaml"
+}
+mkdir -p "$T/etc/unheaded" "$T/east" "$T/etc/apt/sources.list.d" "$T/var/backups"
+for step in install-east east-source east-previous-version; do
+	runbook_command "$step" | sed -e "s|/etc/unheaded|$T/etc/unheaded|g" -e "s|/etc/apt|$T/etc/apt|g" \
+		-e "s|/var/backups|$T/var/backups|g" -e 's|\${TAG}|v0.2.0-alpha|' -e 's|\${KEYID}|REPOKEY|' \
+		-e 's|\${PREVIOUS}|0.1.0|g' >"$T/$step"
+done
 printf '#!/bin/sh\nexec "$@"\n' >"$T/east/sudo"
 for tool in apt-get systemctl; do
 	printf '#!/bin/sh\necho "%s $*" >>"%s/calls"\n' "$tool" "$T" >"$T/east/$tool"
 done
-# dpkg-query: the conffiles $T/conffiles lists for the package.
-printf '#!/bin/sh\ncat "%s/conffiles"\n' "$T" >"$T/east/dpkg-query"
+# dpkg-query: unheaded-wotan's conffiles, which $T/conffiles holds, or none.
+printf '#!/bin/sh\n[ "$*" = "--control-show unheaded-wotan conffiles" ] && [ -s "%s/conffiles" ]\n' "$T" >"$T/east/dpkg-query"
+# dpkg -l and apt-cache madison: what $T/dpkg-l and $T/madison hold, in their
+# own layouts.
+printf '#!/bin/sh\ncat "%s/dpkg-l"\n' "$T" >"$T/east/dpkg"
+printf '#!/bin/sh\nawk -v p="$2" %s$1 == p%s "%s/madison"\n' "'" "'" "$T" >"$T/east/apt-cache"
+printf '#!/bin/sh\necho public-key\n' >"$T/east/curl"
+printf '#!/bin/sh\ncat "%s/fingerprint"\n' "$T" >"$T/east/gpg"
 chmod +x "$T"/east/*
-east_tls() { for id in "$@"; do mkdir -p "$T/etc/unheaded/tls/$id" && : >"$T/etc/unheaded/tls/$id/ca.pem"; done; }
-install_east() { # the calls install-east made, then its exit status
+east_tls() { # the three files postinst requires, for each identity
+	for id in "$@"; do
+		mkdir -p "$T/etc/unheaded/tls/$id"
+		: >"$T/etc/unheaded/tls/$id/ca.pem"
+		: >"$T/etc/unheaded/tls/$id/$id.pem"
+		: >"$T/etc/unheaded/tls/$id/$id-key.pem"
+	done
+}
+east_run() { # east_run STEP: the calls the step made, then its exit status
 	local rc=0
 	: >"$T/calls"
-	PATH="$T/east:$PATH" bash "$T/install-east" 2>"$T/stderr" || rc=$?
+	PATH="$T/east:$PATH" bash "$T/$1" 2>"$T/stderr" || rc=$?
 	cat "$T/calls"
 	echo "rc=$rc"
 }
+install_east() { east_run install-east; }
 : >"$T/conffiles"
 echo "1.0.0's file" >"$T/etc/unheaded/wotan.yaml"
 east_tls wotan timeguru akira captain architect micromanager unheaded-daemon dashboard-backend
 expect "install-east: one service's TLS material missing, nothing installed" "$(install_east | tail -n 2)" "rc=1"
-expect "install-east: and says whose" "$(grep -c 'no TLS material for kanban-app' "$T/stderr")" "1"
+expect "install-east: and says whose" "$(grep -c 'no .*/tls/kanban-app/ca.pem' "$T/stderr")" "1"
 expect "install-east: and leaves wotan.yaml alone" "$(cat "$T/etc/unheaded/wotan.yaml")" "1.0.0's file"
 east_tls kanban-app
+bad=""
+for unit in wotan timeguru akira captain architect micromanager daemon dashboard kanban; do
+	while read -r f; do
+		mv "$T$f" "$T$f.away"
+		[ "$(install_east)" = "rc=1" ] && grep -q "no $T$f " "$T/stderr" || bad="$bad $f"
+		mv "$T$f.away" "$T$f"
+	done < <(deb_tls_files "$REPO_ROOT/deploy/systemd/unheaded-$unit.service")
+done
+expect "install-east stops on every file postinst requires, not the CA alone" "$bad" ""
 got="$(install_east)"
 expect "install-east finishes" "$(tail -n 1 <<<"$got")" "rc=0"
 expect "install-east names the version and allows the move from 1.0.0" \
@@ -308,6 +340,32 @@ rm "$T/etc/unheaded/wotan.yaml.pre-conffile"
 printf ' /etc/unheaded/wotan.yaml 0123\n' >"$T/conffiles"
 install_east >/dev/null
 expect "install-east leaves a real conffile for dpkg" "$(cat "$T/etc/unheaded/wotan.yaml")" "an edited conffile"
+
+# east-source: the unsigned source goes, or apt can take east back to 1.0.0.
+OLD_SOURCE="$T/etc/apt/sources.list.d/unheaded.sources"
+SIGNED_LIST="$T/etc/apt/sources.list.d/unheaded.list"
+echo "Trusted: yes" >"$OLD_SOURCE"
+echo "other key" >"$T/fingerprint"
+expect "east-source: the wrong key stops it" "$(east_run east-source | tail -n 1 | grep -vc '^rc=0$')" "1"
+expect "east-source: and the old source stays" "$(cat "$OLD_SOURCE"; [ ! -e "$SIGNED_LIST" ] && echo unlisted)" "Trusted: yes
+unlisted"
+echo "fpr REPOKEY" >"$T/fingerprint"
+expect "east-source updates once it has moved the sources" "$(east_run east-source)" "apt-get update
+rc=0"
+expect "east-source retires the unsigned source" \
+	"$([ ! -e "$OLD_SOURCE" ] && cat "$T/var/backups/unheaded.sources.bak-e1")" "Trusted: yes"
+expect "east-source lists the signed repo" "$(grep -c 'signed-by=.*unheaded main' "$SIGNED_LIST")" "1"
+expect "east-source runs again with the old source gone" "$(east_run east-source | tail -n 1)" "rc=0"
+
+# Rollback: all of it in one apt run, or none of it.
+printf 'ii  unheaded-wotan 0.2.0~alpha amd64 x\nii  unheaded-auth 0.2.0~alpha amd64 x\nrc  unheaded-unheaded-daemon 1.0.0 amd64 x\n' >"$T/dpkg-l"
+printf ' unheaded-wotan | 0.2.0~alpha | http://r\n unheaded-wotan | 0.1.0 | http://r\n unheaded-auth | 0.2.0~alpha | http://r\n' >"$T/madison"
+expect "rollback: one package with no such version, nothing changes" "$(east_run east-previous-version)" "rc=1"
+expect "rollback: and it says which, and only that one" "$(grep -c 'no 0\.1\.0 build of: unheaded-auth:' "$T/stderr")" "1"
+echo ' unheaded-auth | 0.1.0 | http://r' >>"$T/madison"
+expect "rollback: every package in one apt run, a removed one left out" "$(east_run east-previous-version)" \
+	"apt-get install -y --allow-downgrades unheaded-wotan=0.1.0 unheaded-auth=0.1.0
+rc=0"
 
 # The reasons, from dpkg itself, on packages shaped like 1.0.0's and this
 # release's, in a private root.
@@ -332,6 +390,10 @@ sandbox_dpkg() {
 	dpkg --root="$R" --force-not-root --force-script-chrootless --no-triggers --log=/dev/null "$@" </dev/null >"$T/dpkg.out" 2>&1
 }
 sandbox_dpkg -i "$T/old.deb"
+expect "dpkg -l's first column tells the installed from the rest" \
+	"$(dpkg --root="$R" -l 'fixture' | awk '$1 == "ii" {print $2}')" "fixture"
+expect "a package with no conffiles fails --control-show, so wotan.yaml moves" \
+	"$(dpkg-query --root="$R" --control-show fixture conffiles 2>/dev/null || echo none)" "none"
 expect "a plain file turned conffile fails with no terminal" \
 	"$(sandbox_dpkg -i "$T/new.deb" && echo installed || grep -c 'end of file on stdin at conffile prompt' "$T/dpkg.out")" "1"
 expect "the old prerm runs before any new script, so no package can read the state it destroys" \
@@ -340,5 +402,7 @@ new preinst upgrade"
 rm "$R/etc/unheaded/wotan.yaml"
 expect "with the plain file moved aside the install completes" \
 	"$(sandbox_dpkg --configure fixture && cat "$R/etc/unheaded/wotan.yaml")" "new"
+expect "a package with conffiles passes --control-show, so wotan.yaml stays" \
+	"$(dpkg-query --root="$R" --control-show fixture conffiles)" "/etc/unheaded/wotan.yaml"
 
 exit "$fail"
