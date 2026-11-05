@@ -27,8 +27,6 @@ GRYPE_SHA256="64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519" 
 COSIGN_VERSION="3.1.4"
 COSIGN_SHA256="424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa" # cosign-linux-amd64 (bare binary; cosign_checksums.txt)
 
-HELM_VERSION="4.3.1"
-HELM_SHA256="0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b" # helm-v<v>-linux-amd64.tar.gz (get.helm.sh, matches the release notes)
 
 # hadolint runs from its image, pinned by digest (scripts/check-hadolint.sh).
 HADOLINT_VERSION="2.15.1"
@@ -44,8 +42,6 @@ TRIVY_VERSION="0.76.1"
 TRIVY_IMAGE_DIGEST="sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c" # aquasec/trivy:<v>
 TRIVY_CHECKS_BUNDLE="mirror.gcr.io/aquasec/trivy-checks@sha256:b591e9190cff4aa4e385b1a25bccfd9ecf178d3c77fd194e1410b7ce7e1df058" # trivy-checks:2, 2026-10-28
 
-KUBECONFORM_VERSION="0.8.0"
-KUBECONFORM_SHA256="9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883" # kubeconform-linux-amd64.tar.gz
 
 # Vector on east as a host package (config/vector/vector-east.yaml). Same
 # version as west's compose image timberio/vector:<v>-debian, so both hosts

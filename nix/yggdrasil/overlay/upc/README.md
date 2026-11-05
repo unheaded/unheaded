@@ -38,7 +38,6 @@ deb https://apt.unheaded.dev/yggdrasil bookworm main
   └── upc-bootctl        (cmd/upc-bootctl Go binary)
   └── upc-tty-bridge     (cmd/upc-tty-bridge Go binary)
   └── monad-cpu-ebpf     (BPF object built per kernel ABI)
-  └── unheaded-runner    (crates/doom-runner Rust binary, optional)
   └── unheaded-shared    (HTML+JS+vendor/xterm asset pack)
 ```
 

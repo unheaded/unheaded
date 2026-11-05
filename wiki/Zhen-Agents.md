@@ -126,7 +126,7 @@ The RX 7700 XT (12 GB) cannot hold a served model and a Gemma-4 training run at 
 |---|---|
 | each llama-server request (`pkg/localllm`: worker, `/ask`, summariser) | shared, for the call (waits up to 10-30 s) |
 | `scripts/switch-model.sh` | exclusive, for the whole swap |
-| `scripts/forge-train.sh` | exclusive, for the whole run: stops llama-server first and loads `FORGE_RESTART_MODEL` (default `qwen-7b`) after, through `switch-model.sh` and its fit check |
+| `scripts/forge-train.sh` (in `unheaded-forge` since 2026-11-04) | exclusive, for the whole run: stops llama-server first and loads `FORGE_RESTART_MODEL` (default `qwen-7b`) after, through `switch-model.sh` and its fit check |
 
 The worker never starts, stops or swaps a model. Finding the lease held, it defers the card (no claim); a lease taken mid-card cancels that run (no attempt used, nothing committed) and the card waits for the next poll. It never escalates to Claude because the GPU is busy. A stuck lease is a stuck process: `fuser -v "$GPU_LOCK"` names it; stopping it frees the lease. Never delete the lock file.
 

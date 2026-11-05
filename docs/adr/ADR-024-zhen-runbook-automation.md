@@ -1,5 +1,7 @@
 # ADR-024: Zhen Runbook Automation — Champion-Executable Infrastructure Playbooks
 
+> **2026-11-04 (round 5):** `corpus-rebuild`, `zhen-index-rebuild` and `raft-training-pipeline` moved to `unheaded-forge` with the scripts they call.
+
 **Status:** Accepted — Phase 1 complete (2026-04-03). 50 runbooks across 7 categories.
 **Amended:** 2026-10-27, authorship and approval policy (below; wording awaits Stevie, E1 of S-CHAMPION-HARDENING).
 **Date:** 2026-04-02

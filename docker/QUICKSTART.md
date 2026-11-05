@@ -49,7 +49,7 @@ export COMMIT=$(git rev-parse --short HEAD)
 for service in monad sophia wotan anamnesis shield \
                unheaded-daemon dashboard-backend \
                protocol-api trace-collector gateway service-discovery \
-               doom lich captain micromanager timeguru architect \
+               lich captain micromanager timeguru architect \
                developer kanban lore busboy kingdom blackmage moatghost; do
   docker build \
     -f docker/services/${service}/Dockerfile \
@@ -69,7 +69,7 @@ echo "All 25 services built successfully!"
 - protocol-api, trace-collector, gateway, service-discovery
 - captain, micromanager, timeguru, architect, developer
 - kanban, lore, busboy, kingdom, moatghost
-- dashboard-backend, doom
+- dashboard-backend
 
 ### eBPF/Privileged (debian:bookworm-slim)
 - shield (CAP_BPF, CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_SYS_RESOURCE)
@@ -112,7 +112,6 @@ echo "All 25 services built successfully!"
 | dashboard-backend | 8080 |
 | gateway | 8443 |
 | trace-collector | 9411 |
-| doom | 16680 |
 
 ## Verify Installation
 
@@ -158,7 +157,6 @@ docker/
 │   ├── trace-collector/Dockerfile         (30 lines)
 │   ├── gateway/Dockerfile                 (30 lines)
 │   ├── service-discovery/Dockerfile       (30 lines)
-│   ├── doom/Dockerfile                    (30 lines)
 │   ├── lich/Dockerfile                    (30 lines) ★ eBPF
 │   ├── captain/Dockerfile                 (30 lines)
 │   ├── micromanager/Dockerfile            (30 lines)

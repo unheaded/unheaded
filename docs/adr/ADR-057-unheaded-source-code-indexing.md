@@ -49,6 +49,7 @@ ADR-056 establishes the pattern for non-vor retrieval shards. This ADR is the fi
 - `**/target/**`, `**/node_modules/**`, `**/_legacy/**`, `**/.git/**` — build artifacts and history
 - `**/*.gguf`, `**/*.index`, `**/*.bin` — binary assets
 - Generated code (where identifiable: `*.pb.go`, `*.gen.go`, `target/debug/build/*/out`)
+- All Doom code (DP-314, 2026-11-04): it left for `unheaded-doom`, and `doom/doom.*` here is a binary fixture
 
 ### Chunking strategy: AST-anchored
 

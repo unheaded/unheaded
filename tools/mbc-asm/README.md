@@ -5,7 +5,7 @@ Produces raw 32-bit little-endian binary images suitable for loading
 into the UPC execution engine.
 
 **Status:** Resolves Hard Blocker #2 from the uClinux port guide
-(`docs/doom/UCLINUX_PORT_GUIDE.md`).
+(`docs/upc/UCLINUX_PORT_GUIDE.md`).
 
 ## Usage
 

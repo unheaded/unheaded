@@ -896,13 +896,12 @@ var FirstParty = map[string]bool{
 }
 
 // serviceHealthPaths overrides the default "/health" liveness path for services
-// whose liveness lives elsewhere (Grafana + vor at /api/health, the Doom bridge
-// which only serves "/", Traefik's dashboard at /dashboard). Keys must match the
-// service name used in the endpoint map / overrides file.
+// whose liveness lives elsewhere (Grafana + vor at /api/health, Traefik's
+// dashboard at /dashboard). Keys must match the service name used in the
+// endpoint map / overrides file.
 var serviceHealthPaths = map[string]string{
 	"grafana": "/api/health",
 	"vor":     "/api/health",
-	"doom":    "/",
 	"gateway": "/dashboard",
 }
 

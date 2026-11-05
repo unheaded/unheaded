@@ -10,7 +10,7 @@ REGISTRY  ?= ghcr.io/stevenrbellis/unheaded
 # All 24 service names
 SERVICES := monad sophia wotan anamnesis shield unheaded-daemon \
             dashboard-backend protocol-api \
-            trace-collector gateway service-discovery doom lich \
+            trace-collector gateway service-discovery lich \
             captain micromanager timeguru architect developer \
             kanban lore busboy kingdom blackmage moatghost
 

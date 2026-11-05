@@ -26,9 +26,8 @@ RUN sed -i '/=> \.\.\//d' go.mod && go mod download || true
 
 # Copy source code
 COPY . .
-# Remove local replace directives and doomgeneric references for container builds
+# Remove local replace directives for container builds
 RUN sed -i '/=> \.\.\//d' go.mod && \
-    sed -i '/doomgeneric/d' go.mod && \
     go mod tidy -e 2>/dev/null || true
 
 # Build arguments for version injection

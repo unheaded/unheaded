@@ -3,7 +3,6 @@
        build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat \
        test-e2e-bpf deploy-down deploy-status deploy-lxd deploy-logs \
        deploy-restart sbom license-check \
-       doom-smoke doom-build-check \
        ci-local ci-security sbom-verify \
        install-hooks test-hooks
 
@@ -236,7 +235,7 @@ test-go: ## Run Go tests
 	@echo "Running Go tests..."
 	go test -v -race -cover ./...
 
-test-rust: test-rust-ebpf-common test-rust-svc-token test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc test-rust-zhend test-rust-doom-runner ## Run Rust tests across all host-runnable crates
+test-rust: test-rust-ebpf-common test-rust-svc-token test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc test-rust-zhend ## Run Rust tests across all host-runnable crates
 	@echo "✓ All Rust test suites passed"
 
 # ebpf/ workspace targets bpfel-unknown-none — `cd ebpf && cargo test` fails
@@ -272,9 +271,6 @@ test-rust-xv6-mbc: ## Run xv6-mbc tests (ASCEND-LINUX kernel adapter)
 test-rust-zhend: ## Run zhend tests (Layer 0 anti-fragile gossip substrate)
 	cd crates/zhend && cargo test --locked --lib
 
-test-rust-doom-runner: ## Run doom-runner tests (Aya BPF runtime for Doom-on-Monad)
-	cd crates/doom-runner && cargo test --locked
-
 test-e2e: ## Run E2E integration tests (auth, pipeline, security, message delivery)
 	@echo "Running E2E integration tests..."
 	go test -v -race -count=1 -timeout 300s ./tests/e2e/...
@@ -298,14 +294,6 @@ race-test: ## Run Go tests with race detection only
 bench: ## Run benchmarks
 	@echo "Running benchmarks..."
 	go test -bench=. -benchmem ./...
-
-##@ DOOM Testing
-
-doom-smoke: ## Run DOOM full lifecycle smoke test (requires root + BPF)
-	sudo ./scripts/doom-smoke.sh
-
-doom-build-check: ## Verify DOOM build artifacts for known bug regressions
-	./scripts/doom-build-check.sh
 
 ##@ Containers
 
@@ -519,7 +507,7 @@ license-check: ## Check Go and Rust dependencies for permitted licenses
 	@GR="$$(go env GOROOT)"; GOROOT="$$GR" PATH="$$GR/bin:$$PATH" GOTOOLCHAIN=local \
 		go run github.com/google/go-licenses@v1.6.0 check ./... \
 		--allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC \
-		--ignore unheaded --ignore github.com/unheaded/doomgeneric --ignore modernc.org/mathutil
+		--ignore unheaded --ignore modernc.org/mathutil
 	@echo "✓ Go license check passed"
 	@if [ -d "ebpf" ] && [ -f "ebpf/Cargo.toml" ]; then \
 		echo "Checking Rust licenses (ebpf)..."; \

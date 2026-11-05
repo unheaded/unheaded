@@ -15,7 +15,6 @@
 // wotan-ctl is the operator's tool for loading programs and data into the
 // Doom-over-IPv6 compute engine (Wotan). It provides commands for:
 //   - load-rom: Load MBC bytecode into BPF rom_map (CPU instruction memory)
-//   - load-mem: Load binary data into Wotan's L2 ring buffer (RAM)
 package main
 
 import (
@@ -62,12 +61,10 @@ func NewRootCommand() *Command {
 	root := &Command{
 		Name:  "wotan-ctl",
 		Short: "Wotan compute engine control tool",
-		Long: `wotan-ctl is the operator's tool for the Doom-over-IPv6 compute engine.
+		Long: `wotan-ctl is the operator's tool for the UPC compute engine.
 
 Load MBC bytecode and binary data into the Wotan BPF compute engine:
   - load-rom: Load MBC bytecode into BPF rom_map (instruction memory)
-  - load-mem: Load binary data into L2 ring buffer (RAM)
-  - doom:     Doom-over-IPv6 management (load, status, input, reset)
   - boot:     UPC boot protocol (load kernel, init IVT, set CPU state)
 
 Use "wotan-ctl <command> --help" for more information about a command.`,
@@ -77,8 +74,6 @@ Use "wotan-ctl <command> --help" for more information about a command.`,
 
 	// Add subcommands
 	root.SubCommands["load-rom"] = newLoadRomCmd()
-	root.SubCommands["load-mem"] = newLoadMemCmd()
-	root.SubCommands["doom"] = newDoomCmd()
 	root.SubCommands["boot"] = newBootCmd()
 	root.SubCommands["mkfs"] = newMkfsCmd()
 
@@ -194,7 +189,6 @@ func (c *Command) printMan() {
 		Examples: []string{
 			"wotan-ctl load-rom -file prog.mbc         load bytecode into rom_map",
 			"wotan-ctl boot --help                     UPC boot options",
-			"wotan-ctl doom status                     Doom-over-IPv6 state",
 		},
 		Details: `Run "wotan-ctl COMMAND --help" for a command's options. BPF maps are read from /sys/fs/bpf.`,
 		Version: Version,

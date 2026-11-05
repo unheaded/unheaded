@@ -1,5 +1,7 @@
 # Doom on UPC
 
+> **Moved (DP-305).** The code lives in the `unheaded-doom` repository: `demos/doom/`, `crates/doom-runner/` and `docs/doom/` below are there, and links that named `docs/doom/` now open [Doom's lessons](../docs/upc/DOOM-LESSONS.md). Where this page and the lessons disagree, the lessons are the later reading.
+
 Running id Software's original 1993 DOOM on the [Unheaded Protocol Computer](UPC-Overview). The computational-completeness proof for the Unheaded Protocol — every Doom frame is rendered by an XDP program executing MBC bytecode that arrived as IPv6 packets through a network namespace ring.
 
 **Status:** PLAYABLE (browser-verified again 2026-07-19: verifier 737,087 insns, full 320×200 frames, ~90K pkt/s; retail `DOOM.WAD` IWAD detection fixed 2026-07-29). Menus, movement, shooting, doors all work. Stable beyond 5.9 B instructions executed. The framebuffer streams to a browser canvas over WebSocket; keyboard input flows back the same way.
@@ -101,7 +103,7 @@ At 35 fps with ~100 K MBC insns per frame, the CPU needs ~3.5 M insns/sec sustai
 
 ## Bug-Of-The-Day journal
 
-The Doom path took a year of hard debugging. Highlights live in [`docs/doom/FINDINGS.md`](../docs/doom/FINDINGS.md). The key ones that informed the broader UPC design:
+The Doom path took a year of hard debugging. Highlights live in [`docs/doom/FINDINGS.md`](../docs/upc/DOOM-LESSONS.md). The key ones that informed the broader UPC design:
 
 - **Bug 20**: function-pointer JMPR landing on stale rv2mbc slots. Fix: skip the JMPR rather than halt, log a sentinel at 0xE0000. Phase 1.4 then tightened this with a non-zero guard so user VA 0 stops silently rerouting PC to 0.
 - **Bug 24**: word stores were leaking into SCREEN_MAP whenever a corrupted pointer landed in the 0x70000–0x73E80 range. Fix: only byte stores (STB → mem_write_byte) update SCREEN_MAP; word stores (ST) stay out.
@@ -110,7 +112,7 @@ The Doom path took a year of hard debugging. Highlights live in [`docs/doom/FIND
 
 ## Building + running
 
-Full guide: [`docs/doom/DOOM-BUILD-GUIDE.md`](../docs/doom/DOOM-BUILD-GUIDE.md). Short form:
+Full guide: [`docs/doom/DOOM-BUILD-GUIDE.md`](../docs/upc/DOOM-LESSONS.md). Short form:
 
 ```bash
 cd ~/tmp/unheaded
@@ -139,7 +141,7 @@ Then open `http://localhost:16666/` for the browser canvas + keyboard relay.
 
 ## Computational-generality proof
 
-Doom-on-Monad is documented as a formal proof of computational generality in [`docs/doom/COMPUTATIONAL_GENERALITY.md`](../docs/doom/COMPUTATIONAL_GENERALITY.md). The argument: if a non-trivial Turing-complete program (Doom) runs to completion on a substrate (the UPC), the substrate is Turing-complete. The proof relies on:
+Doom-on-Monad is documented as a formal proof of computational generality in [`docs/upc/COMPUTATIONAL_GENERALITY.md`](../docs/upc/COMPUTATIONAL_GENERALITY.md). The argument: if a non-trivial Turing-complete program (Doom) runs to completion on a substrate (the UPC), the substrate is Turing-complete. The proof relies on:
 
 - Doom uses dynamic dispatch (function pointers through the BSP traversal), unbounded recursion (via tail-call elimination + heap allocation), arbitrary memory R/W (the Z_Malloc heap), and conditional branches (the entire FSM-driven enemy AI).
 - Every one of those compiles to MBC and dispatches through the XDP program.
@@ -150,8 +152,8 @@ Doom-on-Monad is documented as a formal proof of computational generality in [`d
 - [UPC Overview](UPC-Overview) — the substrate Doom runs on
 - [Linux on UPC](Linux-on-UPC) — the L5 sibling project sharing the same XDP program
 - [MBC ISA Reference](MBC-ISA-Reference) — what Doom's compiled instructions are
-- [`docs/doom/`](../docs/doom/) — 31 documents covering architecture, build guide, findings, BPF maps, baseline benchmarks, computational-generality proof, and the Doom-Bridge architecture
+- [`docs/doom/`](../docs/upc/DOOM-LESSONS.md) — 31 documents covering architecture, build guide, findings, BPF maps, baseline benchmarks, computational-generality proof, and the Doom-Bridge architecture
 
 ---
 
-> **Source:** [docs/doom/README.md](../docs/doom/README.md) · [docs/doom/ARCHITECTURE.md](../docs/doom/ARCHITECTURE.md) · [docs/doom/FINDINGS.md](../docs/doom/FINDINGS.md) · [docs/doom/COMPUTATIONAL_GENERALITY.md](../docs/doom/COMPUTATIONAL_GENERALITY.md) · [crates/doom-runner/](../crates/doom-runner/) · [demos/doom/](../demos/doom/)
+> **Source:** [docs/doom/README.md](../docs/upc/DOOM-LESSONS.md) · [docs/doom/ARCHITECTURE.md](../docs/upc/DOOM-LESSONS.md) · [docs/doom/FINDINGS.md](../docs/upc/DOOM-LESSONS.md) · [docs/upc/COMPUTATIONAL_GENERALITY.md](../docs/upc/COMPUTATIONAL_GENERALITY.md) · [crates/doom-runner/](../crates/doom-runner/) · [demos/doom/](../demos/doom/)

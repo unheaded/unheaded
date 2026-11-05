@@ -96,9 +96,6 @@ BINARIES=(
     chaos-controller
     lich-security
     routing-health
-    doom-bridge
-    doom-go-injector
-    doom-loader
     timeguru
     architect
     captain

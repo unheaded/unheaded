@@ -5,6 +5,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-104: ZhenAI → Claude API bridge
 
+> **2026-11-04 (round 5):** `zhen-flywheel` moved to `unheaded-forge`. Captures stay off. Champion's audit trail (`llm_requests`, `zhen_actions`, Anamnesis) stays here.
+
 **Status:** Accepted (Stevie, 2026-11-03, decision pack DP-603). Previously: Proposed (built on `develop`; run against the live API since 2026-10-23, S-TWO-BRAINS Step 27)
 **Date:** 2026-10-23
 **Supersedes:** ADR-017's "Claude API SCRAPPED (2026-04-03)". Stevie, 2026-10-23: "let's have agents work on mcp to Claude api".

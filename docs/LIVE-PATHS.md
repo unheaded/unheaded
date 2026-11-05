@@ -15,10 +15,10 @@ containers running, which is the mistake ADR-093 rule 4 names.
 | classification | meaning | count |
 |---|---|---|
 | CONTAINER | built into the container image | 15 |
-| SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 21 |
-| TOOL | invoked by a script, runbook or Makefile, not supervised | 29 |
+| SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 18 |
+| TOOL | invoked by a script, runbook or Makefile, not supervised | 24 |
 | ORPHAN | referenced by nothing outside its own directory | 22 |
-| **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **87** |
+| **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **79** |
 
 ORPHAN is not an accusation — kept experiments are the point of a solo
 learning project, and ADR-090 owns the deletion question. The count exists so
@@ -35,7 +35,7 @@ that keeping them stays a decision.
 | `arch/mbc/userspace/uptime` | ORPHAN |
 | `cmd/akira` | CONTAINER |
 | `cmd/alert-mailer` | TOOL |
-| `cmd/alert-policy` | SUPERVISED |
+| `cmd/alert-policy` | TOOL |
 | `cmd/anomaly` | SUPERVISED |
 | `cmd/cask-verify` | TOOL |
 | `cmd/cert-gen` | SUPERVISED |
@@ -45,12 +45,6 @@ that keeping them stays a decision.
 | `cmd/dashboard-backend` | CONTAINER |
 | `cmd/demo-trace-injector` | TOOL |
 | `cmd/depaudit` | TOOL |
-| `cmd/doom` | SUPERVISED |
-| `cmd/doom-bridge` | TOOL |
-| `cmd/doom-cpu-dump` | TOOL |
-| `cmd/doom-go-injector` | SUPERVISED |
-| `cmd/doom-injector-c` | TOOL |
-| `cmd/doom-loader` | TOOL |
 | `cmd/ebpf-collector` | TOOL |
 | `cmd/ebpf-load-check` | TOOL |
 | `cmd/ebpf-loader` | TOOL |
@@ -72,7 +66,6 @@ that keeping them stays a decision.
 | `cmd/steel-echo` | TOOL |
 | `cmd/sword` | CONTAINER |
 | `cmd/syslog-relay` | SUPERVISED |
-| `cmd/test_batch` | ORPHAN |
 | `cmd/trace-collector-go` | SUPERVISED |
 | `cmd/unheaded` | SUPERVISED |
 | `cmd/unheaded-auth` | CONTAINER |
@@ -88,7 +81,7 @@ that keeping them stays a decision.
 | `cmd/well-migrate` | TOOL |
 | `cmd/well-retention` | SUPERVISED |
 | `cmd/wiki-server` | ORPHAN |
-| `cmd/wotan-ctl` | TOOL |
+| `cmd/wotan-ctl` | ORPHAN |
 | `cmd/yggdrasil-evidence` | SUPERVISED |
 | `cmd/zhen-agent` | SUPERVISED |
 | `cmd/zhen-agentd` | SUPERVISED |
@@ -96,7 +89,6 @@ that keeping them stays a decision.
 | `cmd/zhen-cli` | ORPHAN |
 | `cmd/zhen-codeindex` | TOOL |
 | `cmd/zhen-eval` | ORPHAN |
-| `cmd/zhen-flywheel` | TOOL |
 | `cmd/zhen-mcp` | TOOL |
 | `cmd/zhen-rag` | TOOL |
 | `demos/mbc/boot_demo` | ORPHAN |

@@ -85,7 +85,6 @@ cargo ctr
 cargo ctrlc
 cargo curve25519-dalek
 cargo curve25519-dalek-derive
-cargo data-encoding
 cargo defmt
 cargo defmt-macros
 cargo defmt-parser
@@ -106,12 +105,10 @@ cargo fixedbitset
 cargo flate2
 cargo fnv
 cargo foldhash
-cargo form_urlencoded
 cargo fs2
 cargo fs_extra
 cargo futures-channel
 cargo futures-core
-cargo futures-macro
 cargo futures-sink
 cargo futures-task
 cargo futures-util
@@ -162,7 +159,6 @@ cargo lru-slab
 cargo matchers
 cargo matchit
 cargo memchr
-cargo memmap2
 cargo mime
 cargo miniz_oxide
 cargo mio
@@ -233,7 +229,6 @@ cargo rustls-pki-types
 cargo rustls-webpki
 cargo rustversion
 cargo rusty-fork
-cargo ryu
 cargo same-file
 cargo scopeguard
 cargo scroll
@@ -243,9 +238,6 @@ cargo serde
 cargo serde_core
 cargo serde_derive
 cargo serde_json
-cargo serde_path_to_error
-cargo serde_urlencoded
-cargo sha1
 cargo sha2
 cargo sharded-slab
 cargo shlex
@@ -269,7 +261,6 @@ cargo tinyvec
 cargo tokio
 cargo tokio-macros
 cargo tokio-stream
-cargo tokio-tungstenite
 cargo tokio-util
 cargo toml_datetime
 cargo toml_edit
@@ -286,7 +277,6 @@ cargo tracing-log
 cargo tracing-serde
 cargo tracing-subscriber
 cargo try-lock
-cargo tungstenite
 cargo typenum
 cargo unarray
 cargo unicode-ident
@@ -295,7 +285,6 @@ cargo untrusted
 cargo unty
 cargo ureq
 cargo ureq-proto
-cargo utf-8
 cargo utf8-zero
 cargo utf8parse
 cargo valuable

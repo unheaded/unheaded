@@ -115,7 +115,7 @@ form gets through, which is why the directory rules above exist as well.
 
 The last four are optional and were added after v1 shipped (a new optional
 field does not bump the schema). Captures become training data through
-`cmd/zhen-flywheel` (`wiki/Zhen-Training-Data.md`).
+`zhen-flywheel`, in the `unheaded-forge` repository since 2026-11-04 (`wiki/Zhen-Training-Data.md`).
 
 Absent legs are omitted, not null. Errors are strings; an empty string means
 none.

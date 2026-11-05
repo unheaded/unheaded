@@ -23,7 +23,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ## 2. Zhen to Claude, and training capture
 
-**What:** `zhen-claude` routes a turn to the local model first and, if needed, to the Claude API. Before sending, the T0/T1/T2 privacy filter (`pkg/claudebridge/privacy`) redacts secrets and personal identifiers. With `-capture` / `ZHEN_CAPTURE_DIR` set, each turn is written redacted to a JSONL file; `zhen-flywheel ingest` re-scans it (gitleaks plus the privacy patterns) and quarantines anything that still matches before it reaches `zhen_captures`.
+**What:** `zhen-claude` routes a turn to the local model first and, if needed, to the Claude API. Before sending, the T0/T1/T2 privacy filter (`pkg/claudebridge/privacy`) redacts secrets and personal identifiers. With `-capture` / `ZHEN_CAPTURE_DIR` set, each turn is written redacted to a JSONL file; `zhen-flywheel ingest` (in `unheaded-forge` since 2026-11-04; capture stays off) re-scans it (gitleaks plus the privacy patterns) and quarantines anything that still matches before it reaches `zhen_captures`.
 **Necessity:** the operator chose to use a hosted model for hard tasks; capture is optional.
 
 | Risk | Likelihood | Impact | Mitigation | Residual |

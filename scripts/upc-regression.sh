@@ -25,7 +25,9 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EBPF="$ROOT/ebpf"
 BC="$ROOT/cmd/upc-bootctl/target/release/upc-bootctl"
-DR="$ROOT/crates/doom-runner/target/release/doom-runner"
+# doom-runner and doom.elf live in unheaded-doom since 2026-11-04 (DP-305).
+DR="${DOOM_RUNNER:-$HOME/tmp/projects/unheaded-doom/crates/doom-runner/target/release/doom-runner}"
+DOOM_ELF="${DOOM_ELF:-$HOME/tmp/projects/unheaded-doom/doom/doom.elf}"
 K="$ROOT/crates/xv6-mbc/upstream/target"
 WAD="${DOOM_WAD:-$HOME/tmp/projects/doom-related/DOOM.WAD}"
 LOG="$(mktemp)"
@@ -290,14 +292,26 @@ echo "[2/3] non-ascend build (Doom load)"
 ( cd "$EBPF" && cargo build --release -p monad-cpu-ebpf 2>&1 ) \
   | grep -qE "error" && { fail "non-ascend build"; }
 
-if [ -f "$WAD" ]; then
+# The fixture stays in this repository: intact and structurally valid, always.
+if ( cd "$ROOT/doom" && [ "$(sha256sum doom.rv2mbc | cut -d' ' -f1)" = "$(cat doom.rv2mbc.sha256)" ] ); then
+  pass "Doom fixture: doom.rv2mbc matches its sha256"
+else
+  fail "Doom fixture: doom.rv2mbc does not match its sha256"
+fi
+if "$BC" validate --kernel "$ROOT/doom/doom.mbc" >/dev/null 2>&1; then
+  pass "Doom fixture: doom.mbc is a valid image"
+else
+  fail "Doom fixture: upc-bootctl refuses doom.mbc"
+fi
+
+if [ -f "$WAD" ] && [ -x "$DR" ] && [ -f "$DOOM_ELF" ]; then
   { doom_stop; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
   # setsid detaches doom-runner into its own session so SIGKILL'ing it later
   # produces no job-control noise in this shell.
   # shellcheck disable=SC2024  # the redirect is deliberately unprivileged: LOG is a
   # user-owned mktemp file, and keeping it user-owned is what we want.
   ( cd "$ROOT" && sudo UPC_VERIFIER_STATS=1 setsid sh -c 'echo "doom-runner-pid $$"; exec "$@"' sh "$DR" run --doom-mbc doom/doom.mbc \
-    --doom-elf doom/doom.elf --rv2mbc doom/doom.rv2mbc --wad "$WAD" --hops 2 >"$LOG" 2>&1 & ) 2>/dev/null
+    --doom-elf "$DOOM_ELF" --rv2mbc doom/doom.rv2mbc --wad "$WAD" --hops 2 >"$LOG" 2>&1 & ) 2>/dev/null
   for _ in $(seq 1 20); do
     grep -aqE "pipeline complete|too large|Argument list too long" "$LOG" && break
     sleep 1
@@ -310,7 +324,11 @@ if [ -f "$WAD" ]; then
   { doom_stop; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
   wait 2>/dev/null
 else
-  note "Doom: SKIPPED — WAD not found at $WAD (set DOOM_WAD=...)"
+  if [ "${UPC_REQUIRE_DOOM:-0}" = 1 ]; then
+    fail "Doom load: SKIPPED — needs $WAD, $DR and $DOOM_ELF (DOOM_WAD, DOOM_RUNNER, DOOM_ELF)"
+  else
+    note "Doom load: SKIPPED — needs $WAD, $DR and $DOOM_ELF (DOOM_WAD, DOOM_RUNNER, DOOM_ELF)"
+  fi
 fi
 
 # ---- Variant 3: cartridge-ebpf (ADR-108) — LOAD test + budget gate ---------

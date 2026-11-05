@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! BootParams encoder + memory-layout constants for UPC Boot Protocol v2.
-//! See `docs/doom/UPC_BOOT_PROTOCOL_V2.md` (frozen 2026-05-08 per ADR-067;
+//! See `docs/upc/UPC_BOOT_PROTOCOL_V2.md` (frozen 2026-05-08 per ADR-067;
 //! §"v3 (S-ASCEND-2)" for the version-3 field).
 
 #![allow(dead_code)] // some constants reserved for Phase 2+ uClinux work
@@ -146,7 +146,7 @@ mod tests {
         let bytes = bp.to_bytes();
         // Intentional pin per ADR-072: canonical hex 0x554E4844 ('UNHD'
         // MSB-first) serializes as little-endian to D,H,N,U at increasing
-        // byte offsets. Wire bytes match `docs/doom/UPC_BOOT_PROTOCOL_V2.md`
+        // byte offsets. Wire bytes match `docs/upc/UPC_BOOT_PROTOCOL_V2.md`
         // §"Field semantics" magic field.
         assert_eq!(&bytes[0..4], &[0x44, 0x48, 0x4E, 0x55]);
     }

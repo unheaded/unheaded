@@ -20,7 +20,6 @@ Using `gcr.io/distroless/static-debian12:nonroot`
 6. **docker/services/trace-collector/Dockerfile** — Jaeger traces (9411/HTTP)
 7. **docker/services/gateway/Dockerfile** — TLS termination (8443/HTTPS)
 8. **docker/services/service-discovery/Dockerfile** — Service registry (50057/gRPC, 8500/HTTP)
-9. **docker/services/doom/Dockerfile** — TCP service (16680/TCP) + 1GB memory label
 10. **docker/services/captain/Dockerfile** — Orchestration (50058/gRPC)
 11. **docker/services/micromanager/Dockerfile** — Coordination (50059/gRPC)
 12. **docker/services/timeguru/Dockerfile** — Scheduling (50060/gRPC, 8600/HTTP)

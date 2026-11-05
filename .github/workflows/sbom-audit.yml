@@ -23,9 +23,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
-
       # Pinned release + sha256 (was `curl .../main/install.sh | sh`, i.e.
       # whatever was on syft's main branch, run with this job's token).
       - name: Install Syft
@@ -113,23 +110,16 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Fetch doomgeneric (go.mod replace target)
-        run: ./scripts/ci-fetch-doomgeneric.sh
-
       - name: Check Go licenses
         run: |
           go install github.com/google/go-licenses@v1.6.0  # pinned: @latest moves under the gate
           # Ignored, each checked by hand (2026-09-30):
           #   unheaded: this module (GPL-3.0); the allow-list is for dependencies.
-          #   github.com/unheaded/doomgeneric: first-party, SPDX MIT in every
-          #     pkg/doom file, but its module dir (unheaded/) has no LICENSE
-          #     file of its own for go-licenses to find.
           #   modernc.org/mathutil: LICENSE is BSD-3-Clause ("names of the
           #     authors" wording) that the classifier does not match.
           go-licenses check ./... \
             --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC \
             --ignore unheaded \
-            --ignore github.com/unheaded/doomgeneric \
             --ignore modernc.org/mathutil
 
   report:

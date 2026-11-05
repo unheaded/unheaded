@@ -46,7 +46,7 @@ slot s, permanently. It refreshes a row on that slot's first trap after a fork.
 The kernel allocates `struct upc_slot_tables` (below) in its own `.bss`. After `userinit()` (D2), `upc_slots_init()`
 writes the table's physical address into BootParams `reserved[0]`: RAM byte `0x160`, the first word after v3's
 `rv2mbc_sha256` (bytes 64..96 of BootParams at `0x100`). The loader writes 0 there. **0 means "not published", and
-BPF does nothing new.** `docs/doom/UPC_BOOT_PROTOCOL_V2.md` §v3 records the field. Using a reserved word is the
+BPF does nothing new.** `docs/upc/UPC_BOOT_PROTOCOL_V2.md` §v3 records the field. Using a reserved word is the
 compatible extension that document allows, and this is the first field the kernel writes rather than the loader.
 
 ```c

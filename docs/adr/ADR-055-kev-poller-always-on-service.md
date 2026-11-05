@@ -1,5 +1,7 @@
 # ADR-055: KEV Poller — Always-On Kingdom Service (and K8s Cross-Host Pilot)
 
+> **2026-11-04 (DP-17):** Kubernetes is a lab component in its own repository, `unheaded-k8s`; not a product target. The platform scales from one host to many without it. The manifests, chart and lab named here moved there with their history.
+
 **Status**: **Planned** (hard requirement per Stevie 2026-04-27: *"KEV JSON fetch service MUST ALWAYS be running in the Kingdom — we can play with k8's across metal host with things like that"*)
 **Date**: 2026-04-27
 **Deciders**: Stevie (initiating), MoatGhost (compliance/threat owner), Sentinel (blue team consumer), Architect (k8s placement), Computermancer (DaemonSet/Service-Mesh integration)

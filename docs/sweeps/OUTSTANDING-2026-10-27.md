@@ -273,7 +273,7 @@ Defaults are the sweeps' recommendations where one exists.
 40. PQC_SIG_STATUS: wire OPTIMISTIC / delete / lift Layer-1 freeze? Default: delete until keymgmt is un-parked. M-181.
 41. G9 control planes (8): un-park which, delete the rest? Default: keymgmt only if M-181 wires; delete firewall/nfv/qos/selfheal/compliance/version/canary-ebpf consumers. M-186.
 42. AF_XDP: product path or retire Decision 5? Default: retire (XDP/TC supervised path is live). M-187.
-43. Is Kubernetes still a deploy target? Decides CG-24/SP-08/SP-23/B-17/K-01..06/A-4 (all parked in §4 until answered). Default: lab-only, not a target.
+43. Is Kubernetes still a deploy target? Decides CG-24/SP-08/SP-23/B-17/K-01..06/A-4 (all parked in §4 until answered). Default: lab-only, not a target. **Answered 2026-11-04 (DP-17): lab component in `unheaded-k8s`; the eleven rows close as lab only.**
 
 **E14/E15 UPC + Doom**
 44. getpid numbering: xv6 `p->pid` (init=1) or BPF slot (init=0). Default: kernel numbering (EVOLUTION-1 direction). M-220.

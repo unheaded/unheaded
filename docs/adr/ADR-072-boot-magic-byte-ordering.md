@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-05-10
 **Deciders:** unheaded-developer (impl invariant lens) + unheaded-micromanager (QA gate + DoD lens) + unheaded-busboy (cross-doc + crew translation)
-**Aligns with:** ADR-067 (MBC ISA v2 + UPC ABI v1), `docs/doom/UPC_BOOT_PROTOCOL.md`, `docs/doom/UPC_BOOT_PROTOCOL_V2.md`
+**Aligns with:** ADR-067 (MBC ISA v2 + UPC ABI v1), `docs/upc/UPC_BOOT_PROTOCOL.md`, `docs/upc/UPC_BOOT_PROTOCOL_V2.md`
 
 ---
 
@@ -18,7 +18,7 @@ Two coherent ways exist to talk about that value:
 | MSB-first hex | `0x554E4844` reads as `'U','N','H','D'` (the brand spelling) | Spec text, equality comparisons, conversation, debugger u32 view |
 | Little-endian wire | The 4 bytes at increasing memory addresses are `0x44, 0x48, 0x4E, 0x55` = `'D','H','N','U'` | `BOOT_MAGIC.to_le_bytes()`, hex-dump of the BootParams region, byte-iterating consumers |
 
-Both views describe the same constant. Pre-resolution, the spec docs (`docs/doom/UPC_BOOT_PROTOCOL.md:73` and `docs/doom/UPC_BOOT_PROTOCOL_V2.md:113,140`) said only `'UNHD' = 0x554E4844`; the Rust docstring at `crates/xv6-mbc/src/lib.rs:38-50` flagged the apparent inconsistency as "Surfaced for daytime resolution"; the test `boot_magic_le_bytes_visual_is_dhnu` pinned the wire bytes as `DHNU` with a comment naming this as an open spec-clarity question. Future readers were primed to re-open the question.
+Both views describe the same constant. Pre-resolution, the spec docs (`docs/upc/UPC_BOOT_PROTOCOL.md:73` and `docs/upc/UPC_BOOT_PROTOCOL_V2.md:113,140`) said only `'UNHD' = 0x554E4844`; the Rust docstring at `crates/xv6-mbc/src/lib.rs:38-50` flagged the apparent inconsistency as "Surfaced for daytime resolution"; the test `boot_magic_le_bytes_visual_is_dhnu` pinned the wire bytes as `DHNU` with a comment naming this as an open spec-clarity question. Future readers were primed to re-open the question.
 
 Marshal hand-off 2026-05-09 listed this as task #64. Three options surfaced:
 
@@ -42,8 +42,8 @@ This is the same pattern as ELF's `\x7fELF` magic, which is `0x464C457F` as a ho
 
 ## Affected surfaces (all updated in lockstep with this ADR)
 
-1. `docs/doom/UPC_BOOT_PROTOCOL.md` §"Magic Value" — adds the explicit byte-table + ELF parallel.
-2. `docs/doom/UPC_BOOT_PROTOCOL_V2.md` line 113 (struct comment) and line 140 (field-semantics text) — adds canonical/wire framing inline.
+1. `docs/upc/UPC_BOOT_PROTOCOL.md` §"Magic Value" — adds the explicit byte-table + ELF parallel.
+2. `docs/upc/UPC_BOOT_PROTOCOL_V2.md` line 113 (struct comment) and line 140 (field-semantics text) — adds canonical/wire framing inline.
 3. `crates/xv6-mbc/src/lib.rs:38-50` — docstring rewritten from "daytime resolution" open question to canonical/wire-form explanation citing this ADR.
 4. `crates/xv6-mbc/src/lib.rs:65` — test docstring updated to "Intentional pin per ADR-072".
 5. `cmd/upc-bootctl/src/bootparams.rs:118` — test docstring updated to "Intentional pin per ADR-072".

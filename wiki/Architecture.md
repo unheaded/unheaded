@@ -1,5 +1,7 @@
 # System Architecture
 
+> **2026-11-04:** Doom moved to the `unheaded-doom` repository (DP-305), `doom-bridge` and `scripts/doom-ring.sh` with it. `monad_cpu` and the ring stay; the Doom examples below describe how the fixture in `doom/` runs. See `docs/upc/DOOM-LESSONS.md`.
+
 ## Overview
 
 Unheaded is a configuration management automation platform built on 6 layers, from bare metal infrastructure up through a user-facing dashboard. The platform delivers production-ready infrastructure for SaaS applications, with eBPF-based observability at every hop and NIST 800-207 Zero Trust Architecture by architectural design.
@@ -30,7 +32,6 @@ Layer 3: Infrastructure Services
   wotan       -- Message bus (gRPC + ring buffer + pub/sub)
   trace-collector -- eBPF ring buffer reader, trace correlation
   gateway     -- Traefik in compose (edge 80/443, gRPC 50051); nginx sidecars in other substrates
-  doom-bridge -- Framebuffer reader, WebSocket frame streaming
   The Well    -- PostgreSQL 16, three databases, TLS only ([[The Well|The-Well]])
   observe     -- VictoriaMetrics, ClickHouse, Vector, Grafana
   huginn      -- per-host metrics agent (systemd, not a container; ADR-084)
@@ -44,7 +45,7 @@ Layer 1: Data Plane (eBPF)
   packet_marker  -- Trace ID injection at XDP layer
   flow_tracker   -- Connection tracking per-flow
   latency_probe  -- RTT measurement
-  monad_cpu      -- MBC bytecode interpreter (Doom execution engine)
+  monad_cpu      -- MBC bytecode interpreter
 
 Layer 0: Infrastructure
   LXD / containerd / NixOS / Docker (interchangeable runtimes)

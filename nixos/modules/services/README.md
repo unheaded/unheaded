@@ -24,7 +24,6 @@ This directory contains 25 NixOS systemd service modules for the Unheaded Kingdo
 
 ### Layer 5: Infrastructure Services (2 services)
 - `service-discovery.nix` - Service discovery registry & Greaves [gRPC :50057, HTTP :8500]
-- `doom.nix` - DOOM BPF compute substrate [TCP :16680]
 
 ### Layer 6: Red Team & Security (1 service)
 - `lich.nix` - Lich automated adversary & red team continuous [internal]
@@ -94,7 +93,6 @@ services.unheaded.wotan.enable = true;
 
 ### Special Ports
 - 4222: wotan (NATS)
-- 16680: doom (TCP compute substrate)
 
 ## Security Features
 

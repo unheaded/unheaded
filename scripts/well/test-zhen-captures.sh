@@ -22,18 +22,14 @@
 #   9. zhen_captures_purge() as app_zhen removes exactly the expired
 #      unpromoted and the quarantined captures, with their labels, and
 #      leaves the rest.
-#  10. --with-ingest: cmd/zhen-flywheel's Well store (build tag wellint)
-#      against the same server as app_zhen (WELL_TEST_APP_DSN).
 #
-#   scripts/well/test-zhen-captures.sh [--with-ingest] [image]   # default postgres:16.15-alpine
+#   scripts/well/test-zhen-captures.sh [image]   # default postgres:16.15-alpine
 #
 # WELL_MIGRATIONS_DIR (default db/migrations) points the bootstrap at
 # another copy of the migrations, so a provocation can be tested.
 # Needs docker (sudo if not in the group).
 set -euo pipefail
 
-GO=0
-if [[ "${1:-}" == --with-ingest ]]; then GO=1; shift; fi
 IMAGE="${1:-postgres:16.15-alpine}"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 SRC="${WELL_MIGRATIONS_DIR:-$R/db/migrations}"
@@ -62,7 +58,6 @@ for _ in $(seq 1 120); do
 	sleep 1
 done
 ((ready)) || { "${DOCKER[@]}" logs "$N" 2>&1 | tail -20; echo "postgres did not become ready"; exit 1; }
-PORT="$("${DOCKER[@]}" port "$N" 5432/tcp | head -1 | sed 's/.*://')"
 
 sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c "$1"; }
 zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_app -c "$1"; }
@@ -184,17 +179,6 @@ is "  ... their labels went with them" 0 \
 is "  ... the others' labels stay" 2 \
 	"$(sq "SELECT count(*) FROM zhen_capture_labels WHERE capture_id IN ('$(hex 21)', '$(hex 22)')")"
 refused "the purge flag does not stay on" own "DELETE FROM zhen_captures WHERE id = '$(hex 22)'"
-
-# 10. The Go Well store against this server.
-if ((GO)); then
-	export WELL_TEST_APP_DSN="postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
-	if (cd "$R" && go test -count=1 -tags wellint ./cmd/zhen-flywheel/ -run Well -v >"$TMP/go.out" 2>&1); then
-		pass "go test -tags wellint ./cmd/zhen-flywheel -run Well"
-	else
-		fail "go Well-store test"; tail -25 "$TMP/go.out" | sed 's/^/    /'
-	fi
-	unset WELL_TEST_APP_DSN
-fi
 
 if ((fails > 0)); then echo "$fails check(s) failed"; exit 1; fi
 echo "all checks passed"

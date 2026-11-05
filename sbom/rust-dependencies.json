@@ -5,14 +5,14 @@
   "name": "unheaded-rust-dependencies",
   "documentNamespace": "https://github.com/unheaded/unheaded/sbom/rust",
   "creationInfo": {
-    "created": "2026-11-04T00:00:00Z",
+    "created": "2026-11-05T00:00:00Z",
     "creators": [
       "Tool: cargo-lock-parser",
       "Organization: Unheaded"
     ]
   },
   "summary": {
-    "totalExternalCrates": 364,
+    "totalExternalCrates": 352,
     "workspaceCrates": [
       "anomaly-ebpf",
       "aws-lc-rs",
@@ -20,7 +20,6 @@
       "cartridge-ebpf",
       "collector",
       "compliance-ebpf",
-      "doom-runner",
       "ebpf-common",
       "ebpf-load-check",
       "ebpf-loader",
@@ -57,11 +56,10 @@
       "version-ebpf",
       "xv6-mbc",
       "yaldabaoth-ebpf",
-      "zhenai-forge",
       "zhend"
     ],
     "licenseSummary": {
-      "MIT OR Apache-2.0 (assumed)": 274,
+      "MIT OR Apache-2.0 (assumed)": 262,
       "MIT OR Apache-2.0": 64,
       "MIT": 21,
       "Apache-2.0": 4,
@@ -74,7 +72,6 @@
       "cmd/ebpf-load-check/Cargo.lock",
       "cmd/ebpf-loader/Cargo.lock",
       "cmd/upc-bootctl/Cargo.lock",
-      "crates/doom-runner/Cargo.lock",
       "crates/heimdall-bpf/Cargo.lock",
       "crates/lich-fuzz/Cargo.lock",
       "crates/monad-mbc/Cargo.lock",
@@ -85,7 +82,6 @@
       "crates/upc-bootstub/Cargo.lock",
       "crates/upc-cartridge/Cargo.lock",
       "crates/xv6-mbc/Cargo.lock",
-      "crates/zhenai-forge/Cargo.lock",
       "crates/zhend/Cargo.lock",
       "ebpf/Cargo.lock",
       "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
@@ -131,7 +127,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -143,8 +138,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock"
       ]
     },
     {
@@ -171,7 +165,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -183,7 +176,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -195,7 +187,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -207,7 +198,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -219,7 +209,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -232,7 +221,6 @@
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
@@ -264,8 +252,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock"
       ]
     },
     {
@@ -292,7 +279,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -302,7 +288,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -337,7 +322,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -347,7 +331,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -359,8 +342,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock"
       ]
     },
     {
@@ -421,8 +403,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock"
       ]
     },
     {
@@ -431,7 +412,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/svc-token/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
@@ -495,8 +475,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -514,7 +492,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -557,7 +534,6 @@
       "version": "1.5.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -570,7 +546,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -641,13 +616,11 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/svc-token/Cargo.lock",
         "crates/upc-api/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -716,7 +689,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -728,7 +700,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -740,7 +711,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -752,7 +722,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -772,7 +741,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -792,8 +760,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock"
       ]
     },
     {
@@ -818,7 +785,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -841,7 +807,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -890,7 +855,6 @@
       "version": "0.2.4",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -900,7 +864,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -936,14 +899,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "data-encoding",
-      "version": "2.11.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
@@ -987,7 +942,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1045,7 +999,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1056,8 +1009,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1075,7 +1026,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1134,8 +1084,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock"
       ]
     },
     {
@@ -1144,14 +1093,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "form_urlencoded",
-      "version": "1.2.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
@@ -1185,16 +1126,7 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "futures-macro",
-      "version": "0.3.34",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
@@ -1203,7 +1135,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1213,7 +1144,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1223,7 +1153,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1241,7 +1170,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1253,7 +1181,6 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/svc-token/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
@@ -1267,7 +1194,6 @@
         "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-api/fuzz/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1309,14 +1235,6 @@
       ]
     },
     {
-      "crate": "goblin",
-      "version": "0.9.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
-      ]
-    },
-    {
       "crate": "h2",
       "version": "0.4.20",
       "license": "MIT",
@@ -1330,7 +1248,6 @@
       "version": "2.7.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1351,8 +1268,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock"
       ]
     },
     {
@@ -1364,7 +1280,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1376,7 +1291,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1418,7 +1332,6 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1428,7 +1341,6 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1438,7 +1350,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1448,7 +1359,6 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1458,7 +1368,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1468,7 +1377,6 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1487,7 +1395,6 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1525,7 +1432,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1561,7 +1467,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1590,9 +1495,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
@@ -1648,7 +1551,6 @@
       "version": "1.5.1",
       "license": "MIT OR Apache-2.0",
       "found_in": [
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1661,13 +1563,11 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/svc-token/Cargo.lock",
         "crates/upc-api/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1695,7 +1595,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1705,7 +1604,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1718,7 +1616,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
@@ -1740,7 +1637,6 @@
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1750,7 +1646,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1764,19 +1659,9 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "memmap2",
-      "version": "0.9.11",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/zhenai-forge/Cargo.lock"
       ]
     },
     {
@@ -1785,7 +1670,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1804,7 +1688,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1830,7 +1713,6 @@
       "version": "0.50.3",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1866,8 +1748,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock"
+        "cmd/upc-bootctl/Cargo.lock"
       ]
     },
     {
@@ -1879,8 +1760,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1892,7 +1771,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1918,7 +1796,6 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1936,7 +1813,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -1962,7 +1838,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2000,7 +1875,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2018,7 +1892,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
@@ -2083,7 +1956,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2146,14 +2018,12 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
         "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/xv6-mbc/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock",
         "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
@@ -2255,14 +2125,12 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
         "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/xv6-mbc/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock",
         "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
@@ -2277,7 +2145,6 @@
         "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-api/fuzz/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2295,7 +2162,6 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2313,7 +2179,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2323,7 +2188,6 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2373,7 +2237,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2402,7 +2265,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2413,7 +2275,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2449,7 +2310,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2487,7 +2347,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
@@ -2499,14 +2358,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "ryu",
-      "version": "1.0.23",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
@@ -2523,7 +2374,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2533,7 +2383,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
@@ -2547,7 +2396,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
@@ -2574,9 +2422,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
@@ -2590,9 +2436,7 @@
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
@@ -2606,9 +2450,7 @@
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
@@ -2621,35 +2463,9 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "serde_path_to_error",
-      "version": "0.1.20",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "serde_urlencoded",
-      "version": "0.7.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "sha1",
-      "version": "0.10.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
@@ -2668,7 +2484,6 @@
       "version": "0.1.7",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2692,7 +2507,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2718,7 +2532,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2736,7 +2549,6 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2755,7 +2567,6 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2767,7 +2578,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2790,13 +2600,11 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/xv6-mbc/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock",
         "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
@@ -2811,10 +2619,8 @@
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
         "crates/lich-fuzz/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]
@@ -2825,7 +2631,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2835,7 +2640,6 @@
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2848,7 +2652,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
@@ -2878,7 +2681,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
@@ -2904,7 +2706,6 @@
       "version": "1.1.10",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2931,7 +2732,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2942,7 +2742,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2953,14 +2752,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "tokio-tungstenite",
-      "version": "0.24.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
       ]
     },
     {
@@ -3029,7 +2820,6 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3039,7 +2829,6 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3049,7 +2838,6 @@
       "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3060,7 +2848,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3071,7 +2858,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3082,7 +2868,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3091,7 +2876,6 @@
       "version": "0.2.0",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3108,7 +2892,6 @@
       "version": "0.3.23",
       "license": "MIT",
       "found_in": [
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3122,20 +2905,11 @@
       ]
     },
     {
-      "crate": "tungstenite",
-      "version": "0.24.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
-      ]
-    },
-    {
       "crate": "typenum",
       "version": "1.20.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -3159,14 +2933,12 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
         "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
         "crates/xv6-mbc/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock",
         "tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock"
@@ -3215,14 +2987,6 @@
       ]
     },
     {
-      "crate": "utf-8",
-      "version": "0.7.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/doom-runner/Cargo.lock"
-      ]
-    },
-    {
       "crate": "utf8-zero",
       "version": "0.8.1",
       "license": "MIT OR Apache-2.0 (assumed)",
@@ -3238,7 +3002,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3247,7 +3010,6 @@
       "version": "0.1.1",
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
-        "crates/doom-runner/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3261,7 +3023,6 @@
         "cmd/ebpf-load-check/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/upc-cartridge/Cargo.lock",
@@ -3309,7 +3070,6 @@
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/svc-token/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
@@ -3442,8 +3202,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3482,8 +3240,6 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3616,8 +3372,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3627,8 +3381,6 @@
       "license": "MIT OR Apache-2.0 (assumed)",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -3665,9 +3417,7 @@
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
-        "crates/doom-runner/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
-        "crates/zhenai-forge/Cargo.lock",
         "crates/zhend/Cargo.lock",
         "ebpf/Cargo.lock"
       ]

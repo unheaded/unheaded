@@ -7,7 +7,6 @@
 The tool provides two main commands:
 
 - **load-rom**: Load MBC bytecode into BPF `rom_map` (CPU instruction memory)
-- **load-mem**: Load binary data into Wotan's L2 ring buffer (RAM)
 
 ## Build & Install
 
@@ -146,48 +145,6 @@ Statistics:
   Est. runtime @ 35fps: 21.6 frames
 ```
 
-### load-mem: Load Binary Data
-
-Loads binary data into Wotan's L2 ring buffer (RAM).
-
-**Usage:**
-```bash
-wotan-ctl load-mem --file <path> --base-addr <addr> --flow-label <label> [options]
-```
-
-**Required Flags:**
-- `--file <path>`: Path to binary data file
-- `--base-addr <addr>`: Base memory address (decimal or hex: 0x100000)
-- `--flow-label <label>`: IPv6 flow label
-
-**Optional Flags:**
-- `--wotan-addr <addr>`: Wotan server address (default: http://localhost:5555)
-- `--map-pin <dir>`: BPF map pin directory (default: /sys/fs/bpf)
-- `--warm`: Pre-stage memory pages to L1 cache
-- `--verify`: Verify memory after loading (checksum comparison)
-- `--verbose`: Enable debug logging
-
-**Examples:**
-```bash
-# Load WAD file at address 0x100000
-wotan-ctl load-mem --file doom1.wad --base-addr 0x100000 --flow-label 0x123456
-
-# Load and pre-warm L1 cache
-wotan-ctl load-mem --file sprite.bin --base-addr 0x200000 --flow-label 0x100 --warm
-
-# Load with verification
-wotan-ctl load-mem --file data.bin --base-addr 0x0 --flow-label 0x50 --verify
-```
-
-**File Format:**
-- Any binary data
-- Automatically split into 4096-byte pages
-
-**Memory Layout:**
-- L2 ring buffer granularity: 4096 bytes per page
-- L1 cache line size: 64 bytes
-- Addressed by (flow_label, base_addr + offset)
-
 ## Architecture
 
 ### Components
@@ -206,7 +163,6 @@ wotan-ctl load-mem --file data.bin --base-addr 0x0 --flow-label 0x50 --verify
 - `CpuState`: CPU register and state structure
 
 #### load_mem.go (D-009)
-- `newLoadMemCmd()`: Creates load-mem subcommand
 - `loadMem()`: Core memory loading logic
 - Data pagination (4096-byte pages)
 - MD5 checksum calculation

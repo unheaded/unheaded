@@ -34,8 +34,7 @@ The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the L
 |  Unheaded Platform (GPL-3.0 / GPL-3.0 / Apache 2.0) |
 |  Go binaries, Rust binaries, JS frontend        |
 |                                                  |
-|  cmd/doom-bridge   cmd/doom-loader               |
-|  cmd/doom-go-injector   internal/bpf*            |
+|  cmd/upc-bootctl                                 |
 |       |                    |                     |
 |       +--- bpf(2) syscalls (data only) ---------+|
 |            read/write BPF map contents           |
@@ -75,16 +74,10 @@ The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the L
 
 ### GPL v2 Licensed Components (inside the boundary)
 
+The Doom sources, tools and WAD handling moved to `unheaded-doom` on 2026-11-04 (DP-305). What stays is the compiled fixture.
+
 | Path | Description | License | Notes |
 |------|-------------|---------|-------|
-| `doom/doomgeneric/` | Portable DOOM source port by ozkl. Original DOOM engine (C) 1993-1996 id Software. | GPL v2 | Upstream: https://github.com/ozkl/doomgeneric |
-| `doom/doomgeneric/doomgeneric/doomgeneric_monad.c` | Monad BPF VM platform layer (Unheaded modification) | GPL v2 (derivative) | Implements DG_Init, DG_DrawFrame, etc. for MBC |
-| `doom/doomgeneric/doomgeneric/crt0_monad.S` | Monad C runtime startup (Unheaded modification) | GPL v2 (derivative) | Bare-metal MBC environment stack setup |
-| `doom/doomgeneric/doomgeneric/libc_monad.c` | Minimal libc for Monad target (Unheaded modification) | GPL v2 (derivative) | memcpy, memset, strlen, printf via MBC syscalls |
-| `doom/doomgeneric/doomgeneric/monad.ld` | Linker script for Monad MBC target (Unheaded modification) | GPL v2 (derivative) | Memory layout with SCREEN_BASE at 0xC000 |
-| `doom/doomgeneric/doomgeneric/w_file_monad.c` | WAD file I/O for Monad target (Unheaded modification) | GPL v2 (derivative) | Doom data file loading |
-| `doom/doomgeneric/doomgeneric/Makefile.monad` | Build configuration for Monad target (Unheaded modification) | GPL v2 (derivative) | Compilation rules for MBC bytecode |
-| `doom/doomgeneric/doomgeneric/monad_include/` | Freestanding libc headers for Monad target (Unheaded modification) | GPL v2 (derivative) | C standard library declarations |
 | `doom/doom.mbc` | Compiled MBC bytecode artifact from doomgeneric | GPL v2 (compiled form) | Binary executable in eBPF map |
 | `doom/doom.rv2mbc` | Intermediate RV32I-to-MBC translated artifact | GPL v2 (compiled form) | Intermediate translation stage |
 
@@ -92,7 +85,6 @@ The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the L
 
 | Path | Description | License | Origin |
 |------|-------------|---------|--------|
-| `doom/doom1.wad` | DOOM Shareware WAD file by id Software | Freely redistributable (shareware) | id Software (1993) |
 
 **Note:** WAD files contain game data (levels, sprites, textures) and are not covered by the GPL license. They are id Software shareware and are redistributable under the original shareware terms.
 
@@ -102,16 +94,7 @@ All code outside the `doom/` directory is **original Unheaded work** licensed un
 
 | Path | Description | License |
 |------|-------------|---------|
-| `cmd/doom-bridge/` | Go tool: bridges DOOM BPF map state to WebSocket for live viewport streaming | GPL-3.0-or-later |
-| `cmd/doom-loader/` | Go tool: loads compiled MBC bytecode into BPF maps for execution | GPL-3.0-or-later |
-| `cmd/doom-cpu-dump/` | Go tool: dumps MBC CPU register state from BPF maps for debugging | GPL-3.0-or-later |
-| `cmd/doom-go-injector/` | Go tool: injects keyboard input and tick events into DOOM via BPF maps | GPL-3.0-or-later |
-| `cmd/doom/` | Go DOOM orchestrator/launcher | GPL-3.0-or-later |
 | `internal/bpf/` | Go BPF wrappers for loading and interacting with BPF programs and maps | GPL-3.0-or-later |
-| `dashboard/doom.html` | HTML page for DOOM live viewport in dashboard | GPL-3.0-or-later |
-| `dashboard/js/doom-viewport.js` | JavaScript WebSocket client rendering DOOM frames in canvas | GPL-3.0-or-later |
-| `scripts/doom-*.{sh,py}` | Shell and Python helper scripts for DOOM development and testing | GPL-3.0-or-later |
-| `configs/doom.toml` | DOOM subsystem configuration | GPL-3.0-or-later |
 
 ---
 
@@ -359,7 +342,6 @@ grep -rn '<script[^>]*src="https' --include=*.html . | grep -v node_modules
 
 - `/LICENSE` — GPL-3.0-or-later (main codebase)
 - `/doom/LICENSE` — GPL v2 boundary documentation
-- `/doom/doomgeneric/LICENSE` — GPL v2 full text (upstream)
 - `/LICENSES/THIRD_PARTY.md` — Detailed third-party attributions with full license texts
 - `/docs/legal/IP-INVENTORY.md` — Intellectual property asset inventory
 - `/docs/compliance/SBOM.md` — Software Bill of Materials

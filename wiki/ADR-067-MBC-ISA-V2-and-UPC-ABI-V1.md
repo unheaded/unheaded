@@ -42,5 +42,5 @@ Closed at task #41. All 5 opcodes implemented in monad-mbc + monad-cpu-ebpf, tes
 - [ADR Index](ADR-Index.md)
 - [[ADR-072|ADR-072-Boot-Magic-Byte-Ordering]] — BOOT_MAGIC byte-ordering
 - [Architecture overview](Architecture.md)
-- `docs/doom/UPC_BOOT_PROTOCOL_V2.md` — boot protocol that consumes these opcodes
+- `docs/upc/UPC_BOOT_PROTOCOL_V2.md` — boot protocol that consumes these opcodes
 - `references/battle-plan-ascend-linux-2026-05-08.md` §3 (Phase 0)

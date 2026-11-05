@@ -217,4 +217,4 @@ bytes queued in the ring at a time. Mode C (SSH-over-IPv6) is post-Phase-4 work.
 
 ---
 
-> **Source:** [crates/xv6-mbc/](../crates/xv6-mbc/) · [ebpf/monad-cpu-ebpf/src/main.rs](../ebpf/monad-cpu-ebpf/src/main.rs) · [cmd/upc-bootctl/](../cmd/upc-bootctl/) · [docs/doom/UPC_BOOT_PROTOCOL_V2.md](../docs/doom/UPC_BOOT_PROTOCOL_V2.md) · [references/battle-plan-ascend-linux-2026-05-08.md](../references/battle-plan-ascend-linux-2026-05-08.md)
+> **Source:** [crates/xv6-mbc/](../crates/xv6-mbc/) · [ebpf/monad-cpu-ebpf/src/main.rs](../ebpf/monad-cpu-ebpf/src/main.rs) · [cmd/upc-bootctl/](../cmd/upc-bootctl/) · [docs/upc/UPC_BOOT_PROTOCOL_V2.md](../docs/upc/UPC_BOOT_PROTOCOL_V2.md) · [references/battle-plan-ascend-linux-2026-05-08.md](../references/battle-plan-ascend-linux-2026-05-08.md)

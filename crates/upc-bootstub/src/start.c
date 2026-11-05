@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-/* ── BootParamsV2 layout (must match docs/doom/UPC_BOOT_PROTOCOL_V2.md) ─── */
+/* ── BootParamsV2 layout (must match docs/upc/UPC_BOOT_PROTOCOL_V2.md) ─── */
 
 #define BOOT_PARAMS_ADDR  ((volatile struct boot_params_v2 *)0x00000100)
 #define BOOT_MAGIC        0x554E4844u  /* canonical hex per ADR-072 */

@@ -55,7 +55,7 @@ operand layout (engines: CAS uses r0/r1/r2); the "256-instruction limit" and the
 non-`ascend-linux` BPF build executes the ISA v2 opcodes as no-ops (the draft now says an
 engine without ISA v2 SHOULD reject them at load time).
 
-**Overlap to check (not a ruling):** `docs/doom/UPC_BOOT_PROTOCOL_V2.md` still shows the
+**Overlap to check (not a ruling):** `docs/upc/UPC_BOOT_PROTOCOL_V2.md` still shows the
 CSR region as `0xF000-0xF0FF` and puts the stage-1 stub at `0x10000-0x1FFFF`, which
 overlaps CSR bytes `0x10000-0x12FFC` (CSR indices `0x400-0xFFF`, which include the
 counters at `0xC00` and `mhartid` at `0xF14`).

@@ -3,7 +3,7 @@
  * kernel-mbc.ld — Linker script for xv6 on UPC.
  * ASCEND-LINUX Phase 1.1.
  *
- * Memory layout per docs/doom/UPC_BOOT_PROTOCOL_V2.md:
+ * Memory layout per docs/upc/UPC_BOOT_PROTOCOL_V2.md:
  *   0x00000-0x003FF  IVT (256 vectors × 4 bytes)
  *   0x00100-0x001FF  BootParams v2 (256 bytes)
  *   0x00200-0x003FF  Kernel command line

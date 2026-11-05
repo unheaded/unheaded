@@ -125,7 +125,7 @@ paragraph does).
 **Agent**: Coordinator; one review agent at Step 26
 
 - [x] **Step 19** *(D1-D5 in ADR-109; no Override held)* [DECIDE] ~10m: `$PLAN` Steps 43-45 as written (per-slot trapframes published in `UPC_TF_TABLE`; BPF publishes `UPC_CUR_SLOT` and `UPC_SLOT_GEN[8]`; rows are `proc[0..7]`). Record each decision and whether its Override condition held.
-- [x] **Step 20** *(0xF100 rejected: low page not provably free; tables in kernel .bss, address in BootParams reserved[0] at 0x160)* [R] ~10m: `$PLAN` Step 51: a free, user-unreachable address for the three tables (8 + 1 + 8 words): read `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`, `crates/xv6-mbc/adapters/kernel-mbc.ld`, the CSR window (`0xF000-0xF0FF`), BootParams (`0x100`), and `phase12.rs` for the user slices. Candidate: `0xF100` (right after the CSR window, inside the reserved low page). Record the choice and why no user slice maps it.
+- [x] **Step 20** *(0xF100 rejected: low page not provably free; tables in kernel .bss, address in BootParams reserved[0] at 0x160)* [R] ~10m: `$PLAN` Step 51: a free, user-unreachable address for the three tables (8 + 1 + 8 words): read `docs/upc/UPC_PAGE_TABLE_LAYOUT.md`, `crates/xv6-mbc/adapters/kernel-mbc.ld`, the CSR window (`0xF000-0xF0FF`), BootParams (`0x100`), and `phase12.rs` for the user slices. Candidate: `0xF100` (right after the CSR window, inside the reserved low page). Record the choice and why no user slice maps it.
 - [x] **Step 21** [W] ~10m: `$PLAN` Step 46 (invariants) and Step 47 (cost estimate) in `$LOG`.
 - [x] **Step 22** *(19dd047c)* [W] ~25m: `docs/adr/ADR-109-upc-kernel-rows-per-bpf-slot.md` (Proposed) + the `ADR-INDEX.md` row (`$PLAN` Step 48). Bare technical style.
 - [x] **Step 23** [B] ~2m: Link check (`$PLAN` Step 49).

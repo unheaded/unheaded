@@ -29,7 +29,6 @@ Release dates are from `proxy.golang.org/<module>/@latest`, retrieved 2026-10-29
 | google.golang.org/grpc | v1.84.0 | v1.85.0 (2026-10-27) | 0 | network protocol | Wotan transport | none | keep |
 | google.golang.org/protobuf | v1.36.12 | v1.36.12 (2026-08-10) | 2 | wire decoding | gRPC messages | none | keep |
 | modernc.org/sqlite | v1.61.0 | v1.61.0 (2026-10-21) | 0 | parses SQLite files | kanban fallback store, pure Go (no cgo) | none | keep |
-| github.com/unheaded/doomgeneric | v0.0.0 (replace → local path) | ours | — | — | ours | — | keep (ours) |
 
 ## Rust — watch rows
 

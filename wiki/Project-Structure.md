@@ -11,7 +11,7 @@ Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust 
 | `pkg/` | Shared Go packages: auth, audit, transport, discovery, logagg, health, ports, wotan-client, compliance, champion, gungnir, gjallarhorn, enkrateia, pqc_policy, … |
 | `internal/` | Repo-private Go helpers (bpf, bpfmap, ebpf, doom, dashboard) |
 | `ebpf/` | Rust/Aya eBPF workspace (GPL-2.0-only): XDP/TC programs + shared types |
-| `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, xv6-mbc, doom-runner, heimdall-bpf, lich-fuzz, zhend, zhenai-forge |
+| `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, xv6-mbc, doom-runner, heimdall-bpf, lich-fuzz, zhend |
 | `arch/mbc/` | MBC architecture support for the UPC kernel |
 | `drivers/` | UPC guest drivers (tty, block) |
 | `proto/`, `api/` | Protobuf definitions, `openapi.yaml` |
@@ -36,7 +36,7 @@ Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust 
 | `deploy/` | systemd units ([[Systemd-Units]]), `sysusers.d/` (one account per service), east offsite, ansible, argocd, k8s, tofu, nftables |
 | `docker/`, `docker-compose*.yml` | Compose stack: services, hosts, telemetry, firewall, nginx |
 | `containers/`, `lxd/`, `nix/`, `nixos/` | The four container runtimes + NixOS host config ([[Containers]]) |
-| `kubernetes/`, `helm/` | K8s manifests and chart |
+| (moved) | K8s manifests and chart live in `unheaded-k8s` (DP-17) |
 | `monitoring/` | Prometheus rules, Grafana dashboards, Loki, Alertmanager |
 | `routing/` | BIRD, FRR, OSPF, IS-IS, MPLS configs |
 | `debian/`, `jenkins/` | Packaging, Jenkins pipeline |

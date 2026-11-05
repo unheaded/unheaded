@@ -245,7 +245,7 @@ func (c *Champion) RunCheck(ctx context.Context, key, path, crate string) (RunCh
 	}
 	checkRunsTotal.WithLabelValues(label, result).Inc()
 	// The check ran to completion either way; the verdict is the summary
-	// (zhen-flywheel label reads it). zhen_actions.status allows only
+	// (zhen-flywheel label, in unheaded-forge, reads it). zhen_actions.status allows only
 	// planned/executing/completed/failed/reverted (009), and "failed" is
 	// for a check that could not run.
 	c.completeAction(ctx, actionID, "completed", fmt.Sprintf("exit=%d pass=%v", res.Exit, res.Pass), "", time.Since(start))

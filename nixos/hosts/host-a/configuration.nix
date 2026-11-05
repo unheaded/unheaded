@@ -24,7 +24,6 @@
     ../../modules/services/trace-collector.nix
     ../../modules/services/gateway.nix
     ../../modules/services/service-discovery.nix
-    ../../modules/services/doom.nix
     ../../modules/services/lich.nix
     ../../modules/services/captain.nix
     ../../modules/services/micromanager.nix
@@ -85,7 +84,6 @@
         50054   # gRPC (anamnesis)
         50055   # gRPC (shield)
         4222    # NATS
-        16680   # DOOM compute port
       ];
       allowedUDPPorts = [
         51820   # WireGuard

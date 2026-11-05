@@ -1,5 +1,7 @@
 # ADR-088 — Kingdom Deployment Substrate Ladder
 
+> **2026-11-04 (DP-17):** Kubernetes is a lab component in its own repository, `unheaded-k8s`; not a product target. The platform scales from one host to many without it. The manifests, chart and lab named here moved there with their history.
+
 **Status:** Planned
 **Date:** 2026-07-24
 **Author:** Stevie Bellis

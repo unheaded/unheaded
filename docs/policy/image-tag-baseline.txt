@@ -18,8 +18,6 @@ docker/services/dashboard-backend/Dockerfile debian:bookworm-slim
 docker/services/dashboard-backend/Dockerfile gcr.io/distroless/static-debian12:nonroot
 docker/services/developer/Dockerfile debian:bookworm-slim
 docker/services/developer/Dockerfile gcr.io/distroless/static-debian12:nonroot
-docker/services/doom/Dockerfile debian:bookworm-slim
-docker/services/doom/Dockerfile gcr.io/distroless/static-debian12:nonroot
 docker/services/gateway/Dockerfile debian:bookworm-slim
 docker/services/gateway/Dockerfile gcr.io/distroless/static-debian12:nonroot
 docker/services/kanban/Dockerfile debian:bookworm-slim

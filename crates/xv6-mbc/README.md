@@ -4,7 +4,7 @@
 **Source plan:** `references/battle-plan-ascend-linux-2026-05-08.md` Phase 1.
 
 This crate hosts the xv6-riscv kernel ported to MBC ISA so it boots on the
-UPC. xv6 is the L5 MiniKernel rung of the Dream Ladder (`docs/doom/ROAD_TO_LINUX.md`).
+UPC. xv6 is the L5 MiniKernel rung of the Dream Ladder (`docs/upc/ROAD_TO_LINUX.md`).
 
 ## Layout
 
@@ -60,8 +60,8 @@ implementations. This minimizes upstream drift and makes it obvious where
 
 | xv6 file | Replacement | Why |
 |----------|-------------|-----|
-| `kernel/start.c` | `adapters/start_mbc.c` | xv6's `start()` runs in M-mode, sets up MEPC + MTVEC + Sv32 paging, then MRETs to S-mode. We replace with an MBC-aware version that reads BootParams v2 (per `docs/doom/UPC_BOOT_PROTOCOL_V2.md`) and uses our memory-mapped CSR region. |
-| `kernel/uart.c` | `adapters/console-mmio.c` | xv6's UART driver hits MMIO 0x10000000 (QEMU virt machine). Replace with writes to MMIO 0xC001 (UPC convention per `docs/doom/UPC_OS_PRIMITIVES.md` L4f). |
+| `kernel/start.c` | `adapters/start_mbc.c` | xv6's `start()` runs in M-mode, sets up MEPC + MTVEC + Sv32 paging, then MRETs to S-mode. We replace with an MBC-aware version that reads BootParams v2 (per `docs/upc/UPC_BOOT_PROTOCOL_V2.md`) and uses our memory-mapped CSR region. |
+| `kernel/uart.c` | `adapters/console-mmio.c` | xv6's UART driver hits MMIO 0x10000000 (QEMU virt machine). Replace with writes to MMIO 0xC001 (UPC convention per `docs/upc/UPC_OS_PRIMITIVES.md` L4f). |
 | `kernel/virtio_disk.c` | `adapters/blk-ramdisk.c` | xv6's virtio block driver targets QEMU virtio-blk. Replace with calls to SYS_READ_BLOCK (200) / SYS_WRITE_BLOCK (201) (UPC L4e). |
 
 Other xv6 platform files (`kernel/vm.c`, `kernel/proc.c`, `kernel/trap.c`)

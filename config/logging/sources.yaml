@@ -1543,33 +1543,6 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:installed on east as unheaded-kanban-app.service (see east/unheaded-kanban-app); deploy name differs"
-  - id: unit/unheaded-doom-injector
-    host: west
-    kind: journal-unit
-    match: unheaded-doom-injector.service
-    retention: operational
-    max_silence: n/a
-    canary: "none: excluded"
-    owner: architect
-    status: "excluded:Doom demo; lowest priority, not installed"
-  - id: unit/unheaded-doom-ring
-    host: west
-    kind: journal-unit
-    match: unheaded-doom-ring.service
-    retention: operational
-    max_silence: n/a
-    canary: "none: excluded"
-    owner: architect
-    status: "excluded:Doom demo; lowest priority, not installed"
-  - id: unit/unheaded-doom-runner
-    host: west
-    kind: journal-unit
-    match: unheaded-doom-runner.service
-    retention: operational
-    max_silence: n/a
-    canary: "none: excluded"
-    owner: architect
-    status: "excluded:Doom demo; lowest priority, not installed"
   - id: unit/unheaded-heimdall
     host: west
     kind: journal-unit
