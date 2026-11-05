@@ -40,6 +40,14 @@ error-line)
 	exit 101
 	;;
 error-exit-zero) echo "error: could not compile monad-cpu-ebpf" ;;
+cart-exit-only)
+	case "$*" in *upc-cartridge*) exit 101 ;; esac
+	echo "    Finished release profile [optimized] target(s) in 0.05s"
+	;;
+cart-error-line)
+	case "$*" in *upc-cartridge*) echo "error: could not compile upc-cartridge" ;; esac
+	echo "    Finished release profile [optimized] target(s) in 0.05s"
+	;;
 *) exit 64 ;;
 esac
 STUB
@@ -48,7 +56,7 @@ chmod +x "${WORK}/bin/sudo" "${WORK}/bin/go" "${WORK}/bin/cargo"
 upc_build_verdicts() { # $1 stub mode; prints the harness's build FAIL lines
 	UPC_STUB_CARGO="$1" PATH="${WORK}/bin:${PATH}" DOOM_RUNNER=/nonexistent \
 		timeout 120 bash "${REPO_ROOT}/scripts/upc-regression.sh" 2>&1 |
-		sed 's/\x1b\[[0-9;]*m//g' | grep -E 'FAIL +(ascend build|non-ascend build|cartridge-ebpf build)' |
+		sed 's/\x1b\[[0-9;]*m//g' | grep -E 'FAIL +(ascend build|non-ascend build|cartridge-ebpf build|upc-cartridge \(cart CLI\) build)' |
 		sed -E 's/^ *FAIL +//' | sort | tr '\n' ',' | sed 's/,$//'
 }
 
@@ -75,6 +83,11 @@ upc_build_case exit-only "${ALL_THREE}" "cargo exits 101 with no error line"
 upc_build_case killed "${ALL_THREE}" "cargo dies with no output at all"
 upc_build_case error-line "${ALL_THREE}" "an error line and exit 101"
 upc_build_case error-exit-zero "${ALL_THREE}" "an error line and exit 0"
+
+echo "--- the cart CLI build, reached only when cartridge-ebpf built ---"
+CART="upc-cartridge (cart CLI) build"
+upc_build_case cart-exit-only "${CART}" "only the cart CLI build fails, exit 101"
+upc_build_case cart-error-line "${CART}" "only the cart CLI build prints an error line"
 
 echo "--- nothing real ran ---"
 if [ -s "${WORK}/sudo.log" ]; then
