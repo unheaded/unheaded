@@ -99,26 +99,35 @@ fn dispatch_arms() -> Vec<(Gate, u32)> {
         } else {
             Gate::Both
         };
+        // The chain's tail `else if cfg!(...)` is the no-arm answer (-ENOSYS,
+        // DP-503), not a number. Only an arm that never reads syscall_nr is skipped.
+        if !cond.contains("syscall_nr") {
+            continue;
+        }
         let parts: Vec<&str> = cond.split("syscall_nr == ").skip(1).collect();
-        assert_eq!(
-            parts.len(),
-            1,
+        // One number per arm, or one `a || b` group sharing an arm (pause 13 and
+        // yield 23, ADR-078 §5). Any other shape is not something this reads.
+        assert!(
+            parts.len() == 1
+                || (parts.len() > 1 && cond.matches(" || ").count() == parts.len() - 1),
             "arm with {} comparisons: {line}",
             parts.len()
         );
-        let tok = parts[0]
-            .split(|c: char| c.is_whitespace() || c == '{' || c == '|' || c == '&')
-            .next()
-            .unwrap();
-        let number = if let Some(n) = tok.strip_prefix("sys::") {
-            monad_common_const(&common, "mbc_syscalls", n)
-        } else if let Some(n) = tok.strip_prefix("lsys::") {
-            monad_common_const(&common, "mbc_linux_syscalls", n)
-        } else {
-            tok.parse()
-                .unwrap_or_else(|_| panic!("unrecognised syscall token {tok:?} in: {line}"))
-        };
-        arms.push((gate, number));
+        for part in parts {
+            let tok = part
+                .split(|c: char| c.is_whitespace() || "{|&)".contains(c))
+                .next()
+                .unwrap();
+            let number = if let Some(n) = tok.strip_prefix("sys::") {
+                monad_common_const(&common, "mbc_syscalls", n)
+            } else if let Some(n) = tok.strip_prefix("lsys::") {
+                monad_common_const(&common, "mbc_linux_syscalls", n)
+            } else {
+                tok.parse()
+                    .unwrap_or_else(|_| panic!("unrecognised syscall token {tok:?} in: {line}"))
+            };
+            arms.push((gate, number));
+        }
     }
     arms
 }

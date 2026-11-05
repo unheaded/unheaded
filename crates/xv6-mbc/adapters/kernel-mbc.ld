@@ -47,6 +47,7 @@ SECTIONS
 
     /* xv6 main kernel — .text + .rodata. */
     .text 0x00020000 : {
+        PROVIDE(_kernel_text = .);
         *(.text)
         *(.text.*)
         . = ALIGN(0x100);

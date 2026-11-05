@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-110: The owned kernel's clock comes from BPF's tick count
 
-**Status**: Proposed (2026-10-28)
+**Status**: Accepted (2026-11-04; DP-717, stop rule cumulative; `UPC_RUNG2` on)
 **Context sprint**: EVOLUTION-1 Stage 2 rung 2 (`docs/battle-plans/EVOLUTION-1-STAGE-2-battle-plan.md`)
 **Relates to**: ADR-109 (kernel rows per BPF slot), ADR-067 (MBC ISA v2, UPC ABI v1), EVOLUTION-1
 (`docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md`)
@@ -42,6 +42,8 @@ The injection is shared, so the arm does not carry a second inlined copy of it.
 
 ### T3. `pause` stays a BPF yield in this rung
 
+Superseded by the sleep rung, 2026-11-05.
+
 Moving `pause` into the kernel needs a hand-off ADR-109 I7 only sketches: the kernel decides that the sleep has not
 ended, and BPF yields and re-injects. That is its own design, it will be measured, and it has a natural home in the
 first rung that blocks in the kernel. `pause(n)` keeps ignoring `n`.
@@ -68,9 +70,9 @@ the post-`DEFERRED_SWITCH` object (I6-style equality), and the kernel's `ticks` 
   co-scheduling is unchanged.
 - Cost: a measured verified-insn delta with `UPC_RUNG2` on. `uptime` is an arrival (BPF had no arm), so the rung
   frees nothing by itself.
-- **E2's stop rule** says to stop at the first rung whose freed instructions are below zero. Read per rung, an
-  arrival can never pass it. Read cumulatively, the ladder has freed 52,746 so far (921,036 → 868,290). The flag
-  stays off until Stevie says which reading holds.
+- **E2's stop rule** is cumulative (DP-717, 2026-11-04): a rung may cost as long as the ladder stays net negative
+  and under the 900,000 ceiling. Rung 2 costs +3986; the ladder stands at 872276, 48760 below where it began
+  (921036). `UPC_RUNG2` is on.
 
 ## Security notes
 

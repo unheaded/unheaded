@@ -9,7 +9,8 @@
 // RUNTIME-DEAD ON THE UPC, BY ARCHITECTURE: user ecalls are serviced by the
 // ascend BPF dispatch, so these wrappers never run — they are linked because
 // usyscall.c's syscalls[] table references every sys_*. They come alive if
-// the trap path flips to in-kernel dispatch (T4 decision). Kept at stock
+// the trap path flips to in-kernel dispatch (T4 decision). Slot rows reach the
+// kernel-routed ones (getpid, uptime; sbrk, exit under ADR-135). Kept at stock
 // strength for that day: sys_sbrk's lazy-path overflow guards
 // (addr + n < addr, addr + n > TRAPFRAME) and sys_pause's killed() check.
 //
@@ -21,14 +22,29 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "upc_slots.h"
 
 uint64
 sys_exit(void)
 {
   int n;
   argint(0, &n);
+  if(upc_slot_active())
+    return upc_exit(n); // ADR-135 D13: kexit panics on a slot row and on slot 0
   kexit(n);
   return 0;  // not reached
+}
+
+// ADR-135 D12: BPF re-runs a finished fork's ecall as this number.
+uint64
+sys_upc_forknote(void)
+{
+  int s;
+
+  argint(0, &s);
+  if(!upc_slot_active())
+    return -1;
+  return upc_forknote(s);
 }
 
 uint64
@@ -60,6 +76,8 @@ sys_sbrk(void)
 
   argint(0, &n);
   argint(1, &t);
+  if(upc_slot_active())
+    return upc_sbrk(n); // ADR-135 D3: a slot row must never reach growproc
   addr = myproc()->sz;
 
   if(t == SBRK_EAGER || n < 0) {
@@ -88,6 +106,8 @@ sys_pause(void)
   argint(0, &n);
   if(n < 0)
     n = 0;
+  if(upc_slot_active())
+    return upc_pause(n); // ADR-135 D7: never sleep() on a slot row
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
@@ -107,6 +127,8 @@ sys_kill(void)
   int pid;
 
   argint(0, &pid);
+  if(upc_slot_active())
+    return upc_kill(pid); // ADR-135 D8: kkill never sees a slot row
   return kkill(pid);
 }
 

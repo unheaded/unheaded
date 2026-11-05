@@ -6,12 +6,12 @@
 // Replaces MIT kernel/pipe.c in the Makefile.mbc OBJS list; the MIT file
 // stays vendored, unwired.
 //
-// RUNTIME-DEAD ON THE UPC: pipe(4) is an unimplemented syscall in the BPF
-// dispatch (ush treats it as dead — PIPE clauses were dropped in Phase 2.2).
-// Linked for fileclose/sysfile references. Dormant body keeps stock
-// strength: the nwrite == nread + PIPESIZE fullness test, the sleep/wakeup
-// pairing on nread/nwrite, pipeclose's last-end kfree, and piperead's
-// i = -1 first-byte copyout-failure convention.
+// LIVE SINCE THE PIPE RUNG (S-STAGE-2B): pipe(4) routes here, with read, write
+// and close on fds at 16 and up (ADR-135 D10-D11). No sleep() on a slot row: an
+// end that cannot go on takes the retry hand-off (D7), and a write that has moved
+// bytes returns short instead, because a re-run would send them twice. EOF comes
+// from exit's close (D13). wakeup() finds nobody on a slot row and returns. The
+// sleep branches stay for a row with no tagged trap, which the UPC never runs.
 //
 #include "types.h"
 #include "riscv.h"
@@ -22,6 +22,7 @@
 #include "fs.h"
 #include "sleeplock.h"
 #include "file.h"
+#include "upc_slots.h"
 
 #define PIPESIZE 512
 
@@ -102,6 +103,13 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
     }
     if(pi->nwrite == pi->nread + PIPESIZE){ //DOC: pipewrite-full
       wakeup(&pi->nread);
+      if(upc_slot_active()){
+        if(i > 0)
+          break;
+        release(&pi->lock);
+        upc_retry();
+        return UPC_RETRY_RC;
+      }
       sleep(&pi->nwrite, &pi->lock);
     } else {
       char ch;
@@ -129,6 +137,11 @@ piperead(struct pipe *pi, uint64 addr, int n)
     if(killed(pr)){
       release(&pi->lock);
       return -1;
+    }
+    if(upc_slot_active()){
+      release(&pi->lock);
+      upc_retry();
+      return UPC_RETRY_RC;
     }
     sleep(&pi->nread, &pi->lock); //DOC: piperead-sleep
   }

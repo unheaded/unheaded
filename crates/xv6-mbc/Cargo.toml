@@ -24,4 +24,4 @@ path = "src/lib.rs"
 
 [dependencies]
 monad-common = { path = "../../ebpf/monad-common" }
-monad-mbc = { path = "../monad-mbc" }
+monad-mbc = { path = "../monad-mbc", default-features = false }

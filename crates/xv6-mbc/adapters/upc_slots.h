@@ -15,10 +15,25 @@
 #define UPC_ST_TRAP_A7_OFF      0x00000804 // UPC_TAG_A7 | nr, BPF at trap injection
 #define UPC_ST_FRESH_MASK_OFF   0x00000808 // BPF sets bit child at fork; kernel clears on refresh
 #define UPC_ST_TICKS_OFF        0x0000080C // BPF tick count at the last injection (ADR-110)
-#define UPC_ST_SIZE             0x00000810
+#define UPC_ST_BRK_IN_OFF       0x00000810 // cpu.program_break, BPF at trap injection (ADR-135 D3)
+#define UPC_ST_REPLY_OFF        0x00000814 // UPC_TAG_REPLY | flags, kernel; BPF reads at SRET (ADR-135 D1)
+#define UPC_ST_REPLY_ARG_OFF    0x00000818 // the reply flag's one argument, kernel
+#define UPC_ST_CWD_MASK_OFF     0x0000081C // bit s: row s is off the root inode, kernel; BPF reads at open (ADR-135 D15)
+#define UPC_ST_SIZE             0x00000820
 #define UPC_TAG_SLOT            0x51070000
 #define UPC_TAG_A7              0xA7000000
+#define UPC_TAG_REPLY           0x52500000
 #define UPC_TAG_MASK            0xFFFF0000
+#define UPC_REPLY_SET_BRK       1
+#define UPC_REPLY_YIELD         2
+#define UPC_REPLY_KILL          4
+#define UPC_REPLY_EXIT          8 // ADR-135 D13
+#define UPC_RETRY_RC            (-2) // a retrying handler's return; syscall() leaves a0 alone (ADR-135 D7)
+#define UPC_KFD_BASE            16 // ADR-135 D10: kernel fd = 16 + ofile index; BPF's NOFILE
+#define UPC_HEAP_BASE           0x00010000 // ADR-135 D2: VA window, inside fork's low copy band
+#define UPC_HEAP_TOP            0x00040000
+#define UPC_USER_VA_CEILING     0x00800000 // ADR-135 D6: USER_VA_CEILING in main.rs
+#define UPC_SLICE_BASE(s)       ((s) == 0 ? 0 : 0x01000000 + ((s) - 1) * 0x00800000) // ADR-135 D5; phase12.rs pid_phys_offset
 
 struct upc_tf_slot {
   struct trapframe tf;
@@ -31,12 +46,28 @@ struct upc_slot_tables {
   uint32 trap_a7;
   uint32 fresh_mask;
   uint32 ticks;
+  uint32 brk_in;
+  uint32 reply;
+  uint32 reply_arg;
+  uint32 cwd_mask;
 };
 
 struct proc;
 void upc_slots_init(void);
 void upc_slot_enter(void);
 int  upc_is_slot_row(struct proc *p);
+int  upc_slot_active(void);
+void upc_slot_leave(void);
+void upc_reply(uint32 flags, uint32 arg);
+uint64 upc_sbrk(int n);
+uint64 upc_kill(int pid);
+uint64 upc_exit(int n);
+uint64 upc_forknote(int s);
+void upc_retry(void);
+int  upc_retry_pending(void);
+uint64 upc_pause(int n);
+uint64 upc_user_pa(uint64 va);
+void upc_cwd_mark(struct proc *p, int off_root);
 
 _Static_assert(sizeof(struct upc_tf_slot) == UPC_TF_STRIDE, "ADR-109 trapframe stride");
 _Static_assert(sizeof(struct upc_slot_tables) == UPC_ST_SIZE, "ADR-109 slot tables size");
@@ -44,5 +75,9 @@ _Static_assert(__builtin_offsetof(struct upc_slot_tables, cur_slot) == UPC_ST_CU
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, trap_a7) == UPC_ST_TRAP_A7_OFF, "trap_a7 offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, fresh_mask) == UPC_ST_FRESH_MASK_OFF, "fresh_mask offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, ticks) == UPC_ST_TICKS_OFF, "ticks offset");
+_Static_assert(__builtin_offsetof(struct upc_slot_tables, brk_in) == UPC_ST_BRK_IN_OFF, "brk_in offset");
+_Static_assert(__builtin_offsetof(struct upc_slot_tables, reply) == UPC_ST_REPLY_OFF, "reply offset");
+_Static_assert(__builtin_offsetof(struct upc_slot_tables, reply_arg) == UPC_ST_REPLY_ARG_OFF, "reply_arg offset");
+_Static_assert(__builtin_offsetof(struct upc_slot_tables, cwd_mask) == UPC_ST_CWD_MASK_OFF, "cwd_mask offset");
 
 #endif

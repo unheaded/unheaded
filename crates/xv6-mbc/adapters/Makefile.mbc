@@ -125,8 +125,8 @@ OBJS = \
 #                         linked via usyscall's syscalls[] table)
 #   $K/sysfile.o        → replaced by $A/usysfile.o (fd/FS wrappers; BPF
 #                         fs_walk owns the live surface)
-#   $K/pipe.o           → replaced by $A/upipe.o (pipe(4) unimplemented in
-#                         BPF dispatch; linked for fileclose/sysfile)
+#   $K/pipe.o           → replaced by $A/upipe.o (live: pipe(4) routes to the
+#                         owned kernel, retry hand-off, ADR-135 D7)
 #   $K/fs.o             → replaced by $A/ufs.o (on-disk FS; iinit + fsinit
 #                         boot-live via blk-ramdisk; walks dormant — the
 #                         in-BPF fs_walk owns user FS reads)

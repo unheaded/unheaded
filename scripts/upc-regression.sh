@@ -35,8 +35,14 @@ pass() { printf '  \033[32mPASS\033[0m  %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=1; }
 note() { printf '        %s\n' "$1"; }
 
+# Stop doom-runner by its recorded pid (series rule 14). The launcher prints the
+# pid into LOG: root cannot open a user-owned file in sticky /tmp
+# (fs.protected_regular=2), but it inherits this already-open stdout. Truncating
+# LOG afterwards means a second call can never kill a reused pid.
+doom_stop() { local p; p="$(grep -aoE -m1 '^doom-runner-pid [0-9]+$' "$LOG" | cut -d' ' -f2)"; [ -n "$p" ] && sudo kill -9 "$p"; : > "$LOG"; }
+
 cleanup() {
-  { sudo pkill -9 -f "doom-runner run"; sudo pkill -9 -f doom-go-injector; } >/dev/null 2>&1
+  doom_stop >/dev/null 2>&1
   sudo "$DR" ring teardown --hops 2 >/dev/null 2>&1
   rm -f "$LOG"
   # The namespace this run brought up (scripts/upc-netns.sh); a host that runs
@@ -168,7 +174,36 @@ if grep -q 'const UPC_RUNG2: bool = true;' "$EBPF/monad-cpu-ebpf/src/main.rs"; t
   want_counts "$UPL" "UP: init-moved=yes" 1 "UP: child-moved=yes" 1 "UP: child-mono=yes" 1 "UP: init-before=large" 1 \
     && pass "uptime: kernel clock rises in init and child, monotonic across them (ADR-110)" || fail "uptime (ADR-110)"
 else
-  note "uptime gate skipped: UPC_RUNG2 is off (ADR-110 waits on the stop-rule reading)"
+  note "uptime gate skipped: UPC_RUNG2 is off (rollback build)"
+fi
+
+# S-STAGE-2B rungs: each gate runs when its const is on; off, it is a note.
+rung_on() { grep -q "^const $1: bool = true;" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
+probe_lines() { # $1 program, $2 triggers, $3 token prefix
+  (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+    --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers "$2" --instance 111 2>&1) | grep -a 'ascii:' \
+    | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE "$3: [a-z0-9-]+(=[a-z0-9]+)?"; }
+rung_gate() { # $1 const, $2 program, $3 triggers, $4 prefix, $5 how many =yes lines
+  if ! rung_on "$1"; then note "$2 gate skipped: $1 is off"; return; fi
+  local l; l="$(probe_lines "$2" "$3" "$4")"
+  if [ "$(grep -c '=yes$' <<<"$l")" = "$5" ] && ! grep -q '=no$' <<<"$l" && grep -qx "$4: done" <<<"$l"; then
+    pass "$2: $5 checks ($1)"; else fail "$2 ($1)"; note "$(tr '\n' ' ' <<<"$l")"; fi; }
+rung_gate UPC_RUNG_SBRK sbrkprobe 4000000 SB 13
+rung_gate UPC_RUNG_KILL killprobe 3000000 KL 12
+rung_gate UPC_RUNG_MKDIR mkprobe 4000000 MK 7
+rung_gate UPC_RUNG_UNLINK rmprobe 4000000 RM 8
+rung_gate UPC_RUNG_LINK lnprobe 4000000 LN 9
+rung_gate UPC_RUNG_FD fdprobe 5000000 FD 49
+rung_gate UPC_RUNG_CHDIR chdirprobe 5000000 CD 24
+rung_gate UPC_RUNG_PIPE pipeprobe 8000000 PI 20
+rung_gate UPC_RUNG_MKDIR hostile_ptr 3000000 HU 5
+if rung_on UPC_RUNG_SLEEP; then
+  SLL="$(probe_lines sleepprobe 3000000 SL)"
+  if [ "$(grep -c '=yes$' <<<"$SLL")" = 4 ] && ! grep -q '=no$' <<<"$SLL" \
+    && [ "$(grep -n 'parent-ran' <<<"$SLL" | cut -d: -f1)" -lt "$(grep -n 'child-woke' <<<"$SLL" | cut -d: -f1)" ]; then
+    pass "sleepprobe: pause(n) waits, a sibling runs meanwhile (UPC_RUNG_SLEEP)"; else fail "sleepprobe (UPC_RUNG_SLEEP)"; fi
+else
+  note "sleepprobe gate skipped: UPC_RUNG_SLEEP is off"
 fi
 
 # ADR-109 D6 (M-247): a child stores to slot 0's pgd (15 MiB up, a page-walk
@@ -197,6 +232,30 @@ want_counts "$(hs_lines hostile_slot)" "HS: child-pid=2" 1 "HS: init-pid=1" 1 "H
   && pass "hostile_slot: forged cur_slot/trap_a7 leave getpid right" || fail "hostile_slot (forged handoff words)"
 want_counts "$(hs_lines hostile_tf)" "HT: child-pid=2" 1 "HT: gc-pid=3" 1 "HT: gc-canary=ok" 1 "HT: done" 1 \
   && pass "hostile_tf: scribbled slot 2 trapframe, grandchild pid and s1 intact" || fail "hostile_tf (sibling trapframe)"
+
+# S-STAGE-2B Step 258, ADR-135 R-F9: a child forges the reply word through a PDE it
+# adds. In every build a word stored ahead of a trap must not take effect. With
+# UPC_D6_MISS_FAULT on the PDE store is dropped and the route ends at closed. Off,
+# the sret route and a forged fork note land (the open hole, as hostile_pgd); if they
+# stop landing, the probe no longer reaches the hole and proves nothing about a fix.
+if rung_on UPC_REPLY; then
+  HRL="$(probe_lines hostile_reply 3000000 HR)"
+  if rung_on UPC_D6_MISS_FAULT; then
+    want_counts "$HRL" "HR: own-slice-intact=yes" 1 "HR: table-reached=no" 1 "HR: route=closed" 1 \
+      "HR: heap-intact=yes" 1 "HR: done" 1 \
+      && pass "hostile_reply: D6 closes the route to the reply word" || fail "hostile_reply (D6 on)"
+  elif ! want_counts "$HRL" "HR: own-slice-intact=yes" 1 "HR: table-reached=yes" 1 "HR: heap-intact=yes" 1 \
+    "HR: note-refused=yes" 1 "HR: kill-init-refused=yes" 1 "HR: done" 1; then
+    fail "hostile_reply (ecall route, or init reached)"; note "$(tr '\n' ' ' <<<"$HRL")"
+  elif want_counts "$HRL" "HR: note-forged=yes" 1 "HR: sret-forged=yes" 1; then
+    pass "hostile_reply: a word stored ahead of a trap is wiped, init stays out of reach"
+    note "hostile_reply: D6 is off, a child forged the reply by sret and a fork note (ADR-135 open)"
+  else
+    fail "hostile_reply (D6 off: the probe no longer reaches the hole)"
+  fi
+else
+  note "hostile_reply gate skipped: UPC_REPLY is off"
+fi
 
 # S26: xv6 usertests bodies as probes (user/ut_*.c) against BPF fork/exit/wait.
 # forktest and reparent2 need wait() to return -1 once every child is reaped.
@@ -232,12 +291,12 @@ echo "[2/3] non-ascend build (Doom load)"
   | grep -qE "error" && { fail "non-ascend build"; }
 
 if [ -f "$WAD" ]; then
-  { sudo pkill -9 -f "doom-runner run"; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
+  { doom_stop; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
   # setsid detaches doom-runner into its own session so SIGKILL'ing it later
   # produces no job-control noise in this shell.
   # shellcheck disable=SC2024  # the redirect is deliberately unprivileged: LOG is a
   # user-owned mktemp file, and keeping it user-owned is what we want.
-  ( cd "$ROOT" && sudo UPC_VERIFIER_STATS=1 setsid "$DR" run --doom-mbc doom/doom.mbc \
+  ( cd "$ROOT" && sudo UPC_VERIFIER_STATS=1 setsid sh -c 'echo "doom-runner-pid $$"; exec "$@"' sh "$DR" run --doom-mbc doom/doom.mbc \
     --doom-elf doom/doom.elf --rv2mbc doom/doom.rv2mbc --wad "$WAD" --hops 2 >"$LOG" 2>&1 & ) 2>/dev/null
   for _ in $(seq 1 20); do
     grep -aqE "pipeline complete|too large|Argument list too long" "$LOG" && break
@@ -248,7 +307,7 @@ if [ -f "$WAD" ]; then
   if grep -aq "pipeline complete" "$LOG"; then pass "Doom object loads (< 1M verifier ceiling)"
   elif grep -aqE "too large|Argument list too long" "$LOG"; then fail "Doom object OVER 1M ceiling"
   else fail "Doom load inconclusive (see harness log)"; fi
-  { sudo pkill -9 -f "doom-runner run"; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
+  { doom_stop; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
   wait 2>/dev/null
 else
   note "Doom: SKIPPED — WAD not found at $WAD (set DOOM_WAD=...)"

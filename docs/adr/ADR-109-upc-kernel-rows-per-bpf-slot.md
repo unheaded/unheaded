@@ -111,7 +111,8 @@ and r2 keep their pre-trap values. No handler reads a6 (`argraw` stops at a5), s
   and `tf->a7`, runs.
 - **Tag present:** `s` = the low 16 bits. If `s >= 8`, it panics `upc: cur_slot`. It checks `r_sscratch() == &tf[s]`
   and panics `upc: sscratch` otherwise (I1 checked on every trap). If bit s of `fresh_mask` is set, or `proc[s]` was
-  never initialised, it refreshes the row and clears the bit:
+  never initialised, it refreshes the row and clears the bit (with ADR-135's fd rung on, the fork note does this first,
+  ADR-135 D12, and this test finds nothing to do):
   - `pid = s + 1` (option K);
   - `trapframe = &tf[s].tf`;
   - `pagetable = 0x00F00000 + s*4096`, assigned directly, never through `uvmcreate`, `proc_pagetable`, `mappages` or
@@ -119,6 +120,7 @@ and r2 keep their pre-trap values. No handler reads a6 (`argraw` stops at a5), s
     walk it. The first rung that dereferences a user pointer (`copyin`/`copyout`, likely rung 3 or 6) owns the
     translation decision.
   - `state = RUNNING`, `killed = 0`, `parent = 0`, `sz = 0`.
+  - `cwd = namei("/")` if it is 0, once per row, kept across slot reuse (ADR-135 D9).
 - **Then, in every tagged case:** it sets `mycpu()->proc = &proc[s]`, and a7 from `trap_a7` if that tag is present.
   Without it, `tf->a7` stays as saved.
 
@@ -130,7 +132,7 @@ This is pre-existing. Rung 0 checks it (a word dump of `0xF01000` after boot) an
 `sched`, `sleep` or `freeproc`; each panics `upc: slot row` if it does. `usertrap`'s `killed` exits panic the same
 way. Rung 0 never sets `killed` on a slot row. How a kill reaches BPF is the kill rung's decision (skeleton rung 8).
 
-**Fields left stale, and their owners:** `sz` (sbrk rung), `ofile`/`cwd` (rung 6), `xstate`/`parent` (rung 7), and
+**Fields left stale, and their owners:** `sz` (sbrk rung), `ofile` (rung 6), `xstate`/`parent` (rung 7), and
 `chan` (the first rung that sleeps in the kernel).
 
 **Rung 7 forward rule:** row identity is slot s ↔ `proc[s]`. When the kernel takes over fork, it uses the slot BPF
@@ -151,6 +153,8 @@ keeps the 12 goldens SAME. If a golden changes, the change is recorded and D6 es
 - **I1**: a trap from slot s saves into `tf[s]` (kernel assert on every trap, D5).
 - **I2**: inside any trap from slot s, `myproc()->pid == s + 1`.
 - **I3**: after a fork reuses slot s, the first trap from s refreshes the row; later traps from the same child do not.
+  With ADR-135's fd rung on, the fork note refreshes the row in the parent's re-run ecall instead (ADR-135 D12), so a
+  child's first trap finds it filled and `rf` stays 0 there.
 - **I4**: BPF is the scheduler and lifetime authority; a slot row never reaches `kexit`, `sched`, `sleep` or `freeproc`
   (panic guards).
 - **I5**: init's flow is unchanged: the 12 goldens stay SAME.
@@ -198,7 +202,9 @@ keeps the 12 goldens SAME. If a golden changes, the change is recorded and D6 es
   supplies. Narrowing it is a separate change.
 - **Every value the kernel takes from BPF-written memory is bounded:**
   - `cur_slot`: tag check, `< 8`, and `sscratch == &tf[s]`.
-  - `fresh_mask`: only bit s is read, so any value is safe.
+  - `fresh_mask`: `upc_slot_enter` reads only bit s, so any value is safe there. With ADR-135's fd rung on, the fork
+    note reads the bit named by a0, and a set bit authorizes a row fill, so its value matters: BPF is its only writer
+    while a child cannot reach the table (ADR-135 D12).
   - `trap_a7`: tag check; the 16-bit value goes through `handler_for`, so an unknown number yields -1.
   - Before BPF's first write, `.bss` zero means no tag, so the kernel takes today's path.
   - Both tagged words are cleared on read, so a stale value cannot be reused by the next trap.

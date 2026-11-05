@@ -10,7 +10,12 @@ name = "monad-cpu-ebpf"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["fuzix-permissive"]
+# fuzix-permissive: keep the 23 fabricated FUZIX answers in the INT 0x80 chain
+# (DP-503). Doom and the FUZIX demos build with it; `--no-default-features`
+# answers -ENOSYS for the set instead. The ascend-linux build compiles that
+# chain out, so the feature changes nothing there.
+fuzix-permissive = []
 # doom-debug: per-PC render-chain tracing diagnostic (D_Display,
 # R_RenderPlayerView, R_DrawPlanes, ...) in the execute loop.
 # Originally always-on. Kernel 6.17 BPF verifier exhausts

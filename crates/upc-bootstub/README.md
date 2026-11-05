@@ -1,6 +1,6 @@
 # crates/upc-bootstub
 
-**Status:** P0 scaffolding (2026-05-11). Phase 2 day-1 fills in the build pipeline + integration.
+**Status:** Kept (DP-718, 2026-11-04). Done for xv6-class kernels (DP-212): stage 1 of Boot Protocol v2 (ADR-067), built end to end. No vendored Linux image is planned; the DIY kernel (ADR-081) is the rung.
 **Owner:** unheaded-developer (impl) + unheaded-computermancer (MBC artifact).
 **Closes task:** #63 (P2 fork — author crates/upc-bootstub/ stage-1 crate).
 

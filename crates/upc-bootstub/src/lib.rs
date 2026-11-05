@@ -54,14 +54,13 @@
 //! - `make -f adapters/Makefile.bootstub all` compiles start.c → links →
 //!   `rv32i-to-mbc` → `target/upc-bootstub.mbc` (115 RV32I → 194 MBC insns).
 //!   `upc-bootctl validate --kernel target/upc-bootstub.mbc` decodes it clean.
-//! - NOT yet boot-integrated: the stub has no kernel to hand off to until
-//!   Phase 2.1 vendors one, and per the Phase 2.0 capacity audit
-//!   (`references/phase2-preflight-capacity-audit-2026-07-02.md`) the
-//!   code-store substrate can't hold a Linux image yet. Boot-path wiring
-//!   (`upc-bootctl --bootstub`) waits on that substrate decision.
-//! - Loader note for Phase 2.4: the ilp32e link keeps `.rodata` in the BOOT
-//!   text region AND the translator emits a `.data` sibling for it — decide
-//!   which the loader stages so the "BOOT FAIL" strings resolve once.
+//! - Scope (DP-212, DP-718, 2026-11-04): done for xv6-class kernels and kept
+//!   as stage 1 of Boot Protocol v2 (`upc-bootctl --bootstub` loads it). No
+//!   vendored Linux image is planned: the code store cannot hold one
+//!   (`references/phase2-preflight-capacity-audit-2026-07-02.md`) and ADR-081
+//!   builds our own kernel instead.
+//! - `.rodata` (DP-414): the loader stages only the translator's `.data`
+//!   sidecar, so the "BOOT FAIL" strings resolve once.
 
 #![deny(missing_docs)]
 

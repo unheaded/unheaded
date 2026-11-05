@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-11-05
-**Total:** 131 entries (ADR-001 to ADR-134, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Total:** 132 entries (ADR-001 to ADR-135, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -16,12 +16,12 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed).
 
 | Status | Count |
 |--------|-------|
 | Accepted | 60 |
-| Proposed | 33 |
+| Proposed | 34 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 3 |
@@ -34,7 +34,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **131** |
+| **Total** | **132** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -194,3 +194,4 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [132](ADR-132-fold-loadbalancer.md) | Fold the load balancer into Cuirass; the map write goes to the node writer | **Proposed** (parked) | 2026-11-04 |
 | [133](ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
 | [134](ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |
+| [135](ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF: tagged reply word read at SRET (SET_BRK, YIELD, KILL), heap window VA [0x10000, 0x40000), user pointers by slice offset, retry hand-off for blocking calls, kill in BPF, root cwd for rows (S-STAGE-2B; DP-213, DP-501, DP-502) | **Proposed** | 2026-11-04 |

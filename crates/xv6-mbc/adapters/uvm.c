@@ -22,6 +22,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "fs.h"
+#include "upc_slots.h"
 
 /*
  * the kernel's page table.
@@ -148,6 +149,9 @@ walkaddr(pagetable_t pagetable, uint64 va)
 {
   pte_t *pte;
   uint64 pa;
+
+  if(upc_slot_active())
+    return upc_user_pa(va); // ADR-135 D6: the BPF pgd is never walked
 
   if(va >= MAXVA)
     return 0;
@@ -395,11 +399,14 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
       }
     }
 
-    pte = walk(pagetable, va0, 0);
-    // forbid copyout over read-only user text pages.
-    if((*pte & PTE_W) == 0)
-      return -1;
-      
+    // ADR-135 D6: a slot row's superpages are all writable, and its pgd is BPF's.
+    if(!upc_slot_active()){
+      pte = walk(pagetable, va0, 0);
+      // forbid copyout over read-only user text pages.
+      if((*pte & PTE_W) == 0)
+        return -1;
+    }
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
@@ -492,6 +499,9 @@ vmfault(pagetable_t pagetable, uint64 va, int read)
 {
   uint64 mem;
   struct proc *p = myproc();
+
+  if(upc_slot_active())
+    return 0; // ADR-135 D3: a slot row maps nothing here
 
   if (va >= p->sz)
     return 0;

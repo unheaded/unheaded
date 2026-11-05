@@ -60,3 +60,37 @@ copies.
   and subdirectory path walks remain out of scope (single root-dir walk, H-FS4 caps).
 - Known issue → Gate D.1: `wc README` runaway (see session log; wc was unreachable
   before argv existed, so no baseline was lost).
+
+## 5. Syscall number registry (DP-413, 2026-11-04)
+
+One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS` carry the same numbers; `parity_surface` holds them to the dispatch. A number with no row answers `-ENOSYS` (DP-503). Rungs move rows from BPF to kernel; a number is never reused.
+
+| Number | Name | Served by | Note |
+|---|---|---|---|
+| 1 | fork | BPF | |
+| 2 | exit | kernel closes, BPF ends the slot | ADR-135 D13 |
+| 3 | wait | BPF | status written as 0 until rung 7 |
+| 4 | pipe | kernel | ADR-135 D7, D10-D13; fds at 16 and up, read and write retry |
+| 5 | read | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 6 | kill | kernel validates, BPF acts | status 0 until rung 7 |
+| 7 | exec | BPF | |
+| 8 | fstat | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 9 | chdir | kernel | ADR-135 D15 |
+| 10 | dup | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 11 | getpid | kernel | ADR-109 |
+| 12 | sbrk | kernel | heap window, ADR-135 |
+| 13 | pause | kernel | n UPC ticks (ADR-110), retry hand-off |
+| 14 | uptime | kernel | ADR-110 |
+| 15 | open | BPF; kernel with O_WRONLY, O_CREATE or O_TRUNC, or from a process off the root | ADR-135 D11, D15; O_RDWR alone at the root stays in BPF |
+| 16 | write | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 17 | mknod | BPF | stub |
+| 18 | unlink | kernel | DP-502 |
+| 19 | link | kernel | DP-502 |
+| 20 | mkdir | kernel | DP-502 |
+| 21 | close | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 22 | reserved | probe builds | `UPC_PROBE_INJECT22` |
+| 23 | yield | BPF | DP-413; a stub in `user/uyield.h`, not `usys.pl`, so corpus binaries keep their size |
+| 24 | upc_forknote | kernel | ADR-135 D12: BPF re-runs a finished fork's ecall as this number; a user's 24 gets -1 |
+| 200, 201 | read block, write block | BPF | kernel-only, `monad_common::mbc_linux_syscalls` |
+
+Fds at 16 and up are kernel fds, `16 + ofile index` (ADR-135 D10); BPF's table stops at 15, so neither allocator sees the other. The routing compare is unsigned, so a negative fd reaches the kernel too and gets -1.

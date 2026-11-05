@@ -42,9 +42,9 @@ policy recapture recorded with reason and HEAD), harness ALL GREEN, freed insns 
 and ≥ 0 (arrivals: added insns recorded, total ≤ 950,000), cycle cost recorded, the rung's
 usertests subset green, rollback const verified by one OFF build.
 
-**Stop rule (E2 = (a)):** a migration rung with freed insns < 0 stops the push at that
-rung. It and the later migration rungs stay in BPF unless authenticity requires them, which
-is (c) for the remainder. Arrivals continue.
+**Stop rule (E2 = (a), DP-717 2026-11-04):** cumulative. A rung may cost verified
+instructions as long as the ladder stays net negative (below 921,036) and under the 900,000
+ceiling. Forged past rung 2 in `S-STAGE-2B-battle-plan.md`.
 
 ---
 

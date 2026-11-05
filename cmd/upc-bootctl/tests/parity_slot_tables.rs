@@ -40,7 +40,7 @@ fn c_define(src: &str, name: &str) -> u32 {
     parse(l.split_whitespace().nth(2).unwrap())
 }
 
-const NAMES: [&str; 11] = [
+const NAMES: [&str; 22] = [
     "UPC_SLOT_TABLES_BP_BYTE",
     "UPC_SLOTS",
     "UPC_TF_STRIDE",
@@ -48,10 +48,21 @@ const NAMES: [&str; 11] = [
     "UPC_ST_TRAP_A7_OFF",
     "UPC_ST_FRESH_MASK_OFF",
     "UPC_ST_TICKS_OFF",
+    "UPC_ST_BRK_IN_OFF",
+    "UPC_ST_REPLY_OFF",
+    "UPC_ST_REPLY_ARG_OFF",
+    "UPC_ST_CWD_MASK_OFF",
     "UPC_ST_SIZE",
     "UPC_TAG_SLOT",
     "UPC_TAG_A7",
+    "UPC_TAG_REPLY",
     "UPC_TAG_MASK",
+    "UPC_REPLY_SET_BRK",
+    "UPC_REPLY_YIELD",
+    "UPC_REPLY_KILL",
+    "UPC_REPLY_EXIT",
+    "UPC_HEAP_BASE",
+    "UPC_HEAP_TOP",
 ];
 
 #[test]
@@ -61,6 +72,23 @@ fn bpf_and_kernel_agree_on_the_slot_tables() {
     for n in NAMES {
         assert_eq!(rust_const(&rs, n), c_define(&h, n), "{n} differs");
     }
+}
+
+/// `upc_user_pa()` refuses a VA at or above the kernel's ceiling. BPF's sits in
+/// main.rs as a private const, so `rust_const` cannot see it. A ceiling above
+/// the slice stride would let a user pointer reach the next slot's slice.
+#[test]
+fn kernel_user_pointer_ceiling_is_bpfs() {
+    let main_rs = read("ebpf/monad-cpu-ebpf/src/main.rs");
+    let l = main_rs
+        .lines()
+        .find(|l| l.starts_with("const USER_VA_CEILING: u32 = "))
+        .expect("USER_VA_CEILING not in main.rs");
+    let bpf = parse(l.split('=').nth(1).unwrap().split("//").next().unwrap());
+    let h = read("crates/xv6-mbc/adapters/upc_slots.h");
+    assert_eq!(c_define(&h, "UPC_USER_VA_CEILING"), bpf);
+    let rs = read("ebpf/monad-cpu-ebpf/src/phase12.rs");
+    assert!(bpf <= rust_const(&rs, "SLICE_STRIDE"));
 }
 
 /// xv6's trapframe under ilp32e: 36 fields of 4 bytes (`uint64` is 4 bytes).
@@ -93,10 +121,28 @@ fn layout_is_the_adr_layout() {
     assert_eq!(rust_const(&rs, "UPC_ST_TRAP_A7_OFF"), slots * stride + 4);
     assert_eq!(rust_const(&rs, "UPC_ST_FRESH_MASK_OFF"), slots * stride + 8);
     assert_eq!(rust_const(&rs, "UPC_ST_TICKS_OFF"), slots * stride + 12);
-    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 16);
+    assert_eq!(rust_const(&rs, "UPC_ST_BRK_IN_OFF"), slots * stride + 16);
+    assert_eq!(rust_const(&rs, "UPC_ST_REPLY_OFF"), slots * stride + 20);
+    assert_eq!(rust_const(&rs, "UPC_ST_REPLY_ARG_OFF"), slots * stride + 24);
+    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 32);
     let mask = rust_const(&rs, "UPC_TAG_MASK");
     assert_eq!(rust_const(&rs, "UPC_TAG_SLOT") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_A7") & !mask, 0);
+    assert_eq!(rust_const(&rs, "UPC_TAG_REPLY") & !mask, 0);
+    // The reply flags live below the tag.
+    for f in [
+        "UPC_REPLY_SET_BRK",
+        "UPC_REPLY_YIELD",
+        "UPC_REPLY_KILL",
+        "UPC_REPLY_EXIT",
+    ] {
+        assert_eq!(rust_const(&rs, f) & mask, 0, "{f}");
+        assert!(rust_const(&rs, f).is_power_of_two(), "{f}");
+    }
+    // ADR-135 D2: above the CSR window, inside fork's low copy band.
+    assert!(rust_const(&rs, "UPC_HEAP_BASE") >= 0x10000);
+    assert!(rust_const(&rs, "UPC_HEAP_BASE") < rust_const(&rs, "UPC_HEAP_TOP"));
+    assert!(rust_const(&rs, "UPC_HEAP_TOP") <= rust_const(&rs, "FORK_COPY_LOW_BYTES"));
     assert_ne!(
         rust_const(&rs, "UPC_TAG_SLOT"),
         rust_const(&rs, "UPC_TAG_A7")
