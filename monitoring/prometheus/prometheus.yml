@@ -37,7 +37,8 @@ scrape_configs:
   # Huginn (host metrics agent, ADR-084) on west: it also serves the Well's
   # backup/offsite/drill textfile metrics that rules/well.yml alerts on. It
   # pushes to VictoriaMetrics, which evaluates no rules; scraped here so the
-  # Well alerts have data.
+  # Well alerts have data. huginn binds loopback unless HUGINN_LISTEN in
+  # /etc/huginn.env names the overlay address too.
   - job_name: huginn
     static_configs:
       - targets: ['[fd00:dead:beef::1]:9110']

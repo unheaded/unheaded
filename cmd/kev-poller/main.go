@@ -31,6 +31,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -42,6 +43,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
@@ -67,6 +69,7 @@ type config struct {
 	keep     time.Duration
 	timeout  time.Duration
 	port     int
+	listen   string
 	wotan    string
 	node     string
 	stack    string
@@ -87,7 +90,8 @@ func parseFlags(args []string, stdout, stderr io.Writer) (config, error) {
 	fs.StringVar(&c.stateDir, "state-dir", envOr("KEV_OUTPUT_PATH", "/var/lib/unheaded/threat-feeds/cisa-kev"), "where latest.json, state.json and snapshots/ live")
 	fs.DurationVar(&c.keep, "keep", 30*24*time.Hour, "delete snapshots older than this (the newest is always kept)")
 	fs.DurationVar(&c.timeout, "timeout", 60*time.Second, "per-pull HTTP timeout")
-	fs.IntVar(&c.port, "port", ports.KEVPoller, "HTTP port for /health, /ready, /metrics, /api/v1/kev")
+	fs.IntVar(&c.port, "port", ports.KEVPoller, "HTTP port on loopback for /health, /ready, /metrics, /api/v1/kev")
+	fs.StringVar(&c.listen, "listen", os.Getenv("KEV_LISTEN"), "HTTP listen addresses, comma-separated, overriding --port; off loopback needs AUTH_ENABLED=true")
 	fs.StringVar(&c.wotan, "wotan", envOr("WOTAN_ADDR", "localhost:18000"), "Wotan HTTP address; empty disables publishing")
 	fs.StringVar(&c.node, "node", "", "node identifier (default: hostname)")
 	fs.StringVar(&c.stack, "stack", os.Getenv("KEV_STACK"), "stack file (config/kev-poller/stack.yaml): tag entries the Kingdom runs")
@@ -159,14 +163,21 @@ func main() {
 	}
 
 	m := newPollMetrics()
-	d := &daemon{cfg: cfg, poller: p, stack: stack, metrics: m, publish: connectWotan(cfg.wotan)}
+	// Bind before connecting anything: a listener this service must refuse
+	// stops the start. With auth on and nothing to verify against the API
+	// stays closed and the poller runs: its job is the catalog on disk.
+	authCfg := auth.LoadServiceAuthConfig(serviceName)
+	lns, err := openListeners(cfg.listenList(), authCfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("refusing to start")
+	}
+	d := &daemon{cfg: cfg, poller: p, stack: stack, metrics: m, publish: connectWotan(cfg.wotan), auth: auth.SetupMiddleware(authCfg)}
 	if st := p.Current(); st != nil {
 		m.count.Set(float64(st.Count))
 	}
 	d.setRelevantCount()
 
 	srv := &http.Server{
-		Addr:              fmt.Sprintf(":%d", cfg.port),
 		Handler:           d.handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
@@ -174,12 +185,14 @@ func main() {
 		IdleTimeout:       120 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
-	go func() {
-		log.Info().Str("addr", srv.Addr).Msg("HTTP listening")
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatal().Err(err).Msg("HTTP listen failed")
-		}
-	}()
+	for _, ln := range lns {
+		go func() {
+			log.Info().Str("addr", ln.Addr().String()).Msg("HTTP listening")
+			if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Fatal().Err(err).Msg("HTTP listen failed")
+			}
+		}()
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -190,6 +203,23 @@ func main() {
 	defer cancel()
 	_ = srv.Shutdown(shutdown)
 	log.Info().Msg("kev-poller stopped")
+}
+
+// listenList is --listen, or loopback on --port when it is empty.
+func (c config) listenList() string {
+	if c.listen != "" {
+		return c.listen
+	}
+	return ports.LoopbackAddr(c.port)
+}
+
+// openListeners binds every address of list. Off loopback it needs auth on.
+func openListeners(list string, cfg auth.ServiceAuthConfig) ([]net.Listener, error) {
+	addrs := httputil.ListenAddrs(list)
+	if err := auth.CheckListen(addrs, cfg); err != nil {
+		return nil, err
+	}
+	return httputil.ListenAll(addrs)
 }
 
 func runOnce(p *kev.Poller, stack *kev.Stack, cfg config) int {
@@ -292,6 +322,7 @@ type daemon struct {
 	stack   *kev.Stack // nil: no tagging
 	metrics *pollMetrics
 	publish publisher
+	auth    func(http.Handler) http.Handler // nil: no auth (loopback only)
 
 	mu      sync.Mutex
 	lastErr string
@@ -488,7 +519,7 @@ func (d *daemon) handler() http.Handler {
 		d.mu.Unlock()
 		httputil.WriteJSON(w, http.StatusOK, resp)
 	})
-	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, mux))
+	return httputil.SecurityHeaders(httputil.NewServiceMetrics(serviceName).Instrument(mux, auth.WrapHandler(mux, d.auth)))
 }
 
 // runReport prints a threat-register refresh entry (markdown) from the

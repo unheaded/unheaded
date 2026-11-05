@@ -389,7 +389,7 @@ func main() {
 	// Config file is loaded first; CLI flags override individual fields.
 	configPath := flag.String("config", "/etc/huginn.yaml", "path to YAML config file (optional)")
 	flagHost := flag.String("host", "", "host label override (default: hostname or config)")
-	flagListen := flag.String("listen", "", "listen address override")
+	flagListen := flag.String("listen", "", "listen addresses override, comma-separated (default 127.0.0.1:9110; huginn has no auth, so name internal addresses only)")
 	flagVM := flag.String("vm", "", "VictoriaMetrics URL override (empty string = no override)")
 	flagInterval := flag.Duration("interval", 0, "collection/push interval override")
 	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
@@ -500,15 +500,28 @@ func main() {
 	// connections open indefinitely sending headers a byte at a time until the
 	// agent exhausts its connection budget. gosec G114.
 	srv := &http.Server{
-		Addr:              cfg.Listen,
 		Handler:           nil, // http.DefaultServeMux, as before
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	if err := srv.ListenAndServe(); err != nil {
+	if err := serveAll(srv, cfg.Listen); err != nil {
 		fmt.Fprintf(os.Stderr, "huginn: listen: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// serveAll serves srv on every address of list (comma-separated) until one
+// listener fails. It binds them all first, so a bad address stops the start.
+func serveAll(srv *http.Server, list string) error {
+	lns, err := httputil.ListenAll(httputil.ListenAddrs(list))
+	if err != nil {
+		return err
+	}
+	errs := make(chan error, len(lns))
+	for _, ln := range lns {
+		go func() { errs <- srv.Serve(ln) }()
+	}
+	return <-errs
 }

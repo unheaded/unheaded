@@ -7,7 +7,7 @@ kev-poller keeps CISA's KEV catalog current on a host, tags the entries that nam
 | | |
 |---|---|
 | Unit | `unheaded-kev-poller.service` as `unheaded-kev-poller` (no capabilities); enabled on west and east since 2026-10-20 ([[Systemd Units|Systemd-Units]]). Also a Dockerfile stage. |
-| Port | 19120 (`pkg/ports.KEVPoller`) |
+| Port | 19120 (`pkg/ports.KEVPoller`); the binary defaults to loopback, the unit binds every interface (`KEV_LISTEN`) with `AUTH_ENABLED=true` |
 | State | `/var/lib/unheaded/threat-feeds/cisa-kev/`: `latest.json` (as published), `state.json`, `snapshots/` (one per change, 30 days) |
 | Wotan topics | `threats.cisa-kev.updates` every good pull; `threats.cisa-kev.delta` when entries are added or removed (chunks of 50, stack entries carry `categories`) |
 | Stack file | `--stack` / `KEV_STACK`; the unit reads `/etc/unheaded/kev-stack.yaml`, installed from `config/kev-poller/stack.yaml`: what we run, in KEV's own vendor/product names, exact match |
@@ -23,7 +23,7 @@ kev-poller keeps CISA's KEV catalog current on a host, tags the entries that nam
 | | |
 |---|---|
 | `GET /health`, `GET /ready` | ready once a valid catalog is stored |
-| `GET /api/v1/kev` | stored catalog version, count, sha256, last error, next pull |
+| `GET /api/v1/kev` | stored catalog version, count, sha256, last error, next pull; needs a credential when auth is on |
 | `GET /metrics` | `unheaded_kev_pull_{success,failure}_total`, `unheaded_kev_last_success_timestamp_seconds`, `unheaded_kev_total_count`, `unheaded_kev_stack_count`, ... |
 | `kev-poller --once` | one pull, print the delta, exit |
 | `kev-poller report --since YYYY-MM-DD` | the threat register's refresh entry, from the stored catalog |
