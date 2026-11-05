@@ -257,7 +257,14 @@ other way round: `S` and the tracer move behind the read, into the block after t
 when `spp == 0`, so no instruction runs between the two places and the bytes land in the same order. Under `UPC_RUNG_FD`
 the arm keeps them for `spp != 0` only. The block writes them when `reply_req` is set, the tag was not seen (`base == 0`
 counts as not seen), and the arm's SEPC lookup did not halt. With the const off the arm stays as it is and the block's
-new branch folds away. Moving them costs something, which Step 228 measures.
+new branch folds away. Step 228 measured the rung whole, this move included: 891,808 off, 889,100 on.
+
+The goldens also hold the `tty_r` and `waitpid` counters, and those moved where the TTY bytes did not: `ls` read 9 and 7
+against 3 and 1. A 2026-03 diagnostic in the `CALLR` arm bumps stat keys 20 and 21, which are also `STAT_TTY_READS` and
+`STAT_WAITPIDS`, and `syscall()` calls its handler through a pointer. No corpus boot had reached that arm before D12 and
+D13, so the goldens never showed it. Under `UPC_RUNG_FD` the arm drops the two bumps; the Doom object keeps them. The
+goldens were not recaptured. With the const off the object is unchanged, so a boot with kernel traps still overcounts
+both, as it did before this rung.
 
 The mark does not depend on the const. With `UPC_RUNG_FD` off, BPF reads a bare tag, clears it and acts on no flag. A
 forged bare tag hides one diagnostic and nothing else.
@@ -382,9 +389,9 @@ their numbers overlap both sets above. Each was re-read in the tree before its d
 | T-F6 | Low | ADR-109's `fresh_mask` line goes stale, and `upc-rung0-assert.awk` would fail with the rung on | ADR-109 amended (I3, D5 note, Security notes) and the asserter updated together |
 | T-F7 | Low | Plan Steps 224-225 still say `prepare_return` tag and name no arm for 24; `parity_slot_tables.rs` needs `UPC_REPLY_EXIT` | This ADR rules (D1, D14). The arm lands with Step 225 and the parity file joins Step 227's commit. Plan text unchanged, For Stevie |
 | T-F8 | Low, pre-existing | Forked BPF file fds lose their state | Stated in D10 |
-| T-S1 | Suspected | Corpus forks and exits now take injected traps from exec'd images | Step 230's sweep answers it: see `references/s-stage-2b-log.md` |
-| T-S2 | Suspected | Extra trap ticks could cut off a golden with a tight trigger count | Step 230's sweep answers it: see the log |
-| T-S3 | Suspected | D11-D14 may not fit 8,192 of headroom | Step 228 measures it: see the log |
+| T-S1 | Suspected | Corpus forks and exits now take injected traps from exec'd images | Answered: 12/12 SAME with them, so the path works |
+| T-S2 | Suspected | Extra trap ticks could cut off a golden with a tight trigger count | Answered: no golden was cut off. The counters did move, for another reason: see D14 |
+| T-S3 | Suspected | D11-D14 may not fit 8,192 of headroom | Answered: the on object fell to 889,100 |
 
 ## Alternatives considered
 

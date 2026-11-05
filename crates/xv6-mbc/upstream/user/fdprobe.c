@@ -85,7 +85,9 @@ basics(void)
   SAY("FD: kernel-read", read(fd, got, 10) == 10 && memcmp(got, "0123456789", 10) == 0);
   SAY("FD: kernel-eof", read(fd, got, 10) == 0);
   SAY("FD: fstat", fstat(fd, &st) == 0 && st.type == T_FILE && st.size == 10 && st.nlink == 1);
-  SAY("FD: read-ptr-refused", read(fd, (char *)0x00800000, 4) == -1);
+  int rp = open("fb", O_CREATE | O_RDWR); // fd is at EOF: a read there never touches the pointer
+  SAY("FD: read-ptr-refused", read(rp, (char *)0x00800000, 4) == -1);
+  close(rp);
   SAY("FD: write-ptr-refused", write(fd, (char *)0x00800000, 4) == -1);
   SAY("FD: fstat-ptr-refused", fstat(fd, (struct stat *)0x00800000) == -1);
 

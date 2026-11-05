@@ -68,26 +68,29 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | Number | Name | Served by | Note |
 |---|---|---|---|
 | 1 | fork | BPF | |
-| 2 | exit | BPF | |
+| 2 | exit | kernel closes, BPF ends the slot | ADR-135 D13 |
 | 3 | wait | BPF | status written as 0 until rung 7 |
 | 4 | pipe | none yet | |
-| 5 | read | BPF | |
+| 5 | read | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
 | 6 | kill | kernel validates, BPF acts | status 0 until rung 7 |
 | 7 | exec | BPF | |
-| 8 | fstat | BPF | |
+| 8 | fstat | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
 | 9 | chdir | none yet | |
-| 10 | dup | BPF | |
+| 10 | dup | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
 | 11 | getpid | kernel | ADR-109 |
 | 12 | sbrk | kernel | heap window, ADR-135 |
 | 13 | pause | kernel | n UPC ticks (ADR-110), retry hand-off |
 | 14 | uptime | kernel | ADR-110 |
-| 15 | open | BPF | |
-| 16 | write | BPF | |
+| 15 | open | BPF; kernel with O_WRONLY, O_CREATE or O_TRUNC | ADR-135 D11; O_RDWR alone stays in BPF |
+| 16 | write | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
 | 17 | mknod | BPF | stub |
 | 18 | unlink | kernel | DP-502 |
 | 19 | link | kernel | DP-502 |
 | 20 | mkdir | kernel | DP-502 |
-| 21 | close | BPF | |
+| 21 | close | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
 | 22 | reserved | probe builds | `UPC_PROBE_INJECT22` |
 | 23 | yield | BPF | DP-413; a stub in `user/uyield.h`, not `usys.pl`, so corpus binaries keep their size |
+| 24 | upc_forknote | kernel | ADR-135 D12: BPF re-runs a finished fork's ecall as this number; a user's 24 gets -1 |
 | 200, 201 | read block, write block | BPF | kernel-only, `monad_common::mbc_linux_syscalls` |
+
+Fds at 16 and up are kernel fds, `16 + ofile index` (ADR-135 D10); BPF's table stops at 15, so neither allocator sees the other. The routing compare is unsigned, so a negative fd reaches the kernel too and gets -1.

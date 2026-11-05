@@ -477,7 +477,7 @@ const UPC_RUNG_SLEEP: bool = true;
 // owned kernel; fork finalize re-runs the parent's ecall as 24, so the kernel fills the
 // child's row at once; a tagged trap's return skips the S and the tracer. Needs
 // UPC_REPLY and DEFERRED_SWITCH. Rollback = this const off.
-const UPC_RUNG_FD: bool = false;
+const UPC_RUNG_FD: bool = true;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
@@ -1189,11 +1189,16 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::CALLR || (insn_word >> 24) == 0x2A {
             // GLOBAL CALLR COUNTER at STAT slot 20
             // Also log which path matched
-            if opc == op::CALLR {
-                increment_stat(20);
-            }
-            if (insn_word >> 24) == 0x2A {
-                increment_stat(21);
+            // ADR-135 D14: 20 and 21 are also STAT_TTY_READS and STAT_WAITPIDS, and
+            // syscall() calls its handler through a pointer. Under UPC_RUNG_FD every
+            // fork and exit traps, so these would count as reads and reaps.
+            if !(cfg!(feature = "ascend-linux") && UPC_RUNG_FD) {
+                if opc == op::CALLR {
+                    increment_stat(20);
+                }
+                if (insn_word >> 24) == 0x2A {
+                    increment_stat(21);
+                }
             }
 
             // Indirect call with RV32I→MBC address translation.

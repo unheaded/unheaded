@@ -248,3 +248,32 @@ Step 222 dispositions, each re-read in the tree first. Ids are `T-` in ADR-135 R
 | T-F7 | Low | ADR rules over the plan text; arm for 24 lands with Step 225; `parity_slot_tables.rs` joins Step 227's commit; For Stevie |
 | T-F8 | Low, pre-existing | Stated in D10 |
 | T-S1, T-S2, T-S3 | Suspected | Answered by Steps 228-232 below |
+| fd table | 891808 | 889100 | -2708 | 31936 | fd-after |
+
+Steps 223-227: `fdprobe`, the kernel and BPF landed const off. The off object is 891,808, equal to Phase 17's, and the sweep is 8/8. `parity_surface` and `parity_slot_tables` pass with 24 and `UPC_REPLY_EXIT` in. Step 227's commit gained `parity_slot_tables.rs` (T-F7). `utrap.c` did not change: D14's mark is in `upc_slot_leave()`, so that name on the step's list was a no-op. `fdprobe` has 49 checks, against the 13 the plan's Step 223 lists: the rest are T-F4's and the bad-pointer refusals.
+
+Steps 228-229: first on figure 888,434, BUDGET-OK. T-S3 answered: D11-D14 fit with room, and the object fell.
+
+Step 230, first boot: 48 of 49. `FD: read-ptr-refused=no` was the probe's bug, not the kernel's: `fd` sat at EOF, and `readi` clamps n to 0 there, so the bad pointer was never touched (`ufs.c`). The check moved to a fresh offset, which the kernel refuses; the bar did not change. That boot also carries the first copyout from a slot row (`read`, `fstat`), which Phase 14's note said was unbooted, and the refused pointers run the slot-row branch of `vmfault`.
+
+Step 231 failed: 0 of 8 SAME. Step 232: the TTY bytes equal the golden (1,393 bytes, no diff), so D14's guard order is right. Only the counters moved: `ls` `tty_r=9 waitpid=7` against 3 and 1, with `forks=2`.
+
+The plan's guess, stats drift from extra trap ticks, is wrong. `waitpid` counts only a successful reap, and 7 reaps cannot come from 2 forks. The excess was equal in both counters on two boots (`ls` +6 and +6, `fdprobe` +200 and +200), which pointed at one shared source: `increment_stat(20)` and `increment_stat(21)` in the `CALLR` arm, from 7521af79 (2026-03-31), reuse the keys of `STAT_TTY_READS` and `STAT_WAITPIDS`. `syscall()` calls its handler through a pointer, so each kernel trap counts. The corpus had taken no kernel trap, so no golden ever showed it.
+
+Debug attempt 1, predicted first: guard the two bumps under `UPC_RUNG_FD`, and `ls` reads exactly 3 and 1 with no golden touched. Result: `forks=2 tty_r=3 waitpid=1`, 8/8 SAME, and `fdprobe` shows `waitpid=10` for 10 forks and `tty_r=0`. `~/tmp/golden` is unchanged (directory mtime 2026-10-28). The guard folds away with the const off (891,808 re-measured after it) and in Doom (758,199 in the gate). The same arm's log at physical 0xE1000 was checked too: it sits between `.rodata` and `.bss` and touches no kernel data.
+
+The guard moved the on figure to 889,100, +666 for removing code: another case of verifier counts not being additive.
+
+Mutants (T-F4), each on the probe kernel, each reverted (`git checkout` of `upc_slots.c`, tree checked clean, rebuilt, 49 again):
+
+| Mutant | Result |
+|---|---|
+| `fresh_mask` test deleted from `upc_forknote` | 4 `=no`: note-own, note-live, sibling-intact, sibling-file |
+| `upc_exit` does not close | 2 `=no`: exit-closed, kill-closed. The second is the next note closing the leaked file (T-F5), which frees a lower inum |
+| `upc_kill` does not close | 1 `=no`: kill-closed |
+
+T-F4's cwd drop boots (`FD: reuse-cwd`) but cannot be observed: every row's cwd is root until chdir, so a leaked reference shows nothing.
+
+Steps 233-234: gate fd-after, same=12 diff=0 rc=0 doom=1 ascend=889100. `forkloop`, `gate_nway`, `gate2`, the four `ut_*` and `fdprobe: 49 checks` PASS, ALL GREEN. T-S1 and T-S2 answered: exec'd images take injected fork and exit traps in all 12, and none was cut off at its trigger count.
+
+Not booted: a file past one block (`fdprobe` writes 300 bytes, so `filewrite`'s chunking, `bmap`'s indirect block and BPF reading them back are unshown); a forged 24 with ADR-109 D6 off (Phase 21's); `upc-rung0-assert.awk` against a probe kernel.
