@@ -42,6 +42,8 @@ The injection is shared, so the arm does not carry a second inlined copy of it.
 
 ### T3. `pause` stays a BPF yield in this rung
 
+Superseded by the sleep rung, 2026-11-05.
+
 Moving `pause` into the kernel needs a hand-off ADR-109 I7 only sketches: the kernel decides that the sleep has not
 ended, and BPF yields and re-injects. That is its own design, it will be measured, and it has a natural home in the
 first rung that blocks in the kernel. `pause(n)` keeps ignoring `n`.

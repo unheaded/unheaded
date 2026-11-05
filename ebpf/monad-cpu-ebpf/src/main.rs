@@ -472,7 +472,7 @@ const UPC_RUNG_LINK: bool = true;
 // ADR-110, ADR-135 D7 (the sleep rung): pause is injected into the owned kernel, which
 // holds the deadline and replies YIELD with epc back on the ecall until ticks reach it.
 // Needs UPC_REPLY and DEFERRED_SWITCH. Rollback = this const off.
-const UPC_RUNG_SLEEP: bool = false;
+const UPC_RUNG_SLEEP: bool = true;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause

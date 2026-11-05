@@ -206,3 +206,21 @@ Steps 202-203: `gate link-after`: same=12 diff=0 rc=0 doom=1 ascend=890064, ALL 
 Step 204: `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allowlisted over 900000.
 
 Not covered: `original-kept` opens README after the unlink of `lnk` and reads no bytes, so it does not by itself show the data survived. `nlink` is not read back: BPF `fstat` was not asked for it. `link` runs against a fresh `fs.img` with an empty log, so log pressure is untested, as for `mkdir`.
+
+## Phase 17, sleep rung
+
+| Rung | OFF | ON | delta | net vs 921,036 | gate |
+|---|---|---|---|---|---|
+| pause(n), retry hand-off | 890064 | 891808 | +1744 | 29228 | sleep-after |
+
+Steps 206-210: before-gate diff 0 (`last-green` was HEAD), `offv` 890,064. The off object after the kernel and BPF edits also measured 890,064, so the const covers the alias and the reply branch. `parity_surface` green.
+
+Step 208 as landed differs from the plan's text in two small ways. The reply block has sat after the loop since Phase 11, so there is nothing to `break` from: it only sets `switch_req`. The test carries `UPC_RUNG_SLEEP`, as kill's does, or the off object would not equal the previous count (Appendix A1). `epc - 4` resolved: the boots show `rom_fault=0`, no `0x48`, and the alias went in between 12 and 14, as no row for 23 exists since Phase 6. 23 stays on the shared arm; with 13 aliased away that arm serves yield only, and `gate_nway` (which calls `yield`) still shows 3 pids.
+
+Steps 211-212: `flip`, 891,808, delta +1,744, `BUDGET-OK`, headroom 8,192.
+
+Steps 213-214: first boot. `sleepprobe`: four `=yes`, `SL: parent-ran` before `SL: child-woke`, `SL: done`; `uptimeprobe` `moved=yes` 2; `gate_nway` 3. No `TRIG` change. ADR-135 D7's check is met: at 3,000,000 triggers all seven lines survived the `S` and the 100-PC tracer each retry writes. Stats from that boot: `syscalls=5546 ctx_sw=32 forks=1 waitpid=49 rom_fault=0`, at about 16 instructions per tick, so a retry costs about 84 ticks and `pause(2000)` polled about 24 times.
+
+Steps 215-216: `gate sleep-after`: same=12 diff=0 rc=0 doom=1 ascend=891808, ALL GREEN, `sleepprobe` PASS (1), `pgrep -c doom-runner` 0. `head=5ae498fe` is the const-off commit: the gate ran on the flipped tree, as Step 217 commits after it.
+
+Not covered: `sleepprobe` checks the 300-tick wait against `uptime`; the child's 2,000-tick wait is shown only by order against the parent, not by a tick count. Deadline wrap (`t + n` past 2^32) and a `kill` landing on a slot in `pause` are not booted: a killed slot's stale deadline is cleared at row refresh, read from the code.
