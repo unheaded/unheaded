@@ -28,7 +28,6 @@ cd ~/tmp/unheaded/raft
 python zhen_app.py &
 
 # 4. Verify
-python scripts/04_integration_tests.py
 ```
 
 ## Performance Baseline
@@ -78,7 +77,6 @@ If **response quality** is poor:
 ```bash
 source ~/.venv/zhen/bin/activate
 cd ~/tmp/unheaded/raft
-python scripts/04_integration_tests.py
 ```
 
 All 10 tests should pass. If any fail, check the specific service and restart as needed.
