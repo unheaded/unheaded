@@ -200,11 +200,11 @@ fn csr_alias_exhaustive_form_table() {
                     let ctx = format!("f3={funct3} rd=x{rd} rs1=x{rs1} csr={csr:#x}");
                     assert_eq!(ram(&cpu, addr), new, "CSR value, {ctx}");
                     assert_eq!(cpu.state.regs[0], 0, "r0 must be 0 after, {ctx}");
-                    for i in 1..16 {
+                    for (i, &seeded) in seed.iter().enumerate().skip(1) {
                         let want = if rd != 0 && i == mbc_of(rd) {
                             OLD
                         } else {
-                            seed[i]
+                            seeded
                         };
                         assert_eq!(cpu.state.regs[i], want, "r{i}, {ctx}");
                     }
