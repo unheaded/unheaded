@@ -822,6 +822,15 @@ provoke_gates_output() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_generate_sbom() {
+    # Contract: the generator writes sbom/SBOM.md. Stop the full run writing it.
+    local f="scripts/generate-sbom.sh"
+    backup "${f}"
+    sed -i '/^write_report$/d' "${REPO_ROOT}/${f}"
+    ! grep -q '^write_report$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_fetch_tool() {
     # Contract: a binary keeps running while another gate fetches the same
     # tool. Unpack over it in place again.
@@ -1171,6 +1180,7 @@ check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a cal
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
 test-check-gitleaks-history|provoke_gitleaks_history|fast|check-gitleaks.sh --history treating a failed scan as findings (downloads the pinned tool)
 test-check-gates-can-fail|provoke_gates_output|fast|a clean run's output sent back to /dev/null, so an INCONCLUSIVE row names nothing
+test-generate-sbom|provoke_generate_sbom|fast|generate-sbom.sh's full run no longer writing sbom/SBOM.md, as from 2026-03-15
 test-fetch-tool|provoke_fetch_tool|fast|fetch-tool.sh unpacking over the cached binary in place, as it did until 2026-11-05
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)

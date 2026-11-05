@@ -5,7 +5,9 @@
 # Lightweight SBOM generation using built-in tooling (go list, Cargo.lock parsing).
 # No external tools required (ScanCode, FOSSology, Syft are optional).
 #
-# Usage: ./scripts/generate-sbom.sh
+# Usage: ./scripts/generate-sbom.sh                # everything below
+#        ./scripts/generate-sbom.sh --report-only  # only SBOM.md, from the files
+#                                                  # already in sbom/
 #
 # Outputs:
 #   sbom/go-dependencies.json     -- Go module SBOM (SPDX-2.3 compatible)
@@ -15,16 +17,94 @@
 #       dependency graph read it as a manifest and raised Dependabot alerts
 #       for packages nothing installs from here (2026-10-28). The manifest
 #       is raft/requirements.txt.
-#   sbom/SBOM.md                  -- Human-readable master document
+#   sbom/SBOM.md                  -- Human-readable summary of the three above,
+#       written last, so its numbers are theirs (scripts/test-generate-sbom.sh)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SBOM_DIR="$PROJECT_ROOT/sbom"
+SBOM_DIR="${SBOM_DIR:-$PROJECT_ROOT/sbom}"
 TODAY="$(date -u +%Y-%m-%d)"
 
 mkdir -p "$SBOM_DIR"
+
+# write_report: sbom/SBOM.md from the JSON and the pip freeze. Everything but
+# the notes at the end is read from those files.
+write_report() {
+    python3 - "$SBOM_DIR" "$TODAY" << 'PYEOF'
+import collections, json, sys
+
+sbom_dir, today = sys.argv[1], sys.argv[2]
+go = json.load(open(f'{sbom_dir}/go-dependencies.json'))
+rust = json.load(open(f'{sbom_dir}/rust-dependencies.json'))
+python = [l for l in open(f'{sbom_dir}/python-pip-freeze.txt') if l.strip() and not l.startswith('#')]
+gs, rs = go['summary'], rust['summary']
+go_gpl = [d['module'] for d in go['packages'] if 'GPL' in d.get('license', '')]
+rust_gpl = [p['crate'] for p in rust['packages'] if 'GPL' in p.get('license', '')]
+
+def licenses(packages):
+    counts = collections.Counter(p.get('license', 'unknown') for p in packages)
+    rows = ['| License | Count |', '|---------|-------|']
+    rows += [f'| {name} | {n} |' for name, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+    return '\n'.join(rows)
+
+direct = [d for d in go['packages'] if not d['indirect']]
+direct_rows = '\n'.join(f"| {d['module']} | {d['version']} | {d.get('license', 'unknown')} |"
+                        for d in sorted(direct, key=lambda d: d['module']))
+verdict = 'PASS: no GPL-licensed Go module or Rust crate.' if not (go_gpl or rust_gpl) \
+    else 'REVIEW: GPL-licensed dependencies: ' + ', '.join(go_gpl + rust_gpl) + '.'
+
+open(f'{sbom_dir}/SBOM.md', 'w').write(f"""# Unheaded Software Bill of Materials (SBOM)
+
+**Generated:** {today}
+**Format:** summary of SPDX-2.3 compatible files
+**Main License:** GPL-3.0-or-later
+
+Written by `scripts/generate-sbom.sh`; do not edit by hand. CDN-loaded
+JavaScript and runtime components outside these lists are in `THIRD_PARTY.md`.
+
+## Summary
+
+| Ecosystem | Total | Direct | Detail file |
+|-----------|-------|--------|-------------|
+| Go | {gs['totalDependencies']} | {gs['directDependencies']} | `sbom/go-dependencies.json` |
+| Rust | {rs['totalExternalCrates']} external, {len(rs['workspaceCrates'])} workspace | | `sbom/rust-dependencies.json` |
+| Python | {len(python)} | | `sbom/python-pip-freeze.txt`, a `pip freeze` of the Zhen venv, not a manifest |
+
+## Go licenses
+
+{licenses(go['packages'])}
+
+## Direct Go modules
+
+| Module | Version | License |
+|--------|---------|---------|
+{direct_rows}
+
+## Rust licenses
+
+"(assumed)" marks a license this script could not read from a manifest.
+
+{licenses(rust['packages'])}
+
+## GPL boundary
+
+{verdict}
+
+The compiled fixture under `doom/` is GPL-2.0. It runs inside the kernel's eBPF
+VM and talks through BPF maps, so nothing links it. HAProxy (GPL-2.0) is a
+separate process reached over sockets. `hashicorp/golang-lru/v2` is MPL-2.0,
+file-level copyleft, compatible with GPL-3.0.
+""")
+PYEOF
+}
+
+if [ "${1:-}" = "--report-only" ]; then
+    write_report
+    echo "Wrote $SBOM_DIR/SBOM.md"
+    exit 0
+fi
 
 echo "=== Unheaded SBOM Generator ==="
 echo "Date: $TODAY"
@@ -328,6 +408,8 @@ py_count = sum(1 for l in open(f'{sbom_dir}/python-pip-freeze.txt') if l.strip()
 print(f"  Python: {py_count} packages")
 PYEOF
 
+write_report
+
 echo ""
 echo "Output files:"
 echo "  $SBOM_DIR/go-dependencies.json"
@@ -335,4 +417,4 @@ echo "  $SBOM_DIR/rust-dependencies.json"
 echo "  $SBOM_DIR/python-pip-freeze.txt"
 echo "  $SBOM_DIR/SBOM.md"
 echo ""
-echo "Done. Review sbom/SBOM.md for the full report."
+echo "Done. Review sbom/SBOM.md for the summary."
