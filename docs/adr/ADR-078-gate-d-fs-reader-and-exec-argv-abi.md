@@ -86,7 +86,7 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 17 | mknod | BPF | stub |
 | 18 | unlink | none yet | |
 | 19 | link | none yet | |
-| 20 | mkdir | none yet | |
+| 20 | mkdir | kernel | DP-502 |
 | 21 | close | BPF | |
 | 22 | reserved | probe builds | `UPC_PROBE_INJECT22` |
 | 23 | yield | BPF | DP-413; a stub in `user/uyield.h`, not `usys.pl`, so corpus binaries keep their size |

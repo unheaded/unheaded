@@ -148,3 +148,25 @@ Steps 162-165: the parity test went red first (`UPC_USER_VA_CEILING not in upc_s
 Steps 166-167: `gate uptr`: same=12 diff=0 rc=0 doom=1 ascend=889682, ALL GREEN, no panic in the harness output. `head=fff34c62` is the commit before this phase's: the gate ran on the uncommitted tree. Every forked child's first trap now runs `namei("/")`, and fsinit has run by then. `killprobe` and `sbrkprobe` were booted once more by hand on the final kernel: all checks reported.
 
 Not covered: no boot takes the slot-row branch of `walkaddr`, `copyout` or `vmfault` yet, because no pointer-taking number routes to the kernel. Phase 14's `mkprobe` is the first run of that code.
+
+## Phase 14, mkdir rung
+
+| Rung | OFF | ON | delta | net vs 921,036 | gate |
+|---|---|---|---|---|---|
+| mkdir | 889682 | 891248 | +1566 | 29788 | mkdir-after |
+
+Steps 169-172: `offv` 889,682. The empty arm for 20 carries the const in its test, as Phases 11 and 12 taught. Step 172 commits only on `off-equal`, and fa7b03a3 is that commit; the off count itself was not written to a file.
+
+Steps 173-174: `flip`, 891,248, delta +1,566, `BUDGET-OK`, headroom 8,752.
+
+Steps 175-176: `mkprobe`: 7 yes, 0 no, `MK: done`, first boot. Step 177 did not run. `mkdir` reaches the slot-row branch of `walkaddr` through `argstr` and `copyinstr`, so that branch has now run.
+
+Steps 178-179: `hostile_ptr`: unterminated, ceiling, kernel and wrap paths all refused, `alive=yes`, `HU: done`, no panic.
+
+Steps 180-181: `gate mkdir-after`: same=12 diff=0 rc=0 doom=1 ascend=891248, ALL GREEN, `mkprobe` and `hostile_ptr` PASS (2). `head=fa7b03a3` is the const-off commit: the gate ran on the tree with the const flipped. The gate took about an hour on a box that was thrashing, so its timing means nothing.
+
+Step 182: `check-ebpf-insns.sh`: 35 programs within 10 % of the baseline, 0 allowlisted over 900000.
+
+Resume after west's unclean reboot, 2026-11-05. The first agent stopped with Step 182's edits uncommitted; its cmt never ran. The tree was confirmed as the gated one, so the gate was not re-run. `main.rs` was last written at 19:07:27, before the gate began; the only other tracked changes since `fa7b03a3` are the ADR row, the baseline row, the progress file and this log, none of them build inputs. No kernel or user source is newer than `xv6-mbc.mbc`. The working object's sha256 equals the one `check-ebpf-insns.sh` built on its own from the same source. After the reboot `vcount` read 891,248 twice, and `mkprobe` and `hostile_ptr` booted once more: `mkprobe` lines identical to the gated run, `hostile_ptr` the same five yes and `HU: done`.
+
+Not covered: `mkdir` takes no `copyout`, so that slot-row branch and `vmfault`'s are still unbooted. `create` runs against a fresh `fs.img` with an empty log, so log pressure is untested.

@@ -460,7 +460,7 @@ const UPC_RUNG_KILL: bool = true;
 // DP-502 (the mkdir rung): mkdir is injected into the owned kernel, which runs
 // sys_mkdir to completion against fs.img in RAM (ADR-109 I7); the in-BPF reader
 // sees it at once. Needs the slot rows' user pointers and cwd. Rollback = this const off.
-const UPC_RUNG_MKDIR: bool = false;
+const UPC_RUNG_MKDIR: bool = true;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
