@@ -126,6 +126,7 @@ func (h *Hub) handleWs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	conn.SetReadLimit(maxKbdMessage)
 	sub := &Subscriber{conn: conn, instance: instance, out: make(chan []byte, 64)}
 	h.add(sub)
 	defer h.remove(sub)
@@ -158,6 +159,13 @@ func (h *Hub) handleWs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Limits on what a caller may send: an ingest body, and one keystroke
+// message (room for a paste, far above any real keypress).
+const (
+	maxIngestBytes = 1 << 20
+	maxKbdMessage  = 64 << 10
+)
+
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	resp := map[string]any{
@@ -187,8 +195,8 @@ func (h *Hub) handleTtyIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req ttyIngestRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, fmt.Sprintf("bad JSON: %v", err), http.StatusBadRequest)
+	if code, err := httputil.ReadJSON(w, r, maxIngestBytes, &req); err != nil {
+		http.Error(w, fmt.Sprintf("bad JSON: %v", err), code)
 		return
 	}
 	bytes := make([]byte, len(req.Bytes))

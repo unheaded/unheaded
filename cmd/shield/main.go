@@ -15,7 +15,10 @@
 //	DELETE /api/v1/rules/<id>    — remove a WAF rule
 //	POST /api/v1/evaluate        — evaluate a request against the rule set
 //
-// Default port: pkg/ports.Shield (19009). Override via -port or SHIELD_PORT.
+// Default bind: 127.0.0.1 on pkg/ports.Shield (19009). Override the port via
+// -port or SHIELD_PORT, the address via -listen. Off loopback needs
+// AUTH_ENABLED=true; with it, every route but /health, /ready and /metrics
+// needs a credential.
 //
 // Wotan integration: rule mutations + threat events publish to topic
 // "shield.events" (configurable via Service.Config.WotanTopic). When the
@@ -36,7 +39,9 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -45,7 +50,8 @@ import (
 
 func main() {
 	var (
-		port        = flag.Int("port", ports.Shield, "HTTP port to bind")
+		port        = flag.Int("port", ports.Shield, "HTTP port to bind on loopback")
+		listen      = flag.String("listen", "", "HTTP listen address, overriding --port; off loopback needs AUTH_ENABLED=true")
 		wotanAddr   = flag.String("wotan-grpc", "127.0.0.1:18001", "Wotan gRPC address")
 		shutTimeout = flag.Duration("shutdown-timeout", 10*time.Second, "graceful shutdown deadline")
 	)
@@ -88,10 +94,15 @@ func main() {
 	svc.RegisterRoutes(mux) // /health, /ready, /metrics from services/shield/shield.go
 	registerControlAPI(mux, svc, log)
 
-	addr := fmt.Sprintf(":%d", *port)
+	addr := listenAddr(*listen, *port)
+	handler, err := newHandler(mux, addr, auth.LoadServiceAuthConfig("shield"))
+	if err != nil {
+		log.Error().Err(err).Msg("refusing to start")
+		os.Exit(1)
+	}
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		MaxHeaderBytes:    1 << 20, // CLAUDE.md hardening baseline
 	}
@@ -133,8 +144,8 @@ func registerControlAPI(mux *http.ServeMux, svc *shield.Service, log *logger.Log
 			writeJSON(w, http.StatusOK, map[string]any{"rules": rules, "count": len(rules)})
 		case http.MethodPost:
 			var rule shield.Rule
-			if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON: " + err.Error()})
+			if code, err := httputil.ReadJSON(w, r, maxBodyBytes, &rule); err != nil {
+				writeJSON(w, code, map[string]any{"error": "invalid JSON: " + err.Error()})
 				return
 			}
 			if err := svc.AddRule(&rule); err != nil {
@@ -176,13 +187,35 @@ func registerControlAPI(mux *http.ServeMux, svc *shield.Service, log *logger.Log
 			return
 		}
 		var req shield.Request
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON: " + err.Error()})
+		if code, err := httputil.ReadJSON(w, r, maxBodyBytes, &req); err != nil {
+			writeJSON(w, code, map[string]any{"error": "invalid JSON: " + err.Error()})
 			return
 		}
 		decision := svc.Evaluate(r.Context(), &req)
 		writeJSON(w, http.StatusOK, decision)
 	})
+}
+
+// maxBodyBytes bounds a rule or evaluate request.
+const maxBodyBytes = 1 << 20
+
+// listenAddr is --listen, or loopback on port when it is empty.
+func listenAddr(listen string, port int) string {
+	if listen != "" {
+		return listen
+	}
+	return ports.LoopbackAddr(port)
+}
+
+// newHandler puts h behind pkg/auth (with AUTH_ENABLED=true: a token for
+// every route but /health, /ready and /metrics, and a write role for the
+// rule routes). Auth off is for loopback only; a listener off loopback with
+// auth off, or auth on with nothing to verify against, is an error.
+func newHandler(h http.Handler, addr string, cfg auth.ServiceAuthConfig) (http.Handler, error) {
+	if err := auth.CheckListen([]string{addr}, cfg); err != nil {
+		return nil, err
+	}
+	return auth.NewServiceHandler(h, cfg, auth.ServiceRoutes{})
 }
 
 func writeJSON(w http.ResponseWriter, code int, body any) {

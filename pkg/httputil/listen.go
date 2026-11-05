@@ -4,9 +4,11 @@
 package httputil
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 )
 
@@ -41,4 +43,19 @@ func ListenAll(addrs []string) ([]net.Listener, error) {
 		lns = append(lns, ln)
 	}
 	return lns, nil
+}
+
+// ReadJSON decodes r's JSON body into v, reading at most limit bytes. On
+// failure it returns the status to answer with (413 over the limit, 400 for
+// anything else) and the error; on success, 0 and nil.
+func ReadJSON(w http.ResponseWriter, r *http.Request, limit int64, v any) (int, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			return http.StatusRequestEntityTooLarge, err
+		}
+		return http.StatusBadRequest, err
+	}
+	return 0, nil
 }

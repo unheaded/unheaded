@@ -265,13 +265,16 @@ services:
       EMBEDDINGS_ENDPOINT: "http://embeddings:8080"
       SOPHIA_SERVICE_NAME: "sophia-eye"
       SOPHIA_GATEWAY_PORT: "20105"
+      # All of the container, for the compose networks and its Prometheus;
+      # the gateway has no auth, so the host publishes it on loopback only.
+      SOPHIA_GATEWAY_BIND: "0.0.0.0"
       LOG_LEVEL: "info"
       METRICS_PORT: "9090"
       TZ: UTC
 
     ports:
-      - "20106:9090"
-      - "20107:20105"
+      - "127.0.0.1:20106:9090"
+      - "127.0.0.1:20107:20105"
 
     networks:
       - sophia-eye

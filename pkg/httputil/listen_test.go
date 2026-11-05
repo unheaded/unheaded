@@ -5,7 +5,10 @@ package httputil
 
 import (
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -60,5 +63,23 @@ func TestListenAll_AllOrNone(t *testing.T) {
 func TestListenAll_RefusesEmptyList(t *testing.T) {
 	if _, err := ListenAll(nil); err == nil {
 		t.Fatal("ListenAll(nil) succeeded")
+	}
+}
+
+func TestReadJSON(t *testing.T) {
+	read := func(body string) (int, map[string]string) {
+		var v map[string]string
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		code, _ := ReadJSON(httptest.NewRecorder(), r, 16, &v)
+		return code, v
+	}
+	if code, v := read(`{"a":"b"}`); code != 0 || v["a"] != "b" {
+		t.Errorf("small body: code %d, value %v", code, v)
+	}
+	if code, _ := read(`{"a":`); code != http.StatusBadRequest {
+		t.Errorf("bad JSON: code %d, want 400", code)
+	}
+	if code, _ := read(`{"a":"` + strings.Repeat("b", 64) + `"}`); code != http.StatusRequestEntityTooLarge {
+		t.Errorf("body over the limit: code %d, want 413", code)
 	}
 }

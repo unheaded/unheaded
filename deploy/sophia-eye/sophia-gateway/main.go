@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics/prom"
 )
 
@@ -27,6 +29,7 @@ type SophiaGateway struct {
 	qdrantAddr  string
 	embeddAddr  string
 	serviceName string
+	gatewayBind string
 	gatewayPort string
 	metricsPort string
 	logLevel    string
@@ -124,6 +127,7 @@ func NewSophiaGateway() *SophiaGateway {
 		qdrantAddr:  os.Getenv("QDRANT_ENDPOINT"),
 		embeddAddr:  os.Getenv("EMBEDDINGS_ENDPOINT"),
 		serviceName: os.Getenv("SOPHIA_SERVICE_NAME"),
+		gatewayBind: os.Getenv("SOPHIA_GATEWAY_BIND"),
 		gatewayPort: os.Getenv("SOPHIA_GATEWAY_PORT"),
 		metricsPort: os.Getenv("METRICS_PORT"),
 		logLevel:    os.Getenv("LOG_LEVEL"),
@@ -149,6 +153,9 @@ func NewSophiaGateway() *SophiaGateway {
 	}
 	if sg.serviceName == "" {
 		sg.serviceName = "sophia-eye"
+	}
+	if sg.gatewayBind == "" {
+		sg.gatewayBind = "127.0.0.1"
 	}
 	if sg.gatewayPort == "" {
 		sg.gatewayPort = "20105"
@@ -360,9 +367,9 @@ func (sg *SophiaGateway) handleChat(w http.ResponseWriter, r *http.Request) {
 	sg.requestsTotal.Inc()
 
 	var req InferenceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if code, err := httputil.ReadJSON(w, r, maxChatBodyBytes, &req); err != nil {
 		sg.logf("ERROR", "Failed to decode chat request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		http.Error(w, "Invalid request body", code)
 		sg.inferenceErrors.Inc()
 		return
 	}
@@ -511,7 +518,7 @@ func (sg *SophiaGateway) Start(ctx context.Context) error {
 		http.HandleFunc("/models", sg.handleModels)
 
 		server := &http.Server{
-			Addr:         ":" + sg.gatewayPort,
+			Addr:         sg.listenAddr(sg.gatewayPort),
 			ReadTimeout:  120 * time.Second,
 			WriteTimeout: 120 * time.Second,
 			IdleTimeout:  30 * time.Second,
@@ -527,7 +534,7 @@ func (sg *SophiaGateway) Start(ctx context.Context) error {
 	go func() {
 		http.Handle("/metrics", http.HandlerFunc(sg.handleMetrics))
 		server := &http.Server{
-			Addr:         ":" + sg.metricsPort,
+			Addr:         sg.listenAddr(sg.metricsPort),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		}
@@ -540,6 +547,16 @@ func (sg *SophiaGateway) Start(ctx context.Context) error {
 
 	sg.logf("INFO", "Sophia's Eye gateway initialized successfully")
 	return nil
+}
+
+// maxChatBodyBytes bounds a chat request.
+const maxChatBodyBytes = 4 << 20
+
+// listenAddr binds SOPHIA_GATEWAY_BIND, loopback unless set. The gateway has
+// no auth: a container that names another address must publish it no wider
+// than the host's loopback (deploy/sophia-eye/docker-compose.yml).
+func (sg *SophiaGateway) listenAddr(port string) string {
+	return net.JoinHostPort(sg.gatewayBind, port)
 }
 
 func mustMarshal(v interface{}) []byte {

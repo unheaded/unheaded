@@ -22,6 +22,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"unheaded/pkg/auth"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -134,8 +136,12 @@ type Service struct {
 	httpServer *http.Server
 
 	// ListenAddr is the HTTP listen address Start binds; "" = ports.Anomaly
-	// on every interface (the service default).
+	// on loopback. Off loopback needs Auth.Enabled.
 	ListenAddr string
+
+	// Auth is the listener's auth (auth.LoadServiceAuthConfig). On, every
+	// route but /health, /ready and /metrics needs a credential.
+	Auth auth.ServiceAuthConfig
 
 	// anomaly.scores intake counters (scores.go)
 	scores scoreCounters
@@ -166,6 +172,16 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client) *Service {
 func (s *Service) Start(ctx context.Context) error {
 	s.log.Info().Msg("Anomaly Detection Service starting")
 
+	// Before anything starts: a listener this service must refuse stops it.
+	addr := s.listenAddr()
+	if err := auth.CheckListen([]string{addr}, s.Auth); err != nil {
+		return err
+	}
+	handler, err := s.handler()
+	if err != nil {
+		return err
+	}
+
 	// Join Wotan topics in the background with retry until ctx ends
 	// (SubscribeWithRetry), so a Wotan that comes up after anomaly is still
 	// joined. Start used to subscribe once per topic and give up.
@@ -193,17 +209,10 @@ func (s *Service) Start(ctx context.Context) error {
 	go s.thresholdUpdateLoop(ctx)
 
 	// Start HTTP server
-	mux := http.NewServeMux()
-	s.RegisterRoutes(mux)
-
-	addr := s.ListenAddr
-	if addr == "" {
-		addr = ports.DefaultAddr(ports.Anomaly)
-	}
 	s.httpServer = &http.Server{
 		ReadHeaderTimeout: 10 * time.Second,
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		MaxHeaderBytes:    1 << 20,
@@ -217,6 +226,25 @@ func (s *Service) Start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+// maxBodyBytes bounds a model or threshold request.
+const maxBodyBytes = 1 << 20
+
+// listenAddr is ListenAddr, or loopback on ports.Anomaly.
+func (s *Service) listenAddr() string {
+	if s.ListenAddr != "" {
+		return s.ListenAddr
+	}
+	return ports.LoopbackAddr(ports.Anomaly)
+}
+
+// handler is every route behind s.Auth; an error means auth is on but
+// unusable.
+func (s *Service) handler() (http.Handler, error) {
+	mux := http.NewServeMux()
+	s.RegisterRoutes(mux)
+	return auth.NewServiceHandler(mux, s.Auth, auth.ServiceRoutes{})
 }
 
 // Stop gracefully shuts down the service.
@@ -401,8 +429,8 @@ func (s *Service) handleModelUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var config ModelConfig
-	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if code, err := httputil.ReadJSON(w, r, maxBodyBytes, &config); err != nil {
+		http.Error(w, "invalid request body", code)
 		return
 	}
 
@@ -447,8 +475,8 @@ func (s *Service) handleThresholdOverride(w http.ResponseWriter, r *http.Request
 	var req struct {
 		Threshold float64 `json:"threshold"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if code, err := httputil.ReadJSON(w, r, maxBodyBytes, &req); err != nil {
+		http.Error(w, "invalid request body", code)
 		return
 	}
 
