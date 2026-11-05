@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1935,5 +1936,47 @@ func TestAnamnesisInitializeExampleEvents(t *testing.T) {
 	}
 	if types[pb.Event_EVENT_TYPE_FLOW_UPDATE] != 1 {
 		t.Error("expected 1 FLOW_UPDATE example event")
+	}
+}
+
+// Offset and Limit arrive signed from the caller. Whatever they hold, a query
+// answers with a page or an empty one; the gRPC listener has no recover, so a
+// panic here would end the process.
+func TestMockPagingSurvivesAnyOffsetAndLimit(t *testing.T) {
+	ensureMockMode(t)
+	as := &anamnesisServer{subscribers: make([]chan *pb.Event, 0)}
+	for i := 0; i < 10; i++ {
+		as.PublishEvent(&pb.Event{Type: pb.Event_EVENT_TYPE_FLOW_CREATE, FlowLabel: uint32(i)})
+	}
+	ss := &sophiaServer{mockDictionaries: initializeMockDictionaries()}
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name          string
+		offset, limit int32
+		events, dicts int
+	}{
+		{"negative offset is an empty page", -1, 5, 0, 0},
+		{"lowest offset is an empty page", math.MinInt32, 5, 0, 0},
+		{"negative limit takes the default", 0, -1, 10, 3},
+		{"lowest limit takes the default", 1, math.MinInt32, 9, 2},
+		{"offset plus limit past int32", 2, math.MaxInt32, 8, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			q, err := as.Query(ctx, &pb.EventQuery{Offset: tc.offset, Limit: tc.limit})
+			if err != nil {
+				t.Fatalf("Query: %v", err)
+			}
+			if len(q.Events) != tc.events {
+				t.Errorf("events = %d, want %d", len(q.Events), tc.events)
+			}
+			l, err := ss.List(ctx, &pb.DictionaryListRequest{Offset: tc.offset, Limit: tc.limit})
+			if err != nil {
+				t.Fatalf("List: %v", err)
+			}
+			if len(l.Dictionaries) != tc.dicts {
+				t.Errorf("dictionaries = %d, want %d", len(l.Dictionaries), tc.dicts)
+			}
+		})
 	}
 }

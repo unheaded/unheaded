@@ -61,10 +61,9 @@ cmd/perf-benchmark/http3.go 2
 cmd/perf-benchmark/main.go 5
 cmd/perf-benchmark/scenarios.go 1
 cmd/perf-benchmark/scenarios_test.go 2
-cmd/protocol-api/anamnesis.go 4
 cmd/protocol-api/flow.go 2
 cmd/protocol-api/main.go 5
-cmd/protocol-api/sophia.go 6
+cmd/protocol-api/sophia.go 2
 cmd/routing-health/main.go 2
 cmd/sophia/main.go 5
 cmd/steel-echo/monad.go 1
