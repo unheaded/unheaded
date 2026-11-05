@@ -46,6 +46,8 @@ var moveoutGone = []struct {
 	{"scripts/clean-artifacts.sh", `(?i)doom|build_monad`},
 	{"nixos/modules/services/README.md", `(?i)doom`},
 	{"dashboard/css/style.css", `(?i)doom`},
+	{"deploy/docker/zhen-agentd.Dockerfile", `as the main Dockerfile does`},
+	{"deploy/sophia-eye/sophia-gateway/Dockerfile", `as the root Dockerfile does`},
 }
 
 func TestMoveOutResidueStaysGone(t *testing.T) {
