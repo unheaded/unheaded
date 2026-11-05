@@ -95,7 +95,7 @@ func TestModelSwap_TimeoutRollsBack(t *testing.T) {
 	rec := swap("slow")
 	var resp toolExecResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
-	if rec.Code != http.StatusBadRequest || resp.Status != "error" ||
+	if rec.Code != http.StatusInternalServerError || resp.Status != "error" ||
 		!strings.Contains(resp.Reason, "time budget") || !strings.Contains(resp.Reason, "rolled back to fast") {
 		t.Fatalf("swap to slow: %d %+v, want a timeout that rolled back to fast", rec.Code, resp)
 	}

@@ -670,6 +670,21 @@ func TestSchedulerEndpoints(t *testing.T) {
 	if code, out := confirmed("/api/v1/scheduler/pause", map[string]any{"paused": false, "justification": directUserRefs()}); code != http.StatusOK || s.view().Paused {
 		t.Errorf("resume: %d %v", code, out)
 	}
+	// zhen-cli's /schedule reaches the same tool through /api/v1/tool/exec.
+	if code, out := post("/api/v1/scheduler/pause", map[string]any{"paused": true, "justification": directUserRefs()}); code != http.StatusOK || !s.view().Paused {
+		t.Fatalf("pause: %d %v", code, out)
+	}
+	rec := as("stevie", srv.handleToolExec, http.MethodPost, "/api/v1/tool/exec", map[string]any{
+		"tool": "schedule_update", "args": map[string]any{"op": "pause", "paused": false}, "emitted_by": "zhen-cli", "justification": directUserRefs(),
+	})
+	var held toolExecResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &held)
+	if rec.Code != http.StatusForbidden || held.Status != "pending_confirmation" || held.PendingToken == "" || !s.view().Paused {
+		t.Fatalf("a resume through tool/exec was not held: %d %+v", rec.Code, held)
+	}
+	if rec := as("stevie", srv.handleConfirm, http.MethodPost, "/api/v1/agent/confirm", map[string]any{"token": held.PendingToken}); rec.Code != http.StatusOK || s.view().Paused {
+		t.Fatalf("confirming the resume: %d %s", rec.Code, rec.Body.String())
+	}
 	if code, out := confirmed("/api/v1/scheduler/remove", map[string]any{"name": "service-health-sweep", "justification": directUserRefs()}); code != http.StatusOK || len(s.view().Jobs) != 0 {
 		t.Errorf("remove: %d %v", code, out)
 	}

@@ -133,13 +133,16 @@ the file refuse to load, and the status is checked again before every run.
 Times are the host's local time; an interval counts from the last run, with no
 catch-up burst after downtime.
 
-**Adding a job.** Edit the file and restart the daemon, or type
-`schedule <runbook> every <interval>` in the web UI (`unschedule <runbook>`,
-`list schedules`, `emergency stop` pauses everything, `resume schedules`). The
-UI calls `POST /api/v1/scheduler/{add,remove,pause}` (and `list`) on loopback;
-the changes are the mutating tool `schedule_update`, so they need a direct-user
-justification (a model cannot schedule anything) and persist to
-`-schedules-state`.
+**Adding a job.** Edit the file and restart the daemon, or in `zhen-cli` type
+`/schedule add <name> <every> [runbook]`, `/schedule remove <name>` or
+`/schedule resume`, then `/confirm <token>`. These are the mutating tool
+`schedule_update`: they answer to a person whatever the justification, a model
+cannot schedule anything, and they persist to `-schedules-state`.
+
+**Stopping.** `/schedule pause`, or `emergency stop` in the web UI, takes effect
+at once and persists. Resuming is `/schedule resume` in `zhen-cli`. The web UI
+also has `list schedules`; its `schedule`, `unschedule` and `resume schedules`
+are held, and the browser cannot redeem the token, so they point at `zhen-cli`.
 
 **Where runs show up.** Each run is one Kanban card (type `scheduled-run`,
 owner `zhen-scheduler`; done on success, review on failure, the worker never

@@ -140,6 +140,9 @@ def _same_origin(origin):
 
 @app.before_request
 def _csrf_guard():
+    # This keeps a browser on another origin, or a rebound name, out. It does
+    # not identify a caller: nothing here records the cookie's value, so a
+    # local program can send the same headers. That takes a login.
     if not _host_allowed():
         return jsonify({'error': 'Host not allowed: set ZHEN_ALLOWED_HOSTS to serve this name'}), 403
     if request.method in _CSRF_SAFE_METHODS:
@@ -684,14 +687,12 @@ def _try_command(question):
 
 **Runbooks:**
 - `list runbooks` — show all 51 runbooks by category
-- `run <name>` — execute a runbook
-- `run --dry <name>` — dry-run validation
+- To run one: `zhen-cli`, `/runbook exec <name>`, then `/confirm <token>`
 
 **Scheduling** (zhen-agentd -scheduler; approved runbooks only):
-- `schedule <runbook> every <interval>` — 30m, 6h, daily@03:00 or weekly@sun@03:00
-- `unschedule <runbook>` — remove schedule
 - `list schedules` — show all scheduled jobs and their last run
-- `emergency stop` — pause the scheduler (`resume schedules` to restart)
+- `emergency stop` — pause the scheduler at once
+- To change the schedule or resume: `zhen-cli`, `/schedule add`, `/schedule remove` or `/schedule resume`, then `/confirm <token>`
 
 **Memory:**
 - `recall <topic>` — search past conversations
@@ -818,8 +819,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
     if q.startswith(('run ', 'execute ')):
         name = q.split()[-1]
         if _runbook_path(name):
-            return {'answer': f'Runbooks do not run from chat. Use `zhen-cli`: `/runbook exec {name}`, then `/confirm <token>`. '
-                              f'The Run button here asks for the same confirmation.',
+            return {'answer': f'Runbooks do not run from chat. Use `zhen-cli`: `/runbook exec {name}`, then `/confirm <token>`.',
                     'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Service health
@@ -984,11 +984,11 @@ backend {svc_name}_back
 
     # Emergency stop: pause the scheduler through the gate (no pkill: the
     # daemon is another user's process). A run in flight finishes; nothing
-    # new starts until `resume schedules`.
+    # new starts until a person resumes it from zhen-cli.
     if q in ('emergency stop', 'stop all', 'kill all'):
         code, body = zhen_scheduler_client.call(ZHEN_AGENTD_URL, _agentd_headers(), 'pause', {'paused': True})
         if code == 200:
-            return {'answer': '**EMERGENCY STOP**: the scheduler is paused; no scheduled runbook starts until `resume schedules`. A run already in flight finishes (zhen-agentd caps it at 10 minutes).', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+            return {'answer': '**EMERGENCY STOP**: the scheduler is paused; no scheduled runbook starts until you resume it: `/schedule resume` in `zhen-cli`, then `/confirm <token>`. A run already in flight finishes (zhen-agentd caps it at 10 minutes).', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
         return {'answer': f'**EMERGENCY STOP FAILED** ({code}): {zhen_scheduler_client.reason(body)}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Trust level

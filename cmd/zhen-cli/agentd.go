@@ -216,6 +216,35 @@ func (s *session) handleConfirm(args []string) {
 	s.printToolExecResponse("confirm", &resp.toolExecResponse)
 }
 
+// handleSchedule: /schedule add|remove|pause|resume → the tool
+// schedule_update through /api/v1/tool/exec. Pausing takes effect at once;
+// the rest come back held, and /confirm <token> applies them.
+func (s *session) handleSchedule(args []string) {
+	usage := "/schedule add <name> <every> [runbook] | remove <name> | pause | resume"
+	var call map[string]any
+	switch {
+	case len(args) == 1 && args[0] == "pause":
+		call = map[string]any{"op": "pause", "paused": true}
+	case len(args) == 1 && args[0] == "resume":
+		call = map[string]any{"op": "pause", "paused": false}
+	case len(args) == 2 && args[0] == "remove":
+		call = map[string]any{"op": "remove", "name": args[1]}
+	case len(args) == 3 && args[0] == "add":
+		call = map[string]any{"op": "add", "name": args[1], "every": args[2]}
+	case len(args) == 4 && args[0] == "add":
+		call = map[string]any{"op": "add", "name": args[1], "every": args[2], "runbook": args[3]}
+	default:
+		s.warn(usage)
+		return
+	}
+	resp, err := s.toolExec("schedule_update", call)
+	if err != nil {
+		s.errf("/schedule: %v", err)
+		return
+	}
+	s.printToolExecResponse("schedule_update", resp)
+}
+
 type modelInfo struct {
 	Key         string  `json:"key"`
 	Name        string  `json:"name"`

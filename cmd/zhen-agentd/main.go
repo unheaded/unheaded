@@ -1021,9 +1021,13 @@ func (s *server) handleConfirm(w http.ResponseWriter, r *http.Request) {
 		// Token failures (unknown/used/expired) are 400-ish — the
 		// client gave a stale token. Destructive-blocked / path-denied
 		// after confirm are 403 — the gate refused even after consent.
+		// Anything else is the confirmed call itself failing: 500.
 		code := http.StatusBadRequest
-		if status == "denied" {
+		switch status {
+		case "denied":
 			code = http.StatusForbidden
+		case "error":
+			code = http.StatusInternalServerError
 		}
 		writeJSON(w, code, confirmResponse{
 			Status: status,

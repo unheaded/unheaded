@@ -242,6 +242,33 @@ def test_schedule_commands_call_agentd_not_a_local_scheduler(monkeypatch):
     assert 'zhen_scheduler' not in sys.modules or not hasattr(sys.modules['zhen_scheduler'], 'add_schedule')
 
 
+def test_held_schedule_change_points_at_the_client_that_can_confirm(monkeypatch):
+    import zhen_scheduler_client
+    held = {'status': 'pending_confirmation', 'reason': 'held', 'pending_token': 'tok-secret'}
+    monkeypatch.setattr(zhen_scheduler_client, 'call', lambda *a, **kw: (403, held))
+    for q in ('schedule service-health-sweep every 6h', 'unschedule service-health-sweep', 'resume schedules'):
+        answer, handled = zhen_app._try_command(q)
+        assert handled, q
+        assert '/schedule' in answer['answer'] and 'zhen-cli' in answer['answer'], q
+        assert 'tok-secret' not in answer['answer'], q
+
+
+def test_emergency_stop_says_how_to_come_back(monkeypatch):
+    import zhen_scheduler_client
+    monkeypatch.setattr(zhen_scheduler_client, 'call', lambda *a, **kw: (200, {'status': 'ok'}))
+    answer, _ = zhen_app._try_command('emergency stop')
+    assert '/schedule resume' in answer['answer']
+    assert 'until `resume schedules`' not in answer['answer']
+
+
+def test_help_offers_only_what_the_web_ui_does():
+    answer, handled = zhen_app._try_command('help')
+    assert handled
+    for gone in ('`run <name>`', '`run --dry <name>`', '`schedule <runbook>', '`unschedule <runbook>`', '`resume schedules`'):
+        assert gone not in answer['answer'], gone
+    assert '/runbook exec' in answer['answer'] and '/schedule resume' in answer['answer']
+
+
 # ── runbooks: chat runs nothing, and a name must be on the list (H5) ────
 
 @pytest.fixture
