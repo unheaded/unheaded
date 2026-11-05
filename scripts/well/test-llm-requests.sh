@@ -13,6 +13,9 @@
 #   4. the CHECKs refuse an unknown backend, a negative cost and an unknown
 #      route_reason;
 #   5. ops_reader can read and cannot write.
+#  5b. the energy columns (044): a local estimate is stored, a row without
+#      one reads NULL and '', and the CHECKs refuse an unknown method, a
+#      figure without a method, a method without a figure, a negative figure;
 #   6. pkg/claudebridge's Well integration test (build tag wellint) runs
 #      one bridge turn against the fake Claude API with the Well auditor
 #      writing to this server as ops_writer (WELL_TEST_DSN): one row per
@@ -110,6 +113,18 @@ refused "empty model" login ops_writer "$OPS_PW" "$ROW VALUES (now(), 'zhen-clau
 # 5. The reader.
 ok "ops_reader SELECT" login ops_reader "$RD_PW" "SELECT count(*) FROM llm_requests"
 refused "ops_reader INSERT" login ops_reader "$RD_PW" "$ROW VALUES (now(), 'zhen-claude', 'claude', 'm', 'c4', 1, 1, true, 0)"
+
+# 5b. Energy (044).
+EROW="INSERT INTO llm_requests (occurred_at, source_service, backend, model_requested, conversation_id, iteration, duration_ms, sent, energy_joules_est, energy_method)"
+ok "a local estimate" login ops_writer "$OPS_PW" "$EROW VALUES (now(), 'zhen-agentd', 'local', 'm', 'e1', 0, 1, true, 40.5, 'gpu_sampled')"
+[[ "$(sq "SELECT energy_joules_est, energy_method FROM llm_requests WHERE conversation_id = 'e1'")" == "40.5|gpu_sampled" ]] &&
+	pass "estimate reads back" || fail "estimate reads back"
+[[ "$(sq "SELECT count(*) FROM llm_requests WHERE energy_joules_est IS NULL AND energy_method = ''")" -ge 2 ]] &&
+	pass "rows without an estimate read NULL and ''" || fail "default energy columns"
+refused "unknown energy_method" login ops_writer "$OPS_PW" "$EROW VALUES (now(), 'zhen-agentd', 'local', 'm', 'e2', 0, 1, true, 1, 'guess')"
+refused "figure without a method" login ops_writer "$OPS_PW" "$EROW VALUES (now(), 'zhen-agentd', 'local', 'm', 'e3', 0, 1, true, 0, '')"
+refused "method without a figure" login ops_writer "$OPS_PW" "$EROW VALUES (now(), 'zhen-agentd', 'local', 'm', 'e4', 0, 1, true, NULL, 'gpu_sampled')"
+refused "negative figure" login ops_writer "$OPS_PW" "$EROW VALUES (now(), 'zhen-agentd', 'local', 'm', 'e5', 0, 1, true, -1, 'gpu_sampled')"
 
 # 6. Go integration test against this server.
 if ((GO)); then

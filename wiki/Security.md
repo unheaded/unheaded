@@ -141,7 +141,7 @@ Evidence, not intent (ADR-097): common controls are mapped many-to-many onto eac
 | PCI-DSS, HIPAA, ITAR, GDPR | Not crosswalked |
 
 - **Findings register** (ADR-098): `compliance/findings/register.yaml` triages; evidence decides what is open. Every host runs `unheaded-baseline` in audit mode. Its enforcing code path (applies the fix that closes a deviation, only after a 7-day soak, behind a flapping breaker and a package `preinst` gate) waits on Stevie's flip: `docs/compliance/enforcing-soak.md`.
-- **Remediation as code** (ADR-099): one fix model (`compliance/remediation/fixes.yaml`, 16 fixes) applied by `cmd/unheaded-remediate` (check, plan, apply, undo, `-record-existing`; backups and a hash-chained journal) and rendered to Ansible (`deploy/ansible/compliance/`, syntax-checked in CI). `scripts/host/remediate.sh` was retired on parity 2026-10-27; its output for the first 13 fixes is the executor's test fixture. Profiles (`compliance/profiles/profiles.yaml`): `none` / `lab` / `lab-hardened` / `cis-l1-server` / `all`.
+- **Remediation as code** (ADR-099): one fix model (`compliance/remediation/fixes.yaml`, 18 fixes) applied by `cmd/unheaded-remediate` (check, plan, apply, undo, `-record-existing`; backups and a hash-chained journal) and rendered to Ansible (`deploy/ansible/compliance/`, syntax-checked in CI). `scripts/host/remediate.sh` was retired on parity 2026-10-27; its output for the first 13 fixes is the executor's test fixture. Profiles (`compliance/profiles/profiles.yaml`): `none` / `lab` / `lab-hardened` / `cis-l1-server` / `all`.
 - State lives in The Well (`unheaded_ops.compliance_*`, `unheaded_config.compliance_*`). The dashboard's compliance page (`:20000/compliance.html`) shows each framework against its full denominator.
 
 West and east are a dev/lab environment: lab-only gaps (for example, no disk encryption) are recorded and accepted, not remediated.
@@ -150,12 +150,15 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 
 ---
 
+**Hosts after S-HOST-TIDY (2026-11-04).** West's journal is capped at 4G/500M (`61-unheaded-west.conf` over `60-unheaded.conf`), east's at 1G/200M. East answers password and key on port 22 (the move to 7375 is attended, S-E1-LIVE); `PermitRootLogin no` on both (`05-unheaded-permitroot.conf`). fail2ban on east watches `sshd-session` on 22 and 7375 and ignores every address west can use, because a ban on one would close east's only door; west's own jail bans port 22 only until S-E1-LIVE Evening 8. East resolves through Pi-hole 10.10.20.252, then 1.1.1.1 and 8.8.8.8, via the `127.0.0.53` stub (`/etc/netplan/01-enp2s0.yaml`; never `netplan apply` on east, enp2s0 is its only link). `usb-storage` cannot load on either host. `su` needs root on both (empty `sugroup`). East's umask is 027; west's stays 0002 because its compose stacks read repo files through bind mounts. `unheaded-remediate` lives in `/usr/local/sbin` with its model at `/usr/share/unheaded/remediation/fixes.yaml`, root-owned as it requires. Never run `apt autoremove` on east without reading the list: removing `lxd-installer` also removed the `ubuntu-server` metapackage.
+
 ## Security Testing Infrastructure
 
 | Tool | Purpose | Where |
 |------|---------|-------|
 | gosec | Go static analysis, ratcheted per rule | `scripts/check-gosec-ratchet.sh`, CI |
 | govulncheck, cargo-audit, pip-audit, grype, trivy | Dependency and image vulnerabilities; pip-audit's accepted findings may only shrink | `.github/workflows/`, `scripts/check-python-audit.sh` |
+| vulnmatch | Native matcher, stage 1a of replacing trivy: lock data against local OSV records and the KEV catalog; no network code | `cmd/vulnmatch`, `scripts/vulnmatch-fixture.sh` |
 | Dependency baseline | No third-party package (go.sum, Cargo.lock, requirements, package.json) enters unrecorded (ADR-096) | `scripts/check-dependency-baseline.sh` |
 | Image tags | No new floating image tag; the existing ones may only shrink (ADR-102) | `scripts/check-image-tags.sh` |
 | Unit binaries / accounts | Every systemd unit runs a binary the repo builds, as its own sysusers account | `scripts/check-unit-binaries.sh`, `scripts/check-systemd-units.sh` |
@@ -173,7 +176,7 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | OpenSSF Scorecard | Supply-chain posture score, published, uploaded as code scanning | `.github/workflows/scorecard.yml` |
 | CodeQL | Go, JavaScript and Python analysis on push/PR to develop, staging, main | `.github/workflows/codeql.yml` |
 | eBPF size pin | ADR-089 promotion gate: `monad-cpu-ebpf --features ascend-linux` keeps its pinned byte size (per toolchain); run on the build host | `scripts/check-ebpf-size-pin.sh`, `docs/policy/ebpf-size-pins.txt` |
-| Dependabot | Grouped weekly PRs for actions, base images and Go modules, each after a 7-day cooldown | `.github/dependabot.yml` |
+| Dependabot | Grouped weekly PRs for actions, base images, Go modules and Rust crates; base images wait 7 days, the rest 14; nothing auto-merges | `.github/dependabot.yml` |
 | Go fuzz targets | Every package with Fuzz functions, 10 s each, on every security run | `.github/workflows/security.yml` (lich-fuzz) |
 | LICH campaigns | Fuzz / red team (ADR-062); LICH-005 fuzzes `.bpf.o` through the real loader into `bpf(2)` | `tomb/lich/`, `crates/*/fuzz/` |
 | Fuzz targets | MBC interpreter fuzzing | `crates/monad-mbc/fuzz/` |

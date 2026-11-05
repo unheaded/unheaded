@@ -11,7 +11,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -63,6 +65,10 @@ const (
 	ViolationPolicy    ViolationType = "POLICY"
 	ViolationPIIEgress ViolationType = "PII_EGRESS"
 	ViolationCircuit   ViolationType = "CIRCUIT"
+	// ViolationEncryption and ViolationZone are the compliance-ebpf audit
+	// record's VIOLATION_ENCRYPTION_REQUIRED and VIOLATION_ZONE_BREACH.
+	ViolationEncryption ViolationType = "ENCRYPTION"
+	ViolationZone       ViolationType = "ZONE"
 )
 
 // ServicePolicy defines a service-to-service communication policy.
@@ -106,6 +112,10 @@ type ComplianceScore struct {
 	AuditCompleteness float64 `json:"audit_completeness"` // 0.0-1.0
 	ViolationRate     float64 `json:"violation_rate"`     // violations per total
 	ScorePct          float64 `json:"score_pct"`          // overall percentage
+	// NoData is true until a packet has been evaluated. ScorePct and
+	// AuditCompleteness are then 0, not 100: an empty plane proves nothing,
+	// and evidence must be able to fail (ADR-097).
+	NoData bool `json:"no_data"`
 }
 
 // GeoZone defines a geographic compliance zone.
@@ -132,6 +142,8 @@ type AuditEntry struct {
 
 // Config holds Wire Compliance service configuration.
 type Config struct {
+	// ListenAddr is where Start binds; loopback by default.
+	ListenAddr        string        `json:"listen_addr"`
 	AggregationWindow time.Duration `json:"aggregation_window"`
 	MaxViolations     int           `json:"max_violations"`
 	MaxAuditEntries   int           `json:"max_audit_entries"`
@@ -141,6 +153,7 @@ type Config struct {
 // DefaultConfig returns sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
+		ListenAddr:        net.JoinHostPort("127.0.0.1", strconv.Itoa(ports.Compliance)),
 		AggregationWindow: 10 * time.Second,
 		MaxViolations:     10000,
 		MaxAuditEntries:   50000,
@@ -157,7 +170,8 @@ type WireComplianceService struct {
 	mu         sync.RWMutex
 	policies   map[string]*ServicePolicy // "src->dst" -> policy
 	violations []Violation               // violation store
-	auditLog   []AuditEntry              // audit trail
+	auditLog   []AuditEntry              // audit trail, newest MaxAuditEntries
+	auditTotal int64                     // audit records ever seen; the list trims, this does not
 	zones      map[string]*GeoZone       // zone_id -> zone
 	score      ComplianceScore           // running score
 
@@ -185,12 +199,49 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Wir
 		violations: make([]Violation, 0),
 		auditLog:   make([]AuditEntry, 0),
 		zones:      make(map[string]*GeoZone),
+		score:      ComplianceScore{NoData: true},
 		alertsCh:   make(chan *wotanClient.Message, 100),
 	}
 }
 
-// Start initializes Wotan subscriptions, HTTP server, and violation aggregation.
+// Start runs StartBackground and serves Handler on Config.ListenAddr with no
+// authentication: for tests. A deployment mounts Handler behind pkg/auth
+// (cmd/compliance-evidence wire --serve).
 func (s *WireComplianceService) Start(ctx context.Context) error {
+	if err := s.StartBackground(ctx); err != nil {
+		return err
+	}
+
+	s.httpServer = &http.Server{
+		ReadHeaderTimeout: 10 * time.Second,
+		Addr:              s.config.ListenAddr,
+		Handler:           s.Handler(),
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+
+	go func() {
+		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			s.log.Error().Err(err).Msg("HTTP server error")
+		}
+	}()
+
+	s.log.Info().Str("addr", s.config.ListenAddr).Msg("wire compliance service started")
+	return nil
+}
+
+// Handler returns the service's routes on a new mux.
+func (s *WireComplianceService) Handler() *http.ServeMux {
+	mux := http.NewServeMux()
+	s.registerRoutes(mux)
+	return mux
+}
+
+// StartBackground starts the Wotan subscriptions and the aggregation loop,
+// without a listener.
+func (s *WireComplianceService) StartBackground(ctx context.Context) error {
 	if !atomic.CompareAndSwapInt32(&s.started, 0, 1) {
 		return fmt.Errorf("wire compliance service already started")
 	}
@@ -219,30 +270,8 @@ func (s *WireComplianceService) Start(ctx context.Context) error {
 		s.log.Info().Msg("Wotan not configured, skipping subscriptions")
 	}
 
-	// Start HTTP server
-	mux := http.NewServeMux()
-	s.registerRoutes(mux)
-
-	s.httpServer = &http.Server{
-		ReadHeaderTimeout: 10 * time.Second,
-		Addr:              ports.DefaultAddr(ports.Compliance),
-		Handler:           mux,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       120 * time.Second,
-		MaxHeaderBytes:    1 << 20,
-	}
-
-	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.log.Error().Err(err).Msg("HTTP server error")
-		}
-	}()
-
 	// Start violation aggregation loop
 	go s.aggregationLoop(ctx)
-
-	s.log.Info().Int("port", ports.Compliance).Msg("wire compliance service started")
 	return nil
 }
 
@@ -594,12 +623,14 @@ func (s *WireComplianceService) aggregateViolations(_ context.Context) {
 
 	totalPackets := s.score.TotalPackets
 	if totalPackets == 0 {
-		s.score.ScorePct = 100.0
-		s.score.AuditCompleteness = 1.0
+		s.score.NoData = true
+		s.score.ScorePct = 0
+		s.score.AuditCompleteness = 0
 		return
 	}
+	s.score.NoData = false
 
-	violations := int64(len(s.violations))
+	violations := s.score.Blocked
 	s.score.Violations = violations
 
 	if totalPackets > 0 {
@@ -610,10 +641,10 @@ func (s *WireComplianceService) aggregateViolations(_ context.Context) {
 		}
 	}
 
-	// Audit completeness: ratio of audit entries to total packets
-	auditEntries := int64(len(s.auditLog))
+	// Audit completeness: audit records ever seen against total packets.
+	// Counted, not read off the list: the list trims at MaxAuditEntries.
 	if totalPackets > 0 {
-		s.score.AuditCompleteness = float64(auditEntries) / float64(totalPackets)
+		s.score.AuditCompleteness = float64(s.auditTotal) / float64(totalPackets)
 		if s.score.AuditCompleteness > 1.0 {
 			s.score.AuditCompleteness = 1.0
 		}
@@ -642,11 +673,14 @@ func (s *WireComplianceService) MatchPolicy(srcServiceID, dstServiceID string) (
 func (s *WireComplianceService) RecordViolation(v Violation) {
 	s.mu.Lock()
 	s.violations = append(s.violations, v)
+	if over := len(s.violations) - s.config.MaxViolations; over > 0 && s.config.MaxViolations > 0 {
+		s.violations = s.violations[over:]
+	}
 	s.score.Blocked++
 	s.score.TotalPackets++
 
 	// Also add to audit log
-	s.auditLog = append(s.auditLog, AuditEntry{
+	s.appendAudit(AuditEntry{
 		Timestamp:      v.Timestamp,
 		TraceID:        v.TraceID,
 		SrcServiceID:   v.SrcServiceID,
@@ -668,6 +702,16 @@ func (s *WireComplianceService) RecordViolation(v Violation) {
 		"trace_id":       v.TraceID,
 		"timestamp":      v.Timestamp.UnixMilli(),
 	})
+}
+
+// appendAudit keeps the newest MaxAuditEntries entries and counts every one.
+// The caller holds s.mu.
+func (s *WireComplianceService) appendAudit(e AuditEntry) {
+	s.auditLog = append(s.auditLog, e)
+	s.auditTotal++
+	if over := len(s.auditLog) - s.config.MaxAuditEntries; over > 0 && s.config.MaxAuditEntries > 0 {
+		s.auditLog = s.auditLog[over:]
+	}
 }
 
 // RecordAllowed records a successful policy check (allowed traffic).
@@ -731,11 +775,12 @@ func (s *WireComplianceService) handleCriticalAlert(_ context.Context, msg *wota
 		Msg("received critical alert — auditing compliance posture")
 }
 
-// publishEvent publishes an event to Wotan.
+// publishEvent publishes an event to Wotan. With no client the event is counted
+// in wotanDrops and not logged: the audit ring reaches here once per blocked
+// packet, and StartBackground has already said Wotan is not configured.
 func (s *WireComplianceService) publishEvent(ctx context.Context, topic string, event map[string]interface{}) {
 	if s.wotan == nil {
 		atomic.AddInt64(&s.wotanDrops, 1)
-		s.log.Warn().Str("topic", topic).Msg("wotan unavailable — event dropped (degraded mode)")
 		return
 	}
 

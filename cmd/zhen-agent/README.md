@@ -17,7 +17,7 @@ make build-zhen-agent
 # 2. Make sure vor and llama-server are running
 #    (see scripts/start-cs.sh, scripts/start-llama.sh, or `make zhen-agent-up`
 #     once that target lands)
-curl -sf http://127.0.0.1:9876/api/health     # vor
+curl -sf http://127.0.0.1:20110/api/health     # vor
 curl -sf http://127.0.0.1:8081/health         # llama-server
 
 # 3. Ask
@@ -42,7 +42,7 @@ bin/zhen-agent -show-trace -q "Read CONTRIBUTING.md and summarize the sanitizati
 | `-project-root <path>` | cwd | Champion sandbox root (file ops gated to this dir) |
 | `-show-trace` | false | per-turn trace to stderr |
 
-Env: `VOR_URL` (default `http://127.0.0.1:9876`), `LLAMA_URL` (default `http://127.0.0.1:8081`), `RAG_MODEL` (default `qwen2.5-coder-7b-instruct`).
+Env: `VOR_URL` (default `http://127.0.0.1:20110`), `LLAMA_URL` (default `http://127.0.0.1:8081`), `RAG_MODEL` (default `qwen2.5-coder-7b-instruct`).
 
 ## What it can do
 

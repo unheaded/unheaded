@@ -7,9 +7,10 @@
 // Supported algorithms:
 //   - ML-DSA (FIPS 204) - Lattice-based digital signature (ML-DSA-44/65/87)
 //   - ML-KEM (FIPS 203) - Lattice-based key encapsulation (ML-KEM-512/768/1024)
-//   - SLH-DSA (FIPS 205) - Hash-based digital signature (stub, pending circl support)
-//   - FN-DSA (FIPS 206) - Lattice signature (stub, requires floating point, no BPF)
-//   - HQC (FIPS 207) - Code-based KEM (stub, pending circl support)
+//   - SLH-DSA (FIPS 205) - Hash-based digital signature
+//   - HQC (FIPS 207) - Code-based KEM (reserved: circl has no HQC)
+//
+// FN-DSA (FIPS 206) was withdrawn 2026-11-04 (DP-411); see AlgoWithdrawn03.
 //
 // All algorithm wrappers implement unified interfaces (Signer, Verifier,
 // KEMEncapsulator, KEMDecapsulator) for use by the Sophia BPF maps and Monad
@@ -19,7 +20,7 @@ package pqc
 import "errors"
 
 // ErrAlgorithmNotAvailable is returned when an algorithm implementation is not
-// yet available (e.g., SLH-DSA, FN-DSA, HQC stubs).
+// available (HQC, reserved until a Go implementation exists).
 var ErrAlgorithmNotAvailable = errors.New("pqc: algorithm not available")
 
 // ErrInvalidParameterSet is returned when an unsupported parameter set is

@@ -104,7 +104,7 @@ func algoFamily(algoID uint8) uint8 {
 	switch algoID {
 	case 0x01: // SLH-DSA = hash-based
 		return 1
-	case 0x02, 0x03: // ML-DSA, FN-DSA = lattice
+	case 0x02, 0x03: // ML-DSA; withdrawn 0x03 stays lattice so it never counts as a new family
 		return 2
 	case 0x05: // HQC = code-based
 		return 3

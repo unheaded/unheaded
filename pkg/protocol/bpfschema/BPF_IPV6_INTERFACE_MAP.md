@@ -1,5 +1,7 @@
 # BPF/IPv6 Interface Map — Top-Down RFC Standardization
 
+> Status 2026-11-04: HMAC_KEYS, RETRY_TOKENS and HOP_VALIDATORS moved to hop-ebpf (ADR-125, key presence, not a tag); AUTHORITY is deleted; `pkg/protocol/intermediary` is deleted. The tables below predate this.
+
 ## Overview
 
 This document maps EVERY existing BPF program and BPF map in the Unheaded Kingdom
@@ -257,7 +259,7 @@ These are the structs that need IDENTICAL memory layouts in both Rust (eBPF) and
 
 ### Phase 2: Protocol Map Wiring (New Maps → eBPF Programs)
 5. Define Rust-side structs matching bpfschema for Q1/Q2/Q4/Q5/Q6
-6. Add map definitions to shield-ebpf (HMAC, retry, hop validators)
+6. Add map definitions to hop-ebpf (HMAC, retry, hop validators)
 7. Add map definitions to hop-ebpf (seq counters, settings, DoS, flow types)
 8. Add map definitions to flow-tracker (migration, cancel flows)
 

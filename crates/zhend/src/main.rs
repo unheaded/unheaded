@@ -15,7 +15,7 @@
 //!   zhend --grpc-addr [::1]:7300
 //!   zhend --seed-peer [::1]:7302
 //!
-//! GPL-3.0-only
+//! GPL-3.0-or-later
 
 use clap::Parser;
 use std::sync::Arc;

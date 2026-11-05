@@ -12,7 +12,7 @@ package bpfschema
 // prefetch hint maps have no Rust program at all, so their names are gone
 // (S-TRUE-WIRE Step 118).
 const (
-	// Q1: HMAC keys for per-flow replay protection (shield-ebpf).
+	// Q1: HMAC keys, read for presence and expiry only (hop-ebpf).
 	MapHMACKeys = "HMAC_KEYS"
 
 	// Q2: Per-namespace monotonic sequence counters (hop-ebpf).
@@ -21,7 +21,7 @@ const (
 	// Q5: Flow migration validation tokens (flow-tracker).
 	MapMigrationTokens = "MIGRATION_TOKENS" // #nosec G101 -- BPF map name, not a token value
 
-	// Q6: Shield retry tokens with HMAC validation (shield-ebpf).
+	// Q6: Validated sources; no retry token is on the wire (hop-ebpf).
 	MapRetryTokens = "RETRY_TOKENS" // #nosec G101 -- BPF map name, not a token value
 
 	// H2: Error code counters (shield-ebpf).
@@ -39,11 +39,11 @@ const (
 	// H8: Per-flow cancellation state (flow-tracker).
 	MapCancelFlows = "CANCEL_FLOWS"
 
-	// H10: Per-hop packet validators (shield-ebpf).
+	// H10: Per-hop packet validators (hop-ebpf).
 	MapHopValidators = "HOP_VALIDATORS"
 
-	// H11: Dictionary authority enforcement (shield-ebpf).
-	MapAuthority = "AUTHORITY"
+	// Per-thread RTT statistics keyed by trace id, pid, tid (latency-probe).
+	MapLatency = "LATENCY_MAP"
 )
 
 // === Q1: HMAC Key Entries (integrity package) ===
@@ -51,17 +51,17 @@ const (
 // HMACKeyKey is the lookup key for per-flow HMAC keys.
 // Size: 8 bytes. Map type: HASH.
 type HMACKeyKey struct {
-	FlowID    uint16  // Flow identifier from Monad header.
+	FlowID    uint16  // src_service_id | dst_service_id << 8, not a flow label.
 	Namespace uint16  // Namespace ID.
 	_         [4]byte // Reserved, must be zero.
 }
 
-// HMACKeyValue stores the HMAC-SHA256 key material.
+// HMACKeyValue stores the HMAC-SHA256 key material: hop-ebpf's HmacKeyEntry.
 // Size: 40 bytes.
 type HMACKeyValue struct {
 	Key       [32]byte // HMAC-SHA256 key (256 bits).
-	CreatedAt uint32   // Unix timestamp of key creation.
-	ExpiresAt uint32   // Unix timestamp of key expiry. 0 = no expiry.
+	CreatedAt uint32   // CLOCK_BOOTTIME seconds.
+	ExpiresAt uint32   // CLOCK_BOOTTIME seconds, 0 = never.
 }
 
 // === Q2: Sequence Counters (sequence package) ===
@@ -87,6 +87,26 @@ type SeqCounterValue struct {
 // MIGRATION_TOKENS is keyed by FlowKey with a FlowMigrationTokenValue
 // (core_maps.go), the flow-tracker layout. The old MigrationTokenKey (20 B)
 // and MigrationTokenValue (56 B) matched no Rust map and were removed.
+
+// RetryTokenKey is the key of hop-ebpf RETRY_TOKENS: make_retry_key's
+// flow_id | src_low48 << 16 as a little-endian u64. src_low48 is a number,
+// the last six source address bytes read big-endian, so those bytes sit here
+// in reverse order: fd00::1 is {0x01, 0, 0, 0, 0, 0}.
+// Size: 8 bytes. Map type: HASH.
+type RetryTokenKey struct {
+	FlowID   uint16  // src_service_id | dst_service_id << 8, not a flow label.
+	SrcLow48 [6]byte // Least significant byte first.
+}
+
+// RetryTokenValue is a source validated earlier: hop-ebpf's RetryEntry. No
+// retry token is on the wire, so Token is never compared.
+// Size: 48 bytes.
+type RetryTokenValue struct {
+	Token     [32]byte
+	IssuedAt  uint32  // CLOCK_BOOTTIME seconds.
+	ExpiresAt uint32  // CLOCK_BOOTTIME seconds, 0 = never.
+	_         [8]byte // Reserved, must be zero.
+}
 
 // === H2: Error Counters (errors package) ===
 
@@ -170,8 +190,8 @@ type HopValidatorKey struct {
 }
 
 // HopValidatorValue defines validation rules for a hop.
-// Size: 32 bytes (1+1+1+1+16+1+3+4+4), the [u8; 32] value of shield-ebpf
-// HOP_VALIDATORS. The trailing 4 bytes are reserved.
+// Size: 32 bytes (1+1+1+1+16+1+3+4+4), hop-ebpf's HopValidator. The trailing
+// 4 bytes are reserved.
 type HopValidatorValue struct {
 	AllowedVersionMin uint8     // Minimum accepted Monad version.
 	AllowedVersionMax uint8     // Maximum accepted Monad version.
@@ -182,22 +202,4 @@ type HopValidatorValue struct {
 	_                 [3]byte
 	Flags             uint32  // Validation flags.
 	_                 [4]byte // Reserved, must be zero (Rust value is 32 bytes).
-}
-
-// === H11: Authority (intermediary package) ===
-
-// AuthorityKey identifies a dictionary authority binding.
-// Size: 8 bytes. Map type: HASH.
-type AuthorityKey struct {
-	DictID    uint16 // Dictionary identifier.
-	Namespace uint16 // Namespace.
-	_         [4]byte
-}
-
-// AuthorityValue stores authority metadata.
-// Size: 24 bytes.
-type AuthorityValue struct {
-	OwnerFingerprint [16]byte // Truncated SHA-256 of owner's public key.
-	GrantedAt        uint32   // Unix timestamp.
-	ExpiresAt        uint32   // Unix timestamp. 0 = no expiry.
 }

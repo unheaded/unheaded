@@ -1,0 +1,54 @@
+.TH SYSLOG\-RELAY 1 "2026-11-04" "unheaded 529a754e" "Unheaded Kingdom"
+.SH NAME
+syslog\-relay \- Receive syslog over UDP and TCP and write it to the local journal (ADR\-124).
+.SH SYNOPSIS
+.B syslog\-relay
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Receive syslog over UDP and TCP and write it to the local journal (ADR\-124).
+.SH OPTIONS
+.TP
+.B \-\-accept\-unknown
+ship unknown senders as source unknown; for the inventory phase only
+.TP
+.B \-\-burst \fIN\fR
+token bucket size per sender; a row's burst: lowers it (default 1000)
+.TP
+.B \-\-idle\-timeout \fIDURATION\fR
+time a TCP sender has to complete a frame (default 5m0s)
+.TP
+.B \-\-journal\-socket \fISTRING\fR
+the journal's native socket (default /run/systemd/journal/socket)
+.TP
+.B \-\-listen \fIVALUE\fR
+udp://IP:PORT or tcp://IP:PORT, repeatable; required, no wildcard address
+.TP
+.B \-\-max\-conns \fIN\fR
+TCP connections at once, across every listener (default 256)
+.TP
+.B \-\-max\-msg \fIN\fR
+message cap in bytes; longer is truncated and flagged (default 8192)
+.TP
+.B \-\-metrics \fIVALUE\fR
+address for /metrics, /health and /ready, repeatable (default 127.0.0.1:9599)
+.TP
+.B \-\-rate \fIN\fR
+messages per second per sender; a row's rate: lowers it (default 200)
+.TP
+.B \-\-sources \fISTRING\fR
+sources file (config/logging/sources.yaml) (default config/logging/sources.yaml)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+Senders are the kind: syslog\-device rows of the sources file that are not excluded; a match is <ip> or
+<ip> <tag>. Others are counted and dropped. SIGHUP reloads the sources file; a bad file keeps the old list.
+.SH EXAMPLES
+.EX
+syslog\-relay \-\-listen udp://10.10.20.1:514 \-\-listen tcp://10.10.20.1:514 \-\-sources /etc/unheaded/log\-sources.yaml
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

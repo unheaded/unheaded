@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/energy"
 	"unheaded/pkg/gpulease"
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
@@ -176,6 +177,8 @@ type ThresholdRouter struct {
 	Claude func(ctx context.Context, prompt, reason, family string, budget NanoUSD) (ClaudeResult, error)
 	// Redact cleans check output before it goes into any prompt.
 	Redact func(ctx context.Context, s string) (string, error)
+	// Energy samples GPU power around each local leg (ADR-120); nil is off.
+	Energy *energy.Sampler
 	// Auditor records the local legs (the Claude leg is audited by its
 	// bridge).
 	Auditor Auditor
@@ -293,8 +296,9 @@ func (r *ThresholdRouter) Run(ctx context.Context, family, task string) (out Rou
 	for a := 1; a <= attempts; a++ {
 		out.LocalAttempts = a
 		t0 := time.Now()
+		run := r.Energy.Start(ctx)
 		ans, lerr := r.Local(ctx, prompt)
-		r.auditLocal(ctx, family, reason, ans, lerr, time.Since(t0))
+		r.auditLocal(ctx, family, reason, ans, lerr, time.Since(t0), run.Stop())
 		if errors.Is(lerr, gpulease.ErrTimeout) {
 			// The GPU is held by a model swap or a training run: that is
 			// a reason to wait, never to pay Claude (S-TWO-BRAINS Step 233).
@@ -413,7 +417,7 @@ func (r *ThresholdRouter) claudeLeg(ctx context.Context, out RouteOutcome, promp
 	return out, nil
 }
 
-func (r *ThresholdRouter) auditLocal(ctx context.Context, family, reason string, ans LocalAnswer, err error, d time.Duration) {
+func (r *ThresholdRouter) auditLocal(ctx context.Context, family, reason string, ans LocalAnswer, err error, d time.Duration, est energy.Estimate) {
 	if r.Auditor == nil {
 		return
 	}
@@ -421,6 +425,7 @@ func (r *ThresholdRouter) auditLocal(ctx context.Context, family, reason string,
 		Conversation: NewRecordID(), Model: ans.Model, ServedBy: ans.Model, StopReason: ans.FinishReason,
 		InputTokens: ans.InputTokens, OutputTokens: ans.OutputTokens, Duration: d, Sent: true,
 		Backend: BackendLocal, TaskFamily: family, RouteReason: reason,
+		EnergyJoules: est.Joules, EnergyMethod: est.Method,
 	}
 	if rec.Model == "" {
 		rec.Model = "local"

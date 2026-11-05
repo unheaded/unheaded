@@ -1,21 +1,26 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-10-31 (113 entries)
+**Last synced from canonical:** 2026-11-05 (131 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
-| Accepted | 51 |
-| Proposed | 25 |
-| Planned | 14 |
-| In Progress | 5 |
-| Deferred | 5 |
+| Accepted | 60 |
+| Proposed | 33 |
+| Planned | 10 |
+| In Progress | 1 |
+| Deferred | 3 |
 | Pipe Dream | 5 |
-| PoC / Research | 3 |
-| Superseded / Deprecated | 4 |
+| PoC / Research | 2 |
+| Superseded / Deprecated | 10 |
 | Acknowledged | 1 |
-| **Total** | **113** |
+| Implemented | 2 |
+| Partially implemented | 1 |
+| Shipped | 1 |
+| Withdrawn | 1 |
+| Brainstorm | 1 |
+| **Total** | **131** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -38,7 +43,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [016](../docs/adr/ADR-016-postgres-the-well.md) | [PostgreSQL — The Well (+ RPO 24 h amendment 2026-10-15)](ADR-016-Postgres-The-Well) | Accepted | 2026-03-15 |
 | [017](../docs/adr/ADR-017-zhen-hybrid-inference.md) | [Zhen Hybrid Inference](ADR-017-Zhen-Hybrid-Inference) | Accepted (Claude API → MCP) | 2026-03-16 |
 | [018](../docs/adr/ADR-018-zhen-raft-training-battle-plan.md) | [RAFT Training Pipeline](ADR-018-Zhen-RAFT-Training-Battle-Plan) | **Superseded** by ADR-030 (forge) + ADR-036 (distillation) | 2026-03-16 |
-| [019](../docs/adr/ADR-019-zhen-champion-agent.md) | [Zhen Champion Agent](ADR-019-Zhen-Champion-Agent) | Accepted (Phase 1+2) | 2026-03-16 |
+| [019](../docs/adr/ADR-019-zhen-champion-agent.md) | [Zhen Champion Agent](ADR-019-Zhen-Champion-Agent) | Accepted (Phase 1+2; Level 2 amendment accepted 2026-11-03) | 2026-03-16 |
 | [020](../docs/adr/ADR-020-kanban-bug-fixes.md) | [Kanban Bug Fixes](ADR-020-Kanban-Bug-Fixes) | Accepted (All 8 fixed) | 2026-03-19 |
 | [021](../docs/adr/ADR-021-zhen-layer0-substrate.md) | [Zhen Layer 0 Substrate](ADR-021-Zhen-Layer0-Substrate) | Accepted (133 tests) | 2026-03-28 |
 | [022](../docs/adr/ADR-022-pihole-docker-to-lxd.md) | [Pi-hole Docker → LXD](ADR-022-Pihole-Docker-to-LXD) | **Implemented** (Pi-hole in LXD, project default) | 2026-03-29 |
@@ -137,6 +142,19 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [119](../docs/adr/ADR-119-shield-xdp-pqc-fast-path-design.md) | Shield XDP post-quantum signature fast path, designed with both ends (userspace ML-DSA-65 verifier as the only map writer, PQC_SIG_STATUS contract, OFF/OPTIMISTIC/PESSIMISTIC states, verifier budget, threat model, four stages behind a cargo feature); nothing built | **Proposed** (parked under ADR-112; Stevie 2026-11-03: design it properly, build after the freeze) | 2026-11-03 |
 | [120](../docs/adr/ADR-120-estimated-energy-per-llm-request.md) | Estimated energy per LLM request in the Well: sampled GPU power integrated per local request, NULL for Claude until a defensible published figure exists; joules per answer beside quality in the routing evals | **Proposed** (Stevie's word 2026-11-04; carried by S-ZHEN-POLISH) | 2026-11-04 |
 | [121](../docs/adr/ADR-121-a-future-waf.md) | A future WAF: idea only, lowest priority | Proposed (parked) | 2026-11-04 |
+| [122](../docs/adr/ADR-122-go-embed-service.md) | Go embedding path on llama-server, parked: the Python embedder stays; measured limits on file | Proposed (parked) | 2026-11-04 |
+| [123](../docs/adr/ADR-123-uniform-logs-and-columns-at-the-sink.md) | Uniform log output, columns at the sink, and watching the sink: one log contract, a hello per service, a watcher with a read-only SQL user; on hold until the Well is stashing logs | Proposed (parked) | 2026-11-04 |
+| [124](../docs/adr/ADR-124-native-syslog-relay.md) | Native syslog relay `cmd/syslog-relay`: RFC 5424/3164 over UDP and TCP into the journal's native protocol, so Vector ships it; `sources.yaml` allowlist, per-sender token bucket, capped frames, control bytes escaped | **Proposed** (D2 answered native 2026-11-03; carried by S-LOG-HARVEST Phase 5) | 2026-11-04 |
+| [125](../docs/adr/ADR-125-hop-checks.md) | Hop checks: validators, HMAC-key presence and retry state move from Shield ingress to hop-ebpf; key presence only, the Monad carries no tag | **Proposed** | 2026-11-04 |
+| [126](../docs/adr/ADR-126-private-hbh-option-registry.md) | Private Hop-by-Hop option registry: 0x3E is the Monad's and Zhen's today, length alone separates them; Zhen reserved at 0x1E | **Proposed** (parked) | 2026-11-04 |
+| [127](../docs/adr/ADR-127-fold-compliance.md) | Fold wire compliance into compliance-evidence behind --serve; not unheaded-baseline (oneshot, reads /etc/shadow); no data is not 100 % | **Proposed** (parked) | 2026-11-04 |
+| [128](../docs/adr/ADR-128-fold-firewall.md) | Fold firewall into Cuirass as intent only; Cuirass has no CAP_BPF and runs once: the node writer question (Go writer recommended) | **Proposed** (parked) | 2026-11-04 |
+| [129](../docs/adr/ADR-129-fold-qos.md) | Fold QoS into Cuirass without its 10 Hz publisher | **Proposed** (parked) | 2026-11-04 |
+| [130](../docs/adr/ADR-130-fold-nfv.md) | Fold NFV: where is a question: Cuirass has no CAP_BPF, cartridges are a different mechanism; prog_fd over HTTP goes | **Proposed** (parked) | 2026-11-04 |
+| [131](../docs/adr/ADR-131-fold-failover.md) | Fold failover into Cuirass as the actuator; deciding stays with Akira | **Proposed** (parked) | 2026-11-04 |
+| [132](../docs/adr/ADR-132-fold-loadbalancer.md) | Fold the load balancer into Cuirass; the map write goes to the node writer | **Proposed** (parked) | 2026-11-04 |
+| [133](../docs/adr/ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
+| [134](../docs/adr/ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |
 
 ---
 

@@ -10,7 +10,7 @@
 # eval/coding-gate/RUBRIC.md.
 #
 # Pre-requisites (per plan §3.6):
-#   - cs serve at $VOR_URL (default 127.0.0.1:9876) with ~/.config/cs/sources/unheaded symlink
+#   - cs serve at $VOR_URL (default 127.0.0.1:20110) with ~/.config/cs/sources/unheaded symlink
 #   - llama-server at $LLAMA_URL (default 127.0.0.1:8081) with ctx-size 16384
 #   - bin/zhen-rag built from current HEAD (`make build-zhen-rag`)
 #
@@ -32,7 +32,7 @@ DATE="$(date +%Y-%m-%d)"
 RESULTS="eval/coding-gate/results-${DATE}.md"
 ZHEN_RAG="bin/zhen-rag"
 
-VOR_URL="${VOR_URL:-http://127.0.0.1:9876}"
+VOR_URL="${VOR_URL:-http://127.0.0.1:20110}"
 LLAMA_URL="${LLAMA_URL:-http://127.0.0.1:8081}"
 
 # --- pre-flight ---

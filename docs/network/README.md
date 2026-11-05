@@ -20,7 +20,7 @@ Covers:
 - Firewall rule philosophy (default-deny security posture)
 - Exposed ports reference (443, 80, 51820)
 - Platform-specific deployment (NixOS, Docker, LXD)
-- Compliance and licensing (BSD 2-Clause, GPL v3, MIT)
+- Compliance and licensing (BSD 2-Clause, GPL v3)
 - Testing, validation, and disaster recovery
 
 **Key Sections:**
@@ -140,7 +140,7 @@ All other ports (gRPC 50051–50067, Dashboard 8080/8443, DNS 53, etc.) are **bl
 
 - **OPNsense**: BSD 2-Clause (permissive)
 - **IPFire**: GNU GPL v3 (copyleft)
-- **Unheaded**: MIT (copyleft compatible)
+- **Unheaded**: GPL-3.0-or-later (copyleft)
 
 See FIREWALL_TOPOLOGY.md Section 8 for compliance details.
 
@@ -234,7 +234,7 @@ All documents include compliance mappings for:
 - **Version**: 1.0
 - **Last Updated**: 2026-02-26
 - **Maintained By**: Unheaded Development Team
-- **License**: MIT
+- **License**: GPL-3.0-or-later
 - **Review Cycle**: Annually or when firewall rules change
 
 ---

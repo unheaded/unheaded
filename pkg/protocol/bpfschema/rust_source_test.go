@@ -351,6 +351,12 @@ var structParity = []struct {
 	{reflect.TypeOf(FlowState{}), "common/src/lib.rs", "FlowState"},
 	{reflect.TypeOf(FlowMigrationTokenValue{}), "flow-tracker/src/main.rs", "MigrationTokenValue"},
 	{reflect.TypeOf(FlowCancelValue{}), "flow-tracker/src/main.rs", "CancelFlowValue"},
+	{reflect.TypeOf(ComplianceAuditRecord{}), "compliance-ebpf/src/main.rs", "AuditRecord"},
+	{reflect.TypeOf(LatencyTraceKey{}), "latency-probe/src/common.rs", "LatencyTraceKey"},
+	{reflect.TypeOf(LatencyEntry{}), "latency-probe/src/common.rs", "LatencyEntry"},
+	{reflect.TypeOf(HopValidatorValue{}), "hop-ebpf/src/main.rs", "HopValidator"},
+	{reflect.TypeOf(HMACKeyValue{}), "hop-ebpf/src/main.rs", "HmacKeyEntry"},
+	{reflect.TypeOf(RetryTokenValue{}), "hop-ebpf/src/main.rs", "RetryEntry"},
 }
 
 // TestRustSourceStructParity compares size and every non-padding field
@@ -433,14 +439,14 @@ var goMapNames = []struct {
 	{"MapHMACKeys", MapHMACKeys, reflect.TypeOf(HMACKeyKey{}), reflect.TypeOf(HMACKeyValue{})},
 	{"MapSeqCounters", MapSeqCounters, reflect.TypeOf(SeqCounterKey{}), reflect.TypeOf(SeqCounterValue{})},
 	{"MapMigrationTokens", MapMigrationTokens, reflect.TypeOf(FlowKey{}), reflect.TypeOf(FlowMigrationTokenValue{})},
-	{"MapRetryTokens", MapRetryTokens, nil, nil},
+	{"MapRetryTokens", MapRetryTokens, reflect.TypeOf(RetryTokenKey{}), reflect.TypeOf(RetryTokenValue{})},
+	{"MapLatency", MapLatency, reflect.TypeOf(LatencyTraceKey{}), reflect.TypeOf(LatencyEntry{})},
 	{"MapErrorCounters", MapErrorCounters, reflect.TypeOf(ErrorCounterKey{}), reflect.TypeOf(ErrorCounterValue{})},
 	{"MapSettings", MapSettings, reflect.TypeOf(SettingsKey{}), reflect.TypeOf(SettingsValue{})},
 	{"MapDoSState", MapDoSState, reflect.TypeOf(DoSStateKey{}), reflect.TypeOf(DoSStateValue{})},
 	{"MapFlowTypes", MapFlowTypes, nil, reflect.TypeOf(FlowTypeEntry{})},
 	{"MapCancelFlows", MapCancelFlows, reflect.TypeOf(FlowKey{}), reflect.TypeOf(FlowCancelValue{})},
 	{"MapHopValidators", MapHopValidators, reflect.TypeOf(HopValidatorKey{}), reflect.TypeOf(HopValidatorValue{})},
-	{"MapAuthority", MapAuthority, reflect.TypeOf(AuthorityKey{}), reflect.TypeOf(AuthorityValue{})},
 }
 
 // legacyMapNames are map-name constants Go still uses that no Rust program

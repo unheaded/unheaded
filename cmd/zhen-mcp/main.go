@@ -27,10 +27,12 @@
 //
 //	ZHEN_MCP_PROJECT_ROOT   repo root (default: walk up from the binary,
 //	                        then the working directory, to go.mod + runbooks/)
-//	VOR_URL                 vor for corpus_search (default http://127.0.0.1:9876)
+//	VOR_URL                 vor for corpus_search (default http://127.0.0.1:20110)
 //	ZHEN_LOCAL_LLM_URL      llama-server (default http://127.0.0.1:8081)
 //	ZHEN_LOCAL_LLM_MODEL    "model" sent (default "local")
 //	ZHEN_LOCAL_LLM_TIMEOUT  seconds per local_llm call (default 120, max 600)
+//	ZHEN_CODE_INDEX_DIR     source shard for code_definition and code_callers
+//	                        (default /var/zhen/code-index; zhen-codeindex writes it)
 //	ZHEN_CAPTURE_DIR        opt-in redacted capture of local_llm turns
 //	                        (pkg/zhencapture; refused inside a git work tree)
 //
@@ -60,6 +62,7 @@ import (
 
 	"unheaded/pkg/champion"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/codeindex"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/mcpserver"
 	"unheaded/pkg/ports"
@@ -80,7 +83,7 @@ const (
 	envLocalLLMTimeout = "ZHEN_LOCAL_LLM_TIMEOUT"
 	envCaptureDir      = "ZHEN_CAPTURE_DIR"
 
-	defaultVorURL          = "http://127.0.0.1:9876"
+	defaultVorURL          = "http://127.0.0.1:20110"
 	defaultLocalLLMTimeout = 120 * time.Second
 	maxLocalLLMTimeout     = 600 * time.Second
 )
@@ -118,16 +121,17 @@ func defaultServices() []service {
 }
 
 type config struct {
-	projectRoot string
-	allowWrite  bool
-	allowExec   bool
-	vorURL      string
-	llmURL      string
-	llmModel    string
-	llmTimeout  time.Duration
-	llmErr      error // a bad local_llm setting; reported when local_llm is called
-	captureDir  string
-	services    []service
+	projectRoot  string
+	allowWrite   bool
+	allowExec    bool
+	vorURL       string
+	llmURL       string
+	llmModel     string
+	llmTimeout   time.Duration
+	llmErr       error // a bad local_llm setting; reported when local_llm is called
+	captureDir   string
+	codeIndexDir string
+	services     []service
 }
 
 // configFromEnv reads the configuration. Only a missing project root is
@@ -138,15 +142,16 @@ func configFromEnv(getenv func(string) string) (config, error) {
 		return config{}, err
 	}
 	cfg := config{
-		projectRoot: root,
-		allowWrite:  getenv(envAllowWrite) == "1",
-		allowExec:   getenv(envAllowExec) == "1",
-		vorURL:      strings.TrimRight(orDefault(getenv(envVorURL), defaultVorURL), "/"),
-		llmURL:      strings.TrimRight(orDefault(getenv(envLocalLLMURL), localllm.DefaultURL), "/"),
-		llmModel:    orDefault(getenv(envLocalLLMModel), localllm.DefaultModel),
-		llmTimeout:  defaultLocalLLMTimeout,
-		captureDir:  getenv(envCaptureDir),
-		services:    defaultServices(),
+		projectRoot:  root,
+		allowWrite:   getenv(envAllowWrite) == "1",
+		allowExec:    getenv(envAllowExec) == "1",
+		vorURL:       strings.TrimRight(orDefault(getenv(envVorURL), defaultVorURL), "/"),
+		llmURL:       strings.TrimRight(orDefault(getenv(envLocalLLMURL), localllm.DefaultURL), "/"),
+		llmModel:     orDefault(getenv(envLocalLLMModel), localllm.DefaultModel),
+		llmTimeout:   defaultLocalLLMTimeout,
+		captureDir:   getenv(envCaptureDir),
+		codeIndexDir: orDefault(getenv("ZHEN_CODE_INDEX_DIR"), "/var/zhen/code-index"),
+		services:     defaultServices(),
 	}
 	if _, err := (&localllm.Client{BaseURL: cfg.llmURL}).Endpoint(); err != nil {
 		cfg.llmErr = fmt.Errorf("%s: %w", envLocalLLMURL, err)
@@ -240,6 +245,7 @@ type server struct {
 	log       *slog.Logger
 	http      *http.Client
 	vor       *vorquery.Index
+	code      *codeindex.Store
 	principal string
 }
 
@@ -261,6 +267,7 @@ func newServer(cfg config, logger *slog.Logger) (*server, error) {
 		log:       logger,
 		http:      hc,
 		vor:       vorquery.NewIndex(hc, cfg.vorURL),
+		code:      codeindex.NewStore(cfg.codeIndexDir),
 		principal: processPrincipal(),
 	}, nil
 }
@@ -343,6 +350,10 @@ func (s *server) call(ctx context.Context, name string, raw json.RawMessage) mcp
 	switch name {
 	case "corpus_search":
 		return s.corpusSearch(ctx, args)
+	case "code_definition":
+		return s.codeDefinition(ctx, args)
+	case "code_callers":
+		return s.codeCallers(ctx, args)
 	case "file_read":
 		return s.fileRead(ctx, args)
 	case "service_health":

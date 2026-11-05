@@ -4,11 +4,12 @@
 // latency_reader.go — Reads LATENCY_MAP from the latency_probe BPF program.
 //
 // LatencyReader periodically polls the LATENCY_MAP BPF hash map produced by
-// the latency-probe kprobe program. Each entry contains per-flow RTT
-// statistics (min/max/latest/samples) keyed by a 5-tuple (LatencyKey).
+// the latency-probe kprobe program. Each entry contains one thread's RTT
+// statistics (min/max/latest/samples) keyed by trace id, pid and tid
+// (LatencyTraceKey; a kprobe on tcp_sendmsg has no 5-tuple to key on).
 //
 // The reader:
-//   - Decodes LatencyKey/LatencyEntry from raw BPF map bytes
+//   - Decodes LatencyTraceKey/LatencyEntry from raw BPF map bytes
 //   - Computes average RTT from cumulative data
 //   - Publishes latency events to Wotan topic "traces.latency"
 //   - Exposes RTT samples as a Prometheus histogram (unheaded_packet_rtt_seconds)
@@ -21,7 +22,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"net"
 	"sync/atomic"
 	"time"
 
@@ -29,113 +29,74 @@ import (
 
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
+	"unheaded/pkg/protocol/bpfschema"
 )
 
-// ── LatencyKey ─────────────────────────────────────────────────────────────
+// ── LatencyTraceKey ────────────────────────────────────────────────────────
 
-// LatencyKey mirrors the Rust LatencyKey struct from latency-probe/src/common.rs.
-// It identifies a flow by 5-tuple. Size: 16 + 16 + 2 + 2 + 1 + 3 = 40 bytes.
-type LatencyKey struct {
-	SrcIP    [16]byte // Source address (IPv4-mapped-IPv6 or native IPv6)
-	DstIP    [16]byte // Destination address
-	SrcPort  uint16   // Source port
-	DstPort  uint16   // Destination port
-	Protocol uint8    // IP protocol (TCP=6, UDP=17)
-	Pad      [3]byte  // Alignment padding
+// LatencyTraceKey mirrors the Rust LatencyTraceKey struct from
+// latency-probe/src/common.rs. Size: 16 + 4 + 4 = 24 bytes.
+type LatencyTraceKey struct {
+	TraceID [16]byte // Socket trace id, big-endian high then low; zero when none
+	PID     uint32   // Full kernel pid (tgid)
+	TID     uint32   // Full kernel tid
 }
 
-// LatencyKeySize is the expected wire size of a LatencyKey.
-const LatencyKeySize = 40
+// LatencyTraceKeySize is the wire size of a LatencyTraceKey.
+const LatencyTraceKeySize = bpfschema.LatencyTraceKeySize
 
-// DecodeLatencyKey decodes a LatencyKey from a byte slice (little-endian).
-func DecodeLatencyKey(b []byte) (*LatencyKey, error) {
-	if len(b) < LatencyKeySize {
-		return nil, fmt.Errorf("latency key too short: %d < %d", len(b), LatencyKeySize)
+// DecodeLatencyTraceKey decodes a key. Anything but exactly 24 bytes is
+// refused: the old 40-byte 5-tuple key must fail loudly, not misparse.
+func DecodeLatencyTraceKey(b []byte) (*LatencyTraceKey, error) {
+	if len(b) != LatencyTraceKeySize {
+		return nil, fmt.Errorf("latency key is %d bytes, want %d", len(b), LatencyTraceKeySize)
 	}
-	lk := &LatencyKey{}
-	copy(lk.SrcIP[:], b[0:16])
-	copy(lk.DstIP[:], b[16:32])
-	lk.SrcPort = binary.LittleEndian.Uint16(b[32:34])
-	lk.DstPort = binary.LittleEndian.Uint16(b[34:36])
-	lk.Protocol = b[36]
-	copy(lk.Pad[:], b[37:40])
+	lk := &LatencyTraceKey{}
+	copy(lk.TraceID[:], b[0:16])
+	lk.PID = binary.LittleEndian.Uint32(b[16:20])
+	lk.TID = binary.LittleEndian.Uint32(b[20:24])
 	return lk, nil
 }
 
-// Encode serializes a LatencyKey to a byte slice.
-func (lk *LatencyKey) Encode() [LatencyKeySize]byte {
-	var b [LatencyKeySize]byte
-	copy(b[0:16], lk.SrcIP[:])
-	copy(b[16:32], lk.DstIP[:])
-	binary.LittleEndian.PutUint16(b[32:34], lk.SrcPort)
-	binary.LittleEndian.PutUint16(b[34:36], lk.DstPort)
-	b[36] = lk.Protocol
-	copy(b[37:40], lk.Pad[:])
+// Encode serializes a LatencyTraceKey to a byte slice.
+func (lk *LatencyTraceKey) Encode() [LatencyTraceKeySize]byte {
+	var b [LatencyTraceKeySize]byte
+	copy(b[0:16], lk.TraceID[:])
+	binary.LittleEndian.PutUint32(b[16:20], lk.PID)
+	binary.LittleEndian.PutUint32(b[20:24], lk.TID)
 	return b
 }
 
-// SrcIPAddr returns the source IP as a net.IP.
-func (lk *LatencyKey) SrcIPAddr() net.IP {
-	return net.IP(lk.SrcIP[:])
-}
-
-// DstIPAddr returns the destination IP as a net.IP.
-func (lk *LatencyKey) DstIPAddr() net.IP {
-	return net.IP(lk.DstIP[:])
-}
-
-// ProtocolName returns the human-readable protocol name.
-func (lk *LatencyKey) ProtocolName() string {
-	switch lk.Protocol {
-	case 6:
-		return "TCP"
-	case 17:
-		return "UDP"
-	default:
-		return fmt.Sprintf("proto(%d)", lk.Protocol)
-	}
-}
-
 // String returns a human-readable representation.
-func (lk *LatencyKey) String() string {
-	return fmt.Sprintf("%s:%d->%s:%d/%s",
-		lk.SrcIPAddr(), lk.SrcPort,
-		lk.DstIPAddr(), lk.DstPort,
-		lk.ProtocolName())
+func (lk *LatencyTraceKey) String() string {
+	return fmt.Sprintf("trace=%x pid=%d tid=%d", lk.TraceID, lk.PID, lk.TID)
+}
+
+// traceHalves returns the trace id as the high and low halves the dashboard's
+// LatencyEvent carries.
+func (lk *LatencyTraceKey) traceHalves() map[string]uint64 {
+	return map[string]uint64{
+		"high": binary.BigEndian.Uint64(lk.TraceID[0:8]),
+		"low":  binary.BigEndian.Uint64(lk.TraceID[8:16]),
+	}
 }
 
 // latencyMapEvent renders one LATENCY_MAP entry as the dashboard's
 // LatencyEvent: the entry's latest sample as latency_ns, stamped with
-// wall-clock now (the dashboard's latency windows are wall-clock).
-//
-// latency-probe does not key the map by 5-tuple: the key is the socket's
-// trace ID (zero) as src_ip, a zero dst_ip, and the low 16 bits of pid and
-// tid as src_port/dst_port (send_latency_event). Publishing that as a
-// flow_key showed "[::]:18570 -> [::]:18654" flows that do not exist, so a
-// flow_key is sent only when the key holds addresses. The truncated pid/tid
-// are not published either: pid_max on east is 4194304.
-func latencyMapEvent(lk *LatencyKey, le *LatencyEntry, now time.Time) map[string]interface{} {
-	evt := map[string]interface{}{
+// wall-clock now (the dashboard's latency windows are wall-clock). There is
+// no flow_key: the map holds no addresses.
+func latencyMapEvent(lk *LatencyTraceKey, le *LatencyEntry, now time.Time) map[string]interface{} {
+	return map[string]interface{}{
 		"timestamp_ns": uint64(now.UnixNano()), // #nosec G115 -- wall clock after 1970
 		"latency_ns":   le.RTTNS,
 		"operation":    "tcp_send",
-		"pid":          uint32(0),
-		"tid":          uint32(0),
-		"trace_id":     map[string]uint64{"high": 0, "low": 0},
+		"pid":          lk.PID,
+		"tid":          lk.TID,
+		"trace_id":     lk.traceHalves(),
 		"min_rtt_ns":   le.MinRTTNS,
 		"max_rtt_ns":   le.MaxRTTNS,
 		"samples":      le.Samples,
 	}
-	if !lk.SrcIPAddr().IsUnspecified() || !lk.DstIPAddr().IsUnspecified() {
-		evt["flow_key"] = map[string]interface{}{
-			"src_addr": lk.SrcIPAddr().String(),
-			"dst_addr": lk.DstIPAddr().String(),
-			"src_port": lk.SrcPort,
-			"dst_port": lk.DstPort,
-			"protocol": lk.Protocol,
-		}
-	}
-	return evt
 }
 
 // ── LatencyEntry ───────────────────────────────────────────────────────────
@@ -272,8 +233,8 @@ type LatencyReaderStats struct {
 
 // LatencySample is a decoded key+entry pair from a single poll.
 type LatencySample struct {
-	Key   *LatencyKey   `json:"key"`
-	Entry *LatencyEntry `json:"entry"`
+	Key   *LatencyTraceKey `json:"key"`
+	Entry *LatencyEntry    `json:"entry"`
 }
 
 // LatencyReader periodically reads LATENCY_MAP and publishes latency events.
@@ -352,7 +313,7 @@ func (lr *LatencyReader) pollOnce(ctx context.Context) {
 	var keysToDelete [][]byte
 
 	err := latencyMap.Iterate(func(key, value []byte) error {
-		lk, err := DecodeLatencyKey(key)
+		lk, err := DecodeLatencyTraceKey(key)
 		if err != nil {
 			atomic.AddUint64(&lr.stats.DecodeErrors, 1)
 			latencyReaderErrors.WithLabelValues("decode_key").Inc()
@@ -433,11 +394,9 @@ func (lr *LatencyReader) pollOnce(ctx context.Context) {
 // publishLatencySamples serializes a batch of latency samples and publishes to Wotan.
 func (lr *LatencyReader) publishLatencySamples(ctx context.Context, samples []*LatencySample) error {
 	type jsonSample struct {
-		SrcIP       string  `json:"src_ip"`
-		DstIP       string  `json:"dst_ip"`
-		SrcPort     uint16  `json:"src_port"`
-		DstPort     uint16  `json:"dst_port"`
-		Protocol    string  `json:"protocol"`
+		TraceID     string  `json:"trace_id"`
+		PID         uint32  `json:"pid"`
+		TID         uint32  `json:"tid"`
 		RTTNS       uint64  `json:"rtt_ns"`
 		MinRTTNS    uint64  `json:"min_rtt_ns"`
 		MaxRTTNS    uint64  `json:"max_rtt_ns"`
@@ -449,11 +408,9 @@ func (lr *LatencyReader) publishLatencySamples(ctx context.Context, samples []*L
 	jsonSamples := make([]jsonSample, 0, len(samples))
 	for _, s := range samples {
 		jsonSamples = append(jsonSamples, jsonSample{
-			SrcIP:       s.Key.SrcIPAddr().String(),
-			DstIP:       s.Key.DstIPAddr().String(),
-			SrcPort:     s.Key.SrcPort,
-			DstPort:     s.Key.DstPort,
-			Protocol:    s.Key.ProtocolName(),
+			TraceID:     fmt.Sprintf("%x", s.Key.TraceID),
+			PID:         s.Key.PID,
+			TID:         s.Key.TID,
 			RTTNS:       s.Entry.RTTNS,
 			MinRTTNS:    s.Entry.MinRTTNS,
 			MaxRTTNS:    s.Entry.MaxRTTNS,

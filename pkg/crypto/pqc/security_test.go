@@ -188,14 +188,14 @@ func TestAlgoConfusionGuard_DifferentAlgoFails(t *testing.T) {
 	}
 
 	// Different algorithm should fail.
-	err := guard.Check("flow-1", uint8(AlgoFNDSA))
+	err := guard.Check("flow-1", uint8(AlgoWithdrawn03))
 	if err == nil {
 		t.Fatal("different algo should return error")
 	}
 
 	// Error message should contain relevant context.
 	expected := fmt.Sprintf("algorithm confusion: flow %q established algo %#x, got %#x",
-		"flow-1", uint8(AlgoMLDSA), uint8(AlgoFNDSA))
+		"flow-1", uint8(AlgoMLDSA), uint8(AlgoWithdrawn03))
 	if err.Error() != expected {
 		t.Fatalf("error = %q, want %q", err.Error(), expected)
 	}
@@ -379,11 +379,11 @@ func TestTierDowngradePrevention(t *testing.T) {
 	}
 
 	// Attacker attempts to downgrade to a different algorithm family.
-	// FN-DSA (0x03) is a weaker choice (requires floating point, not BPF-safe).
-	lowerTierAlgo := uint8(AlgoFNDSA)
+	// 0x03 is the withdrawn FN-DSA id: never a valid downgrade target.
+	lowerTierAlgo := uint8(AlgoWithdrawn03)
 	err := guard.Check("secure-flow", lowerTierAlgo)
 	if err == nil {
-		t.Fatal("downgrade from ML-DSA to FN-DSA should be rejected")
+		t.Fatal("downgrade from ML-DSA to the withdrawn 0x03 should be rejected")
 	}
 
 	// Attempt downgrade to SLH-DSA (different family, even if hash-based is

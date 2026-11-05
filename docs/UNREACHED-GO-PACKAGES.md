@@ -97,6 +97,17 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 (S-QUANTUM-ARMOR test helper) and `pkg/deploy/cuirassdriver/cuirasstest`
 (Sword test helper).
 
+## Applied 2026-11-04 (DP-715, S-WIRE-HONEST)
+
+Deleted: `pkg/protocol/{amplification,dos,intermediary,prefetch,lifecycle,settings,flowtype,sequence,registry}`,
+`tomb/lich/harnesses/lich_006_real_lifecycle_test.go` (LICH-006's harness; its only target went) and
+`cmd/pqc-verifier` (TRUE-WIRE L5). The other TRUE-WIRE rows and who carries them are in
+[sweeps/TRUE-WIRE-DECISIONS.md](sweeps/TRUE-WIRE-DECISIONS.md), "Applied 2026-11-04".
+
+## DP-203 (2026-11-04, S-G9-FOLD)
+
+The G9 planes are not deleted (TRUE-WIRE C1-C6 defaults do not apply). `services/compliance` is reached by `cmd/compliance-evidence wire`, off unless `--serve` (ADR-127). The other seven stay on this list until Stevie has read ADR-128 to ADR-134.
+
 ## The list
 
 - `cmd/dashboard-backend/jstest` (G6)
@@ -111,19 +122,10 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 - `pkg/metrics/metricstest` (G6)
 - `pkg/monad` (G8)
 - `pkg/pqc_policy` (F3, S-QUANTUM-ARMOR)
-- `pkg/protocol/amplification` (G8)
-- `pkg/protocol/dos` (G8)
 - `pkg/protocol/errors` (G8)
-- `pkg/protocol/flowtype` (G8)
 - `pkg/protocol/fuzz` (G6)
 - `pkg/protocol/integrity` (G8)
-- `pkg/protocol/intermediary` (G8)
-- `pkg/protocol/lifecycle` (G8)
 - `pkg/protocol/migration` (G8)
-- `pkg/protocol/prefetch` (G8)
-- `pkg/protocol/registry` (G8)
-- `pkg/protocol/sequence` (G8)
-- `pkg/protocol/settings` (G8)
 - `pkg/protocol/sophiasync` (G8)
 - `pkg/protocol/tlv` (G8)
 - `pkg/secrets/encryption` (kept, DP-709: imported by `pkg/secrets/store`)
@@ -134,7 +136,6 @@ New since the Phase 0 scan and unreached by design: `pkg/tls/pqtest`
 - `pkg/wotan-client/mock` (G6)
 - `scripts/host` (G6)
 - `scripts/lib` (G6)
-- `services/compliance` (G9; unwired: control plane for ebpf/compliance-ebpf)
 - `services/firewall` (G9; unwired: control plane for ebpf/firewall-ebpf)
 - `services/keymgmt` (G9; unwired: control plane for shield-ebpf PQC key maps)
 - `services/keymgmt/handler` (G9; with `services/keymgmt`)

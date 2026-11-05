@@ -277,4 +277,4 @@ is left to its register entry.
 
 From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 
-- Q1 Dependabot for the `github-actions` ecosystem with a 14-day cooldown. Q2 golangci-lint thresholds stay; `crates/zhend` is vetted per workspace. Q3 ADR-004's commercial wording is amended to the community-first doctrine (DP-405).
+- Q1 Dependabot for the `github-actions` ecosystem with a 14-day cooldown. Q2 golangci-lint thresholds stay; `crates/zhend` is vetted per workspace. Q3 ADR-004's commercial wording is amended to the community-first doctrine (DP-405); done 2026-11-04, see ADR-004 "Amended 2026-11-04".

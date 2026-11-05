@@ -24,10 +24,11 @@ const (
 	// (ML-DSA-44/65/87).
 	AlgoMLDSA AlgoID = 0x02
 
-	// AlgoFNDSA identifies FN-DSA (FIPS 206) - Lattice-based signature.
-	// Userspace-only; requires floating point operations and cannot run in
-	// BPF context.
-	AlgoFNDSA AlgoID = 0x03
+	// AlgoWithdrawn03 was FN-DSA (FIPS 206). Withdrawn 2026-11-04 (DP-411):
+	// signing needs IEEE-754 floating point, so it can never run in BPF, and
+	// no Go implementation exists. The value stays burned: never reassign it.
+	// It is not in the registry; Registry(AlgoWithdrawn03) reports false.
+	AlgoWithdrawn03 AlgoID = 0x03
 
 	// AlgoMLKEM identifies ML-KEM (FIPS 203) - Lattice-based key
 	// encapsulation mechanism (ML-KEM-512/768/1024).
@@ -110,7 +111,7 @@ var registry = map[AlgoID]AlgoInfo{
 		MaxSigSize: 49856, // SLH-DSA-SHA2-256f max sig size
 		MaxKeySize: 64,    // SLH-DSA-SHA2-256f public key size
 		BPFSafe:    true,
-		Available:  true, // circl v1.6.3 provides sign/slhdsa
+		Available:  true, // circl provides sign/slhdsa
 	},
 	AlgoMLDSA: {
 		ID:         AlgoMLDSA,
@@ -122,17 +123,6 @@ var registry = map[AlgoID]AlgoInfo{
 		MaxKeySize: mldsa87.PublicKeySize, // ML-DSA-87 has largest keys
 		BPFSafe:    true,
 		Available:  true,
-	},
-	AlgoFNDSA: {
-		ID:         AlgoFNDSA,
-		Name:       "FN-DSA",
-		Standard:   "FIPS 206",
-		Type:       "signature",
-		Family:     "lattice",
-		MaxSigSize: 1280,  // FN-DSA-512 approximate max sig size
-		MaxKeySize: 897,   // FN-DSA-512 approximate public key size
-		BPFSafe:    false, // Requires floating point; cannot run in BPF
-		Available:  false, // circl does not yet have FN-DSA
 	},
 	AlgoMLKEM: {
 		ID:         AlgoMLKEM,

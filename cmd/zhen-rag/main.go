@@ -24,7 +24,7 @@
 //	echo "How does the Marshal work?" | zhen-rag
 //	zhen-rag -k 3 -max-tokens 500 -q "Explain ADR-051"
 //
-// Defaults assume vor at 127.0.0.1:9876 and llama-server at 127.0.0.1:8081.
+// Defaults assume vor at 127.0.0.1:20110 and llama-server at 127.0.0.1:8081.
 // Override via env or flags: VOR_URL, LLAMA_URL, RAG_MODEL.
 package main
 
@@ -47,7 +47,7 @@ import (
 )
 
 const (
-	defaultVorURL        = "http://127.0.0.1:9876"
+	defaultVorURL        = "http://127.0.0.1:20110"
 	defaultLlamaURL      = "http://127.0.0.1:8081"
 	defaultModel         = "qwen2.5-coder-7b-instruct"
 	defaultK             = 5

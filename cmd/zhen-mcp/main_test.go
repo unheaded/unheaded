@@ -19,10 +19,11 @@ import (
 	"testing"
 	"time"
 
+	"unheaded/pkg/codeindex"
 	"unheaded/pkg/mcpserver"
 )
 
-var readOnlyTools = []string{"corpus_search", "file_read", "local_llm", "runbook_list", "runbook_show", "service_health"}
+var readOnlyTools = []string{"code_callers", "code_definition", "corpus_search", "file_read", "local_llm", "runbook_list", "runbook_show", "service_health"}
 
 // testRoot is a throwaway project root: a go.mod, two runbooks, a file to
 // read and a stand-in run-runbook.py that prints its argv.
@@ -572,7 +573,7 @@ func TestServeHandshake(t *testing.T) {
 		Result struct{ Tools []struct{ Name string } } `json:"result"`
 	}
 	_ = json.Unmarshal([]byte(lines[1]), &list)
-	if len(list.Result.Tools) != 6 {
+	if len(list.Result.Tools) != 8 {
 		t.Errorf("tools/list = %s", lines[1])
 	}
 	var callRes struct {
@@ -676,7 +677,7 @@ func TestLocalLLMDefaultsAndTimeout(t *testing.T) {
 	if cfg.llmURL != "http://127.0.0.1:8081" || cfg.llmModel != "local" || cfg.llmTimeout != 120*time.Second || cfg.llmErr != nil {
 		t.Errorf("defaults = %q %q %v %v", cfg.llmURL, cfg.llmModel, cfg.llmTimeout, cfg.llmErr)
 	}
-	if cfg.vorURL != "http://127.0.0.1:9876" || cfg.allowWrite || cfg.allowExec {
+	if cfg.vorURL != "http://127.0.0.1:20110" || cfg.allowWrite || cfg.allowExec {
 		t.Errorf("defaults = vor %q write %v exec %v", cfg.vorURL, cfg.allowWrite, cfg.allowExec)
 	}
 
@@ -720,5 +721,52 @@ func TestLocalLLMCaptureOffByDefaultAndFailureCaptured(t *testing.T) {
 	}
 	if !strings.Contains(rec.Local.Error, "unavailable") || rec.Final != "" {
 		t.Errorf("failure capture = %+v", rec)
+	}
+}
+
+func codeIndexFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	ix := &codeindex.Index{
+		Head:   "0123456789abcdef",
+		Chunks: []codeindex.Chunk{{ID: "pkg/a/a.go::Greet", Path: "pkg/a/a.go", Language: "go", Kind: "func", Symbol: "Greet", LineStart: 3, LineEnd: 5, Content: "func Greet() {}"}},
+		Calls:  []codeindex.Call{{Caller: "pkg/b/b.go::Use", Callee: "Greet", Path: "pkg/b/b.go", Line: 9}},
+	}
+	if err := codeindex.Save(dir, ix); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestCodeTools(t *testing.T) {
+	srv := testServer(t, testRoot(t), nil)
+	srv.cfg.codeIndexDir = codeIndexFixture(t)
+	srv.code = codeindex.NewStore(srv.cfg.codeIndexDir)
+	res := call(t, srv, "code_definition", `{"symbol":"Greet"}`)
+	if res.IsError || !strings.Contains(res.Content[0].Text, "pkg/a/a.go:3") || !strings.Contains(res.Content[0].Text, "func Greet()") {
+		t.Fatalf("%+v", res)
+	}
+	res = call(t, srv, "code_callers", `{"symbol":"Greet"}`)
+	if res.IsError || !strings.Contains(res.Content[0].Text, "pkg/b/b.go:9") || !strings.Contains(res.Content[0].Text, "Use") {
+		t.Fatalf("%+v", res)
+	}
+	if res := call(t, srv, "code_callers", `{"symbol":"nothing"}`); res.IsError || !strings.Contains(res.Content[0].Text, "no callers") {
+		t.Fatalf("%+v", res)
+	}
+	if res := call(t, srv, "code_definition", `{}`); !res.IsError {
+		t.Fatal("a missing symbol must be an error")
+	}
+	if res := call(t, srv, "code_definition", `{"symbol":"`+strings.Repeat("x", 300)+`"}`); !res.IsError {
+		t.Fatal("an overlong symbol must be an error")
+	}
+}
+
+func TestCodeTools_NoIndexSaysSo(t *testing.T) {
+	srv := testServer(t, testRoot(t), nil)
+	srv.cfg.codeIndexDir = filepath.Join(t.TempDir(), "none")
+	srv.code = codeindex.NewStore(srv.cfg.codeIndexDir)
+	res := call(t, srv, "code_callers", `{"symbol":"Greet"}`)
+	if !res.IsError || !strings.Contains(res.Content[0].Text, "zhen-codeindex") {
+		t.Fatalf("%+v", res)
 	}
 }

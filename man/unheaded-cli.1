@@ -15,6 +15,7 @@ THE GAUNTLETS \- Command\-line interface for the Unheaded Kingdom
   \- Generate: IaC artifact generation (Ansible, Terraform, K8s, etc.)
   \- Observe: observability backend configuration
   \- API keys: create, list, revoke uhk_ keys for automation (ADR\-103)
+  \- Hop rules: write hop\-ebpf's validators, keys and retry state (ADR\-125)
 
 Secrets and network commands, and container start/stop/exec and service
 deploy/restart/scale, fail: no Unheaded service provides them yet.
@@ -36,6 +37,9 @@ Manage containers
 .TP
 .B generate
 Generate IaC artifacts
+.TP
+.B hop
+Manage hop\-ebpf's checks
 .TP
 .B network
 Network policies and routes (not available)

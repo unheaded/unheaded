@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Native syslog relay (ADR-124). RFC 5424 and RFC 3164 over UDP and TCP in,
+# the journal's native protocol out, so Vector's journald source ships it.
+# west only; Pi-hole sends here, LAN devices after D7.
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
+#   sudo install -m 0755 syslog-relay /usr/local/bin/
+#   sudo install -D -m 0644 config/logging/sources.yaml /etc/unheaded/log-sources.yaml
+#   sudo cp deploy/systemd/unheaded-syslog-relay.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now unheaded-syslog-relay
+#
+# A new sender: add its row to the sources file, then systemctl reload. A LAN
+# listener (D7) also needs its --listen, its subnet in IPAddressAllow, and the
+# firewall rule, which is Stevie's.
+
+[Unit]
+Description=Unheaded syslog relay: syslog in, journal out
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-124-native-syslog-relay.md
+After=network-online.target
+Wants=network-online.target
+# 10.10.20.1 is lxdbr0's and [fd00:dead:beef::1] is wg0's. A bind that loses
+# the race on 514 restarts below; the metrics listener retries by itself.
+After=snap.lxd.daemon.service wg-quick@wg0.service
+
+[Service]
+Type=simple
+# --metrics twice: Prometheus runs in a container and cannot reach loopback,
+# so it scrapes the overlay address; loopback is for the host (Appendix A2).
+ExecStart=/usr/local/bin/syslog-relay --listen udp://10.10.20.1:514 --listen tcp://10.10.20.1:514 --sources /etc/unheaded/log-sources.yaml --metrics 127.0.0.1:9599 --metrics [fd00:dead:beef::1]:9599
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=30s
+TimeoutStopSec=15s
+
+LimitNOFILE=1024
+MemoryMax=128M
+MemoryHigh=115M
+Environment=GOMEMLIMIT=115MiB
+
+User=unheaded-syslog-relay
+Group=unheaded-syslog-relay
+UMask=0077
+
+# The one capability: binding 514.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+# Sandbox (deploy/systemd/README.md#isolation). The user comes from
+# deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+# Hides /proc/stat: process_start_time_seconds is simply absent.
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+# It only ever needs these, so it may bind and talk to nothing else. Enforced
+# in the kernel, in front of the relay's own allowlist.
+SocketBindDeny=any
+SocketBindAllow=udp:514
+SocketBindAllow=tcp:514
+SocketBindAllow=tcp:9599
+IPAddressDeny=any
+IPAddressAllow=localhost
+IPAddressAllow=10.10.20.0/24
+IPAddressAllow=fd00:dead:beef::/48
+# Prometheus' scrape arrives from the monitoring network's own address.
+IPAddressAllow=fd00:d0c0:e703::/64
+
+[Install]
+WantedBy=multi-user.target

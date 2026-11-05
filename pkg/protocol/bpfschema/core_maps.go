@@ -616,3 +616,48 @@ const (
 	StatsMaxEntries               = 32
 	ConfigMaxEntries              = 16
 )
+
+// === compliance-ebpf (DP-203) ===
+
+// ComplianceAuditRecord mirrors ebpf/compliance-ebpf/src/main.rs AuditRecord,
+// the AUDIT_LOG ring record.
+type ComplianceAuditRecord struct {
+	TimestampNs    uint64   // bpf_ktime_get_ns.
+	SrcServiceID   uint16   // Source service.
+	DstServiceID   uint16   // Destination service.
+	Decision       uint8    // 1 allow, 2 block.
+	ViolationType  uint8    // 0 none, 1 policy, 2 encryption, 3 PII egress, 4 zone.
+	Classification uint8    // Low two bits of scratch[0].
+	QosClass       uint8    // From the Monad.
+	TraceID        uint32   // Flow label.
+	ZoneID         uint8    // Geographic zone.
+	Flags          uint8    // Monad flags snapshot.
+	LatencyHint    [2]byte  // From the Monad.
+	MonadSnapshot  [20]byte // The full Monad.
+	_              [20]byte // Reserved.
+}
+
+// ComplianceAuditRecordSize is the exact wire size.
+const ComplianceAuditRecordSize = 64
+
+// === latency-probe (DP-408) ===
+
+// LatencyTraceKey mirrors ebpf/latency-probe/src/common.rs LatencyTraceKey:
+// one thread's samples under one socket trace id.
+type LatencyTraceKey struct {
+	TraceID [16]byte // Socket trace id, big-endian high then low; zero when none.
+	PID     uint32   // Full kernel pid (tgid).
+	TID     uint32   // Full kernel tid.
+}
+
+// LatencyTraceKeySize is the exact wire size.
+const LatencyTraceKeySize = 24
+
+// LatencyEntry mirrors ebpf/latency-probe/src/common.rs LatencyEntry.
+type LatencyEntry struct {
+	RTTNs        uint64 // Most recent RTT sample.
+	MinRTTNs     uint64 // Minimum observed RTT.
+	MaxRTTNs     uint64 // Maximum observed RTT.
+	Samples      uint64 // Number of samples.
+	LastUpdateNs uint64 // bpf_ktime_get_ns of the last update.
+}

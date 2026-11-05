@@ -11,7 +11,7 @@
 # the operator to bring it up via the Go-stack runbook.
 #
 # Pre-rewire this script also expected a 1.76M-vector FAISS index;
-# post-rewire retrieval is via vor (cs serve) at :9876. We do NOT
+# post-rewire retrieval is via vor (cs serve) at :20110. We do NOT
 # launch vor either; same fail-fast posture.
 #
 # What this script DOES launch:
@@ -19,7 +19,7 @@
 #
 # Optional: also start cmd/zhen-agentd if -gated is passed. The chat path
 # goes through the daemon's gate (S-CLEAN-SLATE M-036), so without a daemon
-# on :20105 chat and mutations answer 503 "the gate is required". The UI
+# on :20111 chat and mutations answer 503 "the gate is required". The UI
 # authenticates to it with ZHEN_AGENTD_API_KEY (X-API-Key, one of the
 # daemon's AUTH_API_KEYS), or ZHEN_AGENTD_NO_AUTH=1 for a -no-auth loopback
 # dev daemon; set one in the environment this script runs in.
@@ -54,16 +54,16 @@ if ! curl -sf --max-time 3 http://127.0.0.1:8081/health > /dev/null; then
 fi
 echo "  ✓ llama-server :8081 (qwen-coder-7b)"
 
-if ! curl -sf --max-time 3 http://127.0.0.1:9876/api/health > /dev/null; then
-    echo "  ✗ vor :9876 not reachable"
+if ! curl -sf --max-time 3 http://127.0.0.1:20110/api/health > /dev/null; then
+    echo "  ✗ vor :20110 not reachable"
     echo "    Bring it up first, with swap off so a busy box cannot page its index"
     echo "    out (a search then takes 20 s instead of 0.1 s):"
-    echo "      systemd-run --user --scope --collect -p MemorySwapMax=0 --unit=unheaded-vor vor serve &"
+    echo "      systemd-run --user --scope --collect -p MemorySwapMax=0 --unit=unheaded-vor vor serve 20110 &"
     echo "    Verify the unheaded source symlink:"
     echo "    ls -la ~/.config/cs/sources/unheaded → /home/govan/tmp/unheaded"
     exit 1
 fi
-echo "  ✓ vor :9876"
+echo "  ✓ vor :20110"
 
 # 2. Optional: start zhen-agentd for gated mutations (runbook execute,
 #    future kanban-from-chat). Without it the UI is read-only on the
@@ -71,8 +71,8 @@ echo "  ✓ vor :9876"
 #    pkg/champion's three-rule gate (T6b closed).
 GATED_FLAG="${1:-}"
 if [[ "$GATED_FLAG" == "-gated" ]]; then
-    if ! ss -lnt | awk '$4 ~ /:20105$/ {f=1} END {exit !f}'; then
-        echo "[2/3] Starting cmd/zhen-agentd on :20105 (mutation gating)..."
+    if ! ss -lnt | awk '$4 ~ /:20111$/ {f=1} END {exit !f}'; then
+        echo "[2/3] Starting cmd/zhen-agentd on :20111 (mutation gating)..."
         cd "$HOME/tmp/unheaded"
         AGENTD_LOG="$("$LOGPATH" zhen-agentd)"
         # zhen-agentd exits 2 without auth (M-019). With a key in this
@@ -91,26 +91,26 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         fi
         nohup ./bin/zhen-agentd \
             -host 127.0.0.1 \
-            -port 20105 \
+            -port 20111 \
             -project-root "$HOME/tmp/unheaded" \
             "${AGENTD_AUTH[@]}" \
             > "$AGENTD_LOG" 2>&1 &
         echo "  zhen-agentd PID: $!"
         for _ in $(seq 1 10); do
-            curl -sf http://127.0.0.1:20105/health > /dev/null && break
+            curl -sf http://127.0.0.1:20111/health > /dev/null && break
             sleep 1
         done
-        if curl -sf http://127.0.0.1:20105/health > /dev/null; then
+        if curl -sf http://127.0.0.1:20111/health > /dev/null; then
             echo "  ✓ zhen-agentd ready"
         else
             echo "  ✗ zhen-agentd did not bind in 10s; see $AGENTD_LOG"
             exit 1
         fi
     else
-        echo "[2/3] zhen-agentd already running on :20105 — leaving alone"
+        echo "[2/3] zhen-agentd already running on :20111 — leaving alone"
     fi
 else
-    echo "[2/3] Skipping zhen-agentd: chat and mutations answer 503 until one runs on :20105 ('-gated' starts it)"
+    echo "[2/3] Skipping zhen-agentd: chat and mutations answer 503 until one runs on :20111 ('-gated' starts it)"
 fi
 
 # 3. Start the Python web UI.
@@ -124,9 +124,9 @@ else
     # Defaults the rewired RAGPipeline already prefers; setting them
     # explicitly here makes the deployment posture self-documenting.
     export ZHEN_INFERENCE_URL="${ZHEN_INFERENCE_URL:-http://localhost:8081}"
-    export ZHEN_AGENTD_URL="${ZHEN_AGENTD_URL:-http://localhost:20105}"
+    export ZHEN_AGENTD_URL="${ZHEN_AGENTD_URL:-http://localhost:20111}"
     export ZHEN_MODEL="${ZHEN_MODEL:-qwen2.5-coder-7b-instruct}"
-    export VOR_URL="${VOR_URL:-http://localhost:9876}"
+    export VOR_URL="${VOR_URL:-http://localhost:20110}"
     # Memory-embedder pin (RT-15): RAGPipeline hashes the cached weights and
     # refuses to start when they are not the pinned file.
     # shellcheck source=../scripts/lib/model-pins.sh
@@ -169,14 +169,14 @@ echo "=== Zhenai Status ==="
 curl -s http://localhost:8081/v1/models 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Inference: {d[\"models\"][0][\"name\"]}')" \
     2>/dev/null || echo "Inference: NOT READY"
-curl -s http://localhost:9876/api/health 2>/dev/null \
+curl -s http://localhost:20110/api/health 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Retrieval: vor — {d[\"sheets\"]} sheets, {d[\"categories\"]} categories')" \
     2>/dev/null || echo "Retrieval: NOT READY"
 curl -s http://localhost:20103/health 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Web UI:    {d[\"status\"]} (ready={d[\"rag_ready\"]}, well_connected={d[\"well_connected\"]})')" \
     2>/dev/null || echo "Web UI: NOT READY"
-if ss -lnt 2>/dev/null | awk '$4 ~ /:20105$/ {f=1} END {exit !f}'; then
-    curl -s http://localhost:20105/health 2>/dev/null \
+if ss -lnt 2>/dev/null | awk '$4 ~ /:20111$/ {f=1} END {exit !f}'; then
+    curl -s http://localhost:20111/health 2>/dev/null \
         | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Daemon:    {d[\"status\"]} (mutation gating ON)')" \
         2>/dev/null || echo "Daemon: present but not responding"
 else
@@ -186,6 +186,6 @@ echo ""
 echo "Browse:        http://localhost:20103"
 echo "Chat API:      POST http://localhost:20103/api/v1/query"
 echo "Runbooks API:  POST http://localhost:20103/api/v1/runbooks/<n>/execute"
-echo "Daemon API:    POST http://localhost:20105/api/v1/tool/exec  (when -gated)"
+echo "Daemon API:    POST http://localhost:20111/api/v1/tool/exec  (when -gated)"
 echo ""
 echo "Stop:  pkill -f zhen_app.py; pkill -f bin/zhen-agentd"

@@ -103,7 +103,7 @@ type SovereignSigEntry struct {
 	SigRef2   uint32 // Second signature reference (e.g., ML-DSA)
 	AlgoID2   uint8  // Algorithm family 2
 	Status2   uint8  // Verification status 2
-	SigRef3   uint32 // Third signature reference (e.g., FN-DSA)
+	SigRef3   uint32 // Third signature slot: reserved since FN-DSA was withdrawn (DP-411)
 	AlgoID3   uint8  // Algorithm family 3
 	Status3   uint8  // Verification status 3
 	Consensus uint8  // 2-of-3 consensus result

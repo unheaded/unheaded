@@ -25,7 +25,7 @@ type ToolCall struct {
 	// Name is the registered tool name: "read_file", "write_file",
 	// "patch_file", "kanban_create", "kanban_update", "kanban_list",
 	// "runbook_list", "runbook_show", "runbook_execute", "run_check",
-	// "model_switch", "memory_write", or an MCP server's tool ("corpus_search",
+	// "model_switch", "memory_write", "teach_write", or an MCP server's tool ("corpus_search",
 	// "service_health", ...). See MutatingTools and ReadOnlyTools.
 	Name string `json:"name"`
 
@@ -103,6 +103,9 @@ var MutatingTools = map[string]bool{
 	// is mutating and — with no retrieval justification from a model — always
 	// pending-confirmation (Rule 2). Never auto-publishes.
 	"lich_file_finding": true,
+	// teach_write (DP-309): one file in the zhen-taught source, from a queue
+	// approval only (teach.go).
+	teachTool: true,
 }
 
 // ReadOnlyTools is the canonical list of read-only tool names. Used to
@@ -116,6 +119,9 @@ var ReadOnlyTools = map[string]bool{
 	"runbook_list":   true,
 	"corpus_search":  true,
 	"service_health": true,
+	// cmd/zhen-mcp's code tools (DP-216): the source shard, read only.
+	"code_callers":    true,
+	"code_definition": true,
 	// cmd/zhen-mcp's local_llm: one completion from the
 	// llama-server that is already running. It loads nothing (model
 	// loads go through model_switch and switch-model.sh's fit check),
@@ -281,6 +287,17 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 	intent := fmt.Sprintf("ToolCall: %s", tc.Name)
 	actionID, _ := c.logAction(ctx, "tool_call_attempt", intent, tc.EmittedBy)
 
+	// teach_write's args reach action logs and the queue, so a secret stops
+	// here, before Rule 3 logs them and with no pending offer. The args are
+	// left out of the row and the reason (teach.go).
+	if tc.Name == teachTool {
+		if _, _, err := teachCheck(tc.Args); err != nil {
+			decision := ToolCallDecision{Allow: false, Reason: teachTool + ": " + err.Error()}
+			c.completeAction(ctx, actionID, "denied_teach", "", decision.Reason, time.Since(start))
+			return decision, fmt.Errorf("tool call denied: %s", decision.Reason)
+		}
+	}
+
 	// Rule 3: destructive-verb in args (highest priority).
 	if tc.HasDestructiveVerb() {
 		decision := ToolCallDecision{
@@ -296,10 +313,13 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 	// Rule 2: mutating + untrusted justification, unless branch-sandbox
 	// mode answers it (branchsandbox.go: write_file/patch_file inside a
 	// zhen/<name> agent worktree; Rules 1 and 3 still apply).
+	// AlwaysConfirmTools are held whatever their justification.
 	sandboxJustification, sandboxed := c.branchSandboxAllows(tc)
-	if tc.IsMutating() && tc.HasUntrustedJustification() && !sandboxed {
+	if tc.IsMutating() && (AlwaysConfirmTools[tc.Name] || tc.HasUntrustedJustification()) && !sandboxed {
 		var reason string
-		if len(tc.Justification) == 0 {
+		if AlwaysConfirmTools[tc.Name] {
+			reason = fmt.Sprintf("tool %q always requires out-of-band user confirmation, whatever its justification", tc.Name)
+		} else if len(tc.Justification) == 0 {
 			reason = fmt.Sprintf("mutating tool %q has empty justification chain; requires out-of-band user confirmation (fail-closed: agent could not produce a retrieval-derived rationale for the call)", tc.Name)
 		} else {
 			reason = fmt.Sprintf("mutating tool %q has external-trust justification (%s); requires out-of-band user confirmation", tc.Name, untrustedRefSummary(tc.Justification))

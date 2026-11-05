@@ -217,3 +217,7 @@ Activation steps (sketch — not battle-plan-grade):
 From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 
 - Q1 no cross-shard reranker until a measured quality gap (DP-313). Q2 refresh-on-commit for the source shard, snapshots for dumps. Q3 a 2 s per-backend deadline, configurable. Q4 the embedding service is a Go service calling llama-server's embeddings endpoint; the Python sidecar retires at parity (DP-216).
+
+## Built differently, S-ZHEN-POLISH 2026-11-04
+
+pgvector is third party and is not in the Well's image, so no `aux_*` table exists. `pkg/retrieval` federates vor and a file-backed lexical source shard under `/var/zhen/code-index`, with the 2 s per-backend deadline (`-retrieve-deadline`). ADR-056's `POST /embed` sidecar was never built, and the embed service is parked in ADR-122. Status stays Proposed: a Well-backed shard is a third-party sitting item.

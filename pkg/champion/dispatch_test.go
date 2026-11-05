@@ -245,7 +245,7 @@ func TestDispatch_RunbookList_RepoRunbooks(t *testing.T) {
 // but run in those servers, never through Dispatch.
 func mcpOnlyTool(name string) bool {
 	switch name {
-	case "file_read", "corpus_search", "service_health", "local_llm":
+	case "file_read", "corpus_search", "service_health", "local_llm", "code_callers", "code_definition":
 		return true
 	}
 	return strings.HasPrefix(name, "lich_")

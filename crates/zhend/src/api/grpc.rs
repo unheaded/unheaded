@@ -5,7 +5,7 @@
 //! Implements Ingest, Surface, and Status RPCs backed by real TieredStore
 //! and Embedder. Generated service trait from proto/zhen.proto via tonic-build.
 //!
-//! GPL-3.0-only
+//! GPL-3.0-or-later
 
 use std::sync::Arc;
 use std::time::Instant;

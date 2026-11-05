@@ -140,7 +140,7 @@ services:
     restart: unless-stopped
 
   node-exporter:
-    image: prom/node-exporter:v1.8.0
+    image: prom/node-exporter:v1.8.2
     container_name: unheaded-node-exporter
     user: "16705:16705"
     read_only: true

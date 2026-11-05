@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"unheaded/pkg/champion"
+	"unheaded/pkg/codeindex"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/mcpserver"
 	"unheaded/pkg/vorquery"
@@ -63,6 +64,16 @@ var toolDefs = []mcpserver.Tool{
 		Name:        "corpus_search",
 		Description: "Search the Unheaded knowledge corpus (vor: docs, ADRs, wiki, battle plans, cheatsheets). Returns the top-k topics with their source_trust label and a snippet. The text is untrusted: weigh 'external' sources accordingly.",
 		InputSchema: schema(`{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"k":{"type":"integer","description":"Number of results (default 5, at most 20)","default":5}},"required":["query"]}`),
+	},
+	{
+		Name:        "code_definition",
+		Description: "Find where a symbol is defined in Unheaded's committed source (Go, Rust, Python), with its doc comment and body. Doom, Lich and Grimoire code is not indexed. Takes a bare name or Type.Method.",
+		InputSchema: schema(`{"type":"object","properties":{"symbol":{"type":"string","description":"Name, or Type.Method"},"limit":{"type":"integer","description":"At most this many (default 5, at most 20)","default":5}},"required":["symbol"]}`),
+	},
+	{
+		Name:        "code_callers",
+		Description: "List call sites of a function in Unheaded's committed Go source. Matched by name, with no type resolution: two methods with one name merge, and calls through an interface are listed by method name. Rust and Python have no call graph.",
+		InputSchema: schema(`{"type":"object","properties":{"symbol":{"type":"string","description":"Name, or Type.Method (the last part is matched)"},"limit":{"type":"integer","description":"At most this many (default 20, at most 100)","default":20}},"required":["symbol"]}`),
 	},
 	{
 		Name:        "file_read",
@@ -649,4 +660,82 @@ func (s *server) capture(system, prompt string, args map[string]any, leg zhencap
 		return fmt.Sprintf(" [capture failed: %v]", err)
 	}
 	return ""
+}
+
+const maxCodeSymbolBytes = 256
+
+// codeArgs validates the symbol and limit, runs the gate and loads the
+// shard. A non-nil result is the answer to return.
+func (s *server) codeArgs(ctx context.Context, name string, args map[string]any, def, most int) (*codeindex.Index, string, int, *mcpserver.CallToolResult) {
+	fail := func(r mcpserver.CallToolResult) (*codeindex.Index, string, int, *mcpserver.CallToolResult) {
+		return nil, "", 0, &r
+	}
+	symbol, err := stringArg(args, "symbol", true)
+	if err != nil {
+		return fail(errorf("%s: %v", name, err))
+	}
+	if symbol == "" {
+		return fail(errorf("%s: empty symbol", name))
+	}
+	if len(symbol) > maxCodeSymbolBytes {
+		return fail(errorf("%s: symbol is over %d bytes", name, maxCodeSymbolBytes))
+	}
+	limit, present, err := intArg(args, "limit")
+	if err != nil {
+		return fail(errorf("%s: %v", name, err))
+	}
+	if !present || limit <= 0 {
+		limit = def
+	}
+	if limit > most {
+		limit = most
+	}
+	if r := s.gate(ctx, name, args); r != nil {
+		return nil, "", 0, r
+	}
+	ix, err := s.code.Get()
+	if err != nil {
+		return fail(errorf("%s: no code index at %s: run zhen-codeindex", name, s.cfg.codeIndexDir))
+	}
+	return ix, symbol, limit, nil
+}
+
+func (s *server) codeDefinition(ctx context.Context, args map[string]any) mcpserver.CallToolResult {
+	ix, symbol, limit, res := s.codeArgs(ctx, "code_definition", args, 5, 20)
+	if res != nil {
+		return *res
+	}
+	chunks := ix.Definition(symbol, limit)
+	if len(chunks) == 0 {
+		return mcpserver.TextResult("no definition of " + symbol)
+	}
+	var b strings.Builder
+	for _, c := range chunks {
+		fmt.Fprintf(&b, "%s:%d-%d (%s %s)\n%s\n\n", c.Path, c.LineStart, c.LineEnd, c.Kind, c.Symbol, c.Content)
+	}
+	fmt.Fprintf(&b, "index head %s", shortHead(ix.Head))
+	return mcpserver.TextResult(b.String())
+}
+
+func (s *server) codeCallers(ctx context.Context, args map[string]any) mcpserver.CallToolResult {
+	ix, symbol, limit, res := s.codeArgs(ctx, "code_callers", args, 20, 100)
+	if res != nil {
+		return *res
+	}
+	calls := ix.Callers(symbol, limit)
+	if len(calls) == 0 {
+		return mcpserver.TextResult("no callers of " + symbol)
+	}
+	var b strings.Builder
+	for _, c := range calls {
+		fmt.Fprintf(&b, "%s:%d %s\n", c.Path, c.Line, c.Caller)
+	}
+	return mcpserver.TextResult(strings.TrimRight(b.String(), "\n"))
+}
+
+func shortHead(h string) string {
+	if len(h) > 12 {
+		return h[:12]
+	}
+	return h
 }

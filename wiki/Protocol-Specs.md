@@ -273,3 +273,5 @@ A single packet's lifecycle:
 ---
 
 *See also: [[Architecture|Architecture]] | [[Doom over IPv6|Doom-over-IPv6]] | [[Security|Security]]*
+
+`protocol-api --mode=bpf` reads `hop-ebpf/SOPHIA` and `flow-tracker/FLOWS` under `--bpf-maps` (default `/sys/fs/bpf/unheaded`, pinned by `ebpf-loader --pin-maps`). Flow get and inject, Wotan memory slots and Anamnesis stay Unimplemented: no map holds them, and a second reader on a ring takes events from trace-collector.

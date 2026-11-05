@@ -1,0 +1,1 @@
+{"id":"FIXTURE-PY-0001","aliases":["CVE-2099-0002"],"summary":"Synthetic record: PyPI package, no fixed release, in the KEV fixture","affected":[{"package":{"name":"chroma-fixture","ecosystem":"PyPI"},"ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0.4.17"},{"last_affected":"1.5.9"}]}]}]}

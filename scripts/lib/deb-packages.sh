@@ -26,6 +26,7 @@ DEB_SERVICES=(
 	timeguru captain architect micromanager monad sophia
 	unheaded-auth heimdall-daemon sword chaos-controller anomaly kev-poller
 	trace-collector-go unheaded-baseline huginn zhen-agentd well-retention
+	syslog-relay
 )
 
 # Packages with no unit of their own (deb_control writes their stanzas).
@@ -66,12 +67,12 @@ deb_extra_units() {
 # postinst creates: the name it passes to auth.LoadServiceAuthConfig or
 # wotanClient.InitServiceIdentity). Empty: the binary holds no service key
 # (huginn reports to Prometheus only; well-retention logs in to the Well
-# with a password).
+# with a password; syslog-relay authenticates to nothing).
 deb_identity_for() {
 	case "$1" in
 	heimdall-daemon) echo heimdall ;;
 	trace-collector-go) echo trace-collector ;;
-	huginn | well-retention) ;;
+	huginn | well-retention | syslog-relay) ;;
 	*) echo "$1" ;;
 	esac
 }
@@ -102,6 +103,7 @@ deb_conffile_paths() {
 	case "$1" in
 	wotan) echo /etc/unheaded/wotan.yaml ;;
 	well-retention) echo /etc/unheaded/well/retention-classes.yaml ;;
+	syslog-relay) echo /etc/unheaded/log-sources.yaml ;;
 	esac
 }
 

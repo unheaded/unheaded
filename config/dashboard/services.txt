@@ -25,7 +25,7 @@ grafana=172.28.1.1:3001
 victoriametrics=172.28.1.1:8428
 huginn=172.28.1.1:9110
 llama-server=172.28.1.1:8081
-vor=172.28.1.1:9876
+vor=172.28.1.1:20110
 # Traefik's dashboard entrypoint: compose publishes 21000 on the host's
 # loopback only, so 172.28.1.1:21000 is refused; reach the container directly
 # on the shared data network.

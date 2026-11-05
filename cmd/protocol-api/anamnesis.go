@@ -181,11 +181,8 @@ func (s *anamnesisServer) queryMock(req *pb.EventQuery) (*pb.EventQueryResponse,
 
 // queryBPF searches eBPF event ring buffer
 func (s *anamnesisServer) queryBPF(req *pb.EventQuery) (*pb.EventQueryResponse, error) {
-	// In a real implementation, this would:
-	// 1. Open the eBPF perf/ring buffer at /sys/kernel/debug/tracing/trace_pipe
-	// 2. Parse protobuf-encoded events
-	// 3. Apply filters (time range, flow labels, event types)
-	// 4. Return paginated results
+	// A ring buffer has one consumer position: reading ANAMNESIS here would
+	// take events away from trace-collector, and a ring cannot be queried.
 	return nil, errBPFNotImplemented("anamnesis query")
 }
 
@@ -290,11 +287,8 @@ func (s *anamnesisServer) streamMock(req *pb.StreamRequest, stream grpc.ServerSt
 
 // streamBPF streams events from eBPF ring buffer
 func (s *anamnesisServer) streamBPF(req *pb.StreamRequest, stream grpc.ServerStreamingServer[pb.Event]) error {
-	// In a real implementation, this would:
-	// 1. Attach to eBPF ring buffer
-	// 2. Read protobuf-encoded events as they arrive
-	// 3. Apply filters
-	// 4. Send via gRPC stream
+	// A ring buffer has one consumer position: streaming ANAMNESIS here
+	// would take events away from trace-collector.
 	return errBPFNotImplemented("anamnesis stream")
 }
 

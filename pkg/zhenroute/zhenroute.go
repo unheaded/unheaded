@@ -29,7 +29,9 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/claudebridge/privacy"
+	"unheaded/pkg/energy"
 	"unheaded/pkg/sandbox"
+	"unheaded/pkg/zhencapture"
 )
 
 // Task is one unit of routed work.
@@ -85,6 +87,8 @@ type Config struct {
 	GPULock      string
 	LeaseTimeout time.Duration
 
+	// Energy samples GPU power around local legs (ADR-120); nil is off.
+	Energy *energy.Sampler
 	// Claude is the Claude leg (nil: no Claude, as for LocalOnly).
 	Claude ClaudeLeg
 	// Privacy redacts check output before it enters any prompt and filters
@@ -228,6 +232,14 @@ func Run(ctx context.Context, cfg Config, t Task) (claudebridge.RouteOutcome, er
 	if t.CheckPath == "" {
 		t.CheckPath = "."
 	}
+	// ADR-104 Q4: every routed path, not only -route auto's CLI leg. The
+	// agentd worker and overnight runs come through here.
+	if !t.LocalOnly {
+		if _, hits := zhencapture.Redact(t.Prompt); hits > 0 {
+			log.Warn("route", "family", t.Family, "refused", "redaction_match", "redaction_hits", hits)
+			t.LocalOnly = true
+		}
+	}
 	routing := *cfg.Routing
 	fr := routing.For(t.Family)
 	if t.LocalOnly {
@@ -297,6 +309,7 @@ func Run(ctx context.Context, cfg Config, t Task) (claudebridge.RouteOutcome, er
 		},
 		Redact:  redact,
 		Auditor: cfg.Auditor,
+		Energy:  cfg.Energy,
 	}
 	if root != "" {
 		r.Apply = func(ctx context.Context, answer string) error {
@@ -346,7 +359,9 @@ func worktreeChampion(ctx context.Context, cfg Config, t Task, log *slog.Logger)
 	if err != nil {
 		return "", nil, err
 	}
-	champ, err := champion.New(champion.Config{ProjectRoot: root}, nil)
+	// The worktree alone: the default also allows /var/zhen/, and a model
+	// works here with no confirmation.
+	champ, err := champion.New(champion.Config{ProjectRoot: root, AllowedPaths: []string{root}}, nil)
 	if err != nil {
 		return "", nil, err
 	}
