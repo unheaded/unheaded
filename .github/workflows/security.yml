@@ -33,7 +33,7 @@ jobs:
 
       - name: Run govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           govulncheck ./...
 
       # ADR-101: every migration is routed by db/migrations/MANIFEST (or
@@ -192,9 +192,14 @@ jobs:
       - name: Floating image tags may only shrink
         run: ./scripts/check-image-tags.sh
 
-      - name: gitleaks (full history — reporting only, see PRE-PUBLIC-BLOCKERS.md)
-        continue-on-error: true
-        run: /tmp/gitleaks git --no-banner --redact --exit-code 1 --config .gitleaks.toml .
+      # A finding with a row in docs/policy/gitleaks-history-baseline.txt
+      # warns; a new one, or a scan that could not run, fails the job, so no
+      # continue-on-error here.
+      - name: gitleaks (full history — known findings warn, new ones fail)
+        run: ./scripts/check-gitleaks.sh --history
+
+      - name: The history scan's verdicts hold
+        run: ./scripts/test-check-gitleaks-history.sh
 
   # ============================================================================
   # Post-quantum key exchange (ADR-105)
@@ -248,7 +253,7 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        run: cargo install cargo-audit@0.22.1 --locked
 
       # Discover workspaces rather than listing them. The previous version
       # hardcoded ebpf, cmd/trace-collector and crates/monad-mbc — so
@@ -333,13 +338,15 @@ jobs:
           scanners: secret
           exit-code: '1'
 
-      # Dependency vulnerabilities.
-      - name: Run Trivy vulnerability scanner
+      # Dependency vulnerabilities, every severity, for code scanning. This
+      # step only reports; "Trivy vulnerability gate" below is the verdict.
+      - name: Trivy vulnerability report
         uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master, 2026-10-21 (trivy v0.76.1)
         with:
           scan-type: fs
           scan-ref: '.'
           scanners: vuln
+          exit-code: '0'
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
@@ -381,6 +388,24 @@ jobs:
 
       - name: Trivy misconfig ratchet (GATING)
         run: scripts/check-trivy-misconfig.sh trivy-misconfig.json
+
+      # A CRITICAL or HIGH with a fixed release fails. ignore-unfixed: a
+      # finding with no release to move to has nothing to act on here, so it
+      # stays in the report above and in compliance/findings/register.yaml
+      # (FND-032 today). Table, not sarif: the action drops `severity` for
+      # sarif, and this would fail on every LOW.
+      - name: Trivy vulnerability gate (GATING)
+        if: always()
+        uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master, 2026-10-21 (trivy v0.76.1)
+        with:
+          version: ${{ env.TRIVY_PIN }}
+          scan-type: fs
+          scan-ref: '.'
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
 
       - name: Upload Trivy results
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
@@ -478,18 +503,8 @@ jobs:
           fi
           echo "Doom Range compliance check complete"
 
-      - name: Verify auth middleware integration
-        run: |
-          # Ensure all HTTP server setups reference auth middleware
-          servers=$(grep -rn 'http\.ListenAndServe\|http\.Server{' \
-            --include='*.go' \
-            --exclude-dir=vendor \
-            --exclude-dir=.git \
-            --exclude='*_test.go' \
-            . | head -30 || true)
-          echo "HTTP server instances found:"
-          echo "$servers"
-          echo "Manual review: ensure all production servers use auth.Middleware()"
+      - name: HTTP listeners use pkg/auth or are recorded
+        run: ./scripts/check-http-auth.sh
 
   # ============================================================================
   # Security Gate
@@ -501,18 +516,27 @@ jobs:
     needs: [govulncheck, gosec, gitleaks, cargo-audit, trivy-fs]
     if: always()
     steps:
+      # Reads whatever `needs` lists, so a job added above is covered with no
+      # second list to keep. Anything but success fails, skipped included.
+      # scripts/check-ci-verdicts.sh runs this body against fixture results.
       - name: Check all security scans passed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
-          echo "govulncheck: ${{ needs.govulncheck.result }}"
-          echo "gosec: ${{ needs.gosec.result }}"
-          echo "cargo-audit: ${{ needs.cargo-audit.result }}"
-          echo "trivy-fs: ${{ needs.trivy-fs.result }}"
-          if [ "${{ needs.govulncheck.result }}" != "success" ]; then
-            echo "::error::govulncheck failed"
+          results="$(jq -r 'to_entries[] | "\(.key) \(.value.result)"' <<<"$NEEDS_JSON")"
+          if [ -z "$results" ]; then
+            echo "::error::Security Gate read no job results"
             exit 1
           fi
-          if [ "${{ needs.gosec.result }}" != "success" ]; then
-            echo "::error::gosec failed"
+          fail=0
+          while read -r job result; do
+            echo "$job: $result"
+            if [ "$result" != "success" ]; then
+              echo "::error::$job: $result"
+              fail=1
+            fi
+          done <<<"$results"
+          if [ "$fail" -ne 0 ]; then
             exit 1
           fi
           echo "All required security scans passed"

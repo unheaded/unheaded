@@ -81,8 +81,9 @@ pipeline {
         script {
           echo "=== Vulnerability Scanning ==="
           sh '''
-            # Install Trivy if not present
-            which trivy || (curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin)
+            TRIVY_DIR="$(mktemp -d)"
+            ./scripts/install-trivy.sh "$TRIVY_DIR"
+            PATH="$TRIVY_DIR:$PATH"
 
             # Scan Wotan image
             trivy image \

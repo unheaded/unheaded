@@ -1,0 +1,30 @@
+# HTTP listeners whose package does not import pkg/auth, as of 2026-11-05
+# (scripts/check-http-auth.sh). A row that no longer applies fails until it is
+# removed; a new row is a decision for review, which the script cannot make. A
+# row is not a statement that the listener is safe: it says nobody has wired it
+# yet, or it serves only health or metrics.
+cmd/alert-mailer/main.go
+cmd/heimdall-daemon/metrics.go
+cmd/huginn/main.go
+cmd/kev-poller/main.go
+cmd/routing-health/main.go
+cmd/shield/main.go
+cmd/steel-echo/serve.go
+cmd/syslog-relay/main.go
+cmd/upc-cartridgectl/main_linux.go
+cmd/upc-tty-bridge/main.go
+deploy/sophia-eye/sophia-gateway/main.go
+pkg/httputil/pprof.go
+pkg/tls/server.go
+pkg/tls/setup.go
+pkg/wotan-client/wotantest/wotantest.go
+services/anomaly/anomaly.go
+services/compliance/wire_compliance.go
+services/firewall/firewall.go
+services/gateway/gateway.go
+services/keymgmt/keymgmt.go
+services/loadbalancer/xdpsync.go
+services/nfv/nfv.go
+services/qos/qos.go
+services/selfheal/selfheal.go
+services/version/version.go

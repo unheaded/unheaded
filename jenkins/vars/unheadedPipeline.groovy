@@ -35,13 +35,14 @@ def securityScan() {
       echo "=== Security Scanning ==="
 
       echo "Running govulncheck..."
-      go install golang.org/x/vuln/cmd/govulncheck@latest
+      go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
       govulncheck ./... || EXIT_CODE=$?
 
       echo "Running gosec..."
-      go install github.com/securego/gosec/v2/cmd/gosec@latest
-      gosec -fmt json -out gosec-report.json ./... || true
-      gosec -fmt text ./...
+      GOSEC_BIN="$(mktemp -d)/gosec"
+      go -C tools/gosec build -o "$GOSEC_BIN" github.com/securego/gosec/v2/cmd/gosec
+      "$GOSEC_BIN" -fmt json -out gosec-report.json ./... || true
+      "$GOSEC_BIN" -fmt text ./...
 
       echo "✓ Security scan complete"
     '''
@@ -94,7 +95,7 @@ def lintGo() {
   node {
     sh '''
       echo "=== Linting Go code ==="
-      go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
       golangci-lint run ./... --timeout=5m
       echo "✓ Linting complete"
     '''

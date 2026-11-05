@@ -528,7 +528,7 @@ ci-security: ## Run security scans only (gosec + govulncheck + GPL boundary)
 	@echo "Running security scans..."
 	@go -C $(CURDIR)/tools/gosec build -o $(CURDIR)/bin/gosec github.com/securego/gosec/v2/cmd/gosec
 	$(CURDIR)/bin/gosec ./...
-	@which govulncheck > /dev/null || (echo "Installing govulncheck..." && go install golang.org/x/vuln/cmd/govulncheck@latest)
+	@which govulncheck > /dev/null || (echo "Installing govulncheck..." && go install golang.org/x/vuln/cmd/govulncheck@v1.9.0)
 	govulncheck ./...
 	@chmod +x scripts/verify-gpl-boundary.sh
 	scripts/verify-gpl-boundary.sh
