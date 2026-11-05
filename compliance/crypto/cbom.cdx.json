@@ -1448,7 +1448,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:366:postgres-image",
+      "bom-ref": "docker-compose.yml:370:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1488,7 +1488,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:366"
+          "value": "docker-compose.yml:370"
         }
       ]
     },
