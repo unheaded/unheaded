@@ -175,3 +175,10 @@ func TestFileStore_SetBindsTheGivenPath(t *testing.T) {
 		t.Fatalf("Get = %+v, %v", got, err)
 	}
 }
+
+func TestFileStore_SetRefusesNilSecret(t *testing.T) {
+	fs := encryptedFileStore(t, t.TempDir())
+	if err := fs.Set(context.Background(), "app/four", nil); err == nil {
+		t.Fatal("stored a nil secret")
+	}
+}

@@ -175,6 +175,9 @@ func (s *FileStore) Set(ctx context.Context, path string, secret *secrets.Secret
 	}
 	filePath := s.pathToFile(path)
 
+	if secret == nil {
+		return errors.New("file store: nil secret")
+	}
 	bound := secret.Clone()
 	bound.Path = path
 	data, err := json.MarshalIndent(bound, "", "  ")
