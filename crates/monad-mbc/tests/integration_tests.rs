@@ -632,8 +632,7 @@ fn step105_halt_preserves_registers() {
 
 #[test]
 fn step106_doom_mbc_smoke_test() {
-    let doom_path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../doom/doomgeneric/doom.mbc");
+    let doom_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../doom/doom.mbc");
 
     if !doom_path.exists() {
         eprintln!(
