@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -110,6 +111,13 @@ func NewVaultStore(config VaultStoreConfig) (*VaultStore, error) {
 		pollInterval = 10 * time.Second
 	}
 
+	// TLS settings on a plain address would be ignored, and the token sent in
+	// clear. A store with no TLS settings keeps whatever address it is given.
+	if config.TLSConfig != nil {
+		if u, err := url.Parse(config.Address); err != nil || u.Scheme != "https" {
+			return nil, errors.New("vault tls: TLSConfig needs an https address")
+		}
+	}
 	httpClient, err := vaultHTTPClient(config.TLSConfig, timeout)
 	if err != nil {
 		return nil, err

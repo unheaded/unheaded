@@ -16,6 +16,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -105,6 +107,28 @@ func TestVaultTLS_ClientCertIsPresented(t *testing.T) {
 		t.Fatalf("with a client certificate: %v", err)
 	}
 	_ = vs.Close()
+}
+
+// L2: TLS settings on a plain address could not be honoured, and the token
+// would leave in clear with nothing to say so.
+func TestVaultTLS_PlainAddressIsRefused(t *testing.T) {
+	var reached atomic.Bool
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Store(true)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{}"))
+	}))
+	t.Cleanup(hs.Close)
+	_, ca := tlsVault(t, nil)
+	for _, addr := range []string{hs.URL, "HTTP" + strings.TrimPrefix(hs.URL, "http"), strings.TrimPrefix(hs.URL, "http://")} {
+		if vs, err := newVaultTLS(addr, &store.VaultTLSConfig{CACert: ca}); err == nil {
+			_ = vs.Close()
+			t.Errorf("%s: store built", addr)
+		}
+	}
+	if reached.Load() {
+		t.Error("the store reached a plain address despite its TLS settings")
+	}
 }
 
 // L2: settings that cannot be honoured stop the store, never pass silently.
