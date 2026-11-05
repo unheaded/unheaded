@@ -186,6 +186,10 @@ var defaultTargets = []health.ServiceTarget{
 	{Name: "gateway", Host: "localhost", Port: 21000, HealthPath: "/health", Scheme: "http"},
 }
 
+func systemctlRestart(unit string) ([]byte, error) {
+	return exec.Command("systemctl", "restart", unit).CombinedOutput() // #nosec G204 -- unit comes from restartUnits: built from this node's own target names, never from a report
+}
+
 func main() {
 	// Flags
 	once := flag.Bool("once", false, "Run single health sweep and exit")
@@ -341,45 +345,8 @@ func main() {
 	})
 
 	noUnit := execTargetNames(targets)
-	akira.OnAlert(func(v health.Verdict) {
-		if noUnit[v.Service] {
-			// An exec check (cert-expiry) has no unit to restart: its own
-			// output, in the report's error, says what a human must do.
-			if restarts[v.Service] == 0 {
-				log.Error().Str("service", v.Service).Float64("failure_rate", v.FailureRate).
-					Msg("CONSENSUS THRESHOLD on an exec check — no unit to restart: needs a human")
-				restarts[v.Service] = -1 // logged for this outage
-			}
-			return
-		}
-		if !*remediate {
-			if restarts[v.Service] == 0 {
-				log.Error().Str("service", v.Service).Float64("failure_rate", v.FailureRate).
-					Msg("CONSENSUS THRESHOLD — remediation off (--remediate=false): needs a human")
-				restarts[v.Service] = -1 // logged for this outage
-			}
-			return
-		}
-		n := restarts[v.Service]
-		if n >= health.MaxAutoRestarts {
-			if n == health.MaxAutoRestarts {
-				log.Error().Str("service", v.Service).Int("restarts", n).
-					Msg("MAX AUTO-RESTARTS EXCEEDED — escalating to human")
-				restarts[v.Service] = n + 1 // escalate once
-			}
-			return
-		}
-		restarts[v.Service] = n + 1
-		svcUnit := fmt.Sprintf("unheaded-%s", v.Service)
-		log.Warn().Str("service", v.Service).Str("unit", svcUnit).Int("attempt", n+1).
-			Msg("attempting auto-restart via systemctl")
-		cmd := exec.Command("systemctl", "restart", svcUnit) // #nosec G204 -- unit name from the kingdom service registry, not user input
-		if out, err := cmd.CombinedOutput(); err != nil {
-			log.Error().Err(err).Str("output", string(out)).Str("service", v.Service).Msg("auto-restart FAILED")
-		} else {
-			log.Info().Str("service", v.Service).Msg("auto-restart SUCCESS")
-		}
-	})
+	restart := &restarter{noUnit: noUnit, units: restartUnits(targets), enabled: *remediate, counts: restarts, run: systemctlRestart}
+	akira.OnAlert(restart.onAlert)
 
 	// Single sweep mode
 	if *once {
