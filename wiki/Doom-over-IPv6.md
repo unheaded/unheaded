@@ -4,7 +4,7 @@
 
 ## Summary
 
-Doom (1993, id Software) runs inside Linux eBPF as a proof of computational completeness for the Unheaded Monad protocol. The game executes as MBC (Monad Bytecode) instructions inside an XDP program, with BPF maps serving as RAM, ROM, framebuffer, and keyboard input. Packets circulate through 6 Linux network namespaces in a ring topology, executing 128 instructions per hop, 255 hops per packet -- delivering approximately 32,640 instructions per injected packet.
+Doom (1993, id Software) runs inside Linux eBPF as evidence of computational generality for the Unheaded Monad protocol, not a proof of it. The game executes as MBC (Monad Bytecode) instructions inside an XDP program, with BPF maps serving as RAM, ROM, framebuffer, and keyboard input. Packets circulate through 6 Linux network namespaces in a ring topology, executing 128 instructions per hop, 255 hops per packet -- delivering approximately 32,640 instructions per injected packet.
 
 **Key results:**
 - 559+ frames rendered (title screen, credits, demo cycle)

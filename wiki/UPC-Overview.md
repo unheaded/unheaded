@@ -137,14 +137,14 @@ Per-level detail: [UPC Dream Ladder](UPC-Dream-Ladder). The current frontier is 
 
 ## Why this exists
 
-The UPC is the Kingdom's computational-completeness proof. The Unheaded Protocol claims that packet processing IS computation; the UPC is what makes that claim falsifiable. Doom-on-Monad ran a real Turing-complete program inside the eBPF runtime. xv6-on-UPC closes the loop: a real OS, with real privilege levels, real syscalls, real user processes, all dispatched by the same XDP program that handles a forwarded HTTP request.
+The UPC is the Kingdom's computational-generality evidence. The Unheaded Protocol claims that packet processing IS computation; the UPC is what makes that claim falsifiable. Doom-on-Monad ran a large real program inside the eBPF runtime. xv6-on-UPC closes the loop: a real OS, with real privilege levels, real syscalls, real user processes, all dispatched by the same XDP program that handles a forwarded HTTP request.
 
 The longer-term play is that everything Unheaded does — gateway routing, drift detection, scheduler decisions, observability event correlation — eventually compiles down to MBC and runs on the UPC. The eBPF dispatch path is the only path. There is no separate userspace coordinator. The kernel ring 0 IS the application.
 
 ## Cross-references
 
 - [Linux on UPC](Linux-on-UPC) — ASCEND-LINUX status, Phase 0 through the ownership ladder and EVOLUTION-1
-- [Doom on UPC](Doom-on-UPC) — the L3 computational-completeness proof
+- [Doom on UPC](Doom-on-UPC) — the L3 computational-generality evidence
 - [UPC Dream Ladder](UPC-Dream-Ladder) — level-by-level gates
 - [MBC ISA Reference](MBC-ISA-Reference) — opcode + encoding reference
 - [Protocol Foundation](Protocol-Foundation) — the Monad wire format the UPC dispatches on
