@@ -1539,37 +1539,56 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
+// A stream filter names a few types and services: no real one nears these.
+const (
+	maxStreamFilterEntries = 64
+	maxStreamFilterBytes   = 2048
+)
+
+// parseStreamFilterList splits one comma-separated filter parameter, or
+// reports it too large.
+func parseStreamFilterList(raw string) ([]string, bool) {
+	if raw == "" {
+		return nil, true
+	}
+	if len(raw) > maxStreamFilterBytes || strings.Count(raw, ",") >= maxStreamFilterEntries {
+		return nil, false
+	}
+	return strings.Split(raw, ","), true
+}
+
 // handleStreamWebSocket handles WS /api/v1/stream - real-time metrics stream
 func (s *Server) handleStreamWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Parse filter query parameters
-	filter := StreamFilter{}
-
-	if types := r.URL.Query().Get("types"); types != "" {
-		filter.Types = strings.Split(types, ",")
+	types, okTypes := parseStreamFilterList(r.URL.Query().Get("types"))
+	services, okServices := parseStreamFilterList(r.URL.Query().Get("services"))
+	if !okTypes || !okServices {
+		http.Error(w, "stream filter too large", http.StatusBadRequest)
+		return
 	}
-	if services := r.URL.Query().Get("services"); services != "" {
-		filter.Services = strings.Split(services, ",")
-	}
-	filter.MinLevel = r.URL.Query().Get("min_level")
+	filter := StreamFilter{Types: types, Services: services, MinLevel: r.URL.Query().Get("min_level")}
 
-	// Use the WebSocket server to handle upgrade and connection
-	s.wsServer.HandleWebSocket(w, r)
+	// The WebSocket server upgrades and owns the connection; the filtered
+	// subscription lives exactly as long as that connection does.
+	s.wsServer.HandleWebSocketWith(w, r, func() func() {
+		ch := make(chan *StreamMessage, 256)
 
-	// Note: The actual streaming is handled via the existing broadcast mechanism
-	// We register a dedicated stream subscription for filtered streaming
-	ch := make(chan *StreamMessage, 256)
+		s.streamSubsMu.Lock()
+		s.streamSubs[ch] = filter
+		s.streamSubsMu.Unlock()
 
-	s.streamSubsMu.Lock()
-	s.streamSubs[ch] = filter
-	s.streamSubsMu.Unlock()
+		s.log.Debug().
+			Strs("types", filter.Types).
+			Strs("services", filter.Services).
+			Str("min_level", filter.MinLevel).
+			Msg("stream subscriber connected")
 
-	s.log.Debug().
-		Strs("types", filter.Types).
-		Strs("services", filter.Services).
-		Str("min_level", filter.MinLevel).
-		Msg("stream subscriber connected")
-
-	// Cleanup on disconnect is handled by the WebSocket server
+		return func() {
+			s.streamSubsMu.Lock()
+			delete(s.streamSubs, ch)
+			s.streamSubsMu.Unlock()
+		}
+	})
 }
 
 // broadcastToStream broadcasts a message to all stream subscribers

@@ -111,6 +111,7 @@ type Client struct {
 	closeMu   sync.Mutex
 	writeMu   sync.Mutex
 	closeOnce sync.Once
+	onClose   func() // runs once, from Close; nil for none
 }
 
 // ID returns the client's unique identifier
@@ -144,6 +145,9 @@ func (c *Client) Close() {
 
 		close(c.send)
 		_ = c.conn.Close()
+		if c.onClose != nil {
+			c.onClose()
+		}
 	})
 }
 
@@ -334,6 +338,14 @@ func (s *Server) closeAllClients() {
 
 // HandleWebSocket handles WebSocket upgrade and client management
 func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	s.HandleWebSocketWith(w, r, nil)
+}
+
+// HandleWebSocketWith is HandleWebSocket for a caller with state tied to the
+// connection. open runs only after a successful upgrade and before the
+// client can go away; the function it returns, if any, runs once when the
+// client closes. A refused upgrade calls neither.
+func (s *Server) HandleWebSocketWith(w http.ResponseWriter, r *http.Request, open func() (closed func())) {
 	// Check connection limit
 	s.clientsMu.RLock()
 	count := len(s.clients)
@@ -363,13 +375,19 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var closed func()
+	if open != nil {
+		closed = open()
+	}
+
 	// Create client with atomic counter + timestamp to avoid ID collisions
 	counter := atomic.AddInt64(&s.clientIDCounter, 1)
 	client := &Client{
-		id:     fmt.Sprintf("%s-%d-%d", r.RemoteAddr, time.Now().Unix(), counter),
-		conn:   conn,
-		server: s,
-		send:   make(chan []byte, s.config.BufferSize),
+		id:      fmt.Sprintf("%s-%d-%d", r.RemoteAddr, time.Now().Unix(), counter),
+		conn:    conn,
+		server:  s,
+		send:    make(chan []byte, s.config.BufferSize),
+		onClose: closed,
 	}
 
 	// Register client
