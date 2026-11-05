@@ -50,7 +50,7 @@ termination per Unheaded's Port-Authority pattern.
 
 Before turning on `AUTH_ENABLED=true` and exposing beyond loopback:
 
-- [ ] `WELL_DSN` set with `sslmode=verify-full` (not `disable`)
+- [ ] `WELL_DSN` set with `sslmode=verify-full sslrootcert=/etc/unheaded/well-tls/ca.crt` (not `disable`)
 - [ ] `AUTH_API_KEYS` is a long random string (≥32 hex chars), per-environment
 - [ ] `-rate-limit` set to a sane value (5-25 rps depending on traffic)
 - [ ] `-allowed-roots` enumerates ONLY the project roots tenants are allowed to target

@@ -14,7 +14,7 @@ import (
 
 func unsetWell(t *testing.T) {
 	t.Helper()
-	for _, k := range []string{"WELL_HOST", "WELL_PORT", "WELL_USER", "WELL_PASSWORD", "WELL_DB", "WELL_SSLMODE"} {
+	for _, k := range []string{"WELL_HOST", "WELL_PORT", "WELL_USER", "WELL_PASSWORD", "WELL_DB", "WELL_SSLMODE", "WELL_SSLROOTCERT"} {
 		t.Setenv(k, "x") // registers restore on cleanup
 		unsetenv(t, k)
 	}
@@ -122,8 +122,6 @@ func TestConnect_RefusesWeakSSLMode(t *testing.T) {
 	}
 	for name, cfg := range map[string]Config{
 		"require":            {Host: "postgres", SSLMode: "require"},
-		"verify-full":        {Host: "the-well", SSLMode: "verify-full"},
-		"verify-ca":          {Host: "10.0.0.5", SSLMode: "verify-ca"},
 		"disable, 127.0.0.1": {Host: "127.0.0.1", SSLMode: "disable"},
 		"disable, ::1":       {Host: "::1", SSLMode: "disable"},
 		"disable, localhost": {Host: "localhost", SSLMode: "disable"},

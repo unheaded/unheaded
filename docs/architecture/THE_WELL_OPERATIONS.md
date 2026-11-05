@@ -116,8 +116,19 @@ Each `<password>` is that role's variable in `.env` (`APP_KANBAN_PASSWORD`,
 ..., `HUGINN_READER_PASSWORD`; see `db/.env.example`): db/init.sh sets them
 on an empty volume, `scripts/well/set-role-passwords.sh` on an existing
 Well (also the superuser's, from `POSTGRES_PASSWORD`). No password is in the
-repo. Go clients (`pkg/database`, `pkg/compliance/well`, `cmd/well-migrate`)
-default to `WELL_SSLMODE=require`.
+repo. Go clients (`pkg/database`, `pkg/compliance/well`, `cmd/well-migrate`,
+`cmd/well-retention`) default to `WELL_SSLMODE=require`, which encrypts but
+does not check who answered.
+
+To check it, set `WELL_SSLMODE=verify-full` and
+`WELL_SSLROOTCERT=/etc/unheaded/well-tls/ca.crt`. Compose passes both through
+from `.env` and mounts the certificate (only `ca.crt`, never `ca.key`) in the
+services that use the Well. A host unit takes them from its env file. A client
+with `verify-ca` or `verify-full` and no readable CA stops with
+`database.ErrMissingCA` before it connects, and so does any client with
+`WELL_SSLROOTCERT` set to a file that is missing, whatever its sslmode. Clients
+that take a whole DSN (`WELL_DSN`, huginn, Wotan's store) put `sslmode` and
+`sslrootcert` in it.
 
 ---
 

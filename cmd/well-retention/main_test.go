@@ -251,6 +251,24 @@ func TestRunRefusesLiveWhenUnratified(t *testing.T) {
 	}
 }
 
+// M12: the CA path reaches the check, before any connection is tried.
+func TestRunRefusesMissingCA(t *testing.T) {
+	dir := t.TempDir()
+	p, gone := filepath.Join(dir, "classes.yaml"), filepath.Join(dir, "gone.crt")
+	if err := os.WriteFile(p, []byte(goodClasses), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("WELL_PASSWORD", "x")
+	t.Setenv("WELL_HOST", "203.0.113.1") // TEST-NET: a connection attempt would hang, not pass
+	t.Setenv("WELL_SSLMODE", "verify-full")
+	t.Setenv("WELL_SSLROOTCERT", gone)
+	var out, errb bytes.Buffer
+	code := run(context.Background(), []string{"-classes", p, "-dry-run"}, &out, &errb)
+	if code != 1 || !strings.Contains(errb.String(), gone) {
+		t.Fatalf("code %d, stderr %q", code, errb.String())
+	}
+}
+
 func TestRunUsage(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "classes.yaml")
 	if err := os.WriteFile(p, []byte(goodClasses), 0o600); err != nil {

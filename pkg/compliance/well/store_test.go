@@ -90,6 +90,17 @@ func TestOpenRefusesInvalidRepoData(t *testing.T) {
 	}
 }
 
+// M12: both compliance connections carry the Well's CA path.
+func TestConfigsReadWellSSLRootCert(t *testing.T) {
+	t.Setenv("WELL_SSLROOTCERT", "/etc/unheaded/well-tls/ca.crt")
+	if got := ConfigFromEnv().SSLRootCert; got != "/etc/unheaded/well-tls/ca.crt" {
+		t.Fatalf("ConfigFromEnv: %q", got)
+	}
+	if got := OpsConfigFromEnv().SSLRootCert; got != "/etc/unheaded/well-tls/ca.crt" {
+		t.Fatalf("OpsConfigFromEnv: %q", got)
+	}
+}
+
 func TestChangeValidation(t *testing.T) {
 	s, err := NewYAMLStore(repo)
 	if err != nil {

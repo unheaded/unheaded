@@ -69,7 +69,7 @@ One job, `well-retention` (`cmd/well-retention`, package `unheaded-well-retentio
 ## Connecting
 
 - **Key exchange is classical (P-256)** until E1: PostgreSQL 16's `ssl_ecdh_curve` takes one curve. PostgreSQL 18 with `ssl_groups=X25519MLKEM768:X25519:prime256v1` (`db/postgresql.pg18.conf.d/10-pq-groups.conf`) negotiates the hybrid with every client we run; proof suite `scripts/well/test-pq-groups.sh`, upgrade runbook `runbooks/data/well-pg18-upgrade.yaml` (dump and restore into a new volume, the PG 16 volume kept as the rollback). FND-015; see [[Post-Quantum Key Exchange|Post-Quantum-Key-Exchange]].
-- **TLS 1.3 only** for every network connection; anything else is rejected (`db/pg_hba.conf`). Clients use `sslmode=require` (Go clients: `WELL_SSLMODE`, default `require`; `pkg/database` refuses `allow` and `prefer`, and `disable` except to a loopback host or socket); `verify-full` with `sslrootcert=/etc/unheaded/well-tls/ca.crt`.
+- **TLS 1.3 only** for every network connection; anything else is rejected (`db/pg_hba.conf`). Clients use `sslmode=require` (Go clients: `WELL_SSLMODE`, default `require`; `pkg/database` refuses `allow` and `prefer`, and `disable` except to a loopback host or socket); `verify-full` with `WELL_SSLROOTCERT=/etc/unheaded/well-tls/ca.crt` also checks the server, and a client told to verify without a readable CA refuses to start.
 - From containers: host `postgres:5432` on the `data` network (`172.28.1.0/24`).
 - From west itself: `127.0.0.1:5432` (published to localhost only).
 - `docker exec` over the socket needs no password (root on the host already).

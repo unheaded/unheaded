@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -26,5 +27,21 @@ func TestRun_RefusesWeakSSLMode(t *testing.T) {
 				t.Fatalf("exit %d, stderr %q: want 1 and an sslmode refusal", code, errb.String())
 			}
 		})
+	}
+}
+
+// M12: the CA path reaches the check. A named file that is missing stops the
+// run before any connection, and the message names that file.
+func TestRun_RefusesMissingCA(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "gone.crt")
+	t.Setenv("WELL_HOST", "127.0.0.1")
+	t.Setenv("WELL_PORT", "1")
+	t.Setenv("WELL_SSLMODE", "verify-full")
+	t.Setenv("WELL_SSLROOTCERT", gone)
+	t.Setenv("WELL_MIGRATE_PASSWORD", "x")
+	var out, errb bytes.Buffer
+	code := run(context.Background(), []string{"-dir", "../../db/migrations", "status"}, &out, &errb)
+	if code != 1 || !strings.Contains(errb.String(), gone) {
+		t.Fatalf("exit %d, stderr %q: want 1 and a refusal naming %s", code, errb.String(), gone)
 	}
 }

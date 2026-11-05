@@ -1287,9 +1287,11 @@ services:
       WELL_USER: "ops_writer"
       WELL_PASSWORD: "${OPS_WRITER_PASSWORD:?set OPS_WRITER_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_ops"
-      WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
+      WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
+      WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
     volumes:
       - ./configs/certs/dev/dashboard-backend:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
       - /proc:/host/proc:ro
@@ -1382,9 +1384,11 @@ services:
       WELL_USER: "app_kanban"
       WELL_PASSWORD: "${APP_KANBAN_PASSWORD:?set APP_KANBAN_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_app"
-      WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
+      WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
+      WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
     volumes:
       - ./configs/certs/dev/kanban-app:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - kanban-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
@@ -1594,7 +1598,8 @@ services:
       WELL_USER: "ops_writer"
       WELL_PASSWORD: "${OPS_WRITER_PASSWORD:?set OPS_WRITER_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_ops"
-      WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
+      WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
+      WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
       SWORD_DATA_DIR: "/data"
       VM_URL: "http://victoria:8428"
       SWORD_SLO_POLICY: "/etc/unheaded/sword/policy.yaml"
@@ -1603,6 +1608,7 @@ services:
     ports:
       - "127.0.0.1:19011:19011"
     volumes:
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/certs/dev/sword:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - sword-data:/data
