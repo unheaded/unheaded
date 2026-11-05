@@ -1,10 +1,11 @@
 # Third-Party Dependencies — zhend
 
-**Last updated**: 2026-03-28  
+**Last updated**: 2026-11-05  
 **License**: GPL-3.0-or-later  
 **Compliance reviewed by**: MoatGhost  
 
-All dependencies are compatible with GPL-3.0-or-later.
+The tables below list what zhend uses directly. Every crate in `Cargo.lock` is in
+`../../sbom/rust-dependencies.json`, and `../../sbom/SBOM.md` names what is left for a person to rule on.
 
 ## Runtime Dependencies
 
@@ -73,8 +74,10 @@ GPL-3.0-or-later (zhend)
   └── ISC            ✓ (permissive, compatible with GPL)
 ```
 
-No copyleft dependency conflicts detected. All dependencies are permissive
-or public domain, allowing GPL-3.0-or-later distribution without issue.
+The matrix covers the licenses in the tables above. `Cargo.lock` holds more:
+`r-efi` offers LGPL-2.1-or-later as one of three choices, and other crates are
+under Zlib, Unlicense or Unicode-3.0. `sbom/SBOM.md` reads those licenses and
+rules on none of them.
 
 ## Supply Chain Notes
 

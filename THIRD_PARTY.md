@@ -1,7 +1,7 @@
 # Third-Party Dependencies and GPL Boundary
 
 **Project:** Unheaded Kingdom
-**Last updated:** 2026-08-04 (Python, CDN-loaded JS and llama.cpp added)
+**Last updated:** 2026-11-05 (tables matched to `sbom/`, licenses as read by `scripts/generate-sbom.sh`)
 **Main license:** GPL-3.0-or-later (see `/LICENSE`)
 **Canonical third-party inventory location:** This file
 
@@ -14,7 +14,7 @@ This document describes all third-party dependencies used by the Unheaded Kingdo
 The codebase consists of:
 - **Unheaded code:** Licensed under GPL-3.0 (see `/LICENSE`)
 - **DOOM subsystem:** GPL v2.0, architecturally isolated and NOT linked into the main codebase
-- **Third-party dependencies:** Go modules, Rust crates, Python packages, and JavaScript libraries — permissive, except psycopg2 (LGPL-with-exceptions, GPL-3.0-compatible)
+- **Third-party dependencies:** Go modules, Rust crates, Python packages, and JavaScript libraries. `sbom/SBOM.md` gives each license as read, names every package where what it reads names the GPL family or a proprietary license, and names every package it could not read. What it reads differs by ecosystem, and it says how
 - **Protocol specifications:** Published under GPL-3.0/Apache 2.0 to encourage ecosystem adoption
 
 ---
@@ -81,114 +81,64 @@ The Doom sources, tools and WAD handling moved to `unheaded-doom` on 2026-11-04 
 | `doom/doom.mbc` | Compiled MBC bytecode artifact from doomgeneric | GPL v2 (compiled form) | Binary executable in eBPF map |
 | `doom/doom.rv2mbc` | Intermediate RV32I-to-MBC translated artifact | GPL v2 (compiled form) | Intermediate translation stage |
 
-### Shareware Licensed Components (inside the boundary, separately licensed)
-
-| Path | Description | License | Origin |
-|------|-------------|---------|--------|
-
-**Note:** WAD files contain game data (levels, sprites, textures) and are not covered by the GPL license. They are id Software shareware and are redistributable under the original shareware terms.
-
 ### Outside the GPL-2.0 boundary
 
 All code outside the `doom/` directory is **original Unheaded work** licensed under GPL-3.0-or-later (the MIT headers these files once carried were relicensed 2026-10-27, decision 12). These components do NOT derive from, link to, or include any of the GPL-2.0 code in `doom/`. They communicate with DOOM solely through BPF map syscalls (a data protocol boundary, analogous to user-space programs communicating with the GPL Linux kernel).
 
 | Path | Description | License |
 |------|-------------|---------|
-| `internal/bpf/` | Go BPF wrappers for loading and interacting with BPF programs and maps | GPL-3.0-or-later |
+| `pkg/ebpf/` | Go BPF wrappers for loading and interacting with BPF programs and maps | GPL-3.0-or-later |
 
 ---
 
-## Go Dependencies (17 Direct)
+## Go Dependencies
 
-All Go dependencies use permissive licenses compatible with GPL-3.0.
+Direct modules, from `go.mod`. Every indirect module, with its license as read, is in `sbom/go-dependencies.json`. " AND " means the module's license files name each of these; they may be alternatives.
 
-### Direct Dependencies Table
-
-| Module | Version | License | Purpose | URL |
-|--------|---------|---------|---------|-----|
-| github.com/BurntSushi/toml | v1.6.0 | MIT | TOML configuration parsing | https://github.com/BurntSushi/toml |
-| github.com/fsnotify/fsnotify | v1.7.0 | BSD-3-Clause | File system event monitoring | https://github.com/fsnotify/fsnotify |
-| github.com/google/uuid | v1.6.0 | BSD-3-Clause | UUID generation | https://github.com/google/uuid |
-| github.com/gorilla/websocket | v1.5.3 | BSD-2-Clause | WebSocket protocol support | https://github.com/gorilla/websocket |
-| github.com/prometheus/client_golang | v1.18.0 | Apache-2.0 | Prometheus metrics instrumentation | https://github.com/prometheus/client_golang |
-| github.com/rs/zerolog | v1.31.0 | MIT | Structured JSON logging | https://github.com/rs/zerolog |
-| github.com/sony/gobreaker | v0.5.0 | MIT | Circuit breaker pattern implementation | https://github.com/sony/gobreaker |
-| github.com/yuin/goldmark | v1.7.16 | MIT | Markdown parsing and rendering | https://github.com/yuin/goldmark |
-| golang.org/x/crypto | v0.23.0 | BSD-3-Clause | Cryptographic utilities (mTLS, hashing) | https://go.googlesource.com/crypto |
-| golang.org/x/sys | v0.40.0 | BSD-3-Clause | System-level operations (uname, signals) | https://go.googlesource.com/sys |
-| golang.org/x/text | v0.15.0 | BSD-3-Clause | Text processing and Unicode support | https://go.googlesource.com/text |
-| golang.org/x/time | v0.5.0 | BSD-3-Clause | Rate limiting utilities | https://go.googlesource.com/time |
-| google.golang.org/grpc | v1.65.0 | Apache-2.0 | gRPC framework for RPC communication | https://github.com/grpc/grpc-go |
-| google.golang.org/protobuf | v1.34.1 | BSD-3-Clause | Protocol Buffers (protobuf serialization) | https://github.com/protocolbuffers/protobuf-go |
-| gopkg.in/yaml.v3 | v3.0.1 | Apache-2.0 | YAML configuration file parsing | https://github.com/go-yaml/yaml |
-| modernc.org/sqlite | v1.44.3 | BSD-3-Clause | Pure Go SQLite3 (no CGO) — Kanban L1 persistence | https://gitlab.com/cznic/sqlite |
-
-### Indirect Dependencies (14 + transitive)
-
-| Module | Version | License | Pulled in by |
-|--------|---------|---------|--------------|
-| github.com/beorn7/perks | v1.0.1 | MIT | prometheus/client_golang |
-| github.com/cespare/xxhash/v2 | v2.3.0 | MIT | prometheus/client_golang |
-| github.com/dustin/go-humanize | v1.0.1 | MIT | modernc.org/sqlite |
-| github.com/kr/text | v0.2.0 | MIT | test infrastructure |
-| github.com/mattn/go-colorable | v0.1.13 | MIT | rs/zerolog |
-| github.com/mattn/go-isatty | v0.0.20 | MIT | rs/zerolog |
-| github.com/matttproud/golang_protobuf_extensions/v2 | v2.0.0 | Apache-2.0 | prometheus/client_golang |
-| github.com/ncruces/go-strftime | v1.0.0 | MIT | modernc.org/sqlite |
-| github.com/prometheus/client_model | v0.5.0 | Apache-2.0 | prometheus/client_golang |
-| github.com/prometheus/common | v0.45.0 | Apache-2.0 | prometheus/client_golang |
-| github.com/prometheus/procfs | v0.12.0 | Apache-2.0 | prometheus/client_golang |
-| github.com/remyoudompheng/bigfft | v0.0.0-20230129... | BSD-3-Clause | modernc.org/sqlite |
-| golang.org/x/exp | v0.0.0-20251023... | BSD-3-Clause | modernc.org/sqlite (experimental) |
-| golang.org/x/net | v0.25.0 | BSD-3-Clause | google.golang.org/grpc (HTTP/2, networking) |
-| google.golang.org/genproto/googleapis/rpc | v0.0.0-20240528... | Apache-2.0 | google.golang.org/grpc |
-| modernc.org/libc | v1.67.6 | BSD-3-Clause | modernc.org/sqlite |
-| modernc.org/mathutil | v1.7.1 | BSD-3-Clause | modernc.org/sqlite |
-| modernc.org/memory | v1.11.0 | BSD-3-Clause | modernc.org/sqlite |
+| Module | Version | License | Purpose |
+|--------|---------|---------|---------|
+| github.com/BurntSushi/toml | v1.6.0 | MIT | TOML configuration parsing |
+| github.com/anthropics/anthropic-sdk-go | v1.82.0 | MIT | Claude API client (`pkg/claudebridge`) |
+| github.com/cilium/ebpf | v0.22.0 | MIT | Loading eBPF programs and reading their maps |
+| github.com/cloudflare/circl | v1.6.5 | BSD-3-Clause | Post-quantum cryptography |
+| github.com/google/uuid | v1.6.0 | BSD-3-Clause | UUID generation |
+| github.com/gorilla/websocket | v1.5.3 | BSD-2-Clause | WebSocket protocol support |
+| github.com/lib/pq | v1.12.3 | MIT | The Well (PostgreSQL) client |
+| github.com/rs/zerolog | v1.35.1 | MIT | Structured JSON logging |
+| github.com/yuin/goldmark | v1.8.6 | MIT | Markdown parsing and rendering |
+| golang.org/x/crypto | v0.58.1-0.20261009181718-2f1f834330b2 | BSD-3-Clause | Cryptographic utilities (mTLS, hashing) |
+| golang.org/x/sys | v0.49.0 | BSD-3-Clause | System-level operations (uname, signals) |
+| golang.org/x/text | v0.43.0 | BSD-3-Clause | Text processing and Unicode support |
+| golang.org/x/time | v0.16.0 | BSD-3-Clause | Rate limiting utilities |
+| google.golang.org/grpc | v1.84.0 | Apache-2.0 | gRPC framework for RPC communication |
+| google.golang.org/protobuf | v1.36.12 | BSD-3-Clause | Protocol Buffers (protobuf serialization) |
+| gopkg.in/yaml.v3 | v3.0.1 | Apache-2.0 AND MIT | YAML configuration file parsing |
+| modernc.org/sqlite | v1.61.0 | Apache-2.0 AND BSD-3-Clause AND LicenseRef-public-domain AND MIT AND MPL-2.0 | Pure Go SQLite3 (no CGO), Kanban L1 persistence |
 
 ---
 
 ## Rust Dependencies
 
-The following Rust crates are used in the Unheaded Kingdom's eBPF components and MBC translator.
-
-### Core Async & eBPF Framework
-
-| Crate | Version | License | Purpose | URL |
-|-------|---------|---------|---------|-----|
-| tokio | Latest | MIT | Async runtime | https://github.com/tokio-rs/tokio |
-| tonic | Latest | MIT | gRPC framework for zhend | https://github.com/hyperium/tonic |
-| aya | Latest | MIT / Apache-2.0 | eBPF framework for Rust (programs + userspace) | https://github.com/aya-rs/aya |
-| aya-ebpf | Latest | MIT / Apache-2.0 | eBPF in-kernel code library | https://github.com/aya-rs/aya |
-
-### Protocol & Serialization
+The crates the eBPF components, zhend and the MBC translator are built on, with the license field of each crate's own `Cargo.toml`. Every crate in every lock file is in `sbom/rust-dependencies.json`.
 
 | Crate | Version | License | Purpose |
 |-------|---------|---------|---------|
-| prost | Latest | Apache-2.0 | Protocol Buffers for Rust |
-| serde / serde_json | Latest | MIT / Apache-2.0 | Serialization framework |
-| clap | Latest | MIT / Apache-2.0 | Command-line argument parsing |
-
-### Security & TLS
-
-| Crate | Version | License | Purpose |
-|-------|---------|---------|---------|
-| rustls | Latest | MIT / Apache-2.0 / ISC | Pure-Rust TLS for zhend |
-| rustls-pemfile | Latest | MIT / Apache-2.0 | TLS certificate loading |
-
-### Utilities
-
-| Crate | Version | License | Purpose |
-|-------|---------|---------|---------|
-| goblin | Latest | MIT | ELF parser for monad-mbc RV32I translator |
-| nix | Latest | MIT | Unix API bindings for BPF operations |
-| memmap2 | Latest | MIT / Apache-2.0 | Memory-mapped I/O for ring buffer reads |
-| crossbeam | Latest | MIT / Apache-2.0 | Lock-free data structures |
-| thiserror / anyhow | Latest | MIT / Apache-2.0 | Error handling derives |
-| tracing / tracing-subscriber | Latest | MIT | Structured diagnostics |
-| prometheus (Rust) | Latest | Apache-2.0 | Prometheus metrics (Rust variant) |
-
-**Total Rust dependency count:** ~28 direct crates across monad-mbc and ebpf-loader binaries.
+| tokio | 1.54.1 | MIT | Async runtime |
+| tonic | 0.12.3 | MIT | gRPC framework for zhend |
+| aya | 0.13.1 | MIT OR Apache-2.0 | eBPF framework for Rust (programs + userspace) |
+| aya-ebpf | 0.1.1 | MIT OR Apache-2.0 | eBPF in-kernel code library |
+| prost | 0.13.5 | Apache-2.0 | Protocol Buffers for Rust |
+| serde | 1.0.229 | MIT OR Apache-2.0 | Serialization framework |
+| serde_json | 1.0.154 | MIT OR Apache-2.0 | JSON for serde |
+| clap | 4.6.7 | MIT OR Apache-2.0 | Command-line argument parsing |
+| rustls | 0.23.46 | Apache-2.0 OR ISC OR MIT | Pure-Rust TLS for zhend |
+| goblin | 0.8.2 | MIT | ELF parser for monad-mbc RV32I translator |
+| nix | 0.31.3 | MIT | Unix API bindings for BPF operations |
+| thiserror | 1.0.69 | MIT OR Apache-2.0 | Error handling derives |
+| thiserror | 2.0.21 | MIT OR Apache-2.0 | Error handling derives |
+| anyhow | 1.0.104 | MIT OR Apache-2.0 | Error handling |
+| tracing | 0.1.44 | MIT | Structured diagnostics |
+| tracing-subscriber | 0.3.23 | MIT | Structured diagnostics |
 
 ---
 
@@ -201,21 +151,22 @@ JavaScript is linted by oxlint (MIT, oxc-project), a static binary pinned by sha
 | Library | License | Purpose |
 |---------|---------|---------|
 | Vanilla JavaScript (ES6+) | MIT | Canvas rendering, WebSocket handling |
-| WebSocket API | Built-in browser API | Real-time DOOM viewport streaming |
+| WebSocket API | Built-in browser API | Real-time updates |
 | HTML Canvas 2D | Built-in browser API | Frame rendering |
 
 **No npm packages are bundled or built.** Three libraries are nevertheless loaded
 at runtime from CDNs by specific HTML pages, which makes them third-party
 dependencies of those pages even though nothing is installed:
 
-| Library | Version | License | Loaded by | Integrity |
+| Library | Version | License stated upstream, not read on west | Loaded by | Integrity |
 |---------|---------|---------|-----------|-----------|
-| [xterm.js](https://github.com/xtermjs/xterm.js) | 5.3.0 | MIT | `dashboard/upc-console.html` | SRI sha384 |
+| xterm | 5.3.0 | MIT | `dashboard/upc-console.html` | SRI sha384 |
 | xterm-addon-fit | 0.8.0 | MIT | `dashboard/upc-console.html` | SRI sha384 |
-| [SheetJS](https://sheetjs.com/) `xlsx` | 0.20.3 | Apache-2.0 | `skills/marshal-eval-review.html` | SRI sha384 |
+| xlsx | 0.20.3 | Apache-2.0 | `skills/marshal-eval-review.html` | SRI sha384 |
 
-All three are GPL-3.0-compatible (MIT and Apache-2.0 both are, one-way into
-GPL-3.0). Each carries a Subresource Integrity hash — see the note in
+`xterm` is [xterm.js](https://github.com/xtermjs/xterm.js) and `xlsx` is
+[SheetJS](https://sheetjs.com/). No copy of these files is on west, so
+`sbom/SBOM.md` lists them as not read. Each carries a Subresource Integrity hash — see the note in
 `dashboard/upc-console.html` for how to recompute one when bumping a version.
 
 Google Fonts stylesheets are also loaded by `raft/static/index.html` and
@@ -233,31 +184,33 @@ transitive set. Before that file existed, `syft dir:.` found **zero** Python
 packages, so the SBOM and every vulnerability scan downstream of it were blind to
 this entire surface. See `docs/security/python-deps-unscanned-2026-08-04.md`.
 
-| Package | License | Purpose |
-|---------|---------|---------|
-| Flask | BSD-3-Clause | Zhen web UI (`raft/zhen_app.py`, port 20103) |
-| flask-cors | MIT | CORS headers for the same |
-| Pygments | BSD-2-Clause | Syntax highlighting of code in Zhen answers, server-side (`raft/zhen_highlight.py`) |
-| psycopg2-binary | LGPL-3.0-or-later *(with OpenSSL exception)* | The Well (PostgreSQL) client |
-| requests | Apache-2.0 | HTTP client |
-| faiss-cpu | MIT AND BSD-3-Clause | Vector index |
-| sentence-transformers | Apache-2.0 | Memory embedder (all-MiniLM-L6-v2) |
-| langchain-text-splitters | MIT | Corpus chunking |
-| numpy | BSD-3-Clause (bundles 0BSD, MIT, Zlib) | Numerics |
-| torch | BSD-3-Clause | Training + inference |
-| transformers, datasets, peft, trl | Apache-2.0 | RAFT fine-tuning pipeline |
-| mcp | MIT | MCP server (`raft/zhen_mcp_server.py`) |
-| anthropic | MIT | Claude API client |
-| PyYAML | MIT | Runbook / config parsing |
-| pytest | MIT | Tests |
+| Package | Version | License | Purpose |
+|---------|---------|---------|---------|
+| Flask | 3.1.3 | BSD-3-Clause | Zhen web UI (`raft/zhen_app.py`, port 20103) |
+| requests | 2.34.2 | Apache Software License | HTTP client |
+| Pygments | 2.21.0 | BSD-2-Clause | Syntax highlighting of code in Zhen answers, server-side (`raft/zhen_highlight.py`) |
+| psycopg2-binary | 2.9.11 | GNU Library or Lesser General Public License (LGPL) | The Well (PostgreSQL) client |
+| faiss-cpu | 1.13.2 | MIT AND BSD-3-Clause | Vector index |
+| sentence-transformers | 5.7.0 | Apache-2.0 | Memory embedder (all-MiniLM-L6-v2) |
+| langchain-text-splitters | 1.1.2 | MIT License | Corpus chunking |
+| numpy | 2.4.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | Numerics |
+| torch | 2.10.0 | BSD-3-Clause | Training + inference |
+| transformers | 5.17.0 | Apache 2.0 License | RAFT fine-tuning pipeline |
+| datasets | 5.0.1 | Apache Software License | RAFT fine-tuning pipeline |
+| peft | 0.18.1 | Apache Software License | RAFT fine-tuning pipeline |
+| trl | 0.29.0 | Apache-2.0 | RAFT fine-tuning pipeline |
+| anthropic | 0.84.0 | MIT License | Claude API client |
+| PyYAML | 6.0.3 | MIT License | Runbook / config parsing |
+| pytest | 9.0.3 | MIT | Tests |
 
-Every licence above was read from the installed package metadata
-(`importlib.metadata`) in `~/.venv/zhen`, not from memory.
+Each license is the installed package's own metadata in `~/.venv/zhen`, as written, read by
+`scripts/generate-sbom.sh`. The whole venv, including what these pull in, is in
+`sbom/python-dependencies.json`, with every other requirements file the repo tracks;
+some of it is in the GPL family and some is proprietary. `sbom/SBOM.md` names both.
 
-**psycopg2 is the one to watch.** It is LGPL-3.0-or-later, not permissive. That is
-GPL-3.0-compatible — LGPL-3.0 upgrades into GPL-3.0 cleanly — so it raises no
-boundary problem here. It is called from Python at runtime, never linked into a
-Go or Rust binary.
+**psycopg2:** its metadata says LGPL, and its LICENSE file says version 3 or later,
+with exceptions. It is called from Python at runtime, never linked into a Go or Rust
+binary.
 
 ---
 
@@ -277,48 +230,21 @@ MPL-2.0 and likewise a separate process fed by configuration only.
 
 ---
 
-## License Compatibility Summary
+## License Summary
 
-| License Type | Count | Compatible with GPL-3.0? | Notes |
-|--------------|-------|--------------------------|-------|
-| MIT | 14 | Yes | Permissive, can be used in proprietary software |
-| BSD-3-Clause | 12 | Yes | Permissive, attribution required |
-| BSD-2-Clause | 1 | Yes | Permissive, attribution required |
-| Apache-2.0 | 8 | Yes | Permissive, patent grants compatible with MIT |
-| ISC | 1 | Yes | Permissive, minimal restrictions |
-| GPL v2 | 1 (doom/) | Isolated | GPL code confined to doom/ directory; not linked |
-| Shareware | 1 (doom1.wad) | Isolated | Game data, not open source, freely redistributable |
+Counts by license are in `sbom/SBOM.md`, and they move with the lock files, so they are not repeated here. That report reads licenses and does not rule on them: its verdict names every package where what it reads names the GPL family or a proprietary license, and every package it could not read, for a person to rule on. It reads license files at a Go module's root, the license field of a crate's `Cargo.toml`, and a Python package's metadata and installed license files. A license stated only inside a source file, or in a file a crate bundles, is not seen.
 
-**Conclusion:** All dependencies are compatible with GPL-3.0-or-later. The GPL v2 boundary is architecturally enforced.
+The GPL-2.0 fixture in `doom/` stays behind the boundary described above.
 
 ---
 
 ## How to Regenerate This Inventory
 
-### Go Dependencies
-
 ```bash
-cd /path/to/unheaded
-go mod download        # Download all modules
-go list -m all         # List all transitive dependencies
-go-licenses report ./. # Generate license report (requires: go install github.com/google/go-licenses@latest)
+scripts/generate-sbom.sh    # sbom/*.json and sbom/SBOM.md
 ```
 
-### Rust Dependencies
-
-```bash
-cd /path/to/monad-mbc
-cargo tree             # View dependency tree
-cargo license          # Generate license report (requires: cargo install cargo-license)
-```
-
-### Python Dependencies
-
-```bash
-pip install -r raft/requirements.txt
-pip-licenses --format=markdown        # requires: pip install pip-licenses
-syft dir:raft -o json | grype sbom:-  # what CI's SBOM step sees
-```
+It reads licenses from what is on the host: the Go module cache, the cargo registry, `~/.venv/zhen` and any venv named in `PYTHON_EXTRA_VENVS`, colon-separated. The committed report also read the CI tools' venv, built from `.github/ci-python/requirements.txt`; without it, those packages list as not read. It fetches nothing, so a module with no source in the cache stays listed as not read. `go mod download` first would read those. With no `~/.venv/zhen` the run still finishes, keeps the last freeze, lists its packages as not read, and cannot PASS. Then bring the tables above into line: `scripts/test-generate-sbom.sh` fails until they match.
 
 ### JavaScript loaded from CDNs
 
@@ -329,13 +255,6 @@ hit carries an `integrity=` attribute:
 grep -rn '<script[^>]*src="https' --include=*.html . | grep -v node_modules
 ```
 
-### Verification
-
-1. Check `go.mod`, `Cargo.toml` and `raft/requirements.txt` for declared dependencies
-2. Verify license file in each module: `LICENSE`, `LICENSE.md`, `COPYING`
-3. Cross-check with SPDX identifiers on crates.io and pkg.go.dev
-4. Audit any GPL/LGPL dependencies to ensure isolation
-
 ---
 
 ## References
@@ -344,12 +263,11 @@ grep -rn '<script[^>]*src="https' --include=*.html . | grep -v node_modules
 - `/doom/LICENSE` — GPL v2 boundary documentation
 - `/LICENSES/THIRD_PARTY.md` — Detailed third-party attributions with full license texts
 - `/docs/legal/IP-INVENTORY.md` — Intellectual property asset inventory
-- `/docs/compliance/SBOM.md` — Software Bill of Materials
+- `/sbom/SBOM.md` — Software Bill of Materials
 - https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt — GPL v2 full text
 - https://github.com/ozkl/doomgeneric — Upstream doomgeneric repository
 - https://github.com/id-Software/DOOM — Original id Software DOOM source
 
 ---
 
-**Last audited:** 2026-02-27
-**Auditor notes:** All dependencies scanned against go.mod, Cargo.toml, and package repositories. GPL boundary verified with architecture team. SBOM automation integrated into CI/CD via GitHub Actions and Makefile targets.
+**Last read:** 2026-11-05, by `scripts/generate-sbom.sh`.

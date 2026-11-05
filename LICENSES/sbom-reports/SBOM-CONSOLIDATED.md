@@ -3,6 +3,7 @@
 **Generated:** 2026-02-24
 **Repository:** unheaded (Go 1.24 + Rust + eBPF)
 **Scope:** Production code + test code (~260K + ~204K LOC)
+**Superseded:** a record of the 2026-02-24 scan only. `sbom/SBOM.md` is current, and it finds licenses this one did not.
 
 ## Summary
 
@@ -33,7 +34,7 @@ Go module analysis were used as fallback.
 
 ### Go Module Dependencies (91 modules)
 
-All Go dependencies use permissive licenses (MIT, Apache 2.0, BSD).
+The 91 modules this scan listed were read as permissive (MIT, Apache 2.0, BSD).
 Full list: sbom-results/go-modules-list.txt and LICENSES/sbom-go-modules.txt
 
 ### Rust Crate Dependencies

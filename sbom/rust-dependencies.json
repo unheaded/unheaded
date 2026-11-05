@@ -15,7 +15,6 @@
     "totalExternalCrates": 352,
     "workspaceCrates": [
       "anomaly-ebpf",
-      "aws-lc-rs",
       "canary-ebpf",
       "cartridge-ebpf",
       "collector",
@@ -40,10 +39,7 @@
       "nfv-ebpf",
       "packet-marker",
       "pqc-common",
-      "pqcrypto-mlkem",
       "qos-ebpf",
-      "ring",
-      "rustls",
       "shield-ebpf",
       "syscall-tracer",
       "unheaded-common",
@@ -59,14 +55,38 @@
       "zhend"
     ],
     "licenseSummary": {
-      "MIT OR Apache-2.0 (assumed)": 262,
-      "MIT OR Apache-2.0": 64,
-      "MIT": 21,
-      "Apache-2.0": 4,
-      "Unlicense OR MIT": 1
+      "MIT OR Apache-2.0": 193,
+      "MIT": 61,
+      "Apache-2.0 OR MIT": 23,
+      "MIT/Apache-2.0": 18,
+      "Apache-2.0": 9,
+      "Unlicense OR MIT": 7,
+      "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT": 5,
+      "BSD-3-Clause": 4,
+      "Apache-2.0/MIT": 3,
+      "Zlib": 3,
+      "BSD-2-Clause OR Apache-2.0 OR MIT": 2,
+      "CC0-1.0 OR MIT-0 OR Apache-2.0": 2,
+      "ISC": 2,
+      "MIT OR Apache-2.0 OR LGPL-2.1-or-later": 2,
+      "Unlicense/MIT": 2,
+      "Zlib OR Apache-2.0 OR MIT": 2,
+      "(MIT OR Apache-2.0) AND NCSA": 1,
+      "(MIT OR Apache-2.0) AND Unicode-3.0": 1,
+      "0BSD OR MIT OR Apache-2.0": 1,
+      "Apache-2.0 / MIT": 1,
+      "Apache-2.0 AND ISC": 1,
+      "Apache-2.0 OR ISC OR MIT": 1,
+      "CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception": 1,
+      "CDLA-Permissive-2.0": 1,
+      "ISC AND (Apache-2.0 OR ISC)": 1,
+      "ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)": 1,
+      "MIT AND BSD-3-Clause": 1,
+      "MIT OR Apache-2.0 OR BSD-1-Clause": 1,
+      "MIT OR Apache-2.0 OR Zlib": 1,
+      "MIT OR Zlib OR Apache-2.0": 1
     },
     "lockFiles": [
-      "cmd/crypto-inventory/testdata/rust/Cargo.lock",
       "cmd/ebpf-collector/Cargo.lock",
       "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
       "cmd/ebpf-load-check/Cargo.lock",
@@ -91,7 +111,7 @@
     {
       "crate": "adler2",
       "version": "2.0.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "0BSD OR MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -99,7 +119,7 @@
     {
       "crate": "aead",
       "version": "0.5.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -107,7 +127,7 @@
     {
       "crate": "aes",
       "version": "0.8.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -115,7 +135,7 @@
     {
       "crate": "aes-gcm",
       "version": "0.10.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -123,7 +143,7 @@
     {
       "crate": "aho-corasick",
       "version": "1.1.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Unlicense OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -133,7 +153,7 @@
     {
       "crate": "allocator-api2",
       "version": "0.2.21",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
@@ -144,7 +164,7 @@
     {
       "crate": "android_system_properties",
       "version": "0.1.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -152,7 +172,7 @@
     {
       "crate": "anes",
       "version": "0.1.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -160,7 +180,7 @@
     {
       "crate": "anstream",
       "version": "1.0.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -171,7 +191,7 @@
     {
       "crate": "anstyle",
       "version": "1.0.14",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -182,7 +202,7 @@
     {
       "crate": "anstyle-parse",
       "version": "1.0.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -193,7 +213,7 @@
     {
       "crate": "anstyle-query",
       "version": "1.1.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -204,7 +224,7 @@
     {
       "crate": "anstyle-wincon",
       "version": "3.0.11",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -239,7 +259,7 @@
     {
       "crate": "arrayvec",
       "version": "0.7.8",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -247,7 +267,7 @@
     {
       "crate": "assert_matches",
       "version": "1.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
@@ -258,7 +278,7 @@
     {
       "crate": "async-stream",
       "version": "0.3.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -267,7 +287,7 @@
     {
       "crate": "async-stream-impl",
       "version": "0.3.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -276,7 +296,7 @@
     {
       "crate": "async-trait",
       "version": "0.1.92",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -285,7 +305,7 @@
     {
       "crate": "atomic-waker",
       "version": "1.1.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -294,7 +314,7 @@
     {
       "crate": "autocfg",
       "version": "1.5.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -303,7 +323,7 @@
     {
       "crate": "aws-lc-rs",
       "version": "1.18.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "ISC AND (Apache-2.0 OR ISC)",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -311,7 +331,7 @@
     {
       "crate": "aws-lc-sys",
       "version": "0.46.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -319,7 +339,7 @@
     {
       "crate": "axum",
       "version": "0.7.9",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -328,7 +348,7 @@
     {
       "crate": "axum-core",
       "version": "0.4.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -409,7 +429,7 @@
     {
       "crate": "base64",
       "version": "0.22.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/svc-token/Cargo.lock",
@@ -419,7 +439,7 @@
     {
       "crate": "base64",
       "version": "0.23.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -427,7 +447,7 @@
     {
       "crate": "bincode",
       "version": "2.0.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -435,7 +455,7 @@
     {
       "crate": "bincode_derive",
       "version": "2.0.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -443,7 +463,7 @@
     {
       "crate": "bit-set",
       "version": "0.11.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -451,7 +471,7 @@
     {
       "crate": "bit-vec",
       "version": "0.10.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -459,7 +479,7 @@
     {
       "crate": "bitflags",
       "version": "1.3.2",
-      "license": "MIT OR Apache-2.0",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -481,7 +501,7 @@
     {
       "crate": "blake3",
       "version": "1.8.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -489,7 +509,7 @@
     {
       "crate": "block-buffer",
       "version": "0.10.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
@@ -500,7 +520,7 @@
     {
       "crate": "block2",
       "version": "0.6.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock"
       ]
@@ -508,7 +528,7 @@
     {
       "crate": "borsh",
       "version": "1.8.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -516,7 +536,7 @@
     {
       "crate": "borsh-derive",
       "version": "1.8.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -524,7 +544,7 @@
     {
       "crate": "bumpalo",
       "version": "3.20.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -532,7 +552,7 @@
     {
       "crate": "byteorder",
       "version": "1.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Unlicense OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -552,7 +572,7 @@
     {
       "crate": "camino",
       "version": "1.2.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
@@ -562,7 +582,7 @@
     {
       "crate": "cargo-platform",
       "version": "0.3.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
@@ -572,7 +592,7 @@
     {
       "crate": "cargo_metadata",
       "version": "0.23.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
@@ -582,9 +602,17 @@
     {
       "crate": "cast",
       "version": "0.3.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cc",
+      "version": "1.10.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/upc-api/fuzz/Cargo.lock"
       ]
     },
     {
@@ -597,14 +625,6 @@
         "crates/monad-mbc/fuzz/Cargo.lock",
         "crates/svc-token/Cargo.lock",
         "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "cc",
-      "version": "1.10.0",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "crates/upc-api/fuzz/Cargo.lock"
       ]
     },
     {
@@ -627,7 +647,7 @@
     {
       "crate": "cfg_aliases",
       "version": "0.2.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -636,7 +656,7 @@
     {
       "crate": "chacha20",
       "version": "0.10.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -644,7 +664,7 @@
     {
       "crate": "chrono",
       "version": "0.4.45",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -652,7 +672,7 @@
     {
       "crate": "ciborium",
       "version": "0.2.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -660,7 +680,7 @@
     {
       "crate": "ciborium-io",
       "version": "0.2.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -668,7 +688,7 @@
     {
       "crate": "ciborium-ll",
       "version": "0.2.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -676,7 +696,7 @@
     {
       "crate": "cipher",
       "version": "0.4.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -728,7 +748,7 @@
     {
       "crate": "cmake",
       "version": "0.1.58",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -736,7 +756,7 @@
     {
       "crate": "colorchoice",
       "version": "1.0.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -747,7 +767,7 @@
     {
       "crate": "constant_time_eq",
       "version": "0.4.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "CC0-1.0 OR MIT-0 OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -755,7 +775,7 @@
     {
       "crate": "core-error",
       "version": "0.0.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
@@ -766,7 +786,7 @@
     {
       "crate": "core-foundation-sys",
       "version": "0.8.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -774,7 +794,7 @@
     {
       "crate": "core_detect",
       "version": "1.0.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -782,7 +802,7 @@
     {
       "crate": "cpufeatures",
       "version": "0.2.17",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
@@ -793,7 +813,7 @@
     {
       "crate": "cpufeatures",
       "version": "0.3.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -801,7 +821,7 @@
     {
       "crate": "crc32fast",
       "version": "1.5.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
@@ -813,7 +833,7 @@
     {
       "crate": "criterion",
       "version": "0.5.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -821,7 +841,7 @@
     {
       "crate": "criterion-plot",
       "version": "0.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -829,7 +849,7 @@
     {
       "crate": "crossbeam-deque",
       "version": "0.8.8",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -837,7 +857,7 @@
     {
       "crate": "crossbeam-epoch",
       "version": "0.9.21",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -853,7 +873,7 @@
     {
       "crate": "crunchy",
       "version": "0.2.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -861,7 +881,7 @@
     {
       "crate": "crypto-common",
       "version": "0.1.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
@@ -872,7 +892,7 @@
     {
       "crate": "ctr",
       "version": "0.9.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -880,7 +900,7 @@
     {
       "crate": "ctrlc",
       "version": "3.5.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock"
       ]
@@ -888,7 +908,7 @@
     {
       "crate": "curve25519-dalek",
       "version": "4.1.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "BSD-3-Clause",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -896,7 +916,7 @@
     {
       "crate": "curve25519-dalek-derive",
       "version": "0.1.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -904,7 +924,7 @@
     {
       "crate": "defmt",
       "version": "1.2.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
@@ -913,7 +933,7 @@
     {
       "crate": "defmt-macros",
       "version": "1.2.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
@@ -922,7 +942,7 @@
     {
       "crate": "defmt-parser",
       "version": "1.1.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
@@ -931,7 +951,7 @@
     {
       "crate": "derive_arbitrary",
       "version": "1.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/lich-fuzz/Cargo.lock"
       ]
@@ -939,7 +959,7 @@
     {
       "crate": "digest",
       "version": "0.10.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
@@ -950,7 +970,7 @@
     {
       "crate": "dispatch2",
       "version": "0.3.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Zlib OR Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock"
       ]
@@ -958,7 +978,7 @@
     {
       "crate": "dunce",
       "version": "1.0.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "CC0-1.0 OR MIT-0 OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -975,7 +995,7 @@
     {
       "crate": "env_filter",
       "version": "2.0.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
@@ -993,7 +1013,7 @@
     {
       "crate": "equivalent",
       "version": "1.0.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
@@ -1005,7 +1025,7 @@
     {
       "crate": "errno",
       "version": "0.3.14",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -1015,7 +1035,7 @@
     {
       "crate": "fastbloom",
       "version": "0.17.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1023,7 +1043,7 @@
     {
       "crate": "fastrand",
       "version": "2.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1032,7 +1052,7 @@
     {
       "crate": "fiat-crypto",
       "version": "0.2.9",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0 OR BSD-1-Clause",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1040,7 +1060,7 @@
     {
       "crate": "find-msvc-tools",
       "version": "0.1.15",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/lich-fuzz/Cargo.lock",
@@ -1053,7 +1073,7 @@
     {
       "crate": "fixedbitset",
       "version": "0.5.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1062,7 +1082,7 @@
     {
       "crate": "flate2",
       "version": "1.1.10",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -1070,7 +1090,7 @@
     {
       "crate": "fnv",
       "version": "1.0.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 / MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1079,7 +1099,7 @@
     {
       "crate": "foldhash",
       "version": "0.1.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Zlib",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
@@ -1090,7 +1110,7 @@
     {
       "crate": "foldhash",
       "version": "0.2.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Zlib",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1098,7 +1118,7 @@
     {
       "crate": "fs2",
       "version": "0.4.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1106,7 +1126,7 @@
     {
       "crate": "fs_extra",
       "version": "1.3.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1114,7 +1134,7 @@
     {
       "crate": "futures-channel",
       "version": "0.3.34",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1132,7 +1152,7 @@
     {
       "crate": "futures-sink",
       "version": "0.3.34",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1141,7 +1161,7 @@
     {
       "crate": "futures-task",
       "version": "0.3.34",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1150,7 +1170,7 @@
     {
       "crate": "futures-util",
       "version": "0.3.34",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1159,7 +1179,7 @@
     {
       "crate": "fxhash",
       "version": "0.2.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0/MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1167,7 +1187,7 @@
     {
       "crate": "generic-array",
       "version": "0.14.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
@@ -1187,6 +1207,14 @@
     },
     {
       "crate": "getrandom",
+      "version": "0.3.4",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "getrandom",
       "version": "0.4.3",
       "license": "MIT OR Apache-2.0",
       "found_in": [
@@ -1198,17 +1226,9 @@
       ]
     },
     {
-      "crate": "getrandom",
-      "version": "0.3.4",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
       "crate": "ghash",
       "version": "0.5.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1216,7 +1236,7 @@
     {
       "crate": "glob",
       "version": "0.3.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1224,7 +1244,7 @@
     {
       "crate": "goblin",
       "version": "0.8.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
@@ -1246,7 +1266,7 @@
     {
       "crate": "half",
       "version": "2.7.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1297,7 +1317,7 @@
     {
       "crate": "hermit-abi",
       "version": "0.5.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1305,7 +1325,7 @@
     {
       "crate": "hex",
       "version": "0.4.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1313,7 +1333,7 @@
     {
       "crate": "hkdf",
       "version": "0.12.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1321,7 +1341,7 @@
     {
       "crate": "hmac",
       "version": "0.12.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1347,7 +1367,7 @@
     {
       "crate": "http-body-util",
       "version": "0.1.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1365,7 +1385,7 @@
     {
       "crate": "httpdate",
       "version": "1.0.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1383,7 +1403,7 @@
     {
       "crate": "hyper-timeout",
       "version": "0.5.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1401,7 +1421,7 @@
     {
       "crate": "iana-time-zone",
       "version": "0.1.65",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1409,7 +1429,7 @@
     {
       "crate": "iana-time-zone-haiku",
       "version": "0.1.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1417,7 +1437,7 @@
     {
       "crate": "indexmap",
       "version": "1.9.3",
-      "license": "MIT OR Apache-2.0",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1426,7 +1446,7 @@
     {
       "crate": "indexmap",
       "version": "2.14.2",
-      "license": "MIT OR Apache-2.0",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
@@ -1438,7 +1458,7 @@
     {
       "crate": "inout",
       "version": "0.1.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1446,7 +1466,7 @@
     {
       "crate": "instant",
       "version": "0.1.13",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "BSD-3-Clause",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1454,7 +1474,7 @@
     {
       "crate": "is-terminal",
       "version": "0.4.17",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1462,7 +1482,7 @@
     {
       "crate": "is_terminal_polyfill",
       "version": "1.70.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -1472,25 +1492,25 @@
     },
     {
       "crate": "itertools",
+      "version": "0.10.5",
+      "license": "MIT/Apache-2.0",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "itertools",
       "version": "0.14.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "itertools",
-      "version": "0.10.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
       "crate": "itoa",
       "version": "1.0.18",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
@@ -1503,7 +1523,7 @@
     {
       "crate": "jiff",
       "version": "0.2.38",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Unlicense OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
@@ -1512,7 +1532,7 @@
     {
       "crate": "jiff-core",
       "version": "0.1.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Unlicense OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
@@ -1521,7 +1541,7 @@
     {
       "crate": "jiff-static",
       "version": "0.2.38",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Unlicense OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
@@ -1530,7 +1550,7 @@
     {
       "crate": "jobserver",
       "version": "0.1.35",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
@@ -1541,7 +1561,7 @@
     {
       "crate": "js-sys",
       "version": "0.3.106",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1574,7 +1594,7 @@
     {
       "crate": "libfuzzer-sys",
       "version": "0.4.13",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "(MIT OR Apache-2.0) AND NCSA",
       "found_in": [
         "crates/lich-fuzz/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
@@ -1584,7 +1604,7 @@
     {
       "crate": "libm",
       "version": "0.2.16",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1592,7 +1612,7 @@
     {
       "crate": "linux-raw-sys",
       "version": "0.12.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1601,7 +1621,7 @@
     {
       "crate": "lock_api",
       "version": "0.4.14",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1627,7 +1647,7 @@
     {
       "crate": "lru-slab",
       "version": "0.1.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0 OR Zlib",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1635,7 +1655,7 @@
     {
       "crate": "matchers",
       "version": "0.2.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1643,7 +1663,7 @@
     {
       "crate": "matchit",
       "version": "0.7.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT AND BSD-3-Clause",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1667,7 +1687,7 @@
     {
       "crate": "mime",
       "version": "0.3.17",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1676,7 +1696,7 @@
     {
       "crate": "miniz_oxide",
       "version": "0.9.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Zlib OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -1694,7 +1714,7 @@
     {
       "crate": "multimap",
       "version": "0.10.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1711,7 +1731,7 @@
     {
       "crate": "nu-ansi-term",
       "version": "0.50.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1719,7 +1739,7 @@
     {
       "crate": "num-traits",
       "version": "0.2.19",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1727,7 +1747,7 @@
     {
       "crate": "objc2",
       "version": "0.6.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock"
       ]
@@ -1735,7 +1755,7 @@
     {
       "crate": "objc2-encode",
       "version": "4.1.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-loader/Cargo.lock"
       ]
@@ -1743,7 +1763,7 @@
     {
       "crate": "object",
       "version": "0.36.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-load-check/Cargo.lock",
@@ -1766,7 +1786,7 @@
     {
       "crate": "once_cell_polyfill",
       "version": "1.70.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -1777,7 +1797,7 @@
     {
       "crate": "oorandom",
       "version": "11.1.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1785,7 +1805,15 @@
     {
       "crate": "opaque-debug",
       "version": "0.3.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "parking_lot",
+      "version": "0.11.2",
+      "license": "Apache-2.0/MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1800,9 +1828,9 @@
       ]
     },
     {
-      "crate": "parking_lot",
-      "version": "0.11.2",
-      "license": "MIT OR Apache-2.0",
+      "crate": "parking_lot_core",
+      "version": "0.8.6",
+      "license": "Apache-2.0/MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1810,24 +1838,16 @@
     {
       "crate": "parking_lot_core",
       "version": "0.9.12",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
       ]
     },
     {
-      "crate": "parking_lot_core",
-      "version": "0.8.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
       "crate": "paste",
       "version": "1.0.15",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1835,7 +1855,7 @@
     {
       "crate": "percent-encoding",
       "version": "2.3.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1844,7 +1864,7 @@
     {
       "crate": "petgraph",
       "version": "0.7.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1853,7 +1873,7 @@
     {
       "crate": "pin-project",
       "version": "1.1.13",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1862,7 +1882,7 @@
     {
       "crate": "pin-project-internal",
       "version": "1.1.13",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1871,7 +1891,7 @@
     {
       "crate": "pin-project-lite",
       "version": "0.2.17",
-      "license": "MIT OR Apache-2.0",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -1881,7 +1901,7 @@
     {
       "crate": "pkg-config",
       "version": "0.3.34",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1889,7 +1909,7 @@
     {
       "crate": "plain",
       "version": "0.2.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
@@ -1902,7 +1922,7 @@
     {
       "crate": "plotters",
       "version": "0.3.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1910,7 +1930,7 @@
     {
       "crate": "plotters-backend",
       "version": "0.3.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1918,7 +1938,7 @@
     {
       "crate": "plotters-svg",
       "version": "0.3.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1926,7 +1946,7 @@
     {
       "crate": "polyval",
       "version": "0.6.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1934,7 +1954,7 @@
     {
       "crate": "portable-atomic",
       "version": "1.15.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -1944,7 +1964,7 @@
     {
       "crate": "portable-atomic-util",
       "version": "0.2.8",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock"
@@ -1953,7 +1973,7 @@
     {
       "crate": "ppv-lite86",
       "version": "0.2.21",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -1962,7 +1982,7 @@
     {
       "crate": "pqcrypto-internals",
       "version": "0.2.11",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1970,7 +1990,7 @@
     {
       "crate": "pqcrypto-mldsa",
       "version": "0.1.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1978,7 +1998,7 @@
     {
       "crate": "pqcrypto-mlkem",
       "version": "0.1.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1986,7 +2006,7 @@
     {
       "crate": "pqcrypto-traits",
       "version": "0.3.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -1994,7 +2014,7 @@
     {
       "crate": "prettyplease",
       "version": "0.2.37",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2003,7 +2023,7 @@
     {
       "crate": "proc-macro-crate",
       "version": "3.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2032,7 +2052,7 @@
     {
       "crate": "proc-macro2-diagnostics",
       "version": "0.10.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
         "crates/heimdall-bpf/Cargo.lock",
@@ -2042,7 +2062,7 @@
     {
       "crate": "proptest",
       "version": "1.12.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2086,7 +2106,7 @@
     {
       "crate": "quick-error",
       "version": "1.2.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2094,7 +2114,7 @@
     {
       "crate": "quinn",
       "version": "0.11.12",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2102,7 +2122,7 @@
     {
       "crate": "quinn-proto",
       "version": "0.11.19",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2110,7 +2130,7 @@
     {
       "crate": "quinn-udp",
       "version": "0.5.16",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2138,8 +2158,16 @@
     },
     {
       "crate": "r-efi",
+      "version": "5.3.0",
+      "license": "MIT OR Apache-2.0 OR LGPL-2.1-or-later",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "r-efi",
       "version": "6.0.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0 OR LGPL-2.1-or-later",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/lich-fuzz/Cargo.lock",
@@ -2149,9 +2177,9 @@
       ]
     },
     {
-      "crate": "r-efi",
-      "version": "5.3.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "crate": "rand",
+      "version": "0.10.3",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2166,25 +2194,8 @@
       ]
     },
     {
-      "crate": "rand",
-      "version": "0.10.3",
-      "license": "MIT OR Apache-2.0",
-      "found_in": [
-        "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
       "crate": "rand_chacha",
       "version": "0.3.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
-        "cmd/ebpf-collector/Cargo.lock",
-        "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "rand_core",
-      "version": "0.6.4",
       "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
@@ -2200,9 +2211,18 @@
       ]
     },
     {
+      "crate": "rand_core",
+      "version": "0.6.4",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
       "crate": "rand_pcg",
       "version": "0.10.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2210,7 +2230,7 @@
     {
       "crate": "rand_xorshift",
       "version": "0.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2226,7 +2246,15 @@
     {
       "crate": "rayon-core",
       "version": "1.13.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/zhend/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "redox_syscall",
+      "version": "0.2.16",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2234,17 +2262,9 @@
     {
       "crate": "redox_syscall",
       "version": "0.5.18",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
-        "crates/zhend/Cargo.lock"
-      ]
-    },
-    {
-      "crate": "redox_syscall",
-      "version": "0.2.16",
-      "license": "MIT OR Apache-2.0 (assumed)",
-      "found_in": [
         "crates/zhend/Cargo.lock"
       ]
     },
@@ -2261,7 +2281,7 @@
     {
       "crate": "regex-automata",
       "version": "0.4.18",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -2281,7 +2301,7 @@
     {
       "crate": "ring",
       "version": "0.17.14",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 AND ISC",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/svc-token/Cargo.lock",
@@ -2291,7 +2311,7 @@
     {
       "crate": "rustc-hash",
       "version": "2.1.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2299,7 +2319,7 @@
     {
       "crate": "rustc_version",
       "version": "0.4.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2307,7 +2327,7 @@
     {
       "crate": "rustix",
       "version": "1.1.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2316,7 +2336,7 @@
     {
       "crate": "rustls",
       "version": "0.23.46",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR ISC OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2325,7 +2345,7 @@
     {
       "crate": "rustls-pki-types",
       "version": "1.15.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2334,7 +2354,7 @@
     {
       "crate": "rustls-webpki",
       "version": "0.103.16",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "ISC",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2343,7 +2363,7 @@
     {
       "crate": "rustversion",
       "version": "1.0.23",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
@@ -2355,7 +2375,7 @@
     {
       "crate": "rusty-fork",
       "version": "0.3.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2363,7 +2383,7 @@
     {
       "crate": "same-file",
       "version": "1.0.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Unlicense/MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2371,7 +2391,7 @@
     {
       "crate": "scopeguard",
       "version": "1.2.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2380,7 +2400,7 @@
     {
       "crate": "scroll",
       "version": "0.12.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
@@ -2393,7 +2413,7 @@
     {
       "crate": "scroll_derive",
       "version": "0.12.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/Cargo.lock",
@@ -2430,7 +2450,7 @@
     {
       "crate": "serde_core",
       "version": "1.0.229",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
@@ -2471,7 +2491,7 @@
     {
       "crate": "sha2",
       "version": "0.10.9",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
@@ -2482,7 +2502,7 @@
     {
       "crate": "sharded-slab",
       "version": "0.1.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2490,7 +2510,7 @@
     {
       "crate": "shlex",
       "version": "2.0.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/lich-fuzz/Cargo.lock",
@@ -2503,7 +2523,7 @@
     {
       "crate": "signal-hook-registry",
       "version": "1.4.8",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -2513,7 +2533,7 @@
     {
       "crate": "simd-adler32",
       "version": "0.3.10",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -2521,7 +2541,7 @@
     {
       "crate": "siphasher",
       "version": "1.0.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2529,7 +2549,7 @@
     {
       "crate": "slab",
       "version": "0.4.12",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2538,7 +2558,7 @@
     {
       "crate": "sled",
       "version": "0.34.7",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2573,7 +2593,7 @@
     {
       "crate": "strsim",
       "version": "0.11.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -2584,7 +2604,7 @@
     {
       "crate": "subtle",
       "version": "2.6.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "BSD-3-Clause",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2628,7 +2648,7 @@
     {
       "crate": "sync_wrapper",
       "version": "1.0.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2704,7 +2724,7 @@
     {
       "crate": "thread_local",
       "version": "1.1.10",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2712,7 +2732,7 @@
     {
       "crate": "tinytemplate",
       "version": "1.2.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2720,7 +2740,7 @@
     {
       "crate": "tinyvec",
       "version": "1.13.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Zlib OR Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2766,7 +2786,7 @@
     {
       "crate": "toml_datetime",
       "version": "1.1.2+spec-1.1.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2774,7 +2794,7 @@
     {
       "crate": "toml_edit",
       "version": "0.25.17+spec-1.1.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2782,7 +2802,7 @@
     {
       "crate": "toml_parser",
       "version": "1.1.5+spec-1.1.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2874,7 +2894,7 @@
     {
       "crate": "tracing-log",
       "version": "0.2.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2882,7 +2902,7 @@
     {
       "crate": "tracing-serde",
       "version": "0.2.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2898,7 +2918,7 @@
     {
       "crate": "try-lock",
       "version": "0.2.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -2907,7 +2927,7 @@
     {
       "crate": "typenum",
       "version": "1.20.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/upc-bootctl/Cargo.lock",
         "crates/monad-mbc/fuzz/Cargo.lock",
@@ -2918,7 +2938,7 @@
     {
       "crate": "unarray",
       "version": "0.1.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2926,7 +2946,7 @@
     {
       "crate": "unicode-ident",
       "version": "1.0.27",
-      "license": "MIT OR Apache-2.0",
+      "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
@@ -2947,7 +2967,7 @@
     {
       "crate": "universal-hash",
       "version": "0.5.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2955,7 +2975,7 @@
     {
       "crate": "untrusted",
       "version": "0.9.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "ISC",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/svc-token/Cargo.lock",
@@ -2965,7 +2985,7 @@
     {
       "crate": "unty",
       "version": "0.0.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -2973,7 +2993,7 @@
     {
       "crate": "ureq",
       "version": "3.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -2981,7 +3001,7 @@
     {
       "crate": "ureq-proto",
       "version": "0.6.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -2989,7 +3009,7 @@
     {
       "crate": "utf8-zero",
       "version": "0.8.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -2997,7 +3017,7 @@
     {
       "crate": "utf8parse",
       "version": "0.2.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -3008,7 +3028,7 @@
     {
       "crate": "valuable",
       "version": "0.1.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3016,7 +3036,7 @@
     {
       "crate": "version_check",
       "version": "0.9.5",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
@@ -3033,7 +3053,7 @@
     {
       "crate": "virtue",
       "version": "0.0.18",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3041,7 +3061,7 @@
     {
       "crate": "wait-timeout",
       "version": "0.2.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3049,7 +3069,7 @@
     {
       "crate": "walkdir",
       "version": "2.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Unlicense/MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3057,7 +3077,7 @@
     {
       "crate": "want",
       "version": "0.3.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -3066,7 +3086,7 @@
     {
       "crate": "wasi",
       "version": "0.11.1+wasi-snapshot-preview1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3077,7 +3097,7 @@
     {
       "crate": "wasip2",
       "version": "1.0.4+wasi-0.2.12",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3085,7 +3105,7 @@
     {
       "crate": "wasm-bindgen",
       "version": "0.2.129",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3093,7 +3113,7 @@
     {
       "crate": "wasm-bindgen-macro",
       "version": "0.2.129",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3101,7 +3121,7 @@
     {
       "crate": "wasm-bindgen-macro-support",
       "version": "0.2.129",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3109,7 +3129,7 @@
     {
       "crate": "wasm-bindgen-shared",
       "version": "0.2.129",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3117,7 +3137,7 @@
     {
       "crate": "web-sys",
       "version": "0.3.106",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3125,7 +3145,7 @@
     {
       "crate": "web-time",
       "version": "1.1.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3133,7 +3153,7 @@
     {
       "crate": "webpki-roots",
       "version": "1.0.10",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "CDLA-Permissive-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -3141,7 +3161,7 @@
     {
       "crate": "winapi",
       "version": "0.3.9",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3149,7 +3169,7 @@
     {
       "crate": "winapi-i686-pc-windows-gnu",
       "version": "0.4.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3157,7 +3177,7 @@
     {
       "crate": "winapi-util",
       "version": "0.1.11",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Unlicense OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3165,7 +3185,7 @@
     {
       "crate": "winapi-x86_64-pc-windows-gnu",
       "version": "0.4.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT/Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3173,7 +3193,7 @@
     {
       "crate": "windows-core",
       "version": "0.62.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3181,7 +3201,7 @@
     {
       "crate": "windows-implement",
       "version": "0.60.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3189,7 +3209,7 @@
     {
       "crate": "windows-interface",
       "version": "0.59.3",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3197,7 +3217,7 @@
     {
       "crate": "windows-link",
       "version": "0.2.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -3208,7 +3228,7 @@
     {
       "crate": "windows-result",
       "version": "0.4.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3216,7 +3236,7 @@
     {
       "crate": "windows-strings",
       "version": "0.5.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3224,7 +3244,7 @@
     {
       "crate": "windows-sys",
       "version": "0.52.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3235,7 +3255,7 @@
     {
       "crate": "windows-sys",
       "version": "0.61.2",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-loader/Cargo.lock",
@@ -3246,7 +3266,7 @@
     {
       "crate": "windows-targets",
       "version": "0.52.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3257,7 +3277,7 @@
     {
       "crate": "windows_aarch64_gnullvm",
       "version": "0.52.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3268,7 +3288,7 @@
     {
       "crate": "windows_aarch64_msvc",
       "version": "0.52.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3279,7 +3299,7 @@
     {
       "crate": "windows_i686_gnu",
       "version": "0.52.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3290,7 +3310,7 @@
     {
       "crate": "windows_i686_gnullvm",
       "version": "0.52.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3301,7 +3321,7 @@
     {
       "crate": "windows_i686_msvc",
       "version": "0.52.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3312,7 +3332,7 @@
     {
       "crate": "windows_x86_64_gnu",
       "version": "0.52.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3323,7 +3343,7 @@
     {
       "crate": "windows_x86_64_gnullvm",
       "version": "0.52.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3334,7 +3354,7 @@
     {
       "crate": "windows_x86_64_msvc",
       "version": "0.52.6",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT OR Apache-2.0",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/upc-bootctl/Cargo.lock",
@@ -3345,7 +3365,7 @@
     {
       "crate": "winnow",
       "version": "1.0.4",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3353,7 +3373,7 @@
     {
       "crate": "wit-bindgen",
       "version": "0.57.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3361,7 +3381,7 @@
     {
       "crate": "x25519-dalek",
       "version": "2.0.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "BSD-3-Clause",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3369,7 +3389,7 @@
     {
       "crate": "zerocopy",
       "version": "0.8.63",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -3378,7 +3398,7 @@
     {
       "crate": "zerocopy-derive",
       "version": "0.8.63",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -3387,7 +3407,7 @@
     {
       "crate": "zeroize",
       "version": "1.9.1",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "crates/zhend/Cargo.lock"
@@ -3396,7 +3416,7 @@
     {
       "crate": "zeroize_derive",
       "version": "1.5.0",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Apache-2.0 OR MIT",
       "found_in": [
         "crates/zhend/Cargo.lock"
       ]
@@ -3404,7 +3424,7 @@
     {
       "crate": "zlib-rs",
       "version": "0.6.8",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "Zlib",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock"
       ]
@@ -3412,7 +3432,7 @@
     {
       "crate": "zmij",
       "version": "1.0.23",
-      "license": "MIT OR Apache-2.0 (assumed)",
+      "license": "MIT",
       "found_in": [
         "cmd/ebpf-collector/Cargo.lock",
         "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
