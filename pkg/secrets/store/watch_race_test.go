@@ -7,7 +7,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -117,6 +119,49 @@ func TestVaultStore_NotifyDuringClose(t *testing.T) {
 		cancel()
 		_ = vs.Close()
 		wg.Wait()
+	}
+}
+
+// L1: a send racing Close must never land on a closed channel. This drives
+// notifyWatchers with nothing else in the way: through Set, an HTTP round trip
+// spaces the sends out and the window is rarely hit.
+func TestVaultStore_NoSendOnAClosedWatcher(t *testing.T) {
+	secret := &secrets.Secret{Path: "a/b", Type: secrets.SecretTypeStatic, Data: map[string][]byte{"v": []byte("x")}}
+	for i := 0; i < 300; i++ {
+		vs := fakeVault(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		for w := 0; w < 8; w++ {
+			if _, err := vs.Watch(ctx, secret.Path); err != nil {
+				cancel()
+				t.Fatalf("Watch: %v", err)
+			}
+		}
+		stop := make(chan struct{})
+		var wg sync.WaitGroup
+		var sends atomic.Int64
+		for n := 0; n < 4; n++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for {
+					select {
+					case <-stop:
+						return
+					default:
+						vs.NotifyWatchers(secret.Path, secret)
+						sends.Add(1)
+					}
+				}
+			}()
+		}
+		// Close must land among sends in progress, not before they start.
+		for sends.Load() < 64 {
+			runtime.Gosched()
+		}
+		_ = vs.Close()
+		close(stop)
+		wg.Wait()
+		cancel()
 	}
 }
 
