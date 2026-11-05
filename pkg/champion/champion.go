@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -180,7 +181,7 @@ func (c *Champion) ReadFile(ctx context.Context, path string) (string, error) {
 	}
 
 	// Read file
-	data, err := os.ReadFile(absPath) // #nosec G304 -- sandboxed path — validated by validatePath (no .., blocklist, allowed-prefix check)
+	data, err := readCapped(absPath)
 	if err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return "", fmt.Errorf("read file: %w", err)
@@ -191,6 +192,42 @@ func (c *Champion) ReadFile(ctx context.Context, path string) (string, error) {
 	c.completeAction(ctx, actionID, "completed", summary, "", time.Since(start))
 
 	return content, nil
+}
+
+// MaxReadBytes caps what one ReadFile returns. It is far past anything a
+// model can use and keeps a model file or a disk image out of memory.
+const MaxReadBytes = 16 << 20
+
+// ErrReadTooLarge means the file is over MaxReadBytes; none of it was returned.
+var ErrReadTooLarge = errors.New("file is too large to read")
+
+// readCapped reads a regular file of at most MaxReadBytes. The type is
+// checked before the open, so a fifo cannot block it, and the read is bounded
+// whatever the size said, so a file that grows cannot pass the cap.
+func readCapped(path string) ([]byte, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
+	if fi.Size() > MaxReadBytes {
+		return nil, fmt.Errorf("%w: %d bytes, cap %d", ErrReadTooLarge, fi.Size(), MaxReadBytes)
+	}
+	f, err := os.Open(path) // #nosec G304 -- sandboxed path, validated by validatePath (no .., blocklist, allowed-prefix check)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, MaxReadBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > MaxReadBytes {
+		return nil, fmt.Errorf("%w: cap %d", ErrReadTooLarge, MaxReadBytes)
+	}
+	return data, nil
 }
 
 // validatePath checks if a path is within the sandbox.
