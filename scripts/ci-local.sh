@@ -71,8 +71,6 @@ run_step "SPDX Headers" bash -c '
 RUST_WORKSPACES=(
     crates/monad-mbc
     crates/zhend
-    crates/doom-runner
-    crates/zhenai-forge
     cmd/ebpf-loader
 )
 if command -v cargo &>/dev/null; then

@@ -52,8 +52,6 @@ ARTIFACT_DIRS=(
     ".build"
     "dist"
 
-    # Doom build artifacts (C object files)
-    "doom/doomgeneric/doomgeneric/build_monad"
 
     # Runtime data (SQLite DBs, WAL files)
     "data"
@@ -73,7 +71,6 @@ ARTIFACT_DIRS=(
 
     # Python caches
     "scripts/__pycache__"
-    "scripts/doom/__pycache__"
 
     # Misc temp
     "tmp"
@@ -87,9 +84,6 @@ STALE_ROOT_BINARIES=(
     "architect"
     "captain"
     "cert-gen"
-    "doom-bridge"
-    "doom-go-injector"
-    "doom-loader"
     "dashboard-backend"
     "kanban-app"
     "micromanager"
@@ -103,9 +97,6 @@ STALE_ROOT_BINARIES=(
 # Demo/test ELF binaries that get rebuilt from source.
 STALE_SUBDIR_BINARIES=(
     "demos/c/test_add.elf"
-    "demos/doom/unheaded-doom.elf"
-    "demos/doom/unheaded-doom.mbc"
-    "demos/doom/unheaded-doom.rv2mbc"
 )
 
 # ─── Junk file patterns ──────────────────────────────────────────────────

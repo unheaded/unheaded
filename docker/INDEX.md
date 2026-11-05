@@ -26,7 +26,6 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 - `services/trace-collector/Dockerfile` — 9411/HTTP traces
 - `services/gateway/Dockerfile` — 8443/HTTPS TLS
 - `services/service-discovery/Dockerfile` — 50057/gRPC, 8500/HTTP
-- `services/doom/Dockerfile` — 16680/TCP (1GB limit)
 - `services/captain/Dockerfile` — 50058/gRPC
 - `services/micromanager/Dockerfile` — 50059/gRPC
 - `services/timeguru/Dockerfile` — 50060/gRPC, 8600/HTTP
@@ -112,7 +111,7 @@ Build Context Opt:     1 (.dockerignore)
 - Parallel build capability (all 25 services simultaneously)
 - Version/commit/timestamp tracking
 - Per-service documentation in headers
-- Capacity annotations (e.g., doom 1GB limit)
+- Capacity annotations
 - Capability declarations for eBPF services
 
 ## Base Image Strategy
@@ -152,7 +151,6 @@ Build Context Opt:     1 (.dockerignore)
 - 8500: service-discovery (Consul HTTP)
 - 8600: timeguru (HTTP)
 - 9411: trace-collector (Jaeger)
-- 16680: doom (TCP)
 
 ## Build Examples
 

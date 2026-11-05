@@ -39,7 +39,6 @@ apt.unheaded.dev/yggdrasil/
 | `upc-tty-bridge` | `cmd/upc-tty-bridge/` | `dpkg-buildpackage` (Go binary) |
 | `monad-cpu-ebpf` | `ebpf/monad-cpu-ebpf/` | Custom Makefile target (compiles BPF object → arch=all .deb) |
 | `unheaded-shared` | Assets bundle (browser xterm.js etc) | Custom Makefile target |
-| `unheaded-runner` | `crates/doom-runner/` | `cargo deb` |
 | `yggdrasil-evidence` | `cmd/yggdrasil-evidence/` | `dpkg-buildpackage` (Go binary) |
 
 ## Signing

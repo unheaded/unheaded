@@ -3,7 +3,6 @@
        build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat \
        test-e2e-bpf deploy-down deploy-status deploy-lxd deploy-logs \
        deploy-restart sbom license-check \
-       doom-smoke doom-build-check \
        ci-local ci-security sbom-verify \
        install-hooks test-hooks
 
@@ -298,14 +297,6 @@ race-test: ## Run Go tests with race detection only
 bench: ## Run benchmarks
 	@echo "Running benchmarks..."
 	go test -bench=. -benchmem ./...
-
-##@ DOOM Testing
-
-doom-smoke: ## Run DOOM full lifecycle smoke test (requires root + BPF)
-	sudo ./scripts/doom-smoke.sh
-
-doom-build-check: ## Verify DOOM build artifacts for known bug regressions
-	./scripts/doom-build-check.sh
 
 ##@ Containers
 

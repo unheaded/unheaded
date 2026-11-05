@@ -125,7 +125,6 @@ write_files:
           upstream sophia      { server 10.10.10.26:19005; keepalive 32; }
           upstream kanban      { server 10.10.10.200:20001; keepalive 32; }
           upstream dashboard   { server 10.10.10.201:20000; keepalive 32; }
-          upstream doom_bridge { server 10.10.10.28:16666; keepalive 32; }
           upstream wiki_server { server 10.10.10.29:20002; keepalive 32; }
 
           server {
@@ -153,16 +152,7 @@ write_files:
               location /api/sophia/        { proxy_pass http://sophia/;       limit_req zone=api burst=100 nodelay; }
               location /kanban/            { proxy_pass http://kanban/;       }
               location /dashboard/         { proxy_pass http://dashboard/;    }
-              location /doom/              { proxy_pass http://doom_bridge/;  }
               location /wiki/              { proxy_pass http://wiki_server/;  }
-
-              location /ws/doom/ {
-                  proxy_pass http://doom_bridge/ws;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection "upgrade";
-                  proxy_read_timeout 86400;
-              }
           }
       }
     permissions: "0644"

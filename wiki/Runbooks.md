@@ -6,7 +6,7 @@ Operational procedures. `runbooks/` holds YAML runbooks that Zhen's Champion can
 
 | Area | Runbooks |
 |------|----------|
-| `data/` | postgresql-backup-restore, postgresql-migration, conversation-memory-maintenance, corpus-rebuild, faiss-index-status, raft-training-pipeline, zhen-index-rebuild, well-pg18-upgrade, well-restore-from-east-offsite |
+| `data/` | postgresql-backup-restore, postgresql-migration, conversation-memory-maintenance, faiss-index-status, well-pg18-upgrade, well-restore-from-east-offsite |
 | `deploy/` | full-stack-deploy, canary-deploy, rolling-upgrade, emergency-rollback, start-east-services, branch-promotion-develop-staging-main, resign-unpushed-commits |
 | `infra/` | west-startup-order, host-bootstrap, service-deploy, systemd-service-debug, docker-compose-stack, lxd-container-lifecycle, kernel-upgrade, package-management, storage-health, ntp-time-sync, user-audit, akira-health-daemon, apt-repo-server, jenkins-server, netbox-setup, kanban-git-link, east-nat-internet |
 | `network/` | west-east-network, wireguard-overlay, firewall-rules, dns-pihole-lxd, network-diagnostics, vpn-status, bpf-flow-graph, air-gap-egress-validation, bgp-bfd-session-down |

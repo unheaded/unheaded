@@ -26,7 +26,6 @@
     
     # Layer 5: Infrastructure Services
     ./service-discovery.nix        # Service discovery registry & Greaves
-    ./doom.nix                     # DOOM BPF compute substrate
     
     # Layer 6: Red Team & Security
     ./lich.nix                     # Lich automated adversary & red team continuous

@@ -49,9 +49,6 @@ steps:
     command: |
       pkill -f zhen_app.py 2>/dev/null
       pkill -f llama-server 2>/dev/null
-      pkill -f doom-bridge 2>/dev/null
-      pkill -f doom-go-injector 2>/dev/null
-      sudo ${PROJECT_ROOT}/scripts/doom-ring.sh teardown 2>/dev/null
       sudo docker compose -f ${PROJECT_ROOT}/docker-compose.yml down 2>/dev/null
       sleep 3
     description: "Clean stop of all services"

@@ -1,6 +1,6 @@
 # Wave 10C — Proper Backpropagation
 
-LoRA fine-tuning chain rule fix for `crates/zhenai-forge/`. Three real
+LoRA fine-tuning chain rule fix for `crates/zhenai-forge/` (now in `unheaded-forge`). Three real
 backprop bugs found and fixed; correctness proven by 32-layer toy
 gradient descent test.
 

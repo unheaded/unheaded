@@ -70,7 +70,7 @@ Complete deployment of the Unheaded Kingdom system:
 - `dashboard-backend` — Metrics API
 
 **Application Services:**
-- `doom`, `lich`, `captain`, `micromanager`, `timeguru`
+- `lich`, `captain`, `micromanager`, `timeguru`
 - `architect`, `developer`, `kanban`, `lore`, `busboy`
 - `kingdom`, `blackmage`, `moatghost`
 
