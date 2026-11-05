@@ -234,3 +234,66 @@ def test_schedule_commands_call_agentd_not_a_local_scheduler(monkeypatch):
     assert calls[0][1] == {'name': 'service-health-sweep', 'every': '6h'}
     assert calls[3][1] == {'paused': True} and calls[4][1] == {'paused': False}
     assert 'zhen_scheduler' not in sys.modules or not hasattr(sys.modules['zhen_scheduler'], 'add_schedule')
+
+
+# ── runbooks: chat runs nothing, and a name must be on the list (H5) ────
+
+@pytest.fixture
+def runbooks(tmp_path, monkeypatch):
+    root = tmp_path / 'runbooks'
+    (root / 'observe').mkdir(parents=True)
+    (root / 'observe' / 'health-sweep.yaml').write_text('metadata:\n  name: health-sweep\n  risk: low\nsteps: []\n')
+    (tmp_path / 'outside.yaml').write_text('metadata:\n  name: outside\nsteps: []\n')
+    monkeypatch.setattr(zhen_app, 'RUNBOOKS_DIR', str(root))
+    return root
+
+
+def _no_subprocess(monkeypatch):
+    import subprocess
+
+    def refuse(*a, **kw):
+        raise AssertionError(f'a chat command started a process: {a}')
+    monkeypatch.setattr(subprocess, 'run', refuse)
+
+
+@pytest.mark.parametrize('question', [
+    'run health-sweep', 'execute health-sweep', 'run --dry health-sweep', 'run --dry-run health-sweep',
+])
+def test_chat_run_of_a_known_runbook_starts_nothing(runbooks, monkeypatch, question):
+    _no_subprocess(monkeypatch)
+    result, handled = zhen_app._try_command(question)
+    assert handled
+    assert 'zhen-cli' in result['answer']
+    assert 'SUCCESS' not in result['answer']
+
+
+@pytest.mark.parametrize('question', [
+    'run ../outside', 'run ../../outside', 'run *', 'execute **/*', 'run the tests please',
+])
+def test_chat_run_of_anything_else_is_not_a_command(runbooks, monkeypatch, question):
+    _no_subprocess(monkeypatch)
+    _, handled = zhen_app._try_command(question)
+    assert not handled
+
+
+@pytest.mark.parametrize('name', ['..', '*', '[a-z]*', '?ealth-sweep', 'health*', 'outside'])
+def test_runbook_routes_take_only_a_listed_name(client, runbooks, name):
+    from urllib.parse import quote
+    assert client.get(f'/api/v1/runbooks/{quote(name, safe="")}', base_url=ORIGIN).status_code == 404
+
+
+def test_runbook_route_serves_a_listed_name(client, runbooks):
+    r = client.get('/api/v1/runbooks/health-sweep', base_url=ORIGIN)
+    assert r.status_code == 200
+    assert r.get_json()['parsed']['metadata']['name'] == 'health-sweep'
+
+
+def test_runbook_link_out_of_the_tree_is_not_listed(runbooks):
+    (runbooks / 'observe' / 'linked.yaml').symlink_to(runbooks.parent / 'outside.yaml')
+    assert zhen_app._runbook_path('linked') is None
+    assert zhen_app._runbook_path('health-sweep') is not None
+
+
+def test_app_never_starts_the_runner_itself():
+    src = (RAFT / 'zhen_app.py').read_text()
+    assert "scripts/run-runbook.py')" not in src

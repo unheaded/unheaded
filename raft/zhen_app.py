@@ -773,31 +773,18 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             lines.append(f"\n**{cat}/** ({len(by_cat[cat])})")
             for name in sorted(by_cat[cat]):
                 lines.append(f"  - {name}")
-        lines.append("\nTo run: type `run <name>` or `run --dry <name>`")
+        lines.append("\nTo run one: `zhen-cli`, `/runbook exec <name>`")
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
-    # Run runbook
+    # A runbook does not run from chat: a live run answers to a person at the
+    # Champion gate, and this path has no gate. Only a listed name is a
+    # command; any other "run ..." is an ordinary question.
     if q.startswith(('run ', 'execute ')):
-        import subprocess as sp
-        parts = q.split(None, 2)
-        dry_run = '--dry' in q or '--dry-run' in q
-        name = parts[-1].replace('--dry', '').replace('--dry-run', '').strip()
-        import glob as g
-        matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
-        if not matches:
-            return {'answer': f'Runbook not found: `{name}`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
-        runner = os.path.expanduser('~/tmp/unheaded/scripts/run-runbook.py')
-        cmd = ['python3', runner]
-        if dry_run:
-            cmd.append('--dry-run')
-        cmd.append(matches[0])
-        try:
-            result = sp.run(cmd, capture_output=True, text=True, timeout=120, check=False)
-            status = 'SUCCESS' if result.returncode == 0 else 'FAILED'
-            output = result.stdout[-3000:]
-            return {'answer': f'**Runbook {name}: {status}**\n\n```\n{output}\n```', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
-        except sp.TimeoutExpired:
-            return {'answer': f'Runbook `{name}` timed out (120s)', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        name = q.split()[-1]
+        if _runbook_path(name):
+            return {'answer': f'Runbooks do not run from chat. Use `zhen-cli`: `/runbook exec {name}`, then `/confirm <token>`. '
+                              f'The Run button here asks for the same confirmation.',
+                    'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Service health
     if q in ('health', 'service health', 'check health', 'status'):
@@ -854,7 +841,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
         if drifts == 0:
             lines.append('\n**No drift detected.** All services aligned with desired state.')
         else:
-            lines.append(f'\n**{drifts} drift(s) detected.** Run `run service-health-sweep` for details.')
+            lines.append(f'\n**{drifts} drift(s) detected.** The service-health-sweep runbook has the details.')
 
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
@@ -2148,6 +2135,17 @@ RISK_REQUIRES_APPROVAL = {
     3: ['critical'],                               # Level 3: only critical needs approval
 }
 
+def _runbook_path(name):
+    """The file of a listed runbook, or None. A name is looked up, never put
+    into a pattern or a path, and a link out of the tree is not listed."""
+    import glob as g
+    root = os.path.realpath(RUNBOOKS_DIR)
+    for path in sorted(g.glob(os.path.join(g.escape(RUNBOOKS_DIR), '**', '*.yaml'), recursive=True)):
+        if os.path.splitext(os.path.basename(path))[0] == name:
+            return path if os.path.realpath(path).startswith(root + os.sep) else None
+    return None
+
+
 @app.route('/api/v1/runbooks', methods=['GET'])
 def list_runbooks():
     """List all available runbooks."""
@@ -2175,17 +2173,16 @@ def list_runbooks():
 @app.route('/api/v1/runbooks/<name>', methods=['GET'])
 def get_runbook(name):
     """Get runbook details by name."""
-    import glob as g
-    matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
-    if not matches:
+    rb_path = _runbook_path(name)
+    if not rb_path:
         return jsonify({'error': f'Runbook not found: {name}'}), 404
-    with open(matches[0]) as f:
+    with open(rb_path) as f:
         content = f.read()
     try:
         data = yaml.safe_load(content) if 'yaml' in sys.modules else {}
     except Exception:
         data = {}
-    return jsonify({'name': name, 'path': matches[0], 'content': content, 'parsed': data})
+    return jsonify({'name': name, 'path': rb_path, 'content': content, 'parsed': data})
 
 
 @app.route('/api/v1/trust', methods=['GET'])
@@ -2225,7 +2222,6 @@ def execute_runbook(name):
         reason:        explanation (when not-ok)
         pending_token: redeem at /api/v1/agent/confirm (when pending)
     """
-    import glob as g
     import urllib.error as _ue
     import urllib.request as _ur
 
@@ -2233,14 +2229,14 @@ def execute_runbook(name):
     dry_run = bool(data.get('dry_run', False))
     force = bool(data.get('force', False))
 
-    matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
-    if not matches:
+    rb_path = _runbook_path(name)
+    if not rb_path:
         return jsonify({'error': f'Runbook not found: {name}'}), 404
 
     # Front-end trust-level check (UX shaping; Champion is the real gate).
     if not dry_run and not force:
         try:
-            with open(matches[0]) as f:
+            with open(rb_path) as f:
                 rb_data = yaml.safe_load(f)
             risk = rb_data.get('metadata', {}).get('risk', 'medium')
             needs_approval = RISK_REQUIRES_APPROVAL.get(TRUST_LEVEL, [])
@@ -2257,7 +2253,6 @@ def execute_runbook(name):
     # Compute the runbook name argument the way Champion.RunbookExecute
     # expects it: "<category>/<runbook>" relative to the runbooks/ dir,
     # without the .yaml extension. e.g. "observe/service-health-sweep".
-    rb_path = matches[0]
     runbooks_root = os.path.realpath(RUNBOOKS_DIR)
     rb_real = os.path.realpath(rb_path)
     if not rb_real.startswith(runbooks_root + os.sep):
@@ -2265,11 +2260,12 @@ def execute_runbook(name):
     rel = os.path.relpath(rb_real, runbooks_root)
     rel = rel.removesuffix('.yaml')
 
-    # Hit the daemon's /api/v1/tool/exec endpoint. Default justification
-    # is direct-user (the operator clicked this in the browser); Champion's
-    # Rule 2 (untrusted-justification) is escaped by the direct-user trust
-    # label. Rules 1 (path) + 3 (destructive verb) still apply — Champion
-    # rejects runbook names with ".." or absolute paths regardless.
+    # Hit the daemon's /api/v1/tool/exec endpoint. The justification is
+    # direct-user (the operator clicked this in the browser). A dry run
+    # passes on it; a live run is held whatever it says, and the daemon
+    # answers with a pending_token. Rules 1 (path) + 3 (destructive verb)
+    # still apply — Champion rejects runbook names with ".." or absolute
+    # paths regardless.
     agentd_url = ZHEN_AGENTD_URL
     payload = {
         'tool': 'runbook_execute',
