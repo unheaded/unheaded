@@ -416,3 +416,36 @@ jobs:
           else
             ./scripts/check-gates-can-fail.sh --quick --shard ${{ matrix.shard }}/3
           fi
+
+  # The shards report as "name (1/3)". This is the one verdict over all of them,
+  # under the name UH-GATE-01 and the findings register read as evidence
+  # (compliance/catalog/controls.yaml); check-ci-verdicts.sh holds the two
+  # together and runs this body against fixture results.
+  meta-gate-verdict:
+    name: Gates can actually fail
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [meta-gate]
+    if: always()
+    steps:
+      - name: Check every shard passed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          results="$(jq -r 'to_entries[] | "\(.key) \(.value.result)"' <<<"$NEEDS_JSON")"
+          if [ -z "$results" ]; then
+            echo "::error::the meta-gate verdict read no job results"
+            exit 1
+          fi
+          fail=0
+          while read -r job result; do
+            echo "$job: $result"
+            if [ "$result" != "success" ]; then
+              echo "::error::$job: $result"
+              fail=1
+            fi
+          done <<<"$results"
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "Every shard proved its gates"

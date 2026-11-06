@@ -25,6 +25,9 @@ ci_verdict_fresh_copy() {
 	cp "${REPO_ROOT}/.github/BRANCH_PROTECTION.md" "${WORK}/tree/.github/"
 	cp "${REPO_ROOT}/nix/yggdrasil/Jenkinsfile" "${WORK}/tree/nix/yggdrasil/"
 	cp "${REPO_ROOT}/scripts/lib/tool-pins.sh" "${WORK}/tree/scripts/lib/"
+	mkdir -p "${WORK}/tree/compliance/catalog" "${WORK}/tree/compliance/findings"
+	cp "${REPO_ROOT}/compliance/catalog/controls.yaml" "${WORK}/tree/compliance/catalog/"
+	cp "${REPO_ROOT}/compliance/findings/register.yaml" "${WORK}/tree/compliance/findings/"
 }
 
 # $1 label, $2 the rule name the gate must print, $3 file, $4 sed expression.
@@ -169,6 +172,32 @@ ci_verdict_expect_bite "a run that is not a share" meta-gate "${SA}" \
 	's# --shard \$\{\{ matrix\.shard \}\}/3##'
 ci_verdict_expect_bite "one shard cancelling the rest" meta-gate "${SA}" \
 	'/^  meta-gate:$/,$s/fail-fast: false/fail-fast: true/'
+ci_verdict_expect_bite "a push that skips the slow gates" meta-gate "${SA}" \
+	's#^( +)\./scripts/check-gates-can-fail\.sh --shard#\1./scripts/check-gates-can-fail.sh --quick --shard#'
+ci_verdict_expect_bite "a push that runs a share of nothing" meta-gate "${SA}" \
+	's#\[ "\$\{\{ github\.event_name \}\}" = "push" \]#[ "${{ github.event_name }}" = "schedule" ]#'
+ci_verdict_expect_bite "a step that may not run" meta-gate "${SA}" \
+	"s/^( +)- name: Prove every gate bites\$/&\n\1  if: github.ref == 'refs\/heads\/main'/"
+ci_verdict_expect_bite "a step whose failure is ignored" meta-gate "${SA}" \
+	's/^( +)- name: Prove every gate bites$/&\n\1  continue-on-error: true/'
+ci_verdict_expect_bite "a call whose failure is swallowed" meta-gate "${SA}" \
+	's#(\./scripts/check-gates-can-fail\.sh .*)$#\1 || true#'
+ci_verdict_expect_bite "a job that may not run" meta-gate "${SA}" \
+	"s/^  meta-gate:\$/&\n    if: github.ref == 'refs\/heads\/main'/"
+ci_verdict_expect_bite "a verdict job skipped by a failed shard" meta-gate "${SA}" \
+	'/^  meta-gate-verdict:$/,$s/^    if: always\(\)$/    if: success()/'
+ci_verdict_expect_bite "a verdict that ignores the shards" meta-gate "${SA}" \
+	'/^  meta-gate-verdict:$/,$s/^( +)fail=1$/\1fail=0/'
+ci_verdict_expect_bite "a verdict waiting on something else" meta-gate "${SA}" \
+	'/^  meta-gate-verdict:$/,$s/^    needs: \[meta-gate\]$/    needs: [sealed-cask-verify]/'
+
+echo "--- the jobs compliance evidence reads ---"
+ci_verdict_expect_bite "the meta-gate verdict renamed" evidence-jobs "${SA}" \
+	's/^    name: Gates can actually fail$/    name: Gates can actually fail (all shards)/'
+ci_verdict_expect_bite "a catalog ref to a job that left" evidence-jobs "compliance/catalog/controls.yaml" \
+	's#Static Analysis/Rust \(clippy\)#Static Analysis/Rust (gone)#'
+ci_verdict_expect_bite "a register source for a job that left" evidence-jobs "compliance/findings/register.yaml" \
+	's#github-job:Static Analysis/Gates can actually fail#github-job:Static Analysis/Gates gone#'
 
 echo "--- paths a step names ---"
 DOCKER_WF=".github/workflows/docker.yml"
@@ -178,6 +207,14 @@ ci_verdict_expect_bite "a script reached through bash" workflow-paths ".github/w
 	's#bash tests/sealed-cask/round_trip_test\.sh#bash tests/sealed-cask/round_trip_gone.sh#'
 ci_verdict_expect_bite "a script run directly without its mode" workflow-paths "${SEC}" \
 	's#^( +)source scripts/lib/tool-pins\.sh$#\1scripts/lib/tool-pins.sh#'
+for gone in "python3 raft/gone.py" "bash deploy/gone.sh" "./cmd/gone/run.sh" "../scripts/gone.sh" "./gone.sh"; do
+	ci_verdict_expect_bite "a step running ${gone}" workflow-paths "${SA}" \
+		"s#bash tests/sealed-cask/round_trip_test\\.sh#${gone}#"
+done
+ci_verdict_expect_bite "a Dockerfile docker build names" workflow-paths "${SA}" \
+	's#bash tests/sealed-cask/round_trip_test\.sh#docker build -f docker/gone/Dockerfile .#'
+ci_verdict_expect_bite "a second lockfile the cache key hashes" workflow-paths ".github/workflows/ebpf.yml" \
+	"s#hashFiles\('ebpf/Cargo.lock'\)#hashFiles('ebpf/Cargo.lock', 'ebpf-gone/Cargo.lock')#"
 ci_verdict_expect_bite "a working directory that left" workflow-paths ".github/workflows/ebpf.yml" \
 	's#working-directory: crates/svc-token#working-directory: crates/svc-token-gone#'
 ci_verdict_expect_bite "a lockfile the cache key hashes that left" workflow-paths ".github/workflows/ebpf.yml" \
