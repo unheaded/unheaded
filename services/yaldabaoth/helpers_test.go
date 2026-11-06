@@ -196,7 +196,9 @@ func newFixture(t *testing.T, mutate ...func(*Config, *Deps)) *fixture {
 	cfg.AbortPoll = 10 * time.Millisecond
 	cfg.SafetyCheckInterval = 10 * time.Millisecond
 	cfg.DefaultDuration = 200 * time.Millisecond
-	cfg.RevertGrace = time.Second
+	// Far past any run here, so a stalled host cannot fire the TTL mid-test.
+	// Tests about the TTL set their own.
+	cfg.RevertGrace = time.Minute
 	cfg.Hostname = func() (string, error) { return "west", nil }
 	deps := Deps{Allowlist: testAllowlist(t), Guard: fx.guard, Resolver: fx.res, Publisher: fx.pub}
 	for _, m := range mutate {
