@@ -36,6 +36,21 @@ func openRoot(dir string) (int, error) {
 	return fd, nil
 }
 
+// openRealRoot opens a root as openRoot does, for a read that has already
+// resolved it: dir is a real path, so a link in it now is one the checks never
+// saw, and the open refuses it.
+func openRealRoot(dir string) (int, error) {
+	how := unix.OpenHow{
+		Flags:   unix.O_PATH | unix.O_DIRECTORY | unix.O_CLOEXEC,
+		Resolve: unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_MAGICLINKS,
+	}
+	fd, err := unix.Openat2(unix.AT_FDCWD, dir, &how)
+	if err != nil {
+		return -1, beneathError(dir, err)
+	}
+	return fd, nil
+}
+
 func closeFD(fd int) { _ = unix.Close(fd) }
 
 // openBeneath opens rel (relative, no "..") under rootFD; see above.

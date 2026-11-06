@@ -269,6 +269,40 @@ func TestReadFile_SwapAfterChecksStaysInside(t *testing.T) {
 	}
 }
 
+// A root is opened by the real path the checks found, so a link that has taken
+// its place by then is refused the same as one further down.
+func TestReadFile_SwappedRootStaysInside(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.Mkdir(sub, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	c, err := New(Config{ProjectRoot: root, AllowedPaths: []string{root, sub}}, &mockStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(sub, "notes.txt")
+	if err := os.WriteFile(target, []byte("inside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "notes.txt"), []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	saved := beforeRead
+	t.Cleanup(func() { beforeRead = saved })
+	beforeRead = func() {
+		if err := os.Rename(sub, sub+".old"); err != nil {
+			t.Error(err)
+		}
+		if err := os.Symlink(outside, sub); err != nil {
+			t.Error(err)
+		}
+	}
+	if got, err := c.ReadFile(context.Background(), target); err == nil || strings.Contains(got, "outside") {
+		t.Fatalf("read through a swapped root: %q, %v", got, err)
+	}
+}
+
 // A link that stays inside the sandbox keeps working: it is judged by where it
 // lands, and that real path is what opens.
 func TestReadFile_LinkInsideTheSandbox(t *testing.T) {

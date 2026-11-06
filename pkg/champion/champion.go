@@ -206,13 +206,14 @@ const MaxReadBytes = 16 << 20
 // ErrReadTooLarge means the file is over MaxReadBytes; none of it was returned.
 var ErrReadTooLarge = errors.New("file is too large to read")
 
-// readValidated opens the path validatePath judged and no other. The real
-// path is judged again, then opened under the sandbox root it lies in with
-// openat2 (safeopen_linux.go), which follows no link: a link inside the sandbox
-// still reads, as where it lands, and one swapped in after the checks fails the
-// open. O_NONBLOCK keeps a fifo from blocking it, the type is checked on the
-// open file, and the read is bounded whatever the size said, so a file that
-// grows cannot pass the cap.
+// errNotRegular means the path is a fifo, a device or a directory.
+var errNotRegular = errors.New("not a regular file")
+
+// readValidated opens the path validatePath judged and no other. The real path
+// is judged again and split at the real path of its sandbox root; the root and
+// everything under it are then opened with openat2 (safeopen_linux.go), which
+// follows no link. A link inside the sandbox still reads, as where it lands, and
+// a link anywhere in that real path by the time of the open fails it.
 func (c *Champion) readValidated(absPath string) ([]byte, error) {
 	resolved, err := realPath(absPath)
 	if err != nil {
@@ -225,23 +226,31 @@ func (c *Champion) readValidated(absPath string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	rootFD, err := openRoot(root)
+	beforeRead()
+	rootFD, err := openRealRoot(root)
 	if err != nil {
 		return nil, err
 	}
 	defer closeFD(rootFD)
-	beforeRead()
 	f, err := openBeneath(rootFD, rel, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
+	return readRegular(f, absPath)
+}
+
+// readRegular reads f, opened with O_NONBLOCK so a fifo cannot hold the open. The
+// type is checked on the open file, and the read is bounded whatever the size
+// said, so a file that grows cannot pass the cap. Every read of a sandbox file
+// comes through here.
+func readRegular(f *os.File, name string) ([]byte, error) {
 	fi, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
 	if !fi.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", absPath)
+		return nil, fmt.Errorf("%s: %w", name, errNotRegular)
 	}
 	if fi.Size() > MaxReadBytes {
 		return nil, fmt.Errorf("%w: %d bytes, cap %d", ErrReadTooLarge, fi.Size(), MaxReadBytes)

@@ -15,6 +15,8 @@ import (
 
 func openRoot(string) (int, error) { return -1, errors.ErrUnsupported }
 
+func openRealRoot(string) (int, error) { return -1, errors.ErrUnsupported }
+
 func closeFD(int) {}
 
 func openBeneath(int, string, int, uint32) (*os.File, error) { return nil, errors.ErrUnsupported }
