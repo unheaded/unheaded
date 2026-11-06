@@ -26,8 +26,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Owner is the card owner that hands a card to Zhen. Stevie opts a card
-// in explicitly; the agent never touches anyone else's cards.
+// Owner is the card owner that hands a card to Zhen. Setting the field is the
+// whole opt-in: nothing here checks who set it. The agent never touches
+// anyone else's cards.
 const Owner = "zhen"
 
 // EligibleTypes are the card types the worker takes.
