@@ -1026,7 +1026,7 @@ func (d *Daemon) handleGetState(w http.ResponseWriter, r *http.Request) {
 	defer d.stateManager.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"desired_count": len(d.stateManager.desired),
 		"actual_count":  len(d.stateManager.actual),
 		"drift_count":   len(d.stateManager.drifts),
@@ -1039,7 +1039,7 @@ func (d *Daemon) handleDesiredState(w http.ResponseWriter, r *http.Request) {
 	defer d.stateManager.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d.stateManager.desired) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(d.stateManager.desired) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 func (d *Daemon) handleActualState(w http.ResponseWriter, r *http.Request) {
@@ -1047,7 +1047,7 @@ func (d *Daemon) handleActualState(w http.ResponseWriter, r *http.Request) {
 	defer d.stateManager.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d.stateManager.actual) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(d.stateManager.actual) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 func (d *Daemon) handleDrift(w http.ResponseWriter, r *http.Request) {
@@ -1055,7 +1055,7 @@ func (d *Daemon) handleDrift(w http.ResponseWriter, r *http.Request) {
 	defer d.stateManager.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d.stateManager.drifts) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(d.stateManager.drifts) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 func (d *Daemon) handleContainers(w http.ResponseWriter, r *http.Request) {
@@ -1076,7 +1076,7 @@ func (d *Daemon) handleContainers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(containers) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(containers) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
@@ -1121,7 +1121,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		}
 
 		d.log.Info().Str("id", id).Msg("Retrieved container state")
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"id":      id,
 			"desired": desired,
 			"actual":  actual,
@@ -1302,7 +1302,7 @@ func (d *Daemon) handleInfo(w http.ResponseWriter, r *http.Request) {
 		backend = "mock"
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		// Which LXD and which modes are live: mock and real look alike
 		// otherwise without reading the environment.
 		"lxd_backend": backend,

@@ -234,7 +234,7 @@ func (h *TracesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	traces := h.State.GetRecentTraces(100)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct { // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(struct { // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		Count  int                 `json:"count"`
 		Traces []*recentTraceEntry `json:"traces"`
 	}{
@@ -279,5 +279,5 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }

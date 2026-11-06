@@ -494,7 +494,7 @@ func (sg *SophiaGateway) handleReady(w http.ResponseWriter, r *http.Request) {
 
 func (sg *SophiaGateway) handleModels(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"models": []map[string]string{
 			{"name": "deepseek-r1-7b", "type": "llm", "endpoint": sg.vllmAddr},
 			{"name": "qwen2.5-coder-7b", "type": "code", "endpoint": sg.qwenAddr},

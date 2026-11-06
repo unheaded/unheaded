@@ -232,7 +232,7 @@ func (s *Service) registerRoutes(mux *http.ServeMux) {
 // handleHealth responds with service health status.
 func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"status":    "healthy",
 		"service":   "selfheal",
 		"timestamp": time.Now(),
@@ -242,7 +242,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 // handleReady responds with readiness status.
 func (s *Service) handleReady(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"ready":   atomic.LoadInt32(&s.started) == 1,
 		"service": "selfheal",
 	})
@@ -312,7 +312,7 @@ func (s *Service) handleEndpoints(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"endpoints": endpoints,
 		"count":     len(endpoints),
 	})
@@ -359,7 +359,7 @@ func (s *Service) getEndpointHealth(w http.ResponseWriter, _ *http.Request, endp
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ep) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(ep) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // triggerFailover performs manual failover for an endpoint.
@@ -410,7 +410,7 @@ func (s *Service) triggerFailover(w http.ResponseWriter, _ *http.Request, endpoi
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(event) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(event) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // triggerRecovery performs manual recovery for an endpoint.
@@ -443,7 +443,7 @@ func (s *Service) triggerRecovery(w http.ResponseWriter, _ *http.Request, endpoi
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"endpoint_id":  endpointID,
 		"health_score": ep.HealthScore,
 		"circuit":      ep.CircuitState,
@@ -473,7 +473,7 @@ func (s *Service) listBackups(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"backups": rosters,
 		"count":   len(rosters),
 	})
@@ -533,7 +533,7 @@ func (s *Service) handleCircuitBreakers(w http.ResponseWriter, r *http.Request) 
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"circuit_breakers": breakers,
 		"count":            len(breakers),
 	})

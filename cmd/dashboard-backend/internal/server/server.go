@@ -1038,7 +1038,7 @@ func (s *Server) handleAPIMetrics(w http.ResponseWriter, r *http.Request) {
 	metrics := s.scraper.GetAggregatedMetrics()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(metrics) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(metrics) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // metricsSummaryResponse is the summary panel's feed: rates and quantiles
@@ -1116,7 +1116,7 @@ func (s *Server) handleMetricsQuery(w http.ResponseWriter, r *http.Request) {
 	results := s.scraper.QueryMetrics(query.Name, query.Labels, since)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"results": results,
 		"count":   len(results),
 	})
@@ -1186,7 +1186,7 @@ func (s *Server) handleServicesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"services":       services,
 		"total":          len(services),
 		"healthy":        systemHealth.HealthyCount,
@@ -1281,7 +1281,7 @@ func (s *Server) handleServiceByNameGet(w http.ResponseWriter, _ *http.Request, 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(result) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 func (s *Server) handleServiceByNamePut(w http.ResponseWriter, r *http.Request, name string) {
@@ -1306,7 +1306,7 @@ func (s *Server) handleServiceByNamePut(w http.ResponseWriter, r *http.Request, 
 	s.configLoader.UpdateConfig(name, &cfg)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"service": name,
 		"status":  "updated",
 	})
@@ -1319,7 +1319,7 @@ func (s *Server) handleServiceByNameDelete(w http.ResponseWriter, _ *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"service": name,
 		"status":  "deleted",
 	})
@@ -1362,7 +1362,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	evts := s.eventStreamer.GetEvents(filter)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"events": evts,
 		"count":  len(evts),
 	})
@@ -1378,7 +1378,7 @@ func (s *Server) handleEventsSummary(w http.ResponseWriter, r *http.Request) {
 	summary := s.eventStreamer.GetSummary()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(summary) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(summary) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // handleSystemHealth handles GET /api/v1/health - system health overview
@@ -1391,7 +1391,7 @@ func (s *Server) handleSystemHealth(w http.ResponseWriter, r *http.Request) {
 	systemHealth := s.healthMonitor.GetSystemHealth()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(systemHealth) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(systemHealth) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // handleServiceHealth handles GET /api/v1/health/{name}
@@ -1417,7 +1417,7 @@ func (s *Server) handleServiceHealth(w http.ResponseWriter, r *http.Request) {
 	history, _ := s.healthMonitor.GetHistory(name, time.Now().Add(-1*time.Hour))
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"health":  svcHealth,
 		"history": history,
 	})
@@ -1460,7 +1460,7 @@ func (s *Server) handleHealthHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"service":     service,
 		"transitions": history,
 		"count":       len(history),
@@ -1480,7 +1480,7 @@ func (s *Server) handleFlows(w http.ResponseWriter, r *http.Request) {
 	if s.ebpfIngestor != nil {
 		flows := s.ebpfIngestor.FlowGraph().GetActiveFlows()
 		stats := s.ebpfIngestor.FlowGraph().Stats()
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"source":       "ebpf",
 			"active_flows": flows,
 			"stats":        stats,
@@ -1538,7 +1538,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(stats) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // A stream filter names a few types and services: no real one nears these.
@@ -1696,7 +1696,7 @@ func (s *Server) handleTraces(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(result) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		return
 	}
 
@@ -1709,7 +1709,7 @@ func (s *Server) handleTraces(w http.ResponseWriter, r *http.Request) {
 	traces := s.traceBuffer.Recent(limit)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"traces":   traces,
 		"total":    s.traceBuffer.Count(),
 		"has_more": s.traceBuffer.Count() > limit,
@@ -1742,7 +1742,7 @@ func (s *Server) handleTraceByID(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(trace) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(trace) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		return
 	}
 
@@ -1791,7 +1791,7 @@ func (s *Server) handleAggregated(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(aggregated) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(aggregated) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // handleAggregatedMetrics handles GET /api/v1/aggregated/metrics
@@ -1834,7 +1834,7 @@ func (s *Server) handleAggregatedMetrics(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(result) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // handleAggregatedHealth handles GET /api/v1/aggregated/health
@@ -1885,7 +1885,7 @@ func (s *Server) handleAggregatedHealth(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(result) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // broadcastEBPFEvents listens to the eBPF ingestor and broadcasts events via WebSocket.
@@ -2367,13 +2367,13 @@ func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
 		s.serviceLatenciesMu.RUnlock()
 
 		if len(percentiles) == 0 {
-			json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+			json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 				"message": "Collecting latency data from service health checks...",
 				"data":    nil,
 			})
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"percentiles": percentiles,
 			"source":      "service_health_checks",
 		})
@@ -2392,7 +2392,7 @@ func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "unknown operation", http.StatusBadRequest)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"operation":   op,
 			"percentiles": result,
 		})
@@ -2407,7 +2407,7 @@ func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
 	for _, win := range stats.Windows {
 		combined = append(combined, lh.GetCombinedPercentiles(win))
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"percentiles": lh.GetAllPercentiles(),
 		"combined":    combined,
 		"stats":       stats,
@@ -2424,7 +2424,7 @@ func (s *Server) handleEBPFStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.ebpfIngestor == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"active":  false,
 			"message": "eBPF ingestor not active. Start trace-collector to get real stats.",
 		})
@@ -2432,7 +2432,7 @@ func (s *Server) handleEBPFStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stats := s.ebpfIngestor.Stats()
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"active":                 true,
 		"stats":                  stats,
 		"viewer_packets_dropped": s.viewerPacketsDropped.Load(),
@@ -2449,7 +2449,7 @@ func (s *Server) handleEBPFEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.ebpfIngestor == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"events": []interface{}{},
 			"count":  0,
 		})
@@ -2480,7 +2480,7 @@ func (s *Server) handleEBPFEvents(w http.ResponseWriter, r *http.Request) {
 	if events == nil {
 		events = []ebpfPkg.EventEnvelope{}
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"events":   events,
 		"count":    len(events),
 		"last_seq": lastSeq,
@@ -2704,7 +2704,7 @@ func (s *Server) handleInfrastructure(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"runtime":          "docker",
 		"total_services":   len(configs),
 		"healthy_services": systemHealth.HealthyCount,
@@ -2760,7 +2760,7 @@ func (s *Server) handleInfraContainers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"containers": containers,
 		"total":      len(containers),
 		"updated_at": time.Now(),
@@ -3172,7 +3172,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"hosts": hosts,
 	})
 }

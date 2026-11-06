@@ -601,7 +601,7 @@ func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"tasks": tasks,
 		"count": count,
 	})
@@ -701,7 +701,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"task": task,
 	})
 }
@@ -761,7 +761,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"deleted": true,
 		"task_id": taskID,
 	})
@@ -952,7 +952,7 @@ func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, ta
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"task": task}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{"task": task}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // handleDeleteTaskByID deletes a single task
@@ -996,7 +996,7 @@ func (s *Server) handleDeleteTaskByID(w http.ResponseWriter, r *http.Request, ta
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"deleted": true, "task_id": taskID}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{"deleted": true, "task_id": taskID}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // handleDeletedTasks returns soft-deleted tasks.
@@ -1012,11 +1012,11 @@ func (s *Server) handleDeletedTasks(w http.ResponseWriter, r *http.Request) {
 			out[i] = fromPgTask(t)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // handleArchivedTasks returns archived tasks.
@@ -1032,11 +1032,11 @@ func (s *Server) handleArchivedTasks(w http.ResponseWriter, r *http.Request) {
 			out[i] = fromPgTask(t)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // handleCompletedTasks returns done tasks (still on board but accessible here too).
@@ -1071,7 +1071,7 @@ func (s *Server) handleCompletedTasks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // handleRestoreTask un-deletes or un-archives a task.
@@ -1086,7 +1086,7 @@ func (s *Server) handleRestoreTask(w http.ResponseWriter, r *http.Request, taskI
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"restored": true, "task_id": taskID}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{"restored": true, "task_id": taskID}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		return
 	}
 	http.Error(w, "Restore not available without PostgreSQL", http.StatusNotImplemented)
@@ -1236,7 +1236,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		timelineHTTP = tm.GetTimeline() != nil
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"status":              "healthy",
 		"timestamp":           time.Now().UTC().Format(time.RFC3339),
 		"version":             "0.1.0",
@@ -1262,7 +1262,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"ready":   true,
 			"reason":  string(status),
 			"service": "kanban-app",
@@ -1285,7 +1285,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- a marshal failure leaves an empty body, not a 500, and a write failure means the client left
 		"ready":   ready,
 		"reason":  reason,
 		"service": "kanban-app",
@@ -1326,14 +1326,14 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if timeline == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"timeline": nil,
 			"message":  "No timeline data available yet. Waiting for Timeguru updates.",
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"timeline": timeline,
 	})
 }
@@ -1382,7 +1382,7 @@ func (s *Server) handleTimelineCards(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 		"tasks":  tasks,
 		"count":  count,
 		"source": source,
