@@ -169,6 +169,29 @@ if [[ $rc -ne 0 ]]; then
     exit $rc
 fi
 
+# The loader above is Rust. trace-collector loads through pkg/ebpf, so prove
+# that path too: a full verifier log once failed packet-marker there while this
+# gate passed it. Loads and unloads, never attaches.
+echo "== loading through the Go loader"
+GO_TEST="$(mktemp)"
+trap 'rm -f "$LOG" "$GO_TEST"' EXIT
+if ! (cd "$REPO_ROOT" && go test -c -o "$GO_TEST" ./pkg/ebpf) >"$LOG" 2>&1; then
+    cat "$LOG" >&2
+    echo "[FAIL] could not build pkg/ebpf's tests" >&2
+    exit 1
+fi
+if ! (cd "${REPO_ROOT}/pkg/ebpf" && "${SUDO[@]}" env "EBPF_GO_LOAD_DIR=${TARGET}/default/bpfel-unknown-none/release" \
+    "$GO_TEST" -test.run '^TestGoLoaderLoadsRealObjects$' -test.v) >"$LOG" 2>&1; then
+    cat "$LOG" >&2
+    echo "[FAIL] the Go loader could not load an object the Rust loader accepts" >&2
+    exit 1
+fi
+if ! grep -q -- '--- PASS: TestGoLoaderLoadsRealObjects/flow-tracker' "$LOG"; then
+    cat "$LOG" >&2
+    echo "[FAIL] the Go loader test did not run; refusing to pass on a skip" >&2
+    exit 1
+fi
+
 n_ok="$(printf '%s\n' "$loading" | grep -c .)"
 n_known="$(printf '%s\n' "$known" | grep -c .)"
 if [[ "$n_known" -eq 0 ]]; then
