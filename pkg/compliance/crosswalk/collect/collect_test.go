@@ -790,7 +790,7 @@ func TestBackupProbeHoldsTheRecoveryPoint(t *testing.T) {
 				t.Fatal(err)
 			}
 			latest := srv + "/LATEST"
-			if err := os.WriteFile(latest, []byte("x"), 0o644); err != nil {
+			if err := os.WriteFile(latest, []byte("x"), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			when := time.Now().Add(-tc.age)
