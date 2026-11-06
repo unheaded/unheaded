@@ -1940,8 +1940,7 @@ func TestAnamnesisInitializeExampleEvents(t *testing.T) {
 }
 
 // Offset and Limit arrive signed from the caller. Whatever they hold, a query
-// answers with a page or an empty one; the gRPC listener has no recover, so a
-// panic here would end the process.
+// answers with a page or an empty one, never a panic.
 func TestMockPagingSurvivesAnyOffsetAndLimit(t *testing.T) {
 	ensureMockMode(t)
 	as := &anamnesisServer{subscribers: make([]chan *pb.Event, 0)}
