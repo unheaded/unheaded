@@ -32,6 +32,7 @@ var retiredClaims = []struct{ file, claim string }{
 var requiredNotes = []struct{ file, note string }{
 	{"compliance/policies/information-security-policy.md", "## 13. Where practice falls short"},
 	{"docs/compliance/README.md", "Historical snapshot"},
+	{"docs/compliance/SECRETS-SCAN.md", "Historical snapshot"},
 	{"docs/security/SECURITY_AUDIT.md", "Historical snapshot"},
 	{"VISION.md", "not today's state"},
 }

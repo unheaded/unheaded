@@ -658,7 +658,8 @@ func init() {
 	// next install.
 	passwordRequired := markerLinesProbe(sudoersRead+` | grep -E 'NOPASSWD|^@ok$'`, func(lines []string) (bool, string) {
 		if len(lines) > 0 {
-			return false, fmt.Sprintf("%d sudoers lines skip the password, first: %s", len(lines), strings.TrimSpace(lines[0]))
+			// The count only: this detail reaches generated, committed docs.
+			return false, fmt.Sprintf("%d sudoers lines skip the password", len(lines))
 		}
 		return true, "no NOPASSWD in sudoers"
 	})
