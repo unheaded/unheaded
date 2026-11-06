@@ -8,6 +8,7 @@ package ebpf
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 )
 
@@ -46,10 +47,17 @@ func TestNativeLoaderMapOpsHoldToTheMapsSizes(t *testing.T) {
 // and a ring buffer has no elements to read. PinnedMap refuses them too.
 func TestNativeLoaderRefusesMapsItsBuffersDoNotFit(t *testing.T) {
 	ctx := context.Background()
-	for _, typ := range []MapType{MapTypePercpuHash, MapTypePercpuArray, MapTypeLruPercpuHash, MapTypeRingbuf} {
+	for _, kernelType := range []uint32{
+		BPF_MAP_TYPE_PERCPU_HASH, BPF_MAP_TYPE_PERCPU_ARRAY, BPF_MAP_TYPE_LRU_PERCPU_HASH,
+		BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE, BPF_MAP_TYPE_RINGBUF,
+	} {
+		typ := mapTypeToMapType(kernelType)
 		l := oneMapLoader(typ)
 		if _, err := l.ReadMap(ctx, "p", "m", make([]byte, 4)); !errors.Is(err, ErrUnsupportedMapType) {
 			t.Errorf("ReadMap on %s: %v, want ErrUnsupportedMapType", typ, err)
+		}
+		if err := l.WriteMap(ctx, "p", "m", make([]byte, 4), make([]byte, 8)); !errors.Is(err, ErrUnsupportedMapType) {
+			t.Errorf("WriteMap on %s: %v, want ErrUnsupportedMapType", typ, err)
 		}
 		err := l.IterateMap(ctx, "p", "m", func(_, _ []byte) error { return nil })
 		if !errors.Is(err, ErrUnsupportedMapType) {
@@ -65,5 +73,24 @@ func TestNativeLoaderIterateRefusesAKeylessMap(t *testing.T) {
 	err := l.IterateMap(context.Background(), "p", "m", func(_, _ []byte) error { return nil })
 	if !errors.Is(err, ErrUnsupportedMapType) {
 		t.Fatalf("IterateMap: %v, want ErrUnsupportedMapType", err)
+	}
+}
+
+// The map types a kernel object can hold that still fit one buffer stay usable.
+func TestOneBufferMapTypesStayUsable(t *testing.T) {
+	for _, kernelType := range []uint32{BPF_MAP_TYPE_HASH, BPF_MAP_TYPE_ARRAY, BPF_MAP_TYPE_LRU_HASH, BPF_MAP_TYPE_CGROUP_STORAGE} {
+		if typ := mapTypeToMapType(kernelType); !typ.elemFitsOneBuffer() {
+			t.Errorf("kernel map type %d (%s) was refused", kernelType, typ)
+		}
+	}
+}
+
+// A section the value size cannot name is refused, not narrowed.
+func TestRodataValueSizeRefusesWhatItCannotHold(t *testing.T) {
+	if got, err := rodataValueSize(math.MaxUint32); err != nil || got != math.MaxUint32 {
+		t.Errorf("rodataValueSize(MaxUint32) = %d, %v", got, err)
+	}
+	if got, err := rodataValueSize(math.MaxUint32 + 1); !errors.Is(err, ErrInvalidProgram) {
+		t.Errorf("rodataValueSize(MaxUint32+1) = %d, %v, want ErrInvalidProgram", got, err)
 	}
 }

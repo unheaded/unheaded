@@ -21,7 +21,7 @@ func TestAttrPointersAreTyped(t *testing.T) {
 		fields []string
 	}{
 		{reflect.TypeFor[bpfMapOpAttr](), []string{"Key", "Value"}},
-		{reflect.TypeFor[bpfProgLoadAttr](), []string{"Insns", "License", "LogBuf"}},
+		{reflect.TypeFor[bpfProgLoadAttr](), []string{"Insns", "License", "LogBuf", "FuncInfo", "LineInfo", "FDArray"}},
 		{reflect.TypeFor[bpfObjAttr](), []string{"Pathname"}},
 		{reflect.TypeFor[bpfObjGetInfoAttr](), []string{"Info"}},
 		{reflect.TypeFor[bpfRawTPLinkAttr](), []string{"RawTPName"}},
@@ -55,6 +55,15 @@ func TestAttrPointerFieldsKeepTheABI(t *testing.T) {
 	if got := unsafe.Offsetof(perfEventAttr{}.ExtConfig); got != 56 {
 		t.Errorf("perfEventAttr.ExtConfig is at %d, want 56", got)
 	}
+	for name, off := range map[string]struct{ got, want uintptr }{
+		"FuncInfo": {unsafe.Offsetof(bpfProgLoadAttr{}.FuncInfo), 80},
+		"LineInfo": {unsafe.Offsetof(bpfProgLoadAttr{}.LineInfo), 96},
+		"FDArray":  {unsafe.Offsetof(bpfProgLoadAttr{}.FDArray), 120},
+	} {
+		if off.got != off.want {
+			t.Errorf("bpfProgLoadAttr.%s is at %d, want %d", name, off.got, off.want)
+		}
+	}
 }
 
 //go:noinline
@@ -67,21 +76,26 @@ func growStack(n int) byte {
 	return growStack(n-1) + pad[n%len(pad)]
 }
 
-// What the typed field buys: after the stack moves the field still names the
-// buffer, where an integer copy of the old address would not.
-func TestAttrPointerFollowsAStackMove(t *testing.T) {
+// Why the fields are typed. This shows the runtime's stack copier on local types,
+// not the loader, so it compiles whatever the attr structs hold;
+// TestAttrPointersAreTyped is the check on them. After the stack moves, a pointer
+// field still names the buffer and an integer copy of the old address does not.
+func TestTypedFieldFollowsAStackMoveAndAnIntegerDoesNot(t *testing.T) {
 	done := make(chan string, 1)
 	go func() {
 		var key [8]byte
 		before := uintptr(unsafe.Pointer(&key[0]))
-		attr := bpfMapOpAttr{Key: unsafe.Pointer(&key[0])}
+		typed := struct{ Key unsafe.Pointer }{unsafe.Pointer(&key[0])}
+		integer := struct{ Key uint64 }{uint64(before)}
 		growStack(256)
 		now := uintptr(unsafe.Pointer(&key[0]))
 		switch {
 		case now == before:
 			done <- "the stack did not move, so this test proved nothing"
-		case uintptr(attr.Key) != now:
-			done <- "attr.Key was left behind by the stack move"
+		case uintptr(typed.Key) != now:
+			done <- "the pointer field was left behind by the stack move"
+		case uintptr(integer.Key) == now:
+			done <- "the integer followed the stack, which nothing should do"
 		default:
 			done <- ""
 		}

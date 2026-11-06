@@ -491,6 +491,8 @@ const (
 	MapTypeBloom          MapType = "bloom_filter"
 	MapTypeStack          MapType = "stack"
 	MapTypeQueue          MapType = "queue"
+
+	MapTypePercpuCgroupStorage MapType = "percpu_cgroup_storage"
 )
 
 // ProgramSpec defines an eBPF program to load
@@ -752,12 +754,14 @@ type bpfMapCreateAttr struct {
 	MapExtra       uint64   // Extra data for specific map types
 }
 
-// Every field below that the kernel follows is an unsafe.Pointer, never an
-// integer holding an address. The attr is built before the bpf(2) call, and an
-// integer is invisible to the garbage collector and to a stack copy: a buffer on
-// the caller's stack would move away and the kernel would use the old stack. The
-// kernel's fields are 8 bytes wide, so this holds on 64-bit targets only, and the
-// line below stops a build for any other.
+// Every field of the attr structs below that the kernel follows is an
+// unsafe.Pointer, never an integer holding an address. The attr is built before
+// the bpf(2) call, and an integer is invisible to the garbage collector and to a
+// stack copy: a buffer on the caller's stack would move away and the kernel would
+// use the old stack. bpfProgInfo is the kernel's answer, not an attr: its address
+// fields ask for extra buffers, and this package leaves them zero. The kernel's
+// fields are 8 bytes wide, so this holds on 64-bit targets only, and the line
+// below stops a build for any other.
 var _ [8]byte = [unsafe.Sizeof(uintptr(0))]byte{}
 
 // bpfMapOpAttr is the attribute structure for map element operations
@@ -787,14 +791,14 @@ type bpfProgLoadAttr struct {
 	ExpectedAttach uint32         // Expected attach type
 	ProgBTFFD      uint32         // BTF file descriptor
 	FuncInfoRecSz  uint32         // Size of func_info records
-	FuncInfo       uint64         // Pointer to func_info array
+	FuncInfo       unsafe.Pointer // func_info array
 	FuncInfoCnt    uint32         // Number of func_info records
 	LineInfoRecSz  uint32         // Size of line_info records
-	LineInfo       uint64         // Pointer to line_info array
+	LineInfo       unsafe.Pointer // line_info array
 	LineInfoCnt    uint32         // Number of line_info records
 	AttachBTFID    uint32         // BTF type ID for attach target
 	AttachProgFD   uint32         // FD of program to attach to (for extension)
-	FDArray        uint64         // Pointer to array of FDs for map relocations
+	FDArray        unsafe.Pointer // Array of FDs for map relocations
 }
 
 // bpfObjAttr is the attribute structure for BPF_OBJ_PIN and BPF_OBJ_GET
@@ -1054,12 +1058,21 @@ type loadedMap struct {
 	mmapAddr uintptr
 }
 
+// elemFitsOneBuffer says whether one value buffer holds this map type's element:
+// a per-CPU map answers with one value per CPU, and a ring buffer has no elements.
+func (t MapType) elemFitsOneBuffer() bool {
+	switch t {
+	case MapTypePercpuHash, MapTypePercpuArray, MapTypeLruPercpuHash, MapTypePercpuCgroupStorage, MapTypeRingbuf:
+		return false
+	}
+	return true
+}
+
 // checkElemBuffers refuses a map whose element does not fit one key buffer and
 // one value buffer of the map's stated sizes. The kernel fills a per-CPU value
 // once per CPU, so a single value's buffer would be overrun.
 func (m *loadedMap) checkElemBuffers() error {
-	switch m.info.Type {
-	case MapTypePercpuHash, MapTypePercpuArray, MapTypeLruPercpuHash, MapTypeRingbuf:
+	if !m.info.Type.elemFitsOneBuffer() {
 		return fmt.Errorf("%w: %s has type %s", ErrUnsupportedMapType, m.info.Name, m.info.Type)
 	}
 	if m.info.KeySize == 0 || m.info.ValueSize == 0 {
@@ -2129,7 +2142,13 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 			continue
 		}
 		// .rodata sections become BPF_MAP_TYPE_ARRAY with BPF_F_RDONLY_PROG
-		dataLen := uint32(len(prog.Instructions)) // #nosec G115 -- a section length; the kernel refuses a value size it cannot hold
+		dataLen, err := rodataValueSize(len(prog.Instructions))
+		if err != nil {
+			for _, m := range loaded.maps {
+				_ = unix.Close(m.fd)
+			}
+			return fmt.Errorf("rodata section %s: %w", name, err)
+		}
 		if dataLen == 0 {
 			continue
 		}
@@ -2537,6 +2556,16 @@ func programTypeToKernelType(t ProgramType) uint32 {
 	}
 }
 
+// rodataValueSize gives a .rodata section's length as the array value size that
+// holds it. A section past 32 bits has no such size: narrowed, it would load
+// truncated, so it is refused.
+func rodataValueSize(n int) (uint32, error) {
+	if int64(n) > math.MaxUint32 {
+		return 0, fmt.Errorf("%w: %d bytes do not fit a map value", ErrInvalidProgram, n)
+	}
+	return uint32(n), nil // #nosec G115 -- n is a length, and checked against MaxUint32 above
+}
+
 // mapTypeToMapType converts kernel map type to MapType
 func mapTypeToMapType(t uint32) MapType {
 	switch t {
@@ -2556,6 +2585,8 @@ func mapTypeToMapType(t uint32) MapType {
 		return MapTypeLruHash
 	case BPF_MAP_TYPE_LRU_PERCPU_HASH:
 		return MapTypeLruPercpuHash
+	case BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE:
+		return MapTypePercpuCgroupStorage
 	case BPF_MAP_TYPE_LPM_TRIE:
 		return MapTypeLpmTrie
 	case BPF_MAP_TYPE_ARRAY_OF_MAPS:

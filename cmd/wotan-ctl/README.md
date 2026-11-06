@@ -216,15 +216,6 @@ bpf(BPF_MAP_UPDATE_ELEM, {
 })
 ```
 
-**BPF_MAP_LOOKUP_ELEM (cmd=1):**
-```
-bpf(BPF_MAP_LOOKUP_ELEM, {
-  map_fd: fd,
-  key: ptr to key,
-  value: ptr to output buffer
-})
-```
-
 ### Dry-Run Mode
 
 When BPF maps are unavailable (non-Linux or unpinned), the tool gracefully falls back to dry-run mode:
