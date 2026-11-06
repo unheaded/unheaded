@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -90,6 +91,25 @@ func TestServeAll_DeadListenerEndsTheRun(t *testing.T) {
 	}
 }
 
+// childOutput is a child's stderr the test can read while exec's copy goroutine
+// is still writing it.
+type childOutput struct {
+	mu  sync.Mutex
+	out strings.Builder
+}
+
+func (c *childOutput) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.out.Write(p)
+}
+
+func (c *childOutput) String() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.out.String()
+}
+
 // runEnding names what the stand-in host does in the child of TestMainEnding.
 const runEnding = "HUGINN_TEST_RUN"
 
@@ -143,9 +163,9 @@ func TestMainEnding(t *testing.T) {
 		})
 	}
 	t.Run("signal", func(t *testing.T) {
-		var out strings.Builder
+		out := &childOutput{}
 		cmd := child("waiting")
-		cmd.Stderr = &out
+		cmd.Stderr = out
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}
