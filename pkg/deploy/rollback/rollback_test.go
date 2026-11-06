@@ -531,6 +531,77 @@ func TestManager_GetByService_AfterFailure(t *testing.T) {
 	}
 }
 
+// Status cannot report completed or failed before history holds the rollback.
+// The test holds history's lock, so the write cannot finish, and watches Status
+// meanwhile: an end state seen then was published ahead of history. A pass costs
+// the wait below, as nothing marks the moment the rollback reaches that write.
+func TestManager_EndStateFollowsHistory(t *testing.T) {
+	cases := []struct {
+		name string
+		fail bool
+		want RollbackState
+	}{
+		{"completed", false, RollbackStateCompleted},
+		{"failed", true, RollbackStateFailed},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr, _, updater, _ := setupTestManager()
+			updater.failNext = tc.fail
+
+			mgr.history.mu.Lock()
+			held := true
+			release := func() {
+				if held {
+					held = false
+					mgr.history.mu.Unlock()
+				}
+			}
+			defer release()
+
+			rb, err := mgr.Rollback(context.Background(), &RollbackRequest{
+				DeploymentID: "dep-current",
+				Reason:       RollbackReasonManual,
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			ended := make(chan struct{})
+			go func() {
+				defer close(ended)
+				for {
+					got, err := mgr.Status(context.Background(), rb.ID)
+					if err == nil && got.State == tc.want {
+						return
+					}
+					time.Sleep(time.Millisecond)
+				}
+			}()
+
+			select {
+			case <-ended:
+				t.Errorf("Status said %s while history could not hold the rollback", tc.want)
+			case <-time.After(200 * time.Millisecond):
+			}
+			release()
+
+			select {
+			case <-ended:
+			case <-time.After(5 * time.Second):
+				t.Fatalf("Status never reached %s", tc.want)
+			}
+			rollbacks, err := mgr.GetByService(context.Background(), "svc-a")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(rollbacks) != 1 {
+				t.Errorf("history holds %d rollbacks, want 1", len(rollbacks))
+			}
+		})
+	}
+}
+
 func TestManager_IsRollbackInProgress(t *testing.T) {
 	mgr, _, _, _ := setupTestManager()
 

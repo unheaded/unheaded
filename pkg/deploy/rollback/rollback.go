@@ -317,7 +317,7 @@ func (m *Manager) executeRollback(ctx context.Context, rollback *Rollback, targe
 	rollback.CompletedAt = time.Now()
 	rollback.Duration = rollback.CompletedAt.Sub(rollback.StartedAt)
 	rollback.Message = fmt.Sprintf("Rollback completed: %s -> %s", rollback.FromVersion, rollback.ToVersion)
-	m.history.Add(rollback) // under m.mu: Status never shows an end state history lacks
+	m.history.Add(rollback) // under m.mu: Status never shows this state before history has it
 	m.mu.Unlock()
 
 	// Notify callbacks
@@ -340,7 +340,7 @@ func (m *Manager) failRollback(rollback *Rollback, err error) {
 	rollback.Duration = rollback.CompletedAt.Sub(rollback.StartedAt)
 	rollback.Error = err.Error()
 	rollback.Message = fmt.Sprintf("Rollback failed: %v", err)
-	m.history.Add(rollback) // under m.mu: Status never shows an end state history lacks
+	m.history.Add(rollback) // under m.mu: Status never shows this state before history has it
 	m.mu.Unlock()
 }
 
