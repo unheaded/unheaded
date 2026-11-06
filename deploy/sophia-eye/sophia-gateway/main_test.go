@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"unheaded/pkg/metrics/prom"
 )
 
 // L6: the gateway binds loopback unless told otherwise, and the compose file
@@ -41,5 +43,41 @@ func TestListenBind(t *testing.T) {
 		if !strings.Contains(compose, want) {
 			t.Errorf("compose lacks %s", want)
 		}
+	}
+}
+
+// L10: an inference service's answer is read up to a limit, like every other
+// internal read: past it the caller gets an error, not a gateway out of memory.
+func TestChat_InferenceAnswerIsBounded(t *testing.T) {
+	saved := maxInferenceBody
+	t.Cleanup(func() { maxInferenceBody = saved })
+	maxInferenceBody = 1 << 10
+
+	var answer string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(answer))
+	}))
+	defer upstream.Close()
+	sg := &SophiaGateway{
+		vllmAddr:         upstream.URL,
+		requestsTotal:    prom.NewCounter(prom.CounterOpts{Name: "r"}),
+		inferenceErrors:  prom.NewCounter(prom.CounterOpts{Name: "e"}),
+		tokensGenerated:  prom.NewCounter(prom.CounterOpts{Name: "g"}),
+		tokensPrompted:   prom.NewCounter(prom.CounterOpts{Name: "p"}),
+		inferenceLatency: prom.NewHistogram(prom.HistogramOpts{Name: "l"}),
+	}
+	chat := func() int {
+		body := strings.NewReader(`{"model":"deepseek","messages":[]}`)
+		rec := httptest.NewRecorder()
+		sg.handleChat(rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", body))
+		return rec.Code
+	}
+	answer = `{"id":"` + strings.Repeat("a", 2<<10) + `"}`
+	if code := chat(); code != http.StatusBadGateway {
+		t.Errorf("answer over the limit: status %d, want 502", code)
+	}
+	answer = `{"id":"short"}`
+	if code := chat(); code != http.StatusOK {
+		t.Errorf("answer under the limit: status %d, want 200", code)
 	}
 }
