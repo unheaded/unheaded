@@ -795,7 +795,9 @@ var Probes = map[string]Probe{
 		// The chain an alert travels on west, each link asked directly. A
 		// stack stopped for a week read as nothing here: every other
 		// monitoring source is a file or a series the stopped stack would
-		// have written. Operational, so central-only.
+		// have written. Operational, so central-only. The Well's link is a
+		// listener on its port and no more: the container's port proxy can
+		// hold that socket with Postgres down.
 		Command: `for t in prometheus=http://127.0.0.1:9090/-/healthy alertmanager=http://127.0.0.1:9093/-/healthy alert-mailer=http://127.0.0.1:19130/health; do ` +
 			`echo "${t%%=*}=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "${t#*=}")"; done; echo "well=$(ss -Hltn 'sport = :5432' | wc -l)"`,
 		Judge: func(out string) (bool, string) {
@@ -812,7 +814,7 @@ var Probes = map[string]Probe{
 			if len(down) > 0 {
 				return false, "alert path down: " + strings.Join(down, ", ")
 			}
-			return true, "prometheus, alertmanager, alert-mailer and the Well all answer"
+			return true, "prometheus, alertmanager and alert-mailer answer; the Well's port has a listener"
 		},
 	},
 	"db-backup-recent": {
@@ -861,7 +863,7 @@ func judgeOSSupported(out string) (bool, string) {
 	var end time.Time
 	for _, l := range strings.Split(out, "\n") {
 		cols := strings.Split(strings.TrimSpace(l), ",")
-		if len(cols) < 3 || cols[2] != f["codename"] {
+		if len(cols) < 6 || cols[2] != f["codename"] {
 			continue
 		}
 		for _, c := range cols[5:min(len(cols), 7)] {
