@@ -22,6 +22,10 @@ var retiredClaims = []struct{ file, claim string }{
 	{"scripts/compliance/check-service-auth.sh", "not a CI gate: it fails"},
 	{"pkg/compliance/crosswalk/collect/cisprobes.go", "the system default is 022"},
 	{"docs/compliance/enforcing-soak.md", "Every host's mode file says"},
+	{"compliance/catalog/controls.yaml", "with the rule set the auditd-rules\n      fix installs loaded"},
+	{"pkg/compliance/crosswalk/collect/cisprobes.go", "lines cover all %d keys"},
+	{"compliance/catalog/controls.yaml", "alert-mailer and the Well each answer"},
+	{"pkg/compliance/crosswalk/collect/collect.go", "and the Well all answer"},
 	{"README.md", "gRPC with mTLS by default"},
 	{"VISION.md", "It gets the hosting evidence for free"},
 	{"wiki/Security-Audit.md", "default-deny firewall, services talk via Wotan, uniform container hardening, isolated compose network | PASS |"},
@@ -35,6 +39,7 @@ var requiredNotes = []struct{ file, note string }{
 	{"docs/compliance/SECRETS-SCAN.md", "Historical snapshot"},
 	{"docs/security/SECURITY_AUDIT.md", "Historical snapshot"},
 	{"VISION.md", "not today's state"},
+	{"compliance/findings/register.yaml", "only the signed reprepro repo"},
 }
 
 func TestRetiredClaimsStayRetired(t *testing.T) {

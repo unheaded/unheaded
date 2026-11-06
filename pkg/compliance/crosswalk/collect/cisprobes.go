@@ -720,8 +720,9 @@ var auditRuleKeys = []string{
 
 var auditKeyRe = regexp.MustCompile(`(?:-k |key=)([A-Za-z_-]+)`)
 
-// judgeAuditRules passes when every required key has a loaded rule. auditctl
-// prints watches with -k and syscall rules with key=.
+// judgeAuditRules passes when every required key has a loaded rule. That is one
+// rule per key, not every rule of the fix. auditctl prints watches with -k and
+// syscall rules with key=.
 func judgeAuditRules(lines []string) (bool, string) {
 	loaded := map[string]bool{}
 	for _, l := range lines {
@@ -738,7 +739,7 @@ func judgeAuditRules(lines []string) (bool, string) {
 	if len(missing) > 0 {
 		return false, fmt.Sprintf("%d audit rule lines; no rule for %s", len(lines), strings.Join(missing, ", "))
 	}
-	return true, fmt.Sprintf("%d audit rule lines cover all %d keys", len(lines), len(auditRuleKeys))
+	return true, fmt.Sprintf("%d audit rule lines, at least one for each of the %d keys", len(lines), len(auditRuleKeys))
 }
 
 func offenderProbe(cmd string) Probe {

@@ -547,7 +547,7 @@ findings:
 
   - id: FND-026
     title: West's apt repo on 18888 is still the old unsigned one.
-    verify: curl -s -o /dev/null -w '%{http_code}' http://<west LAN address>:18888/conf/distributions is not 200, and dists/noble on 18888 holds an InRelease signed by the key in deploy/ (the reprepro repo)
+    verify: curl -s -o /dev/null -w '%{http_code}' http://<west LAN address>:18888/conf/distributions is not 200, and only the signed reprepro repo (deploy/nginx/unheaded-apt.conf) answers on 18888, with dists/noble holding an InRelease signed by the key in deploy/
     host: west
     severity: medium
     class: service
@@ -562,7 +562,7 @@ findings:
       Retire it in the S-E1-LIVE window: runbooks/deploy/apt-repo-publish.yaml removes the old site and publishes the
       signed reprepro repo (scripts/apt-repo.sh) behind deploy/nginx/unheaded-apt.conf (127.0.0.1, 192.168.13.2 and the
       LAN address; only dists/, pool/ and the key served, everything else 403); east then pins the key. Host change, so
-      not done unattended.
+      not done unattended. Closing this entry does not settle what east trusts: that is M6, held with Stevie.
 
   - source: "gate-script:scripts/compliance/check-edge-tls.sh"
     severity: medium
@@ -1808,20 +1808,18 @@ findings:
     severity: high
     class: sudo
     opened: 2026-11-05
-    exposure: >-
-      the operator account has NOPASSWD: ALL on west, so anything running as that account, every agent session and the
-      evidence collector included, is root with no further step
+    exposure: the operator account's sudo on west does not ask for a password, which CIS 5.2.4 requires
     lockout: high
     step: 5
     plan: >-
       Undecided. Keep it and record an acceptance, or narrow it: automation needs rules naming exact commands and the
-      collector needs its own read-only account first, because these probes reach root through the same rule
+      collector needs its own read-only account first, because these probes run through the same rule
     decision: keep passwordless sudo, or narrow it, and when
   - source: "host-probe:east:sudo-password-required"
     severity: high
     class: sudo
     opened: 2026-11-05
-    exposure: same rule on east, reached from west over ssh with no prompt
+    exposure: same rule on east
     lockout: high
     step: 5
     plan: Goes with west's entry, east first

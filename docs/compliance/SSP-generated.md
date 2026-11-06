@@ -1208,7 +1208,7 @@ Mappings:
 
 **Status:** NOT_ASSESSED, no evidence for 2 of 6 sources
 
-auditd is running on west and east with the rule set the auditd-rules fix installs loaded, so the kernel audit subsystem records security-relevant system calls and authentication events.
+auditd is running on west and east, and each of the 13 keys in the auditd-rules fix has at least one rule loaded, so the kernel audit subsystem records events in each of those areas. The probe checks keys: it does not show that every rule of the fix is loaded.
 
 Rationale: Event logging and audit record generation (AU-2, AU-12; 800-171 03.03.01); CSF PR.PS-04 log records generated; ISO A.8.15 logging; SOC 2 CC7.2 monitoring for anomalies. CIS Ubuntu 24.04 (Level 2): auditd enabled and active (6.2.1.2). 6.2.2.3 (disable the system when audit logs are full) is deliberately not adopted: ADR-098 forbids a halt on audit-log exhaustion (lockout).
 
@@ -1544,7 +1544,7 @@ Mappings:
 
 **Status:** NOT_ASSESSED, no evidence for 1 of 1 sources
 
-On west, Prometheus, Alertmanager, alert-mailer and the Well each answer on their own port, asked directly by a host probe. Checks that the chain is up, not that an alert was delivered: FND-001 holds that proof.
+On west, Prometheus, Alertmanager and alert-mailer each answer a health request on their own port, and the Well's port has a listener, read directly by a host probe. Checks that the chain is up, not that an alert was delivered: FND-001 holds that proof. A listener does not show Postgres is healthy.
 
 Rationale: System monitoring that can reach a person (SI-4) and continuous monitoring (CA-7); 800-171 03.14.06; CSF DE.CM-01; ISO A.8.16; SOC 2 CC7.2. The other monitoring controls read files or series a stopped stack cannot write, so without this source a dead stack fails nothing.
 
