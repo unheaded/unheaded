@@ -506,6 +506,31 @@ func TestManager_GetByService(t *testing.T) {
 	}
 }
 
+// A failed rollback is in history by the time Status can say so, as a
+// completed one is above.
+func TestManager_GetByService_AfterFailure(t *testing.T) {
+	mgr, _, updater, _ := setupTestManager()
+	updater.failNext = true
+
+	rb, err := mgr.Rollback(context.Background(), &RollbackRequest{
+		DeploymentID: "dep-current",
+		Reason:       RollbackReasonManual,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	waitForRollbackState(t, mgr, rb.ID, RollbackStateFailed, 5*time.Second)
+
+	rollbacks, err := mgr.GetByService(context.Background(), "svc-a")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rollbacks) == 0 {
+		t.Error("expected the failed rollback in history")
+	}
+}
+
 func TestManager_IsRollbackInProgress(t *testing.T) {
 	mgr, _, _, _ := setupTestManager()
 
