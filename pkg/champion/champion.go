@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -181,7 +182,7 @@ func (c *Champion) ReadFile(ctx context.Context, path string) (string, error) {
 	}
 
 	// Read file
-	data, err := readCapped(absPath)
+	data, err := c.readValidated(absPath)
 	if err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return "", fmt.Errorf("read file: %w", err)
@@ -194,6 +195,10 @@ func (c *Champion) ReadFile(ctx context.Context, path string) (string, error) {
 	return content, nil
 }
 
+// beforeRead stands in the gap between the checks and the open; a test swaps a
+// path in it, as anything writing to the tree could.
+var beforeRead = func() {}
+
 // MaxReadBytes caps what one ReadFile returns. It is far past anything a
 // model can use and keeps a model file or a disk image out of memory.
 const MaxReadBytes = 16 << 20
@@ -201,26 +206,70 @@ const MaxReadBytes = 16 << 20
 // ErrReadTooLarge means the file is over MaxReadBytes; none of it was returned.
 var ErrReadTooLarge = errors.New("file is too large to read")
 
-// readCapped reads a regular file of at most MaxReadBytes. The type is
-// checked before the open, so a fifo cannot block it, and the read is bounded
-// whatever the size said, so a file that grows cannot pass the cap.
-func readCapped(path string) ([]byte, error) {
-	fi, err := os.Stat(path)
+// readValidated opens the path validatePath judged and no other. The real
+// path is judged again, then opened under the sandbox root it lies in with
+// openat2 (safeopen_linux.go), which follows no link: a link inside the sandbox
+// still reads, as where it lands, and one swapped in after the checks fails the
+// open. O_NONBLOCK keeps a fifo from blocking it, the type is checked on the
+// open file, and the read is bounded whatever the size said, so a file that
+// grows cannot pass the cap.
+func (c *Champion) readValidated(absPath string) ([]byte, error) {
+	resolved, err := realPath(absPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.checkResolved(absPath, resolved); err != nil {
+		return nil, err
+	}
+	root, rel, err := c.realSandboxRel(resolved)
+	if err != nil {
+		return nil, err
+	}
+	rootFD, err := openRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer closeFD(rootFD)
+	beforeRead()
+	f, err := openBeneath(rootFD, rel, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	fi, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
 	if !fi.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", path)
+		return nil, fmt.Errorf("%s is not a regular file", absPath)
 	}
 	if fi.Size() > MaxReadBytes {
 		return nil, fmt.Errorf("%w: %d bytes, cap %d", ErrReadTooLarge, fi.Size(), MaxReadBytes)
 	}
-	f, err := os.Open(path) // #nosec G304 -- sandboxed path, validated by validatePath (no .., blocklist, allowed-prefix check)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
 	return readUpTo(f, MaxReadBytes)
+}
+
+// realSandboxRel is sandboxRel for a resolved path: it splits it at the real
+// path of the allowed root that holds it, the longest match.
+func (c *Champion) realSandboxRel(resolved string) (root, rel string, err error) {
+	for _, allowed := range c.config.AllowedPaths {
+		a, aerr := filepath.Abs(allowed)
+		if aerr != nil {
+			continue
+		}
+		r, rerr := realPath(a)
+		if rerr != nil {
+			continue
+		}
+		prefix := strings.TrimSuffix(r, string(filepath.Separator)) + string(filepath.Separator)
+		if strings.HasPrefix(resolved, prefix) && len(r) > len(root) {
+			root, rel = r, resolved[len(prefix):]
+		}
+	}
+	if root == "" {
+		return "", "", fmt.Errorf("%s is not a regular file under a sandbox root", resolved)
+	}
+	return root, rel, nil
 }
 
 // readUpTo reads r, stopping one byte past limit, however long r goes on.
@@ -276,6 +325,11 @@ func (c *Champion) validatePath(path string) error {
 	if err != nil {
 		return fmt.Errorf("cannot resolve path: %w", err)
 	}
+	return c.checkResolved(absPath, resolved)
+}
+
+// checkResolved applies validatePath's rules to where absPath really lands.
+func (c *Champion) checkResolved(absPath, resolved string) error {
 	for _, denied := range c.config.DeniedPaths {
 		if strings.Contains(resolved, denied) {
 			return fmt.Errorf("path resolves to a denied pattern: %s", denied)
