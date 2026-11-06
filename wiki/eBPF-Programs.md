@@ -66,7 +66,7 @@ Three gates, all on west (they need root to load programs):
 | `scripts/check-ebpf-insns.sh` | ADR-012's budget, with the kernel's own counts: no program grows more than 10 % over `docs/policy/ebpf-insns-baseline.tsv`, none exceeds 900,000 unless listed in `docs/policy/ebpf-insns-over-budget.txt` (ascend at 926,542, shrink-only); `--update` re-seeds after a reviewed change |
 | `scripts/upc-regression.sh` | the UPC corpus (xv6, Doom, cartridges) still boots, with its verifier numbers |
 
-The baseline is kernel-specific: on another kernel `check-ebpf-insns.sh` exits 2 (not comparable). CI loads every program and publishes its counts in the job summary for comparison, but the ratchet gates on west (`scripts/ci-local.sh`, `scripts/check-gates-can-fail.sh`). `cmd/ebpf-load-check` prints `<program> OK verified N insns`.
+The baseline is kernel-specific: on another kernel `check-ebpf-insns.sh` exits 2 (not comparable). CI loads every program and publishes its counts in the job summary for comparison, but the ratchet gates on west (`scripts/ci-local.sh`, `scripts/check-gates-can-fail.sh`). In CI, `check-gates-can-fail.sh` proves the gate's logic on the recorded numbers and its row says so; a host outside CI on another kernel gets a refusal, not that shortcut. `cmd/ebpf-load-check` prints `<program> OK verified N insns`.
 
 ## Licensing
 

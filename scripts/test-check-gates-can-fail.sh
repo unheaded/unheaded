@@ -80,15 +80,39 @@ done
 ok "an unknown flag is refused, not run as a full pass" [ $? -eq 2 ]
 
 # check-ebpf-insns on a kernel its baseline was not measured on, which is what
-# a hosted runner is: the row still proves the gate, and needs no load.
+# a hosted runner is: the row still proves the gate, needs no load, and says so.
 mkdir "$T/elsewhere"
 printf '#!/bin/sh\n[ "$1" = -r ] && { echo 0.0.0-elsewhere; exit 0; }\nexec /usr/bin/uname "$@"\n' >"$T/elsewhere/uname"
 printf '#!/bin/sh\nexit 1\n' >"$T/elsewhere/sudo"
 chmod +x "$T/elsewhere/uname" "$T/elsewhere/sudo"
 rc=0
-PATH="$T/elsewhere:$PATH" GATE_LOG_DIR="$T/kernel-logs" "$C/scripts/check-gates-can-fail.sh" --only check-ebpf-insns >"$T/kernel.out" 2>&1 || rc=$?
-ok "off the baseline's kernel the insns row still passes" [ "$rc" -eq 0 ]
+CI=true PATH="$T/elsewhere:$PATH" GATE_LOG_DIR="$T/kernel-logs" "$C/scripts/check-gates-can-fail.sh" --only check-ebpf-insns >"$T/kernel.out" 2>&1 || rc=$?
+ok "in CI off the baseline's kernel the insns row still passes" [ "$rc" -eq 0 ]
 ok "and it says the gate bit" grep -q 'check-ebpf-insns .*OK — bites when provoked' "$T/kernel.out"
+ok "and that nothing was loaded" grep -q 'on the recorded numbers, no load' "$T/kernel.out"
+
+# The same kernel outside CI: this host could load, and a baseline compared with
+# itself proves nothing, so the row stays red. A stub stands in for the load.
+printf '#!/bin/sh\necho "the load ran"\nexit 1\n' >"$C/scripts/check-ebpf-loads.sh"
+git_clone commit -qam "a load that cannot run"
+rc=0
+env -u CI PATH="$T/elsewhere:$PATH" GATE_LOG_DIR="$T/host-logs" "$C/scripts/check-gates-can-fail.sh" --only check-ebpf-insns >"$T/host.out" 2>&1 || rc=$?
+ok "outside CI a changed kernel fails the row" [ "$rc" -ne 0 ]
+ok "and it says INCONCLUSIVE, not bit" grep -q 'check-ebpf-insns .*INCONCLUSIVE' "$T/host.out"
+ok "and the load was tried" grep -q 'the load ran' "$T/host.out"
+git_clone reset -q --hard HEAD~1
+
+# The recorded-numbers settings stop at the insns row. The next row's gate is a
+# stub that writes down what it was given; --only is widened to reach it.
+next_row="$(gates_listed --list | awk '/^ *check-ebpf-insns /{getline; print $1}')"
+ok "a row follows check-ebpf-insns" [ -n "$next_row" ]
+sed -i "s/\[ \"\${name}\" != \"\${ONLY}\" \]/[ \"\${name}\" != \"\${ONLY}\" ] \&\& [ \"\${name}\" != \"$next_row\" ]/" "$C/scripts/check-gates-can-fail.sh"
+printf '#!/bin/sh\necho "from=${EBPF_INSNS_FROM:-} any=${EBPF_INSNS_ANY_KERNEL:-}" >>"%s"\nexit 1\n' "$T/next-row" >"$C/scripts/$next_row.sh"
+git_clone commit -qam "a row that writes down its environment"
+CI=true PATH="$T/elsewhere:$PATH" GATE_LOG_DIR="$T/next-logs" "$C/scripts/check-gates-can-fail.sh" --only check-ebpf-insns >"$T/next.out" 2>&1
+ok "the next row ran" [ -s "$T/next-row" ]
+ok "and got none of the settings" grep -qx 'from= any=' "$T/next-row"
+git_clone reset -q --hard HEAD~1
 
 # A run leaves no empty log directory, however it ends.
 mkdir "$T/tmp"
@@ -99,5 +123,5 @@ TMPDIR="$T/tmp" "$C/scripts/check-gates-can-fail.sh" --only check-unit-flags >/d
 ok "a refused dirty tree exits 2" [ $? -eq 2 ]
 ok "and leaves no log directory" [ -z "$(ls -A "$T/tmp")" ]
 
-[ "$fail" -eq 0 ] || { tail -n 12 "$T/red.out" "$T/error.out" "$T/fail.out" "$T/kernel.out" | sed 's/^/  | /'; exit 1; }
+[ "$fail" -eq 0 ] || { tail -n 12 "$T/red.out" "$T/error.out" "$T/fail.out" "$T/kernel.out" "$T/host.out" "$T/next.out" | sed 's/^/  | /'; exit 1; }
 echo "[PASS] meta-gate rows can be diagnosed"

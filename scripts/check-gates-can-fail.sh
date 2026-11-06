@@ -1298,7 +1298,7 @@ check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZH
 well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
 well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE on audit_events in 043 (needs docker)
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
-check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo and west's kernel)
+check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo on the baseline's kernel; in CI on any other, the recorded numbers)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
 check-dep-staleness|provoke_dep_staleness|fast|FND-030 dropped from yaml.v3's row in dependency-watch.md, so a 53-month-old module on an input boundary has no register entry (needs the module proxy)
@@ -1471,16 +1471,23 @@ row_output() {
 }
 
 # check-ebpf-insns refuses (exit 2) on any kernel but the baseline's, by design:
-# counts from another verifier are not comparable. What this script proves is
-# the gate's logic, so off that kernel it runs on the recorded numbers instead
-# of a load: clean they match, provoked they read as growth.
+# counts from another verifier are not comparable. A CI runner is never on that
+# kernel, and what it can prove is the gate's logic, so there the gate runs on
+# the recorded numbers instead of a load: clean they match, provoked they read
+# as growth. The row says so, and the settings reach this gate's two runs only.
+# Anywhere else a kernel change stays a refusal: a host that can load must
+# measure, or its baseline is compared with itself.
 prepare_gate() {
+    GATE_ENV=()
+    ROW_NOTE=""
     [ "${1}" = "check-ebpf-insns" ] || return 0
+    [ "${CI:-}" = "true" ] || return 0
     local f="docs/policy/ebpf-insns-baseline.tsv" kernel
     kernel="$(awk -F'\t' 'NR==2 {print $4}' "${f}")"
     [ "${kernel}" != "$(uname -r)" ] || return 0
     awk -F'\t' 'BEGIN{OFS="\t"} NR>1 && NF>=3 {print $1, $2, $3}' "${f}" >"${BACKUP_DIR}/insns.recorded"
-    export EBPF_INSNS_ANY_KERNEL=1 EBPF_INSNS_FROM="${BACKUP_DIR}/insns.recorded"
+    GATE_ENV=(EBPF_INSNS_ANY_KERNEL=1 "EBPF_INSNS_FROM=${BACKUP_DIR}/insns.recorded")
+    ROW_NOTE=", on the recorded numbers, no load"
 }
 
 # ---------------------------------------------------------------------------
@@ -1520,7 +1527,7 @@ for name in $(gate_rows | cut -d'|' -f1); do
     # result would be meaningless.
     log="${GATE_LOG_DIR}/${name//\//_}"
     rc=0
-    "${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 || rc=$?
+    env "${GATE_ENV[@]}" "${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 || rc=$?
     if [ "${rc}" -ne 0 ]; then
         echo "INCONCLUSIVE — already failing on a clean tree (exit ${rc})"
         row_output "${log}.clean.log"
@@ -1541,7 +1548,7 @@ for name in $(gate_rows | cut -d'|' -f1); do
     if [ "${name}" = "check-timeline-freshness" ]; then
         run_timeline_freshness >"${log}.provoked.log" 2>&1
     else
-        "${REPO_ROOT}/${gate}" >"${log}.provoked.log" 2>&1
+        env "${GATE_ENV[@]}" "${REPO_ROOT}/${gate}" >"${log}.provoked.log" 2>&1
     fi
     rc=$?
 
@@ -1549,7 +1556,7 @@ for name in $(gate_rows | cut -d'|' -f1); do
     restore_touched
 
     if [ "${rc}" -ne 0 ]; then
-        echo "OK — bites when provoked (exit ${rc})"
+        echo "OK — bites when provoked (exit ${rc}${ROW_NOTE})"
         rm -f "${log}.clean.log" "${log}.provoke.log" "${log}.provoked.log"
     else
         echo "FAIL — PASSED WHILE VIOLATED"
