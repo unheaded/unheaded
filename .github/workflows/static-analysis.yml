@@ -344,13 +344,20 @@ jobs:
       - run: bash tests/sealed-cask/round_trip_test.sh
 
   meta-gate:
-    name: Gates can actually fail
+    name: Gates can actually fail (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     # Measured 2026-10-27: a full run took 31.75 min on west in a clean clone,
     # and 25 cancelled every run on GitHub. ceil(31.75 * 1.2) + 5 = 44
-    # (S-CLEAN-SLATE Step 44). If the runner still cancels, split it into a
-    # --quick job per push and a nightly full job instead of raising this again.
+    # (S-CLEAN-SLATE Step 44). The registry kept growing: GitHub cancelled the
+    # full run at 44 on 2026-10-31, and it took 52 min on west on 2026-11-05.
+    # So every push still proves every gate, in three disjoint shares
+    # (--shard), rather than a limit raised again or a quick run per push.
+    # check-ci-verdicts.sh holds the matrix and the denominator together.
     timeout-minutes: 44
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -405,7 +412,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            ./scripts/check-gates-can-fail.sh
+            ./scripts/check-gates-can-fail.sh --shard ${{ matrix.shard }}/3
           else
-            ./scripts/check-gates-can-fail.sh --quick
+            ./scripts/check-gates-can-fail.sh --quick --shard ${{ matrix.shard }}/3
           fi

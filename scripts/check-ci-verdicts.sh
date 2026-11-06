@@ -324,6 +324,27 @@ def workflow_paths():
                                 and not os.access(os.path.join(tree, script), os.X_OK)):
                             bad("workflow-paths", f"{path} {name}: {script} is run directly but is not executable")
 
+# The meta-gate outgrew one job's time limit, so its gates are split over a
+# matrix. Each shard is a share of the registry: a matrix short of its own
+# denominator drops gates with every job green, and a call with no --shard is
+# back to one job the limit cancels.
+def meta_gate_shards():
+    job = workflow("static-analysis.yml").get("jobs", {}).get("meta-gate", {})
+    strategy = job.get("strategy") or {}
+    shards = (strategy.get("matrix") or {}).get("shard") or []
+    if strategy.get("fail-fast") is not False:
+        bad("meta-gate", "needs fail-fast: false, or one shard's failure cancels the others' verdicts")
+    calls = [l for s in job.get("steps", []) for l in str(s.get("run", "")).splitlines()
+             if "check-gates-can-fail.sh" in l]
+    if not calls:
+        bad("meta-gate", "no step runs check-gates-can-fail.sh")
+    for call in calls:
+        m = re.search(r"--shard \$\{\{ matrix\.shard \}\}/(\d+)\s*$", call)
+        if not m:
+            bad("meta-gate", f"not run as a share of the matrix: {call.strip()}")
+        elif sorted(shards) != list(range(1, int(m.group(1)) + 1)):
+            bad("meta-gate", f"matrix {shards} does not cover shares 1 to {m.group(1)}")
+
 security_gate()
 history_scan()
 bpf_linker()
@@ -334,6 +355,7 @@ jenkins_agents()
 branch_protection()
 rust_targets()
 workflow_paths()
+meta_gate_shards()
 
 if problems:
     print("\n".join(f"[FAIL] {p}" for p in problems))

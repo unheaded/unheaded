@@ -159,6 +159,17 @@ ci_verdict_expect_bite "an agent older than go.mod" jenkins "jenkins/Jenkinsfile
 ci_verdict_expect_bite "a target rustup cannot install" rust-target ".github/workflows/release.yml" \
 	's/^( +)components: rust-src$/&\n\1targets: bpfel-unknown-none/'
 
+echo "--- the meta-gate's shards ---"
+SA=".github/workflows/static-analysis.yml"
+ci_verdict_expect_bite "a shard dropped from the matrix" meta-gate "${SA}" \
+	's/shard: \[1, 2, 3\]/shard: [1, 2]/'
+ci_verdict_expect_bite "a denominator past the matrix" meta-gate "${SA}" \
+	's#--shard \$\{\{ matrix\.shard \}\}/3#--shard ${{ matrix.shard }}/4#'
+ci_verdict_expect_bite "a run that is not a share" meta-gate "${SA}" \
+	's# --shard \$\{\{ matrix\.shard \}\}/3##'
+ci_verdict_expect_bite "one shard cancelling the rest" meta-gate "${SA}" \
+	'/^  meta-gate:$/,$s/fail-fast: false/fail-fast: true/'
+
 echo "--- paths a step names ---"
 DOCKER_WF=".github/workflows/docker.yml"
 ci_verdict_expect_bite "a script nothing tracks" workflow-paths "${SEC}" \

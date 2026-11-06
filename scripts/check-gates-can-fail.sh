@@ -70,6 +70,8 @@
 #   ./scripts/check-gates-can-fail.sh --quick    # skip gates marked SLOW
 #   ./scripts/check-gates-can-fail.sh --list     # show registry, run nothing
 #   ./scripts/check-gates-can-fail.sh --only NAME  # provoke one registered gate
+#   ./scripts/check-gates-can-fail.sh --shard K/N  # the Kth of N disjoint shares;
+#                                                  # all N together are every gate
 #
 # A row that is not a clean verdict names a file holding the output behind it
 # and shows the tail. Those files stay in GATE_LOG_DIR (default: a new
@@ -89,11 +91,28 @@ cd "${REPO_ROOT}" || exit 1
 # seconds per target; lich.yml does the real fuzzing.
 export LICH_FUZZ_SECONDS="${LICH_FUZZ_SECONDS:-5}"
 
-MODE="${1:-}"
+MODE=""
 ONLY=""
-if [ "${MODE}" = "--only" ]; then
-    ONLY="${2:-}"
-    [ -n "${ONLY}" ] || { echo "usage: $0 --only <gate name from --list>" >&2; exit 2; }
+SHARD=""
+gates_usage() {
+    echo "usage: $0 [--quick | --list | --only <gate name from --list>] [--shard K/N]" >&2
+    exit 2
+}
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --quick | --list) MODE="$1"; shift ;;
+    --only) MODE="$1"; ONLY="${2:-}"; [ -n "${ONLY}" ] || gates_usage; shift 2 ;;
+    --shard) SHARD="${2:-}"; [ -n "${SHARD}" ] || gates_usage; shift 2 ;;
+    *) gates_usage ;;
+    esac
+done
+SHARD_K=1
+SHARD_N=1
+if [ -n "${SHARD}" ]; then
+    [[ "${SHARD}" =~ ^[1-9][0-9]*/[1-9][0-9]*$ ]] || gates_usage
+    SHARD_K="${SHARD%/*}"
+    SHARD_N="${SHARD#*/}"
+    [ "${SHARD_K}" -le "${SHARD_N}" ] || gates_usage
 fi
 BACKUP_DIR="$(mktemp -d)"
 if [ -n "${GATE_LOG_DIR:-}" ]; then
@@ -1379,9 +1398,19 @@ registry_lookup() {
     printf '%s\n' "${REGISTRY}" | awk -F'|' -v k="$1" '$1==k {print; exit}'
 }
 
+# The registry rows this run covers, by name. --shard K/N keeps every Nth row,
+# counting slow and fast rows apart so each shard gets its share of the slow
+# ones. Rows are spread by position, so a new row moves others between shards:
+# which shard proves a gate is not stable, that every gate is proven is.
+gate_rows() {
+    printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3' | sort -t'|' -k1,1 |
+        awk -F'|' -v k="${SHARD_K}" -v n="${SHARD_N}" \
+            '{ i = ($3 == "slow") ? slow++ : fast++; if (i % n == k - 1) print }'
+}
+
 if [ "${MODE}" = "--list" ]; then
     echo "Registered provocations:"
-    printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=4 {printf "  %-26s %-5s %s\n", $1, $3, $4}'
+    gate_rows | awk -F'|' 'NF>=4 {printf "  %-26s %-5s %s\n", $1, $3, $4}'
     exit 0
 fi
 
@@ -1441,16 +1470,30 @@ row_output() {
     tail -n 20 "${1}" | sed 's/^/      | /'
 }
 
+# check-ebpf-insns refuses (exit 2) on any kernel but the baseline's, by design:
+# counts from another verifier are not comparable. What this script proves is
+# the gate's logic, so off that kernel it runs on the recorded numbers instead
+# of a load: clean they match, provoked they read as growth.
+prepare_gate() {
+    [ "${1}" = "check-ebpf-insns" ] || return 0
+    local f="docs/policy/ebpf-insns-baseline.tsv" kernel
+    kernel="$(awk -F'\t' 'NR==2 {print $4}' "${f}")"
+    [ "${kernel}" != "$(uname -r)" ] || return 0
+    awk -F'\t' 'BEGIN{OFS="\t"} NR>1 && NF>=3 {print $1, $2, $3}' "${f}" >"${BACKUP_DIR}/insns.recorded"
+    export EBPF_INSNS_ANY_KERNEL=1 EBPF_INSNS_FROM="${BACKUP_DIR}/insns.recorded"
+}
+
 # ---------------------------------------------------------------------------
 # Run each gate: must PASS clean, then must FAIL when provoked.
 # ---------------------------------------------------------------------------
-for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort); do
+for name in $(gate_rows | cut -d'|' -f1); do
     # A registry name is scripts/<name>.sh, or a repo path without .sh for
     # a gate that lives elsewhere (nix/yggdrasil/scripts/...).
     gate="scripts/${name}.sh"
     [ -f "${gate}" ] || gate="${name}.sh"
     [ -f "${gate}" ] || continue
     [ -n "${ONLY}" ] && [ "${name}" != "${ONLY}" ] && continue
+    prepare_gate "${name}"
     entry="$(registry_lookup "${name}")"
     fn="$(echo "${entry}" | cut -d'|' -f2)"
     speed="$(echo "${entry}" | cut -d'|' -f3)"
@@ -1536,8 +1579,8 @@ if [ "${FAILURES}" -gt 0 ]; then
     exit 1
 fi
 
-if [ -n "${ONLY}" ] && [ "${CHECKED}" -eq 0 ]; then
-    echo "FAIL: --only ${ONLY} matched no runnable registered gate (see --list)."
+if [ -n "${ONLY}${SHARD}" ] && [ "${CHECKED}" -eq 0 ]; then
+    echo "FAIL: ${ONLY:+--only ${ONLY} }${SHARD:+--shard ${SHARD} }matched no runnable registered gate (see --list)."
     exit 1
 fi
 

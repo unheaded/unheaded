@@ -61,8 +61,36 @@ ok "a gate that passes while violated fails the meta-gate" [ $? -ne 0 ]
 ok "and its row says FAIL" grep -q 'FAIL — PASSED WHILE VIOLATED' "$T/fail.out"
 row_diagnosed FAIL 'fixture: passes regardless' "$T/fail.out"
 
-# A run leaves no empty log directory, however it ends.
+# Shards: every registered gate is in exactly one, and slow rows are spread.
 git_clone reset -q --hard HEAD~1
+gates_listed() { "$C/scripts/check-gates-can-fail.sh" "$@" | tail -n +2; }
+gates_listed --list | sort >"$T/all.list"
+for k in 1 2 3; do gates_listed --list --shard "$k/3" >"$T/shard$k.list"; done
+sort "$T/shard1.list" "$T/shard2.list" "$T/shard3.list" >"$T/shards.list"
+ok "the registry lists something" [ -s "$T/all.list" ]
+ok "three shards together are every gate, once each" cmp -s "$T/all.list" "$T/shards.list"
+shard_slow_rows() { grep -c ' slow ' "$T/shard$1.list"; }
+ok "no shard carries all the slow gates" [ "$(shard_slow_rows 1)" -lt "$(grep -c ' slow ' "$T/all.list")" ]
+ok "slow gates differ by at most one between shards" [ "$(($(shard_slow_rows 1) - $(shard_slow_rows 3)))" -le 1 ]
+for bad in 4/3 0/3 three 1/0; do
+	"$C/scripts/check-gates-can-fail.sh" --list --shard "$bad" >/dev/null 2>&1
+	ok "--shard $bad is refused" [ $? -eq 2 ]
+done
+"$C/scripts/check-gates-can-fail.sh" --no-such-flag >/dev/null 2>&1
+ok "an unknown flag is refused, not run as a full pass" [ $? -eq 2 ]
+
+# check-ebpf-insns on a kernel its baseline was not measured on, which is what
+# a hosted runner is: the row still proves the gate, and needs no load.
+mkdir "$T/elsewhere"
+printf '#!/bin/sh\n[ "$1" = -r ] && { echo 0.0.0-elsewhere; exit 0; }\nexec /usr/bin/uname "$@"\n' >"$T/elsewhere/uname"
+printf '#!/bin/sh\nexit 1\n' >"$T/elsewhere/sudo"
+chmod +x "$T/elsewhere/uname" "$T/elsewhere/sudo"
+rc=0
+PATH="$T/elsewhere:$PATH" GATE_LOG_DIR="$T/kernel-logs" "$C/scripts/check-gates-can-fail.sh" --only check-ebpf-insns >"$T/kernel.out" 2>&1 || rc=$?
+ok "off the baseline's kernel the insns row still passes" [ "$rc" -eq 0 ]
+ok "and it says the gate bit" grep -q 'check-ebpf-insns .*OK — bites when provoked' "$T/kernel.out"
+
+# A run leaves no empty log directory, however it ends.
 mkdir "$T/tmp"
 TMPDIR="$T/tmp" "$C/scripts/check-gates-can-fail.sh" --list >/dev/null 2>&1
 ok "--list leaves no log directory" [ -z "$(ls -A "$T/tmp")" ]
@@ -71,5 +99,5 @@ TMPDIR="$T/tmp" "$C/scripts/check-gates-can-fail.sh" --only check-unit-flags >/d
 ok "a refused dirty tree exits 2" [ $? -eq 2 ]
 ok "and leaves no log directory" [ -z "$(ls -A "$T/tmp")" ]
 
-[ "$fail" -eq 0 ] || { tail -n 12 "$T/red.out" "$T/error.out" "$T/fail.out" | sed 's/^/  | /'; exit 1; }
+[ "$fail" -eq 0 ] || { tail -n 12 "$T/red.out" "$T/error.out" "$T/fail.out" "$T/kernel.out" | sed 's/^/  | /'; exit 1; }
 echo "[PASS] meta-gate rows can be diagnosed"
