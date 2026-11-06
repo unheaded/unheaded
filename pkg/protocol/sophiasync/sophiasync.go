@@ -478,9 +478,9 @@ func encodeDelta(delta *DictionaryDelta) ([]byte, error) {
 		return nil, fmt.Errorf("algorithm name longer than 255 bytes")
 	}
 	buf := appendBody(make([]byte, 0, 1024), delta)
-	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.Signature))) // #nosec G115 -- bounded by the length of an already-allocated slice
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.Signature))) // #nosec G115 -- a delta is far below 4 GiB; the decoder refuses more than 16 MiB
 	buf = append(buf, delta.Signature...)
-	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.PublicKey))) // #nosec G115 -- bounded by the length of an already-allocated slice
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.PublicKey))) // #nosec G115 -- a delta is far below 4 GiB; the decoder refuses more than 16 MiB
 	buf = append(buf, delta.PublicKey...)
 	buf = append(buf, byte(len(delta.Algorithm))) // #nosec G115 -- at most 255, refused above
 	buf = append(buf, delta.Algorithm...)
@@ -492,13 +492,13 @@ func encodeDelta(delta *DictionaryDelta) ([]byte, error) {
 // additions, removals.
 func appendBody(buf []byte, delta *DictionaryDelta) []byte {
 	buf = binary.BigEndian.AppendUint64(buf, uint64(delta.Version))
-	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.Additions))) // #nosec G115 -- bounded by the length of an already-allocated slice
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.Additions))) // #nosec G115 -- a delta is far below 4 GiB; the decoder refuses more than 16 MiB
 	for _, entry := range delta.Additions {
 		buf = binary.BigEndian.AppendUint32(buf, entry.Index)
-		buf = binary.BigEndian.AppendUint32(buf, uint32(len(entry.Value))) // #nosec G115 -- bounded by the length of an already-allocated slice
+		buf = binary.BigEndian.AppendUint32(buf, uint32(len(entry.Value))) // #nosec G115 -- a delta is far below 4 GiB; the decoder refuses more than 16 MiB
 		buf = append(buf, entry.Value...)
 	}
-	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.Removals))) // #nosec G115 -- bounded by the length of an already-allocated slice
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(delta.Removals))) // #nosec G115 -- a delta is far below 4 GiB; the decoder refuses more than 16 MiB
 	for _, idx := range delta.Removals {
 		buf = binary.BigEndian.AppendUint32(buf, idx)
 	}

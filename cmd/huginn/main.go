@@ -253,12 +253,12 @@ func disks() []DiskInfo {
 		if syscall.Statfs(mount, &st) != nil {
 			continue
 		}
-		total := st.Blocks * uint64(st.Bsize) // #nosec G115 -- bounded by construction; see the surrounding guard
+		total := st.Blocks * uint64(st.Bsize) // #nosec G115 -- statfs block size, positive
 		if total == 0 {
 			continue
 		}
-		free := st.Bavail * uint64(st.Bsize)      // #nosec G115 -- bounded by construction; see the surrounding guard
-		used := total - st.Bfree*uint64(st.Bsize) // #nosec G115 -- bounded by construction; see the surrounding guard
+		free := st.Bavail * uint64(st.Bsize)      // #nosec G115 -- statfs block size, positive
+		used := total - st.Bfree*uint64(st.Bsize) // #nosec G115 -- statfs block size, positive
 		out = append(out, DiskInfo{
 			Mount: mount, Filesystem: device,
 			SizeBytes: total, UsedBytes: used, AvailBytes: free,
@@ -466,7 +466,7 @@ func main() {
 		fmt.Fprint(w, allMetrics())
 	})
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"status":"ok"}`)) // #nosec G104 -- response already committed; a write failure means the client disconnected
+		_, _ = w.Write([]byte(`{"status":"ok"}`)) // #nosec G104 -- response already committed; a write failure cannot reach the client
 	})
 
 	go func() {

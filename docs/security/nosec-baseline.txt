@@ -34,12 +34,11 @@ cmd/dashboard-backend/internal/logs/handler.go 1
 cmd/dashboard-backend/internal/server/allow_callers_test.go 2
 cmd/dashboard-backend/internal/server/compliance.go 2
 cmd/dashboard-backend/internal/server/securitytxt.go 1
-cmd/dashboard-backend/internal/server/server.go 58
+cmd/dashboard-backend/internal/server/server.go 57
 cmd/dashboard-backend/internal/websocket/server.go 3
 cmd/dashboard-backend/main.go 1
 cmd/demo-trace-injector/main.go 12
 cmd/depaudit/main.go 1
-cmd/gjallarhorn-sender/main.go 1
 cmd/healthprobe/main.go 2
 cmd/heimdall-daemon/main.go 7
 cmd/huginn/config.go 1
@@ -61,10 +60,9 @@ cmd/perf-benchmark/http3.go 2
 cmd/perf-benchmark/main.go 5
 cmd/perf-benchmark/scenarios.go 1
 cmd/perf-benchmark/scenarios_test.go 2
-cmd/protocol-api/anamnesis.go 4
 cmd/protocol-api/flow.go 2
 cmd/protocol-api/main.go 5
-cmd/protocol-api/sophia.go 6
+cmd/protocol-api/sophia.go 2
 cmd/routing-health/main.go 2
 cmd/sophia/main.go 5
 cmd/steel-echo/monad.go 1
@@ -73,12 +71,11 @@ cmd/steel-echo/serve.go 2
 cmd/syslog-relay/main_test.go 2
 cmd/trace-collector-go/correlator.go 2
 cmd/trace-collector-go/enrichment.go 1
-cmd/trace-collector-go/flow_reader.go 1
 cmd/trace-collector-go/health.go 4
 cmd/trace-collector-go/ktime.go 1
 cmd/trace-collector-go/latency_kprobe.go 2
 cmd/trace-collector-go/latency_reader.go 5
-cmd/trace-collector-go/main.go 3
+cmd/trace-collector-go/main.go 2
 cmd/trace-collector-go/packet_event.go 1
 cmd/trace-collector-go/publisher.go 2
 cmd/trace-collector-go/self_filter.go 1
@@ -106,7 +103,7 @@ cmd/vulnmatch/main.go 2
 cmd/well-retention/main.go 2
 cmd/well-retention/metrics.go 4
 cmd/wiki-server/main.go 1
-cmd/wotan-ctl/bpf_maps.go 13
+cmd/wotan-ctl/bpf_maps.go 3
 cmd/wotan-ctl/load_rom.go 3
 cmd/wotan-ctl/mkfs.go 1
 cmd/yggdrasil-evidence/cask.go 1
@@ -293,7 +290,6 @@ services/sabatons/sabatons.go 2
 services/selfheal/selfheal.go 9
 services/shield/shield.go 2
 services/shield/sovereign_verify.go 1
-services/shield/tier_verify.go 2
 services/sophia/hkdf_derive.go 7
 services/timeguru/cmd/timeguru/main.go 1
 services/timeguru/internal/storage/storage.go 2
@@ -303,7 +299,6 @@ services/version/version.go 10
 services/wotan/cmd/wotan/allowlist_test.go 4
 services/wotan/internal/api/topic_config.go 2
 services/wotan/internal/api/topics.go 6
-services/wotan/internal/cluster/replication_server.go 1
 services/wotan/internal/compute/memory.go 12
 services/wotan/internal/grpc/topic_service.go 1
 services/wotan/internal/store/pg_store.go 1

@@ -132,7 +132,7 @@ type PacketEvent struct {
 
 // Time returns the event timestamp as time.Time.
 func (e *PacketEvent) Time() time.Time {
-	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- bounded by construction; see the surrounding guard
+	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- a nanosecond stamp; one past int64 would only misdate the event
 }
 
 // FlowState represents the state of a tracked flow.
@@ -157,7 +157,7 @@ type FlowEvent struct {
 
 // Time returns the event timestamp as time.Time.
 func (e *FlowEvent) Time() time.Time {
-	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- bounded by construction; see the surrounding guard
+	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- a nanosecond stamp; one past int64 would only misdate the event
 }
 
 // LatencyEvent represents a latency measurement from the latency-probe program.
@@ -172,12 +172,12 @@ type LatencyEvent struct {
 
 // Time returns the event timestamp as time.Time.
 func (e *LatencyEvent) Time() time.Time {
-	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- bounded by construction; see the surrounding guard
+	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- a nanosecond stamp; one past int64 would only misdate the event
 }
 
 // LatencyDuration returns the latency as a time.Duration.
 func (e *LatencyEvent) LatencyDuration() time.Duration {
-	return time.Duration(e.LatencyNs) // #nosec G115 -- bounded by construction; see the surrounding guard
+	return time.Duration(e.LatencyNs) // #nosec G115 -- a measured latency, far below 292 years
 }
 
 // SyscallEvent represents a syscall audit event from the syscall-tracer program.
@@ -196,7 +196,7 @@ type SyscallEvent struct {
 
 // Time returns the event timestamp as time.Time.
 func (e *SyscallEvent) Time() time.Time {
-	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- bounded by construction; see the surrounding guard
+	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- a nanosecond stamp; one past int64 would only misdate the event
 }
 
 // observedAt is when an event happened, for windows and liveness: the

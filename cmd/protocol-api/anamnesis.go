@@ -155,23 +155,8 @@ func (s *anamnesisServer) queryMock(req *pb.EventQuery) (*pb.EventQueryResponse,
 		filteredEvents = append(filteredEvents, event)
 	}
 
-	// Apply pagination
-	limit := req.Limit
-	if limit == 0 {
-		limit = 100
-	}
-	offset := req.Offset
-
-	if offset > int32(len(filteredEvents)) { // #nosec G115 -- bounded by the length of an already-allocated slice
-		offset = int32(len(filteredEvents)) // #nosec G115 -- bounded by the length of an already-allocated slice
-	}
-
-	end := offset + limit
-	if end > int32(len(filteredEvents)) { // #nosec G115 -- bounded by the length of an already-allocated slice
-		end = int32(len(filteredEvents)) // #nosec G115 -- bounded by the length of an already-allocated slice
-	}
-
-	slicedEvents := filteredEvents[offset:end]
+	start, end := pageBounds(len(filteredEvents), req.Offset, req.Limit)
+	slicedEvents := filteredEvents[start:end]
 
 	return &pb.EventQueryResponse{
 		Events:     slicedEvents,

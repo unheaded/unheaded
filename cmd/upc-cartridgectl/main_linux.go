@@ -497,7 +497,7 @@ func cmdBench(g *globals, args []string) error {
 		return err
 	}
 	defer c.Close()
-	pkt := cartridge.IPv4Packet(17, [4]byte{10, 0, 0, 1}, [4]byte{10, 0, 0, 2}, 4000, uint16(*dport), *size) // #nosec G115 -- port flag
+	pkt := cartridge.IPv4Packet(17, [4]byte{10, 0, 0, 1}, [4]byte{10, 0, 0, 2}, 4000, uint16(*dport), *size) // #nosec G115 -- a test frame for this bench; a wider flag only tests another port
 	ret, d, err := c.BenchXDP(pkt, *repeat)
 	if err != nil {
 		return err

@@ -170,7 +170,7 @@ func runBoot(ctx *Context, kernelPath, ramdiskPath, bootArgs, mapPinPath string,
 	}
 	defer cpuMap.Close()
 
-	cpu := CpuState{}
+	cpu := defaultCpuState(0)
 	cpu.PC = cfg.KernelLoadAddr >> 2 // Word address for PC
 	cpu.Regs[15] = cfg.StackTop      // SP
 	cpu.NumProcesses = cfg.NumProcesses

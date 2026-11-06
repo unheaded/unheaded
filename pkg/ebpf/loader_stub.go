@@ -109,6 +109,8 @@ const (
 	MapTypeBloom          MapType = "bloom_filter"
 	MapTypeStack          MapType = "stack"
 	MapTypeQueue          MapType = "queue"
+
+	MapTypePercpuCgroupStorage MapType = "percpu_cgroup_storage"
 )
 
 // ProgramSpec defines an eBPF program to load

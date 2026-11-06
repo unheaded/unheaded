@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"testing"
 	"time"
@@ -106,5 +107,24 @@ func TestCatchUp_FromZeroDeliversEverything(t *testing.T) {
 	}
 	if len(got) != n || got[0] != "entry-1" || got[n-1] != fmt.Sprintf("entry-%d", n) {
 		t.Errorf("caught up %v, want entry-1..entry-%d", got, n)
+	}
+}
+
+// The peer's sequence comes off the wire. A peer ahead of this node reads as
+// behind by a negative number however far ahead it claims to be.
+func TestSeqLag(t *testing.T) {
+	for _, tc := range []struct {
+		mine, peer uint64
+		want       int64
+	}{
+		{10, 7, 3},
+		{7, 10, -3},
+		{5, 5, 0},
+		{5, math.MaxUint64, math.MinInt64},
+		{math.MaxUint64, 5, math.MaxInt64},
+	} {
+		if got := seqLag(tc.mine, tc.peer); got != tc.want {
+			t.Errorf("seqLag(%d, %d) = %d, want %d", tc.mine, tc.peer, got, tc.want)
+		}
 	}
 }

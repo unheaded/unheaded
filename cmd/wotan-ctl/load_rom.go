@@ -198,7 +198,7 @@ func disassembleMBC(insn uint32) string {
 	case 0x0E: // MOV
 		return fmt.Sprintf("%-8s r%d, r%d", name, dst, src)
 	case 0x0F: // MOVI
-		return fmt.Sprintf("%-8s r%d, %d", name, dst, int16(imm)) // #nosec G115 -- bounded by construction; see the surrounding guard
+		return fmt.Sprintf("%-8s r%d, %d", name, dst, int16(imm)) // #nosec G115 -- reads the instruction's 16-bit immediate as signed, for display
 	case 0x40: // SYSCALL
 		syscallNames := map[uint16]string{
 			1: "DRAW_FRAME", 2: "GET_KEY", 3: "GET_TICKS", 4: "SLEEP", 0xFF: "HALT",
@@ -208,7 +208,7 @@ func disassembleMBC(insn uint32) string {
 		}
 		return fmt.Sprintf("%-8s 0x%04X", name, imm)
 	default:
-		return fmt.Sprintf("%-8s r%d, r%d, %d", name, dst, src, int16(imm)) // #nosec G115 -- bounded by construction; see the surrounding guard
+		return fmt.Sprintf("%-8s r%d, r%d, %d", name, dst, src, int16(imm)) // #nosec G115 -- reads the instruction's 16-bit immediate as signed, for display
 	}
 }
 
@@ -238,7 +238,23 @@ type CpuState struct {
 	MmuEnabled        uint8  // MMU enabled (0=flat, 1=paging). Level 4d.
 	Pad3              uint8  // Alignment padding.
 	PageDirBase       uint32 // Page directory base address. Level 4d.
+
+	PrivLevel          uint8 // Privilege level, 0=M 1=S 3=U (ADR-067).
+	Pad4               uint8
+	Pad5               uint8
+	Pad6               uint8
+	ReservationAddress uint32 // LR.W reservation; noReservation when none (ADR-067).
+
+	Rv2mbcBase uint32 // Per-process RV2MBC_MAP offset (ADR-077), ascend-linux only.
+	Pad7       [4]uint8
 }
+
+// cpuStateSizeNoAscend is the kernel's MbcCpuState without the ascend-linux
+// feature: CpuState less Rv2mbcBase and Pad7.
+const cpuStateSizeNoAscend = 136
+
+// noReservation is ReservationAddress when no LR.W reservation is active.
+const noReservation = 0xFFFF_FFFF
 
 // defaultCpuState returns a default CPU state for a given flow label.
 func defaultCpuState(flowLabel uint64) CpuState {
@@ -248,5 +264,6 @@ func defaultCpuState(flowLabel uint64) CpuState {
 	cpu.Flags = 0
 	cpu.ProgramBreak = 0x0040_0000 // Default heap start (4 MiB)
 	cpu.NumProcesses = 1           // Single process by default (Level 4c)
+	cpu.ReservationAddress = noReservation
 	return cpu
 }
