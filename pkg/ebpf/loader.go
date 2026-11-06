@@ -598,7 +598,7 @@ type LoaderConfig struct {
 	PinPath         string // BPF filesystem pin path (default: /sys/fs/bpf)
 	MapPinPath      string // Map pin path
 	Debug           bool   // Enable debug output
-	VerifierLogSize int    // Size of verifier log buffer (default: 64KB)
+	VerifierLogSize int    // Starting size of the verifier log buffer; it grows on overflow (default: 64KB)
 	AllowRlimit     bool   // Allow memlock rlimit increase (default: true)
 	MetricsEnabled  bool   // Enable Prometheus metrics (default: true)
 	// MaxMapBytes caps the map memory one object may request, summed over
@@ -1335,10 +1335,32 @@ func bpfProgLoad(progType uint32, insns []byte, license string, logBuf []byte, b
 	}
 
 	if err != nil {
-		return -1, verifierLog, fmt.Errorf("%w: prog_load: %v", ErrSyscallFailed, err)
+		return -1, verifierLog, progLoadError(err)
 	}
 
 	return fd, verifierLog, nil
+}
+
+// progLoadError wraps a BPF_PROG_LOAD failure and keeps its errno readable.
+func progLoadError(err error) error {
+	return fmt.Errorf("%w: prog_load: %w", ErrSyscallFailed, err)
+}
+
+// maxVerifierLogSize bounds how far loadWithLogGrowth grows the log buffer.
+const maxVerifierLogSize = 16 << 20
+
+// loadWithLogGrowth calls load with a log buffer of size bytes, doubling it
+// while the kernel answers ENOSPC, up to maxVerifierLogSize. The kernel gives
+// ENOSPC for a log that outgrew its buffer even when the verifier accepted
+// the program, so it says nothing about the program itself.
+func loadWithLogGrowth(size int, load func(log []byte) (int, string, error)) (int, string, error) {
+	for {
+		fd, verifierLog, err := load(make([]byte, size))
+		if size <= 0 || size >= maxVerifierLogSize || !errors.Is(err, unix.ENOSPC) {
+			return fd, verifierLog, err
+		}
+		size = min(size*2, maxVerifierLogSize)
+	}
 }
 
 // bpfObjPin pins a BPF object to the filesystem
@@ -2198,17 +2220,10 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 		}
 	}
 
-	// Prepare verifier log buffer
-	logBuf := make([]byte, l.config.VerifierLogSize)
-
 	// Load the program
-	progFD, verifierLog, err := bpfProgLoad(
-		mainProg.Type,
-		instructions,
-		parsed.License,
-		logBuf,
-		l.btfFD,
-	)
+	progFD, verifierLog, err := loadWithLogGrowth(l.config.VerifierLogSize, func(logBuf []byte) (int, string, error) {
+		return bpfProgLoad(mainProg.Type, instructions, parsed.License, logBuf, l.btfFD)
+	})
 
 	if err != nil {
 		for _, m := range loaded.maps {
