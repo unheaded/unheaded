@@ -22,7 +22,8 @@
 # compared, not counts (the lesson in check-secrets-baseline.sh).
 #
 #   check-ebpf-insns.sh                   load everything (needs root), compare
-#   check-ebpf-insns.sh --from FILE       compare FILE (check-ebpf-loads.sh's EBPF_INSNS_OUT)
+#   check-ebpf-insns.sh --from FILE       compare FILE (check-ebpf-loads.sh's EBPF_INSNS_OUT);
+#                                         EBPF_INSNS_FROM is the same thing for a caller with no arguments
 #   check-ebpf-insns.sh --update [--from FILE]   rewrite the baseline from the current numbers
 #
 # The baseline records the kernel it was measured on; on any other kernel the
@@ -37,7 +38,7 @@ OVER="${EBPF_INSNS_OVER_BUDGET:-$REPO_ROOT/docs/policy/ebpf-insns-over-budget.tx
 BUDGET=900000
 GROWTH_PCT=10
 
-FROM="" UPDATE=0
+FROM="${EBPF_INSNS_FROM:-}" UPDATE=0
 while (($#)); do
 	case "$1" in
 	--from) FROM="${2:?--from needs a file}"; shift 2 ;;

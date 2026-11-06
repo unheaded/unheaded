@@ -580,8 +580,8 @@ pub fn quantize(m: &FloatMlp, calib: &[Sample]) -> (QModel, QScales) {
         let mx = m.w1[j].iter().fold(0.0f64, |a, w| a.max(w.abs()));
         let s = if mx > 0.0 { mx / 127.0 } else { 1.0 };
         let mut w = [0i8; FEAT_WORDS];
-        for k in 0..FEAT_WORDS {
-            w[k] = round_i(m.w1[j][k] / s).clamp(-127, 127) as i8;
+        for (q, &f) in w.iter_mut().zip(&m.w1[j]) {
+            *q = round_i(f / s).clamp(-127, 127) as i8;
         }
         let b = round_i(m.b1[j] / s).clamp(i32::MIN as i64 / 4, i32::MAX as i64 / 4) as i32;
         // Activation shift: the largest pre-shift activation over the
@@ -658,9 +658,9 @@ impl QModel {
         let mut out = 0u32;
         for r in &self.rows {
             let mut acc = r.b1 as u32;
-            for k in 0..FEAT_WORDS {
-                let wb = (r.w1[k] as i32 + 128) as u32;
-                acc = acc.wrapping_add(wb.wrapping_mul(x[k]));
+            for (&w, &xk) in r.w1.iter().zip(&x) {
+                let wb = (w as i32 + 128) as u32;
+                acc = acc.wrapping_add(wb.wrapping_mul(xk));
             }
             acc = acc.wrapping_sub(corr);
             if acc & 0x8000_0000 != 0 {

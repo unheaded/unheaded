@@ -12,7 +12,8 @@
 #   scripts/check-ci-verdicts.sh
 #
 # CI_VERDICTS_ROOT points it at another tree (scripts/test-check-ci-verdicts.sh
-# runs each rule against a broken copy). Exit 1 on a violation, 2 if it cannot
+# runs each rule against a broken copy), and CI_VERDICTS_TREE at the tree the
+# workflows' paths are looked up in, default the same one. Exit 1 on a violation, 2 if it cannot
 # run: this gate does not pass by skipping.
 set -euo pipefail
 
@@ -73,24 +74,29 @@ def security_gate():
             bad("security-gate", f"{n} has continue-on-error, so its failure reads as success here")
     for missing in sorted(SCANNERS - set(needs)):
         bad("security-gate", f"needs no longer lists {missing}")
+    summary_verdict("security-gate", job, needs)
+
+def summary_verdict(rule, job, needs):
+    """A summary job runs whatever its needs did, and its one step fails
+    unless every one of them succeeded."""
     if job.get("if") != "always()":
-        bad("security-gate", "must run with if: always()")
+        bad(rule, "must run with if: always()")
     steps = [s for s in job.get("steps", []) if "run" in s]
     if len(steps) != 1:
-        bad("security-gate", f"expected one run step, found {len(steps)}")
+        bad(rule, f"expected one run step, found {len(steps)}")
         return
     step = steps[0]
     if str(step.get("env", {}).get("NEEDS_JSON", "")).replace(" ", "") != "${{toJSON(needs)}}":
-        bad("security-gate", "step must take NEEDS_JSON from toJSON(needs), not a list kept by hand")
+        bad(rule, "step must take NEEDS_JSON from toJSON(needs), not a list kept by hand")
     green = {n: {"result": "success"} for n in needs}
     if run_step(step["run"], green) != 0:
-        bad("security-gate", "fails with every need green")
+        bad(rule, "fails with every need green")
     for n in needs:
         for result in ("failure", "cancelled", "skipped"):
             if run_step(step["run"], {**green, n: {"result": result}}) == 0:
-                bad("security-gate", f"passes with {n}={result}")
+                bad(rule, f"passes with {n}={result}")
     if run_step(step["run"], {}) == 0:
-        bad("security-gate", "passes with no job results at all")
+        bad(rule, "passes with no job results at all")
 
 # M5. The history scan runs the fetched, sha256-checked tool through its
 # script, and nothing softens the step: the script already decides which
@@ -284,6 +290,142 @@ def rust_targets():
                 if "rust-toolchain" in str(s.get("uses", "")) and "bpf" in str(s.get("with", {}).get("targets", "")):
                     bad("rust-target", f"{path} {name}: rustup has no bpf target to install; build-std supplies it")
 
+# A step that names a file the tree does not have fails with nothing run, and
+# no fixture catches it: docker.yml named two Dockerfiles the tree did not have,
+# and moving code to another repository makes more of these. CI_VERDICTS_TREE
+# is where the paths are looked up, for a test that breaks only the workflows.
+# A script is any relative path to a .sh or .py a run line names, from the
+# step's working directory. A path holding a variable is not looked up.
+RUN_PATH = re.compile(r"""(?:^|[\s;&|('"])((?:\.{1,2}/)*[\w.-]+(?:/[\w.-]+)*\.(?:sh|py))(?=$|[\s;&|)'"])""")
+DOCKER_FILE = re.compile(r"\bdocker(?:\s+buildx)?\s+build\b.*?\s(?:-f|--file)[\s=]+([^\s;&|)]+)")
+
+def workflow_paths():
+    tree = os.environ.get("CI_VERDICTS_TREE", ".")
+    def there(p):
+        return os.path.exists(os.path.join(tree, p))
+    def named(path, job, what, p):
+        if p and "${{" not in p and not there(p):
+            bad("workflow-paths", f"{path} {job}: {what} {p} is not in the tree")
+    for path in sorted(glob.glob(".github/workflows/*.yml")):
+        wf = workflow(os.path.basename(path))
+        for name, j in wf.get("jobs", {}).items():
+            default_dir = ((j.get("defaults") or wf.get("defaults") or {}).get("run") or {}).get("working-directory", "")
+            for s in j.get("steps", []):
+                w = s.get("with") or {}
+                base = s.get("working-directory") or default_dir
+                def from_step(p):
+                    return os.path.normpath(os.path.join(base, p))
+                named(path, name, "working-directory", s.get("working-directory"))
+                named(path, name, "go-version-file", w.get("go-version-file"))
+                named(path, name, "trivyignores", w.get("trivyignores"))
+                for call in re.findall(r"hashFiles\(([^)]*)\)", f"{w.get('key', '')} {w.get('restore-keys', '')}"):
+                    for key in re.findall(r"'([^'*]+)'", call):
+                        named(path, name, "hashFiles", key)
+                if "build-push-action" in str(s.get("uses", "")):
+                    named(path, name, "build context", w.get("context"))
+                    named(path, name, "Dockerfile", w.get("file"))
+                    target = w.get("target")
+                    if target and w.get("file") and there(w["file"]):
+                        with open(os.path.join(tree, w["file"]), encoding="utf-8") as f:
+                            if not re.search(rf"(?im)^FROM\s.*\sAS\s+{re.escape(target)}\s*$", f.read()):
+                                bad("workflow-paths", f"{path} {name}: {w['file']} has no stage {target}")
+                for line in str(s.get("run", "")).splitlines():
+                    if line.strip().startswith("#"):
+                        continue
+                    for dockerfile in DOCKER_FILE.findall(line):
+                        if "$" not in dockerfile:
+                            named(path, name, "Dockerfile", from_step(dockerfile))
+                    for script in RUN_PATH.findall(line):
+                        named(path, name, "script", from_step(script))
+                        if (line.strip().startswith(script) and there(from_step(script))
+                                and not os.access(os.path.join(tree, from_step(script)), os.X_OK)):
+                            bad("workflow-paths", f"{path} {name}: {script} is run directly but is not executable")
+
+# The meta-gate outgrew one job's time limit, so its gates are split over a
+# matrix. Each shard is a share of the registry: a matrix short of its own
+# denominator drops gates with every job green, and a call with no --shard is
+# back to one job the limit cancels. The step's body runs here against a stub
+# of the meta-gate, once per shard and event, so what is checked is the call a
+# push makes, and that a red meta-gate turns the step red.
+def meta_gate_calls(body, event, shard, stub_exit):
+    """Run a step body for one event and shard. Returns its exit status and
+    the argument lines the meta-gate got."""
+    text = body.replace("${{ github.event_name }}", event).replace("${{ matrix.shard }}", str(shard))
+    with tempfile.TemporaryDirectory() as d:
+        os.mkdir(f"{d}/scripts")
+        stub = f"{d}/scripts/check-gates-can-fail.sh"
+        with open(stub, "w", encoding="utf-8") as f:
+            f.write(f'#!/bin/sh\nprintf "%s\\n" "$*" >>"$(dirname "$0")/calls"\nexit {stub_exit}\n')
+        os.chmod(stub, 0o755)
+        rc = subprocess.run(["bash", "-e", "-c", text], cwd=d, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, timeout=30).returncode
+        calls = f"{d}/scripts/calls"
+        if not os.path.exists(calls):
+            return rc, []
+        with open(calls, encoding="utf-8") as f:
+            return rc, f.read().splitlines()
+
+def meta_gate_shards():
+    jobs = workflow("static-analysis.yml").get("jobs", {})
+    job = jobs.get("meta-gate", {})
+    strategy = job.get("strategy") or {}
+    shards = (strategy.get("matrix") or {}).get("shard") or []
+    if strategy.get("fail-fast") is not False:
+        bad("meta-gate", "needs fail-fast: false, or one shard's failure cancels the others' verdicts")
+    if job.get("continue-on-error") or "if" in job:
+        bad("meta-gate", "the job has a condition or continue-on-error, so a push need not prove anything")
+    steps = [s for s in job.get("steps", []) if "check-gates-can-fail.sh" in str(s.get("run", ""))]
+    if len(steps) != 1:
+        bad("meta-gate", f"expected one step running check-gates-can-fail.sh, found {len(steps)}")
+    if sorted(shards) != list(range(1, len(shards) + 1)):
+        bad("meta-gate", f"matrix {shards} is not shares 1 to {len(shards)}")
+    for step in steps:
+        if softened(step):
+            bad("meta-gate", "the step has a condition or continue-on-error, so a push need not prove anything")
+        body = str(step["run"])
+        for k in shards:
+            share = f"--shard {k}/{len(shards)}"
+            _, calls = meta_gate_calls(body, "push", k, 0)
+            if calls != [share]:
+                bad("meta-gate", f"a push on shard {k} ran {calls}, not the full share {share}")
+            _, calls = meta_gate_calls(body, "pull_request", k, 0)
+            if calls not in ([share], [f"--quick {share}"]):
+                bad("meta-gate", f"a pull request on shard {k} ran {calls}, not share {share}")
+            for event in ("push", "pull_request"):
+                if meta_gate_calls(body, event, k, 1)[0] == 0:
+                    bad("meta-gate", f"a {event} on shard {k} stays green with the meta-gate red")
+
+    # The shards report as "name (1/3)", which nothing reads. This job carries
+    # the verdict under the name without the share.
+    needs = jobs.get("meta-gate-verdict", {}).get("needs", [])
+    needs = [needs] if isinstance(needs, str) else list(needs)
+    if needs != ["meta-gate"]:
+        bad("meta-gate", f"the verdict job must need meta-gate alone, not {needs}")
+    summary_verdict("meta-gate", jobs.get("meta-gate-verdict", {}), needs)
+
+# compliance/catalog/controls.yaml and the findings register name CI jobs as
+# <workflow name>/<job name>, and the evidence collector matches those exactly.
+# A renamed job leaves its control with no new records, whatever the job did,
+# and a matrix job reports under a different name per share. A ref to a job
+# that is gone reads as a control nobody can pass.
+def evidence_jobs():
+    reports = set()
+    for path in glob.glob(".github/workflows/*.yml"):
+        w = workflow(os.path.basename(path))
+        for job_id, j in w.get("jobs", {}).items():
+            reports.add(f"{w.get('name', '')}/{j.get('name', job_id)}")
+    with open("compliance/catalog/controls.yaml", encoding="utf-8") as f:
+        catalog = yaml.safe_load(f)
+    refs = [(c["id"], e["ref"]) for c in catalog["controls"] for e in c.get("evidence", [])
+            if e.get("kind") == "github-job"]
+    with open("compliance/findings/register.yaml", encoding="utf-8") as f:
+        refs += [("the findings register", m) for m in re.findall(r'^\s*- source: "github-job:(.+)"\s*$', f.read(), re.M)]
+    if not refs:
+        bad("evidence-jobs", "found no github-job refs; this rule has stopped reading them")
+    for who, ref in refs:
+        if ref not in reports:
+            bad("evidence-jobs", f"{who}: no workflow job reports as `{ref}`")
+
 security_gate()
 history_scan()
 bpf_linker()
@@ -293,6 +435,9 @@ tool_fetches()
 jenkins_agents()
 branch_protection()
 rust_targets()
+workflow_paths()
+meta_gate_shards()
+evidence_jobs()
 
 if problems:
     print("\n".join(f"[FAIL] {p}" for p in problems))

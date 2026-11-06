@@ -63,7 +63,7 @@ type Stats struct{ Files, Parsed, Reused, Deleted, Chunks, Calls int }
 
 // Included reports whether a repo path belongs in the shard.
 func Included(path string) bool {
-	if !(strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".rs") || strings.HasSuffix(path, ".py")) {
+	if !strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".rs") && !strings.HasSuffix(path, ".py") {
 		return false
 	}
 	if strings.HasSuffix(path, ".pb.go") || strings.HasSuffix(path, ".gen.go") {

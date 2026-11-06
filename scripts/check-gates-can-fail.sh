@@ -70,6 +70,8 @@
 #   ./scripts/check-gates-can-fail.sh --quick    # skip gates marked SLOW
 #   ./scripts/check-gates-can-fail.sh --list     # show registry, run nothing
 #   ./scripts/check-gates-can-fail.sh --only NAME  # provoke one registered gate
+#   ./scripts/check-gates-can-fail.sh --shard K/N  # the Kth of N disjoint shares;
+#                                                  # all N together are every gate
 #
 # A row that is not a clean verdict names a file holding the output behind it
 # and shows the tail. Those files stay in GATE_LOG_DIR (default: a new
@@ -89,11 +91,28 @@ cd "${REPO_ROOT}" || exit 1
 # seconds per target; lich.yml does the real fuzzing.
 export LICH_FUZZ_SECONDS="${LICH_FUZZ_SECONDS:-5}"
 
-MODE="${1:-}"
+MODE=""
 ONLY=""
-if [ "${MODE}" = "--only" ]; then
-    ONLY="${2:-}"
-    [ -n "${ONLY}" ] || { echo "usage: $0 --only <gate name from --list>" >&2; exit 2; }
+SHARD=""
+gates_usage() {
+    echo "usage: $0 [--quick | --list | --only <gate name from --list>] [--shard K/N]" >&2
+    exit 2
+}
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --quick | --list) MODE="$1"; shift ;;
+    --only) MODE="$1"; ONLY="${2:-}"; [ -n "${ONLY}" ] || gates_usage; shift 2 ;;
+    --shard) SHARD="${2:-}"; [ -n "${SHARD}" ] || gates_usage; shift 2 ;;
+    *) gates_usage ;;
+    esac
+done
+SHARD_K=1
+SHARD_N=1
+if [ -n "${SHARD}" ]; then
+    [[ "${SHARD}" =~ ^[1-9][0-9]*/[1-9][0-9]*$ ]] || gates_usage
+    SHARD_K="${SHARD%/*}"
+    SHARD_N="${SHARD#*/}"
+    [ "${SHARD_K}" -le "${SHARD_N}" ] || gates_usage
 fi
 BACKUP_DIR="$(mktemp -d)"
 if [ -n "${GATE_LOG_DIR:-}" ]; then
@@ -1279,7 +1298,7 @@ check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZH
 well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
 well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE on audit_events in 043 (needs docker)
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
-check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo and west's kernel)
+check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo on the baseline's kernel; in CI on any other, the recorded numbers)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
 check-dep-staleness|provoke_dep_staleness|fast|FND-030 dropped from yaml.v3's row in dependency-watch.md, so a 53-month-old module on an input boundary has no register entry (needs the module proxy)
@@ -1379,9 +1398,19 @@ registry_lookup() {
     printf '%s\n' "${REGISTRY}" | awk -F'|' -v k="$1" '$1==k {print; exit}'
 }
 
+# The registry rows this run covers, by name. --shard K/N keeps every Nth row,
+# counting slow and fast rows apart so each shard gets its share of the slow
+# ones. Rows are spread by position, so a new row moves others between shards:
+# which shard proves a gate is not stable, that every gate is proven is.
+gate_rows() {
+    printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3' | sort -t'|' -k1,1 |
+        awk -F'|' -v k="${SHARD_K}" -v n="${SHARD_N}" \
+            '{ i = ($3 == "slow") ? slow++ : fast++; if (i % n == k - 1) print }'
+}
+
 if [ "${MODE}" = "--list" ]; then
     echo "Registered provocations:"
-    printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=4 {printf "  %-26s %-5s %s\n", $1, $3, $4}'
+    gate_rows | awk -F'|' 'NF>=4 {printf "  %-26s %-5s %s\n", $1, $3, $4}'
     exit 0
 fi
 
@@ -1441,16 +1470,37 @@ row_output() {
     tail -n 20 "${1}" | sed 's/^/      | /'
 }
 
+# check-ebpf-insns refuses (exit 2) on any kernel but the baseline's, by design:
+# counts from another verifier are not comparable. A CI runner is never on that
+# kernel, and what it can prove is the gate's logic, so there the gate runs on
+# the recorded numbers instead of a load: clean they match, provoked they read
+# as growth. The row says so, and the settings reach this gate's two runs only.
+# Anywhere else a kernel change stays a refusal: a host that can load must
+# measure, or its baseline is compared with itself.
+prepare_gate() {
+    GATE_ENV=()
+    ROW_NOTE=""
+    [ "${1}" = "check-ebpf-insns" ] || return 0
+    [ "${CI:-}" = "true" ] || return 0
+    local f="docs/policy/ebpf-insns-baseline.tsv" kernel
+    kernel="$(awk -F'\t' 'NR==2 {print $4}' "${f}")"
+    [ "${kernel}" != "$(uname -r)" ] || return 0
+    awk -F'\t' 'BEGIN{OFS="\t"} NR>1 && NF>=3 {print $1, $2, $3}' "${f}" >"${BACKUP_DIR}/insns.recorded"
+    GATE_ENV=(EBPF_INSNS_ANY_KERNEL=1 "EBPF_INSNS_FROM=${BACKUP_DIR}/insns.recorded")
+    ROW_NOTE=", on the recorded numbers, no load"
+}
+
 # ---------------------------------------------------------------------------
 # Run each gate: must PASS clean, then must FAIL when provoked.
 # ---------------------------------------------------------------------------
-for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort); do
+for name in $(gate_rows | cut -d'|' -f1); do
     # A registry name is scripts/<name>.sh, or a repo path without .sh for
     # a gate that lives elsewhere (nix/yggdrasil/scripts/...).
     gate="scripts/${name}.sh"
     [ -f "${gate}" ] || gate="${name}.sh"
     [ -f "${gate}" ] || continue
     [ -n "${ONLY}" ] && [ "${name}" != "${ONLY}" ] && continue
+    prepare_gate "${name}"
     entry="$(registry_lookup "${name}")"
     fn="$(echo "${entry}" | cut -d'|' -f2)"
     speed="$(echo "${entry}" | cut -d'|' -f3)"
@@ -1477,7 +1527,7 @@ for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort)
     # result would be meaningless.
     log="${GATE_LOG_DIR}/${name//\//_}"
     rc=0
-    "${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 || rc=$?
+    env "${GATE_ENV[@]}" "${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 || rc=$?
     if [ "${rc}" -ne 0 ]; then
         echo "INCONCLUSIVE — already failing on a clean tree (exit ${rc})"
         row_output "${log}.clean.log"
@@ -1498,7 +1548,7 @@ for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort)
     if [ "${name}" = "check-timeline-freshness" ]; then
         run_timeline_freshness >"${log}.provoked.log" 2>&1
     else
-        "${REPO_ROOT}/${gate}" >"${log}.provoked.log" 2>&1
+        env "${GATE_ENV[@]}" "${REPO_ROOT}/${gate}" >"${log}.provoked.log" 2>&1
     fi
     rc=$?
 
@@ -1506,7 +1556,7 @@ for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort)
     restore_touched
 
     if [ "${rc}" -ne 0 ]; then
-        echo "OK — bites when provoked (exit ${rc})"
+        echo "OK — bites when provoked (exit ${rc}${ROW_NOTE})"
         rm -f "${log}.clean.log" "${log}.provoke.log" "${log}.provoked.log"
     else
         echo "FAIL — PASSED WHILE VIOLATED"
@@ -1536,8 +1586,8 @@ if [ "${FAILURES}" -gt 0 ]; then
     exit 1
 fi
 
-if [ -n "${ONLY}" ] && [ "${CHECKED}" -eq 0 ]; then
-    echo "FAIL: --only ${ONLY} matched no runnable registered gate (see --list)."
+if [ -n "${ONLY}${SHARD}" ] && [ "${CHECKED}" -eq 0 ]; then
+    echo "FAIL: ${ONLY:+--only ${ONLY} }${SHARD:+--shard ${SHARD} }matched no runnable registered gate (see --list)."
     exit 1
 fi
 

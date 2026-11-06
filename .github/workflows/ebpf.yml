@@ -94,8 +94,9 @@ jobs:
       # (scripts/check-ebpf-insns.sh, ADR-012) compares against a baseline
       # measured on west's kernel; this runner has another kernel, so its
       # counts are not comparable and the ratchet would refuse (exit 2). It gates on
-      # west (scripts/ci-local.sh, check-gates-can-fail.sh). The runner's
-      # numbers go to the job summary, where a large drift is still visible.
+      # west (scripts/ci-local.sh, check-gates-can-fail.sh); the meta-gate job
+      # proves its logic on the recorded numbers only. The runner's numbers go
+      # to the job summary, where a large drift is still visible.
       - name: Verified instruction counts (informational)
         if: always()
         run: |

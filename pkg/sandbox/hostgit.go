@@ -166,7 +166,7 @@ func readGitLink(dir string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read-only: a close error has nothing to lose
 	b, err := io.ReadAll(io.LimitReader(f, maxGitLinkBytes+1))
 	if err != nil {
 		return nil, err

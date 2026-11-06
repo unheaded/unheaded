@@ -128,7 +128,7 @@ func checkJSON(answer string) error {
 	return nil
 }
 
-var citeRE = regexp.MustCompile("[A-Za-z0-9_./-]+\\.(go|rs|py|md|sql|ya?ml|sh|toml|json)\\b")
+var citeRE = regexp.MustCompile(`[A-Za-z0-9_./-]+\.(go|rs|py|md|sql|ya?ml|sh|toml|json)\b`)
 
 // checkCite requires at least one cited path, and every one must exist
 // under root.

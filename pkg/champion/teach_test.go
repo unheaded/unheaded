@@ -207,9 +207,9 @@ func TestTeach_SecretsRefusedByGateAndBody(t *testing.T) {
 func TestTeach_InvisibleRunesRefused(t *testing.T) {
 	for name, r := range map[string]string{
 		"tag":             "\U000E0068",
-		"zero-width-join": "‍",
-		"rtl-override":    "‮",
-		"soft-hyphen":     "­",
+		"zero-width-join": "\u200d",
+		"rtl-override":    "\u202e",
+		"soft-hyphen":     "\u00ad",
 		"bom":             "\ufeff",
 		"selector-plane":  "\U000E0100",
 		"private-use":     "",
