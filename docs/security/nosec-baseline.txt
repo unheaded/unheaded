@@ -164,7 +164,6 @@ pkg/cartridge/ratelimit_linux_test.go 7
 pkg/cartridge/replay_linux_test.go 1
 pkg/cartridge/sampler_linux_test.go 2
 pkg/cartridge/scorer_linux_test.go 2
-pkg/champion/champion.go 1
 pkg/champion/champion_test.go 1
 pkg/champion/modelstatus.go 1
 pkg/champion/modelswap.go 3

@@ -135,6 +135,73 @@ func TestMappingsCorroborated(t *testing.T) {
 	}
 }
 
+// UH-SUDO-01 holds a claim about re-authentication only with the probe that
+// can fail it, on both hosts, mapped to CIS 5.2.4.
+func TestSudoControlReadsPasswordRule(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	need := map[string]bool{"west:sudo-password-required": false, "east:sudo-password-required": false}
+	for _, ctl := range c.Controls {
+		if ctl.ID != "UH-SUDO-01" {
+			continue
+		}
+		for _, e := range ctl.Evidence {
+			if _, ok := need[e.Ref]; ok && len(e.Maps["cis-ubuntu2404"]) == 1 && e.Maps["cis-ubuntu2404"][0] == "5.2.4" {
+				need[e.Ref] = true
+			}
+		}
+	}
+	for ref, found := range need {
+		if !found {
+			t.Errorf("UH-SUDO-01 has no %s mapped to CIS 5.2.4", ref)
+		}
+	}
+}
+
+// A stopped monitoring stack has to show as a failure somewhere: without this
+// source every monitoring control read files, and a week of silence passed.
+func TestAlertPathIsEvidence(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ctl := range c.Controls {
+		for _, e := range ctl.Evidence {
+			if e.Ref == "west:alert-route" {
+				return
+			}
+		}
+	}
+	t.Error("no control declares west:alert-route")
+}
+
+// UH-PATCH-01 says updates install: that needs a release still getting them,
+// so both hosts carry os-supported beside the apt setting.
+func TestPatchControlNeedsASupportedRelease(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	need := map[string]bool{"west:os-supported": false, "east:os-supported": false}
+	for _, ctl := range c.Controls {
+		if ctl.ID != "UH-PATCH-01" {
+			continue
+		}
+		for _, e := range ctl.Evidence {
+			if _, ok := need[e.Ref]; ok {
+				need[e.Ref] = true
+			}
+		}
+	}
+	for ref, found := range need {
+		if !found {
+			t.Errorf("UH-PATCH-01 has no %s", ref)
+		}
+	}
+}
+
 // The findings register in the repo loads against the catalog in the repo:
 // every entry names a source some control still declares (ADR-098).
 func TestRepoRegister(t *testing.T) {

@@ -10,10 +10,12 @@ import (
 	"os"
 )
 
-// Sandbox writes need openat2 (safeopen_linux.go). Elsewhere they fail
+// Sandbox reads and writes need openat2 (safeopen_linux.go). Elsewhere they fail
 // closed so non-Linux builds compile.
 
 func openRoot(string) (int, error) { return -1, errors.ErrUnsupported }
+
+func openRealRoot(string) (int, error) { return -1, errors.ErrUnsupported }
 
 func closeFD(int) {}
 

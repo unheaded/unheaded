@@ -1,5 +1,7 @@
 # Secrets Scan & Disclosure Report
 
+**Historical snapshot, 2026-02-25.** A later sweep found credentials in history, so its PASSED and "zero real credentials" lines do not stand. `docs/security/PRE-PUBLIC-BLOCKERS.md` holds the current state.
+
 **Project:** Unheaded Infrastructure  
 **Scan Date:** 2026-02-25  
 **Scan Status:** PASSED  

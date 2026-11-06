@@ -455,57 +455,17 @@ func TestGetClientIP_UsesRemoteAddr(t *testing.T) {
 	}
 }
 
-func TestGetClientIP_IgnoresXFFWhenNotTrusted(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.RemoteAddr = "192.168.1.100:54321"
-	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
-
-	ip := getClientIP(req)
-	if ip != "192.168.1.100" {
-		t.Errorf("expected RemoteAddr IP 192.168.1.100, got %q", ip)
-	}
-}
-
-func TestGetClientIP_TrustsXFFFromProxy(t *testing.T) {
-	// Temporarily add a trusted proxy
-	trustedProxies["10.10.10.1"] = true
-	defer func() { delete(trustedProxies, "10.10.10.1") }()
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.RemoteAddr = "10.10.10.1:54321"
-	req.Header.Set("X-Forwarded-For", "203.0.113.5, 10.10.10.1")
-
-	ip := getClientIP(req)
-	if ip != "203.0.113.5" {
-		t.Errorf("expected first XFF IP 203.0.113.5, got %q", ip)
-	}
-}
-
-func TestGetClientIP_TrustsXRealIPFromProxy(t *testing.T) {
-	trustedProxies["10.10.10.2"] = true
-	defer func() { delete(trustedProxies, "10.10.10.2") }()
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.RemoteAddr = "10.10.10.2:54321"
-	req.Header.Set("X-Real-IP", "203.0.113.10")
-
-	ip := getClientIP(req)
-	if ip != "203.0.113.10" {
-		t.Errorf("expected X-Real-IP 203.0.113.10, got %q", ip)
-	}
-}
-
-func TestGetClientIP_TrustedProxy_SingleXFF(t *testing.T) {
-	trustedProxies["10.10.10.3"] = true
-	defer func() { delete(trustedProxies, "10.10.10.3") }()
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.RemoteAddr = "10.10.10.3:54321"
-	req.Header.Set("X-Forwarded-For", "203.0.113.20")
-
-	ip := getClientIP(req)
-	if ip != "203.0.113.20" {
-		t.Errorf("expected single XFF IP 203.0.113.20, got %q", ip)
+// Forwarded headers name no one here: the limiter keys on the peer, whoever
+// the peer is, the gateway on loopback included.
+func TestGetClientIP_IgnoresForwardedHeaders(t *testing.T) {
+	for _, peer := range []string{"192.168.1.100", "127.0.0.1"} {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = peer + ":54321"
+		req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
+		req.Header.Set("X-Real-IP", "10.0.0.3")
+		if ip := getClientIP(req); ip != peer {
+			t.Errorf("peer %s: limiter keyed on %q", peer, ip)
+		}
 	}
 }
 

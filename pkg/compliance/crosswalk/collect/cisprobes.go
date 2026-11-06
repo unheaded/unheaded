@@ -6,6 +6,7 @@ package collect
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -615,12 +616,19 @@ func init() {
 	Probes["svc-apport-not-in-use"] = serviceProbe([]string{"apport"}, []string{"apport.service"})
 	Probes["sudo-installed"] = packageInstalledProbe([]string{"sudo"})
 
+	// Central-only, like sudo-password-required: the agent has no auditctl
+	// route today and a new baseline source would read as drift.
+	auditRules := markerLinesProbe(`$UH_PRIV sh -c 'auditctl -l && echo @ok'`, judgeAuditRules)
+	auditRules.Baseline = false
+	Probes["auditd-rules-loaded"] = auditRules
+
 	// Only Defaults lines and !authenticate uses are printed, comments dropped.
 	// "@ok" comes from inside the sudo'd shell, after every file was read: a
 	// refused sudo, or a sudoers file the agent cannot read, prints none
 	// (sudo-no-noauth once passed on an unread /etc/sudoers).
-	sudoers := `$UH_PRIV sh -c 'cat /etc/sudoers || exit; if [ -d /etc/sudoers.d ]; then ls /etc/sudoers.d >/dev/null || exit; ` +
-		`for f in /etc/sudoers.d/*; do [ -e "$f" ] || continue; cat "$f" || exit; done; fi; echo @ok' | grep -Ev '^[[:space:]]*#' | grep -E 'Defaults|authenticate|^@ok$'`
+	sudoersRead := `$UH_PRIV sh -c 'cat /etc/sudoers || exit; if [ -d /etc/sudoers.d ]; then ls /etc/sudoers.d >/dev/null || exit; ` +
+		`for f in /etc/sudoers.d/*; do [ -e "$f" ] || continue; cat "$f" || exit; done; fi; echo @ok' | grep -Ev '^[[:space:]]*#'`
+	sudoers := sudoersRead + ` | grep -E 'Defaults|authenticate|^@ok$'`
 	Probes["sudo-use-pty"] = markerLinesProbe(sudoers, func(lines []string) (bool, string) {
 		for _, l := range lines {
 			if defaultsSet(l, "use_pty") {
@@ -645,6 +653,18 @@ func init() {
 		}
 		return true, "no !authenticate in sudoers"
 	})
+	// CIS 5.2.4, narrow rules included, as CIS audits it. Central-only for now:
+	// a new baseline source would read as drift on every host agent until the
+	// next install.
+	passwordRequired := markerLinesProbe(sudoersRead+` | grep -E 'NOPASSWD|^@ok$'`, func(lines []string) (bool, string) {
+		if len(lines) > 0 {
+			// The count only: this detail reaches generated, committed docs.
+			return false, fmt.Sprintf("%d sudoers lines skip the password", len(lines))
+		}
+		return true, "no NOPASSWD in sudoers"
+	})
+	passwordRequired.Baseline = false
+	Probes["sudo-password-required"] = passwordRequired
 	Probes["sudo-timeout"] = markerLinesProbe(sudoers, func(lines []string) (bool, string) {
 		for _, l := range lines {
 			i := strings.Index(l, "timestamp_timeout=")
@@ -689,6 +709,37 @@ func markerLinesProbe(cmd string, judge func(lines []string) (bool, string)) Pro
 			return judge(lines)
 		},
 	}
+}
+
+// auditRuleKeys are the keys of the rule file the auditd-rules fix installs. A
+// host with auditd running and none of these records nothing the catalog claims.
+var auditRuleKeys = []string{
+	"MAC-policy", "access", "identity", "kernel_modules", "logins", "mounts", "scope",
+	"session", "sshd", "system-locale", "time-change", "user_emulation", "usermod",
+}
+
+var auditKeyRe = regexp.MustCompile(`(?:-k |key=)([A-Za-z_-]+)`)
+
+// judgeAuditRules passes when every required key has a loaded rule. That is one
+// rule per key, not every rule of the fix. auditctl prints watches with -k and
+// syscall rules with key=.
+func judgeAuditRules(lines []string) (bool, string) {
+	loaded := map[string]bool{}
+	for _, l := range lines {
+		for _, m := range auditKeyRe.FindAllStringSubmatch(l, -1) {
+			loaded[m[1]] = true
+		}
+	}
+	var missing []string
+	for _, k := range auditRuleKeys {
+		if !loaded[k] {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) > 0 {
+		return false, fmt.Sprintf("%d audit rule lines; no rule for %s", len(lines), strings.Join(missing, ", "))
+	}
+	return true, fmt.Sprintf("%d audit rule lines, at least one for each of the %d keys", len(lines), len(auditRuleKeys))
 }
 
 func offenderProbe(cmd string) Probe {
@@ -1360,7 +1411,7 @@ func init() {
 		grepFiles(`^[^#]*pam_umask\.so.*umask=`, "/etc/pam.d/common-session", "/etc/pam.d/common-session-noninteractive")+"; echo @ok",
 		func(lines []string) (bool, string) {
 			if len(lines) == 0 {
-				return false, "no default umask set (the system default is 022)"
+				return false, "no default umask set in login.defs, the shell profiles or pam_umask"
 			}
 			for _, l := range lines {
 				if ok, v := umaskStrict(l); !ok {

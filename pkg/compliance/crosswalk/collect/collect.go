@@ -782,14 +782,50 @@ var Probes = map[string]Probe{
 			return true, "APT::Periodic::Unattended-Upgrade " + setting + ", unattended-upgrades installed, apt-daily-upgrade.timer enabled/active"
 		},
 	},
+	"os-supported": {
+		// Automatic updates are only worth what the archive still publishes:
+		// unattended-upgrades reads as healthy on a release Ubuntu stopped
+		// patching. distro-info's table is the end date; ESM needs a paid
+		// attachment, so it does not count.
+		Command: `( . /etc/os-release; echo "id=$ID"; echo "codename=$VERSION_CODENAME"; echo "today=$(date -u +%F)"; ` +
+			`grep -E "^[^,]*,[^,]*,${VERSION_CODENAME:-none}," /usr/share/distro-info/ubuntu.csv )`,
+		Judge: judgeOSSupported,
+	},
+	"alert-route": {
+		// The chain an alert travels on west, each link asked directly. A
+		// stack stopped for a week read as nothing here: every other
+		// monitoring source is a file or a series the stopped stack would
+		// have written. Operational, so central-only. The Well's link is a
+		// listener on its port and no more: the container's port proxy can
+		// hold that socket with Postgres down.
+		Command: `for t in prometheus=http://127.0.0.1:9090/-/healthy alertmanager=http://127.0.0.1:9093/-/healthy alert-mailer=http://127.0.0.1:19130/health; do ` +
+			`echo "${t%%=*}=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "${t#*=}")"; done; echo "well=$(ss -Hltn 'sport = :5432' | wc -l)"`,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			var down []string
+			for _, link := range []string{"prometheus", "alertmanager", "alert-mailer"} {
+				if f[link] != "200" {
+					down = append(down, link+" "+f[link])
+				}
+			}
+			if n, err := strconv.Atoi(f["well"]); err != nil || n < 1 {
+				down = append(down, "well not listening")
+			}
+			if len(down) > 0 {
+				return false, "alert path down: " + strings.Join(down, ", ")
+			}
+			return true, "prometheus, alertmanager and alert-mailer answer; the Well's port has a listener"
+		},
+	},
 	"db-backup-recent": {
 		// The Well's dumps: the scheduled sets (unheaded-well-backup.timer)
 		// under /srv/backups/unheaded-well, whose world-readable LATEST
 		// names the newest (the sets are 0700); a manual scripts/db-backup.sh
 		// set (well-<time>Z/SHA256SUMS) or an older pg_dump *.sql.gz under
-		// ~/backups/unheaded.
-		Command: `{ find "$HOME/backups/unheaded" -type f \( -name '*.sql.gz' -o -path '*/well-*Z/SHA256SUMS' \) -mtime -7 -printf '%TF %P\n'; ` +
-			`find /srv/backups/unheaded-well -maxdepth 1 -type f -name LATEST -mtime -7 -printf '%TF scheduled\n'; } 2>/dev/null | sort | tail -1; ` +
+		// ~/backups/unheaded. 36 hours is the recovery point with a missed
+		// night's slack, the line east's offsite check draws; 2160 minutes.
+		Command: `{ find "$HOME/backups/unheaded" -type f \( -name '*.sql.gz' -o -path '*/well-*Z/SHA256SUMS' \) -mmin -2160 -printf '%TF %P\n'; ` +
+			`find /srv/backups/unheaded-well -maxdepth 1 -type f -name LATEST -mmin -2160 -printf '%TF scheduled\n'; } 2>/dev/null | sort | tail -1; ` +
 			`echo ---; { find "$HOME/backups/unheaded" -type f \( -name '*.sql.gz' -o -path '*/well-*Z/SHA256SUMS' \) -printf '%TF\n'; ` +
 			`find /srv/backups/unheaded-well -maxdepth 1 -type f -name LATEST -printf '%TF\n'; } 2>/dev/null | sort | tail -1`,
 		Judge: func(out string) (bool, string) {
@@ -798,7 +834,7 @@ var Probes = map[string]Probe{
 			if newest == "" {
 				newest = "none"
 			}
-			return backupLineRe.MatchString(recent), "newest database backup " + newest + " (required within 7 days)"
+			return backupLineRe.MatchString(recent), "newest database backup " + newest + " (required within 36 hours)"
 		},
 	},
 	"apparmor-enabled": {
@@ -809,6 +845,38 @@ var Probes = map[string]Probe{
 			return v == "Y", "apparmor enabled=" + v
 		},
 	},
+}
+
+// judgeOSSupported reads distro-info's row for the running release, whose
+// columns are version,codename,series,created,release,eol,eol-server,eol-esm.
+// A release is supported through the later of eol and eol-server. A row it
+// cannot read is no pass: nothing shows the release still gets fixes.
+func judgeOSSupported(out string) (bool, string) {
+	f := parseKV(out)
+	if f["id"] != "ubuntu" {
+		return false, "not Ubuntu (" + f["id"] + "): no end-of-support table for this release"
+	}
+	today, err := time.Parse(time.DateOnly, f["today"])
+	if err != nil {
+		return false, "host gave no date: not checked"
+	}
+	var end time.Time
+	for _, l := range strings.Split(out, "\n") {
+		cols := strings.Split(strings.TrimSpace(l), ",")
+		if len(cols) < 6 || cols[2] != f["codename"] {
+			continue
+		}
+		for _, c := range cols[5:min(len(cols), 7)] {
+			if d, err := time.Parse(time.DateOnly, c); err == nil && d.After(end) {
+				end = d
+			}
+		}
+	}
+	if end.IsZero() {
+		return false, "no end-of-support date for " + f["codename"] + " in /usr/share/distro-info/ubuntu.csv"
+	}
+	detail := fmt.Sprintf("%s supported until %s, today %s", f["codename"], end.Format(time.DateOnly), f["today"])
+	return !today.After(end), detail
 }
 
 // sectionTag is a fresh random tag for one host's probe script.

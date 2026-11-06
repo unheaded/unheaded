@@ -697,10 +697,137 @@ func TestProbeJudges(t *testing.T) {
 		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"0\";\nAPT::Periodic::Unattended-Upgrade::Note \"1\";\ninstalled=unattended-upgrades \ntimer=enabled/active\n", false},
 		{"apparmor-enabled", "N\n", false},
 		{"ntp-synchronized", "no\n", false},
+		// A release past its end date gets no fixes, whatever apt is set to do.
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-09\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09,2026-07-09\n", true},
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-10\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09,2026-07-09\n", false},
+		// An LTS server release runs to eol-server; ESM needs a paid attachment, so it does not count.
+		{"os-supported", "id=ubuntu\ncodename=resolute\ntoday=2031-05-29\n26.04 LTS,Resolute Raccoon,resolute,2025-10-09,2026-04-23,2031-05-29,2031-05-29,2036-04-23,2038-04-27\n", true},
+		{"os-supported", "id=ubuntu\ncodename=resolute\ntoday=2031-05-30\n26.04 LTS,Resolute Raccoon,resolute,2025-10-09,2026-04-23,2031-05-29,2031-05-29,2036-04-23,2038-04-27\n", false},
+		{"os-supported", "id=ubuntu\ncodename=noble\ntoday=2026-11-05\n24.04 LTS,Noble Numbat,noble,2023-10-20,2024-04-25,2029-05-31,2029-05-31,2034-04-25,2036-04-25\n", true},
+		// Anything it cannot read is not a pass.
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-01\n", false},
+		{"os-supported", "id=debian\ncodename=trixie\ntoday=2026-07-01\n", false},
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09,2026-07-09\n", false},
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-01\n25.10,Questing Quokka,questing,2025-04-17,2025-10-09\n", false},
+		// A cut-short row is no pass and no panic: one damaged table must not end the run.
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-01\n25.10,Questing Quokka,questing\n", false},
+		{"os-supported", "id=ubuntu\ncodename=questing\ntoday=2026-07-01\n25.10,Questing Quokka,questing,2025-04-17\n", false},
+		{"os-supported", "", false},
+		// Every link in the chain answers, or no alert reaches anyone.
+		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\nwell=1\n", true},
+		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=000\nwell=1\n", false},
+		{"alert-route", "prometheus=200\nalertmanager=503\nalert-mailer=200\nwell=1\n", false},
+		{"alert-route", "prometheus=000\nalertmanager=200\nalert-mailer=200\nwell=1\n", false},
+		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\nwell=0\n", false},
+		{"alert-route", "prometheus=200\nalertmanager=200\nalert-mailer=200\n", false},
+		{"alert-route", "", false},
+		// auditd can run with nothing to record: the rules are the control.
+		{"auditd-rules-loaded", "No rules\n@ok\n", false},
+		{"auditd-rules-loaded", "", false}, // sudo refused: not read, so no pass
+		{"auditd-rules-loaded", "-w /etc/sudoers -p wa -k scope\n@ok\n", false},
+		{"auditd-rules-loaded", auditRulesFixture(), true},
+		{"auditd-rules-loaded", strings.ReplaceAll(auditRulesFixture(), "key=identity", "key=other"), false},
+		// CIS 5.2.4: users give a password to escalate, narrow rules included.
+		{"sudo-password-required", "@ok\n", true},
+		{"sudo-password-required", "govan ALL=(ALL) NOPASSWD: ALL\n@ok\n", false},
+		{"sudo-password-required", "backup ALL=(root) NOPASSWD: /usr/bin/rsync\n@ok\n", false},
+		{"sudo-password-required", "Defaults:govan !authenticate, NOPASSWD: ALL\n@ok\n", false},
+		{"sudo-password-required", "", false}, // sudoers not read: no pass
 	} {
 		pass, detail := Probes[tc.probe].Judge(tc.out)
 		if pass != tc.pass {
 			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}
+
+// auditRulesFixture is auditctl -l with one rule per required key, in the two
+// forms it prints: watches keep -k, syscall rules print key=.
+func auditRulesFixture() string {
+	var b strings.Builder
+	for _, k := range auditRuleKeys {
+		fmt.Fprintf(&b, "-a always,exit -F arch=b64 -S execve -F key=%s\n", k)
+	}
+	b.WriteString("-w /etc/hosts -p wa -k system-locale\n@ok\n")
+	return b.String()
+}
+
+// The probe's minimum set is the rule file the auditd-rules fix installs: a key
+// dropped from that fix must not stay required here, or the reverse.
+func TestAuditRuleKeysAreInTheFix(t *testing.T) {
+	raw, err := os.ReadFile("../../../../compliance/remediation/fixes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inFix := map[string]bool{}
+	for _, m := range regexp.MustCompile(`-k ([A-Za-z_-]+)`).FindAllStringSubmatch(string(raw), -1) {
+		inFix[m[1]] = true
+	}
+	for _, k := range auditRuleKeys {
+		if !inFix[k] {
+			t.Errorf("required audit key %q is in no rule of the auditd-rules fix", k)
+		}
+	}
+	if len(inFix) != len(auditRuleKeys) {
+		t.Errorf("fix has keys %v, probe requires %v", inFix, auditRuleKeys)
+	}
+}
+
+// The backup probe answers the recovery point: a set older than 36 hours, the
+// same line east's offsite check draws, is a miss, wherever the set lies. The real
+// command runs against a stand-in home and backup directory, each set aged by hand.
+func TestBackupProbeHoldsTheRecoveryPoint(t *testing.T) {
+	for _, set := range []struct {
+		name string
+		path func(home, srv string) string
+	}{
+		{"scheduled", func(_, srv string) string { return srv + "/LATEST" }},
+		{"manual set", func(home, _ string) string {
+			return home + "/backups/unheaded/well-20261105T010203Z/SHA256SUMS"
+		}},
+		{"manual dump", func(home, _ string) string { return home + "/backups/unheaded/well.sql.gz" }},
+	} {
+		for _, tc := range []struct {
+			name string
+			age  time.Duration
+			pass bool
+		}{
+			{"last night's", 26 * time.Hour, true},
+			{"just inside", 35 * time.Hour, true},
+			{"just past", 37 * time.Hour, false},
+			{"six days old", 6 * 24 * time.Hour, false},
+		} {
+			t.Run(set.name+"/"+tc.name, func(t *testing.T) {
+				home, srv := t.TempDir(), t.TempDir()
+				file := set.path(home, srv)
+				if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.MkdirAll(home+"/backups/unheaded", 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				when := time.Now().Add(-tc.age)
+				if err := os.Chtimes(file, when, when); err != nil {
+					t.Fatal(err)
+				}
+				probe := Probes["db-backup-recent"]
+				cmd := exec.Command("sh", "-c", strings.ReplaceAll(probe.Command, "/srv/backups/unheaded-well", srv))
+				cmd.Env = append(os.Environ(), "HOME="+home)
+				out, err := cmd.Output()
+				if err != nil {
+					t.Fatal(err)
+				}
+				pass, detail := probe.Judge(string(out))
+				if pass != tc.pass {
+					t.Fatalf("pass = %v (%s), want %v", pass, detail, tc.pass)
+				}
+				if !strings.Contains(detail, "within 36 hours") {
+					t.Errorf("detail %q does not name the limit", detail)
+				}
+			})
 		}
 	}
 }

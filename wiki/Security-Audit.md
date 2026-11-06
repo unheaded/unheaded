@@ -2,14 +2,16 @@
 
 The 2026-02-06 audit (TASK-061) verifying the zero-user-data-access claim (user-facing: NIST 800-207 Zero Trust Architecture) across the whole source tree, and where its warnings stand now. Current findings live in the register, not here: see [[Security]].
 
-## Result: PASS with warnings (18 pass, 4 warn, 0 fail)
+## Result in February 2026: PASS with warnings (18 pass, 4 warn, 0 fail)
+
+That result is a pattern search from that date, not today's state. No catalog control tests the zero-user-data claim, and the privacy pack rates it low, not proven.
 
 Method: pattern search across all source, architectural review of the isolation boundary, review of what observability actually captures, secrets handling review.
 
 | Area | Findings | Result |
 |------|----------|--------|
 | Isolation | F-001–005: no service reads user app data; eBPF captures metadata (IPs, ports, sizes, flags), not payloads; dashboard collects metrics only; secrets manager is infrastructure-only | PASS |
-| Network | F-006–009: default-deny firewall, services talk via Wotan, uniform container hardening, isolated compose network | PASS |
+| Network | F-006–009: default-deny firewall as written in the nix modules, services talk via Wotan, uniform container hardening, isolated compose network | PASS in February; F-006 does not hold on the running hosts, which have no inbound firewall ([[Security]]) |
 | Credentials | F-010 Grafana default password (LOW), F-011 BGP password in plaintext config (MEDIUM); F-012–013 pass | WARN |
 | Logging | F-014–016: no request bodies, PII or secret values in logs | PASS |
 | TLS | F-017 `InsecureSkipVerify` (MEDIUM); F-018 defaults secure | WARN |

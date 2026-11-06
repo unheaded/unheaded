@@ -1,5 +1,7 @@
 # Compliance Documentation
 
+**Historical snapshot, 2026-02-25.** The PASSED lines below are scans from that date, and later sweeps contradict some of them. They are not current evidence: read `compliance/findings/register.yaml` and `docs/compliance/SSP-generated.md`. No framework is claimed met.
+
 This directory contains Unheaded's compliance and security documentation.
 
 ## Files

@@ -8,12 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -63,10 +63,16 @@ func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 	}
 
 	// Snapshot: capture current state (if file exists). Read through
-	// the same in-kernel resolution as the write.
+	// the same in-kernel resolution as the write. A file no snapshot can
+	// hold is refused: the write could not be reverted.
 	var before string
-	if data, err := c.readBeneath(absPath); err == nil {
+	data, err := c.readBeneath(absPath)
+	switch {
+	case err == nil:
 		before = data
+	case errors.Is(err, ErrReadTooLarge), errors.Is(err, errNotRegular):
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return fmt.Errorf("write file: %w", err)
 	}
 
 	// Write the file: parents created and the file opened under the
@@ -163,7 +169,8 @@ func (c *Champion) sandboxRel(absPath string) (root, rel string, err error) {
 }
 
 // readBeneath reads a validated path through openat2 under its sandbox
-// root (no symlink, no escape at the moment of the open).
+// root (no symlink, no escape at the moment of the open), to readRegular's
+// limits.
 func (c *Champion) readBeneath(absPath string) (string, error) {
 	root, rel, err := c.sandboxRel(absPath)
 	if err != nil {
@@ -174,12 +181,12 @@ func (c *Champion) readBeneath(absPath string) (string, error) {
 		return "", err
 	}
 	defer closeFD(rootFD)
-	f, err := openBeneath(rootFD, rel, os.O_RDONLY, 0)
+	f, err := openBeneath(rootFD, rel, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = f.Close() }()
-	data, err := io.ReadAll(f)
+	data, err := readRegular(f, absPath)
 	if err != nil {
 		return "", err
 	}
@@ -199,7 +206,8 @@ func (c *Champion) writeBeneath(absPath, content string, create bool) error {
 		return err
 	}
 	defer closeFD(rootFD)
-	flags := os.O_WRONLY | os.O_TRUNC
+	// O_NONBLOCK: a fifo that appeared since the read fails the open, not hangs it.
+	flags := os.O_WRONLY | os.O_TRUNC | syscall.O_NONBLOCK
 	if create {
 		if err := mkdirAllBeneath(rootFD, filepath.Dir(rel), 0o750); err != nil {
 			return fmt.Errorf("create directory: %w", err)

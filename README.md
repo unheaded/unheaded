@@ -35,7 +35,8 @@ Layer 1  23 eBPF programs (XDP/TC; Rust/Aya, Go/cilium)
 Layer 0  LXD / Docker / NixOS / bare metal
 ```
 
-Services use ports 16666–26666, gRPC with mTLS by default (`pkg/ports/ports.go`). Two
+Services use ports 16666–26666 (`pkg/ports/ports.go`) and speak gRPC over TLS 1.3 with
+bearer-token identity where compose turns it on; mTLS exists in `pkg/transport/mtls` and is off. Two
 bare-metal hosts (WEST, EAST) run a cross-host BPF flow graph.
 
 ## Protocol

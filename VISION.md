@@ -46,12 +46,12 @@ No tool can guarantee that for an app it did not write. Unheaded makes the safe 
 4. **Plain language.** A shop owner can read what Unheaded did for them, why, and what it does not cover.
 5. **Fits small hardware.** It runs on one modest machine, not a cluster.
 
-**Out of the box, every compliance control is on.** Stevie, 2026-10-30: *"out of the box running it with all compliance controlls enabled should harden an application's hosting (can't stop application vulnerbility)"*.
+**Out of the box, every compliance control is on** (the aim, not today's state: the running hosts have no default firewall, and PCI-DSS is not in the catalog). Stevie, 2026-10-30: *"out of the box running it with all compliance controlls enabled should harden an application's hosting (can't stop application vulnerbility)"*.
 - The default install runs the full control set from the compliance catalog (ADR-097/098): host hardening, firewall, egress, audit, updates, backups, access control. The adopter does not have to turn them on.
 - Their scope is **the hosting**: the machine, the network around the app, and what the app is allowed to do and reach.
 - They do **not** fix vulnerabilities in the application's own code. They make one harder to reach, contain what an exploited app can do, and record what happened. The plain-language report says so.
 
-The same compliance work serves the small shop directly: a shop that takes card payments faces PCI-DSS like anyone else. It gets the hosting evidence for free instead of paying an auditor to assemble it.
+The same compliance work serves the small shop directly: a shop that takes card payments faces PCI-DSS like anyone else. The aim is that it gets the hosting evidence at no cost instead of paying an auditor to assemble it.
 
 ## The Technical Bet
 

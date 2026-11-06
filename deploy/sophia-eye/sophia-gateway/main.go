@@ -289,7 +289,7 @@ func (sg *SophiaGateway) registerInSophia(ctx context.Context) error {
 		defer resp.Body.Close()
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			body, _ := io.ReadAll(resp.Body)
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
 			sg.logf("ERROR", "Registration failed for %s: status %d, body: %s", entry.Name, resp.StatusCode, string(body))
 			return fmt.Errorf("registration failed with status %d", resp.StatusCode)
 		}
@@ -411,10 +411,16 @@ func (sg *SophiaGateway) handleChat(w http.ResponseWriter, r *http.Request) {
 	sg.inferenceLatency.Observe(float64(latency.Milliseconds()))
 
 	// Parse response
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxInferenceBody+1))
 	if err != nil {
 		sg.logf("ERROR", "Failed to read inference response: %v", err)
 		http.Error(w, "Failed to read response", http.StatusInternalServerError)
+		sg.inferenceErrors.Inc()
+		return
+	}
+	if int64(len(respBody)) > maxInferenceBody {
+		sg.logf("ERROR", "Inference response from %s is over %d bytes", endpoint, maxInferenceBody)
+		http.Error(w, "Inference response too large", http.StatusBadGateway)
 		sg.inferenceErrors.Inc()
 		return
 	}
@@ -551,6 +557,9 @@ func (sg *SophiaGateway) Start(ctx context.Context) error {
 
 // maxChatBodyBytes bounds a chat request.
 const maxChatBodyBytes = 4 << 20
+
+// maxInferenceBody bounds an inference service's answer; a test lowers it.
+var maxInferenceBody int64 = 64 << 20
 
 // listenAddr binds SOPHIA_GATEWAY_BIND, loopback unless set. The gateway has
 // no auth: a container that names another address must publish it no wider

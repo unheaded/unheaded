@@ -745,23 +745,25 @@ controls:
     title: Privilege escalation through sudo is logged, re-authenticated and pty-bound
     statement: >-
       On both hosts sudo is installed, runs commands in a pty, logs to its
-      own file, never skips authentication (!authenticate), and sets
-      timestamp_timeout explicitly to 15 minutes or less.
+      own file, never skips authentication (!authenticate or NOPASSWD), and
+      sets timestamp_timeout explicitly to 15 minutes or less.
     rationale: >-
       Least privilege with logging of privileged functions (AC-6(9), AU-12)
       and re-authentication (IA-11); 800-171 03.01.07; CSF PR.AA-05; ISO
-      A.8.2. CIS Ubuntu 24.04 5.2.1-5.2.3, 5.2.5, 5.2.6 (timeout must be
-      explicit per ComplianceAsCode).
+      A.8.2. CIS Ubuntu 24.04 5.2.1-5.2.6 (timeout must be explicit per
+      ComplianceAsCode).
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:sudo-installed", maps: {cis-ubuntu2404: ["5.2.1"]}}
       - {kind: host-probe, ref: "west:sudo-use-pty", maps: {cis-ubuntu2404: ["5.2.2"]}}
       - {kind: host-probe, ref: "west:sudo-logfile", maps: {cis-ubuntu2404: ["5.2.3"]}}
+      - {kind: host-probe, ref: "west:sudo-password-required", maps: {cis-ubuntu2404: ["5.2.4"]}}
       - {kind: host-probe, ref: "west:sudo-no-noauth", maps: {cis-ubuntu2404: ["5.2.5"]}}
       - {kind: host-probe, ref: "west:sudo-timeout", maps: {cis-ubuntu2404: ["5.2.6"]}}
       - {kind: host-probe, ref: "east:sudo-installed", maps: {cis-ubuntu2404: ["5.2.1"]}}
       - {kind: host-probe, ref: "east:sudo-use-pty", maps: {cis-ubuntu2404: ["5.2.2"]}}
       - {kind: host-probe, ref: "east:sudo-logfile", maps: {cis-ubuntu2404: ["5.2.3"]}}
+      - {kind: host-probe, ref: "east:sudo-password-required", maps: {cis-ubuntu2404: ["5.2.4"]}}
       - {kind: host-probe, ref: "east:sudo-no-noauth", maps: {cis-ubuntu2404: ["5.2.5"]}}
       - {kind: host-probe, ref: "east:sudo-timeout", maps: {cis-ubuntu2404: ["5.2.6"]}}
     mappings:
@@ -1195,8 +1197,10 @@ controls:
   - id: UH-AUDIT-01
     title: Hosts record security-relevant events with auditd
     statement: >-
-      auditd is running on west and east, so the kernel audit subsystem
-      records security-relevant system calls and authentication events.
+      auditd is running on west and east, and each of the 13 keys in the
+      auditd-rules fix has at least one rule loaded, so the kernel audit
+      subsystem records events in each of those areas. The probe checks keys:
+      it does not show that every rule of the fix is loaded.
     rationale: >-
       Event logging and audit record generation (AU-2, AU-12; 800-171
       03.03.01); CSF PR.PS-04 log records generated; ISO A.8.15 logging;
@@ -1206,6 +1210,8 @@ controls:
     evidence:
       - {kind: host-probe, ref: "west:auditd-running", maps: {cis-ubuntu2404: ["6.2.1.2"]}}
       - {kind: host-probe, ref: "east:auditd-running", maps: {cis-ubuntu2404: ["6.2.1.2"]}}
+      - {kind: host-probe, ref: "west:auditd-rules-loaded"}
+      - {kind: host-probe, ref: "east:auditd-rules-loaded"}
       - {kind: host-probe, ref: "west:journald-active", maps: {cis-ubuntu2404: ["6.1.1.1"]}}
       - {kind: host-probe, ref: "east:journald-active", maps: {cis-ubuntu2404: ["6.1.1.1"]}}
     mappings:
@@ -1220,7 +1226,8 @@ controls:
     statement: >-
       On west and east, apt's periodic unattended upgrade is enabled
       (APT::Periodic::Unattended-Upgrade "1"), so security updates install
-      without waiting for a person.
+      without waiting for a person, and the running Ubuntu release is inside
+      its support window, so there are updates to install.
     rationale: >-
       Flaw remediation with automated installation (SI-2, SI-2(2) automated
       flaw remediation status; 800-171 03.14.01); CSF PR.PS-02 software
@@ -1230,6 +1237,8 @@ controls:
     evidence:
       - {kind: host-probe, ref: "west:unattended-upgrades-enabled", maps: {cis-ubuntu2404: ["1.2.2.1"]}}
       - {kind: host-probe, ref: "east:unattended-upgrades-enabled", maps: {cis-ubuntu2404: ["1.2.2.1"]}}
+      - {kind: host-probe, ref: "west:os-supported"}
+      - {kind: host-probe, ref: "east:os-supported"}
     mappings:
       nist-800-53r5: [SI-2, SI-2(2)]
       nist-800-171r3: ["03.14.01"]
@@ -1296,8 +1305,9 @@ controls:
       AUTH_ENABLED=true, so pkg/auth installs a real authenticator (API key
       or JWT) instead of the Noop one that admits every request. Checked from
       the declared compose configuration by
-      scripts/compliance/check-service-auth.sh (a compliance check, not a CI
-      gate: it fails today).
+      scripts/compliance/check-service-auth.sh, a compliance check and not a
+      CI gate. It reads the compose file as written, so it says nothing about
+      what runs: see FND-037.
     rationale: >-
       Access enforcement (AC-3) with identification and authentication of
       users and services (IA-2, IA-9); 800-171 03.01.02 access enforcement,
@@ -1314,11 +1324,12 @@ controls:
       iso27001-2022: [A.8.5]
 
   - id: UH-BACKUP-01
-    title: The database is backed up at least weekly
+    title: The database is backed up within its recovery point
     statement: >-
-      A compressed dump of The Well (PostgreSQL) under ~/backups/unheaded on
-      west is at most 7 days old. Checks that a recent backup exists, not
-      that it restores.
+      The newest dump of The Well (PostgreSQL) on west, a scheduled set under
+      /srv/backups/unheaded-well or a manual one under ~/backups/unheaded, is
+      at most 36 hours old, the line east's offsite check also draws. Checks
+      that a recent backup exists, not that it restores.
     rationale: >-
       System backup of user- and system-level information (CP-9); CSF
       PR.DS-11 backups created and maintained; ISO A.8.13 information
@@ -1362,7 +1373,7 @@ controls:
       iso27001-2022: [A.5.9, A.8.24]
 
   - id: UH-PQC-02
-    title: First-party key exchange is hybrid post-quantum
+    title: No repository configuration turns hybrid post-quantum key exchange off
     statement: >-
       No repository configuration turns hybrid ML-KEM key exchange off: no
       CurvePreferences list without a hybrid group, no first-party TLS floor
@@ -1398,9 +1409,9 @@ controls:
     statement: >-
       On west and east, every KexAlgorithms entry in the effective sshd
       configuration (sshd -T) is a post-quantum hybrid
-      (mlkem768x25519-sha256 or sntrup761x25519-sha512). Fails today on both
-      hosts: ML-KEM is offered first and negotiated by current clients, but
-      classical curve25519 and ECDH are still accepted. Making the lists
+      (mlkem768x25519-sha256 or sntrup761x25519-sha512). East passes. West
+      fails today: ML-KEM is offered first and negotiated by current clients,
+      but classical curve25519 and ECDH are still accepted. Making west's list
       hybrid-only is Stevie's call (E2, lockout risk).
     rationale: >-
       Only a server list without classical entries guarantees a hybrid key
@@ -1537,6 +1548,29 @@ controls:
       - {kind: slo, ref: log-shipping}
       - {kind: slo, ref: kev-feed}
       - {kind: slo, ref: ci-develop}
+    mappings:
+      nist-800-53r5: [CA-7, SI-4]
+      nist-800-171r3: ["03.14.06"]
+      nist-csf-2: [DE.CM-01]
+      soc2-security: [CC7.2]
+      iso27001-2022: [A.8.16]
+
+  - id: UH-ALERT-01
+    title: The alert path is running
+    statement: >-
+      On west, Prometheus, Alertmanager and alert-mailer each answer a health
+      request on their own port, and the Well's port has a listener, read
+      directly by a host probe. Checks that the chain is up, not that an alert
+      was delivered: FND-001 holds that proof. A listener does not show
+      Postgres is healthy.
+    rationale: >-
+      System monitoring that can reach a person (SI-4) and continuous
+      monitoring (CA-7); 800-171 03.14.06; CSF DE.CM-01; ISO A.8.16; SOC 2
+      CC7.2. The other monitoring controls read files or series a stopped
+      stack cannot write, so without this source a dead stack fails nothing.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:alert-route"}
     mappings:
       nist-800-53r5: [CA-7, SI-4]
       nist-800-171r3: ["03.14.06"]

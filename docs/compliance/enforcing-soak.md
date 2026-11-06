@@ -6,8 +6,9 @@ Copyright (c) 2024-2026 Stevie Bellis.
 # Baseline enforcing: the 7-day soak and the flip
 
 ADR-098 phase 4 and ADR-099 phase 4. Written 2026-10-27 (S-WELL-SPRING Step 279).
-Every host's mode file says `mode=audit`. Nothing here changes that; the flip is
-Stevie's, per host, after E-E (Q5) and after the soak below.
+No host has a mode file yet (`/etc/unheaded/baseline.conf`), and a missing file
+means audit. Nothing here changes that; the flip is Stevie's, per host, after
+E-E (Q5) and after the soak below.
 
 ## What enforcing does
 

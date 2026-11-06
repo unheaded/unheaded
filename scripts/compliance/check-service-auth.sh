@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 #
-# Compliance evidence for UH-AUTHN-01 (ADR-097), not a CI gate: it fails
-# today. Every first-party compose service (built from this repository)
+# Compliance evidence for UH-AUTHN-01 (ADR-097), not a CI gate. It reads a
+# file, not what runs (FND-037). Every first-party compose service (built from this repository)
 # must set AUTH_ENABLED=true: pkg/auth enables authentication only then
 # (pkg/auth/setup.go) and otherwise installs the Noop authenticator, which
 # admits every request. Reads the compose file as written.

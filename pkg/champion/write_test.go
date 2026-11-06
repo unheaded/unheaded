@@ -9,7 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // mockSnapshotStore implements SnapshotStore for testing.
@@ -304,5 +306,93 @@ func TestPatchFile_RejectsOversizeResult(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != "X" {
 		t.Fatal("an oversize patch changed the file")
+	}
+}
+
+// finishes fails the test if op has not returned in time: a fifo with no reader
+// or writer would hold an open that blocks for good.
+func finishes(t *testing.T, op func() error) error {
+	t.Helper()
+	done := make(chan error, 1)
+	go func() { done <- op() }()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(5 * time.Second):
+		t.Fatal("still blocked after 5s")
+		return nil
+	}
+}
+
+func fifoIn(t *testing.T, dir string) string {
+	t.Helper()
+	p := filepath.Join(dir, "pipe")
+	if err := syscall.Mkfifo(p, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// overCapFile is a sparse file past MaxReadBytes: no disk, but the size is real.
+func overCapFile(t *testing.T, dir string) string {
+	t.Helper()
+	p := filepath.Join(dir, "model.gguf")
+	if err := os.WriteFile(p, []byte("first"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(p, MaxReadBytes+1); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// The read before a write holds to read_file's rules: a fifo cannot hang it and a
+// model file cannot fill memory. A file no snapshot can hold is left alone,
+// because the write could not be reverted.
+func TestWriteFile_RefusesWhatItCannotSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	c, err := New(Config{ProjectRoot: dir}, &mockStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipe := fifoIn(t, dir)
+	if err := finishes(t, func() error { return c.WriteFile(context.Background(), pipe, "x") }); !errors.Is(err, errNotRegular) {
+		t.Errorf("fifo: %v, want errNotRegular", err)
+	}
+	big := overCapFile(t, dir)
+	if err := finishes(t, func() error { return c.WriteFile(context.Background(), big, "x") }); !errors.Is(err, ErrReadTooLarge) {
+		t.Errorf("over the cap: %v, want ErrReadTooLarge", err)
+	}
+	if fi, err := os.Stat(big); err != nil || fi.Size() != MaxReadBytes+1 {
+		t.Errorf("over-cap file changed: %v, %v", fi, err)
+	}
+}
+
+func TestPatchFile_RefusesWhatItCannotRead(t *testing.T) {
+	dir := t.TempDir()
+	c, err := New(Config{ProjectRoot: dir}, &mockStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipe := fifoIn(t, dir)
+	if err := finishes(t, func() error { return c.PatchFile(context.Background(), pipe, "a", "b") }); !errors.Is(err, errNotRegular) {
+		t.Errorf("fifo: %v, want errNotRegular", err)
+	}
+	big := overCapFile(t, dir)
+	if err := finishes(t, func() error { return c.PatchFile(context.Background(), big, "first", "x") }); !errors.Is(err, ErrReadTooLarge) {
+		t.Errorf("over the cap: %v, want ErrReadTooLarge", err)
+	}
+}
+
+// A fifo that appears after the read cannot hang the write's open either.
+func TestWriteFile_FifoAtTheOpen(t *testing.T) {
+	dir := t.TempDir()
+	c, err := New(Config{ProjectRoot: dir}, &mockStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.beforeOpen = func() { fifoIn(t, dir) }
+	if err := finishes(t, func() error { return c.WriteFile(context.Background(), filepath.Join(dir, "pipe"), "x") }); err == nil {
+		t.Fatal("write to a fifo reported success")
 	}
 }

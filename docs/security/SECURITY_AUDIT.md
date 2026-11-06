@@ -1,5 +1,7 @@
 # Security Audit: Zero User Data Access Verification
 
+**Historical snapshot, 2026-02-06.** Kept as a record of that pattern search. Much of the code it read is gone, and several of its PASS rows no longer hold on the running hosts: F-006 (firewall), F-008 (uniform hardening) and F-002 (`anomaly-ebpf` reads payload bytes for entropy, though nothing stores them). Open findings live in `compliance/findings/register.yaml`.
+
 **Task:** TASK-061 -- Security Audit -- Zero User Data Access Verification
 **Date:** February 6, 2026
 **Auditor:** Claude Opus 4.6 (automated)

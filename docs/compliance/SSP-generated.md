@@ -2,7 +2,7 @@
 
 # System Security Plan
 
-Evaluated 2026-10-27 against `var/compliance/evidence.json`: 50 controls, 11 frameworks.
+Evaluated 2026-11-06 against `var/compliance/evidence.json`: 51 controls, 11 frameworks.
 
 - Risk management strategy (appetite, categorization, criticality): `compliance/policies/risk-management-strategy.md`.
 - Single-operator posture (accepted gaps, compensating controls): `compliance/policies/single-operator-posture.md`.
@@ -14,16 +14,16 @@ A mapping says a control's evidence supports part of a framework requirement. No
 
 | Control status | Controls |
 |---|---|
-| passing | 22 |
+| passing | 21 |
 | stale | 0 |
-| not assessed | 4 |
+| not assessed | 6 |
 | failing | 24 |
 
 ## Controls
 
 ### UH-VULN-01: Known-vulnerable dependencies fail the build
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-10-31
 
 Every push to main, develop and staging runs govulncheck over the Go module, cargo-audit over every Rust workspace, and a grype scan of the repository SBOM at a medium severity cutoff; each fails the build on a finding.
 
@@ -31,9 +31,9 @@ Rationale: Automated vulnerability scanning of dependencies with enforced remedi
 
 Evidence:
 
-- `github-job:Security Scan (Daily + PR)/Go Vulnerability Check`: pass 2026-10-27
-- `github-job:Security Scan (Daily + PR)/Rust Cargo Audit`: pass 2026-10-27
-- `github-job:SBOM + Vulnerability Scan/sbom`: pass 2026-10-27
+- `github-job:Security Scan (Daily + PR)/Go Vulnerability Check`: pass 2026-10-31
+- `github-job:Security Scan (Daily + PR)/Rust Cargo Audit`: pass 2026-10-31
+- `github-job:SBOM + Vulnerability Scan/sbom`: pass 2026-10-31
 
 Mappings:
 
@@ -49,7 +49,7 @@ Mappings:
 
 ### UH-SAST-01: Static analysis gates every change
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-10-31
 
 Every push runs gosec (Go, at v2.29.0 with the module's toolchain), clippy over all Rust workspaces (ratcheted at zero warnings), ruff (Python), shellcheck (warnings and errors) and oxlint; each job fails the build on a new finding.
 
@@ -57,11 +57,11 @@ Rationale: Developer security testing with static code analysis (SA-11, SA-11(1)
 
 Evidence:
 
-- `github-job:Security Scan (Daily + PR)/Go Security Scan (gosec)`: pass 2026-10-27
-- `github-job:Static Analysis/Rust (clippy)`: pass 2026-10-27
-- `github-job:Static Analysis/Python (ruff + bandit)`: pass 2026-10-27
-- `github-job:Static Analysis/Shell (shellcheck)`: pass 2026-10-27
-- `github-job:Static Analysis/JavaScript (oxlint)`: pass 2026-10-27
+- `github-job:Security Scan (Daily + PR)/Go Security Scan (gosec)`: pass 2026-10-31
+- `github-job:Static Analysis/Rust (clippy)`: pass 2026-10-31
+- `github-job:Static Analysis/Python (ruff + bandit)`: pass 2026-10-31
+- `github-job:Static Analysis/Shell (shellcheck)`: pass 2026-10-31
+- `github-job:Static Analysis/JavaScript (oxlint)`: pass 2026-10-31
 
 Mappings:
 
@@ -75,7 +75,7 @@ Mappings:
 
 ### UH-SECRET-01: Committed credentials fail the build
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-10-31
 
 Every push runs gitleaks over the working tree and trivy's secret scanner over the filesystem, both gating; the gitleaks baseline of pre-existing findings may only shrink (scripts/check-secrets-baseline.sh).
 
@@ -83,8 +83,8 @@ Rationale: Prevents embedded static authenticators (IA-5(7)) and protects authen
 
 Evidence:
 
-- `github-job:Security Scan (Daily + PR)/Secret Scan (gitleaks)`: pass 2026-10-27
-- `github-job:Security Scan (Daily + PR)/Trivy Filesystem Scan`: pass 2026-10-27
+- `github-job:Security Scan (Daily + PR)/Secret Scan (gitleaks)`: pass 2026-10-31
+- `github-job:Security Scan (Daily + PR)/Trivy Filesystem Scan`: pass 2026-10-31
 
 Mappings:
 
@@ -96,7 +96,7 @@ Mappings:
 
 ### UH-SBOM-01: A software bill of materials is generated and scanned on every push
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-10-31
 
 Every push generates an SPDX SBOM of the repository (anchore sbom-action) and scans it with grype; the build fails at medium severity or above.
 
@@ -104,7 +104,7 @@ Rationale: A machine-readable inventory of software components (CM-8; CSF ID.AM-
 
 Evidence:
 
-- `github-job:SBOM + Vulnerability Scan/sbom`: pass 2026-10-27
+- `github-job:SBOM + Vulnerability Scan/sbom`: pass 2026-10-31
 
 Mappings:
 
@@ -119,7 +119,7 @@ Mappings:
 
 ### UH-FUZZ-01: Parsers are fuzzed on every push
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-10-31
 
 Every push runs the Go fuzz targets (LICH harnesses and in-package fuzzers) for 30 seconds each; any crash fails the build.
 
@@ -127,7 +127,7 @@ Rationale: Dynamic code analysis of executable code (SA-11(8)); SSDF PW.8 test e
 
 Evidence:
 
-- `github-job:Security Scan (Daily + PR)/Lich Fuzz Harnesses`: pass 2026-10-27
+- `github-job:Security Scan (Daily + PR)/Lich Fuzz Harnesses`: pass 2026-10-31
 
 Mappings:
 
@@ -138,7 +138,7 @@ Mappings:
 
 ### UH-GATE-01: Every security gate is proven able to fail
 
-**Status:** FAIL, evidence as of 2026-10-23
+**Status:** FAIL, evidence as of 2026-10-29
 
 scripts/check-gates-can-fail.sh plants a violation for each gate, runs it, and fails unless the gate fails; a gate with no registered provocation fails the run. Runs on every push to protected branches.
 
@@ -146,7 +146,7 @@ Rationale: Evaluates whether the controls above are present and functioning, not
 
 Evidence:
 
-- `github-job:Static Analysis/Gates can actually fail`: fail 2026-10-23
+- `github-job:Static Analysis/Gates can actually fail`: fail 2026-10-29
 
 Mappings:
 
@@ -161,7 +161,7 @@ Mappings:
 
 ### UH-SIGN-01: Commits on the development branch are cryptographically signed
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 Every commit reachable from develop within the checked window carries a good GPG signature from a trusted key (git %G? == G).
 
@@ -169,7 +169,7 @@ Rationale: Attributable, tamper-evident change records (AU-10 non-repudiation; C
 
 Evidence:
 
-- `git-signatures:develop`: pass 2026-10-27
+- `git-signatures:develop`: pass 2026-11-05
 
 Mappings:
 
@@ -183,7 +183,7 @@ Mappings:
 
 ### UH-LIC-01: Dependency licences are checked against the GPL boundary
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-10-31
 
 Every push runs scripts/verify-gpl-boundary.sh over the Go and Rust dependency trees and fails on a licence outside the allowed set.
 
@@ -191,7 +191,7 @@ Rationale: Software usage restrictions per licence terms (CM-10); ISO A.5.32 int
 
 Evidence:
 
-- `github-job:GPL Boundary Check/GPL/AGPL Boundary Verification`: pass 2026-10-27
+- `github-job:GPL Boundary Check/GPL/AGPL Boundary Verification`: pass 2026-10-31
 
 Mappings:
 
@@ -203,7 +203,7 @@ Mappings:
 
 ### UH-CFG-01: Container logging and mount configuration is enforced from the compose file
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 scripts/check-compose-log-caps.sh fails if any compose service lacks its own log size and rotation caps; scripts/check-compose-bind-nesting.sh fails on a bind mount nested inside another's mountpoint.
 
@@ -211,8 +211,8 @@ Rationale: Enforced configuration settings (CM-6; 800-171 03.04.02; CSF PR.PS-01
 
 Evidence:
 
-- `gate-script:scripts/check-compose-log-caps.sh`: pass 2026-10-27
-- `gate-script:scripts/check-compose-bind-nesting.sh`: pass 2026-10-27
+- `gate-script:scripts/check-compose-log-caps.sh`: pass 2026-11-05
+- `gate-script:scripts/check-compose-bind-nesting.sh`: pass 2026-11-05
 
 Mappings:
 
@@ -226,7 +226,7 @@ Mappings:
 
 ### UH-REMED-01: Every fix a host's profile turns on is applied, recorded and current
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 Each host's remediation journal (unheaded-remediate, ADR-099) is a hash-chained record of every apply and undo. It verifies from its first entry, and every fix the host's bound profile turns on has, as its latest entry, a successful apply of the fix's current content. A fix changed in the model since it was applied fails until it is re-applied.
 
@@ -234,8 +234,8 @@ Rationale: Configuration change control with a record of each change (CM-3) and 
 
 Evidence:
 
-- `host-journal:west:apply-journal`: fail 2026-10-27
-- `host-journal:east:apply-journal`: fail 2026-10-27
+- `host-journal:west:apply-journal`: pass 2026-11-05
+- `host-journal:east:apply-journal`: fail 2026-11-05
 
 Mappings:
 
@@ -250,7 +250,7 @@ Mappings:
 
 ### UH-CFG-02: Service unit hardening takes effect as written
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 scripts/check-systemd-units.sh runs systemd-analyze verify on every unit in deploy/systemd and fails on any directive systemd would ignore (systemd logs and carries on, so a hardening line can be dead without anyone noticing: FND-003, ADR-098).
 
@@ -258,7 +258,7 @@ Rationale: Configuration settings enforced as declared (CM-6; 800-171 03.04.02; 
 
 Evidence:
 
-- `gate-script:scripts/check-systemd-units.sh`: pass 2026-10-27
+- `gate-script:scripts/check-systemd-units.sh`: pass 2026-11-05
 
 Mappings:
 
@@ -272,7 +272,7 @@ Mappings:
 
 ### UH-HOST-01: Kernel exposure is restricted on the host
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 On both hosts (west, east), kernel parameters that limit what unprivileged processes can see and do are at their hardened values: unprivileged BPF off, kernel pointers and the kernel log hidden, ptrace restricted, perf restricted, full ASLR, protected links, no core dumps from setuid programs. Evidence covers that host only; each record names it.
 
@@ -280,30 +280,30 @@ Rationale: Configuration settings at hardened values (CM-6; 800-171 03.04.02; CS
 
 Evidence:
 
-- `host-sysctl:west:kernel.unprivileged_bpf_disabled>=1`: pass 2026-10-27
-- `host-sysctl:west:kernel.kptr_restrict>=1`: pass 2026-10-27
-- `host-sysctl:west:kernel.dmesg_restrict=1`: pass 2026-10-27
-- `host-sysctl:west:kernel.yama.ptrace_scope>=1`: pass 2026-10-27
-- `host-sysctl:west:kernel.perf_event_paranoid>=2`: pass 2026-10-27
-- `host-sysctl:west:kernel.randomize_va_space=2`: pass 2026-10-27
-- `host-sysctl:west:fs.protected_symlinks=1`: pass 2026-10-27
-- `host-sysctl:west:fs.protected_hardlinks=1`: pass 2026-10-27
-- `host-sysctl:west:fs.suid_dumpable=0`: pass 2026-10-27
-- `host-sysctl:east:kernel.unprivileged_bpf_disabled>=1`: pass 2026-10-27
-- `host-sysctl:east:kernel.kptr_restrict>=1`: pass 2026-10-27
-- `host-sysctl:east:kernel.dmesg_restrict=1`: pass 2026-10-27
-- `host-sysctl:east:kernel.yama.ptrace_scope>=1`: pass 2026-10-27
-- `host-sysctl:east:kernel.perf_event_paranoid>=2`: pass 2026-10-27
-- `host-sysctl:east:kernel.randomize_va_space=2`: pass 2026-10-27
-- `host-sysctl:east:fs.protected_symlinks=1`: pass 2026-10-27
-- `host-sysctl:east:fs.protected_hardlinks=1`: pass 2026-10-27
-- `host-sysctl:east:fs.suid_dumpable=0`: pass 2026-10-27
-- `host-probe:west:apparmor-enabled`: pass 2026-10-27
-- `host-probe:east:apparmor-enabled`: pass 2026-10-27
-- `host-probe:west:pkg-prelink-absent`: pass 2026-10-27
-- `host-probe:west:svc-apport-not-in-use`: pass 2026-10-27
-- `host-probe:east:pkg-prelink-absent`: pass 2026-10-27
-- `host-probe:east:svc-apport-not-in-use`: pass 2026-10-27
+- `host-sysctl:west:kernel.unprivileged_bpf_disabled>=1`: pass 2026-11-05
+- `host-sysctl:west:kernel.kptr_restrict>=1`: pass 2026-11-05
+- `host-sysctl:west:kernel.dmesg_restrict=1`: pass 2026-11-05
+- `host-sysctl:west:kernel.yama.ptrace_scope>=1`: pass 2026-11-05
+- `host-sysctl:west:kernel.perf_event_paranoid>=2`: pass 2026-11-05
+- `host-sysctl:west:kernel.randomize_va_space=2`: pass 2026-11-05
+- `host-sysctl:west:fs.protected_symlinks=1`: pass 2026-11-05
+- `host-sysctl:west:fs.protected_hardlinks=1`: pass 2026-11-05
+- `host-sysctl:west:fs.suid_dumpable=0`: pass 2026-11-05
+- `host-sysctl:east:kernel.unprivileged_bpf_disabled>=1`: pass 2026-11-05
+- `host-sysctl:east:kernel.kptr_restrict>=1`: pass 2026-11-05
+- `host-sysctl:east:kernel.dmesg_restrict=1`: pass 2026-11-05
+- `host-sysctl:east:kernel.yama.ptrace_scope>=1`: pass 2026-11-05
+- `host-sysctl:east:kernel.perf_event_paranoid>=2`: pass 2026-11-05
+- `host-sysctl:east:kernel.randomize_va_space=2`: pass 2026-11-05
+- `host-sysctl:east:fs.protected_symlinks=1`: pass 2026-11-05
+- `host-sysctl:east:fs.protected_hardlinks=1`: pass 2026-11-05
+- `host-sysctl:east:fs.suid_dumpable=0`: pass 2026-11-05
+- `host-probe:west:apparmor-enabled`: pass 2026-11-05
+- `host-probe:east:apparmor-enabled`: pass 2026-11-05
+- `host-probe:west:pkg-prelink-absent`: pass 2026-11-05
+- `host-probe:west:svc-apport-not-in-use`: pass 2026-11-05
+- `host-probe:east:pkg-prelink-absent`: pass 2026-11-05
+- `host-probe:east:svc-apport-not-in-use`: pass 2026-11-05
 
 Mappings:
 
@@ -317,7 +317,7 @@ Mappings:
 
 ### UH-HOST-02: Unneeded filesystem and USB storage kernel modules cannot load
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 On both hosts (west, east), cramfs, freevxfs, hfs, hfsplus, jffs2, udf and usb-storage are not loaded, resolve to `install /bin/false` and are blacklisted (or do not exist for the running kernel).
 
@@ -325,20 +325,20 @@ Rationale: Least functionality (CM-7; 800-171 03.04.06; CSF PR.PS-01; ISO A.8.9)
 
 Evidence:
 
-- `host-probe:west:kmod-cramfs-disabled`: pass 2026-10-27
-- `host-probe:west:kmod-freevxfs-disabled`: pass 2026-10-27
-- `host-probe:west:kmod-hfs-disabled`: pass 2026-10-27
-- `host-probe:west:kmod-hfsplus-disabled`: pass 2026-10-27
-- `host-probe:west:kmod-jffs2-disabled`: pass 2026-10-27
-- `host-probe:west:kmod-usb-storage-disabled`: fail 2026-10-27
-- `host-probe:west:kmod-udf-disabled`: pass 2026-10-27
-- `host-probe:east:kmod-cramfs-disabled`: pass 2026-10-27
-- `host-probe:east:kmod-freevxfs-disabled`: pass 2026-10-27
-- `host-probe:east:kmod-hfs-disabled`: pass 2026-10-27
-- `host-probe:east:kmod-hfsplus-disabled`: pass 2026-10-27
-- `host-probe:east:kmod-jffs2-disabled`: pass 2026-10-27
-- `host-probe:east:kmod-usb-storage-disabled`: fail 2026-10-27
-- `host-probe:east:kmod-udf-disabled`: pass 2026-10-27
+- `host-probe:west:kmod-cramfs-disabled`: pass 2026-11-05
+- `host-probe:west:kmod-freevxfs-disabled`: pass 2026-11-05
+- `host-probe:west:kmod-hfs-disabled`: pass 2026-11-05
+- `host-probe:west:kmod-hfsplus-disabled`: pass 2026-11-05
+- `host-probe:west:kmod-jffs2-disabled`: pass 2026-11-05
+- `host-probe:west:kmod-usb-storage-disabled`: pass 2026-11-05
+- `host-probe:west:kmod-udf-disabled`: pass 2026-11-05
+- `host-probe:east:kmod-cramfs-disabled`: pass 2026-11-05
+- `host-probe:east:kmod-freevxfs-disabled`: pass 2026-11-05
+- `host-probe:east:kmod-hfs-disabled`: pass 2026-11-05
+- `host-probe:east:kmod-hfsplus-disabled`: pass 2026-11-05
+- `host-probe:east:kmod-jffs2-disabled`: pass 2026-11-05
+- `host-probe:east:kmod-usb-storage-disabled`: pass 2026-11-05
+- `host-probe:east:kmod-udf-disabled`: pass 2026-11-05
 
 Mappings:
 
@@ -352,7 +352,7 @@ Mappings:
 
 ### UH-HOST-03: Account databases and ssh configuration have restrictive ownership and modes
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts, /etc/passwd, group and shells (and their backups) are root-owned at 0644 or stricter; shadow and gshadow (and backups) root:shadow at 0640 or stricter; /etc/security/opasswd root at 0600; sshd_config and every sshd_config.d file root at 0600; ssh host private keys 0600 and public keys 0644, root-owned.
 
@@ -360,32 +360,32 @@ Rationale: Access enforcement and least privilege on the files that hold credent
 
 Evidence:
 
-- `host-probe:west:perm-etc-passwd`: pass 2026-10-27
-- `host-probe:west:perm-etc-passwd-backup`: pass 2026-10-27
-- `host-probe:west:perm-etc-group`: pass 2026-10-27
-- `host-probe:west:perm-etc-group-backup`: pass 2026-10-27
-- `host-probe:west:perm-etc-shadow`: pass 2026-10-27
-- `host-probe:west:perm-etc-shadow-backup`: pass 2026-10-27
-- `host-probe:west:perm-etc-gshadow`: pass 2026-10-27
-- `host-probe:west:perm-etc-gshadow-backup`: pass 2026-10-27
-- `host-probe:west:perm-etc-shells`: pass 2026-10-27
-- `host-probe:west:perm-etc-security-opasswd`: pass 2026-10-27
-- `host-probe:west:perm-sshd-config`: fail 2026-10-27
-- `host-probe:west:perm-ssh-host-private-keys`: pass 2026-10-27
-- `host-probe:west:perm-ssh-host-public-keys`: pass 2026-10-27
-- `host-probe:east:perm-etc-passwd`: pass 2026-10-27
-- `host-probe:east:perm-etc-passwd-backup`: pass 2026-10-27
-- `host-probe:east:perm-etc-group`: pass 2026-10-27
-- `host-probe:east:perm-etc-group-backup`: pass 2026-10-27
-- `host-probe:east:perm-etc-shadow`: pass 2026-10-27
-- `host-probe:east:perm-etc-shadow-backup`: pass 2026-10-27
-- `host-probe:east:perm-etc-gshadow`: pass 2026-10-27
-- `host-probe:east:perm-etc-gshadow-backup`: pass 2026-10-27
-- `host-probe:east:perm-etc-shells`: pass 2026-10-27
-- `host-probe:east:perm-etc-security-opasswd`: pass 2026-10-27
-- `host-probe:east:perm-sshd-config`: pass 2026-10-27
-- `host-probe:east:perm-ssh-host-private-keys`: pass 2026-10-27
-- `host-probe:east:perm-ssh-host-public-keys`: pass 2026-10-27
+- `host-probe:west:perm-etc-passwd`: pass 2026-11-05
+- `host-probe:west:perm-etc-passwd-backup`: pass 2026-11-05
+- `host-probe:west:perm-etc-group`: pass 2026-11-05
+- `host-probe:west:perm-etc-group-backup`: pass 2026-11-05
+- `host-probe:west:perm-etc-shadow`: pass 2026-11-05
+- `host-probe:west:perm-etc-shadow-backup`: pass 2026-11-05
+- `host-probe:west:perm-etc-gshadow`: pass 2026-11-05
+- `host-probe:west:perm-etc-gshadow-backup`: pass 2026-11-05
+- `host-probe:west:perm-etc-shells`: pass 2026-11-05
+- `host-probe:west:perm-etc-security-opasswd`: pass 2026-11-05
+- `host-probe:west:perm-sshd-config`: fail 2026-11-05
+- `host-probe:west:perm-ssh-host-private-keys`: pass 2026-11-05
+- `host-probe:west:perm-ssh-host-public-keys`: pass 2026-11-05
+- `host-probe:east:perm-etc-passwd`: pass 2026-11-05
+- `host-probe:east:perm-etc-passwd-backup`: pass 2026-11-05
+- `host-probe:east:perm-etc-group`: pass 2026-11-05
+- `host-probe:east:perm-etc-group-backup`: pass 2026-11-05
+- `host-probe:east:perm-etc-shadow`: pass 2026-11-05
+- `host-probe:east:perm-etc-shadow-backup`: pass 2026-11-05
+- `host-probe:east:perm-etc-gshadow`: pass 2026-11-05
+- `host-probe:east:perm-etc-gshadow-backup`: pass 2026-11-05
+- `host-probe:east:perm-etc-shells`: pass 2026-11-05
+- `host-probe:east:perm-etc-security-opasswd`: pass 2026-11-05
+- `host-probe:east:perm-sshd-config`: pass 2026-11-05
+- `host-probe:east:perm-ssh-host-private-keys`: pass 2026-11-05
+- `host-probe:east:perm-ssh-host-public-keys`: pass 2026-11-05
 
 Mappings:
 
@@ -399,7 +399,7 @@ Mappings:
 
 ### UH-HOST-04: Temporary, home and variable data sit on separate filesystems mounted nodev, nosuid, noexec
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts, /tmp, /dev/shm, /home, /var, /var/tmp, /var/log and /var/log/audit are their own filesystems (a bind mount does not count) and the filesystem holding each is mounted with the CIS options.
 
@@ -407,58 +407,58 @@ Rationale: Least functionality and configuration settings (CM-7, CM-6; 800-171 0
 
 Evidence:
 
-- `host-probe:west:mount-tmp-separate`: pass 2026-10-27
-- `host-probe:west:mount-tmp-nodev`: pass 2026-10-27
-- `host-probe:west:mount-tmp-nosuid`: pass 2026-10-27
-- `host-probe:west:mount-tmp-noexec`: fail 2026-10-27
-- `host-probe:west:mount-dev-shm-separate`: pass 2026-10-27
-- `host-probe:west:mount-dev-shm-nodev`: pass 2026-10-27
-- `host-probe:west:mount-dev-shm-nosuid`: pass 2026-10-27
-- `host-probe:west:mount-dev-shm-noexec`: fail 2026-10-27
-- `host-probe:west:mount-home-separate`: fail 2026-10-27
-- `host-probe:west:mount-home-nodev`: fail 2026-10-27
-- `host-probe:west:mount-home-nosuid`: fail 2026-10-27
-- `host-probe:west:mount-var-separate`: pass 2026-10-27
-- `host-probe:west:mount-var-nodev`: fail 2026-10-27
-- `host-probe:west:mount-var-nosuid`: fail 2026-10-27
-- `host-probe:west:mount-var-tmp-separate`: fail 2026-10-27
-- `host-probe:west:mount-var-tmp-nodev`: fail 2026-10-27
-- `host-probe:west:mount-var-tmp-nosuid`: fail 2026-10-27
-- `host-probe:west:mount-var-tmp-noexec`: fail 2026-10-27
-- `host-probe:west:mount-var-log-separate`: fail 2026-10-27
-- `host-probe:west:mount-var-log-nodev`: fail 2026-10-27
-- `host-probe:west:mount-var-log-nosuid`: fail 2026-10-27
-- `host-probe:west:mount-var-log-noexec`: fail 2026-10-27
-- `host-probe:west:mount-var-log-audit-separate`: fail 2026-10-27
-- `host-probe:west:mount-var-log-audit-nodev`: fail 2026-10-27
-- `host-probe:west:mount-var-log-audit-nosuid`: fail 2026-10-27
-- `host-probe:west:mount-var-log-audit-noexec`: fail 2026-10-27
-- `host-probe:east:mount-tmp-separate`: pass 2026-10-27
-- `host-probe:east:mount-tmp-nodev`: pass 2026-10-27
-- `host-probe:east:mount-tmp-nosuid`: pass 2026-10-27
-- `host-probe:east:mount-tmp-noexec`: fail 2026-10-27
-- `host-probe:east:mount-dev-shm-separate`: pass 2026-10-27
-- `host-probe:east:mount-dev-shm-nodev`: pass 2026-10-27
-- `host-probe:east:mount-dev-shm-nosuid`: pass 2026-10-27
-- `host-probe:east:mount-dev-shm-noexec`: fail 2026-10-27
-- `host-probe:east:mount-home-separate`: fail 2026-10-27
-- `host-probe:east:mount-home-nodev`: fail 2026-10-27
-- `host-probe:east:mount-home-nosuid`: fail 2026-10-27
-- `host-probe:east:mount-var-separate`: pass 2026-10-27
-- `host-probe:east:mount-var-nodev`: fail 2026-10-27
-- `host-probe:east:mount-var-nosuid`: fail 2026-10-27
-- `host-probe:east:mount-var-tmp-separate`: fail 2026-10-27
-- `host-probe:east:mount-var-tmp-nodev`: fail 2026-10-27
-- `host-probe:east:mount-var-tmp-nosuid`: fail 2026-10-27
-- `host-probe:east:mount-var-tmp-noexec`: fail 2026-10-27
-- `host-probe:east:mount-var-log-separate`: fail 2026-10-27
-- `host-probe:east:mount-var-log-nodev`: fail 2026-10-27
-- `host-probe:east:mount-var-log-nosuid`: fail 2026-10-27
-- `host-probe:east:mount-var-log-noexec`: fail 2026-10-27
-- `host-probe:east:mount-var-log-audit-separate`: fail 2026-10-27
-- `host-probe:east:mount-var-log-audit-nodev`: fail 2026-10-27
-- `host-probe:east:mount-var-log-audit-nosuid`: fail 2026-10-27
-- `host-probe:east:mount-var-log-audit-noexec`: fail 2026-10-27
+- `host-probe:west:mount-tmp-separate`: pass 2026-11-05
+- `host-probe:west:mount-tmp-nodev`: pass 2026-11-05
+- `host-probe:west:mount-tmp-nosuid`: pass 2026-11-05
+- `host-probe:west:mount-tmp-noexec`: fail 2026-11-05
+- `host-probe:west:mount-dev-shm-separate`: pass 2026-11-05
+- `host-probe:west:mount-dev-shm-nodev`: pass 2026-11-05
+- `host-probe:west:mount-dev-shm-nosuid`: pass 2026-11-05
+- `host-probe:west:mount-dev-shm-noexec`: fail 2026-11-05
+- `host-probe:west:mount-home-separate`: fail 2026-11-05
+- `host-probe:west:mount-home-nodev`: fail 2026-11-05
+- `host-probe:west:mount-home-nosuid`: fail 2026-11-05
+- `host-probe:west:mount-var-separate`: pass 2026-11-05
+- `host-probe:west:mount-var-nodev`: fail 2026-11-05
+- `host-probe:west:mount-var-nosuid`: fail 2026-11-05
+- `host-probe:west:mount-var-tmp-separate`: fail 2026-11-05
+- `host-probe:west:mount-var-tmp-nodev`: fail 2026-11-05
+- `host-probe:west:mount-var-tmp-nosuid`: fail 2026-11-05
+- `host-probe:west:mount-var-tmp-noexec`: fail 2026-11-05
+- `host-probe:west:mount-var-log-separate`: fail 2026-11-05
+- `host-probe:west:mount-var-log-nodev`: fail 2026-11-05
+- `host-probe:west:mount-var-log-nosuid`: fail 2026-11-05
+- `host-probe:west:mount-var-log-noexec`: fail 2026-11-05
+- `host-probe:west:mount-var-log-audit-separate`: fail 2026-11-05
+- `host-probe:west:mount-var-log-audit-nodev`: fail 2026-11-05
+- `host-probe:west:mount-var-log-audit-nosuid`: fail 2026-11-05
+- `host-probe:west:mount-var-log-audit-noexec`: fail 2026-11-05
+- `host-probe:east:mount-tmp-separate`: pass 2026-11-05
+- `host-probe:east:mount-tmp-nodev`: pass 2026-11-05
+- `host-probe:east:mount-tmp-nosuid`: pass 2026-11-05
+- `host-probe:east:mount-tmp-noexec`: fail 2026-11-05
+- `host-probe:east:mount-dev-shm-separate`: pass 2026-11-05
+- `host-probe:east:mount-dev-shm-nodev`: pass 2026-11-05
+- `host-probe:east:mount-dev-shm-nosuid`: pass 2026-11-05
+- `host-probe:east:mount-dev-shm-noexec`: fail 2026-11-05
+- `host-probe:east:mount-home-separate`: fail 2026-11-05
+- `host-probe:east:mount-home-nodev`: fail 2026-11-05
+- `host-probe:east:mount-home-nosuid`: fail 2026-11-05
+- `host-probe:east:mount-var-separate`: pass 2026-11-05
+- `host-probe:east:mount-var-nodev`: fail 2026-11-05
+- `host-probe:east:mount-var-nosuid`: fail 2026-11-05
+- `host-probe:east:mount-var-tmp-separate`: fail 2026-11-05
+- `host-probe:east:mount-var-tmp-nodev`: fail 2026-11-05
+- `host-probe:east:mount-var-tmp-nosuid`: fail 2026-11-05
+- `host-probe:east:mount-var-tmp-noexec`: fail 2026-11-05
+- `host-probe:east:mount-var-log-separate`: fail 2026-11-05
+- `host-probe:east:mount-var-log-nodev`: fail 2026-11-05
+- `host-probe:east:mount-var-log-nosuid`: fail 2026-11-05
+- `host-probe:east:mount-var-log-noexec`: fail 2026-11-05
+- `host-probe:east:mount-var-log-audit-separate`: fail 2026-11-05
+- `host-probe:east:mount-var-log-audit-nodev`: fail 2026-11-05
+- `host-probe:east:mount-var-log-audit-nosuid`: fail 2026-11-05
+- `host-probe:east:mount-var-log-audit-noexec`: fail 2026-11-05
 
 Mappings:
 
@@ -472,7 +472,7 @@ Mappings:
 
 ### UH-SVC-01: Only needed network services are installed or running on the hosts
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts, none of the CIS list of server packages (autofs, avahi, DHCP, DNS, dnsmasq, FTP, LDAP, IMAP/POP, NFS, NIS, CUPS, rpcbind, rsync, Samba, SNMP, TFTP, Squid, Apache/nginx, xinetd, X server) is installed, or where one is installed as a dependency its units are disabled or masked and stopped; no mail transfer agent listens beyond loopback.
 
@@ -480,52 +480,52 @@ Rationale: Least functionality: only essential services (CM-7; 800-171 03.04.06;
 
 Evidence:
 
-- `host-probe:west:svc-autofs-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-avahi-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-dhcp-server-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-dns-server-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-dnsmasq-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-ftp-server-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-ldap-server-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-mail-access-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-nfs-server-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-nis-server-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-print-server-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-rpcbind-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-rsync-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-samba-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-snmp-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-tftp-server-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-web-proxy-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-web-server-not-in-use`: fail 2026-10-27
-- `host-probe:west:svc-xinetd-not-in-use`: pass 2026-10-27
-- `host-probe:west:svc-x-server-not-in-use`: fail 2026-10-27
-- `host-probe:west:mta-local-only`: pass 2026-10-27
-- `host-probe:east:svc-autofs-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-avahi-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-dhcp-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-dns-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-dnsmasq-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-ftp-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-ldap-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-mail-access-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-nfs-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-nis-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-print-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-rpcbind-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-rsync-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-samba-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-snmp-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-tftp-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-web-proxy-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-web-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-xinetd-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-x-server-not-in-use`: pass 2026-10-27
-- `host-probe:east:mta-local-only`: pass 2026-10-27
-- `host-probe:west:svc-bluetooth-not-in-use`: pass 2026-10-27
-- `host-probe:east:svc-bluetooth-not-in-use`: pass 2026-10-27
-- `host-probe:west:pkg-gdm-absent`: pass 2026-10-27
-- `host-probe:east:pkg-gdm-absent`: pass 2026-10-27
+- `host-probe:west:svc-autofs-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-avahi-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-dhcp-server-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-dns-server-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-dnsmasq-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-ftp-server-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-ldap-server-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-mail-access-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-nfs-server-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-nis-server-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-print-server-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-rpcbind-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-rsync-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-samba-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-snmp-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-tftp-server-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-web-proxy-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-web-server-not-in-use`: fail 2026-11-05
+- `host-probe:west:svc-xinetd-not-in-use`: pass 2026-11-05
+- `host-probe:west:svc-x-server-not-in-use`: fail 2026-11-05
+- `host-probe:west:mta-local-only`: pass 2026-11-05
+- `host-probe:east:svc-autofs-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-avahi-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-dhcp-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-dns-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-dnsmasq-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-ftp-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-ldap-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-mail-access-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-nfs-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-nis-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-print-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-rpcbind-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-rsync-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-samba-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-snmp-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-tftp-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-web-proxy-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-web-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-xinetd-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-x-server-not-in-use`: pass 2026-11-05
+- `host-probe:east:mta-local-only`: pass 2026-11-05
+- `host-probe:west:svc-bluetooth-not-in-use`: pass 2026-11-05
+- `host-probe:east:svc-bluetooth-not-in-use`: pass 2026-11-05
+- `host-probe:west:pkg-gdm-absent`: pass 2026-11-05
+- `host-probe:east:pkg-gdm-absent`: pass 2026-11-05
 
 Mappings:
 
@@ -539,7 +539,7 @@ Mappings:
 
 ### UH-SVC-02: Clients for insecure legacy protocols are not installed
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts, the NIS, rsh, talk, telnet, LDAP and FTP clients are not installed.
 
@@ -547,18 +547,18 @@ Rationale: Least functionality (CM-7; 800-171 03.04.06; CSF PR.PS-01; ISO A.8.9)
 
 Evidence:
 
-- `host-probe:west:pkg-nis-client-absent`: pass 2026-10-27
-- `host-probe:west:pkg-rsh-client-absent`: pass 2026-10-27
-- `host-probe:west:pkg-talk-client-absent`: pass 2026-10-27
-- `host-probe:west:pkg-telnet-client-absent`: fail 2026-10-27
-- `host-probe:west:pkg-ldap-client-absent`: pass 2026-10-27
-- `host-probe:west:pkg-ftp-client-absent`: fail 2026-10-27
-- `host-probe:east:pkg-nis-client-absent`: pass 2026-10-27
-- `host-probe:east:pkg-rsh-client-absent`: pass 2026-10-27
-- `host-probe:east:pkg-talk-client-absent`: pass 2026-10-27
-- `host-probe:east:pkg-telnet-client-absent`: fail 2026-10-27
-- `host-probe:east:pkg-ldap-client-absent`: pass 2026-10-27
-- `host-probe:east:pkg-ftp-client-absent`: fail 2026-10-27
+- `host-probe:west:pkg-nis-client-absent`: pass 2026-11-05
+- `host-probe:west:pkg-rsh-client-absent`: pass 2026-11-05
+- `host-probe:west:pkg-talk-client-absent`: pass 2026-11-05
+- `host-probe:west:pkg-telnet-client-absent`: fail 2026-11-05
+- `host-probe:west:pkg-ldap-client-absent`: pass 2026-11-05
+- `host-probe:west:pkg-ftp-client-absent`: fail 2026-11-05
+- `host-probe:east:pkg-nis-client-absent`: pass 2026-11-05
+- `host-probe:east:pkg-rsh-client-absent`: pass 2026-11-05
+- `host-probe:east:pkg-talk-client-absent`: pass 2026-11-05
+- `host-probe:east:pkg-telnet-client-absent`: fail 2026-11-05
+- `host-probe:east:pkg-ldap-client-absent`: pass 2026-11-05
+- `host-probe:east:pkg-ftp-client-absent`: fail 2026-11-05
 
 Mappings:
 
@@ -572,7 +572,7 @@ Mappings:
 
 ### UH-CRON-01: Scheduled-job configuration is root-only and scheduling is restricted
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 On both hosts, cron is running; /etc/crontab is root 0600 and the cron.hourly, daily, weekly, monthly and cron.d directories root 0700; /etc/cron.allow exists (root:crontab, 0640) and cron.deny does not; where at is installed, at.allow exists and at.deny is root 0640.
 
@@ -580,24 +580,24 @@ Rationale: Access enforcement on what runs as root on a schedule (AC-3, CM-6; 80
 
 Evidence:
 
-- `host-probe:west:cron-active`: pass 2026-10-27
-- `host-probe:west:perm-etc-crontab`: pass 2026-10-27
-- `host-probe:west:perm-etc-cron-hourly`: pass 2026-10-27
-- `host-probe:west:perm-etc-cron-daily`: pass 2026-10-27
-- `host-probe:west:perm-etc-cron-weekly`: pass 2026-10-27
-- `host-probe:west:perm-etc-cron-monthly`: pass 2026-10-27
-- `host-probe:west:perm-etc-cron-d`: pass 2026-10-27
-- `host-probe:west:cron-allow-restricted`: pass 2026-10-27
-- `host-probe:west:at-restricted`: pass 2026-10-27
-- `host-probe:east:cron-active`: pass 2026-10-27
-- `host-probe:east:perm-etc-crontab`: pass 2026-10-27
-- `host-probe:east:perm-etc-cron-hourly`: pass 2026-10-27
-- `host-probe:east:perm-etc-cron-daily`: pass 2026-10-27
-- `host-probe:east:perm-etc-cron-weekly`: pass 2026-10-27
-- `host-probe:east:perm-etc-cron-monthly`: pass 2026-10-27
-- `host-probe:east:perm-etc-cron-d`: pass 2026-10-27
-- `host-probe:east:cron-allow-restricted`: pass 2026-10-27
-- `host-probe:east:at-restricted`: pass 2026-10-27
+- `host-probe:west:cron-active`: pass 2026-11-05
+- `host-probe:west:perm-etc-crontab`: pass 2026-11-05
+- `host-probe:west:perm-etc-cron-hourly`: pass 2026-11-05
+- `host-probe:west:perm-etc-cron-daily`: pass 2026-11-05
+- `host-probe:west:perm-etc-cron-weekly`: pass 2026-11-05
+- `host-probe:west:perm-etc-cron-monthly`: pass 2026-11-05
+- `host-probe:west:perm-etc-cron-d`: pass 2026-11-05
+- `host-probe:west:cron-allow-restricted`: pass 2026-11-05
+- `host-probe:west:at-restricted`: pass 2026-11-05
+- `host-probe:east:cron-active`: pass 2026-11-05
+- `host-probe:east:perm-etc-crontab`: pass 2026-11-05
+- `host-probe:east:perm-etc-cron-hourly`: pass 2026-11-05
+- `host-probe:east:perm-etc-cron-daily`: pass 2026-11-05
+- `host-probe:east:perm-etc-cron-weekly`: pass 2026-11-05
+- `host-probe:east:perm-etc-cron-monthly`: pass 2026-11-05
+- `host-probe:east:perm-etc-cron-d`: pass 2026-11-05
+- `host-probe:east:cron-allow-restricted`: pass 2026-11-05
+- `host-probe:east:at-restricted`: pass 2026-11-05
 
 Mappings:
 
@@ -611,7 +611,7 @@ Mappings:
 
 ### UH-ACCT-01: Local account databases are consistent and hold no empty passwords
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 On both hosts every account uses shadowed passwords, no shadow entry has an empty password, every primary group exists, the shadow group has no members, and no UID, GID, user name or group name repeats; only root has UID 0 or GID 0, no system account has a login shell, and every account without a valid shell is locked.
 
@@ -619,32 +619,32 @@ Rationale: Account management and unique identification (AC-2, IA-2; 800-171 03.
 
 Evidence:
 
-- `host-probe:west:acct-passwd-shadowed`: pass 2026-10-27
-- `host-probe:west:acct-shadow-no-empty`: pass 2026-10-27
-- `host-probe:west:acct-groups-exist`: pass 2026-10-27
-- `host-probe:west:acct-shadow-group-empty`: pass 2026-10-27
-- `host-probe:west:acct-unique-uid`: pass 2026-10-27
-- `host-probe:west:acct-unique-gid`: pass 2026-10-27
-- `host-probe:west:acct-unique-user-name`: pass 2026-10-27
-- `host-probe:west:acct-unique-group-name`: pass 2026-10-27
-- `host-probe:east:acct-passwd-shadowed`: pass 2026-10-27
-- `host-probe:east:acct-shadow-no-empty`: pass 2026-10-27
-- `host-probe:east:acct-groups-exist`: pass 2026-10-27
-- `host-probe:east:acct-shadow-group-empty`: pass 2026-10-27
-- `host-probe:east:acct-unique-uid`: pass 2026-10-27
-- `host-probe:east:acct-unique-gid`: pass 2026-10-27
-- `host-probe:east:acct-unique-user-name`: pass 2026-10-27
-- `host-probe:east:acct-unique-group-name`: pass 2026-10-27
-- `host-probe:west:acct-root-only-uid0`: pass 2026-10-27
-- `host-probe:west:acct-root-only-gid0`: pass 2026-10-27
-- `host-probe:west:group-root-only-gid0`: pass 2026-10-27
-- `host-probe:west:acct-system-no-shell`: pass 2026-10-27
-- `host-probe:west:acct-noshell-locked`: pass 2026-10-27
-- `host-probe:east:acct-root-only-uid0`: pass 2026-10-27
-- `host-probe:east:acct-root-only-gid0`: pass 2026-10-27
-- `host-probe:east:group-root-only-gid0`: pass 2026-10-27
-- `host-probe:east:acct-system-no-shell`: pass 2026-10-27
-- `host-probe:east:acct-noshell-locked`: pass 2026-10-27
+- `host-probe:west:acct-passwd-shadowed`: pass 2026-11-05
+- `host-probe:west:acct-shadow-no-empty`: pass 2026-11-05
+- `host-probe:west:acct-groups-exist`: pass 2026-11-05
+- `host-probe:west:acct-shadow-group-empty`: pass 2026-11-05
+- `host-probe:west:acct-unique-uid`: pass 2026-11-05
+- `host-probe:west:acct-unique-gid`: pass 2026-11-05
+- `host-probe:west:acct-unique-user-name`: pass 2026-11-05
+- `host-probe:west:acct-unique-group-name`: pass 2026-11-05
+- `host-probe:east:acct-passwd-shadowed`: pass 2026-11-05
+- `host-probe:east:acct-shadow-no-empty`: pass 2026-11-05
+- `host-probe:east:acct-groups-exist`: pass 2026-11-05
+- `host-probe:east:acct-shadow-group-empty`: pass 2026-11-05
+- `host-probe:east:acct-unique-uid`: pass 2026-11-05
+- `host-probe:east:acct-unique-gid`: pass 2026-11-05
+- `host-probe:east:acct-unique-user-name`: pass 2026-11-05
+- `host-probe:east:acct-unique-group-name`: pass 2026-11-05
+- `host-probe:west:acct-root-only-uid0`: pass 2026-11-05
+- `host-probe:west:acct-root-only-gid0`: pass 2026-11-05
+- `host-probe:west:group-root-only-gid0`: pass 2026-11-05
+- `host-probe:west:acct-system-no-shell`: pass 2026-11-05
+- `host-probe:west:acct-noshell-locked`: pass 2026-11-05
+- `host-probe:east:acct-root-only-uid0`: pass 2026-11-05
+- `host-probe:east:acct-root-only-gid0`: pass 2026-11-05
+- `host-probe:east:group-root-only-gid0`: pass 2026-11-05
+- `host-probe:east:acct-system-no-shell`: pass 2026-11-05
+- `host-probe:east:acct-noshell-locked`: pass 2026-11-05
 
 Mappings:
 
@@ -658,7 +658,7 @@ Mappings:
 
 ### UH-ACCT-02: Root and user environments give no one a way into another account
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts su is limited to an empty group, root is locked or has a password, root's PATH holds only root-owned directories no one else can write, root's and the default umask are 0027 or stricter, and every interactive account's home directory and dot files are its own and not writable by others (no .forward, .rhosts or .netrc).
 
@@ -666,20 +666,20 @@ Rationale: Least privilege (AC-6: su gated, root reachable only as intended) and
 
 Evidence:
 
-- `host-probe:west:su-restricted`: fail 2026-10-27
-- `host-probe:west:root-access-controlled`: pass 2026-10-27
-- `host-probe:west:root-path`: fail 2026-10-27
-- `host-probe:west:root-umask`: pass 2026-10-27
-- `host-probe:west:default-umask`: fail 2026-10-27
-- `host-probe:west:home-dirs`: pass 2026-10-27
-- `host-probe:west:dot-files`: fail 2026-10-27
-- `host-probe:east:su-restricted`: fail 2026-10-27
-- `host-probe:east:root-access-controlled`: pass 2026-10-27
-- `host-probe:east:root-path`: pass 2026-10-27
-- `host-probe:east:root-umask`: pass 2026-10-27
-- `host-probe:east:default-umask`: fail 2026-10-27
-- `host-probe:east:home-dirs`: pass 2026-10-27
-- `host-probe:east:dot-files`: pass 2026-10-27
+- `host-probe:west:su-restricted`: pass 2026-11-05
+- `host-probe:west:root-access-controlled`: pass 2026-11-05
+- `host-probe:west:root-path`: fail 2026-11-05
+- `host-probe:west:root-umask`: pass 2026-11-05
+- `host-probe:west:default-umask`: fail 2026-11-05
+- `host-probe:west:home-dirs`: pass 2026-11-05
+- `host-probe:west:dot-files`: fail 2026-11-05
+- `host-probe:east:su-restricted`: pass 2026-11-05
+- `host-probe:east:root-access-controlled`: pass 2026-11-05
+- `host-probe:east:root-path`: pass 2026-11-05
+- `host-probe:east:root-umask`: pass 2026-11-05
+- `host-probe:east:default-umask`: pass 2026-11-05
+- `host-probe:east:home-dirs`: pass 2026-11-05
+- `host-probe:east:dot-files`: pass 2026-11-05
 
 Mappings:
 
@@ -690,7 +690,7 @@ Mappings:
 
 ### UH-BASE-01: Each host's baseline agent reports, and agrees with the central pull
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts unheaded-baseline has reported within three hours, ran the repo's baseline in audit mode, and every check it and the central collector both evaluated has the same verdict.
 
@@ -698,8 +698,8 @@ Rationale: Continuous monitoring with two independent paths (CA-7) and detection
 
 Evidence:
 
-- `host-agent:west:baseline-report`: pass 2026-10-27
-- `host-agent:east:baseline-report`: fail 2026-10-27
+- `host-agent:west:baseline-report`: pass 2026-11-05
+- `host-agent:east:baseline-report`: fail 2026-11-05
 
 Mappings:
 
@@ -710,7 +710,7 @@ Mappings:
 
 ### UH-MAC-01: Mandatory access control is installed and its profiles confine
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts AppArmor and its utilities are installed and every loaded profile is in enforce or complain mode.
 
@@ -718,10 +718,10 @@ Rationale: Access enforcement by the kernel regardless of file permissions (AC-3
 
 Evidence:
 
-- `host-probe:west:apparmor-installed`: pass 2026-10-27
-- `host-probe:west:apparmor-profiles-enforced`: fail 2026-10-27
-- `host-probe:east:apparmor-installed`: pass 2026-10-27
-- `host-probe:east:apparmor-profiles-enforced`: fail 2026-10-27
+- `host-probe:west:apparmor-installed`: pass 2026-11-05
+- `host-probe:west:apparmor-profiles-enforced`: fail 2026-11-05
+- `host-probe:east:apparmor-installed`: pass 2026-11-05
+- `host-probe:east:apparmor-profiles-enforced`: fail 2026-11-05
 
 Mappings:
 
@@ -735,7 +735,7 @@ Mappings:
 
 ### UH-BOOT-01: The boot loader is password-protected and its configuration root-only
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts grub has a superuser with a PBKDF2 password and /boot/grub/grub.cfg is root-owned at 0600 or stricter.
 
@@ -743,10 +743,10 @@ Rationale: Access enforcement at boot (AC-3) against changing kernel parameters 
 
 Evidence:
 
-- `host-probe:west:grub-password`: fail 2026-10-27
-- `host-probe:west:perm-boot-grub-cfg`: pass 2026-10-27
-- `host-probe:east:grub-password`: fail 2026-10-27
-- `host-probe:east:perm-boot-grub-cfg`: pass 2026-10-27
+- `host-probe:west:grub-password`: fail 2026-11-05
+- `host-probe:west:perm-boot-grub-cfg`: pass 2026-11-05
+- `host-probe:east:grub-password`: fail 2026-11-05
+- `host-probe:east:perm-boot-grub-cfg`: pass 2026-11-05
 
 Mappings:
 
@@ -760,24 +760,26 @@ Mappings:
 
 ### UH-SUDO-01: Privilege escalation through sudo is logged, re-authenticated and pty-bound
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
-On both hosts sudo is installed, runs commands in a pty, logs to its own file, never skips authentication (!authenticate), and sets timestamp_timeout explicitly to 15 minutes or less.
+On both hosts sudo is installed, runs commands in a pty, logs to its own file, never skips authentication (!authenticate or NOPASSWD), and sets timestamp_timeout explicitly to 15 minutes or less.
 
-Rationale: Least privilege with logging of privileged functions (AC-6(9), AU-12) and re-authentication (IA-11); 800-171 03.01.07; CSF PR.AA-05; ISO A.8.2. CIS Ubuntu 24.04 5.2.1-5.2.3, 5.2.5, 5.2.6 (timeout must be explicit per ComplianceAsCode).
+Rationale: Least privilege with logging of privileged functions (AC-6(9), AU-12) and re-authentication (IA-11); 800-171 03.01.07; CSF PR.AA-05; ISO A.8.2. CIS Ubuntu 24.04 5.2.1-5.2.6 (timeout must be explicit per ComplianceAsCode).
 
 Evidence:
 
-- `host-probe:west:sudo-installed`: pass 2026-10-27
-- `host-probe:west:sudo-use-pty`: pass 2026-10-27
-- `host-probe:west:sudo-logfile`: fail 2026-10-27
-- `host-probe:west:sudo-no-noauth`: pass 2026-10-27
-- `host-probe:west:sudo-timeout`: pass 2026-10-27
-- `host-probe:east:sudo-installed`: pass 2026-10-27
-- `host-probe:east:sudo-use-pty`: pass 2026-10-27
-- `host-probe:east:sudo-logfile`: fail 2026-10-27
-- `host-probe:east:sudo-no-noauth`: pass 2026-10-27
-- `host-probe:east:sudo-timeout`: pass 2026-10-27
+- `host-probe:west:sudo-installed`: pass 2026-11-05
+- `host-probe:west:sudo-use-pty`: pass 2026-11-05
+- `host-probe:west:sudo-logfile`: fail 2026-11-05
+- `host-probe:west:sudo-password-required`: no record
+- `host-probe:west:sudo-no-noauth`: pass 2026-11-05
+- `host-probe:west:sudo-timeout`: pass 2026-11-05
+- `host-probe:east:sudo-installed`: pass 2026-11-05
+- `host-probe:east:sudo-use-pty`: pass 2026-11-05
+- `host-probe:east:sudo-logfile`: fail 2026-11-05
+- `host-probe:east:sudo-password-required`: no record
+- `host-probe:east:sudo-no-noauth`: pass 2026-11-05
+- `host-probe:east:sudo-timeout`: pass 2026-11-05
 
 Mappings:
 
@@ -791,7 +793,7 @@ Mappings:
 
 ### UH-PASS-01: Local passwords age, warn, lock when unused and use a strong hash
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts PASS_MAX_DAYS is 365 or less and every account with a password follows it; PASS_WARN_AGE is at least 7; ENCRYPT_METHOD is SHA512 or YESCRYPT; accounts lock 45 days or less after their password expires, by default and on every account with a password; no password change date lies in the future.
 
@@ -799,16 +801,16 @@ Rationale: Authenticator management (IA-5; 800-171 03.05.07; CSF PR.AA-03; ISO A
 
 Evidence:
 
-- `host-probe:west:pw-max-days`: fail 2026-10-27
-- `host-probe:west:pw-warn-age`: pass 2026-10-27
-- `host-probe:west:pw-hash-algo`: pass 2026-10-27
-- `host-probe:west:pw-inactive`: fail 2026-10-27
-- `host-probe:west:pw-change-past`: pass 2026-10-27
-- `host-probe:east:pw-max-days`: fail 2026-10-27
-- `host-probe:east:pw-warn-age`: pass 2026-10-27
-- `host-probe:east:pw-hash-algo`: pass 2026-10-27
-- `host-probe:east:pw-inactive`: fail 2026-10-27
-- `host-probe:east:pw-change-past`: pass 2026-10-27
+- `host-probe:west:pw-max-days`: fail 2026-11-05
+- `host-probe:west:pw-warn-age`: pass 2026-11-05
+- `host-probe:west:pw-hash-algo`: pass 2026-11-05
+- `host-probe:west:pw-inactive`: fail 2026-11-05
+- `host-probe:west:pw-change-past`: pass 2026-11-05
+- `host-probe:east:pw-max-days`: fail 2026-11-05
+- `host-probe:east:pw-warn-age`: pass 2026-11-05
+- `host-probe:east:pw-hash-algo`: pass 2026-11-05
+- `host-probe:east:pw-inactive`: fail 2026-11-05
+- `host-probe:east:pw-change-past`: pass 2026-11-05
 
 Mappings:
 
@@ -822,7 +824,7 @@ Mappings:
 
 ### UH-SESS-01: Idle shells end after 15 minutes
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts a readonly, exported TMOUT of 900 seconds or less is set for every login shell.
 
@@ -830,8 +832,8 @@ Rationale: Session termination (AC-12; 800-171 03.01.11; CSF PR.AA-03). CIS Ubun
 
 Evidence:
 
-- `host-probe:west:shell-tmout`: fail 2026-10-27
-- `host-probe:east:shell-tmout`: fail 2026-10-27
+- `host-probe:west:shell-tmout`: fail 2026-11-05
+- `host-probe:east:shell-tmout`: fail 2026-11-05
 
 Mappings:
 
@@ -843,7 +845,7 @@ Mappings:
 
 ### UH-BANNER-01: Login banners warn and give away nothing about the system
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 On both hosts /etc/issue and /etc/issue.net carry a banner, and none of /etc/motd, /etc/issue, /etc/issue.net contains the OS name or the \v \r \m \s escapes that expand to OS details; each is root-owned at 0644 or stricter.
 
@@ -851,18 +853,18 @@ Rationale: System use notification (AC-8; 800-171 03.01.09). CIS Ubuntu 24.04 1.
 
 Evidence:
 
-- `host-probe:west:banner-motd`: pass 2026-10-27
-- `host-probe:west:banner-issue`: pass 2026-10-27
-- `host-probe:west:banner-issue-net`: pass 2026-10-27
-- `host-probe:west:perm-etc-motd`: pass 2026-10-27
-- `host-probe:west:perm-etc-issue`: pass 2026-10-27
-- `host-probe:west:perm-etc-issue-net`: pass 2026-10-27
-- `host-probe:east:banner-motd`: pass 2026-10-27
-- `host-probe:east:banner-issue`: pass 2026-10-27
-- `host-probe:east:banner-issue-net`: pass 2026-10-27
-- `host-probe:east:perm-etc-motd`: pass 2026-10-27
-- `host-probe:east:perm-etc-issue`: pass 2026-10-27
-- `host-probe:east:perm-etc-issue-net`: pass 2026-10-27
+- `host-probe:west:banner-motd`: pass 2026-11-05
+- `host-probe:west:banner-issue`: pass 2026-11-05
+- `host-probe:west:banner-issue-net`: pass 2026-11-05
+- `host-probe:west:perm-etc-motd`: pass 2026-11-05
+- `host-probe:west:perm-etc-issue`: pass 2026-11-05
+- `host-probe:west:perm-etc-issue-net`: pass 2026-11-05
+- `host-probe:east:banner-motd`: pass 2026-11-05
+- `host-probe:east:banner-issue`: pass 2026-11-05
+- `host-probe:east:banner-issue-net`: pass 2026-11-05
+- `host-probe:east:perm-etc-motd`: pass 2026-11-05
+- `host-probe:east:perm-etc-issue`: pass 2026-11-05
+- `host-probe:east:perm-etc-issue-net`: pass 2026-11-05
 
 Mappings:
 
@@ -874,7 +876,7 @@ Mappings:
 
 ### UH-RADIO-01: Wireless radios are off unless the host needs them
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts no wireless interface is up, unless an accepted finding says why.
 
@@ -882,8 +884,8 @@ Rationale: Wireless access restriction (AC-18; 800-171 03.01.16) and least funct
 
 Evidence:
 
-- `host-probe:west:radio-wireless-down`: fail 2026-10-27
-- `host-probe:east:radio-wireless-down`: pass 2026-10-27
+- `host-probe:west:radio-wireless-down`: fail 2026-11-05
+- `host-probe:east:radio-wireless-down`: pass 2026-11-05
 
 Mappings:
 
@@ -895,7 +897,7 @@ Mappings:
 
 ### UH-FIM-01: File integrity is checked on a schedule
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts AIDE is installed with an initialised database, and a systemd timer runs its check.
 
@@ -903,10 +905,10 @@ Rationale: Software, firmware and information integrity (SI-7). CIS Ubuntu 24.04
 
 Evidence:
 
-- `host-probe:west:aide-installed`: fail 2026-10-27
-- `host-probe:west:aide-timer`: fail 2026-10-27
-- `host-probe:east:aide-installed`: fail 2026-10-27
-- `host-probe:east:aide-timer`: fail 2026-10-27
+- `host-probe:west:aide-installed`: fail 2026-11-05
+- `host-probe:west:aide-timer`: fail 2026-11-05
+- `host-probe:east:aide-installed`: fail 2026-11-05
+- `host-probe:east:aide-timer`: fail 2026-11-05
 
 Mappings:
 
@@ -916,7 +918,7 @@ Mappings:
 
 ### UH-LOG-01: Host logs are kept by one logging system, readable only by those who should
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 On both hosts journald forwards to rsyslog, rsyslog is the only logging system running, it writes log files at 0640 or stricter and it accepts no logs from the network.
 
@@ -924,16 +926,16 @@ Rationale: Audit record generation (AU-12) and protection of audit information (
 
 Evidence:
 
-- `host-probe:west:logging-single-system`: pass 2026-10-27
-- `host-probe:west:rsyslog-active`: pass 2026-10-27
-- `host-probe:west:journald-forward-syslog`: pass 2026-10-27
-- `host-probe:west:rsyslog-filecreatemode`: pass 2026-10-27
-- `host-probe:west:rsyslog-no-listen`: pass 2026-10-27
-- `host-probe:east:logging-single-system`: pass 2026-10-27
-- `host-probe:east:rsyslog-active`: pass 2026-10-27
-- `host-probe:east:journald-forward-syslog`: pass 2026-10-27
-- `host-probe:east:rsyslog-filecreatemode`: pass 2026-10-27
-- `host-probe:east:rsyslog-no-listen`: pass 2026-10-27
+- `host-probe:west:logging-single-system`: pass 2026-11-05
+- `host-probe:west:rsyslog-active`: pass 2026-11-05
+- `host-probe:west:journald-forward-syslog`: pass 2026-11-05
+- `host-probe:west:rsyslog-filecreatemode`: pass 2026-11-05
+- `host-probe:west:rsyslog-no-listen`: pass 2026-11-05
+- `host-probe:east:logging-single-system`: pass 2026-11-05
+- `host-probe:east:rsyslog-active`: pass 2026-11-05
+- `host-probe:east:journald-forward-syslog`: pass 2026-11-05
+- `host-probe:east:rsyslog-filecreatemode`: pass 2026-11-05
+- `host-probe:east:rsyslog-no-listen`: pass 2026-11-05
 
 Mappings:
 
@@ -944,7 +946,7 @@ Mappings:
 
 ### UH-LOG-02: Log storage is bounded and log files are not loosely readable
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts journald's disk use is capped explicitly, logrotate runs on its timer, journal files are 0640 or stricter, and no file under /var/log is looser than CIS allows for its name.
 
@@ -952,14 +954,14 @@ Rationale: Audit log storage capacity (AU-4: journald caps and rotation, so one 
 
 Evidence:
 
-- `host-probe:west:journald-file-access`: pass 2026-10-27
-- `host-probe:west:journald-rotation`: pass 2026-10-27
-- `host-probe:west:logrotate-active`: pass 2026-10-27
-- `host-probe:west:var-log-perms`: fail 2026-10-27
-- `host-probe:east:journald-file-access`: pass 2026-10-27
-- `host-probe:east:journald-rotation`: pass 2026-10-27
-- `host-probe:east:logrotate-active`: pass 2026-10-27
-- `host-probe:east:var-log-perms`: fail 2026-10-27
+- `host-probe:west:journald-file-access`: pass 2026-11-05
+- `host-probe:west:journald-rotation`: pass 2026-11-05
+- `host-probe:west:logrotate-active`: pass 2026-11-05
+- `host-probe:west:var-log-perms`: fail 2026-11-05
+- `host-probe:east:journald-file-access`: pass 2026-11-05
+- `host-probe:east:journald-rotation`: pass 2026-11-05
+- `host-probe:east:logrotate-active`: pass 2026-11-05
+- `host-probe:east:var-log-perms`: fail 2026-11-05
 
 Mappings:
 
@@ -972,7 +974,7 @@ Mappings:
 
 ### UH-PAM-01: Local authentication locks out guessing and refuses weak or reused passwords
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts the PAM stack runs pam_unix (no nullok, strong hash, use_authtok), pam_faillock (deny 4 or fewer, unlock 15 minutes or never), pam_pwquality (minimum 14 characters, limits on repeats and sequences, dictionary check, enforced for root) and pam_pwhistory (24 remembered, enforced for root).
 
@@ -980,52 +982,52 @@ Rationale: Authenticator management (IA-5) and limits on unsuccessful logon atte
 
 Evidence:
 
-- `host-probe:west:pkg-pam-modules`: pass 2026-10-27
-- `host-probe:west:pkg-pam-pwquality`: fail 2026-10-27
-- `host-probe:west:pam-runtime-version`: pass 2026-10-27
-- `host-probe:west:pam-unix-enabled`: pass 2026-10-27
-- `host-probe:west:pam-faillock-enabled`: fail 2026-10-27
-- `host-probe:west:pam-pwquality-enabled`: fail 2026-10-27
-- `host-probe:west:pam-pwhistory-enabled`: fail 2026-10-27
-- `host-probe:west:pam-faillock-deny`: fail 2026-10-27
-- `host-probe:west:pam-faillock-unlock`: fail 2026-10-27
-- `host-probe:west:pam-pwq-difok`: fail 2026-10-27
-- `host-probe:west:pam-pwq-minlen`: fail 2026-10-27
-- `host-probe:west:pam-pwq-maxrepeat`: fail 2026-10-27
-- `host-probe:west:pam-pwq-maxsequence`: fail 2026-10-27
-- `host-probe:west:pam-pwq-dictcheck`: fail 2026-10-27
-- `host-probe:west:pam-pwq-enforcing`: fail 2026-10-27
-- `host-probe:west:pam-pwq-enforce-root`: fail 2026-10-27
-- `host-probe:west:pam-pwhistory-remember`: fail 2026-10-27
-- `host-probe:west:pam-pwhistory-enforce-root`: fail 2026-10-27
-- `host-probe:west:pam-pwhistory-authtok`: fail 2026-10-27
-- `host-probe:west:pam-unix-no-nullok`: fail 2026-10-27
-- `host-probe:west:pam-unix-no-remember`: pass 2026-10-27
-- `host-probe:west:pam-unix-strong-hash`: pass 2026-10-27
-- `host-probe:west:pam-unix-authtok`: fail 2026-10-27
-- `host-probe:east:pkg-pam-modules`: pass 2026-10-27
-- `host-probe:east:pkg-pam-pwquality`: fail 2026-10-27
-- `host-probe:east:pam-runtime-version`: pass 2026-10-27
-- `host-probe:east:pam-unix-enabled`: pass 2026-10-27
-- `host-probe:east:pam-faillock-enabled`: fail 2026-10-27
-- `host-probe:east:pam-pwquality-enabled`: fail 2026-10-27
-- `host-probe:east:pam-pwhistory-enabled`: fail 2026-10-27
-- `host-probe:east:pam-faillock-deny`: fail 2026-10-27
-- `host-probe:east:pam-faillock-unlock`: fail 2026-10-27
-- `host-probe:east:pam-pwq-difok`: fail 2026-10-27
-- `host-probe:east:pam-pwq-minlen`: fail 2026-10-27
-- `host-probe:east:pam-pwq-maxrepeat`: fail 2026-10-27
-- `host-probe:east:pam-pwq-maxsequence`: fail 2026-10-27
-- `host-probe:east:pam-pwq-dictcheck`: fail 2026-10-27
-- `host-probe:east:pam-pwq-enforcing`: fail 2026-10-27
-- `host-probe:east:pam-pwq-enforce-root`: fail 2026-10-27
-- `host-probe:east:pam-pwhistory-remember`: fail 2026-10-27
-- `host-probe:east:pam-pwhistory-enforce-root`: fail 2026-10-27
-- `host-probe:east:pam-pwhistory-authtok`: fail 2026-10-27
-- `host-probe:east:pam-unix-no-nullok`: fail 2026-10-27
-- `host-probe:east:pam-unix-no-remember`: pass 2026-10-27
-- `host-probe:east:pam-unix-strong-hash`: pass 2026-10-27
-- `host-probe:east:pam-unix-authtok`: fail 2026-10-27
+- `host-probe:west:pkg-pam-modules`: pass 2026-11-05
+- `host-probe:west:pkg-pam-pwquality`: fail 2026-11-05
+- `host-probe:west:pam-runtime-version`: pass 2026-11-05
+- `host-probe:west:pam-unix-enabled`: pass 2026-11-05
+- `host-probe:west:pam-faillock-enabled`: fail 2026-11-05
+- `host-probe:west:pam-pwquality-enabled`: fail 2026-11-05
+- `host-probe:west:pam-pwhistory-enabled`: fail 2026-11-05
+- `host-probe:west:pam-faillock-deny`: fail 2026-11-05
+- `host-probe:west:pam-faillock-unlock`: fail 2026-11-05
+- `host-probe:west:pam-pwq-difok`: fail 2026-11-05
+- `host-probe:west:pam-pwq-minlen`: fail 2026-11-05
+- `host-probe:west:pam-pwq-maxrepeat`: fail 2026-11-05
+- `host-probe:west:pam-pwq-maxsequence`: fail 2026-11-05
+- `host-probe:west:pam-pwq-dictcheck`: fail 2026-11-05
+- `host-probe:west:pam-pwq-enforcing`: fail 2026-11-05
+- `host-probe:west:pam-pwq-enforce-root`: fail 2026-11-05
+- `host-probe:west:pam-pwhistory-remember`: fail 2026-11-05
+- `host-probe:west:pam-pwhistory-enforce-root`: fail 2026-11-05
+- `host-probe:west:pam-pwhistory-authtok`: fail 2026-11-05
+- `host-probe:west:pam-unix-no-nullok`: fail 2026-11-05
+- `host-probe:west:pam-unix-no-remember`: pass 2026-11-05
+- `host-probe:west:pam-unix-strong-hash`: pass 2026-11-05
+- `host-probe:west:pam-unix-authtok`: fail 2026-11-05
+- `host-probe:east:pkg-pam-modules`: pass 2026-11-05
+- `host-probe:east:pkg-pam-pwquality`: fail 2026-11-05
+- `host-probe:east:pam-runtime-version`: pass 2026-11-05
+- `host-probe:east:pam-unix-enabled`: pass 2026-11-05
+- `host-probe:east:pam-faillock-enabled`: fail 2026-11-05
+- `host-probe:east:pam-pwquality-enabled`: fail 2026-11-05
+- `host-probe:east:pam-pwhistory-enabled`: fail 2026-11-05
+- `host-probe:east:pam-faillock-deny`: fail 2026-11-05
+- `host-probe:east:pam-faillock-unlock`: fail 2026-11-05
+- `host-probe:east:pam-pwq-difok`: fail 2026-11-05
+- `host-probe:east:pam-pwq-minlen`: fail 2026-11-05
+- `host-probe:east:pam-pwq-maxrepeat`: fail 2026-11-05
+- `host-probe:east:pam-pwq-maxsequence`: fail 2026-11-05
+- `host-probe:east:pam-pwq-dictcheck`: fail 2026-11-05
+- `host-probe:east:pam-pwq-enforcing`: fail 2026-11-05
+- `host-probe:east:pam-pwq-enforce-root`: fail 2026-11-05
+- `host-probe:east:pam-pwhistory-remember`: fail 2026-11-05
+- `host-probe:east:pam-pwhistory-enforce-root`: fail 2026-11-05
+- `host-probe:east:pam-pwhistory-authtok`: fail 2026-11-05
+- `host-probe:east:pam-unix-no-nullok`: fail 2026-11-05
+- `host-probe:east:pam-unix-no-remember`: pass 2026-11-05
+- `host-probe:east:pam-unix-strong-hash`: pass 2026-11-05
+- `host-probe:east:pam-unix-authtok`: fail 2026-11-05
 
 Mappings:
 
@@ -1039,7 +1041,7 @@ Mappings:
 
 ### UH-NET-01: The host network stack rejects spoofed and redirected traffic
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On both hosts (west, east): reverse-path filtering on, ICMP redirects neither accepted (IPv4, IPv6) nor sent, and SYN cookies on. Remote hosts are read over ssh; each record names its host. Also (CIS 3.3): not a router unless it has to be, bogus ICMP errors and broadcast pings ignored, no secure redirects, no source routing, martians logged, no IPv6 router advertisements.
 
@@ -1047,34 +1049,34 @@ Rationale: Boundary protection at the host (SC-7: drop spoofed source addresses,
 
 Evidence:
 
-- `host-sysctl:west:net.ipv4.conf.all.rp_filter>=1`: pass 2026-10-27
-- `host-sysctl:west:net.ipv4.conf.all.accept_redirects=0`: pass 2026-10-27
-- `host-sysctl:west:net.ipv6.conf.all.accept_redirects=0`: pass 2026-10-27
-- `host-sysctl:west:net.ipv4.conf.all.send_redirects=0`: pass 2026-10-27
-- `host-sysctl:west:net.ipv4.tcp_syncookies=1`: pass 2026-10-27
-- `host-sysctl:east:net.ipv4.conf.all.rp_filter>=1`: pass 2026-10-27
-- `host-sysctl:east:net.ipv4.conf.all.accept_redirects=0`: pass 2026-10-27
-- `host-sysctl:east:net.ipv6.conf.all.accept_redirects=0`: pass 2026-10-27
-- `host-sysctl:east:net.ipv4.conf.all.send_redirects=0`: pass 2026-10-27
-- `host-sysctl:east:net.ipv4.tcp_syncookies=1`: pass 2026-10-27
-- `host-sysctl:west:net.ipv4.ip_forward=0`: fail 2026-10-27
-- `host-sysctl:west:net.ipv6.conf.all.forwarding=0`: fail 2026-10-27
-- `host-sysctl:west:net.ipv4.icmp_ignore_bogus_error_responses=1`: pass 2026-10-27
-- `host-sysctl:west:net.ipv4.icmp_echo_ignore_broadcasts=1`: pass 2026-10-27
-- `host-sysctl:west:net.ipv4.conf.all.secure_redirects=0`: pass 2026-10-27
-- `host-sysctl:west:net.ipv4.conf.all.accept_source_route=0`: pass 2026-10-27
-- `host-sysctl:west:net.ipv6.conf.all.accept_source_route=0`: pass 2026-10-27
-- `host-sysctl:west:net.ipv4.conf.all.log_martians=1`: pass 2026-10-27
-- `host-sysctl:west:net.ipv6.conf.all.accept_ra=0`: fail 2026-10-27
-- `host-sysctl:east:net.ipv4.ip_forward=0`: pass 2026-10-27
-- `host-sysctl:east:net.ipv6.conf.all.forwarding=0`: pass 2026-10-27
-- `host-sysctl:east:net.ipv4.icmp_ignore_bogus_error_responses=1`: pass 2026-10-27
-- `host-sysctl:east:net.ipv4.icmp_echo_ignore_broadcasts=1`: pass 2026-10-27
-- `host-sysctl:east:net.ipv4.conf.all.secure_redirects=0`: pass 2026-10-27
-- `host-sysctl:east:net.ipv4.conf.all.accept_source_route=0`: pass 2026-10-27
-- `host-sysctl:east:net.ipv6.conf.all.accept_source_route=0`: pass 2026-10-27
-- `host-sysctl:east:net.ipv4.conf.all.log_martians=1`: pass 2026-10-27
-- `host-sysctl:east:net.ipv6.conf.all.accept_ra=0`: pass 2026-10-27
+- `host-sysctl:west:net.ipv4.conf.all.rp_filter>=1`: pass 2026-11-05
+- `host-sysctl:west:net.ipv4.conf.all.accept_redirects=0`: pass 2026-11-05
+- `host-sysctl:west:net.ipv6.conf.all.accept_redirects=0`: pass 2026-11-05
+- `host-sysctl:west:net.ipv4.conf.all.send_redirects=0`: pass 2026-11-05
+- `host-sysctl:west:net.ipv4.tcp_syncookies=1`: pass 2026-11-05
+- `host-sysctl:east:net.ipv4.conf.all.rp_filter>=1`: pass 2026-11-05
+- `host-sysctl:east:net.ipv4.conf.all.accept_redirects=0`: pass 2026-11-05
+- `host-sysctl:east:net.ipv6.conf.all.accept_redirects=0`: pass 2026-11-05
+- `host-sysctl:east:net.ipv4.conf.all.send_redirects=0`: pass 2026-11-05
+- `host-sysctl:east:net.ipv4.tcp_syncookies=1`: pass 2026-11-05
+- `host-sysctl:west:net.ipv4.ip_forward=0`: fail 2026-11-05
+- `host-sysctl:west:net.ipv6.conf.all.forwarding=0`: fail 2026-11-05
+- `host-sysctl:west:net.ipv4.icmp_ignore_bogus_error_responses=1`: pass 2026-11-05
+- `host-sysctl:west:net.ipv4.icmp_echo_ignore_broadcasts=1`: pass 2026-11-05
+- `host-sysctl:west:net.ipv4.conf.all.secure_redirects=0`: pass 2026-11-05
+- `host-sysctl:west:net.ipv4.conf.all.accept_source_route=0`: pass 2026-11-05
+- `host-sysctl:west:net.ipv6.conf.all.accept_source_route=0`: pass 2026-11-05
+- `host-sysctl:west:net.ipv4.conf.all.log_martians=1`: pass 2026-11-05
+- `host-sysctl:west:net.ipv6.conf.all.accept_ra=0`: fail 2026-11-05
+- `host-sysctl:east:net.ipv4.ip_forward=0`: pass 2026-11-05
+- `host-sysctl:east:net.ipv6.conf.all.forwarding=0`: pass 2026-11-05
+- `host-sysctl:east:net.ipv4.icmp_ignore_bogus_error_responses=1`: pass 2026-11-05
+- `host-sysctl:east:net.ipv4.icmp_echo_ignore_broadcasts=1`: pass 2026-11-05
+- `host-sysctl:east:net.ipv4.conf.all.secure_redirects=0`: pass 2026-11-05
+- `host-sysctl:east:net.ipv4.conf.all.accept_source_route=0`: pass 2026-11-05
+- `host-sysctl:east:net.ipv6.conf.all.accept_source_route=0`: pass 2026-11-05
+- `host-sysctl:east:net.ipv4.conf.all.log_martians=1`: pass 2026-11-05
+- `host-sysctl:east:net.ipv6.conf.all.accept_ra=0`: pass 2026-11-05
 
 Mappings:
 
@@ -1088,7 +1090,7 @@ Mappings:
 
 ### UH-SSH-01: Remote login to the hosts is key-only and hardened
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On west and east, the effective sshd configuration (sshd -T, with Include and Match resolved) refuses passwords and keyboard-interactive login, root login and empty passwords, disables X11 forwarding, allows at most 4 authentication attempts per connection, and times out idle sessions within 5 minutes. Read with passwordless sudo, locally or over ssh; each record names its host. Also (CIS 5.1): no host-based or rhosts authentication, login grace 60s or less, INFO logging, at most 10 sessions, no user environment, PAM on, forwarding off, no GSSAPI.
 
@@ -1096,52 +1098,52 @@ Rationale: Remote access restricted to strong authentication (AC-17; IA-2 identi
 
 Evidence:
 
-- `host-sshd:west:passwordauthentication=no`: pass 2026-10-27
-- `host-sshd:west:kbdinteractiveauthentication=no`: fail 2026-10-27
-- `host-sshd:west:permitemptypasswords=no`: pass 2026-10-27
-- `host-sshd:west:permitrootlogin=no`: fail 2026-10-27
-- `host-sshd:west:x11forwarding=no`: pass 2026-10-27
-- `host-sshd:west:maxauthtries<=4`: pass 2026-10-27
-- `host-sshd:west:clientaliveinterval>=1`: pass 2026-10-27
-- `host-sshd:west:clientaliveinterval<=300`: pass 2026-10-27
-- `host-sshd:east:passwordauthentication=no`: fail 2026-10-27
-- `host-sshd:east:kbdinteractiveauthentication=no`: fail 2026-10-27
-- `host-sshd:east:permitemptypasswords=no`: pass 2026-10-27
-- `host-sshd:east:permitrootlogin=no`: fail 2026-10-27
-- `host-sshd:east:x11forwarding=no`: pass 2026-10-27
-- `host-sshd:east:maxauthtries<=4`: pass 2026-10-27
-- `host-sshd:east:clientaliveinterval>=1`: pass 2026-10-27
-- `host-sshd:east:clientaliveinterval<=300`: pass 2026-10-27
-- `host-sshd:west:hostbasedauthentication=no`: pass 2026-10-27
-- `host-sshd:west:ignorerhosts=yes`: pass 2026-10-27
-- `host-sshd:west:logingracetime<=60`: fail 2026-10-27
-- `host-sshd:west:loglevel=INFO`: pass 2026-10-27
-- `host-sshd:west:maxsessions<=10`: pass 2026-10-27
-- `host-sshd:west:permituserenvironment=no`: pass 2026-10-27
-- `host-sshd:west:usepam=yes`: pass 2026-10-27
-- `host-sshd:west:disableforwarding=yes`: fail 2026-10-27
-- `host-sshd:west:gssapiauthentication=no`: pass 2026-10-27
-- `host-sshd:east:hostbasedauthentication=no`: pass 2026-10-27
-- `host-sshd:east:ignorerhosts=yes`: pass 2026-10-27
-- `host-sshd:east:logingracetime<=60`: pass 2026-10-27
-- `host-sshd:east:loglevel=INFO`: pass 2026-10-27
-- `host-sshd:east:maxsessions<=10`: pass 2026-10-27
-- `host-sshd:east:permituserenvironment=no`: pass 2026-10-27
-- `host-sshd:east:usepam=yes`: pass 2026-10-27
-- `host-sshd:east:disableforwarding=yes`: fail 2026-10-27
-- `host-sshd:east:gssapiauthentication=no`: pass 2026-10-27
-- `host-probe:west:sshd-access`: fail 2026-10-27
-- `host-probe:west:sshd-banner`: fail 2026-10-27
-- `host-probe:west:sshd-ciphers`: pass 2026-10-27
-- `host-probe:west:sshd-kex`: pass 2026-10-27
-- `host-probe:west:sshd-macs`: fail 2026-10-27
-- `host-probe:west:sshd-maxstartups`: fail 2026-10-27
-- `host-probe:east:sshd-access`: fail 2026-10-27
-- `host-probe:east:sshd-banner`: fail 2026-10-27
-- `host-probe:east:sshd-ciphers`: pass 2026-10-27
-- `host-probe:east:sshd-kex`: pass 2026-10-27
-- `host-probe:east:sshd-macs`: pass 2026-10-27
-- `host-probe:east:sshd-maxstartups`: pass 2026-10-27
+- `host-sshd:west:passwordauthentication=no`: pass 2026-11-05
+- `host-sshd:west:kbdinteractiveauthentication=no`: fail 2026-11-05
+- `host-sshd:west:permitemptypasswords=no`: pass 2026-11-05
+- `host-sshd:west:permitrootlogin=no`: pass 2026-11-05
+- `host-sshd:west:x11forwarding=no`: pass 2026-11-05
+- `host-sshd:west:maxauthtries<=4`: pass 2026-11-05
+- `host-sshd:west:clientaliveinterval>=1`: pass 2026-11-05
+- `host-sshd:west:clientaliveinterval<=300`: pass 2026-11-05
+- `host-sshd:east:passwordauthentication=no`: fail 2026-11-05
+- `host-sshd:east:kbdinteractiveauthentication=no`: fail 2026-11-05
+- `host-sshd:east:permitemptypasswords=no`: pass 2026-11-05
+- `host-sshd:east:permitrootlogin=no`: pass 2026-11-05
+- `host-sshd:east:x11forwarding=no`: pass 2026-11-05
+- `host-sshd:east:maxauthtries<=4`: pass 2026-11-05
+- `host-sshd:east:clientaliveinterval>=1`: pass 2026-11-05
+- `host-sshd:east:clientaliveinterval<=300`: pass 2026-11-05
+- `host-sshd:west:hostbasedauthentication=no`: pass 2026-11-05
+- `host-sshd:west:ignorerhosts=yes`: pass 2026-11-05
+- `host-sshd:west:logingracetime<=60`: fail 2026-11-05
+- `host-sshd:west:loglevel=INFO`: pass 2026-11-05
+- `host-sshd:west:maxsessions<=10`: pass 2026-11-05
+- `host-sshd:west:permituserenvironment=no`: pass 2026-11-05
+- `host-sshd:west:usepam=yes`: pass 2026-11-05
+- `host-sshd:west:disableforwarding=yes`: fail 2026-11-05
+- `host-sshd:west:gssapiauthentication=no`: pass 2026-11-05
+- `host-sshd:east:hostbasedauthentication=no`: pass 2026-11-05
+- `host-sshd:east:ignorerhosts=yes`: pass 2026-11-05
+- `host-sshd:east:logingracetime<=60`: pass 2026-11-05
+- `host-sshd:east:loglevel=INFO`: pass 2026-11-05
+- `host-sshd:east:maxsessions<=10`: pass 2026-11-05
+- `host-sshd:east:permituserenvironment=no`: pass 2026-11-05
+- `host-sshd:east:usepam=yes`: pass 2026-11-05
+- `host-sshd:east:disableforwarding=yes`: fail 2026-11-05
+- `host-sshd:east:gssapiauthentication=no`: pass 2026-11-05
+- `host-probe:west:sshd-access`: fail 2026-11-05
+- `host-probe:west:sshd-banner`: fail 2026-11-05
+- `host-probe:west:sshd-ciphers`: pass 2026-11-05
+- `host-probe:west:sshd-kex`: pass 2026-11-05
+- `host-probe:west:sshd-macs`: fail 2026-11-05
+- `host-probe:west:sshd-maxstartups`: fail 2026-11-05
+- `host-probe:east:sshd-access`: fail 2026-11-05
+- `host-probe:east:sshd-banner`: fail 2026-11-05
+- `host-probe:east:sshd-ciphers`: pass 2026-11-05
+- `host-probe:east:sshd-kex`: pass 2026-11-05
+- `host-probe:east:sshd-macs`: pass 2026-11-05
+- `host-probe:east:sshd-maxstartups`: pass 2026-11-05
 
 Mappings:
 
@@ -1156,7 +1158,7 @@ Mappings:
 
 ### UH-CTR-01: Containers run least-privilege, with exceptions only shrinking
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 Every compose service declares a read-only root filesystem, drops all Linux capabilities, sets no-new-privileges, is never privileged and runs as its own explicit user (never 1000, root only for a one-shot without network), except the services listed in docs/security/compose-hardening-baseline.txt (docker-compose.yml: empty since 2026-10-18) and docs/security/compose-hardening-baseline-alt.txt (the other, undeployed compose files: 75 services, FND-009). Both lists may only shrink; the gate fails on a new unhardened service and on a stale exception. It does NOT say the listed services are hardened.
 
@@ -1164,7 +1166,7 @@ Rationale: Least privilege and least functionality for workloads (AC-6, CM-7), p
 
 Evidence:
 
-- `gate-script:scripts/check-compose-hardening.sh`: pass 2026-10-27
+- `gate-script:scripts/check-compose-hardening.sh`: pass 2026-11-05
 
 Mappings:
 
@@ -1178,7 +1180,7 @@ Mappings:
 
 ### UH-FW-01: Hosts deny inbound traffic by default
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 On west and east the kernel's INPUT policy is DROP for IPv4 and IPv6 (iptables/ip6tables, which also reflect nftables' iptables tables), so only traffic an explicit rule admits reaches a listener. Read from the live ruleset, not from a firewall service's status.
 
@@ -1186,10 +1188,10 @@ Rationale: Boundary protection with deny by default, allow by exception (SC-7, S
 
 Evidence:
 
-- `host-probe:west:firewall-inbound-deny`: fail 2026-10-27
-- `host-probe:west:firewall-single-utility`: pass 2026-10-27
-- `host-probe:east:firewall-inbound-deny`: fail 2026-10-27
-- `host-probe:east:firewall-single-utility`: fail 2026-10-27
+- `host-probe:west:firewall-inbound-deny`: fail 2026-11-05
+- `host-probe:west:firewall-single-utility`: pass 2026-11-05
+- `host-probe:east:firewall-inbound-deny`: fail 2026-11-05
+- `host-probe:east:firewall-single-utility`: fail 2026-11-05
 
 Mappings:
 
@@ -1204,18 +1206,20 @@ Mappings:
 
 ### UH-AUDIT-01: Hosts record security-relevant events with auditd
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** NOT_ASSESSED, no evidence for 2 of 6 sources
 
-auditd is running on west and east, so the kernel audit subsystem records security-relevant system calls and authentication events.
+auditd is running on west and east, and each of the 13 keys in the auditd-rules fix has at least one rule loaded, so the kernel audit subsystem records events in each of those areas. The probe checks keys: it does not show that every rule of the fix is loaded.
 
 Rationale: Event logging and audit record generation (AU-2, AU-12; 800-171 03.03.01); CSF PR.PS-04 log records generated; ISO A.8.15 logging; SOC 2 CC7.2 monitoring for anomalies. CIS Ubuntu 24.04 (Level 2): auditd enabled and active (6.2.1.2). 6.2.2.3 (disable the system when audit logs are full) is deliberately not adopted: ADR-098 forbids a halt on audit-log exhaustion (lockout).
 
 Evidence:
 
-- `host-probe:west:auditd-running`: pass 2026-10-27
-- `host-probe:east:auditd-running`: pass 2026-10-27
-- `host-probe:west:journald-active`: pass 2026-10-27
-- `host-probe:east:journald-active`: pass 2026-10-27
+- `host-probe:west:auditd-running`: pass 2026-11-05
+- `host-probe:east:auditd-running`: pass 2026-11-05
+- `host-probe:west:auditd-rules-loaded`: no record
+- `host-probe:east:auditd-rules-loaded`: no record
+- `host-probe:west:journald-active`: pass 2026-11-05
+- `host-probe:east:journald-active`: pass 2026-11-05
 
 Mappings:
 
@@ -1230,16 +1234,18 @@ Mappings:
 
 ### UH-PATCH-01: Hosts install security updates automatically
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** NOT_ASSESSED, no evidence for 2 of 4 sources
 
-On west and east, apt's periodic unattended upgrade is enabled (APT::Periodic::Unattended-Upgrade "1"), so security updates install without waiting for a person.
+On west and east, apt's periodic unattended upgrade is enabled (APT::Periodic::Unattended-Upgrade "1"), so security updates install without waiting for a person, and the running Ubuntu release is inside its support window, so there are updates to install.
 
 Rationale: Flaw remediation with automated installation (SI-2, SI-2(2) automated flaw remediation status; 800-171 03.14.01); CSF PR.PS-02 software maintained; ISO A.8.8 technical vulnerability management. CIS Ubuntu 24.04: updates and patches installed (1.2.2.1, manual); automatic security updates are the mechanism evidenced.
 
 Evidence:
 
-- `host-probe:west:unattended-upgrades-enabled`: pass 2026-10-27
-- `host-probe:east:unattended-upgrades-enabled`: pass 2026-10-27
+- `host-probe:west:unattended-upgrades-enabled`: pass 2026-11-05
+- `host-probe:east:unattended-upgrades-enabled`: pass 2026-11-05
+- `host-probe:west:os-supported`: no record
+- `host-probe:east:os-supported`: no record
 
 Mappings:
 
@@ -1253,7 +1259,7 @@ Mappings:
 
 ### UH-TIME-01: Host clocks are synchronized
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 On west and east the system clock is NTP-synchronized (timedatectl NTPSynchronized=yes), so log and audit timestamps line up across hosts.
 
@@ -1261,16 +1267,16 @@ Rationale: Time stamps from a synchronized source (AU-8; 800-171 03.03.07); ISO 
 
 Evidence:
 
-- `host-probe:west:ntp-synchronized`: pass 2026-10-27
-- `host-probe:east:ntp-synchronized`: pass 2026-10-27
-- `host-probe:west:time-single-daemon`: pass 2026-10-27
-- `host-probe:west:chrony-sources`: pass 2026-10-27
-- `host-probe:west:chrony-user`: pass 2026-10-27
-- `host-probe:west:chrony-active`: pass 2026-10-27
-- `host-probe:east:time-single-daemon`: pass 2026-10-27
-- `host-probe:east:chrony-sources`: pass 2026-10-27
-- `host-probe:east:chrony-user`: pass 2026-10-27
-- `host-probe:east:chrony-active`: pass 2026-10-27
+- `host-probe:west:ntp-synchronized`: pass 2026-11-05
+- `host-probe:east:ntp-synchronized`: pass 2026-11-05
+- `host-probe:west:time-single-daemon`: pass 2026-11-05
+- `host-probe:west:chrony-sources`: pass 2026-11-05
+- `host-probe:west:chrony-user`: pass 2026-11-05
+- `host-probe:west:chrony-active`: pass 2026-11-05
+- `host-probe:east:time-single-daemon`: pass 2026-11-05
+- `host-probe:east:chrony-sources`: pass 2026-11-05
+- `host-probe:east:chrony-user`: pass 2026-11-05
+- `host-probe:east:chrony-active`: pass 2026-11-05
 
 Mappings:
 
@@ -1283,7 +1289,7 @@ Mappings:
 
 ### UH-TLS-01: The edge enforces TLS 1.3 and never serves plain HTTP
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
 The edge proxy (traefik) redirects its plain-HTTP entrypoint to HTTPS, applies a TLS policy with a TLS 1.3 minimum, and does not serve its API/dashboard insecurely. Checked from the declared compose configuration by scripts/compliance/check-edge-tls.sh (a compliance check, not a CI gate: it fails today).
 
@@ -1291,7 +1297,7 @@ Rationale: Transmission confidentiality and integrity with cryptographic protect
 
 Evidence:
 
-- `gate-script:scripts/compliance/check-edge-tls.sh`: fail 2026-10-27
+- `gate-script:scripts/compliance/check-edge-tls.sh`: fail 2026-11-05
 
 Mappings:
 
@@ -1306,15 +1312,15 @@ Mappings:
 
 ### UH-AUTHN-01: Service APIs require authentication
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
-Every first-party service in the compose stack runs with AUTH_ENABLED=true, so pkg/auth installs a real authenticator (API key or JWT) instead of the Noop one that admits every request. Checked from the declared compose configuration by scripts/compliance/check-service-auth.sh (a compliance check, not a CI gate: it fails today).
+Every first-party service in the compose stack runs with AUTH_ENABLED=true, so pkg/auth installs a real authenticator (API key or JWT) instead of the Noop one that admits every request. Checked from the declared compose configuration by scripts/compliance/check-service-auth.sh, a compliance check and not a CI gate. It reads the compose file as written, so it says nothing about what runs: see FND-037.
 
 Rationale: Access enforcement (AC-3) with identification and authentication of users and services (IA-2, IA-9); 800-171 03.01.02 access enforcement, 03.05.02 device identification and authentication; CSF PR.AA-03; ISO A.8.5 secure authentication; SOC 2 CC6.1.
 
 Evidence:
 
-- `gate-script:scripts/compliance/check-service-auth.sh`: fail 2026-10-27
+- `gate-script:scripts/compliance/check-service-auth.sh`: pass 2026-11-05
 
 Mappings:
 
@@ -1327,17 +1333,17 @@ Mappings:
 - nist-csf-2: PR.AA-03
 - soc2-security: CC6.1
 
-### UH-BACKUP-01: The database is backed up at least weekly
+### UH-BACKUP-01: The database is backed up within its recovery point
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
-A compressed dump of The Well (PostgreSQL) under ~/backups/unheaded on west is at most 7 days old. Checks that a recent backup exists, not that it restores.
+The newest dump of The Well (PostgreSQL) on west, a scheduled set under /srv/backups/unheaded-well or a manual one under ~/backups/unheaded, is at most 36 hours old, the line east's offsite check also draws. Checks that a recent backup exists, not that it restores.
 
 Rationale: System backup of user- and system-level information (CP-9); CSF PR.DS-11 backups created and maintained; ISO A.8.13 information backup. Restore testing is a separate, still-unevidenced part of each.
 
 Evidence:
 
-- `host-probe:west:db-backup-recent`: pass 2026-10-27
+- `host-probe:west:db-backup-recent`: fail 2026-11-05
 
 Mappings:
 
@@ -1350,7 +1356,7 @@ Mappings:
 
 ### UH-PQC-01: The cryptographic inventory (CBOM) is current
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 compliance/crypto/cbom.cdx.json, a CycloneDX 1.6 inventory of every TLS, SSH, WireGuard, Postgres and signature site in the tree with its key-exchange status (hybrid, hybrid-opportunistic, classical, ...), equals a fresh regeneration by cmd/crypto-inventory. The gate fails when a crypto site is added, removed or changed without the inventory being regenerated in the same change. It checks that the inventory is current, not that what it lists is post-quantum (UH-PQC-02, UH-PQC-03).
 
@@ -1358,7 +1364,7 @@ Rationale: A maintained component inventory (CM-8) of cryptographic mechanisms, 
 
 Evidence:
 
-- `gate-script:scripts/check-crypto-inventory.sh`: pass 2026-10-27
+- `gate-script:scripts/check-crypto-inventory.sh`: pass 2026-11-05
 
 Mappings:
 
@@ -1369,9 +1375,9 @@ Mappings:
 - nist-800-53r5: CM-8, SC-12, SC-13
 - nist-csf-2: ID.AM-02
 
-### UH-PQC-02: First-party key exchange is hybrid post-quantum
+### UH-PQC-02: No repository configuration turns hybrid post-quantum key exchange off
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 No repository configuration turns hybrid ML-KEM key exchange off: no CurvePreferences list without a hybrid group, no first-party TLS floor below 1.3, no tlsmlkem=0 / tlssecpmlkem=0 kill switch, no go directive below 1.24, no rustls ring provider, no Postgres below 18 serving TLS, no sshd KexAlgorithms list without a hybrid (scripts/check-pq-kex.sh). Today's exceptions sit in a shrink-only baseline (docs/policy/pq-kex-baseline.txt), each with its reason: the Well until E1 (FND-015) and two operator opt-ins in the load balancer. Handshake tests on every first-party Go and Rust TLS surface assert the negotiated group is X25519MLKEM768. Links that run without TLS today (FND-017) are not covered.
 
@@ -1379,7 +1385,7 @@ Rationale: Cryptographic protection of data in transit (SC-8(1)) with approved k
 
 Evidence:
 
-- `gate-script:scripts/check-pq-kex.sh`: pass 2026-10-27
+- `gate-script:scripts/check-pq-kex.sh`: pass 2026-11-05
 
 Mappings:
 
@@ -1394,16 +1400,16 @@ Mappings:
 
 ### UH-PQC-03: Host SSH accepts only hybrid post-quantum key exchange
 
-**Status:** FAIL, evidence as of 2026-10-27
+**Status:** FAIL, evidence as of 2026-11-05
 
-On west and east, every KexAlgorithms entry in the effective sshd configuration (sshd -T) is a post-quantum hybrid (mlkem768x25519-sha256 or sntrup761x25519-sha512). Fails today on both hosts: ML-KEM is offered first and negotiated by current clients, but classical curve25519 and ECDH are still accepted. Making the lists hybrid-only is Stevie's call (E2, lockout risk).
+On west and east, every KexAlgorithms entry in the effective sshd configuration (sshd -T) is a post-quantum hybrid (mlkem768x25519-sha256 or sntrup761x25519-sha512). East passes. West fails today: ML-KEM is offered first and negotiated by current clients, but classical curve25519 and ECDH are still accepted. Making west's list hybrid-only is Stevie's call (E2, lockout risk).
 
 Rationale: Only a server list without classical entries guarantees a hybrid key exchange for every client (SSH chooses by the client's order): SC-8(1), SC-12, SC-13; 800-171 03.13.08; CSF PR.DS-02; ISO A.8.24. The CIS allowlist check (sshd-kex, UH-SSH-01) stays separate: it permits classical curves.
 
 Evidence:
 
-- `host-probe:west:sshd-kex-pq`: fail 2026-10-27
-- `host-probe:east:sshd-kex-pq`: pass 2026-10-27
+- `host-probe:west:sshd-kex-pq`: fail 2026-11-05
+- `host-probe:east:sshd-kex-pq`: pass 2026-11-05
 
 Mappings:
 
@@ -1417,7 +1423,7 @@ Mappings:
 
 ### UH-EVID-01: Build evidence is signed and verifiable
 
-**Status:** PASS, evidence as of 2026-10-27
+**Status:** PASS, evidence as of 2026-11-05
 
 yggdrasil-evidence signs an evidence pack (manifest, ISO checksum and every chain-of-custody entry) with ML-DSA-65 non-expiring evidence seals and refuses, with exit 1, a pack whose manifest fails the schema, whose seals or custody chain do not verify, whose ISO hash differs, or whose tarball is unsafe to read. scripts/check-evidence-pack.sh builds the tool, runs it over valid and tampered fixture packs and fails if any tampered pack verifies. It proves the verifier, not that a production pack exists: the production build key is E4 (FND-018).
 
@@ -1425,7 +1431,7 @@ Rationale: Integrity verification of software and information (SI-7) with non-re
 
 Evidence:
 
-- `gate-script:scripts/check-evidence-pack.sh`: pass 2026-10-27
+- `gate-script:scripts/check-evidence-pack.sh`: pass 2026-11-05
 
 Mappings:
 
@@ -1506,7 +1512,7 @@ Mappings:
 
 ### UH-SLO-01: Service-level objectives are declared as data and their error budgets are measured
 
-**Status:** NOT_ASSESSED, no evidence for 8 of 8 sources
+**Status:** FAIL, evidence as of 2026-10-28
 
 Every SLO in observability/alerting/policy.yaml (the reviewed source) is a row in the Well's slo_definitions (`alert-policy -sync-well`; `alert-policy -check` with WELL_DB set fails on any drift), and its error budget over the SLO window is recorded continuously as slo:error_budget_remaining. Each SLO is one evidence source: it passes while budget remains, fails once the budget is spent, and is not assessed when the series is missing.
 
@@ -1514,14 +1520,37 @@ Rationale: Continuous monitoring against defined objectives (CA-7) and system mo
 
 Evidence:
 
-- `slo:wotan`: no record
-- `slo:dashboard`: no record
-- `slo:well`: no record
-- `slo:well-backups`: no record
-- `slo:overlay`: no record
-- `slo:log-shipping`: no record
-- `slo:kev-feed`: no record
-- `slo:ci-develop`: no record
+- `slo:wotan`: fail 2026-10-28
+- `slo:dashboard`: fail 2026-10-28
+- `slo:well`: fail 2026-10-28
+- `slo:well-backups`: fail 2026-10-28
+- `slo:overlay`: pass 2026-10-28
+- `slo:log-shipping`: fail 2026-10-28
+- `slo:kev-feed`: pass 2026-10-28
+- `slo:ci-develop`: fail 2026-10-28
+
+Mappings:
+
+- fedramp-high: CA-7, SI-4
+- fedramp-low: CA-7, SI-4
+- fedramp-moderate: CA-7, SI-4
+- iso27001-2022: A.8.16
+- nist-800-171r3: 03.14.06
+- nist-800-53r5: CA-7, SI-4
+- nist-csf-2: DE.CM-01
+- soc2-security: CC7.2
+
+### UH-ALERT-01: The alert path is running
+
+**Status:** NOT_ASSESSED, no evidence for 1 of 1 sources
+
+On west, Prometheus, Alertmanager and alert-mailer each answer a health request on their own port, and the Well's port has a listener, read directly by a host probe. Checks that the chain is up, not that an alert was delivered: FND-001 holds that proof. A listener does not show Postgres is healthy.
+
+Rationale: System monitoring that can reach a person (SI-4) and continuous monitoring (CA-7); 800-171 03.14.06; CSF DE.CM-01; ISO A.8.16; SOC 2 CC7.2. The other monitoring controls read files or series a stopped stack cannot write, so without this source a dead stack fails nothing.
+
+Evidence:
+
+- `host-probe:west:alert-route`: no record
 
 Mappings:
 
@@ -1540,14 +1569,14 @@ Statement of Applicability. Every framework in the catalog is in scope as a mapp
 
 | Framework | Name | Version | Granularity | Requirements | Evidenced | Failing | Incomplete | Unmapped |
 |---|---|---|---|---|---|---|---|---|
-| nist-800-53r5 | NIST SP 800-53 | Rev 5 (5.2.0) | controls and control enhancements (withdrawn excluded) | 1014 | 18 | 27 | 5 | 964 |
-| fedramp-low | FedRAMP Low Baseline | Rev 5 (legacy workbook) | 800-53 Rev 5 controls and enhancements in the baseline | 156 | 10 | 21 | 4 | 121 |
-| fedramp-moderate | FedRAMP Moderate Baseline | Rev 5 (legacy workbook) | 800-53 Rev 5 controls and enhancements in the baseline | 323 | 15 | 26 | 4 | 278 |
-| fedramp-high | FedRAMP High Baseline | Rev 5 (legacy workbook) | 800-53 Rev 5 controls and enhancements in the baseline | 410 | 16 | 26 | 4 | 364 |
-| soc2-security | SOC 2 Trust Services Criteria (Security) | 2017 TSC, 2022 points of focus | common criteria | 33 | 1 | 5 | 5 | 22 |
-| iso27001-2022 | ISO/IEC 27001 Annex A | 2022 | Annex A reference controls | 93 | 9 | 9 | 5 | 70 |
-| nist-csf-2 | NIST Cybersecurity Framework | 2.0 (OSCAL 1.2.0) | subcategories | 106 | 7 | 6 | 4 | 89 |
+| nist-800-53r5 | NIST SP 800-53 | Rev 5 (5.2.0) | controls and control enhancements (withdrawn excluded) | 1014 | 16 | 26 | 8 | 964 |
+| fedramp-low | FedRAMP Low Baseline | Rev 5 (legacy workbook) | 800-53 Rev 5 controls and enhancements in the baseline | 156 | 8 | 21 | 6 | 121 |
+| fedramp-moderate | FedRAMP Moderate Baseline | Rev 5 (legacy workbook) | 800-53 Rev 5 controls and enhancements in the baseline | 323 | 12 | 26 | 7 | 278 |
+| fedramp-high | FedRAMP High Baseline | Rev 5 (legacy workbook) | 800-53 Rev 5 controls and enhancements in the baseline | 410 | 13 | 26 | 7 | 364 |
+| soc2-security | SOC 2 Trust Services Criteria (Security) | 2017 TSC, 2022 points of focus | common criteria | 33 | 1 | 6 | 4 | 22 |
+| iso27001-2022 | ISO/IEC 27001 Annex A | 2022 | Annex A reference controls | 93 | 7 | 11 | 5 | 70 |
+| nist-csf-2 | NIST Cybersecurity Framework | 2.0 (OSCAL 1.2.0) | subcategories | 106 | 4 | 8 | 5 | 89 |
 | nist-800-171r3 | NIST SP 800-171 | Rev 3 (OSCAL 1.1.0) | security requirements | 97 | 7 | 16 | 5 | 69 |
 | nist-ssdf | NIST SP 800-218 (SSDF) | 1.1 (OSCAL 1.0.0) | practices | 19 | 7 | 1 | 0 | 11 |
-| cis-ubuntu2404 | CIS Ubuntu Linux 24.04 LTS Benchmark (Level 2 Server) | 1.0.0 | recommendations (Level 1 + Level 2 Server) | 312 | 138 | 70 | 0 | 104 |
-| cis-ubuntu2404-l1 | CIS Ubuntu Linux 24.04 LTS Benchmark (Level 1 Server) | 1.0.0 | recommendations (Level 1 Server) | 251 | 133 | 64 | 0 | 54 |
+| cis-ubuntu2404 | CIS Ubuntu Linux 24.04 LTS Benchmark (Level 2 Server) | 1.0.0 | recommendations (Level 1 + Level 2 Server) | 312 | 141 | 67 | 1 | 103 |
+| cis-ubuntu2404-l1 | CIS Ubuntu Linux 24.04 LTS Benchmark (Level 1 Server) | 1.0.0 | recommendations (Level 1 Server) | 251 | 136 | 61 | 0 | 54 |
