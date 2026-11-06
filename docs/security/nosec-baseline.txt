@@ -104,7 +104,7 @@ cmd/vulnmatch/main.go 2
 cmd/well-retention/main.go 2
 cmd/well-retention/metrics.go 4
 cmd/wiki-server/main.go 1
-cmd/wotan-ctl/bpf_maps.go 13
+cmd/wotan-ctl/bpf_maps.go 3
 cmd/wotan-ctl/load_rom.go 3
 cmd/wotan-ctl/mkfs.go 1
 cmd/yggdrasil-evidence/cask.go 1

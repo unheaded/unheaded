@@ -8,83 +8,43 @@ import (
 	"fmt"
 	"unsafe"
 
-	"golang.org/x/sys/unix"
+	"unheaded/pkg/ebpf"
 )
 
-// BPFMap represents a handle to a BPF map (either pinned or freshly opened).
+// elemMap is the part of a pinned map this tool writes through. *ebpf.PinnedMap
+// holds every call to the map's own key and value sizes, because the kernel reads
+// those sizes through the buffers whatever the slices hold, and it refuses a map
+// whose element does not fit one value's buffer.
+type elemMap interface {
+	ValueSize() uint32
+	Update(key, value []byte) error
+	Close() error
+}
+
+var _ elemMap = (*ebpf.PinnedMap)(nil)
+
+// BPFMap represents a handle to a pinned BPF map.
 type BPFMap struct {
-	fd   int
+	m    elemMap
 	name string
 }
 
-// bpfObjGetAttr is the kernel's BPF_OBJ_GET attr.
-type bpfObjGetAttr struct {
-	pathname  unsafe.Pointer
-	bpfFd     uint32
-	fileFlags uint32
-}
-
-// bpfMapUpdateAttr is the kernel's BPF_MAP_UPDATE_ELEM attr.
-type bpfMapUpdateAttr struct {
-	mapFd uint32
-	key   unsafe.Pointer
-	value unsafe.Pointer
-	flags uint64
-}
-
-// bpfMapLookupAttr is the kernel's BPF_MAP_LOOKUP_ELEM attr.
-type bpfMapLookupAttr struct {
-	mapFd uint32
-	key   unsafe.Pointer
-	value unsafe.Pointer
-	pad1  uint32
-	pad2  uint32
-}
-
-// bpfObjGet opens a pinned BPF object (map/program) by its path using
-// the raw BPF_OBJ_GET syscall (command 7).
-func bpfObjGet(pinPath string) (int, error) {
-	pathBytes, err := unix.BytePtrFromString(pinPath)
-	if err != nil {
-		return -1, fmt.Errorf("invalid path: %w", err)
-	}
-
-	// BPF_OBJ_GET attr: { pathname (u64), bpf_fd (u32), file_flags (u32) }
-	attr := bpfObjGetAttr{
-		pathname: unsafe.Pointer(pathBytes), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
-	}
-
-	const BPF_OBJ_GET = 7
-	fd, _, errno := unix.Syscall(unix.SYS_BPF, BPF_OBJ_GET, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr)) // #nosec G103 -- Pointer->uintptr inside the syscall's own argument list, unsafe.Pointer rule (4)
-	if errno != 0 {
-		return -1, errno
-	}
-	return int(fd), nil
-}
-
-// openBPFMap opens a BPF map by trying multiple methods:
-// 1. First try to open as a pinned map at the given path
-// 2. If not pinned, return an error indicating the map couldn't be accessed
+// openBPFMap opens the BPF map pinned at pinPath.
 //
-// On non-Linux systems, this gracefully returns an error.
+// Off Linux, or when no map is pinned there, this returns an error, which callers
+// take to mean a dry run.
 func openBPFMap(pinPath string) (*BPFMap, error) {
-	// Try to open the pinned map file
-	fd, err := bpfObjGet(pinPath)
+	m, err := ebpf.OpenPinnedMap(pinPath)
 	if err != nil {
-		// Map not pinned or not accessible
-		return nil, fmt.Errorf("failed to get pinned BPF map at %s: %v", pinPath, err)
+		return nil, fmt.Errorf("failed to get pinned BPF map at %s: %w", pinPath, err)
 	}
-
-	return &BPFMap{
-		fd:   fd,
-		name: pinPath,
-	}, nil
+	return &BPFMap{m: m, name: pinPath}, nil
 }
 
 // Update inserts or updates a key-value pair in the BPF map.
 // Both key and value are converted to binary using little-endian encoding.
 func (m *BPFMap) Update(key interface{}, value interface{}) error {
-	if m == nil || m.fd < 0 {
+	if m == nil || m.m == nil {
 		return fmt.Errorf("BPF map not initialized")
 	}
 
@@ -100,64 +60,14 @@ func (m *BPFMap) Update(key interface{}, value interface{}) error {
 		return fmt.Errorf("encode value: %w", err)
 	}
 
-	// Call BPF_MAP_UPDATE_ELEM
-	return m.updateElem(keyBytes, valueBytes)
-}
-
-// updateElem performs the BPF_MAP_UPDATE_ELEM syscall.
-func (m *BPFMap) updateElem(key, value []byte) error {
-	attr := bpfMapUpdateAttr{
-		mapFd: uint32(m.fd),              // #nosec G115 -- an open fd, small and non-negative
-		key:   unsafe.Pointer(&key[0]),   // #nosec G103 -- pointer-typed field: the GC and stack copies see it
-		value: unsafe.Pointer(&value[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
-		flags: 0,                         // BPF_ANY (overwrite existing or create new)
+	// A kernel object built without the ascend-linux feature lacks the trailing
+	// words of CpuState and is otherwise the same layout.
+	if _, ok := value.(CpuState); ok && m.m.ValueSize() == cpuStateSizeNoAscend {
+		valueBytes = valueBytes[:cpuStateSizeNoAscend]
 	}
 
-	// BPF syscall (number 321 on x86_64)
-	// First arg: command (BPF_MAP_UPDATE_ELEM = 2)
-	// Second arg: pointer to attr struct
-	// Third arg: size of attr struct
-	_, _, errno := unix.Syscall(unix.SYS_BPF, 2, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr)) // #nosec G103 -- Pointer->uintptr inside the syscall's own argument list, unsafe.Pointer rule (4)
-	if errno != 0 {
-		return fmt.Errorf("BPF_MAP_UPDATE_ELEM: %w", errno)
-	}
-
-	return nil
-}
-
-// Lookup retrieves a value from the BPF map by key.
-// Returns (value bytes, found, error).
-func (m *BPFMap) Lookup(key interface{}) ([]byte, bool, error) {
-	if m == nil || m.fd < 0 {
-		return nil, false, fmt.Errorf("BPF map not initialized")
-	}
-
-	// Encode key to bytes
-	keyBytes, err := encodeValue(key)
-	if err != nil {
-		return nil, false, fmt.Errorf("encode key: %w", err)
-	}
-
-	// Allocate space for value (assuming 8 bytes max for u32 values)
-	// In production, you'd want to know the map's value size ahead of time
-	value := make([]byte, 8)
-
-	attr := bpfMapLookupAttr{
-		mapFd: uint32(m.fd),                 // #nosec G115 -- an open fd, small and non-negative
-		key:   unsafe.Pointer(&keyBytes[0]), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
-		value: unsafe.Pointer(&value[0]),    // #nosec G103 -- pointer-typed field: the GC and stack copies see it
-	}
-
-	// BPF_MAP_LOOKUP_ELEM = 1
-	_, _, errno := unix.Syscall(unix.SYS_BPF, 1, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr)) // #nosec G103 -- Pointer->uintptr inside the syscall's own argument list, unsafe.Pointer rule (4)
-
-	if errno == unix.ENOENT {
-		return nil, false, nil
-	} else if errno != 0 {
-		return nil, false, fmt.Errorf("BPF_MAP_LOOKUP_ELEM: %w", errno)
-	}
-
-	return value, true, nil
+	// BPF_ANY: overwrite an existing entry or create a new one.
+	return m.m.Update(keyBytes, valueBytes)
 }
 
 // encodeValue converts a Go value to bytes using little-endian encoding.
@@ -192,8 +102,8 @@ func encodeValue(v interface{}) ([]byte, error) {
 
 // Close closes the BPF map file descriptor.
 func (m *BPFMap) Close() error {
-	if m == nil || m.fd < 0 {
+	if m == nil || m.m == nil {
 		return nil
 	}
-	return unix.Close(m.fd)
+	return m.m.Close()
 }

@@ -169,10 +169,9 @@ Statistics:
 - Dry-run implementation
 
 #### bpf_maps.go
-- `BPFMap`: BPF map handle
-- `openBPFMap()`: Open pinned BPF maps via `unix.BpfObjGet()`
-- `Update()`: Insert/update via BPF_MAP_UPDATE_ELEM syscall
-- `Lookup()`: Query via BPF_MAP_LOOKUP_ELEM syscall
+- `BPFMap`: BPF map handle over `pkg/ebpf`'s `PinnedMap`
+- `openBPFMap()`: Open pinned BPF maps via `ebpf.OpenPinnedMap()`
+- `Update()`: Insert/update; a key or value not of the map's size is refused
 - `encodeValue()`: Convert Go values to little-endian bytes
 - `Close()`: Cleanup
 
@@ -187,14 +186,12 @@ Statistics:
 - `fmt`: I/O formatting
 - `os`: File and system operations
 - `encoding/binary`: Little-endian encoding
-- `unsafe`: Raw memory operations for syscalls
+- `unsafe`: Reads `CpuState` as bytes
 - `testing`: Test framework
 
 **Project:**
 - `unheaded/pkg/logger`: Logging infrastructure
-
-**External:**
-- `golang.org/x/sys/unix`: BPF syscall bindings
+- `unheaded/pkg/ebpf`: Pinned map access
 
 ## BPF Integration
 
