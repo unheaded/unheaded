@@ -8,6 +8,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"unheaded/pkg/ebpf"
 )
 
 // A live flow must be announced once and stay known. On east (2026-10-23)
@@ -73,5 +75,37 @@ func TestOlderThan(t *testing.T) {
 		if got := olderThan(c.now, c.ts, c.ttl); got != c.want {
 			t.Errorf("olderThan(%d, %d, %d) = %v, want %v", c.now, c.ts, c.ttl, got, c.want)
 		}
+	}
+}
+
+// A TTL below zero expires a flow at once. Taken as an unsigned count it would be
+// a TTL of centuries, and the flow would never leave the table.
+func TestNegativeTTLStillExpires(t *testing.T) {
+	const later = 1000 + uint64(time.Second)
+
+	fc := NewFlowCorrelator(-time.Second)
+	fc.Add(makeEvent(ebpf.EventBirth, 0, 0x9999, 1000))
+	if removed := fc.GC(later); removed != 1 {
+		t.Errorf("FlowCorrelator.GC removed = %d, want 1", removed)
+	}
+
+	config := DefaultPacketCorrelatorConfig()
+	config.FlowTTL = -time.Second
+	pc := NewPacketCorrelator(config)
+	pc.Add(makeTraceEntry(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 1234, 80, 6, 1000))
+	if removed := pc.GC(later); removed != 1 {
+		t.Errorf("PacketCorrelator.GC removed = %d, want 1", removed)
+	}
+
+	loader := NewMockBPFLoader()
+	now := ktimeNow()
+	fk := makeFlowKey([4]byte{127, 0, 0, 1}, [4]byte{127, 0, 0, 1}, 19005, 51738, 6)
+	insertFlow(loader.flowMap, fk, makeFlowState(ConnStateEstablished, now-3e9, now-2e9, 3, 3, 222, 162))
+	fconfig := DefaultFlowReaderConfig()
+	fconfig.StaleTTL = -time.Second
+	reader := NewFlowReader(loader, nil, fconfig)
+	reader.pollOnce(context.Background())
+	if got := reader.Stats().FlowsExpired; got != 1 {
+		t.Errorf("FlowReader expired %d flows, want 1", got)
 	}
 }

@@ -127,6 +127,15 @@ type PacketCorrelator struct {
 	out   chan *CorrelatedFlow
 }
 
+// ttlNanos gives a TTL in the nanoseconds olderThan compares. A TTL below zero
+// counts as zero: converted as it stands, it would be a TTL no flow ever reaches.
+func ttlNanos(ttl time.Duration) uint64 {
+	if ttl < 0 {
+		return 0
+	}
+	return uint64(ttl.Nanoseconds()) // #nosec G115 -- negative is handled above
+}
+
 // NewPacketCorrelator creates a new correlator.
 func NewPacketCorrelator(config PacketCorrelatorConfig) *PacketCorrelator {
 	return &PacketCorrelator{
@@ -226,7 +235,7 @@ func (pc *PacketCorrelator) GC(nowNS uint64) int {
 
 	atomic.AddUint64(&pc.stats.GCCycles, 1)
 
-	ttlNS := uint64(pc.config.FlowTTL.Nanoseconds()) // #nosec G115 -- a configured TTL, positive and far below 292 years
+	ttlNS := ttlNanos(pc.config.FlowTTL)
 	removed := 0
 
 	for ft, flow := range pc.flows {

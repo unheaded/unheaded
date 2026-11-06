@@ -1249,3 +1249,15 @@ func TestIsClientAddr(t *testing.T) {
 		t.Error("IsClientAddr still true after the client disconnected")
 	}
 }
+
+// The frame check reads the limit as unsigned, so a limit below zero would admit
+// any length. It takes the default instead.
+func TestConfig_Validate_LimitBelowZeroTakesTheDefault(t *testing.T) {
+	c := &Config{MaxConnections: 1, MaxMessageSize: -1}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if c.MaxMessageSize != 65536 {
+		t.Errorf("MaxMessageSize = %d, want 65536", c.MaxMessageSize)
+	}
+}

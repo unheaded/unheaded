@@ -95,7 +95,7 @@ func (c *Config) Validate() error {
 	if c.BufferSize == 0 {
 		c.BufferSize = 256
 	}
-	if c.MaxMessageSize == 0 {
+	if c.MaxMessageSize <= 0 {
 		c.MaxMessageSize = 65536
 	}
 	return nil
@@ -621,7 +621,7 @@ func (s *Server) readFrame(r *bufio.Reader) (byte, []byte, error) {
 	}
 
 	// Check message size
-	if length > uint64(s.config.MaxMessageSize) { // #nosec G115 -- the operator's positive frame limit
+	if length > uint64(s.config.MaxMessageSize) { // #nosec G115 -- Validate replaces a limit at or below zero, so it is positive
 		return 0, nil, errors.New("message too large")
 	}
 

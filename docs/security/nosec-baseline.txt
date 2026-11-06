@@ -71,12 +71,11 @@ cmd/steel-echo/serve.go 2
 cmd/syslog-relay/main_test.go 2
 cmd/trace-collector-go/correlator.go 2
 cmd/trace-collector-go/enrichment.go 1
-cmd/trace-collector-go/flow_reader.go 1
 cmd/trace-collector-go/health.go 4
 cmd/trace-collector-go/ktime.go 1
 cmd/trace-collector-go/latency_kprobe.go 2
 cmd/trace-collector-go/latency_reader.go 5
-cmd/trace-collector-go/main.go 3
+cmd/trace-collector-go/main.go 2
 cmd/trace-collector-go/packet_event.go 1
 cmd/trace-collector-go/publisher.go 2
 cmd/trace-collector-go/self_filter.go 1

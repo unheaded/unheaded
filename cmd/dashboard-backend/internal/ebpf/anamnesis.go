@@ -113,7 +113,7 @@ type FlowBuilder struct {
 
 // NewFlowBuilder creates a new flow builder.
 func NewFlowBuilder(config FlowBuilderConfig) *FlowBuilder {
-	if config.TTL == 0 {
+	if config.TTL <= 0 {
 		config.TTL = 60 * time.Second
 	}
 	if config.MaxFlows == 0 {
@@ -184,7 +184,7 @@ func (fb *FlowBuilder) GC(nowNs uint64) int {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
 
-	ttlNs := uint64(fb.config.TTL.Nanoseconds()) // #nosec G115 -- a configured TTL, positive and far below 292 years
+	ttlNs := uint64(fb.config.TTL.Nanoseconds()) // #nosec G115 -- NewFlowBuilder replaces a TTL at or below zero, so it is positive
 	removed := 0
 	for fl, flow := range fb.flows {
 		if nowNs-flow.StartNs > ttlNs {

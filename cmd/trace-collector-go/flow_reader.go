@@ -533,7 +533,7 @@ func (fr *FlowReader) pollOnce(ctx context.Context) {
 	// Expire stale flows: flows we previously knew about but are not in the BPF map,
 	// or flows that haven't been seen recently.
 	nowNS := ktimeNow()
-	staleTTLNS := uint64(fr.config.StaleTTL.Nanoseconds()) // #nosec G115 -- a configured TTL, positive and far below 292 years
+	staleTTLNS := ttlNanos(fr.config.StaleTTL)
 	expired := 0
 
 	for keyHex, flow := range fr.knownFlows {
