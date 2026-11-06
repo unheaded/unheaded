@@ -50,10 +50,10 @@ func CreateUPCFlat(text []uint32, data []uint32, bssWords uint32, stackSize uint
 	hdr := UPCFlatHeader{
 		Version:  UPCFlatVersion,
 		Entry:    0,                 // default entry at first text word
-		TextSize: uint32(len(text)), // #nosec G115 -- bounded by the length of an already-allocated slice
-		// #nosec G115 -- bounded by the length of an already-allocated slice
+		TextSize: uint32(len(text)), // #nosec G115 -- a program image in words, far below 2^32
+		// #nosec G115 -- a program image in words, far below 2^32
 		DataStart: uint32(len(text)), // data follows text, in words from payload start
-		DataSize:  uint32(len(data)), // #nosec G115 -- bounded by the length of an already-allocated slice
+		DataSize:  uint32(len(data)), // #nosec G115 -- a program image in words, far below 2^32
 		BSSSize:   bssWords,
 		StackSize: stackSize,
 	}

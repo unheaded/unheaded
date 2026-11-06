@@ -232,13 +232,15 @@ func grpcInterceptors(cfg auth.ServiceAuthConfig) (grpc.UnaryServerInterceptor, 
 }
 
 // newGRPCServer builds the gRPC server with every service registered behind
-// grpcInterceptors.
+// grpcInterceptors, and a recover around them all.
 func newGRPCServer(cfg auth.ServiceAuthConfig, opts ...grpc.ServerOption) (*grpc.Server, error) {
 	unaryAuth, streamAuth, err := grpcInterceptors(cfg)
 	if err != nil {
 		return nil, err
 	}
-	grpcServer := grpc.NewServer(append(opts, grpc.UnaryInterceptor(unaryAuth), grpc.StreamInterceptor(streamAuth))...)
+	grpcServer := grpc.NewServer(append(opts,
+		grpc.ChainUnaryInterceptor(grpcRecoverUnary, unaryAuth),
+		grpc.ChainStreamInterceptor(grpcRecoverStream, streamAuth))...)
 	pb.RegisterMonadServiceServer(grpcServer, &monadServer{})
 	pb.RegisterSophiaServiceServer(grpcServer, getSophiaServer())
 	pb.RegisterWotanServiceServer(grpcServer, getWotanServer())
@@ -387,6 +389,29 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(w, r)
 	})
+}
+
+// grpcRecoverUnary is recoveryMiddleware for a unary RPC: a handler's panic ends
+// that call with Internal, and the process goes on serving.
+func grpcRecoverUnary(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC: %s: %v", info.FullMethod, r)
+			resp, err = nil, status.Error(codes.Internal, "internal server error")
+		}
+	}()
+	return handler(ctx, req)
+}
+
+// grpcRecoverStream is grpcRecoverUnary for a stream.
+func grpcRecoverStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC: %s: %v", info.FullMethod, r)
+			err = status.Error(codes.Internal, "internal server error")
+		}
+	}()
+	return handler(srv, ss)
 }
 
 // grpcAuthInterceptor enforces API key authentication for gRPC

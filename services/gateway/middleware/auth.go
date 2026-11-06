@@ -210,7 +210,7 @@ func writeAuthError(w http.ResponseWriter, message string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("WWW-Authenticate", "Bearer")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"error":   "authentication_error",
 		"message": message,
 	})

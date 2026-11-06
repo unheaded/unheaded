@@ -177,6 +177,21 @@ func (s *sophiaServer) List(ctx context.Context, req *pb.DictionaryListRequest) 
 	return s.listBPF(req)
 }
 
+// pageBounds is the slice [start:end] of n items for a caller's offset and
+// limit. Both are signed and unchecked on the wire: a limit of zero or less
+// takes the default, and an offset below zero or past n is an empty page.
+func pageBounds(n int, offset, limit int32) (start, end int) {
+	size := int(limit)
+	if size <= 0 {
+		size = 100
+	}
+	start = int(offset)
+	if start < 0 || start > n {
+		start = n
+	}
+	return start, min(start+size, n)
+}
+
 // listMock returns dictionaries from in-memory mock storage
 func (s *sophiaServer) listMock(req *pb.DictionaryListRequest) (*pb.DictionaryListResponse, error) {
 	s.mu.RLock()
@@ -188,27 +203,12 @@ func (s *sophiaServer) listMock(req *pb.DictionaryListRequest) (*pb.DictionaryLi
 		allDicts = append(allDicts, dict)
 	}
 
-	// Apply pagination
-	limit := req.Limit
-	if limit == 0 {
-		limit = 100
-	}
-	offset := req.Offset
-
-	if offset > int32(len(allDicts)) { // #nosec G115 -- bounded by the length of an already-allocated slice
-		offset = int32(len(allDicts)) // #nosec G115 -- bounded by the length of an already-allocated slice
-	}
-
-	end := offset + limit
-	if end > int32(len(allDicts)) { // #nosec G115 -- bounded by the length of an already-allocated slice
-		end = int32(len(allDicts)) // #nosec G115 -- bounded by the length of an already-allocated slice
-	}
-
-	slicedDicts := allDicts[offset:end]
+	start, end := pageBounds(len(allDicts), req.Offset, req.Limit)
+	slicedDicts := allDicts[start:end]
 
 	return &pb.DictionaryListResponse{
 		Dictionaries: slicedDicts,
-		Total:        int32(len(allDicts)), // #nosec G115 -- bounded by the length of an already-allocated slice
+		Total:        int32(len(allDicts)), // #nosec G115 -- a count of in-memory dictionaries, far below int32
 	}, nil
 }
 
@@ -224,16 +224,9 @@ func (s *sophiaServer) listBPF(req *pb.DictionaryListRequest) (*pb.DictionaryLis
 	}
 	sort.Slice(all, func(i, j int) bool { return all[i].Id < all[j].Id })
 
-	limit, offset := int(req.Limit), int(req.Offset)
-	if limit <= 0 {
-		limit = 100
-	}
-	if offset < 0 || offset > len(all) {
-		offset = len(all)
-	}
-	end := min(offset+limit, len(all))
+	start, end := pageBounds(len(all), req.Offset, req.Limit)
 	return &pb.DictionaryListResponse{
-		Dictionaries: all[offset:end],
+		Dictionaries: all[start:end],
 		Total:        int32(len(all)), // #nosec G115 -- at most 256 dictionary ids
 	}, nil
 }

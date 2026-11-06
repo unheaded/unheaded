@@ -4,7 +4,9 @@
 package shield
 
 import (
+	"math"
 	"testing"
+	"time"
 
 	"unheaded/pkg/policy"
 	"unheaded/pkg/wotan"
@@ -221,5 +223,32 @@ func TestTierVerifier_TeardownAction(t *testing.T) {
 	tv.TransitionTier(policy.TierEnhanced)
 	if tv.TeardownAction() != policy.TeardownTCPRST {
 		t.Fatal("ENHANCED should have TCP_RST teardown action")
+	}
+}
+
+// A verify slower than the u32 field holds reads as the longest time the field
+// can say, and a sequence number never lowers the high-water mark.
+func TestTierVerifier_UpdateStateKeepsItsFieldsHonest(t *testing.T) {
+	v := NewPQCVerifier()
+	sm := wotan.NewPQCStateManager()
+	tv := NewTierVerifier(v, NewSovereignVerifier(v), NewLayer2PolicyEngine(), sm)
+
+	s := sm.Read()
+	s.SeqHighWater = 0x10005
+	sm.Write(s)
+
+	tv.updateState(&TierVerifyResult{PQCResult: &PQCVerifyResult{Duration: 5 * time.Second, SeqNum: 7}})
+
+	got := sm.Read()
+	if got.LastVerifyNs != math.MaxUint32 {
+		t.Errorf("LastVerifyNs = %d, want the field's maximum", got.LastVerifyNs)
+	}
+	if got.SeqHighWater != 0x10005 {
+		t.Errorf("SeqHighWater = %#x, want it left at 0x10005", got.SeqHighWater)
+	}
+
+	tv.updateState(&TierVerifyResult{PQCResult: &PQCVerifyResult{Duration: -time.Second, SeqNum: 7}})
+	if got := sm.Read(); got.LastVerifyNs != 0 {
+		t.Errorf("LastVerifyNs = %d for a negative duration, want 0", got.LastVerifyNs)
 	}
 }

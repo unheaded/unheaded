@@ -552,7 +552,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 func (hs *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"service":   "monad",
 		"status":    "healthy",
 		"version":   Version,
@@ -573,7 +573,7 @@ func (hs *HTTPServer) readyHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
 		"status":  "ready",
 		"service": "monad",
 	})
@@ -589,8 +589,7 @@ func (hs *HTTPServer) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	w.WriteHeader(http.StatusOK)
 
-	// #nosec G104 -- response already committed; a write failure here means
-	// the client went away and nothing further can be sent.
+	// #nosec G104 -- response already committed; a write failure cannot reach the client
 	//
 	// The default registry rides along: go_*, process_* and what linked
 	// libraries register at load (pkg/wotan-client) never reached this
@@ -886,7 +885,7 @@ func (hs *HTTPServer) writeSuccess(w http.ResponseWriter, code int, data interfa
 		Meta:    requestMeta(w),
 	}
 
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // requestMeta is this request's id and how long it has taken so far, from
@@ -926,7 +925,7 @@ func (hs *HTTPServer) writeError(w http.ResponseWriter, code int, errCode, msg s
 		Meta:    requestMeta(w),
 	}
 
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // getNextRequestID returns the next request ID

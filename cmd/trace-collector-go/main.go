@@ -235,7 +235,7 @@ func (fc *FlowCorrelator) GC(nowNs uint64) int {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
 
-	ttlNs := uint64(fc.ttl.Nanoseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
+	ttlNs := ttlNanos(fc.ttl)
 	removed := 0
 	for fl, rec := range fc.flows {
 		if olderThan(nowNs, rec.StartNs, ttlNs) {
@@ -547,7 +547,7 @@ func (h *healthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(status) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 }
 
 // ── FlowReader / LatencyReader interfaces ───────────────────────────────

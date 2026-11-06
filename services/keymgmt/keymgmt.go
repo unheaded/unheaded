@@ -396,7 +396,7 @@ func (s *Service) registerRoutes(mux *http.ServeMux) {
 	// Health/ready/metrics (required by CLAUDE.md)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"status":  "healthy",
 			"service": "keymgmt",
 		})
@@ -404,7 +404,7 @@ func (s *Service) registerRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 			"ready":   true,
 			"service": "keymgmt",
 		})
@@ -469,7 +469,7 @@ func (s *Service) handleKeys(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(record) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(record) // #nosec G104 -- response already committed; an encode failure cannot reach the client
 }
 
 // handleKeyByID handles key operations by ID.
@@ -485,7 +485,7 @@ func (s *Service) handleKeyByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(record) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		json.NewEncoder(w).Encode(record) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 
 	case http.MethodPost:
 		// Check for action suffix
@@ -509,7 +509,7 @@ func (s *Service) handleKeyByID(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(newRecord) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+				json.NewEncoder(w).Encode(newRecord) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
 				return
 
 			case "revoke":

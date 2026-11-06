@@ -140,14 +140,14 @@ func EncodeExponent(value uint32) uint16 {
 
 	// Find highest set bit to determine exponent.
 	highBit := 32 - bits.LeadingZeros32(value)
-	exp := uint8(highBit) // #nosec G115 -- bounded by construction; see the surrounding guard
+	exp := uint8(highBit) // #nosec G115 -- highBit is 1..32 for a non-zero value
 
 	// Extract 4-bit mantissa from the most significant bits.
 	var mantissa uint8
 	if highBit > 4 {
-		mantissa = uint8(value >> (highBit - 4)) // #nosec G115 -- bounded by construction; see the surrounding guard
+		mantissa = uint8(value >> (highBit - 4)) // #nosec G115 -- keeps the top bits; masked to 4 bits below
 	} else {
-		mantissa = uint8(value << (4 - highBit)) // #nosec G115 -- bounded by construction; see the surrounding guard
+		mantissa = uint8(value << (4 - highBit)) // #nosec G115 -- keeps the top bits; masked to 4 bits below
 	}
 	mantissa &= 0x0F
 
@@ -275,7 +275,7 @@ func EncodeTLV(typ uint8, value []byte) ([]byte, error) {
 
 	buf := make([]byte, 2+len(value))
 	buf[0] = typ
-	buf[1] = uint8(len(value)) // #nosec G115 -- bounded by the length of an already-allocated slice
+	buf[1] = uint8(len(value)) // #nosec G115 -- at most MaxTLVValueLen (255), refused above
 	copy(buf[2:], value)
 	return buf, nil
 }

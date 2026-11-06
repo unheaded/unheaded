@@ -4,6 +4,7 @@
 package main
 
 import (
+	"math"
 	"net"
 	"testing"
 )
@@ -120,5 +121,19 @@ func TestUnicastAddr(t *testing.T) {
 	}
 	if _, err := unicastAddr("fd00:1ab::b%enp16s0"); err == nil {
 		t.Fatal("a zone on a non-link-local address must be refused")
+	}
+}
+
+// ─── clusterID32 ────────────────────────────────────────────────────────────
+
+// The packet's field is 32 bits. An ID that does not fit is refused rather
+// than sent to whichever cluster its low bits name.
+func TestClusterID32(t *testing.T) {
+	t.Parallel()
+	if got, err := clusterID32(math.MaxUint32); err != nil || got != math.MaxUint32 {
+		t.Errorf("clusterID32(max) = %d, %v", got, err)
+	}
+	if got, err := clusterID32(math.MaxUint32 + 2); err == nil {
+		t.Errorf("clusterID32 past 32 bits = %d, want an error", got)
 	}
 }

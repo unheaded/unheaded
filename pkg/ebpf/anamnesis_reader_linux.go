@@ -76,10 +76,10 @@ func getRingbufSize(mapFD int) (int, error) {
 	attr := bpfObjGetInfoAttr{
 		BPFFD:   uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		InfoLen: uint32(unsafe.Sizeof(info)),
-		Info:    uint64(uintptr(unsafe.Pointer(&info))), // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+		Info:    unsafe.Pointer(&info), // #nosec G103 -- pointer-typed field: the GC and stack copies see it
 	}
 
-	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
+	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- attr goes to the kernel with its own compile-time size, live through the call
 	if err != nil {
 		return 0, err
 	}

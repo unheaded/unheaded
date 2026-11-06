@@ -12,14 +12,7 @@ import (
 	"unsafe"
 )
 
-// Map types a PinnedMap refuses: their values are not one ValueSize buffer
-// (per-CPU maps return one value per CPU) or they have no key at all.
-const (
-	mapTypePerCPUHash    = 5
-	mapTypePerCPUArray   = 6
-	mapTypeLRUPerCPUHash = 10
-	mapTypeRingbuf       = 27
-)
+const mapTypeRingbuf = BPF_MAP_TYPE_RINGBUF
 
 // ErrKeySize is returned when a key's length is not the map's key size.
 var ErrKeySize = errors.New("ebpf: key size mismatch")
@@ -47,8 +40,7 @@ func OpenPinnedMap(path string) (*PinnedMap, error) {
 		_ = syscall.Close(fd)
 		return nil, fmt.Errorf("map info %s: %w", path, err)
 	}
-	switch info.Type {
-	case mapTypePerCPUHash, mapTypePerCPUArray, mapTypeLRUPerCPUHash, mapTypeRingbuf:
+	if !mapTypeToMapType(info.Type).elemFitsOneBuffer() {
 		_ = syscall.Close(fd)
 		return nil, fmt.Errorf("%w: %s has type %d", ErrUnsupportedMapType, path, info.Type)
 	}

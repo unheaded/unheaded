@@ -137,6 +137,20 @@ func TestFlowBuilder_GC(t *testing.T) {
 	}
 }
 
+// GC reads the TTL as unsigned, so one below zero takes the default: past it the
+// flow goes, and short of it the flow stays.
+func TestFlowBuilder_TTLBelowZeroTakesTheDefault(t *testing.T) {
+	fb := NewFlowBuilder(FlowBuilderConfig{TTL: -time.Second})
+	fb.Ingest(newTestEvent(pkgebpf.EventBirth, 0, 0x9999, 1000))
+
+	if removed := fb.GC(1000 + uint64(time.Second)); removed != 0 {
+		t.Errorf("GC at 1s removed = %d, want 0", removed)
+	}
+	if removed := fb.GC(1000 + uint64(61*time.Second)); removed != 1 {
+		t.Errorf("GC at 61s removed = %d, want 1", removed)
+	}
+}
+
 func TestFlowBuilder_AnomalyTracking(t *testing.T) {
 	fb := NewFlowBuilder(FlowBuilderConfig{})
 

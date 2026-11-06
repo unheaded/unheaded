@@ -13,6 +13,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"strconv"
@@ -55,11 +56,15 @@ func main() {
 	}
 
 	manifestPtr := parseHex(*manifestHex)
+	cluster, err := clusterID32(*clusterID)
+	if err != nil {
+		fatal("%v", err)
+	}
 
 	pkt := &gjallarhorn.Packet{
 		Magic:       gjallarhorn.Magic,
 		Kind:        kind,
-		ClusterID:   uint32(*clusterID), // #nosec G115 -- bounded by construction; see the surrounding guard
+		ClusterID:   cluster,
 		ManifestPtr: manifestPtr,
 	}
 	payload := pkt.Marshal()
@@ -144,4 +149,12 @@ func parseHex(s string) uint64 {
 func fatal(f string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "gjallarhorn-sender: "+f+"\n", args...)
 	os.Exit(1)
+}
+
+// clusterID32 narrows the --cluster flag to the packet's 32-bit field.
+func clusterID32(v uint) (uint32, error) {
+	if v > math.MaxUint32 {
+		return 0, fmt.Errorf("--cluster %d does not fit in 32 bits", v)
+	}
+	return uint32(v), nil
 }

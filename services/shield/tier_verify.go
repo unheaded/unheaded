@@ -5,6 +5,7 @@ package shield
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -220,12 +221,24 @@ func (tv *TierVerifier) updateState(result *TierVerifyResult) {
 
 	if result.PQCResult != nil {
 		s := tv.stateMgr.Read()
-		s.LastVerifyNs = uint32(result.PQCResult.Duration.Nanoseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
-		if result.PQCResult.SeqNum > uint16(s.SeqHighWater) {            // #nosec G115 -- bounded by construction; see the surrounding guard
-			s.SeqHighWater = uint32(result.PQCResult.SeqNum)
+		s.LastVerifyNs = durationNsU32(result.PQCResult.Duration)
+		if seq := uint32(result.PQCResult.SeqNum); seq > s.SeqHighWater {
+			s.SeqHighWater = seq
 		}
 		tv.stateMgr.Write(s)
 	}
+}
+
+// durationNsU32 is d in nanoseconds, held to what a u32 state field can say.
+func durationNsU32(d time.Duration) uint32 {
+	ns := d.Nanoseconds()
+	if ns < 0 {
+		return 0
+	}
+	if ns > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(ns)
 }
 
 // TeardownAction returns the appropriate flow teardown action when
