@@ -50,6 +50,12 @@ type ToolCall struct {
 	// "queue:stevie", may confirm; "agent:<model>" never confirms.
 	Principal string `json:"principal,omitempty"`
 
+	// Tainted says the run this call came from has read tool output: text
+	// the retrieval chain above never saw. The loop that fed the model sets
+	// it; a JSON body or model output cannot. Rule 2 holds a mutating call
+	// from such a run for a person, whatever the chain says (H3).
+	Tainted bool `json:"-"`
+
 	// standing marks a call DispatchStanding made. It is unexported so
 	// that no JSON body or model output can set it.
 	standing bool
@@ -275,9 +281,10 @@ type ToolCallDecision struct {
 //
 //	for tool calls that include a `path` arg).
 //
-// Rule 2: mutating + untrusted justification → refuse pending
+// Rule 2: mutating + untrusted justification, or a run that has read tool
 //
-//	out-of-band user confirmation. PendingConfirmation=true.
+//	output → refuse pending out-of-band user confirmation.
+//	PendingConfirmation=true.
 //
 // Rule 3: any string arg contains a destructive shell verb → refuse
 //
@@ -317,13 +324,17 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 	// Rule 2: mutating + untrusted justification, unless branch-sandbox
 	// mode answers it (branchsandbox.go: write_file/patch_file inside a
 	// zhen/<name> agent worktree; Rules 1 and 3 still apply).
-	// AlwaysConfirmTools are held whatever their justification.
+	// AlwaysConfirmTools are held whatever their justification, and so is
+	// any mutating call from a run that has read tool output.
 	sandboxJustification, sandboxed := c.branchSandboxAllows(tc)
 	held := tc.heldForHuman()
-	if tc.IsMutating() && (held || tc.HasUntrustedJustification()) && !sandboxed {
+	tainted := tc.heldForTaint()
+	if tc.IsMutating() && (held || tainted || tc.HasUntrustedJustification()) && !sandboxed {
 		var reason string
 		if held {
 			reason = fmt.Sprintf("tool %q always requires out-of-band user confirmation, whatever its justification", tc.Name)
+		} else if tainted {
+			reason = fmt.Sprintf("mutating tool %q comes from a run that has read tool output; requires out-of-band user confirmation", tc.Name)
 		} else if len(tc.Justification) == 0 {
 			reason = fmt.Sprintf("mutating tool %q has empty justification chain; requires out-of-band user confirmation (fail-closed: agent could not produce a retrieval-derived rationale for the call)", tc.Name)
 		} else {
@@ -368,25 +379,37 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 }
 
 // heldForHuman reports whether tc is an AlwaysConfirmTools call Rule 2 holds
-// whatever its justification. Two shapes keep the ordinary rules, read
-// exactly as the tools read them: a dry run, which prints a runbook and runs
-// nothing, and a scheduler pause, the stop control, which has to work with
-// nobody there to confirm it. A call made through DispatchStanding is not
-// held either; its justification is still read.
+// whatever its justification.
 func (tc *ToolCall) heldForHuman() bool {
-	if !AlwaysConfirmTools[tc.Name] || tc.standing {
-		return false
+	return AlwaysConfirmTools[tc.Name] && !tc.carvedOut()
+}
+
+// heldForTaint reports whether tc is a call Rule 2 holds because its run has
+// read tool output.
+func (tc *ToolCall) heldForTaint() bool {
+	return tc.Tainted && !tc.carvedOut()
+}
+
+// carvedOut reports a call that keeps the ordinary rules however it is held
+// otherwise. Two shapes, read exactly as the tools read them: a dry run, which
+// prints a runbook and runs nothing, and a scheduler pause, the stop control,
+// which has to work with nobody there to confirm it. A call made through
+// DispatchStanding is the third: a person set that job. The justification of
+// all three is still read.
+func (tc *ToolCall) carvedOut() bool {
+	if tc.standing {
+		return true
 	}
 	switch tc.Name {
 	case "runbook_execute":
 		dry, ok := tc.Args["dry_run"].(bool)
-		return !ok || !dry
+		return ok && dry
 	case "schedule_update":
 		op, _ := tc.Args["op"].(string)
 		paused, ok := tc.Args["paused"].(bool)
-		return op != "pause" || !ok || !paused
+		return op == "pause" && ok && paused
 	}
-	return true
+	return false
 }
 
 // untrustedRefSummary formats the user-source references in the chain
