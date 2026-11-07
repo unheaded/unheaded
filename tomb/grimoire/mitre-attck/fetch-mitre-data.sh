@@ -261,7 +261,7 @@ main() {
 
     echo ""
 
-    # Extract summaries for faster RAG indexing
+    # Extract summaries for quick reading on the Tomb
     extract_technique_summary
     extract_tactic_summary
 

@@ -55,14 +55,11 @@
       ansible.builtin.copy:
         content: |
           {
-            "embedding_model": "all-MiniLM-L6-v2",
             "llm_model": "{{ llm_model }}",
             "llm_endpoint": "http://{{ ollama_listen }}",
             "top_k": 5,
-            "chunk_size": 512,
-            "chunk_overlap": 50,
-            "chroma_dir": "{{ tomb_root }}/grimoire/rag/chroma.db",
-            "collection_name": "grimoire",
+            "grimoire_search": "{{ tomb_root }}/grimoire/bin/zhen-codeindex",
+            "grimoire_index": "{{ tomb_root }}/grimoire/index",
             "temperature": 0.3,
             "max_tokens": 2048,
             "system_prompt": "You are the BlackMage Cerydwyn, advisor to a kingdom's security team. Respond with tactical, actionable guidance grounded in the Kingdom's architecture and threat landscape. Reference specific documents when applicable."

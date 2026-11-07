@@ -3,7 +3,7 @@
 # tomb/ansible/playbook-grimoire.yml -- Deploy Grimoire knowledge base (Layer 3)
 #
 # Transfers Kingdom docs, MITRE ATT&CK, NVD CVEs, CWE mappings.
-# Sets up ChromaDB + sentence-transformers for RAG vector indexing.
+# Builds the corpus index with zhen-codeindex (word search; no Python, no model).
 # All data pre-staged on host -- no internet access.
 ---
 - name: "Tomb of Knowledge -- Layer 3: The Grimoire"
@@ -46,149 +46,24 @@
         mode: "0755"
       failed_when: false
 
-    - name: "Deploy rag-query.py"
+    - name: "Deploy zhen-codeindex"
       ansible.builtin.copy:
-        src: "files/rag-query.py"
-        dest: "{{ grimoire_root }}/rag-query.py"
+        src: "{{ packages_src }}/grimoire/bin/zhen-codeindex"
+        dest: "{{ grimoire_root }}/bin/zhen-codeindex"
         owner: "{{ tomb_user }}"
         group: "{{ tomb_user }}"
         mode: "0755"
-      failed_when: false
 
-    - name: "Transfer RAG Python dependencies (offline wheels)"
-      ansible.builtin.copy:
-        src: "{{ packages_src }}/grimoire/rag-deps/"
-        dest: "{{ tomb_staging }}/rag-deps/"
-        mode: "0644"
-      failed_when: false
-
-    - name: "Install RAG Python dependencies (offline)"
-      ansible.builtin.pip:
-        name:
-          - chromadb==1.5.9
-          - sentence-transformers==6.2.0
-        extra_args: "--no-index --find-links={{ tomb_staging }}/rag-deps/"
-        executable: pip3
-      failed_when: false
-
-    - name: "Deploy grimoire-index.py (RAG indexer)"
-      ansible.builtin.copy:
-        content: |
-          #!/usr/bin/env python3
-          # SPDX-License-Identifier: GPL-3.0-or-later
-          # grimoire-index.py -- Index all Grimoire documents into ChromaDB
-          """
-          Walks the Grimoire directory tree, chunks documents, embeds them
-          with sentence-transformers, and stores in ChromaDB for RAG retrieval.
-          """
-          import json
-          import os
-          import sys
-          import hashlib
-
-          TOMB_ROOT = "/opt/tomb"
-          GRIMOIRE = os.path.join(TOMB_ROOT, "grimoire")
-          CHROMA_DIR = os.path.join(GRIMOIRE, "rag", "chroma.db")
-          CHUNK_SIZE = 512
-          CHUNK_OVERLAP = 50
-          COLLECTION_NAME = "grimoire"
-
-          SOURCE_DIRS = [
-              "kingdom-docs",
-              "mitre-attck",
-              "nvd-cves",
-              "cwe",
-              "threat-models",
-              "history",
-          ]
-
-          SUPPORTED_EXTENSIONS = {".md", ".txt", ".json", ".yaml", ".yml", ".xml", ".csv"}
-
-
-          def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
-              """Split text into overlapping chunks."""
-              chunks = []
-              start = 0
-              while start < len(text):
-                  end = start + size
-                  chunks.append(text[start:end])
-                  start = end - overlap
-              return chunks
-
-
-          def walk_sources():
-              """Walk all source directories and yield (path, content) tuples."""
-              for src_dir in SOURCE_DIRS:
-                  full_path = os.path.join(GRIMOIRE, src_dir)
-                  if not os.path.isdir(full_path):
-                      continue
-                  for root, _, files in os.walk(full_path):
-                      for fname in files:
-                          ext = os.path.splitext(fname)[1].lower()
-                          if ext not in SUPPORTED_EXTENSIONS:
-                              continue
-                          fpath = os.path.join(root, fname)
-                          try:
-                              with open(fpath, "r", errors="replace") as f:
-                                  content = f.read()
-                              if content.strip():
-                                  yield fpath, content
-                          except Exception as e:
-                              print(f"[WARN] Cannot read {fpath}: {e}", file=sys.stderr)
-
-
-          def main():
-              try:
-                  import chromadb
-                  from chromadb.config import Settings
-              except ImportError:
-                  print("[ERROR] chromadb not installed.", file=sys.stderr)
-                  sys.exit(1)
-
-              print(f"[INFO] Indexing Grimoire into {CHROMA_DIR}")
-              os.makedirs(CHROMA_DIR, exist_ok=True)
-
-              client = chromadb.PersistentClient(
-                  path=CHROMA_DIR,
-                  settings=Settings(anonymized_telemetry=False),
-              )
-
-              # Create or get collection
-              try:
-                  collection = client.get_or_create_collection(name=COLLECTION_NAME)
-              except Exception as e:
-                  print(f"[ERROR] Cannot create collection: {e}", file=sys.stderr)
-                  sys.exit(1)
-
-              total_docs = 0
-              total_chunks = 0
-
-              for fpath, content in walk_sources():
-                  total_docs += 1
-                  rel_path = os.path.relpath(fpath, GRIMOIRE)
-                  chunks = chunk_text(content)
-
-                  for i, chunk in enumerate(chunks):
-                      chunk_id = hashlib.sha256(f"{rel_path}:{i}".encode()).hexdigest()[:16]
-                      collection.add(
-                          documents=[chunk],
-                          metadatas=[{"source": rel_path, "chunk_index": i}],
-                          ids=[chunk_id],
-                      )
-                      total_chunks += 1
-
-                  if total_docs % 100 == 0:
-                      print(f"  Indexed {total_docs} documents, {total_chunks} chunks...")
-
-              print(f"[  OK] Indexing complete: {total_docs} documents, {total_chunks} chunks")
-
-
-          if __name__ == "__main__":
-              main()
-        dest: "{{ grimoire_root }}/grimoire-index.py"
-        owner: "{{ tomb_user }}"
-        group: "{{ tomb_user }}"
-        mode: "0755"
+    - name: "Build the corpus index"
+      ansible.builtin.command:
+        argv:
+          - "{{ grimoire_root }}/bin/zhen-codeindex"
+          - "--corpus"
+          - "{{ grimoire_root }}"
+          - "--out"
+          - "{{ grimoire_root }}/index"
+      become_user: "{{ tomb_user }}"
+      changed_when: true
 
     - name: "Count indexed documents per source"
       ansible.builtin.find:

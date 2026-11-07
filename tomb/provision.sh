@@ -312,7 +312,7 @@ phase_setup_base() {
     header "PHASE 1: SETUP BASE SYSTEM"
 
     info "Creating Tomb directory structure..."
-    tomb_root "mkdir -p ${TOMB_ROOT}/{lich/{campaigns,harnesses,crash-triage/{corpus,crashes/{rce,dos,memory-leak,info-leak,unknown}}},grimoire/{kingdom-docs,mitre-attck,nvd-cves,cwe,threat-models,history,rag/{chroma.db,embeddings}},cerydwyn/{ollama/models,logs,suggestions},dark-mirror/{prometheus,grafana/{dashboards,datasources},loki,alerts},captures/{pcaps,packet-analysis},reports/archive}"
+    tomb_root "mkdir -p ${TOMB_ROOT}/{lich/{campaigns,harnesses,crash-triage/{corpus,crashes/{rce,dos,memory-leak,info-leak,unknown}}},grimoire/{kingdom-docs,mitre-attck,nvd-cves,cwe,threat-models,history,bin,index},cerydwyn/{ollama/models,logs,suggestions},dark-mirror/{prometheus,grafana/{dashboards,datasources},loki,alerts},captures/{pcaps,packet-analysis},reports/archive}"
     tomb_root "mkdir -p ${TOMB_STAGING}"
     ok "Directory structure created"
 
@@ -822,137 +822,35 @@ GSEARCH_EOF"
     tomb_root "chmod 755 ${TOMB_ROOT}/grimoire/grimoire-search.sh"
     ok "grimoire-search.sh deployed"
 
-    info "Deploying RAG infrastructure dependencies..."
-    if [ -d "${PACKAGES_DIR}/grimoire/rag-deps" ]; then
-        tomb_scp "${PACKAGES_DIR}/grimoire/rag-deps/" "${TOMB_STAGING}/rag-deps/"
-        tomb_root "pip3 install --no-index --find-links=${TOMB_STAGING}/rag-deps/ chromadb==1.5.9 sentence-transformers==6.2.0 2>/dev/null || true"
-        ok "RAG Python dependencies installed (offline)"
+    info "Transferring threat models..."
+    if [ -d "${PACKAGES_DIR}/grimoire/threat-models" ]; then
+        tomb_scp "${PACKAGES_DIR}/grimoire/threat-models/" "${TOMB_STAGING}/threat-models/"
+        tomb_root "cp -r ${TOMB_STAGING}/threat-models/* ${TOMB_ROOT}/grimoire/threat-models/"
+        ok "Threat models transferred"
     else
-        warn "No rag-deps/ in packages/grimoire/ -- stage pip wheels for air-gapped install"
-        info "Hint: pip download -d tomb/packages/grimoire/rag-deps/ chromadb==1.5.9 sentence-transformers==6.2.0"
+        warn "No threat-models/ in packages/grimoire/ -- run make stage-grimoire"
     fi
 
-    info "Deploying rag-query.py..."
-    tomb_exec "cat > ${TOMB_STAGING}/rag-query.py << 'RAG_QUERY_EOF'
-#!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
-# rag-query.py -- Retrieve documents from ChromaDB by semantic similarity
-\"\"\"
-RAG query interface for the Grimoire knowledge base.
-Uses ChromaDB + sentence-transformers for vector similarity search.
-\"\"\"
-import argparse
-import json
-import os
-import sys
-
-TOMB_ROOT = \"/opt/tomb\"
-CHROMA_DIR = os.path.join(TOMB_ROOT, \"grimoire\", \"rag\", \"chroma.db\")
-RAG_CONFIG = os.path.join(TOMB_ROOT, \"cerydwyn\", \"rag-config.json\")
-DEFAULT_TOP_K = 5
-DEFAULT_MODEL = \"all-MiniLM-L6-v2\"
-
-
-def load_config():
-    \"\"\"Load RAG pipeline configuration.\"\"\"
-    if os.path.exists(RAG_CONFIG):
-        with open(RAG_CONFIG, \"r\") as f:
-            return json.load(f)
-    return {
-        \"embedding_model\": DEFAULT_MODEL,
-        \"top_k\": DEFAULT_TOP_K,
-        \"chroma_dir\": CHROMA_DIR,
-        \"collection_name\": \"grimoire\",
-    }
-
-
-def query_chromadb(query_text, top_k=None, config=None):
-    \"\"\"Query ChromaDB for semantically similar documents.\"\"\"
-    if config is None:
-        config = load_config()
-    if top_k is None:
-        top_k = config.get(\"top_k\", DEFAULT_TOP_K)
-
-    try:
-        import chromadb
-        from chromadb.config import Settings
-    except ImportError:
-        print(\"[ERROR] chromadb not installed. Install with:\", file=sys.stderr)
-        print(\"  pip3 install chromadb==1.5.9 sentence-transformers==6.2.0\", file=sys.stderr)
-        sys.exit(1)
-
-    chroma_dir = config.get(\"chroma_dir\", CHROMA_DIR)
-    collection_name = config.get(\"collection_name\", \"grimoire\")
-
-    if not os.path.exists(chroma_dir):
-        print(f\"[WARN] ChromaDB directory not found: {chroma_dir}\", file=sys.stderr)
-        print(\"[WARN] Run grimoire-index.py to build the vector index.\", file=sys.stderr)
-        return []
-
-    client = chromadb.PersistentClient(
-        path=chroma_dir,
-        settings=Settings(anonymized_telemetry=False),
-    )
-
-    try:
-        collection = client.get_collection(name=collection_name)
-    except Exception:
-        print(f\"[WARN] Collection '{collection_name}' not found.\", file=sys.stderr)
-        return []
-
-    results = collection.query(query_texts=[query_text], n_results=top_k)
-
-    formatted = []
-    if results and results.get(\"documents\"):
-        for i, doc in enumerate(results[\"documents\"][0]):
-            meta = results[\"metadatas\"][0][i] if results.get(\"metadatas\") else {}
-            dist = results[\"distances\"][0][i] if results.get(\"distances\") else 0.0
-            similarity = max(0.0, 1.0 - dist)
-            formatted.append({
-                \"rank\": i + 1,
-                \"similarity\": round(similarity, 4),
-                \"source\": meta.get(\"source\", \"unknown\"),
-                \"chunk\": doc[:500],
-            })
-    return formatted
-
-
-def main():
-    parser = argparse.ArgumentParser(description=\"Query Grimoire via RAG\")
-    parser.add_argument(\"query\", help=\"Search query\")
-    parser.add_argument(\"--top-k\", type=int, default=None, help=\"Number of results\")
-    parser.add_argument(\"--json\", action=\"store_true\", help=\"Output as JSON\")
-    args = parser.parse_args()
-
-    config = load_config()
-    results = query_chromadb(args.query, top_k=args.top_k, config=config)
-
-    if args.json:
-        print(json.dumps(results, indent=2))
-    else:
-        if not results:
-            print(\"No results found.\")
-            return
-        for r in results:
-            print(f\"\\nChunk {r['rank']}: [similarity: {r['similarity']:.2f}] [source: {r['source']}]\")
-            print(f\"  \\\"{r['chunk']}...\\\"\")
-
-
-if __name__ == \"__main__\":
-    main()
-RAG_QUERY_EOF"
-    tomb_root "cp ${TOMB_STAGING}/rag-query.py ${TOMB_ROOT}/grimoire/rag-query.py"
-    tomb_root "chmod 755 ${TOMB_ROOT}/grimoire/rag-query.py"
-    ok "rag-query.py deployed"
+    info "Deploying zhen-codeindex and building the corpus index..."
+    if [ -f "${PACKAGES_DIR}/grimoire/bin/zhen-codeindex" ]; then
+        tomb_scp "${PACKAGES_DIR}/grimoire/bin/zhen-codeindex" "${TOMB_STAGING}/zhen-codeindex"
+        tomb_root "install -m 0755 ${TOMB_STAGING}/zhen-codeindex ${TOMB_ROOT}/grimoire/bin/zhen-codeindex"
+        tomb_root "${TOMB_ROOT}/grimoire/bin/zhen-codeindex --corpus ${TOMB_ROOT}/grimoire --out ${TOMB_ROOT}/grimoire/index"
+        tomb_root "chown -R ${TOMB_USER}:${TOMB_USER} ${TOMB_ROOT}/grimoire/index"
+        ok "Corpus index built"
+    else
+        warn "No bin/zhen-codeindex in packages/grimoire/ -- run make stage-grimoire"
+    fi
 
     # Verification
     info "Verifying Grimoire deployment..."
     verify_dir "${TOMB_ROOT}/grimoire/kingdom-docs"
     verify_dir "${TOMB_ROOT}/grimoire/mitre-attck"
     verify_dir "${TOMB_ROOT}/grimoire/nvd-cves"
-    verify_dir "${TOMB_ROOT}/grimoire/rag"
+    verify_dir "${TOMB_ROOT}/grimoire/index"
     tomb_exec "test -x ${TOMB_ROOT}/grimoire/grimoire-search.sh" && ok "grimoire-search.sh executable" || fail "grimoire-search.sh not executable"
-    tomb_exec "test -f ${TOMB_ROOT}/grimoire/rag-query.py" && ok "rag-query.py present" || fail "rag-query.py missing"
+    tomb_exec "test -x ${TOMB_ROOT}/grimoire/bin/zhen-codeindex" && ok "zhen-codeindex executable" || fail "zhen-codeindex not executable"
+    tomb_exec "test -f ${TOMB_ROOT}/grimoire/index/CURRENT" && ok "corpus index present" || fail "corpus index missing"
 
     ok "Grimoire knowledge base deployed"
 }
@@ -989,14 +887,11 @@ phase_deploy_cerydwyn() {
     info "Deploying RAG configuration..."
     tomb_exec "cat > ${TOMB_ROOT}/cerydwyn/rag-config.json << 'RAG_CFG_EOF'
 {
-  \"embedding_model\": \"all-MiniLM-L6-v2\",
   \"llm_model\": \"mistral\",
   \"llm_endpoint\": \"http://127.0.0.1:11434\",
   \"top_k\": 5,
-  \"chunk_size\": 512,
-  \"chunk_overlap\": 50,
-  \"chroma_dir\": \"/opt/tomb/grimoire/rag/chroma.db\",
-  \"collection_name\": \"grimoire\",
+  \"grimoire_search\": \"/opt/tomb/grimoire/bin/zhen-codeindex\",
+  \"grimoire_index\": \"/opt/tomb/grimoire/index\",
   \"temperature\": 0.3,
   \"max_tokens\": 2048,
   \"system_prompt\": \"You are the BlackMage Cerydwyn, advisor to a kingdom's security team. Respond with tactical, actionable guidance grounded in the Kingdom's architecture and threat landscape. Reference specific documents when applicable.\"
@@ -1053,17 +948,20 @@ OLLAMA_SVC_EOF"
 # rag-cerydwyn.py -- Full RAG+LLM pipeline (retrieve -> augment -> generate)
 \"\"\"
 The Cerydwyn: RAG-augmented LLM for security threat modeling.
-Queries Grimoire via ChromaDB, augments prompt, generates via Ollama.
+Searches the Grimoire with zhen-codeindex, augments prompt, generates via Ollama.
 \"\"\"
 import argparse
 import json
 import os
+import subprocess
 import sys
 import urllib.request
 import urllib.error
 
 TOMB_ROOT = \"/opt/tomb\"
 RAG_CONFIG = os.path.join(TOMB_ROOT, \"cerydwyn\", \"rag-config.json\")
+GRIMOIRE_SEARCH = os.path.join(TOMB_ROOT, \"grimoire\", \"bin\", \"zhen-codeindex\")
+GRIMOIRE_INDEX = os.path.join(TOMB_ROOT, \"grimoire\", \"index\")
 LOG_DIR = os.path.join(TOMB_ROOT, \"cerydwyn\", \"logs\")
 
 
@@ -1082,15 +980,16 @@ def load_config():
 
 
 def retrieve_context(query, config):
-    \"\"\"Retrieve relevant documents from Grimoire RAG index.\"\"\"
+    \"\"\"Retrieve relevant documents from the Grimoire's corpus index.\"\"\"
+    cmd = [
+        config.get(\"grimoire_search\", GRIMOIRE_SEARCH),
+        \"--out\", config.get(\"grimoire_index\", GRIMOIRE_INDEX),
+        \"--search\", query,
+        \"--top-k\", str(config.get(\"top_k\", 5)),
+    ]
     try:
-        # Import from the grimoire rag-query module
-        sys.path.insert(0, os.path.join(TOMB_ROOT, \"grimoire\"))
-        from importlib.machinery import SourceFileLoader
-        rag_mod = SourceFileLoader(\"rag_query\",
-                                   os.path.join(TOMB_ROOT, \"grimoire\", \"rag-query.py\")).load_module()
-        results = rag_mod.query_chromadb(query, top_k=config.get(\"top_k\", 5), config=config)
-        return results
+        found = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
+        return json.loads(found.stdout)[\"results\"]
     except Exception as e:
         print(f\"[WARN] RAG retrieval failed: {e}\", file=sys.stderr)
         return []
@@ -1104,8 +1003,8 @@ def build_prompt(query, context_docs, config):
     if context_docs:
         context_block = \"\\nYou have access to the following Grimoire excerpts:\\n\\n\"
         for doc in context_docs:
-            context_block += f\"[Source: {doc.get('source', 'unknown')}] (relevance: {doc.get('similarity', 0):.2f})\\n\"
-            context_block += f\"{doc.get('chunk', '')}\\n\\n\"
+            context_block += f\"[Source: {doc.get('source', 'unknown')}] (relevance: {doc.get('score', 0):.2f})\\n\"
+            context_block += f\"{doc.get('content', '')}\\n\\n\"
 
     return f\"{system_prompt}\\n{context_block}\\nUser Query: {query}\\n\\nRespond with tactical, actionable guidance.\"
 

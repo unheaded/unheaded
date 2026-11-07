@@ -40,7 +40,7 @@ func TestIncluded(t *testing.T) {
 		"raft/zhen_app.py":                      true,
 		"pkg/x/y_test.go":                       true,
 		"docs/x.md":                             false,
-		"tomb/grimoire/rag/rag-index.py":        false,
+		"tomb/grimoire/setup.py":                false,
 		"cmd/lich-mcp/main.go":                  false,
 		"pkg/lichcore/a.go":                     false,
 		"crates/doom-runner/src/memory.rs":      false,
