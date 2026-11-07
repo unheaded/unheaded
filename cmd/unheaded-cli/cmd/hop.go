@@ -76,8 +76,9 @@ func NewHopCommand() *Command {
 	return cmd
 }
 
-// newHopModeCommand creates `hop mode`, the one writer of CONFIG key 4. Enforce
-// is refused until the findings in hoprules.EnforceBlockers close. Needs CAP_BPF.
+// newHopModeCommand creates `hop mode`, the one writer of CONFIG key 4 in the
+// tree. Enforce is refused here, not in hop_xdp, until the findings in
+// hoprules.EnforceBlockers close. Needs CAP_BPF.
 func newHopModeCommand() *Command {
 	var pinDir string
 	flags := flag.NewFlagSet("mode", flag.ContinueOnError)

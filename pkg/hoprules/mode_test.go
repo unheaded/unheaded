@@ -6,7 +6,10 @@ package hoprules
 import (
 	"encoding/binary"
 	"errors"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -121,5 +124,74 @@ func TestEnforceBlockers_FollowTheRegister(t *testing.T) {
 		if listed := slices.Contains(EnforceBlockers, id); listed != open[id] {
 			t.Errorf("%s: in EnforceBlockers %v, open in the register %v", id, listed, open[id])
 		}
+	}
+}
+
+// A hop CONFIG write outside this package names the map in code, or its pin
+// path in anything a person or a unit would run.
+var (
+	configInCode = regexp.MustCompile(`"CONFIG"`)
+	configPin    = regexp.MustCompile(`hop-ebpf/CONFIG`)
+)
+
+// configWritersUnder lists the files under root naming the CONFIG map, leaving
+// out tests, this package and tests/hopchecks, which proves enforce in the lab.
+func configWritersUnder(t *testing.T, root string) []string {
+	t.Helper()
+	var found []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case "target", "node_modules", "hoprules", "hopchecks", ".git":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		ext := filepath.Ext(path)
+		if !slices.Contains([]string{".go", ".rs", ".sh", ".py", ".yaml", ".yml", ".service"}, ext) ||
+			strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		raw, err := os.ReadFile(path) // #nosec G122 G304 -- the repo's own tree, in a test
+		if err != nil {
+			return err
+		}
+		if configPin.Match(raw) || ((ext == ".go" || ext == ".rs") && configInCode.Match(raw)) {
+			found = append(found, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
+}
+
+// SetMode's refusal holds only while nothing else writes key 4: hop_xdp honours
+// whatever the key says. A second writer in the tree fails here, whether it is
+// code, a script or a unit. Root writing the pin by hand is outside any test.
+func TestConfigMap_OneWriter(t *testing.T) {
+	for _, dir := range []string{"cmd", "pkg", "scripts", "deploy", "runbooks", "debian", "tests"} {
+		for _, path := range configWritersUnder(t, filepath.Join("..", "..", dir)) {
+			t.Errorf("%s names hop-ebpf's CONFIG map: key 4 goes through SetMode", path)
+		}
+	}
+}
+
+// The walk above must see a writer when there is one.
+func TestConfigMap_OneWriterSeesASecondWriter(t *testing.T) {
+	dir := t.TempDir()
+	sample := "package x\n\nconst name = \"CONFIG\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "second.go"), []byte(sample), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "pin.sh"), []byte("x /sys/fs/bpf/hop-ebpf/CONFIG\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := configWritersUnder(t, dir); len(got) != 2 {
+		t.Fatalf("found %v, want both files", got)
 	}
 }

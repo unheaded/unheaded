@@ -27,7 +27,9 @@ const (
 
 // EnforceBlockers are the register entries enforce waits for. Stevie
 // 2026-11-06: enforce is refused until they close, because the severity of each
-// rises the moment enforce is on. A test holds this list to the register.
+// rises the moment enforce is on. A test holds this list to the register, and
+// another fails on a second writer in the tree. hop_xdp has no refusal of its
+// own: it honours what key 4 holds, so this one covers the writers we ship.
 var EnforceBlockers = []string{"FND-031", "FND-033", "FND-035"}
 
 // ErrEnforceRefused is SetMode's answer while EnforceBlockers holds an entry.
