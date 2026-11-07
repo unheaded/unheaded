@@ -24,6 +24,12 @@ MOVED = ("upgrade-east-first", "verify-east-health", "upgrade-west", "verify-wes
 # apt as far as this test needs it: a named .deb lands in the host's rows, unless
 # it is told to fail or to do nothing and say nothing.
 APT = """echo "$*" >> "{calls}"
+if [ "$1 $2" = "dpkg --remove" ]; then
+  [ ! -e "{root}/dpkg-refuses" ] || exit 1
+  shift 2
+  for pkg in "$@"; do sed -i "/^.. $pkg /d" "{rows}"; done
+  exit 0
+fi
 [ "$1 $2" = "apt-get install" ] || exit 0
 [ ! -e "{root}/apt-fails" ] || exit 7
 [ ! -e "{root}/apt-idle" ] || exit 0
@@ -185,6 +191,20 @@ def test_a_deb_named_for_a_version_it_does_not_carry_is_not_taken(tmp_path):
     assert f"west:unheaded-wotan={OLD}" in r.stderr
 
 
+def test_a_deb_named_without_its_architecture_is_kept_and_goes_back(tmp_path):
+    # Earlier builds under dist/debs are named <package>_<version>.deb.
+    h = Hosts(tmp_path, WEST, [])
+    built = make_deb(h.checkout / "dist" / "debs", "unheaded-wotan", OLD)
+    built.rename(built.with_name(f"unheaded-wotan_{OLD}.deb"))
+    r = h.record()
+    assert r.returncode == 0, r.stderr
+    assert (h.checkout / h.keep / "debs" / f"unheaded-wotan_{OLD}_amd64.deb").exists()
+    h.moved_to(NEW)
+    r = h.run("restore", "west", h.keep)
+    assert r.returncode == 0, r.stderr
+    assert h.rows("west") == {"unheaded-wotan": OLD}
+
+
 def test_an_unreachable_east_stops_the_record(tmp_path):
     h = Hosts(tmp_path, WEST, EAST)
     for pkg in PKGS:
@@ -241,6 +261,53 @@ def test_a_host_that_did_not_get_back_fails_the_rollback_and_says_which(recorded
     r = recorded.run("restore", host, recorded.keep)
     assert r.returncode != 0
     assert f"unheaded-wotan {NEW}" in r.stderr
+
+
+def added(h, host, pkg):
+    """The upgrade brought pkg onto a host that did not hold it."""
+    rows = h.west_rows if host == "west" else h.east_rows
+    rows.write_text(rows.read_text() + dpkg_rows([(pkg, NEW)]))
+
+
+@pytest.fixture
+def east_lacks_keygen(tmp_path):
+    h = Hosts(tmp_path, WEST, WEST)
+    h.publish("unheaded-wotan", OLD)
+    r = h.record()
+    assert r.returncode == 0, r.stderr
+    return h
+
+
+@pytest.mark.parametrize("host", ["west", "east"])
+def test_what_the_upgrade_added_goes_when_the_host_goes_back(east_lacks_keygen, host):
+    h = east_lacks_keygen
+    h.moved_to(NEW)
+    added(h, host, "unheaded-keygen")
+    r = h.run("restore", host, h.keep)
+    assert r.returncode == 0, r.stderr
+    assert h.rows(host) == {"unheaded-wotan": OLD}
+    calls = (h.west_calls if host == "west" else h.east_calls).read_text().splitlines()
+    assert calls[-1] == "dpkg --remove unheaded-keygen", "removed before the downgrade, or by what cascades"
+
+
+@pytest.mark.parametrize("host", ["west", "east"])
+def test_an_addition_that_will_not_go_fails_the_rollback_and_says_which(east_lacks_keygen, host):
+    h = east_lacks_keygen
+    h.moved_to(NEW)
+    added(h, host, "unheaded-keygen")
+    (h.root / "dpkg-refuses").touch()
+    r = h.run("restore", host, h.keep)
+    assert r.returncode != 0
+    assert "unheaded-keygen" in r.stderr
+
+
+def test_what_a_host_held_outside_the_list_is_not_touched(east_lacks_keygen):
+    h = east_lacks_keygen
+    h.moved_to(NEW)
+    added(h, "west", "unheaded-kev-poller")
+    r = h.run("restore", "west", h.keep)
+    assert r.returncode == 0, r.stderr
+    assert h.rows("west")["unheaded-kev-poller"] == NEW
 
 
 def test_a_kept_deb_that_changed_is_not_installed(recorded):

@@ -22,7 +22,8 @@ notes: |
   are kept, because the repo refuses one version with other bytes and a rebuild
   has other bytes. A run on a newer commit is a new version.
   The rollback restores the packages each host held, from the debs record-previous
-  kept in dist/debs/rollback-<commit>. A host holding a version with no deb in
+  kept in dist/debs/rollback-<commit>, and removes those it did not hold, as
+  unheaded-keygen may be on west. A host holding a version with no deb in
   the repo's pool or under dist/debs stops the run before anything moves.
   record-previous also records what a health sweep finds up on each host, and
   verify-east-health and verify-west-health fail if any of that is down. A service
@@ -57,6 +58,15 @@ preconditions:
     description: The signed repo is initialised (deploy/apt-repo-publish)
   - check: "ssh govan@east 'test -x /opt/unheaded/bin/akira && test -r /opt/unheaded/etc/akira.yaml'"
     description: East has the akira binary and config verify-east-health runs, before east is upgraded
+  - check: |
+      set -euo pipefail
+      rows="$(dpkg --version >/dev/null && { dpkg -l ${UNHEADED_PKGS} 2>/dev/null || true; })"
+      while read -r state _; do
+        case "$state" in [uihrp][iUFHWt]*) exit 0 ;; esac
+      done <<<"$rows"
+      echo "west holds none of these packages" >&2
+      exit 1
+    description: West holds one of these packages, or upgrade-west would stop with east already moved
   - check: |
       set -euo pipefail
       want="$(cd "${REPO}" && scripts/build-all-debs.sh --print-version)"

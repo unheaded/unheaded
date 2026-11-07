@@ -142,6 +142,14 @@ def test_a_host_that_cannot_be_read_is_refused(tmp_path, monkeypatch, capsys, kw
     assert not ok, out
 
 
+@pytest.mark.parametrize("west", [[], [("unheaded-kev-poller", "0.2.0~alpha+20261105")], [("rc", "unheaded-wotan", "0.2.0~alpha+20261105")]])
+def test_a_west_holding_none_of_the_packages_is_refused_before_east_moves(tmp_path, monkeypatch, capsys, west):
+    # Not held, one this run does not upgrade, or removed with its config left.
+    ok, out = preconditions(monkeypatch, capsys, hosts(tmp_path, west, CURRENT))
+    assert not ok
+    assert "west holds none" in out
+
+
 def test_a_dirty_checkout_is_refused_before_anything_runs(tmp_path, monkeypatch, capsys):
     bin_dir = hosts(tmp_path, CURRENT, CURRENT)
     (tmp_path / "porcelain").write_text(" M scripts/x\n")

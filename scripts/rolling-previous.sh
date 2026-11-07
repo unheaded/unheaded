@@ -26,9 +26,10 @@
 # bar, not every target: a target already down is not this build's doing, and
 # west's built-in target list names services it does not run.
 #
-# restore installs that host's debs, downgrades allowed, and fails unless the
-# host then holds exactly what was recorded and passes health. It does not touch
-# the repo, which still serves the failed build, nor the Well.
+# restore installs that host's debs, downgrades allowed, removes any of PKG it
+# did not hold, and fails unless the host then holds exactly what was recorded
+# and passes health. It does not touch the repo, which still serves the failed
+# build, nor the Well.
 #
 # Tested by tests/runbooks/test_rolling_rollback.py.
 set -euo pipefail
@@ -55,7 +56,8 @@ held_on() {
 }
 
 # find_deb APT_BASE PKG VERSION: a deb that really is that package at that
-# version, going by its control file and not by its name.
+# version, going by its control file and not by its name, which in an earlier
+# build under dist/debs may lack the architecture.
 find_deb() {
 	local candidate
 	while IFS= read -r candidate; do
@@ -63,7 +65,7 @@ find_deb() {
 			echo "$candidate"
 			return
 		fi
-	done < <(find "$1/pool" dist/debs -type f -name "${2}_${3#*:}_*.deb" 2>/dev/null || true)
+	done < <(find "$1/pool" dist/debs -type f -name "${2}_${3#*:}*.deb" 2>/dev/null || true)
 }
 
 # sweep HOST DIR: the services a finished sweep found up, sorted. DIR holds west's
@@ -115,12 +117,13 @@ record() {
 	local part="$keep.part" missing=()
 	rm -rf "$part"
 	mkdir -p "$part/debs"
+	printf '%s\n' "$@" >"$part/packages"
 	for host in west east; do
 		held_on "$host" "$@" >"$part/$host.versions"
 		while read -r pkg version; do
 			deb="$(find_deb "$base" "$pkg" "$version")"
 			if [[ -n "$deb" ]]; then
-				cp -f -- "$deb" "$part/debs/"
+				cp -f -- "$deb" "$part/debs/${pkg}_${version#*:}_$(dpkg-deb -f "$deb" Architecture).deb"
 			else
 				missing+=("$host:$pkg=$version")
 			fi
@@ -144,12 +147,13 @@ restore() {
 	local host=$1 keep=$2 pkg version
 	[[ "$host" == west || "$host" == east ]] || die "restore: west or east, not '$host'"
 	[[ -f "$keep/$host.versions" ]] || die "no record for $host in $keep"
+	[[ -f "$keep/packages" ]] || die "no package list in $keep"
 	local debs=() pkgs=() found
+	mapfile -t pkgs <"$keep/packages"
 	while read -r pkg version; do
 		found=("$PWD/$keep/debs/${pkg}_${version#*:}_"*.deb)
 		[[ -e "${found[0]}" ]] || die "no kept deb for $pkg $version"
 		debs+=("${found[0]}")
-		pkgs+=("$pkg")
 	done <"$keep/$host.versions"
 	if [[ ${#debs[@]} -eq 0 ]]; then
 		echo "rolling-previous: $host held none of these; nothing to put back"
@@ -168,6 +172,21 @@ restore() {
 		# shellcheck disable=SC2029
 		ssh "$EAST" "rm -rf $dir"
 		((rc == 0)) || die "apt-get on east exited $rc"
+	fi
+
+	# What the upgrade brought in that the host did not hold, unheaded-keygen
+	# above all. dpkg, as apt-get remove would also take whatever depends on it.
+	local added=()
+	mapfile -t added < <(held_on "$host" "${pkgs[@]}" | awk '{print $1}' |
+		grep -vxF -f <(awk '{print $1}' "$keep/$host.versions") || true)
+	if [[ ${#added[@]} -gt 0 ]]; then
+		if [[ "$host" == west ]]; then
+			sudo dpkg --remove "${added[@]}" 2>&1 | tail -10 || die "could not remove ${added[*]}"
+		else
+			# shellcheck disable=SC2029 # package names from the record, meant for that shell
+			ssh "$EAST" "set -o pipefail; sudo dpkg --remove ${added[*]} 2>&1 | tail -10" ||
+				die "could not remove ${added[*]}"
+		fi
 	fi
 
 	local now
