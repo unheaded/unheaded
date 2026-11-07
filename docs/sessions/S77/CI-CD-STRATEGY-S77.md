@@ -28,7 +28,6 @@ All pipelines enforce the same quality gates: build, test, security scan, SBOM g
 | GPL Boundary | `gpl-boundary.yml` | Push to main, PRs to main | SPDX header scan, go.mod/Cargo.toml GPL/AGPL detection |
 | Docker | `docker.yml` | Push/PR | Docker image builds |
 | eBPF | `ebpf.yml` | Push/PR | eBPF Rust program builds |
-| Helm | `helm.yml` | Push/PR | Helm chart validation |
 | Release | `release.yml` | Tags | Release artifact creation |
 | CI Protocol | `ci-protocol.yml` | Push/PR | Protocol-specific validation |
 

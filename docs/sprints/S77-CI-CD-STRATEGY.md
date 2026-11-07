@@ -42,7 +42,7 @@ and signs deployment artifacts.
 - `ebpf.yml` — builds Rust eBPF programs, runs the BPF verifier check.
 - `security.yml` — `cargo audit`, `govulncheck`, secret-scan,
   golangci-lint gate.
-- `apply.yml` / `release.yml` / `helm.yml` / `docker.yml` —
+- `apply.yml` / `release.yml` / `docker.yml` —
   deployment-side rails.
 - `timeline-drift-guard.yml` — keeps `references/timeline.md` honest
   against the live commit graph.
