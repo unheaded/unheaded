@@ -45,6 +45,7 @@ type encoderScan struct {
 	fset      *token.FileSet
 	jsonName  string
 	httpName  string
+	fields    map[string]bool // struct fields of this file holding a ResponseWriter
 	handlers  int
 	offenders []string
 }
@@ -84,6 +85,12 @@ func (s *encoderScan) function(ft *ast.FuncType, body *ast.BlockStmt, outer map[
 					}
 				}
 			}
+		case *ast.ValueSpec: // var rw = w
+			for i, rhs := range v.Values {
+				if id, ok := rhs.(*ast.Ident); ok && i < len(v.Names) && writers[id.Name] {
+					writers[v.Names[i].Name] = true
+				}
+			}
 		case *ast.CallExpr:
 			sel, ok := v.Fun.(*ast.SelectorExpr)
 			if !ok || sel.Sel.Name != "NewEncoder" || len(v.Args) != 1 {
@@ -93,12 +100,43 @@ func (s *encoderScan) function(ft *ast.FuncType, body *ast.BlockStmt, outer map[
 			if !ok || pkg.Name != s.jsonName {
 				return true
 			}
-			if arg, ok := v.Args[0].(*ast.Ident); ok && writers[arg.Name] {
-				s.offenders = append(s.offenders, s.fset.Position(v.Pos()).String())
+			switch arg := v.Args[0].(type) {
+			case *ast.Ident:
+				if writers[arg.Name] {
+					s.offenders = append(s.offenders, s.fset.Position(v.Pos()).String())
+				}
+			case *ast.SelectorExpr: // s.w
+				if s.fields[arg.Sel.Name] {
+					s.offenders = append(s.offenders, s.fset.Position(v.Pos()).String())
+				}
 			}
 		}
 		return true
 	})
+}
+
+// writerFields names the struct fields of f that hold a ResponseWriter.
+func writerFields(f *ast.File, httpName string) map[string]bool {
+	fields := map[string]bool{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		st, ok := n.(*ast.StructType)
+		if !ok {
+			return true
+		}
+		for _, field := range st.Fields.List {
+			if !isResponseWriter(field.Type, httpName) {
+				continue
+			}
+			if len(field.Names) == 0 {
+				fields["ResponseWriter"] = true // embedded
+			}
+			for _, name := range field.Names {
+				fields[name.Name] = true
+			}
+		}
+		return true
+	})
+	return fields
 }
 
 // scanSource returns the encoders made on a ResponseWriter in one Go file,
@@ -117,6 +155,7 @@ func scanSource(path string, src []byte) (offenders []string, handlers int, err 
 	if s.jsonName == "" || s.httpName == "" {
 		return nil, 0, nil
 	}
+	s.fields = writerFields(f, s.httpName)
 	for _, d := range f.Decls {
 		switch v := d.(type) {
 		case *ast.FuncDecl:
@@ -199,6 +238,9 @@ func TestScanSource_FindsEverySpelling(t *testing.T) {
 		"func literal": `func r() http.HandlerFunc { return func(w http.ResponseWriter, _ *http.Request) { json.NewEncoder(w).Encode(1) } }`,
 		"package var":  `var h = func(w http.ResponseWriter) { json.NewEncoder(w).Encode(1) }`,
 		"captured":     `func h(w http.ResponseWriter) { func() { json.NewEncoder(w).Encode(1) }() }`,
+		"var alias":    `func h(w http.ResponseWriter) { var x = w; json.NewEncoder(x).Encode(1) }`,
+		"field":        "type s struct{ out http.ResponseWriter }\nfunc (v s) h() { json.NewEncoder(v.out).Encode(1) }",
+		"embedded":     "type s struct{ http.ResponseWriter }\nfunc (v s) h() { json.NewEncoder(v.ResponseWriter).Encode(1) }",
 	} {
 		found, _, err := scanSource("x.go", []byte(head+body+"\n"))
 		if err != nil {
