@@ -81,7 +81,7 @@ func (c *Champion) manifestKey() (*mldsa65.PublicKey, error) {
 			}
 		}
 	}
-	parent, err := os.Stat(filepath.Dir(resolved))
+	parent, err := os.Stat(filepath.Dir(resolved)) // #nosec G703 -- operator-set key path from the unit, absolute and outside every sandbox root (checked above)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (c *Champion) manifestKey() (*mldsa65.PublicKey, error) {
 	}
 	// By path, not through os.OpenRoot: that opens the directory for reading,
 	// and a key directory may let a service open a name and list nothing.
-	f, err := os.Open(filepath.Clean(resolved))
+	f, err := os.Open(filepath.Clean(resolved)) // #nosec G703 -- operator-set key path, checked absolute, outside the sandbox, parent not writable by others
 	if err != nil {
 		return nil, err
 	}

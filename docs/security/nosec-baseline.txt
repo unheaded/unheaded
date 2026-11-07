@@ -166,6 +166,7 @@ pkg/champion/modelstatus.go 1
 pkg/champion/modelswap.go 3
 pkg/champion/runbookmanifest.go 3
 pkg/champion/runbookmanifest_test.go 1
+pkg/champion/runbookseal.go 2
 pkg/champion/runcheck.go 1
 pkg/champion/safeopen_linux.go 1
 pkg/champion/write.go 2
