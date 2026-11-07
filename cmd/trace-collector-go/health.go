@@ -15,13 +15,13 @@
 package main
 
 import (
-	"encoding/json"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"unheaded/pkg/ebpf"
+	"unheaded/pkg/httputil"
 )
 
 // ── ProgramStatus ─────────────────────────────────────────────────────────
@@ -187,9 +187,7 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Wotan = h.State.Publisher.IsConnected()
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(httpStatus)
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, httpStatus, resp)
 }
 
 // ── Ready handler (/ready) ────────────────────────────────────────────────
@@ -218,9 +216,7 @@ func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		EventsProcessed: processed,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(httpStatus)
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, httpStatus, resp)
 }
 
 // ── Traces API handler (/api/v1/traces) ───────────────────────────────────
@@ -233,8 +229,7 @@ type TracesHandler struct {
 func (h *TracesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	traces := h.State.GetRecentTraces(100)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct { // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, struct {
 		Count  int                 `json:"count"`
 		Traces []*recentTraceEntry `json:"traces"`
 	}{
@@ -278,6 +273,5 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.AnamnesisReader = &stats
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, resp)
 }

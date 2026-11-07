@@ -33,8 +33,19 @@ one JSON line with the service, path (for gRPC, the full method), method (`GRPC`
 for gRPC), peer address and subject, never a credential. By default these go to
 stderr, the service's journal. `AUTH_AUDIT_LOG=<path>` keeps every decision in
 that file, each accepted credential included, with a further line from RBAC
-where the service has it; a unit needs `ReadWritePaths=` for it. Paths and
-methods are cut to 512 bytes. The file is not rotated.
+where the service has it. Paths and methods are cut to 512 bytes. Packaged
+units declare `LogsDirectory=unheaded/<name>`, so
+`AUTH_AUDIT_LOG=/var/log/unheaded/<name>/auth-audit.log` in the unit's env file
+works under `ProtectSystem=strict`; any other path needs `ReadWritePaths=`.
+
+The file rotates by size: past 64 MiB it moves to `<path>.1`, older generations
+shift up, and `<path>.7` is dropped, so the trail holds at most 512 MiB and
+keeps the newest events. Nothing else may rotate it, and copy generations off
+the host if the trail must outlive that bound. A rotation that fails loses no
+event and drops no extra generation: writing carries on in the current file,
+which outgrows 64 MiB until a rotation works, the failure goes to stderr, and
+the next attempt waits for another 64 MiB. A `<path>.next` beside the trail is
+the empty new file of a rotation that stopped; the next one reuses it.
 
 A log that cannot be opened stops a service built on `NewServiceHandler`,
 `NewServiceChain`, `NewServiceMiddleware` or `NewServiceAuthenticator`. On

@@ -201,7 +201,7 @@ func (s *Server) SendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send message
-	msg, overwritten := rm.SendMessage(req.MemberID, req.Content)
+	msg, overwritten := rm.SendVerifiedMessage(req.MemberID, verifiedSender(r), req.Content, nil)
 	if m := metrics.Get(); m != nil {
 		m.RecordMessageCreated(req.RoomID, overwritten)
 	}

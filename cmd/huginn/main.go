@@ -16,10 +16,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"runtime"
 	"sort"
@@ -389,7 +390,7 @@ func main() {
 	// Config file is loaded first; CLI flags override individual fields.
 	configPath := flag.String("config", "/etc/huginn.yaml", "path to YAML config file (optional)")
 	flagHost := flag.String("host", "", "host label override (default: hostname or config)")
-	flagListen := flag.String("listen", "", "listen addresses override, comma-separated (default 127.0.0.1:9110; huginn has no auth, so name internal addresses only)")
+	flagListen := flag.String("listen", "", "listen addresses override, comma-separated (default 127.0.0.1:9110; huginn has no auth, so a wildcard is refused: name internal addresses)")
 	flagVM := flag.String("vm", "", "VictoriaMetrics URL override (empty string = no override)")
 	flagInterval := flag.Duration("interval", 0, "collection/push interval override")
 	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
@@ -458,8 +459,7 @@ func main() {
 	}
 
 	http.HandleFunc("/host-summary", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(collect(label))
+		httputil.WriteJSON(w, http.StatusOK, collect(label))
 	})
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
@@ -518,12 +518,34 @@ var listenRetry = 5 * time.Second
 // bindAddr opens one listener; a test swaps it to bring an address up.
 var bindAddr = httputil.ListenTCP
 
+// checkListen refuses a wildcard in the listen list. huginn has no auth, so
+// each address that hears it is a decision.
+func checkListen(list string) error {
+	for _, addr := range httputil.ListenAddrs(list) {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			return fmt.Errorf("listen %s: %w", addr, err)
+		}
+		if host == "" || host == "*" {
+			return fmt.Errorf("listen %s: a wildcard address is refused; name each internal address", addr)
+		}
+		// A zone does not narrow the unspecified address: [::%lo] binds all.
+		if ip, err := netip.ParseAddr(host); err == nil && ip.WithZone("").Unmap().IsUnspecified() {
+			return fmt.Errorf("listen %s: a wildcard address is refused; name each internal address", addr)
+		}
+	}
+	return nil
+}
+
 // serveAll serves srv on every address of list (comma-separated) until one
-// listener fails. A taken port or a bad address stops the start. An address
+// listener fails. A wildcard, a taken port or a bad address stops the start. An address
 // the host does not hold yet does not: huginn's pushes and the addresses that
 // are up carry on, and that one is served once it appears, so a link that is
 // down at boot costs its callers and nothing else.
 func serveAll(srv *http.Server, list string) error {
+	if err := checkListen(list); err != nil {
+		return err
+	}
 	lns, pending, err := httputil.ListenAvailable(httputil.ListenAddrs(list))
 	if err != nil {
 		return err

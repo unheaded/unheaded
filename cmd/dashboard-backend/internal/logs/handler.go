@@ -7,11 +7,11 @@
 package logs
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 )
 
@@ -70,9 +70,7 @@ func (h *LogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	entries := h.buffer.Query(q)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(entries) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusOK, entries)
 }
 
 // parseTime tries RFC3339 first, then Unix timestamp.

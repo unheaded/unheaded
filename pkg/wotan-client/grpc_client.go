@@ -476,14 +476,15 @@ func topicEventToMessage(event *chatpb.TopicEvent) *Message {
 	}
 
 	return &Message{
-		MessageID: event.MessageId,
-		Topic:     event.Topic,
-		SenderID:  event.SenderId,
-		CreatedAt: createdAt,
-		Seq:       event.Seq,
-		Payload:   string(event.Payload),
-		Deleted:   event.Type == chatpb.TopicEventType_TOPIC_MESSAGE_DELETED,
-		Signed:    eventSignature(event),
+		MessageID:      event.MessageId,
+		Topic:          event.Topic,
+		SenderID:       event.SenderId,
+		CreatedAt:      createdAt,
+		Seq:            event.Seq,
+		Payload:        string(event.Payload),
+		Deleted:        event.Type == chatpb.TopicEventType_TOPIC_MESSAGE_DELETED,
+		Signed:         eventSignature(event),
+		VerifiedSender: event.VerifiedSender,
 	}
 }
 

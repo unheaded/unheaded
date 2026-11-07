@@ -214,7 +214,5 @@ func (d *Daemon) publishToWotan(ctx context.Context, payload []byte) error {
 }
 
 func writeJSONStatus(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
+	httputil.WriteJSON(w, status, body)
 }

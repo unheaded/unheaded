@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ type sent struct {
 func newTestRemediator(t *testing.T) (*remediator, *[]sent) {
 	t.Helper()
 	var out []sent
-	r := newRemediator("west", func(topic string, v interface{}) {
+	r := newRemediator("west", map[string]bool{"wotan": true, "kanban": true}, func(topic string, v interface{}) {
 		b, err := json.Marshal(v)
 		if err != nil {
 			t.Fatal(err)
@@ -31,6 +32,66 @@ func newTestRemediator(t *testing.T) (*remediator, *[]sent) {
 	}, metrics.NewRegistry())
 	r.now = func() time.Time { return time.UnixMilli(1_761_600_000_000) }
 	return r, &out
+}
+
+// Names from reports cost a bounded amount: this node's targets are always
+// tracked, others take at most maxRefused places and one metric label.
+func TestRemediateBoundsNamesItDoesNotWatch(t *testing.T) {
+	r, out := newTestRemediator(t)
+	for i := range 1000 {
+		r.onChange(verdict(fmt.Sprintf("invented-%d", i), 3, 3))
+	}
+	if len(r.band) != maxRefused {
+		t.Fatalf("band holds %d names, want %d", len(r.band), maxRefused)
+	}
+	if len(*out) != maxRefused {
+		t.Fatalf("published %d suggestions, want %d", len(*out), maxRefused)
+	}
+	var b strings.Builder
+	if err := r.suggested.Write(&b); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(b.String(), "invented-") {
+		t.Fatalf("a reported name became a label:\n%s", b.String())
+	}
+	if !strings.Contains(b.String(), `service="other"`) {
+		t.Fatalf("no other label:\n%s", b.String())
+	}
+
+	// A full table never costs this node's own target its suggestion.
+	r.onChange(verdict("wotan", 3, 3))
+	if len(*out) != maxRefused+1 {
+		t.Fatalf("own target's suggestion lost; published %d", len(*out))
+	}
+	if !strings.Contains(sentMetric(t, r), `service="wotan"`) {
+		t.Fatal("own target has no label of its own")
+	}
+}
+
+// An invented name that has been quiet for an hour gives its place back.
+func TestRemediateStaleNamesFreeTheirPlace(t *testing.T) {
+	r, out := newTestRemediator(t)
+	for i := range maxRefused {
+		r.onChange(verdict(fmt.Sprintf("invented-%d", i), 3, 3))
+	}
+	start := r.now()
+	r.now = func() time.Time { return start.Add(refusedQuiet) }
+	r.onChange(verdict("later", 3, 3))
+	if len(*out) != maxRefused+1 {
+		t.Fatalf("published %d, want the new name's suggestion too", len(*out))
+	}
+	if len(r.band) != 1 {
+		t.Fatalf("band holds %d names, want 1", len(r.band))
+	}
+}
+
+func sentMetric(t *testing.T, r *remediator) string {
+	t.Helper()
+	var b strings.Builder
+	if err := r.suggested.Write(&b); err != nil {
+		t.Fatal(err)
+	}
+	return b.String()
 }
 
 func verdict(svc string, failing, reporters int) health.Verdict {
@@ -101,7 +162,7 @@ func TestRemediateOncePerBandEntry(t *testing.T) {
 
 func TestRemediateCountsSuggestions(t *testing.T) {
 	reg := metrics.NewRegistry()
-	r := newRemediator("east", func(string, interface{}) {}, reg)
+	r := newRemediator("east", map[string]bool{"captain": true, "kanban": true}, func(string, interface{}) {}, reg)
 	r.onChange(verdict("captain", 3, 4))
 	r.onChange(verdict("captain", 4, 4))
 	r.onChange(verdict("kanban", 3, 4))

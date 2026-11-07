@@ -170,3 +170,35 @@ func TestDeployment_BindAndCallers(t *testing.T) {
 		t.Error("dashboard services.txt does not reach huginn on 192.168.13.2")
 	}
 }
+
+// huginn has no auth: which interfaces hear it is named address by address,
+// so a wildcard stops the start, wherever in the list it sits.
+func TestServeAll_RefusesAWildcard(t *testing.T) {
+	for _, list := range []string{
+		":0", "0.0.0.0:0", "[::]:0", "*:0", "[0:0:0:0:0:0:0:0]:0", "[::ffff:0.0.0.0]:0",
+		"[::%lo]:0", "127.0.0.1:0,0.0.0.0:0",
+	} {
+		srv := &http.Server{ReadHeaderTimeout: time.Second}
+		got := make(chan error, 1)
+		go func() { got <- serveAll(srv, list) }()
+		select {
+		case err := <-got:
+			if err == nil || !strings.Contains(err.Error(), "wildcard") {
+				t.Errorf("list %q: err = %v, want a wildcard refusal", list, err)
+			}
+		case <-time.After(500 * time.Millisecond):
+			_ = srv.Close()
+			t.Errorf("list %q: serveAll listened", list)
+		}
+	}
+}
+
+func TestCheckListen_TakesNamedAddresses(t *testing.T) {
+	for _, list := range []string{
+		"127.0.0.1:9110", "127.0.0.1:9110,192.168.13.2:9110,[fd00:dead:beef::1]:9110", "localhost:9110",
+	} {
+		if err := checkListen(list); err != nil {
+			t.Errorf("list %q: %v", list, err)
+		}
+	}
+}

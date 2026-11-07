@@ -51,6 +51,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/zhenagent"
 )
 
@@ -501,9 +502,7 @@ func (s *Server) registerRunbookRoutes(mux *http.ServeMux) {
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(v) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, code, v)
 }
 
 // handleRunbooks serves GET /api/v1/runbooks.

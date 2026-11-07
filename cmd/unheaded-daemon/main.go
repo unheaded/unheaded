@@ -1025,8 +1025,7 @@ func (d *Daemon) handleGetState(w http.ResponseWriter, r *http.Request) {
 	d.stateManager.mu.RLock()
 	defer d.stateManager.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"desired_count": len(d.stateManager.desired),
 		"actual_count":  len(d.stateManager.actual),
 		"drift_count":   len(d.stateManager.drifts),
@@ -1038,24 +1037,21 @@ func (d *Daemon) handleDesiredState(w http.ResponseWriter, r *http.Request) {
 	d.stateManager.mu.RLock()
 	defer d.stateManager.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d.stateManager.desired) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, d.stateManager.desired)
 }
 
 func (d *Daemon) handleActualState(w http.ResponseWriter, r *http.Request) {
 	d.stateManager.mu.RLock()
 	defer d.stateManager.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d.stateManager.actual) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, d.stateManager.actual)
 }
 
 func (d *Daemon) handleDrift(w http.ResponseWriter, r *http.Request) {
 	d.stateManager.mu.RLock()
 	defer d.stateManager.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d.stateManager.drifts) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, d.stateManager.drifts)
 }
 
 func (d *Daemon) handleContainers(w http.ResponseWriter, r *http.Request) {
@@ -1075,8 +1071,7 @@ func (d *Daemon) handleContainers(w http.ResponseWriter, r *http.Request) {
 		containers = append(containers, container)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(containers) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, containers)
 }
 
 func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
@@ -1089,16 +1084,14 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{
 			"error": "container id is required",
 		})
 		return
 	}
 
 	if (r.Method == http.MethodPut || r.Method == http.MethodDelete) && !d.authEnabled {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		httputil.WriteJSON(w, http.StatusForbidden, map[string]string{
 			"error": "container writes need AUTH_ENABLED=true",
 		})
 		return
@@ -1113,15 +1106,14 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 
 		if !desiredExists && !actualExists {
 			d.log.Warn().Str("id", id).Msg("Container not found")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+			httputil.WriteJSON(w, http.StatusNotFound, map[string]string{
 				"error": "container not found",
 			})
 			return
 		}
 
 		d.log.Info().Str("id", id).Msg("Retrieved container state")
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"id":      id,
 			"desired": desired,
 			"actual":  actual,
@@ -1132,8 +1124,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1*1024*1024)).Decode(&spec); err != nil {
 			d.log.Error().Err(err).Str("id", id).Msg("Invalid request body for container update")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+			httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{
 				"error": fmt.Sprintf("invalid request body: %v", err),
 			})
 			return
@@ -1142,22 +1133,19 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		// Ensure the spec ID matches the URL path ID; it becomes the LXD
 		// instance name.
 		if err := validLXDName(id); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+			httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 		spec.ID = id
 		if err := spec.validate(d.config.ProxyListenAddrs); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+			httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 
 		d.stateManager.mu.Lock()
 		if owner := d.proxyListenOwner(id, spec.Proxy); owner != "" {
 			d.stateManager.mu.Unlock()
-			w.WriteHeader(http.StatusConflict)
-			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+			httputil.WriteJSON(w, http.StatusConflict, map[string]string{
 				"error": fmt.Sprintf("proxy listen %s is already %s's", spec.Proxy.Listen, owner),
 			})
 			return
@@ -1172,8 +1160,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		}
 
 		d.log.Info().Str("id", id).Str("name", spec.Name).Str("image", spec.Image).Msg("Updated desired state for container")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"message": "desired state updated",
 			"id":      id,
 			"desired": &spec,
@@ -1185,8 +1172,7 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		if !exists {
 			d.stateManager.mu.Unlock()
 			d.log.Warn().Str("id", id).Msg("Container not found in desired state for deletion")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+			httputil.WriteJSON(w, http.StatusNotFound, map[string]string{
 				"error": "container not found in desired state",
 			})
 			return
@@ -1201,15 +1187,13 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		}
 
 		d.log.Info().Str("id", id).Msg("Removed container from desired state, reconciliation will clean up")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"message": "container removed from desired state",
 			"id":      id,
 		})
 
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		httputil.WriteJSON(w, http.StatusMethodNotAllowed, map[string]string{
 			"error": fmt.Sprintf("method %s not allowed", r.Method),
 		})
 	}
@@ -1255,8 +1239,7 @@ func cloneDesired(m map[string]*ContainerSpec) map[string]*ContainerSpec {
 
 func (d *Daemon) writeStoreError(w http.ResponseWriter, id string, err error) {
 	d.log.Error().Err(err).Str("id", id).Msg("Desired state not changed")
-	w.WriteHeader(http.StatusServiceUnavailable)
-	json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 }
 
 func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -1301,8 +1284,7 @@ func (d *Daemon) handleInfo(w http.ResponseWriter, r *http.Request) {
 	if backend == "" {
 		backend = "mock"
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		// Which LXD and which modes are live: mock and real look alike
 		// otherwise without reading the environment.
 		"lxd_backend": backend,

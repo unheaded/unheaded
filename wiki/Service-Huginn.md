@@ -9,7 +9,7 @@ Huginn runs natively on each Kingdom host (west, east), not in a container. It r
 | Binary | `/usr/local/bin/huginn` (built from `cmd/huginn`; ADR-084) |
 | Unit | `huginn.service`, runs as its own nologin account `unheaded-huginn` (`deploy/sysusers.d/unheaded.conf`) |
 | Config | `/etc/huginn.yaml` (template `cmd/huginn/huginn.yaml.example`); secrets in `/etc/huginn.env` (root 0600) |
-| Listen | `127.0.0.1:9110` by default; huginn has no auth, so `HUGINN_LISTEN` in `/etc/huginn.env` lists each host's internal addresses (loopback, `192.168.13.x` for the dashboard, the overlay for Prometheus) |
+| Listen | `127.0.0.1:9110` by default; huginn has no auth, so `HUGINN_LISTEN` in `/etc/huginn.env` lists each host's internal addresses (loopback, `192.168.13.x` for the dashboard, the overlay for Prometheus). A wildcard (`:9110`, `0.0.0.0`, `[::]`) stops the start, and with `Restart=always` that is a restart loop. `-listen` on `ExecStart` wins over `HUGINN_LISTEN`, and a unit in `/etc/systemd/system` shadows the packaged one, so read `systemctl cat huginn` before a new binary goes on a host: the unit, `/etc/huginn.env` and `/etc/huginn.yaml` must all name addresses first |
 | Push | VictoriaMetrics every 10 s (`HUGINN_VM`: west `http://localhost:8428`, the main compose `victoria`; east pushes to west over the P2P link). While `victoria` is down each push fails (`vm push failed ... connection refused` in the journal); `/metrics` still serves everything |
 
 ## What it reports

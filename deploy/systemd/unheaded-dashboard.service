@@ -60,6 +60,10 @@ UMask=0077
 # Sandbox (deploy/systemd/README.md#isolation). The user comes from
 # deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
 NoNewPrivileges=yes
+# Writable under ProtectSystem=strict: set AUTH_AUDIT_LOG=/var/log/unheaded/dashboard/auth-audit.log
+# in the env file to keep every auth decision there (off by default).
+LogsDirectory=unheaded/dashboard
+LogsDirectoryMode=0750
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes

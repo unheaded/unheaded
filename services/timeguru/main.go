@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -147,15 +148,11 @@ func streamTimelineUpdates(ctx context.Context, client *wotanClient.Client) {
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "healthy"})
 }
 
 func readyHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ready"}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 }
 
 // metricsHandler serves the default registry: go_*, process_* and what

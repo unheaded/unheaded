@@ -80,6 +80,10 @@ type Message struct {
 	// drift.*) arrived with over gRPC, nil otherwise; check it with
 	// VerifySignature (ADR-105).
 	Signed *wotansig.Signed `json:"signed,omitempty"`
+	// VerifiedSender is the subject Wotan verified on the publisher's token,
+	// over gRPC and HTTP alike; empty with Wotan's auth off. Wotan sets it and
+	// the publisher cannot, so it is the field to enforce a sender on.
+	VerifiedSender string `json:"verified_sender,omitempty"`
 }
 
 // Subscriber represents a topic subscriber

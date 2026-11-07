@@ -20,7 +20,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -88,6 +87,15 @@ func execTargetNames(targets []health.ServiceTarget) map[string]bool {
 		if t.Exec != nil {
 			m[t.Name] = true
 		}
+	}
+	return m
+}
+
+// targetNames is the set of services this node watches.
+func targetNames(targets []health.ServiceTarget) map[string]bool {
+	m := make(map[string]bool, len(targets))
+	for _, t := range targets {
+		m[t.Name] = true
 	}
 	return m
 }
@@ -305,7 +313,7 @@ func main() {
 	// Every other reporter's reports are votes too (ADR-029: every node a
 	// watchdog). This node's own are recorded locally by CheckAll.
 	if wotan != nil && !*once {
-		go consumeReports(wotan, *nodeID, akira)
+		go consumeReports(wotan, reportGateFromEnv(*nodeID, metrics.DefaultRegistry), akira)
 	}
 
 	akira.OnReport(func(r health.HealthReport) {
@@ -325,7 +333,7 @@ func main() {
 	restarts := map[string]int{}
 	// Entering CRITICAL or PANIC publishes one suggestion to
 	// system.health.remediate, with or without --remediate.
-	suggest := newRemediator(*nodeID, publish, metrics.DefaultRegistry)
+	suggest := newRemediator(*nodeID, targetNames(targets), publish, metrics.DefaultRegistry)
 	akira.OnSeverityChange(func(v health.Verdict) {
 		suggest.onChange(v)
 		log.Info().
@@ -447,8 +455,7 @@ func apiHandler(a akiraAPI, node string, cfg auth.ServiceAuthConfig) (http.Handl
 	mux.Handle("/metrics", metrics.HandlerFor(metrics.DefaultRegistry))
 	mux.HandleFunc("/api/v1/status", func(w http.ResponseWriter, _ *http.Request) {
 		states := a.GetStates()
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(states) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, states)
 	})
 	return auth.NewServiceHandler(mux, cfg, auth.ServiceRoutes{OpenReads: []string{"/api/v1/status"}})
 }
@@ -471,22 +478,6 @@ const (
 	topicReports   = "system.health.reports"   // every reporter's checks
 	topicConsensus = "system.health.consensus" // severity changes
 )
-
-// consumeReports feeds other reporters' reports from Wotan into the ballot.
-func consumeReports(c *wotanClient.Client, self string, a *health.Akira) {
-	ch, err := c.StreamMessages(context.Background(), topicReports)
-	if err != nil {
-		log.Warn().Err(err).Msg("cannot read system.health.reports; tallying this node's checks only")
-		return
-	}
-	for m := range ch {
-		var r health.HealthReport
-		if err := json.Unmarshal([]byte(m.Payload), &r); err != nil || r.Reporter == self {
-			continue
-		}
-		a.Record(r)
-	}
-}
 
 func findPort(name string, targets []health.ServiceTarget) int {
 	for _, t := range targets {

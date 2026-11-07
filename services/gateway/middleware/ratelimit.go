@@ -4,7 +4,6 @@
 package middleware
 
 import (
-	"encoding/json"
 	"net"
 	"net/http"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 	"unheaded/services/gateway/config"
@@ -272,9 +272,8 @@ func (rl *RateLimiter) writeRateLimitError(w http.ResponseWriter, bucket *TokenB
 	w.Header().Set("Retry-After", "1")
 	w.Header().Set("X-RateLimit-Limit", formatFloat(rl.cfg.RequestsPerSec))
 	w.Header().Set("X-RateLimit-Remaining", "0")
-	w.WriteHeader(http.StatusTooManyRequests)
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusTooManyRequests, map[string]interface{}{
 		"error":       "rate_limit_exceeded",
 		"message":     "Too many requests. Please try again later.",
 		"retry_after": 1,
