@@ -313,11 +313,7 @@ func main() {
 	// Every other reporter's reports are votes too (ADR-029: every node a
 	// watchdog). This node's own are recorded locally by CheckAll.
 	if wotan != nil && !*once {
-		requireVerified := auth.LoadServiceAuthConfig("akira").Enabled
-		if !requireVerified {
-			log.Warn().Msg("auth off: reports carry no verified sender, so reporter names are the reports' own word")
-		}
-		go consumeReports(wotan, newReportGate(*nodeID, requireVerified, metrics.DefaultRegistry), akira)
+		go consumeReports(wotan, reportGateFromEnv(*nodeID, metrics.DefaultRegistry), akira)
 	}
 
 	akira.OnReport(func(r health.HealthReport) {

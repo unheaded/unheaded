@@ -60,8 +60,9 @@ func validNode(s string) bool {
 // With a sender, the report's reporter is never the one the payload gives:
 // a service votes only on its own ballot name, as "<service>@<host>", so an
 // identity holds a vote on no service but its own. Akira votes on any
-// service, as its node. The host is still the publisher's word, which is
-// why the ballot is capped too.
+// service, as its node. The host is still the publisher's word, so a sender
+// can name as many hosts as it likes: each consumer bounds what it keeps of
+// them (Akira's ballot; the dashboard's Well writer, per run of the process).
 //
 // Without a sender the report is refused when requireVerified is set. Auth
 // off has nothing to check it against, so it passes as written.

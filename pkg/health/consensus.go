@@ -113,7 +113,7 @@ func (b *Ballot) Record(r HealthReport) {
 // whether the ballot had room. A name already on the ballot keeps voting at
 // the limits; a new one is refused until stale names leave at the next tally.
 func (b *Ballot) RecordPeer(r HealthReport) bool {
-	if r.Service == "" || r.Reporter == "" || len(r.Service) > MaxPeerNameBytes || len(r.Reporter) > MaxPeerNameBytes {
+	if !PeerNamesFit(r) {
 		return false
 	}
 	if len(r.Error) > MaxPeerErrorBytes {
@@ -130,6 +130,11 @@ func (b *Ballot) RecordPeer(r HealthReport) bool {
 	}
 	b.cast(r)
 	return true
+}
+
+// PeerNamesFit reports whether r's names are ones RecordPeer can hold.
+func PeerNamesFit(r HealthReport) bool {
+	return r.Service != "" && r.Reporter != "" && len(r.Service) <= MaxPeerNameBytes && len(r.Reporter) <= MaxPeerNameBytes
 }
 
 // cast records the vote. Caller holds b.mu.

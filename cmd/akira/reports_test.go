@@ -128,6 +128,50 @@ func TestReportGate_FullBallotIsCounted(t *testing.T) {
 	}
 }
 
+// A name the ballot will never hold is not a full ballot: the two call for
+// different things from whoever reads the metric.
+func TestReportGate_ANameThatDoesNotFitIsNotAFullBallot(t *testing.T) {
+	a := health.NewAkira("west", nil)
+	g := newReportGate("west", false, metrics.NewRegistry())
+	consumeAll(g, a,
+		reportMessage(t, "", health.HealthReport{Service: "wotan", Reporter: strings.Repeat("r", health.MaxPeerNameBytes+1)}),
+		reportMessage(t, "", health.HealthReport{Service: "wotan"}),
+	)
+	if got := g.refused.WithLabelValues("bad_name").Value(); got != 2 {
+		t.Fatalf("bad_name = %v, want 2", got)
+	}
+	if got := g.refused.WithLabelValues("ballot_full").Value(); got != 0 {
+		t.Fatalf("ballot_full = %v, want 0", got)
+	}
+}
+
+// The gate Akira runs takes its setting from AUTH_ENABLED: with auth on a
+// report no one verified is no vote, and with it off it is.
+func TestReportGateFromEnv_AuthOnRefusesAnUnverifiedReport(t *testing.T) {
+	msg := func() *wotanClient.Message {
+		return reportMessage(t, "", health.HealthReport{Service: "wotan", Reporter: "east", Healthy: true})
+	}
+
+	t.Setenv("AUTH_ENABLED", "true")
+	a := health.NewAkira("west", nil)
+	g := reportGateFromEnv("west", metrics.NewRegistry())
+	consumeAll(g, a, msg())
+	a.EvaluateConsensus()
+	if len(a.GetStates()) != 0 {
+		t.Fatalf("auth on: states = %+v, want none", a.GetStates())
+	}
+	if got := g.refused.WithLabelValues("unverified").Value(); got != 1 {
+		t.Fatalf("unverified = %v, want 1", got)
+	}
+
+	t.Setenv("AUTH_ENABLED", "false")
+	a = health.NewAkira("west", nil)
+	consumeAll(reportGateFromEnv("west", metrics.NewRegistry()), a, msg())
+	if v := verdictOn(t, a, "wotan"); v.Reporters != 1 {
+		t.Fatalf("auth off: verdict = %+v, want 1 reporter", v)
+	}
+}
+
 // Every refusal is a counted reason from a fixed set: a report can never
 // mint a label value.
 func TestReportGate_RefusalReasonsAreFixed(t *testing.T) {

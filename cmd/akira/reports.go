@@ -5,11 +5,10 @@ package main
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/rs/zerolog/log"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/health"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/metrics"
@@ -23,49 +22,28 @@ import (
 type reportGate struct {
 	self            string
 	requireVerified bool
-	refused         *metrics.CounterVec
-	now             func() time.Time
-	logged          map[string]time.Time // reason -> last log line
+	refused         *healthreport.Refusals
 }
 
 func newReportGate(self string, requireVerified bool, reg *metrics.Registry) *reportGate {
-	cv := metrics.NewCounterVec("akira_reports_refused_total",
-		"Messages on system.health.reports that did not become a vote, by reason.",
-		nil, []string{"reason"})
-	if err := reg.Register(cv); err != nil {
+	refused, err := healthreport.NewRefusals("akira_reports_refused_total",
+		"Messages on system.health.reports that did not become a vote, by reason.", reg,
+		func(reason, sender string) {
+			log.Warn().Str("reason", reason).Str("sender", sender).Msg(healthreport.RefusedMessage)
+		})
+	if err != nil {
 		log.Error().Err(err).Msg("akira_reports_refused_total not registered")
 	}
-	return &reportGate{
-		self: self, requireVerified: requireVerified, refused: cv,
-		now: time.Now, logged: map[string]time.Time{},
-	}
+	return &reportGate{self: self, requireVerified: requireVerified, refused: refused}
 }
 
-// refusalReason maps Admit's error to a metric label from a fixed set.
-func refusalReason(err error) string {
-	switch {
-	case errors.Is(err, healthreport.ErrUnverified):
-		return "unverified"
-	case errors.Is(err, healthreport.ErrNotOwnService):
-		return "not_own_service"
-	case errors.Is(err, healthreport.ErrBadNode):
-		return "bad_node"
-	default:
-		return "malformed"
+// reportGateFromEnv is the gate Akira runs: its own auth setting decides.
+func reportGateFromEnv(self string, reg *metrics.Registry) *reportGate {
+	requireVerified := auth.LoadServiceAuthConfig("akira").Enabled
+	if !requireVerified {
+		log.Warn().Msg("auth off: reports carry no verified sender, so reporter names are the reports' own word")
 	}
-}
-
-// refuse counts a refused message and logs each reason at most once per
-// refusedQuiet: a flood of reports costs one line an hour. The sender is the
-// verified subject, so the line names who did it.
-func (g *reportGate) refuse(reason, sender string) {
-	g.refused.WithLabelValues(reason).Inc()
-	now := g.now()
-	if at, ok := g.logged[reason]; ok && now.Sub(at) < refusedQuiet {
-		return
-	}
-	g.logged[reason] = now
-	log.Warn().Str("reason", reason).Str("sender", sender).Msg("health report refused; further refusals this hour are only counted")
+	return newReportGate(self, requireVerified, reg)
 }
 
 // consume feeds admitted reports from ch into the ballot until ch closes.
@@ -73,14 +51,18 @@ func (g *reportGate) consume(ch <-chan *wotanClient.Message, a *health.Akira) {
 	for m := range ch {
 		r, err := healthreport.Admit(m.VerifiedSender, g.requireVerified, []byte(m.Payload))
 		if err != nil {
-			g.refuse(refusalReason(err), m.VerifiedSender)
+			g.refused.Refuse(healthreport.Reason(err), m.VerifiedSender)
 			continue
 		}
 		if r.Reporter == g.self {
 			continue // this node's vote is recorded by CheckAll
 		}
+		if !health.PeerNamesFit(r) {
+			g.refused.Refuse("bad_name", m.VerifiedSender)
+			continue
+		}
 		if !a.RecordPeer(r) {
-			g.refuse("ballot_full", m.VerifiedSender)
+			g.refused.Refuse("ballot_full", m.VerifiedSender)
 		}
 	}
 }
