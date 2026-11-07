@@ -5,6 +5,7 @@ package auth
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -152,6 +153,139 @@ func TestRotatingFile_FailedRotationKeepsWriting(t *testing.T) {
 	}
 	if strings.Count(buf.String(), "\n") > 5 {
 		t.Fatalf("a failed rotation retried on every write: %q", buf.String())
+	}
+}
+
+// fillGenerations writes each generation of path with its own number.
+func fillGenerations(t *testing.T, path string, keep int) {
+	t.Helper()
+	for i := 1; i <= keep; i++ {
+		if err := os.WriteFile(fmt.Sprintf("%s.%d", path, i), []byte(fmt.Sprintf("gen-%d\n", i)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func generationsHeld(t *testing.T, path string, keep int) string {
+	t.Helper()
+	var all strings.Builder
+	for i := 1; i <= keep; i++ {
+		b, err := os.ReadFile(fmt.Sprintf("%s.%d", path, i))
+		if err != nil {
+			fmt.Fprintf(&all, "(%d missing)\n", i)
+			continue
+		}
+		all.Write(b)
+	}
+	return all.String()
+}
+
+// A new file that cannot be opened, as when the process is out of file
+// descriptors, changes nothing however many times it is tried: the live file
+// keeps its name, the events stay in it, and no generation goes. The first
+// rotation after it clears drops the one oldest, as any rotation does.
+func TestRotatingFile_OpenFailureCostsNoGeneration(t *testing.T) {
+	buf := withAuditStderr(t)
+	path := filepath.Join(t.TempDir(), "audit.log")
+	fillGenerations(t, path, 3)
+	f, err := openRotatingFile(path, 20, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	fail := true
+	open := f.open
+	f.open = func(p string) (*os.File, error) {
+		if fail {
+			return nil, errors.New("too many open files")
+		}
+		return open(p)
+	}
+	before := generationsHeld(t, path, 3)
+
+	writeLines(t, f, 0, 20)
+	if got := generationsHeld(t, path, 3); got != before {
+		t.Fatalf("generations moved by a failed rotation:\n%s\nwant:\n%s", got, before)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("live file gone: %v", err)
+	}
+	if strings.Count(string(got), "\n") != 20 {
+		t.Fatalf("events lost: %q", got)
+	}
+	if !strings.Contains(buf.String(), "too many open files") {
+		t.Fatalf("no word on stderr: %q", buf.String())
+	}
+
+	fail = false
+	writeLines(t, f, 20, 24)
+	if got := heldLines(t, path, 3); !strings.Contains(got, "line-0000\n") || !strings.HasSuffix(got, "line-0023\n") {
+		t.Fatalf("recovery lost events: %q", got)
+	}
+	if _, err := os.Stat(path + ".next"); !os.IsNotExist(err) {
+		t.Fatalf("spare file left behind: %v", err)
+	}
+}
+
+// A shift that stops halfway leaves a gap, and the retry fills it without
+// dropping another generation.
+func TestRotatingFile_RetryAfterAHalfShiftDropsNothing(t *testing.T) {
+	withAuditStderr(t)
+	path := filepath.Join(t.TempDir(), "audit.log")
+	fillGenerations(t, path, 5)
+	f, err := openRotatingFile(path, 20, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	// What an interrupted shift leaves: gen-4 has gone over the oldest, gen-3
+	// has followed it, and <path>.3 is the gap.
+	for _, i := range []int{4, 3} {
+		if err := os.Rename(fmt.Sprintf("%s.%d", path, i), fmt.Sprintf("%s.%d", path, i+1)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeLines(t, f, 0, 3)
+	want := map[string]string{".2": "gen-1\n", ".3": "gen-2\n", ".4": "gen-3\n", ".5": "gen-4\n"}
+	for suffix, content := range want {
+		if got, _ := os.ReadFile(path + suffix); string(got) != content {
+			t.Errorf("%s = %q, want %q", suffix, got, content)
+		}
+	}
+}
+
+// If the live file is taken away, the next rotation puts it back: the trail
+// resumes and the older generations stay.
+func TestRotatingFile_RemovedLiveFileIsPutBack(t *testing.T) {
+	buf := withAuditStderr(t)
+	path := filepath.Join(t.TempDir(), "audit.log")
+	f, err := openRotatingFile(path, 20, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	writeLines(t, f, 0, 6) // one rotation: <path>.1 exists
+	generation, err := os.ReadFile(path + ".1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	writeLines(t, f, 6, 10)
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("live file not put back: %v (stderr %q)", err, buf.String())
+	}
+	if !strings.HasSuffix(string(got), "line-0009\n") {
+		t.Fatalf("live file = %q", got)
+	}
+	if b, _ := os.ReadFile(path + ".2"); string(b) != string(generation) {
+		t.Fatalf("generation lost: .2 = %q, want %q", b, generation)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("a recovered rotation reported a failure: %q", buf.String())
 	}
 }
 
