@@ -1,3 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Builds the Wotan and Kanban images from the root Dockerfile's stages, amd64
+# only. The image is built into the runner's Docker first, so Trivy reads the
+# bytes that would ship; only then does a push event send it to GHCR, from the
+# build cache. A pull request builds and scans, and pushes nothing.
+# check-ci-verdicts.sh holds that order, and these stages to the Dockerfile.
 name: Docker
 
 on:
@@ -47,32 +55,52 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
-      - name: Build and push
+      - name: Trivy pin (scripts/lib/tool-pins.sh)
+        run: |
+          source scripts/lib/tool-pins.sh
+          echo "TRIVY_PIN=v${TRIVY_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Build into the runner's Docker
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile
           target: wotan
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/wotan:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=wotan
+          cache-to: type=gha,scope=wotan,mode=max
           platforms: linux/amd64
 
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master, 2026-10-21 (trivy v0.76.1)
         with:
+          version: ${{ env.TRIVY_PIN }}
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/wotan:${{ github.sha }}
           format: sarif
           output: trivy-wotan.sarif
           severity: CRITICAL,HIGH
 
+      # A pull request's token may not write security events.
       - name: Upload Trivy SARIF
+        if: github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        if: always()
         with:
           sarif_file: trivy-wotan.sarif
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: .
+          file: ./Dockerfile
+          target: wotan
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=wotan
+          platforms: linux/amd64
 
   build-kanban:
     name: Build Kanban Image
@@ -104,29 +132,49 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
-      - name: Build and push
+      - name: Trivy pin (scripts/lib/tool-pins.sh)
+        run: |
+          source scripts/lib/tool-pins.sh
+          echo "TRIVY_PIN=v${TRIVY_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Build into the runner's Docker
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile
           target: kanban-app
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/kanban:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=kanban
+          cache-to: type=gha,scope=kanban,mode=max
           platforms: linux/amd64
 
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master, 2026-10-21 (trivy v0.76.1)
         with:
+          version: ${{ env.TRIVY_PIN }}
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/kanban:${{ github.sha }}
           format: sarif
           output: trivy-kanban.sarif
           severity: CRITICAL,HIGH
 
+      # A pull request's token may not write security events.
       - name: Upload Trivy SARIF
+        if: github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        if: always()
         with:
           sarif_file: trivy-kanban.sarif
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: .
+          file: ./Dockerfile
+          target: kanban-app
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=kanban
+          platforms: linux/amd64

@@ -421,6 +421,33 @@ def docker_images():
     for s in builds:
         if s.get("with", {}).get("platforms") != "linux/amd64":
             bad("docker-images", f"step '{s.get('name')}' must build linux/amd64 alone")
+    # Each job builds into the runner's Docker, scans that tag, then pushes.
+    # The scan used to name :<full sha> while the only tag was sha-<short>,
+    # and nothing was loaded for it to read, so its first run would have failed.
+    for job_id, j in jobs.items():
+        steps = j.get("steps", [])
+        loaded, scanned = set(), False
+        for s in steps:
+            w = s.get("with") or {}
+            uses = str(s.get("uses", ""))
+            if "docker/build-push-action" in uses:
+                if w.get("push") is True:
+                    if not scanned:
+                        bad("docker-images", f"{job_id}: pushes before it scans")
+                    if s.get("if") != "github.event_name != 'pull_request'":
+                        bad("docker-images", f"{job_id}: a pull request can reach the push")
+                elif w.get("load") is True:
+                    loaded.add(w.get("tags"))
+            if "trivy-action" in uses:
+                scanned = True
+                if w.get("image-ref") not in loaded:
+                    bad("docker-images", f"{job_id}: the scan reads {w.get('image-ref')}, which no earlier step loaded")
+                if w.get("version") != "${{ env.TRIVY_PIN }}":
+                    bad("docker-images", f"{job_id}: the scan's trivy is not the pinned one")
+        if not scanned:
+            bad("docker-images", f"{job_id}: scans nothing")
+        if not any((s.get("with") or {}).get("push") is True for s in steps):
+            bad("docker-images", f"{job_id}: pushes nothing")
 
 # Sixteen Dockerfiles under docker/services built commands that had left the
 # tree, and nothing ran them to find out: each must name a command that exists,

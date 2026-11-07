@@ -236,6 +236,16 @@ ci_verdict_expect_bite "arm64 back in a build" docker-images "${DOCKER_WF}" \
 	's#platforms: linux/amd64$#platforms: linux/amd64,linux/arm64#'
 ci_verdict_expect_bite "a build with no platform named" docker-images "${DOCKER_WF}" \
 	'/platforms: linux\/amd64$/d'
+ci_verdict_expect_bite "the scan reading a tag nothing built" docker-images "${DOCKER_WF}" \
+	's#image-ref: (.*)/wotan:\$\{\{ github\.sha \}\}#image-ref: \1/wotan:sha-gone#'
+ci_verdict_expect_bite "the scan's image never loaded" docker-images "${DOCKER_WF}" \
+	'/^          load: true$/d'
+ci_verdict_expect_bite "a pull request able to push" docker-images "${DOCKER_WF}" \
+	'/- name: Push/{n;/if:/d}'
+ci_verdict_expect_bite "trivy left to float" docker-images "${DOCKER_WF}" \
+	'/^          version: \$\{\{ env\.TRIVY_PIN \}\}$/d'
+ci_verdict_expect_bite "a job that pushes before it scans" docker-images "${DOCKER_WF}" \
+	's/^( +)load: true$/\1push: true/'
 ci_verdict_expect_bite "a service Dockerfile building a command that left" docker-services \
 	"docker/services/monad/Dockerfile" 's#\./cmd/monad$#./cmd/monad-gone#'
 ci_verdict_expect_bite "the Makefile naming a service with no Dockerfile" docker-services \
