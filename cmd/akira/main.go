@@ -92,6 +92,15 @@ func execTargetNames(targets []health.ServiceTarget) map[string]bool {
 	return m
 }
 
+// targetNames is the set of services this node watches.
+func targetNames(targets []health.ServiceTarget) map[string]bool {
+	m := make(map[string]bool, len(targets))
+	for _, t := range targets {
+		m[t.Name] = true
+	}
+	return m
+}
+
 func loadConfig(path string) ([]health.ServiceTarget, error) {
 	data, err := os.ReadFile(path) // #nosec G304 -- the operator's --config path
 	if err != nil {
@@ -329,7 +338,7 @@ func main() {
 	restarts := map[string]int{}
 	// Entering CRITICAL or PANIC publishes one suggestion to
 	// system.health.remediate, with or without --remediate.
-	suggest := newRemediator(*nodeID, publish, metrics.DefaultRegistry)
+	suggest := newRemediator(*nodeID, targetNames(targets), publish, metrics.DefaultRegistry)
 	akira.OnSeverityChange(func(v health.Verdict) {
 		suggest.onChange(v)
 		log.Info().

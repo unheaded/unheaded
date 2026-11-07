@@ -36,18 +36,32 @@ type remediateSuggestion struct {
 // Wotan, so they are not trusted to be unit names.
 var unitSafe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 
+// otherServices is the metric label for every name outside this node's
+// targets: a report must not be able to mint a label value.
+const otherServices = "other"
+
+// suggestion is the last band a service got a suggestion for, and when.
+type suggestion struct {
+	band health.Severity
+	at   time.Time
+}
+
 // remediator publishes a suggestion once per entry into CRITICAL or PANIC.
+// A verdict that goes quiet sends no change, so an entry here can outlive its
+// name on the ballot: names outside own take at most maxRefused places, and
+// an entry refusedQuiet old gives its place back.
 type remediator struct {
 	node      string
+	own       map[string]bool // this node's targets
 	publish   func(topic string, v interface{})
 	suggested *metrics.CounterVec
 	now       func() time.Time
 
 	mu   sync.Mutex
-	band map[string]health.Severity // last band suggested for, per service
+	band map[string]suggestion // last suggestion, per service
 }
 
-func newRemediator(node string, publish func(string, interface{}), reg *metrics.Registry) *remediator {
+func newRemediator(node string, own map[string]bool, publish func(string, interface{}), reg *metrics.Registry) *remediator {
 	cv := metrics.NewCounterVec("akira_remediate_suggested_total",
 		"Remediation suggestions Akira published to system.health.remediate, one per entry into CRITICAL or PANIC.",
 		nil, []string{"service"})
@@ -55,8 +69,8 @@ func newRemediator(node string, publish func(string, interface{}), reg *metrics.
 		log.Error().Err(err).Msg("akira_remediate_suggested_total not registered")
 	}
 	return &remediator{
-		node: node, publish: publish, suggested: cv, now: time.Now,
-		band: map[string]health.Severity{},
+		node: node, own: own, publish: publish, suggested: cv, now: time.Now,
+		band: map[string]suggestion{},
 	}
 }
 
@@ -74,11 +88,16 @@ func (r *remediator) onChange(v health.Verdict) {
 		r.mu.Unlock()
 		return
 	}
-	if had && prev == v.Severity {
+	if had && prev.band == v.Severity {
 		r.mu.Unlock()
 		return
 	}
-	r.band[v.Service] = v.Severity
+	now := r.now()
+	if !had && !r.own[v.Service] && !r.roomForOther(now) {
+		r.mu.Unlock()
+		return
+	}
+	r.band[v.Service] = suggestion{band: v.Severity, at: now}
 	r.mu.Unlock()
 
 	s := remediateSuggestion{
@@ -86,11 +105,32 @@ func (r *remediator) onChange(v health.Verdict) {
 		Host:    r.node,
 		Band:    v.Severity,
 		Pct:     math.Round(v.FailureRate*10000) / 100,
-		At:      r.now().UnixMilli(),
+		At:      now.UnixMilli(),
 	}
 	if unitSafe.MatchString(v.Service) {
 		s.Suggested = "systemctl restart unheaded-" + v.Service + ".service"
 	}
-	r.suggested.WithLabelValues(v.Service).Inc()
+	label := otherServices
+	if r.own[v.Service] {
+		label = v.Service
+	}
+	r.suggested.WithLabelValues(label).Inc()
 	r.publish(topicRemediate, s)
+}
+
+// roomForOther drops entries for other names that have gone stale and
+// reports whether one more fits. Caller holds r.mu.
+func (r *remediator) roomForOther(now time.Time) bool {
+	others := 0
+	for name, s := range r.band {
+		if r.own[name] {
+			continue
+		}
+		if now.Sub(s.at) >= refusedQuiet {
+			delete(r.band, name)
+			continue
+		}
+		others++
+	}
+	return others < maxRefused
 }

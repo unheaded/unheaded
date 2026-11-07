@@ -79,7 +79,9 @@ func (g *reportGate) consume(ch <-chan *wotanClient.Message, a *health.Akira) {
 		if r.Reporter == g.self {
 			continue // this node's vote is recorded by CheckAll
 		}
-		a.Record(r)
+		if !a.RecordPeer(r) {
+			g.refuse("ballot_full", m.VerifiedSender)
+		}
 	}
 }
 

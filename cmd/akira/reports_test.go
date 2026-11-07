@@ -111,6 +111,23 @@ func TestReportGate_SkipsThisNodesEcho(t *testing.T) {
 	}
 }
 
+// A full ballot is one more counted refusal, not a growing table.
+func TestReportGate_FullBallotIsCounted(t *testing.T) {
+	a := health.NewAkira("west", nil)
+	g := newReportGate("west", true, metrics.NewRegistry())
+	var msgs []*wotanClient.Message
+	for i := range health.MaxPeerReporters + 1 {
+		msgs = append(msgs, reportMessage(t, "wotan", health.HealthReport{Service: "wotan", Host: fmt.Sprintf("host-%d", i)}))
+	}
+	consumeAll(g, a, msgs...)
+	if v := verdictOn(t, a, "wotan"); v.Reporters != health.MaxPeerReporters {
+		t.Fatalf("reporters = %d, want %d", v.Reporters, health.MaxPeerReporters)
+	}
+	if got := g.refused.WithLabelValues("ballot_full").Value(); got != 1 {
+		t.Fatalf("ballot_full = %v, want 1", got)
+	}
+}
+
 // Every refusal is a counted reason from a fixed set: a report can never
 // mint a label value.
 func TestReportGate_RefusalReasonsAreFixed(t *testing.T) {

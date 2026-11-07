@@ -5,8 +5,10 @@ package health
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // The bands are CLAUDE.md's (Cross-Service Health Monitoring).
@@ -112,5 +114,86 @@ func TestBallot_FutureDatedReportGetsThreeSweeps(t *testing.T) {
 	vs = b.Tally(now.Add(time.Minute))
 	if len(vs) != 1 || vs[0].Failing != 0 {
 		t.Errorf("verdict = %+v, want the newer healthy report as skewed's vote", vs)
+	}
+}
+
+func TestBallot_RecordPeerCapsNames(t *testing.T) {
+	now := time.Now()
+	b := NewBallot()
+	for i := range MaxPeerServices {
+		if !b.RecordPeer(report(fmt.Sprintf("svc-%d", i), "east", true, now)) {
+			t.Fatalf("service %d refused below the cap", i)
+		}
+	}
+	if b.RecordPeer(report("one-too-many", "east", true, now)) {
+		t.Fatal("a service past MaxPeerServices was taken")
+	}
+	// A name already on the ballot keeps voting at the cap.
+	if !b.RecordPeer(report("svc-0", "east", false, now.Add(time.Second))) {
+		t.Fatal("a known service refused at the cap")
+	}
+	if !b.RecordPeer(report("svc-0", "north", false, now.Add(time.Second))) {
+		t.Fatal("a new reporter on a known service refused at the services cap")
+	}
+
+	b = NewBallot()
+	for i := range MaxPeerReporters {
+		if !b.RecordPeer(report("wotan", fmt.Sprintf("node-%d", i), true, now)) {
+			t.Fatalf("reporter %d refused below the cap", i)
+		}
+	}
+	if b.RecordPeer(report("wotan", "one-too-many", false, now)) {
+		t.Fatal("a reporter past MaxPeerReporters was taken")
+	}
+	if !b.RecordPeer(report("wotan", "node-0", false, now.Add(time.Second))) {
+		t.Fatal("a known reporter refused at the cap")
+	}
+}
+
+func TestBallot_RecordPeerRefusesLongNamesAndCutsErrors(t *testing.T) {
+	now := time.Now()
+	b := NewBallot()
+	long := strings.Repeat("n", MaxPeerNameBytes+1)
+	if b.RecordPeer(report(long, "east", true, now)) || b.RecordPeer(report("wotan", long, true, now)) {
+		t.Fatal("a name past MaxPeerNameBytes was taken")
+	}
+	r := report("wotan", "east", false, now)
+	r.Error = strings.Repeat("é", MaxPeerErrorBytes)
+	if !b.RecordPeer(r) {
+		t.Fatal("report refused")
+	}
+	got := b.latest["wotan"]["east"].Error
+	if len(got) > MaxPeerErrorBytes || !utf8.ValidString(got) {
+		t.Fatalf("error kept %d bytes, valid=%v", len(got), utf8.ValidString(got))
+	}
+}
+
+// Peers cannot crowd out this node: its own votes are not subject to the cap.
+func TestBallot_OwnVotesPassTheCap(t *testing.T) {
+	now := time.Now()
+	b := NewBallot()
+	for i := range MaxPeerServices {
+		b.RecordPeer(report(fmt.Sprintf("svc-%d", i), "east", true, now))
+	}
+	b.Record(report("wotan", "west", false, now))
+	found := false
+	for _, v := range b.Tally(now) {
+		found = found || v.Service == "wotan"
+	}
+	if !found {
+		t.Fatal("this node's vote was lost to a full ballot")
+	}
+}
+
+// A stale name gives its place back at the next tally.
+func TestBallot_StalePeerNamesFreeTheirPlace(t *testing.T) {
+	now := time.Now()
+	b := NewBallot()
+	for i := range MaxPeerServices {
+		b.RecordPeer(report(fmt.Sprintf("svc-%d", i), "east", true, now))
+	}
+	b.Tally(now.Add(ReportFreshness + time.Second))
+	if !b.RecordPeer(report("later", "east", true, now)) {
+		t.Fatal("expired names still hold the ballot")
 	}
 }

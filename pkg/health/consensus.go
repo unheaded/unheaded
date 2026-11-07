@@ -5,6 +5,7 @@ package health
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -80,18 +81,63 @@ func NewBallot() *Ballot {
 	return &Ballot{latest: map[string]map[string]vote{}, now: time.Now}
 }
 
+// Limits on what reports from other reporters can make the ballot hold. The
+// count of live names is the band and verdict tables' size too, since both
+// follow the ballot. This node's own votes (Record) are outside the limits:
+// peers cannot crowd them out.
+const (
+	// MaxPeerServices caps services on the ballot.
+	MaxPeerServices = 1024
+	// MaxPeerReporters caps reporters per service. Reporters on a service
+	// are its copies plus the Akira nodes.
+	MaxPeerReporters = 64
+	// MaxPeerNameBytes caps a service or reporter name.
+	MaxPeerNameBytes = 128
+	// MaxPeerErrorBytes caps a report's error text, as held.
+	MaxPeerErrorBytes = 200
+)
+
 // Record casts a report as its reporter's vote on the service, unless the
-// reporter already voted with a newer report.
+// reporter already voted with a newer report. Use it for this node's own
+// reports; RecordPeer is for anything that came from elsewhere.
 func (b *Ballot) Record(r HealthReport) {
 	if r.Service == "" || r.Reporter == "" {
 		return
 	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.cast(r)
+}
+
+// RecordPeer is Record for a report from another reporter, and reports
+// whether the ballot had room. A name already on the ballot keeps voting at
+// the limits; a new one is refused until stale names leave at the next tally.
+func (b *Ballot) RecordPeer(r HealthReport) bool {
+	if r.Service == "" || r.Reporter == "" || len(r.Service) > MaxPeerNameBytes || len(r.Reporter) > MaxPeerNameBytes {
+		return false
+	}
+	if len(r.Error) > MaxPeerErrorBytes {
+		r.Error = strings.ToValidUTF8(r.Error[:MaxPeerErrorBytes], "")
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	votes, known := b.latest[r.Service]
+	if !known && len(b.latest) >= MaxPeerServices {
+		return false
+	}
+	if _, voted := votes[r.Reporter]; !voted && len(votes) >= MaxPeerReporters {
+		return false
+	}
+	b.cast(r)
+	return true
+}
+
+// cast records the vote. Caller holds b.mu.
+func (b *Ballot) cast(r HealthReport) {
 	at := r.Timestamp
 	if arrived := b.now(); arrived.Before(at) {
 		at = arrived
 	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	votes := b.latest[r.Service]
 	if votes == nil {
 		votes = map[string]vote{}
