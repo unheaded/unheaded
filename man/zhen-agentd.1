@@ -1,4 +1,4 @@
-.TH ZHEN\-AGENTD 1 "2026-11-07" "unheaded 83232cd4" "Unheaded Kingdom"
+.TH ZHEN\-AGENTD 1 "2026-11-07" "unheaded 7c817b61" "Unheaded Kingdom"
 .SH NAME
 zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH SYNOPSIS
@@ -54,7 +54,7 @@ with \-worker \-claude live: hard spend cap per UTC day of \-ledger (default 5)
 with \-worker \-claude live: effort (default low)
 .TP
 .B \-\-gpu\-lock \fISTRING\fR
-GPU lease file shared with scripts/switch\-model.sh and forge\-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; "" = no lease (default /tmp/unheaded/gpu.lock)
+GPU lease file shared with scripts/switch\-model.sh and forge\-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; "" = no lease; $XDG_RUNTIME_DIR/unheaded/gpu.lock when that is set (default /tmp/unheaded/gpu.lock)
 .TP
 .B \-\-host \fISTRING\fR
 HTTP listen host (use 0.0.0.0 for non\-loopback) (default 127.0.0.1)
