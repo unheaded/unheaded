@@ -299,7 +299,10 @@ class Login:
         if sid is None:
             return 503, {'error': 'sessions_unavailable'}, '', None, None
         log.info('login: %s from %s', subject, client)
-        return 200, me_body(session), '', sid, session
+        answer = me_body(session)
+        if body.get('password_below_floor') is True:
+            answer['password_below_floor'] = True
+        return 200, answer, '', sid, session
 
 
 def me_body(session):

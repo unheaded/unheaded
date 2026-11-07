@@ -172,15 +172,15 @@ func TestUserUsage(t *testing.T) {
 	}
 }
 
-// L14: a password has a floor.
+// L14: a password has a floor: 15, NIST SP 800-63B-4's for a single factor.
 func TestUserAdd_ShortPasswordRefused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "users.json")
-	short := strings.Repeat("x", 11) + "\n"
+	short := strings.Repeat("x", 14) + "\n"
 	if code, _, _ := runCmd(t, short, "user", "add", "carol", "--roles", "viewer", "--password-stdin", "-users-file", path); code != 2 {
 		t.Errorf("short password: exit %d, want 2", code)
 	}
-	ok := strings.Repeat("x", 12) + "\n"
+	ok := strings.Repeat("x", 15) + "\n"
 	if code, _, e := runCmd(t, ok, "user", "add", "carol", "--roles", "viewer", "--password-stdin", "-users-file", path); code != 0 {
-		t.Errorf("12 characters: exit %d: %s", code, e)
+		t.Errorf("15 characters: exit %d: %s", code, e)
 	}
 }

@@ -948,7 +948,7 @@ controls:
     statement: >-
       On both hosts the PAM stack runs pam_unix (no nullok, strong hash,
       use_authtok), pam_faillock (deny 4 or fewer, unlock 15 minutes or
-      never), pam_pwquality (minimum 14 characters, limits on repeats and
+      never), pam_pwquality (minimum 15 characters, limits on repeats and
       sequences, dictionary check, enforced for root) and pam_pwhistory
       (24 remembered, enforced for root).
     rationale: >-

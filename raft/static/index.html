@@ -1302,6 +1302,9 @@ document.getElementById('login-form').addEventListener('submit', async (ev) => {
     pw.value = '';
     const body = await r.json().catch(() => ({}));
     if (r.ok) {
+        if (body.password_below_floor) {
+            alert('Your password is shorter than the 15 characters now asked for. It still works: please have it replaced.');
+        }
         location.reload();
         return;
     }

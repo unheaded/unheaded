@@ -976,7 +976,7 @@ Mappings:
 
 **Status:** FAIL, evidence as of 2026-11-05
 
-On both hosts the PAM stack runs pam_unix (no nullok, strong hash, use_authtok), pam_faillock (deny 4 or fewer, unlock 15 minutes or never), pam_pwquality (minimum 14 characters, limits on repeats and sequences, dictionary check, enforced for root) and pam_pwhistory (24 remembered, enforced for root).
+On both hosts the PAM stack runs pam_unix (no nullok, strong hash, use_authtok), pam_faillock (deny 4 or fewer, unlock 15 minutes or never), pam_pwquality (minimum 15 characters, limits on repeats and sequences, dictionary check, enforced for root) and pam_pwhistory (24 remembered, enforced for root).
 
 Rationale: Authenticator management (IA-5) and limits on unsuccessful logon attempts (AC-7); 800-171 03.05.07, 03.01.08; CSF PR.AA-03; ISO A.5.17. CIS Ubuntu 24.04 5.3.1.2-5.3.3.4.4 with the CIS profile's ComplianceAsCode values, except the manual 5.3.3.2.3; 5.3.1.1 as its audit checks it (libpam-runtime >= 1.5.3-5), not "latest", which a host check cannot know. A setting passes only while its module is in the stack.
 

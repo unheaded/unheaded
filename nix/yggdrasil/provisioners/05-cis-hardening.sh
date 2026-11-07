@@ -111,7 +111,7 @@ EOF
 
 echo "[5.3] Password policy"
 cat > /etc/pam.d/common-password-cis <<'EOF'
-password requisite pam_pwquality.so retry=3 minlen=14 dcredit=-1 ucredit=-1 ocredit=-1 lcredit=-1
+password requisite pam_pwquality.so retry=3 minlen=15 dcredit=-1 ucredit=-1 ocredit=-1 lcredit=-1
 password [success=1 default=ignore] pam_unix.so obscure use_authtok try_first_pass yescrypt remember=5
 EOF
 

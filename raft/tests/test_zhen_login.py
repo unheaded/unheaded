@@ -145,6 +145,16 @@ def test_login_off_loopback_over_plain_http_is_refused(client, world, monkeypatc
     assert not [c for c in world.calls if c[0] == 'issuer']
 
 
+def test_a_short_password_logs_in_and_the_person_hears_about_it(client, world, monkeypatch):
+    def short(url, username, password):
+        tok = _token()
+        world.tokens[tok] = username
+        return 200, {'access_token': tok, 'token_type': 'Bearer', 'password_below_floor': True}, ''
+    monkeypatch.setattr(zhen_login, '_post_issuer', short)
+    r = _login(client)
+    assert r.status_code == 200 and r.get_json()['password_below_floor'] is True
+
+
 def test_a_wrong_password_is_401_and_makes_no_session(client, world):
     r = _login(client, password='wrong')
     assert r.status_code == 401

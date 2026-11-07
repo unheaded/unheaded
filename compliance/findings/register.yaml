@@ -1306,7 +1306,7 @@ findings:
     lockout: low
     step: 5
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: "minlen = 14 in /etc/security/pwquality.conf"
+    plan: "minlen = 15 in /etc/security/pwquality.conf"
 
   - source: "host-probe:west:pam-pwq-maxrepeat"
     severity: low
@@ -1468,7 +1468,7 @@ findings:
     lockout: low
     step: 5
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: "minlen = 14 in /etc/security/pwquality.conf"
+    plan: "minlen = 15 in /etc/security/pwquality.conf"
 
   - source: "host-probe:east:pam-pwq-maxrepeat"
     severity: low
