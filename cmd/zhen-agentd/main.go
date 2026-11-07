@@ -98,6 +98,9 @@ func main() {
 		Purpose:  "Serve the Zhenai agent runtime over HTTP for multi-request use.",
 		Examples: []string{"zhen-agentd", "zhen-agentd --port 26300 --project-root ."},
 	})
+	if err := checkCorpusIndex(*corpusIndex); err != nil {
+		fatal("%v", err)
+	}
 	if wf.overnight {
 		set := map[string]bool{}
 		flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
@@ -1181,6 +1184,16 @@ type vorRetriever struct {
 	baseURL  string
 	maxChars int
 	index    *vorquery.Index // topic names, for vorquery's name matching
+}
+
+// checkCorpusIndex refuses an index the file tools could reach: the default deny
+// list names a corpus-index directory, and an index elsewhere could be rewritten
+// by a tool and served back as project text.
+func checkCorpusIndex(dir string) error {
+	if dir == "" || strings.Contains(filepath.Clean(dir)+"/", "/corpus-index/") {
+		return nil
+	}
+	return fmt.Errorf("-corpus-index %q: name an absolute path through a directory called corpus-index, which the file tools are denied", dir)
 }
 
 // newRetriever federates vor with the source shard when codeIndex is set and

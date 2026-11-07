@@ -873,3 +873,22 @@ func TestRetrieve_VorScoreIsRankAndItsTailHasNoText(t *testing.T) {
 		t.Fatalf("refs %+v", refs)
 	}
 }
+
+// The file tools are denied any path with a corpus-index directory in it. An
+// index anywhere else could be rewritten by a tool and served as project text.
+func TestCheckCorpusIndex(t *testing.T) {
+	for dir, ok := range map[string]bool{
+		"":                                true,
+		"/var/zhen/corpus-index":          true,
+		"/var/zhen/corpus-index/":         true,
+		"/srv/corpus-index/current":       true,
+		"/opt/tomb/grimoire/index":        false,
+		"/var/zhen/my-corpus-index":       false,
+		"corpus-index":                    false,
+		"/var/zhen/corpus-index/../other": false,
+	} {
+		if err := checkCorpusIndex(dir); (err == nil) != ok {
+			t.Errorf("%q: %v", dir, err)
+		}
+	}
+}
