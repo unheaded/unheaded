@@ -403,6 +403,18 @@ def meta_gate_shards():
         bad("meta-gate", f"the verdict job must need meta-gate alone, not {needs}")
     summary_verdict("meta-gate", jobs.get("meta-gate-verdict", {}), needs)
 
+# Both hosts are amd64, so that is all docker.yml builds: an arm64 layer under
+# QEMU multiplies the build time and ships an image nothing runs.
+def docker_images():
+    jobs = workflow("docker.yml")["jobs"]
+    builds = [s for j in jobs.values() for s in j.get("steps", [])
+              if "docker/build-push-action" in str(s.get("uses", ""))]
+    if not builds:
+        bad("docker-images", "docker.yml builds nothing; this rule has stopped reading it")
+    for s in builds:
+        if s.get("with", {}).get("platforms") != "linux/amd64":
+            bad("docker-images", f"step '{s.get('name')}' must build linux/amd64 alone")
+
 # compliance/catalog/controls.yaml and the findings register name CI jobs as
 # <workflow name>/<job name>, and the evidence collector matches those exactly.
 # A renamed job leaves its control with no new records, whatever the job did,
@@ -437,6 +449,7 @@ branch_protection()
 rust_targets()
 workflow_paths()
 meta_gate_shards()
+docker_images()
 evidence_jobs()
 
 if problems:

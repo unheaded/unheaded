@@ -226,6 +226,12 @@ ci_verdict_expect_bite "a build context that left" workflow-paths "${DOCKER_WF}"
 ci_verdict_expect_bite "a stage the Dockerfile lacks" workflow-paths "${DOCKER_WF}" \
 	's#target: wotan#target: wotan-gone#'
 
+echo "--- what docker.yml builds ---"
+ci_verdict_expect_bite "arm64 back in a build" docker-images "${DOCKER_WF}" \
+	's#platforms: linux/amd64$#platforms: linux/amd64,linux/arm64#'
+ci_verdict_expect_bite "a build with no platform named" docker-images "${DOCKER_WF}" \
+	'/platforms: linux\/amd64$/d'
+
 echo
 echo "passed: ${PASSED}  failed: ${FAILED}"
 [ "${FAILED}" -eq 0 ] || exit 1
