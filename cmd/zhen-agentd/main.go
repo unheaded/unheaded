@@ -48,6 +48,7 @@ import (
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/codeindex"
 	"unheaded/pkg/energy"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/retrieval"
@@ -1421,11 +1422,7 @@ func (s *stderrActionStore) GetActions(_ context.Context, _ string, _ int) ([]ch
 // --- helpers ---
 
 func writeJSON(w http.ResponseWriter, code int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		fmt.Fprintf(os.Stderr, "zhen-agentd: encode response: %v\n", err)
-	}
+	httputil.WriteJSON(w, code, body)
 }
 
 func writeJSONError(w http.ResponseWriter, code int, format string, args ...any) {

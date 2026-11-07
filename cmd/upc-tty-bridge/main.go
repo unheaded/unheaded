@@ -19,7 +19,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -174,7 +173,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":  "ok",
 		"mode":    "push-ingest",
 	}
-	_ = json.NewEncoder(w).Encode(resp)
+	httputil.WriteJSON(w, http.StatusOK, resp)
 }
 
 // ttyIngestRequest is the JSON body POSTed by upc-bootctl's TTY poller

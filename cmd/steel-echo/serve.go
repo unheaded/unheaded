@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -144,9 +143,7 @@ func (s *server) root(w http.ResponseWriter, r *http.Request) {
 	if s.fail() {
 		status = http.StatusInternalServerError
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"hostname": s.hostname, "version": s.version})
+	httputil.WriteJSON(w, status, map[string]string{"hostname": s.hostname, "version": s.version})
 }
 
 // serve runs the HTTP server until ctx ends, then drains it for up to 5 s.

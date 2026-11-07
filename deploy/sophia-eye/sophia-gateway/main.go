@@ -476,9 +476,7 @@ func (sg *SophiaGateway) handleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (sg *SophiaGateway) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"status":     "healthy",
 		"service":    sg.serviceName,
 		"timestamp":  time.Now().Unix(),
@@ -488,19 +486,14 @@ func (sg *SophiaGateway) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func (sg *SophiaGateway) handleReady(w http.ResponseWriter, r *http.Request) {
 	if sg.registered {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "ready"}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusServiceUnavailable)
-	json.NewEncoder(w).Encode(map[string]string{"status": "not_ready"}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready"})
 }
 
 func (sg *SophiaGateway) handleModels(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"models": []map[string]string{
 			{"name": "deepseek-r1-7b", "type": "llm", "endpoint": sg.vllmAddr},
 			{"name": "qwen2.5-coder-7b", "type": "code", "endpoint": sg.qwenAddr},

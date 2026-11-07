@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/httputil"
 )
 
 // HealthResponse is the response for the /health endpoint
@@ -167,8 +168,7 @@ func (c *Checker) healthHandler(w http.ResponseWriter, r *http.Request) {
 		Checks: checks,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (c *Checker) readyHandler(w http.ResponseWriter, r *http.Request) {

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/httputil"
 )
 
 // Issuer is a test issuer. URL is its issuer URL (the tokens' iss).
@@ -60,7 +61,7 @@ func NewIssuerTLS(t testing.TB, cfg *tls.Config, audiences ...string) *Issuer {
 	is.RotateKey(t)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]string{"issuer": is.URL, "jwks_uri": is.URL + "/jwks.json"})
+		httputil.WriteJSON(w, http.StatusOK, map[string]string{"issuer": is.URL, "jwks_uri": is.URL + "/jwks.json"})
 	})
 	mux.HandleFunc("GET /jwks.json", func(w http.ResponseWriter, _ *http.Request) {
 		is.mu.Lock()
@@ -72,7 +73,7 @@ func NewIssuerTLS(t testing.TB, cfg *tls.Config, audiences ...string) *Issuer {
 		}
 		kid := is.kid
 		is.mu.Unlock()
-		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{
+		httputil.WriteJSON(w, http.StatusOK, map[string]any{"keys": []map[string]string{{
 			"kty": "OKP", "crv": "Ed25519", "kid": kid, "use": "sig", "alg": auth.AlgEdDSA,
 			"x": base64.RawURLEncoding.EncodeToString(pub),
 		}}})
@@ -178,6 +179,5 @@ func (is *Issuer) login(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"access_token": tok, "token_type": "Bearer", "expires_in": int(is.Lifetime.Seconds())})
+	httputil.WriteJSON(w, http.StatusOK, map[string]any{"access_token": tok, "token_type": "Bearer", "expires_in": int(is.Lifetime.Seconds())})
 }

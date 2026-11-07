@@ -23,6 +23,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"unheaded/pkg/httputil"
 )
 
 // Key is the API key the fake accepts.
@@ -144,16 +146,16 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/info":
-		_ = json.NewEncoder(w).Encode(f.Info)
+		httputil.WriteJSON(w, http.StatusOK, f.Info)
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/state/desired":
-		_ = json.NewEncoder(w).Encode(f.Desired)
+		httputil.WriteJSON(w, http.StatusOK, f.Desired)
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/state/actual":
 		f.tick()
-		_ = json.NewEncoder(w).Encode(f.Actual)
+		httputil.WriteJSON(w, http.StatusOK, f.Actual)
 	case r.Method == http.MethodPost && r.URL.Path == "/api/v1/reconcile":
 		f.log = append(f.log, "POST reconcile")
 		f.tick()
-		_ = json.NewEncoder(w).Encode(map[string]any{"actions": []any{}})
+		httputil.WriteJSON(w, http.StatusOK, map[string]any{"actions": []any{}})
 	case strings.HasPrefix(r.URL.Path, "/api/v1/containers/"):
 		id := strings.TrimPrefix(r.URL.Path, "/api/v1/containers/")
 		switch r.Method {
@@ -174,7 +176,7 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			f.Desired[id] = &s
 			f.log = append(f.log, fmt.Sprintf("PUT %s proxy=%t", id, s.Proxy != nil))
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": id})
+			httputil.WriteJSON(w, http.StatusOK, map[string]any{"id": id})
 		case http.MethodDelete:
 			if _, ok := f.Desired[id]; !ok {
 				http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
@@ -182,7 +184,7 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			delete(f.Desired, id)
 			f.log = append(f.log, "DELETE "+id)
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": id})
+			httputil.WriteJSON(w, http.StatusOK, map[string]any{"id": id})
 		default:
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 		}

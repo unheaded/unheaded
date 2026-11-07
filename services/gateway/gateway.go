@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -391,12 +392,12 @@ func (g *Gateway) handleCriticalAlert(ctx context.Context, msg *wotanClient.Mess
 func (g *Gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
 	status := g.healthMgr.CheckAll(r.Context())
 
-	w.Header().Set("Content-Type", "application/json")
+	code := http.StatusOK
 	if !status.Healthy {
-		w.WriteHeader(http.StatusServiceUnavailable)
+		code = http.StatusServiceUnavailable
 	}
 
-	json.NewEncoder(w).Encode(status) // #nosec G104 -- a marshal failure leaves an empty body, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, code, status)
 }
 
 // livenessHandler handles Kubernetes liveness probe.

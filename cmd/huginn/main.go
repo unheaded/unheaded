@@ -16,7 +16,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
@@ -460,8 +459,7 @@ func main() {
 	}
 
 	http.HandleFunc("/host-summary", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(collect(label))
+		httputil.WriteJSON(w, http.StatusOK, collect(label))
 	})
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")

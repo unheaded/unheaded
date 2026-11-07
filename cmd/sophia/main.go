@@ -442,9 +442,7 @@ func (hs *HTTPServer) Shutdown(ctx context.Context) error {
 
 // healthHandler responds to health checks.
 func (hs *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "sophia",
 		"version":   Version,
@@ -459,9 +457,7 @@ func (hs *HTTPServer) readyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "ready",
 		"service":   "sophia",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
@@ -794,9 +790,6 @@ func (hs *HTTPServer) writeSuccess(w http.ResponseWriter, code int, data interfa
 	hs.metrics.RequestsSuccess++
 	hs.metrics.mu.Unlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-
 	resp := ResponseEnvelope{
 		Success: true,
 		Data:    data,
@@ -807,7 +800,7 @@ func (hs *HTTPServer) writeSuccess(w http.ResponseWriter, code int, data interfa
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, code, resp)
 }
 
 // writeError writes an error response.
@@ -816,9 +809,6 @@ func (hs *HTTPServer) writeError(w http.ResponseWriter, code int, errCode, msg s
 	hs.metrics.RequestsTotal++
 	hs.metrics.RequestsError++
 	hs.metrics.mu.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
 
 	resp := ResponseEnvelope{
 		Success: false,
@@ -833,7 +823,7 @@ func (hs *HTTPServer) writeError(w http.ResponseWriter, code int, errCode, msg s
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, code, resp)
 }
 
 // getNextRequestID returns the next request ID.

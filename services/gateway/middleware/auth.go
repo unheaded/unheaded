@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	"unheaded/services/gateway/config"
 )
@@ -209,8 +210,7 @@ func hashAPIKey(key string) string {
 func writeAuthError(w http.ResponseWriter, message string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("WWW-Authenticate", "Bearer")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, status, map[string]string{
 		"error":   "authentication_error",
 		"message": message,
 	})

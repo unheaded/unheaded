@@ -20,7 +20,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -460,8 +459,7 @@ func apiHandler(a akiraAPI, node string, cfg auth.ServiceAuthConfig) (http.Handl
 	mux.Handle("/metrics", metrics.HandlerFor(metrics.DefaultRegistry))
 	mux.HandleFunc("/api/v1/status", func(w http.ResponseWriter, _ *http.Request) {
 		states := a.GetStates()
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(states) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, states)
 	})
 	return auth.NewServiceHandler(mux, cfg, auth.ServiceRoutes{OpenReads: []string{"/api/v1/status"}})
 }

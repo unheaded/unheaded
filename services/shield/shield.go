@@ -8,12 +8,12 @@ package shield
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	wotanClient "unheaded/pkg/wotan-client"
 )
@@ -435,16 +435,14 @@ func (s *Service) Stats() map[string]interface{} {
 // Required by CLAUDE.md: every component must expose these endpoints.
 func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"status":  "healthy",
 			"service": "shield",
 		})
 	})
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"ready":   true,
 			"service": "shield",
 		})

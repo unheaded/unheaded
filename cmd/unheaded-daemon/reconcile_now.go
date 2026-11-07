@@ -4,9 +4,10 @@
 package main
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
+
+	"unheaded/pkg/httputil"
 )
 
 // POST /api/v1/reconcile runs one sync, plan and apply cycle now and
@@ -22,21 +23,18 @@ func (d *Daemon) handleReconcileNow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "POST only"})
+		httputil.WriteJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST only"})
 		return
 	}
 	if !d.authEnabled {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "reconcile needs AUTH_ENABLED=true"})
+		httputil.WriteJSON(w, http.StatusForbidden, map[string]string{"error": "reconcile needs AUTH_ENABLED=true"})
 		return
 	}
 	d.reconcileNowMu.Lock()
 	if since := time.Since(d.lastReconcileNow); since < reconcileNowMinGap {
 		d.reconcileNowMu.Unlock()
 		w.Header().Set("Retry-After", "1")
-		w.WriteHeader(http.StatusTooManyRequests)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "one reconcile a second"})
+		httputil.WriteJSON(w, http.StatusTooManyRequests, map[string]string{"error": "one reconcile a second"})
 		return
 	}
 	d.lastReconcileNow = time.Now()
@@ -44,15 +42,14 @@ func (d *Daemon) handleReconcileNow(w http.ResponseWriter, r *http.Request) {
 
 	actions, err := d.reconcileOnce()
 	if err != nil {
-		w.WriteHeader(http.StatusBadGateway)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		httputil.WriteJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
 	if actions == nil {
 		actions = []ReconcileAction{}
 	}
 	d.log.Info().Int("actions", len(actions)).Msg("Reconcile run on request")
-	_ = json.NewEncoder(w).Encode(map[string]any{"actions": actions})
+	httputil.WriteJSON(w, http.StatusOK, map[string]any{"actions": actions})
 }
 
 // proxyRemovalsFirst moves every update-proxy that removes a device ahead

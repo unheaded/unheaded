@@ -142,9 +142,7 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 		Str("status", status).
 		Msg("topic_subscriber_created")
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusCreated, map[string]interface{}{
 		"subscriber": sub,
 	})
 }
@@ -253,9 +251,7 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		Int64("seq", seq).
 		Msg("topic_message_published")
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusCreated, map[string]interface{}{
 		"message_id": msg.ID.String(),
 		"topic":      topic,
 		"seq":        seq,
@@ -354,9 +350,7 @@ func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 	rm, err := s.RoomManager.Get(topic)
 	if err != nil {
 		// Topic doesn't exist yet — return empty messages
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"messages": []TopicMessage{},
 			"last_seq": 0,
 		})
@@ -371,9 +365,7 @@ func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 		topicMsgs = append(topicMsgs, ringbufferToTopicMessage(msg, topic))
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"messages": topicMsgs,
 		// last_seq lets a poller whose cursor is ahead of it see that Wotan
 		// restarted (seqs are in memory and start again at 1) and rewind.
@@ -416,9 +408,7 @@ func (s *Server) getPatternMessages(w http.ResponseWriter, pattern string, after
 		msgs = []TopicMessage{}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"messages": msgs,
 		// Wotan's newest seq: a cursor above it is from before a restart.
 		"last_seq": upper,
@@ -442,9 +432,7 @@ func (s *Server) ListTopics(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"topics": topics,
 		"count":  len(topics),
 	})

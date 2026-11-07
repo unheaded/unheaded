@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -285,8 +286,7 @@ func (s *Service) listChains(w http.ResponseWriter, _ *http.Request) {
 	}
 	s.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"chains": chains,
 		"count":  len(chains),
 	})
@@ -303,8 +303,7 @@ func (s *Service) getChain(w http.ResponseWriter, _ *http.Request, chainID int) 
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(chain) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, chain)
 }
 
 // createOrUpdateChain creates or updates a chain definition.
@@ -364,9 +363,7 @@ func (s *Service) createOrUpdateChain(w http.ResponseWriter, r *http.Request) {
 		"timestamp": now.UnixMilli(),
 	})
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(chain) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusCreated, chain)
 }
 
 // deleteChain removes a chain definition.
@@ -394,8 +391,7 @@ func (s *Service) deleteChain(w http.ResponseWriter, r *http.Request, chainID in
 		"timestamp": time.Now().UnixMilli(),
 	})
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{
 		"status": "deleted",
 	})
 }
@@ -416,8 +412,7 @@ func (s *Service) getChainTelemetry(w http.ResponseWriter, _ *http.Request, chai
 		stats = &ChainStats{ChainID: chainID}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, stats)
 }
 
 // handleFunctions handles GET on /api/v1/functions.
@@ -434,8 +429,7 @@ func (s *Service) handleFunctions(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"functions": functions,
 		"count":     len(functions),
 	})
@@ -493,8 +487,7 @@ func (s *Service) handleFunctionReload(w http.ResponseWriter, r *http.Request) {
 		Int("prog_fd", req.ProgFD).
 		Msg("function hot-reloaded")
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"status":       "reloaded",
 		"name":         req.Name,
 		"prog_fd":      req.ProgFD,
@@ -504,8 +497,7 @@ func (s *Service) handleFunctionReload(w http.ResponseWriter, r *http.Request) {
 
 // handleHealth returns service health status.
 func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "healthy",
 		"service": "nfv",
 	})
@@ -513,8 +505,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 
 // handleReady returns service readiness status.
 func (s *Service) handleReady(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"ready":   true,
 		"service": "nfv",
 	})

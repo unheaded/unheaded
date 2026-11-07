@@ -5,12 +5,12 @@
 package routes
 
 import (
-	"encoding/json"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 	"unheaded/services/gateway/config"
@@ -221,9 +221,7 @@ func (r *Router) Info() []RouteInfo {
 
 // writeNotFound writes a 404 response.
 func writeNotFound(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotFound)
-	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusNotFound, map[string]string{
 		"error":   "not_found",
 		"message": "No route matched the request path",
 	})
@@ -247,6 +245,5 @@ func (h *RoutesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	infos := h.router.Info()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(infos) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, infos)
 }

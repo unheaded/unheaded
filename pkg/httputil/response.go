@@ -72,22 +72,20 @@ func WriteErrorWithDetails(w http.ResponseWriter, status int, code, message, det
 // json.Encoder writes. Every JSON response goes through here: it marshals
 // before anything is sent, so a value that will not marshal answers 500 and
 // is logged, where an Encoder on the ResponseWriter left an empty 200 or the
-// handler's status with no body. A Content-Type the handler already set is
-// kept.
+// handler's status with no body. scripts/check-json-responses.sh fails on a
+// new one. A Content-Type the handler already set is kept.
 func WriteJSON(w http.ResponseWriter, status int, v interface{}) {
 	body, err := json.Marshal(v)
 	if err != nil {
 		log.Error().Err(err).Int("status", status).Msg("response not encoded; answering 500")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = io.WriteString(w, encodeFailureBody)
+		_, _ = io.WriteString(w, encodeFailureBody) // #nosec G104 -- status committed; a failed write means the client left
 		return
 	}
 	if w.Header().Get("Content-Type") == "" {
 		w.Header().Set("Content-Type", "application/json")
 	}
 	w.WriteHeader(status)
-	// A failed write means the client left: the status is sent and nothing
-	// reaches it.
-	_, _ = w.Write(append(body, '\n'))
+	_, _ = w.Write(append(body, '\n')) // #nosec G104 -- status committed; a failed write means the client left
 }
