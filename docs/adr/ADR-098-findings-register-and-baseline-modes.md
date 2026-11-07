@@ -76,7 +76,7 @@ Consulted:
 **Shrink-only baselines are accepted deviations, not passes.**
 
 - A non-empty `docs/security/compose-hardening-baseline.txt` is a finding.
-- `gitleaks-baseline-fingerprints.txt` holds reviewed false positives. It is listed as an exception, not a finding, with the review recorded.
+- `.gitleaksignore` and `docs/policy/gitleaks-history-baseline.txt` hold known findings, not cleared ones. The repository is public, so every value in history counts as burned, and each still in use is rotated at S-E1-LIVE (`docs/security/PRE-PUBLIC-BLOCKERS.md`).
 
 ### 2. Two modes, per host, on the SELinux model
 

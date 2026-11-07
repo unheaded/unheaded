@@ -531,17 +531,12 @@ if cfg.ConnStr == "" {
   SHRINK. A new finding cannot be silenced by appending its fingerprint.
 - `trivy --scanners secret` runs alongside it.
 
-**On the existing baseline (2026-07-29):** a sweep found 76 secrets in history
-and 25 in the tree. Stevie's call, recorded rather than re-litigated: these are
-one-off lab credentials on a non-internet-facing development system, so no
-history rewrite and no rotation scramble. It is bad hygiene that slipped
-through, not an incident.
-
-That assessment is tied to the current posture. **It stops holding the moment
-this project is exposed to the public internet or handles anything real** — at
-which point every baselined credential must be rotated before exposure, since
-"it was only a lab" is not a property of the secret, it is a property of where
-it was used.
+**On the existing baseline (rewritten 2026-11-06):** the repository is public, so
+every value in history counts as burned. The 2026-07-29 decision assumed a
+system nobody outside could see, and its own condition ended it. Every such
+value still in use is rotated at S-E1-LIVE, and history is not rewritten. A row
+in `.gitleaksignore` or `docs/policy/gitleaks-history-baseline.txt` means known,
+not accepted. See `docs/security/PRE-PUBLIC-BLOCKERS.md`.
 
 ### Metrics (Prometheus)
 

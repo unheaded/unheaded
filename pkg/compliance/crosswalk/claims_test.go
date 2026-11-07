@@ -29,6 +29,13 @@ var retiredClaims = []struct{ file, claim string }{
 	{"README.md", "gRPC with mTLS by default"},
 	{"VISION.md", "It gets the hosting evidence for free"},
 	{"wiki/Security-Audit.md", "default-deny firewall, services talk via Wotan, uniform container hardening, isolated compose network | PASS |"},
+	// The 2026-07-29 secrets decision, replaced on 2026-11-06: the repository is public.
+	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "RESOLVED BY RISK DECISION"},
+	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "Rotating them buys little"},
+	{"CLAUDE.md", "no rotation scramble"},
+	{"scripts/check-secrets-baseline.sh", "non-internet-facing"},
+	{".github/workflows/security.yml", "excised from history"},
+	{"docs/adr/ADR-098-findings-register-and-baseline-modes.md", "holds reviewed false positives"},
 }
 
 // Documents that state a rule or an old result keep their text and say so up
@@ -40,6 +47,8 @@ var requiredNotes = []struct{ file, note string }{
 	{"docs/security/SECURITY_AUDIT.md", "Historical snapshot"},
 	{"VISION.md", "not today's state"},
 	{"compliance/findings/register.yaml", "only the signed reprepro repo"},
+	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "every value in history counts as burned"},
+	{"CLAUDE.md", "every value in history counts as burned"},
 }
 
 func TestRetiredClaimsStayRetired(t *testing.T) {

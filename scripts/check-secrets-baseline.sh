@@ -13,8 +13,9 @@
 # becomes the next one.
 #
 # Policy, per Stevie 2026-07-29: credentials are NEVER stored in the repo. The
-# baselined entries are one-off lab credentials on a non-internet-facing dev
-# system — an accepted, documented risk, not a licence to add more.
+# repository is public, so every value in history counts as burned (rewritten
+# 2026-11-06, docs/security/PRE-PUBLIC-BLOCKERS.md): a baselined entry is known,
+# not accepted, and each one still in use is rotated at S-E1-LIVE.
 #
 # THIS GATE COMPARES THE FINGERPRINT SET, NOT A COUNT.
 #
