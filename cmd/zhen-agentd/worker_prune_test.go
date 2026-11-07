@@ -24,7 +24,7 @@ func TestWorker_PruneOldWorktrees(t *testing.T) {
 	w.cfg.Now = func() time.Time { return now }
 	ctx := context.Background()
 	mk := func(card, status string, age time.Duration) string {
-		m.AddCard(zhenagent.Card{ID: card, Title: "x", Status: "todo", Type: "task", Owner: "zhen"})
+		m.AddCard(optedIn(zhenagent.Card{ID: card, Title: "x", Status: "todo", Type: "task", Owner: "zhen"}))
 		branch := "zhen/" + card
 		gitOut(t, repo, "worktree", "add", "-q", "-b", branch, filepath.Join(agent, card), "develop")
 		r := zhenagent.Run{ID: zhenagent.NewRunID(), CardID: card, Mode: "overnight", Family: "repo-task", Branch: branch,

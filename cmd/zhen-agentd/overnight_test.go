@@ -91,7 +91,7 @@ func newNightRig(t *testing.T, cards int) *nightRig {
 	t.Helper()
 	m := zhenagent.NewMemStore()
 	for i := range cards {
-		m.AddCard(zhenagent.Card{ID: "card-" + string(rune('a'+i)), Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+		m.AddCard(optedIn(zhenagent.Card{ID: "card-" + string(rune('a'+i)), Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	}
 	r := &fakeRunner{write: true, out: passOutcome()}
 	w, _, _, _ := newTestWorker(t, m, r)

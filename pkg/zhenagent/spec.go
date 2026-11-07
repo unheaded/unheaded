@@ -17,6 +17,7 @@ package zhenagent
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -26,9 +27,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Owner is the card owner that hands a card to Zhen. Setting the field is the
-// whole opt-in: nothing here checks who set it. The agent never touches
-// anyone else's cards.
+// Owner is the card owner the worker looks for. Anyone who can edit the board
+// can set that field, so it opts nothing in: a card also needs Card.OptInSHA256,
+// which only an authenticated operator can set (H4, kanban_zhen_optin). The
+// agent never touches anyone else's cards.
 const Owner = "zhen"
 
 // EligibleTypes are the card types the worker takes.
@@ -65,6 +67,16 @@ type Card struct {
 	Owner       string
 	Deleted     bool
 	Archived    bool
+	// OptInSHA256 is the description an operator handed over, by its
+	// DescriptionSHA256; empty for a card nobody opted in. It comes from
+	// kanban_zhen_optin, never from the card.
+	OptInSHA256 string
+}
+
+// DescriptionSHA256 is what an opt-in records of a card's description.
+func DescriptionSHA256(description string) string {
+	sum := sha256.Sum256([]byte(description))
+	return hex.EncodeToString(sum[:])
 }
 
 // Eligible says whether the worker may take c (the hand-off block is
@@ -75,6 +87,10 @@ func Eligible(c Card) error {
 		return fmt.Errorf("%w: deleted or archived", ErrNotEligible)
 	case c.Owner != Owner:
 		return fmt.Errorf("%w: owner is not %q", ErrNotEligible, Owner)
+	case c.OptInSHA256 == "":
+		return fmt.Errorf("%w: no operator opted it in", ErrNotEligible)
+	case c.OptInSHA256 != DescriptionSHA256(c.Description):
+		return fmt.Errorf("%w: its description changed after the opt-in", ErrNotEligible)
 	case c.Status != "todo":
 		return fmt.Errorf("%w: status %q is not todo", ErrNotEligible, c.Status)
 	case !EligibleTypes[c.Type]:

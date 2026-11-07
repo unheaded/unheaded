@@ -34,8 +34,9 @@ func (s SQLStore) Candidates(ctx context.Context, limit int) ([]Card, error) {
 		limit = 20
 	}
 	rows, err := s.DB.QueryContext(ctx, `
-		SELECT t.id, t.title, t.description, t.status, t.type, t.owner
+		SELECT t.id, t.title, t.description, t.status, t.type, t.owner, o.description_sha256
 		  FROM kanban_tasks t
+		  JOIN kanban_zhen_optin o ON o.card_id = t.id
 		 WHERE t.owner = $1 AND t.status = 'todo' AND t.type = ANY($2)
 		   AND t.deleted_at IS NULL AND t.archived_at IS NULL
 		   AND NOT EXISTS (SELECT 1 FROM zhen_agent_runs r WHERE r.card_id = t.id AND r.status IN ('claimed', 'running'))
@@ -49,7 +50,7 @@ func (s SQLStore) Candidates(ctx context.Context, limit int) ([]Card, error) {
 	var out []Card
 	for rows.Next() {
 		var c Card
-		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.Status, &c.Type, &c.Owner); err != nil {
+		if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.Status, &c.Type, &c.Owner, &c.OptInSHA256); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -66,7 +67,8 @@ func (s SQLStore) Attempts(ctx context.Context, cardID string) (int, error) {
 
 // Claim implements Store: lock the card (SKIP LOCKED: another worker
 // holding it means a conflict, not a wait), check it is still an eligible
-// todo card, insert the run, move the card. The one-active index is the
+// todo card whose description is the one an operator opted in, insert the
+// run, move the card. The one-active index is the
 // last word on a race.
 func (s SQLStore) Claim(ctx context.Context, r Run) error {
 	if !ValidRunID(r.ID) {
@@ -79,10 +81,12 @@ func (s SQLStore) Claim(ctx context.Context, r Run) error {
 	defer func() { _ = tx.Rollback() }()
 	var id string
 	err = tx.QueryRowContext(ctx, `
-		SELECT id FROM kanban_tasks
-		 WHERE id = $1 AND owner = $2 AND status = 'todo' AND type = ANY($3)
-		   AND deleted_at IS NULL AND archived_at IS NULL
-		 FOR UPDATE SKIP LOCKED`, r.CardID, Owner, pq.Array(eligibleTypeList)).Scan(&id)
+		SELECT t.id FROM kanban_tasks t
+		  JOIN kanban_zhen_optin o ON o.card_id = t.id
+		 WHERE t.id = $1 AND t.owner = $2 AND t.status = 'todo' AND t.type = ANY($3)
+		   AND t.deleted_at IS NULL AND t.archived_at IS NULL
+		   AND o.description_sha256 = encode(sha256(convert_to(t.description, 'UTF8')), 'hex')
+		 FOR UPDATE OF t SKIP LOCKED`, r.CardID, Owner, pq.Array(eligibleTypeList)).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrClaimConflict
 	}

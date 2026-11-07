@@ -249,7 +249,7 @@ func (m *MemStore) Candidates(_ context.Context, limit int) ([]Card, error) {
 	defer m.mu.Unlock()
 	var cs []*MemCard
 	for _, c := range m.Cards {
-		if c.Owner == Owner && c.Status == "todo" && EligibleTypes[c.Type] && !c.Deleted && !c.Archived &&
+		if c.Owner == Owner && c.OptInSHA256 != "" && c.Status == "todo" && EligibleTypes[c.Type] && !c.Deleted && !c.Archived &&
 			!m.activeLocked(c.ID) && m.attemptsLocked(c.ID) < MaxAttempts {
 			cs = append(cs, c)
 		}

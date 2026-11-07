@@ -18,7 +18,7 @@ import (
 
 func TestWorker_DefersWhenGPUBusy(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{write: true, out: passOutcome()}
 	w, _, _, _ := newTestWorker(t, m, r)
 	busy := true
@@ -38,7 +38,7 @@ func TestWorker_DefersWhenGPUBusy(t *testing.T) {
 
 func TestWorker_GPUBusyMidCardDefers(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{write: true, out: passOutcome(), err: fmt.Errorf("route: local LLM: %w", gpulease.ErrTimeout)}
 	w, _, _, _ := newTestWorker(t, m, r)
 	res, _ := w.runOnce(context.Background())
