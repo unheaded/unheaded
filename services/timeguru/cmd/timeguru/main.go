@@ -22,6 +22,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -62,6 +63,7 @@ type Config struct {
 }
 
 func main() {
+	cmdline.Parse(cmdline.Spec{Name: "timeguru", Purpose: "Timeguru: the Kingdom's timeline service. Configured from the environment; takes no options."})
 	wotanClient.InitServiceIdentity("timeguru") // ADR-103 §6: every Wotan call carries timeguru's service token
 	// Configure zerolog — structured JSON in prod, console for dev
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)

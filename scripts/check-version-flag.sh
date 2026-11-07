@@ -5,6 +5,7 @@
 #
 #   scripts/check-version-flag.sh BIN...          check these binaries
 #   scripts/check-version-flag.sh --bin-dir DIR   check DIR/<name> for every main package under ./cmd/
+#                                                 and every services/ binary build-binaries.sh lists
 #   scripts/check-version-flag.sh                 build every main under ./cmd/ into a temp dir with
 #                                                 the Makefile's version ldflag, then check them
 #
@@ -13,7 +14,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-mains() { go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./cmd/... | sed 's#.*/##'; }
+# Every main under ./cmd/, plus the service binaries build-binaries.sh ships
+# from services/ (wotan, timeguru, captain, architect, micromanager).
+svc_pkgs() { scripts/build-binaries.sh --list | awk '$2 ~ /^\.\/services\// {print $2}'; }
+mains() {
+	go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./cmd/... | sed 's#.*/##'
+	svc_pkgs | sed 's#.*/##'
+}
 
 bins=()
 if [[ $# -eq 0 ]]; then
@@ -21,6 +28,9 @@ if [[ $# -eq 0 ]]; then
 	trap 'rm -rf "$tmp"' EXIT
 	ver=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
 	go build -trimpath -ldflags "-X unheaded/pkg/cmdline.Version=${ver}" -o "$tmp/" ./cmd/...
+	mapfile -t svc < <(svc_pkgs)
+	[[ ${#svc[@]} -gt 0 ]] || { echo "FAIL: build-binaries.sh lists no services/ binaries"; exit 1; }
+	go build -trimpath -ldflags "-X unheaded/pkg/cmdline.Version=${ver}" -o "$tmp/" "${svc[@]}"
 	while read -r n; do bins+=("$tmp/$n"); done < <(mains)
 elif [[ $1 == --bin-dir ]]; then
 	dir=${2:?--bin-dir needs a directory}

@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics/prom"
 	"unheaded/services/wotan/internal/api"
@@ -446,6 +447,11 @@ func listenAddr(bind string, port int) string {
 // names a few dozen topics (logs.<service>.<level>, metrics.<service>).
 const defaultRoomQuota = 400
 
+var wotanSpec = cmdline.Spec{
+	Name:    "wotan",
+	Purpose: "Wotan: the Kingdom's message bus, topic pub/sub over gRPC and HTTP.",
+}
+
 func parseFlags(fs *flag.FlagSet, args []string) Config {
 	config := Config{}
 
@@ -502,12 +508,10 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 	fs.StringVar(&config.StoreDataDir, "store-data-dir", "/var/lib/unheaded/wotan/data", "Store data directory (WAL/hybrid)")
 	fs.StringVar(&config.StoreConnStr, "store-conn-str", "", "PostgreSQL connection string (postgres/hybrid)")
 
-	if err := fs.Parse(args); err != nil {
-		// FlagSet's default error-handling is ContinueOnError for tests
-		// (returns the error without exiting); ExitOnError for the real
-		// binary (fs.Parse exits on err). Either way, this branch only
-		// runs in test mode where the caller decides what to do.
-		return config
+	// ADR-111: --help, --version and a usage error go through cmdline.
+	// Only the real binary exits; a test's FlagSet gets the config back.
+	if code, exit := cmdline.ParseSet(fs, wotanSpec, args, os.Stdout, os.Stderr); exit && fs == flag.CommandLine {
+		os.Exit(code)
 	}
 	return config
 }

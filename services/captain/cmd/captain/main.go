@@ -12,6 +12,7 @@ import (
 	"sync"
 	"syscall"
 
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/ports"
@@ -22,6 +23,7 @@ import (
 
 // main is the entry point for the captain service
 func main() {
+	cmdline.Parse(cmdline.Spec{Name: "captain", Purpose: "Captain: the Kingdom's strategy service. Configured from the environment; takes no options."})
 	wotanClient.InitServiceIdentity("captain") // ADR-103 §6: every Wotan call carries captain's service token
 	if err := run(); err != nil {
 		log.Fatalf("captain service failed: %v", err)

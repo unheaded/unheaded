@@ -20,12 +20,29 @@ func TestEveryBinaryUsesCmdline(t *testing.T) {
 	if err != nil {
 		t.Skipf("cmd/ not reachable from the test directory: %v", err)
 	}
-	var missing []string
+	var dirs []string
 	for _, e := range entries {
-		if !e.IsDir() {
+		if e.IsDir() {
+			dirs = append(dirs, filepath.Join(root, e.Name()))
+		}
+	}
+	// The service binaries scripts/build-binaries.sh ships from services/
+	// (wotan, timeguru, captain, architect, micromanager) answer to the same
+	// rule; until 2026-11-07 nothing looked, and `timeguru --version` started
+	// the daemon.
+	svc, err := filepath.Glob(filepath.Join("..", "..", "services", "*", "cmd", "*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(svc) == 0 {
+		t.Fatal("no services/*/cmd/* directories found; the glob is wrong")
+	}
+	dirs = append(dirs, svc...)
+	var missing []string
+	for _, dir := range dirs {
+		if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 			continue
 		}
-		dir := filepath.Join(root, e.Name())
 		files, err := filepath.Glob(filepath.Join(dir, "*.go"))
 		if err != nil {
 			t.Fatal(err)
@@ -59,7 +76,7 @@ func TestEveryBinaryUsesCmdline(t *testing.T) {
 			}
 		}
 		if hasMain && !usesCmdline {
-			missing = append(missing, e.Name())
+			missing = append(missing, strings.TrimPrefix(dir, filepath.Join("..", "..")+string(filepath.Separator)))
 		}
 	}
 	if len(missing) > 0 {

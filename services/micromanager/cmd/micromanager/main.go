@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -72,7 +73,7 @@ func init() {
 }
 
 func main() {
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{Name: "micromanager", Purpose: "Micromanager: the Kingdom's execution service."})
 	wotanClient.InitServiceIdentity("micromanager") // ADR-103 §6: every Wotan call carries micromanager's service token
 
 	// Set log level

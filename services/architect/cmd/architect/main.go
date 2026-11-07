@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/cmdline"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -49,7 +50,7 @@ func main() {
 	logLevel := flag.String("log", "info", "Log level (debug, info, warn, error)")
 	useMock := flag.Bool("mock-wotan", false, "Use mock Wotan client for testing")
 	dataDir := flag.String("data-dir", os.Getenv("ARCHITECT_DATA_DIR"), "State directory (services, nodes, decisions); empty = read-only")
-	flag.Parse()
+	cmdline.Parse(cmdline.Spec{Name: "architect", Purpose: "Architect: the Kingdom's design service, services, nodes and decisions."})
 	wotanClient.InitServiceIdentity("architect") // ADR-103 §6: every Wotan call carries architect's service token
 
 	// Setup logging

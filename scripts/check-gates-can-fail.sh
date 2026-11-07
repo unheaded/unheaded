@@ -1333,7 +1333,7 @@ gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet
 check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
 check-json-responses|provoke_json_responses|fast|Wotan's topic publish encodes straight to its ResponseWriter again (needs go)
-check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds all 59; needs go)
+check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds 59: 54 under cmd/, 5 shipped from services/; needs go)
 check-usage-errors|provoke_usage_errors|fast|cmdline.ParseSet lets the flag package print to stderr again, so a bad option dumps raw usage (builds all; needs go)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
