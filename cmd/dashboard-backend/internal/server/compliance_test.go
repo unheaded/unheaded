@@ -102,6 +102,9 @@ func TestComplianceSummary(t *testing.T) {
 	if counts["EVIDENCED"].(float64) != 1 || counts["UNMAPPED"].(float64) != 1 {
 		t.Errorf("low counts = %v (RA-5 evidenced via the base mapping, AC-2 unmapped)", counts)
 	}
+	if _, ok := counts["DECLARED"]; !ok {
+		t.Errorf("low counts = %v: DECLARED is part of the denominator, so the page must always get it", counts)
+	}
 	if _, ok := low["requirements"]; ok {
 		t.Error("summary carries requirement lists; those belong to the framework endpoint")
 	}

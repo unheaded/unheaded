@@ -238,8 +238,8 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 	}
 	fmt.Println()
 	for _, fw := range s.Frameworks {
-		fmt.Printf("  %-18s %4d evidenced  %3d failing  %3d incomplete  %4d unmapped  of %4d\n", fw.ID,
-			fw.Counts[crosswalk.ReqEvidenced], fw.Counts[crosswalk.ReqFailing],
+		fmt.Printf("  %-18s %4d evidenced  %3d declared  %3d failing  %3d incomplete  %4d unmapped  of %4d\n", fw.ID,
+			fw.Counts[crosswalk.ReqEvidenced], fw.Counts[crosswalk.ReqDeclared], fw.Counts[crosswalk.ReqFailing],
 			fw.Counts[crosswalk.ReqIncomplete], fw.Counts[crosswalk.ReqUnmapped], fw.Total)
 	}
 	return nil

@@ -1,60 +1,38 @@
 # Branch Protection Policy
 
-**Project:** Unheaded Kingdom
-**Date:** 2026-02-27
-**Status:** RECOMMENDED CONFIGURATION
+**Project:** Unheaded
+**Date:** 2026-11-06
+**Status:** Required status checks and no review count. Not on yet: Stevie turns it on in GitHub after the first green CI (FND-042).
 
----
+One operator cannot review his own work, so a review count would stop every merge. What holds a merge is the checks.
 
-## Overview
-
-This document defines recommended branch protection rules for the `main` and `develop` branches to ensure code quality, security, and compliance as part of the S72 DevOps automation initiative.
+A check's name is the job's `name:`, or its id when it has none; a name no job reports leaves the merge waiting forever. `scripts/check-ci-verdicts.sh` holds this file to the workflows.
 
 ---
 
 ## Main Branch (`main`)
 
 ### Purpose
-Production-ready code and releases. Only merge stable, fully-tested changes.
+Promoted code and releases.
 
 ### Protection Rules
 
 #### Required Status Checks (All must pass)
-A check's name is the job's `name:`, or its id when it has none; a name no job
-reports leaves the merge waiting forever. `scripts/check-ci-verdicts.sh` holds
-this list to the workflows.
-
 - [x] `CI Gate` — every job in ci.yml: Go build and lint, Rust, SPDX, licenses
 - [x] `Security Gate` — security.yml: govulncheck, gosec, gitleaks, cargo-audit, Trivy
 - [x] `sbom` — SBOM generation and Grype scan (sbom.yml)
 
-#### Required Reviews
-- [x] Require pull request reviews before merging: **2 approvals**
-- [x] Dismiss stale pull request approvals when new commits are pushed
-- [x] Require code owner review: **Yes** (if CODEOWNERS file exists)
-- [x] Require conversation resolution before merging: **Yes**
-
 #### Restrictions
 - [x] Require branches to be up to date before merging
-- [x] Require deployments to succeed before merging:
-  - Deployment environment: `production` (if configured)
-- [x] Restrict who can push to matching branches: **Only admins**
-- [x] Allow force pushes: **No** (prevent accidental history rewrites)
-- [x] Allow deletions: **No** (prevent accidental branch deletion)
-
-#### Dismissal Restrictions
-- [x] Restrict who can dismiss pull request reviews: **Only admins or code owners**
-
-#### Bypass Rules
-- [x] Restrict who can bypass required checks: **Only repository administrators**
-- Allow bypass actors: (Leave empty — only admins can bypass)
+- [x] Allow force pushes: **No**
+- [x] Allow deletions: **No**
 
 ---
 
 ## Develop Branch (`develop`)
 
 ### Purpose
-Development integration branch. Staging for features being prepared for `main`.
+The integration branch. Recent work lands here first.
 
 ### Protection Rules
 
@@ -63,34 +41,6 @@ Development integration branch. Staging for features being prepared for `main`.
 - [x] `Security Gate` — security.yml: govulncheck, gosec, gitleaks, cargo-audit, Trivy
 - [x] `sbom` — SBOM generation and Grype scan (sbom.yml)
 
-#### Required Reviews
-- [x] Require pull request reviews before merging: **1 approval**
-- [x] Dismiss stale pull request approvals when new commits are pushed
-- [x] Require code owner review: **No** (less stringent than main)
-- [x] Require conversation resolution before merging: **Yes**
-
-#### Restrictions
-- [x] Require branches to be up to date before merging: **Yes**
-- [x] Restrict who can push to matching branches: **Only admins and developers**
-- [x] Allow force pushes: **No**
-- [x] Allow deletions: **No**
-
----
-
-## Release Branches (Optional: `release/*`, `hotfix/*`)
-
-### Purpose
-Isolation for release stabilization and critical hotfixes.
-
-### Protection Rules (if implemented)
-
-#### Required Status Checks
-- All checks from `develop` branch
-
-#### Required Reviews
-- [x] Require pull request reviews before merging: **1 approval**
-- [x] Require conversation resolution: **Yes**
-
 #### Restrictions
 - [x] Require branches to be up to date before merging
 - [x] Allow force pushes: **No**
@@ -98,32 +48,24 @@ Isolation for release stabilization and critical hotfixes.
 
 ---
 
-## Feature Branches (No protection)
+## Staging Branch (`staging`)
 
-### Purpose
-Development-in-progress branches. No restrictions; developers have full control.
-
-**Pattern:** `feature/*`, `bugfix/*`, `refactor/*`, `docs/*`
-
-**Policy:** No branch protection rules applied.
+The same rules as `develop`, in the same command with the branch name changed.
 
 ---
 
-## Implementation Steps
+## Other Branches
 
-### Via GitHub Web UI
+No protection.
 
-1. Navigate to **Settings → Branches**
-2. Click **Add rule** for each branch pattern
-3. Configure per rules above
-4. Click **Create**
+---
 
-### Bulk Configuration with GitHub CLI
+## Turning It On
 
 ```bash
-# Protect main branch
-gh api repos/unheaded/unheaded/branches/main/protection \
-  --input - <<EOF
+# main; repeat with develop and staging in the path
+gh api --method PUT repos/unheaded/unheaded/branches/main/protection \
+  --input - <<EOF_JSON
 {
   "required_status_checks": {
     "strict": true,
@@ -133,20 +75,17 @@ gh api repos/unheaded/unheaded/branches/main/protection \
       "sbom"
     ]
   },
-  "required_pull_request_reviews": {
-    "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": true,
-    "required_approving_review_count": 2
-  },
+  "required_pull_request_reviews": null,
+  "restrictions": null,
   "enforce_admins": true,
   "allow_force_pushes": false,
   "allow_deletions": false
 }
-EOF
+EOF_JSON
 
-# Protect develop branch
-gh api repos/unheaded/unheaded/branches/develop/protection \
-  --input - <<EOF
+# develop
+gh api --method PUT repos/unheaded/unheaded/branches/develop/protection \
+  --input - <<EOF_JSON
 {
   "required_status_checks": {
     "strict": true,
@@ -156,104 +95,16 @@ gh api repos/unheaded/unheaded/branches/develop/protection \
       "sbom"
     ]
   },
-  "required_pull_request_reviews": {
-    "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": false,
-    "required_approving_review_count": 1
-  },
+  "required_pull_request_reviews": null,
+  "restrictions": null,
   "enforce_admins": true,
   "allow_force_pushes": false,
   "allow_deletions": false
 }
-EOF
+EOF_JSON
 ```
 
----
-
-## Enforcement Matrix
-
-| Aspect | Main | Develop | Feature |
-|--------|------|---------|---------|
-| **Status Checks** | All 3 | All 3 | None |
-| **Code Review** | 2 approvals | 1 approval | None |
-| **Code Owner Review** | Required | Not required | N/A |
-| **Up-to-date** | Required | Required | Not enforced |
-| **Force Push** | Disabled | Disabled | Allowed |
-| **Delete** | Disabled | Disabled | Allowed |
-| **Admin Override** | Enforced | Enforced | N/A |
-
----
-
-## Workflow: Feature → Main
-
-### Typical Flow
-
-```
-feature/add-telemetry
-       ↓
-    (push commits)
-       ↓
-   Create PR to develop
-       ↓
-   [CI checks run]
-       ↓
-   [1 reviewer approves]
-       ↓
-  Merge to develop ✅
-       ↓
-  [Integration testing on develop]
-       ↓
-  Create PR to main
-       ↓
-  [All 7 CI checks run]
-       ↓
-  [2 reviewers approve + code owner]
-       ↓
- Merge to main ✅
-       ↓
- Tag release: v1.2.3
-       ↓
- [Release workflow builds + signs artifacts]
-```
-
----
-
-## Bypassing Protections
-
-### When to Bypass
-
-**Acceptable scenarios:**
-- Critical security hotfix (with after-action review)
-- Production incident requiring immediate rollback
-- Emergency data migration
-
-**Never bypass for:**
-- Skipping failing tests
-- Avoiding code review
-- Pushing security-related code without review
-
-### Bypass Procedure
-
-1. **Admin-only action:** Only repository administrators can bypass
-2. **Log decision:** Document reason in PR comments
-3. **After-action review:** Post-incident review within 24 hours
-4. **Update policies:** Modify protection rules if pattern recurs
-
----
-
-## Monitoring & Alerts
-
-### GitHub Settings to Monitor
-
-- Branch protection rule changes (via audit log)
-- Administrator overrides of CI checks
-- PR dismissals of security reviews
-
-### Required Tooling
-
-- [GitHub Audit Log](https://github.com/orgs/unheaded-kingdom/audit-log) monitoring
-- SIEM integration (if available) for suspicious merge activity
-- Slack/webhook notifications for bypass events
+With `enforce_admins` true, a push straight to a protected branch is refused until its commit has the required checks, admins included, so changes go through a branch and a pull request.
 
 ---
 
@@ -261,37 +112,12 @@ feature/add-telemetry
 
 ### "Required status checks are missing"
 
-**Cause:** A required check is not configured in the workflow
-**Solution:** Verify check name in CI YAML matches protection rule exactly (case-sensitive)
-
-### "Cannot merge: awaiting code owner review"
-
-**Cause:** CODEOWNERS file specifies code owner not yet approved
-**Solution:** Request approval from specified code owner or admin override (only if justified)
-
-### "Administrator required to merge"
-
-**Cause:** Attempted bypass of required checks by non-admin
-**Solution:** Request administrator to review and merge, or request status check waiver
-
----
-
-## Review Cadence
-
-- **Quarterly:** Review protection rules for relevance (Q1, Q2, Q3, Q4)
-- **On policy change:** Update this document within 48 hours
-- **On incident:** Post-mortem review of bypass decisions
+**Cause:** the name in the rule is not one a job reports.
+**Solution:** match the job's `name:` exactly, case included. `scripts/check-ci-verdicts.sh` catches this for the names above.
 
 ---
 
 ## References
 
-- [GitHub Branch Protection Documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches)
-- [GitHub CLI Branch Protection Commands](https://cli.github.com/manual/gh_api)
-- S72 Battle Plan — Phase 9 (GHA Hardening)
-- [Unheaded SECURITY.md](../../SECURITY.md)
-
----
-
-**Last Updated:** 2026-02-27
-**Next Review:** 2026-05-27 (Q2)
+- [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches)
+- [GitHub REST API: update branch protection](https://docs.github.com/en/rest/branches/branch-protection)

@@ -6,8 +6,9 @@
 # Copies docs/compliance/drafts/attestations/<name>.yaml to
 # compliance/attestations/<name>.yaml with attested_at = today (UTC) and
 # expires_at = today + the control's freshness_days, then makes a signed
-# commit holding that one file. Only the accountable person signs: the
-# script refuses any other git identity and any unsigned commit.
+# commit holding that one file. Only the accountable person signs, by rule:
+# the script refuses any other git identity and any unsigned commit, and that
+# reads the identity, not who is at the keyboard, so an agent session passes it too (FND-038).
 #
 # Usage: sign-attestation.sh [--dry-run] <name>
 #   --dry-run  print the file that would be committed; no identity check,

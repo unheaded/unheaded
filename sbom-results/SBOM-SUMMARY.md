@@ -1,5 +1,7 @@
 # Unheaded Project Software Bill of Materials (SBOM)
 
+**Superseded by `sbom/SBOM.md`.** This is a dated document, kept as it was. Its counts and license verdicts are not current, and where the two disagree `sbom/SBOM.md` is right.
+
 **Generated:** 2026-02-27
 **Repository:** unheaded (Go 1.24 + Rust + eBPF)
 **Version:** v0.1.0-alpha-186-g540a552-dirty

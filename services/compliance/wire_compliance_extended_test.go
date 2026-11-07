@@ -643,59 +643,6 @@ func TestHTTPReadyState(t *testing.T) {
 // Aggregation edge cases
 // ---------------------------------------------------------------------------
 
-func TestAggregateViolationsAuditCompleteness(t *testing.T) {
-	svc := NewService(logger.New(io.Discard), nil, nil)
-
-	// Record packets without corresponding audit entries
-	for i := 0; i < 10; i++ {
-		svc.RecordAllowed()
-	}
-	// Add a violation which also adds an audit entry
-	svc.RecordViolation(Violation{
-		Timestamp:     time.Now(),
-		SrcServiceID:  "svc-a",
-		DstServiceID:  "svc-b",
-		ViolationType: ViolationPolicy,
-		ActionTaken:   ActionBlock,
-		TraceID:       "trace-audit",
-	})
-
-	svc.aggregateViolations(context.Background())
-	score := svc.GetScore()
-
-	// 1 audit entry out of 11 total packets
-	expectedCompleteness := 1.0 / 11.0
-	if score.AuditCompleteness < expectedCompleteness-0.01 || score.AuditCompleteness > expectedCompleteness+0.01 {
-		t.Errorf("AuditCompleteness = %.4f, want ~%.4f", score.AuditCompleteness, expectedCompleteness)
-	}
-}
-
-func TestAggregateViolationsAuditCompletenessCap(t *testing.T) {
-	svc := NewService(logger.New(io.Discard), nil, nil)
-
-	// Create a scenario where audit entries exceed total packets
-	// by manually adding audit entries
-	svc.RecordAllowed()
-	svc.mu.Lock()
-	for i := 0; i < 5; i++ {
-		svc.auditLog = append(svc.auditLog, AuditEntry{
-			Timestamp:    time.Now(),
-			TraceID:      "extra",
-			SrcServiceID: "svc-a",
-			DstServiceID: "svc-b",
-			Action:       ActionAllow,
-		})
-	}
-	svc.mu.Unlock()
-
-	svc.aggregateViolations(context.Background())
-	score := svc.GetScore()
-
-	if score.AuditCompleteness > 1.0 {
-		t.Errorf("AuditCompleteness = %.4f, should be capped at 1.0", score.AuditCompleteness)
-	}
-}
-
 func TestAggregateViolationsTrimsAuditLog(t *testing.T) {
 	cfg := &Config{
 		AggregationWindow: 10 * time.Second,

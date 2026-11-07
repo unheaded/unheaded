@@ -10,6 +10,9 @@
 #   - Map 800-53 only; FedRAMP baselines are derived from it (derived_from)
 #     and pick the mapping up for the controls they contain.
 #   - Every mapping is reviewable: say why in `rationale`.
+#   - A control that reads files in the repository says what is written, not
+#     what runs: `declared` says what it reads, and such a control is DECLARED
+#     at best, never PASS (FND-037). A test holds every gate-script control to it.
 #
 # github-job refs are "<workflow name>/<job name>" exactly as GitHub Actions
 # reports them.
@@ -99,7 +102,10 @@ controls:
       A machine-readable inventory of software components (CM-8; CSF ID.AM-02
       software inventories; ISO A.5.9 inventory of assets; 800-171 03.04.10
       component inventory); SSDF PS.3 archive and protect releases including
-      provenance data.
+      provenance data. These mappings cover the inventory and its scan.
+      sbom/SBOM.md is INCOMPLETE as a license record: its verdict is not PASS,
+      and it names what it did not read. The dated matrices under
+      docs/compliance/control-matrix/ keep their old text.
     freshness_days: 7
     evidence:
       - {kind: github-job, ref: "SBOM + Vulnerability Scan/sbom"}
@@ -154,7 +160,10 @@ controls:
     title: Commits on the development branch are cryptographically signed
     statement: >-
       Every commit reachable from develop within the checked window carries
-      a good GPG signature from a trusted key (git %G? == G).
+      a good GPG signature from a trusted key (git %G? == G). The key is
+      Stevie's: agents' commits are signed with it too, and carry
+      Co-Authored-By and Claude-Session trailers, so a signature attributes a
+      commit to the key, not to a person's reading of it (risk strategy A1).
     rationale: >-
       Attributable, tamper-evident change records (AU-10 non-repudiation;
       CM-3 configuration change control; 800-171 03.04.03); SSDF PS.1
@@ -195,6 +204,7 @@ controls:
       Enforced configuration settings (CM-6; 800-171 03.04.02; CSF PR.PS-01;
       ISO A.8.9) and audit log storage capacity (AU-4) checked from the
       declared configuration, not a running host's defaults.
+    declared: reads the compose files, not the containers running
     freshness_days: 7
     evidence:
       - {kind: gate-script, ref: scripts/check-compose-log-caps.sh}
@@ -241,6 +251,7 @@ controls:
       Configuration settings enforced as declared (CM-6; 800-171 03.04.02;
       CSF PR.PS-01; ISO A.8.9) and process isolation through the units'
       seccomp and sandboxing directives (SC-39).
+    declared: reads the unit files in deploy/systemd, not the units installed on a host
     freshness_days: 7
     evidence:
       - {kind: gate-script, ref: scripts/check-systemd-units.sh}
@@ -1071,8 +1082,8 @@ controls:
       Include and Match resolved) refuses passwords and keyboard-interactive
       login, root login and empty passwords, disables X11 forwarding, allows
       at most 4 authentication attempts per connection, and times out idle
-      sessions within 5 minutes. Read with passwordless sudo, locally or over
-      ssh; each record names its host.
+      sessions within 5 minutes. Read locally or over ssh; each record names
+      its host.
       Also (CIS 5.1): no host-based or rhosts authentication, login grace 60s or less, INFO logging, at most 10 sessions, no user environment, PAM on, forwarding off, no GSSAPI.
     rationale: >-
       Remote access restricted to strong authentication (AC-17; IA-2
@@ -1158,6 +1169,7 @@ controls:
       Least privilege and least functionality for workloads (AC-6, CM-7),
       process isolation (SC-39), as declared configuration (CM-6); 800-171
       03.01.05 and 03.04.06; CSF PR.PS-01; ISO A.8.9.
+    declared: reads the compose files, not the containers running
     freshness_days: 7
     evidence:
       - {kind: gate-script, ref: scripts/check-compose-hardening.sh}
@@ -1288,6 +1300,7 @@ controls:
       data in transit protected; ISO A.8.24 use of cryptography; SOC 2 CC6.7
       restricted transmission. CLAUDE.md: TLS 1.3 minimum for external
       traffic.
+    declared: reads the compose and traefik configuration, not a running edge
     freshness_days: 7
     evidence:
       - {kind: gate-script, ref: scripts/compliance/check-edge-tls.sh}
@@ -1313,6 +1326,7 @@ controls:
       users and services (IA-2, IA-9); 800-171 03.01.02 access enforcement,
       03.05.02 device identification and authentication; CSF PR.AA-03; ISO
       A.8.5 secure authentication; SOC 2 CC6.1.
+    declared: reads the compose file, not a running service
     freshness_days: 7
     evidence:
       - {kind: gate-script, ref: scripts/compliance/check-service-auth.sh}
@@ -1394,6 +1408,7 @@ controls:
       use of cryptography; SOC 2 CC6.7 restricted transmission. Hybrid
       (FIPS 203 ML-KEM-768 with X25519/P-256) is NIST PQC migration
       progress; CNSA 2.0 is not claimed (ADR-105 decision 11).
+    declared: reads repository configuration and runs handshake tests, not a running link
     freshness_days: 7
     evidence:
       - {kind: gate-script, ref: scripts/check-pq-kex.sh}
@@ -1446,6 +1461,7 @@ controls:
       provenance (SR-4); SSDF PS.2 provide a mechanism for verifying
       software release integrity; SOC 2 CC8.1 changes are authorized and
       tested before release.
+    declared: runs the verifier on fixture packs; no production pack exists (FND-018)
     freshness_days: 7
     evidence:
       - {kind: gate-script, ref: scripts/check-evidence-pack.sh}

@@ -25,10 +25,12 @@
         .bar { display: flex; height: 8px; width: 220px; border-radius: 2px; overflow: hidden; background: var(--status-unknown-bg); }
         .bar span { display: block; height: 100%; }
         .s-EVIDENCED, .s-PASS { color: var(--status-healthy); }
+        .s-DECLARED { color: var(--gold-light); }
         .s-FAILING, .s-FAIL { color: var(--status-unhealthy); }
         .s-INCOMPLETE, .s-STALE { color: var(--status-degraded); }
         .s-UNMAPPED, .s-NOT_ASSESSED { color: var(--text-muted); }
         .b-EVIDENCED { background: var(--status-healthy); }
+        .b-DECLARED { background: var(--gold-dark); }
         .b-FAILING { background: var(--status-unhealthy); }
         .b-INCOMPLETE { background: var(--status-degraded); }
         .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; letter-spacing: 0.05em; border: 1px solid currentColor; }
@@ -84,7 +86,7 @@
                 <table class="cx" id="fw-table">
                     <thead><tr>
                         <th>Framework</th><th>Granularity</th><th></th>
-                        <th class="num">Evidenced</th><th class="num">Failing</th><th class="num">Incomplete</th><th class="num">Unmapped</th><th class="num">Total</th>
+                        <th class="num">Evidenced</th><th class="num">Declared</th><th class="num">Failing</th><th class="num">Incomplete</th><th class="num">Unmapped</th><th class="num">Total</th>
                     </tr></thead>
                     <tbody></tbody>
                 </table>
@@ -105,6 +107,8 @@
                     requirements in many frameworks at once. A requirement is <span class="s-EVIDENCED">EVIDENCED</span>
                     only when every control mapped to it has current passing evidence; that means the evidence
                     supports it, <strong>not</strong> that an assessor would find it satisfied.
+                    <span class="s-DECLARED">DECLARED</span>: nothing fails, but a mapped control reads configuration
+                    in the repository, so it says what is written, not what runs.
                     <span class="s-FAILING">FAILING</span>: a mapped control fails.
                     <span class="s-INCOMPLETE">INCOMPLETE</span>: mapped, but evidence is missing or stale.
                     <span class="s-UNMAPPED">UNMAPPED</span>: no control yet; still counted.

@@ -72,7 +72,39 @@ func NewHopCommand() *Command {
 		SubCommands: make(map[string]*Command),
 	}
 	cmd.AddCommand(rules)
+	cmd.AddCommand(newHopModeCommand())
 	return cmd
+}
+
+// newHopModeCommand creates `hop mode`, the one writer of CONFIG key 4 in the
+// tree. Enforce is refused here, not in hop_xdp, until the findings in
+// hoprules.EnforceBlockers close. Needs CAP_BPF.
+func newHopModeCommand() *Command {
+	var pinDir string
+	flags := flag.NewFlagSet("mode", flag.ContinueOnError)
+	flags.StringVar(&pinDir, "pin-dir", defaultHopPinDir, "Directory holding hop-ebpf's pinned maps")
+
+	return &Command{
+		Name:  "mode",
+		Short: "Set hop-ebpf's check mode: off or observe (enforce is refused for now)",
+		Usage: "unheaded hop mode [--pin-dir <dir>] <off|observe|enforce>",
+		Flags: flags,
+		RunFunc: func(ctx *Context, args []string) error {
+			if len(args) != 1 {
+				return &UsageError{"want one mode: off, observe or enforce\nTry 'unheaded hop mode --help' for more information."}
+			}
+			mode, err := hoprules.ParseMode(args[0])
+			if err != nil {
+				return &UsageError{err.Error()}
+			}
+			w := &pinnedWriter{dir: pinDir, maps: make(map[string]hopMap)}
+			defer w.Close()
+			if err := hoprules.SetMode(w, mode); err != nil {
+				return err
+			}
+			return ctx.Output.WriteStringln("check mode set to " + args[0])
+		},
+	}
 }
 
 // newHopRulesApplyCommand creates `hop rules apply`: validators, HMAC keys and
