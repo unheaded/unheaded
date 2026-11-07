@@ -1180,13 +1180,17 @@ fn syscall_nanosleep_wraps_on_any_timespec() {
 fn nanosleep_seed_input_runs_to_halt() {
     let data = include_bytes!("../fuzz/corpus/fuzz_mbc_execute/regress-nanosleep-overflow");
     let (regs, rom) = data.split_at(64);
-    let word = |c: &[u8]| u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
 
     let mut cpu = ExecCpu::new();
-    for (r, c) in cpu.state.regs.iter_mut().zip(regs.chunks_exact(4)) {
-        *r = word(c);
+    for (r, c) in cpu.state.regs.iter_mut().zip(regs.as_chunks::<4>().0) {
+        *r = u32::from_le_bytes(*c);
     }
-    let rom: Vec<u32> = rom.chunks_exact(4).map(word).collect();
+    let rom: Vec<u32> = rom
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| u32::from_le_bytes(*c))
+        .collect();
     cpu.load_rom(&rom);
 
     assert_eq!(cpu.run(10_000), Ok(3));
