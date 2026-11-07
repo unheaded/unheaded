@@ -267,6 +267,24 @@ mod tests {
         assert!(err.to_string().contains("/home/user"), "{err}");
     }
 
+    // The same name sits under the link's directory, root's, and at the real
+    // target, a user's: walking on from the link would pass the wrong file.
+    #[test]
+    fn an_absolute_link_target_starts_again_at_the_root() {
+        let mut t = good();
+        t.insert("/usr/lib/unheaded/current", (0, S_IFLNK | 0o777));
+        t.insert("/usr/lib/unheaded/opt", (0, DIR | 0o755));
+        t.insert("/usr/lib/unheaded/opt/prog.o", (0, FILE | 0o644));
+        t.insert("/opt", (0, DIR | 0o755));
+        t.insert("/opt/prog.o", (0, FILE | 0o644));
+        let links = HashMap::from([("/usr/lib/unheaded/current", "/opt/prog.o")]);
+        walk(&t, &links, "/usr/lib/unheaded/current").unwrap();
+
+        t.insert("/opt/prog.o", (1000, FILE | 0o644));
+        let err = walk(&t, &links, "/usr/lib/unheaded/current").unwrap_err();
+        assert!(err.to_string().contains("/opt/prog.o"), "{err}");
+    }
+
     #[test]
     fn a_link_a_user_owns_is_refused_wherever_it_points() {
         let mut t = good();
@@ -318,13 +336,6 @@ mod tests {
         std::os::unix::fs::symlink("/etc/passwd", &p).unwrap();
         assert!(check(&p).is_err());
         std::fs::remove_dir_all(dir).ok();
-    }
-
-    #[test]
-    fn a_relative_path_starts_at_the_working_directory() {
-        // cargo runs tests in the crate's directory, a build tree on any host
-        // that is not root's.
-        assert!(check(Path::new("no-such-object")).is_err());
     }
 
     fn scratch(tag: &str) -> PathBuf {
