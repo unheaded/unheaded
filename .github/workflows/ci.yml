@@ -163,6 +163,34 @@ jobs:
       - name: Test
         run: cargo test --locked --manifest-path crates/monad-mbc/Cargo.toml
 
+  # Rust crates whose tests no other job ran until 2026-11-07: CI tested only
+  # monad-mbc, and ebpf.yml the loaders, svc-token and objtrust. upc-api is
+  # the loader both UPC loaders share (71 tests). Held to the full list by
+  # tests/scripts/test_rust_ci.py.
+  rust-crates:
+    name: Rust tests (${{ matrix.crate }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        crate: [crates/upc-api, crates/upc-bootstub, crates/upc-cartridge, crates/xv6-mbc, crates/zhend]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
+        with:
+          toolchain: stable
+
+      # zhend's tonic-build runs protoc.
+      - name: Install protoc
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
+
+      - name: Test
+        working-directory: ${{ matrix.crate }}
+        run: cargo test --locked
+
   spdx-check:
     name: SPDX License Headers
     runs-on: ubuntu-latest
@@ -203,7 +231,7 @@ jobs:
     name: CI Gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [go-build, go-lint, rust-check, spdx-check, license-check]
+    needs: [go-build, go-lint, rust-check, rust-crates, spdx-check, license-check]
     if: always()
     steps:
       - name: Check all required jobs passed
@@ -211,6 +239,7 @@ jobs:
           echo "go-build: ${{ needs.go-build.result }}"
           echo "go-lint: ${{ needs.go-lint.result }}"
           echo "rust-check: ${{ needs.rust-check.result }}"
+          echo "rust-crates: ${{ needs.rust-crates.result }}"
           echo "spdx-check: ${{ needs.spdx-check.result }}"
           echo "license-check: ${{ needs.license-check.result }}"
           failed=0
@@ -218,6 +247,7 @@ jobs:
             "${{ needs.go-build.result }}" \
             "${{ needs.go-lint.result }}" \
             "${{ needs.rust-check.result }}" \
+            "${{ needs.rust-crates.result }}" \
             "${{ needs.spdx-check.result }}" \
             "${{ needs.license-check.result }}"; do
             if [ "$result" != "success" ]; then
