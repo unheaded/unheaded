@@ -117,3 +117,32 @@ func TestParseSetManFlag(t *testing.T) {
 		t.Errorf("a program with no flags of its own has no [OPTION]...:\n%s", o.String())
 	}
 }
+
+// A page is generated on one host and read on all of them, so a default under
+// the generating user's home is written from ~, and two homes give one page.
+func TestManWritesHomeDefaultsFromTilde(t *testing.T) {
+	page := func(home string) string {
+		t.Setenv("HOME", home)
+		return manFor(t, Spec{Name: "zhen"}, func(fs *flag.FlagSet) {
+			fs.String("state", home+"/.local/state/zhen", "state `DIR`")
+			fs.String("sibling", home+"2/state", "not under home")
+			fs.String("etc", "/etc/zhen", "system `DIR`")
+		})
+	}
+	out := page("/home/builder")
+	for _, want := range []string{
+		"state DIR (default ~/.local/state/zhen)",
+		"not under home (default /home/builder2/state)",
+		"system DIR (default /etc/zhen)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("page lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "/home/builder/") {
+		t.Errorf("page carries the builder's home:\n%s", out)
+	}
+	if other := page("/home/runner"); strings.ReplaceAll(other, "runner", "builder") != out {
+		t.Errorf("two homes gave two pages:\n%s\n---\n%s", out, other)
+	}
+}

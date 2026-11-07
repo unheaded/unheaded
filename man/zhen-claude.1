@@ -1,4 +1,4 @@
-.TH ZHEN\-CLAUDE 1 "2026-11-04" "unheaded v0.0.0-20261104150357-41cfe4d85229+dirty" "Unheaded Kingdom"
+.TH ZHEN\-CLAUDE 1 "2026-11-07" "unheaded 7d9620c1" "Unheaded Kingdom"
 .SH NAME
 zhen\-claude \- ZhenAI's bridge to the Claude API (ADR\-104): a one\-shot prompt or a REPL, every tool call through the Champion gate.
 .SH SYNOPSIS
@@ -19,7 +19,7 @@ standard \-check commands: go, json, cite (see zhen\-claude check \-\-help)
 .SH OPTIONS
 .TP
 .B \-\-agent\-root \fISTRING\fR
-agent worktrees live under here (env ZHEN_AGENT_WT_ROOT) (default /home/govan/.cache/unheaded/zhen\-worktrees)
+agent worktrees live under here (env ZHEN_AGENT_WT_ROOT) (default ~/.cache/unheaded/zhen\-worktrees)
 .TP
 .B \-\-audit\-well
 also record every request in the Well's llm_requests and every tool decision in audit_events (DSN from env WELL_OPS_DSN); Well unreachable = read\-only run
