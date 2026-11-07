@@ -68,7 +68,7 @@ in {
       "d /var/log/unheaded        0750 unheaded unheaded -"
     ];
     
-    # Firewall
-    networking.firewall.allowedTCPPorts = [ cfg.port ];
+    # No firewall rule: shield binds loopback unless given --listen, and off
+    # loopback it needs AUTH_ENABLED=true.
   };
 }

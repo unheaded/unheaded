@@ -226,17 +226,16 @@ in
           ];
         };
 
-        # Firewall rules for AI services
+        # Firewall rules for AI services. None for sophia-gateway: it binds
+        # loopback, its metrics too, unless SOPHIA_GATEWAY_BIND says otherwise.
         networking.firewall.enable = true;
         networking.firewall.allowedTCPPorts = [
           20102  # Qdrant HTTP
           20103  # Qdrant gRPC
           20104  # BGE-M3 embeddings
-          20105  # Sophia's Eye gateway
           6333   # Qdrant (internal)
           6334   # Qdrant gRPC (internal)
           8002   # Embeddings internal
-          9090   # Prometheus metrics
         ];
 
         networking.firewall.allowedUDPPorts = [

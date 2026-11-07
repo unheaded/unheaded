@@ -82,7 +82,6 @@
         50052   # gRPC (sophia)
         50053   # gRPC (wotan)
         50054   # gRPC (anamnesis)
-        50055   # gRPC (shield)
         4222    # NATS
       ];
       allowedUDPPorts = [
