@@ -1178,7 +1178,7 @@ fn syscall_nanosleep_wraps_on_any_timespec() {
 /// run the way that target runs it: 16 registers, then the ROM.
 #[test]
 fn nanosleep_seed_input_runs_to_halt() {
-    let data = include_bytes!("../fuzz/corpus/fuzz_mbc_execute/regress-nanosleep-overflow");
+    let data = include_bytes!("../fuzz/seeds/fuzz_mbc_execute/regress-nanosleep-overflow");
     let (regs, rom) = data.split_at(64);
 
     let mut cpu = ExecCpu::new();
