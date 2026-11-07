@@ -24,7 +24,8 @@
 # CAP_DAC_READ_SEARCH only: it reads root-only files the manifest lists, and
 # it can write nothing root owns. The BPF hooks (--bpf-dir, --xdp-iface) need
 # CAP_BPF and CAP_PERFMON and are off here; without them it polls every
-# --scan-interval. Turning them on is a separate decision.
+# --scan-interval. Turning them on is a separate decision. The deb installs the
+# objects root-owned in /usr/lib/unheaded/ebpf, which is the --bpf-dir to give.
 #
 # Mount namespacing is limited to what keeps every scanned path visible:
 # ProtectSystem=strict and ProtectHome=read-only leave /etc, /usr, /boot and

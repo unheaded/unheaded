@@ -46,8 +46,8 @@ const (
 
 	// DefaultPinRoot holds one directory per experiment.
 	DefaultPinRoot = "/sys/fs/bpf/unheaded/chaos"
-	// DefaultObject is where a root install puts the program. Nothing in this
-	// repo installs it yet. YALD_OBJ (ObjectPath) points elsewhere; a build tree
+	// DefaultObject is where the unheaded-chaos-controller deb installs the
+	// program, root-owned. YALD_OBJ (ObjectPath) points elsewhere; a build tree
 	// also needs YALD_ALLOW_UNTRUSTED_OBJ=1 (AllowUntrustedObject).
 	DefaultObject = "/usr/lib/unheaded/ebpf/yaldabaoth-ebpf"
 

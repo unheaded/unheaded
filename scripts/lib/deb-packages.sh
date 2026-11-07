@@ -63,6 +63,28 @@ deb_extra_units() {
 	esac
 }
 
+# Where a package puts the eBPF objects its binary loads. dpkg installs them
+# root-owned, which is what pkg/ebpf/objtrust asks of an object and its
+# directories. Yaldabaoth's DefaultObject is here; heimdall takes it as --bpf-dir.
+# shellcheck disable=SC2034  # read by scripts/build-all-debs.sh
+DEB_OBJECT_DIR=usr/lib/unheaded/ebpf
+
+# deb_object_crate BINARY: the crate directory its eBPF objects build from.
+deb_object_crate() {
+	case "$1" in
+	chaos-controller) echo ebpf ;;
+	heimdall-daemon) echo crates/heimdall-bpf ;;
+	esac
+}
+
+# deb_objects BINARY: the eBPF objects it loads (cargo [[bin]] names).
+deb_objects() {
+	case "$1" in
+	chaos-controller) echo yaldabaoth-ebpf ;;
+	heimdall-daemon) echo heimdall-vfs-write heimdall-execve heimdall-gjallarhorn-xdp ;;
+	esac
+}
+
 # deb_identity_for BINARY: the auth identity the binary runs as (the key its
 # postinst creates: the name it passes to auth.LoadServiceAuthConfig or
 # wotanClient.InitServiceIdentity). Empty: the binary holds no service key

@@ -12,8 +12,10 @@
 # from scripts/lib/deb-packages.sh; the maintainer scripts from
 # scripts/lib/deb-maintscripts.sh. Binaries come from
 # scripts/build-binaries.sh (ADR-085); a binary that fails to build fails
-# this script instead of being skipped. Only .deb files (and SHA256SUMS)
-# land in the output directory; package trees are staged in a temp dir.
+# this script instead of being skipped. The eBPF objects chaos-controller and
+# heimdall-daemon load are built here too, which needs nightly and bpf-linker.
+# Only .deb files (and SHA256SUMS) land in the output directory; package trees
+# are staged in a temp dir.
 set -euo pipefail
 # Package modes must not depend on the builder's umask (0002 made unit
 # files 0664 and directories 0775 inside the .deb).
@@ -72,6 +74,21 @@ echo "=============================================="
 echo "Building binaries..."
 cd "$PROJECT_ROOT"
 "$PROJECT_ROOT/scripts/build-binaries.sh" --out "$BIN_DIR" "${DEB_SERVICES[@]}" unheaded-keygen
+
+# The objects get their own target directory: a plain build in ebpf/ is what a
+# boot loads, and its features are not these.
+OBJECT_TARGET=target/deb
+command -v bpf-linker >/dev/null || {
+    echo "FAIL: bpf-linker is not installed (cargo install bpf-linker@0.10.2 --locked): the eBPF objects cannot build" >&2
+    exit 1
+}
+echo "Building eBPF objects..."
+for svc in "${DEB_SERVICES[@]}"; do
+    read -r -a OBJECTS <<<"$(deb_objects "$svc")"
+    [[ ${#OBJECTS[@]} -gt 0 ]] || continue
+    (cd "$PROJECT_ROOT/$(deb_object_crate "$svc")" &&
+        cargo build --locked --release --target-dir "$OBJECT_TARGET" "${OBJECTS[@]/#/--bin=}")
+done
 
 # control PKG ARCH DEPENDS DESCRIPTION BODY [EXTRA_FIELDS]
 control() {
@@ -142,6 +159,10 @@ for svc in "${DEB_SERVICES[@]}"; do
 
     install -D -m 0755 "$BIN_DIR/$svc" "$P/opt/unheaded/bin/$svc"
     install_man "$svc" "$P"
+    for object in $(deb_objects "$svc"); do
+        install -D -m 0644 "$PROJECT_ROOT/$(deb_object_crate "$svc")/$OBJECT_TARGET/bpfel-unknown-none/release/$object" \
+            "$P/$DEB_OBJECT_DIR/$object"
+    done
 
     # The repo's units (own account, sandbox) under their repo names, binary
     # path moved to where the package puts it.

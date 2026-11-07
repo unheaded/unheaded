@@ -15,7 +15,7 @@ import (
 )
 
 // L17: the chaos object is checked before anything happens, pin directory
-// included. Nothing installs it yet, so the lab reaches it through YALD_OBJ
+// included. A build tree is not the deb's install, so the lab reaches it through YALD_OBJ
 // and says so with YALD_ALLOW_UNTRUSTED_OBJ.
 func TestLinuxBackendLoad_ChecksTheObject(t *testing.T) {
 	dir := t.TempDir()

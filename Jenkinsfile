@@ -232,6 +232,8 @@ pipeline {
             # VERSION that is not a Debian version (the default "dev")
             # builds with the commit-derived default.
             case "${VERSION}" in [0-9]*) V="${VERSION}" ;; *) V="" ;; esac
+            # The debs carry eBPF objects; pinned as in static-analysis.yml.
+            command -v bpf-linker >/dev/null || cargo install bpf-linker@0.10.2 --locked
             DEB_OUTPUT_DIR=build/deb ./scripts/build-all-debs.sh ${V:+"$V"}
             ls -lh build/deb/*.deb 2>/dev/null
           '''
