@@ -20,7 +20,7 @@ in {
     
     prometheusRemoteWriteUrl = mkOption {
       type = types.str;
-      default = "http://fd00:dead:beef:wg::1:8428/api/v1/write";
+      default = "http://[fd00:dead:beef:wg::1]:8428/api/v1/write";
       description = "VictoriaMetrics remote_write URL (used by agent nodes)";
     };
     
@@ -197,7 +197,7 @@ in {
         positions:
           filename: /var/lib/promtail/positions.yaml
         clients:
-          - url: http://fd00:dead:beef:wg::1:3100/loki/api/v1/push
+          - url: http://[fd00:dead:beef:wg::1]:3100/loki/api/v1/push
         scrape_configs:
           - job_name: unheaded-systemd
             journal:
