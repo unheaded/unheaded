@@ -6,11 +6,13 @@ on:
     paths:
       - 'ebpf/**'
       - 'crates/svc-token/**'
+      - 'crates/objtrust/**'
   pull_request:
     branches: [main, develop, staging]
     paths:
       - 'ebpf/**'
       - 'crates/svc-token/**'
+      - 'crates/objtrust/**'
 
 jobs:
   svc-token:
@@ -29,6 +31,12 @@ jobs:
       # Go cross-check is tests/svctoken (Go CI job).
       - name: svc-token (clippy, format, test)
         working-directory: crates/svc-token
+        run: cargo clippy --locked --all-targets -- -D warnings && cargo fmt -- --check && cargo test --locked
+
+      # What every Rust loader asks before it reads an object. Its Go twin is
+      # pkg/ebpf/objtrust.
+      - name: objtrust (clippy, format, test)
+        working-directory: crates/objtrust
         run: cargo clippy --locked --all-targets -- -D warnings && cargo fmt -- --check && cargo test --locked
 
   ebpf-programs:
