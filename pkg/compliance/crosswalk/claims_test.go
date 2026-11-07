@@ -29,6 +29,10 @@ var retiredClaims = []struct{ file, claim string }{
 	{"README.md", "gRPC with mTLS by default"},
 	{"VISION.md", "It gets the hosting evidence for free"},
 	{"wiki/Security-Audit.md", "default-deny firewall, services talk via Wotan, uniform container hardening, isolated compose network | PASS |"},
+	// A1 said a finding that could let someone sign as the owner is never
+	// accepted, while agents' commits are signed with the owner's key.
+	{"compliance/policies/risk-management-strategy.md", "A finding that could let someone sign as the owner"},
+	{"compliance/policies/single-operator-posture.md", "a warm gpg-agent"},
 	// The 2026-07-29 secrets decision, replaced on 2026-11-06: the repository is public.
 	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "RESOLVED BY RISK DECISION"},
 	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "Rotating them buys little"},
@@ -49,6 +53,8 @@ var requiredNotes = []struct{ file, note string }{
 	{"compliance/findings/register.yaml", "only the signed reprepro repo"},
 	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "every value in history counts as burned"},
 	{"CLAUDE.md", "every value in history counts as burned"},
+	{"compliance/policies/risk-management-strategy.md", "signed with Stevie's key and carry `Co-Authored-By` and `Claude-Session` trailers"},
+	{"compliance/policies/single-operator-posture.md", "signed with Stevie's key and carry `Co-Authored-By` and `Claude-Session` trailers"},
 }
 
 func TestRetiredClaimsStayRetired(t *testing.T) {

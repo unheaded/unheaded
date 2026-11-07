@@ -154,7 +154,10 @@ controls:
     title: Commits on the development branch are cryptographically signed
     statement: >-
       Every commit reachable from develop within the checked window carries
-      a good GPG signature from a trusted key (git %G? == G).
+      a good GPG signature from a trusted key (git %G? == G). The key is
+      Stevie's: agents' commits are signed with it too, and carry
+      Co-Authored-By and Claude-Session trailers, so a signature attributes a
+      commit to the key, not to a person's reading of it (risk strategy A1).
     rationale: >-
       Attributable, tamper-evident change records (AU-10 non-repudiation;
       CM-3 configuration change control; 800-171 03.04.03); SSDF PS.1

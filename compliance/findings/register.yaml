@@ -1910,19 +1910,24 @@ findings:
     decision: whether "evidenced" keeps counting declared configuration
   - id: FND-038
     title: >-
-      Agents sign commits with the owner's key: a warm gpg-agent signs whatever an agent commits, so a signature shows the
-      cache was warm, not who decided, and sign-attestation.sh checks only git config user.email
-    verify: agent commits verify against a key of their own, and the owner's key signs only attestations and promotions
+      One signing key: agents' commits are signed with Stevie's key and carry Co-Authored-By and Claude-Session trailers,
+      so a signature attributes a commit to the key, not to a person's reading of it
+    verify: >-
+      the risk strategy's A1 and the posture state this (TestRetiredClaimsStayRetired holds the wording), and every agent
+      commit on develop carries both trailers
     severity: high
     class: ci
     opened: 2026-11-05
     exposure: >-
-      UH-SIGN-01 and AU-10 lose their meaning for agent work, and the risk strategy's A1 says a finding that could let
-      someone sign as the owner is fixed, not accepted. Agents' commits do carry a co-author trailer
+      what UH-SIGN-01 and AU-10 show for agent work: the key signed it and the trailers name the session; neither shows
+      that Stevie read the change
     lockout: none
     step: 7
-    plan: Give agents their own signing key and identity, or keep the practice and say so in the posture and in A1
-    decision: agents get their own key, or the written position changes
+    plan: >-
+      Stevie 2026-11-06: no separate agent key, and A1 is rewritten to say how commits are really signed. Done in the
+      posture, A1 and UH-SIGN-01's statement. The YubiKey custody work may change this later
+    decision: closing this entry is Stevie's word; no agent key, so the written position is what changed
+
   - id: FND-039
     title: >-
       The evidence file can be edited: var/compliance/evidence.json is unsigned, git-ignored and writable by the operator

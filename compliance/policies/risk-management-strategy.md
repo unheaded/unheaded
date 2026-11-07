@@ -23,7 +23,7 @@ Defaults, written so they can be held to. **Open for Stevie (S-WELL-SPRING E-E):
 
 | # | Statement (default) | Holds while |
 |---|---|---|
-| A1 | **Keys and source integrity: no appetite.** A finding that could let someone sign as the owner, push to the repository, or forge evidence or drift events is fixed, not accepted. | always |
+| A1 | **Keys and source integrity: no appetite.** A finding that could let anyone outside this project sign with Stevie's key, push to the repository, or forge evidence or drift events is fixed, not accepted. There is one signing key and no agent key: Claude Code agents' commits are signed with Stevie's key and carry `Co-Authored-By` and `Claude-Session` trailers. So a signature shows that Stevie's key signed the commit, and the trailers show which agent session wrote it; a signature alone does not show that Stevie read the change (Stevie, 2026-11-06; FND-038). | always |
 | A2 | **Availability: lab appetite.** Outages within the SLO targets (99.5 % / 99 %, ADR-100) are accepted; budgets are not frozen when spent. A *silent* failure is not accepted: every outage must be detectable (Watchdog, heartbeat, SLO pages). | the hosts serve only the operator |
 | A3 | **Host hardening deviations: accepted while LAN-only.** CIS deviations on west and east may be accepted for up to 90 days at a time (ADR-098 answer 10: until 2026-12-30) because the hosts are reachable from the home LAN and the P2P link only. Any internet exposure ends every such acceptance and requires rotating the baselined lab credentials first. | no internet-facing listener on either host |
 
