@@ -88,6 +88,7 @@ func main() {
 		schedState       = flag.String("schedules-state", os.Getenv("ZHEN_SCHEDULES_STATE"), "with -scheduler: where run-time schedule changes (POST /api/v1/scheduler/add|remove|pause) persist (env ZHEN_SCHEDULES_STATE); empty keeps them until restart")
 		retrieveDeadline = flag.Duration("retrieve-deadline", 2*time.Second, "how long each retrieval waits for each backend; a backend past it is skipped, reads and answers go on, and its silence holds every mutating call (0: no deadline)")
 		codeIndex        = flag.String("code-index", os.Getenv("ZHEN_CODE_INDEX_DIR"), "source shard written by zhen-codeindex, searched beside vor (env ZHEN_CODE_INDEX_DIR; empty: vor alone)")
+		corpusIndex      = flag.String("corpus-index", os.Getenv("ZHEN_CORPUS_INDEX_DIR"), "Grimoire corpus written by zhen-codeindex --corpus, searched beside vor (env ZHEN_CORPUS_INDEX_DIR; empty: not searched)")
 		metricsAddr      = flag.String("metrics-addr", os.Getenv("ZHEN_METRICS_ADDR"), "also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20111'; the API stays on -host")
 	)
 	var wf workerFlags
@@ -252,7 +253,7 @@ func main() {
 		pool:          pool,
 		defaultRoot:   rootAbs,
 		allowed:       allowed,
-		retriever:     newRetriever(httpClient, vorURL, *codeIndex, *retrieveDeadline),
+		retriever:     newRetriever(httpClient, vorURL, *codeIndex, *corpusIndex, *retrieveDeadline),
 		llm:           &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor, gpuLock: wf.gpuLock, energy: energy.Discover()},
 		vorURL:        vorURL,
 		llamaURL:      llamaURL,
@@ -1182,11 +1183,15 @@ type vorRetriever struct {
 	index    *vorquery.Index // topic names, for vorquery's name matching
 }
 
-// newRetriever federates vor with the source shard when codeIndex is set.
-func newRetriever(client *http.Client, vorURL, codeIndex string, deadline time.Duration) *retrieval.Federated {
+// newRetriever federates vor with the source shard when codeIndex is set and
+// the Grimoire corpus when corpusIndex is.
+func newRetriever(client *http.Client, vorURL, codeIndex, corpusIndex string, deadline time.Duration) *retrieval.Federated {
 	backends := []retrieval.Backend{&vorRetriever{client: client, baseURL: vorURL, maxChars: defaultMaxChars, index: vorquery.NewIndex(client, vorURL)}}
 	if codeIndex != "" {
 		backends = append(backends, retrieval.NewCodeBackend(codeindex.NewStore(codeIndex)))
+	}
+	if corpusIndex != "" {
+		backends = append(backends, retrieval.NewCorpusBackend(codeindex.NewStore(corpusIndex)))
 	}
 	return retrieval.New(backends, deadline, func(backend, outcome string) {
 		retrievalBackendTotal.WithLabelValues(backend, outcome).Inc()

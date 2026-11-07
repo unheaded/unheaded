@@ -101,7 +101,7 @@ var (
 		prom.CounterOpts{
 			Namespace: "zhen_agentd",
 			Name:      "retrieval_backend_total",
-			Help:      "Retrieval calls by backend (vor, code) and outcome (ok, timeout, error).",
+			Help:      "Retrieval calls by backend (vor, code, grimoire) and outcome (ok, timeout, error).",
 		},
 		[]string{"backend", "outcome"},
 	)
