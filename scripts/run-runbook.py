@@ -545,7 +545,7 @@ def execute_rollback(runbook, env, failed_step, dry_run=False):
         if command:
             # The output was discarded, so echo-only rollback steps (the
             # restore instructions) printed nothing, and failures were silent.
-            code, out, err = run_command(command, env=env, dry_run=dry_run)
+            code, out, err = run_command(command, timeout=rb.get("timeout", 120), env=env, dry_run=dry_run)
             for line in (out.split("\n") if out and not dry_run else []):
                 print(f"           {line}")
             if code != 0 and not dry_run:

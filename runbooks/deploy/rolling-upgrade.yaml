@@ -21,6 +21,9 @@ notes: |
   A failed run can be started again at the same commit: the debs built for it
   are kept, because the repo refuses one version with other bytes and a rebuild
   has other bytes. A run on a newer commit is a new version.
+  The rollback restores the packages each host held, from the debs record-previous
+  kept in dist/debs/rollback-<commit>. A host holding a version with no deb in
+  the repo's pool or under dist/debs stops the run before anything moves.
 
 env:
   # What apt-repo-publish's install-east installs, under the names
@@ -105,6 +108,16 @@ steps:
     timeout: 1200
     description: "Build all .deb packages from the current commit into their own directory, once per commit"
 
+  - name: record-previous
+    action: shell
+    # Before the publish: the repo keeps one version of a package, so including
+    # this build drops the debs a rollback needs.
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh record "dist/debs/rollback-$(git rev-parse --short=8 HEAD)" "${APT_REPO_BASE}" ${UNHEADED_PKGS}
+    description: "Record what each host holds and keep the debs to put it back, or stop with nothing moved"
+
   - name: publish-to-repo
     action: shell
     command: |
@@ -185,10 +198,32 @@ steps:
       done
 
 rollback:
-  - name: restore-previous-version
+  - name: restore-west
     action: shell
+    timeout: 900
     command: |
-      echo "To rollback: sudo apt install unheaded-wotan=<previous_version>"
-      echo "Then, only if the upgrade damaged data: restore the set named in"
-      echo "/srv/backups/unheaded-well/LATEST (wiki/Well-Backups.md#restore)"
-    when: "step.verify-east-health.failed"
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh restore west "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
+    description: "Put WEST back at the versions it held; fails unless it got there"
+    when: "step.upgrade-west.failed || step.verify-west-health.failed"
+
+  - name: restore-east
+    action: shell
+    timeout: 900
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh restore east "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
+    description: "Put EAST back at the versions it held; fails unless it got there"
+    when: "step.upgrade-east-first.failed || step.verify-east-health.failed || step.upgrade-west.failed || step.verify-west-health.failed"
+
+  - name: restore-data
+    action: manual
+    command: |
+      Only if the upgrade damaged data: restore the set named in
+      /srv/backups/unheaded-well/LATEST (wiki/Well-Backups.md#restore).
+      The repo still serves the failed build: an apt-get upgrade on east moves
+      it forward again until a fixed commit is published.
+    description: "What the package rollback does not cover"
+    when: "step.upgrade-east-first.failed || step.verify-east-health.failed || step.upgrade-west.failed || step.verify-west-health.failed"
