@@ -284,6 +284,7 @@ func main() {
 	mux.Handle("/api/v1/memory/remember", instrument("/api/v1/memory/remember", http.HandlerFunc(srv.handleMemoryRemember)))
 	mux.Handle("/api/v1/conversations", instrument("/api/v1/conversations", http.HandlerFunc(srv.handleConversations)))
 	mux.Handle("/api/v1/models", instrument("/api/v1/models", http.HandlerFunc(srv.handleModels)))
+	mux.Handle("/api/v1/whoami", instrument("/api/v1/whoami", http.HandlerFunc(srv.handleWhoami)))
 	srv.registerScheduler(mux)
 
 	schedCtx, stopSched := context.WithCancel(context.Background())
