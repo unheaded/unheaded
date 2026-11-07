@@ -177,6 +177,39 @@ func TestAuthE2E_HTTPMessageCarriesVerifiedSender(t *testing.T) {
 	}
 }
 
+// The room API is a publish path too, and a topic's room is its name.
+func TestAuthE2E_RoomSendCarriesVerifiedSender(t *testing.T) {
+	w := newAuthedHTTPWotan(t)
+	_, _, id := w.subscribe(t, w.f.Bearer("captain", "wotan"), "system.health.reports", "a-label")
+	body := `{"room_id":"system.health.reports","member_id":"` + id + `","content":"p"}`
+	if rec := w.do(http.MethodPost, "/api/v1/messages/send", body, w.f.Bearer("captain", "wotan")); rec.Code != http.StatusCreated {
+		t.Fatalf("send = %d: %s", rec.Code, rec.Body)
+	}
+	rec := w.do(http.MethodGet, "/api/v1/topics/system.health.reports/messages", "", w.f.Bearer("timeguru", "wotan"))
+	var got struct {
+		Messages []TopicMessage `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Messages) != 1 || got.Messages[0].VerifiedSender != "captain" {
+		t.Fatalf("messages = %s, want one with verified_sender captain", rec.Body)
+	}
+}
+
+// Only a service's own key proves a service: an identity of any other kind is
+// a caller, whatever it is named, so its messages carry no stamp.
+func TestVerifiedSender_OnlyAServiceKeyStamps(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/", nil)
+	if got := verifiedSender(r); got != "" {
+		t.Errorf("no identity: stamp = %q", got)
+	}
+	r = r.WithContext(auth.ContextWithRole(r.Context(), "operator"))
+	if got := verifiedSender(r); got != "" {
+		t.Errorf("identity with no service key: stamp = %q", got)
+	}
+}
+
 // With auth off nothing was verified, so nothing may claim to be.
 func TestPublish_AuthOffCarriesNoVerifiedSender(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "wotan.yaml")

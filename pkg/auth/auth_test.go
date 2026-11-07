@@ -717,3 +717,16 @@ func TestMiddlewareMetricsRequiresObserver(t *testing.T) {
 	// which allows observer. The actual endpoint matching depends on the policy config.
 	// This test just verifies the middleware chain works for these roles.
 }
+
+func TestServiceSubject_OnlyAServiceKeyNamesAService(t *testing.T) {
+	for method, want := range map[string]string{"eddsa": "akira", "jwks": "", "apikey": "", "service_token": "", "": ""} {
+		id := &Identity{Subject: "akira", Extra: map[string]string{"auth_method": method}}
+		if got := id.ServiceSubject(); got != want {
+			t.Errorf("auth_method %q: subject = %q, want %q", method, got, want)
+		}
+	}
+	var none *Identity
+	if got := none.ServiceSubject(); got != "" {
+		t.Errorf("nil identity: subject = %q", got)
+	}
+}

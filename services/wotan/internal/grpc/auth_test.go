@@ -213,6 +213,33 @@ func TestPublish_AuthOffEventCarriesNoVerifiedSender(t *testing.T) {
 	}
 }
 
+// A caller that is no service key can hold a member and publish through it,
+// but its name proves no service, so the event carries no stamp.
+func TestPublish_OnlyAServiceKeyStamps(t *testing.T) {
+	svc := productionTopicService()
+	ctx := auth.ContextWithRole(context.Background(), "operator")
+	m, err := svc.memberManager.EnsureApproved("system.health.reports", auth.IdentityFromContext(ctx).Subject, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.PublishTopic(ctx, &chatpb.TopicPublishRequest{
+		Topic:    "system.health.reports",
+		Payload:  []byte(`{"x":1}`),
+		SenderId: m.ID.String(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rooms := svc.roomManager.List()
+	if len(rooms) != 1 {
+		t.Fatalf("rooms = %d", len(rooms))
+	}
+	for _, msg := range rooms[0].GetMessages() {
+		if msg.VerifiedSender != "" {
+			t.Fatalf("verified_sender = %q for a caller with no service key", msg.VerifiedSender)
+		}
+	}
+}
+
 func TestAuthE2E_GRPCStreamWithTokenDelivers(t *testing.T) {
 	w := newAuthedWotan(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

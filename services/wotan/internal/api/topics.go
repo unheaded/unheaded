@@ -209,7 +209,7 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send message to room's ring buffer, under the subject verified above.
-	msg, overwritten := rm.SendVerifiedMessage(subscriberUUID, callerName(r), req.Payload, nil)
+	msg, overwritten := rm.SendVerifiedMessage(subscriberUUID, verifiedSender(r), req.Payload, nil)
 	// Counted here as on the gRPC path: this one is where most topics are
 	// fed (logs.*, system.health.*), and it was never counted.
 	if m := metrics.Get(); m != nil {
@@ -276,6 +276,11 @@ func callerName(r *http.Request) string {
 		return id.Subject
 	}
 	return ""
+}
+
+// verifiedSender is the subject a message from r is stamped with.
+func verifiedSender(r *http.Request) string {
+	return auth.IdentityFromContext(r.Context()).ServiceSubject()
 }
 
 // roomErrStatus answers a refused room: a caller over its quota can come back

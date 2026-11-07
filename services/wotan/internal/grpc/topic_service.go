@@ -751,7 +751,7 @@ func (s *TopicService) PublishTopic(
 			SignedAtUnixMs: signed.SignedAtUnixMs,
 		}
 	}
-	msg, overwritten := rm.SendVerifiedMessage(senderID, creator, string(req.Payload), sig)
+	msg, overwritten := rm.SendVerifiedMessage(senderID, identity.ServiceSubject(), string(req.Payload), sig)
 
 	// Persist like the HTTP path: async, so the caller never waits on disk,
 	// and on a context of its own, because the RPC's is cancelled when this

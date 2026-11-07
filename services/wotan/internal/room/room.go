@@ -292,7 +292,7 @@ func (r *Room) SendSignedMessage(creatorID uuid.UUID, content string, sig *ringb
 	return r.SendVerifiedMessage(creatorID, "", content, sig)
 }
 
-// SendVerifiedMessage is SendMessage for a publisher whose token Wotan
+// SendVerifiedMessage is SendMessage for a publisher whose service token Wotan
 // verified: subject goes out with every event for the message, and only
 // Wotan can set it. sig is the verified signature of a signed message, or
 // nil. An empty subject means nothing was verified.
