@@ -184,7 +184,7 @@ func TestUnitsGiveTheAuditLogAPath(t *testing.T) {
 	mode := regexp.MustCompile(`(?m)^LogsDirectoryMode=0750$`)
 	found := 0
 	for _, u := range units {
-		b, err := os.ReadFile(u) // #nosec G304 -- this repo's unit files
+		b, err := os.ReadFile(u)
 		if err != nil {
 			t.Fatal(err)
 		}

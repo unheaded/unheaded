@@ -30,10 +30,6 @@ type rotatingFile struct {
 	limit int64 // the size that triggers the next rotation
 }
 
-func openAuditFile(path string) (*os.File, error) {
-	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) // #nosec G304 -- auth store path from configuration, not from a request
-}
-
 func openRotatingFile(path string, maxBytes int64, keep int) (*rotatingFile, error) {
 	f, err := openAuditFile(path)
 	if err != nil {

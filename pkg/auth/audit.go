@@ -64,6 +64,11 @@ func NewAuditLogger(w io.Writer, serviceName string) *AuditLogger {
 	return &AuditLogger{w: w, service: serviceName}
 }
 
+// openAuditFile opens path for appending, creating it 0600 if needed.
+func openAuditFile(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // #nosec G304 -- auth store path from configuration, not from a request
+}
+
 // NewFileAuditLogger creates an audit logger that appends to a file, creating
 // it if needed. The file rotates by size (see rotatingFile).
 func NewFileAuditLogger(path, serviceName string) (*AuditLogger, error) {
