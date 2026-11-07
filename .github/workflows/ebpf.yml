@@ -49,6 +49,13 @@ jobs:
         working-directory: crates/objtrust
         run: cargo clippy --locked --all-targets -- -D warnings && cargo fmt -- --check && cargo test --locked
 
+      # The [lib] crates the BPF programs and their loaders share (common,
+      # monad-common, pqc-common: 163 tests on 2026-11-07). ebpf/'s own
+      # .cargo/config.toml forces the BPF target, so the Makefile runs them
+      # from the repo root with a separate target dir. No job ran them before.
+      - name: ebpf common crates (host tests)
+        run: make test-rust-ebpf-common
+
   # Each loader's tests/object_trust.rs: the loader refuses an object a non-root
   # user could write before it reads one, and upc-bootctl's unit does not point
   # at a directory its own account owns. objtrust's own tests above cannot see a
