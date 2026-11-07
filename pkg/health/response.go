@@ -13,9 +13,10 @@
 package health
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
+
+	"unheaded/pkg/httputil"
 )
 
 // HealthStatus represents the health state of a service.
@@ -68,7 +69,5 @@ func WriteDegraded(w http.ResponseWriter, service, version string) {
 }
 
 func writeHealthResponse(w http.ResponseWriter, status int, resp Response) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, status, resp)
 }

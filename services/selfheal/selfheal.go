@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -231,8 +232,7 @@ func (s *Service) registerRoutes(mux *http.ServeMux) {
 
 // handleHealth responds with service health status.
 func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "selfheal",
 		"timestamp": time.Now(),
@@ -241,8 +241,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // handleReady responds with readiness status.
 func (s *Service) handleReady(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"ready":   atomic.LoadInt32(&s.started) == 1,
 		"service": "selfheal",
 	})
@@ -311,8 +310,7 @@ func (s *Service) handleEndpoints(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"endpoints": endpoints,
 		"count":     len(endpoints),
 	})
@@ -358,8 +356,7 @@ func (s *Service) getEndpointHealth(w http.ResponseWriter, _ *http.Request, endp
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ep) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, ep)
 }
 
 // triggerFailover performs manual failover for an endpoint.
@@ -409,8 +406,7 @@ func (s *Service) triggerFailover(w http.ResponseWriter, _ *http.Request, endpoi
 		"timestamp":   now.UnixMilli(),
 	})
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(event) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, event)
 }
 
 // triggerRecovery performs manual recovery for an endpoint.
@@ -442,8 +438,7 @@ func (s *Service) triggerRecovery(w http.ResponseWriter, _ *http.Request, endpoi
 		"timestamp":    now.UnixMilli(),
 	})
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"endpoint_id":  endpointID,
 		"health_score": ep.HealthScore,
 		"circuit":      ep.CircuitState,
@@ -472,8 +467,7 @@ func (s *Service) listBackups(w http.ResponseWriter, _ *http.Request) {
 	}
 	s.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"backups": rosters,
 		"count":   len(rosters),
 	})
@@ -513,9 +507,7 @@ func (s *Service) updateBackup(w http.ResponseWriter, r *http.Request) {
 		Int("backup_count", len(req.Backups)).
 		Msg("backup roster updated")
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(roster) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusCreated, roster)
 }
 
 // handleCircuitBreakers returns all circuit breaker states.
@@ -532,8 +524,7 @@ func (s *Service) handleCircuitBreakers(w http.ResponseWriter, r *http.Request) 
 	}
 	s.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"circuit_breakers": breakers,
 		"count":            len(breakers),
 	})

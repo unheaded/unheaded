@@ -28,7 +28,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -219,7 +218,5 @@ func newHandler(h http.Handler, addr string, cfg auth.ServiceAuthConfig) (http.H
 }
 
 func writeJSON(w http.ResponseWriter, code int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(body)
+	httputil.WriteJSON(w, code, body)
 }

@@ -4,7 +4,6 @@
 package transport
 
 import (
-	"encoding/json"
 	"net/http"
 	"sync"
 	"unheaded/pkg/httputil"
@@ -110,16 +109,11 @@ func (h *HealthServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		HTTP:    httpOK,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	switch status {
-	case StatusHealthy:
-		w.WriteHeader(http.StatusOK)
-	case StatusDegraded:
-		w.WriteHeader(http.StatusOK) // 200 but status field says DEGRADED
-	case StatusDown:
-		w.WriteHeader(http.StatusServiceUnavailable)
+	code := http.StatusOK // DEGRADED too: 200, and the status field says so
+	if status == StatusDown {
+		code = http.StatusServiceUnavailable
 	}
-	_ = json.NewEncoder(w).Encode(resp)
+	httputil.WriteJSON(w, code, resp)
 }
 
 // handleReady implements the HTTP /ready endpoint.

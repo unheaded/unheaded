@@ -101,8 +101,8 @@ topics:
   # HEALTH_SIGNING_KEY_FILE (0400) and refuse to publish these topics
   # without one, never sending them unsigned. alerts.* as a whole is not
   # signed (unsigned service alerts live there); system.health.reports is
-  # not signed (every service votes there; its sender is the verified
-  # service token).
+  # not signed: every service votes there, and Akira takes the reporter from
+  # the verified_sender Wotan stamps on the message (pkg/healthreport.Admit).
   signed_prefixes:
     - prefix: "drift."
       keys: []

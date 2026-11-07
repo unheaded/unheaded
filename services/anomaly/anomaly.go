@@ -321,8 +321,7 @@ func (s *Service) handleTopAnomalies(w http.ResponseWriter, r *http.Request) {
 		scores = scores[:limit]
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"flows": scores,
 		"count": len(scores),
 	})
@@ -365,8 +364,7 @@ func (s *Service) handleHeatmap(w http.ResponseWriter, r *http.Request) {
 		cells = append(cells, *cell)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"cells": cells,
 		"count": len(cells),
 	})
@@ -402,8 +400,7 @@ func (s *Service) handleBaseline(w http.ResponseWriter, r *http.Request) {
 		response["threshold"] = threshold
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, response)
 }
 
 // handleModelConfig returns the active model metadata.
@@ -417,8 +414,7 @@ func (s *Service) handleModelConfig(w http.ResponseWriter, r *http.Request) {
 	config := *s.modelConfig
 	s.mu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(config) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, config)
 }
 
 // handleModelUpdate updates the model weights (push to BPF map).
@@ -455,8 +451,7 @@ func (s *Service) handleModelUpdate(w http.ResponseWriter, r *http.Request) {
 		Int("nodes", config.NodeCount).
 		Msg("model updated")
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(config) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, config)
 }
 
 // handleThresholdOverride allows manual threshold override for a service.
@@ -493,8 +488,7 @@ func (s *Service) handleThresholdOverride(w http.ResponseWriter, r *http.Request
 		Float64("threshold", req.Threshold).
 		Msg("threshold manually overridden")
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.thresholds[serviceID]) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, s.thresholds[serviceID])
 }
 
 // handleAlerts returns recent alerts.
@@ -526,8 +520,7 @@ func (s *Service) handleAlerts(w http.ResponseWriter, r *http.Request) {
 		alerts[i], alerts[j] = alerts[j], alerts[i]
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"alerts": alerts,
 		"count":  len(alerts),
 	})
@@ -535,8 +528,7 @@ func (s *Service) handleAlerts(w http.ResponseWriter, r *http.Request) {
 
 // handleHealth returns service health status.
 func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "healthy",
 		"service": "anomaly",
 	})
@@ -544,8 +536,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 
 // handleReady returns service readiness status.
 func (s *Service) handleReady(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"ready":   true,
 		"service": "anomaly",
 	})

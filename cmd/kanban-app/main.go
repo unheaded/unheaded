@@ -500,9 +500,7 @@ func (s *Server) refuseIfReadOnly(w http.ResponseWriter, r *http.Request) bool {
 	if s.writable() {
 		return false
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusServiceUnavailable)
-	json.NewEncoder(w).Encode(map[string]string{"error": "read-only: no database, so writes are refused"}) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "read-only: no database, so writes are refused"})
 	return true
 }
 
@@ -600,8 +598,7 @@ func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		tasks = []Task{}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks": tasks,
 		"count": count,
 	})
@@ -628,9 +625,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, http.StatusCreated, map[string]interface{}{
 		"task": task,
 	})
 }
@@ -700,8 +695,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"task": task,
 	})
 }
@@ -760,8 +754,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"deleted": true,
 		"task_id": taskID,
 	})
@@ -957,8 +950,7 @@ func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, ta
 		s.tasksMu.Unlock()
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"task": task}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{"task": task})
 }
 
 // handleDeleteTaskByID deletes a single task
@@ -1001,8 +993,7 @@ func (s *Server) handleDeleteTaskByID(w http.ResponseWriter, r *http.Request, ta
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"deleted": true, "task_id": taskID}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{"deleted": true, "task_id": taskID})
 }
 
 // handleDeletedTasks returns soft-deleted tasks.
@@ -1017,12 +1008,10 @@ func (s *Server) handleDeletedTasks(w http.ResponseWriter, r *http.Request) {
 		for i, t := range tasks {
 			out[i] = fromPgTask(t)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{"tasks": out, "count": len(out)})
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{"tasks": []Task{}, "count": 0})
 }
 
 // handleArchivedTasks returns archived tasks.
@@ -1037,12 +1026,10 @@ func (s *Server) handleArchivedTasks(w http.ResponseWriter, r *http.Request) {
 		for i, t := range tasks {
 			out[i] = fromPgTask(t)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{"tasks": out, "count": len(out)})
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{"tasks": []Task{}, "count": 0})
 }
 
 // handleCompletedTasks returns done tasks (still on board but accessible here too).
@@ -1076,8 +1063,7 @@ func (s *Server) handleCompletedTasks(w http.ResponseWriter, r *http.Request) {
 			out = append(out, t)
 		}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{"tasks": out, "count": len(out)})
 }
 
 // handleRestoreTask un-deletes or un-archives a task.
@@ -1091,8 +1077,7 @@ func (s *Server) handleRestoreTask(w http.ResponseWriter, r *http.Request, taskI
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"restored": true, "task_id": taskID}) // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{"restored": true, "task_id": taskID})
 		return
 	}
 	http.Error(w, "Restore not available without PostgreSQL", http.StatusNotImplemented)
@@ -1242,7 +1227,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		timelineHTTP = tm.GetTimeline() != nil
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"status":              "healthy",
 		"timestamp":           time.Now().UTC().Format(time.RFC3339),
 		"version":             "0.1.0",
@@ -1258,17 +1243,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	if s.healthSrv != nil {
 		status := s.healthSrv.Status()
-		w.Header().Set("Content-Type", "application/json")
 		if status == transport.StatusDown {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure cannot reach the client
+			httputil.WriteJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
 				"ready":   false,
 				"reason":  string(status),
 				"service": "kanban-app",
 			})
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"ready":   true,
 			"reason":  string(status),
 			"service": "kanban-app",
@@ -1277,8 +1260,6 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Legacy fallback when healthSrv is not wired
-	w.Header().Set("Content-Type", "application/json")
-
 	ready := true
 	reason := "ready"
 
@@ -1287,11 +1268,12 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		reason = "standalone mode"
 	}
 
+	code := http.StatusOK
 	if !ready {
-		w.WriteHeader(http.StatusServiceUnavailable)
+		code = http.StatusServiceUnavailable
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- a marshal failure leaves an empty body, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, code, map[string]interface{}{
 		"ready":   ready,
 		"reason":  reason,
 		"service": "kanban-app",
@@ -1332,14 +1314,14 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if timeline == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"timeline": nil,
 			"message":  "No timeline data available yet. Waiting for Timeguru updates.",
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"timeline": timeline,
 	})
 }
@@ -1387,8 +1369,7 @@ func (s *Server) handleTimelineCards(w http.ResponseWriter, r *http.Request) {
 		source = "none"
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- no status sent yet: a marshal failure leaves an empty 200, not a 500, and a write failure means the client left
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks":  tasks,
 		"count":  count,
 		"source": source,

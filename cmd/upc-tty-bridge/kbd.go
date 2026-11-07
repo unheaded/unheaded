@@ -11,12 +11,12 @@
 package main
 
 import (
-	"encoding/json"
 	"net"
 	"net/http"
 	"strconv"
 	"sync"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
 )
 
@@ -133,8 +133,7 @@ func (h *Hub) handleKbdDrain(w http.ResponseWriter, r *http.Request) {
 	for i, b := range data {
 		out[i] = int(b)
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(out)
+	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
 // handleMetrics exposes the bridge's counters in Prometheus text format.

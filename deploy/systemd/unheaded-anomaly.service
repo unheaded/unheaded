@@ -59,8 +59,13 @@ UMask=0077
 
 # Sandbox (deploy/systemd/README.md#isolation). The user comes from
 # deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin,
-# uid pinned to pkg/uids.Anomaly. It writes no files, so no StateDirectory.
+# uid pinned to pkg/uids.Anomaly. It keeps no state, so no StateDirectory.
 NoNewPrivileges=yes
+# AUTH_ENABLED, when on, comes from the env file. Writable under
+# ProtectSystem=strict: set AUTH_AUDIT_LOG=/var/log/unheaded/anomaly/auth-audit.log
+# in the env file to keep every auth decision there (off by default).
+LogsDirectory=unheaded/anomaly
+LogsDirectoryMode=0750
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes

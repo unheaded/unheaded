@@ -177,6 +177,11 @@ type TopicEvent struct {
 	// the signature covers. Additive Wotan gRPC field, not the Monad wire
 	// format.
 	SignedAtUnixMs int64 `protobuf:"varint,12,opt,name=signed_at_unix_ms,json=signedAtUnixMs,proto3" json:"signed_at_unix_ms,omitempty"`
+	// The subject Wotan verified on the publisher's token. Wotan sets it and
+	// the publisher cannot; empty with auth off, or on a message reloaded from
+	// a store. A subscriber that enforces a sender reads this, never a name in
+	// the payload. Additive Wotan gRPC field, not the Monad wire format.
+	VerifiedSender string `protobuf:"bytes,13,opt,name=verified_sender,json=verifiedSender,proto3" json:"verified_sender,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -293,6 +298,13 @@ func (x *TopicEvent) GetSignedAtUnixMs() int64 {
 		return x.SignedAtUnixMs
 	}
 	return 0
+}
+
+func (x *TopicEvent) GetVerifiedSender() string {
+	if x != nil {
+		return x.VerifiedSender
+	}
+	return ""
 }
 
 type TopicPublishRequest struct {
@@ -593,7 +605,7 @@ const file_topic_proto_rawDesc = "" +
 	"\bmetadata\x18\x06 \x03(\v2&.chat.TopicStreamRequest.MetadataEntryR\bmetadata\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8e\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb7\x03\n" +
 	"\n" +
 	"TopicEvent\x12\x1d\n" +
 	"\n" +
@@ -611,7 +623,8 @@ const file_topic_proto_rawDesc = "" +
 	"public_key\x18\n" +
 	" \x01(\fR\tpublicKey\x12\x1c\n" +
 	"\talgorithm\x18\v \x01(\tR\talgorithm\x12)\n" +
-	"\x11signed_at_unix_ms\x18\f \x01(\x03R\x0esignedAtUnixMs\"\xea\x02\n" +
+	"\x11signed_at_unix_ms\x18\f \x01(\x03R\x0esignedAtUnixMs\x12'\n" +
+	"\x0fverified_sender\x18\r \x01(\tR\x0everifiedSender\"\xea\x02\n" +
 	"\x13TopicPublishRequest\x12\x14\n" +
 	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x1b\n" +
 	"\tsender_id\x18\x02 \x01(\tR\bsenderId\x12\x18\n" +

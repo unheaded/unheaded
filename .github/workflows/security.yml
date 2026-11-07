@@ -97,6 +97,12 @@ jobs:
       - name: The suppression ratchet refuses each form it names
         run: ./scripts/test-check-nosec-ratchet.sh
 
+      # An Encoder on a ResponseWriter leaves an empty 200 when a value will
+      # not marshal; httputil.WriteJSON answers 500. Provoked red by putting
+      # one back in Wotan's topic publish.
+      - name: No handler encodes JSON to its ResponseWriter
+        run: ./scripts/check-json-responses.sh
+
       - name: Upload gosec SARIF
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         if: always()

@@ -11,6 +11,9 @@
 // stops stops reporting, and its vote goes stale after
 // health.ReportFreshness; a service that is up but failing its own /health
 // (Wotan stream down, store unreachable) votes "failing".
+//
+// Consumers do not take that name on trust: Admit rebuilds it from the
+// subject Wotan verified on the publisher's token.
 package healthreport
 
 import (

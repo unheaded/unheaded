@@ -4,6 +4,7 @@
 package main
 
 import (
+	"math"
 	"net/http"
 	"testing"
 
@@ -57,5 +58,27 @@ func TestAuthE2E_Akira(t *testing.T) {
 	}
 	if c := authtest.Code(h, http.MethodPost, "/api/v1/status", "{}", ""); !authtest.Authorized(c) {
 		t.Errorf("auth off: write = %d, want past auth", c)
+	}
+}
+
+// nanAkira holds a verdict JSON cannot carry.
+type nanAkira struct{ fakeSweeper }
+
+func (nanAkira) GetStates() map[string]health.Verdict {
+	return map[string]health.Verdict{"wotan": {Service: "wotan", FailureRate: math.NaN()}}
+}
+
+// A status the API cannot encode is a 500, not an empty 200 that reads as
+// "nothing to report".
+func TestStatus_UnencodableVerdictIs500(t *testing.T) {
+	f := authtest.New(t, "akira")
+	cfg := f.Config("akira")
+	cfg.Enabled = false
+	h, err := apiHandler(nanAkira{1}, "west", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := authtest.Code(h, http.MethodGet, "/api/v1/status", "", ""); c != http.StatusInternalServerError {
+		t.Fatalf("GET /api/v1/status = %d, want 500", c)
 	}
 }

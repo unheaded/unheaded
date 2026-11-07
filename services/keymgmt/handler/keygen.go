@@ -7,6 +7,8 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+
+	"unheaded/pkg/httputil"
 )
 
 // KeygenRequest is the request body for POST /api/v1/keys.
@@ -37,7 +39,5 @@ func DecodeKeygenRequest(r *http.Request) (*KeygenRequest, error) {
 
 // WriteJSON writes a JSON response.
 func WriteJSON(w http.ResponseWriter, status int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v) // #nosec G104 -- response already committed; an encode failure cannot reach the client
+	httputil.WriteJSON(w, status, v)
 }

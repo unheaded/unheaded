@@ -135,10 +135,16 @@ func (w *Akira) OnAlert(fn func(Verdict)) {
 	w.onAlert = fn
 }
 
-// Record casts another reporter's report (e.g. read from Wotan's
-// system.health.reports) on the ballot.
+// Record casts a report on the ballot outside its limits. Reports read from
+// Wotan go through RecordPeer.
 func (w *Akira) Record(r HealthReport) {
 	w.ballot.Record(r)
+}
+
+// RecordPeer casts a report from another reporter, within the ballot's
+// limits, and reports whether it was taken.
+func (w *Akira) RecordPeer(r HealthReport) bool {
+	return w.ballot.RecordPeer(r)
 }
 
 // CheckService performs a single health check on a service.

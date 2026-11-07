@@ -28,6 +28,11 @@ type Message struct {
 	// to re-verify the message. Nil for unsigned messages. Set before Push
 	// and never changed after.
 	Signed *Signature `json:"signed,omitempty"`
+	// VerifiedSender is the subject Wotan verified on the publisher's token,
+	// empty with auth off. Wotan sets it; the publisher cannot. Set before
+	// Push and never changed after. It is not persisted, so a message
+	// reloaded from a store has none and counts as unverified.
+	VerifiedSender string `json:"verified_sender,omitempty"`
 }
 
 // Signature is what a signed message's signature covers beyond its topic
@@ -97,8 +102,9 @@ func (rb *RingBuffer) SetMaxBytes(n int) {
 	rb.maxBytes = n
 }
 
-// Bytes returns the sum of msgBytes over the messages held: content, plus
-// signature, public key, sender and algorithm for a signed message.
+// Bytes returns the sum of msgBytes over the messages held: content and
+// verified sender, plus signature, public key, sender and algorithm for a
+// signed message.
 func (rb *RingBuffer) Bytes() int {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
@@ -304,7 +310,7 @@ func (rb *RingBuffer) grow() {
 // signature and key are ~5.3 KB, far more than most contents, so a budget that
 // counted Content alone did not bound a signed room's memory (FND-021).
 func msgBytes(m *Message) int {
-	n := len(m.Content)
+	n := len(m.Content) + len(m.VerifiedSender)
 	if s := m.Signed; s != nil {
 		n += len(s.Signature) + len(s.PublicKey) + len(s.Sender) + len(s.Algorithm)
 	}
