@@ -529,7 +529,8 @@ func checkListen(list string) error {
 		if host == "" || host == "*" {
 			return fmt.Errorf("listen %s: a wildcard address is refused; name each internal address", addr)
 		}
-		if ip, err := netip.ParseAddr(host); err == nil && ip.Unmap().IsUnspecified() {
+		// A zone does not narrow the unspecified address: [::%lo] binds all.
+		if ip, err := netip.ParseAddr(host); err == nil && ip.WithZone("").Unmap().IsUnspecified() {
 			return fmt.Errorf("listen %s: a wildcard address is refused; name each internal address", addr)
 		}
 	}

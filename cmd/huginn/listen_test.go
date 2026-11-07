@@ -176,7 +176,7 @@ func TestDeployment_BindAndCallers(t *testing.T) {
 func TestServeAll_RefusesAWildcard(t *testing.T) {
 	for _, list := range []string{
 		":0", "0.0.0.0:0", "[::]:0", "*:0", "[0:0:0:0:0:0:0:0]:0", "[::ffff:0.0.0.0]:0",
-		"127.0.0.1:0,0.0.0.0:0",
+		"[::%lo]:0", "127.0.0.1:0,0.0.0.0:0",
 	} {
 		srv := &http.Server{ReadHeaderTimeout: time.Second}
 		got := make(chan error, 1)
