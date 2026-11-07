@@ -494,7 +494,8 @@ findings:
     opened: 2026-11-04
     exposure: >-
       Shield leaves both service ids at 0 and stamps ring 1, so all its packets share flow 0, namespace 1 (ADR-125 says
-      so). No remote packet can trigger it: rules need root on the pins and CONFIG key 4 is set by hand. The risk is a
+      so). No remote packet can trigger it: rules need root on the pins, and `unheaded hop mode` refuses enforce while
+      this entry is open. The risk once enforce is allowed is a
       ttl lapsing unattended, since nothing renews an entry and `hop rules apply` cannot see the mode. Nothing loads
       hop-ebpf in production.
     lockout: none

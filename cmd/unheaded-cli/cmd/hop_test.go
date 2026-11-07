@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"unheaded/pkg/hoprules"
 	"unheaded/pkg/protocol/bpfschema"
 )
 
@@ -183,5 +184,42 @@ func TestHopRulesApply_NoPinIsAnError(t *testing.T) {
 func TestHopCommand_Registered(t *testing.T) {
 	if NewRootCommand().SubCommands["hop"] == nil {
 		t.Fatal("root has no hop command")
+	}
+}
+
+func TestHopMode_RefusesEnforceAndWritesNothing(t *testing.T) {
+	pins := fakePins(t)
+	ctx := testContext(DefaultConfig())
+	err := run(t, ctx, NewHopCommand(), "mode", "--pin-dir", "/pins", "enforce")
+	if !errors.Is(err, hoprules.ErrEnforceRefused) {
+		t.Fatalf("err = %v, want ErrEnforceRefused", err)
+	}
+	if len(pins) != 0 {
+		t.Errorf("a refusal opened %v", pins)
+	}
+}
+
+func TestHopMode_WritesObserve(t *testing.T) {
+	pins := fakePins(t)
+	ctx := testContext(DefaultConfig())
+	if err := run(t, ctx, NewHopCommand(), "mode", "--pin-dir", "/pins", "observe"); err != nil {
+		t.Fatal(err)
+	}
+	c := pins["/pins/CONFIG"]
+	if c == nil || len(c.writes) != 1 || binary.LittleEndian.Uint32(c.writes[0][0]) != 4 || binary.LittleEndian.Uint64(c.writes[0][1]) != 1 {
+		t.Fatalf("pins = %v", pins)
+	}
+	if c.closed != 1 {
+		t.Errorf("closed %d times", c.closed)
+	}
+}
+
+func TestHopMode_NeedsOneKnownMode(t *testing.T) {
+	fakePins(t)
+	for _, args := range [][]string{{}, {"drop"}, {"off", "observe"}} {
+		ctx := testContext(DefaultConfig())
+		if err := run(t, ctx, NewHopCommand(), "mode", args...); err == nil {
+			t.Errorf("%v accepted", args)
+		}
 	}
 }
