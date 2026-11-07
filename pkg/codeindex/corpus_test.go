@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -293,5 +294,22 @@ func TestReadCapped(t *testing.T) {
 	}
 	if _, err := readCapped(bytes.NewReader([]byte("abcd")), 3); err == nil {
 		t.Fatal("a file over the limit was read")
+	}
+}
+
+// The Grimoire's VM is air-gapped: the code that builds and searches its index
+// must have no way to the network, and this holds that from outside the code.
+func TestNoNetworkInTheBuild(t *testing.T) {
+	out, err := exec.Command("go", "list", "-deps", ".").CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list: %v: %s", err, out)
+	}
+	for _, dep := range strings.Fields(string(out)) {
+		if dep == "net" || strings.HasPrefix(dep, "net/") {
+			t.Fatalf("pkg/codeindex depends on %s", dep)
+		}
+	}
+	if !strings.Contains(string(out), "encoding/json") {
+		t.Fatalf("go list gave no real answer: %s", out)
 	}
 }
