@@ -32,7 +32,7 @@ Neither is a daemon today. `wire --serve` runs in the foreground; a unit is a la
 - `compliance-evidence wire`: without `--serve` it prints that it is off and exits 0. No unit, timer or compose service passes `--serve`.
 - `--listen` defaults to `127.0.0.1:19015` and refuses anything but loopback unless `AUTH_ENABLED=true`: the plane takes policy writes.
 - The service runs behind `pkg/auth` and `pkg/tls`, never its own open listener: new `Handler()` and `StartBackground()`.
-- **Honest score.** No packets means `no_data: true`, `score_pct: 0`, `audit_completeness: 0`, never 100.
+- **Honest score.** No packets means `no_data: true`, `score_pct: 0`, never 100. `audit_completeness` was deleted on 2026-11-06 (Stevie): every record feeds both sides of the ratio, so it read 1 by construction. It comes back only when the ring exposes its own lost-record count.
 - `--audit-ring PATH` consumes a pinned `AUDIT_LOG`; `IngestAuditRecord` is the first real input. Record layout mirrored in `bpfschema`.
 - **No Wotan client.** `wire` has no `--wotan` and presents no Wotan identity until it has its own nologin account: every service gets one, and no allowlist names `compliance-evidence`. Violations stay on the host. `services/compliance` keeps its Wotan code, but `wire` passes it no client, so its four `compliance-service` subscriptions never run. A dropped event is counted in `compliance_wotan_drops_total`, never logged per record: the ring reaches that path at wire speed.
 - The evidence catalog does not change. A new evidence source is a separate decision: it would move every framework's figures.
