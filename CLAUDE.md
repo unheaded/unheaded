@@ -1302,7 +1302,7 @@ cd ../../../ebpf && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 /home/govan/tmp/
   --kernel /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/xv6-mbc.mbc \
   --ramdisk /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/fs.img \
   --userland /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/init.mbc \
-  --triggers 800000 --instance 222
+  --triggers 800000 --instance 222 --allow-untrusted-ebpf-obj-dir   # lab object from a build tree
 ```
 
 **Phase 1.6 work in progress:** `SYS_write`'s byte-path. `mem_read_byte(r9)` reads NUL during init's first printf — suspect the translator's spill-shadow on x17 (a7 → r1 aliased onto gp at fixed RAM byte 0x64004). Diagnosis in `references/phase15-session-2026-05-14-userland-spike.md`.
