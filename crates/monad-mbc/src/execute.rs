@@ -776,7 +776,8 @@ impl Cpu {
                         let req_addr = self.state.regs[1] as usize;
                         let secs = self.mem_read_word(req_addr >> 2);
                         let nsecs = self.mem_read_word((req_addr + 4) >> 2);
-                        let sleep_ms = secs * 1000 + nsecs / 1_000_000;
+                        // Guest memory: any value. ticks_ms is modulo 2^32.
+                        let sleep_ms = secs.wrapping_mul(1000).wrapping_add(nsecs / 1_000_000);
                         self.ticks_ms = self.ticks_ms.wrapping_add(sleep_ms);
                         self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_READ_BLOCK {
