@@ -6,14 +6,15 @@
 #   1. Creates /opt/tomb/grimoire/ directory structure
 #   2. Copies Kingdom docs from the deployment package
 #   3. Stages MITRE ATT&CK data (pre-downloaded)
-#   4. Installs ChromaDB and sentence-transformers
-#   5. Indexes all documents into the vector store
+#   4. Installs zhen-codeindex, one static binary
+#   5. Indexes all documents for word search (no Python, no model, no network)
 #
 # Usage:
 #   ./setup-grimoire.sh [--skip-index] [--force]
 #
 # Prerequisites:
-#   - Python 3.10+ with pip
+#   - zhen-codeindex built for the VM: make stage-grimoire puts it in ../packages/grimoire/bin/,
+#     bin/ beside this script also works, or ZHEN_CODEINDEX=/path/to/zhen-codeindex
 #   - Pre-downloaded MITRE ATT&CK data in mitre-attck/ (run fetch-mitre-data.sh first)
 #   - Kingdom docs collected in kingdom-docs/ (run collect-kingdom-docs.sh first)
 #
@@ -24,6 +25,10 @@ set -euo pipefail
 # --- Configuration ---
 GRIMOIRE_ROOT="/opt/tomb/grimoire"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CODEINDEX_SRC="${ZHEN_CODEINDEX:-${SCRIPT_DIR}/bin/zhen-codeindex}"
+CODEINDEX_STAGED="${SCRIPT_DIR}/../packages/grimoire/bin/zhen-codeindex"
+CODEINDEX="${GRIMOIRE_ROOT}/bin/zhen-codeindex"
+INDEX_DIR="${GRIMOIRE_ROOT}/index"
 SKIP_INDEX=false
 FORCE=false
 LOG_FILE="/var/log/tomb/grimoire-setup.log"
@@ -76,7 +81,7 @@ parse_args() {
                 echo "Usage: $0 [--skip-index] [--force]"
                 echo ""
                 echo "Options:"
-                echo "  --skip-index  Skip ChromaDB indexing (install only)"
+                echo "  --skip-index  Skip building the corpus index (install only)"
                 echo "  --force       Overwrite existing Grimoire installation"
                 echo "  --help        Show this help message"
                 exit 0
@@ -98,7 +103,7 @@ create_directory_structure() {
         return 0
     fi
 
-    mkdir -p "${GRIMOIRE_ROOT}"/{kingdom-docs,mitre-attck,nvd-cves,cwe,threat-models,history,rag/{chroma.db,embeddings}}
+    mkdir -p "${GRIMOIRE_ROOT}"/{kingdom-docs,mitre-attck,nvd-cves,cwe,threat-models,history,bin,index}
     mkdir -p /var/log/tomb
 
     # Set permissions: root-owned, grimoire group readable
@@ -112,7 +117,8 @@ create_directory_structure() {
     info "  ${GRIMOIRE_ROOT}/cwe/             — CWE mappings (future)"
     info "  ${GRIMOIRE_ROOT}/threat-models/   — Kingdom threat models"
     info "  ${GRIMOIRE_ROOT}/history/         — Historical findings and reports"
-    info "  ${GRIMOIRE_ROOT}/rag/             — RAG vector index (ChromaDB)"
+    info "  ${GRIMOIRE_ROOT}/bin/             — zhen-codeindex"
+    info "  ${GRIMOIRE_ROOT}/index/           — Corpus index (word search)"
 }
 
 # --- Phase 2: Copy Kingdom Docs ---
@@ -188,60 +194,23 @@ copy_threat_models() {
     info "Copied ${model_count} threat model documents"
 }
 
-# --- Phase 5: Install Python Dependencies ---
+# --- Phase 5: Install zhen-codeindex ---
 
-install_python_deps() {
-    info "Phase 5: Installing Python dependencies for RAG pipeline"
+install_codeindex() {
+    info "Phase 5: Installing zhen-codeindex"
 
-    # Check Python version
-    if ! command -v python3 &>/dev/null; then
-        die "Python 3 is required but not found. Install python3 first."
+    if [[ -z "${ZHEN_CODEINDEX:-}" && ! -f "${CODEINDEX_SRC}" ]]; then
+        CODEINDEX_SRC="${CODEINDEX_STAGED}"
+    fi
+    if [[ ! -f "${CODEINDEX_SRC}" ]]; then
+        die "zhen-codeindex not found at ${CODEINDEX_SRC} (make stage-grimoire, or set ZHEN_CODEINDEX)"
     fi
 
-    local python_version
-    python_version=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-    info "Python version: ${python_version}"
+    # An install older than this binary has no bin/, and phase 1 leaves it alone
+    mkdir -p "$(dirname "${CODEINDEX}")"
+    install -m 0755 "${CODEINDEX_SRC}" "${CODEINDEX}"
 
-    local major minor
-    major=$(echo "${python_version}" | cut -d. -f1)
-    minor=$(echo "${python_version}" | cut -d. -f2)
-
-    if [[ "${major}" -lt 3 ]] || { [[ "${major}" -eq 3 ]] && [[ "${minor}" -lt 10 ]]; }; then
-        die "Python 3.10+ required, found ${python_version}"
-    fi
-
-    # Create virtual environment for Grimoire
-    local venv_dir="${GRIMOIRE_ROOT}/rag/.venv"
-
-    if [[ -d "${venv_dir}" && "${FORCE}" == "false" ]]; then
-        info "Virtual environment already exists at ${venv_dir}"
-    else
-        info "Creating virtual environment at ${venv_dir}"
-        python3 -m venv "${venv_dir}"
-    fi
-
-    # Install from requirements.txt
-    local requirements="${SCRIPT_DIR}/rag/requirements.txt"
-
-    if [[ ! -f "${requirements}" ]]; then
-        die "requirements.txt not found at ${requirements}"
-    fi
-
-    info "Installing Python packages (this may take several minutes on first run)..."
-    "${venv_dir}/bin/pip" install --upgrade pip --quiet
-    "${venv_dir}/bin/pip" install -r "${requirements}" --quiet
-
-    info "Python dependencies installed successfully"
-
-    # Copy RAG scripts to deployment location
-    cp "${SCRIPT_DIR}/rag/rag-index.py" "${GRIMOIRE_ROOT}/rag/"
-    cp "${SCRIPT_DIR}/rag/rag-query.py" "${GRIMOIRE_ROOT}/rag/"
-    cp "${SCRIPT_DIR}/rag/rag-config.json" "${GRIMOIRE_ROOT}/rag/"
-    cp "${SCRIPT_DIR}/rag/requirements.txt" "${GRIMOIRE_ROOT}/rag/"
-    chmod +x "${GRIMOIRE_ROOT}/rag/rag-index.py"
-    chmod +x "${GRIMOIRE_ROOT}/rag/rag-query.py"
-
-    info "RAG pipeline scripts deployed to ${GRIMOIRE_ROOT}/rag/"
+    info "zhen-codeindex installed at ${CODEINDEX}"
 }
 
 # --- Phase 6: Index Documents ---
@@ -252,48 +221,9 @@ index_documents() {
         return 0
     fi
 
-    info "Phase 6: Indexing all documents into ChromaDB"
+    info "Phase 6: Indexing the corpus under ${GRIMOIRE_ROOT}"
 
-    local venv_dir="${GRIMOIRE_ROOT}/rag/.venv"
-    local index_script="${GRIMOIRE_ROOT}/rag/rag-index.py"
-    local config_file="${GRIMOIRE_ROOT}/rag/rag-config.json"
-
-    if [[ ! -f "${index_script}" ]]; then
-        die "rag-index.py not found at ${index_script}"
-    fi
-
-    if [[ ! -f "${config_file}" ]]; then
-        die "rag-config.json not found at ${config_file}"
-    fi
-
-    info "Indexing Kingdom docs..."
-    "${venv_dir}/bin/python" "${index_script}" \
-        --config "${config_file}" \
-        --source-dir "${GRIMOIRE_ROOT}/kingdom-docs" \
-        --collection "kingdom-docs" \
-        --source-type "kingdom"
-
-    # Index MITRE ATT&CK data if present
-    local mitre_dir="${GRIMOIRE_ROOT}/mitre-attck"
-    if [[ -d "${mitre_dir}" ]] && find "${mitre_dir}" -name '*.json' -print -quit | grep -q .; then
-        info "Indexing MITRE ATT&CK data..."
-        "${venv_dir}/bin/python" "${index_script}" \
-            --config "${config_file}" \
-            --source-dir "${mitre_dir}" \
-            --collection "mitre-attck" \
-            --source-type "mitre"
-    fi
-
-    # Index threat models if present
-    local threat_dir="${GRIMOIRE_ROOT}/threat-models"
-    if [[ -d "${threat_dir}" ]] && find "${threat_dir}" -name '*.md' -print -quit | grep -q .; then
-        info "Indexing threat models..."
-        "${venv_dir}/bin/python" "${index_script}" \
-            --config "${config_file}" \
-            --source-dir "${threat_dir}" \
-            --collection "threat-models" \
-            --source-type "kingdom"
-    fi
+    "${CODEINDEX}" --corpus "${GRIMOIRE_ROOT}" --out "${INDEX_DIR}"
 
     info "Document indexing complete"
 }
@@ -306,41 +236,26 @@ verify_installation() {
     local errors=0
 
     # Check directory structure
-    for dir in kingdom-docs mitre-attck threat-models rag rag/chroma.db; do
+    for dir in kingdom-docs mitre-attck threat-models bin index; do
         if [[ ! -d "${GRIMOIRE_ROOT}/${dir}" ]]; then
             error "Missing directory: ${GRIMOIRE_ROOT}/${dir}"
-            ((errors++))
+            errors=$((errors + 1))
         fi
     done
 
-    # Check RAG scripts
-    for script in rag/rag-index.py rag/rag-query.py rag/rag-config.json; do
-        if [[ ! -f "${GRIMOIRE_ROOT}/${script}" ]]; then
-            error "Missing file: ${GRIMOIRE_ROOT}/${script}"
-            ((errors++))
+    if [[ ! -x "${CODEINDEX}" ]]; then
+        error "zhen-codeindex not executable: ${CODEINDEX}"
+        errors=$((errors + 1))
+    fi
+
+    # A search that answers proves the index and the binary together
+    if [[ "${SKIP_INDEX}" == "false" ]]; then
+        if "${CODEINDEX}" --out "${INDEX_DIR}" --search "threat" --top-k 1 | grep -q '"source"'; then
+            info "Corpus index: answers a search"
+        else
+            error "Corpus index: no answer to a search"
+            errors=$((errors + 1))
         fi
-    done
-
-    # Check virtual environment
-    if [[ ! -f "${GRIMOIRE_ROOT}/rag/.venv/bin/python" ]]; then
-        error "Python virtual environment not found"
-        ((errors++))
-    fi
-
-    # Check ChromaDB importability
-    if "${GRIMOIRE_ROOT}/rag/.venv/bin/python" -c "import chromadb" 2>/dev/null; then
-        info "ChromaDB: importable"
-    else
-        error "ChromaDB: not importable"
-        ((errors++))
-    fi
-
-    # Check sentence-transformers importability
-    if "${GRIMOIRE_ROOT}/rag/.venv/bin/python" -c "from sentence_transformers import SentenceTransformer" 2>/dev/null; then
-        info "sentence-transformers: importable"
-    else
-        error "sentence-transformers: not importable"
-        ((errors++))
     fi
 
     # Summary
@@ -357,7 +272,7 @@ verify_installation() {
     echo "  Kingdom docs:      ${kingdom_count} files"
     echo "  MITRE ATT&CK:      ${mitre_count} JSON files"
     echo "  Threat models:     ${threat_count} documents"
-    echo "  RAG pipeline:      installed"
+    echo "  Search:            ${CODEINDEX}"
     echo "  Errors:            ${errors}"
     echo "============================================"
     echo ""
@@ -370,8 +285,8 @@ verify_installation() {
     info "Grimoire installation verified successfully"
     echo ""
     echo "  Usage:"
-    echo "    Query:  ${GRIMOIRE_ROOT}/rag/.venv/bin/python ${GRIMOIRE_ROOT}/rag/rag-query.py --query 'your question'"
-    echo "    Index:  ${GRIMOIRE_ROOT}/rag/.venv/bin/python ${GRIMOIRE_ROOT}/rag/rag-index.py --source-dir /path/to/docs"
+    echo "    Query:  ${CODEINDEX} --out ${INDEX_DIR} --search 'your terms'"
+    echo "    Index:  ${CODEINDEX} --corpus ${GRIMOIRE_ROOT} --out ${INDEX_DIR}"
     echo ""
 }
 
@@ -392,7 +307,7 @@ main() {
     copy_kingdom_docs
     stage_mitre_data
     copy_threat_models
-    install_python_deps
+    install_codeindex
     index_documents
     verify_installation
 }

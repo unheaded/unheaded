@@ -36,4 +36,4 @@ Release dates are from `proxy.golang.org/<module>/@latest`, retrieved 2026-10-29
 
 ## Python
 
-`tomb/grimoire/rag/requirements.txt` (ChromaDB, transformers, sentence-transformers, torch; 6 open Dependabot alerts): retire vs bump is next.md's open decision (E4). Retiring removes them from `python_components`.
+The Grimoire's RAG requirements (ChromaDB, transformers, sentence-transformers, torch) are retired: DP-719 option A, 2026-11-06. The corpus is served by `pkg/retrieval`, with no third-party package.

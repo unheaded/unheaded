@@ -471,13 +471,11 @@ pypi ansible-core
 pypi anthropic
 pypi attrs
 pypi bandit
-pypi beautifulsoup4
 pypi boolean-py
 pypi cachecontrol
 pypi certifi
 pypi cffi
 pypi charset-normalizer
-pypi chromadb
 pypi cryptography
 pypi cyclonedx-python-lib
 pypi datasets
@@ -494,7 +492,6 @@ pypi jupyter
 pypi jupyterlab
 pypi langchain-text-splitters
 pypi license-expression
-pypi markdown
 pypi markdown-it-py
 pypi markupsafe
 pypi matplotlib
@@ -534,11 +531,9 @@ pypi seaborn
 pypi sentence-transformers
 pypi sortedcontainers
 pypi stevedore
-pypi tokenizers
 pypi tomli
 pypi tomli-w
 pypi torch
-pypi tqdm
 pypi transformers
 pypi trl
 pypi typing-extensions

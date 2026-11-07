@@ -1,7 +1,7 @@
 # Third-Party Dependencies and GPL Boundary
 
 **Project:** Unheaded Kingdom
-**Last updated:** 2026-11-05 (tables matched to `sbom/`, licenses as read by `scripts/generate-sbom.sh`)
+**Last updated:** 2026-11-07 (tables matched to `sbom/`, licenses as read by `scripts/generate-sbom.sh`)
 **Main license:** GPL-3.0-or-later (see `/LICENSE`)
 **Canonical third-party inventory location:** This file
 

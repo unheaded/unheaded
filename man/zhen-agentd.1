@@ -1,4 +1,4 @@
-.TH ZHEN\-AGENTD 1 "2026-11-04" "unheaded v0.0.0-20261104154528-fd2f60039d0a+dirty" "Unheaded Kingdom"
+.TH ZHEN\-AGENTD 1 "2026-11-07" "unheaded 83232cd4" "Unheaded Kingdom"
 .SH NAME
 zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH SYNOPSIS
@@ -43,6 +43,9 @@ source shard written by zhen\-codeindex, searched beside vor (env ZHEN_CODE_INDE
 .TP
 .B \-\-confirm\-queue \fIzhen\-claude confirm\fR
 queue agent\-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with zhen\-claude confirm
+.TP
+.B \-\-corpus\-index \fISTRING\fR
+Grimoire corpus written by zhen\-codeindex \-\-corpus, searched beside vor (env ZHEN_CORPUS_INDEX_DIR; empty: not searched)
 .TP
 .B \-\-daily\-cap\-usd \fINUM\fR
 with \-worker \-claude live: hard spend cap per UTC day of \-ledger (default 5)

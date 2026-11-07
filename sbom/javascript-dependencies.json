@@ -5,7 +5,7 @@
   "name": "unheaded-javascript-dependencies",
   "documentNamespace": "https://github.com/unheaded/unheaded/sbom/javascript",
   "creationInfo": {
-    "created": "2026-11-05T00:00:00Z",
+    "created": "2026-11-07T00:00:00Z",
     "creators": [
       "Tool: html-script-tag-reader",
       "Organization: Unheaded"

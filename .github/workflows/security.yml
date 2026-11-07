@@ -418,9 +418,9 @@ jobs:
 
       # A CRITICAL or HIGH with a fixed release fails. ignore-unfixed: a
       # finding with no release to move to has nothing to act on here, so it
-      # stays in the report above and in compliance/findings/register.yaml
-      # (FND-032 today). Table, not sarif: the action drops `severity` for
-      # sarif, and this would fail on every LOW.
+      # stays in the report above and in compliance/findings/register.yaml.
+      # Table, not sarif: the action drops `severity` for sarif, and this
+      # would fail on every LOW.
       - name: Trivy vulnerability gate (GATING)
         if: always()
         uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master, 2026-10-21 (trivy v0.76.1)

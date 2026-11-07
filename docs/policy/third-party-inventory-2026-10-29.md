@@ -319,7 +319,7 @@ Verdicts are collected on a review page and copied back here.
 ## Already in flight
 
 - trivy: replace with our own scanner (Stevie 2026-10-29). Used by `security.yml`, `docker.yml`, `scripts/check-trivy-misconfig.sh`, Jenkinsfiles, `runbooks/security/container-security-scan.yaml` (product-facing), the Yggdrasil evidence pack (`scanner: trivy`, product-facing).
-- Grimoire `rag/` (chromadb, sentence-transformers, transformers, torch): proposal to delete and serve the corpus through Zhenai MCP, waiting on Stevie.
+- Grimoire `rag/` (chromadb, sentence-transformers, transformers, torch): proposal to delete and serve the corpus through Zhenai MCP, waiting on Stevie. Decided 2026-11-06: deleted, DP-719 option A; the rows above stay as this date's record.
 - `docs/policy/dependency-watch.md` holds the earlier per-module verdicts for the 18 Go modules.
 
 Regenerate: the generator used for this snapshot is not yet a repo script; making it one (and a gate that fails when a new item appears without a verdict) is the proposed next step.
