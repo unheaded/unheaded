@@ -185,9 +185,44 @@ const RunbookView = (function() {
     }
 
     /** Called by App.openDetailModal: fetch the card's agent run and runbook. */
+
+    // A card on Zhen's name is the worker's only once an operator says so here
+    // (H4). The server records the description as it stands now, so an edited
+    // card asks again. Only an operator's own login can press this.
+    function renderZhenOptIn(detail) {
+        const section = document.getElementById('detailZhenOptInSection');
+        const text = document.getElementById('detailZhenOptIn');
+        const button = document.getElementById('detailZhenOptInButton');
+        if (!section || !text || !button) return;
+        section.hidden = !detail || detail.owner !== 'zhen';
+        if (section.hidden) return;
+        const opt = detail.zhen_opt_in;
+        const live = opt && opt.current;
+        if (live) {
+            text.textContent = 'Handed to Zhen by ' + opt.by + '.';
+        } else if (opt) {
+            text.textContent = 'Edited since ' + opt.by + ' handed it over: Zhen will not take it.';
+        } else {
+            text.textContent = 'Not handed to Zhen: the worker leaves it alone.';
+        }
+        button.textContent = live ? 'Take back from Zhen' : 'Hand to Zhen';
+        button.onclick = async () => {
+            button.disabled = true;
+            const resp = await fetch('/api/v1/tasks/' + encodeURIComponent(detail.id) + '/zhen-opt-in', { method: live ? 'DELETE' : 'POST' });
+            button.disabled = false;
+            if (!resp.ok) {
+                text.textContent = 'Refused (' + resp.status + '): this takes an operator login.';
+                return;
+            }
+            const again = await fetch('/api/v1/tasks/' + encodeURIComponent(detail.id));
+            if (again.ok) renderZhenOptIn(await again.json());
+        };
+    }
+
     async function showTaskExtras(task) {
         renderAgentRun(null);
         renderRunbookBlock(null);
+        renderZhenOptIn(null);
         shownTask = null;
         if (!task || !task.id) return;
         shownTask = { id: task.id, runbook: '' };
@@ -198,6 +233,7 @@ const RunbookView = (function() {
             if (!shownTask || shownTask.id !== task.id) return; // another card opened meanwhile
             shownTask.runbook = detail.runbook || '';
             renderAgentRun(detail.agent_run || null);
+            renderZhenOptIn(detail);
             renderRunbookBlock(shownTask.runbook, progress.get(shownTask.runbook) || detail.runbook_progress);
         } catch (error) {
             console.warn('[Runbooks] card details unavailable:', error);

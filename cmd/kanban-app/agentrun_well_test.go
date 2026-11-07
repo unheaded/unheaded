@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -44,6 +45,42 @@ func TestWellLatestAgentRun(t *testing.T) {
 	}
 	runs := zhenagent.SQLStore{DB: zdb}
 	p := &PgStore{db: kdb}
+	// The opt-in route as this store runs it, then the worker's view of it.
+	card("kb-optin", "task", zhenagent.Owner)
+	if o, err := p.ZhenOptInFor(ctx, "kb-optin"); err != nil || o != nil {
+		t.Fatalf("no opt-in yet: %+v %v", o, err)
+	}
+	claimOptIn := func(id string) error {
+		return runs.Claim(ctx, zhenagent.Run{ID: zhenagent.NewRunID(), CardID: id, Mode: zhenagent.ModeOvernight, Family: "repo-task",
+			Branch: "zhen/" + id, BaseCommit: strings.Repeat("a", 40)})
+	}
+	if err := claimOptIn("kb-optin"); !errors.Is(err, zhenagent.ErrClaimConflict) {
+		t.Fatalf("claim with no opt-in: %v", err)
+	}
+	if err := p.SetZhenOptIn(ctx, "kb-optin", zhenagent.DescriptionSHA256("something else"), "stevie"); err != nil {
+		t.Fatal(err)
+	}
+	if err := claimOptIn("kb-optin"); !errors.Is(err, zhenagent.ErrClaimConflict) {
+		t.Fatalf("claim of a card whose description changed: %v", err)
+	}
+	if err := p.SetZhenOptIn(ctx, "kb-optin", zhenagent.DescriptionSHA256(""), "stevie"); err != nil {
+		t.Fatal(err)
+	}
+	if o, err := p.ZhenOptInFor(ctx, "kb-optin"); err != nil || o == nil || o.By != "stevie" {
+		t.Fatalf("opt-in: %+v %v", o, err)
+	}
+	if cs, err := runs.Candidates(ctx, 100); err != nil || len(cs) == 0 {
+		t.Fatalf("candidates: %v %v", cs, err)
+	}
+	if err := claimOptIn("kb-optin"); err != nil {
+		t.Fatalf("claim of an opted-in card: %v", err)
+	}
+	if err := p.ClearZhenOptIn(ctx, "kb-optin"); err != nil {
+		t.Fatal(err)
+	}
+	if o, err := p.ZhenOptInFor(ctx, "kb-optin"); err != nil || o != nil {
+		t.Fatalf("withdrawn: %+v %v", o, err)
+	}
 
 	card("kb-none", "task", "")
 	if r, err := p.LatestAgentRun(ctx, "kb-none"); err != nil || r != nil {
@@ -52,6 +89,9 @@ func TestWellLatestAgentRun(t *testing.T) {
 
 	// A worker run: claimed, running, succeeded with a review note.
 	card("kb-worked", "task", zhenagent.Owner)
+	if err := p.SetZhenOptIn(ctx, "kb-worked", zhenagent.DescriptionSHA256(""), "stevie"); err != nil {
+		t.Fatal(err)
+	}
 	id := zhenagent.NewRunID()
 	if err := runs.Claim(ctx, zhenagent.Run{ID: id, CardID: "kb-worked", Mode: zhenagent.ModeOvernight, Family: "repo-task",
 		Branch: "zhen/kb-worked", BaseCommit: strings.Repeat("a", 40)}); err != nil {

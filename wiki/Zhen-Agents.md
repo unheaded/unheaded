@@ -7,6 +7,7 @@
 A card is worked only when Stevie hands it over:
 
 - `owner` is `zhen` (the agent never touches anyone else's cards);
+- an operator handed it over: **Hand to Zhen** in the card modal (`POST /api/v1/tasks/{id}/zhen-opt-in`, an operator's own login, never a service token or a Wotan message). It records the description, so an edit needs doing again; `DELETE` takes it back;
 - `status` is `todo`, `type` one of `task`, `tech-debt`, `bug`, `docs`; not deleted or archived;
 - the description holds one fenced `zhen` block:
 

@@ -632,10 +632,11 @@ type taskDetail struct {
 	Runbook         string           `json:"runbook,omitempty"`
 	RunbookProgress *RunbookProgress `json:"runbook_progress,omitempty"`
 	AgentRun        *AgentRun        `json:"agent_run,omitempty"`
+	ZhenOptIn       *ZhenOptIn       `json:"zhen_opt_in,omitempty"`
 }
 
 func (s *Server) writeTaskDetail(w http.ResponseWriter, r *http.Request, t *Task) {
-	d := taskDetail{Task: t, Runbook: runbookRefOf(t), AgentRun: s.agentRunFor(r.Context(), t.ID)}
+	d := taskDetail{Task: t, Runbook: runbookRefOf(t), AgentRun: s.agentRunFor(r.Context(), t.ID), ZhenOptIn: s.zhenOptInFor(r.Context(), t)}
 	if d.Runbook != "" {
 		d.RunbookProgress, _ = s.runbookProgress().Get(d.Runbook)
 	}

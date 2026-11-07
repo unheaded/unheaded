@@ -152,7 +152,7 @@ type Outcome struct {
 
 // Store is zhen_agent_runs plus the card columns the worker moves.
 type Store interface {
-	// Candidates are cards that may be eligible: owner zhen, todo, an
+	// Candidates are cards that may be eligible: owner zhen, opted in, todo, an
 	// eligible type, not deleted or archived, no active run and fewer
 	// than MaxAttempts counted attempts. The worker still checks each.
 	Candidates(ctx context.Context, limit int) ([]Card, error)
