@@ -24,6 +24,10 @@ notes: |
   The rollback restores the packages each host held, from the debs record-previous
   kept in dist/debs/rollback-<commit>. A host holding a version with no deb in
   the repo's pool or under dist/debs stops the run before anything moves.
+  record-previous also records what a health sweep finds up on each host, and
+  verify-east-health and verify-west-health fail if any of that is down. A service
+  already down then is not held against the build; a host where nothing is up
+  stops the run before anything moves. West's sweep reads configs/akira-west.yaml.
 
 env:
   # What apt-repo-publish's install-east installs, under the names
@@ -116,7 +120,8 @@ steps:
       set -euo pipefail
       cd "${REPO}"
       scripts/rolling-previous.sh record "dist/debs/rollback-$(git rev-parse --short=8 HEAD)" "${APT_REPO_BASE}" ${UNHEADED_PKGS}
-    description: "Record what each host holds and keep the debs to put it back, or stop with nothing moved"
+    timeout: 600
+    description: "Record what each host holds and has up, and keep the debs to put it back, or stop with nothing moved"
 
   - name: publish-to-repo
     action: shell
@@ -156,9 +161,11 @@ steps:
   - name: verify-east-health
     action: shell
     command: |
-      ssh govan@east 'set -o pipefail; /opt/unheaded/bin/akira --once --config /opt/unheaded/etc/akira.yaml 2>&1 | tail -5'
-    description: "Run Akira health sweep on EAST after upgrade"
-    timeout: 30
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh health east "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
+    description: "Akira sweep on EAST: everything up before the upgrade is up after it"
+    timeout: 180
 
   - name: upgrade-west
     action: shell
@@ -187,7 +194,12 @@ steps:
 
   - name: verify-west-health
     action: shell
-    command: "set -o pipefail; cd ~/tmp/unheaded && go run ./cmd/akira --once 2>&1 | tail -5"
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh health west "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
+    description: "Akira sweep on WEST: everything up before the upgrade is up after it"
+    timeout: 180
 
   - name: post-upgrade-check
     action: shell
@@ -205,7 +217,7 @@ rollback:
       set -euo pipefail
       cd "${REPO}"
       scripts/rolling-previous.sh restore west "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
-    description: "Put WEST back at the versions it held; fails unless it got there"
+    description: "Put WEST back at the versions it held; fails unless it got there and what was up is up"
     when: "step.upgrade-west.failed || step.verify-west-health.failed"
 
   - name: restore-east
@@ -215,7 +227,7 @@ rollback:
       set -euo pipefail
       cd "${REPO}"
       scripts/rolling-previous.sh restore east "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
-    description: "Put EAST back at the versions it held; fails unless it got there"
+    description: "Put EAST back at the versions it held; fails unless it got there and what was up is up"
     when: "step.upgrade-east-first.failed || step.verify-east-health.failed || step.upgrade-west.failed || step.verify-west-health.failed"
 
   - name: restore-data

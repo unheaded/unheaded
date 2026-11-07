@@ -311,22 +311,19 @@ def test_a_build_cut_short_is_not_taken_for_a_finished_one(tmp_path):
 
 
 def run_with_real_tail(rb, name, bin_dir, tmp_path):
-    text = harness.step(rb, name)["command"].replace("/opt/unheaded/bin/akira", "sudo").replace("cd ~/tmp/unheaded && ", "")
-    cmd = harness._RUNNER.expand_env(text, harness.runner_env(rb, {}))
+    cmd = harness._RUNNER.expand_env(harness.step(rb, name)["command"], harness.runner_env(rb, {}))
     return subprocess.run(["/bin/bash", "-c", cmd], capture_output=True, text=True, timeout=30, check=False,
                           env={"PATH": f"{bin_dir}:/usr/bin:/bin"}, cwd=tmp_path)
 
 
-@pytest.mark.parametrize("name", ["upgrade-east-first", "verify-east-health", "verify-west-health"])
-def test_a_failure_before_tail_fails_the_step(tmp_path, name):
+def test_a_failure_before_tail_fails_the_step(tmp_path):
     # The tool fails where tail would answer for it. apt-get update passes: it
     # sits before the pipeline, and a failure there would prove nothing.
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     stand_in(bin_dir, "ssh", 'shift\nexec bash -c "$*"\n')
-    for tool in ("sudo", "go"):
-        stand_in(bin_dir, tool, 'case "$*" in *"apt-get update"*) exit 0 ;; esac\nexit 7\n')
-    r = run_with_real_tail(harness.load(RB), name, bin_dir, tmp_path)
+    stand_in(bin_dir, "sudo", 'case "$*" in *"apt-get update"*) exit 0 ;; esac\nexit 7\n')
+    r = run_with_real_tail(harness.load(RB), "upgrade-east-first", bin_dir, tmp_path)
     assert r.returncode == 7, r.stderr
 
 

@@ -26,7 +26,7 @@ Plans in prose: `runbooks/security/ir-plan-v1-2026-05-06.md` (incident response)
 
 The Well's runbooks (backup-restore, migration, secrets-rotation) follow the migration ledger (ADR-101): no `DROP DATABASE`, no passwords in SQL. Backup locations are in [[Well Backups|Well-Backups]].
 
-`deploy/rolling-upgrade` keeps what it may have to put back in `dist/debs/rollback-<commit>` on west: each host's versions and the debs for them. East takes the signed repo, west the debs in `dist/debs/rolling-<commit>`. Its rollback restores the packages; the repo keeps serving the failed build until a fixed commit is published.
+`deploy/rolling-upgrade` keeps what it may have to put back in `dist/debs/rollback-<commit>` on west: each host's versions and the debs for them. East takes the signed repo, west the debs in `dist/debs/rolling-<commit>`. Before anything moves it also records what a health sweep finds up on each host; after a host moves, anything in that record that stays down fails the run. Its rollback restores the packages and checks that record again; the repo keeps serving the failed build until a fixed commit is published.
 
 ## docs/runbooks/ (incident prose)
 

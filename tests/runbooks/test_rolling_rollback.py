@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Stevie Bellis.
-"""rolling-upgrade's rollback puts back the packages each host held. The script
-and the runbook's rollback entries run for real against stand-ins for both hosts:
-real debs in a pool, dpkg, apt, ssh and scp replaced in a temp dir. Nothing here
-reaches west, east or a repo."""
+"""rolling-upgrade's rollback puts back the packages each host held, and its
+health check holds each host to what was healthy before it moved. The script and
+the runbook's entries run for real against stand-ins for both hosts: real debs in
+a pool, dpkg, apt, ssh, scp and the sweep replaced in a temp dir, and one test
+that sweeps with the real akira. Nothing here reaches west, east or a repo."""
+import http.server
 import os
 import shutil
 import subprocess
+import threading
 
 import harness
 import pytest
@@ -32,6 +35,19 @@ for a in "$@"; do
       ;;
   esac
 done
+"""
+
+# akira --once as it prints, for the services named in a file. sweep-fails stands
+# for one that cannot run, which is not a sweep of nothing.
+SWEEP = """[ ! -e "{root}/sweep-fails" ] || exit 3
+n=0
+while read -r svc; do
+  echo "  [OK] $svc (:18000) 1ms "
+  n=$((n + 1))
+done < "{up}"
+echo "  [FAIL] never-up (:19999) 0s connection refused"
+echo
+echo "$n/$((n + 1)) healthy"
 """
 
 
@@ -67,7 +83,15 @@ class Hosts:
         dpkg_stand_in(self.east_bin, self.east_rows)
         stand_in(self.west_bin, "sudo", APT.format(calls=self.west_calls, root=tmp_path, rows=self.west_rows))
         stand_in(self.east_bin, "sudo", APT.format(calls=self.east_calls, root=tmp_path, rows=self.east_rows))
-        stand_in(self.west_bin, "ssh", f'shift\nPATH="{self.east_bin}:/usr/bin:/bin" exec /bin/bash -c "$*"\n')
+        self.west_up = tmp_path / "west.up"
+        self.east_up = tmp_path / "east.up"
+        self.west_up.write_text("wotan\n")
+        self.east_up.write_text("wotan\ntimeguru\n")
+        self.sweep("west", SWEEP.format(root=tmp_path, up=self.west_up))
+        self.sweep("east", SWEEP.format(root=tmp_path, up=self.east_up))
+        stand_in(self.west_bin, "go", f"""printf '#!/bin/bash\\nexec "{tmp_path}/sweep-west" "$@"\\n' > "$3"\nchmod +x "$3"\n""")
+        stand_in(self.west_bin, "ssh", f'shift\ncase "$*" in *"akira --once"*) exec "{tmp_path}/sweep-east" ;; esac\n'
+                                       f'PATH="{self.east_bin}:/usr/bin:/bin" exec /bin/bash -c "$*"\n')
         stand_in(self.west_bin, "scp", 'shift\nargs=("$@")\ndest="${args[-1]#*:}"\nunset "args[-1]"\ncp -- "${args[@]}" "$dest/"\n')
         self.checkout = tmp_path / "checkout"
         (self.checkout / "dist" / "debs").mkdir(parents=True)
@@ -75,13 +99,17 @@ class Hosts:
         self.pool.mkdir(parents=True)
         self.keep = "dist/debs/rollback-abcd1234"
 
+    def sweep(self, host, body):
+        """What akira --once does on that host from here on."""
+        stand_in(self.root, f"sweep-{host}", body)
+
     def publish(self, pkg, version):
         directory = self.pool / "main" / "u" / pkg
         directory.mkdir(parents=True, exist_ok=True)
         return make_deb(directory, pkg, version)
 
     def env(self):
-        return {**os.environ, "PATH": f"{self.west_bin}:/usr/bin:/bin"}
+        return {**os.environ, "PATH": f"{self.west_bin}:/usr/bin:/bin", "ROLLING_SETTLE": "0"}
 
     def run(self, *args):
         return subprocess.run(["bash", str(SCRIPT), *args], cwd=self.checkout, env=self.env(),
@@ -224,6 +252,143 @@ def test_a_kept_deb_that_changed_is_not_installed(recorded):
     assert not recorded.west_calls.exists()
 
 
+@pytest.mark.parametrize("host", ["west", "east"])
+def test_the_record_holds_what_was_healthy_before_anything_moved(recorded, host):
+    want = {"west": "wotan\n", "east": "timeguru\nwotan\n"}[host]
+    assert (recorded.checkout / recorded.keep / f"{host}.healthy").read_text() == want
+
+
+@pytest.mark.parametrize("host", ["west", "east"])
+def test_a_host_with_every_service_it_had_passes(recorded, host):
+    r = recorded.run("health", host, recorded.keep)
+    assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.parametrize("host", ["west", "east"])
+def test_a_service_lost_since_the_record_fails_and_is_named(recorded, host):
+    up = recorded.west_up if host == "west" else recorded.east_up
+    up.write_text(up.read_text().replace("wotan\n", ""))
+    r = recorded.run("health", host, recorded.keep)
+    assert r.returncode != 0
+    assert "wotan" in r.stderr
+
+
+def test_a_service_already_down_at_the_record_is_not_this_builds_doing(recorded):
+    # never-up fails in every sweep, as a target a host does not run does.
+    r = recorded.run("health", "west", recorded.keep)
+    assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.parametrize("host", ["west", "east"])
+def test_a_sweep_that_cannot_run_fails_the_check(recorded, host):
+    (recorded.root / "sweep-fails").touch()
+    r = recorded.run("health", host, recorded.keep)
+    assert r.returncode != 0
+
+
+@pytest.mark.parametrize("host", ["west", "east"])
+def test_output_that_is_no_finished_sweep_fails_the_check(recorded, host):
+    recorded.sweep(host, 'echo "  [OK] wotan (:18000) 1ms "\necho "  [OK] timeguru (:19000) 1ms "\n')
+    r = recorded.run("health", host, recorded.keep)
+    assert r.returncode != 0
+
+
+def test_a_service_still_restarting_is_given_time(recorded):
+    # Down on the first sweep, up on the next, as after an upgrade's restart.
+    flag = recorded.root / "swept-once"
+    recorded.sweep("west", f'[ -e "{flag}" ] || {{ touch "{flag}"; echo; echo "0/1 healthy"; exit 0; }}\n'
+                           'echo "  [OK] wotan (:18000) 1ms "\necho; echo "1/1 healthy"\n')
+    r = subprocess.run(["bash", str(SCRIPT), "health", "west", recorded.keep], cwd=recorded.checkout,
+                       env={**recorded.env(), "ROLLING_SETTLE": "6"},
+                       capture_output=True, text=True, timeout=60, check=False)
+    assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.parametrize("host", ["west", "east"])
+def test_a_host_with_nothing_healthy_stops_the_run_before_anything_moves(tmp_path, host):
+    h = Hosts(tmp_path, WEST, EAST)
+    for pkg in PKGS:
+        h.publish(pkg, OLD)
+    (h.west_up if host == "west" else h.east_up).write_text("")
+    r = h.record()
+    assert r.returncode != 0
+    assert host in r.stderr and "nothing moved" in r.stderr
+    assert not (h.checkout / h.keep).exists()
+
+
+def test_a_sweep_tool_that_does_not_build_stops_the_run_before_anything_moves(tmp_path):
+    h = Hosts(tmp_path, WEST, EAST)
+    for pkg in PKGS:
+        h.publish(pkg, OLD)
+    stand_in(h.west_bin, "go", "exit 2\n")
+    r = h.record()
+    assert r.returncode != 0
+    assert not (h.checkout / h.keep).exists()
+
+
+def test_a_retry_keeps_the_health_it_recorded_before_a_host_moved(recorded):
+    recorded.west_up.write_text("")
+    assert recorded.record().returncode == 0
+    assert (recorded.checkout / recorded.keep / "west.healthy").read_text() == "wotan\n"
+
+
+@pytest.mark.parametrize("host", ["west", "east"])
+def test_a_host_back_at_its_versions_with_a_service_lost_fails_the_rollback(recorded, host):
+    recorded.moved_to(NEW)
+    up = recorded.west_up if host == "west" else recorded.east_up
+    up.write_text("")
+    r = recorded.run("restore", host, recorded.keep)
+    assert r.returncode != 0
+    assert "wotan" in r.stderr
+
+
+class _Health(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, *_):
+        pass
+
+
+@pytest.fixture(scope="module")
+def real_akira(tmp_path_factory):
+    out = tmp_path_factory.mktemp("akira") / "akira"
+    subprocess.run(["go", "build", "-o", str(out), "./cmd/akira"], cwd=harness.REPO, check=True,
+                   capture_output=True, timeout=540)
+    return out
+
+
+def test_the_real_sweep_of_a_service_that_went_down_fails_the_check(tmp_path, real_akira):
+    # What the stand-ins cannot show: this reads what akira really prints, and
+    # akira's own exit says nothing about how the sweep went.
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Health)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    config = tmp_path / "akira.yaml"
+    config.write_text(f"targets:\n  - name: wotan\n    host: 127.0.0.1\n    port: {server.server_port}\n"
+                      "    scheme: http\n  - name: gone\n    host: 127.0.0.1\n    port: 1\n    scheme: http\n")
+    h = Hosts(tmp_path, WEST, EAST)
+    for pkg in PKGS:
+        h.publish(pkg, OLD)
+    real = f'exec env -u UNHEADED_TLS_ENABLED "{real_akira}" "$@" --wotan "" --config "{config}"\n'
+    h.sweep("west", real)
+    h.sweep("east", real.replace('"$@"', "--once"))
+    try:
+        r = h.record()
+        assert r.returncode == 0, r.stderr
+        assert (h.checkout / h.keep / "west.healthy").read_text() == "wotan\n"
+        passed = h.run("health", "west", h.keep)
+        assert passed.returncode == 0, passed.stderr
+    finally:
+        server.shutdown()
+        server.server_close()
+    for host in ("west", "east"):
+        r = h.run("health", host, h.keep)
+        assert r.returncode != 0
+        assert "wotan" in r.stderr
+
+
 def test_no_record_is_a_refusal_not_a_quiet_pass(tmp_path):
     h = Hosts(tmp_path, WEST, EAST)
     r = h.run("restore", "west", h.keep)
@@ -239,6 +404,30 @@ def test_a_host_that_held_nothing_has_nothing_to_put_back(tmp_path):
     r = h.run("restore", "west", h.keep)
     assert r.returncode == 0, r.stderr
     assert not h.west_calls.exists()
+
+
+@pytest.mark.parametrize("name,host", [("verify-east-health", "east"), ("verify-west-health", "west")])
+def test_the_health_steps_hold_each_host_to_this_commits_record(tmp_path, name, host):
+    rb = harness.load(RB)
+    repo = tmp_path / "repo"
+    (repo / "scripts").mkdir(parents=True)
+    log = tmp_path / "calls"
+    stand_in(repo / "scripts", "rolling-previous.sh", f'echo "$*" >> "{log}"\nexit 9\n')
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stand_in(bin_dir, "git", "echo abcd1234\n")
+    r = harness.run_step(rb, name, env={"REPO": str(repo), "PATH": f"{bin_dir}:/usr/bin:/bin"}, check=False)
+    assert r.returncode == 9, r.stderr
+    assert log.read_text() == f"health {host} dist/debs/rollback-abcd1234\n"
+
+
+@pytest.mark.parametrize("name", ["verify-east-health", "verify-west-health"])
+def test_a_health_step_outlasts_the_time_it_gives_services_to_settle(name):
+    assert harness.step(harness.load(RB), name)["timeout"] >= 180
+
+
+def test_the_record_has_the_time_to_build_the_sweep_cold():
+    assert harness.step(harness.load(RB), "record-previous")["timeout"] >= 600
 
 
 def rollback(name):

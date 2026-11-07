@@ -5,6 +5,7 @@
 # rolling-previous.sh: what runbooks/deploy/rolling-upgrade.yaml puts back.
 #
 #   rolling-previous.sh record KEEP APT_BASE PKG...   # before anything moves
+#   rolling-previous.sh health west|east KEEP         # after a host moves
 #   rolling-previous.sh restore west|east KEEP        # the rollback
 #
 # record writes what each host holds of PKG to KEEP/<host>.versions and keeps the
@@ -12,16 +13,30 @@
 # dist/debs (paths are from the checkout, which is the working directory). The
 # repo holds one version of a package, so a publish drops the deb a rollback
 # needs: record runs first. A version with no deb stops the run with nothing
-# moved. A KEEP already there stays: on a retry a host may have moved.
+# moved. record also writes what a health sweep finds up on each host to
+# KEEP/<host>.healthy, and keeps west's sweep tool, built here so that no later
+# step waits on a compile. A host where the sweep finds nothing up stops the run
+# with nothing moved: nothing could then be told from a good build. A KEEP already
+# there stays: on a retry a host may have moved.
+#
+# health fails unless everything in KEEP/<host>.healthy is up again within
+# ROLLING_SETTLE seconds (60), as restarted services take a moment. It reads what
+# the sweep prints: akira --once exits 0 however many services failed, and a host
+# may be restored to a build older than any change to that. The record is the
+# bar, not every target: a target already down is not this build's doing, and
+# west's built-in target list names services it does not run.
 #
 # restore installs that host's debs, downgrades allowed, and fails unless the
-# host then holds exactly what was recorded. It does not touch the repo, which
-# still serves the failed build, nor the Well.
+# host then holds exactly what was recorded and passes health. It does not touch
+# the repo, which still serves the failed build, nor the Well.
 #
 # Tested by tests/runbooks/test_rolling_rollback.py.
 set -euo pipefail
 
 EAST=govan@east
+EAST_SWEEP='/opt/unheaded/bin/akira --once --config /opt/unheaded/etc/akira.yaml'
+WEST_CONFIG=configs/akira-west.yaml
+PAUSE=5
 
 die() { echo "rolling-previous: $*" >&2; exit 1; }
 
@@ -51,6 +66,45 @@ find_deb() {
 	done < <(find "$1/pool" dist/debs -type f -name "${2}_${3#*:}_*.deb" 2>/dev/null || true)
 }
 
+# sweep HOST DIR: the services a finished sweep found up, sorted. DIR holds west's
+# sweep tool. A sweep that did not run or did not finish is a failure, not an
+# empty list.
+sweep() {
+	local host=$1 dir=$2 out rc=0
+	if [[ "$host" == west ]]; then
+		out="$("$dir/akira" --once --config "$WEST_CONFIG" 2>&1)" || rc=$?
+	else
+		# shellcheck disable=SC2029 # the sweep is meant for that shell
+		out="$(ssh "$EAST" "$EAST_SWEEP 2>&1")" || rc=$?
+	fi
+	if ((rc != 0)) || ! grep -Eq '^[0-9]+/[0-9]+ healthy$' <<<"$out"; then
+		tail -5 <<<"$out" >&2
+		echo "rolling-previous: the sweep on $host did not finish (exit $rc)" >&2
+		return 1
+	fi
+	awk '$1 == "[OK]" { print $2 }' <<<"$out" | LC_ALL=C sort
+}
+
+health() {
+	local host=$1 keep=$2 now lost give_up=$((SECONDS + ${ROLLING_SETTLE:-60}))
+	[[ "$host" == west || "$host" == east ]] || die "health: west or east, not '$host'"
+	[[ -f "$keep/$host.healthy" ]] || die "no health record for $host in $keep"
+	while :; do
+		if now="$(sweep "$host" "$keep")"; then
+			lost="$(grep -vxF -f <(printf '%s\n' "$now") "$keep/$host.healthy" || true)"
+			if [[ -z "$lost" ]]; then
+				echo "rolling-previous: $host has everything it had up: ${now//$'\n'/, }"
+				return
+			fi
+		else
+			lost="(no finished sweep)"
+		fi
+		((SECONDS < give_up)) || break
+		sleep "$PAUSE"
+	done
+	die "$host lost what the record had up: ${lost//$'\n'/, }"
+}
+
 record() {
 	local keep=$1 base=$2 host pkg version deb
 	shift 2
@@ -76,6 +130,11 @@ record() {
 		rm -rf "$part"
 		die "no deb to put these back: ${missing[*]}; nothing moved"
 	fi
+	go build -o "$part/akira" ./cmd/akira || { rm -rf "$part"; die "the sweep tool did not build; nothing moved"; }
+	for host in west east; do
+		sweep "$host" "$part" >"$part/$host.healthy" || { rm -rf "$part"; die "no sweep of $host; nothing moved"; }
+		[[ -s "$part/$host.healthy" ]] || { rm -rf "$part"; die "the sweep finds nothing up on $host; nothing moved"; }
+	done
 	(cd "$part/debs" && find . -type f -name '*.deb' -printf '%P\0' | xargs -0 -r sha256sum --) >"$part/SHA256SUMS"
 	mv "$part" "$keep"
 	echo "rolling-previous: recorded west and east in $keep"
@@ -117,6 +176,7 @@ restore() {
 		die "$host did not get back to its record; it holds: ${now//$'\n'/, }"
 	fi
 	echo "rolling-previous: $host is back at what it held"
+	health "$host" "$keep"
 }
 
 case "${1:-}" in
@@ -125,10 +185,15 @@ record)
 	shift
 	record "$@"
 	;;
+health)
+	[[ $# -eq 3 ]] || die "usage: health west|east KEEP"
+	shift
+	health "$@"
+	;;
 restore)
 	[[ $# -eq 3 ]] || die "usage: restore west|east KEEP"
 	shift
 	restore "$@"
 	;;
-*) die "usage: record KEEP APT_BASE PKG... | restore west|east KEEP" ;;
+*) die "usage: record KEEP APT_BASE PKG... | health west|east KEEP | restore west|east KEEP" ;;
 esac
