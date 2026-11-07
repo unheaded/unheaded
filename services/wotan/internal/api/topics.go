@@ -6,6 +6,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/ringbuffer"
+	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/topicpattern"
 )
@@ -101,8 +103,8 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 		// one does not, or anyone could fill the room cap by asking. A
 		// pattern ("alerts.*") names a set of topics, not one: creating a
 		// room for it made a topic literally called "alerts.*".
-		if err := s.ensureRoom(topic); err != nil {
-			writeError(w, http.StatusServiceUnavailable, err.Error())
+		if err := s.ensureRoom(callerName(r), topic); err != nil {
+			writeError(w, roomErrStatus(err), err.Error())
 			return
 		}
 		newMember, err = s.MemberManager.EnsureApproved(topic, memberName, "topic-auto-approve")
@@ -199,9 +201,9 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get or create the room for this topic
-	rm, err := s.RoomManager.GetOrCreate(topic, topic)
+	rm, err := s.RoomManager.GetOrCreateAs(callerName(r), topic, topic)
 	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
+		writeError(w, roomErrStatus(err), err.Error())
 		return
 	}
 
@@ -258,13 +260,32 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ensureRoom makes the room behind a topic or room name. A pattern has none.
-func (s *Server) ensureRoom(name string) error {
+// ensureRoom makes the room behind a topic or room name, on creator's quota. A
+// pattern has none.
+func (s *Server) ensureRoom(creator, name string) error {
 	if topicpattern.IsPattern(name) {
 		return nil
 	}
-	_, err := s.RoomManager.GetOrCreate(name, name)
+	_, err := s.RoomManager.GetOrCreateAs(creator, name, name)
 	return err
+}
+
+// callerName is the verified caller a new room counts against: "" with auth
+// off, where a name is only what the client said.
+func callerName(r *http.Request) string {
+	if id := auth.IdentityFromContext(r.Context()); id != nil {
+		return id.Subject
+	}
+	return ""
+}
+
+// roomErrStatus answers a refused room: a caller over its quota can come back
+// when it holds fewer, the cap is the service's own limit.
+func roomErrStatus(err error) int {
+	if errors.Is(err, room.ErrRoomQuota) {
+		return http.StatusTooManyRequests
+	}
+	return http.StatusServiceUnavailable
 }
 
 // memberIsCaller reports whether the member belongs to the caller: true

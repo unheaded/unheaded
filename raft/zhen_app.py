@@ -40,6 +40,7 @@ import json
 import logging
 import os
 import secrets
+import ssl
 import sys
 import time
 import uuid
@@ -47,19 +48,20 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import yaml
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, g, jsonify, request, send_file
 
 # Add scripts dir to path for RAG import
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
 import zhen_highlight
+import zhen_login
 import zhen_redact
 import zhen_scheduler_client
 from zhen_rag import (
     AgentdGateUnavailable,
     RAGPipeline,
-    agentd_auth_from_env,
     agentd_headers,
     proxy_via_agentd_from_env,
+    set_agentd_bearer,
 )
 
 
@@ -92,9 +94,9 @@ app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 
 # ---------------------------------------------------------------------------
-# CSRF interim (threat model T8; S-CLEAN-SLATE Step 120). The UI has no login,
-# so the ambient thing a cross-site page can ride is the operator's browser on
-# the LAN. GET / issues a per-session random token in a SameSite=Strict cookie;
+# CSRF (threat model T8; S-CLEAN-SLATE Step 120). The ambient thing a
+# cross-site page can ride is the operator's browser and its login cookie.
+# GET / issues a per-session random token in a SameSite=Strict cookie;
 # the page echoes it in X-Zhen-CSRF on every state-changing request. A
 # cross-site page can neither read the cookie nor make the browser send it.
 #
@@ -102,15 +104,14 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 # is not this origin. A state-changing request must also come from that origin
 # (Origin matches Host, Sec-Fetch-Site is same-origin) and carry the token. A
 # token never excuses another origin. The one exception is _SCRIPTED_ROUTES: a
-# request with no browser headers at all has no browser state to ride, so
-# curl, the deploy runbook's smoke test and the eval scripts may reach chat.
-# None of this is a login: it binds a browser to this origin, it does not say
-# who a local caller is.
+# request with no browser headers at all has no browser state to ride, so curl
+# and the eval scripts may log in and reach chat. None of this says who a caller
+# is: that is _login_guard's job, below.
 # ---------------------------------------------------------------------------
 CSRF_COOKIE = 'zhen_csrf'
 CSRF_HEADER = 'X-Zhen-CSRF'
 _CSRF_SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
-_SCRIPTED_ROUTES = frozenset({'/api/v1/query', '/api/v1/highlight'})
+_SCRIPTED_ROUTES = frozenset({'/api/v1/query', '/api/v1/highlight', '/auth/login'})
 
 
 def _allowed_hosts():
@@ -141,8 +142,7 @@ def _same_origin(origin):
 @app.before_request
 def _csrf_guard():
     # This keeps a browser on another origin, or a rebound name, out. It does
-    # not identify a caller: nothing here records the cookie's value, so a
-    # local program can send the same headers. That takes a login.
+    # not identify a caller: a local program can send the same headers.
     if not _host_allowed():
         return jsonify({'error': 'Host not allowed: set ZHEN_ALLOWED_HOSTS to serve this name'}), 403
     if request.method in _CSRF_SAFE_METHODS:
@@ -167,17 +167,10 @@ def _with_csrf_cookie(resp):
     return resp
 
 
-# zhen-agentd authentication for the UI's own calls into the gate (chat via
-# RAGPipeline, runbook execute, model switch, kanban create). See
-# zhen_rag.agentd_auth_from_env: ZHEN_AGENTD_API_KEY, or ZHEN_AGENTD_NO_AUTH=1
-# for a -no-auth loopback dev daemon; neither is a 503 on every gated call.
-AGENTD_API_KEY, AGENTD_AUTH_ERROR = agentd_auth_from_env()
-if AGENTD_AUTH_ERROR:
-    print(f"WARNING: gated endpoints will answer 503: {AGENTD_AUTH_ERROR}")
-
-
+# The UI holds no key into zhen-agentd. Every call goes in with the login's token
+# (zhen_rag.agentd_headers), and with no login the daemon refuses it.
 def _agentd_headers():
-    return agentd_headers(AGENTD_API_KEY)
+    return agentd_headers(None)
 
 # Initialize RAG pipeline.
 #
@@ -212,6 +205,107 @@ VOR_URL = _http_url_from_env('VOR_URL', 'http://localhost:20110')
 ZHEN_INFERENCE_URL = _http_url_from_env('ZHEN_INFERENCE_URL', 'http://localhost:8081')
 ZHEN_AGENTD_URL = _http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20111')
 
+# ---------------------------------------------------------------------------
+# Login (F4, H5): zhen_login.py. Everything here is behind it but the page, the
+# probe, the highlighter (which holds no data) and the login routes themselves;
+# a route added later is closed until it is listed. No issuer configured means
+# nobody logs in, and nothing opens.
+# ---------------------------------------------------------------------------
+LOGIN = zhen_login.Login.from_env(ZHEN_AGENTD_URL)
+_LOGIN_OPEN = frozenset({
+    '/', '/health', '/auth/login', '/auth/logout', '/auth/me',
+    '/api/v1/highlight', '/api/v1/highlight.css',
+})
+# Where the page redeems a pending token: this origin, never the daemon's.
+CONFIRM_ENDPOINT = '/api/v1/agent/confirm'
+# POSTs that only read; every other write takes an operator or admin login.
+_READ_POSTS = frozenset({'/api/v1/search', '/api/v1/context'})
+
+
+def _session_cookie_name():
+    return zhen_login.SECURE_COOKIE_NAME if request.is_secure else zhen_login.COOKIE_NAME
+
+
+def _current_session():
+    return LOGIN.sessions.get(request.cookies.get(_session_cookie_name(), ''))
+
+
+@app.before_request
+def _login_guard():
+    if request.path in _LOGIN_OPEN or request.endpoint == 'static':
+        return None
+    session = _current_session()
+    if session is None:
+        return jsonify({'error': 'login_required', 'login': '/auth/login'}), 401
+    if request.method not in _CSRF_SAFE_METHODS and request.path not in _READ_POSTS \
+            and not zhen_login.can_write(session):
+        return jsonify({'error': 'forbidden', 'detail': 'this needs an operator or admin login'}), 403
+    g.zhen_session = session
+    set_agentd_bearer(session.token)
+    return None
+
+
+@app.teardown_request
+def _drop_agentd_bearer(_exc):
+    set_agentd_bearer(None)
+
+
+def _client_on_loopback():
+    try:
+        return ipaddress.ip_address(request.remote_addr or '').is_loopback \
+            and zhen_login._loopback_host(urlsplit('//' + request.host).hostname or '')
+    except ValueError:
+        return False
+
+
+def _set_session_cookie(resp, sid, max_age):
+    resp.set_cookie(_session_cookie_name(), sid, max_age=max_age, path='/',
+                    httponly=True, samesite='Strict', secure=request.is_secure)
+
+
+@app.route('/auth/login', methods=['POST'])
+def auth_login():
+    """Log in at the issuer. The browser gets a session cookie and no token."""
+    # A password over plain http stays on this host. A UI bound past loopback
+    # takes logins over its own TLS (tls_context).
+    if not request.is_secure and not LOGIN.dev_plaintext and not _client_on_loopback():
+        return jsonify({'error': 'login_needs_https'}), 403
+    request.max_content_length = zhen_login.MAX_LOGIN_BODY
+    data = request.get_json(silent=True)
+    username = data.get('username') if isinstance(data, dict) else None
+    password = data.get('password') if isinstance(data, dict) else None
+    if not isinstance(username, str) or not isinstance(password, str) or not username or not password:
+        return jsonify({'error': 'invalid_request'}), 400
+    status, body, retry, sid, session = LOGIN.login(request.remote_addr or '', username, password)
+    resp = jsonify(body)
+    resp.status_code = status
+    resp.headers['Cache-Control'] = 'no-store'
+    if retry:
+        resp.headers['Retry-After'] = retry
+    if sid:
+        # A login always gets a fresh id; a presented one is dropped, so a
+        # planted cookie cannot become someone's session.
+        LOGIN.sessions.delete(request.cookies.get(_session_cookie_name(), ''))
+        _set_session_cookie(resp, sid, max(int(session.expires - time.time()), 1))
+    return resp
+
+
+@app.route('/auth/me', methods=['GET'])
+def auth_me():
+    session = _current_session()
+    if session is None:
+        return jsonify({'error': 'no_session'}), 401
+    return jsonify(zhen_login.me_body(session))
+
+
+@app.route('/auth/logout', methods=['POST'])
+def auth_logout():
+    LOGIN.sessions.delete(request.cookies.get(_session_cookie_name(), ''))
+    resp = app.response_class(status=204)
+    resp.delete_cookie(_session_cookie_name(), path='/', httponly=True, samesite='Strict', secure=request.is_secure)
+    return resp
+
+
 try:
     # S-CLEAN-SLATE M-036 (threat model T6a): the chat path goes through
     # cmd/zhen-agentd /api/v1/agent/ask, so a tool call the model emits meets
@@ -231,7 +325,7 @@ try:
         # See scripts/switch-model.sh for the canonical model-swap path.
         model_name=os.environ.get('ZHEN_MODEL', 'qwen2.5-coder-7b-instruct'),
         proxy_via_agentd=proxy_via_agentd_from_env(),
-        agentd_api_key=AGENTD_API_KEY,
+        agentd_api_key='',
     )
 except Exception as e:
     startup_error = str(e)
@@ -1413,15 +1507,19 @@ def switch_model():
         method='POST',
     )
     # 7-minute cap matches the daemon's 6-min subprocess limit + buffer
-    # for round-trip + chat-template init on cold-cache loads.
+    # for round-trip + chat-template init on cold-cache loads. A swap is held
+    # for the person: the answer carries a pending_token to redeem here.
     try:
         with _ur.urlopen(req, timeout=420) as resp:
             return jsonify(json.loads(resp.read().decode('utf-8'))), resp.status
     except _ue.HTTPError as e:
         try:
-            return jsonify(json.loads(e.read().decode('utf-8'))), e.code
+            held = json.loads(e.read().decode('utf-8'))
         except Exception:
             return jsonify({'status': 'error', 'reason': str(e)}), e.code or 502
+        if isinstance(held, dict) and held.get('pending_token'):
+            held['confirm_endpoint'] = CONFIRM_ENDPOINT
+        return jsonify(held), e.code
     except _ue.URLError as e:
         return jsonify({
             'status': 'error',
@@ -2276,7 +2374,7 @@ def execute_runbook(name):
         status:        "ok" | "denied" | "pending_confirmation" | "error"
         result:        runbook execution output (when status=ok)
         reason:        explanation (when not-ok)
-        pending_token: redeem at /api/v1/agent/confirm (when pending)
+        pending_token: redeem at this UI's /api/v1/agent/confirm (when pending)
     """
     import urllib.error as _ue
     import urllib.request as _ur
@@ -2316,12 +2414,12 @@ def execute_runbook(name):
     rel = os.path.relpath(rb_real, runbooks_root)
     rel = rel.removesuffix('.yaml')
 
-    # Hit the daemon's /api/v1/tool/exec endpoint. The justification is
-    # direct-user (the operator clicked this in the browser). A dry run
-    # passes on it; a live run is held whatever it says, and the daemon
-    # answers with a pending_token. Rules 1 (path) + 3 (destructive verb)
-    # still apply — Champion rejects runbook names with ".." or absolute
-    # paths regardless.
+    # Hit the daemon's /api/v1/tool/exec endpoint as the person logged in. The
+    # justification is direct-user (they clicked this in the browser). A dry
+    # run passes on it; a live run is held whatever it says, and the daemon
+    # answers with a pending_token for that person, redeemed at
+    # /api/v1/agent/confirm here. Rules 1 (path) + 3 (destructive verb) still
+    # apply: Champion rejects runbook names with ".." or absolute paths.
     agentd_url = ZHEN_AGENTD_URL
     payload = {
         'tool': 'runbook_execute',
@@ -2385,8 +2483,40 @@ def execute_runbook(name):
         out['reason'] = daemon_body['reason']
     if daemon_body.get('pending_token'):
         out['pending_token'] = daemon_body['pending_token']
-        out['confirm_endpoint'] = f'{agentd_url}/api/v1/agent/confirm'
+        out['confirm_endpoint'] = CONFIRM_ENDPOINT
     return jsonify(out), status_code
+
+
+@app.route(CONFIRM_ENDPOINT, methods=['POST'])
+def agent_confirm():
+    """Redeem a pending token as the person logged in.
+
+    The daemon binds a token to the principal that caused it, and that is this
+    person, so only they can redeem it here. Body: {"token": "..."}. Returns the
+    daemon's body and status. The cap matches a live runbook's.
+    """
+    import urllib.error as _ue
+    import urllib.request as _ur
+    data = request.get_json(silent=True)
+    token = data.get('token') if isinstance(data, dict) else None
+    if not isinstance(token, str) or not token.strip():
+        return jsonify({'status': 'error', 'error': 'missing required field: token'}), 400
+    req = _ur.Request(
+        f'{ZHEN_AGENTD_URL}/api/v1/agent/confirm',
+        data=json.dumps({'token': token.strip()}).encode('utf-8'),
+        headers=_agentd_headers(),
+        method='POST',
+    )
+    try:
+        with _ur.urlopen(req, timeout=620) as resp:
+            return jsonify(json.loads(resp.read().decode('utf-8'))), resp.status
+    except _ue.HTTPError as e:
+        try:
+            return jsonify(json.loads(e.read().decode('utf-8'))), e.code
+        except Exception:
+            return jsonify({'status': 'error', 'reason': str(e)}), e.code or 502
+    except _ue.URLError as e:
+        return jsonify({'status': 'error', 'error': f'zhen-agentd unreachable at {ZHEN_AGENTD_URL}: {e}'}), 503
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -2431,7 +2561,7 @@ def approve_request(approval_id):
         if a['id'] == approval_id and a['status'] == 'pending':
             a['status'] = 'approved'
             a['decided_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-            a['decided_by'] = 'human'
+            a['decided_by'] = g.zhen_session.subject
             return jsonify(a)
     return jsonify({'error': 'Approval not found or already decided'}), 404
 
@@ -2443,7 +2573,7 @@ def deny_request(approval_id):
         if a['id'] == approval_id and a['status'] == 'pending':
             a['status'] = 'denied'
             a['decided_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-            a['decided_by'] = 'human'
+            a['decided_by'] = g.zhen_session.subject
             return jsonify(a)
     return jsonify({'error': 'Approval not found or already decided'}), 404
 
@@ -2603,12 +2733,10 @@ def kanban_create():
     """Create a Kanban card through zhen-agentd's gate (tool kanban_create).
 
     The page used to POST to the daemon's :20111 directly, which cannot carry
-    the daemon's API key (a browser must never hold it) or a justification.
+    a credential (a browser must never hold one) or a justification.
     The UI states the direct-user justification here, like runbook execute.
     Body: {"task": {...}} (the kanban_create args.task object).
     """
-    if AGENTD_AUTH_ERROR:
-        return jsonify({'status': 'error', 'error': AGENTD_AUTH_ERROR}), 503
     data = request.get_json(silent=True)
     task = data.get('task') if isinstance(data, dict) else None
     if not isinstance(task, dict) or not task.get('id'):
@@ -2654,9 +2782,9 @@ def kanban_create():
 def bind_address():
     """The address the UI listens on: ZHEN_BIND_ADDR, loopback when unset or empty.
 
-    Binding beyond the host is an explicit choice (bandit B104, S-TRUE-WIRE Step 360): the
-    UI's CSRF defence is interim (threat model T8), so 0.0.0.0 is never the default. A value
-    that is not an IP address exits rather than guessing."""
+    Binding beyond the host is an explicit choice (bandit B104, S-TRUE-WIRE Step 360): 0.0.0.0
+    is never the default, and a login off loopback is refused without tls_context or
+    AUTH_BFF_DEV_PLAINTEXT. A value that is not an IP address exits rather than guessing."""
     raw = os.environ.get('ZHEN_BIND_ADDR', '')
     if raw == '':
         return '127.0.0.1'
@@ -2666,9 +2794,30 @@ def bind_address():
         sys.exit(f"ZHEN_BIND_ADDR={raw!r} is not an IP address (unset it for 127.0.0.1)")
 
 
+def tls_context(environ=None):
+    """The listener's TLS, from UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE (pkg/tls's names);
+    None with neither set. Half a pair, or one that does not load, exits rather than serving
+    logins in the clear. TLS 1.3 with OpenSSL's default groups, hybrid ML-KEM first: Python's
+    ssl cannot refuse the classical ones, so this is ADR-105's preferred profile, not strict."""
+    env = os.environ if environ is None else environ
+    cert = env.get('UNHEADED_TLS_CERT', '').strip()
+    key = env.get('UNHEADED_TLS_KEY_FILE', '').strip()
+    if not cert and not key:
+        return None
+    if not cert or not key:
+        sys.exit('set both UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE, or neither')
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    try:
+        context.load_cert_chain(cert, key)
+    except (OSError, ssl.SSLError) as exc:
+        sys.exit(f'TLS pair {cert}: {exc}')
+    return context
+
+
 if __name__ == '__main__':
     host = bind_address()
     print(f"Zhen Web UI starting on {host}:20103...")
     print(f"RAG status: {'ready' if rag else 'NOT READY — ' + str(startup_error)}")
     print(f"Local context window: {rag.local_max_tokens if rag else 'N/A'} tokens")
-    app.run(host=host, port=20103, debug=False)
+    app.run(host=host, port=20103, debug=False, ssl_context=tls_context())

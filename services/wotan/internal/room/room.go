@@ -19,6 +19,7 @@ type Room struct {
 	CreatedAt     time.Time              `json:"created_at"`
 	Buffer        *ringbuffer.RingBuffer `json:"-"`
 	KeyValueStore map[string]string      `json:"kv_store"` // Secure key-value pairs
+	creator       string                 // the verified caller it counts against; "" for none
 	mu            sync.RWMutex
 }
 
@@ -36,6 +37,10 @@ type Manager struct {
 	totalBytes int
 	// maxRooms caps how many rooms exist (SetMaxRooms); 0 means none.
 	maxRooms int
+	// roomQuota caps how many rooms one verified caller may have made
+	// (SetRoomQuota); 0 means none. made counts them by caller.
+	roomQuota int
+	made      map[string]int
 	// keep names rooms EnforceTotal never evicts from (signed config.*:
 	// small, and losing one silently is worse than holding it).
 	keep func(roomID string) bool
@@ -54,6 +59,7 @@ func (m *Manager) LastSeq() int64 {
 func NewManager(bufferSize int) *Manager {
 	return &Manager{
 		rooms:      make(map[string]*Room),
+		made:       make(map[string]int),
 		bufferSize: bufferSize,
 	}
 }
@@ -151,9 +157,25 @@ func (m *Manager) SetMaxRooms(n int) {
 	m.maxRooms = n
 }
 
+// SetRoomQuota caps the rooms one verified caller may have made (0 = none).
+// SetMaxRooms alone lets one caller spend the whole cap by naming topics, and
+// rooms are never reaped, so everyone else is then refused until a restart.
+func (m *Manager) SetRoomQuota(n int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.roomQuota = n
+}
+
 // Create creates a new room with the given ID and name, or returns the
 // existing one. Past SetMaxRooms it refuses a new room (ErrTooManyRooms).
 func (m *Manager) Create(id, name string) (*Room, error) {
+	return m.CreateAs("", id, name)
+}
+
+// CreateAs is Create on behalf of a verified caller, who is also held to
+// SetRoomQuota (ErrRoomQuota). A room that exists costs nothing. With no
+// caller only the cap applies: a self-reported name proves nothing.
+func (m *Manager) CreateAs(creator, id, name string) (*Room, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -164,6 +186,9 @@ func (m *Manager) Create(id, name string) (*Room, error) {
 	if m.maxRooms > 0 && len(m.rooms) >= m.maxRooms {
 		return nil, ErrTooManyRooms
 	}
+	if creator != "" && m.roomQuota > 0 && m.made[creator] >= m.roomQuota {
+		return nil, ErrRoomQuota
+	}
 
 	room := &Room{
 		ID:            id,
@@ -171,10 +196,14 @@ func (m *Manager) Create(id, name string) (*Room, error) {
 		CreatedAt:     time.Now(),
 		Buffer:        ringbuffer.NewShared(m.bufferSize, &m.seq),
 		KeyValueStore: make(map[string]string),
+		creator:       creator,
 	}
 	room.Buffer.SetMaxBytes(m.bufferBytes)
 
 	m.rooms[id] = room
+	if creator != "" {
+		m.made[creator]++
+	}
 	return room, nil
 }
 
@@ -194,6 +223,11 @@ func (m *Manager) Get(id string) (*Room, error) {
 // GetOrCreate retrieves a room or creates it if it doesn't exist (within
 // SetMaxRooms; see Create).
 func (m *Manager) GetOrCreate(id, name string) (*Room, error) {
+	return m.GetOrCreateAs("", id, name)
+}
+
+// GetOrCreateAs is GetOrCreate on behalf of a verified caller (see CreateAs).
+func (m *Manager) GetOrCreateAs(creator, id, name string) (*Room, error) {
 	m.mu.RLock()
 	room, exists := m.rooms[id]
 	m.mu.RUnlock()
@@ -202,7 +236,7 @@ func (m *Manager) GetOrCreate(id, name string) (*Room, error) {
 		return room, nil
 	}
 
-	return m.Create(id, name)
+	return m.CreateAs(creator, id, name)
 }
 
 // List returns all rooms
@@ -223,11 +257,17 @@ func (m *Manager) Delete(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, exists := m.rooms[id]; !exists {
+	room, exists := m.rooms[id]
+	if !exists {
 		return ErrRoomNotFound
 	}
 
 	delete(m.rooms, id)
+	if room.creator != "" {
+		if m.made[room.creator]--; m.made[room.creator] <= 0 {
+			delete(m.made, room.creator)
+		}
+	}
 	return nil
 }
 
@@ -338,6 +378,8 @@ var (
 	ErrRoomNotFound = &RoomError{msg: "room not found"}
 	// ErrTooManyRooms: creating the room would pass SetMaxRooms.
 	ErrTooManyRooms = &RoomError{msg: "too many rooms"}
+	// ErrRoomQuota: this caller has made as many rooms as SetRoomQuota allows.
+	ErrRoomQuota = &RoomError{msg: "room quota reached for this caller"}
 )
 
 type RoomError struct {

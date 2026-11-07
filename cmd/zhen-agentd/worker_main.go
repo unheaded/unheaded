@@ -79,7 +79,7 @@ func defaultAgentWTRoot() string {
 }
 
 func registerWorkerFlags(fs *flag.FlagSet, wf *workerFlags) {
-	fs.BoolVar(&wf.enabled, "worker", false, "work eligible Kanban cards from the Well (owner zhen, a ```zhen block) into local zhen/<card> branches for review; never pushes (DSN from env WELL_APP_ZHEN_DSN)")
+	fs.BoolVar(&wf.enabled, "worker", false, "work eligible Kanban cards from the Well (owner zhen, opted in by an operator, a ```zhen block) into local zhen/<card> branches for review; never pushes (DSN from env WELL_APP_ZHEN_DSN)")
 	fs.BoolVar(&wf.once, "once", false, "with -worker: work at most one card, print the result as JSON and exit (no HTTP listener)")
 	fs.DurationVar(&wf.poll, "poll", 60*time.Second, "with -worker: time between polls for an eligible card")
 	fs.StringVar(&wf.base, "base", "develop", "with -worker: local branch new zhen/<card> branches start from")

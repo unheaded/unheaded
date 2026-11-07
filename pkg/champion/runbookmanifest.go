@@ -30,7 +30,8 @@ import (
 //
 //  1. reads the runbook once and checks its sha256 against
 //     runbooks/MANIFEST.sha256, the committed set
-//     (scripts/runbook-manifest.sh writes it; CI fails when it is stale);
+//     (scripts/runbook-manifest.sh writes it; CI fails when it is stale),
+//     whose bytes must carry a good seal (runbookseal.go);
 //  2. scans the commands run-runbook.py would execute (steps, rollback and
 //     verification entries that are not `action: manual`: their `command`
 //     and `verify`) with the same DestructivePattern as Rule 3, and refuses
@@ -175,6 +176,9 @@ func (c *Champion) verifyRunbookForExec(runbookPath, relName string, dryRun bool
 	raw, err := os.ReadFile(filepath.Join(runbooksDir, RunbookManifestFile)) // #nosec G304 -- fixed name under the configured project root
 	if err != nil {
 		return "", noop, fmt.Errorf("%w: %v", ErrRunbookUnapproved, err)
+	}
+	if err := c.checkManifestSeal(runbooksDir, raw); err != nil {
+		return "", noop, err
 	}
 	manifest, err := parseRunbookManifest(raw)
 	if err != nil {

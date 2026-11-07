@@ -19,10 +19,13 @@
 #
 # Optional: also start cmd/zhen-agentd if -gated is passed. The chat path
 # goes through the daemon's gate (S-CLEAN-SLATE M-036), so without a daemon
-# on :20111 chat and mutations answer 503 "the gate is required". The UI
-# authenticates to it with ZHEN_AGENTD_API_KEY (X-API-Key, one of the
-# daemon's AUTH_API_KEYS), or ZHEN_AGENTD_NO_AUTH=1 for a -no-auth loopback
-# dev daemon; set one in the environment this script runs in.
+# on :20111 chat and mutations answer 503 "the gate is required".
+#
+# Login: everything but the page and /health needs one. Set AUTH_ISSUER_URL to
+# unheaded-auth (its -audiences must list zhen-agentd; AUTH_BFF_DEV_PLAINTEXT=true
+# only for a stack without TLS). The UI sends the person's token to the daemon,
+# which verifies it, so the daemon needs AUTH_OIDC_ISSUER_URL too. -gated sets
+# that from AUTH_ISSUER_URL. Without an issuer nobody can log in.
 
 set -e
 
@@ -75,19 +78,20 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         echo "[2/3] Starting cmd/zhen-agentd on :20111 (mutation gating)..."
         cd "$HOME/tmp/unheaded"
         AGENTD_LOG="$("$LOGPATH" zhen-agentd)"
-        # zhen-agentd exits 2 without auth (M-019). With a key in this
-        # environment (AUTH_API_KEYS, AUTH_API_KEY_FILE or AUTH_JWT_KEY) it
-        # runs authenticated and the UI gets the key as ZHEN_AGENTD_API_KEY;
-        # without one it runs -no-auth, which it allows on loopback only.
+        # zhen-agentd exits 2 without auth (M-019). With a key or an issuer in
+        # this environment (AUTH_API_KEYS, AUTH_API_KEY_FILE, AUTH_JWT_KEY or
+        # AUTH_ISSUER_URL) it runs authenticated; without one it runs -no-auth,
+        # which it allows on loopback only. The UI holds no key of its own: it
+        # sends each person's login token.
         AGENTD_AUTH=(-no-auth)
-        if [[ -n "${AUTH_API_KEYS:-}${AUTH_API_KEY_FILE:-}${AUTH_JWT_KEY:-}" ]]; then
+        if [[ -n "${AUTH_ISSUER_URL:-}" ]]; then
+            export AUTH_OIDC_ISSUER_URL="${AUTH_OIDC_ISSUER_URL:-$AUTH_ISSUER_URL}"
+        fi
+        if [[ -n "${AUTH_API_KEYS:-}${AUTH_API_KEY_FILE:-}${AUTH_JWT_KEY:-}${AUTH_OIDC_ISSUER_URL:-}" ]]; then
             export AUTH_ENABLED=true
             AGENTD_AUTH=()
-            if [[ -z "${ZHEN_AGENTD_API_KEY:-}" && -n "${AUTH_API_KEYS:-}" ]]; then
-                export ZHEN_AGENTD_API_KEY="${AUTH_API_KEYS%%,*}"
-            fi
         else
-            echo "  ! no AUTH_API_KEYS/AUTH_API_KEY_FILE/AUTH_JWT_KEY: zhen-agentd runs -no-auth on 127.0.0.1 (dev only)"
+            echo "  ! no AUTH_ISSUER_URL/AUTH_API_KEYS/AUTH_API_KEY_FILE/AUTH_JWT_KEY: zhen-agentd runs -no-auth on 127.0.0.1 (dev only; nobody can log in to the UI)"
         fi
         nohup ./bin/zhen-agentd \
             -host 127.0.0.1 \
@@ -133,8 +137,8 @@ else
     . "$HOME/tmp/unheaded/scripts/lib/model-pins.sh"
     export ZHEN_EMBEDDER_SHA256="${ZHEN_EMBEDDER_SHA256:-$EMBEDDER_SHA256}"
     export ZHEN_EMBEDDER_REVISION="${ZHEN_EMBEDDER_REVISION:-$EMBEDDER_REVISION}"
-    if [[ -z "${ZHEN_AGENTD_API_KEY:-}" && "${ZHEN_AGENTD_NO_AUTH:-}" != "1" ]]; then
-        echo "  ! ZHEN_AGENTD_API_KEY unset (and ZHEN_AGENTD_NO_AUTH!=1): gated chat and mutations will answer 503"
+    if [[ -z "${AUTH_ISSUER_URL:-}" ]]; then
+        echo "  ! AUTH_ISSUER_URL unset: nobody can log in, so every route but the page and /health answers 401"
     fi
 
     # The Well (PostgreSQL) — required for memory cache, conversation log,
@@ -153,6 +157,7 @@ else
     export ZHEN_DB_PORT="${ZHEN_DB_PORT:-5432}"
     # Listen address (bandit B104, S-TRUE-WIRE Step 360): loopback unless set. Reaching the
     # UI from another host is an explicit choice, e.g. ZHEN_BIND_ADDR=10.10.20.1 (west's lxdbr0).
+    # A login from another host needs the UI's own TLS: UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE.
     # The UI answers only to loopback and that address; any other name goes in ZHEN_ALLOWED_HOSTS.
     export ZHEN_BIND_ADDR="${ZHEN_BIND_ADDR:-127.0.0.1}"
     echo "  web UI listen address: ${ZHEN_BIND_ADDR}:20103"
@@ -167,13 +172,17 @@ fi
 sleep 3
 echo ""
 echo "=== Zhenai Status ==="
+# The UI serves TLS when it holds a pair; -k because this probes its own /health
+# by a name the certificate need not carry.
+UI_URL="http://localhost:20103"
+[[ -n "${UNHEADED_TLS_CERT:-}" ]] && UI_URL="https://localhost:20103"
 curl -s http://localhost:8081/v1/models 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Inference: {d[\"models\"][0][\"name\"]}')" \
     2>/dev/null || echo "Inference: NOT READY"
 curl -s http://localhost:20110/api/health 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Retrieval: vor — {d[\"sheets\"]} sheets, {d[\"categories\"]} categories')" \
     2>/dev/null || echo "Retrieval: NOT READY"
-curl -s http://localhost:20103/health 2>/dev/null \
+curl -sk "$UI_URL/health" 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Web UI:    {d[\"status\"]} (ready={d[\"rag_ready\"]}, well_connected={d[\"well_connected\"]})')" \
     2>/dev/null || echo "Web UI: NOT READY"
 if ss -lnt 2>/dev/null | awk '$4 ~ /:20111$/ {f=1} END {exit !f}'; then
@@ -184,9 +193,10 @@ else
     echo "Daemon:    not running (mutation gating OFF; run with '-gated' to enable)"
 fi
 echo ""
-echo "Browse:        http://localhost:20103"
-echo "Chat API:      POST http://localhost:20103/api/v1/query"
-echo "Runbooks API:  POST http://localhost:20103/api/v1/runbooks/<n>/execute"
+echo "Browse:        $UI_URL"
+echo "Login:         POST $UI_URL/auth/login (everything below takes the session it gives)"
+echo "Chat API:      POST $UI_URL/api/v1/query"
+echo "Runbooks API:  POST $UI_URL/api/v1/runbooks/<n>/execute  (operator login)"
 echo "Daemon API:    POST http://localhost:20111/api/v1/tool/exec  (when -gated)"
 echo ""
 echo "Stop:  pkill -f zhen_app.py; pkill -f bin/zhen-agentd"

@@ -21,6 +21,7 @@ Memory recall semantics (T1 closure):
     as a side-channel ("matched_memory" field), but query() always
     runs the full RAG path.
 """
+import contextvars
 import hashlib
 import logging
 import os
@@ -130,9 +131,22 @@ def agentd_auth_from_env(environ=None):
                 "ZHEN_AGENTD_NO_AUTH=1 for a -no-auth loopback dev daemon)")
 
 
+# The logged-in person's token for the request in hand. While it is set every
+# call into zhen-agentd acts as that person and the UI's own key is not sent, so
+# the daemon's roles apply to them and a pending token binds to them.
+_agentd_bearer = contextvars.ContextVar("zhen_agentd_bearer", default=None)
+
+
+def set_agentd_bearer(token):
+    _agentd_bearer.set(token)
+
+
 def agentd_headers(api_key):
     h = {"Content-Type": "application/json"}
-    if api_key:
+    bearer = _agentd_bearer.get()
+    if bearer:
+        h["Authorization"] = f"Bearer {bearer}"
+    elif api_key:
         h["X-API-Key"] = api_key
     return h
 
@@ -757,7 +771,7 @@ class RAGPipeline:
             if preamble:
                 goal = "Prior conversation:\n" + "\n".join(preamble) + f"\n\nCurrent question: {query}"
 
-        if self.agentd_auth_error:
+        if self.agentd_auth_error and not _agentd_bearer.get():
             raise AgentdGateUnavailable(self.agentd_auth_error)
 
         try:
@@ -788,7 +802,8 @@ class RAGPipeline:
             _log_gate_down(f"{self.agentd_url} refused the UI: HTTP {response.status_code}")
             raise AgentdGateUnavailable(
                 f"zhen-agentd refused the web UI (HTTP {response.status_code}): check "
-                "ZHEN_AGENTD_API_KEY against the daemon's AUTH_API_KEYS")
+                "ZHEN_AGENTD_API_KEY against the daemon's AUTH_API_KEYS, or the login's "
+                "role and the daemon's AUTH_OIDC_ISSUER_URL")
         if response.status_code >= 500 or response.status_code == 429:
             _log_gate_down(f"{self.agentd_url}: HTTP {response.status_code}")
             raise AgentdGateUnavailable(

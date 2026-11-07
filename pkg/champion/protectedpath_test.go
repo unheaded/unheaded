@@ -191,3 +191,93 @@ func TestValidatePath_KeyMaterial(t *testing.T) {
 		t.Error("a link to key material is allowed")
 	}
 }
+
+// H3: the deny is on writing. Zhen reads runbooks and scripts to author them;
+// what it cannot do is change them, and .git stays out of reach both ways: a
+// repository's config can hold a credential.
+func TestReadFile_ProtectedTreesReadButDoNotWrite(t *testing.T) {
+	c, _ := newTestChampion(t)
+	ctx := context.Background()
+	root := c.GetProjectRoot()
+	for _, rel := range []string{"runbooks/infra/x.yaml", "runbooks/" + RunbookManifestFile, "scripts/run-runbook.py", "configs/zhen-schedules.yaml"} {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("body\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := c.ReadFile(ctx, p); err != nil || got != "body\n" {
+			t.Errorf("read %s: %q %v", rel, got, err)
+		}
+		read := ToolCall{Name: "read_file", Args: map[string]any{"path": p}}
+		if d, err := c.AcceptToolCall(ctx, read); err != nil || !d.Allow {
+			t.Errorf("gate on a read of %s: %+v %v", rel, d, err)
+		}
+		write := ToolCall{Name: "write_file", Args: map[string]any{"path": p, "content": "x"}, Justification: []Reference{canonicalRef("t")}}
+		if d, err := c.AcceptToolCall(ctx, write); err == nil || d.Allow {
+			t.Errorf("gate on a write of %s: %+v %v", rel, d, err)
+		}
+		if err := c.WriteFile(ctx, p, "x"); err == nil {
+			t.Errorf("WriteFile %s succeeded", rel)
+		}
+	}
+}
+
+func TestReadFile_GitStaysOutOfReach(t *testing.T) {
+	c, _ := newTestChampion(t)
+	root := c.GetProjectRoot()
+	p := filepath.Join(root, ".git", "config")
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("[remote]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ReadFile(context.Background(), p); err == nil {
+		t.Fatal("read .git/config")
+	}
+	if err := os.Symlink(p, filepath.Join(root, "notes")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ReadFile(context.Background(), filepath.Join(root, "notes")); err == nil {
+		t.Fatal("read .git/config through a link")
+	}
+	tc := ToolCall{Name: "read_file", Args: map[string]any{"path": p}}
+	if d, err := c.AcceptToolCall(context.Background(), tc); err == nil || d.Allow {
+		t.Fatalf("gate on a read of .git/config: %+v %v", d, err)
+	}
+}
+
+// Reading through a link into a protected tree is reading that tree; the rest
+// of what a read refuses is unchanged.
+func TestReadFile_TheOtherDeniesStillHold(t *testing.T) {
+	c, _ := newTestChampion(t)
+	ctx := context.Background()
+	root := c.GetProjectRoot()
+	for _, rel := range []string{"tls/server.key", "scripts/deploy.pem", "runbooks/.env", "scripts/secrets/x"} {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.ReadFile(ctx, p); err == nil {
+			t.Errorf("read %s", rel)
+		}
+	}
+	if _, err := c.ReadFile(ctx, filepath.Join(filepath.Dir(root), "elsewhere", "x")); err == nil {
+		t.Error("read outside the sandbox")
+	}
+}
+
+// run_check names a path it will run in, not one it will read.
+func TestRunCheck_ProtectedPathsStayRefused(t *testing.T) {
+	c, _ := newTestChampion(t)
+	p := filepath.Join(c.GetProjectRoot(), "scripts")
+	tc := ToolCall{Name: "run_check", Args: map[string]any{"check": "go-test", "path": p}}
+	if d, err := c.AcceptToolCall(context.Background(), tc); err == nil || d.Allow {
+		t.Fatalf("run_check on scripts/: %+v %v", d, err)
+	}
+}

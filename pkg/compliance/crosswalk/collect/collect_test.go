@@ -1329,7 +1329,7 @@ func TestPAMProbes(t *testing.T) {
 		"password requisite pam_pwhistory.so remember=24 enforce_for_root use_authtok\n" +
 		"password [success=1 default=ignore] pam_unix.so obscure use_authtok yescrypt\n" +
 		"session required pam_unix.so\n" +
-		"%%pwq\nminlen = 14\ndifok = 2\nmaxrepeat = 3\nmaxsequence = 3\nenforce_for_root\n" +
+		"%%pwq\nminlen = 15\ndifok = 2\nmaxrepeat = 3\nmaxsequence = 3\nenforce_for_root\n" +
 		"%%fl\ndeny = 4\nunlock_time = 900\n%%ph\n@ok\n"
 	for _, tc := range []struct {
 		probe, out string
@@ -1347,6 +1347,7 @@ func TestPAMProbes(t *testing.T) {
 		{"pam-pwq-difok", hardened, true},
 		{"pam-pwq-minlen", stock, false}, // a commented minlen is not a setting
 		{"pam-pwq-minlen", hardened, true},
+		{"pam-pwq-minlen", strings.Replace(hardened, "minlen = 15", "minlen = 14", 1), false}, // L14: 15 is the floor
 		{"pam-pwq-maxrepeat", hardened, true},
 		{"pam-pwq-maxsequence", stock, false},
 		{"pam-pwq-dictcheck", stock, false}, // default 1, but pwquality is not enabled

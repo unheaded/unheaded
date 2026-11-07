@@ -23,7 +23,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+
 	"unheaded/pkg/champion"
+	"unheaded/pkg/gungnir"
 	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/zhenagent"
 )
@@ -548,6 +551,37 @@ func TestScheduler_WellDownKeepsTheRunInMemory(t *testing.T) {
 	}
 }
 
+// sealTestManifest seals root's manifest as a person would, with the public
+// half outside the root.
+func sealTestManifest(t *testing.T, root string) {
+	t.Helper()
+	key := gungnir.GenerateDevKey()
+	path := filepath.Join(root, "runbooks", champion.RunbookManifestFile)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seal, err := champion.SealRunbookManifest(raw, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path+champion.RunbookSealSuffix, seal, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pub, ok := key.Public().(*mldsa65.PublicKey)
+	if !ok {
+		t.Fatal("not an ML-DSA-65 key")
+	}
+	pubPath := filepath.Join(t.TempDir(), "runbook-manifest.pub")
+	if err := os.WriteFile(pubPath, pub.Bytes(), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Dir(pubPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(champion.RunbookManifestKeyEnv, pubPath)
+}
+
 // The gate itself, not a fake: a scheduled job still runs its runbook, and
 // the same call from a model loop does not, whatever it cites.
 func TestScheduler_StandingJobRunsPastTheHoldAModelLoopDoesNot(t *testing.T) {
@@ -571,6 +605,7 @@ func TestScheduler_StandingJobRunsPastTheHoldAModelLoopDoesNot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	sealTestManifest(t, root)
 	champ, err := srv.pool.get(root)
 	if err != nil {
 		t.Fatal(err)

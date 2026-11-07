@@ -84,8 +84,10 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 }
 
 // minPasswordLen is the shortest password user add takes: this login has one
-// factor, so length is what the password has to offer.
-const minPasswordLen = 12
+// factor, so length is what the password has to offer, and NIST SP 800-63B-4
+// asks 15 of a single factor. An account set under a lower floor keeps working:
+// login tells it so (issuer.go), and `user del` then `user add` replaces it.
+const minPasswordLen = 15
 
 func userAdd(path, name, roleList string, pwStdin bool, stdin io.Reader, stdout, stderr io.Writer) int {
 	if !validUsername(name) {

@@ -203,6 +203,7 @@ func (s *server) execToolRequest(w http.ResponseWriter, r *http.Request, req too
 		Justification: justification,
 		EmittedBy:     emittedBy,
 		Principal:     requestPrincipal(r), // RT-03: a pending token is bound to it
+		Tainted:       agentLoop,           // H3: this daemon cannot see what such a loop has read
 	}
 
 	s.dispatchAndRespond(w, r, champ, tc, req.SessionID)

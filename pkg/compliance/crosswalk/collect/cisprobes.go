@@ -1661,7 +1661,7 @@ func init() {
 // PAM (CIS 5.3.1.2, 5.3.1.3, 5.3.2.1-5.3.2.4, 5.3.3.1.1-5.3.3.4.4 except
 // the manual 5.3.3.2.3). Values are the CIS profile's ComplianceAsCode
 // variables: faillock deny <= 4, unlock_time 0 or >= 900; pwquality difok
-// >= 2, minlen >= 14, maxrepeat 1-3, maxsequence 1-3, dictcheck and
+// >= 2, minlen >= 15, maxrepeat 1-3, maxsequence 1-3, dictcheck and
 // enforcing not 0, enforce_for_root; pwhistory remember >= 24,
 // enforce_for_root, use_authtok; pam_unix without nullok or remember,
 // with yescrypt or sha512 and use_authtok. A module's built-in default
@@ -1848,7 +1848,7 @@ func init() {
 	Probes["pam-faillock-deny"] = setting("fl", "pam_faillock.so", "deny", 3, func(n int) bool { return n >= 1 && n <= 4 }, "1-4")
 	Probes["pam-faillock-unlock"] = setting("fl", "pam_faillock.so", "unlock_time", 600, func(n int) bool { return n == 0 || n >= 900 }, "0 or >= 900")
 	Probes["pam-pwq-difok"] = setting("pwq", "pam_pwquality.so", "difok", 1, func(n int) bool { return n >= 2 }, ">= 2")
-	Probes["pam-pwq-minlen"] = setting("pwq", "pam_pwquality.so", "minlen", 8, func(n int) bool { return n >= 14 }, ">= 14")
+	Probes["pam-pwq-minlen"] = setting("pwq", "pam_pwquality.so", "minlen", 8, func(n int) bool { return n >= 15 }, ">= 15")
 	Probes["pam-pwq-maxrepeat"] = setting("pwq", "pam_pwquality.so", "maxrepeat", 0, func(n int) bool { return n >= 1 && n <= 3 }, "1-3")
 	Probes["pam-pwq-maxsequence"] = setting("pwq", "pam_pwquality.so", "maxsequence", 0, func(n int) bool { return n >= 1 && n <= 3 }, "1-3")
 	Probes["pam-pwq-dictcheck"] = setting("pwq", "pam_pwquality.so", "dictcheck", 1, func(n int) bool { return n != 0 }, "not 0")

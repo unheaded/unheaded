@@ -17,6 +17,7 @@ package zhenagent
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -26,9 +27,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Owner is the card owner that hands a card to Zhen. Setting the field is the
-// whole opt-in: nothing here checks who set it. The agent never touches
-// anyone else's cards.
+// Owner is the card owner the worker looks for. Anyone who can edit the board
+// can set that field, so it opts nothing in: a card also needs Card.OptInSHA256,
+// which only an authenticated operator can set (H4, kanban_zhen_optin). The
+// agent never touches anyone else's cards.
 const Owner = "zhen"
 
 // EligibleTypes are the card types the worker takes.
@@ -65,6 +67,21 @@ type Card struct {
 	Owner       string
 	Deleted     bool
 	Archived    bool
+	// OptInSHA256 is the text an operator handed over, by its CardSHA256;
+	// empty for a card nobody opted in. It comes from kanban_zhen_optin, never
+	// from the card.
+	OptInSHA256 string
+}
+
+// CardSHA256 is what an opt-in records of a card: every word of it the worker
+// passes on, the title and the description. A NUL separates them, which a
+// Postgres text value cannot hold; SQLStore.Claim computes the same bytes.
+func CardSHA256(title, description string) string {
+	h := sha256.New()
+	h.Write([]byte(title))
+	h.Write([]byte{0})
+	h.Write([]byte(description))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Eligible says whether the worker may take c (the hand-off block is
@@ -75,6 +92,10 @@ func Eligible(c Card) error {
 		return fmt.Errorf("%w: deleted or archived", ErrNotEligible)
 	case c.Owner != Owner:
 		return fmt.Errorf("%w: owner is not %q", ErrNotEligible, Owner)
+	case c.OptInSHA256 == "":
+		return fmt.Errorf("%w: no operator opted it in", ErrNotEligible)
+	case c.OptInSHA256 != CardSHA256(c.Title, c.Description):
+		return fmt.Errorf("%w: its title or description changed after the opt-in", ErrNotEligible)
 	case c.Status != "todo":
 		return fmt.Errorf("%w: status %q is not todo", ErrNotEligible, c.Status)
 	case !EligibleTypes[c.Type]:

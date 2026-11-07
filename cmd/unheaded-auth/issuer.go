@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rs/zerolog/log"
 
@@ -48,6 +49,10 @@ var (
 	tokensIssued = auto.NewCounter(prom.CounterOpts{
 		Name: "unheaded_auth_tokens_issued_total",
 		Help: "Access tokens minted by the built-in issuer",
+	})
+	loginsBelowFloor = auto.NewCounter(prom.CounterOpts{
+		Name: "unheaded_auth_logins_below_floor_total",
+		Help: "Good logins whose password is under the floor user add now asks; each such account needs a new one",
 	})
 )
 
@@ -380,11 +385,20 @@ func (s *issuer) login(w http.ResponseWriter, r *http.Request) {
 	loginsTotal.WithLabelValues("ok").Inc()
 	tokensIssued.Inc()
 	log.Info().Str("service", serviceName).Str("user", u.name).Str("aud", aud).Str("source", src).Msg("token issued")
-	writeJSON(w, http.StatusOK, map[string]any{
+	answer := map[string]any{
 		"access_token": tok,
 		"token_type":   "Bearer",
 		"expires_in":   int(tokenLifetime.Seconds()),
-	})
+	}
+	// A raised floor locks nobody out. Only here, with the password in hand,
+	// can anything know one is short: say so, and let the login stand.
+	if utf8.RuneCountInString(req.Password) < minPasswordLen {
+		loginsBelowFloor.Inc()
+		log.Warn().Str("service", serviceName).Str("user", u.name).Int("floor", minPasswordLen).
+			Msg("password below the floor: replace it with user del and user add")
+		answer["password_below_floor"] = true
+	}
+	writeJSON(w, http.StatusOK, answer)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

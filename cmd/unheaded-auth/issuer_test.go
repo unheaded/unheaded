@@ -538,3 +538,33 @@ func TestLockout_GoodLoginKeepsTheSourceCount(t *testing.T) {
 		t.Fatalf("after the source's limit = %d, want 429", w.Code)
 	}
 }
+
+// L14: raising the floor locks nobody out. An account set under the old floor
+// still logs in, and the answer says its password is short: a hash cannot say
+// so, so the login is the one place that can.
+func TestLogin_AnAccountBelowTheFloorStillLogsIn(t *testing.T) {
+	f := newFixture(t)
+	f.writeUsers(t, map[string][]string{"old": {"operator"}}, "short password")
+	ts, _ := serve(t, f, nil)
+	resp, out := login(t, ts, `{"username":"old","password":"short password"}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %v", resp.StatusCode, out)
+	}
+	if out["access_token"] == "" || out["password_below_floor"] != true {
+		t.Errorf("no token or no warning in the answer: %v", out)
+	}
+}
+
+func TestLogin_AnAccountAtTheFloorHearsNothing(t *testing.T) {
+	f := newFixture(t)
+	pw := strings.Repeat("y", minPasswordLen)
+	f.writeUsers(t, map[string][]string{"new": {"operator"}}, pw)
+	ts, _ := serve(t, f, nil)
+	resp, out := login(t, ts, `{"username":"new","password":"`+pw+`"}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %v", resp.StatusCode, out)
+	}
+	if _, said := out["password_below_floor"]; said {
+		t.Errorf("a warning for a good password: %v", out)
+	}
+}

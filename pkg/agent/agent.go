@@ -231,6 +231,10 @@ func (a *Agent) Stream(ctx context.Context, goal string, cb TurnCallback) (*Resu
 	}
 
 	res := &Result{}
+	// tainted turns true with the first observation fed back: from then on
+	// the model has read text the justification chain knows nothing about, so
+	// the gate holds what it asks to change (H3).
+	tainted := false
 	for turn := 0; turn < a.cfg.MaxTurns; turn++ {
 		// 3. LLM call.
 		raw, err := a.llm.Complete(ctx, messages, a.cfg.MaxTokens, a.cfg.Temperature, a.cfg.Seed)
@@ -293,6 +297,7 @@ func (a *Agent) Stream(ctx context.Context, goal string, cb TurnCallback) (*Resu
 				Justification: justification,
 				EmittedBy:     "zhen-agent",
 				Principal:     a.cfg.Principal,
+				Tainted:       tainted,
 			}
 			t.ToolCall = &tc
 
@@ -325,6 +330,7 @@ func (a *Agent) Stream(ctx context.Context, goal string, cb TurnCallback) (*Resu
 				Message{Role: "assistant", Content: raw},
 				Message{Role: "tool", Content: obs},
 			)
+			tainted = true
 			continue
 		}
 
