@@ -1,16 +1,20 @@
 # Zhen Demo Script
 
 **Duration**: 10 minutes
-**Audience**: Job fair / technical hiring managers
-**Setup**: Zhen running on localhost:20103, inference on localhost:20100
+**Audience**: anyone technical
+**Setup**: `raft/DEMO_CHECKLIST.md` passes. Web UI on localhost:20103, retrieval
+(vor) on 20110, zhen-agentd on 20111, local model on 8081.
 
 ---
 
 ## Opening (30 seconds)
 
-> "This is Zhen, an AI assistant that knows every line of a 385,000-line production codebase. It runs a Mistral-7B model locally on GPU with retrieval-augmented generation over 21,000 indexed code chunks. No cloud APIs. No data leaves the machine."
+> "This is Zhen, an assistant that answers from the Unheaded source tree. The
+> model runs on this machine and retrieval runs on this machine, so nothing here
+> needs a cloud API and nothing leaves the host."
 
-**Action**: Show the Zhen UI at localhost:20103. Point out the header ("ZHEN — Unheaded AI Champion") and the "Online" status indicator.
+**Action**: Show the Zhen UI at localhost:20103. Point out the "Online" status
+in the header.
 
 ---
 
@@ -20,8 +24,8 @@
 
 **Ask**: "What is Unheaded?"
 
-**Talk through**: Show the answer populating. Point out:
-- Answer quality — it synthesizes from multiple sources
+**Talk through**: Show the answer arriving. Point out:
+- Answer quality: it draws on more than one source
 - Source attribution at the bottom
 - Response time and token count in the metadata
 
@@ -29,61 +33,55 @@
 
 **Ask**: "What are the 6 layers of the Unheaded architecture?"
 
-**Talk through**: Zhen retrieves architectural docs and returns structured layer information. Highlight that this is coming from actual codebase documentation, not a general LLM hallucination.
+**Talk through**: Zhen retrieves the architecture docs and returns the layers.
 
 ### Question 3: Specific Technical Detail (60s)
 
 **Ask**: "What port does Wotan use?"
 
-**Talk through**: Show it returns exact port numbers (18000 HTTP, 18001 gRPC). This demonstrates retrieval precision — the model is grounded in real code.
+**Talk through**: It returns the exact ports (18000 HTTP, 18001 gRPC), which
+shows retrieval precision.
 
 ### Question 4: Protocol Knowledge (60s)
 
 **Ask**: "What is the Monad wire format size?"
 
-**Talk through**: Answer should mention 20 bytes, version 0x01, frozen. This is deep protocol knowledge from spec documents indexed into the vector store.
+**Talk through**: The answer should say 20 bytes, version 0x01, frozen.
 
 ### Question 5: Cross-Cutting (60s)
 
 **Ask**: "How does eBPF tracing work in Unheaded?"
 
-**Talk through**: Show it pulls together information from multiple files — Rust eBPF programs, Go userspace, trace collector service. Highlight the breadth of retrieval.
+**Talk through**: It pulls together Rust eBPF programs, Go userspace and the
+trace collector. Point out the breadth of retrieval.
 
 ---
 
-## Technical Highlights (2 minutes)
+## How It Fits Together (2 minutes)
 
-Switch to a brief architecture overview. Key points:
+1. **Local inference**: a GGUF model under llama-server on port 8081. No API
+   keys and no outside dependency. `/api/v1/stats` names the model loaded.
 
-1. **Local inference**: Mistral-7B running via llama.cpp on GPU (port 20100). No API keys, no cloud dependency, no data exfiltration.
+2. **Retrieval**: vor on port 20110 answers from the indexed tree; the top
+   results go into the prompt.
 
-2. **RAG pipeline**: Corpus prepared from codebase -> sentence-transformers embeddings (all-MiniLM-L6-v2) -> FAISS vector index (21,110 vectors). Top-k retrieval feeds context into the LLM prompt.
-
-3. **Full stack**: Python Flask app serves both the web UI and the RAG API. Three API endpoints — /api/v1/query (RAG), /api/v1/search (semantic search), /api/v1/stats (index info).
-
-4. **Built in a day**: Corpus preparation, embedding generation, FAISS indexing, inference server setup, Flask app, web UI — all built and deployed in one session.
-
-5. **Production codebase**: The indexed corpus is from Unheaded, a real 385K-LOC infrastructure platform with 10 microservices, eBPF tracing, and a custom wire protocol.
+3. **The web app**: `raft/zhen_app.py` serves the UI and the API, including
+   `/api/v1/query` (retrieval and generation), `/api/v1/search` (retrieval
+   alone) and `/api/v1/stats`. Chat goes through zhen-agentd on 20111.
 
 ---
 
 ## Closing (1 minute)
 
-> "What you've seen is baseline RAG — retrieve and generate. The next step is RAFT training: we have a 503K-entry training corpus ready to fine-tune the model specifically on this codebase. That will move Zhen from 'search and summarize' to 'reason about the code.'"
-
-> "The full system — inference server, vector index, web UI, and integration tests — is reproducible from the scripts in the raft/ directory."
-
-**If asked about next steps**:
-- RAFT fine-tuning with the 503K corpus
-- Multi-model support (swap in different LLMs)
-- Streaming responses for better UX
-- Integration with the Unheaded dashboard
+> "What you've seen is retrieval and generation on one machine. The same assistant
+> can run reviewed runbooks, with an approval step in front of anything that
+> changes a host."
 
 ---
 
 ## Fallback Plan
 
 If the inference server is slow or unresponsive:
-- Show the /api/v1/search endpoint directly (no LLM needed, just vector search)
-- Show the /api/v1/stats endpoint to prove the index is loaded
-- Show the integration test results as evidence of system health
+- Show `/api/v1/search` directly (no model needed)
+- Show `/api/v1/stats` to prove the backends are reporting
+- Show `/health` for the system state

@@ -62,6 +62,8 @@ var moveoutGone = []struct {
 	{"raft/DEMO_CHECKLIST.md", `All 10 tests`},
 	{"raft/DEMO_CHECKLIST.md", `04_integration_tests`},
 	{"raft/DEMO_CHECKLIST.md", `Mistral|nvidia-smi|21K|integration test results`},
+	{"raft/DEMO_SCRIPT.md", `Mistral|FAISS|\d+(,\d+)?K?[- ]LOC|\d+,\d{3}|503K|RAFT|Job fair|hiring|Built in a day`},
+	{"raft/DEMO_QUESTIONS.md", `\d+K LOC|21K|Doom Range|Lists 10 services|64 test cases`},
 	{"config/dashboard/services.txt", `(?i)doom`},
 	{".gitignore", `ci-fetch-doomgeneric|scripts/doom/`},
 	{"docs/EXTERNAL_DEPENDENCIES.md", `crates/zhenai-forge`},
