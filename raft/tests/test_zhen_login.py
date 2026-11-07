@@ -126,7 +126,7 @@ def test_login_over_https_uses_the_host_prefixed_secure_cookie(client, world, mo
     monkeypatch.setenv('ZHEN_ALLOWED_HOSTS', 'zhen.test')
     origin = 'https://zhen.test'
     r = client.get('/', base_url=origin)
-    tok = [h for h in r.headers.getlist('Set-Cookie') if h.startswith('zhen_csrf=')][0].split(';', 1)[0].split('=', 1)[1]
+    tok = next(h for h in r.headers.getlist('Set-Cookie') if h.startswith('zhen_csrf=')).split(';', 1)[0].split('=', 1)[1]
     r = client.post('/auth/login', base_url=origin, json={'username': 'stevie', 'password': SECRET},
                     headers={'Origin': origin, 'Sec-Fetch-Site': 'same-origin', 'X-Zhen-CSRF': tok})
     assert r.status_code == 200
@@ -138,7 +138,7 @@ def test_login_off_loopback_over_plain_http_is_refused(client, world, monkeypatc
     monkeypatch.setenv('ZHEN_ALLOWED_HOSTS', 'zhen.test')
     origin = 'http://zhen.test'
     r = client.get('/', base_url=origin)
-    tok = [h for h in r.headers.getlist('Set-Cookie') if h.startswith('zhen_csrf=')][0].split(';', 1)[0].split('=', 1)[1]
+    tok = next(h for h in r.headers.getlist('Set-Cookie') if h.startswith('zhen_csrf=')).split(';', 1)[0].split('=', 1)[1]
     r = client.post('/auth/login', base_url=origin, json={'username': 'stevie', 'password': SECRET},
                     headers={'Origin': origin, 'Sec-Fetch-Site': 'same-origin', 'X-Zhen-CSRF': tok})
     assert r.status_code == 403
@@ -294,7 +294,7 @@ def test_a_forged_cookie_is_no_session(client, world):
 # ── what a login can do ─────────────────────────────────────────────────
 
 def _bearer(call):
-    return dict((k.lower(), v) for k, v in call[2].items()).get('authorization', '')
+    return {k.lower(): v for k, v in call[2].items()}.get('authorization', '')
 
 
 def test_a_viewer_reads_but_does_not_write(client, world):
@@ -311,7 +311,7 @@ def test_the_daemon_sees_the_person_not_the_ui(client, world, monkeypatch):
     world.daemon = lambda req: _Reply({'status': 'ok'})
     r = client.post('/api/v1/kanban/create', base_url=LOCAL, json={'task': {'id': 'x'}}, headers=_page_headers(client))
     assert r.status_code == 200
-    call = [c for c in world.calls if c[0] == 'daemon'][0]
+    call = next(c for c in world.calls if c[0] == 'daemon')
     assert _bearer(call) == 'Bearer ' + next(iter(world.tokens))
     assert 'x-api-key' not in {k.lower() for k in call[2]}
 
