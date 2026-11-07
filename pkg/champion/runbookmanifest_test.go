@@ -13,6 +13,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+
+	"unheaded/pkg/gungnir"
 )
 
 // rbRoot builds a project root with one runbook (runbooks/<name>.yaml), a
@@ -34,6 +38,7 @@ func rbRoot(t *testing.T, name, body string, manifest func(sum string) string) (
 		if err := os.WriteFile(filepath.Join(root, "runbooks", RunbookManifestFile), []byte(m), 0o600); err != nil {
 			t.Fatal(err)
 		}
+		sealManifest(t, []byte(m), filepath.Join(root, "runbooks"))
 	}
 	if err := os.MkdirAll(filepath.Join(root, "scripts"), 0o750); err != nil {
 		t.Fatal(err)
@@ -48,6 +53,29 @@ func rbRoot(t *testing.T, name, body string, manifest func(sum string) string) (
 		t.Fatal(err)
 	}
 	return c, store, p
+}
+
+// sealManifest seals m with a fresh key and points the Champion at its public
+// half, outside the root, as a host's /etc/unheaded/keys would be.
+func sealManifest(t *testing.T, m []byte, runbooksDir string) {
+	t.Helper()
+	key := gungnir.GenerateDevKey()
+	seal, err := SealRunbookManifest(m, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runbooksDir, RunbookManifestFile+RunbookSealSuffix), seal, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pub, ok := key.Public().(*mldsa65.PublicKey)
+	if !ok {
+		t.Fatal("not an ML-DSA-65 key")
+	}
+	pubPath := filepath.Join(t.TempDir(), "runbook-manifest.pub")
+	if err := os.WriteFile(pubPath, pub.Bytes(), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(RunbookManifestKeyEnv, pubPath)
 }
 
 func entry(name string) func(string) string {

@@ -11,6 +11,11 @@
 # Usage:
 #   scripts/runbook-manifest.sh --write   # regenerate after editing a runbook
 #   scripts/runbook-manifest.sh --check   # exit 1 when the manifest is stale (CI)
+#   scripts/runbook-manifest.sh --seal KEY  # seal it with the ML-DSA-65 seed KEY
+#
+# A live run needs the seal as well (pkg/champion/runbookseal.go): KEY is
+# unheaded-keygen -algo mldsa65 runbook-manifest, and its .pub stays on the host
+# outside the project root. Sealing is a person's act, after reading the change.
 #
 # Format: sha256sum output, paths relative to runbooks/, sorted by path
 # (LC_ALL=C), so `cd runbooks && sha256sum -c MANIFEST.sha256` also works.
@@ -43,8 +48,14 @@ case "${1:-}" in
         fi
         echo "runbook-manifest: runbooks/$MANIFEST fresh ($(wc -l < "$MANIFEST") runbooks)"
         ;;
+    --seal)
+        key="${2:?usage: $0 --seal <ml-dsa-65 seed file>}"
+        key="$(cd - >/dev/null && realpath -- "$key")"
+        cd ..
+        go run ./cmd/zhen-claude seal-runbooks -key "$key" -project-root .
+        ;;
     *)
-        echo "usage: $0 --write | --check" >&2
+        echo "usage: $0 --write | --check | --seal KEY" >&2
         exit 2
         ;;
 esac
