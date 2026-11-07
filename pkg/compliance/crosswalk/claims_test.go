@@ -37,6 +37,14 @@ var retiredClaims = []struct{ file, claim string }{
 	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "RESOLVED BY RISK DECISION"},
 	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "Rotating them buys little"},
 	{"CLAUDE.md", "no rotation scramble"},
+	// Checked against the code on 2026-11-07: a design rule is not a proof, the
+	// code reads secrets from the environment, and the apt listener has a LAN address.
+	{"CLAUDE.md", "Zero user data access (validated)"},
+	{"CLAUDE.md", "Zero user data access - architectural isolation enforced"},
+	{"CLAUDE.md", "✅ Zero user data access"},
+	{"CLAUDE.md", "Secrets: never in code, environment, or logs"},
+	{"CLAUDE.md", "127.0.0.1 + 192.168.13.2 only"},
+	{"CLAUDE.md", "**Alpha Success Criteria (ALL MET):**"},
 	{"scripts/check-secrets-baseline.sh", "non-internet-facing"},
 	{".github/workflows/security.yml", "excised from history"},
 	{"docs/adr/ADR-098-findings-register-and-baseline-modes.md", "holds reviewed false positives"},

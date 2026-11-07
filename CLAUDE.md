@@ -66,7 +66,7 @@ Unheaded is a configuration management automation platform delivering complete i
 - ✅ eBPF-based observability (L2-L7 tracing)
 - ✅ Immutable infrastructure (LXD, containerd, NixOS, Docker)
 - ✅ Interchangeable IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt)
-- ✅ Zero user data access (architectural isolation)
+- Zero user data access: the design rule; no test proves it yet (DPIA risk R1)
 - ✅ Service mesh built on Wotan message bus
 - ✅ Declarative everything (version-controlled configs)
 - ✅ Self-hosting proof (The Meta Moment)
@@ -172,11 +172,11 @@ All services publish structured logs to Wotan topic `logs.<service>.<level>`. Lo
 
 **Critical Rules:**
 - eBPF traceability from packet zero
-- Zero user data access - architectural isolation enforced
+- Zero user data access: the design rule for every change. No test proves it yet (DPIA risk R1); `anomaly-ebpf` reads a 16-byte payload window and keeps only an entropy estimate
 - Container hardening: seccomp, capabilities, read-only FS
 - Network policies: explicit allow, default deny
 - TLS 1.3 minimum for external traffic
-- Secrets: never in code, environment, or logs
+- Secrets: never in code or logs; read from the environment or a file at run time, with a guard that fails loudly
 
 **Terminology (internal vs user-facing):** Keep saying **"zero user data access"**
 here and in code/ADRs — it is precise and load-bearing for how we design. On
@@ -778,12 +778,12 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - **Log Aggregation:** `pkg/logagg/` — ring buffer, zerolog hook, dashboard live tail
 - **Service Discovery:** `pkg/discovery/` — four-layer discovery (Wotan/port-scan/convention/static)
 
-**Alpha Success Criteria (ALL MET):**
+**Alpha Success Criteria:**
 - [x] All services communicating via Wotan
 - [x] Kanban app displays timeline from timeguru
 - [x] eBPF traces end-to-end packet flow
 - [x] Dashboard visualizes traces in real-time (packet-flow + metrics)
-- [x] Zero user data access (validated)
+- [ ] Zero user data access proved by a test (a design rule today; the February check was a pattern search)
 - [x] Dual bare metal hosts online (WEST + EAST)
 - [x] Cross-host BPF flow graph operational
 - [x] Authentication framework deployed (64 test cases, 100% coverage)
@@ -849,7 +849,7 @@ Doom lives in `unheaded-doom` since 2026-11-04 (DP-305): runner, demos, docs, ru
 - S-ZHEN: Zhen AI Champion (RAG pipeline, Flask web UI, Zhen-Claude bridge API, 1.52M vector corpus)
 - S-PQC: SLH-DSA (FIPS 205) implemented via cloudflare/circl v1.6.3, 60 PQC tests passing
 - UPC Dream Ladder: All Level 4 OS primitives + Level 5 boot + Level 6 arch/mbc (37 files)
-- The Well: PostgreSQL 16 on west (3 databases: unheaded_app/ops/config; least-privilege login roles + a NOLOGIN owner per DB; TLS 1.3 only; migrations via cmd/well-migrate; nightly backups on the other disk + east). Where everything lives: `wiki/The-Well.md`, `wiki/Well-Backups.md`
+- The Well: PostgreSQL 16 on west (3 databases: unheaded_app/ops/config; least-privilege login roles + a NOLOGIN owner per DB; TLS 1.3 only; migrations via cmd/well-migrate; nightly backups on the other disk + east while the Well runs; `host-probe:west:db-backup-recent` says whether they are current). Where everything lives: `wiki/The-Well.md`, `wiki/Well-Backups.md`
 - SBOM: 553 dependencies audited, GPL boundary clean, SPDX checks integrated
 - CI/CD: GHA + Jenkins hardened, SPDX checks; run `make install-hooks` to install the local pre-commit hook (gofmt + go vet on staged changes)
 - S-WEST: Bootstrap complete (kernel 6.17.0-19, 0 failed services)
@@ -1211,7 +1211,7 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | unheaded-auth | 19020 | HTTP(S) | Built-in OIDC issuer (ADR-103): login, JWKS, discovery; uid 16735 |
 | sword | 19011 | HTTP | Deploy service through Cuirass (was Canary's port; Canary folded into Sword), uid 16746 |
 | chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east; reachable only from loopback and the peer host (`unheaded-chaos-guard.service`, `deploy/nftables/chaos-guard-*.nft`) |
-| apt repo | 18888 | HTTP | Signed apt repo (reprepro, nginx), 127.0.0.1 + 192.168.13.2 only |
+| apt repo | 18888 | HTTP | Signed apt repo (reprepro, nginx): `deploy/nginx/unheaded-apt.conf` listens on 127.0.0.1, 192.168.13.2 and the LAN address (Stevie 2026-11-03); on west the move to it is FND-026 |
 | heimdall-daemon /metrics | 19101 | HTTP | Drift detection metrics (loopback default, `-metrics-addr`) |
 | kev-poller | 19120 | HTTP | CISA KEV feed poller (ADR-055) |
 | alert-mailer | 19130 | HTTP | Alertmanager webhook to mail |
