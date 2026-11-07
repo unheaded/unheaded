@@ -37,7 +37,7 @@ Threats not closed today are **not** hidden in fine print. The whole point of th
 | **T5** | SSE long-poll DoS | LOW | ✅ CLOSED | rate-limit + per-IP token bucket |
 | **T6** | UI bypasses Champion (chat displays / mutations execute) | CRITICAL | ✅ CLOSED in code 2026-10-27 (S-CLEAN-SLATE M-036): chat via `/api/v1/agent/ask`, no direct fall-back; coding-gate re-run pending — see entry below | commits `93e32ccd` (mutation), `f9311d29` (chat) |
 | **T7** | Conversation history smuggles tool-call templates | MEDIUM | ✅ CLOSED | `_strip_tool_call_json` in `raft/scripts/zhen_rag.py` |
-| **T8** | CSRF on browser-served state-changing endpoints | MEDIUM | 🟡 INTERIM 2026-10-27: double-submit token (SameSite=Strict cookie + `X-Zhen-CSRF`) on browser POSTs | `raft/zhen_app.py:_csrf_guard`; Go port closes fully |
+| **T8** | CSRF on browser-served state-changing endpoints | MEDIUM | 🟡 INTERIM 2026-10-27: double-submit token (SameSite=Strict cookie + `X-Zhen-CSRF`) on browser POSTs | `raft/zhen_app.py:_csrf_guard`, `_login_guard`; login 2026-11-06 (F4, H5) |
 | **T9** | SSE / WebSocket auth confusion (cookie vs bearer) | MEDIUM | 🟡 RESIDUAL | JWT bearer for daemon; cookie path for webui |
 | **T10** | Embedding-as-leakage (raw vectors logged or backed up) | LOW | ✅ CLOSED | embeddings never logged; PG bytea encrypted at rest in production |
 
@@ -209,6 +209,8 @@ Browser action
 - The Python web UI is **inherited posture**. Closing CSRF properly requires either (a) tightening cookie semantics across all 30 endpoints, or (b) adding a synchronizer-token middleware. Both are real engineering work.
 - The deployment posture is **loopback / LAN-only** today (per Stevie's vision: `127.0.0.1:20103` over LAN, no internet). A cross-origin attack requires the user to load attacker.com in the same browser session that has zhen open — possible but operationally unusual.
 - The full Go port (Stevie's solo post-gate exercise per `docs/battle-plans/WAVE15-ZHENAI-REWIRE.md` §Phase 6+) closes T8 cleanly: `SameSite=Strict; Secure; HttpOnly` cookies + synchronizer-token CSRF middleware, both planned for `cmd/zhen-web-ui`.
+
+**Update 2026-11-06:** the UI has a login through the issuer (`raft/zhen_login.py`): an HttpOnly, SameSite=Strict session cookie, the token kept server-side, every route but the page, the probe, the highlighter and `/auth/*` closed without it, so a local program can no longer act through the UI's key.
 
 **Path forward:** Either accept the LAN-only deployment posture as the compensating control, OR backport the cookie/CSRF discipline from the planned Go port to the Python UI. Tracked as **OPEN-DOCUMENTED** because the residual risk is real but bounded by deployment context.
 

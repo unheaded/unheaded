@@ -19,10 +19,13 @@
 #
 # Optional: also start cmd/zhen-agentd if -gated is passed. The chat path
 # goes through the daemon's gate (S-CLEAN-SLATE M-036), so without a daemon
-# on :20111 chat and mutations answer 503 "the gate is required". The UI
-# authenticates to it with ZHEN_AGENTD_API_KEY (X-API-Key, one of the
-# daemon's AUTH_API_KEYS), or ZHEN_AGENTD_NO_AUTH=1 for a -no-auth loopback
-# dev daemon; set one in the environment this script runs in.
+# on :20111 chat and mutations answer 503 "the gate is required".
+#
+# Login: everything but the page and /health needs one. Set AUTH_ISSUER_URL to
+# unheaded-auth (its -audiences must list zhen-agentd; AUTH_BFF_DEV_PLAINTEXT=true
+# only for a stack without TLS). The UI sends the person's token to the daemon,
+# which verifies it, so the daemon needs AUTH_OIDC_ISSUER_URL too. -gated sets
+# that from AUTH_ISSUER_URL. Without an issuer nobody can log in.
 
 set -e
 
@@ -80,14 +83,17 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         # runs authenticated and the UI gets the key as ZHEN_AGENTD_API_KEY;
         # without one it runs -no-auth, which it allows on loopback only.
         AGENTD_AUTH=(-no-auth)
-        if [[ -n "${AUTH_API_KEYS:-}${AUTH_API_KEY_FILE:-}${AUTH_JWT_KEY:-}" ]]; then
+        if [[ -n "${AUTH_ISSUER_URL:-}" ]]; then
+            export AUTH_OIDC_ISSUER_URL="${AUTH_OIDC_ISSUER_URL:-$AUTH_ISSUER_URL}"
+        fi
+        if [[ -n "${AUTH_API_KEYS:-}${AUTH_API_KEY_FILE:-}${AUTH_JWT_KEY:-}${AUTH_OIDC_ISSUER_URL:-}" ]]; then
             export AUTH_ENABLED=true
             AGENTD_AUTH=()
             if [[ -z "${ZHEN_AGENTD_API_KEY:-}" && -n "${AUTH_API_KEYS:-}" ]]; then
                 export ZHEN_AGENTD_API_KEY="${AUTH_API_KEYS%%,*}"
             fi
         else
-            echo "  ! no AUTH_API_KEYS/AUTH_API_KEY_FILE/AUTH_JWT_KEY: zhen-agentd runs -no-auth on 127.0.0.1 (dev only)"
+            echo "  ! no AUTH_ISSUER_URL/AUTH_API_KEYS/AUTH_API_KEY_FILE/AUTH_JWT_KEY: zhen-agentd runs -no-auth on 127.0.0.1 (dev only; nobody can log in to the UI)"
         fi
         nohup ./bin/zhen-agentd \
             -host 127.0.0.1 \
@@ -133,8 +139,8 @@ else
     . "$HOME/tmp/unheaded/scripts/lib/model-pins.sh"
     export ZHEN_EMBEDDER_SHA256="${ZHEN_EMBEDDER_SHA256:-$EMBEDDER_SHA256}"
     export ZHEN_EMBEDDER_REVISION="${ZHEN_EMBEDDER_REVISION:-$EMBEDDER_REVISION}"
-    if [[ -z "${ZHEN_AGENTD_API_KEY:-}" && "${ZHEN_AGENTD_NO_AUTH:-}" != "1" ]]; then
-        echo "  ! ZHEN_AGENTD_API_KEY unset (and ZHEN_AGENTD_NO_AUTH!=1): gated chat and mutations will answer 503"
+    if [[ -z "${AUTH_ISSUER_URL:-}" ]]; then
+        echo "  ! AUTH_ISSUER_URL unset: nobody can log in, so every route but the page and /health answers 401"
     fi
 
     # The Well (PostgreSQL) — required for memory cache, conversation log,

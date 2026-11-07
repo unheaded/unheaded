@@ -35,4 +35,4 @@ steps:
   - name: check-zhenai-stats
     action: shell
     command: |
-      curl -sf http://localhost:20103/api/v1/stats 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "Zhenai not running"
+      curl -sf http://localhost:20103/health 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "Zhenai not running"

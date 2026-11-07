@@ -31,6 +31,19 @@ WEBUI_URL="${WEBUI_URL:-http://127.0.0.1:20103}"
 DATE="$(date +%Y-%m-%d)"
 OUT="eval/coding-gate/results-via-webui-phase1-${DATE}.md"
 
+# Chat takes a login: ZHEN_UI_USER, with the password in ZHEN_UI_PASSWORD_FILE.
+: "${ZHEN_UI_USER:?set ZHEN_UI_USER: chat on the web UI takes a login}"
+: "${ZHEN_UI_PASSWORD_FILE:?set ZHEN_UI_PASSWORD_FILE: a file holding the password, 0600}"
+COOKIES="$(mktemp)"
+trap 'rm -f "$COOKIES"' EXIT
+python3 -c "
+import json, sys
+print(json.dumps({'username': sys.argv[1], 'password': open(sys.argv[2]).read().rstrip('\\n')}))
+" "$ZHEN_UI_USER" "$ZHEN_UI_PASSWORD_FILE" |
+    curl -sf --max-time 30 -c "$COOKIES" -o /dev/null -X POST "$WEBUI_URL/auth/login" \
+        -H 'Content-Type: application/json' --data-binary @- ||
+    { echo "login at $WEBUI_URL failed" >&2; exit 1; }
+
 [[ -f "$PROMPTS" ]] || { echo "missing $PROMPTS" >&2; exit 1; }
 [[ -f "$TEMPLATE" ]] || { echo "missing $TEMPLATE" >&2; exit 1; }
 
@@ -83,7 +96,7 @@ print(json.dumps({
 " "$prompt" "$id")
 
     start=$(date +%s)
-    response=$(curl -s --max-time 180 -X POST "$WEBUI_URL/api/v1/query" \
+    response=$(curl -s --max-time 180 -b "$COOKIES" -X POST "$WEBUI_URL/api/v1/query" \
         -H 'Content-Type: application/json' \
         -d "$payload")
     elapsed=$(( $(date +%s) - start ))
