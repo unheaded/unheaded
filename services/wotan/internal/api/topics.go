@@ -49,6 +49,9 @@ type TopicMessage struct {
 	Seq       int64     `json:"seq"`
 	Payload   string    `json:"payload"`
 	Deleted   bool      `json:"deleted"`
+	// VerifiedSender is the subject Wotan verified on the publisher's token,
+	// absent with auth off. A subscriber that enforces a sender reads this.
+	VerifiedSender string `json:"verified_sender,omitempty"`
 }
 
 // SubscribeTopic handles POST /api/v1/topics/{topic}/subscribe
@@ -207,8 +210,8 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send message to room's ring buffer
-	msg, overwritten := rm.SendMessage(subscriberUUID, req.Payload)
+	// Send message to room's ring buffer, under the subject verified above.
+	msg, overwritten := rm.SendVerifiedMessage(subscriberUUID, callerName(r), req.Payload, nil)
 	// Counted here as on the gRPC path: this one is where most topics are
 	// fed (logs.*, system.health.*), and it was never counted.
 	if m := metrics.Get(); m != nil {
@@ -471,13 +474,14 @@ func extractTopic(path, prefix, suffix string) string {
 
 func ringbufferToTopicMessage(msg *ringbuffer.Message, topic string) TopicMessage {
 	return TopicMessage{
-		MessageID: msg.ID.String(),
-		Topic:     topic,
-		SenderID:  msg.CreatorID.String(),
-		CreatedAt: msg.Timestamp,
-		Seq:       msg.Seq,
-		Payload:   msg.Content,
-		Deleted:   false,
+		MessageID:      msg.ID.String(),
+		Topic:          topic,
+		SenderID:       msg.CreatorID.String(),
+		CreatedAt:      msg.Timestamp,
+		Seq:            msg.Seq,
+		Payload:        msg.Content,
+		Deleted:        false,
+		VerifiedSender: msg.VerifiedSender,
 	}
 }
 

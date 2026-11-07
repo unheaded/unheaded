@@ -140,14 +140,15 @@ func (s *TopicService) SetSigningPolicy(p *signing.Policy) {
 // dropped: no subscriber ever received one.
 func (s *TopicService) messageEvent(topic string, msg *ringbuffer.Message, createdAt time.Time, typ chatpb.TopicEventType) *chatpb.TopicEvent {
 	ev := &chatpb.TopicEvent{
-		Topic:     topic,
-		MessageId: msg.ID.String(),
-		SenderId:  msg.CreatorID.String(),
-		Payload:   []byte(msg.Content),
-		CreatedAt: timestamppb.New(createdAt),
-		Seq:       msg.Seq,
-		Type:      typ,
-		NodeId:    s.NodeID,
+		Topic:          topic,
+		MessageId:      msg.ID.String(),
+		SenderId:       msg.CreatorID.String(),
+		Payload:        []byte(msg.Content),
+		CreatedAt:      timestamppb.New(createdAt),
+		Seq:            msg.Seq,
+		Type:           typ,
+		NodeId:         s.NodeID,
+		VerifiedSender: msg.VerifiedSender,
 	}
 	if sg := msg.Signed; sg != nil && typ == chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED {
 		ev.SenderId = sg.Sender
@@ -740,19 +741,17 @@ func (s *TopicService) PublishTopic(
 	}
 
 	// Send message to room's ring buffer, with its signature if it has one.
-	var msg *ringbuffer.Message
-	var overwritten bool
+	var sig *ringbuffer.Signature
 	if signed != nil {
-		msg, overwritten = rm.SendSignedMessage(senderID, string(req.Payload), &ringbuffer.Signature{
+		sig = &ringbuffer.Signature{
 			Sender:         signedSender,
 			Signature:      bytes.Clone(signed.Signature),
 			PublicKey:      bytes.Clone(signed.PublicKey),
 			Algorithm:      signed.Algorithm,
 			SignedAtUnixMs: signed.SignedAtUnixMs,
-		})
-	} else {
-		msg, overwritten = rm.SendMessage(senderID, string(req.Payload))
+		}
 	}
+	msg, overwritten := rm.SendVerifiedMessage(senderID, creator, string(req.Payload), sig)
 
 	// Persist like the HTTP path: async, so the caller never waits on disk,
 	// and on a context of its own, because the RPC's is cancelled when this

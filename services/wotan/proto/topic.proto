@@ -46,6 +46,11 @@ message TopicEvent {
   // the signature covers. Additive Wotan gRPC field, not the Monad wire
   // format.
   int64 signed_at_unix_ms = 12;
+  // The subject Wotan verified on the publisher's token. Wotan sets it and
+  // the publisher cannot; empty with auth off, or on a message reloaded from
+  // a store. A subscriber that enforces a sender reads this, never a name in
+  // the payload. Additive Wotan gRPC field, not the Monad wire format.
+  string verified_sender = 13;
 }
 
 enum TopicEventType {

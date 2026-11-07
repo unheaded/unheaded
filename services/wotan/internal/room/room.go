@@ -282,29 +282,29 @@ func (m *Manager) Count() int {
 
 // SendMessage adds a message to the room's ring buffer
 func (r *Room) SendMessage(creatorID uuid.UUID, content string) (*ringbuffer.Message, bool) {
-	msg := &ringbuffer.Message{
-		ID:        uuid.New(),
-		CreatorID: creatorID,
-		RoomID:    r.ID,
-		Content:   content,
-		Timestamp: time.Now(),
-	}
-
-	_, overwritten := r.Buffer.Push(msg)
-	return msg, overwritten
+	return r.SendVerifiedMessage(creatorID, "", content, nil)
 }
 
 // SendSignedMessage is SendMessage for a message whose signature was
 // verified: the signature is stored with it and sent with every event for
 // it (ADR-105).
 func (r *Room) SendSignedMessage(creatorID uuid.UUID, content string, sig *ringbuffer.Signature) (*ringbuffer.Message, bool) {
+	return r.SendVerifiedMessage(creatorID, "", content, sig)
+}
+
+// SendVerifiedMessage is SendMessage for a publisher whose token Wotan
+// verified: subject goes out with every event for the message, and only
+// Wotan can set it. sig is the verified signature of a signed message, or
+// nil. An empty subject means nothing was verified.
+func (r *Room) SendVerifiedMessage(creatorID uuid.UUID, subject, content string, sig *ringbuffer.Signature) (*ringbuffer.Message, bool) {
 	msg := &ringbuffer.Message{
-		ID:        uuid.New(),
-		CreatorID: creatorID,
-		RoomID:    r.ID,
-		Content:   content,
-		Timestamp: time.Now(),
-		Signed:    sig,
+		ID:             uuid.New(),
+		CreatorID:      creatorID,
+		RoomID:         r.ID,
+		Content:        content,
+		Timestamp:      time.Now(),
+		Signed:         sig,
+		VerifiedSender: subject,
 	}
 	_, overwritten := r.Buffer.Push(msg)
 	return msg, overwritten

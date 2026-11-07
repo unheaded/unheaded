@@ -153,6 +153,66 @@ func TestAuthE2E_HTTPPublishBoundToCallerMember(t *testing.T) {
 	}
 }
 
+// Each message carries the subject the broker verified, set by Wotan and
+// never by the publisher: this is what subscribers may enforce a sender on.
+func TestAuthE2E_HTTPMessageCarriesVerifiedSender(t *testing.T) {
+	w := newAuthedHTTPWotan(t)
+	_, _, id := w.subscribe(t, w.f.Bearer("captain", "wotan"), "system.health.reports", "a-label")
+	body := `{"subscriber_id":"` + id + `","payload":"p","verified_sender":"timeguru","sender":"timeguru"}`
+	if got := w.do(http.MethodPost, "/api/v1/topics/system.health.reports/publish", body, w.f.Bearer("captain", "wotan")).Code; got != http.StatusCreated {
+		t.Fatalf("publish = %d, want 201", got)
+	}
+	rec := w.do(http.MethodGet, "/api/v1/topics/system.health.reports/messages", "", w.f.Bearer("timeguru", "wotan"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("read = %d", rec.Code)
+	}
+	var got struct {
+		Messages []TopicMessage `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Messages) != 1 || got.Messages[0].VerifiedSender != "captain" {
+		t.Fatalf("messages = %s, want one with verified_sender captain", rec.Body)
+	}
+}
+
+// With auth off nothing was verified, so nothing may claim to be.
+func TestPublish_AuthOffCarriesNoVerifiedSender(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "wotan.yaml")
+	if err := os.WriteFile(path, []byte("topics:\n  auto_approve: [timeguru]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tc, err := LoadTopicConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewServer(room.NewManager(100), member.NewManager(), wotan.NewWotan(), time.Minute)
+	s.TopicConfig = tc
+	call := func(method, target, body string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		s.TopicRouter(rec, httptest.NewRequest(method, target, strings.NewReader(body)))
+		return rec
+	}
+	rec := call(http.MethodPost, "/api/v1/topics/system.health.reports/subscribe", `{"display_name":"timeguru"}`)
+	var sub struct {
+		Subscriber TopicSubscriber `json:"subscriber"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &sub); err != nil {
+		t.Fatal(err)
+	}
+	if rec := call(http.MethodPost, "/api/v1/topics/system.health.reports/publish", `{"subscriber_id":"`+sub.Subscriber.SubscriberID+`","payload":"p"}`); rec.Code != http.StatusCreated {
+		t.Fatalf("publish = %d: %s", rec.Code, rec.Body)
+	}
+	rec = call(http.MethodGet, "/api/v1/topics/system.health.reports/messages", "")
+	if strings.Contains(rec.Body.String(), "verified_sender") {
+		t.Fatalf("auth off, yet a verified sender: %s", rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), `"payload":"p"`) {
+		t.Fatalf("message missing: %s", rec.Body)
+	}
+}
+
 // M2: the legacy room routes bind member_id to the verified caller just as
 // the topic publish route does. A member id is no secret: every message
 // carries its creator's.

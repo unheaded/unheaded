@@ -162,6 +162,57 @@ func TestAuthE2E_GRPCSenderIDBoundToCaller(t *testing.T) {
 	}
 }
 
+// Every event names the subject the broker verified, whichever member or
+// label the publisher used; subscribers enforce a sender on this field.
+func TestAuthE2E_GRPCEventCarriesVerifiedSender(t *testing.T) {
+	w := newAuthedWotan(t)
+	if err := w.publish(t, w.f.Bearer("timeguru", "wotan"), "system.health.reports", "captain", ""); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	st, err := chatpb.NewTopicStreamClient(w.conn).StreamTopics(withToken(ctx, w.f.Bearer("captain", "wotan")),
+		&chatpb.TopicStreamRequest{TopicPattern: "system.health.reports", DisplayName: "captain", SinceSeq: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, err := st.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.VerifiedSender != "timeguru" {
+		t.Fatalf("verified_sender = %q, want timeguru", ev.VerifiedSender)
+	}
+}
+
+// With auth off there is no verified subject, and the event says so by
+// leaving the field empty: a display name is never promoted to it.
+func TestPublish_AuthOffEventCarriesNoVerifiedSender(t *testing.T) {
+	svc := productionTopicService()
+	svc.AutoApprove = allowList{"timeguru": true}
+	if _, err := svc.PublishTopic(context.Background(), &chatpb.TopicPublishRequest{
+		Topic:    "system.health.reports",
+		Payload:  []byte(`{"x":1}`),
+		Metadata: map[string]string{"display_name": "timeguru"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rooms := svc.roomManager.List()
+	if len(rooms) != 1 {
+		t.Fatalf("rooms = %d", len(rooms))
+	}
+	msgs := rooms[0].GetMessages()
+	if len(msgs) != 1 {
+		t.Fatalf("messages = %d", len(msgs))
+	}
+	for _, m := range msgs {
+		ev := svc.messageEvent("system.health.reports", m, m.Timestamp, chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED)
+		if ev.VerifiedSender != "" {
+			t.Fatalf("verified_sender = %q with auth off", ev.VerifiedSender)
+		}
+	}
+}
+
 func TestAuthE2E_GRPCStreamWithTokenDelivers(t *testing.T) {
 	w := newAuthedWotan(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
