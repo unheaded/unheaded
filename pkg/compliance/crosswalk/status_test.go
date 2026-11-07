@@ -148,3 +148,90 @@ func TestSummarize_NoEvidenceClaimsNothing(t *testing.T) {
 		t.Fatalf("counts = %v", fw.Counts)
 	}
 }
+
+// A control that reads declared configuration says what is written, not what
+// runs. A passing reading is DECLARED, never PASS; every other result is the
+// same as any control's.
+func TestControlStatus_DeclaredNeverReadsPass(t *testing.T) {
+	a := Source{Kind: KindGateScript, Ref: "scripts/a.sh"}
+	ctl := &Control{ID: "UH-TEST-01", FreshnessDays: 7, Declared: "reads the compose file", Evidence: []EvidenceSource{{Source: a}}}
+	day := 24 * time.Hour
+	for _, tc := range []struct {
+		name string
+		recs []Record
+		want Status
+	}{
+		{"passing", []Record{rec(a, VerdictPass, day)}, StatusDeclared},
+		{"failing", []Record{rec(a, VerdictFail, day)}, StatusFail},
+		{"stale", []Record{rec(a, VerdictPass, 8*day)}, StatusStale},
+		{"no evidence", nil, StatusNotAssessed},
+	} {
+		if got := ControlStatus(ctl, tc.recs, now); got != tc.want {
+			t.Errorf("%s: %s, want %s", tc.name, got, tc.want)
+		}
+	}
+}
+
+const declaredControls = `
+controls:
+  - {id: UH-A-01, title: t, statement: s, freshness_days: 7, evidence: [{kind: gate-script, ref: a.sh}], mappings: {fw: [R1, R2, R3, R4]}}
+  - {id: UH-D-01, title: t, statement: s, declared: reads a file, freshness_days: 7, evidence: [{kind: gate-script, ref: d.sh}], mappings: {fw: [R2, R5]}}
+  - {id: UH-F-01, title: t, statement: s, freshness_days: 7, evidence: [{kind: gate-script, ref: f.sh}], mappings: {fw: [R3]}}
+  - {id: UH-N-01, title: t, statement: s, freshness_days: 7, evidence: [{kind: gate-script, ref: n.sh}], mappings: {fw: [R4]}}
+  - id: UH-P-01
+    title: t
+    statement: s
+    declared: reads a file
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: p.sh, maps: {fw: [R6]}}
+`
+
+const declaredFrameworks = `
+frameworks:
+  - id: fw
+    name: F
+    requirements: [{id: R1}, {id: R2}, {id: R3}, {id: R4}, {id: R5}, {id: R6}, {id: R7}]
+`
+
+// A declared control keeps a requirement out of EVIDENCED, and the requirement
+// is counted, so the denominator holds. A failure or a gap still wins.
+func TestSummarize_DeclaredIsNotEvidenced(t *testing.T) {
+	c, err := Load([]byte(declaredFrameworks), []byte(declaredControls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := func(ref string) Source { return Source{Kind: KindGateScript, Ref: ref} }
+	recs := []Record{
+		rec(src("a.sh"), VerdictPass, time.Hour),
+		rec(src("d.sh"), VerdictPass, time.Hour),
+		rec(src("f.sh"), VerdictFail, time.Hour),
+		rec(src("p.sh"), VerdictPass, time.Hour),
+	}
+	s := Summarize(c, recs, now)
+	if s.Controls["UH-D-01"] != StatusDeclared {
+		t.Errorf("UH-D-01 = %s", s.Controls["UH-D-01"])
+	}
+	want := map[string]ReqStatus{
+		"R1": ReqEvidenced,  // UH-A-01 alone
+		"R2": ReqDeclared,   // passing and declared
+		"R3": ReqFailing,    // one blocker is a blocker
+		"R4": ReqIncomplete, // UH-N-01 has no evidence
+		"R5": ReqDeclared,   // declared alone
+		"R6": ReqDeclared,   // mapped per source: the control's reading carries over
+		"R7": ReqUnmapped,
+	}
+	fw := s.Frameworks[0]
+	for _, r := range fw.Requirements {
+		if r.Status != want[r.ID] {
+			t.Errorf("%s = %s, want %s", r.ID, r.Status, want[r.ID])
+		}
+	}
+	sum := 0
+	for _, n := range fw.Counts {
+		sum += n
+	}
+	if sum != fw.Total || fw.Counts[ReqDeclared] != 3 {
+		t.Errorf("counts = %v of %d", fw.Counts, fw.Total)
+	}
+}

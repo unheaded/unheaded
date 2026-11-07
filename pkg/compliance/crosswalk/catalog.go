@@ -11,6 +11,8 @@
 //     every control mapped to it has current passing evidence;
 //   - missing evidence is NOT_ASSESSED, never a pass and never a gap;
 //   - evidence older than a control's freshness window is STALE, not PASS;
+//   - a control that reads declared configuration is DECLARED, not PASS, and
+//     the requirements it maps to are DECLARED, not EVIDENCED;
 //   - one failing control marks every requirement it maps to FAILING;
 //   - requirements no control maps to are counted (UNMAPPED), so every
 //     framework figure keeps its full denominator.
@@ -136,7 +138,10 @@ type Control struct {
 	Statement string `yaml:"statement" json:"statement"`
 	// Rationale says why the evidence supports each mapping, so a reviewer
 	// can challenge the mapping instead of taking it on trust.
-	Rationale     string              `yaml:"rationale,omitempty" json:"rationale,omitempty"`
+	Rationale string `yaml:"rationale,omitempty" json:"rationale,omitempty"`
+	// Declared says what the evidence reads in place of the running system. A
+	// control with this set can reach DECLARED at best, never PASS (FND-037).
+	Declared      string              `yaml:"declared,omitempty" json:"declared,omitempty"`
 	FreshnessDays int                 `yaml:"freshness_days" json:"freshness_days"`
 	Evidence      []EvidenceSource    `yaml:"evidence" json:"evidence"`
 	Mappings      map[string][]string `yaml:"mappings" json:"mappings"`

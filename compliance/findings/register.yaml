@@ -1902,9 +1902,9 @@ findings:
     lockout: none
     step: 7
     plan: >-
-      Redeploy east from develop or take the April builds down, then add the host-side evidence kind. A separate
-      "declared" status, so a compose file cannot produce a PASS about running services, is a design call
-    decision: whether "evidenced" keeps counting declared configuration
+      Redeploy east from develop or take the April builds down, then add the host-side evidence kind. 2026-11-06, at
+      Stevie's word: a control that reads repository files is DECLARED, not PASS, and a requirement resting on one is
+      DECLARED, not EVIDENCED (ADR-097). That stops a file reading as a pass; what closes this is reading what runs
   - id: FND-038
     title: >-
       One signing key: agents' commits are signed with Stevie's key and carry Co-Authored-By and Claude-Session trailers,

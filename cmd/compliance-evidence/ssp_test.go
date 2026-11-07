@@ -15,7 +15,7 @@ import (
 
 var updateGolden = flag.Bool("update", false, "rewrite testdata/ssp/SSP.golden.md")
 
-// sspArgs runs the fixture catalog (3 controls, 2 frameworks) at a fixed
+// sspArgs runs the fixture catalog (4 controls, 2 frameworks) at a fixed
 // evaluation date, so the output is a pure function of the fixture.
 func sspArgs(out string, extra ...string) []string {
 	return append([]string{"-repo-dir", "testdata/ssp", "-catalog", "controls.yaml", "-frameworks", "frameworks",
@@ -71,8 +71,8 @@ func TestSSPContent(t *testing.T) {
 		}
 		return n
 	}
-	if n := count(func(l string) bool { return strings.HasPrefix(l, "### UH-") }); n != 3 {
-		t.Errorf("%d control sections, want 3", n)
+	if n := count(func(l string) bool { return strings.HasPrefix(l, "### UH-") }); n != 4 {
+		t.Errorf("%d control sections, want 4", n)
 	}
 	// One line per failing control and no other line says FAIL, so
 	// `grep -c FAIL` on the SSP equals the collector's FAIL rows.
@@ -85,13 +85,17 @@ func TestSSPContent(t *testing.T) {
 		"**Status:** PASS, evidence as of 2026-10-25",      // weakest link: check-a's pass, not develop's later one
 		"**Status:** FAIL, evidence as of 2026-10-24",      // the 2026-10-28 pass is in the future
 		"**Status:** NOT_ASSESSED, no evidence for 1 of 1", // attestation never signed
+		"**Status:** DECLARED, evidence as of 2026-10-25",  // a passing reading of a file is not PASS
+		"Declared: reads the compose file, not a running service",
+		"| passing | 1 |\n| declared | 1 |\n",
 		"- `gate-script:scripts/check-a.sh`: pass 2026-10-25",
 		"- `attestation:compliance/attestations/policy.yaml`: no record",
 		"- fx-a: A-1, A-2",
 		"- fx-b: B.1",
 		"## SoA",
-		"| fx-a | Fixture Framework A | 1 | controls | 4 | 2 | 1 | 0 | 1 |",
-		"| fx-b | Fixture Framework B | 2 | criteria | 2 | 1 | 0 | 1 | 0 |",
+		"| Requirements | Evidenced | Declared | Failing | Incomplete | Unmapped |",
+		"| fx-a | Fixture Framework A | 1 | controls | 4 | 2 | 1 | 1 | 0 | 0 |",
+		"| fx-b | Fixture Framework B | 2 | criteria | 2 | 1 | 0 | 0 | 1 | 0 |",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in\n%s", want, got)
@@ -108,8 +112,8 @@ func TestSSPContent(t *testing.T) {
 
 func TestSSPWithoutEvidenceFile(t *testing.T) {
 	got := renderFixture(t, "-evidence", "absent.json")
-	if n := strings.Count(got, "**Status:** NOT_ASSESSED"); n != 3 {
-		t.Errorf("%d NOT_ASSESSED controls without evidence, want 3", n)
+	if n := strings.Count(got, "**Status:** NOT_ASSESSED"); n != 4 {
+		t.Errorf("%d NOT_ASSESSED controls without evidence, want 4", n)
 	}
 	if strings.Contains(got, "FAIL") {
 		t.Error("FAIL without evidence")
