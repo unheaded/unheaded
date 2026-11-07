@@ -5,7 +5,7 @@
   "name": "unheaded-go-dependencies",
   "documentNamespace": "https://github.com/unheaded/unheaded/sbom/go",
   "creationInfo": {
-    "created": "2026-11-05T00:00:00Z",
+    "created": "2026-11-07T00:00:00Z",
     "creators": [
       "Tool: go-list-m-json",
       "Organization: Unheaded"

@@ -3,4 +3,4 @@
 # Measured 2026-10-29 on develop dcf331fd.
 go_components=148
 rust_components=401
-python_components=77
+python_components=72
