@@ -81,3 +81,34 @@ func TestProgLoadError_KeepsTheErrno(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 }
+
+// The verifier answers EAGAIN when a signal arrives mid-check, and the Go
+// runtime signals its own threads. That says nothing about the program: try
+// again at the same size, a bounded number of times.
+func TestLoadWithLogGrowth_RetriesAnInterruptedLoad(t *testing.T) {
+	calls := 0
+	fd, _, err := loadWithLogGrowth(1024, func(log []byte) (int, string, error) {
+		calls++
+		if len(log) != 1024 {
+			t.Fatalf("an interrupted load grew the log to %d", len(log))
+		}
+		if calls < 3 {
+			return -1, "processed 1 insns", fmt.Errorf("%w: prog_load: %w", ErrSyscallFailed, unix.EAGAIN)
+		}
+		return 9, "", nil
+	})
+	if err != nil || fd != 9 || calls != 3 {
+		t.Fatalf("fd %d err %v after %d calls", fd, err, calls)
+	}
+}
+
+func TestLoadWithLogGrowth_GivesUpOnEndlessInterrupts(t *testing.T) {
+	calls := 0
+	_, _, err := loadWithLogGrowth(1024, func([]byte) (int, string, error) {
+		calls++
+		return -1, "", fmt.Errorf("%w: prog_load: %w", ErrSyscallFailed, unix.EAGAIN)
+	})
+	if !errors.Is(err, unix.EAGAIN) || calls != maxProgLoadInterrupts+1 {
+		t.Fatalf("err %v after %d calls, want EAGAIN after %d", err, calls, maxProgLoadInterrupts+1)
+	}
+}

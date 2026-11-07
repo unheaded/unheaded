@@ -1349,13 +1349,28 @@ func progLoadError(err error) error {
 // maxVerifierLogSize bounds how far loadWithLogGrowth grows the log buffer.
 const maxVerifierLogSize = 16 << 20
 
+// maxProgLoadInterrupts bounds how often loadWithLogGrowth retries a load
+// the verifier abandoned because a signal arrived.
+const maxProgLoadInterrupts = 10
+
 // loadWithLogGrowth calls load with a log buffer of size bytes, doubling it
 // while the kernel answers ENOSPC, up to maxVerifierLogSize. The kernel gives
 // ENOSPC for a log that outgrew its buffer even when the verifier accepted
 // the program, so it says nothing about the program itself.
+//
+// EAGAIN is retried at the same size, up to maxProgLoadInterrupts times: the
+// verifier stops with EAGAIN when a signal is pending, and the Go runtime
+// signals its own threads (SIGURG, async preemption). On a busy host the
+// meta-gate saw flow-tracker refused that way after "processed 1 insns",
+// though the object loads every time on a quiet one (2026-11-07).
 func loadWithLogGrowth(size int, load func(log []byte) (int, string, error)) (int, string, error) {
+	interrupts := 0
 	for {
 		fd, verifierLog, err := load(make([]byte, size))
+		if errors.Is(err, unix.EAGAIN) && interrupts < maxProgLoadInterrupts {
+			interrupts++
+			continue
+		}
 		if size <= 0 || size >= maxVerifierLogSize || !errors.Is(err, unix.ENOSPC) {
 			return fd, verifierLog, err
 		}
