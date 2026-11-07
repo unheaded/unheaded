@@ -64,10 +64,10 @@ func NewAuditLogger(w io.Writer, serviceName string) *AuditLogger {
 	return &AuditLogger{w: w, service: serviceName}
 }
 
-// NewFileAuditLogger creates an audit logger that appends to a file.
-// Creates the file if it doesn't exist.
+// NewFileAuditLogger creates an audit logger that appends to a file, creating
+// it if needed. The file rotates by size (see rotatingFile).
 func NewFileAuditLogger(path, serviceName string) (*AuditLogger, error) {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // #nosec G304 -- auth store path from configuration, not from a request
+	f, err := openRotatingFile(path, auditRotateBytes, auditRotateKeep)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +111,8 @@ func (a *AuditLogger) LogFunc() func(AuditEvent) {
 
 // Close closes the underlying writer if it implements io.Closer.
 func (a *AuditLogger) Close() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if c, ok := a.w.(io.Closer); ok {
 		return c.Close()
 	}

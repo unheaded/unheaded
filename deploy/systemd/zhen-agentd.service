@@ -90,6 +90,10 @@ RestartSec=5s
 
 # --- Hardening (defense-in-depth on top of the in-process gate) ---
 NoNewPrivileges=yes
+# Writable under ProtectSystem=strict: set AUTH_AUDIT_LOG=/var/log/unheaded/zhen-agentd/auth-audit.log
+# in the env file to keep every auth decision there (off by default).
+LogsDirectory=unheaded/zhen-agentd
+LogsDirectoryMode=0750
 ProtectSystem=strict
 ProtectHome=yes
 ProtectKernelTunables=yes

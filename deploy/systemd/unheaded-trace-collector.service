@@ -66,6 +66,10 @@ CapabilityBoundingSet=CAP_BPF CAP_PERFMON CAP_NET_ADMIN
 AmbientCapabilities=CAP_BPF CAP_PERFMON CAP_NET_ADMIN
 
 NoNewPrivileges=yes
+# Writable under ProtectSystem=strict: set AUTH_AUDIT_LOG=/var/log/unheaded/trace-collector/auth-audit.log
+# in the env file to keep every auth decision there (off by default).
+LogsDirectory=unheaded/trace-collector
+LogsDirectoryMode=0750
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
