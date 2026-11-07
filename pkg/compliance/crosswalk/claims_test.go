@@ -53,6 +53,7 @@ var requiredNotes = []struct{ file, note string }{
 	{"compliance/findings/register.yaml", "only the signed reprepro repo"},
 	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "every value in history counts as burned"},
 	{"CLAUDE.md", "every value in history counts as burned"},
+	{"compliance/catalog/controls.yaml", "INCOMPLETE as a license record"},
 	{"docs/compliance/SBOM.md", "**Superseded by `sbom/SBOM.md`.**"},
 	{"docs/compliance/LICENSE-AUDIT.md", "**Superseded by `sbom/SBOM.md`.**"},
 	{"LICENSES/THIRD_PARTY.md", "**Superseded by `sbom/SBOM.md`.**"},

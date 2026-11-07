@@ -102,7 +102,10 @@ controls:
       A machine-readable inventory of software components (CM-8; CSF ID.AM-02
       software inventories; ISO A.5.9 inventory of assets; 800-171 03.04.10
       component inventory); SSDF PS.3 archive and protect releases including
-      provenance data.
+      provenance data. These mappings cover the inventory and its scan.
+      sbom/SBOM.md is INCOMPLETE as a license record: its verdict is not PASS,
+      and it names what it did not read. The dated matrices under
+      docs/compliance/control-matrix/ keep their old text.
     freshness_days: 7
     evidence:
       - {kind: github-job, ref: "SBOM + Vulnerability Scan/sbom"}
