@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +41,7 @@ func (o *optInStore) ZhenOptInFor(_ context.Context, id string) (*ZhenOptIn, err
 }
 
 func (o *optInStore) SetZhenOptIn(_ context.Context, id, sum, by string) error {
-	o.rows[id] = ZhenOptIn{DescriptionSHA256: sum, By: by, At: time.Now()}
+	o.rows[id] = ZhenOptIn{CardSHA256: sum, By: by, At: time.Now()}
 	return nil
 }
 
@@ -63,13 +65,22 @@ func optInServer() (*Server, *optInStore) {
 	return &Server{store: st, ctx: context.Background()}, st
 }
 
+// optInCall presses the button on a card as the store holds it now.
 func optInCall(s *Server, id *auth.Identity, method, card string) *httptest.ResponseRecorder {
+	body := ""
+	if t, err := s.store.GetTask(card); err == nil && t != nil {
+		body = `{"card_sha256":"` + zhenagent.CardSHA256(t.Title, t.Description) + `"}`
+	}
+	return optInSend(s, id, method, card, body)
+}
+
+func optInSend(s *Server, id *auth.Identity, method, card, body string) *httptest.ResponseRecorder {
 	var h http.Handler = http.HandlerFunc(s.handleTaskByID)
 	if id != nil {
 		h = auth.Middleware(fixedID{id})(h)
 	}
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(method, "/api/v1/tasks/"+card+"/zhen-opt-in", nil))
+	h.ServeHTTP(rec, httptest.NewRequest(method, "/api/v1/tasks/"+card+"/zhen-opt-in", strings.NewReader(body)))
 	return rec
 }
 
@@ -83,7 +94,7 @@ func TestZhenOptIn_AnOperatorHandsACardOver(t *testing.T) {
 		}
 	}
 	row := st.rows["card-1"]
-	if row.By != "stevie" || row.DescriptionSHA256 != zhenagent.DescriptionSHA256("do the thing") {
+	if row.By != "stevie" || row.CardSHA256 != zhenagent.CardSHA256("t", "do the thing") {
 		t.Fatalf("row = %+v", row)
 	}
 	if rec := optInCall(s, &auth.Identity{Subject: "stevie", Roles: []string{auth.RoleOperator}}, http.MethodDelete, "card-1"); rec.Code != http.StatusNoContent {
@@ -104,6 +115,8 @@ func TestZhenOptIn_NobodyElseCan(t *testing.T) {
 		"service":     {Subject: "zhen-agentd", Roles: []string{auth.RoleService}},
 		"service and operator": {Subject: "dashboard-backend", Roles: []string{auth.RoleService, auth.RoleOperator},
 			Extra: map[string]string{"act": "stevie"}},
+		"API key with an operator's role": {Subject: "stevie", Roles: []string{auth.RoleOperator},
+			Extra: map[string]string{"auth_method": "apikey"}},
 	} {
 		s, st := optInServer()
 		for _, method := range []string{http.MethodPost, http.MethodDelete} {
@@ -131,6 +144,68 @@ func TestZhenOptIn_OnlyZhensCardsAndOnlyRealOnes(t *testing.T) {
 	}
 }
 
+// What is recorded is what the operator read: an edit that landed after they
+// read the card is refused, not approved in their name.
+func TestZhenOptIn_TheCardMustBeTheOneTheyRead(t *testing.T) {
+	op := &auth.Identity{Subject: "stevie", Roles: []string{auth.RoleOperator}}
+	read := zhenagent.CardSHA256("t", "do the thing")
+	for name, edit := range map[string]func(*Task){
+		"description": func(c *Task) { c.Description = "do another thing" },
+		"title":       func(c *Task) { c.Title = "another title" },
+	} {
+		s, st := optInServer()
+		edit(&st.tasks[0])
+		rec := optInSend(s, op, http.MethodPost, "card-1", `{"card_sha256":"`+read+`"}`)
+		if rec.Code != http.StatusConflict {
+			t.Errorf("%s edited after reading: %d %s, want 409", name, rec.Code, rec.Body)
+		}
+		if len(st.rows) != 0 {
+			t.Errorf("%s: wrote %v", name, st.rows)
+		}
+	}
+}
+
+func TestZhenOptIn_ItMustNameWhatWasRead(t *testing.T) {
+	op := &auth.Identity{Subject: "stevie", Roles: []string{auth.RoleOperator}}
+	for name, body := range map[string]string{
+		"no body":   "",
+		"no hash":   `{}`,
+		"not JSON":  `card-1`,
+		"oversized": `{"card_sha256":"` + strings.Repeat("a", maxZhenOptInBody) + `"}`,
+	} {
+		s, st := optInServer()
+		if rec := optInSend(s, op, http.MethodPost, "card-1", body); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d, want 400", name, rec.Code)
+		}
+		if len(st.rows) != 0 {
+			t.Errorf("%s: wrote %v", name, st.rows)
+		}
+	}
+}
+
+// The modal gets the hash to send from the card it fetched, and sends it.
+func TestZhenOptIn_ThePageSendsWhatItFetched(t *testing.T) {
+	s, _ := optInServer()
+	rec := httptest.NewRecorder()
+	s.handleTaskByID(rec, httptest.NewRequest(http.MethodGet, "/api/v1/tasks/card-1", nil))
+	var d struct {
+		CardSHA256 string `json:"card_sha256"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.CardSHA256 != zhenagent.CardSHA256("t", "do the thing") {
+		t.Fatalf("detail hash = %q", d.CardSHA256)
+	}
+	page, err := os.ReadFile("static/js/runbooks.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), "card_sha256: detail.card_sha256") {
+		t.Fatal("the page does not send the card's hash")
+	}
+}
+
 // A store without the table (SQLite, a dev board) has no opt-in to give.
 func TestZhenOptIn_NeedsTheWell(t *testing.T) {
 	s := &Server{store: &stubStore{tasks: []Task{{ID: "card-1", Status: "todo", Owner: zhenagent.Owner}}}, ctx: context.Background()}
@@ -143,7 +218,7 @@ func TestZhenOptIn_NeedsTheWell(t *testing.T) {
 // The card modal shows the opt-in, and whether it still covers the card.
 func TestZhenOptIn_TheModalSeesIt(t *testing.T) {
 	s, st := optInServer()
-	st.rows["card-1"] = ZhenOptIn{DescriptionSHA256: zhenagent.DescriptionSHA256("something older"), By: "stevie", At: time.Now()}
+	st.rows["card-1"] = ZhenOptIn{CardSHA256: zhenagent.CardSHA256("t", "something older"), By: "stevie", At: time.Now()}
 	rec := httptest.NewRecorder()
 	s.handleTaskByID(rec, httptest.NewRequest(http.MethodGet, "/api/v1/tasks/card-1", nil))
 	var d struct {

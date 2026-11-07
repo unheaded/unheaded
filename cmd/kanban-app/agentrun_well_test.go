@@ -57,13 +57,13 @@ func TestWellLatestAgentRun(t *testing.T) {
 	if err := claimOptIn("kb-optin"); !errors.Is(err, zhenagent.ErrClaimConflict) {
 		t.Fatalf("claim with no opt-in: %v", err)
 	}
-	if err := p.SetZhenOptIn(ctx, "kb-optin", zhenagent.DescriptionSHA256("something else"), "stevie"); err != nil {
+	if err := p.SetZhenOptIn(ctx, "kb-optin", zhenagent.CardSHA256("kb-optin", "something else"), "stevie"); err != nil {
 		t.Fatal(err)
 	}
 	if err := claimOptIn("kb-optin"); !errors.Is(err, zhenagent.ErrClaimConflict) {
 		t.Fatalf("claim of a card whose description changed: %v", err)
 	}
-	if err := p.SetZhenOptIn(ctx, "kb-optin", zhenagent.DescriptionSHA256(""), "stevie"); err != nil {
+	if err := p.SetZhenOptIn(ctx, "kb-optin", zhenagent.CardSHA256("kb-optin", ""), "stevie"); err != nil {
 		t.Fatal(err)
 	}
 	if o, err := p.ZhenOptInFor(ctx, "kb-optin"); err != nil || o == nil || o.By != "stevie" {
@@ -89,7 +89,7 @@ func TestWellLatestAgentRun(t *testing.T) {
 
 	// A worker run: claimed, running, succeeded with a review note.
 	card("kb-worked", "task", zhenagent.Owner)
-	if err := p.SetZhenOptIn(ctx, "kb-worked", zhenagent.DescriptionSHA256(""), "stevie"); err != nil {
+	if err := p.SetZhenOptIn(ctx, "kb-worked", zhenagent.CardSHA256("kb-worked", ""), "stevie"); err != nil {
 		t.Fatal(err)
 	}
 	id := zhenagent.NewRunID()

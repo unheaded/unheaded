@@ -20,15 +20,15 @@ func conformance(t *testing.T, s Store, addCard func(Card), prefix string) {
 	ctx := context.Background()
 	id := func(n string) string { return prefix + n }
 	sha := "0123456789abcdef0123456789abcdef01234567"
-	empty := DescriptionSHA256("")
-	addCard(Card{ID: id("ok"), Title: "ok", Description: "x", Status: "todo", Type: "task", Owner: Owner, OptInSHA256: DescriptionSHA256("x")})
-	addCard(Card{ID: id("theirs"), Title: "theirs", Status: "todo", Type: "task", Owner: "Stevie", OptInSHA256: empty})
-	addCard(Card{ID: id("wish"), Title: "wish", Status: "todo", Type: "wishlist", Owner: Owner, OptInSHA256: empty})
-	addCard(Card{ID: id("race"), Title: "race", Status: "todo", Type: "bug", Owner: Owner, OptInSHA256: empty})
+	addCard(Card{ID: id("ok"), Title: "ok", Description: "x", Status: "todo", Type: "task", Owner: Owner, OptInSHA256: CardSHA256("ok", "x")})
+	addCard(Card{ID: id("theirs"), Title: "theirs", Status: "todo", Type: "task", Owner: "Stevie", OptInSHA256: CardSHA256("theirs", "")})
+	addCard(Card{ID: id("wish"), Title: "wish", Status: "todo", Type: "wishlist", Owner: Owner, OptInSHA256: CardSHA256("wish", "")})
+	addCard(Card{ID: id("race"), Title: "race", Status: "todo", Type: "bug", Owner: Owner, OptInSHA256: CardSHA256("race", "")})
 	// H4: Zhen's name on a card hands nothing over, and an opt-in covers the
-	// description it was given.
+	// title and description it was given.
 	addCard(Card{ID: id("unasked"), Title: "unasked", Status: "todo", Type: "task", Owner: Owner})
-	addCard(Card{ID: id("edited"), Title: "edited", Description: "after", Status: "todo", Type: "task", Owner: Owner, OptInSHA256: DescriptionSHA256("before")})
+	addCard(Card{ID: id("edited"), Title: "edited", Description: "after", Status: "todo", Type: "task", Owner: Owner, OptInSHA256: CardSHA256("edited", "before")})
+	addCard(Card{ID: id("retitled"), Title: "after", Description: "x", Status: "todo", Type: "task", Owner: Owner, OptInSHA256: CardSHA256("before", "x")})
 
 	cs, err := s.Candidates(ctx, 50)
 	if err != nil {
@@ -41,7 +41,7 @@ func conformance(t *testing.T, s Store, addCard func(Card), prefix string) {
 	if got[id("unasked")] {
 		t.Error("a card no operator opted in is a candidate")
 	}
-	for _, card := range []string{"unasked", "edited"} {
+	for _, card := range []string{"unasked", "edited", "retitled"} {
 		err := s.Claim(ctx, Run{ID: NewRunID(), CardID: id(card), Mode: ModeInteractive, Family: "repo-task",
 			Branch: "zhen/" + id(card), BaseCommit: strings.Repeat("a", 40), LeaseUntil: time.Now().Add(time.Hour)})
 		if !errors.Is(err, ErrClaimConflict) {
@@ -130,7 +130,7 @@ func conformance(t *testing.T, s Store, addCard func(Card), prefix string) {
 	}
 
 	// An expired lease is abandoned.
-	addCard(Card{ID: id("stale"), Title: "stale", Status: "todo", Type: "task", Owner: Owner, OptInSHA256: empty})
+	addCard(Card{ID: id("stale"), Title: "stale", Status: "todo", Type: "task", Owner: Owner, OptInSHA256: CardSHA256("stale", "")})
 	stale := Run{ID: NewRunID(), CardID: id("stale"), Mode: ModeInteractive, Family: "repo-task", Branch: "zhen/" + id("stale"),
 		BaseCommit: sha, LeaseUntil: time.Now().Add(2 * time.Second)}
 	if err := s.Claim(ctx, stale); err != nil {

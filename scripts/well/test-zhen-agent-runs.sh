@@ -215,13 +215,13 @@ if [[ "$(sq "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'kanban_
 	pass "kanban_zhen_optin owned by well_app_owner"; else fail "kanban_zhen_optin owner"; fi
 OPTSHA=$(printf 'a%.0s' $(seq 1 64))
 card opt-card
-ok "app_kanban records an opt-in" kb "INSERT INTO kanban_zhen_optin (card_id, description_sha256, opted_in_by) VALUES ('opt-card', '$OPTSHA', 'stevie')"
-ok "app_zhen reads it" zh "SELECT description_sha256 FROM kanban_zhen_optin WHERE card_id = 'opt-card'"
-refused "app_zhen INSERT of an opt-in" zh "INSERT INTO kanban_zhen_optin (card_id, description_sha256, opted_in_by) VALUES ('race-card', '$OPTSHA', 'zhen')"
-refused "app_zhen UPDATE of an opt-in" zh "UPDATE kanban_zhen_optin SET description_sha256 = '$OPTSHA'"
+ok "app_kanban records an opt-in" kb "INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ('opt-card', '$OPTSHA', 'stevie')"
+ok "app_zhen reads it" zh "SELECT card_sha256 FROM kanban_zhen_optin WHERE card_id = 'opt-card'"
+refused "app_zhen INSERT of an opt-in" zh "INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ('race-card', '$OPTSHA', 'zhen')"
+refused "app_zhen UPDATE of an opt-in" zh "UPDATE kanban_zhen_optin SET card_sha256 = '$OPTSHA'"
 refused "app_zhen DELETE of an opt-in" zh "DELETE FROM kanban_zhen_optin"
-refused "an opt-in on no card" kb "INSERT INTO kanban_zhen_optin (card_id, description_sha256, opted_in_by) VALUES ('no-such-card', '$OPTSHA', 'stevie')"
-refused "a hash that is not one" kb "UPDATE kanban_zhen_optin SET description_sha256 = 'nope' WHERE card_id = 'opt-card'"
+refused "an opt-in on no card" kb "INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ('no-such-card', '$OPTSHA', 'stevie')"
+refused "a hash that is not one" kb "UPDATE kanban_zhen_optin SET card_sha256 = 'nope' WHERE card_id = 'opt-card'"
 refused "an opt-in by nobody" kb "UPDATE kanban_zhen_optin SET opted_in_by = '' WHERE card_id = 'opt-card'"
 ok "a hard-deleted card takes its opt-in with it" sq "DELETE FROM kanban_tasks WHERE id = 'opt-card'"
 if [[ "$(sq "SELECT count(*) FROM kanban_zhen_optin WHERE card_id = 'opt-card'")" == 0 ]]; then

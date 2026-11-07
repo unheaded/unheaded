@@ -576,6 +576,9 @@ func sealTestManifest(t *testing.T, root string) {
 	if err := os.WriteFile(pubPath, pub.Bytes(), 0o444); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chmod(filepath.Dir(pubPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv(champion.RunbookManifestKeyEnv, pubPath)
 }
 

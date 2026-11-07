@@ -34,7 +34,7 @@ func (s SQLStore) Candidates(ctx context.Context, limit int) ([]Card, error) {
 		limit = 20
 	}
 	rows, err := s.DB.QueryContext(ctx, `
-		SELECT t.id, t.title, t.description, t.status, t.type, t.owner, o.description_sha256
+		SELECT t.id, t.title, t.description, t.status, t.type, t.owner, o.card_sha256
 		  FROM kanban_tasks t
 		  JOIN kanban_zhen_optin o ON o.card_id = t.id
 		 WHERE t.owner = $1 AND t.status = 'todo' AND t.type = ANY($2)
@@ -67,7 +67,7 @@ func (s SQLStore) Attempts(ctx context.Context, cardID string) (int, error) {
 
 // Claim implements Store: lock the card (SKIP LOCKED: another worker
 // holding it means a conflict, not a wait), check it is still an eligible
-// todo card whose description is the one an operator opted in, insert the
+// todo card whose title and description are the ones an operator opted in, insert the
 // run, move the card. The one-active index is the
 // last word on a race.
 func (s SQLStore) Claim(ctx context.Context, r Run) error {
@@ -85,7 +85,7 @@ func (s SQLStore) Claim(ctx context.Context, r Run) error {
 		  JOIN kanban_zhen_optin o ON o.card_id = t.id
 		 WHERE t.id = $1 AND t.owner = $2 AND t.status = 'todo' AND t.type = ANY($3)
 		   AND t.deleted_at IS NULL AND t.archived_at IS NULL
-		   AND o.description_sha256 = encode(sha256(convert_to(t.description, 'UTF8')), 'hex')
+		   AND o.card_sha256 = encode(sha256(convert_to(t.title, 'UTF8') || '\x00'::bytea || convert_to(t.description, 'UTF8')), 'hex')
 		 FOR UPDATE OF t SKIP LOCKED`, r.CardID, Owner, pq.Array(eligibleTypeList)).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrClaimConflict

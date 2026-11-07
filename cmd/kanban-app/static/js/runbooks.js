@@ -20,7 +20,7 @@ const RunbookView = (function() {
     'use strict';
 
     const progress = new Map();   // runbook ref -> latest progress event
-    let shownTask = null;         // { id, runbook } of the open modal
+    let shownTask = null;         // { id, runbook, title, description } of the open modal
 
     function progressText(p) {
         if (!p) return '';
@@ -187,8 +187,9 @@ const RunbookView = (function() {
     /** Called by App.openDetailModal: fetch the card's agent run and runbook. */
 
     // A card on Zhen's name is the worker's only once an operator says so here
-    // (H4). The server records the description as it stands now, so an edited
-    // card asks again. Only an operator's own login can press this.
+    // (H4). The press names the card text this modal shows, and the server
+    // refuses it if the card has moved on, so what is recorded is what the
+    // operator read. Only an operator's own login can press this.
     function renderZhenOptIn(detail) {
         const section = document.getElementById('detailZhenOptInSection');
         const text = document.getElementById('detailZhenOptIn');
@@ -198,7 +199,11 @@ const RunbookView = (function() {
         if (section.hidden) return;
         const opt = detail.zhen_opt_in;
         const live = opt && opt.current;
-        if (live) {
+        const moved = !shownTask || detail.title !== shownTask.title || (detail.description || '') !== shownTask.description;
+        button.disabled = moved && !live;
+        if (moved && !live) {
+            text.textContent = 'This card changed after it was opened: open it again to read it first.';
+        } else if (live) {
             text.textContent = 'Handed to Zhen by ' + opt.by + '.';
         } else if (opt) {
             text.textContent = 'Edited since ' + opt.by + ' handed it over: Zhen will not take it.';
@@ -208,8 +213,17 @@ const RunbookView = (function() {
         button.textContent = live ? 'Take back from Zhen' : 'Hand to Zhen';
         button.onclick = async () => {
             button.disabled = true;
-            const resp = await fetch('/api/v1/tasks/' + encodeURIComponent(detail.id) + '/zhen-opt-in', { method: live ? 'DELETE' : 'POST' });
+            const resp = await fetch('/api/v1/tasks/' + encodeURIComponent(detail.id) + '/zhen-opt-in', live ? { method: 'DELETE' } : {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ card_sha256: detail.card_sha256 }),
+            });
             button.disabled = false;
+            if (resp.status === 409) {
+                text.textContent = 'This card changed after it was opened: open it again to read it first.';
+                button.disabled = true;
+                return;
+            }
             if (!resp.ok) {
                 text.textContent = 'Refused (' + resp.status + '): this takes an operator login.';
                 return;
@@ -225,7 +239,7 @@ const RunbookView = (function() {
         renderZhenOptIn(null);
         shownTask = null;
         if (!task || !task.id) return;
-        shownTask = { id: task.id, runbook: '' };
+        shownTask = { id: task.id, runbook: '', title: task.title, description: task.description || '' };
         try {
             const resp = await fetch('/api/v1/tasks/' + encodeURIComponent(task.id));
             if (!resp.ok) return;

@@ -22,7 +22,7 @@ import (
 
 // optedIn is a card an operator handed over, as kanban_zhen_optin says.
 func optedIn(c zhenagent.Card) zhenagent.Card {
-	c.OptInSHA256 = zhenagent.DescriptionSHA256(c.Description)
+	c.OptInSHA256 = zhenagent.CardSHA256(c.Title, c.Description)
 	return c
 }
 

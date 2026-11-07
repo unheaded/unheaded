@@ -41,7 +41,7 @@ func TestWellAgentRuns_Conformance(t *testing.T) {
 		}
 		if c.OptInSHA256 != "" {
 			if _, err := kdb.ExecContext(context.Background(),
-				`INSERT INTO kanban_zhen_optin (card_id, description_sha256, opted_in_by) VALUES ($1, $2, 'stevie')`,
+				`INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ($1, $2, 'stevie')`,
 				c.ID, c.OptInSHA256); err != nil {
 				t.Fatal(err)
 			}

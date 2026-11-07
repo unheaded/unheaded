@@ -67,16 +67,21 @@ type Card struct {
 	Owner       string
 	Deleted     bool
 	Archived    bool
-	// OptInSHA256 is the description an operator handed over, by its
-	// DescriptionSHA256; empty for a card nobody opted in. It comes from
-	// kanban_zhen_optin, never from the card.
+	// OptInSHA256 is the text an operator handed over, by its CardSHA256;
+	// empty for a card nobody opted in. It comes from kanban_zhen_optin, never
+	// from the card.
 	OptInSHA256 string
 }
 
-// DescriptionSHA256 is what an opt-in records of a card's description.
-func DescriptionSHA256(description string) string {
-	sum := sha256.Sum256([]byte(description))
-	return hex.EncodeToString(sum[:])
+// CardSHA256 is what an opt-in records of a card: every word of it the worker
+// passes on, the title and the description. A NUL separates them, which a
+// Postgres text value cannot hold; SQLStore.Claim computes the same bytes.
+func CardSHA256(title, description string) string {
+	h := sha256.New()
+	h.Write([]byte(title))
+	h.Write([]byte{0})
+	h.Write([]byte(description))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Eligible says whether the worker may take c (the hand-off block is
@@ -89,8 +94,8 @@ func Eligible(c Card) error {
 		return fmt.Errorf("%w: owner is not %q", ErrNotEligible, Owner)
 	case c.OptInSHA256 == "":
 		return fmt.Errorf("%w: no operator opted it in", ErrNotEligible)
-	case c.OptInSHA256 != DescriptionSHA256(c.Description):
-		return fmt.Errorf("%w: its description changed after the opt-in", ErrNotEligible)
+	case c.OptInSHA256 != CardSHA256(c.Title, c.Description):
+		return fmt.Errorf("%w: its title or description changed after the opt-in", ErrNotEligible)
 	case c.Status != "todo":
 		return fmt.Errorf("%w: status %q is not todo", ErrNotEligible, c.Status)
 	case !EligibleTypes[c.Type]:
