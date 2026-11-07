@@ -8,6 +8,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"unheaded/pkg/gungnir"
@@ -117,6 +119,64 @@ func TestRunbookSeal_AKeyOthersCanWriteIsRefused(t *testing.T) {
 	if err := liveRun(c); !errors.Is(err, ErrRunbookManifestUnsealed) {
 		t.Fatalf("got %v", err)
 	}
+}
+
+// A key directory may let a service open a file by name and list nothing:
+// unheaded-keygen makes its directories that way, and a good seal has to verify
+// from one.
+func TestRunbookSeal_AKeyInADirectoryNobodyCanListStillRuns(t *testing.T) {
+	needPython(t)
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a directory whatever its mode")
+	}
+	c, _, _ := rbRoot(t, "infra/safe", safeRunbook, entry("infra/safe"))
+	dir := filepath.Dir(os.Getenv(RunbookManifestKeyEnv))
+	if err := os.Chmod(dir, 0o311); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	if err := liveRun(c); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Whoever writes the key's directory can replace the key, whatever the key
+// file's own mode says.
+func TestRunbookSeal_AKeyInADirectoryOthersCanWriteIsRefused(t *testing.T) {
+	c, _, _ := rbRoot(t, "infra/safe", safeRunbook, entry("infra/safe"))
+	if err := os.Chmod(filepath.Dir(os.Getenv(RunbookManifestKeyEnv)), 0o775); err != nil {
+		t.Fatal(err)
+	}
+	if err := liveRun(c); !errors.Is(err, ErrRunbookManifestUnsealed) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// A relative path means whatever the working directory says, so it cannot be
+// judged against the sandbox.
+func TestRunbookSeal_ARelativeKeyPathIsRefused(t *testing.T) {
+	c, _, _ := rbRoot(t, "infra/safe", safeRunbook, entry("infra/safe"))
+	abs := os.Getenv(RunbookManifestKeyEnv)
+	t.Chdir(filepath.Dir(abs))
+	t.Setenv(RunbookManifestKeyEnv, filepath.Base(abs))
+	if err := liveRun(c); !errors.Is(err, ErrRunbookManifestUnsealed) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// The default key has to sit where the shipped unit lets the daemon read.
+func TestRunbookSeal_TheDefaultKeyIsWhereTheUnitReads(t *testing.T) {
+	unit, err := os.ReadFile("../../deploy/systemd/zhen-agentd.service")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Dir(DefaultRunbookManifestKey)
+	for _, line := range strings.Split(string(unit), "\n") {
+		if rest, ok := strings.CutPrefix(line, "ReadOnlyPaths="); ok && slices.Contains(strings.Fields(rest), dir) {
+			return
+		}
+	}
+	t.Fatalf("no ReadOnlyPaths= line lists %s", dir)
 }
 
 // A dry run runs nothing, so it needs no seal.

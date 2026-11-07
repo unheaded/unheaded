@@ -56,7 +56,8 @@ func rbRoot(t *testing.T, name, body string, manifest func(sum string) string) (
 }
 
 // sealManifest seals m with a fresh key and points the Champion at its public
-// half, outside the root, as a host's /etc/unheaded/keys would be.
+// half, outside the root, in a directory only its owner writes, as a host's
+// /etc/unheaded/zhen is.
 func sealManifest(t *testing.T, m []byte, runbooksDir string) {
 	t.Helper()
 	key := gungnir.GenerateDevKey()
@@ -71,7 +72,11 @@ func sealManifest(t *testing.T, m []byte, runbooksDir string) {
 	if !ok {
 		t.Fatal("not an ML-DSA-65 key")
 	}
-	pubPath := filepath.Join(t.TempDir(), "runbook-manifest.pub")
+	keyDir := t.TempDir()
+	if err := os.Chmod(keyDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pubPath := filepath.Join(keyDir, "runbook-manifest.pub")
 	if err := os.WriteFile(pubPath, pub.Bytes(), 0o444); err != nil {
 		t.Fatal(err)
 	}

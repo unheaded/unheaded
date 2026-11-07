@@ -23,8 +23,9 @@ import (
 // live outside anything the project root reaches.
 //
 //	unheaded-keygen -algo mldsa65 runbook-manifest
+//	install -m 0444 /etc/unheaded/keys/runbook-manifest.pub /etc/unheaded/zhen/
 //	scripts/runbook-manifest.sh --write
-//	scripts/runbook-manifest.sh --seal /path/to/runbook-manifest.key
+//	scripts/runbook-manifest.sh --seal /etc/unheaded/keys/runbook-manifest.key
 //
 // Editing a runbook unseals every live run until it is sealed again. A dry run
 // runs nothing and needs no seal.
@@ -33,8 +34,9 @@ const (
 	RunbookSealSuffix = ".seal"
 	// RunbookManifestKeyEnv overrides DefaultRunbookManifestKey.
 	RunbookManifestKeyEnv = "ZHEN_RUNBOOK_MANIFEST_KEY"
-	// DefaultRunbookManifestKey is where unheaded-keygen puts the public half.
-	DefaultRunbookManifestKey = "/etc/unheaded/keys/runbook-manifest.pub"
+	// DefaultRunbookManifestKey is the public half, in the root-owned directory
+	// the daemon's unit already reads. The seed stays where keygen wrote it.
+	DefaultRunbookManifestKey = "/etc/unheaded/zhen/runbook-manifest.pub"
 
 	runbookSealPurpose = "runbook-manifest"
 )
@@ -57,11 +59,16 @@ func SealRunbookManifest(manifest []byte, key *mldsa65.PrivateKey) ([]byte, erro
 }
 
 // manifestKey loads the public key, refusing one the sandbox could rewrite: a
-// path under a root, as given or as resolved, or a file others may write.
+// path under a root, as given or as resolved, a file others may write, or a
+// file in a directory others may write. The path must be absolute, or the
+// sandbox check would be judging the wrong place.
 func (c *Champion) manifestKey() (*mldsa65.PublicKey, error) {
 	path := os.Getenv(RunbookManifestKeyEnv)
 	if path == "" {
 		path = DefaultRunbookManifestKey
+	}
+	if !filepath.IsAbs(path) {
+		return nil, fmt.Errorf("key %s is not an absolute path", path)
 	}
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
@@ -74,12 +81,16 @@ func (c *Champion) manifestKey() (*mldsa65.PublicKey, error) {
 			}
 		}
 	}
-	dir, err := os.OpenRoot(filepath.Dir(resolved))
+	parent, err := os.Stat(filepath.Dir(resolved))
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = dir.Close() }() // read-only
-	f, err := dir.Open(filepath.Base(resolved))
+	if parent.Mode().Perm()&0o022 != 0 {
+		return nil, fmt.Errorf("key %s is in a directory others can write (%v)", path, parent.Mode().Perm())
+	}
+	// By path, not through os.OpenRoot: that opens the directory for reading,
+	// and a key directory may let a service open a name and list nothing.
+	f, err := os.Open(filepath.Clean(resolved))
 	if err != nil {
 		return nil, err
 	}

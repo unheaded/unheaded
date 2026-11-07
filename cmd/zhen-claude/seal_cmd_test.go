@@ -43,6 +43,9 @@ func TestSealRunbooks_TheGateAcceptsWhatItWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := t.TempDir()
+	if err := os.Chmod(keys, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	seedPath := filepath.Join(keys, "runbook-manifest.key")
 	if err := os.WriteFile(seedPath, seed[:], 0o600); err != nil {
 		t.Fatal(err)
