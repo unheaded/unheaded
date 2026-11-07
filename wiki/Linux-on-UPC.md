@@ -142,10 +142,12 @@ make -f ../adapters/Makefile.mbc-userland ramdisk
 # On west since 2026-10-28 the unit path is the default: `sudo systemctl start
 # unheaded-upc-bootctl@xv6` boots /var/lib/unheaded/upc as unheaded-upc (no root),
 # with /etc/unheaded/upc/xv6.env; upc0 is kept by unheaded-upc-netns.service.
-# The sudo lines below are the lab shortcut.
+# The unit loads /usr/lib/unheaded/ebpf/monad-cpu-ebpf, root's: bootctl refuses an
+# object a non-root user could replace. The sudo lines below are the lab shortcut,
+# and a build tree's object needs --allow-untrusted-ebpf-obj-dir.
 cd ../../../ebpf
 sudo ../scripts/upc-netns.sh up
-sudo ip netns exec upc0 env UPC_DEMO_MODE=1 /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
+sudo ip netns exec upc0 env UPC_DEMO_MODE=1 /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot --allow-untrusted-ebpf-obj-dir \
   --kernel /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/xv6-mbc.mbc \
   --ramdisk /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/fs.img \
   --userland /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/init.mbc \

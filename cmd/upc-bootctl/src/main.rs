@@ -148,6 +148,11 @@ enum Cmd {
         /// other result fails the boot before attach.
         #[arg(long)]
         freeze_check: bool,
+
+        /// Load an object a non-root user could have written, as a build tree's
+        /// is (crates/objtrust). Development only; the unit never passes it.
+        #[arg(long)]
+        allow_untrusted_ebpf_obj_dir: bool,
     },
 
     /// Boot a kernel and run it interactively (Mode A/B): TTY output streams
@@ -200,6 +205,10 @@ enum Cmd {
         /// Expected SHA-256 of the kernel's `.rv2mbc` (see `boot --rv2mbc-sha`).
         #[arg(long, value_name = "HEX")]
         rv2mbc_sha: Option<String>,
+
+        /// Load an object a non-root user could have written (see `boot`).
+        #[arg(long)]
+        allow_untrusted_ebpf_obj_dir: bool,
     },
 }
 
@@ -415,11 +424,16 @@ fn xv6_program_workload(
     }
 }
 
-/// Gates A and B on the object file, before it is opened: `aya` creates every
-/// map when it loads an object, so refusing here means a wrong object leaves
-/// no map, program or netns behind. The same checks run again inside every
-/// `upc_api::load`. Returns the facts for those calls.
-fn preflight_object(ebpf_obj: &Path, mmu: &upc_api::MmuLayout) -> Result<upc_api::ObjectFacts> {
+/// crates/objtrust, then gates A and B on the object file, before it is opened:
+/// `aya` creates every map when it loads an object, so refusing here means a
+/// wrong object leaves no map, program or netns behind. The same gates run
+/// again inside every `upc_api::load`. Returns the facts for those calls.
+fn preflight_object(
+    ebpf_obj: &Path,
+    mmu: &upc_api::MmuLayout,
+    allow_untrusted: bool,
+) -> Result<upc_api::ObjectFacts> {
+    objtrust::check_unless_allowed(ebpf_obj, allow_untrusted)?;
     let facts = upc_api::ObjectFacts::from_path(ebpf_obj)
         .map_err(|e| anyhow!("refusing to load {}: {e}", ebpf_obj.display()))?;
     upc_api::check_surface(&XV6_SURFACE, &facts)
@@ -662,6 +676,7 @@ fn boot_prepare(
     input: Option<&str>,
     mmu: &upc_api::MmuLayout,
     rv: &rv2mbc::Rv2mbcSet,
+    allow_untrusted_obj: bool,
 ) -> Result<(runner::BootRunner, runner::MbcCpuState)> {
     // ── LIVE BOOT PATH (Phase 1.1 SHIP per battle-plan-phase11-ship-2026-05-10.md) ──
     let kernel_bytes =
@@ -698,7 +713,7 @@ fn boot_prepare(
     }
 
     // S-ASCEND-2 Steps 95-106: refuse a wrong object before aya creates a map.
-    let facts = preflight_object(&ebpf_obj, mmu)?;
+    let facts = preflight_object(&ebpf_obj, mmu, allow_untrusted_obj)?;
 
     let mut runner = runner::BootRunner::open(&ebpf_obj, instance as u32)?;
 
@@ -1083,6 +1098,7 @@ fn cmd_boot(
     rv2mbc_sha: Option<String>,
     allow_unverified_rv2mbc: bool,
     hijack_probe: Option<u32>,
+    allow_untrusted_obj: bool,
 ) -> Result<()> {
     demo_gate(dry_run, std::env::var("UPC_DEMO_MODE").ok().as_deref())?;
     rv2mbc::hatch_gate(allow_unverified_rv2mbc, dry_run)?;
@@ -1167,7 +1183,7 @@ fn cmd_boot(
                 "target/bpfel-unknown-none/release/monad-cpu-ebpf".to_string()
             }));
         if ebpf_obj.exists() {
-            preflight_object(&ebpf_obj, &mmu)?;
+            preflight_object(&ebpf_obj, &mmu, allow_untrusted_obj)?;
         } else {
             println!(
                 "  (object gates not run: no object at {})",
@@ -1187,6 +1203,7 @@ fn cmd_boot(
         input.as_deref(),
         &mmu,
         &rv,
+        allow_untrusted_obj,
     )?;
 
     // Send Monad-format trigger packets via doom-tick.py. flow_label =
@@ -1326,6 +1343,7 @@ struct ConsoleOpts {
     debug_kbd: bool,
     unsafe_geometry: bool,
     rv2mbc_sha: Option<String>,
+    allow_untrusted_ebpf_obj_dir: bool,
 }
 
 /// Set on SIGINT / SIGTERM so the console loop can tear down XDP + netns
@@ -1420,6 +1438,7 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
         None,
         &mmu,
         &rv,
+        o.allow_untrusted_ebpf_obj_dir,
     )?;
     println!(
         "\n=== UPC CONSOLE (instance 0x{:02X}) — Ctrl-C to stop ===",
@@ -1553,6 +1572,7 @@ fn run(cli: Cli) -> Result<()> {
             allow_unverified_rv2mbc,
             hijack_probe,
             freeze_check,
+            allow_untrusted_ebpf_obj_dir,
         } => {
             netns::set_create_netns(create_netns);
             freeze::set_check(freeze_check);
@@ -1570,6 +1590,7 @@ fn run(cli: Cli) -> Result<()> {
                 rv2mbc_sha,
                 allow_unverified_rv2mbc,
                 hijack_probe,
+                allow_untrusted_ebpf_obj_dir,
             )
         }
         Cmd::Console {
@@ -1584,6 +1605,7 @@ fn run(cli: Cli) -> Result<()> {
             unsafe_geometry,
             create_netns,
             rv2mbc_sha,
+            allow_untrusted_ebpf_obj_dir,
         } => {
             netns::set_create_netns(create_netns);
             cmd_console(ConsoleOpts {
@@ -1597,6 +1619,7 @@ fn run(cli: Cli) -> Result<()> {
                 debug_kbd,
                 unsafe_geometry,
                 rv2mbc_sha,
+                allow_untrusted_ebpf_obj_dir,
             })
         }
     }
