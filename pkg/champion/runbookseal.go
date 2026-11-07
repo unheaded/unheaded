@@ -74,14 +74,33 @@ func (c *Champion) manifestKey() (*mldsa65.PublicKey, error) {
 			}
 		}
 	}
-	fi, err := os.Stat(resolved)
+	dir, err := os.OpenRoot(filepath.Dir(resolved))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = dir.Close() }() // read-only
+	f, err := dir.Open(filepath.Base(resolved))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }() // read-only
+	// Judged on the open file, so what passes is what is read.
+	fi, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
 	if fi.Mode().Perm()&0o022 != 0 {
 		return nil, fmt.Errorf("key %s is writable by others (%v)", path, fi.Mode().Perm())
 	}
-	return gungnir.LoadPublicKeyFile(resolved)
+	raw, err := io.ReadAll(io.LimitReader(f, mldsa65.PublicKeySize+1))
+	if err != nil {
+		return nil, err
+	}
+	var pub mldsa65.PublicKey
+	if err := pub.UnmarshalBinary(raw); err != nil {
+		return nil, fmt.Errorf("key %s: %w", path, err)
+	}
+	return &pub, nil
 }
 
 // checkManifestSeal verifies the seal over exactly the bytes the caller read.
