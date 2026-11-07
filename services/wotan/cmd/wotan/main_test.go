@@ -8,10 +8,14 @@ import (
 	"flag"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"unheaded/services/wotan/internal/api"
 	"unheaded/services/wotan/internal/member"
@@ -450,5 +454,29 @@ func TestParseFlags_Bind(t *testing.T) {
 	}
 	if got := listenAddr("", 18000); got != ":18000" {
 		t.Fatalf("all-interfaces listen = %q", got)
+	}
+}
+
+// L15: every identity the shipped config approves can use its whole quota at
+// once without reaching the cap, so nobody's share depends on anyone else's.
+func TestRoomQuota_FitsEveryApprovedIdentityUnderTheCap(t *testing.T) {
+	config := parseFlags(flag.NewFlagSet("wotan", flag.ContinueOnError), nil)
+	if config.RoomQuota <= 0 {
+		t.Fatalf("room quota %d: it must be on by default", config.RoomQuota)
+	}
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "configs", "wotan.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file struct {
+		Topics struct {
+			AutoApprove []string `yaml:"auto_approve"`
+		} `yaml:"topics"`
+	}
+	if err := yaml.Unmarshal(raw, &file); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(file.Topics.AutoApprove); n == 0 || n*config.RoomQuota > config.MaxRooms {
+		t.Fatalf("%d identities x %d rooms is over the cap of %d", n, config.RoomQuota, config.MaxRooms)
 	}
 }

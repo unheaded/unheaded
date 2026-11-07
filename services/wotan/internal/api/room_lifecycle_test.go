@@ -147,3 +147,38 @@ func TestRoomNames_OneRule(t *testing.T) {
 		t.Errorf("a pattern = %q", got)
 	}
 }
+
+// L15: one verified caller holds only its share of the rooms, by subscribing or
+// by publishing, and the others keep theirs.
+func TestRoomQuota_OneCallerCannotSpendEveryonesRooms(t *testing.T) {
+	w := newAuthedHTTPWotan(t)
+	w.s.RoomManager.SetRoomQuota(2)
+	greedy := w.f.Bearer("timeguru", "wotan")
+
+	code, _, id := w.subscribe(t, greedy, "seed", "x")
+	if code != http.StatusCreated {
+		t.Fatalf("first subscribe: %d", code)
+	}
+	publish := func(topic string) int {
+		body := `{"subscriber_id":"` + id + `","payload":"p"}`
+		return w.do(http.MethodPost, "/api/v1/topics/"+topic+"/publish", body, greedy).Code
+	}
+	if c := publish("second"); c != http.StatusCreated {
+		t.Fatalf("second room: %d", c)
+	}
+	if c := publish("third"); c != http.StatusTooManyRequests {
+		t.Fatalf("over quota by publishing: %d, want 429", c)
+	}
+	if code, _, _ := w.subscribe(t, greedy, "fourth", "x"); code != http.StatusTooManyRequests {
+		t.Fatalf("over quota by subscribing: %d, want 429", code)
+	}
+	if got := w.s.RoomManager.Count(); got != 2 {
+		t.Fatalf("%d rooms, want 2", got)
+	}
+	if c := publish("seed"); c != http.StatusCreated {
+		t.Fatalf("a room it has is still open: %d", c)
+	}
+	if code, _, _ := w.subscribe(t, w.f.Bearer("captain", "wotan"), "other", "x"); code != http.StatusCreated {
+		t.Fatalf("another caller's share: %d", code)
+	}
+}

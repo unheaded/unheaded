@@ -4,6 +4,7 @@
 package room
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -1177,5 +1178,78 @@ func TestManager_MaxRooms(t *testing.T) {
 	}
 	if _, err := m.GetOrCreate("c", "c"); err != nil {
 		t.Fatalf("after a delete there is room again: %v", err)
+	}
+}
+
+// L15: one caller may hold only its share of the rooms, so naming topics
+// cannot spend the cap everyone else needs.
+func TestManager_RoomQuota(t *testing.T) {
+	m := NewManager(10)
+	m.SetMaxRooms(100)
+	m.SetRoomQuota(2)
+	for _, id := range []string{"a", "b"} {
+		if _, err := m.GetOrCreateAs("greedy", id, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := m.GetOrCreateAs("greedy", "c", "c"); !errors.Is(err, ErrRoomQuota) {
+		t.Fatalf("over quota: %v", err)
+	}
+	if m.Count() != 2 {
+		t.Fatalf("a refused room exists: %d", m.Count())
+	}
+	if r, err := m.GetOrCreateAs("greedy", "a", "a"); err != nil || r == nil {
+		t.Fatalf("a room that exists opens past the quota: %v", err)
+	}
+	if _, err := m.GetOrCreateAs("other", "c", "c"); err != nil {
+		t.Fatalf("another caller keeps its own share: %v", err)
+	}
+	if r, err := m.GetOrCreateAs("greedy", "c", "c"); err != nil || r == nil {
+		t.Fatalf("a room someone else made costs nothing: %v", err)
+	}
+	if err := m.Delete("a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.GetOrCreateAs("greedy", "d", "d"); err != nil {
+		t.Fatalf("deleting a room gives the share back: %v", err)
+	}
+}
+
+// No verified caller, no quota: auth off has only self-reported names, and the
+// total cap still holds.
+func TestManager_RoomQuota_AnUnnamedCallerHasOnlyTheCap(t *testing.T) {
+	m := NewManager(10)
+	m.SetMaxRooms(3)
+	m.SetRoomQuota(1)
+	for _, id := range []string{"a", "b", "c"} {
+		if _, err := m.GetOrCreate(id, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := m.GetOrCreate("d", "d"); !errors.Is(err, ErrTooManyRooms) {
+		t.Fatalf("cap: %v", err)
+	}
+}
+
+// The cap holds whoever asks, and a refusal costs the caller nothing.
+func TestManager_RoomQuota_TheCapStillBinds(t *testing.T) {
+	m := NewManager(10)
+	m.SetMaxRooms(1)
+	m.SetRoomQuota(5)
+	if _, err := m.GetOrCreateAs("a", "x", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.GetOrCreateAs("a", "y", "y"); !errors.Is(err, ErrTooManyRooms) {
+		t.Fatalf("cap: %v", err)
+	}
+}
+
+func TestManager_RoomQuota_ZeroIsNone(t *testing.T) {
+	m := NewManager(10)
+	for i := 0; i < 5; i++ {
+		id := string(rune('a' + i))
+		if _, err := m.GetOrCreateAs("a", id, id); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

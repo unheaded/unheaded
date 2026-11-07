@@ -226,3 +226,19 @@ func TestAuthE2E_RequireIdentityRefusesBareCall(t *testing.T) {
 		t.Fatalf("bare call with auth required: %v, want Unauthenticated", err)
 	}
 }
+
+// L15: the gRPC path holds a caller to the same room quota as HTTP.
+func TestAuthE2E_GRPCRoomQuota(t *testing.T) {
+	w := newAuthedWotan(t)
+	w.svc.roomManager.SetRoomQuota(1)
+	greedy := w.f.Bearer("timeguru", "wotan")
+	if err := w.publish(t, greedy, "quota.one", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.publish(t, greedy, "quota.two", "", ""); status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("over quota: %v", err)
+	}
+	if err := w.publish(t, w.f.Bearer("captain", "wotan"), "quota.three", "", ""); err != nil {
+		t.Fatalf("another caller's share: %v", err)
+	}
+}
