@@ -20,7 +20,8 @@ Each class has an attack scenario and a `- [ ]` mitigation checklist with a test
 | Where | What |
 |-------|------|
 | `tomb/grimoire/threat-models/` | `kingdom-threat-model.md`, `monad-protocol-threats.md` |
-| `tomb/grimoire/mitre-attck/` | MITRE ATT&CK fetch script for the RAG corpus |
+| `tomb/grimoire/mitre-attck/` | MITRE ATT&CK fetch script and notes on the STIX data |
+| `cmd/zhen-codeindex` | Builds and searches the corpus index on the Tomb VM (`--corpus`, `--search`); no network |
 | `tomb/dark-mirror/` | Dark Mirror material |
 | `docs/security/threat-model-*.md` | Per-component threat models: Champion gate, Sealed Cask, Zhen AI, operator workstation |
 | `docs/security/threat-register.md` | Threat register |

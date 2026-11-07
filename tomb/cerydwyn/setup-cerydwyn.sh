@@ -7,9 +7,11 @@
 # Prerequisites:
 #   - Ollama binary pre-transferred to /tmp/ollama-binary
 #   - Model GGUF file pre-transferred to /tmp/Mistral-7B-Instruct-v0.1.Q4_K_M.gguf
-#   - ChromaDB + sentence-transformers wheels in /tmp/cerydwyn-wheels/
 #   - Python 3.8+ available
 #   - Run as root or with sudo
+#
+# The Grimoire's search is its own layer: setup-grimoire.sh installs zhen-codeindex
+# and builds the index. Cerydwyn needs only the path to each.
 #
 # Usage: sudo ./setup-cerydwyn.sh [--skip-model] [--skip-rag]
 
@@ -26,7 +28,6 @@ GRIMOIRE_ROOT="${TOMB_ROOT}/grimoire"
 
 MODEL_SRC="/tmp/Mistral-7B-Instruct-v0.1.Q4_K_M.gguf"
 OLLAMA_SRC="/tmp/ollama-binary"
-WHEELS_DIR="/tmp/cerydwyn-wheels"
 
 SKIP_MODEL=false
 SKIP_RAG=false
@@ -40,7 +41,7 @@ for arg in "$@"; do
             echo "Usage: sudo $0 [--skip-model] [--skip-rag]"
             echo ""
             echo "  --skip-model   Skip Ollama binary and model weight installation"
-            echo "  --skip-rag     Skip RAG dependency installation (ChromaDB, etc.)"
+            echo "  --skip-rag     Skip writing the RAG configuration"
             exit 0
             ;;
         *) echo "[ERROR] Unknown argument: $arg"; exit 1 ;;
@@ -232,27 +233,11 @@ deploy_scripts() {
     log_ok "Cerydwyn scripts deployed to ${CERYDWYN_ROOT}"
 }
 
-# --- Phase 6: RAG Dependencies ---
-install_rag_deps() {
+# --- Phase 6: RAG Configuration ---
+write_rag_config() {
     if [[ "$SKIP_RAG" == "true" ]]; then
-        log_warn "Skipping RAG dependencies (--skip-rag)"
+        log_warn "Skipping RAG configuration (--skip-rag)"
         return 0
-    fi
-
-    log_info "Installing RAG pipeline dependencies..."
-
-    # Check for pre-packaged Python wheels (air-gapped install)
-    if [[ -d "$WHEELS_DIR" ]]; then
-        pip3 install --no-index --find-links="$WHEELS_DIR" \
-            chromadb==1.5.9 \
-            sentence-transformers==6.2.0 \
-            requests \
-            2>&1 | tail -5
-        log_ok "RAG Python dependencies installed from offline wheels"
-    else
-        log_warn "Offline wheels not found at $WHEELS_DIR"
-        log_warn "RAG dependencies must be installed manually."
-        log_warn "Required: chromadb, sentence-transformers, requests"
     fi
 
     # Create RAG config
@@ -261,11 +246,9 @@ install_rag_deps() {
     "ollama_url": "http://127.0.0.1:${OLLAMA_PORT}",
     "model": "cerydwyn-mistral",
     "grimoire_root": "${GRIMOIRE_ROOT}",
-    "chromadb_path": "${GRIMOIRE_ROOT}/rag/chroma.db",
-    "embedding_model": "all-MiniLM-L6-v2",
+    "grimoire_search": "${GRIMOIRE_ROOT}/bin/zhen-codeindex",
+    "grimoire_index": "${GRIMOIRE_ROOT}/index",
     "top_k": 5,
-    "chunk_size": 512,
-    "chunk_overlap": 64,
     "max_context_tokens": 4096,
     "temperature": 0.3,
     "system_prompt_path": "${CERYDWYN_ROOT}/prompts/system-cerydwyn.txt",
@@ -359,7 +342,7 @@ main() {
     install_systemd_service
     install_model
     deploy_scripts
-    install_rag_deps
+    write_rag_config
     verify_installation
 
     echo ""

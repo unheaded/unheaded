@@ -1,18 +1,27 @@
-.TH ZHEN\-CODEINDEX 1 "2026-11-04" "unheaded v0.0.0-20261104150955-318f74a48689+dirty" "Unheaded Kingdom"
+.TH ZHEN\-CODEINDEX 1 "2026-11-07" "unheaded 83232cd4" "Unheaded Kingdom"
 .SH NAME
-zhen\-codeindex \- Build Zhen's source shard: symbols, Go call graph and word search over committed code.
+zhen\-codeindex \- Build Zhen's source shard, or a text corpus index, and search the corpus: word search, no network.
 .SH SYNOPSIS
 .B zhen\-codeindex
 [\fIOPTION\fR]...
 .SH DESCRIPTION
-Build Zhen's source shard: symbols, Go call graph and word search over committed code.
+Build Zhen's source shard, or a text corpus index, and search the corpus: word search, no network.
 .SH OPTIONS
+.TP
+.B \-\-corpus \fISTRING\fR
+index the plain files under this directory instead of a repository; \-\-out must name the corpus index
 .TP
 .B \-\-out \fISTRING\fR
 index directory (default /var/zhen/code\-index)
 .TP
 .B \-\-repo \fISTRING\fR
 git repository (default .)
+.TP
+.B \-\-search \fISTRING\fR
+search the corpus index in \-\-out and print JSON; builds nothing
+.TP
+.B \-\-top\-k \fIN\fR
+most results \-\-search prints (default 8)
 .TP
 .B \-h, \-\-help
 display this help and exit
@@ -22,6 +31,8 @@ output version information and exit
 .SH EXAMPLES
 .EX
 zhen\-codeindex \-\-repo . \-\-out /var/zhen/code\-index
+zhen\-codeindex \-\-corpus /opt/tomb/grimoire \-\-out /opt/tomb/grimoire/index
+zhen\-codeindex \-\-out /opt/tomb/grimoire/index \-\-search T1566 \-\-top\-k 5
 .EE
 .SH SEE ALSO
 .BR unheaded (1)

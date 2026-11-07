@@ -134,6 +134,7 @@ func New(cfg Config, store ActionStore) (*Champion, error) {
 			// touch them, and no file tool does (DP-309).
 			"/zhen-taught/",
 			"/code-index/",
+			"/corpus-index/",
 			"/vor-source/",
 		}
 	}

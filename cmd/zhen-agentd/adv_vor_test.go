@@ -34,7 +34,7 @@ func TestAdv_RealVor_ExternalPastKInsideTheBackend(t *testing.T) {
 	if u == "" {
 		t.Skip("no ADV_VOR_URL")
 	}
-	refs, _, err := newRetriever(&http.Client{Timeout: 5 * time.Second}, u, "", 2*time.Second).Retrieve(context.Background(), "zetaword", 5)
+	refs, _, err := newRetriever(&http.Client{Timeout: 5 * time.Second}, u, "", "", 2*time.Second).Retrieve(context.Background(), "zetaword", 5)
 	t.Logf("refs: %s", names(refs))
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +51,7 @@ func TestAdv_RealVor_FlatNameMasksExternalHit(t *testing.T) {
 	if u == "" {
 		t.Skip("no ADV_VOR_URL")
 	}
-	refs, _, err := newRetriever(&http.Client{Timeout: 5 * time.Second}, u, "", 2*time.Second).Retrieve(context.Background(), "zetaclash", 5)
+	refs, _, err := newRetriever(&http.Client{Timeout: 5 * time.Second}, u, "", "", 2*time.Second).Retrieve(context.Background(), "zetaclash", 5)
 	t.Logf("refs: %s", names(refs))
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +77,7 @@ func TestAdv_TopicFetchFailureDropsTheExternalRef(t *testing.T) {
 	mux.HandleFunc("/api/topics/poison", func(w http.ResponseWriter, r *http.Request) { http.Error(w, "boom", 500) })
 	s := httptest.NewServer(mux)
 	defer s.Close()
-	refs, _, err := newRetriever(s.Client(), s.URL, "", 2*time.Second).Retrieve(context.Background(), "poison", 5)
+	refs, _, err := newRetriever(s.Client(), s.URL, "", "", 2*time.Second).Retrieve(context.Background(), "poison", 5)
 	t.Logf("refs: %s err=%v", names(refs), err)
 	if err == nil && !gateRefuses(refs) {
 		t.Fatal("a failed fetch of an external hit left a clean chain")

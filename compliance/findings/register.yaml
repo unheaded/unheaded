@@ -532,7 +532,9 @@ findings:
     title: >-
       No ChromaDB release is free of PYSEC-2026-311, -3813, -3814 and -3815 (last_affected 1.5.9); Grimoire pins
       1.5.9, and check-python-audit does not audit its requirements.txt because other lines there are ranges
-    verify: every requirement in tomb/grimoire/rag/requirements.txt is an exact pin and scripts/check-python-audit.sh passes
+    verify: >-
+      no tracked manifest names chromadb (scripts/check-dependency-baseline.sh refuses it), go test ./cmd/zhen-codeindex
+      -run TestTomb passes, and a syft scan of the tree lists no chromadb
     severity: low
     class: package
     opened: 2026-11-04
@@ -543,7 +545,30 @@ findings:
     step: 3
     plan: >-
       Stevie's call (S-SUPPLY-FIRST For Stevie 1): pin the remaining ranges with four accepted lines, take a fixed
-      release when one ships, or replace ChromaDB in Grimoire.
+      release when one ships, or replace ChromaDB in Grimoire. Replaced: DP-719 option A, 2026-11-06.
+    resolved:
+      on: 2026-11-07
+      evidence: >-
+        S-ANSWERED lane retrieval: tomb/grimoire/rag/ deleted and the corpus served by pkg/retrieval. The dependency
+        baseline dropped chromadb and refuses it when added back (provoked, rc=1). syft 1.44.0 over a clean export of the
+        tree, the scan the SBOM jobs run: chromadb 1.5.9 before, none after. grype on those SBOMs: four chromadb
+        advisories before, none after.
+
+  - id: FND-040
+    title: >-
+      check-python-audit does not audit notebooks/requirements.txt: all its lines are ranges, the gap FND-032 named for
+      Grimoire, and its exact pins in requirements.in are not locked
+    verify: every line of notebooks/requirements.txt is name==version, so scripts/check-python-audit.sh audits it
+    severity: low
+    class: package
+    opened: 2026-11-07
+    exposure: none on west or east as a service; the notebooks run by hand. A trial lock on 2026-10-28 audited at 0 advisories
+    lockout: none
+    step: 3
+    plan: >-
+      Lock with scripts/ci-python-lock.sh notebooks. The lock brings packages absent from the dependency baseline, each an
+      ADR-096 admission a person makes (requirements.in says how many)
+    decision: admit the notebook lock, or drop the notebooks' dependencies from the repo
 
   - id: FND-026
     title: West's apt repo on 18888 is still the old unsigned one.

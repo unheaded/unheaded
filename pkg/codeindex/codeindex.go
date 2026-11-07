@@ -3,7 +3,9 @@
 
 // Package codeindex is a lexical, file-backed index of the repository's
 // source: chunks per declaration, a name-matched call graph, word search and
-// a store whose readers swap atomically. No vectors, no embeddings.
+// a store whose readers swap atomically. No vectors, no embeddings. The same
+// index and search also carry a text corpus (corpus.go): the Grimoire's
+// threat models and MITRE ATT&CK data, read from plain files.
 package codeindex
 
 import (
@@ -25,8 +27,8 @@ const MaxChunkBytes = 2048
 type Chunk struct {
 	ID        string `json:"id"` // "pkg/x/a.go::Box.Open"
 	Path      string `json:"path"`
-	Language  string `json:"language"` // go, rust, python
-	Kind      string `json:"kind"`     // func, method, type, var, const; fn, struct, enum, trait, impl; def, class
+	Language  string `json:"language"` // go, rust, python; markdown, text, stix in a corpus
+	Kind      string `json:"kind"`     // func, method, type, var, const; fn, struct, enum, trait, impl; def, class; section, text, a STIX type
 	Symbol    string `json:"symbol"`
 	Parent    string `json:"parent,omitempty"`
 	LineStart int    `json:"line_start"`
@@ -140,12 +142,50 @@ func (ix *Index) Callers(symbol string, limit int) []Call {
 	return out
 }
 
+// fillerWords carry no meaning in a question. They are vorquery's stop words:
+// that package cannot be imported here, since it would link net/http.
+var fillerWords = func() map[string]bool {
+	m := map[string]bool{}
+	for _, w := range strings.Fields(`
+		a an the and or of to in on at by from as into about
+		is are was were be been being am
+		do does did done can could should would will shall may might must
+		what whats who whom whose which where when why how
+		i me my you your we us our it its this that these those there
+		please tell explain describe define mean means meaning`) {
+		m[w] = true
+	}
+	return m
+}()
+
+// searchWords are the words Search reads in a query.
+func searchWords(query string) []string {
+	return strings.FieldsFunc(strings.ToLower(query), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+}
+
+// Keywords returns query without its filler and one-letter words, for an index
+// that takes whole questions: Search matches inside words, so "a" or the "s" of
+// "it's" would hit nearly every chunk. A query with nothing else stays whole.
+func Keywords(query string) string {
+	all := searchWords(query)
+	var kept []string
+	for _, w := range all {
+		if len(w) > 1 && !fillerWords[w] {
+			kept = append(kept, w)
+		}
+	}
+	if len(kept) == 0 {
+		kept = all
+	}
+	return strings.Join(kept, " ")
+}
+
 // Search scores chunks by the share of query words they hold.
 func (ix *Index) Search(query string, k int) []Hit {
 	if k <= 0 {
 		return nil
 	}
-	words := strings.FieldsFunc(strings.ToLower(query), func(r rune) bool { return !unicode.IsLetter(r) })
+	words := searchWords(query)
 	if len(words) == 0 {
 		return nil
 	}

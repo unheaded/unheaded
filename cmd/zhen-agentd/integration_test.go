@@ -763,7 +763,7 @@ func TestRetrieve_SlowVorHitsTheDeadline(t *testing.T) {
 	oks := metricValue(t, retrievalSeries("code", "ok"))
 
 	t0 := time.Now()
-	refs, contents, err := newRetriever(vor.Client(), vor.URL, codeIndexFixture(t), 2*time.Second).Retrieve(context.Background(), "unlock", 5)
+	refs, contents, err := newRetriever(vor.Client(), vor.URL, codeIndexFixture(t), "", 2*time.Second).Retrieve(context.Background(), "unlock", 5)
 	if d := time.Since(t0); d > 2500*time.Millisecond {
 		t.Fatalf("held %v", d)
 	}
@@ -779,13 +779,56 @@ func TestRetrieve_SlowVorHitsTheDeadline(t *testing.T) {
 	}
 }
 
+func TestRetrieve_CorpusIndexJoinsWhenSet(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "own.md"), []byte("# Own\nunlock quartzmoth\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "corpus-index")
+	if _, err := codeindex.BuildCorpus(context.Background(), root, dir); err != nil {
+		t.Fatal(err)
+	}
+	dead := httptest.NewServer(http.NotFoundHandler())
+	url, client := dead.URL, dead.Client()
+	dead.Close()
+	oks := metricValue(t, retrievalSeries("grimoire", "ok"))
+
+	refs, contents, err := newRetriever(client, url, "", dir, 2*time.Second).Retrieve(context.Background(), "quartzmoth", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 || refs[0].SourcePath != "own.md" || refs[0].SourceLabel != "aux_grimoire" || refs[1] != champion.Unavailable("vor") {
+		t.Fatalf("refs %+v", refs)
+	}
+	if len(contents) != 1 {
+		t.Fatalf("contents %+v", contents)
+	}
+	if got := metricValue(t, retrievalSeries("grimoire", "ok")); got != oks+1 {
+		t.Fatalf("grimoire ok %v, was %v", got, oks)
+	}
+}
+
+// Unset, the corpus is not asked: what runs today keeps its two backends.
+func TestRetrieve_CorpusIndexUnsetIsNotAsked(t *testing.T) {
+	oks := metricValue(t, retrievalSeries("grimoire", "ok"))
+	dead := httptest.NewServer(http.NotFoundHandler())
+	url, client := dead.URL, dead.Client()
+	dead.Close()
+	if _, _, err := newRetriever(client, url, codeIndexFixture(t), "", 2*time.Second).Retrieve(context.Background(), "unlock", 5); err != nil {
+		t.Fatal(err)
+	}
+	if got := metricValue(t, retrievalSeries("grimoire", "ok")); got != oks {
+		t.Fatalf("grimoire was asked: %v, was %v", got, oks)
+	}
+}
+
 func TestRetrieve_DeadVor(t *testing.T) {
 	dead := httptest.NewServer(http.NotFoundHandler())
 	url, client := dead.URL, dead.Client()
 	dead.Close()
 	errs := metricValue(t, retrievalSeries("vor", "error"))
 
-	refs, contents, err := newRetriever(client, url, codeIndexFixture(t), 2*time.Second).Retrieve(context.Background(), "unlock", 5)
+	refs, contents, err := newRetriever(client, url, codeIndexFixture(t), "", 2*time.Second).Retrieve(context.Background(), "unlock", 5)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -794,7 +837,7 @@ func TestRetrieve_DeadVor(t *testing.T) {
 		t.Fatalf("vor error %v, was %v", got, errs)
 	}
 
-	if refs, _, err := newRetriever(client, url, "", 2*time.Second).Retrieve(context.Background(), "unlock", 5); err == nil {
+	if refs, _, err := newRetriever(client, url, "", "", 2*time.Second).Retrieve(context.Background(), "unlock", 5); err == nil {
 		t.Fatalf("vor alone, dead: refs %+v, no error", refs)
 	}
 }
@@ -819,7 +862,7 @@ func TestRetrieve_VorScoreIsRankAndItsTailHasNoText(t *testing.T) {
 	vor := httptest.NewServer(mux)
 	defer vor.Close()
 
-	refs, contents, err := newRetriever(vor.Client(), vor.URL, "", 2*time.Second).Retrieve(context.Background(), "q", 2)
+	refs, contents, err := newRetriever(vor.Client(), vor.URL, "", "", 2*time.Second).Retrieve(context.Background(), "q", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -828,5 +871,24 @@ func TestRetrieve_VorScoreIsRankAndItsTailHasNoText(t *testing.T) {
 	}
 	if len(refs) != 3 || refs[2].Topic != "three" || refs[2].SourceTrust != "external" {
 		t.Fatalf("refs %+v", refs)
+	}
+}
+
+// The file tools are denied any path with a corpus-index directory in it. An
+// index anywhere else could be rewritten by a tool and served as project text.
+func TestCheckCorpusIndex(t *testing.T) {
+	for dir, ok := range map[string]bool{
+		"":                                true,
+		"/var/zhen/corpus-index":          true,
+		"/var/zhen/corpus-index/":         true,
+		"/srv/corpus-index/current":       true,
+		"/opt/tomb/grimoire/index":        false,
+		"/var/zhen/my-corpus-index":       false,
+		"corpus-index":                    false,
+		"/var/zhen/corpus-index/../other": false,
+	} {
+		if err := checkCorpusIndex(dir); (err == nil) != ok {
+			t.Errorf("%q: %v", dir, err)
+		}
 	}
 }

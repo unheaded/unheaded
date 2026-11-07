@@ -1,0 +1,43 @@
+{
+  "type": "bundle",
+  "id": "bundle--00000000-0000-4000-8000-000000000000",
+  "objects": [
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--00000000-0000-4000-8000-000000000001",
+      "name": "Phishing",
+      "description": "Sample text standing in for the published technique description of mailed lures.",
+      "x_mitre_detection": "Sample detection text about gateway logs.",
+      "x_mitre_platforms": ["Linux", "macOS"],
+      "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "initial-access"}],
+      "external_references": [{"source_name": "mitre-attack", "external_id": "T1566"}]
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--00000000-0000-4000-8000-000000000002",
+      "name": "Spearphishing Attachment",
+      "description": "Sample text for the sub-technique.",
+      "external_references": [{"source_name": "other", "external_id": "X1"}, {"source_name": "mitre-attack", "external_id": "T1566.001"}]
+    },
+    {
+      "type": "course-of-action",
+      "id": "course-of-action--00000000-0000-4000-8000-000000000003",
+      "name": "User Training",
+      "description": "Sample mitigation text.",
+      "external_references": [{"source_name": "mitre-attack", "external_id": "M1017"}]
+    },
+    {
+      "type": "intrusion-set",
+      "id": "intrusion-set--00000000-0000-4000-8000-000000000004",
+      "name": "Sample Group",
+      "aliases": ["Sample Group", "Quartzfinch"],
+      "description": "Sample group text.",
+      "external_references": [{"source_name": "mitre-attack", "external_id": "G9999"}]
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000005",
+      "relationship_type": "mitigates"
+    }
+  ]
+}

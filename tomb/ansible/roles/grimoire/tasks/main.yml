@@ -15,17 +15,5 @@
     - cwe
     - threat-models
     - history
-    - rag
-    - rag/chroma.db
-    - rag/embeddings
-
-- name: "Verify Python3 + pip available for RAG"
-  ansible.builtin.command:
-    cmd: "python3 -m pip --version"
-  register: pip_check
-  changed_when: false
-  failed_when: false
-
-- name: "Report RAG readiness"
-  ansible.builtin.debug:
-    msg: "pip3: {{ 'AVAILABLE' if pip_check.rc == 0 else 'MISSING (needed for RAG)' }}"
+    - bin
+    - index
