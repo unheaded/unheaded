@@ -84,7 +84,7 @@ Declarative pipeline pinned to `golang:1.25-alpine` (S77 Phase 3 baseline
 
 ## Deployment targets
 
-- **Docker** — multi-arch (amd64 + arm64) Container images to
+- **Docker** — amd64 container images to
   `ghcr.io/unheaded/unheaded`.
 - **Debian package** — .deb artifacts attached to GitHub releases.
 - **Nix flake** — reproducible build via `nix build .#default`, used

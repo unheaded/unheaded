@@ -14,11 +14,11 @@ Using `gcr.io/distroless/static-debian12:nonroot`
 
 1. **docker/services/monad/Dockerfile** — Register service (50051/gRPC)
 2. **docker/services/sophia/Dockerfile** — Persistent state (50052/gRPC)
-5. **docker/services/protocol-api/Dockerfile** — Protocol API (50056/gRPC)
-6. **docker/services/trace-collector/Dockerfile** — Jaeger traces (9411/HTTP)
+3. **docker/services/protocol-api/Dockerfile** — Protocol API (50056/gRPC)
+4. **docker/services/trace-collector/Dockerfile** — Jaeger traces (9411/HTTP)
 
 #### Dashboard Service (serves the vanilla-JS UI, ADR-006)
-19. **docker/services/dashboard-backend/Dockerfile**
+5. **docker/services/dashboard-backend/Dockerfile**
     - Standard Go service with HTTP + WebSocket
     - Distroless
     - Exposes 8080/HTTP
@@ -26,12 +26,12 @@ Using `gcr.io/distroless/static-debian12:nonroot`
 #### eBPF/Privileged Services (2 services)
 Using `debian:bookworm-slim` with libbpf0 and custom UID 10001
 
-20. **docker/services/shield/Dockerfile** — eBPF WAF
+6. **docker/services/shield/Dockerfile** — eBPF WAF
     - Requires: CAP_BPF, CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_SYS_RESOURCE
     - Exposes 50055/gRPC
     - Includes libbpf0, ca-certificates
 
-21. **docker/services/unheaded-daemon/Dockerfile** — System daemon
+7. **docker/services/unheaded-daemon/Dockerfile** — System daemon
     - Requires: CAP_BPF, CAP_NET_ADMIN
     - Internal service (no EXPOSE)
     - Includes libbpf0, ca-certificates
@@ -64,10 +64,8 @@ Using `debian:bookworm-slim` with libbpf0 and custom UID 10001
 | Metric | Value |
 |--------|-------|
 | Total Dockerfiles | 8 (1 base + 7 services) |
-| Total Lines of Code | 883 |
 | Distroless Services | 5 |
-| Debian Services | 4 |
-| Node/Nginx Services | 1 |
+| Debian Services | 2 |
 | Standard gRPC Services | 18 |
 | Multi-port Services | 4 |
 | eBPF/Privileged Services | 4 |

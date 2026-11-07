@@ -13,8 +13,9 @@
 > model runs on this machine and retrieval runs on this machine, so nothing here
 > needs a cloud API and nothing leaves the host."
 
-**Action**: Show the Zhen UI at localhost:20103. Point out the "Online" status
-in the header.
+**Action**: Log in at localhost:20103 before the audience arrives: the page asks
+first, and nothing but the page and `/health` answers without a session. Show
+the Zhen UI and point out the "Online" status in the header.
 
 ---
 
@@ -81,7 +82,21 @@ trace collector. Point out the breadth of retrieval.
 
 ## Fallback Plan
 
-If the inference server is slow or unresponsive:
-- Show `/api/v1/search` directly (no model needed)
-- Show `/api/v1/stats` to prove the backends are reporting
-- Show `/health` for the system state
+If the inference server is slow or unresponsive, go to a terminal holding the
+checklist's `zhen.cookies`. None of these needs the model.
+
+- Show `/health` for the system state. It needs no session.
+- Show the backends reporting:
+  ```bash
+  curl -s -b zhen.cookies http://localhost:20103/api/v1/stats | python3 -m json.tool
+  ```
+- Show retrieval alone. Search is a POST, so it also sends back the CSRF cookie,
+  which only the page sets:
+  ```bash
+  curl -s -b zhen.cookies -c zhen.cookies -o /dev/null http://localhost:20103/
+  curl -s -b zhen.cookies -X POST http://localhost:20103/api/v1/search \
+    -H "Origin: http://localhost:20103" \
+    -H "X-Zhen-CSRF: $(awk '$6 == "zhen_csrf" {print $7}' zhen.cookies)" \
+    -H "Content-Type: application/json" \
+    -d '{"query": "What is Unheaded?"}' | python3 -m json.tool
+  ```
