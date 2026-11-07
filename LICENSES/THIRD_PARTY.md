@@ -1,5 +1,7 @@
 # Third Party Licenses
 
+**Superseded by `sbom/SBOM.md`.** This is a dated document, kept as it was. Its counts and license verdicts are not current, and where the two disagree `sbom/SBOM.md` is right. `sbom/SBOM.md` is written by `scripts/generate-sbom.sh`.
+
 The Unheaded Kingdom project uses the following third-party packages.
 All attributions and licenses are listed below as required.
 

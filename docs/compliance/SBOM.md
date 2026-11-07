@@ -1,5 +1,7 @@
 # Software Bill of Materials — Unheaded
 
+**Superseded by `sbom/SBOM.md`.** This is a dated document, kept as it was. Its counts and license verdicts are not current, and where the two disagree `sbom/SBOM.md` is right. `sbom/SBOM.md` is written by `scripts/generate-sbom.sh`.
+
 **Project:** Unheaded Infrastructure  
 **Generated:** 2026-02-25  
 **Go Version:** 1.24.0  

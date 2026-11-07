@@ -1,5 +1,7 @@
 # License Audit & Compatibility Analysis
 
+**Superseded by `sbom/SBOM.md`.** This is a dated document, kept as it was. Its counts and license verdicts are not current, and where the two disagree `sbom/SBOM.md` is right. `sbom/SBOM.md` is written by `scripts/generate-sbom.sh`.
+
 **Project:** Unheaded Infrastructure  
 **Audit Date:** 2026-02-25  
 **Audit Status:** PASSED  

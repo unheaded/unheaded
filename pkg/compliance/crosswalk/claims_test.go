@@ -53,6 +53,9 @@ var requiredNotes = []struct{ file, note string }{
 	{"compliance/findings/register.yaml", "only the signed reprepro repo"},
 	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "every value in history counts as burned"},
 	{"CLAUDE.md", "every value in history counts as burned"},
+	{"docs/compliance/SBOM.md", "**Superseded by `sbom/SBOM.md`.**"},
+	{"docs/compliance/LICENSE-AUDIT.md", "**Superseded by `sbom/SBOM.md`.**"},
+	{"LICENSES/THIRD_PARTY.md", "**Superseded by `sbom/SBOM.md`.**"},
 	{"compliance/policies/risk-management-strategy.md", "signed with Stevie's key and carry `Co-Authored-By` and `Claude-Session` trailers"},
 	{"compliance/policies/single-operator-posture.md", "signed with Stevie's key and carry `Co-Authored-By` and `Claude-Session` trailers"},
 }
