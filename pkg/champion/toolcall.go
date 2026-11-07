@@ -353,10 +353,14 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 
 	// Rule 1: existing path-allowlist for path-bearing tools.
 	if path, ok := tc.Args["path"].(string); ok {
-		if tc.Name == "run_check" {
+		check := c.validatePath
+		switch tc.Name {
+		case "run_check":
 			path = c.runCheckRulePath(path)
+		case "read_file", "file_read":
+			check = c.validateRead
 		}
-		if err := c.validatePath(path); err != nil {
+		if err := check(path); err != nil {
 			decision := ToolCallDecision{
 				Allow:  false,
 				Reason: fmt.Sprintf("path-allowlist: %v", err),

@@ -169,7 +169,7 @@ func (c *Champion) ReadFile(ctx context.Context, path string) (string, error) {
 	actionID, _ := c.logAction(ctx, "file.read", fmt.Sprintf("Read file: %s", path), "user")
 
 	// Validate path
-	if err := c.validatePath(path); err != nil {
+	if err := c.validateRead(path); err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return "", fmt.Errorf("path denied: %w", err)
 	}
@@ -209,7 +209,7 @@ var ErrReadTooLarge = errors.New("file is too large to read")
 // errNotRegular means the path is a fifo, a device or a directory.
 var errNotRegular = errors.New("not a regular file")
 
-// readValidated opens the path validatePath judged and no other. The real path
+// readValidated opens the path validateRead judged and no other. The real path
 // is judged again and split at the real path of its sandbox root; the root and
 // everything under it are then opened with openat2 (safeopen_linux.go), which
 // follows no link. A link inside the sandbox still reads, as where it lands, and
@@ -219,7 +219,7 @@ func (c *Champion) readValidated(absPath string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := c.checkResolved(absPath, resolved); err != nil {
+	if err := c.checkResolved(absPath, resolved, true); err != nil {
 		return nil, err
 	}
 	root, rel, err := c.realSandboxRel(resolved)
@@ -293,8 +293,15 @@ func readUpTo(r io.Reader, limit int64) ([]byte, error) {
 	return data, nil
 }
 
-// validatePath checks if a path is within the sandbox.
-func (c *Champion) validatePath(path string) error {
+// validatePath checks that a path may be written, or run in.
+func (c *Champion) validatePath(path string) error { return c.judgePath(path, false) }
+
+// validateRead checks that a path may be read: everything validatePath allows,
+// and the runbooks, scripts and schedule file, which Zhen reads to author them.
+func (c *Champion) validateRead(path string) error { return c.judgePath(path, true) }
+
+// judgePath checks if a path is within the sandbox.
+func (c *Champion) judgePath(path string, read bool) error {
 	// Resolve symlinks and normalize
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -334,17 +341,17 @@ func (c *Champion) validatePath(path string) error {
 	if err != nil {
 		return fmt.Errorf("cannot resolve path: %w", err)
 	}
-	return c.checkResolved(absPath, resolved)
+	return c.checkResolved(absPath, resolved, read)
 }
 
-// checkResolved applies validatePath's rules to where absPath really lands.
-func (c *Champion) checkResolved(absPath, resolved string) error {
+// checkResolved applies judgePath's rules to where absPath really lands.
+func (c *Champion) checkResolved(absPath, resolved string, read bool) error {
 	for _, denied := range c.config.DeniedPaths {
 		if strings.Contains(resolved, denied) {
 			return fmt.Errorf("path resolves to a denied pattern: %s", denied)
 		}
 	}
-	if c.inProtectedTree(absPath) || c.inProtectedTree(resolved) {
+	if c.inProtectedTree(absPath, read) || c.inProtectedTree(resolved, read) {
 		return fmt.Errorf("path is in a protected tree (runbooks/, scripts/, .git or the schedule file): %s", absPath)
 	}
 	if keyMaterial(absPath) || keyMaterial(resolved) {
@@ -380,22 +387,23 @@ var protectedScheduleFile = filepath.Join("configs", "zhen-schedules.yaml")
 
 // inProtectedTree reports whether p lies in one of protectedTopDirs at the
 // project root, is protectedScheduleFile there, or lies in a .git at any
-// depth. No file tool reaches those, with
-// or without a confirmation: they change by commit, not by tool call. It does
-// not depend on Config.DeniedPaths, which a caller may replace, and the name
-// of a directory above a root means nothing.
+// depth. No file tool writes those, with or without a confirmation: they
+// change by commit, not by tool call. A read reaches all but .git, whose
+// config can hold a credential. It does not depend on Config.DeniedPaths,
+// which a caller may replace, and the name of a directory above a root means
+// nothing.
 //
 // Under another allowed root, which may hold further checkouts, a protected
 // name counts at any depth. In a branch-sandbox worktree only .git counts:
 // nothing there runs on the host, and a draft runbook or a script change on a
 // zhen/<name> branch waits for Stevie's review (ADR-024, ADR-019 Level 2).
-func (c *Champion) inProtectedTree(p string) bool {
+func (c *Champion) inProtectedTree(p string, read bool) bool {
 	if rest, ok := underRoot(p, c.config.ProjectRoot); ok {
-		return protectedRel(rest, c.branchSandbox == nil, false)
+		return protectedRel(rest, c.branchSandbox == nil && !read, false)
 	}
 	for _, allowed := range c.config.AllowedPaths {
 		if rest, ok := underRoot(p, allowed); ok {
-			return protectedRel(rest, true, true)
+			return protectedRel(rest, !read, true)
 		}
 	}
 	return false
