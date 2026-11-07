@@ -306,9 +306,30 @@ func TestNewFileAuditLogger_Rotates(t *testing.T) {
 	}
 }
 
-// Every packaged service with auth on can write AUTH_AUDIT_LOG under
-// /var/log/unheaded: without it, ProtectSystem=strict makes the log
-// unopenable and the service refuses to start.
+// buildsServiceAuth reports whether the Go command binary reads the service
+// auth settings, and so honours AUTH_AUDIT_LOG from an env file.
+func buildsServiceAuth(t *testing.T, binary string) bool {
+	t.Helper()
+	files, err := filepath.Glob(filepath.Join("..", "..", "cmd", binary, "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasSuffix(f, "_test.go") && bytes.Contains(b, []byte("LoadServiceAuthConfig(")) {
+			return true
+		}
+	}
+	return false
+}
+
+// Every packaged service that can have auth on, whether the unit sets
+// AUTH_ENABLED or leaves it to the env file, can write AUTH_AUDIT_LOG under
+// /var/log/unheaded: without it, ProtectSystem=strict makes the log unopenable
+// and the service refuses to start.
 func TestUnitsGiveTheAuditLogAPath(t *testing.T) {
 	units, err := filepath.Glob(filepath.Join("..", "..", "deploy", "systemd", "*.service"))
 	if err != nil {
@@ -316,21 +337,30 @@ func TestUnitsGiveTheAuditLogAPath(t *testing.T) {
 	}
 	logsDir := regexp.MustCompile(`(?m)^LogsDirectory=unheaded/[a-z0-9-]+$`)
 	mode := regexp.MustCompile(`(?m)^LogsDirectoryMode=0750$`)
-	found := 0
+	execStart := regexp.MustCompile(`(?m)^ExecStart=\S*/([^/\s]+)`)
+	found, fromSource := 0, 0
 	for _, u := range units {
 		b, err := os.ReadFile(u)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Contains(b, []byte("Environment=AUTH_ENABLED=")) {
+		binary := ""
+		if m := execStart.FindSubmatch(b); m != nil {
+			binary = string(m[1])
+		}
+		inUnit := bytes.Contains(b, []byte("Environment=AUTH_ENABLED="))
+		if !inUnit && !buildsServiceAuth(t, binary) {
 			continue
 		}
 		found++
+		if !inUnit {
+			fromSource++
+		}
 		if !logsDir.Match(b) || !mode.Match(b) {
-			t.Errorf("%s has auth on but no LogsDirectory=unheaded/<name> with mode 0750", filepath.Base(u))
+			t.Errorf("%s can have auth on but has no LogsDirectory=unheaded/<name> with mode 0750", filepath.Base(u))
 		}
 	}
-	if found < 10 {
-		t.Fatalf("found %d units with auth on; the walk is broken", found)
+	if found < 10 || fromSource == 0 {
+		t.Fatalf("found %d units with auth, %d of them from source; the walk is broken", found, fromSource)
 	}
 }
