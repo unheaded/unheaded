@@ -119,7 +119,9 @@ ci_verdict_expect_bite "a scanner step with no exit-code" trivy "${SEC}" \
 ci_verdict_expect_bite "the vuln gate moved to sarif" trivy "${SEC}" \
 	's/^( +)format: table$/\1format: sarif/'
 ci_verdict_expect_bite "the vuln gate reads HIGH no more" trivy "${SEC}" \
-	'/severity: CRITICAL,HIGH$/{N;s/CRITICAL,HIGH(\n +ignore-unfixed)/CRITICAL\1/}'
+	's/severity: CRITICAL,HIGH$/severity: CRITICAL/'
+ci_verdict_expect_bite "the vuln gate skipping what has no fix" trivy "${SEC}" \
+	's/^( +)severity: CRITICAL,HIGH$/&\n\1ignore-unfixed: true/'
 ci_verdict_expect_bite "the vuln gate softened" trivy "${SEC}" \
 	's/^( +)- name: Trivy vulnerability gate \(GATING\)$/&\n\1  continue-on-error: true/'
 ci_verdict_expect_bite "the vuln gate switched off" trivy "${SEC}" \

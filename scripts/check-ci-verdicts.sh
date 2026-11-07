@@ -167,6 +167,8 @@ def trivy_steps():
             bad("trivy", "the vuln gate has continue-on-error or an if:")
         if set(str(w.get("severity", "")).split(",")) != {"CRITICAL", "HIGH"}:
             bad("trivy", "the vuln gate must fail on CRITICAL and HIGH")
+        if "ignore-unfixed" in w:
+            bad("trivy", "the vuln gate must see findings with no fixed release")
         if w.get("format") == "sarif" and str(w.get("limit-severities-for-sarif")) != "true":
             bad("trivy", "the vuln gate on sarif ignores its severity")
 

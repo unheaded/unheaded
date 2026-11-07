@@ -416,10 +416,9 @@ jobs:
       - name: Trivy misconfig ratchet (GATING)
         run: scripts/check-trivy-misconfig.sh trivy-misconfig.json
 
-      # A CRITICAL or HIGH with a fixed release fails. ignore-unfixed: a
-      # finding with no release to move to has nothing to act on here, so it
-      # stays in the report above and in compliance/findings/register.yaml
-      # (FND-032 today). Table, not sarif: the action drops `severity` for
+      # Any CRITICAL or HIGH fails, whether or not a fixed release exists: a
+      # package with no fix still has to be answered for, by replacing it or
+      # taking it out. Table, not sarif: the action drops `severity` for
       # sarif, and this would fail on every LOW.
       - name: Trivy vulnerability gate (GATING)
         if: always()
@@ -430,7 +429,6 @@ jobs:
           scan-ref: '.'
           scanners: vuln
           severity: CRITICAL,HIGH
-          ignore-unfixed: true
           exit-code: '1'
           format: table
 
