@@ -72,8 +72,11 @@ def tls_context():
     """The deployment CA when UNHEADED_TLS_ENABLED, TLS 1.3 at least."""
     ctx = ssl.create_default_context()
     ctx.minimum_version = ssl.TLSVersion.TLSv1_3
-    if os.environ.get('UNHEADED_TLS_ENABLED', '').strip().lower() == 'true':
-        ctx.load_verify_locations(cafile=os.environ['UNHEADED_TLS_CA_CERT'])
+    if os.environ.get('UNHEADED_TLS_ENABLED', '') == 'true':
+        cafile = os.environ.get('UNHEADED_TLS_CA_CERT', '').strip()
+        if not cafile:
+            raise OSError('UNHEADED_TLS_ENABLED=true but UNHEADED_TLS_CA_CERT is not set')
+        ctx.load_verify_locations(cafile=cafile)
     return ctx
 
 

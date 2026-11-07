@@ -90,7 +90,12 @@ func (c *Champion) checkManifestSeal(runbooksDir string, manifest []byte) error 
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrRunbookManifestUnsealed, err)
 	}
-	f, err := os.Open(filepath.Join(runbooksDir, RunbookManifestFile+RunbookSealSuffix)) // #nosec G304 -- fixed name under the configured project root
+	dir, err := os.OpenRoot(runbooksDir)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrRunbookManifestUnsealed, err)
+	}
+	defer func() { _ = dir.Close() }() // read-only
+	f, err := dir.Open(RunbookManifestFile + RunbookSealSuffix)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrRunbookManifestUnsealed, err)
 	}

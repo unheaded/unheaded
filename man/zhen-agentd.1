@@ -1,4 +1,4 @@
-.TH ZHEN\-AGENTD 1 "2026-11-04" "unheaded v0.0.0-20261104154528-fd2f60039d0a+dirty" "Unheaded Kingdom"
+.TH ZHEN\-AGENTD 1 "2026-11-07" "unheaded 15d85d40" "Unheaded Kingdom"
 .SH NAME
 zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH SYNOPSIS
@@ -129,7 +129,7 @@ with \-overnight: when this file exists the night stops (a card in flight finish
 with \-overnight: local\-time window HH:MM\-HH:MM (may cross midnight) (default 01:00\-07:00)
 .TP
 .B \-\-worker
-work eligible Kanban cards from the Well (owner zhen, a `zhen block) into local zhen/<card> branches for review; never pushes (DSN from env WELL_APP_ZHEN_DSN)
+work eligible Kanban cards from the Well (owner zhen, opted in by an operator, a `zhen block) into local zhen/<card> branches for review; never pushes (DSN from env WELL_APP_ZHEN_DSN)
 .TP
 .B \-h, \-\-help
 display this help and exit

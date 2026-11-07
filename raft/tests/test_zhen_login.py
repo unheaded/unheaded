@@ -155,6 +155,19 @@ def test_a_short_password_logs_in_and_the_person_hears_about_it(client, world, m
     assert r.status_code == 200 and r.get_json()['password_below_floor'] is True
 
 
+def test_a_login_body_is_bounded(client, world):
+    r = client.post('/auth/login', base_url=LOCAL, headers=_page_headers(client),
+                    json={'username': 'stevie', 'password': 'x' * (zhen_login.MAX_LOGIN_BODY + 1)})
+    assert r.status_code == 413
+    assert not world.calls
+
+
+def test_tls_on_with_no_ca_is_an_unreachable_issuer_not_a_crash(monkeypatch):
+    monkeypatch.setenv('UNHEADED_TLS_ENABLED', 'true')
+    monkeypatch.delenv('UNHEADED_TLS_CA_CERT', raising=False)
+    assert zhen_login._post_issuer('https://127.0.0.1:1', 'u', 'p')[0] == 502
+
+
 def test_a_wrong_password_is_401_and_makes_no_session(client, world):
     r = _login(client, password='wrong')
     assert r.status_code == 401

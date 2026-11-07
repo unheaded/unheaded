@@ -35,8 +35,13 @@ func runSealCmd(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "zhen-claude seal-runbooks: %v\n", err)
 		return 1
 	}
-	path := filepath.Join(*root, "runbooks", champion.RunbookManifestFile)
-	manifest, err := os.ReadFile(path) // #nosec G304 -- the operator's own -project-root
+	dir, err := os.OpenRoot(filepath.Join(*root, "runbooks"))
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "zhen-claude seal-runbooks: %v\n", err)
+		return 1
+	}
+	defer func() { _ = dir.Close() }() // nothing buffered: WriteFile has returned
+	manifest, err := dir.ReadFile(champion.RunbookManifestFile)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "zhen-claude seal-runbooks: %v\n", err)
 		return 1
@@ -46,10 +51,11 @@ func runSealCmd(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "zhen-claude seal-runbooks: %v\n", err)
 		return 1
 	}
-	if err := os.WriteFile(path+champion.RunbookSealSuffix, seal, 0o644); err != nil { // #nosec G306 -- a signature, public by nature
+	// A signature is public; the daemon's own account has to read it.
+	if err := dir.WriteFile(champion.RunbookManifestFile+champion.RunbookSealSuffix, seal, 0o644); err != nil {
 		_, _ = fmt.Fprintf(stderr, "zhen-claude seal-runbooks: %v\n", err)
 		return 1
 	}
-	_, _ = fmt.Fprintf(stdout, "sealed %s\n", path)
+	_, _ = fmt.Fprintf(stdout, "sealed %s\n", filepath.Join(*root, "runbooks", champion.RunbookManifestFile))
 	return 0
 }

@@ -274,8 +274,7 @@ def auth_login():
     # UI bound past loopback takes logins only behind something that does.
     if not request.is_secure and not LOGIN.dev_plaintext and not _client_on_loopback():
         return jsonify({'error': 'login_needs_https'}), 403
-    if (request.content_length or 0) > zhen_login.MAX_LOGIN_BODY:
-        return jsonify({'error': 'invalid_request'}), 413
+    request.max_content_length = zhen_login.MAX_LOGIN_BODY
     data = request.get_json(silent=True)
     username = data.get('username') if isinstance(data, dict) else None
     password = data.get('password') if isinstance(data, dict) else None

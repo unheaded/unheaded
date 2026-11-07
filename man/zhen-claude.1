@@ -1,4 +1,4 @@
-.TH ZHEN\-CLAUDE 1 "2026-11-04" "unheaded v0.0.0-20261104150357-41cfe4d85229+dirty" "Unheaded Kingdom"
+.TH ZHEN\-CLAUDE 1 "2026-11-07" "unheaded 15d85d40" "Unheaded Kingdom"
 .SH NAME
 zhen\-claude \- ZhenAI's bridge to the Claude API (ADR\-104): a one\-shot prompt or a REPL, every tool call through the Champion gate.
 .SH SYNOPSIS
@@ -16,6 +16,9 @@ review drafts in an agent worktree (see zhen\-claude review \-\-help)
 .TP
 .B check
 standard \-check commands: go, json, cite (see zhen\-claude check \-\-help)
+.TP
+.B seal\-runbooks
+seal runbooks/MANIFEST.sha256 with the ML\-DSA\-65 seed in \-key, for live runs
 .SH OPTIONS
 .TP
 .B \-\-agent\-root \fISTRING\fR
