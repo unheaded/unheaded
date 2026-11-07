@@ -16,6 +16,7 @@ take a request with no browser headers at all (curl, eval scripts).
 import io
 import json
 import sys
+import time
 import types
 from pathlib import Path
 
@@ -31,6 +32,7 @@ sys.path.insert(0, str(RAFT / 'scripts'))
 sys.path.insert(0, str(RAFT))
 
 import zhen_app
+import zhen_login
 import zhen_rag
 
 ORIGIN = 'http://zhen.test'
@@ -42,6 +44,13 @@ def client(monkeypatch):
     zhen_app.app.config['TESTING'] = True
     with zhen_app.app.test_client() as c:
         yield c
+
+
+def _log_in(client, token='person-token'):
+    """A live operator session, as zhen_login.Login.login leaves one: the
+    login itself is test_zhen_login.py's."""
+    sid = zhen_app.LOGIN.sessions.put(zhen_login.Session(token, 'stevie', ('operator',), time.time() + 600))
+    client.set_cookie(zhen_login.COOKIE_NAME, sid, domain='zhen.test')
 
 
 def _csrf_cookie(client):
@@ -118,6 +127,7 @@ def test_csrf_page_sends_header_on_same_origin_posts():
 
 def test_csrf_view_source_escapes_path(client):
     # A reflected script would read the CSRF cookie and defeat the token.
+    _log_in(client)
     r = client.get('/view/source?path=</title><script>alert(1)</script>', base_url=ORIGIN)
     assert r.status_code == 200
     assert b'<script>alert(1)</script>' not in r.data
@@ -136,6 +146,7 @@ def test_agentd_down_query_is_503(client, monkeypatch):
     monkeypatch.setattr(zhen_app, 'rag', _GateDownRag())
     monkeypatch.setattr(zhen_app, '_search_memories', lambda q: None)
     monkeypatch.setattr(zhen_app, '_build_live_context', lambda q: '')
+    _log_in(client)
     r = client.post('/api/v1/query', base_url=ORIGIN,
                     json={'question': 'explain wotan topics please'})
     assert r.status_code == 503
@@ -159,7 +170,7 @@ class _FakeUrlopenResp(io.BytesIO):
         return False
 
 
-def test_agentd_kanban_create_goes_through_the_app_with_key(client, monkeypatch):
+def test_agentd_kanban_create_goes_through_the_app_as_the_person(client, monkeypatch):
     seen = {}
 
     def fake_urlopen(req, timeout=None):
@@ -172,21 +183,24 @@ def test_agentd_kanban_create_goes_through_the_app_with_key(client, monkeypatch)
     monkeypatch.setattr(ur, 'urlopen', fake_urlopen)
     monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', 'k-test')
     monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', None)
+    _log_in(client)
     r = client.post('/api/v1/kanban/create', base_url=ORIGIN, headers=_browser(client),
                     json={'task': {'id': 'task-zhen-1', 'title': 't'}})
     assert r.status_code == 200, r.get_json()
     assert seen['url'].endswith('/api/v1/tool/exec')
-    assert seen['headers']['x-api-key'] == 'k-test'
+    assert seen['headers']['authorization'] == 'Bearer person-token'
+    assert 'x-api-key' not in seen['headers']
     assert seen['body']['tool'] == 'kanban_create'
     assert seen['body']['justification'][0]['source_trust'] == 'direct-user'
 
 
-def test_agentd_kanban_create_without_auth_config_is_503(client, monkeypatch):
-    monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', '')
-    monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', 'ZHEN_AGENTD_API_KEY is not set')
+def test_agentd_kanban_create_without_a_login_is_refused(client, monkeypatch):
+    # Whatever key the UI holds, it does not act for a caller who has no login.
+    monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', 'k-test')
+    monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', None)
     r = client.post('/api/v1/kanban/create', base_url=ORIGIN, headers=_browser(client),
                     json={'task': {'id': 'task-zhen-1', 'title': 't'}})
-    assert r.status_code == 503
+    assert r.status_code == 401
 
 
 def test_agentd_page_no_longer_posts_to_the_daemon_directly():
@@ -312,10 +326,12 @@ def test_chat_run_of_anything_else_is_not_a_command(runbooks, monkeypatch, quest
 @pytest.mark.parametrize('name', ['..', '*', '[a-z]*', '?ealth-sweep', 'health*', 'outside'])
 def test_runbook_routes_take_only_a_listed_name(client, runbooks, name):
     from urllib.parse import quote
+    _log_in(client)
     assert client.get(f'/api/v1/runbooks/{quote(name, safe="")}', base_url=ORIGIN).status_code == 404
 
 
 def test_runbook_route_serves_a_listed_name(client, runbooks):
+    _log_in(client)
     r = client.get('/api/v1/runbooks/health-sweep', base_url=ORIGIN)
     assert r.status_code == 200
     assert r.get_json()['parsed']['metadata']['name'] == 'health-sweep'
