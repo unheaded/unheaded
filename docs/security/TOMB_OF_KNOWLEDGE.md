@@ -142,14 +142,14 @@ The Grimoire is a comprehensive offline knowledge repository. It includes:
 /opt/tomb/grimoire/cwe/            — CWE mappings
 /opt/tomb/grimoire/threat-models/  — Kingdom threat models
 /opt/tomb/grimoire/history/        — Historical findings & reports
-/opt/tomb/grimoire/rag/            — RAG index (ChromaDB + embeddings)
+/opt/tomb/grimoire/bin/            — zhen-codeindex (index and search, one static binary)
+/opt/tomb/grimoire/index/          — Corpus index (word search)
 ```
 
-**RAG Infrastructure:**
-- **ChromaDB:** Vector database storing embeddings
-- **sentence-transformers:** Pre-trained embedding model (e.g., all-MiniLM-L6-v2)
-- **Index Content:** Every document in the Grimoire is chunked, embedded, and indexed
-- **Query Interface:** `rag-query.py` retrieves relevant documents by semantic similarity
+**Search Infrastructure (DP-719):**
+- **`pkg/codeindex`:** The word index Zhen's source shard uses. No vectors, no embedding model, no network
+- **Index Content:** Markdown, plain text and STIX bundles in the Grimoire, chunked by section or ATT&CK object. NVD and CWE files are not indexed; `cerydwyn.sh` greps them
+- **Query Interface:** `zhen-codeindex --search` answers through `pkg/retrieval`, by the share of the query's words a chunk holds. A word the text does not use finds nothing
 
 **Access Pattern:** The Grimoire is consulted before every attack. It prevents reinvention and ensures attacks are informed by both Kingdom knowledge and external threat intelligence.
 
@@ -185,9 +185,7 @@ Inference Speed: ~10 tokens/sec on Raft PC CPU
 ```
 User Query
     ↓
-sentence-transformers (embed query)
-    ↓
-ChromaDB (vector similarity search → top-k documents)
+zhen-codeindex --search (word search → top-k chunks)
     ↓
 LLM Context (augment prompt with retrieved Grimoire excerpts)
     ↓
@@ -207,7 +205,7 @@ User (via TUI or API)
 ```
 
 **Key Scripts:**
-- `rag-query.py` — Retrieve documents from ChromaDB by semantic search
+- `zhen-codeindex --search` — Retrieve Grimoire chunks by word
 - `rag-cerydwyn.py` — Full RAG+LLM pipeline (query → retrieval → generation)
 - `cerydwyn-tui.py` — Interactive terminal UI for serial console
 - `cerydwyn-daemon.py` — Background service generating suggestions
@@ -353,9 +351,8 @@ qemu-system-x86_64 \
 │   ├── cwe/                        CWE mappings
 │   ├── threat-models/              Kingdom threat models
 │   ├── history/                    Historical findings & reports
-│   └── rag/                        RAG vector index
-│       ├── chroma.db/              ChromaDB vector store
-│       └── embeddings/             Cached sentence-transformers embeddings
+│   ├── bin/zhen-codeindex          Corpus index and search
+│   └── index/                      Corpus index (word search)
 ├── cerydwyn/                         Cerydwyn LLM + RAG pipeline
 │   ├── ollama/                     Ollama service config
 │   │   └── models/                 Mistral-7B model files
@@ -477,29 +474,26 @@ qemu-system-x86_64 \
 
 ---
 
-#### `rag-query.py`
-**Purpose:** Retrieve documents from ChromaDB using semantic similarity
+#### `zhen-codeindex --search`
+**Purpose:** Retrieve Grimoire chunks by word, with no model and no network
 
 **Usage:**
 ```bash
-python3 rag-query.py "How do we mitigate XXE vulnerabilities?"
-python3 rag-query.py --top-k 10 "SQL injection in stored procedures"
+zhen-codeindex --out /opt/tomb/grimoire/index --search "XXE mitigation"
+zhen-codeindex --out /opt/tomb/grimoire/index --search T1566.001 --top-k 10
 ```
 
 **Behavior:**
-- Embeds query using sentence-transformers
-- Queries ChromaDB for top-k nearest neighbors
-- Returns documents with similarity scores
-- Formats results for human reading
+- Ranks chunks by the share of the query's words they hold, then by those in their heading or ATT&CK name
+- Prints the top k as JSON
 
 **Output:**
+```json
+{"query":"T1566.001","results":[{"id":"mitre-attck/enterprise-attack.json::T1566.001-812",
+ "source":"mitre-attck/enterprise-attack.json","trust":"external","score":1,"content":"MITRE ATT&CK Technique: ..."}]}
 ```
-Chunk 1: [similarity: 0.92] [source: /opt/tomb/grimoire/kingdom-docs/api-security.md:45-60]
-  "XXE vulnerabilities are commonly exploited by..."
 
-Chunk 2: [similarity: 0.88] [source: /opt/tomb/grimoire/nvd-cves/CVE-2024-1234.json]
-  "CVSS: 8.3 | A recent XXE in libxml2 allows..."
-```
+Rebuild the index after new data arrives: `zhen-codeindex --corpus /opt/tomb/grimoire --out /opt/tomb/grimoire/index`. A file that does not parse stops the build, and the last index keeps serving.
 
 ---
 
@@ -513,8 +507,8 @@ python3 rag-cerydwyn.py --lich-context LICH-005 "What payloads would work best?"
 ```
 
 **Behavior:**
-1. Embeds user query
-2. Retrieves top-k documents from ChromaDB
+1. Runs `zhen-codeindex --search` on the query
+2. Takes the top-k chunks it prints
 3. Constructs LLM prompt augmented with retrieved knowledge
 4. Calls Ollama/Mistral-7B to generate response
 5. Streams response to stdout
@@ -704,7 +698,7 @@ Uptime:                       8 days, 3 hours, 22 minutes
   Kingdom Docs:                ✓ 342 documents (updated 3 days ago)
   MITRE ATT&CK:                ✓ Techniques indexed
   NVD CVEs:                    ✓ 234,521 CVE records
-  RAG Index (ChromaDB):        ✓ 18,234 chunks embedded
+  Corpus Index:                ✓ 18,234 chunks indexed
 
 ═ Layer 4: The Cerydwyn ═
   Ollama Service:              ✓ Running (Mistral-7B loaded)

@@ -215,3 +215,7 @@ From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 ## Built differently, S-ZHEN-POLISH 2026-11-04
 
 No tree-sitter, pgvector, bge-code-v1 or embeddings: third party, or parked in ADR-122. `pkg/codeindex` chunks Go with `go/parser` (call graph included) and matches Rust and Python definitions by line; JS, SQL and YAML are out; search is by word. Refresh is `git ls-tree` by blob on post-commit and post-merge. `code_callers` and `code_definition` are MCP tools. Doom, Lich and Grimoire paths are excluded. Status stays Proposed.
+
+## Grimoire corpus, S-ANSWERED 2026-11-06
+
+DP-719 option A: the Python RAG stack under `tomb/grimoire/rag/` is gone and the kept corpus is served by this index. `codeindex.BuildCorpus` reads Markdown, plain text and STIX bundles from a directory, with no git, so it runs on the air-gapped Tomb VM. `retrieval.CorpusBackend` serves it; zhen-agentd joins it with `-corpus-index`, and `zhen-codeindex --search` answers on the VM. The source shard still excludes Grimoire paths: the corpus is a separate index. Search is by word, so the old index's semantic matching is given up: a synonym the text does not use finds nothing.
