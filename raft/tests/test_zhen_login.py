@@ -6,15 +6,21 @@ who they are, and what the browser is given it can redeem. Nothing here
 listens: the issuer and the daemon are faked at urllib's edge."""
 
 import base64
+import http.client
 import io
 import json
+import shutil
+import ssl
+import subprocess
 import sys
+import threading
 import time
 import types
 import urllib.error
 from pathlib import Path
 
 import pytest
+from werkzeug.serving import make_server
 
 if 'sentence_transformers' not in sys.modules:
     _st = types.ModuleType('sentence_transformers')
@@ -318,8 +324,7 @@ def test_a_viewer_reads_but_does_not_write(client, world):
     assert not [c for c in world.calls if c[0] == 'daemon']
 
 
-def test_the_daemon_sees_the_person_not_the_ui(client, world, monkeypatch):
-    monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', 'k-ui')
+def test_the_daemon_sees_the_person_not_the_ui(client, world):
     _login(client)
     world.daemon = lambda req: _Reply({'status': 'ok'})
     r = client.post('/api/v1/kanban/create', base_url=LOCAL, json={'task': {'id': 'x'}}, headers=_page_headers(client))
@@ -329,12 +334,79 @@ def test_the_daemon_sees_the_person_not_the_ui(client, world, monkeypatch):
     assert 'x-api-key' not in {k.lower() for k in call[2]}
 
 
-def test_a_login_needs_no_daemon_key(client, world, monkeypatch):
-    monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', '')
-    monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', 'ZHEN_AGENTD_API_KEY is not set')
-    _login(client)
-    r = client.post('/api/v1/kanban/create', base_url=LOCAL, json={'task': {'id': 'x'}}, headers=_page_headers(client))
-    assert r.status_code == 200
+def test_the_ui_holds_no_daemon_key(monkeypatch):
+    # A key left in the environment is not picked up, and -gated exports none.
+    monkeypatch.setenv('ZHEN_AGENTD_API_KEY', 'k-ui')
+    assert zhen_app._agentd_headers() == {'Content-Type': 'application/json'}
+    assert not hasattr(zhen_app, 'AGENTD_API_KEY')
+    assert 'ZHEN_AGENTD_API_KEY' not in (RAFT / 'start-zhen.sh').read_text()
+
+
+def _tls_pair(tmp_path):
+    if not shutil.which('openssl'):
+        pytest.skip('no openssl to make a certificate with')
+    cert, key = tmp_path / 'ui.crt', tmp_path / 'ui.key'
+    subprocess.run(['openssl', 'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes',
+                    '-keyout', str(key), '-out', str(cert), '-days', '1', '-subj', '/CN=zhen.test',
+                    '-addext', 'subjectAltName=DNS:zhen.test,IP:127.0.0.1'], check=True, capture_output=True)
+    return cert, key
+
+
+def _tls_env(cert, key):
+    return {'UNHEADED_TLS_CERT': str(cert), 'UNHEADED_TLS_KEY_FILE': str(key)}
+
+
+# A UI bound past loopback serves its own TLS: the only way off loopback that
+# keeps a password encrypted and the session cookie Secure, all the way through
+# a real listener with a Host that is not loopback.
+def test_a_login_past_loopback_works_over_the_uis_own_tls(world, tmp_path, monkeypatch):
+    cert, key = _tls_pair(tmp_path)
+    monkeypatch.setenv('ZHEN_ALLOWED_HOSTS', 'zhen.test')
+    server = make_server('127.0.0.1', 0, zhen_app.app, threaded=True, ssl_context=zhen_app.tls_context(_tls_env(cert, key)))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        conn = http.client.HTTPSConnection('127.0.0.1', server.port, timeout=10,
+                                           context=ssl.create_default_context(cafile=str(cert)))
+        conn.connect()
+        assert conn.sock.version() == 'TLSv1.3'
+        conn.request('POST', '/auth/login', body=json.dumps({'username': 'stevie', 'password': SECRET}),
+                     headers={'Host': 'zhen.test', 'Content-Type': 'application/json'})
+        r = conn.getresponse()
+        r.read()
+        assert r.status == 200
+        session = [c for c in r.headers.get_all('Set-Cookie') if c.startswith(zhen_login.SECURE_COOKIE_NAME + '=')]
+        assert session and 'Secure' in session[0] and 'HttpOnly' in session[0]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_the_listener_takes_nothing_below_tls_13(tmp_path):
+    cert, key = _tls_pair(tmp_path)
+    assert zhen_app.tls_context(_tls_env(cert, key)).minimum_version == ssl.TLSVersion.TLSv1_3
+
+
+def test_without_tls_a_login_past_loopback_is_refused(client, world, monkeypatch):
+    monkeypatch.setenv('ZHEN_ALLOWED_HOSTS', 'zhen.test')
+    r = client.post('/auth/login', base_url='http://zhen.test', json={'username': 'stevie', 'password': SECRET})
+    assert r.status_code == 403
+    assert r.get_json() == {'error': 'login_needs_https'}
+    assert not [c for c in world.calls if c[0] == 'issuer']
+
+
+def test_no_tls_settings_mean_no_tls():
+    assert zhen_app.tls_context({}) is None
+
+
+def test_the_listener_is_given_its_tls():
+    assert 'ssl_context=tls_context()' in (RAFT / 'zhen_app.py').read_text()
+
+
+@pytest.mark.parametrize('env', [{'UNHEADED_TLS_CERT': '/x'}, {'UNHEADED_TLS_KEY_FILE': '/x'},
+                                 {'UNHEADED_TLS_CERT': '/no/such', 'UNHEADED_TLS_KEY_FILE': '/no/such'}])
+def test_a_tls_setting_that_cannot_work_stops_the_ui(env):
+    with pytest.raises(SystemExit):
+        zhen_app.tls_context(env)
 
 
 def test_the_token_does_not_outlive_the_request():

@@ -46,9 +46,8 @@ SESSION_ID_BYTES = 32
 
 # The issuer's lockout sees only this backend's address. The dashboard and the
 # board each spend 2 and 9 of its 5 and 20 from that address (pkg/bff), so this
-# third backend gets what is left of the 20. One failure per client also makes
-# the per-username sum 5, the issuer's limit: the one case pkg/bff keeps out and
-# this cannot, spending all three budgets on one username.
+# third backend gets what is left of the 20: one failure per client, which brings
+# the per-username sum to the issuer's limit with no margin.
 FAILURE_WINDOW = 600
 CLIENT_USER_FAILURES = 1
 CLIENT_FAILURES = 1

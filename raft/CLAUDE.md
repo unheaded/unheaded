@@ -86,7 +86,10 @@ where defenses aren't fully closed today. Notable:
   is listed. Writes take an operator or admin login. Calls into
   zhen-agentd carry the person's token, so a held call binds to them and
   they redeem it at `/api/v1/agent/confirm` here. A password travels over
-  TLS or on loopback; this process serves no TLS itself.
+  TLS or on loopback: a UI bound past loopback serves its own TLS 1.3
+  from `UNHEADED_TLS_CERT` and `UNHEADED_TLS_KEY_FILE`. It reads no
+  forwarded headers, so a proxy in front does not count as TLS. It holds
+  no key into the daemon.
 
 When adding new mutation endpoints, route through the daemon at
 `/api/v1/tool/exec` with a `direct-user` justification chain. That

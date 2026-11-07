@@ -181,8 +181,6 @@ def test_agentd_kanban_create_goes_through_the_app_as_the_person(client, monkeyp
 
     import urllib.request as ur
     monkeypatch.setattr(ur, 'urlopen', fake_urlopen)
-    monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', 'k-test')
-    monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', None)
     _log_in(client)
     r = client.post('/api/v1/kanban/create', base_url=ORIGIN, headers=_browser(client),
                     json={'task': {'id': 'task-zhen-1', 'title': 't'}})
@@ -194,10 +192,7 @@ def test_agentd_kanban_create_goes_through_the_app_as_the_person(client, monkeyp
     assert seen['body']['justification'][0]['source_trust'] == 'direct-user'
 
 
-def test_agentd_kanban_create_without_a_login_is_refused(client, monkeypatch):
-    # Whatever key the UI holds, it does not act for a caller who has no login.
-    monkeypatch.setattr(zhen_app, 'AGENTD_API_KEY', 'k-test')
-    monkeypatch.setattr(zhen_app, 'AGENTD_AUTH_ERROR', None)
+def test_agentd_kanban_create_without_a_login_is_refused(client):
     r = client.post('/api/v1/kanban/create', base_url=ORIGIN, headers=_browser(client),
                     json={'task': {'id': 'task-zhen-1', 'title': 't'}})
     assert r.status_code == 401
