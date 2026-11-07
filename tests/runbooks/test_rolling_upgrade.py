@@ -317,7 +317,7 @@ def run_with_real_tail(rb, name, bin_dir, tmp_path):
                           env={"PATH": f"{bin_dir}:/usr/bin:/bin"}, cwd=tmp_path)
 
 
-@pytest.mark.parametrize("name", ["upgrade-east-first", "verify-east-health", "upgrade-west", "verify-west-health"])
+@pytest.mark.parametrize("name", ["upgrade-east-first", "verify-east-health", "verify-west-health"])
 def test_a_failure_before_tail_fails_the_step(tmp_path, name):
     # The tool fails where tail would answer for it. apt-get update passes: it
     # sits before the pipeline, and a failure there would prove nothing.
@@ -327,6 +327,53 @@ def test_a_failure_before_tail_fails_the_step(tmp_path, name):
     for tool in ("sudo", "go"):
         stand_in(bin_dir, tool, 'case "$*" in *"apt-get update"*) exit 0 ;; esac\nexit 7\n')
     r = run_with_real_tail(harness.load(RB), name, bin_dir, tmp_path)
+    assert r.returncode == 7, r.stderr
+
+
+def upgrade_west(tmp_path, rows, built=("unheaded-keygen", "unheaded-wotan", "unheaded-daemon"), sudo_exit=0):
+    """upgrade-west on a west holding rows, with these debs built. Returns the
+    result, the directory the debs are in, and what sudo was asked."""
+    repo, bin_dir = sandbox(tmp_path, build_script=f'[ "$1" = --print-version ] && echo "{BUILD}"\n')
+    debs = repo / "dist" / "debs" / "rolling-abcd1234"
+    debs.mkdir()
+    for pkg in built:
+        (debs / f"{pkg}_{BUILD}_amd64.deb").write_text("")
+    (tmp_path / "west.rows").write_text(dpkg_rows(rows))
+    dpkg_stand_in(bin_dir, tmp_path / "west.rows")
+    calls = tmp_path / "sudo"
+    stand_in(bin_dir, "sudo", f'echo "$*" >> "{calls}"\nexit {sudo_exit}\n')
+    env = {"REPO": str(repo), "PATH": f"{bin_dir}:/usr/bin:/bin"}
+    r = harness.run_step(harness.load(RB), "upgrade-west", env=env, check=False)
+    return r, debs, calls.read_text().splitlines() if calls.exists() else []
+
+
+def test_west_installs_the_debs_this_run_built_and_asks_no_apt_source(tmp_path):
+    r, debs, calls = upgrade_west(tmp_path, [("unheaded-wotan", "0.2.0~alpha+20261105")])
+    assert r.returncode == 0, r.stderr
+    assert calls == [f"apt-get install -y {debs}/unheaded-keygen_{BUILD}_amd64.deb {debs}/unheaded-wotan_{BUILD}_amd64.deb"]
+
+
+def test_west_gains_nothing_it_does_not_hold_but_the_key_tool_its_packages_need(tmp_path):
+    r, debs, calls = upgrade_west(tmp_path, [("unheaded-keygen", "0.2.0~alpha+20261105"), ("unheaded-daemon", "0.2.0~alpha+20261105")])
+    assert r.returncode == 0, r.stderr
+    assert calls == [f"apt-get install -y {debs}/unheaded-daemon_{BUILD}_amd64.deb {debs}/unheaded-keygen_{BUILD}_amd64.deb"]
+
+
+def test_a_package_west_holds_that_this_run_did_not_build_stops_the_step(tmp_path):
+    r, _debs, calls = upgrade_west(tmp_path, [("unheaded-wotan", "0.2.0~alpha+20261105")], built=("unheaded-keygen",))
+    assert r.returncode != 0
+    assert "unheaded-wotan" in r.stderr
+    assert calls == []
+
+
+def test_a_west_holding_none_of_the_packages_stops_the_step(tmp_path):
+    r, _debs, calls = upgrade_west(tmp_path, [])
+    assert r.returncode != 0
+    assert calls == []
+
+
+def test_a_failed_install_on_west_fails_the_step(tmp_path):
+    r, _debs, _calls = upgrade_west(tmp_path, [("unheaded-wotan", "0.2.0~alpha+20261105")], sudo_exit=7)
     assert r.returncode == 7, r.stderr
 
 

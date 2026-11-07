@@ -8,13 +8,16 @@ metadata:
   risk: high
   requires_sudo: true
 notes: |
-  For a host already on the signed repo. --only-upgrade keeps a package that
-  sorts above what is published and reports success, so this runbook refuses
-  to start while either host holds one, and checks each host reached the
-  published version before going on. The first move off 1.0.0 is that case:
-  1.0.0 sorts above the 0.2.0 line, and unheaded-unheaded-daemon is renamed.
-  That move is runbooks/deploy/apt-repo-publish.yaml. A host ahead of this
-  checkout needs a newer commit built.
+  East takes the signed repo; west takes the debs this run built, from
+  dist/debs, since it has no apt source. Both are the bytes compare-repo-with-build
+  just read. --only-upgrade keeps a package that sorts above what is published
+  and reports success, and apt will not install a lower version from a file, so
+  this runbook refuses to start while either host holds one, and checks each host
+  reached the published version before going on. The first move off 1.0.0 is
+  that case: 1.0.0 sorts above the 0.2.0 line, and unheaded-unheaded-daemon is
+  renamed. East's move is runbooks/deploy/apt-repo-publish.yaml; west's is its
+  one downgrade at S-E1-LIVE. A host ahead of this checkout needs a newer commit
+  built.
   A failed run can be started again at the same commit: the debs built for it
   are kept, because the repo refuses one version with other bytes and a rebuild
   has other bytes. A run on a newer commit is a new version.
@@ -60,10 +63,10 @@ preconditions:
         fi
       done <<<"$west"$'\n'"$east"
       if [ -n "$held" ]; then
-        echo "--only-upgrade would keep these. 1.0.x: use runbooks/deploy/apt-repo-publish.yaml. Otherwise build a newer commit. Held:$held" >&2
+        echo "Would stay as they are:$held. 1.0.x: east runbooks/deploy/apt-repo-publish.yaml, west S-E1-LIVE. Otherwise build a newer commit." >&2
         exit 1
       fi
-    description: Neither host holds a package --only-upgrade would keep (the first move off 1.0.0 is deploy/apt-repo-publish)
+    description: Neither host holds a package this run would keep (the first move off 1.0.0 is deploy/apt-repo-publish on east, S-E1-LIVE on west)
 
 steps:
   - name: pre-flight-check
@@ -146,9 +149,23 @@ steps:
 
   - name: upgrade-west
     action: shell
-    command: "set -o pipefail; sudo apt-get update -qq && sudo apt-get install --only-upgrade -y ${UNHEADED_PKGS} 2>&1 | tail -10"
+    # What west holds, as --only-upgrade does for east, and unheaded-keygen,
+    # which every key-holding package depends on at this exact version.
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      debs="$PWD/dist/debs/rolling-$(git rev-parse --short=8 HEAD)"
+      want="$(scripts/build-all-debs.sh --print-version)"
+      held="$({ dpkg -l ${UNHEADED_PKGS} 2>/dev/null || true; } | awk '$1 ~ /^[uihrp][iUFHWt]/ {sub(/:.*/, "", $2); print $2}')"
+      test -n "$held"
+      install=()
+      for p in $(printf '%s\n' unheaded-keygen $held | LC_ALL=C sort -u); do
+        install+=("$debs/$p"_"$want"_*.deb)
+        test -e "${install[-1]}" || { echo "this run built no $p" >&2; exit 1; }
+      done
+      sudo apt-get install -y "${install[@]}" 2>&1 | tail -10
     timeout: 900
-    description: "Upgrade WEST's Unheaded packages (primary)"
+    description: "Upgrade WEST's Unheaded packages from the debs this run built (primary)"
     verify: |
       set -euo pipefail
       want="$(cd "${REPO}" && scripts/build-all-debs.sh --print-version)"
