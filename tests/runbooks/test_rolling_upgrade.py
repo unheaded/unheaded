@@ -240,6 +240,36 @@ def test_a_failed_publish_stops_the_runbook(tmp_path):
     assert not log.exists(), "the repo was checked after the include failed"
 
 
+def compare(tmp_path, script):
+    repo, bin_dir = sandbox(tmp_path, script)
+    (repo / "dist" / "debs" / "rolling-abcd1234").mkdir()
+    (repo / "dist" / "debs" / "rolling-abcd1234" / "new.deb").write_text("")
+    env = {"REPO": str(repo), "APT_REPO_BASE": "/nonexistent/base", "PATH": f"{bin_dir}:/usr/bin:/bin"}
+    return harness.run_step(harness.load(RB), "compare-repo-with-build", env=env, check=False)
+
+
+def test_no_host_moves_before_the_repo_is_compared_with_the_build():
+    rb = harness.load(RB)
+    order = harness.dry_run(RB)
+    assert order.index("publish-to-repo") < order.index("compare-repo-with-build")
+    assert order.index("compare-repo-with-build") < order.index("upgrade-east-first")
+    assert order.index("compare-repo-with-build") < order.index("upgrade-west")
+    assert harness.index(rb, "compare-repo-with-build") == order.index("compare-repo-with-build")
+
+
+def test_the_comparison_reads_this_commits_debs_in_this_repo(tmp_path):
+    log = tmp_path / "calls"
+    r = compare(tmp_path, f'echo "$APT_REPO_BASE $*" >> "{log}"\n')
+    assert r.returncode == 0, r.stderr
+    assert log.read_text().splitlines() == ["/nonexistent/base compare dist/debs/rolling-abcd1234/new.deb"]
+
+
+def test_a_repo_that_does_not_serve_the_build_stops_the_runbook(tmp_path):
+    r = compare(tmp_path, 'echo "apt-repo: compare: the repo serves unheaded-wotan newer" >&2\nexit 1\n')
+    assert r.returncode != 0
+    assert "serves unheaded-wotan newer" in r.stderr
+
+
 def build(tmp_path, script):
     repo, bin_dir = sandbox(tmp_path, build_script=script)
     env = {"REPO": str(repo), "PATH": f"{bin_dir}:/usr/bin:/bin"}

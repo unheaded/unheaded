@@ -11,6 +11,7 @@
 #   apt-repo.sh init --keyid <KEYID>     # conf/distributions, public key export
 #   apt-repo.sh include <deb>...         # add packages (re-signs Release)
 #   apt-repo.sh list                     # what the repo holds
+#   apt-repo.sh compare <deb>...         # each deb is what the repo serves, version and bytes
 #   apt-repo.sh check                    # reprepro check/checkpool + Release signature
 #   apt-repo.sh serve                    # print the nginx server block
 #
@@ -26,7 +27,7 @@ CODENAME=unheaded
 KEY_FILE=unheaded-apt.gpg
 
 die() { echo "apt-repo: $*" >&2; exit 1; }
-usage() { sed -n '4,22p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '4,23p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 [[ "${1:-}" == -b ]] && { BASE="${2:?-b needs a directory}"; shift 2; }
 cmd="${1:-}"
@@ -92,6 +93,30 @@ list)
 	need_init
 	reprepro -b "$BASE" list "$CODENAME"
 	;;
+compare)
+	# reprepro skips a deb older than the one it holds and exits 0, so a
+	# publish cannot say what a host will be given. This can.
+	need_reprepro
+	need_init
+	[[ $# -gt 0 ]] || die "compare: no .deb given"
+	served="$(reprepro -b "$BASE" list "$CODENAME")"
+	differ=0
+	for deb in "$@"; do
+		dpkg-deb --info "$deb" >/dev/null 2>&1 || die "compare: $deb is not a valid package"
+		pkg="$(dpkg-deb -f "$deb" Package)"
+		version="$(dpkg-deb -f "$deb" Version)"
+		held="$(awk -v p="$pkg" '$2 == p { print $3; exit }' <<<"$served")"
+		if [[ "$held" != "$version" ]]; then
+			echo "apt-repo: compare: the repo serves $pkg ${held:-not at all}, this build is $version" >&2
+			differ=1
+		elif ! cmp -s "$deb" "$BASE/pool/main/${pkg:0:1}/$pkg/${pkg}_${version#*:}_$(dpkg-deb -f "$deb" Architecture).deb"; then
+			echo "apt-repo: compare: the repo serves $pkg $version with other bytes than $deb" >&2
+			differ=1
+		fi
+	done
+	((differ == 0)) || exit 1
+	echo "apt-repo: the repo serves these $# package(s) as built"
+	;;
 check)
 	need_reprepro
 	need_init
@@ -109,5 +134,5 @@ serve)
 	sed "s|/srv/unheaded-apt|$BASE|g" "$REPO_ROOT/deploy/nginx/unheaded-apt.conf"
 	;;
 -h | --help | help) usage ;;
-*) die "unknown command '$cmd' (init, include, list, check, serve)" ;;
+*) die "unknown command '$cmd' (init, include, list, compare, check, serve)" ;;
 esac

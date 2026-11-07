@@ -123,4 +123,28 @@ expect "nginx: only dists/, pool/ and the key are opened" \
 expect "nginx: no wildcard listen" "$(grep -cE 'listen (18888|0\.0\.0\.0|\[::\])' "$NG" || true)" "0"
 expect "serve prints the block for this base" "$("$APT_REPO" serve | grep -c "root $BASE;")" "1"
 
+# compare: the deb a host is about to be sent to the repo for is what the repo
+# serves, in version and in bytes. reprepro skips an older deb and exits 0, so an
+# older checkout's publish passes; only this notices.
+rebuild() { # rebuild VERSION BYTES OUT: the fixture at VERSION, its file holding BYTES
+	sed -i "s/^Version: .*/Version: $1/" "$T/pkg/DEBIAN/control"
+	printf '%s\n' "$2" >"$T/pkg/opt/unheaded/bin/fixture"
+	dpkg-deb --root-owner-group --build "$T/pkg" "$3" >/dev/null
+}
+expect "compare: what was published matches" "$(rc "$APT_REPO" compare "$DEB")" "0"
+rebuild '0.2.0~alpha+test' 'other bytes' "$T/rebuilt.deb"
+expect "compare: one version with other bytes is refused" "$(rc "$APT_REPO" compare "$T/rebuilt.deb")" "1"
+expect "compare: and says it is the bytes" "$(grep -c 'other bytes' "$T/out")" "1"
+expect "compare: nothing given refuses" "$(rc "$APT_REPO" compare)" "1"
+expect "compare: a file that is not a package refuses" "$(rc "$APT_REPO" compare "$T/bogus.deb")" "1"
+rebuild '0.2.0~alpha+zzz' 'newer' "$T/newer.deb"
+expect "include a newer build" "$(rc "$APT_REPO" include "$T/newer.deb")" "0"
+expect "include of an older build exits 0 and changes nothing" "$(rc "$APT_REPO" include "$DEB")" "0"
+expect "compare: an older build than the repo serves is refused" "$(rc "$APT_REPO" compare "$DEB")" "1"
+expect "compare: and names what the repo serves" "$(grep -c '0.2.0~alpha+zzz' "$T/out")" "1"
+expect "compare: the newer build matches" "$(rc "$APT_REPO" compare "$T/newer.deb")" "0"
+sed -i 's/^Package: .*/Package: unheaded-unpublished/' "$T/pkg/DEBIAN/control"
+dpkg-deb --root-owner-group --build "$T/pkg" "$T/unpublished.deb" >/dev/null
+expect "compare: a package the repo lacks is refused" "$(rc "$APT_REPO" compare "$T/unpublished.deb")" "1"
+
 exit "$fail"

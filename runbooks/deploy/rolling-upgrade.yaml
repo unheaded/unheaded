@@ -112,6 +112,17 @@ steps:
       APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh check
     description: "Publish the new packages to the signed APT repo (re-signs Release) and check it"
 
+  - name: compare-repo-with-build
+    action: shell
+    # reprepro skips a deb older than the one it holds and exits 0, so publish
+    # passes for an older checkout and east would be given the newer build.
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      debs="dist/debs/rolling-$(git rev-parse --short=8 HEAD)"
+      APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh compare "$debs"/*.deb
+    description: "Stop before any host moves unless the repo serves this build, in version and in bytes"
+
   - name: upgrade-east-first
     action: shell
     command: |
