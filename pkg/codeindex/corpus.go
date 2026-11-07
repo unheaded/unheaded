@@ -19,12 +19,47 @@ import (
 	"unicode/utf8"
 )
 
-// Language of a corpus chunk. STIX is the one written outside this project.
+// Language of a corpus chunk.
 const (
 	LanguageMarkdown = "markdown"
 	LanguageText     = "text"
 	LanguageSTIX     = "stix"
 )
+
+// Trust labels a corpus chunk carries, as champion reads them.
+const (
+	trustLocal    = "local"
+	trustExternal = "external"
+)
+
+// projectCorpusDirs are the corpus directories this project fills from its own
+// repository. Nothing else in a corpus root is known to be its writing.
+var projectCorpusDirs = []string{"threat-models/", "kingdom-docs/"}
+
+// CorpusTrust is the trust of a corpus chunk. Text is external unless it sits
+// in a project directory, whatever its format: a third-party README beside a
+// bundle reads like project text and is not. A STIX object is always external.
+func CorpusTrust(c Chunk) string {
+	if c.Language == LanguageSTIX {
+		return trustExternal
+	}
+	for _, dir := range projectCorpusDirs {
+		if strings.HasPrefix(c.Path, dir) {
+			return trustLocal
+		}
+	}
+	return trustExternal
+}
+
+// IsCorpusText reports whether c came from BuildCorpus and not from a source
+// file, whichever index it was found in.
+func IsCorpusText(c Chunk) bool {
+	switch c.Language {
+	case LanguageMarkdown, LanguageText, LanguageSTIX:
+		return true
+	}
+	return false
+}
 
 // maxCorpusFile bounds one read; a whole ATT&CK bundle fits with room to spare.
 const maxCorpusFile = 256 << 20
