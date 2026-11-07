@@ -1170,22 +1170,36 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		// Wotan mode: send real kanban task cards
 		allTasks := s.taskManager.GetAllTasks()
 		if len(allTasks) > 0 {
-			initialData, _ = json.Marshal(allTasks)
-			log.Info().Int("count", len(allTasks)).Msg("SSE sending kanban tasks (Wotan)")
+			if b, err := json.Marshal(allTasks); err != nil {
+				log.Error().Err(err).Msg("SSE: kanban tasks did not marshal")
+			} else {
+				initialData = b
+				log.Info().Int("count", len(allTasks)).Msg("SSE sending kanban tasks (Wotan)")
+			}
 		}
 	} else if tm := s.getTimelineManager(); tm != nil {
 		// Standalone mode: send timeline milestones as tasks
 		timelineTasks := tm.GetTimelineTasks()
 		if len(timelineTasks) > 0 {
-			initialData, _ = json.Marshal(timelineTasks)
-			log.Info().Int("count", len(timelineTasks)).Msg("SSE sending timeline tasks (Timeguru HTTP)")
+			if b, err := json.Marshal(timelineTasks); err != nil {
+				log.Error().Err(err).Msg("SSE: timeline tasks did not marshal")
+			} else {
+				initialData = b
+				log.Info().Int("count", len(timelineTasks)).Msg("SSE sending timeline tasks (Timeguru HTTP)")
+			}
 		}
 	}
 	if initialData == nil {
 		// Last resort: hardcoded fallback tasks
 		s.tasksMu.RLock()
-		initialData, _ = json.Marshal(s.tasks)
+		b, err := json.Marshal(s.tasks)
 		s.tasksMu.RUnlock()
+		if err != nil {
+			// An empty data line is not a task list: say so and end the stream.
+			log.Error().Err(err).Msg("SSE: fallback tasks did not marshal")
+			return
+		}
+		initialData = b
 	}
 
 	fmt.Fprintf(w, "event: tasks\ndata: %s\n\n", initialData)
