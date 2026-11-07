@@ -424,8 +424,9 @@ findings:
       Hop checks moved from shield-ebpf to hop-ebpf (ADR-125): require_hmac tests that a key exists, not a tag, so what
       was a stub is still no proof of the sender (FND-031)
     verify: >-
-      a lab-netns test with shield-ebpf attached counts checks_run and checks_failed for a flow with and without an
-      HMAC key written by cmd/shield, and the GOAWAY and authority lookups either enforce or are gone from the object
+      tests/hopchecks, run as root against the built hop-ebpf object, counts checks_run and checks_failed for a flow with
+      and without a key written by `unheaded hop rules apply`, and shield-ebpf holds no HOP_VALIDATORS, HMAC_KEYS,
+      RETRY_TOKENS or AUTHORITY map
     severity: medium
     class: app
     opened: 2026-10-28
@@ -439,8 +440,8 @@ findings:
       keys file; the checks run in one bpf_loop in observe mode, enforce behind SHIELD_CONFIG; GOAWAY and authority
       follow the Phase 4 ruling (enforce or delete); docs corrected first, then again when true.
       S-WIRE-HONEST 2026-11-04: moved to hop-ebpf, ADR-125; evidence cd408110: tests/hopchecks fourteen cases,
-      shield-ebpf no longer holds the maps, AUTHORITY gone, hop_xdp 171672 verified insns; closure awaits Stevie's
-      ruling on the verify text.
+      shield-ebpf no longer holds the maps, AUTHORITY gone, hop_xdp 171672 verified insns. 2026-11-06: verify rewritten
+      for hop-ebpf at Stevie's word. Closes on a root run of tests/hopchecks at HEAD; what stays is FND-031's.
 
   - id: FND-031
     title: >-

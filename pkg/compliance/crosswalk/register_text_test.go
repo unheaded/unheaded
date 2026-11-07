@@ -85,3 +85,16 @@ func TestRegister_RepositoryRowsAreOpen(t *testing.T) {
 		}
 	}
 }
+
+// FND-025's checks moved to hop-ebpf (ADR-125), so a verify naming shield-ebpf
+// could never be met.
+func TestRegister_FND025VerifyNamesHopEBPF(t *testing.T) {
+	e := repoRegister(t)["FND-025"]
+	if e == nil {
+		t.Fatal("FND-025 is not in the register")
+	}
+	if !strings.Contains(e.Verify, "hop-ebpf") || strings.Contains(e.Verify, "cmd/shield") ||
+		strings.Contains(e.Verify, "with shield-ebpf attached") {
+		t.Errorf("FND-025 verify: %q", e.Verify)
+	}
+}
