@@ -1082,8 +1082,8 @@ controls:
       Include and Match resolved) refuses passwords and keyboard-interactive
       login, root login and empty passwords, disables X11 forwarding, allows
       at most 4 authentication attempts per connection, and times out idle
-      sessions within 5 minutes. Read with passwordless sudo, locally or over
-      ssh; each record names its host.
+      sessions within 5 minutes. Read locally or over ssh; each record names
+      its host.
       Also (CIS 5.1): no host-based or rhosts authentication, login grace 60s or less, INFO logging, at most 10 sessions, no user environment, PAM on, forwarding off, no GSSAPI.
     rationale: >-
       Remote access restricted to strong authentication (AC-17; IA-2

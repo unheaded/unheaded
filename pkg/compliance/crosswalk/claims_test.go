@@ -37,6 +37,7 @@ var retiredClaims = []struct{ file, claim string }{
 	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "RESOLVED BY RISK DECISION"},
 	{"docs/security/PRE-PUBLIC-BLOCKERS.md", "Rotating them buys little"},
 	{"CLAUDE.md", "no rotation scramble"},
+	{"compliance/catalog/controls.yaml", "Read with passwordless sudo"},
 	// Checked against the code on 2026-11-07: a design rule is not a proof, the
 	// code reads secrets from the environment, and the apt listener has a LAN address.
 	{"CLAUDE.md", "Zero user data access (validated)"},

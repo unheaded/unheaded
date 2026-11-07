@@ -55,14 +55,21 @@ func TestRegister_TextStaysGeneral(t *testing.T) {
 		"passwordless", "writable by", "without a token", "AUTH_ENABLED", "shared account",
 		"listeners on all addresses", "from the wire", "INPUT ACCEPT", "i.e. root",
 	}
-	raw, err := os.ReadFile("../../../compliance/findings/register.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	folded := strings.Join(strings.Fields(string(raw)), " ")
-	for _, b := range banned {
-		if strings.Contains(folded, b) {
-			t.Errorf("compliance/findings/register.yaml says %q", b)
+	// ADR-098's generated section prints the register's text.
+	for _, rel := range []string{"compliance/findings/register.yaml", "docs/adr/ADR-098-findings-register-and-baseline-modes.md"} {
+		raw, err := os.ReadFile("../../../" + rel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(raw)
+		if _, gen, ok := strings.Cut(text, "<!-- BEGIN GENERATED FINDINGS -->"); ok {
+			text = gen
+		}
+		folded := strings.Join(strings.Fields(text), " ")
+		for _, b := range banned {
+			if strings.Contains(folded, b) {
+				t.Errorf("%s says %q", rel, b)
+			}
 		}
 	}
 }
