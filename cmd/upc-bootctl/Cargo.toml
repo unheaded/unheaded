@@ -25,6 +25,8 @@ xv6-mbc = { path = "../../crates/xv6-mbc" }
 # Workload per userland program and routes ROM_MAP/RV2MBC_MAP population through
 # upc_api::load, so validation + the map-write loop live in one place.
 upc-api = { path = "../../crates/upc-api" }
+# L17: what every Rust loader asks of an object before reading it.
+unheaded-objtrust = { path = "../../crates/objtrust" }
 # Phase 2 — live BPF integration
 aya = "0.13"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time", "sync"] }

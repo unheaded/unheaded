@@ -18,12 +18,15 @@
 #   UPC_USERLAND=/var/lib/unheaded/upc/init.mbc
 #   UPC_TRIGGERS=4000000
 #   UPC_INSTANCE=111
-# Images (with their .rv2mbc, .data and .rv2mbc.sha256 sidecars) and the
-# monad-cpu-ebpf object live in /var/lib/unheaded/upc (0750 unheaded-upc).
+# Images (with their .rv2mbc, .data and .rv2mbc.sha256 sidecars) live in
+# /var/lib/unheaded/upc (0750 unheaded-upc). The monad-cpu-ebpf object does not:
+# that directory is this account's, and bootctl refuses an object a non-root
+# user could replace (crates/objtrust). It lives in /usr/lib/unheaded/ebpf, root's.
 # A live boot needs UPC_DEMO_MODE=1: demo.conf.example is the drop-in that sets it.
 #
 # Install (E6 window; root), after unheaded-upc-netns.service:
 #   sudo install -m 0755 cmd/upc-bootctl/target/release/upc-bootctl /usr/local/bin/
+#   sudo install -D -o root -g root -m 0644 <ascend build of monad-cpu-ebpf> /usr/lib/unheaded/ebpf/monad-cpu-ebpf
 #   sudo cp deploy/systemd/unheaded-upc-bootctl@.service /etc/systemd/system/
 #   sudo systemctl daemon-reload   (not enabled: start a boot by name)
 #   sudo systemctl start unheaded-upc-bootctl@xv6
@@ -37,7 +40,7 @@ After=unheaded-upc-netns.service
 Type=oneshot
 EnvironmentFile=/etc/unheaded/upc/%i.env
 WorkingDirectory=/var/lib/unheaded/upc
-Environment=MONAD_CPU_EBPF_OBJ=/var/lib/unheaded/upc/monad-cpu-ebpf
+Environment=MONAD_CPU_EBPF_OBJ=/usr/lib/unheaded/ebpf/monad-cpu-ebpf
 ExecStart=/usr/local/bin/upc-bootctl boot --kernel ${UPC_KERNEL} --ramdisk ${UPC_RAMDISK} --userland ${UPC_USERLAND} --triggers ${UPC_TRIGGERS} --instance ${UPC_INSTANCE}
 TimeoutStartSec=15min
 

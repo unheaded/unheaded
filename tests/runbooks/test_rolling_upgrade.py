@@ -142,6 +142,14 @@ def test_a_host_that_cannot_be_read_is_refused(tmp_path, monkeypatch, capsys, kw
     assert not ok, out
 
 
+@pytest.mark.parametrize("west", [[], [("unheaded-kev-poller", "0.2.0~alpha+20261105")], [("rc", "unheaded-wotan", "0.2.0~alpha+20261105")]])
+def test_a_west_holding_none_of_the_packages_is_refused_before_east_moves(tmp_path, monkeypatch, capsys, west):
+    # Not held, one this run does not upgrade, or removed with its config left.
+    ok, out = preconditions(monkeypatch, capsys, hosts(tmp_path, west, CURRENT))
+    assert not ok
+    assert "west holds none" in out
+
+
 def test_a_dirty_checkout_is_refused_before_anything_runs(tmp_path, monkeypatch, capsys):
     bin_dir = hosts(tmp_path, CURRENT, CURRENT)
     (tmp_path / "porcelain").write_text(" M scripts/x\n")
@@ -240,6 +248,36 @@ def test_a_failed_publish_stops_the_runbook(tmp_path):
     assert not log.exists(), "the repo was checked after the include failed"
 
 
+def compare(tmp_path, script):
+    repo, bin_dir = sandbox(tmp_path, script)
+    (repo / "dist" / "debs" / "rolling-abcd1234").mkdir()
+    (repo / "dist" / "debs" / "rolling-abcd1234" / "new.deb").write_text("")
+    env = {"REPO": str(repo), "APT_REPO_BASE": "/nonexistent/base", "PATH": f"{bin_dir}:/usr/bin:/bin"}
+    return harness.run_step(harness.load(RB), "compare-repo-with-build", env=env, check=False)
+
+
+def test_no_host_moves_before_the_repo_is_compared_with_the_build():
+    rb = harness.load(RB)
+    order = harness.dry_run(RB)
+    assert order.index("publish-to-repo") < order.index("compare-repo-with-build")
+    assert order.index("compare-repo-with-build") < order.index("upgrade-east-first")
+    assert order.index("compare-repo-with-build") < order.index("upgrade-west")
+    assert harness.index(rb, "compare-repo-with-build") == order.index("compare-repo-with-build")
+
+
+def test_the_comparison_reads_this_commits_debs_in_this_repo(tmp_path):
+    log = tmp_path / "calls"
+    r = compare(tmp_path, f'echo "$APT_REPO_BASE $*" >> "{log}"\n')
+    assert r.returncode == 0, r.stderr
+    assert log.read_text().splitlines() == ["/nonexistent/base compare dist/debs/rolling-abcd1234/new.deb"]
+
+
+def test_a_repo_that_does_not_serve_the_build_stops_the_runbook(tmp_path):
+    r = compare(tmp_path, 'echo "apt-repo: compare: the repo serves unheaded-wotan newer" >&2\nexit 1\n')
+    assert r.returncode != 0
+    assert "serves unheaded-wotan newer" in r.stderr
+
+
 def build(tmp_path, script):
     repo, bin_dir = sandbox(tmp_path, build_script=script)
     env = {"REPO": str(repo), "PATH": f"{bin_dir}:/usr/bin:/bin"}
@@ -281,22 +319,66 @@ def test_a_build_cut_short_is_not_taken_for_a_finished_one(tmp_path):
 
 
 def run_with_real_tail(rb, name, bin_dir, tmp_path):
-    text = harness.step(rb, name)["command"].replace("/opt/unheaded/bin/akira", "sudo").replace("cd ~/tmp/unheaded && ", "")
-    cmd = harness._RUNNER.expand_env(text, harness.runner_env(rb, {}))
+    cmd = harness._RUNNER.expand_env(harness.step(rb, name)["command"], harness.runner_env(rb, {}))
     return subprocess.run(["/bin/bash", "-c", cmd], capture_output=True, text=True, timeout=30, check=False,
                           env={"PATH": f"{bin_dir}:/usr/bin:/bin"}, cwd=tmp_path)
 
 
-@pytest.mark.parametrize("name", ["upgrade-east-first", "verify-east-health", "upgrade-west", "verify-west-health"])
-def test_a_failure_before_tail_fails_the_step(tmp_path, name):
+def test_a_failure_before_tail_fails_the_step(tmp_path):
     # The tool fails where tail would answer for it. apt-get update passes: it
     # sits before the pipeline, and a failure there would prove nothing.
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     stand_in(bin_dir, "ssh", 'shift\nexec bash -c "$*"\n')
-    for tool in ("sudo", "go"):
-        stand_in(bin_dir, tool, 'case "$*" in *"apt-get update"*) exit 0 ;; esac\nexit 7\n')
-    r = run_with_real_tail(harness.load(RB), name, bin_dir, tmp_path)
+    stand_in(bin_dir, "sudo", 'case "$*" in *"apt-get update"*) exit 0 ;; esac\nexit 7\n')
+    r = run_with_real_tail(harness.load(RB), "upgrade-east-first", bin_dir, tmp_path)
+    assert r.returncode == 7, r.stderr
+
+
+def upgrade_west(tmp_path, rows, built=("unheaded-keygen", "unheaded-wotan", "unheaded-daemon"), sudo_exit=0):
+    """upgrade-west on a west holding rows, with these debs built. Returns the
+    result, the directory the debs are in, and what sudo was asked."""
+    repo, bin_dir = sandbox(tmp_path, build_script=f'[ "$1" = --print-version ] && echo "{BUILD}"\n')
+    debs = repo / "dist" / "debs" / "rolling-abcd1234"
+    debs.mkdir()
+    for pkg in built:
+        (debs / f"{pkg}_{BUILD}_amd64.deb").write_text("")
+    (tmp_path / "west.rows").write_text(dpkg_rows(rows))
+    dpkg_stand_in(bin_dir, tmp_path / "west.rows")
+    calls = tmp_path / "sudo"
+    stand_in(bin_dir, "sudo", f'echo "$*" >> "{calls}"\nexit {sudo_exit}\n')
+    env = {"REPO": str(repo), "PATH": f"{bin_dir}:/usr/bin:/bin"}
+    r = harness.run_step(harness.load(RB), "upgrade-west", env=env, check=False)
+    return r, debs, calls.read_text().splitlines() if calls.exists() else []
+
+
+def test_west_installs_the_debs_this_run_built_and_asks_no_apt_source(tmp_path):
+    r, debs, calls = upgrade_west(tmp_path, [("unheaded-wotan", "0.2.0~alpha+20261105")])
+    assert r.returncode == 0, r.stderr
+    assert calls == [f"apt-get install -y {debs}/unheaded-keygen_{BUILD}_amd64.deb {debs}/unheaded-wotan_{BUILD}_amd64.deb"]
+
+
+def test_west_gains_nothing_it_does_not_hold_but_the_key_tool_its_packages_need(tmp_path):
+    r, debs, calls = upgrade_west(tmp_path, [("unheaded-keygen", "0.2.0~alpha+20261105"), ("unheaded-daemon", "0.2.0~alpha+20261105")])
+    assert r.returncode == 0, r.stderr
+    assert calls == [f"apt-get install -y {debs}/unheaded-daemon_{BUILD}_amd64.deb {debs}/unheaded-keygen_{BUILD}_amd64.deb"]
+
+
+def test_a_package_west_holds_that_this_run_did_not_build_stops_the_step(tmp_path):
+    r, _debs, calls = upgrade_west(tmp_path, [("unheaded-wotan", "0.2.0~alpha+20261105")], built=("unheaded-keygen",))
+    assert r.returncode != 0
+    assert "unheaded-wotan" in r.stderr
+    assert calls == []
+
+
+def test_a_west_holding_none_of_the_packages_stops_the_step(tmp_path):
+    r, _debs, calls = upgrade_west(tmp_path, [])
+    assert r.returncode != 0
+    assert calls == []
+
+
+def test_a_failed_install_on_west_fails_the_step(tmp_path):
+    r, _debs, _calls = upgrade_west(tmp_path, [("unheaded-wotan", "0.2.0~alpha+20261105")], sudo_exit=7)
     assert r.returncode == 7, r.stderr
 
 

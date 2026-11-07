@@ -15,8 +15,9 @@
 //   - Integrity. It reads owners and modes, not bytes. A bad object that root
 //     installed passes; there is no hash or signature here.
 //   - Root itself. Anyone already root can change the object after the check.
-//   - Loaders outside Go. The Rust loaders under crates/ and cmd/ebpf-load-check
-//     and the shell tools (bpftool, ip, tc) do not come through here.
+//   - Loaders outside Go. The Rust loaders ask crates/objtrust, this package's
+//     twin, whose opt-out is --allow-untrusted-ebpf-obj-dir. The shell tools
+//     (bpftool, ip, tc) ask neither.
 //   - Pinned objects. Opening a pin in bpffs takes what is already in the
 //     kernel; it has no file to check.
 //   - Explicit opt-outs, for development trees: --allow-untrusted-ebpf-obj-dir,

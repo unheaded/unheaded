@@ -46,3 +46,19 @@ def test_every_or_clause_in_the_tree_can_fire():
                 continue
             for step in RUNNER.re.findall(r"step\.([\w-]+)\.failed", when):
                 assert RUNNER.rollback_applies(when, step, set()), (path, when)
+
+
+def test_a_rollback_gets_the_timeout_it_names(monkeypatch):
+    seen = []
+
+    def run_command(_cmd, timeout=120, env=None, dry_run=False):
+        seen.append(timeout)
+        return 0, "", ""
+
+    monkeypatch.setattr(RUNNER, "run_command", run_command)
+    book = {"steps": [{"name": "a"}], "rollback": [
+        {"name": "slow", "command": "true", "timeout": 900},
+        {"name": "default", "command": "true"},
+    ]}
+    RUNNER.execute_rollback(book, {}, "a")
+    assert seen == [900, 120]

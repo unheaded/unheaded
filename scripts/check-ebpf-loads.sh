@@ -108,7 +108,7 @@ load() {
         echo "${key}/* FAIL ELF not produced by the build: ${elf}"
         return
     fi
-    if ! out="$("${SUDO[@]}" "$LOADER" "$elf" 2>&1)"; then
+    if ! out="$("${SUDO[@]}" "$LOADER" --allow-untrusted-ebpf-obj-dir "$elf" 2>&1)"; then
         echo "${key}/* FAIL ${out}"
         return
     fi

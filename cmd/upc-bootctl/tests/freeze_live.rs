@@ -52,6 +52,8 @@ fn rom_and_rv2mbc_refuse_userspace_updates_after_load() {
             "--input",
             "echo\n",
             "--freeze-check",
+            // The default object is a build tree's.
+            "--allow-untrusted-ebpf-obj-dir",
         ])
         .output()
         .expect("run upc-bootctl");

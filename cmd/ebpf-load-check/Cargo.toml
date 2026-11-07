@@ -7,3 +7,4 @@ description = "Load (never attach) every program in an eBPF ELF through the kern
 
 [dependencies]
 aya = "0.13"
+unheaded-objtrust = { path = "../../crates/objtrust" }

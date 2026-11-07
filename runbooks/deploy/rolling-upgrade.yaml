@@ -8,16 +8,27 @@ metadata:
   risk: high
   requires_sudo: true
 notes: |
-  For a host already on the signed repo. --only-upgrade keeps a package that
-  sorts above what is published and reports success, so this runbook refuses
-  to start while either host holds one, and checks each host reached the
-  published version before going on. The first move off 1.0.0 is that case:
-  1.0.0 sorts above the 0.2.0 line, and unheaded-unheaded-daemon is renamed.
-  That move is runbooks/deploy/apt-repo-publish.yaml. A host ahead of this
-  checkout needs a newer commit built.
+  East takes the signed repo; west takes the debs this run built, from
+  dist/debs, since it has no apt source. Both are the bytes compare-repo-with-build
+  just read. --only-upgrade keeps a package that sorts above what is published
+  and reports success, and apt will not install a lower version from a file, so
+  this runbook refuses to start while either host holds one, and checks each host
+  reached the published version before going on. The first move off 1.0.0 is
+  that case: 1.0.0 sorts above the 0.2.0 line, and unheaded-unheaded-daemon is
+  renamed. East's move is runbooks/deploy/apt-repo-publish.yaml; west's is its
+  one downgrade at S-E1-LIVE. A host ahead of this checkout needs a newer commit
+  built.
   A failed run can be started again at the same commit: the debs built for it
   are kept, because the repo refuses one version with other bytes and a rebuild
   has other bytes. A run on a newer commit is a new version.
+  The rollback restores the packages each host held, from the debs record-previous
+  kept in dist/debs/rollback-<commit>, and removes those it did not hold, as
+  unheaded-keygen may be on west. A host holding a version with no deb in
+  the repo's pool or under dist/debs stops the run before anything moves.
+  record-previous also records what a health sweep finds up on each host, and
+  verify-east-health and verify-west-health fail if any of that is down. A service
+  already down then is not held against the build; a host where nothing is up
+  stops the run before anything moves. West's sweep reads configs/akira-west.yaml.
 
 env:
   # What apt-repo-publish's install-east installs, under the names
@@ -49,6 +60,15 @@ preconditions:
     description: East has the akira binary and config verify-east-health runs, before east is upgraded
   - check: |
       set -euo pipefail
+      rows="$(dpkg --version >/dev/null && { dpkg -l ${UNHEADED_PKGS} 2>/dev/null || true; })"
+      while read -r state _; do
+        case "$state" in [uihrp][iUFHWt]*) exit 0 ;; esac
+      done <<<"$rows"
+      echo "west holds none of these packages" >&2
+      exit 1
+    description: West holds one of these packages, or upgrade-west would stop with east already moved
+  - check: |
+      set -euo pipefail
       want="$(cd "${REPO}" && scripts/build-all-debs.sh --print-version)"
       west="$(dpkg --version >/dev/null && { dpkg -l 'unheaded-*' 2>/dev/null || true; })"
       east="$(ssh govan@east "dpkg --version >/dev/null && { dpkg -l 'unheaded-*' 2>/dev/null || true; }")"
@@ -60,10 +80,10 @@ preconditions:
         fi
       done <<<"$west"$'\n'"$east"
       if [ -n "$held" ]; then
-        echo "--only-upgrade would keep these. 1.0.x: use runbooks/deploy/apt-repo-publish.yaml. Otherwise build a newer commit. Held:$held" >&2
+        echo "Would stay as they are:$held. 1.0.x: east runbooks/deploy/apt-repo-publish.yaml, west S-E1-LIVE. Otherwise build a newer commit." >&2
         exit 1
       fi
-    description: Neither host holds a package --only-upgrade would keep (the first move off 1.0.0 is deploy/apt-repo-publish)
+    description: Neither host holds a package this run would keep (the first move off 1.0.0 is deploy/apt-repo-publish on east, S-E1-LIVE on west)
 
 steps:
   - name: pre-flight-check
@@ -102,6 +122,17 @@ steps:
     timeout: 1200
     description: "Build all .deb packages from the current commit into their own directory, once per commit"
 
+  - name: record-previous
+    action: shell
+    # Before the publish: the repo keeps one version of a package, so including
+    # this build drops the debs a rollback needs.
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh record "dist/debs/rollback-$(git rev-parse --short=8 HEAD)" "${APT_REPO_BASE}" ${UNHEADED_PKGS}
+    timeout: 600
+    description: "Record what each host holds and has up, and keep the debs to put it back, or stop with nothing moved"
+
   - name: publish-to-repo
     action: shell
     command: |
@@ -111,6 +142,17 @@ steps:
       sudo GNUPGHOME="${GNUPGHOME}" APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh include "$debs"/*.deb
       APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh check
     description: "Publish the new packages to the signed APT repo (re-signs Release) and check it"
+
+  - name: compare-repo-with-build
+    action: shell
+    # reprepro skips a deb older than the one it holds and exits 0, so publish
+    # passes for an older checkout and east would be given the newer build.
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      debs="dist/debs/rolling-$(git rev-parse --short=8 HEAD)"
+      APT_REPO_BASE="${APT_REPO_BASE}" scripts/apt-repo.sh compare "$debs"/*.deb
+    description: "Stop before any host moves unless the repo serves this build, in version and in bytes"
 
   - name: upgrade-east-first
     action: shell
@@ -129,15 +171,31 @@ steps:
   - name: verify-east-health
     action: shell
     command: |
-      ssh govan@east 'set -o pipefail; /opt/unheaded/bin/akira --once --config /opt/unheaded/etc/akira.yaml 2>&1 | tail -5'
-    description: "Run Akira health sweep on EAST after upgrade"
-    timeout: 30
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh health east "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
+    description: "Akira sweep on EAST: everything up before the upgrade is up after it"
+    timeout: 180
 
   - name: upgrade-west
     action: shell
-    command: "set -o pipefail; sudo apt-get update -qq && sudo apt-get install --only-upgrade -y ${UNHEADED_PKGS} 2>&1 | tail -10"
+    # What west holds, as --only-upgrade does for east, and unheaded-keygen,
+    # which every key-holding package depends on at this exact version.
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      debs="$PWD/dist/debs/rolling-$(git rev-parse --short=8 HEAD)"
+      want="$(scripts/build-all-debs.sh --print-version)"
+      held="$({ dpkg -l ${UNHEADED_PKGS} 2>/dev/null || true; } | awk '$1 ~ /^[uihrp][iUFHWt]/ {sub(/:.*/, "", $2); print $2}')"
+      test -n "$held"
+      install=()
+      for p in $(printf '%s\n' unheaded-keygen $held | LC_ALL=C sort -u); do
+        install+=("$debs/$p"_"$want"_*.deb)
+        test -e "${install[-1]}" || { echo "this run built no $p" >&2; exit 1; }
+      done
+      sudo apt-get install -y "${install[@]}" 2>&1 | tail -10
     timeout: 900
-    description: "Upgrade WEST's Unheaded packages (primary)"
+    description: "Upgrade WEST's Unheaded packages from the debs this run built (primary)"
     verify: |
       set -euo pipefail
       want="$(cd "${REPO}" && scripts/build-all-debs.sh --print-version)"
@@ -146,7 +204,12 @@ steps:
 
   - name: verify-west-health
     action: shell
-    command: "set -o pipefail; cd ~/tmp/unheaded && go run ./cmd/akira --once 2>&1 | tail -5"
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh health west "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
+    description: "Akira sweep on WEST: everything up before the upgrade is up after it"
+    timeout: 180
 
   - name: post-upgrade-check
     action: shell
@@ -157,10 +220,32 @@ steps:
       done
 
 rollback:
-  - name: restore-previous-version
+  - name: restore-west
     action: shell
+    timeout: 900
     command: |
-      echo "To rollback: sudo apt install unheaded-wotan=<previous_version>"
-      echo "Then, only if the upgrade damaged data: restore the set named in"
-      echo "/srv/backups/unheaded-well/LATEST (wiki/Well-Backups.md#restore)"
-    when: "step.verify-east-health.failed"
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh restore west "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
+    description: "Put WEST back at the versions it held; fails unless it got there and what was up is up"
+    when: "step.upgrade-west.failed || step.verify-west-health.failed"
+
+  - name: restore-east
+    action: shell
+    timeout: 900
+    command: |
+      set -euo pipefail
+      cd "${REPO}"
+      scripts/rolling-previous.sh restore east "dist/debs/rollback-$(git rev-parse --short=8 HEAD)"
+    description: "Put EAST back at the versions it held; fails unless it got there and what was up is up"
+    when: "step.upgrade-east-first.failed || step.verify-east-health.failed || step.upgrade-west.failed || step.verify-west-health.failed"
+
+  - name: restore-data
+    action: manual
+    command: |
+      Only if the upgrade damaged data: restore the set named in
+      /srv/backups/unheaded-well/LATEST (wiki/Well-Backups.md#restore).
+      The repo still serves the failed build: an apt-get upgrade on east moves
+      it forward again until a fixed commit is published.
+    description: "What the package rollback does not cover"
+    when: "step.upgrade-east-first.failed || step.verify-east-health.failed || step.upgrade-west.failed || step.verify-west-health.failed"

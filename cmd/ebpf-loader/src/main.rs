@@ -72,6 +72,11 @@ struct Cli {
     /// The loader stays alive holding BPF link FDs; kill it to detach XDP.
     #[arg(long)]
     pid_file: Option<PathBuf>,
+
+    /// Load objects a non-root user could have written, as a build tree's are.
+    /// Development only; the default --obj-dir is a build tree.
+    #[arg(long)]
+    allow_untrusted_ebpf_obj_dir: bool,
 }
 
 fn main() -> Result<()> {
@@ -84,7 +89,8 @@ fn main() -> Result<()> {
         None => ALL_PROGRAMS.to_vec(),
     };
 
-    // Validate all objects exist before loading any
+    // Validate all objects exist, and that only root could have written them,
+    // before loading any
     for name in &programs {
         let elf_name = elf_filename(name);
         let path = cli.obj_dir.join(elf_name);
@@ -95,6 +101,7 @@ fn main() -> Result<()> {
                 path.display()
             );
         }
+        objtrust::check_unless_allowed(&path, cli.allow_untrusted_ebpf_obj_dir)?;
     }
 
     if cli.dry_run {

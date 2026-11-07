@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# crates/objtrust: whether an eBPF object on disk may be loaded, for the Rust
+# loaders. pkg/ebpf/objtrust is the Go twin. -or-later because cmd/ebpf-loader
+# and cmd/ebpf-load-check are GPL-2.0-only and the rest of the tree is GPL-3.0.
+
+[package]
+name = "unheaded-objtrust"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-or-later"
+description = "Refuse an eBPF object a non-root user could have written"
+publish = false
+
+[lib]
+name = "objtrust"
+path = "src/lib.rs"

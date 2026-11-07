@@ -277,6 +277,7 @@ dependencies = [
  "ctrlc",
  "env_logger",
  "log",
+ "unheaded-objtrust",
 ]
 
 [[package]]
@@ -608,6 +609,10 @@ dependencies = [
  "quote",
  "syn 3.0.9",
 ]
+
+[[package]]
+name = "unheaded-objtrust"
+version = "0.1.0"
 
 [[package]]
 name = "unicode-ident"

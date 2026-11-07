@@ -78,10 +78,11 @@ sudo bash "$ROOT/scripts/upc-netns.sh" up >/dev/null || { echo "upc-netns.sh up 
 
 # upc-bootctl resolves the eBPF object at a CWD-relative path
 # (target/bpfel-unknown-none/release/monad-cpu-ebpf), so it MUST run from ebpf/.
+# That is a build tree, which bootctl refuses without the opt-out flag.
 # Run an xv6 command and assert the boot output contains a token.
 xv6_expect() { # $1=input line  $2=grep token  $3=label
   local out
-  out="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  out="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
     --userland "$K/init.mbc" --triggers 4000000 --instance 111 \
     --input "$1"$'\n' 2>&1)"
   if grep -aq "$2" <<<"$out"; then pass "xv6: $3"; else fail "xv6: $3 (missing '$2')"; fi
@@ -93,7 +94,7 @@ echo "== UPC regression harness =="
 echo "[1/3] ascend build (xv6 corpus)"
 cargo_build_ok ebpf_cargo_build -p monad-cpu-ebpf --features ascend-linux || fail "ascend build"
 
-VBUD="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 UPC_VERIFIER_STATS=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+VBUD="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 UPC_VERIFIER_STATS=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/init.mbc" --triggers 3000 --instance 111 --input $'echo\n' 2>&1 \
   | grep -aoE 'verified [0-9]+ insns \([0-9.]+% of 1M ceiling\)')"
 [ -n "$VBUD" ] && note "ascend verifier: $VBUD" || note "ascend verifier: (unreported)"
@@ -115,7 +116,7 @@ xv6_expect 'wc README'    '5 49 283 README'        'wc README'
 # commands), not any particular implementation.
 xv6_expect 'nosuch'       'exec nosuch failed'     'sh reports exec failure (unknown command)'
 xv6_expect $'\necho unbroken' 'unbroken'           'sh skips blank line, loop survives'
-MC="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+MC="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/init.mbc" --triggers 4000000 --instance 111 \
   --input $'echo alpha\necho omega\n' 2>&1)"
 grep -aq 'alpha' <<<"$MC" && pass "sh multi-command: first command runs" \
@@ -123,7 +124,7 @@ grep -aq 'alpha' <<<"$MC" && pass "sh multi-command: first command runs" \
 grep -aq 'omega' <<<"$MC" && pass "sh multi-command: prompt loop survives to second" \
   || fail "sh multi-command: prompt loop survives to second (missing 'omega')"
 
-G2="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+G2="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/gate2.mbc" --triggers 800000 --instance 111 2>&1)"
 grep -aq 'ISOLATION-PASS' <<<"$G2" && pass "gate2 ISOLATION-PASS" || fail "gate2 ISOLATION-PASS"
 
@@ -131,12 +132,12 @@ grep -aq 'ISOLATION-PASS' <<<"$G2" && pass "gate2 ISOLATION-PASS" || fail "gate2
 # looped-fork gate. Both were "known failures" until the scheduler stopped
 # resuming a zombie when nothing was runnable; build them with
 # `make -f ../adapters/Makefile.mbc-userland gates` (a missing binary fails).
-NW="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+NW="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/gate_nway.mbc" --triggers 1500000 --instance 111 2>&1)"
 # Count tokens, not lines: the TTY dump is one "ascii:" line.
 [ "$(grep -aoE 'NWAY-ok pid[123]' <<<"$NW" | sort -u | grep -c .)" -eq 3 ] && ! grep -aq 'NWAY-FAIL' <<<"$NW" \
   && pass "gate_nway 3x NWAY-ok, 0 FAIL" || fail "gate_nway (concurrent isolation)"
-FL="$(cd "$EBPF" && timeout 600 sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+FL="$(cd "$EBPF" && timeout 600 sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/forkloop.mbc" --triggers 1500000 --instance 111 2>&1)"
 [ "$(grep -aoE 'FL: child' <<<"$FL" | grep -c .)" -eq 3 ] && grep -aq 'FL: parent-done' <<<"$FL" \
   && pass "forkloop: 3 children, parent done" || fail "forkloop (looped fork)"
@@ -144,14 +145,14 @@ FL="$(cd "$EBPF" && timeout 600 sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC
 # S-ASCEND-2 Phase 7: open("console") by name and write through the returned fd
 # (and a dup of it). The Phase 1.4 PC tracer prints 4-hex-digit PCs between the
 # bytes of a write that follows an SRET; strip them before matching.
-DV="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+DV="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/devprobe.mbc" --triggers 1500000 --instance 111 2>&1 | grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g')"
 grep -aq 'DEV: console-open-ok' <<<"$DV" && grep -aq 'DEV: console-dup-ok' <<<"$DV" \
   && pass "devprobe: console opens by name, write + dup" || fail "devprobe (console by name)"
 
 # S-ASCEND-2 E1 (option K, 2026-10-28): one pid numbering, init = 1. getpid in
 # the parent and the child, fork()'s return and wait()'s return must agree.
-PF="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+PF="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/getpidfork.mbc" --triggers 800000 --instance 111 2>&1 | grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g')"
 if grep -aq 'F: parent-pid=1' <<<"$PF" && grep -aq 'GF: child-pid=2' <<<"$PF" && grep -aq 'GF: fork-ret=2' <<<"$PF" \
   && grep -aq 'GF: wait-ret=2' <<<"$PF" && grep -aq 'GF: parent-after-wait' <<<"$PF"; then
@@ -163,7 +164,7 @@ fi
 # EVOLUTION-1 Stage 2 rung 0 (ADR-109): slot reuse (getpidloop) and three live
 # slots (getpidmulti). Counts, not order: scheduling order may change once traps
 # reach the kernel. With GETPID_INJECT on these are the rung 0 gate.
-rung0_lines() { (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+rung0_lines() { (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
   --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers 1500000 --instance 111 2>&1) | grep -a 'ascii:' \
   | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE '(GL|GM): [a-z0-9-]+(=[0-9a-z]+)?'; }
 want_counts() { # $1 = lines, then "token count" pairs; every token must appear exactly count times
@@ -183,7 +184,7 @@ want_counts "$GM" "GM: c1-pid=2" 1 "GM: c2-pid=3" 1 "GM: c3-pid=4" 1 "GM: c1-aga
 # the owned kernel from BPF's tick count; it must rise in init and in a child,
 # and a child must not read below its parent. Off: uptime has no BPF arm.
 if grep -q 'const UPC_RUNG2: bool = true;' "$EBPF/monad-cpu-ebpf/src/main.rs"; then
-  UPL="$( (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+  UPL="$( (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
     --ramdisk "$K/fs.img" --userland "$K/uptimeprobe.mbc" --triggers 2000000 --instance 111 2>&1) | grep -a 'ascii:' \
     | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'UP: [a-z-]+=[a-z]+')"
   want_counts "$UPL" "UP: init-moved=yes" 1 "UP: child-moved=yes" 1 "UP: child-mono=yes" 1 "UP: init-before=large" 1 \
@@ -195,7 +196,7 @@ fi
 # S-STAGE-2B rungs: each gate runs when its const is on; off, it is a note.
 rung_on() { grep -q "^const $1: bool = true;" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
 probe_lines() { # $1 program, $2 triggers, $3 token prefix
-  (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+  (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
     --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers "$2" --instance 111 2>&1) | grep -a 'ascii:' \
     | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE "$3: [a-z0-9-]+(=[a-z0-9]+)?"; }
 rung_gate() { # $1 const, $2 program, $3 triggers, $4 prefix, $5 how many =yes lines
@@ -225,7 +226,7 @@ fi
 # miss) and into the slot tables. With UPC_D6_MISS_FAULT on, neither word may
 # change. Off, the pgd store lands (the open hole); if it stops landing, the
 # probe no longer reaches the hole and proves nothing when D6 is turned on.
-HPL="$( (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+HPL="$( (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
   --ramdisk "$K/fs.img" --userland "$K/hostile_pgd.mbc" --triggers 1500000 --instance 111 2>&1) | grep -a 'ascii:' \
   | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'HP: [a-z-]+=?[a-z]*')"
 if grep -q 'const UPC_D6_MISS_FAULT: bool = true;' "$EBPF/monad-cpu-ebpf/src/main.rs"; then
@@ -240,7 +241,7 @@ fi
 # Stage 2 Steps 134-135: a child forges cur_slot/trap_a7 at the table address it
 # sees, or scribbles over slot 2's trapframe there, then a getpid (its own, or a
 # grandchild's in slot 2) must still be right. Both hold with D6 off or on.
-hs_lines() { (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" \
+hs_lines() { (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
   --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers 2000000 --instance 111 2>&1) | grep -a 'ascii:' \
   | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'H[ST]: [a-z-]+=?[a-z0-9]*'; }
 want_counts "$(hs_lines hostile_slot)" "HS: child-pid=2" 1 "HS: init-pid=1" 1 "HS: done" 1 \
@@ -276,7 +277,7 @@ fi
 # forktest and reparent2 need wait() to return -1 once every child is reaped.
 for ut in exitwait:1500000:ok twochildren:1500000:ok forktest:1500000:ok reparent2:3000000:reaped-all; do
   n="${ut%%:*}" rest="${ut#*:}" t="${rest%%:*}" want="${rest#*:}"
-  UTO="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  UTO="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
     --userland "$K/ut_$n.mbc" --triggers "$t" --instance 111 2>&1 | grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g')"
   if grep -aq "UT-$n: $want" <<<"$UTO" && ! grep -aq "UT-$n: fail" <<<"$UTO"; then
     pass "usertests $n"
@@ -288,7 +289,7 @@ done
 # Track 2 Phase 2.1 (ADR-081): OUR init as PID 1. Same kernel + fs.img, only
 # the resident PID 1 program swapped to uinit.mbc. The token proves uinit ran;
 # 'hello' proves it forked+exec'd sh and a command completed through it.
-UI="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+UI="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/uinit.mbc" --triggers 4000000 --instance 111 \
   --input $'echo hello\n' 2>&1)"
 grep -aq '0xP1D1-0UR5' <<<"$UI" && pass "uinit banner (own PID 1)" \
