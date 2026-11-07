@@ -155,7 +155,7 @@ func configWritersUnder(t *testing.T, root string) []string {
 			strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		raw, err := os.ReadFile(path) // #nosec G122 G304 -- the repo's own tree, in a test
+		raw, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
