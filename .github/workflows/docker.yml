@@ -3,9 +3,11 @@
 #
 # Builds the Wotan and Kanban images from the root Dockerfile's stages, amd64
 # only. The image is built into the runner's Docker first, so Trivy reads the
-# bytes that would ship; only then does a push event send it to GHCR, from the
-# build cache. A pull request builds and scans, and pushes nothing.
-# check-ci-verdicts.sh holds that order, and these stages to the Dockerfile.
+# bytes that would ship; a push event then sends them to GHCR from the build
+# cache. Trivy here reports and does not gate: a finding reaches the Security
+# tab and the push still goes. A pull request builds and scans, and pushes
+# nothing. check-ci-verdicts.sh holds that order, and these stages to the
+# Dockerfile.
 name: Docker
 
 on:
@@ -82,7 +84,7 @@ jobs:
           output: trivy-wotan.sarif
           severity: CRITICAL,HIGH
 
-      # A pull request's token may not write security events.
+      # Pull requests skip this: a fork's token may not write security events.
       - name: Upload Trivy SARIF
         if: github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
@@ -159,7 +161,7 @@ jobs:
           output: trivy-kanban.sarif
           severity: CRITICAL,HIGH
 
-      # A pull request's token may not write security events.
+      # Pull requests skip this: a fork's token may not write security events.
       - name: Upload Trivy SARIF
         if: github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
