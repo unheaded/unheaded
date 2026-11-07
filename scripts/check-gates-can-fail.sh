@@ -1061,6 +1061,17 @@ provoke_unit_ceilings() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_json_responses() {
+    # Contract: no handler encodes JSON to its ResponseWriter. Put one back
+    # in Akira's status handler.
+    local f="cmd/akira/main.go"
+    backup "${f}"
+    sed -i 's|httputil.WriteJSON(w, http.StatusOK, states)|_ = json.NewEncoder(w).Encode(states)|' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_http_timeouts() {
     # Contract (S-LOW-FRUIT Phase 2): every http.Server sets
     # ReadHeaderTimeout. Delete the field from timeguru's server.
@@ -1310,6 +1321,7 @@ check-sbom-trend|provoke_sbom_trend|fast|go_components baseline lowered by one, 
 gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet, so no binary answers it (builds all 59; needs go)
 check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
+check-json-responses|provoke_json_responses|fast|Akira's status handler encodes straight to its ResponseWriter again (needs go)
 check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds all 59; needs go)
 check-usage-errors|provoke_usage_errors|fast|cmdline.ParseSet lets the flag package print to stderr again, so a bad option dumps raw usage (builds all; needs go)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
