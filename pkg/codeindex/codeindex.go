@@ -145,7 +145,7 @@ func (ix *Index) Search(query string, k int) []Hit {
 	if k <= 0 {
 		return nil
 	}
-	words := strings.FieldsFunc(strings.ToLower(query), func(r rune) bool { return !unicode.IsLetter(r) })
+	words := strings.FieldsFunc(strings.ToLower(query), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
 	if len(words) == 0 {
 		return nil
 	}

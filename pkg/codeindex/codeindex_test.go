@@ -308,3 +308,19 @@ func TestStoreSwapsWhenCurrentChanges(t *testing.T) {
 		t.Fatal("an empty dir has no index")
 	}
 }
+
+// A word keeps its digits: an identifier reduced to its letters would match
+// nearly everything and rank the chunk that holds it nowhere in particular.
+func TestSearch_KeepsDigits(t *testing.T) {
+	ix := &Index{Chunks: []Chunk{
+		{ID: "a::Other", Symbol: "Other", Content: "tactics and techniques"},
+		{ID: "b::Phish", Symbol: "Phish", Content: "See T1566 for the technique."},
+	}}
+	hits := ix.Search("T1566", 5)
+	if len(hits) != 1 || hits[0].Chunk.ID != "b::Phish" {
+		t.Fatalf("T1566: %+v", hits)
+	}
+	if hits := ix.Search("1566", 5); len(hits) != 1 {
+		t.Fatalf("a number alone is a word: %+v", hits)
+	}
+}
