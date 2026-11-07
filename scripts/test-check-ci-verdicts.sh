@@ -246,6 +246,8 @@ for f in Jenkinsfile jenkins/Jenkinsfile.protocol; do
 	ci_verdict_expect_bite "the docker socket back in ${f}" jenkins "${f}" \
 		"s#^      image 'golang:.*\$#&\n      args '-v /var/run/docker.sock:/var/run/docker.sock'#"
 done
+ci_verdict_expect_bite "an archive unpacked as it downloads" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz | tar xz#'
 
 echo "--- OpenTofu workflows stay off ---"
 for f in plan apply; do

@@ -193,6 +193,7 @@ CI_FILES = sorted(glob.glob(".github/workflows/*.yml") + glob.glob("jenkins/Jenk
 FETCH_MODULE = re.compile(r"\bgo (?:install|run)\b[^|;&]*?\s([a-z0-9.-]+\.[a-z]+/\S+?)@(\S+)")
 CARGO_INSTALL = re.compile(r"\bcargo install (?:--\S+ )*([A-Za-z0-9_-]+)(@\S+)?(.*)")
 CURL_TO_SHELL = re.compile(r"\bcurl\b.*\|\s*(?:sudo\s+)?(?:sh|bash)\b")
+CURL_TO_TAR = re.compile(r"\bcurl\b.*\|\s*(?:sudo\s+)?tar\b")
 PIP_INSTALL = re.compile(r"\bpip3? install\b(.*)")
 PIP_EXACT = re.compile(r"[A-Za-z0-9._-]+==\d+(?:\.\d+)+")
 
@@ -224,6 +225,8 @@ def tool_fetches():
                         bad("tool-fetch", f"{where}: `cargo install {crate}` swallows its failure")
                 if CURL_TO_SHELL.search(text):
                     bad("tool-fetch", f"{where}: a script piped to a shell runs before anything checks it")
+                if CURL_TO_TAR.search(text):
+                    bad("tool-fetch", f"{where}: an archive piped to tar is unpacked before anything checks it")
                 m = PIP_INSTALL.search(text)
                 if m and "--require-hashes" not in m.group(1):
                     for arg in m.group(1).split():

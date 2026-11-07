@@ -28,6 +28,9 @@ COSIGN_VERSION="3.1.4"
 COSIGN_SHA256="424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa" # cosign-linux-amd64 (bare binary; cosign_checksums.txt)
 
 
+BUF_VERSION="1.75.0"
+BUF_SHA256="fad1e38d6909bbb583a4da81d8c02a01046e2cd663bde7e337dd24277393764b" # buf-Linux-x86_64 (bare binary; sha256.txt)
+
 # hadolint runs from its image, pinned by digest (scripts/check-hadolint.sh).
 HADOLINT_VERSION="2.15.1"
 HADOLINT_IMAGE_DIGEST="sha256:a1d49ae1a4e83c1dbad26b8c1ad7588c8bd1e04f4866b34ad3cac50335198552" # hadolint/hadolint:v<v>-alpine
