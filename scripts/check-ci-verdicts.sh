@@ -250,6 +250,8 @@ def jenkins_agents():
             continue
         with open(path, encoding="utf-8") as f:
             text = re.sub(r"(?m)^\s*//.*$", "", f.read())
+        if "docker.sock" in text:
+            bad("jenkins", f"{path}: mounts the docker socket; nothing in an agent calls docker")
         if re.search(r"\benvironment\s*\{\s*\}", text):
             bad("jenkins", f"{path}: an empty environment block does not compile")
         for image in re.findall(r"\bimage\s+'golang:([^']+)'", text):

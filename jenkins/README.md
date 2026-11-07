@@ -311,13 +311,14 @@ environment {
 
 ### Docker Agent Configuration
 
-**Required:** Jenkins running with Docker socket access
+**Required:** a Jenkins controller that can start containers. The agent
+container itself gets no Docker socket: nothing it runs calls docker, and the
+socket is root on the host.
 
 ```groovy
 agent {
   docker {
-    image 'golang:1.25-alpine'
-    args '-v /var/run/docker.sock:/var/run/docker.sock'
+    image 'golang:1.27.3-alpine3.24'
   }
 }
 ```

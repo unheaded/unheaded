@@ -241,6 +241,12 @@ ci_verdict_expect_bite "the Makefile naming a service with no Dockerfile" docker
 ci_verdict_expect_bite "a service Dockerfile the Makefile does not build" docker-services \
 	"docker/Makefile" 's/^SERVICES := monad sophia /SERVICES := monad /'
 
+echo "--- Jenkins agents and fetches ---"
+for f in Jenkinsfile jenkins/Jenkinsfile.protocol; do
+	ci_verdict_expect_bite "the docker socket back in ${f}" jenkins "${f}" \
+		"s#^      image 'golang:.*\$#&\n      args '-v /var/run/docker.sock:/var/run/docker.sock'#"
+done
+
 echo "--- OpenTofu workflows stay off ---"
 for f in plan apply; do
 	ci_verdict_expect_bite "${f}.yml on a pull request again" iac-off ".github/workflows/${f}.yml" \
