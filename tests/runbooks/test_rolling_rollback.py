@@ -242,7 +242,7 @@ def test_east_goes_back_to_what_it_held_from_debs_sent_to_it(recorded):
     assert len(calls) == 1
     assert calls[0].startswith("apt-get install -y --allow-downgrades /var/tmp/unheaded-rollback.")
     assert calls[0].count(".deb") == len(PKGS)
-    assert not list(harness.Path("/var/tmp").glob("unheaded-rollback.*")), "the copy on east was left behind"
+    assert not list(harness.Path("/var/tmp").glob("unheaded-rollback.*")), "the copy on east was left behind"  # nosec B108 - only globbed: asserts the rollback left no copy behind
 
 
 @pytest.mark.parametrize("host", ["west", "east"])
@@ -251,7 +251,7 @@ def test_a_failed_install_fails_the_rollback(recorded, host):
     (recorded.root / "apt-fails").touch()
     r = recorded.run("restore", host, recorded.keep)
     assert r.returncode != 0
-    assert not list(harness.Path("/var/tmp").glob("unheaded-rollback.*"))
+    assert not list(harness.Path("/var/tmp").glob("unheaded-rollback.*"))  # nosec B108 - only globbed: asserts the rollback left no copy behind
 
 
 @pytest.mark.parametrize("host", ["west", "east"])

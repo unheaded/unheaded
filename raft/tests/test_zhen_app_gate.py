@@ -46,7 +46,7 @@ def client(monkeypatch):
         yield c
 
 
-def _log_in(client, token='person-token'):
+def _log_in(client, token='person-token'):  # nosec B107 - fixture token, no credential
     """A live operator session, as zhen_login.Login.login leaves one: the
     login itself is test_zhen_login.py's."""
     sid = zhen_app.LOGIN.sessions.put(zhen_login.Session(token, 'stevie', ('operator',), time.time() + 600))

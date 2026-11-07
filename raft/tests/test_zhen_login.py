@@ -36,7 +36,7 @@ import zhen_login
 import zhen_rag
 
 LOCAL = 'http://127.0.0.1:20103'
-SECRET = 'correct horse battery staple'
+SECRET = 'correct horse battery staple'  # nosec B105 - fixture password for a fake issuer
 
 
 def _token(life=900):
@@ -72,7 +72,7 @@ def world(monkeypatch):
             return 401, {}, ''
         tok = _token()
         w.tokens[tok] = username
-        return 200, {'access_token': tok, 'token_type': 'Bearer'}, ''
+        return 200, {'access_token': tok, 'token_type': 'Bearer'}, ''  # nosec B105 - token type name, no credential
 
     def whoami(url, token):
         w.calls.append(('whoami', token))
@@ -155,7 +155,7 @@ def test_a_short_password_logs_in_and_the_person_hears_about_it(client, world, m
     def short(url, username, password):
         tok = _token()
         world.tokens[tok] = username
-        return 200, {'access_token': tok, 'token_type': 'Bearer', 'password_below_floor': True}, ''
+        return 200, {'access_token': tok, 'token_type': 'Bearer', 'password_below_floor': True}, ''  # nosec B105 - token type name and a flag, no credential
     monkeypatch.setattr(zhen_login, '_post_issuer', short)
     r = _login(client)
     assert r.status_code == 200 and r.get_json()['password_below_floor'] is True
@@ -175,14 +175,14 @@ def test_tls_on_with_no_ca_is_an_unreachable_issuer_not_a_crash(monkeypatch):
 
 
 def test_a_wrong_password_is_401_and_makes_no_session(client, world):
-    r = _login(client, password='wrong')
+    r = _login(client, password='wrong')  # nosec B106 - the wrong password under test
     assert r.status_code == 401
     assert not [h for h in r.headers.getlist('Set-Cookie') if h.startswith(zhen_login.COOKIE_NAME)]
     assert client.get('/auth/me', base_url=LOCAL).status_code == 401
 
 
 def test_a_failed_login_is_counted_before_the_next_reaches_the_issuer(client, world):
-    assert _login(client, password='wrong').status_code == 401
+    assert _login(client, password='wrong').status_code == 401  # nosec B106 - the wrong password under test
     r = _login(client)
     assert r.status_code == 429
     assert int(r.headers['Retry-After']) > 0
@@ -281,7 +281,7 @@ def test_every_read_needs_a_login(client, world, path):
     '/api/v1/approvals/1/deny',
 ])
 def test_every_write_needs_a_login_and_reaches_nothing(client, world, path):
-    r = client.post(path, base_url=LOCAL, json={'question': 'emergency stop', 'task': {'id': 'x'}, 'key': 'k', 'token': 't'},
+    r = client.post(path, base_url=LOCAL, json={'question': 'emergency stop', 'task': {'id': 'x'}, 'key': 'k', 'token': 't'},  # nosec B105 - fixture token, no credential
                     headers=_page_headers(client))
     assert r.status_code == 401
     assert not world.calls
@@ -436,7 +436,7 @@ class _Held(urllib.error.HTTPError):
 
 def _held(req):
     if req.full_url.endswith('/api/v1/tool/exec'):
-        raise _Held({'status': 'pending_confirmation', 'pending_token': 'pend-1', 'reason': 'held'})
+        raise _Held({'status': 'pending_confirmation', 'pending_token': 'pend-1', 'reason': 'held'})  # nosec B105 - fixture pending token
     return _Reply({'status': 'ok', 'result': {'ran': True}})
 
 
@@ -449,7 +449,7 @@ def runbook(tmp_path, monkeypatch):
     return 'sweep'
 
 
-def _redeem(client, token='pend-1'):
+def _redeem(client, token='pend-1'):  # nosec B107 - fixture pending token
     return client.post('/api/v1/agent/confirm', base_url=LOCAL, json={'token': token}, headers=_page_headers(client))
 
 
@@ -466,7 +466,7 @@ def test_a_held_runbook_can_be_redeemed_from_the_page(client, world, runbook):
     assert r.status_code == 200 and r.get_json()['result'] == {'ran': True}
     asked, redeemed = [c for c in world.calls if c[0] == 'daemon']
     assert redeemed[1].endswith('/api/v1/agent/confirm')
-    assert json.loads(redeemed[3]) == {'token': 'pend-1'}
+    assert json.loads(redeemed[3]) == {'token': 'pend-1'}  # nosec B105 - fixture pending token
     assert _bearer(asked) == _bearer(redeemed) == 'Bearer ' + next(iter(world.tokens))
 
 
