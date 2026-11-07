@@ -23,6 +23,6 @@ Every outside party this project depends on or sends data to, 2026-10-27. Source
 | Sigstore (Fulcio, Rekor) | keyless release signing, transparency log | the workflow identity of each release | public log | signing key (S-IRON-GATE Phase 13) |
 | CISA | the KEV feed (`cmd/kev-poller`) | feed requests | feed freshness alerts | none needed |
 | Mail relay (configured in `/etc/unheaded/alertmanager.env`, outside git) | delivery of alert mail | alert text, the operator's address | TLS to the relay | another relay |
-| Internet service provider | uplink for west and east | all outbound traffic metadata | edge firewall drops unsolicited inbound (FND-004) | n/a |
+| Internet service provider | uplink for west and east | all outbound traffic metadata | edge firewall is held to drop unsolicited inbound, untested from outside until FND-004 closes | n/a |
 
 Review with the policy each year, and when a supplier is added: a new image, tool, model source, or any service that receives data.

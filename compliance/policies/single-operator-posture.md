@@ -35,7 +35,7 @@ These make one person's actions recorded, attributable and hard to undo quietly.
 | Append-only journals | `audit_events`, `service_health_transitions` and the compliance history tables refuse UPDATE, DELETE and TRUNCATE for every role (migrations 014, 015, 016); host fixes are journalled with undo (`unheaded-remediate`). The table journals live in the Well, which is stopped, and their triggers have not been read on a live Well since it stopped; UH-REMED-01 fails on east | UH-REMED-01 |
 | Ledgered migrations | every schema change is a reviewed file in `db/migrations/` with a ledger row | (ADR-101) |
 | Exceptions with an end date | accepted findings carry an `until` at most 90 days out and still count as open | ADR-098 register |
-| The owner pushes | agents commit and do not push, by rule, not by any technical stop. There is no agent key: Claude Code agents' commits are signed with Stevie's key and carry `Co-Authored-By` and `Claude-Session` trailers, so the trailers, not the signature, say an agent wrote the change (risk strategy A1, FND-038). Attestations are Stevie's alone, by rule | (practice) |
+| The owner pushes | agents commit and do not push, by rule, not by any technical stop. There is no agent key: Claude Code agents' commits are signed with Stevie's key and carry `Co-Authored-By` and `Claude-Session` trailers, so the trailers, not the signature, say an agent wrote the change (risk strategy A1, FND-038). Attestations are Stevie's alone, by rule: `sign-attestation.sh` checks the git identity and that signing works, which an agent session also passes, so nothing technical stops an agent (FND-038) | (practice) |
 
 ## When this changes
 

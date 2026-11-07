@@ -11,7 +11,7 @@ A release is cut by pushing a tag `vX.Y.Z` (pre-releases `vX.Y.Z-alpha`, `-beta`
 2. **ebpf**: every eBPF object (nightly Rust, `bpf-linker`, `bpfel-unknown-none`), the same recipe as `ebpf.yml`.
 3. **release**: `checksums.txt` (sha256 of every file), a CycloneDX SBOM (pinned syft), a keyless cosign signature for every file (`<file>.sigstore.json`), the SBOM attested against `checksums.txt`, GitHub build provenance for every file, then the GitHub release. Only this job holds `contents`, `id-token` and `attestations` write.
 
-A version bump fails until `sbom/` is regenerated. The version is the top of `debian/changelog`; the default in `scripts/build-all-debs.sh` and the tag must match it, and `sbom/VERSION` must too. Only a full run of `scripts/generate-sbom.sh` writes that file.
+A version bump fails until `sbom/` is regenerated. The version is the top of `debian/changelog`; the default in `scripts/build-all-debs.sh` and the tag must match it, and `sbom/VERSION` must too. A full run of `scripts/generate-sbom.sh` writes that file. It is a stamp: the gate catches a bump nobody regenerated for, and cannot tell a full run from a hand edit.
 
 Keyless means no signing key exists to leak: each signature carries a short-lived certificate that names the workflow and the tag that ran it, and a Rekor transparency-log entry.
 

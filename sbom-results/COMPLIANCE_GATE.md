@@ -1,5 +1,7 @@
 # Unheaded Kingdom S72 Compliance Gate
 
+**Superseded by `sbom/SBOM.md`.** This is a dated document, kept as it was. Its counts and license verdicts are not current, and where the two disagree `sbom/SBOM.md` is right.
+
 **Phase:** 8 (SBOM Generation & Compliance)
 **Status:** IMPLEMENTED
 **Date:** 2026-02-27

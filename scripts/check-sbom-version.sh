@@ -4,9 +4,10 @@
 #
 # A version bump fails until sbom/ is regenerated (Stevie, 2026-11-06). The
 # version is the top of debian/changelog; scripts/build-all-debs.sh's default
-# and a release tag must say the same. sbom/VERSION is written only by a full
-# run of scripts/generate-sbom.sh, so it names the version the inventory was
-# made for.
+# and a release tag must say the same. scripts/generate-sbom.sh writes
+# sbom/VERSION on a full run, so a bump with no run fails here. The file is a
+# stamp: this gate cannot tell a full run from a hand edit, and the first stamp
+# (0.2.0~alpha) was seeded by hand for the inventory then committed.
 #
 #   scripts/check-sbom-version.sh            changelog, debs and sbom/ agree
 #   scripts/check-sbom-version.sh v1.2.0     and so does this tag (Debian form:

@@ -850,7 +850,7 @@ Doom lives in `unheaded-doom` since 2026-11-04 (DP-305): runner, demos, docs, ru
 - S-PQC: SLH-DSA (FIPS 205) implemented via cloudflare/circl v1.6.3, 60 PQC tests passing
 - UPC Dream Ladder: All Level 4 OS primitives + Level 5 boot + Level 6 arch/mbc (37 files)
 - The Well: PostgreSQL 16 on west (3 databases: unheaded_app/ops/config; least-privilege login roles + a NOLOGIN owner per DB; TLS 1.3 only; migrations via cmd/well-migrate; nightly backups on the other disk + east while the Well runs; `host-probe:west:db-backup-recent` says whether they are current). Where everything lives: `wiki/The-Well.md`, `wiki/Well-Backups.md`
-- SBOM: 553 dependencies audited, GPL boundary clean, SPDX checks integrated
+- SBOM: generated inventory in `sbom/` (`scripts/generate-sbom.sh`), verdict in `sbom/SBOM.md` (today REVIEW, with licenses still to read); SPDX checks integrated
 - CI/CD: GHA + Jenkins hardened, SPDX checks; run `make install-hooks` to install the local pre-commit hook (gofmt + go vet on staged changes)
 - S-WEST: Bootstrap complete (kernel 6.17.0-19, 0 failed services)
 - All 4 P1 bugs fixed (#20 Nix TLS, #36 log forwarding, #29 Kanban logging, E2E smoke)
@@ -1211,7 +1211,7 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | unheaded-auth | 19020 | HTTP(S) | Built-in OIDC issuer (ADR-103): login, JWKS, discovery; uid 16735 |
 | sword | 19011 | HTTP | Deploy service through Cuirass (was Canary's port; Canary folded into Sword), uid 16746 |
 | chaos-controller | 19012 | HTTP | Yaldabaoth chaos engine (ADR-107), host unit as `unheaded-chaos` uid 16763, west and east; reachable only from loopback and the peer host (`unheaded-chaos-guard.service`, `deploy/nftables/chaos-guard-*.nft`) |
-| apt repo | 18888 | HTTP | Signed apt repo (reprepro, nginx): `deploy/nginx/unheaded-apt.conf` listens on 127.0.0.1, 192.168.13.2 and the LAN address (Stevie 2026-11-03); on west the move to it is FND-026 |
+| apt repo | 18888 | HTTP | Apt repo (reprepro, nginx), signed once FND-026's move is done: `deploy/nginx/unheaded-apt.conf` listens on 127.0.0.1, 192.168.13.2 and the LAN address (Stevie 2026-11-03); on west the move to it is FND-026 |
 | heimdall-daemon /metrics | 19101 | HTTP | Drift detection metrics (loopback default, `-metrics-addr`) |
 | kev-poller | 19120 | HTTP | CISA KEV feed poller (ADR-055) |
 | alert-mailer | 19130 | HTTP | Alertmanager webhook to mail |
