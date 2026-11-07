@@ -61,6 +61,9 @@ func IsCorpusText(c Chunk) bool {
 	return false
 }
 
+// stixDir is where a corpus keeps its STIX bundles.
+const stixDir = "mitre-attck/"
+
 // maxCorpusFile bounds one read; a whole ATT&CK bundle fits with room to spare.
 const maxCorpusFile = 256 << 20
 
@@ -291,16 +294,30 @@ func ChunkSTIX(file string, src []byte, blob string) ([]Chunk, error) {
 	return out, nil
 }
 
-func chunkCorpusFile(file string, src []byte, blob string) ([]Chunk, error) {
+// corpusLanguage is how file is indexed, or "" when it is not. Only the bundle
+// directory's JSON is STIX: JSON elsewhere is some other project's data.
+func corpusLanguage(file string) string {
 	switch strings.ToLower(path.Ext(file)) {
 	case ".md":
-		return ChunkMarkdown(file, src, blob), nil
+		return LanguageMarkdown
 	case ".txt", ".yaml", ".yml", ".toml", ".nix":
-		return ChunkText(file, src, blob), nil
+		return LanguageText
 	case ".json":
+		if strings.HasPrefix(file, stixDir) {
+			return LanguageSTIX
+		}
+	}
+	return ""
+}
+
+func chunkCorpusFile(language, file string, src []byte, blob string) ([]Chunk, error) {
+	switch language {
+	case LanguageMarkdown:
+		return ChunkMarkdown(file, src, blob), nil
+	case LanguageSTIX:
 		return ChunkSTIX(file, src, blob)
 	}
-	return nil, nil
+	return ChunkText(file, src, blob), nil
 }
 
 func readCapped(r io.Reader, limit int64) ([]byte, error) {
@@ -326,9 +343,11 @@ func readCorpusFile(fsys fs.FS, file string) ([]byte, error) {
 // BuildCorpus indexes the plain files under root into dir: no git, no model,
 // no network, so it runs on an air-gapped host. Regular files only: a symlink
 // is not followed and a dot directory (a Python venv, say) is not entered.
-// Head is a digest of every indexed path and its content. A file that cannot
-// be read, a corpus with nothing in it or a cancelled ctx saves nothing, and
-// the index already in dir keeps serving.
+// A file of a kind it does not index is never opened, so however large or
+// broken, it cannot stop the build. Head is a digest of every indexed path and
+// its content. An indexed file that cannot be read or parsed, a corpus with
+// nothing in it or a cancelled ctx saves nothing, and the index already in dir
+// keeps serving.
 func BuildCorpus(ctx context.Context, root, dir string) (Stats, error) {
 	var st Stats
 	r, err := os.OpenRoot(root)
@@ -355,13 +374,17 @@ func BuildCorpus(ctx context.Context, root, dir string) (Stats, error) {
 		if !d.Type().IsRegular() {
 			return nil
 		}
+		language := corpusLanguage(file)
+		if language == "" {
+			return nil
+		}
 		src, err := readCorpusFile(fsys, file)
 		if err != nil {
 			return fmt.Errorf("%s: %w", file, err)
 		}
 		sum := sha256.Sum256(src)
 		blob := hex.EncodeToString(sum[:])
-		chunks, err := chunkCorpusFile(file, src, blob)
+		chunks, err := chunkCorpusFile(language, file, src, blob)
 		if err != nil {
 			return fmt.Errorf("%s: %w", file, err)
 		}

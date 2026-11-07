@@ -33,12 +33,12 @@ func NewCorpusBackend(store *codeindex.Store) *CorpusBackend {
 // Name labels the backend.
 func (c *CorpusBackend) Name() string { return corpusBackendName }
 
-// Retrieve returns the k best chunks, and past them every external one without
-// text. codeindex.CorpusTrust decides which is which: "local" text is the
-// project's, like the source shard; "external" text reaches the model and never
-// justifies a write.
+// Retrieve returns the k best chunks for query's keywords, and past them every
+// external one without text. codeindex.CorpusTrust decides which is which:
+// "local" text is the project's, like the source shard; "external" text reaches
+// the model and never justifies a write.
 func (c *CorpusBackend) Retrieve(_ context.Context, query string, k int) ([]champion.Reference, []agent.TopicContent, error) {
-	return retrieveShard(c.store, "corpus index", query, k, func(ch codeindex.Chunk) champion.Reference {
+	return retrieveShard(c.store, "corpus index", codeindex.Keywords(query), k, func(ch codeindex.Chunk) champion.Reference {
 		trust := codeindex.CorpusTrust(ch)
 		kind := "user-custom"
 		if !champion.TrustedSourceLabels[trust] {

@@ -274,3 +274,18 @@ func TestCodeBackend_CorpusTextIsNeverLocal(t *testing.T) {
 		}
 	}
 }
+
+// A whole question scores on its real terms: "what is the" sits in nearly every
+// chunk and must not outrank the one chunk that holds the word asked about.
+func TestCorpus_FillerWordsDoNotRank(t *testing.T) {
+	root := t.TempDir()
+	writeCorpusFile(t, root, "kingdom-docs/a.md", "# Filler\nwhat is the way this is done\n")
+	writeCorpusFile(t, root, "kingdom-docs/b.md", "# Real\nquartzmoth\n")
+	refs, contents, err := buildCorpus(t, root).Retrieve(context.Background(), "what is the quartzmoth", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].SourcePath != "kingdom-docs/b.md" || contents[0].Score != 1 {
+		t.Fatalf("refs %+v, texts %+v", refs, contents)
+	}
+}

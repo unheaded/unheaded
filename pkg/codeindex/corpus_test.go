@@ -282,6 +282,81 @@ func TestBuildCorpus_FailureLeavesTheLastIndex(t *testing.T) {
 	}
 }
 
+// Data the index will never use cannot take out the search over what it does
+// use: NVD feeds, an old vector store, the binary and the index itself all sit
+// under the corpus root.
+func TestBuildCorpus_FilesItNeverIndexesCannotFailIt(t *testing.T) {
+	root, out := t.TempDir(), t.TempDir()
+	writeTree(t, root, map[string]string{
+		"threat-models/a.md":   "# Wire\nquartzmoth\n",
+		"mitre-attck/s.json":   sample(t),
+		"nvd-cves/feed.json":   `{"CVE_Items":[{"cve":"half a fil`,
+		"cwe/catalog.json":     sample(t),
+		"index/index-a.json":   `{"chunks":[`,
+		"rag/chroma.db":        "",
+		"nvd-cves/whole.xml":   "",
+		"threat-models/b.json": `{"unfinished":`,
+	})
+	for _, big := range []string{"rag/chroma.db", "nvd-cves/whole.xml"} {
+		if err := os.Truncate(filepath.Join(root, big), maxCorpusFile+1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	st, err := BuildCorpus(context.Background(), root, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Files != 2 {
+		t.Fatalf("stats %+v", st)
+	}
+	ix, err := Load(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for file := range ix.Files {
+		if file != "threat-models/a.md" && file != "mitre-attck/s.json" {
+			t.Errorf("%s reached the index", file)
+		}
+	}
+}
+
+// A corpus file of a kind the index does use still fails the build when it
+// cannot be read: only what is never indexed is left unread.
+func TestBuildCorpus_AnIndexedFileTooLargeStopsIt(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{"threat-models/a.md": "# Wire\n", "mitre-attck/s.json": ""})
+	if err := os.Truncate(filepath.Join(root, "mitre-attck/s.json"), maxCorpusFile+1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BuildCorpus(context.Background(), root, t.TempDir()); err == nil || !strings.Contains(err.Error(), "mitre-attck/s.json") {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestCorpusTrust_STIXIsNeverLocal(t *testing.T) {
+	c := Chunk{Path: "threat-models/bundle.json", Language: LanguageSTIX}
+	if got := CorpusTrust(c); got != "external" {
+		t.Fatalf("trust %q", got)
+	}
+}
+
+func TestKeywords(t *testing.T) {
+	for query, want := range map[string]string{
+		"what is the quartzmoth?":  "quartzmoth",
+		"What's T1566.001 and how": "t1566 001",
+		"how do it's parts fit":    "parts fit",
+		"Rogue BPF Program":        "rogue bpf program",
+		"x509 of ADR-057":          "x509 adr 057",
+		"the":                      "the",
+		"what is it":               "what is it",
+		"":                         "",
+	} {
+		if got := Keywords(query); got != want {
+			t.Errorf("%q: %q, want %q", query, got, want)
+		}
+	}
+}
+
 func TestBuildCorpus_MissingRoot(t *testing.T) {
 	if _, err := BuildCorpus(context.Background(), filepath.Join(t.TempDir(), "no"), t.TempDir()); err == nil {
 		t.Fatal("no error")
@@ -297,9 +372,9 @@ func TestReadCapped(t *testing.T) {
 	}
 }
 
-// The Grimoire's VM is air-gapped: the code that builds and searches its index
-// must have no way to the network, and this holds that from outside the code.
-func TestNoNetworkInTheBuild(t *testing.T) {
+// The Grimoire's VM is air-gapped: this package must have no way to the network.
+// cmd/zhen-codeindex holds the same of the whole binary.
+func TestCodeindex_ImportsNoNetwork(t *testing.T) {
 	out, err := exec.Command("go", "list", "-deps", ".").CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list: %v: %s", err, out)

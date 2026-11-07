@@ -6,9 +6,10 @@
 // while one is going exits 0 and does nothing; the next commit catches up.
 //
 // With --corpus it indexes plain files instead, for the Grimoire's threat
-// models and MITRE ATT&CK data (DP-719), and --search answers from that index
-// through pkg/retrieval. Both read files and nothing else, so they run on the
-// Grimoire's air-gapped VM. The corpus keeps its own --out, away from the shard.
+// models and MITRE ATT&CK data (DP-719), and --search answers from that index.
+// Both read files and nothing else, and the binary links no network code, so
+// they run on the Grimoire's air-gapped VM. The corpus keeps its own --out, away
+// from the shard.
 package main
 
 import (
@@ -25,7 +26,6 @@ import (
 
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/codeindex"
-	"unheaded/pkg/retrieval"
 )
 
 // defaultOut is the source shard. Only a repository refresh writes it.
@@ -54,7 +54,7 @@ func main() {
 	if err == nil {
 		switch {
 		case *search != "":
-			err = runSearch(ctx, *out, *search, *topK, os.Stdout)
+			err = runSearch(*out, *search, *topK, os.Stdout)
 		case *corpus != "":
 			err = runCorpus(ctx, *corpus, *out, os.Stdout)
 		default:
@@ -116,22 +116,19 @@ type searchOutput struct {
 	Results []searchResult `json:"results"`
 }
 
-// runSearch prints the k best chunks of the corpus index in dir as JSON. A
-// missing index is an error here: the caller asked for this corpus by path.
-func runSearch(ctx context.Context, dir, query string, k int, stdout io.Writer) error {
-	store := codeindex.NewStore(dir)
-	if _, err := store.Get(); err != nil {
+// runSearch prints the k best chunks of the corpus index in dir as JSON, with
+// the trust pkg/retrieval gives them. A missing index is an error here: the
+// caller asked for this corpus by path.
+func runSearch(dir, query string, k int, stdout io.Writer) error {
+	ix, err := codeindex.Load(dir)
+	if err != nil {
 		return fmt.Errorf("no corpus index at %s, build one with --corpus: %w", dir, err)
 	}
-	backends := []retrieval.Backend{retrieval.NewCorpusBackend(store)}
-	_, contents, err := retrieval.New(backends, 0, nil).Retrieve(ctx, query, k)
-	if err != nil {
-		return err
-	}
-	res := searchOutput{Query: query, Results: make([]searchResult, 0, len(contents))}
-	for _, c := range contents {
+	hits := ix.Search(codeindex.Keywords(query), k)
+	res := searchOutput{Query: query, Results: make([]searchResult, 0, len(hits))}
+	for _, h := range hits {
 		res.Results = append(res.Results, searchResult{
-			ID: c.Ref.Topic, Source: c.Ref.SourcePath, Trust: c.Ref.SourceTrust, Score: c.Score, Content: c.Content,
+			ID: h.Chunk.ID, Source: h.Chunk.Path, Trust: codeindex.CorpusTrust(h.Chunk), Score: h.Score, Content: h.Chunk.Content,
 		})
 	}
 	return json.NewEncoder(stdout).Encode(res)

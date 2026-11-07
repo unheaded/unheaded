@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +22,7 @@ const keptCorpus = "../../tomb/grimoire"
 func searchResults(t *testing.T, dir, query string, k int) searchOutput {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := runSearch(context.Background(), dir, query, k, &buf); err != nil {
+	if err := runSearch(dir, query, k, &buf); err != nil {
 		t.Fatal(err)
 	}
 	var got searchOutput
@@ -52,7 +53,7 @@ func TestCorpusThenSearch(t *testing.T) {
 }
 
 func TestSearch_NoIndexIsAnError(t *testing.T) {
-	err := runSearch(context.Background(), filepath.Join(t.TempDir(), "none"), "x", 5, &bytes.Buffer{})
+	err := runSearch(filepath.Join(t.TempDir(), "none"), "x", 5, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "--corpus") {
 		t.Fatalf("err %v", err)
 	}
@@ -64,7 +65,7 @@ func TestSearch_NothingFoundIsAnEmptyList(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if err := runSearch(context.Background(), dir, "zzzqqqzzz", 5, &buf); err != nil {
+	if err := runSearch(dir, "zzzqqqzzz", 5, &buf); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), `"results":[]`) {
@@ -91,6 +92,53 @@ func TestCorpusModesNeedTheirOwnIndex(t *testing.T) {
 		if err := checkModes(tc.corpus, tc.search, tc.out); (err == nil) != tc.ok {
 			t.Errorf("%+v: %v", tc, err)
 		}
+	}
+}
+
+// The binary ships to an air-gapped VM. Nothing it links can open a connection,
+// and this runs wherever go does, where the namespace test below may have to skip.
+func TestBinary_LinksNoNetwork(t *testing.T) {
+	out, err := exec.Command("go", "list", "-deps", ".").CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list: %v: %s", err, out)
+	}
+	deps := strings.Fields(string(out))
+	for _, dep := range deps {
+		if dep == "net" || strings.HasPrefix(dep, "net/") || dep == "crypto/tls" {
+			t.Errorf("zhen-codeindex links %s", dep)
+		}
+	}
+	if !slices.Contains(deps, "unheaded/pkg/codeindex") {
+		t.Fatalf("go list gave no real answer: %s", out)
+	}
+}
+
+// The search prints the same trust the agent's gate reads, and a whole question
+// finds the chunk that holds its real term.
+func TestSearch_TrustAndFillerWords(t *testing.T) {
+	root := t.TempDir()
+	for file, body := range map[string]string{
+		"threat-models/a.md":    "# Own\nquartzmoth\n",
+		"mitre-attck/README.md": "# Theirs\nlanternfish\n",
+		"threat-models/b.md":    "# Filler\nwhat is the way this is done\n",
+	} {
+		full := filepath.Join(root, file)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dir := filepath.Join(t.TempDir(), "index")
+	if err := runCorpus(context.Background(), root, dir, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := searchResults(t, dir, "what is the quartzmoth", 5); len(got.Results) != 1 || got.Results[0].Trust != "local" {
+		t.Fatalf("%+v", got)
+	}
+	if got := searchResults(t, dir, "lanternfish", 5); len(got.Results) != 1 || got.Results[0].Trust != "external" {
+		t.Fatalf("%+v", got)
 	}
 }
 
