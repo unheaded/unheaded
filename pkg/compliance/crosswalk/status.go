@@ -27,7 +27,11 @@ type Record struct {
 type Status string
 
 const (
-	StatusPass        Status = "PASS"
+	StatusPass Status = "PASS"
+	// StatusDeclared: the sources pass, and what they read is configuration in
+	// the repository, not a running system. It says the file is right, not
+	// that anything runs that way, so it never counts as PASS (FND-037).
+	StatusDeclared    Status = "DECLARED"
 	StatusFail        Status = "FAIL"
 	StatusStale       Status = "STALE"
 	StatusNotAssessed Status = "NOT_ASSESSED"
@@ -41,6 +45,9 @@ const (
 	// says the evidence supports the requirement, not that an auditor would
 	// find it satisfied: a mapping covers part of a requirement at most.
 	ReqEvidenced ReqStatus = "EVIDENCED"
+	// ReqDeclared: nothing failing or missing, but at least one mapped control
+	// reads declared configuration, so nothing shows that it runs that way.
+	ReqDeclared ReqStatus = "DECLARED"
 	// ReqFailing: at least one mapped control fails.
 	ReqFailing ReqStatus = "FAILING"
 	// ReqIncomplete: mapped, nothing failing, but some mapped control is
@@ -56,6 +63,8 @@ const (
 // FAIL beats everything, including staleness: an old failure is not
 // evidence of a fix. Otherwise a source without a record makes the control
 // NOT_ASSESSED, and a latest pass older than FreshnessDays makes it STALE.
+// What is left is PASS, or DECLARED for a control that reads declared
+// configuration.
 func ControlStatus(ctl *Control, recs []Record, now time.Time) Status {
 	latest := make(map[string]Record, len(ctl.Evidence))
 	want := make(map[string]bool, len(ctl.Evidence))
@@ -93,6 +102,8 @@ func ControlStatus(ctl *Control, recs []Record, now time.Time) Status {
 		return StatusNotAssessed
 	case stale:
 		return StatusStale
+	case ctl.Declared != "":
+		return StatusDeclared
 	default:
 		return StatusPass
 	}
@@ -129,7 +140,8 @@ type Summary struct {
 // Summarize evaluates every control, then every requirement of every
 // framework in catalog order. A requirement's contributors are the controls
 // mapping it and the individual sources mapping it; it is EVIDENCED only
-// when every contributor passes.
+// when every contributor passes, and DECLARED when the only thing short of
+// that is a contributor that reads declared configuration.
 func Summarize(c *Catalog, recs []Record, now time.Time) *Summary {
 	s := &Summary{At: now, Controls: make(map[string]Status, len(c.Controls))}
 	mappedBy := make(map[string]map[string][]string)  // framework -> requirement -> controls
@@ -152,7 +164,7 @@ func Summarize(c *Catalog, recs []Record, now time.Time) *Summary {
 			if len(src.Maps) == 0 {
 				continue
 			}
-			one := &Control{ID: ctl.ID, FreshnessDays: ctl.FreshnessDays, Evidence: []EvidenceSource{{Source: src.Source}}}
+			one := &Control{ID: ctl.ID, FreshnessDays: ctl.FreshnessDays, Declared: ctl.Declared, Evidence: []EvidenceSource{{Source: src.Source}}}
 			st := ControlStatus(one, recs, now)
 			if prev, ok := srcStatus[src.Key()]; !ok || worse(st, prev) {
 				srcStatus[src.Key()] = st
@@ -169,7 +181,7 @@ func Summarize(c *Catalog, recs []Record, now time.Time) *Summary {
 		fs := &FrameworkSummary{
 			ID: fw.ID, Name: fw.Name, Version: fw.Version, Granularity: fw.Granularity, Source: fw.Source,
 			Total:  len(fw.Requirements),
-			Counts: map[ReqStatus]int{ReqEvidenced: 0, ReqFailing: 0, ReqIncomplete: 0, ReqUnmapped: 0},
+			Counts: map[ReqStatus]int{ReqEvidenced: 0, ReqDeclared: 0, ReqFailing: 0, ReqIncomplete: 0, ReqUnmapped: 0},
 		}
 		for _, req := range fw.Requirements {
 			ctls := mappedBy[fw.ID][req.ID]
@@ -191,9 +203,9 @@ func Summarize(c *Catalog, recs []Record, now time.Time) *Summary {
 }
 
 // worse orders statuses for a source listed by several controls with
-// different windows: FAIL, then NOT_ASSESSED, STALE, PASS.
+// different windows: FAIL, then NOT_ASSESSED, STALE, DECLARED, PASS.
 func worse(a, b Status) bool {
-	rank := map[Status]int{StatusFail: 0, StatusNotAssessed: 1, StatusStale: 2, StatusPass: 3}
+	rank := map[Status]int{StatusFail: 0, StatusNotAssessed: 1, StatusStale: 2, StatusDeclared: 3, StatusPass: 4}
 	return rank[a] < rank[b]
 }
 
@@ -201,18 +213,24 @@ func requirementStatus(sts []Status) ReqStatus {
 	if len(sts) == 0 {
 		return ReqUnmapped
 	}
-	all := true
+	all, declared := true, false
 	for _, st := range sts {
 		switch st {
 		case StatusFail:
 			return ReqFailing
 		case StatusPass:
+		case StatusDeclared:
+			declared = true
 		default:
 			all = false
 		}
 	}
-	if all {
+	switch {
+	case !all:
+		return ReqIncomplete
+	case declared:
+		return ReqDeclared
+	default:
 		return ReqEvidenced
 	}
-	return ReqIncomplete
 }

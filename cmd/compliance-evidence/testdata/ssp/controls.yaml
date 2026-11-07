@@ -34,3 +34,14 @@ controls:
       - {kind: attestation, ref: compliance/attestations/policy.yaml}
     mappings:
       fx-b: [B.2]
+
+  - id: UH-FX-04
+    title: Services require authentication
+    statement: >-
+      Every service in the compose file turns authentication on.
+    declared: reads the compose file, not a running service
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/check-d.sh}
+    mappings:
+      fx-a: [A-4]

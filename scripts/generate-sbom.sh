@@ -27,6 +27,8 @@
 #   sbom/javascript-dependencies.json -- CDN-loaded files the HTML pages name
 #   sbom/SBOM.md                  -- Human-readable summary of the above,
 #       written last, so its numbers are theirs (scripts/test-generate-sbom.sh)
+#   sbom/VERSION                  -- the version of debian/changelog this run
+#       was made for; only a full run writes it (scripts/check-sbom-version.sh)
 
 set -euo pipefail
 
@@ -140,6 +142,11 @@ python3 "$SCRIPT_DIR/lib/sbom_licenses.py" javascript "$TODAY" "$PROJECT_ROOT" "
 echo "[5/5] Writing the report..."
 
 write_report
+
+# The version this inventory was made for. Written here and not by
+# --report-only, so scripts/check-sbom-version.sh fails until a full run.
+sed -nE '1s/^unheaded \(([^)]+)\) .*/\1/p' "$PROJECT_ROOT/debian/changelog" > "$SBOM_DIR/VERSION"
+[ -s "$SBOM_DIR/VERSION" ] || { echo "no version in debian/changelog" >&2; exit 1; }
 
 echo ""
 echo "Output files:"

@@ -110,16 +110,15 @@ type Violation struct {
 
 // ComplianceScore represents the overall compliance posture.
 type ComplianceScore struct {
-	TotalPackets      int64   `json:"total_packets"`
-	Allowed           int64   `json:"allowed"`
-	Blocked           int64   `json:"blocked"`
-	Violations        int64   `json:"violations"`
-	AuditCompleteness float64 `json:"audit_completeness"` // 0.0-1.0
-	ViolationRate     float64 `json:"violation_rate"`     // violations per total
-	ScorePct          float64 `json:"score_pct"`          // overall percentage
-	// NoData is true until a packet has been evaluated. ScorePct and
-	// AuditCompleteness are then 0, not 100: an empty plane proves nothing,
-	// and evidence must be able to fail (ADR-097).
+	TotalPackets  int64   `json:"total_packets"`
+	Allowed       int64   `json:"allowed"`
+	Blocked       int64   `json:"blocked"`
+	Violations    int64   `json:"violations"`
+	ViolationRate float64 `json:"violation_rate"` // violations per total
+	ScorePct      float64 `json:"score_pct"`      // overall percentage
+	// NoData is true until a packet has been evaluated. ScorePct is then 0,
+	// not 100: an empty plane proves nothing, and evidence must be able to
+	// fail (ADR-097).
 	NoData bool `json:"no_data"`
 }
 
@@ -176,7 +175,6 @@ type WireComplianceService struct {
 	policies   map[string]*ServicePolicy // "src->dst" -> policy
 	violations []Violation               // violation store
 	auditLog   []AuditEntry              // audit trail, newest MaxAuditEntries
-	auditTotal int64                     // audit records ever seen; the list trims, this does not
 	zones      map[string]*GeoZone       // zone_id -> zone
 	score      ComplianceScore           // running score
 
@@ -636,7 +634,6 @@ func (s *WireComplianceService) aggregateViolations(_ context.Context) {
 	if totalPackets == 0 {
 		s.score.NoData = true
 		s.score.ScorePct = 0
-		s.score.AuditCompleteness = 0
 		return
 	}
 	s.score.NoData = false
@@ -649,15 +646,6 @@ func (s *WireComplianceService) aggregateViolations(_ context.Context) {
 		s.score.ScorePct = (1.0 - s.score.ViolationRate) * 100.0
 		if s.score.ScorePct < 0 {
 			s.score.ScorePct = 0
-		}
-	}
-
-	// Audit completeness: audit records ever seen against total packets.
-	// Counted, not read off the list: the list trims at MaxAuditEntries.
-	if totalPackets > 0 {
-		s.score.AuditCompleteness = float64(s.auditTotal) / float64(totalPackets)
-		if s.score.AuditCompleteness > 1.0 {
-			s.score.AuditCompleteness = 1.0
 		}
 	}
 
@@ -715,11 +703,9 @@ func (s *WireComplianceService) RecordViolation(v Violation) {
 	})
 }
 
-// appendAudit keeps the newest MaxAuditEntries entries and counts every one.
-// The caller holds s.mu.
+// appendAudit keeps the newest MaxAuditEntries entries. The caller holds s.mu.
 func (s *WireComplianceService) appendAudit(e AuditEntry) {
 	s.auditLog = append(s.auditLog, e)
-	s.auditTotal++
 	if over := len(s.auditLog) - s.config.MaxAuditEntries; over > 0 && s.config.MaxAuditEntries > 0 {
 		s.auditLog = s.auditLog[over:]
 	}

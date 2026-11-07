@@ -524,5 +524,35 @@ ok "the committed SBOM.md matches its detail files (scripts/generate-sbom.sh --r
 
 ok "the full run writes it too" grep -qE '^write_report$' "$REPO_ROOT/scripts/generate-sbom.sh"
 
+# A version bump fails until sbom/ is regenerated (Stevie, 2026-11-06). Only the
+# full run writes sbom/VERSION, so --report-only cannot clear the gate.
+V="$T/version-tree"
+mkdir -p "$V/scripts" "$V/debian" "$V/sbom"
+cp "$REPO_ROOT/scripts/check-sbom-version.sh" "$V/scripts/" 2>/dev/null
+printf 'unheaded (1.2.0~alpha) unheaded; urgency=medium\n' >"$V/debian/changelog"
+printf '    VERSION="1.2.0~alpha+$(date +%%s)"\n' >"$V/scripts/build-all-debs.sh"
+printf '1.2.0~alpha\n' >"$V/sbom/VERSION"
+ok "the version gate passes when sbom/ was made for this version" "$V/scripts/check-sbom-version.sh"
+ok "and for the tag of that version" "$V/scripts/check-sbom-version.sh" v1.2.0-alpha
+not_ok() { # not_ok DESC COMMAND...
+	local desc=$1
+	shift
+	if "$@" >/dev/null 2>&1; then printf '[FAIL] %s\n' "$desc"; fail=1; else printf '[ok] %s\n' "$desc"; fi
+}
+not_ok "a tag for another version fails" "$V/scripts/check-sbom-version.sh" v1.3.0
+not_ok "a tag that is not one fails" "$V/scripts/check-sbom-version.sh" 1.2.0-alpha
+printf 'unheaded (1.3.0) unheaded; urgency=medium\n' >"$V/debian/changelog"
+not_ok "a changelog bump alone fails" "$V/scripts/check-sbom-version.sh"
+printf 'unheaded (1.2.0~alpha) unheaded; urgency=medium\n' >"$V/debian/changelog"
+printf '    VERSION="1.3.0+$(date +%%s)"\n' >"$V/scripts/build-all-debs.sh"
+not_ok "a bump of the debs' default alone fails" "$V/scripts/check-sbom-version.sh"
+printf '    VERSION="1.2.0~alpha+$(date +%%s)"\n' >"$V/scripts/build-all-debs.sh"
+rm "$V/sbom/VERSION"
+not_ok "no sbom/VERSION fails" "$V/scripts/check-sbom-version.sh"
+ok "the committed sbom/ is current for this version" "$REPO_ROOT/scripts/check-sbom-version.sh"
+ok "--report-only does not stamp the version" sh -c '! grep -q "VERSION" "$1"' sh <(sed -n '/--report-only" \]/,/^fi$/p' "$REPO_ROOT/scripts/generate-sbom.sh")
+ok "the full run stamps it" grep -qx "$(sed -nE '1s/^unheaded \(([^)]+)\) .*/\1/p' "$REPO_ROOT/debian/changelog")" "$F/bare-out/VERSION"
+ok "the release refuses to start without it" grep -q 'scripts/check-sbom-version.sh "$GITHUB_REF_NAME"' "$REPO_ROOT/.github/workflows/release.yml"
+
 [ "$fail" -eq 0 ] || exit 1
 echo "[PASS] sbom/SBOM.md is generated and current"

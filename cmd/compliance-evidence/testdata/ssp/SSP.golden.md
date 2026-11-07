@@ -2,7 +2,7 @@
 
 # System Security Plan
 
-Evaluated 2026-10-27 against `evidence.json`: 3 controls, 2 frameworks.
+Evaluated 2026-10-27 against `evidence.json`: 4 controls, 2 frameworks.
 
 - Risk management strategy (appetite, categorization, criticality): `compliance/policies/risk-management-strategy.md`.
 - Single-operator posture (accepted gaps, compensating controls): `compliance/policies/single-operator-posture.md`.
@@ -15,6 +15,7 @@ A mapping says a control's evidence supports part of a framework requirement. No
 | Control status | Controls |
 |---|---|
 | passing | 1 |
+| declared | 1 |
 | stale | 0 |
 | not assessed | 1 |
 | failing | 1 |
@@ -69,11 +70,27 @@ Mappings:
 
 - fx-b: B.2
 
+### UH-FX-04: Services require authentication
+
+**Status:** DECLARED, evidence as of 2026-10-25
+
+Every service in the compose file turns authentication on.
+
+Declared: reads the compose file, not a running service
+
+Evidence:
+
+- `gate-script:scripts/check-d.sh`: pass 2026-10-25
+
+Mappings:
+
+- fx-a: A-4
+
 ## SoA
 
-Statement of Applicability. Every framework in the catalog is in scope as a mapping target and counted against the publisher's full requirement list; an unmapped requirement is counted, never dropped. Requirement statuses: evidenced (every mapped control passes), failing (a mapped control fails), incomplete (mapped, none failing, some not assessed or stale), unmapped.
+Statement of Applicability. Every framework in the catalog is in scope as a mapping target and counted against the publisher's full requirement list; an unmapped requirement is counted, never dropped. Requirement statuses: evidenced (every mapped control passes), declared (none failing or missing, but a mapped control reads configuration in the repository, not what runs), failing (a mapped control fails), incomplete (mapped, none failing, some not assessed or stale), unmapped.
 
-| Framework | Name | Version | Granularity | Requirements | Evidenced | Failing | Incomplete | Unmapped |
-|---|---|---|---|---|---|---|---|---|
-| fx-a | Fixture Framework A | 1 | controls | 4 | 2 | 1 | 0 | 1 |
-| fx-b | Fixture Framework B | 2 | criteria | 2 | 1 | 0 | 1 | 0 |
+| Framework | Name | Version | Granularity | Requirements | Evidenced | Declared | Failing | Incomplete | Unmapped |
+|---|---|---|---|---|---|---|---|---|---|
+| fx-a | Fixture Framework A | 1 | controls | 4 | 2 | 1 | 1 | 0 | 0 |
+| fx-b | Fixture Framework B | 2 | criteria | 2 | 1 | 0 | 0 | 1 | 0 |

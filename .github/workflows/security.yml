@@ -132,9 +132,9 @@ jobs:
       # this gate protects against NEW leaks today. It may only SHRINK: a new
       # leak is never added to it — rotate the credential and remove the line.
       #
-      # HARD PRE-PUBLIC BLOCKER: the baselined findings must be triaged,
-      # rotated, and (if real) excised from history before this repo goes
-      # public. See docs/security/PRE-PUBLIC-BLOCKERS.md.
+      # The repository is public: every value in history counts as burned, and
+      # each one still in use is rotated at S-E1-LIVE. History is not rewritten.
+      # See docs/security/PRE-PUBLIC-BLOCKERS.md.
       - name: gitleaks (working tree — GATING)
         # Version + sha256 pinned in the script and checked every run (it was
         # curl'd with no checksum); check-tool-freshness.sh keeps it current.

@@ -863,6 +863,15 @@ provoke_generate_sbom() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_sbom_version() {
+    # Contract: a version bump fails until sbom/ is regenerated. Bump it.
+    local f="debian/changelog"
+    backup "${f}"
+    sed -i '1s/^unheaded ([^)]*)/unheaded (99.0.0)/' "${REPO_ROOT}/${f}"
+    grep -q '^unheaded (99.0.0)' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_fetch_tool() {
     # Contract: a binary keeps running while another gate fetches the same
     # tool. Unpack over it in place again.
@@ -1279,6 +1288,7 @@ check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked 
 test-check-gitleaks-history|provoke_gitleaks_history|fast|check-gitleaks.sh --history treating a failed scan as findings (downloads the pinned tool)
 test-check-unit-flags|provoke_unit_flags_relative|fast|check-unit-flags.sh no longer reading relative defaults, so a unit with no working directory passes
 test-check-gates-can-fail|provoke_gates_output|fast|a clean run's output sent back to /dev/null, so an INCONCLUSIVE row names nothing
+check-sbom-version|provoke_sbom_version|fast|debian/changelog bumped with sbom/ left as it was
 test-generate-sbom|provoke_generate_sbom|fast|generate-sbom.sh's full run no longer writing sbom/SBOM.md, as from 2026-03-15
 test-fetch-tool|provoke_fetch_tool|fast|fetch-tool.sh unpacking over the cached binary in place, as it did until 2026-11-05
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)

@@ -14,14 +14,14 @@
 # Exposure assumed below: west and east are reachable from the home LAN and
 # the west-east P2P link only, not from the internet. Unverified (ADR-098
 # open question 4); if it is wrong, several severities rise. West holds a
-# public ISP-assigned IPv6 address (SLAAC) with ip6tables INPUT ACCEPT; Stevie
-# confirmed 2026-09-30 that the ISP edge firewall drops unsolicited inbound
-# (FND-004, closed on his statement). (Addresses are deliberately not written here.)
+# public ISP-assigned IPv6 address; Stevie stated 2026-09-30 that the ISP edge
+# firewall drops unsolicited inbound, and nobody has tested that from outside
+# (FND-004, open). (Addresses are deliberately not written here.)
 
 findings:
   # --- step 1: no host risk ---------------------------------------------
   - id: FND-001
-    title: Alerts reach nobody. Alertmanager routes everything to a receiver named null, and the monitoring stack is not running on west.
+    title: Alert delivery to Stevie is not proven end to end on west.
     verify: a page-urgency SLO alert is delivered to Stevie by alert-mailer in mode send; later a host-probe (alert-route) replaces this entry
     host: west
     severity: high
@@ -52,6 +52,25 @@ findings:
       real SLO page closes this entry; alert-route proves the chain is up, not that a page arrived
     decision: 'SMTP relay: personal Gmail (Stevie 2026-10-27, short-term; Workspace account later). Left dry-run 2026-10-27'
 
+  - id: FND-004
+    title: >-
+      West holds a public IPv6 address, and the claim that nothing outside can reach it rests on a statement, not a test
+    verify: >-
+      from a vantage point outside the home network, west's global IPv6 address answers on no port (or the router's
+      IPv6 inbound firewall is shown to be on), recorded with its date; then this entry closes with that evidence
+    host: west
+    severity: high
+    class: firewall
+    opened: 2026-09-30
+    exposure: >-
+      every risk acceptance that names FND-004 as its compensating control rests on this statement until the test exists
+    lockout: none
+    step: 1
+    plan: >-
+      Closed 2026-09-30 on Stevie's statement that the ISP edge firewall drops unsolicited inbound; ADR-098 records that
+      it was not tested from outside. Reopened 2026-11-06 at Stevie's word, with its original date. One outside probe,
+      recorded, closes it. A probe needs a vantage point outside the home network, so it is not run unattended
+
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
   # --- step 3: auditd -------------------------------------------------------
   # --- step 4: low-risk sshd keys -------------------------------------------
@@ -70,7 +89,7 @@ findings:
     severity: medium
     class: sshd
     opened: 2026-09-30
-    exposure: with PAM this is password login by another name
+    exposure: goes with passwordauthentication on the same host
     lockout: high
     step: 5
     accepted: {reason: "DP-11, Stevie 2026-11-03: there is no laptop key, so east keeps password login beside keys, with fail2ban and a key preferred", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
@@ -84,15 +103,15 @@ findings:
     step: 5
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: >-
-      West has no authorized keys for govan, so keyboard-interactive (PAM password) is the only remote login today. Add Stevie's public key to
-      ~govan/.ssh/authorized_keys, prove a key login, then KbdInteractiveAuthentication no. Stevie has physical access (2026-09-30)
+      Add Stevie's public key to the operator account, prove a key login, then KbdInteractiveAuthentication no. Stevie
+      has physical access (2026-09-30)
 
   # --- step 6: firewall default deny (highest lockout risk) -----------------
   - source: "host-probe:east:firewall-inbound-deny"
     severity: high
     class: firewall
     opened: 2026-09-30
-    exposure: every listener reachable from the LAN and P2P link; compounds the service-auth finding
+    exposure: the inbound ruleset for this host is written and waits for S-E1-LIVE; goes with the service-auth finding
     lockout: high
     step: 6
     plan: >-
@@ -104,7 +123,7 @@ findings:
     severity: high
     class: firewall
     opened: 2026-09-30
-    exposure: 11 of 13 listeners on all addresses
+    exposure: the inbound ruleset for this host is written and waits for S-E1-LIVE, after east
     lockout: high
     step: 6
     plan: >-
@@ -158,16 +177,14 @@ findings:
     title: >-
       Two Linux kernel vulnerabilities on CISA's KEV list (exploited in the wild) are unpatched on west and east, and
       no fixed kernel is coming for the release they run, which left support on 2026-07-09: CVE-2026-53266 (ebtables SNAT out-of-bounds write, KEV 2026-09-18) and
-      CVE-2026-53362 (privilege escalation via the IPv6 stack, KEV 2026-08-27). Both hosts run 6.17.0-41-generic
+      CVE-2026-53362 (privilege escalation via the IPv6 stack, KEV 2026-08-27)
     verify: pro fix CVE-2026-53266 --dry-run and pro fix CVE-2026-53362 --dry-run report "resolved" on west and east
     severity: high
     class: package
     opened: 2026-10-19
     exposure: >-
-      local privilege escalation; needs code already running on the host. West is the wider target: LXD sets
-      kernel.apparmor_restrict_unprivileged_userns=0 at runtime (/run/sysctl.d/zz-lxd.conf), so any local account can
-      make a user namespace and reach netfilter/IPv6 code with CAP_NET_ADMIN there; east keeps Ubuntu's default (1).
-      No ebtables module is loaded on either host (checked 2026-10-19). Found by kev-poller's first pull (ADR-055)
+      local privilege escalation; needs code already running on the host. The stopgap below blocks one of the two
+      (checked 2026-10-19). Found by kev-poller's first pull (ADR-055)
     lockout: none
     step: 3
     plan: >-
@@ -181,8 +198,8 @@ findings:
       /bin/false, a real modprobe fails, no ebt module is loaded; undo dirs under /var/lib/unheaded/remediate/.
       LXD (nftables driver) and Docker unaffected. This entry stays open until a fixed kernel is installed
     decision: >-
-      stopgap applied 2026-10-27; west keeps unprivileged user namespaces open for LXD until an LXD test says
-      closing them is safe (Stevie, decision 6)
+      stopgap applied 2026-10-27; the host setting LXD relies on stays until an LXD test says changing it is safe
+      (Stevie, decision 6)
 
   - id: FND-013
     title: >-
@@ -267,30 +284,28 @@ findings:
       2026-10-27 (S24, E3 granted by Stevie): first live rotation done at 12:23:16Z (handshake within
       seconds, overlay ping 3/3, verify-wireguard 8/8 PASS); wg0.conf backed up to /root on both hosts first;
       east's setup-era /etc/wireguard/preshared.key shredded. Script and units installed on west, timer NOT
-      enabled: the unit runs as root and root on west has no SSH key for east, so enabling it needs a new
-      root key authorized on govan@east (which has passwordless sudo, i.e. root on east). Closes when that
-      trust decision is made and the timer is enabled.
-    decision: 'E3 rotation done 2026-10-27; open: root-on-west SSH key to east for the weekly timer (trust expansion)'
+      enabled: enabling it needs a new key between the hosts, which is a trust decision.
+      Closes when that decision is made and the timer is enabled.
+    decision: 'E3 rotation done 2026-10-27; open: the key the weekly timer needs between the hosts (a trust decision)'
 
   - id: FND-017
     title: >-
       Internal TLS is declared and unproven: compose starts Wotan with --enable-tls and sets UNHEADED_TLS_ENABLED on its
-      services, but no stack has run that way, east's running units are plain HTTP, and chaos-controller, kev-poller,
-      huginn and trace-collector stay plain HTTP off loopback
+      services, but no stack has run that way and not every internal link is on TLS yet
     verify: >-
       compose starts Wotan with -enable-tls and the services dial it over TLS; scripts/probe-tls-groups.sh against
       Wotan's gRPC port negotiates X25519MLKEM768 and refuses an X25519-only offer
     severity: medium
     class: app
     opened: 2026-10-23
-    exposure: readable by anyone on the wire of a plain link; the compose stack is stopped; lab hosts, not internet-facing
+    exposure: a link that is not on TLS yet has no protection in transit; lab hosts, not internet-facing
     lockout: none
     step: 7
     plan: >-
       The ADR-034 / ADR-103 sprint (certificates, distribution, service auth). The code is ready: Wotan gRPC,
       wotan-client and pkg/transport/mtls are hybrid-only TLS 1.3 the day TLS is on (S-QUANTUM-ARMOR Phase 5)
       Progress 2026-10-27 S-IRON-GATE Phase 8 code merged (Strict TLS 1.3 hybrid on every first-party listener and link, per-service dev certs, compose and units on TLS, no plaintext fallback); closes when Steps 264-265 pass in compose and on hosts after E3
-    decision: when to turn TLS on for internal links (accepted as plaintext 2026-09-30 with the edge finding)
+    decision: when to turn TLS on for internal links (accepted 2026-09-30 with the edge finding)
 
   - id: FND-018
     title: >-
@@ -335,8 +350,8 @@ findings:
     class: app
     opened: 2026-09-30
     exposure: >-
-      the source passes on the compose file; running services are the open part (east's April builds set no AUTH_ENABLED
-      and answer without a token, FND-037), so this stays until the check reads what runs
+      the source passes on the compose file; what runs is the open part (FND-037), so this stays until the check reads
+      what runs
     lockout: none
     step: 7
     plan: redeploy east from develop, then a check that reads the deployed services (FND-037)
@@ -407,8 +422,9 @@ findings:
       Hop checks moved from shield-ebpf to hop-ebpf (ADR-125): require_hmac tests that a key exists, not a tag, so what
       was a stub is still no proof of the sender (FND-031)
     verify: >-
-      a lab-netns test with shield-ebpf attached counts checks_run and checks_failed for a flow with and without an
-      HMAC key written by cmd/shield, and the GOAWAY and authority lookups either enforce or are gone from the object
+      tests/hopchecks, run as root against the built hop-ebpf object, counts checks_run and checks_failed for a flow with
+      and without a key written by `unheaded hop rules apply`, and shield-ebpf holds no HOP_VALIDATORS, HMAC_KEYS,
+      RETRY_TOKENS or AUTHORITY map
     severity: medium
     class: app
     opened: 2026-10-28
@@ -422,8 +438,8 @@ findings:
       keys file; the checks run in one bpf_loop in observe mode, enforce behind SHIELD_CONFIG; GOAWAY and authority
       follow the Phase 4 ruling (enforce or delete); docs corrected first, then again when true.
       S-WIRE-HONEST 2026-11-04: moved to hop-ebpf, ADR-125; evidence cd408110: tests/hopchecks fourteen cases,
-      shield-ebpf no longer holds the maps, AUTHORITY gone, hop_xdp 171672 verified insns; closure awaits Stevie's
-      ruling on the verify text.
+      shield-ebpf no longer holds the maps, AUTHORITY gone, hop_xdp 171672 verified insns. 2026-11-06: verify rewritten
+      for hop-ebpf at Stevie's word. Closes on a root run of tests/hopchecks at HEAD; what stays is FND-031's.
 
   - id: FND-031
     title: >-
@@ -447,24 +463,24 @@ findings:
 
   - id: FND-033
     title: >-
-      hop-ebpf enforce mode can be skipped from the wire: a bad CRC, the CHAOS flag, a hop count at CONFIG key 3 or a
-      deploy_ring with no validator each pass the packet unchecked
+      hop-ebpf enforce mode does not cover every packet: four packet classes pass without the hop checks, and which of
+      them stay is unruled
     verify: >-
-      Stevie rules which of the four stay, ADR-125 states each result, and tests/hopchecks holds an enforce case for
-      each one asserting it
+      Stevie rules which of the four ADR-125 lists stay, ADR-125 states each result, and tests/hopchecks holds an
+      enforce case for each one asserting it
     severity: low
     class: app
     opened: 2026-11-04
     exposure: >-
-      hop_xdp returns XDP_PASS for a bad CRC, for CHAOS and at the hop limit before run_checks, and a deploy_ring with
-      no validator runs no check, so whoever writes the Monad decides whether enforce applies. Read from main.rs, not
-      run. Nothing loads hop-ebpf in production and CONFIG key 4 defaults to 0, so no path relies on enforce today.
+      enforce cannot be relied on until the four are ruled. Read from main.rs, not run. Nothing loads hop-ebpf in
+      production and CONFIG key 4 defaults to 0, so no path relies on enforce today.
     lockout: none
     step: 7
     plan: >-
-      Not fixed in S-WIRE-HONEST: ADR-125 sets the order (after the hop-limit guard), the CRC fail-open and the chaos
-      guard predate it, and a default for an unmatched ring is a new rule. Moving run_checks changes hop_xdp's verified
-      count and needs a root test run. Found by Step 125's security read.
+      Not fixed in S-WIRE-HONEST: ADR-125 lists the four and sets the order, and a default for one of them is a new
+      rule. Moving run_checks changes hop_xdp's verified count and needs a root test run. Found by Step 125's security
+      read. 2026-11-07: enforce is refused in the writer, `unheaded hop mode`;
+      hop_xdp itself honours whatever key 4 holds, and making the object refuse needs the same root run.
 
   - id: FND-035
     title: >-
@@ -477,7 +493,8 @@ findings:
     opened: 2026-11-04
     exposure: >-
       Shield leaves both service ids at 0 and stamps ring 1, so all its packets share flow 0, namespace 1 (ADR-125 says
-      so). No remote packet can trigger it: rules need root on the pins and CONFIG key 4 is set by hand. The risk is a
+      so). No remote packet can trigger it: rules need root on the pins, and `unheaded hop mode` refuses enforce while
+      this entry is open. The risk once enforce is allowed is a
       ttl lapsing unattended, since nothing renews an entry and `hop rules apply` cannot see the mode. Nothing loads
       hop-ebpf in production.
     lockout: none
@@ -579,8 +596,7 @@ findings:
     opened: 2026-10-27
     exposure: >-
       /conf/distributions now answers 403 on the LAN address, and the LAN listener is allowed (Stevie 2026-11-03: LAN
-      machines may install from it, over plain HTTP). What is left is the repo itself: unsigned, codename noble, and
-      east installs its unheaded-* packages from it
+      machines may install from it). What is left is the repo itself, which the signed reprepro repo replaces
     lockout: none
     step: 7
     plan: >-
@@ -599,7 +615,7 @@ findings:
     accepted: {reason: "Stevie 2026-09-30: develop mode, no internet-facing edge node; Let's Encrypt once one exists", compensating: "traefik runs on no host today and its dashboard binds 127.0.0.1 only", accepted_on: 2026-09-30, until: 2026-12-29}
     plan: >-
       Decided (Stevie 2026-09-30): nothing until an edge goes internet-facing, then Let's Encrypt. Not a flag flip. The dashboard and kanban routers carry no TLS and websecure has no entrypoint TLS, so the
-      edge effectively serves plain HTTP only; a redirect alone would 404 both. Order: pick a certificate source, enable TLS
+      edge has no TLS to serve yet; a redirect alone would 404 both. Order: pick a certificate source, enable TLS
       on websecure (entrypoint http.tls), a file-provider tls.options.default minVersion VersionTLS13, move ping off
       the web entrypoint (the healthcheck probes :80/ping), then redirect web to websecure, then drop api.insecure
 
@@ -1036,7 +1052,7 @@ findings:
     severity: low
     class: service
     opened: 2026-09-30
-    exposure: "nginx on 0.0.0.0:18888, reachable from the LAN until the firewall lands"
+    exposure: "the web server behind the apt repo; limited with the firewall rollout (step 6)"
     lockout: none
     step: 6
     plan: "nginx serves the local apt repository (/var/lib/apt-repo on 18888) that east installs from. Needed: accept once the firewall (step 6) limits 18888 to east, with that as the compensating control"
@@ -1226,7 +1242,7 @@ findings:
     severity: low
     class: account
     opened: 2026-09-30
-    exposure: "west's only LAN link is wireless (wlp17s0); taking it down disconnects west from the home network"
+    exposure: "west's only LAN link is wireless; taking it down disconnects west from the home network"
     lockout: high
     step: 7
     plan: "needed while west has no wired LAN: accept with that reason, or move west to a wired link and then disable the radio"
@@ -1238,7 +1254,7 @@ findings:
     severity: medium
     class: package
     opened: 2026-10-01
-    exposure: "no file integrity monitoring: a changed system binary or config goes unnoticed (SI-7)"
+    exposure: "file integrity monitoring (SI-7) is not installed yet"
     lockout: none
     step: 3
     plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts"
@@ -1255,7 +1271,7 @@ findings:
     severity: medium
     class: package
     opened: 2026-10-01
-    exposure: "no file integrity monitoring: a changed system binary or config goes unnoticed (SI-7)"
+    exposure: "file integrity monitoring (SI-7) is not installed yet"
     lockout: none
     step: 3
     plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts"
@@ -1805,9 +1821,7 @@ findings:
     class: service
     opened: 2026-11-05
     exposure: >-
-      every container on west stopped at 2026-10-28 23:10 UTC and stayed down through later reboots: Prometheus,
-      Alertmanager, alert-mailer, the Well, Loki, Wotan and the dashboard. No alert can reach anyone, the Compliance*
-      rules cannot fire, and east's dead-man heartbeat targets the stopped alert-mailer, so its failures tell nobody
+      the alert path's four links do not all answer, so this control fails until E1 brings the stack on west back
     lockout: none
     step: 1
     plan: >-
@@ -1817,13 +1831,13 @@ findings:
   - id: FND-036
     title: >-
       East's unheaded-wotan and unheaded-timeguru restart in a loop: the April 1.0.0 units pass a flag the binary does
-      not take and timeguru cannot create its data directory. Nothing alerted on it
+      not take and timeguru cannot create its data directory
     verify: on east, systemctl show -p NRestarts unheaded-wotan unheaded-timeguru stays flat over an hour and both are active
     host: east
     severity: medium
     class: service
     opened: 2026-11-05
-    exposure: two of east's first-party services have not run for weeks; found by reading the host, not by any alert
+    exposure: two of east's first-party services are out of service until east is redeployed
     lockout: none
     step: 7
     plan: >-
@@ -1833,13 +1847,13 @@ findings:
     severity: high
     class: sudo
     opened: 2026-11-05
-    exposure: the operator account's sudo on west does not ask for a password, which CIS 5.2.4 requires
+    exposure: west does not meet CIS 5.2.4 on sudo authentication
     lockout: high
     step: 5
     plan: >-
       Undecided. Keep it and record an acceptance, or narrow it: automation needs rules naming exact commands and the
       collector needs its own read-only account first, because these probes run through the same rule
-    decision: keep passwordless sudo, or narrow it, and when
+    decision: keep it with a recorded acceptance, or narrow it, and when
   - source: "host-probe:east:sudo-password-required"
     severity: high
     class: sudo
@@ -1848,12 +1862,12 @@ findings:
     lockout: high
     step: 5
     plan: Goes with west's entry, east first
-    decision: keep passwordless sudo, or narrow it, and when
+    decision: keep it with a recorded acceptance, or narrow it, and when
   - source: "host-probe:west:auditd-rules-loaded"
     severity: medium
     class: service
     opened: 2026-11-05
-    exposure: auditd runs on west with no rules, so the main host records almost no kernel audit events; east has them
+    exposure: kernel audit coverage on west is below east's until west's profile moves
     lockout: none
     step: 3
     plan: >-
@@ -1872,8 +1886,8 @@ findings:
     plan: Clears with E1 (host-probe:west:alert-route) at the next nightly run; if it does not within a day, treat it as a new failure
   - id: FND-037
     title: >-
-      Evidence reads declared configuration, not what runs: UH-AUTHN-01 and others pass on the compose file while the
-      only first-party services running are east's April builds, with no AUTH_ENABLED, under a shared account
+      Evidence reads declared configuration, not what runs: UH-AUTHN-01 and others pass on the compose file, which says
+      nothing about the first-party services running on the hosts
     verify: >-
       a host-side evidence kind reads the deployed package version and unit environment, and an unauthenticated probe of
       a running service gets 401, on each host that runs one
@@ -1886,28 +1900,37 @@ findings:
     lockout: none
     step: 7
     plan: >-
-      Redeploy east from develop or take the April builds down, then add the host-side evidence kind. A separate
-      "declared" status, so a compose file cannot produce a PASS about running services, is a design call
-    decision: whether "evidenced" keeps counting declared configuration
+      Redeploy east from develop or take the April builds down, then add the host-side evidence kind. 2026-11-06, at
+      Stevie's word: a control that reads repository files is DECLARED, not PASS, and a requirement resting on one is
+      DECLARED, not EVIDENCED (ADR-097). That stops a file reading as a pass; what closes this is reading what runs
   - id: FND-038
     title: >-
-      Agents sign commits with the owner's key: a warm gpg-agent signs whatever an agent commits, so a signature shows the
-      cache was warm, not who decided, and sign-attestation.sh checks only git config user.email
-    verify: agent commits verify against a key of their own, and the owner's key signs only attestations and promotions
+      One signing key: agents' commits are signed with Stevie's key and carry Co-Authored-By and Claude-Session trailers,
+      so a signature attributes a commit to the key, not to a person's reading of it, and sign-attestation.sh checks the
+      git identity and that signing works, which an agent session also passes
+    verify: >-
+      the risk strategy's A1 and the posture state this (TestRetiredClaimsStayRetired holds the wording); every agent
+      commit in 7a93b734..develop, merges aside, is signed and carries both trailers (history before it is not
+      rewritten); and sign-attestation.sh can tell Stevie from an agent session, or Stevie records that attestations
+      stay his by rule
     severity: high
     class: ci
     opened: 2026-11-05
     exposure: >-
-      UH-SIGN-01 and AU-10 lose their meaning for agent work, and the risk strategy's A1 says a finding that could let
-      someone sign as the owner is fixed, not accepted. Agents' commits do carry a co-author trailer
+      what UH-SIGN-01 and AU-10 show for agent work: the key signed it and the trailers name the session; neither shows
+      that Stevie read the change. Older agent commits may lack the session trailer or a signature. Attestations are
+      Stevie's alone by rule, not by any technical stop
     lockout: none
     step: 7
-    plan: Give agents their own signing key and identity, or keep the practice and say so in the posture and in A1
-    decision: agents get their own key, or the written position changes
+    plan: >-
+      Stevie 2026-11-06: no separate agent key, and A1 is rewritten to say how commits are really signed. Done in the
+      posture, A1 and UH-SIGN-01's statement. The YubiKey custody work may change this later
+    decision: closing this entry is Stevie's word; no agent key, so the written position is what changed
+
   - id: FND-039
     title: >-
-      The evidence file can be edited: var/compliance/evidence.json is unsigned, git-ignored and writable by the operator
-      account, and a hand-listed finding closes with a resolved block that names no re-runnable check
+      Evidence is not sealed: nothing proves var/compliance/evidence.json is what a collector wrote, and a hand-listed
+      finding closes with a resolved block that names no re-runnable check
     verify: >-
       each collector run is sealed and the reader refuses a broken seal, and a resolved entry without a check that can be
       run again fails to load
@@ -1919,3 +1942,37 @@ findings:
     step: 7
     plan: Seal each run with the ML-DSA tooling that already exists, and require a named check in resolved entries. Needs a design
     decision: the seal's key custody, and what counts as a re-runnable check
+  - id: FND-041
+    title: >-
+      The repository is public and the items written to come before that are still open: every value in git history
+      counts as burned, and rotation is set for S-E1-LIVE
+    verify: >-
+      every credential named by .gitleaksignore and docs/policy/gitleaks-history-baseline.txt is rotated or proved dead,
+      and the status table in docs/security/PRE-PUBLIC-BLOCKERS.md has no OPEN row for it
+    severity: medium
+    class: ci
+    opened: 2026-11-05
+    exposure: >-
+      a burned value is only worth anything where it still works; the hosts are not reachable from the internet (assumed,
+      FND-004)
+    lockout: none
+    step: 7
+    plan: >-
+      Rotate at S-E1-LIVE, with Stevie. History stays as it is, since rotation is what restores anything. The decision is
+      in docs/security/PRE-PUBLIC-BLOCKERS.md, rewritten 2026-11-06
+  - id: FND-042
+    title: >-
+      GitHub branch protection is off on main, develop and staging, so no required check holds a merge or a push
+    verify: >-
+      the GitHub API shows protection on main, develop and staging, with the required status checks in
+      .github/BRANCH_PROTECTION.md
+    severity: medium
+    class: ci
+    opened: 2026-11-05
+    exposure: >-
+      gates still run, and their results are only advice until a branch requires them. Stevie alone pushes, by rule
+    lockout: none
+    step: 7
+    plan: >-
+      Stevie 2026-11-06: after the first green CI, required status checks and no review count, since one person cannot
+      review his own work. A GitHub setting, in Stevie's hands

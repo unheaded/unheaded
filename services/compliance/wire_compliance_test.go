@@ -157,8 +157,8 @@ func TestComplianceScore(t *testing.T) {
 		if !score.NoData {
 			t.Error("NoData = false for an empty service, want true")
 		}
-		if score.ScorePct != 0 || score.AuditCompleteness != 0 {
-			t.Errorf("ScorePct = %.2f, AuditCompleteness = %.2f, want 0 and 0", score.ScorePct, score.AuditCompleteness)
+		if score.ScorePct != 0 {
+			t.Errorf("ScorePct = %.2f, want 0", score.ScorePct)
 		}
 	})
 
@@ -564,7 +564,7 @@ func TestHTTPHealthAndReady(t *testing.T) {
 }
 
 // The lists trim; the score must not. 300 blocked of 1,000 is 70 % whatever
-// MaxViolations is, and audit completeness counts records, not list length.
+// MaxViolations is.
 func TestScoreSurvivesTrimming(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.MaxViolations, cfg.MaxAuditEntries = 100, 100
@@ -579,9 +579,6 @@ func TestScoreSurvivesTrimming(t *testing.T) {
 	score := svc.GetScore()
 	if score.Blocked != 300 || score.Violations != 300 || score.ScorePct != 70.0 {
 		t.Fatalf("score = %+v, want 300 blocked, 300 violations, 70%%", score)
-	}
-	if score.AuditCompleteness != 0.3 {
-		t.Fatalf("AuditCompleteness = %.4f, want 0.3", score.AuditCompleteness)
 	}
 	if n := len(svc.ListViolations()); n != 100 {
 		t.Fatalf("violations kept = %d, want 100", n)

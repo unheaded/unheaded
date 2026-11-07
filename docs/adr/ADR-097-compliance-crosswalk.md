@@ -83,8 +83,9 @@ Consulted: Inquisitor (crosswalk shape, honesty rules), Architect
      NOT_ASSESSED; an old pass makes it STALE; any failure makes it FAIL,
      and an old failure stays FAIL (it is not evidence of a fix);
    - a requirement is EVIDENCED only when every mapped control is PASS,
-     FAILING when any is FAIL, INCOMPLETE otherwise, UNMAPPED when no
-     control maps to it;
+     FAILING when any is FAIL, INCOMPLETE when any is stale or unassessed,
+     DECLARED when a mapped control reads declared configuration (see the
+     2026-11-06 amendment), UNMAPPED when no control maps to it;
    - EVIDENCED means "supported by passing evidence", never "satisfied": a
      mapping covers part of a requirement at most, and the page says so;
    - every figure is shown against the framework's full total; unmapped
@@ -119,6 +120,27 @@ The rules:
 The CIS mappings were converted by script. The script asserted that each
 control's set of CIS IDs is identical before and after (12 of 12
 controls).
+
+### Amendment (2026-11-06): declared is not evidenced
+
+Stevie, 2026-11-06, on FND-037. A gate script reads files, so a passing
+control that rests on one says what is written, not what runs. Such a control
+carries `declared:`, naming what it reads in place of the running system. A
+pass then reads **DECLARED**, never PASS. A requirement with no failure and no
+gap, where a contributor is DECLARED, reads **DECLARED**, never EVIDENCED, and
+it is counted, so every denominator holds. Failing, stale and missing evidence
+behave as before.
+
+A test holds every gate-script control to this, so a new one cannot reach PASS
+by reading a file; `UH-PQC-01` is the one exception, since the repository is
+what it makes a claim about. Moving a control back to PASS takes evidence read
+from what runs (FND-037's verify), not a change to this list.
+
+The figures fell, as expected. Same evidence file (2026-11-07), evidenced
+before and after, then declared: controls passing 19 to 13, with 6 declared;
+800-53 13 to 9 (4); FedRAMP Low 5 to 4 (1), Moderate 9 to 8 (1), High 10 to 8
+(2); 800-171 5 to 3 (2); SSDF 4 to 3 (1). SOC 2 (0), ISO 27001 (6), CSF (2) and
+CIS L1 and L2 (136, 141) did not move.
 
 ## Consequences
 
