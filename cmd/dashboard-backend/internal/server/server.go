@@ -48,6 +48,7 @@ import (
 	"unheaded/pkg/compliance/well"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
@@ -3562,12 +3563,24 @@ func fetchURL(ctx context.Context, url string) (string, error) {
 	return string(body), nil
 }
 
+// admittedReport is what a message on system.health.reports stores as: the
+// same check Akira applies, so the Well keeps a row only under the reporter
+// the publisher's token allows (healthreport.Admit).
+func admittedReport(m *wotanClient.Message, requireVerified bool) (json.RawMessage, error) {
+	r, err := healthreport.Admit(m.VerifiedSender, requireVerified, []byte(m.Payload))
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(r)
+}
+
 // persistHealthReports streams system.health.reports into The Well until
 // ctx ends, reconnecting after any failure. A report the bridge rejects is
 // logged and skipped; the bridge ignores anything older than what it holds,
 // so a reconnect that replays messages cannot move the state backwards.
 func (s *Server) persistHealthReports(ctx context.Context) {
 	const retry = 10 * time.Second
+	requireVerified := auth.LoadServiceAuthConfig("dashboard-backend").Enabled
 	for ctx.Err() == nil {
 		c, err := wotanClient.NewClient(strings.TrimPrefix(s.config.WotanAddr, "http://"))
 		if err == nil {
@@ -3582,7 +3595,11 @@ func (s *Server) persistHealthReports(ctx context.Context) {
 		} else {
 			s.log.Info().Str("topic", database.HealthReportTopic).Msg("health persistence: streaming into The Well")
 			for m := range ch {
-				if err := s.wellBridge.HandleHealthReport(ctx, json.RawMessage(m.Payload)); err != nil {
+				payload, err := admittedReport(m, requireVerified)
+				if err == nil {
+					err = s.wellBridge.HandleHealthReport(ctx, payload)
+				}
+				if err != nil {
 					s.log.Warn().Err(err).Msg("health persistence: report not stored")
 				}
 			}

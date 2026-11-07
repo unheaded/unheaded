@@ -305,7 +305,11 @@ func main() {
 	// Every other reporter's reports are votes too (ADR-029: every node a
 	// watchdog). This node's own are recorded locally by CheckAll.
 	if wotan != nil && !*once {
-		go consumeReports(wotan, *nodeID, akira)
+		requireVerified := auth.LoadServiceAuthConfig("akira").Enabled
+		if !requireVerified {
+			log.Warn().Msg("auth off: reports carry no verified sender, so reporter names are the reports' own word")
+		}
+		go consumeReports(wotan, newReportGate(*nodeID, requireVerified, metrics.DefaultRegistry), akira)
 	}
 
 	akira.OnReport(func(r health.HealthReport) {
@@ -471,22 +475,6 @@ const (
 	topicReports   = "system.health.reports"   // every reporter's checks
 	topicConsensus = "system.health.consensus" // severity changes
 )
-
-// consumeReports feeds other reporters' reports from Wotan into the ballot.
-func consumeReports(c *wotanClient.Client, self string, a *health.Akira) {
-	ch, err := c.StreamMessages(context.Background(), topicReports)
-	if err != nil {
-		log.Warn().Err(err).Msg("cannot read system.health.reports; tallying this node's checks only")
-		return
-	}
-	for m := range ch {
-		var r health.HealthReport
-		if err := json.Unmarshal([]byte(m.Payload), &r); err != nil || r.Reporter == self {
-			continue
-		}
-		a.Record(r)
-	}
-}
 
 func findPort(name string, targets []health.ServiceTarget) int {
 	for _, t := range targets {

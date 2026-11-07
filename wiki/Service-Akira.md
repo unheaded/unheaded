@@ -9,7 +9,7 @@ Akira checks every Kingdom service, publishes its reports to Wotan, tallies ever
 | Container | `unheaded-akira` (compose service `akira`, live on west) |
 | Port | 19100 (`pkg/ports.Akira`) |
 | Wotan topics | publishes `system.health.reports` (each reporter's checks), `system.health.consensus` (band changes) and `system.health.remediate` (suggestions) |
-| Other voters | every service that calls `discovery.Start` reports its own `/health` every 30 s as reporter `<service>@<host>` (`pkg/healthreport`; host from `$KINGDOM_NODE`) |
+| Other voters | every service that calls `discovery.Start` reports its own `/health` every 30 s as reporter `<service>@<host>` (`pkg/healthreport`; host from `$KINGDOM_NODE`). The reporter comes from the token: Wotan stamps each message with the subject it verified (`verified_sender`), a service votes only on its own ballot name, and Akira votes on any service as its node. With `AUTH_ENABLED=true` a report with no verified sender is refused, and `akira_reports_refused_total{reason}` counts every refusal, so upgrade Wotan before Akira or Akira tallies only its own checks. The dashboard's Well writer applies the same check |
 | Remediation | entering CRITICAL or PANIC publishes one `{service, host, band, pct, suggested, at}` suggestion to `system.health.remediate` and counts it in `akira_remediate_suggested_total{service}`; restarting stays off by default: `--remediate` restarts `unheaded-<name>` for a service in this node's own targets when two-thirds of reporters see it failing, at most 3 times per outage, then escalates |
 
 ## Exec checks
