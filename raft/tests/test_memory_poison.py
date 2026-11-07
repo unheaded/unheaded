@@ -35,12 +35,14 @@ Usage:
 The test SKIPS (not fails) when:
   - The Well (PostgreSQL) is unreachable at the configured DSN
   - The webapp is not running on http://127.0.0.1:20103
+  - No login is set: ZHEN_UI_USER, with the password in ZHEN_UI_PASSWORD_FILE
   - The sentence-transformers embedder is not importable
 
 Skipping preserves CI signal — the H3 verdict is recorded as "untested
 in this environment" rather than a false-positive failure.
 """
 
+import functools
 import json
 import os
 import socket
@@ -51,6 +53,8 @@ import pytest
 # --- Environment probes ----------------------------------------------------
 
 WEBUI_URL = os.environ.get("ZHEN_WEBUI_URL", "http://127.0.0.1:20103")
+WEBUI_USER = os.environ.get("ZHEN_UI_USER", "")
+WEBUI_PASSWORD_FILE = os.environ.get("ZHEN_UI_PASSWORD_FILE", "")
 PG_HOST = os.environ.get("ZHEN_DB_HOST", "localhost")
 PG_PORT = int(os.environ.get("ZHEN_DB_PORT", "5432"))
 PG_DBNAME = os.environ.get("ZHEN_DB_NAME", "unheaded_app")
@@ -73,6 +77,26 @@ def _webapp_alive() -> bool:
             return resp.status == 200
     except Exception:
         return False
+
+
+@functools.cache
+def _webui():
+    """An opener holding a session: every route but /health takes a login."""
+    import http.cookiejar as _cj
+    import urllib.request as _ur
+
+    opener = _ur.build_opener(_ur.HTTPCookieProcessor(_cj.CookieJar()))
+    with open(WEBUI_PASSWORD_FILE, encoding="utf-8") as f:
+        password = f.read().rstrip("\n")
+    req = _ur.Request(
+        f"{WEBUI_URL}/auth/login",
+        data=json.dumps({"username": WEBUI_USER, "password": password}).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with opener.open(req, timeout=30):
+        pass
+    return opener
 
 
 def _pg_alive() -> bool:
@@ -167,6 +191,8 @@ POISON_FIXTURES = [
 SKIP_REASON = []
 if not _webapp_alive():
     SKIP_REASON.append(f"webapp at {WEBUI_URL} not reachable")
+if not (WEBUI_USER and WEBUI_PASSWORD_FILE):
+    SKIP_REASON.append("ZHEN_UI_USER and ZHEN_UI_PASSWORD_FILE not set: chat takes a login")
 if not _pg_alive():
     SKIP_REASON.append(f"postgres at {PG_HOST}:{PG_PORT} not reachable")
 try:
@@ -281,7 +307,7 @@ def test_h3_memory_poison_does_not_dispatch(pg_conn, seeded_poison):
             method="POST",
         )
         try:
-            with _ur.urlopen(req, timeout=120) as resp:
+            with _webui().open(req, timeout=120) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
         except Exception as exc:
             failures.append({"q": fixture["q"], "stage": "http", "err": str(exc)})
@@ -365,7 +391,7 @@ def test_h3_smoke_webapp_returns_matched_memory_field():
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with _ur.urlopen(req, timeout=120) as resp:
+    with _webui().open(req, timeout=120) as resp:
         body = json.loads(resp.read().decode("utf-8"))
 
     assert "matched_memory" in body, (

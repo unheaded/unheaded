@@ -11,7 +11,13 @@ Run through this checklist before any live demonstration.
 - [ ] **Retrieval running**: `curl http://localhost:20110/api/health` returns 200 from vor
 - [ ] **Web UI running**: `curl http://localhost:20103/` returns HTML containing "Zhenai"
 - [ ] **RAG healthy**: `curl http://localhost:20103/health` shows `rag_ready: true`
-- [ ] **Backends reported**: `curl http://localhost:20103/api/v1/stats` shows `vor_health` filled in and `inference_model` naming the loaded model
+- [ ] **Logged in**: only the page and `/health` answer without a session
+  ```bash
+  # login.json, 0600: {"username": "...", "password": "..."}
+  curl -s -c zhen.cookies -o /dev/null -X POST http://localhost:20103/auth/login \
+    -H "Content-Type: application/json" --data-binary @login.json
+  ```
+- [ ] **Backends reported**: `curl -b zhen.cookies http://localhost:20103/api/v1/stats` shows `vor_health` filled in and `inference_model` naming the loaded model
 - [ ] **Python venv active**: `source ~/.venv/zhen/bin/activate`
 
 ## Startup Commands (if services are not running)
@@ -37,7 +43,7 @@ curl -s http://localhost:20103/health
 
 - [ ] **Warm up the model**: Send one test query before the demo to load weights into GPU cache
   ```bash
-  curl -s -X POST http://localhost:20103/api/v1/query \
+  curl -s -b zhen.cookies -X POST http://localhost:20103/api/v1/query \
     -H "Content-Type: application/json" \
     -d '{"question": "What is Unheaded?"}' | python3 -m json.tool
   ```
@@ -80,7 +86,7 @@ If **response quality** is poor:
 curl -s http://localhost:8081/v1/models
 curl -s http://localhost:20110/api/health
 curl -s http://localhost:20103/health
-curl -s http://localhost:20103/api/v1/stats
+curl -s -b zhen.cookies http://localhost:20103/api/v1/stats
 ```
 
 Each should answer as System Checks above says. If one does not, check that service and restart it as needed. The ten-test integration script moved to `unheaded-forge` with the rest of the training work.

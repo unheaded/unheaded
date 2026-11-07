@@ -24,6 +24,7 @@
 #   - llama-server on :8081
 #   - raft/zhen_app.py running on :20103
 #   - The Well reachable (PG) for memory persistence
+#   - A login: ZHEN_UI_USER, with the password in ZHEN_UI_PASSWORD_FILE
 #
 # Usage:
 #   ./eval/memory-ablation/run.sh
@@ -42,6 +43,19 @@ WEBUI_URL="${ZHEN_WEBUI_URL:-http://127.0.0.1:20103}"
 PROMPTS="eval/memory-ablation/prompts.jsonl"
 DATE="$(date +%Y-%m-%d)"
 OUT="eval/memory-ablation/results-${DATE}.md"
+
+# Chat takes a login.
+: "${ZHEN_UI_USER:?set ZHEN_UI_USER: chat on the web UI takes a login}"
+: "${ZHEN_UI_PASSWORD_FILE:?set ZHEN_UI_PASSWORD_FILE: a file holding the password, 0600}"
+COOKIES="$(mktemp)"
+trap 'rm -f "$COOKIES"' EXIT
+python3 -c "
+import json, sys
+print(json.dumps({'username': sys.argv[1], 'password': open(sys.argv[2]).read().rstrip('\\n')}))
+" "$ZHEN_UI_USER" "$ZHEN_UI_PASSWORD_FILE" |
+    curl -sf --max-time 30 -c "$COOKIES" -o /dev/null -X POST "$WEBUI_URL/auth/login" \
+        -H 'Content-Type: application/json' --data-binary @- ||
+    { echo "login at $WEBUI_URL failed" >&2; exit 1; }
 
 # Pre-flight
 if ! curl -sf --max-time 3 "$WEBUI_URL/health" > /dev/null; then
@@ -105,13 +119,13 @@ while IFS= read -r line; do
         # would conflate them; we want the model to see real turns.
         prior_q=$(printf '%s' "$prior" | sed -n 's/^Q: \(.*\)/\1/p' | head -1)
         if [[ -n "$prior_q" ]]; then
-            curl -s --max-time 60 -X POST "$WEBUI_URL/api/v1/query" \
+            curl -s --max-time 60 -b "$COOKIES" -X POST "$WEBUI_URL/api/v1/query" \
                 -H 'Content-Type: application/json' \
                 -d "$(python3 -c "import json,sys; print(json.dumps({'question': sys.argv[1], 'session_id': sys.argv[2]}))" "$prior_q" "$SESSION_A")" \
                 > /dev/null
         fi
     fi
-    answer_A=$(curl -s --max-time 120 -X POST "$WEBUI_URL/api/v1/query" \
+    answer_A=$(curl -s --max-time 120 -b "$COOKIES" -X POST "$WEBUI_URL/api/v1/query" \
         -H 'Content-Type: application/json' \
         -d "$(python3 -c "import json,sys; print(json.dumps({'question': sys.argv[1], 'session_id': sys.argv[2]}))" "$prompt" "$SESSION_A")" \
         | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('answer','(none)'))")
@@ -119,7 +133,7 @@ while IFS= read -r line; do
     # Run B: cold session, no prior. Same prompt, but the model has zero
     # context — it must answer from training knowledge alone.
     SESSION_B="ablation-off-$id"
-    answer_B=$(curl -s --max-time 120 -X POST "$WEBUI_URL/api/v1/query" \
+    answer_B=$(curl -s --max-time 120 -b "$COOKIES" -X POST "$WEBUI_URL/api/v1/query" \
         -H 'Content-Type: application/json' \
         -d "$(python3 -c "import json,sys; print(json.dumps({'question': sys.argv[1], 'session_id': sys.argv[2]}))" "$prompt" "$SESSION_B")" \
         | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('answer','(none)'))")
