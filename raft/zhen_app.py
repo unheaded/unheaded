@@ -220,6 +220,8 @@ _LOGIN_OPEN = frozenset({
     '/', '/health', '/auth/login', '/auth/logout', '/auth/me',
     '/api/v1/highlight', '/api/v1/highlight.css',
 })
+# Where the page redeems a pending token: this origin, never the daemon's.
+CONFIRM_ENDPOINT = '/api/v1/agent/confirm'
 # POSTs that only read; every other write takes an operator or admin login.
 _READ_POSTS = frozenset({'/api/v1/search', '/api/v1/context'})
 
@@ -1510,15 +1512,19 @@ def switch_model():
         method='POST',
     )
     # 7-minute cap matches the daemon's 6-min subprocess limit + buffer
-    # for round-trip + chat-template init on cold-cache loads.
+    # for round-trip + chat-template init on cold-cache loads. A swap is held
+    # for the person: the answer carries a pending_token to redeem here.
     try:
         with _ur.urlopen(req, timeout=420) as resp:
             return jsonify(json.loads(resp.read().decode('utf-8'))), resp.status
     except _ue.HTTPError as e:
         try:
-            return jsonify(json.loads(e.read().decode('utf-8'))), e.code
+            held = json.loads(e.read().decode('utf-8'))
         except Exception:
             return jsonify({'status': 'error', 'reason': str(e)}), e.code or 502
+        if isinstance(held, dict) and held.get('pending_token'):
+            held['confirm_endpoint'] = CONFIRM_ENDPOINT
+        return jsonify(held), e.code
     except _ue.URLError as e:
         return jsonify({
             'status': 'error',
@@ -2373,7 +2379,7 @@ def execute_runbook(name):
         status:        "ok" | "denied" | "pending_confirmation" | "error"
         result:        runbook execution output (when status=ok)
         reason:        explanation (when not-ok)
-        pending_token: redeem at /api/v1/agent/confirm (when pending)
+        pending_token: redeem at this UI's /api/v1/agent/confirm (when pending)
     """
     import urllib.error as _ue
     import urllib.request as _ur
@@ -2413,12 +2419,12 @@ def execute_runbook(name):
     rel = os.path.relpath(rb_real, runbooks_root)
     rel = rel.removesuffix('.yaml')
 
-    # Hit the daemon's /api/v1/tool/exec endpoint. The justification is
-    # direct-user (the operator clicked this in the browser). A dry run
-    # passes on it; a live run is held whatever it says, and the daemon
-    # answers with a pending_token. Rules 1 (path) + 3 (destructive verb)
-    # still apply — Champion rejects runbook names with ".." or absolute
-    # paths regardless.
+    # Hit the daemon's /api/v1/tool/exec endpoint as the person logged in. The
+    # justification is direct-user (they clicked this in the browser). A dry
+    # run passes on it; a live run is held whatever it says, and the daemon
+    # answers with a pending_token for that person, redeemed at
+    # /api/v1/agent/confirm here. Rules 1 (path) + 3 (destructive verb) still
+    # apply: Champion rejects runbook names with ".." or absolute paths.
     agentd_url = ZHEN_AGENTD_URL
     payload = {
         'tool': 'runbook_execute',
@@ -2482,8 +2488,40 @@ def execute_runbook(name):
         out['reason'] = daemon_body['reason']
     if daemon_body.get('pending_token'):
         out['pending_token'] = daemon_body['pending_token']
-        out['confirm_endpoint'] = f'{agentd_url}/api/v1/agent/confirm'
+        out['confirm_endpoint'] = CONFIRM_ENDPOINT
     return jsonify(out), status_code
+
+
+@app.route(CONFIRM_ENDPOINT, methods=['POST'])
+def agent_confirm():
+    """Redeem a pending token as the person logged in.
+
+    The daemon binds a token to the principal that caused it, and that is this
+    person, so only they can redeem it here. Body: {"token": "..."}. Returns the
+    daemon's body and status. The cap matches a live runbook's.
+    """
+    import urllib.error as _ue
+    import urllib.request as _ur
+    data = request.get_json(silent=True)
+    token = data.get('token') if isinstance(data, dict) else None
+    if not isinstance(token, str) or not token.strip():
+        return jsonify({'status': 'error', 'error': 'missing required field: token'}), 400
+    req = _ur.Request(
+        f'{ZHEN_AGENTD_URL}/api/v1/agent/confirm',
+        data=json.dumps({'token': token.strip()}).encode('utf-8'),
+        headers=_agentd_headers(),
+        method='POST',
+    )
+    try:
+        with _ur.urlopen(req, timeout=620) as resp:
+            return jsonify(json.loads(resp.read().decode('utf-8'))), resp.status
+    except _ue.HTTPError as e:
+        try:
+            return jsonify(json.loads(e.read().decode('utf-8'))), e.code
+        except Exception:
+            return jsonify({'status': 'error', 'reason': str(e)}), e.code or 502
+    except _ue.URLError as e:
+        return jsonify({'status': 'error', 'error': f'zhen-agentd unreachable at {ZHEN_AGENTD_URL}: {e}'}), 503
 
 
 # ──────────────────────────────────────────────────────────────────────

@@ -330,3 +330,86 @@ def test_an_approval_names_who_decided(client, world):
     made = client.post('/api/v1/approvals', base_url=LOCAL, json={'operation': 'o'}, headers=h).get_json()
     r = client.post(f"/api/v1/approvals/{made['id']}/approve", base_url=LOCAL, headers=h)
     assert r.get_json()['decided_by'] == 'stevie'
+
+
+# ── what the browser is given, it can redeem ────────────────────────────
+
+class _Held(urllib.error.HTTPError):
+    def __init__(self, body, code=403):
+        super().__init__('http://daemon/', code, 'held', {}, io.BytesIO(json.dumps(body).encode()))
+
+
+def _held(req):
+    if req.full_url.endswith('/api/v1/tool/exec'):
+        raise _Held({'status': 'pending_confirmation', 'pending_token': 'pend-1', 'reason': 'held'})
+    return _Reply({'status': 'ok', 'result': {'ran': True}})
+
+
+@pytest.fixture
+def runbook(tmp_path, monkeypatch):
+    root = tmp_path / 'runbooks'
+    (root / 'observe').mkdir(parents=True)
+    (root / 'observe' / 'sweep.yaml').write_text('metadata:\n  name: sweep\n  risk: low\n')
+    monkeypatch.setattr(zhen_app, 'RUNBOOKS_DIR', str(root))
+    return 'sweep'
+
+
+def _redeem(client, token='pend-1'):
+    return client.post('/api/v1/agent/confirm', base_url=LOCAL, json={'token': token}, headers=_page_headers(client))
+
+
+def test_a_held_runbook_can_be_redeemed_from_the_page(client, world, runbook):
+    _login(client)
+    world.daemon = _held
+    r = client.post(f'/api/v1/runbooks/{runbook}/execute', base_url=LOCAL, json={}, headers=_page_headers(client))
+    assert r.status_code == 403
+    body = r.get_json()
+    assert body['status'] == 'pending_confirmation' and body['pending_token'] == 'pend-1'
+    assert body['confirm_endpoint'] == '/api/v1/agent/confirm'  # this origin, not the daemon
+
+    r = _redeem(client)
+    assert r.status_code == 200 and r.get_json()['result'] == {'ran': True}
+    asked, redeemed = [c for c in world.calls if c[0] == 'daemon']
+    assert redeemed[1].endswith('/api/v1/agent/confirm')
+    assert json.loads(redeemed[3]) == {'token': 'pend-1'}
+    assert _bearer(asked) == _bearer(redeemed) == 'Bearer ' + next(iter(world.tokens))
+
+
+def test_a_held_model_switch_can_be_redeemed_from_the_page(client, world, monkeypatch):
+    monkeypatch.setattr(zhen_app, '_load_model_keys', lambda: ['qwen-coder-7b'])
+    _login(client)
+    world.daemon = _held
+    r = client.post('/api/v1/models/switch', base_url=LOCAL, json={'key': 'qwen-coder-7b'}, headers=_page_headers(client))
+    assert r.status_code == 403
+    assert r.get_json()['confirm_endpoint'] == '/api/v1/agent/confirm'
+    assert _redeem(client).status_code == 200
+
+
+def test_the_daemons_refusal_of_a_redeem_reaches_the_page(client, world):
+    _login(client)
+
+    def refuse(req):
+        raise _Held({'status': 'denied', 'reason': 'confirmation refused'})
+    world.daemon = refuse
+    r = _redeem(client)
+    assert r.status_code == 403 and r.get_json()['status'] == 'denied'
+
+
+def test_a_redeem_needs_a_token(client, world):
+    _login(client)
+    assert client.post('/api/v1/agent/confirm', base_url=LOCAL, json={}, headers=_page_headers(client)).status_code == 400
+    assert not [c for c in world.calls if c[0] == 'daemon']
+
+
+def test_a_viewer_cannot_redeem(client, world):
+    _login(client, 'watcher')
+    assert _redeem(client).status_code == 403
+    assert not [c for c in world.calls if c[0] == 'daemon']
+
+
+def test_the_page_offers_login_and_redeems_through_this_origin():
+    page = (RAFT / 'static' / 'index.html').read_text()
+    assert "'/auth/login'" in page
+    assert "'/auth/logout'" in page
+    assert "'/api/v1/agent/confirm'" in page
+    assert ':20111' not in page
