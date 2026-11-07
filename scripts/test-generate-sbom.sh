@@ -118,7 +118,10 @@ for path in go_mods:
         if m.group(1) not in go:
             missing.append(f'{path}: {m.group(1)}')
 print('not in sbom/:', missing[:8])
-sys.exit(1 if missing or len(manifests) < 4 or 'tools/gosec/go.mod' not in go_mods else 0)
+# By name, not by count: a manifest that leaves the index must be seen to.
+known = {'.github/ci-python/requirements.txt', 'notebooks/requirements.txt', 'raft/requirements.txt'}
+print('manifests gone:', sorted(known - set(manifests)))
+sys.exit(1 if missing or not known <= set(manifests) or 'tools/gosec/go.mod' not in go_mods else 0)
 PYEOF
 }
 ok "every tracked requirements file and go.mod is in the detail files" committed_covers_manifests
