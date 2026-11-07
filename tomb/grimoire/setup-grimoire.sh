@@ -13,8 +13,8 @@
 #   ./setup-grimoire.sh [--skip-index] [--force]
 #
 # Prerequisites:
-#   - zhen-codeindex built for the VM beside this script in bin/ (make stage-grimoire,
-#     or ZHEN_CODEINDEX=/path/to/zhen-codeindex)
+#   - zhen-codeindex built for the VM: make stage-grimoire puts it in ../packages/grimoire/bin/,
+#     bin/ beside this script also works, or ZHEN_CODEINDEX=/path/to/zhen-codeindex
 #   - Pre-downloaded MITRE ATT&CK data in mitre-attck/ (run fetch-mitre-data.sh first)
 #   - Kingdom docs collected in kingdom-docs/ (run collect-kingdom-docs.sh first)
 #
@@ -26,6 +26,7 @@ set -euo pipefail
 GRIMOIRE_ROOT="/opt/tomb/grimoire"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CODEINDEX_SRC="${ZHEN_CODEINDEX:-${SCRIPT_DIR}/bin/zhen-codeindex}"
+CODEINDEX_STAGED="${SCRIPT_DIR}/../packages/grimoire/bin/zhen-codeindex"
 CODEINDEX="${GRIMOIRE_ROOT}/bin/zhen-codeindex"
 INDEX_DIR="${GRIMOIRE_ROOT}/index"
 SKIP_INDEX=false
@@ -198,10 +199,15 @@ copy_threat_models() {
 install_codeindex() {
     info "Phase 5: Installing zhen-codeindex"
 
+    if [[ -z "${ZHEN_CODEINDEX:-}" && ! -f "${CODEINDEX_SRC}" ]]; then
+        CODEINDEX_SRC="${CODEINDEX_STAGED}"
+    fi
     if [[ ! -f "${CODEINDEX_SRC}" ]]; then
         die "zhen-codeindex not found at ${CODEINDEX_SRC} (make stage-grimoire, or set ZHEN_CODEINDEX)"
     fi
 
+    # An install older than this binary has no bin/, and phase 1 leaves it alone
+    mkdir -p "$(dirname "${CODEINDEX}")"
     install -m 0755 "${CODEINDEX_SRC}" "${CODEINDEX}"
 
     info "zhen-codeindex installed at ${CODEINDEX}"

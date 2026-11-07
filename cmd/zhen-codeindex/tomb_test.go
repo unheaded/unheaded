@@ -64,6 +64,110 @@ func TestTomb_EveryPathBuildsTheIndex(t *testing.T) {
 	}
 }
 
+// grimoirePhases runs body in a copy of setup-grimoire.sh at tree/tomb/grimoire
+// with its main call cut: root is the install, under a test directory.
+func grimoirePhases(t *testing.T, tree, root, body string, env ...string) ([]byte, error) {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(tombDir, "grimoire", "setup-grimoire.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, ok := strings.CutSuffix(string(b), "main \"$@\"\n")
+	if !ok {
+		t.Fatal("setup-grimoire.sh no longer ends in its main call")
+	}
+	dir := filepath.Join(tree, "tomb", "grimoire")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	copied := filepath.Join(dir, "setup-grimoire.sh")
+	if err := os.WriteFile(copied, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	const setup = `source "$1"; GRIMOIRE_ROOT="$2"; CODEINDEX="$2/bin/zhen-codeindex"; LOG_FILE=/dev/null; `
+	cmd := exec.Command("bash", "-c", setup+body, "phases", copied, root)
+	cmd.Env = append(os.Environ(), env...)
+	return cmd.CombinedOutput()
+}
+
+func stubBinary(t *testing.T, file string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// An install made before this binary existed has no bin/, and phase 1 leaves an
+// existing root alone: the upgrade still has to land the binary.
+func TestTomb_SetupInstallsOverAnOldGrimoire(t *testing.T) {
+	tree, root := t.TempDir(), filepath.Join(t.TempDir(), "grimoire")
+	if err := os.MkdirAll(filepath.Join(root, "kingdom-docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stubBinary(t, filepath.Join(tree, "tomb", "grimoire", "bin", "zhen-codeindex"))
+	if out, err := grimoirePhases(t, tree, root, "create_directory_structure; install_codeindex"); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "bin", "zhen-codeindex")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// What make stage-grimoire builds is what the script finds, run from tomb/grimoire.
+func TestTomb_SetupFindsTheStagedBinary(t *testing.T) {
+	mk, err := exec.LookPath("make")
+	if err != nil {
+		t.Skip("no make")
+	}
+	dry, err := exec.Command(mk, "-n", "-C", tombDir, "stage-grimoire").CombinedOutput()
+	if err != nil {
+		t.Fatalf("make -n: %v: %s", err, dry)
+	}
+	const staged = "packages/grimoire/bin/zhen-codeindex"
+	if !strings.Contains(string(dry), "/"+staged+" ") {
+		t.Fatalf("stage-grimoire no longer builds %s: %s", staged, dry)
+	}
+	tree, root := t.TempDir(), filepath.Join(t.TempDir(), "grimoire")
+	stubBinary(t, filepath.Join(tree, "tomb", filepath.FromSlash(staged)))
+	if out, err := grimoirePhases(t, tree, root, "install_codeindex"); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "bin", "zhen-codeindex")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A binary named by hand is the one meant: a wrong name is an error, not a
+// quiet fall back to whatever is staged.
+func TestTomb_SetupRefusesAMissingNamedBinary(t *testing.T) {
+	tree, root := t.TempDir(), filepath.Join(t.TempDir(), "grimoire")
+	stubBinary(t, filepath.Join(tree, "tomb", "packages", "grimoire", "bin", "zhen-codeindex"))
+	out, err := grimoirePhases(t, tree, root, "install_codeindex", "ZHEN_CODEINDEX="+filepath.Join(tree, "none"))
+	if err == nil || !strings.Contains(string(out), "not found") {
+		t.Fatalf("%v: %s", err, out)
+	}
+}
+
+// ATT&CK is staged as its bundles. The whole repository would index each
+// technique twice and bring its third-party prose along.
+func TestTomb_AttackDataComesFromTheFetchScript(t *testing.T) {
+	for _, f := range []string{"Makefile", "provision.sh"} {
+		b, err := os.ReadFile(filepath.Join(tombDir, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "mitre/cti") {
+			t.Errorf("%s points at the whole mitre/cti repository", f)
+		}
+		if !strings.Contains(string(b), "fetch-mitre-data.sh") {
+			t.Errorf("%s does not name fetch-mitre-data.sh", f)
+		}
+	}
+}
+
 // ragCerydwyn is the Python script provision.sh writes onto the VM, undone
 // from the double-quoted string it travels in.
 func ragCerydwyn(t *testing.T) string {

@@ -733,7 +733,7 @@ phase_deploy_grimoire() {
         tomb_root "cp -r ${TOMB_STAGING}/mitre-attck/* ${TOMB_ROOT}/grimoire/mitre-attck/"
         ok "MITRE ATT&CK data transferred"
     else
-        warn "No mitre-attck/ in packages/grimoire/ -- download from github.com/mitre/cti"
+        warn "No mitre-attck/ in packages/grimoire/ -- run grimoire/mitre-attck/fetch-mitre-data.sh"
     fi
 
     info "Transferring NVD CVE records..."
