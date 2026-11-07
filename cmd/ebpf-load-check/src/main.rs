@@ -17,17 +17,29 @@
 //! must not pass by default.
 //!
 //! Exit: 0 if the ELF parsed (per-program verdicts are on stdout), 2 if it did
-//! not. The gate, not this tool, decides which failures are allowed.
+//! not or crates/objtrust refused it. The gate, not this tool, decides which
+//! failures are allowed. The gate loads a build tree, so it passes
+//! --allow-untrusted-ebpf-obj-dir.
 
 use aya::{programs::Program, Ebpf};
 
 fn main() {
-    let mut args = std::env::args().skip(1);
-    let (Some(path), None) = (args.next(), args.next()) else {
-        eprintln!("usage: ebpf-load-check <elf>");
-        std::process::exit(2);
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let allow_untrusted = args.first().is_some_and(|a| a == objtrust::ALLOW_FLAG);
+    if allow_untrusted {
+        args.remove(0);
+    }
+    let [path] = args.as_slice() else {
+        usage();
     };
-    let mut ebpf = match Ebpf::load_file(&path) {
+    if path.starts_with('-') {
+        usage();
+    }
+    if let Err(e) = objtrust::check_unless_allowed(std::path::Path::new(path), allow_untrusted) {
+        eprintln!("{path}: {e}");
+        std::process::exit(2);
+    }
+    let mut ebpf = match Ebpf::load_file(path) {
         Ok(e) => e,
         Err(e) => {
             eprintln!("{path}: cannot parse: {e}");
@@ -98,4 +110,9 @@ fn rejection(err: &str) -> &str {
         .rev()
         .find(|l| !l.is_empty() && !STATS.iter().any(|s| l.starts_with(s)))
         .unwrap_or(err)
+}
+
+fn usage() -> ! {
+    eprintln!("usage: ebpf-load-check [{}] <elf>", objtrust::ALLOW_FLAG);
+    std::process::exit(2);
 }
