@@ -7,9 +7,11 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 A release is cut by pushing a tag `vX.Y.Z` (pre-releases `vX.Y.Z-alpha`, `-beta`, `-rc`). `.github/workflows/release.yml` then:
 
-1. **build**: linux/amd64; `govulncheck` (pinned v1.9.0) must pass; every service binary (`scripts/build-binaries.sh`) and every deb (`scripts/build-all-debs.sh`, the tag's version in Debian form, `0.2.0~alpha`).
+1. **build**: linux/amd64; `scripts/check-sbom-version.sh` must pass (below); `govulncheck` (pinned v1.9.0) must pass; every service binary (`scripts/build-binaries.sh`) and every deb (`scripts/build-all-debs.sh`, the tag's version in Debian form, `0.2.0~alpha`).
 2. **ebpf**: every eBPF object (nightly Rust, `bpf-linker`, `bpfel-unknown-none`), the same recipe as `ebpf.yml`.
 3. **release**: `checksums.txt` (sha256 of every file), a CycloneDX SBOM (pinned syft), a keyless cosign signature for every file (`<file>.sigstore.json`), the SBOM attested against `checksums.txt`, GitHub build provenance for every file, then the GitHub release. Only this job holds `contents`, `id-token` and `attestations` write.
+
+A version bump fails until `sbom/` is regenerated. The version is the top of `debian/changelog`; the default in `scripts/build-all-debs.sh` and the tag must match it, and `sbom/VERSION` must too. Only a full run of `scripts/generate-sbom.sh` writes that file.
 
 Keyless means no signing key exists to leak: each signature carries a short-lived certificate that names the workflow and the tag that ran it, and a Rekor transparency-log entry.
 
