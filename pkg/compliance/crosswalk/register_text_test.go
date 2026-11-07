@@ -66,3 +66,22 @@ func TestRegister_TextStaysGeneral(t *testing.T) {
 		}
 	}
 }
+
+// Facts the register holds about the repository itself, each open until its
+// verify is met.
+func TestRegister_RepositoryRowsAreOpen(t *testing.T) {
+	reg := repoRegister(t)
+	for id, want := range map[string]string{
+		"FND-041": "public",
+		"FND-042": "branch protection",
+	} {
+		e := reg[id]
+		if e == nil {
+			t.Errorf("%s is not in the register", id)
+			continue
+		}
+		if e.Resolved != nil || !strings.Contains(strings.ToLower(e.Title), want) {
+			t.Errorf("%s: resolved %v, title %q, want open and about %q", id, e.Resolved, e.Title, want)
+		}
+	}
+}

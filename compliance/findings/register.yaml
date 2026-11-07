@@ -1939,3 +1939,37 @@ findings:
     step: 7
     plan: Seal each run with the ML-DSA tooling that already exists, and require a named check in resolved entries. Needs a design
     decision: the seal's key custody, and what counts as a re-runnable check
+  - id: FND-041
+    title: >-
+      The repository is public and the items written to come before that are still open: every value in git history
+      counts as burned, and the ones still in use are not rotated yet
+    verify: >-
+      every credential named by .gitleaksignore and docs/policy/gitleaks-history-baseline.txt is rotated or proved dead,
+      and the status table in docs/security/PRE-PUBLIC-BLOCKERS.md has no OPEN row for it
+    severity: medium
+    class: ci
+    opened: 2026-11-05
+    exposure: >-
+      a burned value is only worth anything where it still works; the hosts are not reachable from the internet (assumed,
+      FND-004)
+    lockout: none
+    step: 7
+    plan: >-
+      Rotate at S-E1-LIVE, with Stevie. History stays as it is, since rotation is what restores anything. The decision is
+      in docs/security/PRE-PUBLIC-BLOCKERS.md, rewritten 2026-11-06
+  - id: FND-042
+    title: >-
+      GitHub branch protection is off on main, develop and staging, so no required check holds a merge or a push
+    verify: >-
+      the GitHub API shows protection on main, develop and staging, with the required status checks in
+      .github/BRANCH_PROTECTION.md
+    severity: medium
+    class: ci
+    opened: 2026-11-05
+    exposure: >-
+      gates still run, and their results are only advice until a branch requires them. Stevie alone pushes, by rule
+    lockout: none
+    step: 7
+    plan: >-
+      Stevie 2026-11-06: after the first green CI, required status checks and no review count, since one person cannot
+      review his own work. A GitHub setting, in Stevie's hands
