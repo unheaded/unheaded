@@ -439,6 +439,19 @@ def docker_services():
     for name in sorted(set(found) - listed):
         bad("docker-services", f"docker/Makefile does not list {name}")
 
+# plan.yml and apply.yml are off: apply runs -auto-approve, so off means no
+# event starts them and a manual dispatch runs nothing either.
+def iac_off():
+    for name in ("plan.yml", "apply.yml"):
+        w = workflow(name)
+        events = w.get(True, w.get("on"))  # YAML reads a bare `on` as true
+        events = [events] if isinstance(events, str) else list(events or [])
+        if events != ["workflow_dispatch"]:
+            bad("iac-off", f"{name} must start on workflow_dispatch alone, not {events}")
+        for job_id, j in w.get("jobs", {}).items():
+            if str(j.get("if")).replace(" ", "") != "${{false}}":
+                bad("iac-off", f"{name} {job_id}: must carry if: ${{{{ false }}}}")
+
 # compliance/catalog/controls.yaml and the findings register name CI jobs as
 # <workflow name>/<job name>, and the evidence collector matches those exactly.
 # A renamed job leaves its control with no new records, whatever the job did,
@@ -475,6 +488,7 @@ workflow_paths()
 meta_gate_shards()
 docker_images()
 docker_services()
+iac_off()
 evidence_jobs()
 
 if problems:

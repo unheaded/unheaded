@@ -1,11 +1,12 @@
 name: "Terraform Plan + Policy"
+# Off since 2026-11-06 (S-ANSWERED). No event starts it, and a manual dispatch
+# runs nothing. check-ci-verdicts.sh holds both.
 on:
-  pull_request:
-    paths:
-    - "deploy/tofu/**"
+  workflow_dispatch:
 
 jobs:
   plan:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     strategy:
       matrix:

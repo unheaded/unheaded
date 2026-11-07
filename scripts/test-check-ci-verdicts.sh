@@ -241,6 +241,14 @@ ci_verdict_expect_bite "the Makefile naming a service with no Dockerfile" docker
 ci_verdict_expect_bite "a service Dockerfile the Makefile does not build" docker-services \
 	"docker/Makefile" 's/^SERVICES := monad sophia /SERVICES := monad /'
 
+echo "--- OpenTofu workflows stay off ---"
+for f in plan apply; do
+	ci_verdict_expect_bite "${f}.yml on a pull request again" iac-off ".github/workflows/${f}.yml" \
+		's/^  workflow_dispatch:$/  workflow_dispatch:\n  pull_request:/'
+	ci_verdict_expect_bite "${f}.yml's job able to run" iac-off ".github/workflows/${f}.yml" \
+		'/^    if: \$\{\{ false \}\}$/d'
+done
+
 echo
 echo "passed: ${PASSED}  failed: ${FAILED}"
 [ "${FAILED}" -eq 0 ] || exit 1
