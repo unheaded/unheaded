@@ -235,7 +235,7 @@ test-go: ## Run Go tests
 	@echo "Running Go tests..."
 	go test -v -race -cover ./...
 
-test-rust: test-rust-ebpf-common test-rust-svc-token test-rust-objtrust test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc test-rust-zhend ## Run Rust tests across all host-runnable crates
+test-rust: test-rust-ebpf-common test-rust-svc-token test-rust-objtrust test-rust-ebpf-collector test-rust-ebpf-load-check test-rust-ebpf-loader test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc test-rust-zhend ## Run Rust tests across all host-runnable crates
 	@echo "✓ All Rust test suites passed"
 
 # ebpf/ workspace targets bpfel-unknown-none — `cd ebpf && cargo test` fails
@@ -261,6 +261,15 @@ test-rust-svc-token: ## Run svc-token tests (EdDSA service tokens for the Rust W
 
 test-rust-objtrust: ## Run objtrust tests (what every Rust eBPF loader asks of an object)
 	cd crates/objtrust && cargo test --locked
+
+test-rust-ebpf-collector: ## Run ebpf-collector tests
+	cd cmd/ebpf-collector && cargo test --locked
+
+test-rust-ebpf-load-check: ## Run ebpf-load-check tests
+	cd cmd/ebpf-load-check && cargo test --locked
+
+test-rust-ebpf-loader: ## Run ebpf-loader tests
+	cd cmd/ebpf-loader && cargo test --locked
 
 test-rust-upc-bootctl: ## Run upc-bootctl tests (ASCEND-LINUX)
 	cd cmd/upc-bootctl && cargo test --locked

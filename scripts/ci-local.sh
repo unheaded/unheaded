@@ -87,6 +87,10 @@ if command -v cargo &>/dev/null; then
             run_step "Rust Test (${ws})" cargo test --manifest-path "${ws}/Cargo.toml" --release
         fi
     done
+    # Each loader's refusal of an object a non-root user could write.
+    for ws in cmd/ebpf-collector cmd/ebpf-load-check cmd/ebpf-loader cmd/upc-bootctl; do
+        run_step "Rust Test (${ws})" cargo test --locked --manifest-path "${ws}/Cargo.toml"
+    done
 else
     skip_step "Rust Check" "cargo not installed"
 fi
