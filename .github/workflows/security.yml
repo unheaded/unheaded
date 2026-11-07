@@ -99,7 +99,7 @@ jobs:
 
       # An Encoder on a ResponseWriter leaves an empty 200 when a value will
       # not marshal; httputil.WriteJSON answers 500. Provoked red by putting
-      # one back in Akira's status handler.
+      # one back in Wotan's topic publish.
       - name: No handler encodes JSON to its ResponseWriter
         run: ./scripts/check-json-responses.sh
 
