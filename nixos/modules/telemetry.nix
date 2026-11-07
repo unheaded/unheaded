@@ -51,7 +51,8 @@ in {
 
   config = mkIf cfg.enable {
     # ── node_exporter (ALL hosts) ───────────────────────────────────────────
-    services.prometheus.exporters.node = {
+    services.prometheus = mkMerge [ {
+    exporters.node = {
       enable = true;
       port = 9100;
       enabledCollectors = [
@@ -65,12 +66,10 @@ in {
         "--collector.pressure"  # cgroup v2 PSI
       ];
     };
-    
-    networking.firewall.allowedTCPPorts = [ 9100 ] 
-      ++ optionals (cfg.role == "primary") [ 9090 8428 3000 3100 ];
+    }
 
     # ── Prometheus (primary host only) ─────────────────────────────────────
-    services.prometheus = mkIf (cfg.role == "primary") {
+    (mkIf (cfg.role == "primary") {
       enable = true;
       port = 9090;
       globalConfig = {
@@ -118,7 +117,10 @@ in {
           capacity = 50000;
         };
       }];
-    };
+    }) ];
+    
+    networking.firewall.allowedTCPPorts = [ 9100 ] 
+      ++ optionals (cfg.role == "primary") [ 9090 8428 3000 3100 ];
 
     # ── VictoriaMetrics (primary host only) ────────────────────────────────
     # NixOS doesn't have VictoriaMetrics in nixpkgs yet; use systemd unit + binary

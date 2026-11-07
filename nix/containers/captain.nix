@@ -75,7 +75,6 @@
       # Namespace isolation
       PrivateNetwork = false; # Need network for Wotan communication
       PrivateIPC = true;
-      NoNewPrivileges = true;
 
       # Kernel isolation
       ProtectKernelTunables = true;

@@ -64,7 +64,7 @@ makeTest {
     
     # Check bfdd daemon is present
     try:
-      output = machine.succeed("cat /etc/frr/daemons 2>/dev/null || echo ''")
+      output = machine.succeed("cat /etc/frr/daemons 2>/dev/null || echo '''")
       assert "bfdd" in output or "" in output, "bfdd configuration status"
     except:
       pass
