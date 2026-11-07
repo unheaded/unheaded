@@ -1147,6 +1147,56 @@ fn syscall_nanosleep_advances_time() {
     assert_eq!(cpu.state.regs[0], 0, "nanosleep should return 0 on success");
 }
 
+/// The timespec is guest memory, so any value can arrive here. The tick
+/// clock is modulo 2^32 milliseconds; a request past that wraps it rather than
+/// stopping the emulator, in a build with overflow checks as in one without.
+#[test]
+fn syscall_nanosleep_wraps_on_any_timespec() {
+    // (tv_sec, tv_nsec): the multiply overflows; the add overflows.
+    for (secs, nsecs) in [(u32::MAX, 0), (4_294_967, u32::MAX)] {
+        let mut cpu = cpu_with_safe_sp();
+        cpu.ticks_ms = 7;
+        cpu.ram[0x1000 >> 2] = secs;
+        cpu.ram[(0x1000 + 4) >> 2] = nsecs;
+
+        let rom = vec![
+            enc(op::MOVI, 0, 0, lsys::SYS_NANOSLEEP as u16),
+            enc(op::MOVI, 1, 0, 0x1000),
+            enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+            enc(op::HALT, 0, 0, 0),
+        ];
+        cpu.load_rom(&rom);
+        cpu.run(100).ok();
+
+        let want = 7u64 + u64::from(secs) * 1000 + u64::from(nsecs) / 1_000_000;
+        assert_eq!(u64::from(cpu.ticks_ms), want % (1u64 << 32));
+        assert_eq!(cpu.state.regs[0], 0);
+    }
+}
+
+/// The input fuzz_mbc_execute keeps in its seed corpus for the same defect,
+/// run the way that target runs it: 16 registers, then the ROM.
+#[test]
+fn nanosleep_seed_input_runs_to_halt() {
+    let data = include_bytes!("../fuzz/seeds/fuzz_mbc_execute/regress-nanosleep-overflow");
+    let (regs, rom) = data.split_at(64);
+
+    let mut cpu = ExecCpu::new();
+    for (r, c) in cpu.state.regs.iter_mut().zip(regs.as_chunks::<4>().0) {
+        *r = u32::from_le_bytes(*c);
+    }
+    let rom: Vec<u32> = rom
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| u32::from_le_bytes(*c))
+        .collect();
+    cpu.load_rom(&rom);
+
+    assert_eq!(cpu.run(10_000), Ok(3));
+    assert_eq!(cpu.state.halted, 1);
+}
+
 #[test]
 fn syscall_sched_yield_with_single_process_is_noop() {
     let mut cpu = cpu_with_safe_sp();

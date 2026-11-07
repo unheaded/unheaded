@@ -21,6 +21,9 @@ ci_verdict_fresh_copy() {
 	mkdir -p "${WORK}/tree/.github" "${WORK}/tree/scripts/lib" "${WORK}/tree/nix/yggdrasil"
 	cp -r "${REPO_ROOT}/.github/workflows" "${WORK}/tree/.github/workflows"
 	cp -r "${REPO_ROOT}/jenkins" "${WORK}/tree/jenkins"
+	mkdir -p "${WORK}/tree/docker"
+	cp -r "${REPO_ROOT}/docker/services" "${WORK}/tree/docker/services"
+	cp "${REPO_ROOT}/docker/Makefile" "${WORK}/tree/docker/"
 	cp "${REPO_ROOT}/Jenkinsfile" "${REPO_ROOT}/Makefile" "${REPO_ROOT}/go.mod" "${WORK}/tree/"
 	cp "${REPO_ROOT}/.github/BRANCH_PROTECTION.md" "${WORK}/tree/.github/"
 	cp "${REPO_ROOT}/nix/yggdrasil/Jenkinsfile" "${WORK}/tree/nix/yggdrasil/"
@@ -116,7 +119,9 @@ ci_verdict_expect_bite "a scanner step with no exit-code" trivy "${SEC}" \
 ci_verdict_expect_bite "the vuln gate moved to sarif" trivy "${SEC}" \
 	's/^( +)format: table$/\1format: sarif/'
 ci_verdict_expect_bite "the vuln gate reads HIGH no more" trivy "${SEC}" \
-	'/severity: CRITICAL,HIGH$/{N;s/CRITICAL,HIGH(\n +ignore-unfixed)/CRITICAL\1/}'
+	's/severity: CRITICAL,HIGH$/severity: CRITICAL/'
+ci_verdict_expect_bite "the vuln gate skipping what has no fix" trivy "${SEC}" \
+	's/^( +)severity: CRITICAL,HIGH$/&\n\1ignore-unfixed: true/'
 ci_verdict_expect_bite "the vuln gate softened" trivy "${SEC}" \
 	's/^( +)- name: Trivy vulnerability gate \(GATING\)$/&\n\1  continue-on-error: true/'
 ci_verdict_expect_bite "the vuln gate switched off" trivy "${SEC}" \
@@ -225,6 +230,54 @@ ci_verdict_expect_bite "a build context that left" workflow-paths "${DOCKER_WF}"
 	's#context: \.$#context: ./unheaded#'
 ci_verdict_expect_bite "a stage the Dockerfile lacks" workflow-paths "${DOCKER_WF}" \
 	's#target: wotan#target: wotan-gone#'
+
+echo "--- what docker.yml builds ---"
+ci_verdict_expect_bite "arm64 back in a build" docker-images "${DOCKER_WF}" \
+	's#platforms: linux/amd64$#platforms: linux/amd64,linux/arm64#'
+ci_verdict_expect_bite "a build with no platform named" docker-images "${DOCKER_WF}" \
+	'/platforms: linux\/amd64$/d'
+ci_verdict_expect_bite "the scan reading a tag nothing built" docker-images "${DOCKER_WF}" \
+	's#image-ref: (.*)/wotan:\$\{\{ github\.sha \}\}#image-ref: \1/wotan:sha-gone#'
+ci_verdict_expect_bite "the scan's image never loaded" docker-images "${DOCKER_WF}" \
+	'/^          load: true$/d'
+ci_verdict_expect_bite "a pull request able to push" docker-images "${DOCKER_WF}" \
+	'/- name: Push/{n;/if:/d}'
+ci_verdict_expect_bite "trivy left to float" docker-images "${DOCKER_WF}" \
+	'/^          version: \$\{\{ env\.TRIVY_PIN \}\}$/d'
+ci_verdict_expect_bite "a job that pushes before it scans" docker-images "${DOCKER_WF}" \
+	's/^( +)load: true$/\1push: true/'
+ci_verdict_expect_bite "a service Dockerfile building a command that left" docker-services \
+	"docker/services/monad/Dockerfile" 's#\./cmd/monad$#./cmd/monad-gone#'
+ci_verdict_expect_bite "the Makefile naming a service with no Dockerfile" docker-services \
+	"docker/Makefile" 's/^SERVICES := monad /SERVICES := monad gone /'
+ci_verdict_expect_bite "a service Dockerfile the Makefile does not build" docker-services \
+	"docker/Makefile" 's/^SERVICES := monad sophia /SERVICES := monad /'
+
+echo "--- Jenkins agents and fetches ---"
+for f in Jenkinsfile jenkins/Jenkinsfile.protocol; do
+	ci_verdict_expect_bite "the docker socket back in ${f}" jenkins "${f}" \
+		"s#^      image 'golang:.*\$#&\n      args '-v /var/run/docker.sock:/var/run/docker.sock'#"
+done
+ci_verdict_expect_bite "the docker socket in the shared library" jenkins "jenkins/vars/unheadedPipeline.groovy" \
+	's#^// Go setup and caching$#def mounted = "-v /var/run/docker.sock:/var/run/docker.sock"#'
+ci_verdict_expect_bite "an archive unpacked as it downloads" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz | tar xz#'
+ci_verdict_expect_bite "wget unpacked as it downloads" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1wget -qO- https://example.invalid/buf.tar.gz | tar xz#'
+ci_verdict_expect_bite "the download and tar on two lines, by backslash" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz \\\n\1  | tar xz#'
+ci_verdict_expect_bite "the download and tar on two lines, by a trailing pipe" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz |\n\1  tar xz#'
+ci_verdict_expect_bite "wget piped to a shell" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1wget -qO- https://example.invalid/install.sh | sh#'
+
+echo "--- OpenTofu workflows stay off ---"
+for f in plan apply; do
+	ci_verdict_expect_bite "${f}.yml on a pull request again" iac-off ".github/workflows/${f}.yml" \
+		's/^  workflow_dispatch:$/  workflow_dispatch:\n  pull_request:/'
+	ci_verdict_expect_bite "${f}.yml's job able to run" iac-off ".github/workflows/${f}.yml" \
+		'/^    if: \$\{\{ false \}\}$/d'
+done
 
 echo
 echo "passed: ${PASSED}  failed: ${FAILED}"

@@ -42,7 +42,7 @@ and signs deployment artifacts.
 - `ebpf.yml` — builds Rust eBPF programs, runs the BPF verifier check.
 - `security.yml` — `cargo audit`, `govulncheck`, secret-scan,
   golangci-lint gate.
-- `apply.yml` / `release.yml` / `helm.yml` / `docker.yml` —
+- `apply.yml` / `release.yml` / `docker.yml` —
   deployment-side rails.
 - `timeline-drift-guard.yml` — keeps `references/timeline.md` honest
   against the live commit graph.
@@ -84,7 +84,7 @@ Declarative pipeline pinned to `golang:1.25-alpine` (S77 Phase 3 baseline
 
 ## Deployment targets
 
-- **Docker** — multi-arch (amd64 + arm64) Container images to
+- **Docker** — amd64 container images to
   `ghcr.io/unheaded/unheaded`.
 - **Debian package** — .deb artifacts attached to GitHub releases.
 - **Nix flake** — reproducible build via `nix build .#default`, used

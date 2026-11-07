@@ -5,7 +5,9 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"strings"
 	"testing"
 
 	"unheaded/pkg/gpulease"
@@ -61,5 +63,17 @@ func TestWorker_GPUBusyMidCardDefers(t *testing.T) {
 	res2, _ := w.runOnce(context.Background())
 	if res2.Outcome != outcomeSucceeded || res2.Branch != "zhen/good" {
 		t.Errorf("retry after the deferral: %+v", res2)
+	}
+}
+
+// The man page is written in a bare environment, so its printed default is the
+// fallback. The flag's own text has to name the path a login session gets.
+func TestGPULockFlagNamesTheRuntimeDir(t *testing.T) {
+	fs := flag.NewFlagSet("zhen-agentd", flag.ContinueOnError)
+	var wf workerFlags
+	registerWorkerFlags(fs, &wf)
+	usage := fs.Lookup("gpu-lock").Usage
+	if !strings.Contains(usage, "$XDG_RUNTIME_DIR/unheaded/gpu.lock") {
+		t.Fatalf("--gpu-lock usage names no runtime dir: %q", usage)
 	}
 }

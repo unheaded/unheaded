@@ -5,6 +5,9 @@ package scriptlib
 
 import (
 	"encoding/xml"
+	"errors"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -66,11 +69,12 @@ func TestOntologyEdgesReachCells(t *testing.T) {
 	}
 }
 
-// The PDF cannot be redrawn on a host with no draw.io, so the page beside it says so.
-func TestOntologyPDFIsMarkedStale(t *testing.T) {
-	note := moveoutRepoFile(t, "docs/architecture/diagrams/README.md")
-	if !strings.Contains(note, "service-ontology.drawio.pdf") || !strings.Contains(note, "stale") {
-		t.Errorf("docs/architecture/diagrams/README.md does not mark the PDF stale:\n%s", note)
+// The only export drew Doom and could not be redrawn on a host with no draw.io,
+// so it moved to unheaded-doom. The .drawio source is the service map here.
+func TestOntologyPDFHasLeft(t *testing.T) {
+	pdf := filepath.Join("..", "..", "docs", "architecture", "diagrams", "service-ontology.drawio.pdf")
+	if _, err := os.Stat(pdf); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("%s is still here (stat error: %v)", pdf, err)
 	}
 }
 

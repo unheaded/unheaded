@@ -5,59 +5,38 @@
 ### Base Image Pattern
 - **docker/base/Dockerfile.base** (82 lines)
   - Multi-stage Go build reference implementation
-  - Imported conceptually by all 25 service Dockerfiles
+  - Imported conceptually by all 7 service Dockerfiles
 
-### Service Dockerfiles (25 total)
+### Service Dockerfiles (7 total)
 
-#### Standard Distroless Services (23 services)
+#### Standard Distroless Services (5 services)
 Using `gcr.io/distroless/static-debian12:nonroot`
 
 1. **docker/services/monad/Dockerfile** — Register service (50051/gRPC)
 2. **docker/services/sophia/Dockerfile** — Persistent state (50052/gRPC)
-3. **docker/services/wotan/Dockerfile** — NATS broker (50053/gRPC, 4222/NATS)
-4. **docker/services/anamnesis/Dockerfile** — Memory/context (50054/gRPC)
-5. **docker/services/protocol-api/Dockerfile** — Protocol API (50056/gRPC)
-6. **docker/services/trace-collector/Dockerfile** — Jaeger traces (9411/HTTP)
-7. **docker/services/gateway/Dockerfile** — TLS termination (8443/HTTPS)
-8. **docker/services/service-discovery/Dockerfile** — Service registry (50057/gRPC, 8500/HTTP)
-10. **docker/services/captain/Dockerfile** — Orchestration (50058/gRPC)
-11. **docker/services/micromanager/Dockerfile** — Coordination (50059/gRPC)
-12. **docker/services/timeguru/Dockerfile** — Scheduling (50060/gRPC, 8600/HTTP)
-13. **docker/services/architect/Dockerfile** — System design (50061/gRPC)
-14. **docker/services/developer/Dockerfile** — Dev tools (50062/gRPC)
-15. **docker/services/lore/Dockerfile** — Knowledge base (50063/gRPC)
-16. **docker/services/busboy/Dockerfile** — Queue service (50064/gRPC)
-17. **docker/services/kingdom/Dockerfile** — Core service (50065/gRPC)
-18. **docker/services/moatghost/Dockerfile** — Security service (50067/gRPC)
+3. **docker/services/protocol-api/Dockerfile** — Protocol API (50056/gRPC)
+4. **docker/services/trace-collector/Dockerfile** — Jaeger traces (9411/HTTP)
 
 #### Dashboard Service (serves the vanilla-JS UI, ADR-006)
-19. **docker/services/dashboard-backend/Dockerfile**
+5. **docker/services/dashboard-backend/Dockerfile**
     - Standard Go service with HTTP + WebSocket
     - Distroless
     - Exposes 8080/HTTP
 
-#### eBPF/Privileged Services (4 services)
+#### eBPF/Privileged Services (2 services)
 Using `debian:bookworm-slim` with libbpf0 and custom UID 10001
 
-20. **docker/services/shield/Dockerfile** — eBPF WAF
+6. **docker/services/shield/Dockerfile** — eBPF WAF
     - Requires: CAP_BPF, CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_SYS_RESOURCE
     - Exposes 50055/gRPC
     - Includes libbpf0, ca-certificates
 
-21. **docker/services/unheaded-daemon/Dockerfile** — System daemon
+7. **docker/services/unheaded-daemon/Dockerfile** — System daemon
     - Requires: CAP_BPF, CAP_NET_ADMIN
     - Internal service (no EXPOSE)
     - Includes libbpf0, ca-certificates
 
-22. **docker/services/lich/Dockerfile** — Adversary scanner
-    - Requires: CAP_NET_RAW, CAP_NET_ADMIN
-    - Internal service (no EXPOSE)
-    - Includes ca-certificates
 
-23. **docker/services/blackmage/Dockerfile** — Pentesting service
-    - Requires: CAP_NET_RAW
-    - Exposes 50066/gRPC
-    - Includes ca-certificates
 
 ### Configuration Files
 
@@ -84,11 +63,9 @@ Using `debian:bookworm-slim` with libbpf0 and custom UID 10001
 
 | Metric | Value |
 |--------|-------|
-| Total Dockerfiles | 26 (1 base + 25 services) |
-| Total Lines of Code | 883 |
-| Distroless Services | 23 |
-| Debian Services | 4 |
-| Node/Nginx Services | 1 |
+| Total Dockerfiles | 8 (1 base + 7 services) |
+| Distroless Services | 5 |
+| Debian Services | 2 |
 | Standard gRPC Services | 18 |
 | Multi-port Services | 4 |
 | eBPF/Privileged Services | 4 |

@@ -5,7 +5,6 @@ pipeline {
   agent {
     docker {
       image 'golang:1.27.3-bookworm'
-      args '-v /var/run/docker.sock:/var/run/docker.sock'
     }
   }
 
@@ -131,9 +130,9 @@ pipeline {
         script {
           echo "=== Proto Validation ==="
           sh '''
-            curl -sSfL https://github.com/bufbuild/buf/releases/download/v1.28.0/buf-Linux-x86_64.tar.gz | tar xz
-            ./buf lint
-            ./buf breaking --against '.git#branch=main' || true
+            ./scripts/ci-install-tools.sh "$WORKSPACE/.tools" buf
+            "$WORKSPACE/.tools/buf" lint
+            "$WORKSPACE/.tools/buf" breaking --against '.git#branch=main' || true
           '''
         }
       }

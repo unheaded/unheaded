@@ -15,34 +15,18 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 | `base/Dockerfile.base` | 82 | Multi-stage Go build reference pattern |
 | `services/.dockerignore` | 16 | Global build context optimization |
 
-### Service Dockerfiles (25 total)
+### Service Dockerfiles (7 total)
 
-#### Standard Go Services (23 distroless)
+#### Standard Go Services (5 distroless)
 - `services/monad/Dockerfile` — 50051/gRPC register
 - `services/sophia/Dockerfile` — 50052/gRPC state
-- `services/wotan/Dockerfile` — 50053/gRPC, 4222/NATS
-- `services/anamnesis/Dockerfile` — 50054/gRPC memory
 - `services/protocol-api/Dockerfile` — 50056/gRPC
 - `services/trace-collector/Dockerfile` — 9411/HTTP traces
-- `services/gateway/Dockerfile` — 8443/HTTPS TLS
-- `services/service-discovery/Dockerfile` — 50057/gRPC, 8500/HTTP
-- `services/captain/Dockerfile` — 50058/gRPC
-- `services/micromanager/Dockerfile` — 50059/gRPC
-- `services/timeguru/Dockerfile` — 50060/gRPC, 8600/HTTP
-- `services/architect/Dockerfile` — 50061/gRPC
-- `services/developer/Dockerfile` — 50062/gRPC
-- `services/kanban/Dockerfile` — 3002/HTTP
-- `services/lore/Dockerfile` — 50063/gRPC
-- `services/busboy/Dockerfile` — 50064/gRPC
-- `services/kingdom/Dockerfile` — 50065/gRPC
-- `services/moatghost/Dockerfile` — 50067/gRPC
 - `services/dashboard-backend/Dockerfile` — 8080/HTTP+WS
 
-#### eBPF/Privileged Services (4 debian:bookworm-slim)
+#### eBPF/Privileged Services (2 debian:bookworm-slim)
 - `services/shield/Dockerfile` — 50055/gRPC, CAP_BPF+CAP_NET_ADMIN+CAP_SYS_ADMIN+CAP_SYS_RESOURCE
 - `services/unheaded-daemon/Dockerfile` — Internal, CAP_BPF+CAP_NET_ADMIN
-- `services/lich/Dockerfile` — Internal, CAP_NET_RAW+CAP_NET_ADMIN
-- `services/blackmage/Dockerfile` — 50066/gRPC, CAP_NET_RAW
 
 ### Documentation
 
@@ -60,7 +44,7 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 **Build a single service**
 → See: `QUICKSTART.md` "Single Service" section
 
-**Build all 25 services**
+**Build all 7 services**
 → See: `QUICKSTART.md` "All Services (Parallel)" section
 
 **Understand the security model**
@@ -73,7 +57,7 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 → Follow: `README.md` "Production Checklist" section
 
 **Verify all files exist**
-→ Run: `find /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/services -name "Dockerfile" | wc -l` (should be 25)
+→ Run: `find /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/services -name "Dockerfile" | wc -l` (should be 7)
 
 **Check documentation completeness**
 → Run: `ls -la /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/*.md`
@@ -81,11 +65,10 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 ## Statistics
 
 ```
-Total Dockerfiles:     27 (1 base + 25 services)
+Total Dockerfiles:     8 (1 base + 7 services)
 Total Lines:           883 production-ready code
-Standard Services:     23 (distroless/static-debian12)
-eBPF Services:         4 (debian:bookworm-slim)
-Frontend:              1 (node:22-alpine → nginx:alpine)
+Standard Services:     5 (distroless/static-debian12)
+eBPF Services:         2 (debian:bookworm-slim)
 Documentation Files:   4 (README, MANIFEST, QUICKSTART, INDEX)
 Build Context Opt:     1 (.dockerignore)
 ```
@@ -108,7 +91,7 @@ Build Context Opt:     1 (.dockerignore)
 - OCI image label standards
 
 ### Operations
-- Parallel build capability (all 25 services simultaneously)
+- Parallel build capability (all 7 services simultaneously)
 - Version/commit/timestamp tracking
 - Per-service documentation in headers
 - Capacity annotations
@@ -118,38 +101,19 @@ Build Context Opt:     1 (.dockerignore)
 
 | Base Image | Services | Use Case |
 |-----------|----------|----------|
-| `gcr.io/distroless/static-debian12:nonroot` | 23 | Standard Go microservices |
-| `node:22-alpine` → `nginx:alpine` | 1 | Frontend web UI |
-| `debian:bookworm-slim` | 4 | eBPF + privileged services |
+| `gcr.io/distroless/static-debian12:nonroot` | 5 | Standard Go microservices |
+| `debian:bookworm-slim` | 2 | eBPF + privileged services |
 
 ## Port Assignments
 
 ### gRPC Standard Ports (50051-50067)
 - 50051: monad
 - 50052: sophia
-- 50053: wotan
-- 50054: anamnesis
 - 50055: shield
 - 50056: protocol-api
-- 50057: service-discovery
-- 50058: captain
-- 50059: micromanager
-- 50060: timeguru
-- 50061: architect
-- 50062: developer
-- 50063: lore
-- 50064: busboy
-- 50065: kingdom
-- 50066: blackmage
-- 50067: moatghost
 
 ### HTTP/Special Ports
-- 3002: kanban
-- 4222: wotan (NATS)
 - 8080: dashboard-backend
-- 8443: gateway (HTTPS)
-- 8500: service-discovery (Consul HTTP)
-- 8600: timeguru (HTTP)
 - 9411: trace-collector (Jaeger)
 
 ## Build Examples
@@ -163,7 +127,7 @@ docker build -f docker/services/monad/Dockerfile \
   -t unheaded-monad:v1.0.0 .
 ```
 
-### Batch build (all 25)
+### Batch build (all 7)
 See `QUICKSTART.md` for complete parallel build script
 
 ### With registry

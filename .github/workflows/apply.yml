@@ -1,12 +1,12 @@
 name: "Terraform Apply"
+# Off since 2026-11-06 (S-ANSWERED). No event starts it, and a manual dispatch
+# runs nothing. check-ci-verdicts.sh holds both.
 on:
-  push:
-    branches: [main]
-    paths:
-    - "deploy/tofu/**"
+  workflow_dispatch:
 
 jobs:
   apply:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     environment: production
     strategy:

@@ -7,12 +7,10 @@ COMMIT    ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 REGISTRY  ?= ghcr.io/stevenrbellis/unheaded
 
-# All 24 service names
-SERVICES := monad sophia wotan anamnesis shield unheaded-daemon \
-            dashboard-backend protocol-api \
-            trace-collector gateway service-discovery lich \
-            captain micromanager timeguru architect developer \
-            kanban lore busboy kingdom blackmage moatghost
+# Every service with a Dockerfile under services/ (the rest build from the
+# root Dockerfile's stages)
+SERVICES := monad sophia shield unheaded-daemon \
+            dashboard-backend protocol-api trace-collector
 
 BUILD_ARGS := \
   --build-arg VERSION=$(VERSION) \

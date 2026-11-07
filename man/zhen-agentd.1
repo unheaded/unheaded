@@ -1,4 +1,4 @@
-.TH ZHEN\-AGENTD 1 "2026-11-07" "unheaded 83232cd4" "Unheaded Kingdom"
+.TH ZHEN\-AGENTD 1 "2026-11-07" "unheaded 7c817b61" "Unheaded Kingdom"
 .SH NAME
 zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH SYNOPSIS
@@ -12,7 +12,7 @@ Serve the Zhenai agent runtime over HTTP for multi\-request use.
 audit\-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env) (default stderr)
 .TP
 .B \-\-agent\-root \fISTRING\fR
-with \-worker: agent worktrees live here, outside the project root (env ZHEN_AGENT_WT_ROOT) (default /home/govan/.cache/unheaded/zhen\-worktrees)
+with \-worker: agent worktrees live here, outside the project root (env ZHEN_AGENT_WT_ROOT) (default ~/.cache/unheaded/zhen\-worktrees)
 .TP
 .B \-\-allowed\-roots \fISTRING\fR
 comma\-separated list of project roots requests may target; defaults to just \-project\-root
@@ -54,7 +54,7 @@ with \-worker \-claude live: hard spend cap per UTC day of \-ledger (default 5)
 with \-worker \-claude live: effort (default low)
 .TP
 .B \-\-gpu\-lock \fISTRING\fR
-GPU lease file shared with scripts/switch\-model.sh and forge\-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; "" = no lease (default /run/user/1000/unheaded/gpu.lock)
+GPU lease file shared with scripts/switch\-model.sh and forge\-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; "" = no lease; $XDG_RUNTIME_DIR/unheaded/gpu.lock when that is set (default /tmp/unheaded/gpu.lock)
 .TP
 .B \-\-host \fISTRING\fR
 HTTP listen host (use 0.0.0.0 for non\-loopback) (default 127.0.0.1)
@@ -105,13 +105,13 @@ per\-IP rate\-limit burst capacity (only used when \-rate\-limit > 0) (default 1
 per\-IP requests/sec (0 disables) (default 5)
 .TP
 .B \-\-report\-dir \fISTRING\fR
-with \-overnight: morning reports (<date>.md, 0600) (default /home/govan/.local/state/unheaded/zhen\-reports)
+with \-overnight: morning reports (<date>.md, 0600) (default ~/.local/state/unheaded/zhen\-reports)
 .TP
 .B \-\-retrieve\-deadline \fIDURATION\fR
 how long each retrieval waits for each backend; a backend past it is skipped, reads and answers go on, and its silence holds every mutating call (0: no deadline) (default 2s)
 .TP
 .B \-\-review\-dir \fISTRING\fR
-with \-worker: review notes (one Markdown file per run, 0600) (default /home/govan/.local/state/unheaded/zhen\-reviews)
+with \-worker: review notes (one Markdown file per run, 0600) (default ~/.local/state/unheaded/zhen\-reviews)
 .TP
 .B \-\-routing \fISTRING\fR
 with \-worker: routing table (scripts/two\-brains/thresholds.py) (default configs/zhen\-routing.yaml)
@@ -126,7 +126,7 @@ with \-scheduler: the schedule file (env ZHEN_SCHEDULES); read\-only to the daem
 with \-scheduler: where run\-time schedule changes (POST /api/v1/scheduler/add|remove|pause) persist (env ZHEN_SCHEDULES_STATE); empty keeps them until restart
 .TP
 .B \-\-stop\-file \fISTRING\fR
-with \-overnight: when this file exists the night stops (a card in flight finishes its check and commits nothing) (default /home/govan/.local/state/unheaded/zhen\-agentd.stop)
+with \-overnight: when this file exists the night stops (a card in flight finishes its check and commits nothing) (default ~/.local/state/unheaded/zhen\-agentd.stop)
 .TP
 .B \-\-window \fISTRING\fR
 with \-overnight: local\-time window HH:MM\-HH:MM (may cross midnight) (default 01:00\-07:00)

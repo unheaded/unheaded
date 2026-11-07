@@ -98,7 +98,7 @@ func registerWorkerFlags(fs *flag.FlagSet, wf *workerFlags) {
 	fs.IntVar(&wf.maxCards, "max-cards", 5, "with -overnight: cards tried per night")
 	fs.StringVar(&wf.stopFile, "stop-file", filepath.Join(defaultStateDir(), "zhen-agentd.stop"), "with -overnight: when this file exists the night stops (a card in flight finishes its check and commits nothing)")
 	fs.StringVar(&wf.reportDir, "report-dir", filepath.Join(defaultStateDir(), "zhen-reports"), "with -overnight: morning reports (<date>.md, 0600)")
-	fs.StringVar(&wf.gpuLock, "gpu-lock", gpulease.DefaultPath(), "GPU lease file shared with scripts/switch-model.sh and forge-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; \"\" = no lease")
+	fs.StringVar(&wf.gpuLock, "gpu-lock", gpulease.DefaultPath(), "GPU lease file shared with scripts/switch-model.sh and forge-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; \"\" = no lease; $XDG_RUNTIME_DIR/unheaded/gpu.lock when that is set")
 	fs.StringVar(&wf.localModel, "local-model", envOr("ZHEN_LOCAL_LLM_MODEL", claudebridge.DefaultLocalModel), "with -worker: local model name when the family names none")
 }
 

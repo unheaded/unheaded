@@ -11,8 +11,8 @@
    - 3 stages: builder → certs → final (distroless)
    - Documents hardening strategy
 
-2. **25 Service Dockerfiles** (production-ready)
-   - 23 × distroless/static-debian12 (Go services)
+2. **7 Service Dockerfiles**
+   - 5 × distroless/static-debian12 (Go services)
    - 1 × Node.js 22 Alpine → nginx Alpine (frontend)
    - 1 × Go service (dashboard-backend)
    - 4 × debian:bookworm-slim (eBPF/privileged)
@@ -39,18 +39,15 @@ docker build \
   -t unheaded-monad:v1.0.0 .
 ```
 
-### All 25 Services (Parallel)
+### All 7 Services (Parallel)
 ```bash
 #!/bin/bash
 export VERSION=v1.0.0
 export BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 export COMMIT=$(git rev-parse --short HEAD)
 
-for service in monad sophia wotan anamnesis shield \
-               unheaded-daemon dashboard-backend \
-               protocol-api trace-collector gateway service-discovery \
-               lich captain micromanager timeguru architect \
-               developer kanban lore busboy kingdom blackmage moatghost; do
+for service in monad sophia shield unheaded-daemon dashboard-backend \
+               protocol-api trace-collector; do
   docker build \
     -f docker/services/${service}/Dockerfile \
     --build-arg VERSION=$VERSION \
@@ -59,23 +56,19 @@ for service in monad sophia wotan anamnesis shield \
     -t unheaded-${service}:${VERSION} . &
 done
 wait
-echo "All 25 services built successfully!"
+echo "All 7 services built successfully!"
 ```
 
 ## Service Categories
 
 ### Standard (distroless)
-- monad, sophia, wotan, anamnesis
-- protocol-api, trace-collector, gateway, service-discovery
-- captain, micromanager, timeguru, architect, developer
-- kanban, lore, busboy, kingdom, moatghost
+- monad, sophia
+- protocol-api, trace-collector
 - dashboard-backend
 
 ### eBPF/Privileged (debian:bookworm-slim)
 - shield (CAP_BPF, CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_SYS_RESOURCE)
 - unheaded-daemon (CAP_BPF, CAP_NET_ADMIN)
-- lich (CAP_NET_RAW, CAP_NET_ADMIN)
-- blackmage (CAP_NET_RAW)
 
 ## Security Highlights
 
@@ -94,23 +87,9 @@ echo "All 25 services built successfully!"
 |---------|---------|
 | monad | 50051 |
 | sophia | 50052 |
-| wotan | 50053, 4222 |
-| anamnesis | 50054 |
 | shield | 50055 |
 | protocol-api | 50056 |
-| service-discovery | 50057, 8500 |
-| captain | 50058 |
-| micromanager | 50059 |
-| timeguru | 50060, 8600 |
-| architect | 50061 |
-| developer | 50062 |
-| lore | 50063 |
-| busboy | 50064 |
-| kingdom | 50065 |
-| blackmage | 50066 |
-| moatghost | 50067 |
 | dashboard-backend | 8080 |
-| gateway | 8443 |
 | trace-collector | 9411 |
 
 ## Verify Installation
@@ -118,7 +97,7 @@ echo "All 25 services built successfully!"
 ```bash
 # List all service Dockerfiles
 find /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/services -name "Dockerfile" | wc -l
-# Should output: 25
+# Should output: 7
 
 # Verify base Dockerfile
 ls -la /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/base/Dockerfile.base
@@ -148,32 +127,16 @@ docker/
 │   ├── .dockerignore                      (16 lines)
 │   ├── monad/Dockerfile                   (30 lines)
 │   ├── sophia/Dockerfile                  (30 lines)
-│   ├── wotan/Dockerfile                   (30 lines)
-│   ├── anamnesis/Dockerfile               (30 lines)
 │   ├── shield/Dockerfile                  (30 lines) ★ eBPF
 │   ├── unheaded-daemon/Dockerfile         (30 lines) ★ eBPF
 │   ├── dashboard-backend/Dockerfile       (30 lines)
 │   ├── protocol-api/Dockerfile            (30 lines)
 │   ├── trace-collector/Dockerfile         (30 lines)
-│   ├── gateway/Dockerfile                 (30 lines)
-│   ├── service-discovery/Dockerfile       (30 lines)
-│   ├── lich/Dockerfile                    (30 lines) ★ eBPF
-│   ├── captain/Dockerfile                 (30 lines)
-│   ├── micromanager/Dockerfile            (30 lines)
-│   ├── timeguru/Dockerfile                (30 lines)
-│   ├── architect/Dockerfile               (30 lines)
-│   ├── developer/Dockerfile               (30 lines)
-│   ├── kanban/Dockerfile                  (30 lines)
-│   ├── lore/Dockerfile                    (30 lines)
-│   ├── busboy/Dockerfile                  (30 lines)
-│   ├── kingdom/Dockerfile                 (30 lines)
-│   ├── blackmage/Dockerfile               (30 lines) ★ eBPF
-│   └── moatghost/Dockerfile               (30 lines)
 ├── README.md                               (comprehensive guide)
 ├── MANIFEST.md                             (inventory & stats)
 └── QUICKSTART.md                           (this file)
 
-Total: 26 Dockerfiles, 883 lines of code
+Total: 8 Dockerfiles
 ```
 
 ---

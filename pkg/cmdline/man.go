@@ -61,7 +61,7 @@ func Man(w io.Writer, fs *flag.FlagSet, spec Spec) {
 				return
 			}
 			left, desc := flagRow(f)
-			manOption(w, left, desc)
+			manOption(w, left, defaultFromTilde(desc))
 		})
 	}
 	manOption(w, "-h, --help", "display this help and exit")
@@ -84,6 +84,16 @@ func Man(w io.Writer, fs *flag.FlagSet, spec Spec) {
 	}
 
 	p(".SH SEE ALSO\n.BR unheaded (1)\n")
+}
+
+// defaultFromTilde writes a default under the caller's home from ~. A page is
+// generated on one host and read on all of them; --help keeps the real path.
+func defaultFromTilde(desc string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || home == "/" {
+		return desc
+	}
+	return strings.ReplaceAll(desc, "(default "+home+"/", "(default ~/")
 }
 
 // manOption is one .TP entry: the option in bold with its placeholder in

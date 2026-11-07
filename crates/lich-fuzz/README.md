@@ -190,9 +190,10 @@ cargo +nightly fuzz run lich_010_wal_integrity
 
 ### Run with corpus
 ```bash
+# seeds/<target>/ is committed and only read. corpus/ is gitignored and takes
+# what libFuzzer finds, so it goes first.
 mkdir -p corpus/lich_007_mbc
-# Add seed corpus files to corpus/lich_007_mbc/
-cargo +nightly fuzz run lich_007_mbc corpus/lich_007_mbc
+cargo +nightly fuzz run lich_007_mbc corpus/lich_007_mbc seeds/lich_007_mbc
 ```
 
 ### Run with coverage

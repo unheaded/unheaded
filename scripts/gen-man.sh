@@ -8,6 +8,9 @@
 #   scripts/gen-man.sh --write   regenerate man/ (make man)
 #
 # SOURCE_DATE_EPOCH = the last commit's time, so pages are reproducible.
+# Each binary answers --man in a bare environment under a home that is no
+# one's: a flag default read from HOME, XDG_* or a ZHEN_* variable would
+# otherwise make a page match only the host that wrote it.
 # Binaries listed in docs/policy/man-missing-baseline.txt may not answer
 # yet; the list only shrinks: a new binary without --man fails, and so does
 # a listed one that now answers.
@@ -30,7 +33,7 @@ SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
 mkdir -p "$tmp/man"
 fail=0 pages=0
 while read -r n; do
-	if out=$("$tmp/bin/$n" --man 2>/dev/null) && [[ $out == .TH* ]]; then
+	if out=$(env -i HOME=/nonexistent SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" "$tmp/bin/$n" --man 2>/dev/null) && [[ $out == .TH* ]]; then
 		if listed "$n"; then
 			echo "FAIL $n: answers --man now; remove it from $baseline"
 			fail=1

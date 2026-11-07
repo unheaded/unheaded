@@ -120,9 +120,10 @@ for t in "${run[@]}"; do
 	art="$OUT/artifacts/$bin"
 	log="$OUT/logs/$bin.log"
 	mkdir -p "$corpus" "$art" "$(dirname "$log")"
-	# A committed seed corpus, when there is one, is read but never written.
+	# Committed seeds, when there are any, are read but never written. corpus/
+	# is gitignored and clean-artifacts deletes it, so they live in seeds/.
 	seeds=()
-	seed_dir="$REPO_ROOT/$(dirname "$manifest")/corpus/$bin"
+	seed_dir="$REPO_ROOT/$(dirname "$manifest")/seeds/$bin"
 	[[ -d "$seed_dir" ]] && seeds=("$seed_dir")
 	echo "== fuzz ${bin} (${TIME}s)"
 	"$exe" "$corpus" "${seeds[@]}" -max_total_time="$TIME" -timeout=10 \

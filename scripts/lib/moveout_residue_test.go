@@ -62,6 +62,11 @@ var moveoutGone = []struct {
 	{"raft/DEMO_CHECKLIST.md", `All 10 tests`},
 	{"raft/DEMO_CHECKLIST.md", `04_integration_tests`},
 	{"raft/DEMO_CHECKLIST.md", `Mistral|nvidia-smi|21K|integration test results`},
+	{"raft/DEMO_SCRIPT.md", `Mistral|FAISS|\d+(,\d+)?K?[- ]LOC|\d+,\d{3}|503K|RAFT|Job fair|hiring|Built in a day`},
+	{"raft/DEMO_QUESTIONS.md", `\d+K LOC|21K|Doom Range|Lists 10 services|64 test cases`},
+	{"docs/sprints/S77-CI-CD-STRATEGY.md", `(?i)multi-arch|arm64`},
+	{"crates/lich-fuzz/README.md", `Add seed corpus files to corpus/`},
+	{"docker/MANIFEST.md", `(?m)^(?:19|20|21)\. |^\| (?:Debian Services \| 4|Node/Nginx|Total Lines)`},
 	{"config/dashboard/services.txt", `(?i)doom`},
 	{".gitignore", `ci-fetch-doomgeneric|scripts/doom/`},
 	{"docs/EXTERNAL_DEPENDENCIES.md", `crates/zhenai-forge`},
@@ -302,6 +307,92 @@ func TestDemoChecklistFaultsFindPlantedChecks(t *testing.T) {
 	}
 	if got := demoChecklistFaults("no stats here\n", app, start, "Zhenai"); len(got) != 1 {
 		t.Errorf("checklist without a stats check: faults = %v, want one", got)
+	}
+}
+
+// demoScriptFaults names each step of the talk track that fails for the person
+// giving it. Only what zhen_app.py lists as open answers without a login, and a
+// POST outside its scripted routes also needs the CSRF cookie sent back, so a
+// step showing anything else has to carry that with it.
+func demoScriptFaults(script, app string) []string {
+	var faults []string
+	set := func(name string) map[string]bool {
+		out := map[string]bool{}
+		block := regexp.MustCompile(`(?s)` + name + ` = frozenset\(\{(.*?)\}\)`).FindStringSubmatch(app)
+		if block == nil {
+			faults = append(faults, name+" is not in zhen_app.py")
+			return out
+		}
+		for _, m := range regexp.MustCompile(`'(/[^']*)'`).FindAllStringSubmatch(block[1], -1) {
+			out[m[1]] = true
+		}
+		return out
+	}
+	open, scripted := set("_LOGIN_OPEN"), set("_SCRIPTED_ROUTES")
+	if len(faults) > 0 {
+		return faults
+	}
+	if !strings.Contains(script, "Log in") {
+		faults = append(faults, "no step logs in")
+	}
+	for _, m := range regexp.MustCompile("(?m)^.*Show `(/[^`]*)`").FindAllStringSubmatch(script, -1) {
+		if !open[m[1]] {
+			faults = append(faults, "Show "+m[1]+" needs a login the step does not have")
+		}
+	}
+	joined := strings.ReplaceAll(script, "\\\n", " ")
+	for _, m := range regexp.MustCompile(`(?m)^.*curl .*localhost:20103(/[A-Za-z0-9_/-]*).*$`).FindAllStringSubmatch(joined, -1) {
+		line, route := m[0], m[1]
+		if !open[route] && !strings.Contains(line, "-b zhen.cookies") {
+			faults = append(faults, "curl "+route+" sends no session")
+		}
+		if strings.Contains(line, "-X POST") && !scripted[route] &&
+			!(strings.Contains(line, "Origin: http://localhost:20103") && strings.Contains(line, "X-Zhen-CSRF: ")) {
+			faults = append(faults, "POST "+route+" sends no CSRF token")
+		}
+	}
+	// Only the page sets the CSRF cookie: a login does not, so a step that sends
+	// it back has to have fetched the page into the jar first.
+	if strings.Contains(script, "X-Zhen-CSRF: ") &&
+		!regexp.MustCompile(`(?m)curl .*-c zhen\.cookies .*localhost:20103/$`).MatchString(script) {
+		faults = append(faults, "the CSRF cookie is sent back but nothing fetches it")
+	}
+	return faults
+}
+
+func TestDemoScriptStepsWorkBehindTheLogin(t *testing.T) {
+	for _, fault := range demoScriptFaults(moveoutRepoFile(t, "raft/DEMO_SCRIPT.md"), moveoutRepoFile(t, "raft/zhen_app.py")) {
+		t.Error(fault)
+	}
+}
+
+func TestDemoScriptFaultsFindPlantedSteps(t *testing.T) {
+	app := "_LOGIN_OPEN = frozenset({\n    '/', '/health',\n})\n_SCRIPTED_ROUTES = frozenset({'/q'})\n"
+	good := "Log in first.\n- Show `/health`\n" +
+		"curl -s -b zhen.cookies -c zhen.cookies -o /dev/null http://localhost:20103/\n" +
+		"curl -s -b zhen.cookies http://localhost:20103/stats\n" +
+		"curl -s -b zhen.cookies -X POST http://localhost:20103/q\n" +
+		"curl -s -b zhen.cookies -X POST http://localhost:20103/s \\\n  -H \"Origin: http://localhost:20103\" \\\n  -H \"X-Zhen-CSRF: x\"\n"
+	if got := demoScriptFaults(good, app); len(got) != 0 {
+		t.Fatalf("clean script faults = %v", got)
+	}
+	for _, planted := range []string{
+		"- Show `/stats`\n",
+		"curl -s http://localhost:20103/stats\n",
+		"curl -s -b zhen.cookies -X POST http://localhost:20103/s\n",
+	} {
+		if got := demoScriptFaults(good+planted, app); len(got) != 1 {
+			t.Errorf("planted %q: faults = %v, want one", planted, got)
+		}
+	}
+	if got := demoScriptFaults(strings.Replace(good, "Log in first.\n", "", 1), app); len(got) != 1 {
+		t.Errorf("script with no login step: faults = %v, want one", got)
+	}
+	if got := demoScriptFaults(strings.Replace(good, "-c zhen.cookies ", "", 1), app); len(got) != 1 {
+		t.Errorf("script that never fetches the CSRF cookie: faults = %v, want one", got)
+	}
+	if got := demoScriptFaults(good, "nothing here"); len(got) != 2 {
+		t.Errorf("app without the route lists: faults = %v, want two", got)
 	}
 }
 

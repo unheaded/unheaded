@@ -311,13 +311,19 @@ environment {
 
 ### Docker Agent Configuration
 
-**Required:** Jenkins running with Docker socket access
+**Required:** a Jenkins controller that can start containers. The agent
+container itself gets no Docker socket, which is root on the host. The
+controller still holds it, to start agents, so the socket has moved rather than
+left: anyone who can run code on the controller has the host.
+
+The main Jenkinsfile's Deploy stage calls `make deploy`, which runs docker
+compose. The agent image has neither make nor docker, so that stage fails as
+written, with or without the socket.
 
 ```groovy
 agent {
   docker {
-    image 'golang:1.25-alpine'
-    args '-v /var/run/docker.sock:/var/run/docker.sock'
+    image 'golang:1.27.3-alpine3.24'
   }
 }
 ```
