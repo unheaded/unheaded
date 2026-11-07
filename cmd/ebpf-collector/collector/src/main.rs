@@ -79,6 +79,11 @@ struct Args {
     /// Rate limit: max events per second per topic
     #[arg(long, default_value = "100")]
     rate_limit: u64,
+
+    /// Load objects a non-root user could have written, as a build tree's are.
+    /// Development only; the default program paths are a build tree.
+    #[arg(long)]
+    allow_untrusted_ebpf_obj_dir: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -577,6 +582,12 @@ async fn main() -> anyhow::Result<()> {
         args.iface.clone()
     };
     info!("using interface: {}", iface);
+
+    // Both before either is read: a refused kprobe object must not leave the
+    // XDP program attached.
+    for object in [&args.xdp_program, &args.kprobe_program] {
+        objtrust::check_unless_allowed(object.as_ref(), args.allow_untrusted_ebpf_obj_dir)?;
+    }
 
     // Load and attach XDP program
     info!("loading XDP program from {}", args.xdp_program);
