@@ -14,9 +14,9 @@
 # Exposure assumed below: west and east are reachable from the home LAN and
 # the west-east P2P link only, not from the internet. Unverified (ADR-098
 # open question 4); if it is wrong, several severities rise. West holds a
-# public ISP-assigned IPv6 address (SLAAC) with ip6tables INPUT ACCEPT; Stevie
-# confirmed 2026-09-30 that the ISP edge firewall drops unsolicited inbound
-# (FND-004, closed on his statement). (Addresses are deliberately not written here.)
+# public ISP-assigned IPv6 address; Stevie stated 2026-09-30 that the ISP edge
+# firewall drops unsolicited inbound, and nobody has tested that from outside
+# (FND-004, open). (Addresses are deliberately not written here.)
 
 findings:
   # --- step 1: no host risk ---------------------------------------------
@@ -51,6 +51,25 @@ findings:
       alerts today and east's heartbeat has never succeeded (host-probe:west:alert-route, step E1). Left: the first
       real SLO page closes this entry; alert-route proves the chain is up, not that a page arrived
     decision: 'SMTP relay: personal Gmail (Stevie 2026-10-27, short-term; Workspace account later). Left dry-run 2026-10-27'
+
+  - id: FND-004
+    title: >-
+      West holds a public IPv6 address, and the claim that nothing outside can reach it rests on a statement, not a test
+    verify: >-
+      from a vantage point outside the home network, west's global IPv6 address answers on no port (or the router's
+      IPv6 inbound firewall is shown to be on), recorded with its date; then this entry closes with that evidence
+    host: west
+    severity: high
+    class: firewall
+    opened: 2026-09-30
+    exposure: >-
+      every risk acceptance that names FND-004 as its compensating control rests on this statement until the test exists
+    lockout: none
+    step: 1
+    plan: >-
+      Closed 2026-09-30 on Stevie's statement that the ISP edge firewall drops unsolicited inbound; ADR-098 records that
+      it was not tested from outside. Reopened 2026-11-06 at Stevie's word, with its original date. One outside probe,
+      recorded, closes it. A probe needs a vantage point outside the home network, so it is not run unattended
 
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
   # --- step 3: auditd -------------------------------------------------------

@@ -248,7 +248,7 @@ Progress:
 1. **Email** now, with PagerDuty or similar later. Still open: the SMTP relay. Credentials live in a file outside the repo.
 2. Not answered. The draft default is west and east watching each other, with no third party.
 3. **Physical access** to both hosts exists. That is the recovery path for the sshd and firewall steps.
-4. West and east are directly connected over the P2P link on the same switch. **Later on 2026-09-30, Stevie:** the ISP's edge firewall drops unsolicited inbound traffic, so FND-004 is closed. That rests on his statement; it has not been tested from outside. Severities keep assuming LAN-only exposure.
+4. West and east are directly connected over the P2P link on the same switch. **Later on 2026-09-30, Stevie:** the ISP's edge firewall drops unsolicited inbound traffic, so FND-004 was closed. That rested on his statement; it has not been tested from outside, and the entry's verify asked for that test. **Reopened 2026-11-06** at Stevie's word, until the test exists. Severities keep assuming LAN-only exposure.
 5. Not answered yet; installs-only remains the draft.
 6. **Edge TLS is deferred.** There is no internet-facing edge in develop mode; the plan is Let's Encrypt once one exists. The finding is accepted until 2026-12-29.
 7. **Backups:** GitHub is enough for now, so the database backup finding is accepted. Unpushed commits on west are to be mirrored to east every 30 minutes (FND-005, low priority).
