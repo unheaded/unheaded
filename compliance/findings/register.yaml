@@ -89,7 +89,7 @@ findings:
     severity: medium
     class: sshd
     opened: 2026-09-30
-    exposure: with PAM this is password login by another name
+    exposure: goes with passwordauthentication on the same host
     lockout: high
     step: 5
     accepted: {reason: "DP-11, Stevie 2026-11-03: there is no laptop key, so east keeps password login beside keys, with fail2ban and a key preferred", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
@@ -103,8 +103,8 @@ findings:
     step: 5
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: >-
-      West has no authorized keys for govan, so keyboard-interactive (PAM password) is the only remote login today. Add Stevie's public key to
-      ~govan/.ssh/authorized_keys, prove a key login, then KbdInteractiveAuthentication no. Stevie has physical access (2026-09-30)
+      Add Stevie's public key to the operator account, prove a key login, then KbdInteractiveAuthentication no. Stevie
+      has physical access (2026-09-30)
 
   # --- step 6: firewall default deny (highest lockout risk) -----------------
   - source: "host-probe:east:firewall-inbound-deny"
@@ -123,7 +123,7 @@ findings:
     severity: high
     class: firewall
     opened: 2026-09-30
-    exposure: 11 of 13 listeners on all addresses
+    exposure: west has no default-deny inbound rule loaded; the ruleset is written and waits for S-E1-LIVE
     lockout: high
     step: 6
     plan: >-
@@ -177,16 +177,15 @@ findings:
     title: >-
       Two Linux kernel vulnerabilities on CISA's KEV list (exploited in the wild) are unpatched on west and east, and
       no fixed kernel is coming for the release they run, which left support on 2026-07-09: CVE-2026-53266 (ebtables SNAT out-of-bounds write, KEV 2026-09-18) and
-      CVE-2026-53362 (privilege escalation via the IPv6 stack, KEV 2026-08-27). Both hosts run 6.17.0-41-generic
+      CVE-2026-53362 (privilege escalation via the IPv6 stack, KEV 2026-08-27)
     verify: pro fix CVE-2026-53266 --dry-run and pro fix CVE-2026-53362 --dry-run report "resolved" on west and east
     severity: high
     class: package
     opened: 2026-10-19
     exposure: >-
-      local privilege escalation; needs code already running on the host. West is the wider target: LXD sets
-      kernel.apparmor_restrict_unprivileged_userns=0 at runtime (/run/sysctl.d/zz-lxd.conf), so any local account can
-      make a user namespace and reach netfilter/IPv6 code with CAP_NET_ADMIN there; east keeps Ubuntu's default (1).
-      No ebtables module is loaded on either host (checked 2026-10-19). Found by kev-poller's first pull (ADR-055)
+      local privilege escalation; needs code already running on the host. West's user-namespace setting is looser than
+      east's, for LXD (see decision). The stopgap below blocks one of the two (checked 2026-10-19). Found by kev-poller's
+      first pull (ADR-055)
     lockout: none
     step: 3
     plan: >-
@@ -286,9 +285,8 @@ findings:
       2026-10-27 (S24, E3 granted by Stevie): first live rotation done at 12:23:16Z (handshake within
       seconds, overlay ping 3/3, verify-wireguard 8/8 PASS); wg0.conf backed up to /root on both hosts first;
       east's setup-era /etc/wireguard/preshared.key shredded. Script and units installed on west, timer NOT
-      enabled: the unit runs as root and root on west has no SSH key for east, so enabling it needs a new
-      root key authorized on govan@east (which has passwordless sudo, i.e. root on east). Closes when that
-      trust decision is made and the timer is enabled.
+      enabled: enabling it needs a new key between the hosts, which is a trust decision.
+      Closes when that decision is made and the timer is enabled.
     decision: 'E3 rotation done 2026-10-27; open: root-on-west SSH key to east for the weekly timer (trust expansion)'
 
   - id: FND-017
@@ -354,8 +352,8 @@ findings:
     class: app
     opened: 2026-09-30
     exposure: >-
-      the source passes on the compose file; running services are the open part (east's April builds set no AUTH_ENABLED
-      and answer without a token, FND-037), so this stays until the check reads what runs
+      the source passes on the compose file; what runs is the open part (FND-037), so this stays until the check reads
+      what runs
     lockout: none
     step: 7
     plan: redeploy east from develop, then a check that reads the deployed services (FND-037)
@@ -466,8 +464,8 @@ findings:
 
   - id: FND-033
     title: >-
-      hop-ebpf enforce mode can be skipped from the wire: a bad CRC, the CHAOS flag, a hop count at CONFIG key 3 or a
-      deploy_ring with no validator each pass the packet unchecked
+      hop-ebpf enforce mode does not cover every packet: four packet classes pass without the hop checks, and which of
+      them stay is unruled
     verify: >-
       Stevie rules which of the four stay, ADR-125 states each result, and tests/hopchecks holds an enforce case for
       each one asserting it
@@ -475,9 +473,8 @@ findings:
     class: app
     opened: 2026-11-04
     exposure: >-
-      hop_xdp returns XDP_PASS for a bad CRC, for CHAOS and at the hop limit before run_checks, and a deploy_ring with
-      no validator runs no check, so whoever writes the Monad decides whether enforce applies. Read from main.rs, not
-      run. Nothing loads hop-ebpf in production and CONFIG key 4 defaults to 0, so no path relies on enforce today.
+      enforce cannot be relied on until the four are ruled. Read from main.rs, not run. Nothing loads hop-ebpf in
+      production and CONFIG key 4 defaults to 0, so no path relies on enforce today.
     lockout: none
     step: 7
     plan: >-
@@ -598,8 +595,7 @@ findings:
     opened: 2026-10-27
     exposure: >-
       /conf/distributions now answers 403 on the LAN address, and the LAN listener is allowed (Stevie 2026-11-03: LAN
-      machines may install from it, over plain HTTP). What is left is the repo itself: unsigned, codename noble, and
-      east installs its unheaded-* packages from it
+      machines may install from it). What is left is the repo itself, which the signed reprepro repo replaces
     lockout: none
     step: 7
     plan: >-
@@ -1852,13 +1848,13 @@ findings:
     severity: high
     class: sudo
     opened: 2026-11-05
-    exposure: the operator account's sudo on west does not ask for a password, which CIS 5.2.4 requires
+    exposure: west does not meet CIS 5.2.4 on sudo authentication
     lockout: high
     step: 5
     plan: >-
       Undecided. Keep it and record an acceptance, or narrow it: automation needs rules naming exact commands and the
       collector needs its own read-only account first, because these probes run through the same rule
-    decision: keep passwordless sudo, or narrow it, and when
+    decision: how sudo is narrowed, and when
   - source: "host-probe:east:sudo-password-required"
     severity: high
     class: sudo
@@ -1867,7 +1863,7 @@ findings:
     lockout: high
     step: 5
     plan: Goes with west's entry, east first
-    decision: keep passwordless sudo, or narrow it, and when
+    decision: how sudo is narrowed, and when
   - source: "host-probe:west:auditd-rules-loaded"
     severity: medium
     class: service
@@ -1891,8 +1887,8 @@ findings:
     plan: Clears with E1 (host-probe:west:alert-route) at the next nightly run; if it does not within a day, treat it as a new failure
   - id: FND-037
     title: >-
-      Evidence reads declared configuration, not what runs: UH-AUTHN-01 and others pass on the compose file while the
-      only first-party services running are east's April builds, with no AUTH_ENABLED, under a shared account
+      Evidence reads declared configuration, not what runs: UH-AUTHN-01 and others pass on the compose file, which says
+      nothing about the first-party services running on the hosts
     verify: >-
       a host-side evidence kind reads the deployed package version and unit environment, and an unauthenticated probe of
       a running service gets 401, on each host that runs one
@@ -1930,8 +1926,8 @@ findings:
 
   - id: FND-039
     title: >-
-      The evidence file can be edited: var/compliance/evidence.json is unsigned, git-ignored and writable by the operator
-      account, and a hand-listed finding closes with a resolved block that names no re-runnable check
+      Evidence is not sealed: nothing proves var/compliance/evidence.json is what a collector wrote, and a hand-listed
+      finding closes with a resolved block that names no re-runnable check
     verify: >-
       each collector run is sealed and the reader refuses a broken seal, and a resolved entry without a check that can be
       run again fails to load

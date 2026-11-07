@@ -5,6 +5,7 @@ package crosswalk
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -43,5 +44,25 @@ func TestRegister_FND004StaysOpenUntilTestedFromOutside(t *testing.T) {
 	}
 	if e.Severity != SeverityHigh {
 		t.Errorf("FND-004 severity %q, want high", e.Severity)
+	}
+}
+
+// The repository is public. A register entry says what is guaranteed, what is
+// open and what closes it, not how a gap could be used. A row that needs one of
+// these words is rewritten, not excused.
+func TestRegister_TextStaysGeneral(t *testing.T) {
+	banned := []string{
+		"passwordless", "writable by", "without a token", "AUTH_ENABLED", "shared account",
+		"listeners on all addresses", "from the wire", "INPUT ACCEPT", "i.e. root",
+	}
+	raw, err := os.ReadFile("../../../compliance/findings/register.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	folded := strings.Join(strings.Fields(string(raw)), " ")
+	for _, b := range banned {
+		if strings.Contains(folded, b) {
+			t.Errorf("compliance/findings/register.yaml says %q", b)
+		}
 	}
 }
