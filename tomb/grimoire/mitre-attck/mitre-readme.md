@@ -83,7 +83,7 @@ Each downloaded JSON file is a STIX 2.1 bundle:
 3. **Splits long documents** into chunks of at most 2048 bytes, each under the object's header
 4. **Saves the index** in `/opt/tomb/grimoire/index`, with the technique ID as the chunk's symbol
 
-JSON that is not a bundle (`fetch-metadata.json`, the summaries) is skipped. A bundle that does not parse stops the build, and the last index keeps serving.
+JSON that is not a bundle (`fetch-metadata.json`, the summaries) is skipped. Only JSON in this directory is read. A bundle that does not parse stops the build, and the last index keeps serving.
 
 ### Querying (`zhen-codeindex --search`)
 
@@ -91,7 +91,7 @@ JSON that is not a bundle (`fetch-metadata.json`, the summaries) is skipped. A b
 /opt/tomb/grimoire/bin/zhen-codeindex --out /opt/tomb/grimoire/index --search "lateral movement linux"
 ```
 
-Search is by word: a chunk ranks by the share of the query's words it holds, then by those in its name. A technique ID such as `T1566.001` finds its object. A synonym finds nothing that does not use the word. The same index serves Zhen through `pkg/retrieval`, where ATT&CK text is `external` and never justifies a write.
+Search is by word: a chunk ranks by the share of the query's words it holds, then by those in its name. A technique ID such as `T1566.001` finds its object. Filler words in a question do not count. A synonym finds nothing that does not use the word. The same index serves Zhen through `pkg/retrieval`, where everything in this directory is `external` and never justifies a write.
 
 ### Across the Corpus
 

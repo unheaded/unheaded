@@ -554,6 +554,22 @@ findings:
         tree, the scan the SBOM jobs run: chromadb 1.5.9 before, none after. grype on those SBOMs: four chromadb
         advisories before, none after.
 
+  - id: FND-040
+    title: >-
+      check-python-audit does not audit notebooks/requirements.txt: all its lines are ranges, the gap FND-032 named for
+      Grimoire, and its exact pins in requirements.in are not locked
+    verify: every line of notebooks/requirements.txt is name==version, so scripts/check-python-audit.sh audits it
+    severity: low
+    class: package
+    opened: 2026-11-07
+    exposure: none on west or east as a service; the notebooks run by hand. A trial lock on 2026-10-28 audited at 0 advisories
+    lockout: none
+    step: 3
+    plan: >-
+      Lock with scripts/ci-python-lock.sh notebooks. The lock brings packages absent from the dependency baseline, each an
+      ADR-096 admission a person makes (requirements.in says how many)
+    decision: admit the notebook lock, or drop the notebooks' dependencies from the repo
+
   - id: FND-026
     title: West's apt repo on 18888 is still the old unsigned one.
     verify: curl -s -o /dev/null -w '%{http_code}' http://<west LAN address>:18888/conf/distributions is not 200, and only the signed reprepro repo (deploy/nginx/unheaded-apt.conf) answers on 18888, with dists/noble holding an InRelease signed by the key in deploy/

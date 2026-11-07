@@ -149,7 +149,8 @@ The Grimoire is a comprehensive offline knowledge repository. It includes:
 **Search Infrastructure (DP-719):**
 - **`pkg/codeindex`:** The word index Zhen's source shard uses. No vectors, no embedding model, no network
 - **Index Content:** Markdown, plain text and STIX bundles in the Grimoire, chunked by section or ATT&CK object. NVD and CWE files are not indexed; `cerydwyn.sh` greps them
-- **Query Interface:** `zhen-codeindex --search` answers through `pkg/retrieval`, by the share of the query's words a chunk holds. A word the text does not use finds nothing
+- **Query Interface:** `zhen-codeindex --search` answers by the share of the query's words a chunk holds, without filler words. A word the text does not use finds nothing
+- **Trust:** `threat-models/` and `kingdom-docs/` are `local`. Everything else, STIX included, is `external`
 
 **Access Pattern:** The Grimoire is consulted before every attack. It prevents reinvention and ensures attacks are informed by both Kingdom knowledge and external threat intelligence.
 
@@ -493,7 +494,7 @@ zhen-codeindex --out /opt/tomb/grimoire/index --search T1566.001 --top-k 10
  "source":"mitre-attck/enterprise-attack.json","trust":"external","score":1,"content":"MITRE ATT&CK Technique: ..."}]}
 ```
 
-Rebuild the index after new data arrives: `zhen-codeindex --corpus /opt/tomb/grimoire --out /opt/tomb/grimoire/index`. A file that does not parse stops the build, and the last index keeps serving.
+Rebuild the index after new data arrives: `zhen-codeindex --corpus /opt/tomb/grimoire --out /opt/tomb/grimoire/index`. A file it indexes that does not parse stops the build, and the last index keeps serving; a file it does not index is never opened.
 
 ---
 
@@ -1088,7 +1089,6 @@ The chaos of attack, studied and simulated, becomes the foundation of order and 
 | **Air-Gap** | Physical or logical isolation from the public internet; no routes to untrusted networks |
 | **Attack Campaign** | Coordinated sequence of attacks (e.g., LICH-005 = credential brute-force) |
 | **BlackMage** | The security consciousness of the Kingdom; the collective intelligence stored in the Tomb |
-| **ChromaDB** | Vector database for RAG embedding storage; enables semantic search |
 | **Crash Triage** | Process of categorizing fuzzing crashes by exploitability (RCE, DoS, etc.) |
 | **Dark Mirror** | Observability stack (Prometheus + Grafana + Loki) monitoring Kingdom from attacker perspective |
 | **Lich** | Custom adversary framework; LICH-001 through LICH-010 are coordinated attack campaigns |
@@ -1098,7 +1098,7 @@ The chaos of attack, studied and simulated, becomes the foundation of order and 
 | **Cerydwyn Daemon** | Background service running autonomous Cerydwyn queries to generate threat modeling suggestions |
 | **Cerydwyn TUI** | Interactive terminal user interface for querying Cerydwyn via serial console |
 | **Phylactery** | In Kingdom lore, the object housing a BlackMage's essence; the Tomb is the phylactery of security |
-| **RAG (Retrieval-Augmented Generation)** | Pipeline combining document retrieval (ChromaDB) with LLM generation (Mistral-7B) |
+| **RAG (Retrieval-Augmented Generation)** | Pipeline combining word search over the Grimoire (`zhen-codeindex`) with LLM generation (Mistral-7B) |
 | **Raft PC** | Physical host running QEMU; bridges Kingdom network (192.168.13.1) to Tomb VM (192.168.13.2/3) |
 | **Scope** | Defined set of in-scope targets, attack types, and time windows (defined in scope.conf) |
 | **Scope Violation** | Attempt to attack out-of-scope target; automatically logged and can trigger campaign abort |
