@@ -303,6 +303,10 @@ def branch_protection():
     lists = [re.findall(r'"([^"]+)"', c) for c in re.findall(r'"contexts": \[(.*?)\]', text, re.S)]
     lists += [re.findall(r"^- \[x\] `([^`]+)` —", s, re.M)
               for s in re.findall(r"#### Required Status Checks \(All must pass\)\n(.*?)\n####", text, re.S)]
+    # One operator cannot review his own work, so a review count would stop
+    # every merge (Stevie, 2026-11-06).
+    if re.search(r"required_approving_review_count|Require pull request reviews|approvals?\b", text):
+        bad("branch-protection", "asks for a review count; the rule is required checks and no review count")
     if len(lists) < 4:
         bad("branch-protection", f"found {len(lists)} required-check lists, expected main and develop, prose and command")
     for contexts in lists:

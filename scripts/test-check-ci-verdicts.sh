@@ -88,6 +88,8 @@ ci_verdict_expect_bite "a job id where the check is its name" branch-protection 
 	's/^      "CI Gate",$/      "CI Gate",\n      "go-build",/'
 ci_verdict_expect_bite "the summary job renamed in the workflow" branch-protection "${SEC}" \
 	's/^    name: Security Gate$/    name: Security Summary/'
+ci_verdict_expect_bite "a review count back in the command" branch-protection "${BP}" \
+	's/^  "required_pull_request_reviews": null,$/  "required_pull_request_reviews": {"required_approving_review_count": 1},/'
 
 echo "--- history secret scan (M5) ---"
 ci_verdict_expect_bite "the step softened" history-scan "${SEC}" \

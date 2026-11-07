@@ -6,6 +6,8 @@ package compliance
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -31,9 +33,6 @@ func TestIngestAuditRecord_AllowAndBlock(t *testing.T) {
 	score := svc.GetScore()
 	if score.NoData || score.Allowed != 1 || score.Blocked != 1 || score.ScorePct != 50.0 {
 		t.Fatalf("score = %+v, want one allowed, one blocked, 50%%", score)
-	}
-	if score.AuditCompleteness != 1.0 {
-		t.Fatalf("AuditCompleteness = %.4f, want 1: every ring record is an audit record", score.AuditCompleteness)
 	}
 	v := svc.ListViolations()
 	if len(v) != 1 {
@@ -62,5 +61,18 @@ func TestIngestAuditRecord_HostileInputRefused(t *testing.T) {
 	}
 	if s := svc.GetScore(); s.TotalPackets != 0 {
 		t.Fatalf("TotalPackets = %d after refused input, want 0", s.TotalPackets)
+	}
+}
+
+// A ratio of audit records to packets reads 1 by construction: a dropped ring
+// record is counted on neither side. It claimed a measurement nothing can make,
+// so the score carries no such field until the ring exposes its lost count.
+func TestScoreClaimsNoAuditCompleteness(t *testing.T) {
+	b, err := json.Marshal(ComplianceScore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "audit_completeness") {
+		t.Fatalf("score JSON carries audit_completeness: %s", b)
 	}
 }

@@ -260,3 +260,36 @@ func TestRepoSLOSourcesMatchPolicy(t *testing.T) {
 		t.Fatalf("UH-SLO-01 slo sources %v, policy.yaml SLOs %v", got, want)
 	}
 }
+
+// readsItsOwnSubject lists the gate-script controls whose claim is about the
+// repository itself, so reading the repository is reading the thing claimed.
+var readsItsOwnSubject = map[string]string{
+	"UH-PQC-01": "the claim is that the committed inventory equals the tree; the gate regenerates it from the tree",
+}
+
+// A gate script reads files, so a control resting on one says what is written,
+// not what runs (FND-037). It carries `declared`, or says here why reading the
+// repository is enough. A new control cannot reach PASS by reading a file.
+func TestRepoCatalog_GateScriptControlsAreDeclared(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	known := map[string]bool{}
+	for _, ctl := range c.Controls {
+		known[ctl.ID] = true
+		gate := slices.ContainsFunc(ctl.Evidence, func(e EvidenceSource) bool { return e.Kind == KindGateScript })
+		why, exempt := readsItsOwnSubject[ctl.ID]
+		switch {
+		case gate && ctl.Declared == "" && !exempt:
+			t.Errorf("%s rests on a gate script and has no declared reason", ctl.ID)
+		case exempt && (why == "" || ctl.Declared != "" || !gate):
+			t.Errorf("%s: stale readsItsOwnSubject row", ctl.ID)
+		}
+	}
+	for id := range readsItsOwnSubject {
+		if !known[id] {
+			t.Errorf("readsItsOwnSubject names %s, which the catalog does not hold", id)
+		}
+	}
+}

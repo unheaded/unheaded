@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-11-05
-**Total:** 132 entries (ADR-001 to ADR-135, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Last updated:** 2026-11-06
+**Total:** 134 entries (ADR-001 to ADR-137, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -21,7 +21,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | Status | Count |
 |--------|-------|
 | Accepted | 60 |
-| Proposed | 34 |
+| Proposed | 36 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 3 |
@@ -34,7 +34,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **132** |
+| **Total** | **134** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -195,3 +195,5 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [133](ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
 | [134](ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |
 | [135](ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF: tagged reply word read at SRET (SET_BRK, YIELD, KILL), heap window VA [0x10000, 0x40000), user pointers by slice offset, retry hand-off for blocking calls, kill in BPF, root cwd for rows (S-STAGE-2B; DP-213, DP-501, DP-502) | **Proposed** | 2026-11-04 |
+| [136](ADR-136-bind-zones-and-locked-down-ca.md) | BIND zones and a locked-down certificate authority for lab names: root key on a YubiKey, rotated working certificates; BIND is third party and needs Stevie's confirmation; chaos-controller's certificate waits on it | **Proposed** (parked) | 2026-11-06 |
+| [137](ADR-137-doom-range-check-and-dashboard-links-to-uhl.md) | The Doom Range port check and the dashboard's links move to `uhl` once it boots with a websocket TTY; the check stays as it is until then | **Proposed** (parked) | 2026-11-06 |

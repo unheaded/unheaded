@@ -153,8 +153,8 @@ func renderSSP(cat *crosswalk.Catalog, recs []crosswalk.Record, now time.Time, e
 	b.WriteString("Attestations are self-attested and labelled so.\n\n")
 
 	b.WriteString("## Summary\n\n| Control status | Controls |\n|---|---|\n")
-	fmt.Fprintf(&b, "| passing | %d |\n| stale | %d |\n| not assessed | %d |\n| failing | %d |\n\n",
-		counts[crosswalk.StatusPass], counts[crosswalk.StatusStale], counts[crosswalk.StatusNotAssessed], counts[crosswalk.StatusFail])
+	fmt.Fprintf(&b, "| passing | %d |\n| declared | %d |\n| stale | %d |\n| not assessed | %d |\n| failing | %d |\n\n",
+		counts[crosswalk.StatusPass], counts[crosswalk.StatusDeclared], counts[crosswalk.StatusStale], counts[crosswalk.StatusNotAssessed], counts[crosswalk.StatusFail])
 
 	b.WriteString("## Controls\n")
 	for _, c := range cat.Controls {
@@ -162,6 +162,9 @@ func renderSSP(cat *crosswalk.Catalog, recs []crosswalk.Record, now time.Time, e
 		fmt.Fprintf(&b, "\n### %s: %s\n\n", c.ID, oneLine(c.Title))
 		b.WriteString(statusLine(c, st, latest) + "\n\n")
 		b.WriteString(oneLine(c.Statement) + "\n\n")
+		if c.Declared != "" {
+			b.WriteString("Declared: " + oneLine(c.Declared) + "\n\n")
+		}
 		if c.Rationale != "" {
 			b.WriteString("Rationale: " + oneLine(c.Rationale) + "\n\n")
 		}
@@ -190,12 +193,13 @@ func renderSSP(cat *crosswalk.Catalog, recs []crosswalk.Record, now time.Time, e
 	b.WriteString("\n## SoA\n\n")
 	b.WriteString("Statement of Applicability. Every framework in the catalog is in scope as a mapping target and counted against the publisher's full requirement list; ")
 	b.WriteString("an unmapped requirement is counted, never dropped. Requirement statuses: evidenced (every mapped control passes), ")
+	b.WriteString("declared (none failing or missing, but a mapped control reads configuration in the repository, not what runs), ")
 	b.WriteString("failing (a mapped control fails), incomplete (mapped, none failing, some not assessed or stale), unmapped.\n\n")
-	b.WriteString("| Framework | Name | Version | Granularity | Requirements | Evidenced | Failing | Incomplete | Unmapped |\n")
-	b.WriteString("|---|---|---|---|---|---|---|---|---|\n")
+	b.WriteString("| Framework | Name | Version | Granularity | Requirements | Evidenced | Declared | Failing | Incomplete | Unmapped |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|---|---|\n")
 	for _, fw := range sum.Frameworks {
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %d | %d | %d | %d | %d |\n", cell(fw.ID), cell(fw.Name), cell(fw.Version), cell(fw.Granularity),
-			fw.Total, fw.Counts[crosswalk.ReqEvidenced], fw.Counts[crosswalk.ReqFailing], fw.Counts[crosswalk.ReqIncomplete], fw.Counts[crosswalk.ReqUnmapped])
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %d | %d | %d | %d | %d | %d |\n", cell(fw.ID), cell(fw.Name), cell(fw.Version), cell(fw.Granularity),
+			fw.Total, fw.Counts[crosswalk.ReqEvidenced], fw.Counts[crosswalk.ReqDeclared], fw.Counts[crosswalk.ReqFailing], fw.Counts[crosswalk.ReqIncomplete], fw.Counts[crosswalk.ReqUnmapped])
 	}
 	return b.String(), counts[crosswalk.StatusFail]
 }

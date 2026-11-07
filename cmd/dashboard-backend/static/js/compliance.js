@@ -10,7 +10,7 @@
 'use strict';
 
 (function () {
-    const REQ_STATUSES = ['EVIDENCED', 'FAILING', 'INCOMPLETE', 'UNMAPPED'];
+    const REQ_STATUSES = ['EVIDENCED', 'DECLARED', 'FAILING', 'INCOMPLETE', 'UNMAPPED'];
 
     function el(tag, opts, children) {
         const e = document.createElement(tag);
@@ -52,7 +52,7 @@
         body.textContent = '';
         fws.forEach(fw => {
             const bar = el('div', { cls: 'bar' });
-            ['EVIDENCED', 'FAILING', 'INCOMPLETE'].forEach(s => {
+            ['EVIDENCED', 'DECLARED', 'FAILING', 'INCOMPLETE'].forEach(s => {
                 const n = fw.counts[s] || 0;
                 if (n > 0 && fw.total > 0) {
                     const seg = el('span', { cls: 'b-' + s, title: n + ' ' + s.toLowerCase() });
@@ -69,6 +69,7 @@
                 el('td', { text: fw.granularity, cls: 'muted' }),
                 el('td', null, [bar]),
                 el('td', { text: fw.counts.EVIDENCED || 0, cls: 'num s-EVIDENCED' }),
+                el('td', { text: fw.counts.DECLARED || 0, cls: 'num s-DECLARED' }),
                 el('td', { text: fw.counts.FAILING || 0, cls: 'num s-FAILING' }),
                 el('td', { text: fw.counts.INCOMPLETE || 0, cls: 'num s-INCOMPLETE' }),
                 el('td', { text: fw.counts.UNMAPPED || 0, cls: 'num s-UNMAPPED' }),
@@ -119,7 +120,7 @@
                 ev.appendChild(line);
             });
             body.appendChild(el('tr', null, [
-                el('td', null, [el('div', { text: c.id, cls: 'mono' }), el('div', { text: c.title }), el('div', { text: c.statement, cls: 'muted' })]),
+                el('td', null, [el('div', { text: c.id, cls: 'mono' }), el('div', { text: c.title }), el('div', { text: c.statement, cls: 'muted' }), c.declared ? el('div', { text: 'Declared: ' + c.declared, cls: 's-DECLARED' }) : null]),
                 el('td', null, [badge(c.status)]),
                 ev,
                 el('td', { text: c.rationale || '', cls: 'muted' }),

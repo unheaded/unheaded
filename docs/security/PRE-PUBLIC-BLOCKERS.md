@@ -4,48 +4,40 @@
 **Context:** Stevie — *"our codebase is large but it's just me and you, we need to be on
 top of this before posting and boasting this project on any public forums."*
 
-These are the items that must be resolved **before** the repository is made public or
-promoted. Everything else in `findings-remediation-2026-07-29.md` can proceed in
+These items were written to be resolved **before** the repository went public. It is
+public now, so they are overdue, and promotion waits on them. Everything else in `findings-remediation-2026-07-29.md` can proceed in
 parallel; these cannot be deferred past publication.
 
 ---
 
-## RESOLVED BY RISK DECISION — Secrets in the repo (2026-07-29)
+## BLOCKER 1 and 2 — Secrets in history (decision rewritten 2026-11-06) 🔴
 
-`gitleaks` found **76 findings across git history** and 25 in the working tree.
-I flagged these as a hard pre-public blocker requiring rotation and a history
-rewrite. **Stevie overruled that, with context I did not have, and the call
-stands:**
+**The repository is public, so every value in history counts as burned.**
 
-> "At this point all we have are 1-off credentials used in this lab. It IS bad
-> hygiene — I had always advocated for storing env variables outside the repo,
-> but apparently some things slipped through. We don't need to scrub history or
-> panic. This is in active development, it is not production ready for the
-> public-facing internet."
+The 2026-07-29 decision was written for a repository that was not public: it
+took the baselined values as one-off lab credentials and left them in place.
+Its own condition said that stopped holding on exposure, and exposure has
+happened. It is replaced, and git keeps the old text.
 
-That is a sound reading of the actual exposure: one-off credentials on a
-non-internet-facing development system, in a repo whose blast radius is a home
-lab. Rotating them buys little; rewriting 2149 commits of history buys less.
+**What holds now:**
 
-**What was done instead:**
+1. Every credential-shaped value that ever reached git history is treated as
+   known to anyone. Nobody is asked to prove that a given value leaked, and
+   none is re-used.
+2. Every such value that is still in use is rotated at S-E1-LIVE, with Stevie.
+   New values live outside the repo. Rotation is the only action that restores
+   anything: history stays as it is, and is not rewritten.
+3. A row in `.gitleaksignore` or `docs/policy/gitleaks-history-baseline.txt`
+   means known, not accepted and not reviewed clear.
 
-1. Live credentials removed from the tree where found — 3 OPNsense API call
-   sites now read `OPNSENSE_API_KEY`/`_SECRET` with a `:?` guard so the script
-   fails loudly rather than running unauthenticated.
-2. The policy is written where it will be read: `CLAUDE.md` § Secrets
+**What stays from 2026-07-29:**
+
+1. The policy is written where it will be read: `CLAUDE.md` § Secrets
    Management, stated absolutely.
-3. **Enforcement is mechanical, not cultural.** `gitleaks` gates every push and
+2. **Enforcement is mechanical, not cultural.** `gitleaks` gates every push and
    PR to main/develop/staging, and `scripts/check-secrets-baseline.sh` makes
-   `.gitleaksignore` shrink-only — a new finding cannot be silenced by
-   appending its fingerprint, which is precisely how a suppression list becomes
-   the next gate that cannot fail.
-
-**The condition that changes this.** The decision rests on the system being
-non-internet-facing and holding nothing real. Before this project is exposed
-publicly or handles anything of consequence, **every baselined credential must
-be rotated.** "It was only a lab" describes where the secret was used, not the
-secret itself — once the repo is public, history is public with it, and
-rotation is the only action that restores anything.
+   `.gitleaksignore` shrink-only, so a new finding cannot be silenced by
+   appending its fingerprint.
 
 ---
 
@@ -97,7 +89,7 @@ Not acceptable:
 
 | Blocker | State |
 |---|---|
-| 1. Secrets in history | **OPEN** — 76 findings, gate added, baseline pinned |
-| 2. Credential rotation | **OPEN** — human task, Stevie only |
+| 1. Secrets in history | **OPEN** — every value counts as burned; gate added, baseline pinned; history is not rewritten |
+| 2. Credential rotation | **OPEN** — at S-E1-LIVE, with Stevie |
 | 3. Honest gate posture | Partially met — ratchet is visible; README wording pending |
 | 4. Repo hygiene | **OPEN** — 4 items |
