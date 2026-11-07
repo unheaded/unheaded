@@ -56,6 +56,15 @@ holds no build of `debian:bookworm-slim`, `golang` or distroless, and its
 `ubuntu:24.04` has moved, so no digest there can be read as what already runs:
 choosing one is choosing a version.
 
+## Update 2026-11-07
+
+Stevie's answer of 2026-11-06: pin the digest the registry serves, except the
+Well's. Both `alpine:3.24` lines now carry the registry's digest, read 2026-11-07
+with `docker buildx imagetools inspect`, which pulls nothing. It is not the build
+west holds, so the next `compose up` pulls it for `volume-init`.
+`postgres:16.15-alpine` stays on its tag, the one row left in the baseline, until
+a restore drill passes on the registry's bytes (decision 2).
+
 ## Done 2026-10-15
 
 - `docker-compose.yml`: `postgres:16.13-alpine`, `traefik:v3.3.7`,

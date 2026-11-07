@@ -1,6 +1,6 @@
 # Compose images with no digest yet, <file> <image>. May only shrink. Read by
-# scripts/check-image-digests.sh. The tag has moved on from the build west holds,
-# so a digest either way changes or misstates what runs: Stevie's call.
-docker-compose.yml alpine:3.24
+# scripts/check-image-digests.sh. Stevie's answer of 2026-11-06: pin what the
+# registry serves, except the Well's. Its tag has been rebuilt since west pulled
+# it, and new bytes under the Well wait for a passing restore drill
+# (scripts/well/restore-drill.sh, ADR-102); this row goes when one has passed.
 docker-compose.yml postgres:16.15-alpine
-monitoring/docker-compose.yml alpine:3.24

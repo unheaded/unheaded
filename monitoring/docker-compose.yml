@@ -35,7 +35,7 @@ services:
   # fresh volume inherits the image's owner (nobody, 472, 10001), and a volume
   # from before 2026-10-20 is owned by those; chown only when it differs.
   volume-init:
-    image: alpine:3.24
+    image: alpine:3.24@sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a
     user: "0:0"
     network_mode: none
     read_only: true
