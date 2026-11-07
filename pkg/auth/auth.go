@@ -46,11 +46,11 @@ type Identity struct {
 // ServiceSubject is the subject of an identity proved by a service's own key,
 // and "" for anything else: a user token or an API key may carry any name, so
 // its subject says nothing about which service is calling.
-func (i *Identity) ServiceSubject() string {
-	if i == nil || i.Extra["auth_method"] != "eddsa" {
+func (id *Identity) ServiceSubject() string {
+	if id == nil || id.Extra["auth_method"] != "eddsa" {
 		return ""
 	}
-	return i.Subject
+	return id.Subject
 }
 
 // HasRole returns true if the identity has the given role.

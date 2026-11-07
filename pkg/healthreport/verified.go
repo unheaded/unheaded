@@ -74,12 +74,12 @@ func Admit(sender string, requireVerified bool, payload []byte) (health.HealthRe
 	if r.Service == "" {
 		return r, fmt.Errorf("%w: no service", ErrBadReport)
 	}
-	switch {
-	case sender == "":
+	switch sender {
+	case "":
 		if requireVerified {
 			return r, ErrUnverified
 		}
-	case sender == akiraIdentity:
+	case akiraIdentity:
 		if !validNode(r.Reporter) {
 			return r, ErrBadNode
 		}

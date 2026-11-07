@@ -347,7 +347,7 @@ func demoScriptFaults(script, app string) []string {
 			faults = append(faults, "curl "+route+" sends no session")
 		}
 		if strings.Contains(line, "-X POST") && !scripted[route] &&
-			!(strings.Contains(line, "Origin: http://localhost:20103") && strings.Contains(line, "X-Zhen-CSRF: ")) {
+			(!strings.Contains(line, "Origin: http://localhost:20103") || !strings.Contains(line, "X-Zhen-CSRF: ")) {
 			faults = append(faults, "POST "+route+" sends no CSRF token")
 		}
 	}
