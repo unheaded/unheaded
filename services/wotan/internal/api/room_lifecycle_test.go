@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"unheaded/pkg/auth"
 )
 
 // L15: a subscriber still waiting for approval has made no room.
@@ -61,6 +63,47 @@ func TestJoin_RoomComesWithApproval(t *testing.T) {
 	srv.SendMessage(rec, httptest.NewRequest(http.MethodPost, "/send", bytes.NewReader(send)))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("send after approval = %d, want 201", rec.Code)
+	}
+}
+
+// L15: a room made by an approval counts against the member it is for, so
+// approval is no way past the member's share. With auth off a name is only what
+// the client said, and only the cap applies.
+func TestApproveMember_TheRoomCountsAgainstTheMember(t *testing.T) {
+	approve := func(srv *Server, authed bool, memberID string) int {
+		body, _ := json.Marshal(map[string]string{"member_id": memberID, "approved_by": "admin"})
+		req := httptest.NewRequest(http.MethodPost, "/admin/approve", bytes.NewReader(body))
+		setAdminAuth(req)
+		if authed {
+			req = req.WithContext(auth.ContextWithRole(req.Context(), auth.RoleAdmin))
+		}
+		rec := httptest.NewRecorder()
+		srv.ApproveMember(rec, req)
+		return rec.Code
+	}
+	setup := func(t *testing.T) (*Server, string) {
+		srv := setupTestServer()
+		srv.RoomManager.SetRoomQuota(1)
+		if _, err := srv.RoomManager.GetOrCreateAs("alice", "room-a", "room-a"); err != nil {
+			t.Fatal(err)
+		}
+		m, err := srv.MemberManager.RequestJoin("room-b", "alice", "", time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return srv, m.ID.String()
+	}
+
+	srv, id := setup(t)
+	if code := approve(srv, true, id); code != http.StatusTooManyRequests {
+		t.Fatalf("over the member's share: %d, want 429", code)
+	}
+	if got := srv.RoomManager.Count(); got != 1 {
+		t.Fatalf("%d rooms, want 1", got)
+	}
+	srv, id = setup(t)
+	if code := approve(srv, false, id); code != http.StatusOK {
+		t.Fatalf("auth off: %d, want 200", code)
 	}
 }
 
