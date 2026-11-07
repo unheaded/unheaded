@@ -267,6 +267,13 @@ jobs:
         # Scripts outside the runbooks with a contract worth pinning
         # (stress-cannon's Monad layout and CRC, S-TRUE-WIRE Step 212).
         run: python3 -m pytest tests/scripts -q -rfE
+      - name: two-brains routing thresholds (GATING)
+        # Ran in no job until 2026-11-07. Its neighbour test_author_runbook.py
+        # needs a user systemd session for run_check (systemd-run --user), so
+        # it runs locally only; note that python3 must not resolve under
+        # /var/tmp or /tmp, which the sandbox hides (the check then exits
+        # with no output).
+        run: python3 -m pytest scripts/two-brains/test_thresholds.py -q -rfE
 
   javascript:
     name: JavaScript (oxlint)
