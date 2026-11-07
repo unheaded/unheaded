@@ -1,6 +1,7 @@
 # Third-party component counts (scripts/check-sbom-trend.sh). Shrink-only:
 # every sprint removes at least one; --update lowers these, nothing raises them.
-# Measured 2026-10-29 on develop dcf331fd; python_components lowered 2026-11-07 (FND-032).
+# Measured 2026-10-29 on develop dcf331fd; python_components lowered 2026-11-07 (FND-032);
+# rust_components lowered 2026-11-07 when the count stopped including this repo's own crates.
 go_components=148
-rust_components=401
+rust_components=352
 python_components=72

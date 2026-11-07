@@ -73,7 +73,7 @@ jobs:
       - name: Install protoc
         run: sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
 
-      - name: cargo test
+      - name: Object trust tests
         working-directory: ${{ matrix.loader }}
         run: cargo test --locked
 
