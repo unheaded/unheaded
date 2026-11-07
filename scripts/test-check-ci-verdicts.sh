@@ -258,8 +258,18 @@ for f in Jenkinsfile jenkins/Jenkinsfile.protocol; do
 	ci_verdict_expect_bite "the docker socket back in ${f}" jenkins "${f}" \
 		"s#^      image 'golang:.*\$#&\n      args '-v /var/run/docker.sock:/var/run/docker.sock'#"
 done
+ci_verdict_expect_bite "the docker socket in the shared library" jenkins "jenkins/vars/unheadedPipeline.groovy" \
+	's#^// Go setup and caching$#def mounted = "-v /var/run/docker.sock:/var/run/docker.sock"#'
 ci_verdict_expect_bite "an archive unpacked as it downloads" tool-fetch "jenkins/Jenkinsfile.protocol" \
 	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz | tar xz#'
+ci_verdict_expect_bite "wget unpacked as it downloads" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1wget -qO- https://example.invalid/buf.tar.gz | tar xz#'
+ci_verdict_expect_bite "the download and tar on two lines, by backslash" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz \\\n\1  | tar xz#'
+ci_verdict_expect_bite "the download and tar on two lines, by a trailing pipe" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz |\n\1  tar xz#'
+ci_verdict_expect_bite "wget piped to a shell" tool-fetch "jenkins/Jenkinsfile.protocol" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1wget -qO- https://example.invalid/install.sh | sh#'
 
 echo "--- OpenTofu workflows stay off ---"
 for f in plan apply; do

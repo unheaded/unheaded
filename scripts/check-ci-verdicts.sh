@@ -194,10 +194,31 @@ CI_FILES = sorted(glob.glob(".github/workflows/*.yml") + glob.glob("jenkins/Jenk
                   + glob.glob("jenkins/vars/*.groovy") + ["Jenkinsfile", "nix/yggdrasil/Jenkinsfile", "Makefile"])
 FETCH_MODULE = re.compile(r"\bgo (?:install|run)\b[^|;&]*?\s([a-z0-9.-]+\.[a-z]+/\S+?)@(\S+)")
 CARGO_INSTALL = re.compile(r"\bcargo install (?:--\S+ )*([A-Za-z0-9_-]+)(@\S+)?(.*)")
-CURL_TO_SHELL = re.compile(r"\bcurl\b.*\|\s*(?:sudo\s+)?(?:sh|bash)\b")
-CURL_TO_TAR = re.compile(r"\bcurl\b.*\|\s*(?:sudo\s+)?tar\b")
+FETCH_TO_SHELL = re.compile(r"\b(?:curl|wget)\b.*\|\s*(?:sudo\s+)?(?:sh|bash)\b")
+FETCH_TO_TAR = re.compile(r"\b(?:curl|wget)\b.*\|\s*(?:sudo\s+)?tar\b")
 PIP_INSTALL = re.compile(r"\bpip3? install\b(.*)")
 PIP_EXACT = re.compile(r"[A-Za-z0-9._-]+==\d+(?:\.\d+)+")
+
+# A shell line as the shell reads it: one ending in a backslash or a pipe goes
+# on, so a pipe split across lines is still that pipe. Gives (first line, text).
+def shell_lines(lines):
+    start, parts = None, []
+    for n, line in enumerate(lines, 1):
+        text = line.strip()
+        if text.startswith(("#", "//")):
+            continue
+        text = re.split(r"\s#\s", text, maxsplit=1)[0].rstrip()
+        start = start or n
+        if text.endswith("\\"):
+            parts.append(text[:-1])
+        elif text.endswith("|") and not text.endswith("||"):
+            parts.append(text)
+        else:
+            parts.append(text)
+            yield start, " ".join(parts)
+            start, parts = None, []
+    if parts:
+        yield start, " ".join(parts)
 
 def tool_fetches():
     seen = {}
@@ -206,36 +227,38 @@ def tool_fetches():
             bad("tool-fetch", "no TRIVY_SHA256 in scripts/lib/tool-pins.sh for install-trivy.sh to check")
     for path in CI_FILES:
         with open(path, encoding="utf-8") as f:
-            for n, line in enumerate(f, 1):
-                text = line.strip()
-                if text.startswith(("#", "//")):
-                    continue
-                text = re.split(r"\s#\s", text, maxsplit=1)[0]
-                where = f"{path}:{n}"
-                for mod, version in FETCH_MODULE.findall(text):
-                    if not re.fullmatch(r"v\d+\.\d+\.\d+", version.rstrip(")\"'")):
-                        bad("tool-fetch", f"{where}: {mod}@{version} is not an exact version")
-                    seen.setdefault(mod, {}).setdefault(version.rstrip(")\"'"), []).append(where)
-                m = CARGO_INSTALL.search(text)
-                if m:
-                    crate, version, rest = m.group(1), m.group(2), m.group(3)
-                    if not version or not re.fullmatch(r"@\d+\.\d+\.\d+", version) or "--locked" not in rest:
-                        bad("tool-fetch", f"{where}: `cargo install {crate}` needs @<version> and --locked")
-                    else:
-                        seen.setdefault(crate, {}).setdefault(version[1:], []).append(where)
-                    if "|| true" in rest:
-                        bad("tool-fetch", f"{where}: `cargo install {crate}` swallows its failure")
-                if CURL_TO_SHELL.search(text):
-                    bad("tool-fetch", f"{where}: a script piped to a shell runs before anything checks it")
-                if CURL_TO_TAR.search(text):
-                    bad("tool-fetch", f"{where}: an archive piped to tar is unpacked before anything checks it")
-                m = PIP_INSTALL.search(text)
-                if m and "--require-hashes" not in m.group(1):
-                    for arg in m.group(1).split():
-                        if not arg.startswith("-") and not PIP_EXACT.fullmatch(arg):
-                            bad("tool-fetch", f"{where}: pip install {arg} is not an exact version")
-                if re.match(r"GO_VERSION\s*=", text):
-                    bad("tool-fetch", f"{where}: GO_VERSION is read by nothing; the agent image sets Go")
+            lines = f.readlines()
+        for n, text in shell_lines(lines):
+            if FETCH_TO_SHELL.search(text):
+                bad("tool-fetch", f"{path}:{n}: a script piped to a shell runs before anything checks it")
+            if FETCH_TO_TAR.search(text):
+                bad("tool-fetch", f"{path}:{n}: an archive piped to tar is unpacked before anything checks it")
+        for n, line in enumerate(lines, 1):
+            text = line.strip()
+            if text.startswith(("#", "//")):
+                continue
+            text = re.split(r"\s#\s", text, maxsplit=1)[0]
+            where = f"{path}:{n}"
+            for mod, version in FETCH_MODULE.findall(text):
+                if not re.fullmatch(r"v\d+\.\d+\.\d+", version.rstrip(")\"'")):
+                    bad("tool-fetch", f"{where}: {mod}@{version} is not an exact version")
+                seen.setdefault(mod, {}).setdefault(version.rstrip(")\"'"), []).append(where)
+            m = CARGO_INSTALL.search(text)
+            if m:
+                crate, version, rest = m.group(1), m.group(2), m.group(3)
+                if not version or not re.fullmatch(r"@\d+\.\d+\.\d+", version) or "--locked" not in rest:
+                    bad("tool-fetch", f"{where}: `cargo install {crate}` needs @<version> and --locked")
+                else:
+                    seen.setdefault(crate, {}).setdefault(version[1:], []).append(where)
+                if "|| true" in rest:
+                    bad("tool-fetch", f"{where}: `cargo install {crate}` swallows its failure")
+            m = PIP_INSTALL.search(text)
+            if m and "--require-hashes" not in m.group(1):
+                for arg in m.group(1).split():
+                    if not arg.startswith("-") and not PIP_EXACT.fullmatch(arg):
+                        bad("tool-fetch", f"{where}: pip install {arg} is not an exact version")
+            if re.match(r"GO_VERSION\s*=", text):
+                bad("tool-fetch", f"{where}: GO_VERSION is read by nothing; the agent image sets Go")
     for tool, versions in sorted(seen.items()):
         if len(versions) > 1:
             bad("tool-fetch", f"{tool}: more than one version in CI: {sorted(versions)}")
@@ -251,12 +274,14 @@ def jenkins_agents():
         bad("jenkins", "go.mod names no toolchain")
         return
     for path in CI_FILES:
-        if "Jenkinsfile" not in path:
+        if "Jenkinsfile" not in path and not path.endswith(".groovy"):
             continue
         with open(path, encoding="utf-8") as f:
             text = re.sub(r"(?m)^\s*//.*$", "", f.read())
         if "docker.sock" in text:
-            bad("jenkins", f"{path}: mounts the docker socket; nothing in an agent calls docker")
+            bad("jenkins", f"{path}: mounts the docker socket into an agent; that socket is root on the host")
+        if "Jenkinsfile" not in path:
+            continue
         if re.search(r"\benvironment\s*\{\s*\}", text):
             bad("jenkins", f"{path}: an empty environment block does not compile")
         for image in re.findall(r"\bimage\s+'golang:([^']+)'", text):
