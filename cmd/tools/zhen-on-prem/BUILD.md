@@ -85,8 +85,12 @@ cargo build --release
 # Bring up the stack (assumes llama-server + vor + postgres already running):
 ./raft/start-zhen.sh
 
+# Log in (AUTH_ISSUER_URL; login.json is {"username": "...", "password": "..."}, 0600):
+curl -s -c zhen.cookies -o /dev/null -X POST http://127.0.0.1:20103/auth/login \
+    -H 'Content-Type: application/json' --data-binary @login.json
+
 # Hit the chat endpoint:
-curl -s -X POST http://127.0.0.1:20103/api/v1/query \
+curl -s -b zhen.cookies -X POST http://127.0.0.1:20103/api/v1/query \
     -H 'Content-Type: application/json' \
     -d '{"question":"hello"}'
 ```

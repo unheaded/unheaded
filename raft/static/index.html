@@ -1029,6 +1029,15 @@
         }
     </style>
     <link rel="stylesheet" href="/api/v1/highlight.css">
+    <style>
+        .login-panel { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); }
+        .login-panel[hidden], .login-who[hidden] { display: none; }
+        .login-box { display: flex; flex-direction: column; gap: 10px; min-width: 280px; padding: 20px; background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 8px; }
+        .login-box label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+        .login-title { font-weight: 600; }
+        .login-error { color: #ff7b72; font-size: 13px; min-height: 1em; }
+        .login-who { position: fixed; top: 8px; right: 12px; z-index: 999; font-size: 12px; color: #8b949e; }
+    </style>
 </head>
 <body>
     <div class="drop-overlay" id="drop-overlay"><span>DROP FILE</span></div>
@@ -1225,6 +1234,19 @@
         </div>
     </main>
 
+    <div id="login-panel" class="login-panel" hidden>
+        <form id="login-form" class="login-box" autocomplete="on">
+            <div class="login-title">Log in to Zhen</div>
+            <label>Username <input id="login-user" name="username" autocomplete="username" required></label>
+            <label>Password <input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
+            <button type="submit">Log in</button>
+            <div id="login-error" class="login-error" role="alert"></div>
+        </form>
+    </div>
+    <div id="login-who" class="login-who" hidden>
+        <span id="login-who-name"></span> <button type="button" id="login-logout">Log out</button>
+    </div>
+
 <script>
 const API = '';  // Same origin
 
@@ -1245,9 +1267,84 @@ const API = '';  // Same origin
                 init = Object.assign({}, init, { headers: headers });
             }
         }
-        return realFetch(input, init);
+        return realFetch(input, init).then(function (resp) {
+            if (resp.status === 401 && url.origin === location.origin && !url.pathname.startsWith('/auth/')) {
+                showLogin();
+            }
+            return resp;
+        });
     };
 })();
+
+// Login (F4, H5): the issuer's, through this UI. The browser holds a session
+// cookie it cannot read, and never a token.
+function showLogin() {
+    document.getElementById('login-panel').hidden = false;
+    document.getElementById('login-user').focus();
+}
+
+function showWho(me) {
+    document.getElementById('login-panel').hidden = true;
+    document.getElementById('login-who-name').textContent = me.sub;
+    document.getElementById('login-who').hidden = false;
+}
+
+document.getElementById('login-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const errEl = document.getElementById('login-error');
+    const pw = document.getElementById('login-password');
+    errEl.textContent = '';
+    const r = await fetch(API + '/auth/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: document.getElementById('login-user').value, password: pw.value}),
+    });
+    pw.value = '';
+    const body = await r.json().catch(() => ({}));
+    if (r.ok) {
+        if (body.password_below_floor) {
+            alert('Your password is shorter than the 15 characters now asked for. It still works: please have it replaced.');
+        }
+        location.reload();
+        return;
+    }
+    const wait = r.headers.get('Retry-After');
+    errEl.textContent = (body.error || 'login failed') + (wait ? ` (try again in ${wait} s)` : '');
+});
+
+document.getElementById('login-logout').addEventListener('click', async () => {
+    await fetch(API + '/auth/logout', {method: 'POST'});
+    location.reload();
+});
+
+fetch(API + '/auth/me').then(r => r.ok ? r.json().then(showWho) : showLogin()).catch(showLogin);
+
+// A held call comes back with a token bound to the person logged in. It is
+// spent here, on this origin, as that person.
+async function redeemPending(token) {
+    const r = await fetch(API + '/api/v1/agent/confirm', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token: token}),
+    });
+    return {ok: r.ok, status: r.status, body: await r.json().catch(() => ({}))};
+}
+
+// offerConfirm puts a Confirm button in el: nothing runs until it is pressed.
+function offerConfirm(el, token, label, done) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'action-btn';
+    b.textContent = 'Confirm: ' + label;
+    b.addEventListener('click', async () => {
+        b.disabled = true;
+        b.textContent = 'running: ' + label;
+        const out = await redeemPending(token);
+        b.textContent = (out.ok ? 'done: ' : 'refused: ') + label;
+        done(out);
+    });
+    el.appendChild(b);
+}
 const msgs = document.getElementById('messages');
 const qInput = document.getElementById('q');
 const btn = document.getElementById('btn');
@@ -1617,8 +1714,14 @@ function renderActionButtons(actions) {
                 } else if (body.status === 'pending_confirmation' && body.pending_token) {
                     btn.textContent = '? Confirm: ' + action.name;
                     btn.classList.add('action-pending');
-                    result.innerHTML = '<span class="action-warn">Champion refused with pending confirmation. ' +
-                        'Token: <code>' + escapeHtml(body.pending_token) + '</code></span>';
+                    result.innerHTML = '<span class="action-warn">Held for you: ' +
+                        escapeHtml(body.reason || 'this needs your confirmation') + '</span> ';
+                    offerConfirm(result, body.pending_token, action.name, (out) => {
+                        const pre = document.createElement('pre');
+                        pre.className = 'action-output';
+                        pre.textContent = JSON.stringify(out.body.result || out.body, null, 2).slice(0, 2000);
+                        result.appendChild(pre);
+                    });
                 } else {
                     btn.textContent = btn.textContent.replace(/^⏳/, '✗');
                     btn.classList.add('action-fail');
@@ -2110,6 +2213,18 @@ async function switchModel(key) {
         return;
     }
 
+    // A swap is held for the person logged in: confirm it, then the swap
+    // runs and the answer is what /tool/exec would have said.
+    if (resp.body.status === 'pending_confirmation' && resp.body.pending_token) {
+        status.className = 'model-status swapping';
+        status.textContent = `swap to ${key} is held for you `;
+        const answer = await new Promise((resolve) => {
+            offerConfirm(status, resp.body.pending_token, key, resolve);
+        });
+        resp = {status: answer.status, body: answer.body};
+        status.textContent = `swapping to ${key}… (45 s – 3 min)`;
+    }
+
     // Daemon returns 200 + full ModelSwapResult on success; 4xx/5xx on
     // failure with a body that includes a 'reason' or 'error' field.
     if (resp.status >= 400) {
@@ -2192,9 +2307,13 @@ async function opHealthSweep() {
             </div>`);
         } else if (body.status === 'pending_confirmation' && body.pending_token) {
             opShow(`<div class="op-section op-warn">
-                <div class="op-section-head">? Champion pending — token: <code>${escapeHtml(body.pending_token)}</code></div>
+                <div class="op-section-head">? Held for you</div>
                 <div class="op-meta">${escapeHtml(body.reason || '')}</div>
+                <div class="op-meta" id="op-confirm"></div>
             </div>`);
+            offerConfirm(document.getElementById('op-confirm'), body.pending_token, 'service-health-sweep', (out) => {
+                opShow(`<pre class="op-output">${escapeHtml(JSON.stringify(out.body.result || out.body, null, 2).slice(0, 3000))}</pre>`);
+            });
         } else {
             opShow(`<div class="op-section op-fail">
                 <div class="op-section-head">✗ ${escapeHtml(body.status || 'error')}</div>

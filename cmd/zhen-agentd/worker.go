@@ -25,8 +25,9 @@ import (
 // `zhen-agentd -worker` (S-TWO-BRAINS Phase 6): turn an eligible Kanban
 // card from the Well into a local zhen/<card> branch for Stevie to review.
 //
-// One card at a time. A card is eligible when Stevie gave it to Zhen
-// (owner "zhen"), it is todo, of a worked type, and its description holds
+// One card at a time. A card is eligible when its owner is "zhen", an
+// operator opted in this very description on the board (kanban_zhen_optin,
+// migration 049), it is todo, of a worked type, and its description holds
 // a ```zhen block naming the family, the allowlisted check and the path.
 // The worker claims it in zhen_agent_runs (one active run per card, a
 // 30-minute lease renewed every 5 minutes), adds a worktree from local

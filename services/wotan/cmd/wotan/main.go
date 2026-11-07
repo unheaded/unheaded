@@ -54,6 +54,7 @@ type Config struct {
 	BufferBytes int
 	BufferTotal int
 	MaxRooms    int
+	RoomQuota   int
 	MaxMembers  int
 	// BindAddr is the address both listeners bind; "" means every interface.
 	BindAddr     string
@@ -152,6 +153,7 @@ func main() {
 	roomManager.SetBufferBytes(config.BufferBytes)
 	roomManager.SetTotalBytes(config.BufferTotal)
 	roomManager.SetMaxRooms(config.MaxRooms)
+	roomManager.SetRoomQuota(config.RoomQuota)
 	roomManager.SetKeep(signing.RequiresSignature) // signed config.* is never evicted for log traffic
 
 	memberManager := member.NewManager()
@@ -438,6 +440,12 @@ func listenAddr(bind string, port int) string {
 	return net.JoinHostPort(bind, strconv.Itoa(port))
 }
 
+// defaultRoomQuota is -room-quota: 10000 rooms over the 23 identities on
+// configs/wotan.yaml's auto_approve is 434 each, and 400 leaves every one of
+// them its whole share at once with the cap unreached. The busiest real caller
+// names a few dozen topics (logs.<service>.<level>, metrics.<service>).
+const defaultRoomQuota = 400
+
 func parseFlags(fs *flag.FlagSet, args []string) Config {
 	config := Config{}
 
@@ -446,6 +454,7 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 	fs.IntVar(&config.BufferBytes, "buffer-bytes", 8<<20, "Payload byte budget per room; oldest messages are dropped past it (0 = none)")
 	fs.IntVar(&config.MaxMembers, "max-members", 100000, "Most members (subscribers and publishers) that may exist at once; past it new subscribes and new publishers are refused (0 = none). Approved members are never reaped")
 	fs.IntVar(&config.MaxRooms, "max-rooms", 10000, "Most rooms (topics) that may exist; publishing to a new topic past it is refused (0 = none). Rooms are never reaped, and any auto-approved publisher mints one by naming a topic")
+	fs.IntVar(&config.RoomQuota, "room-quota", defaultRoomQuota, "Most rooms one verified caller may make; past it that caller's new topics are refused and rooms it already has stay open (0 = none). Rooms are never reaped, so without it one caller could spend all of -max-rooms")
 	fs.IntVar(&config.BufferTotal, "buffer-bytes-total", 64<<20, "Budget for every room together, content plus per-message overhead; the oldest messages of the largest rooms are dropped past it (0 = none)")
 	fs.StringVar(&config.BindAddr, "bind", "", "address the HTTP and gRPC listeners bind (default: every interface)")
 	fs.IntVar(&config.HTTPPort, "http-port", 18000, "HTTP REST API port")

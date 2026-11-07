@@ -1524,7 +1524,7 @@ services:
       - ALL
     tmpfs:
       - /tmp:size=16M
-    command: ["-listen", ":19020", "-issuer-url", "https://auth:19020", "-key-file", "/run/secrets/svc_key_unheaded-auth", "-users-file", "/etc/unheaded/auth/users.json", "-audiences", "unheaded,dashboard-backend,kanban-app"]
+    command: ["-listen", ":19020", "-issuer-url", "https://auth:19020", "-key-file", "/run/secrets/svc_key_unheaded-auth", "-users-file", "/etc/unheaded/auth/users.json", "-audiences", "unheaded,dashboard-backend,kanban-app,zhen-agentd"]
     environment:
       # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
       # listener and link; material from scripts/gen-dev-certs.sh (this

@@ -146,3 +146,22 @@ func TestBuildConfirmQueue_NeedsEnvAndWell(t *testing.T) {
 		t.Error("an unreachable queue was accepted")
 	}
 }
+
+// H3: a loop calling in over HTTP may have read anything, so its chain does
+// not pass Rule 2: the call is held for a person even when the chain is clean.
+func TestToolExec_AnAgentLoopIsHeldHoweverCleanItsChain(t *testing.T) {
+	q := &memQueue{}
+	srv, root := toolExecServer(t, q)
+	f := filepath.Join(root, "out.txt")
+	code, resp := postToolExec(t, srv, map[string]any{
+		"tool": "write_file", "args": map[string]any{"path": f, "content": "x"},
+		"emitted_by":    "zhen-agent/qwen-7b",
+		"justification": []map[string]any{{"topic": "t", "source_trust": "canonical"}},
+	})
+	if code != http.StatusAccepted || resp.Status != "queued" || len(q.rows) != 1 {
+		t.Fatalf("code %d: %+v, rows %d", code, resp, len(q.rows))
+	}
+	if _, err := os.Stat(f); err == nil {
+		t.Fatal("the write happened")
+	}
+}

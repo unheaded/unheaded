@@ -4,7 +4,7 @@
 
 The Grimoire ingests MITRE ATT&CK data in STIX 2.1 (Structured Threat Information eXpression) format. This is the same format published by MITRE at [github.com/mitre/cti](https://github.com/mitre/cti) and used by the ATT&CK Navigator, threat intelligence platforms, and detection engineering tools worldwide.
 
-The data is downloaded on an internet-connected host and transferred to the Tomb VM via air-gap media (USB drive). Once on the Tomb, `rag-index.py` parses the STIX bundles and indexes individual techniques, tactics, mitigations, and groups into ChromaDB for semantic retrieval.
+The data is downloaded on an internet-connected host and transferred to the Tomb VM via air-gap media (USB drive). Once on the Tomb, `zhen-codeindex --corpus` parses the STIX bundles and indexes individual techniques, mitigations, and groups for word search.
 
 ## Data Format
 
@@ -67,46 +67,41 @@ Each downloaded JSON file is a STIX 2.1 bundle:
 | `enterprise-tactics-summary.json` | Extracted tactic summaries (name, description, shortname) | ~10 KB |
 | `fetch-metadata.json` | Download timestamp, source, file sizes | <1 KB |
 
-## How the RAG Pipeline Uses MITRE Data
+## How the Grimoire Uses MITRE Data
 
-### Indexing (`rag-index.py --source-type mitre`)
+### Indexing (`zhen-codeindex --corpus`)
 
-When indexing MITRE data, the RAG pipeline:
+`pkg/codeindex` reads the bundles beside the threat models and the Kingdom docs:
 
-1. **Parses the STIX bundle** and extracts `attack-pattern` objects (techniques)
-2. **Builds a document per technique** combining:
-   - Technique name and external ID (e.g., "T1566 — Phishing")
+1. **Parses each STIX bundle** and takes `attack-pattern` (technique), `course-of-action` (mitigation) and `intrusion-set` (group) objects
+2. **Builds a document per object** combining:
+   - Name and external ID (e.g., "T1566 - Phishing")
    - Full description text
-   - Kill chain phase (tactic mapping)
-   - Supported platforms
-   - Detection guidance (`x_mitre_detection`)
-3. **Chunks each document** using the configured chunk size (default: 512 tokens, 64-token overlap)
-4. **Embeds chunks** using the sentence-transformer model (default: `all-MiniLM-L6-v2`)
-5. **Stores in ChromaDB** with metadata: `technique_id`, `tactic`, `platforms`, `source=mitre`
+   - Kill chain phase (tactic mapping) and platforms, for a technique
+   - Detection guidance (`x_mitre_detection`), for a technique
+   - Aliases, for a group
+3. **Splits long documents** into chunks of at most 2048 bytes, each under the object's header
+4. **Saves the index** in `/opt/tomb/grimoire/index`, with the technique ID as the chunk's symbol
 
-### Querying (`rag-query.py`)
+JSON that is not a bundle (`fetch-metadata.json`, the summaries) is skipped. Only JSON in this directory is read. A bundle that does not parse stops the build, and the last index keeps serving.
 
-When a query hits the `mitre-attck` collection:
-
-```bash
-python3 rag-query.py --query "lateral movement techniques for Linux" --collection mitre-attck
-```
-
-The pipeline returns semantically relevant technique descriptions, allowing the Cerydwyn to reason about attack paths against Kingdom infrastructure.
-
-### Cross-Collection Queries
-
-The most powerful queries span both `kingdom-docs` and `mitre-attck` collections:
+### Querying (`zhen-codeindex --search`)
 
 ```bash
-python3 rag-query.py --query "how could an attacker exploit the Wotan message bus" --collection all
+/opt/tomb/grimoire/bin/zhen-codeindex --out /opt/tomb/grimoire/index --search "lateral movement linux"
 ```
 
-This retrieves:
-- Kingdom architecture docs describing Wotan's design, ports, and protocols
-- MITRE techniques relevant to message bus exploitation (T1557 AiTM, T1071 App Layer Protocol, etc.)
+Search is by word: a chunk ranks by the share of the query's words it holds, then by those in its name. A technique ID such as `T1566.001` finds its object. Filler words in a question do not count. A synonym finds nothing that does not use the word. The same index serves Zhen through `pkg/retrieval`, where everything in this directory is `external` and never justifies a write.
 
-The Cerydwyn then synthesizes context from both sources to generate threat-informed analysis.
+### Across the Corpus
+
+One index holds every source, so a query spans them:
+
+```bash
+/opt/tomb/grimoire/bin/zhen-codeindex --out /opt/tomb/grimoire/index --search "Wotan message bus"
+```
+
+This retrieves Kingdom architecture docs and threat models that name Wotan, and MITRE techniques that use the same words. The Cerydwyn then synthesizes context from those sources to generate threat-informed analysis.
 
 ## Data Freshness
 
@@ -114,7 +109,7 @@ MITRE ATT&CK is updated approximately quarterly. The `fetch-metadata.json` file 
 
 1. Run `fetch-mitre-data.sh` on an internet-connected host
 2. Transfer the updated JSON files to the Tomb via air-gap media
-3. Re-run `rag-index.py --source-dir /opt/tomb/grimoire/mitre-attck --collection mitre-attck` to re-index
+3. Re-run `zhen-codeindex --corpus /opt/tomb/grimoire --out /opt/tomb/grimoire/index` to re-index
 
 The air-gap constraint means the Tomb's MITRE data will always be at least as old as the last physical transfer. This is acceptable for the Grimoire's purpose: strategic threat modeling, not real-time threat intelligence.
 

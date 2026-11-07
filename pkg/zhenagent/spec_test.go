@@ -69,22 +69,35 @@ func TestParseSpec_GoPatternAllowed(t *testing.T) {
 }
 
 func TestEligible(t *testing.T) {
-	ok := Card{ID: "c1", Status: "todo", Owner: "zhen", Type: "task"}
+	opted := CardSHA256("", "")
+	ok := Card{ID: "c1", Status: "todo", Owner: "zhen", Type: "task", OptInSHA256: opted}
 	if err := Eligible(ok); err != nil {
 		t.Fatalf("eligible card refused: %v", err)
 	}
 	for name, c := range map[string]Card{
-		"wrong owner":  {ID: "c1", Status: "todo", Owner: "Stevie", Type: "task"},
-		"not todo":     {ID: "c1", Status: "in-progress", Owner: "zhen", Type: "task"},
-		"archived":     {ID: "c1", Status: "todo", Owner: "zhen", Type: "task", Archived: true},
-		"deleted":      {ID: "c1", Status: "todo", Owner: "zhen", Type: "task", Deleted: true},
-		"wishlist":     {ID: "c1", Status: "todo", Owner: "zhen", Type: "wishlist"},
-		"milestone":    {ID: "c1", Status: "todo", Owner: "zhen", Type: "milestone"},
-		"owner spaced": {ID: "c1", Status: "todo", Owner: " zhen", Type: "task"},
+		"wrong owner":  {ID: "c1", Status: "todo", Owner: "Stevie", Type: "task", OptInSHA256: opted},
+		"not todo":     {ID: "c1", Status: "in-progress", Owner: "zhen", Type: "task", OptInSHA256: opted},
+		"archived":     {ID: "c1", Status: "todo", Owner: "zhen", Type: "task", Archived: true, OptInSHA256: opted},
+		"deleted":      {ID: "c1", Status: "todo", Owner: "zhen", Type: "task", Deleted: true, OptInSHA256: opted},
+		"wishlist":     {ID: "c1", Status: "todo", Owner: "zhen", Type: "wishlist", OptInSHA256: opted},
+		"milestone":    {ID: "c1", Status: "todo", Owner: "zhen", Type: "milestone", OptInSHA256: opted},
+		"owner spaced": {ID: "c1", Status: "todo", Owner: " zhen", Type: "task", OptInSHA256: opted},
+		// H4: the owner field alone hands over nothing.
+		"no opt-in":       {ID: "c1", Status: "todo", Owner: "zhen", Type: "task"},
+		"edited after it": {ID: "c1", Status: "todo", Owner: "zhen", Type: "task", OptInSHA256: opted, Description: "something else"},
+		// The title reaches the prompt and the commit subject too.
+		"retitled after it": {ID: "c1", Status: "todo", Owner: "zhen", Type: "task", OptInSHA256: opted, Title: "something else"},
 	} {
 		if Eligible(c) == nil {
 			t.Errorf("%s: eligible", name)
 		}
+	}
+}
+
+// Moving text across the title and description boundary is an edit.
+func TestCardSHA256_TheBoundaryCounts(t *testing.T) {
+	if CardSHA256("ab", "c") == CardSHA256("a", "bc") {
+		t.Fatal("the same hash for two different cards")
 	}
 }
 

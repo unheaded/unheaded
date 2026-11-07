@@ -512,6 +512,8 @@ func TestTeach_DefaultChampionDeniesTheCorpusStores(t *testing.T) {
 	for _, p := range []string{
 		"/var/zhen/projects/zhen-taught/x.md",
 		"/var/zhen/code-index/CURRENT",
+		"/var/zhen/corpus-index/CURRENT",
+		"/var/zhen/corpus-index/index-a.json",
 		"/var/zhen/vor-source/unheaded/docs/x.md",
 	} {
 		if err := c.validatePath(p); err == nil {

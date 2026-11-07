@@ -519,3 +519,54 @@ func TestVerifyJustification_FakeLookup(t *testing.T) {
 		t.Error("verifyJustification must not mutate its input")
 	}
 }
+
+// H3: the gate's retrieval chain cannot see what a tool returned. The loop can,
+// so it marks every call after the first observation.
+func TestAgent_ARunThatReadToolOutputCannotWrite(t *testing.T) {
+	llm := &mockLLM{responses: []string{
+		`{"thought":"look","tool_call":{"name":"read_file","args":{"path":"PATH/notes.txt"}}}`,
+		`{"thought":"write","tool_call":{"name":"write_file","args":{"path":"PATH/out.txt","content":"x"}}}`,
+		`{"thought":"done","answer":"ok"}`,
+	}}
+	a, c := newTestAgent(t, llm, canonicalRefs())
+	root := c.GetProjectRoot()
+	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("text from a file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for i := range llm.responses {
+		llm.responses[i] = strings.ReplaceAll(llm.responses[i], "PATH", root)
+	}
+	res, err := a.Run(context.Background(), "tidy the notes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Trace[0].ToolCall.Tainted {
+		t.Error("the first call of a run is tainted: it has read nothing")
+	}
+	second := res.Trace[1]
+	if !second.ToolCall.Tainted || !second.Refused || !second.Pending {
+		t.Fatalf("the call after an observation: %+v", second)
+	}
+	if _, err := os.Stat(filepath.Join(root, "out.txt")); err == nil {
+		t.Fatal("the write happened")
+	}
+}
+
+// The first mutating call of a run has read no tool output and keeps the
+// ordinary rules.
+func TestAgent_AWriteBeforeAnyToolOutputKeepsTheOrdinaryRules(t *testing.T) {
+	llm := &mockLLM{responses: []string{
+		`{"thought":"write","tool_call":{"name":"write_file","args":{"path":"PATH/out.txt","content":"x"}}}`,
+		`{"thought":"done","answer":"ok"}`,
+	}}
+	a, c := newTestAgent(t, llm, canonicalRefs())
+	root := c.GetProjectRoot()
+	llm.responses[0] = strings.ReplaceAll(llm.responses[0], "PATH", root)
+	res, err := a.Run(context.Background(), "write a file")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Trace[0].Refused {
+		t.Fatalf("refused: %+v", res.Trace[0])
+	}
+}

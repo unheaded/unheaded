@@ -6,7 +6,7 @@
 # .github/ci-python) into DIR/requirements.txt: every package, transitive
 # ones included, at an exact version with its sha256s, for `pip install
 # --require-hashes --no-deps --only-binary=:all:`. Also used for
-# notebooks/ and tomb/grimoire/rag/ (S-TRUE-WIRE Step 374).
+# notebooks/ (S-TRUE-WIRE Step 374).
 #
 # Resolution runs uv inside a throwaway container with only that
 # directory mounted, never on the host (no package code runs here, ADR-006's

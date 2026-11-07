@@ -97,8 +97,7 @@ log_verbose() {
 }
 
 # --- RAG Retrieval ---
-# Simple text-based search when ChromaDB/sentence-transformers are unavailable.
-# Falls back to grep-based retrieval across the Grimoire.
+# Grep-based retrieval across the Grimoire, with no index or binary needed.
 rag_retrieve() {
     local query="$1"
     local results=""

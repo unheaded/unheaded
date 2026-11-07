@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"unheaded/pkg/auth"
 )
 
 // L15: a subscriber still waiting for approval has made no room.
@@ -61,6 +63,47 @@ func TestJoin_RoomComesWithApproval(t *testing.T) {
 	srv.SendMessage(rec, httptest.NewRequest(http.MethodPost, "/send", bytes.NewReader(send)))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("send after approval = %d, want 201", rec.Code)
+	}
+}
+
+// L15: a room made by an approval counts against the member it is for, so
+// approval is no way past the member's share. With auth off a name is only what
+// the client said, and only the cap applies.
+func TestApproveMember_TheRoomCountsAgainstTheMember(t *testing.T) {
+	approve := func(srv *Server, authed bool, memberID string) int {
+		body, _ := json.Marshal(map[string]string{"member_id": memberID, "approved_by": "admin"})
+		req := httptest.NewRequest(http.MethodPost, "/admin/approve", bytes.NewReader(body))
+		setAdminAuth(req)
+		if authed {
+			req = req.WithContext(auth.ContextWithRole(req.Context(), auth.RoleAdmin))
+		}
+		rec := httptest.NewRecorder()
+		srv.ApproveMember(rec, req)
+		return rec.Code
+	}
+	setup := func(t *testing.T) (*Server, string) {
+		srv := setupTestServer()
+		srv.RoomManager.SetRoomQuota(1)
+		if _, err := srv.RoomManager.GetOrCreateAs("alice", "room-a", "room-a"); err != nil {
+			t.Fatal(err)
+		}
+		m, err := srv.MemberManager.RequestJoin("room-b", "alice", "", time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return srv, m.ID.String()
+	}
+
+	srv, id := setup(t)
+	if code := approve(srv, true, id); code != http.StatusTooManyRequests {
+		t.Fatalf("over the member's share: %d, want 429", code)
+	}
+	if got := srv.RoomManager.Count(); got != 1 {
+		t.Fatalf("%d rooms, want 1", got)
+	}
+	srv, id = setup(t)
+	if code := approve(srv, false, id); code != http.StatusOK {
+		t.Fatalf("auth off: %d, want 200", code)
 	}
 }
 
@@ -145,5 +188,40 @@ func TestRoomNames_OneRule(t *testing.T) {
 	}
 	if got := extractTopic("/api/v1/topics/alerts.#/subscribe", "/api/v1/topics/", "/subscribe"); got != "alerts.#" {
 		t.Errorf("a pattern = %q", got)
+	}
+}
+
+// L15: one verified caller holds only its share of the rooms, by subscribing or
+// by publishing, and the others keep theirs.
+func TestRoomQuota_OneCallerCannotSpendEveryonesRooms(t *testing.T) {
+	w := newAuthedHTTPWotan(t)
+	w.s.RoomManager.SetRoomQuota(2)
+	greedy := w.f.Bearer("timeguru", "wotan")
+
+	code, _, id := w.subscribe(t, greedy, "seed", "x")
+	if code != http.StatusCreated {
+		t.Fatalf("first subscribe: %d", code)
+	}
+	publish := func(topic string) int {
+		body := `{"subscriber_id":"` + id + `","payload":"p"}`
+		return w.do(http.MethodPost, "/api/v1/topics/"+topic+"/publish", body, greedy).Code
+	}
+	if c := publish("second"); c != http.StatusCreated {
+		t.Fatalf("second room: %d", c)
+	}
+	if c := publish("third"); c != http.StatusTooManyRequests {
+		t.Fatalf("over quota by publishing: %d, want 429", c)
+	}
+	if code, _, _ := w.subscribe(t, greedy, "fourth", "x"); code != http.StatusTooManyRequests {
+		t.Fatalf("over quota by subscribing: %d, want 429", code)
+	}
+	if got := w.s.RoomManager.Count(); got != 2 {
+		t.Fatalf("%d rooms, want 2", got)
+	}
+	if c := publish("seed"); c != http.StatusCreated {
+		t.Fatalf("a room it has is still open: %d", c)
+	}
+	if code, _, _ := w.subscribe(t, w.f.Bearer("captain", "wotan"), "other", "x"); code != http.StatusCreated {
+		t.Fatalf("another caller's share: %d", code)
 	}
 }

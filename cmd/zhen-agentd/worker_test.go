@@ -20,6 +20,12 @@ import (
 	"unheaded/pkg/zhenroute"
 )
 
+// optedIn is a card an operator handed over, as kanban_zhen_optin says.
+func optedIn(c zhenagent.Card) zhenagent.Card {
+	c.OptInSHA256 = zhenagent.CardSHA256(c.Title, c.Description)
+	return c
+}
+
 // testRepo is a main checkout with a develop branch holding a tiny
 // package, plus an agent root outside it.
 func testRepo(t *testing.T) (repo, agent string) {
@@ -117,7 +123,7 @@ func (f *fakeRunner) Run(ctx context.Context, t zhenroute.Task) (claudebridge.Ro
 
 func TestWorker_ToolArtefactsNotCommitted(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{write: true, artefacts: true, out: passOutcome()}
 	w, _, agent, _ := newTestWorker(t, m, r)
 	res, _ := w.runOnce(context.Background())
@@ -139,7 +145,7 @@ func TestWorker_ToolArtefactsNotCommitted(t *testing.T) {
 
 func TestWorker_OnlyArtefactsIsNoChange(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{artefacts: true, out: passOutcome()}
 	w, _, _, _ := newTestWorker(t, m, r)
 	if res, _ := w.runOnce(context.Background()); res.Outcome != outcomeFailed || !strings.Contains(res.Reason, "no change") {
@@ -157,7 +163,7 @@ type allCandidates struct{ *zhenagent.MemStore }
 
 func (a allCandidates) Candidates(_ context.Context, _ int) ([]zhenagent.Card, error) {
 	var out []zhenagent.Card
-	for _, id := range []string{"theirs", "archived", "noblock", "good"} {
+	for _, id := range []string{"theirs", "archived", "noblock", "good", "unasked", "edited"} {
 		if c, ok := a.CardState(id); ok {
 			out = append(out, c.Card)
 		}
@@ -194,7 +200,7 @@ func newTestWorker(t *testing.T, store zhenagent.Store, r taskRunner) (*worker, 
 
 func TestWorker_EligibleCardToBranch(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "Add Double", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "Add Double", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{write: true, out: passOutcome()}
 	w, repo, agent, gl := newTestWorker(t, m, r)
 
@@ -266,11 +272,36 @@ func TestWorker_EligibleCardToBranch(t *testing.T) {
 	}
 }
 
+// H4: what opts a card in is a record an operator made, of this description.
+func TestWorker_TakesNoCardAnOperatorDidNotHandOver(t *testing.T) {
+	m := zhenagent.NewMemStore()
+	m.AddCard(zhenagent.Card{ID: "unasked", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	edited := optedIn(zhenagent.Card{ID: "edited", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	edited.Description += "\nand something else\n"
+	m.AddCard(edited)
+	r := &fakeRunner{write: true, out: passOutcome()}
+	w, _, _, _ := newTestWorker(t, allCandidates{m}, r)
+	res, err := w.runOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != outcomeNone || len(r.tasks) != 0 {
+		t.Fatalf("result = %+v, tasks %d", res, len(r.tasks))
+	}
+	reasons := map[string]string{}
+	for _, s := range res.Skipped {
+		reasons[s.Card] = s.Reason
+	}
+	if !strings.Contains(reasons["unasked"], "opted") || !strings.Contains(reasons["edited"], "changed") {
+		t.Errorf("skips = %v", reasons)
+	}
+}
+
 func TestWorker_IneligibleSkipped(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "theirs", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "Stevie"})
-	m.AddCard(zhenagent.Card{ID: "archived", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen", Archived: true})
-	m.AddCard(zhenagent.Card{ID: "noblock", Title: "x", Description: "just do it", Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "theirs", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "Stevie"}))
+	m.AddCard(optedIn(zhenagent.Card{ID: "archived", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen", Archived: true}))
+	m.AddCard(optedIn(zhenagent.Card{ID: "noblock", Title: "x", Description: "just do it", Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{write: true, out: passOutcome()}
 	w, _, agent, _ := newTestWorker(t, allCandidates{m}, r)
 	res, err := w.runOnce(context.Background())
@@ -304,7 +335,7 @@ func (conflictStore) Claim(context.Context, zhenagent.Run) error { return zhenag
 
 func TestWorker_ClaimConflictSkipped(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{write: true, out: passOutcome()}
 	w, _, _, _ := newTestWorker(t, conflictStore{m}, r)
 	res, err := w.runOnce(context.Background())
@@ -318,7 +349,7 @@ func TestWorker_ClaimConflictSkipped(t *testing.T) {
 
 func TestWorker_CheckFailsCardBackToTodo(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	out := passOutcome()
 	out.Check, out.Stop = "fail", "local_only"
 	r := &fakeRunner{write: true, out: out}
@@ -357,7 +388,7 @@ func TestWorker_CheckFailsCardBackToTodo(t *testing.T) {
 
 func TestWorker_InfraFailure(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{err: errors.New("sandbox: systemd-run missing")}
 	w, _, _, _ := newTestWorker(t, m, r)
 	res, err := w.runOnce(context.Background())
@@ -371,7 +402,7 @@ func TestWorker_InfraFailure(t *testing.T) {
 
 func TestWorker_NoChangesFails(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{out: passOutcome()}
 	w, _, _, _ := newTestWorker(t, m, r)
 	res, _ := w.runOnce(context.Background())
@@ -382,7 +413,7 @@ func TestWorker_NoChangesFails(t *testing.T) {
 
 func TestWorker_ClaudeCoAuthorTrailer(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	out := passOutcome()
 	out.RouteReason, out.Escalated, out.Cost = "escalated_check_fail", true, 12_000_000
 	r := &fakeRunner{write: true, out: out}
@@ -402,7 +433,7 @@ func TestWorker_ClaudeCoAuthorTrailer(t *testing.T) {
 
 func TestWorker_LeaseRenewed(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{write: true, out: passOutcome(), delay: 120 * time.Millisecond}
 	w, _, _, _ := newTestWorker(t, m, r)
 	w.cfg.Renew = 20 * time.Millisecond
@@ -421,7 +452,7 @@ func TestWorker_LeaseRenewed(t *testing.T) {
 func TestWorker_WIPLimitOne(t *testing.T) {
 	m := zhenagent.NewMemStore()
 	for _, id := range []string{"good", "good2", "good3"} {
-		m.AddCard(zhenagent.Card{ID: id, Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+		m.AddCard(optedIn(zhenagent.Card{ID: id, Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	}
 	r := &fakeRunner{write: true, out: passOutcome(), delay: 50 * time.Millisecond}
 	w, _, _, _ := newTestWorker(t, m, r)
@@ -441,7 +472,7 @@ func TestWorker_WIPLimitOne(t *testing.T) {
 
 func TestWorker_StopMidCardCommitsNothing(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	var stop atomic.Bool
 	r := &fakeRunner{write: true, out: passOutcome(), hook: func() { stop.Store(true) }}
 	w, repo, agent, _ := newTestWorker(t, m, r)
@@ -476,7 +507,7 @@ func TestWorker_RefusesAgentRootInsideRepo(t *testing.T) {
 
 func TestWorker_BadCardIDSkipped(t *testing.T) {
 	m := zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "Bad.Id", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(optedIn(zhenagent.Card{ID: "Bad.Id", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"}))
 	r := &fakeRunner{write: true, out: passOutcome()}
 	w, _, _, _ := newTestWorker(t, m, r)
 	res, _ := w.runOnce(context.Background())

@@ -10,7 +10,7 @@ security tooling for adversarial validation of the Unheaded Kingdom platform.
 ```
 Layer 5: Dark Mirror    — External observability (Prometheus, Grafana, Loki)
 Layer 4: Cerydwyn         — AI threat analysis (Ollama + Mistral-7B)
-Layer 3: Grimoire       — Knowledge base + RAG search (ChromaDB + MITRE ATT&CK)
+Layer 3: Grimoire       — Knowledge base + word search (zhen-codeindex + MITRE ATT&CK)
 Layer 2: Lich           — 10-harness fuzz framework targeting protocol stack
 Layer 1: Base System    — Hardened Kali Linux, directories, SSH, tooling
 ```
@@ -148,7 +148,7 @@ make console
 
 - Directory structure at `/opt/tomb/` with subdirectories per layer
 - Kali standard tooling (nmap, nikto, sqlmap, hydra, john, gdb, wireshark)
-- Python 3.10+ virtualenv for RAG pipeline and Cerydwyn daemon
+- Python 3 for the Cerydwyn daemon
 - SSH key deployment (`~/.ssh/id_tomb` → `~kali/.ssh/authorized_keys`)
 
 ### Layer 2: Lich Adversary Framework
@@ -194,14 +194,14 @@ Semantic search engine over Unheaded architecture docs and MITRE ATT&CK data.
 **Components:**
 - Kingdom docs collected from repo
 - MITRE ATT&CK JSON (pre-downloaded, air-gap safe)
-- ChromaDB vector store with sentence-transformers embeddings
+- Word index built by `zhen-codeindex --corpus`: no model, no network
 - Threat models (STRIDE analysis of Kingdom)
 
 **Usage:**
 
 ```bash
 cd /opt/tomb/grimoire
-python3 rag/rag-query.py --query "How does Wotan authenticate services?"
+bin/zhen-codeindex --out index --search "Wotan authenticate services"
 ```
 
 ### Layer 4: Cerydwyn LLM
@@ -304,7 +304,7 @@ make ansible-lich       # Just Lich layer
 
 1. **setup-base** — Directories, packages, users, SSH
 2. **deploy-lich** — Fuzz harnesses + runner
-3. **deploy-grimoire** — Knowledge base + RAG index
+3. **deploy-grimoire** — Knowledge base + corpus index
 4. **deploy-cerydwyn** — Ollama + daemon
 5. **deploy-dark-mirror** — Docker Compose observability
 6. **harden** — Firewall, seccomp, audit logging
@@ -365,8 +365,8 @@ ssh -i ~/.ssh/id_tomb kali@192.168.13.6 '
 | `tomb/lich/config/lich.yaml` | Harness config, fuzz durations, severity rules |
 | `tomb/lich/harnesses/lich_*.go` | 10 fuzz harnesses (Go) |
 | `tomb/lich/crash-triage.sh` | Crash categorization and dedup |
-| `tomb/grimoire/setup-grimoire.sh` | RAG pipeline setup + indexing |
-| `tomb/grimoire/rag/rag-query.py` | Query the knowledge base |
+| `tomb/grimoire/setup-grimoire.sh` | Install zhen-codeindex + indexing |
+| `cmd/zhen-codeindex` | Build and query the knowledge base index |
 | `tomb/grimoire/threat-models/*.md` | STRIDE threat models |
 | `tomb/cerydwyn/cerydwyn-daemon.py` | LLM watcher daemon |
 | `tomb/cerydwyn/Modelfile-mistral` | Ollama model customization |

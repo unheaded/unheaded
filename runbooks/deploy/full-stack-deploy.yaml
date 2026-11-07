@@ -132,13 +132,12 @@ steps:
   - name: test-zhen-query
     action: shell
     command: |
-      curl -sf -X POST http://localhost:20103/api/v1/query \
+      code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:20103/api/v1/query \
         -H "Content-Type: application/json" \
-        -d '{"question": "What is Unheaded?"}' | python3 -c "
-      import sys,json; d=json.load(sys.stdin)
-      print(f'Zhen response: {len(d.get(\"answer\",\"\"))} chars, model={d.get(\"model\")}')
-      "
-    description: "End-to-end test: browser → Zhen → RAG → Mistral → answer"
+        -d '{"question": "What is Unheaded?"}')
+      echo "Zhen chat without a login: HTTP $code (want 401)"
+      test "$code" = 401
+    description: "Zhen answers and chat takes a login; asking a question needs an operator's browser session"
 
 rollback:
   - name: emergency-stop

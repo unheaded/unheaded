@@ -367,6 +367,15 @@ func (s *Server) GetPendingMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pending)
 }
 
+// approvedRoomCreator is who a room made by an approval counts against: the
+// member it is for, whose name is its verified subject with auth on.
+func approvedRoomCreator(r *http.Request, mbr *member.Member) string {
+	if auth.IdentityFromContext(r.Context()) == nil {
+		return ""
+	}
+	return mbr.Name
+}
+
 // ApproveMember approves a pending member (admin only)
 func (s *Server) ApproveMember(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -402,8 +411,8 @@ func (s *Server) ApproveMember(w http.ResponseWriter, r *http.Request) {
 		writeError(w, memberErrStatus(err), err.Error())
 		return
 	}
-	if err := s.ensureRoom(mbr.RoomID); err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
+	if err := s.ensureRoom(approvedRoomCreator(r, mbr), mbr.RoomID); err != nil {
+		writeError(w, roomErrStatus(err), err.Error())
 		return
 	}
 	if err := s.MemberManager.Approve(memberID, req.ApprovedBy); err != nil {
@@ -482,7 +491,7 @@ func (s *Server) ApproveAllMembers(w http.ResponseWriter, r *http.Request) {
 	// listing stays pending for the next call.
 	count, leftPending := 0, 0
 	for _, mbr := range s.MemberManager.GetAllPending() {
-		if err := s.ensureRoom(mbr.RoomID); err != nil {
+		if err := s.ensureRoom(approvedRoomCreator(r, mbr), mbr.RoomID); err != nil {
 			log.Warn().Err(err).Str("room", mbr.RoomID).Msg("approve_all_room_refused")
 			leftPending++
 			continue

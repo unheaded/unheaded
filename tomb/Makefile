@@ -378,6 +378,12 @@ clean: ## Clean staging files and old logs
 	@find $(LOG_DIR) -name "provision-*.log" -mtime +30 -delete 2>/dev/null || true
 	@echo "[  OK] Clean complete"
 
+.PHONY: stage-grimoire
+stage-grimoire: ## Stage the threat models and a static zhen-codeindex for the Grimoire
+	@mkdir -p $(PACKAGES_DIR)/grimoire/bin $(PACKAGES_DIR)/grimoire/threat-models
+	cp -r $(TOMB_DIR)/grimoire/threat-models/. $(PACKAGES_DIR)/grimoire/threat-models/
+	cd $(TOMB_DIR)/.. && CGO_ENABLED=0 go build -trimpath -o $(PACKAGES_DIR)/grimoire/bin/zhen-codeindex ./cmd/zhen-codeindex
+
 .PHONY: stage-packages
 stage-packages: ## Show instructions for staging air-gapped packages
 	@echo ""
@@ -396,7 +402,8 @@ stage-packages: ## Show instructions for staging air-gapped packages
 	@echo "    |   +-- mitre-attck/       MITRE ATT&CK JSON"
 	@echo "    |   +-- nvd-cves/          NVD CVE records"
 	@echo "    |   +-- cwe/               CWE mappings"
-	@echo "    |   +-- rag-deps/          Python wheels (chromadb, sentence-transformers)"
+	@echo "    |   +-- threat-models/     Kingdom threat models (make stage-grimoire)"
+	@echo "    |   +-- bin/zhen-codeindex Corpus index and search (make stage-grimoire)"
 	@echo "    +-- cerydwyn/"
 	@echo "    |   +-- ollama             Ollama binary"
 	@echo "    |   +-- models/            Mistral-7B model files"
@@ -414,11 +421,12 @@ stage-packages: ## Show instructions for staging air-gapped packages
 	@echo "    cp /usr/local/bin/ollama $(PACKAGES_DIR)/cerydwyn/ollama"
 	@echo "    cp -r ~/.ollama/models/ $(PACKAGES_DIR)/cerydwyn/models/"
 	@echo ""
-	@echo "    # RAG dependencies"
-	@echo "    pip download -d $(PACKAGES_DIR)/grimoire/rag-deps/ chromadb==1.5.9 sentence-transformers==6.2.0"
+	@echo "    # Grimoire search and threat models"
+	@echo "    make stage-grimoire"
 	@echo ""
 	@echo "    # MITRE ATT&CK"
-	@echo "    git clone https://github.com/mitre/cti.git $(PACKAGES_DIR)/grimoire/mitre-attck/"
+	@echo "    mkdir -p $(PACKAGES_DIR)/grimoire/mitre-attck"
+	@echo "    $(TOMB_DIR)/grimoire/mitre-attck/fetch-mitre-data.sh --output-dir $(PACKAGES_DIR)/grimoire/mitre-attck"
 	@echo ""
 	@echo "    # Prometheus/Grafana/Loki (download from release pages)"
 	@echo ""

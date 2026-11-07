@@ -23,10 +23,12 @@ for the rewire's full plan + acceptance evidence.
 
 ## For Claude Code agents
 
-Before working on any task, query Zhen for context:
+Before working on any task, query Zhen for context, through the `zhen` MCP
+server's `corpus_search`, or from a browser session: every route here but the
+page and `/health` takes a login.
 
 ```bash
-curl -s http://localhost:20103/api/v1/context \
+curl -s -b "$COOKIES" http://localhost:20103/api/v1/context \
   -H "Content-Type: application/json" \
   -d '{"task": "describe your task here", "k": 10}'
 ```
@@ -52,7 +54,9 @@ poisoned — see [`eval/coding-gate/probe-2026-05-02/A1-source-poison.md`](../ev
 | `/api/v1/forget` | POST | delete memory by id |
 | `/api/v1/runbooks` | GET | list runbooks |
 | `/api/v1/runbooks/<n>` | GET | runbook YAML content |
-| `/api/v1/runbooks/<n>/execute` | POST | **gated** runbook exec via `cmd/zhen-agentd` |
+| `/api/v1/runbooks/<n>/execute` | POST | **gated** runbook exec via `cmd/zhen-agentd`; a live run comes back held |
+| `/api/v1/agent/confirm` | POST | redeem a held call as the person logged in |
+| `/auth/login`, `/auth/me`, `/auth/logout` | POST, GET, POST | the login: issuer, session cookie, no token in the browser |
 | `/api/v1/champion/read` | POST | sandboxed file read |
 | `/api/v1/skills` | GET | list Kingdom skills |
 | `/api/v1/skill/<name>` | GET | get skill content |
@@ -74,10 +78,18 @@ where defenses aren't fully closed today. Notable:
 - **T6** (UI bypasses Champion): SPLIT — chat path is OPEN-DOCUMENTED
   (theoretical-only on current surface), mutation path is CLOSED via
   the new `/api/v1/tool/exec` direct-dispatch endpoint.
-- **T8** (CSRF on browser-served state-changing endpoints): OPEN-
-  DOCUMENTED. Compensating control is the LAN-only deployment posture.
-  Full closure planned with the future Go port (Stevie's solo
-  post-gate exercise).
+- **T8** (CSRF on browser-served state-changing endpoints): token,
+  strict Host and Origin, and a SameSite=Strict login cookie.
+- **Login** (`zhen_login.py`, F4, H5): everything but `/`, `/health`, the
+  highlighter and `/auth/*` answers 401 without a session from the
+  issuer (`AUTH_ISSUER_URL`), and a route added later is closed until it
+  is listed. Writes take an operator or admin login. Calls into
+  zhen-agentd carry the person's token, so a held call binds to them and
+  they redeem it at `/api/v1/agent/confirm` here. A password travels over
+  TLS or on loopback: a UI bound past loopback serves its own TLS 1.3
+  from `UNHEADED_TLS_CERT` and `UNHEADED_TLS_KEY_FILE`. It reads no
+  forwarded headers, so a proxy in front does not count as TLS. It holds
+  no key into the daemon.
 
 When adding new mutation endpoints, route through the daemon at
 `/api/v1/tool/exec` with a `direct-user` justification chain. That

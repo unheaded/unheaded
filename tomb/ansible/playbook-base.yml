@@ -31,9 +31,8 @@
       - { path: "{{ tomb_root }}/grimoire/cwe", mode: "0750" }
       - { path: "{{ tomb_root }}/grimoire/threat-models", mode: "0750" }
       - { path: "{{ tomb_root }}/grimoire/history", mode: "0750" }
-      - { path: "{{ tomb_root }}/grimoire/rag", mode: "0750" }
-      - { path: "{{ tomb_root }}/grimoire/rag/chroma.db", mode: "0750" }
-      - { path: "{{ tomb_root }}/grimoire/rag/embeddings", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/bin", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/index", mode: "0750" }
       - { path: "{{ tomb_root }}/cerydwyn", mode: "0700" }
       - { path: "{{ tomb_root }}/cerydwyn/ollama", mode: "0700" }
       - { path: "{{ tomb_root }}/cerydwyn/ollama/models", mode: "0700" }

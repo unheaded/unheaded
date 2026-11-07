@@ -34,6 +34,34 @@ func requestPrincipal(r *http.Request) string {
 	return anonymousPrincipal
 }
 
+// whoamiResponse is GET /api/v1/whoami.
+type whoamiResponse struct {
+	Subject   string   `json:"subject"`
+	Roles     []string `json:"roles"`
+	Principal string   `json:"principal"`
+}
+
+// handleWhoami names the caller pkg/auth verified. The web UI logs a user in
+// at the issuer for this daemon's audience and asks here whose token it got:
+// it holds no key and verifies nothing itself. It has no identity to give on a
+// -no-auth daemon, so nobody can log in through one.
+func (s *server) handleWhoami(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	id := auth.IdentityFromContext(r.Context())
+	if id == nil || id.Subject == "" {
+		writeJSONError(w, http.StatusUnauthorized, "no authenticated identity")
+		return
+	}
+	roles := id.Roles
+	if roles == nil {
+		roles = []string{}
+	}
+	writeJSON(w, http.StatusOK, whoamiResponse{Subject: id.Subject, Roles: roles, Principal: requestPrincipal(r)})
+}
+
 // errNoAuthToken is why zhen-agentd will not open its listener.
 var errNoAuthToken = errors.New("no auth token set; set AUTH_ENABLED=true with AUTH_API_KEYS " +
 	"(or AUTH_API_KEY_FILE, or AUTH_TRUST_DIR + AUTH_ALLOW_CALLERS for service tokens), " +

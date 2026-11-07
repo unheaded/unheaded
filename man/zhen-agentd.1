@@ -1,4 +1,4 @@
-.TH ZHEN\-AGENTD 1 "2026-11-07" "unheaded 7d9620c1" "Unheaded Kingdom"
+.TH ZHEN\-AGENTD 1 "2026-11-07" "unheaded 83232cd4" "Unheaded Kingdom"
 .SH NAME
 zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH SYNOPSIS
@@ -43,6 +43,9 @@ source shard written by zhen\-codeindex, searched beside vor (env ZHEN_CODE_INDE
 .TP
 .B \-\-confirm\-queue \fIzhen\-claude confirm\fR
 queue agent\-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with zhen\-claude confirm
+.TP
+.B \-\-corpus\-index \fISTRING\fR
+Grimoire corpus written by zhen\-codeindex \-\-corpus, searched beside vor (env ZHEN_CORPUS_INDEX_DIR; empty: not searched)
 .TP
 .B \-\-daily\-cap\-usd \fINUM\fR
 with \-worker \-claude live: hard spend cap per UTC day of \-ledger (default 5)
@@ -129,7 +132,7 @@ with \-overnight: when this file exists the night stops (a card in flight finish
 with \-overnight: local\-time window HH:MM\-HH:MM (may cross midnight) (default 01:00\-07:00)
 .TP
 .B \-\-worker
-work eligible Kanban cards from the Well (owner zhen, a `zhen block) into local zhen/<card> branches for review; never pushes (DSN from env WELL_APP_ZHEN_DSN)
+work eligible Kanban cards from the Well (owner zhen, opted in by an operator, a `zhen block) into local zhen/<card> branches for review; never pushes (DSN from env WELL_APP_ZHEN_DSN)
 .TP
 .B \-h, \-\-help
 display this help and exit

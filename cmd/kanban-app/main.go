@@ -799,6 +799,12 @@ func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle /tasks/:id/zhen-opt-in
+	if strings.HasSuffix(taskID, zhenOptInSuffix) {
+		s.handleZhenOptIn(w, r, strings.TrimSuffix(taskID, zhenOptInSuffix))
+		return
+	}
+
 	// Handle /tasks/:id/restore
 	if strings.HasSuffix(taskID, "/restore") {
 		realID := strings.TrimSuffix(taskID, "/restore")

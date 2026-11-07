@@ -52,7 +52,7 @@ func reviewFixture(t *testing.T) (repo, wt string, m *zhenagent.MemStore, run zh
 	head := g(wt, "rev-parse", "HEAD")
 
 	m = zhenagent.NewMemStore()
-	m.AddCard(zhenagent.Card{ID: "card-1", Title: "b", Status: "todo", Type: "task", Owner: "zhen"})
+	m.AddCard(zhenagent.Card{ID: "card-1", Title: "b", Status: "todo", Type: "task", Owner: "zhen", OptInSHA256: zhenagent.CardSHA256("b", "")})
 	run = zhenagent.Run{ID: zhenagent.NewRunID(), CardID: "card-1", Mode: "interactive", Family: "repo-task", Branch: "zhen/card-1",
 		BaseCommit: baseSHA, LeaseUntil: time.Now().Add(time.Hour)}
 	ctx := context.Background()

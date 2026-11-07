@@ -39,6 +39,13 @@ func TestWellAgentRuns_Conformance(t *testing.T) {
 			c.ID, c.Title, c.Description, c.Status, c.Type, c.Owner); err != nil {
 			t.Fatal(err)
 		}
+		if c.OptInSHA256 != "" {
+			if _, err := kdb.ExecContext(context.Background(),
+				`INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ($1, $2, 'stevie')`,
+				c.ID, c.OptInSHA256); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	conformance(t, SQLStore{DB: db}, add, "w-")
 	scheduledConformance(t, SQLStore{DB: db}, add, "w-")
