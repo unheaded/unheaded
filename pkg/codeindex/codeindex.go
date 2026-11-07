@@ -3,7 +3,9 @@
 
 // Package codeindex is a lexical, file-backed index of the repository's
 // source: chunks per declaration, a name-matched call graph, word search and
-// a store whose readers swap atomically. No vectors, no embeddings.
+// a store whose readers swap atomically. No vectors, no embeddings. The same
+// index and search also carry a text corpus (corpus.go): the Grimoire's
+// threat models and MITRE ATT&CK data, read from plain files.
 package codeindex
 
 import (
@@ -25,8 +27,8 @@ const MaxChunkBytes = 2048
 type Chunk struct {
 	ID        string `json:"id"` // "pkg/x/a.go::Box.Open"
 	Path      string `json:"path"`
-	Language  string `json:"language"` // go, rust, python
-	Kind      string `json:"kind"`     // func, method, type, var, const; fn, struct, enum, trait, impl; def, class
+	Language  string `json:"language"` // go, rust, python; markdown, text, stix in a corpus
+	Kind      string `json:"kind"`     // func, method, type, var, const; fn, struct, enum, trait, impl; def, class; section, text, a STIX type
 	Symbol    string `json:"symbol"`
 	Parent    string `json:"parent,omitempty"`
 	LineStart int    `json:"line_start"`
