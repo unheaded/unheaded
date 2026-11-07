@@ -415,6 +415,30 @@ def docker_images():
         if s.get("with", {}).get("platforms") != "linux/amd64":
             bad("docker-images", f"step '{s.get('name')}' must build linux/amd64 alone")
 
+# Sixteen Dockerfiles under docker/services built commands that had left the
+# tree, and nothing ran them to find out: each must name a command that exists,
+# and docker/Makefile must list exactly the Dockerfiles there are.
+def docker_services():
+    tree = os.environ.get("CI_VERDICTS_TREE", ".")
+    found = {os.path.basename(os.path.dirname(p)): p for p in glob.glob("docker/services/*/Dockerfile")}
+    if not found:
+        bad("docker-services", "no Dockerfile under docker/services; this rule has stopped reading them")
+    for name, path in sorted(found.items()):
+        with open(path, encoding="utf-8") as f:
+            cmds = re.findall(r"\s(\./cmd/\S+)\s*$", f.read(), re.M)
+        if not cmds:
+            bad("docker-services", f"{path} builds no ./cmd/ package this rule can see")
+        for cmd in cmds:
+            if not os.path.isdir(os.path.join(tree, cmd)):
+                bad("docker-services", f"{path} builds {cmd}, which the tree lacks")
+    with open("docker/Makefile", encoding="utf-8") as f:
+        m = re.search(r"^SERVICES := ((?:.*\\\n)*.*)$", f.read(), re.M)
+    listed = set(m.group(1).replace("\\", " ").split()) if m else set()
+    for name in sorted(listed - set(found)):
+        bad("docker-services", f"docker/Makefile lists {name}, which has no Dockerfile")
+    for name in sorted(set(found) - listed):
+        bad("docker-services", f"docker/Makefile does not list {name}")
+
 # compliance/catalog/controls.yaml and the findings register name CI jobs as
 # <workflow name>/<job name>, and the evidence collector matches those exactly.
 # A renamed job leaves its control with no new records, whatever the job did,
@@ -450,6 +474,7 @@ rust_targets()
 workflow_paths()
 meta_gate_shards()
 docker_images()
+docker_services()
 evidence_jobs()
 
 if problems:

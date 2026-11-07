@@ -21,6 +21,9 @@ ci_verdict_fresh_copy() {
 	mkdir -p "${WORK}/tree/.github" "${WORK}/tree/scripts/lib" "${WORK}/tree/nix/yggdrasil"
 	cp -r "${REPO_ROOT}/.github/workflows" "${WORK}/tree/.github/workflows"
 	cp -r "${REPO_ROOT}/jenkins" "${WORK}/tree/jenkins"
+	mkdir -p "${WORK}/tree/docker"
+	cp -r "${REPO_ROOT}/docker/services" "${WORK}/tree/docker/services"
+	cp "${REPO_ROOT}/docker/Makefile" "${WORK}/tree/docker/"
 	cp "${REPO_ROOT}/Jenkinsfile" "${REPO_ROOT}/Makefile" "${REPO_ROOT}/go.mod" "${WORK}/tree/"
 	cp "${REPO_ROOT}/.github/BRANCH_PROTECTION.md" "${WORK}/tree/.github/"
 	cp "${REPO_ROOT}/nix/yggdrasil/Jenkinsfile" "${WORK}/tree/nix/yggdrasil/"
@@ -231,6 +234,12 @@ ci_verdict_expect_bite "arm64 back in a build" docker-images "${DOCKER_WF}" \
 	's#platforms: linux/amd64$#platforms: linux/amd64,linux/arm64#'
 ci_verdict_expect_bite "a build with no platform named" docker-images "${DOCKER_WF}" \
 	'/platforms: linux\/amd64$/d'
+ci_verdict_expect_bite "a service Dockerfile building a command that left" docker-services \
+	"docker/services/monad/Dockerfile" 's#\./cmd/monad$#./cmd/monad-gone#'
+ci_verdict_expect_bite "the Makefile naming a service with no Dockerfile" docker-services \
+	"docker/Makefile" 's/^SERVICES := monad /SERVICES := monad gone /'
+ci_verdict_expect_bite "a service Dockerfile the Makefile does not build" docker-services \
+	"docker/Makefile" 's/^SERVICES := monad sophia /SERVICES := monad /'
 
 echo
 echo "passed: ${PASSED}  failed: ${FAILED}"

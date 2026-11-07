@@ -49,30 +49,24 @@ Host-A (Forge)                          Host-B (Outpost)
 
 ### Services
 
-#### Host-A (Forge) — 25 Services
+#### Host-A (Forge)
 Complete deployment of the Unheaded Kingdom system:
 
 **Core Infrastructure:**
 - `monad` — Central coordination
 - `sophia` — Knowledge graph
-- `wotan` — Decision engine
-- `anamnesis` — Memory/persistence
 - `shield` — Network security (eBPF)
 - `unheaded-daemon` — Core daemon (eBPF)
 
 **API Layer:**
 - `protocol-api` — gRPC/REST interface
-- `gateway` — API gateway
-- `service-discovery` — Service registry (Consul-compatible)
 
 **Observability:**
 - `trace-collector` — Distributed trace collection
 - `dashboard-backend` — Metrics API
 
-**Application Services:**
-- `lich`, `captain`, `micromanager`, `timeguru`
-- `architect`, `developer`, `kanban`, `lore`, `busboy`
-- `kingdom`, `blackmage`, `moatghost`
+**Application Services:** built from the root `Dockerfile`'s stages
+(`wotan`, `timeguru`, `captain`, `architect`, `micromanager`, `kanban-app`, ...).
 
 #### Host-B (Outpost) — Minimal Suite
 Edge compute deployment with critical services only:
@@ -130,7 +124,7 @@ Verifies:
 ```bash
 cd /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker
 
-# Build all 25 service images
+# Build all 7 service images under services/
 make build
 
 # Or build single service
@@ -139,7 +133,7 @@ make build-svc SERVICE=monad
 ```
 
 **Build times:**
-- Full build (25 services): ~30-45 minutes (depends on layer caching)
+- Full build (7 services): depends on layer caching
 - Single service: ~2-5 minutes
 - vLLM/ROCm: ~5-10 minutes (includes PyTorch + ROCm stack)
 
@@ -155,7 +149,7 @@ Edit host-specific overrides in:
 ### 3. Deploy Host-A (Forge)
 
 ```bash
-# Start all 25 services
+# Start all services
 
 # Verify health
 make status
@@ -246,7 +240,7 @@ WG_SERVERURL=<host-a-ip-or-fqdn>  # For client configuration
 
 **Building:**
 ```bash
-make build                          # Build all 25 services
+make build                          # Build all 7 services under services/
 make build-svc SERVICE=monad        # Build single service
 ```
 
@@ -661,7 +655,7 @@ docker exec unheaded-monad curl -v http://unheaded-sophia:8000/health
 
 ### Pre-Production Checklist
 
-- [ ] All 25 services built and tested
+- [ ] All services built and tested
 - [ ] WireGuard tunnel tested (Host-A ↔ Host-B)
 - [ ] GPU access verified on Host-B
 - [ ] Logs aggregated to centralized store
