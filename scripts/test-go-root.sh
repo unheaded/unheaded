@@ -16,7 +16,8 @@
 # fails this script: under root, a skip means the test did not run.
 #
 # Uses the objects scripts/check-ebpf-loads.sh builds, running it when they
-# are missing; builds crates/heimdall-bpf itself. Needs nightly Rust, bpf-linker and sudo.
+# are missing; builds crates/heimdall-bpf and the cart CLI itself. Needs
+# nightly Rust, bpf-linker and sudo.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -50,6 +51,14 @@ if ! (cd crates/heimdall-bpf && cargo build --release --locked) >"${WORK}/heimda
     exit 1
 fi
 
+# pkg/cartridge's replay, sampler and scorer tests drive the cart CLI.
+echo "== building crates/upc-cartridge (cart CLI)"
+if ! cargo build --release --locked --manifest-path crates/upc-cartridge/Cargo.toml >"${WORK}/cart.log" 2>&1; then
+    cat "${WORK}/cart.log" >&2
+    echo "[FAIL] crates/upc-cartridge did not build" >&2
+    exit 1
+fi
+
 mapfile -t PKGS < <(git grep -l 'needs root (CAP_BPF)' -- '*_test.go' | xargs -r -n1 dirname | sort -u)
 if [[ "${#PKGS[@]}" -eq 0 ]]; then
     echo "[FAIL] found no test that needs root; the search is broken" >&2
@@ -70,6 +79,7 @@ for pkg in "${PKGS[@]}"; do
     (cd "$pkg" && "${SUDO[@]}" env \
         "CARTRIDGE_OBJ=${OBJ_DIR}/cartridge-ebpf" \
         "HOP_OBJ=${OBJ_DIR}/hop-ebpf" \
+        "CART_BIN=${REPO_ROOT}/crates/upc-cartridge/target/release/cart" \
         "HEIMDALL_BPF_DIR=${REPO_ROOT}/crates/heimdall-bpf/target/bpfel-unknown-none/release" \
         "$bin" -test.count=1 -test.v -test.timeout 300s) >"$log" 2>&1 || rc=$?
     passed="$(grep -c -- '--- PASS' "$log" || true)"
