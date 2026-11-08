@@ -49,6 +49,18 @@ run_step "Go Build" go build ./...
 # 2. Go Test (with race detector)
 run_step "Go Test (-race)" go test ./... -race -count=1 -timeout 300s
 
+# 2b. Tests behind the usersystemd tag drive the real run_check sandbox through
+# systemd-run --user. GitHub's runners have no user session, so west is the
+# only place they run. Packages are found by tag, so a new file is picked up.
+mapfile -t USERSYSTEMD_PKGS < <(git grep -l '^//go:build usersystemd' -- '*.go' | xargs -r -n1 dirname | sort -u | sed 's|^|./|')
+if [ "${#USERSYSTEMD_PKGS[@]}" -eq 0 ]; then
+    skip_step "Go Test (usersystemd)" "no file carries the tag"
+elif ! systemd-run --user --wait --quiet true 2>/dev/null; then
+    skip_step "Go Test (usersystemd)" "no user systemd session"
+else
+    run_step "Go Test (usersystemd)" go test -tags usersystemd -race -count=1 -timeout 300s "${USERSYSTEMD_PKGS[@]}"
+fi
+
 # 3. Go Vet
 run_step "Go Vet" go vet ./...
 
