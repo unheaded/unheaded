@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 #
-# check-ebpf-loads.sh — every eBPF program in ebpf/ must pass the kernel
+# check-ebpf-loads.sh — every eBPF program in ebpf/ (and the BPF workspaces
+# in OTHER_WS, today cmd/ebpf-collector's) must pass the kernel
 # verifier, except those listed in docs/policy/ebpf-load-known-failing.txt,
 # and that list may only SHRINK.
 #
@@ -87,15 +88,30 @@ for v in $VARIANTS; do
     fi
 done
 
+# BPF workspaces outside ebpf/, each built into its own target dir; their
+# programs load and are listed like ebpf/'s, keyed by binary name.
+OTHER_WS="cmd/ebpf-collector/ebpf-programs"
+ws_target() { echo "${TARGET}/ws-$(tr / _ <<<"$1")"; }
+for ws in $OTHER_WS; do
+    if ! (cd "${REPO_ROOT}/${ws}" && CARGO_TARGET_DIR="$(ws_target "$ws")" cargo build --release --locked) >"$LOG" 2>&1; then
+        cat "$LOG" >&2
+        echo "[FAIL] eBPF workspace ${ws} build failed" >&2
+        exit 1
+    fi
+done
+
 # Expected ELFs come from cargo metadata, not from whatever the build left on
 # disk: a binary that silently stopped being produced must fail, not vanish.
-bins="$(cd "$EBPF" && cargo metadata --no-deps --format-version 1 | python3 -c '
+ws_bins() {
+    (cd "$1" && cargo metadata --no-deps --format-version 1 | python3 -c '
 import json, sys
 for p in json.load(sys.stdin)["packages"]:
     for t in p["targets"]:
         if "bin" in t["kind"]:
             print(t["name"])
-' | sort -u)"
+' | sort -u)
+}
+bins="$(ws_bins "$EBPF")"
 if [[ -z "$bins" ]]; then
     echo "[FAIL] cargo metadata listed no eBPF binaries; refusing to pass an empty set" >&2
     exit 1
@@ -123,6 +139,13 @@ results="$(
     for v in $VARIANTS; do
         pkg="${v%%:*}" feat="${v#*:}"
         load "${pkg}[${feat}]" "${TARGET}/${feat}/bpfel-unknown-none/release/${pkg}"
+    done
+    for ws in $OTHER_WS; do
+        ws_list="$(ws_bins "${REPO_ROOT}/${ws}")"
+        [[ -n "$ws_list" ]] || echo "${ws}/* FAIL cargo metadata listed no binaries"
+        for b in $ws_list; do
+            load "$b" "$(ws_target "$ws")/bpfel-unknown-none/release/${b}"
+        done
     done
 )"
 

@@ -23,6 +23,7 @@ nfv-ebpf/nfv_lb_route	default	56958	6.17.0-41-generic	2026-10-28
 nfv-ebpf/nfv_nat	default	1753	6.17.0-41-generic	2026-10-28
 nfv-ebpf/nfv_rate_limiter	default	1750	6.17.0-41-generic	2026-10-28
 nfv-ebpf/nfv_xdp	default	25180	6.17.0-41-generic	2026-10-28
+packet-counter/packet_counter	default	460	6.17.0-41-generic	2026-11-08
 packet-marker/packet_marker	default	5497	6.17.0-41-generic	2026-11-04
 qos-ebpf/qos_xdp	default	55684	6.17.0-41-generic	2026-10-28
 shield-ebpf/shield_tc	debug-stats	1084	6.17.0-41-generic	2026-10-28
@@ -31,6 +32,10 @@ shield-ebpf/shield_xdp	debug-stats	1315	6.17.0-41-generic	2026-11-04
 shield-ebpf/shield_xdp	default	1315	6.17.0-41-generic	2026-11-04
 syscall-tracer/sys_enter	default	537	6.17.0-41-generic	2026-10-28
 syscall-tracer/sys_exit	default	974	6.17.0-41-generic	2026-10-28
+tcp-latency/tcp_recvmsg_enter	default	13	6.17.0-41-generic	2026-11-08
+tcp-latency/tcp_recvmsg_exit	default	97	6.17.0-41-generic	2026-11-08
+tcp-latency/tcp_sendmsg_enter	default	13	6.17.0-41-generic	2026-11-08
+tcp-latency/tcp_sendmsg_exit	default	50	6.17.0-41-generic	2026-11-08
 version-ebpf/version_tc_egress	default	213386	6.17.0-41-generic	2026-10-28
 version-ebpf/version_xdp_ingress	default	243780	6.17.0-41-generic	2026-10-28
 yaldabaoth-ebpf/yaldabaoth_tc	default	2608	6.17.0-41-generic	2026-10-28
