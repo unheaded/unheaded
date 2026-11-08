@@ -175,13 +175,13 @@ fi
 echo "== loading through the Go loader"
 GO_TEST="$(mktemp)"
 trap 'rm -f "$LOG" "$GO_TEST"' EXIT
-if ! (cd "$REPO_ROOT" && go test -c -o "$GO_TEST" ./pkg/ebpf) >"$LOG" 2>&1; then
+if ! (cd "$REPO_ROOT" && go test -tags integration -c -o "$GO_TEST" ./pkg/ebpf) >"$LOG" 2>&1; then
     cat "$LOG" >&2
     echo "[FAIL] could not build pkg/ebpf's tests" >&2
     exit 1
 fi
 if ! (cd "${REPO_ROOT}/pkg/ebpf" && "${SUDO[@]}" env "EBPF_GO_LOAD_DIR=${TARGET}/default/bpfel-unknown-none/release" \
-    "$GO_TEST" -test.run '^TestGoLoaderLoadsRealObjects$' -test.v) >"$LOG" 2>&1; then
+    "$GO_TEST" -test.run '^(TestGoLoaderLoadsRealObjects|TestParseCompiledBPFPrograms)$' -test.v) >"$LOG" 2>&1; then
     cat "$LOG" >&2
     echo "[FAIL] the Go loader could not load an object the Rust loader accepts" >&2
     exit 1
@@ -189,6 +189,13 @@ fi
 if ! grep -q -- '--- PASS: TestGoLoaderLoadsRealObjects/flow-tracker' "$LOG"; then
     cat "$LOG" >&2
     echo "[FAIL] the Go loader test did not run; refusing to pass on a skip" >&2
+    exit 1
+fi
+# The integration tag adds the parser's own check on the same objects: each
+# program by name and type (pkg/ebpf/loader_integration_test.go).
+if ! grep -q -- '--- PASS: TestParseCompiledBPFPrograms/latency-probe' "$LOG"; then
+    cat "$LOG" >&2
+    echo "[FAIL] the ELF parser test did not run; refusing to pass on a skip" >&2
     exit 1
 fi
 
