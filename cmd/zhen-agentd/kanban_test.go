@@ -279,12 +279,10 @@ func TestKanban_NoStore_DispatchSurfacesError(t *testing.T) {
 
 // --- live PG variant, gated on WELL_DSN ---
 
-// TestKanban_PG_LiveSmoke is opt-in. Set WELL_DSN to a reachable
-// Postgres (with a sane sslmode) to exercise the full pgKanbanStore →
-// SaveTask → row read-back path. Skipped in CI by default; run via:
-//
-//	WELL_DSN='host=127.0.0.1 user=unheaded password=... dbname=the_well sslmode=disable' \
-//	  go test ./cmd/zhen-agentd/ -run Kanban_PG_LiveSmoke -v
+// TestKanban_PG_LiveSmoke is opt-in. Set WELL_DSN to unheaded_app as
+// app_kanban to exercise the full pgKanbanStore → SaveTask → row
+// read-back path. scripts/well/test-zhen-agent-runs.sh runs it against a
+// throwaway Well (never the real one).
 func TestKanban_PG_LiveSmoke(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("WELL_DSN"))
 	if dsn == "" {

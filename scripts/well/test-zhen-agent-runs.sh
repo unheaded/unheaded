@@ -33,7 +33,8 @@
 #      (accepted, denied, denied_<reason> up to 40 characters) and still
 #      refuses anything else; pkg/champion's integration tests (build tag
 #      integration) and zhen-agentd's SQL memory store run as app_zhen,
-#      and a skipped one counts as a failure.
+#      zhen-agentd's kanban store as app_kanban; a skipped one counts as
+#      a failure.
 #
 #   scripts/well/test-zhen-agent-runs.sh [--sql-only] [--keep] [image]   # default postgres:16.15-alpine
 #
@@ -273,6 +274,14 @@ if ((GO)); then
 		pass "go test ./cmd/zhen-agentd -run TestPGMemoryStore_Live"
 	else
 		fail "zhen-agentd memory store"; tail -25 "$TMP/go.out" | sed 's/^/    /'
+	fi
+	# zhen-agentd's kanban_create through its Well store, as app_kanban
+	# (-kanban-store pg reads WELL_KANBAN_DSN, else WELL_DSN).
+	if (cd "$R" && WELL_DSN="$WELL_TEST_KANBAN_DSN" go test -count=1 -race ./cmd/zhen-agentd/ -run '^TestKanban_PG_LiveSmoke$' -v >"$TMP/go.out" 2>&1) &&
+		grep -q '^--- PASS: TestKanban_PG_LiveSmoke' "$TMP/go.out"; then
+		pass "go test ./cmd/zhen-agentd -run TestKanban_PG_LiveSmoke"
+	else
+		fail "zhen-agentd kanban store"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi
 	unset WELL_TEST_APP_DSN WELL_TEST_KANBAN_DSN
 fi
