@@ -60,6 +60,13 @@ elif ! systemd-run --user --wait --quiet true 2>/dev/null; then
 else
     run_step "Go Test (usersystemd)" go test -tags usersystemd -race -count=1 -timeout 300s "${USERSYSTEMD_PKGS[@]}"
 fi
+# zhen-eval's sandbox runner on a real fixture, gated by env var not tag.
+if systemd-run --user --wait --quiet true 2>/dev/null; then
+    run_step "zhen-eval sandbox runner (user systemd)" env ZHEN_EVAL_SANDBOX_TEST=1 \
+        go test -race -count=1 -timeout 300s ./cmd/zhen-eval/ -run '^TestSandboxRunner_RealFixtureSolution$'
+else
+    skip_step "zhen-eval sandbox runner (user systemd)" "no user systemd session"
+fi
 
 # 3. Go Vet
 run_step "Go Vet" go vet ./...
