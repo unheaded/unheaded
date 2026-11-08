@@ -43,19 +43,10 @@ sudo bpftool prog show
 ## Sealed Cask (signed deterministic artifact)
 
 ```bash
-./scripts/build-sealed-cask.sh \
-    --name anamnesis-lite \
-    --version "$(git rev-parse --short HEAD)" \
-    --include "bin/trace-collector-go" \
-    --include "bin/dashboard-backend" \
-    --include "ebpf/target/bpfel-unknown-none/release/packet-marker" \
-    --include "ebpf/target/bpfel-unknown-none/release/flow-tracker" \
-    --include "ebpf/target/bpfel-unknown-none/release/latency-probe" \
-    --include "scripts/load-ebpf.sh" \
-    --include "scripts/unload-ebpf.sh" \
-    --include "configs/anamnesis.yaml"
-
-./scripts/verify-binding-rune.sh dist/anamnesis-lite-*.cask
+# The cask packs the whole tree (every unit binary, the eBPF objects and the
+# tracked configs, runbooks and migrations); it has no per-tool selection.
+UNHEADED_BUILD_KEY=/path/to/build.key ./scripts/build-sealed-cask.sh --output cask.tar.gz
+./scripts/verify-binding-rune.sh --pubkey build.pubkey cask.tar.gz
 ```
 
 ## Smoke after build

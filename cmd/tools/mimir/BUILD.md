@@ -28,18 +28,10 @@ constitute the Mímir distribution. No additional source extraction needed.
 ## Sealed Cask (signed deterministic artifact, per ADR-010)
 
 ```bash
-./scripts/build-sealed-cask.sh \
-    --name mimir \
-    --version "$(git rev-parse --short HEAD)" \
-    --include "bin/heimdall-daemon" \
-    --include "bin/gjallarhorn-sender" \
-    --include "bin/gjallarhorn-listener" \
-    --include "tomb/ansible/roles/heimdall/" \
-    --include "configs/heimdall.yaml" \
-    --include "runbooks/security/drift-response.yaml"
-
-# Verify the binding rune (SHA256 chain) on the produced artifact:
-./scripts/verify-binding-rune.sh dist/mimir-*.cask
+# The cask packs the whole tree (every unit binary, the eBPF objects and the
+# tracked configs, runbooks and migrations); it has no per-tool selection.
+UNHEADED_BUILD_KEY=/path/to/build.key ./scripts/build-sealed-cask.sh --output cask.tar.gz
+./scripts/verify-binding-rune.sh --pubkey build.pubkey cask.tar.gz
 ```
 
 The cask is the deterministic, signed artifact community adopters install.

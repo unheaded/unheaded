@@ -63,20 +63,10 @@ cargo build --release
 ## Sealed Cask (signed deterministic artifact)
 
 ```bash
-./scripts/build-sealed-cask.sh \
-    --name zhen-on-prem \
-    --version "$(git rev-parse --short HEAD)" \
-    --include "bin/zhen-rag" \
-    --include "bin/zhen-cli" \
-    --include "bin/zhen-agent" \
-    --include "bin/zhen-agentd" \
-    --include "bin/shield" \
-    --include "raft/" \
-    --include "runbooks/" \
-    --include "scripts/switch-model.sh" \
-    --include "scripts/start-zhen.sh"
-
-./scripts/verify-binding-rune.sh dist/zhen-on-prem-*.cask
+# The cask packs the whole tree (every unit binary, the eBPF objects and the
+# tracked configs, runbooks and migrations); it has no per-tool selection.
+UNHEADED_BUILD_KEY=/path/to/build.key ./scripts/build-sealed-cask.sh --output cask.tar.gz
+./scripts/verify-binding-rune.sh --pubkey build.pubkey cask.tar.gz
 ```
 
 ## Smoke after build

@@ -44,8 +44,9 @@
 # GPU lease (S-TWO-BRAINS Step 233): the whole swap runs under the
 # exclusive lease of scripts/lib/gpu-lease.sh, so it never meets an
 # inference call (pkg/localllm holds the lease shared per call) or a
-# training run (scripts/forge-train.sh). GPU_LEASE_TIMEOUT (default 600 s)
-# bounds the wait; exit 75 = the lease was not granted in time.
+# training run (forge-train.sh, in unheaded-forge). GPU_LEASE_TIMEOUT
+# (default 600 s) bounds the wait; exit 75 = the lease was not granted in
+# time.
 #
 # Defined model keys (extend MODELS in this script to add more):
 #   qwen-7b      qwen2.5-coder-7b-instruct  (16k ctx, 4 parallel — light, fast,

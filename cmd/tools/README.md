@@ -70,6 +70,6 @@ inspection / modification / redistribution.
 - `docs/battle-plans/ROUND-TABLE-2026-04-30-practical-tooling.md` — origin
   round-table
 - `scripts/build-sealed-cask.sh` — the Sealed Cask build pipeline (per
-  ADR-010); produces deterministic, signed artifacts for any tool
+  ADR-010); one deterministic, signed artifact of the whole tree
 - `docs/adr/ADR-040-kubernetes-ecosystem-strategy.md` — K8s positioning;
   tools that ship as Helm charts compose with this strategy

@@ -15,8 +15,7 @@ The agent answers questions, calls tools when needed (with snapshots and revert)
 make build-zhen-agent
 
 # 2. Make sure vor and llama-server are running
-#    (see scripts/start-cs.sh, scripts/start-llama.sh, or `make zhen-agent-up`
-#     once that target lands)
+#    (`make zhen-agent-up` builds and checks both: scripts/zhen-agent-preflight.sh)
 curl -sf http://127.0.0.1:20110/api/health     # vor
 curl -sf http://127.0.0.1:8081/health         # llama-server
 
