@@ -69,8 +69,8 @@ for k in 1 2 3; do gates_listed --list --shard "$k/3" >"$T/shard$k.list"; done
 sort "$T/shard1.list" "$T/shard2.list" "$T/shard3.list" >"$T/shards.list"
 ok "the registry lists something" [ -s "$T/all.list" ]
 ok "three shards together are every gate, once each" cmp -s "$T/all.list" "$T/shards.list"
-shard_slow_rows() { grep -c ' slow ' "$T/shard$1.list"; }
-ok "no shard carries all the slow gates" [ "$(shard_slow_rows 1)" -lt "$(grep -c ' slow ' "$T/all.list")" ]
+shard_slow_rows() { awk '$2 == "slow"' "$T/shard$1.list" | wc -l; }  # the speed column, not a description that says "slow"
+ok "no shard carries all the slow gates" [ "$(shard_slow_rows 1)" -lt "$(awk '$2 == "slow"' "$T/all.list" | wc -l)" ]
 ok "slow gates differ by at most one between shards" [ "$(($(shard_slow_rows 1) - $(shard_slow_rows 3)))" -le 1 ]
 for bad in 4/3 0/3 three 1/0; do
 	"$C/scripts/check-gates-can-fail.sh" --list --shard "$bad" >/dev/null 2>&1
