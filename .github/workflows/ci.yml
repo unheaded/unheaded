@@ -83,6 +83,14 @@ jobs:
           go test -race -count=1 -timeout 120s -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out | tail -1
 
+      # The race run covers one SLH-DSA set per hash (the s sets under -race
+      # would pass the 120 s budget); all twelve take about 4 s without it.
+      - name: SLH-DSA, all twelve parameter sets (no race)
+        run: |
+          PQC_SLOW=1 go test -count=1 -timeout 120s ./pkg/crypto/pqc/ -run '^TestSLHDSAAllParameterSets$' -v | tee pqc-slow.log
+          if grep -q -- '--- SKIP' pqc-slow.log; then echo "::error::an SLH-DSA set skipped"; exit 1; fi
+          test "$(grep -c -- '--- PASS: TestSLHDSAAllParameterSets/' pqc-slow.log)" -eq 12
+
       - name: Check coverage threshold
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | tail -1 | awk '{print $NF}' | tr -d '%')

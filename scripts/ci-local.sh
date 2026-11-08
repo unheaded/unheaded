@@ -49,6 +49,12 @@ run_step "Go Build" go build ./...
 # 2. Go Test (with race detector)
 run_step "Go Test (-race)" go test ./... -race -count=1 -timeout 300s
 
+# 2a. All twelve SLH-DSA parameter sets, without -race (as in ci.yml).
+run_step "SLH-DSA, all twelve parameter sets" bash -c '
+    out=$(PQC_SLOW=1 go test -count=1 -timeout 120s ./pkg/crypto/pqc/ -run "^TestSLHDSAAllParameterSets\$" -v) || { echo "$out"; exit 1; }
+    ! grep -q -- "--- SKIP" <<<"$out" && [ "$(grep -c -- "--- PASS: TestSLHDSAAllParameterSets/" <<<"$out")" -eq 12 ]
+'
+
 # 2b. Tests behind the usersystemd tag drive the real run_check sandbox through
 # systemd-run --user. GitHub's runners have no user session, so west is the
 # only place they run. Packages are found by tag, so a new file is picked up.
