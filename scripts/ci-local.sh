@@ -73,6 +73,17 @@ if systemd-run --user --wait --quiet true 2>/dev/null; then
 else
     skip_step "zhen-eval sandbox runner (user systemd)" "no user systemd session"
 fi
+# author-runbook.sh end to end (fake llama-server and Claude review, real
+# run_check sandbox). The sandbox hides /tmp and /var/tmp, so python3 must
+# resolve outside them; a pytest from a venv there is fine.
+if ! systemd-run --user --wait --quiet true 2>/dev/null; then
+    skip_step "two-brains runbook authoring (user systemd)" "no user systemd session"
+elif ! command -v pytest >/dev/null; then
+    skip_step "two-brains runbook authoring (user systemd)" "pytest not on PATH"
+else
+    run_step "two-brains runbook authoring (user systemd)" \
+        pytest scripts/two-brains/test_author_runbook.py -q -rfE -p no:cacheprovider
+fi
 # Lich's confinement (unshare -r -n -m --pid): no egress, rlimits, read-only
 # root, teardown. Gated by LICH_BAREMETAL; Ubuntu runners may refuse an
 # unprivileged user namespace, so this runs where the probe answers.
