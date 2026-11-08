@@ -336,36 +336,75 @@ func (r *TraceReader) publishTraceEntries(ctx context.Context, entries []*TraceE
 	return nil
 }
 
-// readStats reads the STATS BPF map and publishes aggregated stats.
-// Stats map keys from packet_marker: 0=packets_total, 1=bytes_total,
-// 2=traces_created, 3=traces_updated, 4=errors.
+// FlowStats holds flow_tracker's FLOW_STATS counters under the names
+// ebpf/flow-tracker/src/main.rs gives their keys (STAT_*; key 9 is unused).
+// GetStatsMap reads that map. Until 2026-11-08 they went out as
+// packets_total, bytes_total, traces_created, traces_updated and errors,
+// packet_marker-style names that matched neither program's keys.
+type FlowStats struct {
+	PacketsIngress   uint64 `json:"packets_ingress"`
+	PacketsEgress    uint64 `json:"packets_egress"`
+	FlowsNew         uint64 `json:"flows_new"`
+	FlowsClosed      uint64 `json:"flows_closed"`
+	TCPSyns          uint64 `json:"tcp_syns"`
+	TCPFins          uint64 `json:"tcp_fins"`
+	TCPRsts          uint64 `json:"tcp_rsts"`
+	EventsSent       uint64 `json:"events_sent"`
+	EventsDropped    uint64 `json:"events_dropped"`
+	Migrations       uint64 `json:"migrations"`
+	MigrationExpired uint64 `json:"migration_expired"`
+	Cancelled        uint64 `json:"cancelled"`
+}
+
+// collectFlowStats reads every FLOW_STATS entry into a FlowStats. Short
+// entries and keys flow_tracker does not define are skipped.
+func collectFlowStats(statsMap MapReader) (FlowStats, error) {
+	var stats FlowStats
+	err := statsMap.Iterate(func(key, value []byte) error {
+		if len(value) < 8 || len(key) < 4 {
+			return nil
+		}
+		val := binary.LittleEndian.Uint64(value[:8])
+		switch binary.LittleEndian.Uint32(key[:4]) {
+		case 0:
+			stats.PacketsIngress = val
+		case 1:
+			stats.PacketsEgress = val
+		case 2:
+			stats.FlowsNew = val
+		case 3:
+			stats.FlowsClosed = val
+		case 4:
+			stats.TCPSyns = val
+		case 5:
+			stats.TCPFins = val
+		case 6:
+			stats.TCPRsts = val
+		case 7:
+			stats.EventsSent = val
+		case 8:
+			stats.EventsDropped = val
+		case 10:
+			stats.Migrations = val
+		case 11:
+			stats.MigrationExpired = val
+		case 12:
+			stats.Cancelled = val
+		}
+		return nil
+	})
+	return stats, err
+}
+
+// readStats reads flow_tracker's FLOW_STATS map and publishes it on the
+// stats topic.
 func (r *TraceReader) readStats(ctx context.Context) {
 	statsMap := r.loader.GetStatsMap()
 	if statsMap == nil {
 		return
 	}
 
-	var stats StatsEntry
-	err := statsMap.Iterate(func(key, value []byte) error {
-		if len(value) < 8 || len(key) < 4 {
-			return nil
-		}
-		keyIdx := binary.LittleEndian.Uint32(key[:4])
-		val := binary.LittleEndian.Uint64(value[:8])
-		switch keyIdx {
-		case 0:
-			stats.PacketsTotal = val
-		case 1:
-			stats.BytesTotal = val
-		case 2:
-			stats.TracesCreated = val
-		case 3:
-			stats.TracesUpdated = val
-		case 4:
-			stats.Errors = val
-		}
-		return nil
-	})
+	stats, err := collectFlowStats(statsMap)
 	if err != nil {
 		readerErrors.WithLabelValues("stats_iterate").Inc()
 		return

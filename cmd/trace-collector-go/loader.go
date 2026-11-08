@@ -31,7 +31,7 @@ type BPFLoader interface {
 	// GetTraceMap returns a reader for the STATS hash map (fallback for polling).
 	GetTraceMap() MapReader
 
-	// GetStatsMap returns a reader for the STATS map.
+	// GetStatsMap returns a reader for flow_tracker's FLOW_STATS counters.
 	GetStatsMap() MapReader
 
 	// GetFlowStateMap returns a reader for the FLOW_STATE map.
