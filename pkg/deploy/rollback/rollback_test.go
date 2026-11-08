@@ -70,6 +70,8 @@ type mockInstanceUpdater struct {
 	mu       sync.Mutex
 	calls    []instanceUpdateCall
 	failNext bool
+	// release, when set, holds every Update until it is closed.
+	release chan struct{}
 }
 
 type instanceUpdateCall struct {
@@ -80,6 +82,9 @@ type instanceUpdateCall struct {
 }
 
 func (m *mockInstanceUpdater) Update(_ context.Context, serviceName, version, artifactRef string, replicas int) error {
+	if m.release != nil {
+		<-m.release
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.failNext {
@@ -346,7 +351,9 @@ func TestManager_Rollback_DuplicateInProgress(t *testing.T) {
 	// manager at line `mgr = NewManager(...)`, so the setup helper's
 	// returns would be discarded. Skip it entirely.
 
-	// Slow down the updater so rollback stays in-progress
+	// The updater blocks until released, so the first rollback is still in
+	// progress when the second arrives (a non-blocking mock let it finish
+	// first under load).
 	lookup := newMockDeploymentLookup()
 	lookup.deployments["dep-current"] = &DeploymentInfo{
 		ID:          "dep-current",
@@ -366,7 +373,7 @@ func TestManager_Rollback_DuplicateInProgress(t *testing.T) {
 	}
 	lookup.previous["svc-a:dep-current"] = lookup.deployments["dep-previous"]
 
-	slowUpdater := &mockInstanceUpdater{}
+	slowUpdater := &mockInstanceUpdater{release: make(chan struct{})}
 	mgr := NewManager(lookup, slowUpdater, &mockTrafficShifter{})
 
 	req := &RollbackRequest{
@@ -388,7 +395,8 @@ func TestManager_Rollback_DuplicateInProgress(t *testing.T) {
 		t.Errorf("expected ErrRollbackInProgress, got %v", err)
 	}
 
-	// Wait for completion so we clean up
+	// Release the updater and wait for completion so we clean up
+	close(slowUpdater.release)
 	waitForRollbackState(t, mgr, rb1.ID, RollbackStateCompleted, 5*time.Second)
 }
 
