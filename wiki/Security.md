@@ -165,8 +165,8 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | gitleaks (pinned binary, sha256) + shrink-only baseline | Secrets in the tracked tree; default rules plus `.gitleaks.toml` rule `unheaded-api-key` for leaked `uhk_` API keys (ADR-103 §5) | `scripts/check-gitleaks.sh`, `scripts/check-secrets-baseline.sh` |
 | ruff, shellcheck, clippy | Python, shell and Rust lint (gating) | CI |
 | oxlint (pinned binary, sha256) | JavaScript lint (gating); replaced eslint, the only npm use (ADR-006) | `scripts/check-js-lint.sh` |
-| release freshness | Pinned tools (oxlint, gitleaks, syft, grype, cosign, helm, kubeconform; all in `scripts/lib/tool-pins.sh`) fail once a newer release is 7 days old; each is sha256-checked on every use (`scripts/lib/fetch-tool.sh`) | `scripts/check-tool-freshness.sh` |
-| Helm chart lockdown | Every rendered container: read-only root, no privilege escalation, drop ALL, not privileged; no host namespaces (default/dev/prod values) | `scripts/check-helm-security.sh` |
+| release freshness | Pinned tools (oxlint, gitleaks, syft, grype, cosign, buf, hadolint, trivy; all in `scripts/lib/tool-pins.sh`) fail once a newer release is 7 days old; so do the CI Python tools' pins (`.github/ci-python/requirements.in`); each is sha256-checked on every use (`scripts/lib/fetch-tool.sh`) | `scripts/check-tool-freshness.sh` |
+| Helm chart lockdown | Every rendered container: read-only root, no privilege escalation, drop ALL, not privileged; no host namespaces (default/dev/prod values) | `scripts/check-helm-security.sh`, in `unheaded-k8s` with the charts since 2026-11-04 (DP-17) |
 | haproxy configs | Both haproxy configs pass `haproxy -c` under the compose-pinned image and the host binary, with a throwaway cert for the edge's TLS bind | `scripts/check-haproxy-cfg.sh` |
 | hadolint | Dockerfile lint: a Dockerfile it cannot parse fails; (rule, file) counts may only shrink | `scripts/check-hadolint.sh` |
 | bandit | Python security lint (reporting only) | CI |

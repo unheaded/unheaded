@@ -56,7 +56,7 @@ Nothing captured or exported is ever in the repository: capture and export both 
 | File | Holds |
 |---|---|
 | `sft-train.jsonl`, `sft-holdout.jsonl` | `{id, family, split, author_kind, source, question, context, answer}` |
-| `train.tok.jsonl`, `holdout.tok.jsonl` | forge records, exactly `{"tokens":[...],"answer_start":N}` (`scripts/tokenize-coding-for-gemma4.py --strict`) |
+| `train.tok.jsonl`, `holdout.tok.jsonl` | forge records, exactly `{"tokens":[...],"answer_start":N}` (`scripts/tokenize-coding-for-gemma4.py --strict`, in `unheaded-forge`) |
 | `train.tok.ids`, `holdout.tok.ids` | the capture id of each forge line |
 | `preference-*.jsonl` | same task: a good answer and a failed local one (for DPO later; not trained yet) |
 | `tool-traces-*.jsonl` | traces of answers that passed a check (not trained yet) |
@@ -66,7 +66,7 @@ Filters: answers 1 byte to 8 KiB, prompts up to 16 KiB, no refusals or "I don't 
 
 Split, so a hold-out result means learning and not memorisation: every example of one task (agent run, eval task or conversation) is in the same split; a task is hold-out when `sha256(family + group)` mod 100 < 20; eval tasks never train (two-brains hold-out tasks stay hold-out, every other eval task is excluded); a train prompt that overlaps a coding-gate prompt, a two-brains hold-out task, or any flywheel hold-out prompt by 0.8 or more (8-word shingles) is excluded. Two exports of the same Well are byte-identical.
 
-Train only with `--strict-data`, a flag of the forge in `unheaded-forge`: any malformed line, extra key, missing or out-of-range `answer_start` stops the run and names the line (the WAVE14 H6 bug trained on corrupted data for 11 days). Check an export first with `scripts/two-brains/test_export_roundtrip.py <dir>`.
+Train only with `--strict-data`, a flag of the forge in `unheaded-forge`: any malformed line, extra key, missing or out-of-range `answer_start` stops the run and names the line (the WAVE14 H6 bug trained on corrupted data for 11 days). Check an export first with `scripts/two-brains/test_export_roundtrip.py <dir>` (also in `unheaded-forge`).
 
 ## Retention and removing one capture
 
