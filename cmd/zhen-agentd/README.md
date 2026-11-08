@@ -317,14 +317,14 @@ bin/zhen-agentd -action-store=pg -port 20111
 # zhen-agentd listening on http://127.0.0.1:20111 — ...
 ```
 
-The table comes from The Well's migrations (009, 011, 020; ADR-101), never from the daemon: on startup it only checks that every column it writes exists (`zhen_actions schema missing or incomplete: run well-migrate` otherwise). The table:
+The table comes from The Well's migrations (009, 011, 020, 047; ADR-101), never from the daemon: on startup it only checks that every column it writes exists (`zhen_actions schema missing or incomplete: run well-migrate` otherwise). The table:
 
 ```sql
 CREATE TABLE zhen_actions (
     id              BIGSERIAL    PRIMARY KEY,
     session_id      TEXT         NOT NULL,
     action_type     TEXT         NOT NULL,
-    status          TEXT         NOT NULL,
+    status          VARCHAR(40)  NOT NULL, -- 009's five, plus the gate's accepted, denied, denied_<reason> (047)
     intent          TEXT,
     parameters      TEXT,
     result          TEXT,
@@ -344,7 +344,8 @@ Common forensic queries:
 -- "what did session X do, newest first?"
 SELECT * FROM zhen_actions WHERE session_id = $1 ORDER BY id DESC LIMIT 50;
 
--- "every refused tool call in the last 24h"
+-- "every refused tool call in the last 24h" (empty on a Well without 047:
+-- each denied_* update failed and the row stayed 'planned')
 SELECT * FROM zhen_actions
  WHERE action_type = 'tool_call_attempt'
    AND status LIKE 'denied_%'

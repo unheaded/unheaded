@@ -27,7 +27,13 @@
 #      other mode still needs both; an unknown mode is refused;
 #  10. app_kanban (041) reads the columns the card modal shows, not the
 #      error text or the cost, and cannot write a run; kanban-app's
-#      PgStore.LatestAgentRun (build tag wellint) as app_kanban.
+#      PgStore.LatestAgentRun (build tag wellint) as app_kanban;
+#  11. kanban_zhen_optin (049): the board writes it, the worker only reads;
+#  12. zhen_actions.status (047) takes the Champion gate's verdicts
+#      (accepted, denied, denied_<reason> up to 40 characters) and still
+#      refuses anything else; pkg/champion's integration tests (build tag
+#      integration) and zhen-agentd's SQL memory store run as app_zhen,
+#      and a skipped one counts as a failure.
 #
 #   scripts/well/test-zhen-agent-runs.sh [--sql-only] [--keep] [image]   # default postgres:16.15-alpine
 #
@@ -227,6 +233,19 @@ ok "a hard-deleted card takes its opt-in with it" sq "DELETE FROM kanban_tasks W
 if [[ "$(sq "SELECT count(*) FROM kanban_zhen_optin WHERE card_id = 'opt-card'")" == 0 ]]; then
 	pass "no opt-in outlives its card"; else fail "an opt-in outlived its card"; fi
 
+# 12. The Champion's action log takes the gate's verdicts (047). Before it,
+#     every 'accepted' and 'denied_*' UPDATE failed and a refused call
+#     stayed 'planned'.
+if [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '047_app_zhen_actions_gate_status.sql'")" == 1 ]]; then
+	pass "bootstrap recorded 047 in unheaded_app"; else fail "047 not in the ledger"; fi
+ACT="$(zh "INSERT INTO zhen_actions (session_id, action_type, status, intent) VALUES ('qa-047', 'tool_call_attempt', 'planned', 'qa') RETURNING id")"
+for st in accepted denied denied_path denied_untrusted_justification completed; do
+	ok "app_zhen sets a zhen_actions row to $st" zh "UPDATE zhen_actions SET status = '$st' WHERE id = $ACT"
+done
+for st in bogus denied_ DENIED_PATH 'denied path' "denied_$(printf 'x%.0s' $(seq 1 40))"; do
+	refused "zhen_actions status '${st:0:20}'" zh "UPDATE zhen_actions SET status = '$st' WHERE id = $ACT"
+done
+
 # 8. The Go stores against this server: pkg/zhenagent as app_zhen, and
 #    kanban-app's agent-run read (041) as app_kanban.
 if ((GO)); then
@@ -241,6 +260,19 @@ if ((GO)); then
 		pass "go test -tags wellint ./cmd/kanban-app -run TestWell"
 	else
 		fail "kanban-app agent-run read"; tail -25 "$TMP/go.out" | sed 's/^/    /'
+	fi
+	# 12. The gate's verdicts reach the action log through pkg/champion.
+	if (cd "$R" && go test -count=1 -race -tags integration ./pkg/champion/ -run '^TestIntegration_' -v >"$TMP/go.out" 2>&1) &&
+		[[ "$(grep -c '^--- PASS: TestIntegration_' "$TMP/go.out")" == 3 ]]; then
+		pass "go test -tags integration ./pkg/champion -run TestIntegration_ (3 passed)"
+	else
+		fail "champion action log"; tail -25 "$TMP/go.out" | sed 's/^/    /'
+	fi
+	if (cd "$R" && go test -count=1 -race ./cmd/zhen-agentd/ -run '^TestPGMemoryStore_Live$' -v >"$TMP/go.out" 2>&1) &&
+		grep -q '^--- PASS: TestPGMemoryStore_Live' "$TMP/go.out"; then
+		pass "go test ./cmd/zhen-agentd -run TestPGMemoryStore_Live"
+	else
+		fail "zhen-agentd memory store"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi
 	unset WELL_TEST_APP_DSN WELL_TEST_KANBAN_DSN
 fi
