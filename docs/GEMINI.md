@@ -672,10 +672,10 @@ Deliverables:
 ## 🔗 Key References
 
 **Essential reading:**
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Complete architecture
-- [THE_META_MOMENT.md](docs/THE_META_MOMENT.md) - Self-hosting philosophy
-- [SYSTEM_DIAGRAM.md](docs/SYSTEM_DIAGRAM.md) - Visual overview
-- [timeline.md](references/timeline.md) - Living roadmap
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Complete architecture
+- [THE_META_MOMENT.md](THE_META_MOMENT.md) - Self-hosting philosophy
+- [SYSTEM_DIAGRAM.md](architecture/SYSTEM_DIAGRAM.md) - Visual overview
+- [timeline.md](../references/timeline.md) - Living roadmap
 
 **External:**
 - [Wotan](https://github.com/unheaded/wotan) - Message bus (Phase 1)

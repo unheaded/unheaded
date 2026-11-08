@@ -399,8 +399,8 @@ own each item (index: `docs/adr/ADR-INDEX.md`; open work: `docs/sweeps/OUTSTANDI
 
 ## References
 
-- [MICROSERVICES.md](MICROSERVICES.md) - Service catalog and communication patterns
-- [SECURITY.md](SECURITY.md) - Detailed security specifications
+- [MICROSERVICES.md](architecture/MICROSERVICES.md) - Service catalog and communication patterns
+- [SECURITY.md](../SECURITY.md) - Detailed security specifications
 - [THE_META_MOMENT.md](THE_META_MOMENT.md) - Philosophy of self-hosting
 - [../references/timeline.md](../references/timeline.md) - Living roadmap
 

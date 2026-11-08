@@ -372,7 +372,7 @@ Prioritized, ordered, owner-tagged. Warmonger is next-up to convert this into a 
 - [ ] **I2** README polish for VC/public readiness *(Captain + Librarian, Sprint May-Q1)*
 - [ ] **I3** Falsifiable perf benchmark spec ("infra in N hours") *(Scientist, Sprint May-Q1)*
 - [ ] **I4** WAVE14 BackwardScratch + KV-cache plan *(Computermancer + Developer, gated on Track A/C — see `docs/battle-plans/WAVE14-STUB.md`, ADR-054 reserved)*
-- [ ] **I5** Hybrid Claude + Local Zhenai workflow templates / routing — cost-aware hybrid (heavy → Claude, minor churn → local Zhenai on RX 7700) *(Stevie + Champion + Computermancer, **Pipe Dream tier**, see [ADR-053](docs/adr/ADR-053-hybrid-claude-zhenai-workflow-templates.md), activates on cost/quality/strategic/personal trigger)*
+- [ ] **I5** Hybrid Claude + Local Zhenai workflow templates / routing — cost-aware hybrid (heavy → Claude, minor churn → local Zhenai on RX 7700) *(Stevie + Champion + Computermancer, **Pipe Dream tier**, see [ADR-053](../adr/ADR-053-hybrid-claude-zhenai-workflow-templates.md), activates on cost/quality/strategic/personal trigger)*
   - I5a: `templates/workflows/` directory + 7 starter templates
   - I5b: Champion routing module (HEAVY ↔ MINOR-CHURN classifier)
   - I5c: MCP tools (`template_list`, `template_run`, `template_route`, `champion_handoff`)
@@ -381,7 +381,7 @@ Prioritized, ordered, owner-tagged. Warmonger is next-up to convert this into a 
   - I5f: Cost/quality telemetry pipeline (Wotan topic `zhenai.routing.events`)
   - I5g: Routing-classifier training (post 60 days of telemetry)
   - I5h: Lore-keeper finalizes routing-module Norse name (Mímir / Heimdall / Munin / Skuld / Verðandi / Urð candidates)
-- [ ] **I6** KEV Poller — always-on Kingdom service + first cross-host K8s pilot *(Stevie + MoatGhost + Sentinel + Architect + Computermancer, **Planned tier**, see [ADR-055](docs/adr/ADR-055-kev-poller-always-on-service.md))*
+- [ ] **I6** KEV Poller — always-on Kingdom service + first cross-host K8s pilot *(Stevie + MoatGhost + Sentinel + Architect + Computermancer, **Planned tier**, see [ADR-055](../adr/ADR-055-kev-poller-always-on-service.md))*
   - I6a: Phase 0 — bring up K8s lab cluster on WEST + EAST (per ADR-047 plan) if not yet live
   - I6b: Phase 1 — `services/sentinel-feeds/kev-poller/` Go service skeleton (hourly pull, Wotan publish, Prometheus metrics)
   - I6c: Phase 2 — K8s DaemonSet across WEST + EAST (`k8s/kev-poller/daemonset.yaml`, ConfigMap, RBAC, ServiceMonitor)

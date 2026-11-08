@@ -491,10 +491,10 @@ task.id contains invalid characters
 
 ## References
 
-- [Wotan Message Bus](../../../wotan/README.md)
-- [Wotan Client](../../../pkg/wotan-client/client.go)
-- [Unheaded Architecture](../../../docs/ARCHITECTURE.md)
-- [Security Guidelines](../../../docs/SECURITY.md)
+- [Wotan Message Bus](../../wiki/Service-Wotan.md)
+- [Wotan Client](../../pkg/wotan-client/client.go)
+- [Unheaded Architecture](../../docs/ARCHITECTURE.md)
+- [Security Guidelines](../../SECURITY.md)
 
 ---
 

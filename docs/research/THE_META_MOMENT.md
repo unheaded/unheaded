@@ -218,8 +218,8 @@ And we invite our users to validate alongside us.
 
 ## References
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture
-- [../references/timeline.md](../references/timeline.md) - The living roadmap
+- [ARCHITECTURE.md](../ARCHITECTURE.md) - Technical architecture
+- [../references/timeline.md](../../references/timeline.md) - The living roadmap
 - [https://bellis.tech](https://bellis.tech) - Design inspiration
 
 ---

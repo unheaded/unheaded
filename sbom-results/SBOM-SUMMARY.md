@@ -45,8 +45,8 @@
 
 ## References
 
-- [THIRD_PARTY.md](../../THIRD_PARTY.md) — Detailed dependency inventory
-- [LICENSE](../../LICENSE) — MIT license for main codebase
-- [LICENSE-PROTOCOLS](../../LICENSE-PROTOCOLS) — Protocol specifications licensing
+- [THIRD_PARTY.md](../THIRD_PARTY.md) — Detailed dependency inventory
+- [LICENSE](../LICENSE) — MIT license for main codebase
+- [LICENSE-PROTOCOLS](../LICENSE-PROTOCOLS) — Protocol specifications licensing
 
 **Generated:** 2026-02-27T04:47:27Z

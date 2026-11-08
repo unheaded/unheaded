@@ -410,9 +410,9 @@ unheaded-daemon polls every 30 seconds:
 ## References
 
 - [MICROSERVICES.md](MICROSERVICES.md) - Service catalog and communication patterns
-- [SECURITY.md](SECURITY.md) - Detailed security specifications
-- [THE_META_MOMENT.md](THE_META_MOMENT.md) - Philosophy of self-hosting
-- [../references/timeline.md](../references/timeline.md) - Living roadmap
+- [SECURITY.md](../../SECURITY.md) - Detailed security specifications
+- [THE_META_MOMENT.md](../THE_META_MOMENT.md) - Philosophy of self-hosting
+- [../references/timeline.md](../../references/timeline.md) - Living roadmap
 
 ---
 
