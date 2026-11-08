@@ -17,6 +17,7 @@ on:
       # them (scripts/test-go-root.sh; tests/scripts/test_go_root_ci.py).
       - 'pkg/ebpf/**'
       - 'pkg/cartridge/**'
+      - 'pkg/champion/**'
       - 'tests/hopchecks/**'
       - 'cmd/heimdall-daemon/**'
       - 'cmd/compliance-evidence/**'
@@ -39,6 +40,7 @@ on:
       # them (scripts/test-go-root.sh; tests/scripts/test_go_root_ci.py).
       - 'pkg/ebpf/**'
       - 'pkg/cartridge/**'
+      - 'pkg/champion/**'
       - 'tests/hopchecks/**'
       - 'cmd/heimdall-daemon/**'
       - 'cmd/compliance-evidence/**'

@@ -212,7 +212,9 @@ func TestSwapRefusesIfRunningAsRoot(t *testing.T) {
 		}
 		return
 	}
-	t.Skip("must run with EUID==0 to exercise the refuse path; non-root run verifies inverse implicitly")
+	// scripts/test-go-root.sh runs this one test as root (not the package:
+	// as root every other swap test meets this refusal first).
+	t.Skip("needs EUID 0: run as root to exercise the refuse path; non-root run verifies inverse implicitly")
 }
 
 // ───────────────────────── audit-row emission ─────────────────────────

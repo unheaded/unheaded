@@ -11,6 +11,7 @@
 # pinned-map tests had never run in CI. All pass as root on west.
 #
 # Packages are found by that skip message, so a new root test is picked up.
+# A test that skips with "needs EUID 0" runs alone, by name, as root.
 # Each package's test binary runs under sudo from its own directory (the
 # tests find objects by relative path). A skip that names a missing object
 # fails this script: under root, a skip means the test did not run.
@@ -65,7 +66,39 @@ if [[ "${#PKGS[@]}" -eq 0 ]]; then
     exit 1
 fi
 
+# Tests that skip with "needs EUID 0" run alone, by name: as root the rest
+# of their package refuses (pkg/champion's model swap refuses root first).
+mapfile -t EUID_TESTS < <(git grep -n 'needs EUID 0' -- '*_test.go' | while IFS=: read -r f l _; do
+	name="$(awk -v L="$l" 'NR <= L && /^func Test/ { n = $2 } END { sub(/\(.*/, "", n); print n }' "$f")"
+	[[ -n "$name" ]] && echo "$(dirname "$f") $name"
+done)
+if [[ "${#EUID_TESTS[@]}" -eq 0 ]]; then
+	echo "[FAIL] found no test that needs EUID 0; the search is broken" >&2
+	exit 1
+fi
+
 fail=0
+for entry in "${EUID_TESTS[@]}"; do
+	pkg="${entry% *}" name="${entry#* }"
+	bin="${WORK}/$(tr / _ <<<"$pkg").euid.test"
+	if ! go test -c -o "$bin" "./${pkg}" >"${WORK}/build.log" 2>&1; then
+		cat "${WORK}/build.log" >&2
+		echo "[FAIL] ${pkg}: test build"
+		fail=1
+		continue
+	fi
+	log="${WORK}/run.log"
+	rc=0
+	(cd "$pkg" && "${SUDO[@]}" "$bin" -test.count=1 -test.v -test.timeout 300s -test.run "^${name}\$") >"$log" 2>&1 || rc=$?
+	if [[ "$rc" -eq 0 ]] && grep -q -- "--- PASS: ${name} " "$log"; then
+		echo "[PASS] ${pkg} ${name} (as root)"
+	else
+		tail -20 "$log" >&2
+		echo "[FAIL] ${pkg} ${name} as root (exit ${rc})"
+		fail=1
+	fi
+done
+
 for pkg in "${PKGS[@]}"; do
     bin="${WORK}/$(tr / _ <<<"$pkg").test"
     if ! go test -c -o "$bin" "./${pkg}" >"${WORK}/build.log" 2>&1; then

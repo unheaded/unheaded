@@ -10,25 +10,33 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 SKIP_MESSAGE = "needs root (CAP_BPF)"
+EUID_MESSAGE = "needs EUID 0"  # one test run alone, by name
+
+
+def packages_with(message):
+    out = subprocess.run(
+        ["git", "grep", "-l", message, "--", "*_test.go"], cwd=REPO, capture_output=True, text=True, check=True
+    )
+    return sorted({str(Path(f).parent) for f in out.stdout.split()})
 
 
 def root_test_packages():
-    out = subprocess.run(
-        ["git", "grep", "-l", SKIP_MESSAGE, "--", "*_test.go"], cwd=REPO, capture_output=True, text=True, check=True
-    )
-    return sorted({str(Path(f).parent) for f in out.stdout.split()})
+    return sorted(set(packages_with(SKIP_MESSAGE)) | set(packages_with(EUID_MESSAGE)))
 
 
 def workflow():
     return yaml.safe_load((REPO / ".github/workflows/ebpf.yml").read_text(encoding="utf-8"))
 
 
-def test_the_script_searches_for_the_same_message():
-    assert SKIP_MESSAGE in (REPO / "scripts/test-go-root.sh").read_text(encoding="utf-8")
+def test_the_script_searches_for_the_same_messages():
+    script = (REPO / "scripts/test-go-root.sh").read_text(encoding="utf-8")
+    assert SKIP_MESSAGE in script
+    assert EUID_MESSAGE in script
 
 
 def test_root_tests_exist():
-    assert "tests/hopchecks" in root_test_packages()
+    assert "tests/hopchecks" in packages_with(SKIP_MESSAGE)
+    assert "pkg/champion" in packages_with(EUID_MESSAGE)
 
 
 def test_the_load_gate_job_runs_the_script_after_building_objects():
