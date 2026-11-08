@@ -1197,6 +1197,26 @@ provoke_well_slo_definitions() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_deploy_journal() {
+    # Contract (S-WELL-SPRING Phase 2, migration 039): the chaos journal is
+    # append-only. Drop its UPDATE/DELETE trigger, so the owner can edit it.
+    local f="db/migrations/039_ops_deploy_chaos.sql"
+    backup "${f}"
+    sed -i '/^CREATE OR REPLACE TRIGGER trg_chaos_journal_append_only$/,/EXECUTE FUNCTION well_append_only();$/d' "${REPO_ROOT}/${f}"
+    ! grep -q 'TRIGGER trg_chaos_journal_append_only' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_zhen_conversations() {
+    # Contract (S-ZHEN-POLISH, migration 045): a conversation's client is
+    # web or cli. Turn the CHECK into a no-op.
+    local f="db/migrations/045_app_zhen_conversations_client.sql"
+    backup "${f}"
+    sed -i "s/CHECK (client IN ('web', 'cli'))/CHECK (true)/" "${REPO_ROOT}/${f}"
+    if grep -q "client IN ('web', 'cli')" "${REPO_ROOT}/${f}"; then echo "provocation anchor missing in ${f}" >&2; return 1; fi
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_image_digests() {
     # Contract (L23): a pinned compose image keeps its digest. Drop one.
     local f="docker-compose.yml"
@@ -1334,6 +1354,8 @@ check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZH
 well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
 well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE on audit_events in 043 (needs docker)
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
+well/test-deploy-journal|provoke_well_deploy_journal|slow|chaos_journal's UPDATE/DELETE trigger removed from 039 (needs docker)
+well/test-zhen-conversations|provoke_well_zhen_conversations|slow|the web-or-cli CHECK on zhen_conversations.client turned into CHECK (true) in 045 (needs docker)
 check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo on the baseline's kernel; in CI on any other, the recorded numbers)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
