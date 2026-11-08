@@ -174,8 +174,12 @@ fi
 #      kernel; elsewhere it exits 2 (not comparable), which fails this step.
 if [ "$(id -u)" -eq 0 ] || sudo -n true 2>/dev/null; then
     run_step "eBPF verified-instruction ratchet" scripts/check-ebpf-insns.sh
+    # The ratchet just built the objects; the Go tests that skip unless root
+    # (tests/hopchecks, heimdall-daemon, protocol-api, ...) load them.
+    run_step "Go tests that need root" scripts/test-go-root.sh
 else
     skip_step "eBPF verified-instruction ratchet" "needs root or passwordless sudo to load programs"
+    skip_step "Go tests that need root" "needs root or passwordless sudo"
 fi
 
 # 12. Perf regression (west only, needs the running stack; M-089).
