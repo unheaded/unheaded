@@ -15,8 +15,8 @@
 # tests find objects by relative path). A skip that names a missing object
 # fails this script: under root, a skip means the test did not run.
 #
-# Needs the objects scripts/check-ebpf-loads.sh builds (run it first); builds
-# crates/heimdall-bpf itself. Needs nightly Rust, bpf-linker and sudo.
+# Uses the objects scripts/check-ebpf-loads.sh builds, running it when they
+# are missing; builds crates/heimdall-bpf itself. Needs nightly Rust, bpf-linker and sudo.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,8 +24,11 @@ cd "$REPO_ROOT"
 
 OBJ_DIR="${EBPF_LOAD_TARGET_DIR:-${REPO_ROOT}/ebpf/target/load-gate}/default/bpfel-unknown-none/release"
 if [[ ! -f "${OBJ_DIR}/hop-ebpf" ]]; then
-    echo "[FAIL] no eBPF objects under ${OBJ_DIR}; run scripts/check-ebpf-loads.sh first" >&2
-    exit 1
+    echo "== no eBPF objects under ${OBJ_DIR}; building them with check-ebpf-loads.sh"
+    if ! "${REPO_ROOT}/scripts/check-ebpf-loads.sh" >/dev/null 2>&1 || [[ ! -f "${OBJ_DIR}/hop-ebpf" ]]; then
+        echo "[FAIL] check-ebpf-loads.sh did not leave objects under ${OBJ_DIR}" >&2
+        exit 1
+    fi
 fi
 
 SUDO=()

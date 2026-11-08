@@ -460,6 +460,19 @@ provoke_ebpf_loads() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_go_root() {
+    # Contract: every Go test that skips unless root passes when run as root.
+    # Plant a real defect in code only a root test reaches: OpenPinnedMap
+    # stops refusing a per-CPU map, whose values do not fit one buffer.
+    local f="pkg/ebpf/pinned_linux.go"
+    backup "${f}"
+    local needle="	if !mapTypeToMapType(info.Type).elemFitsOneBuffer() {"
+    grep -qxF "${needle}" "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+    sed -i 's|^\tif !mapTypeToMapType(info.Type).elemFitsOneBuffer() {$|\tif false \&\& !mapTypeToMapType(info.Type).elemFitsOneBuffer() {|' "${REPO_ROOT}/${f}"
+    grep -qF "if false && !mapTypeToMapType" "${REPO_ROOT}/${f}" || { echo "provocation did not apply in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_prometheus_rules() {
     # Contract: every alert rule parses and its tests pass. Plant a threshold
     # edit that parses fine but no longer fires on the case its test pins.
@@ -1310,6 +1323,7 @@ well/test-zhen-agent-runs|provoke_well_zhen_agent_runs|slow|the one-active-run i
 well/test-zhen-captures|provoke_well_zhen_captures|slow|the one-label-per-source UNIQUE on zhen_capture_labels turned into CHECK (true) in 033 (needs docker)
 well/test-api-keys|provoke_well_api_keys|slow|the 366-day expiry cap on api_keys turned into CHECK (true) in 036 (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
+test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per-CPU map, which only a root test reaches (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
