@@ -67,6 +67,15 @@ if systemd-run --user --wait --quiet true 2>/dev/null; then
 else
     skip_step "zhen-eval sandbox runner (user systemd)" "no user systemd session"
 fi
+# Lich's confinement (unshare -r -n -m --pid): no egress, rlimits, read-only
+# root, teardown. Gated by LICH_BAREMETAL; Ubuntu runners may refuse an
+# unprivileged user namespace, so this runs where the probe answers.
+if unshare -r -n true 2>/dev/null; then
+    run_step "Lich sandbox confinement (user namespaces)" env LICH_BAREMETAL=1 \
+        go test -race -count=1 -timeout 300s ./pkg/lichtools/ ./cmd/lich-mcp/ -run 'Netns|Sandbox'
+else
+    skip_step "Lich sandbox confinement (user namespaces)" "unprivileged user namespaces refused"
+fi
 
 # 3. Go Vet
 run_step "Go Vet" go vet ./...
