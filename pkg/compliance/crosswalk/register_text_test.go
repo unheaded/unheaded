@@ -116,15 +116,16 @@ func TestRegister_FND038CanBeMetAndKeepsAttestation(t *testing.T) {
 	}
 }
 
-// A row with two ways out says both, until a ruling picks one.
-func TestRegister_SudoDecisionKeepsBothOptions(t *testing.T) {
+// The rows had two ways out until Stevie ruled (2026-11-09: narrow, east
+// first). The ruling stays on both rows.
+func TestRegister_SudoDecisionRecordsTheRuling(t *testing.T) {
 	reg := repoRegister(t)
 	for _, key := range []string{"host-probe:west:sudo-password-required", "host-probe:east:sudo-password-required"} {
 		e := reg[key]
 		if e == nil {
 			t.Fatalf("%s is not in the register", key)
 		}
-		if !strings.Contains(e.Decision, "keep it") || !strings.Contains(e.Decision, "narrow it") {
+		if !strings.Contains(e.Decision, "narrow (Stevie 2026-11-09)") || !strings.Contains(e.Decision, "east first") {
 			t.Errorf("%s decision %q", key, e.Decision)
 		}
 	}

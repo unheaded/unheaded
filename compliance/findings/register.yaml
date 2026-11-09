@@ -1851,9 +1851,10 @@ findings:
     lockout: high
     step: 5
     plan: >-
-      Undecided. Keep it and record an acceptance, or narrow it: automation needs rules naming exact commands and the
-      collector needs its own read-only account first, because these probes run through the same rule
-    decision: keep it with a recorded acceptance, or narrow it, and when
+      Stevie 2026-11-09: narrow it, east first. Order: (1) the collector gets its own read-only account, since these
+      probes run through the same rule; (2) list the exact commands automation needs from a week of sudo lines in
+      auth.log; (3) install the narrowed rule with visudo -cf and a second root shell open, attended
+    decision: narrow (Stevie 2026-11-09); attended, east first, then west
   - source: "host-probe:east:sudo-password-required"
     severity: high
     class: sudo
@@ -1862,7 +1863,7 @@ findings:
     lockout: high
     step: 5
     plan: Goes with west's entry, east first
-    decision: keep it with a recorded acceptance, or narrow it, and when
+    decision: narrow (Stevie 2026-11-09); attended, east first, then west
   - source: "host-probe:west:auditd-rules-loaded"
     severity: medium
     class: service
