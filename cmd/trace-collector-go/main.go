@@ -80,7 +80,7 @@ var (
 	iface              = flag.String("interface", "lo", "Network interface to attach BPF programs")
 	metricsAddr        = flag.String("metrics-addr", ports.LoopbackAddr(ports.TraceCollectorMetrics), "HTTP listen addresses (unified mode), comma-separated; off loopback needs AUTH_ENABLED=true")
 	mapPinPath         = flag.String("map-pin-path", "/sys/fs/bpf/unheaded/", "BPF map pin path")
-	readInterval       = flag.Duration("read-interval", 100*time.Millisecond, "Map read interval")
+	statsInterval      = flag.Duration("stats-interval", 10*time.Second, "How often to publish flow_tracker's FLOW_STATS counters on traces.stats (unified mode; must be positive)")
 	enablePacketMarker = flag.Bool("enable-packet-marker", true, "Enable packet_marker XDP program")
 	enableFlowTracker  = flag.Bool("enable-flow-tracker", true, "Enable flow_tracker TC program")
 	enableLatencyProbe = flag.Bool("enable-latency-probe", true, "Enable latency_probe tracepoint program")
@@ -619,13 +619,15 @@ func resolveEBPFObjDir() string {
 
 // runUnifiedMode starts the unified trace collector that loads all three
 // BPF programs (packet_marker, flow_tracker, latency_probe) based on flags.
-func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) {
+// It returns an error, before anything runs, when packet_marker is enabled
+// and its PACKET_EVENTS ring buffer cannot be opened.
+func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) error {
 	log.Info().
 		Str("interface", *iface).
 		Str("wotan_addr", *wotanAddr).
 		Str("metrics_addr", *metricsAddr).
 		Str("map_pin_path", *mapPinPath).
-		Dur("read_interval", *readInterval).
+		Dur("stats_interval", *statsInterval).
 		Bool("packet_marker", *enablePacketMarker).
 		Bool("flow_tracker", *enableFlowTracker).
 		Bool("latency_probe", *enableLatencyProbe).
@@ -667,6 +669,11 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	} else {
 		loader = nativeLoader
 	}
+	defer func() {
+		if err := loader.Close(); err != nil {
+			log.Error().Err(err).Msg("error closing BPF loader")
+		}
+	}()
 
 	// Track program status
 	programs := []ProgramStatus{
@@ -708,7 +715,6 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 
 	// Latency probe: use direct cilium/ebpf loader for proper multi-kprobe support.
 	// The standard loader only attaches one kprobe; we need all 6 (3 enter + 3 exit).
-	var latencyKprobeLoader *LatencyKprobeLoader
 	var directLatencyMap interface {
 		Iterate() *ciliumebpf.MapIterator
 	}
@@ -721,7 +727,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 			// loaded one function, attached none and reported loaded.
 			log.Error().Err(err).Str("path", progPath).Msg("failed to load latency kprobes via cilium/ebpf; latency_probe NOT loaded")
 		} else {
-			latencyKprobeLoader = kl
+			defer kl.Close()
 			directLatencyMap = lmap
 			programs[2].Loaded = true
 			// Already attached by LoadLatencyKprobes
@@ -741,6 +747,18 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	state.Programs = programs
 	state.mu.Unlock()
 
+	// Ringbuf or nothing: packet traces come only from PACKET_EVENTS. The
+	// old poll fallback decoded packet_marker's STATS counters as traces and
+	// published none, so a collector without the ring buffer refuses to start.
+	var packetEvents <-chan []byte
+	if *enablePacketMarker {
+		ch, err := openPacketEvents(ctx, loader)
+		if err != nil {
+			return err
+		}
+		packetEvents = ch
+	}
+
 	// Leave out the collector's own connections (to Wotan, mostly): each
 	// batch it publishes would otherwise be traced into the next one.
 	self := newSelfFilter("/proc/self")
@@ -748,16 +766,13 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		log.Warn().Err(err).Msg("self-traffic filter: could not read /proc/self sockets")
 	})
 
-	// Start the trace reader (packet_marker maps)
+	// Start the trace reader (packet_marker's PACKET_EVENTS ring buffer)
 	if *enablePacketMarker {
-		readerConfig := DefaultTraceReaderConfig()
-		readerConfig.ReadInterval = *readInterval
-		// No reader-side publisher: the loop below publishes each entry
-		// through TracePublisher.
-		traceReader := NewTraceReader(loader, nil, readerConfig)
+		// The loop below publishes each entry through TracePublisher.
+		traceReader := NewTraceReader(DefaultTraceReaderConfig())
 		state.TraceReader = traceReader
 
-		go traceReader.Run(ctx)
+		go traceReader.Run(ctx, packetEvents)
 
 		// Feed trace events into correlator and publisher
 		go func() {
@@ -798,6 +813,14 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		}()
 
 		log.Info().Msg("flow reader started for flow_tracker")
+
+		// flow_tracker's FLOW_STATS counters, on their own timer: they used
+		// to ride the trace reader's poll path and never went out in
+		// ringbuf mode.
+		statsTicker := time.NewTicker(*statsInterval)
+		defer statsTicker.Stop()
+		go runFlowStats(ctx, loader, publisher, statsTicker.C)
+		log.Info().Dur("interval", *statsInterval).Msg("FLOW_STATS publishing on traces.stats")
 	}
 
 	// Start LatencyReader (latency_probe kprobe maps)
@@ -866,11 +889,6 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 			log.Info().Msg("latency reader started for latency_probe (fallback)")
 		}
 	}
-	// Ensure kprobe loader is cleaned up on exit
-	if latencyKprobeLoader != nil {
-		defer latencyKprobeLoader.Close()
-	}
-
 	// Start correlator GC
 	go correlator.RunGC(ctx)
 
@@ -924,12 +942,9 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
 
-	// Cleanup BPF programs
-	if err := loader.Close(); err != nil {
-		log.Error().Err(err).Msg("error closing BPF loader")
-	}
-
+	// The BPF programs are closed by the deferred loader.Close.
 	log.Info().Msg("unified trace-collector-go stopped")
+	return nil
 }
 
 // apiHandler puts the collector's routes behind pkg/auth: /health, /ready and
@@ -1203,21 +1218,26 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 // ── Main ────────────────────────────────────────────────────────────────
 
 // runCollector is the run itself, in the mode the flags chose. It returns when
-// ctx ends; a test swaps it to reach the end of main without BPF programs.
-var runCollector = func(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) {
+// ctx ends, or at once with the reason it cannot start; a test swaps it to
+// reach the end of main without BPF programs.
+var runCollector = func(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) error {
 	if *unifiedMode {
-		runUnifiedMode(ctx, healthSrv, transportCfg, authCfg, ls)
-		return
+		return runUnifiedMode(ctx, healthSrv, transportCfg, authCfg, ls)
 	}
 	runAnamnesisMode(ctx, healthSrv, transportCfg, authCfg, ls)
+	return nil
 }
 
 func main() {
-	cmdline.Parse(cmdline.Spec{
+	spec := cmdline.Spec{
 		Name:     "trace-collector-go",
 		Purpose:  "Collect BPF trace events from the Kingdom's ring buffers and publish them to Wotan.",
 		Examples: []string{"trace-collector-go", "trace-collector-go --interface eth0 --wotan-addr localhost:18001"},
-	})
+	}
+	cmdline.Parse(spec)
+	if *statsInterval <= 0 {
+		cmdline.Fail(spec, "--stats-interval must be positive, not %v", *statsInterval)
+	}
 	wotanClient.InitServiceIdentity("trace-collector") // ADR-103 §6: every Wotan call carries trace-collector's service token
 
 	// Configure logging
@@ -1290,7 +1310,9 @@ func main() {
 		cancel(nil)
 	}()
 
-	runCollector(ctx, healthSrv, transportCfg, authCfg, ls)
+	if err := runCollector(ctx, healthSrv, transportCfg, authCfg, ls); err != nil {
+		log.Fatal().Err(err).Msg("refusing to start")
+	}
 	if err := runFailure(ctx); err != nil {
 		log.Fatal().Err(err).Msg("stopped by a listener failure")
 	}

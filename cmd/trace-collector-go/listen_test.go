@@ -196,13 +196,17 @@ const runEnding = "TRACE_COLLECTOR_TEST_RUN"
 // this test binary running main with the BPF work swapped out.
 func TestMainEnding(t *testing.T) {
 	if mode := os.Getenv(runEnding); mode != "" {
-		runCollector = func(ctx context.Context, _ *transport.HealthServer, _ transport.Config, _ auth.ServiceAuthConfig, ls listeners) {
-			if mode == "late-failure" {
+		runCollector = func(ctx context.Context, _ *transport.HealthServer, _ transport.Config, _ auth.ServiceAuthConfig, ls listeners) error {
+			switch mode {
+			case "late-failure":
 				ls.stop(syscall.EADDRINUSE)
-			} else {
+			case "refused":
+				return errors.New("packet_marker: no PACKET_EVENTS ring buffer")
+			default:
 				ls.stop(nil)
 			}
 			<-ctx.Done()
+			return nil
 		}
 		os.Args = []string{"trace-collector-go", "--http-addr", "127.0.0.1:0"}
 		main()
@@ -211,7 +215,12 @@ func TestMainEnding(t *testing.T) {
 	for _, c := range []struct {
 		mode    string
 		failure bool
-	}{{"late-failure", true}, {"signal", false}} {
+		says    string
+	}{
+		{"late-failure", true, "stopped by a listener failure"},
+		{"signal", false, ""},
+		{"refused", true, "refusing to start"},
+	} {
 		t.Run(c.mode, func(t *testing.T) {
 			cmd := exec.Command(os.Args[0], "-test.run=^TestMainEnding$")
 			cmd.Env = append(os.Environ(), runEnding+"="+c.mode, "AUTH_ENABLED=false")
@@ -226,8 +235,42 @@ func TestMainEnding(t *testing.T) {
 			if !errors.As(err, &exit) || exit.ExitCode() != 1 {
 				t.Fatalf("exit = %v, want status 1:\n%s", err, out)
 			}
-			if !strings.Contains(string(out), "stopped by a listener failure") {
-				t.Fatalf("no listener failure reported:\n%s", out)
+			if !strings.Contains(string(out), c.says) {
+				t.Fatalf("%q not reported:\n%s", c.says, out)
+			}
+		})
+	}
+}
+
+// statsFlagChild marks the child of TestStatsIntervalRefusesNonPositive.
+const statsFlagChild = "TRACE_COLLECTOR_TEST_STATS_INTERVAL"
+
+// A stats interval of zero or less is a usage error (exit 2, one line), not
+// a ticker panic later on; --read-interval is no longer an option.
+func TestStatsIntervalRefusesNonPositive(t *testing.T) {
+	if v := os.Getenv(statsFlagChild); v != "" {
+		runCollector = func(context.Context, *transport.HealthServer, transport.Config, auth.ServiceAuthConfig, listeners) error {
+			return errors.New("the run should not have started")
+		}
+		os.Args = append([]string{"trace-collector-go", "--http-addr", "127.0.0.1:0"}, strings.Fields(v)...)
+		main()
+		return
+	}
+	for _, c := range []struct{ args, says string }{
+		{"--stats-interval 0s", "--stats-interval"},
+		{"--stats-interval -5s", "--stats-interval"},
+		{"--read-interval 1s", "read-interval"},
+	} {
+		t.Run(c.args, func(t *testing.T) {
+			cmd := exec.Command(os.Args[0], "-test.run=^TestStatsIntervalRefusesNonPositive$")
+			cmd.Env = append(os.Environ(), statsFlagChild+"="+c.args, "AUTH_ENABLED=false")
+			out, err := cmd.CombinedOutput()
+			var exit *exec.ExitError
+			if !errors.As(err, &exit) || exit.ExitCode() != 2 {
+				t.Fatalf("exit = %v, want status 2:\n%s", err, out)
+			}
+			if !strings.Contains(string(out), c.says) {
+				t.Fatalf("%q not in:\n%s", c.says, out)
 			}
 		})
 	}

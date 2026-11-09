@@ -421,6 +421,45 @@ func TestTopicConstants(t *testing.T) {
 	if TopicTracesCorrelated != "traces.correlated" {
 		t.Errorf("TopicTracesCorrelated = %q", TopicTracesCorrelated)
 	}
+	if TopicTracesStats != "traces.stats" {
+		t.Errorf("TopicTracesStats = %q", TopicTracesStats)
+	}
+}
+
+// A FLOW_STATS snapshot is queued on traces.stats and nowhere else.
+func TestTracePublisher_PublishStats(t *testing.T) {
+	config := DefaultTracePublisherConfig()
+	config.BatchSize = 1000
+	pub := NewTracePublisher(config)
+
+	pub.PublishStats(json.RawMessage(`{"packets_ingress":1}`))
+
+	pub.mu.Lock()
+	defer pub.mu.Unlock()
+	if got := len(pub.batches[TopicTracesStats]); got != 1 {
+		t.Errorf("traces.stats batch = %d messages, want 1", got)
+	}
+	if len(pub.batches) != 1 {
+		t.Errorf("queued on %d topics, want only traces.stats", len(pub.batches))
+	}
+}
+
+// Connect joins traces.stats along with the other trace topics.
+func TestTracePublisher_ConnectJoinsStatsTopic(t *testing.T) {
+	srv := newTestWotanHTTPServer(t)
+	defer srv.Close()
+
+	config := DefaultTracePublisherConfig()
+	config.WotanAddr = "localhost:19999" // nothing there
+	config.WotanHTTPAddr = strings.TrimPrefix(srv.URL, "http://")
+	pub := NewTracePublisher(config)
+	if err := pub.Connect(context.Background()); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer pub.tsc.Close()
+	if _, ok := pub.tsc.GetSubscriber(TopicTracesStats); !ok {
+		t.Errorf("Connect did not join %s", TopicTracesStats)
+	}
 }
 
 // ── HTTP fallback tests ─────────────────────────────────────────────────

@@ -28,7 +28,9 @@
 # /etc/unheaded/trace-collector.env:
 #   TRACE_METRICS_ADDR=127.0.0.1:16671,[fd00:dead:beef::1]:16671   (west; ::2 on east)
 # An address not on the host yet is served once it appears. A taken port or a
-# bad address stops the collector; Restart= retries it.
+# bad address stops the collector; Restart= retries it. So does a missing
+# packet-marker PACKET_EVENTS ring buffer: there is no poll fallback.
+# flow-tracker's FLOW_STATS go to traces.stats every --stats-interval (10s).
 
 [Unit]
 Description=Unheaded trace collector (eBPF to Wotan)

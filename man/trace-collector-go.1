@@ -1,4 +1,4 @@
-.TH TRACE\-COLLECTOR\-GO 1 "2026-11-05" "unheaded ad26fe56" "Unheaded Kingdom"
+.TH TRACE\-COLLECTOR\-GO 1 "2026-11-09" "unheaded 6406e83b" "Unheaded Kingdom"
 .SH NAME
 trace\-collector\-go \- Collect BPF trace events from the Kingdom's ring buffers and publish them to Wotan.
 .SH SYNOPSIS
@@ -50,11 +50,11 @@ Max events/sec (0 = unlimited) (default 10000)
 .B \-\-metrics\-addr \fISTRING\fR
 HTTP listen addresses (unified mode), comma\-separated; off loopback needs AUTH_ENABLED=true (default 127.0.0.1:16671)
 .TP
-.B \-\-read\-interval \fIDURATION\fR
-Map read interval (default 100ms)
-.TP
 .B \-\-ring\-path \fISTRING\fR
 BPF ring buffer pin path (default /sys/fs/bpf/unheaded/anamnesis_events)
+.TP
+.B \-\-stats\-interval \fIDURATION\fR
+How often to publish flow_tracker's FLOW_STATS counters on traces.stats (unified mode; must be positive) (default 10s)
 .TP
 .B \-\-unified
 Run in unified mode (load all BPF programs)
