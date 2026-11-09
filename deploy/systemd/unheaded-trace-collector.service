@@ -30,6 +30,11 @@
 # An address not on the host yet is served once it appears. A taken port or a
 # bad address stops the collector; Restart= retries it. So does a missing
 # packet-marker PACKET_EVENTS ring buffer: there is no poll fallback.
+# Retries are capped (2026-11-09, Stevie): every 5 s, up to 60 tries in ten
+# minutes, long enough for the compose bridge to appear after boot. After
+# that the unit is `failed` and shows in `systemctl --failed`; a loop that
+# never ends shows as `activating`. `systemctl reset-failed` then `start` once
+# the cause is fixed; --enable-packet-marker=false runs without packet traces.
 # flow-tracker's FLOW_STATS go to traces.stats every --stats-interval (10s).
 
 [Unit]
@@ -37,6 +42,8 @@ Description=Unheaded trace collector (eBPF to Wotan)
 Documentation=https://github.com/unheaded/unheaded/blob/develop/deploy/systemd/README.md
 After=network-online.target systemd-sysusers.service docker.service wg-quick@wg0.service
 Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=60
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
