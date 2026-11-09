@@ -41,55 +41,6 @@ func makeTraceEntry(srcIP, dstIP net.IP, srcPort, dstPort uint16, proto uint8, t
 
 // ── TraceEntry encode/decode roundtrip ──────────────────────────────────────
 
-func TestTraceEntry_EncodeDecodeRoundtrip(t *testing.T) {
-	original := makeTraceEntry(
-		net.ParseIP("10.10.10.1"),
-		net.ParseIP("10.10.10.2"),
-		8080, 443, 6, 1000000,
-	)
-
-	encoded := original.Encode()
-	decoded, err := DecodeTraceEntry(encoded[:])
-	if err != nil {
-		t.Fatalf("DecodeTraceEntry: %v", err)
-	}
-
-	if decoded.TimestampNS != original.TimestampNS {
-		t.Errorf("TimestampNS = %d, want %d", decoded.TimestampNS, original.TimestampNS)
-	}
-	if decoded.SrcPort != original.SrcPort {
-		t.Errorf("SrcPort = %d, want %d", decoded.SrcPort, original.SrcPort)
-	}
-	if decoded.DstPort != original.DstPort {
-		t.Errorf("DstPort = %d, want %d", decoded.DstPort, original.DstPort)
-	}
-	if decoded.Protocol != original.Protocol {
-		t.Errorf("Protocol = %d, want %d", decoded.Protocol, original.Protocol)
-	}
-	if decoded.PacketLen != original.PacketLen {
-		t.Errorf("PacketLen = %d, want %d", decoded.PacketLen, original.PacketLen)
-	}
-	if decoded.HopCount != original.HopCount {
-		t.Errorf("HopCount = %d, want %d", decoded.HopCount, original.HopCount)
-	}
-	if decoded.TraceID != original.TraceID {
-		t.Errorf("TraceID mismatch")
-	}
-	if decoded.SrcIP != original.SrcIP {
-		t.Errorf("SrcIP mismatch")
-	}
-	if decoded.DstIP != original.DstIP {
-		t.Errorf("DstIP mismatch")
-	}
-}
-
-func TestDecodeTraceEntry_TooShort(t *testing.T) {
-	_, err := DecodeTraceEntry(make([]byte, 10))
-	if err == nil {
-		t.Error("expected error for short input")
-	}
-}
-
 func TestTraceEntry_TraceIDHex(t *testing.T) {
 	te := &TraceEntry{}
 	te.TraceID[0] = 0xAB
@@ -143,45 +94,6 @@ func TestTraceEntry_FiveTuple(t *testing.T) {
 	}
 	if ft.Protocol != 6 {
 		t.Errorf("FiveTuple.Protocol = %d, want 6", ft.Protocol)
-	}
-}
-
-// ── StatsEntry tests ────────────────────────────────────────────────────────
-
-func TestDecodeStatsEntry(t *testing.T) {
-	var b [StatsEntrySize]byte
-	binary.LittleEndian.PutUint64(b[0:8], 1000)
-	binary.LittleEndian.PutUint64(b[8:16], 50000)
-	binary.LittleEndian.PutUint64(b[16:24], 100)
-	binary.LittleEndian.PutUint64(b[24:32], 50)
-	binary.LittleEndian.PutUint64(b[32:40], 5)
-
-	stats, err := DecodeStatsEntry(b[:])
-	if err != nil {
-		t.Fatalf("DecodeStatsEntry: %v", err)
-	}
-
-	if stats.PacketsTotal != 1000 {
-		t.Errorf("PacketsTotal = %d, want 1000", stats.PacketsTotal)
-	}
-	if stats.BytesTotal != 50000 {
-		t.Errorf("BytesTotal = %d, want 50000", stats.BytesTotal)
-	}
-	if stats.TracesCreated != 100 {
-		t.Errorf("TracesCreated = %d, want 100", stats.TracesCreated)
-	}
-	if stats.TracesUpdated != 50 {
-		t.Errorf("TracesUpdated = %d, want 50", stats.TracesUpdated)
-	}
-	if stats.Errors != 5 {
-		t.Errorf("Errors = %d, want 5", stats.Errors)
-	}
-}
-
-func TestDecodeStatsEntry_TooShort(t *testing.T) {
-	_, err := DecodeStatsEntry(make([]byte, 10))
-	if err == nil {
-		t.Error("expected error for short input")
 	}
 }
 

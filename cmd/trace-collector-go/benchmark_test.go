@@ -12,40 +12,7 @@ import (
 
 // ── Benchmark: TraceEntry decode ────────────────────────────────────────────
 
-func BenchmarkDecodeTraceEntry(b *testing.B) {
-	te := makeTraceEntry(
-		net.ParseIP("10.10.10.1"),
-		net.ParseIP("10.10.10.2"),
-		8080, 443, 6, 1234567890,
-	)
-	encoded := te.Encode()
-	data := encoded[:]
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, err := DecodeTraceEntry(data)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
 // ── Benchmark: TraceEntry encode ────────────────────────────────────────────
-
-func BenchmarkEncodeTraceEntry(b *testing.B) {
-	te := makeTraceEntry(
-		net.ParseIP("10.10.10.1"),
-		net.ParseIP("10.10.10.2"),
-		8080, 443, 6, 1234567890,
-	)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = te.Encode()
-	}
-}
 
 // ── Benchmark: TraceEntry to JSON ───────────────────────────────────────────
 
@@ -206,14 +173,11 @@ func BenchmarkPacketCorrelatorGC(b *testing.B) {
 
 func BenchmarkBatchProcessingPipeline(b *testing.B) {
 	// Simulate the full pipeline: decode -> correlate -> JSON
-	rawEntries := make([][TraceEntrySize]byte, 100)
+	// The records arrive from the PACKET_EVENTS ring buffer (the only path).
+	rawEntries := make([][]byte, 100)
 	for i := range rawEntries {
-		te := makeTraceEntry(
-			net.ParseIP("10.0.0.1"),
-			net.ParseIP("10.0.0.2"),
-			uint16(1000+i), 80, 6, uint64(i*1000),
-		)
-		rawEntries[i] = te.Encode()
+		rawEntries[i] = encodeKernelPacketEvent(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"),
+			uint16(1000+i), 80, 6, 64)
 	}
 
 	b.ResetTimer()
@@ -221,7 +185,7 @@ func BenchmarkBatchProcessingPipeline(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		raw := rawEntries[i%len(rawEntries)]
 		// Decode
-		te, err := DecodeTraceEntry(raw[:])
+		te, err := DecodeKernelPacketEvent(raw)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -245,19 +209,3 @@ func BenchmarkBatchProcessingPipeline(b *testing.B) {
 }
 
 // ── Benchmark: StatsEntry decode ────────────────────────────────────────────
-
-func BenchmarkDecodeStatsEntry(b *testing.B) {
-	var raw [StatsEntrySize]byte
-	for i := range raw {
-		raw[i] = byte(i)
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, err := DecodeStatsEntry(raw[:])
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}

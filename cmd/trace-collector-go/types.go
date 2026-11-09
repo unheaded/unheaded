@@ -1,25 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-// types.go — Shared types for the packet-marker BPF program's map entries.
+// types.go — Shared types for packets the packet_marker BPF program reports.
 //
-// These Go structs mirror the Rust types in ebpf/common/src/lib.rs byte-for-byte.
-// They define the layout of BPF map entries produced by the packet_marker XDP
-// program and consumed by this trace collector.
+// Packet records arrive only from the PACKET_EVENTS ring buffer and are decoded
+// into TraceEntry by DecodeKernelPacketEvent (packet_event.go). The 68-byte
+// TRACE_MAP and STATS decoders left with the poll path (2026-11-09).
 //
 // Per RFC 9669: we use "BPF" (not "eBPF") throughout.
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net"
 )
 
 // ── TraceEntry ──────────────────────────────────────────────────────────────
 
-// TraceEntry matches the BPF TRACE_MAP entry layout written by packet_marker.
-// Size: 16 + 8 + 16 + 16 + 2 + 2 + 1 + 1 + 2 + 1 + 3 = 68 bytes.
+// TraceEntry is one packet as the collector carries it, decoded from a
+// PACKET_EVENTS record.
 type TraceEntry struct {
 	TraceID     [16]byte // UUIDv7 trace identifier (128-bit)
 	TimestampNS uint64   // ktime_get_ns() kernel timestamp
@@ -37,46 +36,6 @@ type TraceEntry struct {
 	// of the 68-byte encoding. "pass", "marked", ...; "ingress"/"egress".
 	Action    string
 	Direction string
-}
-
-// TraceEntrySize is the expected wire size of a TraceEntry.
-const TraceEntrySize = 68
-
-// DecodeTraceEntry decodes a TraceEntry from a byte slice (little-endian).
-func DecodeTraceEntry(b []byte) (*TraceEntry, error) {
-	if len(b) < TraceEntrySize {
-		return nil, fmt.Errorf("trace entry too short: %d < %d", len(b), TraceEntrySize)
-	}
-	te := &TraceEntry{}
-	copy(te.TraceID[:], b[0:16])
-	te.TimestampNS = binary.LittleEndian.Uint64(b[16:24])
-	copy(te.SrcIP[:], b[24:40])
-	copy(te.DstIP[:], b[40:56])
-	te.SrcPort = binary.BigEndian.Uint16(b[56:58])
-	te.DstPort = binary.BigEndian.Uint16(b[58:60])
-	te.Protocol = b[60]
-	te.Flags = b[61]
-	te.PacketLen = binary.LittleEndian.Uint16(b[62:64])
-	te.HopCount = b[64]
-	copy(te.Pad[:], b[65:68])
-	return te, nil
-}
-
-// Encode serializes a TraceEntry to a byte slice.
-func (te *TraceEntry) Encode() [TraceEntrySize]byte {
-	var b [TraceEntrySize]byte
-	copy(b[0:16], te.TraceID[:])
-	binary.LittleEndian.PutUint64(b[16:24], te.TimestampNS)
-	copy(b[24:40], te.SrcIP[:])
-	copy(b[40:56], te.DstIP[:])
-	binary.BigEndian.PutUint16(b[56:58], te.SrcPort)
-	binary.BigEndian.PutUint16(b[58:60], te.DstPort)
-	b[60] = te.Protocol
-	b[61] = te.Flags
-	binary.LittleEndian.PutUint16(b[62:64], te.PacketLen)
-	b[64] = te.HopCount
-	copy(b[65:68], te.Pad[:])
-	return b
 }
 
 // TraceIDHex returns the trace ID as a hex string.
@@ -119,34 +78,6 @@ func (te *TraceEntry) FiveTuple() FiveTuple {
 		DstPort:  te.DstPort,
 		Protocol: te.Protocol,
 	}
-}
-
-// ── StatsEntry ──────────────────────────────────────────────────────────────
-
-// StatsEntry matches the BPF STATS map layout from packet_marker.
-type StatsEntry struct {
-	PacketsTotal  uint64 // Total packets seen
-	BytesTotal    uint64 // Total bytes seen
-	TracesCreated uint64 // New trace IDs generated
-	TracesUpdated uint64 // Existing traces updated with new info
-	Errors        uint64 // Processing errors (parse failures, etc.)
-}
-
-// StatsEntrySize is the expected wire size of a StatsEntry.
-const StatsEntrySize = 40
-
-// DecodeStatsEntry decodes a StatsEntry from a byte slice (little-endian).
-func DecodeStatsEntry(b []byte) (*StatsEntry, error) {
-	if len(b) < StatsEntrySize {
-		return nil, fmt.Errorf("stats entry too short: %d < %d", len(b), StatsEntrySize)
-	}
-	return &StatsEntry{
-		PacketsTotal:  binary.LittleEndian.Uint64(b[0:8]),
-		BytesTotal:    binary.LittleEndian.Uint64(b[8:16]),
-		TracesCreated: binary.LittleEndian.Uint64(b[16:24]),
-		TracesUpdated: binary.LittleEndian.Uint64(b[24:32]),
-		Errors:        binary.LittleEndian.Uint64(b[32:40]),
-	}, nil
 }
 
 // ── FiveTuple ───────────────────────────────────────────────────────────────

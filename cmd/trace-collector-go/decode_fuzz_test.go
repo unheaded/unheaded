@@ -28,24 +28,10 @@ func seedSizes(f *testing.F, sizes ...int) {
 	}
 }
 
-func FuzzDecodeTraceEntry(f *testing.F) {
-	seedSizes(f, TraceEntrySize)
-	f.Fuzz(func(t *testing.T, b []byte) {
-		v, err := DecodeTraceEntry(b)
-		if err != nil {
-			return
-		}
-		enc := v.Encode()
-		v2, err := DecodeTraceEntry(enc[:])
-		if err != nil || !reflect.DeepEqual(v, v2) {
-			t.Fatalf("round trip: %+v -> %+v (%v)", v, v2, err)
-		}
-	})
-}
-
-func FuzzDecodeStatsEntry(f *testing.F) {
-	seedSizes(f, StatsEntrySize)
-	f.Fuzz(func(t *testing.T, b []byte) { _, _ = DecodeStatsEntry(b) })
+// The live packet path: PACKET_EVENTS ring buffer records (packet_event.go).
+func FuzzDecodeKernelPacketEvent(f *testing.F) {
+	seedSizes(f, KernelPacketEventSize)
+	f.Fuzz(func(t *testing.T, b []byte) { _, _ = DecodeKernelPacketEvent(b) })
 }
 
 func FuzzDecodeFlowKey(f *testing.F) {
