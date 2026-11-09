@@ -25,7 +25,7 @@ notes: |
   any point: re-enable WEST+EAST DNS records, drain K8s.
 
   No data loss in this migration — historical messages stay in WEST+EAST's
-  WAL/PG until Phase 5 decommission. The K8s cluster picks up new traffic
+  WAL until Phase 5 decommission. The K8s cluster picks up new traffic
   from the cutover instant forward.
 
 steps:
@@ -128,7 +128,7 @@ verification:
 decommission:
   description: "After 7-14 days of stable cluster operation, decommission WEST+EAST"
   steps:
-    - "TODO: archive WEST+EAST WAL+PG to long-term storage"
+    - "TODO: archive WEST+EAST WAL to long-term storage"
     - "TODO: spin down wotan systemd units on both hosts"
     - "TODO: free hardware for next purpose"
 
