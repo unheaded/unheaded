@@ -54,12 +54,14 @@ deb_unit_for() {
 	esac
 }
 
-# deb_extra_units BINARY: further units the package ships (timers, paths).
-# Shipped, never enabled by the package.
+# deb_extra_units BINARY: further units the package ships (timers, paths,
+# sockets). Shipped, never enabled by the package. syslog-relay's socket
+# binds 514 and passes it, so the service needs no capability (ADR-124).
 deb_extra_units() {
 	case "$1" in
 	unheaded-baseline) echo unheaded-baseline.timer unheaded-baseline.path ;;
 	well-retention) echo unheaded-well-retention.timer ;;
+	syslog-relay) echo unheaded-syslog-relay.socket ;;
 	esac
 }
 

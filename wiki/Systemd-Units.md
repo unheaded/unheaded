@@ -43,7 +43,7 @@ The offsite SFTP account is nologin, chrooted and key-only (`deploy/east/sshd-we
 | `unheaded-wotan.service` | Message bus (start first; others depend on it) |
 | `unheaded-akira.service` | Health monitor + service sweep |
 | `unheaded-kev-poller.service` | CISA KEV feed poller (ADR-055), `:19120`; always on, installed on west and east 2026-10-20 |
-| `unheaded-syslog-relay.service` | Native syslog relay (ADR-124), `10.10.20.1:514` udp and tcp, metrics `127.0.0.1:9599` and the overlay, as `unheaded-syslog-relay` (uid 16739, `pkg/uids`) with `CAP_NET_BIND_SERVICE` only; west only. **Not installed** (S-LOG-HARVEST Step 141 is Stevie's) |
+| `unheaded-syslog-relay.service` | Native syslog relay (ADR-124), `10.10.20.1:514` udp and tcp, metrics `127.0.0.1:9599` and the overlay, as `unheaded-syslog-relay` (uid 16739, `pkg/uids`) with no capability: `unheaded-syslog-relay.socket` binds 514 and passes it (socket activation, `PrivateUsers=yes`, exposure 1.0); west only. Packaged as `unheaded-syslog-relay`. **Not installed** (S-LOG-HARVEST Step 141 is Stevie's) |
 | `unheaded-dashboard.service` | Dashboard backend, `:20000` |
 | `unheaded-kanban.service` | Task board |
 | `unheaded-timeguru` / `-architect` / `-captain` / `-micromanager.service` | Court services |

@@ -259,6 +259,25 @@ expect "build-all-debs: key-holding packages depend on unheaded-keygen" \
 	"$(deb_depends wotan)" 'libc6, unheaded-keygen (= ${VERSION})'
 expect "build-all-debs: keyless packages do not" "$(deb_depends huginn)" "libc6"
 expect "syslog-relay holds no service key" "$(deb_identity_for syslog-relay)" ""
+# Socket activation (ADR-124, answer #18 of 2026-11-09): the package ships the
+# .socket that binds 514, and removal stops it before the service, so a sender
+# cannot start the relay again on the way out. An upgrade touches neither.
+expect "syslog-relay ships its socket unit" "$(deb_extra_units syslog-relay)" "unheaded-syslog-relay.socket"
+read -r -a SR_EXTRA <<<"$(deb_extra_units syslog-relay)"
+gen prerm-socket deb_prerm unheaded-syslog-relay "${SR_EXTRA[@]}" "$(deb_unit_for syslog-relay)"
+expect "syslog-relay prerm remove: the socket stops and is disabled first" "$(run prerm-socket remove)" \
+	"systemctl stop unheaded-syslog-relay.socket
+systemctl disable unheaded-syslog-relay.socket
+systemctl stop unheaded-syslog-relay.service
+systemctl disable unheaded-syslog-relay.service"
+expect "syslog-relay prerm upgrade touches nothing" "$(run prerm-socket upgrade 1.0.1)" ""
+gen postinst-relay deb_postinst --pkg unheaded-syslog-relay --unit "$(deb_unit_for syslog-relay)"
+expect "syslog-relay postinst: account, reload, try-restart; no key, nothing enabled" "$(run postinst-relay configure 1.0.0)" \
+	"systemd-sysusers /usr/lib/sysusers.d/unheaded-syslog-relay.conf
+systemctl daemon-reload
+systemctl try-restart unheaded-syslog-relay.service"
+expect "the relay's unit holds no capability: the socket binds 514" \
+	"$(grep -cE '^(AmbientCapabilities=|CapabilityBoundingSet=.+)' "$REPO_ROOT/deploy/systemd/unheaded-syslog-relay.service" || true)" "0"
 expect "the Jenkinsfile packages through build-all-debs.sh (one copy)" \
 	"$(grep -c '^ *DEB_OUTPUT_DIR=build/deb \./scripts/build-all-debs\.sh ' "$REPO_ROOT/Jenkinsfile")" "1"
 expect "the Jenkinsfile writes no maintainer scripts of its own" \

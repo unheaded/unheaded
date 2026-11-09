@@ -209,7 +209,7 @@ when it already starts with `unheaded-`:
 | `unheaded-huginn`, `unheaded-zhen-agentd` | `huginn.service`, `zhen-agentd.service` |
 | `unheaded-baseline` | `unheaded-baseline.service` + `.timer` + `.path` |
 | `unheaded-well-retention` | `unheaded-well-retention.service` + `.timer` |
-| `unheaded-syslog-relay` | `unheaded-syslog-relay.service`, with `/etc/unheaded/log-sources.yaml` as a conffile |
+| `unheaded-syslog-relay` | `unheaded-syslog-relay.service` + `.socket` (binds 514, socket activation), with `/etc/unheaded/log-sources.yaml` as a conffile |
 | `unheaded-<svc>` (wotan, akira, timeguru, captain, architect, micromanager, monad, sophia, auth, sword, chaos-controller, anomaly, kev-poller) | `unheaded-<svc>.service` |
 | `unheaded-keygen` | none: the key tool every key-holding package depends on |
 | `unheaded-configs` | none: runbooks + `run-runbook.py` under `/opt/unheaded` (Akira's cert-expiry check) |
