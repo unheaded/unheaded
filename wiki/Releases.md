@@ -34,7 +34,7 @@ The script's own contract is tested offline on every push (CI job `release-verif
 
 ## apt repository
 
-West serves a signed apt repository on port 18888 (loopback and the west-east link, `192.168.13.2:18888`), kept by `scripts/apt-repo.sh` in `/srv/unheaded-apt` with reprepro and served by nginx as the `nginx` account (`deploy/nginx/unheaded-apt.conf`: only `dists/`, `pool/` and the public key; everything else 403). Codename `unheaded`, suite `stable`, component `main`.
+West serves a signed apt repository on port 18888 (loopback, the west-east link `192.168.13.2:18888`, and the LAN address `192.168.69.184:18888`), kept by `scripts/apt-repo.sh` in `/srv/unheaded-apt` with reprepro and served by nginx as the `nginx` account (`deploy/nginx/unheaded-apt.conf`: only `dists/`, `pool/` and the public key; everything else 403). Until S-E1-LIVE Step 192, that nginx file still serves its old root `/var/lib/apt-repo`, not `/srv/unheaded-apt`, so what `apt-repo.sh` publishes is not yet what clients get. Codename `unheaded`, suite `stable`, component `main`.
 
 ```bash
 sudo scripts/apt-repo.sh init --keyid <KEYID>    # once; exports /srv/unheaded-apt/unheaded-apt.gpg
