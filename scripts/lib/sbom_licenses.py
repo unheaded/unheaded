@@ -40,6 +40,10 @@ SECONDARY_LICENSE = ('secondary license means either the gnu general public lice
                      'or any later versions of those licenses')
 
 
+REVIEW_RULING = ("Stevie ruled 2026-11-06: GPL-family CI tools are fine because they do not ship, "
+                 "and NVIDIA's proprietary wheels stay out of anything shipped. A package below that "
+                 "ships, or that is new since that ruling, is still for a person to rule on.")
+
 def slurp(path, mode='r'):
     with open(path, mode, **({} if 'b' in mode else {'errors': 'replace'})) as f:
         return f.read()
@@ -451,7 +455,10 @@ def report(sbom_dir, today):
     if proprietary:
         review.append('Proprietary licenses: ' + ', '.join(proprietary) + '.')
     if review:
-        verdict = 'REVIEW: for a person to rule on. ' + ' '.join(review) + f' {not_read}{gaps}'
+        # Stevie's ruling of 2026-11-06 (answer 25): it covers CI tools and
+        # NVIDIA wheels only. This list cannot tell those from what ships,
+        # so every package stays named and nothing is cleared by it.
+        verdict = ('REVIEW: ' + REVIEW_RULING + ' ' + ' '.join(review) + f' {not_read}{gaps}')
     elif any_unread or gaps:
         verdict = f'INCOMPLETE: no license read names the GPL, but {not_read} Those are not cleared.{gaps}'
     else:

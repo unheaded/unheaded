@@ -61,6 +61,7 @@ ok "an NVIDIA license by any spelling: the same" grep -q '^REVIEW: .*Proprietary
 ok "GPL named only in a package's license files: REVIEW, by name" grep -q "^REVIEW: .*own license files, not its license field: p 1 (GPL-3.0)" <(PY_EXTRA=', "licenseFilesName": ["GPL-3.0"]' verdict_for MIT MIT BSD-3-Clause)
 ok "a venv not read: never PASS, and it says so" grep -q '^INCOMPLETE: .*The Zhen venv was not read' <(PY_SUMMARY=', "venvRead": false' verdict_for MIT MIT)
 ok "a report that does not say the venv was read: the same" grep -q '^INCOMPLETE: .*The Zhen venv was not read' <(PY_SUMMARY='' verdict_for MIT MIT)
+ok "REVIEW carries the 2026-11-06 ruling and keeps shipped or new packages open" grep -q '^REVIEW: Stevie ruled 2026-11-06: GPL-family CI tools are fine because they do not ship, and NVIDIA.s proprietary wheels stay out of anything shipped. A package below that ships, or that is new since that ruling, is still for a person to rule on\.' <(verdict_for MIT GPL-2.0-only)
 ok "a venv not read beside a GPL license: REVIEW still says so" grep -q '^REVIEW: .*The Zhen venv was not read' <(PY_SUMMARY=', "venvRead": false' verdict_for MIT GPL-2.0-only)
 ok "no Python packages at all: never PASS, and it says so" grep -q '^INCOMPLETE: .*No Python packages are listed at all' <(PY_ROWS='' verdict_for MIT MIT)
 
