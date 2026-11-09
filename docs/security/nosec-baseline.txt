@@ -284,7 +284,6 @@ services/wotan/cmd/wotan/allowlist_test.go 4
 services/wotan/internal/api/topic_config.go 2
 services/wotan/internal/compute/memory.go 12
 services/wotan/internal/grpc/topic_service.go 1
-services/wotan/internal/store/pg_store.go 1
 services/wotan/internal/topicpattern/draft_witness_test.go 1
 services/wotan/proto/chat.pb.go 4
 services/wotan/proto/replication.pb.go 2

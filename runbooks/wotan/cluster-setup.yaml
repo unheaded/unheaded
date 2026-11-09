@@ -9,10 +9,15 @@ metadata:
   requires_sudo: true
 
 notes: |
-  Configures Wotan for active-passive replication.
+  Configures Wotan for active-passive replication (ADR-035).
   WEST is always the configured primary. EAST is standby.
-  Requires PostgreSQL (The Well) on both nodes.
+  Persistence and replication are the local WAL store only (--store-type=wal,
+  under the unit's StateDirectory); Wotan has no PostgreSQL store since
+  2026-11-09 (ADR-035 amendment). Memory stays Wotan's default; a wal store
+  that cannot open stops startup.
   Requires mTLS certs (run generate-kingdom-certs first).
+  The wotan binary refuses to start with --cluster-mode=cluster until the
+  cluster wiring lands (services/wotan/cmd/wotan/main.go).
 
 steps:
   - name: verify-prerequisites
@@ -20,20 +25,10 @@ steps:
     command: |
       echo "=== WEST ==="
       curl -sf http://localhost:18000/health && echo "Wotan: OK" || echo "Wotan: DOWN"
-      docker exec unheaded-postgres psql -U unheaded -d unheaded -c "SELECT 1" > /dev/null 2>&1 && echo "PG: OK" || echo "PG: DOWN"
       echo ""
       echo "=== EAST ==="
       ssh govan@east 'curl -sf http://localhost:18000/health && echo "Wotan: OK" || echo "Wotan: DOWN"'
     verify: "curl -sf http://localhost:18000/health"
-
-  - name: create-pg-schema-west
-    action: shell
-    command: |
-      docker exec unheaded-postgres psql -U unheaded -d unheaded -c "
-        CREATE TABLE IF NOT EXISTS wotan_messages (id UUID PK, room TEXT, sender_id UUID, content BYTEA, seq BIGINT, created_at TIMESTAMPTZ DEFAULT NOW());
-        CREATE TABLE IF NOT EXISTS wotan_sequences (topic TEXT PK, seq BIGINT DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT NOW());
-        CREATE TABLE IF NOT EXISTS wotan_cluster (key TEXT PK, value TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
-      "
 
   - name: start-west-primary
     action: shell
@@ -42,26 +37,24 @@ steps:
       sudo tee /etc/systemd/system/unheaded-wotan.service << 'EOF'
       [Unit]
       Description=Wotan Message Bus (Primary)
-      After=network.target docker.service
+      After=network.target
 
       [Service]
       Type=simple
-      User=unheaded
-      Group=unheaded
+      User=unheaded-wotan
+      Group=unheaded-wotan
+      StateDirectory=unheaded/wotan
+      StateDirectoryMode=0700
       ExecStart=/opt/unheaded/bin/wotan \
         --cluster-mode=cluster \
         --cluster-role=primary \
         --cluster-node-id=west \
         --cluster-peer=east:18002 \
-        --store-type=hybrid \
-        --store-data-dir=/var/lib/unheaded/wotan/wal \
-        --store-conn-str=${WOTAN_STORE_CONN_STR}
+        --store-type=wal \
+        --store-data-dir=/var/lib/unheaded/wotan/wal
       Restart=always
       RestartSec=5
-      WorkingDirectory=/var/lib/unheaded
-      # WOTAN_STORE_CONN_STR: postgres://<role>:<password>@localhost:5432/<db>?sslmode=require,
-      # in a root-owned 0600 file; credentials are not stored in this repo.
-      EnvironmentFile=/etc/unheaded/wotan-store.env
+      WorkingDirectory=/var/lib/unheaded/wotan
 
       [Install]
       WantedBy=multi-user.target
@@ -80,22 +73,20 @@ steps:
 
       [Service]
       Type=simple
-      User=unheaded
-      Group=unheaded
+      User=unheaded-wotan
+      Group=unheaded-wotan
+      StateDirectory=unheaded/wotan
+      StateDirectoryMode=0700
       ExecStart=/opt/unheaded/bin/wotan \
         --cluster-mode=cluster \
         --cluster-role=standby \
         --cluster-node-id=east \
         --cluster-peer=west:18002 \
-        --store-type=hybrid \
-        --store-data-dir=/var/lib/unheaded/wotan/wal \
-        --store-conn-str=\${WOTAN_STORE_CONN_STR}
+        --store-type=wal \
+        --store-data-dir=/var/lib/unheaded/wotan/wal
       Restart=always
       RestartSec=5
-      WorkingDirectory=/var/lib/unheaded
-      # WOTAN_STORE_CONN_STR: postgres://<role>:<password>@localhost:5432/<db>?sslmode=require,
-      # in a root-owned 0600 file; credentials are not stored in this repo.
-      EnvironmentFile=/etc/unheaded/wotan-store.env
+      WorkingDirectory=/var/lib/unheaded/wotan
 
       [Install]
       WantedBy=multi-user.target

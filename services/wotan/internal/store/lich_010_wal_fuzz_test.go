@@ -167,8 +167,8 @@ func FuzzRealWALEncodeNilSafety(f *testing.F) {
 // payloads, and the loss is not detectable after the fact.
 //
 // Not currently reachable in the default configuration: configs/wotan.yaml
-// ships `store.type: memory`, and the WAL is used by the wal/hybrid stores
-// the same file recommends "for production persistence". This test pins the
+// ships `store.type: memory`; only the opt-in wal store (and cluster
+// replication, which ships WAL entries) encodes messages. This test pins the
 // present behaviour so the limitation is visible and any change to it is
 // deliberate. Fixing it means a new encodingVersion — see the promotion log.
 func TestEncodeMessage_NonUTF8ContentIsLossy_KnownLimitation(t *testing.T) {

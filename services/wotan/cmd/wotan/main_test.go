@@ -98,7 +98,6 @@ func TestParseFlags_OverridesAllValues(t *testing.T) {
 		"-cluster-pki-dir=/etc/pki",
 		"-store-type=wal",
 		"-store-data-dir=/var/data",
-		"-store-conn-str=postgres://...",
 	}
 
 	cfg := parseFlags(newTestFlagSet(), args)
@@ -136,11 +135,75 @@ func TestParseFlags_OverridesAllValues(t *testing.T) {
 	if cfg.ClusterPKIDir != "/etc/pki" {
 		t.Errorf("cluster pki: got %q", cfg.ClusterPKIDir)
 	}
-	if cfg.StoreType != "wal" || cfg.StoreDataDir != "/var/data" || cfg.StoreConnStr != "postgres://..." {
+	if cfg.StoreType != "wal" || cfg.StoreDataDir != "/var/data" {
 		t.Errorf("store: %+v", cfg)
 	}
 	if cfg.TopicConfigPath != "/tmp/x.yaml" {
 		t.Errorf("topic-config: got %q", cfg.TopicConfigPath)
+	}
+}
+
+// --store-conn-str fed only the Postgres and hybrid stores, removed
+// 2026-11-09. The flag must be gone, so passing it is a usage error.
+func TestParseFlags_NoStoreConnStr(t *testing.T) {
+	fs := newTestFlagSet()
+	parseFlags(fs, nil)
+	if fs.Lookup("store-conn-str") != nil {
+		t.Fatal("--store-conn-str is still registered; the Postgres stores it served are gone")
+	}
+}
+
+// ───────────────────────── openMessageStore ─────────────────────────
+
+// Memory is the default and needs no store object: the room ring buffers
+// are the store (nil = memory-only).
+func TestOpenMessageStore_MemoryIsNil(t *testing.T) {
+	for _, typ := range []string{"", "memory"} {
+		s, err := openMessageStore(typ, "", 100)
+		if err != nil || s != nil {
+			t.Errorf("openMessageStore(%q) = (%v, %v); want (nil, nil)", typ, s, err)
+		}
+	}
+}
+
+func TestOpenMessageStore_WAL(t *testing.T) {
+	s, err := openMessageStore("wal", t.TempDir(), 100)
+	if err != nil {
+		t.Fatalf("wal store: %v", err)
+	}
+	if s == nil {
+		t.Fatal("wal store: got nil store with nil error")
+	}
+	_ = s.Close()
+}
+
+// Persistence is an explicit opt-in: a wal store that cannot open must stop
+// startup, not fall back to memory with a warning nobody reads.
+func TestOpenMessageStore_FailingWALIsAnError(t *testing.T) {
+	notADir := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(notADir, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := openMessageStore("wal", filepath.Join(notADir, "wal"), 100)
+	if err == nil {
+		_ = s.Close()
+		t.Fatal("openMessageStore(wal) under a regular file succeeded; want an error")
+	}
+	if s != nil {
+		t.Errorf("got a store alongside the error: %v", s)
+	}
+}
+
+// An unknown or removed store type refuses to start.
+func TestOpenMessageStore_UnknownTypeIsAnError(t *testing.T) {
+	for _, typ := range []string{"postgres", "hybrid", "sqlite", "bogus"} {
+		s, err := openMessageStore(typ, t.TempDir(), 100)
+		if err == nil {
+			if s != nil {
+				_ = s.Close()
+			}
+			t.Errorf("openMessageStore(%q) succeeded; want an error", typ)
+		}
 	}
 }
 

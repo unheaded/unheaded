@@ -41,8 +41,9 @@ Parameter `WOTAN_URL`, default `http://127.0.0.1:18000`.
    look); `curl -s "$WOTAN_URL/api/v1/topics"` lists topics again.
 
 **Prevention (notes only, not steps):** the compose `mem_limit`/`deploy.resources`
-256M stays; switching `store.type` to `hybrid` (WAL + PostgreSQL) so state
-survives a restart is a Stevie decision, not a runbook step.
+256M stays; Wotan stays in-memory by default (Stevie, 2026-11-09). The only
+persistence is the opt-in WAL store (`--store-type wal`); the PostgreSQL and
+hybrid stores are gone. Neither is a runbook step.
 
 **Rollback:** none needed; the runbook changes nothing but restarting a dead
 service.

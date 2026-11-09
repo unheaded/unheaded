@@ -5,6 +5,7 @@ package store
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -88,9 +89,14 @@ func TestConfig_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "postgres without data_dir uses default",
-			cfg:     Config{Type: PostgresStoreType, Capacity: 1000, DataDir: ""},
-			wantErr: false, // PG uses default connstr when DataDir empty
+			name:    "postgres is no longer a store type",
+			cfg:     Config{Type: "postgres", Capacity: 1000, DataDir: "/tmp/x"},
+			wantErr: true,
+		},
+		{
+			name:    "hybrid is no longer a store type",
+			cfg:     Config{Type: "hybrid", Capacity: 1000, DataDir: "/tmp/x"},
+			wantErr: true,
 		},
 	}
 
@@ -128,11 +134,6 @@ func TestNew(t *testing.T) {
 		{
 			name:    "sqlite store not implemented",
 			cfg:     Config{Type: SQLiteStoreType, DataDir: "/tmp/sqlite"},
-			wantErr: true,
-		},
-		{
-			name:    "postgres store with bad connstr",
-			cfg:     Config{Type: PostgresStoreType, DataDir: "postgres://badhost:9999/nodb?connect_timeout=1"},
 			wantErr: true,
 		},
 	}
@@ -184,7 +185,24 @@ func TestStoreType_String(t *testing.T) {
 	if SQLiteStoreType != "sqlite" {
 		t.Error("SQLiteStoreType should be 'sqlite'")
 	}
-	if PostgresStoreType != "postgres" {
-		t.Error("PostgresStoreType should be 'postgres'")
+}
+
+// Wotan's Postgres and hybrid (WAL + Postgres) stores were removed
+// 2026-11-09 (ADR-005: Wotan is an in-memory store; ADR-035 amendment).
+// Naming either must fail as an unknown type, never quietly pick a backend.
+func TestNew_RefusesRemovedStoreTypes(t *testing.T) {
+	for _, typ := range []StoreType{"postgres", "hybrid"} {
+		t.Run(string(typ), func(t *testing.T) {
+			s, err := New(Config{Type: typ, Capacity: 10, DataDir: t.TempDir()})
+			if err == nil {
+				if s != nil {
+					s.Close()
+				}
+				t.Fatalf("New(%q) succeeded; want an unknown-type error", typ)
+			}
+			if !strings.Contains(err.Error(), "unknown type") {
+				t.Errorf("New(%q) error = %v; want it to say unknown type", typ, err)
+			}
+		})
 	}
 }

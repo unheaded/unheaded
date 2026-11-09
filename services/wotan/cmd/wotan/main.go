@@ -99,7 +99,6 @@ type Config struct {
 	ClusterPKIDir          string
 	StoreType              string
 	StoreDataDir           string
-	StoreConnStr           string
 }
 
 func main() {
@@ -165,26 +164,17 @@ func main() {
 	go enforceBufferTotal(runCtx, m, roomManager)
 	messageWotan := wotan.NewWotan()
 
-	// Initialize persistent store (if configured). When this falls back
-	// (err != nil) the local convention is `msgStore == nil` →
-	// memory-only ring buffer. apiServer.Store is documented to accept
-	// nil; do not interpret nil as "store init failed silently."
-	var msgStore store.MessageStore
-	if config.StoreType != "" && config.StoreType != "memory" {
-		storeCfg := store.Config{
-			Type:     store.StoreType(config.StoreType),
-			Capacity: config.BufferSize,
-			DataDir:  config.StoreDataDir,
-			ConnStr:  config.StoreConnStr,
-			SyncMode: "batch",
-		}
-		var err error
-		msgStore, err = store.New(storeCfg)
-		if err != nil {
-			log.Warn().Err(err).Str("type", config.StoreType).Msg("persistent store failed, falling back to memory")
-		} else {
-			log.Info().Str("type", config.StoreType).Msg("persistent store initialized")
-		}
+	// Persistent store: memory (msgStore == nil, the room ring buffers) is
+	// the default; wal is an explicit opt-in, so a wal store that cannot
+	// open, or an unknown store type, refuses to start rather than running
+	// memory-only behind a warning.
+	msgStore, err := openMessageStore(config.StoreType, config.StoreDataDir, config.BufferSize)
+	if err != nil {
+		log.Fatal().Err(err).Str("type", config.StoreType).Str("data_dir", config.StoreDataDir).
+			Msg("persistent store failed to open; refusing to start")
+	}
+	if msgStore != nil {
+		log.Info().Str("type", config.StoreType).Str("data_dir", config.StoreDataDir).Msg("persistent store initialized")
 	}
 
 	// Cluster mode: fail-fast if the operator passed cluster flags. The
@@ -428,7 +418,37 @@ func main() {
 	log.Info().Msg("closing_message_wotan")
 	messageWotan.Close()
 
+	if msgStore != nil {
+		log.Info().Msg("closing_persistent_store")
+		if err := msgStore.Close(); err != nil {
+			log.Error().Err(err).Msg("persistent_store_close_error")
+		}
+	}
+
 	log.Info().Msg("server_stopped_gracefully")
+}
+
+// openMessageStore opens the message store --store-type names. Memory ("" or
+// "memory") returns (nil, nil): the room ring buffers are the store, and
+// apiServer.Store / topicService.Store take nil as memory-only. Any other
+// type goes through store.New, and its error is returned for main to refuse
+// startup: persistence is an explicit opt-in (ADR-005), so a failure must
+// not degrade to memory silently, and an unknown type (postgres and hybrid
+// were removed 2026-11-09) is a configuration mistake.
+func openMessageStore(storeType, dataDir string, capacity int) (store.MessageStore, error) {
+	if storeType == "" || storeType == string(store.MemoryStoreType) {
+		return nil, nil
+	}
+	s, err := store.New(store.Config{
+		Type:     store.StoreType(storeType),
+		Capacity: capacity,
+		DataDir:  dataDir,
+		SyncMode: "batch",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open %s store: %w", storeType, err)
+	}
+	return s, nil
 }
 
 // parseFlags binds the wotan flag schema to fs and parses args. Pass
@@ -504,9 +524,8 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 	fs.StringVar(&config.ClusterPKIDir, "cluster-pki-dir", "/var/lib/unheaded/pki", "PKI directory for mTLS")
 
 	// Store flags
-	fs.StringVar(&config.StoreType, "store-type", "memory", "Store backend (memory|wal|postgres|hybrid)")
-	fs.StringVar(&config.StoreDataDir, "store-data-dir", "/var/lib/unheaded/wotan/data", "Store data directory (WAL/hybrid)")
-	fs.StringVar(&config.StoreConnStr, "store-conn-str", "", "PostgreSQL connection string (postgres/hybrid)")
+	fs.StringVar(&config.StoreType, "store-type", "memory", "Message store: memory (default, in-memory ring buffers) or wal (opt-in write-ahead log on disk; startup fails if it cannot open)")
+	fs.StringVar(&config.StoreDataDir, "store-data-dir", "/var/lib/unheaded/wotan/data", "Directory for the wal store")
 
 	// ADR-111: --help, --version and a usage error go through cmdline.
 	// Only the real binary exits; a test's FlagSet gets the config back.

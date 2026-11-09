@@ -115,13 +115,16 @@ topics:
     - prefix: "system.health.remediate."   # Akira's remediation suggestions (HEALTH_SIGNING_KEY_FILE)
       keys: []
 
-# Persistent store configuration (Wave 9)
-# Options: memory (default), wal, postgres, hybrid
-# Hybrid = WAL write-ahead + PostgreSQL durable (recommended for production)
+# Message store. Wotan is an in-memory store (ADR-005): memory is the default
+# and what production runs. wal is an opt-in write-ahead log on local disk,
+# for debugging or a deliberate need to survive restarts; a wal store that
+# cannot open stops startup. There is no PostgreSQL or hybrid store
+# (removed 2026-11-09, ADR-035 amendment).
+# The binary takes these from --store-type and --store-data-dir; this
+# section records the deployment's choice and is not read by Wotan.
 store:
-  type: memory       # Change to "hybrid" for production persistence
-  # data_dir: /var/lib/unheaded/wotan/wal    # WAL directory (wal/hybrid)
-  # conn_str: postgres://<role>:<password>@localhost:5432/<db>?sslmode=require  (never commit a real one)
+  type: memory       # or "wal" (opt-in)
+  # data_dir: /var/lib/unheaded/wotan/wal    # WAL directory (wal only)
 
 # Cluster configuration (Wave 9 — The Twin Ravens)
 # Options: standalone (default), cluster
