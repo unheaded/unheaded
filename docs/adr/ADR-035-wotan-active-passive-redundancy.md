@@ -70,3 +70,21 @@ Failover: Akira detects primary down → promotes standby → clients failover v
 - Battle plan: `docs/battle-plans/WAVE9-TWIN-RAVENS.md`
 - ADR-034: gRPC mTLS Default Transport
 - ADR-029: Wotan Consensus Health (Akira)
+
+## Amendment 2026-11-09: PostgreSQL persistence dropped
+
+Stevie, 2026-11-09. Wotan is a fast in-memory store (ADR-005), and the
+PostgreSQL persistence above is withdrawn:
+
+- `pg_store.go` and `hybrid_store.go` are deleted; `postgres` and `hybrid`
+  are unknown store types, and `--store-conn-str` is gone. The PG-backed
+  sequence counter and cluster epoch (`PersistentSequenceCounter`,
+  `EpochManager`) went with them; neither had a caller.
+- Memory is the default store. The local WAL store (`--store-type wal`) is
+  the only persistence, an explicit opt-in: a wal store that cannot open
+  stops startup rather than falling back to memory.
+- The WAL is also the replication substrate: `services/wotan/internal/cluster/`
+  ships WAL entries to the standby and never used PostgreSQL. It is kept.
+- "PostgreSQL dependency for persistence" under Negative no longer applies;
+  split-brain prevention needs an epoch that does not live in PG, to be
+  decided when cluster mode is wired.
