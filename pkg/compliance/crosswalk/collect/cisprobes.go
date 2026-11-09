@@ -866,8 +866,12 @@ func init() {
 	// read from /etc/shadow with passwd -S's own rule (shadow-utils
 	// pw_status: L when the hash starts with ! or *, NP when empty, else P):
 	// passwd -S refuses to run without uid 0, and the agent has no uid 0.
-	Probes["acct-noshell-locked"] = offenderProbe(`if us=$(awk -F: 'NR==FNR{s[$0]=1;next} !($7 in s){print $1}' /etc/shells /etc/passwd); then for u in $us; do ` +
-		`st=$($UH_PRIV awk -F: -v u="$u" '$1==u{print ($2 ~ /^[!*]/) ? "L" : ($2 == "" ? "NP" : "P")}' /etc/shadow 2>/dev/null); [ "$st" = L ] || echo "$u ${st:-unreadable}"; done; echo @ok; fi`)
+	// /etc/shadow is read once, with a command that takes no account name:
+	// one privileged command per account was 65 sudo lines a run in auth.log
+	// and cannot be named exactly in a narrowed sudoers rule.
+	Probes["acct-noshell-locked"] = offenderProbe(`if us=$(awk -F: 'NR==FNR{s[$0]=1;next} !($7 in s){print $1}' /etc/shells /etc/passwd); then ` +
+		`sts=$($UH_PRIV awk -F: '{print $1 " " (($2 ~ /^[!*]/) ? "L" : ($2 == "" ? "NP" : "P"))}' /etc/shadow 2>/dev/null); for u in $us; do ` +
+		`st=$(printf '%s\n' "$sts" | awk -v u="$u" '$1==u{print $2}'); [ "$st" = L ] || echo "$u ${st:-unreadable}"; done; echo @ok; fi`)
 	Probes["shell-tmout"] = markerLinesProbe(`grep -hsE '(^|[[:space:];])(readonly|export|declare|typeset)?[[:space:]]*[-rx[:space:]]*TMOUT' /etc/profile /etc/profile.d/*.sh /etc/bash.bashrc; echo @ok`,
 		func(lines []string) (bool, string) {
 			val, ro, ex := -1, false, false
