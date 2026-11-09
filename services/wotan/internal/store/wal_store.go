@@ -7,19 +7,18 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 
 	"unheaded/pkg/storage/wal"
 )
 
-// WALStore implements MessageStore backed by a Write-Ahead Log with optional
-// async flush to a PGStore for durability. The WAL provides fast writes (<1ms),
-// while PG provides persistence across restarts.
+// WALStore implements MessageStore backed by a Write-Ahead Log on local
+// disk. It is Wotan's only persistent store and an opt-in (--store-type
+// wal); memory is the default (ADR-005). The WAL is also the replication
+// substrate for cluster mode (ADR-035).
 type WALStore struct {
 	wal      *wal.WAL
-	pg       *PGStore // optional — if nil, WAL-only mode
 	capacity int
 	closed   bool
 	mu       sync.RWMutex
@@ -29,15 +28,11 @@ type WALStore struct {
 	// Hot cache: recent messages for fast reads
 	hot     []*Message
 	hotSize int
-
-	// Async flush
-	flushCh   chan struct{}
-	flushDone chan struct{}
 }
 
-// NewWALStore creates a WAL-backed message store.
-// If pgStore is non-nil, messages are asynchronously flushed to PostgreSQL.
-func NewWALStore(walDir string, capacity int, pgStore *PGStore) (*WALStore, error) {
+// NewWALStore creates a WAL-backed message store in walDir, replaying any
+// existing segments to rebuild the index and hot cache.
+func NewWALStore(walDir string, capacity int) (*WALStore, error) {
 	cfg := wal.DefaultConfig()
 	cfg.Path = walDir
 
@@ -47,25 +42,17 @@ func NewWALStore(walDir string, capacity int, pgStore *PGStore) (*WALStore, erro
 	}
 
 	s := &WALStore{
-		wal:       w,
-		pg:        pgStore,
-		capacity:  capacity,
-		index:     make(map[uuid.UUID]uint64),
-		hot:       make([]*Message, 0, capacity),
-		hotSize:   capacity,
-		flushCh:   make(chan struct{}, 1),
-		flushDone: make(chan struct{}),
+		wal:      w,
+		capacity: capacity,
+		index:    make(map[uuid.UUID]uint64),
+		hot:      make([]*Message, 0, capacity),
+		hotSize:  capacity,
 	}
 
 	// Recover state from WAL
 	if err := s.recover(); err != nil {
 		_ = w.Close()
 		return nil, fmt.Errorf("wal_store: recovery: %w", err)
-	}
-
-	// Start async flusher if PG is available
-	if pgStore != nil {
-		go s.flusher()
 	}
 
 	return s, nil
@@ -96,7 +83,7 @@ func (s *WALStore) addToHot(msg *Message) {
 	s.hot = append(s.hot, msg)
 }
 
-// Push writes a message to the WAL and signals the async flusher.
+// Push writes a message to the WAL and adds it to the hot cache.
 func (s *WALStore) Push(ctx context.Context, msg *Message) (uuid.UUID, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -121,16 +108,10 @@ func (s *WALStore) Push(ctx context.Context, msg *Message) (uuid.UUID, bool, err
 	s.index[msg.ID] = seq
 	s.addToHot(msg)
 
-	// Signal flusher (non-blocking)
-	select {
-	case s.flushCh <- struct{}{}:
-	default:
-	}
-
 	return msg.ID, false, nil
 }
 
-// Get retrieves a message by ID from hot cache or PG fallback.
+// Get retrieves a message by ID from the hot cache, else from the WAL.
 func (s *WALStore) Get(ctx context.Context, id uuid.UUID) (*Message, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -146,12 +127,7 @@ func (s *WALStore) Get(ctx context.Context, id uuid.UUID) (*Message, error) {
 		}
 	}
 
-	// Fall back to PG if available
-	if s.pg != nil {
-		return s.pg.Get(ctx, id)
-	}
-
-	// Try WAL scan (slow, last resort)
+	// Read it back from the WAL (slow, last resort)
 	seq, ok := s.index[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -177,11 +153,6 @@ func (s *WALStore) Delete(ctx context.Context, id uuid.UUID, creatorID uuid.UUID
 		if m.ID == id && m.CreatorID == creatorID && m.Content == content {
 			s.hot = append(s.hot[:i], s.hot[i+1:]...)
 			delete(s.index, id)
-
-			// Also delete from PG
-			if s.pg != nil {
-				_ = s.pg.Delete(ctx, id, creatorID, content)
-			}
 			return nil
 		}
 	}
@@ -203,56 +174,16 @@ func (s *WALStore) Capacity() int {
 	return s.capacity
 }
 
-// Close flushes remaining WAL entries to PG and closes both.
+// Close closes the WAL. It holds the store lock so no Push is mid-write,
+// and a second Close returns ErrStoreClosed, as MemoryStore's does.
 func (s *WALStore) Close() error {
 	s.mu.Lock()
-	s.closed = true
-	s.mu.Unlock()
+	defer s.mu.Unlock()
 
-	// Stop flusher
-	close(s.flushCh)
-	if s.pg != nil {
-		<-s.flushDone // Wait for final flush
+	if s.closed {
+		return ErrStoreClosed
 	}
+	s.closed = true
 
 	return s.wal.Close()
-}
-
-// flusher runs in background, batching WAL entries to PG.
-func (s *WALStore) flusher() {
-	defer close(s.flushDone)
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case _, ok := <-s.flushCh:
-			if !ok {
-				// Channel closed — final flush
-				s.flushToPG()
-				return
-			}
-			s.flushToPG()
-		case <-ticker.C:
-			s.flushToPG()
-		}
-	}
-}
-
-// flushToPG writes unflushed messages from hot cache to PG.
-func (s *WALStore) flushToPG() {
-	if s.pg == nil {
-		return
-	}
-
-	s.mu.RLock()
-	messages := make([]*Message, len(s.hot))
-	copy(messages, s.hot)
-	s.mu.RUnlock()
-
-	ctx := context.Background()
-	for _, msg := range messages {
-		_, _, _ = s.pg.Push(ctx, msg) // Idempotent (ON CONFLICT DO NOTHING)
-	}
 }

@@ -9,20 +9,21 @@ import (
 )
 
 // StoreType represents the type of storage backend.
+//
+// Wotan is an in-memory store (ADR-005); memory is the default and wal is
+// the only persistent opt-in. The Postgres and hybrid (WAL + Postgres)
+// stores were removed 2026-11-09 (ADR-035 amendment) and are unknown types.
 type StoreType string
 
 const (
 	// MemoryStoreType is an in-memory ring buffer (default).
 	MemoryStoreType StoreType = "memory"
 
-	// WALStoreType is a write-ahead log backed store (future).
+	// WALStoreType is a write-ahead log on local disk (opt-in persistence).
 	WALStoreType StoreType = "wal"
 
 	// SQLiteStoreType is a SQLite backed store (future).
 	SQLiteStoreType StoreType = "sqlite"
-
-	// PostgresStoreType is a PostgreSQL backed store (future).
-	PostgresStoreType StoreType = "postgres"
 )
 
 // Config holds configuration for store creation.
@@ -34,7 +35,7 @@ type Config struct {
 	// Interpretation depends on store type:
 	// - memory: ring buffer size (overwrites oldest when full)
 	// - wal: hint for segment size
-	// - sqlite/postgres: max rows (may trigger pruning)
+	// - sqlite: max rows (may trigger pruning)
 	// Default: 10000
 	Capacity int `json:"capacity" yaml:"capacity"`
 
@@ -63,12 +64,6 @@ type Config struct {
 	// Format: Go duration string
 	// Default: "1h"
 	CompactionInterval string `json:"compaction_interval" yaml:"compaction_interval"`
-
-	// ConnStr is the PostgreSQL connection string (for postgres and hybrid stores).
-	// REQUIRED for those types — there is deliberately no default. See
-	// errMissingConnStr; pkg/database/validate.go already rejects the password
-	// this previously defaulted to.
-	ConnStr string `json:"conn_str" yaml:"conn_str"`
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -87,7 +82,7 @@ func DefaultConfig() Config {
 // Validate checks the configuration for errors.
 func (c *Config) Validate() error {
 	switch c.Type {
-	case MemoryStoreType, WALStoreType, SQLiteStoreType, PostgresStoreType, HybridStoreType:
+	case MemoryStoreType, WALStoreType, SQLiteStoreType:
 		// Valid types
 	case "":
 		return fmt.Errorf("store: type is required")
@@ -110,8 +105,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("store: batch_size must be non-negative")
 	}
 
-	// DataDir required for WAL/SQLite/Hybrid stores
-	if (c.Type == WALStoreType || c.Type == SQLiteStoreType || c.Type == HybridStoreType) && c.DataDir == "" {
+	// DataDir required for WAL/SQLite stores
+	if (c.Type == WALStoreType || c.Type == SQLiteStoreType) && c.DataDir == "" {
 		return fmt.Errorf("store: data_dir required for %s store", c.Type)
 	}
 
@@ -139,32 +134,11 @@ func New(cfg Config) (MessageStore, error) {
 		return NewMemoryStore(capacity), nil
 
 	case WALStoreType:
-		return NewWALStore(cfg.DataDir, capacity, nil)
+		return NewWALStore(cfg.DataDir, capacity)
 
 	case SQLiteStoreType:
 		// Future: return NewSQLiteStore(cfg)
 		return nil, fmt.Errorf("store: sqlite store not yet implemented")
-
-	case PostgresStoreType:
-		connStr := cfg.ConnStr
-		if connStr == "" {
-			connStr = cfg.DataDir // Legacy: DataDir as connstr fallback
-		}
-		if connStr == "" {
-			return nil, errMissingConnStr(PostgresStoreType)
-		}
-		return NewPGStore(connStr, capacity)
-
-	case HybridStoreType:
-		connStr := cfg.ConnStr
-		if connStr == "" {
-			return nil, errMissingConnStr(HybridStoreType)
-		}
-		walDir := cfg.DataDir
-		if walDir == "" {
-			walDir = "/var/lib/unheaded/wotan/wal"
-		}
-		return NewHybridStore(walDir, connStr, capacity)
 
 	default:
 		return nil, fmt.Errorf("store: unknown type %q", cfg.Type)
@@ -179,21 +153,4 @@ func MustNew(cfg Config) MessageStore {
 		panic(err)
 	}
 	return store
-}
-
-// errMissingConnStr reports an absent Postgres connection string.
-//
-// This previously fell back to a hardcoded
-// "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable".
-// A shipped default credential is worse than a startup failure in two ways:
-// the password is public in the source tree, and sslmode=disable means the
-// connection carries it in cleartext. Worse, the fallback was silent — a
-// deploy with a missing or misspelled ConnStr looked healthy locally (where
-// that database happens to exist) and would fail confusingly anywhere else.
-//
-// Failing here is deliberate: misconfiguration should be loud.
-func errMissingConnStr(t StoreType) error {
-	return fmt.Errorf(
-		"store: %s requires an explicit connection string (Config.ConnStr); "+
-			"refusing to fall back to a built-in credential", t)
 }

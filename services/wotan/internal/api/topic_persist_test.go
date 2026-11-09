@@ -17,7 +17,7 @@ import (
 )
 
 // slowStore is a store whose Push starts only once the test says so, the
-// way a Postgres INSERT is still in flight when the handler has answered.
+// way a disk write is still in flight when the handler has answered.
 type slowStore struct {
 	store.MessageStore
 	release chan struct{}
@@ -33,10 +33,9 @@ func (s *slowStore) Push(ctx context.Context, msg *store.Message) (uuid.UUID, bo
 
 // The publish handler persisted in a goroutine with r.Context(), which the
 // HTTP server cancels as soon as the handler returns. Any store that honours
-// ctx (PGStore's ExecContext, MemoryStore's ctx.Err check) then failed with
-// "context canceled" after the client had already been told 201: with
-// --store-type postgres, published messages were almost never stored, and
-// only a warning said so.
+// ctx (MemoryStore's ctx.Err check; the Postgres store, since removed) then
+// failed with "context canceled" after the client had already been told 201:
+// published messages were almost never stored, and only a warning said so.
 func TestPublishTopic_PersistOutlivesTheRequest(t *testing.T) {
 	srv := setupTestServerWithTopics()
 	slow := &slowStore{MessageStore: store.NewMemoryStore(100), release: make(chan struct{}), done: make(chan error, 1)}
