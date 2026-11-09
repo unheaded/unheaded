@@ -520,7 +520,7 @@ curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" https://...
 // Never a default. A shipped fallback credential is worse than a startup
 // failure: the password is public, and misconfiguration becomes silent.
 if cfg.ConnStr == "" {
-    return nil, errMissingConnStr(PostgresStoreType)
+    return nil, errors.New("WELL_DSN is unset; credentials are not stored in this repo")
 }
 ```
 
