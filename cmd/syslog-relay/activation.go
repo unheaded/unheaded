@@ -224,14 +224,20 @@ func describe(fd int) (socketInfo, error) {
 	if err != nil {
 		return socketInfo{}, err
 	}
+	var ip netip.Addr
+	var port int
 	switch sa := sa.(type) {
 	case *syscall.SockaddrInet4:
-		info.addr = netip.AddrPortFrom(netip.AddrFrom4(sa.Addr), uint16(sa.Port)) // #nosec G115 -- a port is 0..65535
+		ip, port = netip.AddrFrom4(sa.Addr), sa.Port
 	case *syscall.SockaddrInet6:
-		info.addr = netip.AddrPortFrom(netip.AddrFrom16(sa.Addr), uint16(sa.Port)) // #nosec G115 -- a port is 0..65535
+		ip, port = netip.AddrFrom16(sa.Addr), sa.Port
 	default:
 		return socketInfo{}, errNotListener
 	}
+	if port < 0 || port > 0xFFFF {
+		return socketInfo{}, errNotListener
+	}
+	info.addr = netip.AddrPortFrom(ip, uint16(port))
 	info.addr = normalAddrPort(info.addr)
 	return info, nil
 }
