@@ -536,6 +536,5 @@ pypi tomli-w
 pypi torch
 pypi transformers
 pypi trl
-pypi typing-extensions
 pypi urllib3
 pypi yamllint

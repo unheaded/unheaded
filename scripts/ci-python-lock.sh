@@ -10,17 +10,17 @@
 #
 # Resolution runs uv inside a throwaway container with only that
 # directory mounted, never on the host (no package code runs here, ADR-006's
-# rule for npm applied to pip). The image is the runners' Python (3.12);
+# rule for npm applied to pip). The image is the runners' Python (3.13);
 # LOCK_PYTHON_VERSION resolves for another target interpreter.
 # After a bump: run this, add any new package names to the dependency
 # baseline (ADR-096), and scripts/check-tool-freshness.sh confirms the pins.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-IMAGE="python:3.12.15-slim"
+IMAGE="python:3.13.17-slim"
 DIR="${1:-.github/ci-python}"
 DIR="${DIR%/}"
-PYVER="${LOCK_PYTHON_VERSION:-3.12}"
+PYVER="${LOCK_PYTHON_VERSION:-3.13}"
 [[ -f "$DIR/requirements.in" ]] || { echo "[ci-python-lock] no $DIR/requirements.in" >&2; exit 2; }
 
 # Nothing published in the last COOLDOWN_DAYS is picked, transitive
