@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Port 514 for the syslog relay (ADR-124). systemd binds it and passes the
+# sockets (LISTEN_FDS), so unheaded-syslog-relay.service holds no capability
+# (answer #18, 2026-11-09). The relay refuses a socket its --listen does not
+# name, so these two lines and its ExecStart= change together.
+#
+# Install with the service (its header); `systemctl enable` on the service
+# enables this too (Also=). The sockets outlive a relay restart: datagrams
+# queue in the kernel and TCP senders wait in the backlog meanwhile.
+
+[Unit]
+Description=Unheaded syslog relay sockets (514 on lxdbr0)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-124-native-syslog-relay.md
+
+[Socket]
+# 10.10.20.1 is lxdbr0's. Sockets start before LXD brings the bridge up, so
+# FreeBind lets the bind succeed before the address exists.
+ListenDatagram=10.10.20.1:514
+ListenStream=10.10.20.1:514
+FreeBind=yes
+FileDescriptorName=syslog
+Service=unheaded-syslog-relay.service
+
+# systemd applies a socket unit's IP list to the sockets it binds, and not the
+# service's (systemd.resource-control(5)), so the senders' networks are named
+# here. A LAN listener (D7) adds its ListenDatagram=, its subnet here, and its
+# --listen in the service.
+IPAddressDeny=any
+IPAddressAllow=localhost
+IPAddressAllow=10.10.20.0/24
+
+[Install]
+WantedBy=sockets.target

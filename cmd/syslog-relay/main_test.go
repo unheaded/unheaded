@@ -45,7 +45,7 @@ const fixtureRows = `schema: unheaded.logging.sources/v1
 sources:
   - {id: test/local, host: west, kind: syslog-device, match: 127.0.0.1, retention: operational, max_silence: 24h, canary: logger, owner: sentinel, status: gap}
   - {id: pihole/dns, host: pihole, kind: syslog-device, match: "127.0.0.3 pihole-dns", retention: operational, max_silence: 24h, canary: logger, owner: sentinel, status: gap}
-  - {id: pihole/ftl, host: pihole, kind: syslog-device, match: "127.0.0.3 pihole-ftl", retention: operational, max_silence: 24h, canary: logger, owner: sentinel, status: gap}
+  - {id: pihole/ftl, host: pihole, kind: syslog-device, match: "127.0.0.3 pihole-ftl", retention: audit, max_silence: 24h, canary: logger, owner: sentinel, status: gap}
   - {id: test/laptop, host: west, kind: syslog-device, match: 127.0.0.4, retention: operational, max_silence: n/a, canary: logger, owner: sentinel, status: "excluded:a workstation, not a log source"}
 `
 
@@ -62,6 +62,13 @@ type harness struct {
 }
 
 func start(t *testing.T, mutate func(*config)) *harness {
+	t.Helper()
+	return startWith(t, mutate, nil)
+}
+
+// startWith starts a relay on fds, sockets systemd would have passed, or
+// binding its own listeners when fds is nil.
+func startWith(t *testing.T, mutate func(*config), fds []inheritedFD) *harness {
 	t.Helper()
 	dir := t.TempDir()
 	sock := filepath.Join(dir, "journal")
@@ -95,7 +102,7 @@ func start(t *testing.T, mutate func(*config)) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := r.listen(); err != nil {
+	if err := r.listen(fds); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -480,7 +487,7 @@ func TestEveryPRIStaysOffTheWallPath(t *testing.T) {
 		if err != nil {
 			t.Fatalf("<%d>: %v", pri, err)
 		}
-		fields := journalFields(m, netip.MustParseAddr("127.0.0.1"), "test", nil)
+		fields := journalFields(m, netip.MustParseAddr("127.0.0.1"), unknownRow, nil)
 		got, err := strconv.Atoi(fields["PRIORITY"])
 		if err != nil || got < 1 || got > 7 {
 			t.Fatalf("<%d>: PRIORITY %q", pri, fields["PRIORITY"])
@@ -519,17 +526,35 @@ func TestEmptyMessageIsDropped(t *testing.T) {
 
 func TestTaggedRows(t *testing.T) {
 	h := start(t, nil)
-	tests := []struct{ from, msg, source string }{
-		{taggedAddr, "<134>Nov  4 01:02:03 pihole pihole-dns: q", "pihole/dns"},
-		{taggedAddr, "<134>Nov  4 01:02:03 pihole pihole-ftl: f", "pihole/ftl"},
+	tests := []struct{ from, msg, source, host, retention string }{
+		{taggedAddr, "<134>Nov  4 01:02:03 pihole pihole-dns: q", "pihole/dns", "pihole", "operational"},
+		{taggedAddr, "<134>Nov  4 01:02:03 pihole pihole-ftl: f", "pihole/ftl", "pihole", "audit"},
 		// A known address with a tag no row names: kept, not attributed.
-		{taggedAddr, "<134>Nov  4 01:02:03 pihole other: x", sourceUnknown},
+		{taggedAddr, "<134>Nov  4 01:02:03 pihole other: x", sourceUnknown, sourceUnknown, retentionUnknown},
 		// A sender only reaches rows on its own address.
-		{knownAddr, "<134>Nov  4 01:02:03 pihole pihole-dns: spoof", "test/local"},
+		{knownAddr, "<134>Nov  4 01:02:03 pihole pihole-dns: spoof", "test/local", "west", "operational"},
 	}
 	for _, tt := range tests {
 		h.sendUDP(tt.from, tt.msg)
-		wantField(t, h.next(), "UNHEADED_SOURCE", tt.source)
+		got := h.next()
+		wantField(t, got, "UNHEADED_SOURCE", tt.source)
+		wantField(t, got, "UNHEADED_SOURCE_HOST", tt.host)
+		wantField(t, got, "UNHEADED_RETENTION", tt.retention)
+	}
+}
+
+// ADR-124 Consequences 2 (answer 2026-11-09): a sender picks its own PRI, so
+// claiming auth (4) or authpriv (10) must not file its line as audit. The
+// row decides; the claimed facility stays in its own field.
+func TestRetentionIsTheRowsNotTheClaimedFacility(t *testing.T) {
+	h := start(t, nil)
+	for _, pri := range []string{"<34>", "<38>", "<82>", "<86>"} { // facility 4 and 10
+		h.sendUDP(knownAddr, pri+"1 - - sshd - - - Failed password for root from 192.0.2.9 port 22 ssh2")
+		got := h.next()
+		wantField(t, got, "UNHEADED_RETENTION", "operational")
+		if f := got["SYSLOG_FACILITY"]; f != "4" && f != "10" {
+			t.Errorf("%s: SYSLOG_FACILITY %q", pri, f)
+		}
 	}
 }
 
@@ -538,6 +563,8 @@ func TestAcceptUnknown(t *testing.T) {
 	h.sendUDP(unknownAddr, "<13>1 - - app - - - inventory")
 	got := h.next()
 	wantField(t, got, "UNHEADED_SOURCE", sourceUnknown)
+	wantField(t, got, "UNHEADED_SOURCE_HOST", sourceUnknown)
+	wantField(t, got, "UNHEADED_RETENTION", retentionUnknown)
 	wantField(t, got, "REMOTE_ADDR", unknownAddr)
 	if h.r.metrics.unknownSender.Value() != 1 {
 		t.Error("an accepted unknown sender still counts")

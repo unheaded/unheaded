@@ -52,11 +52,13 @@ const SyslogKind = "syslog-device"
 
 // Sender is a sources.yaml row the syslog relay takes messages from.
 type Sender struct {
-	Addr  netip.Addr
-	Tag   string // empty: every message from Addr; else only this tag
-	ID    string
-	Rate  int
-	Burst int
+	Addr      netip.Addr
+	Tag       string // empty: every message from Addr; else only this tag
+	ID        string
+	Host      string // the row's host, which the relay records for the sender
+	Retention string // the row's class; a sender's PRI never decides it
+	Rate      int
+	Burst     int
 }
 
 // File is the document.
@@ -200,7 +202,7 @@ func SyslogSenders(sources []Source) ([]Sender, error) {
 		if err != nil {
 			return nil, fmt.Errorf("source %s: %w", s.ID, err)
 		}
-		out = append(out, Sender{Addr: addr, Tag: tag, ID: s.ID, Rate: s.Rate, Burst: s.Burst})
+		out = append(out, Sender{Addr: addr, Tag: tag, ID: s.ID, Host: s.Host, Retention: s.Retention, Rate: s.Rate, Burst: s.Burst})
 	}
 	return out, nil
 }

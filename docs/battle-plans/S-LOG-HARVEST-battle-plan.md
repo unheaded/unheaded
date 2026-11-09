@@ -336,7 +336,7 @@ This plan builds on what already exists. It doesn't reinvent it.
 **Agent**: Agent [P] (Go, TDD).
 
 **Design** (write it as the ADR in Step 105 before any code):
-- **Listeners**: configurable `--listen udp://10.10.20.1:514`, `--listen tcp://10.10.20.1:514`, plus the LAN address for devices (D7). Never `0.0.0.0` by default. The only capability is `CAP_NET_BIND_SERVICE`.
+- **Listeners**: configurable `--listen udp://10.10.20.1:514`, `--listen tcp://10.10.20.1:514`, plus the LAN address for devices (D7). Never `0.0.0.0` by default. No capability: systemd binds 514 in a `.socket` unit and passes it (socket activation, Stevie's answer #18 of 2026-11-09; ADR-124).
 - **Output**: the `/run/systemd/journal/socket` native protocol (the datagram is `KEY=value\n` pairs; values containing a newline use the binary length form). Fields:
   - `MESSAGE`, `PRIORITY`, `SYSLOG_FACILITY`, `SYSLOG_IDENTIFIER` (from the message);
   - `REMOTE_ADDR`, `REMOTE_HOSTNAME_CLAIMED` (the hostname the message claims, **not trusted**);
@@ -389,8 +389,9 @@ This plan builds on what already exists. It doesn't reinvent it.
 - [ ] **Step 127** [D] ~5m: A flaky UDP test → wait on the fake journal socket with a deadline, not a sleep.
 - [ ] **Step 128** [C] ~1m: Commit.
 - [ ] **Step 129** [W] ~5m: In pkg/uids, add `syslog-relay` from the free range; in `deploy/sysusers.d/unheaded.conf`, add `u unheaded-syslog-relay <uid> - - /usr/sbin/nologin`.
-- [ ] **Step 130** [W] ~10m: `deploy/systemd/unheaded-syslog-relay.service`, a copy of the `unheaded-kev-poller.service` hardening:
-  - `User=unheaded-syslog-relay`, `AmbientCapabilities=CAP_NET_BIND_SERVICE`, `CapabilityBoundingSet=CAP_NET_BIND_SERVICE`.
+- [ ] **Step 130** [W] ~10m: `deploy/systemd/unheaded-syslog-relay.service`, a copy of the `unheaded-kev-poller.service` hardening, plus `deploy/systemd/unheaded-syslog-relay.socket` (socket activation, answer #18 of 2026-11-09):
+  - the socket: `ListenDatagram=10.10.20.1:514`, `ListenStream=10.10.20.1:514`, `FreeBind=yes`, its own `IPAddressAllow`; the relay reads `LISTEN_FDS` natively and refuses a socket its `--listen` does not name.
+  - `User=unheaded-syslog-relay`, no capability (`CapabilityBoundingSet=` empty), `PrivateUsers=yes`, `Requires=` the socket.
   - `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`.
   - `ProtectSystem=strict`, `MemoryMax=128M`.
   - `ExecStart=/usr/local/bin/syslog-relay --listen udp://10.10.20.1:514 --listen tcp://10.10.20.1:514 --sources /etc/unheaded/log-sources.yaml`.
@@ -423,15 +424,15 @@ This plan builds on what already exists. It doesn't reinvent it.
   sudo -n install -m 0755 /tmp/claude-1000/syslog-relay /usr/local/bin/syslog-relay
   sudo -n install -D -m 0644 config/logging/sources.yaml /etc/unheaded/log-sources.yaml
   sudo -n install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/unheaded.conf && sudo -n systemd-sysusers
-  sudo -n install -m 0644 deploy/systemd/unheaded-syslog-relay.service /etc/systemd/system/
-  sudo -n systemctl daemon-reload && sudo -n systemctl enable --now unheaded-syslog-relay
+  sudo -n install -m 0644 deploy/systemd/unheaded-syslog-relay.service deploy/systemd/unheaded-syslog-relay.socket /etc/systemd/system/
+  sudo -n systemctl daemon-reload && sudo -n systemctl enable --now unheaded-syslog-relay.socket unheaded-syslog-relay.service
   ```
 - [ ] **Step 142** [V] ~1m: The relay listens on lxdbr0's address only.
   ```bash
   systemctl is-active unheaded-syslog-relay && sudo -n ss -lunpt | grep ':514 '
   ```
   Expect `10.10.20.1:514` (udp and tcp), and nothing on `0.0.0.0` or the LAN address.
-- [ ] **Step 143** [D] ~3m: The bind fails → `journalctl -u unheaded-syslog-relay -n 20`. "permission denied" means AmbientCapabilities is missing; "address not available" means lxdbr0 isn't up yet, so add `After=snap.lxd.daemon.service`.
+- [ ] **Step 143** [D] ~3m: The bind fails → `journalctl -u unheaded-syslog-relay -n 20`. The 514 bind is the socket's (`systemctl status unheaded-syslog-relay.socket`; `FreeBind=yes` covers lxdbr0 not being up yet). The relay refusing a passed socket means the socket's `Listen*=` lines and `ExecStart=`'s `--listen` differ.
 - [ ] **Step 144** [B] ~2m: Local canary, sent from the host as a known source (`west/self`, in sources.yaml).
   ```bash
   T=lh-$(date +%s); printf '<134>1 %s west lh-canary - - - %s' "$(date -u +%FT%TZ)" "$T" > /dev/udp/10.10.20.1/514; sleep 1; journalctl -t lh-canary --since -1min -o cat | grep "$T"
@@ -471,7 +472,7 @@ This plan builds on what already exists. It doesn't reinvent it.
   ```bash
   sudo -n docker exec unheaded-clickhouse clickhouse-client -q "SELECT unit, retention, message FROM unheaded_logs.logs WHERE timestamp > now() - INTERVAL 5 MINUTE AND message LIKE '%$T%' FORMAT TSV"
   ```
-- [ ] **Step 160** [V] ~1m: A `pihole-dns` row with the query, `retention=operational`.
+- [ ] **Step 160** [V] ~1m: A `pihole/dns` row (unit = the relay's `UNHEADED_SOURCE`, host `pihole`) with the query, `retention=operational` from the row, not the facility.
 - [ ] **Step 161** [B] ~3m: Durability. Stop the relay for 60 s, send a canary, start the relay → the canary arrives (rsyslog's disk queue held it).
 - [ ] **Step 162** [V] ~1m: It arrived exactly once.
 - [ ] **Step 163** [V] ~1m: **PHASE 6 EXIT GATE.** All four Pi-hole sources have rows, the DNS canary works end to end, and the queue survives a relay restart.

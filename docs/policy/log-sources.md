@@ -28,7 +28,7 @@ and whether it arrives).
 
 - `journal-unit` matches a systemd unit file name (`foo.service`, templates as `foo@.service`); the host journal carries it.
 - `journal-container` matches a compose service by its `container_name` (`unheaded-<service>`); journald driver.
-- `file` is a path outside the journal; `lxd-file` / `lxd-journal` live inside an LXD container; `syslog-device` is a sender the syslog relay accepts (ADR-124): `match` is `<ip>`, or `<ip> <tag>` when one address carries several sources. An `excluded:` row is not a sender; the relay drops it like a stranger.
+- `file` is a path outside the journal; `lxd-file` / `lxd-journal` live inside an LXD container; `syslog-device` is a sender the syslog relay accepts (ADR-124): `match` is `<ip>`, or `<ip> <tag>` when one address carries several sources; a bare `<ip>` row takes that address's lines no tag row names. An `excluded:` row is not a sender; the relay drops it like a stranger. The relay stamps the row's `id`, `host` and `retention` on each line (`UNHEADED_SOURCE`, `UNHEADED_SOURCE_HOST`, `UNHEADED_RETENTION`), and Vector files the line under those, never under the facility or hostname the sender claims (2026-11-09).
 - `excluded:` needs a reason. Platform units (dbus, polkit, …) ride the journal source with no expectation of their own; rsyslog's `/var/log` copies of the journal are not sources.
 
 ## The gate

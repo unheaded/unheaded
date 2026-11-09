@@ -1,4 +1,4 @@
-.TH SYSLOG\-RELAY 1 "2026-11-05" "unheaded ad26fe56" "Unheaded Kingdom"
+.TH SYSLOG\-RELAY 1 "2026-11-09" "unheaded 6406e83b" "Unheaded Kingdom"
 .SH NAME
 syslog\-relay \- Receive syslog over UDP and TCP and write it to the local journal (ADR\-124).
 .SH SYNOPSIS
@@ -49,6 +49,8 @@ output version information and exit
 .SH NOTES
 Senders are the kind: syslog\-device rows of the sources file that are not excluded; a match is <ip> or
 <ip> <tag>. Others are counted and dropped. SIGHUP reloads the sources file; a bad file keeps the old list.
+Under systemd the listeners come from unheaded\-syslog\-relay.socket (LISTEN_FDS): each passed socket must be
+one \-\-listen names and each \-\-listen must arrive, or the relay refuses to start. With none passed it binds them.
 .SH EXAMPLES
 .EX
 syslog\-relay \-\-listen udp://10.10.20.1:514 \-\-listen tcp://10.10.20.1:514 \-\-sources /etc/unheaded/log\-sources.yaml

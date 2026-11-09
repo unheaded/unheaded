@@ -3,24 +3,32 @@
 # the journal's native protocol out, so Vector's journald source ships it.
 # west only; Pi-hole sends here, LAN devices after D7.
 #
-# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
+# Port 514 comes from unheaded-syslog-relay.socket (socket activation, answer
+# #18 of 2026-11-09): systemd binds it and passes the sockets, so the relay
+# holds no capability. Each --listen below must match one socket there, or
+# the relay refuses to start.
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header), by
+# hand or as the unheaded-syslog-relay .deb:
 #   sudo install -m 0755 syslog-relay /usr/local/bin/
 #   sudo install -D -m 0644 config/logging/sources.yaml /etc/unheaded/log-sources.yaml
-#   sudo cp deploy/systemd/unheaded-syslog-relay.service /etc/systemd/system/
+#   sudo cp deploy/systemd/unheaded-syslog-relay.service deploy/systemd/unheaded-syslog-relay.socket /etc/systemd/system/
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now unheaded-syslog-relay
+#   sudo systemctl enable --now unheaded-syslog-relay.socket unheaded-syslog-relay.service
 #
 # A new sender: add its row to the sources file, then systemctl reload. A LAN
-# listener (D7) also needs its --listen, its subnet in IPAddressAllow, and the
-# firewall rule, which is Stevie's.
+# listener (D7) also needs its socket and subnet in the .socket unit, its
+# --listen and subnet here, and the firewall rule, which is Stevie's.
 
 [Unit]
 Description=Unheaded syslog relay: syslog in, journal out
 Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-124-native-syslog-relay.md
 After=network-online.target
 Wants=network-online.target
-# 10.10.20.1 is lxdbr0's and [fd00:dead:beef::1] is wg0's. A bind that loses
-# the race on 514 restarts below; the metrics listener retries by itself.
+# The 514 sockets (FreeBind there, so lxdbr0 need not be up yet).
+Requires=unheaded-syslog-relay.socket
+After=unheaded-syslog-relay.socket
+# [fd00:dead:beef::1] is wg0's; the metrics listener retries until it exists.
 After=snap.lxd.daemon.service wg-quick@wg0.service
 
 [Service]
@@ -42,9 +50,11 @@ User=unheaded-syslog-relay
 Group=unheaded-syslog-relay
 UMask=0077
 
-# The one capability: binding 514.
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+# No capability: systemd binds 514 (unheaded-syslog-relay.socket).
+CapabilityBoundingSet=
+# Its own user namespace: no other uid is visible, and none of the host's
+# capabilities apply. Passed sockets work across it.
+PrivateUsers=yes
 
 # Sandbox (deploy/systemd/README.md#isolation). The user comes from
 # deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
@@ -75,11 +85,12 @@ SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources @reboot @module @swap
 SystemCallErrorNumber=EPERM
 
-# It only ever needs these, so it may bind and talk to nothing else. Enforced
-# in the kernel, in front of the relay's own allowlist.
+# It binds only its metrics port itself (514 arrives bound), and talks to
+# nothing else. Enforced in the kernel, in front of the relay's own allowlist.
+# The IP list below covers the sockets this service opens; the .socket unit
+# carries its own for 514. Both name lxdbr0, so a connection accepted on the
+# passed TCP socket passes whichever list the kernel applies to it.
 SocketBindDeny=any
-SocketBindAllow=udp:514
-SocketBindAllow=tcp:514
 SocketBindAllow=tcp:9599
 IPAddressDeny=any
 IPAddressAllow=localhost
@@ -90,3 +101,4 @@ IPAddressAllow=fd00:d0c0:e703::/64
 
 [Install]
 WantedBy=multi-user.target
+Also=unheaded-syslog-relay.socket
