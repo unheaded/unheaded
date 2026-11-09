@@ -13,6 +13,7 @@ Plan: `docs/battle-plans/S-NIGHT-SHIFT-battle-plan.md`. Resume at the first step
 - Steps 21-32 done: `da9a8725` removes the 68-byte TRACE_MAP and STATS decoders and their tests; `FuzzDecodeKernelPacketEvent` replaces the dead fuzz target (20 s, no crash); race tests, build, man, script tests OK. Found on the way: check-nosec-ratchet red on develop from the syslog merge (`865e53ff`): `ab8dd7e0` (test file) and `45ea7023` (port range check instead of two G115 annotations; pinned gosec clean); ratchet PASS at 863.
 - Steps 33-52 done: pinned trivy 0.76.1 in `/var/tmp/unheaded-sprint/bin/trivy-pin` (checksum-verified). wotan and kanban images build; the 3 HIGH (musl, musl-utils, zlib) came from a stale cached `alpine:3.24` (3.24.2); with `--pull` (3.24.4) both scan clean at CRITICAL/HIGH. `wotan --version` answers (no flag dump) but said `dev`: `9b9072e2` stamps `pkg/cmdline.Version` and docker.yml passes the tag or sha. ci-verdicts self-test 100/100.
 - Steps 53-66 done: `0179d49e` syft 1.56.0, grype 0.121.1 (sha256 matched publishers' checksum files, installed and run). check-trivy-misconfig on the pinned 0.76.1: PASS, 11 at baseline. govulncheck: none. cargo audit (ebpf): rc 0. pip-audit: 2 accepted. **Step 55 [STUCK] for ansible-core**: 2.22.0 needs Python >= 3.13 and every CI job pins 3.12, so `check-tool-freshness.sh` stays red on that row until the CI Python moves.
+- Steps 67-78 done: `7de98417` wiki ADR rows 136-137; SBOM REVIEW verdict carries Stevie's 2026-11-06 ruling from the generator (clears nothing by itself; every package still named), `sbom/SBOM.md` regenerated `--report-only`, THIRD_PARTY.md date follows; test-generate-sbom all pass. Releases apt line corrected (LAN listener; nginx root moves at Step 192). `84942beb` on `sprint/hop-enforce-refusal`: ebpf/README names `hop-enforce`.
 
 ## STUCK
 
@@ -34,3 +35,4 @@ Plan: `docs/battle-plans/S-NIGHT-SHIFT-battle-plan.md`. Resume at the first step
 - Phase 2 gate: PASS. Citation S2 (coordinator): today's merges `865e53ff` and `9da03ff4` were committed without the nosec ratchet, and a chained `gate | tail && commit` hid a red gate once. Corrected: gates are read on their own line before any commit. Phase 6 runs every row. PROCEED to Phase 3.
 - Phase 3 gate: PASS. The version fix is inside Step 41's remit (the image's `--version`). PROCEED to Phase 4.
 - Phase 4 gate: PASS with one STUCK row (ansible-core). Scope check: moving CI Python is ADJACENT, parked, not done. PROCEED to Phase 5.
+- Phase 5 gate: PASS. PROCEED to Phase 6 (alone: no other builders).
