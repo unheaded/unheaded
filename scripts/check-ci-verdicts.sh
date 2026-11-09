@@ -475,6 +475,27 @@ def docker_images():
                     bad("docker-images", f"{job_id}: the scan's trivy is not the pinned one")
         if not scanned:
             bad("docker-images", f"{job_id}: scans nothing")
+        # The image gate (Stevie, 2026-11-09): one trivy step that fails the job
+        # on CRITICAL and HIGH, fixed or not, before anything is pushed.
+        gates = [i for i, s in enumerate(steps)
+                 if "trivy-action" in str(s.get("uses", ""))
+                 and str((s.get("with") or {}).get("exit-code")) == "1"]
+        if len(gates) != 1:
+            bad("docker-gate", f"{job_id}: expected one trivy step with exit-code 1, found {len(gates)}")
+        for i in gates:
+            g = steps[i]
+            w = g.get("with") or {}
+            if softened(g):
+                bad("docker-gate", f"{job_id}: the image gate has continue-on-error or an if:")
+            if set(str(w.get("severity", "")).split(",")) != {"CRITICAL", "HIGH"}:
+                bad("docker-gate", f"{job_id}: the image gate must fail on CRITICAL and HIGH")
+            if "ignore-unfixed" in w:
+                bad("docker-gate", f"{job_id}: the image gate must see findings with no fixed release")
+            if w.get("format") == "sarif" and str(w.get("limit-severities-for-sarif")) != "true":
+                bad("docker-gate", f"{job_id}: the image gate on sarif ignores its severity")
+            push = [j for j, s in enumerate(steps) if (s.get("with") or {}).get("push") is True]
+            if push and min(push) < i:
+                bad("docker-gate", f"{job_id}: pushes before the image gate")
         if not any((s.get("with") or {}).get("push") is True for s in steps):
             bad("docker-images", f"{job_id}: pushes nothing")
 
@@ -502,18 +523,15 @@ def docker_services():
     for name in sorted(set(found) - listed):
         bad("docker-services", f"docker/Makefile does not list {name}")
 
-# plan.yml and apply.yml are off: apply runs -auto-approve, so off means no
-# event starts them and a manual dispatch runs nothing either.
-def iac_off():
-    for name in ("plan.yml", "apply.yml"):
-        w = workflow(name)
-        events = w.get(True, w.get("on"))  # YAML reads a bare `on` as true
-        events = [events] if isinstance(events, str) else list(events or [])
-        if events != ["workflow_dispatch"]:
-            bad("iac-off", f"{name} must start on workflow_dispatch alone, not {events}")
-        for job_id, j in w.get("jobs", {}).items():
-            if str(j.get("if")).replace(" ", "") != "${{false}}":
-                bad("iac-off", f"{name} {job_id}: must carry if: ${{{{ false }}}}")
+# plan.yml and apply.yml were deleted (Stevie, 2026-11-09). apply ran
+# -auto-approve; no workflow may run an unattended apply again.
+def no_auto_apply():
+    for path in sorted(glob.glob(".github/workflows/*.yml")):
+        w = workflow(os.path.basename(path))
+        for job_id, j in (w.get("jobs") or {}).items():
+            for st in j.get("steps", []) or []:
+                if "-auto-approve" in str(st.get("run", "")):
+                    bad("no-auto-apply", f"{os.path.basename(path)} {job_id}: runs an apply with -auto-approve")
 
 # compliance/catalog/controls.yaml and the findings register name CI jobs as
 # <workflow name>/<job name>, and the evidence collector matches those exactly.
@@ -551,7 +569,7 @@ workflow_paths()
 meta_gate_shards()
 docker_images()
 docker_services()
-iac_off()
+no_auto_apply()
 evidence_jobs()
 
 if problems:

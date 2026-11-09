@@ -234,6 +234,14 @@ ci_verdict_expect_bite "a stage the Dockerfile lacks" workflow-paths "${DOCKER_W
 	's#target: wotan#target: wotan-gone#'
 
 echo "--- what docker.yml builds ---"
+ci_verdict_expect_bite "the image gate reporting only" docker-gate "${DOCKER_WF}" \
+	"0,/^          exit-code: '1'\$/s//          exit-code: '0'/"
+ci_verdict_expect_bite "the image gate ignoring unfixed findings" docker-gate "${DOCKER_WF}" \
+	"0,/^          exit-code: '1'\$/s//          exit-code: '1'\n          ignore-unfixed: true/"
+ci_verdict_expect_bite "the image gate on CRITICAL alone" docker-gate "${DOCKER_WF}" \
+	'/^          format: table$/{n;s/severity: CRITICAL,HIGH/severity: CRITICAL/}'
+ci_verdict_expect_bite "the image gate allowed to fail" docker-gate "${DOCKER_WF}" \
+	's/^(      - name: Trivy image gate)$/\1\n        continue-on-error: true/'
 ci_verdict_expect_bite "arm64 back in a build" docker-images "${DOCKER_WF}" \
 	's#platforms: linux/amd64$#platforms: linux/amd64,linux/arm64#'
 ci_verdict_expect_bite "a build with no platform named" docker-images "${DOCKER_WF}" \
@@ -273,13 +281,9 @@ ci_verdict_expect_bite "the download and tar on two lines, by a trailing pipe" t
 ci_verdict_expect_bite "wget piped to a shell" tool-fetch "jenkins/Jenkinsfile.protocol" \
 	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1wget -qO- https://example.invalid/install.sh | sh#'
 
-echo "--- OpenTofu workflows stay off ---"
-for f in plan apply; do
-	ci_verdict_expect_bite "${f}.yml on a pull request again" iac-off ".github/workflows/${f}.yml" \
-		's/^  workflow_dispatch:$/  workflow_dispatch:\n  pull_request:/'
-	ci_verdict_expect_bite "${f}.yml's job able to run" iac-off ".github/workflows/${f}.yml" \
-		'/^    if: \$\{\{ false \}\}$/d'
-done
+echo "--- no unattended apply (plan.yml and apply.yml deleted 2026-11-09) ---"
+ci_verdict_expect_bite "an apply with -auto-approve in a workflow" no-auto-apply "${SEC}" \
+	's#^( +run: )\./scripts/check-http-auth\.sh$#\1./scripts/check-http-auth.sh \&\& tofu apply -auto-approve#'
 
 echo
 echo "passed: ${PASSED}  failed: ${FAILED}"

@@ -316,9 +316,8 @@ container itself gets no Docker socket, which is root on the host. The
 controller still holds it, to start agents, so the socket has moved rather than
 left: anyone who can run code on the controller has the host.
 
-The main Jenkinsfile's Deploy stage calls `make deploy`, which runs docker
-compose. The agent image has neither make nor docker, so that stage fails as
-written, with or without the socket.
+The main Jenkinsfile has no Deploy stage (removed 2026-11-09): deploys go
+through Sword and the apt repository runbooks, not CI.
 
 ```groovy
 agent {

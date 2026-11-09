@@ -1,5 +1,5 @@
 // Unheaded Kingdom - Main Jenkinsfile (Declarative Pipeline)
-// CI/CD Hardening: Build, Test, Security, SPDX, SBOM, Deploy
+// CI/CD Hardening: Build, Test, Security, SPDX, SBOM
 // Purpose: Core build, test, security, and SBOM generation pipeline
 
 pipeline {
@@ -20,7 +20,6 @@ pipeline {
     string(name: 'VERSION', defaultValue: 'dev', description: 'Version tag for artifacts')
     booleanParam(name: 'RUN_SECURITY', defaultValue: true, description: 'Run security scans')
     booleanParam(name: 'RUN_SBOM', defaultValue: true, description: 'Generate SBOM')
-    booleanParam(name: 'RUN_DEPLOY', defaultValue: false, description: 'Deploy after build (main branch only)')
   }
 
   environment {
@@ -266,25 +265,6 @@ pipeline {
               echo "APT repo not initialised on this agent; skipping publish"
               echo "(runbooks/deploy/apt-repo-publish.yaml)"
             fi
-          '''
-        }
-      }
-    }
-
-    stage('Deploy') {
-      when {
-        allOf {
-          branch 'main'
-          expression { return params.RUN_DEPLOY }
-        }
-      }
-      steps {
-        script {
-          echo "=== Deploying Unheaded Kingdom ==="
-          sh '''
-            # Deploy via apt on target hosts
-            # ssh govan@east "sudo apt update && sudo apt install -y unheaded-wotan unheaded-daemon"
-            make deploy
           '''
         }
       }
