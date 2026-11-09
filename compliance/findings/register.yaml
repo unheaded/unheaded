@@ -1926,6 +1926,12 @@ findings:
       Stevie 2026-11-06: no separate agent key, and A1 is rewritten to say how commits are really signed. Done in the
       posture, A1 and UH-SIGN-01's statement. The YubiKey custody work may change this later
     decision: closing this entry is Stevie's word; no agent key, so the written position is what changed
+    resolved:
+      on: 2026-11-09
+      evidence: >-
+        Stevie 2026-11-09: attestations stay his by rule; Claude never signs one. All 680 non-merge commits in
+        7a93b734..develop (at 9da03ff4) are signed G and carry both Co-Authored-By and Claude-Session trailers;
+        A1 and the posture wording are held by TestRetiredClaimsStayRetired
 
   - id: FND-039
     title: >-
