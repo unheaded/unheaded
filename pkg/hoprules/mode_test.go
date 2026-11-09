@@ -170,9 +170,12 @@ func configWritersUnder(t *testing.T, root string) []string {
 	return found
 }
 
-// SetMode's refusal holds only while nothing else writes key 4: hop_xdp honours
-// whatever the key says. A second writer in the tree fails here, whether it is
-// code, a script or a unit. Root writing the pin by hand is outside any test.
+// SetMode stays the one writer of key 4. The packaged hop_xdp refuses enforce
+// on its own since 2026-11-09, but a hop-enforce build honours whatever the key
+// says. A second writer in the tree fails here, whether it is code, a script or
+// a unit. Root writing the pin by hand meets the object's own refusal
+// (tests/hopchecks TestDefaultObjectRefusesEnforce), as long as packages ship the
+// default build (TestHopEnforce_OnlyTheTestPath).
 func TestConfigMap_OneWriter(t *testing.T) {
 	for _, dir := range []string{"cmd", "pkg", "scripts", "deploy", "runbooks", "debian", "tests"} {
 		for _, path := range configWritersUnder(t, filepath.Join("..", "..", dir)) {
@@ -193,5 +196,97 @@ func TestConfigMap_OneWriterSeesASecondWriter(t *testing.T) {
 	}
 	if got := configWritersUnder(t, dir); len(got) != 2 {
 		t.Fatalf("found %v, want both files", got)
+	}
+}
+
+// hopEnforceAllowed are the only files that may build hop-ebpf with the
+// hop-enforce feature: the load gate, which builds the lab object, and the
+// root test runner that hands it to tests/hopchecks. Every packaged object is
+// the default build, which refuses enforce (ADR-125, 2026-11-09).
+var hopEnforceAllowed = []string{
+	"scripts/check-ebpf-loads.sh",
+	"scripts/test-go-root.sh",
+}
+
+// hopEnforceBuildsUnder lists the build files under root, relative to base,
+// that name the hop-enforce feature.
+func hopEnforceBuildsUnder(t *testing.T, base, root string) []string {
+	t.Helper()
+	var found []string
+	err := filepath.WalkDir(filepath.Join(base, root), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case "target", "node_modules", ".git":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		name := d.Name()
+		if !slices.Contains([]string{".sh", ".yml", ".yaml", ".mk", ".nix", ".service"}, filepath.Ext(name)) &&
+			name != "Makefile" && name != "rules" && name != "Dockerfile" {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(raw), "hop-enforce") {
+			rel, err := filepath.Rel(base, path)
+			if err != nil {
+				return err
+			}
+			found = append(found, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
+}
+
+// Packages, releases and CI ship the refusing object: only the test path
+// builds the one that drops.
+func TestHopEnforce_OnlyTheTestPath(t *testing.T) {
+	base := filepath.Join("..", "..")
+	var found []string
+	for _, dir := range []string{"scripts", ".github", "debian", "deploy", "docker", "nix"} {
+		if _, err := os.Stat(filepath.Join(base, dir)); errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		found = append(found, hopEnforceBuildsUnder(t, base, dir)...)
+	}
+	if raw, err := os.ReadFile(filepath.Join(base, "Makefile")); err != nil {
+		t.Fatal(err)
+	} else if strings.Contains(string(raw), "hop-enforce") {
+		found = append(found, "Makefile")
+	}
+	for _, path := range found {
+		if !slices.Contains(hopEnforceAllowed, path) {
+			t.Errorf("%s names hop-enforce: only %v may build the object that drops", path, hopEnforceAllowed)
+		}
+	}
+	for _, path := range hopEnforceAllowed {
+		if !slices.Contains(found, path) {
+			t.Errorf("%s no longer names hop-enforce: tests/hopchecks' enforce rows lose their object", path)
+		}
+	}
+}
+
+// The walk above must see a build file that names the feature.
+func TestHopEnforce_WalkSeesABuild(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(base, "scripts"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sample := "cargo build -p hop-ebpf --features hop-enforce\n"
+	if err := os.WriteFile(filepath.Join(base, "scripts", "build.sh"), []byte(sample), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := hopEnforceBuildsUnder(t, base, "scripts"); !slices.Equal(got, []string{"scripts/build.sh"}) {
+		t.Fatalf("found %v, want scripts/build.sh", got)
 	}
 }

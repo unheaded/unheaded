@@ -77,8 +77,9 @@ func NewHopCommand() *Command {
 }
 
 // newHopModeCommand creates `hop mode`, the one writer of CONFIG key 4 in the
-// tree. Enforce is refused here, not in hop_xdp, until the findings in
-// hoprules.EnforceBlockers close. Needs CAP_BPF.
+// tree. Enforce is refused here until the findings in hoprules.EnforceBlockers
+// close, and the packaged hop_xdp refuses it too: built without the
+// hop-enforce feature, it runs key 4 = 2 as observe (ADR-125). Needs CAP_BPF.
 func newHopModeCommand() *Command {
 	var pinDir string
 	flags := flag.NewFlagSet("mode", flag.ContinueOnError)
@@ -86,7 +87,7 @@ func newHopModeCommand() *Command {
 
 	return &Command{
 		Name:  "mode",
-		Short: "Set hop-ebpf's check mode: off or observe (enforce is refused for now)",
+		Short: "Set hop-ebpf's check mode: off or observe (enforce is refused here and by the packaged object)",
 		Usage: "unheaded hop mode [--pin-dir <dir>] <off|observe|enforce>",
 		Flags: flags,
 		RunFunc: func(ctx *Context, args []string) error {
