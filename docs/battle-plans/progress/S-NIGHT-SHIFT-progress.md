@@ -17,6 +17,7 @@ Plan: `docs/battle-plans/S-NIGHT-SHIFT-battle-plan.md`. Resume at the first step
 - Steps 79-81 done: clean clone at `d95fc52d`; `go build ./...`, `go vet ./...`, `go test -race -shuffle=on -count=1 ./...`: 225 packages ok, 0 fail (`/var/tmp/unheaded-sprint/nightshift-race.txt`). Step 83 (full meta-gate) running.
 - Steps 83-86 done: full meta-gate on the clone: 94 rows proven to bite, 2 INCONCLUSIVE on a clean tree. check-ruff: FURB167 in `274b7a4c`'s new test, fixed `73608398`, row rerun alone: proven. check-tool-freshness: the parked ansible-core row (Step 55 STUCK). gitleaks --history: 40 known, none new. 40 commits ahead of origin/develop, all G.
 - Steps 87-92 done: old next.md archived (`~/tmp/next-archive-2026-11-09.md`), next.md rewritten short with the For Stevie list, memory entry `project_s_night_shift_2026_11_09`. Sprint closed.
+- After close (loop "all pending work"): Step 55's STUCK resolved by `a42b8732` under Stevie's standing compile-against-latest rule (2026-05-29, covers CI runner versions): CI Python 3.13 everywhere, ansible-core 2.22.0; check-tool-freshness green. Shared CI venv rebuilt from the new lock.
 
 ## STUCK
 
@@ -24,7 +25,7 @@ Plan: `docs/battle-plans/S-NIGHT-SHIFT-battle-plan.md`. Resume at the first step
 
 ## For Stevie
 
-- **CI Python 3.12 -> 3.13 (or 3.14)?** ansible-core 2.22.0 requires >= 3.13, so the tool-freshness gate stays red on ansible-core until every workflow's `python-version` and the lock image move. Recommend: move CI to 3.13 in one commit with a relock, since the compile-against-latest rule points that way; it touches every Python job, so it waits for your word.
+- ~~**CI Python 3.12 -> 3.13 (or 3.14)?**~~ Done `a42b8732` (standing rule). ansible-core 2.22.0 requires >= 3.13, so the tool-freshness gate stays red on ansible-core until every workflow's `python-version` and the lock image move. Recommend: move CI to 3.13 in one commit with a relock, since the compile-against-latest rule points that way; it touches every Python job, so it waits for your word.
 - Answer 26 (drop Wotan's old tables) needs nothing: they were dropped with the legacy `unheaded` database on 2026-10-15.
 
 ## Unsigned
