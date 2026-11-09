@@ -479,8 +479,10 @@ findings:
     plan: >-
       Not fixed in S-WIRE-HONEST: ADR-125 lists the four and sets the order, and a default for one of them is a new
       rule. Moving run_checks changes hop_xdp's verified count and needs a root test run. Found by Step 125's security
-      read. 2026-11-07: enforce is refused in the writer, `unheaded hop mode`;
-      hop_xdp itself honours whatever key 4 holds, and making the object refuse needs the same root run.
+      read. 2026-11-07: enforce is refused in the writer, `unheaded hop mode`. 2026-11-09: the object refuses too;
+      built without the `hop-enforce` cargo feature, as every package builds it, hop_xdp runs key 4 = 2 as observe
+      and counts STATS 18 (ADR-125). Only the tests/hopchecks lab object is built with it; the proof is a root run of
+      tests/hopchecks, attended.
 
   - id: FND-035
     title: >-
@@ -493,8 +495,9 @@ findings:
     opened: 2026-11-04
     exposure: >-
       Shield leaves both service ids at 0 and stamps ring 1, so all its packets share flow 0, namespace 1 (ADR-125 says
-      so). No remote packet can trigger it: rules need root on the pins, and `unheaded hop mode` refuses enforce while
-      this entry is open. The risk once enforce is allowed is a
+      so). No remote packet can trigger it: rules need root on the pins, `unheaded hop mode` refuses enforce while
+      this entry is open, and the packaged hop_xdp (built without `hop-enforce`) runs enforce as observe since
+      2026-11-09. The risk once enforce is allowed is a
       ttl lapsing unattended, since nothing renews an entry and `hop rules apply` cannot see the mode. Nothing loads
       hop-ebpf in production.
     lockout: none

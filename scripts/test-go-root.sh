@@ -24,11 +24,16 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-OBJ_DIR="${EBPF_LOAD_TARGET_DIR:-${REPO_ROOT}/ebpf/target/load-gate}/default/bpfel-unknown-none/release"
-if [[ ! -f "${OBJ_DIR}/hop-ebpf" ]]; then
-    echo "== no eBPF objects under ${OBJ_DIR}; building them with check-ebpf-loads.sh"
-    if ! "${REPO_ROOT}/scripts/check-ebpf-loads.sh" >/dev/null 2>&1 || [[ ! -f "${OBJ_DIR}/hop-ebpf" ]]; then
-        echo "[FAIL] check-ebpf-loads.sh did not leave objects under ${OBJ_DIR}" >&2
+LOAD_GATE="${EBPF_LOAD_TARGET_DIR:-${REPO_ROOT}/ebpf/target/load-gate}"
+OBJ_DIR="${LOAD_GATE}/default/bpfel-unknown-none/release"
+# tests/hopchecks' enforce rows need the hop-enforce build (ADR-125): the
+# default object refuses enforce.
+HOP_ENFORCE_OBJ="${LOAD_GATE}/hop-enforce/bpfel-unknown-none/release/hop-ebpf"
+if [[ ! -f "${OBJ_DIR}/hop-ebpf" || ! -f "${HOP_ENFORCE_OBJ}" ]]; then
+    echo "== no eBPF objects under ${LOAD_GATE}; building them with check-ebpf-loads.sh"
+    if ! "${REPO_ROOT}/scripts/check-ebpf-loads.sh" >/dev/null 2>&1 ||
+        [[ ! -f "${OBJ_DIR}/hop-ebpf" || ! -f "${HOP_ENFORCE_OBJ}" ]]; then
+        echo "[FAIL] check-ebpf-loads.sh did not leave objects under ${LOAD_GATE}" >&2
         exit 1
     fi
 fi
@@ -112,6 +117,7 @@ for pkg in "${PKGS[@]}"; do
     (cd "$pkg" && "${SUDO[@]}" env \
         "CARTRIDGE_OBJ=${OBJ_DIR}/cartridge-ebpf" \
         "HOP_OBJ=${OBJ_DIR}/hop-ebpf" \
+        "HOP_ENFORCE_OBJ=${HOP_ENFORCE_OBJ}" \
         "CART_BIN=${REPO_ROOT}/crates/upc-cartridge/target/release/cart" \
         "HEIMDALL_BPF_DIR=${REPO_ROOT}/crates/heimdall-bpf/target/bpfel-unknown-none/release" \
         "$bin" -test.count=1 -test.v -test.timeout 300s) >"$log" 2>&1 || rc=$?

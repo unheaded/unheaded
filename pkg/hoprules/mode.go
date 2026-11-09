@@ -28,8 +28,10 @@ const (
 // EnforceBlockers are the register entries enforce waits for. Stevie
 // 2026-11-06: enforce is refused until they close, because the severity of each
 // rises the moment enforce is on. A test holds this list to the register, and
-// another fails on a second writer in the tree. hop_xdp has no refusal of its
-// own: it honours what key 4 holds, so this one covers the writers we ship.
+// another fails on a second writer in the tree. Since 2026-11-09 hop_xdp
+// refuses too: built without the hop-enforce feature, as every package builds
+// it, the object runs key 4 = 2 as observe and counts it in STATS 18, so root
+// writing the pin directly gets no drops either (ADR-125).
 var EnforceBlockers = []string{"FND-031", "FND-033", "FND-035"}
 
 // ErrEnforceRefused is SetMode's answer while EnforceBlockers holds an entry.
@@ -56,7 +58,8 @@ func SetMode(w MapWriter, m CheckMode) error {
 
 func setMode(w MapWriter, m CheckMode, blockers []string) error {
 	if m == ModeEnforce && len(blockers) > 0 {
-		return fmt.Errorf("%w: open until %s close", ErrEnforceRefused, strings.Join(blockers, ", "))
+		return fmt.Errorf("%w: open until %s close; the packaged hop_xdp refuses it too (built without hop-enforce, it runs enforce as observe)",
+			ErrEnforceRefused, strings.Join(blockers, ", "))
 	}
 	key := binary.LittleEndian.AppendUint32(nil, configKeyCheck)
 	value := binary.LittleEndian.AppendUint64(nil, uint64(m))

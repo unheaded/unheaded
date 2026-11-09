@@ -29,8 +29,9 @@
 // key: this proves nothing about where a packet came from (ADR-125, FND-031).
 //
 // Writing rules does not turn them on: CONFIG key 4 does. SetMode is the one
-// writer in the tree, and it refuses enforce until EnforceBlockers is empty; the
-// refusal lives there, because hop_xdp honours whatever the key holds. Shield
+// writer in the tree, and it refuses enforce until EnforceBlockers is empty.
+// hop_xdp refuses too unless it was built with the hop-enforce feature, which
+// only the lab test object is: the packaged object runs 2 as observe. Shield
 // leaves both service ids at 0, so every Shield-born packet is flow 0, namespace
 // 1: in enforce mode, a require_hmac or require_retry
 // validator on that namespace drops them all once flow 0's entry is missing or

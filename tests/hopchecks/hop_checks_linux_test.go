@@ -7,6 +7,12 @@
 // BPF_PROG_TEST_RUN: a real object, loaded by the kernel, run on a real Monad
 // frame. Nothing here attaches to an interface.
 //
+// Two objects: the default build, which every package ships and which refuses
+// enforce (key 4 = 2 runs as observe), and the hop-enforce build, the only one
+// that drops. Enforce rows run on the second; TestDefaultObjectRefusesEnforce
+// runs them all again on the first and wants no drop. scripts/check-ebpf-loads.sh
+// builds both (target/load-gate/default and target/load-gate/hop-enforce).
+//
 // Run as root: go test -c, then sudo the binary from this directory.
 package hopchecks
 
@@ -31,6 +37,7 @@ import (
 
 const (
 	defaultObj = "../../ebpf/target/load-gate/default/bpfel-unknown-none/release/hop-ebpf"
+	enforceObj = "../../ebpf/target/load-gate/hop-enforce/bpfel-unknown-none/release/hop-ebpf"
 
 	xdpDrop = 1
 	xdpPass = 2
@@ -41,6 +48,7 @@ const (
 	statChecksRun    = 15
 	statChecksFailed = 16
 	statChecksEnf    = 17
+	statChecksRefuse = 18 // enforce asked for and refused: the default object
 	modeAbsent       = -1
 	modeOff          = 0
 	modeObserve      = 1
@@ -76,6 +84,7 @@ type lab struct {
 	clock func() time.Duration
 }
 
+// objPath is the default build, the object every package ships.
 func objPath() string {
 	if p := os.Getenv("HOP_OBJ"); p != "" {
 		return p
@@ -83,14 +92,22 @@ func objPath() string {
 	return defaultObj
 }
 
-func newLab(t *testing.T) *lab {
+// enforceObjPath is the hop-enforce build, the one object that drops.
+func enforceObjPath() string {
+	if p := os.Getenv("HOP_ENFORCE_OBJ"); p != "" {
+		return p
+	}
+	return enforceObj
+}
+
+func newLab(t *testing.T, obj string) *lab {
 	t.Helper()
 	if os.Geteuid() != 0 {
 		t.Skip("needs root (CAP_BPF)")
 	}
-	coll, err := ebpf.LoadCollection(objPath())
+	coll, err := ebpf.LoadCollection(obj)
 	if err != nil {
-		t.Fatalf("load %s: %v", objPath(), err)
+		t.Fatalf("load %s: %v", obj, err)
 	}
 	t.Cleanup(coll.Close)
 	return &lab{t: t, coll: coll, clock: func() time.Duration {
@@ -232,13 +249,23 @@ type hopCase struct {
 	patch                 map[int]byte
 	verdict               uint32
 	run, failed, enforced uint64
+	refused               uint64
 }
 
-// check runs one frame through hop_xdp and asserts everything ADR-125 says
-// about it: the verdict, the three counters, the ANOMALY, and that a check
+// caseObj picks the object a row runs on: enforce rows need the hop-enforce
+// build, every other row runs on the default build.
+func caseObj(c hopCase) string {
+	if c.mode == modeEnforce {
+		return enforceObjPath()
+	}
+	return objPath()
+}
+
+// check runs one frame through hop_xdp in obj and asserts everything ADR-125
+// says about it: the verdict, the four counters, the ANOMALY, and that a check
 // wrote no wire field.
-func check(t *testing.T, c hopCase) {
-	l := newLab(t)
+func check(t *testing.T, obj string, c hopCase) {
+	l := newLab(t, obj)
 	if c.mode != modeAbsent {
 		l.config(cfgCheckMode, uint64(c.mode)) // #nosec G115 -- 0, 1 or 2
 	}
@@ -254,9 +281,9 @@ func check(t *testing.T, c hopCase) {
 	if verdict != c.verdict {
 		t.Errorf("verdict = %d, want %d", verdict, c.verdict)
 	}
-	got := [3]uint64{l.stat(statChecksRun), l.stat(statChecksFailed), l.stat(statChecksEnf)}
-	if want := [3]uint64{c.run, c.failed, c.enforced}; got != want {
-		t.Errorf("run/failed/enforced = %v, want %v", got, want)
+	got := [4]uint64{l.stat(statChecksRun), l.stat(statChecksFailed), l.stat(statChecksEnf), l.stat(statChecksRefuse)}
+	if want := [4]uint64{c.run, c.failed, c.enforced, c.refused}; got != want {
+		t.Errorf("run/failed/enforced/refused = %v, want %v", got, want)
 	}
 
 	// A failed check emits ANOMALY in observe and in enforce. A packet that
@@ -291,9 +318,9 @@ func denyAll() hoprules.Validator {
 	return hoprules.Validator{VersionMin: 2, VersionMax: 3, RequireHMAC: true, RequireCRC: true, MaxHopCount: 1}
 }
 
-// TestHopChecks is the plan's fourteen-row table (Step 85).
-func TestHopChecks(t *testing.T) {
-	cases := []hopCase{
+// hopTable is the plan's fourteen-row table (Step 85).
+func hopTable() []hopCase {
+	return []hopCase{
 		{name: "01_mode_absent_deny_validator_passes", mode: modeAbsent,
 			setup:   func(l *lab) { l.validator(0, 0, denyAll()) },
 			verdict: xdpPass},
@@ -352,15 +379,18 @@ func TestHopChecks(t *testing.T) {
 			setup:   func(l *lab) { l.validator(0, 2, denyAll()) },
 			verdict: xdpPass},
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) { check(t, c) })
+}
+
+func TestHopChecks(t *testing.T) {
+	for _, c := range hopTable() {
+		t.Run(c.name, func(t *testing.T) { check(t, caseObj(c), c) })
 	}
 }
 
-// TestHopCheckEdges holds what the table cannot catch: case 14 passes with a
+// edgeTable holds what the table cannot catch: case 14 passes with a
 // hard-coded namespace, and every row runs at hop 0 with one boundary each.
-func TestHopCheckEdges(t *testing.T) {
-	cases := []hopCase{
+func edgeTable() []hopCase {
+	return []hopCase{
 		{name: "ring_keys_the_validator", mode: modeEnforce,
 			setup:   func(l *lab) { l.validator(0, 2, denyAll()) },
 			patch:   map[int]byte{offRing: 2},
@@ -422,7 +452,29 @@ func TestHopCheckEdges(t *testing.T) {
 			setup:   func(l *lab) { l.validator(0, 0, denyAll()) },
 			verdict: xdpPass},
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) { check(t, c) })
+}
+
+func TestHopCheckEdges(t *testing.T) {
+	for _, c := range edgeTable() {
+		t.Run(c.name, func(t *testing.T) { check(t, caseObj(c), c) })
+	}
+}
+
+// TestDefaultObjectRefusesEnforce runs every enforce row of both tables on the
+// default build, where key 4 = 2 is observe: each check still runs, counts and
+// emits ANOMALY, nothing drops, checks_enforced stays 0, and a failed check
+// counts in STATS 18 instead (ADR-125, 2026-11-09; FND-031, FND-033, FND-035).
+func TestDefaultObjectRefusesEnforce(t *testing.T) {
+	n := 0
+	for _, c := range append(hopTable(), edgeTable()...) {
+		if c.mode != modeEnforce {
+			continue
+		}
+		n++
+		c.verdict, c.enforced, c.refused = xdpPass, 0, c.failed
+		t.Run(c.name, func(t *testing.T) { check(t, objPath(), c) })
+	}
+	if n == 0 {
+		t.Fatal("no enforce rows to run on the default object")
 	}
 }

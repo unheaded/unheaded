@@ -64,6 +64,10 @@ var retiredClaims = []struct{ file, claim string }{
 	// Key 4 has one writer in the tree; the object itself does not refuse.
 	{"pkg/hoprules/hoprules.go", "only SetMode\n// writes it"},
 	{"pkg/hoprules/hoprules.go", "and only SetMode"},
+	// 2026-11-09: hop_xdp refuses enforce unless built with hop-enforce, so
+	// "the object honours whatever key 4 holds" is no longer true of what ships.
+	{"docs/adr/ADR-125-hop-checks.md", "The refusal is in that writer, not in `hop_xdp`"},
+	{"compliance/findings/register.yaml", "hop_xdp itself honours whatever key 4 holds"},
 }
 
 // Documents that state a rule or an old result keep their text and say so up
@@ -93,8 +97,8 @@ var requiredNotes = []struct{ file, note string }{
 	{"compliance/policies/single-operator-posture.md", "`sign-attestation.sh` checks the git identity and that signing works"},
 	{"scripts/compliance/sign-attestation.sh", "so an agent session passes it too (FND-038)"},
 	{"docs/adr/ADR-125-hop-checks.md", "**Scope.** Enforce covers the packets that reach the checks. Four classes do not"},
-	{"docs/adr/ADR-125-hop-checks.md", "The refusal is in that writer, not in `hop_xdp`"},
-	{"compliance/findings/register.yaml", "hop_xdp itself honours whatever key 4 holds"},
+	{"docs/adr/ADR-125-hop-checks.md", "the object refuses enforce unless built with `hop-enforce`"},
+	{"compliance/findings/register.yaml", "2026-11-09: the object refuses too"},
 	{"sbom-results/SBOM-CONSOLIDATED.md", "**Superseded by `sbom/SBOM.md`.**"},
 	{"sbom-results/SBOM-SUMMARY.md", "**Superseded by `sbom/SBOM.md`.**"},
 	{"sbom-results/COMPLIANCE_GATE.md", "**Superseded by `sbom/SBOM.md`.**"},

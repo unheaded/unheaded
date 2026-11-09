@@ -10,7 +10,8 @@
 //! 2. Verify CRC-16/CCITT — emit ANOMALY on failure, pass without mutation
 //! 3. Skip if CHAOS flag is set (Yaldabaoth owns that packet)
 //! 4. Enforce hop limit (emit ANOMALY, pass — routing is broken, not our call)
-//!    4b. ADR-125 hop checks: off unless CONFIG key 4 says observe or enforce
+//!    4b. ADR-125 hop checks: off unless CONFIG key 4 says observe or enforce;
+//!        enforce drops only in a `hop-enforce` build, else it runs as observe
 //! 5. Increment Hop Count (saturating)
 //! 6. Sophia dictionary lookups for QoS, circuit state, service routing
 //! 7. Circuit breaker enforcement via CIRCUIT_ERRORS map
@@ -180,6 +181,7 @@ const STAT_ACTION_MIRROR: u32 = 14;
 const STAT_CHECKS_RUN: u32 = 15;
 const STAT_CHECKS_FAILED: u32 = 16;
 const STAT_CHECKS_ENFORCED: u32 = 17;
+const STAT_CHECKS_ENFORCE_REFUSED: u32 = 18;
 const STAT_SETTINGS_REJECTED: u32 = 20;
 const STAT_DOS_ECN_SET: u32 = 21;
 const STAT_DOS_DROPPED: u32 = 22;
@@ -199,6 +201,11 @@ const CFG_CHECK_MODE: u32 = 4;
 // Anything else, 0 included, is off.
 const CHECK_MODE_OBSERVE: u64 = 1;
 const CHECK_MODE_ENFORCE: u64 = 2;
+
+/// Whether enforce may drop. Only a `hop-enforce` build: the object refuses
+/// enforce until FND-031, FND-033 and FND-035 close (ADR-125, 2026-11-09), so
+/// root writing key 4 = 2 on the pins gets observe and STATS 18, not drops.
+const ENFORCE_BUILT: bool = cfg!(feature = "hop-enforce");
 
 /// `HopValidator::flags` bit 0: a live RETRY_TOKENS entry is required.
 const VALIDATOR_FLAG_RETRY: u32 = 0x01;
@@ -532,7 +539,8 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 
 // ── Hop checks (ADR-125) ──────────────────────────────────────────────────────
 
-/// Run this hop's validator, if it has one. Returns `true` to drop the packet.
+/// Run this hop's validator, if it has one. Returns `true` to drop the packet,
+/// which only a `hop-enforce` build ever does.
 ///
 /// This is an authorization check on hop-local state: it does not prove where
 /// a packet came from (ADR-125, "What this is not"; FND-031).
@@ -554,6 +562,10 @@ fn run_checks(monad: &Monad, src: &[u8; 16], flow_label: u32) -> bool {
     increment_stat(STAT_CHECKS_FAILED);
     emit_event(EventType::Anomaly as u8, hop_id as u8, flow_label, monad);
     if mode != CHECK_MODE_ENFORCE {
+        return false;
+    }
+    if !ENFORCE_BUILT {
+        increment_stat(STAT_CHECKS_ENFORCE_REFUSED);
         return false;
     }
     increment_stat(STAT_CHECKS_ENFORCED);

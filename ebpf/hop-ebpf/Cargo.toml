@@ -9,6 +9,14 @@ publish.workspace   = true
 name              = "hop-ebpf"
 path              = "src/main.rs"
 
+[features]
+default = []
+# hop-enforce: CONFIG key 4 = 2 drops a packet that fails a check. Without it
+# the object treats 2 as observe and counts the refusal (STATS 18). Off in every
+# packaged object until FND-031, FND-033 and FND-035 close; only the lab test
+# object (scripts/check-ebpf-loads.sh, tests/hopchecks) is built with it.
+hop-enforce = []
+
 [dependencies]
 aya-ebpf.workspace     = true
 monad-common.workspace = true

@@ -22,7 +22,7 @@ Workspace members of `ebpf/Cargo.toml` (GPL-2.0-only):
 | `latency-probe` | kprobe / kretprobe | TCP latency (RTT) |
 | `syscall-tracer` | raw tracepoint | Syscall auditing |
 | `shield-ebpf` | XDP + TC | Protocol Shield: Monad stamp/validate at the boundary |
-| `hop-ebpf` | XDP | Per-hop Monad processing; validator, key and retry checks, off by default (ADR-125) |
+| `hop-ebpf` | XDP | Per-hop Monad processing; validator, key and retry checks, off by default; enforce runs as observe unless built with `hop-enforce`, which only the test object is (ADR-125) |
 | `yaldabaoth-ebpf` | TC egress | Chaos: corrupt, delay, duplicate or truncate registered flows |
 | `monad-cpu-ebpf` | XDP | The UPC: MBC interpreter (Doom, xv6) |
 | `firewall-ebpf`, `maglev-ebpf`, `canary-ebpf`, `qos-ebpf`, `failover-ebpf`, `compliance-ebpf`, `nfv-ebpf`, `version-ebpf`, `anomaly-ebpf` | XDP | Monad CPU applications (apps 03-12) |
@@ -65,7 +65,7 @@ Three gates, all on west (they need root to load programs):
 
 | Gate | What it proves |
 |---|---|
-| `scripts/check-ebpf-loads.sh` | every program (and feature variant: `monad-cpu-ebpf[ascend-linux]`, `shield-ebpf[debug-stats]`) passes the kernel verifier; `docs/policy/ebpf-load-known-failing.txt` may only shrink (empty since 2026-09-25) |
+| `scripts/check-ebpf-loads.sh` | every program (and feature variant: `monad-cpu-ebpf[ascend-linux]`, `shield-ebpf[debug-stats]`, `hop-ebpf[hop-enforce]`) passes the kernel verifier; `docs/policy/ebpf-load-known-failing.txt` may only shrink (empty since 2026-09-25) |
 | `scripts/check-ebpf-insns.sh` | ADR-012's budget, with the kernel's own counts: no program grows more than 10 % over `docs/policy/ebpf-insns-baseline.tsv`, none exceeds 900,000 unless listed in `docs/policy/ebpf-insns-over-budget.txt` (ascend at 926,542, shrink-only); `--update` re-seeds after a reviewed change |
 | `scripts/upc-regression.sh` | the UPC corpus (xv6, Doom, cartridges) still boots, with its verifier numbers |
 
