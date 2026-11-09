@@ -70,6 +70,7 @@ jobs:
           file: ./Dockerfile
           target: wotan
           load: true
+          build-args: VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/wotan:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=wotan
@@ -113,6 +114,7 @@ jobs:
           file: ./Dockerfile
           target: wotan
           push: true
+          build-args: VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=wotan
@@ -160,6 +162,7 @@ jobs:
           file: ./Dockerfile
           target: kanban-app
           load: true
+          build-args: VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/kanban:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=kanban
@@ -203,6 +206,7 @@ jobs:
           file: ./Dockerfile
           target: kanban-app
           push: true
+          build-args: VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=kanban

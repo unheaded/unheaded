@@ -27,53 +27,52 @@ RUN go mod download || true
 COPY . .
 RUN go mod tidy -e 2>/dev/null || true
 
-# Build arguments for version injection
+# Version for --version (ADR-111: every binary reads pkg/cmdline.Version).
+# docker.yml passes the tag on a release and the commit otherwise.
 ARG VERSION=dev
-ARG GIT_COMMIT=unknown
-ARG BUILD_TIME=unknown
 
 # Build all services: one RUN, one layer (every build depends on the COPY above).
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/wotan ./services/wotan/cmd/wotan && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/timeguru ./services/timeguru/cmd/timeguru && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/captain ./services/captain/cmd/captain && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/architect ./services/architect/cmd/architect && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/micromanager ./services/micromanager/cmd/micromanager && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/unheaded-daemon ./cmd/unheaded-daemon && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/monad ./cmd/monad && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/sophia ./cmd/sophia && \
     CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME}" \
     -o /build/bin/dashboard-backend ./cmd/dashboard-backend && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/kanban-app ./cmd/kanban-app && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/akira ./cmd/akira && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/kev-poller ./cmd/kev-poller && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/sword ./cmd/sword && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/unheaded-auth ./cmd/unheaded-auth && \
     CGO_ENABLED=0 GOOS=linux go build \
     -o /build/bin/healthprobe ./cmd/healthprobe
